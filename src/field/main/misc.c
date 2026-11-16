@@ -283,7 +283,7 @@ typedef struct { s32 value; } FieldScriptGlobalS32;
 typedef struct { u8 value; } FieldScriptGlobalU8;
 
 extern FieldScriptGlobalS32 D_800ADBDC;
-extern int D_800ADB2C;
+extern int g_FieldArchiveStreamActive;
 extern s32 g_GameWdsBankLoadState;
 extern s32 g_FieldTransitionBusyFlag;
 extern s32 D_800ADBE8;
@@ -296,7 +296,7 @@ extern u8 D_80050621;
 extern void func_800379B4(int);
 
 void FieldScriptSetTransitionParams(void) {
-    if (D_800ADBDC.value == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1) {
+    if (D_800ADBDC.value == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1) {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
         g_FieldScriptVMStopFlag = 1;
     } else {
@@ -396,7 +396,7 @@ void FieldScriptSetGameState17FC38(void) {
 }
 
 extern FieldScriptGlobalU8 D_800B2355;
-extern FieldScriptGlobalU8 D_800B2356;
+extern FieldScriptGlobalU8 g_FieldScriptSoundEffectBank;
 
 void FieldScriptSetByte2355Or2356(void) {
     int value = FieldScriptVMGetArgument(2);
@@ -404,7 +404,7 @@ void FieldScriptSetByte2355Or2356(void) {
     if (SCRIPT_READ_U8_REL(1) == 0) {
         D_800B2355.value = value;
     } else {
-        D_800B2356.value = value;
+        g_FieldScriptSoundEffectBank.value = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
@@ -562,7 +562,7 @@ void FieldScriptSetCharacterBit2318(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-extern FieldScriptGlobalS16 D_800B236C;
+extern FieldScriptGlobalS16 g_FieldScriptShopIndex;
 
 // 100.0% under gcc 2.6.0-psx, 78.75% under this unit's 2.7.2: it needs a
 // per-file preset, and this unit cannot be split yet - it declares several names
@@ -573,7 +573,7 @@ void func_8008848C(void) {
     int value = SCRIPT_READ_U8_REL(1);
 
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-    D_800B236C.value = value ^ 1;
+    g_FieldScriptShopIndex.value = value ^ 1;
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008848C);
@@ -1137,10 +1137,10 @@ void FieldWaitForArchiveSync(void) {
 extern int ArchiveDataSync(void);
 extern void ArchiveCdDataSync(int mode);
 
-extern int D_800ADB2C;
+extern int g_FieldArchiveStreamActive;
 
 int FieldArchiveTryDataSync(void) {
-    if (D_800ADB2C != 0) {
+    if (g_FieldArchiveStreamActive != 0) {
         return -1;
     }
     if (ArchiveDataSync() != 0) {
@@ -1372,7 +1372,7 @@ void FieldScriptLoadSpecialAnimArchive(void) {
     int bufferSize;
     void* pBuffer;
 
-    if (g_FieldSpecialAnimLoadPending == 0 && D_800ADB2C == 0) {
+    if (g_FieldSpecialAnimLoadPending == 0 && g_FieldArchiveStreamActive == 0) {
         if (FieldArchiveTryDataSync() != 0) {
             g_FieldScriptVMStopFlag = 1;
             g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
@@ -1663,7 +1663,7 @@ void FieldScriptAddPartyMember(void) {
     int characterId;
     int partyIndex;
 
-    if (D_800ADBC4 == CHARACTER_ID_NONE && D_800ADB2C == 0 && FieldArchiveTryDataSync() == 0) {
+    if (D_800ADBC4 == CHARACTER_ID_NONE && g_FieldArchiveStreamActive == 0 && FieldArchiveTryDataSync() == 0) {
         ArchiveCdDataSync(0);
         characterId = FieldScriptVMGetArgument(1);
         if (characterId != CHARACTER_ID_NONE) {
@@ -1697,7 +1697,7 @@ void FieldScriptAddPartyMemberShort(void) {
     int partyIndex;
     u8 characterId;
 
-    if (D_800ADBC4 == CHARACTER_ID_NONE && D_800ADB2C == 0 && FieldArchiveTryDataSync() == 0) {
+    if (D_800ADBC4 == CHARACTER_ID_NONE && g_FieldArchiveStreamActive == 0 && FieldArchiveTryDataSync() == 0) {
         ArchiveCdDataSync(0);
         if (FieldPartyAllocSlot(SCRIPT_READ_U8_REL(1), &partyIndex) == 0) {
             g_pGameState->gearRide[partyIndex] = 0;
@@ -2647,12 +2647,12 @@ extern s16 D_800C3A2E;
 extern u16 D_800C3A30;
 extern u16 D_800C3A32;
 extern u16 D_800C3A34;
-extern u16 D_800C3A36;
+extern u16 g_FieldStreamRgb24;
 extern u16 g_FieldStreamId;
 extern u16 D_800C3A3A;
-extern s32 D_800ADB70;
+extern s32 g_FieldStreamSceneActive;
 extern s32 g_FieldMode;
-extern s32 D_800ADB80;
+extern s32 g_FieldStreamFlags;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 /*
@@ -2678,8 +2678,8 @@ void func_8008EA58(void) {
         D_800C3A2E = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
         g_FieldStreamId = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xB));
         D_800C3A32 = 0x140;
-        D_800ADB80 = 0x40;
-        D_800C3A36 = 1;
+        g_FieldStreamFlags = 0x40;
+        g_FieldStreamRgb24 = 1;
         D_800C3A30 &= 0xF;
         D_800C3A34 = 0x100;
         D_800C3A26 = 0;
@@ -2688,7 +2688,7 @@ void func_8008EA58(void) {
         D_800C3A28 = 0x100;
         D_800C3A3A = 0;
         g_FieldMode = 0;
-        D_800ADB70 = 1;
+        g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 0xC;
     }
@@ -2699,13 +2699,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 // 79.22%: everything up to the last four stores matches. The original's
 // post-reload scheduler emits them as [lhu D_800C3A30][lw g_FieldScriptVMCurActor]
-// [sh D_800C3A36][andi/sh D_800C3A30][lhu ip][li 1][sw D_800ADB70][addiu/sh ip];
-// ours puts the D_800ADB70 store before the actor load and the ip load after it.
+// [sh g_FieldStreamRgb24][andi/sh D_800C3A30][lhu ip][li 1][sw g_FieldStreamSceneActive][addiu/sh ip];
+// ours puts the g_FieldStreamSceneActive store before the actor load and the ip load after it.
 // preset screen: 2.7.2 79.22%, cdk 79.22%, 2.6.0 79.22% - no compiler
 // fixes it.
 // 81.16%: the whole body matches except the order of the last block. Retail
-// emits [lhu D_800C3A30][lw actor][sh D_800C3A36][andi/sh D_800C3A30]
-// [lhu ip][li 1][sw D_800ADB70][addiu/sh ip]; ours hoists the D_800ADB70 store
+// emits [lhu D_800C3A30][lw actor][sh g_FieldStreamRgb24][andi/sh D_800C3A30]
+// [lhu ip][li 1][sw g_FieldStreamSceneActive][addiu/sh ip]; ours hoists the g_FieldStreamSceneActive store
 // above the lhu and the ip lhu above the andi. All 24 statement orders of the
 // last four stores compile to the same schedule, and marking the globals
 // `volatile` keeps the order but loses every `li` in a jal delay slot (360
@@ -2736,12 +2736,12 @@ void func_8008EE14(void) {
     D_800C3A28 = pos;
     D_800C3A32 = FieldScriptVMGetArgument(0xF);
     D_800C3A34 = FieldScriptVMGetArgument(0x11);
-    D_800ADB80 = value & 0x40;
+    g_FieldStreamFlags = value & 0x40;
     g_FieldStreamId = 0xFF;
     g_FieldMode = 2;
     D_800C3A30 &= 0xF;
-    D_800C3A36 = 0;
-    D_800ADB70 = 1;
+    g_FieldStreamRgb24 = 0;
+    g_FieldStreamSceneActive = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x13;
 }
 */
@@ -2812,10 +2812,10 @@ void FieldScriptSetCurrentActorColors(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }
 
-extern void func_80023290(void*, int);
+extern void SpriteSetDirectionAndRefreshFrames(void*, int);
 
 void FieldScriptSetSpriteDirection(void) {
-    func_80023290(g_FieldActors[g_FieldCurActorIndex].pSpriteData, FieldScriptVMGetArgument(1));
+    SpriteSetDirectionAndRefreshFrames(g_FieldActors[g_FieldCurActorIndex].pSpriteData, FieldScriptVMGetArgument(1));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 

@@ -38,9 +38,9 @@
 #define MENU_SELL_EQUIPMENT_CONTINUE 0x2
 
 // Debug-related?
-extern s32* D_8005917C;
+extern s32* g_DebuggerState;
 
-extern u32* D_8005945C; // Pointer to the overlay's resources file
+extern u32* g_MenuResourcesFile; // Pointer to the overlay's resources file
 // .rodata: `const` matters - a non-const array lands in .data and leaves the
 // switch jump tables as the only .rodata, which shifts the whole unit.
 const u8 g_StrGameSerial[0x10] = {0x42, 0x49, 0x53, 0x4C, 0x50, 0x53, 0x2D, 0x30,
@@ -67,7 +67,7 @@ extern s32 g_ShopModeMenuStringOffsets[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 
-extern u_char D_801D2018[]; // String IDs of the shop menu strings
+extern u_char g_ShopMenuStringIds[]; // String IDs of the shop menu strings
 extern int g_ShopSubmenuTextureIds[]; // Cursor textures, 4 per submenu
 extern int D_801D1F70[]; // Text textures, 4 per submenu
 
@@ -264,7 +264,7 @@ void ShopMenuLoadResources(void) {
     int i;
     u8 *pData;
 
-    pFileHandle = D_8005945C;
+    pFileHandle = g_MenuResourcesFile;
     ResolveArchiveEntryPointers(pFileHandle);
     pData = LZSSHeapDecompress((void *)pFileHandle[1], 1);
     OpenTIM((void *)pData);
@@ -493,7 +493,7 @@ void ShopMenuLoadWhiteVramRow(void) {
 void func_801C5EE8(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    ShopMenuRenderStringsToVram(g_Menu->unk4E0, D_801D2018, 0, 4);
+    ShopMenuRenderStringsToVram(g_Menu->unk4E0, g_ShopMenuStringIds, 0, 4);
     ShopMenuLoadWhiteVramRow();
 }
 
@@ -2057,7 +2057,7 @@ void ShopMenuUpdateAndRender(void) {
     int renderContext;
 
     // Debugging
-    if (*D_8005917C != -1) {
+    if (*g_DebuggerState != -1) {
         asm("break 0x400");
     }
 

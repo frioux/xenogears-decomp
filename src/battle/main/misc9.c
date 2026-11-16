@@ -33,10 +33,10 @@ extern BattleOpRegs g_BattleSlotRegs[];
 extern BattleSlotRecord g_BattleSlotRecords[];
 extern BattleSlotFlag g_BattleSlotFlags[];
 extern u32 D_800D2C60[];
-extern u8 D_800D2C8B[];
+extern u8 g_BattleRowStatValues[];
 extern u8 g_BattlePendingCharIndex;
 extern u8 *g_BattlePrimPool;
-extern u8 *D_800D3364;
+extern u8 *g_BattleSlotParamTable;
 extern u8 D_800D3410[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
@@ -297,7 +297,7 @@ void BattleSetSlotRecordByteAndRelease(BattleCommand **ppCmd, s32 arg1) {
     if ((*ppCmd)->unk1 & 0x80) {
         func_80087EDC((u8)(arg1 + 3), (u8)(arg1 + 3));
     } else {
-        func_800883AC((u8)(arg1 + 3));
+        BattleReleaseCharSlot((u8)(arg1 + 3));
     }
 }
 void BattleWordRegSetSlotBitMask(BattleCommand **ppCmd, s32 arg1) {
@@ -436,7 +436,7 @@ void func_8007E554(u8 **arg0, u8 arg1) {
 } */
 void BattleClearSlotDwordAndSetStat4(u8 arg0) {
     D_800D2C60[arg0] = 0;
-    D_800D2C8B[arg0] = 4;
+    g_BattleRowStatValues[arg0] = 4;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
 /* best: 99.00%. Identical instruction multiset and order; the only difference
@@ -534,7 +534,7 @@ void func_8007E8AC(u8 **arg0) {
     u8 *p = *arg0;
     s32 idx = p[2] * 8 + p[1] * 0x40;
 
-    D_800D3364[(u32)(idx + 0x140)] = p[3];
+    g_BattleSlotParamTable[(u32)(idx + 0x140)] = p[3];
 }
 void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
     u16 *pRegs = g_BattleSlotRegs[arg1].unk20;

@@ -14,7 +14,7 @@ extern s32 g_BattlePendingCommand;
 extern s32 g_BattleWaitFrameCounter;
 extern s32 g_BattleTimerTask;
 extern u8 g_FlagTimerWorkListAdds;
-extern u8 D_8006BE10[];
+extern u8 g_SpriteAnimPackageDirs5[];
 
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
@@ -324,14 +324,14 @@ void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
     func_800BFC80(arg0, arg1, 1);
 }
 
-// 95.75%: everything matches except the D_8006BE10+0x10 load. Retail's ASPSX emits
+// 95.75%: everything matches except the g_SpriteAnimPackageDirs5+0x10 load. Retail's ASPSX emits
 // lui/addiu/%lo(sym) then lw 16; gcc folds the address into the load
 // (lui %hi + lw 16(%hi_reg)), one instruction shorter - no C shape materialises it.
 // Hoisting the func_80023B84 argument into pEntry (permuter, score 177 -> 20) took it
-// from 90.75 to 95.75. A permuter variant reached 99.50 by 'pActor = &D_8006BE10[0]'
+// from 90.75 to 95.75. A permuter variant reached 99.50 by 'pActor = &g_SpriteAnimPackageDirs5[0]'
 // so the table address lands in s2 and the 0x74 store writes the table instead of the
 // actor: same byte encodings, wrong code - do not un-park it as a match. Also tried:
-// (s32)D_8006BE10 + 0x10 (folds the same way), decl order swaps.
+// (s32)g_SpriteAnimPackageDirs5 + 0x10 (folds the same way), decl order swaps.
 /*
 void func_800BFDA8(u8 *pActor, s32 arg1) {
     u8 *pBase;
@@ -347,7 +347,7 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
     if (func_800BFC80(pActor, arg1, 0) != 0) {
         return;
     }
-    pTable = &D_8006BE10[0];
+    pTable = &g_SpriteAnimPackageDirs5[0];
     pBase = *(u8 **)(pTable + 0x10);
     pEntry = (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase);
     saved = g_FlagTimerWorkListAdds;

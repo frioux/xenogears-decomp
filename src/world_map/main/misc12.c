@@ -9,7 +9,7 @@ extern s16 g_WorldMapPathFrame;
 extern s16 D_8009BD44;
 extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE30;
-extern s32 D_8009D560;
+extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 D_8009B214[];
 extern u16 D_1F8000A8;
@@ -32,7 +32,7 @@ extern u16 D_8009CD4C;
 extern s32 D_8009CEC0;
 extern s32 D_8009C7E8;
 extern s32 D_8009BD34;
-extern s32 D_8009BE0C;
+extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapMode;
 extern s32 D_8009C5A8;
 extern s32 g_WorldMapPlayerPosition;
@@ -41,11 +41,11 @@ extern s32 D_8009C5B4;
 extern s32 g_WorldMapPlayerRotation;
 extern s32 D_8009C170;
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
-extern s32 D_8009D3F0;
+extern s32 g_WorldMapCameraHeight;
 extern s16 g_WorldMapCameraRot;
 extern s16 D_8009BD3C;
 extern u16 D_8009D52C;
-extern u32 D_8009D55C[];
+extern u32 g_WorldMapScrollTargetX[];
 extern u32 D_8009B224[];
 extern u32 D_8009B22C[];
 extern u32 D_8009B234[];
@@ -97,10 +97,10 @@ typedef struct {
 
 typedef struct {
     /* 0x000 */ WorldMapRot entry[4];
-} WorldMapSource; // Size: 0x150, the entry table at D_8009C620 has stride 0x54
+} WorldMapSource; // Size: 0x150, the entry table at g_WorldMapGroups has stride 0x54
 
-extern WorldMapPlayer *D_8009BE24;
-extern WorldMapSource *D_8009C620;
+extern WorldMapPlayer *g_WorldMapSlots;
+extern WorldMapSource *g_WorldMapGroups;
 
 typedef struct {
     /* 0x0 */ u32 w[4];
@@ -172,7 +172,7 @@ s32 func_8008E190(s32 idx) {
     s32 nRet;
     u16 nAngle;
 
-    pPlayer = D_8009BE24 + idx;
+    pPlayer = g_WorldMapSlots + idx;
     WorldMapGetGameStatePosition(&pPlayer->unk28);
     pPlayer->unk24 = 0;
     nRet = 1;
@@ -218,11 +218,11 @@ s32 func_8008E190(s32 idx) {
         pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30) + 0xFFFC0000;
         pPlayer->unk48 = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
-        *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
+        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
         nAngle = pPlayer->unk48;
-        D_8009C620->entry[3].unk0 = 1;
-        D_8009C620->entry[2].unk0 = 1;
-        D_8009C620->entry[1].unk0 = 1;
+        g_WorldMapGroups->entry[3].unk0 = 1;
+        g_WorldMapGroups->entry[2].unk0 = 1;
+        g_WorldMapGroups->entry[1].unk0 = 1;
         D_8009D52C = nAngle;
         break;
     case 7:
@@ -232,17 +232,17 @@ s32 func_8008E190(s32 idx) {
         pPlayer->unk48 = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
         pPlayer->unk2C = D_8009C5B0;
-        *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
+        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
         D_8009D52C = pPlayer->unk48;
         break;
     }
-    *(Quad *)D_8009C620->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
-    D_8009C620->entry[0].unk0 = pPlayer->unk24;
+    *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
     *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
     *(s16 *)(pScratch + 0xA4) = D_8009BD3C;
     *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[0].matrix);
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[1].matrix);
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
     WorldMapSetGameStatePosition(&pPlayer->unk28);
     g_GameState.unk1832 = pPlayer->unk48;
     switch (D_8009C5A8) {
@@ -268,7 +268,7 @@ s32 func_8008E190(s32 idx) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
 /* best: 96.21%, 396 bytes = retail's exact size, every instruction and relocation
    right except the switch table operand (jtbl_80070A30 vs .rodata) and the position of
-   the D_8009C620 load in the scratchpad tail: retail emits `lui a1,%hi / lw a1` BEFORE
+   the g_WorldMapGroups load in the scratchpad tail: retail emits `lui a1,%hi / lw a1` BEFORE
    the three `sh` stores and loads D_8009BD3C after `sh 0xA0`, this body emits the
    pointer load last and hoists D_8009BD3C to the top of the block. Tried: x/z/y store
    order (93.59), x/y/z (93.59), a MATRIX *pMat local for the first RotMatrixYXZ
@@ -282,9 +282,9 @@ s32 func_8008E4F4(s32 idx) {
     u8 *pScratch;
     s32 nRet;
 
-    pPlayer = D_8009BE24 + idx;
-    *(Quad *)D_8009C620->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
-    D_8009C620->entry[0].unk0 = pPlayer->unk24;
+    pPlayer = g_WorldMapSlots + idx;
+    *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
     nRet = 1;
     pScratch = (u8 *)0x1F800000;
     if ((g_GameState.unk1834 & 0x1FFF) == 0) {
@@ -301,22 +301,22 @@ s32 func_8008E4F4(s32 idx) {
         break;
     case 4:
     case 5:
-        D_8009C620->entry[3].unk0 = 1;
-        D_8009C620->entry[2].unk0 = 1;
-        D_8009C620->entry[1].unk0 = 1;
+        g_WorldMapGroups->entry[3].unk0 = 1;
+        g_WorldMapGroups->entry[2].unk0 = 1;
+        g_WorldMapGroups->entry[1].unk0 = 1;
         break;
     case 6:
     case 7:
-        D_8009C620->entry[3].unk0 = 0;
-        D_8009C620->entry[2].unk0 = 0;
-        D_8009C620->entry[1].unk0 = 0;
+        g_WorldMapGroups->entry[3].unk0 = 0;
+        g_WorldMapGroups->entry[2].unk0 = 0;
+        g_WorldMapGroups->entry[1].unk0 = 0;
         break;
     }
     *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
     *(s16 *)(pScratch + 0xA4) = D_8009BD3C;
     *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[0].matrix);
-    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[1].matrix);
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
     return nRet;
 }
 */
@@ -324,7 +324,7 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 nAngle;
 
-    pPlayer = D_8009BE24 + idx;
+    pPlayer = g_WorldMapSlots + idx;
     WorldMapGetGameStatePosition(&pPlayer->unk28);
     pPlayer->unk2C = 0x80000;
     nAngle = g_GameState.unk1832;
@@ -340,9 +340,9 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     pPlayer->unk6C = 0;
     pPlayer->unk20 = 8;
     pPlayer->unk48 = nAngle;
-    *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
+    *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
     D_8009D52C = pPlayer->unk48;
-    *(Quad *)D_8009C620->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
@@ -352,10 +352,10 @@ s32 WorldMapModeInitActorRotation(s32 idx) {
 
     WorldMapSetSpriteSetParent(0, 2);
     WorldMapSetSpriteSetParent(0, 3);
-    pPlayer = D_8009BE24 + idx;
+    pPlayer = g_WorldMapSlots + idx;
     pPlayer->unk20 = 0;
-    *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009C620->entry[2].unk8;
-    *(Quad *)&pPlayer->unk38 = *(Quad *)D_8009C620->entry[3].unk8;
+    *(Quad *)&pPlayer->unk28 = *(Quad *)g_WorldMapGroups->entry[2].unk8;
+    *(Quad *)&pPlayer->unk38 = *(Quad *)g_WorldMapGroups->entry[3].unk8;
     nMode = g_WorldMapMode;
     pPlayer->unk50 = 0;
     pPlayer->unk54 = 0x40;
@@ -377,7 +377,7 @@ int WorldMapModeInitSpriteSets2And3(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800907F4);
 /* best: 98.27%. Structurally identical (same frame, same registers, two pointers
-   at D_8009C620+0xA8/+0xFC, one scratchpad base in $s0 live across both calls).
+   at g_WorldMapGroups+0xA8/+0xFC, one scratchpad base in $s0 live across both calls).
    The only delta is the value in $s0: retail holds 0x1F800000 and so stores at
    0xA0/0xA2/0xA4/0xA8/0xAA/0xAC and passes the two RotMatrixZYX vectors with
    `ori a0,s0,0xA0` / `ori a0,s0,0xA8`; gcc 2.7.2 rematerialises the one-insn
@@ -391,9 +391,9 @@ s32 func_800907F4(s32 idx) {
     WorldMapRot *pRotA;
     WorldMapRot *pRotB;
 
-    pPlayer = D_8009BE24 + idx;
-    pRotA = (WorldMapRot *)((u8 *)D_8009C620 + 0xA8);
-    pRotB = (WorldMapRot *)((u8 *)D_8009C620 + 0xFC);
+    pPlayer = g_WorldMapSlots + idx;
+    pRotA = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xA8);
+    pRotB = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xFC);
     if (pPlayer->unk4 == 9) {
         pPlayer->unk4 = 0;
         pPlayer->unk20 = 1;
@@ -602,8 +602,8 @@ s32 func_80091430(s32 idx) {
     s32 nMode;
     u16 nAngle;
 
-    pPlayer = D_8009BE24 + idx;
-    *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009D55C;
+    pPlayer = g_WorldMapSlots + idx;
+    *(Quad *)&pPlayer->unk28 = *(Quad *)g_WorldMapScrollTargetX;
     nAngle = D_8009D52C;
     D_8009BD3C = 0;
     g_WorldMapViewRotationY = nAngle;
@@ -622,7 +622,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
 
-    pPlayer = D_8009BE24 + idx;
+    pPlayer = g_WorldMapSlots + idx;
     nMode = g_WorldMapMode;
     switch (nMode) {
     case 1:
@@ -631,7 +631,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     case 4:
     case 5:
         pPlayer->unk50 = 3;
-        D_8009D3F0 = 0x460000;
+        g_WorldMapCameraHeight = 0x460000;
         g_WorldMapCameraRot = -0x260;
         pPlayer->unk64 = D_8009B224;
         pPlayer->unk68 = D_8009B234;
@@ -640,7 +640,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
         break;
     case 7:
         pPlayer->unk50 = 3;
-        D_8009D3F0 = 0x280000;
+        g_WorldMapCameraHeight = 0x280000;
         g_WorldMapCameraRot = -0x260;
         pPlayer->unk64 = D_8009B22C;
         pPlayer->unk68 = D_8009B23C;
@@ -681,7 +681,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     u16 v = *(u16 *)&g_WorldMapViewRotationY;
     u16 a = *(u16 *)&D_8009BD3C;
 
-    nBase = D_8009D560 >> 12;
+    nBase = g_WorldMapScrollTargetY >> 12;
     *(u16 *)0x1F8000AA = v;
     *(u16 *)0x1F8000AC = a;
     pScratch = (u8 *)0x1F800000;
@@ -731,24 +731,24 @@ s32 WorldMapModeInitValue50(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nMode;
 
-    pPlayer = D_8009BE24 + idx;
+    pPlayer = g_WorldMapSlots + idx;
     nMode = g_WorldMapMode;
     if (nMode > 0) {
         if (nMode < 6) {
-            D_8009BE0C = 0x8C;
+            g_WorldMapFadeLevel = 0x8C;
         } else if (nMode < 8) {
-            D_8009BE0C = 0x78;
+            g_WorldMapFadeLevel = 0x78;
             pPlayer->unk20 = 1;
         }
     }
-    pPlayer->unk50 = D_8009BE0C << 12;
+    pPlayer->unk50 = g_WorldMapFadeLevel << 12;
     return 1;
 }
 s32 WorldMapModeUpdateValue50(s32 idx) {
     WorldMapPlayer *pPlayer;
     s32 nRet;
 
-    pPlayer = D_8009BE24 + idx;
+    pPlayer = g_WorldMapSlots + idx;
     nRet = 1;
     if (pPlayer->unk4 == 9) {
         pPlayer->unk4 = 0;
@@ -763,18 +763,18 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
         break;
     case 1:
         pPlayer->unk50 -= 0x1000;
-        D_8009BE0C = pPlayer->unk50 >> 12;
-        if (D_8009BE0C < 0x78) {
-            D_8009BE0C = 0x78;
+        g_WorldMapFadeLevel = pPlayer->unk50 >> 12;
+        if (g_WorldMapFadeLevel < 0x78) {
+            g_WorldMapFadeLevel = 0x78;
             pPlayer->unk50 = 0x78000;
             pPlayer->unk20 = 0;
         }
         break;
     case 2:
         pPlayer->unk50 += 0x1000;
-        D_8009BE0C = pPlayer->unk50 >> 12;
-        if (D_8009BE0C >= 0x8C) {
-            D_8009BE0C = 0x8C;
+        g_WorldMapFadeLevel = pPlayer->unk50 >> 12;
+        if (g_WorldMapFadeLevel >= 0x8C) {
+            g_WorldMapFadeLevel = 0x8C;
             pPlayer->unk50 = 0x8C000;
             pPlayer->unk20 = 0;
         }
@@ -817,16 +817,16 @@ extern u16 D_8009CEAA;
 extern u16 D_8009CEB0;
 extern u16 D_8009CEB2;
 extern DR_TPAGE D_8009D310;
-extern s32 D_8009CCA4;
+extern s32 g_WorldMapTpageAbr;
 
 s32 WorldMapModeInitFadeRect(s32 idx) {
     WorldMapPlayer *pPlayer;
     WorldMapG4 *pG4;
     u_short nTpage;
 
-    pPlayer = D_8009BE24 + idx;
+    pPlayer = g_WorldMapSlots + idx;
     pPlayer->unk50 = 0xF8;
-    nTpage = GetTPage(0, D_8009CCA4, 0x380, 0x100);
+    nTpage = GetTPage(0, g_WorldMapTpageAbr, 0x380, 0x100);
     SetDrawTPage(&D_8009D310, 1, 0, nTpage);
     pG4 = &D_8009CE6C;
     // the original re-reads unk50 for all twelve colour bytes; volatile stops

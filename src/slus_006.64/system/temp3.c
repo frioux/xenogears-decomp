@@ -527,15 +527,15 @@ void SoundFreeLoadedWdsAndAudioManager(void) {
 void SystemNop(void) {}
 
 extern u8 D_8005959C;
-extern s32* D_8005917C;
+extern s32* g_DebuggerState;
 extern u8 D_800C48EA;
 extern u8 D_800D3338;
 extern u8 D_8005947C;
-extern u8 D_800594F8;
-extern u16 D_8006F94E;
-extern s16 D_8006F950;
+extern u8 g_GameSelectedSkinLoadPending;
+extern u16 g_NextMapId;
+extern s16 g_NextMapRotationY;
 extern s16 D_8006F952;
-extern s16 D_8006F954;
+extern s16 g_NextMapFlags;
 extern void func_80070F40(void);
 extern void ChangeGameState(unsigned int state);
 extern void MainLoop(s32 arg0);
@@ -549,7 +549,7 @@ void GameSetUpDisplayAndChangeState(void) {
     ArchiveCdDataSync(0);
     ArchiveSetIndex(0xC, 0);
 
-    if (*D_8005917C != -1) {
+    if (*g_DebuggerState != -1) {
         FontSetExternalBuffer((void*)0x80200000);
         FontLoadFont(0x10, 0x10, 0x140, 0x100, 0x3E8, 0, 0x340, 0, 0x340, 0x20, 0);
     }
@@ -561,7 +561,7 @@ void GameSetUpDisplayAndChangeState(void) {
         if (D_800D3338 != 0) {
             gameState = 6;
         } else if (D_8005947C == 0) {
-            if ((D_8006F94E & 0x7FF) < 0x400) {
+            if ((g_NextMapId & 0x7FF) < 0x400) {
                 gameState = 1;
             } else {
                 gameState = 3;
@@ -572,15 +572,15 @@ void GameSetUpDisplayAndChangeState(void) {
         ChangeGameState(gameState);
     } else if (D_800C48EA == 0x81) {
         GamePartySignalReinitialize();
-        D_8006F94E = 0x1EA;
-        D_8006F950 = 0;
+        g_NextMapId = 0x1EA;
+        g_NextMapRotationY = 0;
         D_8006F952 = 0;
-        D_8006F954 = 0;
+        g_NextMapFlags = 0;
         ChangeGameState(1);
     }
 
     if (D_8005947C == 0) {
-        D_800594F8 = 1;
+        g_GameSelectedSkinLoadPending = 1;
     }
 
     MainLoop(0);
@@ -691,12 +691,12 @@ void ArchiveLoadStreamedFilePair(void) {
     func_800379D8(D_8006F9DE, 0, &D_80059470, &D_80059520, &D_8005949C);
 }
 
-extern u8 D_800594F8;
+extern u8 g_GameSelectedSkinLoadPending;
 extern u8 D_8005946C;
-extern u8 D_800594D4;
+extern u8 g_SystemBackdropColor;
 extern u8 D_800594D5;
 extern u8 D_800594D6;
-extern s32 D_800595A0;
+extern s32 g_SystemSemiTransMode;
 
 void func_8001B970(void);
 
@@ -705,30 +705,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001BB50);
 Best: 80.87%. The original writes these globals through %gp_rel, which maspsx only
 emits for symbols the unit defines itself (a file-scope definition here turns each
 reference into %gp_rel). This file also contains functions that use %lo for the same
-symbols (e.g. GameSetUpDisplayAndChangeState on D_800594F8/D_8005947C), so the unit cannot have both.
+symbols (e.g. GameSetUpDisplayAndChangeState on g_GameSelectedSkinLoadPending/D_8005947C), so the unit cannot have both.
 The mechanism is visible in the original asm: maspsx only rewrites the `lui $at`
 form to gp_rel, and GameSetUpDisplayAndChangeState reaches those two symbols through a pointer
 held in $v0 (`lui $v0,%hi; lbu %lo($v0)`), so it keeps %hi/%lo while the same
 symbols are gp_rel elsewhere. That means the unit does define them; the reference
 form is source-level and the two can coexist. Worth retrying with declarations
-for D_800594F8/D_8005946C/D_800594D4/D_800595A0 in this unit and
-D_8005947C/D_800594F8 read through a pointer local inside GameSetUpDisplayAndChangeState;
+for g_GameSelectedSkinLoadPending/D_8005946C/g_SystemBackdropColor/g_SystemSemiTransMode in this unit and
+D_8005947C/g_GameSelectedSkinLoadPending read through a pointer local inside GameSetUpDisplayAndChangeState;
 deciding who owns this .bss data is a unit-level call.
 Confirmed in maspsx (__init__.py, store/load gp-rel branch): a symbol is relaxed to
 %gp_rel only when it is in sbss_entries AND not in comm_symbols, i.e. only a file-local
 (.lcomm) definition does it; a plain definition here becomes .comm (fcommon) and is never
-relaxed. So making func_8001BB50 match would turn GameSetUpDisplayAndChangeState's store to D_800594F8
+relaxed. So making func_8001BB50 match would turn GameSetUpDisplayAndChangeState's store to g_GameSelectedSkinLoadPending
 (gp_rel here impossible - retail has lui $at %hi there) into gp_rel and break that
 function's verified 100%, which is the unit-level conflict.
 void func_8001BB50(void) {
-    D_800594F8 = 1;
+    g_GameSelectedSkinLoadPending = 1;
     D_8005946C = 0;
     func_8001B970();
     ArchiveCdDataSync(0);
-    D_800594D4 = 0x88;
+    g_SystemBackdropColor = 0x88;
     D_800594D5 = 0x76;
     D_800594D6 = 0x54;
-    D_800595A0 = 2;
+    g_SystemSemiTransMode = 2;
 } */
 
 // .bss

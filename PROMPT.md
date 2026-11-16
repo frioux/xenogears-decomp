@@ -175,7 +175,13 @@ of a match, and it is cheap.
   spellings - `name_addrs.py` can rename the C and leave the old spelling in place as an
   existing `symbol_addrs` entry (`battle` `func_800AA934`, round 139: the entry still said
   `func_800AA934 = 0x800AA934;`, so splat kept naming the stubs' calls with it and the link
-  failed until the entry itself was edited).
+  failed until the entry itself was edited). The overlay-to-overlay twin is the same
+  failure from the other side: round 141 renamed a `lib_gear` function that
+  `field/main/misc6` calls, `rename_data`/`name_addrs` put the new name only in
+  `symbol_addrs.lib_gear.txt`, and `field` linked with `undefined reference to
+  LibGearFreeModel` - the caller's symbol file needs the entry too
+  (`LibGearFreeModel = 0x801E8030;` in `symbol_addrs.field.txt`, beside the
+  `LibGearSetModelAnimation` entry already there).
 - Tracker row: `+N matched, +M named, +D data, +F fields, raw R`.
 
 ## Names for data and fields

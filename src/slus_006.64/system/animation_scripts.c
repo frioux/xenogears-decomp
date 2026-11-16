@@ -153,16 +153,16 @@ typedef struct {
     /* 0x2C */ u16 field_0x82; // SpriteData.field_0x82
 } SpriteAnimState; // Size: 0x30
 
-extern s32 D_80059198;
+extern s32 g_AnimScriptExtraTicks;
 extern void AnimScriptTick(SpriteData* pSpriteData);
 extern void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId);
 
 // flags_0xAC keeps the animation id in its top byte and flags_0xB0 the animation
 // flag byte in its low byte.
 void SpriteRestoreAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
-    s32 savedRenderContext = D_80059198;
+    s32 savedRenderContext = g_AnimScriptExtraTicks;
 
-    D_80059198 = 0;
+    g_AnimScriptExtraTicks = 0;
     pSpriteData->field_0x80 = pState->field_0x80;
     pSpriteData->flags_0xAC.bytes[3] = (u8)pState->animId;
     pSpriteData->flags_0xB0.bytes[0] = (u8)pState->animFlags;
@@ -184,7 +184,7 @@ void SpriteRestoreAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {
     pSpriteData->position.z = pState->position.z;
     ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x0 = pState->field_0x1C;
     ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x4 = pState->field_0x20;
-    D_80059198 = savedRenderContext;
+    g_AnimScriptExtraTicks = savedRenderContext;
 }
 
 void SpriteSaveAnimState(SpriteData* pSpriteData, SpriteAnimState* pState) {

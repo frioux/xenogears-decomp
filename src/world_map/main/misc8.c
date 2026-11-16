@@ -99,9 +99,9 @@ typedef struct WorldMapEntry {
     /* 0x50 */ struct WorldMapEntry *unk50;
 } WorldMapEntry; // Size: 0x54
 
-extern WorldMapActor *D_8009BE24; // actors, 0x80 apart
-extern WorldMapEntry *D_8009C620; // sprite sets, 0x54 apart
-extern s16 D_8009D7E0; // D_8009C620 entry count
+extern WorldMapActor *g_WorldMapSlots; // actors, 0x80 apart
+extern WorldMapEntry *g_WorldMapGroups; // sprite sets, 0x54 apart
+extern s16 D_8009D7E0; // g_WorldMapGroups entry count
 extern s32 g_WorldMapPrimPacketIndex;
 extern s16 D_8009AABC[];
 extern s16 D_8009AB48[];
@@ -168,15 +168,15 @@ extern s32 D_8009C5B4;
 extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE2C;
 extern s32 D_8009BE30;
-extern s32 D_8009D55C;
-extern s32 D_8009D560;
-extern s32 D_8009D564;
+extern s32 g_WorldMapScrollTargetX;
+extern s32 g_WorldMapScrollTargetY;
+extern s32 g_WorldMapScrollTargetZ;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
 extern s16 D_8009BD3C;
 extern s32 g_WorldMapRotationMatrixValid;
-extern s32 D_8009D3F0;
-extern s32 D_8009BE0C;
+extern s32 g_WorldMapCameraHeight;
+extern s32 g_WorldMapFadeLevel;
 extern void HeapFree(void *pMem);
 extern void *HeapAlloc(u_int allocSize, u_int allocFlags);
 extern void *g_MenuSedsFile;
@@ -184,10 +184,10 @@ extern s32 g_WorldMapWorkBuffer1;
 extern s32 g_WorldMapWorkBuffer2;
 extern s32 D_8009BC3C;
 extern s32 D_8009BCB4;
-extern s32 D_8009C180;
-extern s16 D_8006F94E;
-extern s16 D_8006F950;
-extern s16 D_8006F954;
+extern s32 g_WorldMapDecompressedMapData;
+extern s16 g_NextMapId;
+extern s16 g_NextMapRotationY;
+extern s16 g_NextMapFlags;
 extern s32 D_8009BBC4;
 extern void SoundStopAllElements(void);
 extern void SoundRemoveSedsEntry(void *p);
@@ -205,19 +205,19 @@ extern void *D_8009BD20;
 extern u16 D_8009BCE0[];
 extern FadeParams D_800704DC;
 
-extern MATRIX D_8009A180;
+extern MATRIX g_WorldMapIdentityMatrix;
 extern MATRIX D_8009BE4C;
-extern s32 D_8009CCA4;
+extern s32 g_WorldMapTpageAbr;
 extern s32 D_8009D3CC;
 extern s32 D_8009D804;
-extern void (*D_8009CD40)(void);
+extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(int, int, int, int);
 extern int ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void WorldMapAllocSlotPool(void);
-extern void func_80098044(void);
+extern void WorldMapComputeClipPlaneVectors(void);
 extern int ArchiveCdDataSync(int);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapLoadTextureClut(void);
@@ -374,15 +374,15 @@ void WorldMapSetSpritePrimColor(u8 *pData, s32 count, s32 r, s32 g, s32 b) {
 }
 
 s32 WorldMapSetupSpriteSetPrims(s32 arg0) {
-    WorldMapEntry *pEntry = &D_8009C620[arg0 + 78];
+    WorldMapEntry *pEntry = &g_WorldMapGroups[arg0 + 78];
 
     WorldMapBuildSpritePrims(pEntry, pEntry->pPackets[0], pEntry->unk40->polyCount, 3);
     return 1;
 }
 s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
     s32 row = arg0 - 3;
-    WorldMapActor *pActor = &D_8009BE24[arg0];
-    WorldMapEntry *pEntry = &D_8009C620[row + 81];
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
+    WorldMapEntry *pEntry = &g_WorldMapGroups[row + 81];
     s32 *pSlots;
     s32 i;
 
@@ -439,7 +439,7 @@ s32 WorldMapReturnSuccess(void) {
 }
 
 s32 WorldMapWaitForQueueDrain(s32 arg0) {
-    WorldMapActor *pActor = &D_8009BE24[arg0];
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
 
     if (pActor->unk4 == 1) {
         pActor->unk4 = 0;
@@ -470,13 +470,13 @@ void WorldMapInitializeScene(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = D_8009A180;
-    D_8009CCA4 = 2;
+    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapTpageAbr = 2;
     D_8009D3CC = 0x10;
     D_8009D804 = 0;
     g_WorldMapRotationMatrixValid = 0;
-    D_8009CD40 = WorldMapWrapTileVertexPositions;
-    func_80098044();
+    g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
+    WorldMapComputeClipPlaneVectors();
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
     pVec = (s32 *)g_WorldMapPlayerPosition;
@@ -528,18 +528,18 @@ s32 WorldMapShutdownScene(void) {
     HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
-    HeapFree(D_8009C180);
+    HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
     v = *(u16 *)&g_WorldMapViewRotationY;
-    D_8006F94E = 0x269;
-    D_8006F954 = 4;
+    g_NextMapId = 0x269;
+    g_NextMapFlags = 4;
     D_8009BBC4 = 1;
-    D_8006F950 = v;
+    g_NextMapRotationY = v;
     return 1;
 }
 
 s32 WorldMapSetActorParams(s32 arg0) {
-    D_8009BE24[arg0].unk50 = (u32)D_8009AC60;
+    g_WorldMapSlots[arg0].unk50 = (u32)D_8009AC60;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
@@ -578,22 +578,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 //     functions keep their flags.
 /*
 s32 func_8008390C(s32 arg0) {
-    WorldMapActor *pActor = &D_8009BE24[arg0];
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
     u8 *p = (u8 *)pActor;
     s32 v;
 
     *(s32 *)(p + 0x7C) = 0x1000;
     v = *(s32 *)g_WorldMapPlayerPosition;
     g_WorldMapCameraTarget = v;
-    D_8009D55C = v;
+    g_WorldMapScrollTargetX = v;
     pActor->unk28 = v;
     v = D_8009C5B0;
     D_8009BE2C = v;
-    D_8009D560 = v;
+    g_WorldMapScrollTargetY = v;
     pActor->unk2C = v;
     v = D_8009C5B4;
     D_8009BE30 = v;
-    D_8009D564 = v;
+    g_WorldMapScrollTargetZ = v;
     pActor->unk30 = v;
     pActor->unk20 = 0;
     pActor->unk4 = 0;
@@ -605,11 +605,11 @@ s32 func_8008390C(s32 arg0) {
     *(s32 *)(p + 0x38) = -0x20000;
     v = g_WorldMapViewRotationY;
     g_WorldMapRotationMatrixValid = 0;
-    D_8009D3F0 = 0x960000;
+    g_WorldMapCameraHeight = 0x960000;
     *(s32 *)(p + 0x54) = v << 12;
     *(s32 *)(p + 0x3C) = v << 12;
     v = D_8009BD3C;
-    D_8009BE0C = 0x78;
+    g_WorldMapFadeLevel = 0x78;
     *(s32 *)(p + 0x58) = v << 12;
     *(s32 *)(p + 0x40) = v << 12;
     return 1;
@@ -618,7 +618,7 @@ s32 func_8008390C(s32 arg0) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083A00);
 
 s32 WorldMapSetActorPosition(s32 arg0) {
-    WorldMapActor *pActor = &D_8009BE24[arg0];
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
     s32 x;
     s32 y;
     s32 z;
@@ -627,17 +627,17 @@ s32 WorldMapSetActorPosition(s32 arg0) {
     pActor->unk2C = 0x80000;
     pActor->unk30 = 0x1A00000;
     pActor->unk20 = 0;
-    D_8009C620[8].unk0 = 1;
-    D_8009C620[7].unk0 = 1;
+    g_WorldMapGroups[8].unk0 = 1;
+    g_WorldMapGroups[7].unk0 = 1;
     x = pActor->unk28 >> 12;
-    D_8009C620[8].unk8 = x;
-    D_8009C620[7].unk8 = x;
+    g_WorldMapGroups[8].unk8 = x;
+    g_WorldMapGroups[7].unk8 = x;
     y = pActor->unk2C >> 12;
-    D_8009C620[8].unkC = y;
-    D_8009C620[7].unkC = y;
+    g_WorldMapGroups[8].unkC = y;
+    g_WorldMapGroups[7].unkC = y;
     z = pActor->unk30 >> 12;
-    D_8009C620[8].unk10 = z;
-    D_8009C620[7].unk10 = z;
+    g_WorldMapGroups[8].unk10 = z;
+    g_WorldMapGroups[7].unk10 = z;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
@@ -698,51 +698,51 @@ void WorldMapInitSpriteSets(void) {
     }
     count = D_8009BD30->count;
     D_8009D7E0 = count;
-    D_8009C620 = HeapAlloc(count * sizeof(WorldMapEntry), 0);
+    g_WorldMapGroups = HeapAlloc(count * sizeof(WorldMapEntry), 0);
     pSetTable = D_8009BD30;
     SetColorMatrix(&D_8009A140);
     SetLightMatrix(&D_8009A160);
     pDef = pSetTable->defs;
     for (i = 0; i < D_8009D7E0; i++, pDef++) {
-        D_8009C620[i].unk0 = 0;
-        D_8009C620[i].unk2 = pDef->partIndex;
-        D_8009C620[i].unk4 = pDef->unk2;
-        D_8009C620[i].unk8 = pDef->unk4;
-        D_8009C620[i].unkC = pDef->unk6;
-        D_8009C620[i].unk10 = -pDef->unk8;
-        D_8009C620[i].unk18.vx = pDef->unkA[0];
-        D_8009C620[i].unk18.vy = pDef->unkA[1];
-        D_8009C620[i].unk18.vz = pDef->unkA[2];
-        RotMatrixYXZ(&D_8009C620[i].unk18, &D_8009C620[i].mat);
-        pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[D_8009C620[i].unk2];
-        D_8009C620[i].unk40 = pPart;
-        ModelAllocatePackets(pPart, &D_8009C620[i].pPackets[0], &D_8009C620[i].pPackets[1]);
-        ModelInitializePacket(D_8009C620[i].unk40, D_8009C620[i].pPackets[0], 1);
-        memcpy(D_8009C620[i].pPackets[1], D_8009C620[i].pPackets[0],
-               D_8009C620[i].unk40->unk20[1].modelPacketSize);
-        pMesh = ((WorldMapMesh **)D_8009D308)[D_8009C620[i].unk2];
-        D_8009C620[i].unk44 = pMesh;
+        g_WorldMapGroups[i].unk0 = 0;
+        g_WorldMapGroups[i].unk2 = pDef->partIndex;
+        g_WorldMapGroups[i].unk4 = pDef->unk2;
+        g_WorldMapGroups[i].unk8 = pDef->unk4;
+        g_WorldMapGroups[i].unkC = pDef->unk6;
+        g_WorldMapGroups[i].unk10 = -pDef->unk8;
+        g_WorldMapGroups[i].unk18.vx = pDef->unkA[0];
+        g_WorldMapGroups[i].unk18.vy = pDef->unkA[1];
+        g_WorldMapGroups[i].unk18.vz = pDef->unkA[2];
+        RotMatrixYXZ(&g_WorldMapGroups[i].unk18, &g_WorldMapGroups[i].mat);
+        pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[g_WorldMapGroups[i].unk2];
+        g_WorldMapGroups[i].unk40 = pPart;
+        ModelAllocatePackets(pPart, &g_WorldMapGroups[i].pPackets[0], &g_WorldMapGroups[i].pPackets[1]);
+        ModelInitializePacket(g_WorldMapGroups[i].unk40, g_WorldMapGroups[i].pPackets[0], 1);
+        memcpy(g_WorldMapGroups[i].pPackets[1], g_WorldMapGroups[i].pPackets[0],
+               g_WorldMapGroups[i].unk40->unk20[1].modelPacketSize);
+        pMesh = ((WorldMapMesh **)D_8009D308)[g_WorldMapGroups[i].unk2];
+        g_WorldMapGroups[i].unk44 = pMesh;
         pMesh->unk4 = (SVECTOR *)((u8 *)pMesh + (s32)pMesh->unk4);
-        D_8009C620[i].unk50 = 0;
+        g_WorldMapGroups[i].unk50 = 0;
     }
     g_GfxOTDepthShift = 2;
     D_8009C16C = -1;
     D_8009C840 = -1;
-    D_8009C620[4].unk0 = 1;
+    g_WorldMapGroups[4].unk0 = 1;
 }
 
 void WorldMapFreeSpriteSets(void) {
     s32 i;
 
     for (i = 0; i < D_8009D7E0; i++) {
-        HeapFree(D_8009C620[i].pPackets[0]);
-        ModelPartFreeLightData(D_8009C620[i].unk40);
+        HeapFree(g_WorldMapGroups[i].pPackets[0]);
+        ModelPartFreeLightData(g_WorldMapGroups[i].unk40);
     }
-    HeapFree(D_8009C620);
+    HeapFree(g_WorldMapGroups);
 }
 
 void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1) {
-    D_8009C620[arg1].unk50 = &D_8009C620[arg0];
+    g_WorldMapGroups[arg1].unk50 = &g_WorldMapGroups[arg0];
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
 // Best: 76.46% (1060 bytes vs 1036). Structure and every call/offset in the
@@ -782,14 +782,14 @@ void func_800848F4(void) {
     camX = g_WorldMapCameraTarget >> 12;
     camZ = D_8009BE30 >> 12;
     for (i = 0; i < D_8009D7E0; i++) {
-        if (D_8009C620[i].unk0 != 0) {
+        if (g_WorldMapGroups[i].unk0 != 0) {
             continue;
         }
-        *pMat = D_8009C620[i].mat;
-        pMat->t[1] = D_8009C620[i].unk8;
-        pMat->t[2] = D_8009C620[i].unkC;
-        pMat->t[3] = -D_8009C620[i].unk10;
-        pChain = D_8009C620[i].unk50;
+        *pMat = g_WorldMapGroups[i].mat;
+        pMat->t[1] = g_WorldMapGroups[i].unk8;
+        pMat->t[2] = g_WorldMapGroups[i].unkC;
+        pMat->t[3] = -g_WorldMapGroups[i].unk10;
+        pChain = g_WorldMapGroups[i].unk50;
         while (pChain != 0) {
             pChain->mat.t[1] = pChain->unk8;
             pChain->mat.t[2] = pChain->unkC;
@@ -830,8 +830,8 @@ void func_800848F4(void) {
         if (*(s32 *)0x1F800028 >= 0xD80) {
             continue;
         }
-        ModelRenderPacket(D_8009C620[i].unk40, D_8009C620[i].pPackets[g_WorldMapPrimPacketIndex],
-                          *(u_long **)(g_WorldMapRenderContext + 0x70), D_8009AD2C[D_8009C620[i].unk4]);
+        ModelRenderPacket(g_WorldMapGroups[i].unk40, g_WorldMapGroups[i].pPackets[g_WorldMapPrimPacketIndex],
+                          *(u_long **)(g_WorldMapRenderContext + 0x70), D_8009AD2C[g_WorldMapGroups[i].unk4]);
     }
 }
 */
@@ -843,8 +843,8 @@ void func_800848F4(void) {
 // through $s1 = 0x1F800028, i.e. write them as byte offsets off one base):
 //   head: 0x1F800018/0x14/0x10 = 0x800 (scale, vz/vy/vx order), D_80050104 = 3,
 //         D_800595C0 = 0, D_80059578 = 0, SVECTOR at 0x1F8000A0 = {0,0,0}.
-//   per sprite set i (s4 = i, s2 = i*0x54): skip if D_8009C620[i].unk0 != 0;
-//         copy D_8009C620[i].mat (0x20..0x3C) to 0x1F8000F0..0x10C, then
+//   per sprite set i (s4 = i, s2 = i*0x54): skip if g_WorldMapGroups[i].unk0 != 0;
+//         copy g_WorldMapGroups[i].mat (0x20..0x3C) to 0x1F8000F0..0x10C, then
 //         overwrite 0x1F800104/108/10C = unk8/unkC/-unk10;
 //   chain: while (p->unk50) { p = p->unk50; p->unk34/38/3C = unk8/unkC/-unk10;
 //         gte matrix load of p->unk20 into $0-$4, three MVMVA 1,0,3,3,0 rotations
@@ -858,16 +858,16 @@ void func_800848F4(void) {
 //         0x1F8000F0, 0x1F800110); SetRotMatrix/SetTransMatrix(0x1F800110);
 //         RTPS on 0x1F8000A0, flag to 0x1F800020 (bltz skips), SZ3 to 0x1F800028
 //         (>= 0xD80 skips), then
-//         ModelRenderPacket(D_8009C620[i].unk40,
-//             *(u32 *)((u8 *)D_8009C620 + g_WorldMapPrimPacketIndex * 4 + 0x48),
-//             *(u32 *)(g_WorldMapRenderContext + 0x70), D_8009AD2C[D_8009C620[i].unk4]).
+//         ModelRenderPacket(g_WorldMapGroups[i].unk40,
+//             *(u32 *)((u8 *)g_WorldMapGroups + g_WorldMapPrimPacketIndex * 4 + 0x48),
+//             *(u32 *)(g_WorldMapRenderContext + 0x70), D_8009AD2C[g_WorldMapGroups[i].unk4]).
 // The GTE encodings are the DMPSX 4.3 spellings (interleaved ctc2 of $12-$14 for
 // the matrix load, nop;nop;.word for MVMVA), which inline_c.h still carries, so
 // this is a body to write, not a wall -- but it is a two-hour job, not a stub.
 
 
 s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
-    WorldMapEntry *pEntry = D_8009C620;
+    WorldMapEntry *pEntry = g_WorldMapGroups;
     s16 result;
     s16 i;
 
@@ -896,7 +896,7 @@ void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMa
     WorldMapScratch *pWork = (WorldMapScratch *)0x1F800000;
     long flag;
 
-    pEntry = &D_8009C620[setIndex];
+    pEntry = &g_WorldMapGroups[setIndex];
     pOut->x = (pPos->x >> 12) - pEntry->unk8;
     pOut->z = pEntry->unk10 - (pPos->z >> 12);
     *pMat = pEntry->mat;
@@ -949,7 +949,7 @@ s32 WorldMapCheckTriangleEdgeSide(WorldMapPos *pPos, s32 yOffset, u16 setIndex, 
     s32 z;
     s32 entryZ;
 
-    pEntry = &D_8009C620[setIndex];
+    pEntry = &g_WorldMapGroups[setIndex];
     *pMat = pEntry->mat;
     pMat->t[2] = 0;
     pMat->t[0] = 0;
@@ -1037,7 +1037,7 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
     long flag;
     s32 clip;
 
-    pEntry = &D_8009C620[setIndex];
+    pEntry = &g_WorldMapGroups[setIndex];
     pPosVec->vx = (pRef->x >> 12) - pEntry->unk8;
     pPosVec->vz = pEntry->unk10 - (pRef->z >> 12);
     *pMat = pEntry->mat;
@@ -1149,7 +1149,7 @@ void func_80085CDC(void) {
     pScratch = (s32 *)0x1F800000;
     i = 0;
     pCam = (WorldMapPos *)&g_WorldMapCameraTarget;
-    pActor = D_8009BE24;
+    pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
         if ((pActor->unk24 == 0) & (pActor->unk4C != 0)) {
             pScratch[2] = pActor->unk28 - pCam->x;
@@ -1163,7 +1163,7 @@ void func_80085CDC(void) {
     pMat = &g_WorldMapViewMatrix;
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
-    pActor = D_8009BE24;
+    pActor = g_WorldMapSlots;
     for (i = 0; i < 0x40; i++, pActor++) {
         if ((pActor->unk24 == 0) & (pActor->unk4C != 0)) {
             v = ((WorldMapSpritePosWhole *)pActor->unk4C)->x;
@@ -1179,7 +1179,7 @@ void func_80085CDC(void) {
     }
     GfxSetBaseMatrix(&g_WorldMapViewMatrix);
     i = 0;
-    pActor = D_8009BE24;
+    pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
         if ((pActor->unk24 == 0) & (pActor->unk4C != 0) & (pScratch[i + 6] < 0xB00)) {
             SpriteDrawFrame(pActor->unk4C, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pScratch[i + 6] >> 4));

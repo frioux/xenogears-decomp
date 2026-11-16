@@ -49,7 +49,7 @@ extern BattleSlotEntry D_800CCD34[];
 extern BattleSlotRecord g_BattleSlotRecords[];
 extern s16 D_800D2E06[];
 extern s16 D_800D2E0C[];
-extern u8 D_800D2C8B[];
+extern u8 g_BattleRowStatValues[];
 extern u8 D_800D2CB0[];
 extern u8 g_BattleCommandGridIds[];
 extern u8 D_800D2DCC[];
@@ -59,7 +59,7 @@ extern u8 D_800C3EB7[];
 extern BattleSlotFlag g_BattleSlotFlags[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
-extern u8 *D_800D3364;
+extern u8 *g_BattleSlotParamTable;
 extern u8 func_8007A628(u8 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 extern u8 BattleFindFirstFlagTableMatch(u16 arg0);
@@ -360,7 +360,7 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
 //      `(u8 *)pField + 0x10` makes gcc CSE the row base into one register (89.77%).
 //    - `u8 a = g_BattleSlotRecords[value * 0x1C]; s32 slot = arg1 + 3;` in THAT order is
 //      what puts `addiu s1,s1,3` between the two index chains, like retail.
-//    - `D_800D3364[row * 0x40 + op * 8 + 0x140]` (row first) is what gets the two
+//    - `g_BattleSlotParamTable[row * 0x40 + op * 8 + 0x140]` (row first) is what gets the two
 //      slls in retail's order (99.02% vs 98.26%).
 //    Remaining: (1) frame 0x30 vs retail 0x28 - two dead spill slots; the stack
 //    offset shift proves they exist but no sw/lw to sp is emitted. Dropping one
@@ -379,7 +379,7 @@ void func_8007CDD0(u8 **arg0, u8 arg1) {
     s32 slot = arg1 + 3;
     s32 opOffset = a * 8;
 
-    pRow[(*arg0)[1]] = D_800D3364[g_BattleSlotRecords[slot * 0x1C] * 0x40 + opOffset + 0x140];
+    pRow[(*arg0)[1]] = g_BattleSlotParamTable[g_BattleSlotRecords[slot * 0x1C] * 0x40 + opOffset + 0x140];
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
@@ -474,7 +474,7 @@ void BattlePickSlotByActorTag(BattleSlotArgs **ppArgs, u8 row) {
     }
 }
 void BattleStoreStatWord32(BattleSlotArgs **ppArgs, u8 row) {
-    D_800D3410[row].unk00[(*ppArgs)->slot] = D_800D2C8B[row];
+    D_800D3410[row].unk00[(*ppArgs)->slot] = g_BattleRowStatValues[row];
 }
 void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[8];

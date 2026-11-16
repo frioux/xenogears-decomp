@@ -27,7 +27,7 @@ extern void MenuUpdateCardStatus(void);
 extern void MenuRunCardSlotOperations(void);
 extern void GameRandomByteRange(s32 arg0, u8 arg1);
 extern void GameCheckAndHandleSoftReset(void);
-extern s32* D_8005917C; // -1 when no debugger is attached
+extern s32* g_DebuggerState; // -1 when no debugger is attached
 extern int g_SpuChannelMask;
 extern u8 D_801E9784;
 extern s32 ArchiveGetDiscNumber(void);
@@ -79,7 +79,7 @@ void MenuRenderFrame(void) {
     int renderContext;
 
     // Debugging
-    if (*D_8005917C != -1) {
+    if (*g_DebuggerState != -1) {
         asm("break 0x400");
     }
 

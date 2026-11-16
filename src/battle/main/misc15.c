@@ -70,7 +70,7 @@ typedef struct {
 extern BattleCommandEntry g_BattleCommandEntries[];
 extern u8 g_BattleCommandGridAltUses[];
 extern u8 g_BattleCommandGridAltIds[];
-extern u8 D_800C3FFE[];
+extern u8 g_BattleCommandRecords[];
 extern u8 func_80085084(u16 arg0, u8 arg1, s32 arg2);
 extern s32 BattleIsCharacterInParty(s32 arg0);
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
@@ -232,7 +232,7 @@ void func_8008ADD0(u8 arg0) {
     func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].unk3C, BattleFindMinValueOtherSlot(arg0));
     D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleActionParam;
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
-    *(u16 *)(D_800C3FFE + g_BattleCommandQueue->count * 72) = *pMask;
+    *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = *pMask;
     for (i = 3; i < 11; i++) {
         if (BattleMaskHasSlotBit(*pMask, i) != 0) {
             func_80079840(arg0, i);
@@ -330,7 +330,7 @@ extern s32 D_800D3288;
 extern u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2);
 extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void func_80091064(u8 arg0);
-extern void func_80077698(void);
+extern void BattleInitPulseTrianglePrims(void);
 extern void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2);
 extern void BattleBuildSpriteColumn8(s32 arg0);
 extern void func_80091EC4(s32 arg0);
@@ -389,7 +389,7 @@ u8 func_8008B478(u8 arg0) {
     func_8008F8F4(2, 0xD0, 0xA4, 0x50, 0x18, 0, 1);
     func_8008F8F4(3, 0xE6, 0xC0, 0x4C, 0x18, 0, 1);
     func_80091064(arg0);
-    func_80077698();
+    BattleInitPulseTrianglePrims();
     do {
         if (i != prevI || j != prevJ) {
             BattleDrawCharStatusIfFlagged(arg0, i, j);
@@ -565,7 +565,7 @@ void BattleFreeSlotPrims(u8 arg0) {
         g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 0;
     }
 }
-void func_8008C3F0(u8 arg0) {
+void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
     u16 value;
 
     g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 1;
@@ -639,7 +639,7 @@ s32 func_8008C4A8(u8 arg0) {
                 BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
                 D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandQueue->unk2DC - 1;
                 D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
-                *(u16 *)(D_800C3FFE + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
+                *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
                 g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
             }
         }

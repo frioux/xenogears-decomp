@@ -2,7 +2,7 @@
 #include "main/game.h"
 #include "psyq/libgte.h"
 
-extern s32 D_8009C610;
+extern s32 g_WorldMapLevelIndex;
 extern u16 D_8009B69C[];
 extern u16 D_8009B6B0[];
 extern void* D_8009BE1C;
@@ -164,9 +164,9 @@ typedef struct {
 
 extern WorldMapSpriteGroup* D_8009BCC0;
 extern WorldMapTrailEntry* D_8009BDF4;
-extern WorldMapPlayer* D_8009BE24;
-extern WorldMapSceneLayer* D_8009C620;
-extern WorldMapVec D_8009D55C;
+extern WorldMapPlayer* g_WorldMapSlots;
+extern WorldMapSceneLayer* g_WorldMapGroups;
+extern WorldMapVec g_WorldMapScrollTargetX;
 extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
 extern u16 g_WorldMapTrailCursor;
@@ -191,9 +191,9 @@ s32 func_80088B40(s32 arg0) {
         WorldMapSetSpriteSetParent(0x45, *pIds);
         pIds++;
     }
-    pDst = D_8009BE24 + (arg0 << 7);
+    pDst = g_WorldMapSlots + (arg0 << 7);
     *(s16*)(pDst + 0x20) = 0;
-    pBase = D_8009C620;
+    pBase = g_WorldMapGroups;
     if (g_GameState.unk1930[0] == 0x99) {
         *(s32*)(pDst + 0x28) = 0x2000000;
         *(s32*)(pDst + 0x30) = 0x4120000;
@@ -222,7 +222,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088C90);
    frame; an `s16 id`, or a bare `*pIds * 0x54` with or without an `(s32)` cast,
    makes gcc load HImode (lhu) and sign-extend with sll/sra, which also costs a
    register (t0 where retail uses a3) and a 16-byte frame. Still missing:
-   retail loads D_8009C620 before D_8009AFDC and re-loads `lh v0,0(a0)` after
+   retail loads g_WorldMapGroups before D_8009AFDC and re-loads `lh v0,0(a0)` after
    the branch, while mine reuses the tested value (108 vs 112 bytes).
    Reading the array twice in the body (`id = *pIds; pIds++; use id`) is the
    shape that produces retail's extra `lh v0,0(a0)` but it also makes gcc pick
@@ -232,7 +232,7 @@ s32 func_80088C90(void) {
     s16* pIds;
     s32 id;
 
-    pBase = D_8009C620;
+    pBase = g_WorldMapGroups;
     *(s16*)(pBase + 0x16A4) = 1;
     pIds = D_8009AFDC;
     while ((id = *pIds) != -1) {
@@ -245,7 +245,7 @@ s32 func_80088C90(void) {
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088D00);
 /* 84.68%: with pSrc computed before the if (the only shape that keeps the
-   D_8009C620 load above the branch, as retail does) gcc folds +0x16A4 into the
+   g_WorldMapGroups load above the branch, as retail does) gcc folds +0x16A4 into the
    three store displacements (0x16AC/0x16B0/0x16B4) instead of retail's
    addiu a1,a1,0x16A4 in the bne delay slot; the compare also lands in
    v0/v1 swapped. Needs a shape where the base+0x16A4 pointer is materialised.
@@ -253,8 +253,8 @@ s32 func_80088D00(s32 arg0) {
     u8* pDst;
     s32* pSrc;
 
-    pDst = D_8009BE24 + (arg0 << 7);
-    pSrc = (s32*)(D_8009C620 + 0x16A4);
+    pDst = g_WorldMapSlots + (arg0 << 7);
+    pSrc = (s32*)(g_WorldMapGroups + 0x16A4);
     if (g_GameState.unk1930[0] == 0x99) {
         pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
         pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;
@@ -263,7 +263,7 @@ s32 func_80088D00(s32 arg0) {
     return 1;
 }
 */
-/* 84.68%: retail loads the D_8009C620 pointer before the branch and keeps
+/* 84.68%: retail loads the g_WorldMapGroups pointer before the branch and keeps
    addiu a1,a1,0x16A4 in the bne delay slot, and compares with the id in v1
    against li v0,0x99; gcc 2.7.2 sinks the global load below the branch.
 s32 func_80088D00(s32 arg0) {
@@ -271,8 +271,8 @@ s32 func_80088D00(s32 arg0) {
     u8* pBase;
     s32* pSrc;
 
-    pDst = D_8009BE24 + (arg0 << 7);
-    pBase = D_8009C620;
+    pDst = g_WorldMapSlots + (arg0 << 7);
+    pBase = g_WorldMapGroups;
     if (g_GameState.unk1930[0] == 0x99) {
         pSrc = (s32*)(pBase + 0x16A4);
         pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
@@ -287,8 +287,8 @@ s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
     WorldMapPlayer* pPlayer;
     WorldMapSceneLayer* pLayer;
 
-    pPlayer = D_8009BE24 + arg0;
-    pLayer = &D_8009C620[D_8009B69C[D_8009C610]];
+    pPlayer = g_WorldMapSlots + arg0;
+    pLayer = &g_WorldMapGroups[D_8009B69C[g_WorldMapLevelIndex]];
     pPlayer->unk28 = pLayer->pos.unk00 << 12;
     pPlayer->unk2C = (pLayer->pos.unk04 << 12) + 0x40000;
     pPlayer->unk30 = pLayer->pos.unk08 << 12;
@@ -296,7 +296,7 @@ s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
 }
 
 s32 WorldMapQueueZoneEntryHeight60(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &D_8009BE24[arg0].unk28, 0x68, 0x60);
+    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].unk28, 0x68, 0x60);
     return 1;
 }
 
@@ -304,8 +304,8 @@ s32 WorldMapSetActorPosFromSpriteSet75(s32 arg0) {
     WorldMapPlayer* pPlayer;
     WorldMapSceneLayer* pLayer;
 
-    pPlayer = D_8009BE24 + arg0;
-    pLayer = &D_8009C620[75];
+    pPlayer = g_WorldMapSlots + arg0;
+    pLayer = &g_WorldMapGroups[75];
     pPlayer->unk28 = pLayer->pos.unk00 << 12;
     pPlayer->unk2C = pLayer->pos.unk04 << 12;
     pPlayer->unk30 = pLayer->pos.unk08 << 12;
@@ -313,7 +313,7 @@ s32 WorldMapSetActorPosFromSpriteSet75(s32 arg0) {
 }
 
 s32 WorldMapQueueZoneEntryHeight1A6(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &D_8009BE24[arg0].unk28, 0x10C, 0x1A6);
+    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].unk28, 0x10C, 0x1A6);
     return 1;
 }
 
@@ -321,8 +321,8 @@ s32 WorldMapSetActorPosFromSpriteSet(s32 arg0) {
     WorldMapPlayer* pPlayer;
     WorldMapSceneLayer* pLayer;
 
-    pLayer = &D_8009C620[D_8009B6B0[D_8009C610]];
-    pPlayer = D_8009BE24 + arg0;
+    pLayer = &g_WorldMapGroups[D_8009B6B0[g_WorldMapLevelIndex]];
+    pPlayer = g_WorldMapSlots + arg0;
     pPlayer->unk28 = pLayer->pos.unk00 << 12;
     pPlayer->unk2C = pLayer->pos.unk04 << 12;
     pPlayer->unk30 = pLayer->pos.unk08 << 12;
@@ -330,7 +330,7 @@ s32 WorldMapSetActorPosFromSpriteSet(s32 arg0) {
 }
 
 s32 WorldMapQueueZoneEntryHeight392(s32 arg0) {
-    WorldMapQueueZoneEntry(arg0, &D_8009BE24[arg0].unk28, 0xC9, 0x392);
+    WorldMapQueueZoneEntry(arg0, &g_WorldMapSlots[arg0].unk28, 0xC9, 0x392);
     return 1;
 }
 
@@ -580,7 +580,7 @@ s32 func_8008A52C(s32 arg0) {
     u8* pSprite;
     u8* pActor;
 
-    pActor = D_8009BE24 + (arg0 << 7);
+    pActor = g_WorldMapSlots + (arg0 << 7);
     pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     *(u8**)(pActor + 0x4C) = pSprite;
     SpritePlayAnimation(pSprite, 0);
@@ -591,21 +591,21 @@ s32 func_8008A52C(s32 arg0) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A5B8);
 /* 90.48% (372 bytes, retail 372): identical instruction multiset, only the
-   prologue rotates - retail computes (D_8009BE24 + arg0*0x80) into a2 before the
+   prologue rotates - retail computes (g_WorldMapSlots + arg0*0x80) into a2 before the
    SpriteAllocFromAnimFile arg setup and keeps li a2,0x1E0 for the jal delay slot;
    gcc shifts into v1, emits li a2 early and lets reorg steal the addu into the
    slot. Same wall as the func_8008B54C / func_8008BDD0 parks in misc11 ("the 0x40
    stack store lands just before the jal"). Tried: call written inline as the
-   store rhs, a void* pSprite temp, (u8*)D_8009BE24 + arg0*0x80 spelling - all
+   store rhs, a void* pSprite temp, (u8*)g_WorldMapSlots + arg0*0x80 spelling - all
    byte-identical at 90.48%. Everything from the SpritePlayAnimation jal on
-   matches, including the 32-iteration 0x14-stride copy and the D_8009D55C tail.
+   matches, including the 32-iteration 0x14-stride copy and the g_WorldMapScrollTargetX tail.
 s32 func_8008A5B8(s32 arg0) {
     WorldMapActor* pActor;
     WorldMapTrail* pTrail;
     void* pSprite;
     s32 i;
 
-    pActor = (WorldMapActor*)((u8*)D_8009BE24 + arg0 * 0x80);
+    pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + arg0 * 0x80);
     pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     pActor->unk4C = pSprite;
     SpritePlayAnimation(pActor->unk4C, 0);
@@ -631,7 +631,7 @@ s32 func_8008A5B8(s32 arg0) {
         pTrail->vec = *(WorldMapVec*)&pActor->unk28;
         pTrail->unk10 = pActor->unk48;
     }
-    D_8009D55C = *(WorldMapVec*)&pActor->unk28;
+    g_WorldMapScrollTargetX = *(WorldMapVec*)&pActor->unk28;
     D_8009D52C = pActor->unk48;
     return 1;
 }

@@ -23,7 +23,7 @@ extern void func_800BB620(u8 *pEntry);
 extern void func_800BB6E0(u8 *pEntry);
 extern u8 *TimerWorkListAllocateTask(void *pData, s32 dataSize);
 extern u8 g_FlagTimerWorkListAdds;
-extern u8 D_800591AF;
+extern u8 g_TaskHeapAllocFlags;
 extern s32 g_BattlePendingActorTaskCount;
 extern u8 D_800C3CB8;
 extern u32 D_800C3674;
@@ -112,12 +112,12 @@ void func_800BB760(u8 *pEntry) {
 
     saved = g_FlagTimerWorkListAdds;
     g_FlagTimerWorkListAdds = 0;
-    D_800591AF = 1;
+    g_TaskHeapAllocFlags = 1;
     pTask = TimerWorkListAllocateTask(NULL, 4);
     TimerWorkListSetTaskCallback(pTask, func_800BB6E0);
     g_BattlePendingActorTaskCount++;
     *(u8 **)(pTask + 0x1C) = pEntry;
-    D_800591AF = 0;
+    g_TaskHeapAllocFlags = 0;
     g_FlagTimerWorkListAdds = saved;
 }
 */

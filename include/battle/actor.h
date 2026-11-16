@@ -184,7 +184,7 @@ typedef struct {
 } BattleSlotState; // Size: 0xCC
 
 // One slot of the per-battle-slot table family (stride 0x170). Three of them
-// open the battle work block (D_800C34B0->slots); g_BattleActingSlot/D_800C3E34 point
+// open the battle work block (g_BattleCurWorkBlock->slots); g_BattleActingSlot/D_800C3E34 point
 // at the acting slot and its target. Only the fields read by
 // src/battle/main/misc18 and misc19 are named.
 typedef struct {
@@ -271,7 +271,7 @@ typedef struct {
     /* 0x12 */ u8 unk12[0x2];
 } BattleGearWeaponRecord; // Size: 0x14
 
-// The battle work block (D_800C34B0): the three slot entries, the per-actor
+// The battle work block (g_BattleCurWorkBlock): the three slot entries, the per-actor
 // action-row tables, and the per-slot action state the battle main loop runs
 // on. Only the tail read by src/battle/main/misc18 is named; the row tables at
 // +0x1058/+0x2228 and the scratch row at +0x35D8 are still reached by offset.

@@ -49,7 +49,7 @@ typedef struct {
 extern u8 D_800D2DCC[];
 extern u8 D_800C3EB7[][0x1C];
 extern u8 g_BattleSlotFlags[];
-extern u8 *D_800D3364;
+extern u8 *g_BattleSlotParamTable;
 extern BattleUnk170 g_BattleSlotEntries[];
 extern BattleUnk170 D_800CCE08[];
 
@@ -147,7 +147,7 @@ void BattleAdvanceSlotMenuState(u8 arg0) {
 }
 extern void BattleSetupActorSlotDisplay(u8);
 extern void BattleEnsureTargetSlotInCandidateList(u8);
-extern void func_80077698(void);
+extern void BattleInitPulseTrianglePrims(void);
 extern u8 g_BattleSoundEnabled;
 void BattleSetActorSlotDisplayMode(u8 arg0) {
     u8 a;
@@ -164,7 +164,7 @@ void BattleSetActorSlotDisplayMode(u8 arg0) {
         BattleSetupActorSlotDisplay(a);
         BattleEnsureTargetSlotInCandidateList(a);
         ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x19;
-        func_80077698();
+        BattleInitPulseTrianglePrims();
         g_BattleSoundEnabled = 0;
         break;
     case 1:
@@ -632,7 +632,7 @@ u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     if (D_800D2DCC[arg1] != 0) {
         if (D_800C3EB7[arg1][0] == 0) {
             if (g_BattleSlotFlags[arg1 * 8] == 0) {
-                if (*(u8 *)(D_800D3364 + (g_BattleSlotRecords[arg0][0] * 0x40 +
+                if (*(u8 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[arg0][0] * 0x40 +
                                           g_BattleSlotRecords[arg1][0] * 8) + 0x140) == 0) {
                     ret = (g_BattleSlotEntries[arg1].unk0 & 0xC001) == 0;
                 }
@@ -1034,11 +1034,11 @@ extern u8 func_80084854(u8, u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 extern u16 func_80084DE4(u16, u16, u8, u8, u8);
 extern u16 BattleGetSameRowSlotMask(void);
-extern u8 *D_800C3E24;
+extern u8 *g_BattlePulseTrianglePrims;
 /* 99.82%: instruction multiset, frame (0x38) and saved-register set are retail's;
-   the only differences are the two `addu` that form D_800C3E24 + i in the tail
+   the only differences are the two `addu` that form g_BattlePulseTrianglePrims + i in the tail
    loop (retail addu v0,v0,s0 base-first, gcc 2.6.0 gives addu v0,s0,v0 whatever
-   the spelling: D_800C3E24[i + 0xE6], p = base + i then p[0xE6], and the
+   the spelling: g_BattlePulseTrianglePrims[i + 0xE6], p = base + i then p[0xE6], and the
    embedded *((p = base + i) + 0xE6) form all measure the same) and the jtbl
    operand. The switch needs explicit `case 6: case 7: break;` for retail's
    8-word table / sltiu 8 range check, and the four case 0-3 bodies must be
@@ -1113,9 +1113,9 @@ u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
             last = g_BattleMenuEvent;
             for (i = 0; i < 4; i++) {
                 if (func_80084854(g_BattleTargetSlot, i) != g_BattleTargetSlot) {
-                    *((p = D_800C3E24 + i) + 0xE6) = 1;
+                    *((p = g_BattlePulseTrianglePrims + i) + 0xE6) = 1;
                 } else {
-                    *((q = D_800C3E24 + i) + 0xE6) = 0;
+                    *((q = g_BattlePulseTrianglePrims + i) + 0xE6) = 0;
                 }
             }
         }

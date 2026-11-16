@@ -2,7 +2,7 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
-extern BattleWorkBlock* D_800C34B0;
+extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 D_800C3E50;
 extern BattleRow* g_BattleCurrentRow;
 extern u8* D_800D2DC8;
@@ -17,7 +17,7 @@ extern void func_8009BE0C(void);
 extern void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg);
 
 s32 BattleGetActorConditionCode(u8 arg0) {
-    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800C34B0);
+    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
     u16 f7C = p->unk7C;
     u16 f80;
 
@@ -52,7 +52,7 @@ s32 BattleGetActorConditionCode(u8 arg0) {
     return p->unk4C < (p->unk4E >> 3) ? 5 : 0;
 }
 u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
-    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800C34B0);
+    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
     u16 f7C = p->unk7C;
     u16 ret = 0;
     u16 f;
@@ -86,7 +86,7 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // sites stop gcc 2.7.2 coalescing value into the sum pseudo. Also load-bearing:
 // sum is `short` (s32 instead mirrors the two lbu), the byte sum is two statements
 // (`sum = p[0x14]; sum = sum + q[0x5B];`), and q is formed index-first
-// (`(u8*)(arg0 * 0x170) + (u32)D_800C34B0`) for retail's `addu a2,a2,a3`.
+// (`(u8*)(arg0 * 0x170) + (u32)g_BattleCurWorkBlock`) for retail's `addu a2,a2,a3`.
 // Only remaining diff, one register: retail `addu v0,v0,v1` + `move v1,v0`, here
 // `addu a0,v0,v1` + `move v1,a0`. Everything else matches, including both lbu
 // (retail p byte in v0, q byte in v1). sum's home is a0, the lowest free reg,
@@ -108,13 +108,13 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
-    u8* p = (u8*)off + (u32)D_800C34B0;
+    u8* p = (u8*)off + (u32)g_BattleCurWorkBlock;
     u8* q;
     short sum;
     u8 value;
 
     p = p + arg1 * 0x28;
-    q = (u8*)(arg0 * 0x170) + (u32)D_800C34B0;
+    q = (u8*)(arg0 * 0x170) + (u32)g_BattleCurWorkBlock;
     sum = p[0x14];
     sum = sum + q[0x5B];
     value = sum;
@@ -137,7 +137,7 @@ u8 BattleGetGameCharacterField5(u8 arg0) {
 }
 
 s32 BattleIsCharacterInParty(u8 arg0) {
-    u8 id = *(u8*)((u8*)D_800C34B0 + arg0 * 16 + 0x581E);
+    u8 id = *(u8*)((u8*)g_BattleCurWorkBlock + arg0 * 16 + 0x581E);
 
     s32 ret;
 
@@ -172,7 +172,7 @@ Best attempt: 76.74% (round 18, first attempt on this stub). The 4-way
    `((u8*)&g_GameState)[N]` and struct spellings both give 76.74%.
 PARKED (76.74%)
 void func_8009A854(u8 arg0, u8 arg1) {
-    u8* p = (u8*)(arg0 * 16 + 0x54F8) + (u32)D_800C34B0;
+    u8* p = (u8*)(arg0 * 16 + 0x54F8) + (u32)g_BattleCurWorkBlock;
     u8 id = p[6];
     u8 row = arg1;
     u8 i;
@@ -197,7 +197,7 @@ void func_8009A854(u8 arg0, u8 arg1) {
     g_GameState.gearPartsIds[0x6C + arg0] = p[3];
     ((u8*)&g_GameState)[0x56B + row] = arg0;
     for (i = 0; i < 3; i++) {
-        u8* q = (u8*)(i * 0x170 + (u32)D_800C34B0);
+        u8* q = (u8*)(i * 0x170 + (u32)g_BattleCurWorkBlock);
 
         if (q[0x56] == 4) {
             u8* r = q + row * 8;
@@ -243,7 +243,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A854);
    PARKED (99.66%). */
 /*
 s32 func_8009A9D0(void) {
-    D_800C34B0->unk5FC2 = 0;
+    g_BattleCurWorkBlock->unk5FC2 = 0;
     if (rand() % 100 < 50) {
         func_8009BE0C();
         return 1;
@@ -258,21 +258,21 @@ void BattleSetSlotFlag15A1(u8 arg0) {
     BattleTableEntry* p;
     BattleTableEntry* q;
 
-    D_800C34B0->unk5FC2 = 0;
-    q = &D_800C34B0->slots[arg0];
+    g_BattleCurWorkBlock->unk5FC2 = 0;
+    q = &g_BattleCurWorkBlock->slots[arg0];
     q->state.unkB6 |= 1;
-    p = &D_800C34B0->slots[arg0];
+    p = &g_BattleCurWorkBlock->slots[arg0];
     if ((p->state.unkB6 & 0x80) && (p->state.unk82 & 0x10)) {
         p->state.unk7C &= 0xFE4F;
         p->unk7C &= 0xEFFF;
     }
     if (D_800D2C34 == 4) {
-        D_800C34B0->unk5FC7 = 0x3D;
+        g_BattleCurWorkBlock->unk5FC7 = 0x3D;
     }
 }
 
 u8 BattleClearSlotFlag15A1(u8 arg0) {
-    BattleTableEntry* p = &D_800C34B0->slots[arg0];
+    BattleTableEntry* p = &g_BattleCurWorkBlock->slots[arg0];
     u8 flags = p->state.unkB6 & 0xFE;
 
     p->state.unkB6 = flags;
@@ -280,7 +280,7 @@ u8 BattleClearSlotFlag15A1(u8 arg0) {
 }
 
 void BattleSetSlotEntryFieldsTo1(u8 arg0) {
-    BattleTableEntry* p = &D_800C34B0->slots[arg0];
+    BattleTableEntry* p = &g_BattleCurWorkBlock->slots[arg0];
     BattleTableEntry* r;
     u16 f;
 
@@ -292,10 +292,10 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     if (f == 0) {
         return;
     }
-    r = &D_800C34B0->slots[arg0];
+    r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.unkB6 & 0x80) {
         s32 off = arg0 * 0x690 + 0x2228;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
 
         pRow[21].flags = 1;
         pRow[23].flags = 1;
@@ -306,7 +306,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
         pRow[28].flags = 1;
     } else {
         s32 off = arg0 * 0x5F0 + 0x1058;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
 
         pRow[22].flags = 1;
         pRow[24].flags = 1;
@@ -330,7 +330,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
             return;
         }
     }
-    p = &D_800C34B0->slots[arg0];
+    p = &g_BattleCurWorkBlock->slots[arg0];
     if (p->state.unkB6 & 0x80) {
         f = p->state.unk80 & 0x2000;
     } else {
@@ -339,10 +339,10 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     if (f == 0) {
         return;
     }
-    r = &D_800C34B0->slots[arg0];
+    r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.unkB6 & 0x80) {
         s32 off = arg0 * 0x690 + 0x2228;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
 
         pRow[21].flags = 0x2000;
         pRow[23].flags = 0x2000;
@@ -354,7 +354,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         r->state.unk80 &= 0xDFFF;
     } else {
         s32 off = arg0 * 0x5F0 + 0x1058;
-        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)D_800C34B0);
+        BattleRow* pRow = (BattleRow*)((u8*)off + (u32)g_BattleCurWorkBlock);
 
         pRow[22].flags = 0x2000;
         pRow[24].flags = 0x2000;
@@ -378,7 +378,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
 // reached 100. See the note above for the /20 ordering difference.
 /*
 s32 func_8009ADA0(u8 arg0, u32* arg1) {
-    u8* p = arg0 * 0x170 + (u32)D_800C34B0;
+    u8* p = arg0 * 0x170 + (u32)g_BattleCurWorkBlock;
     u16 f = *(u16*)(p + 0x7C);
     u16 val;
     s32 ret = 0;
@@ -436,7 +436,7 @@ Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
    while gcc hoists the symbol base into a register before the loop (loop.c moves
    the invariant), which then CSEs the address and drops 7 insns. Tried: plain
    `*(u16*)(D_800CCD68 + i*0x170) &= 0xFFDF`, the `((u16*)(...))[0] &=` spelling
-   (86.36%), `u8 t` vs `s32 t` for the 0x56 temp. Everything else (two D_800C34B0
+   (86.36%), `u8 t` vs `s32 t` for the 0x56 temp. Everything else (two g_BattleCurWorkBlock
    loads, the four zero stores, the `f & 0x2000` store and the BattleSetActorScaledHp call)
    lines up exactly.
 void func_8009AEFC(u8 arg0) {
@@ -444,8 +444,8 @@ void func_8009AEFC(u8 arg0) {
     u16 f;
     s32 t;
 
-    *(u8*)((u8*)D_800C34B0 + 0x5FC2) = 0;
-    p = arg0 * 0x170 + (u32)D_800C34B0;
+    *(u8*)((u8*)g_BattleCurWorkBlock + 0x5FC2) = 0;
+    p = arg0 * 0x170 + (u32)g_BattleCurWorkBlock;
     f = *(u16*)(p + 0x80);
     t = p[0x56];
     *(u16*)(p + 0x7C) = 0;
@@ -466,8 +466,8 @@ void func_8009AEFC(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
-void func_8009AFD8(void) {
-    u8 sel = D_800C34B0->unk5FC2;
+void BattleDecrementGearPartUse(void) {
+    u8 sel = g_BattleCurWorkBlock->unk5FC2;
     s32 idx;
 
     switch (sel) {
@@ -514,7 +514,7 @@ void BattleResetActorStats(void) {
     u8 i;
 
     for (i = 1; i < 3; i++) {
-        BattleTableEntry* p = (BattleTableEntry*)(i * 0x170 + (u32)D_800C34B0);
+        BattleTableEntry* p = (BattleTableEntry*)(i * 0x170 + (u32)g_BattleCurWorkBlock);
 
         p->unk4C = 0x64;
         p->unk4E = 0x64;
@@ -526,7 +526,7 @@ void BattleResetActorStats(void) {
 }
 
 void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
-    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800C34B0);
+    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
     BattleSlotState* pState = &p->state;
 
     if (pArg->unk4E * 50 > 0x1869F) {
@@ -576,7 +576,7 @@ void func_8009B46C(u16* arg0) {
     u8 i;
 
     for (i = 0; i < 3; i++) {
-        u8* p = (u8*)D_800C34B0 + i * 0x170;
+        u8* p = (u8*)g_BattleCurWorkBlock + i * 0x170;
         u8* q = p + 0xA4;
         u32 cur;
         u32 max;
@@ -637,115 +637,115 @@ void BattleSetCommandCodeForSlotKindFlag(u8 arg0, u16 arg1) {
     case 0:
         switch (arg1) {
         case 0x2000:
-            D_800C34B0->unk5FC7 = 1;
+            g_BattleCurWorkBlock->unk5FC7 = 1;
             break;
         case 0x1000:
-            D_800C34B0->unk5FC7 = 2;
+            g_BattleCurWorkBlock->unk5FC7 = 2;
             break;
         case 0x800:
-            D_800C34B0->unk5FC7 = 3;
+            g_BattleCurWorkBlock->unk5FC7 = 3;
             break;
         case 0x400:
-            D_800C34B0->unk5FC7 = 4;
+            g_BattleCurWorkBlock->unk5FC7 = 4;
             break;
         case 0x200:
-            D_800C34B0->unk5FC7 = 5;
+            g_BattleCurWorkBlock->unk5FC7 = 5;
             break;
         case 0x1:
-            D_800C34B0->unk5FC7 = 8;
+            g_BattleCurWorkBlock->unk5FC7 = 8;
             break;
         }
         break;
     case 2:
         switch (arg1) {
         case 0x2000:
-            D_800C34B0->unk5FC7 = 9;
+            g_BattleCurWorkBlock->unk5FC7 = 9;
             break;
         case 0x1000:
-            D_800C34B0->unk5FC7 = 0xA;
+            g_BattleCurWorkBlock->unk5FC7 = 0xA;
             break;
         case 0x800:
-            D_800C34B0->unk5FC7 = 0xB;
+            g_BattleCurWorkBlock->unk5FC7 = 0xB;
             break;
         case 0x400:
-            D_800C34B0->unk5FC7 = 0xC;
+            g_BattleCurWorkBlock->unk5FC7 = 0xC;
             break;
         case 0x1:
-            D_800C34B0->unk5FC7 = 0xD;
+            g_BattleCurWorkBlock->unk5FC7 = 0xD;
             break;
         case 0x20:
-            D_800C34B0->unk5FC7 = 7;
+            g_BattleCurWorkBlock->unk5FC7 = 7;
             break;
         }
         break;
     case 5:
         switch (arg1) {
         case 0x8000:
-            D_800C34B0->unk5FC7 = 0xE;
+            g_BattleCurWorkBlock->unk5FC7 = 0xE;
             break;
         case 0x4000:
-            D_800C34B0->unk5FC7 = 0xF;
+            g_BattleCurWorkBlock->unk5FC7 = 0xF;
             break;
         case 0x2000:
-            D_800C34B0->unk5FC7 = 0x10;
+            g_BattleCurWorkBlock->unk5FC7 = 0x10;
             break;
         case 0x1000:
-            D_800C34B0->unk5FC7 = 0x11;
+            g_BattleCurWorkBlock->unk5FC7 = 0x11;
             break;
         case 0x800:
-            D_800C34B0->unk5FC7 = 0x12;
+            g_BattleCurWorkBlock->unk5FC7 = 0x12;
             break;
         case 0x1800:
-            D_800C34B0->unk5FC7 = 0x13;
+            g_BattleCurWorkBlock->unk5FC7 = 0x13;
             break;
         }
         break;
     case 7:
         switch (arg1) {
         case 0x8000:
-            D_800C34B0->unk5FC7 = 0x15;
+            g_BattleCurWorkBlock->unk5FC7 = 0x15;
             break;
         case 0x4000:
-            D_800C34B0->unk5FC7 = 0x16;
+            g_BattleCurWorkBlock->unk5FC7 = 0x16;
             break;
         case 0x1000:
-            D_800C34B0->unk5FC7 = 0x18;
+            g_BattleCurWorkBlock->unk5FC7 = 0x18;
             break;
         case 0x8:
         case 0x2:
-            D_800C34B0->unk5FC7 = 0x19;
+            g_BattleCurWorkBlock->unk5FC7 = 0x19;
             break;
         case 0x1:
         case 0x4:
-            D_800C34B0->unk5FC7 = 0x1A;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1A;
             break;
         }
         break;
     case 9:
         switch (arg1) {
         case 0x8000:
-            D_800C34B0->unk5FC7 = 0x1B;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1B;
             break;
         case 0x4000:
-            D_800C34B0->unk5FC7 = 0x1C;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1C;
             break;
         case 0x2000:
-            D_800C34B0->unk5FC7 = 0x1D;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1D;
             break;
         case 0x1000:
-            D_800C34B0->unk5FC7 = 0x1E;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1E;
             break;
         case 0x400:
-            D_800C34B0->unk5FC7 = 0x1F;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1F;
             break;
         case 0x800:
-            D_800C34B0->unk5FC7 = 0x20;
+            g_BattleCurWorkBlock->unk5FC7 = 0x20;
             break;
         case 0x100:
-            D_800C34B0->unk5FC7 = 0x21;
+            g_BattleCurWorkBlock->unk5FC7 = 0x21;
             break;
         case 0x200:
-            D_800C34B0->unk5FC7 = 0x22;
+            g_BattleCurWorkBlock->unk5FC7 = 0x22;
             break;
         }
         break;
@@ -849,7 +849,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 // mfhi lands in $a1 instead of $v0. Permuter score 50, stuck over 1907+1250
 // iterations, so this is an allocator tie and not a structural miss.
 // The gain came from splitting the two statements' base loads: a u8* local for
-// the first store, and a plain expression for the second so (u32)D_800C34B0 is
+// the first store, and a plain expression for the second so (u32)g_BattleCurWorkBlock is
 // loaded again; the int idx local stops the second lbu being CSE'd into the
 // first, which is what lets the base reload schedule after multu.
 // Also tried, all 98.33 or worse: index-first addu operand order (97.33), two
@@ -869,7 +869,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 // not a source shape. See func_8009A9D0's note for the whole-unit screen.
 // The gain to 98.33 came from splitting the two statements' base loads: a u8*
 // local for the first store, and a plain expression for the second so
-// (u32)D_800C34B0 is loaded again; the int idx local stops the second lbu being
+// (u32)g_BattleCurWorkBlock is loaded again; the int idx local stops the second lbu being
 // CSE'd into the first, which is what lets the base reload schedule after multu.
 // Also tried, all 98.33 or worse: index-first addu operand order (97.33), two
 // separate locals for idx and address, declaration order swapped, u8* address
@@ -883,10 +883,10 @@ void func_8009BD94(void) {
     int new_var;
     u8* new_var2;
 
-    new_var2 = (u8*)D_800C34B0;
+    new_var2 = (u8*)g_BattleCurWorkBlock;
     *(u8*)(new_var2 + D_800C3E50 + 0x5FA0) = 2;
     new_var = D_800C3E50;
-    new_var = (u32)D_800C34B0 + new_var * 4 - -0x5F6C;
+    new_var = (u32)g_BattleCurWorkBlock + new_var * 4 - -0x5F6C;
     *(u32*)new_var =
         (u32)(g_BattleCurrentRow->unk11 * *(s32*)(D_800D2DC8 + 0x64)) / 20;
 }

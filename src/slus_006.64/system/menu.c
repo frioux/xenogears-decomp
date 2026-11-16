@@ -4,7 +4,7 @@
 #include "system/menu.h"
 #include "system/memory.h"
 
-extern s32* D_8005917C; // Debugger state pointer. -1 when no debugger is attached
+extern s32* g_DebuggerState; // Debugger state pointer. -1 when no debugger is attached
 extern void FontDrawLetters(void* ot);
 extern void FontPrintf(char* pFormat, ...);
 
@@ -17,7 +17,7 @@ extern char g_StrDebugCharacterFormat[];   // "\n\n     Chr =(%d)\n"
 extern char g_StrDebugRobotFormat[];   // "\n\n     Robo =(%d)\n"
 extern char g_StrDebugShopFormat[];   // "\n\n     ShopNo =(%d)\n"
 extern char g_StrDebugCdFormat[];   // "\n\n     CdNo =(%d)\n"
-extern void* D_8005945C;    // Menu resources file
+extern void* g_MenuResourcesFile;    // Menu resources file
 extern void* D_800658CC;
 extern void* D_8006BE24;
 extern void* D_8005A4AC;
@@ -135,13 +135,13 @@ void MenuUpdateAndRender(void) {
 
     g_Menu->renderContext = g_Menu->renderContext == 0;
     ClearOTagR(g_Menu->pGfxEnv->ot, 0x10);
-    if (*D_8005917C != -1) {
+    if (*g_DebuggerState != -1) {
         if (g_Menu->unk1E94) {
             // unk1E95 is volatile for MenuProcessControllerInput's sake only; the
             // original read it plainly here
             HeapDebugDump(3, *(u_char*)&g_Menu->unk1E95, 0xF, 0x80AC);
         }
-        if (*D_8005917C != -1) {
+        if (*g_DebuggerState != -1) {
             FontDrawLetters(g_Menu->pGfxEnv->ot);
         }
     }
@@ -240,7 +240,7 @@ void MenuExecute(void) {
         g_GameState.gold = 0x3B9AC9FF;
         HeapChangeCurrentUser(HEAP_USER_HIG, NULL);
         pResources = HeapAlloc(ArchiveDecodeAlignedSize(1), 0);
-        D_8005945C = pResources;
+        g_MenuResourcesFile = pResources;
         ArchiveReadFileToBuffer(1, pResources, 0, 0x80);
         ArchiveCdDataSync(0);
         if (g_MenuOverlayIndex == 5) {

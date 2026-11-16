@@ -572,9 +572,9 @@ void func_800A7064(void) {
     HeapFree(g_FieldParticlePrimitives);
 }
 
-extern int D_800ADB6C;
+extern int g_FieldStreamPlayerInitialized;
 extern int g_FieldMode;
-extern u_short D_800C3A36;
+extern u_short g_FieldStreamRgb24;
 extern int D_801D68B4;
 extern void func_801D3538(int, int, int, int, int, int, int);
 
@@ -585,8 +585,8 @@ void FieldInitializeStreamPlayer(void) {
     } else {
         D_801D68B4 = 0;
     }
-    func_801D3538(0x140, 0xE0, 0x80, 0x10, 0x20, 0x800, D_800C3A36);
-    D_800ADB6C = 0;
+    func_801D3538(0x140, 0xE0, 0x80, 0x10, 0x20, 0x800, g_FieldStreamRgb24);
+    g_FieldStreamPlayerInitialized = 0;
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 }
 
@@ -610,13 +610,13 @@ void FieldSelectStreamRenderContext(u_short arg0, int arg1, u_short arg2) {
         DrawSync(0);
         g_FieldCurRenderContext = &g_FieldRenderContexts[g_FieldFrameBufferIndex];
         // Read as signed here, unsigned in FieldInitializeStreamPlayer, matching the original loads
-        if (*(s16*)&D_800C3A36 == 1) {
+        if (*(s16*)&g_FieldStreamRgb24 == 1) {
             g_FieldRenderContexts[g_FieldFrameBufferIndex & 1].dispEnv.isrgb24 = 1;
         }
     }
 }
 
-extern s32 D_800ADB80;
+extern s32 g_FieldStreamFlags;
 extern s16 D_800C3A20;
 extern u16 D_800C3A22;
 extern u16 D_800C3A24;
@@ -634,10 +634,10 @@ void FieldPlayStreamedSequence(void) {
 
     g_FieldStreamFramePosition = 0;
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
-    if (D_800ADB6C == 0) {
+    if (g_FieldStreamPlayerInitialized == 0) {
         ArchiveSetIndex(0x18, 1);
         nMode = 1;
-        if (g_FieldStreamId != 0xFF || (D_800ADB80 & 0x40)) {
+        if (g_FieldStreamId != 0xFF || (g_FieldStreamFlags & 0x40)) {
             nMode = 3;
         }
         func_801D37CC(D_800C3A20 + 2, D_800C3A2A, D_800C3A2C, D_800C3A2E, 1, nMode,
@@ -647,7 +647,7 @@ void FieldPlayStreamedSequence(void) {
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 }
 
-extern int D_800ADB6C;
+extern int g_FieldStreamPlayerInitialized;
 extern void func_801D3F7C(void);
 extern void FieldAdvanceSedsSequence(void);
 
@@ -655,7 +655,7 @@ void FieldStepStreamPlayback(int nFrames) {
     int i;
 
     GameCheckAndHandleSoftReset();
-    if (D_800ADB6C == 0) {
+    if (g_FieldStreamPlayerInitialized == 0) {
         for (i = 0; i < nFrames; i++) {
             func_801D3F7C();
             FieldAdvanceSedsSequence();

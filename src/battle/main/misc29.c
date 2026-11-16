@@ -260,7 +260,7 @@ void BattleInitStateWorkBuffers(void) {
 // displacements come out -2/0 instead of 6/8. Tried: &g_BattleStateWork[3], (u8*)cast
 // + 0x54, a typed pointer local, a pBase local shared with the tail - all fold.
 extern s32 D_800C3D58;
-extern s32 D_80059198;
+extern s32 g_AnimScriptExtraTicks;
 extern s32 g_GfxOTDepthShift;
 /*
 void func_800B88C4(void) {
@@ -282,14 +282,14 @@ void func_800B88C4(void) {
         pSlot++;
     }
     n = D_800C3D58 / 2 - 1;
-    D_80059198 = n;
+    g_AnimScriptExtraTicks = n;
     if (n < 0) {
-        D_80059198 = 0;
+        g_AnimScriptExtraTicks = 0;
     }
     pBase = (u8 *)g_BattleStateWork;
     pWork = pBase + 0x8000;
-    value = D_80059198;
-    D_80059198 = 0;
+    value = g_AnimScriptExtraTicks;
+    g_AnimScriptExtraTicks = 0;
     pOT = *(u8 **)(pWork + 0xC50);
     g_GfxOTDepthShift = 2;
     if (pOT == pBase + 0xB70) {

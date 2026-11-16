@@ -2,12 +2,12 @@
 #include "psyq/libgpu.h"
 #include "battle/battle_work.h"
 
-extern u8 *D_800C3E24;
-extern u8 D_800CCB34;
+extern u8 *g_BattlePulseTrianglePrims;
+extern u8 g_BattlePrimStartIndex;
 extern u8 g_BattleActorCharIds[];
 extern u8 D_800D3294;
 extern u8 *g_BattleSpriteArchive;
-extern BattleGraphicsWork *D_800C3EA4;
+extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern u8 *g_BattleCommandQueue;
 extern BattleWork *g_BattleDisplayState;
 extern u8 D_800C400B[];
@@ -15,11 +15,11 @@ extern u8 D_800C4022[];
 extern u8 D_800C402F[];
 extern u8 D_800D2E60[];
 extern u8 D_800D2E61[];
-extern s32 D_800595A0;
+extern s32 g_SystemSemiTransMode;
 extern u8 D_800D2DCC[];
-extern u8 D_800D2DE4[];
+extern u8 g_BattleActorCountdownState[];
 extern u16 D_800D2DF0[];
-extern u8 D_800C3E8C;
+extern u8 g_BattleTextSlotCount;
 extern u8 *D_800C3DDC;
 extern u8 D_800D2E5F[];
 extern u8 D_800D3718[];
@@ -43,7 +43,7 @@ extern void *BattleAllocTextBuffer(s32 arg0);
 extern u8 D_800D36C0[];
 extern u8 D_800D36C8[];
 extern BattleSlotGraphics *g_BattleSlotGraphics[];
-extern u8 D_800594D4[];
+extern u8 g_SystemBackdropColor[];
 extern u8 D_800D2F3C[];
 extern u8 D_800D2F3D[];
 extern u8 D_800D2F3E[];
@@ -62,7 +62,7 @@ void BattleSetPrimGrey80BlendModeFromGlobal(POLY_FT4 *p) {
     p->r0 = 0x80;
     p->g0 = 0x80;
     p->b0 = 0x80;
-    if (D_800595A0 != 0) {
+    if (g_SystemSemiTransMode != 0) {
         p->tpage |= 0x40;
     } else {
         p->tpage &= ~0x40;
@@ -252,27 +252,27 @@ void func_80076EA4(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076EA4);
 void BattleInitPacketPrimitives(void) {
-    D_800C3EA4->pPacketPrims[0x669] = 0;
-    D_800C3EA4->pPacketPrims[0x66B] = 0;
-    D_800C3EA4->pPacketPrims[0x66D] = 0;
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x000, 0, 1);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x050, 0, 1);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x0A0, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x0F0, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x140, 0, 1);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x190, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x1E0, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x230, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x280, 0, 3);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x2D0, 1, 3);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x320, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x370, 1, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x3C0, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x410, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x460, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x4B0, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x500, 0, 2);
-    func_80076D58(D_800C3EA4->pPacketPrims + 0x550, 0, 2);
+    g_BattleGraphicsWork->pPacketPrims[0x669] = 0;
+    g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
+    g_BattleGraphicsWork->pPacketPrims[0x66D] = 0;
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x000, 0, 1);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x050, 0, 1);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x0A0, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x0F0, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x140, 0, 1);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x190, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x1E0, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x230, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x280, 0, 3);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x2D0, 1, 3);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x320, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x370, 1, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x3C0, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x410, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x460, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x4B0, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x500, 0, 2);
+    func_80076D58(g_BattleGraphicsWork->pPacketPrims + 0x550, 0, 2);
 }
 void BattleInitTilePrims(POLY_FT4 *p, u8 index) {
     s32 i;
@@ -283,11 +283,11 @@ void BattleInitTilePrims(POLY_FT4 *p, u8 index) {
         p[i].r0 = 0xFF;
         p[i].g0 = 0xFF;
         p[i].b0 = 0xFF;
-        p[i].tpage = GetTPage(D_800C3EA4->tiles[index].tp, 0,
-                              D_800C3EA4->tiles[index].texPageX,
-                              D_800C3EA4->tiles[index].texPageY);
-        p[i].clut = GetClut(D_800C3EA4->tiles[index].clutX,
-                            D_800C3EA4->tiles[index].clutY);
+        p[i].tpage = GetTPage(g_BattleGraphicsWork->tiles[index].tp, 0,
+                              g_BattleGraphicsWork->tiles[index].texPageX,
+                              g_BattleGraphicsWork->tiles[index].texPageY);
+        p[i].clut = GetClut(g_BattleGraphicsWork->tiles[index].clutX,
+                            g_BattleGraphicsWork->tiles[index].clutY);
     }
 }
 void BattleInitSlotPrims(u8 index) {
@@ -298,22 +298,22 @@ void BattleInitSlotPrims(u8 index) {
     // the index-first spelling is what makes gcc emit retail's addu order
     for (i = 0; i < 2; i++) {
         SetPolyG4(&pGfx->prims[i]);
-        (i + pGfx->prims)->r0 = D_800594D4[0];
-        (i + pGfx->prims)->g0 = D_800594D4[1];
-        (i + pGfx->prims)->b0 = D_800594D4[2];
-        (i + pGfx->prims)->r1 = D_800594D4[0];
-        (i + pGfx->prims)->g1 = D_800594D4[1];
-        (i + pGfx->prims)->b1 = D_800594D4[2];
-        (i + pGfx->prims)->r2 = D_800594D4[0];
-        (i + pGfx->prims)->g2 = D_800594D4[1];
-        (i + pGfx->prims)->b2 = D_800594D4[2];
-        (i + pGfx->prims)->r3 = D_800594D4[0];
-        (i + pGfx->prims)->g3 = D_800594D4[1];
-        (i + pGfx->prims)->b3 = D_800594D4[2];
+        (i + pGfx->prims)->r0 = g_SystemBackdropColor[0];
+        (i + pGfx->prims)->g0 = g_SystemBackdropColor[1];
+        (i + pGfx->prims)->b0 = g_SystemBackdropColor[2];
+        (i + pGfx->prims)->r1 = g_SystemBackdropColor[0];
+        (i + pGfx->prims)->g1 = g_SystemBackdropColor[1];
+        (i + pGfx->prims)->b1 = g_SystemBackdropColor[2];
+        (i + pGfx->prims)->r2 = g_SystemBackdropColor[0];
+        (i + pGfx->prims)->g2 = g_SystemBackdropColor[1];
+        (i + pGfx->prims)->b2 = g_SystemBackdropColor[2];
+        (i + pGfx->prims)->r3 = g_SystemBackdropColor[0];
+        (i + pGfx->prims)->g3 = g_SystemBackdropColor[1];
+        (i + pGfx->prims)->b3 = g_SystemBackdropColor[2];
         SetSemiTrans(&pGfx->prims[i], 1);
         SetDrawMode(&pGfx->drawModes[i], 0, 0,
-                    GetTPage(0, D_800595A0, D_800C3EA4->tiles[1].texPageX,
-                             D_800C3EA4->tiles[1].texPageY),
+                    GetTPage(0, g_SystemSemiTransMode, g_BattleGraphicsWork->tiles[1].texPageX,
+                             g_BattleGraphicsWork->tiles[1].texPageY),
                     (RECT *)g_BattleDisplayState);
     }
     BattleInitTilePrims(pGfx->tilePrims[0], 1);
@@ -325,72 +325,72 @@ void BattleInitSlotPrims(u8 index) {
 void BattleAllocPacketPrimitives(void) {
     u8 *p = (u8 *)BattleAllocHeapBlock(0x670, 0);
 
-    D_800C3EA4->pPacketPrims = p;
+    g_BattleGraphicsWork->pPacketPrims = p;
     bzero(p, 0x670);
     BattleInitPacketPrimitives();
 }
 
 void BattleFreePacketPrimitives(void) {
     BattleUpdateFrame();
-    HeapFree(D_800C3EA4->pPacketPrims);
+    HeapFree(g_BattleGraphicsWork->pPacketPrims);
 }
 
-void func_80077698(void) {
+void BattleInitPulseTrianglePrims(void) {
     s32 i;
     s32 j;
 
-    bzero(D_800C3E24, 0xEC);
+    bzero(g_BattlePulseTrianglePrims, 0xEC);
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 2; j++) {
-            SetPolyG3((POLY_G3 *)((i * 2 + j) * 0x1C + (mem_addr)D_800C3E24));
+            SetPolyG3((POLY_G3 *)((i * 2 + j) * 0x1C + (mem_addr)g_BattlePulseTrianglePrims));
             switch (i) {
             case 0:
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xC0;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x70;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0xB0;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x78;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xB0;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x68;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0xC0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x70;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0xB0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x78;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0xB0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x68;
                 break;
             case 1:
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xA0;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x90;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x98;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x80;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xA8;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x80;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0xA0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x90;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0x98;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x80;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0xA8;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x80;
                 break;
             case 2:
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0x80;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x70;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x90;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x68;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0x90;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x78;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0x80;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x70;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0x90;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x68;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0x90;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x78;
                 break;
             case 3:
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x0 = 0xA0;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y0 = 0x50;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x1 = 0x98;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y1 = 0x60;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->x2 = 0xA8;
-                ((POLY_G3 *)(D_800C3E24 + (i * 2 + j) * 0x1C))->y2 = 0x60;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0xA0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x50;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0x98;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x60;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0xA8;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x60;
                 break;
             }
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 4] = 0xFF;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 5] = 0;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 6] = 0;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xC] = 0x40;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xD] = 0;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0xE] = 0;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x14] = 0x40;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x15] = 0;
-            ((u8 *)D_800C3E24)[(i * 2 + j) * 0x1C + 0x16] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 4] = 0xFF;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 5] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 6] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0xC] = 0x40;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0xD] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0xE] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0x14] = 0x40;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0x15] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0x16] = 0;
         }
     }
-    *(s32 *)(D_800C3E24 + 0xE0) = 0xFF;
-    D_800C3E24[0xE5] = 1;
-    D_800C3E24[0xE4] = D_800CCB34;
+    *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) = 0xFF;
+    g_BattlePulseTrianglePrims[0xE5] = 1;
+    g_BattlePulseTrianglePrims[0xE4] = g_BattlePrimStartIndex;
     g_BattleDisplayState->unkC6 = 1;
 }
 
@@ -579,7 +579,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
    0x20 and saves them at 0x18/0x1C, i.e. gcc reserves 8 extra bytes of local
    space for something that never gets used (both objects are 392 bytes, so
    the frame is the only difference). Tried: pStr temp for GetStringEntry
-   (same), inlining GetStringEntry (same), splitting `D_800C3E8C++` into a
+   (same), inlining GetStringEntry (same), splitting `g_BattleTextSlotCount++` into a
    load + separate increment (87.44 - breaks the store/increment order).
    Round 42 narrowed the 8 bytes down: `.frame # vars= 8`, with no stack
    reference anywhere in the final RTL, so it is a slot whose pseudo died.
@@ -596,17 +596,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
    void func_80078658(u8 index, u8 color) {
        u8 *pEntry;
 
-       if (D_800C3E8C < 9) {
-           *(u8 *)((u8 *)&D_800D3726 + D_800C3E8C * 0x60) =
+       if (g_BattleTextSlotCount < 9) {
+           *(u8 *)((u8 *)&D_800D3726 + g_BattleTextSlotCount * 0x60) =
                SystemRenderStringEntry(GetStringEntry(D_800C3DDC, D_800D2E5F[index * 8]),
-                                       *(u8 **)((u8 *)&D_800D3720 + D_800C3E8C * 0x60), 0x39,
-                                       D_800C3E8C & 1);
-           BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + D_800C3E8C * 0x60),
-                         *(u_long **)((u8 *)&D_800D3720 + D_800C3E8C * 0x60));
+                                       *(u8 **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * 0x60), 0x39,
+                                       g_BattleTextSlotCount & 1);
+           BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + g_BattleTextSlotCount * 0x60),
+                         *(u_long **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * 0x60));
            D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
            D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFA;
            pEntry = g_BattleCommandQueue;
-           *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = D_800C3E8C++;
+           *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = g_BattleTextSlotCount++;
            pEntry[0x2DA]++;
        }
    }

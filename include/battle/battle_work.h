@@ -39,7 +39,7 @@ typedef struct {
 } BattleWork; // Size: 0x108
 
 // The per-tile texture parameters BattleInitTilePrims feeds to GetTPage and
-// GetClut (D_800C3EA4 + 0xA238, stride 0x18).
+// GetClut (g_BattleGraphicsWork + 0xA238, stride 0x18).
 typedef struct {
     /* 0x00 */ s32 tp; // GetTPage depth mode
     /* 0x04 */ s32 clutX;
@@ -49,7 +49,7 @@ typedef struct {
     /* 0x14 */ s32 unk14;
 } BattleTileTexture; // Size: 0x18
 
-// The battle draw work block (D_800C3EA4). Only the fields
+// The battle draw work block (g_BattleGraphicsWork). Only the fields
 // src/battle/main/misc3 touches are named; other units reach past 0xA2C8, so
 // that is a lower bound on the real size.
 typedef struct {

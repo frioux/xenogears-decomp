@@ -20,7 +20,7 @@ typedef struct {
     /* 0x0CF */ u8 unkCF;
 } BattleUploadState; // Size: 0xD0 (lower bound: other units reach 0xFC)
 
-// Partial view of the battle work block (D_800C3EA4): the sub-image descriptors
+// Partial view of the battle work block (g_BattleGraphicsWork): the sub-image descriptors
 // LoadImage uploads and the scroll BattleUpdateImageUpload animates.
 typedef struct {
     /* 0x0000 */ u8 unk0[0x6410];
@@ -43,7 +43,7 @@ typedef struct {
 
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
-extern u8 D_800C3E4C;
+extern u8 g_BattleDisplayMode;
 extern u8 D_800CCDC4[];
 extern u8 D_800CCDC6[];
 extern u8 D_800C3CF9[];
@@ -68,8 +68,8 @@ extern s32 D_800C2054[];
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern void BattleSetupLinearMove(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
-extern u8 D_800CCB34;
-extern u8* D_800D2DB4;
+extern u8 g_BattlePrimStartIndex;
+extern u8* g_BattleSpriteColumnWork;
 extern s32 BattleDrawSpritePackage(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
 extern void BattleSetPrimGrey80BlendAdd(u8* p);
 extern Temp8* g_BattleSoundBankMain;
@@ -86,13 +86,13 @@ extern void BattleUpdatePauseMenu(u8 arg0);
 extern void BattleUpdateImageUpload(u8 arg0);
 extern void func_8008A684(u8 arg0);
 extern int rand(void);
-extern BattleUploadWork *D_800C3EA4;
+extern BattleUploadWork *g_BattleGraphicsWork;
 extern BattleUploadState *g_BattleDisplayState;
 extern u8 D_800C3444;
 extern BattlePrimPoolSlot *g_BattlePrimPool;
 extern u8 D_800C48EA;
 extern u8 g_BattleMenuEvent;
-extern s32 *D_8005917C;
+extern s32 *g_DebuggerState;
 extern u16 g_C1ButtonStatePressedOnce;
 extern u16 g_C1ButtonStateReleased;
 extern int g_SpuChannelMask;
@@ -150,10 +150,10 @@ void BattleStepTwoAxisInterpolation(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
 // Best attempt: objdiff 92.61% (retail 1240 bytes). Two classes of diff: the frame
 // carries one extra callee-saved register (s6, so ra moves 0x48 -> 0x4C) and,
-// downstream of that, the D_800D2DB4 base sits in $a0 where retail has $a1 at the
+// downstream of that, the g_BattleSpriteColumnWork base sits in $a0 where retail has $a1 at the
 // coordinate stores. The three sprite packages, the four prim loops and the 2x10
 // grid already line up. The s16/u16 mix on 0x5D9C/0x5D9E and the word read of
-// D_800CCB34 inside the grid loop are casts retail really had: the same symbols are
+// g_BattlePrimStartIndex inside the grid loop are casts retail really had: the same symbols are
 // read the other way round in BattleStepTwoAxisInterpolation.
 /*
 void func_80088B80(void) {
@@ -167,47 +167,47 @@ void func_80088B80(void) {
     }
     if (g_BattleLerpDone != 0) {
         if ((u8)GameRandomByteRange(0, 0x63) >= 0x60) {
-            BattleSetupLinearMove(*(u16*)(D_800D2DB4 + 0x5D9C), *(u16*)(D_800D2DB4 + 0x5D9E),
+            BattleSetupLinearMove(*(u16*)(g_BattleSpriteColumnWork + 0x5D9C), *(u16*)(g_BattleSpriteColumnWork + 0x5D9E),
                 D_800C2054[(u8)GameRandomByteRange(0, 4)], D_800C2054[(u8)GameRandomByteRange(0, 4) + 5]);
         }
     }
     if (g_BattleLerpDone == 0) {
         BattleStepTwoAxisInterpolation();
-        *(u16*)(D_800D2DB4 + 0x5D9C) = *(u16*)&g_BattleLerpStartX + g_BattleLerpFracX / 0x100;
-        *(u16*)(D_800D2DB4 + 0x5D9E) = *(u16*)&g_BattleLerpStartY + g_BattleLerpFracY / 0x100;
+        *(u16*)(g_BattleSpriteColumnWork + 0x5D9C) = *(u16*)&g_BattleLerpStartX + g_BattleLerpFracX / 0x100;
+        *(u16*)(g_BattleSpriteColumnWork + 0x5D9E) = *(u16*)&g_BattleLerpStartY + g_BattleLerpFracY / 0x100;
     }
-    D_800D2DB4[0x5D72] = BattleDrawSpritePackage(0xB9, (s32)(D_800D2DB4 + 0xD20), *(s16*)(D_800D2DB4 + 0x5D9C), *(s16*)(D_800D2DB4 + 0x5D9E));
-    D_800D2DB4[0x5D94] = D_800CCB34;
-    D_800D2DB4[0x5D71] = BattleDrawSpritePackage((*(u16*)(D_800D2DB4 + 0x5D9C) & 0xF) + 0xA9, (s32)(D_800D2DB4 + 0x3C0), 0xA0, 0x64);
-    D_800D2DB4[0x5D93] = D_800CCB34;
-    D_800D2DB4[0x5D73] = BattleDrawSpritePackage(0x82, (s32)(D_800D2DB4 + 0xFA0), *(s16*)(D_800D2DB4 + 0x5D9C), *(s16*)(D_800D2DB4 + 0x5D9E));
-    D_800D2DB4[0x5D95] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D72]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D94]) * 0x28 + 0xD20 + (s32)D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D72] = BattleDrawSpritePackage(0xB9, (s32)(g_BattleSpriteColumnWork + 0xD20), *(s16*)(g_BattleSpriteColumnWork + 0x5D9C), *(s16*)(g_BattleSpriteColumnWork + 0x5D9E));
+    g_BattleSpriteColumnWork[0x5D94] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D71] = BattleDrawSpritePackage((*(u16*)(g_BattleSpriteColumnWork + 0x5D9C) & 0xF) + 0xA9, (s32)(g_BattleSpriteColumnWork + 0x3C0), 0xA0, 0x64);
+    g_BattleSpriteColumnWork[0x5D93] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D73] = BattleDrawSpritePackage(0x82, (s32)(g_BattleSpriteColumnWork + 0xFA0), *(s16*)(g_BattleSpriteColumnWork + 0x5D9C), *(s16*)(g_BattleSpriteColumnWork + 0x5D9E));
+    g_BattleSpriteColumnWork[0x5D95] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D72]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + g_BattleSpriteColumnWork[0x5D94]) * 0x28 + 0xD20 + (s32)g_BattleSpriteColumnWork));
     }
-    for (i = 0; i < D_800D2DB4[0x5D73]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D95]) * 0x28 + 0xFA0 + (s32)D_800D2DB4));
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D73]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + g_BattleSpriteColumnWork[0x5D95]) * 0x28 + 0xFA0 + (s32)g_BattleSpriteColumnWork));
     }
-    for (i = 0; i < D_800D2DB4[0x5D71]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + D_800D2DB4[0x5D93]) * 0x28 + 0x3C0 + (s32)D_800D2DB4));
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D71]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((i * 2 + g_BattleSpriteColumnWork[0x5D93]) * 0x28 + 0x3C0 + (s32)g_BattleSpriteColumnWork));
     }
-    D_800D2DB4[0x5D96] = BattleDrawSpritePackage((*(u16*)(D_800D2DB4 + 0x5D9E) & 0xF) + 0xC9, (s32)(D_800D2DB4 + 0x32A0), *(s16*)(D_800D2DB4 + 0x5D9C), *(s16*)(D_800D2DB4 + 0x5D9E));
-    D_800D2DB4[0x5D97] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D96]; i++) {
-        BattleSetPrimGrey80BlendSub((u8*)((i * 2 + D_800D2DB4[0x5D97]) * 0x28 + 0x32A0 + (s32)D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D96] = BattleDrawSpritePackage((*(u16*)(g_BattleSpriteColumnWork + 0x5D9E) & 0xF) + 0xC9, (s32)(g_BattleSpriteColumnWork + 0x32A0), *(s16*)(g_BattleSpriteColumnWork + 0x5D9C), *(s16*)(g_BattleSpriteColumnWork + 0x5D9E));
+    g_BattleSpriteColumnWork[0x5D97] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D96]; i++) {
+        BattleSetPrimGrey80BlendSub((u8*)((i * 2 + g_BattleSpriteColumnWork[0x5D97]) * 0x28 + 0x32A0 + (s32)g_BattleSpriteColumnWork));
     }
     if (g_BattleLerpDone == 0) {
         sy = 0xA << 16;
         for (i = 0; i < 2; i++) {
             sx = 0x82 << 16;
             for (j = 0; j < 0xA; j++) {
-                BattleDrawSpritePackage(GameRandomByteRange(0, 9) + 0xBA, (s32)(((i * 0xA + j) * 0x50 + 0x46A0) + (s32)D_800D2DB4), sx >> 16, sy >> 16);
-                BattleSetPrimGrey80BlendAdd((u8*)((((i * 0xA + j) * 2 + *(s32*)&D_800CCB34) * 0x28 + 0x46A0) + (s32)D_800D2DB4));
+                BattleDrawSpritePackage(GameRandomByteRange(0, 9) + 0xBA, (s32)(((i * 0xA + j) * 0x50 + 0x46A0) + (s32)g_BattleSpriteColumnWork), sx >> 16, sy >> 16);
+                BattleSetPrimGrey80BlendAdd((u8*)((((i * 0xA + j) * 2 + *(s32*)&g_BattlePrimStartIndex) * 0x28 + 0x46A0) + (s32)g_BattleSpriteColumnWork));
                 sx += 0x60000;
             }
             sy += 0xBD << 16;
         }
-        D_800D2DB4[0x5D98] = D_800CCB34;
+        g_BattleSpriteColumnWork[0x5D98] = g_BattlePrimStartIndex;
     }
 }
 */
@@ -216,16 +216,16 @@ void BattleBuildFlaggedSlotSpriteColumn(void) {
     s32 pitch = 0x6E << 16;
     s32 off;
 
-    D_800D2DB4[0x5DA1] = 0;
+    g_BattleSpriteColumnWork[0x5DA1] = 0;
     for (i = 0; i < 5; i++) {
         if ((u16)BattleMaskHasStatusBit(D_800D2C30, i) != 0) {
-            off = D_800D2DB4[0x5DA1] * 0x50 + 0x4CE0;
-            D_800D2DB4[0x5DA1] += BattleDrawSpritePackage(i + 0xC4, (s32)(off + (s32)D_800D2DB4), 0xE0, pitch >> 16);
+            off = g_BattleSpriteColumnWork[0x5DA1] * 0x50 + 0x4CE0;
+            g_BattleSpriteColumnWork[0x5DA1] += BattleDrawSpritePackage(i + 0xC4, (s32)(off + (s32)g_BattleSpriteColumnWork), 0xE0, pitch >> 16);
             pitch += 0xA0000;
         }
     }
-    D_800D2DB4[0x5DA0] = D_800CCB34;
-    *(u16*)(D_800D2DB4 + 0x5DA2) = 0;
+    g_BattleSpriteColumnWork[0x5DA0] = g_BattlePrimStartIndex;
+    *(u16*)(g_BattleSpriteColumnWork + 0x5DA2) = 0;
 }
 void BattleBuildBlendedSprite(void) {
     s32 arg0;
@@ -236,11 +236,11 @@ void BattleBuildBlendedSprite(void) {
     if (D_800D2C38 != 0) {
         arg0 = 0xA1;
     }
-    D_800D2DB4[0x5D75] = BattleDrawSpritePackage(arg0, (s32)(D_800D2DB4 + 0x3AC0), 0xA0, 0x64);
-    D_800D2DB4[0x5D84] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D75]; i++) {
-        pEntry = (i * 2 + D_800D2DB4[0x5D84]) * 0x28 + 0x3AC0;
-        BattleSetPrimGrey80BlendAdd((u8*)(pEntry + (s32)D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D75] = BattleDrawSpritePackage(arg0, (s32)(g_BattleSpriteColumnWork + 0x3AC0), 0xA0, 0x64);
+    g_BattleSpriteColumnWork[0x5D84] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D75]; i++) {
+        pEntry = (i * 2 + g_BattleSpriteColumnWork[0x5D84]) * 0x28 + 0x3AC0;
+        BattleSetPrimGrey80BlendAdd((u8*)(pEntry + (s32)g_BattleSpriteColumnWork));
     }
 }
 void BattleBuildGrey80BlendSpriteColumnPair(void) {
@@ -252,15 +252,15 @@ void BattleBuildGrey80BlendSpriteColumnPair(void) {
     v = D_800D2C34;
     slotA = v - 0x5D;
     slotB = v - 0x25;
-    D_800D2DB4[0x5D77] = BattleDrawSpritePackage(slotA, (s32)(D_800D2DB4 + 0x3E80), 0xA0, 0x64);
-    D_800D2DB4[0x5D86] = D_800CCB34;
-    D_800D2DB4[0x5D7F] = BattleDrawSpritePackage(slotB, (s32)(D_800D2DB4 + 0x43D0), 0xA0, 0x64);
-    D_800D2DB4[0x5D8E] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D77]; i++) {
-        BattleSetPrimGrey80BlendAdd(D_800D2DB4 + ((i * 2 + D_800D2DB4[0x5D86]) * 0x28 + 0x3E80));
+    g_BattleSpriteColumnWork[0x5D77] = BattleDrawSpritePackage(slotA, (s32)(g_BattleSpriteColumnWork + 0x3E80), 0xA0, 0x64);
+    g_BattleSpriteColumnWork[0x5D86] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D7F] = BattleDrawSpritePackage(slotB, (s32)(g_BattleSpriteColumnWork + 0x43D0), 0xA0, 0x64);
+    g_BattleSpriteColumnWork[0x5D8E] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D77]; i++) {
+        BattleSetPrimGrey80BlendAdd(g_BattleSpriteColumnWork + ((i * 2 + g_BattleSpriteColumnWork[0x5D86]) * 0x28 + 0x3E80));
     }
-    for (i = 0; i < D_800D2DB4[0x5D7F]; i++) {
-        BattleSetPrimGrey80BlendSub(D_800D2DB4 + ((i * 2 + D_800D2DB4[0x5D8E]) * 0x28 + 0x43D0));
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D7F]; i++) {
+        BattleSetPrimGrey80BlendSub(g_BattleSpriteColumnWork + ((i * 2 + g_BattleSpriteColumnWork[0x5D8E]) * 0x28 + 0x43D0));
     }
 }
 void BattleBuildGrey80BlendSpriteColumn5(void) {
@@ -273,14 +273,14 @@ void BattleBuildGrey80BlendSpriteColumn5(void) {
     while (i < 5) {
         s32 slot = D_800C3CF8[i++];
         if (slot != 0xFF) {
-            off = D_800D2DB4[0x5D78] * 0x50 + 0x4E70;
-            D_800D2DB4[0x5D78] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x46);
+            off = g_BattleSpriteColumnWork[0x5D78] * 0x50 + 0x4E70;
+            g_BattleSpriteColumnWork[0x5D78] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x46);
             pitch += 0x60000;
         }
     }
-    D_800D2DB4[0x5D87] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D78]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D87]) * 0x28 + 0x4E70) + (s32)D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D87] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D78]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + g_BattleSpriteColumnWork[0x5D87]) * 0x28 + 0x4E70) + (s32)g_BattleSpriteColumnWork));
     }
 }
 void BattleBuildGrey80BlendSpriteColumn6(void) {
@@ -300,19 +300,19 @@ void BattleBuildGrey80BlendSpriteColumn6(void) {
         while (i < 2) {
             s32 slot = D_800C3CFB[i++];
             if (slot != 0xFF) {
-                off = D_800D2DB4[0x5D79] * 0x50 + 0x4FB0;
-                D_800D2DB4[0x5D79] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x4E);
+                off = g_BattleSpriteColumnWork[0x5D79] * 0x50 + 0x4FB0;
+                g_BattleSpriteColumnWork[0x5D79] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x4E);
                 pitch += 0x60000;
                 n++;
             }
         }
-        D_800D2DB4[0x5D79] += BattleDrawSpritePackage(0x9D, (s32)((D_800D2DB4[0x5D79] * 0x50 + columnBase) + (s32)D_800D2DB4), 0x11A + n * 6, 0x4E);
+        g_BattleSpriteColumnWork[0x5D79] += BattleDrawSpritePackage(0x9D, (s32)((g_BattleSpriteColumnWork[0x5D79] * 0x50 + columnBase) + (s32)g_BattleSpriteColumnWork), 0x11A + n * 6, 0x4E);
     } else {
-        D_800D2DB4[0x5D79] = BattleDrawSpritePackage(0xA2, (s32)(D_800D2DB4 + 0x4FB0), 0x11A, 0x4E);
+        g_BattleSpriteColumnWork[0x5D79] = BattleDrawSpritePackage(0xA2, (s32)(g_BattleSpriteColumnWork + 0x4FB0), 0x11A, 0x4E);
     }
-    D_800D2DB4[0x5D88] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D79]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D88]) * 0x28 + 0x4FB0) + (s32)D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D88] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D79]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + g_BattleSpriteColumnWork[0x5D88]) * 0x28 + 0x4FB0) + (s32)g_BattleSpriteColumnWork));
     }
 }
 void BattleBuildGrey80BlendSpriteColumn7(void) {
@@ -327,17 +327,17 @@ void BattleBuildGrey80BlendSpriteColumn7(void) {
     BattleParseNumberToDigits(D_800D2C36);
     for (i = 0; i < 3; i++) {
         if (D_800C3CFA[i] != 0xFF) {
-            off = D_800D2DB4[0x5D7A] * 0x50 + 0x50A0;
-            D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x56);
+            off = g_BattleSpriteColumnWork[0x5D7A] * 0x50 + 0x50A0;
+            g_BattleSpriteColumnWork[0x5D7A] += BattleDrawSpritePackage(D_800C3CFA[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x56);
             pitch += 0x60000;
             n++;
         }
     }
-    D_800D2DB4[0x5D7A] += BattleDrawSpritePackage(0x9D, (s32)((D_800D2DB4[0x5D7A] * 0x50 + columnBase) + (s32)D_800D2DB4), 0x11A + n * 6, 0x56);
-    D_800D2DB4[0x5D89] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D7A]; i++) {
-        off2 = (i * 2 + D_800D2DB4[0x5D89]) * 0x28 + 0x50A0;
-        BattleSetPrimGrey80BlendAdd(&D_800D2DB4[off2]);
+    g_BattleSpriteColumnWork[0x5D7A] += BattleDrawSpritePackage(0x9D, (s32)((g_BattleSpriteColumnWork[0x5D7A] * 0x50 + columnBase) + (s32)g_BattleSpriteColumnWork), 0x11A + n * 6, 0x56);
+    g_BattleSpriteColumnWork[0x5D89] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D7A]; i++) {
+        off2 = (i * 2 + g_BattleSpriteColumnWork[0x5D89]) * 0x28 + 0x50A0;
+        BattleSetPrimGrey80BlendAdd(&g_BattleSpriteColumnWork[off2]);
     }
 }
 
@@ -351,20 +351,20 @@ void BattleBuildGrey80BlendSpriteColumn2(void) {
     while (i < 2) {
         s32 slot = D_800C3CFB[i++];
         if (slot != 0xFF) {
-            off = D_800D2DB4[0x5D7B] * 0x50 + 0x51E0;
-            D_800D2DB4[0x5D7B] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0x5E);
+            off = g_BattleSpriteColumnWork[0x5D7B] * 0x50 + 0x51E0;
+            g_BattleSpriteColumnWork[0x5D7B] += BattleDrawSpritePackage(slot + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0x5E);
             pitch += 0x60000;
         }
     }
-    D_800D2DB4[0x5D8A] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D7B]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + D_800D2DB4[0x5D8A]) * 0x28 + 0x51E0) + (s32)D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D8A] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D7B]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8*)((off2 = (i * 2 + g_BattleSpriteColumnWork[0x5D8A]) * 0x28 + 0x51E0) + (s32)g_BattleSpriteColumnWork));
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_800898F0);
 // Best attempt: objdiff 91.38% (528 bytes, the original size). Only two classes of diff,
 // both shared with the rest of the BattleDrawSpritePackage family in this unit: every call site puts
-// the D_800D2DB4 base in $a1 and the offset chain in $v0 where the original has base $v1 /
+// the g_BattleSpriteColumnWork base in $a1 and the offset chain in $v0 where the original has base $v1 /
 // chain $a1 (the final addu is the mirror image), and the second loop's "pitch = 0x48 << 16"
 // plus its 0x80000 increment are scheduled a few instructions differently. Pitch values are
 // 0x20<<16 / 0x48<<16 with a +0x80000 step, the step is OUTSIDE the if, and the table
@@ -375,29 +375,29 @@ void func_800898F0(u8 arg0) {
     s32 pitch = 0x20 << 16;
     s32 off;
 
-    D_800D2DB4[0x5D7C] = 0;
+    g_BattleSpriteColumnWork[0x5D7C] = 0;
     BattleParseNumberToDigits(*(u16*)(D_800CCDC4 + arg0 * 0x170));
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
-            off = D_800D2DB4[0x5D7C] * 0x50 + 0x5280;
-            D_800D2DB4[0x5D7C] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
+            off = g_BattleSpriteColumnWork[0x5D7C] * 0x50 + 0x5280;
+            g_BattleSpriteColumnWork[0x5D7C] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
         }
         pitch += 0x80000;
     }
-    D_800D2DB4[0x5D8B] = D_800CCB34;
-    D_800D2DB4[0x5D7D] = 0;
+    g_BattleSpriteColumnWork[0x5D8B] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D7D] = 0;
     BattleParseNumberToDigits(*(u16*)(D_800CCDC6 + arg0 * 0x170));
     pitch = 0x48 << 16;
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
-            off = D_800D2DB4[0x5D7D] * 0x50 + 0x53C0;
-            D_800D2DB4[0x5D7D] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)D_800D2DB4), pitch >> 16, 0xCC);
+            off = g_BattleSpriteColumnWork[0x5D7D] * 0x50 + 0x53C0;
+            g_BattleSpriteColumnWork[0x5D7D] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
         }
         pitch += 0x80000;
     }
-    off = D_800D2DB4[0x5D7D] * 0x50 + 0x53C0;
-    D_800D2DB4[0x5D7D] += BattleDrawSpritePackage(0x9C, (s32)(off + (s32)D_800D2DB4), 0x41, 0xCC);
-    D_800D2DB4[0x5D8C] = D_800CCB34;
+    off = g_BattleSpriteColumnWork[0x5D7D] * 0x50 + 0x53C0;
+    g_BattleSpriteColumnWork[0x5D7D] += BattleDrawSpritePackage(0x9C, (s32)(off + (s32)g_BattleSpriteColumnWork), 0x41, 0xCC);
+    g_BattleSpriteColumnWork[0x5D8C] = g_BattlePrimStartIndex;
 }
 */
 void BattleBuildSpritePrimLists(void) {
@@ -474,13 +474,13 @@ void BattleUploadImageFrame(void) {
         return;
     }
     vramOffset0 = 0x8970;
-    LoadImage(&D_800C3EA4->uploadRect[0], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset0 + (s32)D_800C3EA4));
+    LoadImage(&g_BattleGraphicsWork->uploadRect[0], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset0 + (s32)g_BattleGraphicsWork));
     vramOffset1 = 0x8FA0;
-    LoadImage(&D_800C3EA4->uploadRect[1], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset1 + (s32)D_800C3EA4));
+    LoadImage(&g_BattleGraphicsWork->uploadRect[1], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset1 + (s32)g_BattleGraphicsWork));
     vramOffset2 = 0x95D0;
-    LoadImage(&D_800C3EA4->uploadRect[2], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset2 + (s32)D_800C3EA4));
+    LoadImage(&g_BattleGraphicsWork->uploadRect[2], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset2 + (s32)g_BattleGraphicsWork));
     vramOffset3 = 0x9C00;
-    LoadImage(&D_800C3EA4->uploadRect[3], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset3 + (s32)D_800C3EA4));
+    LoadImage(&g_BattleGraphicsWork->uploadRect[3], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset3 + (s32)g_BattleGraphicsWork));
     g_BattleDisplayState->unk30 += 4;
     if (g_BattleDisplayState->unk30 >= 0xC7) {
         g_BattleDisplayState->unk30 = 0;
@@ -495,18 +495,18 @@ void BattleUpdateImageUpload(u8 arg0) {
     }
     g_BattleDisplayState->unkA9 += 6;
     g_BattleDisplayState->unkAB += 1;
-    if (D_800C3EA4->unk6415 != 0) {
-        if (D_800C3EA4->unk6416 == 0) {
-            D_800C3EA4->unk6410 += 4;
-            if (D_800C3EA4->unk6410 >= 0x81) {
-                D_800C3EA4->unk6410 = 0x7C;
-                D_800C3EA4->unk6416 = 1;
+    if (g_BattleGraphicsWork->unk6415 != 0) {
+        if (g_BattleGraphicsWork->unk6416 == 0) {
+            g_BattleGraphicsWork->unk6410 += 4;
+            if (g_BattleGraphicsWork->unk6410 >= 0x81) {
+                g_BattleGraphicsWork->unk6410 = 0x7C;
+                g_BattleGraphicsWork->unk6416 = 1;
             }
         } else {
-            D_800C3EA4->unk6410 -= 4;
-            if (D_800C3EA4->unk6410 < 0) {
-                D_800C3EA4->unk6410 = 4;
-                D_800C3EA4->unk6416 = 0;
+            g_BattleGraphicsWork->unk6410 -= 4;
+            if (g_BattleGraphicsWork->unk6410 < 0) {
+                g_BattleGraphicsWork->unk6410 = 4;
+                g_BattleGraphicsWork->unk6416 = 0;
             }
         }
     }
@@ -570,7 +570,7 @@ void BattleUpdatePauseMenu(u8 arg0) {
         } else {
             while (ControllerPopState() != 0) {
                 if (D_800C3444 != 0) {
-                    if (*D_8005917C != -1) {
+                    if (*g_DebuggerState != -1) {
                         if ((g_C1ButtonStatePressedOnce & 4) != 0) {
                             if ((g_C1ButtonStatePressedOnce & 8) != 0) {
                                 D_800C48EA = muted;
@@ -610,7 +610,7 @@ void BattleUpdatePauseMenu(u8 arg0) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
 void BattleUpdateEffectByScreenMode(u8 arg0) {
-    switch (D_800C3E4C) {
+    switch (g_BattleDisplayMode) {
     case 0:
         func_8008A684(arg0);
         break;

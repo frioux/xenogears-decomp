@@ -28,8 +28,8 @@ typedef struct {
 // Sprite / Animation functions
 
 // .sbss
-s32 D_800591B8;
-s32 D_800592EC;
+s32 g_SpritePendingClut;
+s32 g_AnimTimerTickCount;
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80022B2C);
 /* Best attempt: 96.30% (376 bytes; the original is 380). Instruction stream and control flow
@@ -162,7 +162,7 @@ void func_80022DF4(pEntry) WorkListEntry* pEntry;
 }
 
 void AnimTaskCountedTimerTick(void) {
-    D_800592EC++;
+    g_AnimTimerTickCount++;
     func_80022DF4();
 }
 
@@ -291,13 +291,13 @@ u32 AnimScriptGetBlockCount(AnimScriptLoopBlock* pBlock) {
     return pData->count + 1;
 }
 
-extern int D_80059198;
+extern int g_AnimScriptExtraTicks;
 extern void func_800248D4(SpriteData* pSpriteData);
 
 void AnimScriptTick(SpriteData* pSpriteData) {
     int i;
 
-    for (i = 0; i != D_80059198 + 1; i++) {
+    for (i = 0; i != g_AnimScriptExtraTicks + 1; i++) {
         if (pSpriteData->animScriptWaitTimer) {
             pSpriteData->animScriptWaitTimer--;
             if (pSpriteData->animScriptWaitTimer == 0) {
@@ -307,7 +307,7 @@ void AnimScriptTick(SpriteData* pSpriteData) {
     }
 }
 
-void func_80023290(SpriteData* pSpriteData, s32 direction) {
+void SpriteSetDirectionAndRefreshFrames(SpriteData* pSpriteData, s32 direction) {
     s32 animType;
     s32 dir;
 
@@ -345,7 +345,7 @@ AnimTask* AnimTaskAlloc(void* pData, int dataSize) {
     WorkListEntry* pTask1;
     WorkListEntry* pTask2;
 
-    pEntry = HeapAlloc(dataSize + 0xEC, D_800591AF);
+    pEntry = HeapAlloc(dataSize + 0xEC, g_TaskHeapAllocFlags);
     pTask1 = &pEntry->task1;
     pTask2 = &pEntry->task2;
     TimerWorkListAddTask(pData, pTask1);
@@ -459,7 +459,7 @@ void func_80023804(SpriteData* pSpriteData) {
     *(u8*)((u8*)pSpriteData + 0xAF) = 0;
     pSpriteData->flags_0xAC.flags = (pSpriteData->flags_0xAC.flags & 0xFFF8007F) | ((0x100 & 0xFFF) << 7);
     pSpriteData->flags_0xA8 &= 0xFFF1FFFF;
-    cycles = D_80059198 + 1;
+    cycles = g_AnimScriptExtraTicks + 1;
     pSpriteData->gravity = (cycles * 0x4000) * cycles * pSpriteData->field_0x82 / 4096;
     pSpriteData->pSpriteBytecode = NULL;
     pSpriteData->field_0x70 = NULL;
@@ -509,8 +509,8 @@ void SpriteInitBaseWithRenderFrames(SpriteData* pSpriteData) {
     pSpriteData->pBase->pNextSpriteData = NULL;
 }
 
-extern u8 D_8006BE10[];
-extern u8 D_8005A474[];
+extern u8 g_SpriteAnimPackageDirs5[];
+extern u8 g_SpriteAnimPackageDirs6[];
 extern s32 SpriteAnimPackageGetFrameCount(u16* pFlags);
 
 AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void* pData) {
@@ -525,13 +525,13 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
         SpriteClearBase(&pEntry->spriteData);
         break;
     case 1:
-        // indexed, not plain &D_8006BE10: the index makes gcc build the address as
+        // indexed, not plain &g_SpriteAnimPackageDirs5: the index makes gcc build the address as
         // lui v0,%hi + addiu s2,v0,%lo (a temp for the high half) as the original does
         if (arg0 == 5) {
-            pAnimPackage = &D_8006BE10[0];
+            pAnimPackage = &g_SpriteAnimPackageDirs5[0];
         }
         if (arg0 == 6) {
-            pAnimPackage = &D_8005A474[0];
+            pAnimPackage = &g_SpriteAnimPackageDirs6[0];
         }
         dataSize = (SpriteAnimPackageGetFrameCount(((SpriteAnimPackage*)pAnimPackage)->pFrames) - 1) *
                        sizeof(SpriteFrameData) + 0x58;
@@ -637,9 +637,9 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
 extern void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 
 void SpriteAllocFromAnimFileWithClut(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s32 arg6) {
-    D_800591B8 = arg6;
+    g_SpritePendingClut = arg6;
     SpriteAllocFromAnimFile(pAnimFile, arg1, arg2, arg3, arg4, arg5);
-    D_800591B8 = 0;
+    g_SpritePendingClut = 0;
 }
 
 extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
@@ -647,9 +647,9 @@ extern void func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
 
 void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
                    s16 arg6, s32 arg7) {
-    D_800591B8 = arg7;
+    g_SpritePendingClut = arg7;
     func_8002435C(pSpriteData, pAnimFile, arg2, arg3, arg4, arg5, arg6);
-    D_800591B8 = 0;
+    g_SpritePendingClut = 0;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
@@ -687,9 +687,9 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     flags = *(u32*)((u8*)pSpriteData + 0x3C);
     pSpriteData->field_0x6C = pSpriteData;
     flags &= 0xFF0FFFFF;
-    flags |= (D_800591B8 & 0xF) << 20;
+    flags |= (g_SpritePendingClut & 0xF) << 20;
     flags &= 0xFFF0FFFF;
-    flags |= (D_800591B8 & 0xF) << 16;
+    flags |= (g_SpritePendingClut & 0xF) << 16;
     *(u32*)((u8*)pSpriteData + 0x3C) = flags;
     pAnimFileData = pAnimFile;
     pAnimHeader = *(u32*)(pAnimFileData + 8);

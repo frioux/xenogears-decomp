@@ -2,7 +2,7 @@
 #include "system/memory.h"
 #include "system/model.h"
 
-extern s32 D_80091C2C;
+extern s32 g_BattleSkipEntryFree;
 extern s16 g_BattleTpageX;
 extern s16 g_BattleTpageY;
 extern s16 g_BattleClutX;
@@ -182,7 +182,7 @@ void BattleFreeEntryList(Misc13EntryList* pList) {
         HeapFree(pList->pData);
     }
     if (pList->pEntries != NULL) {
-        if (D_80091C2C == 0) {
+        if (g_BattleSkipEntryFree == 0) {
             i = pList->count;
             while (--i != -1) {
                 if (pList->pEntries[i].unk00 != 0) {

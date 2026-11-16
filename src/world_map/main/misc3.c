@@ -3,7 +3,7 @@
 #include "psyq/libgpu.h"
 #include "system/sound.h"
 
-// One slot of the pool D_8009BE24 (stride 0x80), partial view: only the script
+// One slot of the pool g_WorldMapSlots (stride 0x80), partial view: only the script
 // cursor and the wait countdown are used here. The cursor is halfword
 // addressed; 0x50 of a slot is a pointer to the current command word.
 typedef struct {
@@ -22,8 +22,8 @@ typedef struct {
 } WorldMapRenderContext; // partial view
 
 extern s32 D_8009D554;
-extern s32 D_8009D7CC;
-extern s32 D_8009CCA4;
+extern s32 g_WorldMapAreaMode;
+extern s32 g_WorldMapTpageAbr;
 extern s32 D_8009D3CC;
 
 extern void WorldMapDeactivateSpriteGroup(s32 arg0);
@@ -39,10 +39,10 @@ extern void SoundFadeElementVolumeById(s32 arg0, s32 arg1, s32 arg2);
 extern u8 g_WorldMapPlayerPosition[];
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
-extern s32 D_8009D3F0;
+extern s32 g_WorldMapCameraHeight;
 extern SoundFile* g_MenuSedsFile;
 
-extern WorldMapScriptSlot* D_8009BE24;
+extern WorldMapScriptSlot* g_WorldMapSlots;
 extern s32 g_WorldMapRotationMatrixValid;
 extern s32 g_WorldMapPathFrame;
 extern s16 g_WorldMapSlotUpdateFlags;
@@ -54,11 +54,11 @@ extern s32 g_WorldMapWorkBuffer1;
 extern s32 g_WorldMapWorkBuffer2;
 extern s32 D_8009BC3C;
 extern s32 D_8009BCB4;
-extern s32 D_8009C180;
+extern s32 g_WorldMapDecompressedMapData;
 extern s16 g_WorldMapViewRotationY;
-extern s16 D_8006F94E;
-extern s16 D_8006F950;
-extern s16 D_8006F954;
+extern s16 g_NextMapId;
+extern s16 g_NextMapRotationY;
+extern s16 g_NextMapFlags;
 extern s32 D_8009BBC4;
 
 extern void func_8009932C(u_long* pOt0, u_long* pOt1, s32* pState);
@@ -139,13 +139,13 @@ typedef struct {
 
 extern void WorldMapWrapDelta(WorldMapScrollDelta* pDelta);
 extern void func_80096F18(void* pOut, s32* pSrc, s32 nHeight);
-extern s32 D_8009BE0C;
+extern s32 g_WorldMapFadeLevel;
 extern s32 D_8009BD48;
 extern s32 D_8009BE2C;
 extern s32 D_8009BE30;
-extern s32 D_8009D55C;
-extern s32 D_8009D560;
-extern s32 D_8009D564;
+extern s32 g_WorldMapScrollTargetX;
+extern s32 g_WorldMapScrollTargetY;
+extern s32 g_WorldMapScrollTargetZ;
 extern s32 D_8009BBBC;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
@@ -180,7 +180,7 @@ s32 WorldMapUpdateFrame(void) {
 }
 
 s32 WorldMapRunSlotScript(s32 index) {
-    WorldMapScriptSlot* pSlot = &D_8009BE24[index];
+    WorldMapScriptSlot* pSlot = &g_WorldMapSlots[index];
     s16* pCmd;
     s32 cmd;
     s32 n = 0;
@@ -196,7 +196,7 @@ s32 WorldMapRunSlotScript(s32 index) {
 
 s32 WorldMapScriptOp00End(void) {
     D_8009D554 = 0;
-    D_8009D7CC = 0;
+    g_WorldMapAreaMode = 0;
     return 0;
 }
 
@@ -262,7 +262,7 @@ s32 WorldMapScriptOp10FadeSound(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
 }
 
 s32 WorldMapScriptOp11SetDrawMode(s32 arg0, s32 arg1, s32 arg2) {
-    D_8009CCA4 = arg1;
+    g_WorldMapTpageAbr = arg1;
     D_8009D3CC = arg2;
     return 4;
 }
@@ -314,48 +314,48 @@ void WorldMapApproachHeight(WorldMapPlayer* pPlayer) {
     s32 cur = pPlayer->unk5C;
     s32 idx;
 
-    if (cur != D_8009D3F0) {
-        idx = (cur - D_8009D3F0) >> 3;
+    if (cur != g_WorldMapCameraHeight) {
+        idx = (cur - g_WorldMapCameraHeight) >> 3;
         if ((idx < 0 ? -idx : idx) < 0x40) {
-            D_8009D3F0 = cur;
+            g_WorldMapCameraHeight = cur;
         } else {
-            D_8009D3F0 = D_8009D3F0 + idx;
+            g_WorldMapCameraHeight = g_WorldMapCameraHeight + idx;
         }
     }
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
 /* Best attempt: 75.16%. Same skeleton as func_80076DA4 (compare the three
-   player fields against the D_8009D55C/560/564 goal, wrap the delta through
+   player fields against the g_WorldMapScrollTargetX/560/564 goal, wrap the delta through
    WorldMapWrapDelta, 1/8 step, |step| < 0x200 snaps to the goal). Remaining diff:
-   inside the if-block gcc cse reuses the D_8009D55C/560/564 values it loaded
-   for the compare (in a2/a3/a1), while the original reloads D_8009D560 and
-   D_8009D564 plus the player fields, so everything after shifts by two
+   inside the if-block gcc cse reuses the g_WorldMapScrollTargetX/560/564 values it loaded
+   for the compare (in a2/a3/a1), while the original reloads g_WorldMapScrollTargetY and
+   g_WorldMapScrollTargetZ plus the player fields, so everything after shifts by two
    instructions. The four-word copy at the end is WorldMapPos4.
 void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
-    if ((pPlayer->unk28 != D_8009D55C) | (pPlayer->unk2C != D_8009D560) |
-        (pPlayer->unk30 != D_8009D564)) {
-        pDelta->x = D_8009D55C - pPlayer->unk28;
-        pDelta->y = D_8009D560 - pPlayer->unk2C;
-        pDelta->z = D_8009D564 - pPlayer->unk30;
+    if ((pPlayer->unk28 != g_WorldMapScrollTargetX) | (pPlayer->unk2C != g_WorldMapScrollTargetY) |
+        (pPlayer->unk30 != g_WorldMapScrollTargetZ)) {
+        pDelta->x = g_WorldMapScrollTargetX - pPlayer->unk28;
+        pDelta->y = g_WorldMapScrollTargetY - pPlayer->unk2C;
+        pDelta->z = g_WorldMapScrollTargetZ - pPlayer->unk30;
         WorldMapWrapDelta(pDelta);
         pDelta->stepX = pDelta->x >> 3;
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;
         if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x200) {
             g_WorldMapScrollX += pDelta->x;
-            pPlayer->unk28 = D_8009D55C;
+            pPlayer->unk28 = g_WorldMapScrollTargetX;
         } else {
             g_WorldMapScrollX += pDelta->stepX;
             pPlayer->unk28 += pDelta->stepX;
         }
         if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x200) {
-            pPlayer->unk2C = D_8009D560;
+            pPlayer->unk2C = g_WorldMapScrollTargetY;
         } else {
             pPlayer->unk2C += pDelta->stepY;
         }
         if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x200) {
             D_8009BBBC += pDelta->z;
-            pPlayer->unk30 = D_8009D564;
+            pPlayer->unk30 = g_WorldMapScrollTargetZ;
         } else {
             D_8009BBBC += pDelta->stepZ;
             pPlayer->unk30 += pDelta->stepZ;
@@ -406,10 +406,10 @@ s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
 }
 */
 
-extern MATRIX D_8009A180;
+extern MATRIX g_WorldMapIdentityMatrix;
 extern MATRIX D_8009BE4C;
 extern s32 D_8009D804;
-extern void (*D_8009CD40)(void);
+extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
@@ -417,7 +417,7 @@ extern s32 ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void WorldMapDecompressMapTables(void);
 extern void WorldMapAllocSlotPool(void);
-extern void func_80098044(void);
+extern void WorldMapComputeClipPlaneVectors(void);
 extern s32 ArchiveCdDataSync(s32 arg0);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapLoadTextureClut(void);
@@ -472,13 +472,13 @@ void WorldMapInitializeMode(void) {
     }
     WorldMapDecompressMapTables();
     WorldMapAllocSlotPool();
-    D_8009BE4C = D_8009A180;
-    D_8009CCA4 = 2;
+    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapTpageAbr = 2;
     D_8009D3CC = 4;
     D_8009D804 = 0;
     g_WorldMapRotationMatrixValid = 0;
-    D_8009CD40 = WorldMapWrapTileVertexPositions;
-    func_80098044();
+    g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
+    WorldMapComputeClipPlaneVectors();
     ArchiveCdDataSync(0);
     pPos = (s32*)g_WorldMapPlayerPosition;
     *pPos = 0x7702000;
@@ -528,13 +528,13 @@ s32 WorldMapExitMode(void) {
     HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
-    HeapFree(D_8009C180);
+    HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
     v = *(u16*)&g_WorldMapViewRotationY;
-    D_8006F94E = 0x11;
-    D_8006F954 = 7;
+    g_NextMapId = 0x11;
+    g_NextMapFlags = 7;
     D_8009BBC4 = 1;
-    D_8006F950 = v;
+    g_NextMapRotationY = v;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_8007756C);
@@ -557,22 +557,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_8007756C);
    gp-relative: every symbol is an absolute from undefined_syms_auto), so a
    -G0 switch would not break the unit but still does not close it.
 s32 func_8007756C(s32 arg0) {
-    u8* pSlot = (u8*)D_8009BE24 + (arg0 << 7);
+    u8* pSlot = (u8*)g_WorldMapSlots + (arg0 << 7);
     WorldMapName8* pName = (WorldMapName8*)&g_WorldMapPathFrame;
 
     g_WorldMapCameraRot = -0x80;
     g_WorldMapViewRotationY = 0x200;
-    D_8009D3F0 = 0x400000;
+    g_WorldMapCameraHeight = 0x400000;
     D_8009BD3C = 0;
     *(s32*)(pSlot + 0x28) = 0xFFF80000;
-    D_8009BE0C = 0x78;
+    g_WorldMapFadeLevel = 0x78;
     *(s32*)(pSlot + 0x2C) = *(volatile s16*)&g_WorldMapViewRotationY << 12;
     *(WorldMapPos4*)(pSlot + 0x38) = *(WorldMapPos4*)(pSlot + 0x28);
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapCameraTarget = g_WorldMapPlayerPosition;
     D_8009BE2C = D_8009C5B0;
     D_8009BE30 = D_8009C5B4;
-    func_80096F18(pName, &g_WorldMapCameraTarget, D_8009D3F0);
+    func_80096F18(pName, &g_WorldMapCameraTarget, g_WorldMapCameraHeight);
     *(WorldMapName8*)0x1F8000A0 = *pName;
     *pName = *(WorldMapName8*)&D_8009BD48;
     *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)0x1F8000A0;
@@ -660,13 +660,13 @@ void WorldMapInitializeModeWithSound(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = D_8009A180;
-    D_8009CCA4 = 1;
+    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapTpageAbr = 1;
     D_8009D3CC = 4;
     D_8009D804 = 0;
     g_WorldMapRotationMatrixValid = 0;
-    D_8009CD40 = WorldMapWrapTileVertexPositions;
-    func_80098044();
+    g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
+    WorldMapComputeClipPlaneVectors();
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
     pPos = (s32*)g_WorldMapPlayerPosition;
@@ -702,13 +702,13 @@ void WorldMapInitializeModeWithSound(void) {
 /*
 s32 func_800776E0(s32 arg0) {
     u8* pScratch = (u8*)0x1F800000;
-    u8* pSlot = (u8*)D_8009BE24 + (arg0 << 7);
+    u8* pSlot = (u8*)g_WorldMapSlots + (arg0 << 7);
     WorldMapName8* pName;
     s32 nPos;
 
     if (D_8009BD10 & 0x40) {
         D_8009D554 = 0;
-        D_8009D7CC = 0;
+        g_WorldMapAreaMode = 0;
     }
     if (D_8009CD4C & 0x1000) {
         *(s32*)(pSlot + 0x28) += 0x8000;
@@ -738,7 +738,7 @@ s32 func_800776E0(s32 arg0) {
     g_WorldMapCameraRot = *(s32*)(pSlot + 0x38) >> 12;
     g_WorldMapViewRotationY = *(s32*)(pSlot + 0x3C) >> 12;
     pName = (WorldMapName8*)&g_WorldMapPathFrame;
-    func_80096F18(pName, &g_WorldMapCameraTarget, D_8009D3F0);
+    func_80096F18(pName, &g_WorldMapCameraTarget, g_WorldMapCameraHeight);
     *(WorldMapName8*)(pScratch + 0xA0) = *pName;
     *pName = *(WorldMapName8*)&D_8009BD48;
     *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)(pScratch + 0xA0);

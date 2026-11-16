@@ -42,7 +42,7 @@ typedef struct {
     SpriteData spriteData;
 } AnimTask;
 
-extern u8 D_800591AF;
+extern u8 g_TaskHeapAllocFlags;
 extern void func_80022DF4();
 extern void AnimTaskFree();
 extern void* g_GfxWorkBuffer2;

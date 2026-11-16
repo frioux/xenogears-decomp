@@ -47,21 +47,21 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapEntry; // Size: 0x54
 
-extern WorldMapSlot *D_8009BE24;
-extern WorldMapEntry *D_8009C620;
+extern WorldMapSlot *g_WorldMapSlots;
+extern WorldMapEntry *g_WorldMapGroups;
 extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr);
 extern u8 D_8009A758[];
 extern void WorldMapStartSlot(s32 arg0, s32 arg1);
 extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
 extern s32 *g_SoundAudioManager;
-extern s32 D_8009CCA4;
+extern s32 g_WorldMapTpageAbr;
 extern s32 D_8009D3CC;
 extern s32 D_8009D554;
-extern s32 D_8009D7CC;
+extern s32 g_WorldMapAreaMode;
 // externs used by the parked attempts below
 extern Vec3 g_WorldMapPlayerPosition;
-extern MATRIX D_8009A180;
+extern MATRIX g_WorldMapIdentityMatrix;
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s16 D_1F8000A0[];
@@ -69,28 +69,28 @@ extern void func_80089160(s32, s16 *, s32);
 extern u16 g_WorldMapFadeIds[];
 extern u16 g_WorldMapFadeFrameCounts[];
 extern s32 g_WorldMapRotationMatrixValid;
-extern s32 D_8009BE0C;
+extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE2C;
 extern s32 D_8009BE30;
-extern s32 D_8009D55C;
-extern s32 D_8009D560;
-extern s32 D_8009D564;
+extern s32 g_WorldMapScrollTargetX;
+extern s32 g_WorldMapScrollTargetY;
+extern s32 g_WorldMapScrollTargetZ;
 extern void WorldMapSetupPrimTemplates(void *, s32, s32);
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
 extern s16 D_8009BD3C;
-extern s32 D_8009D3F0;
+extern s32 g_WorldMapCameraHeight;
 extern SoundFile *g_MenuSedsFile;
-extern s16 D_8006F94E;
-extern s16 D_8006F950;
-extern s16 D_8006F954;
+extern s16 g_NextMapId;
+extern s16 g_NextMapRotationY;
+extern s16 g_NextMapFlags;
 extern s32 D_8009BBC4;
 extern s32 g_WorldMapWorkBuffer1;
 extern s32 g_WorldMapWorkBuffer2;
 extern s32 D_8009BC3C;
 extern s32 D_8009BCB4;
-extern s32 D_8009C180;
+extern s32 g_WorldMapDecompressedMapData;
 extern void HeapFree(void *pMem);
 extern void SoundStopAllElements(void);
 extern void WorldMapFreeSpritePrimBuffers(void);
@@ -115,7 +115,7 @@ extern void WorldMapFreeGridImages(void);
 // and not this unit's compiler. Per-function alternative scores are in the
 // notes beside each park.
 s32 WorldMapInitSlotAtScrollPosition(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = g_WorldMapPlayerPosition.y;
@@ -131,11 +131,11 @@ s32 WorldMapInitSlotAtScrollPosition(s32 index) {
 // 84.76, so the preset is not the problem. Residues: gcc sinks `sh zero,0x4(base)`
 // below the pos.x/pos.z loads and hoists the pos.z load where retail keeps
 // statement order, and the slot base lands in $a3 instead of $a2. Addressing the
-// slot as D_8009BE24[index] per statement scores 81.95; moving the unk4 store to
+// slot as g_WorldMapSlots[index] per statement scores 81.95; moving the unk4 store to
 // either end of the three stays at 84.76.
 /*
 s32 func_80080944(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 v;
 
     if (pSlot->unk4 != 1) {
@@ -174,14 +174,14 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // stores in retail's emission order (x, y, unk54, unk50, unk58, z) gives this
 // shape, the x/y/z-first order gives the same 92.64%.
 // The parameter shift cannot be re-created either: `index *= 0x80` followed by
-// `(u8 *)D_8009BE24 + index`, `index << 7`, and a u32/int local all still give
+// `(u8 *)g_WorldMapSlots + index`, `index << 7`, and a u32/int local all still give
 // `sll a1,a0,0x7`; retail's `sll a0,a0,0x7` needs gcc to hand the sum pseudo the
 // dying argument register, which no source spelling reached.
 // Preset screen: cdk 87.51, gcc-2.6.0 87.15.
 /*
 s32 func_80080A28(s32 index) {
-    u8 *p = D_8009C620;
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    u8 *p = g_WorldMapGroups;
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = 0xFFF80000;
@@ -216,18 +216,18 @@ void WorldMapExitToMap1FA(void) {
     HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
-    HeapFree(D_8009C180);
+    HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
     v = *(u16 *)&g_WorldMapViewRotationY;
-    D_8006F94E = 0x1FA;
-    D_8006F954 = 0;
+    g_NextMapId = 0x1FA;
+    g_NextMapFlags = 0;
     D_8009BBC4 = 1;
-    D_8006F950 = v;
+    g_NextMapRotationY = v;
 }
 // The empty do/while is load-bearing: without it gcc hoists the g_WorldMapFadeIds load
 // above the slot address formation (65.26%); with it the schedule is retail's.
 s32 WorldMapBeginSlotAnimFrame(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     do { } while (0);
     pSlot->unk50 = 0;
     pSlot->unk20 = g_WorldMapFadeIds[0];
@@ -236,7 +236,7 @@ s32 WorldMapBeginSlotAnimFrame(s32 index) {
     return 1;
 }
 s32 WorldMapUpdateSlotState(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     switch (pSlot->unk20) {
     case 1:
@@ -289,13 +289,13 @@ s32 WorldMapUpdateSlotState(s32 index) {
     case 0x3F:
         SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
         WorldMapStartSlot(0, 0xD);
-        D_8009CCA4 = 2;
+        g_WorldMapTpageAbr = 2;
         D_8009D3CC = 4;
         pSlot->unk20 = 1;
         break;
     case 0x40:
         D_8009D554 = 0;
-        D_8009D7CC = 0;
+        g_WorldMapAreaMode = 0;
         pSlot->unk20 = 0;
         break;
     case 0:
@@ -316,7 +316,7 @@ s32 WorldMapUpdateSlotState(s32 index) {
 // Preset screen: cdk 76.59, gcc-2.6.0 46.47.
 /*
 s32 func_800813E8(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 x;
     s32 y;
     s32 z;
@@ -328,13 +328,13 @@ s32 func_800813E8(s32 index) {
     x = g_WorldMapPlayerPosition.x;
     y = D_8009C5B0;
     z = D_8009C5B4;
-    D_8009BE0C = 0x78;
+    g_WorldMapFadeLevel = 0x78;
     g_WorldMapCameraTarget = x;
-    D_8009D55C = x;
+    g_WorldMapScrollTargetX = x;
     D_8009BE2C = y;
-    D_8009D560 = y;
+    g_WorldMapScrollTargetY = y;
     D_8009BE30 = z;
-    D_8009D564 = z;
+    g_WorldMapScrollTargetZ = z;
     return 1;
 }
 */
@@ -355,14 +355,14 @@ void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 ab
 
 // Best: 66.00%. Structure, relocations and offsets are all right (the call,
 // the three >>12 stores, the six slot stores); gcc's scheduler hoists the
-// D_8009C5B0/D_8009C5B4 loads and the D_8009C620 load above the `sh 0x20`
+// D_8009C5B0/D_8009C5B4 loads and the g_WorldMapGroups load above the `sh 0x20`
 // store and sinks the g_WorldMapPlayerPosition load to its store, retail keeps statement
 // order. Locals x/y/z and a late pEntry assignment were no better.
 // Preset screen: cdk 50.54, gcc-2.6.0 58.56.
 /*
 s32 func_800817A0(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
-    WorldMapEntry *pEntry = &D_8009C620[2];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    WorldMapEntry *pEntry = &g_WorldMapGroups[2];
 
     pSlot->unk20 = 0;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
@@ -380,8 +380,8 @@ s32 func_800817A0(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800817A0);
 s32 WorldMapUpdateSlotColorFade(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
-    WorldMapEntry *pEntry = &D_8009C620[2];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    WorldMapEntry *pEntry = &g_WorldMapGroups[2];
     POLY_FT4 *pPrim;
     s32 i;
 
@@ -421,7 +421,7 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
     return 1;
 }
 // Best: 87.03%. Every call, offset and relocation is right (the 8-word matrix
-// copy from D_8009A180, the three scratchpad words, ScaleMatrix with the
+// copy from g_WorldMapIdentityMatrix, the three scratchpad words, ScaleMatrix with the
 // 0x1F800000 scale vector, the matrix copy to +0x74, both WorldMapInitPolyFt4Prims
 // calls). The only delta is the block of pSlot stores: gcc hoists the
 // D_8009C5B0/D_8009C5B4 loads and the lui 0x1F80 to the top of the block and
@@ -432,8 +432,8 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800819C8);
 /*
 s32 func_800819C8(s32 index) {
-    u8 *pEntry = (u8 *)D_8009C620;
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    u8 *pEntry = (u8 *)g_WorldMapGroups;
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->unk20 = 0;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
@@ -442,7 +442,7 @@ s32 func_800819C8(s32 index) {
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
-    *(MATRIX *)(pEntry + 0x20) = D_8009A180;
+    *(MATRIX *)(pEntry + 0x20) = g_WorldMapIdentityMatrix;
     *(s32 *)0x1F800008 = 0x1000;
     *(s32 *)0x1F800000 = 0x1000;
     *(s32 *)0x1F800004 = 0x7000;
@@ -457,8 +457,8 @@ s32 func_800819C8(s32 index) {
 }
 */
 s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
-    WorldMapEntry *pEntry = &D_8009C620[0];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    WorldMapEntry *pEntry = &g_WorldMapGroups[0];
 
     if (pSlot->unk4 == 1) {
         pSlot->unk4 = 0;
@@ -527,7 +527,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
 s32 WorldMapResetSlotColorFade(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->unk20 = 0;
     pSlot->unk50 = 1;
@@ -545,7 +545,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
 // is the only reason this is parked, not a structural problem.
 /*
 s32 func_80081FD8(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 i;
     u16 *pFill;
     s32 start;
@@ -674,13 +674,13 @@ s32 WorldMapExitToMap269(void) {
     HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
-    HeapFree(D_8009C180);
+    HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
     v = *(u16 *)&g_WorldMapViewRotationY;
-    D_8006F94E = 0x269;
-    D_8006F954 = 2;
+    g_NextMapId = 0x269;
+    g_NextMapFlags = 2;
     D_8009BBC4 = 1;
-    D_8006F950 = v;
+    g_NextMapRotationY = v;
     return 1;
 }
 
@@ -690,19 +690,19 @@ s32 WorldMapExitToMap269(void) {
 // slot pointer (sll/addu) before forming the address of D_8009A758, gcc forms
 // the address first. 46.11% for the slot-pointer-first order; declaring pData
 // before pSlot puts the symbol address first and reaches 51.67%. Also tried:
-// two separate statements, a s32 value temp, `D_8009BE24 + index`, and an
+// two separate statements, a s32 value temp, `g_WorldMapSlots + index`, and an
 // explicit offset local.
 /*
 s32 WorldMapSetSlotScriptTable(s32 index) {
     u8 *pData = D_8009A758;
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->unk50 = (s32)pData;
     return 1;
 }
 */
 s32 WorldMapSetSlotScriptTable(s32 index) {
-    D_8009BE24[index].unk50 = (u32)D_8009A758;
+    g_WorldMapSlots[index].unk50 = (u32)D_8009A758;
     return 1;
 }
 // Best: 39.15%. Blocker is gcc's store-to-load forwarding: retail stores 0 to
@@ -712,19 +712,19 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
 // Preset screen: cdk 36.73, gcc-2.6.0 40.43.
 /*
 s32 func_800827EC(s32 index) {
-    WorldMapSlot *pSlot = &D_8009BE24[index];
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 a;
     s32 b;
 
     pSlot->unk7C = 0x1000;
     g_WorldMapCameraTarget = g_WorldMapPlayerPosition.x;
-    D_8009D55C = g_WorldMapPlayerPosition.x;
+    g_WorldMapScrollTargetX = g_WorldMapPlayerPosition.x;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     D_8009BE2C = D_8009C5B0;
-    D_8009D560 = D_8009C5B0;
+    g_WorldMapScrollTargetY = D_8009C5B0;
     pSlot->pos.y = D_8009C5B0;
     D_8009BE30 = D_8009C5B4;
-    D_8009D564 = D_8009C5B4;
+    g_WorldMapScrollTargetZ = D_8009C5B4;
     pSlot->pos.z = D_8009C5B4;
     pSlot->unk20 = 0;
     pSlot->unk4 = 0;
@@ -736,11 +736,11 @@ s32 func_800827EC(s32 index) {
     ((s32 *)pSlot->unk34)[1] = 0xFFDE0000;
     a = g_WorldMapViewRotationY;
     g_WorldMapRotationMatrixValid = 0;
-    D_8009D3F0 = 0x500000;
+    g_WorldMapCameraHeight = 0x500000;
     pSlot->unk54 = a << 12;
     ((s32 *)pSlot->unk34)[2] = a << 12;
     b = D_8009BD3C;
-    D_8009BE0C = 0x78;
+    g_WorldMapFadeLevel = 0x78;
     pSlot->unk58 = b << 12;
     ((s32 *)pSlot->unk34)[3] = b << 12;
     return 1;

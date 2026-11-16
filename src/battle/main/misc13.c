@@ -7,7 +7,7 @@ extern volatile u8 *g_BattleDisplayState;
 extern u8 g_BattleSlotRecords[];
 extern u8 g_BattleCharSlotUsage[];
 extern u16 g_BattleStateFlags;
-extern u16 D_800C48E8;
+extern u16 g_BattleSlotFlag8000Mask;
 extern u16 g_BattleActionSlotMask;
 extern u16 g_BattleActionStateFlags;
 extern u16 g_BattleActionParam;
@@ -15,19 +15,19 @@ extern u8 g_BattleActionActorSlot;
 extern u8 g_BattleActionSlotIndex;
 extern u8 D_800C400B[];
 extern u8 D_800C402F[];
-extern u8 D_800C3FFE[];
+extern u8 g_BattleCommandRecords[];
 extern u8 D_800CCD34[];
 extern u8 D_800CCD36[];
 extern u8 D_800CCD68[];
 extern u8 D_800CCD74[];
 extern u8 g_BattleSoundEnabled;
-extern u8 D_800C3E18;
+extern u8 g_BattleSlotDisplayInitialized;
 extern u8 g_BattleSlotFlags[];
 extern u8 D_800C3EB5[];
 extern u8 D_800D301D[];
 extern u8 D_800C3EBE[];
 extern u8 D_800C3EC0[];
-extern u8 *D_800D3364;
+extern u8 *g_BattleSlotParamTable;
 extern u8 D_800C48EC[];
 extern u8 D_800C48EE[];
 extern u8 D_800C48F0[];
@@ -47,9 +47,9 @@ extern void BattleClearSlotCurveEntry(void);
 extern void BattleAttachActorAnimScripts(u8, s32, s32, s32);
 extern u8 D_800C4000[];
 extern u8 g_BattleCommandRows[];
-extern u8 *D_800C3EA4;
-extern u8 D_800CCB34;
-extern u8 *D_800D2DB4;
+extern u8 *g_BattleGraphicsWork;
+extern u8 g_BattlePrimStartIndex;
+extern u8 *g_BattleSpriteColumnWork;
 extern u8 D_800C33B0[];
 extern void BattleSetPrimGrey80BlendAdd(u8 *);
 extern void BattleSetPrimGrey80BlendSub(u8 *);
@@ -122,7 +122,7 @@ void BattleBeginActorStatAnimation(s32 arg0) {
 void BattleBeginAction(s32 arg0, u16 arg1, u16 arg2) {
     u16 v = g_BattleStateFlags;
 
-    D_800C48E8 = 0;
+    g_BattleSlotFlag8000Mask = 0;
     g_BattleActionSlotMask = arg1;
     g_BattleActionStateFlags = v;
     BattleInitActiveSlotActions(arg2);
@@ -139,7 +139,7 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
     u16 v = g_BattleStateFlags;
     u8 c;
 
-    D_800C48E8 = 0;
+    g_BattleSlotFlag8000Mask = 0;
     g_BattleActionActorSlot = arg0;
     c = p[0x2DC];
     g_BattleActionSlotMask = arg1;
@@ -160,7 +160,7 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
 // u32 casts (74.25%); int sums with an embedded assignment to an s32 local, base
 // first (75.98%) and base last (83.19%); a volatile re-read of the base combined
 // with the chain-first int sum (82.94%: right operand order, mirrored registers);
-// `u8 * const volatile` D_800C3EA4; a separate ofs local per call (70.57%, gcc then
+// `u8 * const volatile` g_BattleGraphicsWork; a separate ofs local per call (70.57%, gcc then
 // evaluates it before the first-argument lbu).
 // Round 79 concluded the integer forms reproduce retail's operand order - they do
 // not: every int-typed sum lets gcc's reassociation move 0x9C8 onto the BASE
@@ -171,20 +171,20 @@ void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2) {
 // more in round 98, 3503 more in round m103-p13, base=30 best=30 every time.
 // g_BattleDisplayState is declared `volatile u8 *`: that was the permuter's own best edit
 // (base 250 -> 30) and the only change it ever found.
-// Reads D_800CCB34 with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
+// Reads g_BattlePrimStartIndex with lbu, so it must stay u8 (s32 gives 94.94%). The SECOND
 // call's first argument is the constant 0x19, not g_BattleCommandQueue[0x2D4] + 0xF.
 /*
 void func_80085D34(void) {
     s32 v;
 
     g_BattleDisplayState[0x7B] = 0;
-    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D4] + 0xF, (s32)(D_800C3EA4 + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x2A, 0xD0);
+    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D4] + 0xF, (s32)(g_BattleGraphicsWork + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x2A, 0xD0);
     g_BattleDisplayState[0x7B] += v;
-    v = BattleDrawSpritePackage(0x19, (s32)(D_800C3EA4 + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x32, 0xD0);
+    v = BattleDrawSpritePackage(0x19, (s32)(g_BattleGraphicsWork + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x32, 0xD0);
     g_BattleDisplayState[0x7B] += v;
-    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D5] + 0xF, (s32)(D_800C3EA4 + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x3A, 0xD0);
+    v = BattleDrawSpritePackage(g_BattleCommandQueue[0x2D5] + 0xF, (s32)(g_BattleGraphicsWork + (g_BattleDisplayState[0x7B] * 0x50 + 0x9C8)), 0x3A, 0xD0);
     g_BattleDisplayState[0x7B] += v;
-    g_BattleDisplayState[0xA4] = D_800CCB34;
+    g_BattleDisplayState[0xA4] = g_BattlePrimStartIndex;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
@@ -206,7 +206,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
    s4=r s5=arg3 s6=arg5 s7=arg4 fp=arg1*4; ours: s0=arg5 s1=q s2=arg0 s3=r
    s4=arg1 s5=arg3 s6=arg1*4 s7=arg4 s8=arg2. The copies happen in the same
    order, so it is an allocator priority tie, not a shape difference.
-   `arg1 * 0x50 + 0x5550 + D_800D2DB4` (symbol added last) is what puts the
+   `arg1 * 0x50 + 0x5550 + g_BattleSpriteColumnWork` (symbol added last) is what puts the
    `addu` in the func_80076D58 jal delay slot. The three masks 0xFFFC/0xFFF8/
    0xF8 on the BattleSetPolyFT4RectH13 coordinates are literal in the source.
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
@@ -217,20 +217,20 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 
     q = arg1 / 2;
     r = arg1 % 2;
-    func_80076D58((u8 *)(arg1 * 0x50 + 0x5550 + D_800D2DB4), r, 3);
+    func_80076D58((u8 *)(arg1 * 0x50 + 0x5550 + g_BattleSpriteColumnWork), r, 3);
     len = SystemRenderStringEntry((u8 *)GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg3), *arg4, 0x1B, r);
     rect.x = q * 0x1E + 0x3C0;
     rect.y = 0x1A;
     rect.w = 0x1E;
     rect.h = 0xD;
     LoadImage(&rect, *arg4);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)((D_800CCB34 + arg1 * 2) * 0x28 + 0x5550 + D_800D2DB4),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)((g_BattlePrimStartIndex + arg1 * 2) * 0x28 + 0x5550 + g_BattleSpriteColumnWork),
                   ((arg2 + arg5 + 1) * 0x10 + 0x50 + arg1 * 4) & 0xFFFC,
                   (0xC8 - arg1 * 0x10) & 0xFFF8,
                   (q * 0x78) & 0xF8,
                   0x1A,
                   len);
-    D_800D2DB4[0x5D80]++;
+    g_BattleSpriteColumnWork[0x5D80]++;
     return arg1 + 1;
 }
 */
@@ -289,14 +289,14 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
     D_800C48F0[0] = 0;
     o = 6;
     for (i = 1; i < 8; i++, o += 6) {
-        if (*(u8 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) == 0xFF) {
+        if (*(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) == 0xFF) {
             break;
         }
         *(u16 *)(D_800C48EC + o) =
-            *(u16 *)(D_800D3364 + ((*(u8 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5));
+            *(u16 *)(g_BattleSlotParamTable + ((*(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5));
         *(u16 *)(D_800C48EE + o) =
-            *(u16 *)(D_800D3364 + ((*(u8 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
-        D_800C48F0[o] = *(u8 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 0x80;
+            *(u16 *)(g_BattleSlotParamTable + ((*(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 7) << 5) + 2);
+        D_800C48F0[o] = *(u8 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 0x40 + g_BattleSlotRecords[ofsB] * 8 + 0x140 + i) & 0x80;
     }
     if (g_BattleActorCharIds[a] == 4) {
         res = 1;
@@ -312,7 +312,7 @@ void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
         o = i * 0x48;
         D_800C402F[o] = 0xFF;
         D_800C400B[o] = arg0;
-        *(u16 *)(D_800C3FFE + o) = BattleSlotBitMask(arg1);
+        *(u16 *)(g_BattleCommandRecords + o) = BattleSlotBitMask(arg1);
     }
 }
 void BattleSetupActorSlotDisplay(u8 arg0) {
@@ -326,7 +326,7 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
     r = func_800877E0(arg0, (g_BattleCommandQueue + idx)[0x3C]);
     func_800B89FC(r, arg0, (g_BattleCommandQueue + idx)[0x3C], BattleFindMinValueOtherSlot(arg0));
     g_BattleSoundEnabled = 1;
-    D_800C3E18 = 0;
+    g_BattleSlotDisplayInitialized = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
@@ -340,7 +340,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
    `xori/sll 3`, then `sltiu(arg1,3)` + `beqz`/`move sel,0`/`move sel,v1`;
    `(arg1 < 3) ? (arg0 >= 3) * 8 : 0` (82.50%), `sel = (arg0>=3)*8; if
    (arg1>=3) sel = 0;` (85.48%) both put the arg1 test first. The tail's
-   `slot*4 + char*0x20 D_800D3364` operand order and the `if (arg0 < 3)` layout
+   `slot*4 + char*0x20 g_BattleSlotParamTable` operand order and the `if (arg0 < 3)` layout
    (then = <3 at offsets 4/6, else = >=3 at 0x10/0x12) are right.
 void func_80087EDC(u8 arg0, u8 arg1) {
     s32 ofsA;
@@ -360,7 +360,7 @@ void func_80087EDC(u8 arg0, u8 arg1) {
     if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2] >= 4) {
         return;
     }
-    func_800883AC(arg0);
+    BattleReleaseCharSlot(arg0);
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2]++;
     for (i = 0; i < 4; i++) {
         if (BattleMaskHasSlotBit(D_800D301D[(g_BattleSlotRecords[ofsB] + sel) << 2], i) == 0) {
@@ -371,11 +371,11 @@ void func_80087EDC(u8 arg0, u8 arg1) {
     g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
     D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] |= BattleSlotBitMask(D_800C3EB5[ofsA]);
     if (arg0 < 3) {
-        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + D_800D3364 + 4);
-        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + D_800D3364 + 6);
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 4);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 6);
     } else {
-        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + D_800D3364 + 0x10);
-        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + D_800D3364 + 0x12);
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 0x10);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 0x12);
     }
 }
 */
@@ -408,22 +408,22 @@ void func_800881B8(u8 arg0, u8 arg1) {
     if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2] != 0) {
         return;
     }
-    func_800883AC(arg0);
+    BattleReleaseCharSlot(arg0);
     ofsA = arg0 * 0x1C;
     D_800C3EB5[ofsA] = 0;
     g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
     D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
     if (arg0 >= 3) {
-        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 8 + 0x100);
-        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 8 + 0x102);
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x100);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x102);
     } else {
-        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 8 + 0x104);
-        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800D3364 + g_BattleSlotRecords[ofsA] * 8 + 0x106);
+        *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x104);
+        *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x106);
     }
 }
 */
-void func_800883AC(u8 arg0) {
+void BattleReleaseCharSlot(u8 arg0) {
     s32 ofs;
     u8 sel;
     u8 invMask;
@@ -448,14 +448,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
    (retail loads it into $v1 and copies to $a2 on the skip and break paths, which
    also makes retail's loop-exhaust path store $a2); gcc emits the
    `g_BattleCharSlotUsage` flag store before `D_800D301D` (swap them in the source does not
-   change it - sched2 reorders); and `D_800D3364 + idx*8` gives `addu idx,base`
-   where retail has `addu base,idx` (writing `idx*8 + D_800D3364` does not change
+   change it - sched2 reorders); and `g_BattleSlotParamTable + idx*8` gives `addu idx,base`
+   where retail has `addu base,idx` (writing `idx*8 + g_BattleSlotParamTable` does not change
    it either). `* 4` instead of `<< 2` scores 68.19% but folds the +0x10 into
    `%lo` (`lbu v0,64(at)`) instead of retail's `addiu`/`sll` pair, i.e. it is a
    wrong instruction choice that the fuzzy score likes; `<< 2` reproduces the
    shape BattleIsCharSlot18InUse matched with. Dropping the `ofs` local and spelling
    `arg0 * 0x1C` inline is worse (56.81%: gcc switches to a `la` base pointer and
-   loads `D_800D3364` twice).
+   loads `g_BattleSlotParamTable` twice).
 void func_80088490(u8 arg0) {
     s32 ofs;
     s32 i;
@@ -475,8 +475,8 @@ void func_80088490(u8 arg0) {
     D_800C3EB5[ofs] = 0;
     D_800D301D[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
-    *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(D_800D3364 + g_BattleSlotRecords[ofs] * 8 + 0x100);
-    *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(D_800D3364 + g_BattleSlotRecords[ofs] * 8 + 0x102);
+    *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x100);
+    *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x102);
 }
 */
 u8 BattleIsCharSlot18InUse(u8 arg0) {
@@ -484,15 +484,15 @@ u8 BattleIsCharSlot18InUse(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_8008860C);
 /* 97.74%: instruction count and size are exact (624 bytes); the remaining
-   differences are (a) retail keeps `la $s0,D_800CCB34` in a register across the
+   differences are (a) retail keeps `la $s0,g_BattlePrimStartIndex` in a register across the
    BattleDrawSpritePackage call and reads both bytes with `lbu 0($s0)` (we rematerialise
    `lui/%hi; lbu %lo` per use) and (b) the five pointer+offset `addu`s come out
    base-first where retail has the offset in the destination. Spelling the
-   offset operand as an `s32` local (`off + (s32)D_800D2DB4`,
+   offset operand as an `s32` local (`off + (s32)g_BattleSpriteColumnWork`,
    BattleBuildFlaggedSlotSpriteColumn's shape in misc14) fixes (b) on the two calls but makes gcc fold
    `+0x1720`/`+0x2530` onto the base in the two BattleSetPrimGrey80BlendAdd/BF0 loops (90.24%),
    and the `off` local for those loops regresses to 86.14% (636 bytes). The `off`
-   local form used everywhere is 94.79%; a `u8 *pSel = &D_800CCB34` local is
+   local form used everywhere is 94.79%; a `u8 *pSel = &g_BattlePrimStartIndex` local is
    folded by cse back to the symbol (94.79%) or hoisted into a second saved
    register if initialised before the first loop (92.59%, 632 bytes).
 /*
@@ -500,23 +500,23 @@ void func_8008860C(void) {
     s32 i;
 
     for (i = 0; i < 2; i++) {
-        D_800D2DB4[0x5D74] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(D_800D2DB4[0x5D74] * 0x50 + 0x1720 + D_800D2DB4), 0xA0, 0x64);
+        g_BattleSpriteColumnWork[0x5D74] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D74] * 0x50 + 0x1720 + g_BattleSpriteColumnWork), 0xA0, 0x64);
     }
-    D_800D2DB4[0x5D83] = D_800CCB34;
-    D_800D2DB4[0x5D70] = BattleDrawSpritePackage(0xA8, (s32)(D_800D2DB4[0x5D70] * 0x50 + D_800D2DB4), 0xA0, 0x64);
-    D_800D2DB4[0x5D92] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D74]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + D_800D2DB4[0x5D83]) * 0x28 + 0x1720 + D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D83] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D70] = BattleDrawSpritePackage(0xA8, (s32)(g_BattleSpriteColumnWork[0x5D70] * 0x50 + g_BattleSpriteColumnWork), 0xA0, 0x64);
+    g_BattleSpriteColumnWork[0x5D92] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D74]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D83]) * 0x28 + 0x1720 + g_BattleSpriteColumnWork));
     }
-    for (i = 0; i < D_800D2DB4[0x5D70]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + D_800D2DB4[0x5D92]) * 0x28 + D_800D2DB4));
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D70]; i++) {
+        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D92]) * 0x28 + g_BattleSpriteColumnWork));
     }
     for (i = 2; i < 4; i++) {
-        D_800D2DB4[0x5D7E] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(D_800D2DB4[0x5D7E] * 0x50 + 0x2530 + D_800D2DB4), 0xA0, 0x64);
+        g_BattleSpriteColumnWork[0x5D7E] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D7E] * 0x50 + 0x2530 + g_BattleSpriteColumnWork), 0xA0, 0x64);
     }
-    D_800D2DB4[0x5D8D] = D_800CCB34;
-    for (i = 0; i < D_800D2DB4[0x5D7E]; i++) {
-        BattleSetPrimGrey80BlendSub((u8 *)((i * 2 + D_800D2DB4[0x5D8D]) * 0x28 + 0x2530 + D_800D2DB4));
+    g_BattleSpriteColumnWork[0x5D8D] = g_BattlePrimStartIndex;
+    for (i = 0; i < g_BattleSpriteColumnWork[0x5D7E]; i++) {
+        BattleSetPrimGrey80BlendSub((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D8D]) * 0x28 + 0x2530 + g_BattleSpriteColumnWork));
     }
 }
 */

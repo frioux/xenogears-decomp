@@ -16,8 +16,8 @@
  */
 
 extern u8   g_ShopIndex; // probably something like: DEBUGGER_ATTACHED, guards a breakpoint left in the code
-extern s32* D_8005917C;
-extern u32* D_8005945C; // file handle used to retrieve the overlay's resources
+extern s32* g_DebuggerState;
+extern u32* g_MenuResourcesFile; // file handle used to retrieve the overlay's resources
 extern SoundFile* g_MenuSedsFile;
 
 /*
@@ -66,11 +66,11 @@ void GearShopMenuSetPolyFT4Quad(POLY_FT4* pPoly, short x, short y, u_char u, u_c
 }
 
 u_short GearShopMenuIsCharacterFlagSet(u_short value, u_char maskIndex) {
-    return D_801D6C68[maskIndex] & value;
+    return g_GearShopCharacterBitMasks[maskIndex] & value;
 }
 
 u_short GearShopMenuGetCharacterBitMask(int index) {
-    return D_801D6C68[index & 0xFF];
+    return g_GearShopCharacterBitMasks[index & 0xFF];
 }
 
 s32 GearShopMenuGetGearEquipFlags(u8 count) {
@@ -205,7 +205,7 @@ void GearShopMenuLoadResources(void) {
     int i;
     u8 *pData;
 
-    pFileHandle = D_8005945C;
+    pFileHandle = g_MenuResourcesFile;
     ResolveArchiveEntryPointers(pFileHandle);
     pData = LZSSHeapDecompress((void *)pFileHandle[1], 1);
     OpenTIM((void *)pData);
@@ -652,14 +652,14 @@ void GearShopMenuLoadGearShopInventory(void) {
             SetLineF3(&g_Menu->pShop->linesPortraitHighlight2[(j*2)+i]);
             setRGB0(&g_Menu->pShop->linesPortraitHighlight2[(j*2)+i], 0xFF, 0, 0);
             setXY3(&g_Menu->pShop->linesPortraitHighlight1[(j*2)+i],
-                   D_801D6C44[j], 0xA6,
-                   D_801D6C44[j] + 0x18, 0xA6,
-                   D_801D6C44[j] + 0x18, 0xBC
+                   g_GearShopCharacterPortraitX[j], 0xA6,
+                   g_GearShopCharacterPortraitX[j] + 0x18, 0xA6,
+                   g_GearShopCharacterPortraitX[j] + 0x18, 0xBC
             );
             setXY3(&g_Menu->pShop->linesPortraitHighlight2[(j*2)+i],
-                   D_801D6C44[j], 0xA6,
-                   D_801D6C44[j], 0xBC,
-                   D_801D6C44[j] + 0x18, 0xBC
+                   g_GearShopCharacterPortraitX[j], 0xA6,
+                   g_GearShopCharacterPortraitX[j], 0xBC,
+                   g_GearShopCharacterPortraitX[j] + 0x18, 0xBC
             );
         }
 
@@ -1643,14 +1643,14 @@ void GearShopMenuRenderPointerCursors(void) {
                 if (g_Menu->pCursors->unk144[i]) {
                     setXY4(
                         &g_Menu->pCursors->polysCursor[i * 2 + g_Menu->pCursors->renderContexts[i]],
-                        D_801D6AFC[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        D_801D6B7C[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        D_801D6AFC[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        D_801D6B7C[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        D_801D6AFC[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        D_801D6B7C[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] + 10,
-                        D_801D6AFC[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        D_801D6B7C[D_801D6A84[g_Menu->menuUnk2->unk4F7C]] + 10
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10,
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10
                     );
                 }
 
@@ -2219,7 +2219,7 @@ void GearShopMenuRenderDebugValues(void) {
 }
 
 void GearShopMenuUpdateAndRender(void) {
-    if (*D_8005917C != -1) {
+    if (*g_DebuggerState != -1) {
         asm("break 0x400");
     }
 
@@ -2261,8 +2261,8 @@ void GearShopMenuInitializePointerCursors(u8 mode) {
                     0x108,
                     &g_Menu->pCursors->polysCursor[i*2],
                     g_Menu->renderContext,
-                    D_801D6A60[i],
-                    D_801D6A70[i],
+                    g_GearShopPointerCursorInitX[i],
+                    g_GearShopPointerCursorInitY[i],
                     0x800
                 );
                 g_Menu->pCursors->renderContexts[i] = g_Menu->renderContext;

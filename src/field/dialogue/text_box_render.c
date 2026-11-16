@@ -56,7 +56,7 @@ void func_8007DCF8(int index) {
 // (`la D_800AFC84-4` / `addiu s3, s2, -4`) and scopes the double store right,
 // but gcc then strength reduces the D_800AFC80 writes instead of the AFC84 ones
 // and re-forms the AFC80 address in the loop body -- 80.22%, worse than the
-// 82.32% below. Also note D_800B068C/g_FieldTextBoxInUseMask must be declared above this
+// 82.32% below. Also note g_FieldTextBoxAllocationStates/g_FieldTextBoxInUseMask must be declared above this
 // function if it becomes C.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
 // 85.16%: D_800B1DF4/D_800B1E00 are 16 DR_MODEs at 0xC each (SetDrawMode takes
@@ -100,7 +100,7 @@ void FieldTextBoxInitialize(void) {
         g_FieldTextBoxes[i].unk412 = 0;
 
         FieldTextBoxInitializePrimitives(i);
-        D_800B068C[i] = -1;
+        g_FieldTextBoxAllocationStates[i] = -1;
         SetDrawMode(&g_FieldTextBoxes[i].drawModes[0], NULL, 0, GetTPage(0, 0, 0x300, 0x100), &rect);
         SetDrawMode(&g_FieldTextBoxes[i].drawModes[1], NULL, 0, GetTPage(0, 0, 0x300, 0x100), &rect);
     }
@@ -140,7 +140,7 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitializePrimitives);
 /*
-extern u8 D_800594D4;
+extern u8 g_SystemBackdropColor;
 extern u8 D_800594D5;
 extern u8 D_800594D6;
 extern RECT D_800ADE9C[];
@@ -174,7 +174,7 @@ void FieldTextBoxInitializePrimitives(int index) {
     SetDrawMode(&pBackground->drawModes[1], NULL, 0, GetTPage(0, 2, 0x280, 0x1F0), NULL);
     pBackgroundTile = &pBackground->tiles[0];
     SetTile(pBackgroundTile);
-    setRGB0(pBackgroundTile, D_800594D4, D_800594D5, D_800594D6);
+    setRGB0(pBackgroundTile, g_SystemBackdropColor, D_800594D5, D_800594D6);
     SetSemiTrans(pBackgroundTile, 1);
     pBackgroundTile2 =  &pBackground->tiles[1];
     *pBackgroundTile2 = *pBackgroundTile;
@@ -288,7 +288,7 @@ void FieldTextBoxSetPortraitUV(int index, int portraitID) {
 }
 
 extern u16 g_FieldTextBoxInUseMask[];
-extern int D_800B068C[4];
+extern int g_FieldTextBoxAllocationStates[4];
 
 // The string state helpers take a SystemString, which only system.c names; the
 // text box keeps one at _pad[0].
@@ -307,7 +307,7 @@ int FieldTextBoxFree(short index) {
         g_FieldTextBoxes[index].visibility = -1;
         g_FieldTextBoxes[index].status = -1;
         g_FieldTextBoxes[index].order = TEXT_BOX_UNINITIALIZED;
-        D_800B068C[index] = -1;
+        g_FieldTextBoxAllocationStates[index] = -1;
         g_FieldTextBoxInUseMask[0] &= (1 << index) ^ 0xFF;
         g_FieldTextBoxes[index].ownerActorID = 0xFF;
         g_FieldTextBoxes[index].unk412 = 0;

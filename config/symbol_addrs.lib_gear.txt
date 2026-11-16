@@ -72,3 +72,6 @@ g_LibGearPendingFrameCount = 0x801E8640;
 g_LibGearSwingScale = 0x801E8698;
 g_LibGearSwingAngle = 0x801E869C;
 g_LibGearJointObjectPool = 0x801E86A8;
+LibGearFreeModel = 0x801E8030;
+g_LibGearDirectKeyframes = 0x801E85CC;
+g_LibGearCurrentModelIndex = 0x801E86B0;

@@ -607,7 +607,7 @@ void GearShopMenuUpdateCharacterPortraits(void) {
                     g_Menu->resources, characterIndex + MENU_TEX_CHARACTER_PORTRAITS_SMALL,
                     &g_Menu->pShop->polysCharacterPortraits[numCharacters * 2],
                     g_Menu->renderContext,
-                    D_801D6C44[numCharacters], 166,
+                    g_GearShopCharacterPortraitX[numCharacters], 166,
                     0x1000
                 );
                 numCharacters++;
@@ -660,7 +660,7 @@ void GearShopMenuChangeCurrentGear(u_char mode) {
 
         GearShopMenuUpdateAndRender();
         g_Menu->unk458[1]->unk12 = 0;
-        func_801E8030(1);
+        LibGearFreeModel(1);
         GearShopMenuUpdateAndRender();
         GearShopMenuLoadGearModelFiles(g_GameState.characters[characterIndex].gearId, 1);
         g_gearShopCurrentGearId = g_GameState.characters[characterIndex].gearId;
@@ -1052,7 +1052,7 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
                 g_Menu->pShop->unk469C[j] = 0;
             }
             if (GearShopMenuGearCanEquip(temp_s4, gearId) != 0) {
-                g_Menu->pShop->unk46A9 += func_8002675C(g_Menu->resources, 0xE, &g_Menu->pShop->polys2D0[g_Menu->pShop->unk46A9 * 2], g_Menu->renderContext, D_801D6C44[j] + 0xE, 0xB4, 0x1000U);
+                g_Menu->pShop->unk46A9 += func_8002675C(g_Menu->resources, 0xE, &g_Menu->pShop->polys2D0[g_Menu->pShop->unk46A9 * 2], g_Menu->renderContext, g_GearShopCharacterPortraitX[j] + 0xE, 0xB4, 0x1000U);
             }
             j += 1;
         }
@@ -1872,7 +1872,7 @@ s32 GearShopMenuBuildPurchaseItemDetails(s32 rowIndex, s32 scrollOffset, u8 *unu
                     0xE,
                     &g_Menu->pShop->polys2D0[g_Menu->pShop->unk46A9*2],
                     g_Menu->renderContext,
-                    D_801D6C44[currentSlot] + 0xE,
+                    g_GearShopCharacterPortraitX[currentSlot] + 0xE,
                     0xB4,
                     0x1000
                 );

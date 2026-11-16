@@ -22,9 +22,9 @@ typedef struct {
 extern u8 g_BattleActorCharIds[];
 extern BattleSpriteWork *g_BattleDisplayState;
 extern u8 D_800C3E50;
-extern BattleWorkBlock *D_800C34B0;
-extern BattleGraphicsWork *D_800C3EA4;
-extern s32 D_800CCB34;
+extern BattleWorkBlock *g_BattleCurWorkBlock;
+extern BattleGraphicsWork *g_BattleGraphicsWork;
+extern s32 g_BattlePrimStartIndex;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *D_800C3E34;
 extern BattleTableEntry g_BattleWorkBlock[];
@@ -71,10 +71,10 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     for (i = 0; i < 8; i++) {
         offset = i * 8 + 0x38;
         g_BattleDisplayState->unkF8 += BattleDrawSpritePackage(0x66,
-            (u8 *)D_800C3EA4 + 0xBA8 + g_BattleDisplayState->unkF8 * 80, 0x20,
+            (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->unkF8 * 80, 0x20,
             (s16)(offset + arg0));
     }
-    g_BattleDisplayState->unkA5 = *(u8 *)&D_800CCB34;
+    g_BattleDisplayState->unkA5 = *(u8 *)&g_BattlePrimStartIndex;
     g_BattleDisplayState->unk9C = 1;
 }
 /* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
@@ -96,10 +96,10 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
 
     s = arg1 * 2 + arg0;
     BattleSetPolyFT4Rect(
-        (POLY_FT4 *)(D_800CCB34 * 0x28 + 0x140 +
-                     (s32)(*(u8 **)(D_800C3EA4 + 0xA230))),
+        (POLY_FT4 *)(g_BattlePrimStartIndex * 0x28 + 0x140 +
+                     (s32)(*(u8 **)(g_BattleGraphicsWork + 0xA230))),
         0x20, 0xA4, (s - s / 2 * 2) * 0x78 & 0xF8, s / 2 * 16, 0x60, 0x10);
-    (*(u8 **)(D_800C3EA4 + 0xA230))[0x66E] = 0;
+    (*(u8 **)(g_BattleGraphicsWork + 0xA230))[0x66E] = 0;
     if (g_BattleActorCharIds[(u8)arg2] == 1) {
         BattleParseNumberToDigits(func_8009A258((u8)arg2, s + 0x16));
         for (i = 0, k = 0x8C; i < 3; i++, k += 8) {
@@ -108,14 +108,14 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
                 continue;
             }
             BattleSetPolyFT4RectH13(
-                (POLY_FT4 *)((*(u8 **)(D_800C3EA4 + 0xA230)) +
-                             (*(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x66E) *
+                (POLY_FT4 *)((*(u8 **)(g_BattleGraphicsWork + 0xA230)) +
+                             (*(u8 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + 0x66E) *
                                   2 +
-                              D_800CCB34) *
+                              g_BattlePrimStartIndex) *
                                  0x28 +
                              0x190),
                 k, 0xA6, (c * 8 + 0x78) & 0xF8, 0, 8);
-            (*(u8 **)(D_800C3EA4 + 0xA230))[0x66E]++;
+            (*(u8 **)(g_BattleGraphicsWork + 0xA230))[0x66E]++;
         }
     }
 }
@@ -124,7 +124,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
 /* 87.45%: the whole shape (index branch, RECT, two string draws, two
    BattleSetPolyFT4RectH13 calls, HeapFree) reproduces; the leftovers are the
-   &D_800CCB34 wall (retail holds `lui s3/addiu s3` once and does `lw 0(s3)`
+   &g_BattlePrimStartIndex wall (retail holds `lui s3/addiu s3` once and does `lw 0(s3)`
    twice, gcc rematerialises `lui/lw` per call) and the `andi s0,s0,0xffff`
    retail emits at index's first use (gcc proves the u8-derived range here and
    drops it). Also tried: the (arg2*2+arg1)*2 sum in a local before the branch
@@ -151,8 +151,8 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     rect.w = 0x3C;
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, pBuf);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280), 0x30, 0xB6, 0, 0, len1 & 0xFF);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0), 0x30, 0xC6, 0, 0, len2 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x280), 0x30, 0xB6, 0, 0, len1 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x2D0), 0x30, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
 */
@@ -173,29 +173,29 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
         func_800916D4(arg1, arg2, arg0);
         func_8009187C(arg0, arg1, arg2);
         func_80091B38(arg0, arg1, arg2);
-        D_800C3EA4->pPacketPrims[0x66A] = *(u8 *)&D_800CCB34;
-        D_800C3EA4->pPacketPrims[0x66B] = 1;
+        g_BattleGraphicsWork->pPacketPrims[0x66A] = *(u8 *)&g_BattlePrimStartIndex;
+        g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
     } else {
-        D_800C3EA4->pPacketPrims[0x66B] = 0;
+        g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
     }
 }
 /* 64.13%: shape is right (two palette stores, four BattleSetPolyFT4Rect calls with
    the arg0/0x60/0x10 stack args, trailing 0x668 store) but retail keeps
-   `&D_800CCB34` in s0 (`lui/addiu` once) where gcc rematerialises
-   `lui/lw D_800CCB34` at each use and a `lui/lbu` at the end; that also costs
+   `&g_BattlePrimStartIndex` in s0 (`lui/addiu` once) where gcc rematerialises
+   `lui/lw g_BattlePrimStartIndex` at each use and a `lui/lbu` at the end; that also costs
    the 4th saved register (frame 56 vs 48) and swaps the s1/s2 roles of
-   arg0/0x60. Tried: plain D_800CCB34 (64.13), `s32 *pIndex = &D_800CCB34`,
+   arg0/0x60. Tried: plain g_BattlePrimStartIndex (64.13), `s32 *pIndex = &g_BattlePrimStartIndex`,
    a `u8 *pPal` plus an s32 cache of it (59.64, and the body grows). This is
-   misc16's documented &D_800CCB34 wall. */
+   misc16's documented &g_BattlePrimStartIndex wall. */
 /*
 void func_80091EC4(u8 arg0) {
-    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xE) = g_SystemPalette1;
-    *(u16 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x5E) = g_SystemPalette1;
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x50), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xA0), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0xF0), 0x120, 0x34, 0x40, arg0, 0x10, 0x60);
-    *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x668) = *(u8 *)&D_800CCB34;
+    *(u16 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xE) = g_SystemPalette1;
+    *(u16 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x5E) = g_SystemPalette1;
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x50), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xA0), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xF0), 0x120, 0x34, 0x40, arg0, 0x10, 0x60);
+    *(u8 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + 0x668) = *(u8 *)&g_BattlePrimStartIndex;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
@@ -207,12 +207,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
 /* 72.03%: RECT/bzero/GetStringEntry/SystemRenderStringEntry order, both stack
    args and the frame all match. Same blocker as misc16's BattleDrawMenuEntryString
-   (78.72%): the original loads *(D_800C3EA4+0xA230) FIRST, keeps &D_800CCB34
+   (78.72%): the original loads *(g_BattleGraphicsWork+0xA230) FIRST, keeps &g_BattlePrimStartIndex
    in a saved reg (lw 0(s3)) and does `addiu a0,a0,0x280` before the base addu;
-   gcc loads the D_800CCB34 index first, re-forms its address per call and sinks
+   gcc loads the g_BattlePrimStartIndex index first, re-forms its address per call and sinks
    the addiu into the jal delay slot. Improves to 74% with the index in a local.
    Re-screened: best 84.56 under gcc-2.6.0 (71.40 under cdk). There the frame
-   is 56 vs 2.6.0's 48 - the original spills the &D_800CCB34 index into s3,
+   is 56 vs 2.6.0's 48 - the original spills the &g_BattlePrimStartIndex index into s3,
    2.6.0 does not re-form it - and the addiu/addu order of the +0x280/+0x2D0
    adds is still swapped. */
 /*
@@ -233,9 +233,9 @@ void func_8009382C(u8 arg0, u8 arg1) {
     rect.w = 0x3C;
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, pBuf);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x280),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x280),
                   0x88, 0xB6, 0, 0, len1 & 0xFF);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(D_800C3EA4 + 0xA230) + D_800CCB34 * 0x28 + 0x2D0),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x2D0),
                   0x88, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
@@ -255,13 +255,13 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
         if ((g_BattleWorkBlock[arg0].unk7A & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);
             func_8009382C(arg0, arg1);
-            D_800C3EA4->pPacketPrims[0x66A] = *(u8 *)&D_800CCB34;
-            D_800C3EA4->pPacketPrims[0x66B] = 1;
+            g_BattleGraphicsWork->pPacketPrims[0x66A] = *(u8 *)&g_BattlePrimStartIndex;
+            g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
         } else {
-            D_800C3EA4->pPacketPrims[0x66B] = 0;
+            g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
         }
     } else {
-        D_800C3EA4->pPacketPrims[0x66B] = 0;
+        g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
@@ -281,7 +281,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
    Tried: array-ref, pointer-plus (this version), integer base and a pointer
    local for that sum; also 2.7.2-cdk -> 99.77. */
 void BattleAccumulateSlotValueByRowFlag(void) {
-    u8 *pBase = (u8 *)D_800C34B0;
+    u8 *pBase = (u8 *)g_BattleCurWorkBlock;
     u8 *pOther = (u8 *)(D_800C3E50 * 4 + (u32)pBase);
     u8 *pRow;
     u8 i;
@@ -318,20 +318,20 @@ void func_80094D24(void) {
     u16 *p;
 
     for (i = 0, n1 = 0; i < 3; i++) {
-        p = (u16 *)(D_800C34B0 + i * 0x170);
+        p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
         if (p[0x3E] & 0xC000) {
             n1++;
         }
     }
     for (i = 0, n2 = 0; i < 3; i++) {
-        p = (u16 *)(D_800C34B0 + i * 0x170);
+        p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
         if (p[0x3E] & 2) {
             n2++;
         }
     }
     if (n1 == 1 && n2 == 2) {
         for (i = 0; i < 3; i++) {
-            p = (u16 *)(D_800C34B0 + i * 0x170);
+            p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
             if (p[0x3E] & 2) {
                 p[0x3E] &= ~2;
                 p[0x3D] = D_800C3AA4[i];
@@ -339,7 +339,7 @@ void func_80094D24(void) {
         }
     } else if (n1 == 2 && n2 == 1) {
         for (i = 0; i < 3; i++) {
-            p = (u16 *)(D_800C34B0 + i * 0x170);
+            p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
             if (p[0x3E] & 2) {
                 p[0x3E] &= ~2;
                 p[0x3D] = D_800C3AA4[i];
@@ -372,8 +372,8 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (g_BattleWorkBlock[D_800C3E50].state.unkB6 & 0x80) {
         v = 0;
     }
-    D_800C34B0->unk5FA0[D_800C3E50] = 2;
-    D_800C34B0->unk5F6C[D_800C3E50] = v;
+    g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
+    g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = v;
 }
 void BattleInitActiveSlotAction(void) {
     s32 t;
@@ -423,5 +423,5 @@ void BattleClearStatusWordsOnAction6E(void) {
     if (g_BattleCurrentRow->unk1E & 0x400) {
         D_800C3E34->unk8E = 0;
     }
-    D_800C34B0->unk5FC7 = 0x3A;
+    g_BattleCurWorkBlock->unk5FC7 = 0x3A;
 }

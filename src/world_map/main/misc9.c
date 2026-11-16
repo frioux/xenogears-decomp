@@ -4,20 +4,20 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
-extern s32 D_8009C610;
-extern u16 D_8009B674[];
-extern u_char* D_8009C7EC;
-extern u_char* D_8009D150;
-extern u16 D_8009D478[];
-extern u_char* D_8009D7E8;
+extern s32 g_WorldMapLevelIndex;
+extern u16 g_WorldMapLevelGroupIds[];
+extern u_char* g_WorldMapPrimBlocks;
+extern u_char* g_WorldMapTileVertexBuffer;
+extern u16 g_WorldMapClutIds[];
+extern u_char* g_WorldMapSpritePrims;
 extern u_char* D_8009D7EC;
-extern u_char* D_8009D7F8;
+extern u_char* g_WorldMapSemiTransPrims;
 extern u_char* D_8009D7FC;
 extern s16 D_8009AFA0[];
 extern u16 D_8009B688[];
-extern u16 D_8009B64C[];
+extern u16 g_WorldMapTileGroupIds[];
 extern u16 D_8009B64E[];
-extern u16 D_8009B624[];
+extern u16 g_WorldMapSlotRotationGroupIds[];
 extern u16 D_8009B626[];
 
 typedef struct {
@@ -28,11 +28,11 @@ typedef struct {
 } WorldMapGridOrigin; // Size: 0x8
 
 extern MATRIX g_WorldMapViewMatrix;
-extern MATRIX D_8009A180;
+extern MATRIX g_WorldMapIdentityMatrix;
 extern s16 D_8009BD3C;
 extern s16 D_8009BE04;
 extern u32* g_WorldMapRenderContext;
-extern u_char* D_8009CEB4;
+extern u_char* g_WorldMapTileVertexSteps;
 extern s16 D_8009D618[];
 extern s16 D_8009D570[];
 extern WorldMapGridOrigin D_8009C838;
@@ -43,7 +43,7 @@ void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 s32 WorldMapSetSceneLayerTPages(s32 arg0);
 void func_80099BFC(u8* pSrc, s32 count, u32 arg2, u8* pPrim);
 
-// 0x80-byte slot in the D_8009BE24 table
+// 0x80-byte slot in the g_WorldMapSlots table
 typedef struct {
     /* 0x00 */ u8 pad0[0x20];
     /* 0x20 */ u16 unk20;
@@ -65,7 +65,7 @@ typedef struct {
     /* 0x60 */ u8 pad60[0x20];
 } WorldMapPlayer; // Size: 0x80
 
-// 0x54-byte scene-layer entry in the D_8009C620 table
+// 0x54-byte scene-layer entry in the g_WorldMapGroups table
 typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u8 unk2[0x6];
@@ -82,8 +82,8 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapSceneLayer; // Size: 0x54
 
-extern WorldMapPlayer* D_8009BE24;
-extern WorldMapSceneLayer* D_8009C620;
+extern WorldMapPlayer* g_WorldMapSlots;
+extern WorldMapSceneLayer* g_WorldMapGroups;
 
 
 typedef struct {
@@ -99,7 +99,7 @@ typedef struct {
     /* 0xC */ s32 unkC;
 } WorldMapTilePos; // Size: 0x10
 
-// 0x10-byte vertex built in D_8009D150
+// 0x10-byte vertex built in g_WorldMapTileVertexBuffer
 typedef struct {
     /* 0x0 */ s32 unk0;
     /* 0x4 */ s32 unk4;
@@ -107,7 +107,7 @@ typedef struct {
     /* 0xC */ s32 unkC;
 } WorldMapTileVertex; // Size: 0x10
 
-// 0x8-byte path entry built in D_8009CEB4
+// 0x8-byte path entry built in g_WorldMapTileVertexSteps
 typedef struct {
     /* 0x0 */ s16 unk0;
     /* 0x2 */ s16 unk2;
@@ -144,19 +144,19 @@ void WorldMapRelocateMapEntryOffsets(void) {
     s32 base;
     s32 i;
 
-    base = (s32)D_8009C7EC;
-    pEntry = (WorldMapTableEntry*)D_8009C7EC;
+    base = (s32)g_WorldMapPrimBlocks;
+    pEntry = (WorldMapTableEntry*)g_WorldMapPrimBlocks;
     for (i = 0; i < 0x100; i++, pEntry++) {
         if (pEntry->offset != 0) {
             pEntry->offset += base;
         }
     }
     for (i = 0; i < 0x10; i++) {
-        D_8009D478[i] = GetClut(0xF0, i + 0x1F0);
+        g_WorldMapClutIds[i] = GetClut(0xF0, i + 0x1F0);
     }
 }
 
-// Best: 92.27%. Everything matches except how &D_8009D7E8 is materialised:
+// Best: 92.27%. Everything matches except how &g_WorldMapSpritePrims is materialised:
 // retail computes it into s0 before the second HeapAlloc, stores HeapAlloc #1's
 // result through it there (delay slot) and reloads it after the call (lw v1,0(s0));
 // we store and reload through the symbolic address (lui $at / fresh lui), which is
@@ -164,7 +164,7 @@ void WorldMapRelocateMapEntryOffsets(void) {
 // address into a `u_char** ppHeap` local is folded straight back by fold_rtx.
 // Shape below is the natural one and stays at 92.27%. The address-in-register
 // idiom is the only thing missing; both neighbours share it.
-// func_800865A0 shows the identical idiom with D_8009D7F8. The 0x200-iteration
+// func_800865A0 shows the identical idiom with g_WorldMapSemiTransPrims. The 0x200-iteration
 // POLY_FT4 loop and the trailing copy are byte-exact (the copy must be typed:
 // memcpy of `u_char*` globals emits lwl/lwr and scores 60%).
 // Screen: cdk 92.21, 2.6.0 92.27, best 92.27 here - not a compiler miss.
@@ -175,9 +175,9 @@ void func_80085FE0(void) {
     POLY_FT4* pSrc;
     s32 i;
 
-    D_8009D7E8 = HeapAlloc(0x5000, 1);
+    g_WorldMapSpritePrims = HeapAlloc(0x5000, 1);
     D_8009D7EC = HeapAlloc(0x5000, 1);
-    pPrim = (POLY_FT4*)D_8009D7E8;
+    pPrim = (POLY_FT4*)g_WorldMapSpritePrims;
     for (i = 0; i < 0x200; i++, pPrim++) {
         setPolyFT4(pPrim);
         setRGB0(pPrim, 0x80, 0x80, 0x80);
@@ -192,7 +192,7 @@ void func_80085FE0(void) {
         setClut(pPrim, 0xF0, 0x1FF);
         setTPage(pPrim, 0, 0, 0x380, 0x100);
     }
-    pSrc = (POLY_FT4*)D_8009D7E8;
+    pSrc = (POLY_FT4*)g_WorldMapSpritePrims;
     pDst = (POLY_FT4*)D_8009D7EC;
     memcpy(pDst, pSrc, 0x5000);
 }
@@ -201,13 +201,13 @@ void func_80085FE0(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80085FE0);
 void WorldMapFreeSpritePrimBuffers(void) {
     HeapFree(D_8009D7EC);
-    HeapFree(D_8009D7E8);
+    HeapFree(g_WorldMapSpritePrims);
 }
 // Best: 95.40% (660 bytes vs retail's 640). The quad setup in the scratchpad, both
-// matrix copies (g_WorldMapViewMatrix and D_8009A180 into 0x1F800028/0x1F800048), RotMatrixZ
-// and the 0x10-halfword copy of D_8009D478 are instruction-for-instruction exact, and
+// matrix copies (g_WorldMapViewMatrix and g_WorldMapIdentityMatrix into 0x1F800028/0x1F800048), RotMatrixZ
+// and the 0x10-halfword copy of g_WorldMapClutIds are instruction-for-instruction exact, and
 // the 5x5 tile loop matches too. The remaining 20 bytes are one register:
-// retail hoists D_8009C7EC (s3) and &D_8009C83C (s4) but re-forms D_8009D618's
+// retail hoists g_WorldMapPrimBlocks (s3) and &D_8009C83C (s4) but re-forms D_8009D618's
 // address with `lui $at / addu $at,$at,v0` at each use; gcc here hoists that address
 // into a sixth callee-saved register (s5), which is the extra save/restore pair and
 // the 0x30 frame instead of 0x28. gcc also fills retail's `beq` delay slot (a nop)
@@ -243,15 +243,15 @@ void func_8008615C(void) {
     ((SVECTOR*)0x1F800018)->vy = 0;
     ((SVECTOR*)0x1F800018)->vz = 0;
     *(MATRIX*)0x1F800028 = g_WorldMapViewMatrix;
-    *(MATRIX*)0x1F800048 = D_8009A180;
+    *(MATRIX*)0x1F800048 = g_WorldMapIdentityMatrix;
     RotMatrixZ(-D_8009BD3C, (MATRIX*)0x1F800048);
-    pSrc = D_8009D478;
+    pSrc = g_WorldMapClutIds;
     pDst = (u16*)0x1F800068;
     for (i = 0; i < 0x10; i++) {
         *pDst++ = *pSrc++;
     }
     D_8009BE04 = 0;
-    pTable = D_8009C7EC;
+    pTable = g_WorldMapPrimBlocks;
     pOrigin = &D_8009C838;
     for (row = 0; row < 5; row++) {
         for (i = 0; i < 5; i++) {
@@ -262,7 +262,7 @@ void func_8008615C(void) {
             pEntry = (WorldMapTableEntry*)(pTable + id * 8);
             if (pEntry->unk4 != 0) {
                 func_80099BFC((u8*)pEntry->offset, pEntry->unk4, g_WorldMapRenderContext[0x1C],
-                              ((u8**)&D_8009D7E8)[g_WorldMapPrimPacketIndex] + D_8009BE04 * 0x28);
+                              ((u8**)&g_WorldMapSpritePrims)[g_WorldMapPrimPacketIndex] + D_8009BE04 * 0x28);
             }
         }
     }
@@ -293,9 +293,9 @@ void func_800863E0(void) {
     s32 value;
     WorldMapTileVertex* pVertex;
 
-    D_8009D150 = HeapAlloc(0x500, 0);
-    D_8009CEB4 = HeapAlloc(0x280, 0);
-    pVertex = (WorldMapTileVertex*)D_8009D150;
+    g_WorldMapTileVertexBuffer = HeapAlloc(0x500, 0);
+    g_WorldMapTileVertexSteps = HeapAlloc(0x280, 0);
+    pVertex = (WorldMapTileVertex*)g_WorldMapTileVertexBuffer;
     x = 0;
     for (y = 0; y < 4; y++) {
         for (x = 0; x < 4; x++) {
@@ -310,7 +310,7 @@ void func_800863E0(void) {
             }
         }
     }
-    pPath = (WorldMapPathEntry*)D_8009CEB4;
+    pPath = (WorldMapPathEntry*)g_WorldMapTileVertexSteps;
     for (i = 0; i < 0x50; i++) {
         value = (rand() & 3) + 1;
         pPath->unk0 = value * 3547;
@@ -321,15 +321,15 @@ void func_800863E0(void) {
 }
 */
 void WorldMapFreeTileVertexBuffers(void) {
-    HeapFree(D_8009CEB4);
-    HeapFree(D_8009D150);
+    HeapFree(g_WorldMapTileVertexSteps);
+    HeapFree(g_WorldMapTileVertexBuffer);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800865A0);
-// Best: 53.39%. Shape recovered: 0x120 POLY_FT4 primitives in D_8009D7F8, each
+// Best: 53.39%. Shape recovered: 0x120 POLY_FT4 primitives in g_WorldMapSemiTransPrims, each
 // getting setPolyFT4 + setRGB0(0x26,0x26,0x26) + tpage GetTPage(0,1,0x3C0,0x100)
 // + clut GetClut(0x130,0x1FE) + SetSemiTrans(p,1), then a 0x2D00-byte memcpy
 // into D_8009D7FC (gcc inlines it as the 16-bytes-per-iteration loop). Retail
-// hoists both 9 and 0x2C into callee-saved s5/s4 and re-reads D_8009D7F8 through
+// hoists both 9 and 0x2C into callee-saved s5/s4 and re-reads g_WorldMapSemiTransPrims through
 // the CSE'd symbol address in s0 (frame 0x30, six saved regs); ours rematerialises
 // 0x2C per iteration with li and reloads the symbol with a fresh lui (frame 0x28).
 /*
@@ -338,9 +338,9 @@ void func_800865A0(void) {
     POLY_FT4* pSrc;
     s32 i;
 
-    D_8009D7F8 = HeapAlloc(0x2D00, 1);
+    g_WorldMapSemiTransPrims = HeapAlloc(0x2D00, 1);
     D_8009D7FC = HeapAlloc(0x2D00, 1);
-    pPrim = (POLY_FT4*)D_8009D7F8;
+    pPrim = (POLY_FT4*)g_WorldMapSemiTransPrims;
     for (i = 0; i < 0x120; i++, pPrim++) {
         setPolyFT4(pPrim);
         setRGB0(pPrim, 0x26, 0x26, 0x26);
@@ -348,18 +348,18 @@ void func_800865A0(void) {
         pPrim->clut = GetClut(0x130, 0x1FE);
         SetSemiTrans(pPrim, 1);
     }
-    pSrc = (POLY_FT4*)D_8009D7F8;
+    pSrc = (POLY_FT4*)g_WorldMapSemiTransPrims;
     memcpy(D_8009D7FC, pSrc, 0x2D00);
 }*/
 
 void WorldMapFreeSemiTransPrimBuffers(void) {
     HeapFree(D_8009D7FC);
-    HeapFree(D_8009D7F8);
+    HeapFree(g_WorldMapSemiTransPrims);
 }
 
 void WorldMapWrapTileVertexPositions(void) {
-    WorldMapTileVertex* pDst = (WorldMapTileVertex*)D_8009D150;
-    WorldMapPathEntry* pSrc = (WorldMapPathEntry*)D_8009CEB4;
+    WorldMapTileVertex* pDst = (WorldMapTileVertex*)g_WorldMapTileVertexBuffer;
+    WorldMapPathEntry* pSrc = (WorldMapPathEntry*)g_WorldMapTileVertexSteps;
     s32 i;
 
     for (i = 0; i < 0x50; i++) {
@@ -384,21 +384,21 @@ void WorldMapWrapTileVertexPositions(void) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
 s32 WorldMapInitSlotAngleStep8(s32 index) {
-    WorldMapPlayer* pSlot = &D_8009BE24[index];
+    WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 8;
     return 1;
 }
 s32 WorldMapUpdateSlotRotationMatrices(s32 index) {
-    WorldMapPlayer* pSlot = &D_8009BE24[index];
+    WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
     SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
     SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
     WorldMapSceneLayer* pLayers;
     u16 angle;
 
     pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
-    pLayers = D_8009C620;
+    pLayers = g_WorldMapGroups;
     pVec1->vx = 0;
     pVec0->vx = 0;
     pVec0->vy = pLayers[12].rot.vy;
@@ -411,17 +411,17 @@ s32 WorldMapUpdateSlotRotationMatrices(s32 index) {
     return 1;
 }
 s32 func_800877E0(s32 index) {
-    WorldMapPlayer* pSlot = &D_8009BE24[index];
+    WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 8;
     return 1;
 }
 s32 WorldMapUpdateSceneLayerRotationMatrices(s32 index) {
-    WorldMapPlayer* pSlot = &D_8009BE24[index];
-    WorldMapSceneLayer* pLayers = D_8009C620;
-    s32 entryIndex = D_8009C610 * 2;
-    s32 index1 = D_8009B624[entryIndex];
+    WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
+    WorldMapSceneLayer* pLayers = g_WorldMapGroups;
+    s32 entryIndex = g_WorldMapLevelIndex * 2;
+    s32 index1 = g_WorldMapSlotRotationGroupIds[entryIndex];
     s32 index2 = D_8009B626[entryIndex];
     SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
     SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
@@ -462,7 +462,7 @@ void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 
     memcpy(pLayer->unk4C, pLayer->unk48, rows * 0x28);
 }
 s32 BattleInitSlotRowsForActor(s32 index) {
-    WorldMapPlayer* pSlot = &D_8009BE24[index];
+    WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
 
     pSlot->unk50 = 0;
     pSlot->unk54 = 0x10;
@@ -470,24 +470,24 @@ s32 BattleInitSlotRowsForActor(s32 index) {
     return 1;
 }
 s32 WorldMapSetSceneLayerTPages(s32 index) {
-    WorldMapSceneLayer* pLayers = D_8009C620;
+    WorldMapSceneLayer* pLayers = g_WorldMapGroups;
     WorldMapSceneLayer* pLayer1;
     WorldMapSceneLayer* pLayer2;
     s32 entryIndex;
     long tmp[2]; // unused: reproduces retail's 0x10-byte stack slot
 
-    entryIndex = D_8009C610 * 2;
-    pLayer1 = &pLayers[D_8009B64C[entryIndex]];
+    entryIndex = g_WorldMapLevelIndex * 2;
+    pLayer1 = &pLayers[g_WorldMapTileGroupIds[entryIndex]];
     pLayer2 = &pLayers[D_8009B64E[entryIndex]];
     WorldMapSetSlotTPages(pLayer1, pLayer1->unk48, ((u16*)pLayer1->unk40)[2], 3);
     WorldMapSetSlotTPages(pLayer2, pLayer2->unk48, ((u16*)pLayer2->unk40)[2], 3);
     return 1;
 }
 s32 WorldMapSetSceneLayerRotMatrices(s32 index) {
-    WorldMapPlayer* pSlot = &D_8009BE24[index];
-    WorldMapSceneLayer* pLayers = D_8009C620;
-    s32 entryIndex = D_8009C610 * 2;
-    s32 index1 = D_8009B64C[entryIndex];
+    WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
+    WorldMapSceneLayer* pLayers = g_WorldMapGroups;
+    s32 entryIndex = g_WorldMapLevelIndex * 2;
+    s32 index1 = g_WorldMapTileGroupIds[entryIndex];
     s32 index2 = D_8009B64E[entryIndex];
     SVECTOR* pVec0 = (SVECTOR*)0x1F8000A0;
     SVECTOR* pVec1 = (SVECTOR*)0x1F8000A8;
@@ -535,7 +535,7 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
 // permuter 365 iterations from this body (base=200 best=200) and every declaration
 // order tried do not move it).
 // What closed the round-117 residuals, in case a neighbour needs the trick:
-//  (a) prologue order (retail: addiu sp / sw s0 BEFORE the D_8009C610 load, then
+//  (a) prologue order (retail: addiu sp / sw s0 BEFORE the g_WorldMapLevelIndex load, then
 //      ra,s3,s2,s1) is NOT controllable on its own - it falls out of the same block
 //      boundary as (b) and is correct here.
 //  (b) the stolen load-delay nop after the unk2C store needs the `do { } while (0)`
@@ -556,17 +556,17 @@ s32 func_80087C6C(s32 index) {
     s32 z;
     u16 tileZ;
 
-    tileIndex = D_8009B674[D_8009C610];
+    tileIndex = g_WorldMapLevelGroupIds[g_WorldMapLevelIndex];
     WorldMapSetSceneSpriteSetParents();
-    pSlot = &D_8009BE24[index];
+    pSlot = &g_WorldMapSlots[index];
     pPos = (WorldMapPos*)0x1F800000;
     pSlot->unk4A = 0x4000;
-    pLayer = &D_8009C620[tileIndex];
+    pLayer = &g_WorldMapGroups[tileIndex];
     pSlot->unk20 = 0;
     if (g_GameState.unk1930[0] < 0xCD) {
         pSlot->unk28 = 0xD80000;
         pSlot->unk30 = 0x7280000;
-        pLayer->mat = D_8009A180;
+        pLayer->mat = g_WorldMapIdentityMatrix;
         pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
     } else {
         pCount = &((u16*)g_GameState.unk1838)[9];
@@ -614,7 +614,7 @@ s32 func_80087C6C(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087C6C);
 s32 WorldMapSetSceneSpriteSetParents(void) {
-    s32 value = D_8009B674[D_8009C610];
+    s32 value = g_WorldMapLevelGroupIds[g_WorldMapLevelIndex];
 
     WorldMapSetSpriteSetParent(value, value - 4);
     WorldMapSetSpriteSetParent(value, value - 3);
@@ -632,9 +632,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 // Best: 96.81% (1440 bytes = retail's exact size; instruction multiset identical
 // apart from three residuals, none of them structure):
 //  (a) prologue order. Retail spills `sw s4,48(sp) / lui s4,0x1F80` and loads
-//      D_8009BE24 before `sll a1,s6,7`, then `addu s1,a0,a1` before the
-//      D_8009B674 chain, and loads D_8009C620 there too; gcc here loads
-//      D_8009BE24 after the B674 chain, D_8009C620 after the *0x54 chain (into
+//      g_WorldMapSlots before `sll a1,s6,7`, then `addu s1,a0,a1` before the
+//      g_WorldMapLevelGroupIds chain, and loads g_WorldMapGroups there too; gcc here loads
+//      g_WorldMapSlots after the B674 chain, g_WorldMapGroups after the *0x54 chain (into
 //      v1 not a0) and steals `addu s1,a0,a1` into the `beqz` delay slot where
 //      retail has the pLayer `addu s2,a0,v0`. Swapping the first two source
 //      assignments changes nothing (measured).
@@ -668,9 +668,9 @@ s32 func_80087FD0(s32 index) {
     s32 tileDist;
     s32 dist;
 
-    tileIndex = D_8009B674[D_8009C610];
-    pSlot = &D_8009BE24[index];
-    pLayer = &D_8009C620[tileIndex];
+    tileIndex = g_WorldMapLevelGroupIds[g_WorldMapLevelIndex];
+    pSlot = &g_WorldMapSlots[index];
+    pLayer = &g_WorldMapGroups[tileIndex];
     pPos = (WorldMapPos*)0x1F800000;
     if (g_GameState.unk1930[0] < 0xCD) {
         pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
@@ -768,7 +768,7 @@ s32 func_80088570(s32 index) {
     s32 v;
 
     func_8008868C();
-    pSlot = &D_8009BE24[index];
+    pSlot = &g_WorldMapSlots[index];
     pSlot->unk54 = 4;
     pSlot->unk20 = 0;
     pSlot->unk50 = 0;
@@ -804,7 +804,7 @@ s32 func_80088570(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
 // Best: 76.81%. Two-pointer walk over the interleaved s16 pairs of D_8009AFA0
-// (pX[0], pX[1] with pX += 2) offset by base = D_8009B688[D_8009C610], ending at
+// (pX[0], pX[1] with pX += 2) offset by base = D_8009B688[g_WorldMapLevelIndex], ending at
 // a -1 sentinel. Retail materialises the sentinel as `li v0,-1` inside the loop
 // and as `li a0,-1` before it, i.e. loop.c did not hoist the constant; every
 // decl order / do-while / pointer-vs-index shape tried so far gets it hoisted
@@ -812,7 +812,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
 // Screen: cdk 61.86, 2.6.0 76.81, best 76.81 here - not a compiler miss.
 /*
 s32 func_8008868C(void) {
-    s32 base = D_8009B688[D_8009C610];
+    s32 base = D_8009B688[g_WorldMapLevelIndex];
     s16* pX = D_8009AFA0;
     s16* pY = D_8009AFA0 + 1;
 

@@ -16,9 +16,9 @@ s16 LibGearInterpolateFall(s16 a, s16 b, s16 c);
 s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c);
 
 extern Temp8* g_BattleSoundBankMain;
-extern u32 D_801E85CC;
+extern u32 g_LibGearDirectKeyframes;
 extern u16 g_LibGearModelBitMask;
-extern u16 D_801E86B0;
+extern u16 g_LibGearCurrentModelIndex;
 extern s32 g_LibGearPendingFrameCount;
 extern s16 g_LibGearSwingAngle;
 extern s16 g_LibGearSwingScale;
@@ -1850,7 +1850,7 @@ void func_801E63A8(Model* pModel) {
     }
 
     if (pModel->unk58 == 0xFE) {
-        index = D_801E86B0;
+        index = g_LibGearCurrentModelIndex;
     }
     pModel2 = pModel;
     if (pModel2->unk58 == 0xFD) {
@@ -2036,7 +2036,7 @@ void func_801E6830(Model* pModel, int type, s16* pMask) {
     if (index == 0xFF) {
         index = LibGearGetFirstModelIndex();
     } else if (index == 0xFE) {
-        index = *(u8*)&D_801E86B0;
+        index = *(u8*)&g_LibGearCurrentModelIndex;
     } else if (index == 0xFD || index == 0xF9) {
         index = pModel->unk20;
     } else if (index == 0xFC) {
@@ -2414,7 +2414,7 @@ void LibGearGetJointMatrix(MATRIX* pMatrix, void* _unk, int index, int jointInde
 }
 
 void LibGearSetDirectKeyframes(u32 shouldRender) {
-    D_801E85CC = shouldRender & 0x1;
+    g_LibGearDirectKeyframes = shouldRender & 0x1;
 }
 
 void LibGearInitialize(int capacity) {
@@ -2496,7 +2496,7 @@ void LibGearShutdown(void) {
     int i;
 
     for (i = 0; i < MAX_MODELS; i++) {
-        func_801E8030(i);
+        LibGearFreeModel(i);
     }
 
     LibGearFreeJointObjectPool(&g_LibGearJointObjectPool);
@@ -2505,7 +2505,7 @@ void LibGearShutdown(void) {
 
 // Frees every resource a model owns and clears its slot. The texture and list
 // entries are arrays of unk10E / unk10D structs, not byte blobs.
-void func_801E8030(s32 modelIndex) {
+void LibGearFreeModel(s32 modelIndex) {
     s32 i;
 
     if (g_LibGearModels[modelIndex] == NULL) {
@@ -2570,7 +2570,7 @@ void func_801E8030(s32 modelIndex) {
 void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2) {
     Model* pModel = g_LibGearModels[modelIndex];
 
-    D_801E86B0 = modelIndex;
+    g_LibGearCurrentModelIndex = modelIndex;
     g_LibGearModelBitMask = bits;
     pModel->unk35 = 0;
 
@@ -2580,7 +2580,7 @@ void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2) {
 }
 
 void LibGearSetModelAnimationFrom(s32 arg0, u16 modelIndex, u16 arg2, s32 arg3) {
-    D_801E86B0 = modelIndex;
+    g_LibGearCurrentModelIndex = modelIndex;
     g_LibGearModelBitMask = arg2;
     g_LibGearModels[modelIndex]->unk35 = 0;
 

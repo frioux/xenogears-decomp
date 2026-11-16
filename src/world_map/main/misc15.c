@@ -42,9 +42,9 @@ typedef struct {
 } Misc15Xform; // Size: 0x30
 
 
-extern Misc15Slot *D_8009BE24;
+extern Misc15Slot *g_WorldMapSlots;
 extern void *D_8009C184[];
-extern MATRIX D_8009A180;
+extern MATRIX g_WorldMapIdentityMatrix;
 extern MATRIX D_8009D534;
 extern u32 D_8009C580[];
 extern s32 g_WorldMapGridAngle;
@@ -212,11 +212,11 @@ void WorldMapExtractRotationFromMatrix(MATRIX *pMtx, Misc15Rot *pRot) {
     }
     pRot->unk2 = ratan2((s16)pAngles[6], (s16)pAngles[8]) & 0xFFF;
     *(MATRIX *)0x1F8000F0 = *pMtx;
-    *(MATRIX *)0x1F800110 = D_8009A180;
+    *(MATRIX *)0x1F800110 = g_WorldMapIdentityMatrix;
     RotMatrixY(pRot->unk2, (MATRIX *)0x1F800110);
     MulMatrix0((MATRIX *)0x1F8000F0, (MATRIX *)0x1F800110, (MATRIX *)0x1F800130);
     pRot->unk0 = ratan2(*(s16 *)0x1F80013A, *(s16 *)0x1F800138);
-    *(MATRIX *)0x1F800110 = D_8009A180;
+    *(MATRIX *)0x1F800110 = g_WorldMapIdentityMatrix;
     RotMatrixX(pRot->unk0, (MATRIX *)0x1F800110);
     MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800110, (MATRIX *)0x1F8000F0);
     pRot->unk4 = -ratan2(*(s16 *)0x1F8000F6, *(s16 *)0x1F8000F8);
@@ -309,7 +309,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097244);
 void WorldMapBuildRotationMatrix(Misc15Rot *p) {
     MATRIX *pMtx = (MATRIX *)0x1F8000F0;
 
-    *pMtx = D_8009A180;
+    *pMtx = g_WorldMapIdentityMatrix;
     *(MATRIX *)0x1F800110 = *pMtx;
     *(MATRIX *)0x1F800130 = *pMtx;
     RotMatrixX(-g_WorldMapCameraRot, pMtx);
@@ -326,48 +326,48 @@ void WorldMapBuildRotationMatrix(Misc15Rot *p) {
 }
 
 void WorldMapAllocSlotPool(void) {
-    D_8009BE24 = HeapAlloc(0x2000, 0);
+    g_WorldMapSlots = HeapAlloc(0x2000, 0);
     WorldMapClearSlotPool();
 }
 
 void WorldMapFreeSlotPool(void) {
-    HeapFree(D_8009BE24);
+    HeapFree(g_WorldMapSlots);
 }
 
 void WorldMapClearSlotPool(void) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
-        D_8009BE24[i].unk4C = 0;
-        D_8009BE24[i].unk18 = 0;
-        D_8009BE24[i].unk1C = 0;
+        g_WorldMapSlots[i].unk4C = 0;
+        g_WorldMapSlots[i].unk18 = 0;
+        g_WorldMapSlots[i].unk1C = 0;
     }
 }
 
 void WorldMapSetSlotEnterHandler(s32 value, s32 index) {
-    D_8009BE24[index].unk0 = 0;
-    D_8009BE24[index].unk18 = value;
+    g_WorldMapSlots[index].unk0 = 0;
+    g_WorldMapSlots[index].unk18 = value;
 }
 
 void WorldMapAddSlot(s32 value18, s32 value1C) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
-        if (D_8009BE24[i].unk1C == 0) {
-            D_8009BE24[i].unk0 = 0;
-            D_8009BE24[i].unk2 = 0;
-            D_8009BE24[i].unk4 = 0;
-            D_8009BE24[i].unk18 = value18;
-            D_8009BE24[i].unk1C = value1C;
-            D_8009BE24[i].unk20 = 0;
-            D_8009BE24[i].unk22 = 0;
+        if (g_WorldMapSlots[i].unk1C == 0) {
+            g_WorldMapSlots[i].unk0 = 0;
+            g_WorldMapSlots[i].unk2 = 0;
+            g_WorldMapSlots[i].unk4 = 0;
+            g_WorldMapSlots[i].unk18 = value18;
+            g_WorldMapSlots[i].unk1C = value1C;
+            g_WorldMapSlots[i].unk20 = 0;
+            g_WorldMapSlots[i].unk22 = 0;
             break;
         }
     }
 }
 
 s32 WorldMapStartSlot(s32 index, s16 value) {
-    Misc15Slot *pSlot = &D_8009BE24[index];
+    Misc15Slot *pSlot = &g_WorldMapSlots[index];
 
     if (pSlot->unk4 != 0) {
         return 0;
@@ -378,15 +378,15 @@ s32 WorldMapStartSlot(s32 index, s16 value) {
 }
 
 void WorldMapSetSlotState3(s32 index) {
-    *(u16 *)((u8 *)D_8009BE24 + (index << 7)) = 3;
+    *(u16 *)((u8 *)g_WorldMapSlots + (index << 7)) = 3;
 }
 
 void WorldMapSetSlotState4(s32 index) {
-    *(u16 *)((u8 *)D_8009BE24 + (index << 7)) = 4;
+    *(u16 *)((u8 *)g_WorldMapSlots + (index << 7)) = 4;
 }
 
 void WorldMapSetSlotWaitFrames(s32 index, u16 value) {
-    u8 *pSlot = (u8 *)D_8009BE24 + (index << 7);
+    u8 *pSlot = (u8 *)g_WorldMapSlots + (index << 7);
 
     *(u16 *)pSlot = 2;
     *(u16 *)(pSlot + 2) = value;
@@ -550,7 +550,7 @@ void func_80097BC0(s32 *p) {
     s32 x;
     s32 z;
 
-    D_8009D534 = D_8009A180;
+    D_8009D534 = g_WorldMapIdentityMatrix;
     i = 0xFF;
     pEnd = D_8009C580;
     for (; i >= 0; i--) {
@@ -576,7 +576,7 @@ void WorldMapRefreshGrid(s32 arg0) {
     u32 *pEnd;
     s32 i;
 
-    D_8009D534 = D_8009A180;
+    D_8009D534 = g_WorldMapIdentityMatrix;
     i = 0xFF;
     pEnd = D_8009C580;
     for (; i >= 0; i--) {

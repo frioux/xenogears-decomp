@@ -2,7 +2,7 @@
 #include "battle/actor.h"
 
 // One 8-byte battle command argument record, indexed by actor. Entry 0 sits at
-// D_800D2E5C, the same address this unit clears as a 0x100-byte scratch buffer.
+// g_BattleCommandArgs, the same address this unit clears as a 0x100-byte scratch buffer.
 typedef struct {
     /* 0x0 */ u8 opcode;
     /* 0x1 */ u8 unk1;
@@ -25,8 +25,8 @@ typedef struct {
 } BattleCommandQueue; // Size: 0x2DD
 
 extern u8 D_800D2CA4[];
-extern BattleCommandArg D_800D2E5C[];
-extern u16 D_800D39E0;
+extern BattleCommandArg g_BattleCommandArgs[];
+extern u16 g_BattlePendingSlotMask;
 extern BattleSlotRegs g_BattleSlotRegs[];
 extern s32 func_8007EF6C(u8** arg0, u8 arg1, u8 arg2);
 extern s32 func_8007F8C0(u8** arg0, u8 arg1);
@@ -41,31 +41,31 @@ extern BattleStatusEntry D_800C3D1B[];
 extern u8 D_800D342E[];
 extern u8 D_800D3439[];
 extern u8 D_800D343E[];
-extern u16 D_800C48E8;
+extern u16 g_BattleSlotFlag8000Mask;
 extern s32 BattleSlotBitMask(u8 arg0);
-extern u8 D_800D2DE4[];
-extern u8 D_800C3D18[];
+extern u8 g_BattleActorCountdownState[];
+extern u8 g_BattleSlotScriptFlags[];
 extern BattleTableEntry g_BattleSlotEntries[];
 extern u8 g_BattleSlotFlags[];
 extern u16 g_BattleActionSlotMask;
 extern void BattleBeginActorAction(u8 arg0, u16 arg1, u8 arg2);
 extern void BattleApplySlotCurveAndStep(u8 arg0);
 extern u8 g_BattleSoundEnabled;
-extern s32* D_8005917C;
-extern char D_8006FB08[];
-extern char D_8006FB0C[];
-extern char D_8006FB24[];
+extern s32* g_DebuggerState;
+extern char g_StrSpace[];
+extern char g_StrLanguageError[];
+extern char g_StrActorNoFormat[];
 extern void func_800877E0(u8 arg0, u8 arg1);
 extern void func_80087EDC(u8 arg0, u8 arg1);
 extern void func_800881B8(u8 arg0, u8 arg1);
 extern void BattleBeginAnimTask(u16 arg0);
-// A 0x48-byte row of the per-battle-slot table at D_800C3FFE.
+// A 0x48-byte row of the per-battle-slot table at g_BattleCommandRecords.
 typedef u16 BattleSlotRow[36]; // Size: 0x48
 
-extern u8 D_800C3E8C;
+extern u8 g_BattleTextSlotCount;
 extern u8 D_800C400B[];
 extern BattleSlotRow D_800C4022[];
-extern BattleSlotRow D_800C3FFE[];
+extern BattleSlotRow g_BattleCommandRecords[];
 extern BattleCommandQueue *g_BattleCommandQueue;
 extern u8 D_800C402F[];
 extern void func_800785D4(u8 arg0, u8 arg1);
@@ -96,15 +96,15 @@ extern void func_80078998(u8 arg0, u8 arg1, u8 arg2);
 extern void func_80078E24(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
-    if (D_800C3E8C != 0) {
+    if (g_BattleTextSlotCount != 0) {
         D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
         D_800C402F[g_BattleCommandQueue->count * 72] = 0xF8;
-        D_800C4022[g_BattleCommandQueue->count][0] = D_800C3E8C - 1;
+        D_800C4022[g_BattleCommandQueue->count][0] = g_BattleTextSlotCount - 1;
         g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     }
 }
 void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
-    if (D_800D2E5C[arg0].unk3 != 0) {
+    if (g_BattleCommandArgs[arg0].unk3 != 0) {
         func_80078658(arg0, arg1);
         BattleQueueCommandF7(0x1E, arg1);
         BattleQueueCommandF8(arg1);
@@ -121,7 +121,7 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
    this unit cannot move to -G0: matched BattleQueueCommandFD drops to 99.67.
    The same wall is parked in misc15 func_8008ADD0 (g_BattleActionSlotMask again), so it is
    one shared question, not a per-function one. Tried: pValue assigned at the
-   top and just before the D_800C3FFE store (identical), no pQueue local
+   top and just before the g_BattleCommandRecords store (identical), no pQueue local
    (reloads g_BattleCommandQueue in the loop), u16 *pValue = &g_BattleActionSlotMask.
 void func_80078998(u8 arg0, u8 arg1) {
     BattleCommandQueue *pQueue;
@@ -130,20 +130,20 @@ void func_80078998(u8 arg0, u8 arg1) {
     s32 n;
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
-    g_BattleCommandQueue->unk2DC = D_800D2E5C[arg1].unk1 + 1;
-    BattleBeginActorAction(arg0, D_800D2E5C[arg1].slotMask, D_800D2E5C[arg1].unk2);
+    g_BattleCommandQueue->unk2DC = g_BattleCommandArgs[arg1].unk1 + 1;
+    BattleBeginActorAction(arg0, g_BattleCommandArgs[arg1].slotMask, g_BattleCommandArgs[arg1].unk2);
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
-    D_800C402F[g_BattleCommandQueue->count * 72] = D_800D2E5C[arg1].unk2;
+    D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk2;
     pValue = &g_BattleActionSlotMask;
-    D_800C3FFE[g_BattleCommandQueue->count][0] = *pValue;
+    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = *pValue;
     func_800785D4(arg0, arg1);
-    if (D_800D2E5C[arg1].slotMask != *pValue) {
+    if (g_BattleCommandArgs[arg1].slotMask != *pValue) {
         pQueue = g_BattleCommandQueue;
         i = 0;
         n = 0;
         while (n < pQueue->count) {
             if (D_800C402F[i] == 0xFD) {
-                *(u16 *)((u8 *)D_800C3FFE + i) = *pValue;
+                *(u16 *)((u8 *)g_BattleCommandRecords + i) = *pValue;
                 break;
             }
             n++;
@@ -158,16 +158,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[g_BattleCommandQueue->count * 72] = 0xFD;
     D_800C4022[g_BattleCommandQueue->count][0] = 0;
-    D_800C3FFE[g_BattleCommandQueue->count][0] = D_800D2E5C[arg1].slotMask;
+    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = g_BattleCommandArgs[arg1].slotMask;
     func_800877E0(arg0, arg2);
-    if (D_800D2E5C[arg1].unk4 != 1) {
+    if (g_BattleCommandArgs[arg1].unk4 != 1) {
         if (g_BattleSlotFlags[arg0 * 8] == 0) {
             func_80087EDC(arg0, arg2);
         } else {
             func_800881B8(arg0, arg2);
         }
     }
-    BattleBeginAnimTask(BattleSlotBitMask(arg0) | D_800D2E5C[arg1].slotMask);
+    BattleBeginAnimTask(BattleSlotBitMask(arg0) | g_BattleCommandArgs[arg1].slotMask);
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
@@ -175,18 +175,18 @@ void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[g_BattleCommandQueue->count * 72] = D_800D2E5C[arg1].unk4;
+    D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk4;
     func_800785D4(arg0, arg1);
 }
 
 void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
-    D_800D39E0 = D_800D2E5C[arg1].slotMask;
+    g_BattlePendingSlotMask = g_BattleCommandArgs[arg1].slotMask;
 }
 
 void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[g_BattleCommandQueue->count * 72] = 0xF9;
     func_800785D4(arg0, arg1);
-    D_800D2DE4[arg0] = 0xFF;
+    g_BattleActorCountdownState[arg0] = 0xFF;
     // The empty-block wrapper keeps this store ahead of the g_BattleSlotEntries read-modify-write.
     do {
         D_800C3D1B[arg0 - 3].unk0 = 1;
@@ -220,7 +220,7 @@ void func_80078E24(u8 arg0, u8 arg1) {
 
     for (i = 0; i < 11; i++) {
         idx = i;
-        if (BattleMaskHasSlotBit(D_800D2E5C[arg1].slotMask, idx) != 0) {
+        if (BattleMaskHasSlotBit(g_BattleCommandArgs[arg1].slotMask, idx) != 0) {
             slot = idx;
             break;
         }
@@ -232,7 +232,7 @@ void func_80078E24(u8 arg0, u8 arg1) {
     *(u32 *)(D_800D3404 + dst) = *(u32 *)(D_800D3404 + src);
     *(u32 *)(D_800D3408 + dst) = *(u32 *)(D_800D3408 + src);
     *(u32 *)(D_800D340C + dst) = *(u32 *)(D_800D340C + src);
-    D_800C3D18[(arg0 - 3) * 4] = D_800C3D18[(slot - 3) * 4];
+    g_BattleSlotScriptFlags[(arg0 - 3) * 4] = g_BattleSlotScriptFlags[(slot - 3) * 4];
     D_800C3D19[(arg0 - 3) * 4] = D_800C3D19[(slot - 3) * 4];
     memmove(&g_BattleWorkBlock[arg0], &g_BattleWorkBlock[slot], sizeof(BattleTableEntry));
     D_800C4022[g_BattleCommandQueue->count][0] = slot;
@@ -243,23 +243,23 @@ void func_80078E24(u8 arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
-    BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
+    BattleSlotByteVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1, g_BattleCommandArgs[arg1].unk4, 0);
 }
 void BattleAddCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     s32 value;
 
-    value = BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
-    BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 + value, 0);
+    value = BattleSlotByteVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1, 0, 1);
+    BattleSlotByteVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1, g_BattleCommandArgs[arg1].unk4 + value, 0);
 }
 void BattleApplyCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
-    BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 | (D_800D2E5C[arg1].unk5 << 8), 0);
+    BattleSlotWordVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1, g_BattleCommandArgs[arg1].unk4 | (g_BattleCommandArgs[arg1].unk5 << 8), 0);
 }
 void BattleAddCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
     s32 value;
 
-    value = BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
-    BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1,
-                  (u16)(D_800D2E5C[arg1].unk4 + (value + (D_800D2E5C[arg1].unk5 << 8))), 0);
+    value = BattleSlotWordVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1, 0, 1);
+    BattleSlotWordVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1,
+                  (u16)(g_BattleCommandArgs[arg1].unk4 + (value + (g_BattleCommandArgs[arg1].unk5 << 8))), 0);
 }
 void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
     BattleQueueCommandF8IfFlagged(arg1, arg0);
@@ -268,7 +268,7 @@ void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
 }
 void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[g_BattleCommandQueue->count * 72] = 0xF6;
-    D_800C3FFE[g_BattleCommandQueue->count][0] = D_800D2E5C[arg1].slotMask;
+    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = g_BattleCommandArgs[arg1].slotMask;
     func_800785D4(arg0, arg1);
 }
 void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
@@ -284,14 +284,14 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
     }
     j = 0;
     i = 0;
-    if (*D_8005917C != -1) {
+    if (*g_DebuggerState != -1) {
         for (;;) {
             for (k = 0; k < i; k++) {
-                FontPrintf(D_8006FB08);
+                FontPrintf(g_StrSpace);
             }
-            FontPrintf(D_8006FB0C);
+            FontPrintf(g_StrLanguageError);
             j++;
-            FontPrintf(D_8006FB24, arg0, arg1);
+            FontPrintf(g_StrActorNoFormat, arg0, arg1);
             BattleUpdateFrame();
             if (j < 3) {
                 continue;
@@ -318,13 +318,13 @@ void BattleDispatchCommandRecords(u8 arg0) {
         slot = 0;
         for (; j < 0xB; j++) {
             idx = j;
-            if (BattleMaskHasSlotBit(D_800D2E5C[i].slotMask, idx) != 0) {
+            if (BattleMaskHasSlotBit(g_BattleCommandArgs[i].slotMask, idx) != 0) {
                 slot = idx;
                 break;
             }
         }
         BattleClearSlotCurveEntry();
-        switch (D_800D2E5C[i].opcode) {
+        switch (g_BattleCommandArgs[i].opcode) {
         case 0x0:
             again = 0;
             break;
@@ -368,7 +368,7 @@ void BattleDispatchCommandRecords(u8 arg0) {
             BattleQueueCommandF4(arg0, i, slot);
             break;
         case 0xE:
-            BattleQueueCommandF7(D_800D2E5C[i].unk4, arg0);
+            BattleQueueCommandF7(g_BattleCommandArgs[i].unk4, arg0);
             break;
         case 0xF:
             BattleQueueCommandF6(arg0, i, slot);
@@ -428,7 +428,7 @@ void func_80079840(u8 arg0, u8 arg1) {
             D_800D3439[slot * 0x40 + i] = D_800D2CA4[i];
         }
         pBuf = g_BattleCommandQueue + (arg0 & 0xFF) * 0x40;
-        if (D_800C48E8 & BattleSlotBitMask(pBuf[0x3C])) {
+        if (g_BattleSlotFlag8000Mask & BattleSlotBitMask(pBuf[0x3C])) {
             D_800D343E[slot * 0x40] = 1;
         } else {
             D_800D343E[slot * 0x40] = 0;
@@ -457,7 +457,7 @@ void BattleScriptResetActorState(u8 arg0) {
     value = 0;
     slot = arg0 - 3;
     pCursor = *(u8 **)g_BattleSlotRegs[slot].unk0;
-    p = (u8 *)D_800D2E5C;
+    p = (u8 *)g_BattleCommandArgs;
     pEnd = p + 0x100;
     do {
         *p++ = 0;
@@ -495,10 +495,10 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
             goto done;
         }
     }
-    D_800D2E5C[0].opcode = 0;
-    if (D_800C3D18[slot * 4] != 0) {
+    g_BattleCommandArgs[0].opcode = 0;
+    if (g_BattleSlotScriptFlags[slot * 4] != 0) {
         pCursor = *(u8 **)&g_BattleSlotRegs[slot].unk0[8];
-        p = D_800D2E5C;
+        p = g_BattleCommandArgs;
         pEnd = p + 0x100;
         do {
             *p++ = 0;
@@ -519,7 +519,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
             }
         }
     }
-    if (D_800D2E5C[0].opcode != 0) {
+    if (g_BattleCommandArgs[0].opcode != 0) {
         BattleDispatchCommandRecords(slot + 3);
     }
 done:
@@ -557,7 +557,7 @@ void BattleRunActiveSlotScripts(void) {
         g_BattleCommandQueue->unk2D3 = idx;
         pCursor = *(u8**)(D_800D340C + off2);
         flags = *(u16*)((u8*)g_BattleSlotEntries + off);
-        p = D_800D2E5C;
+        p = g_BattleCommandArgs;
         if ((flags & 0x8000) != 0) {
             if ((*(u16*)((u8*)D_800CCD1C + off) & 0x800) == 0) {
                 continue;

@@ -119,7 +119,7 @@ void func_800B6464(u8 *pActor, u8 *p) {
     }
 }
 */
-void func_800B64D4(s32 arg0, u8 *p) {
+void BattleScriptPlaySpriteAnimation(s32 arg0, u8 *p) {
     u8 *pEntry;
     s32 off;
     mem_addr base;
@@ -327,7 +327,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
    gravity at 0x78 (added to 0x6C).  Damping order is 0x6C, 0x68, 0x70 - not
    0x68 first - and `for (x = 0; x != N; x++)` with != is required, `<` gives
    slti/bnez instead of retail's li+bne.
-   Three things left, see the parked notes on func_800B64D4 and misc30:
+   Three things left, see the parked notes on BattleScriptPlaySpriteAnimation and misc30:
    (1) the g_BattleStateWork+0x8000+0xC84 read: retail materialises the symbol with
    lui+addiu (addend 0), then li 0x8000 + addu, then lw 0xC84(base); gcc either
    folds the whole 0x8C84 into one lui/addiu carry pair or, with pState a pointer

@@ -4,8 +4,8 @@
 
 extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
-extern u8 *D_800C3EA4;
-extern s32 D_800CCB34;
+extern u8 *g_BattleGraphicsWork;
+extern s32 g_BattlePrimStartIndex;
 extern u8 *g_BattleDisplayState;
 extern u8 *g_BattleSlotGraphics[];
 extern u8 *g_BattleSlotRects[];
@@ -45,7 +45,7 @@ extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void BattleDrawMenuEntryString(u8, u8);
 extern void *g_BattleSpriteArchive;
-extern u8 D_800C3E4C;
+extern u8 g_BattleDisplayMode;
 extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
 extern u16 D_800C324E;

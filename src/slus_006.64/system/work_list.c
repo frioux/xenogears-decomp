@@ -123,7 +123,7 @@ void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
 WorkListEntry* WorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
 
-    pEntry = HeapAlloc(dataSize + sizeof(WorkListEntry), D_800591AF);
+    pEntry = HeapAlloc(dataSize + sizeof(WorkListEntry), g_TaskHeapAllocFlags);
     WorkListAddTask(pData, pEntry);
     pEntry->onFreeCallback = WorkListDeleteTask;
     return pEntry;
@@ -201,7 +201,7 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
 WorkListEntry* TimerWorkListAllocateTask(void* pData, int dataSize) {
     WorkListEntry* pEntry;
 
-    pEntry = HeapAlloc(dataSize + sizeof(WorkListEntry), D_800591AF);
+    pEntry = HeapAlloc(dataSize + sizeof(WorkListEntry), g_TaskHeapAllocFlags);
     TimerWorkListAddTask(pData, pEntry);
     pEntry->onFreeCallback = TimerWorkListDeleteTask;
     pEntry->unk4 = NULL;
@@ -385,7 +385,7 @@ WorkListEntry* WorkListsAddTasks(u_int allocSize, void* pData, WorkListCallback_
     WorkListEntry* pEntry;
     WorkListEntry* pWorkEntry;
 
-    pEntry = HeapAlloc(allocSize, D_800591AF);
+    pEntry = HeapAlloc(allocSize, g_TaskHeapAllocFlags);
     TimerWorkListAddTask(pData, pEntry);
     pWorkEntry = pEntry + 1;
     WorkListAddTask(pEntry, pWorkEntry);
@@ -422,8 +422,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", func_8001D2B0);
    original's tail store order (0x34, head, 0x40, 0x38).
 void SpriteApplyFrameDirTransforms(SpriteData* pSpriteData, s32 index, void* pAnimPackage);
 void SpriteClearDirTransforms(SpriteData* pSpriteData);
-extern u8 D_8005A474[];
-extern u8 D_8006BE10[];
+extern u8 g_SpriteAnimPackageDirs6[];
+extern u8 g_SpriteAnimPackageDirs5[];
 
 void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
     SpriteData* pOldHead;
@@ -444,8 +444,8 @@ void func_8001D2B0(SpriteData* pSpriteData, u16 animFrame) {
         while (pCurSpriteData != NULL) {
             if (pCurSpriteData == pSpriteData) {
                 if (
-                    pSpriteData->pVramData != &D_8005A474[0] &&
-                    pSpriteData->pVramData != &D_8006BE10[0] &&
+                    pSpriteData->pVramData != &g_SpriteAnimPackageDirs6[0] &&
+                    pSpriteData->pVramData != &g_SpriteAnimPackageDirs5[0] &&
                     ((pSpriteData->field_0x40 >> 19) & 1) == 0
                 ) {
                     SpriteApplyFrameDirTransforms(pSpriteData, *(u16*)&pSpriteData->curSpriteFrame, pSpriteData->pVramData);

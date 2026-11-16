@@ -27,7 +27,7 @@ void FieldSetClipDimensions(short x, short y, short w, short h) {
 }
 
 void FieldInitializeRenderContexts(void) {
-    D_80059198 = 1;
+    g_AnimScriptExtraTicks = 1;
     DrawSync(0);
     Vsync(0);
     InitGeom();

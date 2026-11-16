@@ -830,7 +830,7 @@ void BattleActorSetFacingFromSideFlag(s32 index) {
     func_800223B0(pSprite, sfx);
     SpriteSetDirection(pSprite, sfx);
 }
-/* 75.68%: the known 0x8C8C wall (same as misc28's func_800B64D4).  Retail keeps
+/* 75.68%: the known 0x8C8C wall (same as misc28's BattleScriptPlaySpriteAnimation).  Retail keeps
    &g_BattleStateWork in $a1 and adds 0x8C8C with a separate li+addu; gcc always folds
    the constant into the symbolic address as lui at,0x1 / lw -29556(at).
    Tried: raw (u8*)g_BattleStateWork, base pointer local, base + separate offset local,

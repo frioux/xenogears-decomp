@@ -824,7 +824,7 @@ int func_8008492C(ActorData* pActor) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80084A40);
 
 extern s32 D_800ADBBC;
-extern s32 D_800ADB2C;
+extern s32 g_FieldArchiveStreamActive;
 extern void* D_800ADBB8;
 extern void* D_800AFEA4;
 int func_80028B14(void);
@@ -846,14 +846,14 @@ int FieldStepArchiveStream(void) {
         return 0;
     }
     HeapFree(D_800ADBB8);
-    D_800ADB2C = 0;
+    g_FieldArchiveStreamActive = 0;
     return -1;
 }
 
 void FieldStartArchiveStream(int archiveIndex, int allocMode, void* pCallback) {
     int* pStreamFile;
 
-    D_800ADB2C = 1;
+    g_FieldArchiveStreamActive = 1;
     pStreamFile = ArchiveAllocStreamFile(8, allocMode);
     D_800ADBB8 = pStreamFile;
     ArchiveReadFileToBuffer(archiveIndex, pStreamFile, 0, 0x100);
@@ -1107,7 +1107,7 @@ extern s32 g_GameAudioManagerRunning;
 extern s32 g_GameAudioAndWdsLoaded;
 extern s32 g_GameHasLoadedWDS;
 extern u8 D_800ADFCC[];
-extern u8 D_80062648[];
+extern u8 g_SoundBankLoadBuffer[];
 extern AudioManager* g_SoundAudioManager;
 extern AudioManager* g_SoundPendingAudioManager;
 void FieldBeginWdsFileLoad(void);
@@ -1146,7 +1146,7 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
     if (D_800AFC54 == 1) {
         if (g_GameLoadedWdsBankIndex != arg0) {
             ArchiveSetIndex(0x1C, 0);
-            ArchiveReadFileToBuffer(arg0 * 2 + 0x14, D_80062648, 0, 0x80);
+            ArchiveReadFileToBuffer(arg0 * 2 + 0x14, g_SoundBankLoadBuffer, 0, 0x80);
             g_GameWdsBankHeaderReadPending = 1;
             ArchiveSetIndex(4, 0);
         }
@@ -1158,7 +1158,7 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
     }
     if (g_GameWdsBankHeaderReadPending == 1) {
         if (g_GameReusePendingAudioManager == 0) {
-            g_SoundAudioManager = SoundCreateAudioManagerOnHeap(D_80062648);
+            g_SoundAudioManager = SoundCreateAudioManagerOnHeap(g_SoundBankLoadBuffer);
             if (g_GameAudioFadeInPending == -1) {
                 SoundPlayAudioManager(g_SoundAudioManager, 0x7F, 0);
             } else {

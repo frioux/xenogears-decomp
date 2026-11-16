@@ -1126,7 +1126,7 @@ void FieldScriptVMHandlerIncrementCounter(void) {
 }
 
 extern void* g_FieldActorModelPointers[];
-extern void func_801E8030(int modelIndex);
+extern void LibGearFreeModel(int modelIndex);
 
 void FieldScriptVMHandlerReleaseActorModel(void) {
     ActorData* pActor;
@@ -1142,7 +1142,7 @@ void FieldScriptVMHandlerReleaseActorModel(void) {
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
         case 1:
-            func_801E8030(pActor->flags12C_0xE);
+            LibGearFreeModel(pActor->flags12C_0xE);
             pCounter = g_FieldActorModelSlotCount;
             (*pCounter)--;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;

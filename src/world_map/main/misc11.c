@@ -71,7 +71,7 @@ typedef struct {
     /* 0x8 */ s32 z;
 } WorldMapPos; // Size: 0xC
 
-extern WorldMapActor *D_8009BE24;
+extern WorldMapActor *g_WorldMapSlots;
 extern s32 g_WorldMapMode;
 extern s16 D_8009BD04;
 extern WorldMapEntry D_8009BE6C[];
@@ -104,7 +104,7 @@ extern s32 WorldMapStartSlot(s32, s32);
 extern s32 g_WorldMapPlayerPosition;
 extern s32 D_8009C5B4;
 extern s32 g_WorldMapPlayerRotation;
-extern WorldMapVec D_8009D55C;
+extern WorldMapVec g_WorldMapScrollTargetX;
 extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
 extern s16 g_WorldMapTrailCursor;
@@ -139,7 +139,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
    NOT gearRide[2]: the old body read the wrong byte of gearRide and only reached
    87.47.
 int func_8008B2BC(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 mode;
     s32 result = 1;
 
@@ -206,7 +206,7 @@ int func_8008B2BC(int index) {
 }
 */
 int WorldMapModeInitCharacterSprite1(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
 
     if (g_GameState.partyMembers[1] != 0xFF) {
@@ -229,7 +229,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
    neighbours (WorldMapInitPartyActorSprite0, matched) reproduces the original prologue exactly, so
    the trigger is something in this function's tail, not the call: the tail below is
    itself byte-identical. Tried: flat tail without the unk48 temp (83.05), pointer
-   built as (u8*)D_8009BE24 + index*0x80 (93.37), cdk (83.19).
+   built as (u8*)g_WorldMapSlots + index*0x80 (93.37), cdk (83.19).
    Round 56: re-diffed live, exactly the same 93.37 - the whole diff is the position
    of the "sw v0,0x14(sp)" for the 0x40 arg (retail: just before the jal, so v1 holds
    the sll and v0 the constant; ours: right after "li v0,0x40", sll into v0) plus the
@@ -237,7 +237,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
    exact shape, so it is a scheduling/allocator artifact of this function's tail, not
    the call: no hand shape moved it. Permuter is blocked on this unit (see WorldMapFindZoneAtPosition).
 int func_8008B54C(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
     SpritePlayAnimation(pActor->unk4C, 0);
@@ -263,14 +263,14 @@ int func_8008B54C(int index) {
 int WorldMapUpdateActorSlot(int index) {
     s32 result = 1;
     WorldMapPos *pScratch = (WorldMapPos *)0x1F800000;
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapActor *pTarget;
     WorldMapTrail *pTrail;
     u16 angle;
 
     switch (pActor->unk04) {
     case 1:
-        pTarget = &D_8009BE24[pActor->unk06];
+        pTarget = &g_WorldMapSlots[pActor->unk06];
         pActor->unk04 = 0;
         pActor->unk20 = 8;
         break;
@@ -310,7 +310,7 @@ int WorldMapUpdateActorSlot(int index) {
             pActor->unk48 = pTrail->unk10;
             pActor->unk24 = 0;
         } else {
-            pTarget = &D_8009BE24[index + 3];
+            pTarget = &g_WorldMapSlots[index + 3];
             pActor->unk28 = pTarget->unk28;
             pActor->unk2C = pTarget->unk2C;
             pActor->unk30 = pTarget->unk30;
@@ -320,10 +320,10 @@ int WorldMapUpdateActorSlot(int index) {
         }
         break;
     case 2:
-        pActor->unk28 = D_8009BE24[7].unk28;
-        pActor->unk2C = D_8009BE24[7].unk2C;
-        pActor->unk30 = D_8009BE24[7].unk30;
-        pActor->unk48 = D_8009BE24[7].unk48;
+        pActor->unk28 = g_WorldMapSlots[7].unk28;
+        pActor->unk2C = g_WorldMapSlots[7].unk2C;
+        pActor->unk30 = g_WorldMapSlots[7].unk30;
+        pActor->unk48 = g_WorldMapSlots[7].unk48;
         break;
     case 8:
         WorldMapBuildDirectionFromPositions(&pActor->unk28, &pTarget->unk28, &pActor->unk38, &pActor->unk48);
@@ -371,10 +371,10 @@ int WorldMapUpdateActorSlot(int index) {
         pActor->unk20 = 0x40;
         break;
     case 48:
-        WorldMapBuildDirectionFromPositions(&pActor->unk28, &D_8009BE24[1].unk28, &pActor->unk38,
+        WorldMapBuildDirectionFromPositions(&pActor->unk28, &g_WorldMapSlots[1].unk28, &pActor->unk38,
                                            &pActor->unk48);
-        pActor->unk50 = D_8009BE24[1].unk28 >> 12;
-        pActor->unk54 = D_8009BE24[1].unk30 >> 12;
+        pActor->unk50 = g_WorldMapSlots[1].unk28 >> 12;
+        pActor->unk54 = g_WorldMapSlots[1].unk30 >> 12;
         SpritePlayAnimation(pActor->unk4C, 1);
         pActor->unk20++;
         /* falls through */
@@ -413,7 +413,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
    Everything after the jr table is correct, including the shared unk20/unk24 tail and
    the cross-jumped case 4-6 body.
 int func_8008BB40(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
     if (g_GameState.partyMembers[2] != 0xFF) {
         pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
@@ -477,7 +477,7 @@ int func_8008BB40(int index) {
 }
 */
 int WorldMapModeInitCharacterSprite2(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
 
     if (g_GameState.partyMembers[2] != 0xFF) {
@@ -496,7 +496,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
    0x100 push and stores the 0x40 argument in front of the jal; gcc stores it right
    after li 0x40 and shifts into v0. Tail is byte-identical.
 int func_8008BDD0(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
     SpritePlayAnimation(pActor->unk4C, 0);
@@ -639,7 +639,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
    global loads. Source order of the stores does not change it. Everything else
    (lh reload of unk48 for unk5C, the delay slot store, unk4A = 0xC, the tail) matches.
 s32 func_8008C530(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 0);
     WorldMapTrail *pTrail;
     s32 mode;
@@ -665,7 +665,7 @@ s32 func_8008C530(int index) {
                 pActor->unk30 = D_8009C5B4;
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = g_WorldMapPlayerRotation;
-                D_8009D55C = *(WorldMapVec *)&pActor->unk28;
+                g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->unk28;
                 D_8009D52C = pActor->unk48;
                 g_WorldMapTrailCursor = 0;
                 pTrail = D_8009CEC4;
@@ -684,7 +684,7 @@ s32 func_8008C530(int index) {
 
 */
 int WorldMapModeInitPartyActor0(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 0);
     s32 mode = g_WorldMapMode;
 
@@ -700,7 +700,7 @@ int WorldMapModeInitPartyActor0(int index) {
 }
 
 int WorldMapInitPartyActorSprite0(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
     SpritePlayAnimation(pActor->unk4C, 0);
@@ -739,7 +739,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
    Round 56: re-diffed with the body below live, still 81.33%; the whole diff is
    the positions of the three zero stores and the sh/lh pair, nothing else.
 int func_8008D3F0(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 1);
     s32 mode;
 
@@ -774,7 +774,7 @@ int func_8008D3F0(int index) {
 
 
 int WorldMapModeInitPartyActor1(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 1);
     s32 mode = g_WorldMapMode;
 
@@ -790,7 +790,7 @@ int WorldMapModeInitPartyActor1(int index) {
 }
 
 int WorldMapInitPartyActorSprite1(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
     SpritePlayAnimation(pActor->unk4C, 0);
@@ -818,7 +818,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DD6C);
    unk5C, gcc keeps the value in a register (sll/sra pair). Also tried a u16 temp for
    the g_GameState load: same 81.33%, and it makes the unk5C store worse.
 int func_8008DD6C(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 2);
     s32 mode;
 
@@ -851,7 +851,7 @@ int func_8008DD6C(int index) {
 }
 */
 int WorldMapModeInitPartyActor2(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 2);
     s32 mode = g_WorldMapMode;
 
@@ -866,7 +866,7 @@ int WorldMapModeInitPartyActor2(int index) {
     return result;
 }
 int WorldMapInitPartyActorSprite2(int index) {
-    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
 
     pActor->unk4C = SpriteAllocFromAnimFile(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);
     SpritePlayAnimation(pActor->unk4C, 0);

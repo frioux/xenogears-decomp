@@ -33,7 +33,7 @@ int FieldTickSkipCounter(void) {
 }
 
 extern int ArchiveDataSync(void);
-extern s32 D_800ADB2C;
+extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldScreenImageStored;
 extern s32 g_FieldSpecialAnimLoadPending;
 extern s32 D_800ADBC4;
@@ -53,7 +53,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
    whose best candidate is 84.49% under objdiff - the permuter's own score is
    not objdiff's, so it picked a body that is worse here.
 extern int ArchiveDataSync(void);
-extern s32 D_800ADB2C;
+extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldScreenImageStored;
 extern s32 g_FieldSpecialAnimLoadPending;
 extern s32 D_800ADBC4;
@@ -62,7 +62,7 @@ int func_80078BC8(void) {
     int nSyncStatus;
     int nResult;
 
-    if (D_800ADB2C != 0) {
+    if (g_FieldArchiveStreamActive != 0) {
         return -1;
     }
     nSyncStatus = ArchiveDataSync();
@@ -354,7 +354,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
 extern s32 D_800ADBDC;
 extern s32 D_800ADBE4;
 extern s32 D_800ADBEC;
-extern s32 D_800ADB2C;
+extern s32 g_FieldArchiveStreamActive;
 extern u_char D_800ADB04;
 extern s32 D_800ADBD0;
 extern s32 D_8004F370;
@@ -365,8 +365,8 @@ extern u16 D_800B22A0[]; // slot table; 0xFFFF marks a free slot
 extern u16 D_800B2270[]; // per-skin value handed to the field system
 extern s16 D_800B2290;
 extern u_char D_80065ADC[]; // per-skin selection weight
-extern u_char D_80059508;
-extern u_char D_800594F8;
+extern u_char g_GameSelectedSkinIndex;
+extern u_char g_GameSelectedSkinLoadPending;
 extern void FieldRandomizeSkinSlots(void);
 extern void LoadGameStateOverlay(int);
 extern void func_80281204(int);
@@ -404,7 +404,7 @@ void func_80079288(void) {
     if (g_FieldControl.isRandomEncountersEnabled == -1) {
         return;
     }
-    if (D_800ADB2C == 1) {
+    if (g_FieldArchiveStreamActive == 1) {
         return;
     }
     if (D_800ADB04 == 0) {
@@ -447,8 +447,8 @@ void func_80079288(void) {
         if (nSum == 0) {
             return;
         }
-        D_80059508 = i;
-        D_800594F8 = 0;
+        g_GameSelectedSkinIndex = i;
+        g_GameSelectedSkinLoadPending = 0;
         D_800B2290 = D_800B2270[i];
         if (D_8004F370 == 0) {
             LoadGameStateOverlay(2);

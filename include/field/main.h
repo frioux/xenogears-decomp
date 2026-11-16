@@ -125,7 +125,7 @@ extern FieldControl g_FieldControl;
 
 extern ZoomFadeEffect g_FieldZoomFadeEffect;
 
-extern int D_80059198; // Has initialized render contexts?
+extern int g_AnimScriptExtraTicks; // Has initialized render contexts?
 
 #define SYSTEM_MODE_PC_HDD 0x0
 #define SYSTEM_MODE_CD_ROM 0x1

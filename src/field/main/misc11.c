@@ -13,27 +13,27 @@
 extern s32 g_FieldCurActorIndex;
 extern s32 g_PlayerActorIndex;
 
-extern u8 D_800B2190;
-extern u8 D_800B2191;
-extern u8 D_800B2192;
-extern u8 D_800B2194;
-extern u8 D_800B2195;
-extern u8 D_800B2196;
-extern s16 D_800B2198;
-extern s16 D_800B219A;
+extern u8 g_FieldFogNearR;
+extern u8 g_FieldFogNearG;
+extern u8 g_FieldFogNearB;
+extern u8 g_FieldFogFarR;
+extern u8 g_FieldFogFarG;
+extern u8 g_FieldFogFarB;
+extern s16 g_FieldFogNearDistance;
+extern s16 g_FieldFogFarDistance;
 extern s16 g_FieldFogEnabled;
 
 void FieldUpdateActorRenderModes(void);
 
 void FieldScriptVMHandlerSetFogColor(void) {
-    D_800B2190 = FieldScriptVMGetArgument(1);
-    D_800B2191 = FieldScriptVMGetArgument(3);
-    D_800B2192 = FieldScriptVMGetArgument(5);
-    D_800B2194 = FieldScriptVMGetArgument(7);
-    D_800B2195 = FieldScriptVMGetArgument(9);
-    D_800B2196 = FieldScriptVMGetArgument(0xB);
-    D_800B2198 = FieldScriptVMGetArgument(0xD);
-    D_800B219A = FieldScriptVMGetArgument(0xF);
+    g_FieldFogNearR = FieldScriptVMGetArgument(1);
+    g_FieldFogNearG = FieldScriptVMGetArgument(3);
+    g_FieldFogNearB = FieldScriptVMGetArgument(5);
+    g_FieldFogFarR = FieldScriptVMGetArgument(7);
+    g_FieldFogFarG = FieldScriptVMGetArgument(9);
+    g_FieldFogFarB = FieldScriptVMGetArgument(0xB);
+    g_FieldFogNearDistance = FieldScriptVMGetArgument(0xD);
+    g_FieldFogFarDistance = FieldScriptVMGetArgument(0xF);
     g_FieldFogEnabled = 1;
     FieldUpdateActorRenderModes();
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x11;
@@ -291,22 +291,22 @@ void func_800924D4(int index, int byteIndex, int value) {
 }
 */
 
-extern s32 D_800B217C;
-extern s16 D_800B21D6;
+extern s32 g_FieldFrameDelay;
+extern s16 g_FieldTextScaleDivisor;
 
 void func_800925A0(void) {
     int arg = FieldScriptVMGetArgument(1);
 
-    D_800B217C = arg;
+    g_FieldFrameDelay = arg;
     switch (arg) {
         case 0:
-            D_800B21D6 = 8;
+            g_FieldTextScaleDivisor = 8;
             break;
         case 1:
-            D_800B21D6 = 6;
+            g_FieldTextScaleDivisor = 6;
             break;
         case 2:
-            D_800B21D6 = 4;
+            g_FieldTextScaleDivisor = 4;
             break;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -358,7 +358,7 @@ extern u_int g_FieldSavedPlayerScriptFlags[];
 
 extern s32 D_800ADBDC;
 extern s32 D_800ADBE4;
-extern s32 D_800ADB2C;
+extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldSpecialAnimLoadPending;
 extern s32 g_GameWdsBankLoadState;
 
@@ -369,7 +369,7 @@ void FieldScriptVMHandlerMapTransitionWithArgs(void) {
     int arg1;
     int arg3;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
         return;
@@ -391,7 +391,7 @@ void FieldScriptVMHandlerMapTransitionWithArgs(void) {
 }
 
 void FieldScriptVMHandlerMapTransition(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
     } else {
         FieldPlayerSetScriptFlag80();
@@ -400,7 +400,7 @@ void FieldScriptVMHandlerMapTransition(void) {
 }
 
 void FieldScriptVMHandlerMapTransitionOffset(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
     } else {
         FieldPlayerSetScriptFlag80();
@@ -436,7 +436,7 @@ extern u8 g_FieldScriptMemoryUpdateLocked;
 void FieldScriptVMHandlerSetFieldEntryState(void) {
     int value;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
         return;
     }
@@ -462,30 +462,30 @@ void FieldScriptVMHandlerSetFieldEntryState(void) {
 void FieldScriptVMEmptyHook(void) {
 }
 
-extern s32 D_800B0048;
-extern s32 D_800AFD14;
+extern s32 g_FieldFadeMode;
+extern s32 g_FieldFadeDuration;
 
 void FieldScriptVMHandlerSetFadeParams(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
         return;
     }
 
     FieldScriptVMHandlerRestoreMap();
     FieldScriptVMEmptyHook();
-    D_800B0048 = FieldScriptVMGetArgument(0);
-    D_800AFD14 = FieldScriptVMGetArgument(2);
+    g_FieldFadeMode = FieldScriptVMGetArgument(0);
+    g_FieldFadeDuration = FieldScriptVMGetArgument(2);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }
 
-extern s32 D_800ADB70;
+extern s32 g_FieldStreamSceneActive;
 extern s32 D_800ADBEC;
 
 void FieldScriptVMHandlerRestoreMap(void) {
     int a;
     int b;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0 || D_800ADB70 != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0 || g_FieldStreamSceneActive != 0) {
         g_FieldScriptVMStopFlag = 1;
         return;
     }
@@ -504,26 +504,26 @@ void FieldScriptVMHandlerRestoreMap(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-extern u8 D_800B2356;
+extern u8 g_FieldScriptSoundEffectBank;
 extern u8 g_SoundEffectBankIndex;
-extern u8 D_80059508;
-extern u8 D_800594F8;
+extern u8 g_GameSelectedSkinIndex;
+extern u8 g_GameSelectedSkinLoadPending;
 extern s32 D_800ADBE0;
 extern s32 g_FieldTransitionBusyFlag;
-extern s32 D_800ADB18;
+extern s32 g_FieldMapNumChanged;
 
 void FieldScriptVMHandlerChangeMap(void) {
     int mapNum;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
         return;
     }
 
-    g_SoundEffectBankIndex = D_800B2356;
-    D_80059508 = FieldScriptVMGetArgument(1);
-    D_800594F8 = 0;
+    g_SoundEffectBankIndex = g_FieldScriptSoundEffectBank;
+    g_GameSelectedSkinIndex = FieldScriptVMGetArgument(1);
+    g_GameSelectedSkinLoadPending = 0;
     D_800ADBDC = 0;
     D_800ADBE0 = 0;
     g_FieldTransitionBusyFlag = 1;
@@ -534,21 +534,21 @@ void FieldScriptVMHandlerChangeMap(void) {
         FieldScriptVMSaveSceneState();
         FieldScriptMemoryWriteU16(2, value);
         g_GameSceneMapNum = mapNum;
-        D_800ADB18 = 1;
+        g_FieldMapNumChanged = 1;
     }
     g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
 
 void FieldScriptVMHandlerReloadMap(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
         return;
     }
 
-    g_SoundEffectBankIndex = D_800B2356;
-    D_80059508 = FieldScriptVMGetArgument(1);
-    D_800594F8 = 0;
+    g_SoundEffectBankIndex = g_FieldScriptSoundEffectBank;
+    g_GameSelectedSkinIndex = FieldScriptVMGetArgument(1);
+    g_GameSelectedSkinLoadPending = 0;
     D_800ADBDC = 0;
     D_800ADBE0 = 0;
     g_FieldTransitionBusyFlag = 1;
@@ -559,7 +559,7 @@ void FieldScriptVMHandlerReloadMap(void) {
 extern s32 g_FieldPendingRequestCount;
 extern s8 g_ShopIndex;
 extern s32 g_FieldRequestCode;
-extern u_short D_800B236C;
+extern u_short g_FieldScriptShopIndex;
 
 void FieldScriptVMHandlerCopyRecordByte(void) {
     int value = FieldScriptGetRecordByte(SCRIPT_READ_U8_REL(1), SCRIPT_READ_U8_REL(2));
@@ -580,7 +580,7 @@ void FieldScriptVMHandlerWaitForFieldRequest(void) {
 void func_80093740(void) {
     g_FieldScriptVMStopFlag = 1;
     g_FieldRequestCode = 0;
-    g_ShopIndex = D_800B236C;
+    g_ShopIndex = g_FieldScriptShopIndex;
     g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }

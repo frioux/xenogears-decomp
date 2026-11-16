@@ -12,13 +12,13 @@ extern void WorldMapGetGameStatePosition(void* pVector);
 // g_WorldMapStreamQueue .. D_8009D414 are the 3-entry StreamDataQueueEntry stream request
 // table; g_WorldMapPlayerPosition/B0/B4 are the 12.4 fixed point position written by
 // WorldMapGetGameStatePosition.
-extern void* D_8005945C;
+extern void* g_MenuResourcesFile;
 extern void* g_MenuSedsFile;
 extern void* g_WorldMapWorkBuffer1;
 extern void* g_WorldMapWorkBuffer2;
 extern s32 g_WorldMapMode;
 extern void* D_8009BD20;
-extern void* D_8009C180;
+extern void* g_WorldMapDecompressedMapData;
 extern s32 D_8009C174;
 extern s32 D_8009C17C;
 extern s32 g_WorldMapPlayerRotation;
@@ -131,7 +131,7 @@ extern u16 D_8009B564;
 extern u16 D_8009B566;
 extern WorldMapTableEntry D_8009B57C;
 extern WorldMapTableEntry D_8009B58C;
-extern s32 D_8009C610;
+extern s32 g_WorldMapLevelIndex;
 extern s32 g_WorldMapWdsFileIndex;
 extern s32 g_WorldMapSoundBankFileIndex;
 extern s32 D_8009D800;
@@ -140,7 +140,7 @@ extern s32 D_8009BCC8;
 extern s32 D_8009D2B4;
 extern s32 D_8009D160;
 extern s32 D_8009BD08;
-extern s32 D_8009D7CC;
+extern s32 g_WorldMapAreaMode;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 /* best: 96.74% (308 bytes, same size). Everything matches except the placement
@@ -157,8 +157,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
    - the loop is a do/while with the increment first, which reproduces retail's
      rotated body exactly;
    - the table index after the loop is nLevel (retail does sll v0,a0,3 after
-     addiu a0,a0,1, so the entry index and D_8009C610 both use the counter), and
-     pEntry is formed BEFORE the D_8009C610 store.
+     addiu a0,a0,1, so the entry index and g_WorldMapLevelIndex both use the counter), and
+     pEntry is formed BEFORE the g_WorldMapLevelIndex store.
    Tried with no change: pTable = &D_8009B564 + nLevel, (u16*)((u8*)pTable + 2),
    the increment statement before vs after the if, and pTable[1] as the pre-check
    (that one loads through the base register instead of folding).
@@ -183,7 +183,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
             } while (arg1 >= *pTable);
         }
         pEntry = (WorldMapTableEntry*)(nLevel * 8 + (s32)&D_8009B57C);
-        D_8009C610 = nLevel - 1;
+        g_WorldMapLevelIndex = nLevel - 1;
     } else {
         pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&D_8009B58C);
     }
@@ -199,7 +199,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     D_8009BD08 = pEntry->unk0 + 0xA;
     D_8009D160 = pEntry->unk2;
     D_8009D2B4 = pEntry->unk4;
-    D_8009D7CC = pEntry->unk6;
+    g_WorldMapAreaMode = pEntry->unk6;
 }
 */
 
@@ -287,7 +287,7 @@ void func_80071EF0(void) {
     D_8009BD20 = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C174), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
     pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
-    D_8009C180 = pBuffer;
+    g_WorldMapDecompressedMapData = pBuffer;
     D_8009D410 = 0;
     D_8009D3FC = pBuffer;
     D_8009D414 = 0;
@@ -303,7 +303,7 @@ void func_80071EF0(void) {
 void WorldMapQueueTwoFileLoads(void) {
     void* pBuffer;
 
-    D_8005945C = HeapAlloc(ArchiveDecodeAlignedSize(0x26), 1);
+    g_MenuResourcesFile = HeapAlloc(ArchiveDecodeAlignedSize(0x26), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0x25), 1);
     g_WorldMapStreamQueue = 0x25;
     g_WorldMapCompressedMapData = pBuffer;
@@ -311,7 +311,7 @@ void WorldMapQueueTwoFileLoads(void) {
     D_8009D400 = 0x26;
     D_8009D408 = 0;
     D_8009D40C = 0;
-    D_8009D404 = D_8005945C;
+    D_8009D404 = g_MenuResourcesFile;
     func_80029AFC((StreamDataQueueEntry*)&g_WorldMapStreamQueue, 0, 0);
 }
 
@@ -369,25 +369,25 @@ void WorldMapLoadSedsBank(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
 /* best: 98.37%, 532 bytes (same size). Everything matches except the four
-   insns of `D_8006F954 |= 0x8000`: retail materialises the address once
+   insns of `g_NextMapFlags |= 0x8000`: retail materialises the address once
    (lui v1,%hi / addiu v1,v1,%lo) and loads and stores through v1, gcc folds the
    address into each access (lui v0,%hi + lhu %lo, then lui $at + sh %lo).
    Tried with no change: a u16* local, a two-statement pointer load/store, and
    `volatile u16`. Second note: the first loop's `addu` needed the index first,
-   i.e. `(u8*)(i * 0x80 + (s32)D_8009BE24)`; the ptr-first spelling gives the
+   i.e. `(u8*)(i * 0x80 + (s32)g_WorldMapSlots)`; the ptr-first spelling gives the
    reversed addu. Sibling teardown WorldMapAllocPrimBuffers has the same 98.55% class.
-   Round 50: re-confirmed; `u16* pFlags = &D_8006F954; *pFlags |= 0x8000;` (and with a
+   Round 50: re-confirmed; `u16* pFlags = &g_NextMapFlags; *pFlags |= 0x8000;` (and with a
    `volatile u16*`) still gives lui v0 / lhu %lo(v0) / lui $at + sh %lo: gcc folds the
    address into the load, so the loaded value occupies the only free register and the
    store needs $at. Retail needs the address in a THIRD register (v1) used twice.
 */
 /*
 extern void* g_SoundAudioManager;
-extern void* D_8009BE24;
+extern void* g_WorldMapSlots;
 extern void* D_8009BC3C;
 extern void* D_8009BCB4;
-extern u16 D_8006F954;
-extern s32 D_8009D7CC;
+extern u16 g_NextMapFlags;
+extern s32 g_WorldMapAreaMode;
 extern void* D_8009CD34[3];
 extern void* D_8009BDF8[3];
 
@@ -416,22 +416,22 @@ void func_8007299C(void) {
     u8* p;
     s32 i;
 
-    if (D_8009D7CC == 0) {
+    if (g_WorldMapAreaMode == 0) {
         SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
     }
     SoundStopAllElements();
     SoundRemoveSedsEntry(g_MenuSedsFile);
     HeapFree(g_MenuSedsFile);
     for (i = 0; i < 0x40; i++) {
-        p = (u8*)(i * 0x80 + (s32)D_8009BE24);
+        p = (u8*)(i * 0x80 + (s32)g_WorldMapSlots);
         if (*(void**)(p + 0x4C) != NULL) {
             SpriteDestroy(*(void**)(p + 0x4C));
-            *(void**)((u8*)D_8009BE24 + i * 0x80 + 0x4C) = NULL;
+            *(void**)((u8*)g_WorldMapSlots + i * 0x80 + 0x4C) = NULL;
         }
     }
-    if (D_8009D7CC == 1) {
+    if (g_WorldMapAreaMode == 1) {
         WorldMapSaveState();
-        D_8006F954 |= 0x8000;
+        g_NextMapFlags |= 0x8000;
     }
     WorldMapFreeAreaNameString();
     WorldMapFreeMode4AreaNameString();
@@ -450,7 +450,7 @@ void func_8007299C(void) {
     HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
-    HeapFree(D_8009C180);
+    HeapFree(g_WorldMapDecompressedMapData);
     for (i = 0; i < 3; i++) {
         if (D_8009CD34[i] != NULL) {
             HeapFree(D_8009CD34[i]);
@@ -493,7 +493,7 @@ extern u16 D_8009BCA6;
 extern u16 D_8009BCA8;
 extern u16 D_8009BCAA;
 extern s32 g_WorldMapProjectionDistance;
-extern s32 D_8009D7CC;
+extern s32 g_WorldMapAreaMode;
 
 extern void SetNearColor(long rfc, long gfc, long bfc);
 
@@ -513,7 +513,7 @@ void WorldMapInitGfxEnv(void) {
     D_8009BBE0 = 1;
     D_8009BC56 = 1;
     D_8009BBDE = 1;
-    if (D_8009D7CC == 2) {
+    if (g_WorldMapAreaMode == 2) {
         D_8009BBE1 = 0;
         D_8009BBE2 = 0;
         D_8009BBE3 = 0;
@@ -540,7 +540,7 @@ void WorldMapInitGfxEnv(void) {
     SetBackColor(0x80, 0x80, 0x80);
     SetFarColor(g_WorldMapColorFactors, D_8009BB49, D_8009BB4A);
     nNear = 0x800;
-    if (D_8009D7CC == 2) {
+    if (g_WorldMapAreaMode == 2) {
         nNear = 0xB00;
     }
     SetFogNearFar(nNear, 0xE80, g_WorldMapProjectionDistance);
@@ -686,7 +686,7 @@ extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern s32 D_8009CD48;
 extern s32 D_8009D308;
 extern s32 D_8009BD30;
-extern s32 D_8009C7EC;
+extern s32 g_WorldMapPrimBlocks;
 extern s32 D_8009BCC0;
 extern s32 D_8009D784;
 extern s32 D_8009D77C;
@@ -704,10 +704,10 @@ void WorldMapDecompressMapTables(void) {
 
     // One variable holds the compressed block and then the point table inside the decompressed
     // one: retail's codegen keeps both in the same callee-saved register.
-    pTable = (WorldMapPointTableHeader*)D_8009C180;
-    D_8009C180 = LZSSHeapDecompress(pTable, 0);
+    pTable = (WorldMapPointTableHeader*)g_WorldMapDecompressedMapData;
+    g_WorldMapDecompressedMapData = LZSSHeapDecompress(pTable, 0);
     HeapFree(pTable);
-    pBase = (u8*)D_8009C180;
+    pBase = (u8*)g_WorldMapDecompressedMapData;
     pHeader = (WorldMapMapDataHeader*)pBase;
     pTable = (WorldMapPointTableHeader*)(pBase + pHeader->pointTableOffset);
     D_8009CD48 = (s32)(pBase + pHeader->modelOffset);
@@ -715,7 +715,7 @@ void WorldMapDecompressMapTables(void) {
     D_8009BD30 = (s32)(pBase + pHeader->spriteSetOffset);
     // second live copy of the block base, as retail's codegen has
     pMapBase = pBase;
-    D_8009C7EC = (s32)(pMapBase + pHeader->unk14);
+    g_WorldMapPrimBlocks = (s32)(pMapBase + pHeader->unk14);
     D_8009BCC0 = (s32)(pMapBase + pHeader->spriteGroupOffset);
     D_8009D784 = (s32)(pMapBase + pHeader->stringTableOffset);
     D_8009D77C = (s32)(pMapBase + pHeader->tileAnimOffset);

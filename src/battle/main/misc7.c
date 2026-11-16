@@ -19,7 +19,7 @@ extern u8 D_800D342E[];
 extern u8 D_800D3430[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
-extern u8 D_800D2E5C;
+extern u8 g_BattleCommandArgs;
 extern u8 g_BattleSlotFlags[];
 extern u8 g_BattleSlotRecords[];
 extern u8 D_800CCDEC[];
@@ -94,7 +94,7 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
     if (value < 3) {
-        D_800D2E5C = 0x20;
+        g_BattleCommandArgs = 0x20;
         ret = arg2 + 1;
     } else {
         BattleSlotByteVarGetSet(value, (*p)[2], (D_800D3420 + 0x10 + slot)[(*p)[1]], 0);
@@ -115,7 +115,7 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)->unk3]);
 
     if (value < 3) {
-        D_800D2E5C = 0x20;
+        g_BattleCommandArgs = 0x20;
         ret = arg2 + 1;
     } else {
         BattleSlotWordVarGetSet(value, (*p)->unk2, pField[(*p)->unk1], 0);
@@ -171,7 +171,7 @@ void func_8007B6C0(u8 **p, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 // best: 88.95%. Body recovered from the .s: u8 return (ret = arg2), the
-// D_800D2E5C = 0x20 / arg2+1 path for value < 3, then (*p)[2] == 0 selects
+// g_BattleCommandArgs = 0x20 / arg2+1 path for value < 3, then (*p)[2] == 0 selects
 // D_800CCDF0 and everything else D_800CCDEC, storing the
 // ((u32 *)((u8 *)D_800D3420 - 0x10))[index * 0x40 + (*p)[1]] dword into
 // value * 0x170 of it. Writing that field-table address INLINE, rather than
@@ -194,7 +194,7 @@ u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
     if (value < 3) {
-        D_800D2E5C = 0x20;
+        g_BattleCommandArgs = 0x20;
         ret = arg2 + 1;
     } else if ((*p)[2] == 0) {
         *(u32 *)(D_800CCDF0 + value * 0x170) =

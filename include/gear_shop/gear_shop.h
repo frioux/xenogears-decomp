@@ -65,16 +65,16 @@ extern int D_801D69A4[];
 
 extern u8  g_GearShopMainMenuStringIds[4];
 extern u8  D_801D6A24[8];
-extern int D_801D6A60[4];
-extern int D_801D6A70[4];
+extern int g_GearShopPointerCursorInitX[4];
+extern int g_GearShopPointerCursorInitY[4];
 extern u32 g_MenuStringIds;
-extern int D_801D6A84[];
-extern int D_801D6AFC[];
-extern int D_801D6B7C[];
+extern int g_GearShopPointerCursorBoxSlot[];
+extern int g_GearShopPointerCursorBoxX[];
+extern int g_GearShopPointerCursorBoxY[];
 extern u32 g_SelectionCursorX[9]; // = {0x49, 0x48, 0x43, 0x3C, 0x25, 0x24, 0x1F, 0x18, 0x10}
 extern s32 g_SelectionCursorY[9]; // = {0xC9, 0xB5, 0xA2, 0x90, 0xC9, 0xB5, 0xA2, 0x90, 0x80}
-extern int D_801D6C44[];
-extern u16 D_801D6C68[];
+extern int g_GearShopCharacterPortraitX[];
+extern u16 g_GearShopCharacterBitMasks[];
 extern int g_gearShopGearEquipFlags[];
 extern u8  D_801D6D08[8]; // indexed by (renderContext * 4)+i
 extern u8  D_801D6D10[2]; // indexed by renderContext

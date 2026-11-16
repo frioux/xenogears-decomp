@@ -6,7 +6,7 @@ extern u8 *D_800C3D60;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleActingSlot;
 extern BattleTableEntry *D_800C3E34;
-extern BattleWorkBlock *D_800C34B0;
+extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleSlotState *D_800D2DC8;
 extern BattleSlotState *D_800D2D6C;
 extern u8 D_800C3E50;
@@ -41,38 +41,38 @@ void BattleExecuteActionRow(void) {
     u8 one;
 
     if (D_800C3E04 < 3) {
-        g_BattleCurrentRow = (BattleRow *)((u8 *)D_800C34B0 +
-                                   (D_800C34B0->unk5FC1 * 0x690 + 0x2228) +
-                                   D_800C34B0->unk5FC2 * 0x28);
+        g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock +
+                                   (g_BattleCurWorkBlock->unk5FC1 * 0x690 + 0x2228) +
+                                   g_BattleCurWorkBlock->unk5FC2 * 0x28);
     } else {
-        g_BattleCurrentRow = (BattleRow *)((u8 *)D_800C34B0 +
-                                   (D_800C34B0->unk5FC2 * 0x28 + 0x35D8));
+        g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock +
+                                   (g_BattleCurWorkBlock->unk5FC2 * 0x28 + 0x35D8));
     }
     BattleSetSlotEntryFieldsTo2000(D_800C3E04);
-    actor = D_800C34B0->unk5FC1;
+    actor = g_BattleCurWorkBlock->unk5FC1;
     D_800D2DC4 = 0;
-    D_800C3D3C = &D_800C34B0->slots[actor].state.unkA4;
+    D_800C3D3C = &g_BattleCurWorkBlock->slots[actor].state.unkA4;
     if (g_BattleCurrentRow->unk0A & 0x100) {
         if (g_BattleActingSlot->unk56 == 1) {
             BattleRollPercentAndSetState38();
         }
     }
     if (g_BattleActingSlot->unk90[0x10] == 5 || g_BattleActingSlot->unk90[0x10] == 0xD) {
-        if (D_800C34B0->unk5FC2 == 1) {
+        if (g_BattleCurWorkBlock->unk5FC2 == 1) {
             g_BattleCurrentRow->unk22 = D_800D2D6C->weaponData[1].unk2;
         }
     }
     mask = 1;
     D_800C3E50 = 0;
     do {
-        if (D_800C34B0->unk5FAC & mask) {
-            pSlot = &D_800C34B0->slots[D_800C3E50];
+        if (g_BattleCurWorkBlock->unk5FAC & mask) {
+            pSlot = &g_BattleCurWorkBlock->slots[D_800C3E50];
             D_800C3E34 = pSlot;
             D_800D2DC8 = &pSlot->state;
             D_800C3D60 = &pSlot->state.unkA4;
             BattleAdvanceActionRow();
             ((void (*)(void))D_800C34DC[g_BattleCurrentRow->unk16])();
-            if (D_800C34B0->unk5FA0[D_800C3E50] == 0) {
+            if (g_BattleCurWorkBlock->unk5FA0[D_800C3E50] == 0) {
                 one = 1;
                 flags = g_BattleCurrentRow->unk0A;
                 if (!(flags & 0x800)) {
@@ -84,7 +84,7 @@ void BattleExecuteActionRow(void) {
                 func_8009DBFC(one);
             }
         skip:
-            D_800C34B0->unk5FB0 = ((u16 *)g_BattleCurrentRow->unk02)[0];
+            g_BattleCurWorkBlock->unk5FB0 = ((u16 *)g_BattleCurrentRow->unk02)[0];
             func_8009C4B4();
             BattleSetSlotBit20FromStatusBit200(D_800C3E50);
         }
@@ -102,22 +102,22 @@ void BattleSaveScriptCommandOperands(void) {
     u16 b = g_BattleActingSlot->unk8A;
     u16 c;
 
-    D_800C34B0->unk5FBC = g_BattleCurrentRow->unk20;
-    D_800C34B0->unk5FBD = g_BattleCurrentRow->unk21;
-    D_800C34B0->unk5FBE = g_BattleCurrentRow->unk22;
-    D_800C34B0->unk5FBF = g_BattleCurrentRow->unk23;
-    D_800C34B0->unk5FC0 = D_800C34B0->unk5FC2;
+    g_BattleCurWorkBlock->unk5FBC = g_BattleCurrentRow->unk20;
+    g_BattleCurWorkBlock->unk5FBD = g_BattleCurrentRow->unk21;
+    g_BattleCurWorkBlock->unk5FBE = g_BattleCurrentRow->unk22;
+    g_BattleCurWorkBlock->unk5FBF = g_BattleCurrentRow->unk23;
+    g_BattleCurWorkBlock->unk5FC0 = g_BattleCurWorkBlock->unk5FC2;
     c = (a | b) >> 12;
-    if ((D_800C34B0->unk5FBE & 0x3F) == 0) {
-        D_800C34B0->unk5FBE |= c;
+    if ((g_BattleCurWorkBlock->unk5FBE & 0x3F) == 0) {
+        g_BattleCurWorkBlock->unk5FBE |= c;
     }
 }
 void BattleAdvanceActionRow(void) {
-    if (D_800C34B0->unk5FC2 >= 0xC && D_800C34B0->unk5FC2 < 0xF &&
-        !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
+    if (g_BattleCurWorkBlock->unk5FC2 >= 0xC && g_BattleCurWorkBlock->unk5FC2 < 0xF &&
+        !(g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80)) {
         g_BattleCurrentRow += 3;
-    } else if (D_800C34B0->unk5FC2 < 3 &&
-               !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
+    } else if (g_BattleCurWorkBlock->unk5FC2 < 3 &&
+               !(g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80)) {
         g_BattleCurrentRow += 15;
     }
 }
@@ -139,7 +139,7 @@ void BattleSetCurrentSlotState6(void) {
     u8 i;
 
     if (func_8009DBFC(0) == 0) {
-        p = D_800C34B0;
+        p = g_BattleCurWorkBlock;
         i = D_800C3E50;
         p->unk5FA0[i] = 6;
     }
@@ -220,7 +220,7 @@ s32 func_8009D3A0(void) {
     if (g_BattleCurrentRow->unk0A & 0x1000) {
         return 3;
     }
-    if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+    if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80) {
         if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x400) {
             hit += (s16)hit / 2;
         }
@@ -242,7 +242,7 @@ s32 func_8009D3A0(void) {
             hit += (s16)hit / 2;
         }
     }
-    if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 1) {
+    if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 1) {
         if (rand() % 100 < 0x5F) {
             return 2;
         }
@@ -307,7 +307,7 @@ u16 BattleApplySlotPercentToValue(void) {
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
         }
-        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+        if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80) {
             ret = ret + v;
         }
         if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x20) {
@@ -352,21 +352,21 @@ void BattleSetSlotState2FromActorField4F(void) {
     u32 v = p->unk4F * p->unk64;
     u32 q = v / 10;
 
-    D_800C34B0->unk5FA0[D_800C3E50] = 2;
-    D_800C34B0->unk5F6C[D_800C3E50] = q;
+    g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
+    g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
     u32 v = g_BattleCurrentRow->unk11 * D_800D2DC8->unk64;
     u32 q = v / 20;
 
-    D_800C34B0->unk5FA0[D_800C3E50] = 2;
-    D_800C34B0->unk5F6C[D_800C3E50] = q;
+    g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
+    g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromActorField5B(void) {
     s32 v = g_BattleActingSlot->unk5B * g_BattleCurrentRow->unk11;
 
-    D_800C34B0->unk5FA0[D_800C3E50] = 2;
-    D_800C34B0->unk5F6C[D_800C3E50] = v;
+    g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
+    g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = v;
 }
 void BattleSetSlotFields148And10C(void) {
     D_800C3D60[0] = 4;
@@ -376,15 +376,15 @@ void BattleSetSlotState0AFromActorWord3ADiv20(void) {
     s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->unk11;
     s32 q = v / 20;
 
-    D_800C34B0->unk5FA0[D_800C3E50] = 0xA;
-    D_800C34B0->unk5F6C[D_800C3E50] = q;
+    g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 0xA;
+    g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
     s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->unk11;
     s32 q = v / 20;
 
-    D_800C34B0->unk5FA0[D_800C3E50] = 0xB;
-    D_800C34B0->unk5F6C[D_800C3E50] = q;
+    g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 0xB;
+    g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleClearSlotConditionBits(void) {
     BattleSlotState *p = D_800D2DC8;
@@ -394,7 +394,7 @@ void BattleClearSlotConditionBits(void) {
     q->unk7A &= 0xFFDF;
 }
 s32 BattleGearHasWeaponId(u8 arg0) {
-    BattleGearWeaponRecord *pRec = &D_800C34B0->gearWeaponIds[arg0];
+    BattleGearWeaponRecord *pRec = &g_BattleCurWorkBlock->gearWeaponIds[arg0];
     u8 v = pRec->unkF;
     u8 id = g_GameState.characters[4].gearId;
 
@@ -405,7 +405,7 @@ s32 BattleGearHasWeaponId(u8 arg0) {
     return g_GameState.gears[id].weaponData[2].unk5 == v;
 }
 void BattleApplyGearWeaponRecord(u8 arg0) {
-    BattleGearWeaponRecord *p = &D_800C34B0->gearWeapons[arg0];
+    BattleGearWeaponRecord *p = &g_BattleCurWorkBlock->gearWeapons[arg0];
     u8 v = p->unkF;
     u8 id = g_GameState.characters[4].gearId;
     u8 sel;
@@ -427,12 +427,12 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     g_GameState.gears[id].unk4[sel] = arg0;
     g_GameState.gearPartsIds[0x6C + arg0] = p->unkC;
     for (i = 0; i < 3; i++) {
-        if ((D_800C34B0->slots + i)->unk56 == 4) {
-            D_800C34B0->slots[i].state.weaponData[sel].unk2 = p->unkE;
-            D_800C34B0->slots[i].state.weaponData[sel].unk4 = p->unk11;
-            D_800C34B0->slots[i].state.weaponData[sel].unk3 = p->unk10;
-            D_800C34B0->slots[i].state.weaponData[sel].unk4 = p->unk11;
-            D_800C34B0->slots[i].state.unk04[sel] = arg0;
+        if ((g_BattleCurWorkBlock->slots + i)->unk56 == 4) {
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk2 = p->unkE;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk3 = p->unk10;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
+            g_BattleCurWorkBlock->slots[i].state.unk04[sel] = arg0;
         }
     }
 }
@@ -455,7 +455,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
 void func_8009E788(void) {
     s32 idx;
 
-    switch (D_800C34B0->unk5FC2) {
+    switch (g_BattleCurWorkBlock->unk5FC2) {
     case 0:
         idx = D_800D2D6C->unk04[0];
         break;
@@ -497,83 +497,83 @@ void BattleSetCommandCodeForFlagBit(u8 arg0, u16 arg1) {
     case 0:
         switch (arg1) {
         case 0x400:
-            D_800C34B0->unk5FC7 = 0x24;
+            g_BattleCurWorkBlock->unk5FC7 = 0x24;
             break;
         case 0x200:
-            D_800C34B0->unk5FC7 = 0x25;
+            g_BattleCurWorkBlock->unk5FC7 = 0x25;
             break;
         case 0x100:
-            D_800C34B0->unk5FC7 = 0x26;
+            g_BattleCurWorkBlock->unk5FC7 = 0x26;
             break;
         case 0x80:
-            D_800C34B0->unk5FC7 = 0x27;
+            g_BattleCurWorkBlock->unk5FC7 = 0x27;
             break;
         case 0x40:
-            D_800C34B0->unk5FC7 = 0x28;
+            g_BattleCurWorkBlock->unk5FC7 = 0x28;
             break;
         case 0x20:
-            D_800C34B0->unk5FC7 = 0x29;
+            g_BattleCurWorkBlock->unk5FC7 = 0x29;
             break;
         case 0x10:
-            D_800C34B0->unk5FC7 = 0x2A;
+            g_BattleCurWorkBlock->unk5FC7 = 0x2A;
             break;
         case 4:
-            D_800C34B0->unk5FC7 = 0x2B;
+            g_BattleCurWorkBlock->unk5FC7 = 0x2B;
             break;
         }
         break;
     case 1:
         switch (arg1) {
         case 0x1000:
-            D_800C34B0->unk5FC7 = 0x2D;
+            g_BattleCurWorkBlock->unk5FC7 = 0x2D;
             break;
         case 0x800:
-            D_800C34B0->unk5FC7 = 0x2E;
+            g_BattleCurWorkBlock->unk5FC7 = 0x2E;
             break;
         case 0x400:
-            D_800C34B0->unk5FC7 = 0x2F;
+            g_BattleCurWorkBlock->unk5FC7 = 0x2F;
             break;
         case 0x40:
-            D_800C34B0->unk5FC7 = 0x15;
+            g_BattleCurWorkBlock->unk5FC7 = 0x15;
             break;
         case 0x20:
-            D_800C34B0->unk5FC7 = 0x16;
+            g_BattleCurWorkBlock->unk5FC7 = 0x16;
             break;
         case 8:
         case 2:
-            D_800C34B0->unk5FC7 = 0x19;
+            g_BattleCurWorkBlock->unk5FC7 = 0x19;
             break;
         case 4:
         case 1:
-            D_800C34B0->unk5FC7 = 0x1A;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1A;
             break;
         }
         break;
     case 3:
         switch (arg1) {
         case 0x8000:
-            D_800C34B0->unk5FC7 = 0x1B;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1B;
             break;
         case 0x4000:
-            D_800C34B0->unk5FC7 = 0x1C;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1C;
             break;
         case 0x2000:
-            D_800C34B0->unk5FC7 = 0x1D;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1D;
             break;
         case 0x1000:
-            D_800C34B0->unk5FC7 = 0x1E;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1E;
             break;
         case 0x400:
-            D_800C34B0->unk5FC7 = 0x1F;
+            g_BattleCurWorkBlock->unk5FC7 = 0x1F;
             break;
         case 0x800:
-            D_800C34B0->unk5FC7 = 0x20;
+            g_BattleCurWorkBlock->unk5FC7 = 0x20;
             break;
         case 0x100:
-            D_800C34B0->unk5FC7 = 0x21;
+            g_BattleCurWorkBlock->unk5FC7 = 0x21;
             break;
         case 0x200:
-            D_800C34B0->unk5FC7 = 0x22;
+            g_BattleCurWorkBlock->unk5FC7 = 0x22;
             break;
         }
         break;

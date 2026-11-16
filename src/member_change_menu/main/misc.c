@@ -52,7 +52,7 @@ extern s32 D_801CB3DC[];
 // = { 0x15, 0x1F, 0xFFFF, 0x11, 0x19, 0x3E, 0x16, 0x19, 0x3E }
 // = { 'L', 'V',   0xFFFF, 'H',  'P',  '/',  'M'   'P'   '/'  }
 
-extern void* D_8005945C; // Pointer to menu resources file
+extern void* g_MenuResourcesFile; // Pointer to menu resources file
 extern void* g_MenuSedsFile; // SEDS file pointer
 extern u8 g_MenuDebugEnabled;
 
@@ -154,7 +154,7 @@ void MemberChangeMenuLoadResources(void) {
     u32* pResources;
     u8 _unused[0x60];
 
-    pResources = D_8005945C;
+    pResources = g_MenuResourcesFile;
     ResolveArchiveEntryPointers(pResources);
 
     // Xenogears Icon TIM

@@ -6,7 +6,7 @@ extern u8 *g_BattleCommandQueue;
 
 extern u8 *D_800C3DE8;
 extern u8 *g_BattleDisplayState;
-extern u8 *D_800D2DB4;
+extern u8 *g_BattleSpriteColumnWork;
 extern void *D_800D367C;
 extern u8 *g_BattlePrimPool;
 extern u8 D_800C400B[];
@@ -17,8 +17,8 @@ extern u8 D_800D2DD7[];
 extern u8 D_800D2DD8[];
 extern u8 D_800C204C;
 extern u8 D_800C3202[];
-extern u8 *D_800C3EA4;
-extern volatile s32 D_800CCB34;
+extern u8 *g_BattleGraphicsWork;
+extern volatile s32 g_BattlePrimStartIndex;
 
 extern s32 BattleAllocHeapBlock(s32, s32);
 extern void BattleSetArchive20Entry3(void);
@@ -28,7 +28,7 @@ extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
 extern void HeapFree(void *pMem);
 extern void bzero(void *p, s32 n);
-extern u8 *D_800C3E24;
+extern u8 *g_BattlePulseTrianglePrims;
 extern u8 D_800D2C34;
 extern u8 func_80084854(u8 arg0, u8 arg1);
 extern void func_80093B08(u8 arg0);
@@ -38,13 +38,13 @@ extern void func_800BCD98(u16 arg0);
 extern void func_80088490(u8 arg0);
 extern void func_8009AEFC(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
-extern void func_800883AC(u8 arg0);
+extern void BattleReleaseCharSlot(u8 arg0);
 extern u8 D_800CCE42[];
 extern u8 D_800C3EB8[];
 extern u8 g_BattleActorCharIds[];
 extern u8 D_80059179;
 extern u8 D_800C4022[];
-extern u8 D_800C3FFE[];
+extern u8 g_BattleCommandRecords[];
 extern void BattleClearFlagC6(void);
 extern void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1);
 extern u8 D_800D2C0C[];
@@ -62,7 +62,7 @@ extern void func_800B89FC(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern void func_80087AF0(u8 arg0, u8 arg1);
 extern void func_8008ADD0(u8 arg0);
 extern void BattleSetSlotFlag15A1(u8 arg0);
-extern u8 D_800C3E18;
+extern u8 g_BattleSlotDisplayInitialized;
 extern u8 g_BattleTargetSlot;
 extern u8 D_800C48EA;
 extern u8 D_800CCD38[];
@@ -73,7 +73,7 @@ extern u8 func_8008B478(u8 arg0);
 extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
-extern void func_80077698(void);
+extern void BattleInitPulseTrianglePrims(void);
 extern void func_800826CC(u8 arg0);
 extern u8 func_8008BED8(u8 arg0);
 extern void func_8008B908(u8 arg0);
@@ -112,13 +112,13 @@ typedef struct {
    instruction (four reloads of the volatile counter, the two separate
    `lbu 0(a1)` of pSrc[i], the incrementing pSrc pointer in the branch delay
    slot) and so do the prologue and the tail. What is left is loop.c's
-   invariant hoisting: retail hoists `lw a3,D_800C3EA4` and `li t2,0xC` into
+   invariant hoisting: retail hoists `lw a3,g_BattleGraphicsWork` and `li t2,0xC` into
    the preheader and leaves `li v1,0x12` in the body, while our gcc hoists
    neither (it keeps the base load and both constants in the body, 1 insn
    shorter) and puts the `li 0xC` in the body. Writing pSrc as a pre-loop
    local (74.02) puts its init before the loop test, which retail has after;
    declaring it inside the loop body (this shape) fixes the order and the
-   incrementing pointer. A `u8 *pBase = D_800C3EA4;` pre-loop local does hoist
+   incrementing pointer. A `u8 *pBase = g_BattleGraphicsWork;` pre-loop local does hoist
    the load but reorders the preheader (71.44). -O3 / -G0 / cdk change nothing
    material. */
 /*
@@ -133,13 +133,13 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
     for (i = 0; i < arg0 - 1; i++) {
         u8 *pSrc = D_800C3202 + arg0 * 6;
 
-        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x910) = 0xC;
-        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x912) = pSrc[i] + 0x5E;
-        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x914) = 0x12;
-        *(u16 *)(D_800C3EA4 + (D_800CCB34 + i * 2) * 0x10 + 0x916) = pSrc[i] + 0x5E;
+        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x910) = 0xC;
+        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x912) = pSrc[i] + 0x5E;
+        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x914) = 0x12;
+        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x916) = pSrc[i] + 0x5E;
     }
     g_BattleDisplayState[0x97] = count;
-    g_BattleDisplayState[0x98] = *(u8 *)&D_800CCB34;
+    g_BattleDisplayState[0x98] = *(u8 *)&g_BattlePrimStartIndex;
 }
 
 */
@@ -195,10 +195,10 @@ void BattleAllocDrawBuffer(void) {
     u8 *pBuffer;
 
     pBuffer = (u8 *)BattleAllocHeapBlock(0x5DA4, 0);
-    D_800D2DB4 = pBuffer;
+    g_BattleSpriteColumnWork = pBuffer;
     bzero(pBuffer, 0x5DA4);
-    *(volatile u16 *)(D_800D2DB4 + 0x5D9C) = 0xA0;
-    *(volatile u16 *)(D_800D2DB4 + 0x5D9E) = 0x64;
+    *(volatile u16 *)(g_BattleSpriteColumnWork + 0x5D9C) = 0xA0;
+    *(volatile u16 *)(g_BattleSpriteColumnWork + 0x5D9E) = 0x64;
 }
 
 
@@ -258,7 +258,7 @@ void BattleResetActorDrawState(u8 arg0) {
     if (g_BattleSlotFlags[index] == 2) {
         g_BattleSlotFlags[index] = 1;
     }
-    HeapFree(D_800D2DB4);
+    HeapFree(g_BattleSpriteColumnWork);
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
@@ -325,7 +325,7 @@ void BattleSetActorFlag34(u8 index) {
        one 4-minute permuter run (base 5054 -> 3469) plus a hand improvement.
    Still open: (i) case 1's command-queue block - retail loads g_BattleCommandQueue twice
    for the last two statements and reuses each load across a store
-   (lbu 0x2DA + lbu 0x3C share one; lbu 0x2DA, the D_800C3FFE index and the
+   (lbu 0x2DA + lbu 0x3C share one; lbu 0x2DA, the g_BattleCommandRecords index and the
    `g_BattleCommandQueue[0x2DA]++` share the other), we reload once per statement, +2
    loads; a pointer local covers them but keeps the value live across
    BattleSlotBitMask, which needs a sixth callee-saved register.
@@ -378,12 +378,12 @@ void func_80080C94(u8 arg0) {
     D_800C204C = 1;
     switch (info[0]) {
     case 1:
-        D_800C3E18 = 0;
+        g_BattleSlotDisplayInitialized = 0;
         if (g_BattleActorCharIds[arg0] != 4) {
             D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
             D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
             *(u16 *)(D_800C4022 + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
-            *(u16 *)(D_800C3FFE + g_BattleCommandQueue[0x2DA] * 0x48) =
+            *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue[0x2DA] * 0x48) =
                 BattleSlotBitMask((g_BattleCommandQueue + idx)[0x3C]);
             g_BattleCommandQueue[0x2DA]++;
         }
@@ -459,7 +459,7 @@ void func_8008115C(u8 arg0) {
             g_BattleSoundEnabled = 0;
             BattleSetupActorSlotDisplay(a);
             BattleEnsureTargetSlotInCandidateList(a);
-            func_80077698();
+            BattleInitPulseTrianglePrims();
             g_BattleCommandQueue[0x2DD] = 5;
         }
         break;
@@ -739,9 +739,9 @@ void BattleInitTargetSlotFlags(s32 arg0) {
     i = 0;
     do {
         if (func_80084854(g_BattleCommandQueue[0x2E8], i) != g_BattleCommandQueue[0x2E8]) {
-            (D_800C3E24 + i)[0xE6] = 1;
+            (g_BattlePulseTrianglePrims + i)[0xE6] = 1;
         } else {
-            (D_800C3E24 + i)[0xE6] = 0;
+            (g_BattlePulseTrianglePrims + i)[0xE6] = 0;
         }
         i++;
     } while (i < 4);
@@ -776,7 +776,7 @@ void func_800819A4(u8 arg0) {
         D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
         D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
         *(u16 *)(D_800C4022 + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
-        *(u16 *)(D_800C3FFE + g_BattleCommandQueue[0x2DA] * 0x48) =
+        *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue[0x2DA] * 0x48) =
             BattleSlotBitMask(g_BattleCommandQueue[arg0 * 0x40 + 0x3C]);
         g_BattleCommandQueue[0x2DA]++;
     }
@@ -805,10 +805,10 @@ void func_800826CC(u8 arg0) {
     func_8009AEFC(arg0);
     BattleFinishActorAnimationAndReleaseSlot(arg0);
     D_800CCE42[arg0 * 0x170] |= 0x80;
-    func_800883AC(arg0);
+    BattleReleaseCharSlot(arg0);
     g_BattleSlotFlags[arg0 * 8] = 2;
     if (g_BattleActorCharIds[arg0] != 7) {
-        *(u8 *)(arg0 * 0x1E4 + (u32)D_800C3EA4 + 0x853D) = 2;
+        *(u8 *)(arg0 * 0x1E4 + (u32)g_BattleGraphicsWork + 0x853D) = 2;
     }
     D_800C3EB8[arg0 * 0x1C] = 1;
     g_BattleCommandQueue[arg0 + 0x2EB] = 1;

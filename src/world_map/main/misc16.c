@@ -7,10 +7,10 @@ extern VECTOR D_8009BB6C;
 extern VECTOR D_8009BB7C;
 extern VECTOR D_8009BB8C;
 extern VECTOR D_8009BB9C;
-extern VECTOR D_8009C7F0;
-extern VECTOR D_8009C828;
-extern VECTOR D_8009C844;
-extern VECTOR D_8009C874;
+extern VECTOR g_WorldMapClipPlaneYZ1;
+extern VECTOR g_WorldMapClipPlaneXZ0;
+extern VECTOR g_WorldMapClipPlaneXZ1;
+extern VECTOR g_WorldMapClipPlaneYZ0;
 
 typedef struct {
     /* 0x0 */ s32 unk0;
@@ -52,11 +52,11 @@ extern WorldMapMisc16TblEntry D_800523F0[];
 extern s32 D_8009C618;
 extern s32 g_WorldMapGridAngle;
 
-void func_80098044(void) {
-    OuterProduct0(&D_8009BB6C, &D_8009BB4C, &D_8009C828);
-    OuterProduct0(&D_8009BB4C, &D_8009BB7C, &D_8009C844);
-    OuterProduct0(&D_8009BB8C, &D_8009BB5C, &D_8009C874);
-    OuterProduct0(&D_8009BB5C, &D_8009BB9C, &D_8009C7F0);
+void WorldMapComputeClipPlaneVectors(void) {
+    OuterProduct0(&D_8009BB6C, &D_8009BB4C, &g_WorldMapClipPlaneXZ0);
+    OuterProduct0(&D_8009BB4C, &D_8009BB7C, &g_WorldMapClipPlaneXZ1);
+    OuterProduct0(&D_8009BB8C, &D_8009BB5C, &g_WorldMapClipPlaneYZ0);
+    OuterProduct0(&D_8009BB5C, &D_8009BB9C, &g_WorldMapClipPlaneYZ1);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);

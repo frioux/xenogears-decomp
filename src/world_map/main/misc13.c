@@ -45,7 +45,7 @@ extern void SystemStringResetIfIdle(void* pString);
 extern void SystemStringPushBuffer(void* pString, void* pData);
 extern void func_80034888(void* pString, u32 unk, u32 arg);
 extern u8* GetStringEntry(u8* pData, s32 index);
-extern u8* D_8009BE24;
+extern u8* g_WorldMapSlots;
 extern u32* g_WorldMapRenderContext;
 extern u8* D_8009D784;
 extern s32 g_WorldMapPrimPacketIndex;
@@ -106,7 +106,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092C70);
 s32 func_80092C70(s32 index) {
     WorldMapMenuSlot* pSlot;
 
-    pSlot = (WorldMapMenuSlot*)(D_8009BE24 + index * 0x80);
+    pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * 0x80);
     switch (pSlot->unk20) {
     case 0:
         if (D_8009BD24 != -1) {
@@ -190,7 +190,7 @@ s32 func_80092FD8(s32 index) {
     WorldMapMenuSlot* pSlot;
     u32* pPrim;
 
-    pSlot = (WorldMapMenuSlot*)(D_8009BE24 + index * 0x80);
+    pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * 0x80);
     switch (pSlot->unk20) {
     case 0:
         if (D_8009CE68 != -1) {
