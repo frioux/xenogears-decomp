@@ -755,11 +755,11 @@ void MovieBuildViewMatrix(void) {
 
     pPos = &g_MovieViewPosition;
     pAngle = &g_MovieViewAngle;
-    dz = g_MovieViewPosition.vz - g_MoviePrevViewPosition.vz;
+    dz = pPos->vz - g_MoviePrevViewPosition.vz;
     dzSq = dz * dz;
     dx = pPos->vx - g_MoviePrevViewPosition.vx;
     dxSq = dx * dx;
-    dy = g_MovieViewPosition.vy - g_MoviePrevViewPosition.vy;
+    dy = pPos->vy - g_MoviePrevViewPosition.vy;
     pAngle->vx = ratan2(dy, SquareRoot0(dzSq + dxSq));
     pAngle->vy = -ratan2(dx, dz);
     pRotMatrix = &g_MovieRotationMatrix;
@@ -771,7 +771,7 @@ void MovieBuildViewMatrix(void) {
     pRotMatrix->t[2] = SquareRoot0(dxSq + dy * dy + dzSq);
     pTrans = g_MovieTranslationMatrix.t;
     pTrans[0] = g_MovieViewTarget.vx - pPos->vx;
-    pTrans[1] = g_MovieViewTarget.vy - g_MovieViewPosition.vy;
-    pTrans[2] = g_MovieViewTarget.vz - g_MovieViewPosition.vz;
+    pTrans[1] = g_MovieViewTarget.vy - pPos->vy;
+    pTrans[2] = g_MovieViewTarget.vz - pPos->vz;
     CompMatrix(pRotMatrix, &g_MovieTranslationMatrix, &g_MovieViewMatrix);
 }
