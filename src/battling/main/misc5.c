@@ -48,7 +48,7 @@ typedef struct {
     /* 0x8 */ u8 uSize;
     /* 0x9 */ u8 vSize;
     /* 0x0A */ u8 frameCount;
-    /* 0x0B */ u8 unkB;
+    /* 0x0B */ u8 sizeIndex; // 0..2: which of three pre-rotated corner sizes the quad uses
     /* 0x0C */ s16 clut;
     /* 0x0E */ u16 tpage;
     /* 0x10 */ u16 unk10;
@@ -71,6 +71,10 @@ typedef struct {
     /* 0x54 */ u16 x;
     /* 0x56 */ u16 y;
     /* 0x58 */ u16 z;
+    // 0x5A..0x78 is reused per `type`, which is why most of it stays unk: type 0
+    // keeps its BattleAction at 0x60, type 1 a partner pointer at 0x6C with the
+    // creation tick at 0x70, type 2 the second end of its beam at 0x64/0x66/0x68
+    // and the key at 0x70. Only fields that mean one thing to every writer are named.
     /* 0x5A */ u16 unk5A;
     /* 0x5C */ u16 unk5C;
     /* 0x5E */ u16 unk5E;
@@ -81,9 +85,9 @@ typedef struct {
     /* 0x6A */ u16 unk6A;
     /* 0x6C */ u32 unk6C;
     /* 0x70 */ u16 unk70;
-    /* 0x72 */ s16 unk72;
-    /* 0x74 */ s32 unk74;
-    /* 0x78 */ u32 unk78;
+    /* 0x72 */ s16 drawFlags; // g_BattleDrawFlags at creation, to spot a duplicate in the same pass
+    /* 0x74 */ s32 halfWidth; // perpendicular offset of the quad's two sides, D_80091228[effect]
+    /* 0x78 */ u32 key; // BattleEffectPackKey of the pair, so the second vertex finds the first
 } BattleSlot; // Size: 0x7C
 
 // 0xC-byte primitive template func_8007D6B8 allocates at D_800926C0/D_800926C4:
@@ -91,7 +95,7 @@ typedef struct {
 typedef struct {
     /* 0x0 */ u8 unk0[3];
     /* 0x3 */ u8 len;
-    /* 0x4 */ u32 unk4;
+    /* 0x4 */ u32 colorCode; // r0,g0,b0,code: retail stores the literal as one word
     /* 0x8 */ u8 unk8[4];
 } BattlePrimTemplate; // Size: 0xC
 
@@ -102,8 +106,8 @@ typedef struct {
     /* 0x2 */ u16 y;
     /* 0x4 */ u16 z;
     /* 0x6 */ s8 life; // 0 marks a free entry; set to the entry's frame countdown
-    /* 0x7 */ s8 unk7;
-    /* 0x8 */ u16 unk8;
+    /* 0x7 */ s8 vy; // added to y every frame and itself gains 2: gravity
+    /* 0x8 */ u16 groundY; // the y the entry falls back to: it dies once y >= groundY
 } BattleSpriteEntry; // Size: 0xA
 
 extern BattleSlot D_80092AD8[];
@@ -137,9 +141,9 @@ typedef struct {
     /* 0x2 */ u16 y;
     /* 0x4 */ u16 z;
     /* 0x6 */ s16 life; // 0 marks a free entry; counts down every frame
-    /* 0x8 */ s8 unk8;
-    /* 0x9 */ s8 unk9;
-    /* 0xA */ u16 unkA;
+    /* 0x8 */ s8 vx; // per-frame step added to x
+    /* 0x9 */ s8 vz; // per-frame step added to z
+    /* 0xA */ u16 vy; // added to y every frame and itself gains 2: gravity
 } BattleSpriteSlot; // Size: 0xC
 
 // 0x10-byte primitive template BattleInitSpriteBuffers allocates at D_800926CC/D_800926D0:
@@ -147,10 +151,10 @@ typedef struct {
 typedef struct {
     /* 0x0 */ u8 unk0[3];
     /* 0x3 */ u8 len;
-    /* 0x4 */ u32 unk4;
+    /* 0x4 */ u32 colorCode; // r0,g0,b0,code: retail stores the literal as one word
     /* 0x8 */ u8 unk8[4];
-    /* 0xC */ u16 unkC;
-    /* 0xE */ u16 unkE;
+    /* 0xC */ u16 w;
+    /* 0xE */ u16 h;
 } BattlePrimTemplate16; // Size: 0x10
 
 extern u8 *g_BattleSpriteEntries;
@@ -358,7 +362,7 @@ void func_8007BBA0(MATRIX *pMatrix, MATRIX *pRotMatrix, u32 *pOt) {
         *(SVECTOR *)(pScratch + 0x20) = *(SVECTOR *)(pScratch + 0x10);
 
         // Widen the projected point by the pre-rotated corner of this size.
-        switch (pAction->unkB) {
+        switch (pAction->sizeIndex) {
         case 0:
             *(u16 *)(pScratch + 0x10) += *(s32 *)(pScratch + 0x30);
             *(u16 *)(pScratch + 0x12) += *(s32 *)(pScratch + 0x34);
@@ -488,8 +492,8 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     pEntry = D_80092AD8;
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0) {
-            if (pEntry->unk78 == arg2) {
-                if (pEntry->unk72 == g_BattleDrawFlags) {
+            if (pEntry->key == arg2) {
+                if (pEntry->drawFlags == g_BattleDrawFlags) {
                     return;
                 }
             }
@@ -529,17 +533,17 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     pSlot->frame = 0;
     pSlot->x = pVec->vx;
     pSlot->y = pVec->vy;
-    pSlot->unk72 = g_BattleDrawFlags;
-    pSlot->unk78 = arg2;
+    pSlot->drawFlags = g_BattleDrawFlags;
+    pSlot->key = arg2;
     pSlot->unk6C = 0;
     pSlot->unk70 = D_800926A4;
     pSlot->z = pVec->vz;
-    pSlot->unk74 = D_80091228[arg3];
+    pSlot->halfWidth = D_80091228[arg3];
 
     id = D_800926A4 - 1;
     pEntry = D_80092AD8;
     for (i = 0; i < 0x3C; i++, pEntry++) {
-        if (pEntry->active != 0 && pEntry->unk78 == arg2 && pEntry != pSlot && pEntry->type == 1 && pEntry->unk70 == id) {
+        if (pEntry->active != 0 && pEntry->key == arg2 && pEntry != pSlot && pEntry->type == 1 && pEntry->unk70 == id) {
             pSlot->unk6C = (u32)pEntry;
         }
     }
@@ -773,9 +777,9 @@ void func_8007D6B8(void) {
     pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
     for (i = 0; i < 0xFF; i++) {
         ((BattlePrimTemplate *)D_800926C0)[i].len = 2;
-        ((BattlePrimTemplate *)D_800926C0)[i].unk4 = 0x6880B0F0;
+        ((BattlePrimTemplate *)D_800926C0)[i].colorCode = 0x6880B0F0;
         ((BattlePrimTemplate *)D_800926C4)[i].len = 2;
-        ((BattlePrimTemplate *)D_800926C4)[i].unk4 = 0x6880B0F0;
+        ((BattlePrimTemplate *)D_800926C4)[i].colorCode = 0x6880B0F0;
         pEntry[i].z = 0;
         pEntry[i].y = 0;
         pEntry[i].x = 0;
@@ -792,7 +796,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
    byte-identical except the register representation of the two u16 jitter
    values: retail carries them as value << 16 in s1 and extracts (s8) with a
    single sra 24, gcc carries the raw u16 and extracts with sll 24 / sra 24 (and
-   for vz fuses the << 7 into sra 17). The store order (unk7 before unk6) and
+   for vz fuses the << 7 into sra 17). The store order (vy before life) and
    the separate s8 texel local came from the permuter (91.67 -> 95.82 ->
    96.85); one more permuter run from this body is the next step. */
 /*
@@ -817,9 +821,9 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
             index = (((s8)vz) << 7) + texel;
             pEntry->z = vz;
             v = *(u16 *)(g_BattleGridCells + index * 4);
-            pEntry->unk8 = v;
+            pEntry->groundY = v;
             pEntry->y = v;
-            pEntry->unk7 = -(rand() % 10 + 10);
+            pEntry->vy = -(rand() % 10 + 10);
             pEntry->life = 0x14;
             count--;
         }
@@ -843,16 +847,16 @@ void BattleInitSpriteBuffers(void) {
     pTemplate = (BattlePrimTemplate16 *)pTemplateBuf;
     for (i = 0; i < 0x21C; i++, pSlot++, pTemplate++) {
         pTemplate->len = 3;
-        pTemplate->unk4 = 0x60FFD0A0;
-        pTemplate->unkC = rand() % 3 + 2;
-        pTemplate->unkE = rand() % 3 + 2;
+        pTemplate->colorCode = 0x60FFD0A0;
+        pTemplate->w = rand() % 3 + 2;
+        pTemplate->h = rand() % 3 + 2;
         pSlot->z = 0;
         pSlot->y = 0;
         pSlot->x = 0;
         pSlot->life = 0;
-        pSlot->unk9 = 0;
-        pSlot->unkA = 0;
-        pSlot->unk8 = 0;
+        pSlot->vz = 0;
+        pSlot->vy = 0;
+        pSlot->vx = 0;
     }
     func_800732AC(D_800926D0, D_800926CC, 0x21C0);
 }
