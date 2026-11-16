@@ -183,38 +183,15 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
 
     return pSprites;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009EF3C);
-/* 98.90% (648 bytes = retail's 648, 162 insns each, identical instruction multiset). The
-   source shape below is PROVEN against the .s: prologue reads pSprites, the scale matrix and
-   the first loop walk pSprite, the second loop walks pSprites again; one parameter copy plus
-   one walker. The only delta left is a register swap of two equal-priority pseudos: gcc gives
-   the parameter $s2 / the walker $s4, retail has parameter $s4 / walker $s2 (retail's
-   `sw s2 / move s2,a0 / sw s4 / move s4,s2` save pair, and its prologue loads go through $s4
-   while the first loop walks $s2). Everything else, including the negative-displacement
-   walker $s0 = &sprite->globalTransform, matches.
-   Facts worth keeping (each cost a round):
-   - the scratch matrix at PSX_SCRATCH is a SCALE matrix (m[0][0], m[1][1], m[2][2] =
-     (scale * scale[i]) >> 12, six zero elements); the pointer must be assigned BEFORE the
-     RotMatrix if/else or gcc rematerialises lui $at,0x1f80 per store.
-   - MulMatrix0(globalTransform, scaleMatrix, localTransform), then localTransform.t =
-     globalTransform.t. The loop rotates into localTransform and does
-     CompMatrix(pParent + 0x2C, &localTransform, &globalTransform) - the third argument is the
-     DESTINATION; the no-parent branch is globalTransform = localTransform (32-byte copy).
-   - ONE walker variable for the whole body was the permuter's find (94.94 -> 97.65); giving the
-     second loop the raw pSprites again took it to 98.90.
-   - the loop pointers are three +0x7C bivs off the walker, the globalTransform one incremented
-     at the LOOP TAIL (back-branch delay slot) with -0x27/-0x28/-0x20..-0x4 displacements.
-   permuter: base 786 -> 371 -> 346 over two 4-5 min runs, then it stalled. Tried by hand: 4
-   declaration orders (all 97.65), the two-variable body (94.94), pWalk everywhere (97.65),
-   prologue on pWalk (97.81). Next lever: flip the param/walker priority (an extra live use of
-   pSprites, or a copy local for one of them).
 s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
+    s32 new_var;
     MATRIX* pScaleMatrix;
     BattleSprite* pSprite;
     u32 count;
     u32 i;
 
     pSprite = pSprites;
+    new_var = scale;
     pScaleMatrix = (MATRIX*)PSX_SCRATCH;
     pSprites->globalTransform.t[0] = pSprites->pos[0];
     pSprites->globalTransform.t[1] = pSprites->pos[1];
@@ -225,15 +202,15 @@ s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
     } else {
         RotMatrix((SVECTOR*)pSprites->rot, &pSprites->globalTransform);
     }
-    pScaleMatrix->m[0][0] = (scale * pSprite->scale.vx) >> 12;
+    pScaleMatrix->m[0][0] = (new_var * pSprite->scale.vx) >> 12;
     pScaleMatrix->m[0][1] = 0;
     pScaleMatrix->m[0][2] = 0;
     pScaleMatrix->m[1][0] = 0;
-    pScaleMatrix->m[1][1] = (scale * pSprite->scale.vy) >> 12;
+    pScaleMatrix->m[1][1] = (new_var * pSprite->scale.vy) >> 12;
     pScaleMatrix->m[1][2] = 0;
     pScaleMatrix->m[2][0] = 0;
     pScaleMatrix->m[2][1] = 0;
-    pScaleMatrix->m[2][2] = (scale * pSprite->scale.vz) >> 12;
+    pScaleMatrix->m[2][2] = (new_var * pSprite->scale.vz) >> 12;
     MulMatrix0(&pSprite->globalTransform, pScaleMatrix, &pSprite->localTransform);
     pSprite->localTransform.t[0] = pSprite->globalTransform.t[0];
     pSprite->localTransform.t[1] = pSprite->globalTransform.t[1];
@@ -268,9 +245,7 @@ s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
         pSprites->doTransform = 0;
     }
     return count;
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
+}INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
 /* 91.58% (992 bytes vs retail's 992; identical instruction multiset except the
    constant-1 pseudo). The structural read below is CONFIRMED - every call, branch
    and store matches retail; what is left is ONE allocator tie and the register
