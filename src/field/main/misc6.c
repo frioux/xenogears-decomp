@@ -733,7 +733,7 @@ s32 func_8009FA54(s32 nInstructionOffset) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
-void func_8009FB98(void) {
+void FieldScriptVMHandlerReloadSceneMapData(void) {
     ActorData* pActor;
 
     g_GameSceneMapNum |= 0xC000;
@@ -1128,7 +1128,7 @@ void FieldScriptVMHandlerIncrementCounter(void) {
 extern void* D_801E8670[];
 extern void func_801E8030(int modelIndex);
 
-void func_800A0EE8(void) {
+void FieldScriptVMHandlerReleaseActorModel(void) {
     ActorData* pActor;
     s32* pCounter;
     s32 nModelIndex;
