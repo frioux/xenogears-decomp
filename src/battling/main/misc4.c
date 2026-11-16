@@ -25,6 +25,7 @@ extern s32 D_8009266C;
 extern s32 D_80092670;
 extern s32 D_80092674;
 extern s32 D_800928AC;
+extern s32 D_8009284C;
 extern s32 D_80092890;
 extern s32 g_BattleCameraTarget;
 extern u8* D_80092644;
@@ -104,6 +105,14 @@ extern void BattleEffectCreateWork(void);
 extern void func_8008EBD0();
 extern void BattlePlaySoundEffectByIdx();
 extern void func_8008ED6C();
+
+// A 32-bit component vector; the actor's motion and edge fields are this wide.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} Vec4; // Size: 0x10
 
 typedef struct ActorScript ActorScript;
 typedef struct ActorPart ActorPart;
@@ -240,7 +249,7 @@ struct Actor {
     /* 0x060 */ u8 pad60[0xC];
     // The position x,y,z,pad copied here before the frame's movement
     // (func_8007A344); func_80078920 takes the angle between two of them.
-    /* 0x06C */ VECTOR prevPosition;
+    /* 0x06C */ Vec4 prevPosition;
     /* 0x07C */ u8 pad7C[0x8];
     /* 0x084 */ u8* unk84;
     /* 0x088 */ u8 pad88[0x10];
@@ -288,14 +297,10 @@ struct Actor {
     /* 0x914 */ s16 unk914;
     /* 0x916 */ s16 unk916;
     /* 0x918 */ u8 pad918[0x14];
-    /* 0x92C */ s32 unk92C;
-    /* 0x930 */ s32 unk930;
-    /* 0x934 */ s32 unk934;
-    /* 0x938 */ s32 unk938;
-    /* 0x93C */ s32 unk93C;
-    /* 0x940 */ s32 unk940;
-    /* 0x944 */ s32 unk944;
-    /* 0x948 */ u8 pad948[0x4];
+    // Two world points whose y words bound the actor vertically; func_80078920
+    // compares them with the other actor's before pushing the two apart.
+    /* 0x92C */ Vec4 unk92C;
+    /* 0x93C */ Vec4 unk93C;
     /* 0x94C */ s32 unk94C;
     /* 0x950 */ s32 unk950;
     /* 0x954 */ s32 unk954;
@@ -336,7 +341,89 @@ struct Actor {
 extern Actor D_8009872C;
 extern Actor D_80097010;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
+extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges, Vec4** ppEdge);
+
+// Pushes two actors apart along the perpendicular of the segment between their
+// previous positions when their vertical spans meet.  Gives up entirely once the
+// battle has run past 0x300 frames.
+s32 func_80078920(Actor* p, Actor* q) {
+    s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
+    Vec4 edge1;
+    Vec4 edge2;
+    Vec4 mid;
+    Vec4 perp;
+    Vec4* pEdge1;
+    Vec4* pEdge2;
+    Vec4* pPrev;
+    s32 radiusP;
+    s32 radiusQ;
+    s32 radiusSum;
+    s32 dist;
+    s32 dist0;
+    s32 dist2;
+    s32 angle;
+    s32 lenP;
+    s32 lenQ;
+    s32 lenSum;
+
+    if (D_8009284C >= 0x301) {
+        return;
+    }
+    if ((p->unk93C.y < q->unk92C.y && q->unk93C.y < p->unk93C.y) ||
+        (q->unk92C.y < p->unk92C.y && p->unk92C.y < q->unk93C.y) ||
+        (q->unk93C.y < p->unk92C.y && p->unk93C.y < q->unk93C.y) ||
+        (p->unk92C.y < q->unk93C.y && q->unk92C.y < p->unk93C.y)) {
+        mid.x = (p->prevPosition.x + q->prevPosition.x) / 2;
+        mid.z = (p->prevPosition.z + q->prevPosition.z) / 2;
+        perp.z = (q->prevPosition.x - p->prevPosition.x) + mid.z;
+        perp.x = (p->prevPosition.z - q->prevPosition.z) + mid.x;
+        radiusP = p->unk8FC->unk3;
+        radiusQ = q->unk8FC->unk3;
+        BattleActorSelectEdgeForSegment(&mid, &perp, p, &pEdge1);
+        BattleActorSelectEdgeForSegment(&mid, &perp, q, &pEdge2);
+        edge1 = *pEdge1;
+        edge2 = *pEdge2;
+        edge1.x -= p->prevPosition.x;
+        edge1.y -= p->prevPosition.y;
+        edge1.z -= p->prevPosition.z;
+        edge2.x -= q->prevPosition.x;
+        edge2.y -= q->prevPosition.y;
+        edge2.z -= q->prevPosition.z;
+        edge1.x += p->x;
+        edge1.y += p->y;
+        edge1.z += p->z;
+        edge2.x += q->x;
+        edge2.y += q->y;
+        edge2.z += q->z;
+        dist = BattleVectorDistance2D(&edge1, &edge2);
+        radiusSum = radiusP + radiusQ;
+        if (dist < radiusSum) {
+            pPrev = &p->prevPosition;
+            dist0 = BattleVectorDistance2D(pPrev, &edge1);
+            dist2 = BattleVectorDistance2D(pPrev, &edge2);
+            if (dist2 < dist0) {
+                dist += radiusSum;
+            } else {
+                dist = radiusSum - dist;
+            }
+            angle = ratan2(p->prevPosition.x - q->prevPosition.x, p->prevPosition.z - q->prevPosition.z);
+            lenP = BattleVectorLength2D(&p->vx);
+            lenQ = BattleVectorLength2D(&q->vx);
+            lenSum = lenP + lenQ;
+            if (lenSum == 0) {
+                lenQ = 1;
+                lenP = 1;
+                lenSum = 2;
+            }
+            lenP = ((lenP * dist) << 8) / lenSum;
+            lenQ = ((lenQ * dist) << 8) / lenSum;
+            p->x += (rcos(angle) * lenQ) >> 20;
+            p->z += (rsin(angle) * lenQ) >> 20;
+            q->x -= (rcos(angle) * lenP) >> 20;
+            q->z -= (rsin(angle) * lenP) >> 20;
+        }
+    }
+}
 
 void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
