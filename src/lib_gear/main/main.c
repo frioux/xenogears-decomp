@@ -238,28 +238,6 @@ unsigned LibGearComputeJointMatrices(ModelJoint* pJoint, int degrees) {
     return numChildren;
 }
 
-
-// objdiff 97.18% (988 bytes vs the original's 992). Full body recovered: the
-// prologue is the LibGearComputeJointMatrices shape (translation -> globalTransform.t,
-// RotMatrixYXZ/RotMatrix by rotDirection, the (degrees*scale)>>0xC diagonal in the
-// PSX_SCRATCH matrix, MulMatrix0(&globalTransform, scratch, &localTransform), then
-// localTransform.t = globalTransform.t), and the loop is: parent doRotate/doTransform
-// propagation, then under doRotate a RotMatrixX into localTransform, the raw scale
-// diagonal (unsigned lhu reads) with MulMatrix0(&localTransform, scratch, &localTransform),
-// and if there is a parent the inverse scale 0x1000000/pParent->scale with
-// MulMatrix0(scratch, &localTransform, &localTransform); under doTransform the
-// translation into localTransform.t and CompMatrix(pParent->globalTransform, local,
-// global) or globalTransform = localTransform; tail loop clears doRotate then
-// doTransform on joints 1..n-1.
-// Everything in the instruction stream matches except register identities and two
-// rematerialisation moves: the original keeps `degrees` in $s1 and the scratch base in
-// $s0, ours is the other way round (so the second loop's sb offsets come out as
-// -39/-40(s0) instead of the same values off the other register, which still matches
-// byte-wise), the original re-materialises the scratch base with `lui $s1,0x1F80`
-// inside the doRotate branch instead of keeping it live, and its loop setup has
-// `move s0,s2` / `move s2,s1` (two instructions we do not emit). Declaration order
-// (scratch before/after pSkeleton, i/numChildren first) does not move the s0/s1 pair.
-/*
 unsigned func_801DC848(ModelJoint* pJoint, int degrees) {
     ModelJoint* pSkeleton = pJoint;
     MATRIX* scratch = (MATRIX*)PSX_SCRATCH;
@@ -307,36 +285,38 @@ unsigned func_801DC848(ModelJoint* pJoint, int degrees) {
         }
 
         if (pJoint->doRotate) {
+            MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
+
             if (pJoint->rotDirection != 0) {
                 RotMatrixYXZ(&pJoint->rotation, &pJoint->localTransform);
             } else {
                 RotMatrix(&pJoint->rotation, &pJoint->localTransform);
             }
 
-            scratch->m[0][0] = pJoint->scale.vx;
-            scratch->m[0][1] = 0;
-            scratch->m[0][2] = 0;
-            scratch->m[1][0] = 0;
-            scratch->m[1][1] = pJoint->scale.vy;
-            scratch->m[1][2] = 0;
-            scratch->m[2][0] = 0;
-            scratch->m[2][1] = 0;
-            scratch->m[2][2] = pJoint->scale.vz;
+            pScratch->m[0][0] = pJoint->scale.vx;
+            pScratch->m[0][1] = 0;
+            pScratch->m[0][2] = 0;
+            pScratch->m[1][0] = 0;
+            pScratch->m[1][1] = pJoint->scale.vy;
+            pScratch->m[1][2] = 0;
+            pScratch->m[2][0] = 0;
+            pScratch->m[2][1] = 0;
+            pScratch->m[2][2] = pJoint->scale.vz;
 
-            MulMatrix0(&pJoint->localTransform, scratch, &pJoint->localTransform);
+            MulMatrix0(&pJoint->localTransform, pScratch, &pJoint->localTransform);
 
             if (pJoint->pParent != NULL) {
-                scratch->m[0][0] = 0x1000000 / pJoint->pParent->scale.vx;
-                scratch->m[0][1] = 0;
-                scratch->m[0][2] = 0;
-                scratch->m[1][0] = 0;
-                scratch->m[1][1] = 0x1000000 / pJoint->pParent->scale.vy;
-                scratch->m[1][2] = 0;
-                scratch->m[2][0] = 0;
-                scratch->m[2][1] = 0;
-                scratch->m[2][2] = 0x1000000 / pJoint->pParent->scale.vz;
+                pScratch->m[0][0] = 0x1000000 / pJoint->pParent->scale.vx;
+                pScratch->m[0][1] = 0;
+                pScratch->m[0][2] = 0;
+                pScratch->m[1][0] = 0;
+                pScratch->m[1][1] = 0x1000000 / pJoint->pParent->scale.vy;
+                pScratch->m[1][2] = 0;
+                pScratch->m[2][0] = 0;
+                pScratch->m[2][1] = 0;
+                pScratch->m[2][2] = 0x1000000 / pJoint->pParent->scale.vz;
 
-                MulMatrix0(scratch, &pJoint->localTransform, &pJoint->localTransform);
+                MulMatrix0(pScratch, &pJoint->localTransform, &pJoint->localTransform);
             }
         }
 
@@ -361,9 +341,6 @@ unsigned func_801DC848(ModelJoint* pJoint, int degrees) {
 
     return numChildren;
 }
-*/
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DC848);
-
 void LibGearNoOp(void) {}
 
 void LibGearRenderModel(ModelMesh* pMesh, ModelJoint* pSkeleton, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 arg4, s32 arg5, s32 packetIndex) {
