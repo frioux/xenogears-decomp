@@ -39,6 +39,8 @@ extern s8 func_80097964(u8, u8, u16);
 extern void BattleSetSlotConditionTimer(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
 extern void func_80094D24(void);
+extern u8 BattleTestActorSlotFlagsC002ByMode(void);
+extern void func_8009B684(u8, u16);
 
 void BattleApplyScriptConditionTimer(void) {
     s8 ret = func_80097964(D_800C3DFC->unk1C, D_800C3DFC->unk1D,
@@ -89,8 +91,147 @@ void BattleRollAndClearTargetConditions(void) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
+void func_80095D4C(void) {
+    u8 chance;
+    u16 hp;
+    u16 dmg;
+
+    switch (D_800C3DFC->unk17[1]) {
+    case 0:
+        chance = D_800C3E00->unk5C[4];
+        break;
+    case 1:
+        chance = D_800C3DFC->unk1C;
+        break;
+    }
+
+    if (chance < rand() % 100) {
+        D_800C34B0->unk5FA0[D_800C3E50] = 6;
+        return;
+    }
+
+    switch (D_800C3DFC->unk17[3]) {
+    case 0:
+        hp = D_800C3E00->unk4E;
+        break;
+    case 1:
+        hp = D_800C3E34->unk4E;
+        break;
+    case 2:
+        hp = D_800C3E00->unk52;
+        break;
+    case 3:
+        hp = D_800C3E34->unk52;
+        break;
+    }
+
+    dmg = hp * D_800C3DFC->unk11 / 20;
+    if (D_800C3DFC->unk17[3] == 5) {
+        dmg = D_800C3E34->unk4C - 1;
+    }
+
+    switch (D_800C3DFC->unk17[3]) {
+    case 0:
+    case 1:
+    case 5:
+        D_800C34B0->unk5FA0[D_800C3E04] = 2;
+        D_800C34B0->unk5FA0[D_800C3E50] = 0;
+        D_800C34B0->unk5F6C[D_800C3E04] = dmg;
+        D_800C34B0->unk5F6C[D_800C3E50] = dmg;
+        break;
+    case 2:
+    case 3:
+        if ((D_800C3E34->unk88 | D_800C3E34->unk8A) & 0x200) {
+            D_800C34B0->unk5FA0[D_800C3E50] = 6;
+            return;
+        }
+        D_800C34B0->unk5FA0[D_800C3E04] = 3;
+        D_800C34B0->unk5FA0[D_800C3E50] = 1;
+        D_800C34B0->unk5F6C[D_800C3E04] = dmg;
+        D_800C34B0->unk5F6C[D_800C3E50] = dmg;
+        break;
+    default:
+        return;
+    }
+}
+void func_80096018(void) {
+    u8 chance;
+
+    switch (D_800C3DFC->unk17[1]) {
+    case 0:
+        chance = D_800C3E00->unk5C[4];
+        break;
+    case 1:
+        chance = D_800C3DFC->unk1C;
+        break;
+    }
+
+    if (chance < rand() % 100) {
+        D_800C34B0->unk5FA0[D_800C3E50] = 6;
+        return;
+    }
+
+    D_800C34B0->unk5FA0[D_800C3E50] = 0;
+
+    switch (D_800C3DFC->unk17[3]) {
+    case 0:
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                ((BattleSlotState *)D_800D2DC8)->unk60 / D_800C3DFC->unk11;
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                D_800C3E34->unk4C / D_800C3DFC->unk11;
+        }
+        break;
+    case 1:
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->unk60 - 1;
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk4C - 1;
+        }
+        break;
+    case 2:
+        if (D_800C34B0->slots[D_800C3E04].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                D_800D2D6C->unk64 - D_800D2D6C->unk60;
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                D_800C3E00->unk4E - D_800C3E00->unk4C;
+        }
+        break;
+    case 3:
+        D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk50 * 10;
+        break;
+    case 4:
+        D_800C34B0->unk5F6C[D_800C3E50] = 1;
+        break;
+    case 5:
+        D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk4C;
+        break;
+    case 6:
+        D_800C34B0->unk5FA0[D_800C3E50] = 0;
+        if (D_800CCCE8[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->unk64;
+            if (((BattleSlotState *)D_800D2DC8)->unk64 >= 0x2710) {
+                ((BattleSlotState *)D_800D2DC8)->unk64 = 0x270F;
+            }
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk4E;
+            if (D_800C3E34->unk4E >= 0x2710) {
+                D_800C3E34->unk4E = 0x270F;
+            }
+        }
+        break;
+    case 7:
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5FA0[D_800C3E50] = 6;
+        } else {
+            D_800C3E34->unk7C |= 1;
+            D_800C3E34->unk80 |= 1;
+        }
+        break;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 /* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
    used raw u8-array spellings of D_800C3DFC / D_800C3E00 / D_800C3E34; with
@@ -309,6 +450,114 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
 void BattleNop(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097964);
+/* 95.67%, 944 bytes against retail 1016; instruction stream and both jump tables
+   (jtbl_800703C0, jtbl_800703E8) line up block for block, so the shape is right.
+   Left over: the case-0 guard masks the wrong operand (retail andi v1,s1,0xFFFD then
+   and with the 0x7E load, gcc folds the mask onto the load), D_800C3E34 lands in v1
+   where retail uses a0, and the two "sh v0,0x7A(v1)" tails of case 0 and case 5 are
+   not cross-jumped because the case 5 pointer sums index-first (addu v0,v0,v1 where
+   retail has addu v1,v1,v0). 4 minutes of permuter found nothing.
+s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
+    if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+        return 0;
+    }
+
+    if (arg0 < rand() % 100) {
+        return 0;
+    }
+
+    switch (arg1) {
+    case 0:
+        if ((arg2 & 0xFFFD) & D_800C3E34->unk7E) {
+            return 0;
+        }
+        if (arg2 & 0x1000) {
+            D_800C3E34->unk84 &= 0x7FFF;
+        }
+        break;
+    case 2:
+        if (D_800C3E34->unk82 & arg2) {
+            return 0;
+        }
+        break;
+    case 5:
+        if ((D_800C3E34->unk7C | D_800C3E34->unk7E) & 1) {
+            return 0;
+        }
+        if (arg2 & 0x8000) {
+            D_800C3E34->unk7C &= 0xEFFF;
+        }
+        break;
+    case 7:
+        if ((D_800C3E34->unk80 | D_800C3E34->unk82) & 1) {
+            return 0;
+        }
+        if (arg2 & 0xA) {
+            if (D_800C3E34->unk88 & 0x5) {
+                D_800C3E34->unk88 &= 0xFFFA;
+                return 1;
+            }
+            break;
+        }
+        if (arg2 & 0x5) {
+            if (D_800C3E34->unk88 & 0xA) {
+                D_800C3E34->unk88 &= 0xFFF5;
+                return 1;
+            }
+            break;
+        }
+        // falls into case 9 when the flags request neither of the 0x8A pair
+    case 9:
+        if (arg2 & 0xF000) {
+            if (D_800C3E34->unk8E & 0xF000) {
+                D_800C34B0->unk5FC7 = 0x39;
+                return 0;
+            }
+            D_800C3E34->unk8C &= 0xFFF;
+        }
+        if (arg2 & 0xF00) {
+            if (D_800C3E34->unk8E & 0xF00) {
+                D_800C34B0->unk5FC7 = 0x39;
+                return 0;
+            }
+            D_800C3E34->unk8C &= 0xF0FF;
+        }
+        break;
+    }
+
+    switch (arg1) {
+    case 0:
+        D_800C3E34->unk7C = (arg2 | D_800C3E34->unk7C) & 0xFFFD;
+        if (arg2 & 0x2) {
+            if (BattleTestActorSlotFlagsC002ByMode()) {
+                D_800C3E34->unk7C |= arg2;
+                D_800C34B0->unk5FC7 = 0x31;
+                D_800C3E34->unk7A = 0xFFEF;
+            } else {
+                D_800C34B0->unk5FC7 = 0x32;
+            }
+        }
+        break;
+    case 2:
+        D_800C3E34->unk80 |= arg2;
+        if (arg2 & 0x800) {
+            D_800C3E34->unk7A |= 0x20;
+        }
+        break;
+    case 5:
+    case 7:
+    case 9: {
+        // the per-kind status words at +0x7A, indexed by the kind
+        u16 *pStatus = (u16 *)D_800C3E34 + arg1;
+
+        pStatus[0x3D] |= arg2;
+        break;
+    }
+    }
+
+    func_8009B684(arg1, arg2);
+    return 1;
+}*/
 void BattleClearAllSlotStates(void) {
     s16 i;
 
@@ -452,7 +701,7 @@ void BattleInitActiveSlotActions(u8 sel) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
-s32 BattleTestActorSlotFlagsC002ByMode(void) {
+u8 BattleTestActorSlotFlagsC002ByMode(void) {
     u8 i;
     u8 n;
     s32 ret = 0;
