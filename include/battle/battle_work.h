@@ -66,7 +66,10 @@ typedef struct {
     /* 0x140 */ POLY_FT4 tilePrims[4][4];
     /* 0x3C0 */ POLY_G4 prims[2];
     /* 0x408 */ DR_MODE drawModes[2];
-} BattleSlotGraphics; // Size: 0x420
+    /* 0x420 */ u8 unk420[0x180];
+    /* 0x5A0 */ s32 packageCount; // packages BattleDrawSpriteQuad appended to the pool at +0x0
+    /* 0x5A4 */ u8 unk5A4[0x4];
+} BattleSlotGraphics; // Size: 0x5A8
 
 // Prim pool for the sprite package drawn by BattleAddPrimAndRenderObject
 // (D_800D3278). 0x7A4 holds the two POLY_FT4 the 0x7F4 counter selects between.

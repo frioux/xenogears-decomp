@@ -1,14 +1,29 @@
 #include "common.h"
 #include "main/game.h"
+#include "battle/actor.h"
+#include "battle/battle_work.h"
 #include "psyq/libgpu.h"
+
+// One actor's block of the per-actor action-row table D_800CEF10: 42 BattleRow
+// rows (0x28 each, actor.h), of which this unit reads +0x24 and +0 of the rows at
+// +0x25. The offset stays an integer: a BattleRow index makes gcc form the actor
+// term (arg0 * 0x690) before the row term, and retail forms the row term first.
+extern u8 D_800CEF10[];
+
+// One sprite package of the per-slot draw block: the two POLY_FT4
+// BattleDrawSpritePackage writes, i.e. the 0x50-byte stride the block's package
+// counter advances by.
+typedef struct {
+    /* 0x00 */ POLY_FT4 prims[2];
+} BattleSpritePackage; // Size: 0x50
 
 extern u8 D_800D2CE0[];
 extern u8 *D_800D329C;
 extern u8 *D_800C3EA4;
 extern u8 *D_800C3EAC;
 extern s32 D_800CCB34;
-extern u8 *D_800D2D28;
-extern u8 *D_800D2E38[];
+extern BattleWork *D_800D2D28;
+extern BattleSlotGraphics *D_800D2E38[];
 extern u8 *D_800D2D90[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
@@ -47,16 +62,17 @@ extern void func_800904A0(s32, s32);
 extern void BattleDrawMenuEntryString(u8, u8);
 extern void *D_800D2F5C;
 extern u8 D_800C3E4C;
-extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
+extern void BattleSetPrimGrey80BlendModeFromGlobal(POLY_FT4 *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
 extern u16 D_800C324E;
 extern u16 D_800C3250;
 extern u16 D_800C3252;
 extern u16 D_800C323A;
-extern u8 D_800CEF34[];
-extern u8 D_800CEF10[];
-extern u8 D_800CCDC4[];
-extern u8 D_800CCD62[];
+// D_800CCD62 and D_800CCDC4 are two bases of the same per-slot table (stride
+// 0x170, actor.h's BattleTableEntry): the status mask sits at +0 of the D_800CCD62
+// base and the slot's counter at +0 of the D_800CCDC4 base, 0x62 bytes later.
+extern BattleTableEntry D_800CCD62[];
+extern BattleTableEntry D_800CCDC4[];
 extern u8 D_800D2D24[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
@@ -66,36 +82,34 @@ extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 u8 func_8008CDE4(u8 arg0, u8 arg1) {
-    u16 hdr[4];
+    u16 statusMasks[4];
     u8 flag;
     u8 ret;
     s32 idx;
-    s32 ofs;
     u16 trigger;
     u16 cur;
     u16 dmg;
 
-    hdr[0] = D_800C324E;
-    hdr[1] = D_800C3250;
-    hdr[2] = D_800C3252;
-    hdr[3] = D_800C323A;
+    statusMasks[0] = D_800C324E;
+    statusMasks[1] = D_800C3250;
+    statusMasks[2] = D_800C3252;
+    statusMasks[3] = D_800C323A;
     ret = 0;
     flag = 1;
     idx = (arg1 + 0x25) * 0x28 + arg0 * 0x690;
-    ofs = arg0 * 0x170;
-    trigger = *(u16 *)(D_800CEF34 + idx);
-    cur = *(u16 *)(D_800CCDC4 + ofs);
+    trigger = *(u16 *)(D_800CEF10 + idx + 0x24);
+    cur = D_800CCDC4[arg0].flags;
     dmg = *(u16 *)(D_800CEF10 + idx);
     if (cur >= trigger &&
         (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E, arg1) != 0 &&
-        (*(u16 *)(D_800CCD62 + ofs) & hdr[arg1]) == 0) {
+        (D_800CCD62[arg0].flags & statusMasks[arg1]) == 0) {
         BattleClearPrimFlagsThreeSlots(1);
-        D_800D2D28[0xC6] = 1;
+        D_800D2D28->unkC6 = 1;
         if (func_80085084(dmg, arg0, 0) != 0) {
-            *(u16 *)(D_800CCDC4 + ofs) -= trigger;
+            D_800CCDC4[arg0].flags -= trigger;
             ret = 1;
         } else {
-            D_800D2D28[0xC6] = 0;
+            D_800D2D28->unkC6 = 0;
             BattleSetPrimFlagsThreeSlots(arg0);
         }
         flag = 0;
@@ -148,9 +162,16 @@ void func_8008D328(void) {
 
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
+// The per-slot draw block is a raw POLY_FT4 pool (0x28 stride) that
+// BattleDrawSpriteQuad appends 0x50-byte sprite packages to; BattleSlotGraphics
+// names the prims inside it, so the two views of the pool base are cast from it.
+// The prim view is formed inside the loop on purpose: hoisting it above the four
+// package calls gives it a second register to keep alive across them.
 void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     u8 codes[4];
-    u8 *p;
+    BattleSlotGraphics *p;
+    BattleSpritePackage *pPackage;
+    POLY_FT4 *pPrims;
     s16 dx;
     s16 dy;
     s32 i;
@@ -167,16 +188,18 @@ void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
         codes[2] = 0xF5;
         codes[3] = 0xF7;
     }
-    *(s32 *)(p + 0x5A0) = 0;
-    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[0], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, (s16)arg2) + *(s32 *)(p + 0x5A0);
+    p->packageCount = 0;
+    pPackage = (BattleSpritePackage *)p;
+    p->packageCount = BattleDrawSpritePackage(codes[0], (s32)&pPackage[p->packageCount], (s16)arg1, (s16)arg2) + p->packageCount;
     dy = arg2; // the sum must go through dy: dy + arg4 keeps retail's addu operand order
     dx = arg1 + arg3 - 8;
-    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[1], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, (s16)dy) + *(s32 *)(p + 0x5A0);
+    p->packageCount = BattleDrawSpritePackage(codes[1], (s32)&pPackage[p->packageCount], dx, (s16)dy) + p->packageCount;
     dy = (s16)(dy + arg4 - 8);
-    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[2], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, dy) + *(s32 *)(p + 0x5A0);
-    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[3], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
+    p->packageCount = BattleDrawSpritePackage(codes[2], (s32)&pPackage[p->packageCount], (s16)arg1, dy) + p->packageCount;
+    p->packageCount = BattleDrawSpritePackage(codes[3], (s32)&pPackage[p->packageCount], dx, dy) + p->packageCount;
     for (i = 0; i < 4; i++) {
-        BattleSetPrimGrey80BlendModeFromGlobal(p + (i * 2 + D_800CCB34) * 0x28);
+        pPrims = (POLY_FT4 *)p;
+        BattleSetPrimGrey80BlendModeFromGlobal(&pPrims[i * 2 + D_800CCB34]);
     }
 }
 
