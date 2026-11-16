@@ -21,7 +21,7 @@ extern u16 D_800C3EC0[];
 extern long ratan2(long y, long x);
 extern u8 D_800C3E9B[];
 extern u8 D_800D3274;
-extern void func_800841E0(void);
+extern u8 func_800841E0(u8);
 
 typedef struct {
     /* 0x00 */ u16 unk0[12];
@@ -52,6 +52,7 @@ extern u8 g_BattleSlotFlags[];
 extern u8 *g_BattleSlotParamTable;
 extern BattleUnk170 g_BattleSlotEntries[];
 extern BattleUnk170 D_800CCE08[];
+extern BattleUnk170 D_800CCD34[];
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x24];
@@ -669,6 +670,93 @@ u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
+/* 90.21% (880 bytes vs retail 872): structure, calls, both candidate
+   loops (3..10 / 0..2 duplicated as retail has them), the same-row filter
+   and both single-pass sorts are in place; 8 bytes long. Remaining diff
+   to chase: the stack arrays (list at sp+0x10, sameRow at sp+0x20) and
+   the count/pointer pair per candidate loop. D_800CCD34 is the 0x170-byte
+   slot table (its .unk0 is the sort key); D_800CCE08 is field 0xD4 of the
+   same table. Retail's caller BattleEnsureTargetSlotInCandidateList passes
+   arg0 in $a0 with no instruction, so the prototype is u8.
+u8 func_800841E0(u8 arg0) {
+    s32 i;
+    s32 n;
+    s32 count;
+    u8 tmp;
+    u8 list[12];
+    u8 sameRow[12];
+    u8 *p;
+
+    D_800D3274 = 0;
+    for (i = 0; i < 12; i++) {
+        list[i] = 0xFF;
+        D_800C3E90[i] = 0xFF;
+        sameRow[i] = 0;
+    }
+    if (arg0 < 3) {
+        count = 0;
+        p = list;
+        for (i = 3; i < 0xB; i++) {
+            if (BattlePairTargetable(arg0, i) != 0) {
+                *p = i;
+                p++;
+                count++;
+                D_800D3274++;
+            }
+        }
+    } else {
+        count = 0;
+        p = list;
+        for (i = 0; i < 3; i++) {
+            if (BattlePairTargetable(arg0, i) != 0) {
+                *p = i;
+                p++;
+                count++;
+                D_800D3274++;
+            }
+        }
+    }
+    if (count > 0) {
+        n = 0;
+        for (i = 0; i < count; i++) {
+            if (g_BattleSlotRecords[arg0][0] == g_BattleSlotRecords[list[i]][0]) {
+                D_800C3E90[n] = list[i];
+                list[i] = 0xFF;
+                sameRow[n] = 1;
+                n++;
+            }
+        }
+    }
+    if (count > 0) {
+        for (i = 0; i < count; i++) {
+            if (list[i] != 0xFF) {
+                D_800C3E90[n] = list[i];
+                n++;
+            }
+        }
+    }
+    if (sameRow[0] != 0) {
+        for (i = 1; i < count; i++) {
+            if (sameRow[i] != 0
+                && D_800CCD34[D_800C3E90[i - 1]].unk0 > D_800CCD34[D_800C3E90[i]].unk0) {
+                tmp = D_800C3E90[i - 1];
+                D_800C3E90[i - 1] = D_800C3E90[i];
+                D_800C3E90[i] = tmp;
+            }
+        }
+    } else {
+        for (i = 1; i < count; i++) {
+            if (D_800CCD34[D_800C3E90[i - 1]].unk0 > D_800CCD34[D_800C3E90[i]].unk0) {
+                tmp = D_800C3E90[i - 1];
+                D_800C3E90[i - 1] = D_800C3E90[i];
+                D_800C3E90[i] = tmp;
+            }
+        }
+    }
+    return D_800C3E90[0];
+}
+*/
+
 u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     s32 i;
     s32 j;
@@ -844,7 +932,7 @@ void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     off = arg0 * 0x40;
     g_BattleCommandQueue[0x2E8] = (g_BattleCommandQueue + off)[0x3C];
     found = 0;
-    func_800841E0();
+    func_800841E0(arg0);
     for (i = 0; i < D_800D3274; i++) {
         if (D_800C3E90[i] == (g_BattleCommandQueue + off)[0x3C]) {
             found++;
@@ -924,35 +1012,21 @@ u16 BattleGetSameRowSlotMask(void) {
 }
 extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3E9A[];
-/* 99.81% at best: every instruction and the frame (0x30, 7 saved regs) match
-   except the order of the two callee-saved parameter copies in the entry block -
-   retail emits sw s6,0x28 / move s6,a0 before sw s1,0x14 / move s1,a2, gcc 2.6.0
-   here emits the s1 pair first. Permuter stalls at 30 on this body, two runs.
-   The tail fill loop is what took it from 98.35% to 99.81%: the 0x4000 branch's
-   countdown must reuse n, not a fresh local, so the counter lands in s1 as in
-   retail (val stays a u8 0xFF; p = D_800C3E9A; for (; n >= 0; n--) *p-- = val).
-   n = 0 must also precede the g_BattleTargetSlot = 0xFF store in the 0x8000 branch.
-   Tried, worse or neutral: swapping the flags/hi assignments (98.62%), a separate
-   j local for the countdown (99.63%), flags declared first, other declaration
-   orders of i/n/off/off8/val.
-   Note for an un-park: the two offsets must stay explicit source variables
-   (off = 0x170 * i, off8 = 8 * i, both from 0); writing g_BattleSlotEntries[i].unk0 and
-   g_BattleSlotFlags[i * 8] makes gcc fold the g_BattleSlotFlags base into the pointer
-   (lui/addiu in the preheader instead of move s5,zero) and it loses 5%.
-u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
+// arg0 IS the flags word (it is reassigned per arg3 below): keeping it a
+// parameter, rather than copying it into a local, is what makes gcc home it
+// into $s6 before arg2's copy in the entry block.
+u16 func_80084DE4(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     s32 i;
     s32 n;
+    s32 hi;
     s32 off;
     s32 off8;
-    u16 flags;
     u16 mask;
     u8 grp;
     u8 first;
     u8 *p;
     u8 val;
-    s32 hi;
 
-    flags = arg0;
     hi = 0;
     switch (arg3) {
     case 0:
@@ -1028,8 +1102,6 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     }
     return flags & 0xFFFF;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 extern u8 func_80084854(u8, u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 extern u16 func_80084DE4(u16, u16, u8, u8, u8);
