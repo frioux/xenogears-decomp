@@ -58,7 +58,19 @@ typedef struct {
 typedef struct {
     /* 0x0 */ u8 unk0[0x6];
     /* 0x6 */ u8 actionChances[0x4];
-} BattleActionData; // Size: 0xA
+    /* 0xA */ u8 actionEnabled[0xE];
+} BattleActionData; // Size: 0x18
+
+// The message ids an action queues, indexed by action; 0 means none.
+typedef struct {
+    /* 0x0 */ u8 messages[3];
+} BattleActionMessages; // Size: 0x3
+
+// One entry of an actor's per-action state: 0x3 flags that action out.
+typedef struct {
+    /* 0x0 */ u8 unk0[0x3];
+    /* 0x3 */ u8 unk3;
+} BattleActionSlot; // Size: 0x4
 
 // A battle participant as this unit drives it. Only the fields this unit
 // touches are named; 0x1668 is the last one, so 0x166A is a lower bound on the
@@ -66,7 +78,9 @@ typedef struct {
 typedef struct BattleActor {
     /* 0x000 */ u8 unk0[0x48];
     /* 0x048 */ u32 unk48;
-    /* 0x04C */ u8 unk4C[0x68];
+    /* 0x04C */ u8 unk4C[0x34];
+    /* 0x080 */ BattleActionSlot* pActionSlots;
+    /* 0x084 */ u8 unk84[0x30];
     /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 gaugePoints;
     /* 0x0B8 */ u8 unkB8[0x6];
@@ -98,11 +112,12 @@ extern void func_8008F7B8(BattleWork* pWork);
 extern s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1);
 extern s32 D_8009284C;
 extern s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork);
-extern void func_8008FFEC(BattleActor* pActor, BattleWork* pWork);
+extern s32 func_8008FFEC(BattleActor* pActor, BattleWork* pWork);
 extern void BattleResetMessageQueue(BattleActor* p);
 extern u8 g_BattleDifficultyLevel;
 extern BattleWork D_80096F30;
 extern BattleWork D_80096F64;
+extern BattleActionMessages D_800925A4[];
 extern void func_8008FCC8(BattleActor* pActor, BattleWork* pWork);
 extern void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork);
 extern void func_80090580(BattleActor* pActor, BattleWork* pWork);
@@ -342,54 +357,43 @@ void BattleQueueMessagesAndSetScaledDelay(BattleActor* pActor, BattleWork* pWork
     }
     func_8008F7B8(pWork);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FFEC);
-/* 95.41%: frame, saved regs (s0..s3) and both call-site chains already match.
-   Two differences: (a) gcc keeps the loop counter`n` in $a1 whereas retail uses
-   $s0, and so fills the `bnez` delay slot with `addiu s0,s0,-1` where retail has
-   a nop plus a separate block; (b) the tail reassociates A + (rand() % 20 + 1)
-   into (A + 1) + rand() % 20 - the same expression BattleQueueMessagesAndSetScaledDelay had, which broke
-   it with a local holding the 1 (`one = 1;` before the call). Also tried: the tail
-   as a separate `r = rand() % 20 + 1` statement (85.61%, the 0xF load moves after
-   the division) and the sum written call-first (87.81%). Note the divisor is a
-   local (`c`) so the 0x911 byte is loaded once, as retail does.
-s32 func_8008FFEC(u8* pArg0, u8* pArg1) {
+s32 func_8008FFEC(BattleActor* pActor, BattleWork* pWork) {
     s32 n;
     s32 i;
-    s32 off;
-    s32 c;
+    s32 one;
 
-    c = *(u8*)(pArg0 + 0x911);
-    if (c == 0) {
+    n = pActor->actionCount;
+    if (n == 0) {
         return 1;
     }
-    n = rand() % c;
-    for (i = 0, off = 0; i < 0xE; i++, off += 3) {
-        if (*(u8*)(*(u8**)(pArg0 + 0x1600) + (i + 0xA)) == 0) {
+    n = rand() % n;
+    for (i = 0; i < 0xE; i++) {
+        if (pActor->pActionData->actionEnabled[i] == 0) {
             continue;
         }
-        if (*(u8*)(*(u8**)(pArg0 + 0x80) + i * 4 + 3) == 0) {
+        if (pActor->pActionSlots[i].unk3 == 0) {
             continue;
         }
-        if (n != 0) {
-            n--;
-            continue;
+        if (n == 0) {
+            if (D_800925A4[i].messages[0] != 0) {
+                BattleQueueMessage(pActor, D_800925A4[i].messages[0]);
+            }
+            if (D_800925A4[i].messages[1] != 0) {
+                BattleQueueMessage(pActor, D_800925A4[i].messages[1]);
+            }
+            if (D_800925A4[i].messages[2] != 0) {
+                BattleQueueMessage(pActor, D_800925A4[i].messages[2]);
+            }
+            break;
         }
-        if (D_800925A4[off] != 0) {
-            BattleQueueMessage(pArg0, D_800925A4[off]);
-        }
-        if (D_800925A5[off] != 0) {
-            BattleQueueMessage(pArg0, D_800925A5[off]);
-        }
-        if (D_800925A6[off] != 0) {
-            BattleQueueMessage(pArg0, D_800925A6[off]);
-        }
-        break;
+        n--;
     }
-    *(s16*)(pArg1 + 0x4) = (2 - *(u8*)(pArg1 + 0xF)) * 20 + (rand() % 20 + 1);
-    func_8008F7B8(pArg1);
+    one = 1;
+    pWork->delay = (2 - pWork->difficulty) * 20 + (rand() % 20 + one);
+    func_8008F7B8(pWork);
     return 0;
 }
-*/
+
 void BattleEnterWorkState1(BattleActor* pActor) {
     BattleWork* pWork;
     u8 v;
@@ -527,17 +531,6 @@ void BattleLoadWorkActionChances(BattleActor* pActor) {
     pWork->actionChance3 = pActionData->actionChances[3];
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
-/* 97.38%: the whole body matches except the order of the two statements after the
-   BattleGetActorBreakThreshold return. Retail stores the result first ("sw v0,36(s0)")
-   and then loads g_BattleDifficultyLevel into the now-free $v0; gcc schedules the lbu first (into
-   $v1, because the call result is still live) and stores second. Tried: the store
-   inline, the loaded byte in a u8 local, the call result in an s32 local stored after
-   the load - all identical. tools/scripts/permute.sh (1841 iterations, base=80) found
-   nothing, and the block follows a call, so it is a scheduler choice, not reorg.
-   BattleGetActorBreakThreshold needs the trailing argument retail passes and nobody
-   reads (a1=p); with that parameter added its call site matches and its own body
-   stays at 100%, so the definition below already has it.
 void func_80090CC0(BattleActor* pActor) {
     BattleWork* pWork;
     s32 thr;
@@ -557,8 +550,9 @@ void func_80090CC0(BattleActor* pActor) {
     pWork->ticks = 0;
     pActor->unk48 = 0;
     thr = BattleGetActorBreakThreshold(pActor, pWork);
+    /* without the block cc1 sinks this store below the difficulty load */
+    do { pWork->breakThreshold = thr; } while (0);
     pWork->difficulty = g_BattleDifficultyLevel;
-    pWork->breakThreshold = thr;
     BattleLoadWorkActionChances(pActor);
     switch (rand() % 3) {
     case 0:
@@ -576,7 +570,7 @@ void func_80090CC0(BattleActor* pActor) {
     }
     BattleResetMessageQueue(pActor);
 }
-*/
+
 void BattleDispatchWorkState(BattleActor* pActor) {
     BattleWork* pWork;
 
