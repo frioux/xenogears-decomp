@@ -205,7 +205,7 @@ typedef struct {
     /* 0x05C */ u8 unk5C[0x1E];
     /* 0x07A */ u16 unk7A;
     /* 0x07C */ u16 unk7C;
-    /* 0x07E */ u8 unk7E[0x2];
+    /* 0x07E */ u16 unk7E;
     /* 0x080 */ u16 unk80;
     /* 0x082 */ u16 unk82;
     /* 0x084 */ u16 unk84;
