@@ -154,7 +154,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
    `x += halfWidth` (97.01, loses retail's `addiu s0,s0,8`). So it is an emission
    order tie, not a source shape. Note the second call's x must be written back
    into the `x` parameter (`x = halfWidth + 8 + x;`) - a separate local costs a
-   register and 4 bytes.
+   register and 4 bytes. Round 121: permuter, 1547 iterations from this body,
+   best = base (no improvement); `y - 8` twice inline puts the a1 add in retail's
+   slot but moves the s2 add one insn late (98.09). Still an emission-order tie.
    void func_801D3FF8(u_char index, u_short x, u_short y, u_short width) {
        MenuWindow* pWindow = g_Menu->windows[index];
        u16 top;
@@ -187,51 +189,37 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
        }
    }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
-/* Best: 99.00%. The sibling of MenuInitializeWindowBorderCorners (bottom border instead of the
-   corners) and the decode is complete: 16 UV stores to polysWindowBorderBottom
-   [ctx] and [ctx+2], two MenuSetQuadVertices quads, then a 2-iteration
-   MenuSetPolySemiTransGrey loop. Three codegen facts already worked out here: the UV
-   stores must be byte offsets off a raw pointer with the context product FIRST
-   (`g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC`); a struct access
-   (`pWindow->polysWindowBorderBottom[ctx].u0`) gives the reversed addu and an
-   `addiu v1,v1,2` for the [ctx+2] group instead of retail's +0x50
-   displacement; and the second quad's x argument must be written
-   `halfWidth + 8 + x`, the only order that gives retail's `addiu s0,s0,8` /
-   `addu s4,s4,s0` and the s4=x / s3=(u16)halfWidth assignment.
-   One instruction left: retail computes the second call's address
-   (`addiu a0,s6,0x5F0`) AFTER the x sum, gcc hoists it before it.
-   void func_801D433C(u_char index, u_short x, u_short y, u_short width, u_short height) {
-       MenuWindow* pWindow = g_Menu->windows[index];
-       u16 bottom;
-       s32 halfWidth;
-       s32 i;
+void func_801D433C(u_char index, u_short x, u_short y, u_short width, u_short height) {
+    MenuWindow* pWindow = g_Menu->windows[index];
+    u16 bottom;
+    s32 halfWidth;
+    s32 i;
 
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1ED) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F4) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F5) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FC) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FD) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x204) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x205) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23C) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23D) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x244) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x245) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24C) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24D) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x254) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x255) = 0x94;
-       bottom = y + height - 8;
-       halfWidth = (width - 0x10) / 2;
-       MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
-       MenuSetQuadVertices(pWindow->vertsWindowBorderBottom2, halfWidth + 8 + x, bottom, halfWidth, 0x10);
-       for (i = 0; i < 2; i++) {
-           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
-       }
-   }
-*/
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1ED) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F4) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F5) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FC) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FD) = 0x94;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x204) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x205) = 0x94;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23C) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23D) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x244) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x245) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24C) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24D) = 0x94;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x254) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x255) = 0x94;
+    bottom = y + height - 8;
+    halfWidth = (width - 0x10) / 2;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
+    x = halfWidth + 8 + x;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderBottom2, x, bottom, halfWidth, 0x10);
+    for (i = 0; i < 2; i++) {
+        MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
 /* Best: 94.26% (844 bytes; retail is 836). Decode is complete - the vertical
    border sibling of func_801D3FF8 (see its note): 16 UV byte stores to
@@ -397,101 +385,72 @@ void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
-/* Best: 98.31%, frame 0x38, a1 and n share s2 as in retail. The one remaining
-   diff is loop 2's `i++`: retail has `addiu s1,s1,1` in the `beq
-   digits[6+i]==0xFF` delay slot with `ori v0,0x1000` first in the body, gcc
-   puts the `li 0x1000` in the slot and `addiu s1,s1,1` in the latch. That is
-   reorg's delay-slot choice, not allocation (both sides are 122 insns).
-   The key discovery is the statement order after loop 1: gcc's loop-2 preheader
-   hoists the `n = 0` biv init to the TOP of the fall-through block, so reorg
-   steals it into loop 1's back-branch slot and a1 has to keep a register of its
-   own (frame 0x40). Writing `i = 0;` as a statement BEFORE the second
-   MenuParseNumberToDigits call (and `n = 0` after the counter store) makes `i = 0` the
-   block's first insn - reorg rejects it because s1 is live at loop 1's head -
-   so reorg takes the `andi v1,s2,0xFF` of the second characters[] chain instead,
-   exactly like retail, and a1 then dies before n is born. Re-read since: retail
-   keeps `addiu s1,s1,1` in the latch for loop 1 but has it in the `beq` delay
-   slot with no latch copy for loop 2 - i.e. in retail's RTL the loop-2
-   increment sits at the top of the body block. No for/while/continue/
-   digits[i++] shape gives that (a `while (i < 3)` puts the test at the head,
-   where retail's head starts at the `g_Menu` load), and cdk does not change it,
-   so this is an RTL rotation, not a delay-slot choice. Tried: `continue`
-   form, n=0 before the call / after the sb, i=0 only in the for-init, `i < 3`
-   with the increment in the latch: all 94.45-98.31%.
-   void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
-       u8* pWindow = (u8*)g_Menu->unk39C[a0];
-       s32 i;
-       s32 n;
+void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
+    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+    s32 i;
+    s32 n;
 
-       MenuParseNumberToDigits(g_GameState.characters[a1].hp);
-       pWindow[0x1273] = 0;
-       for (i = 0; i < 3; i++) {
-           if (g_Menu->digits[6 + i] != 0xFF) {
-               pWindow[0x1273] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[6 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1273] * 0x50 + 0xAF0)),
-                   g_Menu->renderContext, a2 + D_801E9B28 + i * 8,
-                   a3 + D_801E9B2C, 0x1000);
-           }
-       }
-       i = 0;
-       MenuParseNumberToDigits(g_GameState.characters[a1].maxHp);
-       pWindow[0x1274] = 0;
-       n = 0;
-       for (; i < 3; i++) {
-           if (g_Menu->digits[6 + i] != 0xFF) {
-               pWindow[0x1274] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[6 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1274] * 0x50 + 0xBE0)),
-                   g_Menu->renderContext, a2 + D_801E9B30 + n * 8,
-                   a3 + D_801E9B34, 0x1000);
-               n++;
-           }
-       }
-   }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
-/* Best: 98.31%. Same shape as func_801D51EC, which see: `i = 0;` written
-   before the second MenuParseNumberToDigits call and `n = 0;` after the counter store
-   reproduces retail's loop-1 exit block (`andi v1,s2,0xFF` in the back-branch
-   delay slot, `addu s2,zero,zero` in the jal delay slot) and drops the extra
-   callee-saved register, frame 0x38. The one remaining diff is loop 2's
-   `i++`: retail keeps `addiu s1,s1,1` in the `beq digits[7+i]==0xFF` delay
-   slot, gcc puts it in the latch (both sides 122 insns, so reorg's slot
-   choice).
-   void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
-       u8* pWindow = (u8*)g_Menu->unk39C[a0];
-       s32 i;
-       s32 n;
+    MenuParseNumberToDigits(g_GameState.characters[a1].hp);
+    pWindow[0x1273] = 0;
+    for (i = 0; i < 3; i++) {
+        if (g_Menu->digits[6 + i] != 0xFF) {
+            pWindow[0x1273] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[6 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1273] * 0x50 + 0xAF0)),
+                g_Menu->renderContext, a2 + D_801E9B28 + i * 8,
+                a3 + D_801E9B2C, 0x1000);
+        }
+    }
+    i = 0;
+    MenuParseNumberToDigits(g_GameState.characters[a1].maxHp);
+    pWindow[0x1274] = 0;
+    n = 0;
+    for (; i < 3; ) {
+        u8 digit = g_Menu->digits[6 + i++];
 
-       MenuParseNumberToDigits(g_GameState.characters[a1].mp);
-       pWindow[0x1275] = 0;
-       for (i = 0; i < 2; i++) {
-           if (g_Menu->digits[7 + i] != 0xFF) {
-               pWindow[0x1275] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[7 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1275] * 0x50 + 0xCD0)),
-                   g_Menu->renderContext, a2 + D_801E9B38 + i * 8,
-                   a3 + D_801E9B3C, 0x1000);
-           }
-       }
-       i = 0;
-       MenuParseNumberToDigits(g_GameState.characters[a1].maxMp);
-       pWindow[0x1276] = 0;
-       n = 0;
-       for (; i < 2; i++) {
-           if (g_Menu->digits[7 + i] != 0xFF) {
-               pWindow[0x1276] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[7 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1276] * 0x50 + 0xD70)),
-                   g_Menu->renderContext, a2 + D_801E9B40 + n * 8,
-                   a3 + D_801E9B44, 0x1000);
-               n++;
-           }
-       }
-   }
-*/
+        if (digit != 0xFF) {
+            pWindow[0x1274] += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1274] * 0x50 + 0xBE0)),
+                g_Menu->renderContext, a2 + D_801E9B30 + n * 8,
+                a3 + D_801E9B34, 0x1000);
+            n++;
+        }
+    }
+}
+void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3) {
+    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+    s32 i;
+    s32 n;
+
+    MenuParseNumberToDigits(g_GameState.characters[a1].mp);
+    pWindow[0x1275] = 0;
+    for (i = 0; i < 2; i++) {
+        if (g_Menu->digits[7 + i] != 0xFF) {
+            pWindow[0x1275] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[7 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1275] * 0x50 + 0xCD0)),
+                g_Menu->renderContext, a2 + D_801E9B38 + i * 8,
+                a3 + D_801E9B3C, 0x1000);
+        }
+    }
+    i = 0;
+    MenuParseNumberToDigits(g_GameState.characters[a1].maxMp);
+    pWindow[0x1276] = 0;
+    n = 0;
+    for (; i < 2; ) {
+        u8 digit = g_Menu->digits[7 + i++];
+
+        if (digit != 0xFF) {
+            pWindow[0x1276] += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1276] * 0x50 + 0xD70)),
+                g_Menu->renderContext, a2 + D_801E9B40 + n * 8,
+                a3 + D_801E9B44, 0x1000);
+            n++;
+        }
+    }
+}
 void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s32 y) {
     MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
@@ -578,39 +537,36 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     g_Menu->pManager->unk0[index] = 1;
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5BA4);
-/* Best: 96.88%. Only the delay-slot fill differs: retail puts the loop
-   increment `addiu s0,s0,1` in the `digits[i] != 0xFF` branch delay slot
-   and keeps `li v0,0x1000` before the arg stores; gcc picks the other
-   order. Tried: += then func()+count (addu order), `continue` form,
-   digits[i++] with (i-1)*8, running x local with x += 8 (96.65%).
-   void func_801D5BA4(s32 a0, s32 a1) {
-       s32 i;
+void func_801D5BA4(s32 a0, s32 a1) {
+    s32 i;
+    s32 x;
 
-       MenuParseNumberToDigits(g_GameState.gold);
-       *(s32*)((u8*)g_Menu->unk340 + 0x320) = 0;
-       for (i = 0; i < 9; i++) {
-           if (g_Menu->digits[i] != 0xFF) {
-               *(s32*)((u8*)g_Menu->unk340 + 0x320) =
-                   func_8002675C(
-                       g_Menu->resources,
-                       g_Menu->digits[i],
-                       (POLY_FT4*)(*(s32*)((u8*)g_Menu->unk340 + 0x320) * 0x50 +
-                                   (u32)g_Menu->unk340),
-                       g_Menu->renderContext,
-                       a0 + i * 8,
-                       a1,
-                       0x1000) +
-                   *(s32*)((u8*)g_Menu->unk340 + 0x320);
-           }
-       }
-       func_8002675C(g_Menu->resources, 0x10,
-                     (POLY_FT4*)((u8*)g_Menu->unk340 + 0x2D0),
-                     g_Menu->renderContext, a0 + 0x50, a1, 0x1000);
-       g_Menu->pManager->unk5[0] = 1;
-       *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
-   }
-*/
+    MenuParseNumberToDigits(g_GameState.gold);
+    *(s32*)((u8*)g_Menu->unk340 + 0x320) = 0;
+    for (i = 0, x = a0; i < 9; ) {
+        u8 digit = g_Menu->digits[i++];
+
+        if (digit != 0xFF) {
+            *(s32*)((u8*)g_Menu->unk340 + 0x320) =
+                func_8002675C(
+                    g_Menu->resources,
+                    digit,
+                    (POLY_FT4*)(*(s32*)((u8*)g_Menu->unk340 + 0x320) * 0x50 +
+                                (u32)g_Menu->unk340),
+                    g_Menu->renderContext,
+                    x,
+                    a1,
+                    0x1000) +
+                *(s32*)((u8*)g_Menu->unk340 + 0x320);
+        }
+        x += 8;
+    }
+    func_8002675C(g_Menu->resources, 0x10,
+                  (POLY_FT4*)((u8*)g_Menu->unk340 + 0x2D0),
+                  g_Menu->renderContext, a0 + 0x50, a1, 0x1000);
+    g_Menu->pManager->unk5[0] = 1;
+    *(u8*)((u8*)g_Menu->unk340 + 0x324) = *(u8*)&g_Menu->renderContext;
+}
 void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     s32 i;
 
@@ -704,6 +660,16 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
    around loop 2 (extra beqz+nop - a bare `for` gives retail's `blez`).
    Symbols added: D_801E9B60, D_801E9C20, D_801EA39C (all live in
    asm/menu/data/246A4.data.s).
+   Round 121: the increment-in-the-beq-delay-slot shape is `digits[i++]` plus a
+   value local (that closed func_801D51EC/53D0/5BA4 here) - for this function it
+   is `pId = &D_801EA39C[a0 * 0x18 + i++]` + `*pId` twice, but taken literally it
+   collapses to 77.82% (432 bytes): the address local changes the whole loop, so
+   the x/y arrays must be indexed off a separate counter. Loop 2's twin `lhu`
+   (0xA8/0xAA loaded once for the x/y args and again for the width/height
+   difference, 0x112C8-0x112E0) is NOT a basic-block effect - the two loads sit
+   in one block with no branch or store between them - so retail's source must
+   spell the two reads in a way gcc 2.7.2 will not unify. Same pattern in
+   func_801D74EC (0x11D8/0x11DA) and func_801D7154 (0xCD8/0xCDA).
    void func_801D6194(u_char a0) {
        s32 i;
        u8* pEntry;
