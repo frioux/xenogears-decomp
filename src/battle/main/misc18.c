@@ -834,11 +834,13 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     pTimer[idx] = val;
 }
 // Rolls one slot's condition timers down and returns the mask of the conditions
-// that expired this frame. The timer bytes sit at entry+0x15C (state.unkB7[1]),
-// the flag words they belong to at 0x7C..0x8E; the 0x84/0x88 words are tested as
-// one 32-bit word, i.e. the low half's flag with the high half's flag clear.
+// that expired this frame. Each armed flag word (0x7C..0x8E) owns one timer byte
+// at entry+0x15C, i.e. state.unkB7[1], and the 0x84/0x88 tests are a pair: the
+// low halfword's flag armed with the high halfword's copy of it clear. The timer
+// and state pointers are formed off the symbol base, not off pEntry: the original
+// keeps that second base in a register of its own.
 u16 func_80099890(u8 slot) {
-    BattleTableEntry *pEntry = (BattleTableEntry *)(slot * 0x170 + (u32)g_BattleWorkBlock);
+    BattleTableEntry *pEntry = &g_BattleWorkBlock[slot];
     BattleSlotState *pState = (BattleSlotState *)(slot * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
     u8 *pCnt = (u8 *)(slot * 0x170 + 0x15C + (u32)g_BattleWorkBlock);
     u32 ret;
@@ -870,56 +872,56 @@ u16 func_80099890(u8 slot) {
             pEntry->unk7A &= 0xFFDF;
         }
     }
-    if ((*(u32 *)&pEntry->unk84 & 0x80008000) == 0x8000) {
+    if ((pEntry->unk84 & 0x8000) && !(pEntry->unk86 & 0x8000)) {
         pCnt[4] = pCnt[4] + 0xFF;
         if (pCnt[4] == 0) {
             ret |= 0x800;
             pEntry->unk84 &= 0x7FFF;
         }
     }
-    if ((*(u32 *)&pEntry->unk84 & 0x40004000) == 0x4000) {
+    if ((pEntry->unk84 & 0x4000) && !(pEntry->unk86 & 0x4000)) {
         pCnt[5] = pCnt[5] + 0xFF;
         if (pCnt[5] == 0) {
             ret |= 0x400;
             pEntry->unk84 &= 0xBFFF;
         }
     }
-    if ((*(u32 *)&pEntry->unk84 & 0x20002000) == 0x2000) {
+    if ((pEntry->unk84 & 0x2000) && !(pEntry->unk86 & 0x2000)) {
         pCnt[6] = pCnt[6] + 0xFF;
         if (pCnt[6] == 0) {
             ret |= 0x200;
             pEntry->unk84 &= 0xDFFF;
         }
     }
-    if ((*(u32 *)&pEntry->unk84 & 0x10001000) == 0x1000) {
+    if ((pEntry->unk84 & 0x1000) && !(pEntry->unk86 & 0x1000)) {
         pCnt[7] = pCnt[7] + 0xFF;
         if (pCnt[7] == 0) {
             ret |= 0x100;
             pEntry->unk84 &= 0xEFFF;
         }
     }
-    if ((*(u32 *)&pEntry->unk84 & 0x08000800) == 0x800) {
+    if ((pEntry->unk84 & 0x800) && !(pEntry->unk86 & 0x800)) {
         pCnt[8] = pCnt[8] + 0xFF;
         if (pCnt[8] == 0) {
             ret |= 0x80;
             pEntry->unk84 &= 0xF7FF;
         }
     }
-    if ((*(u32 *)&pEntry->unk88 & 0x80008000) == 0x8000) {
+    if ((pEntry->unk88 & 0x8000) && !(pEntry->unk8A & 0x8000)) {
         pCnt[9] = pCnt[9] + 0xFF;
         if (pCnt[9] == 0) {
             ret |= 0x40;
             pEntry->unk88 &= 0x7FFF;
         }
     }
-    if ((*(u32 *)&pEntry->unk88 & 0x40004000) == 0x4000) {
+    if ((pEntry->unk88 & 0x4000) && !(pEntry->unk8A & 0x4000)) {
         pCnt[0xA] = pCnt[0xA] + 0xFF;
         if (pCnt[0xA] == 0) {
             ret |= 0x20;
             pEntry->unk88 &= 0xBFFF;
         }
     }
-    if ((*(u32 *)&pEntry->unk88 & 0x10001000) == 0x1000) {
+    if ((pEntry->unk88 & 0x1000) && !(pEntry->unk8A & 0x1000)) {
         pCnt[0xB] = pCnt[0xB] + 0xFF;
         if (pCnt[0xB] == 0) {
             ret |= 0x10;
