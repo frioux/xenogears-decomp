@@ -53,9 +53,9 @@ typedef struct BattleActor {
     /* 0x0034 */ s32 unk34;
     /* 0x0038 */ s32 unk38;
     /* 0x003C */ u8 unk3C[0x4];
-    /* 0x0040 */ s32 unk40;
+    /* 0x0040 */ s32 stepDistance;
     /* 0x0044 */ s32 unk44;
-    /* 0x0048 */ s32 unk48;
+    /* 0x0048 */ s32 distance;
     /* 0x004C */ u8 modelIndex;
     /* 0x004D */ u8 unk4D;
     /* 0x004E */ u8 prevPartIndex;
@@ -79,7 +79,7 @@ typedef struct BattleActor {
     /* 0x00B4 */ s16 gaugeValue;
     /* 0x00B6 */ s16 gaugePoints;
     /* 0x00B8 */ s16 prevGaugeValue;
-    /* 0x00BA */ s16 unkBA;
+    /* 0x00BA */ s16 gaugeLevel;
     /* 0x00BC */ s16 gaugeMax;
     /* 0x00BE */ s16 unkBE;
     /* 0x00C0 */ u8 gaugeWidth;
@@ -87,7 +87,7 @@ typedef struct BattleActor {
     /* 0x00C2 */ u8 unkC2;
     /* 0x00C3 */ u8 unkC3;
     /* 0x00C4 */ u8 state;
-    /* 0x00C5 */ u8 unkC5;
+    /* 0x00C5 */ u8 actionPhase;
     /* 0x00C6 */ u8 unkC6[0x2];
     /* 0x00C8 */ s16 unkC8;
     /* 0x00CA */ s16 moveTimer;
@@ -100,25 +100,25 @@ typedef struct BattleActor {
     /* 0x00EC */ u8 unkEC[0x4];
     /* 0x00F0 */ s16 moveFrameCount;
     /* 0x00F2 */ u8 unkF2[0xA];
-    /* 0x00FC */ s32 unkFC;
+    /* 0x00FC */ s32 angleOffset;
     /* 0x0100 */ s32 movePhase;
     /* 0x0104 */ u8 unk104[0x540];
-    /* 0x0644 */ s32 unk644;
-    /* 0x0648 */ s32 unk648;
+    /* 0x0644 */ s32 gaugePercent;
+    /* 0x0648 */ s32 facingAngle;
     /* 0x064C */ u8 unk64C[0x2BD];
-    /* 0x0909 */ u8 unk909;
+    /* 0x0909 */ u8 typeId;
     /* 0x090A */ u8 unk90A;
     /* 0x090B */ u8 unk90B;
     /* 0x090C */ s16 unk90C;
     /* 0x090E */ u8 unk90E;
     /* 0x090F */ u8 unk90F;
-    /* 0x0910 */ u8 unk910;
+    /* 0x0910 */ u8 soundTimer;
     /* 0x0911 */ u8 unk911[0x3];
     /* 0x0914 */ s16 unk914;
     /* 0x0916 */ s16 unk916;
     /* 0x0918 */ u8 unk918[0x14];
     /* 0x092C */ Vec4 unk92C;
-    /* 0x093C */ Vec4 unk93C;
+    /* 0x093C */ Vec4 centerPosition;
     /* 0x094C */ u8 unk94C[0x10];
     /* 0x095C */ Vec4 unk95C;
     /* 0x096C */ u8 unk96C[0x4];
@@ -298,7 +298,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     s32 prod;
     BattleActionData* pActionData;
 
-    p->unk40 = 0;
+    p->stepDistance = 0;
     p->movePhase = 0;
     if (BattleGetScreenMode() != 7) {
         flags = p->flags;
@@ -391,7 +391,7 @@ short BattleTryQueueMessage5(BattleActor* p) {
     if (D_8009284C >= 0x201) {
         return;
     }
-    if (p->unkC5 == 4) {
+    if (p->actionPhase == 4) {
         return;
     }
     flags = p->flags;
@@ -460,10 +460,10 @@ s32 func_80077038(BattleActor* p) {
         p->flags = (p->flags & 0xFF8FFFFF) | 0x300000;
     }
     if (p->unkC3 != 0) {
-        p->unkC5 = 4;
+        p->actionPhase = 4;
         p->unkC3--;
-    } else if (p->unkC5 == 4) {
-        p->unkC5 = 0;
+    } else if (p->actionPhase == 4) {
+        p->actionPhase = 0;
     }
     if (p->moveTimer != 0) {
         p->moveTimer--;
@@ -491,13 +491,13 @@ s32 func_80077038(BattleActor* p) {
     if (p->state == 4) {
         if (p->moveTimer == 0) {
             p->state = 0;
-            p->unkC5 = 0;
+            p->actionPhase = 0;
         }
     } else {
         if (p->floorY - 0x30 < p->position.y) {
             p->state &= ~2;
         }
-        if (p->unk48 != 0) {
+        if (p->distance != 0) {
             p->state |= 1;
         } else {
             p->state &= ~1;
@@ -512,7 +512,7 @@ s32 func_80077038(BattleActor* p) {
             }
             break;
         case 0xF:
-            if (p->unkC5 != 4) {
+            if (p->actionPhase != 4) {
                 p->flags = flags | 0x400;
             }
             break;
@@ -523,18 +523,18 @@ s32 func_80077038(BattleActor* p) {
             break;
         }
     }
-    p->gaugeValue -= p->unkBA;
+    p->gaugeValue -= p->gaugeLevel;
     p->gaugeValue -= p->unk970;
-    if (p->unkBA != 0) {
-        if (p->unk910 == 0) {
+    if (p->gaugeLevel != 0) {
+        if (p->soundTimer == 0) {
             if (BattleGetScreenMode() != 4) {
                 BattlePlaySoundEffectById(0x2D);
             }
-            p->unk910 = 0x14;
+            p->soundTimer = 0x14;
         }
-        p->unk910--;
+        p->soundTimer--;
     } else {
-        p->unk910 = 0;
+        p->soundTimer = 0;
     }
     if (D_800928C4 != 0 && BattleCheckValueAboveScaledMax(p, 0x50) == 0 && (p->flags & 0x8000000)) {
         p->gaugeValue = p->gaugeMax * 0x50 / 0x100;
@@ -551,13 +551,13 @@ s32 func_80077038(BattleActor* p) {
         }
         p->unkC2 = 0xF0;
     }
-    p->unkBA = 0;
+    p->gaugeLevel = 0;
     p->unk970 = 0;
     if (g_BattleMode != 4 && p->gaugeValue == 0 && g_BattleMode != 6 && !(p->flags & 0x800000)) {
         p->modelIndex = 0xD;
         p->prevPartIndex = 0xFF;
         p->state = 5;
-        p->unkC5 = 0;
+        p->actionPhase = 0;
         p->flags |= 0x1000;
         p->vy -= 0x50;
         p->flags |= 0x400;
@@ -603,7 +603,7 @@ void BattleActorBeginMove(BattleActor* p, s32 ang, s32 shift, s32 dec) {
     p->unk916 = 0x28;
     p->stateTimer = 0x28;
     p->state = 4;
-    p->unkC5 = 0;
+    p->actionPhase = 0;
     p->stateFlags &= ~0x10;
     p->flags &= ~0x400;
     func_80077584(p, ang, shift, dec);
@@ -666,7 +666,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
             mode = 2;
             goto done;
         }
-        mid = (p->unk92C.y - p->unk93C.y) * 2 / 3 + p->unk93C.y;
+        mid = (p->unk92C.y - p->centerPosition.y) * 2 / 3 + p->centerPosition.y;
         if (p->unk974.y < mid) {
             if ((flags & 0x700000) == 0x100000) {
                 p->modelIndex = 7;
@@ -797,11 +797,11 @@ void func_80077A9C(BattleActor* p) {
         BattleResetMessageQueue(p);
     }
     if (p->flags & 0x800) {
-        if (p->unkC5 != 4) {
-            p->unkC5 = 0;
+        if (p->actionPhase != 4) {
+            p->actionPhase = 0;
         }
     }
-    if (p->unkC5 == 0 && p->state != 4) {
+    if (p->actionPhase == 0 && p->state != 4) {
         switch (BattleDequeueMessage(p)) {
         case 1:
             if (p->unk914 == 0) {
@@ -819,9 +819,9 @@ void func_80077A9C(BattleActor* p) {
                             flag = 1;
                         }
                         p->flags = flags | 1;
-                        p->unkC5 = 2;
+                        p->actionPhase = 2;
                         p->pActionEntry = pEntry;
-                        p->unk644 = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
+                        p->gaugePercent = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
                     }
                 }
             }
@@ -842,9 +842,9 @@ void func_80077A9C(BattleActor* p) {
                             flag = 1;
                         }
                         p->flags = flags | 1;
-                        p->unkC5 = 2;
+                        p->actionPhase = 2;
                         p->pActionEntry = pEntry;
-                        p->unk644 = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
+                        p->gaugePercent = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
                     }
                 }
             }
@@ -853,7 +853,7 @@ void func_80077A9C(BattleActor* p) {
             BattleResetMessageQueue(p);
             break;
         case 3:
-            if (p->unk914 == 0 && p->pActionData->unk18 != 0 && p->unk909 != 0x29) {
+            if (p->unk914 == 0 && p->pActionData->unk18 != 0 && p->typeId != 0x29) {
                 if (p->state & 2) {
                     p->modelIndex = 4;
                 } else {
@@ -862,7 +862,7 @@ void func_80077A9C(BattleActor* p) {
                 p->prevPartIndex = 0xFF;
                 p->flags |= 0x1000;
                 flag = 1;
-                p->unkC5 = 2;
+                p->actionPhase = 2;
                 p->flags |= 1;
             }
             break;
@@ -871,11 +871,11 @@ void func_80077A9C(BattleActor* p) {
                 return;
             }
             if (!(p->state & 2)) {
-                BattleEffectAddSlotFromVector(&p->unk93C, 9);
+                BattleEffectAddSlotFromVector(&p->centerPosition, 9);
                 p->vy -= 0x8C;
                 p->state |= 2;
                 func_8008ED6C((u8*)p, 0xA);
-                func_8008EBD0((u8*)p, 0xA, &p->unk93C, 2);
+                func_8008EBD0((u8*)p, 0xA, &p->centerPosition, 2);
             }
             break;
         case 5:
@@ -884,7 +884,7 @@ void func_80077A9C(BattleActor* p) {
             p->flags |= 0x1000;
             func_8008EBD0((u8*)p, 0xE, p, 2);
             p->unkC3 = 6;
-            p->unkC5 = 4;
+            p->actionPhase = 4;
             break;
         }
     }
@@ -893,7 +893,7 @@ void func_80077A9C(BattleActor* p) {
     switch (p->state) {
     case 0:
         p->unk58 = 0;
-        switch (p->unkC5) {
+        switch (p->actionPhase) {
         case 0:
             if (p->flags & 2) {
                 p->modelIndex = 0x11;
@@ -915,11 +915,11 @@ void func_80077A9C(BattleActor* p) {
             BattleActorSetFlag80000(p);
             break;
         }
-        p->unkFC = func_8008B650(p->unkFC, p->unk58, 0x100);
+        p->angleOffset = func_8008B650(p->angleOffset, p->unk58, 0x100);
         break;
     case 1:
-        p->unk52 = p->unk48 * p->unk15F2 / 4096;
-        switch (p->unkC5) {
+        p->unk52 = p->distance * p->unk15F2 / 4096;
+        switch (p->actionPhase) {
         case 0:
             p->modelIndex = 1;
             break;
@@ -932,36 +932,36 @@ void func_80077A9C(BattleActor* p) {
             BattleActorSetFlag80000(p);
             break;
         }
-        p->unkFC = func_8008B650(p->unkFC, p->unk58, 0x100);
+        p->angleOffset = func_8008B650(p->angleOffset, p->unk58, 0x100);
         if ((p->flags & 0x60000000) == 0x20000000 && !(p->unk90A & 2)) {
             p->flags &= ~0x8000;
         }
         break;
     case 2:
-        p->unk48 = 0;
+        p->distance = 0;
         p->unk44 = 0;
         p->unk58 = 0;
-        if (p->unkC5 == 0) {
+        if (p->actionPhase == 0) {
             p->modelIndex = 2;
         }
         break;
     case 3:
-        if (p->unkC5 == 0) {
+        if (p->actionPhase == 0) {
             p->modelIndex = 2;
         }
         break;
     case 4:
-        p->unk48 = 0;
+        p->distance = 0;
         break;
     }
-    p->unk40 = p->unk48 * p->unk15F0 * p->unk15F2 >> 16;
+    p->stepDistance = p->distance * p->unk15F0 * p->unk15F2 >> 16;
     if (!(p->flags & 0x8000)) {
         p->stateFlags &= ~0x40;
     }
     if (p->flags & 0x8000) {
-        if (p->unkC5 == 0 && !(p->stateFlags & 0x40) && p->unk40 >= 0x31 && (u32)(p->state - 2) >= 2) {
+        if (p->actionPhase == 0 && !(p->stateFlags & 0x40) && p->stepDistance >= 0x31 && (u32)(p->state - 2) >= 2) {
             if (BattleAccumulateGaugePoints(p, 0x20, 2) != 0) {
-                p->unk40 *= 2;
+                p->stepDistance *= 2;
                 p->unk52 *= 2;
             } else {
                 p->flags &= ~0x8000;
@@ -980,10 +980,10 @@ void func_80077A9C(BattleActor* p) {
 
 
 void BattleActorApplyCenterPosition(BattleActor* p) {
-    p->position = p->unk93C;
+    p->position = p->centerPosition;
     p->modelIndex = 0;
     p->state = 0;
-    p->unkC5 = 0;
+    p->actionPhase = 0;
     p->flags |= 0x2000000;
 }
 
@@ -992,11 +992,11 @@ extern u8 D_80092884;
 extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern u8 g_BattleCameraLerpFrames;
 
-/* 89.19%: every call, both lerp limiter paths, the unkC5==4 reset, the 0x40000
+/* 89.19%: every call, both lerp limiter paths, the actionPhase==4 reset, the 0x40000
    cos/sin pair, the p->unk44 steer block, the D_80092850 target-follow block and
    the final fade all line up, and the frame is retail's exactly (0x30, s0/s1/s2,
    delta at sp+0x10). Three residuals, all allocator/scheduling, no structure:
-   - the p->unkC5==2 block: retail keeps the 0xFFF7FFFF mask in $a0, the 0x90C
+   - the p->actionPhase==2 block: retail keeps the 0xFFF7FFFF mask in $a0, the 0x90C
      value in $v1 and the flags in $v0, and its two `sw 0xD0` stores are merged by
      cross-jumping into one at the join; ours uses $v0/$a0/$v1 and sinks the store
      into the following `if (p->flags & 0x40000)` arm. Declaring a shared `u32
@@ -1022,47 +1022,47 @@ void func_80078194(BattleActor* p) {
     s32 mode;
 
     p->prevPosition = p->position;
-    p->unk95C = p->unk93C;
-    angle = p->unk40;
+    p->unk95C = p->centerPosition;
+    angle = p->stepDistance;
     target = g_BattleFacingAngle;
     if (p->flags & 0x8000000) {
         target += 0x800;
     }
     if (p->state == 0) {
-        if (p->unkFC != 0) {
-            p->unk648 = target;
+        if (p->angleOffset != 0) {
+            p->facingAngle = target;
         } else {
-            p->unk648 = func_8008B650(p->unk648, target, 0x100);
+            p->facingAngle = func_8008B650(p->facingAngle, target, 0x100);
         }
         if (g_BattleCameraLerpFrames >= 5) {
             g_BattleCameraLerpFrames = 4;
         }
     } else if (p->state == 1) {
         if (D_8009284C >= 0x101) {
-            if (p->unkFC != 0) {
-                p->unk648 = target;
+            if (p->angleOffset != 0) {
+                p->facingAngle = target;
             } else {
-                p->unk648 = func_8008B650(p->unk648, target, 0x100);
+                p->facingAngle = func_8008B650(p->facingAngle, target, 0x100);
             }
         }
         if (g_BattleCameraLerpFrames >= 3) {
             g_BattleCameraLerpFrames = 2;
         }
     }
-    if (p->unkC5 == 4) {
+    if (p->actionPhase == 4) {
         angle = -(p->unkC3 * 0x50) / 3;
         p->angle = target;
-        p->unk648 = target;
-        p->unkFC = 0;
-        p->unk40 = 0;
+        p->facingAngle = target;
+        p->angleOffset = 0;
+        p->stepDistance = 0;
         p->unk94 = 0;
         p->unk8C = 0;
         p->unk88 = 0;
         p->unk90 = 0;
     } else {
-        p->angle = p->unk648 + p->unkFC;
+        p->angle = p->facingAngle + p->angleOffset;
     }
-    if (p->unkC5 == 2) {
+    if (p->actionPhase == 2) {
         if ((p->flags & 1) || (p->state & 2)) {
             p->unk90C = target;
         }
@@ -1072,8 +1072,8 @@ void func_80078194(BattleActor* p) {
         p->flags &= ~0x100;
     }
     if (p->flags & 0x40000) {
-        p->vx = -(rcos(p->unk648 + p->unkFC) * angle) >> 12;
-        p->vz = -(rsin(p->unk648 + p->unkFC) * angle) >> 12;
+        p->vx = -(rcos(p->facingAngle + p->angleOffset) * angle) >> 12;
+        p->vz = -(rsin(p->facingAngle + p->angleOffset) * angle) >> 12;
     } else {
         p->flags &= 0xFFF7FFFF;
     }
@@ -1142,7 +1142,7 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActor* pEdges,
     dx = pTo->x - pFrom->x;
     side0 = dz * pEdges->prevPosition.x + dx * pEdges->prevPosition.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
     side1 = dz * pEdges->unk92C.x + dx * pEdges->unk92C.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
-    side2 = dz * pEdges->unk93C.x + dx * pEdges->unk93C.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
+    side2 = dz * pEdges->centerPosition.x + dx * pEdges->centerPosition.z + pFrom->x * pTo->z - pTo->x * pFrom->z;
     if (side0 < 0) {
         side0 = -1;
     } else if (side0 > 0) {
@@ -1163,10 +1163,10 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActor* pEdges,
     if (prod1 < 0) {
         if (prod2 < 0) {
             s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C, pFrom);
-            if (BattleVectorDistance2D(&pEdges->unk93C, pFrom) < dist92C) {
+            if (BattleVectorDistance2D(&pEdges->centerPosition, pFrom) < dist92C) {
                 *ppEdge = &pEdges->unk92C;
             } else {
-                *ppEdge = &pEdges->unk93C;
+                *ppEdge = &pEdges->centerPosition;
             }
             return 0;
         }
@@ -1174,15 +1174,15 @@ s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, BattleActor* pEdges,
         return 1;
     }
     if (prod2 < 0) {
-        *ppEdge = &pEdges->unk93C;
+        *ppEdge = &pEdges->centerPosition;
         return 2;
     }
     {
         s32 dist92C = BattleVectorDistance2D(&pEdges->unk92C, pFrom);
-        if (dist92C < BattleVectorDistance2D(&pEdges->unk93C, pFrom)) {
+        if (dist92C < BattleVectorDistance2D(&pEdges->centerPosition, pFrom)) {
             *ppEdge = &pEdges->unk92C;
         } else {
-            *ppEdge = &pEdges->unk93C;
+            *ppEdge = &pEdges->centerPosition;
         }
     }
     return 3;
