@@ -95,7 +95,8 @@ typedef struct BattleActorSprite {
     /* 0x64 */ void* pSpriteBytecode;
     /* 0x68 */ u8 unk68[0x4];
     /* 0x6C */ void* field_0x6C;
-    /* 0x70 */ u8 unk70[0x8];
+    /* 0x70 */ u8 unk70[0x4];
+    /* 0x74 */ struct BattleActorSprite* pTargetEntitySprite;
     /* 0x78 */ u32 field_0x78;
     /* 0x7C */ u8 unk7C[0x4];
     /* 0x80 */ s16 field_0x80;
@@ -125,6 +126,14 @@ typedef struct {
     /* 0x0 */ u8 unk0[0x4];
     /* 0x4 */ BattleModelPosition* pModelPosition;
 } BattleSlotRecord; // Size: 0x8
+
+// The 0x1C-byte per-slot records at the head of g_BattleStateWork.
+typedef struct {
+    /* 0x00 */ u8 unk0[0xE];
+    /* 0x0E */ u16 unkE;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ u8 unk12[0xA];
+} BattleActorSlot; // Size: 0x1C
 
 extern BattleSlotRecord* g_BattleActors[];
 
@@ -182,63 +191,65 @@ extern void func_800B9284(SpriteData* pSprite, s32 code);
 extern u16 D_800D39E4;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
-/* 86.54%: 516 bytes against retail's 512, so one instruction too many.  The head
-   (the 0x48-stride index, the 0x15B dispatch, the two 0x40 flag stores and both
-   BattleFaceActorsTowardEachOther calls) is exact, and so is the four-insn index
-   recovery for pSlot.  Left over: (1) retail loads the sprite's and the target's
-   flag words A8 then AC (A8 into $v0), ours AC then A8, because the mask is one
-   expression `(1 << i) | (1 << j)` -- the `li a1,1` it hoists is right; (2) the
-   x/+-0x50 pair: retail copies x into $a1 (`move a1,a2`) and re-issues
-   `slt v0,a1,a3` in both branch delay slots, ours re-loads x with `lhu` and
-   sign-extends it, and the two tests come out inverted (bne/beq) with a
-   destructively-merged tail.  (3) the six u16 copies at the end: retail
-   materialises the source base into $v0 and the destination into $v1, ours the
-   other way round (D_800D30A0/D_800D3354/... spellings are right).
-   Tried: if/else-if vs ternary for the +-0x50 pair, x reloaded vs reused,
-   pTarget assigned twice (needed - retail loads 0x74 again after the call) vs
-   once, mask as `mask = 1<<i; mask |= 1<<j` (gives the li late) vs one
-   expression (li a1,1 hoisted, retail's shape).  A permuter job.
+/* 94.47%, 508 bytes against retail's 512, so ONE instruction short.  Everything
+   the earlier 86.54% park was missing is now exact and driven by the source:
+   the mask loads the 0xA8 word before the 0xAC one because each index is
+   written `(A8 >> 30) | ((AC & 3) << 2)` (the AC-left spelling flips the `or`
+   destination to the AC word and swaps the loads -- 85.60%); the x/0x50 block
+   is laid out retail's way (bne to the non-equal body, beq to the equal one,
+   the `slt` in the beq's delay slot) only when written as
+   `if (x != pSlot->unkE || z != pSlot->unk10) { non-equal } else { equal }` --
+   the `==`/`&&` form puts the equal body first with inverted branches; and the
+   z store needs an s32 local (an s16 store value makes gcc use lhu, retail lh).
+   Left over, both allocator ties: retail keeps x in $a2 for the +-0x50
+   arithmetic and a COPY in $a1 for the compares (`move a1,a2`) and so re-issues
+   `slt v0,a1,a3` in BOTH branch delay slots -- that duplicate is the missing
+   instruction; and the six u16 copies at the end carry the source base in $v0
+   and the destination in $v1 where ours are swapped.
+   Tried: s16 vs s32 for x and z, `&&` vs `||`, nested if vs else-if, AC-left vs
+   A8-left mask, one expression vs index locals (locals defer both `sllv` past
+   the second index), and a 4-minute permuter run (base=1388, best=1188) whose
+   only usable find was the z hoist kept below.
 void func_800B905C(void) {
-    s32 index;
-    s32 slotIndex;
-    s32 mask;
-    s16 x;
-    SpriteData* pSprite;
-    SpriteData* pTarget;
+    BattleActorSprite* pSprite;
+    BattleActorSprite* pTarget;
+    BattleActorSlot* pSlot;
     u8* pBase;
-    u8* pSlot;
-    u8* pSlot2;
+    s32 index;
+    s32 mask;
+    s32 x;
+    s32 z;
 
     pBase = g_BattleStateWork;
     func_800BEFF4(pBase[D_800C360C * 0x48 + 0x15B]);
-    pSprite = g_BattleState->pCurSprite;
+    pSprite = (BattleActorSprite*)g_BattleState->pCurSprite;
     func_800BF3E8(pSprite);
     if (pBase[0xA78] != 0) {
         pTarget = pSprite->pTargetEntitySprite;
-        pTarget->flags_0xAC |= 0x40;
-        pSprite->flags_0xAC |= 0x40;
+        pTarget->flags_0xAC.flags |= 0x40;
+        pSprite->flags_0xAC.flags |= 0x40;
         BattleFaceActorsTowardEachOther(pSprite, pTarget);
         pTarget = pSprite->pTargetEntitySprite;
-        mask = (1 << (((*(u32*)((u8*)pSprite + 0xAC) & 3) << 2) | (*(u32*)((u8*)pSprite + 0xA8) >> 30))) |
-               (1 << (((*(u32*)((u8*)pTarget + 0xAC) & 3) << 2) | (*(u32*)((u8*)pTarget + 0xA8) >> 30)));
+        mask = (1 << ((pSprite->flags_0xA8 >> 30) | ((pSprite->flags_0xAC.flags & 3) << 2))) |
+               (1 << ((pTarget->flags_0xA8 >> 30) | ((pTarget->flags_0xAC.flags & 3) << 2)));
         func_800BC460(mask);
-        index = *(u32*)((u8*)pTarget + 0xA8) >> 30;
-        slotIndex = ((*(u32*)((u8*)pTarget + 0xAC) & 3) << 2) | index;
-        pSlot = pBase + slotIndex * 0x1C;
-        x = *(s16*)((u8*)pTarget + 0x2);
-        if (x == *(u16*)(pSlot + 0xE) && *(s16*)((u8*)pTarget + 0xA) == *(u16*)(pSlot + 0x10)) {
-            if (*(s16*)((u8*)pSprite + 0x2) < x) {
-                *(s16*)((u8*)pSprite + 0xA0) = x - 0x50;
+        index = (pTarget->flags_0xA8 >> 30) | ((pTarget->flags_0xAC.flags & 3) << 2);
+        pSlot = &((BattleActorSlot*)pBase)[index];
+        x = pTarget->position.parts.xWhole;
+        if (x != pSlot->unkE || pTarget->position.parts.zWhole != pSlot->unk10) {
+            if (x < pSlot->unkE) {
+                pSprite->targetPosition.x = x - 0x50;
             } else {
-                *(s16*)((u8*)pSprite + 0xA0) = x + 0x50;
+                pSprite->targetPosition.x = x + 0x50;
             }
-        } else if (x < *(u16*)(pSlot + 0xE)) {
-            *(s16*)((u8*)pSprite + 0xA0) = x - 0x50;
+        } else if (pSprite->position.parts.xWhole < x) {
+            pSprite->targetPosition.x = x - 0x50;
         } else {
-            *(s16*)((u8*)pSprite + 0xA0) = x + 0x50;
+            pSprite->targetPosition.x = x + 0x50;
         }
-        *(s16*)((u8*)pSprite + 0xA2) = 0;
-        *(s16*)((u8*)pSprite + 0xA4) = *(s16*)((u8*)pTarget + 0xA);
+        z = pTarget->position.parts.zWhole;
+        pSprite->targetPosition.y = 0;
+        pSprite->targetPosition.z = z;
         func_800BC460(mask);
         D_800D3354[0] = D_800D30A0[0];
         D_800D3354[1] = D_800D30A0[1];
