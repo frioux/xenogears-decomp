@@ -297,6 +297,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
    move above the angle cluster) but gcc then hoists the three angle loads and
    the two remaining constant clears, so the last six stores come out in a
    different order (a=0xA0, b=0xA8, c=0xB0, d=0xB8 are the four SVECTORs).
+   permute.sh from this exact body: PERMUTER_BETTER base=3195 best=2015 in 3 min,
+   and the only edit it found that helped was routing two of the four
+   `pEntries = (WorldMapEntry *)D_8009C620;` loads through a `WorldMapState *`
+   temporary (permuter/func_800783E8/output-2015-1), i.e. this last stretch is a
+   register-allocation question: run the permuter again from the improved body.
 s32 func_800783E8(s32 index) {
     WorldMapActor *p;
     WorldMapEntry *pEntries;
