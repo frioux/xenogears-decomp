@@ -79,36 +79,48 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     }
     return ret;
 }
-// PARKED (95.32%). Body COMPILES (park triage, round 111). 124 bytes of retail
-// against 120 here, and the 4 missing bytes are retail's `addu v1,v0,zero` copy of
-// the byte sum into the u8 result before the clamp compare - gcc 2.7.2 coalesces
-// `u8 value = sum;` into the sum pseudo, so the body cannot link as it stands.
-// What got it from 94.68 to 95.32: writing the row bump as an ASSIGNMENT
-// (`p = p + arg1 * 0x28;`) gives retail's base-first `addu v1,v1,v0`, and forming
-// q next to the two loads gives retail's two-addu-then-two-lbu order.
-// Remaining gap: that copy, and a mirror register allocation (retail p byte in
-// $v0, q byte in $v1; here the other way round). Tried: s32 sum + u8 copy, `+=` vs
-// one expression, sum kept live via a wider compare, the 0x5B offset in a local
-// (permuter found that one, no change), permuter 1837 iterations (best 91.8%).
+// PARKED (99.68%, 124 bytes = retail's size). Body COMPILES. Round 122: the permuter
+// broke the old 95.32 wall. The `u8 value = sum;` copy retail materialises
+// (`addu v1,v0,zero`) DOES appear once the clamp's store sits in two branches -
+// `if (sum || sum) { value = 0x64; } else { value = 0x64; }` - because two store
+// sites stop gcc 2.7.2 coalescing value into the sum pseudo. Also load-bearing:
+// sum is `short` (s32 instead mirrors the two lbu), the byte sum is two statements
+// (`sum = p[0x14]; sum = sum + q[0x5B];`), and q is formed index-first
+// (`(u8*)(arg0 * 0x170) + (u32)D_800C34B0`) for retail's `addu a2,a2,a3`.
+// Only remaining diff, one register: retail `addu v0,v0,v1` + `move v1,v0`, here
+// `addu a0,v0,v1` + `move v1,a0`. Everything else matches, including both lbu
+// (retail p byte in v0, q byte in v1). sum's home is a0, the lowest free reg,
+// where retail kept it in v0.
+// Tried this round: u8 sum (loses the copy, 95.65), u_short sum (addu into a1,
+// 99.03), s32 sum with the split (lbu mirror a1/v0, 99.03), s32 with value loaded
+// first (98.39), one-expression sum with the duplicate store (98.06), value/sum
+// declaration order swapped (no change). Permuter rounds this session, base/best
+// score: 60/40 (split the sum), 40/20 (short sum), 20/10 (the sum || sum condition).
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
     u8* p = (u8*)off + (u32)D_800C34B0;
     u8* q;
-    s32 sum;
+    short sum;
     u8 value;
 
     p = p + arg1 * 0x28;
-    q = (u8*)D_800C34B0 + arg0 * 0x170;
-    sum = p[0x14] + q[0x5B];
+    q = (u8*)(arg0 * 0x170) + (u32)D_800C34B0;
+    sum = p[0x14];
+    sum = sum + q[0x5B];
     value = sum;
     if (value > 0x64) {
-        value = 0x64;
+        if (sum || sum) {
+            value = 0x64;
+        } else {
+            value = 0x64;
+        }
     }
     return value;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 
 u8 BattleGetGameCharacterField5(u8 arg0) {
