@@ -80,6 +80,15 @@ extern void BattleClearPrimFlagsThreeSlots(u8);
 extern void BattleSetPrimFlagsThreeSlots(u8);
 extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
+extern u8 D_800CCD88[];
+extern u8 g_BattleMenuEvent;
+extern void BattleFreePacketPrimitives(void);
+extern void BattleClearFlagC6(void);
+extern void BattleFreeSlotBuffers(u8);
+extern void BattleDrawCharStatusIfMaskUnset(u8, u8);
+extern void BattleStepAnimatedCursorPrim(s32, s32, s32 *, u8 *);
+extern void func_800930AC(u8, u8 *, u16 *);
+extern void func_80077698(void);
 
 u8 func_8008CDE4(u8 arg0, u8 arg1) {
     u16 statusMasks[4];
@@ -120,6 +129,108 @@ u8 func_8008CDE4(u8 arg0, u8 arg1) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
+/* 98.03%, and retail's 880 bytes exactly (220 insns): the whole body is
+   instruction-identical apart from the POSITION of three prologue insns --
+   `sw s7,0x64(sp); li s7,2` (the `state = 2` save/init pair) must come after
+   the `cursor = 0; lastCursor = 0xFF;` pair, and `li s5,0x5C8` (rowOffset) 7
+   slots later than gcc puts it. Writing the inits in retail's order
+   (cursor, lastCursor, state) does move them there but then swaps cursor into
+   $s4 and state into $s3, so the pair order and the register choice trade off
+   against each other (the permuter's earlier win was an extra `u8 limit`
+   local that fixed an $s2/$s4 tie). Tried: 6 init orders, 3 declaration
+   orders, the for-init comma assignment for rowOffset, a rowBase local for the
+   row address, `while (state == 2)` (the loop shape below - it is what makes
+   gcc emit retail's entry `j test` and puts state in $s7/arg0 in $s8), and two
+   permuter runs (the second found nothing from this body). Everything else is
+   matched: the 4-entry code/damage fill, the status-mask row table read
+   (D_800CCD62[slot].flags, D_800CCD88[slot * 0x170], D_800CEF10 +
+   rowOffset + slot * 0x690 + 0x24), the three func_8008F8F4 call sites, the
+   func_800930AC(codes, damage) pair, the menu-event switch (source case order
+   5,4,1,3 -- that is what reproduces retail's case-body layout) and the five
+   teardown calls. */
+/*
+u8 func_8008CFB8(u8 arg0) {
+    u8 codes[4];
+    u16 damage[4];
+    u16 statusMasks[4];
+    s32 cursorFrame;
+    u8 cursorTimer;
+    s32 lastCursor;
+    u8 limit;
+    u8 state;
+    s32 cursor;
+    s32 rowOffset;
+    s32 rowBase;
+    s32 i;
+
+    state = 2;
+    cursor = 0;
+    lastCursor = 0xFF;
+    statusMasks[0] = D_800C324E;
+    statusMasks[1] = D_800C3250;
+    statusMasks[2] = D_800C3252;
+    statusMasks[3] = D_800C323A;
+    cursorFrame = 4;
+    cursorTimer = 0;
+    for (i = 0; i < 4; i++) {
+        codes[i] = 0xFF;
+        damage[i] = 0;
+    }
+    for (i = 0, rowOffset = 0x25 * 0x28; i < (limit = 4); i++) {
+        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk1E, i) != 0 &&
+            (D_800CCD62[arg0].flags & statusMasks[i]) == 0) {
+            codes[i] = D_800CCD88[arg0 * 0x170] * 4 + i;
+            rowBase = rowOffset + arg0 * 0x690;
+            damage[i] = *(u16 *)(D_800CEF10 + rowBase + 0x24);
+        }
+        rowOffset += 0x28;
+    }
+    g_BattleDisplayState->unkCB = 0;
+    func_8008F8F4(0, 0x74, 0xA0, 0xAC, 0x38, 0, 1);
+    func_8008F8F4(1, 0x84, 0x4C, 0x9C, 0x50, 0, 1);
+    func_8008F8F4(2, 0x1C, 0xA0, 0x50, 0x18, 0, 1);
+    func_800930AC(arg0, codes, damage);
+    func_80077698();
+    while (state == 2) {
+        if (cursor != lastCursor) {
+            BattleDrawCharStatusIfMaskUnset(arg0, cursor);
+            lastCursor = cursor;
+        }
+        BattleStepAnimatedCursorPrim(0x8C, cursor * 0x10 + 0x58, &cursorFrame, &cursorTimer);
+        BattleUpdateFrame();
+        switch (g_BattleMenuEvent) {
+        case 5:
+            state = 0;
+            break;
+        case 4:
+            if (func_8008CDE4(arg0, cursor) != 0) {
+                state = 1;
+                g_BattleCommandQueue[0x2E6] = cursor + 0x10;
+            }
+            break;
+        case 1:
+            cursor++;
+            if (cursor >= limit) {
+                cursor = 3;
+            }
+            break;
+        case 3:
+            cursor--;
+            if (cursor < 0) {
+                cursor = 0;
+            }
+            break;
+        }
+    }
+    BattleClearPrimFlagsThreeSlots(state);
+    BattleFreePacketPrimitives();
+    BattleClearFlagC6();
+    BattleFreeSlotBuffers(0);
+    BattleFreeSlotBuffers(1);
+    BattleFreeSlotBuffers(2);
+    return state;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 /* 93.85% (was 57.0 with a count local and 66.0 with an s32 k local): the loop
    shapes, both guards, the two SetX calls and the three byte stores all match.
