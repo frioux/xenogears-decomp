@@ -454,12 +454,13 @@ void func_8009031C(BattleActor* pActor, BattleWork* pWork) {
             }
             BattleEnterWorkState2(pActor, 0);
             break;
-        case 1:
         case 2:
             if (pActor->unk911 != 0) {
                 func_8008FFEC(pActor, pWork);
                 break;
             }
+            /* fall through */
+        case 1:
             BattleEnterWorkState0(pActor);
             break;
         case 3:
