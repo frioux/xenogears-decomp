@@ -527,7 +527,6 @@ extern int rand(void);
 // s16 counters and +0x8/+0x14 their offset/delta pairs). Everything above the shake
 // block is exact.
 // screened: Default 96.11 (best) - not a preset question.
-/*
 void func_80072D74(void) {
     s32* pSnapFrames;
     s32* pShakeOffset;
@@ -562,11 +561,12 @@ void func_80072D74(void) {
     FIELD_CAMERA_STEP(g_CameraAt.vz, g_CameraAt2.vz, g_CamInterpolation.atStepDistance, atStepSq);
     FIELD_CAMERA_STEP(g_CameraAt.vy, g_CameraAt2.vy, g_CamInterpolation.atStepDistance, atStepSq);
 
-    pShakeOffset = &g_FieldCameraShakeOffset;
-    *pShakeOffset = 0;
+    g_FieldCameraShakeOffset = 0;
     D_800AF8E4 = 0;
     D_800AF8E8 = 0;
     if (((s16*)g_Scene.unk98)[0] != 0) {
+        s32 shakeZ;
+
         if (((s16*)g_Scene.unk98)[1] != 0) {
             ((s32*)g_Scene.unk98)[2] += ((s32*)g_Scene.unk98)[5];
             ((s32*)g_Scene.unk98)[3] += ((s32*)g_Scene.unk98)[6];
@@ -578,9 +578,11 @@ void func_80072D74(void) {
             ((s16*)g_Scene.unk98)[0] = 0;
             ((s16*)g_Scene.unk98)[2] = 0;
         }
+        pShakeOffset = &g_FieldCameraShakeOffset;
         *pShakeOffset = rand() * ((s16*)g_Scene.unk98)[5];
         D_800AF8E4 = rand() * ((s16*)g_Scene.unk98)[7];
-        D_800AF8E8 = rand() * ((s16*)g_Scene.unk98)[9];
+        shakeZ = rand() * ((s16*)g_Scene.unk98)[9];
+        D_800AF8E8 = shakeZ;
         if (*pShakeOffset < 0) {
             *pShakeOffset = 0;
             ((s32*)g_Scene.unk98)[2] = 0;
@@ -589,7 +591,7 @@ void func_80072D74(void) {
             D_800AF8E4 = 0;
             ((s32*)g_Scene.unk98)[3] = 0;
         }
-        if (D_800AF8E8 < 0) {
+        if (shakeZ < 0) {
             D_800AF8E8 = 0;
             ((s32*)g_Scene.unk98)[4] = 0;
         }
@@ -598,8 +600,6 @@ void func_80072D74(void) {
         }
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
 
