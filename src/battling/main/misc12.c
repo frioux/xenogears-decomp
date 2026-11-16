@@ -19,14 +19,19 @@ typedef struct {
     /* 0x4 */ void* pData;
 } BattleMisc12Owner; // Size: 0x8
 
-// Slot table entry, 0xF8 bytes, indexed by slot number.
+// Slot table entry, 0xF8 bytes, indexed by slot number. At +0x74 it carries the
+// semi-transparent 16x16 sprite prim BattleInitSlotDrawEntry initialises: tag
+// with length 3 and code 0x7D (what setSprt16 does, plus the semi-transparency
+// bit), x0/y0, then the u0/v0 halfword and the clut.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x77];
-    /* 0x77 */ u8 unk77;
+    /* 0x00 */ u8 unk0[0x74];
+    /* 0x74 */ u8 tagAddr[3];
+    /* 0x77 */ u8 len;
     /* 0x78 */ u8 unk78[3];
-    /* 0x7B */ u8 unk7B;
-    /* 0x7C */ u8 unk7C[4];
-    /* 0x80 */ u16 unk80;
+    /* 0x7B */ u8 code;
+    /* 0x7C */ u16 x0;
+    /* 0x7E */ u16 y0;
+    /* 0x80 */ u16 uv;
     /* 0x82 */ u16 clut;
     /* 0x84 */ u8 unk84[0x74];
 } BattleEntry; // Size: 0xF8
@@ -339,9 +344,9 @@ void BattleInitSlotDrawEntry(s32 slot) {
     BattleEntry* pEntry;
 
     pEntry = &g_BattleDrawBuffers[slot];
-    pEntry->unk77 = 3;
-    pEntry->unk7B = 0x7D;
-    pEntry->unk80 = 0x3000;
+    pEntry->len = 3;
+    pEntry->code = 0x7D;
+    pEntry->uv = 0x3000;
     pEntry->clut = GetClut(0x3F0, 0xC0);
 }
 
