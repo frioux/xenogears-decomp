@@ -494,7 +494,198 @@ int FieldGetActorDistance2D(int actorIndexA, int actorIndexB) {
     return FieldGetVec2Magnitude(posXB - posXA, posZB - posZA);
 }
 
+extern u_short D_800ADFA8[];
+extern s16 D_800ADFC4[];
+extern s32 D_800AF858;
+extern u_char D_800B21CC;
+extern void* g_FieldActorModelPointers[];
+
+// This unit writes one word at SpriteData+0x10, which include/field/actor.h
+// splits into two 16-bit texture coordinates.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x10];
+    /* 0x10 */ s32 unk10;
+    /* 0x14 */ u8 unk14[0x8];
+    /* 0x1C */ s32 gravity;
+} SpritePhysicsView; // Size: 0x20
+
+// pActor->unk110: 0xC bytes holding the copy of the tracked actor's rotation
+// the deltas below are taken against, then the last measured distance.
+typedef struct {
+    /* 0x0 */ u_short rotationX;
+    /* 0x2 */ u_short rotationY;
+    /* 0x4 */ u_short rotationZ;
+    /* 0x6 */ u_short unk6;
+    /* 0x8 */ s16 distance;
+    /* 0xA */ u_short unkA;
+} FieldActorTargetTrack; // Size: 0xC
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
+/* 95.34% (1448 bytes vs retail's 1424, 362 vs 356 insns). Everything structural
+   is settled; what is left is register allocation plus two orderings.
+   Settled:
+   - arg1 is FieldActor* and arg2 is the actor's ActorData* (the caller
+     func_8008110C passes &g_FieldActors[i] and its 0x4C field). arg1 is used
+     for exactly one load, pSpriteData.
+   - The 0x74 field is re-read from memory at every one of its six uses, and the
+     three delta blocks each re-read it and pActor->unk110; only the
+     g_FieldActors pointer is loaded once for those three, so the source read
+     that global into a local (pTracked) for the deltas and spelled it out again
+     for the target positions, which is what retail does (a1 kept across the
+     three deltas, a fresh lui/lw before the target position loads).
+   - D_800ADFA8 is u_short[8] and g_FieldControl.unkAngle is read unsigned (lhu
+     in retail), hence the (u_short) cast and the u_short extern.
+   - The height clamp must be written condition-inverted (limit <= unkF0 >> 16
+     storing limit << 16 first, gravity add in the else): 94.74% -> retail's
+     exact delay-slot shape, where the or-else value is what reorg steals into
+     the beqz slot.
+   - The move updates must NOT be written as (targetPos - pos) + step; retail
+     re-forms the subtraction at each site, so the term order is
+     targetPos + step - pos.
+   Diffs left:
+   (1) One extra callee-saved register: mine keeps the s16 rotation delta in s7
+       and pushes actorIndex to s8 (10 saved words vs retail's 9), while retail
+       puts the s16 delta in s0 (reusing dead stepX) and actorIndex in s7. Tried
+       s32/s16 deltas, a separate truncated local assigned right after the
+       subtraction, and dropping the intermediate entirely - always 95.34%.
+   (2) The triMaterial & 0x400000 block: retail emits move.vx += stepX; then
+       rotation.x |= 0x8000; then move.vz += stepZ, mine merges the two move
+       updates and stores rotation.x last (source order is already retail's).
+   (3) One duplicated andi triMaterial,0x8000 lands in a branch delay slot.
+void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
+    IVEC3 moveVec;
+    VECTOR normal;
+    VECTOR unitNormal;
+    VECTOR unused;
+    SVECTOR delta;
+    SpritePhysicsView* pSprite;
+    u_int triMaterial = 0;
+    s32 stepX = 0;
+    s32 stepZ = 0;
+    s32 limit;
+    s32 angle;
+    s32 distance;
+    s32 posX;
+    s32 posZ;
+    s32 targetPosX;
+    s32 targetPosZ;
+    s16 dyAngle;
+    FieldActor* pTracked;
+    ActorData* pTarget;
+
+    if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
+        if (D_800B21CC == 0) {
+            triMaterial = pActor->curWalkmeshTriMaterial;
+        }
+    }
+    pSprite = (SpritePhysicsView*)pFieldActor->pSpriteData;
+    FieldGetVec2FromPolar(&moveVec, D_800ADFC4[(triMaterial >> 9) & 3],
+        (D_800ADFA8[(triMaterial >> 11) & 7] + (u_short)g_FieldControl.unkAngle) & 0xFFF);
+    if (pActor->scriptFlags.flags & 0x41800) {
+        if (triMaterial & 0x4000) {
+            pActor->move.vx += moveVec.x;
+            pActor->move.vy += moveVec.y;
+            pActor->move.vz += moveVec.z;
+        }
+    } else {
+        s32 height = pActor->unkF0;
+
+        if (triMaterial & 0x420000) {
+            normal.vx = -(pActor->curTriNormal.vx * pActor->curTriNormal.vy) >> 15;
+            normal.vy = 0;
+            normal.vz = -(pActor->curTriNormal.vz * pActor->curTriNormal.vy) >> 15;
+            if (normal.vx == 0) {
+                normal.vx = 1;
+            }
+            if (normal.vy == 0) {
+                normal.vy = 1;
+            }
+            if (normal.vz == 0) {
+                normal.vz = 1;
+            }
+            VectorNormal(&normal, &unitNormal);
+            if (unitNormal.vx == 0) {
+                unitNormal.vx = 1;
+            }
+            if (unitNormal.vy == 0) {
+                unitNormal.vy = 1;
+            }
+            if (unitNormal.vz == 0) {
+                unitNormal.vz = 1;
+            }
+            stepX = unitNormal.vx * (height >> 17) << 4;
+            stepZ = unitNormal.vz * (height >> 17) << 4;
+            limit = 0xC;
+            if (triMaterial & 0x400000) {
+                limit = 0x18;
+            }
+            if (limit <= (pActor->unkF0 >> 16)) {
+                pActor->unkF0 = limit << 16;
+            } else {
+                pActor->unkF0 += pSprite->gravity;
+            }
+            pSprite->unk10 = pActor->unkF0 >> 1;
+        }
+        if (triMaterial & 0x400000) {
+            pActor->move.vx += stepX;
+            ((u_short*)&pActor->rotation.vx)[0] |= 0x8000;
+            pActor->move.vz += stepZ;
+        }
+        if (pActor->canInteract == 0xFF) {
+            if (triMaterial & 0x20000) {
+                pActor->move.vx += stepX;
+                pActor->move.vz += stepZ;
+            }
+        }
+        if (triMaterial & 0x8000) {
+            pActor->move.vx += moveVec.x;
+            pActor->move.vy += moveVec.y;
+            pActor->move.vz += moveVec.z;
+        }
+    }
+
+    if (pActor->canInteract != 0xFF) {
+        if ((g_FieldActors[pActor->canInteract].pActorData->flags & 0xC0) == 0xC0) {
+            if (!(pActor->flags134 & 0x80)) {
+                pActor->unk110 = HeapAlloc(0xC, 0);
+                pActor->flags134 |= 0x80;
+            }
+            pTracked = g_FieldActors;
+            delta.vx = pTracked[pActor->canInteract].rotation.x -
+                ((FieldActorTargetTrack*)pActor->unk110)->rotationX;
+            dyAngle = pTracked[pActor->canInteract].rotation.y -
+                ((FieldActorTargetTrack*)pActor->unk110)->rotationY;
+            delta.vy = dyAngle;
+            delta.vz = pTracked[pActor->canInteract].rotation.z -
+                ((FieldActorTargetTrack*)pActor->unk110)->rotationZ;
+            ((FieldActorTargetTrack*)pActor->unk110)->rotationY =
+                pTracked[pActor->canInteract].rotation.y;
+            pTarget = g_FieldActors[pActor->canInteract].pActorData;
+            posX = pActor->position.vx;
+            posZ = pActor->position.vz;
+            targetPosX = pTarget->position.vx;
+            targetPosZ = pTarget->position.vz;
+            if (!(((u_short*)&pActor->rotation.vx)[0] & 0x8000)) {
+                ((FieldActorTargetTrack*)pActor->unk110)->distance =
+                    FieldGetActorDistance2D(actorIndex, pActor->canInteract);
+            }
+            distance = ((FieldActorTargetTrack*)pActor->unk110)->distance;
+            angle = (s16)ratan2(targetPosZ - posZ, targetPosX - posX) - dyAngle - 0x800;
+            pActor->move.vx += targetPosX + ((rsin(angle) * distance) << 4) - posX;
+            pActor->move.vz += targetPosZ + ((rcos(angle) * distance) << 4) - posZ;
+        }
+    }
+
+    if ((pActor->flags & 0x22000) == 0x22000) {
+        pActor->move.vx -= (((s32*)g_FieldActorModelPointers[D_800AF858])[0x128 / 4] << 16) /
+            pActor->moveSpeed << 8;
+        pActor->move.vz -= (((s32*)g_FieldActorModelPointers[D_800AF858])[0x130 / 4] << 16) /
+            pActor->moveSpeed << 8;
+        D_800AF858++;
+    }
+}
+*/
+
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082BB8);
 
