@@ -591,6 +591,7 @@ FieldScriptVMHandlerPartyMemberOnFoot = 0x8009FDD4;
 LibGearGetJointMatrix = 0x801E72CC;
 LibGearSetDirectKeyframes = 0x801E7378;
 LibGearRenderFrame = 0x801E7D14;
+GfxSetBaseMatrix = 0x80024FF4;
 LibGearShutdown = 0x801E7FD4;
 LibGearFreeModel = 0x801E8030;
 LibGearSetModelAnimation = 0x801E8330;
