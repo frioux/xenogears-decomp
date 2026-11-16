@@ -8,58 +8,58 @@
 typedef struct Misc16Work Misc16Work;
 
 struct Misc16Work {
-    /* 0x00 */ s16 unk0;
+    /* 0x00 */ s16 gravity;
     /* 0x02 */ s16 unk2;
     /* 0x04 */ u16 unk4;
     /* 0x06 */ s16 unk6;
     /* 0x08 */ u16 unk8;
-    /* 0x0A */ s16 unkA;
-    /* 0x0C */ s16 unkC;
+    /* 0x0A */ s16 count;
+    /* 0x0C */ s16 entrySize;
     /* 0x0E */ u16 unkE;
-    /* 0x10 */ u8* unk10;
-    /* 0x14 */ u16 unk14;
-    /* 0x16 */ u16 unk16;
-    /* 0x18 */ u16 unk18;
+    /* 0x10 */ u8* pEntries;
+    /* 0x14 */ u16 x;
+    /* 0x16 */ u16 y;
+    /* 0x18 */ u16 z;
     /* 0x1A */ u16 pad1A;
-    /* 0x1C */ u16 unk1C;
-    /* 0x1E */ u16 unk1E;
-    /* 0x20 */ u16 unk20;
+    /* 0x1C */ u16 centerX;
+    /* 0x1E */ u16 centerY;
+    /* 0x20 */ u16 centerZ;
     /* 0x22 */ u16 unk22;
-    /* 0x24 */ s16 unk24;
-    /* 0x26 */ s16 unk26;
-    /* 0x28 */ s16 unk28;
+    /* 0x24 */ s16 rangeX;
+    /* 0x26 */ s16 rangeY;
+    /* 0x28 */ s16 rangeZ;
     /* 0x2A */ s16 unk2A;
-    /* 0x2C */ u16 unk2C;
-    /* 0x2E */ u16 unk2E;
-    /* 0x30 */ u16 unk30;
+    /* 0x2C */ u16 halfRangeX;
+    /* 0x2E */ u16 halfRangeY;
+    /* 0x30 */ u16 halfRangeZ;
     /* 0x32 */ u16 unk32;
-    /* 0x34 */ u16 unk34;
-    /* 0x36 */ u16 unk36;
-    /* 0x38 */ u16 unk38;
+    /* 0x34 */ u16 rotX;
+    /* 0x36 */ u16 rotY;
+    /* 0x38 */ u16 rotZ;
     /* 0x3A */ u16 unk3A;
-    /* 0x3C */ u16 unk3C;
-    /* 0x3E */ u16 unk3E;
-    /* 0x40 */ u16 unk40;
+    /* 0x3C */ u16 extraRotX;
+    /* 0x3E */ u16 extraRotY;
+    /* 0x40 */ u16 extraRotZ;
     /* 0x42 */ u16 unk42;
-    /* 0x44 */ s16 unk44;
+    /* 0x44 */ s16 angleRange;
     /* 0x46 */ s16 unk46;
-    /* 0x48 */ s16 unk48;
-    /* 0x4A */ s16 unk4A;
+    /* 0x48 */ s16 depthBase;
+    /* 0x4A */ s16 depthRange;
     /* 0x4C */ u8 unk4C[2];
     /* 0x4E */ s16 unk4E;
-    /* 0x50 */ s32 unk50;
-    /* 0x54 */ s32 unk54;
-    /* 0x58 */ void (*unk58)(u8*, Misc16Work*);
-    /* 0x5C */ s32 unk5C;
+    /* 0x50 */ s32 pUpdateEntry;
+    /* 0x54 */ s32 pCallback;
+    /* 0x58 */ void (*pInitEntry)(u8*, Misc16Work*);
+    /* 0x5C */ s32 pUpdate;
     /* 0x60 */ s32 unk60;
     /* 0x64 */ s16 unk64;
-    /* 0x66 */ s16 unk66;
+    /* 0x66 */ s16 kindIndex;
     /* 0x68 */ s16 unk68;
-    /* 0x6A */ s16 unk6A;
+    /* 0x6A */ s16 entryLife;
     /* 0x6C */ u8 unk6C[8];
-    /* 0x74 */ u8 unk74;
-    /* 0x75 */ u8 unk75;
-    /* 0x76 */ u8 unk76;
+    /* 0x74 */ u8 r;
+    /* 0x75 */ u8 g;
+    /* 0x76 */ u8 b;
 }; // Size: 0x77 (known extent)
 
 extern s32 D_80092834;
@@ -90,10 +90,10 @@ void BattleEffectNoop(void) {
 }
 
 typedef struct {
-    /* 0x0 */ void (*unk0)(u8*, Misc16Work*);
-    /* 0x4 */ s32 unk4;
-    /* 0x8 */ s32 unk8;
-    /* 0xC */ s32 unkC;
+    /* 0x0 */ void (*pInitEntry)(u8*, Misc16Work*);
+    /* 0x4 */ s32 pUpdateEntry;
+    /* 0x8 */ s32 pCallback;
+    /* 0xC */ s32 entrySize;
 } Misc16Kind; // Size: 0x10
 
 extern Misc16Kind D_80091C74[];
@@ -101,9 +101,9 @@ extern s32 D_80091CC4[];
 extern s32 D_80091CDC;
 
 typedef struct {
-    /* 0x0 */ s32 unk0;
-    /* 0x4 */ s32 unk4;
-    /* 0x8 */ s32 unk8;
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
 } Misc16Vec; // Size: 0xC
 
 void BattleEffectInitEntry(u8* pArg0, u8* pArg1) {
@@ -131,32 +131,32 @@ void BattleEffectComputeRandomRotatedPosition(Misc16Work* pWork, s16* pOut) {
     SVECTOR vec;
     VECTOR rot;
 
-    vec.vx = rand() % pWork->unk24 - pWork->unk2C;
-    vec.vy = rand() % pWork->unk26 - pWork->unk2E;
-    vec.vz = rand() % pWork->unk28 - pWork->unk30;
+    vec.vx = rand() % pWork->rangeX - pWork->halfRangeX;
+    vec.vy = rand() % pWork->rangeY - pWork->halfRangeY;
+    vec.vz = rand() % pWork->rangeZ - pWork->halfRangeZ;
     ApplyRotMatrix(&vec, &rot);
-    pOut[0] = pWork->unk1C + rot.vx;
-    pOut[1] = pWork->unk1E + rot.vy;
-    pOut[2] = pWork->unk20 + rot.vz;
+    pOut[0] = pWork->centerX + rot.vx;
+    pOut[1] = pWork->centerY + rot.vy;
+    pOut[2] = pWork->centerZ + rot.vz;
 }
 
 void BattleEffectComputeRandomBoxPosition(Misc16Work* pWork, s16* pOut) {
-    pOut[0] = pWork->unk1C + rand() % pWork->unk24 - pWork->unk2C;
-    pOut[1] = pWork->unk1E + rand() % pWork->unk26 - pWork->unk2E;
-    pOut[2] = pWork->unk20 + rand() % pWork->unk28 - pWork->unk30;
+    pOut[0] = pWork->centerX + rand() % pWork->rangeX - pWork->halfRangeX;
+    pOut[1] = pWork->centerY + rand() % pWork->rangeY - pWork->halfRangeY;
+    pOut[2] = pWork->centerZ + rand() % pWork->rangeZ - pWork->halfRangeZ;
 }
 
 void BattleEffectComputeRandomFlatPosition(Misc16Work* pWork, s16* pOut) {
     SVECTOR vec;
     VECTOR rot;
 
-    vec.vx = rand() % pWork->unk24 - pWork->unk2C;
+    vec.vx = rand() % pWork->rangeX - pWork->halfRangeX;
     vec.vy = 0;
-    vec.vz = rand() % pWork->unk28 - pWork->unk30;
+    vec.vz = rand() % pWork->rangeZ - pWork->halfRangeZ;
     ApplyRotMatrix(&vec, &rot);
-    pOut[0] = pWork->unk1C + rot.vx;
-    pOut[1] = pWork->unk1E + rot.vy;
-    pOut[2] = pWork->unk20 + rot.vz;
+    pOut[0] = pWork->centerX + rot.vx;
+    pOut[1] = pWork->centerY + rot.vy;
+    pOut[2] = pWork->centerZ + rot.vz;
 }
 void BattleEffectComputeRandomEllipsePosition(Misc16Work* pWork, s16* pOut) {
     s32 angle;
@@ -166,31 +166,31 @@ void BattleEffectComputeRandomEllipsePosition(Misc16Work* pWork, s16* pOut) {
 
     angle = rand();
     rnd = rand();
-    vec.vx = rcos(angle) * (rnd % pWork->unk24) >> 13;
+    vec.vx = rcos(angle) * (rnd % pWork->rangeX) >> 13;
     vec.vy = 0;
-    vec.vz = rsin(angle) * (rnd % pWork->unk28) >> 13;
+    vec.vz = rsin(angle) * (rnd % pWork->rangeZ) >> 13;
     ApplyRotMatrix(&vec, &rot);
-    pOut[0] = pWork->unk1C + rot.vx;
-    pOut[1] = pWork->unk1E + rot.vy;
-    pOut[2] = pWork->unk20 + rot.vz;
+    pOut[0] = pWork->centerX + rot.vx;
+    pOut[1] = pWork->centerY + rot.vy;
+    pOut[2] = pWork->centerZ + rot.vz;
 }
 void BattleEffectComputeAngledEllipsePosition(Misc16Work* pWork, s16* pOut, s32 angle) {
     SVECTOR vec;
     VECTOR rot;
     s32 rotAngle; // retail reads the incoming s2 without ever setting it
 
-    vec.vx = rcos(rotAngle) * pWork->unk24 >> 12;
-    vec.vy = rand() % pWork->unk26 - pWork->unk26 / 2;
-    vec.vz = rsin(rotAngle) * pWork->unk28 >> 12;
+    vec.vx = rcos(rotAngle) * pWork->rangeX >> 12;
+    vec.vy = rand() % pWork->rangeY - pWork->rangeY / 2;
+    vec.vz = rsin(rotAngle) * pWork->rangeZ >> 12;
     ApplyRotMatrix(&vec, &rot);
-    pOut[0] = pWork->unk1C + rot.vx;
-    pOut[1] = pWork->unk1E + rot.vy;
-    pOut[2] = pWork->unk20 + rot.vz;
+    pOut[0] = pWork->centerX + rot.vx;
+    pOut[1] = pWork->centerY + rot.vy;
+    pOut[2] = pWork->centerZ + rot.vz;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D3F4);
 /* 96.92% - everything matches except the load of D_80091CC4 into $a0
    where retail uses $v1 (and therefore has a nop after the lw before the
-   store to unk5C).  Tried: an s16 second parameter, a s32 one with an
+   store to pUpdate).  Tried: an s16 second parameter, a s32 one with an
    explicit (s16) cast on the index (that one fixes the unk4E store's extra
    move), and an s32 then u32 local for the loaded word declared first or
    last.  The register is an allocator pick; $a0 is free at that point in
@@ -202,50 +202,50 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
 
     HeapSetCurrentContentType(0x15);
     pWork = (Misc16Work*)HeapAlloc(0x7C, 0);
-    pWork->unk24 = 0x1000;
-    pWork->unk26 = 0x1000;
-    pWork->unk28 = 0x1000;
-    pWork->unk44 = 1;
+    pWork->rangeX = 0x1000;
+    pWork->rangeY = 0x1000;
+    pWork->rangeZ = 0x1000;
+    pWork->angleRange = 1;
     pWork->unk4E = arg1;
     pWork->unk2 = 0;
     pWork->unk4 = 0;
     pWork->unk6 = 0;
-    pWork->unk14 = 0;
-    pWork->unk16 = 0;
-    pWork->unk18 = 0;
-    pWork->unk34 = 0;
-    pWork->unk36 = 0;
-    pWork->unk38 = 0;
-    pWork->unk3C = 0;
-    pWork->unk3E = 0;
-    pWork->unk40 = 0;
-    pWork->unk0 = 0;
+    pWork->x = 0;
+    pWork->y = 0;
+    pWork->z = 0;
+    pWork->rotX = 0;
+    pWork->rotY = 0;
+    pWork->rotZ = 0;
+    pWork->extraRotX = 0;
+    pWork->extraRotY = 0;
+    pWork->extraRotZ = 0;
+    pWork->gravity = 0;
     pWork->unk46 = 0;
-    pWork->unk48 = 0x100;
-    pWork->unk4A = 0x100;
-    pWork->unk2C = (s16)pWork->unk24 / 2;
-    pWork->unk2E = (s16)pWork->unk26 / 2;
-    pWork->unk30 = (s16)pWork->unk28 / 2;
+    pWork->depthBase = 0x100;
+    pWork->depthRange = 0x100;
+    pWork->halfRangeX = (s16)pWork->rangeX / 2;
+    pWork->halfRangeY = (s16)pWork->rangeY / 2;
+    pWork->halfRangeZ = (s16)pWork->rangeZ / 2;
     kind = D_80091CC4[(s16)arg1];
-    pWork->unk5C = kind;
-    pWork->unk10 = NULL;
-    pWork->unk66 = arg0;
+    pWork->pUpdate = kind;
+    pWork->pEntries = NULL;
+    pWork->kindIndex = arg0;
     pWork->unk60 = D_80091CDC;
     pWork->unk64 = 0;
-    pWork->unk6A = 0x64;
-    pWork->unk74 = 0xFF;
-    pWork->unk75 = 0xFF;
-    pWork->unk76 = 0xFF;
+    pWork->entryLife = 0x64;
+    pWork->r = 0xFF;
+    pWork->g = 0xFF;
+    pWork->b = 0xFF;
     pWork->unk68 = 0;
-    pKind = &D_80091C74[pWork->unk66];
-    pWork->unkC = pKind->unkC;
-    pWork->unk50 = pKind->unk4;
-    pWork->unk54 = pKind->unk8;
-    pWork->unk58 = pKind->unk0;
+    pKind = &D_80091C74[pWork->kindIndex];
+    pWork->entrySize = pKind->entrySize;
+    pWork->pUpdateEntry = pKind->pUpdateEntry;
+    pWork->pCallback = pKind->pCallback;
+    pWork->pInitEntry = pKind->pInitEntry;
     return pWork;
 }
 */
-/* Header every battle-effect entry starts with. An entry is pWork->unkC bytes
+/* Header every battle-effect entry starts with. An entry is pWork->entrySize bytes
    long (the kind table's size), so the table is walked byte-wise; the first
    eight bytes are also the SVECTOR the particle code transforms. */
 typedef struct {
@@ -262,10 +262,10 @@ void BattleEffectClearEntrySlots(Misc16Work* pWork) {
     s32 i;
     Misc16Entry* pEntry;
 
-    pEntry = (Misc16Entry*)pWork->unk10;
-    for (i = 0; i < pWork->unkA; i++) {
+    pEntry = (Misc16Entry*)pWork->pEntries;
+    for (i = 0; i < pWork->count; i++) {
         pEntry->life = 0;
-        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->unkC);
+        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->entrySize);
     }
 }
 
@@ -274,37 +274,37 @@ void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
     void (*pInitEntry)(u8*, Misc16Work*);
     s32 i;
 
-    if (pWork->unk10 != NULL) {
-        HeapDelayedFree(pWork->unk10, 3);
+    if (pWork->pEntries != NULL) {
+        HeapDelayedFree(pWork->pEntries, 3);
     }
-    pWork->unkA = count;
+    pWork->count = count;
     HeapSetCurrentContentType(0x14);
-    pEntry = (Misc16Entry*)(pWork->unk10 = HeapAlloc(pWork->unkC * pWork->unkA, 0));
-    pInitEntry = pWork->unk58;
-    for (i = 0; i < pWork->unkA; i++) {
+    pEntry = (Misc16Entry*)(pWork->pEntries = HeapAlloc(pWork->entrySize * pWork->count, 0));
+    pInitEntry = pWork->pInitEntry;
+    for (i = 0; i < pWork->count; i++) {
         pInitEntry((u8*)pEntry, pWork);
         pEntry->life = 0;
-        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->unkC);
+        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->entrySize);
     }
 }
-/* func_8008D680(pWork, pMat, count): mat = *pMat; pWork->unk1C/1E/20 +=
-   pMat->t[0..2]; RotMatrix(&pWork->unk34, &rotBase); MulMatrix(&mat,
-   &rotBase); RotMatrix(&pWork->unk3C, &rotExtra); MulMatrix(&rotExtra,
-   &mat); SetRotMatrix(&rotExtra); then two passes over pWork->unk10 (stride
-   unkC, unkA entries) that both skip entries whose unk6 timer is non-zero and
+/* func_8008D680(pWork, pMat, count): mat = *pMat; pWork->centerX/centerY/centerZ +=
+   pMat->t[0..2]; RotMatrix(&pWork->rotX, &rotBase); MulMatrix(&mat,
+   &rotBase); RotMatrix(&pWork->extraRotX, &rotExtra); MulMatrix(&rotExtra,
+   &mat); SetRotMatrix(&rotExtra); then two passes over pWork->pEntries (stride
+   entrySize, count entries) that both skip entries whose unk6 timer is non-zero and
    bail when --count hits -1.  Pass 1 builds a random direction
-   (rsin/rcos(rand()%unk44) scaled by >>12, interpolation factor
-   unk48 + rand()%unk4A) through gte_ldv0 / gte_mvmva(1,0,0,3,0) /
-   gte_lddp / GPF into entry+8; pass 2 calls pWork->unk5C(pWork, entry), sets
-   entry->unk6 = pWork->unk6A and calls pWork->unk50(entry).  Not attempted
+   (rsin/rcos(rand()%angleRange) scaled by >>12, interpolation factor
+   depthBase + rand()%depthRange) through gte_ldv0 / gte_mvmva(1,0,0,3,0) /
+   gte_lddp / GPF into entry+8; pass 2 calls pWork->pUpdate(pWork, entry), sets
+   entry->unk6 = pWork->entryLife and calls pWork->pUpdateEntry(entry).  Not attempted
    body-wise yet. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
 /* 88.85% first attempt (736 bytes, frame 0xB8 vs retail 0xC0).  What is
    already right: the whole prologue order, the *pMat copy, the three
-   unk1C/1E/20 additions (they want u16 unk14/16/18, which is why the
+   centerX/centerY/centerZ additions (they want u16 x/y/z, which is why the
    struct now declares those three as u16), the RotMatrix/MulMatrix chain,
-   both loops with --count == -1 and the unk50/unk5C call order.
-   Still different: (1) retail spills pWork->unk50 to 0x80(sp) and keeps
+   both loops with --count == -1 and the pUpdateEntry/pUpdate call order.
+   Still different: (1) retail spills pWork->pUpdateEntry to 0x80(sp) and keeps
    nine callee regs, gcc here keeps it in $s8 so the frame is 8 bytes
    short - one more live value is needed somewhere, probably from the GTE
    block below; (2) retail keeps pDir = sp+0x18 in $s6 across both loops
@@ -335,32 +335,32 @@ void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
     s16 vz;
     u8* pEntry;
 
-    pUpdateEntry = (void (*)(u8*))pWork->unk50;
-    pUpdate = (void (*)(Misc16Work*, u8*))pWork->unk5C;
+    pUpdateEntry = (void (*)(u8*))pWork->pUpdateEntry;
+    pUpdate = (void (*)(Misc16Work*, u8*))pWork->pUpdate;
     mat = *pMat;
-    pWork->unk1C = pWork->unk14 + pMat->t[0];
-    pWork->unk1E = pWork->unk16 + pMat->t[1];
-    pWork->unk20 = pWork->unk18 + pMat->t[2];
-    RotMatrix((SVECTOR*)&pWork->unk34, &rotBase);
+    pWork->centerX = pWork->x + pMat->t[0];
+    pWork->centerY = pWork->y + pMat->t[1];
+    pWork->centerZ = pWork->z + pMat->t[2];
+    RotMatrix((SVECTOR*)&pWork->rotX, &rotBase);
     MulMatrix(&mat, &rotBase);
-    RotMatrix((SVECTOR*)&pWork->unk3C, &rotExtra);
+    RotMatrix((SVECTOR*)&pWork->extraRotX, &rotExtra);
     MulMatrix(&rotExtra, &mat);
     SetRotMatrix(&rotExtra);
-    pEntry = pWork->unk10;
+    pEntry = pWork->pEntries;
     n = count;
-    for (i = 0; i < pWork->unkA; i++) {
+    for (i = 0; i < pWork->count; i++) {
         if (*(s16*)(pEntry + 6) == 0) {
             n--;
             if (n == -1) {
                 break;
             }
-            angle = rand() % pWork->unk44;
+            angle = rand() % pWork->angleRange;
             rnd = rand();
             vec.vy = -rsin(angle);
             scale = rcos(angle);
             vec.vx = rcos(rnd) * scale >> 12;
             vec.vz = rsin(rnd) * scale >> 12;
-            depth = pWork->unk48 + rand() % pWork->unk4A;
+            depth = pWork->depthBase + rand() % pWork->depthRange;
             gte_ldv0(&vec);
             gte_mvmva(1, 0, 0, 3, 0);
             gte_stir123_gpr(vx, vy, vz);
@@ -377,32 +377,32 @@ void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
             ((s16*)(pEntry + 8))[1] = vy;
             ((s16*)(pEntry + 8))[2] = vz;
         }
-        pEntry += pWork->unkC;
+        pEntry += pWork->entrySize;
     }
     SetRotMatrix(&mat);
-    pEntry = pWork->unk10;
+    pEntry = pWork->pEntries;
     n = count;
-    for (i = 0; i < pWork->unkA; i++) {
+    for (i = 0; i < pWork->count; i++) {
         if (*(s16*)(pEntry + 6) == 0) {
             n--;
             if (n == -1) {
                 break;
             }
             pUpdate(pWork, pEntry);
-            *(s16*)(pEntry + 6) = pWork->unk6A;
+            *(s16*)(pEntry + 6) = pWork->entryLife;
             pUpdateEntry(pEntry);
         }
-        pEntry += pWork->unkC;
+        pEntry += pWork->entrySize;
     }
 }
 */
 void BattleEffectHalveEntryCountIfBelow(Misc16Work* pWork) {
     s32 count;
 
-    if (pWork->unkA > 0) {
+    if (pWork->count > 0) {
         count = pWork->unk2;
         if (func_80082488(pWork, 0) < count) {
-            pWork->unkA = -pWork->unkA / 2;
+            pWork->count = -pWork->count / 2;
         }
     }
 }
@@ -410,8 +410,8 @@ void BattleEffectHalveEntryCount(Misc16Work* pWork) {
     s32 value;
 
     if (pWork->unk2 > 0) {
-        value = -pWork->unkA / 2;
-        pWork->unkA = value;
+        value = -pWork->count / 2;
+        pWork->count = value;
         value = (s16)value;
         if (value < 0) {
             value = -value;
@@ -430,8 +430,8 @@ void BattleEffectHalveEntryCount(Misc16Work* pWork) {
     if (pWork->unk2 > 0) {
         s16 halved;
 
-        halved = -pWork->unkA / 2;
-        pWork->unkA = halved;
+        halved = -pWork->count / 2;
+        pWork->count = halved;
         value = halved;
         if (value < 0) {
             value = -value;
@@ -454,12 +454,12 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
     D_80092830->vx = D_80096FA8.vx;
     D_80092830->vy = D_80096FAC.vx;
     D_80092830->vz = D_80096FB0.vx;
-    pEntry = (Misc16Entry*)pWork->unk10;
-    pCallback = (void (*)(u8*, u8*))pWork->unk54;
-    for (i = 0; i < pWork->unkA; i++) {
+    pEntry = (Misc16Entry*)pWork->pEntries;
+    pCallback = (void (*)(u8*, u8*))pWork->pCallback;
+    for (i = 0; i < pWork->count; i++) {
         if (pEntry->life != 0) {
             pEntry->life = pEntry->life - 1;
-            pEntry->vy += pWork->unk0;
+            pEntry->vy += pWork->gravity;
             pEntry->x += pEntry->vx;
             pEntry->y += pEntry->vy;
             pEntry->z += pEntry->vz;
@@ -476,7 +476,7 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
             }
             pCallback((u8*)pEntry, pArg1);
         }
-        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->unkC);
+        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->entrySize);
     }
     (void)pad;
 }
@@ -509,15 +509,15 @@ void BattleEffectCreateWork(void) {
     Misc16Work* pWork;
 
     pWork = func_8008D3F4(1, NULL);
-    pWork->unk74 = 0xFF;
-    pWork->unk75 = 0xA0;
-    pWork->unk76 = 0x70;
+    pWork->r = 0xFF;
+    pWork->g = 0xA0;
+    pWork->b = 0x70;
     BattleEffectAllocEntries(pWork, 0x100);
-    initValue = (pWork->unk0 = 4);
-    pWork->unk4A = pWork->unk44 = 0x60;
-    pWork->unk48 = initValue;
+    initValue = (pWork->gravity = 4);
+    pWork->depthRange = pWork->angleRange = 0x60;
+    pWork->depthBase = initValue;
     pWork->unk68 = 0;
-    pWork->unk6A = 0x20;
+    pWork->entryLife = 0x20;
     D_80092834 = (s32)pWork;
 }
 void BattleEffectSetSpawnTimer(s32 arg0) {
@@ -536,15 +536,15 @@ void BattleEffectUpdate(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
         matZero.t[2] = 0;
         matZero.t[1] = 0;
         matZero.t[0] = 0;
-        pWork->unk14 = pVec->unk0;
-        pWork->unk16 = pVec->unk4;
-        pWork->unk18 = pVec->unk8;
-        pWork->unk3C = 0;
-        pWork->unk3E = 0;
-        pWork->unk40 = 0;
-        pWork->unk34 = 0;
-        pWork->unk36 = 0;
-        pWork->unk38 = 0x800;
+        pWork->x = pVec->x;
+        pWork->y = pVec->y;
+        pWork->z = pVec->z;
+        pWork->extraRotX = 0;
+        pWork->extraRotY = 0;
+        pWork->extraRotZ = 0;
+        pWork->rotX = 0;
+        pWork->rotY = 0;
+        pWork->rotZ = 0x800;
         func_8008D680(pWork, &matZero, D_80092838 >> 4);
         D_80092838 -= 4;
     }
