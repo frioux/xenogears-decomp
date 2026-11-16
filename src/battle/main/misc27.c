@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
 
@@ -136,6 +137,10 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
 // 90.55% under gcc 2.7.2-cdk (-G8 and -G0) and every swept -O/-G/-mcpu, 73.07 under
 // 2.6.0, so no preset fixes this: the two combined induction bases match and only the
 // register assignment differs (retail keeps pActor in $t1, the frame index in $a3).
+// Permuter (4 min, -j 2) reached base=667 -> best=562 by writing x through a fixed
+// ((s16*)pArg)[0], which is not equivalent, so nothing there is portable. The shape to
+// reproduce is retail's two bases: x through 0(t0), y/z through a base 4 bytes further
+// on (-2(a1)/0(a1)), both advanced by 8.
 /*
 void func_800B50D4(u8* pActor, u8* pArg) {
     s32 x;
@@ -202,13 +207,13 @@ void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
     func_800B50D4(pSpriteData, pTask->unk78);
     func_800B50D4(pSpriteData, pTask->unk50);
 }
-long func_800B57E4(u8* pActor) {
+long func_800B57E4(BattleSpriteState* pSprite) {
     VECTOR v;
     VECTOR out;
 
-    v.vx = *(s16*)(pActor + 0xA0) - *(s16*)(pActor + 0x2);
-    v.vy = *(s16*)(pActor + 0xA2) - *(s16*)(pActor + 0x6);
-    v.vz = *(s16*)(pActor + 0xA4) - *(s16*)(pActor + 0xA);
+    v.vx = pSprite->targetPosition.x - pSprite->position.xWhole;
+    v.vy = pSprite->targetPosition.y - pSprite->position.yWhole;
+    v.vz = pSprite->targetPosition.z - pSprite->position.zWhole;
     Square0(&v, &out);
     return SquareRoot0(out.vx + out.vz + out.vy);
 }
