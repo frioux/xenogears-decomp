@@ -564,8 +564,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
 void func_80073300(void) {
     s32 nMode;
 
-    if (g_GameState.unk1834 & 0x4000) {
-        switch (g_GameState.unk1834 & 0x1FFF) {
+    if (g_GameState.worldMapState & 0x4000) {
+        switch (g_GameState.worldMapState & 0x1FFF) {
         case 0:
             return;
         case 1:
@@ -626,7 +626,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
    store) does produce retail's 232-byte shape but gcc then splits the two loads
    into $v0/$v1 and moves `sw zero,D_8009C5B0` after both of them (91.55%);
    `nPos = p->x;` first is 89.48%. Rest matches retail exactly, including the
-   `g_GameState.unk1834 &= ~0x2000` base-register read-modify-write and the
+   `g_GameState.worldMapState &= ~0x2000` base-register read-modify-write and the
    `sll/sra` narrowed-id search loop.
 */
 /*
@@ -634,8 +634,8 @@ void func_80073448(s32 arg0) {
     WorldMapPoint* p;
     s32 nPos;
 
-    if (g_GameState.unk1834 & 0x2000) {
-        g_GameState.unk1834 &= ~0x2000;
+    if (g_GameState.worldMapState & 0x2000) {
+        g_GameState.worldMapState &= ~0x2000;
         WorldMapGetGameStatePosition(&g_WorldMapPlayerPosition);
         g_WorldMapPlayerRotation = g_GameState.unk1832;
     } else {

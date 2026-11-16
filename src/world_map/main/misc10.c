@@ -194,7 +194,7 @@ s32 func_80088B40(s32 arg0) {
     pDst = g_WorldMapSlots + (arg0 << 7);
     *(s16*)(pDst + 0x20) = 0;
     pBase = g_WorldMapGroups;
-    if (g_GameState.unk1930[0] == 0x99) {
+    if (g_GameState.fieldScriptMemory[0] == 0x99) {
         *(s32*)(pDst + 0x28) = 0x2000000;
         *(s32*)(pDst + 0x30) = 0x4120000;
         *(s32*)(pDst + 0x2C) = 0;
@@ -255,7 +255,7 @@ s32 func_80088D00(s32 arg0) {
 
     pDst = g_WorldMapSlots + (arg0 << 7);
     pSrc = (s32*)(g_WorldMapGroups + 0x16A4);
-    if (g_GameState.unk1930[0] == 0x99) {
+    if (g_GameState.fieldScriptMemory[0] == 0x99) {
         pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
         pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;
         pSrc[4] = *(s32*)(pDst + 0x30) >> 12;
@@ -273,7 +273,7 @@ s32 func_80088D00(s32 arg0) {
 
     pDst = g_WorldMapSlots + (arg0 << 7);
     pBase = g_WorldMapGroups;
-    if (g_GameState.unk1930[0] == 0x99) {
+    if (g_GameState.fieldScriptMemory[0] == 0x99) {
         pSrc = (s32*)(pBase + 0x16A4);
         pSrc[2] = *(s32*)(pDst + 0x28) >> 12;
         pSrc[3] = *(s32*)(pDst + 0x2C) >> 12;

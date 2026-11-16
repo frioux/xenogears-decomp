@@ -600,7 +600,7 @@ void BattleResetSlotConditionCounters(void) {
     if (flag & 0x2000) {
         g_GameState.unk16BC[8].unk6 |= 0x800;
     }
-    if (g_GameState.unk1930[0] < 0xBB) {
+    if (g_GameState.fieldScriptMemory[0] < 0xBB) {
         g_GameState.gears[0].attackPower = 10;
         g_GameState.gears[1].attackPower = 10;
         g_GameState.gears[11].attackPower = 9;

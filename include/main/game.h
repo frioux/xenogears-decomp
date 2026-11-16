@@ -172,7 +172,7 @@ typedef struct {
     /* 0x182E */ s16 unk182E;
     /* 0x1830 */ s16 unk1830;
     /* 0x1832 */ u16 unk1832;
-    /* 0x1834 */ u16 unk1834;
+    /* 0x1834 */ u16 worldMapState;
     /* 0x1836 */ u16 unk1836;
     /* 0x1838 */ undefined8 unk1838[0x16];
     /* 0x184E */ undefined16 unk184E;
@@ -183,8 +183,8 @@ typedef struct {
     /* 0x1858 */ undefined8 unk1858[0xCC];
     /* 0x1924 */ u_int gold;
     /* 0x1928 */ undefined8 unk1928[0x8];
-    /* 0x1930 */ u16 unk1930[0x200];
-    /* 0x1D30 */ undefined16 unk1D30;
+    /* 0x1930 */ u16 fieldScriptMemory[0x200]; // saved copy of g_FieldScriptMemory, see FieldScriptSyncMemoryWithGameState
+    /* 0x1D30 */ undefined16 characterFlags;
     /* 0x1D32 */ u_short FrMask;
     /* 0x1D34 */ undefined8 partyMembers[MAX_PARTY_MEMBERS];
     /* 0x1D37 */ undefined8 unk1D37;
@@ -206,11 +206,11 @@ typedef struct {
     /* 0x22B4 */ undefined8 unk22B4[0x2];
     /* 0x22B6 */ undefined16 unk22B6;
     /* 0x22B8 */ undefined8 unk22B8[0x62];
-    /* 0x231A */ u16 unk231A;
+    /* 0x231A */ u16 mapNum;
     /* 0x231C */ u16 unk231C;
     /* 0x231E */ undefined16 unk231E;
     /* 0x2320 */ u16 unk2320;
-    /* 0x2322 */ u16 unk2322;
+    /* 0x2322 */ u16 wdsBankIndex;
     /* 0x2324 */
 } GameState; // size: unknown
 

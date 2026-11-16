@@ -383,7 +383,7 @@ void FieldScriptSetGameState17FC30(void) {
 }
 
 void FieldScriptWriteGameState17FC38(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_pGameState->unk1834);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_pGameState->worldMapState);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -391,7 +391,7 @@ void FieldScriptSetGameState17FC38(void) {
     int value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3));
     ActorData* pActor = g_FieldScriptVMCurActor;
 
-    g_pGameState->unk1834 = value;
+    g_pGameState->worldMapState = value;
     pActor->scriptInstructionPointer += 4;
 }
 
@@ -1673,7 +1673,7 @@ void FieldScriptAddPartyMember(void) {
                 FieldPartyLoadMemberSkin(characterId, partyIndex);
                 g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
             } else {
-                g_pGameState->unk1D30 |= 1 << characterId;
+                g_pGameState->characterFlags |= 1 << characterId;
                 g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
             }
         } else {
@@ -1706,7 +1706,7 @@ void FieldScriptAddPartyMemberShort(void) {
             FieldPartyLoadMemberSkin(characterId, partyIndex);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
         } else {
-            g_pGameState->unk1D30 |= 1 << SCRIPT_READ_U8_REL(1);
+            g_pGameState->characterFlags |= 1 << SCRIPT_READ_U8_REL(1);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
         }
     } else {

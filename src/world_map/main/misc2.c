@@ -263,7 +263,7 @@ void WorldMapInitRandomTimers(void) {
         *p = 0;
         p--;
     }
-    flags = g_GameState.unk1834;
+    flags = g_GameState.worldMapState;
     D_8009D64C = 1;
     if (!(flags & 0x4000)) {
         // retail reuses the flags temporary's register for the width
@@ -567,7 +567,7 @@ void WorldMapSyncGearRideActors(void) {
             count++;
         }
     }
-    if (!(g_GameState.unk1834 & 0x4000)) {
+    if (!(g_GameState.worldMapState & 0x4000)) {
         g_WorldMapMode = count != 0 ? 2 : 1;
     }
 }

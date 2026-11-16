@@ -215,7 +215,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5178);
        MenuGearLimits* pTable;
 
        pTable = (MenuGearLimits*)((u8*)&g_GameState + 0x16C0);
-       g_GameState.unk1D30 = 0x7FF;
+       g_GameState.characterFlags = 0x7FF;
        pTable[0].unk0 = 0xFFF8;
        pTable[0].unk6 = 0xFE00;
        pTable[1].unk1A = 0xC000;

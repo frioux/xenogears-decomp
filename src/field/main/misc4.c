@@ -483,9 +483,9 @@ void FieldAdvanceGameState(int state) {
         u16 nSaved;
 
         FieldScriptSyncMemoryWithGameState();
-        nSaved = g_pGameState->unk1930[1];
+        nSaved = g_pGameState->fieldScriptMemory[1];
         g_GameRequestedWdsBankIndex = D_800AFC78;
-        g_pGameState->unk2322 = D_800AFC78;
+        g_pGameState->wdsBankIndex = D_800AFC78;
         g_pGameState->unk2320 = nSaved;
         if (D_8004F370 != 0) {
             return;
@@ -509,8 +509,8 @@ void FieldAdvanceGameState(int state) {
     case 2: {
         u16 nSaved;
 
-        nSaved = g_pGameState->unk1930[1];
-        g_pGameState->unk2322 = g_GameRequestedWdsBankIndex;
+        nSaved = g_pGameState->fieldScriptMemory[1];
+        g_pGameState->wdsBankIndex = g_GameRequestedWdsBankIndex;
         g_pGameState->unk2320 = nSaved;
         if (D_8004F370 != 0) {
             return;

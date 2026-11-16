@@ -619,7 +619,7 @@ void func_8007EEE8(s32 arg) {
     s32 limit;
     s32** pQueue;
 
-    limit = g_GameState.unk1930[0];
+    limit = g_GameState.fieldScriptMemory[0];
     pQueue = HeapAlloc(0xC4, 1);
     g_BattleEntries = pQueue;
     D_80092888 = 0;

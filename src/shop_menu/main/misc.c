@@ -350,7 +350,7 @@ void ShopMenuInitialize(void) {
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
-    flags = (g_GameState.unk1D30 & g_GameState.FrMask) & 0x7FF;
+    flags = (g_GameState.characterFlags & g_GameState.FrMask) & 0x7FF;
     for (i = 0; i < 0x10; i++) {
         if ((u_short)ShopMenuIsCharacterFlagSet(flags, (u_char)i)) {
             g_Menu->availableCharacters[i] = TRUE;

@@ -617,10 +617,10 @@ extern int FieldGetCameraDirection(void);
 void FieldScriptSyncMemoryWithGameState(void) {
     int i;
 
-    g_pGameState->unk231A = g_GameSceneMapNum;
-    g_pGameState->unk2322 = g_GameRequestedWdsBankIndex;
-    g_pGameState->unk2320 = g_pGameState->unk1930[1];
-    g_pGameState->unk231C = g_pGameState->unk1930[4] << 9;
+    g_pGameState->mapNum = g_GameSceneMapNum;
+    g_pGameState->wdsBankIndex = g_GameRequestedWdsBankIndex;
+    g_pGameState->unk2320 = g_pGameState->fieldScriptMemory[1];
+    g_pGameState->unk231C = g_pGameState->fieldScriptMemory[4] << 9;
     FieldScriptMemoryWriteU16(0x44, D_8005941C);
     FieldScriptMemoryWriteU16(0x46, D_800594D0);
     FieldScriptMemoryWriteU16(6, FieldGetPlayerActorDirection() & 0xFFFF);
@@ -630,7 +630,7 @@ void FieldScriptSyncMemoryWithGameState(void) {
     FieldScriptWritePartyMemberIDs();
 
     for (i = 0; i < 0x200; i++) {
-        g_pGameState->unk1930[i] = ((u_short*)&g_FieldScriptMemory)[i];
+        g_pGameState->fieldScriptMemory[i] = ((u_short*)&g_FieldScriptMemory)[i];
     }
 }
 

@@ -188,7 +188,7 @@ s32 func_8008E190(s32 idx) {
     pPlayer->unk6C = 0;
     pPlayer->unk48 = nAngle;
     pScratch = (u8 *)0x1F800000;
-    switch (g_GameState.unk1834 & 0x1FFF) {
+    switch (g_GameState.worldMapState & 0x1FFF) {
     case 0:
         nRet = 3;
         break;
@@ -287,7 +287,7 @@ s32 func_8008E4F4(s32 idx) {
     g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
     nRet = 1;
     pScratch = (u8 *)0x1F800000;
-    if ((g_GameState.unk1834 & 0x1FFF) == 0) {
+    if ((g_GameState.worldMapState & 0x1FFF) == 0) {
         nRet = 3;
     }
     switch (g_WorldMapMode) {

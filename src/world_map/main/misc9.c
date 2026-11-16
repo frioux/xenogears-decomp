@@ -563,7 +563,7 @@ s32 func_80087C6C(s32 index) {
     pSlot->unk4A = 0x4000;
     pLayer = &g_WorldMapGroups[tileIndex];
     pSlot->unk20 = 0;
-    if (g_GameState.unk1930[0] < 0xCD) {
+    if (g_GameState.fieldScriptMemory[0] < 0xCD) {
         pSlot->unk28 = 0xD80000;
         pSlot->unk30 = 0x7280000;
         pLayer->mat = g_WorldMapIdentityMatrix;
@@ -672,7 +672,7 @@ s32 func_80087FD0(s32 index) {
     pSlot = &g_WorldMapSlots[index];
     pLayer = &g_WorldMapGroups[tileIndex];
     pPos = (WorldMapPos*)0x1F800000;
-    if (g_GameState.unk1930[0] < 0xCD) {
+    if (g_GameState.fieldScriptMemory[0] < 0xCD) {
         pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
         pLayer->unk8 = pSlot->unk28 >> 12;
         pLayer->unkC = pSlot->unk2C >> 12;

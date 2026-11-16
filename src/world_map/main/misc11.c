@@ -346,8 +346,8 @@ int WorldMapUpdateActorSlot(int index) {
         }
         break;
     case 40:
-        pActor->unk28 = g_GameState.unk1930[0x13 + index * 3] << 12;
-        pActor->unk30 = g_GameState.unk1930[0x14 + index * 3] << 12;
+        pActor->unk28 = g_GameState.fieldScriptMemory[0x13 + index * 3] << 12;
+        pActor->unk30 = g_GameState.fieldScriptMemory[0x14 + index * 3] << 12;
         pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
         angle = (&g_GameState.unk1824)[index];
         pActor->unk5C = angle;
@@ -676,8 +676,8 @@ s32 func_8008C530(int index) {
             }
         }
     }
-    g_GameState.unk1930[0x16] = pActor->unk28 >> 12;
-    g_GameState.unk1930[0x17] = pActor->unk30 >> 12;
+    g_GameState.fieldScriptMemory[0x16] = pActor->unk28 >> 12;
+    g_GameState.fieldScriptMemory[0x17] = pActor->unk30 >> 12;
     *(u16 *)&g_GameState.unk1826[0] = pActor->unk48;
     return result;
 }
@@ -706,8 +706,8 @@ int WorldMapInitPartyActorSprite0(int index) {
     SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x2000);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.unk1930[0x16] << 12;
-    pActor->unk30 = g_GameState.unk1930[0x17] << 12;
+    pActor->unk28 = g_GameState.fieldScriptMemory[0x16] << 12;
+    pActor->unk30 = g_GameState.fieldScriptMemory[0x17] << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk24 = 1;
     pActor->unk40 = 0;
@@ -765,8 +765,8 @@ int func_8008D3F0(int index) {
             pActor->unk24 = 1;
         }
     }
-    g_GameState.unk1930[0x19] = pActor->unk28 >> 12;
-    g_GameState.unk1930[0x1A] = pActor->unk30 >> 12;
+    g_GameState.fieldScriptMemory[0x19] = pActor->unk28 >> 12;
+    g_GameState.fieldScriptMemory[0x1A] = pActor->unk30 >> 12;
     *(u16 *)&g_GameState.unk1826[2] = pActor->unk48;
     return result;
 }
@@ -796,8 +796,8 @@ int WorldMapInitPartyActorSprite1(int index) {
     SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x2000);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.unk1930[0x19] << 12;
-    pActor->unk30 = g_GameState.unk1930[0x1A] << 12;
+    pActor->unk28 = g_GameState.fieldScriptMemory[0x19] << 12;
+    pActor->unk30 = g_GameState.fieldScriptMemory[0x1A] << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk24 = 1;
     pActor->unk40 = 0;
@@ -844,8 +844,8 @@ int func_8008DD6C(int index) {
             pActor->unk24 = 1;
         }
     }
-    g_GameState.unk1930[0x1C] = pActor->unk28 >> 12;
-    g_GameState.unk1930[0x1D] = pActor->unk30 >> 12;
+    g_GameState.fieldScriptMemory[0x1C] = pActor->unk28 >> 12;
+    g_GameState.fieldScriptMemory[0x1D] = pActor->unk30 >> 12;
     *(u16 *)&g_GameState.unk1826[4] = pActor->unk48;
     return result;
 }
@@ -872,8 +872,8 @@ int WorldMapInitPartyActorSprite2(int index) {
     SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x2000);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.unk1930[0x1C] << 12;
-    pActor->unk30 = g_GameState.unk1930[0x1D] << 12;
+    pActor->unk28 = g_GameState.fieldScriptMemory[0x1C] << 12;
+    pActor->unk30 = g_GameState.fieldScriptMemory[0x1D] << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk24 = 1;
     pActor->unk40 = 0;

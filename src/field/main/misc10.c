@@ -97,7 +97,7 @@ void FieldScriptCheckPartyMember(void) {
 }
 
 void FieldScriptJumpIfCharacterBit1D30(void) {
-    if ((g_pGameState->unk1D30 >> SCRIPT_READ_U8_REL(1)) & 1) {
+    if ((g_pGameState->characterFlags >> SCRIPT_READ_U8_REL(1)) & 1) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(2);
@@ -105,11 +105,11 @@ void FieldScriptJumpIfCharacterBit1D30(void) {
 }
 
 void FieldScriptSetCharacterBit1D30(void) {
-    g_pGameState->unk1D30 |= 1 << SCRIPT_READ_U8_REL(1);
+    g_pGameState->characterFlags |= 1 << SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
 void FieldScriptClearCharacterBit1D30(void) {
-    g_pGameState->unk1D30 &= ~(1 << SCRIPT_READ_U8_REL(1));
+    g_pGameState->characterFlags &= ~(1 << SCRIPT_READ_U8_REL(1));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }

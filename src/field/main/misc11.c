@@ -444,7 +444,7 @@ void FieldScriptVMHandlerSetFieldEntryState(void) {
     FieldScriptUpdateMemoryEachFrame();
     g_FieldControl.isRandomEncountersEnabled = -1;
     D_800ADBE4 = 0;
-    g_pGameState->unk231A = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    g_pGameState->mapNum = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     g_pGameState->unk231E = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
     value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
     if (((u_short)value == 0xFFFF) | (value == -1)) {

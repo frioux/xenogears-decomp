@@ -291,7 +291,7 @@ void GearShopMenuFilterPartyMembers(void) {
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
-    flags = g_GameState.unk1D30 & g_GameState.FrMask & 0x77F;
+    flags = g_GameState.characterFlags & g_GameState.FrMask & 0x77F;
 
     // Filter availableCharacters by if gearId != 0xff
     for(i = 0; i < 16; i++) {

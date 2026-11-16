@@ -367,7 +367,7 @@ void func_801C62A8(void) {
             if (D_800594D0 == 0) {
                 MenuWaitForDiscChange(0);
             } else if (D_800594D0 == menuIndex) {
-                MenuWaitForDiscChange(((u8*)g_GameState.unk1930)[0xA4]);
+                MenuWaitForDiscChange(((u8*)g_GameState.fieldScriptMemory)[0xA4]);
             }
             break;
         case 6:
@@ -402,7 +402,7 @@ void func_801C6400(void) {
        g_Menu->menuUnk2->records[i].unk58 = 0;
        g_Menu->menuUnk2->unk4FAE[i] = 0xFF;
    }
-   lineCount = g_GameState.unk1930[0];
+   lineCount = g_GameState.fieldScriptMemory[0];
    i = 0;
    ArchiveSetIndex(0x10, 1);
    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(1), 1);
