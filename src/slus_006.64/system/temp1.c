@@ -653,14 +653,29 @@ void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s1
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
-/* Best attempt: 89.07%. Every operation, load, store and call is in place and in order; what is
-   left is register allocation only. The original keeps pAnimFile in s6 for the tail (the 0x48
-   store and the SpriteSetAnimFile call) and a second copy in s1 for the 0x8 offset load, so it saves
-   seven callee-saved registers; this C uses one register throughout. The 0x3C/0x40 flag block
-   also lands in the wrong registers (mask in a0, g_IsBattle in v1 instead of the reverse).
-   Returns pSpriteData in v0, so the prototype above should be SpriteData* once defined.
+/* Best attempt: 99.19% (456 bytes, the original's size). Every instruction is present and in the
+   original's order; the ONLY difference is one register pair: the original keeps the 0x3C flag
+   word in v1 with the ~3 mask in v0, this C the other way round, and the 0x40 word follows it
+   (lw v0,64 in the original, lw v1,64 here). Two source facts were needed to get this far and are
+   load-bearing, keep them:
+   (1) pAnimFileData = pAnimFile as the FIRST statement of the body. A plain local assigned where it
+       is used is copy-propagated away, so the function saves six callee-saved registers instead of
+       seven; with the copy first, gcc keeps pAnimFile in s6 for the tail (the 0x48 store and the
+       SpriteSetAnimFile call) and a second copy in s1 for the 0x8 offset load, exactly as the
+       original does. Worth 89.07 -> 92.17.
+   (2) isBattle = g_IsBattle into a u8 local before the 0x3C read-modify-write. With the test read
+       inline gcc emits that whole flag block as straight-line statement order; the local makes it
+       interleave the way the original does (mask constants first, both loads, then the and/or/store
+       pairs with the branch last). Worth 92.17 -> 99.19; found by the permuter.
+   Tried for the last tie: the word in a local before the store (98.45, the interleave collapses),
+   a u32 pointer local to 0x3C (99.19, folded away), a 2-bit bitfield store through the
+   SpriteFlagsWord view (92.17, the interleave collapses again), the two statements swapped (91.73),
+   s32 vs u8 for isBattle (99.19). Permuter: two 4-minute runs, the second (1582 iterations) found
+   nothing beyond the isBattle local, so this is a GIV_TIE-shaped allocator tie.
+
 extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
 extern s32 SpriteAnimPackageGetFrameCount(u16* pFlags);
+extern u8 g_IsBattle;
 
 SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
                           s16 arg5, s16 arg6) {
@@ -669,14 +684,17 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     u8* pAnimations;
     u8* pAnimFileData;
     mem_addr pAnimHeader;
+    u8 isBattle;
     u32 flags;
 
+    pAnimFileData = pAnimFile;
     func_80023804(pSpriteData);
     SpriteInitBaseWithInternalStorage(pSpriteData);
     SpriteSetScale(pSpriteData, 0x1000);
+    isBattle = g_IsBattle;
     *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~3) | 1;
     pSpriteData->field_0x40 &= 0xFFFE1FFF;
-    if (g_IsBattle) {
+    if (isBattle) {
         pSpriteData->flags_0xA8 &= ~1;
         ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x8 = 0;
         ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC = 0;
@@ -691,7 +709,6 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     flags &= 0xFFF0FFFF;
     flags |= (g_SpritePendingClut & 0xF) << 16;
     *(u32*)((u8*)pSpriteData + 0x3C) = flags;
-    pAnimFileData = pAnimFile;
     pAnimHeader = *(u32*)(pAnimFileData + 8);
     pFramesData =
         HeapAlloc(SpriteAnimPackageGetFrameCount((u16*)(pAnimHeader + (mem_addr)pAnimFileData)) * sizeof(SpriteFrameData), 0);
