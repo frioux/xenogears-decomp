@@ -167,6 +167,84 @@ int func_8008B54C(int index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B644);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
+/* 87.64% (476 bytes, retail 476). The whole head, the if/else inversion (written
+   as "if (gearRide[2] == 0) { gear position } else { unk20 = 1; unk24 = 1; }",
+   which is what puts the short block out of line behind bnez like retail) and the
+   whole switch (cases 1-3 gear, 4-6 unk20 = 3, 7 unk20 = 2, 8-13 empty: the empty
+   cases are required, retail s table is 13 words = min 1 max 13) are byte-identical.
+   What is left is one scheduler/sese tie in the block that sets up unk40..unk5C:
+   retail emits lhu g_GameState+0x1824 and the D_8009BE10 load ABOVE the unk4A/unk58
+   constant stores and re-reads unk48 with lh for unk5C (sh 0x48 then lh 0x48), while
+   gcc sinks both loads below the stores and folds the re-read into an sll/sra pair.
+   A volatile u16 store for unk48 reproduces the lh but loses the rest (84.34), and
+   reading unk48 into a volatile u32 local before the store gives 72.12. The permuter
+   from this body found nothing better (base 1255 best 668, which is 72.12 on objdiff).
+   Everything after the jr table is correct, including the shared unk20/unk24 tail and
+   the cross-jumped case 4-6 body.
+int func_8008BB40(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    s32 result = 1;
+    if (g_GameState.partyMembers[2] != 0xFF) {
+        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+        SpritePlayAnimation(pActor->unk4C, 0);
+        SpriteSetScale(pActor->unk4C, 0x1800);
+        *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+        pActor->unk24 = 0;
+    } else {
+        pActor->unk24 = 1;
+        result = 3;
+    }
+    pActor->unk28 = g_GameState.unk1820 << 12;
+    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    pActor->unk40 = 0;
+    pActor->unk3C = 0;
+    pActor->unk38 = 0;
+    pActor->unk4A = 8;
+    pActor->unk58 = 0x1E;
+    pActor->unk48 = g_GameState.unk1824;
+    pActor->unk5C = pActor->unk48;
+    switch (D_8009BE10) {
+    case 1:
+    case 2:
+    case 3:
+        if (g_GameState.gearRide[2] == 0) {
+            pActor->unk28 = D_8009C5AC;
+            pActor->unk30 = D_8009C5B4;
+            pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+            pActor->unk48 = D_8009C584;
+        } else {
+            pActor->unk20 = 1;
+            pActor->unk24 = 1;
+        }
+        break;
+    case 4:
+    case 5:
+    case 6:
+        pActor->unk20 = 3;
+        pActor->unk24 = 1;
+        if (g_GameState.partyMembers[2] != 0xFF) {
+            g_GameState.gearRide[2] = 1;
+        }
+        break;
+    case 7:
+        pActor->unk20 = 2;
+        pActor->unk24 = 1;
+        if (g_GameState.partyMembers[2] != 0xFF) {
+            g_GameState.gearRide[2] = 1;
+        }
+        break;
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+        break;
+    }
+    return result;
+}
+*/
 int WorldMapModeInitCharacterSprite2(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = 1;
