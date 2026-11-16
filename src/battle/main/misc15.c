@@ -1,9 +1,49 @@
 #include "common.h"
 #include "main/game.h"
 
-extern u8 *D_800C3EAC;
+// Command slot descriptor: one 0x40-byte entry per battle actor slot, in the
+// head array of the block D_800C3EAC points at.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x3C];
+    /* 0x3C */ u8 unk3C; // actor slot this entry stands for
+    /* 0x3D */ u8 pad3D[3];
+} BattleCommandSlot; // Size: 0x40
+
+// Partial view of the battle command queue (D_800C3EAC): the head slot array
+// and the queued-command counter. src/battle/main/misc4.c holds the same block
+// under the same name.
+typedef struct {
+    /* 0x000 */ BattleCommandSlot slots[4];
+    /* 0x100 */ u8 unk100[0x1C4];
+    /* 0x2C4 */ u8 unk2C4[8];
+    /* 0x2CC */ u8 unk2CC[0xE];
+    /* 0x2DA */ u8 count; // queued commands
+    /* 0x2DB */ u8 unk2DB;
+    /* 0x2DC */ u8 unk2DC;
+    /* 0x2DD */ u8 unk2DD[0xA];
+} BattleCommandQueue; // Size: 0x2E7
+
+// Partial view of the per-frame battle display state (D_800D2D28); the shared
+// type is BattleWork in include/battle/battle_work.h.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x9C];
+    /* 0x09C */ u8 unk9C;
+    /* 0x09D */ u8 unk9D;
+    /* 0x09E */ u8 unk9E;
+    /* 0x09F */ u8 unk9F[0x10];
+    /* 0x0AF */ u8 unkAF;
+    /* 0x0B0 */ u8 unkB0[4]; // prim flags the *PrimFlags*Slots pairs below raise
+    /* 0x0B4 */ u8 unkB4[3];
+    /* 0x0B7 */ u8 unkB7;
+    /* 0x0B8 */ u8 unkB8[0xE];
+    /* 0x0C6 */ u8 unkC6;
+    /* 0x0C7 */ u8 unkC7[4];
+    /* 0x0CB */ u8 unkCB;
+} BattleDisplayState; // Size: 0xCC
+
+extern BattleCommandQueue *D_800C3EAC;
 extern u8 D_800C3CF4[];
-extern u8 *D_800D2D28;
+extern BattleDisplayState *D_800D2D28;
 extern u8 D_800D366C;
 extern int ArchiveDataSync(void);
 extern void BattlePlaySoundWithBaseId(u8 arg0);
@@ -124,10 +164,10 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
     if (mask == 0) {
         return;
     }
-    D_800C400B[D_800C3EAC[0x2DA] * 72] = arg1;
-    D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF3;
-    D_800C4022[D_800C3EAC[0x2DA] * 36] = mask;
-    D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+    D_800C400B[D_800C3EAC->count * 72] = arg1;
+    D_800C402F[D_800C3EAC->count * 72] = 0xF3;
+    D_800C4022[D_800C3EAC->count * 36] = mask;
+    D_800C3EAC->count = D_800C3EAC->count + 1;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
@@ -168,12 +208,12 @@ void func_8008ADD0(u8 arg0) {
     }
     new_var = &D_800D2C94;
     if (D_800D32A1[arg0 * 8] == 0) {
-        D_800C3EAC[0x2DC] = D_800C3EAC[0x2E6] + 0x17;
-        off = (D_800C3EAC[0x2E6] + 0x16) * 40 + arg0 * 1520;
+        D_800C3EAC->unk2DC = D_800C3EAC->unk2E6 + 0x17;
+        off = (D_800C3EAC->unk2E6 + 0x16) * 40 + arg0 * 1520;
         sel = *(u16 *)(D_800CDD40 + off) & 7;
     } else {
-        D_800C3EAC[0x2DC] = D_800C3EAC[0x2E6] + 0x16;
-        off = (D_800C3EAC[0x2E6] + 0x15) * 40 + arg0 * 1680;
+        D_800C3EAC->unk2DC = D_800C3EAC->unk2E6 + 0x16;
+        off = (D_800C3EAC->unk2E6 + 0x15) * 40 + arg0 * 1680;
         sel = *(u16 *)(D_800CEF10 + off) & 7;
     }
     if (sel != 0) {
@@ -184,45 +224,44 @@ void func_8008ADD0(u8 arg0) {
     pMask = new_var;
     BattleQueueCommandF3WithSlotMask(mask, arg0);
     BattleClearSlotCurveEntry();
-    BattleBeginActorAction(arg0, mask, D_800C3EAC[0x2DC] - 1);
-    BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
+    BattleBeginActorAction(arg0, mask, D_800C3EAC->unk2DC - 1);
+    BattleApplySlotCurveAndStep(D_800C3EAC->count);
     mask = BattleSlotBitMask(arg0);
     BattleBeginAnimTask(*pMask | mask);
-    func_800B89FC(1, arg0, D_800C3EAC[arg0 * 0x40 + 0x3C], BattleFindMinValueOtherSlot(arg0));
-    D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800D2C98;
-    D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
-    *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 72) = *pMask;
+    func_800B89FC(1, arg0, D_800C3EAC->slots[arg0].unk3C, BattleFindMinValueOtherSlot(arg0));
+    D_800C402F[D_800C3EAC->count * 72] = D_800D2C98;
+    D_800C400B[D_800C3EAC->count * 72] = arg0;
+    *(u16 *)(D_800C3FFE + D_800C3EAC->count * 72) = *pMask;
     for (i = 3; i < 11; i++) {
         if (BattleMaskHasSlotBit(*pMask, i) != 0) {
             func_80079840(arg0, i);
         }
     }
-    D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+    D_800C3EAC->count = D_800C3EAC->count + 1;
     BattleQueueCommandFE(arg0);
-    while (D_800C3EAC[0x2DB] == 0) {
+    while (D_800C3EAC->unk2DB == 0) {
         BattleUpdateFrame();
     }
 }
 */
 
 void BattleClearPrimFlagsFourSlots(u8 arg0) {
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
-    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 0;
-    D_800D2D28[0xB7] = 0;
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 0;
+    D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = D_800D2D28->unkB0[2] = D_800D2D28->unkB0[3] = 0;
+    D_800D2D28->unkB7 = 0;
     if (arg0 == 0) {
-        D_800D2D28[0xCB] = 1;
+        D_800D2D28->unkCB = 1;
     }
 }
 void BattleSetPrimFlagsFourSlots(u8 arg0) {
-    int slotStride = 0x40;
     u16 value;
 
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
-    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = D_800D2D28[0xB3] = 1;
-    D_800D2D28[0xB7] = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 1;
+    D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = D_800D2D28->unkB0[2] = D_800D2D28->unkB0[3] = 1;
+    D_800D2D28->unkB7 = 1;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
+    func_800BCD98(BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
 /* Best: 89.19% (584 bytes vs the original's 596). Same calls, same branch tree,
@@ -268,12 +307,12 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     }
     if (*(u16 *)(D_800CCD38 + arg0 * 0x170) >= count && inParty != 0) {
         BattleClearPrimFlagsFourSlots(1);
-        D_800D2D28[0xC6] = 1;
+        D_800D2D28->unkC6 = 1;
         if (func_80085084(entry, arg0, 0) != 0) {
             *(u16 *)(D_800CCD38 + arg0 * 0x170) -= count;
             result = 1;
         } else {
-            D_800D2D28[0xC6] = 0;
+            D_800D2D28->unkC6 = 0;
             BattleSetPrimFlagsFourSlots(arg0);
         }
         canAct = 0;
@@ -287,23 +326,22 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B908);
 void BattleClearPrimFlagsTwoSlots(u8 arg0) {
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
-    D_800D2D28[0xB0] = D_800D2D28[0xB1] = 0;
-    D_800D2D28[0xB7] = 0;
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 0;
+    D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = 0;
+    D_800D2D28->unkB7 = 0;
     if (arg0 == 0) {
-        D_800D2D28[0xCB] = 1;
+        D_800D2D28->unkCB = 1;
     }
 }
 void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     u16 value;
-    int slotStride = 0x40;
 
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
-    D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
-    D_800D2D28[0xB7] = 2;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 1;
+    D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = 1;
+    D_800D2D28->unkB7 = 2;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
+    func_800BCD98(BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C));
 }
 s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     u8 value;
@@ -320,11 +358,11 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     if (value != 0) {
         if (arg3 == 0) {
             BattleClearPrimFlagsTwoSlots(1);
-            D_800D2D28[0xC6] = 1;
+            D_800D2D28->unkC6 = 1;
             if (func_80085084(entry, arg0, 0) != 0) {
                 result = 1;
             } else {
-                D_800D2D28[0xC6] = 0;
+                D_800D2D28->unkC6 = 0;
                 BattleSetPrimFlagsTwoSlots(arg0);
             }
         } else if (BattleIsCharacterInParty(value - 0x32) != 0) {
@@ -343,29 +381,28 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
 void BattleFreeSlotPrims(u8 arg0) {
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
-    D_800D2D28[0xB7] = 0;
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 0;
+    D_800D2D28->unkB7 = 0;
     if (arg0 != 0) {
-        D_800D2D28[0xC6] = 0;
+        D_800D2D28->unkC6 = 0;
         func_8008FA60(0);
         func_8008FA60(1);
         BattleUpdateFrame();
         BattleFreePacketPrimitives();
         BattleClearFlagC6();
     } else {
-        D_800D2D28[0xB0] = D_800D2D28[0xB1] = 0;
+        D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = 0;
     }
 }
 void func_8008C3F0(u8 arg0) {
     u16 value;
-    int slotStride = 0x40;
 
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
-    D_800D2D28[0xB7] = 3;
-    D_800D2D28[0xB0] = D_800D2D28[0xB1] = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 1;
+    D_800D2D28->unkB7 = 3;
+    D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = 1;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
+    func_800BCD98(BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 /* Best: 88.52% (932 bytes vs the original's 884). Same calls, same branch tree,
@@ -378,7 +415,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
       the loop compiles to retail's at-form, so the source spelling is right and
       it is the `loop` pass doing it. Tried: a `do { } while (0);` block around
       the three stores (no change), three separate index locals (loads of
-      D_800C3EAC[0x2DA] drop from three to one), `int slotStride = 0x40;`
+      D_800C3EAC->count drop from three to one), `int slotStride = 0x40;`
       (fixes the addu operand order of item 2 but makes the tail index a real
       `mult` and costs 4 more registers), pointer locals.
    2. addu operand order at three sites: retail `addu v0,v0,s0` (base first),
@@ -387,11 +424,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
       with the 0x40 literal the order is wrong at exactly the three sites where
       the pointer lands in $v0 rather than $a0. Both `D_800C3EAC[arg0 * 0x40 +
       0x3C]` and `(D_800C3EAC + arg0 * 0x40)[0x3C]` measured identical.
-   Everything else matches, including the shared epilogue, `D_800D2D28[0xCB] =
+   Everything else matches, including the shared epilogue, `D_800D2D28->unkCB =
    result` / `D_800C4928 = result` both storing $s3 (the source has to store the
    `result` local there, not the literal 1), the `sb` in BattleFreeSlotPrims's
    jal delay slot, the `addiu v0,v0,0xFF` (255, not -1) form of `x - 1`, and the
    `slti/bnez` for-loop tail. `make check` was NOT run on the parked body.
+   Round 124: D_800C3EAC and D_800D2D28 are typed now (BattleCommandQueue /
+   BattleDisplayState at the top of this file), so the body below compiles as
+   written; the typed slot spelling `D_800C3EAC->slots[arg0].unk3C` is proven
+   byte-exact by the four *PrimFlags*Slots setters that use it.
    NEXT: permute this body. */
 /*
 s32 func_8008C4A8(u8 arg0) {
@@ -402,38 +443,38 @@ s32 func_8008C4A8(u8 arg0) {
     if ((func_8008C81C(arg0) & 0xFF) != 0) {
         BattleNoOpCallback(arg0, 0x100);
         BattleFreeSlotPrims(1);
-        D_800D2D28[0xCB] = result;
+        D_800D2D28->unkCB = result;
         result = 0;
     } else {
         BattleNoOpCallback(arg0, 0x80);
-        D_800D2D28[0xAF] = 0;
+        D_800D2D28->unkAF = 0;
         BattleFreeSlotPrims(1);
         D_800D366C = 0;
         func_800BCD98(0);
-        D_800C3EAC[arg0 * 0x40 + 0x3C] = D_800C3E2C;
-        func_800877E0(arg0, D_800C3EAC[arg0 * 0x40 + 0x3C]);
+        D_800C3EAC->slots[arg0].unk3C = D_800C3E2C;
+        func_800877E0(arg0, D_800C3EAC->slots[arg0].unk3C);
         D_800C4928 = result;
         BattleSetupActorSlotDisplay(arg0);
-        if ((*(u16 *)(D_800CCD1C + D_800C3EAC[arg0 * 0x40 + 0x3C] * 0x170) & 0x800) != 0) {
-            D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
-            D_800C402F[D_800C3EAC[0x2DA] * 72] = 0xF3;
-            D_800C4022[D_800C3EAC[0x2DA] * 36] = BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]);
-            D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+        if ((*(u16 *)(D_800CCD1C + D_800C3EAC->slots[arg0].unk3C * 0x170) & 0x800) != 0) {
+            D_800C400B[D_800C3EAC->count * 72] = arg0;
+            D_800C402F[D_800C3EAC->count * 72] = 0xF3;
+            D_800C4022[D_800C3EAC->count * 36] = BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C);
+            D_800C3EAC->count = D_800C3EAC->count + 1;
         }
         for (i = 0; i < 7; i++) {
-            if (D_800C3EAC[i + 0x2C4] != 0xFF) {
-                D_800C3EAC[0x2DC] = D_800C3EAC[i + 0x2C4] + 8;
-                BattleBeginActorAction(arg0, BattleSlotBitMask(D_800C3EAC[arg0 * 0x40 + 0x3C]), D_800C3EAC[0x2DC] - 1);
-                BattleApplySlotCurveAndStep(D_800C3EAC[0x2DA]);
-                D_800C402F[D_800C3EAC[0x2DA] * 72] = D_800C3EAC[0x2DC] - 1;
-                D_800C400B[D_800C3EAC[0x2DA] * 72] = arg0;
-                *(u16 *)(D_800C3FFE + D_800C3EAC[0x2DA] * 72) = D_800D2C94;
-                D_800C3EAC[0x2DA] = D_800C3EAC[0x2DA] + 1;
+            if (D_800C3EAC->unk2C4[i] != 0xFF) {
+                D_800C3EAC->unk2DC = D_800C3EAC->unk2C4[i] + 8;
+                BattleBeginActorAction(arg0, BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C), D_800C3EAC->unk2DC - 1);
+                BattleApplySlotCurveAndStep(D_800C3EAC->count);
+                D_800C402F[D_800C3EAC->count * 72] = D_800C3EAC->unk2DC - 1;
+                D_800C400B[D_800C3EAC->count * 72] = arg0;
+                *(u16 *)(D_800C3FFE + D_800C3EAC->count * 72) = D_800D2C94;
+                D_800C3EAC->count = D_800C3EAC->count + 1;
             }
         }
         BattleQueueCommandFE(arg0);
-        func_80087EDC(arg0, D_800C3EAC[arg0 * 0x40 + 0x3C]);
-        while (D_800C3EAC[0x2DB] == 0) {
+        func_80087EDC(arg0, D_800C3EAC->slots[arg0].unk3C);
+        while (D_800C3EAC->unk2DB == 0) {
             BattleUpdateFrame();
         }
     }
@@ -442,22 +483,21 @@ s32 func_8008C4A8(u8 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 void BattleClearPrimFlagsThreeSlots(u8 arg0) {
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 0;
-    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 0;
-    D_800D2D28[0xB7] = 0;
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 0;
+    D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = D_800D2D28->unkB0[2] = 0;
+    D_800D2D28->unkB7 = 0;
     if (arg0 == 0) {
-        D_800D2D28[0xCB] = 1;
+        D_800D2D28->unkCB = 1;
     }
 }
 void BattleSetPrimFlagsThreeSlots(u8 arg0) {
     u16 value;
-    int slotStride = 0x40;
 
-    D_800D2D28[0x9C] = D_800D2D28[0x9D] = D_800D2D28[0x9E] = 1;
-    D_800D2D28[0xB0] = D_800D2D28[0xB1] = D_800D2D28[0xB2] = 1;
-    D_800D2D28[0xB7] = 4;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]);
+    D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 1;
+    D_800D2D28->unkB0[0] = D_800D2D28->unkB0[1] = D_800D2D28->unkB0[2] = 1;
+    D_800D2D28->unkB7 = 4;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask((D_800C3EAC + arg0 * slotStride)[0x3C]));
+    func_800BCD98(BattleSlotBitMask(D_800C3EAC->slots[arg0].unk3C));
 }
 
