@@ -2221,7 +2221,7 @@ typedef struct {
     /* 0x4  */ WorkListCallback_t pChainCallback; // replaced by LibGearJointTaskCallback
     /* 0x8  */ Model* pModel;
     /* 0xC  */ s16 jointIndex;
-    /* 0xE  */ s16 unkE; // non-zero: snap the rotated offset to the model's ground
+    /* 0xE  */ s16 useGroundY; // non-zero: the model's ground replaces the rotated offset's y
     /* 0x10 */ SVECTOR offset;
 } LibGearJointTask; // Size: 0x18
 
@@ -2232,9 +2232,9 @@ typedef struct {
     /* 0x6  */ u16 offsetX;
     /* 0x8  */ u16 offsetY;
     /* 0xA  */ u16 offsetZ;
-    /* 0xC  */ u8 unkC;
+    /* 0xC  */ u8 useGroundY;
     /* 0xD  */ u8 padD[0x6];
-    /* 0x13 */ u8 unk13; // non-zero: install LibGearJointTaskCallback as the task callback
+    /* 0x13 */ u8 followJoint; // non-zero: LibGearJointTaskCallback drives the sprite position
 } LibGearJointInfo; // Size: 0x14
 
 // Allocates a work list task plus a LibGearJointTask; returns the task
@@ -2261,13 +2261,13 @@ void LibGearCreateJointTask(void* pAnimFile, s32 animIndex, s32 arg2, s16 direct
     pJointTask->pModel = pModel;
     pJointTask->jointIndex = pInfo->jointIndex;
 
-    if (pInfo->unk13 != 0) {
+    if (pInfo->followJoint != 0) {
         pJointTask->pChainCallback = WorkListTaskGetTaskCallback(&pTask->task1);
         TimerWorkListSetTaskCallback(&pTask->task1, &LibGearJointTaskCallback);
         pJointTask->offset.vx = pInfo->offsetX;
         pJointTask->offset.vy = pInfo->offsetY;
         pJointTask->offset.vz = pInfo->offsetZ;
-        pJointTask->unkE = pInfo->unkC;
+        pJointTask->useGroundY = pInfo->useGroundY;
     }
 }
 
@@ -2297,7 +2297,7 @@ void LibGearJointTaskCallback(void* pTaskRaw) {
     gte_mvmva(1, 0, 0, 0, 0);
     gte_stlvnl(&vec);
 
-    if (pJointTask->unkE != 0) {
+    if (pJointTask->useGroundY != 0) {
         vec.y = pJointTask->pModel->ground;
     }
 
