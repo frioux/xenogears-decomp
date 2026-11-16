@@ -38,7 +38,12 @@ def main():
             continue
         body = path.read_text(errors="replace").splitlines()
         n_insn = sum(1 for ln in body if INSN.match(ln))
-        size_at = next((i for i, ln in enumerate(body) if ln.startswith(".size")), None)
+        # The .size for THIS function, not the first .size in the file: a stub that
+        # owns rodata has its data (and that data's .size) before the function, which
+        # is why an earlier version of this script called every data-owning stub
+        # BLOCKED with "<all its insns> after .size" (field/main/misc2 func_8007520C
+        # was one of them and converted to a 100% match in round 165).
+        size_at = next((i for i, ln in enumerate(body) if re.match(r"\.size\s+%s\b" % re.escape(name), ln)), None)
         if size_at is None:
             rows.append(("OK", name, n_insn, "no .size"))
             continue
@@ -48,7 +53,7 @@ def main():
         if after:
             problems.append(f"{len(after)} insn after .size")
         if labels:
-            problems.append("owns " + ", ".join(l.split()[1] for l in labels))
+            problems.append("owns data " + ", ".join(l.split()[1] for l in labels) + " (move it to C in the same commit)")
         rows.append(("BLOCKED" if problems else "OK", name, n_insn, "; ".join(problems)))
     ok = [r for r in rows if r[0] == "OK"]
     print(f"{unit}: {len(ok)} convertible of {len(rows)} stubs")
