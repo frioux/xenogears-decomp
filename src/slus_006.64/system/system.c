@@ -406,6 +406,7 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     int i;
     int sign = flag;
     s32 v;
+    u16* new_var;
 
     v = value;
     glyphOffset *= 16;
@@ -430,7 +431,8 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     pEnd[0] = 0xFFFF;
     pEnd[-11] = glyphOffset;
 
-    pEnd = pScan + 10;
+    pEnd = pScan;
+    pEnd = pEnd + 10;
 
     if ((glyphOffset & 0xFFF0) == glyphOffset) {
         for (;;) {
@@ -449,7 +451,8 @@ scanDone:
         *--pScan = sign + glyphOffset;
     }
 
-    SystemDecodeGlyphCodes(pScan);
+    new_var = pScan;
+    SystemDecodeGlyphCodes(new_var);
 }
 
 void SystemStringSetCurrentData(SystemString* pString, void* pData) {
