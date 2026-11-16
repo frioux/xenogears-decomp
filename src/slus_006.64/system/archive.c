@@ -12,7 +12,7 @@
 #include "psyq/libgpu.h"
 
 extern s8* D_8004FE08;
-extern s32 D_8004FE0C;
+extern StreamDataQueueEntry* D_8004FE0C;
 extern s32 D_8004FE00;
 extern s32 D_8004FE10;
 extern s16 D_8004FE24;
@@ -27,9 +27,10 @@ extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
 extern void ArchiveStreamFileDataCallback();
 extern void ArchiveRestorePendingCount();
-extern void func_8002AC24();
+void func_8002AC24(u_char status);
 extern void ArchiveCdDataSync(int);
 extern int ArchiveDecodeSizeAligned(int);
+extern int ArchiveDecodeSectorAligned(int);
 extern s32 g_ArchiveCurFileSector;
 extern char D_80018944[];
 extern char D_80018954[];
@@ -43,6 +44,8 @@ extern u8 D_800596F8[];
 extern s32 D_8004FDE4;
 extern s32 D_8004FDEC;
 extern s32 D_8004FE3C;
+extern s32 D_8004FDE0;
+extern s32 D_8004FDE8;
 extern s16 D_80059F40;
 extern s16 D_80059F44;
 extern s16 D_80059F48;
@@ -76,7 +79,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     D_8004FE08 = pDestBuffer;
     D_8004FE38 = arg2 & 0xFFFF;
     D_8004FE10 = 0;
-    D_8004FE0C = 0;
+    D_8004FE0C = NULL;
     D_8004FE34 = 0;
     D_8005A4DC = 0;
     pLoc = &g_ArchiveCdCurLocation;
@@ -702,7 +705,123 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002AC24);
+void func_8002AC24(u_char status) {
+    StreamDataQueueEntry* pEntry;
+    void* pData;
+    u16 nId;
+    u32 nSector;
+    s32 entryIndex;
+    s32 nWords;
+    s32 nHalfSector;
+    s32 i;
+    s32 j;
+
+    if (status != CdlDataReady)
+        goto error;
+
+    if (D_8004FE34 > 0) {
+        CdReadyCallback(NULL);
+        CdDataCallback(NULL);
+        g_ArchiveCurFileSize = 0;
+        ArchiveCdSeekToFile(D_8004FE38);
+        D_8004FE00 = 0;
+        D_8004FDFC = 0;
+        return;
+    }
+
+    if (g_ArchiveCurFileSize >= CD_SECTOR_SIZE) {
+        if (D_8004FE3C == 0) {
+            CdGetSector(&D_80059EF8, 3);
+            CdGetSector(D_8004FE08, CD_SECTOR_SIZE / 4);
+        }
+    } else if (g_ArchiveCurFileSize > 0) {
+        if (D_8004FE3C == 0) {
+            CdGetSector(&D_80059EF8, 3);
+            CdGetSector(D_8004FE08, (g_ArchiveCurFileSize + 3) / 4);
+            nWords = (g_ArchiveCurFileSize + 3) / 4;
+            nHalfSector = CD_SECTOR_SIZE / 4;
+            nHalfSector = nHalfSector - nWords;
+            CdGetSector(D_800596F8, nHalfSector);
+        }
+    }
+
+    if ((CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) && (D_8004FE3C == 0)) {
+        D_8004FDE8 += 1;
+        goto error;
+    }
+
+    D_8004FE08 += CD_SECTOR_SIZE;
+    g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+    g_ArchiveCurFileSector += 1;
+    if (g_ArchiveCurFileSize > 0)
+        return;
+
+    entryIndex = D_8004FE10 + 1;
+    pEntry = (StreamDataQueueEntry*)((entryIndex * sizeof(StreamDataQueueEntry)) + (mem_addr)D_8004FE0C);
+    nId = pEntry->archiveIndex;
+    D_8004FE10 = entryIndex;
+    pData = pEntry->pData;
+    D_8004FE08 = pData;
+
+    if ((nId == 0) || (pData == NULL))
+        goto noEntry;
+
+    nSector = ArchiveDecodeSectorAligned(nId);
+    g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
+
+    if (g_ArchiveCurFileSector < nSector) {
+        if (g_ArchiveCurFileSector + D_8004FDE0 < nSector)
+            goto seek;
+        D_8004FE3C = 1;
+        g_ArchiveCurFileSize = (g_ArchiveCurFileSector - nSector) * CD_SECTOR_SIZE;
+        D_8004FE10 -= 1;
+        return;
+    }
+
+seek:
+    if (nSector == g_ArchiveCurFileSector) {
+        D_8004FE3C = 0;
+        D_8004FE00 -= 1;
+        return;
+    }
+
+    D_8004FE3C = 0;
+    g_ArchiveCurFileSector = nSector;
+    D_80059F08 = CdReadyCallback(NULL);
+    CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
+    g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_DATA_SECTOR;
+    CdSyncCallback(&ArchiveCdDriveCommandHandler);
+    CdControlF(CdlPause, NULL);
+    D_8004FE00 -= 1;
+    return;
+
+noEntry:
+    g_ArchiveCurFileSize = 0;
+    CdReadyCallback(NULL);
+    ArchiveCdSeekToFile(D_8004FE38);
+    D_8004FE00 = 0;
+    D_8004FDFC = 0;
+    return;
+
+error:
+    D_8005A4DC += 1;
+    D_80059F08 = CdReadyCallback(NULL);
+    CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
+    if (D_8005A4DC < 3) {
+        g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
+    } else {
+        for (i = 9999; i >= 0; i--) {
+            for (j = 1999; j >= 0; j--) {
+            }
+        }
+        D_8005A4DC = 0;
+        g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
+        D_8005A4A4 += 1;
+    }
+    g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
+    CdSyncCallback(&ArchiveCdDriveCommandHandler);
+    CdControlF(CdlNop, NULL);
+}
 
 void ArchiveCdReadyReadFile(u_char status) {
     s32 nHalfSector;
