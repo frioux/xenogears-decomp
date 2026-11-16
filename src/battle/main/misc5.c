@@ -5,7 +5,7 @@ extern u8 *g_BattleDisplayState;
 extern u16 D_8005A3A0[];
 extern u8 D_800D3420[];
 extern u8 D_800D3410[];
-extern u8 D_800D2DCC[];
+extern u8 g_BattleSlotEnabledFlags[];
 
 // One 0x60-byte entry of the screen slot table at D_800D3718; only the slot's
 // enable flag, set throughout by BattleSet/ClearSlotFlagB4 and cleared for every
@@ -331,7 +331,7 @@ u32 func_8007A628(u8 arg0, u8 arg1) {
     u32 f;
     u8 res = 0;
 
-    if (D_800D2DCC[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
+    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
         off = arg0 * 0x170;
         if ((*(u16 *)(g_BattleSlotEntries + off) & 0xC002) == 0) {
             res = 1;
@@ -346,7 +346,7 @@ u32 func_8007A628(u8 arg0, u8 arg1) {
 u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
     u8 res = 0;
 
-    if (D_800D2DCC[arg0] != 0) {
+    if (g_BattleSlotEnabledFlags[arg0] != 0) {
         if ((g_BattleSlotEntries[arg0].flags & 0xC002) == 0) {
             res = 1;
             if (arg1 == 0) {
@@ -361,7 +361,7 @@ u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
 u32 BattleSlotFlagsC000Clear(u8 arg0) {
     u8 res = 0;
 
-    if (D_800D2DCC[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
+    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
         res = (g_BattleSlotEntries[arg0].flags & 0xC000) == 0;
     }
     return res;
@@ -408,7 +408,7 @@ void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] = p[2];
 }
-void func_8007A92C(u8 **arg0, u8 arg1) {
+void BattleWordRegSetImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 val = p[2] | (p[3] << 8);
     mem_addr regFileBase;
@@ -427,7 +427,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    used as ((u32*)pRow)[p[1]] every instruction is right but the whole
    lui/addiu + addu a1,a1,a0 group lands BEFORE the value loads (10.31%): gcc
    sinks the one-use value into the store, so the pointer init is expanded
-   first. Same wall as the old func_8007A92C body (now matched: statement-
+   first. Same wall as the old BattleWordRegSetImm body (now matched: statement-
    assigned base mem_addr + index-first inline address); gcc-2.6.0, 2.7.2-cdk,
    -O1 and -O3 all fail on it too.
    Round 135: the typed spelling `g_BattleSlotRegs[arg1].unk10[p[1]] = val` (dword

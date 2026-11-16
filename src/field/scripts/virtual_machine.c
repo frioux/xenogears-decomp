@@ -10,7 +10,7 @@
 #include "psyq/libgpu.h"
 #include "psyq/libcd.h"
 
-extern s32 D_800AFFEC;
+extern s32 g_FieldScriptVMScriptEndFlag;
 extern s32 g_FieldCurActorIndex; // Current actor index
 extern s32 g_FieldScriptVMStopFlag;
 
@@ -58,7 +58,7 @@ void FieldScriptVMHandlerReturn(void) {
         }
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
-        D_800AFFEC = 1;
+        g_FieldScriptVMScriptEndFlag = 1;
         g_FieldScriptVMStopFlag = 1;
         return;
     }
@@ -107,7 +107,7 @@ void FieldScriptVMHandlerStopAndRetargetQueuedScripts(void) {
 void FieldScriptVMHandlerEndScript(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
-    D_800AFFEC = 1;
+    g_FieldScriptVMScriptEndFlag = 1;
     g_FieldScriptVMStopFlag = 1;
 }
 
@@ -240,7 +240,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
         nHandlerIndex = ((u_char *)g_FieldScriptVMCurScriptData)[nInstructionPointer];
         g_FieldScriptVMHandlers[nHandlerIndex]();
 
-        if (D_800AFFEC == 0) {
+        if (g_FieldScriptVMScriptEndFlag == 0) {
             g_FieldScriptMaxInstructionCount = 0xFFFF;
         }
 
@@ -249,7 +249,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
             return;
         }
 
-        if (g_FieldScriptVMStopFlag == 1 && D_800AFFEC == g_FieldScriptVMStopFlag) {
+        if (g_FieldScriptVMStopFlag == 1 && g_FieldScriptVMScriptEndFlag == g_FieldScriptVMStopFlag) {
             return;
         }
 
@@ -357,7 +357,7 @@ void func_800A2030(void) {
         }
 
         nInstructionPointer = g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].currentIP;
-        D_800AFFEC = 1;
+        g_FieldScriptVMScriptEndFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer = nInstructionPointer;
         if (!(g_FieldScriptVMCurActor->scriptFlags.flags & 1)) {
             FieldScriptVMRun(8);
@@ -398,7 +398,7 @@ void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
     
     g_FieldCurActorIndex = 0;
     D_800ADB1C = 0;
-    D_800AFFEC = 0;
+    g_FieldScriptVMScriptEndFlag = 0;
 
     // Run entry point routine
     g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(0, scriptRoutineIndex);

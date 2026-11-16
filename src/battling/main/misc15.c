@@ -33,7 +33,7 @@ typedef struct {
     /* 0x6 */ u16 pad6;
 } VertexIndexSet; // Size: 0x8
 
-// One entry of the packet list at D_80059528: a flag byte and a count, then
+// One entry of the packet list at g_BattlePacketNodeCursor: a flag byte and a count, then
 // count 8-byte vertex runs immediately after this 4-byte header.
 typedef struct {
     /* 0x0 */ u8 flags;
@@ -170,7 +170,7 @@ extern void* g_pCurModelPacket;
 extern void* g_pCurModelVertices;
 extern void* D_80059568;
 extern s32 D_800595C0;
-extern void* D_80059528;
+extern void* g_BattlePacketNodeCursor;
 extern void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices);
 extern void func_8008C620(VertexIndexSet* pVerts, s16 n);
 extern void func_800732AC(void* pDst, void* pSrc, s32 n);
@@ -225,7 +225,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
    both jal delay slots. Still different: gcc turns `i = count - 1; while
    (i != -1)` into a `beqz count` guard plus a fall-through body, while retail
    jumps straight to the latch (`j`, `addiu s1,s1,-1`) and has the loop test at
-   the bottom; and gcc keeps the `D_80059528 = pData->pNodes` store in the
+   the bottom; and gcc keeps the `g_BattlePacketNodeCursor = pData->pNodes` store in the
    preheader where retail merges it into the latch block, which also reorders the
    preheader loads. Writing that store at the loop top through a pCur local
    instead drops to 73.73% (gcc folds the redundant reload), `while (--i != -1)`
@@ -239,14 +239,14 @@ void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices) 
     PacketNode* pNode;
 
     i = pData->nodeCount - 1;
-    D_80059528 = pData->pNodes;
+    g_BattlePacketNodeCursor = pData->pNodes;
     D_800595C0 += pData->unk4;
     g_pCurModelPacket = pPacket;
     D_80059568 = pUnk;
     g_pCurModelVertices = pVertices;
     while (i != -1) {
-        pNode = D_80059528;
-        D_80059528 = pNode->verts;
+        pNode = g_BattlePacketNodeCursor;
+        g_BattlePacketNodeCursor = pNode->verts;
         if (pNode->flags & 8) {
             i--;
             func_8008C620(pNode->verts, pNode->count);
@@ -254,7 +254,7 @@ void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices) 
             i--;
             func_8008C4B0(pNode->verts, pNode->count);
         }
-        D_80059528 = (u8*)D_80059528 + (pNode->count << 3);
+        g_BattlePacketNodeCursor = (u8*)g_BattlePacketNodeCursor + (pNode->count << 3);
     }
 }
 */
@@ -272,7 +272,7 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     pBlock->unk2 = pData->unk4;
     pBlock->unk4 = pData->unk8;
     pBlock->pData = pData;
-    D_80059528 = pData->pNodes;
+    g_BattlePacketNodeCursor = pData->pNodes;
     HeapSetCurrentContentType(0x13);
     pMem = HeapAlloc(pBlock->count * 8, 2);
     i = pBlock->count;
@@ -286,23 +286,23 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     sumB = 0;
     i = pData->nodeCount;
     while (--i != -1) {
-        pNode = D_80059528;
-        D_80059528 = (u8*)pNode + sizeof(PacketNode);
+        pNode = g_BattlePacketNodeCursor;
+        g_BattlePacketNodeCursor = (u8*)pNode + sizeof(PacketNode);
         if (pNode->flags & 8)
             sumB += pNode->count;
         else
             sumA += pNode->count;
-        D_80059528 = (u8*)D_80059528 + (pNode->count << 3);
+        g_BattlePacketNodeCursor = (u8*)g_BattlePacketNodeCursor + (pNode->count << 3);
     }
     i = sumA * 0x14 + sumB * 0x18;
     pBuf = HeapAlloc(i * 2, 2);
     pBlock->pDelayedMem = pBuf;
     pBlock->pDelayedMemEnd = pBuf + i;
     j = pData->nodeCount;
-    D_80059528 = pData->pNodes;
+    g_BattlePacketNodeCursor = pData->pNodes;
     while (--j != -1) {
-        pNode = D_80059528;
-        D_80059528 = (u8*)pNode + sizeof(PacketNode);
+        pNode = g_BattlePacketNodeCursor;
+        g_BattlePacketNodeCursor = (u8*)pNode + sizeof(PacketNode);
         if (pNode->flags & 8) {
             n = pNode->count;
             while (--n != -1) {
@@ -318,7 +318,7 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
                 pBuf += 0x14;
             }
         }
-        D_80059528 = (u8*)D_80059528 + (pNode->count << 3);
+        g_BattlePacketNodeCursor = (u8*)g_BattlePacketNodeCursor + (pNode->count << 3);
     }
     func_800732AC(pBlock->pDelayedMemEnd, pBlock->pDelayedMem, i);
 }

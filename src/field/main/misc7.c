@@ -14,7 +14,7 @@ extern s32 g_PlayerActorIndex;
 // Debug string for the variable print in FieldScriptVMHandlerDebugPrintVariable. Sized to the 0x14 bytes
 // splat assigned this unit's rodata subsegment, so the next unit's rodata still
 // starts at 0x240.
-const char D_8006FD1C[0x14] = "DEB=%xh %d \n";
+const char g_StrFieldDebugVariableFormat[0x14] = "DEB=%xh %d \n";
 
 extern s16 D_800B21AE;
 extern s16 D_800B21B0;
@@ -237,7 +237,7 @@ void FieldScriptVMHandlerDebugPrintVariable(void) {
     if (g_FieldSystemMode == 0) {
         int nValue = FieldScriptVMGetVariableValue(FieldScriptVMGetInstructionArgument(1) & 0xFFFF);
 
-        func_800379C8(D_8006FD1C, nValue, nValue);
+        func_800379C8(g_StrFieldDebugVariableFormat, nValue, nValue);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }

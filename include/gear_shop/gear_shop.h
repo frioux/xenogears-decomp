@@ -64,7 +64,7 @@ extern int D_801D69A4[];
 //   }
 
 extern u8  g_GearShopMainMenuStringIds[4];
-extern u8  D_801D6A24[8];
+extern u8  g_GearShopSubmenuStringIds[8];
 extern int g_GearShopPointerCursorInitX[4];
 extern int g_GearShopPointerCursorInitY[4];
 extern u32 g_MenuStringIds;
@@ -76,51 +76,51 @@ extern s32 g_SelectionCursorY[9]; // = {0xC9, 0xB5, 0xA2, 0x90, 0xC9, 0xB5, 0xA2
 extern int g_GearShopCharacterPortraitX[];
 extern u16 g_GearShopCharacterBitMasks[];
 extern int g_gearShopGearEquipFlags[];
-extern u8  D_801D6D08[8]; // indexed by (renderContext * 4)+i
-extern u8  D_801D6D10[2]; // indexed by renderContext
-extern int D_801D6D14[8]; // indexed by (renderContext * 4)+i
-extern s32 D_801D6D34[2]; // indexed by renderContext
-extern int D_801D6D3C[8]; // indexed by (renderContext * 4)+i
-extern s32 D_801D6D5C[2]; // indexed by renderContext
-extern s32 D_801D6D64;
-extern s32 D_801D6D68;
-extern int D_801D6D6C;
-extern int D_801D6D70;
-extern s32 D_801D6D74;
-extern s32 D_801D6D78;
-extern u16 D_801D6D7C[2];
-extern u8 D_801D6DA0[];
-extern u16 D_801D6DB4[];
-extern u16 D_801D6DD8[];
+extern u8  g_GearShopPurchaseExplanationGlyphs[8]; // indexed by (renderContext * 4)+i
+extern u8  g_GearShopSellExplanationGlyphs[2]; // indexed by renderContext
+extern int g_GearShopPurchaseExplanationX[8]; // indexed by (renderContext * 4)+i
+extern s32 g_GearShopSellExplanationX[2]; // indexed by renderContext
+extern int g_GearShopPurchaseExplanationY[8]; // indexed by (renderContext * 4)+i
+extern s32 g_GearShopSellExplanationY[2]; // indexed by renderContext
+extern s32 g_GearShopGoldBeforeX;
+extern s32 g_GearShopGoldBeforeY;
+extern int g_GearShopTotalPriceX;
+extern int g_GearShopTotalPriceY;
+extern s32 g_GearShopGoldAfterX;
+extern s32 g_GearShopGoldAfterY;
+extern u16 g_GearShopGearModelFileIds[2];
+extern u8 g_GearShopGearAnimationIds[];
+extern u16 g_GearShopGearModelGround[];
+extern u16 g_GearShopGearModelScale[];
 
 extern int g_GearShopInventoryCounts[5];
-extern s16 D_801D6DFC[14];
-extern s16 D_801D6E18[204];
-extern s16 D_801D6FB0[0x10];
-extern s32 D_801D6FD0[2];
+extern s16 g_GearShopGearCameraX[14];
+extern s16 g_GearShopGearCameraY[204];
+extern s16 g_GearShopGearRotationY[0x10];
+extern s32 g_GearShopShoulderButtonX[2];
 
-extern u16 D_801D6FE0[40];
-extern u8 D_801D7030[16];
-extern u16 D_801D7040[2];
-extern u16 D_801D7044[12];
-extern u16 D_801D705C[6];
-extern u16 D_801D7068[6];
-extern u16 D_801D7074[6];
-extern u16 D_801D7080[6];
-extern u16 D_801D708C[];
-extern u16 D_801D70A8[];
-extern u16 D_801D70C4[];
-extern u16 D_801D70E0;
-extern u16 D_801D70E2;
-extern u16 D_801D70E4;
-extern u16 D_801D70E6;
-extern u16 D_801D70E8;
-extern u16 D_801D70EA;
-extern u16 D_801D70EC;
-extern u16 D_801D70EE;
-extern u16 D_801D70F0;
-extern u16 D_801D70F2;
-extern u8  D_801D70F4[9];
+extern u16 g_GearShopOptionMarkerGlyphs[40];
+extern u8 g_GearShopSubmenuRowIndex[16];
+extern u16 g_GearShopOptionMarkerX[2];
+extern u16 g_GearShopOptionMarkerY[12];
+extern u16 g_GearShopOptionHighlightX[6];
+extern u16 g_GearShopOptionHighlightY[6];
+extern u16 g_GearShopSparkleX[6];
+extern u16 g_GearShopSparkleY[6];
+extern u16 g_GearShopGearStatLabelGlyphs[];
+extern u16 g_GearShopGearStatLabelX[];
+extern u16 g_GearShopGearStatLabelY[];
+extern u16 g_GearShopGearHpX;
+extern u16 g_GearShopGearHpY;
+extern u16 g_GearShopGearMaxHpX;
+extern u16 g_GearShopGearMaxHpY;
+extern u16 g_GearShopGearFuelX;
+extern u16 g_GearShopGearFuelY;
+extern u16 g_GearShopGearMaxFuelX;
+extern u16 g_GearShopGearMaxFuelY;
+extern u16 g_GearShopGearWeightX;
+extern u16 g_GearShopGearWeightY;
+extern u8  g_GearShopGearPilotIds[9];
 
 extern POLY_FT4 g_GearShopDebugDigitPrims[];
 
@@ -137,7 +137,7 @@ extern int g_gearShopAvailableCharacterCount;
 extern int g_gearShopCurCharacterIndex;
 
 extern u_char  g_gearShopCurrentGearId;
-extern u8* D_801D9088;
+extern u8* g_GearShopGearNameBuffer;
 
 extern s32 g_GearShopMainMenuTextureIds[];
 // = {
@@ -146,9 +146,9 @@ extern s32 g_GearShopMainMenuTextureIds[];
 //    MENU_TEX_BALL_CURSOR_3, MENU_TEX_STRING_EXIT,
 //    MENU_TEX_BALL_CURSOR_4, MENU_TEX_STRING_TUNE_UP,
 //    }
-extern s8 D_801D6A2C[4];
+extern s8 g_GearShopPurchaseTotalStringIds[4];
 extern s32 g_GearShopMainMenuStringOffsets[];
-extern int D_801D6A40[8]; // = { 0, 0x18, 0, 0, 0x18, 0xC, 0xC, 0x6 }
+extern int g_GearShopMenuStringPadding[8]; // = { 0, 0x18, 0, 0, 0x18, 0xC, 0xC, 0x6 }
 
 extern u16 g_gearShopCurrentItemQuantityHeld;
 

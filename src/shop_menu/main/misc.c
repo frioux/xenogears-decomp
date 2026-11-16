@@ -69,7 +69,7 @@ extern u16 g_SystemPalette2;
 
 extern u_char g_ShopMenuStringIds[]; // String IDs of the shop menu strings
 extern int g_ShopSubmenuTextureIds[]; // Cursor textures, 4 per submenu
-extern int D_801D1F70[]; // Text textures, 4 per submenu
+extern int g_ShopSubmenuTextTextureIds[]; // Text textures, 4 per submenu
 
 extern u_short g_CharacterBitMasks[];
 
@@ -2546,7 +2546,7 @@ void ShopMenuUpdateSubmenuTextures(u_char menuOffset) {
         );
 
         g_Menu->unk354->polys500PrimCount += func_8002675C(
-            g_Menu->resources, D_801D1F70[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2],
+            g_Menu->resources, g_ShopSubmenuTextTextureIds[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2],
             &g_Menu->unk354->polys500[g_Menu->unk354->polys500PrimCount * 2],
             g_Menu->renderContext,
             160, 150,

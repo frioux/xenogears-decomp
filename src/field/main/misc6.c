@@ -22,7 +22,7 @@ extern void GamePartySyncSkinData(void);
 extern void GamePartySyncStreamedData(void);
 extern int FieldPartySlotToCharacter(int);
 extern void* g_PartyDataBuffers[];
-extern s32 D_800AFFEC;
+extern s32 g_FieldScriptVMScriptEndFlag;
 extern s16 D_800AFD20;
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
@@ -320,7 +320,7 @@ typedef struct {
 //      ($a0 / $a2). Tried two declaration orders (pActor/pSprite/pFieldActor/
 //      offset permuted): byte-identical 79.89%.
 /*
-extern s16 D_800AFB54;
+extern s16 g_FieldWalkmeshTriCount;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
 extern u_int FieldActorGetWalkmeshTriMaterial(ActorData* pActor);
 
@@ -334,7 +334,7 @@ void func_8009E574(s32 nX, s32 nY) {
     s32 offset;
 
     pSprite = (SpriteData*)g_FieldActors[g_FieldCurActorIndex].pSpriteData;
-    for (i = 0; i < D_800AFB54 - 1; i++) {
+    for (i = 0; i < g_FieldWalkmeshTriCount - 1; i++) {
         g_FieldScriptVMCurActor->walkmeshTriIds[i] = func_8007B1C4(nX, nY, i, &points[i], &normals[i]);
     }
     g_FieldScriptVMCurActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(g_FieldScriptVMCurActor);
@@ -887,7 +887,7 @@ void FieldScriptReadPartyMemberPosition(s32 arg0, s32* arg1, s32* arg2, s32* arg
 extern int GameCharacterGetGearID(int characterId);
 extern void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void);
 extern s32 g_FieldPartyActorIndices[3];
-extern s16 D_800AFB54;
+extern s16 g_FieldWalkmeshTriCount;
 
 void FieldScriptVMHandlerSwitchPartyLeader(void) {
     int partyIndex;
@@ -940,7 +940,7 @@ void FieldScriptVMHandlerSwitchPartyLeader(void) {
         g_FieldScriptVMCurActor->flags |= 0x800;
         return;
     }
-    if (D_800AFB54 - 1 < g_FieldScriptVMCurActor->walkmeshId) {
+    if (g_FieldWalkmeshTriCount - 1 < g_FieldScriptVMCurActor->walkmeshId) {
         g_FieldScriptVMCurActor->walkmeshId = 0;
     }
     g_FieldScriptVMCurActor->scriptFlags.flags |= 0x20000;
@@ -1022,7 +1022,7 @@ void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
     } else {
         func_80076AC0(g_FieldCurActorIndex, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
         g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x0 = 1;
-        D_800AFFEC = 1;
+        g_FieldScriptVMScriptEndFlag = 1;
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->flags |= 0x100000;
     }
@@ -1091,10 +1091,10 @@ void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void) {
 }
 
 typedef struct { s16 value; } FieldScriptGlobalS16;
-extern FieldScriptGlobalS16 D_800B234A;
+extern FieldScriptGlobalS16 g_FieldGearObjectCapacity;
 
 void FieldScriptVMHandlerSetGlobalS16(void) {
-    D_800B234A.value = FieldScriptVMGetArgument(1);
+    g_FieldGearObjectCapacity.value = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 

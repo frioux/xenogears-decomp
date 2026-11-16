@@ -47,12 +47,12 @@ typedef struct {
 extern BattleSlotRow D_800D3410[];
 extern BattleSlotEntry D_800CCD34[];
 extern BattleSlotRecord g_BattleSlotRecords[];
-extern s16 D_800D2E06[];
+extern s16 g_BattleSlotCountdownTimers[];
 extern s16 D_800D2E0C[];
 extern u8 g_BattleRowStatValues[];
 extern u8 D_800D2CB0[];
 extern u8 g_BattleCommandGridIds[];
-extern u8 D_800D2DCC[];
+extern u8 g_BattleSlotEnabledFlags[];
 extern u8 D_800CCD3E[];
 extern u8 D_800CCDEC[];
 extern u8 D_800C3EB7[];
@@ -163,8 +163,8 @@ void BattlePickCharSlotByLowestSlotWord(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 0; i < 3; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= D_800D2E06[i]) {
-            best = D_800D2E06[i];
+        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotCountdownTimers[i]) {
+            best = g_BattleSlotCountdownTimers[i];
             bestIndex = i;
         }
     }
@@ -564,7 +564,7 @@ void BattleStoreActorSlotFlagsC000ClearCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 3; i < 0xB; i++) {
-        if (D_800D2DCC[i] != 0 && (D_800CCD34[i].flags & 0xC000) == 0 && g_BattleSlotRecords[i].flags == 0) {
+        if (g_BattleSlotEnabledFlags[i] != 0 && (D_800CCD34[i].flags & 0xC000) == 0 && g_BattleSlotRecords[i].flags == 0) {
             count++;
         }
     }

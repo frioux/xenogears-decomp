@@ -25,11 +25,13 @@ for path,fs in byfile.items():
     L=open(path).read().split("\n")
     b=unit.split("/")[0]; d="asm/%s/nonmatchings/%s"%(b,"/".join(unit.split("/")[1:]))
     jt=set(os.path.basename(p)[:-2] for p in glob.glob(d+"/*.s") if "jtbl" in open(p,errors="ignore").read())
+    # A stub that stores $sp is a stack switch (alloca/coroutine) - never convertible to C.
+    swsp=set(os.path.basename(p)[:-2] for p in glob.glob(d+"/*.s") if re.search(r'\b(sw|sd)\s+\$sp', open(p,errors="ignore").read()))
     af=set() if unit in cdk0 else atfree(unit)
     if owns_tables(unit): jt=set()
     for f in fs:
         n=f["function"]
-        if n in jt or n in af: continue
+        if n in jt or n in af or n in swsp: continue
         idx=[i for i,l in enumerate(L) if "INCLUDE_ASM" in l and re.search(r'[,(\s]%s\s*[,)]'%re.escape(n),l)]
         if not idx: continue
         i=idx[0]

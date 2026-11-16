@@ -28,8 +28,8 @@ extern s32 g_BattlePrimStartIndex;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *D_800C3E34;
 extern BattleTableEntry g_BattleWorkBlock[];
-extern u8 D_800D2C54[];
-extern u8 D_800D2C88[];
+extern u8 g_BattleCurveTargets[];
+extern u8 g_BattleCurveTargetModes[];
 extern u16 D_800D2C9E;
 extern u16 D_800C324E;
 extern u16 D_800C3250;
@@ -389,13 +389,13 @@ void BattleInitActiveSlotAction(void) {
     D_800C3E34->unk84 = 0;
     D_800C3E34->unk88 = 0;
     D_800C3E34->unk8C = 0;
-    D_800D2C88[t] = 2;
+    g_BattleCurveTargetModes[t] = 2;
     p = D_800C3E34;
     v = p->maxHp * g_BattleCurrentRow->unk11;
     if (D_800C3E50) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
     t = D_800C3E50;
-    *(s32 *)(t * 4 + D_800D2C54) = v / 10;
+    *(s32 *)(t * 4 + g_BattleCurveTargets) = v / 10;
     D_800D2C9E |= 1 << t;
 }
 void BattleClearStatusWordsOnAction6E(void) {

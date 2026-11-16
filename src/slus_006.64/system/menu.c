@@ -20,7 +20,7 @@ extern char g_StrDebugCdFormat[];   // "\n\n     CdNo =(%d)\n"
 extern void* g_MenuResourcesFile;    // Menu resources file
 extern void* D_800658CC;
 extern void* D_8006BE24;
-extern void* D_8005A4AC;
+extern void* g_MenuGfxEnvOtBuffer0;
 extern void* D_8005A4B0;
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveCdDataSync(int mode);
@@ -252,7 +252,7 @@ void MenuExecute(void) {
             ArchiveReadFileToBuffer(0x6B9, (void*)0x801DC000, 0, 0x80);
             ArchiveCdDataSync(0);
             ArchiveSetIndex(0x10, 0);
-            D_8005A4AC = HeapAlloc(0x4000, 0);
+            g_MenuGfxEnvOtBuffer0 = HeapAlloc(0x4000, 0);
             D_8005A4B0 = HeapAlloc(0x4000, 0);
         }
         // Reserve the rest of the heap, up to where the menu overlay is loaded
@@ -292,7 +292,7 @@ void MenuExecute(void) {
         if (g_MenuOverlayIndex == 5) {
             HeapFree(D_800658CC);
             HeapFree(D_8006BE24);
-            HeapFree(D_8005A4AC);
+            HeapFree(g_MenuGfxEnvOtBuffer0);
             HeapFree(D_8005A4B0);
         }
         g_MenuDebugEnabled = 1;

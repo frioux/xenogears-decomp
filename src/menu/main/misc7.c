@@ -49,11 +49,11 @@ void MenuSetCharacterHpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterMpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterWideNumberDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterLevelDigits(u_char a0, u_char a1, s32 a2, s32 a3);
-extern s32 D_801E9A78[];
-extern s32 D_801E9AC8[];
+extern s32 g_MenuCharacterIconX[];
+extern s32 g_MenuCharacterIconY[];
 extern s32 D_801E9B60[];
 extern s32 D_801E9C20[];
-extern s32 D_801EA34C[];
+extern s32 g_MenuCharacterIconTexIds[];
 extern s32 D_801EA39C[];
 extern s32 D_801E9B28;
 extern s32 D_801E9B38;
@@ -67,7 +67,7 @@ extern s32 D_801E9B54;
 extern s32 D_801E9B2C;
 extern s32 D_801E9B30;
 extern s32 D_801E9B34;
-extern s32 D_801E9B18;
+extern s32 g_MenuCharacterNumberOrigins;
 extern s32 D_801E9B1C;
 extern s32 D_801E9B20;
 extern s32 D_801E9B24;
@@ -392,14 +392,14 @@ void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
 
     pWindow->iconsPrimCount = 0;
     for (i = 0; i < 0x14; i++) {
-        if (D_801EA34C[i] != 0xFFFF) {
+        if (g_MenuCharacterIconTexIds[i] != 0xFFFF) {
             pWindow->iconsPrimCount += func_8002675C(
                 g_Menu->resources,
-                D_801EA34C[i],
+                g_MenuCharacterIconTexIds[i],
                 &pWindow->polysIcons[pWindow->iconsPrimCount * 2],
                 g_Menu->renderContext,
-                x + D_801E9A78[i],
-                y + D_801E9AC8[i],
+                x + g_MenuCharacterIconX[i],
+                y + g_MenuCharacterIconY[i],
                 0x1000);
         }
     }
@@ -508,7 +508,7 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
             pWindow->levelPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysLevel[pWindow->levelPrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B18 + i * 8, y + D_801E9B1C,
+                g_Menu->renderContext, x + g_MenuCharacterNumberOrigins + i * 8, y + D_801E9B1C,
                 0x1000);
         }
     }

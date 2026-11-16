@@ -16,7 +16,7 @@ extern u8 D_800C402F[];
 extern u8 D_800D2E60[];
 extern u8 D_800D2E61[];
 extern s32 g_SystemSemiTransMode;
-extern u8 D_800D2DCC[];
+extern u8 g_BattleSlotEnabledFlags[];
 extern u8 g_BattleActorCountdownState[];
 extern u16 D_800D2DF0[];
 extern u8 g_BattleTextSlotCount;

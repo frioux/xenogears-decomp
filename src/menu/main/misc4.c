@@ -15,7 +15,7 @@ extern u_char func_801CD2AC(void);
 extern void func_801CD81C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
 extern void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4);
 extern void func_801CDC6C(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5);
-extern void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext);
+extern void MenuRenderTransformedQuads(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext);
 extern void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext);
 extern void func_801CE860(void);
 extern void func_801CF37C(void);
@@ -96,7 +96,7 @@ void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2
     pCharacter->unkBE7 = 1;
     pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
 }
-void func_801CE198(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
+void MenuRenderTransformedQuads(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
     s32 i;
     long interpolated;
     long flag;
@@ -198,56 +198,56 @@ void MenuAddUnk358Prims(void) {
         // 2.7.2 keep g_Menu in $v1 here; one copy scores 99.80.
         if (pData) {
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
+            MenuRenderTransformedQuads(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
                           pData[0x2AEE]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
     } else {
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
+            MenuRenderTransformedQuads(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
                           pData[0x2AEE]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            func_801CE198(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+            MenuRenderTransformedQuads(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
         }
     }
 }
@@ -290,7 +290,7 @@ void func_801CE860(void) {
                 AddPrim(&g_Menu->pGfxEnv->ot[4],
                         (void*)(offset2 + (u32)g_Menu->unk35C +
                                 (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36));
-                func_801CE198((((u8*)g_Menu->unk35C) + i)[0x32CE],
+                MenuRenderTransformedQuads((((u8*)g_Menu->unk35C) + i)[0x32CE],
                               (SVECTOR*)((rowOfs * 4 + 0x2D80) + (u32)g_Menu->unk35C),
                               (POLY_FT4*)((offset0 + 0x1770) + (u32)g_Menu->unk35C),
                               (((u8*)g_Menu->unk35C) + i)[0x32D5]);
@@ -309,7 +309,7 @@ void func_801CE860(void) {
             AddPrim(&g_Menu->pGfxEnv->ot[4],
                     (void*)(offset1 + (u32)g_Menu->unk35C +
                             (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36));
-            func_801CE198((((u8*)g_Menu->unk35C) + i)[0x32C0],
+            MenuRenderTransformedQuads((((u8*)g_Menu->unk35C) + i)[0x32C0],
                           (SVECTOR*)((rowOfs * 4 + 0x2A00) + (u32)g_Menu->unk35C),
                           (POLY_FT4*)((offset0 + 0xEB0) + (u32)g_Menu->unk35C),
                           (((u8*)g_Menu->unk35C) + i)[0x32C7]);
@@ -326,7 +326,7 @@ void MenuAddUnk35CPrims(void) {
 
     if (g_Menu->pManager->unk8) {
         pData = (u8*)g_Menu->unk35C;
-        func_801CE198(pData[0x32F3], (SVECTOR*)(pData + 0x2420), (POLY_FT4*)pData, pData[0x32F1]);
+        MenuRenderTransformedQuads(pData[0x32F3], (SVECTOR*)(pData + 0x2420), (POLY_FT4*)pData, pData[0x32F1]);
         func_801CE860();
     }
 }
@@ -342,7 +342,7 @@ void MenuAddUnk360Prims(void) {
             pFlag = pData + i;
             if (pFlag[0x294]) {
                 pRow = (u8*)(i * 0x80 + (u32)pData);
-                func_801CE198(1, (SVECTOR*)(pRow + 0x50), (POLY_FT4*)pRow, pData[0x299]);
+                MenuRenderTransformedQuads(1, (SVECTOR*)(pRow + 0x50), (POLY_FT4*)pRow, pData[0x299]);
             }
         }
     }

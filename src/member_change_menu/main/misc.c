@@ -7,13 +7,13 @@
 #include "main/game.h"
 
 // Bit masks
-extern u_short D_801CB57C[];
+extern u_short g_MemberChangeMenuCharacterBitMasks[];
 extern u_short D_8006F94C;
-extern u_char D_801CB400[];
+extern u_char g_MemberChangeMenuStringIds[];
 
-extern int D_801CB180[]; // X positions for cursor?
+extern int g_MemberChangeMenuPointerCursorInitX[]; // X positions for cursor?
 // = { 0, 0, 180, 276 }
-extern int D_801CB190[]; // Y positions for cursor?
+extern int g_MemberChangeMenuPointerCursorInitY[]; // Y positions for cursor?
 // = { 0, 0, 200, 200}
 
 
@@ -25,17 +25,17 @@ extern int g_MemberChangeMenuCurserPositionsY[];
 // = { 38, 94, 150, 22,  54, 86, 118, 150, 182}
 
 // Cursor position indices
-extern s32 D_801CB404[];
+extern s32 g_MemberChangeMenuPointerCursorBoxSlot[];
 
 // Cursor X positions
-extern s32 D_801CB47C[];
+extern s32 g_MemberChangeMenuPointerCursorBoxX[];
 // = { 0x20, 0x28, 0x30, 0x38, 0x40, 0x48, 0x50, 0x58,
 //     0x60, 0x68, 0x70, 0x78, 0x80, 0x88, 0x90, 0x140,
 //     0xB0, 0xB8, 0xC0, 0xC8, 0xD0, 0xD8, 0xE0, 0xE8,
 //     0xF0, 0xF8, 0x100, 0x108, 0x110, 0x118, 0x120, 0x140 };
 
 // Cursor Y positions
-extern s32 D_801CB4FC[];
+extern s32 g_MemberChangeMenuPointerCursorBoxY[];
 // = { 0xE, 0x22, 0x36, 0xE, 0x22, 0x36, 0xE, 0x22,
 //     0x36, 0xE, 0x22, 0x36, 0xE, 0x22, 0x36, 0x100,
 //     0xE, 0x22, 0x36, 0xE, 0x22, 0x36, 0xE, 0x22,
@@ -48,7 +48,7 @@ extern int g_MemberChangeMenuCurCharPositionsY[];
 extern int g_MemberChangeMenuCharTexcoordsU[];
 extern int g_MemberChangeMenuCharTexcoordsV[];
 
-extern s32 D_801CB3DC[];
+extern s32 g_MemberChangeMenuStatLabelGlyphIndexes[];
 // = { 0x15, 0x1F, 0xFFFF, 0x11, 0x19, 0x3E, 0x16, 0x19, 0x3E }
 // = { 'L', 'V',   0xFFFF, 'H',  'P',  '/',  'M'   'P'   '/'  }
 
@@ -65,7 +65,7 @@ static inline void MenuSetSystemPalette(void* pPrim, u8 flag) {
 }
 
 u_short MemberChangeMenuIsCharacterFlagSet(u_short value, u_char maskIndex) {
-    return D_801CB57C[maskIndex] & value;
+    return g_MemberChangeMenuCharacterBitMasks[maskIndex] & value;
 }
 
 void MemberChangeMenuUnk32CManager(u_char isInitialization) {
@@ -344,7 +344,7 @@ void MemberChangeMenuRenderMenuStringsToVram(MenuString* pStringList, u_char* pS
 void MemberChangeMenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    MemberChangeMenuRenderMenuStringsToVram(&g_Menu->unk4E0[0], D_801CB400, 0, 4);
+    MemberChangeMenuRenderMenuStringsToVram(&g_Menu->unk4E0[0], g_MemberChangeMenuStringIds, 0, 4);
     MemberChangeMenuFillVramRectWhite();
 }
 
@@ -912,14 +912,14 @@ void MemberChangeMenuDrawCursors(void) {
                 if (g_Menu->pCursors->shouldUpdatePosition[i]) {
                     setXY4(
                         &g_Menu->pCursors->polysCursor[i * 2 + g_Menu->pCursors->renderContexts[i]],
-                        D_801CB47C[D_801CB404[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        D_801CB4FC[D_801CB404[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        D_801CB47C[D_801CB404[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        D_801CB4FC[D_801CB404[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        D_801CB47C[D_801CB404[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        D_801CB4FC[D_801CB404[g_Menu->menuUnk2->unk4F7C]] + 10,
-                        D_801CB47C[D_801CB404[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        D_801CB4FC[D_801CB404[g_Menu->menuUnk2->unk4F7C]] + 10
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10,
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10
                     );
                 }
 
@@ -1660,9 +1660,9 @@ void MemberChangeMenuBuildCharacterLabelsAndPortrait(MenuCharacter* pCharacter, 
     // LV, HP/, MP/ strings
     pCharacter->descriptionStringsLength = 0;
     for (i = 0; i < 9; i++) {
-        if (D_801CB3DC[i] != 0xFFFF) {
+        if (g_MemberChangeMenuStatLabelGlyphIndexes[i] != 0xFFFF) {
             pCharacter->descriptionStringsLength += func_8002675C(
-                g_Menu->resources, D_801CB3DC[i],
+                g_Menu->resources, g_MemberChangeMenuStatLabelGlyphIndexes[i],
                 &pCharacter->polysDescriptionStrings[pCharacter->descriptionStringsLength * 2],
                 g_Menu->renderContext,
                 pPositionsX[i],
@@ -1933,7 +1933,7 @@ void MemberChangeMenuInitializeCursors(unsigned char mode) {
                 func_8002675C(
                     g_Menu->resources, MENU_TEX_POINTER_CURSOR,
                     &g_Menu->pCursors->polysCursor[i * 2], g_Menu->renderContext,
-                    D_801CB180[i], D_801CB190[i],
+                    g_MemberChangeMenuPointerCursorInitX[i], g_MemberChangeMenuPointerCursorInitY[i],
                     0x800
                 );
                 g_Menu->pCursors->renderContexts[i] = g_Menu->renderContext;

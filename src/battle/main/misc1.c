@@ -51,7 +51,7 @@ extern u8 D_800D2DD8[];
 extern u8 D_800D2DE3[];
 extern u16 D_800D2E04[];
 extern u16 D_800D2DF0[];
-extern u16 D_800D2E06[];
+extern u16 g_BattleSlotCountdownTimers[];
 extern u16 D_800D2C9E;
 extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 g_BattlePendingSlotMask;
@@ -72,7 +72,7 @@ extern u16 D_800C3254[];
 extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void func_80072938(POLY_FT4 *, s32, s32, s32);
 extern u8 D_800D3298;
-extern u8 D_800D2DCC[];
+extern u8 g_BattleSlotEnabledFlags[];
 extern u16 g_BattleSlotEntries[];
 extern u16 D_800CCD68[];
 extern u16 D_800CCD6C[];
@@ -152,7 +152,7 @@ void func_8007171C(void) {
 
     for (i = 0; i < 0xB; i++) {
         off = i * 0x170;
-        if (D_800D2DCC[i] == 0) {
+        if (g_BattleSlotEnabledFlags[i] == 0) {
             continue;
         }
         if (g_BattleActorCountdownState[i] != 0) {
@@ -187,7 +187,7 @@ void func_8007171C(void) {
         if (*(u16 *)((u8 *)D_800CCD68 + off) & 0x1000) {
             continue;
         }
-        pTimer = (u8 *)((u8 *)D_800D2E06 + i * 2);
+        pTimer = (u8 *)((u8 *)g_BattleSlotCountdownTimers + i * 2);
         v = *(u16 *)pTimer - dec;
         *(u16 *)pTimer = v;
         if ((s16)v > 0) {
@@ -205,8 +205,8 @@ void BattleResetActorCountdown(void) {
     if (g_BattleActorCountdownState[index] != 0xFF) {
         g_BattleActorCountdownState[index] = 0;
     }
-    D_800D2E06[g_BattleCommandQueue[0x2D3]] = func_80098AF8(g_BattleCommandQueue[0x2D3], 0);
-    D_800D2E06[g_BattleCommandQueue[0x2D3] - 0xB] = D_800D2E06[g_BattleCommandQueue[0x2D3]];
+    g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3]] = func_80098AF8(g_BattleCommandQueue[0x2D3], 0);
+    g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3] - 0xB] = g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3]];
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
@@ -290,7 +290,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
    re-materialises `li v0,1` inside the block. Tried: plain g_BattleDisplayState[i + 0x7C]
    (index-first addu), (g_BattleDisplayState + i)[0x7C] (base-first addu, now identical),
    store order before/after *pDst = *pSrc (no effect), pFlag pointer local.
-   The pointer pair pDst = D_800D2E06, pSrc = pDst - 0xB reproduces the original
+   The pointer pair pDst = g_BattleSlotCountdownTimers, pSrc = pDst - 0xB reproduces the original
    addiu s2,s1,-0x16 exactly. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
 /* 72.36% under 2.6.0 and 2.7.2. The pointer pair (pSrc = pDst - 0xB gives the
@@ -304,7 +304,7 @@ void func_80072270(void) {
     u16 *pDst;
 
     if ((D_800D2C9E & 7) != 0) {
-        pDst = D_800D2E06;
+        pDst = g_BattleSlotCountdownTimers;
         pSrc = pDst - 0xB;
         for (i = 0; i < 3; i++) {
             if (BattleMaskHasSlotBit(D_800D2C9E, i) != 0) {

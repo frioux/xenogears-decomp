@@ -146,7 +146,7 @@ void func_800BD1FC(s32 slot) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 
-void func_800BD2E4(void) {
+void BattleUpdateCommandRows(void) {
     u8 *pSlot;
     u8 *pBase;
     void **pEntry;

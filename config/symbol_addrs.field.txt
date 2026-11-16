@@ -1,6 +1,6 @@
 // Format string "DEB=%xh %d \n" at the start of the overlay's rodata; it used to
 // be labelled by the splat output for func_800985BC, which is now C.
-D_8006FD1C = 0x8006FD1C; // type:asciz
+g_StrFieldDebugVariableFormat = 0x8006FD1C; // type:asciz
 
 FieldLZSSDecompress = 0x8007008C;
 FieldFree = 0x800700B0;
@@ -930,3 +930,6 @@ g_FieldFadeDuration = 0x800AFD14;
 g_FieldStreamSceneActive = 0x800ADB70;
 g_FieldStreamFlags = 0x800ADB80;
 g_FieldTextBoxAllocationStates = 0x800B068C;
+g_FieldWalkmeshTriCount = 0x800AFB54;
+g_FieldScriptVMScriptEndFlag = 0x800AFFEC;
+g_FieldGearObjectCapacity = 0x800B234A;

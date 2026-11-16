@@ -1550,3 +1550,6 @@ g_DebuggerState = 0x8005917C;
 g_MenuResourcesFile = 0x8005945C;
 g_SystemSemiTransMode = 0x800595A0;
 g_SystemBackdropColor = 0x800594D4;
+g_MenuGfxEnvOtBuffer0 = 0x8005A4AC;
+g_BattleEmittedPacketCount = 0x80059578;
+g_BattlePacketNodeCursor = 0x80059528;

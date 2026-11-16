@@ -233,7 +233,7 @@ extern void* g_FieldActorModelPointers[];
 extern u8 D_800B225C;
 extern u8 D_800B225D;
 extern u8 D_800B225E;
-extern s16 D_800B234A;
+extern s16 g_FieldGearObjectCapacity;
 
 extern void FieldRenderSyncAndFlush(void);
 extern void func_801E738C(s16 arg0);
@@ -264,7 +264,7 @@ void func_80077AB4(void) {
 
     FieldWaitForArchiveSync();
     FieldRenderSyncAndFlush();
-    func_801E738C(D_800B234A);
+    func_801E738C(g_FieldGearObjectCapacity);
     D_801E8644 = pCount - 10;
     SetBackColor(D_800B225C, D_800B225D, D_800B225E);
     if (*pCount > 0) {

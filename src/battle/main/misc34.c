@@ -18,7 +18,7 @@ extern u8 g_SpriteAnimPackageDirs5[];
 
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
-extern void func_800BD2E4(void);
+extern void BattleUpdateCommandRows(void);
 extern void *func_800BFC80(void *, s32, s32);
 extern s32 BattleSpriteDistanceToTarget(SpriteData *pSpriteData);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
@@ -110,7 +110,7 @@ void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData *pSpriteData) {
 
 void BattleUpdateActorSlotsIfStateExists(void) {
     if (g_BattleState != 0) {
-        func_800BD2E4();
+        BattleUpdateCommandRows();
     }
 }
 
