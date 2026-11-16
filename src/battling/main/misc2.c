@@ -24,7 +24,7 @@ typedef union {
 
 typedef struct {
     /* 0x00 */ BattleQuad pos;
-    /* 0x10 */ BattleQuad unk10;
+    /* 0x10 */ BattleQuad prevPos;
     /* 0x20 */ BattleQuad unk20;
     /* 0x30 */ BattleQuad unk30;
     /* 0x40 */ u8 unk40[0x3];
@@ -38,7 +38,7 @@ typedef struct {
     /* 0x0 */ s16 x;
     /* 0x2 */ s16 y;
     /* 0x4 */ s16 z;
-    /* 0x6 */ u16 unk6;
+    /* 0x6 */ u16 flags;
     /* 0x8 */ u8 index;
     /* 0x9 */ u8 unk9;
     /* 0xA */ u8 unkA;
@@ -107,40 +107,40 @@ typedef struct {
 } BattlePartTiming; // Size: 0x2
 
 typedef struct {
-    /* 0x000 */ s32 unk0;
-    /* 0x004 */ s32 unk4;
-    /* 0x008 */ s32 unk8;
+    /* 0x000 */ s32 x;
+    /* 0x004 */ s32 y;
+    /* 0x008 */ s32 z;
     /* 0x00C */ u8 pad0C[0x40];
-    /* 0x04C */ u8 unk4C;
+    /* 0x04C */ u8 partIndex;
     /* 0x04D */ u8 unk4D;
-    /* 0x04E */ u8 unk4E;
+    /* 0x04E */ u8 prevPartIndex;
     /* 0x04F */ u8 unk4F;
     /* 0x050 */ s16 unk50;
     /* 0x052 */ u8 unk52;
     /* 0x053 */ u8 pad53;
     /* 0x054 */ s32 unk54;
     /* 0x058 */ u8 pad58[0x4];
-    /* 0x05C */ BattleModelLink *unk5C;
+    /* 0x05C */ BattleModelLink *pModelLink;
     /* 0x060 */ u8 pad60[0x1C];
-    /* 0x07C */ BattlePartTiming *unk7C;
+    /* 0x07C */ BattlePartTiming *pPartTimings;
     /* 0x080 */ u8 pad80[0x4];
     /* 0x084 */ s32 unk84;
     /* 0x088 */ u8 pad88[0x2C];
     /* 0x0B4 */ s16 unkB4;
-    /* 0x0B6 */ u16 unkB6;
+    /* 0x0B6 */ u16 gaugePoints;
     /* 0x0B8 */ u8 padB8[0x2];
-    /* 0x0BA */ s16 unkBA;
+    /* 0x0BA */ s16 gaugeLevel;
     /* 0x0BC */ s16 unkBC;
     /* 0x0BE */ u8 padBE[0x12];
-    /* 0x0D0 */ u32 unkD0;
+    /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 padD4[0x4];
-    /* 0x0D8 */ u8 *unkD8;
+    /* 0x0D8 */ u8 *pTarget;
     /* 0x0DC */ u8 padDC[0x28];
     /* 0x104 */ BattleActorSlot slots[16];
     /* 0x644 */ u32 unk644;
     /* 0x648 */ u8 pad648[0x2BC];
-    /* 0x904 */ u8 *unk904;
-    /* 0x908 */ u8 unk908;
+    /* 0x904 */ u8 *pVisiblePartIndices;
+    /* 0x908 */ u8 visiblePartCount;
     /* 0x909 */ u8 unk909;
     /* 0x90A */ u8 pad90A[0x4];
     /* 0x90E */ u8 unk90E;
@@ -150,8 +150,8 @@ typedef struct {
     /* 0x99C */ s16 unk99C;
     /* 0x99E */ s16 unk99E;
     /* 0x9A0 */ u8 pad9A0[0xC2C];
-    /* 0x15CC */ BattleActorState *unk15CC;
-    /* 0x15D0 */ BattleActorAnimData *unk15D0;
+    /* 0x15CC */ BattleActorState *pState;
+    /* 0x15D0 */ BattleActorAnimData *pAnimData;
     /* 0x15D4 */ u8 unk15D4;
     /* 0x15D5 */ u8 pad15D5[0x17];
     /* 0x15EC */ s16 unk15EC;
@@ -167,13 +167,13 @@ typedef struct {
 typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u8 pad02[0x12];
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ s16 unk16;
-    /* 0x18 */ s16 unk18;
+    /* 0x14 */ s16 x;
+    /* 0x16 */ s16 y;
+    /* 0x18 */ s16 z;
     /* 0x1A */ u8 pad1A[0x1A];
-    /* 0x34 */ s16 unk34;
-    /* 0x36 */ s16 unk36;
-    /* 0x38 */ s16 unk38;
+    /* 0x34 */ s16 rotX;
+    /* 0x36 */ s16 rotY;
+    /* 0x38 */ s16 rotZ;
     /* 0x3A */ u8 pad3A[0xA];
     /* 0x44 */ s16 unk44;
     /* 0x46 */ s16 unk46;
@@ -183,9 +183,9 @@ typedef struct {
     /* 0x68 */ s16 unk68;
     /* 0x6A */ s16 unk6A;
     /* 0x6C */ u8 pad6C[0x8];
-    /* 0x74 */ u8 unk74;
-    /* 0x75 */ u8 unk75;
-    /* 0x76 */ u8 unk76;
+    /* 0x74 */ u8 r;
+    /* 0x75 */ u8 g;
+    /* 0x76 */ u8 b;
 } BattleEffect; // Size: unknown
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80072D18);
@@ -278,9 +278,9 @@ extern BattleEffect *D_80092644;
 void BattleEffectInitContext(void) {
     BattleEffect *p = func_8008D3F4(3, 0);
 
-    p->unk74 = 0x80;
-    p->unk75 = 0x80;
-    p->unk76 = 0xC0;
+    p->r = 0x80;
+    p->g = 0x80;
+    p->b = 0xC0;
     BattleEffectAllocEntries(p, 0x60);
     p->unk0 = 4;
     p->unk44 = 0x300;
@@ -389,20 +389,20 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
 void BattleTransformEntryVertex(Actor *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
-    BattlePart *pEntry = p0->unk5C->pModel->pParts[arg1];
+    BattlePart *pEntry = p0->pModelLink->pModel->pParts[arg1];
 
     if (arg2 != 0 && pEntry->type == 1) {
         gte_SetRotMatrix_gpr(&pEntry->matrix);
         gte_ldv0(&pEntry->pDraw->pMesh->pVerts[arg2 - 1]);
         gte_mvmva(1, 0, 0, 0, 0);
         gte_stlvnl(pOut);
-        pOut->vx += p0->unk0;
-        pOut->vy += p0->unk4;
-        pOut->vz += p0->unk8;
+        pOut->vx += p0->x;
+        pOut->vy += p0->y;
+        pOut->vz += p0->z;
     } else {
-        pOut->vx = pEntry->matrix.t[0] + p0->unk0;
-        pOut->vy = pEntry->matrix.t[1] + p0->unk4;
-        pOut->vz = pEntry->matrix.t[2] + p0->unk8;
+        pOut->vx = pEntry->matrix.t[0] + p0->x;
+        pOut->vy = pEntry->matrix.t[1] + p0->y;
+        pOut->vz = pEntry->matrix.t[2] + p0->z;
     }
 }
 
@@ -427,7 +427,7 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
     u32 flags;
 
     arg2 &= 1;
-    p4->unk10 = p4->pos;
+    p4->prevPos = p4->pos;
     p4->unk30 = p4->unk20;
     p4->pos = *p0;
     p4->unk20 = *p1;
@@ -477,22 +477,22 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     if (D_800928C8 == 6) {
         return 1;
     }
-    t = p0->unkB6 + arg1;
-    p0->unkB6 = t;
+    t = p0->gaugePoints + arg1;
+    p0->gaugePoints = t;
     if (t < 0x1001) {
         return 1;
     }
     q = (t - 0x1000) / 20;
     if (q >= p0->unkB4) {
-        p0->unkB6 = t - arg1;
-        p0->unkBA = 0;
+        p0->gaugePoints = t - arg1;
+        p0->gaugeLevel = 0;
         if (BattleGetScreenMode() != 4) {
             BattlePlaySoundEffectById(0x2E);
         }
         return 0;
     }
-    p0->unkB6 = 0x1000;
-    p0->unkBA = q;
+    p0->gaugePoints = 0x1000;
+    p0->gaugeLevel = q;
     switch (arg2) {
     case 1:
         p0->unk1654 += (s16)q;
@@ -561,18 +561,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074678);
 
 void BattleUpdatePartDrawFlags(Actor *p0) {
-    BattlePart **pParts = p0->unk5C->pModel->pParts;
+    BattlePart **pParts = p0->pModelLink->pModel->pParts;
     s32 i;
 
-    for (i = 0; i < p0->unk5C->pModel->count; i++) {
+    for (i = 0; i < p0->pModelLink->pModel->count; i++) {
         BattlePart *pPart = pParts[i];
 
         if (pPart->type == 1) {
             pPart->pDraw->flags &= ~1;
         }
     }
-    for (i = 0; i < p0->unk908; i++) {
-        BattlePart *pPart = pParts[p0->unk904[i]];
+    for (i = 0; i < p0->visiblePartCount; i++) {
+        BattlePart *pPart = pParts[p0->pVisiblePartIndices[i]];
 
         pPart->pDraw->flags |= 1;
     }
@@ -587,21 +587,21 @@ extern s32 func_8008B730(BattlePartAnim *, s32, s32);
 extern BattlePartMode D_80091130[];
 
 void BattleActorApplyAnimationCommand(Actor *p0) {
-    BattleActorState *pState = p0->unk15CC;
-    BattleActorAnimData *pData = p0->unk15D0;
+    BattleActorState *pState = p0->pState;
+    BattleActorAnimData *pData = p0->pAnimData;
     BattlePartAnim *pAnim;
 
-    p0->unk0 = pState->x;
-    p0->unk4 = pState->y;
-    p0->unk8 = pState->z;
-    p0->unk4C = pData->index;
-    p0->unk54 = (pState->unk6 << 20) >> 20;
-    pAnim = &p0->unk5C->pModel->pAnims[pData->index];
+    p0->x = pState->x;
+    p0->y = pState->y;
+    p0->z = pState->z;
+    p0->partIndex = pData->index;
+    p0->unk54 = (pState->flags << 20) >> 20;
+    pAnim = &p0->pModelLink->pModel->pAnims[pData->index];
     if (pData->flags & 0x1000) {
         BattleUpdatePartDrawFlags(p0);
         func_8008B0D8(pAnim);
     }
-    func_80074678(p0, pAnim->unk12, p0->unk15D0->unk9);
+    func_80074678(p0, pAnim->unk12, p0->pAnimData->unk9);
     if (pData->unkA != 0) {
         func_8008B730(pAnim, pData->unk9, pData->unkA);
     }
@@ -617,17 +617,17 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
    Tried: swapping the `|` operands (93.43%, size wrong), a `flags` local for the
    read-modify-write (97.62% with the constant in $a0 everywhere), `(u8)` casts,
    declaration orders for `i`/`old`/`delta`/`ret`. Levers that DID work and must
-   be kept: `part = p0->unk4C;` + `(u8)part != p0->unk4E` reproduces the original's
+   be kept: `part = p0->partIndex;` + `(u8)part != p0->prevPartIndex` reproduces the original's
    redundant `andi a0,a1,0xff` and, with `&D_80091130[part]` as the first
    statement of the if-body, its second `sll/addu s4` (gcc CSEs the two identical
-   `&D_80091130[p0->unk4C]` forms away); `old + (p0->unk4F + p0->unk52)` gives the
+   `&D_80091130[p0->partIndex]` forms away); `old + (p0->unk4F + p0->unk52)` gives the
    original's operand order; the read-modify-writes must be written on the FIELD
-   (`p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11)`) so gcc tests the
+   (`p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11)`) so gcc tests the
    stored register and stores before the branch; `p0->unk998 = pAnim->unk12;`
    before `p0->unk99A = delta;`; `i = 0;` as its own statement plus `while
    (i < delta)`; unkA declared before unk9 for the two zero-inits. */
 /* void func_80074BA4(Actor *p0) {
-    BattleActorState *pState = p0->unk15CC;
+    BattleActorState *pState = p0->pState;
     BattlePartMode *pMode;
     BattlePartAnim *pAnim;
     s32 ret;
@@ -638,36 +638,36 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
     s32 unkA = 0;
     s32 unk9 = 0;
 
-    pState->unk6 = (pState->unk6 & 0xF000) | (p0->unk54 & 0xFFF);
-    pState->x = p0->unk0;
-    pState->y = p0->unk4;
-    pState->z = p0->unk8;
-    pState->index = p0->unk4C;
-    pMode = &D_80091130[p0->unk4C];
-    pAnim = &p0->unk5C->pModel->pAnims[p0->unk4C];
-    pState->unk6 &= ~0x1000;
-    part = p0->unk4C;
-    if ((u8)part != p0->unk4E || (p0->unkD0 & 0x10000000) != 0) {
+    pState->flags = (pState->flags & 0xF000) | (p0->unk54 & 0xFFF);
+    pState->x = p0->x;
+    pState->y = p0->y;
+    pState->z = p0->z;
+    pState->index = p0->partIndex;
+    pMode = &D_80091130[p0->partIndex];
+    pAnim = &p0->pModelLink->pModel->pAnims[p0->partIndex];
+    pState->flags &= ~0x1000;
+    part = p0->partIndex;
+    if ((u8)part != p0->prevPartIndex || (p0->flags & 0x10000000) != 0) {
         pMode = &D_80091130[part];
-        p0->unk4E = part;
-        p0->unkD0 = (p0->unkD0 | 0x1000) & ~0x800;
-        if ((p0->unkD0 & 0x10000000) == 0) {
-            p0->unk99C = p0->unk7C[p0->unk4C].unk0;
+        p0->prevPartIndex = part;
+        p0->flags = (p0->flags | 0x1000) & ~0x800;
+        if ((p0->flags & 0x10000000) == 0) {
+            p0->unk99C = p0->pPartTimings[p0->partIndex].unk0;
         }
-        if (p0->unkD0 & 0x02000000) {
+        if (p0->flags & 0x02000000) {
             p0->unk99C = 1;
-            p0->unkD0 &= ~0x02000000;
+            p0->flags &= ~0x02000000;
         }
-        p0->unk4F = (p0->unk7C[p0->unk4C].unk1 * p0->unk15F2) / 256;
-        pAnim = &p0->unk5C->pModel->pAnims[p0->unk4C];
+        p0->unk4F = (p0->pPartTimings[p0->partIndex].unk1 * p0->unk15F2) / 256;
+        pAnim = &p0->pModelLink->pModel->pAnims[p0->partIndex];
         BattleUpdatePartDrawFlags(p0);
         func_8008B0D8(pAnim);
         p0->unk99E = 0;
         p0->unk50 = -1;
-        p0->unkD0 &= ~0x10000000;
-        pState->unk6 |= 0x1000;
+        p0->flags &= ~0x10000000;
+        pState->flags |= 0x1000;
         if (pMode->mode == 2) {
-            p0->unk90E = p0->unk4C;
+            p0->unk90E = p0->partIndex;
         } else {
             p0->unk90E = 0;
         }
@@ -689,56 +689,56 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
     }
     switch (pMode->mode) {
     case 0:
-        if ((p0->unkD0 & 0x800) == 0) {
+        if ((p0->flags & 0x800) == 0) {
             ret = func_8008B730(pAnim, delta, p0->unk99C);
             unk9 = delta;
             unkA = p0->unk99C;
-            p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
-            if (p0->unkD0 & 0x800) {
+            p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
+            if (p0->flags & 0x800) {
                 if (pMode->next == -1) {
-                    p0->unkD0 &= ~0x1000;
+                    p0->flags &= ~0x1000;
                 } else {
-                    p0->unk4C = pMode->next;
+                    p0->partIndex = pMode->next;
                 }
             }
         }
         break;
     case 1:
-        p0->unkD0 &= ~0x1000;
+        p0->flags &= ~0x1000;
         ret = func_8008B730(pAnim, delta, p0->unk99C);
         unk9 = delta;
         unkA = p0->unk99C;
-        p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
-        if (p0->unkD0 & 0x800) {
-            p0->unkD0 |= 0x10000000;
+        p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
+        if (p0->flags & 0x800) {
+            p0->flags |= 0x10000000;
             if (pMode->next != -1) {
-                p0->unk4C = pMode->next;
+                p0->partIndex = pMode->next;
             }
         }
         break;
     case 2:
-        p0->unkD0 &= ~0x1000;
-        if ((p0->unkD0 & 0x800) == 0) {
+        p0->flags &= ~0x1000;
+        if ((p0->flags & 0x800) == 0) {
             ret = func_8008B730(pAnim, delta, p0->unk99C);
             unk9 = delta;
             unkA = p0->unk99C;
-            p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
+            p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
         }
-        if (p0->unkD0 & 0x400) {
+        if (p0->flags & 0x400) {
             if (pMode->next == -1) {
-                p0->unkD0 &= ~0x1000;
+                p0->flags &= ~0x1000;
             } else {
-                p0->unk4C = pMode->next;
+                p0->partIndex = pMode->next;
             }
-            p0->unkD0 &= ~0x400;
+            p0->flags &= ~0x400;
         }
         break;
     case 3:
-        if ((p0->unkD0 & 0x800) == 0) {
+        if ((p0->flags & 0x800) == 0) {
             ret = func_8008B730(pAnim, delta, p0->unk99C);
             unk9 = delta;
             unkA = p0->unk99C;
-            p0->unkD0 = (p0->unkD0 & ~0x800) | ((ret & 1) << 11);
+            p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
         }
         break;
     }
@@ -794,7 +794,7 @@ void BattleSetResultCode(s32 arg0) {
         D_80050622 = 0x85;
         return;
     }
-    pDst = p->unkD8;
+    pDst = p->pTarget;
     if (BattleCheckValueAboveScaledMax(pDst, 0xE0) != 0) {
         D_80050622 = 0x86;
         return;
