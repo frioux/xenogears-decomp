@@ -482,7 +482,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    bnez delay slot where we emit nop. Permuter on top of the 97.90 body: base 360
    best 360 (646 iterations, 3 min).
    Round 118: the parked body was never compiling (it spelled the block tag
-   `pBlock->unk1[2]`, and the header's BattleBlock has `unk1` as a scalar). Fixed to
+   `pBlock->unk1[2]`, and the header's BattleBlock has `flags` as a scalar). Fixed to
    `pBlock->unk3` -> 97.90%, still 420 bytes = retail's 420 and 105 insns each, so the
    delta is exactly: retail's dead `andi v0,t3,0xffff` copied into the loop-head bnez
    delay slot (we emit `nop`) and the prologue register permutation
@@ -603,7 +603,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
      absolute angle back when the flag is set (i.e. the wrapped-delta store happens first,
      unconditionally); the pos half has a plain if/else instead and no wrap. pSprite->pos[]
      is compared with `lw` but subtracted from with `lhu` - that narrowing is what the natural
-     `pBlock->unkA = v0 - pSprite->pos[0];` gives.
+     `pBlock->targetX = v0 - pSprite->pos[0];` gives.
    - the whole loop is `pSprite++` at the TOP of the body off one `pSprite = pSprites;`
      (`addiu s0,s0,0x7C` lands in the first test's delay slot) and `for (i = 0; i < n; i++)`
      with n a u16 local gives retail's `lhu/blez/move` entry test and `slt` tail.
@@ -658,34 +658,34 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 }
                 if (pBlock != NULL && pBlock->unk3 != 0xFF) {
                     pBlock->inUse = 1;
-                    pBlock->unk2 = absolute + 3;
-                    pBlock->unk1 = blockFlags;
+                    pBlock->opcode = absolute + 3;
+                    pBlock->flags = blockFlags;
                     pBlock->unk3 = tag;
-                    pBlock->unk4 = pSprite->rot[0];
-                    pBlock->unk6 = pSprite->rot[1];
-                    pBlock->unk8 = pSprite->rot[2];
+                    pBlock->startX = pSprite->rot[0];
+                    pBlock->startY = pSprite->rot[1];
+                    pBlock->startZ = pSprite->rot[2];
                     v0 = (v0 - pSprite->rot[0]) & 0xFFF;
                     if (v0 >= 0x800) {
                         v0 -= 0x1000;
                     }
-                    pBlock->unkA = v0;
+                    pBlock->targetX = v0;
                     v1 = (v1 - pSprite->rot[1]) & 0xFFF;
                     if (v1 >= 0x800) {
                         v1 -= 0x1000;
                     }
-                    pBlock->unkC = v1;
+                    pBlock->targetY = v1;
                     v2 = (v2 - pSprite->rot[2]) & 0xFFF;
                     if (v2 >= 0x800) {
                         v2 -= 0x1000;
                     }
-                    pBlock->unkE = v2;
+                    pBlock->targetZ = v2;
                     if (absolute != 0) {
-                        pBlock->unkA += pSprite->rot[0];
-                        pBlock->unkC += pSprite->rot[1];
-                        pBlock->unkE += pSprite->rot[2];
+                        pBlock->targetX += pSprite->rot[0];
+                        pBlock->targetY += pSprite->rot[1];
+                        pBlock->targetZ += pSprite->rot[2];
                     }
                     pBlock->unk10 = 0;
-                    pBlock->unk12 = frames;
+                    pBlock->endFrame = frames;
                     pSprite->p70 = pBlock;
                 }
             } else {
@@ -714,23 +714,23 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                 }
                 if (pBlock != NULL && pBlock->unk3 != 0xFF) {
                     pBlock->inUse = 1;
-                    pBlock->unk2 = absolute + 3;
-                    pBlock->unk1 = blockFlags;
+                    pBlock->opcode = absolute + 3;
+                    pBlock->flags = blockFlags;
                     pBlock->unk3 = tag;
-                    pBlock->unk4 = pSprite->pos[0];
-                    pBlock->unk6 = pSprite->pos[1];
-                    pBlock->unk8 = pSprite->pos[2];
+                    pBlock->startX = pSprite->pos[0];
+                    pBlock->startY = pSprite->pos[1];
+                    pBlock->startZ = pSprite->pos[2];
                     if (absolute != 0) {
-                        pBlock->unkA = v0;
-                        pBlock->unkC = v1;
-                        pBlock->unkE = v2;
+                        pBlock->targetX = v0;
+                        pBlock->targetY = v1;
+                        pBlock->targetZ = v2;
                     } else {
-                        pBlock->unkA = v0 - pSprite->pos[0];
-                        pBlock->unkC = v1 - pSprite->pos[1];
-                        pBlock->unkE = v2 - pSprite->pos[2];
+                        pBlock->targetX = v0 - pSprite->pos[0];
+                        pBlock->targetY = v1 - pSprite->pos[1];
+                        pBlock->targetZ = v2 - pSprite->pos[2];
                     }
                     pBlock->unk10 = 0;
-                    pBlock->unk12 = frames;
+                    pBlock->endFrame = frames;
                     pSprite->p74 = pBlock;
                 }
             } else {

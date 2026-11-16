@@ -186,8 +186,8 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
     }
     if (pBlock != NULL) {
         pBlock->inUse = 1;
-        pBlock->unk1 = unk1;
-        pBlock->unk2 = command + 3;
+        pBlock->flags = unk1;
+        pBlock->opcode = command + 3;
         pBlock->unk3 = unk3;
         if (flags & 0x20) {
             if (mode == 0) {
@@ -227,39 +227,39 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
             dstY = 0;
             dstZ = 0;
         }
-        pBlock->unk4 = x + addX;
-        pBlock->unk6 = y + addY;
-        pBlock->unk8 = z + addZ;
+        pBlock->startX = x + addX;
+        pBlock->startY = y + addY;
+        pBlock->startZ = z + addZ;
         if (command == 0) {
-            pBlock->unkA = dx + dstX - pBlock->unk4;
-            pBlock->unkC = dy + dstY - pBlock->unk6;
-            pBlock->unkE = dz + dstZ - pBlock->unk8;
+            pBlock->targetX = dx + dstX - pBlock->startX;
+            pBlock->targetY = dy + dstY - pBlock->startY;
+            pBlock->targetZ = dz + dstZ - pBlock->startZ;
         } else {
-            pBlock->unkA = dx + dstX;
-            pBlock->unkC = dy + dstY;
-            pBlock->unkE = dz + dstZ;
+            pBlock->targetX = dx + dstX;
+            pBlock->targetY = dy + dstY;
+            pBlock->targetZ = dz + dstZ;
         }
         pBlock->unk10 = 0;
-        pBlock->unk12 = duration;
+        pBlock->endFrame = duration;
         if (mode == 0) {
             if (command < 2) {
-                pNode->rot[0] = pBlock->unk4;
-                pNode->rot[1] = pBlock->unk6;
-                pNode->rot[2] = pBlock->unk8;
+                pNode->rot[0] = pBlock->startX;
+                pNode->rot[1] = pBlock->startY;
+                pNode->rot[2] = pBlock->startZ;
             }
             pNode->p70 = pBlock;
         } else if (mode == 1) {
             if (command < 2) {
-                pNode->pos[0] = pBlock->unk4;
-                pNode->pos[1] = pBlock->unk6;
-                pNode->pos[2] = pBlock->unk8;
+                pNode->pos[0] = pBlock->startX;
+                pNode->pos[1] = pBlock->startY;
+                pNode->pos[2] = pBlock->startZ;
             }
             pNode->p74 = pBlock;
         } else {
             if (command < 2) {
-                pNode->scale[0] = pBlock->unk4;
-                pNode->scale[1] = pBlock->unk6;
-                pNode->scale[2] = pBlock->unk8;
+                pNode->scale[0] = pBlock->startX;
+                pNode->scale[1] = pBlock->startY;
+                pNode->scale[2] = pBlock->startZ;
             }
             pNode->p78 = pBlock;
         }
@@ -464,9 +464,9 @@ void BattleSnapActorToGround(BattleActor *pActor) {
 
 void BattleFreeActorBuffer(BattleActor *pActor) {
     if (pActor->unkC != 0) {
-        if (pActor->unk63 != 0) {
+        if (pActor->hasSedsEntry != 0) {
             SoundRemoveSedsEntry(((s32 *)pActor->unkB4)[2]);
-            pActor->unk63 = 0;
+            pActor->hasSedsEntry = 0;
         }
         HeapFree((void *)pActor->unkC);
         pActor->unkC = 0;
@@ -505,17 +505,17 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
         pBlock = g_BattleBlockSlots[index];
         if (pBlock != NULL) {
             pBlock->inUse = 1;
-            pBlock->unk1 = 0;
-            pBlock->unk2 = unk2;
+            pBlock->flags = 0;
+            pBlock->opcode = unk2;
             pBlock->unk3 = unk3;
-            pBlock->unk4 = x;
-            pBlock->unk6 = y;
-            pBlock->unk8 = z;
-            pBlock->unkA = dx;
-            pBlock->unkC = dy;
-            pBlock->unkE = dz;
+            pBlock->startX = x;
+            pBlock->startY = y;
+            pBlock->startZ = z;
+            pBlock->targetX = dx;
+            pBlock->targetY = dy;
+            pBlock->targetZ = dz;
             pBlock->unk10 = 0;
-            pBlock->unk12 = duration;
+            pBlock->endFrame = duration;
         }
     }
 }

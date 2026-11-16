@@ -193,9 +193,9 @@ s32 func_8009D3A0(void) {
     if (g_BattleCurrentRow->unk0A & 0x8000) {
         return 1;
     }
-    hit = D_800C3E34->unk5C[3];
+    hit = D_800C3E34->hit;
     isGear = ((u8 *)&g_GameState.unk22B6)[D_800D2D6C->unk04[0]];
-    evade = g_BattleActingSlot->unk5C[2];
+    evade = g_BattleActingSlot->evade;
     if (!isGear) {
         evade = *(s8 *)&D_800D2D6C->unk9F[0] + evade;
     }
@@ -420,7 +420,7 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     if (g_GameState.gears[id].weaponData[2].unk5 == v) {
         sel = 3;
     }
-    g_GameState.gears[id].weaponData[sel].attack = p->unkE;
+    g_GameState.gears[id].weaponData[sel].attack = p->attack;
     g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
     g_GameState.gears[id].weaponData[sel].unk3 = p->unk10;
     g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
@@ -428,7 +428,7 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     g_GameState.gearPartsIds[0x6C + arg0] = p->unkC;
     for (i = 0; i < 3; i++) {
         if ((g_BattleCurWorkBlock->slots + i)->unk56 == 4) {
-            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].attack = p->unkE;
+            g_BattleCurWorkBlock->slots[i].state.weaponData[sel].attack = p->attack;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk3 = p->unk10;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;

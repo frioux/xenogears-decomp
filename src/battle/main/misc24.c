@@ -349,29 +349,29 @@ void BattleQueueSpriteRotationTween(u8 *pPool, BattleSprite *pSprite, s32 arg2, 
         }
         if (pNode != NULL) {
             pNode->inUse = 1;
-            pNode->unk2 = 3;
-            pNode->unk1 = 0;
+            pNode->opcode = 3;
+            pNode->flags = 0;
             pNode->unk3 = 0xFE;
-            pNode->unk4 = pSprite->rot[0];
-            pNode->unk6 = pSprite->rot[1];
-            pNode->unk8 = pSprite->rot[2];
+            pNode->startX = pSprite->rot[0];
+            pNode->startY = pSprite->rot[1];
+            pNode->startZ = pSprite->rot[2];
             arg3 = (arg3 - pSprite->rot[0]) & 0xFFF;
             if (arg3 >= 0x800) {
                 arg3 -= 0x1000;
             }
-            pNode->unkA = arg3;
+            pNode->targetX = arg3;
             arg4 = (arg4 - pSprite->rot[1]) & 0xFFF;
             if (arg4 >= 0x800) {
                 arg4 -= 0x1000;
             }
-            pNode->unkC = arg4;
+            pNode->targetY = arg4;
             arg5 = (arg5 - pSprite->rot[2]) & 0xFFF;
             if (arg5 >= 0x800) {
                 arg5 -= 0x1000;
             }
-            pNode->unkE = arg5;
+            pNode->targetZ = arg5;
             pNode->unk10 = 0;
-            pNode->unk12 = arg2;
+            pNode->endFrame = arg2;
             pSprite->p70 = pNode;
         }
     }
@@ -390,20 +390,20 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
     }
     if (pNode != NULL) {
         pNode->inUse = 1;
-        pNode->unk2 = arg2 + 7;
-        pNode->unk1 = 0;
+        pNode->opcode = arg2 + 7;
+        pNode->flags = 0;
         pNode->unk3 = 0xFE;
         dx = arg6 - pSprite->pos[0];
         dy = arg7 - pSprite->pos[1];
         dz = arg8 - pSprite->pos[2];
-        pNode->unk4 = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
-        pNode->unk6 = arg3;
-        pNode->unk8 = arg4;
-        pNode->unkA = arg6;
-        pNode->unkC = arg7;
-        pNode->unkE = arg8;
+        pNode->startX = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
+        pNode->startY = arg3;
+        pNode->startZ = arg4;
+        pNode->targetX = arg6;
+        pNode->targetY = arg7;
+        pNode->targetZ = arg8;
         pNode->unk10 = 0;
-        pNode->unk12 = arg5;
+        pNode->endFrame = arg5;
         pSprite->p70 = pNode;
     }
 }
@@ -411,19 +411,19 @@ void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pComman
     u8 *p;
 
     if (pCommand->unk12 != 0) {
-        pActor->unk98 = 0;
+        pActor->stepIndex = 0;
         if (arg2 != 0) {
-            pActor->unk9A = pCommand->unk2;
+            pActor->stepCount = pCommand->unk2;
         } else {
-            pActor->unk9A = -1;
+            pActor->stepCount = -1;
         }
-        pActor->unk9C = 0;
-        pActor->unk9E = pCommand->unk12;
+        pActor->pointIndex = 0;
+        pActor->pointCount = pCommand->unk12;
         p = (u8 *)pCommand + pCommand->unk14;
-        pActor->unkA0 = (mem_addr)p;
-        pActor->unkA4 = (mem_addr)p;
+        pActor->pPointCursor = (mem_addr)p;
+        pActor->pPointList = (mem_addr)p;
     } else {
-        pActor->unk98 = -1;
+        pActor->stepIndex = -1;
     }
 }
 s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
@@ -446,7 +446,7 @@ s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);
 void BattleClearActorCommand(BattleActor *pActor) {
-    pActor->unk98 = -1;
+    pActor->stepIndex = -1;
 }
 s32 BattleGetActorSpriteDistance(BattleActor *pActor) {
     s32 dx;
