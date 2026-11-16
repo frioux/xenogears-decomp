@@ -27,7 +27,9 @@ typedef struct {
 // Partial view of the per-frame battle display state (g_BattleDisplayState); the shared
 // type is BattleWork in include/battle/battle_work.h.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x9C];
+    /* 0x000 */ u8 unk0[0x7C];
+    /* 0x07C */ u8 slotMarks[3]; // raised for each slot the action's target mask covers
+    /* 0x07F */ u8 unk7F[0x1D];
     /* 0x09C */ u8 unk9C;
     /* 0x09D */ u8 unk9D;
     /* 0x09E */ u8 unk9E;
@@ -76,7 +78,7 @@ extern s32 BattleIsCharacterInParty(s32 arg0);
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
 extern void func_8009A854(u8 arg0);
 extern u16 g_BattleActionSlotMask;
-extern u8 g_BattleActionParam;
+extern u16 g_BattleActionParam;
 extern u8 g_BattleSlotFlags[];
 extern u16 g_BattleTargetSlotMask;
 extern u8 g_BattleTargetSlot;
@@ -97,6 +99,22 @@ extern void func_800877E0(u8 arg0, u8 arg1);
 extern void func_80087EDC(u8 arg0, u8 arg1);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern u8 D_800C4928;
+extern u8 D_800C2050;
+extern u8 D_800C3D00;
+extern u8 D_800D3670;
+
+// Partial view of the battle command cell state based at D_800D2C9E: the command flags
+// word, the per-cell use counters (D_800D2CB0) and the per-cell command ids
+// (D_800D2CE0, which the rest of the code reaches as g_BattleCommandGridIds), the last
+// two indexed by the cursor cell.
+typedef struct {
+    /* 0x00 */ u16 flags;
+    /* 0x02 */ u8 unk2[0x10];
+    /* 0x12 */ u8 uses[0x30];
+    /* 0x42 */ u8 ids[0x10];
+} BattleCommandCellState; // Size: 0x52
+
+extern BattleCommandCellState D_800D2C9E;
 
 void BattlePlaySoundIfEnabled(u8 arg0) {
     if (g_BattleSoundEnabled != 0) {
@@ -495,7 +513,63 @@ u8 func_8008B478(u8 arg0) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B908);
+void func_8008B908(u8 arg0) {
+    s32 off;
+    s32 sel;
+    u16 mask;
+    s32 i;
+    u8 value;
+    BattleCommandCellState *pCell;
+    u8 *pUses;
+    u8 *pIds;
+
+    g_BattleSoundEnabled = 0;
+    func_800BCD98(0);
+    value = 0xFF;
+    for (off = 0x8B8; off >= 0; off -= 0x48) {
+        D_800C402F[off] = value;
+    }
+    func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].unk3C, BattleFindMinValueOtherSlot(arg0));
+    sel = g_BattleCommandEntries[g_BattleCommandQueue->unk2E6].unk0 & 7;
+    if (sel != 0) {
+        mask = g_BattleTargetSlotMask;
+    } else {
+        mask = BattleSlotBitMask(g_BattleTargetSlot);
+    }
+    BattleQueueCommandF3WithSlotMask(mask, arg0);
+    BattleClearSlotCurveEntry();
+    BattleBeginAction(arg0, mask, g_BattleCommandQueue->unk2E6);
+    pCell = &D_800D2C9E;
+    if ((pCell->flags & 0x8000) == 0) {
+        pUses = pCell->uses;
+        if (--pUses[D_800C3D00 * 2 + D_800D3670] == 0) {
+            pIds = pCell->ids;
+            pIds[D_800C3D00 * 2 + D_800D3670] = 0;
+        }
+    }
+    D_800C2050 = 1;
+    BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
+    D_800C2050 = 0;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF5;
+    D_800C4022[g_BattleCommandQueue->count * 36] = g_BattleActionParam;
+    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+    *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
+    for (i = 3; i < 11; i++) {
+        if (BattleMaskHasSlotBit(g_BattleActionSlotMask, i) != 0) {
+            func_80079840(arg0, i);
+        }
+    }
+    g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
+    BattleQueueCommandFE(arg0);
+    while (g_BattleCommandQueue->unk2DB == 0) {
+        BattleUpdateFrame();
+    }
+    for (i = 0; i < 3; i++) {
+        if (BattleMaskHasSlotBit(mask, i) != 0) {
+            g_BattleDisplayState->slotMarks[i] = 1;
+        }
+    }
+}
 void BattleClearPrimFlagsTwoSlots(u8 arg0) {
     g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 0;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 0;
