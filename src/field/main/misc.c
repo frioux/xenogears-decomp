@@ -635,16 +635,32 @@ extern ParticleBankHandle D_800B2384;
 // + 4*i, one addu more than the original's (4*i + 0x78*bank) + base.
 // preset screen: 2.7.2 92.50%, cdk 66.55%, 2.6.0 92.50% - no compiler
 // fixes it.
+// 99.50% (up from 92.50: the earlier note above is superseded except for the
+// preset screen): same instruction stream as retail except one constant.
+// The permuter took this from 92.50 to 99.50 (scores 165 -> 160 -> 10, then
+// PERMUTER_NONE from 10). The winning shape drops the pBank temp and
+// writes the .z store through the bank element inline:
+//   (*(g_FieldDefaultParticleBanks[bankIndex].directions + i)).z = 0;
+//   g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
+// That makes gcc add the two variable terms first (addu a0,a0,v0 = 4*i +
+// 0x78*bankIndex) and the symbol base last, which is retail. What is left is
+// one constant-fold tie: gcc folds the `directions` field offset (0x30) into
+// the base register, so it emits `addiu a2,a2,%lo(banks + 0x30)` + `sh 0x2(v0)`
+// where retail has `addiu a2,a2,%lo(banks)` + `sh 0x32(v0)` (a2 is the plain
+// symbol register). Any base without the struct offset (ParticleBank* pBank,
+// or a u_char* of the array) restores the addend but loses the association:
+// pBank + (*(pBank->directions + i)) 92.73%, pBank + u_char* + 0x32 92.73%,
+// u_char* base + explicit byte sum 70.86%, int offset local 56.55%,
+// ParticleBankAngleOffset* ptr local 92.00%. Structural wall, not an
+// allocator tie - permuter found nothing in 2.6k iterations from 99.50.
 /*
 void func_8008861C(void) {
-    ParticleBank* pBank;
     int i;
 
     for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
         int bankIndex = D_800B2384.bankIndex;
 
-        pBank = &g_FieldDefaultParticleBanks[bankIndex];
-        pBank->directions[i].z = 0;
+        (*(g_FieldDefaultParticleBanks[bankIndex].directions + i)).z = 0;
         g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
     }
 }
