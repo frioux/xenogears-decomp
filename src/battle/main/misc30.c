@@ -10,11 +10,15 @@ typedef struct {
     /* 0x08 */ u8 pad08[0x14];
     /* 0x1C */ u8 unk1C; // state step, copied to 0x49 when the step changes
     /* 0x1D */ u8 pad1D[0x3];
-    /* 0x20 */ u8 pad20[0x14];
+    /* 0x20 */ u32 unk20; // actor id handed to func_800BEE2C
+    /* 0x24 */ s32 unk24; // index of the acting slot's sprite in the 0x8C8C table
+    /* 0x28 */ u8 pad28[0xC];
     /* 0x34 */ u32 unk34;
     /* 0x38 */ u8 pad38[0x10];
     /* 0x48 */ u8 unk48;
     /* 0x49 */ u8 unk49;
+    /* 0x4A */ u8 unk4A;
+    /* 0x4B */ u8 pad4B;
 } BattleState;
 
 extern BattleState* D_800C3610;
@@ -170,6 +174,12 @@ extern void BattleSetPendingCommand(BattleActorSprite* pSprite);
 extern void BattleBeginAnimTask(s32 arg0);
 extern void BattleSetSlotFlagB4(s32 arg0);
 extern void BattleClearSlotFlagB4(s32 arg0);
+extern void BattleWaitArchiveSync(void);
+extern void BattleSetActorPrimaryCommand(s32 arg0, u16 arg1);
+extern void BattleSwapActorSlots(s32 arg0, s32 arg1);
+extern void func_800BEE2C(s32 arg0, s32 arg1, s32 arg2);
+extern void func_800B9284(SpriteData* pSprite, s32 code);
+extern u16 D_800D39E4;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
 /* 86.54%: 516 bytes against retail's 512, so one instruction too many.  The head
@@ -361,6 +371,122 @@ void BattleActorSnapToTargetAndFace(BattleActorSprite* pSprite, BattleActorSprit
     BattleFaceActorsTowardEachOther(pSprite, pTarget);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9C78);
+/* 76.54%, 800 bytes against retail's 768 (192 insns).  The head is exact -- the
+   D_800C3614 lh/lhu pair (a signed test plus the unsigned decrement, hence the
+   `*(s16 *)&D_800C3614` read), the 0x48-stride row index, the 0x8C8C sprite
+   table with `offset = 0x8C8C` in a local, the 0x4A clear and the `sb` of 0xA73.
+   The dispatch is retail's too (13-entry table 0xF3..0xFF, the 0xF9 hole taking
+   the default label, bodies emitted in retail's order 0xFF, 0xFE, 0xFC, 0xFD,
+   the five-way group, 0xFB, 0xF4, default).
+
+   Two things are left, and both are known shapes:
+   1. The arms need the row base in a REGISTER, not folded into the symbol:
+      writing `*(u16 *)(D_800C3EB0 + D_800C360C * 0x48 + 0x14E)` makes gcc fold
+      0x14E into the lui/addiu pair (`addiu v1,v1,334` + `lhu a1,0(v0)`, 744
+      bytes, 77.18%) where retail keeps `addiu v1,v1,%lo(D_800C3EB0)` and loads
+      `lhu a1,334(v0)`.  Tree fold reassociates sym+const, so the constant has to
+      stay out of the address tree: two statements
+      (`pRow = D_800C3EB0; pRow += D_800C360C * 0x48;`) reproduce retail's
+      instruction multiset and displacement in every arm, at the cost of the
+      register ties below.  A single assignment (`pRow = D_800C3EB0 + idx * 0x48`)
+      already emits the base after the index load and leaves a `nop` in the load
+      delay slot; using the function-wide pBase for it puts the base in $s2.
+   2. The 0xFD and default arms keep separate copies: retail cross-jumps them into
+      one tail (a0/a2 set before the shared block, +12 insns shared), mine emits
+      `move a0,s3` inside the block at a different position in each arm, so
+      jump.c finds nothing identical.  That is the +8 instructions.
+   Register ties in every arm once (1) is right: retail keeps the base in $v1 and
+   the sum in $v0, ours picks a1/v0 or a0/v0; and code/index land in $s3/$s2
+   where retail has $s2/$s3.  A 4-minute permuter run (base=5831, best=3891) only
+   found a semantically wrong rewrite of the 0xF4 increment, so no help there.
+void func_800B9C78(void) {
+    BattleActorSprite* pSprite;
+    u8* pBase;
+    u8* pRow;
+    u8 code;
+    s32 index;
+    s32 offset;
+    s32 id;
+
+    if (*(s16 *)&D_800C3614 != 0) {
+        D_800C3614 = D_800C3614 - 1;
+        return;
+    }
+    BattleLoadArchiveEntryFile();
+    pBase = D_800C3EB0;
+    func_800BEFF4(pBase[D_800C360C * 0x48 + 0x15B]);
+    func_800BF3E8((BattleActorSprite*)D_800C3610->pCurSprite);
+    index = D_800C3610->unk24;
+    offset = 0x8C8C;
+    pSprite = *(BattleActorSprite**)(pBase + index * 4 + offset);
+    code = pBase[D_800C360C * 0x48 + 0x17F];
+    BattleSetStateStep(8);
+    if (D_800C3610->unk4A != 0) {
+        pBase[0xA73] = 0;
+    }
+    D_800C3610->unk4A = 0;
+    switch (code) {
+        case 0xFF:
+            BattleSetStateStep(9);
+            break;
+        case 0xFE:
+            BattleWaitArchiveSync();
+            pRow = D_800C3EB0;
+            pRow += D_800C360C * 0x48;
+            func_800BEE2C(D_800C3610->unk20, *(u16 *)(pRow + 0x14E), 4);
+            BattleSetStateStep(0xA);
+            break;
+        case 0xFC:
+            pRow = D_800C3EB0;
+            pRow += D_800C360C * 0x48;
+            BattleSetActorPrimaryCommand(index, *(u16 *)(pRow + 0x172));
+            BattleSetStateStep(9);
+            D_800C360C = D_800C360C + 1;
+            break;
+        case 0xFD:
+            pRow = D_800C3EB0;
+            pRow += D_800C360C * 0x48;
+            func_800BEE2C(index, *(u16 *)(pRow + 0x14E), 2);
+            D_800C360C = D_800C360C + 1;
+            break;
+        case 0xF3:
+        case 0xF5:
+        case 0xF6:
+        case 0xF7:
+        case 0xFA:
+            func_800B9284((SpriteData*)pSprite, code);
+            BattleSetStateStep(9);
+            D_800C360C = D_800C360C + 1;
+            break;
+        case 0xFB:
+            BattleSetStateStep(9);
+            pRow = D_800C3EB0;
+            pRow += D_800C360C * 0x48;
+            BattleSwapActorSlots(((pSprite->flags_0xAC.flags & 3) << 2) | (pSprite->flags_0xA8 >> 30),
+                                 *(u16 *)(pRow + 0x172));
+            D_800C360C = D_800C360C + 1;
+            break;
+        case 0xF4:
+            BattleSetStateStep(9);
+            pRow = D_800C3EB0;
+            pRow += D_800C360C * 0x48;
+            D_800C360C = D_800C360C + 1;
+            id = *(u16 *)(pRow + 0x172);
+            D_800C3DF0 = (id >> 9) & 0x3F;
+            D_800D39E4 = id & 0x1FF;
+            break;
+        default:
+            D_800C3610->unk4A = 1;
+            BattleSetSpriteTemplate(pSprite);
+            pRow = D_800C3EB0;
+            pRow += D_800C360C * 0x48;
+            func_800BEE2C(index, *(u16 *)(pRow + 0x14E), code);
+            D_800C360C = D_800C360C + 1;
+            break;
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9F78);
 void BattleLoadActorSlotAnimation(s32 index) {
     SpriteData* pSprite;
