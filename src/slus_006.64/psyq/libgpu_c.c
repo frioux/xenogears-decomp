@@ -342,12 +342,6 @@ u_long func_80047638(u_long *tmd, int obj_no, u_long *pPrim, u_long *pVert, u_lo
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_800477D0);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", SetFogNearFar);
-
-/* best 98.66% (268 bytes, every insn and both delay slots identical): only the
-   registers differ, retail keeps d in a3, n in v0 then a0, and f in v1 then s0,
-   gcc picks d in v1, n in a0 throughout and f in s0. Splitting the n<<8 shift
-   and the f<<12 shift into their own statements is what fixed the reordering.
 void SetFogNearFar(long a, long b, long h) {
     long d;
     long n;
@@ -357,11 +351,8 @@ void SetFogNearFar(long a, long b, long h) {
     if (d < 100)
         return;
 
-    n = (-a * b) / d;
-    f = (b << 12) / d;
-    n <<= 8;
-    n = n / h;
-    f <<= 12;
+    n = ((-a * b) / d << 8) / h;
+    f = ((b << 12) / d) << 12;
 
     if (n < -0x8000)
         n = -0x8000;
@@ -371,7 +362,5 @@ void SetFogNearFar(long a, long b, long h) {
     SetDQA(n);
     SetDQB(f);
 }
-*/
-
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", D_80048BBC);
 
