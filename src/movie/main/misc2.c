@@ -333,6 +333,15 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // 95.49%, `while (++j < entry + 0x14)` 96.43%, a `next = j + 1` local 96.49%,
 // `1 + j` operand order 96.43% (commutative, canonicalised), permuter 6 min / 1805
 // iterations from the in-body body (PERMUTER_NONE, base 112 best 112).
+// Round 116 re-measured the outside-init family and mapped it exactly: un-parking the
+// init before the loop leaves ONE difference, a derived induction variable
+// `s1 = j + 1` (`addiu s1,s0,1` twice at the loop head, `move a0,s1` at all three
+// j+1 call sites, `addiu s1,s1,1` in the tail), frame 0x50 and s0-s7 saved where
+// retail has 0x48 and s0-s6. So the whole problem is stopping gcc 2.6.0's
+// combine_givs from deriving j+1, not the loop shape. Also dead: `++j` in the
+// condition (identical 96.43%), and the permuter from the OUTSIDE body
+// (PERMUTER_NONE, base 1481, no candidate saved). Untried: suppressing the add
+// itself (every j+1 spelling tried is still a PLUS of the BIV and a constant).
 // Preset is right: -O3 77.96, -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0
 // -O2 -G0 (the unit's) 99.66.
 // What closed 92.4 -> 99.1 earlier, in order (all source shapes, not flags):
