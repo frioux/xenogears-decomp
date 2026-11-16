@@ -1076,23 +1076,23 @@ extern u_char D_800ADB05;
 extern s32 g_FieldActiveActorCount;
 extern const char D_8006FB28[];
 
-// PARK REPAIR (round 163): 99.55% (400 bytes, the original 400 - same size). The body
-// below compiles and every instruction matches except one register pair in the actor
-// loop: the original keeps pActor in $a1 and pActor->pActorData in $a2, gcc 2.7.2 puts
-// pActorData in $a1, and that is the whole difference (8 lines of the diff, 4 of them
-// just the swapped name). GIV_TIE - a permuter job, not a hand job.
-// The 99.60% in the old note was measured before `GfxSetBaseMatrix` was named in
-// config/symbol_addrs.field.txt, so its diff also carried a
-// GfxSetBaseMatrix-vs-func_80024FF4 name mismatch that is now gone.
-// Converting it is blocked by the unit .rodata: D_8006FB28 ("CHAR      ") is the 4th of
-// the nine strings the six stubs own, and C .rodata links before asm .rodata, so a stub
-// can only become C as part of a PREFIX of that region, starting at D_8006FB04:
-//   D_8006FB04 func_800739C0 (286 insns, STACK_SWITCH)  D_8006FB10 FieldRenderModels (585)
-//   D_8006FB1C func_8007520C (47 insns, 100.00% exact)   D_8006FB28 func_800752C8 (this)
-//   D_8006FB34..FB64 func_8007554C (241)                 D_8006FB70 func_800759E4 (77)
-// so it needs the three above it in C first, and func_800739C0 cannot be C at all.
+// PARK REPAIR (round 163): 99.60% (400 bytes, the same as the original), re-measured
+// after `GfxSetBaseMatrix` was named in config/symbol_addrs.field.txt. The body compiles
+// and every instruction matches except one register pair in the actor loop: the original
+// keeps pActor in $a1 and pActor->pActorData in $a2, gcc 2.7.2 puts pActorData in $a1.
+// That is the entire diff - 7 lines, 6 of them the two register names swapping - so it
+// is a GIV_TIE, a permuter job and not a hand job. Not worth running: this stub can never
+// become C (see below), so a 100.00% body would buy nothing.
+// It is blocked by its own .rodata: D_8006FB28 ("CHAR      ") is the 4th of the nine
+// strings the six stubs own, and C .rodata links before asm .rodata, so a stub can only
+// become C as part of a PREFIX of that region, starting at D_8006FB04:
+//   D_8006FB04 func_800739C0 (286 insns, STACK_SWITCH)   D_8006FB10 FieldRenderModels
+//   D_8006FB1C func_8007520C (47 insns, 100.00% exact)    D_8006FB28 func_800752C8 (this)
+//   D_8006FB34..FB64 func_8007554C (241 insns)            D_8006FB70 func_800759E4 (77)
+// The prefix stops at func_800739C0, which cannot be C at all because it switches $sp into
+// the scratchpad, so the strings from D_8006FB28 on stay asm permanently.
 // The constant the object needs is commented at the top of the block.
-// screened: Default 99.55 (best), cdk 93.87, 2.6.0 99.60 - not a preset question.
+// screened: Default 99.60 (best), cdk 93.87, 2.6.0 99.60 - not a preset question.
 /*
 void func_800752C8(void) {
     FieldActor* pActor;
