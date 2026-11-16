@@ -11,7 +11,6 @@ extern s32 SpriteScaleValue(void* pSprite, s32 value);
 extern void func_800C08CC();
 extern void func_800B3CD4();
 extern void func_800B51B0();
-extern void func_800B59BC();
 extern void BattleIntegrateSpriteVelocityTask();
 extern void func_800B5DF4();
 extern void func_800B6004();
@@ -99,13 +98,6 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
     pSpriteData->flags_0xAC.flags |= 0x20;
     return pTask;
 }
-// PARKED: the body below is 100.00% as C under cdk -G8 and cdk -G0 (264 bytes; 97.35 under 2.6.0),
-// but with its definition visible BattleGetActorJointPoint compiles 112 bytes against retail 120
-// (82.67%) under all three presets: gcc merges the two `lhu point.x / addu / sh` chains that retail
-// keeps separate, and lifting the second load moves the lwl/lwr pair onto v1. The old-style `void`
-// declaration is what reproduces retail, and it cannot coexist with the definition (conflicting
-// types), so this park needs its caller re-expressed before it can be harvested.
-/*
 BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
     DVECTOR rot;
 
@@ -128,16 +120,18 @@ BattlePoint* func_800B59BC(BattlePoint* pOut, u8* pActor, s32 index) {
     *(DVECTOR*)pOut = rot;
     return pOut;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B59BC);
 BattlePoint* BattleGetActorJointPoint(BattlePoint* pOut, SpriteData* pSpriteData, s32 index) {
     BattlePoint point;
     int ofs;
 
-    func_800B59BC(&point, pSpriteData, index);
-    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
-    point.x = point.x + ofs;
-    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    // The block is load-bearing: without it gcc hoists the second joint offset above the
+    // first store and this function compiles 8 bytes short of retail.
+    do {
+        func_800B59BC(&point, pSpriteData, index);
+        ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+        point.x = point.x + ofs;
+        ofs = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    } while (0);
     point.y = point.y + ofs;
     *pOut = point;
     return pOut;
