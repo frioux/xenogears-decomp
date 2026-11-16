@@ -193,56 +193,56 @@ s32 func_8009EF3C(BattleSprite* pSprites, s32 scale) {
     pSprite = pSprites;
     new_var = scale;
     pScaleMatrix = (MATRIX*)PSX_SCRATCH;
-    pSprites->globalTransform.t[0] = pSprites->pos[0];
-    pSprites->globalTransform.t[1] = pSprites->pos[1];
-    pSprites->globalTransform.t[2] = pSprites->pos[2];
-    count = pSprites->count;
-    if (pSprites->rotDirection != 0) {
-        RotMatrixYXZ((SVECTOR*)pSprites->rot, &pSprites->globalTransform);
+    pSprite->globalTransform.t[0] = pSprite->pos[0];
+    pSprite->globalTransform.t[1] = pSprite->pos[1];
+    pSprite->globalTransform.t[2] = pSprite->pos[2];
+    count = pSprite->count;
+    if (pSprite->rotDirection != 0) {
+        RotMatrixYXZ((SVECTOR*)pSprite->rot, &pSprite->globalTransform);
     } else {
-        RotMatrix((SVECTOR*)pSprites->rot, &pSprites->globalTransform);
+        RotMatrix((SVECTOR*)pSprite->rot, &pSprite->globalTransform);
     }
-    pScaleMatrix->m[0][0] = (new_var * pSprite->scale.vx) >> 12;
+    pScaleMatrix->m[0][0] = (new_var * pSprites->scale.vx) >> 12;
     pScaleMatrix->m[0][1] = 0;
     pScaleMatrix->m[0][2] = 0;
     pScaleMatrix->m[1][0] = 0;
-    pScaleMatrix->m[1][1] = (new_var * pSprite->scale.vy) >> 12;
+    pScaleMatrix->m[1][1] = (new_var * pSprites->scale.vy) >> 12;
     pScaleMatrix->m[1][2] = 0;
     pScaleMatrix->m[2][0] = 0;
     pScaleMatrix->m[2][1] = 0;
-    pScaleMatrix->m[2][2] = (new_var * pSprite->scale.vz) >> 12;
-    MulMatrix0(&pSprite->globalTransform, pScaleMatrix, &pSprite->localTransform);
-    pSprite->localTransform.t[0] = pSprite->globalTransform.t[0];
-    pSprite->localTransform.t[1] = pSprite->globalTransform.t[1];
-    pSprite->localTransform.t[2] = pSprite->globalTransform.t[2];
+    pScaleMatrix->m[2][2] = (new_var * pSprites->scale.vz) >> 12;
+    MulMatrix0(&pSprites->globalTransform, pScaleMatrix, &pSprites->localTransform);
+    pSprites->localTransform.t[0] = pSprites->globalTransform.t[0];
+    pSprites->localTransform.t[1] = pSprites->globalTransform.t[1];
+    pSprites->localTransform.t[2] = pSprites->globalTransform.t[2];
     for (i = 1; i < count; i++) {
-        pSprite++;
-        if (pSprite->doRotate != 0) {
-            if (pSprite->rotDirection != 0) {
-                RotMatrixYXZ((SVECTOR*)pSprite->rot, &pSprite->localTransform);
+        pSprites++;
+        if (pSprites->doRotate != 0) {
+            if (pSprites->rotDirection != 0) {
+                RotMatrixYXZ((SVECTOR*)pSprites->rot, &pSprites->localTransform);
             } else {
-                RotMatrix((SVECTOR*)pSprite->rot, &pSprite->localTransform);
+                RotMatrix((SVECTOR*)pSprites->rot, &pSprites->localTransform);
             }
-            pSprite->doRotate = 0;
+            pSprites->doRotate = 0;
         }
-        if (pSprite->pParent != NULL && *((u8*)pSprite->pParent + 4) == 1) {
-            pSprite->doTransform = 1;
+        if (pSprites->pParent != NULL && *((u8*)pSprites->pParent + 4) == 1) {
+            pSprites->doTransform = 1;
         }
-        if (pSprite->doTransform != 0) {
-            pSprite->localTransform.t[0] = pSprite->pos[0];
-            pSprite->localTransform.t[1] = pSprite->pos[1];
-            pSprite->localTransform.t[2] = pSprite->pos[2];
-            if (pSprite->pParent != NULL) {
-                CompMatrix((MATRIX*)((u8*)pSprite->pParent + 0x2C), &pSprite->localTransform,
-                           &pSprite->globalTransform);
+        if (pSprites->doTransform != 0) {
+            pSprites->localTransform.t[0] = pSprites->pos[0];
+            pSprites->localTransform.t[1] = pSprites->pos[1];
+            pSprites->localTransform.t[2] = pSprites->pos[2];
+            if (pSprites->pParent != NULL) {
+                CompMatrix((MATRIX*)((u8*)pSprites->pParent + 0x2C), &pSprites->localTransform,
+                           &pSprites->globalTransform);
             } else {
-                pSprite->globalTransform = pSprite->localTransform;
+                pSprites->globalTransform = pSprites->localTransform;
             }
         }
     }
     for (i = 1; i < count; i++) {
-        pSprites++;
-        pSprites->doTransform = 0;
+        pSprite++;
+        pSprite->doTransform = 0;
     }
     return count;
 }INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
@@ -308,12 +308,12 @@ s32 func_8009F1C4(BattleSprite* pSprites, s32 scale) {
     pScaleMatrix->m[2][0] = 0;
     pScaleMatrix->m[2][1] = 0;
     pScaleMatrix->m[2][2] = (scale * pSprites->scale.vz) >> 12;
-    MulMatrix0(&pSprite->globalTransform, pScaleMatrix, &pSprite->localTransform);
-    pSprite->localTransform.t[0] = pSprite->globalTransform.t[0];
-    pSprite->localTransform.t[1] = pSprite->globalTransform.t[1];
-    pSprite->localTransform.t[2] = pSprite->globalTransform.t[2];
+    MulMatrix0(&pSprites->globalTransform, pScaleMatrix, &pSprites->localTransform);
+    pSprites->localTransform.t[0] = pSprites->globalTransform.t[0];
+    pSprites->localTransform.t[1] = pSprites->globalTransform.t[1];
+    pSprites->localTransform.t[2] = pSprites->globalTransform.t[2];
     for (i = 1; i < count; i++) {
-        pSprite++;
+        pSprites++;
         if (pSprite->pParent != NULL) {
             if (((BattleSprite*)pSprite->pParent)->doRotate == 1) {
                 pSprite->doRotate = 1;
