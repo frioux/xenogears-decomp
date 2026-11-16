@@ -1061,50 +1061,23 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
     return var_s6;
 }
 
+// Best parked attempt: 98.73%, 1576 bytes (retail 1572), frame 192 = retail's and its spill order.
+// Form (a) was 1584b/frame 200 at 98.98 and form (b) = (a) + setRECT(&sp20) also 98.98; the body below
+// is form (c) = (b) + an explicit places pointer, the only form with retail's frame. On it,
+// `pRect = &sp20` must be the loop body's first statement (95.87 before HeapAlloc, 97.02 there) and the
+// permuter's `u32 polyColor = 0x1000;` hoist for the tensDigit call is worth 97.02 -> 98.73.
+// Remaining 4 bytes/1 insn: `li t2,0xc3` is re-loaded inside the k-loop where retail hoists `li t0,0xc3`
+// (a `u8 blankDigit` local scores 93.34), plus two equal-priority allocno swaps - i in $s2 (retail $s3)
+// against the RECT width 0x28 constant, pWorkspace in $s7 (retail $s6) against the inventory base giv.
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
-// Best parked attempt: 98.98%, 1584 bytes (retail is 1572). Structure is exact - every block, call,
-// branch, the two setRECTs, the digit loop, the tail and the spill SET are retail's; the whole delta
-// is ONE allocno tie: which of the two loop-carried addresses gets $fp.
-//   retail: $fp = &sp20 (RECT), slots 0x78 = 0x4030+i*0x80, 0x80 = 0x32+0xD*i, 0x88 = 0xD*i,
-//           0x90 = 0x3c30+i*0x80; the 8 RECT stores fold to 32(sp)..38(sp) and LoadImage gets
-//           `move a0,$fp`.
-//   ours:   $fp = pWorkspace, $s4 = &sp20, and a SECOND pseudo (a copy of &sp20 for the digit-loop
-//           giv base) is spilled to 0x78, which is what makes the frame 200 instead of 192: 11
-//           loop-carried candidates for 6 registers instead of 10, so 5 slots instead of 4.
-//     - pRect used only for LoadImage, everything else `&sp20`: 94.39%, 1572 bytes (retail's SIZE:
-//       stores fold, but LoadImage reloads the spilled copy and the accumulator still wins $fp).
-//     - no pointer local at all: 95.67%, 1564 bytes, frame 192 (all four spills in retail's order
-//       0x4030/0x32/0xD*i, but the 0x3c30 accumulator wins $fp and both LoadImage args become
-//       `addu a0,sp,32`).
-//     - writing the digit-buffer accesses through the pointer (the body below) kills one reload:
-//       98.39 -> 98.73. Same code with `&sp20` spelled there and pRect only on LoadImage: 94.39.
-// Ruled out: pRect declared first / last / inline (98.39 / 98.39 / 98.15); pRect only for the
-// setRECTs (94.39-98.15); the pRect assignment before the loop / after HeapAlloc / inside the loop /
-// after places[1] (98.31 / 94.53 / 98.31 / 98.31); bzero((u8*)pRect + 8, 0xE) (94.53). Declaration
-// order and the workspace's pointer type change nothing (byte-identical output).
-// Permuter: four runs (from 95.81/95.67/98.39/98.73 seeds) all plateau here; the last one reported
-// PERMUTER_BETTER but its change is a re-spelling that scores 94.39 by objdiff.
-// Presets screened with try_flags.sh: 2.7.2-cdk 94.65, 2.7.2 93.31 (the unit's 2.6.0 is best), so
-// this is not a compiler-version question.
-// What is left to try: make gcc CSE the digit-loop giv base onto the LoadImage pointer so there is
-// ONE pseudo for &sp20, or make one of the two candidates win $fp. Kernel: retail has 10
-// loop-carried values here, we have 11.
-// Round 126: `setRECT(&sp20, ...)` instead of `setRECT(pRect, ...)` takes the eight RECT
-// store references off the &rect allocno: 98.73 -> 98.98 and &rect lands in $s7, but the
-// 11th loop-carried value survives and the frame stays 200.
-// Replacing the `places[j]` walk with an explicit pointer (`pPlace = &places[4]`, or
-// `(s32*)pRect + 0xE`, decremented in the body) IS the fix for the count: frame 192, four
-// spill slots in retail's order 0x78/0x80/0x88/0x90, $s8 = &rect, and 1580 bytes. But it
-// costs the k-loop's `li t0,0xc3` hoist and re-ties the registers (i in $s2 not $s3,
-// workspace in $s7 and the 0x1db0 base in $s6, i.e. swapped vs retail) -> 95.95%.
-// So the remaining gap is a pure allocno-priority tie in the 1580-byte form and an
-// 11-vs-10-candidate tie in the 1584-byte form; no source shape tried spans both.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
     u8 sp28[0xE];
     u8 sp38[0xE];
     int places[5]; // sp48
+    s32* pPlace;
+    u32 polyColor;
     s32 quotient;
     u8 didRounding;
     RECT* pRect;
@@ -1119,7 +1092,6 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     places[0] = 1;
     places[1] = 10;
-    pRect = &sp20;
     places[2] = 100;
     places[3] = 1000;
     places[4] = 10000;
@@ -1127,8 +1099,10 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
     pWorkspace = HeapAlloc(0x3F6, 0);
 
     for (i = 0; i < 8; i++) {
+        pRect = &sp20;
         bzero(sp28, 0xE);
         g_Menu->pShop->unk468C[i] = 0;
+        polyColor = 0x1000;
         if (pItemIds[scrollOffset + i]) {
             qty = pItemQtys[scrollOffset + i];
             itemType = pItemTypes[scrollOffset + i];
@@ -1140,15 +1114,17 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetGearAccessoryName(pItemIds[scrollOffset + i]), pWorkspace, 0x24U, 0U);
             }
             didRounding = FALSE;
+            pPlace = &places[4];
             for (j = 4, k = 0; j > 0; k++, j--) {
-                quotient = qty / places[j];
+                quotient = qty / *pPlace;
                 if (quotient || didRounding) {
                     ((u8*)pRect)[8 + k * 2] = quotient + 0x10;
                     didRounding = TRUE;
-                    qty -= (quotient * places[j]);
+                    qty -= (quotient * *pPlace);
                 } else {
                     ((u8*)pRect)[8 + k * 2] = 0xC3;
                 }
+                pPlace--;
             }
             ((u8*)pRect)[16] = (qty % 10) + 0x10;
             SystemDecodeGlyphCodesN((u16*)((u8*)pRect + 8), sp38, 5);
@@ -1169,7 +1145,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xE5, g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
                 tensDigit = pItemSellQtys[scrollOffset + i] / 10;
                 if (tensDigit) {
-                    do { g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U); } while (0);
+                    do { g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, polyColor); } while (0);
                 }
                 onesDigit = pItemSellQtys[scrollOffset + i] % 10;
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
@@ -1182,7 +1158,6 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     HeapFree(pWorkspace);
 }
-*/
 
 
 /*
@@ -2849,3 +2824,4 @@ s32 GearShopMenuComputeEquipWeightPenalty(u8 index) {
     }
     return result;
 }
+*/
