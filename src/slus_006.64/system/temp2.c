@@ -115,6 +115,9 @@ typedef struct {
 s32 D_80059524;
 
 void GfxSetRenderContext(int context) {
+    // The tile-list heads are the two words at D_80059300; the pointer local
+    // with the embedded assignment is what keeps retail's single context*4
+    // before the symbol address (a plain index moves the sll after the lui).
     s32* pLists;
     LinkedListEntry* pCurEntry;
     void* pPrimBuffer;
@@ -185,11 +188,13 @@ extern void SpriteDrawFrame(SpriteData* pSpriteData, void* pArg);
 
 // SpriteData as this unit reads it: the per-context frames-data pair at 0x2C
 // (two scalars in the shared header, because other units assign them singly),
-// curSpriteFrame as an unsigned halfword, the 0x3C flag word (bits 25-27 are
-// read as a whole word here, where the header's bitfields over them narrow to
-// lbu 0x3F) and the upper halfword of field_0x40, which is read with lhu.
+// curSpriteFrame as an unsigned halfword, the colour word at 0x28 (copied
+// whole into a primitive), the 0x3C flag word (bits 25-27 are read as a whole
+// word here, where the header's bitfields over them narrow to lbu 0x3F) and the
+// upper halfword of field_0x40, which is read with lhu.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x2C];
+    /* 0x00 */ u8 unk0[0x28];
+    /* 0x28 */ u32 color; // red, green, blue and the primitive code as one word
     /* 0x2C */ void* pFramesData[NUM_RENDER_CONTEXTS];
     /* 0x34 */ u16 curSpriteFrame; // unsigned here: -1 is a valid frame
     /* 0x36 */ u8 unk36[0x6];
@@ -290,7 +295,7 @@ void SpriteDrawTile(WorkListEntry* pTask) {
 
             // SetTile1
             setlen(pPrim, 2);
-            *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
+            *((u32*)&pPrim->r0) = ((SpriteDataView*)pSpriteData)->color;
 
             AddPrim(&g_GfxCurOT[nOTOffset], pPrim);
 
