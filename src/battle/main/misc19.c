@@ -527,8 +527,8 @@ void BattleResetActorStats(void) {
 
         p->hp = 0x64;
         p->maxHp = 0x64;
-        p->unk5C[2] = 0x14;
-        p->unk5C[3] = 0xF;
+        p->evade = 0x14;
+        p->hit = 0xF;
         p->unk7A = 0x1FBF;
         p->state.unkA5 = 0;
     }

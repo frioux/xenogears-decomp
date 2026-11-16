@@ -99,7 +99,7 @@ void BattleRollSlotConditionAction(void) {
 
     switch (g_BattleCurrentRow->unk17[1]) {
     case 0:
-        chance = g_BattleActingSlot->unk5C[4];
+        chance = g_BattleActingSlot->unk60[0];
         break;
     case 1:
         chance = g_BattleCurrentRow->unk1C;
@@ -160,7 +160,7 @@ void BattleSetSlotConditionActionValue(void) {
 
     switch (g_BattleCurrentRow->unk17[1]) {
     case 0:
-        chance = g_BattleActingSlot->unk5C[4];
+        chance = g_BattleActingSlot->unk60[0];
         break;
     case 1:
         chance = g_BattleCurrentRow->unk1C;

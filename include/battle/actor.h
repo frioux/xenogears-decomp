@@ -9,17 +9,17 @@
 // into the owning sprite's p70 slot.
 typedef struct {
     /* 0x0 */ u8 inUse; // BattleAllocBlock hands out blocks with this clear; BattleFreeBlock clears it
-    /* 0x1 */ u8 unk1;
-    /* 0x2 */ u8 unk2;
+    /* 0x1 */ u8 flags;
+    /* 0x2 */ u8 opcode; // the command code plus 3
     /* 0x3 */ u8 unk3;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ s16 unk8;
-    /* 0xA */ s16 unkA;
-    /* 0xC */ s16 unkC;
-    /* 0xE */ s16 unkE;
+    /* 0x4 */ s16 startX; // the component's value when the command was queued
+    /* 0x6 */ s16 startY;
+    /* 0x8 */ s16 startZ;
+    /* 0xA */ s16 targetX; // where the tween ends, or the per-frame step when the absolute bit is clear
+    /* 0xC */ s16 targetY;
+    /* 0xE */ s16 targetZ;
     /* 0x10 */ s16 unk10;
-    /* 0x12 */ s16 unk12;
+    /* 0x12 */ s16 endFrame; // frame the interpolation runs to
 } BattleBlock; // Size: 0x14
 
 // One part of an actor's model: its own transform plus the command queue, and
@@ -126,7 +126,7 @@ typedef struct {
     /* 0x05E */ s16 parentJointIndex; // which of the parent's sprites this one hangs off
     /* 0x060 */ s16 groundY; // height of the ground point BattleSnapActorToGround projected onto
     /* 0x062 */ u8 unk62;
-    /* 0x063 */ u8 unk63;
+    /* 0x063 */ u8 hasSedsEntry; // a SEDS entry is open for this actor; BattleFreeActorBuffer removes it
     /* 0x064 */ u8 unk64[0x6];
     /* 0x06A */ u16 attachOffsetX;
     /* 0x06C */ u16 attachOffsetY;
@@ -137,12 +137,12 @@ typedef struct {
     /* 0x08C */ s16 posZ;
     /* 0x08E */ u16 unk8E;
     /* 0x090 */ u8 unk90[0x8];
-    /* 0x098 */ s16 unk98;
-    /* 0x09A */ s16 unk9A;
-    /* 0x09C */ s16 unk9C;
-    /* 0x09E */ s16 unk9E;
-    /* 0x0A0 */ mem_addr unkA0;
-    /* 0x0A4 */ mem_addr unkA4;
+    /* 0x098 */ s16 stepIndex; // the move command's current step; -1 = none installed
+    /* 0x09A */ s16 stepCount; // steps the move command runs; -1 = repeat forever
+    /* 0x09C */ s16 pointIndex; // points of the current step already run
+    /* 0x09E */ s16 pointCount; // points in the current step
+    /* 0x0A0 */ mem_addr pPointCursor; // the point being run; func_800AE2A4 advances it
+    /* 0x0A4 */ mem_addr pPointList; // where pPointCursor restarts after the last step
     /* 0x0A8 */ u8 unkA8[0x8];
     /* 0x0B0 */ u8* unkB0;
     /* 0x0B4 */ u8* unkB4;
@@ -207,7 +207,10 @@ typedef struct {
     /* 0x056 */ u8 unk56;
     /* 0x057 */ u8 unk57[0x4];
     /* 0x05B */ u8 unk5B;
-    /* 0x05C */ u8 unk5C[0x1E];
+    /* 0x05C */ u8 unk5C[0x2];
+    /* 0x05E */ u8 evade; // the defender's evasion percent
+    /* 0x05F */ u8 hit; // the attacker's hit percent
+    /* 0x060 */ u8 unk60[0x1A];
     /* 0x07A */ u16 unk7A;
     /* 0x07C */ u16 unk7C;
     /* 0x07E */ u16 unk7E;
@@ -272,7 +275,7 @@ typedef struct {
     /* 0x0 */ u8 unk0[0xC];
     /* 0xC */ u8 unkC;
     /* 0xD */ u8 unkD;
-    /* 0xE */ u8 unkE;
+    /* 0xE */ u8 attack; // BattleApplyGearWeaponRecord copies it over the equipped weapon's attack
     /* 0xF */ u8 unkF; // weapon id
     /* 0x10 */ u8 unk10;
     /* 0x11 */ u8 unk11;
