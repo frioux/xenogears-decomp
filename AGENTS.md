@@ -190,8 +190,11 @@ symbol was still referenced from asm elsewhere.
 ### 3.6 Record symbols and types
 
 - New names go in `config/symbol_addrs.<bin>.txt` (`Name = 0x8XXXXXXX; // type:T size:N`)
-  and are declared in a header under `include/`. Rename `func_`/`D_` symbols as
-  soon as you know what they do; naming is as valuable as matching.
+  and are declared in a header under `include/`. Rename `func_`/`D_` symbols and
+  `unk<offset>` fields as soon as you know what they do; naming is as valuable as
+  matching. `tools/scripts/rename_sym.py` + `name_addrs.py` rename a function
+  everywhere at once and `tools/scripts/rename_data.py` does the same for a `D_`
+  global; a field is renamed by hand in its struct and at each use.
 - Field overlay symbols go in `symbol_addrs.field.txt`; main-exe symbols the
   overlay uses stay in `symbol_addrs.slus_006.64.txt` (the overlay configs include
   both).
@@ -216,7 +219,11 @@ width is semantic; `mem_addr` for an address held in an integer;
 `undefined8/16/32` for fields whose type is not yet known.
 
 **Structs**: every field gets an offset comment, the struct a size comment.
-Unknown fields are `unk<offset>`, padding `pad<offset>`.
+Unknown fields are `unk<offset>`, padding `pad<offset>`. `unk<offset>` is a
+placeholder for a field nobody has understood yet, not a naming style: once a use
+shows what the field holds it is renamed (`count`, `flags`, `pNext`), and an opaque
+span such as `u8 unk4[0x18]` that code reaches into with casts is split into the
+fields those accesses imply.
 
 ```c
 typedef struct {
@@ -230,7 +237,12 @@ typedef struct {
 **Names**: functions are PascalCase with an area prefix (`FieldLoadUITextures`,
 `ShopMenuParseNumberToString`, `HeapGetBlockUser`). Globals are `g_Name`.
 Pointer parameters and locals are prefixed `p` (`pHeapBlock`). Unrecovered
-functions stay `func_<addr>`, unrecovered data `D_<addr>`.
+functions stay `func_<addr>`, unrecovered data `D_<addr>`. Both, like `unk<offset>`,
+mean "not understood yet". Matched C that still reads `D_800D2CB0[i]` or
+`pRow->unk4` is owed a name as soon as the code around it shows what the thing is,
+and never before: a name needs a use in the code as evidence, and a wrong name is
+worse than a placeholder. Fields are lowerCamelCase. A name that restates the type
+or the address (`g_ByteTable`, `field4`) is not an improvement.
 
 **Files**: `#include "common.h"` first. Data definitions are grouped under a
 section comment (`// .sbss`, `// .rodata`, `// .data`) in address order. Keep a
@@ -475,6 +487,11 @@ tools/rounds/clone.sh merge misc sound temp2 ...    # commit stragglers + merge
 make check && tools/scripts/lint_sources.py -q      # the only real gate
 tools/rounds/clone.sh reset misc sound temp2 ...    # same clones, next round
 ```
+
+Names follow in their own passes once the C exists: `tools/rounds/name-brief.js`
+(read-only; proposes function and global names for `rename_sym.py`, `name_addrs.py`
+and `rename_data.py`) and `tools/rounds/field-brief.js` (clones; renames and splits
+`unk` struct fields and proves the build).
 
 `tools/rounds/brief.js` carries the accumulated playbook (the C idioms, the
 blockers already proved, the two mandatory gates) — read it before writing a

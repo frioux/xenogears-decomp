@@ -38,10 +38,11 @@ Start:
     make check              # all ELEVEN outputs OK before you touch anything
     grep -rc '^INCLUDE_ASM' src | awk -F'[/:]' '{n[$2]+=$NF} END{for(b in n) print n[b], b}' | sort -rn
 
-That last line is the scoreboard (stubs per binary; 4568 functions in total). Three
+That last line is the scoreboard (stubs per binary; 4568 functions in total). Four
 numbers move in this job: **functions matched** and **matched functions with a real
 name** go up, and **raw lines** (matched C that no programmer would have written; see
-"Realistic C") goes down.
+"Realistic C") and **placeholder names** (`D_<addr>` globals and `unk<offset>` fields
+in matched C; see "Names for data and fields") go down.
 
 ## Order of work
 
@@ -61,8 +62,9 @@ on 2026-11-14, and each is described under its own heading further down.
 3. **Jump-table stubs** ("Jump tables"). About 110 stubs that were excluded because a C
    `switch` broke the link are ordinary stubs now. They are larger than average, so
    brief them in the deep shape ("The round loop").
-4. **Naming and rewrite rounds** ("Names", "Realistic C"), alongside any of the above.
-   These are the reliable product: run one with every matching round.
+4. **Naming and rewrite rounds** ("Names", "Names for data and fields", "Realistic
+   C"), alongside any of the above. These are the reliable product: run one with every
+   matching round.
 5. **Fresh-stub matching rounds** ("Choosing what to brief"), on what `fresh_stubs.py`
    still lists.
 
@@ -86,6 +88,7 @@ One worker = one clone = **one `.c` file**.
     python3 tools/scripts/lint_sources.py -q
     # save the reports' NAME lines to a file, then:
     tools/scripts/rename_sym.py -f <names file>  # see "Names"
+    tools/scripts/rename_data.py -f <names file> # see "Names for data and fields"
     make check
     git commit, git push, one row in reports/TRACKER.md
     rm -rf ~/xw/r-<tags>                         # fresh `new` clones next round
@@ -165,7 +168,88 @@ of a match, and it is cheap.
   `battle/main/misc28`), neither tool touches that C: the overlay's asm relocations get the
   new name, the old spelling has no definition, and `make check` fails with `undefined
   reference to D_80025A88`. One grep per applied name over `src/` for both spellings.
-- Tracker row: `+N matched, +M named, raw R`.
+- Tracker row: `+N matched, +M named, +D data, +F fields, raw R`.
+
+## Names for data and fields
+
+**`D_800D2CB0` and `u8 unk4[0x18]` are placeholders, not names.** A function called
+`BattleCopyRowTiles` that reads `D_800D2CB0[i]` into `pRow->unk4` is half named. The
+same rule as for functions applies to what they touch: once the code shows what a
+global or a field holds, it gets the name a programmer would have typed
+(`g_BattleRowTiles[i]`, `pRow->tiles`), and it gets it in a follow-up pass, not during
+the match.
+
+The evidence rule does not relax. A name is accepted when its evidence cites a use in
+the code (what is stored, what indexes it, which named function takes it as which
+argument, a string's text) and dropped when it is a guess at what the game means. `hp`
+on a guess is still worse than `unk3D`. What changes is that `unk3D` with the evidence
+sitting in three matched functions is now a debt, like `func_`. A name that restates
+the type or the address (`g_BattleByteTable`, `field4`) is not a name; leave the
+placeholder.
+
+**Globals: `D_<addr>` -> `g_Name`.** Proposed by workers, applied by you, exactly like
+function names.
+
+- Matching and rewrite workers add `DATA D_800XXXXX g_NewName - evidence` lines to
+  their report (rules in `brief.js`), and `name-brief.js` workers propose them for every
+  `D_` the live C of their file uses. Nobody renames a global in a clone: the expected
+  objects still carry the old name.
+- Apply with `tools/scripts/rename_data.py -f names.txt`, after `rename_sym.py` and
+  `name_addrs.py`, under the same condition: **no clones out**. It replaces the name in
+  `src/` and `include/` and adds `g_Name = 0xADDR;` to the owner's `symbol_addrs` file,
+  which is what makes the asm of every stub that still loads the address say the new
+  name (a sed over `src/` alone is `undefined reference to g_Name`). Below the overlay
+  base (`0x8006FAF0`) the owner is the main exe and the name applies in every binary;
+  above it the address means something different in each overlay, so a `D_` used from
+  two binaries' `src/` is skipped as a twin. It exits 1 on a SKIP; read the block. The
+  same file can carry `NAME` and `DATA` lines, each tool reads its own.
+- `DATA_INTERIOR` lines are not names. `D_800D343F` used as `D_800D343F + i * 0x40` is
+  field 0x3F of the table at `D_800D3400`; naming it would freeze the raw form. Those go
+  to a rewrite round ("Realistic C") as the struct that file needs, and the *base* gets
+  the name.
+- A typed table keeps working after its base is renamed: the asm still names the
+  interior addresses `D_800D3420` and the C says `g_Slots[i].unk20`, which is the 99.x%
+  objdiff reading "Realistic C" already describes.
+- Do not name under `psyq/` except with a real SDK name.
+
+**Fields: `unk<offset>` -> a name.** Applied by a worker in a clone, because a field
+rename has to follow the struct's type through every user and only the compiler can
+check that.
+
+- `tools/rounds/field-brief.js`, `{workers: [{tree, file, bins, structs?, hints?}]}`:
+  one worker per **declaring file** (the `.h` or `.c` that holds the struct), `bins` the
+  outputs whose `src/` uses it. The worker renames in the declaration and at every use,
+  splits an opaque span (`u8 unk4[0x18]` reached into with casts) into the fields the
+  code touches, proves it with `check_bin.sh` per bin, commits, and reports `FIELD`,
+  `SPLIT` and `FIELD_UNKNOWN` lines. Merge with `clone.sh merge` like any round. Field
+  names are not in the object code, so only a split can move a byte and `make check`
+  catches it.
+- Matching workers rename fields of structs declared in their own `.c` as they go, and
+  report `FIELD Struct.unkN name - evidence` for structs in shared headers without
+  touching them (the shared-header rule in `brief.js` stands). Pass those lines to the
+  field worker as `hints`.
+- **A field worker owns its declaring file and edits its users**, so it must not share
+  a round with a matching or rewrite worker on any `.c` that includes that header. A
+  struct declared in a `.c` is that file's worker alone and can go out whenever the
+  file is free; a header under `include/` goes out between matching rounds, or in a
+  round whose other workers are all on other binaries. Two field workers whose headers
+  share a user merge cleanly unless they touched the same line; a CONFLICT clone is
+  re-briefed next round.
+- `FIELD_UNKNOWN` is a fine outcome and is not re-briefed until new matched functions
+  use the struct.
+
+**Backlog and what to pick** (when this was written: 2,574 distinct `D_` names in
+`src/` and `include/`, about 2,600 `unk` field declarations):
+
+    grep -rhoE '\bD_[0-9A-F]{8}\b' src include | sort -u | wc -l
+    grep -rcE '/\* 0x[0-9A-Fa-f]+ \*/.*\bunk' src include | awk -F: '$2 {n+=$2; print $2, $1} END {print n, "TOTAL"}' | sort -rn | head -21
+
+Pick by evidence, not by count: a global or struct used by several *named, matched*
+functions names itself, and one touched only by stubs or `func_` bodies yields
+`UNKNOWN`. So run the function naming round over a file first and the data and field
+rounds over it afterwards. Put both totals in the tracker row every third round; like
+the raw count, they must not rise except by the placeholders a newly matched function
+brings with it.
 
 ## Realistic C
 
@@ -213,6 +297,8 @@ missing struct. The rules a worker follows are in `brief.js` ("REALISTIC C").
   ranks by objdiff percentage will show these a little under 100.
 - Do not accept invented field names to make a line look better. `unk3D` in a declared
   struct is realistic; `hp` on a guess is a wrong name, and the Names rule applies.
+  A field whose uses do show what it is gets its name in a field round ("Names for data
+  and fields"), which is also where an opaque `u8 unk4[0x18]` span is split.
 - Fix the cause when a round's reports show the same raw form coming back: one line in
   `brief.js` with the typed spelling that matched.
 
@@ -505,6 +591,6 @@ So that the next session also starts from this file alone:
   function stays 100.0 and `make check` is green is the "Presets" procedure, not this.) Log a `DECISION:` line in the tracker row and work on something else (see
   "The operator is mostly absent"). Reverting a function to its stub to get `make
   check` green is not deleting committed work.
-- Report to the operator only: functions matched, functions named, the raw-line
-  count, the tracker row, and any `DECISION:` lines you logged. The report is a status
+- Report to the operator only: functions matched, functions named, globals and fields
+  named, the raw-line count, the tracker row, and any `DECISION:` lines you logged. The report is a status
   note, not a stopping point.
