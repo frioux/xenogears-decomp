@@ -103,7 +103,7 @@ u8 func_8009A258(u8 arg0, u8 arg1) {
     sum = sum + q[0x5B];
     value = sum;
     if (value > 0x64) {
-        if (value || sum) {
+        if (sum || sum) {
             value = 0x64;
         } else {
             value = 0x64;
