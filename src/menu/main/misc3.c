@@ -645,6 +645,109 @@ u_char MenuFindFreeChunkIndex(u_char a0, u_char a1) {
     return a1;
 }
 
+extern int ArchiveGetDiscNumber(void);
+extern int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput);
+extern u8 D_801E96A5;
+
+/* Header of a save slot (the first 0x24 bytes of the record
+   MenuSaveSlotWriteGameState fills in): a per-party-slot character summary. */
+typedef struct {
+    /* 0x00 */ u32 spuChannelMask;
+    /* 0x04 */ u16 hp[3];
+    /* 0x0A */ u16 maxHp[3];
+    /* 0x10 */ u8 mp[3];
+    /* 0x13 */ u8 maxMp[3];
+    /* 0x16 */ u8 level[3];
+    /* 0x19 */ u8 unk19[3];
+    /* 0x1C */ u8 characterIds[3];
+    /* 0x1F */ u8 unk1F;
+    /* 0x20 */ u8 unk20[3];
+    /* 0x23 */ u8 unk23;
+} MenuSaveSlotHeader; // Size: 0x24
+
+extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
+
+/* Best attempt: 94.12% (828 bytes vs retail's 836 -- two instructions short).
+   Structure is settled, and three of its four lessons are reusable:
+   - the function is MenuSaveSlotHeader* (a0), one dead parameter (a1) and a byte
+     (a2) that it drops into header 0x23; it ends by writing the save's disc
+     number to g_GameState+0x19D4 and calling MenuSaveSlotWriteGameState +
+     func_801CB184, so the 0x24-byte record at the slot front is the save header.
+   - case-1/phase-2 allocator note for the family: nothing here.
+   Two differences remain:
+   (1) mp and maxMp (game state 0x2BC/0x2BE) are BYTE loads in retail, not lhu.
+       GameCharacter declares them u_short, so a cast/view does not reproduce it:
+       every cast spelling makes gcc hoist the constant base into a register
+       ("addu v0,v0,t1 / lbu 0(v0)") instead of retail's per-site
+       "lui at,%hi(g_GameState) / addu at,at,v0 / lbu %lo(g_GameState+0x2BC)(at)".
+       The only spelling that folds -- i.e. a member access on the declared
+       GameCharacter type -- is unk54[-4] / unk54[-2] (0x54-4 = 0x50), which is
+       what the body below uses; that is raw but it is what separates 91.49% from
+       94.12%. The honest fix is for GameCharacter to declare mp/maxMp as two
+       bytes each, but field/party/stats matches on the u_short form (lhu/sh at
+       0x2BC), so the header cannot simply be retyped.
+   (2) gcc reuses the lbu of pManager->currentCharacterIDs[i] for the store to
+       header 0x1C, where retail reloads it (test and store are the same basic
+       block in both, so it is not a block-layout difference). That is one of the
+       two missing instructions; the other is the mirror-image register tie below.
+   Also learned: the text loop is over g_GameState.strings (31 entries of 0x14 =
+   StringEntry), zero-filling a 0x14-byte out buffer (both buffers are byte
+   arrays: the zero fill is sb) and calling SystemEncodeGlyphCodes, then copying
+   the buffer back. Retail keeps the 3-iteration index in s1 and the gs pointer
+   in s0 and puts the "id == 0xFF" arm out of line at the end of the loop body
+   (beq to it), which is what "if (id != 0xFF) { big } else { small }" gives.
+   Permuter not run for the last 2 instructions (ran out of round time). */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
+/*
+void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 unk23) {
+    u8 inBuf[0x14];
+    u8 outBuf[0x14];
+    u8* pText;
+    s32 i;
+    s32 j;
+    s32 discNumber;
+
+    for (i = 0; i < 0x10; i++) {
+        D_8006F958[i] = D_8005A3A0[i];
+    }
+    for (i = 0; i < 3; i++) {
+        if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
+            pSlot->characterIds[i] = g_Menu->pManager->currentCharacterIDs[i];
+            pSlot->hp[i] = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].hp;
+            pSlot->maxHp[i] = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].maxHp;
+            pSlot->mp[i] = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].unk54[-4];
+            pSlot->maxMp[i] = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].unk54[-2];
+            pSlot->level[i] = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].level;
+            pSlot->unk19[i] = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].unk63;
+        } else {
+            pSlot->characterIds[i] = 0xFF;
+        }
+    }
+    pText = (u8*)g_GameState.strings;
+    pSlot->unk1F = 0;
+    pSlot->unk23 = unk23;
+    pSlot->spuChannelMask = g_SpuChannelMask;
+    for (i = 0; i < 0x1F; i++) {
+        for (j = 0; j < 0x14; j++) {
+            inBuf[j] = pText[j];
+            outBuf[j] = 0;
+        }
+        SystemEncodeGlyphCodes(inBuf, (u16*)outBuf);
+        for (j = 0; j < 0x14; j++) {
+            pText[j] = outBuf[j];
+        }
+        pText += 0x14;
+    }
+    if (D_801E96A5 == 0) {
+        discNumber = ArchiveGetDiscNumber() - 1;
+    } else {
+        discNumber = 1;
+    }
+    g_GameState.fieldScriptMemory[0x52] = discNumber;
+    MenuSaveSlotWriteGameState(pSlot);
+    func_801CB184();
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CC6D8);
