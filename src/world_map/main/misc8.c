@@ -953,24 +953,6 @@ void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMa
     VectorNormal(&pWork->vert2, (VECTOR *)pNormal);
     WorldMapInterpolatePlaneHeight(pOut, (WorldMapPos *)pA, pNormal);
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085418);
-// Best: 99.73% at retail's exact size (840 bytes = 210 insns). Written from
-// scratch this round against WorldMapProjectTriangleNormal below, which is the
-// same pipeline: copy the sprite set's mat to scratch 0x1F8000F0, zero t[2]/t[0],
-// t[1] = unkC, scale 0x800, ScaleMatrix, RotTrans the triangle's three verts into
-// 0x1F800000/10/20, subtract the first from the other two, OuterProduct0, >>2,
-// VectorNormal, build two 3-short rows at 0x1F800110 (second row's y minus the
-// s32 arg1), ApplyMatrixLV, return (out.vx ^ out.vy) >> 31. The x/y/z tail rows
-// must be written as three interleaved compute-then-two-stores groups (a shared
-// temp per row) or gcc reloads pA->vx/unk8 across the sh's (90% -> 94.52%), and
-// gcc's grow/split of the z subtraction matters: `z = pEntry->unk10 - (pPos->z
-// >> 12);` placed between the two m[1] stores and then `z -= pWork->vert0.vz;`
-// is 99.73% (splitting it earlier or as two `z =` statements is worse, 98.71%).
-// The single remaining delta is one mirrored register pair in the last block:
-// retail loads pEntry->unk10 into $a3 first and pPos->z into $v1 second, this
-// body loads pPos->z first (a permuter run from the 94.52% body found the z
-// split; a second run from this one is the next step).
-/*
 s32 func_80085418(WorldMapPos *pPos, s32 yOffset, u16 setIndex, u16 triIndex) {
     WorldMapEntry *pEntry;
     WorldMapMesh *pMesh;
@@ -987,6 +969,7 @@ s32 func_80085418(WorldMapPos *pPos, s32 yOffset, u16 setIndex, u16 triIndex) {
     s32 x;
     s32 y;
     s32 z;
+    s32 entryZ;
 
     pEntry = &D_8009C620[setIndex];
     *pMat = pEntry->mat;
@@ -1023,7 +1006,8 @@ s32 func_80085418(WorldMapPos *pPos, s32 yOffset, u16 setIndex, u16 triIndex) {
     pLine->m[1][0] = x;
     y = (pPos->y >> 12) - pA->vy;
     pLine->m[0][1] = y;
-    z = pEntry->unk10 - (pPos->z >> 12);
+    entryZ = pEntry->unk10;
+    z = entryZ - (pPos->z >> 12);
     pLine->m[1][1] = y - yOffset;
     z -= pWork->vert0.vz;
     pLine->m[0][2] = z;
@@ -1031,9 +1015,133 @@ s32 func_80085418(WorldMapPos *pPos, s32 yOffset, u16 setIndex, u16 triIndex) {
     ApplyMatrixLV(pLine, pNormal, pDst);
     return (pDst->vx ^ pDst->vy) >> 31;
 }
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
+// Best: 78.64% in 1368 bytes vs retail's 1400 (32 bytes / 8 insns short). The
+// body below is structurally right -- it is the register frame that is wrong:
+// retail's frame is 0x30 and it keeps only three scratchpad bases live
+// ($s1 = 0x1F800000, $s3 = 0x1F800010, $s0 = 0x1F800020, the gte_stlvnl
+// destinations), so 0x1F8000F0/0x30/0x40/0x50 are ABSOLUTE constant
+// expressions in the original (`sw $v0,64($at)`, `lui $a0,0x1F80; ori 0xF0`),
+// and the pack's vz reads are absolute too (`lui $a0,0x1F800008; lw 0($a0)`)
+// while its vx reads reuse the base register (`lhu 0($s1)`) -- i.e. the
+// original's vx and vz reads were *different expressions*, which is why the
+// pointer locals here push the frame to 0x40 and cost the 8 insns.
+// Everything else is mapped: a0 = a WorldMapPos used only by the switch arms,
+// a1 = the WorldMapPos the clip origin comes from, a2 = setIndex as s32 (no
+// andi before the *0x54 chain, unlike func_80085418 whose is u16), a3 =
+// triIndex. After the three MVMVA passes it packs (vz<<16)|(u16)vx for the
+// three vertices and the clip origin into the three longs at 0x1F800030 and
+// calls NormalClip(v0,v1,origin) -> bit 1, (v1,v2) -> bit 2, (v2,v0) -> bit 4;
+// switch (clip) { case 3: re-pack the origin from a0 (& 0xFFFF on x),
+// NormalClip(origin, v1, origin) != 0 -> clip = 1; case 5: same with v0 ->
+// clip = 4; case 6: same with v2 -> clip = 2; } then three edge normals at
+// 0x1F800030/40/50 each VectorNormal(n, n) and `return clip`. gte_stflg(&flag)
+// is already exact (cfc2 $12 = $t4, nop, sw through the address register).
+// The one clue to the original's spelling of those constants: the
+// VectorNormal argument is built as `addiu $a0,$s1,0x30` (and 0x40, 0x50), i.e.
+// pVert0 + 3/4/5 in VECTOR strides, while the clip origin's stores to
+// 0x1F800040 are absolute -- so the original mixed two typed views of the same
+// scratchpad slots and gcc kept them as separate pseudos. Reproduce that and
+// the saved registers come down to retail's five.
+/*
+s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triIndex) {
+    WorldMapEntry *pEntry;
+    WorldMapMesh *pMesh;
+    WorldMapTriangle *pTri;
+    SVECTOR *pVerts;
+    VECTOR *pVert0 = (VECTOR *)0x1F800000;
+    VECTOR *pVert1 = (VECTOR *)0x1F800010;
+    VECTOR *pVert2 = (VECTOR *)0x1F800020;
+    VECTOR *pArgs = (VECTOR *)0x1F800030;
+    VECTOR *pPosVec = (VECTOR *)0x1F800040;
+    VECTOR *pNormal2 = (VECTOR *)0x1F800050;
+    MATRIX *pMat = (MATRIX *)0x1F8000F0;
+    long flag;
+    s32 clip;
 
+    pEntry = &D_8009C620[setIndex];
+    pPosVec->vx = (pRef->x >> 12) - pEntry->unk8;
+    pPosVec->vz = pEntry->unk10 - (pRef->z >> 12);
+    *pMat = pEntry->mat;
+    pMat->t[2] = 0;
+    pMat->t[0] = 0;
+    pMat->t[1] = pEntry->unkC;
+    pVert0->vz = 0x800;
+    pVert0->vy = 0x800;
+    pVert0->vx = 0x800;
+    ScaleMatrix(pMat, pVert0);
+    SetRotMatrix(pMat);
+    SetTransMatrix(pMat);
+    pMesh = pEntry->unk44;
+    pTri = &pMesh->tris[triIndex];
+    pVerts = pMesh->unk4;
+    gte_ldv0(&pVerts[pTri->vert[0]]);
+    gte_mvmva(1, 0, 0, 0, 0);
+    gte_stlvnl(pVert0);
+    gte_stflg(&flag);
+    gte_ldv0(&pVerts[pTri->vert[1]]);
+    gte_mvmva(1, 0, 0, 0, 0);
+    gte_stlvnl(pVert1);
+    gte_stflg(&flag);
+    gte_ldv0(&pVerts[pTri->vert[2]]);
+    gte_mvmva(1, 0, 0, 0, 0);
+    gte_stlvnl(pVert2);
+    gte_stflg(&flag);
+    clip = 0;
+    pArgs->vx = (pVert0->vz << 16) | ((u16 *)pVert0)[0];
+    pArgs->vy = (pVert1->vz << 16) | ((u16 *)pVert1)[0];
+    pArgs->vz = (pPosVec->vz << 16) | ((u16 *)pPosVec)[0];
+    if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) > 0) {
+        clip |= 1;
+    }
+    pArgs->vx = (pVert1->vz << 16) | ((u16 *)pVert1)[0];
+    pArgs->vy = (pVert2->vz << 16) | ((u16 *)pVert2)[0];
+    if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) > 0) {
+        clip |= 2;
+    }
+    pArgs->vx = (pVert2->vz << 16) | ((u16 *)pVert2)[0];
+    pArgs->vy = (pVert0->vz << 16) | ((u16 *)pVert0)[0];
+    if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) > 0) {
+        clip |= 4;
+    }
+    switch (clip) {
+    case 3:
+        pArgs->vx = ((pEntry->unk10 - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->unk8) & 0xFFFF);
+        pArgs->vy = (pVert1->vz << 16) | ((u16 *)pVert1)[0];
+        if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) != 0) {
+            clip = 1;
+        }
+        break;
+    case 5:
+        pArgs->vx = ((pEntry->unk10 - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->unk8) & 0xFFFF);
+        pArgs->vy = (pVert0->vz << 16) | ((u16 *)pVert0)[0];
+        if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) != 0) {
+            clip = 4;
+        }
+        break;
+    case 6:
+        pArgs->vx = ((pEntry->unk10 - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->unk8) & 0xFFFF);
+        pArgs->vy = (pVert2->vz << 16) | ((u16 *)pVert2)[0];
+        if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) != 0) {
+            clip = 2;
+        }
+        break;
+    }
+    pArgs->vx = pVert1->vx - pVert0->vx;
+    pArgs->vy = 0;
+    pArgs->vz = pVert1->vz - pVert0->vz;
+    VectorNormal(pArgs, pArgs);
+    pPosVec->vx = pVert2->vx - pVert1->vx;
+    pPosVec->vy = 0;
+    pPosVec->vz = pVert2->vz - pVert1->vz;
+    VectorNormal(pPosVec, pPosVec);
+    pNormal2->vx = pVert0->vx - pVert2->vx;
+    pNormal2->vy = 0;
+    pNormal2->vz = pVert0->vz - pVert2->vz;
+    VectorNormal(pNormal2, pNormal2);
+    return clip;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085CDC);
 // Best: 97.70% at retail's exact size (636 bytes), instruction multiset
 // identical. Everything else is now exact: the prologue save order needs `i = 0`
