@@ -5,7 +5,7 @@
 
 // Temporary ----------------------------
 extern void func_80031FF8();
-extern void func_8003747C(void*);
+extern void FontSetExternalBuffer(void*);
 extern void FontPrintf(char*, ...);
 extern u_int strlen(char* pString);
 extern int Sprintf(char* pStr, char* pFormat, ...);

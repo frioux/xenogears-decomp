@@ -154,7 +154,7 @@ void FontSetPositionsByOffset(short xOffset, short yOffset) {
     }
 }
 
-void func_8003708C(int offsetX, int offsetY) {
+void FontSetPositionsByOffsetClamped(int offsetX, int offsetY) {
     short nNewPosX;
 
     if (g_Font) {
@@ -317,7 +317,7 @@ void FontDrawLetters(void* ot) {
     }
 }
 
-void func_8003747C(void* pFont) {
+void FontSetExternalBuffer(void* pFont) {
     D_800593A0 = pFont;
 }
 

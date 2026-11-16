@@ -1362,7 +1362,7 @@ void func_80077268(void) {
 
 void FieldLoadFont(void) {
     if (g_FieldSystemMode == 0) {
-        func_8003747C((void*)0x80270000);
+        FontSetExternalBuffer((void*)0x80270000);
         FontLoadFont(0x10, 0x10, 0x130, 0xE0, 0x400, 4, 0x3C0, 0x100, 0x100, 0x1FF, 0);
     }
     SystemTransferPaletteToVRAM(0x100, 0xF0);

@@ -37,7 +37,7 @@ GamePartySyncStreamedData = 0x8001B3A8;
 // Menu
 MenuInitializeGfxEnvironment = 0x8001BDDC;
 MenuInitializeGfxEnvironments = 0x8001BE14;
-func_8001BEEC = 0x8001BEEC;
+MenuInitializeCamera = 0x8001BEEC;
 MenuProcessControllerInput = 0x8001BF38;
 MenuExecute = 0x8001C1A8;
 MenuMain = 0x8001C634;
@@ -1409,3 +1409,6 @@ SoundScriptSetVoiceFlags4000AndMode = 0x8003D53C;
 SoundScriptSetTriangleEnvelope2 = 0x8003DF78;
 SoundTimerInterruptHandler = 0x8003C020;
 SoundApplyElementStatusFlags = 0x8003EBF0;
+MenuUpdateAndRender = 0x8001C074;
+FontSetPositionsByOffsetClamped = 0x8003708C;
+FontSetExternalBuffer = 0x8003747C;

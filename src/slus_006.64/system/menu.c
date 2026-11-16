@@ -57,7 +57,7 @@ void MenuInitializeGfxEnvironments(void) {
     MenuInitializeGfxEnvironment(&g_Menu->gfxEnvs[1]);
 }
 
-void func_8001BEEC(void) {
+void MenuInitializeCamera(void) {
     g_Menu->translation.vz = 0x800;
     g_Menu->cameraPosition.vz = 0x800;
     g_Menu->rotation.vz = 0;
@@ -121,7 +121,7 @@ void MenuProcessControllerInput(void) {
     g_Menu->input = input;
 }
 
-void func_8001C074(void) {
+void MenuUpdateAndRender(void) {
     GfxEnvironment* pNextGfxEnv;
 
     MenuProcessControllerInput();
@@ -223,7 +223,7 @@ void MenuExecute(void) {
                     break;
             }
 
-            func_8001C074();
+            MenuUpdateAndRender();
         } while (bShouldContinue);
 
         D_80059460 = nMenuIndex;
@@ -317,7 +317,7 @@ void MenuMain() {
         g_Menu->gfxEnvs[0].drawEnv.isbg = 1;
         g_Menu->gfxEnvs[1].drawEnv.isbg = 1;
     }
-    func_8001BEEC();
+    MenuInitializeCamera();
     Vsync(0);
     PutDrawEnv(&g_Menu->gfxEnvs[0].drawEnv);
     PutDrawEnv(&g_Menu->gfxEnvs[1].drawEnv);

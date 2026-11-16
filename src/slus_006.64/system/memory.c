@@ -89,7 +89,7 @@ int HeapLoadSymbols(char* pSymbolFilePath) {
 }
 
 void HeapReset(void) {
-    func_8003747C(0);
+    FontSetExternalBuffer(0);
     g_HeapCurContentType = HEAP_CONTENT_NONE;
     g_HeapCurUser = HEAP_USER_UNKNOWN;
     g_SymbolData = NULL;

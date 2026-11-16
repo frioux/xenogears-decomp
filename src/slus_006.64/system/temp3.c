@@ -550,7 +550,7 @@ void GameSetUpDisplayAndChangeState(void) {
     ArchiveSetIndex(0xC, 0);
 
     if (*D_8005917C != -1) {
-        func_8003747C((void*)0x80200000);
+        FontSetExternalBuffer((void*)0x80200000);
         FontLoadFont(0x10, 0x10, 0x140, 0x100, 0x3E8, 0, 0x340, 0, 0x340, 0x20, 0);
     }
 
