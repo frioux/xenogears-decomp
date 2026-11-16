@@ -924,35 +924,21 @@ u16 BattleGetSameRowSlotMask(void) {
 }
 extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3E9A[];
-/* 99.81% at best: every instruction and the frame (0x30, 7 saved regs) match
-   except the order of the two callee-saved parameter copies in the entry block -
-   retail emits sw s6,0x28 / move s6,a0 before sw s1,0x14 / move s1,a2, gcc 2.6.0
-   here emits the s1 pair first. Permuter stalls at 30 on this body, two runs.
-   The tail fill loop is what took it from 98.35% to 99.81%: the 0x4000 branch's
-   countdown must reuse n, not a fresh local, so the counter lands in s1 as in
-   retail (val stays a u8 0xFF; p = D_800C3E9A; for (; n >= 0; n--) *p-- = val).
-   n = 0 must also precede the g_BattleTargetSlot = 0xFF store in the 0x8000 branch.
-   Tried, worse or neutral: swapping the flags/hi assignments (98.62%), a separate
-   j local for the countdown (99.63%), flags declared first, other declaration
-   orders of i/n/off/off8/val.
-   Note for an un-park: the two offsets must stay explicit source variables
-   (off = 0x170 * i, off8 = 8 * i, both from 0); writing g_BattleSlotEntries[i].unk0 and
-   g_BattleSlotFlags[i * 8] makes gcc fold the g_BattleSlotFlags base into the pointer
-   (lui/addiu in the preheader instead of move s5,zero) and it loses 5%.
-u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
+// arg0 IS the flags word (it is reassigned per arg3 below): keeping it a
+// parameter, rather than copying it into a local, is what makes gcc home it
+// into $s6 before arg2's copy in the entry block.
+u16 func_80084DE4(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     s32 i;
     s32 n;
+    s32 hi;
     s32 off;
     s32 off8;
-    u16 flags;
     u16 mask;
     u8 grp;
     u8 first;
     u8 *p;
     u8 val;
-    s32 hi;
 
-    flags = arg0;
     hi = 0;
     switch (arg3) {
     case 0:
@@ -1028,8 +1014,6 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     }
     return flags & 0xFFFF;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084DE4);
 extern u8 func_80084854(u8, u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
 extern u16 func_80084DE4(u16, u16, u8, u8, u8);
