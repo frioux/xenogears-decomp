@@ -20,7 +20,8 @@ typedef struct {
     /* 0x2DA */ u8 count; // queued commands
     /* 0x2DB */ u8 unk2DB;
     /* 0x2DC */ u8 unk2DC;
-    /* 0x2DD */ u8 unk2DD[0xA];
+    /* 0x2DD */ u8 unk2DD[9];
+    /* 0x2E6 */ u8 unk2E6;
 } BattleCommandQueue; // Size: 0x2E7
 
 // Partial view of the per-frame battle display state (D_800D2D28); the shared
@@ -323,7 +324,177 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     return result;
 }
 */
+extern u8 D_800D3014;
+extern u8 D_800D39D4;
+extern s32 D_800D3288;
+extern u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2);
+extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
+extern void func_80091064(u8 arg0);
+extern void func_80077698(void);
+extern void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2);
+extern void BattleBuildSpriteColumn8(s32 arg0);
+extern void func_80091EC4(s32 arg0);
+extern void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
+/* Best: 98.42% (1176 bytes vs the original's 1164). Written from scratch this
+   round; everything matches instruction for instruction EXCEPT two shapes:
+   1. the fall-through state body (case 4 of the switch on D_800D39D4). Retail
+      keeps the compare's `(j - 1) * 16` value in $v0 across the `j--` and reuses
+      it for the shared `sw $v0, D_800D3288` at .L8008B878; gcc 2.6 rematerialises
+      it in that one path (`andi v0,(u8)j; sll v0,v0,4`), which is the 2 extra
+      instructions and the 12-byte oversize. Cases 1..3 of the same switch reuse
+      the value fine (they reach the store through a `j`), so it is the
+      fall-through that makes gcc remat -- a `s32 scrollY` local for the body
+      made it worse (1192). Tried: `D_800D3288 = (j - 1) * 16` before the
+      decrement (sw then precedes the addiu, 1192), a scrollY local (1192),
+      `(j - 1 + 1) * 16` (1176, same).
+   2. the i/j register tie: retail keeps i in $s2 and j in $s3, gcc gives i $s3.
+      Everything else (s4=result, s5=arg0, s8=prevI, s6=prevJ, s7=prevY, s0=1,
+      s1=0x18, the 0x50 frame, both switches' case order 5,4,0,2,1,3 and 1,2,3,4,
+      the andi placement, all delay slots) is identical. Permuter run from this
+      body found nothing (base=439 best=439, 898 iters).
+   Lessons already applied here: case bodies must be listed in TEXT order
+   (5,4,0,2,1,3 -- gcc 2.6 emits them in source order, confirmed against
+   BattleSelectTargetSlotLoop); each guard is written `if (x == N) { state }
+   else { index }` so gcc branches on the false arm; `s32 iv = i` is required to
+   get retail's `andi a1,(u8)i` before `andi v0,a1,1`, and the coordinates need
+   the two-term spelling `(iv & 1) * 128 + (iv & 1) * 4 + 0x2A` for retail's
+   128+4 shift pair; the state bodies need `j` changed before `i`. */
+/*
+u8 func_8008B478(u8 arg0) {
+    u8 j;
+    u8 i;
+    u8 result;
+    u8 prevI;
+    u8 prevJ;
+    s32 prevY;
+    s32 primIndex;
+    u8 primCount;
+    u32 iv;
+
+    i = 0;
+    j = 0;
+    prevI = 0xFF;
+    prevJ = 0xFF;
+    prevY = 0xFFFF;
+    result = 2;
+    primIndex = 4;
+    primCount = 0;
+    D_800D3288 = 0;
+    D_800D39D4 = 0;
+    D_800D2D28->unkCB = 0;
+    func_8008F8F4(0, 0x1C, 0xA0, 0xAC, 0x38, 0, 1);
+    func_8008F8F4(1, 0x20, 0x2C, 0x118, 0x70, 0, 1);
+    func_8008F8F4(2, 0xD0, 0xA4, 0x50, 0x18, 0, 1);
+    func_8008F8F4(3, 0xE6, 0xC0, 0x4C, 0x18, 0, 1);
+    func_80091064(arg0);
+    func_80077698();
+    do {
+        if (i != prevI || j != prevJ) {
+            BattleDrawCharStatusIfFlagged(arg0, i, j);
+            prevI = i;
+            prevJ = j;
+        }
+        if (D_800D3288 != prevY) {
+            BattleBuildSpriteColumn8(D_800D3288);
+            func_80091EC4(D_800D3288);
+            prevY = D_800D3288;
+        }
+        iv = i;
+        BattleStepAnimatedCursorPrim((iv & 1) * 128 + (iv & 1) * 4 + 0x2A, (iv >> 1) * 16 + 0x38, &primIndex, &primCount);
+        BattleUpdateFrame();
+        switch (D_800D3014) {
+        case 5:
+            result = 0;
+            break;
+        case 4:
+            if (func_8008B224(arg0, i, j) != 0) {
+                result = 1;
+                D_800C3EAC->unk2E6 = i + j * 2;
+            }
+            break;
+        case 0:
+            if (j * 2 + i != 0xF) {
+                if (i + 1 == 0xC) {
+                    D_800D39D4 = 1;
+                } else {
+                    i++;
+                }
+            }
+            break;
+        case 2:
+            if (j * 2 + i > 0) {
+                if (i == 0 && j != 0) {
+                    D_800D39D4 = 2;
+                } else {
+                    i--;
+                }
+            }
+            break;
+        case 1:
+            if (j * 2 + i < 0xE) {
+                if (i + 2 >= 0xC) {
+                    D_800D39D4 = 3;
+                } else {
+                    i += 2;
+                }
+            }
+            break;
+        case 3:
+            if (j * 2 + i >= 2) {
+                if (i < 2 && j != 0) {
+                    D_800D39D4 = 4;
+                } else {
+                    i -= 2;
+                }
+            }
+            break;
+        }
+        switch (D_800D39D4) {
+        case 1:
+            if (D_800D3288 >= (j + 1) * 16) {
+                j++;
+                i--;
+                D_800D3288 = j * 16;
+                D_800D39D4 = 0;
+            }
+            break;
+        case 2:
+            if (D_800D3288 < (j - 1) * 16) {
+                j--;
+                i++;
+                D_800D3288 = j * 16;
+                D_800D39D4 = 0;
+            }
+            break;
+        case 3:
+            if (D_800D3288 >= (j + 1) * 16) {
+                j++;
+                D_800D3288 = j * 16;
+                D_800D39D4 = 0;
+            }
+            break;
+        case 4:
+            if (D_800D3288 < (j - 1) * 16) {
+                j--;
+                D_800D3288 = (j - 1 + 1) * 16;
+                D_800D39D4 = 0;
+            }
+            break;
+        }
+    } while (result == 2);
+    BattleClearPrimFlagsFourSlots(result);
+    BattleFreePacketPrimitives();
+    BattleClearFlagC6();
+    func_8008FA60(0);
+    func_8008FA60(1);
+    func_8008FA60(2);
+    func_8008FA60(3);
+    return result;
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B908);
 void BattleClearPrimFlagsTwoSlots(u8 arg0) {
     D_800D2D28->unk9C = D_800D2D28->unk9D = D_800D2D28->unk9E = 0;
