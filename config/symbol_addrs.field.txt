@@ -1008,3 +1008,4 @@ g_FieldScreenEffectSuppressed = 0x800ADB50;
 g_FieldCameraShakeOffset = 0x800AF8E0;
 g_FieldCameraSnapFrames = 0x800B21D8;
 g_FieldDisableActorRender = 0x800ADB05;
+g_FieldActorAllocCount = 0x800B2180;

@@ -82,7 +82,7 @@ u_int FieldPopActorScriptWorkWord(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
 
 /* 90.26% (468 bytes vs retail 456: three instructions too many). The levers
-   that got it from 71.39% here: D_800B2180 is indexed as D_800B2180[0]++
+   that got it from 71.39% here: g_FieldActorAllocCount is indexed as g_FieldActorAllocCount[0]++
    (a plain scalar is emitted as lui at + sw sym), and the whole tail from the
    pActor reload to the pShadow store is wrapped in a one-iteration do-while
    so cc1 schedules it as a single unit. Residue: retail stores pActorData and
@@ -96,7 +96,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
 /*
-extern int D_800B2180[];
+extern int g_FieldActorAllocCount[];
 void func_80080A74(int actorIndex);
 void FieldInitShadowQuad(Quad* pQuad);
 
@@ -110,7 +110,7 @@ void func_80080F44(int actorIndex) {
     u8 unused[0x60];
 
     if (actorIndex < g_FieldActiveActorCount) {
-        D_800B2180[0]++;
+        g_FieldActorAllocCount[0]++;
         g_FieldActors[actorIndex].pActorData = HeapAlloc(0x138, 0);
         pData = (u_int*)g_FieldActors[actorIndex].pActorData;
         for (i = 0; i < numWords; i++) {

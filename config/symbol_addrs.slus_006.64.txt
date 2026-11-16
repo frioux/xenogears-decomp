@@ -1617,3 +1617,5 @@ g_FieldPlayerWalkmeshMaterial = 0x80059179;
 g_BattleTransitionFlag = 0x8005061C;
 g_SpriteVramSlotRow = 0x80059194;
 g_SpriteVramSlotXOffset = 0x80059196;
+g_GfxLoadImageRect = 0x800592F0;
+g_GfxLoadImageData = 0x800592F4;

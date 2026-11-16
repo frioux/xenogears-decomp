@@ -24,7 +24,7 @@ void GfxLoadImageAccelerated(void) {
     : "t0", "memory"
     );
     
-    LoadImage(D_800592F0, D_800592F4);
+    LoadImage(g_GfxLoadImageRect, g_GfxLoadImageData);
     
     asm(""
         "\taddiu $sp, $sp, 4\n"
@@ -38,8 +38,8 @@ void GfxLoadImageAccelerated(void) {
 */
 
 
-RECT* D_800592F0;
-u_long* D_800592F4;
+RECT* g_GfxLoadImageRect;
+u_long* g_GfxLoadImageData;
 
 void GfxLoadClutsAccelerated(u8* pData, int x, u16 y) {
     RECT rect;
@@ -60,8 +60,8 @@ void GfxLoadClutsAccelerated(u8* pData, int x, u16 y) {
             rect.h = *pClut++;
             rect.x = x + offset;
             offset += 0x40;
-            D_800592F0 = &rect;
-            D_800592F4 = (u_long*)pClut;
+            g_GfxLoadImageRect = &rect;
+            g_GfxLoadImageData = (u_long*)pClut;
             GfxLoadImageAccelerated();
         }
     } while (0);
