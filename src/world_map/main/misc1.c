@@ -1,6 +1,8 @@
 #include "common.h"
 #include "main/game.h"
 #include "psyq/libgpu.h"
+#include "psyq/libgte.h"
+#include "psyq/inline_c.h"
 #include "system/archive.h"
 #include "system/memory.h"
 
@@ -494,6 +496,7 @@ extern u16 D_8009BCA8;
 extern u16 D_8009BCAA;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 g_WorldMapAreaMode;
+extern s32 g_WorldMapScrollTargetX;
 
 extern void SetNearColor(long rfc, long gfc, long bfc);
 
@@ -956,7 +959,6 @@ extern s16 D_8009C5E2;
 extern u8 D_8009C5E4;
 extern u8 D_8009C5E5;
 extern DR_TPAGE D_8009C5A0;
-extern POLY_G3 D_8009C664[8];
 extern TILE D_8009C898[0x40];
 
 /* best: 97.23%. The store order and every per-field symbol are right; only the
@@ -1002,7 +1004,7 @@ void func_80073E30(void) {
     SetSemiTrans(pPrim, 1);
     pPrim[1] = pPrim[0];
     SetDrawTPage(&D_8009C5A0, 1, 0, GetTPage(0, 1, 0x380, 0x100));
-    pPoly = D_8009C664;
+    pPoly = (POLY_G3*)D_8009C664;
     for (i = 0; i < 8; i++, pPoly++) {
         setPolyG3(pPoly);
         pPoly->r0 = 0xFF;
@@ -1028,7 +1030,169 @@ void func_80073E30(void) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073E30);
+// The world map's scratchpad block. RotMatrix writes the rotation vector at 0xB8 and the
+// three translation words of the GTE matrix the map is projected through sit at 0x104; the
+// 3x3 part of that matrix (0xF0) is addressed separately because it is a raw GTE block.
+typedef struct {
+    /* 0x000 */ u8 unk0[0xB8];
+    /* 0x0B8 */ SVECTOR rotation;
+    /* 0x0C0 */ u8 unkC0[0x44];
+    /* 0x104 */ s32 matrixTransX;
+    /* 0x108 */ s32 matrixTransY;
+    /* 0x10C */ s32 matrixTransZ;
+} WorldMapScratch; // Size: 0x110
+
+// A projected map triangle, in GPU packet order: colour, screen pair, colour, pair, colour,
+// pair. 0x1C bytes each, four per buffer half.
+typedef struct {
+    /* 0x00 */ u32 tag;
+    /* 0x04 */ u8 r0;
+    /* 0x05 */ u8 g0;
+    /* 0x06 */ u8 b0;
+    /* 0x07 */ u8 code;
+    /* 0x08 */ s16 x0;
+    /* 0x0A */ s16 y0;
+    /* 0x0C */ u8 r1;
+    /* 0x0D */ u8 g1;
+    /* 0x0E */ u8 b1;
+    /* 0x0F */ u8 pad1;
+    /* 0x10 */ s16 x1;
+    /* 0x12 */ s16 y1;
+    /* 0x14 */ u8 r2;
+    /* 0x15 */ u8 g2;
+    /* 0x16 */ u8 b2;
+    /* 0x17 */ u8 pad2;
+    /* 0x18 */ s16 x2;
+    /* 0x1A */ s16 y2;
+} WorldMapTriPrim; // Size: 0x1C
+
+// The map-space position of one tile of the current grid.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+} WorldMapTilePos; // Size: 0x4
+
+extern SVECTOR D_8009A340[];
+extern WorldMapTriPrim D_8009C664[8];
+extern WorldMapTilePos D_8009B6F4[0x20];
+extern s32 g_WorldMapFadeLevel;
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
+/* best: 82.80% (1176 bytes vs retail's 1240 - the body is 18 insns SHORT). Every decoded
+   fact below is confirmed against the .s; the two things left are both codegen-level.
+
+   What the function is: per frame it builds the map's GTE matrix in the scratchpad (rotY
+   from g_WorldMapViewRotationY -> RotMatrix at 0x1F8000F0, then the three translation
+   words at 0x1F800104/108/10C), projects 4 triangles of 3 vertices each with RTPT out of
+   D_8009A340 into the 8 Gouraud packets at D_8009C664 (0x1C bytes, GPU packet order:
+   tag, colour, x0y0, colour, x1y1, colour, x2y2), and then writes the visible tiles'
+   screen positions into TILE D_8009C898[0x20 per buffer half], one bit of the 32-bit
+   visibility word at g_GameState+0x1B2C per tile, adding the DR_TPAGE D_8009C5A0 first and
+   the POLY_FT4 pair D_8009C5C0[packetIndex] last.
+   The divisors are 315 for x and 341 for y (0xD00D00D1 / 0x300C0301 signed, 0xA01A01A1 /
+   0x80601807 unsigned); offsets 0xCF/0x77 for the three script-set tiles and 0xD0/0x78 for
+   the table tiles, which is where the -1 comes from.
+
+   Remaining differences, in order of size:
+   1. The three switch arms jump into ONE shared copy of the y division (12 insns saved);
+      retail has the whole /341 sequence duplicated per arm. Tried: x0 stored inside the
+      arms with a shared y (this version), both stores inside the arms, four separate
+      if/else arms, and each arm with its own u16 local - gcc's cross_jump merges the
+      identical tails every time. The case-body ORDER is already retail's (0x18, 0x19,
+      0x1A with the 0x19 test first), and the case values are 0x18/0x19/0x1A.
+   2. addPrim(ot, &D_8009C5A0) and addPrim(ot, pTile) use a base register in retail but
+      gcc folds the symbol into `lui $at; sw` for the first store (both with the symbol
+      spelled directly and through a DR_TPAGE* local).
+   3. Frame is 0x30 where retail has 0x38 (one fewer callee-saved register: retail keeps
+      both 0x1F8000F0 in $s5 and the 0x1F800000 base in $s3; mine rematerialises the
+      0x1F8000F0 constant into $t8 after the RotMatrix call).
+   4. Register-allocation ties: retail's 0xFFFFFF/0xFF000000 pairs are duplicated (t5/a3
+      and s2/t0) and my scratchpad base and tile pointers land in different registers.
+   The tail-end of loop 2 advances nTileFlags (>>= 1), pTile (0x10) and the packed
+   position table pointer (4) while retail keeps TWO position pointers 2 bytes apart;
+   that one is cosmetic now that pPos is a pointer local.
+*/
+/*
+void func_800740B8(void) {
+    WorldMapScratch* pScratch;
+    WorldMapTriPrim* pTri;
+    TILE* pTile;
+    SVECTOR* pVertex;
+    s32* pTarget;
+    u16* pPoint18;
+    u16* pPoint19;
+    u16* pPoint1A;
+    WorldMapTilePos* pPos;
+    DR_TPAGE* pDrawPage;
+    MATRIX* pGteMatrix;
+    u32 nTileFlags;
+    s32 nTransY;
+    u16 y;
+    s32 i;
+
+    pScratch = (WorldMapScratch*)0x1F800000;
+    pGteMatrix = (MATRIX*)0x1F8000F0;
+    // the scroll the camera follows is one x/y/z triple, so both ends come off one base
+    pTarget = &g_WorldMapScrollTargetX;
+    pTri = &D_8009C664[g_WorldMapPrimPacketIndex * 4];
+    pVertex = D_8009A340;
+    for (i = 0; i < 4; i++) {
+        pScratch->rotation.vy = 0;
+        pScratch->rotation.vx = 0;
+        pScratch->rotation.vz = g_WorldMapViewRotationY;
+        RotMatrix(&pScratch->rotation, pGteMatrix);
+        pScratch->matrixTransX = (pTarget[0] >> 12) / 315 + 0x30;
+        pScratch->matrixTransZ = g_WorldMapProjectionDistance;
+        nTransY = (pTarget[2] >> 12) / 341;
+        pScratch->matrixTransY = nTransY + 0x78 - g_WorldMapFadeLevel;
+        gte_SetRotTransMatrix_gpr(pGteMatrix);
+        gte_ldv3(pVertex, pVertex + 1, pVertex + 2);
+        gte_rtpt();
+        gte_stsxy3(&pTri->x0, &pTri->x1, &pTri->x2);
+        pVertex += 3;
+        addPrim(g_WorldMapRenderContext->pOt[0], pTri);
+        pTri++;
+    }
+
+    nTileFlags = ((u32*)g_GameState.fieldScriptMemory)[0x7F];
+    pTile = &D_8009C898[g_WorldMapPrimPacketIndex * 0x20];
+    // the three tiles the map script marks are replaced by script-set positions
+    pPoint18 = (u16*)&g_GameState.unk182C;
+    pPoint19 = &g_GameState.unk184E;
+    pPoint1A = (u16*)&g_GameState.unk1838[0xC];
+    pPos = D_8009B6F4;
+    pDrawPage = &D_8009C5A0;
+    addPrim(g_WorldMapRenderContext->pOt[0], pDrawPage);
+    for (i = 0; i < 0x20; i++) {
+        if (nTileFlags & 1) {
+            switch (i) {
+            case 0x18:
+                pTile->x0 = pPoint18[0] / 315 + 0xCF;
+                y = pPoint18[2] / 341 + 0x77;
+                break;
+            case 0x19:
+                pTile->x0 = pPoint19[0] / 315 + 0xCF;
+                y = pPoint19[2] / 341 + 0x77;
+                break;
+            case 0x1A:
+                pTile->x0 = pPoint1A[0] / 315 + 0xCF;
+                y = pPoint1A[1] / 341 + 0x77;
+                break;
+            default:
+                pTile->x0 = pPos->x + 0xD0;
+                y = pPos->y + 0x78;
+                break;
+            }
+            pTile->y0 = y;
+            addPrim(g_WorldMapRenderContext->pOt[0], pTile);
+        }
+        nTileFlags >>= 1;
+        pTile++;
+        pPos++;
+    }
+    addPrim(g_WorldMapRenderContext->pOt[0], &D_8009C5C0[g_WorldMapPrimPacketIndex]);
+}
+*/
 extern void* g_WorldMapSlotPositions;
 extern void* g_WorldMapSlotPrims;
 extern void* g_WorldMapSlotPrimsCopy;
