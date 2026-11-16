@@ -27,7 +27,7 @@ u8* func_8007E8AC(s32 c);
 s32 BattleGetTextWidth(u8* pText);
 extern s32 D_800926DC;
 
-void func_8008EB4C(s32 arg);
+void BattlePlaySoundEffectById(s32 arg);
 void BattleAppendExtraQueueEntry(void);
 
 extern POLY_FT4* D_800926D4[];
@@ -366,7 +366,7 @@ void BattleDrawLineQuads(u32* pOt) {
 
 void BattleSetSpriteTimer(s32 mode) {
     if (D_80092708 == 0 && mode == 0xA) {
-        func_8008EB4C(0x24);
+        BattlePlaySoundEffectById(0x24);
     }
     D_80092708 = mode;
 }

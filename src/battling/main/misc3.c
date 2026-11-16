@@ -389,7 +389,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 extern u8 D_800928C4;
 extern s32 D_80092934;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
-extern void func_8008EB4C(s32 arg);
+extern void BattlePlaySoundEffectById(s32 arg);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
 
@@ -502,7 +502,7 @@ s32 func_80077038(BattleActor* p) {
     if (p->unkBA != 0) {
         if (p->unk910 == 0) {
             if (BattleGetScreenMode() != 4) {
-                func_8008EB4C(0x2D);
+                BattlePlaySoundEffectById(0x2D);
             }
             p->unk910 = 0x14;
         }

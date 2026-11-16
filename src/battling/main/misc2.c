@@ -465,7 +465,7 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 
 extern s32 D_800928C8;
-extern void func_8008EB4C(s32);
+extern void BattlePlaySoundEffectById(s32);
 
 s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     s16 t;
@@ -487,7 +487,7 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
         p0->unkB6 = t - arg1;
         p0->unkBA = 0;
         if (BattleGetScreenMode() != 4) {
-            func_8008EB4C(0x2E);
+            BattlePlaySoundEffectById(0x2E);
         }
         return 0;
     }

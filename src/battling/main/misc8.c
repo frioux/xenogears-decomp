@@ -43,7 +43,7 @@ extern void BattleInitTutorialMessage(void);
 extern void BattleLoadSlotEntry(s32 a0, s32 a1);
 extern void SoundStopAllElements(void);
 extern void func_8007313C(void *pDst, void *pSrc);
-extern void func_8008EB4C(s32 arg);
+extern void BattlePlaySoundEffectById(s32 arg);
 extern void BattleSetScreenMode(s32 mode);
 extern void BattleResetTextListState(void);
 extern void BattleSetTextCursor(s16 a, s16 b);
@@ -215,7 +215,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080C48);
    The duplicated-tail shape below is the one to permute.
 void func_80080C48(s32 a0) {
     SoundStopAllElements();
-    func_8008EB4C(0x1F);
+    BattlePlaySoundEffectById(0x1F);
     if (a0 == 1) {
         D_80092734 = 0;
         BattleSetCurrentTextList(0);

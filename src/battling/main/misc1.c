@@ -243,7 +243,7 @@ extern s16 D_800987E0;
 extern u16 D_800987E8;
 extern s16 D_800970C4;
 extern u16 D_800970CC;
-extern void func_8008EB4C(s32 id);
+extern void BattlePlaySoundEffectById(s32 id);
 
 /* 89.15%: reorg steals the else branch's li v0,0x4 into the bnez delay slot
    where the original leaves a nop, which makes our value pseudo land in v1. */
@@ -255,7 +255,7 @@ void func_8007191C(u32 idx) {
 
     D_80092608 = idx < 1;
     if (idx == 0) {
-        func_8008EB4C(0x37);
+        BattlePlaySoundEffectById(0x37);
         D_80098698 = 2;
         value = 0xB4;
     } else {

@@ -342,7 +342,7 @@ void BattleReleaseFinishedSoundSlots(void) {
     }
     BattleIncrementSoundSlotTimers();
 }
-void func_8008EB4C(u8* p) {
+void BattlePlaySoundEffectById(u8* p) {
     if (p != NULL) {
         BattleAcquireSoundSlot(p + 0x60000, 0, NULL, D_80059488);
     }

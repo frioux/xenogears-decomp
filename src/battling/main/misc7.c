@@ -81,7 +81,7 @@ void BattleSetScreenMode(s32 mode);
 void BattleSetTextCursor(s32 a, s32 b);
 void BattleDrawTextRight(u8* pText);
 void BattleSetTextSpriteEntry(s32 entry, s32 mode);
-void func_8008EB4C(s32 arg);
+void BattlePlaySoundEffectById(s32 arg);
 void ArchiveCdDataSync(int mode);
 void BattleLoadSlotEntry(s32 index, s32 value);
 void BattleFreeSlotEntry(s32 index);
@@ -331,7 +331,7 @@ s32 WorldMapInitializeModeWithActors(s32 value, s32 max, s32 flags) {
         }
     }
     if (pad) {
-        func_8008EB4C(0x20);
+        BattlePlaySoundEffectById(0x20);
     }
     return value;
 }
@@ -386,7 +386,7 @@ void BattleHandleSelectionInputPad0(void) {
         if (g_C1ButtonStateReleased & 0x40) {
             D_80092710 &= -2;
             BattleFreeSlotEntry(0);
-            func_8008EB4C(0x22);
+            BattlePlaySoundEffectById(0x22);
         }
     }
     if ((D_80092710 & 1) == 0) {
@@ -397,7 +397,7 @@ void BattleHandleSelectionInputPad0(void) {
         if (D_80091364 == 0) {
             if (g_C1ButtonStateReleased & 0x20) {
                 D_80092710 |= 1;
-                func_8008EB4C(0x21);
+                BattlePlaySoundEffectById(0x21);
                 BattleLoadSlotEntry(0, *D_800928EC[D_80092700]);
             }
         }
@@ -413,7 +413,7 @@ void BattleHandleSelectionInputPad1(void) {
         } else {
             D_80092710 = 0;
             BattleFreeSlotEntry(1);
-            func_8008EB4C(0x22);
+            BattlePlaySoundEffectById(0x22);
             return;
         }
     }
@@ -424,7 +424,7 @@ void BattleHandleSelectionInputPad1(void) {
         } while (D_80092700 == D_80092704 && (D_80092748 & 1) == 0 && !same);
         if (D_80092750 & 0x20) {
             D_80092710 |= 2;
-            func_8008EB4C(0x21);
+            BattlePlaySoundEffectById(0x21);
             BattleLoadSlotEntry(1, *D_800928EC[D_80092704]);
         }
     }
