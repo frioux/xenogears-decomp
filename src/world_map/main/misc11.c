@@ -3,71 +3,71 @@
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
-    /* 0x04 */ s16 unk04;
-    /* 0x06 */ s16 unk06;
+    /* 0x04 */ s16 command;
+    /* 0x06 */ s16 targetSlot;
     /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
-    /* 0x20 */ s16 unk20;
+    /* 0x20 */ s16 state;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ s16 unk24;
-    /* 0x26 */ undefined16 unk26;
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x26 */ undefined16 pad26;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
     /* 0x34 */ undefined32 unk34;
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ u32 unk3C;
-    /* 0x40 */ s32 unk40;
+    /* 0x38 */ s32 dirX;
+    /* 0x3C */ u32 dirY;
+    /* 0x40 */ s32 dirZ;
     /* 0x44 */ undefined32 unk44;
-    /* 0x48 */ s16 unk48;
-    /* 0x4A */ s16 unk4A;
-    /* 0x4C */ void *unk4C;
-    /* 0x50 */ s32 unk50;
-    /* 0x54 */ void *unk54;
-    /* 0x58 */ s32 unk58;
-    /* 0x5C */ s32 unk5C;
+    /* 0x48 */ s16 angle;
+    /* 0x4A */ s16 moveSpeed;
+    /* 0x4C */ void *pSprite;
+    /* 0x50 */ s32 targetX;
+    /* 0x54 */ void *targetZ;
+    /* 0x58 */ s32 trailDelay;
+    /* 0x5C */ s32 drawAngle;
     /* 0x60 */ undefined32 unk60[8]; // 0x60..0x7F
 } WorldMapActor; // Size: 0x80
 
 typedef struct {
     /* 0x000 */ undefined32 unk000[40]; // 0x000..0x09F
-    /* 0x0A0 */ s16 unk0A0;
-    /* 0x0A2 */ s16 unk0A2;
-    /* 0x0A4 */ s16 unk0A4;
-    /* 0x0A6 */ undefined16 unk0A6;
-    /* 0x0A8 */ s16 unk0A8;
-    /* 0x0AA */ s16 unk0AA;
-    /* 0x0AC */ s16 unk0AC;
-    /* 0x0AE */ undefined16 unk0AE;
+    /* 0x0A0 */ s16 x;
+    /* 0x0A2 */ s16 y;
+    /* 0x0A4 */ s16 z;
+    /* 0x0A6 */ undefined16 pad0A6;
+    /* 0x0A8 */ s16 rotX;
+    /* 0x0AA */ s16 rotY;
+    /* 0x0AC */ s16 rotZ;
+    /* 0x0AE */ undefined16 pad0AE;
 } WorldMapScreenPos; // Size: 0xB0
 
 typedef struct {
-    /* 0x00 */ s16 unk00;
-    /* 0x02 */ undefined16 unk02;
-    /* 0x04 */ s32 unk04;
-    /* 0x08 */ s32 unk08;
-    /* 0x0C */ s32 unk0C;
-    /* 0x10 */ s32 unk10;
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ undefined16 unk16;
+    /* 0x00 */ s16 id;
+    /* 0x02 */ undefined16 pad02;
+    /* 0x04 */ s32 x;
+    /* 0x08 */ s32 y;
+    /* 0x0C */ s32 z;
+    /* 0x10 */ s32 height;
+    /* 0x14 */ s16 radius;
+    /* 0x16 */ undefined16 pad16;
 } WorldMapEntry; // Size: 0x18
 
 typedef struct {
-    /* 0x0 */ s32 unk00;
-    /* 0x4 */ s32 unk04;
-    /* 0x8 */ s32 unk08;
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
     /* 0xC */ s32 unk0C;
 } WorldMapVec; // Size: 0x10
 
 typedef struct {
     /* 0x00 */ WorldMapVec vec;
-    /* 0x10 */ u16 unk10;
+    /* 0x10 */ u16 angle;
     /* 0x12 */ u16 pad12;
 } WorldMapTrail; // Size: 0x14
 
 // 12.4 fixed point world map position; the range test below uses the middle axis too.
 typedef struct {
     /* 0x0 */ s32 x;
-    /* 0x4 */ s32 unk4;
+    /* 0x4 */ s32 y;
     /* 0x8 */ s32 z;
 } WorldMapPos; // Size: 0xC
 
@@ -226,10 +226,10 @@ int WorldMapModeInitCharacterSprite1(int index) {
     s32 result = 1;
 
     if (g_GameState.partyMembers[1] != 0xFF) {
-        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
-        SpritePlayAnimation(pActor->unk4C, 0);
-        SpriteSetScale(pActor->unk4C, 0x1800);
-        *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+        SpritePlayAnimation(pActor->pSprite, 0);
+        SpriteSetScale(pActor->pSprite, 0x1800);
+        *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
     } else {
         result = 3;
     }
@@ -284,124 +284,124 @@ int WorldMapUpdateActorSlot(int index) {
     WorldMapTrail *pTrail;
     u16 angle;
 
-    switch (pActor->unk04) {
+    switch (pActor->command) {
     case 1:
-        pTarget = &g_WorldMapSlots[pActor->unk06];
-        pActor->unk04 = 0;
-        pActor->unk20 = 8;
+        pTarget = &g_WorldMapSlots[pActor->targetSlot];
+        pActor->command = 0;
+        pActor->state = 8;
         break;
     case 2:
-        pActor->unk04 = 0;
-        pActor->unk20 = 0x28;
+        pActor->command = 0;
+        pActor->state = 0x28;
         break;
     case 3:
-        pActor->unk04 = 0;
-        pActor->unk20 = 1;
+        pActor->command = 0;
+        pActor->state = 1;
         break;
     case 5:
-        pActor->unk04 = 0;
-        pActor->unk20 = 0x30;
+        pActor->command = 0;
+        pActor->state = 0x30;
         break;
     }
-    switch (pActor->unk20) {
+    switch (pActor->state) {
     case 0:
     case 1:
         if (((u8 *)&g_GameState.unk22B0)[index] == 0) {
-            pTrail = &g_WorldMapTrail[(g_WorldMapTrailCursor - pActor->unk58) & 0x1F];
-            if ((pActor->unk28 == pTrail->vec.unk00) & (pActor->unk2C == pTrail->vec.unk04) &
-                (pActor->unk30 == pTrail->vec.unk08)) {
-                if (((s8 *)pActor->unk4C)[0xAF] != 0) {
-                    SpritePlayAnimation(pActor->unk4C, 0);
+            pTrail = &g_WorldMapTrail[(g_WorldMapTrailCursor - pActor->trailDelay) & 0x1F];
+            if ((pActor->x == pTrail->vec.x) & (pActor->y == pTrail->vec.y) &
+                (pActor->z == pTrail->vec.z)) {
+                if (((s8 *)pActor->pSprite)[0xAF] != 0) {
+                    SpritePlayAnimation(pActor->pSprite, 0);
                     WorldMapDeactivateSpriteGroup(index + 0x2E);
                 }
             } else {
-                if (((s8 *)pActor->unk4C)[0xAF] != 1) {
-                    SpritePlayAnimation(pActor->unk4C, 1);
+                if (((s8 *)pActor->pSprite)[0xAF] != 1) {
+                    SpritePlayAnimation(pActor->pSprite, 1);
                 }
                 WorldMapUpdateSpriteGroupFromActor(index + 0x2E, pActor, (WorldMapScreenPos *)pScratch);
             }
-            pActor->unk28 = pTrail->vec.unk00;
-            pActor->unk2C = pTrail->vec.unk04;
-            pActor->unk30 = pTrail->vec.unk08;
-            pActor->unk48 = pTrail->unk10;
+            pActor->x = pTrail->vec.x;
+            pActor->y = pTrail->vec.y;
+            pActor->z = pTrail->vec.z;
+            pActor->angle = pTrail->angle;
             pActor->unk24 = 0;
         } else {
             pTarget = &g_WorldMapSlots[index + 3];
-            pActor->unk28 = pTarget->unk28;
-            pActor->unk2C = pTarget->unk2C;
-            pActor->unk30 = pTarget->unk30;
-            pActor->unk48 = pTarget->unk48;
+            pActor->x = pTarget->x;
+            pActor->y = pTarget->y;
+            pActor->z = pTarget->z;
+            pActor->angle = pTarget->angle;
             pActor->unk24 = 1;
             WorldMapDeactivateSpriteGroup(index + 0x2E);
         }
         break;
     case 2:
-        pActor->unk28 = g_WorldMapSlots[7].unk28;
-        pActor->unk2C = g_WorldMapSlots[7].unk2C;
-        pActor->unk30 = g_WorldMapSlots[7].unk30;
-        pActor->unk48 = g_WorldMapSlots[7].unk48;
+        pActor->x = g_WorldMapSlots[7].x;
+        pActor->y = g_WorldMapSlots[7].y;
+        pActor->z = g_WorldMapSlots[7].z;
+        pActor->angle = g_WorldMapSlots[7].angle;
         break;
     case 8:
-        WorldMapBuildDirectionFromPositions(&pActor->unk28, &pTarget->unk28, &pActor->unk38, &pActor->unk48);
-        pActor->unk50 = pTarget->unk28 >> 12;
-        pActor->unk54 = pTarget->unk30 >> 12;
-        SpritePlayAnimation(pActor->unk4C, 1);
-        pActor->unk20++;
+        WorldMapBuildDirectionFromPositions(&pActor->x, &pTarget->x, &pActor->dirX, &pActor->angle);
+        pActor->targetX = pTarget->x >> 12;
+        pActor->targetZ = pTarget->z >> 12;
+        SpritePlayAnimation(pActor->pSprite, 1);
+        pActor->state++;
         /* falls through */
     case 9:
         if (WorldMapMoveActorTowardTarget(pActor) == 3) {
-            pActor->unk20++;
+            pActor->state++;
         }
         WorldMapUpdateSpriteGroupFromActor(index + 0x2E, pActor, (WorldMapScreenPos *)pScratch);
         break;
     case 10:
-        if (WorldMapStartSlot(pActor->unk06, 4)) {
+        if (WorldMapStartSlot(pActor->targetSlot, 4)) {
             pActor->unk24 = 1;
-            pActor->unk20 = 2;
+            pActor->state = 2;
             WorldMapDeactivateSpriteGroup(index + 0x2E);
         }
         break;
     case 40:
-        pActor->unk28 = g_GameState.fieldScriptMemory[0x13 + index * 3] << 12;
-        pActor->unk30 = g_GameState.fieldScriptMemory[0x14 + index * 3] << 12;
-        pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+        pActor->x = g_GameState.fieldScriptMemory[0x13 + index * 3] << 12;
+        pActor->z = g_GameState.fieldScriptMemory[0x14 + index * 3] << 12;
+        pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
         angle = (&g_GameState.unk1824)[index];
-        pActor->unk5C = angle;
-        pActor->unk48 = angle;
-        pScratch->x = pActor->unk28 + rcos((s16)angle) * 0x30;
-        pScratch->z = pActor->unk30 + (-rsin(pActor->unk48)) * 0x30;
-        WorldMapBuildDirectionFromPositions(&pActor->unk28, pScratch, &pActor->unk38, &pActor->unk48);
-        pActor->unk50 = pScratch->x >> 12;
-        pActor->unk54 = pScratch->z >> 12;
+        pActor->drawAngle = angle;
+        pActor->angle = angle;
+        pScratch->x = pActor->x + rcos((s16)angle) * 0x30;
+        pScratch->z = pActor->z + (-rsin(pActor->angle)) * 0x30;
+        WorldMapBuildDirectionFromPositions(&pActor->x, pScratch, &pActor->dirX, &pActor->angle);
+        pActor->targetX = pScratch->x >> 12;
+        pActor->targetZ = pScratch->z >> 12;
         pActor->unk24 = 0;
-        SpritePlayAnimation(pActor->unk4C, 1);
-        pActor->unk20++;
+        SpritePlayAnimation(pActor->pSprite, 1);
+        pActor->state++;
         /* falls through */
     case 41:
         if (WorldMapMoveActorTowardTarget(pActor) == 3) {
-            pActor->unk20++;
+            pActor->state++;
         }
         break;
     case 42:
         ((u8 *)&g_GameState.unk22B0)[index] = 0;
-        pActor->unk20 = 0x40;
+        pActor->state = 0x40;
         break;
     case 48:
-        WorldMapBuildDirectionFromPositions(&pActor->unk28, &g_WorldMapSlots[1].unk28, &pActor->unk38,
-                                           &pActor->unk48);
-        pActor->unk50 = g_WorldMapSlots[1].unk28 >> 12;
-        pActor->unk54 = g_WorldMapSlots[1].unk30 >> 12;
-        SpritePlayAnimation(pActor->unk4C, 1);
-        pActor->unk20++;
+        WorldMapBuildDirectionFromPositions(&pActor->x, &g_WorldMapSlots[1].x, &pActor->dirX,
+                                           &pActor->angle);
+        pActor->targetX = g_WorldMapSlots[1].x >> 12;
+        pActor->targetZ = g_WorldMapSlots[1].z >> 12;
+        SpritePlayAnimation(pActor->pSprite, 1);
+        pActor->state++;
         /* falls through */
     case 49:
         if (WorldMapMoveActorTowardTarget(pActor) == 3) {
-            pActor->unk20++;
+            pActor->state++;
         }
         break;
     case 50:
         if (WorldMapStartSlot(1, 6)) {
-            pActor->unk20 = 0;
+            pActor->state = 0;
         }
         break;
     case 64:
@@ -409,7 +409,7 @@ int WorldMapUpdateActorSlot(int index) {
         break;
     }
     if (pActor->unk24 == 0) {
-        WorldMapAddSlotPosition(0, &pActor->unk28);
+        WorldMapAddSlotPosition(0, &pActor->x);
     }
     return result;
 }
@@ -497,10 +497,10 @@ int WorldMapModeInitCharacterSprite2(int index) {
     s32 result = 1;
 
     if (g_GameState.partyMembers[2] != 0xFF) {
-        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
-        SpritePlayAnimation(pActor->unk4C, 0);
-        SpriteSetScale(pActor->unk4C, 0x1800);
-        *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+        SpritePlayAnimation(pActor->pSprite, 0);
+        SpriteSetScale(pActor->pSprite, 0x1800);
+        *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
     } else {
         result = 3;
     }
@@ -540,31 +540,31 @@ int WorldMapMoveActorTowardTarget(WorldMapActor *pActor) {
     s32 dz;
     s32 result = 0;
 
-    dx = pActor->unk50 - (pActor->unk28 >> 12);
+    dx = pActor->targetX - (pActor->x >> 12);
     if ((dx < 0 ? -dx : dx) >= 5) {
-        pActor->unk28 += pActor->unk38 * (pActor->unk4A / 2);
+        pActor->x += pActor->dirX * (pActor->moveSpeed / 2);
     } else {
         result = 1;
     }
-    dz = pActor->unk54 - (pActor->unk30 >> 12);
+    dz = pActor->targetZ - (pActor->z >> 12);
     if ((dz < 0 ? -dz : dz) >= 5) {
-        pActor->unk30 += pActor->unk40 * (pActor->unk4A / 2);
+        pActor->z += pActor->dirZ * (pActor->moveSpeed / 2);
     } else {
         result |= 2;
     }
-    WorldMapWrapPosition(&pActor->unk28);
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    WorldMapWrapPosition(&pActor->x);
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     return result;
 }
 void WorldMapQueueZoneEntry(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     WorldMapEntry *pEntry = &D_8009BE6C[D_8009BD04];
 
-    pEntry->unk00 = arg0;
-    pEntry->unk04 = pArray[0];
-    pEntry->unk08 = pArray[1];
-    pEntry->unk0C = pArray[2];
-    pEntry->unk10 = arg3;
-    pEntry->unk14 = arg2;
+    pEntry->id = arg0;
+    pEntry->x = pArray[0];
+    pEntry->y = pArray[1];
+    pEntry->z = pArray[2];
+    pEntry->height = arg3;
+    pEntry->radius = arg2;
     D_8009BD04 = (D_8009BD04 + 1) & 0x1F;
 }
 void WorldMapFindZoneAtPosition(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
@@ -580,43 +580,43 @@ void WorldMapFindZoneAtPosition(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut,
     *pOut2 = 0;
     if (D_8009BD04 > 0) {
         for (i = 0; i < D_8009BD04; i++, pEntry++) {
-            pos = pPos->unk4;
-            if (pos < pEntry->unk08) {
+            pos = pPos->y;
+            if (pos < pEntry->y) {
                 base = pos - arg2 * 0x1000;
-                pos = pEntry->unk08;
-            } else if (pEntry->unk14 || pEntry->unk00) {
-                base = pEntry->unk08 - pEntry->unk10 * 0x1000;
+                pos = pEntry->y;
+            } else if (pEntry->radius || pEntry->id) {
+                base = pEntry->y - pEntry->height * 0x1000;
             } else {
                 /* same value as the arm above; retail keeps the branch, so must we */
-                base = pEntry->unk08 - pEntry->unk10 * 0x1000;
+                base = pEntry->y - pEntry->height * 0x1000;
             }
-            if (((pos - base) >> 12) < arg2 + pEntry->unk10) {
-                diff.x = (pEntry->unk04 - pPos->x) >> 12;
-                diff.z = (pEntry->unk0C - pPos->z) >> 12;
+            if (((pos - base) >> 12) < arg2 + pEntry->height) {
+                diff.x = (pEntry->x - pPos->x) >> 12;
+                diff.z = (pEntry->z - pPos->z) >> 12;
                 WorldMapWrapDeltaScaled(&diff);
                 dist = SquareRoot0(diff.x * diff.x + diff.z * diff.z);
-                if (dist < pEntry->unk14 + arg1) {
+                if (dist < pEntry->radius + arg1) {
                     *pOut = 2;
-                } else if (dist < pEntry->unk14 + arg1 + 0x10) {
+                } else if (dist < pEntry->radius + arg1 + 0x10) {
                     *pOut = 1;
                 } else {
                     continue;
                 }
-                *pOut2 = pEntry->unk00;
+                *pOut2 = pEntry->id;
                 break;
             }
         }
     }
 }
 void WorldMapUpdateSpriteGroupFromActor(s32 arg0, WorldMapActor *pActor, WorldMapScreenPos *pPos) {
-    if (WorldMapGetTileHalfIndex(&pActor->unk28) == 3) {
-        pPos->unk0A0 = pActor->unk28 >> 12;
-        pPos->unk0A2 = pActor->unk2C >> 12;
-        pPos->unk0A4 = pActor->unk30 >> 12;
-        pPos->unk0AC = 0;
-        pPos->unk0A8 = 0;
-        pPos->unk0AA = pActor->unk5C;
-        func_80089160(arg0, &pPos->unk0A0, &pPos->unk0A8);
+    if (WorldMapGetTileHalfIndex(&pActor->x) == 3) {
+        pPos->x = pActor->x >> 12;
+        pPos->y = pActor->y >> 12;
+        pPos->z = pActor->z >> 12;
+        pPos->rotZ = 0;
+        pPos->rotX = 0;
+        pPos->rotY = pActor->drawAngle;
+        func_80089160(arg0, &pPos->x, &pPos->rotX);
     } else {
         WorldMapDeactivateSpriteGroup(arg0);
     }
@@ -626,14 +626,14 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
 
     pSprite = SpriteAllocFromAnimFile(D_8009BDF8[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
                             D_8009B1A4[index], 0x40);
-    pActor->unk4C = pSprite;
+    pActor->pSprite = pSprite;
     if (g_GameState.gearRide[index] == 1) {
         SpritePlayAnimation(pSprite, 0);
     } else {
         SpritePlayAnimation(pSprite, 3);
     }
-    SpriteSetScale(pActor->unk4C, 0x2000);
-    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+    SpriteSetScale(pActor->pSprite, 0x2000);
+    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
@@ -718,19 +718,19 @@ int WorldMapModeInitPartyActor0(int index) {
 int WorldMapInitPartyActorSprite0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
-    SpritePlayAnimation(pActor->unk4C, 0);
-    SpriteSetScale(pActor->unk4C, 0x2000);
-    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.fieldScriptMemory[0x16] << 12;
-    pActor->unk30 = g_GameState.fieldScriptMemory[0x17] << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    pActor->pSprite = SpriteAllocFromAnimFile(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x2000);
+    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->x = g_GameState.fieldScriptMemory[0x16] << 12;
+    pActor->z = g_GameState.fieldScriptMemory[0x17] << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     pActor->unk24 = 1;
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk4A = 0xC;
-    pActor->unk48 = *(u16 *)&g_GameState.unk1826[0];
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->moveSpeed = 0xC;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[0];
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C844);
@@ -808,19 +808,19 @@ int WorldMapModeInitPartyActor1(int index) {
 int WorldMapInitPartyActorSprite1(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    pActor->unk4C = SpriteAllocFromAnimFile(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
-    SpritePlayAnimation(pActor->unk4C, 0);
-    SpriteSetScale(pActor->unk4C, 0x2000);
-    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.fieldScriptMemory[0x19] << 12;
-    pActor->unk30 = g_GameState.fieldScriptMemory[0x1A] << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    pActor->pSprite = SpriteAllocFromAnimFile(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x2000);
+    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->x = g_GameState.fieldScriptMemory[0x19] << 12;
+    pActor->z = g_GameState.fieldScriptMemory[0x1A] << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     pActor->unk24 = 1;
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk4A = 0xC;
-    pActor->unk48 = *(u16 *)&g_GameState.unk1826[2];
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->moveSpeed = 0xC;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[2];
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
@@ -884,18 +884,18 @@ int WorldMapModeInitPartyActor2(int index) {
 int WorldMapInitPartyActorSprite2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    pActor->unk4C = SpriteAllocFromAnimFile(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);
-    SpritePlayAnimation(pActor->unk4C, 0);
-    SpriteSetScale(pActor->unk4C, 0x2000);
-    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.fieldScriptMemory[0x1C] << 12;
-    pActor->unk30 = g_GameState.fieldScriptMemory[0x1D] << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    pActor->pSprite = SpriteAllocFromAnimFile(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x2000);
+    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->x = g_GameState.fieldScriptMemory[0x1C] << 12;
+    pActor->z = g_GameState.fieldScriptMemory[0x1D] << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     pActor->unk24 = 1;
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk4A = 0xC;
-    pActor->unk48 = *(u16 *)&g_GameState.unk1826[4];
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->moveSpeed = 0xC;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[4];
     return 1;
 }
