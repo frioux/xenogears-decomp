@@ -111,19 +111,19 @@ typedef struct Actor Actor;
 
 // Layout recovered from the offsets this unit touches; only those are known.
 struct ActorScript {
-    /* 0x0 */ u8 unk0;
-    /* 0x1 */ u8 unk1;
-    /* 0x2 */ u8 unk2;
+    /* 0x0 */ u8 basePartIndex;
+    /* 0x1 */ u8 partIndex0;
+    /* 0x2 */ u8 partIndex1;
     /* 0x3 */ u8 unk3;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ s16 unk8;
+    /* 0x4 */ s16 vertexIndex0;
+    /* 0x6 */ s16 vertexIndex1;
+    /* 0x8 */ s16 baseVertexIndex;
     /* 0xA */ u8 padA[0x2];
     /* 0xC */ u16 unkC;
     /* 0xE */ u8 padE[0x1];
     /* 0xF */ u8 unkF;
     /* 0x10 */ u8 pad10[0x10];
-    /* 0x20 */ u16 unk20;
+    /* 0x20 */ u16 facing;
     /* 0x22 */ u8 pad22[0x2];
     /* 0x24 */ s16 unk24;
     /* 0x26 */ s16 unk26;
@@ -133,28 +133,28 @@ struct ActorScript {
 
 typedef struct {
     /* 0x0 */ u8 pad00[0x6];
-    /* 0x6 */ u16 unk6;
+    /* 0x6 */ u16 flags;
     /* 0x8 */ u8 pad08[0x2];
     /* 0xA */ u16 unkA;
 } ActorSub;
 
 // Actor pointer at 0x15CC, aimed at the actor's own 0x9CC.
 
-// The rotation block p->unk5C->unk4 points at; the reset copies the script's
+// The rotation block p->pPart->pRotation points at; the reset copies the script's
 // facing word into all three of its components.
 typedef struct {
     /* 0x00 */ u8 pad00[0x10];
-    /* 0x10 */ SVECTOR unk10;
+    /* 0x10 */ SVECTOR rotation;
 } ActorPartRot; // Size: 0x18
 
 // Layout recovered from the offsets this unit touches; only those are known.
 struct ActorPart {
     /* 0x00 */ u8 pad00[0x4];
-    /* 0x04 */ ActorPartRot* unk4;
+    /* 0x04 */ ActorPartRot* pRotation;
     /* 0x08 */ u8 pad08[0x2C];
-    /* 0x34 */ s32 unk34;
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ s32 unk3C;
+    /* 0x34 */ s32 x;
+    /* 0x38 */ s32 y;
+    /* 0x3C */ s32 z;
     /* 0x40 */ u8 pad40[0x6];
     /* 0x46 */ s16 unk46;
 }; // Size: unknown
@@ -213,19 +213,19 @@ extern void BattleInitSemiTransQuadPacket(Actor* p);
 extern void func_80090CC0(Actor* p);
 
 struct Actor {
-    /* 0x000 */ s32 unk0;
-    /* 0x004 */ s32 unk4;
-    /* 0x008 */ s32 unk8;
+    /* 0x000 */ s32 x;
+    /* 0x004 */ s32 y;
+    /* 0x008 */ s32 z;
     /* 0x00C */ u8 pad0C[0x4];
-    /* 0x010 */ s32 unk10;
-    /* 0x014 */ s32 unk14;
-    /* 0x018 */ s32 unk18;
+    /* 0x010 */ s32 vx;
+    /* 0x014 */ s32 vy;
+    /* 0x018 */ s32 vz;
     /* 0x01C */ u8 pad1C[0x4];
     /* 0x020 */ s32 unk20;
     /* 0x024 */ s32 unk24;
     /* 0x028 */ s32 unk28;
     /* 0x02C */ u8 pad2C[0x20];
-    /* 0x04C */ u8 unk4C;
+    /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 pad4D;
     /* 0x04E */ u8 unk4E;
     /* 0x04F */ u8 unk4F;
@@ -234,7 +234,7 @@ struct Actor {
     /* 0x053 */ u8 pad53;
     /* 0x054 */ s32 unk54;
     /* 0x058 */ u8 pad58[0x4];
-    /* 0x05C */ ActorPart* unk5C;
+    /* 0x05C */ ActorPart* pPart;
     /* 0x060 */ u8 pad60[0x24];
     /* 0x084 */ u8* unk84;
     /* 0x088 */ u8 pad88[0x10];
@@ -243,7 +243,7 @@ struct Actor {
     /* 0x0A0 */ u8 padA0[0x8];
     /* 0x0A8 */ s32 unkA8;
     /* 0x0AC */ u8 padAC[0x4];
-    /* 0x0B0 */ s32 unkB0;
+    /* 0x0B0 */ s32 floorY;
     /* 0x0B4 */ s16 unkB4;
     /* 0x0B6 */ s16 unkB6;
     /* 0x0B8 */ s16 unkB8;
@@ -254,7 +254,7 @@ struct Actor {
     /* 0x0C1 */ u8 unkC1;
     /* 0x0C2 */ u8 unkC2;
     /* 0x0C3 */ u8 unkC3;
-    /* 0x0C4 */ u8 unkC4;
+    /* 0x0C4 */ u8 state;
     /* 0x0C5 */ u8 unkC5;
     /* 0x0C6 */ u8 unkC6;
     /* 0x0C7 */ u8 padC7;
@@ -262,8 +262,8 @@ struct Actor {
     /* 0x0CA */ s16 unkCA;
     /* 0x0CC */ s16 unkCC;
     /* 0x0CE */ s16 unkCE;
-    /* 0x0D0 */ u32 unkD0;
-    /* 0x0D4 */ u32 unkD4;
+    /* 0x0D0 */ u32 flags;
+    /* 0x0D4 */ u32 stateFlags;
     /* 0x0D8 */ u8 padD8[0x10];
     /* 0x0E8 */ s32 unkE8;
     /* 0x0EC */ u8 padEC[0x8];
@@ -275,7 +275,7 @@ struct Actor {
     /* 0x8FC */ ActorScript* unk8FC;
     /* 0x900 */ u8 pad900[0xA];
     /* 0x90A */ u8 unk90A;
-    /* 0x90B */ u8 unk90B;
+    /* 0x90B */ u8 timer;
     /* 0x90C */ u8 pad90C[0x4];
     /* 0x910 */ u8 unk910;
     /* 0x911 */ u8 pad911[0x3];
@@ -306,7 +306,7 @@ struct Actor {
     /* 0x99C */ u8 pad99C[0x27];
     /* 0x9C3 */ u8 unk9C3;
     /* 0x9C4 */ u8 pad9C4[0xC08];
-    /* 0x15CC */ ActorSub* unk15CC;
+    /* 0x15CC */ ActorSub* pState;
     /* 0x15D0 */ u8 pad15D0[0x4];
     /* 0x15D4 */ u8 unk15D4;
     /* 0x15D5 */ u8 pad15D5[0x3];
@@ -334,41 +334,41 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
 void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
 
-    p->unkB0 = func_80082488(p, 1);
-    p->unkD0 = (p->unkD0 & 0x9FFFFFFF) | (((BattleGetGridCellAtPosition(p) >> 24) & 3) << 29);
-    if ((p->unkD0 & 0x60000000) == 0x60000000) {
-        p->unk90B = 0xF;
+    p->floorY = func_80082488(p, 1);
+    p->flags = (p->flags & 0x9FFFFFFF) | (((BattleGetGridCellAtPosition(p) >> 24) & 3) << 29);
+    if ((p->flags & 0x60000000) == 0x60000000) {
+        p->timer = 0xF;
     }
-    BattleMovePointInsideRadius(p, &p->unk10, 0x3E80);
-    p->unkD0 &= 0xFFFBFFFF;
-    if (p->unkB0 < p->unk4 + p->unk14) {
-        p->unkD0 |= 0x40000;
-        if (p->unkC4 == 4) {
-            if (!(p->unkD4 & 0x10)) {
+    BattleMovePointInsideRadius(p, &p->vx, 0x3E80);
+    p->flags &= 0xFFFBFFFF;
+    if (p->floorY < p->y + p->vy) {
+        p->flags |= 0x40000;
+        if (p->state == 4) {
+            if (!(p->stateFlags & 0x10)) {
                 func_8008EBD0(p, 0xD, p, 2);
                 BattleUpdateControllerActuator(p, 6);
             }
-            p->unkD4 |= 0x10;
-            if (p->unk14 >= 0x40) {
-                p->unk14 = -p->unk14 / 3;
+            p->stateFlags |= 0x10;
+            if (p->vy >= 0x40) {
+                p->vy = -p->vy / 3;
             } else {
-                p->unk14 = 0;
+                p->vy = 0;
             }
         } else {
-            p->unk14 = 0;
+            p->vy = 0;
         }
-        p->unk4 = p->unkB0;
+        p->y = p->floorY;
     }
-    p->unk0 += p->unk10;
-    p->unk4 += p->unk14;
-    p->unk8 += p->unk18;
+    p->x += p->vx;
+    p->y += p->vy;
+    p->z += p->vz;
 }
 
 void BattleActorSetPartTransform(Actor* p) {
-    p->unk5C->unk34 = p->unk0;
-    p->unk5C->unk38 = p->unk4;
-    p->unk5C->unk3C = p->unk8;
-    p->unk5C->unk46 = p->unk54;
+    p->pPart->x = p->x;
+    p->pPart->y = p->y;
+    p->pPart->z = p->z;
+    p->pPart->unk46 = p->unk54;
 }
 
 void BattleActorResetUnk15D8(UnkStruct1* p) {
@@ -385,10 +385,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
 
 /* Best attempt: 84.48%. 0x80078F00..0x800790C8 (the two clear loops, the
    constant stores and every call/delay slot) is instruction-identical; the
-   residual is the p->unkD0/p->unkD4 flag block at 0x8007900C. Retail keeps one
-   p->unkD4 load in $a1 and applies two masks to it (`and a1,a1,-0xD` then
+   residual is the flags/stateFlags block at 0x8007900C. Retail keeps one
+   p->stateFlags load in $a1 and applies two masks to it (`and a1,a1,-0xD` then
    `and a1,a1,-4`) with a single store, i.e. the source held the word in a local
-   across the p->unkD0 statement, and materialises `| 0x2000000` and `| 0x20000`
+   across the p->flags statement, and materialises `| 0x2000000` and `| 0x20000`
    as two separate ors (gcc folds `(x | C1) | C2` into `| 0x2020000` for every
    single-expression spelling tried), so that too is not one expression in the
    original. Also unserialised: `lbu $v0,0xF($s1)` needs retail's load-delay nop
@@ -400,22 +400,22 @@ void func_80078F00(Actor* p) {
     u16 face;
     s32 i;
 
-    pPart = p->unk5C;
+    pPart = p->pPart;
     pScript = p->unk8FC;
-    p->unk8 = 0;
-    p->unk4 = 0;
-    p->unk0 = 0;
-    p->unk18 = 0;
-    p->unk14 = 0;
-    p->unk10 = 0;
+    p->z = 0;
+    p->y = 0;
+    p->x = 0;
+    p->vz = 0;
+    p->vy = 0;
+    p->vx = 0;
     p->unk28 = 0;
     p->unk24 = 0;
     p->unk20 = 0;
-    pRot = pPart->unk4;
-    face = pScript->unk20;
-    pRot->unk10.vz = face;
-    pRot->unk10.vy = face;
-    pRot->unk10.vx = face;
+    pRot = pPart->pRotation;
+    face = pScript->facing;
+    pRot->rotation.vz = face;
+    pRot->rotation.vy = face;
+    pRot->rotation.vx = face;
     p->unk98 = 0x10;
     p->unk9C = 0x10;
     p->unkA8 = 0x60;
@@ -425,7 +425,7 @@ void func_80078F00(Actor* p) {
     p->unkBE = 0x480;
     p->unkC2 = 0xF0;
     p->unk54 = 0;
-    p->unkC4 = 0;
+    p->state = 0;
     p->unkC5 = 0;
     p->unkB6 = 0;
     p->unkBA = 0;
@@ -448,11 +448,11 @@ void func_80078F00(Actor* p) {
     p->unkF4 = 1;
     BattleResetMessageQueue(p);
     p->unk4E = 0xFF;
-    p->unkD4 &= ~0xC;
-    p->unkD0 = (p->unkD0 & ~0x1000) | 0x2000000 | 0x20000;
+    p->stateFlags &= ~0xC;
+    p->flags = (p->flags & ~0x1000) | 0x2000000 | 0x20000;
     p->unkCE = p->unkCC + 0x800;
-    p->unkD4 &= ~3;
-    p->unkD0 &= 0xFF7FFFFF;
+    p->stateFlags &= ~3;
+    p->flags &= 0xFF7FFFFF;
     p->unk15F0 = pScript->unkF;
     p->unk15F6 = 0x100;
     p->unk15F8 = 0;
@@ -460,108 +460,108 @@ void func_80078F00(Actor* p) {
     p->unk1658 = 0;
     p->unk165C = 0;
     p->unk1660 = 0;
-    p->unk90B = 0;
-    p->unkD0 &= ~4;
-    p->unkD0 &= ~2;
-    p->unkD0 &= ~0x38;
+    p->timer = 0;
+    p->flags &= ~4;
+    p->flags &= ~2;
+    p->flags &= ~0x38;
     p->unk15F4 = pScript->unkC;
     p->unk15F2 = pScript->unkC;
-    p->unkD4 &= ~0x10;
+    p->stateFlags &= ~0x10;
     p->unk84 = D_8009264C;
     D_8009264E = 1;
-    D_80096FB8[(p->unkD0 >> 27) & 1].unk0 = (u32)D_8006FC74;
-    D_80096FB8[(p->unkD0 >> 27) & 1].unk8 = 0;
-    D_80096FB8[(p->unkD0 >> 27) & 1].unk4 = 0;
-    D_80096FB8[(p->unkD0 >> 27) & 1].unkC = 0;
-    D_80096FB8[(p->unkD0 >> 27) & 1].unk10 = 0;
+    D_80096FB8[(p->flags >> 27) & 1].unk0 = (u32)D_8006FC74;
+    D_80096FB8[(p->flags >> 27) & 1].unk8 = 0;
+    D_80096FB8[(p->flags >> 27) & 1].unk4 = 0;
+    D_80096FB8[(p->flags >> 27) & 1].unkC = 0;
+    D_80096FB8[(p->flags >> 27) & 1].unk10 = 0;
     func_80090CC0(p);
     BattleActorResetUnk15D8(&p->unk15D8);
     BattleInitSemiTransQuadPacket(p);
     p->unk914 = 0;
     p->unk1668 = 0;
-    p->unkD4 &= ~0x40;
+    p->stateFlags &= ~0x40;
 }
 */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
 
-/* Best attempt: 98.96%. Only the register names of the p->unkC4 state block and
-   the trailing p->unkD0/p->unkC6 update differ (mask in v1 vs a0).
+/* Best attempt: 98.96%. Only the register names of the state block and
+   the trailing p->flags/p->unkC6 update differ (mask in v1 vs a0).
 void func_8007920C(Actor* p) {
     ActorScript* pScript = p->unk8FC;
     s32 pos[3][4];
     s32 flag;
     s32 state;
 
-    BattleTransformEntryVertex(p, pScript->unk1, pScript->unk4, pos[0]);
-    BattleTransformEntryVertex(p, pScript->unk2, pScript->unk6, pos[1]);
+    BattleTransformEntryVertex(p, pScript->partIndex0, pScript->vertexIndex0, pos[0]);
+    BattleTransformEntryVertex(p, pScript->partIndex1, pScript->vertexIndex1, pos[1]);
     p->unk93C = (pos[0][0] + pos[1][0]) / 2;
     p->unk940 = (pos[0][1] + pos[1][1]) / 2;
     p->unk944 = (pos[0][2] + pos[1][2]) / 2;
 
-    if ((p->unkD0 & 0x80000) && (p->unkD0 & 0x60000000) != 0x20000000 && !(p->unk90A & 1)) {
+    if ((p->flags & 0x80000) && (p->flags & 0x60000000) != 0x20000000 && !(p->unk90A & 1)) {
         BattleEffectAddSlotFromVector(pos[0], 9);
         BattleEffectAddSlotFromVector(pos[1], 9);
     }
 
-    if (p->unk90B != 0) {
-        if (pos[0][1] + 0x40 > p->unkB0 - 0x20) {
+    if (p->timer != 0) {
+        if (pos[0][1] + 0x40 > p->floorY - 0x20) {
             if (p->unk96E + 6 < pos[0][1]) {
                 func_8007D7A8(pos[0], 0x20);
             }
         }
-        if (pos[1][1] + 0x40 > p->unkB0 - 0x20) {
+        if (pos[1][1] + 0x40 > p->floorY - 0x20) {
             if (p->unk96C + 6 < pos[1][1]) {
                 func_8007D7A8(pos[1], 0x20);
             }
         }
-        p->unk90B--;
+        p->timer--;
     }
 
-    if ((p->unkD0 & 0x60000000) == 0x20000000) {
+    if ((p->flags & 0x60000000) == 0x20000000) {
         func_8007DC74(&p->unk93C, &p->unk95C);
     }
 
-    if (BattleGetScreenMode() != 7 && (p->unkD0 & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
+    if (BattleGetScreenMode() != 7 && (p->flags & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
         p->unk960 < 0x80) {
         BattlePlaySoundEffectByIdx(p, 0x3A, &p->unk93C, 2);
     }
 
     p->unk96E = pos[0][1];
     p->unk96C = pos[1][1];
-    BattleTransformEntryVertex(p, pScript->unk0, pScript->unk8, &p->unk92C);
+    BattleTransformEntryVertex(p, pScript->basePartIndex, pScript->baseVertexIndex, &p->unk92C);
 
     p->unk930 -= 0x38;
     p->unk94C = (p->unk93C + p->unk92C) / 2;
     p->unk954 = (p->unk944 + p->unk934) / 2;
     p->unk950 = (p->unk940 + p->unk930) / 2;
 
-    if ((p->unkD0 & 0x8000) && p->unkC5 == 0 && (p->unkC4 & 1)) {
+    if ((p->flags & 0x8000) && p->unkC5 == 0 && (p->state & 1)) {
         BattleEffectSetColor(&p->unk15D4);
-        flag = (p->unkD0 >> 27) & 1;
+        flag = (p->flags >> 27) & 1;
         func_8007CD44(flag, &p->unk92C, &p->unk93C, flag);
-        if (!(p->unkD0 & 0x10000)) {
+        if (!(p->flags & 0x10000)) {
             func_8008ED6C(p, 8);
             func_8008EBD0(p, 8, &p->unk93C, 2);
         }
     }
 
     if (p->unkC5 != 4) {
-        if (p->unkC4 != 1) {
-            p->unkD4 &= ~3;
+        if (p->state != 1) {
+            p->stateFlags &= ~3;
         } else {
-            p->unkD4 = (p->unkD4 & ~3) | 1;
-            if (p->unkD0 & 0x8000) {
-                p->unkD4 = (p->unkD4 & ~3) | 2;
+            p->stateFlags = (p->stateFlags & ~3) | 1;
+            if (p->flags & 0x8000) {
+                p->stateFlags = (p->stateFlags & ~3) | 2;
             }
         }
         if (p->unkC5 == 2) {
-            p->unkD4 |= 3;
+            p->stateFlags |= 3;
         }
     }
 
-    state = p->unkD4 & 3;
-    if (state != ((p->unkD4 >> 2) & 3)) {
+    state = p->stateFlags & 3;
+    if (state != ((p->stateFlags >> 2) & 3)) {
         switch (state) {
         case 0:
         case 3:
@@ -579,9 +579,9 @@ void func_8007920C(Actor* p) {
         }
     }
 
-    p->unkD0 = (p->unkD0 & 0xFFFEFFFF) | (((p->unkD0 >> 15) & 1) << 16);
-    p->unkC6 = p->unkC4;
-    p->unkD4 = (p->unkD4 & 0xFFFFFFF3) | ((p->unkD4 & 3) << 2);
+    p->flags = (p->flags & 0xFFFEFFFF) | (((p->flags >> 15) & 1) << 16);
+    p->unkC6 = p->state;
+    p->stateFlags = (p->stateFlags & 0xFFFFFFF3) | ((p->stateFlags & 3) << 2);
 }
 */
 
@@ -659,9 +659,9 @@ char BattleResetForNextRound(void) {    D_8009872C.unkCC = 0x400;
 }
 
 void BattleActorSetUnk15CCFlags(Actor* p) {
-    p->unk15CC->unkA = (p->unk15CC->unkA & 0xFEFF) | ((p->unkD0 << 6) & 0x100);
-    p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xDFFF) | ((p->unkD0 >> 2) & 0x2000);
-    p->unk15CC->unk6 = (p->unk15CC->unk6 & 0xBFFF) | ((p->unkD0 >> 5) & 0x4000);
+    p->pState->unkA = (p->pState->unkA & 0xFEFF) | ((p->flags << 6) & 0x100);
+    p->pState->flags = (p->pState->flags & 0xDFFF) | ((p->flags >> 2) & 0x2000);
+    p->pState->flags = (p->pState->flags & 0xBFFF) | ((p->flags >> 5) & 0x4000);
 }
 
 void BattleActorLoadUnk15CCFlags(Actor* p) {
@@ -669,11 +669,11 @@ void BattleActorLoadUnk15CCFlags(Actor* p) {
     u32 signBit = 0x80000000; // a literal here gives `sll 17; srl 31`, retail has `sll 17; slti 0`
     u32 masked;
 
-    p->unkD0 = (p->unkD0 & ~4) | ((p->unk15CC->unkA >> 6) & 4);
-    p->unkD0 = (p->unkD0 & 0xFFFF7FFF) | ((p->unk15CC->unk6 << 2) & 0x8000);
-    masked = p->unkD0 & 0xFFF7FFFF;
-    flag = ((p->unk15CC->unk6 << 17) & signBit) != 0;
-    p->unkD0 = masked | (flag << 19);
+    p->flags = (p->flags & ~4) | ((p->pState->unkA >> 6) & 4);
+    p->flags = (p->flags & 0xFFFF7FFF) | ((p->pState->flags << 2) & 0x8000);
+    masked = p->flags & 0xFFF7FFFF;
+    flag = ((p->pState->flags << 17) & signBit) != 0;
+    p->flags = masked | (flag << 19);
 }
 
 void BattleResetUnk92640(void) {
@@ -706,13 +706,13 @@ void BattleActorSetModelByTimer(Actor* p) {
     if (D_800928AC < 0x78) {
         p->unk4F = 0x10;
         p->unk52 = 0;
-        p->unk4C = 0x10;
-        p->unkD0 |= 0x400;
+        p->modelIndex = 0x10;
+        p->flags |= 0x400;
     } else {
         p->unk4F = 0x10;
         p->unk52 = 0;
-        p->unk4C = 0;
-        p->unkD0 |= 0x400;
+        p->modelIndex = 0;
+        p->flags |= 0x400;
     }
 }
 
@@ -720,18 +720,18 @@ void BattleActorSetModelIndex9(Actor* p) {
     D_8009292C = 0x100;
     p->unk4F = 0x10;
     p->unk52 = 0;
-    p->unk4C = 9;
-    p->unkD0 |= 0x2000400;
+    p->modelIndex = 9;
+    p->flags |= 0x2000400;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
 
 /* Best attempt: 92.44%. The D_80098680/9867C/98720 block is the only difference.
-   Retail loads p->unk4 once into $v1 and reuses it for both the D_80098680 store
-   and the '- 0x400' (addiu lands in $v1), while a plain 'p->unk4' reloads it after
+   Retail loads p->y once into $v1 and reuses it for both the D_80098680 store
+   and the '- 0x400' (addiu lands in $v1), while a plain 'p->y' reloads it after
    the global store (gcc will not CSE a load through the parameter across a store
    to a global) and reassociates '(x - 0x400) - D_80092670' into 'x - (D_80092670 + 0x400)'.
-   A 's32 y = p->unk4' local removes the reload and keeps the subtraction grouped
+   A 's32 y = p->y' local removes the reload and keeps the subtraction grouped
    ('t = y - 0x400; D_80098720 = t - D_80092670;' gives retail's store order and
    addu $v0,$v0,-0x400) but reaches only 92.31%: gcc then also keeps 0x400 out of
    the addu and the register tie moves. Holding y and t in separate locals that
@@ -746,10 +746,10 @@ void func_8007A768(Actor* p) {
     D_80092674 = pScript->unk2A;
     SetGeomScreen(0x200);
     r = rand();
-    D_80098680 = p->unk4;
-    g_BattleCameraTarget = p->unk0;
-    D_80098720 = p->unk4 - 0x400 - D_80092670;
-    D_80098684 = p->unk8;
+    D_80098680 = p->y;
+    g_BattleCameraTarget = p->x;
+    D_80098720 = p->y - 0x400 - D_80092670;
+    D_80098684 = p->z;
     g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * D_80092674) >> 12);
     D_80098724 = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
 }
@@ -818,9 +818,9 @@ void func_8007AC3C(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AE10);
 
 void BattleActorInitModelState(Actor* p, u8 unk4C) {
-    p->unk15CC = (ActorSub*)((u8*)p + 0x9CC);
+    p->pState = (ActorSub*)((u8*)p + 0x9CC);
     p->unk4F = 0x10;
-    p->unk4C = unk4C;
+    p->modelIndex = unk4C;
     p->unk52 = 0;
     D_8009292C = 0x100;
     func_80074BA4();
