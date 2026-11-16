@@ -96,6 +96,15 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // first (98.39), one-expression sum with the duplicate store (98.06), value/sum
 // declaration order swapped (no change). Permuter rounds this session, base/best
 // score: 60/40 (split the sum), 40/20 (short sum), 20/10 (the sum || sum condition).
+// Round 123: an 8-minute permuter run from this exact body (base=10, best=10,
+// 3886 iterations) found nothing, and neither did 15 hand shapes. The pattern is
+// that a merged accumulator (u16/s32 sum, or a one-expression sum, or u8 temps
+// feeding an s32 'a + b') gives retail's two-address 'addu d,d,s' shape but puts
+// the accumulator in a1/v1, while the HImode two-statement form (this body) is the
+// only one that gets retail's two lbu (p byte v0, q byte v1) yet then needs a
+// separate home for sum (a0). `short sum = p[0x14];` written mid-block is an
+// INVALID body on this preset: gcc 2.6.0 exits 33 (mixed declarations), diff_func
+// then prints only the objdiff line and no diff at all.
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
@@ -414,6 +423,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 // PARKED (90.27%). Body COMPILES (park triage, round 111) but is 216 bytes
 // against retail's 220 - the missing instruction is the D_800CCD68 base that
 // retail re-forms per reference and gcc hoists, so it cannot link either.
+// Round 123 measured: index-first spelling (`i * 0x170 + (u32)D_800CCD68`) 90.27,
+// a `u16* q` pointer local assigned inside the loop 90.27, a `do { } while (0)`
+// around the RMW 87.36 (220 bytes, but it reaches 220 by a nop, not by keeping
+// the base per reference). retail's per-reference `lui at,%hi/addu at,at,v0` is
+// the maspsx expansion of a `symbol+reg` mem operand; ours materialises
+// `&D_800CCD68` with lui/addiu in the preheader (loop.c) and then does
+// `addu v0,v0,a1`. gcc's loop.c base hoist is the gate, not the loop shape.
 /*
 Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
    re-forms `lui at,%hi(D_800CCD68); addu at,at,v0` at BOTH memory references,
