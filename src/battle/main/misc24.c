@@ -427,14 +427,18 @@ void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pComman
     }
 }
 s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
+    Temp8 *pBank;
+
     if (arg1 == 0) {
         return g_BattleSoundBankMain->unk14 << 16;
     }
     if (arg1 == 1) {
-        return ((Temp8 *)((Temp8 *)pActor->unkB0)->pUnk8)->unk14 << 16;
+        pBank = ((Temp8 *)pActor->unkB0)->pUnk8;
+        return pBank->unk14 << 16;
     }
     if (arg1 == 2) {
-        return ((Temp8 *)((Temp8 *)pActor->unkB4)->pUnk8)->unk14 << 16;
+        pBank = ((Temp8 *)pActor->unkB4)->pUnk8;
+        return pBank->unk14 << 16;
     }
     if (arg1 == 3) {
         return g_BattleSoundBankSecondary->unk14 << 16;
