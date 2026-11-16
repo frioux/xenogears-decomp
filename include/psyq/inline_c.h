@@ -470,6 +470,23 @@
 	: "r"( r0 )						\
 	: "$12", "$13", "$14" )
 
+/* Rotation rows without the translation, through $12-$14: the effect renderer
+   loads its secondary matrix this way and sends TRX-TRZ separately. */
+#define gte_SetRotMatrixRows_gpr( r0 ) __asm__ volatile ( \
+	"lw\t$12, 0( %0 );" \
+	"lw\t$13, 4( %0 );" \
+	"ctc2\t$12, $0;" \
+	"ctc2\t$13, $1;" \
+	"lw\t$12, 8( %0 );" \
+	"lw\t$13, 12( %0 );" \
+	"lw\t$14, 16( %0 );" \
+	"ctc2\t$12, $2;" \
+	"ctc2\t$13, $3;" \
+	"ctc2\t$14, $4" \
+	: \
+	: "r"( r0 ) \
+	: "$12", "$13", "$14" )
+
 /* Rotation rows then translation of a MATRIX, interleaved through $12-$14;
    gte_SetRotMatrix + gte_SetTransVector use $8-$12 and a different interleave. */
 #define gte_SetRotMatrix_gpr( r0 ) __asm__ volatile ( \
