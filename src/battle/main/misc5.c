@@ -408,34 +408,15 @@ void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
 
     pRow[p[1]] = p[2];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A92C);
-/* 84.67% - everything but the final two addus matches (order, registers, the
-   lui/addiu base after the p[1] load). Ours associates the sum as
-   (idx2 + base) + rowOff (addu v0,v0,v1 / addu a1,a1,v0); the original wants
-   (rowOff + base) + idx2 (addu a1,a1,v1 / addu v0,v0,a1), i.e. rowOff must be
-   the FIRST operand of the first addu and idx2 the first of the second.
-   Naming (rowOff + sym) in a local fixes the add order but makes gcc hoist the
-   lui/addiu above the p[] loads (18.33%); `u8 idx = p[1]` with one local gives
-   the perfect val/lbu order but hoists the base the same way; an array form
-   `((u16*)(sym + arg1*0x40))[p[1]]` and the fully inline sum both become the
-   %at address (28.33%).
-   Round 35: 10 shapes. A named base local ((u8*)(rowOff + sym) then
-   *(u16*)(pBase + (p[1] << 1))) DOES fix the association - the two addus become
-   (rowOff+base) then +idx2, as retail - but gcc then emits the lui/addiu group
-   and the `lw p` two statements early (17.00%). 84.67% is still the best.
-   Round 135: the typed spelling of the same body, with the row pointer taken
-   from the declared register file (`g_BattleSlotRegs[arg1].unk20`, i.e. D_800D3420),
-   is 13.33% and shows the wall plainly: any pointer local expands to its
-   lui/addiu FIRST, so the only shape that keeps the base materialisation after
-   the p[] loads is the single inline address expression above.
 void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    s32 rowOff = arg1 * 0x40;
     u16 val = p[2] | (p[3] << 8);
-    u16 *pRow = (u16 *)(rowOff + (mem_addr)D_800D3420 + (p[1] << 1));
+    mem_addr regFileBase;
 
-    *pRow = val;
-} */
+    // separate assignment: gcc materialises the base before the value loads if it is an initializer
+    regFileBase = (mem_addr)D_800D3420;
+    *((u16 *)((p[1] << 1) + (arg1 * 0x40 + regFileBase))) = val;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
 /* 53.44% - the value expression and the index come out right, but gcc forms the
    D_800D3410 lui/addiu at the top (into a0) instead of after the value, so the
@@ -446,8 +427,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    used as ((u32*)pRow)[p[1]] every instruction is right but the whole
    lui/addiu + addu a1,a1,a0 group lands BEFORE the value loads (10.31%): gcc
    sinks the one-use value into the store, so the pointer init is expanded
-   first. Same wall as func_8007A92C; gcc-2.6.0, 2.7.2-cdk, -O1 and -O3 all
-   fail on it too.
+   first. Same wall as the old func_8007A92C body (now matched: statement-
+   assigned base mem_addr + index-first inline address); gcc-2.6.0, 2.7.2-cdk,
+   -O1 and -O3 all fail on it too.
    Round 135: the typed spelling `g_BattleSlotRegs[arg1].unk10[p[1]] = val` (dword
    register file, D_800D3410) written as one expression is 7.50% - the address
    expansion takes over the register allocation - so the separate-locals body
