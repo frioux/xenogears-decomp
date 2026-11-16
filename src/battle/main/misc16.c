@@ -150,11 +150,9 @@ void func_8008D328(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
 void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     u8 codes[4];
-    u8 *new_var;
     u8 *p;
     s16 dx;
     s16 dy;
-    s32 sum;
     s32 i;
 
     p = D_800D2E38[arg0];
@@ -171,13 +169,12 @@ void func_8008DC34(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     }
     *(s32 *)(p + 0x5A0) = 0;
     *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[0], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, (s16)arg2) + *(s32 *)(p + 0x5A0);
-    dy = arg2;
-    new_var = p + 0x5A0;
+    dy = arg2; // the sum must go through dy: dy + arg4 keeps retail's addu operand order
     dx = arg1 + arg3 - 8;
-    *(s32 *)new_var = BattleDrawSpritePackage(codes[1], (s32)(p + *(s32 *)new_var * 0x50), dx, (s16)dy) + *(s32 *)new_var;
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[1], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, (s16)dy) + *(s32 *)(p + 0x5A0);
     dy = (s16)(dy + arg4 - 8);
-    *(s32 *)new_var = BattleDrawSpritePackage(codes[2], (s32)(p + *(s32 *)new_var * 0x50), (s16)arg1, dy) + *(s32 *)new_var;
-    *(s32 *)new_var = BattleDrawSpritePackage(codes[3], (s32)(p + *(s32 *)new_var * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[2], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), (s16)arg1, dy) + *(s32 *)(p + 0x5A0);
+    *(s32 *)(p + 0x5A0) = BattleDrawSpritePackage(codes[3], (s32)(p + *(s32 *)(p + 0x5A0) * 0x50), dx, dy) + *(s32 *)(p + 0x5A0);
     for (i = 0; i < 4; i++) {
         BattleSetPrimGrey80BlendModeFromGlobal(p + (i * 2 + D_800CCB34) * 0x28);
     }
