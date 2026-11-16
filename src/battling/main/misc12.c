@@ -8,15 +8,15 @@
 // Node of a singly linked list hung off a 0x98+ byte owner.
 typedef struct BattleListNode {
     /* 0x00 */ u8 unk0[0x8C];
-    /* 0x8C */ struct BattleListNode* unk8C;
-    /* 0x90 */ struct BattleListNode* unk90;
-    /* 0x94 */ struct BattleListNode* unk94;
+    /* 0x8C */ struct BattleListNode* pList;
+    /* 0x90 */ struct BattleListNode* pNext;
+    /* 0x94 */ struct BattleListNode* pHead;
 } BattleListNode;
 
 // Owner struct whose field 4 holds the pointer this unit offsets by 0xC.
 typedef struct {
     /* 0x0 */ u32 unk0;
-    /* 0x4 */ void* unk4;
+    /* 0x4 */ void* pData;
 } BattleMisc12Owner; // Size: 0x8
 
 // Slot table entry, 0xF8 bytes, indexed by slot number.
@@ -27,7 +27,7 @@ typedef struct {
     /* 0x7B */ u8 unk7B;
     /* 0x7C */ u8 unk7C[4];
     /* 0x80 */ u16 unk80;
-    /* 0x82 */ u16 unk82;
+    /* 0x82 */ u16 clut;
     /* 0x84 */ u8 unk84[0x74];
 } BattleEntry; // Size: 0xF8
 
@@ -43,17 +43,18 @@ typedef struct {
     /* 0xE */ u16 h;
 } BattleTilePacket; // Size: 0x10
 
-// Sprite set up by BattleInitSpritePrims: four drawing-mode packets and two tiles.
+// Sprite set up by BattleInitSpritePrims: a drawing-area and a drawing-offset draw
+// mode per draw buffer (0/1), plus a tile per buffer.
 typedef struct {
     /* 0x00 */ u8 unk0[0x16];
-    /* 0x16 */ u8 unk16;
+    /* 0x16 */ u8 flags;
     /* 0x17 */ u8 unk17;
-    /* 0x18 */ DR_MODE unk18;
-    /* 0x24 */ DR_MODE unk24;
-    /* 0x30 */ DR_MODE unk30;
-    /* 0x3C */ DR_MODE unk3C;
-    /* 0x48 */ BattleTilePacket unk48;
-    /* 0x58 */ BattleTilePacket unk58;
+    /* 0x18 */ DR_MODE drawAreaMode0;
+    /* 0x24 */ DR_MODE drawAreaMode1;
+    /* 0x30 */ DR_MODE drawOffsetMode0;
+    /* 0x3C */ DR_MODE drawOffsetMode1;
+    /* 0x48 */ BattleTilePacket tile0;
+    /* 0x58 */ BattleTilePacket tile1;
 } BattleSprite; // Size: 0x68
 
 // 0x10-byte block moved around inside the object built by BattleResetObject.
@@ -97,7 +98,7 @@ typedef struct {
     /* 0x4A */ u16 unk4A;
     /* 0x4C */ BattleBlk16 unk4C;
     /* 0x5C */ BattleBlk16 unk5C;
-    /* 0x6C */ BattleEnv unk6C;
+    /* 0x6C */ BattleEnv matrix;
     /* 0x8C */ u32 unk8C;
     /* 0x90 */ u32 unk90;
     /* 0x94 */ u32 unk94;
@@ -341,7 +342,7 @@ void BattleInitSlotDrawEntry(s32 slot) {
     pEntry->unk77 = 3;
     pEntry->unk7B = 0x7D;
     pEntry->unk80 = 0x3000;
-    pEntry->unk82 = GetClut(0x3F0, 0xC0);
+    pEntry->clut = GetClut(0x3F0, 0xC0);
 }
 
 extern u8 func_80088BFC[];
@@ -549,22 +550,22 @@ void BattleInitSpritePrims(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
     rect.y = y;
     rect.w = w;
     rect.h = h;
-    func_800453E8(&p->unk18, &rect);
+    func_800453E8(&p->drawAreaMode0, &rect);
     rect.y = y + v;
-    func_800453E8(&p->unk24, &rect);
+    func_800453E8(&p->drawAreaMode1, &rect);
     rect2.x = x;
     rect2.y = y;
-    func_8004546C(&p->unk30, &rect2);
+    func_8004546C(&p->drawOffsetMode0, &rect2);
     rect2.y = y + v;
-    func_8004546C(&p->unk3C, &rect2);
-    p->unk48.len = 3;
-    p->unk48.code = 0x60000000;
-    p->unk48.x = 0;
-    p->unk48.y = 0;
-    p->unk48.w = w;
-    p->unk48.h = h;
-    p->unk58 = p->unk48;
-    p->unk16 |= 0xC;
+    func_8004546C(&p->drawOffsetMode1, &rect2);
+    p->tile0.len = 3;
+    p->tile0.code = 0x60000000;
+    p->tile0.x = 0;
+    p->tile0.y = 0;
+    p->tile0.w = w;
+    p->tile0.h = h;
+    p->tile1 = p->tile0;
+    p->flags |= 0xC;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
@@ -624,7 +625,7 @@ void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR*
     zero.vz = 0;
     zero.vx = 0;
     zero.vy = 0;
-    func_800898BC((MATRIX*)((u8*)pOwner->unk4 + 0xC), &offset, &zero, &scale);
+    func_800898BC((MATRIX*)((u8*)pOwner->pData + 0xC), &offset, &zero, &scale);
 }
 /*@@*/
 
@@ -644,9 +645,9 @@ BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p) {
     p->unk30 = 0;
     p->unk2E = 0;
     p->unk2C = 0;
-    p->unk6C = D_80091C0C;
-    p->unk4C = *(BattleBlk16*)&p->unk6C;
-    p->unk5C = *((BattleBlk16*)&p->unk6C + 1);
+    p->matrix = D_80091C0C;
+    p->unk4C = *(BattleBlk16*)&p->matrix;
+    p->unk5C = *((BattleBlk16*)&p->matrix + 1);
     p->unkC = p->unk4C;
     p->unk1C = p->unk5C;
     return p;
@@ -664,17 +665,17 @@ void BattleAppendListEntry(BattleListNode* pList, BattleListNode* pNode) {
     BattleListNode* pTail;
     BattleListNode* pCur;
 
-    pNode->unk8C = pList;
-    pTail = pList->unk94;
+    pNode->pList = pList;
+    pTail = pList->pHead;
     if (pTail == 0) {
-        pList->unk94 = pNode;
+        pList->pHead = pNode;
         return;
     }
     pCur = pTail;
-    while (pCur->unk90 != 0) {
-        pCur = pCur->unk90;
+    while (pCur->pNext != 0) {
+        pCur = pCur->pNext;
     }
-    pCur->unk90 = pNode;
+    pCur->pNext = pNode;
 }
 
 void BattleRemoveListEntry(BattleListNode* pNode) {
@@ -685,25 +686,25 @@ void BattleRemoveListEntry(BattleListNode* pNode) {
     if (pNode == 0) {
         return;
     }
-    pList = pNode->unk8C;
+    pList = pNode->pList;
     if (pList == 0) {
         return;
     }
-    pNode->unk8C = 0;
-    pPrev = pList->unk94;
+    pNode->pList = 0;
+    pPrev = pList->pHead;
     if (pPrev == 0) {
         return;
     }
     if (pPrev == pNode) {
-        pList->unk94 = pNode->unk90;
+        pList->pHead = pNode->pNext;
     } else {
         pCur = pPrev;
-        if (pCur->unk90 != pNode) {
+        if (pCur->pNext != pNode) {
             do {
-                pCur = pCur->unk90;
-            } while (pCur->unk90 != pNode);
+                pCur = pCur->pNext;
+            } while (pCur->pNext != pNode);
         }
-        pCur->unk90 = pNode->unk90;
+        pCur->pNext = pNode->pNext;
     }
-    pNode->unk90 = 0;
+    pNode->pNext = 0;
 }
