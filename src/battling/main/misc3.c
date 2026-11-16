@@ -30,9 +30,9 @@ typedef struct {
 // +9, one byte per action index (the slot gauge display turns the current
 // action's byte into a percentage of the scale).
 typedef struct {
-    /* 0x00 */ s16 unk0;
+    /* 0x00 */ s16 scale;
     /* 0x02 */ u8 unk2[0x7];
-    /* 0x09 */ u8 unk9[0xF];
+    /* 0x09 */ u8 points[0xF];
     /* 0x18 */ u8 unk18;
 } BattleActionData; // Size: 0x19 (a lower bound)
 
@@ -40,7 +40,7 @@ typedef struct {
 // touches are named; 0x166A is a lower bound on the real size (other battle
 // units reach further).
 typedef struct BattleActor {
-    /* 0x0000 */ Vec4 unk0;
+    /* 0x0000 */ Vec4 position;
     /* 0x0010 */ u8 unk10[0x4];
     /* 0x0014 */ s32 unk14;
     /* 0x0018 */ u8 unk18[0x8];
@@ -51,7 +51,7 @@ typedef struct BattleActor {
     /* 0x0040 */ s32 unk40;
     /* 0x0044 */ s32 unk44;
     /* 0x0048 */ s32 unk48;
-    /* 0x004C */ u8 unk4C;
+    /* 0x004C */ u8 modelIndex;
     /* 0x004D */ u8 unk4D;
     /* 0x004E */ u8 unk4E;
     /* 0x004F */ u8 unk4F;
@@ -63,7 +63,7 @@ typedef struct BattleActor {
     /* 0x005C */ u8 unk5C[0x10];
     /* 0x006C */ Vec4 unk6C;
     /* 0x007C */ u8 unk7C[0x4];
-    /* 0x0080 */ u8* unk80;
+    /* 0x0080 */ u8* pActionEntries;
     /* 0x0084 */ u8* unk84;
     /* 0x0088 */ u8 unk88[0x28];
     /* 0x00B0 */ s32 unkB0;
@@ -77,14 +77,14 @@ typedef struct BattleActor {
     /* 0x00C1 */ u8 unkC1;
     /* 0x00C2 */ u8 unkC2;
     /* 0x00C3 */ u8 unkC3;
-    /* 0x00C4 */ u8 unkC4;
+    /* 0x00C4 */ u8 state;
     /* 0x00C5 */ u8 unkC5;
     /* 0x00C6 */ u8 unkC6[0x2];
     /* 0x00C8 */ s16 unkC8;
     /* 0x00CA */ s16 unkCA;
     /* 0x00CC */ u8 unkCC[0x4];
     /* 0x00D0 */ u32 flags;
-    /* 0x00D4 */ u32 unkD4;
+    /* 0x00D4 */ u32 stateFlags;
     /* 0x00D8 */ struct BattleActor* pTarget;
     /* 0x00DC */ u8 unkDC[0xC];
     /* 0x00E8 */ s32 unkE8;
@@ -113,7 +113,7 @@ typedef struct BattleActor {
     /* 0x0974 */ Vec4 unk974;
     /* 0x0984 */ u8 unk984[0x1C];
     /* 0x09A0 */ BattleMessageQueue messageQueue;
-    /* 0x09C3 */ u8 unk9C3;
+    /* 0x09C3 */ u8 actionIndex;
     /* 0x09C4 */ u8 unk9C4[0xC24];
     /* 0x15E8 */ s16 unk15E8;
     /* 0x15EA */ s16 unk15EA;
@@ -248,7 +248,7 @@ void BattleResetMessageQueue(BattleActor* p) {
     p->messageQueue.count = 0;
     p->messageQueue.writeIdx = 0;
     p->messageQueue.readIdx = 0;
-    p->unk9C3 = 0;
+    p->actionIndex = 0;
 }
 
 void BattlePrintMessageQueue(BattleActor* p) {
@@ -272,7 +272,7 @@ extern u32 D_80091198[];
 // One 0x14-byte record per battle slot; D_80096FBC, which the battle draw code
 // also reads, is this table's +0x4 field.
 typedef struct {
-    /* 0x0 */ u32 unk0;
+    /* 0x0 */ u32 value;
     /* 0x4 */ u8 percent;
     /* 0x5 */ u8 unk5[0xF];
 } BattleSlotGauge; // Size: 0x14
@@ -307,10 +307,10 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     } else {
         BattleSetTextCursor(0xF0, 0x28);
     }
-    if (p->unk9C3 != 0) {
-        D_80096FB8[((p->flags >> 27) & 1)].unk0 = D_80091198[p->unk9C3];
+    if (p->actionIndex != 0) {
+        D_80096FB8[((p->flags >> 27) & 1)].value = D_80091198[p->actionIndex];
         pActionData = p->pActionData;
-        D_80096FB8[((p->flags >> 27) & 1)].percent = (pActionData->unk9[p->unk9C3] * pActionData->unk0) / 100;
+        D_80096FB8[((p->flags >> 27) & 1)].percent = (pActionData->points[p->actionIndex] * pActionData->scale) / 100;
     }
 }
 
@@ -423,7 +423,7 @@ s32 func_80077038(BattleActor* p) {
     if (p->unkC2 != 0) {
         p->unkC2 -= 0x10;
     }
-    if (p->unkC4 == 5) {
+    if (p->state == 5) {
         return;
     }
     if (p->unkE8 >= 0x15) {
@@ -456,7 +456,7 @@ s32 func_80077038(BattleActor* p) {
         p->unkCA--;
     }
     if (p->unkB6 != 0) {
-        if (p->unkC4 & 1) {
+        if (p->state & 1) {
             if ((p->flags & 0x60000000) == 0x60000000) {
                 if (p->unk90A & 4) {
                     p->unkB6 -= 8;
@@ -475,19 +475,19 @@ s32 func_80077038(BattleActor* p) {
             p->unkB6 = 0;
         }
     }
-    if (p->unkC4 == 4) {
+    if (p->state == 4) {
         if (p->unkCA == 0) {
-            p->unkC4 = 0;
+            p->state = 0;
             p->unkC5 = 0;
         }
     } else {
-        if (p->unkB0 - 0x30 < p->unk0.y) {
-            p->unkC4 &= ~2;
+        if (p->unkB0 - 0x30 < p->position.y) {
+            p->state &= ~2;
         }
         if (p->unk48 != 0) {
-            p->unkC4 |= 1;
+            p->state |= 1;
         } else {
-            p->unkC4 &= ~1;
+            p->state &= ~1;
         }
     }
     flags = p->flags;
@@ -504,7 +504,7 @@ s32 func_80077038(BattleActor* p) {
             }
             break;
         case 2:
-            if (p->unkC4 & 2) {
+            if (p->state & 2) {
                 p->flags = flags | 0x400;
             }
             break;
@@ -541,9 +541,9 @@ s32 func_80077038(BattleActor* p) {
     p->unkBA = 0;
     p->unk970 = 0;
     if (D_800928C8 != 4 && p->unkB4 == 0 && D_800928C8 != 6 && !(p->flags & 0x800000)) {
-        p->unk4C = 0xD;
+        p->modelIndex = 0xD;
         p->unk4E = 0xFF;
-        p->unkC4 = 5;
+        p->state = 5;
         p->unkC5 = 0;
         p->flags |= 0x1000;
         p->unk14 -= 0x50;
@@ -584,14 +584,14 @@ s32 dec;
 
 void BattleActorBeginMove(BattleActor* p, s32 ang, s32 shift, s32 dec) {
     p->flags |= 0x1000;
-    p->unk4C = 8;
+    p->modelIndex = 8;
     p->unk4E = 0xFF;
     p->unkCA = 0x3C;
     p->unk916 = 0x28;
     p->unkE8 = 0x28;
-    p->unkC4 = 4;
+    p->state = 4;
     p->unkC5 = 0;
-    p->unkD4 &= ~0x10;
+    p->stateFlags &= ~0x10;
     p->flags &= ~0x400;
     func_80077584(p, ang, shift, dec);
 }
@@ -641,8 +641,8 @@ short BattleUpdateActorMovement(BattleActor* p) {
     mode = 4;
     p->unkF0++;
     if (p->unkCA != 0) {
-        if (p->unk4C == 9) {
-            p->unk4C = 0xC;
+        if (p->modelIndex == 9) {
+            p->modelIndex = 0xC;
             p->unk4E = 0xFF;
             p->flags |= 0x1000;
             goto done;
@@ -656,35 +656,35 @@ short BattleUpdateActorMovement(BattleActor* p) {
         mid = (p->unk92C.y - p->unk93C.y) * 2 / 3 + p->unk93C.y;
         if (p->unk974.y < mid) {
             if ((flags & 0x700000) == 0x100000) {
-                p->unk4C = 7;
+                p->modelIndex = 7;
                 p->unk4E = 0xFF;
                 p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
             } else {
-                p->unk4C = 6;
+                p->modelIndex = 6;
                 p->unk4E = 0xFF;
                 p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x100000;
             }
         } else {
             if ((flags & 0x700000) == 0x200000) {
-                p->unk4C = 7;
+                p->modelIndex = 7;
                 p->unk4E = 0xFF;
                 p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
             } else {
-                p->unk4C = 5;
+                p->modelIndex = 5;
                 p->unk4E = 0xFF;
                 p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x200000;
             }
         }
     }
-    ang = ratan2(p->unk0.x - p->unk974.x, p->unk0.z - p->unk974.z);
-    dist = BattleVectorDistance2D(&p->unk0, p->pTarget);
+    ang = ratan2(p->position.x - p->unk974.x, p->position.z - p->unk974.z);
+    dist = BattleVectorDistance2D(&p->position, p->pTarget);
     if (dist < BattleVectorDistance2D(&p->unk974, p->pTarget)) {
         ang += 0x800;
     }
     decel = 1;
     switch ((p->unk100 - 1) & 7) {
     case 2:
-        p->unk4C = 6;
+        p->modelIndex = 6;
         p->unk4E = 0xFF;
         p->flags |= 0x1000;
         func_80077584(p, ang, 0xC, 0x64);
@@ -713,13 +713,13 @@ done:
 u8* BattleActorSelectActionEntry(BattleActor* p, s32 flag) {
     s32 idx;
 
-    idx = p->unk9C3 * 2;
+    idx = p->actionIndex * 2;
     if (flag != 0) {
-        p->unk9C3 = D_80091178[idx];
+        p->actionIndex = D_80091178[idx];
     } else {
-        p->unk9C3 = D_80091179[idx];
+        p->actionIndex = D_80091179[idx];
     }
-    return p->unk80 + p->unk9C3 * 4;
+    return p->pActionEntries + p->actionIndex * 4;
 }
 
 void BattleActorSetFlag80000(BattleActor* p) {
@@ -741,14 +741,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
      (95.52 both - the cross-jump then does not happen at all), early-break
      spelling of the case bodies (same 97.90).
    - after BattleActorSelectActionEntry the original copies the result to $a1
-     immediately and tests p->unkC4 in $v0; gcc 2.7.2 keeps it in $v0 and copies
+     immediately and tests p->state in $v0; gcc 2.7.2 keeps it in $v0 and copies
      to $a1 in the bnez delay slot (so the flags load lands in $v1 and the
      `ori 0x1000` in $a0).
    - case 3 of the first switch: `flag = 1` gives `li $s2,1` two instructions
      earlier than retail.
    Structure worth keeping: the switch on BattleDequeueMessage takes 6 cases and
    the first switch's cases must be LISTED 1, 2, 0, 3, 4, 5 (retail's body order);
-   the second switch on p->unkC4 is ascending 0-4, and its case 1 recomputes
+   the second switch on p->state is ascending 0-4, and its case 1 recomputes
    p->unk52 with `/ 4096` (gcc's signed divide-by-power-of-2 sequence) while the
    shared tail uses `>> 16`. BattleDequeueMessage must be declared s32: with a u8
    return every caller gets an `andi v0,v0,0xff` retail does not have (verified:
@@ -761,13 +761,13 @@ extern s32 BattleAccumulateGaugePoints(BattleActor* p, s32 points, s32 mode);
 extern u8 g_BattleCameraLerpFrames;
 
 // The battle actor's action state machine: a queued message selects the action
-// (the first switch), then the state in unkC4 recomputes the gauge word.
+// (the first switch), then the state at 0xC4 recomputes the gauge word.
 void func_80077A9C(BattleActor* p) {
     u8* pEntry;
     u32 flags;
     s32 flag;
 
-    if (p->unkC4 == 5) {
+    if (p->state == 5) {
         return;
     }
     if (p->unk100 != 0) {
@@ -788,17 +788,17 @@ void func_80077A9C(BattleActor* p) {
             p->unkC5 = 0;
         }
     }
-    if (p->unkC5 == 0 && p->unkC4 != 4) {
+    if (p->unkC5 == 0 && p->state != 4) {
         switch (BattleDequeueMessage(p)) {
         case 1:
             if (p->unk914 == 0) {
                 pEntry = BattleActorSelectActionEntry(p, 1);
-                if (!(p->unkC4 & 2)) {
+                if (!(p->state & 2)) {
                     if (pEntry[0] == 0) {
                         p->unk914 = 0xF;
                         BattleResetMessageQueue(p);
                     } else {
-                        p->unk4C = pEntry[0] + 0x12;
+                        p->modelIndex = pEntry[0] + 0x12;
                         p->unk4E = 0xFF;
                         flags = p->flags | 0x1000;
                         p->flags = flags;
@@ -808,7 +808,7 @@ void func_80077A9C(BattleActor* p) {
                         p->flags = flags | 1;
                         p->unkC5 = 2;
                         p->unk84 = pEntry;
-                        p->unk644 = p->pActionData->unk9[p->unk9C3] * p->pActionData->unk0 / 100;
+                        p->unk644 = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
                     }
                 }
             }
@@ -816,12 +816,12 @@ void func_80077A9C(BattleActor* p) {
         case 2:
             if (p->unk914 == 0) {
                 pEntry = BattleActorSelectActionEntry(p, 0);
-                if (!(p->unkC4 & 2)) {
+                if (!(p->state & 2)) {
                     if (pEntry[0] == 0) {
                         p->unk914 = 0xF;
                         BattleResetMessageQueue(p);
                     } else {
-                        p->unk4C = pEntry[0] + 0x12;
+                        p->modelIndex = pEntry[0] + 0x12;
                         p->unk4E = 0xFF;
                         flags = p->flags | 0x1000;
                         p->flags = flags;
@@ -831,7 +831,7 @@ void func_80077A9C(BattleActor* p) {
                         p->flags = flags | 1;
                         p->unkC5 = 2;
                         p->unk84 = pEntry;
-                        p->unk644 = p->pActionData->unk9[p->unk9C3] * p->pActionData->unk0 / 100;
+                        p->unk644 = p->pActionData->points[p->actionIndex] * p->pActionData->scale / 100;
                     }
                 }
             }
@@ -841,10 +841,10 @@ void func_80077A9C(BattleActor* p) {
             break;
         case 3:
             if (p->unk914 == 0 && p->pActionData->unk18 != 0 && p->unk909 != 0x29) {
-                if (p->unkC4 & 2) {
-                    p->unk4C = 4;
+                if (p->state & 2) {
+                    p->modelIndex = 4;
                 } else {
-                    p->unk4C = 3;
+                    p->modelIndex = 3;
                 }
                 p->unk4E = 0xFF;
                 p->flags |= 0x1000;
@@ -857,16 +857,16 @@ void func_80077A9C(BattleActor* p) {
             if (p->unkCA != 0) {
                 return;
             }
-            if (!(p->unkC4 & 2)) {
+            if (!(p->state & 2)) {
                 BattleEffectAddSlotFromVector(&p->unk93C, 9);
                 p->unk14 -= 0x8C;
-                p->unkC4 |= 2;
+                p->state |= 2;
                 func_8008ED6C((u8*)p, 0xA);
                 func_8008EBD0((u8*)p, 0xA, &p->unk93C, 2);
             }
             break;
         case 5:
-            p->unk4C = 0xF;
+            p->modelIndex = 0xF;
             p->unk4E = 0xFF;
             p->flags |= 0x1000;
             func_8008EBD0((u8*)p, 0xE, p, 2);
@@ -877,20 +877,20 @@ void func_80077A9C(BattleActor* p) {
     }
     p->unk52 = 0;
     p->flags &= ~4;
-    switch (p->unkC4) {
+    switch (p->state) {
     case 0:
         p->unk58 = 0;
         switch (p->unkC5) {
         case 0:
             if (p->flags & 2) {
-                p->unk4C = 0x11;
+                p->modelIndex = 0x11;
                 if ((p->flags & 0x38) == 0x10) {
                     p->flags |= 4;
                 } else {
                     p->flags = (p->flags & ~0x38) | ((((p->flags >> 3) & 7) + 1) & 7) << 3;
                 }
             } else {
-                p->unk4C = 0;
+                p->modelIndex = 0;
             }
             break;
         case 2:
@@ -908,7 +908,7 @@ void func_80077A9C(BattleActor* p) {
         p->unk52 = p->unk48 * p->unk15F2 / 4096;
         switch (p->unkC5) {
         case 0:
-            p->unk4C = 1;
+            p->modelIndex = 1;
             break;
         case 2:
             if (flag != 0) {
@@ -929,12 +929,12 @@ void func_80077A9C(BattleActor* p) {
         p->unk44 = 0;
         p->unk58 = 0;
         if (p->unkC5 == 0) {
-            p->unk4C = 2;
+            p->modelIndex = 2;
         }
         break;
     case 3:
         if (p->unkC5 == 0) {
-            p->unk4C = 2;
+            p->modelIndex = 2;
         }
         break;
     case 4:
@@ -943,23 +943,23 @@ void func_80077A9C(BattleActor* p) {
     }
     p->unk40 = p->unk48 * p->unk15F0 * p->unk15F2 >> 16;
     if (!(p->flags & 0x8000)) {
-        p->unkD4 &= ~0x40;
+        p->stateFlags &= ~0x40;
     }
     if (p->flags & 0x8000) {
-        if (p->unkC5 == 0 && !(p->unkD4 & 0x40) && p->unk40 >= 0x31 && (u32)(p->unkC4 - 2) >= 2) {
+        if (p->unkC5 == 0 && !(p->stateFlags & 0x40) && p->unk40 >= 0x31 && (u32)(p->state - 2) >= 2) {
             if (BattleAccumulateGaugePoints(p, 0x20, 2) != 0) {
                 p->unk40 *= 2;
                 p->unk52 *= 2;
             } else {
                 p->flags &= ~0x8000;
-                p->unkD4 |= 0x40;
+                p->stateFlags |= 0x40;
             }
             if (g_BattleCameraLerpFrames >= 2) {
                 g_BattleCameraLerpFrames = 1;
             }
         }
     }
-    if (p->unkC4 == 0 || (p->unkD4 & 0x40)) {
+    if (p->state == 0 || (p->stateFlags & 0x40)) {
         p->flags &= ~0x8000;
     }
 }
@@ -967,9 +967,9 @@ void func_80077A9C(BattleActor* p) {
 
 
 void BattleActorApplyCenterPosition(BattleActor* p) {
-    p->unk0 = p->unk93C;
-    p->unk4C = 0;
-    p->unkC4 = 0;
+    p->position = p->unk93C;
+    p->modelIndex = 0;
+    p->state = 0;
     p->unkC5 = 0;
     p->flags |= 0x2000000;
 }
