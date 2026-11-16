@@ -179,30 +179,8 @@ void MovieClearFrameBuffer(void) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80074BA4);
 
-// 91.70%, verified now (it did NOT compile before; the declarations exist since
-// round 107). Same size as retail, 544 bytes / 134 insns, and every instruction of
-// the debug path, the pad handling and the CD path is already identical. Two things
-// are left: gcc puts the state==1 body inline and jumps to the state==2 test, retail
-// does the reverse (beq state,1 to a body placed after the state==2 return block,
-// which then falls through into the shared tail); and retail's two
-// 'D_8007711C >= ArchiveDecodeSizeAbsolute(..)' early-outs branch straight to the
-// epilogue with v0 = the slt result, i.e. they return 0, where our 'return result'
-// needs li v0,-1 on that edge (spelling it 'return 0' costs 8 bytes). Not tried: the
-// permuter. A switch is not the answer, it would emit a jtbl (unowned in movie).
-// 91.70%, 544 bytes / 134 insns = retail's size. Two independent residuals, both
-// re-measured this round:
-//   a) block rotation: gcc puts the state==1 body inline and branches to the state==2
-//      test; retail does the reverse (beq state,1 to a body placed after the state==2
-//      return block, which then falls through into the shared tail).
-//   b) the two 'D_8007711C >= ArchiveDecodeSizeAbsolute(..)' early-outs branch straight
-//      to the epilogue with v0 = the slt result, i.e. that edge returns 0 while our
-//      'return result' needs it in s4 (a register copy, not the branch). Measured this
-//      round: spelling them 'return 0' keeps 544 bytes but drops to 66.51% (gcc then
-//      merges both early-outs into one return-0 block and re-rotates the states), and a
-//      s32 'ok = (D < size); if (!ok) return ok;' gives 536 bytes / 68.03%, i.e. a
-//      wrong size. So neither spelling is the answer; the shape is still unknown.
-// A switch would emit a jtbl (unowned in movie). Permuter not yet run on this one.
-/*
+// Non-void so the size-check early-outs leave v0 = the slt result, which is what
+// retail returns on that edge; `return result` needs a li v0,-1 and 4 extra bytes.
 s32 func_8007519C(void) {
     u8 buffer[0x1000];
     MovieFileHeader* pHeader;
@@ -221,7 +199,7 @@ s32 func_8007519C(void) {
     if (state == 0) {
         ArchiveSetIndex(0x18, 0);
         if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
-            return result;
+            return;
         }
         nFileIndex = D_8007711C + 3;
         pPath = ArchiveGetFilePath(nFileIndex);
@@ -231,7 +209,7 @@ s32 func_8007519C(void) {
     } else if (state == 1) {
         ArchiveSetIndex(0x18, 1);
         if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(1)) {
-            return result;
+            return;
         }
         nFileIndex = D_8007711C + 2;
         pPath = ArchiveGetFilePath(nFileIndex);
@@ -263,8 +241,7 @@ s32 func_8007519C(void) {
         }
     }
     return result;
-}*/
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_8007519C);
+}
 
 void MovieLoadSoundBanks(void) {
     char* pWdsFile;
