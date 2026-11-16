@@ -3158,6 +3158,182 @@ void ShopMenuSetQuantityHeldGraphics(u_char itemType, u_char itemID) {
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CEB3C);
+// 99.47%, same byte count as retail (1892): buy-menu item description update -- returns the
+// item's price and draws the description string into strItemDesc, the 'E' marker on the
+// portraits that already have the item, and each portrait's two stat-change digits. The
+// whole body below is correct down to the instruction stream and the stack frame; the ONLY
+// remaining difference is that gcc puts the digit-column accumulator in $s6/$s7 and the
+// polys27B0[] induction base in the other one, the reverse of retail ($s6 = column, the
+// biv increments in retail's order). A 5-minute permuter run from this body found nothing
+// (base 260, best 260), so it is a GIV_TIE, not a source shape. Load-bearing details found
+// on the way: the two 3-digit loops must be `for (k = 0, col = x; k < 3; )` with the read
+// and bump in one expression (`digit = g_Menu->digits[6 + k++]`) and `col += 8` at the end
+// of the body, the digit column base must be an ACCUMULATOR (`x = 0x49; ... x += 0x1A;`
+// before `j++`) or gcc emits an extra copy of the base and drops the 0x1000 constant out
+// of $s8 (1904 bytes), delta[] must be zeroed per character before
+// ShopMenuComputeStatChange, and the scalars' DECLARATION ORDER fixes the stack frame
+// (price 0x38, equippedFlags 0x40, equipFlags 0x48, itemId 0x50, itemType 0x58).
+/*
+// Draws the buy menu's description of the item under the cursor (description text, the 'E'
+// marker on the portraits that have it equipped, and each portrait's stat change digits)
+// and returns the item's price. The third argument is passed by the caller but unused.
+s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
+    RECT rect;
+    s32 delta[2];
+    s8 isImprovement[2];
+    u_int* pWorkspace;
+    int price;
+    u_short equippedFlags;
+    u_short equipFlags;
+    u_char itemId;
+    u_char itemType;
+    u_char digit;
+    int i;
+    int j;
+    int k;
+    int col;
+    int x;
+
+    equipFlags = 0;
+    itemId = g_Menu->shopItemIDs[scrollOffset + itemIndex];
+    itemType = g_Menu->shopItemTypes[scrollOffset + itemIndex];
+
+    pWorkspace = HeapAlloc(0x618, 0);
+    bzero(pWorkspace, 0x618);
+
+    switch (itemType) {
+        case ITEM_TYPE_WEAPON:
+            g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(
+                GetStringEntry(g_Menu->pShop->pWeaponDescriptions, itemId), pWorkspace, 0x39, 0);
+            price = g_Menu->pDressingRoom->pWeaponsData[itemId].price;
+            equipFlags = g_Menu->pDressingRoom->pWeaponsData[itemId].equipFlags;
+            break;
+
+        case ITEM_TYPE_ACCESSORY:
+            g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(
+                GetStringEntry(g_Menu->pShop->pAccessoryDescriptions, itemId), pWorkspace, 0x39, 0);
+            price = g_Menu->pDressingRoom->pAccessoriesData[itemId].price;
+            equipFlags = g_Menu->pDressingRoom->pAccessoriesData[itemId].equipFlags;
+            break;
+
+        case ITEM_TYPE_ITEM:
+            g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(
+                GetStringEntry(g_Menu->pShop->pItemDescriptions, itemId), pWorkspace, 0x39, 0);
+            price = g_Menu->pDressingRoom->pItemsData[itemId].price;
+            break;
+    }
+
+    equippedFlags = ShopMenuGetCharacterEquippedItemFlags(itemId, itemType);
+    setRECT(&rect, 0x140, 0x4E, 0x3C, 0xD);
+    LoadImage(&rect, pWorkspace);
+    DrawSync(0);
+
+    ShopMenuSetStringPrimitives(&g_Menu->pShop->strItemDesc, 0, 0, 0);
+    ShopMenuSetPolyFT4Coords(
+        &g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext],
+        0x2C, 0x12, 0, 0x4E,
+        g_Menu->pShop->strItemDesc.width,
+        0xD
+    );
+    ShopMenuSetVertices(
+        g_Menu->pShop->strItemDesc.vertices,
+        0x2C, 0x12,
+        g_Menu->pShop->strItemDesc.width,
+        0xD
+    );
+    g_Menu->pShop->strItemDesc.renderContext = g_Menu->renderContext;
+    HeapFree(pWorkspace);
+
+    if (itemId) {
+        g_Menu->pShop->unk46A7 = 1;
+    } else {
+        g_Menu->pShop->unk46A7 = 0;
+    }
+
+    g_Menu->pShop->unk46A9 = 0;
+
+    x = 0x49;
+    for (i = 0, j = 0; i < 0x10; i++) {
+        if (!g_Menu->availableCharacters[i]) {
+            continue;
+        }
+
+        if (ShopMenuIsCharacterFlagSet(equipFlags, i)) {
+            g_Menu->pShop->unk469C[j] = 1;
+        } else {
+            g_Menu->pShop->unk469C[j] = 0;
+        }
+
+        // Portrait marker for the characters that already have the item equipped
+        if (ShopMenuIsCharacterFlagSet(equippedFlags, i)) {
+            g_Menu->pShop->unk46A9 += func_8002675C(
+                g_Menu->resources, 0xE,
+                &g_Menu->pShop->polys2D0[g_Menu->pShop->unk46A9 * 2],
+                g_Menu->renderContext,
+                D_801D21CC[j] + 0xE, 0xB4,
+                0x1000
+            );
+        }
+
+        g_Menu->pShop->unk46BC[j] = 0;
+        g_Menu->pShop->unk46C5[j] = 0;
+
+        if (g_Menu->pShop->unk469C[j]) {
+            delta[1] = 0;
+            delta[0] = 0;
+            ShopMenuComputeStatChange(delta, isImprovement, itemId, itemType, i);
+
+            if (delta[0]) {
+                ShopMenuParseNumberToString(delta[0]);
+                for (k = 0, col = x; k < 3; ) {
+                    digit = g_Menu->digits[6 + k++];
+                    if (digit != 0xFF) {
+                        g_Menu->pShop->unk46BC[j] += func_8002675C(
+                            g_Menu->resources, digit,
+                            &g_Menu->pShop->polys27B0[j][g_Menu->pShop->unk46BC[j] * 2],
+                            g_Menu->renderContext,
+                            col, 0xBE,
+                            0x1000
+                        );
+                    }
+                    col += 8;
+                }
+                ShopMenuSetStatChangeColor(
+                    g_Menu->pShop->unk46BC[j], g_Menu->pShop->polys27B0[j], isImprovement[0]);
+                g_Menu->pShop->unk46CE[j] = g_Menu->renderContext;
+            }
+
+            if (delta[1]) {
+                ShopMenuParseNumberToString(delta[1]);
+                for (k = 0, col = x; k < 3; ) {
+                    digit = g_Menu->digits[6 + k++];
+                    if (digit != 0xFF) {
+                        g_Menu->pShop->unk46C5[j] += func_8002675C(
+                            g_Menu->resources, digit,
+                            &g_Menu->pShop->polys3020[j][g_Menu->pShop->unk46C5[j] * 2],
+                            g_Menu->renderContext,
+                            col, 0xC6,
+                            0x1000
+                        );
+                    }
+                    col += 8;
+                }
+                ShopMenuSetStatChangeColor(
+                    g_Menu->pShop->unk46C5[j], g_Menu->pShop->polys3020[j], isImprovement[1]);
+                g_Menu->pShop->unk46D7[j] = g_Menu->renderContext;
+            }
+        }
+
+        x += 0x1A;
+        j++;
+    }
+
+    g_Menu->pShop->unk46A8 = g_Menu->renderContext;
+    ShopMenuSetQuantityHeldGraphics(itemType, itemId);
+
+    return price;
+}
+*/
 
 void ShopMenuHandleBoughtItems(u_int newGoldnewWeaponAmount) {
     int i;
