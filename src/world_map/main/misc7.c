@@ -2,7 +2,9 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/memory.h"
+#include "psyq/rand.h"
 #include "system/model.h"
+#include "system/sound.h"
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -49,6 +51,14 @@ extern WorldMapSlot *D_8009BE24;
 extern WorldMapEntry *D_8009C620;
 extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr);
 extern u8 D_8009A758[];
+extern void WorldMapStartSlot(s32 arg0, s32 arg1);
+extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
+extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
+extern s32 *D_80062528;
+extern s32 D_8009CCA4;
+extern s32 D_8009D3CC;
+extern s32 D_8009D554;
+extern s32 D_8009D7CC;
 // externs used by the parked attempts below
 extern Vec3 D_8009C5AC;
 extern MATRIX D_8009A180;
@@ -56,7 +66,7 @@ extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s16 D_1F8000A0[];
 extern void func_80089160(s32, s16 *, s32);
-extern u16 D_8009A6C0;
+extern u16 D_8009A6C0[];
 extern u16 D_8009A70C[];
 extern s32 D_8009D144;
 extern s32 D_8009BE0C;
@@ -71,7 +81,7 @@ extern s16 D_8009BD38;
 extern s16 D_8009BD3A;
 extern s16 D_8009BD3C;
 extern s32 D_8009D3F0;
-extern void *D_8006259C;
+extern SoundFile *D_8006259C;
 extern s16 D_8006F94E;
 extern s16 D_8006F950;
 extern s16 D_8006F954;
@@ -220,12 +230,80 @@ s32 WorldMapBeginSlotAnimFrame(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     do { } while (0);
     pSlot->unk50 = 0;
-    pSlot->unk20 = D_8009A6C0;
+    pSlot->unk20 = D_8009A6C0[0];
     pSlot->unk22 = D_8009A70C[pSlot->unk50];
     pSlot->unk50 = pSlot->unk50 + 1;
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800811C0);
+s32 func_800811C0(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+
+    switch (pSlot->unk20) {
+    case 1:
+        pSlot->unk22 = pSlot->unk22 - 1;
+        if ((s16)pSlot->unk22 < 0) {
+            pSlot->unk20 = D_8009A6C0[pSlot->unk50];
+            pSlot->unk22 = D_8009A70C[pSlot->unk50];
+            pSlot->unk50 = pSlot->unk50 + 1;
+        }
+        break;
+    case 2:
+        WorldMapStartSlot(6, 1);
+        pSlot->unk20 = 1;
+        break;
+    case 3:
+        WorldMapStartSlot(6, 0);
+        pSlot->unk20 = 1;
+        break;
+    case 4:
+        WorldMapStartSlot(6, 2);
+        pSlot->unk20 = 1;
+        break;
+    case 5:
+        WorldMapStartSlot(6, 3);
+        pSlot->unk20 = 1;
+        break;
+    case 6:
+        WorldMapStartSlot(6, 4);
+        pSlot->unk20 = 1;
+        break;
+    case 7:
+        WorldMapStartSlot(6, 5);
+        pSlot->unk20 = 1;
+        break;
+    case 8:
+        SoundPlaySoundEffectOnFreePair((D_8006259C->sedId << 16) | 0x2E);
+        SoundPlaySoundEffectOnFreePair((D_8006259C->sedId << 16) | 0x2F);
+        SoundPlaySoundEffectOnFreePair((D_8006259C->sedId << 16) | 0x30);
+        pSlot->unk20 = 1;
+        break;
+    case 0x10:
+        WorldMapStartSlot(3, 1);
+        WorldMapStartSlot(4, 1);
+        pSlot->unk20 = 1;
+        break;
+    case 0x11:
+        WorldMapStartSlot(3, 2);
+        pSlot->unk20 = 1;
+        break;
+    case 0x3F:
+        SoundSetAudioManagerVolumeWithFade(D_80062528, 0, 0xF0);
+        WorldMapStartSlot(0, 0xD);
+        D_8009CCA4 = 2;
+        D_8009D3CC = 4;
+        pSlot->unk20 = 1;
+        break;
+    case 0x40:
+        D_8009D554 = 0;
+        D_8009D7CC = 0;
+        pSlot->unk20 = 0;
+        break;
+    case 0:
+    default:
+        break;
+    }
+    return 1;
+}
 // Best: 76.59%, same class as before: instruction multiset and relocations are
 // identical (the three source words are the separate globals D_8009C5AC,
 // D_8009C5B0 and D_8009C5B4, not offsets off a Vec3 - retail names all three),
@@ -457,6 +535,125 @@ s32 WorldMapResetSlotColorFade(s32 index) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
+// Best: 99.85%, 844 bytes (retail's size). Both switches, both tables
+// (5 entries for the -1'd unk4 switch, 6 for the unk20 switch with case 0
+// mapped to the exit) and all five fill loops match instruction for
+// instruction; the two jump-table operands are the expected jtbl_/.rodata
+// difference. ONE instruction differs in the linked bytes: case 5 emits
+// addiu s0,zero,0xBF before addiu v0,zero,0x2 where retail materialises the
+// stored constant 2 first, and assigning 2 to a local did not move it. That
+// is the only reason this is parked, not a structural problem.
+/*
+s32 func_80081FD8(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    s32 i;
+    u16 *pFill;
+    s32 start;
+    s32 value;
+    s16 state;
+
+    state = pSlot->unk4 - 1;
+    switch (state) {
+    case 0:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 1;
+        break;
+    case 1:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 2;
+        break;
+    case 2:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 3;
+        break;
+    case 3:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 4;
+        break;
+    case 4:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 5;
+        break;
+    }
+    switch (pSlot->unk20) {
+    case 0:
+        break;
+    case 1:
+        pFill = (u16 *)D_8009D148;
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = pSlot->unk50;
+        }
+        start = rand() & 0x3F;
+        pFill = (u16 *)D_8009D148 + start;
+        i = start;
+        while (i < start + (rand() & 0x1F) + 1) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            i++;
+            pFill++;
+        }
+        start = (rand() & 0x3F) + 0x40;
+        pFill = (u16 *)D_8009D148 + start;
+        i = start;
+        while (i < start + (rand() & 0x1F) + 1) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            i++;
+            pFill++;
+        }
+        start = (rand() & 0x1F) + 0x80;
+        pFill = (u16 *)D_8009D148 + start;
+        i = start;
+        while (i < start + (rand() & 0x1F) + 1) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            i++;
+            pFill++;
+        }
+        break;
+    case 2:
+        pFill = (u16 *)D_8009D148;
+        pSlot->unk50 += 1;
+        if (pSlot->unk50 >= 0x41) {
+            pSlot->unk50 = 0x40;
+        }
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = pSlot->unk50;
+        }
+        break;
+    case 3:
+        pFill = (u16 *)D_8009D148;
+        pSlot->unk50 -= 1;
+        if (pSlot->unk50 < 2) {
+            pSlot->unk50 = 2;
+        }
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = pSlot->unk50;
+        }
+        break;
+    case 4:
+        pFill = (u16 *)D_8009D148;
+        for (i = 0; i < 0xC0; i++) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            pFill++;
+        }
+        break;
+    case 5:
+        pFill = (u16 *)D_8009D148;
+        value = 2;
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = value;
+        }
+        break;
+    }
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
 s32 WorldMapExitToMap269(void) {
     u16 v;
