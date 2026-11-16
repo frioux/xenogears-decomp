@@ -516,6 +516,29 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	: "r"( r0 )						\
 	: "$12", "$13", "$14" )
 
+/* The rotation first and the translation after it, the order the world map builds its
+   matrix in: RotMatrix fills the 3x3 and the code then writes the three translation words. */
+#define gte_SetRotTransMatrix_gpr( r0 ) __asm__ volatile (	\
+	"lw	$12, 0( %0 );				"				\
+	"lw	$13, 4( %0 );				"				\
+	"ctc2	$12, $0;"					\
+	"ctc2	$13, $1;"					\
+	"lw	$12, 8( %0 );				"				\
+	"lw	$13, 12( %0 );				"				\
+	"lw	$14, 16( %0 );				"				\
+	"ctc2	$12, $2;"					\
+	"ctc2	$13, $3;"					\
+	"ctc2	$14, $4;"					\
+	"lw	$12, 20( %0 );				"				\
+	"lw	$13, 24( %0 );				"				\
+	"ctc2	$12, $5;"					\
+	"lw	$14, 28( %0 );				"				\
+	"ctc2	$13, $6;"					\
+	"ctc2	$14, $7"					\
+	:							\
+	: "r"( r0 )						\
+	: "$12", "$13", "$14" )
+
 #define gte_ld_intpol_uv0( r0 ) __asm__ volatile (		\
 	"lbu	$12, 0( %0 );"					\
 	"lbu	$13, 1( %0 );"					\
