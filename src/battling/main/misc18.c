@@ -70,11 +70,14 @@ typedef struct BattleActor {
     /* 0x0BE */ s16 unkBE;
     /* 0x0C0 */ u8 unkC0[0x4];
     /* 0x0C4 */ u8 unkC4;
-    /* 0x0C5 */ u8 unkC5[0xB];
+    /* 0x0C5 */ u8 unkC5;
+    /* 0x0C6 */ u8 unkC6[0xA];
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 unkD4[0x4];
     /* 0x0D8 */ struct BattleActor* pTarget;
-    /* 0x0DC */ u8 unkDC[0x835];
+    /* 0x0DC */ u8 unkDC[0x818];
+    /* 0x8F4 */ u32 unk8F4;
+    /* 0x8F8 */ u8 unk8F8[0x19];
     /* 0x911 */ u8 unk911;
     /* 0x912 */ u8 unk912[0xCEA];
     /* 0x15FC */ BattleWork* pWork;
@@ -91,6 +94,7 @@ extern u32 BattleGetGridCellAtPosition(Vec4* p);
 extern void func_8008F7B8(BattleWork* pWork);
 extern s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1);
 extern s32 D_8009284C;
+extern s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork);
 extern void func_8008FFEC(BattleActor* pActor, BattleWork* pWork);
 extern void BattleResetMessageQueue(BattleActor* p);
 extern u8 D_80099D98;
@@ -422,8 +426,61 @@ s32 BattleDecideActorAction(BattleActor* pActor, BattleWork* pWork) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8009031C);
-void BattleEnterWorkState3(BattleActor* pActor) {
+void func_8009031C(BattleActor* pActor, BattleWork* pWork) {
+    u8 v;
+
+    if (func_8008FACC(pActor, pWork) != 0) {
+        return;
+    }
+    if (pActor->unkC5 != 2 && pActor->pTarget->unkC5 == 2) {
+        BattleSetActorFlag2AndClearQueue(pActor, pWork);
+    }
+    if (pActor->pTarget->unk8F4 - 0x201 < 0x3FF && pWork->unkF != 0) {
+        BattleSetActorFlag2AndClearQueue(pActor, pWork);
+    }
+    if (--pWork->unk4 > 0) {
+        return;
+    }
+    if (D_8009284C >= 0x301) {
+        switch (rand() % 10) {
+        case 0:
+            if ((rand() & 0xFF) < pWork->unk14) {
+                break;
+            }
+            BattleEnterWorkState2(pActor, 0);
+            break;
+        case 1:
+        case 2:
+            if (pActor->unk911 != 0) {
+                func_8008FFEC(pActor, pWork);
+                break;
+            }
+            BattleEnterWorkState0(pActor);
+            break;
+        case 3:
+        case 4:
+        case 5:
+            if (BattleDecideActorAction(pActor, pWork) != 0) {
+                BattleEnterWorkState0(pActor);
+            }
+            break;
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+            BattleEnterWorkState3(pActor, 0);
+            break;
+        }
+    }
+    v = pWork->unk9;
+    pWork->unk9 = v + 0xFF;
+    if (v != 0) {
+        BattleQueueMessagesAndSetScaledDelay(pActor, pWork);
+    } else {
+        BattleEnterWorkState2(pActor, rand() & 1);
+    }
+}
+void BattleEnterWorkState3(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
     s32 r;
 
@@ -436,7 +493,7 @@ void BattleEnterWorkState3(BattleActor* pActor) {
     pWork->unkE = BattleRollActorFlag8000(pActor, 1);
     pWork->unk2C.bytes.unk2E = 0;
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
-void BattleEnterWorkState2(BattleActor* pActor) {
+void BattleEnterWorkState2(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
 
     pWork = pActor->pWork;
