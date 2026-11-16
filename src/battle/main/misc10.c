@@ -180,7 +180,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
    is not).
    Needs these declarations, kept out of the file until it is matched:
      s32 BattleSetTextScale(u8 **arg0, u8 arg1);
-     s32 func_8007E98C(u8 **arg0, u8 arg1);
+     s32 BattleWordRegEqImm(u8 **arg0, u8 arg1);
      s32 BattleByteRegLeImm(u8 **arg0, u8 arg1);
      void BattleScriptCursorSkipWord(u8 **pCursor);
 
@@ -200,7 +200,7 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
             ret = BattleSetTextScale(arg0, arg1);
             break;
         case 0x82:
-            ret = func_8007E98C(arg0, arg1);
+            ret = BattleWordRegEqImm(arg0, arg1);
             break;
         case 0x83:
             ret = BattleByteRegLeImm(arg0, arg1);

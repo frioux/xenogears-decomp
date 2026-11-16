@@ -541,7 +541,7 @@ s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
 
     return pRegs[(*ppCmd)->unk1] == (*ppCmd)->unk2;
 }
-s32 func_8007E98C(u8 **arg0, s32 arg1) {
+s32 BattleWordRegEqImm(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
     s32 value = p[2] | (p[3] << 8);
     u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);

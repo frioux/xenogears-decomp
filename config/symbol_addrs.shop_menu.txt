@@ -131,3 +131,4 @@ ShopMenuUpdateSubmenuTextures = 0x801CC720;
 ShopMenuUpdateItemDescription = 0x801CFF58;
 ShopMenuInitializeMenuStrings = 0x801C5EE8;
 ShopMenuComputeStatChange = 0x801CE480;
+ShopMenuSetPolyGradientColor = 0x801C6460;

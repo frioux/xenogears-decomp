@@ -157,7 +157,7 @@ s32 BattleEndSpriteSlotList(BattleMisc22Unk *pArg, BattleMisc22Spr *pEnd) {
     return count;
 }
 
-void func_800A2FD8(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step, u_long *pOt, s32 packet) {
+void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step, u_long *pOt, s32 packet) {
     BattleMisc22Spr *pSpr;
     long otz;
     s32 i;
@@ -341,7 +341,7 @@ extern u8 D_800D3314[];
 extern u8 D_800D3316[];
 extern u8 D_800D3330[];
 
-void func_800A44C0(u8 **pArg) {
+void BattleTransformPartPositions(u8 **pArg) {
     u16 *pZ;
     u16 *pY;
     u16 *pX;

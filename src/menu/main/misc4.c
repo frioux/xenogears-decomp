@@ -198,7 +198,7 @@ void func_801CE540(void) {
     }
 }
 */
-void func_801CE660(void) {
+void MenuAddUnk358Prims(void) {
     u8* pData;
 
     if (((u8*)g_Menu->pManager)[0x7]) {

@@ -181,7 +181,7 @@ void BattleSetPendingActorMask(u8 arg0, u8 arg1) {
     D_800D39E0 = D_800D2E5C[arg1].unk6;
 }
 
-void func_80078D6C(u8 arg0, u8 arg1) {
+void BattleQueueCommandF9(u8 arg0, u8 arg1) {
     D_800C402F[D_800C3EAC->count * 72] = 0xF9;
     func_800785D4(arg0, arg1);
     D_800D2DE4[arg0] = 0xFF;
@@ -399,7 +399,7 @@ void BattleScriptResetActorState(u8 arg0) {
         }
     }
 }
-s32 func_80079AB0(u8 arg0) {
+s32 BattleScriptScanForOpcode62(u8 arg0) {
     u8 slot;
     s32 result;
     u8 value;

@@ -28,7 +28,7 @@ extern void MenuRenderPointerCursors(void);
 extern void func_801CEC40(void);
 extern void MenuUpdateWindowAnimations(void);
 extern void func_801CE540(void);
-extern void func_801CE660(void);
+extern void MenuAddUnk358Prims(void);
 extern void MenuAddUnk35CPrims(void);
 extern void MenuAddUnk360Prims(void);
 extern void MenuAddGoldAndPlayTimePrims(void);
@@ -429,7 +429,7 @@ void MenuAddScreen0Prims(void) {
     func_801D02D8();
     MenuAddCellGridPrims();
     func_801CE540();
-    func_801CE660();
+    MenuAddUnk358Prims();
     MenuAddUnk35CPrims();
     MenuAddUnk360Prims();
     MenuAddGoldAndPlayTimePrims();
