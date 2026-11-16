@@ -742,7 +742,212 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
 }
  */
 
+// 4-s16 set of cursor-arrow part offsets, indexed by the sign of the cursor's
+// step: entry 0 for a leftward step, entry 1 for a rightward one.
+typedef struct {
+    /* 0x0 */ s16 unk0;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 unk4;
+    /* 0x6 */ s16 unk6;
+} BattleCursorOffset; // Size: 0x8
+
+extern BattleCursorOffset D_800912E0[];
+extern POLY_FT4 D_80099DA8[];
+extern u8 D_8006FE88[];
+extern s32 D_80092700;
+extern s32 D_80092704;
+extern s32 D_80092710;
+extern s32 D_80092714;
+extern s32 D_80092718;
+extern s32 D_8009271C;
+extern s32 D_80092720;
+extern s32 D_80092724;
+extern s32 D_80092728;
+extern s32 D_8009272C;
+extern s32 D_80092730;
+
+void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade);
+s32 BattleTestSlotBit(s32 slot);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
+/* best 81.01% (1456 bytes against retail's 1496). The whole HUD tail from
+   BattleSetTextCursor(0xA0,0x78) to the closing BattleSetTextColor(0) is exact,
+   as is the 0x50 frame: it needs an unused s32 tmp[8] local (retail spends 32
+   bytes on nothing), and D_80099DA8[D_800928A0 * 10] reproduces the mul-by-0x190
+   chain. What is left, all inside the two cursor blocks:
+   1. THE ALIAS TRAP, and the reason this cannot reach 100.00%: retail stores the
+      step to D_80092718, then loads D_80092718, stores it back to D_80092718 and
+      then to D_8009271C (sw / lw / sw / sw, four instructions, twice). A store
+      then a load of the same word means the original source had TWO symbol names
+      at 0x80092718 (gcc cannot forward across differing objects), i.e.
+      A = step; B = A; C = B; with A and B aliases. symbol_addrs.battling.txt has
+      no duplicate addresses, so the second name cannot be spelled without adding
+      one to config/symbol_addrs.battling.txt (untested: splat may then rename the
+      asm label). Ours emits sw + sw, two instructions, and that is 8 of the 40
+      missing bytes (retail also spends more in the whole block; see 2-4).
+   2. the abs of delta: retail keeps delta live and negates a COPY
+      (bgez v1; move v0,v1; negu v0,v0; slti v0,v0,4), ours coalesces and gcc
+      then duplicates the slti into the bgez delay slot (4 insns vs retail's 3
+      after the bgez). Tried step = delta then if (step<0) step = -step, the
+      if/else form, and the ternary delta < 0 ? -delta : delta - all identical.
+   3. the step sign: retail is bgtz v1 with li -0x24 in the delay slot; ours is
+      the inverted blez with li 0x24 first, whichever polarity the source uses.
+   4. register assignment: retail keeps pPkt in s1, the sign mask in s0, the
+      0x38E38E39 magic in s2 and the 0x24 in s3; ours puts pPkt in s0, which
+      perturbs every instruction that touches the packet pointer.
+   Also proved: the second and fourth calls of each block pass the shade argument
+   as ((0x24 - abs(step)) << 6) / 0x24 (magic 0x38E38E39, shift 3) and the third
+   and fourth pass x = -0x24 / 0x24 with shade 0; the offset table D_800912E0 is
+   two 8-byte s16 quads, {1,-1,2,36} for a negative step and {-1,-2,1,-36} for a
+   non-negative one, indexed by the s32 compare D_80092718 >= 0, and the compare
+   is evaluated BEFORE the first call of the block while its sll 3 lands inside
+   the if body - so write the compare into a local above the call, not
+   &D_800912E0[expr] at the use. Last call of block 1 does not advance pPkt.
+
+void func_8007F258(void* pOt, s32 arg) {
+    s32 tmp[8]; // unused: reproduces the original's 0x50 frame
+    POLY_FT4* pPkt;
+    BattleCursorOffset* pOff;
+    s32 delta;
+    s32 step;
+    s32 shade;
+    s32 sign;
+
+    pPkt = &D_80099DA8[D_800928A0 * 10];
+
+    delta = D_80092714 - D_80092700;
+    if (delta != 0) {
+        if (delta < 0) {
+            step = -delta;
+        } else {
+            step = delta;
+        }
+        if (step >= 4) {
+            delta = -delta;
+        }
+        if (delta > 0) {
+            step = -0x24;
+        } else {
+            step = 0x24;
+        }
+        D_80092718 = step;
+        D_8009271C = D_80092718;
+    }
+    delta = D_80092720 - D_80092704;
+    if (delta != 0) {
+        if (delta < 0) {
+            step = -delta;
+        } else {
+            step = delta;
+        }
+        if (step >= 4) {
+            delta = -delta;
+        }
+        if (delta > 0) {
+            step = -0x24;
+        } else {
+            step = 0x24;
+        }
+        D_80092724 = step;
+        D_80092728 = D_80092724;
+    }
+
+    step = D_80092718;
+    if (step != 0) {
+        if (step > 0) {
+            step -= 2;
+        } else {
+            step += 2;
+        }
+        D_80092718 = step;
+    }
+    step = D_8009271C;
+    if (step != 0) {
+        if (step > 0) {
+            step -= 4;
+        } else {
+            step += 4;
+        }
+        D_8009271C = step;
+    }
+    step = D_80092724;
+    if (step != 0) {
+        if (step > 0) {
+            step -= 2;
+        } else {
+            step += 2;
+        }
+        D_80092724 = step;
+    }
+    step = D_80092728;
+    if (step != 0) {
+        if (step > 0) {
+            step -= 4;
+        } else {
+            step += 4;
+        }
+        D_80092728 = step;
+    }
+
+    sign = D_80092718 >= 0;
+    step = D_8009271C;
+    if (step < 0) {
+        step = -step;
+    }
+    shade = ((0x24 - step) << 6) / 0x24;
+    D_80092714 = D_80092700;
+    D_80092720 = D_80092704;
+    func_8007F05C(D_80092700, pPkt++, 0, D_8009271C, shade);
+    if ((D_80092710 & 1) == 0) {
+        pOff = &D_800912E0[sign];
+        step = D_80092718;
+        if (step < 0) {
+            step = -step;
+        }
+        shade = ((0x24 - step) << 6) / 0x24;
+        func_8007F05C(D_80092700 + pOff->unk0, pPkt++, 0, D_80092718 + pOff->unk6, shade);
+        func_8007F05C(D_80092700 + pOff->unk2, pPkt++, 0, -0x24, 0);
+        func_8007F05C(D_80092700 + pOff->unk4, pPkt++, 0, 0x24, 0);
+    }
+
+    sign = D_80092724 >= 0;
+    step = D_80092728;
+    if (step < 0) {
+        step = -step;
+    }
+    shade = ((0x24 - step) << 6) / 0x24;
+    func_8007F05C(D_80092704, pPkt++, 1, D_80092728, shade);
+    if ((D_80092710 & 2) == 0) {
+        pOff = &D_800912E0[sign];
+        step = D_80092724;
+        if (step < 0) {
+            step = -step;
+        }
+        shade = ((0x24 - step) << 6) / 0x24;
+        func_8007F05C(D_80092704 + pOff->unk0, pPkt++, 1, D_80092724 + pOff->unk6, shade);
+        func_8007F05C(D_80092704 + pOff->unk2, pPkt++, 1, -0x24, 0);
+        func_8007F05C(D_80092704 + pOff->unk4, pPkt, 1, 0x24, 0);
+    }
+
+    BattleSetTextCursor(0xA0, 0x78);
+    BattleByteRegTestReg(D_8006FE88);
+    BattleSetTextCursor(0x50, 0x78);
+    if (BattleTestSlotBit(D_800928EC[D_80092700][0]) != 0) {
+        func_8007EE68(D_8009272C);
+    } else {
+        BattleSetTextColor(D_8009272C);
+    }
+    BattleByteRegTestReg((u8*)D_800928EC[D_80092700][2]);
+    BattleSetTextCursor(0xF0, 0x78);
+    if (BattleTestSlotBit(D_800928EC[D_80092704][0]) != 0) {
+        func_8007EE68(D_80092730);
+    } else {
+        BattleSetTextColor(D_80092730);
+    }
+    BattleByteRegTestReg((u8*)D_800928EC[D_80092704][2]);
+    BattleSetTextColor(0);
+}
+ */
 
 void BattleClearTextSpriteEntries(void) {
     D_80092740 = 0;
