@@ -900,4 +900,12 @@ void BattleComposeCameraMatrix(BattleActorView* p, MATRIX* pIn, MATRIX* pOut) {
     pOut->t[2] = mtx.t[2];
 }
 
+/* PARKED, not attempted: 304 instructions, and splat marks the object "Handwritten
+   function". The tail fuses the GTE rotation and translation matrix loads
+   (lw $t4/$t5/$t6 interleaved with ctc2 $0-$7 off D_80092610+0xC) in a shape no
+   macro in include/psyq/inline_c.h emits - gte_SetRotMatrix/gte_SetTransMatrix
+   load through $8-$12 with a different interleave. The rest is a controller
+   state machine (ControllerMergeStates, g_C1ButtonState/g_C2ButtonStateReleased,
+   BattleFreeRenderScene, the Sprintf'd debug overlay) around a 0xC8 frame.
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072858);
