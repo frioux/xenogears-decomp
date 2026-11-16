@@ -365,7 +365,7 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
 }
 */
 
-s32 func_800771D8(s32 arg0, s32 arg1, s32 arg2) {
+s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2) {
     s32 delta;
     s32 limit;
 

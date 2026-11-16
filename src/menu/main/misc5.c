@@ -6,7 +6,7 @@ extern void MenuRenderTransformedQuads(s32 count, SVECTOR* pVertices, POLY_FT4* 
 extern void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag);
 extern void MenuRenderString(u_char length, void* pPolys, u_char renderContext);
 extern void MenuRenderQuad(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex);
-extern void func_801D09F0(s32 menuIndex, u_char hasScrollBar);
+extern void MenuRenderWindow(s32 menuIndex, u_char hasScrollBar);
 
 extern void MenuAddUnk5StringPrims(void);
 extern void MenuAddCellGridPrims(void);
@@ -37,7 +37,7 @@ extern void MenuAddUnk430Prims(void);
 extern void MenuAddUnk434Prims(void);
 extern void MenuAddUnk438Prims(void);
 
-void func_801D09F0(s32 menuIndex, u_char hasScrollBar) {
+void MenuRenderWindow(s32 menuIndex, u_char hasScrollBar) {
     s32 primOffset;
     MenuWindow* pWindow;
     s32 i;
@@ -103,10 +103,10 @@ void MenuRenderWindows(void) {
                 TransMatrix(&m, &trans);
                 SetRotMatrix(&m);
                 SetTransMatrix(&m);
-                func_801D09F0(i, g_Menu->windows[i]->hasScrollBar);
+                MenuRenderWindow(i, g_Menu->windows[i]->hasScrollBar);
                 PopMatrix();
             } else {
-                func_801D09F0(i, g_Menu->windows[i]->hasScrollBar);
+                MenuRenderWindow(i, g_Menu->windows[i]->hasScrollBar);
             }
         }
     }
