@@ -78,7 +78,9 @@ typedef struct {
 typedef struct BattleActor {
     /* 0x000 */ u8 unk0[0x48];
     /* 0x048 */ u32 unk48;
-    /* 0x04C */ u8 unk4C[0x34];
+    /* 0x04C */ u8 unk4C[0xC];
+    /* 0x058 */ s32 unk58;
+    /* 0x05C */ u8 unk5C[0x24];
     /* 0x080 */ BattleActionSlot* pActionSlots;
     /* 0x084 */ u8 unk84[0x30];
     /* 0x0B4 */ s16 gaugeValue;
@@ -118,6 +120,7 @@ extern u8 g_BattleDifficultyLevel;
 extern BattleWork D_80096F30;
 extern BattleWork D_80096F64;
 extern BattleActionMessages D_800925A4[];
+extern u8 D_800928C4;
 extern void func_8008FCC8(BattleActor* pActor, BattleWork* pWork);
 extern void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork);
 extern void func_80090580(BattleActor* pActor, BattleWork* pWork);
@@ -254,47 +257,52 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     return 0;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
-/* 89.78%: instruction multiset matches except gcc lays the two return 0 blocks out
-   at the end of the function instead of merging them before the body, and puts
-   li v0,1 in a branch delay slot. Also tried: one combined condition (same),
-   splitting the two early returns (same), and hoisting the 0x8F4 load before the
-   second BattleCheckPositionPastMapCenter call (worse: 78%, costs an extra saved register).
-extern u8 D_800928C4;
+/* 89.78%: instruction multiset and byte count are retail's exactly; the only
+   difference is basic-block layout. Retail cross-jumps the first two `return 0`
+   blocks into one block placed inline after the second test (its second test
+   branches POSITIVELY to the body, so the return-0 block is the fall-through);
+   ours merges the first and third return-0 instead and leaves it at the end.
+   Tried: the park below, one combined `||` condition (identical), the third
+   check returning its call result (`v = call; if (v == 0) return v;` - gcc
+   still constant-folds it into the same block), and the repo's shared-exit
+   goto form (84.93%, all the returns become gotos to one label). gcc-2.7.2-cdk
+   is worse (88.88), so it is not the preset. The block-ordering lever is not
+   source-controllable from here.
+s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
+       s32 v;
+  
+       if (D_800928C4 == 0) {
+           return 0;
+       }
+       if ((pActor->flags & 0x8000000) == 0) {
+           return 0;
+       }
+       if (BattleCheckPositionPastMapCenter((Vec4*)pActor) != 0) {
+           BattleSetFacingFromPosition((Vec4*)pActor, pWork);
+           return 1;
+       }
+       if (BattleCheckPositionPastMapCenter((Vec4*)pActor->pTarget) == 0) {
+           return 0;
+       }
+       v = pActor->pTarget->unk8F4;
+       if (v < 0x800) {
+           pActor->flags |= 0x8000;
+           pWork->setFlag8000 = 1;
+           pWork->maxDistance = 0xFF;
+           pWork->targetAngle = 0x800;
+           pActor->unk58 = 0x800;
+           return 1;
+       }
+       if (v < 0x1001) {
+           return 1;
+       }
+       pActor->flags &= 0xFFFF7FFF;
+       pWork->setFlag8000 = 0;
+       pWork->maxDistance = 0;
+       pActor->unk58 = 0x800;
+       return 1;
+   }
 
-s32 func_8008FACC(s32* pArg0, u8* pArg1) {
-    s32 v;
-
-    if (D_800928C4 == 0) {
-        return 0;
-    }
-    if ((*(u32*)((u8*)pArg0 + 0xD0) & 0x8000000) == 0) {
-        return 0;
-    }
-    if (BattleCheckPositionPastMapCenter(pArg0) != 0) {
-        BattleSetFacingFromPosition(pArg0, pArg1);
-        return 1;
-    }
-    if (BattleCheckPositionPastMapCenter(*(s32**)((u8*)pArg0 + 0xD8)) == 0) {
-        return 0;
-    }
-    v = *(s32*)(*(u8**)((u8*)pArg0 + 0xD8) + 0x8F4);
-    if (v < 0x800) {
-        *(u32*)((u8*)pArg0 + 0xD0) |= 0x8000;
-        pArg1[0xE] = 1;
-        *(s16*)(pArg1 + 0xC) = 0xFF;
-        *(s16*)(pArg1 + 0xA) = 0x800;
-        *(s32*)((u8*)pArg0 + 0x58) = 0x800;
-        return 1;
-    }
-    if (v < 0x1001) {
-        return 1;
-    }
-    *(u32*)((u8*)pArg0 + 0xD0) &= 0xFFFF7FFF;
-    pArg1[0xE] = 0;
-    *(s16*)(pArg1 + 0xC) = 0;
-    *(s32*)((u8*)pArg0 + 0x58) = 0x800;
-    return 1;
-}
 */
 void BattleSetActorFlag2AndClearQueue(BattleActor* pActor, BattleWork* pWork) {
     u8 v;
