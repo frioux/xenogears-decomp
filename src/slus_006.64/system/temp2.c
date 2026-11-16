@@ -103,16 +103,29 @@ typedef struct {
 // g_GfxWorkBuffers and the g_GfxWorkBuffer2 that follows it are the two
 // per-context buffer bases, reached as one array through the symbol's address:
 // indexing the symbol is what makes maspsx emit %hi/%lo rather than %gp_rel.
+// animation.h names them singly (GfxAllocateWorkBuffers sets each), so the
+// pair is read here through a view.
+typedef struct {
+    /* 0x0 */ void* pBuffers[NUM_RENDER_CONTEXTS];
+} GfxWorkBufferBases;
+
+#define g_GfxWorkBufferBases ((GfxWorkBufferBases*)&g_GfxWorkBuffers)
+
 // D_80059524 is a tentative definition so maspsx emits %gp_rel for it.
 s32 D_80059524;
 
 void GfxSetRenderContext(int context) {
+    // The tile-list heads are the two words at D_80059300. The pointer local
+    // with the embedded assignment is what keeps retail's single context*4
+    // before the symbol address: a plain index or a typed head array moves the
+    // sll after the lui and stalls at 95.00%. The s32* element type is part of
+    // that (a LinkedListEntry** local gives the same 95.00%).
     s32* pLists;
     LinkedListEntry* pCurEntry;
     void* pPrimBuffer;
 
     pCurEntry = ((LinkedListEntry**)(pLists = &D_80059300))[context];
-    pPrimBuffer = ((void**)&g_GfxWorkBuffers)[context];
+    pPrimBuffer = g_GfxWorkBufferBases->pBuffers[context];
     g_GfxCurContext = context;
     g_GfxCurWorkBuffer = pPrimBuffer;
     D_80059524 = pPrimBuffer;
@@ -175,6 +188,30 @@ extern u8 D_800C3664;
 extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
 extern void SpriteDrawFrame(SpriteData* pSpriteData, void* pArg);
 
+// SpriteData as this unit reads it: the per-context frames-data pair at 0x2C
+// (two scalars in the shared header, because other units assign them singly),
+// curSpriteFrame as an unsigned halfword, the colour word at 0x28 (copied
+// whole into a primitive), the 0x3C flag word (bits 25-27 are read as a whole
+// word here, where the header's bitfields over them narrow to lbu 0x3F) and the
+// upper halfword of field_0x40, which is read with lhu.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x28];
+    /* 0x28 */ u32 color; // red, green, blue and the primitive code as one word
+    /* 0x2C */ void* pFramesData[NUM_RENDER_CONTEXTS];
+    /* 0x34 */ u16 curSpriteFrame; // unsigned here: -1 is a valid frame
+    /* 0x36 */ u8 unk36[0x6];
+    /* 0x3C */ SpriteFlagWord flags_0x3C;
+    /* 0x40 */ u16 flags0x40Low;
+    /* 0x42 */ u16 flags0x40High;
+} SpriteDataView;
+
+#define g_SpriteFramesData(pSpriteData) \
+    (((SpriteDataView*)(pSpriteData))->pFramesData)
+#define g_SpriteFlags0x3C(pSpriteData) \
+    (((SpriteDataView*)(pSpriteData))->flags_0x3C)
+#define g_SpriteFlags0x40High(pSpriteData) \
+    (((SpriteDataView*)(pSpriteData))->flags0x40High)
+
 // Projects the sprite's position and queues it into the OT at its own depth
 // offset, either straight (bit 24) or through the model transform (bit 29).
 void SpriteDrawProjected(WorkListEntry* pTask) {
@@ -185,7 +222,6 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
     MATRIX* pMatrix;
     s32 nOTOffset;
-    u32 flags;
 
     pSpriteData = pTask->unk4;
     if ((((u32)pSpriteData->flags_0xB0.flags >> 8) & 1) && D_800C3664) {
@@ -205,11 +241,7 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
     }
     pSpriteData->field_0x2e = nOTOffset;
 
-    // Bits 24-29 of the 0x3C word have no field in SpriteData: retail loads the
-    // word and shifts it (lw + srl), while the bitfields of the neighbouring
-    // bits narrow to lbu 0x3F.
-    flags = *(u32*)((u8*)pSpriteData + 0x3C);
-    if ((flags >> 24) & 1) {
+    if (pSpriteData->field_0x3C_2 & 1) {
         SpriteUpdateTransformMatrix(pSpriteData);
         vecTrans[0] = pSpriteData->position.x >> 16;
         vecTrans[1] = pSpriteData->position.y >> 16;
@@ -217,9 +249,9 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
         TransMatrix(&pSpriteData->pBase->transformMatrix, (VECTOR*)vecTrans);
         SetRotMatrix(&pSpriteData->pBase->transformMatrix);
         SetTransMatrix(&pSpriteData->pBase->transformMatrix);
-        // Re-read rather than reuse flags: retail reloads the word here because
-        // the GTE calls above clobber the register it was in.
-        if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
+        // Re-read rather than keep a copy: the GTE calls above clobber the
+        // register the word was in.
+        if (((u32)g_SpriteFlags0x3C(pSpriteData).flags >> 25) & 1) {
             nOTOffset = 0xFFF;
         } else {
             nOTOffset = pSpriteData->field_0x30;
@@ -228,7 +260,7 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
             func_8001E3D8(pSpriteData, &g_GfxCurOT[nOTOffset]);
         }
     } else {
-        if ((flags >> 29) & 1) {
+        if (pSpriteData->field_0x3C_5 & 1) {
             nOTOffset = ((SpriteData*)pSpriteData->field_0x70)->field_0x2e;
         }
         if ((u32)(nOTOffset - 1) < 0xFFF) {
@@ -243,17 +275,16 @@ void SpriteDrawTile(WorkListEntry* pTask) {
     int nOTOffset;
     DR_TPAGE* pPrimTPage;
     TILE_1* pPrim;
-    u32 pNewBufferHead;
-    u32 pNewBufferHead_2;
+    TILE_1* pNewBufferHead;
+    DR_TPAGE* pNewBufferHead_2;
     SpriteData* pSpriteData;
     MATRIX* pMatrix;
 
     pSpriteData = pTask->unk4;
-    // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
-    if (*(u16*)&pSpriteData->curSpriteFrame == 0) {
+    if (((SpriteDataView*)pSpriteData)->curSpriteFrame == 0) {
         pPrim = g_GfxCurWorkBuffer;
         pNewBufferHead = pPrim + 1;
-        if (pNewBufferHead < g_GfxCurWorkBufferEnd) {
+        if (pNewBufferHead < (TILE_1*)g_GfxCurWorkBufferEnd) {
             pMatrix = &D_8004FBB8;
             vec.vx = pSpriteData->position.x >> 16;
             vec.vy = pSpriteData->position.y >> 16;
@@ -266,13 +297,13 @@ void SpriteDrawTile(WorkListEntry* pTask) {
 
             // SetTile1
             setlen(pPrim, 2);
-            *((u32*)&pPrim->r0) = *((u32*)&pSpriteData->red);
+            *((u32*)&pPrim->r0) = ((SpriteDataView*)pSpriteData)->color;
 
             AddPrim(&g_GfxCurOT[nOTOffset], pPrim);
 
             pPrimTPage = g_GfxCurWorkBuffer;
             pNewBufferHead_2 = pPrimTPage + 1;
-            if (pNewBufferHead_2 < g_GfxCurWorkBufferEnd) {
+            if (pNewBufferHead_2 < (DR_TPAGE*)g_GfxCurWorkBufferEnd) {
                 g_GfxCurWorkBuffer = pNewBufferHead_2;
 
                 // Only the tpage bits of flags_0x3C make it into the primitive.
@@ -398,13 +429,9 @@ void SpriteDrawModelParts(WorkListEntry* pTask) {
         }
         SetRotMatrix(&matrix);
         SetTransMatrix(&matrix);
-        // pFramesData is a scalar in the shared SpriteDataI1, so the per-context
-        // entry (0x2C/0x30) is picked by index, as in GfxSetRenderContext; bit 2
-        // of the upper half of field_0x40 is read as a halfword (lhu 0x42) and
-        // the word field has no half of its own.
         ModelRenderPacket(pSpriteData->pBase->pDirTransforms,
-                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
-                          g_GfxCurOT, ((u16*)&pSpriteData->field_0x40)[1] & 4);
+                          g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
+                          g_GfxCurOT, g_SpriteFlags0x40High(pSpriteData) & 4);
     }
 }
 
@@ -477,22 +504,19 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
             ReadGeomOffset(&geomOffsetX, &geomOffsetY);
             SetGeomOffset(0xA0, 0x70);
         }
-        // Unspellable as fields, for the reasons in SpriteDrawModelParts: bits
-        // 24-29 of the 0x3C word (lw + srl), the three-bit value in its low byte
-        // (lbu + srl), and the per-context frames data.
-        if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
+        if (((u32)g_SpriteFlags0x3C(pSpriteData).flags >> 25) & 1) {
             oldShift = D_80050100;
             D_80050100 = 0x10;
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
-                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
                           g_GfxCurOT, 0, 0xFEC,
-                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+                          g_SpriteFlags0x3C(pSpriteData).bytes[0] >> 5);
             D_80050100 = oldShift;
         } else {
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
-                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
                           g_GfxCurOT, 0, pSpriteData->field_0x30,
-                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+                          g_SpriteFlags0x3C(pSpriteData).bytes[0] >> 5);
         }
         if (pSpriteData->field_0x3C_4 & 1) {
             SetGeomOffset(geomOffsetX, geomOffsetY);
@@ -521,20 +545,19 @@ void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
         pSpriteData->pBase->transformMatrix.t[2] = D_8004FBB8.t[2] + vecResult.vz;
         SetRotMatrix(&pSpriteData->pBase->transformMatrix);
         SetTransMatrix(&pSpriteData->pBase->transformMatrix);
-        // Same three unspellable reads as SpriteDrawLitModelParts.
-        if ((*(u32*)((u8*)pSpriteData + 0x3C) >> 25) & 1) {
+        if (((u32)g_SpriteFlags0x3C(pSpriteData).flags >> 25) & 1) {
             oldShift = D_80050100;
             D_80050100 = 0x10;
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
-                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
                           g_GfxCurOT, 0, 0xFEC,
-                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+                          g_SpriteFlags0x3C(pSpriteData).bytes[0] >> 5);
             D_80050100 = oldShift;
         } else {
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
-                          ((void**)&pSpriteData->pBase->pFramesData)[g_GfxCurContext],
+                          g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
                           g_GfxCurOT, 0, pSpriteData->field_0x30,
-                          *(u8*)((u8*)pSpriteData + 0x3C) >> 5);
+                          g_SpriteFlags0x3C(pSpriteData).bytes[0] >> 5);
         }
     }
 }
