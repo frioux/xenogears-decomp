@@ -35,15 +35,15 @@ struct _BattleMisc22Spr {
     /* 0x08 */ u_short x1;
     /* 0x0A */ u_short y1;
     /* 0x0C */ u_short z1;
-    /* 0x0E */ s16 unkE;
+    /* 0x0E */ s16 is3D; // 0 = the triples are screen coordinates, otherwise they are projected
     /* 0x10 */ u_short x2;
     /* 0x12 */ u_short y2;
     /* 0x14 */ u_short z2;
-    /* 0x16 */ s16 unk16;
+    /* 0x16 */ s16 age; // advances by the render step; -1 = slot free
     /* 0x18 */ u_short x3;
     /* 0x1A */ u_short y3;
     /* 0x1C */ u_short z3;
-    /* 0x1E */ s16 unk1E;
+    /* 0x1E */ s16 lifetime; // the slot retires once age reaches it
     /* 0x20 */ u_short red;
     /* 0x22 */ u_short green;
     /* 0x24 */ u_short blue;
@@ -64,18 +64,18 @@ typedef struct {
     /* 0x4 */ u16 *unk4;
     /* 0x8 */ u8 *unk8;
     /* 0xC */ u8 *unkC;
-    /* 0x10 */ u8 unk10;
+    /* 0x10 */ u8 mode; // below 4 the region at unk4 is uploaded back to VRAM when freed
     /* 0x11 */ u8 pad11[0x9];
-    /* 0x1A */ u16 unk1A;
-    /* 0x1C */ BattleMisc22ImageRow *unk1C;
+    /* 0x1A */ u16 isLoaded; // nonzero while unk4/unk8/unkC are held
+    /* 0x1C */ BattleMisc22ImageRow *pRows; // region rows, indexed by rect28.y + row
     /* 0x20 */ u8 pad20[0x8];
     /* 0x28 */ BattleMisc22Rect rect28;
 } BattleMisc22Image; // Size: 0x30
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
+    /* 0x0 */ s16 vertexIndex0; // the triangle's three vertices, indexes into g_BattleTriangleVertices
+    /* 0x2 */ s16 vertexIndex1;
+    /* 0x4 */ s16 vertexIndex2;
     /* 0x6 */ u8 pad6[6];
     /* 0xC */ u8 unkC;
     /* 0xD */ u8 padD;
@@ -97,14 +97,14 @@ typedef struct {
     /* 0x1A */ u8 pad1A[0x42];
     /* 0x5C */ s16 unk5C;
     /* 0x5E */ s16 unk5E;
-    /* 0x60 */ s16 unk60;
-    /* 0x62 */ u16 unk62;
-    /* 0x64 */ s16 unk64;
-    /* 0x66 */ s16 unk66;
-    /* 0x68 */ s16 unk68;
-    /* 0x6A */ s16 unk6A;
-    /* 0x6C */ s16 unk6C;
-    /* 0x6E */ s16 unk6E;
+    /* 0x60 */ s16 count; // steps the interpolation runs, capped at 7
+    /* 0x62 */ u16 divisor; // count the start-to-end distance is divided into per step
+    /* 0x64 */ s16 startX; // start of the interpolation, 8-bit coordinate << 6
+    /* 0x66 */ s16 startY;
+    /* 0x68 */ s16 startZ;
+    /* 0x6A */ s16 deltaX; // per-step change from start towards the end position
+    /* 0x6C */ s16 deltaY;
+    /* 0x6E */ s16 deltaZ;
 } BattleMisc22Cmd; // Size: 0x70
 
 extern BattleMisc22SVec *g_BattleTriangleVertices; // vertex table the battle scene sets up
@@ -135,12 +135,12 @@ s32 BattleAllocSpriteSlot(BattleMisc22Unk *pArg, s16 arg1) {
     i = pArg->curIndex;
     if (i < pArg->capacity) {
         pSpr = &pArg->pSprites[i];
-        if (pSpr->unk16 == -1) {
+        if (pSpr->age == -1) {
             pArg->curIndex = i + 1;
             while (pArg->curIndex < pArg->capacity) {
                 BattleMisc22Spr *pNext = &pArg->pSprites[pArg->curIndex];
 
-                if (pNext->unk16 == -1) {
+                if (pNext->age == -1) {
                     break;
                 }
                 pArg->curIndex++;
@@ -159,7 +159,7 @@ s32 BattleEndSpriteSlotList(BattleMisc22Unk *pArg, BattleMisc22Spr *pEnd) {
     if (pArg->curIndex >= count) {
         pArg->curIndex = count;
     }
-    pEnd->unk16 = -1;
+    pEnd->age = -1;
     return count;
 }
 
@@ -173,10 +173,10 @@ void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step
 
     pSpr = pBuffer->pSprites;
     for (i = 0; i < pBuffer->capacity; i++, pSpr++) {
-        if (pSpr->unk16 == -1) {
+        if (pSpr->age == -1) {
             continue;
         }
-        if (pSpr->unk16 >= pSpr->unk1E) {
+        if (pSpr->age >= pSpr->lifetime) {
             BattleEndSpriteSlotList(pBuffer, pSpr);
             continue;
         }
@@ -185,7 +185,7 @@ void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step
         pSpr->polys[packet].g0 = pSpr->green >> 6;
         pSpr->polys[packet].b0 = pSpr->blue >> 6;
 
-        if (pSpr->unkE == 0) {
+        if (pSpr->is3D == 0) {
             setXY4(&pSpr->polys[packet], pSpr->x0, pSpr->y0, pSpr->x1, pSpr->y1, pSpr->x2, pSpr->y2,
                    pSpr->x3, pSpr->y3);
             addPrim(pOt, &pSpr->polys[packet]);
@@ -204,7 +204,7 @@ void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step
             addPrim(&pOt[otz], &pSpr->polys[packet]);
         }
 
-        pSpr->unk16 += step;
+        pSpr->age += step;
         pSpr->red -= pSpr->redDelta * step;
         pSpr->green -= pSpr->greenDelta * step;
         pSpr->blue -= pSpr->blueDelta * step;
@@ -213,7 +213,7 @@ void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A32D8);
 /* 74.17%, identical registers and exactly 428 bytes; the one difference is that
    gcc forwards the stored angle into the dividend instead of reloading the
-   field (original: sh 0x64 ... lh 0x64, div). Making unk64/66/68 volatile
+   field (original: sh 0x64 ... lh 0x64, div). Making startX/startY/startZ volatile
    forces the reload but costs a lhu + sll/sra pair: 86.36%, 452 bytes.
 s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 count,
                   u16 divisor, u8 a, u8 b, u8 c, u8 d, u8 e, u8 f,
@@ -232,17 +232,17 @@ s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 cou
         pCmd->unk18 = w5;
         pCmd->unk5C = 0;
         if (count < 7) {
-            pCmd->unk60 = count;
+            pCmd->count = count;
         } else {
-            pCmd->unk60 = 7;
+            pCmd->count = 7;
         }
-        pCmd->unk64 = a * 64;
-        pCmd->unk6A = (pCmd->unk64 - d * 64) / (s16)divisor;
-        pCmd->unk66 = b * 64;
-        pCmd->unk6C = (pCmd->unk66 - e * 64) / (s16)divisor;
-        pCmd->unk68 = c * 64;
-        pCmd->unk6E = (pCmd->unk68 - f * 64) / (s16)divisor;
-        pCmd->unk62 = divisor;
+        pCmd->startX = a * 64;
+        pCmd->deltaX = (pCmd->startX - d * 64) / (s16)divisor;
+        pCmd->startY = b * 64;
+        pCmd->deltaY = (pCmd->startY - e * 64) / (s16)divisor;
+        pCmd->startZ = c * 64;
+        pCmd->deltaZ = (pCmd->startZ - f * 64) / (s16)divisor;
+        pCmd->divisor = divisor;
         pCmd->unk8 = 0;
         return 0;
     }
@@ -287,9 +287,9 @@ s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
 void BattleFreeImageEntry(BattleMisc22Image *pArg) {
-    if (pArg->unk1A != 0) {
+    if (pArg->isLoaded != 0) {
         if (pArg->unk4 != 0) {
-            if (pArg->unk10 < 4) {
+            if (pArg->mode < 4) {
                 LoadImage(&pArg->rect28, pArg->unk4);
             }
             HeapFree(pArg->unk4);
@@ -303,7 +303,7 @@ void BattleFreeImageEntry(BattleMisc22Image *pArg) {
             HeapFree(pArg->unkC);
             pArg->unkC = 0;
         }
-        pArg->unk1A = 0;
+        pArg->isLoaded = 0;
     }
 }
 void BattleScaleImageRegion(BattleMisc22Image *pArg, s16 scale) {
@@ -313,7 +313,7 @@ void BattleScaleImageRegion(BattleMisc22Image *pArg, s16 scale) {
 
     for (i = 0; i < pArg->rect28.h; i++) {
         for (j = 0; j < pArg->rect28.w; j++) {
-            s16 *pRow = pArg->unk1C[pArg->rect28.y + i].pixels;
+            s16 *pRow = pArg->pRows[pArg->rect28.y + i].pixels;
 
             pRow[pArg->rect28.x + j] = *pSrc * scale / 32;
             pSrc++;
@@ -328,7 +328,7 @@ void BattleBlendImageRegion(BattleMisc22Image *pArg, s16 scale) {
 
     for (i = 0; i < pArg->rect28.h; i++) {
         for (j = 0; j < pArg->rect28.w; j++) {
-            s16 *pRow = pArg->unk1C[pArg->rect28.y + i].pixels;
+            s16 *pRow = pArg->pRows[pArg->rect28.y + i].pixels;
 
             pRow[pArg->rect28.x + j] = *pSrc2 + (*pSrc1 - *pSrc2) * scale / 32;
             pSrc1++;
@@ -343,7 +343,7 @@ typedef struct {
     /* 0x00 */ u16 x;
     /* 0x02 */ u16 y;
     /* 0x04 */ u16 z;
-    /* 0x06 */ s16 unk6;
+    /* 0x06 */ s16 inUse; // zero = the part is not laid out from a joint this frame
     /* 0x08 */ SVECTOR sourcePos;
     /* 0x10 */ s16 actorIndex;
     /* 0x12 */ s16 jointIndex;
@@ -365,7 +365,7 @@ void BattleTransformPartPositions(BattleActor **pArg) {
     pX = pZ - 2;
     k = 0;
     do {
-        if (g_BattlePartSlots[k].unk6 != 0) {
+        if (g_BattlePartSlots[k].inUse != 0) {
             s16 index = g_BattlePartSlots[k].actorIndex;
             BattleActor *pActor;
 
@@ -422,11 +422,14 @@ void BattleFreeSceneResources(void) {
     }
 }
 typedef struct {
-    /* 0x00 */ u8 unk00[0xA];
+    /* 0x00 */ u8 unk00[0x7];
+    /* 0x07 */ u8 unk7; // nonzero = the part is drawn
+    /* 0x08 */ u16 jointIndex; // indexes the mesh's pParts; 0xFFFF = no part
     /* 0x0A */ u16 count;
     /* 0x0C */ MATRIX localTransform;
     /* 0x2C */ MATRIX globalTransform;
-    /* 0x4C */ u8 unk4C[0x8];
+    /* 0x4C */ u8 unk4C[0x6];
+    /* 0x52 */ s16 state; // selects how the part is drawn and which packet path it takes
     /* 0x54 */ s16 rot[3];
     /* 0x5A */ u16 pad5A;
     /* 0x5C */ s32 pos[3];
@@ -479,16 +482,16 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
     numChildren = pSkeleton->count - 1;
     pSkeleton++;
     for (i = 0; i < numChildren; i++, pSkeleton++) {
-        if (*(u16 *)(pSkeleton->unk00 + 8) != 0xFFFF && pSkeleton->unk00[7] != 0) {
+        if (pSkeleton->jointIndex != 0xFFFF && pSkeleton->unk7 != 0) {
             CompMatrix(pMatrix, &pSkeleton->globalTransform, pMat);
-            if ((u16)(*(u16 *)(pSkeleton->unk4C + 6) + 0xFFFF) < 2) {
+            if ((u16)(pSkeleton->state + 0xFFFF) < 2) {
                 pMat->m[0][0] = 0x1000;
                 pMat->m[0][2] = 0;
                 pMat->m[1][0] = 0;
                 pMat->m[1][2] = 0;
                 pMat->m[2][0] = 0;
                 pMat->m[2][2] = 0x1000;
-                if (*(s16 *)(pSkeleton->unk4C + 6) == 1) {
+                if (pSkeleton->state == 1) {
                     pMat->m[0][1] = pMatrix->m[0][1];
                     pMat->m[1][1] = pMatrix->m[1][1];
                     pMat->m[2][1] = pMatrix->m[2][1];
@@ -500,7 +503,7 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
             }
             SetRotMatrix(pMat);
             SetTransMatrix(pMat);
-            switch (*(s16 *)(pSkeleton->unk4C + 6)) {
+            switch (pSkeleton->state) {
             case 4:
                 flags = 2;
                 break;
@@ -517,15 +520,15 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
                 flags = 0;
                 break;
             }
-            if (*(s16 *)(pSkeleton->unk4C + 6) == 0) {
-                void *pPart = pMesh->pParts[*(u16 *)(pSkeleton->unk00 + 8)];
+            if (pSkeleton->state == 0) {
+                void *pPart = pMesh->pParts[pSkeleton->jointIndex];
 
                 g_GfxOTDepthShift = 0x10;
                 ModelRenderPacket(pPart, ((void **)&pSkeleton->p68)[packetIndex], pOt + otIndex - 1,
                                   flags);
             } else {
                 g_GfxOTDepthShift = oldShift;
-                ModelRenderPacket(pMesh->pParts[*(u16 *)(pSkeleton->unk00 + 8)],
+                ModelRenderPacket(pMesh->pParts[pSkeleton->jointIndex],
                                   ((void **)&pSkeleton->p68)[packetIndex], pOt, flags);
             }
         }
@@ -585,8 +588,9 @@ s32 BattleFindTriangleContainingPoint(s32 arg0) {
     if (g_BattleTriangleVertices != 0 && g_BattleTriangles != 0) {
         for (i = 0; i < g_BattleTriangleCount; i++) {
             pEntry = &g_BattleTriangles[i];
-            if (BattleTestPointInTriangle(&g_BattleTriangleVertices[pEntry->unk0], &g_BattleTriangleVertices[pEntry->unk2],
-                              &g_BattleTriangleVertices[pEntry->unk4], arg0) == -1) {
+            if (BattleTestPointInTriangle(&g_BattleTriangleVertices[pEntry->vertexIndex0],
+                                          &g_BattleTriangleVertices[pEntry->vertexIndex1],
+                                          &g_BattleTriangleVertices[pEntry->vertexIndex2], arg0) == -1) {
                 return i;
             }
         }
@@ -601,7 +605,8 @@ s32 BattleProjectPointOntoIndexedTriangle(s32 arg0, s32 index, s32 arg2) {
         return -1;
     }
     pEntry = &g_BattleTriangles[index];
-    BattleProjectPointOntoTriangle(&g_BattleTriangleVertices[pEntry->unk0], &g_BattleTriangleVertices[pEntry->unk2],
-                  &g_BattleTriangleVertices[pEntry->unk4], arg0, arg2);
+    BattleProjectPointOntoTriangle(&g_BattleTriangleVertices[pEntry->vertexIndex0],
+                                   &g_BattleTriangleVertices[pEntry->vertexIndex1],
+                                   &g_BattleTriangleVertices[pEntry->vertexIndex2], arg0, arg2);
     return g_BattleTriangles[index].unkC;
 }
