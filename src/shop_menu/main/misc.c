@@ -3804,7 +3804,7 @@ INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D05BC);
 // The residual 8 bytes at 98.35%: cc1 makes a SECOND pseudo of &rect for the digit loop's giv base
 // (&rect + 0x10, read as 0x28(a1) off it) and spills it to 120($sp), where retail keeps &rect in
 // $fp and emits addiu a1, $fp, 0x10. Same allocno tie as gear_shop_menu/main/render.c
-// func_801D18F8 (parked 98.73% there), whose note lists the pointer-local shapes already tried.
+// GearShopMenuRenderSellItemRows (parked 98.73% there), whose note lists the pointer-local shapes already tried.
 // Preset screened: 2.7.2-cdk 88.58 (the unit's 2.6.0 is best).
 /*
 void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {

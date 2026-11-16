@@ -1061,7 +1061,7 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
     return var_s6;
 }
 
-void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
+void GearShopMenuRenderSellItemRows(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
     u8 digitGlyphs[0xE]; // sp28: the five glyph codes of the quantity
     u8 decodedGlyphs[0xE]; // sp38
@@ -1249,7 +1249,7 @@ void GearShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQ
         GearShopMenuUpdateAndRender();
 
         if(scrollOffset != newScrollOffset || redrawTransactionSummary) {
-            func_801D18F8(scrollOffset, pItemIds, pItemTypes, pItemSellQtys, pItemQtys);
+            GearShopMenuRenderSellItemRows(scrollOffset, pItemIds, pItemTypes, pItemSellQtys, pItemQtys);
             GearShopMenuUpdateScrollBarHandle(0xC, 0x32, 0x3C, itemCount, scrollOffset);
         }
 

@@ -163,3 +163,4 @@ ShopMenuInitializeSubmenu = 0x801CC278;
 ShopMenuUpdateSubmenuTextures = 0x801CC720;
 GearShopMenuNoOp = 0x801CC520;
 GearShopMenuNoOp2 = 0x801CC528;
+GearShopMenuRenderSellItemRows = 0x801D18F8;
