@@ -432,11 +432,10 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     pEnd[-11] = glyphOffset;
 
     pEnd = pScan;
-    pEnd = pEnd + 10;
 
     if ((glyphOffset & 0xFFF0) == glyphOffset) {
         for (;;) {
-            if (pScan == pEnd) {
+            if (pScan == pEnd + 10) {
                 goto scanDone;
             }
             pScan++;
