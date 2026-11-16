@@ -640,64 +640,52 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
     }
 }
 // Triage r111: as stored here it is 98.20% (612 bytes = retail's size). The addiu-on-offset shape does work: with "s32 off; off = (i * 2 + pWindow->renderContext) * 0x28 + K; MenuSetPrimShadingMode((POLY_FT4*)(off + (u32)pWindow), mode);" in each of the five K != 0 loops, the final block in its own braced { s32 off; ... } with (u_char)mode, and loop 1 as "(...) * 0x28 + (u32)pWindow" (base last), it reaches 99.51%. Residual: the last call re-truncates mode (retail andi a1,s1,0xFF, gcc proves 2..3 and emits move a1,s1) and retail loads pWindow into v1 there where gcc picks a2. Permuter 3 min from the 99.51% body: no gain (base=215 best=215).
-/* Best: 85.90% and the instruction stream is IDENTICAL modulo two allocator
-   swaps: retail has arg0 in s2 / (arg0&0xFF)*4 in s3 / pWindow in a2, mine the
-   mirror. Same 536 bytes, same insns. The address grouping that retail uses is
-   "addiu a0,a0,off" on the multiply result then "addu a0,a0,a2": that needs the
-   offset in a named local (offset + (u32)pWindow), the inline form folds to
-   (pWindow + off) + x. `s32 mode` (not u8) is required for the per-call
-   `andi a1,s1,0xFF`.
-/* Best: 95.69% under gcc-2.6.0. Seventh (offset 0x0) loop was missing from
-   the previous attempt; the instruction multiset is now identical to retail's
-   and only the register allocation of the two operands of the final address add
-   differs. Retail: window pointer lands in a2 and the (i*2 + renderContext)*0x28
-   chain in a0, so the call delay slot is 'addu a0,a0,a2'; gcc gives the window
-   a0 (3 refs beats the chain temps' 2 in local-alloc's qty order) and the chain
-   v0, so mine is 'addu a0,v0,a0'. Also mine drops the final call's
-   'andi a1,s1,0xFF' (gcc proves mode is 2 or 3 there) where retail keeps it.
-   Tried: offset local + offset+pWindow, inline (chain + K + pWindow), and
-   pWindow + chain operand order; all 95.69. Pure allocator tie -> parked.
-   Round 112: porting the r111 one-expression recipe (off = chain + K; then
-   off + (u32)pWindow) reproduces retail's addiu-on-chain and every loop
-   preheader, but the chain's own multiply lands in v0/v1 where retail keeps it
-   in a0, so it scores 97.06 here, not 99.51; routing the chain through a
-   POLY_FT4* local assigned twice (chain, then + pWindow) is 97.06 as well.
-   Residuals at 97.06: that chain register, the final block's window pointer
-   (retail v1 / gcc a2) and the final call's andi a1,s1,0xFF (gcc folds it to
-   move a1,s1 even with a (u_char) cast in a braced block).
-void func_801E8F60(u8 arg0, u8 arg1) {
-    MenuWindow* pWindow;
-    s32 mode;
-    s32 i;
+// Round 121: the call sites are the MenuWindow poly arrays (polysWindowBorderCorners[8] at 0x0,
+// polysWindowBorderTop/Bottom/Left/Right[4], polysScrollBarEnds[4] at 0x410, polysScrollBarEmpty[2]),
+// indexed [i * 2 + pWindow->renderContext]; that form gives retail's "addiu a0,a0,K" on the index
+// chain and 612 bytes. 99.08%: every call's final add is mirrored ("addu a0,a2,a0" vs retail's
+// "addu a0,a0,a2"), the last block loads the window into a2 where retail uses v1, and the last call
+// emits "move a1,s1" where retail keeps "andi a1,s1,0xFF".
+// Round 121: the call sites are the MenuWindow poly arrays (polysWindowBorderCorners at 0x0,
+// polysWindowBorderTop/Bottom/Left/Right at 0x140/0x1E0/0x280/0x320, polysScrollBarEnds at 0x410,
+// polysScrollBarEmpty at 0x3C0) indexed [i * 2 + pWindow->renderContext]: that reproduces retail's
+// "addiu a0,a0,K" on the index chain and lands on 612 bytes, retail's exact size.
+/* Best: 99.61% (612 bytes). ONE instruction is left: the final call passes mode as "move a1,s1"
+   where retail keeps "andi a1,s1,0xFF" (same value, since mode is only 2 or 3). Every other
+   instruction, register and delay slot is retail's.
+   What got here from 96.65: write each call as
+   "&g_Menu->windows[arg0]->polyX[i * 2 + g_Menu->windows[arg0]->renderContext]". A per-loop
+   "pWindow = g_Menu->windows[arg0]" local instead gives retail's chain in a0 and the addiu on the
+   chain but the final add mirrored ("addu a0,a2,a0" vs retail's "addu a0,a0,a2"); the
+   int-local/inline spellings ("off + (u32)pWindow", "chain + K + (u32)pWindow") fix that add order
+   but then fold K onto the window ("addiu v0,a2,0xK") - 96.70-99.02.
+   Tried for the andi: (u_char)mode cast, "mode & 0xFF", an empty do/while before it, dropping the
+   pWindow local entirely, and 2 permuter runs from this body (no gain, base=200 best=200).
+   void func_801E8F60(u8 arg0, u8 arg1) {
+       s32 mode;
+       s32 i;
 
-    mode = arg1 ? 3 : 2;
-    for (i = 0; i < 4; i++) {
-        pWindow = g_Menu->windows[arg0];
-        MenuSetPrimShadingMode((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28), mode);
-    }
-    for (i = 0; i < 4; i++) {
-        pWindow = g_Menu->windows[arg0];
-        MenuSetPrimShadingMode((POLY_FT4*)((u32)pWindow + (i * 2 + pWindow->renderContext) * 0x28 + 0x140), mode);
-    }
-    for (i = 0; i < 4; i++) {
-        pWindow = g_Menu->windows[arg0];
-        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x1E0 + (u32)pWindow), mode);
-    }
-    for (i = 0; i < 4; i++) {
-        pWindow = g_Menu->windows[arg0];
-        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x280 + (u32)pWindow), mode);
-    }
-    for (i = 0; i < 4; i++) {
-        pWindow = g_Menu->windows[arg0];
-        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x320 + (u32)pWindow), mode);
-    }
-    for (i = 0; i < 2; i++) {
-        pWindow = g_Menu->windows[arg0];
-        MenuSetPrimShadingMode((POLY_FT4*)((i * 2 + pWindow->renderContext) * 0x28 + 0x410 + (u32)pWindow), mode);
-    }
-    pWindow = g_Menu->windows[arg0];
-    MenuSetPrimShadingMode((POLY_FT4*)(pWindow->renderContext * 0x28 + 0x3C0 + (u32)pWindow), mode);
-}
+       mode = arg1 ? 3 : 2;
+       for (i = 0; i < 4; i++) {
+           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderCorners[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+       }
+       for (i = 0; i < 4; i++) {
+           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderTop[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+       }
+       for (i = 0; i < 4; i++) {
+           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderBottom[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+       }
+       for (i = 0; i < 4; i++) {
+           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderLeft[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+       }
+       for (i = 0; i < 4; i++) {
+           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderRight[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+       }
+       for (i = 0; i < 2; i++) {
+           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysScrollBarEnds[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
+       }
+       MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysScrollBarEmpty[g_Menu->windows[arg0]->renderContext], mode);
+   }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
 void MenuSetPolySemiTransGrey(P_TAG* pTag) {
