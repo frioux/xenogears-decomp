@@ -104,7 +104,7 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
         if (buf[idx] == 0) {
             if (func_8007A628(idx, (*arg0)[2]) != 0
                 && g_BattleSlotRecords[(arg1 + 3) * 0x1C] != g_BattleSlotRecords[idx * 0x1C]
-                && g_BattleSlotFlags[idx * 8] == 0) {
+                && g_BattleSlotFlags[idx].inUse == 0) {
                 u16 result = BattleSlotBitMask(idx);
                 s32 index = (*arg0)[1];
                 u16 *pTail = (u16 *)(D_800D3420 + row);
@@ -142,7 +142,7 @@ void func_8007C33C(u8 **arg0, u8 arg1) {
         u8 idx = i;
 
         if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotRecords[slot] != g_BattleSlotRecords[record]
-            && g_BattleSlotFlags[i * 8] == 0) {
+            && g_BattleSlotFlags[i].inUse == 0) {
             buf[count++] = idx;
         }
     }
@@ -247,7 +247,7 @@ void func_8007C840(u8 **arg0, u8 arg1) {
         u8 idx = slot;
 
         if (buf[idx] == 0) {
-            if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx * 8] != 0
+            if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0
                 && g_BattleSlotRecords[(arg1 + 3) * 0x1C] == g_BattleSlotRecords[idx * 0x1C]) {
                 u16 result = BattleSlotBitMask(idx);
                 s32 index = (*arg0)[1];
@@ -263,15 +263,19 @@ void func_8007C840(u8 **arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
-/* best: 91.53% (340 bytes vs retail 336). Everything matches except two
-   allocation details: (1) gcc computes the row base straight into s4
-   (`addu s4,a1,v1`) where retail forms it in a caller-saved temp and copies it
-   into s4 at the loop preheader (`addu a1,a1,v1` / `move s4,a1`); (2) gcc hoists
-   `&g_BattleSlotFlags` into s5 (frame 0x38 vs 0x30) where retail re-forms it per use
-   as lui at/%hi + addu at,at,v0 + lbu %lo(at).
-   Tried: inline ((u16 *)(D_800D3420 + arg1 * 0x40))[(*arg0)[1]] for both stores
-   (92.07%, 344 bytes: two copies of the base), for the zeroing store only
-   (92.07%/344), and the plain u8 *pRow + pRow[i] form (this one).
+/* best: 98.55% (328 bytes vs retail 336). IMPORTANT: the previous note here
+   claimed 91.53% for a body that NEVER COMPILED - it read `g_BattleSlotFlags[idx * 8]
+   != 0` on a BattleSlotFlag[] (a struct array), so cc1 exited 33 and the diff
+   silently used a stale object. With `g_BattleSlotFlags[idx].inUse != 0` the same
+   body is 98.55% at 328 bytes: every instruction matches except the row base,
+   which retail forms in a caller-saved temp for the zeroing store and copies into
+   the loop register afterwards (`addu a1,a1,v1` ... `move s4,a1`) while gcc homes
+   it straight in s4 (`addu s4,a1,v1`). Everything else, including the at-form
+   `lui at,%hi(g_BattleSlotFlags)` load, is already retail's.
+   Next lever to try: anything that makes the base a separate pseudo for the
+   preheader (the same `addu`+`move` pair as the param-live-copy trick), then a
+   permuter run. Older note (unverified, from a body that did not build):
+   gcc forms the row base straight into s4 and hoists &g_BattleSlotFlags.
 
 void func_8007C9D4(u8 **arg0, u8 arg1) {
     u8 buf[3];
@@ -279,20 +283,18 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
 
     buf[0] = buf[1] = buf[2] = 0;
     pRow[(*arg0)[1]] = 0;
-    do {
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
 
         if (buf[idx] == 0) {
-            if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx * 8] != 0) {
+            if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0) {
                 pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
         }
     }
-    } while (0);
 }
 */
 void BattlePickSlotByFlagTable(BattleSlotArgs **ppArgs, u8 row) {
@@ -417,14 +419,15 @@ void BattleStoreActorSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     D_800D3410[row].unk20[(*ppArgs)->slot] = count;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
-/* best: 85.97% (identical instruction multiset, 4 insns of ordering). Retail
-   forms the D_800D3430 base in a1, then orders
-   [sll][lui/addiu][lw *arg0][addu base][lbu idx][move i=0][addu][sb];
-   gcc emits [move i=0][sll][lw *arg0][lui/addiu][lbu][addu base][addu][sb] -
-   i.e. the scheduler hoists `i = 0` to the very top and interleaves the two
-   address chains the other way round. Tried: i = 0 between store and loop,
-   the inline *(D_800D3430 + arg1*0x40 + (*arg0)[1]) spelling (folds into $at,
-   frame 8), index local. This is the scheduler-priority tie class.
+/* best: 85.97% (identical instruction multiset, 124 bytes = retail's size).
+   Retail orders the block [sll a1][lui/addiu D_800D3430][lw *arg0][addu base a1]
+   [lbu idx][move a3,zero][addu addr][sb]; gcc hoists `i = 0` to the very top and
+   interleaves the two address chains the other way round. Tried: i = 0 between
+   the store and the loop, the inline *(D_800D3430 + arg1*0x40 + (*arg0)[1]) form
+   (folds into $at, frame 8), an index local. permute.sh ran once from this body
+   (1414 iterations): its best candidate (45 vs 480) reassigns pRow = *arg0 in the
+   loop, which changes what the tail store writes - wrong code, not portable.
+   This is a scheduler-priority tie.
 
 void func_8007D0CC(u8 **arg0, u8 arg1) {
     u8 *pRow = D_800D3430 + arg1 * 0x40;
