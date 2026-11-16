@@ -19,8 +19,63 @@ extern int func_801C8D78(u_char);
 extern void MenuRenderFrame(void);
 extern u_char MenuLoadWindow2Text(u_char, u_char, u_char);
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
+extern s32 D_801EA900[];
 
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u16 unk4;
+} MenuCardPrefix; // Size: 0x6
+
+extern MenuCardPrefix D_801C50A8;
+extern MenuCardPrefix D_801C50B0;
+
+/* Best attempt: 90.05% (380 bytes vs retail's 368). Every construct is right -- the
+   DIRENTRY do/while over firstfile/nextfile, the 6-byte prefix copy, the retry
+   counter -- but gcc hoists `&dir` into a callee-saved register across the loop
+   (an extra s-pair) where retail rematerialises `addiu v1,sp,0x10` at each of the
+   three uses, which also moves the parameter from s2 to s1.
+   Learned: `dir` must be declared BEFORE `prefix` (gcc 2.7.2 gives the earlier
+   declaration the lower stack slot: dir at sp+0x10, prefix at sp+0x38; the other
+   order costs a 0x58 frame with an extra s3 save). firstfile/nextfile are the
+   PSY-Q libapi calls and the compare is against &dir, not 0 -- `bne v0,v1` with
+   v1 = sp+0x10. The store at 0x4F8A is `unk4F84[6 + a0]` (a byte, not the s32
+   cursor at unk4F84[0] that func_801C90B0 uses).
+   Tried: prefix declared first (frame 0x58, an extra s3), both == operand orders,
+   returning u_char vs int (int, matching the file's extern). */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
+/*
+int func_801C8D78(u_char a0) {
+    struct DIRENTRY dir;
+    MenuCardPrefix prefix;
+    u_char count;
+    s32 retry;
+    s32 i;
+
+    retry = 5;
+    D_801EA900[a0] = 0;
+    for (i = 0; i < 0x10; i++) {
+        g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + i] = 0xFF;
+        D_801EA6D0[a0][i] = 0;
+    }
+    if (a0 == 0) {
+        memcpy(&prefix, &D_801C50A8, 6);
+    } else {
+        memcpy(&prefix, &D_801C50B0, 6);
+    }
+    if (--retry != 0) {
+        count = 0;
+        if (firstfile((char*)&prefix, &dir) == &dir) {
+            do {
+                strcpy(g_Menu->menuUnk2->records[a0 * 0x10 + count].ids, dir.name);
+                count++;
+            } while (nextfile(&dir) == &dir);
+        }
+        g_Menu->menuUnk2->unk4F84[6 + a0] = count;
+    }
+    return count;
+}
+*/
+
 
 void MenuRunCardSlotOperations(void) {
     switch (g_Menu->menuUnk2->unk4FE6) {
@@ -66,13 +121,6 @@ int MenuReadFileChunk(u8* pPath, u8* pBuffer) {
     return 0;
 }
 
-typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ u16 unk4;
-} MenuCardPrefix; // Size: 0x6
-
-extern MenuCardPrefix D_801C50A8;
-extern MenuCardPrefix D_801C50B0;
 extern void MenuWaitCardOperationFrames(u_char index);
 
 /* Best attempt: 99.11%. Instruction multiset identical, byte count equal (448);
