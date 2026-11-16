@@ -116,7 +116,6 @@ extern void func_800BD1FC(s32 slot);
 /*
 void func_800BD1FC(s32 slot) {
     u8 *pBase;
-    u8 *pRow;
     u8 *pHalf;
     u8 *pByte;
     s32 offset;
@@ -172,7 +171,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 // insn_count 30, no hoist, retail's prologue save order, and a body that differs
 // only in the two adds coming out i-then-base instead of base-then-i. No realistic
 // source shape found that adds 2 such insns, so this stays parked.
-/*
 void func_800BD2E4(void) {
     u8 *pSlot;
     u8 *pBase;
@@ -188,19 +186,22 @@ void func_800BD2E4(void) {
     pBase = pSlot;
     while (i != 0xB) {
         row = (D_800C360C - 1) * 0x48;
-        if (pBase[row + i + 0x150] == 7) {
+        if (*(u8 *)(row + (u32)pBase + i + 0x150) == 7) {
             flag = 1;
         }
         pEntry = (void **)(pSlot + 0x8C8C);
         pSprite = *pEntry;
         if (pSprite != NULL && (D_800C3E1C != pSprite || !flag)) {
-            func_800BD1FC(i);
+            if (flag) {
+                func_800BD1FC(i);
+            } else {
+                func_800BD1FC(i);
+            }
         }
         pSlot += 4;
         i++;
     }
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD2E4);
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
 // An entry of the work list g_BattleTaskUnlinkList heads (the onFreeCallback list): only the
 // next link is used by this unit.
