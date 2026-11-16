@@ -95,8 +95,7 @@ typedef struct WorldMapEntry {
     /* 0x20 */ MATRIX mat;
     /* 0x40 */ ModelPart *unk40;
     /* 0x44 */ WorldMapMesh *unk44;
-    /* 0x48 */ void *unk48;
-    /* 0x4C */ void *unk4C;
+    /* 0x48 */ void *unk48[2]; // prim packet buffers, one per frame; unk4C is unk48[1]
     /* 0x50 */ struct WorldMapEntry *unk50;
 } WorldMapEntry; // Size: 0x54
 
@@ -360,7 +359,7 @@ void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 ar
         pDst[7] |= 2;
         pDst += 0x20;
     }
-    memcpy(pEntry->unk4C, pEntry->unk48, count << 5);
+    memcpy(pEntry->unk48[1], pEntry->unk48[0], count << 5);
 }
 
 void WorldMapSetSpritePrimColor(u8 *pData, s32 count, s32 r, s32 g, s32 b) {
@@ -377,7 +376,7 @@ void WorldMapSetSpritePrimColor(u8 *pData, s32 count, s32 r, s32 g, s32 b) {
 s32 WorldMapSetupSpriteSetPrims(s32 arg0) {
     WorldMapEntry *pEntry = &D_8009C620[arg0 + 78];
 
-    WorldMapBuildSpritePrims(pEntry, pEntry->unk48, pEntry->unk40->polyCount, 3);
+    WorldMapBuildSpritePrims(pEntry, pEntry->unk48[0], pEntry->unk40->polyCount, 3);
     return 1;
 }
 s32 func_80083264(s32 arg0) {
@@ -429,7 +428,7 @@ s32 func_80083264(s32 arg0) {
         break;
     }
     WorldMapBuildActorModelMatrix(pActor, pEntry, (WorldMapModel *)PSX_SCRATCH);
-    WorldMapSetSpritePrimColor((&pEntry->unk48)[D_8009D7F0],
+    WorldMapSetSpritePrimColor(pEntry->unk48[D_8009D7F0],
                                pEntry->unk40->polyCount,
                                pActor->unk50, pActor->unk54, pActor->unk58);
     return 1;
@@ -717,9 +716,9 @@ void WorldMapInitSpriteSets(void) {
         RotMatrixYXZ(&D_8009C620[i].unk18, &D_8009C620[i].mat);
         pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[D_8009C620[i].unk2];
         D_8009C620[i].unk40 = pPart;
-        ModelAllocatePackets(pPart, &D_8009C620[i].unk48, &D_8009C620[i].unk4C);
-        ModelInitializePacket(D_8009C620[i].unk40, D_8009C620[i].unk48, 1);
-        memcpy(D_8009C620[i].unk4C, D_8009C620[i].unk48,
+        ModelAllocatePackets(pPart, &D_8009C620[i].unk48[0], &D_8009C620[i].unk48[1]);
+        ModelInitializePacket(D_8009C620[i].unk40, D_8009C620[i].unk48[0], 1);
+        memcpy(D_8009C620[i].unk48[1], D_8009C620[i].unk48[0],
                D_8009C620[i].unk40->unk20[1].modelPacketSize);
         pMesh = ((WorldMapMesh **)D_8009D308)[D_8009C620[i].unk2];
         D_8009C620[i].unk44 = pMesh;
@@ -736,7 +735,7 @@ void WorldMapFreeSpriteSets(void) {
     s32 i;
 
     for (i = 0; i < D_8009D7E0; i++) {
-        HeapFree(D_8009C620[i].unk48);
+        HeapFree(D_8009C620[i].unk48[0]);
         ModelPartFreeLightData(D_8009C620[i].unk40);
     }
     HeapFree(D_8009C620);
@@ -831,7 +830,7 @@ void func_800848F4(void) {
         if (*(s32 *)0x1F800028 >= 0xD80) {
             continue;
         }
-        ModelRenderPacket(D_8009C620[i].unk40, (&D_8009C620[i].unk48)[D_8009D7F0],
+        ModelRenderPacket(D_8009C620[i].unk40, D_8009C620[i].unk48[D_8009D7F0],
                           *(u_long **)(D_8009BE3C + 0x70), D_8009AD2C[D_8009C620[i].unk4]);
     }
 }
