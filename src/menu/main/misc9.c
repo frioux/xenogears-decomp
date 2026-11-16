@@ -48,6 +48,10 @@ void func_801DA9A8(s32 arg0, s32 arg1);
 void func_801DB39C(s32 arg0);
 void func_801DB5E4(s32 arg0);
 s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 characterId, u8 itemId);
+void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
+extern void* GetStringEntry(void* pStringData, u32 index);
+extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
 /* Best: 96.76, 1064 bytes (retail 1068). Structure matches retail everywhere
@@ -692,7 +696,86 @@ void MenuUpdateDressingRoomTotals(u_char arg0) {
     g_Menu->pDressingRoom->unkB8[4] = g_Menu->pDressingRoom->unkB3;
     g_Menu->pDressingRoom->unkB8[5] = g_Menu->pDressingRoom->unkB4;
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DFF5C);
+// Draws the three item name strings of one dressing room slot.
+void func_801DFF5C(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4, u_char arg5, u_char arg6) {
+    RECT rect;
+    void* pStrings;
+    u8* pBuf;
+    u16 itemId;
+    u_char slot;
+    s32 i;
+
+    itemId = D_801EA730[arg2 + arg1];
+    slot = 0;
+    if (arg5 != 0) {
+        itemId = 0xFF;
+    }
+    if (itemId != 0) {
+        if (arg3 == 0 && arg0 != 0) {
+            slot = 1;
+        }
+        slot += arg4 * 2;
+        switch (slot) {
+        case 0:
+            pStrings = ((void**)g_Menu->unk434->unkA00)[0];
+            if (arg5 != 0) {
+                if (arg3 == 0) {
+                    itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].unk6A[0];
+                } else {
+                    itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].unk6F[arg0];
+                }
+            }
+            break;
+        case 1:
+            pStrings = ((void**)g_Menu->unk434->unkA00)[1];
+            if (arg5 != 0) {
+                itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].unk74[arg0 - 1];
+            }
+            break;
+        case 2:
+            pStrings = ((void**)g_Menu->unk434->unkA00)[2];
+            if (arg5 != 0) {
+                if (arg3 == 0) {
+                    itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
+                        .weaponId[0];
+                } else {
+                    itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
+                        .unk4[arg0];
+                }
+            }
+            break;
+        case 3:
+            pStrings = ((void**)g_Menu->unk434->unkA00)[3];
+            if (arg5 != 0) {
+                itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
+                    .accessorySlots[arg0 - 1];
+            }
+            break;
+        }
+        if (itemId != 0) {
+            pBuf = HeapAlloc(0x3F6, 0);
+            bzero(pBuf, 0x3F6);
+            for (i = 0; i < 3; i++) {
+                g_Menu->unk434->unk880[i].width = SystemRenderStringEntry(GetStringEntry(pStrings, itemId * 3 + i),
+                    pBuf, 0x24, 0);
+                rect.x = 0x180 + ((i + 8) & 1) * 0x18;
+                rect.y = 0x80 + ((i + 8) / 2) * 0xD;
+                rect.w = 0x28;
+                rect.h = 0xD;
+                LoadImage(&rect, (u_long*)pBuf);
+                DrawSync(0);
+                func_801E7C50(&g_Menu->unk434->unk880[i], i + 8, 0x80, 0x81);
+                MenuSetQuadVertices(g_Menu->unk434->unk880[i].vertices, 0x10, i * 0x10 + 0x96,
+                    g_Menu->unk434->unk880[i].width, 0xD);
+                g_Menu->unk434->unk880[i].renderContext = g_Menu->renderContext;
+            }
+            g_Menu->unk434->unkA18[0] = 1;
+            HeapFree(pBuf);
+            return;
+        }
+    }
+    g_Menu->unk434->unkA18[0] = 0;
+}
 void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     u_char* pIds;
     u_char* pQuantities;
