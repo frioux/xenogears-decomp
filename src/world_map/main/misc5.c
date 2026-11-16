@@ -474,7 +474,7 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
     // pos stores stay untyped because the typed form lets gcc hoist the -0x40
     // pair above the g_WorldMapPlayerPosition load, which retail does not
     u8 *pWork = (u8 *)pLayer;
-    u32 *pScratch = (u32 *)0x1F800000;
+    u32 *pScratch = (u32 *)PSX_SCRATCH;
     // second layer's scale; retail keeps this field's address in a register,
     // which is what makes the player pointer land in $a2
     s32 *pScale2 = &pPlayer->unk54;
@@ -557,7 +557,7 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
     // 0x200/0x204/0x208 are layer 6's pos, 0x254/0x258/0x25C layer 7's; untyped
     // for the reason given in WorldMapUpdateGroup4And5Scale
     u8 *pWork = (u8 *)pLayer;
-    u32 *pScratch = (u32 *)0x1F800000;
+    u32 *pScratch = (u32 *)PSX_SCRATCH;
     // second layer's scale; retail keeps this field's address in a register,
     // which is what makes the player pointer land in $a2
     s32 *pScale2 = &pPlayer->unk54;
@@ -611,6 +611,9 @@ int WorldMapInitReturnThree(void) {
 }
 
 int WorldMapActivateSpriteGroup9Timed(int idx) {
+    // byte view of the player slot: through a typed WorldMapPlayer * gcc lifts the
+    // three position words above the stores and settles on $a3 for the slot
+    // (73.27%, 324 bytes) where retail interleaves load/store on $a2
     u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
     s16 timer;
     int nResult = 1;
@@ -1046,6 +1049,9 @@ int WorldMapInitGroup9Actor(int idx) {
     return 1;
 }
 int WorldMapUpdateGroup9Actor(int idx) {
+    // byte view of the player slot: with a typed pointer gcc reuses the actor's
+    // position words instead of reloading them, losing retail's two load-delay
+    // nops (62.97%, 276 bytes against retail's 280)
     u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
     WorldMapSceneLayer *pLayer = g_WorldMapGroups;
 
@@ -1090,6 +1096,7 @@ int WorldMapInitGroup10Actor(int idx) {
 }
 
 int WorldMapUpdateGroup10Actor(int idx) {
+    // byte view of the player slot, for the reason given in WorldMapUpdateGroup9Actor
     u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
     WorldMapSceneLayer *pLayer = g_WorldMapGroups;
 
