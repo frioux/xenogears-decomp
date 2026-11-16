@@ -1036,23 +1036,11 @@ extern s32 g_FieldActorModelSlotCount;
 extern u8 g_FieldBackgroundR;
 extern u8 g_FieldBackgroundG;
 extern u8 g_FieldBackgroundB;
-extern const char D_8006FB1C[];
+// .rodata: this function's stub owns D_8006FB1C, the unit's HDD frame profiler tag.
+const char D_8006FB1C[0xC] = "GEAR      ";
 
-// 100.00% exact (188 bytes) - the body below is the match, byte for byte. The
-// 91.00% in the old note came from a variant whose externs were invisible, so its
-// "&g_FieldActorModelSlotCount base wall" diagnosis was fiction: the `s32* pGear`
-// local *does* emit the original lui/addiu-then-lw for the base, and `pGear - 18`
-// (s32* arithmetic, -0x48 bytes) is the second argument.
-// What blocks the conversion is only the .rodata: D_8006FB1C ("GEAR      ") is the
-// 3rd of the unit nine strings, behind func_800739C0 (D_8006FB04) and
-// FieldRenderModels (D_8006FB10); C .rodata links before asm .rodata, so it can only
-// be converted as part of that in-order prefix. The const definition the object
-// needs is inside the block below.
-// screened: Default 100.00 - not a preset question.
-/*
-// .rodata
-// const char D_8006FB1C[0xC] = "GEAR      ";
-
+// The second argument is the s32* base of the global 0x48 bytes below
+// g_FieldActorModelSlotCount, which has no symbol of its own yet.
 void func_8007520C(void) {
     s32* pGear;
 
@@ -1069,8 +1057,6 @@ void func_8007520C(void) {
         }
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
 
 extern u_char g_FieldDisableActorRender;
 extern s32 g_FieldActiveActorCount;
