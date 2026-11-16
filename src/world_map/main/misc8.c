@@ -95,8 +95,7 @@ typedef struct WorldMapEntry {
     /* 0x20 */ MATRIX mat;
     /* 0x40 */ ModelPart *unk40;
     /* 0x44 */ WorldMapMesh *unk44;
-    /* 0x48 */ void *unk48;
-    /* 0x4C */ void *unk4C;
+    /* 0x48 */ void *pPackets[2]; // prim lists, [0] source and [1] destination; D_8009D7F0 picks one
     /* 0x50 */ struct WorldMapEntry *unk50;
 } WorldMapEntry; // Size: 0x54
 
@@ -360,10 +359,10 @@ void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 ar
         pDst[7] |= 2;
         pDst += 0x20;
     }
-    memcpy(pEntry->unk4C, pEntry->unk48, count << 5);
+    memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count << 5);
 }
 
-void WorldMapSetSpritePrimColor(u8 *pData, s32 count, u8 r, u8 g, s32 b) {
+void WorldMapSetSpritePrimColor(u8 *pData, s32 count, s32 r, s32 g, s32 b) {
     s32 i;
 
     for (i = count - 1; i != -1; i--) {
@@ -377,30 +376,13 @@ void WorldMapSetSpritePrimColor(u8 *pData, s32 count, u8 r, u8 g, s32 b) {
 s32 WorldMapSetupSpriteSetPrims(s32 arg0) {
     WorldMapEntry *pEntry = &D_8009C620[arg0 + 78];
 
-    WorldMapBuildSpritePrims(pEntry, pEntry->unk48, pEntry->unk40->polyCount, 3);
+    WorldMapBuildSpritePrims(pEntry, pEntry->pPackets[0], pEntry->unk40->polyCount, 3);
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083264);
-// Best: 84.26% (620 bytes vs 616). The switch, the jump table (5 entries, so
-// case 0 must be an explicit empty case or gcc picks compares instead), the
-// head (row = arg0 - 3, pEntry = &D_8009C620[row + 81], both when the `row`
-// declaration comes FIRST), the three case bodies and the tail call are all
-// instruction-identical; the cases read a 14-s16 (0x1C byte) row of
-// D_8009AABC/D_8009AB48/D_8009ABD4, three values into pEntry->unk8/unkC/unk10
-// and the remaining eleven sign-extended into the actor's unk50..unk78.
-// What is left is scheduling inside each case: retail computes 7*row AFTER
-// `sh v0,0x20(s0)` and materialises the table base (lui/addiu) after the third
-// read, gcc hoists both above the stores; and the tail loads pActor->unk50/54
-// as full words where gcc narrows them to lbu because WorldMapSetSpritePrimColor
-// takes u8 r/g. Loop shape that works: `*pSlots++ = pTable[row * 14 + i]` with
-// pSlots = &pActor->unk50 as the first statement of the case (an indexed
-// pSlots[i - 3] makes gcc rebase the store pointer to 0x5C/-12).
-/*
 s32 func_80083264(s32 arg0) {
     s32 row = arg0 - 3;
     WorldMapActor *pActor = &D_8009BE24[arg0];
     WorldMapEntry *pEntry = &D_8009C620[row + 81];
-    s16 *pTable;
     s32 *pSlots;
     s32 i;
 
@@ -414,9 +396,8 @@ s32 func_80083264(s32 arg0) {
         pEntry->unk8 = D_8009AABC[row * 14];
         pEntry->unkC = D_8009AABC[row * 14 + 1];
         pEntry->unk10 = D_8009AABC[row * 14 + 2];
-        pTable = D_8009AABC;
         for (i = 3; i < 0xE; i++) {
-            *pSlots++ = pTable[row * 14 + i];
+            *pSlots++ = D_8009AABC[row * 14 + i];
         }
         break;
     case 2:
@@ -426,9 +407,8 @@ s32 func_80083264(s32 arg0) {
         pEntry->unk8 = D_8009AB48[row * 14];
         pEntry->unkC = D_8009AB48[row * 14 + 1];
         pEntry->unk10 = D_8009AB48[row * 14 + 2];
-        pTable = D_8009AB48;
         for (i = 3; i < 0xE; i++) {
-            *pSlots++ = pTable[row * 14 + i];
+            *pSlots++ = D_8009AB48[row * 14 + i];
         }
         break;
     case 3:
@@ -442,19 +422,17 @@ s32 func_80083264(s32 arg0) {
         pEntry->unk8 = D_8009ABD4[row * 14];
         pEntry->unkC = D_8009ABD4[row * 14 + 1];
         pEntry->unk10 = D_8009ABD4[row * 14 + 2];
-        pTable = D_8009ABD4;
         for (i = 3; i < 0xE; i++) {
-            *pSlots++ = pTable[row * 14 + i];
+            *pSlots++ = D_8009ABD4[row * 14 + i];
         }
         break;
     }
-    WorldMapBuildActorModelMatrix(pActor, pEntry, (WorldMapModel *)0x1F800000);
-    WorldMapSetSpritePrimColor(*(u8 **)((u8 *)pEntry + D_8009D7F0 * 4 + 0x48),
+    WorldMapBuildActorModelMatrix(pActor, pEntry, (WorldMapModel *)PSX_SCRATCH);
+    WorldMapSetSpritePrimColor(pEntry->pPackets[D_8009D7F0],
                                pEntry->unk40->polyCount,
                                pActor->unk50, pActor->unk54, pActor->unk58);
     return 1;
 }
-*/
 
 s32 WorldMapReturnSuccess(void) {
     return 1;
@@ -738,9 +716,9 @@ void WorldMapInitSpriteSets(void) {
         RotMatrixYXZ(&D_8009C620[i].unk18, &D_8009C620[i].mat);
         pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[D_8009C620[i].unk2];
         D_8009C620[i].unk40 = pPart;
-        ModelAllocatePackets(pPart, &D_8009C620[i].unk48, &D_8009C620[i].unk4C);
-        ModelInitializePacket(D_8009C620[i].unk40, D_8009C620[i].unk48, 1);
-        memcpy(D_8009C620[i].unk4C, D_8009C620[i].unk48,
+        ModelAllocatePackets(pPart, &D_8009C620[i].pPackets[0], &D_8009C620[i].pPackets[1]);
+        ModelInitializePacket(D_8009C620[i].unk40, D_8009C620[i].pPackets[0], 1);
+        memcpy(D_8009C620[i].pPackets[1], D_8009C620[i].pPackets[0],
                D_8009C620[i].unk40->unk20[1].modelPacketSize);
         pMesh = ((WorldMapMesh **)D_8009D308)[D_8009C620[i].unk2];
         D_8009C620[i].unk44 = pMesh;
@@ -757,7 +735,7 @@ void WorldMapFreeSpriteSets(void) {
     s32 i;
 
     for (i = 0; i < D_8009D7E0; i++) {
-        HeapFree(D_8009C620[i].unk48);
+        HeapFree(D_8009C620[i].pPackets[0]);
         ModelPartFreeLightData(D_8009C620[i].unk40);
     }
     HeapFree(D_8009C620);
@@ -852,7 +830,7 @@ void func_800848F4(void) {
         if (*(s32 *)0x1F800028 >= 0xD80) {
             continue;
         }
-        ModelRenderPacket(D_8009C620[i].unk40, (&D_8009C620[i].unk48)[D_8009D7F0],
+        ModelRenderPacket(D_8009C620[i].unk40, D_8009C620[i].pPackets[D_8009D7F0],
                           *(u_long **)(D_8009BE3C + 0x70), D_8009AD2C[D_8009C620[i].unk4]);
     }
 }
