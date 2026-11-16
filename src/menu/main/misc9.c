@@ -586,6 +586,191 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
+/* Best: 77.65%, 1264 bytes (retail 1236). Every block below is
+   instruction-identical to retail except for register allocation, and these
+   are the remaining deltas, all measured this round:
+   1. FRAME: retail `.frame $sp,40` (vars=40, no stack traffic at all), this
+      body gives vars=24. Four more locals that never get a register are
+      needed. Related: retail opens with `addu a0,a1,zero` (arg1 moved into
+      a0 and masked at each use) and keeps arg0 in t0; here arg1 stays in a1.
+      Both are the same global-allocation decision. Try adding the extra
+      candidates (a per-branch pCharacter/pGear pointer, a pPanel pointer, a
+      separate u_char for the clamped value) until vars hits 40.
+   2. ARG3 SELECT LAYOUT: retail emits `t2 = gearWeaponsIds` inline, then
+      `bnez arg3, join`, then `t2 = weaponIDs` in the branch (default +
+      override). Writing the pIds/pQuantities pair as if/else gets the
+      computation right (single `addiu t3,t2,-100` after the join, which is
+      correct because both inventory pairs are 0x64 apart) but gcc inlines
+      the weaponIDs arm and branches with beqz instead. Default+override for
+      BOTH pointers makes gcc pre-compute `gearWeaponsIds-0x900` (weaponIDs)
+      out of line instead, which is worse.
+   3. P4/P6 ANCHOR: retail anchors the accessory blocks on %hi(g_GameState
+      + 0x2DF) (t2 = v0+0x1BE9, t3 = v0+0x1B21, and %lo(g_GameState+0x2DF)
+      ($at) for the slot load); this body anchors on accessoryIDs and reaches
+      the slot with `lbu -5448(reg)`. Retail materialises the slot address
+      first, so try putting the slotItem statement before the
+      pIds/pQuantities/count statements in those two blocks.
+   4. `if (updated == 0) return result;` costs one extra `j`: retail emits
+      `beqz v0,<return>` (return block out of line), here gcc inverts to
+      `bnez v0,<scan>` + `j <return>`.
+   5. Panel address: retail has base-first `addu v0,v0,a0`; every spelling
+      tried here gives index-first `addu a0,a0,v0`. The embedded-assignment
+      lever (a pointer local assigned `(u8*)g_Menu->unk360 + arg1`, used once
+      with [0x2A1]) was tried this round and dropped the score to 73.17%,
+      so it is the wrong lever here.
+   The `lbu` reload of the slot item in the clamp (retail re-reads it, so the
+   clamp must index T through a pointer deref, not a local) already matches.
+   gcc 2.6.0 emits switch-free straight-line code throughout; there is no
+   jump table in this stub.
+   Semantics recovered: arg2 != 0 selects the 0x2A1 slot group (characters
+   .unk6F when arg3 == 0, gears .unk4 otherwise, both weapons inventory);
+   arg2 == 0 selects the 0x29C/0x2A6 groups (arg1 == 0 is the primary weapon
+   slot, characters.unk6A / gears.weaponId, weapons inventory; arg1 != 0 is
+   accessory slot arg1 - 1, characters.unk74 / gears.accessorySlots,
+   accessories inventory). Only the arg2 != 0 blocks clamp a per-item-id byte
+   at g_GameState+0x2286 (characters) / +0x22B6 (gears) to 100 and zero the
+   incoming item when the old value was below 100. The tail then walks the
+   inventory: decrement the removed id, increment the arriving id (or take
+   the first free slot with quantity 1), then clamp every quantity (0 clears
+   the id, >= 100 becomes 99).
+   u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
+       u8* pIds;
+       u8* pQuantities;
+       u8* pSlot;
+       s32 characterId;
+       s32 gearId;
+       u_char slotItem;
+       u_char newItem;
+       u_char added;
+       u_char updated;
+       u_char result;
+       s32 count;
+       s32 i;
+
+       added = 1;
+       updated = 1;
+       result = 0;
+       if (arg3 != 0) {
+           pIds = g_GameState.gearWeaponsIds;
+           pQuantities = g_GameState.gearWeaponsQty;
+       } else {
+           pIds = g_GameState.weaponIDs;
+           pQuantities = g_GameState.weaponQuantities;
+       }
+       count = MAX_INVENTORY_WEAPONS;
+
+       if (arg2 != 0) {
+           if (arg3 == 0) {
+               characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+               pSlot = &g_GameState.characters[characterId].unk6F[arg1];
+               slotItem = *pSlot;
+               newItem = ((u8*)g_Menu->unk360)[0x2A1 + arg1];
+               if (slotItem != 0) {
+                   if (((u8*)&g_GameState)[0x2286 + *pSlot] < MAX_INVENTORY_WEAPONS) {
+                       newItem = 0;
+                   }
+                   ((u8*)&g_GameState)[0x2286 + *pSlot] = MAX_INVENTORY_WEAPONS;
+               } else {
+                   *pSlot = newItem;
+                   updated = 0;
+               }
+           } else {
+               characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+               gearId = g_GameState.characters[characterId].gearId;
+               pSlot = &g_GameState.gears[gearId].unk4[arg1];
+               slotItem = *pSlot;
+               newItem = ((u8*)g_Menu->unk360)[0x2A1 + arg1];
+               if (slotItem != 0) {
+                   if (((u8*)&g_GameState)[0x22B6 + *pSlot] < MAX_INVENTORY_WEAPONS) {
+                       newItem = 0;
+                   }
+                   ((u8*)&g_GameState)[0x22B6 + *pSlot] = MAX_INVENTORY_WEAPONS;
+               } else {
+                   *pSlot = newItem;
+                   updated = 0;
+               }
+           }
+       } else if (arg3 == 0) {
+           if (arg1 == 0) {
+               characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+               slotItem = g_GameState.characters[characterId].unk6A[0];
+               newItem = ((u8*)g_Menu->unk360)[0x29C];
+               if (slotItem == 0) {
+                   g_GameState.characters[characterId].unk6A[0] = newItem;
+                   updated = 0;
+               } else if (characterId == 4) {
+                   result = 1;
+               }
+           } else {
+               characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+               pIds = g_GameState.accessoryIDs;
+               pQuantities = g_GameState.accessoryQuantities;
+               count = MAX_INVENTORY_ACCESSORIES;
+               slotItem = g_GameState.characters[characterId].unk74[arg1 - 1];
+               newItem = ((u8*)g_Menu->unk360 + (arg1 - 1))[0x2A6];
+           }
+       } else {
+           if (arg1 == 0) {
+               characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+               gearId = g_GameState.characters[characterId].gearId;
+               slotItem = g_GameState.gears[gearId].weaponId[0];
+               newItem = ((u8*)g_Menu->unk360)[0x29C];
+               if (slotItem == 0) {
+                   g_GameState.gears[gearId].weaponId[0] = newItem;
+                   updated = 0;
+               } else if (characterId == 4) {
+                   result = 1;
+               }
+           } else {
+               characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+               pIds = g_GameState.accessoryIDs;
+               pQuantities = g_GameState.accessoryQuantities;
+               count = MAX_INVENTORY_ACCESSORIES;
+               gearId = g_GameState.characters[characterId].gearId;
+               slotItem = g_GameState.gears[gearId].accessorySlots[arg1 - 1];
+               newItem = ((u8*)g_Menu->unk360 + (arg1 - 1))[0x2A6];
+           }
+       }
+
+       if (updated == 0) {
+           return result;
+       }
+       if (slotItem != 0) {
+           for (i = 0; i < count; i++) {
+               if (pIds[i] == slotItem) {
+                   pQuantities[i]--;
+                   break;
+               }
+           }
+       }
+       if (newItem != 0) {
+           for (i = 0; i < count; i++) {
+               if (pIds[i] == newItem) {
+                   pQuantities[i]++;
+                   added = 0;
+                   break;
+               }
+           }
+       }
+       if (added != 0) {
+           for (i = 0; i < count; i++) {
+               if (pIds[i] == 0) {
+                   pIds[i] = newItem;
+                   pQuantities[i] = 1;
+                   break;
+               }
+           }
+       }
+       for (i = 0; i < count; i++) {
+           if (pQuantities[i] == 0) {
+               pIds[i] = 0;
+           } else if (pQuantities[i] >= MAX_INVENTORY_WEAPONS) {
+               pQuantities[i] = MAX_ITEM_QUANTITY;
+           }
+       }
+       return result;
+   }
+*/
 void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     s32 i;
 
