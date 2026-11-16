@@ -198,44 +198,68 @@ void func_801CE540(void) {
     }
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE660);
-/* 99.80%: the 128-instruction body is byte-identical; the ONLY delta is the
-   register that holds g_Menu in the first block (retail $v1, gcc $a1, 4
-   instructions incl. the %hi/%lo pair).  Same 99.80 under 2.7.2-cdk, -O3 and
-   -G0, so it is an allocator pick, not the preset.  Tried: the shared-header
-   cast ((u8*)g_Menu->pManager)[0x7], the named field pManager->unk5[2], an
-   explicit SystemMenu* pMenu local, and a u8 flag local read before the if.
 void func_801CE660(void) {
     u8* pData;
+    u8 new_var;
 
     if (((u8*)g_Menu->pManager)[0x7]) {
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
-                      pData[0x2AEE]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
-        pData = (u8*)g_Menu->unk358;
-        func_801CE198(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+        if (pData) {
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            new_var = pData[0x2AE0];
+            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), new_var);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
+                          pData[0x2AEE]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+    } else {
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            new_var = pData[0x2AE0];
+            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), new_var);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
+                          pData[0x2AEE]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->unk358;
+            func_801CE198(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+        }
     }
-}*/
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE860);
 /* 88.90% (804 vs 792 bytes): every expression and call is right; the only
    delta is that loop.c strength-reduces `i * 0x20` and `i * 0x80` here, so gcc
