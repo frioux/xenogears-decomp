@@ -318,8 +318,12 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     BattleEffectUpdateEntries(pEffect, p0, (u8 *)p1);
 }
 
+extern u8 D_800910F4[];
+extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
+extern void func_8008EBD0(u8 *, s32, void *, s32);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
-/* 98.09%: the loop's induction shape. The original keeps BOTH a walking
+/* 98.79%: the loop's induction shape. The original keeps BOTH a walking
    pointer ($a2 = p2 + i*0x44, tested as `lbu v0,0x67C(a2)`) and the byte offset
    ($t0, used as `addiu v0,t0,0x64C; addu s0,s3,v0`); gcc folds the two into one
    register, and which one survives depends on the source shape: `p2 + 0x67C +
@@ -334,9 +338,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
    with the externs in scope: 544 bytes, the loop is still the only difference
    (retail keeps `move t0,zero` + `lbu v0,0x67C(a2)` + `addiu v0,t0,0x64C`; gcc
    folds off and the pointer into one register).
-extern u8 D_800910F4[];
-extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
-extern void func_8008EBD0(u8 *, s32, void *, s32);
+   Later round: the walking pointer does reach retail's $a2 (no copy) once the
+   dead `off` temp gets reused inside the p1 branch for vy (the one permuter edit
+   kept, score 261 -> 169) - 98.79%, 540 bytes. What is left is the fold only:
+   retail keeps off in $t0 and i in $a0 with a redundant `move v1,t0` in the beqz
+   delay slot plus `addiu t0,v1,68` in the bnez one, so gcc's one-register version
+   is 4 bytes short. Routing vz through the same temp instead is 97.32 and
+   hoisting `i = 0` out of the for-init is 97.35; 1445 further permuter
+   iterations found nothing.
 
 void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5) {
     VECTOR vDiff;
@@ -369,7 +378,8 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     pEntry = D_800910F4 + arg3 * 8;
     if (p1 != NULL) {
         vDiff.vx = p0->vx - p1->vx;
-        vDiff.vy = p0->vy - p1->vy;
+        off = p1->vy;
+        vDiff.vy = p0->vy - off;
         vDiff.vz = p0->vz - p1->vz;
     } else {
         vDiff = vNormal;
