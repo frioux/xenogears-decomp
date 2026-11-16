@@ -7,10 +7,10 @@
 
 extern u8 D_801EA548[][8]; // 8 u8 string IDs per panel
 extern u8 D_801EA558[][6]; // 6 u8 string IDs per panel
-extern u16 D_801EA724;
+extern u16 g_MenuInventoryWindowHeight;
 extern u8 g_DressingRoomItemIds[];
-extern s32 D_801EA728;
-extern u16 D_801EA72C;
+extern s32 g_MenuInventoryRowCount;
+extern u16 g_MenuInventoryScrollStep;
 extern u8 D_801E9EA0[];
 extern u8 D_801E9785;
 extern u8 g_ShopIndex;
@@ -232,16 +232,16 @@ void MenuFitInventoryWindowToItems(void) {
     }
 
     if (last < 0x10) {
-        D_801EA724 = 0x74;
-        D_801EA728 = 0;
-        D_801EA72C = 0;
+        g_MenuInventoryWindowHeight = 0x74;
+        g_MenuInventoryRowCount = 0;
+        g_MenuInventoryScrollStep = 0;
     } else {
         s32 n = (last - 0x10) / 2 + 1;
         s32 q = 0x1068 / n;
 
-        D_801EA724 = 0x4A;
-        D_801EA728 = n;
-        D_801EA72C = q;
+        g_MenuInventoryWindowHeight = 0x4A;
+        g_MenuInventoryRowCount = n;
+        g_MenuInventoryScrollStep = q;
     }
 }
 
@@ -250,7 +250,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
    is retail's: the prologue save order, the 8 switch arms, the case listing order
    (4, 5, 1, 3, 0, 2, 9, 10 in the source, which is retail's body order - ascending
    gives 67%), every store and every delay slot except the two below. Decode: the
-   inventory panel cursor, 16 columns x D_801EA728 rows; col/row are s32, prevCol,
+   inventory panel cursor, 16 columns x g_MenuInventoryRowCount rows; col/row are s32, prevCol,
    prevRow and selectedSlot start at 0xFF, needsOpen/active are u8.
    Delta 1 (dispatch, +1 insn in retail): retail's `beqz v0,X` duplicates the loop
    test's `andi v0,s6,0xFF` into its delay slot and targets the `bnez`; ours targets
@@ -296,7 +296,7 @@ s32 func_801DBE54(void) {
         MenuRenderFrame();
         if (row != prevRow) {
             func_801DA5BC(row);
-            MenuCreateScrollHandle(0xC, D_801EA72C * row / 100 + 0x12, D_801EA724);
+            MenuCreateScrollHandle(0xC, g_MenuInventoryScrollStep * row / 100 + 0x12, g_MenuInventoryWindowHeight);
             prevRow = row;
         }
         func_801DB0A8(col, row, 0, 0);
@@ -341,7 +341,7 @@ s32 func_801DBE54(void) {
                 col = col + 2;
             } else {
                 row++;
-                if (row > D_801EA728) {
+                if (row > g_MenuInventoryRowCount) {
                     row--;
                 }
             }
@@ -363,7 +363,7 @@ s32 func_801DBE54(void) {
                 col = col + 1;
             } else {
                 row++;
-                if (row > D_801EA728) {
+                if (row > g_MenuInventoryRowCount) {
                     row--;
                 } else {
                     col = 0xE;
@@ -386,8 +386,8 @@ s32 func_801DBE54(void) {
             break;
         case 9:
             row += 8;
-            if (row > D_801EA728) {
-                row = D_801EA728;
+            if (row > g_MenuInventoryRowCount) {
+                row = g_MenuInventoryRowCount;
             }
             prevCol = 0xFF;
             break;

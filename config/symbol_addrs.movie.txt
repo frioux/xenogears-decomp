@@ -32,3 +32,5 @@ MovieFadeAudioOnPadPress = 0x800769A4;
 MovieInitGteState = 0x80076AF0;
 WorldMapScriptOp04SetScratchPosition = 0x80076C68;
 MovieBuildViewMatrix = 0x80076CA4;
+g_MovieVerticalOffset = 0x80077024;
+g_MovieFrameStamps = 0x800773B8;

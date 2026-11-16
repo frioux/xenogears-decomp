@@ -108,8 +108,8 @@ extern u8 D_800C3CFB[];
 extern u8 D_800CCC58;
 extern u8 D_800D2C34;
 extern u8 D_800D2C35;
-extern u8 D_800D39D4;
-extern s32 D_800D3288;
+extern u8 g_BattleCursorScrollState;
+extern s32 g_BattleCursorScrollY;
 extern u16 D_800D2C2A;
 extern void func_8007171C(void);
 extern void func_80089CCC(s32 arg0);
@@ -510,14 +510,14 @@ void BattleUpdateImageUpload(u8 arg0) {
             }
         }
     }
-    switch (D_800D39D4) {
+    switch (g_BattleCursorScrollState) {
     case 1:
     case 3:
-        D_800D3288 += 1;
+        g_BattleCursorScrollY += 1;
         break;
     case 2:
     case 4:
-        D_800D3288 -= 1;
+        g_BattleCursorScrollY -= 1;
         break;
     }
     BattleUploadImageFrame();

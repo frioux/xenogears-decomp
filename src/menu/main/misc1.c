@@ -40,7 +40,7 @@ extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flag
 extern u8 D_801E977A;
 extern u8 D_801EA8FC;
 extern u8 D_801E96A4;
-extern u8 D_801E96A5;
+extern u8 g_MenuSaveSlotForceDiscOne;
 
 extern u8 g_ShopIndex;
 extern u8 D_800594D0;
@@ -112,11 +112,11 @@ void MenuCdChangeMain(void) {
     }
     MenuHidePointerCursors();
     if (shouldReset) {
-        D_801E96A5 = 1;
+        g_MenuSaveSlotForceDiscOne = 1;
         D_801E96A4 = 1;
         func_801C531C(0);
         D_801E96A4 = 0;
-        D_801E96A5 = 0;
+        g_MenuSaveSlotForceDiscOne = 0;
     }
     g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;

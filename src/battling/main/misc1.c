@@ -420,13 +420,13 @@ typedef struct {
     /* 0x68 */ u8 unk68;
 } BattleMessageWindow; // Size: 0x69
 
-extern BattleMessageWindow D_8009868C;
+extern BattleMessageWindow g_BattleMessageWindow;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 
 void BattleInitMessageWindow(void) {
     D_800925D8 = -1;
     D_800925D4 = 0;
-    func_80032F54(&D_8009868C, 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
+    func_80032F54(&g_BattleMessageWindow, 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
 }
 
 extern u8 D_80092608;
@@ -608,7 +608,7 @@ typedef struct {
     /* 0x0C */ s32 frames;
 } BattleEffectEmitter; // Size: 0x10
 
-extern BattleEffectEmitter D_800929F4[];
+extern BattleEffectEmitter g_BattleEffectCells[];
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x60];
@@ -618,7 +618,7 @@ typedef struct {
 } BattleEffectOrigin; // Size: 0x6C
 
 // The origins a burst is jittered around: the number of entries and the array
-// of per-sprite origins, reached through the pool D_80098788 points at.
+// of per-sprite origins, reached through the pool g_BattleEffectPool points at.
 typedef struct {
     /* 0x0 */ s16 count;
     /* 0x2 */ u16 unk2;
@@ -630,7 +630,7 @@ typedef struct {
     /* 0x4 */ BattleEffectPool* pPool;
 } BattleEffectPoolRef; // Size: 0x8
 
-extern BattleEffectPoolRef* D_80098788;
+extern BattleEffectPoolRef* g_BattleEffectPool;
 
 extern s32 D_80092900;
 extern s32 D_80092904;
@@ -655,7 +655,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
    order (11, 1, 2, 3, 4), jump-table entry and the shared fade: block reached
    from case 3 (fallthrough) and case 4 (goto) is right; what is left is the
    case-1 loop only. Retail hoists the effect-cell base out of the loop
-   ('lui s4,%hi(D_800929F4); addiu s4') and passes the element address to
+   ('lui s4,%hi(g_BattleEffectCells); addiu s4') and passes the element address to
    BattleEffectAddSlotFromVector as 'addu a0,s0,s4' - base register plus the
    i*0x10 byte offset that the x/y/z stores already need - which is why it keeps
    SIX saved registers (frame 0x40). Every body tried here either re-forms that
@@ -694,7 +694,7 @@ void func_80072170(void) {
         return;
     }
     pState = &D_8009872C;
-    pMsg = &D_8009868C;
+    pMsg = &g_BattleMessageWindow;
     switch (D_80092900) {
     case 11:
         BattlePlaySoundEffectById(0x2A);
@@ -703,21 +703,21 @@ void func_80072170(void) {
         D_80092900 = 1;
     case 1:
         pAnchor = &D_8009872C.position;
-        pEmitter = D_800929F4;
-        pFrames = &D_800929F4[0].frames;
+        pEmitter = g_BattleEffectCells;
+        pFrames = &g_BattleEffectCells[0].frames;
         i = 0;
         do {
             pCounter = pFrames;
             frames = *pCounter - 1;
             pEmitter->frames = frames;
             if (frames == -1) {
-                pOrigin = D_80098788->pPool->pOrigins[rand() % D_80098788->pPool->count];
-                D_800929F4[i].x = pOrigin->unk60 + pAnchor->x;
-                D_800929F4[i].y = pOrigin->unk64 + pAnchor->y;
-                D_800929F4[i].z = pOrigin->unk68 + pAnchor->z;
+                pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % g_BattleEffectPool->pPool->count];
+                g_BattleEffectCells[i].x = pOrigin->unk60 + pAnchor->x;
+                g_BattleEffectCells[i].y = pOrigin->unk64 + pAnchor->y;
+                g_BattleEffectCells[i].z = pOrigin->unk68 + pAnchor->z;
                 *pCounter = rand() % 16 + 8;
             }
-            pVec = (VECTOR*)&D_800929F4[i];
+            pVec = (VECTOR*)&g_BattleEffectCells[i];
             if (*pCounter & 1) {
                 BattleEffectAddSlotFromVector(pVec, 9);
             }
@@ -743,8 +743,8 @@ fade:
         pState->unkB6 = 0x1000;
         pState->unkD0 |= 0x400;
         if (rand() & 1) {
-            count = D_80098788->pPool->count;
-            pOrigin = D_80098788->pPool->pOrigins[rand() % count];
+            count = g_BattleEffectPool->pPool->count;
+            pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
             vec[0] = pOrigin->unk60 + D_8009872C.position.x;
             vec[1] = pOrigin->unk64 + D_80098730;
             vec[2] = pOrigin->unk68 + D_80098734;

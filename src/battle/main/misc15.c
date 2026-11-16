@@ -355,8 +355,8 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
 }
 */
 extern u8 g_BattleMenuEvent;
-extern u8 D_800D39D4;
-extern s32 D_800D3288;
+extern u8 g_BattleCursorScrollState;
+extern s32 g_BattleCursorScrollY;
 extern u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2);
 extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void func_80091064(u8 arg0);
@@ -369,14 +369,14 @@ extern void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pC
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
 /* Best: 98.42% (1176 bytes vs the original's 1164). Written from scratch this
    round; everything matches instruction for instruction EXCEPT two shapes:
-   1. the fall-through state body (case 4 of the switch on D_800D39D4). Retail
+   1. the fall-through state body (case 4 of the switch on g_BattleCursorScrollState). Retail
       keeps the compare's `(j - 1) * 16` value in $v0 across the `j--` and reuses
-      it for the shared `sw $v0, D_800D3288` at .L8008B878; gcc 2.6 rematerialises
+      it for the shared `sw $v0, g_BattleCursorScrollY` at .L8008B878; gcc 2.6 rematerialises
       it in that one path (`andi v0,(u8)j; sll v0,v0,4`), which is the 2 extra
       instructions and the 12-byte oversize. Cases 1..3 of the same switch reuse
       the value fine (they reach the store through a `j`), so it is the
       fall-through that makes gcc remat -- a `s32 scrollY` local for the body
-      made it worse (1192). Tried: `D_800D3288 = (j - 1) * 16` before the
+      made it worse (1192). Tried: `g_BattleCursorScrollY = (j - 1) * 16` before the
       decrement (sw then precedes the addiu, 1192), a scrollY local (1192),
       `(j - 1 + 1) * 16` (1176, same).
    2. the i/j register tie: retail keeps i in $s2 and j in $s3, gcc gives i $s3.
@@ -411,8 +411,8 @@ u8 func_8008B478(u8 arg0) {
     result = 2;
     primIndex = 4;
     primCount = 0;
-    D_800D3288 = 0;
-    D_800D39D4 = 0;
+    g_BattleCursorScrollY = 0;
+    g_BattleCursorScrollState = 0;
     g_BattleDisplayState->unkCB = 0;
     func_8008F8F4(0, 0x1C, 0xA0, 0xAC, 0x38, 0, 1);
     func_8008F8F4(1, 0x20, 0x2C, 0x118, 0x70, 0, 1);
@@ -426,10 +426,10 @@ u8 func_8008B478(u8 arg0) {
             prevI = i;
             prevJ = j;
         }
-        if (D_800D3288 != prevY) {
-            BattleBuildSpriteColumn8(D_800D3288);
-            func_80091EC4(D_800D3288);
-            prevY = D_800D3288;
+        if (g_BattleCursorScrollY != prevY) {
+            BattleBuildSpriteColumn8(g_BattleCursorScrollY);
+            func_80091EC4(g_BattleCursorScrollY);
+            prevY = g_BattleCursorScrollY;
         }
         iv = i;
         BattleStepAnimatedCursorPrim((iv & 1) * 128 + (iv & 1) * 4 + 0x2A, (iv >> 1) * 16 + 0x38, &primIndex, &primCount);
@@ -447,7 +447,7 @@ u8 func_8008B478(u8 arg0) {
         case 0:
             if (j * 2 + i != 0xF) {
                 if (i + 1 == 0xC) {
-                    D_800D39D4 = 1;
+                    g_BattleCursorScrollState = 1;
                 } else {
                     i++;
                 }
@@ -456,7 +456,7 @@ u8 func_8008B478(u8 arg0) {
         case 2:
             if (j * 2 + i > 0) {
                 if (i == 0 && j != 0) {
-                    D_800D39D4 = 2;
+                    g_BattleCursorScrollState = 2;
                 } else {
                     i--;
                 }
@@ -465,7 +465,7 @@ u8 func_8008B478(u8 arg0) {
         case 1:
             if (j * 2 + i < 0xE) {
                 if (i + 2 >= 0xC) {
-                    D_800D39D4 = 3;
+                    g_BattleCursorScrollState = 3;
                 } else {
                     i += 2;
                 }
@@ -474,42 +474,42 @@ u8 func_8008B478(u8 arg0) {
         case 3:
             if (j * 2 + i >= 2) {
                 if (i < 2 && j != 0) {
-                    D_800D39D4 = 4;
+                    g_BattleCursorScrollState = 4;
                 } else {
                     i -= 2;
                 }
             }
             break;
         }
-        switch (D_800D39D4) {
+        switch (g_BattleCursorScrollState) {
         case 1:
-            if (D_800D3288 >= (j + 1) * 16) {
+            if (g_BattleCursorScrollY >= (j + 1) * 16) {
                 j++;
                 i--;
-                D_800D3288 = j * 16;
-                D_800D39D4 = 0;
+                g_BattleCursorScrollY = j * 16;
+                g_BattleCursorScrollState = 0;
             }
             break;
         case 2:
-            if (D_800D3288 < (j - 1) * 16) {
+            if (g_BattleCursorScrollY < (j - 1) * 16) {
                 j--;
                 i++;
-                D_800D3288 = j * 16;
-                D_800D39D4 = 0;
+                g_BattleCursorScrollY = j * 16;
+                g_BattleCursorScrollState = 0;
             }
             break;
         case 3:
-            if (D_800D3288 >= (j + 1) * 16) {
+            if (g_BattleCursorScrollY >= (j + 1) * 16) {
                 j++;
-                D_800D3288 = j * 16;
-                D_800D39D4 = 0;
+                g_BattleCursorScrollY = j * 16;
+                g_BattleCursorScrollState = 0;
             }
             break;
         case 4:
-            if (D_800D3288 < (j - 1) * 16) {
+            if (g_BattleCursorScrollY < (j - 1) * 16) {
                 j--;
-                D_800D3288 = (j - 1 + 1) * 16;
-                D_800D39D4 = 0;
+                g_BattleCursorScrollY = (j - 1 + 1) * 16;
+                g_BattleCursorScrollState = 0;
             }
             break;
         }

@@ -314,3 +314,7 @@ g_MenuCharacterIconX = 0x801E9A78;
 g_MenuCharacterIconY = 0x801E9AC8;
 g_MenuCharacterIconTexIds = 0x801EA34C;
 g_MenuCharacterNumberOrigins = 0x801E9B18;
+g_MenuInventoryRowCount = 0x801EA728;
+g_MenuInventoryWindowHeight = 0x801EA724;
+g_MenuInventoryScrollStep = 0x801EA72C;
+g_MenuSaveSlotForceDiscOne = 0x801E96A5;

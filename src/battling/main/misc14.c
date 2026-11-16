@@ -160,7 +160,7 @@ extern void func_80030B14(MATRIX* pMatrix);
 extern void func_800731F8(MATRIX* pMatrix, SVECTOR* pVector);
 extern void BattleProjectShadowVerts(void* pSource, u8* pVerts);
 
-void func_8008A7E0(Misc14ModelNode* pNode) {
+void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
     if (pNode->pUpdate != NULL) {
         pNode->pUpdate();
     }
@@ -213,10 +213,10 @@ void func_8008A7E0(Misc14ModelNode* pNode) {
         break;
     }
     if (pNode->pChildB != NULL) {
-        func_8008A7E0(pNode->pChildB);
+        BattleUpdateNodeTree(pNode->pChildB);
     }
     if (pNode->pChildA != NULL) {
-        func_8008A7E0(pNode->pChildA);
+        BattleUpdateNodeTree(pNode->pChildA);
     }
 }
 
@@ -378,7 +378,7 @@ void BattleLoadRelocatedArchiveEntry(s32 entryIndex) {
     BattleRelocateBlockPointers(pBuffer);
 }
 
-void func_8008B0D8(u8 *pActor) {
+void BattleResetPartAnim(u8 *pActor) {
     Misc14Entry *pEntry = *(Misc14Entry **)(pActor + 8);
     s32 i;
 

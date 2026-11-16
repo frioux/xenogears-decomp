@@ -8,8 +8,8 @@ extern int func_800286CC(void);
 
 extern s32 g_ArchiveCurFileSector;
 
-extern s32 D_8004FE0C;
-extern s32 D_8004FE10;
+extern s32 g_ArchiveStreamQueue;
+extern s32 g_ArchiveStreamQueueIndex;
 extern u16 D_8004FE24;
 extern u32 g_ArchiveCurEntryIndex;
 extern void GfxDrawArchiveReadRetry(int, int, int, int);
@@ -390,10 +390,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  * the load straight into s2 and emits the prologue first (93.87%). The debug
  * loop's D_8004FE2C load must come from inside the loop body so loop.c hoists
  * it into the preheader, after the entry test. Still different: the original
- * keeps the section count in a1, D_8004FE10 in v1, the header base in a3 and a
+ * keeps the section count in a1, g_ArchiveStreamQueueIndex in v1, the header base in a3 and a
  * loop-invariant copy of the limit in a1 (`move a1,v0` after the entry test,
  * which needs either a second reference to D_8004FE40 or a two-variable loop
- * bound), reuses v0 for the D_8004FE0C queue index, and materialises
+ * bound), reuses v0 for the g_ArchiveStreamQueue queue index, and materialises
  * `move v0,zero` in the g_ArchiveCurFileSize blez delay slot instead of
  * sharing the trailing NULL block.
  *
@@ -430,11 +430,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *         nLimit = D_8004FE40;
  *         for (i = 0; i < nLimit; i++) {
  *             pHeaders = D_8004FE2C;
- *             nIndex = D_8004FE10;
+ *             nIndex = g_ArchiveStreamQueueIndex;
  *             pHeader = pHeaders + nIndex;
- *             D_8004FE10 = nIndex + 1;
- *             if (D_8004FE10 >= nLimit) {
- *                 D_8004FE10 = 0;
+ *             g_ArchiveStreamQueueIndex = nIndex + 1;
+ *             if (g_ArchiveStreamQueueIndex >= nLimit) {
+ *                 g_ArchiveStreamQueueIndex = 0;
  *             }
  *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
  *                 break;
@@ -472,11 +472,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *         }
  *
  *         D_8004FE4C = -1;
- *         if (D_8004FE0C != 0) {
- *             nIndex = D_8004FE10 + 1;
- *             pEntry = ((StreamDataQueueEntry*)D_8004FE0C) + nIndex;
+ *         if (g_ArchiveStreamQueue != 0) {
+ *             nIndex = g_ArchiveStreamQueueIndex + 1;
+ *             pEntry = ((StreamDataQueueEntry*)g_ArchiveStreamQueue) + nIndex;
  *             nId = *(u_short*)pEntry;
- *             D_8004FE10 = nIndex;
+ *             g_ArchiveStreamQueueIndex = nIndex;
  *             g_ArchiveCurEntryIndex = nId;
  *
  *             if (nId > 0 && pEntry->pData != NULL) {

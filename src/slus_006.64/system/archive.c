@@ -12,9 +12,9 @@
 #include "psyq/libgpu.h"
 
 extern s8* D_8004FE08;
-extern StreamDataQueueEntry* D_8004FE0C;
-extern s32 D_8004FE00;
-extern s32 D_8004FE10;
+extern StreamDataQueueEntry* g_ArchiveStreamQueue;
+extern s32 g_ArchiveStreamQueueCount;
+extern s32 g_ArchiveStreamQueueIndex;
 extern s16 D_8004FE24;
 extern u16 D_8004FE26;
 extern u16 D_8004FE28;
@@ -43,9 +43,9 @@ extern CdlLOC D_80059EF8;
 extern u8 D_800596F8[];
 extern s32 D_8004FDE4;
 extern s32 D_8004FDEC;
-extern s32 D_8004FE3C;
-extern s32 D_8004FDE0;
-extern s32 D_8004FDE8;
+extern s32 g_ArchiveStreamResumedFile;
+extern s32 g_ArchiveStreamSeekWindow;
+extern s32 g_ArchiveStreamPositionErrors;
 extern s16 D_80059F40;
 extern s16 D_80059F44;
 extern s16 D_80059F48;
@@ -78,8 +78,8 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     D_8004FDFC = 1;
     D_8004FE08 = pDestBuffer;
     D_8004FE38 = arg2 & 0xFFFF;
-    D_8004FE10 = 0;
-    D_8004FE0C = NULL;
+    g_ArchiveStreamQueueIndex = 0;
+    g_ArchiveStreamQueue = NULL;
     D_8004FE34 = 0;
     D_8005A4DC = 0;
     pLoc = &g_ArchiveCdCurLocation;
@@ -284,10 +284,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *         *pWord-- = 0;
  *     }
  *
- *     D_8004FE10 = 0;
- *     D_8004FE0C = pQueue;
+ *     g_ArchiveStreamQueueIndex = 0;
+ *     g_ArchiveStreamQueue = pQueue;
  *     D_8004FDFC = nCount;
- *     D_8004FE00 = nCount;
+ *     g_ArchiveStreamQueueCount = nCount;
  *     D_8004FE08 = pQueue->pData;
  *
  *     if (pQueue->archiveIndex == 0 || pQueue->pData == NULL) {
@@ -297,7 +297,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *         g_ArchiveCurFileSector = ArchiveDecodeSector(pQueue->archiveIndex);
  *         g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(pQueue->archiveIndex);
  *         D_8004FE38 = channel & 0xFFFF;
- *         D_8004FE3C = 0;
+ *         g_ArchiveStreamResumedFile = 0;
  *         D_8004FE34 = 0;
  *         D_8005A4DC = 0;
  *         pLoc = &g_ArchiveCdCurLocation;
@@ -724,18 +724,18 @@ void ArchiveCdReadyReadQueuedFile(u_char status) {
         CdDataCallback(NULL);
         g_ArchiveCurFileSize = 0;
         ArchiveCdSeekToFile(D_8004FE38);
-        D_8004FE00 = 0;
+        g_ArchiveStreamQueueCount = 0;
         D_8004FDFC = 0;
         return;
     }
 
     if (g_ArchiveCurFileSize >= CD_SECTOR_SIZE) {
-        if (D_8004FE3C == 0) {
+        if (g_ArchiveStreamResumedFile == 0) {
             CdGetSector(&D_80059EF8, 3);
             CdGetSector(D_8004FE08, CD_SECTOR_SIZE / 4);
         }
     } else if (g_ArchiveCurFileSize > 0) {
-        if (D_8004FE3C == 0) {
+        if (g_ArchiveStreamResumedFile == 0) {
             CdGetSector(&D_80059EF8, 3);
             CdGetSector(D_8004FE08, (g_ArchiveCurFileSize + 3) / 4);
             nWords = (g_ArchiveCurFileSize + 3) / 4;
@@ -745,8 +745,8 @@ void ArchiveCdReadyReadQueuedFile(u_char status) {
         }
     }
 
-    if ((CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) && (D_8004FE3C == 0)) {
-        D_8004FDE8 += 1;
+    if ((CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) && (g_ArchiveStreamResumedFile == 0)) {
+        g_ArchiveStreamPositionErrors += 1;
         goto error;
     }
 
@@ -756,10 +756,10 @@ void ArchiveCdReadyReadQueuedFile(u_char status) {
     if (g_ArchiveCurFileSize > 0)
         return;
 
-    entryIndex = D_8004FE10 + 1;
-    pEntry = (StreamDataQueueEntry*)((entryIndex * sizeof(StreamDataQueueEntry)) + (mem_addr)D_8004FE0C);
+    entryIndex = g_ArchiveStreamQueueIndex + 1;
+    pEntry = (StreamDataQueueEntry*)((entryIndex * sizeof(StreamDataQueueEntry)) + (mem_addr)g_ArchiveStreamQueue);
     nId = pEntry->archiveIndex;
-    D_8004FE10 = entryIndex;
+    g_ArchiveStreamQueueIndex = entryIndex;
     pData = pEntry->pData;
     D_8004FE08 = pData;
 
@@ -770,36 +770,36 @@ void ArchiveCdReadyReadQueuedFile(u_char status) {
     g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
 
     if (g_ArchiveCurFileSector < nSector) {
-        if (g_ArchiveCurFileSector + D_8004FDE0 < nSector)
+        if (g_ArchiveCurFileSector + g_ArchiveStreamSeekWindow < nSector)
             goto seek;
-        D_8004FE3C = 1;
+        g_ArchiveStreamResumedFile = 1;
         g_ArchiveCurFileSize = (g_ArchiveCurFileSector - nSector) * CD_SECTOR_SIZE;
-        D_8004FE10 -= 1;
+        g_ArchiveStreamQueueIndex -= 1;
         return;
     }
 
 seek:
     if (nSector == g_ArchiveCurFileSector) {
-        D_8004FE3C = 0;
-        D_8004FE00 -= 1;
+        g_ArchiveStreamResumedFile = 0;
+        g_ArchiveStreamQueueCount -= 1;
         return;
     }
 
-    D_8004FE3C = 0;
+    g_ArchiveStreamResumedFile = 0;
     g_ArchiveCurFileSector = nSector;
     D_80059F08 = CdReadyCallback(NULL);
     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_DATA_SECTOR;
     CdSyncCallback(&ArchiveCdDriveCommandHandler);
     CdControlF(CdlPause, NULL);
-    D_8004FE00 -= 1;
+    g_ArchiveStreamQueueCount -= 1;
     return;
 
 noEntry:
     g_ArchiveCurFileSize = 0;
     CdReadyCallback(NULL);
     ArchiveCdSeekToFile(D_8004FE38);
-    D_8004FE00 = 0;
+    g_ArchiveStreamQueueCount = 0;
     D_8004FDFC = 0;
     return;
 
@@ -894,7 +894,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *
  * What this attempt got right:
  *  - the search loop reads the globals directly (`for (i = 0; i < D_8004FE40; i++)`
- *    with `entryIndex = D_8004FE10++` and D_8004FE2C in the body) so gcc hoists the
+ *    with `entryIndex = g_ArchiveStreamQueueIndex++` and D_8004FE2C in the body) so gcc hoists the
  *    loop-invariant copies (`lw v0,D_8004FE40` + `blez v0`, `move a1,v0`);
  *  - the two delay loops need their OWN counters (k/l); reusing the search loop's
  *    `i` puts the outer 9999 counter in a0 instead of v1;
@@ -956,10 +956,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *
  *     if (g_ArchiveCurFileSize > 0) {
  *         for (i = 0; i < D_8004FE40; i++) {
- *             entryIndex = D_8004FE10++;
+ *             entryIndex = g_ArchiveStreamQueueIndex++;
  *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)D_8004FE2C);
- *             if (D_8004FE10 >= D_8004FE40)
- *                 D_8004FE10 = 0;
+ *             if (g_ArchiveStreamQueueIndex >= D_8004FE40)
+ *                 g_ArchiveStreamQueueIndex = 0;
  *             if (pCurrent->state == 0)
  *                 break;
  *         }
@@ -1021,7 +1021,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  * blez, move s0,zero, lw D_8004FE2C, move a0,v0); and the sector offset is a
  * local (`nSectorOffset`) rather than `entryIndex * CD_SECTOR_SIZE` inside the
  * call.
- * Remaining: (a) retail has `lw v0,D_8004FE10; nop; move a1,v0` (a copy of the
+ * Remaining: (a) retail has `lw v0,g_ArchiveStreamQueueIndex; nop; move a1,v0` (a copy of the
  * loaded entry index before addiu/sll) while we allocate the load directly;
  * (b) inside the found block retail emits `li v0,0x1; sh v0,0(p)` before
  * `lhu v0,D_8004FE26` and its `addiu v1,v0,1` before the id store, ours emits
@@ -1037,11 +1037,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  *
  *     if (g_ArchiveCurFileSize > 0) {
  *         for (i = 0; i < D_8004FE40; i++) {
- *             entryIndex = D_8004FE10;
+ *             entryIndex = g_ArchiveStreamQueueIndex;
  *             pCurrent = &D_8004FE2C[entryIndex];
- *             D_8004FE10 = entryIndex + 1;
- *             if (D_8004FE10 >= D_8004FE40) {
- *                 D_8004FE10 = 0;
+ *             g_ArchiveStreamQueueIndex = entryIndex + 1;
+ *             if (g_ArchiveStreamQueueIndex >= D_8004FE40) {
+ *                 g_ArchiveStreamQueueIndex = 0;
  *             }
  *             if (pCurrent->state == 0) {
  *                 break;
@@ -1073,7 +1073,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  */
 
 void ArchiveRestorePendingCount(void) {
-    D_8004FDFC = D_8004FE00;
+    D_8004FDFC = g_ArchiveStreamQueueCount;
 }
 
 void ArchiveStreamFileDataCallback(void) {
@@ -1360,7 +1360,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
 
 void ArchivePrintDebugState(void) {
     func_800379C8(D_80018944, g_ArchiveTable, D_8004FE08, D_8004FE2C);
-    func_800379C8(D_80018954, D_8004FE40, D_8004FE10, D_80059F3C, D_80059F50);
+    func_800379C8(D_80018954, D_8004FE40, g_ArchiveStreamQueueIndex, D_80059F3C, D_80059F50);
     func_800379C8(D_80018964, D_80059F40, D_80059F44, D_80059F48, D_80059F4C);
     func_800379C8(D_80018974, D_80059F4C[0], D_80059F4C[1], D_80059F4C[2]);
 }

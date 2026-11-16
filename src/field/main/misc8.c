@@ -494,7 +494,7 @@ int FieldGetActorDistance2D(int actorIndexA, int actorIndexB) {
     return FieldGetVec2Magnitude(posXB - posXA, posZB - posZA);
 }
 
-extern u_short D_800ADFA8[];
+extern u_short g_FieldMaterialAngles[];
 extern s16 D_800ADFC4[];
 extern s32 D_800AF858;
 extern u_char D_800B21CC;
@@ -533,7 +533,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
      that global into a local (pTracked) for the deltas and spelled it out again
      for the target positions, which is what retail does (a1 kept across the
      three deltas, a fresh lui/lw before the target position loads).
-   - D_800ADFA8 is u_short[8] and g_FieldControl.unkAngle is read unsigned (lhu
+   - g_FieldMaterialAngles is u_short[8] and g_FieldControl.unkAngle is read unsigned (lhu
      in retail), hence the (u_short) cast and the u_short extern.
    - The height clamp must be written condition-inverted (limit <= unkF0 >> 16
      storing limit << 16 first, gravity add in the else): 94.74% -> retail's
@@ -580,7 +580,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     }
     pSprite = (SpritePhysicsView*)pFieldActor->pSpriteData;
     FieldGetVec2FromPolar(&moveVec, D_800ADFC4[(triMaterial >> 9) & 3],
-        (D_800ADFA8[(triMaterial >> 11) & 7] + (u_short)g_FieldControl.unkAngle) & 0xFFF);
+        (g_FieldMaterialAngles[(triMaterial >> 11) & 7] + (u_short)g_FieldControl.unkAngle) & 0xFFF);
     if (pActor->scriptFlags.flags & 0x41800) {
         if (triMaterial & 0x4000) {
             pActor->move.vx += moveVec.x;

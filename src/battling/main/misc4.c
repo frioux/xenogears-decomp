@@ -87,7 +87,7 @@ extern void BattleRandomizeCameraPosition(void);
 extern void BattleEffectSetSpawnTimer();
 extern void BattleClearInitFlag(void);
 extern void SystemStringReset();
-extern u8 D_8009868C[];
+extern u8 g_BattleMessageWindow[];
 extern void func_80074678();
 extern void BattleTransformEntryVertex();
 extern void BattleEffectSetColor();
@@ -756,7 +756,7 @@ char BattleResetForNextRound(void) {    D_8009872C.unkCC = 0x400;
     D_80091145 = 0;
     D_80092664 = 0;
     D_80092950++;
-    SystemStringReset(D_8009868C);
+    SystemStringReset(g_BattleMessageWindow);
     D_80099D9A = 0;
     if (D_8005061C != 0) {
         switch ((D_80092950 - 1) % 5) {

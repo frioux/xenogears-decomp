@@ -145,7 +145,7 @@ void BattleSwapActorSlots(s32 arg0, s32 arg1) {
     g_BattleActors[arg0] = g_BattleActors[arg1];
     g_BattleActors[arg1] = tmp;
 }
-u8 func_800AA7DC(s32 arg0) {
+u8 BattleGetQueuedCommandCode(s32 arg0) {
     s32 stop = 0xF7;
     u8 v;
 

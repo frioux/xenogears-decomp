@@ -582,7 +582,7 @@ void BattleUpdatePartDrawFlags(Actor *p0) {
 }
 
 extern void func_80074678(Actor *, s32, u8);
-extern void func_8008B0D8(BattlePartAnim *);
+extern void BattleResetPartAnim(BattlePartAnim *);
 extern s32 func_8008B730(BattlePartAnim *, s32, s32);
 extern BattlePartMode D_80091130[];
 
@@ -599,7 +599,7 @@ void BattleActorApplyAnimationCommand(Actor *p0) {
     pAnim = &p0->pModelLink->pModel->pAnims[pData->index];
     if (pData->flags & 0x1000) {
         BattleUpdatePartDrawFlags(p0);
-        func_8008B0D8(pAnim);
+        BattleResetPartAnim(pAnim);
     }
     func_80074678(p0, pAnim->unk12, p0->pAnimData->unk9);
     if (pData->unkA != 0) {
@@ -661,7 +661,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
         p0->unk4F = (p0->pPartTimings[p0->partIndex].unk1 * p0->unk15F2) / 256;
         pAnim = &p0->pModelLink->pModel->pAnims[p0->partIndex];
         BattleUpdatePartDrawFlags(p0);
-        func_8008B0D8(pAnim);
+        BattleResetPartAnim(pAnim);
         p0->unk99E = 0;
         p0->unk50 = -1;
         p0->flags &= ~0x10000000;

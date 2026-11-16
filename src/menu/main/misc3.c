@@ -647,7 +647,7 @@ u_char MenuFindFreeChunkIndex(u_char a0, u_char a1) {
 
 extern int ArchiveGetDiscNumber(void);
 extern int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput);
-extern u8 D_801E96A5;
+extern u8 g_MenuSaveSlotForceDiscOne;
 
 /* Header of a save slot (the first 0x24 bytes of the record
    MenuSaveSlotWriteGameState fills in): a per-party-slot character summary. */
@@ -738,7 +738,7 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 unk23) {
         }
         pText += 0x14;
     }
-    if (D_801E96A5 == 0) {
+    if (g_MenuSaveSlotForceDiscOne == 0) {
         discNumber = ArchiveGetDiscNumber() - 1;
     } else {
         discNumber = 1;

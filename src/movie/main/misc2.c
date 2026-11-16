@@ -39,7 +39,7 @@ extern u32 D_80077010;
 extern s32 D_80077014;
 extern s32 D_80077018;
 extern s32 D_8007701C;
-extern s32 D_80077024;
+extern s32 g_MovieVerticalOffset;
 extern u32 D_80077028;
 extern s32 D_80076F04;
 extern s32 D_80076F08;
@@ -541,7 +541,7 @@ extern s32 D_80077398;
 extern s32 D_800773A0;
 extern s32 D_800773A4;
 extern s32 D_800773A8;
-extern s32 D_800773B8[];
+extern s32 g_MovieFrameStamps[];
 extern s32 D_800773BC[];
 extern u8 D_8004FE46;
 extern void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2);
@@ -560,13 +560,13 @@ typedef struct {
 //    at sp+0x38, so clearRect lands on retail's 0xC8 and moveRect on 0x2D0. Nothing
 //    else reproduces those two offsets (declaration order does not move them).
 //  - Vsync is `int Vsync(int)`, not void: retail uses its return value as the two
-//    per-frame timestamps stored to D_800773B8/D_800773BC (stride 8, two s32
+//    per-frame timestamps stored to g_MovieFrameStamps/D_800773BC (stride 8, two s32
 //    pointers advanced by 2, which is why retail has two separate base registers).
-//  - D_80077024 is stored 32-bit and read `lhu` twice; D_800773A0 is `lw` in the
+//  - g_MovieVerticalOffset is stored 32-bit and read `lhu` twice; D_800773A0 is `lw` in the
 //    (0xF0 - x) / 2 and `lh` as an argument; D_80077454 is `lhu`.
 //  Residual (measured, not guessed): the D_80077438 boolean argument. Retail emits
 //  `beqz` + `ori v0,zero,1` with the store duplicated into both branches, and both
-//  `lhu` of D_80077024 come from ONE `t0` materialisation. Every spelling tried
+//  `lhu` of g_MovieVerticalOffset come from ONE `t0` materialisation. Every spelling tried
 //  (flags if/else, inline ternary, `!= 0`) makes gcc compute `sltu v0,zero,v0` and
 //  sink the D_80077438 load into the argument setup, which reorders the whole
 //  13-argument block. That single argument is what holds this at 82.97%.
@@ -610,15 +610,15 @@ s32 func_80076488(void) {
     D_8007701C = 0;
     func_801D43B0();
     if (D_800773A0 > 0) {
-        D_80077024 = (0xF0 - D_800773A0) / 2;
+        g_MovieVerticalOffset = (0xF0 - D_800773A0) / 2;
     } else {
-        D_80077024 = 0;
+        g_MovieVerticalOffset = 0;
     }
     func_801D3538(0x140, 0xF0, 0x80, 0x10, 0x20, 0x800, *(u16*)&D_80077454);
     D_801D68B4 = 0;
     func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&D_8007739C,
-        *(u16*)&D_80077398, mode, D_80077438 ? 1 : 0, 0, *(u16*)&D_80077024, 0,
-        *(u16*)&D_80077024 + 0xF0, *(s16*)&D_800773A0, MovieRequestFrame);
+        *(u16*)&D_80077398, mode, D_80077438 ? 1 : 0, 0, *(u16*)&g_MovieVerticalOffset, 0,
+        *(u16*)&g_MovieVerticalOffset + 0xF0, *(s16*)&D_800773A0, MovieRequestFrame);
     nRate = 0x1E;
     PutDrawEnv(&D_80077124[D_80077018].drawEnv);
     pDrawBuffer = D_80077124;
@@ -627,7 +627,7 @@ s32 func_80076488(void) {
     for (;;) {
         if (D_80077020 == 0) {
             nFrames = nRate / 10;
-            pTimeA = D_800773B8;
+            pTimeA = g_MovieFrameStamps;
             pTimeB = D_800773BC;
             nCounter = 1;
             for (i = 0; i < nFrames; i++) {
@@ -679,12 +679,12 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2) {
     D_80077010 = arg0;
     if (D_801D68B4 == 1) {
-        if (arg2 != D_80077024) {
+        if (arg2 != g_MovieVerticalOffset) {
             D_80077018 = 0;
         } else {
             D_80077018 = 1;
         }
-    } else if (arg2 != D_80077024) {
+    } else if (arg2 != g_MovieVerticalOffset) {
         D_80077018 = 0;
         D_8007701C = 0;
     } else {
