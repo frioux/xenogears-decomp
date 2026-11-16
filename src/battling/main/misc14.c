@@ -723,11 +723,13 @@ void BattleFreeWorkBuffer(void *pMem) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
 
-/* Best attempt: objdiff 94.29% (same under gcc-2.6.0 and gcc-2.7.2-cdk). Only
-   the temporaries differ: the original loads into $t0/$t1, gcc into $v0/$v1; the
-   instruction sequence and both symbols are identical. Two locals, direct field
-   stores, a struct pointer and an 8-byte struct copy (70.71%, it also bases the
-   second load off one symbol) all give $v0/$v1. */
+/* Best attempt: objdiff 94.29% (same under gcc-2.6.0, gcc-2.7.2-cdk and -O1/-O3).
+   Only the temporaries differ: the original loads into $t0/$t1, gcc into
+   $v0/$v1; the instruction sequence and both symbols are identical. A struct
+   pointer, an 8-byte struct copy (70.71%, it also bases the second load off one
+   symbol) and a 2-minute permuter run (nothing better) all leave the allocation
+   alone. Its sibling func_8008BB1C has the same $t0-against-$v0 tie, so both are
+   one allocator question, not two. */
 /*
 void func_8008BB00(Misc14Entry *pDst) {
     pDst->unk0 = D_80096D88;
