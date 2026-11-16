@@ -534,11 +534,22 @@ s32 WorldMapResetSlotColorFade(s32 index) {
     return 1;
 }
 
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
+// Best: 99.85%, 844 bytes (retail's size). Both switches, both tables
+// (5 entries for the -1'd unk4 switch, 6 for the unk20 switch with case 0
+// mapped to the exit) and all five fill loops match instruction for
+// instruction; the two jump-table operands are the expected jtbl_/.rodata
+// difference. ONE instruction differs in the linked bytes: case 5 emits
+// addiu s0,zero,0xBF before addiu v0,zero,0x2 where retail materialises the
+// stored constant 2 first, and assigning 2 to a local did not move it. That
+// is the only reason this is parked, not a structural problem.
+/*
 s32 func_80081FD8(s32 index) {
     WorldMapSlot *pSlot = &D_8009BE24[index];
     s32 i;
     u16 *pFill;
     s32 start;
+    s32 value;
     s16 state;
 
     state = pSlot->unk4 - 1;
@@ -634,13 +645,15 @@ s32 func_80081FD8(s32 index) {
         break;
     case 5:
         pFill = (u16 *)D_8009D148;
+        value = 2;
         for (i = 0xBF; i >= 0; i--) {
-            *pFill++ = 2;
+            *pFill++ = value;
         }
         break;
     }
     return 1;
 }
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
 s32 WorldMapExitToMap269(void) {
     u16 v;
