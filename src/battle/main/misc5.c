@@ -410,12 +410,12 @@ void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
 }
 void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    s32 rowOff = arg1 * 0x40;
     u16 val = p[2] | (p[3] << 8);
     mem_addr regFileBase;
 
+    // separate assignment: gcc materialises the base before the value loads if it is an initializer
     regFileBase = (mem_addr)D_800D3420;
-    *((u16 *)((p[1] << 1) + (rowOff + regFileBase))) = val;
+    *((u16 *)((p[1] << 1) + (arg1 * 0x40 + regFileBase))) = val;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
 /* 53.44% - the value expression and the index come out right, but gcc forms the
