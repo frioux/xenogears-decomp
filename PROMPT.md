@@ -148,7 +148,11 @@ of a match, and it is cheap.
 - **Backlog:** about 2,100 already-matched functions are still `func_`. While a
   matching round is out, run a naming round over them with
   `tools/rounds/name-brief.js` (`{workers: [{tree: <this repo>, file}, ...]}`). It is
-  read-only, so workers share this tree and need no clones. Pick the files with the
+  read-only, so workers share this tree and need no clones. **Give a worker 2-3 files,
+  not six:** round 138 handed seven workers six files each and six of them timed out at
+  30 minutes with nothing in their output file, only the template (the one that finished
+  reported 46 NAME/DATA lines). `file` may be a comma-separated list - the run key is
+  sanitised - so a naming round is many small workers, not a few big ones. Pick the files with the
   most unnamed definitions that are **not** in the current matching round, hold the
   NAME lines, and apply them after the matching round has merged, with the two commands
   above. Count definitions with `/* ... */` blocks stripped AND column-0

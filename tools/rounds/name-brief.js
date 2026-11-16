@@ -30,4 +30,7 @@ DATA D_800XXXXX g_NewName - evidence (the one use that justifies it: function, w
 DATA_UNKNOWN D_800XXXXX - what the uses do show
 DATA_INTERIOR D_800XXXXX - base D_800YYYYY, element size, field offset`;
 
-return runs.all(args.workers.map((w, i) => ({ key: "n" + i + "_" + w.file.replace(/^src\//, "").replace(/\.c$/, "").replace(/\//g, "-"), agent: "worker", task: HEADER(w), cwd: w.tree })));
+// file may be a comma-separated list of files (one worker, several small files), so the
+// run key is sanitised: anything outside [A-Za-z0-9._-] becomes '-', and it is truncated.
+const KEY = (w, i) => "n" + i + "_" + w.file.replace(/^src\//, "").replace(/\.c\b/g, "").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 100);
+return runs.all(args.workers.map((w, i) => ({ key: KEY(w, i), agent: "worker", task: HEADER(w), cwd: w.tree })));
