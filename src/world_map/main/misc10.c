@@ -25,27 +25,27 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
-    /* 0x04 */ u16 unk04;
-    /* 0x06 */ u16 unk06;
+    /* 0x04 */ u16 command;
+    /* 0x06 */ u16 targetSlot;
     /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
-    /* 0x20 */ u16 unk20;
-    /* 0x22 */ u16 unk22;
+    /* 0x20 */ u16 state;
+    /* 0x22 */ u16 stateTimer;
     /* 0x24 */ s16 unk24;
     /* 0x26 */ undefined16 unk26;
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
     /* 0x34 */ undefined32 unk34;
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ u32 unk3C;
-    /* 0x40 */ s32 unk40;
+    /* 0x38 */ s32 dirX;
+    /* 0x3C */ u32 dirY;
+    /* 0x40 */ s32 dirZ;
     /* 0x44 */ undefined32 unk44;
     /* 0x48 */ s16 angle;
-    /* 0x4A */ s16 unk4A;
+    /* 0x4A */ s16 moveSpeed;
     /* 0x4C */ void* pSprite;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ void* unk54;
-    /* 0x58 */ s32 unk58;
+    /* 0x58 */ s32 trailDelay;
     /* 0x5C */ s32 unk5C;
     /* 0x60 */ undefined32 unk60[8]; // 0x60..0x7F
 } WorldMapActor; // Size: 0x80
@@ -80,7 +80,7 @@ typedef union {
 
 typedef struct {
     /* 0x00 */ s16 spriteIndex;
-    /* 0x02 */ s16 unk02;
+    /* 0x02 */ s16 angle;
     /* 0x04 */ WorldMapTrailFlags trailFlags;
     /* 0x08 */ s32 x;
     /* 0x0C */ s32 y;
@@ -94,10 +94,10 @@ typedef struct {
     /* 0x2C */ s32 accelY;
     /* 0x30 */ s32 accelZ;
     /* 0x34 */ undefined32 unk34;
-    /* 0x38 */ u16 unk38;
-    /* 0x3A */ u16 unk3A;
-    /* 0x3C */ u16 unk3C;
-    /* 0x3E */ u16 unk3E;
+    /* 0x38 */ u16 scaleX;
+    /* 0x3A */ u16 scaleY;
+    /* 0x3C */ u16 scaleStepX;
+    /* 0x3E */ u16 scaleStepY;
     /* 0x40 */ u32 color;
     /* 0x44 */ WorldMapColorStep colorStep;
     /* 0x48 */ undefined32 unk48;
@@ -106,20 +106,35 @@ typedef struct {
 typedef struct {
     /* 0x00 */ undefined32 unk00;
     /* 0x04 */ u32 unk04;
-    /* 0x08 */ undefined8 unk08[0x2];
-    /* 0x0A */ u16 unk0A;
-    /* 0x0C */ undefined8 unk0C[0x6];
-    /* 0x12 */ u16 unk12;
-    /* 0x14 */ u16 unk14;
-    /* 0x16 */ u16 unk16;
-    /* 0x18 */ u16 unk18;
+    /* 0x08 */ s16 maxCount;
+    /* 0x0A */ u16 count;
+    /* 0x0C */ s16 unk0C;
+    /* 0x0E */ s16 unk0E;
+    /* 0x10 */ u16 interval;
+    /* 0x12 */ u16 timer;
+    /* 0x14 */ u16 x;
+    /* 0x16 */ u16 y;
+    /* 0x18 */ u16 z;
     /* 0x1A */ undefined8 unk1A[0x2];
     /* 0x1C */ u16 unk1C;
     /* 0x1E */ u16 unk1E;
     /* 0x20 */ u16 unk20;
-    /* 0x22 */ undefined8 unk22[0x2D];
+    /* 0x22 */ undefined8 unk22[0xA];
+    /* 0x2C */ u32 unk2C;
+    /* 0x30 */ u16 unk30;
+    /* 0x32 */ undefined16 unk32;
+    /* 0x34 */ s32 speed;
+    /* 0x38 */ u16 accelX;
+    /* 0x3A */ u16 accelY;
+    /* 0x3C */ u16 accelZ;
+    /* 0x3E */ undefined16 unk3E;
+    /* 0x40 */ u16 unk40;
+    /* 0x42 */ u16 unk42;
+    /* 0x44 */ u32 scale;
+    /* 0x48 */ u32 scaleStep;
+    /* 0x4C */ u8 color[0x3];
     /* 0x4F */ u8 flags;
-    /* 0x50 */ undefined32 unk50;
+    /* 0x50 */ u32 colorStep;
 } WorldMapSprite; // Size: 0x54
 
 // D_8009BCC0 holds 8 sprites per group (0x2A0 = 8 * 0x54).
@@ -130,22 +145,26 @@ typedef struct {
 // Same layouts as misc5.c, which declares them locally too.
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ s16 unk4;
-    /* 0x06 */ u8 unk6[0x1A];
-    /* 0x20 */ s16 unk20;
-    /* 0x22 */ u16 unk22;
+    /* 0x04 */ s16 command;
+    /* 0x06 */ s16 targetSlot;
+    /* 0x08 */ undefined8 unk08[0x18]; // 0x08..0x1F
+    /* 0x20 */ s16 state;
+    /* 0x22 */ u16 stateTimer;
     /* 0x24 */ u8 unk24[0x4];
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
     /* 0x34 */ u8 unk34[0x4];
-    /* 0x38 */ u32 unk38;
-    /* 0x3C */ u32 unk3C;
-    /* 0x40 */ u32 unk40;
-    /* 0x44 */ u8 unk44[0xC];
+    /* 0x38 */ u32 dirX;
+    /* 0x3C */ u32 dirY;
+    /* 0x40 */ u32 dirZ;
+    /* 0x44 */ u8 pad44[0x4];
+    /* 0x48 */ s16 angle;
+    /* 0x4A */ s16 unk4A;
+    /* 0x4C */ void* pSprite;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
-    /* 0x58 */ u32 unk58;
+    /* 0x58 */ u32 trailDelay;
     /* 0x5C */ u8 unk5C[0x24];
 } WorldMapPlayer; // Size: 0x80
 
@@ -350,11 +369,11 @@ void WorldMapInitSpriteGroupTables(void) {
     pSprite = D_8009BCC0->sprites;
     for (i = 0x1FF; i != -1; i--) {
         pSprite->unk04 = 0;
-        pSprite->unk0A = 0;
-        pSprite->unk12 = 0;
-        pSprite->unk18 = 0;
-        pSprite->unk16 = 0;
-        pSprite->unk14 = 0;
+        pSprite->count = 0;
+        pSprite->timer = 0;
+        pSprite->z = 0;
+        pSprite->y = 0;
+        pSprite->x = 0;
         pSprite->unk20 = 0;
         pSprite->unk1E = 0;
         pSprite->unk1C = 0;
@@ -532,8 +551,8 @@ void func_80089580(void) {
                 pEntry->velY += pEntry->accelY;
                 pEntry->velZ += pEntry->accelZ;
                 pEntry->trailFlags.status.count = pEntry->trailFlags.status.count - 1;
-                pEntry->unk38 += pEntry->unk3C;
-                pEntry->unk3A += pEntry->unk3E;
+                pEntry->scaleX += pEntry->scaleStepX;
+                pEntry->scaleY += pEntry->scaleStepY;
                 r = (pEntry->color & 0xFF) + pEntry->colorStep.r;
                 g = ((pEntry->color >> 8) & 0xFF) + pEntry->colorStep.g;
                 b = ((pEntry->color >> 16) & 0xFF) + pEntry->colorStep.b;
@@ -557,7 +576,7 @@ void func_80089580(void) {
                 }
                 pEntry->color = (pEntry->color & 0xFF000000) | (b << 16) | (g << 8) | r;
             } else {
-                ((WorldMapSprite*)D_8009BCC0)[pEntry->spriteIndex].unk0A--;
+                ((WorldMapSprite*)D_8009BCC0)[pEntry->spriteIndex].count--;
                 pEntry->spriteIndex = 0;
                 pEntry->trailFlags.flags = 0;
             }
@@ -618,11 +637,11 @@ s32 func_8008A5B8(s32 arg0) {
         u16 unk1824 = g_GameState.unk1824;
 
         pActor->unk24 = 1;
-        pActor->unk4A = 8;
-        pActor->unk40 = 0;
-        pActor->unk3C = 0;
-        pActor->unk38 = 0;
-        pActor->unk20 = 2;
+        pActor->moveSpeed = 8;
+        pActor->dirZ = 0;
+        pActor->dirY = 0;
+        pActor->dirX = 0;
+        pActor->state = 2;
         g_WorldMapTrailCursor = 0;
         pActor->angle = unk1824;
     }
