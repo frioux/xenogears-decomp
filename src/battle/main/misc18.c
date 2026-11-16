@@ -2,7 +2,7 @@
 #include "main/game.h"
 #include "battle/actor.h"
 
-extern u8 D_800C3AA4[];
+extern u16 D_800C3AA4[];
 extern u8 D_800D2D10[];
 extern u8 D_800D2D24[];
 extern BattleWorkBlock *D_800C34B0;
@@ -13,18 +13,26 @@ extern BattleTableEntry *D_800C3E34;
 extern u8 D_800C3E04;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
-extern u8 *D_800D2D6C;
+extern BattleSlotState *D_800D2D6C;
 extern u8 *D_800D2DC8;
 
-extern u8 D_800D220E[];
 extern u16 D_800D2C98;
 extern u16 D_800D2C9E;
 
-// the 0x170-byte slot action table at 0x800CCCE8, and two of its columns:
-// D_800CCD72 is the flag word at +0x8A, D_800CCE44 the timer bytes at +0x15C
-extern u8 D_800CCCE8[];
-extern u8 D_800CCD72[];
-extern u8 D_800CCE44[];
+// The 0x170-byte per-slot condition table. Its flag word sits at +0x8A
+// (BattleTableEntry::unk8A) and its timer bytes at +0x15C, which the original
+// reaches through a second base of its own.
+extern BattleTableEntry D_800CCCE8[];
+extern u8 D_800CCE44[][0x170];
+
+// Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
+// bytes apart. Only the word at +0 is read here.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u8 unk2[0xE];
+} BattleSlotWordEntry; // Size: 0x10
+
+extern BattleSlotWordEntry D_800D220E[];
 
 extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
@@ -126,7 +134,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     if (bitDef == 0) {
         pair = D_800C3E00->unk8C | D_800C3E00->unk8E;
     } else {
-        pair = *(u16 *)(D_800D2D6C + 0x84) | *(u16 *)(D_800D2D6C + 0x86);
+        pair = *(u16 *)((u8 *)D_800D2D6C + 0x84) | *(u16 *)((u8 *)D_800D2D6C + 0x86);
     }
     pair >>= 12;
     if (D_800C3DFC->unk0A & 0x100) {
@@ -266,7 +274,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (t & 0x100) {
         return;
     }
-    pBase = (u8 *)D_800C34B0;
+    pBase = (u8 *)D_800C34B0->slots;
     pActor = (BattleTableEntry *)(pBase + sel * sizeof(*pActor));
     if (pActor->state.unkB6 & 0x80) {
         return;
@@ -315,47 +323,45 @@ void BattleResetSlotConditionCounters(void) {
     u8 j;
     u8 v;
     BattleTableEntry *pSlot;
-    u8 *pRow;
     u16 hp;
     u16 flag;
 
     for (i = 0; i < 3; i++) {
         if (D_800D2D24[i] != 0x7F) {
             pSlot = &D_800C34B0->slots[i];
-            pRow = (u8 *)&pSlot->state;
             D_800C3E00 = pSlot;
             hp = pSlot->unk7A;
-            D_800D2D6C = pRow;
-            *(u16 *)&D_800C3AA4[i * 2] = hp;
+            D_800D2D6C = &pSlot->state;
+            D_800C3AA4[i] = hp;
             for (j = 0; j < 4; j++) {
                 v = D_800D2D10[j];
                 if (v != 0) {
-                    D_800D2D6C[0x98] -= v;
-                    D_800D2D6C[0x98] += *(u8 *)((s32)D_800D2D6C + j + 0x50);
+                    D_800D2D6C->unk86[0x12] -= v;
+                    D_800D2D6C->unk86[0x12] += D_800D2D6C->unk50[j];
                 }
             }
-            if (D_800D2D6C[0x98] >= 0x11) {
-                D_800D2D6C[0x98] = 0x10;
+            if (D_800D2D6C->unk86[0x12] >= 0x11) {
+                D_800D2D6C->unk86[0x12] = 0x10;
             }
         }
     }
 
-    flag = *(u16 *)((u8 *)&g_GameState + 0x17DA);
-    *(u8 *)((u8 *)&g_GameState + 0x7E6) = 7;
+    flag = (u16)g_GameState.unk16BC[8].unk1E;
+    g_GameState.characters[8].agility = 7;
     if (flag & 0x2000) {
-        *(u16 *)((u8 *)&g_GameState + 0x17C2) |= 0x800;
+        g_GameState.unk16BC[8].unk6 |= 0x800;
     }
-    if (*(u16 *)((u8 *)&g_GameState + 0x1930) < 0xBB) {
-        *(u8 *)((u8 *)&g_GameState + 0x9EC) = 10;
-        *(u8 *)((u8 *)&g_GameState + 0xA90) = 10;
-        *(u8 *)((u8 *)&g_GameState + 0x10F8) = 9;
-        *(u8 *)((u8 *)&g_GameState + 0x119C) = 9;
-        *(u8 *)((u8 *)&g_GameState + 0x1240) = 8;
-        *(u8 *)((u8 *)&g_GameState + 0x12E4) = 12;
-        *(u8 *)((u8 *)&g_GameState + 0x1388) = 12;
-        *(u8 *)((u8 *)&g_GameState + 0x11CE) = 0x58;
-        *(u8 *)((u8 *)&g_GameState + 0xDF7) = 0;
-        *(u8 *)((u8 *)&g_GameState + 0x131C) = 0x28;
+    if (g_GameState.unk1930[0] < 0xBB) {
+        g_GameState.gears[0].attackPower = 10;
+        g_GameState.gears[1].attackPower = 10;
+        g_GameState.gears[11].attackPower = 9;
+        g_GameState.gears[12].attackPower = 9;
+        g_GameState.gears[13].attackPower = 8;
+        g_GameState.gears[14].attackPower = 12;
+        g_GameState.gears[15].attackPower = 12;
+        g_GameState.gears[13].frameId = 0x58;
+        g_GameState.gears[7].engineId = 0;
+        g_GameState.gears[15].armorId = 0x28;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
@@ -387,7 +393,7 @@ u8 func_80098AF8(u8 sel) {
     s32 d;
 
     D_800C3E00 = pActor;
-    D_800D2D6C = pActor + 0xA4;
+    D_800D2D6C = (BattleSlotState *)(pActor + 0xA4);
 
     if (sel < 3) {
         if ((pActor[0x15A] & 0x80) == 0) {
@@ -439,7 +445,7 @@ void BattleInitActiveSlotActions(u8 sel) {
         mask <<= 1;
     }
 
-    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = *(u16 *)(D_800D220E + sel * 0x10);
+    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = D_800D220E[sel].unk0;
 
     if (D_800D2C9E & 0x8000) {
         D_800D2C98 = 0xC2;
@@ -483,16 +489,16 @@ s32 BattleTestActorSlotFlagsC002ByMode(void) {
     return ret;
 }
 void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
-    u8 *pEntry;
+    BattleTableEntry *pEntry;
     u8 *pTimer;
     u8 idx = 0xF;
     u8 val = count;
     u16 bits;
 
-    if (*(u16 *)(D_800CCD72 + D_800C3E04 * 0x170) & 0x2000) {
+    if (D_800CCCE8[D_800C3E04].unk8A & 0x2000) {
         val *= 2;
     }
-    pEntry = (u8 *)D_800CCCE8 + slot * 0x170;
+    pEntry = &D_800CCCE8[slot];
     if (kind == 0) {
         if (flag != 0x1000) {
             idx = (flag == 0x2000) ? 0 : 0xF;
@@ -556,7 +562,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     case 5:
     case 7:
     case 9:
-        bits = *(u16 *)&D_800C3E34->unk88 | *(u16 *)&D_800C3E34->unk8A;
+        bits = D_800C3E34->unk88 | D_800C3E34->unk8A;
         if (bits & 5) {
             val *= 2;
         }
@@ -565,7 +571,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
         }
         break;
     }
-    if (*(u16 *)(pEntry + 0x32) & 0x40) {
+    if (((u16 *)&pEntry->unk04[0x2E])[0] & 0x40) {
         switch (kind) {
         case 5:
         case 7:
@@ -574,7 +580,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
             break;
         }
     }
-    pTimer = (u8 *)D_800CCE44 + slot * 0x170;
+    pTimer = D_800CCE44[slot];
     pTimer[idx] = val;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80099890);
