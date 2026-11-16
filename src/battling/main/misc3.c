@@ -45,16 +45,16 @@ typedef struct BattleActor {
     /* 0x0014 */ s32 vy;
     /* 0x0018 */ s32 vz;
     /* 0x001C */ u8 unk1C[0x4];
-    /* 0x0020 */ s32 unk20;
-    /* 0x0024 */ s32 unk24;
-    /* 0x0028 */ s32 unk28;
+    /* 0x0020 */ s32 pushVx;
+    /* 0x0024 */ s32 pushVy;
+    /* 0x0028 */ s32 pushVz;
     /* 0x002C */ s32 unk2C;
-    /* 0x0030 */ s32 unk30;
-    /* 0x0034 */ s32 unk34;
-    /* 0x0038 */ s32 unk38;
+    /* 0x0030 */ s32 steerVx;
+    /* 0x0034 */ s32 steerVy;
+    /* 0x0038 */ s32 steerVz;
     /* 0x003C */ u8 unk3C[0x4];
     /* 0x0040 */ s32 stepDistance;
-    /* 0x0044 */ s32 unk44;
+    /* 0x0044 */ s32 steerSpeed;
     /* 0x0048 */ s32 distance;
     /* 0x004C */ u8 modelIndex;
     /* 0x004D */ u8 unk4D;
@@ -64,7 +64,7 @@ typedef struct BattleActor {
     /* 0x0052 */ u8 unk52;
     /* 0x0053 */ u8 unk53;
     /* 0x0054 */ s32 angle;
-    /* 0x0058 */ s32 unk58;
+    /* 0x0058 */ s32 targetAngle;
     /* 0x005C */ u8 unk5C[0x10];
     /* 0x006C */ Vec4 prevPosition;
     /* 0x007C */ u8 unk7C[0x4];
@@ -84,8 +84,8 @@ typedef struct BattleActor {
     /* 0x00BE */ s16 unkBE;
     /* 0x00C0 */ u8 gaugeWidth;
     /* 0x00C1 */ u8 prevGaugeWidth;
-    /* 0x00C2 */ u8 unkC2;
-    /* 0x00C3 */ u8 unkC3;
+    /* 0x00C2 */ u8 flashTimer;
+    /* 0x00C3 */ u8 actionPhaseTimer;
     /* 0x00C4 */ u8 state;
     /* 0x00C5 */ u8 actionPhase;
     /* 0x00C6 */ u8 unkC6[0x2];
@@ -120,9 +120,9 @@ typedef struct BattleActor {
     /* 0x092C */ Vec4 unk92C;
     /* 0x093C */ Vec4 centerPosition;
     /* 0x094C */ u8 unk94C[0x10];
-    /* 0x095C */ Vec4 unk95C;
+    /* 0x095C */ Vec4 prevCenterPosition;
     /* 0x096C */ u8 unk96C[0x4];
-    /* 0x0970 */ s32 unk970;
+    /* 0x0970 */ s32 gaugeDrain;
     /* 0x0974 */ Vec4 unk974;
     /* 0x0984 */ u8 unk984[0x1C];
     /* 0x09A0 */ BattleMessageQueue messageQueue;
@@ -132,8 +132,8 @@ typedef struct BattleActor {
     /* 0x15EA */ s16 unk15EA;
     /* 0x15EC */ u8 unk15EC[0x4];
     /* 0x15F0 */ s16 unk15F0;
-    /* 0x15F2 */ s16 unk15F2;
-    /* 0x15F4 */ s16 unk15F4;
+    /* 0x15F2 */ s16 moveSpeed;
+    /* 0x15F4 */ s16 moveSpeedBase;
     /* 0x15F6 */ u8 unk15F6[0xA];
     /* 0x1600 */ BattleActionData* pActionData;
     /* 0x1604 */ u8 unk1604[0x66];
@@ -308,11 +308,11 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     }
     // the do-block keeps the 0x8000000 test out of the mult shadow
     do {
-        prod = p->unk15F4 * g_BattleMotionSpeedScale;
+        prod = p->moveSpeedBase * g_BattleMotionSpeedScale;
         flags = p->flags;
         flags &= ~0x80000;
         p->flags = flags;
-        p->unk15F2 = prod >> 8;
+        p->moveSpeed = prod >> 8;
     } while (0);
     flags &= 0x8000000;
     if (!flags) {
@@ -426,15 +426,15 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
    the reload disappears. Every other shape of the body is byte-identical.
    Tried: `p->flags = p->flags | 0x400`, a `flags` local, both statement orders
    for the |= 0x1000 / unk14 / |= 0x400 trio, a do/while block around the store.
-   The permuter (3 min) reached base=326 best=120 only by moving `p->unk970 = 0`
+   The permuter (3 min) reached base=326 best=120 only by moving `p->gaugeDrain = 0`
    inside the if, which fixes the reload but costs retail's store placement.
 */
 /*
 s32 func_80077038(BattleActor* p) {
     u32 flags;
 
-    if (p->unkC2 != 0) {
-        p->unkC2 -= 0x10;
+    if (p->flashTimer != 0) {
+        p->flashTimer -= 0x10;
     }
     if (p->state == 5) {
         return;
@@ -459,9 +459,9 @@ s32 func_80077038(BattleActor* p) {
         p->moveFrameCount = 0;
         p->flags = (p->flags & 0xFF8FFFFF) | 0x300000;
     }
-    if (p->unkC3 != 0) {
+    if (p->actionPhaseTimer != 0) {
         p->actionPhase = 4;
-        p->unkC3--;
+        p->actionPhaseTimer--;
     } else if (p->actionPhase == 4) {
         p->actionPhase = 0;
     }
@@ -524,7 +524,7 @@ s32 func_80077038(BattleActor* p) {
         }
     }
     p->gaugeValue -= p->gaugeLevel;
-    p->gaugeValue -= p->unk970;
+    p->gaugeValue -= p->gaugeDrain;
     if (p->gaugeLevel != 0) {
         if (p->soundTimer == 0) {
             if (BattleGetScreenMode() != 4) {
@@ -549,10 +549,10 @@ s32 func_80077038(BattleActor* p) {
         if (p->gaugeWidth == 1) {
             p->gaugeWidth = 2;
         }
-        p->unkC2 = 0xF0;
+        p->flashTimer = 0xF0;
     }
     p->gaugeLevel = 0;
-    p->unk970 = 0;
+    p->gaugeDrain = 0;
     if (g_BattleMode != 4 && p->gaugeValue == 0 && g_BattleMode != 6 && !(p->flags & 0x800000)) {
         p->modelIndex = 0xD;
         p->prevPartIndex = 0xFF;
@@ -562,11 +562,11 @@ s32 func_80077038(BattleActor* p) {
         p->vy -= 0x50;
         p->flags |= 0x400;
         if (p->flags & 0x8000000) {
-            p->unk20 -= rcos(g_BattleFacingAngle) >> 9;
-            p->unk28 -= rsin(g_BattleFacingAngle) >> 9;
+            p->pushVx -= rcos(g_BattleFacingAngle) >> 9;
+            p->pushVz -= rsin(g_BattleFacingAngle) >> 9;
         } else {
-            p->unk20 += rcos(g_BattleFacingAngle) >> 9;
-            p->unk28 += rsin(g_BattleFacingAngle) >> 9;
+            p->pushVx += rcos(g_BattleFacingAngle) >> 9;
+            p->pushVz += rsin(g_BattleFacingAngle) >> 9;
         }
         p->flags |= 0x800000;
         BattleUpdateControllerActuator(p, 0x14);
@@ -585,8 +585,8 @@ s32 ang;
 s32 shift;
 s32 dec;
 {
-    p->unk20 += rcos(ang) >> shift;
-    p->unk28 += rsin(ang) >> shift;
+    p->pushVx += rcos(ang) >> shift;
+    p->pushVz += rsin(ang) >> shift;
     if (p->vy >= -0x8B) {
         p->vy -= dec;
     }
@@ -883,7 +883,7 @@ void func_80077A9C(BattleActor* p) {
             p->prevPartIndex = 0xFF;
             p->flags |= 0x1000;
             func_8008EBD0((u8*)p, 0xE, p, 2);
-            p->unkC3 = 6;
+            p->actionPhaseTimer = 6;
             p->actionPhase = 4;
             break;
         }
@@ -892,7 +892,7 @@ void func_80077A9C(BattleActor* p) {
     p->flags &= ~4;
     switch (p->state) {
     case 0:
-        p->unk58 = 0;
+        p->targetAngle = 0;
         switch (p->actionPhase) {
         case 0:
             if (p->flags & 2) {
@@ -908,39 +908,39 @@ void func_80077A9C(BattleActor* p) {
             break;
         case 2:
             if (flag != 0) {
-                p->unk44 += 0x40;
+                p->steerSpeed += 0x40;
             }
             break;
         case 4:
             BattleActorSetFlag80000(p);
             break;
         }
-        p->angleOffset = func_8008B650(p->angleOffset, p->unk58, 0x100);
+        p->angleOffset = func_8008B650(p->angleOffset, p->targetAngle, 0x100);
         break;
     case 1:
-        p->unk52 = p->distance * p->unk15F2 / 4096;
+        p->unk52 = p->distance * p->moveSpeed / 4096;
         switch (p->actionPhase) {
         case 0:
             p->modelIndex = 1;
             break;
         case 2:
             if (flag != 0) {
-                p->unk44 += 0x40;
+                p->steerSpeed += 0x40;
             }
             break;
         case 4:
             BattleActorSetFlag80000(p);
             break;
         }
-        p->angleOffset = func_8008B650(p->angleOffset, p->unk58, 0x100);
+        p->angleOffset = func_8008B650(p->angleOffset, p->targetAngle, 0x100);
         if ((p->flags & 0x60000000) == 0x20000000 && !(p->unk90A & 2)) {
             p->flags &= ~0x8000;
         }
         break;
     case 2:
         p->distance = 0;
-        p->unk44 = 0;
-        p->unk58 = 0;
+        p->steerSpeed = 0;
+        p->targetAngle = 0;
         if (p->actionPhase == 0) {
             p->modelIndex = 2;
         }
@@ -954,7 +954,7 @@ void func_80077A9C(BattleActor* p) {
         p->distance = 0;
         break;
     }
-    p->stepDistance = p->distance * p->unk15F0 * p->unk15F2 >> 16;
+    p->stepDistance = p->distance * p->unk15F0 * p->moveSpeed >> 16;
     if (!(p->flags & 0x8000)) {
         p->stateFlags &= ~0x40;
     }
@@ -993,7 +993,7 @@ extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern u8 g_BattleCameraLerpFrames;
 
 /* 89.19%: every call, both lerp limiter paths, the actionPhase==4 reset, the 0x40000
-   cos/sin pair, the p->unk44 steer block, the D_80092850 target-follow block and
+   cos/sin pair, the p->steerSpeed steer block, the D_80092850 target-follow block and
    the final fade all line up, and the frame is retail's exactly (0x30, s0/s1/s2,
    delta at sp+0x10). Three residuals, all allocator/scheduling, no structure:
    - the p->actionPhase==2 block: retail keeps the 0xFFF7FFFF mask in $a0, the 0x90C
@@ -1022,7 +1022,7 @@ void func_80078194(BattleActor* p) {
     s32 mode;
 
     p->prevPosition = p->position;
-    p->unk95C = p->centerPosition;
+    p->prevCenterPosition = p->centerPosition;
     angle = p->stepDistance;
     target = g_BattleFacingAngle;
     if (p->flags & 0x8000000) {
@@ -1050,7 +1050,7 @@ void func_80078194(BattleActor* p) {
         }
     }
     if (p->actionPhase == 4) {
-        angle = -(p->unkC3 * 0x50) / 3;
+        angle = -(p->actionPhaseTimer * 0x50) / 3;
         p->angle = target;
         p->facingAngle = target;
         p->angleOffset = 0;
@@ -1078,13 +1078,13 @@ void func_80078194(BattleActor* p) {
         p->flags &= 0xFFF7FFFF;
     }
     p->vy += 0xA;
-    if (p->unk44 != 0 && p->position.y == p->floorY) {
-        p->unk44 = p->unk44 * 0xA0 / 256;
-        p->unk30 = -(rcos(target) * p->unk44) >> 12;
-        p->unk38 = -(rsin(target) * p->unk44) >> 12;
-        p->vx += p->unk30;
-        p->vy += p->unk34;
-        p->vz += p->unk38;
+    if (p->steerSpeed != 0 && p->position.y == p->floorY) {
+        p->steerSpeed = p->steerSpeed * 0xA0 / 256;
+        p->steerVx = -(rcos(target) * p->steerSpeed) >> 12;
+        p->steerVz = -(rsin(target) * p->steerSpeed) >> 12;
+        p->vx += p->steerVx;
+        p->vy += p->steerVy;
+        p->vz += p->steerVz;
     }
     if (D_80092850 >= 0x281 && g_BattleOptionOn != 0) {
         Vec4 delta;
@@ -1115,12 +1115,12 @@ void func_80078194(BattleActor* p) {
         alpha = 0xFF;
     }
     if (p->flags & 0x40000) {
-        p->unk20 = p->unk20 * alpha / 256;
-        p->unk28 = p->unk28 * alpha / 256;
+        p->pushVx = p->pushVx * alpha / 256;
+        p->pushVz = p->pushVz * alpha / 256;
     }
-    p->vx += p->unk20;
-    p->vy += p->unk24;
-    p->vz += p->unk28;
+    p->vx += p->pushVx;
+    p->vy += p->pushVy;
+    p->vz += p->pushVz;
 }
 
 */
