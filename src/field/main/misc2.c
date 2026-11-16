@@ -1183,11 +1183,36 @@ void FieldRenderFrame(void) {
 
 
 // This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml):
-// nine 0xC-byte strings plus D_8006FB70 = VECTOR {0, 0, 0x1000, 0}. Each string is the
-// dlabel at the top of the .s of the stub that follows it, and a C const takes that
-// stub's place in the layout when it is defined between the same two functions, so the
-// stubs convert independently - one at a time is fine, address order is not required.
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
+// nine 0xC-byte strings plus the VECTOR below. Each string is the dlabel at the top of
+// the .s of the stub that follows it, and a C const takes that stub's place in the
+// layout when it is defined between the same two functions, so the stubs convert
+// independently - one at a time is fine, address order is not required.
+const VECTOR D_8006FB70 = { 0, 0, 0x1000, 0 };
+
+// Builds the rotation of pMat as a frame orthonormal to pVec: the normal of the
+// cross product of the reference axis with pVec, pVec itself, then their cross
+// product.
+void func_800759E4(MATRIX* pMat, VECTOR* pVec) {
+    VECTOR axis;
+    VECTOR normal;
+    VECTOR cross;
+
+    axis = D_8006FB70;
+    OuterProduct12(&axis, pVec, &cross);
+    VectorNormal(&cross, &normal);
+    OuterProduct12(&normal, pVec, &cross);
+    VectorNormal(&cross, &axis);
+
+    pMat->m[0][0] = normal.vx;
+    pMat->m[0][1] = normal.vy;
+    pMat->m[0][2] = normal.vz;
+    pMat->m[1][0] = pVec->vx;
+    pMat->m[1][1] = pVec->vy;
+    pMat->m[1][2] = pVec->vz;
+    pMat->m[2][0] = axis.vx;
+    pMat->m[2][1] = axis.vy;
+    pMat->m[2][2] = axis.vz;
+}
 
 void FieldSetSpriteColorRGB(SpriteData* pSpriteData, u_char* pColor) {
     if (g_FieldFogEnabled == 0) {
