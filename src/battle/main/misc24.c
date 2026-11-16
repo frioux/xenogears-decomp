@@ -258,8 +258,7 @@ void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
                     *(s32 *)(arg0 + 0x10) = pTable[arg3];
                 } else {
                     pEntries = *(u8 **)(arg1 + 0xC);
-                    pTable = *(s32 **)(pEntries + 4);
-                    *(s32 *)(arg0 + 0x10) = *(s32 *)((u8 *)pTable + arg3 * 4 - 0x138);
+                    *(s32 *)(arg0 + 0x10) = *(s32 *)((u8 *)(*(s32 **)(pEntries + 4)) + arg3 * 4 - 0x138);
                 }
                 n = D_800C3E30;
                 *(u16 *)(arg0 + 0x42) = 0;
