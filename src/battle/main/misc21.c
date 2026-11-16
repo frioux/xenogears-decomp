@@ -387,6 +387,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    ($v0 vs retail's $t0), plus retail's dead `andi v0,t3,0xffff` in the loop-head
    bnez delay slot where we emit nop. Permuter on top of the 97.90 body: base 360
    best 360 (646 iterations, 3 min).
+   Round 118: the parked body was never compiling (it spelled the block tag
+   `pBlock->unk1[2]`, and the header's BattleBlock has `unk1` as a scalar). Fixed to
+   `pBlock->unk3` -> 97.90%, still 420 bytes = retail's 420 and 105 insns each, so the
+   delta is exactly: retail's dead `andi v0,t3,0xffff` copied into the loop-head bnez
+   delay slot (we emit `nop`) and the prologue register permutation
+   (retail pFrame=$a1 / 3rd rot temp=$v1 / unk06=$t0, ours $v1/$a1/$v0). The
+   permutation is source-invisible: gcc only coalesces the +24 into $a1 when the
+   walker's add keeps the copy preference, and nothing in the body changes it.
+   Same 97.90% under gcc-2.7.2 -O2 -G8 (try_flags), so it is not a preset question.
+
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
     BattleSprite* pSprite;
@@ -427,7 +437,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
             numA++;
             if (pSprite->rot[0] != v0 || pSprite->rot[1] != v1 || pSprite->rot[2] != v2) {
                 pBlock = pSprite->p70;
-                if (pBlock == NULL || pBlock->unk1[2] != 0xFF) {
+                if (pBlock == NULL || pBlock->unk3 != 0xFF) {
                     pSprite->rot[0] = v0;
                     pSprite->rot[1] = v1;
                     pSprite->rot[2] = v2;
@@ -443,7 +453,7 @@ void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
             numB++;
             if (pSprite->pos[0] != v0 || pSprite->pos[1] != v1 || pSprite->pos[2] != v2) {
                 pBlock = pSprite->p74;
-                if (pBlock == NULL || pBlock->unk1[2] != 0xFF) {
+                if (pBlock == NULL || pBlock->unk3 != 0xFF) {
                     pSprite->pos[0] = v0;
                     pSprite->pos[1] = v1;
                     pSprite->pos[2] = v2;
