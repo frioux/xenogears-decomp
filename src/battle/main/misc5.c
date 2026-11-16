@@ -427,8 +427,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    used as ((u32*)pRow)[p[1]] every instruction is right but the whole
    lui/addiu + addu a1,a1,a0 group lands BEFORE the value loads (10.31%): gcc
    sinks the one-use value into the store, so the pointer init is expanded
-   first. Same wall as func_8007A92C; gcc-2.6.0, 2.7.2-cdk, -O1 and -O3 all
-   fail on it too.
+   first. Same wall as the old func_8007A92C body (now matched: statement-
+   assigned base mem_addr + index-first inline address); gcc-2.6.0, 2.7.2-cdk,
+   -O1 and -O3 all fail on it too.
    Round 135: the typed spelling `g_BattleSlotRegs[arg1].unk10[p[1]] = val` (dword
    register file, D_800D3410) written as one expression is 7.50% - the address
    expansion takes over the register allocation - so the separate-locals body
