@@ -2,7 +2,7 @@
 #include "main/game.h"
 #include "battle/actor.h"
 
-extern u8 D_800C3AA4[];
+extern u16 D_800C3AA4[];
 extern u8 D_800D2D10[];
 extern u8 D_800D2D24[];
 extern BattleWorkBlock *D_800C34B0;
@@ -13,7 +13,7 @@ extern BattleTableEntry *D_800C3E34;
 extern u8 D_800C3E04;
 extern u8 D_800C3E50;
 extern u8 D_800D2DC4;
-extern u8 *D_800D2D6C;
+extern BattleSlotState *D_800D2D6C;
 extern u8 *D_800D2DC8;
 
 extern u8 D_800D220E[];
@@ -315,47 +315,45 @@ void BattleResetSlotConditionCounters(void) {
     u8 j;
     u8 v;
     BattleTableEntry *pSlot;
-    u8 *pRow;
     u16 hp;
     u16 flag;
 
     for (i = 0; i < 3; i++) {
         if (D_800D2D24[i] != 0x7F) {
             pSlot = &D_800C34B0->slots[i];
-            pRow = (u8 *)&pSlot->state;
             D_800C3E00 = pSlot;
             hp = pSlot->unk7A;
-            D_800D2D6C = pRow;
-            *(u16 *)&D_800C3AA4[i * 2] = hp;
+            D_800D2D6C = &pSlot->state;
+            D_800C3AA4[i] = hp;
             for (j = 0; j < 4; j++) {
                 v = D_800D2D10[j];
                 if (v != 0) {
-                    D_800D2D6C[0x98] -= v;
-                    D_800D2D6C[0x98] += *(u8 *)((s32)D_800D2D6C + j + 0x50);
+                    D_800D2D6C->unk86[0x12] -= v;
+                    D_800D2D6C->unk86[0x12] += D_800D2D6C->unk50[j];
                 }
             }
-            if (D_800D2D6C[0x98] >= 0x11) {
-                D_800D2D6C[0x98] = 0x10;
+            if (D_800D2D6C->unk86[0x12] >= 0x11) {
+                D_800D2D6C->unk86[0x12] = 0x10;
             }
         }
     }
 
-    flag = *(u16 *)((u8 *)&g_GameState + 0x17DA);
-    *(u8 *)((u8 *)&g_GameState + 0x7E6) = 7;
+    flag = (u16)g_GameState.unk16BC[8].unk1E;
+    g_GameState.characters[8].agility = 7;
     if (flag & 0x2000) {
-        *(u16 *)((u8 *)&g_GameState + 0x17C2) |= 0x800;
+        g_GameState.unk16BC[8].unk6 |= 0x800;
     }
-    if (*(u16 *)((u8 *)&g_GameState + 0x1930) < 0xBB) {
-        *(u8 *)((u8 *)&g_GameState + 0x9EC) = 10;
-        *(u8 *)((u8 *)&g_GameState + 0xA90) = 10;
-        *(u8 *)((u8 *)&g_GameState + 0x10F8) = 9;
-        *(u8 *)((u8 *)&g_GameState + 0x119C) = 9;
-        *(u8 *)((u8 *)&g_GameState + 0x1240) = 8;
-        *(u8 *)((u8 *)&g_GameState + 0x12E4) = 12;
-        *(u8 *)((u8 *)&g_GameState + 0x1388) = 12;
-        *(u8 *)((u8 *)&g_GameState + 0x11CE) = 0x58;
-        *(u8 *)((u8 *)&g_GameState + 0xDF7) = 0;
-        *(u8 *)((u8 *)&g_GameState + 0x131C) = 0x28;
+    if (g_GameState.unk1930[0] < 0xBB) {
+        g_GameState.gears[0].attackPower = 10;
+        g_GameState.gears[1].attackPower = 10;
+        g_GameState.gears[11].attackPower = 9;
+        g_GameState.gears[12].attackPower = 9;
+        g_GameState.gears[13].attackPower = 8;
+        g_GameState.gears[14].attackPower = 12;
+        g_GameState.gears[15].attackPower = 12;
+        g_GameState.gears[13].frameId = 0x58;
+        g_GameState.gears[7].engineId = 0;
+        g_GameState.gears[15].armorId = 0x28;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
