@@ -425,6 +425,11 @@ use of idle CPU there is.
   inline asm the permuter's C parser rejects; `~/xw/permuter-out/<Func>.error` says which.
   A stale body is worth one line in a normal brief ("the park does not compile"); the
   rest are not permuter work.
+- **A ZERO is not proof of a match: the permuter does not score stack offsets.** A park
+  can read `best=0` with the instruction stream and size exact and still differ in the
+  frame layout (`battling/misc3` `func_8007661C` has been parked at 99.91% on exactly
+  that, and three separate bodies in `permuter-results.tsv` carry base 0 today). Port it,
+  then `diff_func.sh` and `check_bin.sh` decide, as always.
 - A jump-table function never reaches 0 (the original names `jtbl_X`, the candidate
   `.rodata`); a low BETTER score there is the result, and `check_bin.sh` is the judge.
 - After a sweep has covered everything at 3 minutes, a second pass with `--minutes 10
