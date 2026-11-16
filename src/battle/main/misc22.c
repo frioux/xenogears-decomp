@@ -2,6 +2,7 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
+#include "system/graphics.h"
 
 typedef struct {
     /* 0x0 */ struct _BattleMisc22Spr *pSprites;
@@ -54,6 +55,10 @@ struct _BattleMisc22Spr {
 typedef struct _BattleMisc22Spr BattleMisc22Spr;
 
 typedef struct {
+    /* 0x0 */ s16 pixels[3];
+} BattleMisc22ImageRow; // Size: 0x6
+
+typedef struct {
     /* 0x0 */ u8 pad0[0x4];
     /* 0x4 */ u16 *unk4;
     /* 0x8 */ u8 *unk8;
@@ -61,7 +66,7 @@ typedef struct {
     /* 0x10 */ u8 unk10;
     /* 0x11 */ u8 pad11[0x9];
     /* 0x1A */ u16 unk1A;
-    /* 0x1C */ u8 *unk1C;
+    /* 0x1C */ BattleMisc22ImageRow *unk1C;
     /* 0x20 */ u8 pad20[0x8];
     /* 0x28 */ BattleMisc22Rect rect28;
 } BattleMisc22Image; // Size: 0x30
@@ -101,9 +106,9 @@ typedef struct {
     /* 0x6E */ s16 unk6E;
 } BattleMisc22Cmd; // Size: 0x70
 
-extern s32 D_800D3344;
+extern BattleMisc22SVec *D_800D3344; // vertex table the battle scene sets up
 extern s32 D_80050100;
-extern s32 D_800D39CC;
+extern BattleMisc22Entry *D_800D39CC; // triangle table
 extern s32 D_800D3348;
 extern s32 BattleTestPointInTriangle(void *, void *, void *, s32);
 extern void BattleProjectPointOntoTriangle(void *, void *, void *, s32, s32);
@@ -114,11 +119,11 @@ extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOt, s32 flags
 extern void *D_800658C8;
 extern void *D_800C3D50[2];
 extern void *D_800C3EA0;
-extern u8 D_800C3DA0[];
+extern LineScroll D_800C3DA0[];
 extern s32 BattleGetActorRadius(void *pArg);
 extern void func_800A9FF0(s32 arg0);
 extern void HeapFreeIfNotNull(void *p);
-extern void GfxLineScrollFree(void *pLineScroll);
+extern void GfxLineScrollFree(LineScroll *pLineScroll);
 extern void BattlePushActorOutOfCircle(void *pArg, s16 x, s16 y, s32 z);
 extern void HeapFree(void *pMem);
 
@@ -307,7 +312,7 @@ void BattleScaleImageRegion(BattleMisc22Image *pArg, s16 scale) {
 
     for (i = 0; i < pArg->rect28.h; i++) {
         for (j = 0; j < pArg->rect28.w; j++) {
-            s16 *pRow = (s16 *)((pArg->rect28.y + i) * 6 + (s32)pArg->unk1C);
+            s16 *pRow = pArg->unk1C[pArg->rect28.y + i].pixels;
 
             pRow[pArg->rect28.x + j] = *pSrc * scale / 32;
             pSrc++;
@@ -322,7 +327,7 @@ void BattleBlendImageRegion(BattleMisc22Image *pArg, s16 scale) {
 
     for (i = 0; i < pArg->rect28.h; i++) {
         for (j = 0; j < pArg->rect28.w; j++) {
-            s16 *pRow = (s16 *)((pArg->rect28.y + i) * 6 + (s32)pArg->unk1C);
+            s16 *pRow = pArg->unk1C[pArg->rect28.y + i].pixels;
 
             pRow[pArg->rect28.x + j] = *pSrc2 + (*pSrc1 - *pSrc2) * scale / 32;
             pSrc1++;
@@ -409,7 +414,7 @@ void BattleFreeSceneResources(void) {
     }
     D_800C3EA0 = 0;
     for (; i < 2; i++) {
-        GfxLineScrollFree(&D_800C3DA0[i * 0x18]);
+        GfxLineScrollFree(&D_800C3DA0[i]);
     }
 }
 typedef struct {
@@ -549,11 +554,11 @@ void BattleSteerActorTowardCircles(void *pArg) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
 s32 BattleGetTriangleVertexTable(void) {
-    return D_800D3344;
+    return (s32)D_800D3344;
 }
 
 s32 BattleGetTriangleEntryTable(void) {
-    return D_800D39CC;
+    return (s32)D_800D39CC;
 }
 
 s32 BattleFindTriangleContainingPoint(s32 arg0) {
@@ -562,10 +567,9 @@ s32 BattleFindTriangleContainingPoint(s32 arg0) {
 
     if (D_800D3344 != 0 && D_800D39CC != 0) {
         for (i = 0; i < D_800D3348; i++) {
-            pEntry = (BattleMisc22Entry *)(i * 14 + D_800D39CC);
-            if (BattleTestPointInTriangle((BattleMisc22SVec *)(pEntry->unk0 * 8 + D_800D3344),
-                              (BattleMisc22SVec *)(pEntry->unk2 * 8 + D_800D3344),
-                              (BattleMisc22SVec *)(pEntry->unk4 * 8 + D_800D3344), arg0) == -1) {
+            pEntry = &D_800D39CC[i];
+            if (BattleTestPointInTriangle(&D_800D3344[pEntry->unk0], &D_800D3344[pEntry->unk2],
+                              &D_800D3344[pEntry->unk4], arg0) == -1) {
                 return i;
             }
         }
@@ -579,9 +583,8 @@ s32 BattleProjectPointOntoIndexedTriangle(s32 arg0, s32 index, s32 arg2) {
     if (D_800D3344 == 0 || D_800D39CC == 0 || index < 0) {
         return -1;
     }
-    pEntry = (BattleMisc22Entry *)(index * 14 + D_800D39CC);
-    BattleProjectPointOntoTriangle((BattleMisc22SVec *)(pEntry->unk0 * 8 + D_800D3344),
-                  (BattleMisc22SVec *)(pEntry->unk2 * 8 + D_800D3344),
-                  (BattleMisc22SVec *)(pEntry->unk4 * 8 + D_800D3344), arg0, arg2);
-    return ((BattleMisc22Entry *)(index * 14 + D_800D39CC))->unkC;
+    pEntry = &D_800D39CC[index];
+    BattleProjectPointOntoTriangle(&D_800D3344[pEntry->unk0], &D_800D3344[pEntry->unk2],
+                  &D_800D3344[pEntry->unk4], arg0, arg2);
+    return D_800D39CC[index].unkC;
 }
