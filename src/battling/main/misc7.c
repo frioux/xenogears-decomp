@@ -430,11 +430,83 @@ void BattleHandleSelectionInputPad1(void) {
     }
 }
 
-/* Not convertible without moving the unit's rodata to C: the body is two
-   switches over jtbl_8006FFAC / jtbl_8007001C, which live in the asm-owned
-   [0x0, rodata] segment of config/battling.yaml. An if/else spelling cannot
-   reproduce the `jr $v0` dispatch. */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_80080570);
+/* The empty cases spell out sprite ids 4..31: without them cc1 compares the
+   special ids one by one instead of emitting the jtbl_ dispatch. */
+void func_80080570(void) {
+    u32 entry0;
+    u32 entry1;
+
+    entry0 = D_800928EC[D_80092700][0];
+    entry1 = D_800928EC[D_80092704][0];
+    switch (entry0) {
+    case 4:
+    case 7:
+    case 11:
+    case 30:
+    case 31:
+        entry0 = (entry1 == 0);
+        break;
+    case 5:
+    case 6:
+    case 8:
+    case 9:
+    case 10:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+    case 20:
+    case 21:
+    case 22:
+    case 23:
+    case 24:
+    case 25:
+    case 26:
+    case 27:
+    case 28:
+    case 29:
+        break;
+    }
+    BattleLoadSlotEntry(0, entry0);
+    switch (entry1) {
+    case 4:
+    case 7:
+    case 11:
+    case 30:
+    case 31:
+        entry1 = entry0 != 1;
+        break;
+    case 5:
+    case 6:
+    case 8:
+    case 9:
+    case 10:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+    case 20:
+    case 21:
+    case 22:
+    case 23:
+    case 24:
+    case 25:
+    case 26:
+    case 27:
+    case 28:
+    case 29:
+        break;
+    }
+    BattleLoadSlotEntry(1, entry1);
+}
 
 void BattleLoadSelectionTextures(s32 idx0, s32 idx1) {
     u8* pBuf;
