@@ -722,35 +722,21 @@ void SpriteSetDirection(SpriteData*, s16);
 
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
-/* 92.51% (140 vs 148 bytes). Frame and every other instruction match. The
-   branch shape only comes out with the ternary INSIDE the arithmetic (angle =
-   (current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF), which gives
-   retail's cond-add with the delay slot filled; an if/else or a ternary split
-   off the & 0xFFF gives beqz + j instead. The second store reads vy unsigned
-   (lhu), so the | 0x8000 uses the field type.
-   Residuals, all allocator/scheduling: (1) the original loads vy into v0,
-   copies it (move v1,v0) and tests in place (andi v0,v0,0x8000), keeping vy in
-   v1 for the addiu; we load straight into v1 and are one instruction short.
-   (2) we sink the second sh (0x106) into the jal delay slot by moving the
-   lh a1,0x104 reload ahead of it; retail stores both halves, reloads, and
-   leaves a nop in the slot. (3) the frame: retail's is 0x20 with the saves at
-   0x18/0x1C, ours 0x18 with them at 0x10/0x14 - an unused local only moves
-   the frame and does not produce the missing instructions.
-   Tried: an s16 current local for both the test and the addiu (same 92.51%),
-   gcc-2.7.2-cdk (89.27%) and 2.6.0 (92.51%), and a 3-minute permuter run
-   (base 500, best 128, no zero) which only proposed splitting the pointer into
-   two locals.
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
     s16 current;
+    int new_var2;
+    s16 new_var;
 
     if (pActorData->moveModified.vx != 0 || pActorData->moveModified.vz != 0) {
         current = pActorData->rotation.vy;
         if (!(current & 0x8000)) {
-            angle = (current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
-            pActorData->rotation.vx = angle;
-            pActorData->rotation.vy = angle;
+            angle = (new_var2 = current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
+            do {
+                new_var = angle;
+                pActorData->rotation.vx = angle;
+            } while (0);
+            pActorData->rotation.vy = new_var;
             func_80081F80(pSprite, pActorData->rotation.vx, pActor);
             angle = pActorData->rotation.vy | 0x8000;
             pActorData->rotation.vx = angle;
@@ -758,8 +744,6 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
         }
     }
 }
-*/
-
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
 void FieldNoOp(void) {
