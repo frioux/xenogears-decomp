@@ -529,24 +529,21 @@ void WorldMapBuildBasisMatrix(VECTOR* pVec, VECTOR* pWork, MATRIX* pMat) {
     pMat->m[2][2] = pVec->vz;
     TransposeMatrix(pMat, pMat);
 }
-// Best: 96.77% (752 bytes; retail is 756 - exactly one instruction, a `nop` that
-// retail has in the load-delay slot of `lw v0,80(sp)` after the unk2C store).
-// Everything from the `WorldMapGetTilePlaneHeight` jal to the epilogue is
-// instruction-identical; the two remaining deltas are (a) the prologue block, where
-// retail emits `addiu sp,0x38 / sw s0,0x20` BEFORE the D_8009C610 load and the rest
-// of the saves (ra,s3,s2,s1) after it, while gcc here puts the load pair above the
-// whole save block, and (b) at the unk2C store gcc hoists the `lw v1,80(s0)` reload
-// of unk50 above the `sw v0,44(s0)` and fills the load delay with that store, so the
-// value lands in v1 and the nop disappears. Wrapping the two scratchpad stores in
-// `do { ... } while (0);` reproduces (b) exactly and grows the file to retail's 756
-// bytes, but it also hoists the D_8009AF80/D_8009AF90 address formations above the
-// func_80094154 call, which costs pPos its s2 (it becomes s3) and drops the score to
-// 92.72. Nine declaration orders of {pSlot,pLayer,pPos,pCount,tileZ,tileIndex,dist,i,z}
-// all give exactly 96.77. Permuter: two runs (base=1993 -> 443, then 293, no ZERO);
-// the only thing it found that pays is the `u16 tileZ` local and moving the
-// `pPos->unk4 = 0` and `unk3C = 0` stores later, both already in the body below.
-// Screen: gcc-2.7.2-cdk 72.59 (and a matched neighbour WorldMapUpdateSceneLayerRotationMatrices
-// drops to 56.45 under it), so this is not a preset miss.
+// Best: 97.30% (756 bytes = retail's exact size; the ONLY remaining delta is a
+// register assignment: gcc gives pPos $s3 and the D_8009AF90 base $s2 where retail
+// has pPos $s2 and the AF90 base $s3 - same instruction multiset, same operands;
+// permuter 365 iterations from this body (base=200 best=200) and every declaration
+// order tried do not move it).
+// What closed the round-117 residuals, in case a neighbour needs the trick:
+//  (a) prologue order (retail: addiu sp / sw s0 BEFORE the D_8009C610 load, then
+//      ra,s3,s2,s1) is NOT controllable on its own - it falls out of the same block
+//      boundary as (b) and is correct here.
+//  (b) the stolen load-delay nop after the unk2C store needs the `do { } while (0)`
+//      below to include the func_80094154 CALL as well as the two scratchpad stores.
+// Measured alternatives at 756 bytes: do/while over the two stores only = 92.72
+// (hoists the D_8009AF80/D_8009AF90 base-register formations above the call, which
+// pushes pPos out of s2); do/while starting at the unk2C store = 89.16 (760 bytes);
+// do/while over the post-call pPos->x/tileZ/pPos->z group = 88.62.
 /*
 s32 func_80087C6C(s32 index) {
     WorldMapPlayer* pSlot;
@@ -585,9 +582,11 @@ s32 func_80087C6C(s32 index) {
         }
         pSlot->unk30 = z << 12;
         pSlot->unk2C = WorldMapGetTilePlaneHeight(pSlot->unk28, pSlot->unk30);
-        pPos->x = D_8009AF80[pSlot->unk50] << 12;
-        pPos->z = D_8009AF90[pSlot->unk50] << 12;
-        dist = func_80094154(&pSlot->unk28, pPos);
+        do {
+            pPos->x = D_8009AF80[pSlot->unk50] << 12;
+            pPos->z = D_8009AF90[pSlot->unk50] << 12;
+            dist = func_80094154(&pSlot->unk28, pPos);
+        } while (0);
         if (dist < 0) {
             dist = -dist;
         }
