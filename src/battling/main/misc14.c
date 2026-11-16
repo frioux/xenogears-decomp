@@ -755,10 +755,12 @@ void func_8008BB00(Misc14Entry *pDst) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB1C);
 
-/* Best attempt: objdiff 97.50% (97.5 under gcc-2.6.0 and -cdk too) - identical
-   except that the original keeps the one reused temporary in $t0, gcc in $v0.
-   Reusing a single temp is what reproduces the interleaved load/store order;
-   two separate statements make gcc hoist the second load (73.12%). */
+/* Best attempt: objdiff 97.50% - identical except that the original keeps the
+   one reused temporary in $t0, gcc in $v0. Reusing a single temp is what
+   reproduces the interleaved load/store order; two separate statements make gcc
+   hoist the second load (73.12%). Tried: s32 instead of u32 temp, volatile
+   stores, an 8-byte struct copy, a pointer local (all 97.5 or worse), -O1/-O3
+   (97.5) and a 4-minute permuter run (no improvement). */
 /*
 void func_8008BB1C(Misc14Entry *pSrc) {
     u32 value;
