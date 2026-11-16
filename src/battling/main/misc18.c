@@ -33,23 +33,23 @@ typedef union {
 
 typedef struct {
     /* 0x00 */ struct BattleActor* pOwner;
-    /* 0x04 */ s16 unk4;
+    /* 0x04 */ s16 delay;
     /* 0x06 */ u8 unk6;
     /* 0x07 */ u8 unk7;
-    /* 0x08 */ u8 unk8;
-    /* 0x09 */ u8 unk9;
-    /* 0x0A */ s16 unkA;
-    /* 0x0C */ s16 unkC;
-    /* 0x0E */ u8 unkE;
-    /* 0x0F */ u8 unkF;
-    /* 0x10 */ s32 unk10;
-    /* 0x14 */ s32 unk14;
-    /* 0x18 */ s32 unk18;
-    /* 0x1C */ s32 unk1C;
+    /* 0x08 */ u8 state;
+    /* 0x09 */ u8 ticks;
+    /* 0x0A */ s16 targetAngle;
+    /* 0x0C */ s16 maxDistance;
+    /* 0x0E */ u8 setFlag8000;
+    /* 0x0F */ u8 difficulty;
+    /* 0x10 */ s32 actionChance0;
+    /* 0x14 */ s32 actionChance1;
+    /* 0x18 */ s32 actionChance2;
+    /* 0x1C */ s32 actionChance3;
     /* 0x20 */ s32 unk20;
-    /* 0x24 */ s32 unk24;
+    /* 0x24 */ s32 breakThreshold;
     /* 0x28 */ s32 unk28;
-    /* 0x2C */ BattleWorkFlags unk2C;
+    /* 0x2C */ BattleWorkFlags flags;
     /* 0x30 */ u16 unk30;
     /* 0x32 */ u16 pad32;
 } BattleWork; // Size: 0x34
@@ -57,7 +57,7 @@ typedef struct {
 // The record the actor's four action probabilities are copied from.
 typedef struct {
     /* 0x0 */ u8 unk0[0x6];
-    /* 0x6 */ u8 unk6[0x4];
+    /* 0x6 */ u8 actionChances[0x4];
 } BattleActionData; // Size: 0xA
 
 // A battle participant as this unit drives it. Only the fields this unit
@@ -67,13 +67,13 @@ typedef struct BattleActor {
     /* 0x000 */ u8 unk0[0x48];
     /* 0x048 */ u32 unk48;
     /* 0x04C */ u8 unk4C[0x68];
-    /* 0x0B4 */ s16 unkB4;
-    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B4 */ s16 gaugeValue;
+    /* 0x0B6 */ s16 gaugePoints;
     /* 0x0B8 */ u8 unkB8[0x6];
     /* 0x0BE */ s16 unkBE;
     /* 0x0C0 */ u8 unkC0[0x4];
-    /* 0x0C4 */ u8 unkC4;
-    /* 0x0C5 */ u8 unkC5;
+    /* 0x0C4 */ u8 state;
+    /* 0x0C5 */ u8 actionPhase;
     /* 0x0C6 */ u8 unkC6[0xA];
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 unkD4[0x4];
@@ -81,7 +81,7 @@ typedef struct BattleActor {
     /* 0x0DC */ u8 unkDC[0x818];
     /* 0x8F4 */ u32 unk8F4;
     /* 0x8F8 */ u8 unk8F8[0x19];
-    /* 0x911 */ u8 unk911;
+    /* 0x911 */ u8 actionCount;
     /* 0x912 */ u8 unk912[0xCEA];
     /* 0x15FC */ BattleWork* pWork;
     /* 0x1600 */ BattleActionData* pActionData;
@@ -115,7 +115,7 @@ s32 BattleCheckActorBelowBreakThreshold(BattleActor* pActor, s32 arg1) {
     if (arg1 != 0) {
         return func_80073DE4(pActor, pActor->unkBE);
     }
-    return pActor->unkB6 < 0x1000 - pActor->unkBE;
+    return pActor->gaugePoints < 0x1000 - pActor->unkBE;
 }
 
 s32 BattleGetActorBreakThreshold(BattleActor* pActor, BattleWork* pWork) {
@@ -126,8 +126,8 @@ s32 BattleGetActorBreakProximity(BattleActor* pActor) {
     s32 v1;
     s32 v0;
 
-    v1 = pActor->unkB6;
-    v0 = pActor->pWork->unk24;
+    v1 = pActor->gaugePoints;
+    v0 = pActor->pWork->breakThreshold;
     return (v0 - 0x200 < v1) ? !(v0 < v1) : 2;
 }
 
@@ -136,36 +136,36 @@ s32 BattleRollActorActionChance(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
 
     pWork = pActor->pWork;
-    if ((rand() & 0xFF) < ((pWork->unk10 * 5) << 6) >> 4) {
+    if ((rand() & 0xFF) < ((pWork->actionChance0 * 5) << 6) >> 4) {
         if (BattleCheckActorBelowBreakThreshold(pActor, 0) != 0) {
             goto tail;
         }
         if (BattleCheckValueAboveScaledMax(pActor, 0xC0) != 0) {
             goto tail;
         }
-        if ((rand() & 0xFF) < ((pWork->unk1C * 3) << 6) >> 4) {
+        if ((rand() & 0xFF) < ((pWork->actionChance3 * 3) << 6) >> 4) {
             goto tail;
         }
         if (BattleCheckValueAboveScaledMax(pActor, 0x80) == 0) {
             return 0;
         }
-        if (pActor->pTarget->unkB4 < pActor->unkB4) {
+        if (pActor->pTarget->gaugeValue < pActor->gaugeValue) {
             goto tail;
         }
         return 0;
     }
-    if ((rand() & 0xFF) >= ((pWork->unk1C * 5) << 6) >> 4) {
+    if ((rand() & 0xFF) >= ((pWork->actionChance3 * 5) << 6) >> 4) {
         return 0;
     }
 tail:
-    if ((rand() & 0xFF) < pWork->unk18) {
-        if (pActor->pTarget->unkC4 == 4) {
+    if ((rand() & 0xFF) < pWork->actionChance2) {
+        if (pActor->pTarget->state == 4) {
             return 0;
         }
         if (BattleCheckValueAboveScaledMax(pActor->pTarget, 0x20) != 0) {
             return 1;
         }
-        if (pActor->pTarget->unkB4 < pActor->unkB4) {
+        if (pActor->pTarget->gaugeValue < pActor->gaugeValue) {
             return 0;
         }
     }
@@ -176,7 +176,7 @@ s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1) {
 
     pWork = pActor->pWork;
     if (arg1 != 0) {
-        if ((rand() & 0xFF) < pWork->unk10) {
+        if ((rand() & 0xFF) < pWork->actionChance0) {
             if (D_8009284C < 0x600) {
                 return 0;
             }
@@ -185,14 +185,14 @@ s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1) {
     if (BattleGetActorBreakProximity(pActor) != 0) {
         return 1;
     }
-    return ((rand() & 0xFF) < pWork->unk1C);
+    return ((rand() & 0xFF) < pWork->actionChance3);
 }void func_8008F7B8(BattleWork* pWork) {
-    pWork->unk2C.bits.unk2C_9 = (rand() & 0xFF) < pWork->unk10;
-    pWork->unk2C.bits.unk2C_10 = (rand() & 0xFF) < pWork->unk14;
-    pWork->unk2C.bits.unk2C_12 = rand() & 1;
-    pWork->unk2C.bits.unk2C_11 = (rand() & 0xFF) < pWork->unk18;
-    pWork->unk2C.bits.unk2C_8 = ((rand() & 0xFF) < pWork->unk10) && ((rand() % 10) < 3);
-    pWork->unk2C.bits.unk2C_0 = rand();
+    pWork->flags.bits.unk2C_9 = (rand() & 0xFF) < pWork->actionChance0;
+    pWork->flags.bits.unk2C_10 = (rand() & 0xFF) < pWork->actionChance1;
+    pWork->flags.bits.unk2C_12 = rand() & 1;
+    pWork->flags.bits.unk2C_11 = (rand() & 0xFF) < pWork->actionChance2;
+    pWork->flags.bits.unk2C_8 = ((rand() & 0xFF) < pWork->actionChance0) && ((rand() % 10) < 3);
+    pWork->flags.bits.unk2C_0 = rand();
     pWork->unk30 = pWork->pOwner->unk1668;
 }
 void BattleQueueMessages4Then3(BattleActor* pActor) {
@@ -234,8 +234,8 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     pos.x -= 0x3F80;
     pos.z -= 0x3F80;
     r = ratan2(pos.x, pos.z);
-    pWork->unkA = (((r & 0xFFF) >= 0x201) ? 0x800 : 0xC00) - g_BattleFacingAngle;
-    pWork->unkC = 0xFF;
+    pWork->targetAngle = (((r & 0xFFF) >= 0x201) ? 0x800 : 0xC00) - g_BattleFacingAngle;
+    pWork->maxDistance = 0xFF;
     return 0;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
@@ -284,17 +284,17 @@ s32 func_8008FACC(s32* pArg0, u8* pArg1) {
 void BattleSetActorFlag2AndClearQueue(BattleActor* pActor, BattleWork* pWork) {
     u8 v;
 
-    v = pWork->unkF;
+    v = pWork->difficulty;
     if (v >= 2) {
         pActor->flags |= 2;
         BattleResetMessageQueue(pActor);
         return;
     }
     if (v != 0) {
-        if (!(pWork->unk2C.bits.unk2C_0 & 1)) {
+        if (!(pWork->flags.bits.unk2C_0 & 1)) {
             return;
         }
-    } else if (pWork->unk2C.bits.unk2C_0 % 6 != 0) {
+    } else if (pWork->flags.bits.unk2C_0 % 6 != 0) {
         return;
     }
     pActor->flags |= 2;
@@ -306,8 +306,8 @@ void BattleEnterWorkState0(BattleActor* pActor) {
 
     pWork = pActor->pWork;
     pWork->unk20 = 0;
-    pWork->unk8 = 0;
-    pWork->unk4 = (2 - pWork->unkF) * 30 + 0x5A;
+    pWork->state = 0;
+    pWork->delay = (2 - pWork->difficulty) * 30 + 0x5A;
     func_8008F7B8(pWork);
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FCC8);
 void BattleQueueRandomMessages(BattleActor* pActor) {
@@ -330,15 +330,15 @@ void BattleQueueRandomMessages(BattleActor* pActor) {
 void BattleQueueMessagesAndSetScaledDelay(BattleActor* pActor, BattleWork* pWork) {
     int one;
 
-    if (pActor->pTarget->unkC4 == 4) {
-        if ((pWork->unk2C.flags & 0xA00) == 0x200) {
+    if (pActor->pTarget->state == 4) {
+        if ((pWork->flags.flags & 0xA00) == 0x200) {
             BattleQueueMessages4Then3(pActor);
-            pWork->unk4 = 3;
+            pWork->delay = 3;
         }
     } else {
         one = 1;
         BattleQueueRandomMessages(pActor);
-        pWork->unk4 = (2 - pWork->unkF) * 20 + (rand() % 20 + one);
+        pWork->delay = (2 - pWork->difficulty) * 20 + (rand() % 20 + one);
     }
     func_8008F7B8(pWork);
 }
@@ -395,23 +395,23 @@ void BattleEnterWorkState1(BattleActor* pActor) {
     u8 v;
 
     pWork = pActor->pWork;
-    pWork->unk8 = 1;
+    pWork->state = 1;
     BattleQueueMessagesAndSetScaledDelay(pActor, pWork);
-    v = pWork->unkF;
+    v = pWork->difficulty;
     if (v >= 2) {
-        pWork->unk9 = rand() % 8 + 1;
+        pWork->ticks = rand() % 8 + 1;
     } else if (v != 0) {
-        pWork->unk9 = rand() % 6 + 1;
+        pWork->ticks = rand() % 6 + 1;
     } else {
-        pWork->unk9 = rand() % 4 + 1;
+        pWork->ticks = rand() % 4 + 1;
     }
-    pWork->unkC = 0;
-    pWork->unkE = 0;
+    pWork->maxDistance = 0;
+    pWork->setFlag8000 = 0;
     func_8008F7B8(pWork);
 }
 
 s32 BattleDecideActorAction(BattleActor* pActor, BattleWork* pWork) {
-    if (pActor->unk911 != 0) {
+    if (pActor->actionCount != 0) {
         if ((rand() & 1) == 0) {
             return 1;
         }
@@ -437,25 +437,25 @@ void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
     if (func_8008FACC(pActor, pWork) != 0) {
         return;
     }
-    if (pActor->unkC5 != 2 && pActor->pTarget->unkC5 == 2) {
+    if (pActor->actionPhase != 2 && pActor->pTarget->actionPhase == 2) {
         BattleSetActorFlag2AndClearQueue(pActor, pWork);
     }
-    if (pActor->pTarget->unk8F4 - 0x201 < 0x3FF && pWork->unkF != 0) {
+    if (pActor->pTarget->unk8F4 - 0x201 < 0x3FF && pWork->difficulty != 0) {
         BattleSetActorFlag2AndClearQueue(pActor, pWork);
     }
-    if (--pWork->unk4 > 0) {
+    if (--pWork->delay > 0) {
         return;
     }
     if (D_8009284C >= 0x301) {
         switch (rand() % 10) {
         case 0:
-            if ((rand() & 0xFF) < pWork->unk14) {
+            if ((rand() & 0xFF) < pWork->actionChance1) {
                 break;
             }
             BattleEnterWorkState2(pActor, 0);
             break;
         case 2:
-            if (pActor->unk911 != 0) {
+            if (pActor->actionCount != 0) {
                 func_8008FFEC(pActor, pWork);
                 break;
             }
@@ -478,8 +478,8 @@ void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
             break;
         }
     }
-    v = pWork->unk9;
-    pWork->unk9 = v + 0xFF;
+    v = pWork->ticks;
+    pWork->ticks = v + 0xFF;
     if (v != 0) {
         BattleQueueMessagesAndSetScaledDelay(pActor, pWork);
     } else {
@@ -491,28 +491,28 @@ void BattleEnterWorkState3(BattleActor* pActor, s32 arg1) {
     s32 r;
 
     pWork = pActor->pWork;
-    pWork->unk8 = 3;
+    pWork->state = 3;
     r = rand();
-    pWork->unk9 = r % 4 + 1;
-    pWork->unk4 = 0;
+    pWork->ticks = r % 4 + 1;
+    pWork->delay = 0;
     func_8008F7B8(pWork);
-    pWork->unkE = BattleRollActorFlag8000(pActor, 1);
-    pWork->unk2C.bytes.unk2E = 0;
+    pWork->setFlag8000 = BattleRollActorFlag8000(pActor, 1);
+    pWork->flags.bytes.unk2E = 0;
 }INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
 void BattleEnterWorkState2(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
 
     pWork = pActor->pWork;
-    pWork->unk8 = 2;
+    pWork->state = 2;
     if (rand() % 3 == 0) {
         BattleTryQueueMessage5(pActor);
     }
     pWork->unk28 = rand() % 1536 + 0x100;
-    pWork->unk4 = 0;
-    pWork->unk9 = rand() % 5 + 3;
+    pWork->delay = 0;
+    pWork->ticks = rand() % 5 + 3;
     func_8008F7B8(pWork);
-    pWork->unkE = BattleRollActorFlag8000(pActor, 0);
-    pWork->unk2C.bytes.unk2E = 0;
+    pWork->setFlag8000 = BattleRollActorFlag8000(pActor, 0);
+    pWork->flags.bytes.unk2E = 0;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090990);
 void BattleLoadWorkActionChances(BattleActor* pActor) {
@@ -521,10 +521,10 @@ void BattleLoadWorkActionChances(BattleActor* pActor) {
 
     pActionData = pActor->pActionData;
     pWork = pActor->pWork;
-    pWork->unk10 = pActionData->unk6[0];
-    pWork->unk14 = pActionData->unk6[1];
-    pWork->unk18 = pActionData->unk6[2];
-    pWork->unk1C = pActionData->unk6[3];
+    pWork->actionChance0 = pActionData->actionChances[0];
+    pWork->actionChance1 = pActionData->actionChances[1];
+    pWork->actionChance2 = pActionData->actionChances[2];
+    pWork->actionChance3 = pActionData->actionChances[3];
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
@@ -549,16 +549,16 @@ void func_80090CC0(BattleActor* pActor) {
     pActor->pWork = pWork;
     pWork->unk6 = 0x10;
     pWork->pOwner = pActor;
-    pWork->unk4 = 0;
+    pWork->delay = 0;
     pWork->unk7 = 0xA;
-    pWork->unkA = 0;
-    pWork->unkC = 0;
-    pWork->unk8 = 0;
-    pWork->unk9 = 0;
+    pWork->targetAngle = 0;
+    pWork->maxDistance = 0;
+    pWork->state = 0;
+    pWork->ticks = 0;
     pActor->unk48 = 0;
     thr = BattleGetActorBreakThreshold(pActor, pWork);
-    pWork->unkF = g_BattleDifficultyLevel;
-    pWork->unk24 = thr;
+    pWork->difficulty = g_BattleDifficultyLevel;
+    pWork->breakThreshold = thr;
     BattleLoadWorkActionChances(pActor);
     switch (rand() % 3) {
     case 0:
@@ -582,8 +582,8 @@ void BattleDispatchWorkState(BattleActor* pActor) {
 
     if ((pActor->flags & 0x40) != 0) {
         pWork = pActor->pWork;
-        pWork->unkF = g_BattleDifficultyLevel;
-        switch (pWork->unk8) {
+        pWork->difficulty = g_BattleDifficultyLevel;
+        switch (pWork->state) {
         case 0:
             func_8008FCC8(pActor, pWork);
             break;
@@ -597,12 +597,12 @@ void BattleDispatchWorkState(BattleActor* pActor) {
             func_80090580(pActor, pWork);
             break;
         }
-        if (pWork->unkE != 0) {
+        if (pWork->setFlag8000 != 0) {
             pActor->flags |= 0x8000;
         }
-        if ((pWork->unk2C.flags & 0x2000) != 0) {
+        if ((pWork->flags.flags & 0x2000) != 0) {
             pActor->flags |= 2;
         }
-        BattleUpdateActorApproach(pActor, pWork->unkA, pWork->unkC);
+        BattleUpdateActorApproach(pActor, pWork->targetAngle, pWork->maxDistance);
     }
 }
