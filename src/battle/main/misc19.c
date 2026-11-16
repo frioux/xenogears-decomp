@@ -94,7 +94,7 @@ u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
     u8* p = (u8*)off + (u32)D_800C34B0;
     u8* q;
-    s32 sum;
+    short sum;
     u8 value;
 
     p = p + arg1 * 0x28;
