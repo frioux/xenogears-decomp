@@ -156,7 +156,8 @@ struct ActorPart {
     /* 0x38 */ s32 y;
     /* 0x3C */ s32 z;
     /* 0x40 */ u8 pad40[0x6];
-    /* 0x46 */ s16 unk46;
+    // The actor's angle, copied in every frame by BattleActorSetPartTransform.
+    /* 0x46 */ s16 angle;
 }; // Size: unknown
 
 // One of the actor's sixteen 0x54-byte model records; the reset clears the byte
@@ -232,10 +233,15 @@ struct Actor {
     /* 0x050 */ u8 pad50[0x2];
     /* 0x052 */ u8 unk52;
     /* 0x053 */ u8 pad53;
-    /* 0x054 */ s32 unk54;
+    // Added to the script's camera angle and fed to rcos/rsin (func_8007A958).
+    /* 0x054 */ s32 angle;
     /* 0x058 */ u8 pad58[0x4];
     /* 0x05C */ ActorPart* pPart;
-    /* 0x060 */ u8 pad60[0x24];
+    /* 0x060 */ u8 pad60[0xC];
+    // The position x,y,z,pad copied here before the frame's movement
+    // (func_8007A344); func_80078920 takes the angle between two of them.
+    /* 0x06C */ VECTOR prevPosition;
+    /* 0x07C */ u8 pad7C[0x8];
     /* 0x084 */ u8* unk84;
     /* 0x088 */ u8 pad88[0x10];
     /* 0x098 */ s32 unk98;
@@ -308,8 +314,9 @@ struct Actor {
     /* 0x9C4 */ u8 pad9C4[0xC08];
     /* 0x15CC */ ActorSub* pState;
     /* 0x15D0 */ u8 pad15D0[0x4];
-    /* 0x15D4 */ u8 unk15D4;
-    /* 0x15D5 */ u8 pad15D5[0x3];
+    // The colour the effects this actor spawns are tinted with: func_8007920C
+    // passes it to BattleEffectSetColor, which takes a Color4.
+    /* 0x15D4 */ CVECTOR effectColor;
     /* 0x15D8 */ UnkStruct1 unk15D8;
     /* 0x15E6 */ u8 pad15E6[0xA];
     /* 0x15F0 */ s16 unk15F0;
@@ -368,7 +375,7 @@ void BattleActorSetPartTransform(Actor* p) {
     p->pPart->x = p->x;
     p->pPart->y = p->y;
     p->pPart->z = p->z;
-    p->pPart->unk46 = p->unk54;
+    p->pPart->angle = p->angle;
 }
 
 void BattleActorResetUnk15D8(UnkStruct1* p) {
@@ -424,7 +431,7 @@ void func_80078F00(Actor* p) {
     p->unkBC = 0x12C;
     p->unkBE = 0x480;
     p->unkC2 = 0xF0;
-    p->unk54 = 0;
+    p->angle = 0;
     p->state = 0;
     p->unkC5 = 0;
     p->unkB6 = 0;
@@ -537,7 +544,7 @@ void func_8007920C(Actor* p) {
     p->unk950 = (p->unk940 + p->unk930) / 2;
 
     if ((p->flags & 0x8000) && p->unkC5 == 0 && (p->state & 1)) {
-        BattleEffectSetColor(&p->unk15D4);
+        BattleEffectSetColor(&p->effectColor);
         flag = (p->flags >> 27) & 1;
         func_8007CD44(flag, &p->unk92C, &p->unk93C, flag);
         if (!(p->flags & 0x10000)) {
