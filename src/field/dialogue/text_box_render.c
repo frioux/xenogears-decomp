@@ -349,7 +349,145 @@ void FieldTextBoxFreeAll(void) {
     }
 }
 
+// The text box keeps a SystemString at _pad[0]; system.c owns its full layout
+// (text_box.c has the other half). This unit needs the pending-push state.
+typedef struct {
+    /* 0x00 */ undefined8 unk0[0x80];
+    /* 0x80 */ s16 unk80;
+    /* 0x82 */ s16 unk82;
+    /* 0x84 */ u_char unk84[0xC];
+    /* 0x90 */ void* pBuffer;
+} FieldTextBoxString;
+
+extern int SystemStringGetUnk6B(FieldTextBoxString* pString);
+extern void SystemStringPushBuffer(FieldTextBoxString* pString, void* pBuffer);
+extern void func_80034888(FieldTextBoxString* pString, u_long* pOt, int ctx);
+extern void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr);
+
+// Text animation frame, advanced every fourth frame and wraps after five.
+extern s32 D_800ADE94;
+// Frames counted by this function; the low two bits clock D_800ADE94.
+extern s32 D_800ADE98;
+// Field's own pad button state, filled by FieldPollControllers.
+extern u_short g_FieldP1ButtonsReleased;
+// One draw mode per render context that closes the text box list.
+extern DR_MODE D_800B1DF4[2][0x10];
+
+// 91.11%, 1428 bytes against retail's 1448: every call, both loops, the order
+// renumbering and both addPrim chains are in place; the 61 instructions that
+// still differ are all allocation. Retail keeps `count` on the stack and runs a
+// second induction variable over g_FieldTextBoxes[i].order; here gcc keeps
+// count in $s8, hoists the two -1 stores of the visibility loop into one
+// register and re-forms the order address instead. The permuter improved this
+// body 3635 -> 2661 by spelling the string out at each use in the order loop
+// only (spelling it out in the visibility loop as well drops to 88.93); gcc
+// 2.7.2-cdk scores 69.63 and -O3 is unchanged, so the preset is right.
+// Things this body proves about the unit: the second argument is the render
+// context (drawModes[ctx], ctx*0xC), the order loop's else-if test really is in
+// the original (it reloads the order and compares it against 0xFFFF), and the
+// string helpers take the box's _pad[0] (box+0xA8 is its buffer pointer, which
+// retail addresses through g_FieldTextBoxes).
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
+/*
+void func_8008004C(u_long* pOt, int ctx) {
+    s32 order[4];
+    s32 count;
+    s32 activeIndex;
+    int i;
+    int n;
+    FieldTextBoxString* pString;
+
+    D_800ADE98++;
+    if ((D_800ADE98 & 3) == 0) {
+        D_800ADE94++;
+    }
+    if (D_800ADE94 >= 5) {
+        D_800ADE94 = 0;
+    }
+
+    activeIndex = 0xFF;
+    for (i = 0; i < 4; i++) {
+        if (g_FieldTextBoxes[i].unk412 != 0) {
+            activeIndex = i;
+        }
+    }
+
+    count = 0;
+    for (i = 3; i >= 0; i--) {
+        order[i] = TEXT_BOX_UNINITIALIZED;
+    }
+
+    for (i = 0; i < 4; i++) {
+        if (g_FieldTextBoxes[i].visibility == 0 && g_FieldTextBoxes[i].unk412 != 0) {
+            pString = (FieldTextBoxString*)g_FieldTextBoxes[i]._pad;
+            g_FieldTextBoxes[i].continueArrow.visibility = -1;
+            if (g_FieldTextBoxes[i].windowOpenTimer == 0) {
+                if (SystemStringGetUnk6B(pString) != 0) {
+                    if (g_FieldTextBoxes[i].cursor.visibility != 0) {
+                        g_FieldTextBoxes[i].continueArrow.visibility = 0;
+                    }
+                }
+                if (g_FieldP1ButtonsReleased & CTRL_BTN_CIRCLE) {
+                    g_FieldTextBoxes[i].cursor.visibility = -1;
+                    g_FieldActors[g_FieldTextBoxes[i].ownerActorID].pActorData->unk81 =
+                        (u_char)g_FieldTextBoxes[i].cursor.curPosition +
+                        (u_char)g_FieldTextBoxes[i].cursor.startPosition;
+                    SystemStringClearStateFlags(pString);
+                }
+                if (pString->unk82 == 0) {
+                    SystemStringPushBuffer(pString, pString->pBuffer);
+                }
+                func_80034888(pString, pOt, ctx);
+            }
+            addPrim(pOt, (u_long*)&g_FieldTextBoxes[i].drawModes[ctx]);
+            func_8007E1C0(pOt, ctx, i, (u_long)&g_FieldTextBoxes[i].drawModes[ctx] & 0xFFFFFF);
+            func_8007DCF8(i, pOt, ctx);
+        }
+    }
+
+    for (n = 0; n < 4; n++) {
+        for (i = 0; i < 4; i++) {
+            if (g_FieldTextBoxes[i].order == n) {
+                order[i] = count++;
+                if (g_FieldTextBoxes[i].visibility == 0 && i != activeIndex) {
+                    pString = (FieldTextBoxString*)g_FieldTextBoxes[i]._pad;
+                    g_FieldTextBoxes[i].continueArrow.visibility = -1;
+                    if (g_FieldTextBoxes[i].windowOpenTimer == 0) {
+                        if ((g_FieldP1ButtonsReleased & CTRL_BTN_CIRCLE) && g_FieldTextBoxes[i].order == 0) {
+                            g_FieldTextBoxes[i].cursor.visibility = -1;
+                            g_FieldActors[g_FieldTextBoxes[i].ownerActorID].pActorData->unk81 =
+                                (u_char)g_FieldTextBoxes[i].cursor.curPosition +
+                                (u_char)g_FieldTextBoxes[i].cursor.startPosition;
+                            SystemStringClearStateFlags((FieldTextBoxString*)g_FieldTextBoxes[i]._pad);
+                        }
+                        if (pString->unk82 == 0) {
+                            SystemStringPushBuffer((FieldTextBoxString*)g_FieldTextBoxes[i]._pad,
+                                ((FieldTextBoxString*)g_FieldTextBoxes[i]._pad)->pBuffer);
+                        }
+                        func_80034888((FieldTextBoxString*)g_FieldTextBoxes[i]._pad, pOt, ctx);
+                        if (SystemStringGetUnk6B((FieldTextBoxString*)g_FieldTextBoxes[i]._pad) != 0) {
+                            if (g_FieldTextBoxes[i].cursor.visibility != 0) {
+                                g_FieldTextBoxes[i].continueArrow.visibility = 0;
+                            }
+                        }
+                    }
+                    addPrim(pOt, (u_long*)&g_FieldTextBoxes[i].drawModes[ctx]);
+                    func_8007E1C0(pOt, ctx, i, (u_long)&g_FieldTextBoxes[i].drawModes[ctx] & 0xFFFFFF);
+                    func_8007DCF8(i, pOt, ctx);
+                }
+            } else if (g_FieldTextBoxes[i].order == TEXT_BOX_UNINITIALIZED) {
+                order[i] = TEXT_BOX_UNINITIALIZED;
+            }
+        }
+    }
+
+    for (n = 0; n < 4; n++) {
+        g_FieldTextBoxes[n].order = order[n];
+    }
+
+    addPrim(pOt, (u_long*)&D_800B1DF4[g_FieldCurRenderContextIndex][0]);
+}
+*/
 
 void FieldTextBoxUpdate(void) {
     int i;
