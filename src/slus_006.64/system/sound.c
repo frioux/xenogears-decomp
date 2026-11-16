@@ -4218,31 +4218,45 @@ u8* SoundScriptSelectEnvelope(u8* pScript, AudioManager* pAudioManager, AudioEle
     return pScript + 3;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
+// Round 66: 85.66% (148 bytes, right size). Two permuter runs (630 -> 305 -> 265) plus hand
+// shapes; the body below is the best found. Split the multiply from the divide (`pitch = x*x;`
+// then `pitch / 64` at the use) - that is what puts the `mult` early and `mflo` after the
+// pAudioElements->envelopeIndex scale in retail. `note` must be a u8 COPY of pScript[0] taken after
+// the multiply, otherwise gcc reuses the single load for the sum (retail reloads it into a1).
+// The `do { } while (0)` is load-bearing: it is the only shape found that gives retail's
+// prologue (pScript s1, envelope s2; without it the two are mirrored and the score is 83.37) -
+// it is also why this is parked and not shipped. THE REMAINING 2-INSTRUCTION DELTA: retail
+// loads `lbu a0,2(s1)` and `lbu a2,29(s2)` BEFORE the volume `addu a1,a1,v0`; ours emits both
+// after it. Everything else, including the call and the two envelope stores, is exact.
+// Round 157: 86.18%, from the permuter sweep (265 -> 245). The edit that gained: two statements
+// into one `int` temp (`new_var = pScript[2] << 16;` then `new_var = (s8)pScript[1] << 24 | new_var;`)
+// instead of one nested expression - that also turns retail's `or a0,v0,a0` into ours.
+// A further permuter run from this body found nothing (245 -> 245). Computing the value BEFORE
+// the volume line to hoist its loads collapses the shape to 62.34% (wrong size), do not retry.
+// Still 2 loads late: retail loads pScript[2] and handlerIndex BEFORE `addu a1,a1,v0` because it
+// keeps the first pScript[0] load in v0 (ours keeps it in a1 and skips the reload); allocator tie.
 /*
-Round 66: 85.66% (148 bytes, right size). Two permuter runs (630 -> 305 -> 265) plus hand
-shapes; the body below is the best found. Split the multiply from the divide (`pitch = x*x;`
-then `pitch / 64` at the use) - that is what puts the `mult` early and `mflo` after the
-pAudioElements->envelopeIndex scale in retail. `note` must be a u8 COPY of pScript[0] taken after
-the multiply, otherwise gcc reuses the single load for the sum (retail reloads it into a1).
-The `do { } while (0)` is load-bearing: it is the only shape found that gives retail's
-prologue (pScript s1, envelope s2; without it the two are mirrored and the score is 83.37) -
-it is also why this is parked and not shipped. THE REMAINING 2-INSTRUCTION DELTA: retail
-loads `lbu a0,2(s1)` and `lbu a2,29(s2)` BEFORE the volume `addu a1,a1,v0`; ours emits both
-after it. Everything else, including the call and the two envelope stores, is exact.
 u8* func_8003E1F8(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 pitch;
     AudioEnvelope* pEnvelope;
     s32 volume;
     u8 note;
+    int new_var;
 
     volume = pScript[0];
     pitch = volume * volume;
     note = volume;
     pEnvelope = &pAudioElements->envelopes[pAudioElements->envelopeIndex];
-    do { volume = note + pitch / 64; pEnvelope->delta = SoundCalculateEnvelopeDelta(((s8)pScript[1] << 24) | (pScript[2] << 16), volume, pEnvelope->handlerIndex); pEnvelope->reload = volume; return pScript + 3; } while (0);
-}
-*/
+    do {
+        volume = note + pitch / 64;
+        new_var = pScript[2] << 16;
+        new_var = ((s8)pScript[1] << 24) | new_var;
+        pEnvelope->delta = SoundCalculateEnvelopeDelta(new_var, volume, pEnvelope->handlerIndex);
+        pEnvelope->reload = volume;
+        return pScript + 3;
+    } while (0);
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E1F8);
 
 
 s32 SoundCalculateEnvelopeDelta(s32 value, s16 divisor, s16 mode) {
@@ -4284,30 +4298,39 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
+// Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 94.84 / 94.84 / 94.84 - not
+// a compiler-only match; the current preset is the best of the three.
+// Attempt (94.84%, same size): the s-register assignment is RIGHT (pScript s1,
+// pAudioElements s2, envelope s0, index s3) because pScript is incremented inside the
+// body (`pScript += 1;` + `return pScript;`) instead of `return pScript + 1;`. Only
+// delta left is the allocator coalescing the increment into the function-value register:
+// gcc emits `addiu v0,s1,1` and then runs the flags/activeEnvelopeMask read-modify-write through
+// v1/a0, where the original increments in place (`addiu s1,s1,1`), uses v0 only for the
+// flags temp, and copies the result at the end (`move v0,s1`). Moving the increment
+// before/after the flags store and the activeEnvelopeMask store does not change it; `return
+// ++pScript` and a separate pNext local both make the coalescing worse.
+// Round 157: 95.31% (was 94.84), from the permuter sweep (165 -> 150): `flags |= new_var;` with
+// `new_var = 0x1` and the mask shift in a `u_short new_var2` split out before the store. A second
+// permuter run from this body found nothing (150 -> 150); the increment is still coalesced into v0
+// instead of `addiu s1,s1,1` + a closing `move v0,s1` - the wall described below, now
+// one instruction with both temps in v1/a0. Structurally stuck: stop permuting.
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 94.84 / 94.84 / 94.84 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (94.84%, same size): the s-register assignment is RIGHT (pScript s1,
-pAudioElements s2, envelope s0, index s3) because pScript is incremented inside the
-body (`pScript += 1;` + `return pScript;`) instead of `return pScript + 1;`. Only
-delta left is the allocator coalescing the increment into the function-value register:
-gcc emits `addiu v0,s1,1` and then runs the flags/activeEnvelopeMask read-modify-write through
-v1/a0, where the original increments in place (`addiu s1,s1,1`), uses v0 only for the
-flags temp, and copies the result at the end (`move v0,s1`). Moving the increment
-before/after the flags store and the activeEnvelopeMask store does not change it; `return
-++pScript` and a separate pNext local both make the coalescing worse.
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = pScript[0];
+    unsigned short new_var2;
+    int new_var;
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[index];
 
     SoundResetEnvelope(pEnvelope);
-    pEnvelope->flags |= 0x1;
+    new_var = 0x1;
+    new_var2 = 1 << index;
+    pEnvelope->flags |= new_var;
     pScript += 1;
-    pAudioElements->activeEnvelopeMask |= 1 << index;
+    pAudioElements->activeEnvelopeMask |= new_var2;
     return pScript;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
+
 
 void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
