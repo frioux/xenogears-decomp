@@ -25,7 +25,10 @@ typedef struct {
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
-    /* 0x5C */ u8 pad5C[0x10];
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ s32 unk64;
+    /* 0x68 */ u8 pad68[0x4];
     /* 0x6C */ s32 unk6C;
     /* 0x70 */ s32 unk70;
     /* 0x74 */ s32 unk74;
@@ -115,6 +118,7 @@ extern s32 D_8009BD40;
 extern s32 D_8009BBB4;
 extern s16 D_8009D558;
 extern s32 D_8009BE28;
+extern s32 D_8009BBBC[];
 extern WorldMapRenderContext *D_8009BE3C;
 extern s32 D_8009C5BC;
 extern WorldMapPos4 D_8009C5AC;
@@ -275,6 +279,78 @@ s32 WorldMapInitActorAtScrollPosition(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
+/* 91.53%, 1376 bytes = retail's exact size, instruction multiset identical.
+   The entry table D_8009C620 is a WorldMapEntry[] (stride 0x54): 0x11C/0x1C4/
+   0x410/0x464 are entry 3/5/12/13's `matrix`, and the copies walk them down
+   (13->9->11->7, 12->8->10->6, 5->4, 3->2->1). Two forms matter:
+   - `pEntries[i] = *(MATRIX *)0x1F8001xx` gives gcc's 3+3+2 block move, while
+     `pEntries[a].matrix = pEntries[b].matrix` gives retail's 4+4 one.
+   - the global must be re-assigned per copy run (`pEntries = (WorldMapEntry *)
+     D_8009C620;` four times) or gcc CSEs the load into one register instead of
+     retail's four reloads.
+   `D_8009BBBC[0] -= 0x4000` needs the array declaration (extern s32 D_8009BBBC[];)
+   to make gcc put the address in a register instead of the $at macro form.
+   Remaining delta: the four scratchpad rotation vectors. Retail clears
+   0xB4/0xB0/0xAC/0xA8/0xA4/0xA0 and then emits the value stores in the order
+   0xA2, 0xAA, 0xBA, 0xB2, 0xB8, 0xBC with each p->unkNN load left next to its
+   store; we get the clears right (they need the do/while below, without it they
+   move above the angle cluster) but gcc then hoists the three angle loads and
+   the two remaining constant clears, so the last six stores come out in a
+   different order (a=0xA0, b=0xA8, c=0xB0, d=0xB8 are the four SVECTORs).
+s32 func_800783E8(s32 index) {
+    WorldMapActor *p;
+    WorldMapEntry *pEntries;
+
+    p = D_8009BE24 + index;
+    p->unk30 -= 0x4000;
+    D_8009BBBC[0] -= 0x4000;
+    WorldMapWrapPosition(&p->unk28);
+    *(u32 *)0x1F800000 = p->unk28 >> 12;
+    *(u32 *)0x1F800004 = p->unk2C >> 12;
+    *(u32 *)0x1F800008 = p->unk30 >> 12;
+    ((WorldMapEntry *)D_8009C620)[0].pos = *(WorldMapPos4 *)0x1F800000;
+    *(WorldMapPos4 *)&D_8009BE28 = *(WorldMapPos4 *)&p->unk28;
+    p->unk50 = (p->unk50 + p->unk54) & 0xFFF;
+    p->unk58 = (p->unk58 + p->unk5C) & 0xFFF;
+    p->unk60 = (p->unk60 + p->unk64) & 0xFFF;
+    // do/while keeps cc1 from hoisting the clears above the angle cluster
+    do {
+        *(s16 *)0x1F8000B4 = 0;
+        *(s16 *)0x1F8000B0 = 0;
+        *(s16 *)0x1F8000AC = 0;
+        *(s16 *)0x1F8000A8 = 0;
+        *(s16 *)0x1F8000A4 = 0;
+        *(s16 *)0x1F8000A0 = 0;
+    } while (0);
+    *(s16 *)0x1F8000A2 = p->unk50;
+    *(s16 *)0x1F8000AA = p->unk58;
+    *(s16 *)0x1F8000BA = 0;
+    *(s16 *)0x1F8000B2 = p->unk60;
+    *(s16 *)0x1F8000B8 = 0;
+    *(s16 *)0x1F8000BC = p->unk60;
+    RotMatrixYXZ((SVECTOR *)0x1F8000A0, (MATRIX *)0x1F8000F0);
+    RotMatrixYXZ((SVECTOR *)0x1F8000A8, (MATRIX *)0x1F800110);
+    RotMatrixYXZ((SVECTOR *)0x1F8000B0, (MATRIX *)0x1F800130);
+    RotMatrixYXZ((SVECTOR *)0x1F8000B8, (MATRIX *)0x1F800150);
+    pEntries = (WorldMapEntry *)D_8009C620;
+    pEntries[3].matrix = *(MATRIX *)0x1F800150;
+    pEntries[2].matrix = pEntries[3].matrix;
+    pEntries[1].matrix = pEntries[2].matrix;
+    pEntries = (WorldMapEntry *)D_8009C620;
+    pEntries[5].matrix = *(MATRIX *)0x1F800130;
+    pEntries[4].matrix = pEntries[5].matrix;
+    pEntries = (WorldMapEntry *)D_8009C620;
+    pEntries[12].matrix = *(MATRIX *)0x1F8000F0;
+    pEntries[8].matrix = pEntries[12].matrix;
+    pEntries[10].matrix = pEntries[8].matrix;
+    pEntries[6].matrix = pEntries[10].matrix;
+    pEntries = (WorldMapEntry *)D_8009C620;
+    pEntries[13].matrix = *(MATRIX *)0x1F800110;
+    pEntries[9].matrix = pEntries[13].matrix;
+    pEntries[11].matrix = pEntries[9].matrix;
+    pEntries[7].matrix = pEntries[11].matrix;
+    return 1;
+} */
 
 s32 WorldMapEnterNop(void) {
     return 1;
