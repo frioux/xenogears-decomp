@@ -584,24 +584,27 @@ extern void func_8007099C(s32 mode);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
 
-/* 97.21%: same size as retail (1080 bytes) and every statement, call, constant,
-   case order and jump-table entry is right; the fade/case 2/3/4/tail blocks match
-   instruction for instruction. What is left is allocation in the case-1 loop: retail
-   keeps SIX saved registers and this body five (frame 0x40 vs 0x38) because retail
-   holds the effect-cell array base in $s4 as well as the incrementing element pointer
-   in $s2 (its add-slot call is 'addu a0,s0,s4' where ours re-forms %hi/%lo), and it
-   stores the decremented frame count through $s2+0xC while ours goes through the
-   folded %hi(D_800929F4)+index form. Try a base local that is never incremented,
-   used for &pEmitters[i], plus pEmitter = pEmitters for the IV; then run the permuter.
-   Two more leads: 'lh' vs 'lhu' at the func_8008E2B8 call sites is fixed here only by
-   the (s16) cast \u2014 retail loads D_8009260C as a halfword (signed) both times; and the
-   loop test needs a SIGNED compare ('slt', not 'sltu'), which is why the bound is cast.
-   D_80098730/D_80098734 are reached as their own symbols in the fade branch (retail
-   forms three lui/lw pairs there) while case 1 reads the same words as displacements
-   off D_8009872C: that mix of spellings is retail's, not an accident.
-   NOTE: this body needs D_8009872C declared as BattleState, the type the declarations
-   above now give it; the older parked bodies in this file (func_8007099C, func_80071F8C)
-   still spell it as a VECTOR.
+/* 98.87% (1088 bytes vs retail's 1080): every statement, call, constant, case
+   order (11, 1, 2, 3, 4), jump-table entry and the shared fade: block reached
+   from case 3 (fallthrough) and case 4 (goto) is right; what is left is the
+   case-1 loop only. Retail hoists the effect-cell base out of the loop
+   ('lui s4,%hi(D_800929F4); addiu s4') and passes the element address to
+   BattleEffectAddSlotFromVector as 'addu a0,s0,s4' - base register plus the
+   i*0x10 byte offset that the x/y/z stores already need - which is why it keeps
+   SIX saved registers (frame 0x40). Every body tried here either re-forms that
+   base inside the loop (lui/addiu/addu, +2 insns) or lets loop.c turn the
+   address into its own induction pointer (separate increment in the delay
+   slot). Things that are settled and must not be re-derived: the loop bound is
+   a SIGNED compare ('slt', the bound cast); D_8009260C is read as a signed
+   halfword and both func_8008E2B8 call sites need the (s16) cast or they load
+   lhu; D_80098730/D_80098734 are reached as their own symbols in the fade block
+   while case 1 reads the same words off D_8009872C; the pCounter copy of pFrames
+   and the pVec local in front of the add-slot call are what took the previous
+   park from 97.21 to 98.87 (both found by the permuter). The 97.21% park WAS
+   retail's exact 1080 bytes (five saved registers, the call address
+   materialised with lui/addiu/addu inside the loop) - if the base hoist cannot
+   be expressed, that shape at least links.
+   A permuter run from this body found nothing better.
    attempt:
 // Steps the battle display state machine for the current frame: plays the
 // effect sound, places a burst from a random source actor on the effect cells,
@@ -610,9 +613,11 @@ void func_80072170(void) {
     BattleState* pState;
     BattleMessageWindow* pMsg;
     BattleAnchor* pAnchor;
+    VECTOR* pVec;
     BattleEffectEmitter* pEmitter;
     BattleEffectOrigin* pOrigin;
     s32* pFrames;
+    s32* pCounter;
     long vec[3];
     s32 i;
     s32 frames;
@@ -635,17 +640,19 @@ void func_80072170(void) {
         pFrames = &D_800929F4[0].frames;
         i = 0;
         do {
-            frames = *pFrames - 1;
+            pCounter = pFrames;
+            frames = *pCounter - 1;
             pEmitter->frames = frames;
             if (frames == -1) {
                 pOrigin = D_80098788->pPool->pOrigins[rand() % D_80098788->pPool->count];
                 D_800929F4[i].x = pOrigin->unk60 + pAnchor->x;
                 D_800929F4[i].y = pOrigin->unk64 + pAnchor->y;
                 D_800929F4[i].z = pOrigin->unk68 + pAnchor->z;
-                *pFrames = rand() % 16 + 8;
+                *pCounter = rand() % 16 + 8;
             }
-            if (*pFrames & 1) {
-                BattleEffectAddSlotFromVector((VECTOR*)&D_800929F4[i], 9);
+            pVec = (VECTOR*)&D_800929F4[i];
+            if (*pCounter & 1) {
+                BattleEffectAddSlotFromVector(pVec, 9);
             }
             pFrames += 4;
             i++;
@@ -702,6 +709,8 @@ fade:
     D_80098774 = 0;
 }
 */
+
+
 
 
 void BattleEmptyFunction(void) {
