@@ -534,7 +534,7 @@ s32 WorldMapResetSlotColorFade(s32 index) {
     return 1;
 }
 
-s32 func_80081FD8(s32 index) {
+s32 WorldMapFillFadeTable(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 i;
     u16 *pFill;
