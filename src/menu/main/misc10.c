@@ -380,7 +380,7 @@ void func_801E2BE4(void) {
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
 
-void func_801E3088(u8 arg0) {
+void MenuFreeSubMenuPanels(u8 arg0) {
     switch (g_Menu->mainMenuChoice + arg0) {
     case 0:
     case 7:

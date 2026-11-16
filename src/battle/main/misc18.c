@@ -91,7 +91,7 @@ void BattleRollAndClearTargetConditions(void) {
         }
     }
 }
-void func_80095D4C(void) {
+void BattleRollSlotConditionAction(void) {
     u8 chance;
     u16 hp;
     u16 dmg;
@@ -154,7 +154,7 @@ void func_80095D4C(void) {
         return;
     }
 }
-void func_80096018(void) {
+void BattleSetSlotConditionActionValue(void) {
     u8 chance;
 
     switch (D_800C3DFC->unk17[1]) {
