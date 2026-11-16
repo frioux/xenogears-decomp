@@ -336,15 +336,20 @@ void BattleBlendImageRegion(BattleMisc22Image *pArg, s16 scale) {
         }
     }
 }
-extern u8 D_800D3304[];
-extern u8 D_800D3306[];
-extern u8 D_800D3308[];
-extern u8 D_800D330A[];
-extern u8 D_800D330C[];
-extern u8 D_800D330E[];
-extern u8 D_800D3310[];
-extern u8 D_800D3314[];
-extern u8 D_800D3316[];
+// One entry per part the battle scene lays out: the position the part ends up at
+// (x/y/z, written by this function) and, for the parts that are driven by an
+// actor's joint, the actor to follow plus the source position to transform.
+typedef struct {
+    /* 0x00 */ u16 x;
+    /* 0x02 */ u16 y;
+    /* 0x04 */ u16 z;
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ SVECTOR sourcePos;
+    /* 0x10 */ s16 actorIndex;
+    /* 0x12 */ s16 jointIndex;
+} BattleMisc22PartSlot; // Size: 0x14
+
+extern BattleMisc22PartSlot D_800D3304[];
 extern u8 D_800D3330[];
 
 void BattleTransformPartPositions(BattleActor **pArg) {
@@ -352,42 +357,42 @@ void BattleTransformPartPositions(BattleActor **pArg) {
     u16 *pY;
     u16 *pX;
     void *pMatrix;
-    s32 i;
+    s32 k;
 
     pMatrix = PSX_SCRATCH;
-    pZ = (u16 *)D_800D3308;
+    pZ = &D_800D3304[0].z;
     pY = pZ - 1;
     pX = pZ - 2;
-    i = 0;
+    k = 0;
     do {
-        if (*(s16 *)(D_800D330A + i) != 0) {
-            s16 index = *(s16 *)(D_800D3314 + i);
+        if (D_800D3304[k].unk6 != 0) {
+            s16 index = D_800D3304[k].actorIndex;
             BattleActor *pActor;
 
             if (index >= 0 && (pActor = pArg[index]) != 0) {
                 BattleSprite *pSprites = pActor->pSprites;
-                BattleSprite *pJoint = &pSprites[*(s16 *)(D_800D3316 + i) + 1];
+                BattleSprite *pJoint = &pSprites[D_800D3304[k].jointIndex + 1];
                 s32 vec[4];
 
                 CompMatrix(&pSprites->localTransform, &pJoint->globalTransform, pMatrix);
                 SetRotMatrix(pMatrix);
                 SetTransMatrix(pMatrix);
-                gte_ldv0((SVECTOR *)(i + D_800D330C));
+                gte_ldv0(&D_800D3304[k].sourcePos);
                 gte_mvmva(1, 0, 0, 0, 0);
                 gte_stlvnl(vec);
                 *pX = *(u16 *)&vec[0];
                 *pY = *(u16 *)&vec[1];
                 *pZ = *(u16 *)&vec[2];
             } else {
-                *pX = *(u16 *)(D_800D330C + i);
-                *pY = *(u16 *)(D_800D330E + i);
-                *pZ = *(u16 *)(D_800D3310 + i);
+                *pX = D_800D3304[k].sourcePos.vx;
+                *pY = D_800D3304[k].sourcePos.vy;
+                *pZ = D_800D3304[k].sourcePos.vz;
             }
         }
         pZ += 10;
         pY += 10;
         pX += 10;
-        i += 0x14;
+        k++;
     } while ((s32)pZ < (s32)D_800D3330);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4654);
