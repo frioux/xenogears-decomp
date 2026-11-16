@@ -121,39 +121,33 @@ void BattleWordRegMod(BattleCommand **p, u8 index) {
 
     pRegs[pCmd->unk3] = pRegs[pCmd->unk1] % pRegs[pCmd->unk2];
 }
-// best 99.00% (2.7.2 and 2.6.0; 96.50 cdk): 22 instructions, the only miss is the
-// D_800D3420 base register - retail $a2, gcc $v1.
-/*
-void func_8007B2C0(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
+void func_8007B2C0(BattleCommand **p, u8 index) {
+    BattleCommand *pCmd = *p;
 
-    pField[pArgs[3]] = pField[pArgs[1]] & pField[pArgs[2]];
+    // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0
+    // keeps it in $v1, with three accesses it allocates retail's $a2.
+    g_BattleSlotRegs[index].wordRegs[pCmd->unk3] =
+        g_BattleSlotRegs[index].wordRegs[pCmd->unk1] & g_BattleSlotRegs[index].wordRegs[pCmd->unk2];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6_r2", func_8007B2C0);
-// best 99.00% (2.7.2 and 2.6.0; 96.50 cdk): same one-register miss as func_8007B2C0
-// (D_800D3420 base in $v1 instead of $a2).
-/*
-void func_8007B310(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
 
-    pField[pArgs[3]] = pField[pArgs[1]] | pField[pArgs[2]];
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6_r2", func_8007B310);
-// best 99.00% (2.7.2 and 2.6.0; 96.50 cdk): same one-register miss as func_8007B2C0
-// (D_800D3420 base in $v1 instead of $a2).
-/*
-void func_8007B360(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
-    u8 *pArgs = *p;
+void func_8007B310(BattleCommand **p, u8 index) {
+    BattleCommand *pCmd = *p;
 
-    pField[pArgs[3]] = pField[pArgs[1]] ^ pField[pArgs[2]];
+    // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0
+    // keeps it in $v1, with three accesses it allocates retail's $a2.
+    g_BattleSlotRegs[index].wordRegs[pCmd->unk3] =
+        g_BattleSlotRegs[index].wordRegs[pCmd->unk1] | g_BattleSlotRegs[index].wordRegs[pCmd->unk2];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc6_r2", func_8007B360);
+
+void func_8007B360(BattleCommand **p, u8 index) {
+    BattleCommand *pCmd = *p;
+
+    // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0
+    // keeps it in $v1, with three accesses it allocates retail's $a2.
+    g_BattleSlotRegs[index].wordRegs[pCmd->unk3] =
+        g_BattleSlotRegs[index].wordRegs[pCmd->unk1] ^ g_BattleSlotRegs[index].wordRegs[pCmd->unk2];
+}
+
 void BattleSlotSetByteField(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
