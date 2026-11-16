@@ -614,40 +614,43 @@ void BattleResetSlotConditionCounters(void) {
         g_GameState.gears[15].armorId = 0x28;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
-/* 99.35%, 372 bytes = the original's (round 147). Body, both branches, the
-   outer/inner layout, the 0x1058/0x2228 row strides, the 9*x tails, the
-   0xA5/0xA0 cap, the rand()%8-4 delta and the call are instruction-identical.
-   Two changes over the round-111 park (95.16) came from the permuter: `other`
-   must be `int` (a u8 costs an andi and keeps retail's lbu a0,90(a2) after the
-   lb v1,39), and the two loads are then written other-then-t.
-   LEFT: only the row base add. Retail keeps the constant on the INDEX
-   (addiu v1,v1,0x1058, then addu v1,v1,a1) and holds the row in v1, so the
-   store is sw v1; gcc folds the constant into the base instead
-   (addiu v0,a1,0x1058, then addu v1,v1,v0) and the row ends in v0. Tried: an
-   `s32 off = idx + K` local and a `u8 *pIdx = (u8 *)(idx + K)` local (both fix
-   the addiu but move the row to a0 and swap t/other back: 90.97 and 95.16),
-   the (u8 *)(idx + K) + (s32)pBase subscript form, the &pBase[idx + K] form, and
-   the permuter's 45-point candidate applied to the second branch only (95.16
-   when both branches use it). Two permuter runs from this body found nothing
-   better. Row strides: 0x5F0 (+0x1058) when bit 0x80 of actor[0x15A] is clear,
-   0x690 (+0x2228) when set, plus pBase[0x5FC2]*0x28. func_80094D24 takes no
-   arguments; the `d` local is load-bearing (inlining rand()%8-4 folds the 4).
+// 99.84% (round 148), 372 bytes = the original's. Both branches, the strides,
+// the 9*x tails, the 0xA5/0xA0 cap, the rand()%8-4 delta and the call are
+// instruction-identical. 'other' must be 'int' (a u8 costs an andi and keeps
+// retail's lbu a0,90(a2) after the lb v1,39).
+// LEFT: the row base add in the 0x2228 branch only. Retail keeps 0x2228 on the
+// INDEX (addiu v1,v1,8744, then addu v1,v1,a1); gcc folds the constant into the
+// base instead (addiu v0,a1,8744, then addu v1,v1,v0). The same fold in the
+// 0x1058 branch IS defeated by hoisting the constant into an 'int rowOffset'
+// variable assigned before the if - that is the permuter's 15-point candidate
+// (99.35 -> 99.84). The 0x2228 branch cannot use it: assigning rowOffset inside
+// the branch, a second offset variable, or an 's32 rowIndex = sel*0x690+0x2228'
+// local each land at 99.68, because the row then ends in v0 and the sw/lb use
+// v0 where retail has v1. The two-statement split kept in that branch scores the
+// same 99.84 as the chained form (it is the permuter's first edit). A further
+// 4-minute permuter run from 99.84 found nothing (base 15, best 15): structural
+// wall, do not permute again.
+// Row strides: 0x5F0 (+0x1058) when bit 0x80 of actor[0x15A] is clear, 0x690
+// (+0x2228) when set, plus pBase[0x5FC2]*0x28. func_80094D24 takes no arguments;
+// the 'd' local is load-bearing (inlining rand()%8-4 folds the 4).
+/*
 u8 func_80098AF8(u8 sel) {
     u8 *pBase = g_BattleCurWorkBlock;
     u8 *pActor = (u8 *)(sel * 0x170 + (s32)pBase);
     u8 *pRow;
     int other;
+    int rowOffset;
     s32 t;
     s32 v;
     s32 d;
 
     g_BattleActingSlot = pActor;
     D_800D2D6C = (BattleSlotState *)(pActor + 0xA4);
+    rowOffset = 0x1058;
 
     if (sel < 3) {
         if ((pActor[0x15A] & 0x80) == 0) {
-            pRow = (u8 *)(sel * 0x5F0 + 0x1058) + (s32)pBase + pBase[0x5FC2] * 0x28;
+            pRow = (u8 *)(sel * 0x5F0 + rowOffset) + (s32)pBase + pBase[0x5FC2] * 0x28;
             g_BattleCurrentRow = pRow;
             other = pActor[0x5A];
             t = (s8)pRow[0x27];
@@ -657,7 +660,8 @@ u8 func_80098AF8(u8 sel) {
                 v = 9;
             }
         } else {
-            pRow = (u8 *)(sel * 0x690 + 0x2228) + (s32)pBase + pBase[0x5FC2] * 0x28;
+            pRow = (u8 *)(sel * 0x690 + 0x2228) + (s32)pBase;
+            pRow = pRow + pBase[0x5FC2] * 0x28;
             g_BattleCurrentRow = pRow;
             other = pActor[0x13C];
             t = (s8)pRow[0x27];
@@ -679,8 +683,10 @@ u8 func_80098AF8(u8 sel) {
     v -= d;
     func_80094D24();
     return v;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
+
+
 void BattleInitActiveSlotActions(u8 sel) {
     u8 i;
     u16 mask;
