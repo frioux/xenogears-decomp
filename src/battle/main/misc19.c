@@ -632,7 +632,7 @@ void func_8009B46C(u16* arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
-void func_8009B684(u8 arg0, u16 arg1) {
+void BattleSetCommandCodeForSlotKindFlag(u8 arg0, u16 arg1) {
     switch (arg0) {
     case 0:
         switch (arg1) {

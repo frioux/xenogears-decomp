@@ -40,7 +40,7 @@ extern void BattleSetSlotConditionTimer(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
 extern void func_80094D24(void);
 extern u8 BattleTestActorSlotFlagsC002ByMode(void);
-extern void func_8009B684(u8, u16);
+extern void BattleSetCommandCodeForSlotKindFlag(u8, u16);
 
 void BattleApplyScriptConditionTimer(void) {
     s8 ret = func_80097964(D_800C3DFC->unk1C, D_800C3DFC->unk1D,
@@ -555,7 +555,7 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
     }
     }
 
-    func_8009B684(arg1, arg2);
+    BattleSetCommandCodeForSlotKindFlag(arg1, arg2);
     return 1;
 }*/
 void BattleClearAllSlotStates(void) {
