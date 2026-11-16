@@ -57,30 +57,30 @@ extern s32 func_80091FF8(s32 nLimit, s16 *pIn, s16 *pOfs);
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ s16 unk4;
+    /* 0x04 */ s16 command;
     /* 0x06 */ u8 unk6[0x1A];
-    /* 0x20 */ s16 unk20;
-    /* 0x22 */ s16 unk22;
+    /* 0x20 */ s16 state;
+    /* 0x22 */ s16 stateTimer;
     /* 0x24 */ u16 unk24;
     /* 0x26 */ u8 unk26[0x2];
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
     /* 0x34 */ s32 unk34;
-    /* 0x38 */ u32 unk38;
-    /* 0x3C */ u32 unk3C;
-    /* 0x40 */ u32 unk40;
+    /* 0x38 */ u32 dirX;
+    /* 0x3C */ u32 dirY;
+    /* 0x40 */ u32 dirZ;
     /* 0x44 */ u32 unk44;
-    /* 0x48 */ s16 unk48;
-    /* 0x4A */ u16 unk4A;
+    /* 0x48 */ s16 angle;
+    /* 0x4A */ u16 moveSpeed;
     /* 0x4C */ u8 unk4C[0x4];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
     /* 0x60 */ s32 unk60;
-    /* 0x64 */ s16 *unk64;
-    /* 0x68 */ s16 *unk68;
+    /* 0x64 */ s16 *pCameraPathAngles;
+    /* 0x68 */ s16 *pCameraPathHeights;
     /* 0x6C */ u32 unk6C;
     /* 0x70 */ s32 unk70;
     /* 0x74 */ u32 unk74;
@@ -91,9 +91,9 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u16 unk0;
     /* 0x02 */ u8 unk2[0x6];
-    /* 0x08 */ s32 unk8[4];
+    /* 0x08 */ s32 pos[4];
     /* 0x18 */ u8 unk18[0x4];
-    /* 0x1C */ u16 unk1C;
+    /* 0x1C */ u16 rotZ;
     /* 0x1E */ u8 unk1E[0x2];
     /* 0x20 */ MATRIX matrix;
     /* 0x40 */ u8 unk40[0x14];
@@ -177,20 +177,20 @@ s32 func_8008E190(s32 idx) {
     u16 nAngle;
 
     pPlayer = g_WorldMapSlots + idx;
-    WorldMapGetGameStatePosition(&pPlayer->unk28);
+    WorldMapGetGameStatePosition(&pPlayer->x);
     pPlayer->unk24 = 0;
     nRet = 1;
     nAngle = g_GameState.scriptAngle;
-    pPlayer->unk40 = 0;
-    pPlayer->unk3C = 0;
-    pPlayer->unk38 = 0;
-    pPlayer->unk64 = 0;
+    pPlayer->dirZ = 0;
+    pPlayer->dirY = 0;
+    pPlayer->dirX = 0;
+    pPlayer->pCameraPathAngles = 0;
     pPlayer->unk60 = 0;
     pPlayer->unk74 = 0;
-    pPlayer->unk68 = (s16 *)0xFFD80000;
+    pPlayer->pCameraPathHeights = (s16 *)0xFFD80000;
     pPlayer->unk70 = 0;
     pPlayer->unk6C = 0;
-    pPlayer->unk48 = nAngle;
+    pPlayer->angle = nAngle;
     pScratch = (u8 *)0x1F800000;
     switch (g_GameState.worldMapState & 0x1FFF) {
     case 0:
@@ -198,71 +198,71 @@ s32 func_8008E190(s32 idx) {
         break;
     case 1:
     case 2:
-        pPlayer->unk4A = 0xC;
+        pPlayer->moveSpeed = 0xC;
         break;
     case 3:
     case 4:
-        pPlayer->unk4A = 0x20;
+        pPlayer->moveSpeed = 0x20;
         break;
     }
     switch (g_WorldMapMode) {
     case 1:
-        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z);
         break;
     case 2:
     case 3:
-        pPlayer->unk20 = 1;
-        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        pPlayer->state = 1;
+        pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z);
         break;
     case 4:
     case 5:
-        pPlayer->unk20 = 3;
-        pPlayer->unk28 = g_WorldMapPlayerPosition;
-        pPlayer->unk30 = D_8009C5B4;
-        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30) + 0xFFFC0000;
-        pPlayer->unk48 = g_WorldMapPlayerRotation;
+        pPlayer->state = 3;
+        pPlayer->x = g_WorldMapPlayerPosition;
+        pPlayer->z = D_8009C5B4;
+        pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0xFFFC0000;
+        pPlayer->angle = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
-        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
-        nAngle = pPlayer->unk48;
+        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+        nAngle = pPlayer->angle;
         g_WorldMapGroups->entry[3].unk0 = 1;
         g_WorldMapGroups->entry[2].unk0 = 1;
         g_WorldMapGroups->entry[1].unk0 = 1;
         g_WorldMapPlayerAngle = nAngle;
         break;
     case 7:
-        pPlayer->unk20 = 2;
-        pPlayer->unk28 = g_WorldMapPlayerPosition;
-        pPlayer->unk30 = D_8009C5B4;
-        pPlayer->unk48 = g_WorldMapPlayerRotation;
+        pPlayer->state = 2;
+        pPlayer->x = g_WorldMapPlayerPosition;
+        pPlayer->z = D_8009C5B4;
+        pPlayer->angle = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
-        pPlayer->unk2C = D_8009C5B0;
-        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
-        g_WorldMapPlayerAngle = pPlayer->unk48;
+        pPlayer->y = D_8009C5B0;
+        *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+        g_WorldMapPlayerAngle = pPlayer->angle;
         break;
     }
-    *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
     g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
     *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
     *(s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
-    *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
+    *(s16 *)(pScratch + 0xA2) = pPlayer->angle;
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
-    WorldMapSetGameStatePosition(&pPlayer->unk28);
-    g_GameState.scriptAngle = pPlayer->unk48;
+    WorldMapSetGameStatePosition(&pPlayer->x);
+    g_GameState.scriptAngle = pPlayer->angle;
     switch (D_8009C5A8) {
     case 2:
-        pPlayer->unk20 = 0x24;
+        pPlayer->state = 0x24;
         break;
     case 3:
-        pPlayer->unk20 = 0x28;
+        pPlayer->state = 0x28;
         pPlayer->unk7C = 0;
         break;
     case 4:
-        pPlayer->unk20 = 0x30;
+        pPlayer->state = 0x30;
         pPlayer->unk7C = 0;
         break;
     case 5:
-        pPlayer->unk20 = 0x34;
+        pPlayer->state = 0x34;
         pPlayer->unk7C = 0;
         break;
     }
@@ -287,7 +287,7 @@ s32 func_8008E4F4(s32 idx) {
     s32 nRet;
 
     pPlayer = g_WorldMapSlots + idx;
-    *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
     g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
     nRet = 1;
     pScratch = (u8 *)0x1F800000;
@@ -296,12 +296,12 @@ s32 func_8008E4F4(s32 idx) {
     }
     switch (g_WorldMapMode) {
     case 1:
-        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z);
         break;
     case 2:
     case 3:
-        pPlayer->unk20 = 1;
-        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        pPlayer->state = 1;
+        pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z);
         break;
     case 4:
     case 5:
@@ -318,7 +318,7 @@ s32 func_8008E4F4(s32 idx) {
     }
     *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
     *(s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
-    *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
+    *(s16 *)(pScratch + 0xA2) = pPlayer->angle;
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
     return nRet;
@@ -329,24 +329,24 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     u16 nAngle;
 
     pPlayer = g_WorldMapSlots + idx;
-    WorldMapGetGameStatePosition(&pPlayer->unk28);
-    pPlayer->unk2C = 0x80000;
+    WorldMapGetGameStatePosition(&pPlayer->x);
+    pPlayer->y = 0x80000;
     nAngle = g_GameState.scriptAngle;
-    pPlayer->unk4A = 0x20;
+    pPlayer->moveSpeed = 0x20;
     pPlayer->unk74 = 3;
-    pPlayer->unk68 = (s16 *)0xFFD80000;
-    pPlayer->unk40 = 0;
-    pPlayer->unk3C = 0;
-    pPlayer->unk38 = 0;
+    pPlayer->pCameraPathHeights = (s16 *)0xFFD80000;
+    pPlayer->dirZ = 0;
+    pPlayer->dirY = 0;
+    pPlayer->dirX = 0;
     pPlayer->unk24 = 0;
     pPlayer->unk60 = 0;
-    pPlayer->unk64 = 0;
+    pPlayer->pCameraPathAngles = 0;
     pPlayer->unk6C = 0;
-    pPlayer->unk20 = 8;
-    pPlayer->unk48 = nAngle;
-    *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->unk28;
-    g_WorldMapPlayerAngle = pPlayer->unk48;
-    *(Quad *)g_WorldMapGroups->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    pPlayer->state = 8;
+    pPlayer->angle = nAngle;
+    *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
+    g_WorldMapPlayerAngle = pPlayer->angle;
+    *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
@@ -357,15 +357,15 @@ s32 WorldMapModeInitActorRotation(s32 idx) {
     WorldMapSetSpriteSetParent(0, 2);
     WorldMapSetSpriteSetParent(0, 3);
     pPlayer = g_WorldMapSlots + idx;
-    pPlayer->unk20 = 0;
-    *(Quad *)&pPlayer->unk28 = *(Quad *)g_WorldMapGroups->entry[2].unk8;
-    *(Quad *)&pPlayer->unk38 = *(Quad *)g_WorldMapGroups->entry[3].unk8;
+    pPlayer->state = 0;
+    *(Quad *)&pPlayer->x = *(Quad *)g_WorldMapGroups->entry[2].pos;
+    *(Quad *)&pPlayer->dirX = *(Quad *)g_WorldMapGroups->entry[3].pos;
     nMode = g_WorldMapMode;
     pPlayer->unk50 = 0;
     pPlayer->unk54 = 0x40;
     if (nMode < 8) {
         if (nMode >= 4) {
-            pPlayer->unk20 = 3;
+            pPlayer->state = 3;
             pPlayer->unk5C = 0x80;
             pPlayer->unk58 = 0x80;
         }
@@ -398,14 +398,14 @@ s32 func_800907F4(s32 idx) {
     pPlayer = g_WorldMapSlots + idx;
     pRotA = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xA8);
     pRotB = (WorldMapRot *)((u8 *)g_WorldMapGroups + 0xFC);
-    if (pPlayer->unk4 == 9) {
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 1;
-    } else if (pPlayer->unk4 == 0xA) {
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 2;
+    if (pPlayer->command == 9) {
+        pPlayer->command = 0;
+        pPlayer->state = 1;
+    } else if (pPlayer->command == 0xA) {
+        pPlayer->command = 0;
+        pPlayer->state = 2;
     }
-    switch (pPlayer->unk20) {
+    switch (pPlayer->state) {
     case 0:
         pPlayer->unk58 = 0;
         pPlayer->unk5C = 0;
@@ -422,7 +422,7 @@ s32 func_800907F4(s32 idx) {
             pPlayer->unk5C = 0x80;
         }
         if ((pPlayer->unk58 >= 0x80) & (pPlayer->unk5C >= 0x80)) {
-            pPlayer->unk20 = 3;
+            pPlayer->state = 3;
         }
         break;
     case 2:
@@ -437,7 +437,7 @@ s32 func_800907F4(s32 idx) {
             pPlayer->unk5C = 0;
         }
         if ((pPlayer->unk58 == 0) & (pPlayer->unk5C == 0)) {
-            pPlayer->unk20 = 0;
+            pPlayer->state = 0;
         }
         break;
     }
@@ -447,8 +447,8 @@ s32 func_800907F4(s32 idx) {
     *(u16 *)0x1F8000A0 = 0;
     *(u16 *)0x1F8000A2 = pPlayer->unk50;
     *(u16 *)0x1F8000AA = pPlayer->unk54;
-    *(u16 *)0x1F8000A4 = pRotA->unk1C;
-    *(u16 *)0x1F8000AC = pRotB->unk1C;
+    *(u16 *)0x1F8000A4 = pRotA->rotZ;
+    *(u16 *)0x1F8000AC = pRotB->rotZ;
     RotMatrixZYX((SVECTOR *)0x1F8000A0, &pRotA->matrix);
     RotMatrixZYX((SVECTOR *)0x1F8000A8, &pRotB->matrix);
     return 1;
@@ -478,39 +478,39 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
    the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
    cannot be re-laid-out for one function: converting the whole switch family
    of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
-   match, and unk48 must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
+   match, and angle must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
    (lhu in every case body).
 
 s32 func_80090C68(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
-        pPlayer->unk48 = g_WorldMapViewRotationY;
+        pPlayer->angle = g_WorldMapViewRotationY;
         break;
     case 2:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
         break;
     case 3:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
         break;
     case 4:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
         break;
     case 6:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
         break;
     case 8:
-        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
         break;
     case 9:
-        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
         break;
     case 12:
-        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
         break;
     }
     if (g_WorldMapPad1Held & 0xF000) {
-        pPlayer->unk38 = rcos(pPlayer->unk48);
-        pPlayer->unk40 = -rsin(pPlayer->unk48);
+        pPlayer->dirX = rcos(pPlayer->angle);
+        pPlayer->dirZ = -rsin(pPlayer->angle);
     }
     if (g_WorldMapPad1Released & 0x20) {
         if (g_WorldMapZoneProximity != 0) {
@@ -539,39 +539,39 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
    the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
    cannot be re-laid-out for one function: converting the whole switch family
    of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
-   match, and unk48 must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
+   match, and angle must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
    (lhu in every case body).
 
 s32 func_80090E14(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
-        pPlayer->unk48 = g_WorldMapViewRotationY;
+        pPlayer->angle = g_WorldMapViewRotationY;
         break;
     case 2:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
         break;
     case 3:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
         break;
     case 4:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
         break;
     case 6:
-        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
         break;
     case 8:
-        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
         break;
     case 9:
-        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
         break;
     case 12:
-        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
+        pPlayer->angle = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
         break;
     }
     if (g_WorldMapPad1Held & 0xF000) {
-        pPlayer->unk38 = rcos(pPlayer->unk48);
-        pPlayer->unk40 = -rsin(pPlayer->unk48);
+        pPlayer->dirX = rcos(pPlayer->angle);
+        pPlayer->dirZ = -rsin(pPlayer->angle);
     }
     if (g_WorldMapPad1Released & 0x20) {
         if (g_WorldMapAreaId != -1) {
@@ -607,7 +607,7 @@ s32 func_80091430(s32 idx) {
     u16 nAngle;
 
     pPlayer = g_WorldMapSlots + idx;
-    *(Quad *)&pPlayer->unk28 = *(Quad *)g_WorldMapScrollTargetX;
+    *(Quad *)&pPlayer->x = *(Quad *)g_WorldMapScrollTargetX;
     nAngle = g_WorldMapPlayerAngle;
     g_WorldMapViewRotationZ = 0;
     g_WorldMapViewRotationY = nAngle;
@@ -616,7 +616,7 @@ s32 func_80091430(s32 idx) {
     nMode = g_WorldMapMode;
     if (nMode < 8) {
         if (nMode >= 6) {
-            pPlayer->unk20 = 3;
+            pPlayer->state = 3;
         }
     }
     return 1;
@@ -637,8 +637,8 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
         pPlayer->unk50 = 3;
         g_WorldMapCameraHeight = 0x460000;
         g_WorldMapCameraRot = -0x260;
-        pPlayer->unk64 = g_WorldMapCameraPathAnglesModes1To5;
-        pPlayer->unk68 = g_WorldMapCameraPathHeightsModes1To5;
+        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesModes1To5;
+        pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsModes1To5;
         break;
     case 6:
         break;
@@ -646,8 +646,8 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
         pPlayer->unk50 = 3;
         g_WorldMapCameraHeight = 0x280000;
         g_WorldMapCameraRot = -0x260;
-        pPlayer->unk64 = g_WorldMapCameraPathAnglesMode7;
-        pPlayer->unk68 = g_WorldMapCameraPathHeightsMode7;
+        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesMode7;
+        pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsMode7;
         break;
     }
     return 1;
@@ -657,8 +657,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
    state machine is decoded and every relocation is right; what is left is gcc's
    block and delay-slot ordering, not structure:
    - cases 9/10: retail's shared tail is [bnez unk50][sw v0,0x68][li 1][sw v0,0x50]
-     with `sh zero,4(s0)` (unk4 = 0) in the `j` delay slot, i.e. the unk68 store was
-     cross-jumped and takes its value in v0. This body emits the unk68 store in the
+     with `sh zero,4(s0)` (command = 0) in the `j` delay slot, i.e. the pCameraPathHeights store was
+     cross-jumped and takes its value in v0. This body emits the pCameraPathHeights store in the
      j delay and `sh zero,4` in the bnez delay instead.
    - case 0: retail emits [sh v0,0x20][sll a0,2][sh zero,0x22][sw a0,0x50]
      [lui/addu/lw g_WorldMapPathPointHeights][lw v0,0x50][nop][sll 1][addu][sw v1,0x54][lh][nop]
@@ -671,8 +671,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091C18);
      in the original; no source spelling tried so far reproduces that.
    Listing the cases 14, 17, 9, 10 (not 9, 10, 14, 17) was worth 13 points - block
    emission order is the lever in this switch, so a permuter run from this body is
-   the next step, not more hand shapes. Field types this body proved: unk4/unk20/
-   unk22 s16 (lh, slti, sh), unk54/unk60 s32 (blez, sra), unk64/unk68 s16* (the angle
+   the next step, not more hand shapes. Field types this body proved: command/state/
+   stateTimer s16 (lh, slti, sh), unk54/unk60 s32 (blez, sra), pCameraPathAngles/pCameraPathHeights s16* (the angle
    and height tracks indexed by the path point). pRot = &g_WorldMapCameraRot is what
    makes retail hold the address in a3 across the compare and the func_80096F18 call;
    without it the three cases lose their separate arg-setup blocks.
@@ -687,42 +687,42 @@ s32 func_80091C18(s32 idx) {
 
     pPlayer = g_WorldMapSlots + idx;
     nRet = 1;
-    switch (pPlayer->unk4) {
+    switch (pPlayer->command) {
     case 14:
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 0;
+        pPlayer->command = 0;
+        pPlayer->state = 0;
         g_WorldMapRotationMatrixValid = 0;
         break;
     case 17:
         g_WorldMapCameraHeight = 0x400000;
-        pPlayer->unk20 = 3;
-        pPlayer->unk4 = 0;
+        pPlayer->state = 3;
+        pPlayer->command = 0;
         pPlayer->unk58 = -0x100;
         break;
     case 9:
-        pPlayer->unk64 = g_WorldMapCameraPathAnglesMode7;
-        pPlayer->unk68 = g_WorldMapCameraPathHeightsMode7;
-        pPlayer->unk4 = 0;
+        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesMode7;
+        pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsMode7;
+        pPlayer->command = 0;
         if (pPlayer->unk50 == 0) {
             pPlayer->unk50 = 1;
         }
         break;
     case 10:
-        pPlayer->unk64 = g_WorldMapCameraPathAnglesModes1To5;
-        pPlayer->unk68 = g_WorldMapCameraPathHeightsModes1To5;
-        pPlayer->unk4 = 0;
+        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesModes1To5;
+        pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsModes1To5;
+        pPlayer->command = 0;
         if (pPlayer->unk50 == 0) {
             pPlayer->unk50 = 1;
         }
         break;
     }
-    pPath = pPlayer->unk64;
-    switch (pPlayer->unk20) {
+    pPath = pPlayer->pCameraPathAngles;
+    switch (pPlayer->state) {
     case 0:
-        nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->unk68);
+        nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->pCameraPathHeights);
         if (pPlayer->unk50 != nPoint) {
-            pPlayer->unk20 = 1;
-            pPlayer->unk22 = 0;
+            pPlayer->state = 1;
+            pPlayer->stateTimer = 0;
             pPlayer->unk50 = nPoint;
             pPlayer->unk54 = g_WorldMapPathPointHeights[nPoint];
             pPlayer->unk58 = pPath[pPlayer->unk50];
@@ -731,14 +731,14 @@ s32 func_80091C18(s32 idx) {
         func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
         break;
     case 1:
-        if (pPlayer->unk22 >= 5) {
-            nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->unk68);
+        if (pPlayer->stateTimer >= 5) {
+            nPoint = func_80091FF8(pPlayer->unk50, pPath, pPlayer->pCameraPathHeights);
             if (pPlayer->unk50 != nPoint) {
                 pPlayer->unk50 = nPoint;
                 pPlayer->unk54 = g_WorldMapPathPointHeights[nPoint];
                 pPlayer->unk58 = pPath[pPlayer->unk50];
             }
-            pPlayer->unk22 = 0;
+            pPlayer->stateTimer = 0;
         }
         if (pPlayer->unk54 != g_WorldMapCameraHeight) {
             nDelta = pPlayer->unk54 - g_WorldMapCameraHeight;
@@ -770,7 +770,7 @@ s32 func_80091C18(s32 idx) {
         }
         pRot = &g_WorldMapCameraRot;
         if ((pPlayer->unk54 == g_WorldMapCameraHeight) & (pPlayer->unk58 == *pRot)) {
-            pPlayer->unk20 = 0;
+            pPlayer->state = 0;
         }
         func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
         break;
@@ -787,7 +787,7 @@ s32 func_80091C18(s32 idx) {
         func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
         break;
     }
-    pPlayer->unk22++;
+    pPlayer->stateTimer++;
     return nRet;
 }
 */
@@ -880,7 +880,7 @@ s32 WorldMapModeInitValue50(s32 idx) {
             g_WorldMapFadeLevel = 0x8C;
         } else if (nMode < 8) {
             g_WorldMapFadeLevel = 0x78;
-            pPlayer->unk20 = 1;
+            pPlayer->state = 1;
         }
     }
     pPlayer->unk50 = g_WorldMapFadeLevel << 12;
@@ -892,14 +892,14 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
 
     pPlayer = g_WorldMapSlots + idx;
     nRet = 1;
-    if (pPlayer->unk4 == 9) {
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 1;
-    } else if (pPlayer->unk4 == 0xA) {
-        pPlayer->unk4 = 0;
-        pPlayer->unk20 = 2;
+    if (pPlayer->command == 9) {
+        pPlayer->command = 0;
+        pPlayer->state = 1;
+    } else if (pPlayer->command == 0xA) {
+        pPlayer->command = 0;
+        pPlayer->state = 2;
     }
-    switch (pPlayer->unk20) {
+    switch (pPlayer->state) {
     case 0:
         nRet = 3;
         break;
@@ -909,7 +909,7 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
         if (g_WorldMapFadeLevel < 0x78) {
             g_WorldMapFadeLevel = 0x78;
             pPlayer->unk50 = 0x78000;
-            pPlayer->unk20 = 0;
+            pPlayer->state = 0;
         }
         break;
     case 2:
@@ -918,7 +918,7 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
         if (g_WorldMapFadeLevel >= 0x8C) {
             g_WorldMapFadeLevel = 0x8C;
             pPlayer->unk50 = 0x8C000;
-            pPlayer->unk20 = 0;
+            pPlayer->state = 0;
         }
         break;
     }
