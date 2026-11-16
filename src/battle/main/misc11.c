@@ -75,6 +75,38 @@ extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void func_80077698(void);
 extern void func_800826CC(u8 arg0);
+extern u8 func_8008BED8(u8 arg0);
+extern void func_8008B908(u8 arg0);
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x24];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u16 unk26;
+    /* 0x28 */ u16 unk28;
+    /* 0x2A */ u16 unk2A;
+    /* 0x2C */ u16 unk2C;
+    /* 0x2E */ u16 unk2E;
+    /* 0x30 */ u16 unk30;
+    /* 0x32 */ u16 unk32;
+    /* 0x34 */ u16 unk34;
+    /* 0x36 */ u16 unk36;
+    /* 0x38 */ u8 unk38[0x4];
+    /* 0x3C */ u8 unk3C;
+    /* 0x3D */ u8 unk3D[0x3];
+} BattleActorSlot; // Size: 0x40
+
+// 0x2F8-byte block of actor slots plus the slot menu state that follows them.
+typedef struct {
+    /* 0x000 */ BattleActorSlot slot[0xB];
+    /* 0x2C0 */ u8 unk2C0[0x1D];
+    /* 0x2DD */ u8 unk2DD;
+    /* 0x2DE */ u8 unk2DE;
+    /* 0x2DF */ u8 unk2DF[0xB];
+    /* 0x2EA */ u8 unk2EA;
+    /* 0x2EB */ u8 unk2EB[0xB];
+    /* 0x2F6 */ u8 unk2F6;
+    /* 0x2F7 */ u8 unk2F7;
+} BattleActorSlots; // Size: 0x2F8
 
 /* 82.95%: best of 6 shapes. The loop body matches instruction for
    instruction (four reloads of the volatile counter, the two separate
@@ -475,7 +507,156 @@ void func_8008115C(u8 arg0) {
 }*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081318);
+/* 85.02% and JTBL_LAYOUT - and the solver of the whole-family theory: the C
+   jump table cannot reach retail's address. This unit's eight tables tile its
+   .rodata 0x38C..0x600 exactly (func_80080160's 101-word table at +0x194, then
+   seven 0x20-byte tables), so jtbl_80070030 sits at +0x1B4 and jtbl_80070050 at
+   +0x1D4 - both 4-mod-8 - while cc1 emits `.align 3` before every jump table. A
+   converted switch therefore lands at +0x1B8 and 4 pad bytes appear where retail
+   has the table's first word (measured at battle.bin 0x540: retail 0x80081388,
+   ours 0x00000000). Converting the whole family cannot fix it either: the first
+   table's 0x194 length is not a multiple of 8, so from the second table on the
+   pad is forced and the unit's .rodata ends at 0x278 instead of 0x274.
+   The rest of the body is instruction-identical; what is left is (a) gcc
+   cross-jumps the three `sb v0,0x2DD(v1)` case tails into one shared block that
+   retail keeps inline, which also flips case 0's and case 1's branch arms, and
+   (b) the two `unk2F6 = 1; BattlePlaySoundIfEnabled(0x4F);` sites lose retail's
+   early `li a0,0x4F` to the jal delay slot. Writing the plain stores through a
+   local `BattleActorSlots *p` (as the func_800816F8 park does) is worse here:
+   81.27% / 440 bytes. */
+/*
+void func_80081318(u8 arg0) {
+    u8 a;
+
+    a = arg0;
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        if (func_8008BED8(a) != 0) {
+            func_8008B908(a);
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 2;
+        }
+        break;
+    case 0:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 1;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk26 != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 7;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 2:
+        ((BattleActorSlots *)D_800C3EAC)->unk2DD = 3;
+        break;
+    case 3:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk30 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 4;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2A != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0xA;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 1:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk32 != 0) {
+            BattlePlaySoundIfEnabled(0x4F);
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 8;
+        }
+        break;
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081504);
+/* 86.26% and JTBL_LAYOUT for the same reason as func_80081318 above:
+   jtbl_80070050 is at .rodata +0x1D4, 4-mod-8, and cc1 aligns jump tables to 8,
+   so no switch of this unit can be converted on its own or with the rest of the
+   family. Same remaining code differences too - the three `sb v0,0x2DD(v1)`
+   tails are cross-jumped into one shared block retail keeps inline (which flips
+   the case arms) and the `li a0,0x4F` sites lose their early materialisation.
+   The local-pointer store form scores 78.69%. */
+/*
+void func_80081504(u8 arg0) {
+    switch (D_800D3014) {
+    case 4:
+    case 6:
+    case 7:
+        BattleSetSlotFlag15A1(arg0);
+        ((BattleActorSlots *)D_800C3EAC)->unk2EA = 0;
+        ((BattleActorSlots *)D_800C3EAC)->unk2DE = 1;
+        break;
+    case 0:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk2E == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 1;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk26 != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 7;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 1:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk32 != 0) {
+            BattlePlaySoundIfEnabled(0x4F);
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 2;
+        }
+        break;
+    case 3:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk30 == 0) {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 4;
+            break;
+        }
+        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk2A != 0) {
+                BattlePlaySoundIfEnabled(0x4F);
+            } else {
+                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0xA;
+            }
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+            BattlePlaySoundIfEnabled(0x4F);
+        }
+        break;
+    case 2:
+        if (((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk2C != 0) {
+            BattlePlaySoundIfEnabled(0x4F);
+        } else {
+            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 9;
+        }
+        break;
+    }
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800816F8);
 /* 99.90% and JTBL_LAYOUT: with the switch converted, the C jump table is
    emitted with `.align 3` at object offset 0x1F4, so cc1 inserts a 4-byte pad
