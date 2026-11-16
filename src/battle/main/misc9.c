@@ -158,13 +158,32 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
    percentage above stands.
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
-/* void func_8007DB78(u8 **arg0, s32 arg1) {
+/* R165 second pass: still 85.10% (376 bytes vs retail's 336); the head and the
+   loop are byte-exact apart from the three deltas below. permute.sh --minutes 4
+   -j 2 drove it to 813 from 1450, and the candidate that did it is WRONG CODE
+   (it redirected the tail store through a reused index), but it names the
+   missing lever precisely: retail's row base is a VALUE in v0
+   (`addu v0,v0,v1`) that is then COPIED into the loop's saved pointer
+   (`move s6,v0`), while gcc coalesces the two pseudos. The permuter only broke
+   the tie by keeping the s32 sum live past the copy (`rowBase = 2;` after
+   `u16 *pRow = (u16 *)rowBase;`). So the next thing to try is a legitimate use
+   of a live s32 row base that does not change an operand - not a new shape of
+   the expression, which is measured dead: plain pointer initialiser, the
+   (s32)-cast form, an s32 base local (all 85.10%), a two-statement
+   base/pointer split and the (u16 *)((arg1 & 0xFF) * 0x40) + (s32)D_800D3420
+   form (identical output).
+   The rest, unchanged: retail duplicates `slti v0,s1,3` into three places
+   (delay slots of the a628 beqz and of both beqzs, plus the latch) where gcc
+   emits it twice, and retail has `addiu a1,s2,-1` in the beqz s2 delay slot
+   with `move a0,zero` after it, mine the other way round.
+void func_8007DB78(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 i = 0;
     s32 count = 0;
     s32 offset = 0;
     s32 idx;
-    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+    s32 rowBase = (arg1 & 0xFF) * 0x40 + (s32)D_800D3420;
+    u16 *pRow = (u16 *)rowBase;
 
     pRow[(*arg0)[2]] = 0;
     while (i < 3) {
@@ -393,7 +412,19 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
    percentage above stands.
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
-/* void func_8007E438(u8 **arg0, u8 arg1) {
+/* R165 second pass: 80.63% (308 bytes) confirmed as recorded; unchanged, no
+   lever found. Deltas. (1) The first record load is
+   `g_BattleSlotRecords[BattleFindFirstFlagTableMatch(field) * 0x1C]` reached
+   inline: retail builds the row base D_800D3420 + arg1 * 0x40 + p[2] * 2 with
+   a single register sum, gcc splits off `&D_800D3420` and the <<6 and hoists
+   them, which is what grows the frame to 0x38. (2) gcc keeps
+   &g_BattleSlotRecords in a saved register across the loop for the first of
+   the two record loads where retail re-forms it with `lui $at / addu $at`.
+   (3) the accumulator doubling, same miss as func_8007E334/E554: retail
+   computes it into a temp and copies it back (`sll a1,s1,1 / move s1,a1`),
+   gcc doubles in place - `acc = acc * 2` measured identical to `acc <<= 1`
+   in func_8007E554, so the shape is not the operator.
+void func_8007E438(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 offset = 0x38;
     s32 i;
@@ -434,7 +465,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
    percentage above stands.
  */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E554);
-/* void func_8007E554(u8 **arg0, u8 arg1) {
+/* R165 second pass: 89.08% (300 bytes) confirmed. `acc = acc * 2` measures the
+   same as `acc <<= 1` (both 89.08), so the doubling delta is not the operator:
+   retail emits `sll a1,s1,1` in the bne delay slot and copies back at the join
+   (`move s1,a1`), gcc doubles in place into s1. The other delta is
+   &g_BattleSlotRecords: gcc hoists it into a saved register across the loop
+   for the FIRST of the two record loads (`addu v1,v1,s6 / lbu v1,0(v1)`) where
+   retail re-forms it with `lui $at / addu $at / lbu %lo(at)` for BOTH, which
+   is also why mine saves one more register than retail (6 against 5) in the
+   same 0x30 frame.
+void func_8007E554(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 offset = 0x118;
     s32 i;
