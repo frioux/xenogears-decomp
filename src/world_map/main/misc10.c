@@ -54,7 +54,7 @@ typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
     /* 0x8 */ s32 z;
-    /* 0xC */ s32 unk0C;
+    /* 0xC */ s32 w;
 } WorldMapVec; // Size: 0x10
 
 typedef struct {
@@ -174,10 +174,10 @@ typedef struct {
     /* 0x08 */ WorldMapVec pos;
     /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX mat;
-    /* 0x40 */ u8* unk40;
+    /* 0x40 */ u8* pPrimHeader;
     /* 0x44 */ u8 unk44[0x4];
-    /* 0x48 */ u8* unk48;
-    /* 0x4C */ u8* unk4C;
+    /* 0x48 */ u8* pPrims;
+    /* 0x4C */ u8* pPrimsCopy;
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapSceneLayer; // Size: 0x54
 
