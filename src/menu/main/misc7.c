@@ -660,6 +660,14 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
    around loop 2 (extra beqz+nop - a bare `for` gives retail's `blez`).
    Symbols added: D_801E9B60, D_801E9C20, D_801EA39C (all live in
    asm/menu/data/246A4.data.s).
+   Round 121: the increment-in-the-beq-delay-slot shape is `digits[i++]` plus a
+   value local (that closed func_801D51EC/53D0/5BA4 here) - for this function it
+   is `pId = &D_801EA39C[a0 * 0x18 + i++]` + `*pId` twice, but taken literally it
+   collapses to 77.82% (432 bytes): the address local changes the whole loop, so
+   the x/y arrays must be indexed off a separate counter. The twin `lhu` in loop 2
+   is a basic-block effect: retail's two loads of 0xA8 are separated by the
+   loop-entry `beq`/`blez`, so gcc's per-EBB CSE cannot merge them; our C emits
+   them in one block.
    void func_801D6194(u_char a0) {
        s32 i;
        u8* pEntry;
