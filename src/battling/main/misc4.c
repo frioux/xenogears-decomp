@@ -262,7 +262,7 @@ struct Actor {
     /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 gaugePoints;
     /* 0x0B8 */ s16 prevGaugeValue;
-    /* 0x0BA */ s16 unkBA;
+    /* 0x0BA */ s16 gaugeLevel;
     /* 0x0BC */ s16 gaugeMax;
     /* 0x0BE */ s16 unkBE;
     /* 0x0C0 */ u8 gaugeWidth;
@@ -270,7 +270,7 @@ struct Actor {
     /* 0x0C2 */ u8 unkC2;
     /* 0x0C3 */ u8 unkC3;
     /* 0x0C4 */ u8 state;
-    /* 0x0C5 */ u8 unkC5;
+    /* 0x0C5 */ u8 actionPhase;
     /* 0x0C6 */ u8 prevState;
     /* 0x0C7 */ u8 padC7;
     /* 0x0C8 */ s16 unkC8;
@@ -289,10 +289,13 @@ struct Actor {
     /* 0x86C */ u8 pad86C[0x90];
     /* 0x8FC */ ActorScript* pScript;
     /* 0x900 */ u8 pad900[0xA];
-    /* 0x90A */ u8 unk90A;
+    // Bits set per actor type (func_80084C88 stores one per typeId); func_8007920C
+    // tests bit 0 before spawning the ground effect, misc3 bits 1 and 2.
+    /* 0x90A */ u8 typeFlags;
     /* 0x90B */ u8 timer;
     /* 0x90C */ u8 pad90C[0x4];
-    /* 0x910 */ u8 unk910;
+    // Frames left before the gauge sound repeats (misc3 BattleUpdateSlotGaugeDisplay).
+    /* 0x910 */ u8 soundTimer;
     /* 0x911 */ u8 pad911[0x3];
     /* 0x914 */ s16 unk914;
     /* 0x916 */ s16 unk916;
@@ -301,21 +304,23 @@ struct Actor {
     // compares them with the other actor's before pushing the two apart.
     /* 0x92C */ Vec4 baseVertexPos;
     /* 0x93C */ Vec4 edgeMidPos;
-    /* 0x94C */ s32 unk94C;
-    /* 0x950 */ s32 unk950;
-    /* 0x954 */ s32 unk954;
-    /* 0x958 */ u8 pad958[0x4];
-    /* 0x95C */ s32 unk95C;
-    /* 0x960 */ s32 unk960;
-    /* 0x964 */ u8 pad964[0x8];
-    /* 0x96C */ s16 unk96C;
-    /* 0x96E */ s16 unk96E;
-    /* 0x970 */ s32 unk970;
+    // Mean of the two points above, word for word (func_8007920C); func_8007A958
+    // copies all four words out as the actor's draw position.
+    /* 0x94C */ Vec4 midPosition;
+    // The 0x93C block as it was before this frame's update: func_8007A344 copies
+    // it here, and func_8007920C compares its .y with the new one.
+    /* 0x95C */ Vec4 prevEdgeMidPos;
+    // Last frame's y of the vertexIndex0 and vertexIndex1 vertices, compared
+    // with a 6-unit tolerance in func_8007920C.
+    /* 0x96C */ s16 prevVertex1Y;
+    /* 0x96E */ s16 prevVertex0Y;
+    // Gauge damage applied by this frame's update, then cleared (misc3 func_80077038).
+    /* 0x970 */ s32 gaugeDamage;
     /* 0x974 */ u8 pad974[0x24];
-    /* 0x998 */ s16 unk998;
-    /* 0x99A */ s16 unk99A;
+    /* 0x998 */ s16 animFrame;
+    /* 0x99A */ s16 animFrameStep;
     /* 0x99C */ u8 pad99C[0x27];
-    /* 0x9C3 */ u8 unk9C3;
+    /* 0x9C3 */ u8 actionIndex;
     /* 0x9C4 */ u8 pad9C4[0xC08];
     /* 0x15CC */ ActorSub* pState;
     /* 0x15D0 */ u8 pad15D0[0x4];
@@ -325,8 +330,12 @@ struct Actor {
     /* 0x15D8 */ UnkStruct1 unk15D8;
     /* 0x15E6 */ u8 pad15E6[0xA];
     /* 0x15F0 */ s16 unk15F0;
-    /* 0x15F2 */ s16 unk15F2;
-    /* 0x15F4 */ s16 unk15F4;
+    // 0x15F4 times the battle-wide g_BattleMotionSpeedScale: the scale the
+    // per-frame step and part animation actually use (set by misc3
+    // BattleUpdateSlotGaugeDisplay).
+    /* 0x15F2 */ s16 speedScale;
+    // The actor's own scale, copied from the script byte at 0xC.
+    /* 0x15F4 */ s16 baseSpeedScale;
     /* 0x15F6 */ s16 unk15F6;
     /* 0x15F8 */ s16 unk15F8;
     /* 0x15FA */ u8 pad15FA[0x5A];
@@ -541,14 +550,14 @@ void func_80078F00(Actor* p) {
     p->unkC2 = 0xF0;
     p->angle = 0;
     p->state = 0;
-    p->unkC5 = 0;
+    p->actionPhase = 0;
     p->gaugePoints = 0;
-    p->unkBA = 0;
-    p->unk910 = 0;
+    p->gaugeLevel = 0;
+    p->soundTimer = 0;
     p->gaugeWidth = 0x7F;
     p->prevGaugeWidth = 0x7F;
-    p->unk970 = 0;
-    p->unk9C3 = 0;
+    p->gaugeDamage = 0;
+    p->actionIndex = 0;
     p->stateTimer = 0;
     p->unk916 = 0;
     p->unkC8 = 0;
@@ -579,8 +588,8 @@ void func_80078F00(Actor* p) {
     p->flags &= ~4;
     p->flags &= ~2;
     p->flags &= ~0x38;
-    p->unk15F4 = pScript->unkC;
-    p->unk15F2 = pScript->unkC;
+    p->baseSpeedScale = pScript->unkC;
+    p->speedScale = pScript->unkC;
     p->stateFlags &= ~0x10;
     p->pActionEntry = D_8009264C;
     D_8009264E = 1;
@@ -610,23 +619,23 @@ void func_8007920C(Actor* p) {
 
     BattleTransformEntryVertex(p, pScript->partIndex0, pScript->vertexIndex0, pos[0]);
     BattleTransformEntryVertex(p, pScript->partIndex1, pScript->vertexIndex1, pos[1]);
-    p->edgeMidPos = (pos[0][0] + pos[1][0]) / 2;
-    p->unk940 = (pos[0][1] + pos[1][1]) / 2;
-    p->unk944 = (pos[0][2] + pos[1][2]) / 2;
+    p->edgeMidPos.x = (pos[0][0] + pos[1][0]) / 2;
+    p->edgeMidPos.y = (pos[0][1] + pos[1][1]) / 2;
+    p->edgeMidPos.z = (pos[0][2] + pos[1][2]) / 2;
 
-    if ((p->flags & 0x80000) && (p->flags & 0x60000000) != 0x20000000 && !(p->unk90A & 1)) {
+    if ((p->flags & 0x80000) && (p->flags & 0x60000000) != 0x20000000 && !(p->typeFlags & 1)) {
         BattleEffectAddSlotFromVector(pos[0], 9);
         BattleEffectAddSlotFromVector(pos[1], 9);
     }
 
     if (p->timer != 0) {
         if (pos[0][1] + 0x40 > p->floorY - 0x20) {
-            if (p->unk96E + 6 < pos[0][1]) {
+            if (p->prevVertex0Y + 6 < pos[0][1]) {
                 func_8007D7A8(pos[0], 0x20);
             }
         }
         if (pos[1][1] + 0x40 > p->floorY - 0x20) {
-            if (p->unk96C + 6 < pos[1][1]) {
+            if (p->prevVertex1Y + 6 < pos[1][1]) {
                 func_8007D7A8(pos[1], 0x20);
             }
         }
@@ -634,24 +643,24 @@ void func_8007920C(Actor* p) {
     }
 
     if ((p->flags & 0x60000000) == 0x20000000) {
-        func_8007DC74(&p->edgeMidPos, &p->unk95C);
+        func_8007DC74(&p->edgeMidPos, &p->prevEdgeMidPos);
     }
 
-    if (BattleGetScreenMode() != 7 && (p->flags & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
-        p->unk960 < 0x80) {
+    if (BattleGetScreenMode() != 7 && (p->flags & 0x60000000) == 0x20000000 && p->edgeMidPos.y >= 0x81 &&
+        p->prevEdgeMidPos.y < 0x80) {
         BattlePlaySoundEffectByIdx(p, 0x3A, &p->edgeMidPos, 2);
     }
 
-    p->unk96E = pos[0][1];
-    p->unk96C = pos[1][1];
+    p->prevVertex0Y = pos[0][1];
+    p->prevVertex1Y = pos[1][1];
     BattleTransformEntryVertex(p, pScript->basePartIndex, pScript->baseVertexIndex, &p->baseVertexPos);
 
-    p->unk930 -= 0x38;
-    p->unk94C = (p->edgeMidPos + p->baseVertexPos) / 2;
-    p->unk954 = (p->unk944 + p->unk934) / 2;
-    p->unk950 = (p->unk940 + p->unk930) / 2;
+    p->baseVertexPos.y -= 0x38;
+    p->midPosition.x = (p->edgeMidPos.x + p->baseVertexPos.x) / 2;
+    p->midPosition.z = (p->edgeMidPos.z + p->baseVertexPos.z) / 2;
+    p->midPosition.y = (p->edgeMidPos.y + p->baseVertexPos.y) / 2;
 
-    if ((p->flags & 0x8000) && p->unkC5 == 0 && (p->state & 1)) {
+    if ((p->flags & 0x8000) && p->actionPhase == 0 && (p->state & 1)) {
         BattleEffectSetColor(&p->effectColor);
         flag = (p->flags >> 27) & 1;
         func_8007CD44(flag, &p->baseVertexPos, &p->edgeMidPos, flag);
@@ -661,7 +670,7 @@ void func_8007920C(Actor* p) {
         }
     }
 
-    if (p->unkC5 != 4) {
+    if (p->actionPhase != 4) {
         if (p->state != 1) {
             p->stateFlags &= ~3;
         } else {
@@ -670,7 +679,7 @@ void func_8007920C(Actor* p) {
                 p->stateFlags = (p->stateFlags & ~3) | 2;
             }
         }
-        if (p->unkC5 == 2) {
+        if (p->actionPhase == 2) {
             p->stateFlags |= 3;
         }
     }
@@ -939,5 +948,5 @@ void BattleActorInitModelState(Actor* p, u8 unk4C) {
     p->unk52 = 0;
     g_BattleMotionSpeedScale = 0x100;
     func_80074BA4();
-    func_80074678(p, p->unk998, p->unk99A);
+    func_80074678(p, p->animFrame, p->animFrameStep);
 }
