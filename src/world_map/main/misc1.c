@@ -670,38 +670,35 @@ extern s32 D_8009D7C8;
 extern s32* D_8009BD00;
 extern s32 D_8009D73C[];
 
-/* best: 97.42%. Everything matches except one register: retail keeps pEntry
-   (pBase + pHeader[1], live across the 16-entry table loop) in $s0 and gives the
-   loop $a1/$a2/$a3, while gcc 2.7.2 puts pEntry in $a1 and shifts the walker to
-   $a2/$a3/$t0. The 8 header stores, the loop body and the four D_8009BD00
-   fixups (loads through the local, stores through the reloaded global) all
-   match. Tried: pEntry computed before vs after the header stores, indexed vs
-   pointer-walk loop, explicit walker copy. Allocator tie, not source order.
-   Sibling WorldMapDecompressMapData in misc2 is the same function without the loop.
-
 void func_80073530(void) {
+    u8* pFirstBase;
     s32* pHeader;
     u8* pBase;
+    u8* pDecompressed;
     s32* pEntry;
+    u8* pNewBase;
     s32* p;
     s32 i;
 
-    pHeader = (s32*)D_8009C180;
+    pEntry = D_8009C180;
+    pHeader = (s32*)pEntry;
     D_8009C180 = LZSSHeapDecompress(pHeader, 0);
     HeapFree(pHeader);
-    pBase = (u8*)D_8009C180;
+    pDecompressed = (u8*)D_8009C180;
+    pBase = pDecompressed;
+    pFirstBase = pBase;
     pHeader = (s32*)pBase;
     pEntry = (s32*)(pBase + pHeader[1]);
     D_8009CD48 = (s32)(pBase + pHeader[2]);
-    D_8009D308 = (s32)(pBase + pHeader[3]);
-    D_8009BD30 = (s32)(pBase + pHeader[4]);
-    D_8009C7EC = (s32)(pBase + pHeader[5]);
-    D_8009BCC0 = (s32)(pBase + pHeader[6]);
-    D_8009D784 = (s32)(pBase + pHeader[7]);
-    D_8009D77C = (s32)(pBase + pHeader[8]);
-    D_8009D7C8 = (s32)(pBase + pHeader[9]);
+    D_8009D308 = (s32)(pFirstBase + pHeader[3]);
+    D_8009BD30 = (s32)(pFirstBase + pHeader[4]);
+    D_8009C7EC = (s32)((pNewBase = pFirstBase) + pHeader[5]);
+    D_8009BCC0 = (s32)(pNewBase + pHeader[6]);
+    D_8009D784 = (s32)(pNewBase + pHeader[7]);
+    D_8009D77C = (s32)(pNewBase + pHeader[8]);
+    D_8009D7C8 = (s32)(pNewBase + pHeader[9]);
     for (i = 0; i < 0x10; i++) {
-        D_8009D73C[i] = (s32)(pBase + pHeader[0xB + i]);
+        D_8009D73C[i] = (s32)(pNewBase + pHeader[0xB + i]);
     }
     D_8009D3F4 = (WorldMapPoint*)((u8*)pEntry + pEntry[0]);
     p = (s32*)((u8*)pEntry + pEntry[1]);
@@ -711,9 +708,6 @@ void func_80073530(void) {
     D_8009BD00[2] = (s32)((u8*)pEntry + p[2]);
     D_8009BD00[3] = (s32)((u8*)pEntry + p[3]);
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073530);
-
 void WorldMapAllocWorkBuffers(void) {
     g_WorldMapWorkBuffer1 = HeapAlloc(0x1000, 0);
     g_WorldMapWorkBuffer2 = HeapAlloc(0x1000, 0);
