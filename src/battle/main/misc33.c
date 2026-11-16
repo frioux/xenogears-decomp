@@ -9,31 +9,31 @@
 // function in this unit drives one of these.
 typedef struct {
     /* 0x00 */ u8 unk0[0x2];
-    /* 0x02 */ s16 unk2;
+    /* 0x02 */ s16 x; // the point BattleAngleToPoint/SpriteComputeAngleFromPoints measures from
     /* 0x04 */ u8 unk4[0x6];
-    /* 0x0A */ s16 unkA;
-    /* 0x0C */ void (*unkC)();
+    /* 0x0A */ s16 y;
+    /* 0x0C */ void (*pCallback)(); // called with this record when countdown reaches 0
     /* 0x10 */ u8 unk10[0x2C];
-    /* 0x3C */ u16 unk3C;
+    /* 0x3C */ u16 rotZ; // z angle RotMatrix is given; rotZStep is added to it every frame
     /* 0x3E */ u8 unk3E[0x2];
-    /* 0x40 */ s32 unk40;
-    /* 0x44 */ s32 unk44;
-    /* 0x48 */ s32 unk48;
+    /* 0x40 */ s32 scaleX; // the vector BattleRenderSpriteBody passes to ScaleMatrix
+    /* 0x44 */ s32 scaleY;
+    /* 0x48 */ s32 scaleZ;
     /* 0x4C */ u8 unk4C[0x14];
-    /* 0x60 */ s32 unk60;
-    /* 0x64 */ u16 unk64;
+    /* 0x60 */ s32 countdown; // decremented every frame; the callback fires on the frame it hits 0
+    /* 0x64 */ u16 rotZStep;
     /* 0x66 */ u8 unk66[0x2];
-    /* 0x68 */ u8 unk68;
-    /* 0x69 */ u8 unk69;
-    /* 0x6A */ u8 unk6A;
+    /* 0x68 */ u8 colorR; // clip colour, clamped by SpriteColorAddClamp as the record fades out
+    /* 0x69 */ u8 colorG;
+    /* 0x6A */ u8 colorB;
     /* 0x6B */ u8 unk6B[0x9];
-    /* 0x74 */ void *unk74;
+    /* 0x74 */ void *pTargetSprite; // the sprite this one is pointed at
     /* 0x78 */ u8 unk78[0x4];
-    /* 0x7C */ s32 *unk7C;
+    /* 0x7C */ s32 *pArchiveEntryIndex; // the entry id BattleLoadActorArchiveFile loads
     /* 0x80 */ u8 unk80[0x20];
-    /* 0xA0 */ u16 unkA0;
+    /* 0xA0 */ u16 targetX; // the point BattleAngleToTarget measures from x/y
     /* 0xA2 */ u8 unkA2[0x2];
-    /* 0xA4 */ u16 unkA4;
+    /* 0xA4 */ u16 targetY;
     /* 0xA6 */ u8 unkA6[0x2];
     /* 0xA8 */ u32 unkA8;
     // func_800BF3E8 reads byte 3 as a signed byte (\`lb 0xAF\`), so the 0xAC word and
@@ -42,24 +42,24 @@ typedef struct {
         /* 0xAC */ u32 word;
         /* 0xAC */ u8 bytes[0x4];
         /* 0xAC */ s_char sbytes[0x4];
-    } unkAC;
-    /* 0xB0 */ s8 unkB0;
+    } flags;
+    /* 0xB0 */ s8 animId; // animation id SpritePlayAnimation is handed
 } BattleActorSprite; // Size: 0xB4
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ BattleActorSprite *unk4;
+    /* 0x04 */ BattleActorSprite *pCurSprite;
     /* 0x08 */ void (*unk8)();
     /* 0x0C */ u8 unkC[0x10];
-    /* 0x1C */ s32 unk1C;
+    /* 0x1C */ s32 stateStep;
     /* 0x20 */ u8 unk20[0x4];
-    /* 0x24 */ s32 unk24;
-    /* 0x28 */ u32 unk28;
+    /* 0x24 */ s32 actorIndex;
+    /* 0x28 */ u32 partKey;
     /* 0x2C */ s32 unk2C;
     /* 0x30 */ s32 unk30;
     /* 0x34 */ s32 unk34;
     /* 0x38 */ u8 unk38[0xC];
-    /* 0x44 */ s32 unk44;
+    /* 0x44 */ s32 targetDistance; // measured by BattleFaceTargetAndMeasureDistance
     /* 0x48 */ u8 unk48;
     /* 0x49 */ u8 unk49;
     /* 0x4A */ u8 unk4A;
@@ -74,7 +74,7 @@ extern s32 D_800C360C;
 // misc25 indexes the same rows as D_800C4000[D_800C360C - 1].
 typedef struct {
     /* 0x00 */ u8 unk0[0x46];
-    /* 0x46 */ u16 unk46;
+    /* 0x46 */ u16 slotMask;
 } BattleActorRow; // Size: 0x48
 
 extern BattleActorRow D_800C3FB8[];
@@ -126,13 +126,13 @@ typedef struct {
     /* 0x38 */ SVECTOR rot;
     /* 0x40 */ VECTOR scale;
     /* 0x50 */ u8 unk50[0x10];
-    /* 0x60 */ s32 unk60;
-    /* 0x64 */ s32 unk64;
-    /* 0x68 */ u8 unk68;
-    /* 0x69 */ u8 unk69;
-    /* 0x6A */ u8 unk6A;
+    /* 0x60 */ s32 countdown;
+    /* 0x64 */ s32 rotZStep;
+    /* 0x68 */ u8 colorR;
+    /* 0x69 */ u8 colorG;
+    /* 0x6A */ u8 colorB;
     /* 0x6B */ u8 unk6B;
-    /* 0x6C */ s32 unk6C;
+    /* 0x6C */ s32 partCount;
     /* 0x70 */ BattleSpritePart parts[8];
 } BattleSpriteBody; // Size: 0x130
 
@@ -153,15 +153,15 @@ extern void *g_BattleActorArchiveBuffer;
 extern u32 g_BattleActorArchivePartKey;
 
 void BattleStepActorFadeOut(BattleActorSprite *p) {
-    p->unk3C = p->unk3C + p->unk64;
-    p->unk40 += 0x330;
-    p->unk44 += 0x330;
-    p->unk48 += 0x330;
-    p->unk68 = SpriteColorAddClamp(p->unk68, -4);
-    p->unk69 = SpriteColorAddClamp(p->unk69, -4);
-    p->unk6A = SpriteColorAddClamp(p->unk6A, -4);
-    if (--p->unk60 == 0) {
-        p->unkC(p);
+    p->rotZ = p->rotZ + p->rotZStep;
+    p->scaleX += 0x330;
+    p->scaleY += 0x330;
+    p->scaleZ += 0x330;
+    p->colorR = SpriteColorAddClamp(p->colorR, -4);
+    p->colorG = SpriteColorAddClamp(p->colorG, -4);
+    p->colorB = SpriteColorAddClamp(p->colorB, -4);
+    if (--p->countdown == 0) {
+        p->pCallback(p);
     }
 }
 // The GTE geom-output block g_BattleGeomMatrix doubles as a matrix: CompMatrix writes
@@ -228,54 +228,54 @@ void BattleCreateNumberSpriteTask(s32 value) {
 
     pBody = WorkListsAddTasks(0x130, NULL, BattleStepActorFadeOut, BattleRenderSpriteBody, NULL);
     step = ((rand() & 3) - 2) * 8;
-    pBody->unk64 = -step;
-    if (pBody->unk64 == 0) {
-        pBody->unk64 = 6;
+    pBody->rotZStep = -step;
+    if (pBody->rotZStep == 0) {
+        pBody->rotZStep = 6;
     }
-    pBody->unk60 = 0x20;
+    pBody->countdown = 0x20;
     pBody->unk6B = 0x2E;
     pBody->scale.vx = 0x2000;
     pBody->scale.vy = 0x2000;
     pBody->scale.vz = 0x2000;
     mode = g_BattleColorMode;
-    pBody->unk6C = 0;
+    pBody->partCount = 0;
     pBody->rot.vx = 0;
     pBody->rot.vy = 0;
     pBody->rot.vz = 0;
     switch (mode) {
     case 0xB:
-        pBody->unk68 = 0;
-        pBody->unk69 = 0;
-        pBody->unk6A = 0x80;
+        pBody->colorR = 0;
+        pBody->colorG = 0;
+        pBody->colorB = 0x80;
         break;
     case 3:
-        pBody->unk68 = 0x80;
-        pBody->unk69 = 0;
-        pBody->unk6A = 0x80;
+        pBody->colorR = 0x80;
+        pBody->colorG = 0;
+        pBody->colorB = 0x80;
         break;
     case 2:
-        pBody->unk68 = 0;
-        pBody->unk69 = 0x80;
-        pBody->unk6A = 0;
+        pBody->colorR = 0;
+        pBody->colorG = 0x80;
+        pBody->colorB = 0;
         break;
     default:
-        pBody->unk68 = 0x80;
-        pBody->unk69 = 0x80;
-        pBody->unk6A = 0x80;
+        pBody->colorR = 0x80;
+        pBody->colorG = 0x80;
+        pBody->colorB = 0x80;
         break;
     }
     func_800BE6E8(value, digits, 5, 0, 0);
     tex = g_BattleDigitTextureIds[digits[0]];
-    pBody->unk6C = 0;
+    pBody->partCount = 0;
     i = 0;
     while (i != digits[0]) {
-        pBody->unk6C += ResourceHelperGetSpriteList(g_BattleSpriteArchive, digits[i + 1] + 0x72,
-                                                    &pBody->parts[pBody->unk6C], tex, -8);
+        pBody->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, digits[i + 1] + 0x72,
+                                                        &pBody->parts[pBody->partCount], tex, -8);
         i++;
         tex += 10;
     }
-    if (pBody->unk6C != 0) {
-        for (i = 0; i != pBody->unk6C; i++) {
+    if (pBody->partCount != 0) {
+        for (i = 0; i != pBody->partCount; i++) {
             pBody->parts[i].width--;
             pBody->parts[i].height--;
         }
@@ -293,7 +293,7 @@ void BattleAttachActorAnimScripts(s32 index, s32 arg1, s32 arg2, s32 arg3) {
     pSprite = *(BattleActorSprite **)(pBase + index * 4 + 0x8C8C);
     D_800C3780 = 1;
     if (pSprite != NULL) {
-        anim = pSprite->unkAC.sbytes[3];
+        anim = pSprite->flags.sbytes[3];
         SpritePlayAnimation(pSprite, 0xA);
         pState = g_BattleState;
         g_BattleState = (BattleMisc33State *)1;
@@ -310,8 +310,8 @@ void BattleAttachActorAnimScripts(s32 index, s32 arg1, s32 arg2, s32 arg3) {
         while (BattleGetAdjustedWaitCountdown() != 0) {
             func_800BE790();
         }
-        if (pSprite->unkAC.sbytes[3] == 0xA) {
-            while (pSprite->unkAC.sbytes[3] == 0xA) {
+        if (pSprite->flags.sbytes[3] == 0xA) {
+            while (pSprite->flags.sbytes[3] == 0xA) {
                 func_800BE790();
             }
         }
@@ -477,7 +477,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
    (with the constant 1 in $s1 where ours uses $s0); ours keeps the address in $a1.
    A plain dead `pState = g_BattleState;` after the call is deleted by gcc, so what retail
    actually read is still unknown.  Retail store order: unk8, g_BattleState, D_800C360C,
-   unk4A, unk48, unk30, unk49, unk2C, unk4, unk34 (in the call's delay slot).
+   unk4A, unk48, unk30, unk49, unk2C, pCurSprite, unk34 (in the call's delay slot).
 void func_800BED4C(void) {
     BattleMisc33State *pState;
 
@@ -490,7 +490,7 @@ void func_800BED4C(void) {
     g_BattleState->unk30 = 0;
     g_BattleState->unk49 = 0;
     g_BattleState->unk2C = 1;
-    g_BattleState->unk4 = NULL;
+    g_BattleState->pCurSprite = NULL;
     g_BattleState->unk34 = 0;
     BattleSetStateStep(0);
     pState = g_BattleState;
@@ -523,7 +523,7 @@ s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
         if ((mask & 1) != 0) {
             pSprite = *(BattleActorSprite **)(pBase + i * 4 + 0x8C8C);
             if (pSprite != NULL) {
-                pSprite->unk74 = (void *)arg2;
+                pSprite->pTargetSprite = (void *)arg2;
                 pOut[count] = pSprite;
                 count++;
             }
@@ -542,13 +542,13 @@ s16 BattleAngleToPoint(BattleActorSprite *p0, BattleActorSprite *p1) {
     s32 c2;
     s32 c3;
 
-    c0 = p0->unk2;
+    c0 = p0->x;
     vec0.vx = c0;
-    c1 = p0->unkA;
+    c1 = p0->y;
     vec0.vy = c1;
-    c2 = p1->unk2;
+    c2 = p1->x;
     vec1.vx = c2;
-    c3 = p1->unkA;
+    c3 = p1->y;
     vec1.vy = c3;
     return SpriteComputeAngleFromPoints(vec1, vec0);
 }
@@ -560,13 +560,13 @@ s16 BattleAngleToTarget(BattleActorSprite *p) {
     s32 c2;
     s32 c3;
 
-    c0 = p->unk2;
+    c0 = p->x;
     vec0.vx = c0;
-    c1 = p->unkA;
+    c1 = p->y;
     vec0.vy = c1;
-    c2 = p->unkA0;
+    c2 = p->targetX;
     vec1.vx = c2;
-    c3 = p->unkA4;
+    c3 = p->targetY;
     vec1.vy = c3;
     return SpriteComputeAngleFromPoints(vec1, vec0);
 }
@@ -576,28 +576,28 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
    jal delay slot; ours allocates it straight to $a0 (so the slot gets a nop) and the
    sensor-table base lands in $a1 instead of $v1.  The sprite-table entry is the same
    0x1C-byte stride g_BattleStateWork table that func_800BF3E8 walks, and the 4-bit key is
-   the (unkA8>>30) | ((unkAC.word&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
+   the (unkA8>>30) | ((flags.word&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
 void func_800BEFF4(s32 actorIndex) {
     BattleActorSprite *pSprite;
     u8 *pBase;
     u32 part;
 
-    pSprite = g_BattleState->unk4;
-    if (pSprite != NULL && g_BattleState->unk24 != actorIndex) {
+    pSprite = g_BattleState->pCurSprite;
+    if (pSprite != NULL && g_BattleState->actorIndex != actorIndex) {
         part = pSprite->unkA8 >> 30;
         pBase = g_BattleStateWork;
-        if (*(u8 *)(pBase + (((pSprite->unkAC.word & 3) << 2) | part) * 0x1C + 0x7) == 0) {
-            SpritePlayAnimation(pSprite, pSprite->unkB0);
+        if (*(u8 *)(pBase + (((pSprite->flags.word & 3) << 2) | part) * 0x1C + 0x7) == 0) {
+            SpritePlayAnimation(pSprite, pSprite->animId);
         }
     }
-    g_BattleState->unk24 = actorIndex;
+    g_BattleState->actorIndex = actorIndex;
     pBase = g_BattleStateWork;
-    g_BattleState->unk4 = *(void **)(pBase + actorIndex * 4 + 0x8C8C);
+    g_BattleState->pCurSprite = *(void **)(pBase + actorIndex * 4 + 0x8C8C);
 }
 */
 
 void BattleSetStateStep(s32 arg0) {
-    g_BattleState->unk1C = arg0;
+    g_BattleState->stateStep = arg0;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF0C4);
@@ -609,15 +609,15 @@ void BattleFaceTargetAndMeasureDistance(BattleActorSprite *p, s32 arg1) {
     s32 c2;
     s32 c3;
 
-    c0 = p->unk2;
+    c0 = p->x;
     vec0.vx = c0;
-    c1 = p->unkA;
+    c1 = p->y;
     vec0.vy = c1;
-    c2 = p->unkA0;
+    c2 = p->targetX;
     vec1.vx = c2;
-    c3 = p->unkA4;
+    c3 = p->targetY;
     vec1.vy = c3;
-    g_BattleState->unk44 = BattleComputeVectorDistance2D(vec0, vec1);
+    g_BattleState->targetDistance = BattleComputeVectorDistance2D(vec0, vec1);
     SpriteSetDirection(p, BattleAngleToTarget(p));
     func_800223B0(p, BattleAngleToTarget(p));
     SpritePlayAnimation(p, arg1);
@@ -630,12 +630,12 @@ void BattleLoadActorArchiveFile(BattleActorSprite *pSprite) {
 
     BattleUnloadActorArchive();
     ArchiveSetIndex(0x2C, 1);
-    entry = *pSprite->unk7C;
+    entry = *pSprite->pArchiveEntryIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(entry), 1);
     ArchiveReadFileToBuffer(entry, pBuffer, 0, 0x80);
     g_BattleActorArchiveBuffer = pBuffer;
     part = pSprite->unkA8 >> 30;
-    g_BattleActorArchivePartKey = ((pSprite->unkAC.word & 3) << 2) | part;
+    g_BattleActorArchivePartKey = ((pSprite->flags.word & 3) << 2) | part;
 }
 s32 BattleLoadSoundSeds(void) {
     s32 ret;
@@ -657,7 +657,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
    (retail re-reads g_BattleActorList for the pState->unk4C store: `lw a0,0(s2)` after
    the two 0x74 stores, so its address lives in $s2 and the loaded head in $s0;
    ours CSEs the third read onto s0 and needs no second saved register) and the
-   unkA8/unkAC load order.  The two `lhu` of the mask ARE two separate C
+   unkA8/flags load order.  The two `lhu` of the mask ARE two separate C
    expressions -- one per statement, with the D_800D3634 store between them --
    and the call argument must be the later statement's load, so the argument
    expression is written last.  The table row is 0x48 bytes at g_BattleStateWork+0x108
@@ -667,21 +667,21 @@ void func_800BF3E8(BattleActorSprite *p) {
     BattleMisc33State *pState;
     s32 count;
 
-    D_800D3634 = D_800C3FB8[D_800C360C].unk46;
-    count = BattleCollectMaskedSlotActors(D_800C3FB8[D_800C360C].unk46, (void **)&g_BattleActorList, (s32)p);
+    D_800D3634 = D_800C3FB8[D_800C360C].slotMask;
+    count = BattleCollectMaskedSlotActors(D_800C3FB8[D_800C360C].slotMask, (void **)&g_BattleActorList, (s32)p);
     g_BattleActorListCount = count;
     if (count == 0) {
         g_BattleActorList = p;
     }
     pLast = g_BattleActorList;
     pState = g_BattleState;
-    p->unk74 = g_BattleActorList;
-    ((BattleActorSprite *)g_BattleActorList)->unk74 = p;
+    p->pTargetSprite = g_BattleActorList;
+    ((BattleActorSprite *)g_BattleActorList)->pTargetSprite = p;
     pState->unk4C = g_BattleActorList;
-    pState->unk28 = ((pLast->unkAC.word & 3) << 2) | (pLast->unkA8 >> 30);
-    func_800223B0(p, BattleAngleToPoint(p, p->unk74));
-    if (pLast->unkAC.sbytes[3] != 0x15) {
-        func_800223B0(pLast, BattleAngleToPoint(p->unk74, p));
+    pState->partKey = ((pLast->flags.word & 3) << 2) | (pLast->unkA8 >> 30);
+    func_800223B0(p, BattleAngleToPoint(p, p->pTargetSprite));
+    if (pLast->flags.sbytes[3] != 0x15) {
+        func_800223B0(pLast, BattleAngleToPoint(p->pTargetSprite, p));
     }
 }
 */
