@@ -437,6 +437,61 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
+// best 98.66% at retail's exact size (0xE0): the dispatch, all four arm bodies and
+// the shared decrement tail line up. Retail keeps TWO copies of the
+// "idx = D_800D2D6C->unk04[0]; break;" arm (cases 0 and 15, at .L8009E7C0 and
+// .L8009E814); gcc 2.6.0 cross-jumps them into a single block whenever both arms
+// are written the same way, and the second copy is exactly the 0x18 bytes the
+// merged version is short (200 vs 224). The volatile in case 15 is what keeps the
+// two blocks rtx-unequal; what it costs is one andi, because a volatile QI load
+// cannot fuse with its zero-extension, so the byte comes out lbu v0,0x4(v0) plus
+// andi v1,v0,0xff in the j delay slot where retail has the lbu straight into v1.
+// Without the volatile the same body reads 89.11%. Folded away or removed before
+// cross-jumping (all measured at 200 bytes): pointer, u8, s16 and u32 variants of
+// the index local, *(unk04 + 0), ((u8 *)p)[4], braces around the arm, do-while(0),
+// goto vs break, and s32/u8 temporaries between the load and the index. A
+// different source shape is needed here, not a different spelling.
+/*
+void func_8009E788(void) {
+    s32 idx;
+
+    switch (D_800C34B0->unk5FC2) {
+    case 0:
+        idx = D_800D2D6C->unk04[0];
+        break;
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+        idx = D_800D2D6C->unk04[0];
+        if (((u8 *)&g_GameState.unk22B6)[idx] != 0) {
+            ((u8 *)&g_GameState.unk22B6)[idx] = ((u8 *)&g_GameState.unk22B6)[idx] + 0xFF;
+        }
+        idx = D_800D2D6C->unk04[3];
+        break;
+    case 15:
+        idx = *(volatile u8 *)&D_800D2D6C->unk04[0];
+        break;
+    case 2:
+    case 17:
+        idx = D_800D2D6C->unk04[3];
+        break;
+    default:
+        return;
+    }
+    if (((u8 *)&g_GameState.unk22B6)[idx] != 0) {
+        ((u8 *)&g_GameState.unk22B6)[idx] = ((u8 *)&g_GameState.unk22B6)[idx] + 0xFF;
+    }
+}
+*/
 void BattleSetCommandCodeForFlagBit(u8 arg0, u16 arg1) {
     switch (arg0) {
     case 0:
