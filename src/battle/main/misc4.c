@@ -74,7 +74,7 @@ extern void BattleQueueCommandF7(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF8(u8 arg0);
 extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern void BattleUpdateFrame(void);
-extern void func_800793F0(u8 arg0);
+extern void BattleDispatchCommandRecords(u8 arg0);
 extern void BattleQueueCommand1BAndFE(u8 arg0);
 extern void BattleClearSlotCurveState(void);
 extern void BattleClearSlotCurveEntry(void);
@@ -304,7 +304,7 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
         }
     }
 }
-void func_800793F0(u8 arg0) {
+void BattleDispatchCommandRecords(u8 arg0) {
     u8 again;
     u8 idx;
     u8 slot;
@@ -400,7 +400,7 @@ void func_80079778(u8 arg0) {
     D_800C400B[D_800C3EAC->count * 72] = arg0;
     BattleUpdateFrame();
     func_800B89FC(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
-    func_800793F0(arg0);
+    BattleDispatchCommandRecords(arg0);
     BattleQueueCommand1BAndFE(arg0);
     while (D_800C3EAC->unk2DB == 0) {
         BattleUpdateFrame();
@@ -520,7 +520,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
         }
     }
     if (D_800D2E5C[0].opcode != 0) {
-        func_800793F0(slot + 3);
+        BattleDispatchCommandRecords(slot + 3);
     }
 done:
     return result;

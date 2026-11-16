@@ -379,7 +379,7 @@ s32 WorldMapSetupSpriteSetPrims(s32 arg0) {
     WorldMapBuildSpritePrims(pEntry, pEntry->pPackets[0], pEntry->unk40->polyCount, 3);
     return 1;
 }
-s32 func_80083264(s32 arg0) {
+s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
     s32 row = arg0 - 3;
     WorldMapActor *pActor = &D_8009BE24[arg0];
     WorldMapEntry *pEntry = &D_8009C620[row + 81];

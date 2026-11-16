@@ -28,7 +28,7 @@ base=build/src/$unit.c.o
 # objects compare even though the function sits at different addresses in each.
 dump() {
     mips-linux-gnu-objdump -d -r --no-show-raw-insn "$1" \
-        | awk -v f="<$2>:" '$0 ~ f {p=1; next} p && /^[0-9a-f]+ <.*>:$/ {exit} p' \
+        | awk -v f="<$2>:" '$0 ~ f {p=1; next} p && /^[0-9a-f]+ <[^.>][^>]*>:$/ {exit} p' \
         | sed -E 's/^ *[0-9a-f]+:\t//; s/^\t+//; s/^[0-9a-f]+: (R_MIPS)/\1/; s/\b0 <[^>]+>$//; s/[[:space:]][0-9a-f]+ <([^>]+)>/ <\1>/g; s/,[0-9a-f]+ </,</g' \
         | python3 -c "$fold_addends" || true
 }
