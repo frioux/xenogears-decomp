@@ -406,7 +406,6 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     int i;
     int sign = flag;
     s32 v;
-    u16* new_var;
 
     v = value;
     glyphOffset *= 16;
@@ -450,8 +449,7 @@ scanDone:
         *--pScan = sign + glyphOffset;
     }
 
-    new_var = pScan;
-    SystemDecodeGlyphCodes(new_var);
+    SystemDecodeGlyphCodes(pScan);
 }
 
 void SystemStringSetCurrentData(SystemString* pString, void* pData) {
