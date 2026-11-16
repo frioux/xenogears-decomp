@@ -54,7 +54,7 @@ void func_80070808(s32* p, s32 step) {
 }
 */
 
-extern s32 g_BattleCameraPos;
+extern VECTOR g_BattleCameraPos;
 extern s32 D_80098720;
 extern s32 D_80098724;
 extern void BattleMovePointInsideRadius(s32* pA, s32* pB, s32 limit);
@@ -169,7 +169,101 @@ void func_8007099C(s32 mode) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070C7C);
+// The position every effect vector is placed against: three 16.16 words.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+} BattleAnchor; // Size: 0xC
+
+// The battling overlay's battle state (D_8009872C): the anchor position every
+// effect vector is placed against, the fade intensity at +0xD0 the draw units
+// read, and the frame flags the effect cells below are switched on through.
+typedef struct {
+    /* 0x000 */ BattleAnchor position;
+    /* 0x00C */ u8 unkC[0x40];
+    /* 0x04C */ u8 unk4C;
+    /* 0x04D */ u8 unk4D[0x2];
+    /* 0x04F */ u8 unk4F;
+    /* 0x050 */ u8 unk50[0x2];
+    /* 0x052 */ u8 unk52;
+    /* 0x053 */ u8 unk53[0x61];
+    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B8 */ u8 unkB8[0x18];
+    /* 0x0D0 */ u32 unkD0;
+} BattleState; // Size: 0xD4
+
+extern BattleState D_8009872C;
+
+extern void BattleClearSpriteTables(void);
+
+// Places the battle state's anchor, the actor at D_80097010 and the camera
+// around the midpoint of the first two, offset by the amount the mode picks.
+void func_80070C7C(s32 mode) {
+    VECTOR anchor;
+    VECTOR actor;
+    VECTOR camera;
+    VECTOR offset;
+
+    anchor = *(VECTOR*)&D_8009872C;
+    actor = D_80097010;
+    camera = g_BattleCameraPos;
+    offset = anchor;
+    offset.vx += actor.vx;
+    offset.vy += actor.vy;
+    offset.vz += actor.vz;
+    offset.vx /= 2;
+    offset.vy /= 2;
+    offset.vz /= 2;
+    anchor.vx -= offset.vx;
+    anchor.vy -= offset.vy;
+    anchor.vz -= offset.vz;
+    actor.vx -= offset.vx;
+    actor.vy -= offset.vy;
+    actor.vz -= offset.vz;
+    camera.vx -= offset.vx;
+    camera.vy -= offset.vy;
+    camera.vz -= offset.vz;
+    switch (mode) {
+    case 0:
+        offset.vx = 0x4000;
+        offset.vy = 0;
+        offset.vz = 0x4000;
+        break;
+    case 1:
+        offset.vx = 0x6000;
+        offset.vy = 0;
+        offset.vz = 0x6000;
+        break;
+    case 2:
+        offset.vx = 0x2000;
+        offset.vy = 0;
+        offset.vz = 0x2000;
+        break;
+    case 3:
+        offset.vx = 0x4000;
+        offset.vy = 0;
+        offset.vz = 0x2400;
+        break;
+    }
+    anchor.vx += offset.vx;
+    anchor.vy += offset.vy;
+    anchor.vz += offset.vz;
+    actor.vx += offset.vx;
+    actor.vy += offset.vy;
+    actor.vz += offset.vz;
+    camera.vx += offset.vx;
+    camera.vy += offset.vy;
+    camera.vz += offset.vz;
+    anchor.vy = 0;
+    actor.vy = 0;
+    camera.vy = -0x300;
+    *(VECTOR*)&D_8009872C = anchor;
+    D_80097010 = actor;
+    g_BattleCameraPos = camera;
+    BattleClearSpriteTables();
+}
 
 void BattleSetValueAndClearFlags(s32 value) {
     D_800925F8 = value;
@@ -495,33 +589,6 @@ void BattleInitOnce(void) {
     D_800970F8 = 0;
     D_80098814 = 0;
 }
-
-// The position every effect vector is placed against: three 16.16 words.
-typedef struct {
-    /* 0x0 */ s32 x;
-    /* 0x4 */ s32 y;
-    /* 0x8 */ s32 z;
-} BattleAnchor; // Size: 0xC
-
-// The battling overlay's battle state (D_8009872C): the anchor position every
-// effect vector is placed against, the fade intensity at +0xD0 the draw units
-// read, and the frame flags the effect cells below are switched on through.
-typedef struct {
-    /* 0x000 */ BattleAnchor position;
-    /* 0x00C */ u8 unkC[0x40];
-    /* 0x04C */ u8 unk4C;
-    /* 0x04D */ u8 unk4D[0x2];
-    /* 0x04F */ u8 unk4F;
-    /* 0x050 */ u8 unk50[0x2];
-    /* 0x052 */ u8 unk52;
-    /* 0x053 */ u8 unk53[0x61];
-    /* 0x0B4 */ s16 unkB4;
-    /* 0x0B6 */ s16 unkB6;
-    /* 0x0B8 */ u8 unkB8[0x18];
-    /* 0x0D0 */ u32 unkD0;
-} BattleState; // Size: 0xD4
-
-extern BattleState D_8009872C;
 
 // The anchor's y and z words: retail's object reaches them as their own
 // symbols, not as displacements off D_8009872C.
