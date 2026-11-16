@@ -139,7 +139,7 @@ void func_8007B310(BattleCommand **p, u8 index) {
         g_BattleSlotRegs[index].wordRegs[pCmd->unk1] | g_BattleSlotRegs[index].wordRegs[pCmd->unk2];
 }
 
-void func_8007B360(BattleCommand **p, u8 index) {
+void BattleWordRegXor(BattleCommand **p, u8 index) {
     BattleCommand *pCmd = *p;
 
     // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0

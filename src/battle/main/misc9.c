@@ -45,7 +45,7 @@ extern u8 D_800CCD62[];
 extern u8 D_800CD1B2[];
 extern u8 D_800D32B1[];
 extern u8 D_800D32F1[];
-extern u8 func_8007A628(u8 arg0, u8 arg1);
+extern u8 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1);
 extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
@@ -61,7 +61,7 @@ extern u16 BattleSlotBitMask(u8 arg0);
    loop's base register - tried a pOut pointer (77-80%, gcc reuses the loop
    base or spills), `(s32)D_800D3420` staged local (76.10%, shape right but one
    extra insn) and the plain inline expression (the $at form);
-   (2) retail steals `i++` into the beqz delay slot after the func_8007A628
+   (2) retail steals `i++` into the beqz delay slot after the BattleSlotFlagsC002ClearRecordIdle
    call, gcc emits it at the loop head;
    (3) declaration order of the two zeroed accumulators (retail i then count).
 void func_8007D8C0(u8 **arg0, s32 arg1) {
@@ -75,7 +75,7 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
     idx = i;
     do {
         idx = i++;
-        if (func_8007A628(idx, 0) != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
             if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
@@ -100,9 +100,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
    $at form. So it is gcc's combine merging (sym+reg) into the store address that
    retail's compiler did not do, not a source detail.
    (2) retail steals `addiu s1,s1,1` into the beqz delay slot after the
-   func_8007A628 call; gcc emits it at the loop bottom.
+   BattleSlotFlagsC002ClearRecordIdle call; gcc emits it at the loop bottom.
    func_8007DE78 is this function with i starting at 0, the loop bound 3 and
-   func_8007A628's second argument 1, so it shares both misses.
+   BattleSlotFlagsC002ClearRecordIdle's second argument 1, so it shares both misses.
 void func_8007DA1C(u8 **arg0, s32 arg1) {
     u8 buf[8];
     s32 count = 0;
@@ -113,7 +113,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     pRow[(*arg0)[2]] = 0;
     for (i = 3; i < 0xB; i++) {
         idx = i;
-        if (func_8007A628(idx, 0) != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
             if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = i;
                 count++;
@@ -127,7 +127,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     }
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
-/* best: 85.10%. func_8007DFD4 is this function with func_8007A628's second
+/* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
    func_8007DE78 is the same loop without the g_BattleSlotFlags gate. Shape confirmed:
    the row zero, the idx = i++ copy that keeps idx in its own register (s3) and
@@ -146,7 +146,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DA1C);
    a628 beqz and of the gate/and beqzs, plus the latch); gcc emits it twice.
    Tried do-while, while and a for-head loop: identical output.
    (3) idx = i++ is emitted at the loop top; retail has the increment in the
-   delay slot of the beqz after the func_8007A628 call (DE78's nit 3).
+   delay slot of the beqz after the BattleSlotFlagsC002ClearRecordIdle call (DE78's nit 3).
    (4) tail: retail puts addiu a1,s2,-1 in the beqz s2 delay slot and
    move a0,zero after it; mine the other way round (an s32 last = count - 1
    local does not move it).
@@ -169,7 +169,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
     pRow[(*arg0)[2]] = 0;
     while (i < 3) {
         idx = i++;
-        if (func_8007A628(idx, 0) != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, 0) != 0) {
             if (((u8 *)g_BattleSlotFlags)[offset] != 0) {
                 if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                     buf[count] = idx;
@@ -210,7 +210,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
    them in retail (declaration order i then count already matches retail's
    s1-then-s2 zeroing).
    (3) retail steals addiu s1,s1,1 into the beqz delay slot after the
-   func_8007A628 call; with idx = i++ the whole loop body is byte-exact
+   BattleSlotFlagsC002ClearRecordIdle call; with idx = i++ the whole loop body is byte-exact
    otherwise, and that shape is required (idx must stay a separate register;
    idx = i inside the body makes gcc propagate it and lose s3).
 void func_8007DE78(u8 **arg0, s32 arg1) {
@@ -223,7 +223,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     pRow[(*arg0)[2]] = 0;
     do {
         idx = i++;
-        if (func_8007A628(idx, 1) != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, 1) != 0) {
             if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
@@ -238,7 +238,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     }
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
-/* best: 85.10%. func_8007DFD4 is this function with func_8007A628's second
+/* best: 85.10%. func_8007DFD4 is this function with BattleSlotFlagsC002ClearRecordIdle's second
    argument 1 (verified: the two stubs differ in exactly that instruction), and
    func_8007DE78 is the same loop without the g_BattleSlotFlags gate. Shape confirmed:
    the row zero, the idx = i++ copy that keeps idx in its own register (s3) and
@@ -257,7 +257,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DE78);
    a628 beqz and of the gate/and beqzs, plus the latch); gcc emits it twice.
    Tried do-while, while and a for-head loop: identical output.
    (3) idx = i++ is emitted at the loop top; retail has the increment in the
-   delay slot of the beqz after the func_8007A628 call (DE78's nit 3).
+   delay slot of the beqz after the BattleSlotFlagsC002ClearRecordIdle call (DE78's nit 3).
    (4) tail: retail puts addiu a1,s2,-1 in the beqz s2 delay slot and
    move a0,zero after it; mine the other way round (an s32 last = count - 1
    local does not move it).
@@ -280,7 +280,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
     pRow[(*arg0)[2]] = 0;
     while (i < 3) {
         idx = i++;
-        if (func_8007A628(idx, 1) != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, 1) != 0) {
             if (((u8 *)g_BattleSlotFlags)[offset] != 0) {
                 if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                     buf[count] = idx;

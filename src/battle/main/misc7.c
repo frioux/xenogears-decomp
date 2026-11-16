@@ -55,7 +55,7 @@ extern BattleSlotArgs D_800CCDE8[];
 
 u8 GameRandomByteRange(int, u8);
 u16 BattleRandomRange(int, u16);
-u8 func_8007A628(u8, u8);
+u8 BattleSlotFlagsC002ClearRecordIdle(u8, u8);
 u16 BattleSlotBitMask(u8);
 s32 BattleFindFirstFlagTableMatch(u16);
 s32 BattleSlotByteVarGetSet(u8, u8, u8, s32);
@@ -431,7 +431,7 @@ void func_8007BD5C(u8 **p, u8 index) {
     while (!(buf[0] & buf[1] & buf[2])) {
         idx = GameRandomByteRange(0, 2);
         if (buf[idx] == 0) {
-            if (func_8007A628(idx, (*p)[2]) != 0) {
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)[2]) != 0) {
                 if (g_BattleSlotFlags[idx * 8] == 0) {
                     pField[(*p)[1]] = BattleSlotBitMask(idx);
                     break;
@@ -461,7 +461,7 @@ void func_8007BEA8(u8 **p, u8 index) {
     while (!(buf[0] & buf[1] & buf[2])) {
         idx = GameRandomByteRange(0, 2);
         if (buf[idx] == 0) {
-            if (func_8007A628(idx, (*p)[2]) != 0
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)[2]) != 0
                 && g_BattleSlotRecords[(index + 3) * 0x1C] == g_BattleSlotRecords[idx * 0x1C]
                 && g_BattleSlotFlags[idx * 8] == 0) {
                 ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = BattleSlotBitMask(idx);
@@ -488,7 +488,7 @@ void func_8007C040(u8 **p, u8 index) {
 
     ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = 0;
     for (i = 3; i < 11; i++) {
-        if (func_8007A628(i, (*p)[2]) != 0
+        if (BattleSlotFlagsC002ClearRecordIdle(i, (*p)[2]) != 0
             && g_BattleSlotRecords[(index + 3) * 0x1C] == g_BattleSlotRecords[i * 0x1C]
             && g_BattleSlotFlags[i * 8] == 0) {
             buf[count++] = i;

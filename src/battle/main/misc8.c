@@ -60,7 +60,7 @@ extern BattleSlotFlag g_BattleSlotFlags[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 *g_BattleSlotParamTable;
-extern u8 func_8007A628(u8 arg0, u8 arg1);
+extern u8 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 extern u8 BattleFindFirstFlagTableMatch(u16 arg0);
 extern u8 BattleSlotFlagsC000Clear(u8 arg0);
@@ -93,7 +93,7 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
         u8 idx = slot;
 
         if (buf[idx] == 0) {
-            if (func_8007A628(idx, (*arg0)[2]) != 0
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0
                 && g_BattleSlotRecords[(arg1 + 3) * 0x1C] != g_BattleSlotRecords[idx * 0x1C]
                 && g_BattleSlotFlags[idx].inUse == 0) {
                 u16 result = BattleSlotBitMask(idx);
@@ -119,7 +119,7 @@ void BattlePickActorSlotWithDifferentTag(u8 **arg0, u8 arg1) {
     for (; i < 0xB; i++) {
         u8 idx = i;
 
-        if (func_8007A628(idx, (*arg0)[2]) != 0
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0
             && g_BattleSlotRecords[arg1 + 3].tag != g_BattleSlotRecords[i].tag
             && g_BattleSlotFlags[i].inUse == 0) {
             buf[count++] = idx;
@@ -141,7 +141,7 @@ void BattlePickCharSlotByLowestSlotWord(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 0; i < 3; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotCountdownTimers[i]) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotCountdownTimers[i]) {
             best = g_BattleSlotCountdownTimers[i];
             bestIndex = i;
         }
@@ -159,7 +159,7 @@ void BattlePickActorSlotByLowestSlotWord(BattleSlotArgs **ppArgs, u8 row) {
     s32 actorSlot = row + 3;
 
     for (; i < 0xB; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= D_800D2E0C[i - 3] && i != actorSlot) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, (*ppArgs)->tag) != 0 && best >= D_800D2E0C[i - 3] && i != actorSlot) {
             best = D_800D2E0C[i - 3];
             bestIndex = i;
         }
@@ -176,7 +176,7 @@ void BattlePickCharSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 0; i < 3; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotEntriesBase[i].unk000) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotEntriesBase[i].unk000) {
             best = g_BattleSlotEntriesBase[i].unk000;
             bestIndex = i;
         }
@@ -193,7 +193,7 @@ void BattlePickActorSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 3; i < 0xB; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotEntriesBase[i].unk000) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, (*ppArgs)->tag) != 0 && best >= g_BattleSlotEntriesBase[i].unk000) {
             best = g_BattleSlotEntriesBase[i].unk000;
             bestIndex = i;
         }
@@ -224,7 +224,7 @@ void func_8007C840(u8 **arg0, u8 arg1) {
         u8 idx = slot;
 
         if (buf[idx] == 0) {
-            if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0
                 && g_BattleSlotRecords[(arg1 + 3) * 0x1C] == g_BattleSlotRecords[idx * 0x1C]) {
                 u16 result = BattleSlotBitMask(idx);
                 s32 index = (*arg0)[1];
@@ -261,7 +261,7 @@ void func_8007C9D4(u8 **arg0, u8 arg1) {
         u8 idx = slot;
 
         if (buf[idx] == 0) {
-            if (func_8007A628(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0) {
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0) {
                 pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
                 break;
             }
@@ -282,7 +282,7 @@ void BattlePickSlotByFlagTable(BattleSlotArgs **ppArgs, u8 row) {
     for (; i < 0xB; i++, record += 8) {
         u8 idx = i;
 
-        if (func_8007A628(idx, (*ppArgs)->tag) != 0 && ((u8 *)g_BattleSlotFlags)[record] != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, (*ppArgs)->tag) != 0 && ((u8 *)g_BattleSlotFlags)[record] != 0) {
             *pBuf++ = idx;
             count++;
         }
@@ -300,7 +300,7 @@ void BattleStoreCharSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 0; i < 3; i++) {
-        if (func_8007A628(i, 0) != 0 && g_BattleSlotRecords[i].tag == (*ppArgs)->tag) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, 0) != 0 && g_BattleSlotRecords[i].tag == (*ppArgs)->tag) {
             count++;
         }
     }
@@ -311,7 +311,7 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     for (i = 3; i < 0xB; i++) {
-        if (func_8007A628(i, 0) != 0 && g_BattleSlotRecords[i].tag == (*ppArgs)->tag) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, 0) != 0 && g_BattleSlotRecords[i].tag == (*ppArgs)->tag) {
             count++;
         }
     }
@@ -344,7 +344,7 @@ void BattleStoreCharSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     u16 *pField = g_BattleSlotRows[row].unk10;
 
     for (; i < 3; i++) {
-        if (func_8007A628(i, 0) != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, 0) != 0) {
             u8 other = BattleFindFirstFlagTableMatch(pField[(*ppArgs)->tag]);
 
             if (g_BattleSlotRecords[i].tag == g_BattleSlotRecords[other].tag) {
@@ -360,7 +360,7 @@ void BattleStoreActorSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     u16 *pField = g_BattleSlotRows[row].unk10;
 
     for (; i < 0xB; i++) {
-        if (func_8007A628(i, 0) != 0) {
+        if (BattleSlotFlagsC002ClearRecordIdle(i, 0) != 0) {
             u8 other = BattleFindFirstFlagTableMatch(pField[(*ppArgs)->tag]);
 
             if (g_BattleSlotRecords[i].tag == g_BattleSlotRecords[other].tag) {
@@ -527,7 +527,7 @@ void BattlePickCharSlotByLowestEntryDwordInUse(BattleSlotArgs **ppArgs, u8 row) 
     s32 i;
 
     for (i = 0; i < 3; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[i].inUse != 0
+        if (BattleSlotFlagsC002ClearRecordIdle(i, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[i].inUse != 0
             && best >= g_BattleSlotEntriesBase[i].unk0B8) {
             best = g_BattleSlotEntriesBase[i].unk0B8;
             bestIndex = i;
@@ -545,7 +545,7 @@ void BattlePickActorSlotByLowestEntryWordInUse(BattleSlotArgs **ppArgs, u8 row) 
     s32 i;
 
     for (i = 3; i < 0xB; i++) {
-        if (func_8007A628(i, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[i].inUse != 0
+        if (BattleSlotFlagsC002ClearRecordIdle(i, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[i].inUse != 0
             && best >= g_BattleSlotEntriesBase[i].unk000) {
             best = g_BattleSlotEntriesBase[i].unk000;
             bestIndex = i;

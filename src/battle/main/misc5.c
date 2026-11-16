@@ -312,7 +312,7 @@ u16 BattleSlotWordVarGetSet(u8 slot, u8 reg, u16 value, u8 get) {
     }
     return result;
 }
-u32 func_8007A628(u8 arg0, u8 arg1) {
+u32 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1) {
     u8 res = 0;
 
     if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
