@@ -17,7 +17,7 @@ extern u16 g_BattleCurrentActorSlot;
 extern u16 D_800C3E30;
 extern u8 g_BattleBlockPool[];
 extern s32 BattleFindFirstActorInMask(void);
-extern void BattleAppendActorCommandBytes(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
+extern void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, void *arg2, s32 arg3);
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
 extern void BattleSnapActorToGround(BattleActor *pActor);
 extern s32 func_8009F1C4(BattleSprite *pSprites, s16 unk1C);
@@ -78,7 +78,7 @@ void BattleSetCurrentActorAndQueueCommand(u8 *arg0, u16 arg1, u16 arg2, void *ar
     p->unk35 = 0;
     if (g_BattleActors[arg1] != 0) {
         if (!(arg1 == BattleFindFirstActorInMask())) {
-            BattleAppendActorCommandBytes((u8 *)g_BattleActors[arg1], arg0, g_BattleBlockPool, arg3);
+            BattleAppendActorCommandBytes(g_BattleActors[arg1], (BattleActor *)arg0, g_BattleBlockPool, arg3);
         }
     }
 }
@@ -223,38 +223,38 @@ void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
-void BattleAppendActorCommandBytes(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
-    s32 *pTable;
-    u8 *pCount;
-    u8 *pEntries;
+// Appends one command byte to the actor's pending command queue, or, when the
+// queue is empty, seeds the actor's current command from the source actor's
+// command tables. The two per-command byte queues sit at 0x2A (command) and
+// 0x2E (argument); 0x2B counts the entries already queued.
+void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, void *arg2, s32 arg3) {
+    s32 *pGroupTable;
     u16 n;
 
-    pCount = arg0 + 0x2B;
-    if (arg0 != 0) {
-        if (arg1 != 0) {
-            if (*pCount != 0) {
-                if (*pCount < 5) {
-                    *pCount = *pCount + 1;
+    if (pActor != 0) {
+        if (pSource != 0) {
+            if (pActor->unk2B != 0) {
+                if (pActor->unk2B < 5) {
+                    pActor->unk2B = pActor->unk2B + 1;
                 }
-                *(u8 *)(arg0 + *pCount + 0x2A) = *(u8 *)(arg1 + 0x20);
-                *(u8 *)(arg0 + *pCount + 0x2E) = arg3;
+                pActor->unk2A[pActor->unk2B] = pSource->unk20[0];
+                pActor->unk2C[pActor->unk2B + 2] = arg3;
             } else {
                 if (arg3 < 0x50) {
-                    pTable = (s32 *)*(u8 **)(arg1 + 8);
-                    *(s32 *)(arg0 + 0x10) = pTable[arg3];
+                    pActor->unk10 = ((s32 *)pSource->unk8)[arg3];
                 } else {
-                    pEntries = *(u8 **)(arg1 + 0xC);
-                    *(s32 *)(arg0 + 0x10) = *(s32 *)((u8 *)(*(s32 **)(pEntries + 4)) + arg3 * 4 - 0x138);
+                    pGroupTable = *(s32 **)((u8 *)pSource->unkC + 4);
+                    pActor->unk10 = pGroupTable[arg3 - 0x4E];
                 }
                 n = D_800C3E30;
-                *(u16 *)(arg0 + 0x42) = 0;
-                *(u16 *)(arg0 + 0x40) = 0;
-                *(s32 *)(arg0 + 0x50) = 0;
-                *(s32 *)(arg0 + 0x54) = 0;
-                *(s32 *)(arg0 + 0x4C) = 0;
-                *(u8 *)(arg0 + 0x23) = 0;
-                *(u16 *)(arg0 + 0x10A) = n;
-                func_800AAD54(arg0, arg2, -1, 1, 0);
+                pActor->unk42 = 0;
+                pActor->unk40 = 0;
+                pActor->unk50 = 0;
+                pActor->unk54 = 0;
+                pActor->unk4C = 0;
+                pActor->unk23 = 0;
+                pActor->unk10A = n;
+                func_800AAD54(pActor, arg2, -1, 1, 0);
             }
         }
     }
