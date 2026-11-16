@@ -1,7 +1,7 @@
 #include "common.h"
 #include "field/actor.h"
 
-extern s32 func_800B57E4(SpriteData* pSpriteData);
+extern s32 BattleSpriteDistanceToTarget(SpriteData* pSpriteData);
 
 // WorkListEntry of include/system/animation.h; an overlay unit cannot include that
 // header (it holds tentative definitions of main-exe globals), so the layout is
@@ -17,7 +17,7 @@ typedef struct WorkListEntry {
 } WorkListEntry; // Size: 0x1C
 
 // The distance-wait task of main/misc27_b's BattleCreateActorDistanceWaitTask, which
-// hangs func_800B5854 on its timer entry: the sprite to watch, the animation it plays
+// hangs BattleUpdateDistanceWaitTask on its timer entry: the sprite to watch, the animation it plays
 // while the task waits, the distance measured last frame, the bound that ends the wait
 // and the sprite bytecode the task resumes from.
 typedef struct {
@@ -30,9 +30,9 @@ typedef struct {
     /* 0x30 */ void* pSpriteBytecode;
 } BattleDistanceWaitTask; // Size: 0x34
 
-// Split out of main/misc27 (see config/battle.yaml): func_800B5854 is the one
+// Split out of main/misc27 (see config/battle.yaml): BattleUpdateDistanceWaitTask is the one
 // function in the unit that is 100% under gcc 2.7.2 and 93.71% under -cdk.
-void func_800B5854(BattleDistanceWaitTask* pTask) {
+void BattleUpdateDistanceWaitTask(BattleDistanceWaitTask* pTask) {
     SpriteData* pSpriteData;
     s32 prevDistance;
     s32 distance;
@@ -42,7 +42,7 @@ void func_800B5854(BattleDistanceWaitTask* pTask) {
     flag = 0;
     pSpriteData = pTask->pSpriteData;
     prevDistance = pTask->distance;
-    distance = func_800B57E4(pSpriteData);
+    distance = BattleSpriteDistanceToTarget(pSpriteData);
     pTask->distance = distance;
     if (prevDistance < distance || distance < pTask->minDistance) {
         flag = 1;

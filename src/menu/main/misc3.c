@@ -9,7 +9,7 @@ extern s32 D_801E9818[];
 extern s32 D_801E9820[];
 extern u16 D_8005A3A0[0x10];
 extern u16 D_8006F958[0x10];
-extern int D_80059488;
+extern int g_SpuChannelMask;
 extern int func_801E4D10(u32*, void*);
 extern int func_801D2F4C(u_char);
 extern u_char func_801CAA38(u_char);
@@ -506,7 +506,7 @@ void MenuApplySaveSlot(u32* pSrc) {
     int i;
 
     func_801E4D10(pSrc, g_Menu->pDressingRoom);
-    D_80059488 = *pSrc;
+    g_SpuChannelMask = *pSrc;
     for (i = 0; i < 0x10; i++) {
         D_8005A3A0[i] = D_8006F958[i];
     }

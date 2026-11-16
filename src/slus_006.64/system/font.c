@@ -9,8 +9,8 @@ extern void func_80036718(char*, char*, ...);
 
 extern void* g_FontClutData;
 extern RECT g_FontClutDest;
-extern void* D_800593A0; // Non-heap allocated Font?
-extern void* D_80050240; // Default embedded font file?
+extern void* g_FontExternalBuffer; // Non-heap allocated Font?
+extern void* g_EmbeddedFontFile; // Default embedded font file?
 
 void FontSetFlag(u_short flag) {
     g_Font->flags |= flag;
@@ -318,17 +318,17 @@ void FontDrawLetters(void* ot) {
 }
 
 void FontSetExternalBuffer(void* pFont) {
-    D_800593A0 = pFont;
+    g_FontExternalBuffer = pFont;
 }
 
 void FontFree(void) {
     if (g_Font) {
         g_HeapDebugPrintfFn = FontPrintf;
-        if (D_800593A0 == NULL)
+        if (g_FontExternalBuffer == NULL)
             HeapFree(g_Font);
         g_Font = NULL;
     }
-    D_800593A0 = NULL;
+    g_FontExternalBuffer = NULL;
 }
 
 void* FontLoadFont(int startX, int startY, int width, int height, int maxLetters, unsigned int flags,  int texpageX, int texpageY, int clutX, int clutY, void* pCompressedFontFile) {
@@ -347,7 +347,7 @@ void* FontLoadFont(int startX, int startY, int width, int height, int maxLetters
     int nAllocMode;
 
     // Allocate Font
-    if (D_800593A0 == NULL) {
+    if (g_FontExternalBuffer == NULL) {
         HeapSetCurrentContentType(HEAP_CONTENT_LS_FONT);
 
         if (!(flags & 1)) {
@@ -360,7 +360,7 @@ void* FontLoadFont(int startX, int startY, int width, int height, int maxLetters
         nAllocMode = ((flags >> 2) ^ 1) & 1;
         pImageData = HeapAlloc(nAllocSize, nAllocMode);
     } else {
-        pImageData = D_800593A0;
+        pImageData = g_FontExternalBuffer;
     }
     pFont = pImageData;
     // Set primitive buffer based on letter size?
@@ -374,7 +374,7 @@ void* FontLoadFont(int startX, int startY, int width, int height, int maxLetters
 
     // Decompress font file
     if (pCompressedFontFile == NULL)
-        pCompressedFontFile = &D_80050240;
+        pCompressedFontFile = &g_EmbeddedFontFile;
     pFontFile = LZSSHeapDecompress(pCompressedFontFile, 0);
     
     nMode = pFontFile->mode;

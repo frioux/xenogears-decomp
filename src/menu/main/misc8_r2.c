@@ -4,8 +4,8 @@
 #include "system/menu.h"
 #include "psyq/libcd.h"
 
-extern u8 D_80059460; // Index of the menu overlay the menu was entered with
-extern u8 D_80059171;
+extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
+extern u8 g_ShopIndex;
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 D_801EA548[]; // String IDs of the menu strings
@@ -22,7 +22,7 @@ extern CdlCB D_801EA718;
 extern CdlCB D_801EA71C;
 extern CdlCB D_801EA720;
 extern u8 D_801EA574[];
-extern u8 D_801EA578[];
+extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
 
@@ -82,7 +82,7 @@ void MenuShutdown(void) {
 }
 
 void MenuLoadUnkDE0Strings(void) {
-    if (D_80059460 != 2) {
+    if (g_MenuOverlayIndex != 2) {
         MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA53C, g_Menu->pManager->unk1A);
     } else {
         MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA542, g_Menu->pManager->unk1A);
@@ -137,7 +137,7 @@ void MenuFreeUnk42CPanel(void) {
    at unk42C + 0x00 and + 0x800, upload both with a LoadImage of one 0x28 x 0xD
    cell, then set up their prims with func_801E7C50 and MenuSetQuadVertices.
    The flag byte is pDressingRoom->pItemsData[id].unk4[2]; bit 0x80 is the
-   shaded variant and is dropped when bit 0x20 is set while D_80059171 is 0. */
+   shaded variant and is dropped when bit 0x20 is set while g_ShopIndex is 0. */
 /*
 void func_801DA5BC(s32 arg0) {
     u8 digitCodes[4];
@@ -176,7 +176,7 @@ void func_801DA5BC(s32 arg0) {
             LoadImage(&rect, (u_long*)pWorkspace);
             DrawSync(0);
             itemFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].unk4[2];
-            if ((itemFlags & 0x20) && (D_80059171 == 0)) {
+            if ((itemFlags & 0x20) && (g_ShopIndex == 0)) {
                 itemFlags = 0;
             } else {
                 itemFlags &= 0x80;

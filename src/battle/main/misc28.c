@@ -61,9 +61,9 @@ extern void func_80025180(void *pArg);
 extern void SpritePlayAnimation(s32 arg0, s32 arg1);
 extern void func_800B7160(void);
 extern u_long *g_GfxCurOT;
-extern u_long *D_800C3CB4;
+extern u_long *g_BattleSavedGfxOT;
 extern void SpriteDrawModelPartsInBaseMatrix(void *pTask);
-extern u8 D_800C3EB0[];
+extern u8 g_BattleStateWork[];
 extern long ratan2(long y, long x);
 extern void func_8002DDE4(void *pImg, s32 arg1, s32 arg2, s32 arg3);
 extern s32 WorkListsAddTasks(s32 arg0, s32 arg1, void *pFn1, void *pFn2, void *pFn3);
@@ -124,7 +124,7 @@ void func_800B64D4(s32 arg0, u8 *p) {
     s32 off;
     mem_addr base;
 
-    pEntry = (u8 *)((base = (mem_addr)D_800C3EB0) + (p[1] << 2));
+    pEntry = (u8 *)((base = (mem_addr)g_BattleStateWork) + (p[1] << 2));
     off = 0x8C8C;
     SpritePlayAnimation(*(u32 *)(pEntry + off), p[0]);
 }
@@ -328,11 +328,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
    0x68 first - and `for (x = 0; x != N; x++)` with != is required, `<` gives
    slti/bnez instead of retail's li+bne.
    Three things left, see the parked notes on func_800B64D4 and misc30:
-   (1) the D_800C3EB0+0x8000+0xC84 read: retail materialises the symbol with
+   (1) the g_BattleStateWork+0x8000+0xC84 read: retail materialises the symbol with
    lui+addiu (addend 0), then li 0x8000 + addu, then lw 0xC84(base); gcc either
    folds the whole 0x8C84 into one lui/addiu carry pair or, with pState a pointer
    local, into lui 0x1/addiu -32768.  It also leaves a dead `lui v0,%hi
-   (D_800C3EB0)` in retail's entry block, which nothing in our compile produces.
+   (g_BattleStateWork)` in retail's entry block, which nothing in our compile produces.
    (2) the three fixed-point reads: retail sign-extends at the load (lh 0x6A),
    gcc emits lhu plus an explicit sll/sra pair; a plain s16[3] local gives lhu,
    three separate s16 locals drop the frame to 0x40 (retail is 0x48 with the
@@ -354,7 +354,7 @@ void func_800B6F0C(BattleEffectTask *pTask) {
     s32 k;
 
     pTable = pTask->pTable;
-    pState = D_800C3EB0 + 0x8000;
+    pState = g_BattleStateWork + 0x8000;
     pTable->unk38++;
     for (i = 0; i != 2; i++) {
         for (j = 0; j != 14; j++) {
@@ -387,7 +387,7 @@ void func_800B6F0C(BattleEffectTask *pTask) {
 }
 */
 void BattleStoreGfxOrderingTable(void) {
-    D_800C3CB4 = g_GfxCurOT;
+    g_BattleSavedGfxOT = g_GfxCurOT;
     func_800B7160();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7160);

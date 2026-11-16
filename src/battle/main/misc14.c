@@ -2,7 +2,7 @@
 #include "psyq/libgpu.h"
 #include "libgear/main.h"
 
-// Partial view of the per-frame battle work block (D_800D2D28). The shared
+// Partial view of the per-frame battle work block (g_BattleDisplayState). The shared
 // include/battle/battle_work.h owns the type other units read; this view names
 // only the sub-image upload state this unit advances each frame.
 typedef struct {
@@ -47,18 +47,18 @@ extern u8 D_800C3E4C;
 extern u8 D_800CCDC4[];
 extern u8 D_800CCDC6[];
 extern u8 D_800C3CF9[];
-extern s32 D_800C3A9C;
-extern u8 D_800C3A94;
-extern s32 D_800C3A8C;
-extern u8 D_800C3A98;
-extern s32 D_800C3A90;
-extern s32 D_800C2080;
-extern s32 D_800C2084;
-extern s32 D_800C3A7C;
-extern s32 D_800C3A84;
-extern s32 D_800C3A80;
-extern s32 D_800C3A88;
-extern u8 D_800C207C;
+extern s32 g_BattleLerpStepsPerFrame;
+extern u8 g_BattleLerpDirX;
+extern s32 g_BattleLerpStepX;
+extern u8 g_BattleLerpDirY;
+extern s32 g_BattleLerpStepY;
+extern s32 g_BattleLerpFracX;
+extern s32 g_BattleLerpFracY;
+extern s32 g_BattleLerpStartX;
+extern s32 g_BattleLerpTargetX;
+extern s32 g_BattleLerpStartY;
+extern s32 g_BattleLerpTargetY;
+extern u8 g_BattleLerpDone;
 extern u8 D_800D2C36;
 extern u8 D_800C3CFA[];
 extern u8 D_800D2C38;
@@ -72,7 +72,7 @@ extern u8 D_800CCB34;
 extern u8* D_800D2DB4;
 extern s32 BattleDrawSpritePackage(s32 arg0, s32 arg1, s16 arg2, s16 arg3);
 extern void BattleSetPrimGrey80BlendAdd(u8* p);
-extern Temp8* D_8005919C;
+extern Temp8* g_BattleSoundBankMain;
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 extern void func_8008860C(void);
 extern void BattleBuildFlaggedSlotSpriteColumn(void);
@@ -87,15 +87,15 @@ extern void BattleUpdateImageUpload(u8 arg0);
 extern void func_8008A684(u8 arg0);
 extern int rand(void);
 extern BattleUploadWork *D_800C3EA4;
-extern BattleUploadState *D_800D2D28;
+extern BattleUploadState *g_BattleDisplayState;
 extern u8 D_800C3444;
-extern BattlePrimPoolSlot *D_800D3278;
+extern BattlePrimPoolSlot *g_BattlePrimPool;
 extern u8 D_800C48EA;
-extern u8 D_800D3014;
+extern u8 g_BattleMenuEvent;
 extern s32 *D_8005917C;
 extern u16 g_C1ButtonStatePressedOnce;
 extern u16 g_C1ButtonStateReleased;
-extern int D_80059488;
+extern int g_SpuChannelMask;
 extern int ControllerGetType(int controllerIndex);
 extern int ControllerIsStateStackFull(void);
 extern void ControllerResetState(void);
@@ -119,32 +119,32 @@ extern void BattleSetPrimGrey80BlendSub(u8 *p);
 void BattleStepTwoAxisInterpolation(void) {
     s32 i = 0;
 
-    for (i = 0; i < D_800C3A9C; i++) {
-        if (D_800C3A94 != 0) {
-            D_800C2080 -= D_800C3A8C;
+    for (i = 0; i < g_BattleLerpStepsPerFrame; i++) {
+        if (g_BattleLerpDirX != 0) {
+            g_BattleLerpFracX -= g_BattleLerpStepX;
         } else {
-            D_800C2080 += D_800C3A8C;
+            g_BattleLerpFracX += g_BattleLerpStepX;
         }
-        if (D_800C3A98 != 0) {
-            D_800C2084 -= D_800C3A90;
+        if (g_BattleLerpDirY != 0) {
+            g_BattleLerpFracY -= g_BattleLerpStepY;
         } else {
-            D_800C2084 += D_800C3A90;
+            g_BattleLerpFracY += g_BattleLerpStepY;
         }
     }
-    if (D_800C3A8C == 0x100) {
-        if (D_800C3A94 != 0) {
-            if (D_800C2080 / 0x100 + D_800C3A7C < D_800C3A84) {
-                D_800C207C = 1;
+    if (g_BattleLerpStepX == 0x100) {
+        if (g_BattleLerpDirX != 0) {
+            if (g_BattleLerpFracX / 0x100 + g_BattleLerpStartX < g_BattleLerpTargetX) {
+                g_BattleLerpDone = 1;
             }
-        } else if (D_800C3A84 < D_800C2080 / 0x100 + D_800C3A7C) {
-            D_800C207C = 1;
+        } else if (g_BattleLerpTargetX < g_BattleLerpFracX / 0x100 + g_BattleLerpStartX) {
+            g_BattleLerpDone = 1;
         }
-    } else if (D_800C3A98 != 0) {
-        if (D_800C2084 / 0x100 + D_800C3A80 < D_800C3A88) {
-            D_800C207C = 1;
+    } else if (g_BattleLerpDirY != 0) {
+        if (g_BattleLerpFracY / 0x100 + g_BattleLerpStartY < g_BattleLerpTargetY) {
+            g_BattleLerpDone = 1;
         }
-    } else if (D_800C3A88 < D_800C2084 / 0x100 + D_800C3A80) {
-        D_800C207C = 1;
+    } else if (g_BattleLerpTargetY < g_BattleLerpFracY / 0x100 + g_BattleLerpStartY) {
+        g_BattleLerpDone = 1;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80088B80);
@@ -162,19 +162,19 @@ void func_80088B80(void) {
     s32 sx;
     s32 sy;
 
-    if (D_800D2D28->unkAD == 0) {
+    if (g_BattleDisplayState->unkAD == 0) {
         return;
     }
-    if (D_800C207C != 0) {
+    if (g_BattleLerpDone != 0) {
         if ((u8)GameRandomByteRange(0, 0x63) >= 0x60) {
             BattleSetupLinearMove(*(u16*)(D_800D2DB4 + 0x5D9C), *(u16*)(D_800D2DB4 + 0x5D9E),
                 D_800C2054[(u8)GameRandomByteRange(0, 4)], D_800C2054[(u8)GameRandomByteRange(0, 4) + 5]);
         }
     }
-    if (D_800C207C == 0) {
+    if (g_BattleLerpDone == 0) {
         BattleStepTwoAxisInterpolation();
-        *(u16*)(D_800D2DB4 + 0x5D9C) = *(u16*)&D_800C3A7C + D_800C2080 / 0x100;
-        *(u16*)(D_800D2DB4 + 0x5D9E) = *(u16*)&D_800C3A80 + D_800C2084 / 0x100;
+        *(u16*)(D_800D2DB4 + 0x5D9C) = *(u16*)&g_BattleLerpStartX + g_BattleLerpFracX / 0x100;
+        *(u16*)(D_800D2DB4 + 0x5D9E) = *(u16*)&g_BattleLerpStartY + g_BattleLerpFracY / 0x100;
     }
     D_800D2DB4[0x5D72] = BattleDrawSpritePackage(0xB9, (s32)(D_800D2DB4 + 0xD20), *(s16*)(D_800D2DB4 + 0x5D9C), *(s16*)(D_800D2DB4 + 0x5D9E));
     D_800D2DB4[0x5D94] = D_800CCB34;
@@ -196,7 +196,7 @@ void func_80088B80(void) {
     for (i = 0; i < D_800D2DB4[0x5D96]; i++) {
         BattleSetPrimGrey80BlendSub((u8*)((i * 2 + D_800D2DB4[0x5D97]) * 0x28 + 0x32A0 + (s32)D_800D2DB4));
     }
-    if (D_800C207C == 0) {
+    if (g_BattleLerpDone == 0) {
         sy = 0xA << 16;
         for (i = 0; i < 2; i++) {
             sx = 0x82 << 16;
@@ -469,21 +469,21 @@ void BattleUploadImageFrame(void) {
     s32 vramOffset0;
     s32 vramOffset1;
     s32 vramOffset2;
-    D_800D2D28->unkAA += 1;
-    if ((D_800D2D28->unkAA & 1) == 0) {
+    g_BattleDisplayState->unkAA += 1;
+    if ((g_BattleDisplayState->unkAA & 1) == 0) {
         return;
     }
     vramOffset0 = 0x8970;
-    LoadImage(&D_800C3EA4->uploadRect[0], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset0 + (s32)D_800C3EA4));
+    LoadImage(&D_800C3EA4->uploadRect[0], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset0 + (s32)D_800C3EA4));
     vramOffset1 = 0x8FA0;
-    LoadImage(&D_800C3EA4->uploadRect[1], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset1 + (s32)D_800C3EA4));
+    LoadImage(&D_800C3EA4->uploadRect[1], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset1 + (s32)D_800C3EA4));
     vramOffset2 = 0x95D0;
-    LoadImage(&D_800C3EA4->uploadRect[2], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset2 + (s32)D_800C3EA4));
+    LoadImage(&D_800C3EA4->uploadRect[2], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset2 + (s32)D_800C3EA4));
     vramOffset3 = 0x9C00;
-    LoadImage(&D_800C3EA4->uploadRect[3], (u_long*)(D_800D2D28->unk30 * 4 + vramOffset3 + (s32)D_800C3EA4));
-    D_800D2D28->unk30 += 4;
-    if (D_800D2D28->unk30 >= 0xC7) {
-        D_800D2D28->unk30 = 0;
+    LoadImage(&D_800C3EA4->uploadRect[3], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset3 + (s32)D_800C3EA4));
+    g_BattleDisplayState->unk30 += 4;
+    if (g_BattleDisplayState->unk30 >= 0xC7) {
+        g_BattleDisplayState->unk30 = 0;
     }
 }
 void BattleUpdateImageUpload(u8 arg0) {
@@ -493,8 +493,8 @@ void BattleUpdateImageUpload(u8 arg0) {
     if (arg0 == 0) {
         func_80089CCC(0);
     }
-    D_800D2D28->unkA9 += 6;
-    D_800D2D28->unkAB += 1;
+    g_BattleDisplayState->unkA9 += 6;
+    g_BattleDisplayState->unkAB += 1;
     if (D_800C3EA4->unk6415 != 0) {
         if (D_800C3EA4->unk6416 == 0) {
             D_800C3EA4->unk6410 += 4;
@@ -538,23 +538,23 @@ void BattleUpdatePauseMenu(u8 arg0) {
                 GraphicsDrawPauseLetters(0x88, 0x144);
                 SoundMuteAllSpuChannels();
                 muted++;
-                channelMask = D_80059488;
+                channelMask = g_SpuChannelMask;
             }
         } else {
             if (muted != 0) {
                 SoundEnableAllSpuChannels();
-                D_80059488 = channelMask;
+                g_SpuChannelMask = channelMask;
             }
             waiting = 0;
         }
     } while (waiting != 0);
 
     BattleUploadImageFrame();
-    if (D_800D2D28->unkCA != 0) {
+    if (g_BattleDisplayState->unkCA != 0) {
         for (i = 0; i < 0x10; i++) {
-            if (D_800D3278[i].unk28 != 0) {
-                if (--D_800D3278[i].unk26 < 0) {
-                    D_800D3278[i].unk26 = 0;
+            if (g_BattlePrimPool[i].unk28 != 0) {
+                if (--g_BattlePrimPool[i].unk26 < 0) {
+                    g_BattlePrimPool[i].unk26 = 0;
                 }
             }
         }
@@ -562,8 +562,8 @@ void BattleUpdatePauseMenu(u8 arg0) {
 
     muted = 1;
     do {
-        if (D_800D2D28->unkCF == 0) {
-            D_800D3014 = 0xFF;
+        if (g_BattleDisplayState->unkCF == 0) {
+            g_BattleMenuEvent = 0xFF;
         }
         if (ControllerIsStateStackFull() != 0) {
             ControllerResetState();
@@ -575,14 +575,14 @@ void BattleUpdatePauseMenu(u8 arg0) {
                             if ((g_C1ButtonStatePressedOnce & 8) != 0) {
                                 D_800C48EA = muted;
                                 SoundEnableAllSpuChannels();
-                                D_80059488 = channelMask;
+                                g_SpuChannelMask = channelMask;
                                 D_800C3444 = 0;
                                 break;
                             }
                         }
                     }
                 } else if ((g_C1ButtonStateReleased & 0x20) != 0) {
-                    D_800D3014 = 4;
+                    g_BattleMenuEvent = 4;
                     break;
                 }
                 if ((g_C1ButtonStateReleased & 0x800) == 0) {
@@ -595,11 +595,11 @@ void BattleUpdatePauseMenu(u8 arg0) {
                     SoundMuteAllSpuChannels();
                     GraphicsDrawPauseLetters(0x88, 0x64);
                     GraphicsDrawPauseLetters(0x88, 0x144);
-                    channelMask = D_80059488;
+                    channelMask = g_SpuChannelMask;
                     D_800C3444 = muted;
                 } else {
                     SoundEnableAllSpuChannels();
-                    D_80059488 = channelMask;
+                    g_SpuChannelMask = channelMask;
                     D_800C3444 = 0;
                 }
                 break;
@@ -623,5 +623,5 @@ void BattleUpdateEffectByScreenMode(u8 arg0) {
     }
 }
 void BattlePlaySoundWithBaseId(u8 arg0) {
-    SoundPlaySoundEffectOnLastPair((D_8005919C->unk14 << 16) | arg0);
+    SoundPlaySoundEffectOnLastPair((g_BattleSoundBankMain->unk14 << 16) | arg0);
 }

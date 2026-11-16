@@ -68,7 +68,7 @@ extern s32 D_8009283C;
 extern s32 D_80092840;
 extern s32 D_80092844;
 
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 
 extern u16 D_80091CE0[];
 
@@ -119,7 +119,7 @@ void BattleEffectAddEntryPrim(u8* pArg0, u8* pArg1) {
     u8* pObj;
     s32 offset;
 
-    pObj = pArg0 + 0x10 + D_800928A0 * 0xC;
+    pObj = pArg0 + 0x10 + g_BattleDrawBufferIndex * 0xC;
     offset = RotTransPers((SVECTOR*)pArg0, (long*)(pObj + 8), (long*)buf, (long*)buf);
     offset = offset >> 2;
     func_80031870(pArg1 + offset * 4, (u32)pObj);
@@ -570,7 +570,7 @@ void BattleEffectRotateVectorByDepth(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
 }
 /* Retail's code is not compiler output: the GTE sequence at 0x8008DEC4 is
    lwc2 $0/lwc2 $1 then two nops and straight to swc2 $14 - there is no RTPS
-   command word in the disc bytes - and $v0 = (D_800928A0 << 4) + 0x10 at
+   command word in the disc bytes - and $v0 = (g_BattleDrawBufferIndex << 4) + 0x10 at
    0x8008DEB4 is overwritten by sp+0x10 before it is used, so pObj ends up as
    pArg0 + (the stack address of the local vector).  Left as INCLUDE_ASM. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DE54);

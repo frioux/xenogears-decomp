@@ -95,7 +95,7 @@ typedef struct HeapDelayedFreeBlock HeapDelayedFreeBlock;
 typedef void FnPrintf_t (char*, ...);
 extern FnPrintf_t* g_HeapDebugPrintfFn;
 
-extern char** D_80050110;
+extern char** g_HeapUserNames;
 extern char** g_HeapContentTypeNames[];
 
 // Pointers to Content type name arrays for specific heap users

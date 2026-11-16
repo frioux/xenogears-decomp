@@ -15,9 +15,9 @@ extern void func_800B59BC();
 extern void BattleIntegrateSpriteVelocityTask();
 extern void func_800B5DF4();
 extern void func_800B6004();
-extern void func_800B5854();
+extern void BattleUpdateDistanceWaitTask();
 extern u8* TimerWorkListAllocateTask();
-extern s32 func_800B57E4(SpriteData* pSpriteData);
+extern s32 BattleSpriteDistanceToTarget(SpriteData* pSpriteData);
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -89,9 +89,9 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
 
     pTask = (BattleDistanceWaitTask*)TimerWorkListAllocateTask(
         pSpriteData->field_0x6C, sizeof(BattleDistanceWaitTask) - sizeof(WorkListEntry));
-    TimerWorkListSetTaskCallback(pTask, func_800B5854);
+    TimerWorkListSetTaskCallback(pTask, BattleUpdateDistanceWaitTask);
     pTask->pSpriteData = pSpriteData;
-    pTask->distance = func_800B57E4(pSpriteData);
+    pTask->distance = BattleSpriteDistanceToTarget(pSpriteData);
     pTask->minDistance = arg1;
     pTask->pSpriteBytecode = (void*)arg2;
     // +0xAF is the top byte of the flag word at 0xAC: the animation the actor plays

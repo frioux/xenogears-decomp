@@ -18,7 +18,7 @@ typedef struct {
     /* 0x8 */ s32 unk8;
 } WorldMapMisc16Struct; // Size: 0xC
 
-extern u16 D_8009D558;
+extern u16 g_WorldMapSlotUpdateFlags;
 extern s16 D_8009C838;
 extern s16 D_8009C83C;
 
@@ -50,7 +50,7 @@ extern s32 D_8009D2B4;
 
 extern WorldMapMisc16TblEntry D_800523F0[];
 extern s32 D_8009C618;
-extern s32 D_8009C5BC;
+extern s32 g_WorldMapGridAngle;
 
 void func_80098044(void) {
     OuterProduct0(&D_8009BB6C, &D_8009BB4C, &D_8009C828);
@@ -64,7 +64,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);
    constant and of the y local are swapped (retail y=a2, const=a0; ours y=a0,
    const=a2), an allocator tie - 4 decl/init orders all give the same pairing.
    Shapes that are now right and must stay: x and y are BOTH locals loaded before
-   the D_8009D558 store (that is the retail top: unk0 load, unk8 load, li, sh);
+   the g_WorldMapSlotUpdateFlags store (that is the retail top: unk0 load, unk8 load, li, sh);
    the x branch writes p->unk0 = x + / - 0x800000 (a += reloads and emits a
    per-branch flag store); the y branch reads the y local but reloads p->unk8 for
    the store; the tail reloads through a y temp (y = p->unk0; D_8009C838 = (y >> 23) + 2;
@@ -75,20 +75,20 @@ void func_800980D4(WorldMapMisc16Struct* p) {
     s32 x;
     x = p->unk0;
     y = p->unk8;
-    D_8009D558 = 0;
+    g_WorldMapSlotUpdateFlags = 0;
     if (x < -0x800000) {
         p->unk0 = x + 0x800000;
-        D_8009D558 = 4;
+        g_WorldMapSlotUpdateFlags = 4;
     } else if (x > 0x800000) {
         p->unk0 = x - 0x800000;
-        D_8009D558 = 8;
+        g_WorldMapSlotUpdateFlags = 8;
     }
     if (y < -0x800000) {
         p->unk8 += 0x800000;
-        D_8009D558 |= 1;
+        g_WorldMapSlotUpdateFlags |= 1;
     } else if (y > 0x800000) {
         p->unk8 -= 0x800000;
-        D_8009D558 |= 2;
+        g_WorldMapSlotUpdateFlags |= 2;
     }
     y = p->unk0;
     D_8009C838 = (y >> 23) + 2;
@@ -169,7 +169,7 @@ extern u8* D_8009C184[];
 extern u16 D_8009CCB4[];
 extern u16 D_8009CD54[];
 extern MATRIX D_8009D534;
-extern MATRIX D_8009C808;
+extern MATRIX g_WorldMapViewMatrix;
 extern s32 D_8009D7DC;
 extern void func_80099708(u8* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
 
@@ -205,7 +205,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
         ((u16*)0x1F800308)[i] = D_8009CD54[i];
     }
     *(MATRIX*)0x1F800350 = D_8009D534;
-    CompMatrix(&D_8009C808, (MATRIX*)0x1F800350, (MATRIX*)0x1F800370);
+    CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)0x1F800350, (MATRIX*)0x1F800370);
     SetRotMatrix((MATRIX*)0x1F800370);
     SetTransMatrix((MATRIX*)0x1F800370);
     *(s32*)0x1F800318 = -((p->unk0 >> 12) & 0x7FF) - 0x1000;
@@ -286,7 +286,7 @@ void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
     for (oi = 8; oi != -1; oi--) {
         xCur = x;
         iCol = pTbl[col & 0xFFF].unk0 * 2;
-        idx = D_8009C5BC;
+        idx = g_WorldMapGridAngle;
         for (ii = 8; ii != -1; ii--) {
             v = *p;
             if (v & 0x1000) {

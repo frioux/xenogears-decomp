@@ -8,17 +8,17 @@ extern u8 D_800C3E4C;
 extern u8 D_800C492A;
 extern u8 *D_800CCB04;
 extern s32 D_800D2DAC;
-extern BattlePrimPool *D_800D3278;
+extern BattlePrimPool *g_BattlePrimPool;
 extern s32 D_800CCB34;
-extern void *D_800D2F5C;
-extern BattleWork *D_800D2D28;
+extern void *g_BattleSpriteArchive;
+extern BattleWork *g_BattleDisplayState;
 extern u8 *D_800C3E24;
 extern u16 D_800C3254[];
 extern u8 D_800D3280;
-extern u8 D_800D2D24[];
+extern u8 g_BattleActorCharIds[];
 extern u8 *D_800D2DB4;
 extern u8 D_800C3EB6;
-extern u8 D_800D32A1;
+extern u8 g_BattleSlotFlags;
 
 extern u8 D_800D36C8;
 extern u8 D_800D3725[];
@@ -35,10 +35,10 @@ extern s32 func_80025FA8(void *pDir, s32 id, u8 *pPrim, s32 context, u16 x, u16 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
 /* 86.09%: all five call loops are recovered and their bodies match
-   instruction-for-instruction - (1) `for (i = 0; i < D_800D2D28[0x97]; i++)`
+   instruction-for-instruction - (1) `for (i = 0; i < g_BattleDisplayState[0x97]; i++)`
    AddPrim of a 0x10-stride prim at D_800C3EA4 + 0x908 indexed by
-   D_800D2D28[0x98] + i*2; (2) four func_800728B8 at D_800C3EA4 + 0x2E08 +
-   i*0x320 with D_800D2D28[i+0x74]/[i+0x84]; (3) three entries at 0x1E4 stride
+   g_BattleDisplayState[0x98] + i*2; (2) four func_800728B8 at D_800C3EA4 + 0x2E08 +
+   i*0x320 with g_BattleDisplayState[i+0x74]/[i+0x84]; (3) three entries at 0x1E4 stride
    with a `switch` on the byte at base+0x852D (case 1 -> atlas + i*0x1E4 +
    0x835C with bytes +0x852E/+0x852C, case 2 -> the same pointer + 0xA0 with
    +0x852F/+0x852C; the code below folds case 2 into +0x83FC, but retail
@@ -66,19 +66,19 @@ void func_80073B64(void) {
     s32 off3;
     u8 *p;
 
-    for (i = 0; i < D_800D2D28[0x97]; i++) {
+    for (i = 0; i < g_BattleDisplayState[0x97]; i++) {
         AddPrim(D_800CCB04 + 4,
-                (u8 *)(D_800C3EA4 + 0x908 + (D_800D2D28[0x98] + i * 2) * 0x10));
+                (u8 *)(D_800C3EA4 + 0x908 + (g_BattleDisplayState[0x98] + i * 2) * 0x10));
     }
 
     for (i = 0, off = 0x2E08; i < 4; i++, off += 0x320) {
         func_800728B8((u8 *)(D_800C3EA4 + off),
-                      *(u8 *)(D_800D2D28 + i + 0x74),
-                      *(u8 *)(D_800D2D28 + i + 0x84));
+                      *(u8 *)(g_BattleDisplayState + i + 0x74),
+                      *(u8 *)(g_BattleDisplayState + i + 0x84));
     }
 
     for (i = 0, off = 0x6008, off3 = 0; i < 3; i++, off += 0x140, off3 += 0x1E4) {
-        if (*(u8 *)(D_800D2D28 + i + 0xCC) != 0) {
+        if (*(u8 *)(g_BattleDisplayState + i + 0xCC) != 0) {
             p = (u8 *)(D_800C3EA4 + off3);
             switch (*(u8 *)(p + 0x852D)) {
             case 1:
@@ -91,28 +91,28 @@ void func_80073B64(void) {
                 break;
             }
             func_800728B8((u8 *)(D_800C3EA4 + off),
-                          *(s32 *)(D_800D2D28 + i * 4 + 0xEC),
-                          *(u8 *)(D_800D2D28 + i + 0x99));
+                          *(s32 *)(g_BattleDisplayState + i * 4 + 0xEC),
+                          *(u8 *)(g_BattleDisplayState + i + 0x99));
         }
     }
 
-    if (D_800D2D28[0xAF] != 0) {
-        func_800728B8(D_800C3EA4 + 0x9C8, D_800D2D28[0x7B], D_800D2D28[0xA4]);
+    if (g_BattleDisplayState[0xAF] != 0) {
+        func_800728B8(D_800C3EA4 + 0x9C8, g_BattleDisplayState[0x7B], g_BattleDisplayState[0xA4]);
     }
 
     for (i = 0, off = 0x3A88; i < 3; i++, off += 0xC80) {
         func_800728B8((u8 *)(D_800C3EA4 + off),
-                      *(s32 *)(D_800D2D28 + i * 4 + 0xE0),
-                      *(u8 *)(D_800D2D28 + i + 0x93));
+                      *(s32 *)(g_BattleDisplayState + i * 4 + 0xE0),
+                      *(u8 *)(g_BattleDisplayState + i + 0x93));
     }
 
     for (i = 0, off = 0x818, off2 = 0, off3 = 0; i < 3;
          i++, off += 0x50, off2 += 0x1C, off3 += 0x1E0) {
         if ((&D_800C3EB6)[off2] != 0x7F) {
-            func_800728B8((u8 *)(D_800C3EA4 + off), 1, D_800D2D28[0x83]);
-            if (*(u8 *)(D_800D2D28 + i + 0xCC) != 0) {
+            func_800728B8((u8 *)(D_800C3EA4 + off), 1, g_BattleDisplayState[0x83]);
+            if (*(u8 *)(g_BattleDisplayState + i + 0xCC) != 0) {
                 func_800728B8((u8 *)(D_800C3EA4 + off3),
-                              *(u8 *)(D_800D2D28 + i + 0x78), D_800D2D28[0xA2]);
+                              *(u8 *)(g_BattleDisplayState + i + 0x78), g_BattleDisplayState[0xA2]);
                 AddPrim(D_800CCB04 + 4,
                         (u8 *)(D_800C3EA4 + 0x740 +
                                (i * 2 + ((s32 *)&D_800CCB04)[0xC]) * 36));
@@ -127,14 +127,14 @@ void BattleAddTwoPrimLists(void) {
     s32 offset;
     BattleWork *pWork;
 
-    if (D_800D2D28->unkCB == 0) {
+    if (g_BattleDisplayState->unkCB == 0) {
         return;
     }
 
     i = 0;
     offset = 0x641C;
     do {
-        pWork = D_800D2D28;
+        pWork = g_BattleDisplayState;
         func_800728B8((u8 *)(offset + (s32)D_800C3EA4), pWork->unkD0[i], pWork->unkA3);
         offset += 0xFA0;
         i++;
@@ -142,21 +142,21 @@ void BattleAddTwoPrimLists(void) {
 }
 
 void BattleAddThreeFlaggedPrimLists(void) {
-    if (D_800D2D28->unk9C != 0) {
-        func_800728B8(D_800C3EA4 + 0xBA8, D_800D2D28->unkF8, D_800D2D28->unkA5);
+    if (g_BattleDisplayState->unk9C != 0) {
+        func_800728B8(D_800C3EA4 + 0xBA8, g_BattleDisplayState->unkF8, g_BattleDisplayState->unkA5);
     }
 
-    if (D_800D2D28->unk9E != 0) {
-        func_800728B8(D_800C3EA4 + 0x27C8, D_800D2D28->unk100, D_800D2D28->unkA7);
+    if (g_BattleDisplayState->unk9E != 0) {
+        func_800728B8(D_800C3EA4 + 0x27C8, g_BattleDisplayState->unk100, g_BattleDisplayState->unkA7);
     }
 
-    if (D_800D2D28->unk9D != 0) {
-        func_800728B8(D_800C3EA4 + 0x1E68, D_800D2D28->unkFC, D_800D2D28->unkA6);
+    if (g_BattleDisplayState->unk9D != 0) {
+        func_800728B8(D_800C3EA4 + 0x1E68, g_BattleDisplayState->unkFC, g_BattleDisplayState->unkA6);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
-/* 87.42%: instruction multiset matches except the two D_800D32A1 reads. The
-   original forms `lui %hi(D_800D32A1); addu at,at,s1; lbu %lo(at)` from an
+/* 87.42%: instruction multiset matches except the two g_BattleSlotFlags reads. The
+   original forms `lui %hi(g_BattleSlotFlags); addu at,at,s1; lbu %lo(at)` from an
    integer index s1 = i*8 recomputed every iteration, and keeps &D_800CCB04 in
    s0; gcc 2.7.2 strength-reduces the address into a pointer biv in s1 and
    rematerialises the link address with lui/lw. Every access shape tried
@@ -169,19 +169,19 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800742A0);
     s32 value;
 
     for (i = 0, offset = 0; i < 3; i++, offset += 0x1C) {
-        if (*(u8 *)(D_800D2D28 + i + 0x7C) != 0) {
-            *(s32 *)(D_800D2D28 + i * 4 + 0xE0) = 0;
-            *(s32 *)(D_800D2D28 + i * 4 + 0xEC) = 0;
+        if (*(u8 *)(g_BattleDisplayState + i + 0x7C) != 0) {
+            *(s32 *)(g_BattleDisplayState + i * 4 + 0xE0) = 0;
+            *(s32 *)(g_BattleDisplayState + i * 4 + 0xEC) = 0;
             if ((&D_800C3EB6)[offset] != 0x7F) {
                 BattleRenderActorValueDigits(i);
-                value = func_80072F38(i, *(u8 *)((s32)&D_800D32A1 + i * 8));
-                if (*(u8 *)((s32)&D_800D32A1 + i * 8) != 0) {
+                value = func_80072F38(i, *(u8 *)((s32)&g_BattleSlotFlags + i * 8));
+                if (*(u8 *)((s32)&g_BattleSlotFlags + i * 8) != 0) {
                     BattleRenderActorStatDigits(i, value);
                 } else {
                     func_80072A9C(i, value);
                 }
-                *(u8 *)(D_800D2D28 + i + 0x93) = *(u8 *)&D_800CCB34;
-                *(u8 *)(D_800D2D28 + i + 0x7C) = 0;
+                *(u8 *)(g_BattleDisplayState + i + 0x93) = *(u8 *)&D_800CCB34;
+                *(u8 *)(g_BattleDisplayState + i + 0x7C) = 0;
             }
         }
     }
@@ -241,7 +241,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074AB8);
 void BattleUpdateRotationBuffer(void) {
     s32 i;
 
-    if (D_800D2D28->unkC6 == 0) {
+    if (g_BattleDisplayState->unkC6 == 0) {
         return;
     }
 
@@ -271,7 +271,7 @@ void BattleUpdateRotationBuffer(void) {
     } while (i < 4);
 }
 void BattleAddThreePrimLists(void) {
-    if (D_800D2D28->unkA8 == 0) {
+    if (g_BattleDisplayState->unkA8 == 0) {
         return;
     }
 
@@ -284,13 +284,13 @@ void BattleAddPrimAndRenderObject(void) {
     BattlePrimPool *pPool;
     s32 off;
 
-    if (D_800D2D28->unkC8 != 0) {
-        pPool = D_800D3278;
+    if (g_BattleDisplayState->unkC8 != 0) {
+        pPool = g_BattlePrimPool;
         off = pPool->unk7F4 * sizeof(POLY_FT4) + 0x7A4;
         AddPrim(D_800CCB04 + 4, (u8 *)(off + (s32)pPool));
     }
 
-    if (D_800D2D28->unkC9 != 0) {
+    if (g_BattleDisplayState->unkC9 != 0) {
         func_80034888(D_800D2DAC, D_800CCB04 + 4, D_800CCB34);
     }
 }
@@ -393,7 +393,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
    `addu v1,a1,v1`. Still wrong: gcc reassociates `arg0 * 0x60 + (base + 0x48)`
    into `(arg0 * 0x60 + 0x48) + base`, and it hoists the 0x104/0xA9 stores above
    the height/divisor loads, so retail's sw 0x54=height, load 0x4C/0x54, divu,
-   mflo block comes out in a different order. Retail also re-reads D_800D2D28
+   mflo block comes out in a different order. Retail also re-reads g_BattleDisplayState
    into a fresh register for the 0xAB store.
 void func_800765C4(s32 arg0) {
     u16 *pEntry;
@@ -403,28 +403,28 @@ void func_800765C4(s32 arg0) {
 
     pEntry = &D_800C3254[D_800D3280 * 3 + arg0];
     base = *pEntry;
-    *(s32 *)(D_800D2D28 + 0x44) = 0x1C;
-    *(s32 *)(D_800D2D28 + 0x34) = arg0 * 0x60 + (base + 0x48);
-    if ((&D_800D32A1)[arg0 * 8] != 0 && D_800D2D24[arg0] != 7) {
-        *(s32 *)(D_800D2D28 + 0x44) = 0x24;
-        *(s32 *)(D_800D2D28 + 0x34) = arg0 * 0x60 + (base + 0x44);
+    *(s32 *)(g_BattleDisplayState + 0x44) = 0x1C;
+    *(s32 *)(g_BattleDisplayState + 0x34) = arg0 * 0x60 + (base + 0x48);
+    if ((&g_BattleSlotFlags)[arg0 * 8] != 0 && g_BattleActorCharIds[arg0] != 7) {
+        *(s32 *)(g_BattleDisplayState + 0x44) = 0x24;
+        *(s32 *)(g_BattleDisplayState + 0x34) = arg0 * 0x60 + (base + 0x44);
     }
 
-    *(s32 *)(D_800D2D28 + 0x3C) = 0x10;
-    *(s32 *)(D_800D2D28 + 0x4C) = 0x98;
-    height = *(s32 *)(D_800D2D28 + 0x34) - 5 - *(s32 *)(D_800D2D28 + 0x3C);
-    *(s32 *)(D_800D2D28 + 0x54) = height;
-    divisor = *(s32 *)(D_800D2D28 + 0x4C) - (*(s32 *)(D_800D2D28 + 0x44) + 5);
-    *(u16 *)(D_800D2D28 + 0x104) = 0x800;
-    D_800D2D28[0xA9] = 6;
-    *(s32 *)(D_800D2D28 + 0x5C) = divisor;
-    *(s32 *)(D_800D2D28 + 0x5C) = 0x100;
-    *(s32 *)(D_800D2D28 + 0x64) = 0;
-    *(s32 *)(D_800D2D28 + 0x6C) = 0;
-    *(u16 *)(D_800D2D28 + 0x106) = 0;
-    *(s32 *)(D_800D2D28 + 0x54) = (*(u32 *)(D_800D2D28 + 0x54) << 8) / divisor;
-    D_800D2D28[0xAB] = 1;
-    D_800D2D28[0x90 + arg0]--;
+    *(s32 *)(g_BattleDisplayState + 0x3C) = 0x10;
+    *(s32 *)(g_BattleDisplayState + 0x4C) = 0x98;
+    height = *(s32 *)(g_BattleDisplayState + 0x34) - 5 - *(s32 *)(g_BattleDisplayState + 0x3C);
+    *(s32 *)(g_BattleDisplayState + 0x54) = height;
+    divisor = *(s32 *)(g_BattleDisplayState + 0x4C) - (*(s32 *)(g_BattleDisplayState + 0x44) + 5);
+    *(u16 *)(g_BattleDisplayState + 0x104) = 0x800;
+    g_BattleDisplayState[0xA9] = 6;
+    *(s32 *)(g_BattleDisplayState + 0x5C) = divisor;
+    *(s32 *)(g_BattleDisplayState + 0x5C) = 0x100;
+    *(s32 *)(g_BattleDisplayState + 0x64) = 0;
+    *(s32 *)(g_BattleDisplayState + 0x6C) = 0;
+    *(u16 *)(g_BattleDisplayState + 0x106) = 0;
+    *(s32 *)(g_BattleDisplayState + 0x54) = (*(u32 *)(g_BattleDisplayState + 0x54) << 8) / divisor;
+    g_BattleDisplayState[0xAB] = 1;
+    g_BattleDisplayState[0x90 + arg0]--;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
@@ -456,45 +456,45 @@ void func_80076710(s32 arg0) {
     s32 idx;
     s32 off;
 
-    for (i = 0; i < D_800D2D28[0xA9]; i++) {
-        *(u32 *)(D_800D2D28 + 0x64) -= *(u32 *)(D_800D2D28 + 0x54);
-        *(u32 *)(D_800D2D28 + 0x6C) += *(u32 *)(D_800D2D28 + 0x5C);
-        v[0] = *(u16 *)(D_800D2D28 + 0x34) + (*(u32 *)(D_800D2D28 + 0x64) >> 8);
-        v[4] = *(u16 *)(D_800D2D28 + 0x44) + (*(u32 *)(D_800D2D28 + 0x6C) >> 8);
+    for (i = 0; i < g_BattleDisplayState[0xA9]; i++) {
+        *(u32 *)(g_BattleDisplayState + 0x64) -= *(u32 *)(g_BattleDisplayState + 0x54);
+        *(u32 *)(g_BattleDisplayState + 0x6C) += *(u32 *)(g_BattleDisplayState + 0x5C);
+        v[0] = *(u16 *)(g_BattleDisplayState + 0x34) + (*(u32 *)(g_BattleDisplayState + 0x64) >> 8);
+        v[4] = *(u16 *)(g_BattleDisplayState + 0x44) + (*(u32 *)(g_BattleDisplayState + 0x6C) >> 8);
     }
 
-    D_800D2D28[0xA9] = 0;
-    D_800D2D28[0x77] = 0;
+    g_BattleDisplayState[0xA9] = 0;
+    g_BattleDisplayState[0x77] = 0;
 
-    D_800D2D28[0x77] = func_80025FA8(D_800D2F5C, 0x52, D_800C3EA4 + 0x3768, D_800CCB34,
-                                     v[0], v[4], *(u16 *)(D_800D2D28 + 0x104),
-                                     *(u16 *)(D_800D2D28 + 0x104),
-                                     *(u16 *)(D_800D2D28 + 0x106));
+    g_BattleDisplayState[0x77] = func_80025FA8(g_BattleSpriteArchive, 0x52, D_800C3EA4 + 0x3768, D_800CCB34,
+                                     v[0], v[4], *(u16 *)(g_BattleDisplayState + 0x104),
+                                     *(u16 *)(g_BattleDisplayState + 0x104),
+                                     *(u16 *)(g_BattleDisplayState + 0x106));
 
-    idx = D_800D2D28[0x77];
-    D_800D2D28[0x77] +=
-        func_80025FA8(D_800D2F5C, 0x53, idx * 0x50 + 0x3768 + (s32)D_800C3EA4, D_800CCB34,
-                      v[0], v[4], *(u16 *)(D_800D2D28 + 0x104), *(u16 *)(D_800D2D28 + 0x104),
-                      *(u16 *)(D_800D2D28 + 0x106));
+    idx = g_BattleDisplayState[0x77];
+    g_BattleDisplayState[0x77] +=
+        func_80025FA8(g_BattleSpriteArchive, 0x53, idx * 0x50 + 0x3768 + (s32)D_800C3EA4, D_800CCB34,
+                      v[0], v[4], *(u16 *)(g_BattleDisplayState + 0x104), *(u16 *)(g_BattleDisplayState + 0x104),
+                      *(u16 *)(g_BattleDisplayState + 0x106));
 
-    for (j = idx * 2; j < D_800D2D28[0x77] * 2; j += 2) {
+    for (j = idx * 2; j < g_BattleDisplayState[0x77] * 2; j += 2) {
         off = (j + D_800CCB34) * 40 + 0x3768;
         SetSemiTrans((u8 *)(off + (s32)D_800C3EA4), 1);
     }
 
-    D_800D2D28[0x87] = *(u8 *)&D_800CCB34;
+    g_BattleDisplayState[0x87] = *(u8 *)&D_800CCB34;
 
-    for (k = 0; k < D_800D2D28[0xAB]; k++) {
-        *(u16 *)(D_800D2D28 + 0x104) += 0x66;
-        *(u16 *)(D_800D2D28 + 0x106) += 0x80;
+    for (k = 0; k < g_BattleDisplayState[0xAB]; k++) {
+        *(u16 *)(g_BattleDisplayState + 0x104) += 0x66;
+        *(u16 *)(g_BattleDisplayState + 0x106) += 0x80;
     }
-    D_800D2D28[0xAB] = 0;
+    g_BattleDisplayState[0xAB] = 0;
 
-    if (v[0] <= *(u32 *)(D_800D2D28 + 0x3C)) {
-        *(u8 *)(D_800D2D28 + arg0 + 0x90) = 1;
+    if (v[0] <= *(u32 *)(g_BattleDisplayState + 0x3C)) {
+        *(u8 *)(g_BattleDisplayState + arg0 + 0x90) = 1;
     }
-    if (v[4] >= *(u32 *)(D_800D2D28 + 0x4C)) {
-        *(u8 *)(D_800D2D28 + arg0 + 0x90) = 1;
+    if (v[4] >= *(u32 *)(g_BattleDisplayState + 0x4C)) {
+        *(u8 *)(g_BattleDisplayState + arg0 + 0x90) = 1;
     }
 }
 */
@@ -505,10 +505,10 @@ void BattleLoadImageAndSync(RECT *pRect, u_long *pData) {
 }
 
 void BattleDrawSpritePackage(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
-    func_8002675C(D_800D2F5C, arg0, arg1, D_800CCB34, arg2, arg3, 0x1000);
+    func_8002675C(g_BattleSpriteArchive, arg0, arg1, D_800CCB34, arg2, arg3, 0x1000);
 }
 
 void BattleDrawSpritePackageHalfScale(s32 arg0, s32 arg1, s16 arg2, s16 arg3) {
-    func_8002675C(D_800D2F5C, arg0, arg1, D_800CCB34, arg2, arg3, 0x800);
+    func_8002675C(g_BattleSpriteArchive, arg0, arg1, D_800CCB34, arg2, arg3, 0x800);
 }
 

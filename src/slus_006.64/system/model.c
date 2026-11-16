@@ -3,7 +3,7 @@
 #include "system/model.h"
 #include "system/debug.h"
 
-extern u8 D_80059598;
+extern u8 g_NearColor;
 extern u8 D_80059599;
 extern u8 D_8005959A;
 extern u32 D_800500F8;
@@ -144,7 +144,7 @@ int ModelPartTrimHeapBlock(ModelPart* pModelPart) {
 }
 
 void SetNearColor(u_char r, u_char g, u_char b) {
-    D_80059598 = r;
+    g_NearColor = r;
     D_80059599 = g;
     D_8005959A = b;
 }

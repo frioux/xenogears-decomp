@@ -8,13 +8,13 @@ typedef struct {
 } BattleUnk1C; // Size: 0x1C
 
 extern BattleUnk1C D_800C3EBE[];
-extern u8 D_800C3EB4[][0x1C];
-extern u16 D_800C3D64;
-extern u8 D_800C3E2C;
+extern u8 g_BattleSlotRecords[][0x1C];
+extern u16 g_BattleTargetSlotMask;
+extern u8 g_BattleTargetSlot;
 extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 BattleSlotBitMask(u8);
 extern u8 BattlePairTargetable(u8, u8);
-extern u8 *D_800C3EAC;
+extern u8 *g_BattleCommandQueue;
 extern u8 D_800C3E90[];
 extern u8 D_800C3E9B[];
 extern u16 D_800C3EC0[];
@@ -30,7 +30,7 @@ typedef struct {
     /* 0x3C */ u8 unk3C[12];
 } BattleUnk48; // Size: 0x48
 
-extern BattleUnk48 D_800C3FE8[];
+extern BattleUnk48 g_BattleCommandRows[];
 
 typedef struct {
     /* 0x000 */ u16 unk0;
@@ -48,9 +48,9 @@ typedef struct {
 
 extern u8 D_800D2DCC[];
 extern u8 D_800C3EB7[][0x1C];
-extern u8 D_800D32A1[];
+extern u8 g_BattleSlotFlags[];
 extern u8 *D_800D3364;
-extern BattleUnk170 D_800CCD64[];
+extern BattleUnk170 g_BattleSlotEntries[];
 extern BattleUnk170 D_800CCE08[];
 
 typedef struct {
@@ -82,7 +82,7 @@ typedef struct {
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
 
-extern u8 D_800D3014;
+extern u8 g_BattleMenuEvent;
 extern void BattlePlaySoundIfEnabled(u8);
 extern u8 func_8008BED8(u8);
 extern void func_8008B908(u8);
@@ -92,53 +92,53 @@ void BattleAdvanceSlotMenuState(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
         func_800826CC(a);
-        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0] = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DE[0] = 1;
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk26 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 7;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk26 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 7;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 1;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 1;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk32 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 8;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk32 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 8;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 9;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2C == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 9;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 2) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 3;
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 2) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 3;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk30 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 4;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk30 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 4;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -148,55 +148,55 @@ void BattleAdvanceSlotMenuState(u8 arg0) {
 extern void BattleSetupActorSlotDisplay(u8);
 extern void BattleEnsureTargetSlotInCandidateList(u8);
 extern void func_80077698(void);
-extern u8 D_800D366C;
+extern u8 g_BattleSoundEnabled;
 void BattleSetActorSlotDisplayMode(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk3C == 0xFF) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk3C == 0xFF) {
             BattlePlaySoundIfEnabled(0x4F);
             break;
         }
         BattleSetupActorSlotDisplay(a);
         BattleEnsureTargetSlotInCandidateList(a);
-        ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x19;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x19;
         func_80077698();
-        D_800D366C = 0;
+        g_BattleSoundEnabled = 0;
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x11;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x11;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x12;
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x13;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x18;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk36 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x15;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk36 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x15;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -207,46 +207,46 @@ void BattleSetActorSlotMenuMode(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
         if (func_8008BED8(a) != 0) {
             func_8008B908(a);
         } else {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x11;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x11;
         }
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x10;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x12;
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x13;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x18;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x16;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -259,53 +259,53 @@ void BattleAdvanceSlotMenuStateCounter(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
         BattleSetSlotFlag15A1(a);
-        D_800CCD64[a].unk60 = D_800CCD64[a].unk60 + D_800D2C32;
-        if (D_800CCD64[a].unk60 > D_800CCD64[a].unk62) {
-            D_800CCD64[a].unk60 = D_800CCD64[a].unk62;
+        g_BattleSlotEntries[a].unk60 = g_BattleSlotEntries[a].unk60 + D_800D2C32;
+        if (g_BattleSlotEntries[a].unk60 > g_BattleSlotEntries[a].unk62) {
+            g_BattleSlotEntries[a].unk60 = g_BattleSlotEntries[a].unk62;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2EB[a] = 1;
-        ((BattleActorSlots *)D_800C3EAC)->unk2EA = 0;
-        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0] = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2EB[a] = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2EA = 0;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DE[0] = 1;
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x10;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x11;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x11;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x13;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x18;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x17;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2C == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x17;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -321,7 +321,7 @@ void BattleAdvanceSlotMenuStateAE(u8 arg0) {
     u8 *q;
     int off;
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
@@ -329,11 +329,11 @@ void BattleAdvanceSlotMenuStateAE(u8 arg0) {
         if (func_8008B478(a) != 0) {
             func_8008ADD0(a);
         } else {
-            D_800C3EAC[0x2DD] = 0x13;
+            g_BattleCommandQueue[0x2DD] = 0x13;
         }
         break;
     case 0:
-        p = D_800C3EAC;
+        p = g_BattleCommandQueue;
         off = a * 0x40;
         if (*(u16 *)(p + off + 0x2E) == 0) {
             p[0x2DD] = 0x10;
@@ -342,7 +342,7 @@ void BattleAdvanceSlotMenuStateAE(u8 arg0) {
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        p = D_800C3EAC;
+        p = g_BattleCommandQueue;
         off = a * 0x40;
         if (*(u16 *)(p + off + 0x34) == 0) {
             p[0x2DD] = 0x11;
@@ -351,10 +351,10 @@ void BattleAdvanceSlotMenuStateAE(u8 arg0) {
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        D_800C3EAC[0x2DD] = 0x12;
+        g_BattleCommandQueue[0x2DD] = 0x12;
         break;
     case 3:
-        p = D_800C3EAC;
+        p = g_BattleCommandQueue;
         off = a * 0x40;
         if (*(u16 *)(p + off + 0x24) == 0) {
             p[0x2DD] = 0x18;
@@ -369,61 +369,61 @@ void BattleAdvanceSlotMenuStateSlotFlags(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
-        if ((D_800CCD64[a].unkA8 & 0x8000) != 0) {
-            D_800CCD64[a].unkA8 &= 0x7FFF;
-            D_800CCD64[a].unk8 &= 0x7FFF;
+        if ((g_BattleSlotEntries[a].unkA8 & 0x8000) != 0) {
+            g_BattleSlotEntries[a].unkA8 &= 0x7FFF;
+            g_BattleSlotEntries[a].unk8 &= 0x7FFF;
         } else {
-            D_800CCD64[a].unkA4 &= 0xFFDF;
-            D_800CCD64[a].unk0 &= 0xEFFF;
-            D_800CCD64[a].unkA8 |= 0x8000;
-            D_800CCD64[a].unk8 |= 0x8000;
+            g_BattleSlotEntries[a].unkA4 &= 0xFFDF;
+            g_BattleSlotEntries[a].unk0 &= 0xEFFF;
+            g_BattleSlotEntries[a].unkA8 |= 0x8000;
+            g_BattleSlotEntries[a].unk8 |= 0x8000;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0] = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DE[0] = 1;
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x16;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x17;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2C == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x17;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 2) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 2) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x12;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x18;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x13;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x10;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -434,66 +434,66 @@ void BattleAdvanceSlotMenuStateSubMode(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
         if (func_8008BED8(a) != 0) {
             func_8008B908(a);
         } else {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x16;
         }
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk36 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x15;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk36 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x15;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x10;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x17;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2C == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x17;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 2) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 2) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x12;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x18;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x13;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x11;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x11;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -506,58 +506,58 @@ void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
-        if (func_8009A9D0(((BattleActorSlots *)D_800C3EAC)->unk2C0[0x13]) != 0) {
+        if (func_8009A9D0(((BattleActorSlots *)g_BattleCommandQueue)->unk2C0[0x13]) != 0) {
             D_800C48EA = 0x40;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2DE[0] = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DE[0] = 1;
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk36 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x15;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk36 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x15;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x10;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x16;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk24 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x18;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 3) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x13;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x12;
         break;
     }
 }
@@ -567,7 +567,7 @@ void BattleAdvanceSlotMenuStateText(u8 arg0) {
     u8 a;
 
     a = arg0;
-    switch (D_800D3014) {
+    switch (g_BattleMenuEvent) {
     case 4:
     case 6:
     case 7:
@@ -575,49 +575,49 @@ void BattleAdvanceSlotMenuStateText(u8 arg0) {
         if (func_8008CFB8(a) != 0) {
             func_8008ADD0(a);
         } else {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x18;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x18;
         }
         break;
     case 0:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk36 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x15;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk36 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x15;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 0) {
-            if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2E != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x10;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x10;
             }
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk34 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x16;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x16;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk2C == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x17;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2C == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x17;
             break;
         }
-        if (((BattleActorSlots *)D_800C3EAC)->unk2F6 != 0 && D_800C3E29 == 2) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x12;
-            ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 0;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && D_800C3E29 == 2) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x12;
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
             break;
         }
-        ((BattleActorSlots *)D_800C3EAC)->unk2F6 = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 3:
-        if (((BattleActorSlots *)D_800C3EAC)->slot[a].unk28 == 0) {
-            ((BattleActorSlots *)D_800C3EAC)->unk2DD = 0x13;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0x13;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -631,10 +631,10 @@ u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     ret = 0;
     if (D_800D2DCC[arg1] != 0) {
         if (D_800C3EB7[arg1][0] == 0) {
-            if (D_800D32A1[arg1 * 8] == 0) {
-                if (*(u8 *)(D_800D3364 + (D_800C3EB4[arg0][0] * 0x40 +
-                                          D_800C3EB4[arg1][0] * 8) + 0x140) == 0) {
-                    ret = (D_800CCD64[arg1].unk0 & 0xC001) == 0;
+            if (g_BattleSlotFlags[arg1 * 8] == 0) {
+                if (*(u8 *)(D_800D3364 + (g_BattleSlotRecords[arg0][0] * 0x40 +
+                                          g_BattleSlotRecords[arg1][0] * 8) + 0x140) == 0) {
+                    ret = (g_BattleSlotEntries[arg1].unk0 & 0xC001) == 0;
                 }
             } else if ((D_800CCE08[arg1].unk0 & 0xC001) == 0) {
                 ret = 1;
@@ -649,9 +649,9 @@ u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
     ret = 0;
     if (D_800D2DCC[arg0] != 0) {
         if (D_800C3EB7[arg0][0] == 0) {
-            if (D_800D32A1[arg0 * 8] == 0) {
+            if (g_BattleSlotFlags[arg0 * 8] == 0) {
                 if (arg1 == 0) {
-                    ret = (D_800CCD64[arg0].unk0 & 0xC001) == 0;
+                    ret = (g_BattleSlotEntries[arg0].unk0 & 0xC001) == 0;
                 } else {
                     ret = 1;
                 }
@@ -711,12 +711,12 @@ u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     }
     n = 0;
     D_800D3274 = 0;
-    D_800C3D64 = 0;
+    g_BattleTargetSlotMask = 0;
     for (i = start1; --count1 >= 0; i++) {
         j = i;
         if (BattleActorTargetableWithOverride(j, arg1) != 0) {
             D_800C3E90[n] = j;
-            D_800C3D64 |= BattleSlotBitMask(j);
+            g_BattleTargetSlotMask |= BattleSlotBitMask(j);
             n++;
             D_800D3274++;
         }
@@ -725,7 +725,7 @@ u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
         j = i;
         if (BattleActorTargetableWithOverride(j, arg1) != 0) {
             D_800C3E90[n] = j;
-            D_800C3D64 |= BattleSlotBitMask(j);
+            g_BattleTargetSlotMask |= BattleSlotBitMask(j);
             n++;
             D_800D3274++;
         }
@@ -749,12 +749,12 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
     }
     n = 0;
     D_800D3274 = 0;
-    D_800C3D64 = 0;
+    g_BattleTargetSlotMask = 0;
     for (i = 3; --k >= 0; i++) {
         j = i;
         if (BattlePairTargetable(arg0, j) != 0) {
             D_800C3E90[n] = j;
-            D_800C3D64 |= BattleSlotBitMask(j);
+            g_BattleTargetSlotMask |= BattleSlotBitMask(j);
             n++;
             D_800D3274++;
         }
@@ -842,17 +842,17 @@ void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     s32 i;
 
     off = arg0 * 0x40;
-    D_800C3EAC[0x2E8] = (D_800C3EAC + off)[0x3C];
+    g_BattleCommandQueue[0x2E8] = (g_BattleCommandQueue + off)[0x3C];
     found = 0;
     func_800841E0();
     for (i = 0; i < D_800D3274; i++) {
-        if (D_800C3E90[i] == (D_800C3EAC + off)[0x3C]) {
+        if (D_800C3E90[i] == (g_BattleCommandQueue + off)[0x3C]) {
             found++;
             break;
         }
     }
     if (found == 0) {
-        D_800C3EAC[0x2E8] = D_800C3E90[0];
+        g_BattleCommandQueue[0x2E8] = D_800C3E90[0];
     }
 }
 extern void BattleBeginAnimTask(u16);
@@ -864,28 +864,28 @@ s32 BattleSelectTargetSlotLoop(u8 arg0) {
     u8 m;
     u8 state;
 
-    b = ((BattleActorSlots *)D_800C3EAC)->unk2DE[0xA];
+    b = ((BattleActorSlots *)g_BattleCommandQueue)->unk2DE[0xA];
     state = 2;
-    D_800D3014 = 8;
+    g_BattleMenuEvent = 8;
     while (1) {
-        while (D_800D3014 == 8) {
+        while (g_BattleMenuEvent == 8) {
             m = b;
             BattleBeginAnimTask(BattleSlotBitMask(arg0) | BattleSlotBitMask(m));
             func_800BCD98(BattleSlotBitMask(m));
             BattleUpdateFrame();
         }
-        switch (D_800D3014) {
+        switch (g_BattleMenuEvent) {
         case 4:
         case 6:
         case 7:
             state = 1;
-            ((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C = b;
+            ((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk3C = b;
             break;
         case 5:
             BattleBeginAnimTask(BattleSlotBitMask(arg0) |
-                          BattleSlotBitMask(((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C));
+                          BattleSlotBitMask(((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk3C));
             state = 0;
-            func_800BCD98(BattleSlotBitMask(((BattleActorSlots *)D_800C3EAC)->slot[arg0].unk3C));
+            func_800BCD98(BattleSlotBitMask(((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk3C));
             break;
         case 0:
             b = func_80084854(b, 0);
@@ -900,7 +900,7 @@ s32 BattleSelectTargetSlotLoop(u8 arg0) {
             b = func_80084854(b, 3);
             break;
         }
-        D_800D3014 = 8;
+        g_BattleMenuEvent = 8;
         if (state != 2) {
             break;
         }
@@ -914,8 +914,8 @@ u16 BattleGetSameRowSlotMask(void) {
 
     ret = 0;
     for (i = 0; i < 0xB; i++) {
-        if (BattleMaskHasSlotBit(D_800C3D64, i) != 0) {
-            if (D_800C3EB4[D_800C3E2C][0] == D_800C3EB4[i][0]) {
+        if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, i) != 0) {
+            if (g_BattleSlotRecords[g_BattleTargetSlot][0] == g_BattleSlotRecords[i][0]) {
                 ret |= BattleSlotBitMask(i);
             }
         }
@@ -931,13 +931,13 @@ extern u8 D_800C3E9A[];
    The tail fill loop is what took it from 98.35% to 99.81%: the 0x4000 branch's
    countdown must reuse n, not a fresh local, so the counter lands in s1 as in
    retail (val stays a u8 0xFF; p = D_800C3E9A; for (; n >= 0; n--) *p-- = val).
-   n = 0 must also precede the D_800C3E2C = 0xFF store in the 0x8000 branch.
+   n = 0 must also precede the g_BattleTargetSlot = 0xFF store in the 0x8000 branch.
    Tried, worse or neutral: swapping the flags/hi assignments (98.62%), a separate
    j local for the countdown (99.63%), flags declared first, other declaration
    orders of i/n/off/off8/val.
    Note for an un-park: the two offsets must stay explicit source variables
-   (off = 0x170 * i, off8 = 8 * i, both from 0); writing D_800CCD64[i].unk0 and
-   D_800D32A1[i * 8] makes gcc fold the D_800D32A1 base into the pointer
+   (off = 0x170 * i, off8 = 8 * i, both from 0); writing g_BattleSlotEntries[i].unk0 and
+   g_BattleSlotFlags[i * 8] makes gcc fold the g_BattleSlotFlags base into the pointer
    (lui/addiu in the preheader instead of move s5,zero) and it loses 5%.
 u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
     s32 i;
@@ -982,31 +982,31 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
         mask = 0xFFFF;
     }
     if (arg4 != 0) {
-        D_800C3E2C = BattleBuildTargetCandidateList(arg2);
+        g_BattleTargetSlot = BattleBuildTargetCandidateList(arg2);
     } else {
-        D_800C3E2C = BattleBuildTargetCandidateListByGroup(grp, hi, first);
+        g_BattleTargetSlot = BattleBuildTargetCandidateListByGroup(grp, hi, first);
     }
-    D_800C3D64 &= mask;
+    g_BattleTargetSlotMask &= mask;
     if ((flags & 0x8000) != 0) {
         n = 0;
-        D_800C3E2C = 0xFF;
+        g_BattleTargetSlot = 0xFF;
         for (i = 0, off = 0, off8 = 0; i < 0xB; i++, off8 += 8) {
-            if (BattleMaskHasSlotBit(D_800C3D64, i) != 0) {
-                if (D_800D32A1[off8] == 0) {
-                    if ((*(u16 *)((u8 *)D_800CCD64 + off) & 0x8000) != 0) {
-                        D_800C3E2C = i;
+            if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, i) != 0) {
+                if (g_BattleSlotFlags[off8] == 0) {
+                    if ((*(u16 *)((u8 *)g_BattleSlotEntries + off) & 0x8000) != 0) {
+                        g_BattleTargetSlot = i;
                         D_800C3E90[n] = i;
                         n++;
                     } else {
-                        D_800C3D64 &= BattleSlotBitMaskInverted(i);
+                        g_BattleTargetSlotMask &= BattleSlotBitMaskInverted(i);
                     }
                 } else {
                     if ((*(u16 *)((u8 *)D_800CCE08 + off) & 0x8000) != 0) {
-                        D_800C3E2C = i;
+                        g_BattleTargetSlot = i;
                         D_800C3E90[n] = i;
                         n++;
                     } else {
-                        D_800C3D64 &= BattleSlotBitMaskInverted(i);
+                        g_BattleTargetSlotMask &= BattleSlotBitMaskInverted(i);
                     }
                 }
             }
@@ -1017,8 +1017,8 @@ u16 func_80084DE4(u16 arg0, u16 arg1, u8 arg2, u8 arg3, u8 arg4) {
             n++;
         }
     } else if ((flags & 0x4000) != 0) {
-        D_800C3E2C = arg2;
-        D_800C3D64 = BattleSlotBitMask(arg2);
+        g_BattleTargetSlot = arg2;
+        g_BattleTargetSlotMask = BattleSlotBitMask(arg2);
         val = 0xFF;
         n = 10;
         p = D_800C3E9A;
@@ -1054,18 +1054,18 @@ u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
 
     last = 0xFE;
     func_80084DE4(arg0, arg0, arg1, 0, arg2);
-    mask = D_800C3D64;
-    state = D_800C3E2C == 0xFF;
+    mask = g_BattleTargetSlotMask;
+    state = g_BattleTargetSlot == 0xFF;
     while (state == 0) {
         BattleUpdateFrame();
         switch (arg0 & 0xF) {
         case 0:
-            func_800BCD98(BattleSlotBitMask(D_800C3E2C));
-            BattleBeginAnimTask(BattleSlotBitMask(D_800C3E2C));
+            func_800BCD98(BattleSlotBitMask(g_BattleTargetSlot));
+            BattleBeginAnimTask(BattleSlotBitMask(g_BattleTargetSlot));
             break;
         case 1:
-            func_800BCD98(D_800C3D64);
-            BattleBeginAnimTask(D_800C3D64);
+            func_800BCD98(g_BattleTargetSlotMask);
+            BattleBeginAnimTask(g_BattleTargetSlotMask);
             break;
         case 2:
             mask = BattleGetSameRowSlotMask();
@@ -1073,46 +1073,46 @@ u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
             BattleBeginAnimTask(mask);
             break;
         }
-        switch (D_800D3014) {
+        switch (g_BattleMenuEvent) {
         case 5:
             state = 1;
             break;
         case 4:
-            D_800C3D64 = mask;
+            g_BattleTargetSlotMask = mask;
             state = 2;
             break;
         case 0:
-            best = func_80084854(D_800C3E2C, 0);
-            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
-                D_800C3E2C = best;
+            best = func_80084854(g_BattleTargetSlot, 0);
+            if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, best) != 0) {
+                g_BattleTargetSlot = best;
             }
             break;
         case 1:
-            best = func_80084854(D_800C3E2C, 1);
-            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
-                D_800C3E2C = best;
+            best = func_80084854(g_BattleTargetSlot, 1);
+            if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, best) != 0) {
+                g_BattleTargetSlot = best;
             }
             break;
         case 2:
-            best = func_80084854(D_800C3E2C, 2);
-            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
-                D_800C3E2C = best;
+            best = func_80084854(g_BattleTargetSlot, 2);
+            if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, best) != 0) {
+                g_BattleTargetSlot = best;
             }
             break;
         case 3:
-            best = func_80084854(D_800C3E2C, 3);
-            if (BattleMaskHasSlotBit(D_800C3D64, best) != 0) {
-                D_800C3E2C = best;
+            best = func_80084854(g_BattleTargetSlot, 3);
+            if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, best) != 0) {
+                g_BattleTargetSlot = best;
             }
             break;
         case 6:
         case 7:
             break;
         }
-        if (D_800D3014 != last) {
-            last = D_800D3014;
+        if (g_BattleMenuEvent != last) {
+            last = g_BattleMenuEvent;
             for (i = 0; i < 4; i++) {
-                if (func_80084854(D_800C3E2C, i) != D_800C3E2C) {
+                if (func_80084854(g_BattleTargetSlot, i) != g_BattleTargetSlot) {
                     *((p = D_800C3E24 + i) + 0xE6) = 1;
                 } else {
                     *((q = D_800C3E24 + i) + 0xE6) = 0;
@@ -1138,10 +1138,10 @@ void BattleClearSlotCurveEntry(void) {
     s32 i;
 
     for (i = 0; i < 0xB; i++) {
-        D_800C3FE8[D_800C3EAC[0x2DA]].unk0[i] = 0;
-        D_800C3FE8[D_800C3EAC[0x2DA]].unk18[i] = 0xFF;
-        D_800C3FE8[D_800C3EAC[0x2DA]].unk24[i] = 0;
-        D_800C3FE8[D_800C3EAC[0x2DA]].unk3C[i] = 0xFF;
+        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].unk0[i] = 0;
+        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].unk18[i] = 0xFF;
+        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].unk24[i] = 0;
+        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].unk3C[i] = 0xFF;
     }
 }
 extern u16 D_800D2C54[][2];
@@ -1152,8 +1152,8 @@ void BattleApplySlotCurve(u8 arg0) {
     s32 i;
 
     for (i = 0; i < 0xB; i++) {
-        D_800C3FE8[arg0].unk0[i] = D_800D2C54[i][0];
-        D_800C3FE8[arg0].unk18[i] = D_800D2C88[i];
+        g_BattleCommandRows[arg0].unk0[i] = D_800D2C54[i][0];
+        g_BattleCommandRows[arg0].unk18[i] = D_800D2C88[i];
         switch (D_800D2C88[i]) {
         case 0:
         case 5:
@@ -1187,7 +1187,7 @@ void BattleApplySlotCurve(u8 arg0) {
             }
             break;
         }
-        D_800C3FE8[arg0].unk24[i] = D_800D2D70[i];
-        D_800C3FE8[arg0].unk3C[i] = D_800D2D5C[i];
+        g_BattleCommandRows[arg0].unk24[i] = D_800D2D70[i];
+        g_BattleCommandRows[arg0].unk3C[i] = D_800D2D5C[i];
     }
 }

@@ -80,7 +80,7 @@ typedef struct {
     /* 0xA6 */ u8 unkA6[0x2];
 } BattleSpriteState; // Size: 0xA8
 
-// A battle participant. D_800D3368[] holds one pointer per slot. Only the
+// A battle participant. g_BattleActors[] holds one pointer per slot. Only the
 // fields read by src/battle/main/misc24 are named; other battle units reach
 // past 0x186, so 0x1A0 is a lower bound on the real size.
 typedef struct {
@@ -184,7 +184,7 @@ typedef struct {
 } BattleSlotState; // Size: 0xCC
 
 // One slot of the per-battle-slot table family (stride 0x170). Three of them
-// open the battle work block (D_800C34B0->slots); D_800C3E00/D_800C3E34 point
+// open the battle work block (D_800C34B0->slots); g_BattleActingSlot/D_800C3E34 point
 // at the acting slot and its target. Only the fields read by
 // src/battle/main/misc18 and misc19 are named.
 typedef struct {
@@ -218,7 +218,7 @@ typedef struct {
     /* 0x0A4 */ BattleSlotState state;
 } BattleTableEntry; // Size: 0x170
 
-// The per-slot battle register file (D_800D3400[slot]): the dword, word and
+// The per-slot battle register file (g_BattleSlotRegs[slot]): the dword, word and
 // byte registers the script's comparison ops test against, indexed by the
 // operand byte that follows the opcode. +0x00 is read as a script cursor by
 // src/battle/main/misc4.
@@ -231,7 +231,7 @@ typedef struct {
 
 // One 0x28-byte row of the per-actor action tables the battle work block holds
 // at +0x1058 (0x5F0 bytes per actor) and +0x2228 (0x690 bytes per actor). The
-// row currently in use is pointed to by D_800C3DFC. Only the fields read by
+// row currently in use is pointed to by g_BattleCurrentRow. Only the fields read by
 // src/battle/main/misc18 are named; +0x14 is read as a byte and +0x27 as an s8
 // by other units.
 typedef struct {

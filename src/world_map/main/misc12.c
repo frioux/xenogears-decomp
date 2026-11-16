@@ -5,12 +5,12 @@
 
 extern s32 func_80095414(s32 *pPos, s32 *pRot, s32 *pOut, s32 nSpeed, s32 nMode);
 extern void WorldMapSetSpriteSetParent(int, int);
-extern s16 D_8009BD40;
+extern s16 g_WorldMapPathFrame;
 extern s16 D_8009BD44;
-extern s32 D_8009BE28;
+extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE30;
 extern s32 D_8009D560;
-extern s32 D_8009BCDC;
+extern s32 g_WorldMapProjectionDistance;
 extern s32 D_8009B214[];
 extern u16 D_1F8000A8;
 extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
@@ -21,7 +21,7 @@ extern s32 D_8009D804;
 extern u8 *WorldMapGetTileEntry(s32 x, s32 z);
 extern u8 D_8009BD60;
 extern s16 D_8009BD24;
-extern u16 D_8009BD3A;
+extern u16 g_WorldMapViewRotationY;
 extern u8 D_8009D738;
 extern void *D_8009D7D8;
 extern u32 D_8009B6C4[3];
@@ -33,16 +33,16 @@ extern s32 D_8009CEC0;
 extern s32 D_8009C7E8;
 extern s32 D_8009BD34;
 extern s32 D_8009BE0C;
-extern s32 D_8009BE10;
+extern s32 g_WorldMapMode;
 extern s32 D_8009C5A8;
-extern s32 D_8009C5AC;
+extern s32 g_WorldMapPlayerPosition;
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
-extern s32 D_8009C584;
+extern s32 g_WorldMapPlayerRotation;
 extern s32 D_8009C170;
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 D_8009D3F0;
-extern s16 D_8009BD38;
+extern s16 g_WorldMapCameraRot;
 extern s16 D_8009BD3C;
 extern u16 D_8009D52C;
 extern u32 D_8009D55C[];
@@ -201,7 +201,7 @@ s32 func_8008E190(s32 idx) {
         pPlayer->unk4A = 0x20;
         break;
     }
-    switch (D_8009BE10) {
+    switch (g_WorldMapMode) {
     case 1:
         pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
         break;
@@ -213,10 +213,10 @@ s32 func_8008E190(s32 idx) {
     case 4:
     case 5:
         pPlayer->unk20 = 3;
-        pPlayer->unk28 = D_8009C5AC;
+        pPlayer->unk28 = g_WorldMapPlayerPosition;
         pPlayer->unk30 = D_8009C5B4;
         pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30) + 0xFFFC0000;
-        pPlayer->unk48 = D_8009C584;
+        pPlayer->unk48 = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
         *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
         nAngle = pPlayer->unk48;
@@ -227,9 +227,9 @@ s32 func_8008E190(s32 idx) {
         break;
     case 7:
         pPlayer->unk20 = 2;
-        pPlayer->unk28 = D_8009C5AC;
+        pPlayer->unk28 = g_WorldMapPlayerPosition;
         pPlayer->unk30 = D_8009C5B4;
-        pPlayer->unk48 = D_8009C584;
+        pPlayer->unk48 = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
         pPlayer->unk2C = D_8009C5B0;
         *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
@@ -290,7 +290,7 @@ s32 func_8008E4F4(s32 idx) {
     if ((g_GameState.unk1834 & 0x1FFF) == 0) {
         nRet = 3;
     }
-    switch (D_8009BE10) {
+    switch (g_WorldMapMode) {
     case 1:
         pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
         break;
@@ -356,7 +356,7 @@ s32 WorldMapModeInitActorRotation(s32 idx) {
     pPlayer->unk20 = 0;
     *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009C620->entry[2].unk8;
     *(Quad *)&pPlayer->unk38 = *(Quad *)D_8009C620->entry[3].unk8;
-    nMode = D_8009BE10;
+    nMode = g_WorldMapMode;
     pPlayer->unk50 = 0;
     pPlayer->unk54 = 0x40;
     if (nMode < 8) {
@@ -474,34 +474,34 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090C68);
    the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
    cannot be re-laid-out for one function: converting the whole switch family
    of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
-   match, and unk48 must be s16 (rcos argument reads lh) and D_8009BD3A u16
+   match, and unk48 must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
    (lhu in every case body).
 
 s32 func_80090C68(WorldMapPlayer *pPlayer) {
     switch (D_8009CD4C >> 12) {
     case 1:
-        pPlayer->unk48 = D_8009BD3A;
+        pPlayer->unk48 = g_WorldMapViewRotationY;
         break;
     case 2:
-        pPlayer->unk48 = (D_8009BD3A + 0x400) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
         break;
     case 3:
-        pPlayer->unk48 = (D_8009BD3A + 0x200) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
         break;
     case 4:
-        pPlayer->unk48 = (D_8009BD3A + 0x800) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
         break;
     case 6:
-        pPlayer->unk48 = (D_8009BD3A + 0x600) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
         break;
     case 8:
-        pPlayer->unk48 = (D_8009BD3A - 0x400) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
         break;
     case 9:
-        pPlayer->unk48 = (D_8009BD3A - 0x200) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
         break;
     case 12:
-        pPlayer->unk48 = (D_8009BD3A - 0x600) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
         break;
     }
     if (D_8009CD4C & 0xF000) {
@@ -535,34 +535,34 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090E14);
    the BLOCKED stubs (func_8008E190/8008E4F4/8008E76C/80090A84), so the unit
    cannot be re-laid-out for one function: converting the whole switch family
    of this unit at once is the way in. diff_func.sh says 99.9%, the bytes
-   match, and unk48 must be s16 (rcos argument reads lh) and D_8009BD3A u16
+   match, and unk48 must be s16 (rcos argument reads lh) and g_WorldMapViewRotationY u16
    (lhu in every case body).
 
 s32 func_80090E14(WorldMapPlayer *pPlayer) {
     switch (D_8009CD4C >> 12) {
     case 1:
-        pPlayer->unk48 = D_8009BD3A;
+        pPlayer->unk48 = g_WorldMapViewRotationY;
         break;
     case 2:
-        pPlayer->unk48 = (D_8009BD3A + 0x400) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x400) & 0xFFF;
         break;
     case 3:
-        pPlayer->unk48 = (D_8009BD3A + 0x200) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x200) & 0xFFF;
         break;
     case 4:
-        pPlayer->unk48 = (D_8009BD3A + 0x800) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
         break;
     case 6:
-        pPlayer->unk48 = (D_8009BD3A + 0x600) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY + 0x600) & 0xFFF;
         break;
     case 8:
-        pPlayer->unk48 = (D_8009BD3A - 0x400) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x400) & 0xFFF;
         break;
     case 9:
-        pPlayer->unk48 = (D_8009BD3A - 0x200) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x200) & 0xFFF;
         break;
     case 12:
-        pPlayer->unk48 = (D_8009BD3A - 0x600) & 0xFFF;
+        pPlayer->unk48 = (g_WorldMapViewRotationY - 0x600) & 0xFFF;
         break;
     }
     if (D_8009CD4C & 0xF000) {
@@ -587,11 +587,11 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
-/* best: 88.22%. Retail has TWO accesses to D_8009BD3A (sh from an lhu'd
+/* best: 88.22%. Retail has TWO accesses to g_WorldMapViewRotationY (sh from an lhu'd
    D_8009D52C, then `lh` re-read for unk58), so the address stays in $v1 and is
    reused; this compile forwards the stored value across the `sw 0x50(a2)` store
    and folds the second read away (the address then goes through $at). Tried:
-   unk50 = (s16)nAngle + unk58 = D_8009BD3A<<12, both reads on the global
+   unk50 = (s16)nAngle + unk58 = g_WorldMapViewRotationY<<12, both reads on the global
    (89.60, the BE10 load also hoists), s16 pointer local for both accesses,
    volatile s32 store for unk50, volatile s16 read for unk58 (85.00, lhu +
    sll/sra pair), gcc-2.7.2-cdk (78.97). The trigger for retail's reload is
@@ -606,10 +606,10 @@ s32 func_80091430(s32 idx) {
     *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009D55C;
     nAngle = D_8009D52C;
     D_8009BD3C = 0;
-    D_8009BD3A = nAngle;
-    *(volatile s32 *)&pPlayer->unk50 = D_8009BD3A;
-    pPlayer->unk58 = D_8009BD3A << 12;
-    nMode = D_8009BE10;
+    g_WorldMapViewRotationY = nAngle;
+    *(volatile s32 *)&pPlayer->unk50 = g_WorldMapViewRotationY;
+    pPlayer->unk58 = g_WorldMapViewRotationY << 12;
+    nMode = g_WorldMapMode;
     if (nMode < 8) {
         if (nMode >= 6) {
             pPlayer->unk20 = 3;
@@ -623,7 +623,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     s32 nMode;
 
     pPlayer = D_8009BE24 + idx;
-    nMode = D_8009BE10;
+    nMode = g_WorldMapMode;
     switch (nMode) {
     case 1:
     case 2:
@@ -632,7 +632,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     case 5:
         pPlayer->unk50 = 3;
         D_8009D3F0 = 0x460000;
-        D_8009BD38 = -0x260;
+        g_WorldMapCameraRot = -0x260;
         pPlayer->unk64 = D_8009B224;
         pPlayer->unk68 = D_8009B234;
         break;
@@ -641,7 +641,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
     case 7:
         pPlayer->unk50 = 3;
         D_8009D3F0 = 0x280000;
-        D_8009BD38 = -0x260;
+        g_WorldMapCameraRot = -0x260;
         pPlayer->unk64 = D_8009B22C;
         pPlayer->unk68 = D_8009B23C;
         break;
@@ -678,7 +678,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     s32 j;
     s32 k;
 
-    u16 v = *(u16 *)&D_8009BD3A;
+    u16 v = *(u16 *)&g_WorldMapViewRotationY;
     u16 a = *(u16 *)&D_8009BD3C;
 
     nBase = D_8009D560 >> 12;
@@ -689,8 +689,8 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     for (i = 0; i < 3; i++) {
         nBest = 0;
         *(u16 *)(pScratch + 0xA8) = *pIn;
-        func_80096F18(&D_8009BD40, &D_8009BE28, *pTrack - (D_8009BCDC / 2 << 12), (u16 *)&D_1F8000A8);
-        nX = (D_8009BE28 + ((D_8009BD40 - 0x180) << 12)) & 0xFFF80000;
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)&D_1F8000A8);
+        nX = (g_WorldMapCameraTarget + ((g_WorldMapPathFrame - 0x180) << 12)) & 0xFFF80000;
         nY = (D_8009BE30 - ((D_8009BD44 + 0x180) << 12)) & 0xFFF80000;
         *(s32 *)(pScratch + 8) = nY;
         for (j = 0; j < 6; j++) {
@@ -732,7 +732,7 @@ s32 WorldMapModeInitValue50(s32 idx) {
     s32 nMode;
 
     pPlayer = D_8009BE24 + idx;
-    nMode = D_8009BE10;
+    nMode = g_WorldMapMode;
     if (nMode > 0) {
         if (nMode < 6) {
             D_8009BE0C = 0x8C;

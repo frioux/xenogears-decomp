@@ -34,7 +34,7 @@ u_int HeapIsBlockPinned(HeapBlock* pHeapBlock) {
     return pHeapBlock[-1].isPinned;
 }
 
-void func_800318F0() {
+void HeapNoOp() {
     // Empty function, could have contained something
     // for debugging based on defines at some point?
     // #ifdef XXX
@@ -549,7 +549,7 @@ void HeapDebugDumpBlock(HeapBlock* pBlockHeader, void* pBlockMem, u_int blockSiz
         HeapPrintf("%6x ", blockSize);
     }
     if (debugFlags & HEAP_DEBUG_PRINT_USER) {
-        HeapPrintf("%s ", *(&D_80050110 + pBlockHeader->userTag));
+        HeapPrintf("%s ", *(&g_HeapUserNames + pBlockHeader->userTag));
     }
     if (debugFlags & HEAP_DEBUG_PRINT_GETADD) {
         HeapPrintf("%06x ", (pBlockHeader->sourceAddress * 4));

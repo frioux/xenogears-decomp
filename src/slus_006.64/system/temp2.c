@@ -5,16 +5,16 @@
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
 
-// Work list and image-list setup; D_800591A8 is the work list entry budget.
-extern u32 D_800591A8;
-extern u8 D_800591AD;
+// Work list and image-list setup; g_GfxWorkListCapacity is the work list entry budget.
+extern u32 g_GfxWorkListCapacity;
+extern u8 g_IsBattle;
 extern u8 D_800591AE;
 extern void WorkListsReset(void);
 
 void GfxResetWorkLists(void) {
-    D_800591AD = 0;
+    g_IsBattle = 0;
     D_800591AE = 0;
-    D_800591A8 = 0x2000;
+    g_GfxWorkListCapacity = 0x2000;
     WorkListsReset();
     SpriteAnimFrameListReset();
 }
@@ -35,7 +35,7 @@ void GfxAllocateWorkBuffers(int workBufferSize, unsigned int allocFlag) {
     g_GfxWorkBuffers = pWorkBuffers;
     g_GfxWorkBuffer2 = pWorkBuffers + workBufferSize;
     D_80059304 = 0;
-    D_80059300 = 0;
+    g_GfxSpriteTileListHeads = 0;
     g_GfxImageList[0] = NULL;
     SpriteAnimFrameListReset();
 }
@@ -60,9 +60,9 @@ void GfxSetCurrentOT(u_long* ot) {
 // ===========================================================
 
 
-// Set D_8004FBB8 matrix
+// Set g_GfxBaseMatrix matrix
 void GfxSetBaseMatrix(MATRIX* matrix) {
-    D_8004FBB8 = *matrix;
+    g_GfxBaseMatrix = *matrix;
 }
 
 
@@ -96,9 +96,9 @@ typedef struct {
     struct LinkedListEntry* pNext;
 } LinkedListEntry;
 
-// include/system/animation.h already types D_80059300 as a scalar; the real
+// include/system/animation.h already types g_GfxSpriteTileListHeads as a scalar; the real
 // object is the two per-context list heads, so address it through a cast.
-#define g_GfxSpriteTileLists ((LinkedListEntry**)&D_80059300)
+#define g_GfxSpriteTileLists ((LinkedListEntry**)&g_GfxSpriteTileListHeads)
 
 // g_GfxWorkBuffers and the g_GfxWorkBuffer2 that follows it are the two
 // per-context buffer bases, reached as one array through the symbol's address:
@@ -111,11 +111,11 @@ typedef struct {
 
 #define g_GfxWorkBufferBases ((GfxWorkBufferBases*)&g_GfxWorkBuffers)
 
-// D_80059524 is a tentative definition so maspsx emits %gp_rel for it.
-s32 D_80059524;
+// g_GfxCurWorkBufferBase is a tentative definition so maspsx emits %gp_rel for it.
+s32 g_GfxCurWorkBufferBase;
 
 void GfxSetRenderContext(int context) {
-    // The tile-list heads are the two words at D_80059300. The pointer local
+    // The tile-list heads are the two words at g_GfxSpriteTileListHeads. The pointer local
     // with the embedded assignment is what keeps retail's single context*4
     // before the symbol address: a plain index or a typed head array moves the
     // sll after the lui and stalls at 95.00%. The s32* element type is part of
@@ -124,11 +124,11 @@ void GfxSetRenderContext(int context) {
     LinkedListEntry* pCurEntry;
     void* pPrimBuffer;
 
-    pCurEntry = ((LinkedListEntry**)(pLists = &D_80059300))[context];
+    pCurEntry = ((LinkedListEntry**)(pLists = &g_GfxSpriteTileListHeads))[context];
     pPrimBuffer = g_GfxWorkBufferBases->pBuffers[context];
     g_GfxCurContext = context;
     g_GfxCurWorkBuffer = pPrimBuffer;
-    D_80059524 = pPrimBuffer;
+    g_GfxCurWorkBufferBase = pPrimBuffer;
     g_GfxCurWorkBufferEnd = pPrimBuffer + g_GfxWorkBufferSize;
     while (pCurEntry != NULL) {
         HeapFree(pCurEntry->pData);
@@ -176,14 +176,14 @@ void GfxQueueImageTransfer(u_long* addr, int x, int y, int width, s16 height) {
 // SpriteDrawProjected, SpriteTaskNoOp, SpriteDrawModelParts, NULL, NULL, SpriteDrawProjected,
 // SpriteDrawProjected, SpriteDrawModelParts, SpriteDrawTile, func_80025544, NULL, NULL,
 // NULL, NULL, SpriteDrawProjected, SpriteDrawLitModelParts.
-extern WorkListCallback_t D_8004FD40[];
+extern WorkListCallback_t g_SpriteTaskHandlers[];
 
 // Sets pStruct->unk8 callback
 void SpriteSetTaskHandler(WorkListEntry* pTask, int handlerIndex) {
-    WorkListSetTaskCallback(pTask, D_8004FD40[handlerIndex]);
+    WorkListSetTaskCallback(pTask, g_SpriteTaskHandlers[handlerIndex]);
 }
 
-extern s32 D_80050100;
+extern s32 g_GfxOTDepthShift;
 extern u8 D_800C3664;
 extern void func_8001E3D8(SpriteData* pSpriteData, void* pArg);
 extern void SpriteDrawFrame(SpriteData* pSpriteData, void* pArg);
@@ -231,10 +231,10 @@ void SpriteDrawProjected(WorkListEntry* pTask) {
     vec.vx = pSpriteData->position.x >> 16;
     vec.vy = pSpriteData->position.y >> 16;
     vec.vz = pSpriteData->position.z >> 16;
-    pMatrix = &D_8004FBB8;
+    pMatrix = &g_GfxBaseMatrix;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
-    nOTOffset = (RotTransPers(&vec, &sxy, (u_long*)&sxy, &flag) >> D_80050100) +
+    nOTOffset = (RotTransPers(&vec, &sxy, (u_long*)&sxy, &flag) >> g_GfxOTDepthShift) +
                pSpriteData->field_0x30;
     if (flag & 0x8000) {
         nOTOffset = 0;
@@ -285,14 +285,14 @@ void SpriteDrawTile(WorkListEntry* pTask) {
         pPrim = g_GfxCurWorkBuffer;
         pNewBufferHead = pPrim + 1;
         if (pNewBufferHead < (TILE_1*)g_GfxCurWorkBufferEnd) {
-            pMatrix = &D_8004FBB8;
+            pMatrix = &g_GfxBaseMatrix;
             vec.vx = pSpriteData->position.x >> 16;
             vec.vy = pSpriteData->position.y >> 16;
             vec.vz = pSpriteData->position.z >> 16;
             g_GfxCurWorkBuffer = pNewBufferHead;
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
-            nOTOffset = RotTransPers(&vec, &pPrim->x0, &nFlag, &nFlag) >> D_80050100;
+            nOTOffset = RotTransPers(&vec, &pPrim->x0, &nFlag, &nFlag) >> g_GfxOTDepthShift;
             pSpriteData->field_0x2e = nOTOffset;
 
             // SetTile1
@@ -367,7 +367,7 @@ void func_80025544(WorkListEntry* pTask) {
     vec.vx = pSpriteData->position.x >> 16;
     vec.vy = pSpriteData->position.y >> 16;
     vec.vz = pSpriteData->position.z >> 16;
-    pMatrix = &D_8004FBB8;
+    pMatrix = &g_GfxBaseMatrix;
     g_GfxCurWorkBuffer = pPrim + 1;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
@@ -375,7 +375,7 @@ void func_80025544(WorkListEntry* pTask) {
     vecOffset = vec;
     *(u16*)&vecOffset.vx += xOffset;
     nOTOffset = RotTransPers3(&vec, &vecOffset, &vec, (long*)&pPrim->x0,
-                              (long*)&sxy1, &sxy2, &flag, &flag) >> D_80050100;
+                              (long*)&sxy1, &sxy2, &flag, &flag) >> g_GfxOTDepthShift;
     pSpriteData->field_0x2e = nOTOffset;
 
     x0 = *(u16*)&pPrim->x0;
@@ -425,7 +425,7 @@ void SpriteDrawModelParts(WorkListEntry* pTask) {
         vec.vz = pSpriteData->position.z >> 16;
         TransMatrix(&pSpriteData->pBase->transformMatrix, &vec);
         if (!(pSpriteData->field_0x3C_2 & 1)) {
-            CompMatrix(&D_8004FBB8, &pSpriteData->pBase->transformMatrix, &matrix);
+            CompMatrix(&g_GfxBaseMatrix, &pSpriteData->pBase->transformMatrix, &matrix);
         }
         SetRotMatrix(&matrix);
         SetTransMatrix(&matrix);
@@ -437,13 +437,13 @@ void SpriteDrawModelParts(WorkListEntry* pTask) {
 
 extern void func_800B1F6C(void* pDirTransforms, void* pFramesData, u_long* pOT,
                           int flags, s32 arg4, s32 arg5);
-extern MATRIX D_8004FD80;
-extern MATRIX D_8004FDA0;
+extern MATRIX g_GfxColorMatrix;
+extern MATRIX g_GfxLightSourceMatrix;
 
 // The standalone base object pBase points at carries a second rotation/scale
 // pair past the 0x40 SpriteDataI1 covers; SVECTOR's 8-byte size puts the scale
-// exactly where D_8004FD80 keeps its 0xC00 identity diagonal. The cast is
-// written at each read on purpose: one pointer local across the D_8004FD80
+// exactly where g_GfxColorMatrix keeps its 0xC00 identity diagonal. The cast is
+// written at each read on purpose: one pointer local across the g_GfxColorMatrix
 // stores turns retail's four pBase reloads into one and costs the match (93%).
 typedef struct {
     /* 0x00 */ SpriteDataI1 base;
@@ -472,16 +472,16 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
             PushMatrix();
             // The scale values go in the m[i][0] slots (bytes 0, 6, 0xC), which
             // is where the static initialiser keeps its 0xC00 identity values.
-            D_8004FD80.m[0][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vx;
-            D_8004FD80.m[1][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vy;
-            D_8004FD80.m[2][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vz;
+            g_GfxColorMatrix.m[0][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vx;
+            g_GfxColorMatrix.m[1][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vy;
+            g_GfxColorMatrix.m[2][0] = ((SpriteBaseExt*)pSpriteData->pBase)->scale.vz;
             RotMatrix(&((SpriteBaseExt*)pSpriteData->pBase)->rotation,
                       &colorMatrix);
             MulMatrix0(&colorMatrix, &pSpriteData->pBase->transformMatrix,
                        &colorMatrix);
-            MulMatrix0(&D_8004FDA0, &colorMatrix, &lightMatrix);
+            MulMatrix0(&g_GfxLightSourceMatrix, &colorMatrix, &lightMatrix);
             SetBackColor(0x20, 0x20, 0x20);
-            SetColorMatrix(&D_8004FD80);
+            SetColorMatrix(&g_GfxColorMatrix);
             SetLightMatrix(&lightMatrix);
             PopMatrix();
         }
@@ -491,7 +491,7 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
         vec.vz = pSpriteData->position.z >> 16;
         TransMatrix(&pSpriteData->pBase->transformMatrix, &vec);
         if (!(pSpriteData->field_0x3C_2 & 1)) {
-            CompMatrix(&D_8004FBB8, &pSpriteData->pBase->transformMatrix,
+            CompMatrix(&g_GfxBaseMatrix, &pSpriteData->pBase->transformMatrix,
                        &matrix);
             SetRotMatrix(&matrix);
             SetTransMatrix(&matrix);
@@ -505,13 +505,13 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
             SetGeomOffset(0xA0, 0x70);
         }
         if (((u32)g_SpriteFlags0x3C(pSpriteData).flags >> 25) & 1) {
-            oldShift = D_80050100;
-            D_80050100 = 0x10;
+            oldShift = g_GfxOTDepthShift;
+            g_GfxOTDepthShift = 0x10;
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
                           g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
                           g_GfxCurOT, 0, 0xFEC,
                           g_SpriteFlags0x3C(pSpriteData).bytes[0] >> 5);
-            D_80050100 = oldShift;
+            g_GfxOTDepthShift = oldShift;
         } else {
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
                           g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
@@ -524,7 +524,7 @@ void SpriteDrawLitModelParts(WorkListEntry* pTask) {
     }
 }
 
-// Draws the sprite through the matrix D_8004FBB8 composed with its own, then
+// Draws the sprite through the matrix g_GfxBaseMatrix composed with its own, then
 // hands the model parts to func_800B1F6C.
 void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
     MATRIX matrix;
@@ -539,20 +539,20 @@ void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
         vec.vx = pSpriteData->position.x >> 16;
         vec.vy = pSpriteData->position.y >> 16;
         vec.vz = pSpriteData->position.z >> 16;
-        ApplyMatrix(&D_8004FBB8, &vec, &vecResult);
-        pSpriteData->pBase->transformMatrix.t[0] = D_8004FBB8.t[0] + vecResult.vx;
-        pSpriteData->pBase->transformMatrix.t[1] = D_8004FBB8.t[1] + vecResult.vy;
-        pSpriteData->pBase->transformMatrix.t[2] = D_8004FBB8.t[2] + vecResult.vz;
+        ApplyMatrix(&g_GfxBaseMatrix, &vec, &vecResult);
+        pSpriteData->pBase->transformMatrix.t[0] = g_GfxBaseMatrix.t[0] + vecResult.vx;
+        pSpriteData->pBase->transformMatrix.t[1] = g_GfxBaseMatrix.t[1] + vecResult.vy;
+        pSpriteData->pBase->transformMatrix.t[2] = g_GfxBaseMatrix.t[2] + vecResult.vz;
         SetRotMatrix(&pSpriteData->pBase->transformMatrix);
         SetTransMatrix(&pSpriteData->pBase->transformMatrix);
         if (((u32)g_SpriteFlags0x3C(pSpriteData).flags >> 25) & 1) {
-            oldShift = D_80050100;
-            D_80050100 = 0x10;
+            oldShift = g_GfxOTDepthShift;
+            g_GfxOTDepthShift = 0x10;
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
                           g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],
                           g_GfxCurOT, 0, 0xFEC,
                           g_SpriteFlags0x3C(pSpriteData).bytes[0] >> 5);
-            D_80050100 = oldShift;
+            g_GfxOTDepthShift = oldShift;
         } else {
             func_800B1F6C(pSpriteData->pBase->pDirTransforms,
                           g_SpriteFramesData(pSpriteData->pBase)[g_GfxCurContext],

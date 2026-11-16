@@ -2,7 +2,7 @@
 #include "psyq/libgpu.h"
 #include "battle/actor.h"
 
-// The per-slot digit-panel bookkeeping the renderers below advance. D_800D2D28
+// The per-slot digit-panel bookkeeping the renderers below advance. g_BattleDisplayState
 // points at the battle work block that battle_work.h's BattleWork describes for
 // misc2/misc3; the counters these two functions use sit past the fields that
 // view names, so misc1 spells out just those.
@@ -17,8 +17,8 @@ typedef struct {
 extern u8 D_800C3D48;
 extern u8 D_800C48EA;
 extern s32 *D_800C3E54;
-extern u8 *D_800C3EAC;
-extern BattleDigitState *D_800D2D28;
+extern u8 *g_BattleCommandQueue;
+extern BattleDigitState *g_BattleDisplayState;
 extern u8 D_800D3725[];
 extern s32 D_800D3284;
 extern s32 D_800D328C;
@@ -37,15 +37,15 @@ extern void func_800BE790(void);
 extern void SoundSetAudioManagerVolumeWithFade(s32 *, s32, s32);
 extern void ArchiveReadFileToBuffer(s32, void *, u32, u32);
 extern u8 D_800D2CAF;
-extern u16 D_800D2C94;
+extern u16 g_BattleActionSlotMask;
 extern u16 D_800C48E8;
 extern u8 *D_800D39F0;
 extern s32 D_800D39C0[];
 extern u8 D_800D39C6;
 extern u8 *GetStringEntry(u8 *);
-extern u8 D_800D3014;
+extern u8 g_BattleMenuEvent;
 extern u8 D_800D2DE4[];
-extern u8 D_800D2DC0;
+extern u8 g_BattlePendingCharIndex;
 extern u8 D_800D2DD7[];
 extern u8 D_800D2DD8[];
 extern u8 D_800D2DE3[];
@@ -73,7 +73,7 @@ extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void func_80072938(POLY_FT4 *, s32, s32, s32);
 extern u8 D_800D3298;
 extern u8 D_800D2DCC[];
-extern u16 D_800CCD64[];
+extern u16 g_BattleSlotEntries[];
 extern u16 D_800CCD68[];
 extern u16 D_800CCD6C[];
 extern u16 D_800CCD6E[];
@@ -133,7 +133,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007171C);
 /* 77.62% under 2.6.0. The whole control flow (the 1/2 decrement, the 0x1000
    bit toggle on D_800D2E1C, the 0x2000 timer, the 0x80/0x1000 guards and the
    0xB wrap) is right; the miss is that gcc strength-reduces the most-used
-   `(u8 *)SYM + off` (D_800CCD64, four uses) into a pointer biv, so its base is
+   `(u8 *)SYM + off` (g_BattleSlotEntries, four uses) into a pointer biv, so its base is
    hoisted once into a3 and the loads become `lhu 0(a3)`, where retail re-forms
    `lui $at,%hi(SYM); addu $at,$at,$a0` at every use and keeps `off` an integer
    biv. Tried: `off` as a running for-clause biv, `off = i * 0x170` inline (both
@@ -162,23 +162,23 @@ void func_8007171C(void) {
         if ((*(u16 *)((u8 *)D_800CCD6C + off) | *(u16 *)((u8 *)D_800CCD6E + off)) & 0x8000) {
             dec = 2;
         }
-        if (*(u16 *)((u8 *)D_800CCD64 + off) & 0x1000) {
+        if (*(u16 *)((u8 *)g_BattleSlotEntries + off) & 0x1000) {
             v = *(u16 *)((u8 *)D_800D2E1C + i * 2) ^ 1;
             *(u16 *)((u8 *)D_800D2E1C + i * 2) = v;
             if (v != 0) {
                 continue;
             }
         }
-        v = *(u16 *)((u8 *)D_800CCD64 + off);
+        v = *(u16 *)((u8 *)g_BattleSlotEntries + off);
         if (v & 0x2000) {
             pTimer = (u8 *)((u8 *)D_800CCE44 + off);
             *pTimer -= dec;
             if (*pTimer != 0) {
                 continue;
             }
-            v = *(u16 *)((u8 *)D_800CCD64 + off);
+            v = *(u16 *)((u8 *)g_BattleSlotEntries + off);
             *pTimer = 0;
-            *(u16 *)((u8 *)D_800CCD64 + off) = v & 0xDFFF;
+            *(u16 *)((u8 *)g_BattleSlotEntries + off) = v & 0xDFFF;
             continue;
         }
         if (v & 0x80) {
@@ -201,12 +201,12 @@ void func_8007171C(void) {
 void BattleResetActorCountdown(void) {
     u8 index;
 
-    index = D_800C3EAC[0x2D3];
+    index = g_BattleCommandQueue[0x2D3];
     if (D_800D2DE4[index] != 0xFF) {
         D_800D2DE4[index] = 0;
     }
-    D_800D2E06[D_800C3EAC[0x2D3]] = func_80098AF8(D_800C3EAC[0x2D3], 0);
-    D_800D2E06[D_800C3EAC[0x2D3] - 0xB] = D_800D2E06[D_800C3EAC[0x2D3]];
+    D_800D2E06[g_BattleCommandQueue[0x2D3]] = func_80098AF8(g_BattleCommandQueue[0x2D3], 0);
+    D_800D2E06[g_BattleCommandQueue[0x2D3] - 0xB] = D_800D2E06[g_BattleCommandQueue[0x2D3]];
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
@@ -220,7 +220,7 @@ void func_80071964(void) {
     u8 *pEntry;
     s32 i;
 
-    if (D_800D2CAF != 0 && (D_800D2C94 & D_800C48E8) == 0) {
+    if (D_800D2CAF != 0 && (g_BattleActionSlotMask & D_800C48E8) == 0) {
         pEntry = GetStringEntry(D_800D39F0);
         D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], 0x39, 1);
         LoadImage((RECT *)&D_800D39C0[-2], (u_long *)D_800D39C0[0]);
@@ -235,7 +235,7 @@ void BattleClearCharRedrawFlags(void) {
     u8 *p;
 
     for (i = 0; i < 3; i++) {
-        p = D_800C3EAC;
+        p = g_BattleCommandQueue;
         *(p + i + 0x2EB) = 0;
     }
 }
@@ -248,8 +248,8 @@ void BattleApplyCharRedrawFlags(void) {
     // `*(p + i + k)` and not `p[i + k]`: only the former puts the base first in
     // the addu under both 2.6.0 and 2.7.2, which is the original's order.
     for (i = 0; i < 3; i++) {
-        pDst = (u8 *)D_800D2D28;
-        pSrc = D_800C3EAC;
+        pDst = (u8 *)g_BattleDisplayState;
+        pSrc = g_BattleCommandQueue;
         *(pDst + i + 0x7C) = *(pSrc + i + 0x2EB);
     }
     BattleUpdateFrame();
@@ -261,34 +261,34 @@ void BattleClearAllSlotFlagB4(void) {
     for (i = 0x2A0; i >= 0; i -= 0x60) {
         D_800D3725[i] = 0;
     }
-    ((u8 *)D_800D2D28)[0xB5] = 0;
-    ((u8 *)D_800D2D28)[0xB4] = 0;
+    ((u8 *)g_BattleDisplayState)[0xB5] = 0;
+    ((u8 *)g_BattleDisplayState)[0xB4] = 0;
     BattleUpdateFrame();
 }
 
 void BattleWaitWhileStateIs8(void) {
     s32 i;
 
-    if (D_800D2CAF != 0 && (D_800D2C94 & D_800C48E8) == 0) {
+    if (D_800D2CAF != 0 && (g_BattleActionSlotMask & D_800C48E8) == 0) {
         BattleSetSlotFlagB4(7);
-        D_800C3EAC[0x2DB] = 0;
+        g_BattleCommandQueue[0x2DB] = 0;
         for (i = 0x3B; i != 0; i--) {
             BattleUpdateFrame();
-            if (D_800D3014 != 8) {
+            if (g_BattleMenuEvent != 8) {
                 break;
             }
         }
-        D_800C3EAC[0x2DB] = 1;
+        g_BattleCommandQueue[0x2DB] = 1;
         BattleClearSlotFlagB4(7);
         BattleUpdateFrame();
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
 /* 72.24% - body is exact except the flag store: gcc hoists `li s3,1` out of the
-   loop (loop.c invariant) and then schedules the D_800D2D28 store before the sh,
+   loop (loop.c invariant) and then schedules the g_BattleDisplayState store before the sh,
    costing a callee-saved reg and a 40-byte frame vs the original 32; the original
-   re-materialises `li v0,1` inside the block. Tried: plain D_800D2D28[i + 0x7C]
-   (index-first addu), (D_800D2D28 + i)[0x7C] (base-first addu, now identical),
+   re-materialises `li v0,1` inside the block. Tried: plain g_BattleDisplayState[i + 0x7C]
+   (index-first addu), (g_BattleDisplayState + i)[0x7C] (base-first addu, now identical),
    store order before/after *pDst = *pSrc (no effect), pFlag pointer local.
    The pointer pair pDst = D_800D2E06, pSrc = pDst - 0xB reproduces the original
    addiu s2,s1,-0x16 exactly. */
@@ -296,7 +296,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072270);
 /* 72.36% under 2.6.0 and 2.7.2. The pointer pair (pSrc = pDst - 0xB gives the
    original addiu s2,s1,-22) and every operand are right; gcc's loop.c hoists
    `li s3,1` for the flag store into a callee-saved register, so the frame is
-   0x28 instead of 0x20 and the D_800D2D28 load lands after the sh instead of
+   0x28 instead of 0x20 and the g_BattleDisplayState load lands after the sh instead of
    before the lhu. Tried under 2.6.0: 0x7C store before/after *pDst = *pSrc.
 void func_80072270(void) {
     s32 i;
@@ -310,7 +310,7 @@ void func_80072270(void) {
             if (BattleMaskHasSlotBit(D_800D2C9E, i) != 0) {
                 D_800D2DE4[i] = 0;
                 *pDst = *pSrc;
-                (D_800D2D28 + i)[0x7C] = 1;
+                (g_BattleDisplayState + i)[0x7C] = 1;
             }
             pDst++;
             pSrc++;
@@ -348,7 +348,7 @@ void BattleResetActorCommandSlots(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
 /* 68.84% under 2.6.0 (69.63 under 2.7.2). Whole structure is right (0x18 frame,
    both early-exit paths, the 0xB wrap and the *pCurrent = i + 1 tail). Misses:
-   gcc invents a 4th lbu of D_800D2DC0 in the middle block, reloads
+   gcc invents a 4th lbu of g_BattlePendingCharIndex in the middle block, reloads
    D_800D2DD8[i] after the loop instead of reusing the loop's slot register,
    materialises a second `li 0xb` for the tail compare where the original keeps
    a3, and hoists `move a0,zero` out of the final jal's delay slot.
@@ -361,16 +361,16 @@ void func_800723E0(void) {
         return;
     }
 
-    if (D_800D2DC0 != 0) {
-        D_800C3EAC[0x2D3] = D_800D2DC0;
-        D_800D2DE3[D_800D2DC0] = 1;
-        D_800D2E04[D_800D2DC0] = 0;
-        D_800D2DC0 = 0;
+    if (g_BattlePendingCharIndex != 0) {
+        g_BattleCommandQueue[0x2D3] = g_BattlePendingCharIndex;
+        D_800D2DE3[g_BattlePendingCharIndex] = 1;
+        D_800D2E04[g_BattlePendingCharIndex] = 0;
+        g_BattlePendingCharIndex = 0;
         func_80071B94(0);
         return;
     }
 
-    D_800C3EAC[0x2D3] = 0;
+    g_BattleCommandQueue[0x2D3] = 0;
     pCurrent = D_800D2DD7;
     for (i = *pCurrent; D_800D2DE4[D_800D2DD8[i]] != 1; i++) {
         if (i == 0xB) {
@@ -380,7 +380,7 @@ void func_800723E0(void) {
             break;
         }
     }
-    D_800C3EAC[0x2D3] = D_800D2DD8[i] + 1;
+    g_BattleCommandQueue[0x2D3] = D_800D2DD8[i] + 1;
     *pCurrent = i + 1;
     if (*pCurrent == 0xB) {
         *pCurrent = 0;
@@ -438,19 +438,19 @@ void BattleRenderActorStatDigits(s32 slot, u8 arg1) {
     s32 first;
     s32 i;
 
-    first = D_800D2D28->statSpriteCount[slot];
+    first = g_BattleDisplayState->statSpriteCount[slot];
     for (i = 0; i < 5; i++) {
         if (D_800D2D88[i] != 0xFF) {
-            D_800D2D28->statSpriteCount[slot] += BattleDrawSpritePackage(
+            g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
                 D_800D2D88[i] + 0x67,
-                (s32)(D_800C3EA4 + (slot * 3200 + 0x3A88)) + D_800D2D28->statSpriteCount[slot] * 80,
+                (s32)(D_800C3EA4 + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
                 (s16)(D_800C3076[slot * 24 + i] + D_800C3254[D_800D3280 * 3 + slot]),
                 0x10);
         }
     }
     if (arg1 != 0) {
         func_80072938((POLY_FT4 *)(D_800C3EA4 + (slot * 3200 + 0x3A88)), first,
-                      D_800D2D28->statSpriteCount[slot], arg1);
+                      g_BattleDisplayState->statSpriteCount[slot], arg1);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
@@ -473,14 +473,14 @@ void BattleRenderActorValueDigits(s32 slot) {
 
     for (i = 0; i < 4; i++) {
         if (D_800C3CF9[i] != 0xFF) {
-            D_800D2D28->valueSpriteCount[slot] += BattleDrawSpritePackage(
+            g_BattleDisplayState->valueSpriteCount[slot] += BattleDrawSpritePackage(
                 D_800C3CF9[i] + 0x83,
-                (s32)(D_800C3EA4 + (slot * 320 + 0x6008)) + D_800D2D28->valueSpriteCount[slot] * 80,
+                (s32)(D_800C3EA4 + (slot * 320 + 0x6008)) + g_BattleDisplayState->valueSpriteCount[slot] * 80,
                 (s16)(slot * 96 + (D_800C3254[D_800D3280 * 3 + slot] + 0x4A) + i * 6),
                 0x25);
         }
     }
-    D_800D2D28->unk99[slot] = D_800CCB34;
+    g_BattleDisplayState->unk99[slot] = D_800CCB34;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073538);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);

@@ -84,14 +84,14 @@ extern void* FontLoadFont(int startX, int startY, int width, int height, int max
 extern void FontDrawLetters(void* ot);
 extern char* ArchiveGetFilePath(int entryIndex);
 extern u32 g_CurArchiveOffset;
-extern u32 D_80059F0C;
-extern char D_800188EC[]; // "\n%d"
-extern char D_800188F0[]; // "\n%s"
+extern u32 g_ArchiveCurEntryIndex;
+extern char g_StrArchiveOffsetFormat[]; // "\n%d"
+extern char g_StrArchivePathFormat[]; // "\n%s"
 
 // The frame is packed tightly (rect 0x30, drawEnv 0x38, dispEnv 0x94, ot 0xA8),
 // which a compiler that rounds every BLK local up to 8 only produces when the
 // four of them are members of one aggregate.
-void func_8002804C(int entryIndex, int r, int g, int b) {
+void GfxDrawArchiveReadRetry(int entryIndex, int r, int g, int b) {
     struct {
         RECT rect;
         DRAWENV drawEnv;
@@ -139,8 +139,8 @@ void func_8002804C(int entryIndex, int r, int g, int b) {
 
     for (;;) {
         ClearOTagR(gfx.ot, 8);
-        FontPrintf(D_800188EC, g_CurArchiveOffset + D_80059F0C - 1);
-        FontPrintf(D_800188F0, ArchiveGetFilePath(D_80059F0C));
+        FontPrintf(g_StrArchiveOffsetFormat, g_CurArchiveOffset + g_ArchiveCurEntryIndex - 1);
+        FontPrintf(g_StrArchivePathFormat, ArchiveGetFilePath(g_ArchiveCurEntryIndex));
         FontDrawLetters(gfx.ot);
         DrawOTag(&gfx.ot[7]);
         DrawSync(0);

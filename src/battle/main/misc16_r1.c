@@ -2,13 +2,13 @@
 #include "main/game.h"
 #include "psyq/libgpu.h"
 
-extern u8 D_800D2CE0[];
+extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
 extern u8 *D_800C3EA4;
 extern s32 D_800CCB34;
-extern u8 *D_800D2D28;
-extern u8 *D_800D2E38[];
-extern u8 *D_800D2D90[];
+extern u8 *g_BattleDisplayState;
+extern u8 *g_BattleSlotGraphics[];
+extern u8 *g_BattleSlotRects[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 extern u8 D_800CCD38[];
@@ -32,7 +32,7 @@ extern void *BattleAllocTextBuffer(s32);
 extern void bzero(void *p, s32 n);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
-extern u8 D_800C3D70[];
+extern u8 g_BattleCommandGridAltIds[];
 extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
@@ -44,7 +44,7 @@ extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void BattleDrawMenuEntryString(u8, u8);
-extern void *D_800D2F5C;
+extern void *g_BattleSpriteArchive;
 extern u8 D_800C3E4C;
 extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
@@ -56,7 +56,7 @@ extern u8 D_800CEF34[];
 extern u8 D_800CEF10[];
 extern u8 D_800CCDC4[];
 extern u8 D_800CCD62[];
-extern u8 D_800D2D24[];
+extern u8 g_BattleActorCharIds[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
 extern void BattleClearPrimFlagsThreeSlots(u8);
@@ -65,16 +65,16 @@ extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 
 
-void func_8008FA60(u8 arg0) {
+void BattleFreeSlotBuffers(u8 arg0) {
     u8 *p;
 
-    p = D_800D2D28 + arg0;
+    p = g_BattleDisplayState + arg0;
     p[0xB0] = 0;
-    p = D_800D2D28 + arg0;
+    p = g_BattleDisplayState + arg0;
     p[0xB8] = 0;
     BattleUpdateFrame();
-    HeapFree(D_800D2E38[arg0]);
-    HeapFree(D_800D2D90[arg0]);
+    HeapFree(g_BattleSlotGraphics[arg0]);
+    HeapFree(g_BattleSlotRects[arg0]);
 }
 /* 90.41% (was 87.51): the `>=` polarity below is what reproduces the original's
    branch direction (bnez to the `+= 0x20` arm, `cur = w` in the fall-through)
@@ -96,8 +96,8 @@ void func_8008FA60(u8 arg0) {
     u16 y;
 
     for (i = 0; i < 7; i++) {
-        p = D_800D2D90[i];
-        pFlags = D_800D2D28 + i;
+        p = g_BattleSlotRects[i];
+        pFlags = g_BattleDisplayState + i;
         if (pFlags[0xB8] == 0) {
             continue;
         }
@@ -118,7 +118,7 @@ void func_8008FA60(u8 arg0) {
             ((u16 *)p)[5] += 0x20;
         }
         if (count == 2) {
-            D_800D2D28[i + 0xBF] = 1;
+            g_BattleDisplayState[i + 0xBF] = 1;
         }
         x = ((u16 *)p)[0] + (((u16 *)p)[2] >> 1) - (((u16 *)p)[4] >> 1);
         y = ((u16 *)p)[1] + (((u16 *)p)[3] >> 1) - (((u16 *)p)[5] >> 1);

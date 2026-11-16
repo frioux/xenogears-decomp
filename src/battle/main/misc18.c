@@ -4,10 +4,10 @@
 
 extern u16 D_800C3AA4[];
 extern u8 D_800D2D10[];
-extern u8 D_800D2D24[];
+extern u8 g_BattleActorCharIds[];
 extern BattleWorkBlock *D_800C34B0;
-extern BattleRow *D_800C3DFC;
-extern BattleTableEntry *D_800C3E00;
+extern BattleRow *g_BattleCurrentRow;
+extern BattleTableEntry *g_BattleActingSlot;
 extern u8 D_800C34AD;
 extern BattleTableEntry *D_800C3E34;
 extern u8 D_800C3E04;
@@ -16,13 +16,13 @@ extern u8 D_800D2DC4;
 extern BattleSlotState *D_800D2D6C;
 extern u8 *D_800D2DC8;
 
-extern u16 D_800D2C98;
+extern u16 g_BattleActionParam;
 extern u16 D_800D2C9E;
 
 // The 0x170-byte per-slot condition table. Its flag word sits at +0x8A
 // (BattleTableEntry::unk8A) and its timer bytes at +0x15C, which the original
 // reaches through a second base of its own.
-extern BattleTableEntry D_800CCCE8[];
+extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 D_800CCE44[][0x170];
 
 // Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
@@ -43,14 +43,14 @@ extern u8 BattleTestActorSlotFlagsC002ByMode(void);
 extern void BattleSetCommandCodeForSlotKindFlag(u8, u16);
 
 void BattleApplyScriptConditionTimer(void) {
-    s8 ret = func_80097964(D_800C3DFC->unk1C, D_800C3DFC->unk1D,
-                           D_800C3DFC->unk1E);
+    s8 ret = func_80097964(g_BattleCurrentRow->unk1C, g_BattleCurrentRow->unk1D,
+                           g_BattleCurrentRow->unk1E);
 
-    if (D_800C3DFC->unk0A & 0x4000) {
-        BattleSetSlotConditionTimer(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E, 5);
+    if (g_BattleCurrentRow->unk0A & 0x4000) {
+        BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->unk1D, g_BattleCurrentRow->unk1E, 5);
     } else {
-        BattleSetSlotConditionTimer(D_800C3E50, D_800C3DFC->unk1D, D_800C3DFC->unk1E,
-                      D_800C3DFC->unk11);
+        BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->unk1D, g_BattleCurrentRow->unk1E,
+                      g_BattleCurrentRow->unk11);
         if (ret != 1) {
             BattleWorkBlock *p = D_800C34B0;
 
@@ -59,34 +59,34 @@ void BattleApplyScriptConditionTimer(void) {
     }
 }
 void BattleApplyActorConditionTimer(void) {
-    BattleTableEntry *p = D_800C3E00;
+    BattleTableEntry *p = g_BattleActingSlot;
 
     if (func_80097964(p->unk02, p->unk03, p->flags) == 1) {
-        BattleRow *q = D_800C3DFC;
+        BattleRow *q = g_BattleCurrentRow;
 
         BattleSetSlotConditionTimer(D_800C3E50, q->unk1D, q->unk1E, 5);
     }
 }
 void BattleRollAndClearTargetConditions(void) {
-    u8 t = D_800C3DFC->unk1C;
+    u8 t = g_BattleCurrentRow->unk1C;
 
     if (t < rand() % 100) {
         D_800C34B0->unk5FA0[D_800C3E50] = 6;
     } else {
-        if (D_800C3DFC->unk1D & 0x80) {
+        if (g_BattleCurrentRow->unk1D & 0x80) {
             D_800C3E34->unk7C &= 0xC000;
         }
-        if (D_800C3DFC->unk1D & 0x40) {
+        if (g_BattleCurrentRow->unk1D & 0x40) {
             D_800C3E34->unk80 = 0;
             D_800C3E34->unk7A &= 0xFFDF;
         }
-        if (D_800C3DFC->unk1D & 0x20) {
+        if (g_BattleCurrentRow->unk1D & 0x20) {
             D_800C3E34->unk84 = 0;
         }
-        if (D_800C3DFC->unk1D & 0x10) {
+        if (g_BattleCurrentRow->unk1D & 0x10) {
             D_800C3E34->unk88 = 0;
         }
-        if (D_800C3DFC->unk1D & 0x8) {
+        if (g_BattleCurrentRow->unk1D & 0x8) {
             D_800C3E34->unk8C = 0;
         }
     }
@@ -96,12 +96,12 @@ void BattleRollSlotConditionAction(void) {
     u16 hp;
     u16 dmg;
 
-    switch (D_800C3DFC->unk17[1]) {
+    switch (g_BattleCurrentRow->unk17[1]) {
     case 0:
-        chance = D_800C3E00->unk5C[4];
+        chance = g_BattleActingSlot->unk5C[4];
         break;
     case 1:
-        chance = D_800C3DFC->unk1C;
+        chance = g_BattleCurrentRow->unk1C;
         break;
     }
 
@@ -110,27 +110,27 @@ void BattleRollSlotConditionAction(void) {
         return;
     }
 
-    switch (D_800C3DFC->unk17[3]) {
+    switch (g_BattleCurrentRow->unk17[3]) {
     case 0:
-        hp = D_800C3E00->unk4E;
+        hp = g_BattleActingSlot->unk4E;
         break;
     case 1:
         hp = D_800C3E34->unk4E;
         break;
     case 2:
-        hp = D_800C3E00->unk52;
+        hp = g_BattleActingSlot->unk52;
         break;
     case 3:
         hp = D_800C3E34->unk52;
         break;
     }
 
-    dmg = hp * D_800C3DFC->unk11 / 20;
-    if (D_800C3DFC->unk17[3] == 5) {
+    dmg = hp * g_BattleCurrentRow->unk11 / 20;
+    if (g_BattleCurrentRow->unk17[3] == 5) {
         dmg = D_800C3E34->unk4C - 1;
     }
 
-    switch (D_800C3DFC->unk17[3]) {
+    switch (g_BattleCurrentRow->unk17[3]) {
     case 0:
     case 1:
     case 5:
@@ -157,12 +157,12 @@ void BattleRollSlotConditionAction(void) {
 void BattleSetSlotConditionActionValue(void) {
     u8 chance;
 
-    switch (D_800C3DFC->unk17[1]) {
+    switch (g_BattleCurrentRow->unk17[1]) {
     case 0:
-        chance = D_800C3E00->unk5C[4];
+        chance = g_BattleActingSlot->unk5C[4];
         break;
     case 1:
-        chance = D_800C3DFC->unk1C;
+        chance = g_BattleCurrentRow->unk1C;
         break;
     }
 
@@ -173,14 +173,14 @@ void BattleSetSlotConditionActionValue(void) {
 
     D_800C34B0->unk5FA0[D_800C3E50] = 0;
 
-    switch (D_800C3DFC->unk17[3]) {
+    switch (g_BattleCurrentRow->unk17[3]) {
     case 0:
         if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
             D_800C34B0->unk5F6C[D_800C3E50] =
-                ((BattleSlotState *)D_800D2DC8)->unk60 / D_800C3DFC->unk11;
+                ((BattleSlotState *)D_800D2DC8)->unk60 / g_BattleCurrentRow->unk11;
         } else {
             D_800C34B0->unk5F6C[D_800C3E50] =
-                D_800C3E34->unk4C / D_800C3DFC->unk11;
+                D_800C3E34->unk4C / g_BattleCurrentRow->unk11;
         }
         break;
     case 1:
@@ -196,7 +196,7 @@ void BattleSetSlotConditionActionValue(void) {
                 D_800D2D6C->unk64 - D_800D2D6C->unk60;
         } else {
             D_800C34B0->unk5F6C[D_800C3E50] =
-                D_800C3E00->unk4E - D_800C3E00->unk4C;
+                g_BattleActingSlot->unk4E - g_BattleActingSlot->unk4C;
         }
         break;
     case 3:
@@ -210,7 +210,7 @@ void BattleSetSlotConditionActionValue(void) {
         break;
     case 6:
         D_800C34B0->unk5FA0[D_800C3E50] = 0;
-        if (D_800CCCE8[D_800C3E50].state.unkB6 & 0x80) {
+        if (g_BattleWorkBlock[D_800C3E50].state.unkB6 & 0x80) {
             D_800C34B0->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->unk64;
             if (((BattleSlotState *)D_800D2DC8)->unk64 >= 0x2710) {
                 ((BattleSlotState *)D_800D2DC8)->unk64 = 0x270F;
@@ -234,7 +234,7 @@ void BattleSetSlotConditionActionValue(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 /* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
-   used raw u8-array spellings of D_800C3DFC / D_800C3E00 / D_800C3E34; with
+   used raw u8-array spellings of g_BattleCurrentRow / g_BattleActingSlot / D_800C3E34; with
    today's typed externs only the field reads below changed (a byte read of
    D_800C3E34->unk38, because retail uses lbu there but lhu for the 0x40 test).
    Same block layout and instruction multiset (226 vs 227); every
@@ -269,16 +269,16 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 
     pBase = D_800C34B0;
     bitAtk = *(u8 *)(pBase + D_800C3E50 * 0x170 + 0x15A) >> 7;
-    elemAtk = D_800C3DFC->unk22 & 0x3F;
+    elemAtk = g_BattleCurrentRow->unk22 & 0x3F;
     elemDef = *(u8 *)&D_800C3E34->unk38 & 0x3F;
     bitDef = *(u8 *)(pBase + D_800C3E04 * 0x170 + 0x15A) >> 7;
     if (bitDef == 0) {
-        pair = D_800C3E00->unk8C | D_800C3E00->unk8E;
+        pair = g_BattleActingSlot->unk8C | g_BattleActingSlot->unk8E;
     } else {
         pair = *(u16 *)((u8 *)D_800D2D6C + 0x84) | *(u16 *)((u8 *)D_800D2D6C + 0x86);
     }
     pair >>= 12;
-    if (D_800C3DFC->unk0A & 0x100) {
+    if (g_BattleCurrentRow->unk0A & 0x100) {
         weak = 1;
     }
     if (elemAtk == 0) {
@@ -366,7 +366,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     }
     *pA = *pA * mul / 10;
     *pB = mul2 * *pB / 10;
-    if (((u16 *)&D_800C3E00->unk04[0x2E])[0] & 0x10) {
+    if (((u16 *)&g_BattleActingSlot->unk04[0x2E])[0] & 0x10) {
         *pA += *pA / 5;
     }
     if (((u16 *)&D_800C3E34->unk04[0x2E])[0] & 0x10) {
@@ -375,7 +375,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 }
 */
 void BattleRollPercentAndSetState38(void) {
-    s32 t = D_800C3E00->unk5B + D_800C3DFC->unk14;
+    s32 t = g_BattleActingSlot->unk5B + g_BattleCurrentRow->unk14;
 
     if (rand() % 100 >= t) {
         D_800C34B0->unk5FC7 = 0x38;
@@ -408,7 +408,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (!(pTarget->unk88 & 0x1000)) {
         return;
     }
-    t = D_800C3DFC->unk0A;
+    t = g_BattleCurrentRow->unk0A;
     if (t & 0x2000) {
         return;
     }
@@ -427,19 +427,19 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (lim < rand() % 100) {
         return;
     }
-    if (D_800C3DFC->unk16 == 2) {
+    if (g_BattleCurrentRow->unk16 == 2) {
         return;
     }
     tmp = D_800C3E50;
     s = D_800C3E04;
-    pOld = D_800C3E00;
+    pOld = g_BattleActingSlot;
     D_800C3E04 = tmp;
-    D_800C3E00 = D_800C3E34;
+    g_BattleActingSlot = D_800C3E34;
     D_800C3E34 = pOld;
     D_800C3E50 = s;
     // row table at +0x1378, 0x5F0 bytes per slot (inside BattleWorkBlock's
     // unk450, so it is reached by offset)
-    D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
+    g_BattleCurrentRow = (BattleRow *)((u8 *)D_800C34B0 + D_800C3E04 * 0x5F0 + 0x1378);
     D_800C34B0->unk5FA0[D_800C3E04] = 7;
     D_800C34B0->unk5F6C[D_800C3E04] = 0;
     D_800C34B0->unk5FC7 = 0x34;
@@ -576,9 +576,9 @@ void BattleResetSlotConditionCounters(void) {
     u16 flag;
 
     for (i = 0; i < 3; i++) {
-        if (D_800D2D24[i] != 0x7F) {
+        if (g_BattleActorCharIds[i] != 0x7F) {
             pSlot = &D_800C34B0->slots[i];
-            D_800C3E00 = pSlot;
+            g_BattleActingSlot = pSlot;
             hp = pSlot->unk7A;
             D_800D2D6C = &pSlot->state;
             D_800C3AA4[i] = hp;
@@ -641,13 +641,13 @@ u8 func_80098AF8(u8 sel) {
     s32 v;
     s32 d;
 
-    D_800C3E00 = pActor;
+    g_BattleActingSlot = pActor;
     D_800D2D6C = (BattleSlotState *)(pActor + 0xA4);
 
     if (sel < 3) {
         if ((pActor[0x15A] & 0x80) == 0) {
             pRow = (u8 *)(sel * 0x5F0 + 0x1058) + (s32)pBase + pBase[0x5FC2] * 0x28;
-            D_800C3DFC = pRow;
+            g_BattleCurrentRow = pRow;
             t = (s8)pRow[0x27];
             other = pActor[0x5A];
             if (t < other) {
@@ -657,7 +657,7 @@ u8 func_80098AF8(u8 sel) {
             }
         } else {
             pRow = (u8 *)(sel * 0x690 + 0x2228) + (s32)pBase + pBase[0x5FC2] * 0x28;
-            D_800C3DFC = pRow;
+            g_BattleCurrentRow = pRow;
             t = (s8)pRow[0x27];
             other = pActor[0x13C];
             if (t < other) {
@@ -697,7 +697,7 @@ void BattleInitActiveSlotActions(u8 sel) {
     *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = D_800D220E[sel].unk0;
 
     if (D_800D2C9E & 0x8000) {
-        D_800D2C98 = 0xC2;
+        g_BattleActionParam = 0xC2;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098D2C);
@@ -744,10 +744,10 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     u8 val = count;
     u16 bits;
 
-    if (D_800CCCE8[D_800C3E04].unk8A & 0x2000) {
+    if (g_BattleWorkBlock[D_800C3E04].unk8A & 0x2000) {
         val *= 2;
     }
-    pEntry = &D_800CCCE8[slot];
+    pEntry = &g_BattleWorkBlock[slot];
     if (kind == 0) {
         if (flag != 0x1000) {
             idx = (flag == 0x2000) ? 0 : 0xF;
@@ -897,12 +897,12 @@ void BattleDecrementConditionTimers(BattleTableEntry *p, BattleTableEntry *pOthe
     }
 }
 void BattleSaveScriptCommandOperandsFromActor(void) {
-    u16 ab = D_800C3E00->unk8C | D_800C3E00->unk8E;
+    u16 ab = g_BattleActingSlot->unk8C | g_BattleActingSlot->unk8E;
 
-    D_800C34B0->unk5FBC = D_800C3DFC->unk20;
-    D_800C34B0->unk5FBD = D_800C3DFC->unk21;
-    D_800C34B0->unk5FBE = D_800C3DFC->unk22;
-    D_800C34B0->unk5FBF = D_800C3DFC->unk23;
+    D_800C34B0->unk5FBC = g_BattleCurrentRow->unk20;
+    D_800C34B0->unk5FBD = g_BattleCurrentRow->unk21;
+    D_800C34B0->unk5FBE = g_BattleCurrentRow->unk22;
+    D_800C34B0->unk5FBF = g_BattleCurrentRow->unk23;
     D_800C34B0->unk5FC0 = D_800C34B0->unk5FC2;
 
     ab >>= 12;

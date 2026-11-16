@@ -7,7 +7,7 @@
 #include "libgear/main.h"
 #include "system/animation.h"
 
-extern s32 D_80050100;
+extern s32 g_GfxOTDepthShift;
 
 // Interpolation helpers; LibGearGetInterpolationFunc picks one for a type
 s16 LibGearInterpolateSine(s16 angle, s16 divisor, s16 offset);
@@ -15,13 +15,13 @@ s16 LibGearInterpolateRise(s16 a, s16 b, s16 c);
 s16 LibGearInterpolateFall(s16 a, s16 b, s16 c);
 s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c);
 
-extern Temp8* D_8005919C;
+extern Temp8* g_BattleSoundBankMain;
 extern u32 D_801E85CC;
-extern u16 D_801E863C;
+extern u16 g_LibGearModelBitMask;
 extern u16 D_801E86B0;
-extern s32 D_801E8640;
-extern s16 D_801E869C;
-extern s16 D_801E8698;
+extern s32 g_LibGearPendingFrameCount;
+extern s16 g_LibGearSwingAngle;
+extern s16 g_LibGearSwingScale;
 
 void func_801DCEC8(Model* pModel, MATRIX* pMatrix, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 void func_80026F44(s32 count, s32 level, void* pDst, void* pSrc);
@@ -1090,7 +1090,7 @@ void LibGearRenderVertices(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg
                 (long*) &pVertex->polys[renderCtx].x2
             );
             gte_stszotz(&otz);
-            otz >>= D_80050100;
+            otz >>= g_GfxOTDepthShift;
 
             // RotTransPers
             gte_ldv0((SVECTOR*) &pVertex->x3);
@@ -1387,27 +1387,27 @@ void LibGearRotateModelOffsets(Model** pModels) {
     int i;
 
     for (i = 0; i < 2; i++) {
-        if (D_801E8648[i].unk6 != 0) {
-            if (D_801E8648[i].modelIndex >= 0 && (pModel = pModels[D_801E8648[i].modelIndex]) != NULL) {
+        if (g_LibGearModelOffsets[i].unk6 != 0) {
+            if (g_LibGearModelOffsets[i].modelIndex >= 0 && (pModel = pModels[g_LibGearModelOffsets[i].modelIndex]) != NULL) {
                 CompMatrix(
                     &pModel->pSkeleton[0].localTransform,
-                    &pModel->pSkeleton[D_801E8648[i].jointIndex + 1].globalTransform,
+                    &pModel->pSkeleton[g_LibGearModelOffsets[i].jointIndex + 1].globalTransform,
                     pMatrix
                 );
                 SetRotMatrix(pMatrix);
                 SetTransMatrix(pMatrix);
 
-                gte_ldv0((SVECTOR*)&D_801E8648[i].x1);
+                gte_ldv0((SVECTOR*)&g_LibGearModelOffsets[i].x1);
                 gte_mvmva(1, 0, 0, 0, 0);
                 gte_stlvnl(value);
 
-                D_801E8648[i].x0 = value[0];
-                D_801E8648[i].y0 = value[2];
-                D_801E8648[i].z0 = value[4];
+                g_LibGearModelOffsets[i].x0 = value[0];
+                g_LibGearModelOffsets[i].y0 = value[2];
+                g_LibGearModelOffsets[i].z0 = value[4];
             } else {
-                D_801E8648[i].x0 = D_801E8648[i].x1;
-                D_801E8648[i].y0 = D_801E8648[i].y1;
-                D_801E8648[i].z0 = D_801E8648[i].z1;
+                g_LibGearModelOffsets[i].x0 = g_LibGearModelOffsets[i].x1;
+                g_LibGearModelOffsets[i].y0 = g_LibGearModelOffsets[i].y1;
+                g_LibGearModelOffsets[i].z0 = g_LibGearModelOffsets[i].z1;
             }
         }
     }
@@ -1528,7 +1528,7 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
             pModel->unk50 = 0;
             pModel->unk54 = 0;
             pModel->unk4C = 0;
-            pModel->unk10A = D_801E863C;
+            pModel->unk10A = g_LibGearModelBitMask;
             pModel->unk23 = 0;
             func_801E39F0(pModel, arg2, -1, 1, 0);
         }
@@ -1750,7 +1750,7 @@ s32 func_801E5CD8(Model* pModel, s32 type) {
     Temp8* pTexture;
 
     if (type == 0) {
-        pTexture = D_8005919C;
+        pTexture = g_BattleSoundBankMain;
     } else if (type != 1) {
         if (type != 2) {
             return 2;
@@ -2000,7 +2000,7 @@ s16 LibGearComputeSignedAngle(VECTOR* pNormal, VECTOR* pVec0, VECTOR* pVec1, s32
 }
 
 int LibGearGetFirstModelIndex(void) {
-    u_short bits = D_801E863C;
+    u_short bits = g_LibGearModelBitMask;
     int i;
 
     for (i = 0; i < 8; i++) {
@@ -2420,10 +2420,10 @@ void LibGearSetDirectKeyframes(u32 shouldRender) {
 void LibGearInitialize(int capacity) {
     int i;
 
-    D_801E8640 = 0;
-    D_801E869C = 0;
+    g_LibGearPendingFrameCount = 0;
+    g_LibGearSwingAngle = 0;
     
-    LibGearInitializeJointObjectPool(&D_801E86A8, capacity);
+    LibGearInitializeJointObjectPool(&g_LibGearJointObjectPool, capacity);
     LibGearInitializeVertexBuffer(&g_LibGearVertexBuffer, 0x10);
 
     for (i = 0; i < MAX_MODELS; i++) {
@@ -2435,7 +2435,7 @@ void LibGearInitialize(int capacity) {
     }
 
     for (i = 0; i < 2; i++) {
-        D_801E8648[i].unk6 = 0;
+        g_LibGearModelOffsets[i].unk6 = 0;
     }
 }
 
@@ -2448,26 +2448,26 @@ void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4)
     RECT rect;
 
     count = 0;
-    D_801E8640 += arg4 + 1;
-    if (D_801E8640 >= 7) {
-        D_801E8640 = 6;
+    g_LibGearPendingFrameCount += arg4 + 1;
+    if (g_LibGearPendingFrameCount >= 7) {
+        g_LibGearPendingFrameCount = 6;
     }
 
-    while (D_801E8640 >= 2) {
-        D_801E8640 -= 2;
+    while (g_LibGearPendingFrameCount >= 2) {
+        g_LibGearPendingFrameCount -= 2;
         count++;
     }
 
-    angle = D_801E869C + count * 56;
-    D_801E869C = angle;
-    D_801E8698 = (rsin((s16)angle) + 0x1000) / 800 + 4;
+    angle = g_LibGearSwingAngle + count * 56;
+    g_LibGearSwingAngle = angle;
+    g_LibGearSwingScale = (rsin((s16)angle) + 0x1000) / 800 + 4;
 
     for (i = 0; i < MAX_MODELS; i++) {
         if (g_LibGearModels[i] != NULL) {
             g_LibGearModels[i]->unk11C = g_LibGearModels[i]->pSkeleton->translation.x;
             g_LibGearModels[i]->unk120 = g_LibGearModels[i]->pSkeleton->translation.y;
             g_LibGearModels[i]->unk124 = g_LibGearModels[i]->pSkeleton->translation.z;
-            LibGearStepModelAnimation(g_LibGearModels[i], (s32)&D_801E86A8, count, arg3, 1);
+            LibGearStepModelAnimation(g_LibGearModels[i], (s32)&g_LibGearJointObjectPool, count, arg3, 1);
         }
     }
 
@@ -2499,7 +2499,7 @@ void LibGearShutdown(void) {
         func_801E8030(i);
     }
 
-    LibGearFreeJointObjectPool(&D_801E86A8);
+    LibGearFreeJointObjectPool(&g_LibGearJointObjectPool);
     LibGearFreeVertexBuffer(&g_LibGearVertexBuffer);
 }
 
@@ -2527,7 +2527,7 @@ void func_801E8030(s32 modelIndex) {
 
     if ((u32)(modelIndex - 8) >= 2) {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-            Temp4* pPool = &D_801E86A8;
+            Temp4* pPool = &g_LibGearJointObjectPool;
 
             LibGearReleaseSkeletonObjects(pPool, g_LibGearModels[modelIndex]->pSkeleton);
             LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
@@ -2537,7 +2537,7 @@ void func_801E8030(s32 modelIndex) {
         }
     } else {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
-            Temp4* pPool = &D_801E86A8;
+            Temp4* pPool = &g_LibGearJointObjectPool;
 
             LibGearReleaseSkeletonObjects(pPool, g_LibGearModels[modelIndex]->pSkeleton);
             LibGearReleaseSkeletonObjectsByType(pPool, g_LibGearModels[modelIndex]->pSkeleton, 0xFF);
@@ -2571,22 +2571,22 @@ void LibGearSetModelAnimation(u16 modelIndex, u16 bits, s32 arg2) {
     Model* pModel = g_LibGearModels[modelIndex];
 
     D_801E86B0 = modelIndex;
-    D_801E863C = bits;
+    g_LibGearModelBitMask = bits;
     pModel->unk35 = 0;
 
     if (g_LibGearModels[modelIndex] != NULL) {
-        LibGearSetAnimation(g_LibGearModels[modelIndex], g_LibGearModels[modelIndex], &D_801E86A8, arg2);
+        LibGearSetAnimation(g_LibGearModels[modelIndex], g_LibGearModels[modelIndex], &g_LibGearJointObjectPool, arg2);
     }
 }
 
 void LibGearSetModelAnimationFrom(s32 arg0, u16 modelIndex, u16 arg2, s32 arg3) {
     D_801E86B0 = modelIndex;
-    D_801E863C = arg2;
+    g_LibGearModelBitMask = arg2;
     g_LibGearModels[modelIndex]->unk35 = 0;
 
     if (g_LibGearModels[modelIndex] != NULL) {
         if (modelIndex != LibGearGetFirstModelIndex()) {
-            LibGearSetAnimation(g_LibGearModels[modelIndex], arg0, &D_801E86A8, arg3);
+            LibGearSetAnimation(g_LibGearModels[modelIndex], arg0, &g_LibGearJointObjectPool, arg3);
         }
     }
 }

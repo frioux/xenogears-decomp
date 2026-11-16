@@ -116,7 +116,7 @@ extern int D_8005022C;
 extern int D_80050230;
 
 // Timer interrupt count
-extern int D_80059488;
+extern int g_SpuChannelMask;
 
 // Analog => Stick mappings
 extern u_char g_ControllerStickToAnalogX[];

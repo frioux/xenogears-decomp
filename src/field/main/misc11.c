@@ -10,7 +10,7 @@
 #include "system/graphics.h"
 #include "system/memory.h"
 
-extern s32 D_800AFD1C;
+extern s32 g_FieldCurActorIndex;
 extern s32 g_PlayerActorIndex;
 
 extern u8 D_800B2190;
@@ -21,9 +21,9 @@ extern u8 D_800B2195;
 extern u8 D_800B2196;
 extern s16 D_800B2198;
 extern s16 D_800B219A;
-extern s16 D_800B218E;
+extern s16 g_FieldFogEnabled;
 
-void func_80073E38(void);
+void FieldUpdateActorRenderModes(void);
 
 void FieldScriptVMHandlerSetFogColor(void) {
     D_800B2190 = FieldScriptVMGetArgument(1);
@@ -34,16 +34,16 @@ void FieldScriptVMHandlerSetFogColor(void) {
     D_800B2196 = FieldScriptVMGetArgument(0xB);
     D_800B2198 = FieldScriptVMGetArgument(0xD);
     D_800B219A = FieldScriptVMGetArgument(0xF);
-    D_800B218E = 1;
-    func_80073E38();
+    g_FieldFogEnabled = 1;
+    FieldUpdateActorRenderModes();
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x11;
 }
 
 typedef struct { u8 value; } FieldScriptGlobalU8;
 
-extern FieldScriptGlobalU8 D_800B219C;
-extern FieldScriptGlobalU8 D_800B219D;
-extern FieldScriptGlobalU8 D_800B219E;
+extern FieldScriptGlobalU8 g_FieldClearColorR;
+extern FieldScriptGlobalU8 g_FieldClearColorG;
+extern FieldScriptGlobalU8 g_FieldClearColorB;
 
 void FieldScriptVMHandlerSetScrollLimits(void) {
     g_Scene.unk4C[0] = FieldScriptVMGetInstructionArgumentS16(1);
@@ -54,38 +54,38 @@ void FieldScriptVMHandlerSetScrollLimits(void) {
 }
 
 void FieldScriptVMHandlerSetClearColor(void) {
-    D_800B219C.value = FieldScriptVMGetArgument(1);
-    D_800B219D.value = FieldScriptVMGetArgument(3);
-    D_800B219E.value = FieldScriptVMGetArgument(5);
+    g_FieldClearColorR.value = FieldScriptVMGetArgument(1);
+    g_FieldClearColorG.value = FieldScriptVMGetArgument(3);
+    g_FieldClearColorB.value = FieldScriptVMGetArgument(5);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
 void FieldScriptVMHandlerEmpty(void) {
 }
 
-extern RECT D_800AF5E8[32];
-extern s16 D_800AF5EA[]; // Part of D_800AF5E8[]: the y of each RECT
-extern s16 D_800AF5EC[]; // Part of D_800AF5E8[]: the w of each RECT
-extern s16 D_800AF5EE[]; // Part of D_800AF5E8[]: the h of each RECT
-extern s16 D_800AF6E8[32];
-extern s16 D_800AF728[32];
-extern u_short D_800AF768;
+extern RECT g_FieldImageRects[32];
+extern s16 D_800AF5EA[]; // Part of g_FieldImageRects[]: the y of each RECT
+extern s16 D_800AF5EC[]; // Part of g_FieldImageRects[]: the w of each RECT
+extern s16 D_800AF5EE[]; // Part of g_FieldImageRects[]: the h of each RECT
+extern s16 g_FieldImageDestX[32];
+extern s16 g_FieldImageDestY[32];
+extern u_short g_FieldImageDrawIndex;
 
 void FieldMoveOrClearImageRect(int x, int y, int w, int h, int texX, int texY, int clear) {
-    int index = D_800AF768 & 0x1F;
+    int index = g_FieldImageDrawIndex & 0x1F;
 
-    D_800AF5E8[index].x = x;
+    g_FieldImageRects[index].x = x;
     D_800AF5EA[index * 4] = y;
     D_800AF5EC[index * 4] = w;
     D_800AF5EE[index * 4] = h;
-    D_800AF6E8[index] = texX;
-    D_800AF728[index] = texY;
+    g_FieldImageDestX[index] = texX;
+    g_FieldImageDestY[index] = texY;
     if (!clear) {
-        MoveImage(&D_800AF5E8[index], D_800AF6E8[index], (s16)texY);
+        MoveImage(&g_FieldImageRects[index], g_FieldImageDestX[index], (s16)texY);
     } else {
-        ClearImage(&D_800AF5E8[index], 0, 0, 0);
+        ClearImage(&g_FieldImageRects[index], 0, 0, 0);
     }
-    D_800AF768++;
+    g_FieldImageDrawIndex++;
 }
 
 void FieldScriptVMHandlerDrawImage(void) {
@@ -145,7 +145,7 @@ void FieldScriptVMHandlerSetActorDataWord(void) {
         value = 0xFFF;
     }
 
-    if (g_FieldActors[D_800AFD1C].status & 0x2000) {
+    if (g_FieldActors[g_FieldCurActorIndex].status & 0x2000) {
         ((u_int*)g_FieldScriptVMCurActor->unk118)[index] = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
@@ -170,13 +170,13 @@ typedef struct {
     /* 0x104 */ s16 lengths[32];
 } LineScrollTable; // Size: 0x144
 
-extern LineScrollTable D_800AFEA8;
+extern LineScrollTable g_FieldLineScrolls;
 
 void FieldUpdateLineScrolls(void) {
     int i;
 
-    for (i = 0; i < D_800AFEA8.numLineScrolls; i++) {
-        GfxLineScrollUpdate(D_800AFEA8.pLineScrolls[i]);
+    for (i = 0; i < g_FieldLineScrolls.numLineScrolls; i++) {
+        GfxLineScrollUpdate(g_FieldLineScrolls.pLineScrolls[i]);
     }
 }
 
@@ -199,7 +199,7 @@ void FieldScriptVMHandlerWriteLineScrollByte(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
-extern s32 D_800ADB8C;
+extern s32 g_FieldScriptRoutineRunning;
 
 void GfxLineScrollInitialize(LineScroll*, s16, s16, s16, s16, s16, s16, s16, u8*);
 
@@ -213,23 +213,23 @@ void FieldScriptVMHandlerCreateLineScroll(void) {
     int argB;
     int i;
 
-    if (D_800ADB8C == 0 && D_800AFEA8.numLineScrolls < 0x20) {
+    if (g_FieldScriptRoutineRunning == 0 && g_FieldLineScrolls.numLineScrolls < 0x20) {
         count = FieldScriptVMGetInstructionArgument(9) & 0xFFFF;
-        D_800AFEA8.lengths[D_800AFEA8.numLineScrolls] = count;
-        D_800AFEA8.pDatas[D_800AFEA8.numLineScrolls] = HeapAlloc(count + 1, 0);
-        D_800AFEA8.pLineScrolls[D_800AFEA8.numLineScrolls] = HeapAlloc(sizeof(LineScroll), 0);
+        g_FieldLineScrolls.lengths[g_FieldLineScrolls.numLineScrolls] = count;
+        g_FieldLineScrolls.pDatas[g_FieldLineScrolls.numLineScrolls] = HeapAlloc(count + 1, 0);
+        g_FieldLineScrolls.pLineScrolls[g_FieldLineScrolls.numLineScrolls] = HeapAlloc(sizeof(LineScroll), 0);
         value = FieldScriptVMGetInstructionArgument(0xF) & 0xFFFF;
         for (i = 0; i < count; i++) {
-            D_800AFEA8.pDatas[D_800AFEA8.numLineScrolls][i] = value;
+            g_FieldLineScrolls.pDatas[g_FieldLineScrolls.numLineScrolls][i] = value;
         }
         arg1 = (s16)FieldScriptVMGetInstructionArgument(1);
         arg3 = (s16)FieldScriptVMGetInstructionArgument(3);
         arg5 = (s16)FieldScriptVMGetInstructionArgument(5);
         arg7 = (s16)FieldScriptVMGetInstructionArgument(7);
         argB = (s16)FieldScriptVMGetInstructionArgument(0xB);
-        GfxLineScrollInitialize(D_800AFEA8.pLineScrolls[D_800AFEA8.numLineScrolls], arg1, arg3, arg5, arg7, count, argB, (s16)FieldScriptVMGetInstructionArgument(0xD),
-                                D_800AFEA8.pDatas[D_800AFEA8.numLineScrolls]);
-        D_800AFEA8.numLineScrolls++;
+        GfxLineScrollInitialize(g_FieldLineScrolls.pLineScrolls[g_FieldLineScrolls.numLineScrolls], arg1, arg3, arg5, arg7, count, argB, (s16)FieldScriptVMGetInstructionArgument(0xD),
+                                g_FieldLineScrolls.pDatas[g_FieldLineScrolls.numLineScrolls]);
+        g_FieldLineScrolls.numLineScrolls++;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x11;
 }
@@ -246,27 +246,27 @@ int FieldScriptVMAdvanceIpReturnAlt(void) {
     return ip;
 }
 
-extern u_int* D_800AFB20;
+extern u_int* g_FieldWalkmeshMaterialFlags;
 
 void func_800924D4(int, int, int);
 void FieldResetCurrentActorMovement(void);
 
-// Read one byte of the 4-byte record at the given index of D_800AFB20
+// Read one byte of the 4-byte record at the given index of g_FieldWalkmeshMaterialFlags
 int FieldScriptGetRecordByte(int index, int byteIndex) {
     switch (byteIndex) {
         case 0:
-            return ((u_char*)&D_800AFB20[index])[0];
+            return ((u_char*)&g_FieldWalkmeshMaterialFlags[index])[0];
         case 1:
-            return ((u_char*)&D_800AFB20[index])[1];
+            return ((u_char*)&g_FieldWalkmeshMaterialFlags[index])[1];
         case 2:
-            return ((u_char*)&D_800AFB20[index])[2];
+            return ((u_char*)&g_FieldWalkmeshMaterialFlags[index])[2];
         case 3:
-            return ((u_char*)&D_800AFB20[index])[3];
+            return ((u_char*)&g_FieldWalkmeshMaterialFlags[index])[3];
     }
     return 0;
 }
 
-// Write one byte of the 4-byte record at the given index of D_800AFB20
+// Write one byte of the 4-byte record at the given index of g_FieldWalkmeshMaterialFlags
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800924D4);
 
 /* Best attempt: 69.47%. Same instruction count and the correct masks
@@ -276,16 +276,16 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_800924D4);
 void func_800924D4(int index, int byteIndex, int value) {
     switch (byteIndex) {
         case 0:
-            D_800AFB20[index] = (D_800AFB20[index] & ~0xFF) | value;
+            g_FieldWalkmeshMaterialFlags[index] = (g_FieldWalkmeshMaterialFlags[index] & ~0xFF) | value;
             break;
         case 1:
-            D_800AFB20[index] = (value << 8) | (D_800AFB20[index] & ~0xFF00);
+            g_FieldWalkmeshMaterialFlags[index] = (value << 8) | (g_FieldWalkmeshMaterialFlags[index] & ~0xFF00);
             break;
         case 2:
-            D_800AFB20[index] = (value << 16) | (D_800AFB20[index] & ~0xFF0000);
+            g_FieldWalkmeshMaterialFlags[index] = (value << 16) | (g_FieldWalkmeshMaterialFlags[index] & ~0xFF0000);
             break;
         case 3:
-            D_800AFB20[index] = (value << 24) | (D_800AFB20[index] & ~0xFF000000);
+            g_FieldWalkmeshMaterialFlags[index] = (value << 24) | (g_FieldWalkmeshMaterialFlags[index] & ~0xFF000000);
             break;
     }
 }
@@ -340,27 +340,27 @@ void FieldScriptVMHandlerAndRecordByte(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-extern FieldActor* D_800B06B8;
+extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern s16 D_800C3A6A;
 extern int rcos(int);
 extern int rsin(int);
 
 void FieldScriptVMHandlerSetDirectionFromRotation(void) {
-    g_FieldScriptVMCurActor->unk60.vx = ((u_int)rsin(D_800B06B8->rotation.y) * 9) >> 10;
-    g_FieldScriptVMCurActor->unk60.vz = -(rcos(D_800B06B8->rotation.y) * 36) >> 12;
+    g_FieldScriptVMCurActor->unk60.vx = ((u_int)rsin(g_FieldScriptVMCurFieldActor->rotation.y) * 9) >> 10;
+    g_FieldScriptVMCurActor->unk60.vz = -(rcos(g_FieldScriptVMCurFieldActor->rotation.y) * 36) >> 12;
     g_FieldScriptVMCurActor->flags |= 0x800;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
 
-extern u_int D_800B2350[];
+extern u_int g_FieldSavedPlayerScriptFlags[];
 
 extern s32 D_800ADBDC;
 extern s32 D_800ADBE4;
 extern s32 D_800ADB2C;
-extern s32 D_800ADB90;
-extern s32 D_8004F308;
+extern s32 g_FieldSpecialAnimLoadPending;
+extern s32 g_GameWdsBankLoadState;
 
 int func_80092894(int, int, int, int);
 void FieldPlayerSetScriptFlag80(void);
@@ -369,30 +369,30 @@ void FieldScriptVMHandlerMapTransitionWithArgs(void) {
     int arg1;
     int arg3;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+        g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
         return;
     }
 
     arg1 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5));
     arg3 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
-    if (D_800B2350[0] == 0) {
-        D_800B2350[0] = g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags;
+    if (g_FieldSavedPlayerScriptFlags[0] == 0) {
+        g_FieldSavedPlayerScriptFlags[0] = g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags;
     }
     FieldPlayerSetScriptFlag80();
     if (func_80092894(0, 1, arg1, arg3)) {
         return;
     }
-    if (!(D_800B2350[0] & 0x80)) {
+    if (!(g_FieldSavedPlayerScriptFlags[0] & 0x80)) {
         g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags &= ~0x80;
     }
-    D_800B2350[0] = 0;
+    g_FieldSavedPlayerScriptFlags[0] = 0;
 }
 
 void FieldScriptVMHandlerMapTransition(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+        g_FieldScriptVMStopFlag = 1;
     } else {
         FieldPlayerSetScriptFlag80();
         func_80092894(0, 0, 0, 0);
@@ -400,8 +400,8 @@ void FieldScriptVMHandlerMapTransition(void) {
 }
 
 void FieldScriptVMHandlerMapTransitionOffset(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+        g_FieldScriptVMStopFlag = 1;
     } else {
         FieldPlayerSetScriptFlag80();
         func_80092894(0x3E0, 0, 0, 0);
@@ -410,7 +410,7 @@ void FieldScriptVMHandlerMapTransitionOffset(void) {
 
 extern int g_GameSceneMapNum;
 extern s32 D_800ADBD8;
-extern s32 D_800B0064;
+extern s32 g_FieldNextGameState;
 
 int FieldGetPlayerActorDirection(void);
 int FieldGetCameraDirection(void);
@@ -426,18 +426,18 @@ void FieldScriptVMHandlerRestoreRandomEncounters(void) {
     if (D_800ADBD8 != 0) {
         g_FieldControl.isRandomEncountersEnabled = -1;
         D_800ADBD8 = 0;
-        D_800B0064 = FieldScriptVMGetArgument(1);
+        g_FieldNextGameState = FieldScriptVMGetArgument(1);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern u8 D_800B02C8;
+extern u8 g_FieldScriptMemoryUpdateLocked;
 
 void FieldScriptVMHandlerSetFieldEntryState(void) {
     int value;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+        g_FieldScriptVMStopFlag = 1;
         return;
     }
 
@@ -454,8 +454,8 @@ void FieldScriptVMHandlerSetFieldEntryState(void) {
     }
     g_pGameState->unk2320 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     FieldScriptVMEmptyHook();
-    D_800B02C8 = 1;
-    D_800B00C0 = 1;
+    g_FieldScriptMemoryUpdateLocked = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
 }
 
@@ -466,8 +466,8 @@ extern s32 D_800B0048;
 extern s32 D_800AFD14;
 
 void FieldScriptVMHandlerSetFadeParams(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+        g_FieldScriptVMStopFlag = 1;
         return;
     }
 
@@ -485,8 +485,8 @@ void FieldScriptVMHandlerRestoreMap(void) {
     int a;
     int b;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0 || D_800ADB70 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0 || D_800ADB70 != 0) {
+        g_FieldScriptVMStopFlag = 1;
         return;
     }
 
@@ -500,33 +500,33 @@ void FieldScriptVMHandlerRestoreMap(void) {
         g_GameSceneMapNum = b;
         FieldScriptVMEmptyHook();
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
 extern u8 D_800B2356;
-extern u8 D_8005954C;
+extern u8 g_SoundEffectBankIndex;
 extern u8 D_80059508;
 extern u8 D_800594F8;
 extern s32 D_800ADBE0;
-extern s32 D_800ADB88;
+extern s32 g_FieldTransitionBusyFlag;
 extern s32 D_800ADB18;
 
 void FieldScriptVMHandlerChangeMap(void) {
     int mapNum;
 
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+        g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
         return;
     }
 
-    D_8005954C = D_800B2356;
+    g_SoundEffectBankIndex = D_800B2356;
     D_80059508 = FieldScriptVMGetArgument(1);
     D_800594F8 = 0;
     D_800ADBDC = 0;
     D_800ADBE0 = 0;
-    D_800ADB88 = 1;
+    g_FieldTransitionBusyFlag = 1;
     mapNum = FieldScriptVMGetArgument(5);
     if (mapNum != 0x7FFF) {
         int value = FieldScriptVMGetArgument(7);
@@ -536,29 +536,29 @@ void FieldScriptVMHandlerChangeMap(void) {
         g_GameSceneMapNum = mapNum;
         D_800ADB18 = 1;
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
 
 void FieldScriptVMHandlerReloadMap(void) {
-    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || D_800ADB2C != 0 || D_8004F308 == -1 || D_800ADB90 != 0) {
-        D_800B00C0 = 1;
+    if (D_800ADBDC == 0 || D_800ADBE4 == 0 || D_800ADBEC == 0 || D_800ADB2C != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+        g_FieldScriptVMStopFlag = 1;
         return;
     }
 
-    D_8005954C = D_800B2356;
+    g_SoundEffectBankIndex = D_800B2356;
     D_80059508 = FieldScriptVMGetArgument(1);
     D_800594F8 = 0;
     D_800ADBDC = 0;
     D_800ADBE0 = 0;
-    D_800ADB88 = 1;
-    D_800B00C0 = 1;
+    g_FieldTransitionBusyFlag = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern s32 D_8004F350;
-extern s8 D_80059171;
-extern s32 D_800ADB64;
+extern s32 g_FieldPendingRequestCount;
+extern s8 g_ShopIndex;
+extern s32 g_FieldRequestCode;
 extern u_short D_800B236C;
 
 void FieldScriptVMHandlerCopyRecordByte(void) {
@@ -569,42 +569,42 @@ void FieldScriptVMHandlerCopyRecordByte(void) {
 }
 
 void FieldScriptVMHandlerWaitForFieldRequest(void) {
-    if (D_8004F350 == 0) {
+    if (g_FieldPendingRequestCount == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 void func_80093740(void) {
-    D_800B00C0 = 1;
-    D_800ADB64 = 0;
-    D_80059171 = D_800B236C;
-    D_8004F350++;
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldRequestCode = 0;
+    g_ShopIndex = D_800B236C;
+    g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
 void FieldScriptVMHandlerRequestFieldState6(void) {
-    D_80059171 = 1;
-    D_800ADB64 = 6;
-    D_800B00C0 = 1;
-    D_8004F350++;
+    g_ShopIndex = 1;
+    g_FieldRequestCode = 6;
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
 void FieldScriptVMHandlerRequestFieldState2(void) {
-    D_800ADB64 = 2;
-    D_800B00C0 = 1;
-    D_8004F350++;
+    g_FieldRequestCode = 2;
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
 void FieldScriptVMHandlerRequestFieldState3(void) {
-    D_80059171 = FieldScriptVMGetArgument(1);
-    D_800ADB64 = 0x3;
-    D_800B00C0 = 1;
-    D_8004F350++;
+    g_ShopIndex = FieldScriptVMGetArgument(1);
+    g_FieldRequestCode = 0x3;
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -619,9 +619,9 @@ void FieldScriptVMHandlerRequestFieldState1WithMap(void) {
     FieldScriptMemoryWriteU16(2, a);
     g_GameSceneMapNum = b;
     FieldScriptVMEmptyHook();
-    D_800ADB64 = 1;
-    D_800B00C0 = 1;
-    D_8004F350++;
+    g_FieldRequestCode = 1;
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -630,29 +630,29 @@ void FieldScriptVMHandlerRequestFieldState1WithValue(void) {
     int value;
 
     value = FieldScriptVMGetArgument(1);
-    D_800ADB64 = 1;
-    D_800B00C0 = 1;
+    g_FieldRequestCode = 1;
+    g_FieldScriptVMStopFlag = 1;
     pActor = g_FieldScriptVMCurActor;
     *(s16*)&g_pGameState->unk1928[0xA] = value;
     *(s16*)((u8*)g_pGameState + 0x2320) = value;
     D_800C3A6A = value;
-    D_8004F350++;
+    g_FieldPendingRequestCount++;
     pActor->scriptInstructionPointer += 3;
 }
 
 void FieldScriptVMHandlerRequestFieldState4(void) {
-    D_80059171 = FieldScriptVMGetArgument(1);
-    D_800ADB64 = 0x4;
-    D_800B00C0 = 1;
-    D_8004F350++;
+    g_ShopIndex = FieldScriptVMGetArgument(1);
+    g_FieldRequestCode = 0x4;
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
 void FieldScriptVMHandlerRequestFieldState5(void) {
-    D_80059171 = FieldScriptVMGetArgument(1);
-    D_800ADB64 = 0x5;
-    D_800B00C0 = 1;
-    D_8004F350++;
+    g_ShopIndex = FieldScriptVMGetArgument(1);
+    g_FieldRequestCode = 0x5;
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -660,12 +660,12 @@ void FieldScriptVMHandlerRequestFieldState5(void) {
 // Random encounter stuff
 
 // These are likely part of a struct
-extern s8 D_800B21D0[];
-extern s8 D_800B21D1[];
+extern s8 g_FieldRandomEncounterFlag[];
+extern s8 g_FieldCompassDisabled[];
 
 extern s32 D_800ADBDC;
 extern s32 D_800ADBE4;
-extern s32 D_800B00C0;
+extern s32 g_FieldScriptVMStopFlag;
 
 void FieldScriptVMClearSceneEncounterFlag(void) {
     g_Scene.unk48 &= 0x7FFF;
@@ -679,19 +679,19 @@ void FieldScriptVMSetSceneEncounterFlag(void) {
 
 void FieldScriptVMClearRandomEncounterFlags(void) {
     g_FieldControl.isRandomEncountersEnabled = 0;
-    D_800B21D0[0] = 0;
-    D_800B21D1[0] = 0;
+    g_FieldRandomEncounterFlag[0] = 0;
+    g_FieldCompassDisabled[0] = 0;
     g_Scene.unk48 &= 0x3FFF;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 void FieldScriptVMSetRandomEncounterFlags(void) {
     g_FieldControl.isRandomEncountersEnabled = -1;
-    D_800B21D0[0] = 1;
-    D_800B21D1[0] = 1;
+    g_FieldRandomEncounterFlag[0] = 1;
+    g_FieldCompassDisabled[0] = 1;
     g_Scene.unk48 |= 0xC000;
     if ((D_800ADBDC == 0) || (D_800ADBE4 == 0)) {
-        D_800B00C0 = 1; // Stop script VM execution?
+        g_FieldScriptVMStopFlag = 1; // Stop script VM execution?
         g_FieldScriptVMCurActor->scriptInstructionPointer--;
         return;
     }
@@ -699,22 +699,22 @@ void FieldScriptVMSetRandomEncounterFlags(void) {
 }
 
 void FieldScriptVMClearFlag21D0(void) {
-    D_800B21D0[0] = 0x0;
+    g_FieldRandomEncounterFlag[0] = 0x0;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 void FieldScriptVMSetFlag21D0(void) {
-    D_800B21D0[0] = 0x1;
+    g_FieldRandomEncounterFlag[0] = 0x1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 void FieldScriptEnableCompass(void) {
-    D_800B21D1[0] = 0x0;
+    g_FieldCompassDisabled[0] = 0x0;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
 void FieldScriptDisableCompass(void) {
-    D_800B21D1[0] = 0x1;
+    g_FieldCompassDisabled[0] = 0x1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
@@ -725,7 +725,7 @@ void FieldScriptVMHandlerDisableRandomEncounters(void) {
 
 void FieldScriptVMHandlerEnableRandomEncounters(void) {
     if (D_800ADBDC == 0 || D_800ADBE4 == 0) {
-        D_800B00C0 = 1;
+        g_FieldScriptVMStopFlag = 1;
         return;
     }
     g_FieldControl.isRandomEncountersEnabled = -1;
@@ -790,9 +790,9 @@ void FieldScriptVMHandlerStepActorRotationOn(void) {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < 0x1F) {
                 if (SCRIPT_READ_U8_REL(1) == 0) {
-                    g_FieldActors[D_800AFD1C].rotation.y += 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y += 0x20;
                 } else {
-                    g_FieldActors[D_800AFD1C].rotation.y -= 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y -= 0x20;
                 }
             } else {
                 g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x13 = 0x1;
@@ -805,7 +805,7 @@ void FieldScriptVMHandlerStepActorRotationOn(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     }
     
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
 void FieldScriptVMHandlerStepActorRotationOff(void) {
@@ -818,9 +818,9 @@ void FieldScriptVMHandlerStepActorRotationOff(void) {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < 0x1F) {
                 if (SCRIPT_READ_U8_REL(1) == 0) {
-                    g_FieldActors[D_800AFD1C].rotation.y -= 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y -= 0x20;
                 } else {
-                    g_FieldActors[D_800AFD1C].rotation.y += 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y += 0x20;
                 }
             } else {
                 g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x13 = 0;
@@ -832,13 +832,13 @@ void FieldScriptVMHandlerStepActorRotationOff(void) {
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     }
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
 extern void FieldActorApplyRotationAndScale(int);
 extern void FieldSetSoundSlotElement(int,int);
-extern s32 D_800AFD1C;
-extern FieldActor* D_800B06B8;
+extern s32 g_FieldCurActorIndex;
+extern FieldActor* g_FieldScriptVMCurFieldActor;
 
 void FieldScriptVMHandlerStepActorMoveOn() {
     ActorData* pActor;
@@ -859,19 +859,19 @@ void FieldScriptVMHandlerStepActorMoveOn() {
                 switch (FieldScriptVMGetArgument(5)) { 
                     case 0x1000:
                         g_FieldScriptVMCurActor->unkD0.vy -= FieldScriptVMGetArgument(1) * 0x10;
-                        D_800B06B8->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
                     case 0x1001:
                         g_FieldScriptVMCurActor->unkD0.vy += FieldScriptVMGetArgument(1) * 0x10;
-                        D_800B06B8->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
                     default:
                         delta = PSX_DEGREES(90);
-                        angle = D_800B06B8->rotation.y + FieldScriptVMGetArgument(5) - delta;
+                        angle = g_FieldScriptVMCurFieldActor->rotation.y + FieldScriptVMGetArgument(5) - delta;
                         g_FieldScriptVMCurActor->unkD0.vx += rsin(angle) * FieldScriptVMGetArgument(1);
                         g_FieldScriptVMCurActor->unkD0.vz -= rcos(angle) * FieldScriptVMGetArgument(1);
-                        D_800B06B8->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vx);
-                        D_800B06B8->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vx);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
                 }
             } else {
@@ -884,7 +884,7 @@ void FieldScriptVMHandlerStepActorMoveOn() {
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
     }
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
 void FieldScriptVMHandlerStepActorMoveOff(void) {
@@ -903,19 +903,19 @@ void FieldScriptVMHandlerStepActorMoveOff(void) {
                 switch (FieldScriptVMGetArgument(5)) {
                     case 0x1000:
                         g_FieldScriptVMCurActor->unkD0.vy -= FieldScriptVMGetArgument(1) * 0x10;
-                        D_800B06B8->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
                     case 0x1001:
                         g_FieldScriptVMCurActor->unkD0.vy += FieldScriptVMGetArgument(1) * 0x10;
-                        D_800B06B8->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
                     default:
                         delta = PSX_DEGREES(90);
-                        angle = D_800B06B8->rotation.y + FieldScriptVMGetArgument(5) - delta;
+                        angle = g_FieldScriptVMCurFieldActor->rotation.y + FieldScriptVMGetArgument(5) - delta;
                         g_FieldScriptVMCurActor->unkD0.vx -= rsin(angle) * FieldScriptVMGetArgument(1);
                         g_FieldScriptVMCurActor->unkD0.vz += rcos(angle) * FieldScriptVMGetArgument(1);
-                        D_800B06B8->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vx);
-                        D_800B06B8->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vx);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
                 }
             } else {
@@ -928,15 +928,15 @@ void FieldScriptVMHandlerStepActorMoveOff(void) {
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
     }
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
-extern s32 D_8004F318;
-extern s32 D_8004F328;
+extern s32 g_FieldScriptWalkFrameCounter;
+extern s32 g_FieldScriptWalkFlags;
 
 void FieldScriptVMHandlerSetWalkPosition(void) {
-    D_8004F318 = 0;
-    D_8004F328 = 0xFF;
+    g_FieldScriptWalkFrameCounter = 0;
+    g_FieldScriptWalkFlags = 0xFF;
     FieldScriptMemoryWriteU16(
         0xA, 
         ((FieldScriptVMGetArgument(1) << 8) & 0xFF00) | (FieldScriptVMGetArgument(3) & 0xFF)
@@ -945,13 +945,13 @@ void FieldScriptVMHandlerSetWalkPosition(void) {
 }
 
 void FieldScriptVMHandlerSetWalkFlags(void) {
-    D_8004F328 = SCRIPT_READ_U8_REL(1);
+    g_FieldScriptWalkFlags = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
 void FieldScriptVMHandlerStopWalking(void) {
-    D_8004F318 = 0;
-    D_8004F328 = 0xFF;
+    g_FieldScriptWalkFrameCounter = 0;
+    g_FieldScriptWalkFlags = 0xFF;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
@@ -1005,63 +1005,63 @@ void FieldScriptVMHandlerRotateActor(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
-// Set X, Y or Z rotaiton of Actor D_800AFD1C
+// Set X, Y or Z rotaiton of Actor g_FieldCurActorIndex
 void FieldScriptVMHandlerSetCurrentActorRotation(void) {
     switch (SCRIPT_READ_U8_REL(3)) { 
         case 0:
-            g_FieldActors[D_800AFD1C].rotation.x = FieldScriptVMGetArgument(1);
+            g_FieldActors[g_FieldCurActorIndex].rotation.x = FieldScriptVMGetArgument(1);
             break;
         case 1:
-            g_FieldActors[D_800AFD1C].rotation.y = FieldScriptVMGetArgument(1);
+            g_FieldActors[g_FieldCurActorIndex].rotation.y = FieldScriptVMGetArgument(1);
             break;
         case 2:
-            g_FieldActors[D_800AFD1C].rotation.z = FieldScriptVMGetArgument(1);
+            g_FieldActors[g_FieldCurActorIndex].rotation.z = FieldScriptVMGetArgument(1);
             break;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
-// Increase X Rotation of Actor D_800AFD1C
+// Increase X Rotation of Actor g_FieldCurActorIndex
 void func_80094A5C(void) {
-    (&g_FieldActors[D_800AFD1C])->rotation.x += FieldScriptVMGetArgument(1);
+    (&g_FieldActors[g_FieldCurActorIndex])->rotation.x += FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
-// Decrease X Rotation of Actor D_800AFD1C
+// Decrease X Rotation of Actor g_FieldCurActorIndex
 void FieldScriptVMHandlerSubCurrentActorRotX(void) {
-    (&g_FieldActors[D_800AFD1C])->rotation.x -= FieldScriptVMGetArgument(1);
+    (&g_FieldActors[g_FieldCurActorIndex])->rotation.x -= FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
-// Increase Y Rotation of Actor D_800AFD1C
+// Increase Y Rotation of Actor g_FieldCurActorIndex
 void FieldScriptVMHandlerAddCurrentActorRotY(void) {
-    (&g_FieldActors[D_800AFD1C])->rotation.y += FieldScriptVMGetArgument(1);
+    (&g_FieldActors[g_FieldCurActorIndex])->rotation.y += FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
-// Decrease Y Rotation of Actor D_800AFD1C
+// Decrease Y Rotation of Actor g_FieldCurActorIndex
 void FieldScriptVMHandlerSubCurrentActorRotY(void) {
-    (&g_FieldActors[D_800AFD1C])->rotation.y -= FieldScriptVMGetArgument(1);
+    (&g_FieldActors[g_FieldCurActorIndex])->rotation.y -= FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
-// Increase Z Rotation of Actor D_800AFD1C
+// Increase Z Rotation of Actor g_FieldCurActorIndex
 void FieldScriptVMHandlerAddCurrentActorRotZ(void) {
-    (&g_FieldActors[D_800AFD1C])->rotation.z += FieldScriptVMGetArgument(1);
+    (&g_FieldActors[g_FieldCurActorIndex])->rotation.z += FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
-// Decrease Z Rotation of Actor D_800AFD1C
+// Decrease Z Rotation of Actor g_FieldCurActorIndex
 void FieldScriptVMHandlerSubCurrentActorRotZ(void) {
-    (&g_FieldActors[D_800AFD1C])->rotation.z -= FieldScriptVMGetArgument(1);
+    (&g_FieldActors[g_FieldCurActorIndex])->rotation.z -= FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    FieldActorApplyRotationAndScale(D_800AFD1C);
+    FieldActorApplyRotationAndScale(g_FieldCurActorIndex);
 }
 
 // Find the first inventory item slot that is unused
@@ -1260,11 +1260,11 @@ void FieldScriptVMHandlerResetActorMovement(void) {
 
 // Reset the movement of the actor the script VM is running on
 void FieldResetCurrentActorMovement(void) {
-    SpriteData* pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
+    SpriteData* pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
     ActorData* pActor = g_FieldScriptVMCurActor;
     u_short rotation = pActor->rotation.vx | 0x8000;
 
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     pActor->moveModified.vx = 0;
     pActor->moveModified.vy = 0;
     pActor->moveModified.vz = 0;
@@ -1469,14 +1469,14 @@ void FieldProjectActorOriginToScreen(int* pScreenX, int* pScreenY) {
 }
 */
 
-extern s32 D_800ADC18;
+extern s32 g_FieldSkipCounter;
 
 void FieldScriptCheckActorOnScreenWithMargin(void) {
     int screenX;
     int screenY;
 
     FieldProjectActorOriginToScreen(&screenX, &screenY);
-    if (D_800ADC18 != 0) {
+    if (g_FieldSkipCounter != 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
         return;
     }
@@ -1487,7 +1487,7 @@ void FieldScriptCheckActorOnScreenWithMargin(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(2);
     }
     
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 void FieldScriptCheckActorOnScreen(void) {
@@ -1495,7 +1495,7 @@ void FieldScriptCheckActorOnScreen(void) {
     int screenY;
 
     FieldProjectActorOriginToScreen(&screenX, &screenY);
-    if (D_800ADC18 != 0) {
+    if (g_FieldSkipCounter != 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
         return;
     }
@@ -1506,7 +1506,7 @@ void FieldScriptCheckActorOnScreen(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(2);
     }
     
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80095CC4);
@@ -1541,7 +1541,7 @@ typedef struct {
     /* 0xD */ undefined8 padD;
 } FieldWalkmeshTriangle; // Size: 0xE
 
-extern FieldWalkmeshTriangle* D_800AFB24[];
+extern FieldWalkmeshTriangle* g_FieldWalkmeshTriangles[];
 
 void FieldScriptCheckActorWalkmeshMaterial(void) {
     ActorData* pActor;
@@ -1549,7 +1549,7 @@ void FieldScriptCheckActorWalkmeshMaterial(void) {
 
     if (FieldScriptVMGetActorIndex(1) != ACTOR_ID_INVALID) {
         pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
-        material = D_800AFB24[pActor->walkmeshId][pActor->walkmeshTriIds[pActor->walkmeshId]].material;
+        material = g_FieldWalkmeshTriangles[pActor->walkmeshId][pActor->walkmeshTriIds[pActor->walkmeshId]].material;
         if (FieldScriptVMGetArgument(2) == material) {
             g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
             return;
@@ -1558,7 +1558,7 @@ void FieldScriptCheckActorWalkmeshMaterial(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(4);
 }
 
-extern FieldActor* D_800B06B8;
+extern FieldActor* g_FieldScriptVMCurFieldActor;
 
 void FieldScriptCheckActorDistance(void) {
     ActorData* pActor;
@@ -1571,7 +1571,7 @@ void FieldScriptCheckActorDistance(void) {
     if (actorIndex != 0xFF) {
         pFieldActor = &g_FieldActors[FieldScriptVMGetActorIndex(1)];
         
-        pActor = D_800B06B8->pActorData;
+        pActor = g_FieldScriptVMCurFieldActor->pActorData;
         pActorOther = pFieldActor->pActorData;
         distance = FieldGetVec3Magnitude(
             CONV_TO_GTE(pActor->position.vx) - CONV_TO_GTE(pActorOther->position.vx), 

@@ -25,7 +25,7 @@ s32 BattleRoundDivAwayFromZero(s32 a0, s32 a1, s32 a2) {
     return d / a2;
 }
 
-extern s32 D_8009867C;
+extern s32 g_BattleCameraTarget;
 extern s32 D_80098680;
 extern s32 D_80098684;
 extern s32 D_800925F4;
@@ -36,17 +36,17 @@ extern s32 D_800970E0;
 extern s32 D_80098774;
 extern s32 D_800987FC;
 
-/* 66.68%: original keeps &D_8009867C in $s0 across the first call and reads and
+/* 66.68%: original keeps &g_BattleCameraTarget in $s0 across the first call and reads and
    stores through it; ours rematerialises the address (lui at / lw / sw). The same
    C without the pointer local scores the same; -G0 65.72, gcc 2.6.0 65.72.
-   func_80070808's body shows D_8009867C/80/84 are the vx/vy/vz of one VECTOR:
+   func_80070808's body shows g_BattleCameraTarget/80/84 are the vx/vy/vz of one VECTOR:
    it reads 0x0(a0) with 0x0(s0) and stores the result back through 0x0(s0).
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
 
 /* 66.68% attempt:
 void func_80070808(s32* p, s32 step) {
-    s32* pX = &D_8009867C;
+    s32* pX = &g_BattleCameraTarget;
 
     *pX += BattleRoundDivAwayFromZero(p[0], *pX, step);
     D_80098684 += BattleRoundDivAwayFromZero(p[2], D_80098684, step);
@@ -54,14 +54,14 @@ void func_80070808(s32* p, s32 step) {
 }
 */
 
-extern s32 D_8009871C;
+extern s32 g_BattleCameraPos;
 extern s32 D_80098720;
 extern s32 D_80098724;
-extern void func_800828F8(s32* pA, s32* pB, s32 limit);
+extern void BattleMovePointInsideRadius(s32* pA, s32* pB, s32 limit);
 
-/* 74.00%: same missing shape as func_80070808, the original keeps &D_8009871C in
+/* 74.00%: same missing shape as func_80070808, the original keeps &g_BattleCameraPos in
    $s2 across all four calls and reaches it through the register; ours re-forms it
-   with lui/addiu each time. D_8009871C/20/24 are also one VECTOR seen by
+   with lui/addiu each time. g_BattleCameraPos/20/24 are also one VECTOR seen by
    func_800708C4 as 0x0/0x4/0x8(s2).
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
@@ -70,11 +70,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
 void func_800708C4(s32* p, s32 step) {
     s32 values[3];
 
-    values[0] = BattleRoundDivAwayFromZero(p[0], D_8009871C, step);
+    values[0] = BattleRoundDivAwayFromZero(p[0], g_BattleCameraPos, step);
     values[1] = BattleRoundDivAwayFromZero(p[1], D_80098720, step);
     values[2] = BattleRoundDivAwayFromZero(p[2], D_80098724, step);
-    func_800828F8(&D_8009871C, values, 0x3D00);
-    D_8009871C += values[0];
+    BattleMovePointInsideRadius(&g_BattleCameraPos, values, 0x3D00);
+    g_BattleCameraPos += values[0];
     D_80098720 += values[1];
     D_80098724 += values[2];
 }
@@ -103,7 +103,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
    (a) retail forms &vec (s0) after the D_80099078 copy, ours hoists the
    addiu s0 above it; (b) the func_80082488 delta keeps retail's -0x40 in $v0
    (the call result) while ours copies it to $a0 first; (c) case 5 keeps
-   &D_8009867C in $s0 across the rcos call (sw v0,0(s0), then lw v0,0(s0)) where
+   &g_BattleCameraTarget in $s0 across the rcos call (sw v0,0(s0), then lw v0,0(s0)) where
    ours rematerialises the symbol as a direct %lo store. A pointer local does
    not stop that. Do not re-derive the shape: the do-while around the
    D_800925F4 store is load-bearing (91.24 -> 92.82, and it restores retail's
@@ -150,18 +150,18 @@ void func_8007099C(s32 mode) {
         vec.vy = y - D_800925F4;
         vec.vz = D_80098734 + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
         func_800708C4(&vec, 0x46);
-        offset = func_80082488(&D_8009871C, 0) - 0x40;
+        offset = func_80082488(&g_BattleCameraPos, 0) - 0x40;
         offset -= D_800925F4;
         if (offset < D_80098720) {
             D_80098720 = offset;
         }
         break;
     case 5:
-        pBase = &D_8009867C;
+        pBase = &g_BattleCameraTarget;
         *pBase = D_80097010.vx;
         D_80098680 = D_80097014 - 0xC0;
         D_80098684 = D_80097018;
-        D_8009871C = *pBase + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
+        g_BattleCameraPos = *pBase + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
         D_80098720 = D_80097014 - 0xD0;
         D_80098724 = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
         break;
@@ -224,7 +224,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
 
 extern s32 D_800925E0;
 extern s32 D_800925E4;
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 extern DR_TPAGE D_800929E4[];
 
 // The packet BattleQueueSpriteAndTpagePrims fills and queues: its primitive tag
@@ -244,7 +244,7 @@ void BattleQueueSpriteAndTpagePrims(void* pOt) {
     pPacket = D_80092868;
     pPacket->unk7C = D_800925E0 | (D_800925E4 << 16);
     AddPrim(pOt, &pPacket->tag);
-    AddPrim(pOt, &D_800929E4[D_800928A0]);
+    AddPrim(pOt, &D_800929E4[g_BattleDrawBufferIndex]);
 }
 
 extern u32 D_800929EC;
@@ -425,7 +425,7 @@ extern void func_80071DA4(u8* p);
    ours keeps both stores as direct absolute references, which maspsx expands to
    lui $at/%hi; sw %lo($at), and drops the load for the compare (the value is
    already in $v0, as in retail). Tried: a pointer local, pTPage-style field
-   access, a s32 value local, and ((s32*)&D_8009871C)[1] so the address is a
+   access, a s32 value local, and ((s32*)&g_BattleCameraPos)[1] so the address is a
    symbol plus a constant offset - gcc folds every one of them back into a direct
    symbol store.
 */

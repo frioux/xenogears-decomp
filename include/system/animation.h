@@ -46,13 +46,13 @@ extern u8 D_800591AF;
 extern void func_80022DF4();
 extern void AnimTaskFree();
 extern void* g_GfxWorkBuffer2;
-extern MATRIX D_8004FBB8;
+extern MATRIX g_GfxBaseMatrix;
 extern Image* g_GfxImageList[2];
 extern u_long* g_GfxCurOT;
 
 
 int g_GfxWorkBufferSize;
-s32 D_80059300; // LinkedLists of SpriteTileData pointers
+s32 g_GfxSpriteTileListHeads; // LinkedLists of SpriteTileData pointers
 s32 D_80059304;
 void* g_GfxWorkBuffers;
 int g_GfxCurContext;

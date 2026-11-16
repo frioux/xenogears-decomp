@@ -4,7 +4,7 @@
 
 extern s32 D_800C367C;
 extern s16 D_800C3740;
-extern u8 D_800C37C8;
+extern u8 g_BattleAnimCommandsSuppressed;
 
 extern void func_800BC2F0(s32);
 extern void HeapFree(void *pMem);
@@ -15,16 +15,16 @@ extern s32 rcos(s32 a);
 extern s32 rsin(s32 a);
 extern void SpriteSetIVec3(IVEC3 *pVector, s32 x, s32 y, s32 z);
 extern s32 BattleGetActorHeight(s32 arg0);
-extern s32 D_80050100;
-extern MATRIX D_800D30BC;
+extern s32 g_GfxOTDepthShift;
+extern MATRIX g_BattleViewMatrix;
 extern void TimerWorkListSetTaskCallback(void *pEntry, void *pCallback);
 extern void func_800A9540(s32 arg0);
 extern void func_800BB620(u8 *pEntry);
 extern void func_800BB6E0(u8 *pEntry);
 extern u8 *TimerWorkListAllocateTask(void *pData, s32 dataSize);
-extern u8 D_800591AC;
+extern u8 g_FlagTimerWorkListAdds;
 extern u8 D_800591AF;
-extern s32 D_800C35D8;
+extern s32 g_BattlePendingActorTaskCount;
 extern u8 D_800C3CB8;
 extern u32 D_800C3674;
 extern s32 D_800C3678;
@@ -47,7 +47,7 @@ extern IVEC3 D_8006F99C;
 extern IVEC3 D_8006F9AC;
 extern void func_800BC460(s32 arg0);
 
-// best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(D_800D30BC)
+// best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(g_BattleViewMatrix)
 // lands late and turns the three "lh" loads into v1 instead of v0. 2.6.0 fixes the
 // lhu re-read of field 0x36 that 2.7.2 forwards from the store.
 /*
@@ -74,9 +74,9 @@ void func_800BB248(u8 *pTask) {
     vec.vy = v;
     v = *(s16 *)(pSpriteData + 0xA);
     vec.vz = v;
-    SetRotMatrix(&D_800D30BC);
-    SetTransMatrix(&D_800D30BC);
-    nOTOffset = (RotTransPers(&vec, &sxy, (u_long *)&sxy, &flag) >> D_80050100) +
+    SetRotMatrix(&g_BattleViewMatrix);
+    SetTransMatrix(&g_BattleViewMatrix);
+    nOTOffset = (RotTransPers(&vec, &sxy, (u_long *)&sxy, &flag) >> g_GfxOTDepthShift) +
                 *(s16 *)(pSpriteData + 0x30);
     if (flag & 0x8000) {
         nOTOffset = 0;
@@ -103,22 +103,22 @@ void BattleAnimTaskAllocArchiveEntry(u8 *pEntry) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB6E0);
 // best 88.71% under cdk -G0 (44.87% under 2.7.2 -G8): the frame is 40 and every
 // instruction is present, only the global-base registers differ (we keep
-// &D_800591AC in s0 with the saved byte in s3, retail uses s1/s4), plus one
-// load-delay nop after lw D_800C35D8 that retail fills with the pEntry store.
+// &g_FlagTimerWorkListAdds in s0 with the saved byte in s3, retail uses s1/s4), plus one
+// load-delay nop after lw g_BattlePendingActorTaskCount that retail fills with the pEntry store.
 /*
 void func_800BB760(u8 *pEntry) {
     u8 saved;
     u8 *pTask;
 
-    saved = D_800591AC;
-    D_800591AC = 0;
+    saved = g_FlagTimerWorkListAdds;
+    g_FlagTimerWorkListAdds = 0;
     D_800591AF = 1;
     pTask = TimerWorkListAllocateTask(NULL, 4);
     TimerWorkListSetTaskCallback(pTask, func_800BB6E0);
-    D_800C35D8++;
+    g_BattlePendingActorTaskCount++;
     *(u8 **)(pTask + 0x1C) = pEntry;
     D_800591AF = 0;
-    D_800591AC = saved;
+    g_FlagTimerWorkListAdds = saved;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB760);
@@ -169,7 +169,7 @@ void BattleFreeAnimTask(u8 *pEntry) {
     if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
         if (D_800C3680 == pEntry) {
             D_800C3680 = NULL;
-            if (D_800C37C8 == 0) {
+            if (g_BattleAnimCommandsSuppressed == 0) {
                 D_800D30A0[0] = D_800C3CCC[0];
                 D_800D30A0[1] = D_800C3CCC[1];
                 D_800D30A0[2] = D_800C3CCC[2];
@@ -177,7 +177,7 @@ void BattleFreeAnimTask(u8 *pEntry) {
         }
     } else if (D_800C3684 == pEntry) {
         D_800C3684 = NULL;
-        if (D_800C37C8 == 0) {
+        if (g_BattleAnimCommandsSuppressed == 0) {
             D_800D30A8[0] = D_800C3CD4[0];
             D_800D30A8[1] = D_800C3CD4[1];
             D_800D30A8[2] = D_800C3CD4[2];
@@ -284,7 +284,7 @@ void BattleSetAnimTaskDoneState(s32 value) {
     D_800C367C = value;
 }
 void BattleBeginAnimTask(u8 *pEntry) {
-    if (D_800C37C8 == 0) {
+    if (g_BattleAnimCommandsSuppressed == 0) {
         func_800BC2F0(1);
         func_800BC460((s32)pEntry);
     }
@@ -296,13 +296,13 @@ void BattleSetAnimTaskShort(s16 value) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
 
 void BattleSetAnimState4(void) {
-    if (D_800C37C8 == 0) {
+    if (g_BattleAnimCommandsSuppressed == 0) {
         func_800BC2F0(4);
     }
 }
 
 void BattleSetAnimState1(void) {
-    if (D_800C37C8 == 0) {
+    if (g_BattleAnimCommandsSuppressed == 0) {
         func_800BC2F0(1);
     }
 }

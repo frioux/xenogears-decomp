@@ -140,7 +140,7 @@ void ControllerPoll(void) {
     if (D_8005022C < 0x20) {
         D_8005022C += 1;
         g_C1ButtonStatePressedOnce = g_C1ButtonStateReleased;
-    } else if (D_80059488 & 3) {
+    } else if (g_SpuChannelMask & 3) {
         g_C1ButtonStatePressedOnce = g_C1ButtonStateReleased;
     }
 
@@ -183,7 +183,7 @@ void ControllerPoll(void) {
     if (D_80050230 < 0x20) {
         D_80050230 += 1;
         g_C2ButtonStatePressedOnce = g_C2ButtonStateReleased;
-    } else if (D_80059488 & 3) {
+    } else if (g_SpuChannelMask & 3) {
         g_C2ButtonStatePressedOnce = g_C2ButtonStateReleased;
     }
 }

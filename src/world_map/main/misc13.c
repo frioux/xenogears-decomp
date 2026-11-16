@@ -46,9 +46,9 @@ extern void SystemStringPushBuffer(void* pString, void* pData);
 extern void func_80034888(void* pString, u32 unk, u32 arg);
 extern u8* GetStringEntry(u8* pData, s32 index);
 extern u8* D_8009BE24;
-extern u32* D_8009BE3C;
+extern u32* g_WorldMapRenderContext;
 extern u8* D_8009D784;
-extern s32 D_8009D7F0;
+extern s32 g_WorldMapPrimPacketIndex;
 extern s16 D_8009CE68;
 extern u8 D_8009D2B8[];
 extern u8 D_8009BDCC;
@@ -127,7 +127,7 @@ s32 func_80092C70(s32 index) {
         }
         break;
     }
-    func_80034888(D_8009D498, D_8009BE3C[0x1C], (u32)D_8009D7F0);
+    func_80034888(D_8009D498, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
     return 1;
 }
 */
@@ -183,8 +183,8 @@ s32 func_80092DF8(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
 /* best: 85.92% (484 bytes vs 472). Everything up to the display-list linking
    matches; only the constant/address materialisation order inside it differs
-   (retail loads `la D_8009D2B8`, the 0xFF000000 mask, D_8009D7F0 and
-   D_8009BE3C before the *40 multiply, ours interleaves them).
+   (retail loads `la D_8009D2B8`, the 0xFF000000 mask, g_WorldMapPrimPacketIndex and
+   g_WorldMapRenderContext before the *40 multiply, ours interleaves them).
 
 s32 func_80092FD8(s32 index) {
     WorldMapMenuSlot* pSlot;
@@ -211,11 +211,11 @@ s32 func_80092FD8(s32 index) {
         }
         break;
     }
-    func_80034888(D_8009BD64, D_8009BE3C[0x1C], (u32)D_8009D7F0);
+    func_80034888(D_8009BD64, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
     if (pSlot->unk20 == 1) {
-        pPrim = (u32*)(D_8009D2B8 + D_8009D7F0 * 0x28);
-        pPrim[0] = (pPrim[0] & 0xFF000000) | (*(u32*)D_8009BE3C[0x1C] & 0xFFFFFF);
-        *(u32*)D_8009BE3C[0x1C] = (*(u32*)D_8009BE3C[0x1C] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+        pPrim = (u32*)(D_8009D2B8 + g_WorldMapPrimPacketIndex * 0x28);
+        pPrim[0] = (pPrim[0] & 0xFF000000) | (*(u32*)g_WorldMapRenderContext[0x1C] & 0xFFFFFF);
+        *(u32*)g_WorldMapRenderContext[0x1C] = (*(u32*)g_WorldMapRenderContext[0x1C] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
     }
     return 1;
 }

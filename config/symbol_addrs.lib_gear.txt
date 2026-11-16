@@ -14,7 +14,7 @@ LibGearInitializeVertices = 0x801E011C;
 LibGearInitialize = 0x801E738C;
 
 g_LibGearMeshes = 0x801E85F4;
-D_801E8648 = 0x801E8648; // type:Temp6[] size:0x28
+g_LibGearModelOffsets = 0x801E8648; // type:Temp6[] size:0x28
 g_LibGearModels = 0x801E8670; // type:Model*[] size:0x28
 g_LibGearVertexBuffer = 0x801E86A0;
 
@@ -67,3 +67,8 @@ LibGearStepModelAnimation = 0x801E36BC;
 LibGearStopAnimationScript = 0x801E632C;
 LibGearUpdateModelAttachment = 0x801E37D0;
 LibGearGetInterpolationFunc = 0x801E34BC;
+g_LibGearModelBitMask = 0x801E863C;
+g_LibGearPendingFrameCount = 0x801E8640;
+g_LibGearSwingScale = 0x801E8698;
+g_LibGearSwingAngle = 0x801E869C;
+g_LibGearJointObjectPool = 0x801E86A8;

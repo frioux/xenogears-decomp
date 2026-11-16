@@ -112,7 +112,7 @@ extern s16 D_80096FE8;
 extern s32 D_8006F980;
 extern VECTOR D_80096FA8;
 extern u8 D_8005061C;
-extern u8 D_80099D98;
+extern u8 g_BattleDifficultyLevel;
 extern u8 D_80099D9B;
 extern u8 D_80099D9C;
 extern u8 D_80099D9F;
@@ -123,7 +123,7 @@ extern u8 D_800927EC;
 extern s32 D_80092888;
 extern s32 D_800927F4;
 extern s32 D_800927F0;
-extern u8** D_800928EC;
+extern u8** g_BattleEntries;
 extern BattleEntry D_8009A0D8[];
 
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
@@ -201,7 +201,7 @@ void BattleAppendExtraQueueEntry(void) {
         return;
     }
     D_800927EC = 1;
-    D_800928EC[D_80092888++] = D_80091A6C;
+    g_BattleEntries[D_80092888++] = D_80091A6C;
 }
 
 s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
@@ -263,7 +263,7 @@ void func_80088A40(void) {
     pFlags->flagB = D_80099D9B & 1;
     pFlags->flagC = D_80099D9C & 1;
     pFlags->value = D_80099D9F & 0x7F;
-    pFlags->scale = D_80099D98 & 7;
+    pFlags->scale = g_BattleDifficultyLevel & 7;
 }
 */
 
@@ -283,7 +283,7 @@ void BattleApplyOptionWord(void) {
         D_80099D9B = (flags >> 4) & 1;
         D_80099D9C = (flags >> 5) & 1;
         D_80099D9F = (flags >> 6) & 0x7F;
-        D_80099D98 = (flags >> 13) & 7;
+        g_BattleDifficultyLevel = (flags >> 13) & 7;
         if (flags & 0x10000) {
             i = 7;
             pBytes = (u8*)pFlags - 1;
@@ -295,7 +295,7 @@ void BattleApplyOptionWord(void) {
         D_80099D9B = 0;
         D_80099D9C = 0;
         D_80099D9F = 2;
-        D_80099D98 = 0;
+        g_BattleDifficultyLevel = 0;
         func_80088A40();
     }
 }
@@ -346,16 +346,16 @@ void BattleInitSlotDrawEntry(s32 slot) {
 
 extern u8 func_80088BFC[];
 extern u8 D_80091BB0[];
-extern s32 D_80010000;
+extern s32 g_DebugTable;
 extern void* D_80092868;
 extern void* D_80092870;
 extern s32 D_800928CC;
 extern u16 D_80092898;
 extern s32 D_8009289C;
 extern u16 D_800928D0;
-extern s32 D_800928E8;
+extern s32 g_BattleDrawFlags;
 extern s32 D_80092930;
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 extern u8 D_80092920;
 extern void* FontLoadFont(s32, s32, s32, s32, s32, u32, s32, s32, s32, s32, void*);
 extern void BattleSetTpage(s32, s32);
@@ -373,7 +373,7 @@ void BattleInitGraphics(void) {
     FontLoadFont(4, 2, 0x138, 0xDA, 0x14, 1, 0x3C0, 0x1F0, 0x3C0, 0x1EF, 0);
     BattleInitSlotDrawEntry(0);
     BattleInitSlotDrawEntry(1);
-    switch (D_80010000) {
+    switch (g_DebugTable) {
     case -1:
         D_800928CC = 2;
         break;
@@ -391,8 +391,8 @@ void BattleInitGraphics(void) {
     D_80092898 = 2;
     D_8009289C = 1;
     D_80092930 = 0;
-    D_800928E8 = 0;
-    D_800928A0 = 0;
+    g_BattleDrawFlags = 0;
+    g_BattleDrawBufferIndex = 0;
     D_80092920 = 0;
     D_80092930 = 0;
     D_800928D0 = 7;
@@ -403,8 +403,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088E90);
 
 /* Not attempted. 204 instructions: the battle draw loop. Calls BattleInitGraphics,
    then BattleCreateWorkBlock(handlers[D_80050618], 0, 0x801FE000, 0x400) and
-   Vsync(1) in a loop that toggles D_800928E8 and re-points D_80092868/70 at
-   D_8009A0D8 + D_800928E8 * 0x70, then TermPrim, FontDrawLetters,
+   Vsync(1) in a loop that toggles g_BattleDrawFlags and re-points D_80092868/70 at
+   D_8009A0D8 + g_BattleDrawFlags * 0x70, then TermPrim, FontDrawLetters,
    BattleReleaseFinishedSoundSlots, AddPrim, BattleDebugScrollHeapDump,
    FontPrintf x3, BattleCompactOrderingTable, DrawSync, PutDispEnv, DrawOTagEnv.
    The 4-word copies at +0x5C..+0x6B use lwl/lwr (unaligned 32-bit struct

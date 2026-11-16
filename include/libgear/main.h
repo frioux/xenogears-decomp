@@ -283,10 +283,10 @@ typedef struct {
 #define MAX_MODELS 10
 
 extern ModelMesh g_LibGearMeshes[MAX_MODEL_MESHES];
-extern Temp6 D_801E8648[2];
+extern Temp6 g_LibGearModelOffsets[2];
 extern Model* g_LibGearModels[MAX_MODELS];
 extern s16* D_801E8644;
-extern Temp4 D_801E86A8;
+extern Temp4 g_LibGearJointObjectPool;
 
 void LibGearInitialize(int);
 

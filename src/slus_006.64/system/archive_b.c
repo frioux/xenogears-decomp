@@ -83,7 +83,7 @@ void func_800379C8(char* pFormat) {
 }
 */
 
-void func_800379D0(void) {
+void ArchiveNoOp(void) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
@@ -109,7 +109,7 @@ extern u16 D_8005A1E4;
 extern void* D_8005A1E8;
 extern u16 D_8005A1EC;
 extern void* D_8005A1F0;
-extern void* D_800658C8;
+extern void* g_BattleStageData;
 
 int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3) {
     void* pFirst;
@@ -145,7 +145,7 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
         *pOut1 = pSecond;
         *pOut2 = 0;
         *pOut3 = (int)D_8005A1E8 + 4;
-        D_800658C8 = (int)D_8005A1E8 + 4;
+        g_BattleStageData = (int)D_8005A1E8 + 4;
     }
     ArchiveSetIndex(nSectionIndex, nEntryIndex);
     return nResult;

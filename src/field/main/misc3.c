@@ -143,29 +143,29 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 //     argument, `context = ++i`, assigning through a temp) gives a single
 //     `addiu $s1,$s1,1` that gcc's scheduler then hoists into the earlier call's
 //     delay slot, so this is a combine/scheduling choice, not the expression.
-//  2. D_800B2264: the original materialises `&D_800B2264` into $s0 with
+//  2. g_FieldActorModelSlotCount: the original materialises `&g_FieldActorModelSlotCount` into $s0 with
 //     lui+addiu once and reuses it across LibGearShutdown/HeapFree/
 //     FieldRenderSyncAndFlush, gcc rematerialises `lui` + `lw %lo` for the read
 //     and `lui at` + `sw %lo` for the store instead. An explicit pointer local,
 //     hoisting that local above FontFree, and plain symbol read/write all give
 //     the same rematerialised form.
 //  3. Tried `tools/scripts/try_flags.sh field/main/misc3 FieldFree --gp -G0`: 98.66%,
-//     so the -G0/gp lead is not what closes this one either; the D_800B2264 remat and
+//     so the -G0/gp lead is not what closes this one either; the g_FieldActorModelSlotCount remat and
 //     the missing `move` both survive it.
 // Facts recovered for whoever retries: the unit needs field/actor.h for
 // g_FieldActors/g_FieldNumActors/g_FieldCurScriptFile/g_FieldSpriteData; the
 // actor loop must index as `(i * sizeof(FieldActor) + (int)g_FieldActors)` to get
 // the original's index-first `addu`, with one status read feeding both masks; the
-// line scroll table at D_800AFEA8 (0x144 bytes, same layout as misc11.c) and the
+// line scroll table at g_FieldLineScrolls (0x144 bytes, same layout as misc11.c) and the
 // `lh -0x4` count loop match byte for byte.
 /*
-extern s32 D_800B2264;
+extern s32 g_FieldActorModelSlotCount;
 extern void* D_800ADB20;
 extern s32 D_800ADBF0;
 extern s32 D_800AFB18;
 extern s32 D_800AFB14;
-extern s16 D_800B00B2;
-extern s32 D_800B007C;
+extern s16 g_FieldScreenEffectEnabled;
+extern s32 g_FieldScreenEffectData;
 
 extern void WorkListsFreeAllEntries(void);
 extern void GfxFlushImageList(void);
@@ -190,7 +190,7 @@ typedef struct {
     s16 lengths[32];        // 0x104
 } LineScrollTable; // Size: 0x144
 
-extern LineScrollTable D_800AFEA8;
+extern LineScrollTable g_FieldLineScrolls;
 
 void FieldFree(void) {
     FieldActor* pActor;
@@ -236,19 +236,19 @@ void FieldFree(void) {
     HeapFree(D_800AFB14);
     HeapFree(g_FieldSpriteData);
 
-    if (D_800B00B2 != 0) {
-        HeapFreeIfNotNull(D_800B007C);
+    if (g_FieldScreenEffectEnabled != 0) {
+        HeapFreeIfNotNull(g_FieldScreenEffectData);
     }
 
-    for (i = 0; i < D_800AFEA8.numLineScrolls; i++) {
-        GfxLineScrollFree(D_800AFEA8.pLineScrolls[i]);
-        HeapFree(D_800AFEA8.pDatas[i]);
-        HeapFree(D_800AFEA8.pLineScrolls[i]);
+    for (i = 0; i < g_FieldLineScrolls.numLineScrolls; i++) {
+        GfxLineScrollFree(g_FieldLineScrolls.pLineScrolls[i]);
+        HeapFree(g_FieldLineScrolls.pDatas[i]);
+        HeapFree(g_FieldLineScrolls.pLineScrolls[i]);
     }
 
     FontFree();
-    pCount = &D_800B2264;
-    D_800AFEA8.numLineScrolls = 0;
+    pCount = &g_FieldActorModelSlotCount;
+    g_FieldLineScrolls.numLineScrolls = 0;
     if (*pCount != 0) {
         LibGearShutdown();
         HeapFree(D_800ADB20);

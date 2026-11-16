@@ -8,7 +8,7 @@
 #include "field/text_box.h"
 
 extern s32 D_800ADB1C; // Is current actor a 2D actor (0) maybe?
-extern s32 D_800AFD1C;
+extern s32 g_FieldCurActorIndex;
 extern s8 D_800B21CE;
 extern s8 D_800B21CF[];
 extern s32 D_800B21D8[];
@@ -20,7 +20,7 @@ extern u16 D_800AEA54[];
 extern s16 D_800AEA64[];
 extern s8 D_800B21CC[];
 extern s32 g_PlayerActorIndex;
-extern s32 D_8005A444[];
+extern s32 g_FieldPartyActorSlots[];
 
 // g_FieldActors is volatile, which stops gcc from filling the delay slot of a call
 // that follows an index through it; read the pointer through a plain lvalue instead.
@@ -72,8 +72,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
     int x = 0;
 
     pFieldActor = g_FieldActors;
-    pActorData = pFieldActor[D_800AFD1C].pActorData;
-    pSpriteData = pFieldActor[D_800AFD1C].pSpriteData;
+    pActorData = pFieldActor[g_FieldCurActorIndex].pActorData;
+    pSpriteData = pFieldActor[g_FieldCurActorIndex].pSpriteData;
     if (pActorData->flags & 0x2000) {
         pSpriteData->moveSpeed = 0x8000000 / g_FieldScriptVMCurActor->moveSpeed;
     } else if (pSpriteData->moveSpeed == 0) {
@@ -150,7 +150,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
 
     pTailActor->scripts[pTailActor->curScriptIndex].flags_0--;
     rotation = FieldGetVec2Angle(&delta);
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->rotation.vx = rotation;
     g_FieldScriptVMCurActor->rotation.vy = rotation;
     return -1;
@@ -219,7 +219,7 @@ void FieldScriptClearAnimationOverrideIfFlag16(void) {
 }
 
 void FieldScriptSetCurActorRotationTowardPartySlot(void) {
-    int actorIndex = D_8005A444[SCRIPT_READ_U8_REL(1)];
+    int actorIndex = g_FieldPartyActorSlots[SCRIPT_READ_U8_REL(1)];
 
     if (actorIndex != ACTOR_ID_INVALID) {
         ActorData* pActor = g_FieldActors[actorIndex].pActorData;
@@ -296,7 +296,7 @@ void FieldScriptVMWaitWhileSceneFlagSet(void) {
     if (!(g_Scene.unk48 & SCRIPT_READ_U8_REL(1))) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     } else {
-        D_800B00C0 = 1;
+        g_FieldScriptVMStopFlag = 1;
     }
 }
 
@@ -304,7 +304,7 @@ void FieldScriptVMWaitWhileSceneFlagSet2(void) {
     if (!(g_Scene.unk48 & SCRIPT_READ_U8_REL(1))) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     } else {
-        D_800B00C0 = 1;
+        g_FieldScriptVMStopFlag = 1;
     }
 }
 
@@ -557,7 +557,7 @@ long FieldGetVec1Magnitude(long);
 long FieldGetVec2Magnitude(long, long);
 int FieldGetVec2Angle(IVEC3*);
 void func_8009E574(int, int);
-extern s32 D_800AFD1C;
+extern s32 g_FieldCurActorIndex;
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009AEE0);
 /* 19.71% (636 vs 632 bytes): the C below is semantically right and matches
    instruction for instruction except for block layout. The original emits the
@@ -582,7 +582,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     int distance;
     int magnitude;
 
-    actorIndex = D_8005A444[actorSlotId];
+    actorIndex = g_FieldPartyActorSlots[actorSlotId];
     if (actorIndex == ACTOR_ID_INVALID) {
         return 0;
     }
@@ -616,12 +616,12 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
             return -1;
         }
         pCurActor = g_FieldScriptVMCurActor;
-        prevActorIndex = D_800AFD1C;
+        prevActorIndex = g_FieldCurActorIndex;
         g_FieldScriptVMCurActor = pActor;
-        D_800AFD1C = D_8005A444[actorSlotId];
+        g_FieldCurActorIndex = g_FieldPartyActorSlots[actorSlotId];
         func_8009E574(x, z);
         g_FieldScriptVMCurActor = pCurActor;
-        D_800AFD1C = prevActorIndex;
+        g_FieldCurActorIndex = prevActorIndex;
     }
     if (pActor->scriptFlags.flags & 0x8000) {
         rotation = pActor->unk11C | 0x8000;
@@ -666,7 +666,7 @@ void FieldScriptVMMovePartyToLeader(void) {
     int z;
     int mask;
 
-    pActor = g_FieldActors[D_8005A444[0]].pActorData;
+    pActor = g_FieldActors[g_FieldPartyActorSlots[0]].pActorData;
     x = CONV_TO_GTE(pActor->position.vx);
     z = CONV_TO_GTE(pActor->position.vz);
     mask = func_8009AEE0(0, x, z, 0xFF) == 0;
@@ -676,7 +676,7 @@ void FieldScriptVMMovePartyToLeader(void) {
     if (func_8009AEE0(2, x, z, 0xFF) == 0) {
         mask |= 4;
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     if (mask == 7) {
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
         D_800B21CC[0] = 0;
@@ -706,7 +706,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B398);
    matches instruction for instruction; only the 2D-actor arm differs, and it
    differs by one register: our compile materialises the `D_800B21CE = 1`
    constant into a0 and schedules its `sb` before the `sh` of
-   scriptInstructionPointer, which pushes the D_8005A444 pointer, the loop
+   scriptInstructionPointer, which pushes the g_FieldPartyActorSlots pointer, the loop
    counter, the 0xFF and the -0x8000 constants from a0-a3 out into a1/a2/a3/t0
    and shifts the whole arm by one register. The original materialises the 1
    into v0 *after* `sh 204(v0)` (the pointer register it just freed) and keeps
@@ -728,8 +728,8 @@ void func_8009B398(void) {
         D_800B21CE = 1;
 
         for (i = 0; i < 3; i++) {
-            if (D_8005A444[i] != 0xFF) {
-                pActor = g_FieldActors[D_8005A444[i]].pActorData;
+            if (g_FieldPartyActorSlots[i] != 0xFF) {
+                pActor = g_FieldActors[g_FieldPartyActorSlots[i]].pActorData;
                 rotation = pActor->rotation.vy | ~0x7FFF;
                 pActor->rotation.vx = rotation;
                 pActor->rotation.vy = rotation;
@@ -758,7 +758,7 @@ void func_8009B398(void) {
             ) == 0) {
             mask |= 4;
         }
-        D_800B00C0 = 1;
+        g_FieldScriptVMStopFlag = 1;
         if (mask == 7) {
             D_800B2348.value = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
@@ -817,7 +817,7 @@ void FieldScriptVMStartSceneAngleRotation(void) {
         FieldSceneStartSceneAngleRotation(0, FieldScriptVMGetArgument(1));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 void FieldScriptVMStartSceneAngleRotation2(void) {
@@ -825,7 +825,7 @@ void FieldScriptVMStartSceneAngleRotation2(void) {
         FieldSceneStartSceneAngleRotation(0, FieldScriptVMGetArgument(1));
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_8009B8E4);
@@ -847,7 +847,7 @@ void func_8009B8E4(void) {
         FieldSceneStartSceneAngleInterpolation(direction, duration);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 } */
 
 void FieldScriptSaveCameraState(void) {

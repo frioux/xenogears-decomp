@@ -3,7 +3,7 @@
 #include "system/menu.h"
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E433C);
-void func_801E4754(MenuDressingRoom* pDressingRoom, u8 gearId) {
+void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
     GameGear* pGear = &g_GameState.gears[gearId];
     GearWeapon* pWeapon;
 

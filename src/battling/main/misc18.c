@@ -100,7 +100,7 @@ extern s32 D_8009284C;
 extern s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork);
 extern void func_8008FFEC(BattleActor* pActor, BattleWork* pWork);
 extern void BattleResetMessageQueue(BattleActor* p);
-extern u8 D_80099D98;
+extern u8 g_BattleDifficultyLevel;
 extern BattleWork D_80096F30;
 extern BattleWork D_80096F64;
 extern void func_8008FCC8(BattleActor* pActor, BattleWork* pWork);
@@ -530,7 +530,7 @@ void BattleLoadWorkActionChances(BattleActor* pActor) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090CC0);
 /* 97.38%: the whole body matches except the order of the two statements after the
    BattleGetActorBreakThreshold return. Retail stores the result first ("sw v0,36(s0)")
-   and then loads D_80099D98 into the now-free $v0; gcc schedules the lbu first (into
+   and then loads g_BattleDifficultyLevel into the now-free $v0; gcc schedules the lbu first (into
    $v1, because the call result is still live) and stores second. Tried: the store
    inline, the loaded byte in a u8 local, the call result in an s32 local stored after
    the load - all identical. tools/scripts/permute.sh (1841 iterations, base=80) found
@@ -557,7 +557,7 @@ void func_80090CC0(BattleActor* pActor) {
     pWork->unk9 = 0;
     pActor->unk48 = 0;
     thr = BattleGetActorBreakThreshold(pActor, pWork);
-    pWork->unkF = D_80099D98;
+    pWork->unkF = g_BattleDifficultyLevel;
     pWork->unk24 = thr;
     BattleLoadWorkActionChances(pActor);
     switch (rand() % 3) {
@@ -582,7 +582,7 @@ void BattleDispatchWorkState(BattleActor* pActor) {
 
     if ((pActor->flags & 0x40) != 0) {
         pWork = pActor->pWork;
-        pWork->unkF = D_80099D98;
+        pWork->unkF = g_BattleDifficultyLevel;
         switch (pWork->unk8) {
         case 0:
             func_8008FCC8(pActor, pWork);

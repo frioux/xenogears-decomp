@@ -1,6 +1,6 @@
 #include "common.h"
 
-// The per-slot battle register file (D_800D3400[slot]): the dword, word and
+// The per-slot battle register file (g_BattleSlotRegs[slot]): the dword, word and
 // byte registers the script's comparison ops test against, indexed by the
 // operand byte that follows the opcode.
 typedef struct {
@@ -23,53 +23,53 @@ typedef struct {
 } BattleStatusEntry; // Size: 0x4
 
 extern u8 D_800C3EB7[];
-extern BattleTableEntry D_800CCD64[];
-extern u8 D_800D2D24[];
-extern u8 *D_800D2D28;
-extern BattleStatusEntry D_800D301C[];
-extern u16 D_800D39DC;
-extern BattleSlotRegs D_800D3400[];
+extern BattleTableEntry g_BattleSlotEntries[];
+extern u8 g_BattleActorCharIds[];
+extern u8 *g_BattleDisplayState;
+extern BattleStatusEntry g_BattleCharSlotUsage[];
+extern u16 g_BattleStateFlags;
+extern BattleSlotRegs g_BattleSlotRegs[];
 
 s32 BattleWordRegLeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 value = p[2] | (p[3] << 8);
 
-    return value >= D_800D3400[arg1].unk20[p[1]];
+    return value >= g_BattleSlotRegs[arg1].unk20[p[1]];
 }
 s32 BattleByteRegGeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return !(D_800D3400[arg1].unk30[p[1]] < p[2]);
+    return !(g_BattleSlotRegs[arg1].unk30[p[1]] < p[2]);
 }
 s32 BattleWordRegGeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 value = p[2] | (p[3] << 8);
 
-    return D_800D3400[arg1].unk20[p[1]] >= value;
+    return g_BattleSlotRegs[arg1].unk20[p[1]] >= value;
 }
 s32 BattleByteRegEqReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return D_800D3400[arg1].unk30[p[1]] == D_800D3400[arg1].unk30[p[2]];
+    return g_BattleSlotRegs[arg1].unk30[p[1]] == g_BattleSlotRegs[arg1].unk30[p[2]];
 }
 s32 BattleWordRegEqReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return D_800D3400[arg1].unk20[p[1]] == D_800D3400[arg1].unk20[p[2]];
+    return g_BattleSlotRegs[arg1].unk20[p[1]] == g_BattleSlotRegs[arg1].unk20[p[2]];
 }
 s32 BattleByteRegLeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return D_800D3400[arg1].unk30[p[1]] <= D_800D3400[arg1].unk30[p[2]];
+    return g_BattleSlotRegs[arg1].unk30[p[1]] <= g_BattleSlotRegs[arg1].unk30[p[2]];
 }
 s32 BattleWordRegLeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return D_800D3400[arg1].unk20[p[1]] <= D_800D3400[arg1].unk20[p[2]];
+    return g_BattleSlotRegs[arg1].unk20[p[1]] <= g_BattleSlotRegs[arg1].unk20[p[2]];
 }
 s32 BattleByteRegTestImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    s32 v = D_800D3400[arg1].unk30[p[1]];
+    s32 v = g_BattleSlotRegs[arg1].unk30[p[1]];
 
     v &= p[2];
     return v != 0;
@@ -78,64 +78,64 @@ s32 BattleWordRegTestImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 value = p[2] + (p[3] << 8);
 
-    return (D_800D3400[arg1].unk20[p[1]] & value) != 0;
+    return (g_BattleSlotRegs[arg1].unk20[p[1]] & value) != 0;
 }
 s32 BattleByteRegTestReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 lhs = D_800D3400[arg1].unk30[p[1]];
+    u8 lhs = g_BattleSlotRegs[arg1].unk30[p[1]];
 
-    return (D_800D3400[arg1].unk30[p[2]] & lhs) != 0;
+    return (g_BattleSlotRegs[arg1].unk30[p[2]] & lhs) != 0;
 }
 s32 BattleWordRegTestReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u16 a = D_800D3400[arg1].unk20[p[1]];
-    u16 b = D_800D3400[arg1].unk20[p[2]];
+    u16 a = g_BattleSlotRegs[arg1].unk20[p[1]];
+    u16 b = g_BattleSlotRegs[arg1].unk20[p[2]];
 
     return (b & a) != 0;
 }
 s32 BattleByteRegNeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return (D_800D3400[arg1].unk30[p[1]] ^ p[2]) != 0;
+    return (g_BattleSlotRegs[arg1].unk30[p[1]] ^ p[2]) != 0;
 }
 s32 BattleWordRegNeImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u16 value = p[2] | (p[3] << 8);
 
-    return (D_800D3400[arg1].unk20[p[1]] ^ value) != 0;
+    return (g_BattleSlotRegs[arg1].unk20[p[1]] ^ value) != 0;
 }
 s32 BattleByteRegNeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return (D_800D3400[arg1].unk30[p[1]] ^ D_800D3400[arg1].unk30[p[2]]) != 0;
+    return (g_BattleSlotRegs[arg1].unk30[p[1]] ^ g_BattleSlotRegs[arg1].unk30[p[2]]) != 0;
 }
 s32 BattleWordRegNeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return (D_800D3400[arg1].unk20[p[1]] ^ D_800D3400[arg1].unk20[p[2]]) != 0;
+    return (g_BattleSlotRegs[arg1].unk20[p[1]] ^ g_BattleSlotRegs[arg1].unk20[p[2]]) != 0;
 }
 s32 BattleDwordRegEqReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return (D_800D3400[arg1].unk10[p[1]] ^ D_800D3400[arg1].unk10[p[2]]) == 0;
+    return (g_BattleSlotRegs[arg1].unk10[p[1]] ^ g_BattleSlotRegs[arg1].unk10[p[2]]) == 0;
 }
 s32 BattleDwordRegLeReg(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
-    return D_800D3400[arg1].unk10[p[1]] <= D_800D3400[arg1].unk10[p[2]];
+    return g_BattleSlotRegs[arg1].unk10[p[1]] <= g_BattleSlotRegs[arg1].unk10[p[2]];
 }
 s32 BattleTableEntryFlag8000(u8 **arg0) {
     u8 *p = *arg0;
 
-    return D_800CCD64[p[1]].flags >> 15;
+    return g_BattleSlotEntries[p[1]].flags >> 15;
 }
 s32 BattleSlotCountIsZero(u8 **arg0) {
     u8 *p = *arg0;
 
-    return D_800D301C[p[1]].unk0 == 0;
+    return g_BattleCharSlotUsage[p[1]].unk0 == 0;
 }
 s32 BattleStateWordLowBitsClear(void) {
-    return (D_800D39DC & 3) == 0;
+    return (g_BattleStateFlags & 3) == 0;
 }
 s32 func_8007EEE8(void) {
     s32 ret = 1;
@@ -143,7 +143,7 @@ s32 func_8007EEE8(void) {
     s32 ofs = 0x54;
 
     for (; i < 8; i++) {
-        if ((D_800D39DC >> 5) != 0) {
+        if ((g_BattleStateFlags >> 5) != 0) {
             if ((D_800C3EB7[ofs] & 0x80) == 0) {
                 ret = 0;
                 break;
@@ -289,9 +289,9 @@ s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
 }
  */
 void BattleReleaseEffectSlotIfChar4(u8 arg0) {
-    if (D_800D2D24[arg0] == 4 && D_800D2D28[0x8E] != 0) {
-        func_8008FA60(0);
+    if (g_BattleActorCharIds[arg0] == 4 && g_BattleDisplayState[0x8E] != 0) {
+        BattleFreeSlotBuffers(0);
         BattleFreePacketPrimitives();
-        D_800D2D28[0x8E] = 0;
+        g_BattleDisplayState[0x8E] = 0;
     }
 }

@@ -66,35 +66,35 @@ extern u16 D_8009A46C[];
 extern WorldMapTrackPoint D_8009A490[];
 extern u16 D_8009A4D8;
 extern u16 D_8009A4E8[];
-extern s16 D_8009BD38;
-extern s16 D_8009BD3A;
+extern s16 g_WorldMapCameraRot;
+extern s16 g_WorldMapViewRotationY;
 extern s16 D_8009BD3C;
 // camera position / rotation halfwords, accumulated by the random jitter below
-extern u16 D_8009BD40;
+extern u16 g_WorldMapPathFrame;
 extern u16 D_8009BD42;
 extern u16 D_8009BD44;
 extern u16 D_8009BD48;
 extern u16 D_8009BD4A;
 extern u16 D_8009BD4C;
-extern MATRIX D_8009C808;
+extern MATRIX g_WorldMapViewMatrix;
 extern void func_80096F18(void *, void *, s32, void *);
 extern void func_80097244(s32 *pPos);
 extern int rand(void);
 extern s32 D_8009BE0C;
-extern s32 D_8009BE28;
+extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE2C;
 extern s32 D_8009BE30;
-extern s32 D_8009C5AC;
+extern s32 g_WorldMapPlayerPosition;
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s32 D_8009D3F0;
 extern s32 D_8009D55C;
 extern s32 D_8009D560;
 extern s32 D_8009D564;
-extern s32 D_8009D144;
-extern SoundSedsBank *D_8006259C;
-extern s32 D_8009BC38;
-extern s32 D_8009BCB0;
+extern s32 g_WorldMapRotationMatrixValid;
+extern SoundSedsBank *g_MenuSedsFile;
+extern s32 g_WorldMapWorkBuffer1;
+extern s32 g_WorldMapWorkBuffer2;
 extern s32 D_8009BC3C;
 extern s32 D_8009BCB4;
 extern s32 D_8009C180;
@@ -202,16 +202,16 @@ s32 WorldMapUpdateActorState(s32 idx) {
     case 2:
         func_80089160(0x11, NULL, 0);
         pPlayer->unk20 = 1;
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 1);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 1);
         break;
     case 3:
         WorldMapStartSlot(2, 2);
         pPlayer->unk20 = 1;
         func_80089160(0xF, NULL, 0);
         func_80089160(0x10, NULL, 0);
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 4);
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 5);
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 6);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 4);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 5);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 6);
         break;
     case 4:
         WorldMapStartSlot(2, 3);
@@ -223,16 +223,16 @@ s32 WorldMapUpdateActorState(s32 idx) {
         WorldMapStartSlot(4, 1);
         WorldMapStartSlot(5, 1);
         pPlayer->unk20 = 1;
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 7);
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 8);
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 9);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 7);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 8);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 9);
         break;
     case 6:
         WorldMapStartSlot(2, 4);
         pPlayer->unk20 = 1;
-        SoundPlaySoundEffectOnFreePair((D_8006259C->unk14 << 16) | 0xA);
-        SoundSendCommandConstant((D_8006259C->unk14 << 16) | 0xB);
-        SoundSendCommandConstant((D_8006259C->unk14 << 16) | 0xC);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->unk14 << 16) | 0xA);
+        SoundSendCommandConstant((g_MenuSedsFile->unk14 << 16) | 0xB);
+        SoundSendCommandConstant((g_MenuSedsFile->unk14 << 16) | 0xC);
         break;
     case 7:
         WorldMapStartSlot(2, 5);
@@ -267,16 +267,16 @@ int WorldMapInitActorScrollScale(int idx) {
     s32 b;
     s32 c;
 
-    a = D_8009C5AC;
+    a = g_WorldMapPlayerPosition;
     b = D_8009C5B0;
     c = D_8009C5B4;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x1C0000;
-    D_8009BD38 = 0x40;
-    D_8009BD3A = 0x480;
+    g_WorldMapCameraRot = 0x40;
+    g_WorldMapViewRotationY = 0x480;
     D_8009BD3C = 0;
     pPlayer = D_8009BE24 + idx;
-    D_8009BE28 = a;
+    g_WorldMapCameraTarget = a;
     D_8009D55C = a;
     D_8009BE2C = b;
     D_8009D560 = b;
@@ -291,38 +291,38 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
    shared rand-jitter tail; every block is found and the ONE remaining defect is
    the 4th argument of the tail call.
    NEEDS these externs (the parked body below is spelled for them; the scalar
-   D_8009BD3x/4x and D_8009BE28/2C/30 declarations give the same 87.56%):
-       extern SVECTOR D_8009BD38[];   // rotation, offset, target: 3 SVECTORs
-       extern SVECTOR D_8009BD40[];   // offset + target, same bytes
-       extern WorldMapPos D_8009BE28[];
+   D_8009BD3x/4x and g_WorldMapCameraTarget/2C/30 declarations give the same 87.56%):
+       extern SVECTOR g_WorldMapCameraRot[];   // rotation, offset, target: 3 SVECTORs
+       extern SVECTOR g_WorldMapPathFrame[];   // offset + target, same bytes
+       extern WorldMapPos g_WorldMapCameraTarget[];
    Switching them makes the two already-matched neighbours read objdiff 99.00 /
    99.85 (MATCH, identical bytes: only reloc addends move), so only do it with
    this body in place.
    SOLVED (was 81.35%): the three read-modify-write globals retail addresses
-   through a HELD register - case 4 D_8009BE30 in $a2, case 5 D_8009BD3A in $a3,
-   tail D_8009BD40 in $t1 - are UNBOUNDED ARRAY declarations. That is what makes
+   through a HELD register - case 4 D_8009BE30 in $a2, case 5 g_WorldMapViewRotationY in $a3,
+   tail g_WorldMapPathFrame in $t1 - are UNBOUNDED ARRAY declarations. That is what makes
    gcc keep the base in a general register instead of the `sw $r,sym` macro form
    that maspsx expands through $at. And only the FIRST RMW of a basic block does
    it, which is exactly retail's tail (BD40 in $t1, then BD48/BD42/BD4A via $at).
    The held base only appears when the RMW is at offset 0 of its array symbol:
-   D_8009BD38[1].vx += x emits the $at macro form, D_8009BD40[0].vx += x the
-   held base. That is why D_8009BD40 needs its own declaration.
-   REMAINING 4 BYTES, one decision: retail materialises &D_8009BD40 fresh in $a0
+   g_WorldMapCameraRot[1].vx += x emits the $at macro form, g_WorldMapPathFrame[0].vx += x the
+   held base. That is why g_WorldMapPathFrame needs its own declaration.
+   REMAINING 4 BYTES, one decision: retail materialises &g_WorldMapPathFrame fresh in $a0
    for func_80096F18 and AGAIN in $t1 after the two rand() calls; with arg1 and
-   the tail RMW both spelled &D_8009BD40 gcc hoists the address into the SAVED
+   the tail RMW both spelled &g_WorldMapPathFrame gcc hoists the address into the SAVED
    register $s0 before the calls (which also pushes the player pointer to $s1 and
    the scratch base to $s2, adding a save/restore pair): 1072 bytes, 85.93%.
-   Spelling arg1 as &D_8009BD38[1] kills the hoist (that is this 87.56% body) but
+   Spelling arg1 as &g_WorldMapCameraRot[1] kills the hoist (that is this 87.56% body) but
    gcc then derives the 4th argument as `addu $a3,$a0,-8` where retail emits a
    fresh `la`, so the function comes out 4 bytes SHORT. All three roles need
-   values gcc cannot relate: arg1 D_8009BD40, arg4 D_8009BD38 and the tail base
-   D_8009BD40 -i.e. two spellings of the same address that differ where it
+   values gcc cannot relate: arg1 g_WorldMapPathFrame, arg4 g_WorldMapCameraRot and the tail base
+   g_WorldMapPathFrame -i.e. two spellings of the same address that differ where it
    matters. Tried: arg1 &D_8009BD48[-1] (the hoist returns, 1072), arg4
-   &D_8009BD40[-1] (81.91%, 1048), the whole tail in a do/while (0) block (80.44%,
+   &g_WorldMapPathFrame[-1] (81.91%, 1048), the whole tail in a do/while (0) block (80.44%,
    1072), arg4 through a pointer local. Permuter from this body twice, both
    PERMUTER_BETTER and both SHORTER than retail, so neither can link:
    `s32 nTargetZ = pPlayer->unk5C;` before the BD40[1] stores (92.26%, 1060) and
-   `nAngle = D_8009C5AC;` between case 3 and case 4 with unk58 = nAngle + 0xC7C00
+   `nAngle = g_WorldMapPlayerPosition;` between case 3 and case 4 with unk58 = nAngle + 0xC7C00
    (93.93%, 1052). The unused return value is not the lever here (tried void).
    Compiler is not the preset: -G0 85.93, gcc-2.6.0 85.89, cdk -G0 66.51.
    Do not convert func_8007BBEC/8007C3B8/8007C7D8 before this one: their tables
@@ -350,19 +350,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
             D_8009D3F0 = 0x640000;
             pPlayer->unk4 = 0;
             pPlayer->unk20 = 0;
-            D_8009BD38[0].vx = -0x1E0;
-            D_8009BD38[0].vy = 0x480;
-            D_8009BD38[0].vz = 0;
+            g_WorldMapCameraRot[0].vx = -0x1E0;
+            g_WorldMapCameraRot[0].vy = 0x480;
+            g_WorldMapCameraRot[0].vz = 0;
             break;
         case 3:
             pPlayer->unk4 = 0;
             pPlayer->unk20 = 0;
             D_8009D3F0 = 0x1E0000;
-            D_8009BD38[0].vx = 0x40;
-            D_8009BD38[0].vy = 0x418;
-            D_8009BD38[0].vz = 0;
-            D_8009D144 = 0;
-            D_8009BE28[0].z = D_8009C5B4;
+            g_WorldMapCameraRot[0].vx = 0x40;
+            g_WorldMapCameraRot[0].vy = 0x418;
+            g_WorldMapCameraRot[0].vz = 0;
+            g_WorldMapRotationMatrixValid = 0;
+            g_WorldMapCameraTarget[0].z = D_8009C5B4;
             break;
         case 4:
             pPlayer->unk4 = 0;
@@ -371,8 +371,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
         case 5:
             pPlayer->unk4 = 0;
             pPlayer->unk20 = 4;
-            pPlayer->unk58 = D_8009C5AC + 0xC7C00;
-            D_8009D144 = 1;
+            pPlayer->unk58 = g_WorldMapPlayerPosition + 0xC7C00;
+            g_WorldMapRotationMatrixValid = 1;
             pPlayer->unk5C = D_8009C5B4 + 0x3EC400;
             break;
         case 6:
@@ -405,35 +405,35 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
             }
             break;
         case 4:
-            D_8009BE28[0].z += 0x3A000;
-            if (D_8009BE28[0].z > 0x77FFFFF) {
+            g_WorldMapCameraTarget[0].z += 0x3A000;
+            if (g_WorldMapCameraTarget[0].z > 0x77FFFFF) {
                 pPlayer->unk20 = 0;
             }
-            D_8009BD40[0].vx = (pPlayer->unk58 - D_8009BE28[0].x) >> 12;
-            D_8009BD40[1].vz = 0;
-            D_8009BD40[1].vx = 0;
-            nAngle = D_8009BE28[0].y >> 12;
-            D_8009BD40[1].vy = nAngle;
-            D_8009BD40[0].vy = nAngle - 0x40;
-            D_8009BD40[0].vz = (D_8009BE28[0].z - pPlayer->unk5C) >> 12;
-            func_80097244((s32 *)&D_8009BD40[0]);
-            WorldMapExtractRotationFromMatrix(&D_8009C808, &D_8009BD38[0]);
+            g_WorldMapPathFrame[0].vx = (pPlayer->unk58 - g_WorldMapCameraTarget[0].x) >> 12;
+            g_WorldMapPathFrame[1].vz = 0;
+            g_WorldMapPathFrame[1].vx = 0;
+            nAngle = g_WorldMapCameraTarget[0].y >> 12;
+            g_WorldMapPathFrame[1].vy = nAngle;
+            g_WorldMapPathFrame[0].vy = nAngle - 0x40;
+            g_WorldMapPathFrame[0].vz = (g_WorldMapCameraTarget[0].z - pPlayer->unk5C) >> 12;
+            func_80097244((s32 *)&g_WorldMapPathFrame[0]);
+            WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, &g_WorldMapCameraRot[0]);
             break;
         case 5:
-            D_8009BD38[0].vy += 4;
-            nTimer = D_8009BD38[0].vy;
+            g_WorldMapCameraRot[0].vy += 4;
+            nTimer = g_WorldMapCameraRot[0].vy;
             if (nTimer > 0x600) {
                 pPlayer->unk20 = 0;
             }
             break;
         }
-        func_80096F18(&D_8009BD38[1], &D_8009BE28[0], D_8009D3F0, &D_8009BD38[0]);
+        func_80096F18(&g_WorldMapCameraRot[1], &g_WorldMapCameraTarget[0], D_8009D3F0, &g_WorldMapCameraRot[0]);
         pJitter[0x50] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
         pJitter[0x51] = rand() % (pPlayer->unk50 >> 12) - (pPlayer->unk50 >> 13);
-        D_8009BD40[0].vx += pJitter[0x50];
-        D_8009BD40[1].vx += pJitter[0x50];
-        D_8009BD40[0].vy += pJitter[0x51];
-        D_8009BD40[1].vy += pJitter[0x51];
+        g_WorldMapPathFrame[0].vx += pJitter[0x50];
+        g_WorldMapPathFrame[1].vx += pJitter[0x50];
+        g_WorldMapPathFrame[0].vy += pJitter[0x51];
+        g_WorldMapPathFrame[1].vy += pJitter[0x51];
         return 1;
     }
 */
@@ -472,7 +472,7 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
     WorldMapSceneLayer *pLayer = D_8009C620;
     // 0x158/0x15C/0x160 are layer 4's pos, 0x1AC/0x1B0/0x1B4 layer 5's; the six
     // pos stores stay untyped because the typed form lets gcc hoist the -0x40
-    // pair above the D_8009C5AC load, which retail does not
+    // pair above the g_WorldMapPlayerPosition load, which retail does not
     u8 *pWork = (u8 *)pLayer;
     u32 *pScratch = (u32 *)0x1F800000;
     // second layer's scale; retail keeps this field's address in a register,
@@ -488,8 +488,8 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
         pLayer[5].unk0 = 0;
         pLayer[4].unk0 = 0;
     }
-    *(s32 *)(pWork + 0x1AC) = D_8009C5AC >> 12;
-    *(s32 *)(pWork + 0x158) = D_8009C5AC >> 12;
+    *(s32 *)(pWork + 0x1AC) = g_WorldMapPlayerPosition >> 12;
+    *(s32 *)(pWork + 0x158) = g_WorldMapPlayerPosition >> 12;
     y = -0x40;
     *(s32 *)(pWork + 0x1B0) = y;
     *(s32 *)(pWork + 0x15C) = y;
@@ -571,8 +571,8 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
         pLayer[7].unk0 = 0;
         pLayer[6].unk0 = 0;
     }
-    *(s32 *)(pWork + 0x254) = D_8009C5AC >> 12;
-    *(s32 *)(pWork + 0x200) = D_8009C5AC >> 12;
+    *(s32 *)(pWork + 0x254) = g_WorldMapPlayerPosition >> 12;
+    *(s32 *)(pWork + 0x200) = g_WorldMapPlayerPosition >> 12;
     y = -0x40;
     *(s32 *)(pWork + 0x258) = y;
     *(s32 *)(pWork + 0x204) = y;
@@ -618,7 +618,7 @@ int WorldMapActivateSpriteGroup9Timed(int idx) {
     if (*(s16 *)(pPlayer + 4) == 1) {
         *(s16 *)(pPlayer + 4) = 0;
         *(s16 *)(pPlayer + 0x22) = 0x3C;
-        *(s32 *)(pPlayer + 0x28) = D_8009C5AC;
+        *(s32 *)(pPlayer + 0x28) = g_WorldMapPlayerPosition;
         *(s32 *)(pPlayer + 0x2C) = D_8009C5B0;
         *(s32 *)(pPlayer + 0x30) = D_8009C5B4;
     }
@@ -634,7 +634,7 @@ int WorldMapActivateSpriteGroup9Timed(int idx) {
         func_80089160(9, (void *)0x1F8000A0, (s32)D_8009A488);
     } else {
         *(s16 *)(pPlayer + 0x22) = 0x3C;
-        *(WorldMapPos *)(pPlayer + 0x28) = *(WorldMapPos *)&D_8009C5AC;
+        *(WorldMapPos *)(pPlayer + 0x28) = *(WorldMapPos *)&g_WorldMapPlayerPosition;
         WorldMapDeactivateSpriteGroup(9);
         nResult = 3;
     }
@@ -770,7 +770,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
 */
 void func_8007BF50(void) {
     RECT rect;
-    s32 *pPos = &D_8009C5AC;
+    s32 *pPos = &g_WorldMapPlayerPosition;
     s32 *pScratch; // shared: one register for the position store and the group-13 handler
 
     WorldMapInitGfxEnv();
@@ -789,7 +789,7 @@ void func_8007BF50(void) {
     D_8009CCA4 = 2;
     D_8009D3CC = 0x10;
     D_8009D804 = 0;
-    D_8009D144 = 0;
+    g_WorldMapRotationMatrixValid = 0;
     D_8009CD40 = WorldMapWrapTileVertexPositions;
     func_80098044();
     ArchiveCdDataSync(0);
@@ -808,7 +808,7 @@ void func_8007BF50(void) {
     WorldMapSetupMapPrims();
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
-    SoundAddSedsEntry(D_8006259C);
+    SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(0x24, 0);
     func_80097BC0(pPos);
     do {
@@ -837,8 +837,8 @@ void WorldMapExitToMap111(void) {
     u16 v;
 
     SoundStopAllElements();
-    SoundRemoveSedsEntry(D_8006259C);
-    HeapFree(D_8006259C);
+    SoundRemoveSedsEntry(g_MenuSedsFile);
+    HeapFree(g_MenuSedsFile);
     WorldMapFreeSpriteSets();
     WorldMapFreeTileVertexBuffers();
     WorldMapFreeSemiTransPrimBuffers();
@@ -847,13 +847,13 @@ void WorldMapExitToMap111(void) {
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
     WorldMapFreeGridImages();
-    HeapFree(D_8009BC38);
-    HeapFree(D_8009BCB0);
+    HeapFree(g_WorldMapWorkBuffer1);
+    HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
     WorldMapFreeSlotPool();
-    v = D_8009BD3A;
+    v = g_WorldMapViewRotationY;
     D_8006F94E = 0x111;
     D_8006F954 = 2;
     D_8009BBC4 = 1;
@@ -892,15 +892,15 @@ int func_8007C724(int idx) {
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x400000;
     pPlayer = D_8009BE24 + idx;
-    D_8009D144 = 1;
+    g_WorldMapRotationMatrixValid = 1;
     ((u32 *)&pPlayer->unk5C)[8] = 0x1000;
-    a = D_8009C5AC;
+    a = g_WorldMapPlayerPosition;
     b = D_8009C5B0;
     c = D_8009C5B4;
-    D_8009BD38 = -0x40;
-    D_8009BD3A = 0;
+    g_WorldMapCameraRot = -0x40;
+    g_WorldMapViewRotationY = 0;
     D_8009BD3C = 0;
-    D_8009BE28 = a;
+    g_WorldMapCameraTarget = a;
     D_8009D55C = a;
     D_8009BE2C = b;
     D_8009D560 = b;

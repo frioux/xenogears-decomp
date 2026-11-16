@@ -11,8 +11,8 @@
 #include "psyq/libcd.h"
 
 extern s32 D_800AFFEC;
-extern s32 D_800AFD1C; // Current actor index
-extern s32 D_800B00C0;
+extern s32 g_FieldCurActorIndex; // Current actor index
+extern s32 g_FieldScriptVMStopFlag;
 
 extern void func_800379C8(char*, ...);
 extern char D_8006FD44; // "STACKERR ACT=%d\n"
@@ -28,9 +28,9 @@ void FieldScriptVMHandlerCallScript(void) {
 
     // Error
     if (g_FieldSystemMode == 0) {
-        func_800379C8(&D_8006FD44, D_800AFD1C);
+        func_800379C8(&D_8006FD44, g_FieldCurActorIndex);
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 // Store instruction pointer + 3 on stack
@@ -44,9 +44,9 @@ void FieldScriptVMHandlerCallScriptShort(void) {
     
     // Error
     if (g_FieldSystemMode == 0) {
-        func_800379C8(&D_8006FD44, D_800AFD1C);
+        func_800379C8(&D_8006FD44, g_FieldCurActorIndex);
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 // Restore instruction pointer from stack
@@ -54,12 +54,12 @@ void FieldScriptVMHandlerReturn(void) {
     // Error, invalid stack value
     if (!g_FieldScriptVMCurActor->flags12C_0x6) {
         if (g_FieldSystemMode == 0) {
-            func_800379C8(&D_8006FD44, D_800AFD1C);
+            func_800379C8(&D_8006FD44, g_FieldCurActorIndex);
         }
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
         D_800AFFEC = 1;
-        D_800B00C0 = 1;
+        g_FieldScriptVMStopFlag = 1;
         return;
     }
     
@@ -84,7 +84,7 @@ void FieldScriptVMHandlerResetScriptSlots(void) {
     g_FieldScriptVMCurActor->curScriptIndex = 0;
     g_FieldScriptVMCurActor->unkCF = 0;
     g_FieldScriptVMCurActor->dialogFlags = 0;
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->flags12C_0x6 = 0;
 }
 
@@ -94,13 +94,13 @@ void FieldScriptVMHandlerStopAndRetargetQueuedScripts(void) {
 
     for (i = 0; i < ACTOR_MAX_NUM_SCRIPTS; i++) {
         if (g_FieldScriptVMCurActor->scripts[i].flags_0x12 == 7) {
-            g_FieldScriptVMCurActor->scripts[i].currentIP = FieldScriptGetBytecodeOffset(D_800AFD1C, 1);
+            g_FieldScriptVMCurActor->scripts[i].currentIP = FieldScriptGetBytecodeOffset(g_FieldCurActorIndex, 1);
         }
     }
 
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 // Yield / Stop Handler
@@ -108,7 +108,7 @@ void FieldScriptVMHandlerEndScript(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x12 = 0xFF;
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].scriptId = 0xFF;
     D_800AFFEC = 1;
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 void FieldScriptVMHandlerConditionalJmp(void) {
@@ -217,7 +217,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
     u_short nInstructionPointer;
     u_char nHandlerIndex;
 
-    D_800B00C0 = 0;
+    g_FieldScriptVMStopFlag = 0;
     g_FieldScriptMaxInstructionCount = maxInstructionCount;
 
     for (nInstructionCount = 0; nInstructionCount < g_FieldScriptMaxInstructionCount; nInstructionCount++) {
@@ -232,7 +232,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
         asm(ASM_BREAKPOINT);
         if (nInstructionCount > 0x400) {
             if (g_FieldSystemMode == SYSTEM_PC_HARDDRIVE) {
-                func_800379C8(D_8006FD84, D_800AFD1C); // Error printing
+                func_800379C8(D_8006FD84, g_FieldCurActorIndex); // Error printing
             }
             return;
         }
@@ -249,7 +249,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
             return;
         }
 
-        if (D_800B00C0 == 1 && D_800AFFEC == D_800B00C0) {
+        if (g_FieldScriptVMStopFlag == 1 && D_800AFFEC == g_FieldScriptVMStopFlag) {
             return;
         }
 
@@ -261,7 +261,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // - nMinPriority = 0xF must be assigned BEFORE the D_800B21CC check; the original keeps the
 //   `li a2,0xF` in the delay slot of that beqz.
 // - the "no free script slot" branch is taken when nMinPriority == 0xF, not !=.
-// - the flags read-modify-write belongs BEFORE the D_800B06B8 / D_800AFD1C / g_FieldScriptVMCurActor
+// - the flags read-modify-write belongs BEFORE the g_FieldScriptVMCurFieldActor / g_FieldCurActorIndex / g_FieldScriptVMCurActor
 //   stores, and the guard clauses above it must spell pFieldActor->pActorData->flags inline.
 // Left: the original reloads pActorData from 0x4C($a1) in the join block and keeps pFieldActor in
 // $a1 / pActorData in $a0; gcc here CSEs the 0x4C load across the two-pred join and lands on
@@ -271,7 +271,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // orders (90.49% every time) and gcc-2.6.0-psx (89.86%), so the temp-register split is a
 // global.c allocno tie, not a source shape.
 // Round 40 read of the original: the 'lbu D_800B21CC' is at 0x213C, BEFORE the three
-// D_800B06B8 / D_800AFD1C / g_FieldScriptVMCurActor stores at 0x2144-0x2158, and only the
+// g_FieldScriptVMCurFieldActor / g_FieldCurActorIndex / g_FieldScriptVMCurActor stores at 0x2144-0x2158, and only the
 // 'beqz' on it comes after them - so the source read the byte into a local between the flag
 // read-modify-write and those stores (e.g. 'u_char bSlotLocked = D_800B21CC;').  Writing
 // 'if (D_800B21CC != 0)' there puts the load at the branch instead.
@@ -285,12 +285,12 @@ void FieldScriptVMRun(int maxInstructionCount) {
 /*
 extern s32 D_800ADBFC;
 extern s32 D_800ADB1C;
-extern s32 D_800ADB74;
-extern FieldActor* D_800B06B8;
+extern s32 g_FieldMode;
+extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern s32 D_800ADB68;
 extern s32 D_800C4268;
 extern u_char D_800B21CC;
-extern s32 D_8005A444[3];
+extern s32 g_FieldPartyActorSlots[3];
 
 // Runs the field script VM for every actor that has a script pending
 void func_800A2030(void) {
@@ -303,7 +303,7 @@ void func_800A2030(void) {
     ActorData* pActor;
     u_char bSlotLocked;
 
-    if (D_800ADB74 == 1) {
+    if (g_FieldMode == 1) {
         nActorCount = 1;
     } else {
         nActorCount = D_800ADBFC;
@@ -329,15 +329,15 @@ void func_800A2030(void) {
         pActor->scriptFlags.flags &= ~0x1000000;
         bSlotLocked = D_800B21CC;
 
-        D_800B06B8 = pFieldActor;
-        D_800AFD1C = i;
+        g_FieldScriptVMCurFieldActor = pFieldActor;
+        g_FieldCurActorIndex = i;
         g_FieldScriptVMCurActor = pActor;
 
         // Pick the script slot with the lowest priority
         nMinPriority = 0xF;
         if (bSlotLocked != 0) {
             for (j = 0; j < 3; j++) {
-                if (D_8005A444[j] != ACTOR_ID_INVALID && D_8005A444[j] == i) {
+                if (g_FieldPartyActorSlots[j] != ACTOR_ID_INVALID && g_FieldPartyActorSlots[j] == i) {
                     goto next_actor;
                 }
             }
@@ -372,17 +372,17 @@ void func_800A2030(void) {
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 
 // Changes current actor to the top of the field actor array and runs a script routine on it
-extern FieldActor* D_800B06B8;
+extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern s32 D_800ADB1C;
 void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
     int i;
     ActorData* pNewActor;
 
     // Change current actor to the first actor in the list
-    D_800B06B8 = g_FieldActors;
-    g_FieldScriptVMCurActor = D_800B06B8->pActorData;
+    g_FieldScriptVMCurFieldActor = g_FieldActors;
+    g_FieldScriptVMCurActor = g_FieldScriptVMCurFieldActor->pActorData;
     pNewActor = HeapAlloc(0x138, 0x1);
-    *pNewActor = *D_800B06B8->pActorData;
+    *pNewActor = *g_FieldScriptVMCurFieldActor->pActorData;
 
     // Reset all event slots
     for (i = 0; i < ACTOR_MAX_NUM_SCRIPTS; i++) {
@@ -396,7 +396,7 @@ void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
         g_FieldScriptVMCurActor->scripts[i].flags_0x17 = 0x0;
     }
     
-    D_800AFD1C = 0;
+    g_FieldCurActorIndex = 0;
     D_800ADB1C = 0;
     D_800AFFEC = 0;
 
@@ -407,18 +407,18 @@ void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
 
     // Running VM bytecode will likely have changed some fields, so they are copied back into the top
     // of the actor array.
-    *D_800B06B8->pActorData = *pNewActor;
+    *g_FieldScriptVMCurFieldActor->pActorData = *pNewActor;
     HeapFree(pNewActor);
 }
 
 
-extern s32 D_800ADB8C;
+extern s32 g_FieldScriptRoutineRunning;
 extern void func_800ACE24();
 void FieldScriptRunFirstActorRoutine3(void) {
-    D_800ADB8C = 1;
+    g_FieldScriptRoutineRunning = 1;
     FieldScriptRunFirstActorRoutine(3);
     func_800ACE24();
-    D_800ADB8C = 0;
+    g_FieldScriptRoutineRunning = 0;
 }
 
 // Best attempt: 74.92% (572 bytes vs 592; frame 0x30 vs 0x40, both with s0-s2+ra).
@@ -427,11 +427,11 @@ void FieldScriptRunFirstActorRoutine3(void) {
 // "if (mode == 1) deltas" pair, and the delta reads through one hoisted pointer to
 // D_800B21D2 with -0x16/-0x12/-0xE offsets (volatile, so gcc does not hoist them out of
 // the loop - that alone was worth 7 points).  What is left:
-//  1. the original materialises &D_800B2264 ONCE ('lui v1,%hi; addiu v1,v1,%lo'), loads
+//  1. the original materialises &g_FieldActorModelSlotCount ONCE ('lui v1,%hi; addiu v1,v1,%lo'), loads
 //     the loop count through it ('lw v0,0(v1)') and derives the anim table from the same
 //     register ('addiu s2,v1,-128') in the loop preheader, reloading the count as
 //     'lw v0,0x80(s2)'.  This C gets three separate address materialisations because
-//     gcc 2.7.2 folds '(u8*)&D_800B2264 - 0x80' into 'la D_800B2264-128' and folds the
+//     gcc 2.7.2 folds '(u8*)&g_FieldActorModelSlotCount - 0x80' into 'la g_FieldActorModelSlotCount-128' and folds the
 //     count load to %lo.  Tried: pCount/pAnimTable pointer locals, the inline form,
 //     gcc-2.7.2-cdk (74.89%), -G0, -O3 - same shape every time.
 //  2. per delta the original loads the delta value BETWEEN the g_FieldActors pointer load
@@ -443,12 +443,12 @@ void FieldScriptRunFirstActorRoutine3(void) {
 // Round 41: (1) is the same fold_rtx wall as field/main/main.c func_80077884 - gcc folds
 // the count load back to %lo and re-forms a separate lui/%lo for the table, so the two
 // accesses are never expressed off one register.  Also tried the base-relative form
-// 'for (i = 0; i < D_800B2264; i++) LibGearSetModelAnimation(i, 0, ((s16*)&D_800B2264)[i - 0x40);'
+// 'for (i = 0; i < g_FieldActorModelSlotCount; i++) LibGearSetModelAnimation(i, 0, ((s16*)&g_FieldActorModelSlotCount)[i - 0x40);'
 // - same result, and it drops the +0x80 reload shape.  (3) is 0x30 bytes of UNUSED locals in
 // retail (its saved regs sit at 0x30-0x3C), so a dummy 0x30-byte local would fix the frame
 // if the rest ever closes.
 /*
-extern s32 D_800B2264;
+extern s32 g_FieldActorModelSlotCount;
 extern s32 D_800ADBFC;
 extern s32 g_GamePartySkinsInitialized;
 extern s32 g_PlayerActorIndex;
@@ -471,8 +471,8 @@ void func_800A24C4(void) {
     FieldScriptRunFirstActorRoutine(2);
     func_800AD898();
 
-    for (i = 0; i < D_800B2264; i++) {
-        LibGearSetModelAnimation(i, 0, ((s16*)&D_800B2264)[i - 0x40]);
+    for (i = 0; i < g_FieldActorModelSlotCount; i++) {
+        LibGearSetModelAnimation(i, 0, ((s16*)&g_FieldActorModelSlotCount)[i - 0x40]);
     }
 
     pActorData = g_FieldActors[g_PlayerActorIndex].pActorData;
@@ -610,7 +610,7 @@ void FieldScriptWritePartyMemberIDs(void) {
 
 extern u16 D_8005941C;
 extern u_char D_800594D0;
-extern s32 D_8004F324;
+extern s32 g_GameRequestedWdsBankIndex;
 extern s32 g_GameSceneMapNum;
 extern int FieldGetPlayerActorDirection(void);
 extern int FieldGetCameraDirection(void);
@@ -618,7 +618,7 @@ void FieldScriptSyncMemoryWithGameState(void) {
     int i;
 
     g_pGameState->unk231A = g_GameSceneMapNum;
-    g_pGameState->unk2322 = D_8004F324;
+    g_pGameState->unk2322 = g_GameRequestedWdsBankIndex;
     g_pGameState->unk2320 = g_pGameState->unk1930[1];
     g_pGameState->unk231C = g_pGameState->unk1930[4] << 9;
     FieldScriptMemoryWriteU16(0x44, D_8005941C);
@@ -635,14 +635,14 @@ void FieldScriptSyncMemoryWithGameState(void) {
 }
 
 extern u16 D_800AFC6C;
-extern u16 D_800AFE9C;
+extern u16 g_FieldP1ButtonsPressed;
 extern char D_80059418;
 extern char D_80059420;
 extern char D_80059484;
 extern s32 g_PlayerActorIndex;
-extern u8 D_800B02C8;
-extern s32 D_8004F318;
-extern s32 D_8004F328;
+extern u8 g_FieldScriptMemoryUpdateLocked;
+extern s32 g_FieldScriptWalkFrameCounter;
+extern s32 g_FieldScriptWalkFlags;
 extern s32 D_8004F2F4;
 extern void FieldScriptWritePartyMemberPosition(int actorIndex);
 
@@ -653,18 +653,18 @@ void FieldScriptUpdateMemoryEachFrame(void) {
     int nLow;
     int nHigh;
 
-    if (D_800B02C8 == 1) {
+    if (g_FieldScriptMemoryUpdateLocked == 1) {
         return;
     }
 
-    D_800AFC6C |= D_800AFE9C;
+    D_800AFC6C |= g_FieldP1ButtonsPressed;
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         g_pGameState->partyMembers[i] = g_GamePartyMembers[i];
     }
 
     FieldScriptSyncMemoryWithGameState();
     D_8004F2F4 = 0;
-    D_8004F318++;
+    g_FieldScriptWalkFrameCounter++;
 
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if (g_pGameState->gearRide[i] == 1) {
@@ -672,16 +672,16 @@ void FieldScriptUpdateMemoryEachFrame(void) {
         }
     }
 
-    if (D_8004F318 >= 0x1F) {
-        D_8004F318 = 0;
+    if (g_FieldScriptWalkFrameCounter >= 0x1F) {
+        g_FieldScriptWalkFrameCounter = 0;
 
         // Step the map position pair in the direction the script asked for
-        if (!(D_8004F328 & 0x80)) {
+        if (!(g_FieldScriptWalkFlags & 0x80)) {
             nValue = FieldScriptVMGetVariableValue(0xA);
             nLow = nValue & 0xFF;
             nHigh = (nValue >> 8) & 0xFF;
 
-            if (!(D_8004F328 & 4)) {
+            if (!(g_FieldScriptWalkFlags & 4)) {
                 if (nLow != 0xFF3B) {
                     nLow++;
                     if (nLow >= 0x3D) {
@@ -732,7 +732,7 @@ extern u8 D_8005A4E4;
 extern u8* D_800AFC50;
 extern s32 D_8005A408[3];
 extern s32 D_800ADBFC;
-extern s32 D_800B2268;
+extern s32 g_FieldSceneReloadFlags;
 extern void SpriteRestoreAnimState(void*, u8*);
 void func_800A3C8C(void) {
     int i;
@@ -765,7 +765,7 @@ void func_800A3C8C(void) {
 
         pActorData = g_FieldActors[i].pActorData;
         if (!(pActorData->flags & 0x1000000) &&
-            (D_800B2268 == 0 || !(pActorData->scriptFlags.flags & 0x600) || nDiff == 0)) {
+            (g_FieldSceneReloadFlags == 0 || !(pActorData->scriptFlags.flags & 0x600) || nDiff == 0)) {
             SpriteRestoreAnimState(g_FieldActors[i].pSpriteData, D_800AFC50);
         }
 

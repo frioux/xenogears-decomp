@@ -41,7 +41,7 @@ void FieldScriptWaitForCameraMovement(void) {
         camMovementFlags &= FIELD_CAMERA_AT_MOVEMENT_ACTIVE;
     }
     
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 
     // Advance instruction pointer only when certain camera movements are done
     if (!(camMovementFlags & targetFlags)) {

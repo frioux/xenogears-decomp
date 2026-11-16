@@ -4,12 +4,12 @@
 
 extern u8 *D_800C3E24;
 extern u8 D_800CCB34;
-extern u8 D_800D2D24[];
+extern u8 g_BattleActorCharIds[];
 extern u8 D_800D3294;
-extern u8 *D_800D2F5C;
+extern u8 *g_BattleSpriteArchive;
 extern BattleGraphicsWork *D_800C3EA4;
-extern u8 *D_800C3EAC;
-extern BattleWork *D_800D2D28;
+extern u8 *g_BattleCommandQueue;
+extern BattleWork *g_BattleDisplayState;
 extern u8 D_800C400B[];
 extern u8 D_800C4022[];
 extern u8 D_800C402F[];
@@ -42,7 +42,7 @@ extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 a
 extern void *BattleAllocTextBuffer(s32 arg0);
 extern u8 D_800D36C0[];
 extern u8 D_800D36C8[];
-extern BattleSlotGraphics *D_800D2E38[];
+extern BattleSlotGraphics *g_BattleSlotGraphics[];
 extern u8 D_800594D4[];
 extern u8 D_800D2F3C[];
 extern u8 D_800D2F3D[];
@@ -294,7 +294,7 @@ void BattleInitSlotPrims(u8 index) {
     BattleSlotGraphics *pGfx;
     u8 i;
 
-    pGfx = D_800D2E38[index];
+    pGfx = g_BattleSlotGraphics[index];
     // the index-first spelling is what makes gcc emit retail's addu order
     for (i = 0; i < 2; i++) {
         SetPolyG4(&pGfx->prims[i]);
@@ -314,7 +314,7 @@ void BattleInitSlotPrims(u8 index) {
         SetDrawMode(&pGfx->drawModes[i], 0, 0,
                     GetTPage(0, D_800595A0, D_800C3EA4->tiles[1].texPageX,
                              D_800C3EA4->tiles[1].texPageY),
-                    (RECT *)D_800D2D28);
+                    (RECT *)g_BattleDisplayState);
     }
     BattleInitTilePrims(pGfx->tilePrims[0], 1);
     BattleInitTilePrims(pGfx->tilePrims[1], 2);
@@ -391,11 +391,11 @@ void func_80077698(void) {
     *(s32 *)(D_800C3E24 + 0xE0) = 0xFF;
     D_800C3E24[0xE5] = 1;
     D_800C3E24[0xE4] = D_800CCB34;
-    D_800D2D28->unkC6 = 1;
+    g_BattleDisplayState->unkC6 = 1;
 }
 
 void BattleClearFlagC6(void) {
-    D_800D2D28->unkC6 = 0;
+    g_BattleDisplayState->unkC6 = 0;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
@@ -462,9 +462,9 @@ void func_8007819C(void) {
     s32 i;
 
     func_8008F8F4(5, 8, 0x2A, 0x70, 0x12, 0, 0);
-    D_800D2D28[0xB5] = 0;
+    g_BattleDisplayState[0xB5] = 0;
     func_8008F8F4(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
-    D_800D2D28[0xB4] = 0;
+    g_BattleDisplayState[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
         pBuf = BattleAllocTextBuffer(0x39);
         *(u8 **)(D_800D36C0 + i * 0x60 + 0x60) = pBuf;
@@ -493,9 +493,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_8007819C);
    Unresolved when I ran out of time:
    1. the tex entry stride is 0x460 (sll/subu/sll chain on the index byte) and
       the TIM base is arg0, i.e. OpenTIM((u_long *)(pTimData + n * 0x460));
-   2. the two D_800D2D24[i] loads and the `D_800D3294 != 0` guard: retail's
+   2. the two g_BattleActorCharIds[i] loads and the `D_800D3294 != 0` guard: retail's
       second test is `sltiu s2,2` on a counter that starts at -1 and is the
-      D_800D2D24 index minus one, i.e. the guard is `i != 0` in some spelling
+      g_BattleActorCharIds index minus one, i.e. the guard is `i != 0` in some spelling
       gcc re-based onto that biv (0xB replaces the index for the non-first
       entries);
    3. mine came out 356 bytes against retail's 504, so the loop was optimised
@@ -525,16 +525,16 @@ void func_80078310(u8 *pTimData, u8 index) {
     for (; i < 3; i++) {
         s32 n;
 
-        if (D_800D2D24[i] == 0x7F) {
+        if (g_BattleActorCharIds[i] == 0x7F) {
             continue;
         }
-        n = D_800D2D24[i];
+        n = g_BattleActorCharIds[i];
         if (D_800D3294 != 0 && i != 0) {
             n = 0xB;
         }
         OpenTIM((u_long *)(pTimData + n * 0x460));
         ReadTIM(&tim);
-        ResourceHelperGetTexCoords(D_800D2F5C, index + i,
+        ResourceHelperGetTexCoords(g_BattleSpriteArchive, index + i,
                                    &coords[i].count, &coords[i].texPageId,
                                    &coords[i].clutX, &coords[i].clutY,
                                    &coords[i].texPageX, &coords[i].texPageY);
@@ -564,10 +564,10 @@ void func_800785D4(u8 color, u8 index) {
     u16 tile;
     u8 *pEntry;
 
-    pEntry = D_800C3EAC;
+    pEntry = g_BattleCommandQueue;
     tile = D_800D2E60[index * 8] | (D_800D2E61[index * 8] << 8);
     D_800C400B[pEntry[0x2DA] * 0x48] = color;
-    pEntry = D_800C3EAC;
+    pEntry = g_BattleCommandQueue;
     *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
     pEntry[0x2DA]++;
 }
@@ -603,9 +603,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
                                        D_800C3E8C & 1);
            BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + D_800C3E8C * 0x60),
                          *(u_long **)((u8 *)&D_800D3720 + D_800C3E8C * 0x60));
-           D_800C400B[D_800C3EAC[0x2DA] * 0x48] = color;
-           D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xFA;
-           pEntry = D_800C3EAC;
+           D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
+           D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFA;
+           pEntry = g_BattleCommandQueue;
            *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = D_800C3E8C++;
            pEntry[0x2DA]++;
        }
@@ -615,9 +615,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078658);
 void BattleQueueCommandF7(u8 color, u8 flag) {
     u8 *pEntry;
 
-    D_800C400B[D_800C3EAC[0x2DA] * 0x48] = flag;
-    D_800C402F[D_800C3EAC[0x2DA] * 0x48] = 0xF7;
-    pEntry = D_800C3EAC;
+    D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = flag;
+    D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF7;
+    pEntry = g_BattleCommandQueue;
     *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = color;
     pEntry[0x2DA]++;
 }

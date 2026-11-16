@@ -72,7 +72,7 @@ typedef struct {
 } WorldMapPos; // Size: 0xC
 
 extern WorldMapActor *D_8009BE24;
-extern s32 D_8009BE10;
+extern s32 g_WorldMapMode;
 extern s16 D_8009BD04;
 extern WorldMapEntry D_8009BE6C[];
 extern s16 D_8009B18C[];
@@ -101,13 +101,13 @@ extern s32 rsin(s32);
 extern void WorldMapBuildDirectionFromPositions(WorldMapPos *, WorldMapPos *, s32 *, s16 *);
 extern void WorldMapAddSlotPosition(s16, s32 *);
 extern s32 WorldMapStartSlot(s32, s32);
-extern s32 D_8009C5AC;
+extern s32 g_WorldMapPlayerPosition;
 extern s32 D_8009C5B4;
-extern s32 D_8009C584;
+extern s32 g_WorldMapPlayerRotation;
 extern WorldMapVec D_8009D55C;
 extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
-extern s16 D_8009D154;
+extern s16 g_WorldMapTrailCursor;
 
 /* func_8008A72C, func_8008B2BC, func_8008BB40, func_8008C364, func_8008C844 and
    func_8008D678 each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
@@ -121,16 +121,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
    byte-identical, including the unk48 sh/lh re-read that every earlier attempt
    folded into an sll/sra: it needs the assignments in RETAIL'S order, not the order
    the old parked body had -
-     unk40/unk3C/unk38 = 0; unk48 = g_GameState.unk1824; mode = D_8009BE10;
+     unk40/unk3C/unk38 = 0; unk48 = g_GameState.unk1824; mode = g_WorldMapMode;
      unk4A = 8; unk58 = 0xF; unk5C = pActor->unk48;
    (mode LAST of the two loads, and unk5C written as a re-read of the FIELD, which
    is what makes gcc emit sh 0x48 / lh 0x48 instead of sh 0x48 / sll+sra). The
    switch table is 14 words (13 cases, table at an 8-aligned unit offset, the pad
    comes from the next dlabel's .align 3, so a C switch keeps the layout).
    The remaining diff is ONE instruction, in the case 1-3 gear arm: retail is
-     lw v0,D_8009C5AC; nop; sw v0,0x28(s0); lui a1,D_8009C5B4; lw a1,...
+     lw v0,g_WorldMapPlayerPosition; nop; sw v0,0x28(s0); lui a1,D_8009C5B4; lw a1,...
    and gcc emits
-     lw v0,D_8009C5AC; lui a1,D_8009C5B4; lw a1,...; sw v0,0x28(s0)
+     lw v0,g_WorldMapPlayerPosition; lui a1,D_8009C5B4; lw a1,...; sw v0,0x28(s0)
    i.e. it hoists the second global load above the first store, so gas fills the
    load-delay slot with lui a1 instead of emitting retail's nop and the function is
    4 bytes short. Tried: the old parked source order (87.47), gearRide[2] variants,
@@ -160,7 +160,7 @@ int func_8008B2BC(int index) {
     pActor->unk3C = 0;
     pActor->unk38 = 0;
     pActor->unk48 = g_GameState.unk1824;
-    mode = D_8009BE10;
+    mode = g_WorldMapMode;
     pActor->unk4A = 8;
     pActor->unk58 = 0xF;
     pActor->unk5C = pActor->unk48;
@@ -169,10 +169,10 @@ int func_8008B2BC(int index) {
     case 2:
     case 3:
         if (g_GameState.gearRide[1] == 0) {
-            pActor->unk28 = D_8009C5AC;
+            pActor->unk28 = g_WorldMapPlayerPosition;
             pActor->unk30 = D_8009C5B4;
             pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-            pActor->unk48 = D_8009C584;
+            pActor->unk48 = g_WorldMapPlayerRotation;
         } else {
             pActor->unk20 = 1;
             pActor->unk24 = 1;
@@ -291,7 +291,7 @@ int WorldMapUpdateActorSlot(int index) {
     case 0:
     case 1:
         if (((u8 *)&g_GameState.unk22B0)[index] == 0) {
-            pTrail = &D_8009CEC4[(D_8009D154 - pActor->unk58) & 0x1F];
+            pTrail = &D_8009CEC4[(g_WorldMapTrailCursor - pActor->unk58) & 0x1F];
             if ((pActor->unk28 == pTrail->vec.unk00) & (pActor->unk2C == pTrail->vec.unk04) &
                 (pActor->unk30 == pTrail->vec.unk08)) {
                 if (((s8 *)pActor->unk4C)[0xAF] != 0) {
@@ -404,7 +404,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
    whole switch (cases 1-3 gear, 4-6 unk20 = 3, 7 unk20 = 2, 8-13 empty: the empty
    cases are required, retail s table is 13 words = min 1 max 13) are byte-identical.
    What is left is one scheduler/sese tie in the block that sets up unk40..unk5C:
-   retail emits lhu g_GameState+0x1824 and the D_8009BE10 load ABOVE the unk4A/unk58
+   retail emits lhu g_GameState+0x1824 and the g_WorldMapMode load ABOVE the unk4A/unk58
    constant stores and re-reads unk48 with lh for unk5C (sh 0x48 then lh 0x48), while
    gcc sinks both loads below the stores and folds the re-read into an sll/sra pair.
    A volatile u16 store for unk48 reproduces the lh but loses the rest (84.34), and
@@ -435,15 +435,15 @@ int func_8008BB40(int index) {
     pActor->unk58 = 0x1E;
     pActor->unk48 = g_GameState.unk1824;
     pActor->unk5C = pActor->unk48;
-    switch (D_8009BE10) {
+    switch (g_WorldMapMode) {
     case 1:
     case 2:
     case 3:
         if (g_GameState.gearRide[2] == 0) {
-            pActor->unk28 = D_8009C5AC;
+            pActor->unk28 = g_WorldMapPlayerPosition;
             pActor->unk30 = D_8009C5B4;
             pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-            pActor->unk48 = D_8009C584;
+            pActor->unk48 = g_WorldMapPlayerRotation;
         } else {
             pActor->unk20 = 1;
             pActor->unk24 = 1;
@@ -634,8 +634,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
        separate field stores interleave load/store instead.
    What still differs is the same store-sink wall as func_8008D3F0 and func_8008DD6C
    in this unit: retail keeps the three "unk40/unk3C/unk38 = 0" stores above the
-   D_8009BE10 load, gcc sinks them below it, and inside the gearRide block retail
-   keeps "unk20 = 1" first while gcc sinks it below the two D_8009C5AC/D_8009C5B4
+   g_WorldMapMode load, gcc sinks them below it, and inside the gearRide block retail
+   keeps "unk20 = 1" first while gcc sinks it below the two g_WorldMapPlayerPosition/D_8009C5B4
    global loads. Source order of the stores does not change it. Everything else
    (lh reload of unk48 for unk5C, the delay slot store, unk4A = 0xC, the tail) matches.
 s32 func_8008C530(int index) {
@@ -651,7 +651,7 @@ s32 func_8008C530(int index) {
     pActor->unk48 = *(u16 *)&g_GameState.unk1826[0];
     pActor->unk4A = 0xC;
     pActor->unk5C = pActor->unk48;
-    mode = D_8009BE10;
+    mode = g_WorldMapMode;
     if (mode > 0) {
         if (mode >= 4) {
             if (mode < 8) {
@@ -661,13 +661,13 @@ s32 func_8008C530(int index) {
         } else {
             if (g_GameState.gearRide[0] == 1) {
                 pActor->unk20 = 1;
-                pActor->unk28 = D_8009C5AC;
+                pActor->unk28 = g_WorldMapPlayerPosition;
                 pActor->unk30 = D_8009C5B4;
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-                pActor->unk48 = D_8009C584;
+                pActor->unk48 = g_WorldMapPlayerRotation;
                 D_8009D55C = *(WorldMapVec *)&pActor->unk28;
                 D_8009D52C = pActor->unk48;
-                D_8009D154 = 0;
+                g_WorldMapTrailCursor = 0;
                 pTrail = D_8009CEC4;
                 for (i = 0; i < 0x20; i++, pTrail++) {
                     pTrail->vec = *(WorldMapVec *)&pActor->unk28;
@@ -686,7 +686,7 @@ s32 func_8008C530(int index) {
 int WorldMapModeInitPartyActor0(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 0);
-    s32 mode = D_8009BE10;
+    s32 mode = g_WorldMapMode;
 
     if (mode > 0) {
         if (mode < 4) {
@@ -725,11 +725,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
    unk48 with lh; gcc here sinks the zero stores below the sll/sra chain and cse
    folds the re-read into the lhu. The mode < 4 / mode < 8 / gearRide blocks and
    the whole tail are byte-identical. Also tried: unk5C assigned after the
-   D_8009BE10 load (identical output), ascending zero stores.
+   g_WorldMapMode load (identical output), ascending zero stores.
    Re-diffed under the current XenoWorldMap flags, still 81.33%. Two new facts:
    the source ORDER of the zero stores makes no difference - gcc's post-reload
    scheduler sinks all three to just before the branch and floats the sh/lh pair
-   above the D_8009BE10 load whatever the C order is, and hoisting the mode load
+   above the g_WorldMapMode load whatever the C order is, and hoisting the mode load
    to the top of the head only makes it worse. And storing unk48 through a
    volatile u16 pointer reproduces the original's lh reload (instead of an
    sll/sra pair, which makes the function 304 bytes instead of the original 300):
@@ -750,15 +750,15 @@ int func_8008D3F0(int index) {
     pActor->unk58 = 0xF;
     pActor->unk48 = *(u16 *)&g_GameState.unk1826[2];
     pActor->unk5C = pActor->unk48;
-    mode = D_8009BE10;
+    mode = g_WorldMapMode;
     if (mode > 0) {
         if (mode < 4) {
             if (g_GameState.gearRide[1] == 1) {
                 pActor->unk20 = 1;
-                pActor->unk28 = D_8009C5AC;
+                pActor->unk28 = g_WorldMapPlayerPosition;
                 pActor->unk30 = D_8009C5B4;
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-                pActor->unk48 = D_8009C584;
+                pActor->unk48 = g_WorldMapPlayerRotation;
             }
         } else if (mode < 8) {
             pActor->unk20 = 2;
@@ -776,7 +776,7 @@ int func_8008D3F0(int index) {
 int WorldMapModeInitPartyActor1(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 1);
-    s32 mode = D_8009BE10;
+    s32 mode = g_WorldMapMode;
 
     if (mode > 0) {
         if (mode < 4) {
@@ -814,7 +814,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DD6C);
    are byte-identical. Two head differences remain: (1) the original emits the three
    zero stores to 0x40/0x3C/0x38 immediately after the func_8008C364 call and the
    lhu of g_GameState+0x182A right after them, while gcc sinks the zero stores below
-   the D_8009BE10 load; (2) the original re-reads unk48 with lh and sign-extends for
+   the g_WorldMapMode load; (2) the original re-reads unk48 with lh and sign-extends for
    unk5C, gcc keeps the value in a register (sll/sra pair). Also tried a u16 temp for
    the g_GameState load: same 81.33%, and it makes the unk5C store worse.
 int func_8008DD6C(int index) {
@@ -829,15 +829,15 @@ int func_8008DD6C(int index) {
     pActor->unk58 = 0x1F;
     pActor->unk48 = *(u16 *)&g_GameState.unk1826[4];
     pActor->unk5C = pActor->unk48;
-    mode = D_8009BE10;
+    mode = g_WorldMapMode;
     if (mode > 0) {
         if (mode < 4) {
             if (g_GameState.gearRide[2] == 1) {
                 pActor->unk20 = 1;
-                pActor->unk28 = D_8009C5AC;
+                pActor->unk28 = g_WorldMapPlayerPosition;
                 pActor->unk30 = D_8009C5B4;
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-                pActor->unk48 = D_8009C584;
+                pActor->unk48 = g_WorldMapPlayerRotation;
             }
         } else if (mode < 8) {
             pActor->unk20 = 2;
@@ -853,7 +853,7 @@ int func_8008DD6C(int index) {
 int WorldMapModeInitPartyActor2(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 result = func_8008C364(pActor, 2);
-    s32 mode = D_8009BE10;
+    s32 mode = g_WorldMapMode;
 
     if (mode > 0) {
         if (mode < 4) {

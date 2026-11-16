@@ -7,11 +7,11 @@ extern u8 *D_800D2D48;
 extern u8 *D_800C3EA0;
 extern u8 *D_800C3D50[2];
 extern u8 D_800C3D04[];
-extern u8 D_800C3D0C[];
-extern u16 D_800C3D40;
+extern u8 g_BattleBlockPool[];
+extern u16 g_BattleCurrentActorSlot;
 extern u16 D_800C3E30;
 extern u8 D_800D3611;
-extern u8 *D_800D3368[];
+extern u8 *g_BattleActors[];
 
 extern void BattleFreeBlockPool(u8 *);
 extern void BattleFreeSpritePool(u8 *);
@@ -29,8 +29,8 @@ extern RECT D_800D3628;
 extern u8 *D_800C3AC4;
 extern void *D_800C3AC8;
 extern u8 D_800C3D68;
-extern u8 D_800591AC;
-extern s32 D_80059464;
+extern u8 g_FlagTimerWorkListAdds;
+extern s32 g_NumFlaggedTimerWorkListEntries;
 extern s32 D_800C360C;
 extern u8 D_800C4000[];
 
@@ -52,7 +52,7 @@ typedef struct {
     /* 0x20 */ void *unk20;
 } Misc23Block;
 
-// 0xE-byte node of the tree rooted at D_800D39CC, indexed by D_800D3348.
+// 0xE-byte node of the tree rooted at g_BattleTriangles, indexed by g_BattleTriangleCount.
 typedef struct {
     /* 0x0 */ s16 unk0;
     /* 0x2 */ s16 unk2;
@@ -66,12 +66,12 @@ typedef struct {
 
 extern s32 D_800C3E88;
 extern u16 D_800C3CF0;
-extern u8 D_800C3D6C;
+extern u8 g_BattleExtraMatrixFlag;
 extern u16 D_800C3B7C;
-extern u8 D_800C3B74;
+extern u8 g_BattleStateBit;
 extern u8 D_800C3ACC[];
 extern u8 D_800D330A[];
-extern void *D_800658C8;
+extern void *g_BattleStageData;
 extern void BattleCreateBlockPool(u8 *, s32);
 extern void BattleCreateSpritePool(u8 *, s32);
 extern void BattleClearBlockSlots(void);
@@ -82,9 +82,9 @@ extern void BattleFreeSpriteBlocksByTag(u8 *, void *, s32);
 extern void BattleFreeModelSkeleton(void *);
 extern void BattleFreeActorBuffer(void *);
 
-extern s32 D_800D3344;
-extern s32 D_800D3348;
-extern s32 D_800D39CC;
+extern s32 g_BattleTriangleVertices;
+extern s32 g_BattleTriangleCount;
+extern s32 g_BattleTriangles;
 extern u8 D_800D2F64;
 extern s32 BattleSearchTriangleTree(s32, s32, s32);
 
@@ -92,13 +92,13 @@ s32 BattleFindGroundTriangle(s32 arg0, s32 arg1, s32 arg2) {
     s32 result;
     s32 i;
 
-    if (D_800D3344 == 0) {
+    if (g_BattleTriangleVertices == 0) {
         return -1;
     }
-    if (D_800D39CC == 0) {
+    if (g_BattleTriangles == 0) {
         return -1;
     }
-    if (arg1 >= D_800D3348) {
+    if (arg1 >= g_BattleTriangleCount) {
         return -1;
     }
     for (i = 0; i < arg2; i++) {
@@ -112,8 +112,8 @@ s32 BattleFindGroundTriangle(s32 arg0, s32 arg1, s32 arg2) {
         return result;
     }
     D_800D2F64 = 1;
-    for (i = 0; i < D_800D3348; i++) {
-        ((Misc23TreeEntry *)(i * 14 + D_800D39CC))->unkD = 0;
+    for (i = 0; i < g_BattleTriangleCount; i++) {
+        ((Misc23TreeEntry *)(i * 14 + g_BattleTriangles))->unkD = 0;
     }
     return result;
 }
@@ -179,11 +179,11 @@ s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
     if (index < 0) {
         return -1;
     }
-    if (((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unkD != D_800D2F64) {
-        ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unkD = D_800D2F64;
-        result = BattleTestPointInTriangle((void *)(((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk0 * 8 + D_800D3344),
-                               (void *)(((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk2 * 8 + D_800D3344),
-                               (void *)(((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk4 * 8 + D_800D3344), arg0);
+    if (((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD != D_800D2F64) {
+        ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD = D_800D2F64;
+        result = BattleTestPointInTriangle((void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk0 * 8 + g_BattleTriangleVertices),
+                               (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk2 * 8 + g_BattleTriangleVertices),
+                               (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk4 * 8 + g_BattleTriangleVertices), arg0);
         if (result == -1) {
             return index;
         }
@@ -191,15 +191,15 @@ s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
     if (depth <= 0) {
         return -1;
     }
-    result = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk6, depth - 1);
+    result = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk6, depth - 1);
     if (result >= 0) {
         return result;
     }
-    res2 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unk8, depth - 1);
+    res2 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk8, depth - 1);
     if (res2 >= 0) {
         return res2;
     }
-    res3 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + D_800D39CC))->unkA, depth - 1);
+    res3 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkA, depth - 1);
     if (res3 < 0) {
         res3 = -1;
     }
@@ -565,16 +565,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     mem_addr pWord;
     s32 arg1;
 
-    pBuf = D_800C3D0C;
+    pBuf = g_BattleBlockPool;
     D_800C3E88 = 0;
     D_800C3CF0 = 0;
-    D_800C3D6C = 0;
+    g_BattleExtraMatrixFlag = 0;
     D_800C3D68 = 0;
     D_800C3B7C = 0;
-    arg1 = *(s16 *)(D_800658C8 + 0x348);
-    D_800C3B74 = 1;
+    arg1 = *(s16 *)(g_BattleStageData + 0x348);
+    g_BattleStateBit = 1;
     BattleCreateBlockPool(pBuf, arg1);
-    BattleCreateSpritePool(D_800C3D04, *(s16 *)(D_800658C8 + 0x34A));
+    BattleCreateSpritePool(D_800C3D04, *(s16 *)(g_BattleStageData + 0x34A));
     BattleClearBlockSlots();
     i = 0x1F;
     pWord = (mem_addr)&D_800D33E4;
@@ -726,7 +726,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
    count $s4, which spills pData into a 0x38 slot (frame 0x70 vs retail 0x68)
    and re-sign-extends the 5th argument from its halfword spill instead of
    $s8. Also gcc folds the loop index constant into the table displacement
-   ("addiu v0,v0,52" off %hi(D_800D3368) vs retail's "sll/addu" of 0xD at
+   ("addiu v0,v0,52" off %hi(g_BattleActors) vs retail's "sll/addu" of 0xD at
    runtime). Tried: if/else both senses (the count == 0 sense costs 12 points
    and an extra slot: 73.72 vs 85.47), repeating the index expression inline
    at all seven uses instead of a local (that is what gained 85.47 - a "slot"
@@ -743,8 +743,8 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     s32 flags;
 
     func_800A8BF0(arg0, 0, D_800C3B78->unkC, D_800C3B78->unk4, arg1, arg2, arg3, arg4, 0);
-    D_800D3368[arg0][0x38] = 1;
-    D_800D3368[arg0][0x22] = 1;
+    g_BattleActors[arg0][0x38] = 1;
+    g_BattleActors[arg0][0x22] = 1;
     if (D_800C3B78->unk14 != 0) {
         pData = (Misc23ArchiveData *)D_800C3B78->unk14;
         ResolveArchiveEntryPointers((u32 *)pData);
@@ -761,15 +761,15 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
                     flags -= 2;
                 }
                 func_800A8BF0((arg0 << 1) + (i + 0xD), flags, pBuf, pData->unkC, arg1, arg2, arg3, arg4, 0);
-                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x5E) = *(u16 *)pSrc;
-                D_800D3368[(arg0 << 1) + (i + 0xD)][0x5C] = arg0;
-                D_800D3368[(arg0 << 1) + (i + 0xD)][0x5D] = 2;
+                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x5E) = *(u16 *)pSrc;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)][0x5C] = arg0;
+                g_BattleActors[(arg0 << 1) + (i + 0xD)][0x5D] = 2;
                 pSrc += 2;
-                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x6A) = *(u16 *)pSrc;
+                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x6A) = *(u16 *)pSrc;
                 pSrc += 2;
-                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x6C) = *(u16 *)pSrc;
+                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x6C) = *(u16 *)pSrc;
                 pSrc += 2;
-                *(u16 *)(D_800D3368[(arg0 << 1) + (i + 0xD)] + 0x6E) = *(u16 *)pSrc;
+                *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x6E) = *(u16 *)pSrc;
                 pSrc += 2;
             }
         } else {
@@ -790,22 +790,22 @@ void BattleFreeAllModelSlots(void) {
     for (i = 0; i < 0x1F; i++) {
         func_800A9FF0(i);
     }
-    BattleFreeBlockPool(D_800C3D0C);
+    BattleFreeBlockPool(g_BattleBlockPool);
     BattleFreeSpritePool(D_800C3D04);
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
 /* 91.39%: first attempt on this stub. Shape recovered from the disassembly:
-   arg0 is an index into D_800D3368; the body is a null-checked chain of
+   arg0 is an index into g_BattleActors; the body is a null-checked chain of
    HeapFree/BattleFreeModelMesh/SoundRemoveSedsEntry/BattleFreeAllSpriteBlocks+BattleFreeSpriteBlocksByTag on fields
    0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
    "(u32)(arg0 - 0x13) < 0xC", then two counted loops (unk10E * 0x30 through
    unk118 with BattleFreeImageEntry, unk10D * 0x24 through unk114 with BattleFreeModelListEntryBuffers),
    then HeapFree(unit)/unit = NULL, and finally the recursion into units
    arg0*2+0xD and arg0*2+0xE when arg0 < 3.
-   What moved 82.96 -> 91.39: do NOT keep &D_800D3368[arg0] in a local - retail
+   What moved 82.96 -> 91.39: do NOT keep &g_BattleActors[arg0] in a local - retail
    re-forms the slot address (lui/addiu + sll/addiu) at every use, so index
-   D_800D3368[arg0] inline at each access. Still open: retail saves $s5 and a
+   g_BattleActors[arg0] inline at each access. Still open: retail saves $s5 and a
    0x48 frame (mine 0x38), keeps the loop pointer in $s2/$s0 pairs, and
    re-emits "addiu v0,s4,-0x13" both in the beqz delay slot and after the
    HeapFree call, so the range test and the two loop induction variables are
@@ -817,56 +817,56 @@ void func_800A9FF0(s32 arg0) {
     s32 count;
     s32 offset;
 
-    if (D_800D3368[arg0] != NULL) {
-        if (*(void **)(D_800D3368[arg0] + 0xA8) != NULL) {
-            HeapFree(*(void **)(D_800D3368[arg0] + 0xA8));
-            BattleFreeModelMesh(*(void **)D_800D3368[arg0], 1);
+    if (g_BattleActors[arg0] != NULL) {
+        if (*(void **)(g_BattleActors[arg0] + 0xA8) != NULL) {
+            HeapFree(*(void **)(g_BattleActors[arg0] + 0xA8));
+            BattleFreeModelMesh(*(void **)g_BattleActors[arg0], 1);
         }
-        if (*(u8 *)(D_800D3368[arg0] + 0x62) != 0) {
-            SoundRemoveSedsEntry(*(void **)(*(u8 **)(D_800D3368[arg0] + 0xB0) + 8));
+        if (*(u8 *)(g_BattleActors[arg0] + 0x62) != 0) {
+            SoundRemoveSedsEntry(*(void **)(*(u8 **)(g_BattleActors[arg0] + 0xB0) + 8));
         }
-        if (*(void **)(D_800D3368[arg0] + 0xAC) != NULL) {
-            HeapFree(*(void **)(D_800D3368[arg0] + 0xAC));
+        if (*(void **)(g_BattleActors[arg0] + 0xAC) != NULL) {
+            HeapFree(*(void **)(g_BattleActors[arg0] + 0xAC));
         }
         if ((u32)(arg0 - 0x13) >= 0xC) {
-            if (*(void **)(D_800D3368[arg0] + 4) != NULL) {
-                BattleFreeAllSpriteBlocks(D_800C3D0C);
-                BattleFreeSpriteBlocksByTag(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
-                BattleFreeModelSkeleton(*(void **)(D_800D3368[arg0] + 4));
-                *(void **)(D_800D3368[arg0] + 0) = NULL;
-                *(void **)(D_800D3368[arg0] + 4) = NULL;
+            if (*(void **)(g_BattleActors[arg0] + 4) != NULL) {
+                BattleFreeAllSpriteBlocks(g_BattleBlockPool);
+                BattleFreeSpriteBlocksByTag(g_BattleBlockPool, *(void **)(g_BattleActors[arg0] + 4), 0xFF);
+                BattleFreeModelSkeleton(*(void **)(g_BattleActors[arg0] + 4));
+                *(void **)(g_BattleActors[arg0] + 0) = NULL;
+                *(void **)(g_BattleActors[arg0] + 4) = NULL;
             }
-            BattleFreeActorBuffer(*(void **)&D_800D3368[arg0]);
-        } else if (*(void **)(D_800D3368[arg0] + 4) != NULL) {
-            BattleFreeAllSpriteBlocks(D_800C3D0C);
-            BattleFreeSpriteBlocksByTag(D_800C3D0C, *(void **)(D_800D3368[arg0] + 4), 0xFF);
-            HeapFree(*(void **)(D_800D3368[arg0] + 4));
+            BattleFreeActorBuffer(*(void **)&g_BattleActors[arg0]);
+        } else if (*(void **)(g_BattleActors[arg0] + 4) != NULL) {
+            BattleFreeAllSpriteBlocks(g_BattleBlockPool);
+            BattleFreeSpriteBlocksByTag(g_BattleBlockPool, *(void **)(g_BattleActors[arg0] + 4), 0xFF);
+            HeapFree(*(void **)(g_BattleActors[arg0] + 4));
         }
-            if (*(u8 *)(D_800D3368[arg0] + 0x10C) != 0) {
-            HeapFree(*(void **)(D_800D3368[arg0] + 0x110));
+            if (*(u8 *)(g_BattleActors[arg0] + 0x10C) != 0) {
+            HeapFree(*(void **)(g_BattleActors[arg0] + 0x110));
         }
-        count = *(u8 *)(D_800D3368[arg0] + 0x10E);
+        count = *(u8 *)(g_BattleActors[arg0] + 0x10E);
         if (count != 0) {
             offset = 0;
             for (i = 0; i < count; i++) {
-                BattleFreeImageEntry((u8 *)*(void **)(D_800D3368[arg0] + 0x118) + offset);
-                count = *(u8 *)(D_800D3368[arg0] + 0x10E);
+                BattleFreeImageEntry((u8 *)*(void **)(g_BattleActors[arg0] + 0x118) + offset);
+                count = *(u8 *)(g_BattleActors[arg0] + 0x10E);
                 offset += 0x30;
             }
-            HeapFree(*(void **)(D_800D3368[arg0] + 0x118));
+            HeapFree(*(void **)(g_BattleActors[arg0] + 0x118));
         }
-        count = *(u8 *)(D_800D3368[arg0] + 0x10D);
+        count = *(u8 *)(g_BattleActors[arg0] + 0x10D);
         if (count != 0) {
             offset = 0;
             for (i = 0; i < count; i++) {
-                BattleFreeModelListEntryBuffers((Misc23Block *)((u8 *)*(void **)(D_800D3368[arg0] + 0x114) + offset));
-                count = *(u8 *)(D_800D3368[arg0] + 0x10D);
+                BattleFreeModelListEntryBuffers((Misc23Block *)((u8 *)*(void **)(g_BattleActors[arg0] + 0x114) + offset));
+                count = *(u8 *)(g_BattleActors[arg0] + 0x10D);
                 offset += 0x24;
             }
-            HeapFree(*(void **)(D_800D3368[arg0] + 0x114));
+            HeapFree(*(void **)(g_BattleActors[arg0] + 0x114));
         }
-        HeapFree(*(void **)&D_800D3368[arg0]);
-        *(void **)&D_800D3368[arg0] = NULL;
+        HeapFree(*(void **)&g_BattleActors[arg0]);
+        *(void **)&g_BattleActors[arg0] = NULL;
     }
     if (arg0 < 3) {
         func_800A9FF0(arg0 * 2 + 0xD);
@@ -876,42 +876,42 @@ void func_800A9FF0(s32 arg0) {
 */
 
 void BattleQueueActorCommand(u16 arg0, u16 arg1, void *arg2) {
-    D_800C3D40 = arg0;
+    g_BattleCurrentActorSlot = arg0;
     D_800C3E30 = arg1;
-    ((u8 *)D_800D3368[arg0])[0x35] = 0;
-    if (D_800D3368[arg0] != NULL) {
-        func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
+    ((u8 *)g_BattleActors[arg0])[0x35] = 0;
+    if (g_BattleActors[arg0] != NULL) {
+        func_800AA934(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
     }
 }
 
 void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
-    D_800C3D40 = arg0;
+    g_BattleCurrentActorSlot = arg0;
     D_800C3E30 = arg1;
     D_800C3D68 = 1;
-    ((u8 *)D_800D3368[arg0])[0x35] = 1;
-    D_80059464 = 0;
-    D_800591AC = 1;
+    ((u8 *)g_BattleActors[arg0])[0x35] = 1;
+    g_NumFlaggedTimerWorkListEntries = 0;
+    g_FlagTimerWorkListAdds = 1;
     func_800BF85C(arg0, BattleFindFirstActorInMask());
     D_800C360C = 1;
     D_800C4000[BattleFindFirstActorInMask()] = 0;
-    if (D_800D3368[arg0] != NULL) {
-        func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
+    if (g_BattleActors[arg0] != NULL) {
+        func_800AA934(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
     }
 }
 void BattleQueueActorCommandPreservingSelection(u16 arg0, u16 arg1, void *arg2) {
     u16 savedIdx;
     u16 savedUnk;
 
-    savedIdx = D_800C3D40;
+    savedIdx = g_BattleCurrentActorSlot;
     savedUnk = D_800C3E30;
-    D_800C3D40 = arg0;
+    g_BattleCurrentActorSlot = arg0;
     D_800C3E30 = arg1;
-    ((u8 *)D_800D3368[arg0])[0x35] = 0;
-    if (D_800D3368[arg0] != NULL) {
+    ((u8 *)g_BattleActors[arg0])[0x35] = 0;
+    if (g_BattleActors[arg0] != NULL) {
         if ((s32)arg0 != BattleFindFirstActorInMask()) {
-            func_800AA934(D_800D3368[arg0], D_800D3368[arg0], D_800C3D0C, arg2);
+            func_800AA934(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
         }
     }
-    D_800C3D40 = savedIdx;
+    g_BattleCurrentActorSlot = savedIdx;
     D_800C3E30 = savedUnk;
 }

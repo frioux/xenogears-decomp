@@ -271,7 +271,7 @@ void SpriteComputeTransformMatrix(SpriteData* pSpriteData) {
 }
 
 // Set animation package
-extern u8 D_800591AD;
+extern u8 g_IsBattle;
 extern u8 D_800591B0;
 extern u8 D_800591B3;
 
@@ -286,7 +286,7 @@ void SpriteSetupAnimPackage(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFi
     pAnimPackage->pAnimations = (void*)(pAnimPackageFile->animationsOffset + (mem_addr)pAnimPackageFile);
     D_800591B0 = 0;
 
-    if (D_800591AD) {
+    if (g_IsBattle) {
         numAnimations = (*(u16*)pAnimPackage->pAnimations >> 6) & 0x3F;
 
         if (numAnimations != 0) {
@@ -311,7 +311,7 @@ void SpriteSetAnimFile(SpriteData* pSprite, SpriteAnimPackageFileHeader* pAnimPa
         }
 
         // Is battle?
-        if (D_800591AD) {
+        if (g_IsBattle) {
             // Is not VRAM Pre-backed?
             if (!SpriteAnimPackageTestFlag8000(pAnimPackage->pFrames)) {
                 pAnimPackage->tex.y = 0x100;

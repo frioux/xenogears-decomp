@@ -818,7 +818,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
    one pass; the structure (if/else-if cascade over p0/p1's +0xD0 flags, then the
    0x1E/0x3C timer cascade on D_8009263C, then the distance/angle tail) is
    believed correct. */
-/* extern s32 D_8009294C;
+/* extern s32 g_BattleTransitionFrames;
 extern u8 D_800928C4;
 extern u8 D_80091144;
 extern u8 D_80091145;
@@ -867,7 +867,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
     char buf[0x10];
     s32 mode;
 
-    D_8009294C++;
+    g_BattleTransitionFrames++;
     BattleSetTextCursor(0xA0, 0x64);
     if (!BattleCheckValueAboveScaledMax(p0, 0x60) || !BattleCheckValueAboveScaledMax(p1, 0x60)) {
         if (D_800928C4 != 0 && !BattleCheckPositionPastMapCenter(p0) &&

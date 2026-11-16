@@ -6,7 +6,7 @@
 #include "system/memory.h"
 
 extern u_char D_8005938C;
-extern int D_80010000;
+extern int g_DebugTable;
 extern int D_80059390;
 extern int D_800501FC;
 extern int D_80050204;
@@ -214,14 +214,14 @@ void ControllerSetControllerFlag(u_char value) {
 
 void ControllerUpdate(void) {
     s32 pad[10]; // unused: reproduces the original's 0x40-byte frame
-    D_80059488++;
+    g_SpuChannelMask++;
     ControllerPoll();
     ControllerPushState();
     ControllerUpdatePlayTime();
     ControllerUpdateActuators();
     if (D_800501FC != 0)
         ((void (*)(void))D_800501FC)();
-    if (D_80010000 != -1 && D_80059390 != 0)
+    if (g_DebugTable != -1 && D_80059390 != 0)
         asm("break 0x400");
 }
 

@@ -27,16 +27,16 @@ typedef struct {
     /* 0x6 */ s16 unk6;
 } WorldMapGridOrigin; // Size: 0x8
 
-extern MATRIX D_8009C808;
+extern MATRIX g_WorldMapViewMatrix;
 extern MATRIX D_8009A180;
 extern s16 D_8009BD3C;
 extern s16 D_8009BE04;
-extern u32* D_8009BE3C;
+extern u32* g_WorldMapRenderContext;
 extern u_char* D_8009CEB4;
 extern s16 D_8009D618[];
 extern s16 D_8009D570[];
 extern WorldMapGridOrigin D_8009C838;
-extern s32 D_8009D7F0;
+extern s32 g_WorldMapPrimPacketIndex;
 
 
 void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
@@ -204,7 +204,7 @@ void WorldMapFreeSpritePrimBuffers(void) {
     HeapFree(D_8009D7E8);
 }
 // Best: 95.40% (660 bytes vs retail's 640). The quad setup in the scratchpad, both
-// matrix copies (D_8009C808 and D_8009A180 into 0x1F800028/0x1F800048), RotMatrixZ
+// matrix copies (g_WorldMapViewMatrix and D_8009A180 into 0x1F800028/0x1F800048), RotMatrixZ
 // and the 0x10-halfword copy of D_8009D478 are instruction-for-instruction exact, and
 // the 5x5 tile loop matches too. The remaining 20 bytes are one register:
 // retail hoists D_8009C7EC (s3) and &D_8009C83C (s4) but re-forms D_8009D618's
@@ -242,7 +242,7 @@ void func_8008615C(void) {
     ((SVECTOR*)0x1F800018)->vx = 0x18;
     ((SVECTOR*)0x1F800018)->vy = 0;
     ((SVECTOR*)0x1F800018)->vz = 0;
-    *(MATRIX*)0x1F800028 = D_8009C808;
+    *(MATRIX*)0x1F800028 = g_WorldMapViewMatrix;
     *(MATRIX*)0x1F800048 = D_8009A180;
     RotMatrixZ(-D_8009BD3C, (MATRIX*)0x1F800048);
     pSrc = D_8009D478;
@@ -261,8 +261,8 @@ void func_8008615C(void) {
             id = D_8009D570[(row + pOrigin->unk4) * 9 + i + pOrigin->unk0];
             pEntry = (WorldMapTableEntry*)(pTable + id * 8);
             if (pEntry->unk4 != 0) {
-                func_80099BFC((u8*)pEntry->offset, pEntry->unk4, D_8009BE3C[0x1C],
-                              ((u8**)&D_8009D7E8)[D_8009D7F0] + D_8009BE04 * 0x28);
+                func_80099BFC((u8*)pEntry->offset, pEntry->unk4, g_WorldMapRenderContext[0x1C],
+                              ((u8**)&D_8009D7E8)[g_WorldMapPrimPacketIndex] + D_8009BE04 * 0x28);
             }
         }
     }

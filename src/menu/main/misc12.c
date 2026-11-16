@@ -26,7 +26,7 @@ extern char D_801C52E0[];
 extern char D_801C52F4[];
 extern char D_801C5308[];
 
-extern u_char D_801EA8F4;
+extern u_char g_MenuCdStatus;
 extern int Vsync(int mode);
 extern void ArchiveCdDataSync(int mode);
 extern u_char ArchiveCdSetMode(u_char mode);
@@ -50,10 +50,10 @@ void func_801E6F5C(u8 index, u8* pEntry);
 void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2);
 void func_801E733C(void);
 
-extern s32 D_801EA1EC[];
+extern s32 g_MenuSubMenuChoiceIds[];
 extern s32 D_801EA1F0[];
-extern u8 D_801EA578[];
-extern u8 D_801EA5C4[];
+extern u8 g_MenuNameTextureX[];
+extern u8 g_MenuNameTextureY[];
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 extern u8 D_801EA590[];
 extern u8 D_801EA5DC[];
@@ -399,7 +399,7 @@ void MenuClearBytes(u_char count, u_char* pBuffer) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
 void MenuRenderFrame(void);
 
-void func_801E8474(s32 count, s32* pEntries) {
+void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
     s32 i;
     s32 j;
     u32 off;
@@ -433,45 +433,45 @@ void func_801E8474(s32 count, s32* pEntries) {
     }
 }
 
-// Triage r111: BUILDS, real score 99.79%, 688 bytes = retail's size. Only D_801EA1EC / D_801EA1EC+4 base order is left; a typed 2-word struct view is WRONG (retail's index math is the flat s32[] one: sll i,1 + sll (sel+choice),3 + addu + sll 2).
+// Triage r111: BUILDS, real score 99.79%, 688 bytes = retail's size. Only g_MenuSubMenuChoiceIds / g_MenuSubMenuChoiceIds+4 base order is left; a typed 2-word struct view is WRONG (retail's index math is the flat s32[] one: sll i,1 + sll (sel+choice),3 + addu + sll 2).
 /* Best: 99.79% (688 bytes, exact instruction multiset, only the two table
    bases swap). The missing structural piece: loop 2's guard tests the CURSOR
    word of the same entry, not the text word -- retail compares
-   D_801EA1EC[idx] (computed off s4) but passes D_801EA1EC[idx+1] to
+   g_MenuSubMenuChoiceIds[idx] (computed off s4) but passes g_MenuSubMenuChoiceIds[idx+1] to
    func_8002675C. That is why retail keeps the byte offset in a register and
    materialises the second base once in the entry block as `addiu s5,s4,4`.
    What is left is only how the two bases are formed: retail has
-   lui/addiu of D_801EA1EC into s4 then `addiu s5,s4,4`; this body has
-   lui/addiu of D_801EA1EC+4 into s5 then `addiu s4,s5,-4`. Two pointer locals
-   (`pCursor = D_801EA1EC; pText = pCursor + 1;` or the +1 form) get the right
+   lui/addiu of g_MenuSubMenuChoiceIds into s4 then `addiu s5,s4,4`; this body has
+   lui/addiu of g_MenuSubMenuChoiceIds+4 into s5 then `addiu s4,s5,-4`. Two pointer locals
+   (`pCursor = g_MenuSubMenuChoiceIds; pText = pCursor + 1;` or the +1 form) get the right
    pair but gcc then hoists both inits to the top of the entry block, ahead of
    the s2/s1/s3 saves (88.09%); initialising pText inside the outer loop gives
    90.16%. Swapping the pText init between the two unk354 stores does not
    change the order either.
    Round 104: forcing the base-first pair with two pointer locals
-   (`pCursor = D_801EA1EC; pText = pCursor + 1;` and pCursor[] reads in both
-   loops) DOES give retail's s4 = &D_801EA1EC + addiu s5,s4,4, but it drops to
+   (`pCursor = g_MenuSubMenuChoiceIds; pText = pCursor + 1;` and pCursor[] reads in both
+   loops) DOES give retail's s4 = &g_MenuSubMenuChoiceIds + addiu s5,s4,4, but it drops to
    88.09%: the invariant then hoists to the very top of the entry block, ahead of
    the li/andi saves and the 0x1400 store, instead of sitting between the two
    0x354 stores. Moving the assignment between the stores in the source changes
    nothing (still 88.09). Permuter 3 min from the 99.79% body: no gain. So the
    99.79% body below is the best one; what is left is only which of
-   D_801EA1EC / D_801EA1EC+4 gcc materialises first.
+   g_MenuSubMenuChoiceIds / g_MenuSubMenuChoiceIds+4 gcc materialises first.
    Round 113 (measured): the pair DIRECTION is solvable, the PROLOGUE order is
-   the wall. Two pointer locals in every spelling tried (`pCursor = D_801EA1EC;
-   pText = pCursor + 1;`, `pText = &D_801EA1EC[1]`, `(s32*)((u8*)pCursor + 4)`,
+   the wall. Two pointer locals in every spelling tried (`pCursor = g_MenuSubMenuChoiceIds;
+   pText = pCursor + 1;`, `pText = &g_MenuSubMenuChoiceIds[1]`, `(s32*)((u8*)pCursor + 4)`,
    the two inits swapped, an empty do/while after the pair) all give retail's
-   exact pair (la s4 = D_801EA1EC then addu s5,s4,4) and all land on 88.09%,
+   exact pair (la s4 = g_MenuSubMenuChoiceIds then addu s5,s4,4) and all land on 88.09%,
    because gcc emits BOTH invariants at the head of the entry block, ahead of the
    remaining saves: sw s2 / li s2 / la s4 / sw s5 / addu s5,s4,4 / sw ra / sw s3
    / sw s1 / sw s0 / lw v0,852. One address local keeps retail's order (its init
    is scheduled into the lw 852 delay slot) but can only derive the OTHER base:
    loop-1 base as `pCursor[idx]` with the text access inline (`pCursor[idx + 1]`,
-   `D_801EA1EC[idx + 1]`) or both as symbols (`D_801EA1F0[idx]`) drops s5
+   `g_MenuSubMenuChoiceIds[idx + 1]`) or both as symbols (`D_801EA1F0[idx]`) drops s5
    entirely - 86.67% and 91.27%, 680 bytes. Permuter 4 min from the 99.79% body:
    no gain. Next lever: something that stops the entry block from being the
    loop preheader, so the hoisted pair lands after the stores.
-   Round 112: the inline `D_801EA1EC[idx + 1]` form (no pText local) makes gcc
+   Round 112: the inline `g_MenuSubMenuChoiceIds[idx + 1]` form (no pText local) makes gcc
    form a second full lui/addiu of D_801EA1F0 in loop 2's preheader (91.84%), and
    a single pointer local folds to the symbol the same way. Confirmed the two
    pointer locals give retail's exact pair (`lui/addiu s4` + `addiu s5,s4,4`) but
@@ -480,16 +480,16 @@ void func_801E8474(s32 count, s32* pEntries) {
    Round 114 (measured, 8 shapes). The anchor direction follows reload_cse:
    whichever table address is materialised FIRST in the RTL survives as the
    `la` and the other becomes `addiu <other>,<that>,+-4`. Baseline body anchors
-   D_801EA1EC+4 (s5) so the cursor base is `addiu s4,s5,-4`. Whenever a SECOND
+   g_MenuSubMenuChoiceIds+4 (s5) so the cursor base is `addiu s4,s5,-4`. Whenever a SECOND
    live pointer local exists (dependent `pText = pCursor + 1`, two independent
    ones, two `u8*` ones, either source order, with or without a do/while) the
-   pair is right (`la s4,D_801EA1EC` + `addiu s5,s4,4`) but the `la` is emitted
+   pair is right (`la s4,g_MenuSubMenuChoiceIds` + `addiu s5,s4,4`) but the `la` is emitted
    inside the save region (right after `sw s4`) instead of retail's slot after
    `lw v0,852`, so 88.09% (688 bytes). Moving both inits inside the outer loop
    so loop.c hoists them gives the same split (`la` in the save region,
    `addu s5,s4,4` in retail's slot) at 88.16%. With one local (this body) the
    save order is retail's exactly and the pair lands in retail's slots.
-   Left to solve: which of `la D_801EA1EC` / `la D_801EA1EC+4` is emitted first
+   Left to solve: which of `la g_MenuSubMenuChoiceIds` / `la g_MenuSubMenuChoiceIds+4` is emitted first
    without displacing it into the save region.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
@@ -506,14 +506,14 @@ void func_801E86C8(u_char selected) {
     g_Menu->unk354->unk1400 = 0;
     g_Menu->unk354->unk1404 = 0;
     g_Menu->pManager->unkA = 1;
-    pText = D_801EA1EC + 1;
+    pText = g_MenuSubMenuChoiceIds + 1;
     for (n = 1; n < 5; n++) {
         g_Menu->unk354->unk1400 = 0;
         g_Menu->subMenuNumChoices = 0;
         for (i = 0; i < n; i++) {
-            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
+            if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
                 g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources,
-                    D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+                    g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
                     (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
                     g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->unk1400;
                 g_Menu->subMenuNumChoices++;
@@ -529,7 +529,7 @@ void func_801E86C8(u_char selected) {
         }
         g_Menu->unk354->unk1404 = 0;
         for (i = 0; i < n; i++) {
-            if (D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
+            if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
                 off = g_Menu->unk354->unk1404 * 0x50 + 0x500;
                 g_Menu->unk354->unk1404 = func_8002675C(g_Menu->resources,
                     pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
@@ -582,9 +582,9 @@ void MenuSetSubMenuChoicePrims(u_char selected) {
     g_Menu->unk354->unk1404 = 0;
     for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
         if (i == g_Menu->subMenuChoice) {
-            index = D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
+            index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
         } else {
-            index = D_801EA1EC[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
+            index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
         }
         g_Menu->unk354->unk1400 = func_8002675C(g_Menu->resources, index,
             (POLY_FT4*)(g_Menu->unk354->unk1400 * 0x50 + (s32)g_Menu->unk354),
@@ -612,8 +612,8 @@ void MenuLoadCharacterNameTexture(s32 arg0, s32 arg1) {
         SystemRenderStringEntry((u8*)&g_GameState + offset, pBuf, 0x24, 0);
         SystemRenderStringEntry((u8*)&g_GameState + offset + 0x14, pBuf, 0x24, 1);
     }
-    rect.x = *(u16*)(D_801EA578 + ((arg1 * 2) & 0x1FC)) + 0x180;
-    rect.y = *(u16*)(D_801EA5C4 + ((arg1 * 2) & 0x1FC));
+    rect.x = *(u16*)(g_MenuNameTextureX + ((arg1 * 2) & 0x1FC)) + 0x180;
+    rect.y = *(u16*)(g_MenuNameTextureY + ((arg1 * 2) & 0x1FC));
     rect.w = 0x28;
     rect.h = 0xD;
     LoadImage(&rect, (u_long*)pBuf);
@@ -735,7 +735,7 @@ void MenuPauseCdDrive(void) {
         Vsync(3);
         for (;;) {
             Vsync(3);
-            if (CdControlB(8, 0, &D_801EA8F4) != 0) {
+            if (CdControlB(8, 0, &g_MenuCdStatus) != 0) {
                 break;
             }
         }
@@ -748,18 +748,18 @@ void MenuReadPcFile(char* pName, char* pBuffer, int len) {
     PCread(fd, pBuffer, len);
     PCclose(fd);
 }
-// Triage r111: BUILDS (needed the MenuSectorHeader view + externs at the top of the file; the body's own externs for g_ArchiveTable/Header/DebugTable stay). As stored: 96.65%. Changing three lines - "header = D_801C5294;" instead of a pointer cast, "CdControlB(0x15, 0, pStat)" instead of &D_801EA8F4, and "(*pStat & 1)" for the status test - gives 96.81% (756 bytes): the remaining 16 bytes are (a) retail re-materialises &D_801EA8F4 into s0 before the 0x15 query and reads *pStat through it where this body re-derives the address (a2 for the call, v1 for the read); a second pStat = &D_801EA8F4 there scores worse (96.65%, address in a2 only), and (b) retail's last block ends with j epilogue + move v0,s0 where this body falls through into the shared move v0,s0, and retail places move s0,zero (result = 0) after the argument setup where this body puts it in the bne delay slot.
+// Triage r111: BUILDS (needed the MenuSectorHeader view + externs at the top of the file; the body's own externs for g_ArchiveTable/Header/DebugTable stay). As stored: 96.65%. Changing three lines - "header = D_801C5294;" instead of a pointer cast, "CdControlB(0x15, 0, pStat)" instead of &g_MenuCdStatus, and "(*pStat & 1)" for the status test - gives 96.81% (756 bytes): the remaining 16 bytes are (a) retail re-materialises &g_MenuCdStatus into s0 before the 0x15 query and reads *pStat through it where this body re-derives the address (a2 for the call, v1 for the read); a second pStat = &g_MenuCdStatus there scores worse (96.65%, address in a2 only), and (b) retail's last block ends with j epilogue + move v0,s0 where this body falls through into the shared move v0,s0, and retail places move s0,zero (result = 0) after the argument setup where this body puts it in the bne delay slot.
 /* Best: 96.65% under gcc-2.6.0 (764 bytes vs retail's 772). Recovered shape:
    a 16-byte sector header struct copied from the zero datum D_801C5294 (that
    copy reproduces exactly), ArchiveCdDataSync(0), then either the PC-file path
    when ArchiveGetDebugTable() != 0 (three MenuReadPcFile reads, cdrom*.mdg/fid/
    fnd chosen by `disc == 1`, merged tail by -fcross-jumping) or the CD path:
-   CdIntToPos(0,&pos) then three CdControlB(1,0,&D_801EA8F4) status loops, the
+   CdIntToPos(0,&pos) then three CdControlB(1,0,&g_MenuCdStatus) status loops, the
    0x13/2/0x15 sector-17 header read loop, then ArchiveCdSetMode(0xA0) and the
    0x18/0x28 archive table reads; returns 2 if the header tag word is not
    "_XEN" (0x4E45585F), 3 if header byte 3 is not `disc + 0x30`, else 0.
-   What is left: retail keeps &D_801EA8F4 in a saved register (s0) across the
-   first three status loops -- a `u_char* pStat = &D_801EA8F4;` local is what
+   What is left: retail keeps &g_MenuCdStatus in a saved register (s0) across the
+   first three status loops -- a `u_char* pStat = &g_MenuCdStatus;` local is what
    took it 91.33 -> 96.65 -- and it re-forms the address with a fresh lui/addiu
    for the 0x13 loop and again for the 0x15 call (mine reuses pStat in the 0x13
    loop), so the frame is 8 bytes short and the register/loop-exit shapes differ
@@ -779,7 +779,7 @@ extern char D_801C52CC[];
 extern char D_801C52E0[];
 extern char D_801C52F4[];
 extern char D_801C5308[];
-extern u_char D_801EA8F4;
+extern u_char g_MenuCdStatus;
 extern u_char D_801EA8F5;
 extern s32 g_ArchiveTable;
 extern s32 g_ArchiveHeader;
@@ -809,7 +809,7 @@ s32 func_801E93A0(s32 disc) {
         return result;
     }
     CdIntToPos(0, &pos);
-    pStat = &D_801EA8F4;
+    pStat = &g_MenuCdStatus;
     do {
         Vsync(3);
         CdControlB(1, 0, pStat);
@@ -824,14 +824,14 @@ s32 func_801E93A0(s32 disc) {
     } while (((*pStat & 2) == 0) || (ret == 0));
     for (;;) {
         Vsync(3);
-        if (CdControlB(0x13, 0, &D_801EA8F4) == 0) {
+        if (CdControlB(0x13, 0, &g_MenuCdStatus) == 0) {
             continue;
         }
         do {
             Vsync(3);
-        } while (CdControlB(2, (u_char*)&pos, &D_801EA8F4) == 0);
-        ret = CdControlB(0x15, 0, &D_801EA8F4);
-        if ((D_801EA8F4 & 1) && (D_801EA8F5 & 0x40) && (ret == 0)) {
+        } while (CdControlB(2, (u_char*)&pos, &g_MenuCdStatus) == 0);
+        ret = CdControlB(0x15, 0, &g_MenuCdStatus);
+        if ((g_MenuCdStatus & 1) && (D_801EA8F5 & 0x40) && (ret == 0)) {
             return 2;
         }
         if (ret != 0) {

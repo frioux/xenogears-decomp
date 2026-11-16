@@ -4,7 +4,7 @@
 #include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
-// Sprite work buffer (D_800D2D28). battle_work.h's BattleWork names the same
+// Sprite work buffer (g_BattleDisplayState). battle_work.h's BattleWork names the same
 // block but stops at 0xA8, so the 0xB0/0xB7 flag bytes are declared here.
 typedef struct {
     /* 0x000 */ u8 unk0[0x9C];
@@ -19,15 +19,15 @@ typedef struct {
     /* 0x0F8 */ s32 unkF8;
 } BattleSpriteWork;
 
-extern u8 D_800D2D24[];
-extern BattleSpriteWork *D_800D2D28;
+extern u8 g_BattleActorCharIds[];
+extern BattleSpriteWork *g_BattleDisplayState;
 extern u8 D_800C3E50;
 extern BattleWorkBlock *D_800C34B0;
 extern BattleGraphicsWork *D_800C3EA4;
 extern s32 D_800CCB34;
-extern BattleRow *D_800C3DFC;
+extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *D_800C3E34;
-extern BattleTableEntry D_800CCCE8[];
+extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 D_800D2C54[];
 extern u8 D_800D2C88[];
 extern u16 D_800D2C9E;
@@ -35,11 +35,11 @@ extern u16 D_800C324E;
 extern u16 D_800C3250;
 extern u16 D_800C3252;
 extern u16 D_800C323A;
-extern BattleTableEntry *D_800C3E00;
-extern u8 D_800D32A1[];
+extern BattleTableEntry *g_BattleActingSlot;
+extern u8 g_BattleSlotFlags[];
 extern u8 D_800C3CFA[];
 extern u16 g_SystemPalette1;
-extern u8 D_800D32A1[];
+extern u8 g_BattleSlotFlags[];
 extern void *D_800D367C;
 
 void BattleReleaseEffectSlotIfChar4(void);
@@ -67,15 +67,15 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     s32 i;
     s32 offset;
 
-    D_800D2D28->unkF8 = 0;
+    g_BattleDisplayState->unkF8 = 0;
     for (i = 0; i < 8; i++) {
         offset = i * 8 + 0x38;
-        D_800D2D28->unkF8 += BattleDrawSpritePackage(0x66,
-            (u8 *)D_800C3EA4 + 0xBA8 + D_800D2D28->unkF8 * 80, 0x20,
+        g_BattleDisplayState->unkF8 += BattleDrawSpritePackage(0x66,
+            (u8 *)D_800C3EA4 + 0xBA8 + g_BattleDisplayState->unkF8 * 80, 0x20,
             (s16)(offset + arg0));
     }
-    D_800D2D28->unkA5 = *(u8 *)&D_800CCB34;
-    D_800D2D28->unk9C = 1;
+    g_BattleDisplayState->unkA5 = *(u8 *)&D_800CCB34;
+    g_BattleDisplayState->unk9C = 1;
 }
 /* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
    insn-identical; what is left is expansion order (gcc hoists `li a1,0x20` /
@@ -100,7 +100,7 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
                      (s32)(*(u8 **)(D_800C3EA4 + 0xA230))),
         0x20, 0xA4, (s - s / 2 * 2) * 0x78 & 0xF8, s / 2 * 16, 0x60, 0x10);
     (*(u8 **)(D_800C3EA4 + 0xA230))[0x66E] = 0;
-    if (D_800D2D24[(u8)arg2] == 1) {
+    if (g_BattleActorCharIds[(u8)arg2] == 1) {
         BattleParseNumberToDigits(func_8009A258((u8)arg2, s + 0x16));
         for (i = 0, k = 0x8C; i < 3; i++, k += 8) {
             c = D_800C3CFA[i];
@@ -137,10 +137,10 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     s32 len1;
     s32 len2;
 
-    if (D_800D32A1[arg0 * 8] == 0) {
-        index = D_800D2D24[arg0] * 0x20 + (arg2 * 2 + arg1) * 2;
+    if (g_BattleSlotFlags[arg0 * 8] == 0) {
+        index = g_BattleActorCharIds[arg0] * 0x20 + (arg2 * 2 + arg1) * 2;
     } else {
-        index = g_GameState.characters[D_800D2D24[arg0]].gearId * 0x20 + (arg2 * 2 + arg1) * 2;
+        index = g_GameState.characters[g_BattleActorCharIds[arg0]].gearId * 0x20 + (arg2 * 2 + arg1) * 2;
     }
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, 0x618);
@@ -160,12 +160,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
 void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
     u8 ret = 0;
 
-    if (D_800D32A1[arg0 * 8] == 0) {
+    if (g_BattleSlotFlags[arg0 * 8] == 0) {
         ret = (u16)BattleMaskHasStatusBit(
-                  (u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk6,
+                  (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk6,
                   arg1 + arg2 * 2) != 0;
     } else if ((u16)BattleMaskHasStatusBit(
-                   (u16)g_GameState.unk16BC[D_800D2D24[arg0]].unkA,
+                   (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unkA,
                    arg1 + arg2 * 2) != 0) {
         ret = 1;
     }
@@ -250,9 +250,9 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     tbl[1] = D_800C3250;
     tbl[2] = D_800C3252;
     tbl[3] = D_800C323A;
-    if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E,
+    if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk1E,
                            arg1)) {
-        if ((D_800CCCE8[arg0].unk7A & tbl[arg1]) == 0) {
+        if ((g_BattleWorkBlock[arg0].unk7A & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);
             func_8009382C(arg0, arg1);
             D_800C3EA4->pPacketPrims[0x66A] = *(u8 *)&D_800CCB34;
@@ -266,9 +266,9 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
 void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
-    if (D_800D2D24[arg0] == 4) {
-        D_800D2D28->unkB7 = 0;
-        D_800D2D28->unkB0 = 0;
+    if (g_BattleActorCharIds[arg0] == 4) {
+        g_BattleDisplayState->unkB7 = 0;
+        g_BattleDisplayState->unkB0 = 0;
         if (arg1 != 0) {
             BattleReleaseEffectSlotIfChar4();
         }
@@ -351,8 +351,8 @@ void func_80094D24(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
 void BattleSetSlotState2FromActorField5BWithModifiers(void) {
-    BattleTableEntry *p = D_800C3E00;
-    BattleRow *q = D_800C3DFC;
+    BattleTableEntry *p = g_BattleActingSlot;
+    BattleRow *q = g_BattleCurrentRow;
     BattleTableEntry *r;
     s16 v;
     u16 f;
@@ -369,7 +369,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (f & 0x200) {
         v = 13 * v / 10;
     }
-    if (D_800CCCE8[D_800C3E50].state.unkB6 & 0x80) {
+    if (g_BattleWorkBlock[D_800C3E50].state.unkB6 & 0x80) {
         v = 0;
     }
     D_800C34B0->unk5FA0[D_800C3E50] = 2;
@@ -380,7 +380,7 @@ void BattleInitActiveSlotAction(void) {
     BattleTableEntry *p;
     s32 v;
 
-    if (D_800CCCE8[D_800C3E50].unk56 == 2) {
+    if (g_BattleWorkBlock[D_800C3E50].unk56 == 2) {
         BattleSetSlotEntryFieldsTo2000(D_800C3E50, 1);
     }
     t = D_800C3E50;
@@ -391,7 +391,7 @@ void BattleInitActiveSlotAction(void) {
     D_800C3E34->unk8C = 0;
     D_800D2C88[t] = 2;
     p = D_800C3E34;
-    v = p->unk4E * D_800C3DFC->unk11;
+    v = p->unk4E * g_BattleCurrentRow->unk11;
     if (D_800C3E50) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
     t = D_800C3E50;
@@ -399,28 +399,28 @@ void BattleInitActiveSlotAction(void) {
     D_800D2C9E |= 1 << t;
 }
 void BattleClearStatusWordsOnAction6E(void) {
-    if (rand() % 100 > D_800C3DFC->unk1C) {
+    if (rand() % 100 > g_BattleCurrentRow->unk1C) {
         return;
     }
-    if (D_800C3DFC->unk1D != 0x6E) {
+    if (g_BattleCurrentRow->unk1D != 0x6E) {
         return;
     }
-    if (D_800C3DFC->unk1E & 0x8000) {
+    if (g_BattleCurrentRow->unk1E & 0x8000) {
         D_800C3E34->unk84 = 0;
     }
-    if (D_800C3DFC->unk1E & 0x4000) {
+    if (g_BattleCurrentRow->unk1E & 0x4000) {
         D_800C3E34->unk86 = 0;
     }
-    if (D_800C3DFC->unk1E & 0x2000) {
+    if (g_BattleCurrentRow->unk1E & 0x2000) {
         D_800C3E34->unk88 = 0;
     }
-    if (D_800C3DFC->unk1E & 0x1000) {
+    if (g_BattleCurrentRow->unk1E & 0x1000) {
         D_800C3E34->unk8A = 0;
     }
-    if (D_800C3DFC->unk1E & 0x800) {
+    if (g_BattleCurrentRow->unk1E & 0x800) {
         D_800C3E34->unk8C = 0;
     }
-    if (D_800C3DFC->unk1E & 0x400) {
+    if (g_BattleCurrentRow->unk1E & 0x400) {
         D_800C3E34->unk8E = 0;
     }
     D_800C34B0->unk5FC7 = 0x3A;

@@ -72,16 +72,16 @@ typedef struct {
     /* 0x4B */ u8 pad4B[0x5];
 } BattleScreenFadeTask; // Size: 0x50
 
-extern BattleScreenFadeTask *D_800C3558;
-extern BattleScaleTask *D_800C3548;
-extern u8 D_800C355C;
-extern u32 D_800C3560;
+extern BattleScreenFadeTask *g_BattleScreenFadeTask;
+extern BattleScaleTask *g_BattleScaleTask;
+extern u8 g_BattleScreenFadeOwnBuffer;
+extern u32 g_BattleImageTask;
 
 extern u8 *g_GfxCurWorkBuffer;
 extern u8 *g_GfxCurWorkBufferEnd;
 extern u_long *g_GfxCurOT;
 
-extern BattleScaleTask *func_800B35C0();
+extern BattleScaleTask *BattleGetScaleTask();
 extern void func_800B3358(BattleScaleTask *pTask);
 extern void func_800B39C0(s32, s32, u8, u8, u8);
 extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
@@ -176,15 +176,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3358);
 void BattleFreeScaleTask(void *pEntry) {
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
-    D_800C3548 = NULL;
+    g_BattleScaleTask = NULL;
 }
 
 // Returns the one scale task, allocating it on first use and restarting the
 // ease from wherever the scale currently sits on every later call.
-BattleScaleTask *func_800B35C0(void) {
+BattleScaleTask *BattleGetScaleTask(void) {
     BattleScaleTask *pTask;
 
-    if (D_800C3548 == NULL) {
+    if (g_BattleScaleTask == NULL) {
         pTask = (BattleScaleTask *)TimerWorkListAllocateTask(NULL,
                     sizeof(BattleScaleTask) - sizeof(WorkListEntry));
         TimerWorkListSetTaskCallback(pTask, func_800B3358);
@@ -192,9 +192,9 @@ BattleScaleTask *func_800B35C0(void) {
         pTask->start.vx = 0;
         pTask->start.vy = 0;
         pTask->start.vz = 0;
-        D_800C3548 = pTask;
+        g_BattleScaleTask = pTask;
     } else {
-        pTask = D_800C3548;
+        pTask = g_BattleScaleTask;
         pTask->start.vx = pTask->current.vx;
         pTask->start.vy = pTask->current.vy;
         pTask->start.vz = pTask->current.vz;
@@ -203,7 +203,7 @@ BattleScaleTask *func_800B35C0(void) {
 }
 
 void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
-    BattleScaleTask *pTask = func_800B35C0();
+    BattleScaleTask *pTask = BattleGetScaleTask();
 
     pTask->target.vx = pTarget->vx;
     pTask->target.vy = pTarget->vy;
@@ -225,7 +225,7 @@ void BattleStepScreenFade(void *pArg) {
         pTask->curG = pTask->targetG;
         pTask->curB = pTask->targetB;
         if ((pTask->curR | pTask->curG | pTask->curB) == 0) {
-            D_800C3558->timerEntry.onFreeCallback(D_800C3558);
+            g_BattleScreenFadeTask->timerEntry.onFreeCallback(g_BattleScreenFadeTask);
         }
         return;
     }
@@ -248,7 +248,7 @@ void BattleStepScreenFade(void *pArg) {
 void BattleFreeScreenFadeTask(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
-    D_800C3558 = NULL;
+    g_BattleScreenFadeTask = NULL;
 }
 
 // Draws the fade as one semi-transparent quad over the whole screen. The 0x50
@@ -284,16 +284,16 @@ void BattleDrawScreenFade(WorkListEntry *pEntry) {
 }
 
 void BattleStartScreenFadeOwnBuffer(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
-    D_800C355C = 1;
+    g_BattleScreenFadeOwnBuffer = 1;
     func_800B39C0(a0, a1, a2, a3, a4);
-    D_800C355C = 0;
+    g_BattleScreenFadeOwnBuffer = 0;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B39C0);
 
 s32 BattleGetActorFlag41(void) {
-    if (D_800C3558 != NULL) {
-        return D_800C3558->abr;
+    if (g_BattleScreenFadeTask != NULL) {
+        return g_BattleScreenFadeTask->abr;
     }
     return 1;
 }
@@ -327,7 +327,7 @@ void BattleFreeImageTask(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
     TimerWorkListRemoveTask(pEntry);
     HeapFree(pEntry);
-    D_800C3560 = 0;
+    g_BattleImageTask = 0;
     BattleUploadAndFreeImageResources();
 }
 

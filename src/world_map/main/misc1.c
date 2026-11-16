@@ -9,26 +9,26 @@ extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flag
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 extern void WorldMapGetGameStatePosition(void* pVector);
 
-// D_8009D3F8 .. D_8009D414 are the 3-entry StreamDataQueueEntry stream request
-// table; D_8009C5AC/B0/B4 are the 12.4 fixed point position written by
+// g_WorldMapStreamQueue .. D_8009D414 are the 3-entry StreamDataQueueEntry stream request
+// table; g_WorldMapPlayerPosition/B0/B4 are the 12.4 fixed point position written by
 // WorldMapGetGameStatePosition.
 extern void* D_8005945C;
-extern void* D_8006259C;
-extern void* D_8009BC38;
-extern void* D_8009BCB0;
-extern s32 D_8009BE10;
+extern void* g_MenuSedsFile;
+extern void* g_WorldMapWorkBuffer1;
+extern void* g_WorldMapWorkBuffer2;
+extern s32 g_WorldMapMode;
 extern void* D_8009BD20;
 extern void* D_8009C180;
 extern s32 D_8009C174;
 extern s32 D_8009C17C;
-extern s32 D_8009C584;
+extern s32 g_WorldMapPlayerRotation;
 extern void* D_8009C59C;
-extern s32 D_8009C5AC;
+extern s32 g_WorldMapPlayerPosition;
 extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s32 D_8009D3C4;
-extern s32 D_8009D3C8;
-extern u16 D_8009D3F8;
+extern s32 g_WorldMapSedsBankFileIndex;
+extern u16 g_WorldMapStreamQueue;
 extern void* D_8009D3FC;
 extern u16 D_8009D400;
 extern void* D_8009D404;
@@ -36,7 +36,7 @@ extern u16 D_8009D408;
 extern void* D_8009D40C;
 extern u16 D_8009D410;
 extern void* D_8009D414;
-extern void* D_8009D528;
+extern void* g_WorldMapCompressedMapData;
 
 typedef struct {
     /* 0x0 */ s16 x;
@@ -47,7 +47,7 @@ typedef struct {
 
 extern WorldMapPoint* D_8009D3F4;
 
-// The world map frame render context D_8009BE3C points at: the two ordering
+// The world map frame render context g_WorldMapRenderContext points at: the two ordering
 // table heads it fills each frame.
 typedef struct {
     /* 0x00 */ u8 unk0[0x70];
@@ -60,13 +60,13 @@ int WorldMapModeInitNop(void) {
     return 1;
 }
 
-extern s32 D_8009D144;
-extern s32 D_8009BD40;
-extern s16 D_8009D558;
-extern s32 D_8009BBB4;
-extern s32 D_8009BE28;
-extern WorldMapRenderContext* D_8009BE3C;
-extern s32 D_8009C5BC;
+extern s32 g_WorldMapRotationMatrixValid;
+extern s32 g_WorldMapPathFrame;
+extern s16 g_WorldMapSlotUpdateFlags;
+extern s32 g_WorldMapScrollX;
+extern s32 g_WorldMapCameraTarget;
+extern WorldMapRenderContext* g_WorldMapRenderContext;
+extern s32 g_WorldMapGridAngle;
 
 extern void WorldMapBuildRotationMatrix(s32* p);
 extern void func_80097244(s32* p);
@@ -91,10 +91,10 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     s32* pState;
     s32 pad[2];
 
-    if (D_8009D144 == 0) {
-        WorldMapBuildRotationMatrix(&D_8009BD40);
+    if (g_WorldMapRotationMatrixValid == 0) {
+        WorldMapBuildRotationMatrix(&g_WorldMapPathFrame);
     } else {
-        func_80097244(&D_8009BD40);
+        func_80097244(&g_WorldMapPathFrame);
     }
     func_80089748();
     func_80089C78();
@@ -102,16 +102,16 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     func_8008615C();
     func_800747DC();
     func_800848F4();
-    func_800980D4(&D_8009BBB4);
-    if (D_8009D558 != 0) {
-        func_800981C8(&D_8009BE28);
+    func_800980D4(&g_WorldMapScrollX);
+    if (g_WorldMapSlotUpdateFlags != 0) {
+        func_800981C8(&g_WorldMapCameraTarget);
         WorldMapWaitForLoadSlotFree();
         func_80098CC0();
     }
-    pState = &D_8009BE28;
+    pState = &g_WorldMapCameraTarget;
     func_800983A0(pState);
-    func_8009932C(D_8009BE3C->pOt[0], D_8009BE3C->pOt[1], pState);
-    D_8009C5BC = D_8009C5BC + 0x40;
+    func_8009932C(g_WorldMapRenderContext->pOt[0], g_WorldMapRenderContext->pOt[1], pState);
+    g_WorldMapGridAngle = g_WorldMapGridAngle + 0x40;
     func_80073B04();
     func_800737EC();
     func_80086798();
@@ -132,8 +132,8 @@ extern u16 D_8009B566;
 extern WorldMapTableEntry D_8009B57C;
 extern WorldMapTableEntry D_8009B58C;
 extern s32 D_8009C610;
-extern s32 D_8009CC98;
-extern s32 D_8009D3D0;
+extern s32 g_WorldMapWdsFileIndex;
+extern s32 g_WorldMapSoundBankFileIndex;
 extern s32 D_8009D800;
 extern s32 D_8009BCD8;
 extern s32 D_8009BCC8;
@@ -190,9 +190,9 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     D_8009D3C4 = pEntry->unk0 + 1;
     D_8009C17C = pEntry->unk0 + 2;
     D_8009C174 = pEntry->unk0 + 3;
-    D_8009CC98 = pEntry->unk0 + 4;
-    D_8009D3D0 = pEntry->unk0 + 5;
-    D_8009D3C8 = pEntry->unk0 + 6;
+    g_WorldMapWdsFileIndex = pEntry->unk0 + 4;
+    g_WorldMapSoundBankFileIndex = pEntry->unk0 + 5;
+    g_WorldMapSedsBankFileIndex = pEntry->unk0 + 6;
     D_8009D800 = pEntry->unk0 + 7;
     D_8009BCC8 = pEntry->unk0 + 8;
     D_8009BCD8 = pEntry->unk0 + 9;
@@ -206,7 +206,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 /* best: 84.51% (508 bytes vs 500). Every decoded fact matches and loop 1 is
    byte-identical; only loop 2's register shape differs. Retail keeps TWO
-   running pointers advanced by 8 (a2 = index ptr = &D_8009D3F8, a1 = pData ptr =
+   running pointers advanced by 8 (a2 = index ptr = &g_WorldMapStreamQueue, a1 = pData ptr =
    &D_8009D3FC with a2 = a1-4, both incremented right after their own store),
    nCount in $s1 and the loop index in $a0; gcc keeps ONE queue pointer (v1,
    +8) with a `sw v0,4(v1)` displacement, nCount in $a2 and the index in $s1.
@@ -214,7 +214,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
    because the u8 feeds a short store). Tried with no change: s32 locals for the
    ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
    `pQueue[nCount++].pData`, terminator stores through the absolute symbols
-   D_8009D3F8/D_8009D3FC (grows the frame to 0x38).
+   g_WorldMapStreamQueue/D_8009D3FC (grows the frame to 0x38).
 */
 /*
 extern void* D_8009CD34[3];
@@ -243,7 +243,7 @@ void func_80071CDC(void) {
             D_8009CD34[i] = 0;
         }
     }
-    pQueue = (StreamDataQueueEntry*)&D_8009D3F8;
+    pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
     D_8009C170 = 0;
     nCount = 0;
     for (i = 0; i < 3; i++) {
@@ -269,7 +269,7 @@ void func_80071CDC(void) {
 
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
-/* best: 98.00% (256 bytes vs 252). Only the D_8009D3F8 store differs: the
+/* best: 98.00% (256 bytes vs 252). Only the g_WorldMapStreamQueue store differs: the
    original reuses the $a0 that already holds the address for the func_80029AFC
    call and emits a bare "sh $v1,0($a0)"; gcc re-forms the symbol address and
    needs one extra lui $at. A local StreamDataQueueEntry* does not stop that
@@ -286,7 +286,7 @@ void func_80071EF0(void) {
     D_8009C59C = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C17C), 1);
     D_8009BD20 = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C174), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
-    pQueue = (StreamDataQueueEntry*)&D_8009D3F8;
+    pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
     D_8009C180 = pBuffer;
     D_8009D410 = 0;
     D_8009D3FC = pBuffer;
@@ -305,23 +305,23 @@ void WorldMapQueueTwoFileLoads(void) {
 
     D_8005945C = HeapAlloc(ArchiveDecodeAlignedSize(0x26), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0x25), 1);
-    D_8009D3F8 = 0x25;
-    D_8009D528 = pBuffer;
+    g_WorldMapStreamQueue = 0x25;
+    g_WorldMapCompressedMapData = pBuffer;
     D_8009D3FC = pBuffer;
     D_8009D400 = 0x26;
     D_8009D408 = 0;
     D_8009D40C = 0;
     D_8009D404 = D_8005945C;
-    func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
+    func_80029AFC((StreamDataQueueEntry*)&g_WorldMapStreamQueue, 0, 0);
 }
 
-extern s32 D_8004F304;
-extern s32 D_8009CC98;
-extern s32 D_8009D3D0;
+extern s32 g_WorldMapAudioManagerLoaded;
+extern s32 g_WorldMapWdsFileIndex;
+extern s32 g_WorldMapSoundBankFileIndex;
 extern s32 D_8009D800;
 extern s32 D_8009BCC8;
-extern void* D_8009C88C;
-extern void* D_8009C884;
+extern void* g_WorldMapWdsFileBuffer;
+extern void* g_WorldMapSoundBankBuffer;
 extern void* D_8009C888;
 extern void* D_8009C614;
 extern u16 D_8009D418;
@@ -332,18 +332,18 @@ extern s32 D_8009D424;
 void WorldMapQueueFileLoads(void) {
     void* pBuffer;
 
-    D_8004F304++;
-    D_8009D3F8 = D_8009CC98;
-    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009CC98), 1);
-    D_8009C88C = pBuffer;
+    g_WorldMapAudioManagerLoaded++;
+    g_WorldMapStreamQueue = g_WorldMapWdsFileIndex;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapWdsFileIndex), 1);
+    g_WorldMapWdsFileBuffer = pBuffer;
     D_8009D3FC = pBuffer;
-    D_8009D400 = D_8009D3D0;
-    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3D0), 0);
-    D_8009C884 = pBuffer;
+    D_8009D400 = g_WorldMapSoundBankFileIndex;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapSoundBankFileIndex), 0);
+    g_WorldMapSoundBankBuffer = pBuffer;
     D_8009D404 = pBuffer;
-    D_8009D408 = D_8009D3C8;
-    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C8), 0);
-    D_8006259C = pBuffer;
+    D_8009D408 = g_WorldMapSedsBankFileIndex;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapSedsBankFileIndex), 0);
+    g_MenuSedsFile = pBuffer;
     D_8009D40C = pBuffer;
     D_8009D410 = D_8009D800;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D800), 0);
@@ -355,15 +355,15 @@ void WorldMapQueueFileLoads(void) {
     D_8009D41C = pBuffer;
     D_8009D420 = 0;
     D_8009D424 = 0;
-    func_80029AFC((StreamDataQueueEntry*)&D_8009D3F8, 0, 0);
+    func_80029AFC((StreamDataQueueEntry*)&g_WorldMapStreamQueue, 0, 0);
 }
 
 void WorldMapLoadSedsBank(void) {
     s32 nSize;
 
-    nSize = ArchiveDecodeAlignedSize(D_8009D3C8);
-    D_8006259C = HeapAlloc(nSize, 0);
-    ArchiveReadFileToBuffer(D_8009D3C8, D_8006259C, 0, 0);
+    nSize = ArchiveDecodeAlignedSize(g_WorldMapSedsBankFileIndex);
+    g_MenuSedsFile = HeapAlloc(nSize, 0);
+    ArchiveReadFileToBuffer(g_WorldMapSedsBankFileIndex, g_MenuSedsFile, 0, 0);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
@@ -382,7 +382,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
    store needs $at. Retail needs the address in a THIRD register (v1) used twice.
 */
 /*
-extern void* D_80062528;
+extern void* g_SoundAudioManager;
 extern void* D_8009BE24;
 extern void* D_8009BC3C;
 extern void* D_8009BCB4;
@@ -417,11 +417,11 @@ void func_8007299C(void) {
     s32 i;
 
     if (D_8009D7CC == 0) {
-        SoundSetAudioManagerVolumeWithFade(D_80062528, 0, 0xF0);
+        SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
     }
     SoundStopAllElements();
-    SoundRemoveSedsEntry(D_8006259C);
-    HeapFree(D_8006259C);
+    SoundRemoveSedsEntry(g_MenuSedsFile);
+    HeapFree(g_MenuSedsFile);
     for (i = 0; i < 0x40; i++) {
         p = (u8*)(i * 0x80 + (s32)D_8009BE24);
         if (*(void**)(p + 0x4C) != NULL) {
@@ -446,8 +446,8 @@ void func_8007299C(void) {
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
     WorldMapFreeGridImages();
-    HeapFree(D_8009BC38);
-    HeapFree(D_8009BCB0);
+    HeapFree(g_WorldMapWorkBuffer1);
+    HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
@@ -470,8 +470,8 @@ typedef struct {
     /* 0x70 */ u8 pad70[8];
 } WorldMapGfxEnv; // Size: 0x78
 
-extern WorldMapGfxEnv D_8009BBC8[2];
-extern u8 D_8009BB48;
+extern WorldMapGfxEnv g_WorldMapGfxEnvs[2];
+extern u8 g_WorldMapColorFactors;
 extern u8 D_8009BB49;
 extern u8 D_8009BB4A;
 extern u8 D_8009BBDE;
@@ -492,7 +492,7 @@ extern u16 D_8009BCA4;
 extern u16 D_8009BCA6;
 extern u16 D_8009BCA8;
 extern u16 D_8009BCAA;
-extern s32 D_8009BCDC;
+extern s32 g_WorldMapProjectionDistance;
 extern s32 D_8009D7CC;
 
 extern void SetNearColor(long rfc, long gfc, long bfc);
@@ -502,9 +502,9 @@ void WorldMapInitGfxEnv(void) {
     s32 nNear;
 
     ResetGraph(1);
-    D_8009BCDC = 0x100;
+    g_WorldMapProjectionDistance = 0x100;
     SetGeomScreen(0x100);
-    pEnv = D_8009BBC8;
+    pEnv = g_WorldMapGfxEnvs;
     SetDefDrawEnv(&pEnv[0].drawEnv, 0, 0, 0x140, 0xD8);
     SetDefDrawEnv(&pEnv[1].drawEnv, 0, 0xD8, 0x140, 0xD8);
     SetDefDispEnv(&pEnv[0].dispEnv, 0, 0xD8, 0x140, 0xD8);
@@ -538,12 +538,12 @@ void WorldMapInitGfxEnv(void) {
     D_8009BC32 = 0xD8;
     SetNearColor(0x80, 0x80, 0x80);
     SetBackColor(0x80, 0x80, 0x80);
-    SetFarColor(D_8009BB48, D_8009BB49, D_8009BB4A);
+    SetFarColor(g_WorldMapColorFactors, D_8009BB49, D_8009BB4A);
     nNear = 0x800;
     if (D_8009D7CC == 2) {
         nNear = 0xB00;
     }
-    SetFogNearFar(nNear, 0xE80, D_8009BCDC);
+    SetFogNearFar(nNear, 0xE80, g_WorldMapProjectionDistance);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
@@ -588,7 +588,7 @@ void func_80073300(void) {
     } else {
         nMode = 1;
     }
-    D_8009BE10 = nMode;
+    g_WorldMapMode = nMode;
 }
 */
 
@@ -596,22 +596,22 @@ void WorldMapSetPositionFromState(void) {
     s32 nMode;
     s32 nPos;
 
-    nMode = D_8009BE10;
+    nMode = g_WorldMapMode;
     g_GameState.unk1836 = 0;
     switch (nMode) {
     case 1:
     case 2:
         nPos = g_GameState.unk1820 << 12;
-        D_8009C5AC = nPos;
-        D_8009C584 = g_GameState.unk1824;
+        g_WorldMapPlayerPosition = nPos;
+        g_WorldMapPlayerRotation = g_GameState.unk1824;
         nPos = g_GameState.unk1822 << 12;
         D_8009C5B4 = nPos;
         break;
     case 4:
     case 5:
     case 7:
-        WorldMapGetGameStatePosition(&D_8009C5AC);
-        D_8009C584 = g_GameState.unk1832;
+        WorldMapGetGameStatePosition(&g_WorldMapPlayerPosition);
+        g_WorldMapPlayerRotation = g_GameState.unk1832;
         break;
     }
 }
@@ -619,7 +619,7 @@ void WorldMapSetPositionFromState(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
 /* best: 94.74%, 228 bytes vs retail's 232 - the missing insn is the load-delay
    `nop` after `lh v0,4(a2)`. Retail's found-point block is
-   `lh v0,0(a2) / sw zero,D_8009C5B0 / sll / sw D_8009C5AC / lh v0,4(a2) / nop /
+   `lh v0,0(a2) / sw zero,D_8009C5B0 / sll / sw g_WorldMapPlayerPosition / lh v0,4(a2) / nop /
    sll / sw D_8009C5B4`, i.e. the x and z loads share $v0 and the z load is NOT
    hoisted. gcc's sched1 hoists the independent z load above the stores whatever
    the statement order. `nPos = p->z;` (load into the shared temp, shift at the
@@ -636,22 +636,22 @@ void func_80073448(s32 arg0) {
 
     if (g_GameState.unk1834 & 0x2000) {
         g_GameState.unk1834 &= ~0x2000;
-        WorldMapGetGameStatePosition(&D_8009C5AC);
-        D_8009C584 = g_GameState.unk1832;
+        WorldMapGetGameStatePosition(&g_WorldMapPlayerPosition);
+        g_WorldMapPlayerRotation = g_GameState.unk1832;
     } else {
         p = D_8009D3F4;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
                 D_8009C5B0 = 0;
                 nPos = p->x << 12;
-                D_8009C5AC = nPos;
+                g_WorldMapPlayerPosition = nPos;
                 nPos = p->z << 12;
                 D_8009C5B4 = nPos;
                 return;
             }
             p++;
         }
-        D_8009C5AC = 0;
+        g_WorldMapPlayerPosition = 0;
         D_8009C5B0 = 0;
         D_8009C5B4 = 0;
     }
@@ -715,8 +715,8 @@ void func_80073530(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073530);
 
 void WorldMapAllocWorkBuffers(void) {
-    D_8009BC38 = HeapAlloc(0x1000, 0);
-    D_8009BCB0 = HeapAlloc(0x1000, 0);
+    g_WorldMapWorkBuffer1 = HeapAlloc(0x1000, 0);
+    g_WorldMapWorkBuffer2 = HeapAlloc(0x1000, 0);
 }
 
 
@@ -802,12 +802,12 @@ void func_800736DC(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800736DC);
 
 
-extern u16 D_8009BD3A;
-extern MATRIX D_8009C808;
-extern SVECTOR D_8009A280[16];
+extern u16 g_WorldMapViewRotationY;
+extern MATRIX g_WorldMapViewMatrix;
+extern SVECTOR g_WorldMapQuadVertices[16];
 
 // The four quad primitives the world map projects each frame, 0x48 bytes each
-// at D_8009D194; D_8009D7F0 picks the half of the buffer this frame draws from.
+// at g_WorldMapQuadPrims; g_WorldMapPrimPacketIndex picks the half of the buffer this frame draws from.
 typedef struct {
     /* 0x00 */ u32 tag; // OT link word, rewritten by addPrim
     /* 0x04 */ u32 unk4;
@@ -821,9 +821,9 @@ typedef struct {
     /* 0x24 */ u8 unk24[0x24];
 } WorldMapQuadPrim; // Size: 0x48
 
-extern u8 D_8009D194[];
-extern s32 D_8009D7F0;
-extern s32 D_80050100;
+extern u8 g_WorldMapQuadPrims[];
+extern s32 g_WorldMapPrimPacketIndex;
+extern s32 g_GfxOTDepthShift;
 
 extern long RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* p0, long* p1,
                           long* p2, long* p3, long* xy0, long* xy1);
@@ -843,17 +843,17 @@ void func_800737EC(void) {
     pRot = (SVECTOR*)0x1F800000;
     *(u16*)0x1F800004 = 0;
     pRot->vx = 0;
-    *(u16*)0x1F800002 = D_8009BD3A;
+    *(u16*)0x1F800002 = g_WorldMapViewRotationY;
     RotMatrixYXZ(pRot, (MATRIX*)0x1F800028);
     *(s32*)0x1F800044 = 0;
     *(s32*)0x1F800040 = 0;
     *(s32*)0x1F80003C = 0;
-    CompMatrix(&D_8009C808, (MATRIX*)0x1F800028, (MATRIX*)0x1F800008);
+    CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)0x1F800028, (MATRIX*)0x1F800008);
     SetRotMatrix((MATRIX*)0x1F800008);
     SetTransMatrix((MATRIX*)0x1F800008);
-    pVec = D_8009A280;
+    pVec = g_WorldMapQuadVertices;
     for (i = 0; i < 4; i++, pVec += 4) {
-        pBase = (WorldMapQuadPrim*)(D_8009D194 + D_8009D7F0 * 0x24);
+        pBase = (WorldMapQuadPrim*)(g_WorldMapQuadPrims + g_WorldMapPrimPacketIndex * 0x24);
         // the sum has to stay integer arithmetic: `&pBase[i]` flips the addu operands
         pPrim = (WorldMapQuadPrim*)(i * sizeof(WorldMapQuadPrim) + (s32)pBase);
         nOtz = RotTransPers4(pVec, pVec + 1, pVec + 2, pVec + 3,
@@ -861,13 +861,13 @@ void func_800737EC(void) {
                              (long*)&pPrim->xy2, (long*)&pPrim->xy3,
                              (long*)((u8*)pRot + 0x48), (long*)((u8*)pRot + 0x4C));
         if (*(s32*)((u8*)pRot + 0x4C) >= 0) {
-            addPrim((P_TAG*)((u32*)D_8009BE3C->pOt[0] + (nOtz >> D_80050100)), (P_TAG*)pPrim);
+            addPrim((P_TAG*)((u32*)g_WorldMapRenderContext->pOt[0] + (nOtz >> g_GfxOTDepthShift)), (P_TAG*)pPrim);
         }
     }
 }
 
-extern POLY_FT4 D_8009C744[];
-extern DR_MODE D_8009D3D8[];
+extern POLY_FT4 g_WorldMapTilePrims[];
+extern DR_MODE g_WorldMapTileDrawModes[];
 
 void WorldMapSetupMapPrims(void) {
     POLY_FT4* pPrim;
@@ -878,7 +878,7 @@ void WorldMapSetupMapPrims(void) {
 
     tpage = GetTPage(0, 1, 0x380, 0x100);
     clut = GetClut(0x110, 0x1FE);
-    pPrim = D_8009C744;
+    pPrim = g_WorldMapTilePrims;
     for (i = 0; i < 4; i++, pPrim++) {
         setPolyFT4(pPrim);
         pPrim->r0 = 0x30;
@@ -900,12 +900,12 @@ void WorldMapSetupMapPrims(void) {
     tw.y = 0;
     tw.w = 0x80;
     tw.h = 0;
-    func_800453AC(&D_8009D3D8[0], &tw);
+    func_800453AC(&g_WorldMapTileDrawModes[0], &tw);
     tw.x = 0;
     tw.y = 0;
     tw.w = 0;
     tw.h = 0;
-    func_800453AC(&D_8009D3D8[1], &tw);
+    func_800453AC(&g_WorldMapTileDrawModes[1], &tw);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 
@@ -1010,10 +1010,10 @@ void func_80073E30(void) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073E30);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800740B8);
-extern void* D_8009D30C;
-extern void* D_8009BE14;
-extern void* D_8009BE18;
-extern s32 D_8009BE38;
+extern void* g_WorldMapSlotPositions;
+extern void* g_WorldMapSlotPrims;
+extern void* g_WorldMapSlotPrimsCopy;
+extern s32 g_WorldMapSlotPositionIndex;
 
 typedef struct {
     /* 0x0 */ s16 unk0;
@@ -1037,17 +1037,17 @@ void WorldMapAllocPrimBuffers(void) {
     WorldMapChunk* pEnd;
     s32 i;
 
-    D_8009D30C = HeapAlloc(0x80, 0);
-    D_8009BE14 = HeapAlloc(0x280, 0);
-    D_8009BE18 = HeapAlloc(0x280, 0);
-    pSlot = (WorldMapSlot*)D_8009D30C;
+    g_WorldMapSlotPositions = HeapAlloc(0x80, 0);
+    g_WorldMapSlotPrims = HeapAlloc(0x280, 0);
+    g_WorldMapSlotPrimsCopy = HeapAlloc(0x280, 0);
+    pSlot = (WorldMapSlot*)g_WorldMapSlotPositions;
     for (i = 0xF; i != -1; i--) {
         pSlot->unk4 = 0;
         pSlot->unk2 = 0;
         pSlot->unk0 = 0;
         pSlot++;
     }
-    pPrim = (POLY_FT4*)D_8009BE14;
+    pPrim = (POLY_FT4*)g_WorldMapSlotPrims;
     for (i = 0xF; i != -1; i--) {
         setPolyFT4(pPrim);
         pPrim->r0 = 0x40;
@@ -1066,11 +1066,11 @@ void WorldMapAllocPrimBuffers(void) {
         SetSemiTrans(pPrim, 1);
         pPrim++;
     }
-    pSrc = (WorldMapChunk*)D_8009BE14;
-    pDst = (WorldMapChunk*)D_8009BE18;
+    pSrc = (WorldMapChunk*)g_WorldMapSlotPrims;
+    pDst = (WorldMapChunk*)g_WorldMapSlotPrimsCopy;
     pEnd = pSrc + 0x28;
     do {
         *pDst++ = *pSrc++;
     } while (pSrc != pEnd);
-    D_8009BE38 = 0;
+    g_WorldMapSlotPositionIndex = 0;
 }

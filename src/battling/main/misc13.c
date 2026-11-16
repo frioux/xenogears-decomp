@@ -3,10 +3,10 @@
 #include "system/model.h"
 
 extern s32 D_80091C2C;
-extern s16 D_80092800;
-extern s16 D_80092804;
-extern s16 D_80092808;
-extern s16 D_8009280C;
+extern s16 g_BattleTpageX;
+extern s16 g_BattleTpageY;
+extern s16 g_BattleClutX;
+extern s16 g_BattleClutY;
 
 // A model node: a state tag plus a payload whose type depends on the state,
 // plus two child nodes of the same type.
@@ -220,8 +220,8 @@ void BattleFreeModelPart(Misc13ModelPart* pPart) {
     ModelPartFreeLightData(pPart->pModelPart);
 }
 void BattleLoadImageWithTpageClut(void* pImg) {
-    if (D_80092800 > 0) {
-        func_8002DDE4(pImg, 1, D_80092800, D_80092804, 1, D_80092808, D_8009280C);
+    if (g_BattleTpageX > 0) {
+        func_8002DDE4(pImg, 1, g_BattleTpageX, g_BattleTpageY, 1, g_BattleClutX, g_BattleClutY);
     } else {
         func_8002DDE4(pImg, 0, 0, 0, 0, 0, 0);
     }
@@ -241,35 +241,35 @@ void BattleClearNodeColor(Misc13Node* pNode) {
 }
 
 void BattleSetTpage(s16 x, s16 y) {
-    D_80092800 = x;
-    D_80092804 = y;
+    g_BattleTpageX = x;
+    g_BattleTpageY = y;
 }
 
 void BattleSetClut(s16 x, s16 y) {
-    D_80092808 = x;
-    D_8009280C = y;
+    g_BattleClutX = x;
+    g_BattleClutY = y;
 }
 
 void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY) {
-    D_80092800 = x;
-    D_80092804 = y;
-    D_80092808 = clutX;
-    D_8009280C = clutY;
+    g_BattleTpageX = x;
+    g_BattleTpageY = y;
+    g_BattleClutX = clutX;
+    g_BattleClutY = clutY;
 }
 
 void BattleClearTpageAndClut(void) {
-    D_80092808 = -1;
-    D_80092800 = -1;
+    g_BattleClutX = -1;
+    g_BattleTpageX = -1;
 }
 void BattleAttachModelPart(Misc13ModelPart* pPart, ModelPart* pModelPart) {
     pPart->pModelPart = pModelPart;
     pPart->unk10 = func_800303C8(pModelPart, 1);
     ModelAllocatePackets(pPart->pModelPart, &pPart->pPacketBuffer, &pPart->pCurrentPacket);
-    if (D_80092800 >= 0) {
-        ModelPacketSetTexPageOverride(GetTPage(0, 1, D_80092800, D_80092804) & 0xFFFF);
+    if (g_BattleTpageX >= 0) {
+        ModelPacketSetTexPageOverride(GetTPage(0, 1, g_BattleTpageX, g_BattleTpageY) & 0xFFFF);
     }
-    if (D_80092808 >= 0) {
-        ModelPacketSetBaseClut(D_80092808, D_8009280C);
+    if (g_BattleClutX >= 0) {
+        ModelPacketSetBaseClut(g_BattleClutX, g_BattleClutY);
     }
     ModelInitializePacket(pPart->pModelPart, pPart->pPacketBuffer, 2);
     func_800732AC(pPart->pCurrentPacket, pPart->pPacketBuffer, pPart->pModelPart->unk20[1].modelPacketSize);

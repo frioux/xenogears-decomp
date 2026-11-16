@@ -8,7 +8,7 @@
    classifies a 1-byte extern as small data, which makes its address one
    gp-relative insn, so gcc rematerialises it at each use instead of holding
    it in a saved register across the call the way the original does. */
-extern u8 D_80099D98[];
+extern u8 g_BattleDifficultyLevel[];
 extern u8 D_80099D9A[];
 extern u8 D_80099DA1[];
 extern u8 D_80099D9B[];
@@ -30,17 +30,17 @@ extern u8 D_8006FF7C[];
 extern char D_8006FF60[];
 extern s32 D_8009274C;
 extern s32 D_80092750;
-extern u8* D_8009270C;
-extern s32 D_80092700;
-extern s32 D_80092704;
-extern s32 D_80092710;
+extern u8* g_BattleSpriteRects;
+extern s32 g_BattleCursorIndex0;
+extern s32 g_BattleCursorIndex1;
+extern s32 g_BattleSlotConfirmFlags;
 extern s32 D_80092714;
 extern s32 D_80092720;
 extern s32 D_80091364;
 extern s32 D_80092888;
 extern s32 D_800928C8;
 extern s32 D_80092748;
-extern s32** D_800928EC;
+extern s32** g_BattleEntries;
 extern u8 D_8006FF5C[];
 extern u8 D_8006FFA0[];
 extern u8 D_8006FFA4[];
@@ -160,7 +160,7 @@ void BattleSetRowTextColor(Misc7Struct* p, s32 arg) {
 }
 
 u32 BattleGetDifficultyText(void) {
-    return D_800912F4[D_80099D98[0]];
+    return D_800912F4[g_BattleDifficultyLevel[0]];
 }
 
 void BattleDrawOptionRows0To4(Misc7Struct* p) {
@@ -218,7 +218,7 @@ void BattleDrawVibrationOptions(void) {
 
     BattleSetTextCursor(0xA0, 0x8C);
     pPad = (Misc7Struct*)D_800916D8;
-    flag = !(D_80092710 & 1);
+    flag = !(g_BattleSlotConfirmFlags & 1);
     if (flag && D_800916EA == 0) {
         D_8009272C = 1;
     } else {
@@ -235,7 +235,7 @@ void BattleDrawVibrationOptions(void) {
         D_800916DC[0x14] |= 4;
     }
     BattleSetTextColor(0);
-    flag = !(D_80092710 & 2);
+    flag = !(g_BattleSlotConfirmFlags & 2);
     if (flag && D_80092754 == 0) {
         flag = 0;
     }
@@ -280,7 +280,7 @@ void BattleDrawOptionRows4To6(Misc7Struct* p) {
     }
     BattleDrawTextRight(pText);
     BattleSetRowTextColor(p, 5);
-    BattleDrawTextRight((u8*)D_800912F4[D_80099D98[0]]);
+    BattleDrawTextRight((u8*)D_800912F4[g_BattleDifficultyLevel[0]]);
     BattleSetRowTextColor(p, 6);
     pText = D_8006FFA8;
     if (D_80092884 != 0) {
@@ -337,7 +337,7 @@ s32 WorldMapInitializeModeWithActors(s32 value, s32 max, s32 flags) {
 }
 
 void BattleMoveDifficultyCursor(void) {
-    D_80099D98[0] = WorldMapInitializeModeWithActors(D_80099D98[0], 2, 0);
+    g_BattleDifficultyLevel[0] = WorldMapInitializeModeWithActors(g_BattleDifficultyLevel[0], 2, 0);
 }
 
 void BattleMoveSpeedCursor(void) {
@@ -384,21 +384,21 @@ void BattleHandleSelectionInputPad0(void) {
 
     if (D_80091364 == 0) {
         if (g_C1ButtonStateReleased & 0x40) {
-            D_80092710 &= -2;
+            g_BattleSlotConfirmFlags &= -2;
             BattleFreeSlotEntry(0);
             BattlePlaySoundEffectById(0x22);
         }
     }
-    if ((D_80092710 & 1) == 0) {
-        same = (D_80092700 == D_80092704);
+    if ((g_BattleSlotConfirmFlags & 1) == 0) {
+        same = (g_BattleCursorIndex0 == g_BattleCursorIndex1);
         do {
-            D_80092700 = WorldMapInitializeModeWithActors(D_80092700, D_80092888 - 1, 3);
-        } while (D_80092700 == D_80092704 && (D_80092748 & 1) == 0 && !same);
+            g_BattleCursorIndex0 = WorldMapInitializeModeWithActors(g_BattleCursorIndex0, D_80092888 - 1, 3);
+        } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (D_80092748 & 1) == 0 && !same);
         if (D_80091364 == 0) {
             if (g_C1ButtonStateReleased & 0x20) {
-                D_80092710 |= 1;
+                g_BattleSlotConfirmFlags |= 1;
                 BattlePlaySoundEffectById(0x21);
-                BattleLoadSlotEntry(0, *D_800928EC[D_80092700]);
+                BattleLoadSlotEntry(0, *g_BattleEntries[g_BattleCursorIndex0]);
             }
         }
     }
@@ -409,23 +409,23 @@ void BattleHandleSelectionInputPad1(void) {
 
     if (D_80092750 & 0x40) {
         if (D_800928C8 == 2) {
-            D_80092710 &= -3;
+            g_BattleSlotConfirmFlags &= -3;
         } else {
-            D_80092710 = 0;
+            g_BattleSlotConfirmFlags = 0;
             BattleFreeSlotEntry(1);
             BattlePlaySoundEffectById(0x22);
             return;
         }
     }
-    if ((D_80092710 & 2) == 0) {
-        same = (D_80092700 == D_80092704);
+    if ((g_BattleSlotConfirmFlags & 2) == 0) {
+        same = (g_BattleCursorIndex0 == g_BattleCursorIndex1);
         do {
-            D_80092704 = WorldMapInitializeModeWithActors(D_80092704, D_80092888 - 1, 3);
-        } while (D_80092700 == D_80092704 && (D_80092748 & 1) == 0 && !same);
+            g_BattleCursorIndex1 = WorldMapInitializeModeWithActors(g_BattleCursorIndex1, D_80092888 - 1, 3);
+        } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (D_80092748 & 1) == 0 && !same);
         if (D_80092750 & 0x20) {
-            D_80092710 |= 2;
+            g_BattleSlotConfirmFlags |= 2;
             BattlePlaySoundEffectById(0x21);
-            BattleLoadSlotEntry(1, *D_800928EC[D_80092704]);
+            BattleLoadSlotEntry(1, *g_BattleEntries[g_BattleCursorIndex1]);
         }
     }
 }
@@ -436,8 +436,8 @@ void BattleReloadSlotEntries(void) {
     u32 entry0;
     u32 entry1;
 
-    entry0 = D_800928EC[D_80092700][0];
-    entry1 = D_800928EC[D_80092704][0];
+    entry0 = g_BattleEntries[g_BattleCursorIndex0][0];
+    entry1 = g_BattleEntries[g_BattleCursorIndex1][0];
     switch (entry0) {
     case 4:
     case 7:
@@ -516,17 +516,17 @@ void BattleLoadSelectionTextures(s32 idx0, s32 idx1) {
     pBuf = HeapAlloc(0x2000, 0);
     ArchiveReadFileFromCdSector(ArchiveDecodeSector(6) + idx0 * 2, pBuf, 0x1000, 0, 0);
     ArchiveReadFileFromCdSector(ArchiveDecodeSector(6) + idx1 * 2, pBuf + 0x1000, 0x1000, 0, 0);
-    D_80092700 = idx0;
-    D_80092704 = idx1;
+    g_BattleCursorIndex0 = idx0;
+    g_BattleCursorIndex1 = idx1;
     D_80092714 = idx0;
     D_80092720 = idx1;
-    D_80092710 = 3;
+    g_BattleSlotConfirmFlags = 3;
     ArchiveCdDataSync(0);
     pSrc = pBuf + 0x1000;
-    pSprite = D_8009270C + idx0 * 0x14;
+    pSprite = g_BattleSpriteRects + idx0 * 0x14;
     LoadImage((RECT*)pSprite, (u_long*)pBuf);
     LoadImage((RECT*)(pSprite + 8), (u_long*)(pBuf + 0x100));
-    pSprite = D_8009270C + idx1 * 0x14;
+    pSprite = g_BattleSpriteRects + idx1 * 0x14;
     LoadImage((RECT*)pSprite, (u_long*)pSrc);
     LoadImage((RECT*)(pSprite + 8), (u_long*)(pBuf + 0x1100));
     HeapDelayedFree(pBuf, 2);
@@ -538,7 +538,7 @@ void BattleInitOptionsScreen(s32 mode) {
 
     if (D_80092940 == 0) {
         ArchiveCdDataSync(0);
-        pSprite = D_8009270C;
+        pSprite = g_BattleSpriteRects;
         for (i = 0; i < 0x31; i++) {
             LoadImage((RECT*)pSprite, (u_long*)(D_800928D8 + i * 0x1000));
             LoadImage((RECT*)(pSprite + 8), (u_long*)(D_800928D8 + i * 0x1000 + 0x100));
@@ -558,12 +558,12 @@ void BattleInitOptionsScreen(s32 mode) {
         D_80091391 = 0x26;
     }
     BattleSetScreenMode(1);
-    D_80092710 = 0;
+    g_BattleSlotConfirmFlags = 0;
     D_80092728 = 0;
     D_80092724 = 0;
     D_8009271C = 0;
     D_80092718 = 0;
-    D_80092714 = D_80092700;
-    D_80092720 = D_80092704;
+    D_80092714 = g_BattleCursorIndex0;
+    D_80092720 = g_BattleCursorIndex1;
     BattleSetCurrentTextList(5);
 }

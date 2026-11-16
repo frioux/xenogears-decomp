@@ -2,7 +2,7 @@
 #include "field/script_vm.h"
 #include "field/actor.h"
 
-void func_8009CF70(void) {}
+void FieldScriptVMHandlerNoOp(void) {}
 
 // If the argument bit is set, treat the argument as an immediate,
 // if not, the argument is loaded from the script VM's RAM.

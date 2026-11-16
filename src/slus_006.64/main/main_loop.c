@@ -17,10 +17,10 @@ extern u8 g_PublishedByLogoCompressed[];
 
 extern void ArchiveReadFileToBuffer(s32, void*, u32, u32);
 
-extern s32 D_80010000;
-extern s8 D_800181B8;
+extern s32 g_DebugTable;
+extern s8 g_StrHeapDumpPath;
 extern char** D_8004F0C0;
-extern u32 D_8004F2BC;
+extern u32 g_GameErrorCount;
 
 /*
 char** g_KernelErrorDescriptions = {
@@ -129,12 +129,12 @@ void MainLoop(int errorCode) {
     MainLoop(0);
 }
 
-extern char D_800180FC; // "c:\\core"
-void func_80019C2C(void) {
+extern char g_StrCoreDumpPath; // "c:\\core"
+void GameCreateCoreDump(void) {
   int hFile;
   
   PCinit();
-  hFile = PCcreate(&D_800180FC, 0);
+  hFile = PCcreate(&g_StrCoreDumpPath, 0);
   PCwrite(hFile, 0x80000000, 0x200000);
   PCclose(hFile);
 }
@@ -224,16 +224,16 @@ void GameShowSplashScreen(void) {
 }
 
 // These are all in .rodata, indicating -G0?
-extern char D_800181C8; // "System Error No %d\n"
-extern char D_800181DC; // "From  %08x\n"
-extern char D_800181E8; // "Count %d\n"
-extern char D_800181F4; // "Frame %d\n"
-extern char D_80018200; // "MCBlog -> c:\\lserrmem.txt\n"
-extern char D_8001821C; // "\n"
-extern char D_80018220; // "%s\n"
-extern char D_80018224; // "Program From %08x\n"
-extern char D_80018238; // "Failure Size %d (%xh) byte \n"
-extern char D_80018258; // "Failure Pointer %p\n"
+extern char g_StrSystemErrorNo; // "System Error No %d\n"
+extern char g_StrErrorSourceFrom; // "From  %08x\n"
+extern char g_StrErrorCount; // "Count %d\n"
+extern char g_StrErrorFrame; // "Frame %d\n"
+extern char g_StrMcbLogPath; // "MCBlog -> c:\\lserrmem.txt\n"
+extern char g_StrNewline; // "\n"
+extern char g_StrErrorDescription; // "%s\n"
+extern char g_StrErrorProgramFrom; // "Program From %08x\n"
+extern char g_StrErrorFailureSize; // "Failure Size %d (%xh) byte \n"
+extern char g_StrErrorFailurePointer; // "Failure Pointer %p\n"
 
 void GameHandleError(unsigned int errorCode, unsigned int sourceAddress) {
     DRAWENV* pDrawEnv;
@@ -248,8 +248,8 @@ void GameHandleError(unsigned int errorCode, unsigned int sourceAddress) {
 
     nFrame = 0;
     
-    if ((u32) (D_80010000 + 1) >= 0x2) {
-        HeapDumpToFile(&D_800181B8);
+    if ((u32) (g_DebugTable + 1) >= 0x2) {
+        HeapDumpToFile(&g_StrHeapDumpPath);
     } else {
         rect.w = 0x280;
         rect.x = 0;
@@ -275,7 +275,7 @@ void GameHandleError(unsigned int errorCode, unsigned int sourceAddress) {
     drawEnvs[1].r0 = 0;
     drawEnvs[1].g0 = 0;
     drawEnvs[1].b0 = 0;
-    D_8004F2BC += 1;
+    g_GameErrorCount += 1;
     SetDispMask(1);
 
     // Does not match if using while(1) { ... }
@@ -291,12 +291,12 @@ void GameHandleError(unsigned int errorCode, unsigned int sourceAddress) {
         PutDispEnv(pDispEnv);
         
         FontDrawLetters(0);
-        FontPrintf(&D_800181C8, errorCode);
-        FontPrintf(&D_800181DC, sourceAddress);
-        FontPrintf(&D_800181E8, D_8004F2BC);
-        FontPrintf(&D_800181F4, nFrame);
-        FontPrintf(&D_80018200);
-        FontPrintf(&D_8001821C);
+        FontPrintf(&g_StrSystemErrorNo, errorCode);
+        FontPrintf(&g_StrErrorSourceFrom, sourceAddress);
+        FontPrintf(&g_StrErrorCount, g_GameErrorCount);
+        FontPrintf(&g_StrErrorFrame, nFrame);
+        FontPrintf(&g_StrMcbLogPath);
+        FontPrintf(&g_StrNewline);
         
         if (errorCode & ERR_KERNEL) {
             /*
@@ -308,18 +308,18 @@ void GameHandleError(unsigned int errorCode, unsigned int sourceAddress) {
             0x84: LsGetMem:MCB Broken
             0x85: LsFreeMem:This_ptr_isn't MCB
             */
-            FontPrintf(&D_80018220, *(&D_8004F0C0 + errorCode) );
+            FontPrintf(&g_StrErrorDescription, *(&D_8004F0C0 + errorCode) );
             
             if (errorCode == ERR_HEAP_OUT_OF_MEMORY) {
                 HeapGetAllocInformation(&allocSourceAddress, &allocSize);
-                FontPrintf(&D_80018224, allocSourceAddress);
-                FontPrintf(&D_80018238, allocSize, allocSize);
+                FontPrintf(&g_StrErrorProgramFrom, allocSourceAddress);
+                FontPrintf(&g_StrErrorFailureSize, allocSize, allocSize);
             }
             
             if (errorCode == 0x85) {
                 HeapGetAllocInformation(&allocSourceAddress, &allocSize);
-                FontPrintf(&D_80018224, allocSourceAddress);
-                FontPrintf(&D_80018258, allocSize);
+                FontPrintf(&g_StrErrorProgramFrom, allocSourceAddress);
+                FontPrintf(&g_StrErrorFailurePointer, allocSize);
             }
         }
         

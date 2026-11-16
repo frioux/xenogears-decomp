@@ -5,10 +5,10 @@
 #include "field/script_vm.h"
 #include "field/text_box.h"
 
-extern s32 D_8005A444;
+extern s32 g_FieldPartyActorSlots;
 extern s32 D_8005A448;
 extern s32 D_8005A44C;
-extern s32 D_800AFD1C;
+extern s32 g_FieldCurActorIndex;
 
 void FieldScriptVMHandlerWaitForTextBoxClose(void) {
     int nTextBoxIndex;
@@ -38,7 +38,7 @@ void FieldScriptVMHandlerWaitForTextBoxClose(void) {
             g_FieldTextBoxes[nTextBoxIndex].status = 0;
         }
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 // The text box keeps a SystemString at _pad[0]. system.c owns its full layout;
@@ -79,7 +79,7 @@ void FieldScriptVMHandlerSetTextBoxCursorColumns(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     }
 
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 s32 FieldCheckActorFacingCamera(void) {
@@ -105,7 +105,7 @@ void FieldScriptVMHandlerCloseTextBoxOrClearDialogParams(void) {
         g_FieldScriptVMCurActor->dialogFlags = 0;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
     }
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
 }
 
 // modifies the face id.. is this changing out the portrait?
@@ -133,19 +133,19 @@ void FieldScriptVMHandlerOpenTextBoxForActor(void) {
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode0(void) {
-    func_8009C5A8(D_800AFD1C, 0);
+    func_8009C5A8(g_FieldCurActorIndex, 0);
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode1(void) {
-    func_8009C5A8(D_800AFD1C, 1);
+    func_8009C5A8(g_FieldCurActorIndex, 1);
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode2(void) {
-    func_8009C5A8(D_800AFD1C, 2);
+    func_8009C5A8(g_FieldCurActorIndex, 2);
 }
 
 void FieldScriptVMHandlerOpenTextBoxMode3(void) {
-    func_8009C5A8(D_800AFD1C, 3);
+    func_8009C5A8(g_FieldCurActorIndex, 3);
 }
 
 // https://decomp.me/scratch/tL6mE
@@ -171,17 +171,17 @@ int FieldTextBoxCheckPortraitIdAvailable(int targetId) {
 
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C5A8);
 
-extern u16 D_800B2174[];
+extern u16 g_FieldTextBoxInUseMask[];
 
 void FieldTextBoxMarkInUse(int arg0) {
-    D_800B2174[0] |= 1 << arg0;
+    g_FieldTextBoxInUseMask[0] |= 1 << arg0;
 }
 // find_first_unused()?
 int FieldTextBoxFindCurrentActorTextBox(int* pTextBoxIndex) {
     int i;
 
     for (i = 0; i < 4; i++) {
-        if (g_FieldTextBoxes[i].ownerActorID == D_800AFD1C && g_FieldTextBoxes[i].visibility == 0) {
+        if (g_FieldTextBoxes[i].ownerActorID == g_FieldCurActorIndex && g_FieldTextBoxes[i].visibility == 0) {
             *pTextBoxIndex = i;
             return 0;
         }
@@ -193,7 +193,7 @@ int FieldTextBoxFindCurrentActorTextBox(int* pTextBoxIndex) {
 u32 FieldScriptVMGetActorIndexOrDefault(int bytecodeOffset) {
     u32 nActorIndex = FieldScriptVMGetActorIndex(bytecodeOffset);
     if (nActorIndex == ACTOR_ID_INVALID) {
-        return D_8005A444;
+        return g_FieldPartyActorSlots;
     }
     return nActorIndex;
 }
@@ -201,13 +201,13 @@ u32 FieldScriptVMGetActorIndexOrDefault(int bytecodeOffset) {
 u32 FieldScriptVMGetActorIndex(int bytecodeOffset) {
     u32 actorID = SCRIPT_READ_U8_REL(bytecodeOffset);
     if (actorID == ACTOR_ID_INVALID) {
-        actorID = D_8005A444;  
+        actorID = g_FieldPartyActorSlots;  
     } else if (actorID == 0xFE) {
         actorID = D_8005A448;
     } else if (actorID == 0xFD) {
         actorID = D_8005A44C;
     } else if (actorID == 0xFB) {
-        actorID = D_800AFD1C;
+        actorID = g_FieldCurActorIndex;
     }
     return actorID;
 }

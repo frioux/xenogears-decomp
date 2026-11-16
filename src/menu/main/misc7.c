@@ -75,8 +75,8 @@ extern u16 D_801E9B58;
 extern u16 D_801E9D38;
 extern u16 D_801E9D3C;
 extern u16 D_801E9B5C;
-extern s32 D_801EA578[];
-extern u8 D_801EA5C4[];
+extern s32 g_MenuNameTextureX[];
+extern u8 g_MenuNameTextureY[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
@@ -383,7 +383,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
        }
        MenuSetFt4QuadVertices((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)),
                      D_801E9B58 + a2, D_801E9B5C + a3,
-                     (D_801EA578[a0] << 2) & 0xFC, D_801EA5C4[a0], 0x48, 0xD);
+                     (g_MenuNameTextureX[a0] << 2) & 0xFC, g_MenuNameTextureY[a0], 0x48, 0xD);
    }
 */
 void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
@@ -624,8 +624,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
    (0x18 - rowOffset) and by the y of the last MenuSetQuadVertices (D_801E9D38 -
    rowOffset), which is why retail materialises it branchlessly in the prologue
    (sltu/negu/andi) into s4;
-   (3) D_801EA5C4 is read at a *4 stride, i.e. index ((3 * a1 + a0) * 4), while
-   D_801EA578 uses the plain s32 index - the original table is 4-byte entries
+   (3) g_MenuNameTextureY is read at a *4 stride, i.e. index ((3 * a1 + a0) * 4), while
+   g_MenuNameTextureX uses the plain s32 index - the original table is 4-byte entries
    under two names 0x4C apart;
    (4) width = 0x18 * a1 + 0x48 is assigned just before its first use (after the
    palette if/else), not at the top, and shared by MenuSetFt4QuadVertices and the last
@@ -668,8 +668,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
        width = 0x18 * a1 + 0x48;
        MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
                                  (u8*)g_Menu->unk358),
-                     0, 0, (D_801EA578[3 * a1 + a0] << 2) & 0xFC,
-                     D_801EA5C4[(3 * a1 + a0) * 4], width, 0xD);
+                     0, 0, (g_MenuNameTextureX[3 * a1 + a0] << 2) & 0xFC,
+                     g_MenuNameTextureY[(3 * a1 + a0) * 4], width, 0xD);
        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EC0),
                      D_801E9D38 - rowOffset, D_801E9D3C, width, 0xD);
    }

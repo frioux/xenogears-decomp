@@ -4,10 +4,10 @@
 #include "psyq/inline_c.h"
 #include "system/memory.h"
 
-extern s32 D_80092790;
-extern s32 D_800927AC;
-extern s32* D_800928DC;
-extern u8 D_800928A0;
+extern s32 g_BattleSavedScreenMode;
+extern s32 g_BattleCameraAngle;
+extern s32* g_BattleGridCells;
+extern u8 g_BattleDrawBufferIndex;
 
 typedef struct {
     /* 0x0 */ u8 unk0[0x8];
@@ -17,19 +17,19 @@ typedef struct {
     /* 0x0 */ s32 unk0[4];
 } Unk16; // Size: 0x10
 
-extern Unk8 D_80092768;
-extern s32 D_8009871C;
-extern s32 D_8009867C;
+extern Unk8 g_BattlePlaneNormal;
+extern s32 g_BattleCameraPos;
+extern s32 g_BattleCameraTarget;
 extern s32 D_80098720;
 extern s32 D_80098724;
-extern s32 D_80092770;
-extern s32 D_80092774;
-extern u8 D_8009287C;
-extern s32 D_8009290C;
+extern s32 g_BattleCameraOrbitRadius;
+extern s32 g_BattleCameraYOffset;
+extern u8 g_BattleCameraLerpFrames;
+extern s32 g_BattleCameraAngleStep;
 
-extern s32 D_80092794;
-extern s32 D_800927B0;
-extern s32 D_8009294C;
+extern s32 g_BattleScreenMode;
+extern s32 g_BattleCameraSpinStep;
+extern s32 g_BattleTransitionFrames;
 extern s16 D_80097102;
 extern s16 D_8009881E;
 
@@ -77,7 +77,7 @@ typedef struct {
     /* 0x8 */ PolyOwner* unk8[3];
 } PolyTable;
 
-extern u8* D_8009288C;
+extern u8* g_BattleStageLightRow;
 
 extern s32 BattleClearOrderingTable();
 extern void func_80030A30(s32 index, Poly9* pPoly);
@@ -160,7 +160,7 @@ void BattleDrawArcOutline(s32 arg0, s32 arg1, s32 arg2) {
 }
 
 void BattleCopyPlaneNormal(Unk8* p) {
-    *p = D_80092768;
+    *p = g_BattlePlaneNormal;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
@@ -177,7 +177,7 @@ s16 BattleGetGridValueAtPosition(u8* p) {
     lo = a >> 24;
     hi = (b >> 24) << 7;
 
-    return *(s16*)&D_800928DC[hi + lo];
+    return *(s16*)&g_BattleGridCells[hi + lo];
 }
 
 u32 BattleGetGridCellAtPosition(s32* p) {
@@ -186,10 +186,10 @@ u32 BattleGetGridCellAtPosition(s32* p) {
 
     a = p[0] >> 8;
     b = p[2] >> 8;
-    return (u32)D_800928DC[(b << 7) + a];
+    return (u32)g_BattleGridCells[(b << 7) + a];
 }
 
-void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
+void BattleMovePointInsideRadius(VECTOR* p0, VECTOR* p1, s32 radius) {
     VECTOR v;
     VECTOR v2;
     VECTOR vSq;
@@ -233,11 +233,11 @@ void func_800828F8(VECTOR* p0, VECTOR* p1, s32 radius) {
     }
 }
 
-extern u8 D_800928B4;
-extern u8 D_8009178C[];
-extern s32 D_8009291C;
-extern s32 D_80092910;
-extern s32 D_80092908;
+extern u8 g_BattleStageLightIndex;
+extern u8 g_BattleStageLightTable[];
+extern s32 g_BattleBackColorA;
+extern s32 g_BattleBackColorG;
+extern s32 g_BattleBackColorB;
 extern u8 D_80095584;
 extern u8 D_80095585;
 extern u8 D_80095586;
@@ -262,7 +262,7 @@ extern u8 D_8009A1C6;
 extern u8 D_8009A2BC;
 extern u8 D_8009A2BD;
 extern u8 D_8009A2BE;
-extern u32 D_80059598;
+extern u32 g_NearColor;
 
 void BattleSetStageFogColors(void) {
     u8* p;
@@ -275,14 +275,14 @@ void BattleSetStageFogColors(void) {
     s32 nearRG;
     s32 farRG;
 
-    p = &D_8009178C[D_800928B4 * 17];
-    D_8009288C = p;
+    p = &g_BattleStageLightTable[g_BattleStageLightIndex * 17];
+    g_BattleStageLightRow = p;
     nearR = p[0];
     nearG = p[1];
     nearB = p[2];
-    D_8009291C = p[4];
-    D_80092910 = p[5];
-    D_80092908 = p[6];
+    g_BattleBackColorA = p[4];
+    g_BattleBackColorG = p[5];
+    g_BattleBackColorB = p[6];
     farR = p[8];
     farG = p[9];
     farB = p[10];
@@ -315,8 +315,8 @@ void BattleSetStageFogColors(void) {
     D_8009A2BD = farG;
     D_8009A2BE = farB;
     SetFogNearFar(0x800, 0x1800, 0xC0);
-    D_80059598 = (D_80059598 & 0xFFFFFF) | 0x28000000;
-    gte_ldrgb(&D_80059598);
+    g_NearColor = (g_NearColor & 0xFFFFFF) | 0x28000000;
+    gte_ldrgb(&g_NearColor);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
@@ -397,31 +397,31 @@ void BattleRandomizeCameraPosition(void) {
 
     scale = (rand() & 0x1FFF) + 0x800;
     ang = rand() % 0x600 + 0x500;
-    D_8009871C = ((rcos(ang) * scale) >> 12) + 0x4000;
+    g_BattleCameraPos = ((rcos(ang) * scale) >> 12) + 0x4000;
     D_80098724 = ((rsin(ang) * scale) >> 12) + 0x4000;
     D_80098720 = -((rand() & 0x7FF) + 0x400);
-    D_80092770 = 0x100;
-    D_80092774 = 0x40;
-    D_8009287C = 0x40;
-    D_8009290C = 0x400;
+    g_BattleCameraOrbitRadius = 0x100;
+    g_BattleCameraYOffset = 0x40;
+    g_BattleCameraLerpFrames = 0x40;
+    g_BattleCameraAngleStep = 0x400;
 }
 
 void BattleRotateCamera(s32 flags) {
     if (flags & 0x8000) {
-        D_800927AC += 0x20;
+        g_BattleCameraAngle += 0x20;
     }
     if (flags & 0x2000) {
-        D_800927AC -= 0x20;
+        g_BattleCameraAngle -= 0x20;
     }
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083310);
 
 void BattleRandomizeCameraSpin(void) {
-    D_800927AC = rand();
-    D_800927B0 = rand() % 12 + 4;
+    g_BattleCameraAngle = rand();
+    g_BattleCameraSpinStep = rand() % 12 + 4;
     if (rand() & 1) {
-        D_800927B0 = -D_800927B0;
+        g_BattleCameraSpinStep = -g_BattleCameraSpinStep;
     }
     func_80083310(0);
 }
@@ -429,8 +429,8 @@ void BattleRandomizeCameraSpin(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083738);
 
 void BattleGetCameraPoints(Unk16* p0, Unk16* p1) {
-    *p0 = *(Unk16*)&D_8009871C;
-    *p1 = *(Unk16*)&D_8009867C;
+    *p0 = *(Unk16*)&g_BattleCameraPos;
+    *p1 = *(Unk16*)&g_BattleCameraTarget;
 }
 
 void BattleClearScreen(s32 arg) {
@@ -450,13 +450,13 @@ void BattleSetScreenMode(s32 mode) {
     s16 vA;
     s16 vB;
 
-    D_80092794 = mode;
+    g_BattleScreenMode = mode;
     switch (mode) {
     case 3:
         BattleSetScreenTileBlack();
         break;
     case 4:
-        BattleSaveActorVectors(D_8009294C);
+        BattleSaveActorVectors(g_BattleTransitionFrames);
         break;
     case 8:
         func_8007AC3C();
@@ -472,7 +472,7 @@ void BattleSetScreenMode(s32 mode) {
 }
 
 s32 BattleGetScreenMode(void) {
-    return D_80092790;
+    return g_BattleSavedScreenMode;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083CE8);
@@ -518,7 +518,7 @@ void BattleFadeActorLights(PolyTable* pTable, Battler9* pActor, s32 idx) {
         pOwner->unk4->unkE = a << 3;
         pOwner->unk4->unk10 = 0;
     }
-    if (D_8009288C[0x10] != 0) {
+    if (g_BattleStageLightRow[0x10] != 0) {
         pOwner->unk4->unkC /= 2;
         pOwner->unk4->unkE /= 2;
         pOwner->unk4->unk10 /= 2;
@@ -535,7 +535,7 @@ void BattleFadeActorLights(PolyTable* pTable, Battler9* pActor, s32 idx) {
     pOwner->unk4->unk0 = pActor->unk0;
     pOwner->unk4->unk4 = pActor->unk4;
     pOwner->unk4->unk8 = pActor->unk8;
-    pOwner->unk4->unk0 -= D_8009871C;
+    pOwner->unk4->unk0 -= g_BattleCameraPos;
     pOwner->unk4->unk4 -= D_80098720;
     pOwner->unk4->unk8 -= D_80098724;
     func_80030A30(2, pOwner->unk4);
@@ -551,7 +551,7 @@ s32 BattleClearAndQueueActorPrims(u8* p) {
 
     p2 = *(u8**)(p + 0x284);
     BattleClearOrderingTable(p2);
-    p3 = *(void**)(p2 + D_800928A0 * 4 + 4);
+    p3 = *(void**)(p2 + g_BattleDrawBufferIndex * 4 + 4);
     BattleDrawTextPrims(p3 + 4);
     BattleAttachActorPrims(p2);
     BattleAddSharedPrim();

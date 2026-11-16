@@ -8,8 +8,8 @@ extern void WorkListsRemoveEntriesForData(void *pTask);
 extern void TimerWorkListRemoveTask(void *pTask);
 // left unprototyped: the ramp passes a third argument the callee (misc31) does not read
 extern void BattleSetSpriteColorFromAngle();
-extern MATRIX D_800D30BC;
-extern u8 D_800C3EB0[];
+extern MATRIX g_BattleViewMatrix;
+extern u8 g_BattleStateWork[];
 
 /* Built with XenoBattleTailCdk0 (gcc-2.7.2-cdk, -G0). With -G0 the cdk cc1 splits
    every absolute symbol access itself (`lui $r,%hi(sym)` / `%lo(sym)($r)`, any free
@@ -17,10 +17,10 @@ extern u8 D_800C3EB0[];
    bare macro to the assembler and emits `lui $at`. */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCC60);
-extern s16 D_800C3D14;
+extern s16 g_BattleActorMask;
 
 void BattleClearActorMask(void) {
-    D_800C3D14 = 0;
+    g_BattleActorMask = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
@@ -97,7 +97,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
 extern s32 D_800C360C;
 extern void *D_800C3E1C;
 extern s32 D_800C3D38;
-extern s32 D_800D3630;
+extern s32 g_BattleColorMode;
 extern void func_800BD3AC(void *pSprite, u16 arg1, u8 arg2);
 extern void func_800BD1FC(s32 slot);
 
@@ -110,8 +110,8 @@ extern void func_800BD1FC(s32 slot);
 // restructures the head), and both pointer-cast spellings of the row base.
 // Realistic form: the row is a 0x48-byte record of four 11-entry arrays (u16 at
 // +0x138, u8 at +0x150, u16 at +0x15C, u8 at +0x174 - the block misc12 reaches as
-// D_800C3FE8[]), indexed by D_800C360C - 1; a slot's sprite is at +0x8C8C.
-// 91.07%: COMPILES (externs added: D_800C3D38, D_800D3630, D_800C3E1C,
+// g_BattleCommandRows[]), indexed by D_800C360C - 1; a slot's sprite is at +0x8C8C.
+// 91.07%: COMPILES (externs added: D_800C3D38, g_BattleColorMode, D_800C3E1C,
 // func_800BD3AC prototype). Register tie + $a1 vs $v0 in the tail's row sum.
 /*
 void func_800BD1FC(s32 slot) {
@@ -123,7 +123,7 @@ void func_800BD1FC(s32 slot) {
     s32 kind;
     void *pSprite;
 
-    pBase = D_800C3EB0;
+    pBase = g_BattleStateWork;
     pRow = pBase + (D_800C360C - 1) * 0x48;
     offset = slot * 2;
     pByte = pRow + slot;
@@ -140,7 +140,7 @@ void func_800BD1FC(s32 slot) {
     }
     kind = pByte[0x150];
     D_800C3D38 = *(u16 *)(pHalf + 0x15C);
-    D_800D3630 = pByte[0x174];
+    g_BattleColorMode = pByte[0x174];
     func_800BD3AC(pSprite, *(u16 *)(pHalf + 0x138), kind);
     pRow = pBase + (D_800C360C - 1) * 0x48;
     *(u16 *)(offset + pRow + 0x138) = 0xFFFF;
@@ -184,7 +184,7 @@ void func_800BD2E4(void) {
 
     flag = 0;
     i = 0;
-    pSlot = D_800C3EB0;
+    pSlot = g_BattleStateWork;
     pBase = pSlot;
     while (i != 0xB) {
         row = (D_800C360C - 1) * 0x48;
@@ -202,23 +202,23 @@ void func_800BD2E4(void) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD2E4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
-// An entry of the work list D_800C3750 heads (the onFreeCallback list): only the
+// An entry of the work list g_BattleTaskUnlinkList heads (the onFreeCallback list): only the
 // next link is used by this unit.
 typedef struct Misc32TaskNode {
     /* 0x00 */ u8 unk0[0x38];
     /* 0x38 */ struct Misc32TaskNode *pNext;
 } Misc32TaskNode; // Size: 0x3C
 
-extern Misc32TaskNode *D_800C3750;
+extern Misc32TaskNode *g_BattleTaskUnlinkList;
 extern void WorkListsDeleteTasks(WorkListEntry *pTasks);
 
-// The D_800C3750 list's on-free callback: unlink the entry, then free it.
+// The g_BattleTaskUnlinkList list's on-free callback: unlink the entry, then free it.
 void BattleUnlinkAndFreeTask(void *pEntry) {
     Misc32TaskNode *pCur;
     Misc32TaskNode *pPrev;
     Misc32TaskNode *pTarget;
 
-    pCur = D_800C3750;
+    pCur = g_BattleTaskUnlinkList;
     pPrev = NULL;
     pTarget = pEntry;
     while (pCur != NULL) {
@@ -226,7 +226,7 @@ void BattleUnlinkAndFreeTask(void *pEntry) {
             if (pPrev != NULL) {
                 pPrev->pNext = pCur->pNext;
             } else {
-                D_800C3750 = pCur->pNext;
+                g_BattleTaskUnlinkList = pCur->pNext;
             }
             break;
         }
@@ -238,7 +238,7 @@ void BattleUnlinkAndFreeTask(void *pEntry) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
 
-void func_800BD974(SVECTOR *pVec, s32 *pOut) {
+void BattleProjectPointToScreen(SVECTOR *pVec, s32 *pOut) {
     SVECTOR vec; // unused: reproduces retail's 0x40 frame
     s16 sxy[4];
     s32 p;
@@ -246,26 +246,26 @@ void func_800BD974(SVECTOR *pVec, s32 *pOut) {
     s32 ofx;
     s32 ofy;
 
-    SetRotMatrix(&D_800D30BC);
-    SetTransMatrix(&D_800D30BC);
+    SetRotMatrix(&g_BattleViewMatrix);
+    SetTransMatrix(&g_BattleViewMatrix);
     RotTransPers(pVec, (s32 *)sxy, &p, &flag);
     ReadGeomOffset(&ofx, &ofy);
     pOut[0] = (sxy[0] - ofx) * 2;
     pOut[1] = (sxy[1] - ofy) * 2;
     pOut[2] = ReadGeomScreen();
 }
-// The GTE geom-output block D_800C3760 doubles as a matrix: its t[2] word is the
+// The GTE geom-output block g_BattleGeomMatrix doubles as a matrix: its t[2] word is the
 // geom screen offset (misc33 declares the same struct as BattleGeomMatrix).
 typedef struct {
     /* 0x00 */ u8 unk0[0x1C];
     /* 0x1C */ s32 geomScreen;
 } BattleGeomMatrix; // Size: 0x20
 
-extern BattleGeomMatrix D_800C3760;
+extern BattleGeomMatrix g_BattleGeomMatrix;
 extern void func_800BD810(u8 *pEntry, u8 *pData);
 
 // 96.95% under this unit's cdk preset (89.20 on 2.7.2). Left: (1) retail keeps the
-// D_800C3760 base in $s0 and stores `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix;
+// g_BattleGeomMatrix base in $s0 and stores `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix;
 // gcc folds the store into one address or goes through $at. (2) retail loads the
 // three SVECTOR halves with `lh`, gcc with `lhu`. (3) retail's `i = 0` lands after
 // the ReadGeomScreen block, gcc hoists it into the delay slot. The declarations
@@ -280,14 +280,14 @@ void func_800BDA1C(u8 *pTask) {
     u8 *pEntry;
 
     pData = *(u8 **)(pTask + 0x4);
-    D_800C3760.geomScreen = ReadGeomScreen();
+    g_BattleGeomMatrix.geomScreen = ReadGeomScreen();
     vec.vx = *(s16 *)(pData + 0x4A);
     vec.vy = *(s16 *)(pData + 0x4E);
     vec.vz = *(s16 *)(pData + 0x52);
-    func_800BD974(&vec, sxy);
+    BattleProjectPointToScreen(&vec, sxy);
     RotMatrix((SVECTOR *)(pData + 0x40), &mtx);
     TransMatrix(&mtx, sxy);
-    CompMatrix((MATRIX *)&D_800C3760, &mtx, &mtx);
+    CompMatrix((MATRIX *)&g_BattleGeomMatrix, &mtx, &mtx);
     ScaleMatrix(&mtx, (VECTOR *)(pData + 0x58));
     SetRotMatrix(&mtx);
     SetTransMatrix(&mtx);
@@ -326,7 +326,7 @@ typedef struct {
 } Misc32Task; // Size: 0x8C
 
 // Declared after the struct: the timer update takes the task. It reads none of
-// the argument's fields, it works off D_800D2D68.
+// the argument's fields, it works off g_BattleTimerTask.
 extern void func_800BDF1C(Misc32Task *pTask);
 
 void BattleStepEffectColorFade(Misc32Task *pTask) {
@@ -425,11 +425,11 @@ void BattleStepEffectPosition(Misc32Task *pTask) {
         TimerWorkListSetTaskCallback(pTask, func_800BDC14);
     }
 }
-extern Misc32Task *D_800D2D68;
+extern Misc32Task *g_BattleTimerTask;
 extern void WorkListRemoveTask(WorkListEntry *pEntry);
 
 void BattleFreeTimerTask(Misc32Task *pTask) {
-    D_800D2D68 = NULL;
+    g_BattleTimerTask = NULL;
     WorkListRemoveTask(&pTask->workEntry);
     TimerWorkListRemoveTask(&pTask->timerEntry);
 }
@@ -441,13 +441,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDF1C);
 extern void BattleFreeTimerTask(Misc32Task *pTask);
 
 void BattleFreeTimerTaskIfActive(void) {
-    if (D_800D2D68 != NULL) {
-        BattleFreeTimerTask(D_800D2D68);
+    if (g_BattleTimerTask != NULL) {
+        BattleFreeTimerTask(g_BattleTimerTask);
     }
 }
 extern s32 D_800C374C;
 
 void BattleResetTimerTaskGlobals(void) {
-    D_800D2D68 = NULL;
+    g_BattleTimerTask = NULL;
     D_800C374C = 0;
 }

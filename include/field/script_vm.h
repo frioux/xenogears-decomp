@@ -25,7 +25,7 @@
 typedef void (*ScriptVMHandler)(void);
 
 // Is Yielding maybe?
-extern int D_800B00C0;
+extern int g_FieldScriptVMStopFlag;
 extern char D_8006FD84[];
 extern int D_800ADBE0;
 extern int D_800ADBE4;

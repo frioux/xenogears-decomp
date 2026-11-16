@@ -46,7 +46,7 @@ typedef struct {
 
 // A model's render record (model block +0xC): the vertex count and pointer,
 // the transform data and one packet pointer per on-screen copy, which
-// D_800928A0 indexes.
+// g_BattleDrawBufferIndex indexes.
 typedef struct {
     /* 0x00 */ u8 unk0[0x2];
     /* 0x02 */ u16 count;
@@ -154,7 +154,7 @@ extern s32 BattleCreateObject(void);
 extern void BattleAppendListEntry(s32 handle, void* pNode);
 extern void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData);
 extern s32 rand(void);
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 extern s32 D_800928E4;
 extern void* g_pCurModelPacket;
 extern void* g_pCurModelVertices;
@@ -383,7 +383,7 @@ void BattleQueueNodePrims(ObjectNode* pNode) {
         pPart = pModel->pPart;
         if ((*pPart->pFlags & 1) == 0) {
             pRender = pModel->pRender;
-            func_8008BD70(pRender->pData, pRender->pPackets[D_800928A0],
+            func_8008BD70(pRender->pData, pRender->pPackets[g_BattleDrawBufferIndex],
                           (u8*)D_800928E4 + 4, pRender->pVerts);
         }
     }
@@ -461,7 +461,7 @@ void BattleAddQuad4Prim(QuadTrail* pTrail, u8* pOT) {
     LINE_F4* pPrim;
     s32 otz;
 
-    pPrim = &pTrail->prim[D_800928A0];
+    pPrim = &pTrail->prim[g_BattleDrawBufferIndex];
     otz = RotTransPers4((SVECTOR*)&pTrail->v0, (SVECTOR*)&pTrail->v1, (SVECTOR*)&pTrail->v2,
                         (SVECTOR*)&pTrail->v3, (long*)&pPrim->x0, (long*)&pPrim->x1,
                         (long*)&pPrim->x2, (long*)&pPrim->x3, local, local);
@@ -503,7 +503,7 @@ void BattleAddTri3Prim(TriTrail* pTrail, u8* pOT) {
     D_8009282C[2].vz = pTrail->v2.vz - pRef->vz;
     gte_ldv3c(D_8009282C);
     gte_rtpt();
-    i = D_800928A0;
+    i = g_BattleDrawBufferIndex;
     *(Bytes8*)&pTrail->v2 = *(Bytes8*)&pTrail->v1;
     *(Bytes8*)&pTrail->v1 = *(Bytes8*)&pTrail->v0;
     pPrim = &pTrail->prim[i];
@@ -527,7 +527,7 @@ void BattleAddLine2Prim(LineTrail* pTrail, u8* pOT) {
     LINE_F2* pPrim;
     s32 otz;
 
-    pPrim = &pTrail->prim[D_800928A0];
+    pPrim = &pTrail->prim[g_BattleDrawBufferIndex];
     otz = RotTransPers3((SVECTOR*)&pTrail->v0, (SVECTOR*)&pTrail->v1, (SVECTOR*)local,
                         (long*)&pPrim->x0, (long*)&pPrim->x1,
                         local, local, local);
@@ -562,7 +562,7 @@ void BattleAddSpritePrim(SpriteTrail* pTrail, u8* pOT) {
     vec.vz = pTrail->v0.vz - pRef->vz;
     gte_ldv0(&vec);
     gte_rtps();
-    pPrim = &pTrail->prim[D_800928A0];
+    pPrim = &pTrail->prim[g_BattleDrawBufferIndex];
     gte_stsxy2(&pPrim->x0);
     gte_stszotz(&sxy);
     otz = sxy;

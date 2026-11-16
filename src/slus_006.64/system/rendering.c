@@ -24,13 +24,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
 
-extern MATRIX D_8004FBB8;
-extern u8 D_800591AD;
+extern MATRIX g_GfxBaseMatrix;
+extern u8 g_IsBattle;
 extern u8 D_800591AE;
 
 /* Best attempt: 90.89% (332 bytes, the original is 336). Field/cast shapes are
    right (the `lb` loads want the (s8) offsets, the flags read wants the (u32)
-   cast to stay srl, and the `pMat = &D_8004FBB8` local is required or gcc
+   cast to stay srl, and the `pMat = &g_GfxBaseMatrix` local is required or gcc
    re-forms lui/addiu for every t[] access after the ApplyMatrix call). The
    remaining delta is gcc's callee-saved priority: the original is s0 sprite
    data, s1 matrix address, s2 xOffset, s3 yOffset; this C gives the matrix
@@ -43,7 +43,7 @@ extern u8 D_800591AE;
    not the preset.
 
 void func_8001E148(SpriteData* pSpriteData) {
-    MATRIX* pMat = &D_8004FBB8;
+    MATRIX* pMat = &g_GfxBaseMatrix;
     SVECTOR position;
     VECTOR vec;
     MATRIX* pMatrix;
@@ -51,7 +51,7 @@ void func_8001E148(SpriteData* pSpriteData) {
     s32 yOffset;
     s32 xOffset;
 
-    if ((D_800591AD != 0) || (D_800591AE != 0)) {
+    if ((g_IsBattle != 0) || (D_800591AE != 0)) {
         SpriteUpdateTransformMatrix(pSpriteData);
     }
 

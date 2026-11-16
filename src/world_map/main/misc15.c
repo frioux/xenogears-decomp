@@ -47,7 +47,7 @@ extern void *D_8009C184[];
 extern MATRIX D_8009A180;
 extern MATRIX D_8009D534;
 extern u32 D_8009C580[];
-extern s32 D_8009C5BC;
+extern s32 g_WorldMapGridAngle;
 extern s32 D_8009C618;
 extern u8 *D_8009BC3C;
 extern u8 *D_8009BCB4;
@@ -75,7 +75,7 @@ extern void func_80096A6C(void);
 extern u32 ArchiveGetDebugTable(void);
 extern s32 func_800968E0(void);
 extern void WorldMapReadFileEntries(void *p);
-extern s32 D_8009BBB4;
+extern s32 g_WorldMapScrollX;
 extern s32 D_8009BBB8;
 extern s32 D_8009BBBC;
 extern s16 D_8009C838;
@@ -233,10 +233,10 @@ typedef struct {
     /* 0x10 */ VECTOR unk10;
 } Misc15Frame; // Size: 0x1C
 
-extern s16 D_8009BD38;
-extern s16 D_8009BD3A;
+extern s16 g_WorldMapCameraRot;
+extern s16 g_WorldMapViewRotationY;
 extern s16 D_8009BD3C;
-extern MATRIX D_8009C808;
+extern MATRIX g_WorldMapViewMatrix;
 extern s16 D_8009C80A;
 extern s16 D_8009C80C;
 extern s16 D_8009C80E;
@@ -248,7 +248,7 @@ extern s16 D_8009C818;
 
 // Best: 83.39%. Every call and its arguments match (three VectorNormal /
 // OuterProduct12 pairs on the scratchpad frames, the nine halfword stores into
-// D_8009C808..D_8009C818, the negated SVECTOR, the matrix copy and
+// g_WorldMapViewMatrix..D_8009C818, the negated SVECTOR, the matrix copy and
 // ApplyMatrix/TransMatrix). What differs is cc1's scheduling of the nine 32-bit
 // loads against the nine halfword stores: retail batches all nine lw before the
 // first sh and keeps the three lhu/negu/sh of the SVECTOR after them, while this
@@ -277,7 +277,7 @@ void func_80097244(Misc15Frame *p) {
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
     OuterProduct12((VECTOR *)0x1F800030, (VECTOR *)0x1F800010, (VECTOR *)0x1F800000);
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800020);
-    pMtx = &D_8009C808;
+    pMtx = &g_WorldMapViewMatrix;
     m0 = ((VECTOR *)0x1F800010)->vx;
     m1 = ((VECTOR *)0x1F800010)->vy;
     m2 = ((VECTOR *)0x1F800010)->vz;
@@ -312,17 +312,17 @@ void WorldMapBuildRotationMatrix(Misc15Rot *p) {
     *pMtx = D_8009A180;
     *(MATRIX *)0x1F800110 = *pMtx;
     *(MATRIX *)0x1F800130 = *pMtx;
-    RotMatrixX(-D_8009BD38, pMtx);
-    RotMatrixY(-D_8009BD3A, (MATRIX *)0x1F800110);
+    RotMatrixX(-g_WorldMapCameraRot, pMtx);
+    RotMatrixY(-g_WorldMapViewRotationY, (MATRIX *)0x1F800110);
     RotMatrixZ(-D_8009BD3C, (MATRIX *)0x1F800130);
     MulMatrix0(pMtx, (MATRIX *)0x1F800110, (MATRIX *)0x1F800150);
-    MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800150, &D_8009C808);
+    MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800150, &g_WorldMapViewMatrix);
     ((SVECTOR *)0x1F8000A0)->vx = -(u16)p->unk0;
     ((SVECTOR *)0x1F8000A0)->vy = -(u16)p->unk2;
     ((SVECTOR *)0x1F8000A0)->vz = -(u16)p->unk4;
-    *pMtx = D_8009C808;
+    *pMtx = g_WorldMapViewMatrix;
     ApplyMatrix(pMtx, (SVECTOR *)0x1F8000A0, (VECTOR *)0x1F800000);
-    TransMatrix(&D_8009C808, (VECTOR *)0x1F800000);
+    TransMatrix(&g_WorldMapViewMatrix, (VECTOR *)0x1F800000);
 }
 
 void WorldMapAllocSlotPool(void) {
@@ -461,7 +461,7 @@ extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 
 extern u8 *D_8009C59C;
-extern u8 D_8009BB48[];
+extern u8 g_WorldMapColorFactors[];
 extern u16 D_8009CCB4[];
 extern u16 D_8009CD54[];
 extern u16 D_8009CD5C[];
@@ -493,7 +493,7 @@ void func_800979C8(void) {
     rect.h = 2;
     StoreImage(&rect, (u_long *)pData);
     DrawSync(0);
-    pFactors = D_8009BB48;
+    pFactors = g_WorldMapColorFactors;
     func_800931D8(pData, pDst, 0x20, pFactors);
     func_800931D8(pData + 0x200, pDst + 0x4000, 0x20, pFactors);
     rect.x = 0;
@@ -559,8 +559,8 @@ void func_80097BC0(s32 *p) {
     x = p[0];
     D_8009C618 = 0x400;
     D_8009BBB8 = 0;
-    D_8009C5BC = 0;
-    D_8009BBB4 = x & 0x7FFFFF;
+    g_WorldMapGridAngle = 0;
+    g_WorldMapScrollX = x & 0x7FFFFF;
     z = p[2];
     D_8009C838 = 2;
     D_8009C83A = 0;
@@ -582,7 +582,7 @@ void WorldMapRefreshGrid(s32 arg0) {
     for (; i >= 0; i--) {
         *pEnd-- = 0;
     }
-    D_8009C5BC = 0;
+    g_WorldMapGridAngle = 0;
     D_8009C618 = 0x400;
     func_800981C8(arg0);
     WorldMapSubmitGridImageLoads();

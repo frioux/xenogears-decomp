@@ -11,8 +11,8 @@ extern s32 g_ArchiveCurFileSector;
 extern s32 D_8004FE0C;
 extern s32 D_8004FE10;
 extern u16 D_8004FE24;
-extern u32 D_80059F0C;
-extern void func_8002804C(int, int, int, int);
+extern u32 g_ArchiveCurEntryIndex;
+extern void GfxDrawArchiveReadRetry(int, int, int, int);
 extern int ArchiveDecodeSizeAligned(int entryIndex);
 
 void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
@@ -452,7 +452,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             if (PCread(D_8004FE4C, pData, CD_SECTOR_SIZE) != 0) {
  *                 goto readDone;
  *             }
- *             func_8002804C(i, 0, 0xFF, 0);
+ *             GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
  *         }
  *         return NULL;
  *
@@ -468,7 +468,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             if (PCclose(D_8004FE4C) == 0) {
  *                 break;
  *             }
- *             func_8002804C(i, 0, 0, 0xFF);
+ *             GfxDrawArchiveReadRetry(i, 0, 0, 0xFF);
  *         }
  *
  *         D_8004FE4C = -1;
@@ -477,7 +477,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             pEntry = ((StreamDataQueueEntry*)D_8004FE0C) + nIndex;
  *             nId = *(u_short*)pEntry;
  *             D_8004FE10 = nIndex;
- *             D_80059F0C = nId;
+ *             g_ArchiveCurEntryIndex = nId;
  *
  *             if (nId > 0 && pEntry->pData != NULL) {
  *                 pPath = ArchiveGetFilePath(nId);
@@ -486,7 +486,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *                     if (D_8004FE4C != -1) {
  *                         break;
  *                     }
- *                     func_8002804C(i, 0xFF, 0, 0);
+ *                     GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
  *                 }
  *                 g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
  *                 D_8004FDFC -= 1;

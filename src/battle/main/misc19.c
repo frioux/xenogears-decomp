@@ -4,12 +4,12 @@
 
 extern BattleWorkBlock* D_800C34B0;
 extern u8 D_800C3E50;
-extern BattleRow* D_800C3DFC;
+extern BattleRow* g_BattleCurrentRow;
 extern u8* D_800D2DC8;
 extern u8 D_800CCE42[];
-extern BattleTableEntry D_800CCCE8[];
+extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 D_800D2C34;
-extern u8* D_800C3E00;
+extern u8* g_BattleActingSlot;
 extern u8 D_800CCD68[];
 
 extern int rand(void);
@@ -326,7 +326,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     u16 f;
 
     if (arg1 != 0) {
-        if (!(D_800C3DFC->unk0A & 0x100)) {
+        if (!(g_BattleCurrentRow->unk0A & 0x100)) {
             return;
         }
     }
@@ -475,13 +475,13 @@ void func_8009AFD8(void) {
     case 1:
     case 2:
     case 3:
-        idx = D_800C3E00[0x6F];
+        idx = g_BattleActingSlot[0x6F];
         break;
     case 4:
     case 5:
         return;
     case 6:
-        idx = D_800C3E00[0x72];
+        idx = g_BattleActingSlot[0x72];
         break;
     case 7:
     case 8:
@@ -496,11 +496,11 @@ void func_8009AFD8(void) {
     case 17:
     case 18:
     case 19:
-        idx = D_800C3E00[0x6F];
+        idx = g_BattleActingSlot[0x6F];
         if (g_GameState.gearPartsIds[0x6C + idx]) {
             g_GameState.gearPartsIds[0x6C + idx] = g_GameState.gearPartsIds[0x6C + idx] + 0xFF;
         }
-        idx = D_800C3E00[0x72];
+        idx = g_BattleActingSlot[0x72];
         break;
     default:
         return;
@@ -620,7 +620,7 @@ void func_8009B46C(u16* arg0) {
         if (count != 0) {
             *arg0 = *arg0 + count * (*arg0 >> 1);
         }
-        f = *(u16*)(D_800C3E00 + 0x32);
+        f = *(u16*)(g_BattleActingSlot + 0x32);
         drop = (f & 0x400) ? 4 : 3;
         if (f & 0x200) {
             limit = 0x3C;
@@ -771,7 +771,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 // usual jtbl_/.rodata difference.
 /*
 void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
-    BattleTableEntry* p = &D_800CCCE8[arg0];
+    BattleTableEntry* p = &g_BattleWorkBlock[arg0];
     u16 mask;
     u8 count;
     u8 bit;
@@ -857,8 +857,8 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 // local, u32 quotient local stored separately, 20u divisor, dropping the idx
 // temp, u32* destination pointer local (70.17, CSEs the base).
 // PARKED (98.33%). Body COMPILES again (park triage, round 111): the park spelled
-// D_800C3DFC[0x11] from a time when the symbol was a u8*; it is a BattleRow*
-// now, so the same byte is D_800C3DFC->unk11 (identical code). Only the last
+// g_BattleCurrentRow[0x11] from a time when the symbol was a u8*; it is a BattleRow*
+// now, so the same byte is g_BattleCurrentRow->unk11 (identical code). Only the last
 // four instructions differ, and only by register - see the note above.
 // PRESET_260: 100.00% under gcc-2.6.0 (tools/scripts/try_flags.sh), 98.33% under
 // the unit's 2.7.2 (and under 2.7.2-cdk). The last four instructions differ:
@@ -876,8 +876,8 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 // local, u32 quotient local stored separately, 20u divisor, dropping the idx
 // temp, u32* destination pointer local (70.17, CSEs the base). Permuter score 50,
 // stuck over 1907+1250 iterations.
-// PARKED (98.33%). Body compiles; D_800C3DFC is a BattleRow* so the old
-// D_800C3DFC[0x11] spelling is now ->unk11 (identical code).
+// PARKED (98.33%). Body compiles; g_BattleCurrentRow is a BattleRow* so the old
+// g_BattleCurrentRow[0x11] spelling is now ->unk11 (identical code).
 /*
 void func_8009BD94(void) {
     int new_var;
@@ -888,15 +888,15 @@ void func_8009BD94(void) {
     new_var = D_800C3E50;
     new_var = (u32)D_800C34B0 + new_var * 4 - -0x5F6C;
     *(u32*)new_var =
-        (u32)(D_800C3DFC->unk11 * *(s32*)(D_800D2DC8 + 0x64)) / 20;
+        (u32)(g_BattleCurrentRow->unk11 * *(s32*)(D_800D2DC8 + 0x64)) / 20;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
 u8 BattleGetActorActionConditionMask(u8 arg0) {
-    BattleTableEntry* pEntry = (BattleTableEntry*)(arg0 * 0x170 + (u32)D_800CCCE8);
-    BattleSlotState* pState = (BattleSlotState*)(arg0 * 0x170 + 0xA4 + (u32)D_800CCCE8);
-    u8* pCondition = (u8*)D_800CCCE8 + 0x148 + arg0 * 0x170;
+    BattleTableEntry* pEntry = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleWorkBlock);
+    BattleSlotState* pState = (BattleSlotState*)(arg0 * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
+    u8* pCondition = (u8*)g_BattleWorkBlock + 0x148 + arg0 * 0x170;
     s32 flag = pState->unk7C & 0x400;
     u8 ret = flag != 0;
 
@@ -911,7 +911,7 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
     return ret;
 }
 void BattleSetSlotFields148And162(u8 arg0) {
-    D_800CCCE8[arg0].state.unkA4 = 4;
-    D_800CCCE8[arg0].state.unkB7[7] = 3;
+    g_BattleWorkBlock[arg0].state.unkA4 = 4;
+    g_BattleWorkBlock[arg0].state.unkB7[7] = 3;
     g_GameState.unk16BC[0].unk1E |= 0x4000;
 }

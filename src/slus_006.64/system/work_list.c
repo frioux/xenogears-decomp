@@ -17,10 +17,10 @@ WorkListEntry* D_80059590; // Entry the update loops will process next
 WorkListEntry* g_WorkList;
 
 // Declared in another TU, so these are not small data
-extern u8 D_800591AC; // Read by TimerWorkListAddTask
+extern u8 g_FlagTimerWorkListAdds; // Read by TimerWorkListAddTask
 extern int g_WorkListCurTimer;
-extern s32 D_80059464; // Number of entries with the unk14_3 flag set
-extern short D_80059494; // Set to 0 when g_WorkListCurTimer above reaches 0
+extern s32 g_NumFlaggedTimerWorkListEntries; // Number of entries with the unk14_3 flag set
+extern short g_BattleWaitFrameCountdown; // Set to 0 when g_WorkListCurTimer above reaches 0
 
 void WorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry);
 void WorkListRemoveTask(WorkListEntry* pTask);
@@ -61,7 +61,7 @@ void TimerWorkListUpdate(void) {
     if (g_WorkListCurTimer != 0) {
         g_WorkListCurTimer--;
         if (g_WorkListCurTimer == 0) {
-            D_80059494 = 0;
+            g_BattleWaitFrameCountdown = 0;
         }
 
     // Timer has reached zero, run every timer entry
@@ -165,8 +165,8 @@ void WorkListDeleteTask(WorkListEntry* pTask) {
     HeapFree(pTask);
 }
 
-// 58.60%: same shape as WorkListAddTask, plus the D_800591AC arm that counts
-// the entry in D_80059464 and sets unk14_3.
+// 58.60%: same shape as WorkListAddTask, plus the g_FlagTimerWorkListAdds arm that counts
+// the entry in g_NumFlaggedTimerWorkListEntries and sets unk14_3.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/work_list", TimerWorkListAddTask);
 /*
 void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
@@ -182,8 +182,8 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
     pEntry->unk14_1 = 0;
     pEntry->unk14_2 = 0;
     pEntry->unk10 = id;
-    if (D_800591AC != 0) {
-        D_80059464++;
+    if (g_FlagTimerWorkListAdds != 0) {
+        g_NumFlaggedTimerWorkListEntries++;
         pEntry->unk14_3 = 1;
     } else {
         pEntry->unk14_3 = 0;
@@ -194,8 +194,8 @@ void TimerWorkListAddTask(WorkListEntry* pData, WorkListEntry* pEntry) {
    WorkListAddTask above (original loads the counter into a3 first, keeps the
    unk10 word in v1 and the unk14 word in v0, and copies pEntry to t3 because a1
    becomes the 0xE0000000 mask; here pEntry lands in t4 and a1 takes the unk10
-   word). Four orderings tried, 31.6-58.6%. The D_800591AC arm itself does
-   reproduce (lbu, lw plus at-store of D_80059464, or 0x80000000).
+   word). Four orderings tried, 31.6-58.6%. The g_FlagTimerWorkListAdds arm itself does
+   reproduce (lbu, lw plus at-store of g_NumFlaggedTimerWorkListEntries, or 0x80000000).
 */
 
 WorkListEntry* TimerWorkListAllocateTask(void* pData, int dataSize) {
@@ -252,7 +252,7 @@ void TimerWorkListRemoveTask(WorkListEntry* pTargetEntry) {
     }
 
     if (pTargetEntry->unk14_3) {
-        D_80059464--;
+        g_NumFlaggedTimerWorkListEntries--;
     }
 
     g_NumTimerWorkListEntries--;

@@ -567,9 +567,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
    The call to func_80023468 passes ONE argument in retail (no `move a1,...` before the jal), which
    is why func_80023468 is defined K&R above; with a prototype the call costs an extra `move`.
 
-extern u32 D_800591A8;
+extern u32 g_GfxWorkListCapacity;
 extern void* D_800C3E1C;
-extern u8 D_800591AD;
+extern u8 g_IsBattle;
 
 AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 jointTaskSize) {
     u8* pAnimationOffsets;
@@ -592,7 +592,7 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
     pVramData = pSpriteData->pVramData;
     pSpriteData->field_0x70 = NULL;
     pSpriteData->pTargetEntitySprite = NULL;
-    if (D_800591AD) {
+    if (g_IsBattle) {
         pTemplate = D_800C3E1C;
         if (pTemplate) {
             pSpriteData->pCurAnimFile = pTemplate->pCurAnimFile;
@@ -624,7 +624,7 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
     pSpriteData->pVramData = pVramData;
     pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | ((numDirections & 0xF) << 13);
     (*(u32*)((u8*)pSpriteData + 0x3C)) = ((*(u32*)((u8*)pSpriteData + 0x3C)) & ~3) | (type & 3);
-    pSpriteData->field_0x82 = *(u16*)&D_800591A8;
+    pSpriteData->field_0x82 = *(u16*)&g_GfxWorkListCapacity;
     pSpriteData->position.x = pOffset->vx << 16;
     pSpriteData->position.y = pOffset->vy << 16;
     pSpriteData->position.z = pOffset->vz << 16;
@@ -657,7 +657,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
    left is register allocation only. The original keeps pAnimFile in s6 for the tail (the 0x48
    store and the SpriteSetAnimFile call) and a second copy in s1 for the 0x8 offset load, so it saves
    seven callee-saved registers; this C uses one register throughout. The 0x3C/0x40 flag block
-   also lands in the wrong registers (mask in a0, D_800591AD in v1 instead of the reverse).
+   also lands in the wrong registers (mask in a0, g_IsBattle in v1 instead of the reverse).
    Returns pSpriteData in v0, so the prototype above should be SpriteData* once defined.
 extern void SpriteSetScale(SpriteData* pSpriteData, s16 scale);
 extern s32 SpriteAnimPackageGetFrameCount(u16* pFlags);
@@ -676,7 +676,7 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     SpriteSetScale(pSpriteData, 0x1000);
     *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~3) | 1;
     pSpriteData->field_0x40 &= 0xFFFE1FFF;
-    if (D_800591AD) {
+    if (g_IsBattle) {
         pSpriteData->flags_0xA8 &= ~1;
         ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x8 = 0;
         ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC = 0;
@@ -723,7 +723,7 @@ extern void SpriteSetAnimFile(SpriteData* pSpriteData, void* pAnimFile);
 extern s32 SpriteAnimPackageTestFlag8000(void* pFrames);
 extern void func_800223B0(SpriteData* pSpriteData, s16 arg1);
 extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
-extern u8 D_800591AD;
+extern u8 g_IsBattle;
 
 void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
     u8* pAnimations;
@@ -740,13 +740,13 @@ void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
     }
     if (animId < 0) {
         SpriteSetAnimFile(pSpriteData, pSpriteData->pSpecialAnimFile);
-        if (D_800591AD && SpriteAnimPackageTestFlag8000(((SpriteAnimPackage*)pSpriteData->pVramData)->pFrames) == 0) {
+        if (g_IsBattle && SpriteAnimPackageTestFlag8000(((SpriteAnimPackage*)pSpriteData->pVramData)->pFrames) == 0) {
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.y = 0x100;
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex.x = 0x300;
         }
     } else {
         SpriteSetAnimFile(pSpriteData, pSpriteData->pDefaultAnimFile);
-        if (D_800591AD) {
+        if (g_IsBattle) {
             ((SpriteAnimPackage*)pSpriteData->pVramData)->tex =
                 *(SVEC2*)&((SpriteDataI3*)pSpriteData->field_0x7C)->texX;
         }

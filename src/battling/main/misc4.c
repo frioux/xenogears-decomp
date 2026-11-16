@@ -26,7 +26,7 @@ extern s32 D_80092670;
 extern s32 D_80092674;
 extern s32 D_800928AC;
 extern s32 D_80092890;
-extern s32 D_8009867C;
+extern s32 g_BattleCameraTarget;
 extern u8* D_80092644;
 extern UnkA884* D_8009790C;
 extern UnkA884* D_80099028;
@@ -38,7 +38,7 @@ extern s32 D_8009879C;
 extern s32 D_80097080;
 extern s32 D_80098680;
 extern s32 D_80098684;
-extern s32 D_8009871C;
+extern s32 g_BattleCameraPos;
 extern s32 D_80098720;
 extern s32 D_80098724;
 extern u8 D_800928C0;
@@ -59,7 +59,7 @@ extern s32 D_8009707C;
 extern s16 D_800987F8;
 extern s16 D_800970DC;
 extern u8 D_800928F4;
-extern u8 D_800928B4;
+extern u8 g_BattleStageLightIndex;
 extern u8 D_800928D4;
 extern u8 D_800928F0;
 extern u8 D_80091144;
@@ -67,10 +67,10 @@ extern u8 D_80091145;
 extern u8 D_80092664;
 extern u8 D_8005061C;
 extern u8 D_80050622;
-extern s32 D_8009290C;
+extern s32 g_BattleCameraAngleStep;
 extern s32 D_80092638;
 extern s32 D_8009263C;
-extern s32 D_8009294C;
+extern s32 g_BattleTransitionFrames;
 extern s32 D_80092648;
 
 extern void BattleEffectInitContext(void);
@@ -96,7 +96,7 @@ extern void func_8007D7A8();
 extern void func_8007DC74();
 extern s32 func_80082488();
 extern u32 BattleGetGridCellAtPosition();
-extern void func_800828F8();
+extern void BattleMovePointInsideRadius();
 extern void BattleUpdateControllerActuator();
 extern s32 BattleGetScreenMode();
 extern void BattleApplyOptionWord(void);
@@ -339,7 +339,7 @@ void BattleActorUpdateGroundMovement(Actor* p) {
     if ((p->unkD0 & 0x60000000) == 0x60000000) {
         p->unk90B = 0xF;
     }
-    func_800828F8(p, &p->unk10, 0x3E80);
+    BattleMovePointInsideRadius(p, &p->unk10, 0x3E80);
     p->unkD0 &= 0xFFFBFFFF;
     if (p->unkB0 < p->unk4 + p->unk14) {
         p->unkD0 |= 0x40000;
@@ -623,13 +623,13 @@ char BattleResetForNextRound(void) {    D_8009872C.unkCC = 0x400;
     BattleEffectClearSlots();
     BattleRandomizeCameraPosition();
     D_800928F4 = 1;
-    D_8009290C = -1;
+    g_BattleCameraAngleStep = -1;
     BattleEffectSetSpawnTimer(0);
     D_80092638 = 0;
     D_80092640 = 0;
     D_80092890 = 0;
     D_8009263C = 0x5A;
-    D_8009294C = 0;
+    g_BattleTransitionFrames = 0;
     D_80092648 = 0;
     BattleClearTextSpriteEntries();
     D_80050622 = 0;
@@ -646,13 +646,13 @@ char BattleResetForNextRound(void) {    D_8009872C.unkCC = 0x400;
     if (D_8005061C != 0) {
         switch ((D_80092950 - 1) % 5) {
         case 3:
-            D_800928B4 = 1;
+            g_BattleStageLightIndex = 1;
             break;
         case 4:
-            D_800928B4 = 2;
+            g_BattleStageLightIndex = 2;
             break;
         default:
-            D_800928B4 = 0;
+            g_BattleStageLightIndex = 0;
             break;
         }
     }
@@ -747,10 +747,10 @@ void func_8007A768(Actor* p) {
     SetGeomScreen(0x200);
     r = rand();
     D_80098680 = p->unk4;
-    D_8009867C = p->unk0;
+    g_BattleCameraTarget = p->unk0;
     D_80098720 = p->unk4 - 0x400 - D_80092670;
     D_80098684 = p->unk8;
-    D_8009871C = D_8009867C + (((rcos(r) << 2) * D_80092674) >> 12);
+    g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * D_80092674) >> 12);
     D_80098724 = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
 }
 */

@@ -8,7 +8,7 @@
 #include "gear_shop/gear_shop.h"
 #include "libgear/main.h"
 
-extern s32 D_80050100;
+extern s32 g_GfxOTDepthShift;
 extern s32 D_8005A4AC[2];
 
 s32 GearShopMenuGetGearEquipFlags(u8);
@@ -499,7 +499,7 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
     g_LibGearModels[modelIndex]->scale = D_801D6DD8[gearId];
     g_LibGearModels[1]->pSkeleton->rotation.vy -= 0x400;
     g_LibGearModels[1]->pSkeleton->rotation.vx -= 0x20;
-    D_80050100 = 0;
+    g_GfxOTDepthShift = 0;
 
     if(gearId != 0xFF) {
         characterId = D_801D6DA0[gearId];
@@ -2522,7 +2522,7 @@ void GearShopMenuFreeGearView(void) {
         GearShopMenuUpdateAndRender();
     }
 
-    D_801D697C = 0;
+    g_GearShopDebugEnabled = 0;
     g_Menu->pManager->unk5C[7] = 0;
     GearShopMenuUpdateAndRender();
     LibGearShutdown();

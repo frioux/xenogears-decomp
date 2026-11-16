@@ -32,12 +32,12 @@
 #define MENU_CYCLE_TO_NEXT 0x0
 #define MENU_CYCLE_TO_PREV 0x1
 
-extern u8  D_801D697C;
+extern u8  g_GearShopDebugEnabled;
 
 #define TEX_PAIR_CURSOR 0
 #define TEX_PAIR_TEXT   1
 
-extern int D_801D69A0[]; // MENU_TEX_BALL_CURSOR_8
+extern int g_GearShopSubmenuTextureIds[]; // MENU_TEX_BALL_CURSOR_8
 extern int D_801D69A4[];
 // = {
 //    Buy Submenu
@@ -63,16 +63,16 @@ extern int D_801D69A4[];
 //    MENU_TEX_BALL_CURSOR_11, MENU_TEX_STRING_FUEL
 //   }
 
-extern u8  D_801D6A20[4];
+extern u8  g_GearShopMainMenuStringIds[4];
 extern u8  D_801D6A24[8];
 extern int D_801D6A60[4];
 extern int D_801D6A70[4];
-extern u32 D_801D6A80;
+extern u32 g_MenuStringIds;
 extern int D_801D6A84[];
 extern int D_801D6AFC[];
 extern int D_801D6B7C[];
-extern u32 D_801D6BFC[9]; // = {0x49, 0x48, 0x43, 0x3C, 0x25, 0x24, 0x1F, 0x18, 0x10}
-extern s32 D_801D6C20[9]; // = {0xC9, 0xB5, 0xA2, 0x90, 0xC9, 0xB5, 0xA2, 0x90, 0x80}
+extern u32 g_SelectionCursorX[9]; // = {0x49, 0x48, 0x43, 0x3C, 0x25, 0x24, 0x1F, 0x18, 0x10}
+extern s32 g_SelectionCursorY[9]; // = {0xC9, 0xB5, 0xA2, 0x90, 0xC9, 0xB5, 0xA2, 0x90, 0x80}
 extern int D_801D6C44[];
 extern u16 D_801D6C68[];
 extern int g_gearShopGearEquipFlags[];
@@ -122,10 +122,10 @@ extern u16 D_801D70F0;
 extern u16 D_801D70F2;
 extern u8  D_801D70F4[9];
 
-extern POLY_FT4 D_801D7108[];
+extern POLY_FT4 g_GearShopDebugDigitPrims[];
 
 extern s8  D_801D70FD;
-extern s32 D_801D9048;
+extern s32 g_GearShopDebugPrimCount;
 extern s32 D_801D9050;
 extern s32 D_801D9054;
 extern s32 D_801D9058;
@@ -139,7 +139,7 @@ extern int g_gearShopCurCharacterIndex;
 extern u_char  g_gearShopCurrentGearId;
 extern u8* D_801D9088;
 
-extern s32 D_801D6980[];
+extern s32 g_GearShopMainMenuTextureIds[];
 // = {
 //    MENU_TEX_BALL_CURSOR_1, MENU_TEX_STRING_BUY,
 //    MENU_TEX_BALL_CURSOR_2, MENU_TEX_STRING_SELL,
@@ -147,7 +147,7 @@ extern s32 D_801D6980[];
 //    MENU_TEX_BALL_CURSOR_4, MENU_TEX_STRING_TUNE_UP,
 //    }
 extern s8 D_801D6A2C[4];
-extern s32 D_801D6A30[];
+extern s32 g_GearShopMainMenuStringOffsets[];
 extern int D_801D6A40[8]; // = { 0, 0x18, 0, 0, 0x18, 0xC, 0xC, 0x6 }
 
 extern u16 g_gearShopCurrentItemQuantityHeld;

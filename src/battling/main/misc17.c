@@ -2,13 +2,13 @@
 #include "psyq/libgpu.h"
 
 // volatile: retail schedules this load after the argument setup, not before it.
-extern volatile s32 D_80059488;
+extern volatile s32 g_SpuChannelMask;
 extern s32 D_8009283C;
 extern s32 D_80092840;
 extern s32 D_80092844;
 extern s32 D_8009284C;
 extern u8 D_80092848;
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 extern u8 D_80096DE0[];
 extern u8 D_80096E00[];
 extern u8 D_80099DA2;
@@ -216,7 +216,7 @@ void func_8008E2B8(u8* p0, s32 color, s32 flag) {
     u8* pPkt;
     u_short tpage;
 
-    pPkt = D_80096DE0 + D_800928A0 * 0x10;
+    pPkt = D_80096DE0 + g_BattleDrawBufferIndex * 0x10;
     *(u32*)(pPkt + 0x4) = (color | (color << 8) | (color << 16)) | 0x60000000;
     *(u8*)(pPkt + 0x7) |= 2;
     *(u8*)(pPkt + 0x3) = 3;
@@ -224,8 +224,8 @@ void func_8008E2B8(u8* p0, s32 color, s32 flag) {
     *(u32*)(pPkt + 0xC) = 0xDA0140;
     AddPrim(p0, pPkt);
     tpage = GetTPage(0, flag ? 2 : 1, 0, 0);
-    SetDrawMode((DR_MODE*)(D_80096E00 + D_800928A0 * 0xC), 0, 1, tpage, 0);
-    AddPrim(p0, D_80096E00 + D_800928A0 * 0xC);
+    SetDrawMode((DR_MODE*)(D_80096E00 + g_BattleDrawBufferIndex * 0xC), 0, 1, tpage, 0);
+    AddPrim(p0, D_80096E00 + g_BattleDrawBufferIndex * 0xC);
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
@@ -352,7 +352,7 @@ void BattleReleaseFinishedSoundSlots(void) {
 }
 void BattlePlaySoundEffectById(u8* p) {
     if (p != NULL) {
-        BattleAcquireSoundSlot(p + 0x60000, 0, NULL, D_80059488);
+        BattleAcquireSoundSlot(p + 0x60000, 0, NULL, g_SpuChannelMask);
     }
 }
 void BattlePlaySoundEffectByIdx(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {

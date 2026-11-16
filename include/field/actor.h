@@ -469,7 +469,7 @@ extern void* g_FieldScriptVMCurScriptData;
 extern int g_FieldScriptMaxInstructionCount;
 extern void* g_FieldScriptMemory;
 extern ScriptsFile* g_FieldCurScriptFile;
-extern int D_800B00C0; // Stop script VM exection?
+extern int g_FieldScriptVMStopFlag; // Stop script VM exection?
 
 extern void* g_FieldSpriteData;
 

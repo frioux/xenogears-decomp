@@ -16,9 +16,9 @@
 extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
 extern void *D_800C3E1C;
-extern s32 D_80059464;
+extern s32 g_NumFlaggedTimerWorkListEntries;
 extern DISPENV D_800C4A7C;
-extern void *D_800C3618;
+extern void *g_BattleActorArchiveBuffer;
 extern void func_800BE790(void);
 extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetCallback(void *, void *);
@@ -64,7 +64,7 @@ typedef struct {
     /* 0x0070 */ u8 unk70[0x4000];
 } BattleFrameEnv; // Size: 0x4070
 
-/* The battle work block at D_800C3EB0 seen from its frame environments on. The
+/* The battle work block at g_BattleStateWork seen from its frame environments on. The
    0xB70 bytes before them are the actor table and the rest of the block. */
 typedef struct {
     /* 0x0000 */ u8 unk0[0xB70];
@@ -72,7 +72,7 @@ typedef struct {
 } BattleEnvBlock; // Size: 0x8C50
 
 // This unit is a cdk unit (XenoBattleTailCdk, per-file): retail rebases the tail
-// once (addiu $s0,$s0,-0xBCC off the DISPENV base = D_800C3EB0) and then does eight
+// once (addiu $s0,$s0,-0xBCC off the DISPENV base = g_BattleStateWork) and then does eight
 // sh off that register, where plain 2.7.2 folds base+offset into one absolute
 // address per store and maspsx expands each through $at (16 insns instead of 11).
 // The pBase assignment must stay after the SetGeomOffset call: that is what puts
@@ -198,7 +198,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B838C);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8774);
-/* One 0x1C-byte slot of the battle actor table at D_800C3EB0. */
+/* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
 typedef struct {
     /* 0x00 */ u8 unk0[0x6];
     /* 0x06 */ u8 unk6;
@@ -210,7 +210,7 @@ typedef struct {
     /* 0x12 */ u8 unk12[0xA];
 } BattleActorSlot; // Size: 0x1C
 
-/* Battle state pointed to by D_800C3610; only the fields this unit reads. */
+/* Battle state pointed to by g_BattleState; only the fields this unit reads. */
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ SpriteData *pSprite;
@@ -221,14 +221,14 @@ typedef struct {
     /* 0x40 */ void *unk40;
 } BattleUnitState; // Size: 0x44
 
-extern BattleUnitState *D_800C3610;
-extern BattleActorSlot D_800C3EB0[];
+extern BattleUnitState *g_BattleState;
+extern BattleActorSlot g_BattleStateWork[];
 extern void func_800BEFF4(s32 actorIndex);
 extern void BattleActorUpdateGroundHeightAndTriangle(SpriteData *pSprite);
 
-extern u8 D_800591AD;
-extern u8 D_800591AC;
-extern s32 D_800591A8;
+extern u8 g_IsBattle;
+extern u8 g_FlagTimerWorkListAdds;
+extern s32 g_GfxWorkListCapacity;
 extern s32 D_80050104;
 extern void BattleResetStateGlobals(void);
 extern void BattleResetTimerTaskGlobals(void);
@@ -239,10 +239,10 @@ extern void BattleClearActorMask(void);
 extern void BattleEmptyHook(void);
 
 void BattleInitStateWorkBuffers(void) {
-    D_800591AD = 1;
-    D_80059464 = 0;
-    D_800591AC = 0;
-    D_800591A8 = 0x2000;
+    g_IsBattle = 1;
+    g_NumFlaggedTimerWorkListEntries = 0;
+    g_FlagTimerWorkListAdds = 0;
+    g_GfxWorkListCapacity = 0x2000;
     BattleResetStateGlobals();
     BattleResetTimerTaskGlobals();
     WorkListsReset();
@@ -255,13 +255,13 @@ void BattleInitStateWorkBuffers(void) {
 }
 
 // Best 75.16%: the body is right apart from the loop's slot pointer, which gcc
-// folds into the symbol (%lo(D_800C3EB0 + 0x54)) where retail materialises
-// D_800C3EB0 and then does a separate `addiu v1,v0,0x54`, so the two lbu
-// displacements come out -2/0 instead of 6/8. Tried: &D_800C3EB0[3], (u8*)cast
+// folds into the symbol (%lo(g_BattleStateWork + 0x54)) where retail materialises
+// g_BattleStateWork and then does a separate `addiu v1,v0,0x54`, so the two lbu
+// displacements come out -2/0 instead of 6/8. Tried: &g_BattleStateWork[3], (u8*)cast
 // + 0x54, a typed pointer local, a pBase local shared with the tail - all fold.
 extern s32 D_800C3D58;
 extern s32 D_80059198;
-extern s32 D_80050100;
+extern s32 g_GfxOTDepthShift;
 /*
 void func_800B88C4(void) {
     BattleActorSlot *pSlot;
@@ -274,7 +274,7 @@ void func_800B88C4(void) {
     s32 i;
 
     D_800C3D58 = 0;
-    pSlot = (BattleActorSlot *)((u8 *)D_800C3EB0 + 0x54);
+    pSlot = (BattleActorSlot *)((u8 *)g_BattleStateWork + 0x54);
     for (i = 3; i != 0xB; i++) {
         if (pSlot->unk6 < 0x11 && pSlot->unk8 != 0) {
             D_800C3D58++;
@@ -286,12 +286,12 @@ void func_800B88C4(void) {
     if (n < 0) {
         D_80059198 = 0;
     }
-    pBase = (u8 *)D_800C3EB0;
+    pBase = (u8 *)g_BattleStateWork;
     pWork = pBase + 0x8000;
     value = D_80059198;
     D_80059198 = 0;
     pOT = *(u8 **)(pWork + 0xC50);
-    D_80050100 = 2;
+    g_GfxOTDepthShift = 2;
     if (pOT == pBase + 0xB70) {
         pBuf = pBase + 0x4BE0;
     } else {
@@ -319,13 +319,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B89FC);
 void BattleFreeActorArchiveAndSoundSeds(void) {
     BattleWaitArchiveSync();
     BattleLoadArchiveEntryFile();
-    while (D_80059464 != BattleIsTimerTaskActive()) {
+    while (g_NumFlaggedTimerWorkListEntries != BattleIsTimerTaskActive()) {
         func_800BE790();
     }
     BattleFreeSoundSeds();
-    if (D_800C3618 != NULL) {
-        HeapFree(D_800C3618);
-        D_800C3618 = NULL;
+    if (g_BattleActorArchiveBuffer != NULL) {
+        HeapFree(g_BattleActorArchiveBuffer);
+        g_BattleActorArchiveBuffer = NULL;
     }
 }
 
@@ -343,19 +343,19 @@ void BattleActorInitSpriteFromSlot(void) {
     u32 slotHigh;
     s32 index;
 
-    if (D_800C3610 == NULL) {
+    if (g_BattleState == NULL) {
         return;
     }
-    func_800BEFF4(D_800C3610->unk20);
-    pTable = D_800C3EB0;
-    pSprite = D_800C3610->pSprite;
+    func_800BEFF4(g_BattleState->unk20);
+    pTable = g_BattleStateWork;
+    pSprite = g_BattleState->pSprite;
     slotHigh = (u32)pSprite->flags_0xA8 >> 30;
     index = ((pSprite->flags_0xAC.flags & 3) << 2) | slotHigh;
     if (pTable[index].unk8 != 0) {
         func_800BEE2C(index, 0, 0x1F);
     } else {
-        pSprite->position.x = pTable[D_800C3610->unk24].unkE << 16;
-        pSprite->position.z = pTable[D_800C3610->unk24].unk10 << 16;
+        pSprite->position.x = pTable[g_BattleState->unk24].unkE << 16;
+        pSprite->position.z = pTable[g_BattleState->unk24].unk10 << 16;
         BattleActorUpdateGroundHeightAndTriangle(pSprite);
         pSprite->position.y = pSprite->field_0x84 << 16;
         SpritePlayAnimation(pSprite, (s8)pSprite->flags_0xB0.bytes[0]);

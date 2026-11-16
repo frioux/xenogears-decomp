@@ -53,7 +53,7 @@ extern s32 D_801CB3DC[];
 // = { 'L', 'V',   0xFFFF, 'H',  'P',  '/',  'M'   'P'   '/'  }
 
 extern void* D_8005945C; // Pointer to menu resources file
-extern void* D_8006259C; // SEDS file pointer
+extern void* g_MenuSedsFile; // SEDS file pointer
 extern u8 g_MenuDebugEnabled;
 
 extern u16 g_SystemPalette1;
@@ -182,13 +182,13 @@ void MemberChangeMenuLoadResources(void) {
 
     if (g_MenuDebugEnabled) {
         ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0x2);
-        D_8006259C = HeapAlloc(ArchiveDecodeAlignedSize(0x5), 0);
-        ArchiveReadFileToBuffer(0x5, D_8006259C, 0, 0x80);
+        g_MenuSedsFile = HeapAlloc(ArchiveDecodeAlignedSize(0x5), 0);
+        ArchiveReadFileToBuffer(0x5, g_MenuSedsFile, 0, 0x80);
         ArchiveCdDataSync(0);
         ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0x0);
-        SoundAddSedsEntry(D_8006259C);
+        SoundAddSedsEntry(g_MenuSedsFile);
     }
-    g_Menu->unk2E4 = D_8006259C;
+    g_Menu->unk2E4 = g_MenuSedsFile;
 
     HeapFree(pResources);
 }
@@ -1429,7 +1429,7 @@ void MemberChangeMenuPollInput(void) {
             if (wasControllerUnplugged == 0) {
                 wasControllerUnplugged++;
                 SoundMuteAllSpuChannels();
-                savedValue = D_80059488;
+                savedValue = g_SpuChannelMask;
             }
             continue;
         }
@@ -1437,7 +1437,7 @@ void MemberChangeMenuPollInput(void) {
         isLooping--;
         if (wasControllerUnplugged) {
             SoundEnableAllSpuChannels();
-            D_80059488 = savedValue;
+            g_SpuChannelMask = savedValue;
         }
     }
 

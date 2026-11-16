@@ -6,7 +6,7 @@
 void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
-extern u8 D_80059460;
+extern u8 g_MenuOverlayIndex;
 extern s32 D_801E981C[];
 extern u_char func_801CB304(void);
 extern u_char func_801CBD90(u_char arg0);
@@ -48,7 +48,7 @@ s32 MenuUpdateSubMenuChoice(u_char arg0) {
             }
             break;
         case 2:
-            if (D_80059460 != g_Menu->subMenuChoice) {
+            if (g_MenuOverlayIndex != g_Menu->subMenuChoice) {
                 g_Menu->unk334 = 3;
                 if (func_801CBD90(arg0)) {
                     result = 0;

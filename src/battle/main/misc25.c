@@ -3,17 +3,17 @@
 #include "psyq/inline_c.h"
 #include "battle/actor.h"
 
-extern u8 D_800C37C8;
+extern u8 g_BattleAnimCommandsSuppressed;
 extern u16 D_800C3E30;
-extern u8 D_800C3D40;
-extern u8 D_800C3D6C;
-extern BattleBlock *D_800C3BAC[];
+extern u8 g_BattleCurrentActorSlot;
+extern u8 g_BattleExtraMatrixFlag;
+extern BattleBlock *g_BattleBlockSlots[];
 extern s32 D_800C3BCC[];
 extern s32 D_800C3BEC;
 extern s32 D_800C3BF0;
 extern s32 D_800C360C;
 extern u8 D_800C4000[];
-extern void *D_800658C8;
+extern void *g_BattleStageData;
 
 extern void HeapFree(void *pMem);
 extern BattleBlock *BattleAllocBlock(u8 *pPool);
@@ -23,8 +23,8 @@ extern void BattleProjectPointOntoIndexedTriangle(s16 *, s16, void *);
 extern s32 BattleFindGroundTriangle(s16 *, s16, s32);
 extern void SoundRemoveSedsEntry(s32);
 extern void BattleClearBlockSlots(void);
-extern u8 D_800C3D0C[];
-extern BattleActor *D_800D3368[];
+extern u8 g_BattleBlockPool[];
+extern BattleActor *g_BattleActors[];
 extern void func_800A9FF0(s32);
 extern void func_800AA934(void *, void *, void *, void *);
 extern void func_800BE790(void);
@@ -108,7 +108,7 @@ s32 BattleResolveTargetSlot(BattleActor *pActor, u32 id, u16 *pOut) {
     if ((id & 0xFF) == 0xFF) {
         id = BattleFindFirstActorInMask();
     } else if ((id & 0xFF) == 0xFE) {
-        id = D_800C3D40;
+        id = g_BattleCurrentActorSlot;
     } else if ((id & 0xFF) == 0xFD || (id & 0xFF) == 0xF9) {
         id = pActor->unk20[0];
     } else if ((id & 0xFF) == 0xFC) {
@@ -487,8 +487,8 @@ void BattleReleaseBlockSlots(s32 arg0) {
     s32 i;
 
     for (i = 0; i < 9; i++) {
-        if (D_800C3BAC[i] != NULL) {
-            BattleFreeBlock(arg0, D_800C3BAC[i]);
+        if (g_BattleBlockSlots[i] != NULL) {
+            BattleFreeBlock(arg0, g_BattleBlockSlots[i]);
         }
     }
     BattleClearBlockSlots();
@@ -498,11 +498,11 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
                    s16 dy, s16 dz, s16 duration) {
     BattleBlock *pBlock;
 
-    if (D_800C37C8 == 0) {
-        if (D_800C3BAC[index] == NULL) {
-            D_800C3BAC[index] = BattleAllocBlock(pPool);
+    if (g_BattleAnimCommandsSuppressed == 0) {
+        if (g_BattleBlockSlots[index] == NULL) {
+            g_BattleBlockSlots[index] = BattleAllocBlock(pPool);
         }
-        pBlock = D_800C3BAC[index];
+        pBlock = g_BattleBlockSlots[index];
         if (pBlock != NULL) {
             pBlock->unk0 = 1;
             pBlock->unk1 = 0;
@@ -522,7 +522,7 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
 
 s32 BattleIsPointWithinBounds(s16 *pPos) {
-    BattleStreamData *pData = D_800658C8;
+    BattleStreamData *pData = g_BattleStageData;
 
     if (pPos[0] > pData->unk34E && pPos[0] < pData->unk34C && pPos[2] > pData->unk350 &&
         pPos[2] < pData->unk352) {
@@ -597,7 +597,7 @@ void BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     func_800B0D70(vec, pB);
 }
 void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
-    BattleActor **pBase = D_800D3368;
+    BattleActor **pBase = g_BattleActors;
     BattleActor **pp = &pBase[index];
     BattleSprite *pSprite;
     s32 dx;
@@ -669,9 +669,9 @@ extern s32 BattleGetAdjustedWaitCountdown(void);
 extern s32 ArchiveDataSync(void);
 extern void ArchiveStopTransfer(s32);
 
-void func_800B136C(void) {
+void BattleWaitAndFreeActorBuffers(void) {
     s32 flagB = 0;
-    BattleActor **pBase = D_800D3368;
+    BattleActor **pBase = g_BattleActors;
     s32 flagA = 0;
     BattleActor *pEntry;
     s32 i;
@@ -704,7 +704,7 @@ void func_800B136C(void) {
     }
     ArchiveStopTransfer(0);
     flagA = 1;
-    ppBase = D_800D3368;
+    ppBase = g_BattleActors;
     while (flagA != 0) {
         if (ArchiveDataSync() == 0) {
             for (i = 0, pp = ppBase; i < 11; i++) {
@@ -722,7 +722,7 @@ void func_800B136C(void) {
     }
 }
 void BattleSetExtraMatrixFlag(void) {
-    D_800C3D6C = 1;
+    g_BattleExtraMatrixFlag = 1;
 }
 void BattleWaitForOtherActorAnimations(s32 arg0) {
     s32 i;
@@ -731,14 +731,14 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
 
     for (i = 0; i < 3; i++) {
         if (i != arg0) {
-            func_800AA934(D_800D3368[i], D_800D3368[i], D_800C3D0C, 5);
+            func_800AA934(g_BattleActors[i], g_BattleActors[i], g_BattleBlockPool, 5);
         }
     }
     do {
         flag = 0;
         for (i = 0; i < 3; i++) {
             if (i != arg0) {
-                pActor = D_800D3368[i];
+                pActor = g_BattleActors[i];
                 if (pActor != NULL && (pActor->unk34 != 0 || pActor->unk38 != 0)) {
                     flag = 1;
                 }

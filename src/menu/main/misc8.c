@@ -4,7 +4,7 @@
 #include "system/menu.h"
 #include "psyq/libcd.h"
 
-extern u8 D_80059460; // Index of the menu overlay the menu was entered with
+extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 D_801EA548[]; // String IDs of the menu strings
@@ -21,7 +21,7 @@ extern CdlCB D_801EA718;
 extern CdlCB D_801EA71C;
 extern CdlCB D_801EA720;
 extern u8 D_801EA574[];
-extern u8 D_801EA578[];
+extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
 
@@ -350,7 +350,7 @@ s32 func_801D9808(void) {
             firstPass = 0;
         }
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            func_801E8070(6, g_Menu->unk1BE0, D_801EA578, D_801E9F88, g_Menu->pManager->unk5C,
+            func_801E8070(6, g_Menu->unk1BE0, g_MenuNameTextureX, D_801E9F88, g_Menu->pManager->unk5C,
                           g_Menu->subMenuChoice, 7, 0);
             MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;

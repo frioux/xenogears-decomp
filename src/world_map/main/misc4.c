@@ -69,7 +69,7 @@ typedef struct {
     /* 0x580 */ u8 pad580[0x20];
 } WorldMapState; // Size: 0x5A0
 
-// The world map frame render context D_8009BE3C points at: partial view of the
+// The world map frame render context g_WorldMapRenderContext points at: partial view of the
 // two ordering table heads it fills each frame.
 typedef struct {
     /* 0x00 */ u8 unk0[0x70];
@@ -82,13 +82,13 @@ extern u16 D_8009A46C[];
 extern WorldMapState *D_8009C620;
 extern s32 D_8009BE0C;
 extern s32 D_8009D3F0;
-extern s32 D_8009D144;
-extern s16 D_8009BD38;
-extern s16 D_8009BD3A;
+extern s32 g_WorldMapRotationMatrixValid;
+extern s16 g_WorldMapCameraRot;
+extern s16 g_WorldMapViewRotationY;
 extern s16 D_8009BD3C;
 extern void func_80089160(s32, void *, s32);
 extern void WorldMapSetupPrimTemplates(WorldMapEntry *, POLY_FT4 *, s32);
-extern u8 *D_8006259C;
+extern u8 *g_MenuSedsFile;
 extern void WorldMapWrapPosition(void *);
 extern s32 func_80093A5C(s32, s32);
 extern void SoundPlaySoundEffectOnFreePair(s32);
@@ -105,8 +105,8 @@ extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
 extern void WorldMapFreeGridImages(void);
 extern void WorldMapFreeSlotPool(void);
-extern s32 D_8009BC38;
-extern s32 D_8009BCB0;
+extern s32 g_WorldMapWorkBuffer1;
+extern s32 g_WorldMapWorkBuffer2;
 extern s32 D_8009BC3C;
 extern s32 D_8009BCB4;
 extern s32 D_8009C180;
@@ -114,14 +114,14 @@ extern s16 D_8006F94E;
 extern s16 D_8006F950;
 extern s16 D_8006F954;
 extern s32 D_8009BBC4;
-extern s32 D_8009BD40;
-extern s32 D_8009BBB4;
-extern s16 D_8009D558;
-extern s32 D_8009BE28;
+extern s32 g_WorldMapPathFrame;
+extern s32 g_WorldMapScrollX;
+extern s16 g_WorldMapSlotUpdateFlags;
+extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BBBC[];
-extern WorldMapRenderContext *D_8009BE3C;
-extern s32 D_8009C5BC;
-extern WorldMapPos4 D_8009C5AC;
+extern WorldMapRenderContext *g_WorldMapRenderContext;
+extern s32 g_WorldMapGridAngle;
+extern WorldMapPos4 g_WorldMapPlayerPosition;
 extern void WorldMapBuildRotationMatrix(s32 *p);
 extern void func_80097244(s32 *p);
 extern void func_80089748(void);
@@ -206,8 +206,8 @@ void WorldMapExitToMap10E(void) {
     u16 v;
 
     SoundStopAllElements();
-    SoundRemoveSedsEntry(D_8006259C);
-    HeapFree(D_8006259C);
+    SoundRemoveSedsEntry(g_MenuSedsFile);
+    HeapFree(g_MenuSedsFile);
     WorldMapFreeSpriteSets();
     WorldMapFreeTileVertexBuffers();
     WorldMapFreeSemiTransPrimBuffers();
@@ -216,13 +216,13 @@ void WorldMapExitToMap10E(void) {
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
     WorldMapFreeGridImages();
-    HeapFree(D_8009BC38);
-    HeapFree(D_8009BCB0);
+    HeapFree(g_WorldMapWorkBuffer1);
+    HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
     WorldMapFreeSlotPool();
-    v = *(u16 *)&D_8009BD3A;
+    v = *(u16 *)&g_WorldMapViewRotationY;
     D_8006F94E = 0x10E;
     D_8006F954 = 0;
     D_8009BBC4 = 1;
@@ -235,14 +235,14 @@ s32 WorldMapResetActorSlotWithSound(s32 index) {
     p = D_8009BE24;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x200000;
-    q = D_8006259C;
+    q = g_MenuSedsFile;
     p = p + index;
     p->unk20 = 0;
     p->unk58 = 0;
     // do/while block makes cc1 schedule these stores after the actor cluster
-    do { p->unk54 = 0; p->unk50 = 0; D_8009BD3C = 0; D_8009BD3A = 0; } while (0);
-    D_8009BD38 = 0;
-    D_8009D144 = 1;
+    do { p->unk54 = 0; p->unk50 = 0; D_8009BD3C = 0; g_WorldMapViewRotationY = 0; } while (0);
+    g_WorldMapCameraRot = 0;
+    g_WorldMapRotationMatrixValid = 1;
     SoundPlaySoundEffectOnFreePair((((u16 *)q)[0xA] << 16) | 0xA4);
     p->unk22 = 0x18;
     return 1;
@@ -267,7 +267,7 @@ s32 WorldMapInitActorAtScrollPosition(s32 index) {
     WorldMapSetSpriteSetParent(0, 13);
     p = D_8009BE24 + index;
     p->unk20 = 0;
-    *(WorldMapPos4 *)&p->unk28 = D_8009C5AC;
+    *(WorldMapPos4 *)&p->unk28 = g_WorldMapPlayerPosition;
     pSlot = (s32 *)p;
     pSlot[0x15] = 0x40;
     pSlot[0x16] = 0x200;
@@ -275,7 +275,7 @@ s32 WorldMapInitActorAtScrollPosition(s32 index) {
     pSlot[0x18] = 0x300;
     pSlot[0x14] = 0;
     pSlot[0x19] = 0x50;
-    *(WorldMapPos4 *)&D_8009BE28 = *(WorldMapPos4 *)&p->unk28;
+    *(WorldMapPos4 *)&g_WorldMapCameraTarget = *(WorldMapPos4 *)&p->unk28;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
@@ -314,7 +314,7 @@ s32 func_800783E8(s32 index) {
     *(u32 *)0x1F800004 = p->unk2C >> 12;
     *(u32 *)0x1F800008 = p->unk30 >> 12;
     ((WorldMapEntry *)D_8009C620)[0].pos = *(WorldMapPos4 *)0x1F800000;
-    *(WorldMapPos4 *)&D_8009BE28 = *(WorldMapPos4 *)&p->unk28;
+    *(WorldMapPos4 *)&g_WorldMapCameraTarget = *(WorldMapPos4 *)&p->unk28;
     p->unk50 = (p->unk50 + p->unk54) & 0xFFF;
     p->unk58 = (p->unk58 + p->unk5C) & 0xFFF;
     p->unk60 = (p->unk60 + p->unk64) & 0xFFF;
@@ -364,24 +364,24 @@ s32 WorldMapEnterNop(void) {
 s32 WorldMapUpdateFrameWithParticles(void) {
     s32 *pState;
 
-    if (D_8009D144 == 0) {
-        WorldMapBuildRotationMatrix(&D_8009BD40);
+    if (g_WorldMapRotationMatrixValid == 0) {
+        WorldMapBuildRotationMatrix(&g_WorldMapPathFrame);
     } else {
-        func_80097244(&D_8009BD40);
+        func_80097244(&g_WorldMapPathFrame);
     }
     func_80089748();
     func_80089C78();
     func_800848F4();
-    func_800980D4(&D_8009BBB4);
-    if (D_8009D558 != 0) {
-        func_800981C8(&D_8009BE28);
+    func_800980D4(&g_WorldMapScrollX);
+    if (g_WorldMapSlotUpdateFlags != 0) {
+        func_800981C8(&g_WorldMapCameraTarget);
         WorldMapWaitForLoadSlotFree();
         func_80098CC0();
     }
-    pState = &D_8009BE28;
+    pState = &g_WorldMapCameraTarget;
     func_800983A0(pState);
-    func_8009932C(D_8009BE3C->pOt[0], D_8009BE3C->pOt[1], pState);
-    D_8009C5BC = D_8009C5BC + 0x40;
+    func_8009932C(g_WorldMapRenderContext->pOt[0], g_WorldMapRenderContext->pOt[1], pState);
+    g_WorldMapGridAngle = g_WorldMapGridAngle + 0x40;
     func_80073B04();
     func_800737EC();
     func_80086798();
@@ -406,12 +406,12 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     D_8009CCA4 = 2;
     D_8009D3CC = 0x10;
     D_8009D804 = 0;
-    D_8009D144 = 0;
+    g_WorldMapRotationMatrixValid = 0;
     D_8009CD40 = (s32)WorldMapWrapTileVertexPositions;
     func_80098044();
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
-    D_8009C5AC.x = 0x2000000;
+    g_WorldMapPlayerPosition.x = 0x2000000;
     D_8009C5B0 = -0x300000;
     D_8009C5B4 = 0x2000000;
     WorldMapInitSpriteSets();
@@ -424,9 +424,9 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     WorldMapSetupMapPrims();
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
-    SoundAddSedsEntry(D_8006259C);
+    SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(0x24, 0);
-    func_80097BC0(&D_8009C5AC);
+    func_80097BC0(&g_WorldMapPlayerPosition);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);
@@ -448,8 +448,8 @@ void WorldMapExitToMap110(void) {
     u16 v;
 
     SoundStopAllElements();
-    SoundRemoveSedsEntry(D_8006259C);
-    HeapFree(D_8006259C);
+    SoundRemoveSedsEntry(g_MenuSedsFile);
+    HeapFree(g_MenuSedsFile);
     WorldMapFreeSpriteSets();
     WorldMapFreeTileVertexBuffers();
     WorldMapFreeSemiTransPrimBuffers();
@@ -458,13 +458,13 @@ void WorldMapExitToMap110(void) {
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
     WorldMapFreeGridImages();
-    HeapFree(D_8009BC38);
-    HeapFree(D_8009BCB0);
+    HeapFree(g_WorldMapWorkBuffer1);
+    HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
     WorldMapFreeSlotPool();
-    v = *(u16 *)&D_8009BD3A;
+    v = *(u16 *)&g_WorldMapViewRotationY;
     D_8006F94E = 0x110;
     D_8006F954 = 0;
     D_8009BBC4 = 1;
@@ -479,7 +479,7 @@ s32 WorldMapInitActorSlotTimer40(s32 index) {
     p = D_8009BE24;
     D_8009BE0C = 0x78;
     D_8009D3F0 = 0x200000;
-    D_8009D144 = 0;
+    g_WorldMapRotationMatrixValid = 0;
     p = p + index;
     scroll = -0xC0;
     p->unk20 = 0x10;
@@ -488,8 +488,8 @@ s32 WorldMapInitActorSlotTimer40(s32 index) {
     do {
         p->unk54 = 0;
         p->unk50 = 0;
-        D_8009BD38 = scroll;
-        do { D_8009BD3A = 0x680; } while (0);
+        g_WorldMapCameraRot = scroll;
+        do { g_WorldMapViewRotationY = 0x680; } while (0);
         timer = 0x40;
         D_8009BD3C = 0;
     } while (0);
@@ -549,7 +549,7 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     WorldMapSetSpriteSetParent(0, 13);
     p = D_8009BE24 + index;
     p->unk20 = 0;
-    *(WorldMapPos4 *)&p->unk28 = D_8009C5AC;
+    *(WorldMapPos4 *)&p->unk28 = g_WorldMapPlayerPosition;
     pSlot = (s32 *)p;
     pSlot[0x15] = 0x40;
     pSlot[0x16] = 0x200;
@@ -557,9 +557,9 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     pSlot[0x18] = 0x300;
     pSlot[0x14] = 0;
     pSlot[0x19] = 0x50;
-    *(WorldMapPos4 *)&D_8009BE28 = *(WorldMapPos4 *)&p->unk28;
+    *(WorldMapPos4 *)&g_WorldMapCameraTarget = *(WorldMapPos4 *)&p->unk28;
     s = D_8009C620;
-    q = D_8006259C;
+    q = g_MenuSedsFile;
     ((s16 *)s)[0xC] = -0x100;
     ((s16 *)s)[0xD] = 0;
     ((s16 *)s)[0xE] = -0x40;
@@ -692,7 +692,7 @@ s32 func_8007A430(s32 index) {
         func_80089160(9, (s32)pDst, 0);
     } else {
         p->unk22 = 0x60;
-        pSrc = &D_8009C5AC;
+        pSrc = &g_WorldMapPlayerPosition;
         *(WorldMapPos4 *)&p->unk28 = *pSrc;
         WorldMapDeactivateSpriteGroup(9);
         result = 3;
@@ -762,12 +762,12 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     D_8009CCA4 = 2;
     D_8009D3CC = 0x10;
     D_8009D804 = 0;
-    D_8009D144 = 0;
+    g_WorldMapRotationMatrixValid = 0;
     D_8009CD40 = (s32)WorldMapWrapTileVertexPositions;
     func_80098044();
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
-    D_8009C5AC.x = 0x5BED000;
+    g_WorldMapPlayerPosition.x = 0x5BED000;
     D_8009C5B0 = -0xA0000;
     D_8009C5B4 = 0x62A8000;
     WorldMapInitSpriteSets();
@@ -780,9 +780,9 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     WorldMapSetupMapPrims();
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
-    SoundAddSedsEntry(D_8006259C);
+    SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(0x24, 0);
-    func_80097BC0(&D_8009C5AC);
+    func_80097BC0(&g_WorldMapPlayerPosition);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);
@@ -804,8 +804,8 @@ void WorldMapExitToMap11A(void) {
     u16 v;
 
     SoundStopAllElements();
-    SoundRemoveSedsEntry(D_8006259C);
-    HeapFree(D_8006259C);
+    SoundRemoveSedsEntry(g_MenuSedsFile);
+    HeapFree(g_MenuSedsFile);
     WorldMapFreeSpriteSets();
     WorldMapFreeTileVertexBuffers();
     WorldMapFreeSemiTransPrimBuffers();
@@ -814,13 +814,13 @@ void WorldMapExitToMap11A(void) {
     WorldMapFreeSpriteGroupTable();
     WorldMapFreePrimTemplateBuffers();
     WorldMapFreeGridImages();
-    HeapFree(D_8009BC38);
-    HeapFree(D_8009BCB0);
+    HeapFree(g_WorldMapWorkBuffer1);
+    HeapFree(g_WorldMapWorkBuffer2);
     HeapFree(D_8009BC3C);
     HeapFree(D_8009BCB4);
     HeapFree(D_8009C180);
     WorldMapFreeSlotPool();
-    v = *(u16 *)&D_8009BD3A;
+    v = *(u16 *)&g_WorldMapViewRotationY;
     D_8006F94E = 0x11A;
     D_8006F954 = 0;
     D_8009BBC4 = 1;

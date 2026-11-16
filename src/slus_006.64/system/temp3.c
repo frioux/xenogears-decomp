@@ -7,40 +7,40 @@
 #include "psyq/libgpu.h"
 #include "psyq/libcd.h"
 
-extern s32 D_8004F330;
-extern s32 D_8004F334;
+extern s32 g_GameStagedFileIndex;
+extern s32 g_GameStagedFileTag;
 extern s32 g_GamePartySkinsInitialized;
-extern s32 D_8004F320;
+extern s32 g_GamePartyUsesGearSkins;
 extern s32 g_GameSceneMapNum;
-extern s32 D_8004F31C;
-extern s32 D_8004F32C;
-extern s32 D_8004F344;
-extern void *D_8005A4A0;
-extern void *D_8005A4BC;
+extern s32 g_GamePartyQueuedSkinKind;
+extern s32 g_SoundSedsFileStaged;
+extern s32 g_GameUITextureFileStaged;
+extern void *g_GameUITextureFileBuffer;
+extern void *g_SoundSedsFileBuffer;
 extern StreamDataQueueEntry g_PartyStreamDataQueue[4];
 extern int g_GamePartyMemberSkins[3];
 extern int g_PartyIsWaitingForStreamData;
 extern void* g_PartyDataBuffers[];
 extern void* g_PartyStreamDataPointers[];
 
-extern u8* D_800592D4;
-extern u8* D_800592D8;
-extern void* D_800592DC;
+extern u8* g_SystemCellGrid;
+extern u8* g_SystemCellNeighborCounts;
+extern void* g_SystemCellPrimBuffers;
 extern void* D_800592E0;
 
 void SystemInitializeCellGridBuffers(void) {
     int i;
     int j;
 
-    D_800592DC = HeapAlloc(0x3480, 1);
+    g_SystemCellPrimBuffers = HeapAlloc(0x3480, 1);
     D_800592E0 = HeapAlloc(0x3480, 1);
-    D_800592D4 = HeapAlloc(0x460, 1);
-    D_800592D8 = HeapAlloc(0x460, 1);
+    g_SystemCellGrid = HeapAlloc(0x460, 1);
+    g_SystemCellNeighborCounts = HeapAlloc(0x460, 1);
 
     for (i = 0; i < 0x1C; i++) {
         for (j = 0; j < 0x28; j++) {
-            D_800592D4[i * 0x28 + j] = 0;
-            D_800592D8[i * 0x28 + j] = 0;
+            g_SystemCellGrid[i * 0x28 + j] = 0;
+            g_SystemCellNeighborCounts[i * 0x28 + j] = 0;
         }
     }
 }
@@ -60,7 +60,7 @@ void SystemIncrementCellNeighborCount(s32 arg0, s32 arg1) {
         arg1 = 0;
     }
 
-    D_800592D8[arg0 * 0x28 + arg1] += 1;
+    g_SystemCellNeighborCounts[arg0 * 0x28 + arg1] += 1;
 }
 
 extern int D_800592C8;
@@ -89,12 +89,12 @@ void func_8001A6E8(u_long* pOt) {
     s32 y;
     u8* pPrim;
 
-    pPrim = (u8*)(&D_800592DC)[D_800592C8];
+    pPrim = (u8*)(&g_SystemCellPrimBuffers)[D_800592C8];
     count = 0;
     for (i = 0, gridOffset = 0; i < 0x1C; i++, gridOffset += 0x28) {
         rowOffset = gridOffset;
         for (j = 0; j < 0x28; j++) {
-            if (D_800592D4[rowOffset + j] != 0) {
+            if (g_SystemCellGrid[rowOffset + j] != 0) {
                 *(u8*)(pPrim + 3) = 2;
                 *(u32*)(pPrim + 4) = 0x70280000;
                 *(u32*)(pPrim + 8) = (j << 3) | (i << 19);
@@ -114,10 +114,10 @@ void func_8001A6E8(u_long* pOt) {
     }
 
     for (i = 0; i < 0x460; i++) {
-        if (D_800592D8[i] != 2) {
-            D_800592D4[i] = D_800592D8[i] == 3;
+        if (g_SystemCellNeighborCounts[i] != 2) {
+            g_SystemCellGrid[i] = g_SystemCellNeighborCounts[i] == 3;
         }
-        D_800592D8[i] = 0;
+        g_SystemCellNeighborCounts[i] = 0;
     }
 
     if (count < 0x14) {
@@ -139,7 +139,7 @@ void func_8001A6E8(u_long* pOt) {
             if (y > 0x28) {
                 y = 0;
             }
-            D_800592D4[x * 0x28 + y] = 1;
+            g_SystemCellGrid[x * 0x28 + y] = 1;
             count++;
         } while (count < 0x14);
     }
@@ -158,87 +158,87 @@ void func_8001A6E8(u_long* pOt) {
 */
 
 
-extern s32 D_8004F364;
-extern s32 D_8004F36C;
-extern s32 D_8004F33C;
-extern s32 D_8004F338;
-extern s32 D_8004F328;
-extern s32 D_8004F324;
-extern s32 D_8004F2FC;
+extern s32 g_GameWdsFileLoadState;
+extern s32 g_GameAudioAndWdsLoaded;
+extern s32 g_GameLoadedWdsStreamId;
+extern s32 g_GameLoadedWdsBankIndex;
+extern s32 g_FieldScriptWalkFlags;
+extern s32 g_GameRequestedWdsBankIndex;
+extern s32 g_SoundPendingAudioManager;
 extern s32 D_8004F2F8;
 extern s32 D_8004F314;
 extern s32 D_8004F310;
 extern s32 D_8004F370;
-extern s32 D_8004F35C;
+extern s32 g_GameAudioManagerRunning;
 extern s32 g_GameHasLoadedWDS;
-extern s32 D_8004F358;
-extern s32 D_8004F354;
-extern s32 D_8004F350;
+extern s32 g_GameWdsBankHeaderReadPending;
+extern s32 g_GameWdsStreamInProgress;
+extern s32 g_FieldPendingRequestCount;
 extern s32 D_8004F2F4;
-extern s32 D_8004F348;
-extern s32 D_8004F304;
-extern s32 D_8004F368;
-extern s32 D_8004F300;
+extern s32 g_GameReusePendingAudioManager;
+extern s32 g_WorldMapAudioManagerLoaded;
+extern s32 g_GameWdsEntryFreed;
+extern s32 g_FieldTextRenderEnabled;
 extern s32 D_8004F380;
 extern s32 D_8004F37C;
 extern s32 D_8004F378;
 extern u8 D_8005942C;
 extern u8 D_800594D0;
-extern s16 D_8004F384;
-extern s32 D_8004F318;
-extern s32 D_8004F340;
-extern s32 D_8004F308;
-extern s32 D_8006F990[3];
-extern s32 D_8005A444[3];
+extern s16 g_GameWdsEntryReleased;
+extern s32 g_FieldScriptWalkFrameCounter;
+extern s32 g_GameAudioFadeInPending;
+extern s32 g_GameWdsBankLoadState;
+extern s32 g_FieldPartyActorIndices[3];
+extern s32 g_FieldPartyActorSlots[3];
 extern s32 D_80062524[1];
 
 void SystemResetGlobalState(void) {
     int i;
 
-    D_8004F364 = 1;
-    D_8004F328 = 0xFF;
-    D_8004F324 = 0xFF;
-    D_8004F2FC = 0;
-    D_8004F36C = 0;
+    g_GameWdsFileLoadState = 1;
+    g_FieldScriptWalkFlags = 0xFF;
+    g_GameRequestedWdsBankIndex = 0xFF;
+    g_SoundPendingAudioManager = 0;
+    g_GameAudioAndWdsLoaded = 0;
     D_8004F2F8 = 0;
-    D_8004F31C = 0;
-    D_8004F320 = 0;
+    g_GamePartyQueuedSkinKind = 0;
+    g_GamePartyUsesGearSkins = 0;
     D_8004F314 = 0;
     D_8004F310 = 0;
     g_GamePartySkinsInitialized = 0;
     D_8004F370 = 0;
-    D_8004F35C = 0;
+    g_GameAudioManagerRunning = 0;
     g_GameHasLoadedWDS = 0;
     g_PartyIsWaitingForStreamData = 0;
-    D_8004F358 = 0;
-    D_8004F354 = 0;
-    D_8004F350 = 0;
+    g_GameWdsBankHeaderReadPending = 0;
+    g_GameWdsStreamInProgress = 0;
+    g_FieldPendingRequestCount = 0;
     D_8004F2F4 = 0;
-    D_8004F344 = 0;
-    D_8004F348 = 0;
-    D_8004F304 = 0;
-    D_8004F368 = 0;
-    D_8004F300 = 0;
+    g_GameUITextureFileStaged = 0;
+    g_GameReusePendingAudioManager = 0;
+    g_WorldMapAudioManagerLoaded = 0;
+    g_GameWdsEntryFreed = 0;
+    g_FieldTextRenderEnabled = 0;
     D_8004F380 = 0;
     D_8004F37C = 0;
     D_8004F378 = 0;
     D_8005942C = 0;
     D_800594D0 = 0;
-    D_8004F384 = 0;
-    D_8004F318 = 0;
-    D_8004F334 = -1;
+    g_GameWdsEntryReleased = 0;
+    g_FieldScriptWalkFrameCounter = 0;
+    g_GameStagedFileTag = -1;
     g_GameSceneMapNum = -1;
-    D_8004F33C = -1;
-    D_8004F338 = -1;
-    D_8004F330 = -1;
-    D_8004F32C = -1;
-    D_8004F340 = -1;
-    D_8004F308 = -1;
+    g_GameLoadedWdsStreamId = -1;
+    g_GameLoadedWdsBankIndex = -1;
+    g_GameStagedFileIndex = -1;
+    g_SoundSedsFileStaged = -1;
+    g_GameAudioFadeInPending = -1;
+    g_GameWdsBankLoadState = -1;
 
     for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         g_GamePartyMemberSkins[i] = 0;
-        D_8006F990[i] = 0;
-        D_8005A444[i] = 0;
+        g_FieldPartyActorIndices[i] = 0;
+        g_FieldPartyActorSlots[i] = 0;
         g_GamePartyMembers[i] = 0;
     }
 
@@ -252,8 +252,8 @@ void GamePartySignalReinitialize(void) {
 }
 
 void GamePartyReloadSkinsFromFieldArchive(void) {
-    D_8004F334 = -1;
-    D_8004F330 = -1;
+    g_GameStagedFileTag = -1;
+    g_GameStagedFileIndex = -1;
     HeapChangeCurrentUser(HEAP_USER_YOSI, 0);
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     GamePartyStreamLoadSkinData(1);
@@ -299,7 +299,7 @@ void GamePartyCharactersInitializeSkins(void) {
     g_PartyStreamDataQueue[entryCount].pData = NULL;
     g_PartyStreamDataQueue[entryCount].archiveIndex = 0;
     func_80029AFC(g_PartyStreamDataQueue, 0, 0);
-    D_8004F31C = 1;
+    g_GamePartyQueuedSkinKind = 1;
 }
 
 // Set GameState pointer to g_GameState, set party members accordingly 
@@ -339,7 +339,7 @@ void GamePartyGearsInitializeSkins(void) {
     g_PartyStreamDataQueue[entryCount].pData = NULL;
     g_PartyStreamDataQueue[entryCount].archiveIndex = 0;
     func_80029AFC(g_PartyStreamDataQueue, 0, 0);
-    D_8004F31C = 2;
+    g_GamePartyQueuedSkinKind = 2;
 }
 
 void GamePartySyncSkinData(void) {
@@ -353,16 +353,16 @@ void GamePartySyncSkinData(void) {
     }
 
     if (!g_GamePartySkinsInitialized) {
-        if (!(g_GameSceneMapNum & 0xC000)) D_8004F320 = 0;
-        else D_8004F320 = 1;
+        if (!(g_GameSceneMapNum & 0xC000)) g_GamePartyUsesGearSkins = 0;
+        else g_GamePartyUsesGearSkins = 1;
         
         g_PartyIsWaitingForStreamData = 0;
-        if (D_8004F320 == 0) {
-            if (D_8004F31C != 1) {
+        if (g_GamePartyUsesGearSkins == 0) {
+            if (g_GamePartyQueuedSkinKind != 1) {
                 GamePartyCharactersInitializeSkins();
                 g_PartyIsWaitingForStreamData = 1;
             }
-        } else if (D_8004F31C != 2) {
+        } else if (g_GamePartyQueuedSkinKind != 2) {
             GamePartyGearsInitializeSkins();
             g_PartyIsWaitingForStreamData = 1;
         }
@@ -403,22 +403,22 @@ void GamePartyStreamLoadSkinData(int arg0) {
     }
         
     if (arg0 != 0) {
-        D_8005A4A0 = HeapAlloc(ArchiveDecodeAlignedSize(0xA7), 0x1);
-        g_PartyStreamDataQueue[entryIndex].pData = D_8005A4A0;
+        g_GameUITextureFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0xA7), 0x1);
+        g_PartyStreamDataQueue[entryIndex].pData = g_GameUITextureFileBuffer;
         if (g_PartyStreamDataQueue[entryIndex].pData != 0) {
             HeapPinBlock(g_PartyStreamDataQueue[entryIndex].pData);
             g_PartyStreamDataQueue[entryIndex].archiveIndex = 0xA7;
             entryIndex++;
-            D_8004F344 = 1;
+            g_GameUITextureFileStaged = 1;
         }
 
-        D_8005A4BC = HeapAlloc(ArchiveDecodeAlignedSize(0xA8), 0x1);
-        g_PartyStreamDataQueue[entryIndex].pData = D_8005A4BC;
+        g_SoundSedsFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0xA8), 0x1);
+        g_PartyStreamDataQueue[entryIndex].pData = g_SoundSedsFileBuffer;
         if (g_PartyStreamDataQueue[entryIndex].pData != 0) {
             HeapPinBlock(g_PartyStreamDataQueue[entryIndex].pData);
             g_PartyStreamDataQueue[entryIndex].archiveIndex = 0xA8;
             entryIndex++;
-            D_8004F32C = 0;
+            g_SoundSedsFileStaged = 0;
         }
     }
 
@@ -447,36 +447,36 @@ void GamePartySyncStreamedData(void) {
 }
 
 
-extern int D_8005A4C0; // File size
-extern void* D_8005A4E0; // File buffer
+extern int g_GameStagedFileSize; // File size
+extern void* g_GameStagedFileBuffer; // File buffer
 
-extern s32 D_8004F330;
-extern s32 D_8004F334;
+extern s32 g_GameStagedFileIndex;
+extern s32 g_GameStagedFileTag;
 
 int ArchiveLoadStagedFileIfChanged(int fileIndex, s32 arg1) {
-    if (D_8004F334 == arg1 && D_8004F330 == fileIndex) {
+    if (g_GameStagedFileTag == arg1 && g_GameStagedFileIndex == fileIndex) {
         return 0;
     }
 
     if (ArchiveDataSync() == 0) {
         ArchiveCdDataSync(0);
-        if (D_8004F334 != -1) {
-            HeapUnpinBlock(D_8005A4E0);
-            HeapFree(D_8005A4E0);
+        if (g_GameStagedFileTag != -1) {
+            HeapUnpinBlock(g_GameStagedFileBuffer);
+            HeapFree(g_GameStagedFileBuffer);
         }
         ArchiveLoadFileToPinnedBuffer(fileIndex);
-        D_8004F334 = arg1;
-        D_8004F330 = fileIndex;
+        g_GameStagedFileTag = arg1;
+        g_GameStagedFileIndex = fileIndex;
     }
     
     return -1;
 }
 
 void ArchiveLoadFileToPinnedBuffer(int index) {
-    D_8005A4C0 = ArchiveDecodeAlignedSize(index + 0xB8);
-    D_8005A4E0 = HeapAlloc(D_8005A4C0, 1);
-    HeapPinBlock(D_8005A4E0);
-    ArchiveReadFileToBuffer(index + 0xB8, D_8005A4E0, 0, CdlModeSpeed);
+    g_GameStagedFileSize = ArchiveDecodeAlignedSize(index + 0xB8);
+    g_GameStagedFileBuffer = HeapAlloc(g_GameStagedFileSize, 1);
+    HeapPinBlock(g_GameStagedFileBuffer);
+    ArchiveReadFileToBuffer(index + 0xB8, g_GameStagedFileBuffer, 0, CdlModeSpeed);
 }
 
 extern int g_GameHasLoadedWDS;
@@ -489,39 +489,39 @@ void GameFreeLoadedWdsEntry(void) {
     }
 }
 
-extern s32 D_8004F35C;
-extern s32 D_80062528;
-extern s32 D_8004F348;
-extern s32 D_8004F2FC;
+extern s32 g_GameAudioManagerRunning;
+extern s32 g_SoundAudioManager;
+extern s32 g_GameReusePendingAudioManager;
+extern s32 g_SoundPendingAudioManager;
 
 extern void SoundStopAudioManager(s32);
 extern void SoundDestroyAudioManager(s32);
 
 void SoundStopAndReleaseAudioManager(void) {
-    if (D_8004F35C == 1) {
-        SoundStopAudioManager(D_80062528);
-        if (D_8004F348 == 0) {
-            SoundDestroyAudioManager(D_80062528);
+    if (g_GameAudioManagerRunning == 1) {
+        SoundStopAudioManager(g_SoundAudioManager);
+        if (g_GameReusePendingAudioManager == 0) {
+            SoundDestroyAudioManager(g_SoundAudioManager);
         } else {
-            D_8004F2FC = D_80062528;
+            g_SoundPendingAudioManager = g_SoundAudioManager;
         }
-        D_8004F35C = 0;
-        D_8004F348 = 0;
+        g_GameAudioManagerRunning = 0;
+        g_GameReusePendingAudioManager = 0;
     }
 }
 
-extern s32 D_8004F36C;
-extern s32 D_8004F33C;
+extern s32 g_GameAudioAndWdsLoaded;
+extern s32 g_GameLoadedWdsStreamId;
 void SoundStopAndReleaseAudioManager(void);
 
 void SoundFreeLoadedWdsAndAudioManager(void) {
-    if (D_8004F36C != 0) {
+    if (g_GameAudioAndWdsLoaded != 0) {
         SoundStopAndReleaseAudioManager();
         GameFreeLoadedWdsEntry();
     }
-    D_8004F33C = -1;
-    D_8004F338 = -1;
-    D_8004F36C = 0;
+    g_GameLoadedWdsStreamId = -1;
+    g_GameLoadedWdsBankIndex = -1;
+    g_GameAudioAndWdsLoaded = 0;
 }
 
 void SystemNop(void) {}
@@ -587,15 +587,15 @@ void GameSetUpDisplayAndChangeState(void) {
 }
 
 extern DISPENV D_800C4A7C;
-extern s32 func_800379D0();
+extern s32 ArchiveNoOp();
 
 void SystemInitializeDisplayEnvironments(void) {
     u8* pEnv;
     DRAWENV* pDrawEnv;
 
     ResetGraph(1);
-    func_800379D0(0x300, 0);
-    func_800379D0(func_800379D0(8, 0x10, 0x140, 0xF0, 0, 0x1000));
+    ArchiveNoOp(0x300, 0);
+    ArchiveNoOp(ArchiveNoOp(8, 0x10, 0x140, 0xF0, 0, 0x1000));
     InitGeom();
     SetGeomOffset(0xA0, 0xB4);
     SetGeomScreen(0x200);
@@ -734,12 +734,12 @@ void func_8001BB50(void) {
 // .bss
 u32 D_80059480;
 u32 D_800594AC;
-u8 D_8005954C;
+u8 g_SoundEffectBankIndex;
 u8 D_8005959C;
-SoundFile* D_800595D0;
-void* D_800595A8;
+SoundFile* g_SoundSedsBank;
+void* g_SoundStreamBuffer;
 
-extern StreamDataQueueEntry D_8006F9BC[];
+extern StreamDataQueueEntry g_SoundSedsStreamQueue[];
 extern void* D_8006F9C0;
 extern u16 D_8006F9C4;
 extern void* D_8006F9C8;
@@ -747,7 +747,7 @@ extern u16 D_8006F9CC;
 extern void* D_8006F9D0;
 extern u16 D_8006F9D4;
 extern void* D_8006F9D8;
-extern u8 D_8004F388[];
+extern u8 g_SoundEffectIds[];
 extern void SoundAddSedsEntry(SoundFile* pSoundFile);
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
 
@@ -762,29 +762,29 @@ void SoundLoadAndPlaySedsBank(void) {
     D_80059480 = HeapAlloc(4, 1);
     D_800594AC = HeapAlloc(D_80059480 + 0x7FE1C000, 1);
     pEndAddress = (void*)0x801E4000;
-    D_800595D0 = HeapAlloc(ArchiveDecodeAlignedSize(2), 1);
-    D_800595A8 = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
+    g_SoundSedsBank = HeapAlloc(ArchiveDecodeAlignedSize(2), 1);
+    g_SoundStreamBuffer = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
 
-    D_8006F9BC[0].archiveIndex = 2;
+    g_SoundSedsStreamQueue[0].archiveIndex = 2;
     D_8006F9C4 = 3;
-    D_8006F9C8 = D_800595A8;
+    D_8006F9C8 = g_SoundStreamBuffer;
     D_8006F9CC = 4;
     D_8006F9D0 = pEndAddress;
     D_8006F9D4 = 0;
     D_8006F9D8 = NULL;
-    D_8006F9C0 = D_800595D0;
-    func_80029AFC(D_8006F9BC, 0, 0x80);
+    D_8006F9C0 = g_SoundSedsBank;
+    func_80029AFC(g_SoundSedsStreamQueue, 0, 0x80);
 
     while (ArchiveDataSync() == 3) {}
 
-    SoundAddSedsEntry(D_800595D0);
+    SoundAddSedsEntry(g_SoundSedsBank);
 
-    if (D_8005954C != 4) {
+    if (g_SoundEffectBankIndex != 4) {
         for (i = 0; i < 3;) {
-            soundEffectId = D_8004F388[D_8005954C * 3 + i];
+            soundEffectId = g_SoundEffectIds[g_SoundEffectBankIndex * 3 + i];
             i++;
             if (soundEffectId != 0xFF) {
-                SoundPlaySoundEffectOnLastPair((D_800595D0->sedId << 16) | soundEffectId);
+                SoundPlaySoundEffectOnLastPair((g_SoundSedsBank->sedId << 16) | soundEffectId);
             }
         }
     }

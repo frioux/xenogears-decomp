@@ -5,17 +5,17 @@
 #include "battle/actor.h"
 #include "libgear/main.h"
 
-extern u8 D_800C3B74;
-extern BattleActor *D_800D3368[];
-extern Temp8 *D_8005919C;
-extern Temp8 *D_800C4924;
+extern u8 g_BattleStateBit;
+extern BattleActor *g_BattleActors[];
+extern Temp8 *g_BattleSoundBankMain;
+extern Temp8 *g_BattleSoundBankSecondary;
 extern s16 BattleOffsetBySin(s16 angle, s16 divisor, s16 base);
 extern s16 BattleOffsetByAngleClamped(s16 angle, s16 divisor, s16 base);
 extern s16 BattleOffsetByNegatedAngle(s16 angle, s16 divisor, s16 base);
 extern s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base);
-extern u16 D_800C3D40;
+extern u16 g_BattleCurrentActorSlot;
 extern u16 D_800C3E30;
-extern u8 D_800C3D0C[];
+extern u8 g_BattleBlockPool[];
 extern s32 BattleFindFirstActorInMask(void);
 extern void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3);
 extern void func_800AAD54(void *arg0, void *arg1, s32 arg2, s32 arg3, s32 arg4);
@@ -72,20 +72,20 @@ u8 BattleClampScaledByte(s16 arg0, s16 arg1, s32 arg2) {
 void BattleSetCurrentActorAndQueueCommand(u8 *arg0, u16 arg1, u16 arg2, void *arg3) {
     BattleActor *p;
 
-    p = D_800D3368[arg1];
-    D_800C3D40 = arg1;
+    p = g_BattleActors[arg1];
+    g_BattleCurrentActorSlot = arg1;
     D_800C3E30 = arg2;
     p->unk35 = 0;
-    if (D_800D3368[arg1] != 0) {
+    if (g_BattleActors[arg1] != 0) {
         if (!(arg1 == BattleFindFirstActorInMask())) {
-            func_800AA934((u8 *)D_800D3368[arg1], arg0, D_800C3D0C, arg3);
+            func_800AA934((u8 *)g_BattleActors[arg1], arg0, g_BattleBlockPool, arg3);
         }
     }
 }
 s32 BattleGetActorHeight(s32 arg0) {
     BattleActor *p;
 
-    p = D_800D3368[arg0];
+    p = g_BattleActors[arg0];
     if (p != 0) {
         return (p->unk24 * ((p->unk1C * p->pSprites->scale.vy) >> 12)) >> 12;
     }
@@ -98,7 +98,7 @@ s32 BattleGetActorRadius(s32 arg0) {
     s32 r;
 
     r = 0;
-    p = D_800D3368[arg0];
+    p = g_BattleActors[arg0];
     if (p != 0) {
         if (p->flags4A & 8) {
             a = p->unk26;
@@ -107,7 +107,7 @@ s32 BattleGetActorRadius(s32 arg0) {
             a = p->unk28;
             b = p->pSprites->scale.vz;
         }
-        r = (D_800D3368[arg0]->unk1C * b) >> 12;
+        r = (g_BattleActors[arg0]->unk1C * b) >> 12;
         r = (a * r) >> 12;
     }
     return r;
@@ -128,22 +128,22 @@ void BattleAllocActorEntryArray(BattleActor *pActor) {
 void BattleSetActorPrimaryCommand(s32 arg0, u8 arg1) {
     BattleActor *p;
 
-    p = D_800D3368[arg0];
+    p = g_BattleActors[arg0];
     if (p != 0) {
         p->unk2A[0] = arg1;
     }
 }
 void BattleSetBattleStateBit(u32 arg0) {
-    D_800C3B74 = arg0 & 1;
+    g_BattleStateBit = arg0 & 1;
 }
 void BattleSwapActorSlots(s32 arg0, s32 arg1) {
     BattleActor *tmp;
 
-    D_800D3368[arg0]->unk34 = 0;
-    D_800D3368[arg1]->unk34 = 1;
-    tmp = D_800D3368[arg0];
-    D_800D3368[arg0] = D_800D3368[arg1];
-    D_800D3368[arg1] = tmp;
+    g_BattleActors[arg0]->unk34 = 0;
+    g_BattleActors[arg1]->unk34 = 1;
+    tmp = g_BattleActors[arg0];
+    g_BattleActors[arg0] = g_BattleActors[arg1];
+    g_BattleActors[arg1] = tmp;
 }
 u8 func_800AA7DC(s32 arg0) {
     s32 stop = 0xF7;
@@ -305,34 +305,34 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
     SVECTOR vec;
 
     pMatrix = (MATRIX *)PSX_SCRATCH;
-    if (D_800D3368[pActor->unk5C] != NULL) {
+    if (g_BattleActors[pActor->unk5C] != NULL) {
         if (!(pActor->flags4A & 0x10)) {
-            pActor->unk34 = D_800D3368[pActor->unk5C]->unk34;
+            pActor->unk34 = g_BattleActors[pActor->unk5C]->unk34;
         }
         if (pActor->unk34 != 0) {
             if (pActor->unk5D != 0) {
                 index = pActor->unk5E;
                 if (index != 0) {
-                    pSprites = D_800D3368[pActor->unk5C]->pSprites;
+                    pSprites = g_BattleActors[pActor->unk5C]->pSprites;
                     MulMatrix0(&pSprites->globalTransform,
                                &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
                                     ->globalTransform,
                                pMatrix);
                 } else {
-                    pMatrix = &D_800D3368[pActor->unk5C]->pSprites->globalTransform;
+                    pMatrix = &g_BattleActors[pActor->unk5C]->pSprites->globalTransform;
                 }
                 MulMatrix2(pMatrix, &pActor->pSprites->localTransform);
                 MulMatrix2(pMatrix, &pActor->pSprites->globalTransform);
             }
             index = pActor->unk5E;
             if (index != 0) {
-                pSprites = D_800D3368[pActor->unk5C]->pSprites;
+                pSprites = g_BattleActors[pActor->unk5C]->pSprites;
                 CompMatrix(&pSprites->localTransform,
                            &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
                                 ->globalTransform,
                            pMatrix);
             } else {
-                pMatrix = &D_800D3368[pActor->unk5C]->pSprites->localTransform;
+                pMatrix = &g_BattleActors[pActor->unk5C]->pSprites->localTransform;
             }
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
@@ -445,7 +445,7 @@ void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pComman
 }
 s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
     if (arg1 == 0) {
-        return D_8005919C->unk14 << 16;
+        return g_BattleSoundBankMain->unk14 << 16;
     }
     if (arg1 == 1) {
         return ((Temp8 *)((Temp8 *)pActor->unkB0)->pUnk8)->unk14 << 16;
@@ -454,7 +454,7 @@ s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
         return ((Temp8 *)((Temp8 *)pActor->unkB4)->pUnk8)->unk14 << 16;
     }
     if (arg1 == 3) {
-        return D_800C4924->unk14 << 16;
+        return g_BattleSoundBankSecondary->unk14 << 16;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AE2A4);

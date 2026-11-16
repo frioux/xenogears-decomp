@@ -6,10 +6,10 @@
 #include "field/camera.h"
 #include "field/particles.h"
 
-extern s32 D_800ADB34;
+extern s32 g_FieldScreenImageStored;
 extern s32 g_FieldSystemMode;
 extern u8 D_8006FDC8[]; // "PARTICLE  "
-extern s32 D_80050100;
+extern s32 g_GfxOTDepthShift;
 extern u8 D_800AF474[8];
 extern s32 D_800B00B4;
 
@@ -144,7 +144,7 @@ void FieldParticlesTickAndRender(void) {
     ParticleBank* pCurBank;
     int i, j;
 
-    if (D_800ADB34 == 0) {
+    if (g_FieldScreenImageStored == 0) {
         matWorldToScreen = g_Scene.worldToScreenMatrix;
 
         for (i = 0; i < NUM_PARTICLES; i++) {
@@ -334,7 +334,7 @@ void FieldParticleRender(ParticlePrimitive* pParticle, MATRIX* pMatWorldToScreen
         &pParticle->vertices[0], &pParticle->vertices[1], &pParticle->vertices[2], &pParticle->vertices[3], 
         (long*)&pPoly->x0, (long*)&pPoly->x1, (long*)&pPoly->x2, (long*)&pPoly->x3, 
         &value, &value
-    ) >> D_80050100;
+    ) >> g_GfxOTDepthShift;
 
     switch (sortFlag) {
         case PARTICLE_SORT_TOP:

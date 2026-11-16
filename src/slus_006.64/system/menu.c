@@ -9,14 +9,14 @@ extern void FontDrawLetters(void* ot);
 extern void FontPrintf(char* pFormat, ...);
 
 // Debug menu state shared with the menu overlays
-extern u8 D_80059171;       // Sub-parameter: character, shop or CD number
-extern u8 D_80059460;       // Index of the menu overlay the menu was entered with
-extern char* D_8004FA9C[];  // Per-overlay name tables, one entry per overlay
-extern char D_8001833C[];   // "\n\n     Menu=(%d)%s\n"
-extern char D_80018350[];   // "\n\n     Chr =(%d)\n"
-extern char D_80018364[];   // "\n\n     Robo =(%d)\n"
-extern char D_80018378[];   // "\n\n     ShopNo =(%d)\n"
-extern char D_80018390[];   // "\n\n     CdNo =(%d)\n"
+extern u8 g_ShopIndex;       // Sub-parameter: character, shop or CD number
+extern u8 g_MenuOverlayIndex;       // Index of the menu overlay the menu was entered with
+extern char* g_MenuOverlayNames[];  // Per-overlay name tables, one entry per overlay
+extern char g_StrDebugMenuFormat[];   // "\n\n     Menu=(%d)%s\n"
+extern char g_StrDebugCharacterFormat[];   // "\n\n     Chr =(%d)\n"
+extern char g_StrDebugRobotFormat[];   // "\n\n     Robo =(%d)\n"
+extern char g_StrDebugShopFormat[];   // "\n\n     ShopNo =(%d)\n"
+extern char g_StrDebugCdFormat[];   // "\n\n     CdNo =(%d)\n"
 extern void* D_8005945C;    // Menu resources file
 extern void* D_800658CC;
 extern void* D_8006BE24;
@@ -168,15 +168,15 @@ void MenuExecute(void) {
     if (g_MenuDebugEnabled) {
         // Debug screen: pick a menu overlay and a sub-parameter, then run it
         do {
-            FontPrintf(D_8001833C, nMenuIndex, D_8004FA9C[nMenuIndex]);
+            FontPrintf(g_StrDebugMenuFormat, nMenuIndex, g_MenuOverlayNames[nMenuIndex]);
             if (nMenuIndex < 4) {
                 if (nSubIndex < 0xB) {
-                    FontPrintf(D_80018350, nSubIndex);
+                    FontPrintf(g_StrDebugCharacterFormat, nSubIndex);
                 } else {
-                    FontPrintf(D_80018364, nSubIndex - 0xB);
+                    FontPrintf(g_StrDebugRobotFormat, nSubIndex - 0xB);
                 }
             } else {
-                FontPrintf(nMenuIndex != 6 ? D_80018378 : D_80018390, nSubIndex);
+                FontPrintf(nMenuIndex != 6 ? g_StrDebugShopFormat : g_StrDebugCdFormat, nSubIndex);
             }
 
             switch (g_Menu->input) {
@@ -226,8 +226,8 @@ void MenuExecute(void) {
             MenuUpdateAndRender();
         } while (bShouldContinue);
 
-        D_80059460 = nMenuIndex;
-        D_80059171 = nSubIndex;
+        g_MenuOverlayIndex = nMenuIndex;
+        g_ShopIndex = nSubIndex;
         g_Menu->gfxEnvs[0].drawEnv.isbg = 0;
         g_Menu->gfxEnvs[1].drawEnv.isbg = 0;
         SetDispMask(0);
@@ -243,7 +243,7 @@ void MenuExecute(void) {
         D_8005945C = pResources;
         ArchiveReadFileToBuffer(1, pResources, 0, 0x80);
         ArchiveCdDataSync(0);
-        if (D_80059460 == 5) {
+        if (g_MenuOverlayIndex == 5) {
             ArchiveSetIndex(4, 0);
             pDebugData = HeapAlloc(4, 1);
             D_800658CC = pDebugData;
@@ -258,12 +258,12 @@ void MenuExecute(void) {
         // Reserve the rest of the heap, up to where the menu overlay is loaded
         pBlockReserve = HeapAlloc(4, 1);
         pOverlayReserve = HeapAlloc((u32)pBlockReserve - 0x801C5000, 1);
-        ArchiveReadFileToBuffer(D_80059460 + 5, (void*)0x801C5000, 0, 0x80);
+        ArchiveReadFileToBuffer(g_MenuOverlayIndex + 5, (void*)0x801C5000, 0, 0x80);
         ArchiveCdDataSync(0);
     }
 
     ArchiveSetIndex(0x10, 0);
-    switch (D_80059460) {
+    switch (g_MenuOverlayIndex) {
         case 0:
             func_801C62A8();
             break;
@@ -289,7 +289,7 @@ void MenuExecute(void) {
     if (g_MenuDebugEnabled) {
         HeapFree(pBlockReserve);
         HeapFree(pOverlayReserve);
-        if (D_80059460 == 5) {
+        if (g_MenuOverlayIndex == 5) {
             HeapFree(D_800658CC);
             HeapFree(D_8006BE24);
             HeapFree(D_8005A4AC);

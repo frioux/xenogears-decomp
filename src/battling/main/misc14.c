@@ -6,12 +6,12 @@
 #include "system/model.h"
 
 // .bss/.sdata of the overlay (supplied by splat's asm segments)
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 extern u32 D_80092818[];
 extern s32 D_80092810;
 extern s32 D_80092820;
 extern u32 D_800928E4;
-extern s32 D_80050100;
+extern s32 g_GfxOTDepthShift;
 extern s32 D_80050104;
 extern s32 D_80091C30;
 extern s32 D_80096D88;
@@ -69,7 +69,7 @@ void BattleRenderActorModel(Misc14ModelPart *pPart) {
             gte_SetBackColor(0x40, 0x40, 0x40);
         }
     }
-    ModelRenderPacket(pPart->pModelPart, pPart->pPacket[D_800928A0], (u_long *)D_800928E4, pPart->unk04);
+    ModelRenderPacket(pPart->pModelPart, pPart->pPacket[g_BattleDrawBufferIndex], (u_long *)D_800928E4, pPart->unk04);
 }
 
 // The colour word BattleSetColorIfChanged copies in one move; the fourth byte
@@ -79,7 +79,7 @@ typedef struct {
 } Misc14Quad; // Size: 0x4
 
 void BattleSetColorIfChanged(u8 *pSrc) {
-    u8 *pDst = (u8 *)&D_80092818[D_800928A0];
+    u8 *pDst = (u8 *)&D_80092818[g_BattleDrawBufferIndex];
 
     if (pSrc[0] == pDst[0] && pSrc[1] == pDst[1] && pSrc[2] == pDst[2]) {
         D_80092914 = 0;
@@ -91,7 +91,7 @@ void BattleSetColorIfChanged(u8 *pSrc) {
 }
 
 void BattleSetEntryColor(u8 *pActor) {
-    s32 index = D_800928A0;
+    s32 index = g_BattleDrawBufferIndex;
     u8 *pModel = *(u8 **)(pActor + 4);
     u8 *pData = *(u8 **)(pModel + 0xC);
     s32 count = *(s16 *)(pData + 2);
@@ -138,9 +138,9 @@ extern s32 D_80091C30;
 void BattleClearOrderingTable(Misc14DisplayWork *pWork) {
     s32 n = pWork->count;
 
-    ClearOTagR(pWork->pOt[D_800928A0], n);
-    D_800928E4 = (u32)pWork->pOt[D_800928A0];
-    D_80050100 = pWork->unk17;
+    ClearOTagR(pWork->pOt[g_BattleDrawBufferIndex], n);
+    D_800928E4 = (u32)pWork->pOt[g_BattleDrawBufferIndex];
+    g_GfxOTDepthShift = pWork->unk17;
 }
 
 void BattleSetOrderingTableTarget(s32 arg0) {
@@ -182,7 +182,7 @@ void BattleCompactOrderingTable(s32 arg0) {
         if (timeout < diff) {
             break;
         }
-        pPrim = (u32 *)pWork->pOt[D_800928A0][i];
+        pPrim = (u32 *)pWork->pOt[g_BattleDrawBufferIndex][i];
         pNext = (u32 *)((*pPrim & 0xFFFFFF) + 0x80000000);
         if (*(u8 *)((u8 *)pNext + 3) == 0) {
             do {
@@ -203,18 +203,18 @@ extern void func_8004546C(DR_MODE *pDrmode, RECT *pRect);
 
 void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
     BattleSetOrderingTableTarget((s32)pWork);
-    AddPrims(D_80092938, pWork->pPrim[D_800928A0], pWork->pOt[D_800928A0]);
+    AddPrims(D_80092938, pWork->pPrim[g_BattleDrawBufferIndex], pWork->pOt[g_BattleDrawBufferIndex]);
     if ((pWork->flags & 4) == 0) {
-        func_800453E8(&pWork->drawModes[0][D_800928A0], D_80092868);
+        func_800453E8(&pWork->drawModes[0][g_BattleDrawBufferIndex], D_80092868);
     }
     if ((pWork->flags & 8) == 0) {
-        func_8004546C(&pWork->drawModes[1][D_800928A0], D_80092868 + 1);
+        func_8004546C(&pWork->drawModes[1][g_BattleDrawBufferIndex], D_80092868 + 1);
     }
     if (pWork->flags & 0x10) {
-        AddPrim(D_80092938, pWork->prim48[D_800928A0]);
+        AddPrim(D_80092938, pWork->prim48[g_BattleDrawBufferIndex]);
     }
-    AddPrim(D_80092938, &pWork->drawModes[1][D_800928A0]);
-    AddPrim(D_80092938, &pWork->drawModes[0][D_800928A0]);
+    AddPrim(D_80092938, &pWork->drawModes[1][g_BattleDrawBufferIndex]);
+    AddPrim(D_80092938, &pWork->drawModes[0][g_BattleDrawBufferIndex]);
 }
 
 typedef struct {

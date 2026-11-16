@@ -5,34 +5,34 @@
 #include "system/memory.h"
 
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
-extern u8 D_800928A0;
-extern u8 D_80092708;
-extern u8 D_800926F0;
-extern u8 D_800926F4;
-extern u8 D_800926F8;
-extern u8 D_8009273C;
-extern u8 D_80092740;
-extern s32 D_80092744;
-extern s32 D_800912DC;
-extern s32 D_80059488;
-extern s16 D_800926E8;
-extern s16 D_800926EC;
+extern u8 g_BattleDrawBufferIndex;
+extern u8 g_BattleSpriteTimer;
+extern u8 g_BattleTextRed;
+extern u8 g_BattleTextGreen;
+extern u8 g_BattleTextBlue;
+extern u8 g_BattleTextSpriteEntry0;
+extern u8 g_BattleTextSpriteEntry1;
+extern s32 g_BattleTextEntryCursor;
+extern s32 g_BattleTextScale;
+extern s32 g_SpuChannelMask;
+extern s16 g_BattleTextCursorX;
+extern s16 g_BattleTextCursorY;
 extern u8 D_8009791B;
 extern u8 D_80099037;
 extern u8 D_800954E0[];
-extern s32 D_800928E8;
+extern s32 g_BattleDrawFlags;
 
 void func_8007E964(s32 c);
 u8* func_8007E8AC(s32 c);
 s32 BattleGetTextWidth(u8* pText);
-extern s32 D_800926DC;
+extern s32 g_BattleTextPrimCount;
 
 void BattlePlaySoundEffectById(s32 arg);
 void BattleAppendExtraQueueEntry(void);
 
-extern POLY_FT4* D_800926D4[];
-extern u16 D_800926E0;
-extern u16 D_800926E4;
+extern POLY_FT4* g_BattleTextPrimBuffers[];
+extern u16 g_BattleTextTpage;
+extern u16 g_BattleTextClut;
 
 // Battle setup state; 0x3C and 0x64 point at the two TIM archives loaded here.
 typedef struct {
@@ -48,7 +48,7 @@ typedef struct {
     /* 0x08 */ SPRT sprt;
 } BattleDrawRecord; // Size: 0x1C
 
-extern BattleDrawRecord D_800954D8[];
+extern BattleDrawRecord g_BattleTextSpriteRecords[];
 
 // 0x20-byte entry of the D_80092874 table; func_8007EEE8 reads only the s16 at 0x4.
 typedef struct {
@@ -57,18 +57,18 @@ typedef struct {
     /* 0x06 */ u8 unk6[0x1A];
 } BattleFilterEntry; // Size: 0x20
 
-// 0xC-byte record whose address func_8007EEE8 queues into D_800928EC.
+// 0xC-byte record whose address func_8007EEE8 queues into g_BattleEntries.
 typedef struct {
     /* 0x00 */ u8 unk0[0xC];
 } BattleQueueRecord; // Size: 0xC
 
 extern BattleFilterEntry* D_80092874;
 extern s32 D_80091964[];
-extern s32** D_800928EC;
+extern s32** g_BattleEntries;
 extern s32 D_80092888;
 
 // 0xC-byte entry of the slot table BattleInitSpriteBuffers (main/misc5) allocates
-// at D_800926C8; this file only clears the head of an entry.
+// at g_BattleSpriteSlots; this file only clears the head of an entry.
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
@@ -79,7 +79,7 @@ typedef struct {
     /* 0xA */ u16 unkA;
 } BattleSpriteSlot; // Size: 0xC
 
-// 0xA-byte entry of the table func_8007D6B8 (main/misc5) allocates at D_800926BC.
+// 0xA-byte entry of the table func_8007D6B8 (main/misc5) allocates at g_BattleSpriteEntries.
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
@@ -89,8 +89,8 @@ typedef struct {
     /* 0x8 */ u16 unk8;
 } BattleSpriteEntry; // Size: 0xA
 
-extern BattleSpriteSlot* D_800926C8;
-extern BattleSpriteEntry* D_800926BC;
+extern BattleSpriteSlot* g_BattleSpriteSlots;
+extern BattleSpriteEntry* g_BattleSpriteEntries;
 
 typedef struct {
     /* 0x00 */ u16 unk0;
@@ -111,11 +111,11 @@ typedef struct {
     u8 unk[8];
 } Bytes8;
 
-extern BattleQuad D_80094818[100];
-extern s32 D_800926B0;
-extern s32 D_800926B4;
+extern BattleQuad g_BattleLineQuads[100];
+extern s32 g_BattleLineQuadQueueCount;
+extern s32 g_BattleLineQuadDrawCount;
 
-// 0x14-byte sprite record of the 7x7 table BattleInitSpriteRectTable allocates at D_8009270C.
+// 0x14-byte sprite record of the 7x7 table BattleInitSpriteRectTable allocates at g_BattleSpriteRects.
 typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ s16 unk2;
@@ -129,7 +129,7 @@ typedef struct {
     /* 0x12 */ u16 unk12;
 } BattleSprite; // Size: 0x14
 
-extern BattleSprite* D_8009270C;
+extern BattleSprite* g_BattleSpriteRects;
 extern void* D_80092938;
 
 // Vertex staged in the GTE scratch block. The components are subtracted as
@@ -170,7 +170,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
    Levers this body already carries, each of which moved it: gte_stsxy3(&q[0].xy,
    &q[1].xy, &q[2].xy) as ONE macro call, which is what materialises retail's three
    addiu before the swc2s; D_800926CC as its own pointer-array symbol instead of
-   ((u8**)&D_800926C8)[1 + page] (that also fixes the relocation name); the
+   ((u8**)&g_BattleSpriteSlots)[1 + page] (that also fixes the relocation name); the
    0x1F800000 scratch as one struct whose otz at 0xB0 is read through the base while
    the SDK read-back writes the fixed slot 0x1F8000B0 through a local pointer - that
    split is what produces retail's 'lw v0,176(t1)' beside 'swc2 $17,0(t3)'; s16
@@ -186,7 +186,7 @@ typedef struct {
     // 0xC u32 unkC;
 } BattleParticleQuad; // Size: 0x10
 
-// 0xC-byte entry of the particle table D_800926C8 points at.
+// 0xC-byte entry of the particle table g_BattleSpriteSlots points at.
 typedef struct {
     // 0x0 s16 unk0;
     // 0x2 s16 unk2;
@@ -221,8 +221,8 @@ void func_8007E020(u32* pOt) {
     dx = pScratch->unk00;
     dy = pScratch->unk04;
     dz = pScratch->unk08;
-    pParticle = (BattleParticle*)D_800926C8;
-    pQuad = (BattleParticleQuad*)D_800926CC[D_800928A0];
+    pParticle = (BattleParticle*)g_BattleSpriteSlots;
+    pQuad = (BattleParticleQuad*)D_800926CC[g_BattleDrawBufferIndex];
     stage = 0;
     for (i = 0; i < 0x218; i++, pParticle++) {
         if (pParticle->unk6 == 0) {
@@ -278,38 +278,38 @@ void BattleClearSpriteTables(void) {
     s32 i;
 
     for (i = 0; i < 0x21C; i++) {
-        D_800926C8[i].unk6 = 0;
-        D_800926C8[i].unk4 = 0;
-        D_800926C8[i].unk2 = 0;
-        D_800926C8[i].unk0 = 0;
+        g_BattleSpriteSlots[i].unk6 = 0;
+        g_BattleSpriteSlots[i].unk4 = 0;
+        g_BattleSpriteSlots[i].unk2 = 0;
+        g_BattleSpriteSlots[i].unk0 = 0;
     }
     D_8009791B = 0;
     D_80099037 = 0;
     for (i = 0; i < 0xFF; i++) {
-        D_800926BC[i].unk6 = 0;
-        D_800926BC[i].unk4 = 0;
-        D_800926BC[i].unk2 = 0;
-        D_800926BC[i].unk0 = 0;
+        g_BattleSpriteEntries[i].unk6 = 0;
+        g_BattleSpriteEntries[i].unk4 = 0;
+        g_BattleSpriteEntries[i].unk2 = 0;
+        g_BattleSpriteEntries[i].unk0 = 0;
     }
 }
 
 void BattleResetLineQuadQueue(void) {
-    BattleQuad* pQuad = D_80094818;
+    BattleQuad* pQuad = g_BattleLineQuads;
     s32 i;
 
     for (i = 0; i < 100; i++) {
         pQuad[i].unk3 = 3;
         pQuad[i].unk7 = 0x40;
     }
-    D_800926B0 = 0;
-    D_800926B4 = 0;
+    g_BattleLineQuadQueueCount = 0;
+    g_BattleLineQuadDrawCount = 0;
 }
 
 void BattleQueueLineQuad(s32* pPos, s32* pPos2, u8* pColor) {
     BattleQuad* pQuad;
 
-    if (D_800926B0 < 100) {
-        pQuad = &D_80094818[D_800926B0];
+    if (g_BattleLineQuadQueueCount < 100) {
+        pQuad = &g_BattleLineQuads[g_BattleLineQuadQueueCount];
         pQuad->v0.vx = pPos[0];
         pQuad->v0.vy = pPos[1];
         pQuad->v0.vz = pPos[2];
@@ -319,7 +319,7 @@ void BattleQueueLineQuad(s32* pPos, s32* pPos2, u8* pColor) {
         pQuad->r = pColor[0];
         pQuad->g = pColor[1];
         pQuad->b = pColor[2];
-        D_800926B0++;
+        g_BattleLineQuadQueueCount++;
     }
 }
 
@@ -336,12 +336,12 @@ void BattleDrawLineQuads(u32* pOt) {
     s32 i;
 
     pScratch = (BattleGteScratch*)0x1F800000;
-    pQuad = D_80094818;
+    pQuad = g_BattleLineQuads;
     dx = pScratch->unk00;
     dy = pScratch->unk04;
     dz = pScratch->unk08;
     i = 0;
-    while (i < D_800926B4) {
+    while (i < g_BattleLineQuadDrawCount) {
         *(Bytes8*)&pScratch->v0 = *(Bytes8*)&pQuad->v0;
         *(Bytes8*)&pScratch->v1 = *(Bytes8*)&pQuad->v1;
         pScratch->v0.vx -= dx;
@@ -365,27 +365,27 @@ void BattleDrawLineQuads(u32* pOt) {
 }
 
 void BattleSetSpriteTimer(s32 mode) {
-    if (D_80092708 == 0 && mode == 0xA) {
+    if (g_BattleSpriteTimer == 0 && mode == 0xA) {
         BattlePlaySoundEffectById(0x24);
     }
-    D_80092708 = mode;
+    g_BattleSpriteTimer = mode;
 }
 
 void BattleDrawTimedSpritePrims(void* pOt) {
-    if (D_80092708 != 0) {
-        if (D_800928E8 & 2) {
-            AddPrim(pOt, &D_800954E0[D_800928A0 * 0x1C]);
-            AddPrim(pOt, &D_800954E0[D_800928A0 * 0x1C - 8]);
+    if (g_BattleSpriteTimer != 0) {
+        if (g_BattleDrawFlags & 2) {
+            AddPrim(pOt, &D_800954E0[g_BattleDrawBufferIndex * 0x1C]);
+            AddPrim(pOt, &D_800954E0[g_BattleDrawBufferIndex * 0x1C - 8]);
         }
-        D_80092708--;
+        g_BattleSpriteTimer--;
     }
 }
 
 s32 BattleGetTextPrimCount(void) {
-    return D_800926DC;
+    return g_BattleTextPrimCount;
 }
 
-void func_8007E634(BattleTimState* pState) {
+void BattleLoadTextTimImages(BattleTimState* pState) {
     TIM_IMAGE tim;
     RECT pad; // unused: reproduces the original's 8-byte frame slot
     BattleDrawRecord* pRec;
@@ -393,11 +393,11 @@ void func_8007E634(BattleTimState* pState) {
     s32 w;
     s32 i;
 
-    D_800926D4[0] = HeapAlloc(0xFA0, 0);
-    D_800926D4[1] = HeapAlloc(0xFA0, 0);
+    g_BattleTextPrimBuffers[0] = HeapAlloc(0xFA0, 0);
+    g_BattleTextPrimBuffers[1] = HeapAlloc(0xFA0, 0);
     for (i = 0; i < 100; i++) {
-        setlen(&D_800926D4[0][i], 0);
-        setlen(&D_800926D4[1][i], 0);
+        setlen(&g_BattleTextPrimBuffers[0][i], 0);
+        setlen(&g_BattleTextPrimBuffers[1][i], 0);
     }
     OpenTIM(pState->unk3C);
     ReadTIM(&tim);
@@ -407,16 +407,16 @@ void func_8007E634(BattleTimState* pState) {
     pClut[3] = -1;
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
-    D_800926E4 = GetClut(tim.crect->x, tim.crect->y);
-    D_800926E0 = GetTPage(0, 1, tim.prect->x, tim.prect->y);
-    D_800926DC = 0;
+    g_BattleTextClut = GetClut(tim.crect->x, tim.crect->y);
+    g_BattleTextTpage = GetTPage(0, 1, tim.prect->x, tim.prect->y);
+    g_BattleTextPrimCount = 0;
     OpenTIM(pState->unk64);
     ReadTIM(&tim);
     pClut = (s16*)tim.caddr;
     pClut[0] = 0;
     LoadImage(tim.crect, tim.caddr);
     LoadImage(tim.prect, tim.paddr);
-    pRec = D_800954D8;
+    pRec = g_BattleTextSpriteRecords;
     setlen(&pRec->sprt, 4);
     pRec->sprt.code = 0x65;
     SetDrawTPage(&pRec->tpage, 0, 0, GetTPage(0, 1, tim.prect->x, tim.prect->y));
@@ -428,19 +428,19 @@ void func_8007E634(BattleTimState* pState) {
     w = tim.prect->x;
     pRec->sprt.u0 = w << 2;
     pRec->sprt.v0 = tim.prect->y;
-    D_800954D8[1] = *pRec;
+    g_BattleTextSpriteRecords[1] = *pRec;
 }
 
 
 void BattleSetTextCursor(s16 a, s16 b) {
-    D_800926E8 = a;
-    D_800926EC = b;
+    g_BattleTextCursorX = a;
+    g_BattleTextCursorY = b;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E8AC);
 
 void BattleSetTextScale(s32 value) {
-    D_800912DC = value;
+    g_BattleTextScale = value;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
@@ -448,15 +448,15 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
    UV slot widths (u1 = u0 + (glyph[2]|3), v2/v3 = v1 + glyph[3] + 1), the
    colour word and the x advance all reproduce. Four residual differences, all
    in gcc's hands:
-   1. prologue: retail loads D_800926DC into v1 BEFORE addiu sp and multiplies
+   1. prologue: retail loads g_BattleTextPrimCount into v1 BEFORE addiu sp and multiplies
       the packet index with v0; ours loads it into a0, multiplies into v1 and
       therefore needs an extra `move a0,s1` before the jal (c must survive the
-      call in s1 either way). Tried: an s32 i local, D_800926DC read twice, a
-      pBase local, (POLY_FT4*)D_800926D4[idx] + i and + i*0x28 - all identical
+      call in s1 either way). Tried: an s32 i local, g_BattleTextPrimCount read twice, a
+      pBase local, (POLY_FT4*)g_BattleTextPrimBuffers[idx] + i and + i*0x28 - all identical
       or worse.
    2. the lbu of glyph[2] is hoisted above the first sw in retail and not here
       (retail also keeps (glyph[2]|3) in s1 across the stores).
-   3. the tail wants lhu for D_800926E8 and keeps x+2 in v0; ours emits lh and
+   3. the tail wants lhu for g_BattleTextCursorX and keeps x+2 in v0; ours emits lh and
       a fresh register even with an explicit (u16) cast.
    4. no extra stack slot: the 0x20 frame with s0/s1/ra is exact.
    Also proved here: func_8007E8AC takes an s32, not a u8 - retail does no andi
@@ -471,21 +471,21 @@ void func_8007E964(s32 c) {
     s32 gw;
     s32 dx;
 
-    if (D_800926DC >= 0x65) {
+    if (g_BattleTextPrimCount >= 0x65) {
         return;
     }
-    pBase = (POLY_FT4*)D_800926D4[D_800928A0];
-    pPkt = pBase + D_800926DC;
+    pBase = (POLY_FT4*)g_BattleTextPrimBuffers[g_BattleDrawBufferIndex];
+    pPkt = pBase + g_BattleTextPrimCount;
     pGlyph = func_8007E8AC(c);
     if (pGlyph == 0) {
         return;
     }
     if (c != 0x28) {
-        y = D_800926EC;
-        x = D_800926E8;
+        y = g_BattleTextCursorY;
+        x = g_BattleTextCursorX;
         *(u_long*)&pPkt->x0 = x | (y << 16);
         gw = pGlyph[2] | 3;
-        dx = (gw * D_800912DC) >> 8;
+        dx = (gw * g_BattleTextScale) >> 8;
         *(u_long*)&pPkt->x1 = (x + dx) | (y << 16);
         *(u_long*)&pPkt->x2 = x | ((y + pGlyph[3]) << 16);
         *(u_long*)&pPkt->x3 = (x + dx) | ((y + pGlyph[3]) << 16);
@@ -493,12 +493,12 @@ void func_8007E964(s32 c) {
         *(u_short*)&pPkt->u1 = (pGlyph[0] + gw) | (pGlyph[1] << 8);
         *(u_short*)&pPkt->u2 = pGlyph[0] | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
         *(u_short*)&pPkt->u3 = (pGlyph[0] + gw) | ((pGlyph[1] + (pGlyph[3] + 1)) << 8);
-        pPkt->tpage = D_800926E0;
-        pPkt->clut = D_800926E4;
-        *(u_long*)&pPkt->r0 = D_800926F0 | (D_800926F4 << 8) | (D_800926F8 << 16) | 0x2C000000;
-        D_800926DC++;
+        pPkt->tpage = g_BattleTextTpage;
+        pPkt->clut = g_BattleTextClut;
+        *(u_long*)&pPkt->r0 = g_BattleTextRed | (g_BattleTextGreen << 8) | (g_BattleTextBlue << 16) | 0x2C000000;
+        g_BattleTextPrimCount++;
     }
-    D_800926E8 = (u16)D_800926E8 + 2 + ((pGlyph[2] * D_800912DC) >> 8);
+    g_BattleTextCursorX = (u16)g_BattleTextCursorX + 2 + ((pGlyph[2] * g_BattleTextScale) >> 8);
 }
  */
 
@@ -509,94 +509,94 @@ s32 BattleGetTextWidth(u8* pText) {
         u8* pGlyph = func_8007E8AC(*pText);
 
         pText++;
-        width += 2 + ((pGlyph[2] * D_800912DC) >> 8);
+        width += 2 + ((pGlyph[2] * g_BattleTextScale) >> 8);
     }
     return width;
 }
 
 void BattleDrawTextLeft(u8* pText) {
-    s32 y = D_800926E8;
+    s32 y = g_BattleTextCursorX;
 
     while (*pText != 0) {
         func_8007E964(*pText);
         pText++;
     }
-    D_800926E8 = y;
-    D_800926EC += 0x14;
+    g_BattleTextCursorX = y;
+    g_BattleTextCursorY += 0x14;
 }
 
 void BattleByteRegTestReg(u8* pText) {
-    s32 y = D_800926E8;
+    s32 y = g_BattleTextCursorX;
 
-    D_800926E8 -= BattleGetTextWidth(pText) / 2;
+    g_BattleTextCursorX -= BattleGetTextWidth(pText) / 2;
     while (*pText != 0) {
         func_8007E964(*pText);
         pText++;
     }
-    D_800926E8 = y;
-    D_800926EC += 0x14;
+    g_BattleTextCursorX = y;
+    g_BattleTextCursorY += 0x14;
 }
 
 void BattleDrawTextRight(u8* pText) {
-    s32 y = D_800926E8;
+    s32 y = g_BattleTextCursorX;
 
-    D_800926E8 -= BattleGetTextWidth(pText);
+    g_BattleTextCursorX -= BattleGetTextWidth(pText);
     while (*pText != 0) {
         func_8007E964(*pText);
         pText++;
     }
-    D_800926E8 = y;
-    D_800926EC += 0x14;
+    g_BattleTextCursorX = y;
+    g_BattleTextCursorY += 0x14;
 }
 
 void BattleDrawTextRightOffset(u8* pText, s32 dy) {
     s32 tmp[2]; // unused: reproduces the original's 8-byte frame slot
-    s32 y = D_800926E8;
+    s32 y = g_BattleTextCursorX;
 
-    D_800926E8 = y - dy;
+    g_BattleTextCursorX = y - dy;
     while (*pText != 0) {
         func_8007E964(*pText);
         pText++;
     }
-    D_800926E8 = y;
-    D_800926EC += 0x14;
+    g_BattleTextCursorX = y;
+    g_BattleTextCursorY += 0x14;
 }
 
 void BattleSetTextColor(s32 arg) {
     s32 white = 0xFF;
 
     if (arg != 0) {
-        D_800926F4 = 0xFF;
-        D_800926F8 = 0;
-        D_800926F0 = D_80059488 * 20;
+        g_BattleTextGreen = 0xFF;
+        g_BattleTextBlue = 0;
+        g_BattleTextRed = g_SpuChannelMask * 20;
     } else {
-        D_800926F0 = white;
-        D_800926F4 = white;
-        D_800926F8 = white;
+        g_BattleTextRed = white;
+        g_BattleTextGreen = white;
+        g_BattleTextBlue = white;
     }
 }
 
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
-/* best 72.66%: the original loads D_80059488 TWICE into two registers (v1 for
+/* best 72.66%: the original loads g_SpuChannelMask TWICE into two registers (v1 for
    0xF0, a0 for 0xF4) and subtracts with li 0xFF + subu; gcc CSEs the two
    identical loads of the one extern and then strength-reduces 0xFF - (x * 20)
    to nor, since only the stored byte matters. The original subu means its two
    MEMs were two different symbols that both resolve to 0x80059488 (aliases),
    and splat can only name one of them, so the second name cannot be spelled
    without a hand-edited linker/undefined_syms_auto.battling.txt (generated).
-   A `*(volatile s32*)&D_80059488` second read does produce two lw, but the
+   A `*(volatile s32*)&g_SpuChannelMask` second read does produce two lw, but the
    volatile one cannot be hoisted to the block head and the nor is still there:
    72.03%, no better.
 void func_8007EE68(s32 arg) {
     if (arg != 0) {
-        D_800926F8 = 0xFF;
-        D_800926F0 = 0xFF - D_80059488 * 20;
-        D_800926F4 = 0xFF - D_80059488 * 20;
+        g_BattleTextBlue = 0xFF;
+        g_BattleTextRed = 0xFF - g_SpuChannelMask * 20;
+        g_BattleTextGreen = 0xFF - g_SpuChannelMask * 20;
     } else {
-        D_800926F0 = 0xFF;
-        D_800926F4 = 0xFF;
-        D_800926F8 = 0xFF;
+        g_BattleTextRed = 0xFF;
+        g_BattleTextGreen = 0xFF;
+        g_BattleTextBlue = 0xFF;
     }
 }
  */
@@ -621,7 +621,7 @@ void func_8007EEE8(s32 arg) {
 
     limit = g_GameState.unk1930[0];
     pQueue = HeapAlloc(0xC4, 1);
-    D_800928EC = pQueue;
+    g_BattleEntries = pQueue;
     D_80092888 = 0;
     for (i = 0; i < 0x31; i++) {
         if (arg == 0 || D_80092874[i].unk4 <= limit) {
@@ -643,8 +643,8 @@ void BattleInitSpriteRectTable(void) {
     s16 y;
     s16 x;
 
-    D_8009270C = HeapAlloc(0x3D4, 0);
-    pSprite = D_8009270C;
+    g_BattleSpriteRects = HeapAlloc(0x3D4, 0);
+    pSprite = g_BattleSpriteRects;
     count = 0x1FF;
     for (row = 0; row < 7; row++) {
         y = 0x1A0 + row * 0x20;
@@ -666,7 +666,7 @@ void BattleInitSpriteRectTable(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F05C);
 /* best 84.45% (504 bytes against retail's 512). Whole body is right: the flag
    x offset (0xD3/0x33), the two-part idx wrap against D_80092888, the
-   0x14-byte sprite lookup through D_800928EC/D_8009270C, the shade==0x40 fast
+   0x14-byte sprite lookup through g_BattleEntries/g_BattleSpriteRects, the shade==0x40 fast
    path with (x,0x30)-(x+0x3C,0x70), the shaded path's colour word
    (shade+0x40 in r/g/b, code 0x2C) and its quad (x0 = x+4-k, y0 = 0x34-k,
    w = 0x34+2k, h = 0x38+2k, k = shade>>4), the four u/v words
@@ -706,8 +706,8 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     if (idx < 0) {
         idx += count;
     }
-    count = *D_800928EC[idx];
-    pSprite = &D_8009270C[count];
+    count = *g_BattleEntries[idx];
+    pSprite = &g_BattleSpriteRects[count];
     if (shade == 0x40) {
         setlen(pPkt, 9);
         pPkt->code = 0x2D;
@@ -754,9 +754,9 @@ typedef struct {
 extern BattleCursorOffset D_800912E0[];
 extern POLY_FT4 D_80099DA8[];
 extern u8 D_8006FE88[];
-extern s32 D_80092700;
-extern s32 D_80092704;
-extern s32 D_80092710;
+extern s32 g_BattleCursorIndex0;
+extern s32 g_BattleCursorIndex1;
+extern s32 g_BattleSlotConfirmFlags;
 extern s32 D_80092714;
 extern s32 D_80092718;
 extern s32 D_8009271C;
@@ -773,7 +773,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
 /* best 81.01% (1456 bytes against retail's 1496). The whole HUD tail from
    BattleSetTextCursor(0xA0,0x78) to the closing BattleSetTextColor(0) is exact,
    as is the 0x50 frame: it needs an unused s32 tmp[8] local (retail spends 32
-   bytes on nothing), and D_80099DA8[D_800928A0 * 10] reproduces the mul-by-0x190
+   bytes on nothing), and D_80099DA8[g_BattleDrawBufferIndex * 10] reproduces the mul-by-0x190
    chain. What is left, all inside the two cursor blocks:
    1. THE ALIAS TRAP, and the reason this cannot reach 100.00%: retail stores the
       step to D_80092718, then loads D_80092718, stores it back to D_80092718 and
@@ -813,9 +813,9 @@ void func_8007F258(void* pOt, s32 arg) {
     s32 shade;
     s32 sign;
 
-    pPkt = &D_80099DA8[D_800928A0 * 10];
+    pPkt = &D_80099DA8[g_BattleDrawBufferIndex * 10];
 
-    delta = D_80092714 - D_80092700;
+    delta = D_80092714 - g_BattleCursorIndex0;
     if (delta != 0) {
         if (delta < 0) {
             step = -delta;
@@ -833,7 +833,7 @@ void func_8007F258(void* pOt, s32 arg) {
         D_80092718 = step;
         D_8009271C = D_80092718;
     }
-    delta = D_80092720 - D_80092704;
+    delta = D_80092720 - g_BattleCursorIndex1;
     if (delta != 0) {
         if (delta < 0) {
             step = -delta;
@@ -895,19 +895,19 @@ void func_8007F258(void* pOt, s32 arg) {
         step = -step;
     }
     shade = ((0x24 - step) << 6) / 0x24;
-    D_80092714 = D_80092700;
-    D_80092720 = D_80092704;
-    func_8007F05C(D_80092700, pPkt++, 0, D_8009271C, shade);
-    if ((D_80092710 & 1) == 0) {
+    D_80092714 = g_BattleCursorIndex0;
+    D_80092720 = g_BattleCursorIndex1;
+    func_8007F05C(g_BattleCursorIndex0, pPkt++, 0, D_8009271C, shade);
+    if ((g_BattleSlotConfirmFlags & 1) == 0) {
         pOff = &D_800912E0[sign];
         step = D_80092718;
         if (step < 0) {
             step = -step;
         }
         shade = ((0x24 - step) << 6) / 0x24;
-        func_8007F05C(D_80092700 + pOff->unk0, pPkt++, 0, D_80092718 + pOff->unk6, shade);
-        func_8007F05C(D_80092700 + pOff->unk2, pPkt++, 0, -0x24, 0);
-        func_8007F05C(D_80092700 + pOff->unk4, pPkt++, 0, 0x24, 0);
+        func_8007F05C(g_BattleCursorIndex0 + pOff->unk0, pPkt++, 0, D_80092718 + pOff->unk6, shade);
+        func_8007F05C(g_BattleCursorIndex0 + pOff->unk2, pPkt++, 0, -0x24, 0);
+        func_8007F05C(g_BattleCursorIndex0 + pOff->unk4, pPkt++, 0, 0x24, 0);
     }
 
     sign = D_80092724 >= 0;
@@ -916,41 +916,41 @@ void func_8007F258(void* pOt, s32 arg) {
         step = -step;
     }
     shade = ((0x24 - step) << 6) / 0x24;
-    func_8007F05C(D_80092704, pPkt++, 1, D_80092728, shade);
-    if ((D_80092710 & 2) == 0) {
+    func_8007F05C(g_BattleCursorIndex1, pPkt++, 1, D_80092728, shade);
+    if ((g_BattleSlotConfirmFlags & 2) == 0) {
         pOff = &D_800912E0[sign];
         step = D_80092724;
         if (step < 0) {
             step = -step;
         }
         shade = ((0x24 - step) << 6) / 0x24;
-        func_8007F05C(D_80092704 + pOff->unk0, pPkt++, 1, D_80092724 + pOff->unk6, shade);
-        func_8007F05C(D_80092704 + pOff->unk2, pPkt++, 1, -0x24, 0);
-        func_8007F05C(D_80092704 + pOff->unk4, pPkt, 1, 0x24, 0);
+        func_8007F05C(g_BattleCursorIndex1 + pOff->unk0, pPkt++, 1, D_80092724 + pOff->unk6, shade);
+        func_8007F05C(g_BattleCursorIndex1 + pOff->unk2, pPkt++, 1, -0x24, 0);
+        func_8007F05C(g_BattleCursorIndex1 + pOff->unk4, pPkt, 1, 0x24, 0);
     }
 
     BattleSetTextCursor(0xA0, 0x78);
     BattleByteRegTestReg(D_8006FE88);
     BattleSetTextCursor(0x50, 0x78);
-    if (BattleTestSlotBit(D_800928EC[D_80092700][0]) != 0) {
+    if (BattleTestSlotBit(g_BattleEntries[g_BattleCursorIndex0][0]) != 0) {
         func_8007EE68(D_8009272C);
     } else {
         BattleSetTextColor(D_8009272C);
     }
-    BattleByteRegTestReg((u8*)D_800928EC[D_80092700][2]);
+    BattleByteRegTestReg((u8*)g_BattleEntries[g_BattleCursorIndex0][2]);
     BattleSetTextCursor(0xF0, 0x78);
-    if (BattleTestSlotBit(D_800928EC[D_80092704][0]) != 0) {
+    if (BattleTestSlotBit(g_BattleEntries[g_BattleCursorIndex1][0]) != 0) {
         func_8007EE68(D_80092730);
     } else {
         BattleSetTextColor(D_80092730);
     }
-    BattleByteRegTestReg((u8*)D_800928EC[D_80092704][2]);
+    BattleByteRegTestReg((u8*)g_BattleEntries[g_BattleCursorIndex1][2]);
     BattleSetTextColor(0);
 }
  */
 
 void BattleClearTextSpriteEntries(void) {
-    D_80092740 = 0;
-    D_8009273C = 0;
-    D_80092744 = 0;
+    g_BattleTextSpriteEntry1 = 0;
+    g_BattleTextSpriteEntry0 = 0;
+    g_BattleTextEntryCursor = 0;
 }

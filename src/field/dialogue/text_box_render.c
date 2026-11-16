@@ -16,7 +16,7 @@ extern void SystemStringSetLineOffset(void* pString, int value);
 extern void SystemStringClearLineOffset(void* pString);
 
 // Field's own pad button state, filled by FieldPollControllers.
-extern u_short D_800C3900;
+extern u_short g_FieldButtonsPressedOnce;
 
 // Cursor up/down input for the text box holding the top message; moves the
 // cursor within maxPosition and forwards the line offset to the string.
@@ -24,13 +24,13 @@ void func_8007DCF8(int index) {
     if (g_FieldTextBoxes[index].cursor.visibility == 0) {
         if (g_FieldTextBoxes[index].windowOpenTimer == 0) {
             if (g_FieldTextBoxes[index].order == 0) {
-                if (D_800C3900 & CTRL_BTN_DOWN) {
+                if (g_FieldButtonsPressedOnce & CTRL_BTN_DOWN) {
                     g_FieldTextBoxes[index].cursor.curPosition++;
                     if (g_FieldTextBoxes[index].cursor.curPosition > g_FieldTextBoxes[index].cursor.maxPosition - 1) {
                         g_FieldTextBoxes[index].cursor.curPosition = 0;
                     }
                 }
-                if (D_800C3900 & CTRL_BTN_UP) {
+                if (g_FieldButtonsPressedOnce & CTRL_BTN_UP) {
                     g_FieldTextBoxes[index].cursor.curPosition--;
                     if (g_FieldTextBoxes[index].cursor.curPosition < 0) {
                         g_FieldTextBoxes[index].cursor.curPosition = g_FieldTextBoxes[index].cursor.maxPosition - 1;
@@ -56,7 +56,7 @@ void func_8007DCF8(int index) {
 // (`la D_800AFC84-4` / `addiu s3, s2, -4`) and scopes the double store right,
 // but gcc then strength reduces the D_800AFC80 writes instead of the AFC84 ones
 // and re-forms the AFC80 address in the loop body -- 80.22%, worse than the
-// 82.32% below. Also note D_800B068C/D_800B2174 must be declared above this
+// 82.32% below. Also note D_800B068C/g_FieldTextBoxInUseMask must be declared above this
 // function if it becomes C.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
 // 85.16%: D_800B1DF4/D_800B1E00 are 16 DR_MODEs at 0xC each (SetDrawMode takes
@@ -258,16 +258,16 @@ void FieldTextBoxInitializePrimitives(int index) {
 }
 */
 
-// Each portrait is a 0x40 x 0x40 tile of the portrait texture; D_800ADF34 holds
+// Each portrait is a 0x40 x 0x40 tile of the portrait texture; g_FieldTextBoxPortraitUVs holds
 // the top left U and V of each of the four portraits.
-extern u_char D_800ADF34[];
+extern u_char g_FieldTextBoxPortraitUVs[];
 
 // The V half of the table needs its own base local: with a single base gcc
 // attaches the +2 to the scaled index instead of the base and the addiu lands on
 // the wrong register.
 void FieldTextBoxSetPortraitUV(int index, int portraitID) {
     FieldTextBox* pBox = &g_FieldTextBoxes[index];
-    u_char* pUVTable = D_800ADF34;
+    u_char* pUVTable = g_FieldTextBoxPortraitUVs;
     u_char* pU = &pUVTable[portraitID * 4];
     u_char* pVTable = pUVTable + 2;
     u_char* pV = &pVTable[portraitID * 4];
@@ -287,7 +287,7 @@ void FieldTextBoxSetPortraitUV(int index, int portraitID) {
     g_FieldTextBoxes[index].portrait.polys[1].clut = clut;
 }
 
-extern u16 D_800B2174[];
+extern u16 g_FieldTextBoxInUseMask[];
 extern int D_800B068C[4];
 
 // The string state helpers take a SystemString, which only system.c names; the
@@ -308,7 +308,7 @@ int FieldTextBoxFree(short index) {
         g_FieldTextBoxes[index].status = -1;
         g_FieldTextBoxes[index].order = TEXT_BOX_UNINITIALIZED;
         D_800B068C[index] = -1;
-        D_800B2174[0] &= (1 << index) ^ 0xFF;
+        g_FieldTextBoxInUseMask[0] &= (1 << index) ^ 0xFF;
         g_FieldTextBoxes[index].ownerActorID = 0xFF;
         g_FieldTextBoxes[index].unk412 = 0;
 

@@ -3,7 +3,7 @@
 #include "system/menu.h"
 
 
-u8 func_801E4928(u8 gearId) {
+u8 MenuGetGearWeightClassExcess(u8 gearId) {
     GameGear* pGear;
     u_short weightClass;
     s16 value;
@@ -16,7 +16,7 @@ u8 func_801E4928(u8 gearId) {
     }
     return value;
 }
-void func_801E4998(MenuDressingRoom* pDressingRoom, u8 gearId) {
+void MenuSetGearHpScaled(MenuDressingRoom* pDressingRoom, u8 gearId) {
     u32 p;
     u32 hp;
     u16 value;

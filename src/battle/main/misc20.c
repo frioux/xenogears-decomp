@@ -3,8 +3,8 @@
 #include "main/game.h"
 
 extern u8 *D_800C3D60;
-extern BattleRow *D_800C3DFC;
-extern BattleTableEntry *D_800C3E00;
+extern BattleRow *g_BattleCurrentRow;
+extern BattleTableEntry *g_BattleActingSlot;
 extern BattleTableEntry *D_800C3E34;
 extern BattleWorkBlock *D_800C34B0;
 extern BattleSlotState *D_800D2DC8;
@@ -14,8 +14,8 @@ extern u8 D_800C3E04;
 extern u8 D_800D2DC4;
 extern u8 *D_800C3D3C;
 extern s32 D_800C34DC[];
-extern BattleTableEntry D_800CCCE8[];
-extern u16 D_800D2C94;
+extern BattleTableEntry g_BattleWorkBlock[];
+extern u16 g_BattleActionSlotMask;
 extern s8 func_8009DBFC();
 extern s32 func_80097610();
 extern void BattleSetSlotEntryFieldsTo2000(u8);
@@ -25,10 +25,10 @@ void BattleSetActorMaskForSlotRecord3(void) {
     u8 i = 0;
     s32 target = 3; /* local, not a literal: the compare constant must live in a
                        register outside the loop */
-    u16 *p = &D_800D2C94;
+    u16 *p = &g_BattleActionSlotMask;
 
     for (; i < 3; i++) {
-        if (D_800CCCE8[i].unk56 == target) {
+        if (g_BattleWorkBlock[i].unk56 == target) {
             *p = 1 << i;
         }
     }
@@ -41,25 +41,25 @@ void BattleExecuteActionRow(void) {
     u8 one;
 
     if (D_800C3E04 < 3) {
-        D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 +
+        g_BattleCurrentRow = (BattleRow *)((u8 *)D_800C34B0 +
                                    (D_800C34B0->unk5FC1 * 0x690 + 0x2228) +
                                    D_800C34B0->unk5FC2 * 0x28);
     } else {
-        D_800C3DFC = (BattleRow *)((u8 *)D_800C34B0 +
+        g_BattleCurrentRow = (BattleRow *)((u8 *)D_800C34B0 +
                                    (D_800C34B0->unk5FC2 * 0x28 + 0x35D8));
     }
     BattleSetSlotEntryFieldsTo2000(D_800C3E04);
     actor = D_800C34B0->unk5FC1;
     D_800D2DC4 = 0;
     D_800C3D3C = &D_800C34B0->slots[actor].state.unkA4;
-    if (D_800C3DFC->unk0A & 0x100) {
-        if (D_800C3E00->unk56 == 1) {
+    if (g_BattleCurrentRow->unk0A & 0x100) {
+        if (g_BattleActingSlot->unk56 == 1) {
             BattleRollPercentAndSetState38();
         }
     }
-    if (D_800C3E00->unk90[0x10] == 5 || D_800C3E00->unk90[0x10] == 0xD) {
+    if (g_BattleActingSlot->unk90[0x10] == 5 || g_BattleActingSlot->unk90[0x10] == 0xD) {
         if (D_800C34B0->unk5FC2 == 1) {
-            D_800C3DFC->unk22 = D_800D2D6C->weaponData[1].unk2;
+            g_BattleCurrentRow->unk22 = D_800D2D6C->weaponData[1].unk2;
         }
     }
     mask = 1;
@@ -71,10 +71,10 @@ void BattleExecuteActionRow(void) {
             D_800D2DC8 = &pSlot->state;
             D_800C3D60 = &pSlot->state.unkA4;
             BattleAdvanceActionRow();
-            ((void (*)(void))D_800C34DC[D_800C3DFC->unk16])();
+            ((void (*)(void))D_800C34DC[g_BattleCurrentRow->unk16])();
             if (D_800C34B0->unk5FA0[D_800C3E50] == 0) {
                 one = 1;
-                flags = D_800C3DFC->unk0A;
+                flags = g_BattleCurrentRow->unk0A;
                 if (!(flags & 0x800)) {
                     one = 0;
                     if (!(flags & 0x4000)) {
@@ -84,14 +84,14 @@ void BattleExecuteActionRow(void) {
                 func_8009DBFC(one);
             }
         skip:
-            D_800C34B0->unk5FB0 = ((u16 *)D_800C3DFC->unk02)[0];
+            D_800C34B0->unk5FB0 = ((u16 *)g_BattleCurrentRow->unk02)[0];
             func_8009C4B4();
             BattleSetSlotBit20FromStatusBit200(D_800C3E50);
         }
         D_800C3E50++;
         mask <<= 1;
     } while (D_800C3E50 < 0xB);
-    if (D_800C3E00->unk56 == 4) {
+    if (g_BattleActingSlot->unk56 == 4) {
         func_8009E788();
     }
     BattleSaveScriptCommandOperands();
@@ -99,13 +99,13 @@ void BattleExecuteActionRow(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
     u16 a = D_800D2D6C->unk84;
-    u16 b = D_800C3E00->unk8A;
+    u16 b = g_BattleActingSlot->unk8A;
     u16 c;
 
-    D_800C34B0->unk5FBC = D_800C3DFC->unk20;
-    D_800C34B0->unk5FBD = D_800C3DFC->unk21;
-    D_800C34B0->unk5FBE = D_800C3DFC->unk22;
-    D_800C34B0->unk5FBF = D_800C3DFC->unk23;
+    D_800C34B0->unk5FBC = g_BattleCurrentRow->unk20;
+    D_800C34B0->unk5FBD = g_BattleCurrentRow->unk21;
+    D_800C34B0->unk5FBE = g_BattleCurrentRow->unk22;
+    D_800C34B0->unk5FBF = g_BattleCurrentRow->unk23;
     D_800C34B0->unk5FC0 = D_800C34B0->unk5FC2;
     c = (a | b) >> 12;
     if ((D_800C34B0->unk5FBE & 0x3F) == 0) {
@@ -115,15 +115,15 @@ void BattleSaveScriptCommandOperands(void) {
 void BattleAdvanceActionRow(void) {
     if (D_800C34B0->unk5FC2 >= 0xC && D_800C34B0->unk5FC2 < 0xF &&
         !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
-        D_800C3DFC += 3;
+        g_BattleCurrentRow += 3;
     } else if (D_800C34B0->unk5FC2 < 3 &&
                !(D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80)) {
-        D_800C3DFC += 15;
+        g_BattleCurrentRow += 15;
     }
 }
 void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
-    BattleSlotState *pState = &D_800CCCE8[arg0].state;
-    BattleTableEntry *pSlot = &D_800CCCE8[arg0];
+    BattleSlotState *pState = &g_BattleWorkBlock[arg0].state;
+    BattleTableEntry *pSlot = &g_BattleWorkBlock[arg0];
     u16 v;
 
     if (pState->unk80 & 0x200) {
@@ -175,10 +175,10 @@ s32 func_8009D3A0(void) {
     u8 rowMod;
     u8 isGear;
 
-    if ((D_800C3DFC->unk0A & 0x200) && (*(u16 *)((u8 *)D_800C3E34 + 0x34) & 8)) {
+    if ((g_BattleCurrentRow->unk0A & 0x200) && (*(u16 *)((u8 *)D_800C3E34 + 0x34) & 8)) {
         return 3;
     }
-    if (D_800C3DFC->unk0A & 0x1000) {
+    if (g_BattleCurrentRow->unk0A & 0x1000) {
         return 3;
     }
     if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x100) {
@@ -190,23 +190,23 @@ s32 func_8009D3A0(void) {
     if (D_800C3E34->unk80 & 0x1000) {
         return 1;
     }
-    if (D_800C3DFC->unk0A & 0x8000) {
+    if (g_BattleCurrentRow->unk0A & 0x8000) {
         return 1;
     }
     hit = D_800C3E34->unk5C[3];
     isGear = ((u8 *)&g_GameState.unk22B6)[D_800D2D6C->unk04[0]];
-    evade = D_800C3E00->unk5C[2];
+    evade = g_BattleActingSlot->unk5C[2];
     if (!isGear) {
         evade = *(s8 *)&D_800D2D6C->unk9F[0] + evade;
     }
     if ((s8)D_800D2DC8->unk9F[0] != 0) {
         hit = (s8)D_800D2DC8->unk9F[0] / 2 + hit;
     }
-    if (D_800C3E00->unk56 == 4) {
-        if ((D_800C3DFC->unk0C[4] & 0x80) && !isGear) {
+    if (g_BattleActingSlot->unk56 == 4) {
+        if ((g_BattleCurrentRow->unk0C[4] & 0x80) && !isGear) {
             return 3;
         }
-        if ((D_800C3DFC->unk0C[4] & 0x20) &&
+        if ((g_BattleCurrentRow->unk0C[4] & 0x20) &&
             ((u8 *)&g_GameState.unk22B6)[D_800D2D6C->unk04[3]] == 0) {
             return 3;
         }
@@ -217,7 +217,7 @@ s32 func_8009D3A0(void) {
     if (D_800D2D6C->unk7C & 0x10) {
         penalty = 0x3C;
     }
-    if (D_800C3DFC->unk0A & 0x1000) {
+    if (g_BattleCurrentRow->unk0A & 0x1000) {
         return 3;
     }
     if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
@@ -248,7 +248,7 @@ s32 func_8009D3A0(void) {
         }
         return 1;
     }
-    rowMod = D_800C3DFC->unk15;
+    rowMod = g_BattleCurrentRow->unk15;
     chance = evade + (s8)rowMod - hit;
     if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x20) {
         roll = rand() % 100 - chance;
@@ -281,7 +281,7 @@ u16 BattleScaleValueByMultiplierByte(void) {
     u16 f;
     u32 b;
     s32 n;
-    if (D_800C3DFC->unk0A & 0x100) {
+    if (g_BattleCurrentRow->unk0A & 0x100) {
         f = D_800D2D6C->unk7C;
         b = D_800D2D6C->unk9E;
         if ((f & 0x100) || b == 0) {
@@ -301,7 +301,7 @@ u16 BattleApplySlotPercentToValue(void) {
     u16 v;
     u8 n;
 
-    if (D_800C3DFC->unk0A & 0x100) {
+    if (g_BattleCurrentRow->unk0A & 0x100) {
         n = D_800D2DC8->unk99;
         v = *(u16 *)&D_800D2DC8->unk68[0xA];
         if (n != 0 && v != 0) {
@@ -322,7 +322,7 @@ u16 BattleApplySlotPercentToValue(void) {
     return ret;
 }
 s32 BattleScaleValueByRowBitPercent(s32 arg0) {
-    u16 mask = ((u16 *)D_800C3DFC->unk02)[3];
+    u16 mask = ((u16 *)g_BattleCurrentRow->unk02)[3];
     u8 i;
     u8 idx; /* left unassigned when the scan finds no bit, as in retail */
     u8 v;
@@ -356,31 +356,31 @@ void BattleSetSlotState2FromActorField4F(void) {
     D_800C34B0->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
-    u32 v = D_800C3DFC->unk11 * D_800D2DC8->unk64;
+    u32 v = g_BattleCurrentRow->unk11 * D_800D2DC8->unk64;
     u32 q = v / 20;
 
     D_800C34B0->unk5FA0[D_800C3E50] = 2;
     D_800C34B0->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromActorField5B(void) {
-    s32 v = D_800C3E00->unk5B * D_800C3DFC->unk11;
+    s32 v = g_BattleActingSlot->unk5B * g_BattleCurrentRow->unk11;
 
     D_800C34B0->unk5FA0[D_800C3E50] = 2;
     D_800C34B0->unk5F6C[D_800C3E50] = v;
 }
 void BattleSetSlotFields148And10C(void) {
     D_800C3D60[0] = 4;
-    D_800CCCE8[D_800C3E50].state.unkB7[7] = 3;
+    g_BattleWorkBlock[D_800C3E50].state.unkB7[7] = 3;
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
-    s32 v = D_800D2DC8->unk3A * D_800C3DFC->unk11;
+    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->unk11;
     s32 q = v / 20;
 
     D_800C34B0->unk5FA0[D_800C3E50] = 0xA;
     D_800C34B0->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
-    s32 v = D_800D2DC8->unk3A * D_800C3DFC->unk11;
+    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->unk11;
     s32 q = v / 20;
 
     D_800C34B0->unk5FA0[D_800C3E50] = 0xB;

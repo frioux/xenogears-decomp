@@ -368,7 +368,7 @@ typedef struct {
 extern FieldMapSpriteEntry D_800AF47C[];
 
 extern s32 g_GameSceneMapNum;
-extern u16 D_800C3900;
+extern u16 g_FieldButtonsPressedOnce;
 extern void func_800AB808();
 
 void func_800ABA98(void) {
@@ -425,7 +425,7 @@ void func_800ABA98(void) {
             FieldDisplay();
         }
 
-        while (!(D_800C3900 & 0x100)) {
+        while (!(g_FieldButtonsPressedOnce & 0x100)) {
             FieldClearAndSwapOTag();
             FieldDrawScreenOverlayPrims(0x80);
             FieldDisplay();
@@ -595,7 +595,7 @@ extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void ArchiveCdDataSync(int mode);
 
-extern s32 D_8004F300;
+extern s32 g_FieldTextRenderEnabled;
 extern void* D_800AF76C;
 extern void* D_800AF774;
 extern s32 D_800AF778;
@@ -707,7 +707,7 @@ extern void func_800AC3AC();
 void FieldInitTextRender(void) {
     RECT rect; // unused, but the original frame has this 8-byte slot
 
-    if (D_8004F300) {
+    if (g_FieldTextRenderEnabled) {
         FieldLoadTextRenderFiles();
         func_800AC3AC();
         D_800AF77C = 0;
@@ -719,7 +719,7 @@ void FieldInitTextRender(void) {
 extern s32 D_800AF770;
 
 void FieldFreeTextRender(void) {
-    if (D_8004F300) {
+    if (g_FieldTextRenderEnabled) {
         HeapFree(D_800AF76C);
         HeapFree(D_800AF770);
     }
@@ -728,7 +728,7 @@ void FieldFreeTextRender(void) {
 void* FieldDrawTextRow(void* pData, s32 offset, s32 frame);
 
 void FieldUpdateTextRender(void) {
-    if (D_8004F300) {
+    if (g_FieldTextRenderEnabled) {
         if ((D_800AF77C & 0xF) == 0) {
             D_800AF774 = FieldDrawTextRow(D_800AF774, 0x300, D_800AF778 & 0xF);
             D_800AF778++;

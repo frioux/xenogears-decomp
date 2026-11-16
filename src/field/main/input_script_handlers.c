@@ -3,7 +3,7 @@
 #include "field/script_vm.h"
 
 extern u16 D_800AFC6C; // Held buttons state?
-extern u16 D_800AFE9C; // Buttons pressed this frame
+extern u16 g_FieldP1ButtonsPressed; // Buttons pressed this frame
 
 void FieldScriptVMCheckControllerInput(u_short buttonState) {
     u_short nButtonMask;
@@ -28,7 +28,7 @@ void FieldScriptCheckControllerInputExact(u_short buttonState) {
 }
 
 void FieldScriptCheckControllerInputExactPressed(void) {
-    FieldScriptCheckControllerInputExact(D_800AFE9C);
+    FieldScriptCheckControllerInputExact(g_FieldP1ButtonsPressed);
 }
 
 void FieldScriptCheckControllerInputExactHeld(void) {
@@ -37,7 +37,7 @@ void FieldScriptCheckControllerInputExactHeld(void) {
 
 // Is button pressed handler
 void FieldScriptCheckControllerInputMaskPressed(void) {
-    FieldScriptVMCheckControllerInput(D_800AFE9C);
+    FieldScriptVMCheckControllerInput(g_FieldP1ButtonsPressed);
 }
 
 void FieldScriptCheckControllerInputMaskHeld(void) {

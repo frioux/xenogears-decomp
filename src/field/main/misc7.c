@@ -7,8 +7,8 @@
 #include "field/script_vm.h"
 #include "field/text_box.h"
 
-extern FieldActor* D_800B06B8;
-extern s32 D_800AFD1C;
+extern FieldActor* g_FieldScriptVMCurFieldActor;
+extern s32 g_FieldCurActorIndex;
 extern s32 g_PlayerActorIndex;
 // .rodata
 // Debug string for the variable print in FieldScriptVMHandlerDebugPrintVariable. Sized to the 0x14 bytes
@@ -23,7 +23,7 @@ extern u8 D_800B21D2;
 
 
 void FieldScriptVMHandlerStopVM(void) {
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
@@ -318,15 +318,15 @@ void FieldScriptVMHandlerWriteActorRotationByIndex(void) {
 void FieldScriptVMHandlerTeleportActor(void) {
     SpriteData* pSpriteData;
 
-    pSpriteData = g_FieldActors[D_800AFD1C].pSpriteData;
+    pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
     g_FieldScriptVMCurActor->scriptFlags.flags |= 0x10000;
     g_FieldScriptVMCurActor->flags |= 0x200000;
     g_FieldScriptVMCurActor->position.vx = CONV_FROM_GTE(FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7)));
     g_FieldScriptVMCurActor->position.vz = CONV_FROM_GTE(FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7)));
     g_FieldScriptVMCurActor->position.vy = CONV_FROM_GTE(FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7)));
-    g_FieldActors[D_800AFD1C].transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
-    g_FieldActors[D_800AFD1C].transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vy);
-    g_FieldActors[D_800AFD1C].transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
+    g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
+    g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vy);
+    g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
     pSpriteData->position.x = g_FieldScriptVMCurActor->position.vx;
     pSpriteData->position.y = g_FieldScriptVMCurActor->position.vy;
     pSpriteData->position.z = g_FieldScriptVMCurActor->position.vz;
@@ -345,8 +345,8 @@ void FieldScriptVMHandlerMoveActorAtSpeedWithFrameCount(void) {
     FieldScriptVMHandlerMoveActorAtSpeed(1);
 }
 
-extern s32 D_800AFD1C;
-extern s32 D_800B00C0;
+extern s32 g_FieldCurActorIndex;
+extern s32 g_FieldScriptVMStopFlag;
 
 void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
     IVEC3 prevPosition;
@@ -361,8 +361,8 @@ void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
     ActorData *pActorData;
 
     pFieldActor = g_FieldActors;
-    pActorData = pFieldActor[D_800AFD1C].pActorData;
-    pSprite = pFieldActor[D_800AFD1C].pSpriteData;
+    pActorData = pFieldActor[g_FieldCurActorIndex].pActorData;
+    pSprite = pFieldActor[g_FieldCurActorIndex].pSpriteData;
     if (pActorData->flags & 0x2000) {
         speed = CONV_TO_GTE(0x8000000 / g_FieldScriptVMCurActor->moveSpeed);
     } else {
@@ -431,12 +431,12 @@ void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
             g_FieldScriptVMCurActor->moveModified.vy = g_FieldScriptVMCurActor->unkD0.vy;
             g_FieldScriptVMCurActor->moveModified.vz = g_FieldScriptVMCurActor->unkD0.vz;
             g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0--;
-            D_800B00C0 = 1;
+            g_FieldScriptVMStopFlag = 1;
         }
         g_FieldScriptVMCurActor->unk102--;
-        g_FieldActors[D_800AFD1C].transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
-        g_FieldActors[D_800AFD1C].transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vy);
-        g_FieldActors[D_800AFD1C].transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
+        g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vx);
+        g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vy);
+        g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
         pSprite->position.x = g_FieldScriptVMCurActor->position.vx;
         pSprite->position.y = g_FieldScriptVMCurActor->position.vy;
         pSprite->position.z = g_FieldScriptVMCurActor->position.vz;
@@ -450,9 +450,9 @@ void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
         !g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x18
     ) {
         g_FieldScriptVMCurActor->curAnimationId = animationId;
-        func_800821F4(pSprite, animationId, D_800B06B8, g_FieldScriptVMCurActor);
+        func_800821F4(pSprite, animationId, g_FieldScriptVMCurFieldActor, g_FieldScriptVMCurActor);
     }
-    func_80081F80(pSprite, g_FieldScriptVMCurActor->rotation.vx, D_800B06B8);
+    func_80081F80(pSprite, g_FieldScriptVMCurActor->rotation.vx, g_FieldScriptVMCurFieldActor);
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);

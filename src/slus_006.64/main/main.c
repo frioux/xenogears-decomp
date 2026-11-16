@@ -19,8 +19,8 @@ extern u_char D_8004FE44;
 extern u_char D_8004FE45;
 extern u_char D_8004FE46;
 extern u_char D_8004FE47;
-extern u_char D_80010004[];
-extern u_char D_80018004[];
+extern u_char g_BuiltinArchiveTable[];
+extern u_char g_BuiltinArchiveHeader[];
 
 extern void ControllerUpdate(void);
 extern int ModelGetHeapStart(void);
@@ -46,7 +46,7 @@ extern void ArchiveReadFileToBuffer(s32, void*, u32, u32);
 extern void SystemInitializeFont(void*);
 extern void SystemInitializeData(void*);
 
-void func_80019578(void) {
+void MainSystemInit(void) {
     RECT rect;
     void* pWdsFile2;
     void* pWdsFile3;
@@ -75,7 +75,7 @@ void func_80019578(void) {
     func_8004B7D0(ControllerUpdate);
     HeapInit((void*)ModelGetHeapStart(), 0x801FC000);
     SpuInit();
-    ArchiveInit(D_80010004, D_80018004, D_80010000);
+    ArchiveInit(g_BuiltinArchiveTable, g_BuiltinArchiveHeader, g_DebugTable);
     SoundInitialize(0);
     ArchiveSetIndex(0, 1);
     pWdsFile2 = HeapAlloc(ArchiveDecodeSize(2), 0);

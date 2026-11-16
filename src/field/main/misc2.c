@@ -7,9 +7,9 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
-extern s16 D_800B218E;
-extern u_char D_800ADC1C[]; // Bit mask of each of the eight movement directions
-extern u16 D_800AFE9C; // Buttons pressed this frame (player 1)
+extern s16 g_FieldFogEnabled;
+extern u_char g_FieldDirectionMasks[]; // Bit mask of each of the eight movement directions
+extern u16 g_FieldP1ButtonsPressed; // Buttons pressed this frame (player 1)
 
 void FieldMatrixResetTranslation(MATRIX *matrix) {
     matrix->t[2] = 0;
@@ -143,7 +143,7 @@ int FieldFindClearDirectionForward(u_int mask, int dir) {
     int offset;
 
     for (i = 0, offset = 0; i < 8; i++, offset++) {
-        if (!(mask & D_800ADC1C[dir++ & 7])) {
+        if (!(mask & g_FieldDirectionMasks[dir++ & 7])) {
             return offset;
         }
     }
@@ -155,7 +155,7 @@ int FieldFindClearDirectionBackward(u_int mask, int dir) {
     int offset;
 
     for (i = 0, offset = 0; i < 8; i++, offset++) {
-        if (!(mask & D_800ADC1C[dir-- & 7])) {
+        if (!(mask & g_FieldDirectionMasks[dir-- & 7])) {
             return offset;
         }
     }
@@ -316,7 +316,7 @@ void func_800726E8(void) {
 
     if (g_Scene.dollySet != 0xFF && g_Scene.dollyStop != 0xFF) {
         if (g_Scene.unk66 == 0) {
-            if (D_800ADC1C[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollySet) {
+            if (g_FieldDirectionMasks[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollySet) {
                 if (g_Scene.unk5C != -0x400000 && g_Scene.unk5C != 0x400000) {
                     g_Scene.unk5C = 0x400000;
                     g_Scene.unk7C += 0x200;
@@ -325,7 +325,7 @@ void func_800726E8(void) {
             }
         }
 
-        if (D_800ADC1C[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollyStop) {
+        if (g_FieldDirectionMasks[((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9] & g_Scene.dollyStop) {
             offset = FieldFindClearDirectionForward(g_Scene.dollyStop,
                 ((u_int)g_Scene.sceneAngle.vy & 0xFFF) >> 9);
             if (FieldFindClearDirectionBackward(g_Scene.dollyStop,
@@ -340,9 +340,9 @@ void func_800726E8(void) {
         }
     }
 
-    if (D_800AFE9C & 0x4) {
+    if (g_FieldP1ButtonsPressed & 0x4) {
         if (!(g_Scene.unk48 & 0x8000) && g_Scene.unk66 == 0) {
-            if (!(D_800ADC1C[((g_Scene.sceneAngle.vy - 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
+            if (!(g_FieldDirectionMasks[((g_Scene.sceneAngle.vy - 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
                 g_Scene.unk5C = -0x400000;
                 g_Scene.unk66 = 8;
                 g_Scene.unk7C -= 0x200;
@@ -350,9 +350,9 @@ void func_800726E8(void) {
         }
     }
 
-    if (D_800AFE9C & 0x8) {
+    if (g_FieldP1ButtonsPressed & 0x8) {
         if (!(g_Scene.unk48 & 0x8000) && g_Scene.unk66 == 0) {
-            if (!(D_800ADC1C[((g_Scene.sceneAngle.vy + 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
+            if (!(g_FieldDirectionMasks[((g_Scene.sceneAngle.vy + 0x200) & 0xFFF) >> 9] & g_Scene.dollyStop)) {
                 g_Scene.unk5C = 0x400000;
                 g_Scene.unk66 = 8;
                 g_Scene.unk7C += 0x200;
@@ -379,8 +379,8 @@ extern int func_8007CD80(VECTOR* pPos, SVECTOR* pPoints, SVec4* pOut);
 extern void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt);
 extern VECTOR g_CameraEye2;
 extern VECTOR g_CameraAt2;
-extern int D_800ADBA8;
-extern u_char D_800B21CD;
+extern int g_FieldCameraAtYLatched;
+extern u_char g_FieldCameraAtFollowTargetY;
 
 // The non-void return type is load-bearing: with `void` gcc reorg steals the flag clear's
 // `andi` into the final `bnez` delay slot (99.52%).
@@ -406,17 +406,17 @@ int FieldCameraUpdateFromTarget(VECTOR* pPos, int param) {
 
         g_CameraAt2.vx = result.x << 16;
         g_CameraAt2.vz = result.y << 16;
-        if (D_800B21CD == 0) {
-            if (D_800ADBA8 == 0) {
+        if (g_FieldCameraAtFollowTargetY == 0) {
+            if (g_FieldCameraAtYLatched == 0) {
                 g_CameraAt2.vy = param << 16;
-                D_800ADBA8 = 1;
+                g_FieldCameraAtYLatched = 1;
             }
         } else {
             g_CameraAt2.vy = pPos->vy - 0x200000;
         }
     } else {
         g_CameraAt2.vx = pPos->vx;
-        D_800ADBA8 = 0;
+        g_FieldCameraAtYLatched = 0;
         g_CameraAt2.vy = pPos->vy;
         g_CameraAt2.vz = pPos->vz;
         g_CameraAt2.vy = g_CameraAt2.vy - 0x200000;
@@ -676,11 +676,11 @@ int FieldMathInterpolateAngle(int from, int to, int delta) {
 }
 
 // If 0, the angle will be updated in steps rather than directly set to the target
-extern s32 D_800ADC18;
+extern s32 g_FieldSkipCounter;
 
 int FieldMathUpdateAngle(int curAngle, int targetAngle, int delta) {
     int result;
-    if (D_800ADC18 == 0) {
+    if (g_FieldSkipCounter == 0) {
         result = FieldMathInterpolateAngle(curAngle, targetAngle, delta);
     } else {
         result = PSX_ANGLE(targetAngle);
@@ -792,7 +792,7 @@ void func_800739C0(void) {
     at.vz = *(s32*)pCam;
     at.vz += D_800AF8E8;
 
-    if (D_800ADC18 != 0) {
+    if (g_FieldSkipCounter != 0) {
         FieldMatrixLookAt(pView, &eye, &at, pUp);
         D_800AF85C = *pView;
     } else {
@@ -853,7 +853,7 @@ void func_800739C0(void) {
     }
 }
 */
-void func_80073E38(void) {
+void FieldUpdateActorRenderModes(void) {
     int i;
     FieldActor* pActor;
     FieldActorModelData* pModel;
@@ -867,7 +867,7 @@ void func_80073E38(void) {
         pModel = pActor->pModelData;
         FieldActorModelComputeCenterAndSize(pModel);
 
-        if (D_800B218E != 0) {
+        if (g_FieldFogEnabled != 0) {
             if (pActor->status & 0x10) {
                 pModel->renderMode = 5;
             } else {
@@ -942,66 +942,66 @@ int FieldAnyActorHasFlag8000(void) {
     return 0;
 }
 
-extern u16 D_800AFEA0; // Buttons pressed this frame (player 2)
-extern u16 D_800C2694; // Buttons released this frame (player 1)
-extern u16 D_800C38F8; // Buttons released this frame (player 2)
-extern u16 D_800C3900; // Buttons pressed this frame, first press only (player 1)
-extern u16 D_800C3908; // Buttons pressed this frame, first press only (player 2)
-extern u16 D_800ADB00; // Mask of buttons polled by the field
+extern u16 g_FieldP2ButtonsPressed; // Buttons pressed this frame (player 2)
+extern u16 g_FieldP1ButtonsReleased; // Buttons released this frame (player 1)
+extern u16 g_FieldP2ButtonsReleased; // Buttons released this frame (player 2)
+extern u16 g_FieldButtonsPressedOnce; // Buttons pressed this frame, first press only (player 1)
+extern u16 g_FieldP2ButtonsPressedOnce; // Buttons pressed this frame, first press only (player 2)
+extern u16 g_FieldButtonPollMask; // Mask of buttons polled by the field
 extern s32 D_800ADBDC;
-extern int D_80065848[];
+extern int g_FieldMouseState[];
 extern int ControllerPopState(void);
 extern void ControllerResetState(void);
 extern void FieldGetMouseState(int controllerIndex, int* pOut);
 
 void FieldPollControllers(void) {
-    D_800AFE9C = 0;
-    D_800AFEA0 = 0;
-    D_800C2694 = 0;
-    D_800C38F8 = 0;
-    D_800C3900 = 0;
-    D_800C3908 = 0;
+    g_FieldP1ButtonsPressed = 0;
+    g_FieldP2ButtonsPressed = 0;
+    g_FieldP1ButtonsReleased = 0;
+    g_FieldP2ButtonsReleased = 0;
+    g_FieldButtonsPressedOnce = 0;
+    g_FieldP2ButtonsPressedOnce = 0;
 
     while (ControllerPopState()) {
-        D_800AFE9C |= g_C1ButtonState & g_FieldControl.controllerBtnMask;
-        D_800AFEA0 |= g_C2ButtonState;
-        D_800C2694 |= g_C1ButtonStateReleased & g_FieldControl.controllerBtnMask;
-        D_800C38F8 |= g_C2ButtonStateReleased;
-        D_800C3900 |= g_C1ButtonStatePressedOnce & g_FieldControl.controllerBtnMask;
-        D_800C3908 |= g_C2ButtonStatePressedOnce;
+        g_FieldP1ButtonsPressed |= g_C1ButtonState & g_FieldControl.controllerBtnMask;
+        g_FieldP2ButtonsPressed |= g_C2ButtonState;
+        g_FieldP1ButtonsReleased |= g_C1ButtonStateReleased & g_FieldControl.controllerBtnMask;
+        g_FieldP2ButtonsReleased |= g_C2ButtonStateReleased;
+        g_FieldButtonsPressedOnce |= g_C1ButtonStatePressedOnce & g_FieldControl.controllerBtnMask;
+        g_FieldP2ButtonsPressedOnce |= g_C2ButtonStatePressedOnce;
     }
 
-    D_800AFE9C &= D_800ADB00;
-    D_800C2694 &= D_800ADB00;
-    D_800C3900 &= D_800ADB00;
+    g_FieldP1ButtonsPressed &= g_FieldButtonPollMask;
+    g_FieldP1ButtonsReleased &= g_FieldButtonPollMask;
+    g_FieldButtonsPressedOnce &= g_FieldButtonPollMask;
 
     ControllerResetState();
-    FieldGetMouseState(1, D_80065848);
+    FieldGetMouseState(1, g_FieldMouseState);
 
-    if (D_800ADC18 != 0) {
-        D_800AFE9C = 0;
-        D_800AFEA0 = 0;
-        D_800C2694 = 0;
-        D_800C38F8 = 0;
-        D_800C3900 = 0;
-        D_800C3908 = 0;
+    if (g_FieldSkipCounter != 0) {
+        g_FieldP1ButtonsPressed = 0;
+        g_FieldP2ButtonsPressed = 0;
+        g_FieldP1ButtonsReleased = 0;
+        g_FieldP2ButtonsReleased = 0;
+        g_FieldButtonsPressedOnce = 0;
+        g_FieldP2ButtonsPressedOnce = 0;
     }
 
     if (D_800ADBDC == 0) {
-        D_800C2694 &= 0xFF7F;
+        g_FieldP1ButtonsReleased &= 0xFF7F;
     }
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", FieldRenderModels);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007520C);
-// 91.00%: the original materialises &D_800B2264 into $s0, loads 0($s0) and passes
+// 91.00%: the original materialises &g_FieldActorModelSlotCount into $s0, loads 0($s0) and passes
 // $s0 - 0x48 as the second argument. Every C form tried (pointer local, s32 local,
 // negative array index) makes gcc rematerialise a second %hi/%lo pair instead.
-// screened: Default 91.00 (best), cdk 85.17, 2.6.0 91.00 - the &D_800B2264 base wall; also a .rodata owner (D_8006FB1C).
+// screened: Default 91.00 (best), cdk 85.17, 2.6.0 91.00 - the &g_FieldActorModelSlotCount base wall; also a .rodata owner (D_8006FB1C).
 /*
 extern s32 D_8004F380;
-extern s32 D_800B2264;
+extern s32 g_FieldActorModelSlotCount;
 extern u8 D_800B225C;
 extern u8 D_800B225D;
 extern u8 D_800B225E;
@@ -1011,7 +1011,7 @@ void func_8007520C(void) {
     s32* pGear;
 
     if (D_8004F380 == 0) {
-        pGear = &D_800B2264;
+        pGear = &g_FieldActorModelSlotCount;
         if (*pGear != 0) {
             FieldUpdateMotionSlots();
             SetBackColor(D_800B225C, D_800B225D, D_800B225E);
@@ -1094,16 +1094,16 @@ void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
 
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
-extern s16 D_800B00B2;
+extern s16 g_FieldScreenEffectEnabled;
 extern s32 D_800ADB50;
-extern s32 D_800B007C;
-extern s16 D_800B21D4;
+extern s32 g_FieldScreenEffectData;
+extern s16 g_FieldScriptRenderContextIndex;
 
 void FieldRenderScreenEffect(void) {
     SVec4 eye;
     SVec4 at;
 
-    if (D_800B00B2 == 0) {
+    if (g_FieldScreenEffectEnabled == 0) {
         return;
     }
     if (D_800ADB50 != 0) {
@@ -1117,8 +1117,8 @@ void FieldRenderScreenEffect(void) {
     at.y = CONV_TO_GTE(g_CameraAt.vy);
     at.z = CONV_TO_GTE(g_CameraAt.vz);
 
-    func_800273C4(D_800B007C, &eye, &at, (MATRIX*)((u_char*)&g_CameraEye + 0x1E4),
-        (int*)(D_800B21D4 * 4 + (int)g_FieldCurRenderContext + 0x40CC),
+    func_800273C4(g_FieldScreenEffectData, &eye, &at, (MATRIX*)((u_char*)&g_CameraEye + 0x1E4),
+        (int*)(g_FieldScriptRenderContextIndex * 4 + (int)g_FieldCurRenderContext + 0x40CC),
         g_FieldCurRenderContextIndex);
 }
 
@@ -1126,7 +1126,7 @@ void FieldRenderScreenEffect(void) {
 // FieldRenderModels call; see the note above func_800739C0.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007554C);
 
-extern s32 D_800ADB78;
+extern s32 g_FieldFrameBufferIndex;
 
 void FieldRenderFrame(void) {
     RECT rect;
@@ -1141,7 +1141,7 @@ void FieldRenderFrame(void) {
     rect.x = SCREEN_WIDTH;
     rect.w = SCREEN_WIDTH;
     rect.h = SCREEN_HEIGHT;
-    rect.y = ((D_800ADB78 + 1) & 1) << 8;
+    rect.y = ((g_FieldFrameBufferIndex + 1) & 1) << 8;
     MoveImage(&rect, 0, g_FieldCurRenderContextIndex << 8);
 
     PutDispEnv(&g_FieldCurRenderContext->dispEnv);
@@ -1160,7 +1160,7 @@ void FieldRenderFrame(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
 
 void FieldSetSpriteColorRGB(SpriteData* pSpriteData, u_char* pColor) {
-    if (D_800B218E == 0) {
+    if (g_FieldFogEnabled == 0) {
         SpriteSetColor(pSpriteData, pColor[0], pColor[1], pColor[2]);
     }
 }
@@ -1226,7 +1226,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80077268);
 // $v0 (`lw v0,0(v0); nop; sw v0,0(s2)`).
 // Findings worth keeping: g_FieldActors IS volatile, so every `g_FieldActors[x]`
 // statement re-reads the pointer and the value at ActorData+0x26 is the s16 view
-// pPosition[3] (misc6's func_800A0C94 idiom); FieldActor+0x4 is pSpriteData and
+// pPosition[3] (misc6's FieldActorApplyPositionTransform idiom); FieldActor+0x4 is pSpriteData and
 // +0x20/+0x24/+0x28 is transformMatrix.t[0..2].
 // screened: Default 68.96 (best), cdk 68.85, 2.6.0 68.90 - not the preset; the allocator and CSE differences noted above.
 /*
@@ -1303,7 +1303,7 @@ void func_80077268(void) {
 // call, so the post-call block needs its own `pCurActor = &g_FieldActors[i]`
 // local (that base is used for both pSpriteData and pActorData) while a2 still
 // gets the loop-top pointer; (2) `FieldActor`'s copy target at 0x20/0x24/0x28 is
-// transformMatrix.t[0..2], not a position member (misc6's func_800A0C94 has the
+// transformMatrix.t[0..2], not a position member (misc6's FieldActorApplyPositionTransform has the
 // same idiom); (3) the s16 argument at ActorData+0x26 is the high half of
 // position.vy, read as a short lvalue like misc6's `pPosition[1]`.
 /*

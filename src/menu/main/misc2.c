@@ -12,7 +12,7 @@ extern u32 D_801E96E8[];
 extern s32 D_801E9768[]; // Card result to error code
 extern u8 D_801E9779;
 extern s32 D_801EA900[];
-extern u8 D_80059460; // Index of the menu overlay the menu was entered with
+extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 
 s32 MenuWaitForCardEvent(void);
 extern void SoundPlaySoundEffectOnLastPair(s32 arg0);
@@ -28,7 +28,7 @@ extern void MenuRunCardSlotOperations(void);
 extern void GameRandomByteRange(s32 arg0, u8 arg1);
 extern void GameCheckAndHandleSoftReset(void);
 extern s32* D_8005917C; // -1 when no debugger is attached
-extern int D_80059488;
+extern int g_SpuChannelMask;
 extern u8 D_801E9784;
 extern s32 ArchiveGetDiscNumber(void);
 extern int ControllerGetType(int controllerIndex);
@@ -63,7 +63,7 @@ void MenuSetupScreen(void) {
     MenuInitializeMenuStrings();
     func_801C6F70();
     MenuInitializeWindowBorders();
-    switch (D_80059460) {
+    switch (g_MenuOverlayIndex) {
     case 2:
         g_Menu->unk348->unk15B = 0x4C;
         /* fallthrough */
@@ -100,7 +100,7 @@ void MenuRenderFrame(void) {
     GameRandomByteRange(0, 0xFF);
     MenuUpdateTransitionEffect();
     g_Menu->unk2D8++;
-    MenuSetPlayTimeDigits(D_80059488);
+    MenuSetPlayTimeDigits(g_SpuChannelMask);
     MenuUpdatePlayTimeDigits();
     MenuAddScreenPrims();
     renderContext = g_Menu->renderContext == 0;
@@ -127,7 +127,7 @@ void MenuPollInput(void) {
             if (wasControllerUnplugged == 0) {
                 wasControllerUnplugged++;
                 SoundMuteAllSpuChannels();
-                savedVolume = D_80059488;
+                savedVolume = g_SpuChannelMask;
             }
             continue;
         }
@@ -135,7 +135,7 @@ void MenuPollInput(void) {
         isLooping--;
         if (wasControllerUnplugged) {
             SoundEnableAllSpuChannels();
-            D_80059488 = savedVolume;
+            g_SpuChannelMask = savedVolume;
         }
     }
 

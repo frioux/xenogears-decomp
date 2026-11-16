@@ -13,7 +13,7 @@ extern s32 D_801EA728;
 extern u16 D_801EA72C;
 extern u8 D_801E9EA0[];
 extern u8 D_801E9785;
-extern u8 D_80059171;
+extern u8 g_ShopIndex;
 
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
 void MenuInitializeUnk42CPanel(void);
@@ -99,7 +99,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     if (flags & 0x80) {
         result = 1;
         if (flags & 0x20) {
-            result = D_80059171 != 0;
+            result = g_ShopIndex != 0;
         }
     }
     paged = ((u16*)pItem->unk4)[0] & 1;

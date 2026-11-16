@@ -7,7 +7,7 @@
 extern u8 D_8006F978[];
 extern u8 *D_800927CC;
 extern u8 *D_800927D0;
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 extern VECTOR D_80096FA8;
 extern void func_800316C0(void *pOt, void *pPrim);
 
@@ -40,7 +40,7 @@ typedef struct {
 extern BattlingWork D_8009A2F8[2];
 
 extern s32 D_800928F8;
-extern u32 D_80059598;
+extern u32 g_NearColor;
 extern u8 D_80091834[];
 extern u8 D_800918B4[];
 extern u8 D_80091934[];
@@ -166,8 +166,8 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
 */
 
 void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
-    D_80059598 = (D_80059598 & 0xFFFFFF) | 0x24000000;
-    gte_ldrgb(&D_80059598);
+    g_NearColor = (g_NearColor & 0xFFFFFF) | 0x24000000;
+    gte_ldrgb(&g_NearColor);
     func_800732AC((void *)0x1F800120, D_80091934, 0x30);
     func_80072D18(arg0, arg1, arg2);
 }
@@ -288,9 +288,9 @@ void BattleDrawLineSlots(void *arg0) {
             pos[1].vz -= D_80096FA8.vz;
             gte_ldv01(&pos[0], &pos[1]);
             gte_rtpt();
-            gte_stsxy01(&pSlot->prim[D_800928A0].x0, &pSlot->prim[D_800928A0].x1);
-            setLineF2(&pSlot->prim[D_800928A0]);
-            func_800316C0(arg0, &pSlot->prim[D_800928A0]);
+            gte_stsxy01(&pSlot->prim[g_BattleDrawBufferIndex].x0, &pSlot->prim[g_BattleDrawBufferIndex].x1);
+            setLineF2(&pSlot->prim[g_BattleDrawBufferIndex]);
+            func_800316C0(arg0, &pSlot->prim[g_BattleDrawBufferIndex]);
         }
     }
 }

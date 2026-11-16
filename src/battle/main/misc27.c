@@ -19,7 +19,7 @@ extern void BattleIntegrateSpriteVelocityTask();
 extern void func_800B5DF4();
 extern void func_800B6004();
 extern void func_800B59BC();
-extern void func_800B5854();
+extern void BattleUpdateDistanceWaitTask();
 extern u8* TimerWorkListAllocateTask();
 
 typedef struct {
@@ -207,7 +207,7 @@ void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
     func_800B50D4(pSpriteData, pTask->unk78);
     func_800B50D4(pSpriteData, pTask->unk50);
 }
-long func_800B57E4(BattleSpriteState* pSprite) {
+long BattleSpriteDistanceToTarget(BattleSpriteState* pSprite) {
     VECTOR v;
     VECTOR out;
 

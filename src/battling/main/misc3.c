@@ -758,7 +758,7 @@ extern void func_8008ED6C(u8* p, s32 idx);
 extern void func_8008EBD0(u8* p, s32 idx, void* pData, s32 flags);
 extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern s32 BattleAccumulateGaugePoints(BattleActor* p, s32 points, s32 mode);
-extern u8 D_8009287C;
+extern u8 g_BattleCameraLerpFrames;
 
 // The battle actor's action state machine: a queued message selects the action
 // (the first switch), then the state in unkC4 recomputes the gauge word.
@@ -954,8 +954,8 @@ void func_80077A9C(BattleActor* p) {
                 p->flags &= ~0x8000;
                 p->unkD4 |= 0x40;
             }
-            if (D_8009287C >= 2) {
-                D_8009287C = 1;
+            if (g_BattleCameraLerpFrames >= 2) {
+                g_BattleCameraLerpFrames = 1;
             }
         }
     }

@@ -127,7 +127,7 @@ void FieldZoomFadeEffectLoadTextures(void) {
 extern s32 D_800ADB38;
 extern s32 D_800ADB3C;
 extern s16 D_800ADC08;
-extern int D_800C3A40;
+extern int g_FieldParticleFadeDistance;
 extern void FontFree(void);
 extern void FieldResetPortraitSlots(void);
 extern void FieldCopyScreenToFadeTexture(void);
@@ -206,13 +206,13 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
                 func_800A6E70();
                 D_800ADC08 = 1;
                 FieldFadeToBlack(D_800ADB3C);
-                D_800C3A40 = 0;
+                g_FieldParticleFadeDistance = 0;
                 for (i = 0; i < D_800ADB3C; i++) {
                     FieldUpdateFrame();
                     FieldAddParticlePrims();
                     func_8007554C();
                     FieldTickSkipCounter();
-                    D_800C3A40 += 6;
+                    g_FieldParticleFadeDistance += 6;
                 }
                 DrawSync(0);
                 func_800A7064();
@@ -256,10 +256,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
-extern SVECTOR D_800B00B8;
+extern SVECTOR g_FieldZoomFadeRotation;
 extern u_short D_800B00BA;
 extern u_short D_800B00BC;
-extern int D_800C2684;
+extern int g_FieldZoomFadeScale;
 
 void FieldZoomFadeEffectUpdate(void) {
     MATRIX matrix;
@@ -269,20 +269,20 @@ void FieldZoomFadeEffectUpdate(void) {
     int i;
     int nOffset;
 
-    RotMatrix(&D_800B00B8, &matrix);
+    RotMatrix(&g_FieldZoomFadeRotation, &matrix);
     matrix.t[2] = 0;
     matrix.t[1] = 0;
     matrix.t[0] = 0;
-    scale.vx = D_800C2684;
-    scale.vy = D_800C2684;
-    scale.vz = D_800C2684;
+    scale.vx = g_FieldZoomFadeScale;
+    scale.vy = g_FieldZoomFadeScale;
+    scale.vz = g_FieldZoomFadeScale;
     ScaleMatrix(&matrix, &scale);
     SetRotMatrix(&matrix);
     SetTransMatrix(&matrix);
 
     for (i = 0; i < 5; i++) {
         nOffset = i * 2;
-        if (D_800C2684 != 0x1000) {
+        if (g_FieldZoomFadeScale != 0x1000) {
             RotAverage4(&g_FieldZoomFadeEffect.vectors[i * 4], &g_FieldZoomFadeEffect.vectors[i * 4 + 1],
                 &g_FieldZoomFadeEffect.vectors[i * 4 + 2], &g_FieldZoomFadeEffect.vectors[i * 4 + 3],
                 (long*)(g_FieldZoomFadeEffect.polygons + nOffset + g_FieldCurRenderContextIndex) + 2,
@@ -304,8 +304,8 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
     SVECTOR* pVector;
     int i;
 
-    D_800C2684 = 0x1000;
-    D_800B00B8.vx = 0;
+    g_FieldZoomFadeScale = 0x1000;
+    g_FieldZoomFadeRotation.vx = 0;
     D_800B00BA = 0;
     D_800B00BC = 0;
 
@@ -445,7 +445,7 @@ void FieldFadeParticleCornerColor(POLY_GT4* pPoly, int nCorner, int nDistance, u
     }
 }
 
-extern void* D_800B00C4;
+extern void* g_FieldParticlePrimitives;
 
 // 280 particle primitives in two copies (current/next) plus four u_short
 // attribute arrays indexed in parallel.
@@ -466,13 +466,13 @@ void FieldAddParticlePrims(void) {
 
     for (i = 0; i < 0xE; i++) {
         for (j = 0; j < 0x14; j++) {
-            pPoly = (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j);
-            FieldFadeParticleCornerColor(pPoly, 0, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk71C0 + (i * 0x14 + j));
-            FieldFadeParticleCornerColor(pPoly, 1, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk73F0 + (i * 0x14 + j));
-            FieldFadeParticleCornerColor(pPoly, 2, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7620 + (i * 0x14 + j));
-            FieldFadeParticleCornerColor(pPoly, 3, D_800C3A40, ((FieldParticlePrimitiveSet*)D_800B00C4)->unk7850 + (i * 0x14 + j));
+            pPoly = (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j);
+            FieldFadeParticleCornerColor(pPoly, 0, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk71C0 + (i * 0x14 + j));
+            FieldFadeParticleCornerColor(pPoly, 1, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk73F0 + (i * 0x14 + j));
+            FieldFadeParticleCornerColor(pPoly, 2, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7620 + (i * 0x14 + j));
+            FieldFadeParticleCornerColor(pPoly, 3, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7850 + (i * 0x14 + j));
             addPrim(&g_FieldCurRenderContext->ot3[0],
-                (POLY_GT4*)((u_char*)D_800B00C4 + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j));
+                (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j));
         }
     }
     addPrim(&g_FieldCurRenderContext->ot3[0],
@@ -495,10 +495,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
         int nU;
         int nX;
 
-        D_800B00C4 = HeapAlloc(0x7A80, 0x1);
+        g_FieldParticlePrimitives = HeapAlloc(0x7A80, 0x1);
         for (i = 0; i < 0xE; i++) {
             for (j = 0; j < 0x14; j++) {
-                pPrims = D_800B00C4;
+                pPrims = g_FieldParticlePrimitives;
                 nIndex = i * 0x14 + j;
                 pPoly = pPrims->polygons + nIndex;
                 pPolyNext = pPrims->polygons + 280 + nIndex;
@@ -569,18 +569,18 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
    *pPolyNext = *pPoly (0x34 bytes: a 4x lw/sw unrolled loop plus one word).
 */
 void func_800A7064(void) {
-    HeapFree(D_800B00C4);
+    HeapFree(g_FieldParticlePrimitives);
 }
 
 extern int D_800ADB6C;
-extern int D_800ADB74;
+extern int g_FieldMode;
 extern u_short D_800C3A36;
 extern int D_801D68B4;
 extern void func_801D3538(int, int, int, int, int, int, int);
 
 void FieldInitializeStreamPlayer(void) {
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
-    if (D_800ADB74 == 2) {
+    if (g_FieldMode == 2) {
         D_801D68B4 = 1;
     } else {
         D_801D68B4 = 0;
@@ -590,28 +590,28 @@ void FieldInitializeStreamPlayer(void) {
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 }
 
-extern s32 D_800ADB78;
-extern s32 D_800AFE74;
+extern s32 g_FieldFrameBufferIndex;
+extern s32 g_FieldStreamTextSegmentActive;
 extern s32 D_800B00E4;
-extern s32 D_800B06A0;
+extern s32 g_FieldStreamFramePosition;
 
 typedef void (*FieldRenderContextCallback)(u_short, int, u_short);
 
 void FieldSelectStreamRenderContext(u_short arg0, int arg1, u_short arg2) {
-    D_800B06A0 = arg0;
+    g_FieldStreamFramePosition = arg0;
     D_800B00E4 = 0;
     if (arg2 == 0) {
-        D_800ADB78 = 1;
+        g_FieldFrameBufferIndex = 1;
     } else {
-        D_800ADB78 = 0;
+        g_FieldFrameBufferIndex = 0;
     }
 
-    if (D_800ADB74 == 0 && D_800AFE74 == 0) {
+    if (g_FieldMode == 0 && g_FieldStreamTextSegmentActive == 0) {
         DrawSync(0);
-        g_FieldCurRenderContext = &g_FieldRenderContexts[D_800ADB78];
+        g_FieldCurRenderContext = &g_FieldRenderContexts[g_FieldFrameBufferIndex];
         // Read as signed here, unsigned in FieldInitializeStreamPlayer, matching the original loads
         if (*(s16*)&D_800C3A36 == 1) {
-            g_FieldRenderContexts[D_800ADB78 & 1].dispEnv.isrgb24 = 1;
+            g_FieldRenderContexts[g_FieldFrameBufferIndex & 1].dispEnv.isrgb24 = 1;
         }
     }
 }
@@ -626,18 +626,18 @@ extern u16 D_800C3A2A;
 extern u16 D_800C3A2C;
 extern u16 D_800C3A2E;
 extern u16 D_800C3A3A;
-extern s16 D_800C3A38;
+extern s16 g_FieldStreamId;
 extern void func_801D37CC(int, int, int, int, int, int, int, int, int, int, int, int, FieldRenderContextCallback);
 
 void FieldPlayStreamedSequence(void) {
     int nMode;
 
-    D_800B06A0 = 0;
+    g_FieldStreamFramePosition = 0;
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
     if (D_800ADB6C == 0) {
         ArchiveSetIndex(0x18, 1);
         nMode = 1;
-        if (D_800C3A38 != 0xFF || (D_800ADB80 & 0x40)) {
+        if (g_FieldStreamId != 0xFF || (D_800ADB80 & 0x40)) {
             nMode = 3;
         }
         func_801D37CC(D_800C3A20 + 2, D_800C3A2A, D_800C3A2C, D_800C3A2E, 1, nMode,
@@ -675,23 +675,23 @@ void FieldWaitForArchiveAndFrameSync(void) {
     CdDataSync(0);
 }
 
-extern void* D_8005A418[];
+extern void* g_FieldSavedFramebuffers[];
 extern void* D_8005A41C;
 
 void FieldRestoreFramebuffers(void) {
     RECT rect;
 
-    if (D_800ADB74 == 2) {
-        HeapUnpinBlock(D_8005A418[0]);
+    if (g_FieldMode == 2) {
+        HeapUnpinBlock(g_FieldSavedFramebuffers[0]);
         HeapUnpinBlock(D_8005A41C);
-        HeapFree(D_8005A418[0]);
+        HeapFree(g_FieldSavedFramebuffers[0]);
         HeapFree(D_8005A41C);
     } else {
         rect.x = 0x200;
         rect.y = 0;
         rect.w = 0x140;
         rect.h = 0x80;
-        LoadImage(&rect, D_8005A418[0]);
+        LoadImage(&rect, g_FieldSavedFramebuffers[0]);
         DrawSync(0);
         rect.x = 0x200;
         rect.y = 0x80;
@@ -699,14 +699,14 @@ void FieldRestoreFramebuffers(void) {
         rect.h = 0x80;
         LoadImage(&rect, D_8005A41C);
         DrawSync(0);
-        HeapUnpinBlock(D_8005A418[0]);
+        HeapUnpinBlock(g_FieldSavedFramebuffers[0]);
         HeapUnpinBlock(D_8005A41C);
-        HeapFree(D_8005A418[0]);
+        HeapFree(g_FieldSavedFramebuffers[0]);
         HeapFree(D_8005A41C);
     }
 }
 
-extern void* D_80065B00[];
+extern void* g_FieldCompressedPartyStreamData[];
 extern int g_GamePartyMemberSkins[3];
 extern void* g_PartyStreamDataPointers[];
 extern int ArchiveDecodeAlignedSize(int entryIndex);
@@ -721,10 +721,10 @@ void FieldSaveFramebuffers(void) {
     StreamDataQueueEntry queue[MAX_PARTY_MEMBERS + 1];
     void* pBuffer;
 
-    if (D_800ADB74 == 2) {
-        D_8005A418[0] = HeapAlloc(0x14000, 0);
+    if (g_FieldMode == 2) {
+        g_FieldSavedFramebuffers[0] = HeapAlloc(0x14000, 0);
         D_8005A41C = HeapAlloc(0x14000, 0);
-        HeapPinBlock(D_8005A418[0]);
+        HeapPinBlock(g_FieldSavedFramebuffers[0]);
         HeapPinBlock(D_8005A41C);
         ArchiveSetIndex(4, 0);
 
@@ -747,21 +747,21 @@ void FieldSaveFramebuffers(void) {
 
         for (i = 1; i < 3; i++) {
             if (g_GamePartyMembers[i] != CHARACTER_ID_NONE) {
-                LZSSDecompress(D_80065B00[i - 1], D_8005A418[i - 1]);
-                HeapFree(D_80065B00[i - 1]);
+                LZSSDecompress(g_FieldCompressedPartyStreamData[i - 1], g_FieldSavedFramebuffers[i - 1]);
+                HeapFree(g_FieldCompressedPartyStreamData[i - 1]);
             }
         }
     } else {
-        D_8005A418[0] = HeapAlloc(0x14000, 0);
+        g_FieldSavedFramebuffers[0] = HeapAlloc(0x14000, 0);
         D_8005A41C = HeapAlloc(0x14000, 0);
-        HeapPinBlock(D_8005A418[0]);
+        HeapPinBlock(g_FieldSavedFramebuffers[0]);
         HeapPinBlock(D_8005A41C);
 
         rect.x = 0x200;
         rect.y = 0;
         rect.w = 0x140;
         rect.h = 0x80;
-        StoreImage(&rect, D_8005A418[0]);
+        StoreImage(&rect, g_FieldSavedFramebuffers[0]);
         DrawSync(0);
 
         rect.x = 0x200;
@@ -848,7 +848,7 @@ void FieldImageConvert24BitTo15Bit(void) {
     HeapFree(pImage15Bit);
 }
 
-extern s32 D_8004F300;
+extern s32 g_FieldTextRenderEnabled;
 extern s32 D_801E89E0;
 extern void GameCheckAndHandleSoftReset(void);
 extern void FieldClearAndSwapOTagInternal(void);
@@ -860,17 +860,17 @@ extern void FieldUpdateTextRender(void);
 s32 func_800A7948(void) {
     RECT rect;
 
-    if (!D_8004F300) {
+    if (!g_FieldTextRenderEnabled) {
         return;
     }
-    if (D_800B06A0 < 0x687) {
+    if (g_FieldStreamFramePosition < 0x687) {
         return;
     }
-    if (D_800B06A0 >= 0x18E2) {
+    if (g_FieldStreamFramePosition >= 0x18E2) {
         return;
     }
 
-    D_800AFE74 = 1;
+    g_FieldStreamTextSegmentActive = 1;
     D_801E89E0 = 0;
     rect.x = 0;
     rect.y = 0;
@@ -896,10 +896,10 @@ s32 func_800A7948(void) {
     Vsync(0);
     DrawSync(0);
 
-    while (D_800B06A0 < 0x18E2) {
+    while (g_FieldStreamFramePosition < 0x18E2) {
         GameCheckAndHandleSoftReset();
         FieldClearAndSwapOTagInternal();
-        if (D_800B06A0 < 0x18DE) {
+        if (g_FieldStreamFramePosition < 0x18DE) {
             func_800AC99C();
         }
         DrawSync(0);
@@ -912,7 +912,7 @@ s32 func_800A7948(void) {
         FieldStepStreamPlayback(5);
     }
 
-    D_800AFE74 = 0;
+    g_FieldStreamTextSegmentActive = 0;
     D_801E89E0 = 1;
     DrawSync(0);
     Vsync(0);
@@ -947,21 +947,21 @@ void FieldLoadSpriteSheetTIM(void) {
     HeapFree(pTimData);
 }
 
-extern int D_800AF278;
-extern POLY_FT4* D_800AFC60[];
+extern int g_FieldSpritePrimsAllocated;
+extern POLY_FT4* g_FieldSpritePolys[];
 extern void* D_800AFC64;
 
 void FieldFreeSpritePrimitives(void) {
-    if (D_800AF278 != 0) {
-        D_800AF278 = 0;
+    if (g_FieldSpritePrimsAllocated != 0) {
+        g_FieldSpritePrimsAllocated = 0;
         DrawSync(0);
-        HeapFree(D_800AFC60[0]);
+        HeapFree(g_FieldSpritePolys[0]);
         HeapFree(D_800AFC64);
     }
 }
 
-extern u_short D_800AEF14[];
-extern u_short D_800AEB68[];
+extern u_short g_FieldSpriteSheetQuads[];
+extern u_short g_FieldSpriteSheetRects[];
 extern u_short D_800AEB6A[];
 extern u_short D_800AEB6C[];
 extern u_short D_800AEB6E[];
@@ -979,11 +979,11 @@ void FieldSetSpriteUVs(int nQuad, int x, int y) {
     int v0;
     int v1;
 
-    nRect = D_800AEF14[nQuad * 4] * 4;
+    nRect = g_FieldSpriteSheetQuads[nQuad * 4] * 4;
     nY = D_800AEB6A[nRect];
     nW = D_800AEB6C[nRect];
-    nX = D_800AEB68[nRect];
-    pPoly = &D_800AFC60[g_FieldCurRenderContextIndex][nQuad];
+    nX = g_FieldSpriteSheetRects[nRect];
+    pPoly = &g_FieldSpritePolys[g_FieldCurRenderContextIndex][nQuad];
     nH = D_800AEB6E[nRect];
     nY += y;
     u0 = nX + x;
@@ -1011,7 +1011,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
    `sll/addu` per access; the original also keeps three counters (i for the
    loop bound, i for the *8 index, i*0x28 for the polygons) exactly as this
    source does. Tried: pointer locals, splitting nAttr into a local, use of
-   D_800AEF14 as the record base, -O3/gcc-2.6.0.
+   g_FieldSpriteSheetQuads as the record base, -O3/gcc-2.6.0.
    extern u_short D_800AEF16[];
    extern int D_800AEB64;
 
@@ -1031,12 +1031,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
        FieldLoadSpriteSheetTIM();
        D_800AEB64 = 0;
        HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
-       D_800AFC60[0] = HeapAlloc(0x1108, 0);
+       g_FieldSpritePolys[0] = HeapAlloc(0x1108, 0);
        D_800AFC64 = HeapAlloc(0x1108, 0);
 
        nABR = 0;
        for (i = 0; i < 0x6D; i++) {
-           pPoly = &D_800AFC60[0][i];
+           pPoly = &g_FieldSpritePolys[0][i];
            pPolyNext = (POLY_FT4*)D_800AFC64 + i;
            SetPolyFT4(pPoly);
 
@@ -1093,7 +1093,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
            }
            *pPolyNext = *pPoly;
        }
-       D_800AF278 = 1;
+       g_FieldSpritePrimsAllocated = 1;
    } */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
@@ -1185,8 +1185,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitiv
         *pPoly2 = *pPoly;
     }*/
 
-extern int D_800ADB34;
-extern u_long* D_800AFC70;
+extern int g_FieldScreenImageStored;
+extern u_long* g_FieldStoredImageBuffer;
 
 typedef struct {
     /* 0x0 */ u_long unk0[0x2000];
@@ -1195,34 +1195,34 @@ typedef struct {
 void FieldMoveStoredImageToHeap(int nHeapType) {
     u_long* pImage;
 
-    if (D_800ADB34 == 1) {
+    if (g_FieldScreenImageStored == 1) {
         HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
         pImage = HeapAlloc(0x8000, nHeapType);
-        *(FieldStoredImage*)pImage = *(FieldStoredImage*)D_800AFC70;
-        HeapFree(D_800AFC70);
-        D_800AFC70 = pImage;
+        *(FieldStoredImage*)pImage = *(FieldStoredImage*)g_FieldStoredImageBuffer;
+        HeapFree(g_FieldStoredImageBuffer);
+        g_FieldStoredImageBuffer = pImage;
     }
 }
 
 extern RECT g_FieldStoredImageDest[];
 
 void FieldStoreScreenImage(void) {
-    if (D_800ADB34 != 1) {
-        D_800ADB34 = 1;
+    if (g_FieldScreenImageStored != 1) {
+        g_FieldScreenImageStored = 1;
         HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
-        D_800AFC70 = HeapAlloc(0x8000, 0x1);
+        g_FieldStoredImageBuffer = HeapAlloc(0x8000, 0x1);
         setRECT(&g_FieldStoredImageDest[0], 0x3C0, 0x100, 0x40, 0x100);
-        StoreImage(&g_FieldStoredImageDest[0], D_800AFC70);
+        StoreImage(&g_FieldStoredImageDest[0], g_FieldStoredImageBuffer);
         DrawSync(0);
     }
 }
 
 void FieldRestoreScreenImage(void) {
-    if (D_800ADB34 != 0) {
-        D_800ADB34 = 0;
+    if (g_FieldScreenImageStored != 0) {
+        g_FieldScreenImageStored = 0;
         setRECT(&g_FieldStoredImageDest[0], 0x3C0, 0x100, 0x40, 0x100);
-        LoadImage(&g_FieldStoredImageDest[0], D_800AFC70);
+        LoadImage(&g_FieldStoredImageDest[0], g_FieldStoredImageBuffer);
         DrawSync(0);
-        HeapFree(D_800AFC70);
+        HeapFree(g_FieldStoredImageBuffer);
     }
 }

@@ -3,7 +3,7 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
-extern u8 D_80059460;
+extern u8 g_MenuOverlayIndex;
 
 void MenuRenderFrame(void);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
@@ -26,7 +26,7 @@ void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
 void func_801D29A8(s32 a0, s32 a1);
 void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
-void func_801E8474(s32 a0, u32* a1);
+void MenuRevealSelectionMenu(s32 a0, u32* a1);
 
 extern u32 D_801EA19C[];
 extern u32 D_801EA164[];
@@ -41,7 +41,7 @@ extern s32 D_801E9A2C[9]; // Cursor y positions
 
 void MenuAddScreenPrims(void) {
     if (g_Menu->shouldDrawMenu) {
-        switch (D_80059460) {
+        switch (g_MenuOverlayIndex) {
             case 0:
                 MenuAddScreen0Prims();
                 break;
@@ -282,7 +282,7 @@ void func_801D2D38(void) {
     u_char characterIndex;
     u32 characterId;
 
-    if (D_80059460 == 0) {
+    if (g_MenuOverlayIndex == 0) {
         for (i = 0; i < 2; i++) {
             g_Menu->windows[i] = HeapAlloc(0x720, 0);
             bzero(g_Menu->windows[i], 0x720);
@@ -302,7 +302,7 @@ void func_801D2D38(void) {
             MenuLoadCharacterNameTexture((u_char)((characterId == 0xFF) ? 0xFF : characterId + 0xB), 6 + (j << 1));
         }
     }
-    func_801E8474(8, D_801EA19C);
+    MenuRevealSelectionMenu(8, D_801EA19C);
     func_801D29A8(1, 0);
     MenuCreatePlayTimeWindow();
 }

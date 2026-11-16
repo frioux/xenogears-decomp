@@ -1,12 +1,12 @@
 #include "common.h"
 
-extern u8 *D_800D2D28;
+extern u8 *g_BattleDisplayState;
 extern u16 D_8005A3A0[];
 extern u8 D_800D3420[];
 extern u8 D_800D3410[];
 extern u8 D_800D2DCC[];
 
-// The per-slot battle register file (D_800D3400[slot]): the dword, word and
+// The per-slot battle register file (g_BattleSlotRegs[slot]): the dword, word and
 // byte registers the script's arithmetic ops are applied to. Same layout as
 // src/battle/main/misc10.c's BattleSlotRegs.
 typedef struct {
@@ -25,7 +25,7 @@ typedef struct {
     /* 0x0E */ u8 unkE[0x52];
 } BattleScreenSlot; // Size: 0x60
 
-// One 0x170-byte entry of the slot table at D_800CCD64: the two flag words the
+// One 0x170-byte entry of the slot table at g_BattleSlotEntries: the two flag words the
 // slot state tests read. include/battle/actor.h's BattleTableEntry covers the
 // same table, but keeps these two words inside its opaque unk5C array.
 typedef struct {
@@ -35,7 +35,7 @@ typedef struct {
     /* 0x00A */ u8 unkA[0x166];
 } BattleSlotFlagEntry; // Size: 0x170
 
-// A second view of the 0x170-byte battle slot entry at D_800CCCE8, covering the
+// A second view of the 0x170-byte battle slot entry at g_BattleWorkBlock, covering the
 // two variable-register files the script VM's byte/word register accessors below
 // index by register number: 24 byte variables and 24 word variables. Each
 // register number is a distinct field of the entry; include/battle/actor.h's
@@ -117,18 +117,18 @@ typedef struct {
 } BattleSlotRecord; // Size: 0x1C
 
 extern BattleScreenSlot D_800D3718[];
-extern BattleSlotFlagEntry D_800CCD64[];
+extern BattleSlotFlagEntry g_BattleSlotEntries[];
 extern BattleSlotRecord D_800C3E9C[];
-extern BattleSlotRegs D_800D3400[];
-extern BattleSlotVarEntry D_800CCCE8[];
+extern BattleSlotRegs g_BattleSlotRegs[];
+extern BattleSlotVarEntry g_BattleWorkBlock[];
 
 void BattleSetSlotFlagB4(u8 arg0) {
-    D_800D2D28[0xB4] = 1;
+    g_BattleDisplayState[0xB4] = 1;
     D_800D3718[arg0].unkD = 1;
 }
 
 void BattleClearSlotFlagB4(u8 arg0) {
-    D_800D2D28[0xB4] = 0;
+    g_BattleDisplayState[0xB4] = 0;
     D_800D3718[arg0].unkD = 0;
 }
 
@@ -153,76 +153,76 @@ u8 BattleSlotByteVarGetSet(u8 slot, u8 reg, u8 value, u8 get) {
 
     switch (reg) {
     case 0:
-        p = &D_800CCCE8[slot].unk004;
+        p = &g_BattleWorkBlock[slot].unk004;
         break;
     case 1:
-        p = &D_800CCCE8[slot].unk056;
+        p = &g_BattleWorkBlock[slot].unk056;
         break;
     case 2:
-        p = &D_800CCCE8[slot].unk0E0;
+        p = &g_BattleWorkBlock[slot].unk0E0;
         break;
     case 3:
-        p = &D_800CCCE8[slot].unk0E3;
+        p = &g_BattleWorkBlock[slot].unk0E3;
         break;
     case 4:
-        p = &D_800CCCE8[slot].unk058;
+        p = &g_BattleWorkBlock[slot].unk058;
         break;
     case 5:
-        p = &D_800CCCE8[slot].unk059;
+        p = &g_BattleWorkBlock[slot].unk059;
         break;
     case 6:
-        p = &D_800CCCE8[slot].unk05A;
+        p = &g_BattleWorkBlock[slot].unk05A;
         break;
     case 7:
-        p = &D_800CCCE8[slot].unk02D;
+        p = &g_BattleWorkBlock[slot].unk02D;
         break;
     case 8:
-        p = &D_800CCCE8[slot].unk05D;
+        p = &g_BattleWorkBlock[slot].unk05D;
         break;
     case 9:
-        p = &D_800CCCE8[slot].unk05B;
+        p = &g_BattleWorkBlock[slot].unk05B;
         break;
     case 10:
-        p = &D_800CCCE8[slot].unk05C;
+        p = &g_BattleWorkBlock[slot].unk05C;
         break;
     case 11:
-        p = &D_800CCCE8[slot].unk05E;
+        p = &g_BattleWorkBlock[slot].unk05E;
         break;
     case 12:
-        p = &D_800CCCE8[slot].unk05F;
+        p = &g_BattleWorkBlock[slot].unk05F;
         break;
     case 13:
-        p = &D_800CCCE8[slot].unk060;
+        p = &g_BattleWorkBlock[slot].unk060;
         break;
     case 14:
-        p = &D_800CCCE8[slot].unk061;
+        p = &g_BattleWorkBlock[slot].unk061;
         break;
     case 15:
-        p = &D_800CCCE8[slot].unk064;
+        p = &g_BattleWorkBlock[slot].unk064;
         break;
     case 16:
-        p = &D_800CCCE8[slot].unk065;
+        p = &g_BattleWorkBlock[slot].unk065;
         break;
     case 17:
-        p = &D_800CCCE8[slot].unk066;
+        p = &g_BattleWorkBlock[slot].unk066;
         break;
     case 18:
-        p = &D_800CCCE8[slot].unk067;
+        p = &g_BattleWorkBlock[slot].unk067;
         break;
     case 19:
-        p = &D_800CCCE8[slot].unk13C;
+        p = &g_BattleWorkBlock[slot].unk13C;
         break;
     case 20:
-        p = &D_800CCCE8[slot].unk0B6;
+        p = &g_BattleWorkBlock[slot].unk0B6;
         break;
     case 21:
-        p = &D_800CCCE8[slot].unk140;
+        p = &g_BattleWorkBlock[slot].unk140;
         break;
     case 22:
-        p = &D_800CCCE8[slot].unk141;
+        p = &g_BattleWorkBlock[slot].unk141;
         break;
     case 23:
-        p = &D_800CCCE8[slot].unk142;
+        p = &g_BattleWorkBlock[slot].unk142;
         break;
     }
     if (get == 0) {
@@ -241,76 +241,76 @@ u16 BattleSlotWordVarGetSet(u8 slot, u8 reg, u16 value, u8 get) {
 
     switch (reg) {
     case 0:
-        p = &D_800CCCE8[slot].unk04E;
+        p = &g_BattleWorkBlock[slot].unk04E;
         break;
     case 1:
-        p = &D_800CCCE8[slot].unk04C;
+        p = &g_BattleWorkBlock[slot].unk04C;
         break;
     case 2:
-        p = &D_800CCCE8[slot].unk07C;
+        p = &g_BattleWorkBlock[slot].unk07C;
         break;
     case 3:
-        p = &D_800CCCE8[slot].unk07E;
+        p = &g_BattleWorkBlock[slot].unk07E;
         break;
     case 4:
-        p = &D_800CCCE8[slot].unk080;
+        p = &g_BattleWorkBlock[slot].unk080;
         break;
     case 5:
-        p = &D_800CCCE8[slot].unk082;
+        p = &g_BattleWorkBlock[slot].unk082;
         break;
     case 6:
-        p = &D_800CCCE8[slot].unk084;
+        p = &g_BattleWorkBlock[slot].unk084;
         break;
     case 7:
-        p = &D_800CCCE8[slot].unk086;
+        p = &g_BattleWorkBlock[slot].unk086;
         break;
     case 8:
-        p = &D_800CCCE8[slot].unk088;
+        p = &g_BattleWorkBlock[slot].unk088;
         break;
     case 9:
-        p = &D_800CCCE8[slot].unk08A;
+        p = &g_BattleWorkBlock[slot].unk08A;
         break;
     case 10:
-        p = &D_800CCCE8[slot].unk08C;
+        p = &g_BattleWorkBlock[slot].unk08C;
         break;
     case 11:
-        p = &D_800CCCE8[slot].unk08E;
+        p = &g_BattleWorkBlock[slot].unk08E;
         break;
     case 12:
-        p = &D_800CCCE8[slot].unk110;
+        p = &g_BattleWorkBlock[slot].unk110;
         break;
     case 13:
-        p = &D_800CCCE8[slot].unk114;
+        p = &g_BattleWorkBlock[slot].unk114;
         break;
     case 14:
-        p = &D_800CCCE8[slot].unk116;
+        p = &g_BattleWorkBlock[slot].unk116;
         break;
     case 15:
-        p = &D_800CCCE8[slot].unk120;
+        p = &g_BattleWorkBlock[slot].unk120;
         break;
     case 16:
-        p = &D_800CCCE8[slot].unk122;
+        p = &g_BattleWorkBlock[slot].unk122;
         break;
     case 17:
-        p = &D_800CCCE8[slot].unk124;
+        p = &g_BattleWorkBlock[slot].unk124;
         break;
     case 18:
-        p = &D_800CCCE8[slot].unk126;
+        p = &g_BattleWorkBlock[slot].unk126;
         break;
     case 19:
-        p = &D_800CCCE8[slot].unk128;
+        p = &g_BattleWorkBlock[slot].unk128;
         break;
     case 20:
-        p = &D_800CCCE8[slot].unk12A;
+        p = &g_BattleWorkBlock[slot].unk12A;
         break;
     case 21:
-        p = &D_800CCCE8[slot].unk034;
+        p = &g_BattleWorkBlock[slot].unk034;
         break;
     case 22:
-        p = &D_800CCCE8[slot].unk036;
+        p = &g_BattleWorkBlock[slot].unk036;
         break;
     case 23:
-        p = &D_800CCCE8[slot].unk038;
+        p = &g_BattleWorkBlock[slot].unk038;
         break;
     }
     if (get == 0) {
@@ -341,7 +341,7 @@ u32 func_8007A628(u8 arg0, u8 arg1) {
 
     if (D_800D2DCC[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
         off = arg0 * 0x170;
-        if ((*(u16 *)(D_800CCD64 + off) & 0xC002) == 0) {
+        if ((*(u16 *)(g_BattleSlotEntries + off) & 0xC002) == 0) {
             res = 1;
             if (arg1 == 0) {
                 f = *(u16 *)(D_800CCD6C + off) & 0x20;
@@ -355,10 +355,10 @@ u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
     u8 res = 0;
 
     if (D_800D2DCC[arg0] != 0) {
-        if ((D_800CCD64[arg0].flags & 0xC002) == 0) {
+        if ((g_BattleSlotEntries[arg0].flags & 0xC002) == 0) {
             res = 1;
             if (arg1 == 0) {
-                u32 f = D_800CCD64[arg0].unk8 & 0x20;
+                u32 f = g_BattleSlotEntries[arg0].unk8 & 0x20;
 
                 res = f == 0;
             }
@@ -370,7 +370,7 @@ u32 BattleSlotFlagsC000Clear(u8 arg0) {
     u8 res = 0;
 
     if (D_800D2DCC[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
-        res = (D_800CCD64[arg0].flags & 0xC000) == 0;
+        res = (g_BattleSlotEntries[arg0].flags & 0xC000) == 0;
     }
     return res;
 }
@@ -397,7 +397,7 @@ u8 BattleGridWriteByteAdvanceRow(u8 **arg0, u8 *arg1, u8 arg2) {
 void BattleGridWriteByteReg(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *p = *arg0;
     s32 idx = arg3 * 8 + p[1];
-    u8 *pRow = D_800D3400[arg2].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg2].unk30;
 
     arg1[idx] = pRow[p[2]];
 }
@@ -412,7 +412,7 @@ void BattleGridCopyRow(u8 **arg0, u8 *arg1) {
 }
 void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
 
     pRow[p[1]] = p[2];
 }
@@ -432,7 +432,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A92C);
    (rowOff+base) then +idx2, as retail - but gcc then emits the lui/addiu group
    and the `lw p` two statements early (17.00%). 84.67% is still the best.
    Round 135: the typed spelling of the same body, with the row pointer taken
-   from the declared register file (`D_800D3400[arg1].unk20`, i.e. D_800D3420),
+   from the declared register file (`g_BattleSlotRegs[arg1].unk20`, i.e. D_800D3420),
    is 13.33% and shows the wall plainly: any pointer local expands to its
    lui/addiu FIRST, so the only shape that keeps the base materialisation after
    the p[] loads is the single inline address expression above.
@@ -456,7 +456,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    sinks the one-use value into the store, so the pointer init is expanded
    first. Same wall as func_8007A92C; gcc-2.6.0, 2.7.2-cdk, -O1 and -O3 all
    fail on it too.
-   Round 135: the typed spelling `D_800D3400[arg1].unk10[p[1]] = val` (dword
+   Round 135: the typed spelling `g_BattleSlotRegs[arg1].unk10[p[1]] = val` (dword
    register file, D_800D3410) written as one expression is 7.50% - the address
    expansion takes over the register allocation - so the separate-locals body
    below stays the best.
@@ -474,7 +474,7 @@ void BattleWordTableStoreImm(u8 **arg0) {
 }
 void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
     s32 v = pRow[p[1]] + p[2];
     u8 res = v;
 
@@ -501,7 +501,7 @@ void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
     s32 v = pRow[p[1]] - p[2];
     u8 res = v;
 
@@ -537,7 +537,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    via a cur local, u8 res = product then s16 v = res (87.95%, extension folded),
    operand locals before/after the row pointer (71.50%).
    Round 20: still 99.55% and also exactly 99.55% under gcc-2.7.2-cdk, so this
-   one is not the cdk-flippable tie that func_8007ABD8 is.
+   one is not the cdk-flippable tie that BattleWordRegAddImmClamp is.
    Round 35: the last difference is only the mult operand order (mult v0,v1 vs
    v1,v0); every other insn, including both lbu orders, is identical. gcc spells
    'mult <first source operand>,<second>' and always defers the SECOND operand's
@@ -545,7 +545,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    the p[2] load (71.50%). The two are mutually exclusive.
    Round 135: 99.09%, and the body below (53.44%) was stale - `D_800D3430 +
    arg1 * 0x40` does not compile against today's externs. Taking the row pointer
-   from the declared register file (`D_800D3400[arg1].unk30`) fixes both the
+   from the declared register file (`g_BattleSlotRegs[arg1].unk30`) fixes both the
    missing symbol and the two-instructions-early lui/addiu, leaving exactly one
    instruction: the mult operand order. Permuter from that body: 1370
    iterations, base=10 best=10, no improvement.
@@ -562,31 +562,31 @@ void func_8007AA60(u8 **arg0, u8 arg1) {
 } */
 void BattleByteRegDivImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
 
     pRow[p[1]] /= p[2];
 }
 void BattleByteRegModImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
 
     pRow[p[1]] %= p[2];
 }
 void BattleByteRegAndImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
 
     pRow[p[1]] &= p[2];
 }
 void BattleByteRegOrImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
 
     pRow[p[1]] |= p[2];
 }
 void BattleByteRegXorImm(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3400[arg1].unk30;
+    u8 *pRow = g_BattleSlotRegs[arg1].unk30;
 
     pRow[p[1]] ^= p[2];
 }

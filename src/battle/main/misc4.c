@@ -13,7 +13,7 @@ typedef struct {
     /* 0x6 */ u16 slotMask;
 } BattleCommandArg; // Size: 0x8
 
-// The command queue header D_800C3EAC points at. Only the tail this unit fills
+// The command queue header g_BattleCommandQueue points at. Only the tail this unit fills
 // is named.
 typedef struct {
     /* 0x000 */ u8 unk000[0x2D3];
@@ -27,7 +27,7 @@ typedef struct {
 extern u8 D_800D2CA4[];
 extern BattleCommandArg D_800D2E5C[];
 extern u16 D_800D39E0;
-extern BattleSlotRegs D_800D3400[];
+extern BattleSlotRegs g_BattleSlotRegs[];
 extern s32 func_8007EF6C(u8** arg0, u8 arg1, u8 arg2);
 extern s32 func_8007F8C0(u8** arg0, u8 arg1);
 
@@ -45,12 +45,12 @@ extern u16 D_800C48E8;
 extern s32 BattleSlotBitMask(u8 arg0);
 extern u8 D_800D2DE4[];
 extern u8 D_800C3D18[];
-extern BattleTableEntry D_800CCD64[];
-extern u8 D_800D32A1[];
-extern u16 D_800D2C94;
+extern BattleTableEntry g_BattleSlotEntries[];
+extern u8 g_BattleSlotFlags[];
+extern u16 g_BattleActionSlotMask;
 extern void BattleBeginActorAction(u8 arg0, u16 arg1, u8 arg2);
 extern void BattleApplySlotCurveAndStep(u8 arg0);
-extern u8 D_800D366C;
+extern u8 g_BattleSoundEnabled;
 extern s32* D_8005917C;
 extern char D_8006FB08[];
 extern char D_8006FB0C[];
@@ -66,7 +66,7 @@ extern u8 D_800C3E8C;
 extern u8 D_800C400B[];
 extern BattleSlotRow D_800C4022[];
 extern BattleSlotRow D_800C3FFE[];
-extern BattleCommandQueue *D_800C3EAC;
+extern BattleCommandQueue *g_BattleCommandQueue;
 extern u8 D_800C402F[];
 extern void func_800785D4(u8 arg0, u8 arg1);
 extern void func_80078658(u8 arg0, u8 arg1);
@@ -90,17 +90,17 @@ extern void BattleSetOverlayArg(u8 arg0);
 extern u8 D_800C3E3D[];
 extern u8 D_800D3404[];
 extern u8 D_800D3408[];
-extern BattleTableEntry D_800CCCE8[];
+extern BattleTableEntry g_BattleWorkBlock[];
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
 extern void func_80078998(u8 arg0, u8 arg1, u8 arg2);
 extern void func_80078E24(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
     if (D_800C3E8C != 0) {
-        D_800C400B[D_800C3EAC->count * 72] = arg0;
-        D_800C402F[D_800C3EAC->count * 72] = 0xF8;
-        D_800C4022[D_800C3EAC->count][0] = D_800C3E8C - 1;
-        D_800C3EAC->count = D_800C3EAC->count + 1;
+        D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+        D_800C402F[g_BattleCommandQueue->count * 72] = 0xF8;
+        D_800C4022[g_BattleCommandQueue->count][0] = D_800C3E8C - 1;
+        g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     }
 }
 void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
@@ -112,17 +112,17 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
 }
 /* Best: 89.11% (408 bytes vs retail 420), and it compiles. Structure is exact -
    all four calls, the 0xFD scan and both table stores line up; the whole gap is
-   &D_800D2C94: retail forms it ONCE into $s1 (lui/addiu), keeps it across the
+   &g_BattleActionSlotMask: retail forms it ONCE into $s1 (lui/addiu), keeps it across the
    func_800785D4 call and reads it three times (`lhu v1,0(s1)`, `lhu v0,0(s1)`,
    and through a copy in $t0 for the scan). gcc 2.7.2 folds the constant address
    into each load (`lui %hi; lhu %lo`), which costs the three instructions.
-   MEASURED: under -G0 gcc DOES keep &D_800D2C94 in a register (the -G0 build of
+   MEASURED: under -G0 gcc DOES keep &g_BattleActionSlotMask in a register (the -G0 build of
    this function scores 94.59%), so this is the -G setting, not the source - but
    this unit cannot move to -G0: matched BattleQueueCommandFD drops to 99.67.
-   The same wall is parked in misc15 func_8008ADD0 (D_800D2C94 again), so it is
+   The same wall is parked in misc15 func_8008ADD0 (g_BattleActionSlotMask again), so it is
    one shared question, not a per-function one. Tried: pValue assigned at the
    top and just before the D_800C3FFE store (identical), no pQueue local
-   (reloads D_800C3EAC in the loop), u16 *pValue = &D_800D2C94.
+   (reloads g_BattleCommandQueue in the loop), u16 *pValue = &g_BattleActionSlotMask.
 void func_80078998(u8 arg0, u8 arg1) {
     BattleCommandQueue *pQueue;
     u16 *pValue;
@@ -130,15 +130,15 @@ void func_80078998(u8 arg0, u8 arg1) {
     s32 n;
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
-    D_800C3EAC->unk2DC = D_800D2E5C[arg1].unk1 + 1;
+    g_BattleCommandQueue->unk2DC = D_800D2E5C[arg1].unk1 + 1;
     BattleBeginActorAction(arg0, D_800D2E5C[arg1].slotMask, D_800D2E5C[arg1].unk2);
-    BattleApplySlotCurveAndStep(D_800C3EAC->count);
-    D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk2;
-    pValue = &D_800D2C94;
-    D_800C3FFE[D_800C3EAC->count][0] = *pValue;
+    BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
+    D_800C402F[g_BattleCommandQueue->count * 72] = D_800D2E5C[arg1].unk2;
+    pValue = &g_BattleActionSlotMask;
+    D_800C3FFE[g_BattleCommandQueue->count][0] = *pValue;
     func_800785D4(arg0, arg1);
     if (D_800D2E5C[arg1].slotMask != *pValue) {
-        pQueue = D_800C3EAC;
+        pQueue = g_BattleCommandQueue;
         i = 0;
         n = 0;
         while (n < pQueue->count) {
@@ -156,12 +156,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
 
 
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[D_800C3EAC->count * 72] = 0xFD;
-    D_800C4022[D_800C3EAC->count][0] = 0;
-    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].slotMask;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFD;
+    D_800C4022[g_BattleCommandQueue->count][0] = 0;
+    D_800C3FFE[g_BattleCommandQueue->count][0] = D_800D2E5C[arg1].slotMask;
     func_800877E0(arg0, arg2);
     if (D_800D2E5C[arg1].unk4 != 1) {
-        if (D_800D32A1[arg0 * 8] == 0) {
+        if (g_BattleSlotFlags[arg0 * 8] == 0) {
             func_80087EDC(arg0, arg2);
         } else {
             func_800881B8(arg0, arg2);
@@ -171,11 +171,11 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[D_800C3EAC->count * 72] = 0xFC;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFC;
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk4;
+    D_800C402F[g_BattleCommandQueue->count * 72] = D_800D2E5C[arg1].unk4;
     func_800785D4(arg0, arg1);
 }
 
@@ -184,14 +184,14 @@ void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
 }
 
 void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[D_800C3EAC->count * 72] = 0xF9;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF9;
     func_800785D4(arg0, arg1);
     D_800D2DE4[arg0] = 0xFF;
-    // The empty-block wrapper keeps this store ahead of the D_800CCD64 read-modify-write.
+    // The empty-block wrapper keeps this store ahead of the g_BattleSlotEntries read-modify-write.
     do {
         D_800C3D1B[arg0 - 3].unk0 = 1;
     } while (0);
-    D_800CCD64[arg0].flags &= 0x8000;
+    g_BattleSlotEntries[arg0].flags &= 0x8000;
 }
 
 /* Best: 70.25% (560 bytes, exactly retail's size). The prologue and the flag
@@ -202,10 +202,10 @@ void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
    CSE: retail hoists (slot-3)<<6, (arg0-3)<<6 and then arg0*0x170 in that order
    and keeps one register (v0) for all four register-file words, ours hoists
    arg0*0x170 first and merges the four loads above the four stores. The copy is
-   four u32 accesses off the four absolute symbols D_800D3400/04/08/0C (that is
+   four u32 accesses off the four absolute symbols g_BattleSlotRegs/04/08/0C (that is
    what retail's four distinct relocations are), NOT one typed struct copy:
    `*(BattleSlotRegsHead *)...= *(...)` gives a 4-register block move and
-   `D_800D3400[i].unk0` lanes give a base register instead of retail's
+   `g_BattleSlotRegs[i].unk0` lanes give a base register instead of retail's
    symbol+index `$at` form. Tried: u8 src/dst locals (masks the result, 62.56),
    inline (slot-3)*0x40 at every use (68.14, 552 bytes), the four copies wrapped
    in an empty do/while block (68.89). Remaining gap is cse/insn-order, not
@@ -228,17 +228,17 @@ void func_80078E24(u8 arg0, u8 arg1) {
     src = (slot - 3) * 0x40;
     dst = (arg0 - 3) * 0x40;
     D_800C3E3D[arg0] = D_800C3E3D[slot];
-    *(u32 *)((u8 *)D_800D3400 + dst) = *(u32 *)((u8 *)D_800D3400 + src);
+    *(u32 *)((u8 *)g_BattleSlotRegs + dst) = *(u32 *)((u8 *)g_BattleSlotRegs + src);
     *(u32 *)(D_800D3404 + dst) = *(u32 *)(D_800D3404 + src);
     *(u32 *)(D_800D3408 + dst) = *(u32 *)(D_800D3408 + src);
     *(u32 *)(D_800D340C + dst) = *(u32 *)(D_800D340C + src);
     D_800C3D18[(arg0 - 3) * 4] = D_800C3D18[(slot - 3) * 4];
     D_800C3D19[(arg0 - 3) * 4] = D_800C3D19[(slot - 3) * 4];
-    memmove(&D_800CCCE8[arg0], &D_800CCCE8[slot], sizeof(BattleTableEntry));
-    D_800C4022[D_800C3EAC->count][0] = slot;
-    D_800C402F[D_800C3EAC->count * 72] = 0xFB;
-    D_800C400B[D_800C3EAC->count * 72] = arg0;
-    D_800C3EAC->count = D_800C3EAC->count + 1;
+    memmove(&g_BattleWorkBlock[arg0], &g_BattleWorkBlock[slot], sizeof(BattleTableEntry));
+    D_800C4022[g_BattleCommandQueue->count][0] = slot;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFB;
+    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+    g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
@@ -263,12 +263,12 @@ void BattleAddCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
 }
 void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
     BattleQueueCommandF8IfFlagged(arg1, arg0);
-    D_800C402F[D_800C3EAC->count * 72] = 0xF4;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF4;
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
-    D_800C402F[D_800C3EAC->count * 72] = 0xF6;
-    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].slotMask;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xF6;
+    D_800C3FFE[g_BattleCommandQueue->count][0] = D_800D2E5C[arg1].slotMask;
     func_800785D4(arg0, arg1);
 }
 void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
@@ -384,33 +384,33 @@ void BattleDispatchCommandRecords(u8 arg0) {
     } while (i < 0x20 || again);
 }
 void BattleQueueCommand1BAndFE(u8 arg0) {
-    if (D_800D32A1[arg0 * 8] != 0) {
-        D_800C400B[D_800C3EAC->count * 72] = arg0;
-        D_800C402F[D_800C3EAC->count * 72] = 0x1B;
-        D_800C3EAC->count = D_800C3EAC->count + 1;
+    if (g_BattleSlotFlags[arg0 * 8] != 0) {
+        D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+        D_800C402F[g_BattleCommandQueue->count * 72] = 0x1B;
+        g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     }
-    D_800C400B[D_800C3EAC->count * 72] = arg0;
-    D_800C402F[D_800C3EAC->count * 72] = 0xFE;
-    D_800D366C = 0;
+    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
+    D_800C402F[g_BattleCommandQueue->count * 72] = 0xFE;
+    g_BattleSoundEnabled = 0;
 }
 void func_80079778(u8 arg0) {
-    D_800C3EAC->count = 0;
+    g_BattleCommandQueue->count = 0;
     BattleClearSlotCurveState();
     BattleClearSlotCurveEntry();
-    D_800C400B[D_800C3EAC->count * 72] = arg0;
+    D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     BattleUpdateFrame();
     func_800B89FC(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
     BattleDispatchCommandRecords(arg0);
     BattleQueueCommand1BAndFE(arg0);
-    while (D_800C3EAC->unk2DB == 0) {
+    while (g_BattleCommandQueue->unk2DB == 0) {
         BattleUpdateFrame();
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079840);
 /* Best: 96.48%. Two emit-order/allocator tie-breaks left: the loop preheader
    puts `move a1,v1` after `la a2` where the original has it first, and the
-   D_800C3EAC load adds index-first (`addu v0,v0,v1`) where the original adds
-   base-first (`addu v1,v1,v0`). Tried: D_800C3EAC[slot * 0x40 + 0x3C] inline,
+   g_BattleCommandQueue load adds index-first (`addu v0,v0,v1`) where the original adds
+   base-first (`addu v1,v1,v0`). Tried: g_BattleCommandQueue[slot * 0x40 + 0x3C] inline,
    the (mem_addr) cast form, and a u8* pBuf local (96.48%). The slot/off split
    matters: `u8 slot = arg1 - 3` with `slot * 0x40` at each use reproduces the
    original's andi-then-sll rematerialisation; folding them into one u8 off
@@ -427,7 +427,7 @@ void func_80079840(u8 arg0, u8 arg1) {
         for (i = 0; i < 5; i++) {
             D_800D3439[slot * 0x40 + i] = D_800D2CA4[i];
         }
-        pBuf = D_800C3EAC + (arg0 & 0xFF) * 0x40;
+        pBuf = g_BattleCommandQueue + (arg0 & 0xFF) * 0x40;
         if (D_800C48E8 & BattleSlotBitMask(pBuf[0x3C])) {
             D_800D343E[slot * 0x40] = 1;
         } else {
@@ -456,7 +456,7 @@ void BattleScriptResetActorState(u8 arg0) {
 
     value = 0;
     slot = arg0 - 3;
-    pCursor = *(u8 **)D_800D3400[slot].unk0;
+    pCursor = *(u8 **)g_BattleSlotRegs[slot].unk0;
     p = (u8 *)D_800D2E5C;
     pEnd = p + 0x100;
     do {
@@ -490,14 +490,14 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
     result = 0;
     value = 0;
     slot = arg0 - 3;
-    if ((D_800CCD64[slot + 3].flags & 0x8000) != 0) {
+    if ((g_BattleSlotEntries[slot + 3].flags & 0x8000) != 0) {
         if ((D_800CCD1C[slot + 3].flags & 0x800) == 0) {
             goto done;
         }
     }
     D_800D2E5C[0].opcode = 0;
     if (D_800C3D18[slot * 4] != 0) {
-        pCursor = *(u8 **)&D_800D3400[slot].unk0[8];
+        pCursor = *(u8 **)&g_BattleSlotRegs[slot].unk0[8];
         p = D_800D2E5C;
         pEnd = p + 0x100;
         do {
@@ -541,7 +541,7 @@ void BattleRunActiveSlotScripts(void) {
     u32 stopOp;
     u32 endOp;
 
-    saved = D_800C3EAC->unk2D3;
+    saved = g_BattleCommandQueue->unk2D3;
     value = 0;
     i = 0;
     stopOp = 0xFD;
@@ -554,9 +554,9 @@ void BattleRunActiveSlotScripts(void) {
         if (D_800C3D19[index] == 0) {
             continue;
         }
-        D_800C3EAC->unk2D3 = idx;
+        g_BattleCommandQueue->unk2D3 = idx;
         pCursor = *(u8**)(D_800D340C + off2);
-        flags = *(u16*)((u8*)D_800CCD64 + off);
+        flags = *(u16*)((u8*)g_BattleSlotEntries + off);
         p = D_800D2E5C;
         if ((flags & 0x8000) != 0) {
             if ((*(u16*)((u8*)D_800CCD1C + off) & 0x800) == 0) {
@@ -583,9 +583,9 @@ void BattleRunActiveSlotScripts(void) {
                 value = func_8007EF6C(&pCursor, i, value);
             }
         }
-        D_800C3EAC->unk2DB = 0;
+        g_BattleCommandQueue->unk2DB = 0;
         func_80079778(idx);
         BattleSetOverlayArg(0);
     }
-    D_800C3EAC->unk2D3 = saved;
+    g_BattleCommandQueue->unk2D3 = saved;
 }

@@ -3,7 +3,7 @@
 
 extern void SoundFreeWdsEntry(void *);
 extern void SoundRemoveSedsEntry(void *);
-extern s32 *D_800C3A6C;
+extern s32 *g_BattleWdsEntry;
 
 void BattleCalcLookAtRotation(SVECTOR *pFrom, SVECTOR *pTo, u16 *pRot) {
     MATRIX mtx; // unused: reproduces retail's 0x20-byte stack slot
@@ -24,15 +24,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C08CC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0D18);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0F70);
-/* Best 67.93% (Default and 2.7.2-cdk). ATFREE wall: retail keeps %hi(D_800C3A6C)
+/* Best 67.93% (Default and 2.7.2-cdk). ATFREE wall: retail keeps %hi(g_BattleWdsEntry)
    in a callee-saved $s0 across the call and stores through it; gcc folds the
    address into the load ($a0 as base) and re-forms it with $at for the store.
-   Also tried a pointer local s32 *p = &D_800C3A6C; same 67.93%.
+   Also tried a pointer local s32 *p = &g_BattleWdsEntry; same 67.93%.
 void func_800C0F70(void) {
-    if (D_800C3A6C != 0) {
-        SoundFreeWdsEntry(D_800C3A6C);
+    if (g_BattleWdsEntry != 0) {
+        SoundFreeWdsEntry(g_BattleWdsEntry);
     }
-    D_800C3A6C = 0;
+    g_BattleWdsEntry = 0;
 }
 */
 

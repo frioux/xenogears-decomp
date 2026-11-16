@@ -3,29 +3,29 @@
 #include "psyq/libgte.h"
 #include "system/sound.h"
 
-extern s32 D_80059464;
-extern s16 D_800D3678;
-extern s32 D_800D363C[];
+extern s32 g_NumFlaggedTimerWorkListEntries;
+extern s16 g_BattleActorListCount;
+extern s32 g_BattleActorList[];
 extern s32 D_800D3640[];
-extern u16 D_800D2D4C;
-extern u16 D_800D36BC;
-extern s32 D_800C3610;
-extern s32 D_800C3628;
-extern s32 D_800C3CE8;
-extern s32 D_800D2D68;
-extern u8 D_800591AC;
+extern u16 g_BattleDelayCounter;
+extern u16 g_BattleActorDelayCounter;
+extern s32 g_BattleState;
+extern s32 g_BattlePendingCommand;
+extern s32 g_BattleWaitFrameCounter;
+extern s32 g_BattleTimerTask;
+extern u8 g_FlagTimerWorkListAdds;
 extern u8 D_8006BE10[];
 
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
 extern void func_800BD2E4(void);
 extern void *func_800BFC80(void *, s32, s32);
-extern s32 func_800B57E4(SpriteData *pSpriteData);
+extern s32 BattleSpriteDistanceToTarget(SpriteData *pSpriteData);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
 extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
-/* One 0x1C-byte slot of the battle actor table at D_800C3EB0. */
+/* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
 typedef struct {
     /* 0x00 */ u8 unk0[0x6];
     /* 0x06 */ u8 unk6;
@@ -37,13 +37,13 @@ typedef struct {
     /* 0x12 */ u8 unk12[0xA];
 } BattleActorSlot; // Size: 0x1C
 
-extern BattleActorSlot D_800C3EB0[];
+extern BattleActorSlot g_BattleStateWork[];
 extern SpriteData *D_800C3E1C;
-extern u8 D_800C362C;
-extern s32 D_800C35D8;
-extern void *D_800C3A6C;
-extern u8 D_800C3620;
-extern u8 D_800C3622;
+extern u8 g_BattleActorSlotMode;
+extern s32 g_BattlePendingActorTaskCount;
+extern void *g_BattleWdsEntry;
+extern u8 g_BattleSoundArchiveLoaded;
+extern u8 g_BattleActorArchiveReady;
 extern u16 D_800D3634;
 extern void BattleFreeActorArchiveAndSoundSeds(void);
 extern void func_800BB760(s32 index);
@@ -80,7 +80,7 @@ STATIC_ASSERT_SIZEOF(BattleDistanceTask, 0x30);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF4F0);
 
 void BattleIncFrameCounter(void) {
-    D_800C3CE8++;
+    g_BattleWaitFrameCounter++;
 }
 
 extern void func_800B7C34(s32);
@@ -94,14 +94,14 @@ void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData *pSpriteData) {
         func_800B7C34(arg0);
         return;
     }
-    D_800C3CE8 = 0;
+    g_BattleWaitFrameCounter = 0;
     if ((s8)pSpriteData->flags_0xAC.bytes[3] != 0) {
         SpriteSetCallback(pSpriteData, BattleIncFrameCounter);
         SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
     }
     func_800B7C34(arg0);
     if ((s8)pSpriteData->flags_0xAC.bytes[3] != 0) {
-        while (D_800C3CE8 == 0) {
+        while (g_BattleWaitFrameCounter == 0) {
             func_800BE790();
         }
         SpriteSetCallback(pSpriteData, 0);
@@ -109,21 +109,21 @@ void BattleActorWaitFramesWithCallback(s32 arg0, SpriteData *pSpriteData) {
 }
 
 void BattleUpdateActorSlotsIfStateExists(void) {
-    if (D_800C3610 != 0) {
+    if (g_BattleState != 0) {
         func_800BD2E4();
     }
 }
 
 s32 BattleGetAdjustedWaitCountdown(void) {
-    return D_80059464 - BattleIsTimerTaskActive();
+    return g_NumFlaggedTimerWorkListEntries - BattleIsTimerTaskActive();
 }
 
 s32 BattleIsTimerTaskActive(void) {
-    return D_800D2D68 != 0;
+    return g_BattleTimerTask != 0;
 }
 
 void BattleSetPendingCommand(s32 arg0) {
-    D_800C3628 = arg0;
+    g_BattlePendingCommand = arg0;
 }
 
 void BattleUpdateDistanceTask(BattleDistanceTask *pTask) {
@@ -135,7 +135,7 @@ void BattleUpdateDistanceTask(BattleDistanceTask *pTask) {
     // pTask in the branch below as well drops the match to 91%.
     pSelf = pTask;
     prev = pTask->distance;
-    dist = func_800B57E4(pTask->pSpriteData);
+    dist = BattleSpriteDistanceToTarget(pTask->pSpriteData);
     pTask->distance = dist;
     if (prev < dist || dist < pTask->minDistance) {
         pSelf->pOnDistanceOutOfRange(pSelf->pSpriteData);
@@ -153,16 +153,16 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     pTask->pOnDistanceOutOfRange = pOnDistanceOutOfRange;
     pTask->pSpriteData = pSpriteData;
     pTask->animId = (s8)pSpriteData->flags_0xAC.bytes[3];
-    pTask->distance = func_800B57E4(pSpriteData);
+    pTask->distance = BattleSpriteDistanceToTarget(pSpriteData);
     pTask->minDistance = minDistance;
     pSpriteData->flags_0xAC.flags |= 0x20;
 }
 // best 73.04% (71.61% in the variant below, 108 bytes = one instruction short):
 // retail's first instruction is a `move t0,a1` copy of the second parameter (its
 // a1 is then reused for the 0x8C8C constant), and its reload of the target slot
-// happens before the D_800D363C lui; every instruction after that is present, only
+// happens before the g_BattleActorList lui; every instruction after that is present, only
 // the allocator's register roles differ. 0x8C8C is a byte offset into the
-// D_800C3EB0 block that does not fit a 16-bit displacement, so retail assembles
+// g_BattleStateWork block that does not fit a 16-bit displacement, so retail assembles
 // base+index and +0x8C8C in two addu's - that part the C below does reproduce.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
 /*
@@ -176,7 +176,7 @@ void func_800BF85C(s32 arg0, s32 arg1) {
     SpriteData *pSprite;
     u8 *pTargetSlot;
 
-    base = (mem_addr)D_800C3EB0;
+    base = (mem_addr)g_BattleStateWork;
     off = 0x8C8C;
     slot = arg1;
     pSprite = *(SpriteData **)(base + (arg0 << 2) + off);
@@ -189,34 +189,34 @@ void func_800BF85C(s32 arg0, s32 arg1) {
     D_800D3634 = 1 << slot;
     *(s32 *)((u8 *)pSprite + 0x74) = target;
     target = *(s32 *)pTargetSlot;
-    D_800D363C[1] = 0;
-    D_800D363C[0] = target;
+    g_BattleActorList[1] = 0;
+    g_BattleActorList[0] = target;
 }
 */
 void BattleRemapActorModelId(SpriteData *pActor) {
     s32 i = 0;
     s32 *pEntry;
 
-    if (D_800D3678 != 0) {
-        pEntry = D_800D363C;
-        for (i = 0; i != D_800D3678; i++) {
+    if (g_BattleActorListCount != 0) {
+        pEntry = g_BattleActorList;
+        for (i = 0; i != g_BattleActorListCount; i++) {
             if (pEntry[i] == (s32)pActor->pTargetEntitySprite) {
                 break;
             }
         }
     }
-    if (i >= D_800D3678) {
-        pActor->pTargetEntitySprite = (void *)D_800D363C[0];
+    if (i >= g_BattleActorListCount) {
+        pActor->pTargetEntitySprite = (void *)g_BattleActorList[0];
     } else {
         pActor->pTargetEntitySprite = (void *)D_800D3640[i];
     }
 }
 s32 BattleFindTableEntryIndex(s32 arg0) {
-    s16 count = D_800D3678;
+    s16 count = g_BattleActorListCount;
     s32 i = 0;
 
     if (count != 0) {
-        s32 *pEntry = D_800D363C;
+        s32 *pEntry = g_BattleActorList;
 
         for (i = 0; i != count; i++) {
             if (pEntry[i] == arg0) {
@@ -227,16 +227,16 @@ s32 BattleFindTableEntryIndex(s32 arg0) {
     return i;
 }
 void BattleTickCountersAndFreeUnitSlot(void) {
-    s16 first = D_800D2D4C + 1;
-    s16 second = D_800D36BC + 1;
+    s16 first = g_BattleDelayCounter + 1;
+    s16 second = g_BattleActorDelayCounter + 1;
 
-    D_800D2D4C = first;
-    D_800D36BC = second;
+    g_BattleDelayCounter = first;
+    g_BattleActorDelayCounter = second;
     if (first == 2) {
         func_800A9FF0(0xB);
     }
 }
-extern u8 D_800C3621;
+extern u8 g_BattleActorArchiveLoadPending;
 extern void BattleWaitArchiveSync(void);
 extern int ArchiveDecodeAlignedSize(u32 entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flags);
@@ -245,7 +245,7 @@ extern void func_8002DDE4(void *p0, s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 
 void BattleLoadArchiveEntryFile(void) {
     void *pBuffer;
 
-    if (D_800C3621 != 0) {
+    if (g_BattleActorArchiveLoadPending != 0) {
         BattleWaitArchiveSync();
         ArchiveSetIndex(0x2C, 0);
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(1), 0);
@@ -254,21 +254,21 @@ void BattleLoadArchiveEntryFile(void) {
         func_8002DDE4(pBuffer, 0, 0, 0, 0, 0, 0);
         func_800BE790();
         HeapFree(pBuffer);
-        D_800C3621 = 0;
+        g_BattleActorArchiveLoadPending = 0;
     }
 }
 // Hands every live actor slot whose animation is neither idle nor one of the 0x10
 // special ones to the per-actor animation task, except the slot the current battle
 // state owns (state mode 2). The 4-bit slot mode packs bits 30-31 of flags_0xA8 with
 // bits 0-1 of flags_0xAC, so it is assembled from two pieces.
-void func_800BFA9C(void) {
+void BattleReleaseAllActorSlots(void) {
     s32 i;
     s32 mode;
     s32 high;
     s32 low;
     SpriteData *pSprite;
 
-    if (D_800C362C == 0) {
+    if (g_BattleActorSlotMode == 0) {
         return;
     }
     BattleFreeActorArchiveAndSoundSeds();
@@ -279,26 +279,26 @@ void func_800BFA9C(void) {
     low = (pSprite->flags_0xAC.flags & 3) << 2;
     mode = low | high;
     for (i = 0; i != 3; i++) {
-        if (D_800C3EB0[i].unk8 != 0) {
-            if (D_800C362C != 2 || i != mode) {
-                if (D_800C3EB0[i].unk6 < 0x11) {
+        if (g_BattleStateWork[i].unk8 != 0) {
+            if (g_BattleActorSlotMode != 2 || i != mode) {
+                if (g_BattleStateWork[i].unk6 < 0x11) {
                     func_800BB760(i);
                 }
             }
         }
     }
-    while (D_800C35D8 != 0) {
+    while (g_BattlePendingActorTaskCount != 0) {
         func_800BE790();
     }
-    D_800C362C = 0;
+    g_BattleActorSlotMode = 0;
 }
 
 // Loads the battle's sound archive file (directory 0x2C, entry 5) and hands it to
 // the WDS player, unless the WDS table already has its id.
-void func_800BFBA0(void) {
+void BattleLoadSoundWdsFile(void) {
     SoundWDSEntry *pWds;
 
-    if (D_800C3620 != 0) {
+    if (g_BattleSoundArchiveLoaded != 0) {
         return;
     }
     BattleWaitArchiveSync();
@@ -308,12 +308,12 @@ void func_800BFBA0(void) {
     BattleWaitArchiveSync();
     if (SoundFindWdsEntry(pWds->id) == NULL) {
         func_800C0F70();
-        D_800C3A6C = SoundLoadWdsFile(pWds, 0);
+        g_BattleWdsEntry = SoundLoadWdsFile(pWds, 0);
         while (SoundGetPendingSpuCommandType(0) != 0) {
             func_800BE790();
         }
-        D_800C3620 = 1;
-        D_800C3622 = 0;
+        g_BattleSoundArchiveLoaded = 1;
+        g_BattleActorArchiveReady = 0;
     }
     HeapFree(pWds);
 }
@@ -350,13 +350,13 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
     pTable = &D_8006BE10[0];
     pBase = *(u8 **)(pTable + 0x10);
     pEntry = (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase);
-    saved = D_800591AC;
-    D_800591AC = 0;
+    saved = g_FlagTimerWorkListAdds;
+    g_FlagTimerWorkListAdds = 0;
     pNew = func_80023B84(pActor, pEntry);
     flags = *(s32 *)(pNew + 0xB0);
     *(s8 *)(pNew + 0xAF) = arg1;
     *(u8 **)(pNew + 0x74) = pActor;
-    D_800591AC = saved;
+    g_FlagTimerWorkListAdds = saved;
     flags |= 0x100;
     *(s32 *)(pNew + 0xB0) = flags;
 }

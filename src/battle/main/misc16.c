@@ -17,14 +17,14 @@ typedef struct {
     /* 0x00 */ POLY_FT4 prims[2];
 } BattleSpritePackage; // Size: 0x50
 
-extern u8 D_800D2CE0[];
+extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
 extern u8 *D_800C3EA4;
-extern u8 *D_800C3EAC;
+extern u8 *g_BattleCommandQueue;
 extern s32 D_800CCB34;
-extern BattleWork *D_800D2D28;
-extern BattleSlotGraphics *D_800D2E38[];
-extern u8 *D_800D2D90[];
+extern BattleWork *g_BattleDisplayState;
+extern BattleSlotGraphics *g_BattleSlotGraphics[];
+extern u8 *g_BattleSlotRects[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 extern u8 D_800CCD38[];
@@ -48,7 +48,7 @@ extern void *BattleAllocTextBuffer(s32);
 extern void bzero(void *p, s32 n);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
-extern u8 D_800C3D70[];
+extern u8 g_BattleCommandGridAltIds[];
 extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
@@ -60,7 +60,7 @@ extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(s32, s32);
 extern void BattleDrawMenuEntryString(u8, u8);
-extern void *D_800D2F5C;
+extern void *g_BattleSpriteArchive;
 extern u8 D_800C3E4C;
 extern void BattleSetPrimGrey80BlendModeFromGlobal(POLY_FT4 *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
@@ -73,7 +73,7 @@ extern u16 D_800C323A;
 // base and the slot's counter at +0 of the D_800CCDC4 base, 0x62 bytes later.
 extern BattleTableEntry D_800CCD62[];
 extern BattleTableEntry D_800CCDC4[];
-extern u8 D_800D2D24[];
+extern u8 g_BattleActorCharIds[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
 extern void BattleClearPrimFlagsThreeSlots(u8);
@@ -101,15 +101,15 @@ u8 func_8008CDE4(u8 arg0, u8 arg1) {
     cur = D_800CCDC4[arg0].flags;
     dmg = *(u16 *)(D_800CEF10 + idx);
     if (cur >= trigger &&
-        (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[D_800D2D24[arg0]].unk1E, arg1) != 0 &&
+        (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk1E, arg1) != 0 &&
         (D_800CCD62[arg0].flags & statusMasks[arg1]) == 0) {
         BattleClearPrimFlagsThreeSlots(1);
-        D_800D2D28->unkC6 = 1;
+        g_BattleDisplayState->unkC6 = 1;
         if (func_80085084(dmg, arg0, 0) != 0) {
             D_800CCDC4[arg0].flags -= trigger;
             ret = 1;
         } else {
-            D_800D2D28->unkC6 = 0;
+            g_BattleDisplayState->unkC6 = 0;
             BattleSetPrimFlagsThreeSlots(arg0);
         }
         flag = 0;
@@ -138,25 +138,25 @@ void func_8008D328(void) {
 
     found = 0;
     for (j = 0; j < 2; j++) {
-        if (*(s32 *)(D_800D2D28 + j * 4 + 0xD0) != 0) {
-            for (i = 0; i < *(s32 *)(D_800D2D28 + j * 4 + 0xD0) * 2; i += 2) {
+        if (*(s32 *)(g_BattleDisplayState + j * 4 + 0xD0) != 0) {
+            for (i = 0; i < *(s32 *)(g_BattleDisplayState + j * 4 + 0xD0) * 2; i += 2) {
                 u8 c;
 
-                SetSemiTrans(D_800C3EA4 + 0x641C + j * 0xFA0 + (i + D_800D2D28[0xA3]) * 0x28, 1);
-                SetShadeTex(D_800C3EA4 + 0x641C + j * 0xFA0 + (i + D_800D2D28[0xA3]) * 0x28, 0);
-                *(u16 *)(D_800C3EA4 + j * 0xFA0 + 0x6432 + (i + D_800D2D28[0xA3]) * 0x28) |= 0x20;
-                c = *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6420 + (i + D_800D2D28[0xA3]) * 0x28);
+                SetSemiTrans(D_800C3EA4 + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState[0xA3]) * 0x28, 1);
+                SetShadeTex(D_800C3EA4 + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState[0xA3]) * 0x28, 0);
+                *(u16 *)(D_800C3EA4 + j * 0xFA0 + 0x6432 + (i + g_BattleDisplayState[0xA3]) * 0x28) |= 0x20;
+                c = *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState[0xA3]) * 0x28);
                 if (c != 0) {
                     found = 1;
-                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6420 + (i + D_800D2D28[0xA3]) * 0x28) = c - (*(u8 *)(D_800C3EAC + 0x2E0) << 4);
-                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6421 + (i + D_800D2D28[0xA3]) * 0x28) = c - (*(u8 *)(D_800C3EAC + 0x2E0) << 4);
-                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6422 + (i + D_800D2D28[0xA3]) * 0x28) = c - (*(u8 *)(D_800C3EAC + 0x2E0) << 4);
+                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState[0xA3]) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6421 + (i + g_BattleDisplayState[0xA3]) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(D_800C3EA4 + j * 0xFA0 + 0x6422 + (i + g_BattleDisplayState[0xA3]) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
                 }
             }
         }
     }
     if (found == 0) {
-        D_800D2D28[0xCB] = 0;
+        g_BattleDisplayState[0xCB] = 0;
     }
 }
 
@@ -176,7 +176,7 @@ void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     s16 dy;
     s32 i;
 
-    p = D_800D2E38[arg0];
+    p = g_BattleSlotGraphics[arg0];
     if (D_800C3E4C != 0) {
         codes[0] = 0x4A;
         codes[1] = 0x4C;
@@ -220,29 +220,29 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
 void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
     u8 *p;
 
-    D_800D2D28[arg0 + 0xB0] = 0;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3C8) = arg1;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3CA) = arg2;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3D0) = arg1 + arg3;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3D2) = arg2;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3D8) = arg1;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3DA) = arg2 + arg4;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3E0) = arg1 + arg3;
-    *(u16 *)(D_800D2E38[arg0] + D_800CCB34 * 0x24 + 0x3E2) = arg2 + arg4;
+    g_BattleDisplayState[arg0 + 0xB0] = 0;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3C8) = arg1;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3CA) = arg2;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3D0) = arg1 + arg3;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3D2) = arg2;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3D8) = arg1;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3DA) = arg2 + arg4;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3E0) = arg1 + arg3;
+    *(u16 *)(g_BattleSlotGraphics[arg0] + D_800CCB34 * 0x24 + 0x3E2) = arg2 + arg4;
     BattleDrawSpriteQuad(arg0, arg1, arg2, arg3, arg4);
     func_8008DE04(arg0, arg1, arg2, arg3);
     func_8008E430(arg0, arg1, arg2, arg3, arg4);
     func_8008EA70(arg0, arg1, arg2, arg4);
     func_8008F0A8(arg0, arg1, arg2, arg3, arg4);
-    *(u8 *)(D_800D2E38[arg0] + 0x5A4) = *(u8 *)&D_800CCB34;
-    D_800D2D28[arg0 + 0xB0] = 1;
+    *(u8 *)(g_BattleSlotGraphics[arg0] + 0x5A4) = *(u8 *)&D_800CCB34;
+    g_BattleDisplayState[arg0 + 0xB0] = 1;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F8F4);
 /* 96.44%: whole body matches; only the prologue save/copy order differs (gcc
    gives s4 to arg5 and s5 to arg1 and copies arg0 last; the original has
    s4=arg1, s5=arg5 and copies arg0 first). Tried: separate pointer temps per
-   block, a pFlags temp for D_800D2D28 (that load has to sit before the sh
+   block, a pFlags temp for g_BattleDisplayState (that load has to sit before the sh
    stores or gcc moves it after them), `*(base + index + K)` instead of
    `base[index + K]` (only the former gives the base-first addu), inverted
    if/else, and two declaration orders. Worth one more try by someone who can
@@ -258,19 +258,19 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
     u8 *q;
 
     index = arg0;
-    if (*(D_800D2D28 + index + 0xB0) == 0) {
+    if (*(g_BattleDisplayState + index + 0xB0) == 0) {
         q = BattleAllocHeapBlock(0x5A8, 0);
-        D_800D2E38[index] = q;
+        g_BattleSlotGraphics[index] = q;
         bzero(q, 0x5A8);
         q = BattleAllocHeapBlock(0xE, 0);
-        D_800D2D90[index] = q;
+        g_BattleSlotRects[index] = q;
         bzero(q, 0xE);
         BattleInitSlotPrims(index);
     }
     if (arg5 != 0) {
-        p = D_800D2D90[index];
+        p = g_BattleSlotRects[index];
         p[0xC] = arg0;
-        pFlags = D_800D2D28;
+        pFlags = g_BattleDisplayState;
         ((u16 *)p)[0] = arg1;
         ((u16 *)p)[1] = arg2;
         ((u16 *)p)[2] = arg3;
@@ -278,7 +278,7 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
         ((u16 *)p)[4] = 0;
         ((u16 *)p)[5] = 0;
         *(pFlags + index + 0xBF) = 0;
-        pFlags = D_800D2D28;
+        pFlags = g_BattleDisplayState;
         *(pFlags + index + 0xB8) = 1;
     } else {
         func_8008F6E4(index, arg1, arg2, arg3, arg4);

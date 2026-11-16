@@ -20,7 +20,7 @@ extern u16 D_8004FE26;
 extern u16 D_8004FE28;
 extern void* g_ArchiveCurStreamFile; // Current stream file struct
 extern s32 D_80059F00;
-extern u32 D_80059F0C;
+extern u32 g_ArchiveCurEntryIndex;
 extern s16 D_80059F60;
 extern s32 D_8005A4DC;
 extern void ArchiveCdReadyReadFile(u_char status);
@@ -68,7 +68,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     u32* pData;
     CdlLOC* pLoc;
 
-    D_80059F0C = dbgEntryIndex;
+    g_ArchiveCurEntryIndex = dbgEntryIndex;
     for (i = 2, pData = &D_80059F00; i >= 0; i--)
         *pData-- = 0;
     
@@ -100,7 +100,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
                 for (i = 0; i < RETRY_COUNT; i++) {
                     D_8004FE4C = PCopen(pFilePath2, 0, 0);
                     if (D_8004FE4C == -1)
-                        func_8002804C(i, 0xFF, 0, 0);
+                        GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
                     else
                         break;
                 }
@@ -146,7 +146,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
                 for (i = 0; i < RETRY_COUNT; i++) {
                     D_8004FE4C = PCopen(pFilePath2, 0, 0);
                     if (D_8004FE4C == -1)
-                        func_8002804C(i, 0xFF, 0, 0);
+                        GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
                     else
                         break;
                 }
@@ -164,7 +164,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
         for (i = 0; i < RETRY_COUNT; i++) {
             hFile = PCopen(pFilePath, 0, 0);
             if (hFile == -1)
-                func_8002804C(i, 0xFF, 0, 0);
+                GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
             else
                 break;
         }
@@ -176,7 +176,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
         if (pDestBuffer != NULL) {
             for (i = 0; i < RETRY_COUNT; i++) {
                 if (PCread(hFile, pDestBuffer, g_ArchiveCurFileSize) == 0)
-                    func_8002804C(i, 0, 0xFF, 0);
+                    GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
                 else
                     break;
             }
@@ -184,7 +184,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
         
         for (i = 0; i < RETRY_COUNT; i++) {
             if (PCclose(hFile) != 0) {
-                func_8002804C(i, 0, 0, 0xFF);
+                GfxDrawArchiveReadRetry(i, 0, 0, 0xFF);
             } else {
                 g_ArchiveCurFileSize = 0;
                 D_8004FDFC = 0;
@@ -290,7 +290,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *     if (pQueue->archiveIndex == 0 || pQueue->pData == NULL) {
  *         ArchiveCdSeekToFile(channel);
  *     } else {
- *         D_80059F0C = pQueue->archiveIndex;
+ *         g_ArchiveCurEntryIndex = pQueue->archiveIndex;
  *         g_ArchiveCurFileSector = ArchiveDecodeSector(pQueue->archiveIndex);
  *         g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(pQueue->archiveIndex);
  *         D_8004FE38 = channel & 0xFFFF;
@@ -302,12 +302,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *
  *         if (g_ArchiveDebugTable != 0) {
  *             for (i = 0, pEntry = pQueue; i < nCount; i++, pEntry++) {
- *                 D_80059F0C = pEntry->archiveIndex;
+ *                 g_ArchiveCurEntryIndex = pEntry->archiveIndex;
  *                 pFilePath = ArchiveGetFilePath(pEntry->archiveIndex);
  *                 for (nRetry = 0; nRetry < RETRY_COUNT; nRetry++) {
  *                     hFile = PCopen(pFilePath, 0, 0);
  *                     if (hFile == -1) {
- *                         func_8002804C(nRetry, 0xFF, 0, 0);
+ *                         GfxDrawArchiveReadRetry(nRetry, 0xFF, 0, 0);
  *                     } else {
  *                         break;
  *                     }
@@ -318,7 +318,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *                         if (PCread(hFile, pEntry->pData, ArchiveDecodeSizeAligned(pEntry->archiveIndex)) != 0) {
  *                             break;
  *                         }
- *                         func_8002804C(nRetry, 0, 0xFF, 0);
+ *                         GfxDrawArchiveReadRetry(nRetry, 0, 0xFF, 0);
  *                     }
  *                 }
  *
@@ -326,7 +326,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *                     if (PCclose(hFile) == 0) {
  *                         break;
  *                     }
- *                     func_8002804C(nRetry, 0, 0, 0xFF);
+ *                     GfxDrawArchiveReadRetry(nRetry, 0, 0, 0xFF);
  *                 }
  *             }
  *         } else {
@@ -938,7 +938,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  *                 if (PCread(D_80059F04, D_8004FE08 + nSectorOffset, CD_SECTOR_SIZE) != 0) {
  *                     break;
  *                 }
- *                 func_8002804C(i, 0, 0xFF, 0);
+ *                 GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
  *             }
  *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
  *             g_ArchiveCurFileSector += 1;

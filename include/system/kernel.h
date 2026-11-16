@@ -24,7 +24,7 @@ extern char D_80059420;
 extern char D_80059418;
 
 // Is Debug?
-extern int D_80010000;
+extern int g_DebugTable;
 
 extern int D_800592C4;
 extern int D_800592C8; // current menu render context

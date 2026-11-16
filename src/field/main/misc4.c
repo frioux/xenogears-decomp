@@ -12,30 +12,30 @@
 #include "psyq/inline_c.h"
 
 extern int FieldUpdateWdsAndAudioLoad(s32 arg0);
-extern s32 D_8004F308;
-extern s32 D_8004F324;
-extern s32 D_800ADC18;
+extern s32 g_GameWdsBankLoadState;
+extern s32 g_GameRequestedWdsBankIndex;
+extern s32 g_FieldSkipCounter;
 
 // Ticks down the countdown timer, returning the value it held after the tick
 int FieldTickSkipCounter(void) {
     int nCount;
 
     rand();
-    if (D_8004F308 == -1) {
-        D_8004F308 = FieldUpdateWdsAndAudioLoad(D_8004F324);
+    if (g_GameWdsBankLoadState == -1) {
+        g_GameWdsBankLoadState = FieldUpdateWdsAndAudioLoad(g_GameRequestedWdsBankIndex);
     }
-    nCount = D_800ADC18;
+    nCount = g_FieldSkipCounter;
     if (nCount != 0) {
         nCount--;
-        D_800ADC18 = nCount;
+        g_FieldSkipCounter = nCount;
     }
     return nCount;
 }
 
 extern int ArchiveDataSync(void);
 extern s32 D_800ADB2C;
-extern s32 D_800ADB34;
-extern s32 D_800ADB90;
+extern s32 g_FieldScreenImageStored;
+extern s32 g_FieldSpecialAnimLoadPending;
 extern s32 D_800ADBC4;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
@@ -54,8 +54,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078BC8);
    not objdiff's, so it picked a body that is worse here.
 extern int ArchiveDataSync(void);
 extern s32 D_800ADB2C;
-extern s32 D_800ADB34;
-extern s32 D_800ADB90;
+extern s32 g_FieldScreenImageStored;
+extern s32 g_FieldSpecialAnimLoadPending;
 extern s32 D_800ADBC4;
 
 int func_80078BC8(void) {
@@ -68,11 +68,11 @@ int func_80078BC8(void) {
     nSyncStatus = ArchiveDataSync();
     if (nSyncStatus != 0) {
         nResult = -1;
-    } else if (D_8004F308 != 0) {
+    } else if (g_GameWdsBankLoadState != 0) {
         nResult = -1;
-    } else if (D_800ADB90 != 0) {
+    } else if (g_FieldSpecialAnimLoadPending != 0) {
         nResult = -1;
-    } else if (D_800ADB34 != 0) {
+    } else if (g_FieldScreenImageStored != 0) {
         nResult = -1;
     } else {
         nResult = -(D_800ADBC4 != 0xFF);
@@ -121,16 +121,16 @@ extern s32 g_GamePartySkinsInitialized;
 extern SoundWDSEntry* g_GameCurLoadedWDS;
 
 extern s32 D_8004F2F8;
-extern s32 D_8004F304;
-extern s32 D_8004F338;
-extern s32 D_8004F348;
-extern s32 D_8004F2FC;
+extern s32 g_WorldMapAudioManagerLoaded;
+extern s32 g_GameLoadedWdsBankIndex;
+extern s32 g_GameReusePendingAudioManager;
+extern s32 g_SoundPendingAudioManager;
 extern s32 D_800AFD04;
 extern s32 D_800ADB60;
 extern s32 D_800ADC14;
-extern s32 D_800C2684;
-extern s32 D_800B2264;
-extern AudioManager* D_80062528;
+extern s32 g_FieldZoomFadeScale;
+extern s32 g_FieldActorModelSlotCount;
+extern AudioManager* g_SoundAudioManager;
 
 extern void FieldLoadFont(void);
 extern void FieldStoreScreenImage(void);
@@ -229,7 +229,7 @@ void func_80078D44(void) {
         FieldLoad();
         FieldStartScriptDataStream();
         D_800AFD04 = 1;
-        if (D_800B2264 != 0) {
+        if (g_FieldActorModelSlotCount != 0) {
             LibGearSetDirectKeyframes(1);
         }
         nFadeStep = 0x20;
@@ -243,8 +243,8 @@ void func_80078D44(void) {
                 FieldZoomFadeEffectUpdate();
                 FieldDisplay();
                 if (D_8005942C != 1) {
-                    if (D_800C2684 < 0x22C0) {
-                        D_800C2684 += nFadeStep;
+                    if (g_FieldZoomFadeScale < 0x22C0) {
+                        g_FieldZoomFadeScale += nFadeStep;
                     }
                 } else {
                     FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
@@ -275,29 +275,29 @@ void func_80078D44(void) {
             rect.h = 0xE0;
             MoveImage(&rect, 0x200, 0);
         }
-        if (D_8004F304 != 0) {
-            SoundStopAudioManager(D_80062528);
-            SoundDestroyAudioManager(D_80062528);
+        if (g_WorldMapAudioManagerLoaded != 0) {
+            SoundStopAudioManager(g_SoundAudioManager);
+            SoundDestroyAudioManager(g_SoundAudioManager);
             SoundFreeWdsEntry(g_GameCurLoadedWDS);
-            D_8004F304 = 0;
+            g_WorldMapAudioManagerLoaded = 0;
         }
         func_800A24C4();
         D_8004F310 = 0;
         g_GamePartySkinsInitialized = 0;
         FieldRenderSync();
         ControllerResetState();
-        D_8004F308 = 0;
+        g_GameWdsBankLoadState = 0;
         if (D_800594D0 == 1) {
-            D_8004F324 = 0xE;
+            g_GameRequestedWdsBankIndex = 0xE;
             FieldFreePendingAudioManager();
         }
-        if (D_8004F338 != D_8004F324) {
+        if (g_GameLoadedWdsBankIndex != g_GameRequestedWdsBankIndex) {
             SoundFreeLoadedWdsAndAudioManager();
-            D_8004F308 = -1;
-            if (D_8004F2FC != 0) {
-                D_8004F348 = 1;
+            g_GameWdsBankLoadState = -1;
+            if (g_SoundPendingAudioManager != 0) {
+                g_GameReusePendingAudioManager = 1;
             }
-            FieldStartWdsBankLoad(D_8004F324, 1);
+            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 1);
         } else {
             FieldFreePendingAudioManager();
         }
@@ -316,8 +316,8 @@ void func_80078D44(void) {
                         if (nFade < 0) {
                             nFade = 0;
                         }
-                        if (D_800C2684 < 0x22C0) {
-                            D_800C2684 += nFadeStep;
+                        if (g_FieldZoomFadeScale < 0x22C0) {
+                            g_FieldZoomFadeScale += nFadeStep;
                         }
                     }
                 }
@@ -332,7 +332,7 @@ void func_80078D44(void) {
                 FieldTickSkipCounter();
             }
         }
-        if (D_800B2264 != 0) {
+        if (g_FieldActorModelSlotCount != 0) {
             LibGearSetDirectKeyframes(0);
         }
         FieldRestoreScreenImage();
@@ -394,7 +394,7 @@ void func_80079288(void) {
     if (D_800ADBEC == 0) {
         return;
     }
-    if (D_8004F308 == -1) {
+    if (g_GameWdsBankLoadState == -1) {
         return;
     }
     pPeriod = &D_800B2298;
@@ -465,8 +465,8 @@ void func_80079288(void) {
 
 extern s32 D_800AFC78;
 extern s32 D_8004F370;
-extern s16 D_8004F384;
-extern s32 D_800B0064;
+extern s16 g_GameWdsEntryReleased;
+extern s32 g_FieldNextGameState;
 extern void FieldScriptSyncMemoryWithGameState(void);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void FieldBeginWdsFileLoad(void);
@@ -484,7 +484,7 @@ void FieldAdvanceGameState(int state) {
 
         FieldScriptSyncMemoryWithGameState();
         nSaved = g_pGameState->unk1930[1];
-        D_8004F324 = D_800AFC78;
+        g_GameRequestedWdsBankIndex = D_800AFC78;
         g_pGameState->unk2322 = D_800AFC78;
         g_pGameState->unk2320 = nSaved;
         if (D_8004F370 != 0) {
@@ -494,7 +494,7 @@ void FieldAdvanceGameState(int state) {
         break;
     }
     case 1:
-        if (D_8004F384 == state) {
+        if (g_GameWdsEntryReleased == state) {
             SoundFreeLoadedWdsAndAudioManager();
             FieldBeginWdsFileLoad();
             ArchiveCdDataSync(0);
@@ -510,7 +510,7 @@ void FieldAdvanceGameState(int state) {
         u16 nSaved;
 
         nSaved = g_pGameState->unk1930[1];
-        g_pGameState->unk2322 = D_8004F324;
+        g_pGameState->unk2322 = g_GameRequestedWdsBankIndex;
         g_pGameState->unk2320 = nSaved;
         if (D_8004F370 != 0) {
             return;
@@ -525,10 +525,10 @@ void FieldAdvanceGameState(int state) {
         if (D_8004F370 != 0) {
             return;
         }
-        if (D_800B0064 & 0x80) {
+        if (g_FieldNextGameState & 0x80) {
             func_8001BB50();
         }
-        ChangeGameState(D_800B0064 & 0x7F);
+        ChangeGameState(g_FieldNextGameState & 0x7F);
         break;
     }
 
@@ -561,13 +561,13 @@ void FieldRenderColorFill(int color) {
 }
 
 
-extern s32 D_800B2268;
+extern s32 g_FieldSceneReloadFlags;
 extern u_char D_80059179;
 extern s16 D_800B234C;
 extern s32 g_PlayerActorIndex;
 
 void FieldUpdatePlayerWalkmeshMaterial(void) {
-    if (D_800B2268 != 0 && (g_FieldActors[g_PlayerActorIndex].pActorData->curWalkmeshTriMaterial & 0xC0) == 0) {
+    if (g_FieldSceneReloadFlags != 0 && (g_FieldActors[g_PlayerActorIndex].pActorData->curWalkmeshTriMaterial & 0xC0) == 0) {
         D_80059179 = 0;
     } else {
         D_80059179 = 1;
@@ -980,7 +980,7 @@ typedef struct {
     u16 pad6;
 } FieldWalkmeshVert; // Size: 0x8
 
-extern FieldWalkmeshTriIdx* D_800AFB24[];
+extern FieldWalkmeshTriIdx* g_FieldWalkmeshTriangles[];
 extern FieldWalkmeshVert* D_800AFB34[];
 extern s32 D_800AFB44[];
 
@@ -1005,7 +1005,7 @@ int func_8007B1C4(int x, int z, int nWalkmesh, SVECTOR* pOut, VECTOR* pNormal) {
     ref.vy = 0;
     ref.vz = z;
     nRef = (x << 16) + z;
-    pTri = D_800AFB24[nWalkmesh];
+    pTri = g_FieldWalkmeshTriangles[nWalkmesh];
     nCount = D_800AFB44[nWalkmesh];
     pVerts = D_800AFB34[nWalkmesh];
     pComp = (u_short*)pVerts;
@@ -1393,8 +1393,8 @@ typedef struct {
     /* 0x6 */ u_short pad6;
 } FieldWalkmeshVertexRecord; // Size: 0x8
 
-extern u_int* D_800AFB20;
-extern FieldWalkmeshTriangleRecord* D_800AFB24[];
+extern u_int* g_FieldWalkmeshMaterialFlags;
+extern FieldWalkmeshTriangleRecord* g_FieldWalkmeshTriangles[];
 extern FieldWalkmeshVertexRecord* D_800AFB34[];
 extern u_char D_800B21CC;
 
@@ -1451,7 +1451,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
     s32 i;
 
     nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
-    pTri = D_800AFB24[pActor->walkmeshId];
+    pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
     pVerts = D_800AFB34[pActor->walkmeshId];
     if (nTri == -1) {
         return -1;
@@ -1527,7 +1527,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
             break;
         }
 
-        nFlags = D_800AFB20[pTri[nTri].material] & nFlagMask;
+        nFlags = g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & nFlagMask;
         if ((((pActor->scriptFlags.flags >> 9) & 3) & (nFlags >> 3)) != 0
             || (((pActor->scriptFlags.flags >> 8) & 7) & (nFlags >> 5)) != 0
             || ((nFlags & 0x800000) != 0 && pActor->walkmeshId == 0)) {

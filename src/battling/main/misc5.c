@@ -73,7 +73,7 @@ typedef struct {
     /* 0x8 */ u8 unk8[4];
 } BattlePrimTemplate; // Size: 0xC
 
-// 0xA-byte entry table func_8007D6B8 allocates at D_800926BC.
+// 0xA-byte entry table func_8007D6B8 allocates at g_BattleSpriteEntries.
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
@@ -89,8 +89,8 @@ extern Color4 D_800926B8;
 extern u8 D_800926B9;
 extern u8 D_800926BA;
 extern u32 D_800926A4;
-extern u32 D_800926B0;
-extern u32 D_800926B4;
+extern u32 g_BattleLineQuadQueueCount;
+extern u32 g_BattleLineQuadDrawCount;
 extern u16 D_800926A8[];
 extern u16 D_800926AA;
 extern u16 D_800926AC;
@@ -102,10 +102,10 @@ extern s16 D_80091228[];
 // short, this unit's other callers only want the low byte.
 extern u8 D_80092698[];
 extern u8 D_8009269C[];
-extern s32 D_800928E8;
+extern s32 g_BattleDrawFlags;
 extern VECTOR D_80096FA8;
 
-// 0xC-byte entry table BattleInitSpriteBuffers allocates at D_800926C8.
+// 0xC-byte entry table BattleInitSpriteBuffers allocates at g_BattleSpriteSlots.
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
@@ -126,14 +126,14 @@ typedef struct {
     /* 0xE */ u16 unkE;
 } BattlePrimTemplate16; // Size: 0x10
 
-extern u8 *D_800926BC;
+extern u8 *g_BattleSpriteEntries;
 extern u8 *D_800926C0;
 extern u8 *D_800926C4;
-extern u8 *D_800926C8;
+extern u8 *g_BattleSpriteSlots;
 extern u8 *D_800926CC;
 extern u8 *D_800926D0;
-extern u8 *D_800928DC;
-extern u8 D_800928A0;
+extern u8 *g_BattleGridCells;
+extern u8 g_BattleDrawBufferIndex;
 
 extern int rand(void);
 
@@ -214,10 +214,10 @@ void BattleEffectUpdateSlots(void) {
         }
     }
     n = D_800926A4;
-    v = D_800926B0;
-    D_800926B0 = 0;
+    v = g_BattleLineQuadQueueCount;
+    g_BattleLineQuadQueueCount = 0;
     D_800926A4 = n + 1;
-    D_800926B4 = v;
+    g_BattleLineQuadDrawCount = v;
 }
 
 void BattleEffectClearSlots(void) {
@@ -283,7 +283,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
 /* Best attempt: objdiff 85.17%, same size as retail (548 bytes) and the same
    instruction multiset; the remaining 15% is gcc putting the D_80092698 /
    arg0*4 scaling, the t2/t1/t3 motion-copy address setup and the
-   D_800928E8 / D_800926A4 / 0x70 / 0x72 pair a few slots away from retail.
+   g_BattleDrawFlags / D_800926A4 / 0x70 / 0x72 pair a few slots away from retail.
    Store order matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70,
    0x58, 0x74), so it is scheduler/allocator, not source order. Same
    85.17 under -O3 and -G0, and 80.59 under gcc-2.7.2-cdk. */
@@ -301,7 +301,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->unk50 != 0) {
             if (pEntry->unk78 == arg2) {
-                if (pEntry->unk72 == D_800928E8) {
+                if (pEntry->unk72 == g_BattleDrawFlags) {
                     return;
                 }
             }
@@ -341,7 +341,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     pSlot->unk51 = 0;
     pSlot->unk54 = pVec->vx;
     pSlot->unk56 = pVec->vy;
-    pSlot->unk72 = D_800928E8;
+    pSlot->unk72 = g_BattleDrawFlags;
     pSlot->unk78 = arg2;
     pSlot->unk6C = 0;
     pSlot->unk70 = D_800926A4;
@@ -386,7 +386,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->unk50 != 0) {
             if (pEntry->unk70 == arg3) {
-                if (pEntry->unk6C == D_800928E8) {
+                if (pEntry->unk6C == g_BattleDrawFlags) {
                     return;
                 }
             }
@@ -410,7 +410,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     pSlot->unk54 = pPos->vx;
     pSlot->unk56 = pPos->vy;
     pSlot->unk58 = pPos->vz;
-    pSlot->unk6C = D_800928E8;
+    pSlot->unk6C = g_BattleDrawFlags;
     pSlot->unk64 = pVec->vx;
     pSlot->unk66 = pVec->vy;
 
@@ -579,10 +579,10 @@ void func_8007D6B8(void) {
     BattleSpriteEntry *pEntry;
     s32 i;
 
-    D_800926BC = HeapAlloc(0x9F6, 0);
+    g_BattleSpriteEntries = HeapAlloc(0x9F6, 0);
     D_800926C0 = HeapAlloc(0xBF4, 0);
     D_800926C4 = HeapAlloc(0xBF4, 0);
-    pEntry = (BattleSpriteEntry *)D_800926BC;
+    pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
     for (i = 0; i < 0xFF; i++) {
         ((BattlePrimTemplate *)D_800926C0)[i].unk3 = 2;
         ((BattlePrimTemplate *)D_800926C0)[i].unk4 = 0x6880B0F0;
@@ -609,7 +609,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
    96.85); one more permuter run from this body is the next step. */
 /*
 void func_8007D7A8(VECTOR *pSrc, s32 count) {
-    BattleSpriteEntry *pEntry = (BattleSpriteEntry *)D_800926BC;
+    BattleSpriteEntry *pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
     u16 vx;
     s8 texel;
     u16 vz;
@@ -628,7 +628,7 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
             vz = pSrc->vz - 32 + rand() % 64;
             index = (((s8)vz) << 7) + texel;
             pEntry->unk4 = vz;
-            v = *(u16 *)(D_800928DC + index * 4);
+            v = *(u16 *)(g_BattleGridCells + index * 4);
             pEntry->unk8 = v;
             pEntry->unk2 = v;
             pEntry->unk7 = -(rand() % 10 + 10);
@@ -647,11 +647,11 @@ void BattleInitSpriteBuffers(void) {
     BattlePrimTemplate16 *pTemplate;
     s32 i;
 
-    D_800926C8 = HeapAlloc(0x1950, 0);
+    g_BattleSpriteSlots = HeapAlloc(0x1950, 0);
     pTemplateBuf = HeapAlloc(0x21C0, 0);
     D_800926CC = pTemplateBuf;
     D_800926D0 = HeapAlloc(0x21C0, 0);
-    pSlot = (BattleSpriteSlot *)D_800926C8;
+    pSlot = (BattleSpriteSlot *)g_BattleSpriteSlots;
     pTemplate = (BattlePrimTemplate16 *)pTemplateBuf;
     for (i = 0; i < 0x21C; i++, pSlot++, pTemplate++) {
         pTemplate->unk3 = 3;

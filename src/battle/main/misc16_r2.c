@@ -2,13 +2,13 @@
 #include "main/game.h"
 #include "psyq/libgpu.h"
 
-extern u8 D_800D2CE0[];
+extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
 extern u8 *D_800C3EA4;
 extern s32 D_800CCB34;
-extern u8 *D_800D2D28;
-extern u8 *D_800D2E38[];
-extern u8 *D_800D2D90[];
+extern u8 *g_BattleDisplayState;
+extern u8 *g_BattleSlotGraphics[];
+extern u8 *g_BattleSlotRects[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 extern u8 D_800CCD38[];
@@ -32,7 +32,7 @@ extern void *BattleAllocTextBuffer(s32);
 extern void bzero(void *p, s32 n);
 extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
-extern u8 D_800C3D70[];
+extern u8 g_BattleCommandGridAltIds[];
 extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
 extern void func_8008F6E4(u8, s32, s32, s32, s32);
@@ -44,7 +44,7 @@ extern void func_8008F0A8(u8, s32, s32, s32, u16);
 extern void func_80090310(u8, u8);
 extern void func_800904A0(u8, u8);
 extern void BattleDrawMenuEntryString(u8, u8);
-extern void *D_800D2F5C;
+extern void *g_BattleSpriteArchive;
 extern u8 D_800C3E4C;
 extern void BattleSetPrimGrey80BlendModeFromGlobal(void *);
 extern s32 func_800263E4(void *, s32, void *, s32, s16, s16, s32, s32, s32);
@@ -56,7 +56,7 @@ extern u8 D_800CEF34[];
 extern u8 D_800CEF10[];
 extern u8 D_800CCDC4[];
 extern u8 D_800CCD62[];
-extern u8 D_800D2D24[];
+extern u8 g_BattleActorCharIds[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
 extern u8 func_80085084(u16, u8, s32);
 extern void BattleClearPrimFlagsThreeSlots(u8);
@@ -91,7 +91,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FAD8);
    parent battle/main/misc16.
    Two shapes are load-bearing: the `>=` polarity (gcc then emits retail's
    `bnez -> += 0x20` arm with `w = bound; count++` as the fall-through), and the
-   base-first pointer spelling `*(pFlags + i + 0xB8)` / `*(D_800D2D28 + i + 0xBF)`
+   base-first pointer spelling `*(pFlags + i + 0xB8)` / `*(g_BattleDisplayState + i + 0xBF)`
    (the array spellings `pFlags[i + 0xB8]` emit `addu a1,s0,v0`, index first, and
    cost 0.25%). `count` is u8 (`andi v1,a1,0xFF` before the == 2 test); x and y
    are u16 locals, so the centre sums truncate once at the assignment.
@@ -104,8 +104,8 @@ void func_8008FAD8(void) {
     s32 i;
 
     for (i = 0; i < 7; i++) {
-        pFlags = D_800D2D28;
-        p = (BattleSlotRect *)D_800D2D90[i];
+        pFlags = g_BattleDisplayState;
+        p = (BattleSlotRect *)g_BattleSlotRects[i];
         if (*(pFlags + i + 0xB8) == 0) {
             continue;
         }
@@ -126,7 +126,7 @@ void func_8008FAD8(void) {
             p->h += 0x20;
         }
         if (count == 2) {
-            *(D_800D2D28 + i + 0xBF) = 1;
+            *(g_BattleDisplayState + i + 0xBF) = 1;
         }
         x = p->x + (p->unk4 >> 1) - (p->w >> 1);
         y = p->y + (p->unk6 >> 1) - (p->h >> 1);
@@ -151,22 +151,22 @@ void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
     s32 offset;
     s32 size;
 
-    *(s32 *)(D_800D2D28 + 0xFC) = 0;
+    *(s32 *)(g_BattleDisplayState + 0xFC) = 0;
     i = 0;
     for (offset = arg3; i < arg4; i++) {
-        size = BattleDrawSpritePackage(0x65, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, offset);
-        *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
+        size = BattleDrawSpritePackage(0x65, D_800C3EA4 + (*(s32 *)(g_BattleDisplayState + 0xFC) * 0x50 + 0x1E68), arg0, offset);
+        *(s32 *)(g_BattleDisplayState + 0xFC) = size + *(s32 *)(g_BattleDisplayState + 0xFC);
         offset += 8;
     }
     pPal = (u8 *)&D_800CCB34;
-    size = BattleDrawSpritePackage(0x64, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68), arg0, arg1);
-    *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
-    size = func_800263E4(D_800D2F5C, 0x64,
-        (POLY_FT4 *)(D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xFC) * 0x50 + 0x1E68)),
+    size = BattleDrawSpritePackage(0x64, D_800C3EA4 + (*(s32 *)(g_BattleDisplayState + 0xFC) * 0x50 + 0x1E68), arg0, arg1);
+    *(s32 *)(g_BattleDisplayState + 0xFC) = size + *(s32 *)(g_BattleDisplayState + 0xFC);
+    size = func_800263E4(g_BattleSpriteArchive, 0x64,
+        (POLY_FT4 *)(D_800C3EA4 + (*(s32 *)(g_BattleDisplayState + 0xFC) * 0x50 + 0x1E68)),
         *(s32 *)pPal, (s16)arg0, (s16)arg2, 0x1000, 0, 1);
-    *(s32 *)(D_800D2D28 + 0xFC) = size + *(s32 *)(D_800D2D28 + 0xFC);
-    D_800D2D28[0xA6] = *pPal;
-    D_800D2D28[0x9D] = 1;
+    *(s32 *)(g_BattleDisplayState + 0xFC) = size + *(s32 *)(g_BattleDisplayState + 0xFC);
+    g_BattleDisplayState[0xA6] = *pPal;
+    g_BattleDisplayState[0x9D] = 1;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FC1C);
@@ -190,15 +190,15 @@ void func_8009023C(s32 arg0) {
     s32 offset;
     s32 size;
 
-    *(s32 *)(D_800D2D28 + 0xF8) = 0;
+    *(s32 *)(g_BattleDisplayState + 0xF8) = 0;
     i = 0;
     for (offset = 0x68; i < 9; i++) {
-        size = BattleDrawSpritePackage(0x66, D_800C3EA4 + (*(s32 *)(D_800D2D28 + 0xF8) * 0x50 + 0xBA8), 0x20, arg0 - 4 + offset);
-        *(s32 *)(D_800D2D28 + 0xF8) = size + *(s32 *)(D_800D2D28 + 0xF8);
+        size = BattleDrawSpritePackage(0x66, D_800C3EA4 + (*(s32 *)(g_BattleDisplayState + 0xF8) * 0x50 + 0xBA8), 0x20, arg0 - 4 + offset);
+        *(s32 *)(g_BattleDisplayState + 0xF8) = size + *(s32 *)(g_BattleDisplayState + 0xF8);
         offset += 8;
     }
-    D_800D2D28[0xA5] = *(u8 *)&D_800CCB34;
-    D_800D2D28[0x9C] = 1;
+    g_BattleDisplayState[0xA5] = *(u8 *)&D_800CCB34;
+    g_BattleDisplayState[0x9C] = 1;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009023C);
@@ -236,8 +236,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009023C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_800904A0);
-/* 73.99%: the structure is right -- flags = *(u16 *)(D_800D2204 +
-   D_800D2CE0[idx] * 0x10), the 0x4000/0x1000 row pick (9/7/8), the 3-case
+/* 73.99%: the structure is right -- flags = *(u16 *)(g_BattleCommandEntries +
+   g_BattleCommandGridIds[idx] * 0x10), the 0x4000/0x1000 row pick (9/7/8), the 3-case
    switch on flags & 0xF giving col (0xC/0xD/0x15, no default case), the two
    BattleSetPolyFT4RectH13 blocks (record offsets 0x320 and 0x370, u = D_800D2F6A[ofs],
    v = D_800D2F6B[ofs], dx = D_800D2F68[ofs], ofs = row * 4 then
@@ -266,7 +266,7 @@ void func_800904A0(u8 arg0, u8 arg1) {
     s32 col;
     s32 ofs;
 
-    flags = *(u16 *)(D_800D2204 + D_800D2CE0[arg1 * 2 + arg0] * 0x10);
+    flags = *(u16 *)(g_BattleCommandEntries + g_BattleCommandGridIds[arg1 * 2 + arg0] * 0x10);
     if (flags & 0x4000) {
         row = 9;
     } else if (flags & 0x1000) {
@@ -321,7 +321,7 @@ void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
     s32 ofs;
     s32 palIndex;
 
-    index = D_800D2CE0[arg1 * 2 + arg0];
+    index = g_BattleCommandGridIds[arg1 * 2 + arg0];
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, 0x618);
     len = SystemRenderStringEntry(GetStringEntry(D_800D329C, index), pBuf, 0x39, 0);
@@ -343,9 +343,9 @@ void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
     u8 *p;
 
     if (arg2 == 0) {
-        flag = D_800D2CE0[arg1 * 2 + arg0];
+        flag = g_BattleCommandGridIds[arg1 * 2 + arg0];
     } else {
-        flag = D_800C3D70[arg1 * 2 + arg0];
+        flag = g_BattleCommandGridAltIds[arg1 * 2 + arg0];
     }
     *(u8 *)(*(u8 **)(D_800C3EA4 + 0xA230) + 0x66D) = 0;
     func_80090310(arg0, arg1);
@@ -403,10 +403,10 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
         }
         *pCount = 0;
     }
-    *(s32 *)(D_800D2D28 + 0x100) = BattleDrawSpritePackage(*pIndex + 0xE0, D_800C3EA4 + 0x27C8, arg0, arg1);
-    p = D_800D2D28;
+    *(s32 *)(g_BattleDisplayState + 0x100) = BattleDrawSpritePackage(*pIndex + 0xE0, D_800C3EA4 + 0x27C8, arg0, arg1);
+    p = g_BattleDisplayState;
     p[0xA7] = *(u8 *)&D_800CCB34;
-    *(volatile u8 *)(D_800D2D28 + 0x9E) = 1;
+    *(volatile u8 *)(g_BattleDisplayState + 0x9E) = 1;
 }
 /* 72.46%: the four draw blocks have the right shape (divide-by-10 magic, the
    u16 truncations, the (idx*0x28 + K) + base order, and the literal 8 for arg6

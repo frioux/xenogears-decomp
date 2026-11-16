@@ -65,7 +65,7 @@ void KernelMenuUpdate(void) {
 
     // Get mode / device
     pMode = &D_800182F0;
-    if (D_80010000)
+    if (g_DebugTable)
         pMode = &D_800182E8;
     
     FontPrintf(&D_800182C0, &sBuffer, pMode);

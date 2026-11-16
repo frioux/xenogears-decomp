@@ -42,14 +42,14 @@ typedef struct {
     /* 0xD */ undefined8 padD;
 } FieldWalkmeshTriangle; // Size: 0xE
 
-extern FieldWalkmeshTriangle* D_800AFB24[];
-extern u_int* D_800AFB20;
+extern FieldWalkmeshTriangle* g_FieldWalkmeshTriangles[];
+extern u_int* g_FieldWalkmeshMaterialFlags;
 
 u_int FieldActorGetWalkmeshTriMaterial(ActorData* pActor) {
     if ((pActor->flags >> (pActor->walkmeshId + 3)) & 1) {
         return 0;
     }
-    return D_800AFB20[D_800AFB24[pActor->walkmeshId][pActor->walkmeshTriIds[pActor->walkmeshId]].material];
+    return g_FieldWalkmeshMaterialFlags[g_FieldWalkmeshTriangles[pActor->walkmeshId][pActor->walkmeshTriIds[pActor->walkmeshId]].material];
 }
 
 extern u_short D_800B14AC;
@@ -290,7 +290,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
    header's u_short to s16); the 0x12C word is read whole through
    ActorFlags12CView. Residual: gcc lays the `flags & 0x2000` then-block out as
    fall-through where the original jumps forward over the 0x80000 block, uses
-   `at` to form `D_801E8670 + ((flags12C >> 11) & 0x1C)` where the original keeps
+   `at` to form `g_FieldActorModelPointers + ((flags12C >> 11) & 0x1C)` where the original keeps
    it in v1 via `lui/addiu`, and spills one extra register (frame 0x38 vs 0x28).
    `else if (!(flags & 0x2000))` first gives 55.87%.
 void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
@@ -312,8 +312,8 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
         pSprite->step.z = 0;
     } else if (pActor->pActorData->flags & 0x2000) {
         if (pActor->pActorData->flags & 0x20000) {
-            pSprite->step.x = -((s32*)D_801E8670[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x128 / 4] << 16;
-            pSprite->step.z = -((s32*)D_801E8670[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x130 / 4] << 16;
+            pSprite->step.x = -((s32*)g_FieldActorModelPointers[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x128 / 4] << 16;
+            pSprite->step.z = -((s32*)g_FieldActorModelPointers[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x130 / 4] << 16;
         } else {
             scale = (0x80000 / pActor->pActorData->moveSpeed >> 8) << 5;
             a = angle & 0xFFF;
@@ -526,7 +526,7 @@ void FieldConvertIVec3ToSVector(SVECTOR* pDst, IVEC3* pSrc) {
     pDst->vz = pSrc->z >> 0x10;
 }
 
-extern void* D_801E8670[];
+extern void* g_FieldActorModelPointers[];
 void SpriteSetDirection(SpriteData*, s16);
 
 void func_80081F80(SpriteData*, s16, FieldActor*);
@@ -698,8 +698,8 @@ void FieldSetSoundSlotElement(int arg0, int arg1) {
 
 extern u_short D_800C3A2C;
 extern s32 D_800C3A64;
-extern s32 D_800B06A0;
-extern s16 D_800C3A38;
+extern s32 g_FieldStreamFramePosition;
+extern s16 g_FieldStreamId;
 extern SoundFile* D_800B235C;
 void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1);
 
@@ -715,13 +715,13 @@ void FieldAdvanceSedsSequence(void) {
     u_short* pValue;
     u_short value;
 
-    if (D_800C3A38 == 0xFF) {
+    if (g_FieldStreamId == 0xFF) {
         return;
     }
     pDuration = &D_800AE060[0].unk0;
     pValue = &D_800AE060[0].unk2;
 loop:
-    if (D_800B06A0 < pDuration[D_800C3A64 * 2] + D_800C3A2C) {
+    if (g_FieldStreamFramePosition < pDuration[D_800C3A64 * 2] + D_800C3A2C) {
         return;
     }
     value = pValue[D_800C3A64 * 2];
@@ -731,7 +731,7 @@ loop:
 }
 
 void FieldStopSedsPlayback(void) {
-    if (D_800C3A38 != 0xFF) {
+    if (g_FieldStreamId != 0xFF) {
         SoundStopAllElements();
         SoundRemoveSedsEntry(D_800B235C);
         HeapFree(D_800B235C);
@@ -759,7 +759,7 @@ void func_80085788(void) {
     FieldUnk800AE060* pEntry;
     SoundFile* pSoundFile;
 
-    streamId = D_800C3A38;
+    streamId = g_FieldStreamId;
     if (streamId == 0xFF) {
         return;
     }
@@ -788,9 +788,9 @@ void func_80085788(void) {
 }
 */
 
-extern void* D_8006259C;
-extern s32 D_8004F32C;
-extern void* D_8005A4BC;
+extern void* g_MenuSedsFile;
+extern s32 g_SoundSedsFileStaged;
+extern void* g_SoundSedsFileBuffer;
 void SoundGetPendingSpuCommandType(int arg0);
 void SoundAddSedsEntry(SoundFile* pSoundFile);
 
@@ -799,27 +799,27 @@ void FieldLoadSedsFile(void) {
 
     ArchiveSetIndex(4, 0);
     size = ArchiveDecodeAlignedSize(0xA8);
-    D_8006259C = HeapAlloc(size, 0);
-    HeapPinBlock(D_8006259C);
-    if (D_8004F32C == -1) {
-        ArchiveReadFileToBuffer(0xA8, D_8006259C, 0, 0x80);
+    g_MenuSedsFile = HeapAlloc(size, 0);
+    HeapPinBlock(g_MenuSedsFile);
+    if (g_SoundSedsFileStaged == -1) {
+        ArchiveReadFileToBuffer(0xA8, g_MenuSedsFile, 0, 0x80);
         ArchiveCdDataSync(0);
     } else {
-        memcpy(D_8006259C, D_8005A4BC, size);
-        HeapUnpinBlock(D_8005A4BC);
-        HeapFree(D_8005A4BC);
+        memcpy(g_MenuSedsFile, g_SoundSedsFileBuffer, size);
+        HeapUnpinBlock(g_SoundSedsFileBuffer);
+        HeapFree(g_SoundSedsFileBuffer);
     }
-    SoundAddSedsEntry(D_8006259C);
+    SoundAddSedsEntry(g_MenuSedsFile);
     SoundGetPendingSpuCommandType(0x10);
     ArchiveSetIndex(4, 0);
-    D_8004F32C = -1;
+    g_SoundSedsFileStaged = -1;
 }
 
 void FieldFreeSedsFile(void) {
-    SoundRemoveSedsEntry(D_8006259C);
-    HeapUnpinBlock(D_8006259C);
-    HeapFree(D_8006259C);
-    D_8004F32C = -1;
+    SoundRemoveSedsEntry(g_MenuSedsFile);
+    HeapUnpinBlock(g_MenuSedsFile);
+    HeapFree(g_MenuSedsFile);
+    g_SoundSedsFileStaged = -1;
 }
 
 // WDS files are streamed in 0x800-byte blocks; the header occupies the first four.
@@ -830,9 +830,9 @@ typedef struct {
 extern FieldWdsBlock* D_800C3A1C;
 extern s32 D_800B2370;
 extern SoundWDSEntry* g_GameCurLoadedWDS;
-extern s32 D_8004F308;
-extern s32 D_8004F33C;
-extern s32 D_8004F354;
+extern s32 g_GameWdsBankLoadState;
+extern s32 g_GameLoadedWdsStreamId;
+extern s32 g_GameWdsStreamInProgress;
 extern s32 D_800AFC54;
 extern u8 D_800ADFCD[];
 extern void ArchiveCdDataSync(int mode);
@@ -874,7 +874,7 @@ void FieldStartWdsBankLoad(int arg0) {
     ArchiveCdDataSync(0);
     SoundFreeLoadedWdsAndAudioManager();
     if (arg0 == 0xFF) {
-        D_8004F308 = 0;
+        g_GameWdsBankLoadState = 0;
         return;
     }
     ArchiveSetIndex(0x1C, 0);
@@ -884,15 +884,15 @@ void FieldStartWdsBankLoad(int arg0) {
     streamId = D_800ADFCD[arg0 * 2 - 1];
     if (streamId != 0xFF) {
         index = streamId * 2 + 0x13;
-        if (D_8004F33C != streamId) {
+        if (g_GameLoadedWdsStreamId != streamId) {
             FieldStartArchiveStream(index, 1, (void*)FieldWdsStreamCallback);
-            D_8004F354 = 1;
+            g_GameWdsStreamInProgress = 1;
             D_800B2370 = 0;
             D_800C3A1C = HeapAlloc(0x2000, 1);
         }
     }
     ArchiveSetIndex(4, 0);
-    D_8004F308 = -1;
+    g_GameWdsBankLoadState = -1;
     D_800AFC54 = 1;
 }
 
@@ -907,18 +907,18 @@ int FieldRunArchiveStreamSteps(void) {
     return -1;
 }
 
-extern s32 D_8004F364;
-extern s32 D_8004F338;
-extern s32 D_8004F340;
-extern s32 D_8004F348;
-extern s32 D_8004F358;
-extern s32 D_8004F35C;
-extern s32 D_8004F36C;
+extern s32 g_GameWdsFileLoadState;
+extern s32 g_GameLoadedWdsBankIndex;
+extern s32 g_GameAudioFadeInPending;
+extern s32 g_GameReusePendingAudioManager;
+extern s32 g_GameWdsBankHeaderReadPending;
+extern s32 g_GameAudioManagerRunning;
+extern s32 g_GameAudioAndWdsLoaded;
 extern s32 g_GameHasLoadedWDS;
 extern u8 D_800ADFCC[];
 extern u8 D_80062648[];
-extern AudioManager* D_80062528;
-extern AudioManager* D_8004F2FC;
+extern AudioManager* g_SoundAudioManager;
+extern AudioManager* g_SoundPendingAudioManager;
 void FieldBeginWdsFileLoad(void);
 int FieldFinishWdsFileLoad(void);
 int ArchiveDataSync(void);
@@ -929,7 +929,7 @@ void SoundSetAudioManagerVolumeWithFade(AudioManager* pManager, s32 arg1, s32 ar
 void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 arg1, s32 arg2);
 
 int FieldUpdateWdsAndAudioLoad(s32 arg0) {
-    s32 state = D_8004F354;
+    s32 state = g_GameWdsStreamInProgress;
 
     if (state == 1) {
         if (FieldRunArchiveStreamSteps() == -1) {
@@ -937,26 +937,26 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
         }
         SoundGetPendingSpuCommandType(0x10);
         HeapFree(D_800C3A1C);
-        D_8004F354 = 0;
+        g_GameWdsStreamInProgress = 0;
         g_GameHasLoadedWDS = state;
-        D_8004F33C = D_800ADFCC[arg0 * 2];
+        g_GameLoadedWdsStreamId = D_800ADFCC[arg0 * 2];
     }
     if (D_800ADFCD[arg0 * 2] == 0) {
-        if (D_8004F364 == 0) {
+        if (g_GameWdsFileLoadState == 0) {
             FieldBeginWdsFileLoad();
             return -1;
         }
-        if (D_8004F364 & 0x80) {
+        if (g_GameWdsFileLoadState & 0x80) {
             if (FieldFinishWdsFileLoad() == -1) {
                 return -1;
             }
         }
     }
     if (D_800AFC54 == 1) {
-        if (D_8004F338 != arg0) {
+        if (g_GameLoadedWdsBankIndex != arg0) {
             ArchiveSetIndex(0x1C, 0);
             ArchiveReadFileToBuffer(arg0 * 2 + 0x14, D_80062648, 0, 0x80);
-            D_8004F358 = 1;
+            g_GameWdsBankHeaderReadPending = 1;
             ArchiveSetIndex(4, 0);
         }
         D_800AFC54 = 0;
@@ -965,41 +965,41 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
     if (ArchiveDataSync() != 0) {
         return -1;
     }
-    if (D_8004F358 == 1) {
-        if (D_8004F348 == 0) {
-            D_80062528 = SoundCreateAudioManagerOnHeap(D_80062648);
-            if (D_8004F340 == -1) {
-                SoundPlayAudioManager(D_80062528, 0x7F, 0);
+    if (g_GameWdsBankHeaderReadPending == 1) {
+        if (g_GameReusePendingAudioManager == 0) {
+            g_SoundAudioManager = SoundCreateAudioManagerOnHeap(D_80062648);
+            if (g_GameAudioFadeInPending == -1) {
+                SoundPlayAudioManager(g_SoundAudioManager, 0x7F, 0);
             } else {
-                SoundPlayAudioManager(D_80062528, 0, 0);
-                SoundSetAudioManagerVolumeWithFade(D_80062528, 0, 0);
+                SoundPlayAudioManager(g_SoundAudioManager, 0, 0);
+                SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0);
             }
         } else {
-            D_80062528 = D_8004F2FC;
-            SoundReloadAudioManagerSamples(D_8004F2FC, 0x7F, 0xF0);
-            D_8004F348 = 0;
-            D_8004F2FC = NULL;
+            g_SoundAudioManager = g_SoundPendingAudioManager;
+            SoundReloadAudioManagerSamples(g_SoundPendingAudioManager, 0x7F, 0xF0);
+            g_GameReusePendingAudioManager = 0;
+            g_SoundPendingAudioManager = NULL;
         }
-        D_8004F358 = 0;
-        D_8004F35C = 1;
-        D_8004F338 = arg0;
+        g_GameWdsBankHeaderReadPending = 0;
+        g_GameAudioManagerRunning = 1;
+        g_GameLoadedWdsBankIndex = arg0;
     }
-    D_8004F340 = -1;
-    D_8004F36C = 1;
+    g_GameAudioFadeInPending = -1;
+    g_GameAudioAndWdsLoaded = 1;
     return 0;
 }
 
 void FieldFreePendingAudioManager(void) {
-    if (D_8004F2FC != NULL) {
-        SoundStopAudioManager(D_8004F2FC);
-        SoundDestroyAudioManager(D_8004F2FC);
-        D_8004F2FC = NULL;
+    if (g_SoundPendingAudioManager != NULL) {
+        SoundStopAudioManager(g_SoundPendingAudioManager);
+        SoundDestroyAudioManager(g_SoundPendingAudioManager);
+        g_SoundPendingAudioManager = NULL;
     }
 }
 
-extern s32 D_8004F364;
-extern s32 D_8004F368;
-extern s16 D_8004F384;
+extern s32 g_GameWdsFileLoadState;
+extern s32 g_GameWdsEntryFreed;
+extern s16 g_GameWdsEntryReleased;
 extern s32 D_80059560;
 extern SoundWDSEntry* D_8006251C;
 extern void* D_800B00E0; // WDS File Buffer
@@ -1016,9 +1016,9 @@ int FieldFinishWdsFileLoad(void) {
     D_80059560 = pWdsEntry;
     SoundGetPendingSpuCommandType(0x10);
     HeapFree(D_800B00E0);
-    D_8004F364 = 1;
-    D_8004F384 = 0;
-    D_8004F368 = 0;
+    g_GameWdsFileLoadState = 1;
+    g_GameWdsEntryReleased = 0;
+    g_GameWdsEntryFreed = 0;
     return 0;
 }
 
@@ -1030,16 +1030,16 @@ void FieldBeginWdsFileLoad(void) {
     D_800B00E0 = pWdsFileBuffer;
     ArchiveReadFileToBuffer(3, pWdsFileBuffer, 0, CdlModeSpeed);
     ArchiveSetIndex(4, 0);
-    D_8004F364 = 0x80;
+    g_GameWdsFileLoadState = 0x80;
 }
 
 void FieldReleaseWdsEntry(void) {
-    if (D_8004F368 == 0) {
-        D_8004F384 = 1;
+    if (g_GameWdsEntryFreed == 0) {
+        g_GameWdsEntryReleased = 1;
         SoundFreeWdsEntry(D_8006251C);
-        D_8004F368 = 1;
+        g_GameWdsEntryFreed = 1;
     }
-    D_8004F364 = 0;
+    g_GameWdsFileLoadState = 0;
 }
 
 
@@ -1401,7 +1401,7 @@ void FieldUpdateMotionSlots(void) {
     }
 }
 
-extern s32 D_800AFD1C;
+extern s32 g_FieldCurActorIndex;
 void FieldInitializeDefaultParticleBanks(int targetActorID);
 int FieldInitializeParticleBanks(int actorIndex);
 
@@ -1418,7 +1418,7 @@ void FieldScriptConfigureDefaultParticleBank(void) {
             arg0 = FieldScriptVMGetArgument(2);
             arg1 = FieldScriptVMGetArgument(4);
             arg2 = FieldScriptVMGetArgument(6);
-            FieldInitializeDefaultParticleBanks(D_800AFD1C);
+            FieldInitializeDefaultParticleBanks(g_FieldCurActorIndex);
             g_FieldDefaultParticleBanks[0].flags = 0x14;
             g_FieldDefaultParticleBanks[0].unk0 = 0x1;
             g_FieldDefaultParticleBanks[0].max = 0x10;
@@ -1426,7 +1426,7 @@ void FieldScriptConfigureDefaultParticleBank(void) {
             g_FieldDefaultParticleBanks[0].unk74 = arg1;
             g_FieldDefaultParticleBanks[0].unk74 = (arg1 == 0x27) ? 0x20 : 0x22;
             g_FieldDefaultParticleBanks[0].ewait = 0x1000;
-            FieldInitializeParticleBanks(D_800AFD1C);
+            FieldInitializeParticleBanks(g_FieldCurActorIndex);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
             break;
     }
@@ -1436,6 +1436,6 @@ void GameSoftReset(void);
 
 void FieldScriptSoftReset(void) {
     GameSoftReset();
-    D_800B00C0 = 1;
+    g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }

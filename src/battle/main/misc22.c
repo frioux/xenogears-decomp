@@ -107,20 +107,20 @@ typedef struct {
     /* 0x6E */ s16 unk6E;
 } BattleMisc22Cmd; // Size: 0x70
 
-extern BattleMisc22SVec *D_800D3344; // vertex table the battle scene sets up
-extern s32 D_80050100;
-extern BattleMisc22Entry *D_800D39CC; // triangle table
-extern s32 D_800D3348;
+extern BattleMisc22SVec *g_BattleTriangleVertices; // vertex table the battle scene sets up
+extern s32 g_GfxOTDepthShift;
+extern BattleMisc22Entry *g_BattleTriangles; // triangle table
+extern s32 g_BattleTriangleCount;
 extern s32 BattleTestPointInTriangle(void *, void *, void *, s32);
 extern void BattleProjectPointOntoTriangle(void *, void *, void *, s32, s32);
 extern s16 D_800D2FC8;
 extern u16 *D_800D2FD0;
 extern s32 D_800C3E38;
 extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOt, s32 flags);
-extern void *D_800658C8;
+extern void *g_BattleStageData;
 extern void *D_800C3D50[2];
 extern void *D_800C3EA0;
-extern LineScroll D_800C3DA0[];
+extern LineScroll g_BattleLineScrolls[];
 extern s32 BattleGetActorRadius(void *pArg);
 extern void func_800A9FF0(s32 arg0);
 extern void HeapFreeIfNotNull(void *p);
@@ -195,7 +195,7 @@ void BattleRenderSpriteSlots(BattleMisc22Unk *pBuffer, MATRIX *pMatrix, s32 step
             gte_stsxy3((long *)&pSpr->polys[packet].x0, (long *)&pSpr->polys[packet].x1,
                        (long *)&pSpr->polys[packet].x2);
             gte_stszotz(&otz);
-            otz >>= D_80050100;
+            otz >>= g_GfxOTDepthShift;
 
             gte_ldv0((SVECTOR *)&pSpr->x3);
             gte_rtps();
@@ -349,7 +349,7 @@ typedef struct {
     /* 0x12 */ s16 jointIndex;
 } BattleMisc22PartSlot; // Size: 0x14
 
-extern BattleMisc22PartSlot D_800D3304[];
+extern BattleMisc22PartSlot g_BattlePartSlots[];
 extern u8 D_800D3330[];
 
 void BattleTransformPartPositions(BattleActor **pArg) {
@@ -360,33 +360,33 @@ void BattleTransformPartPositions(BattleActor **pArg) {
     s32 k;
 
     pMatrix = PSX_SCRATCH;
-    pZ = &D_800D3304[0].z;
+    pZ = &g_BattlePartSlots[0].z;
     pY = pZ - 1;
     pX = pZ - 2;
     k = 0;
     do {
-        if (D_800D3304[k].unk6 != 0) {
-            s16 index = D_800D3304[k].actorIndex;
+        if (g_BattlePartSlots[k].unk6 != 0) {
+            s16 index = g_BattlePartSlots[k].actorIndex;
             BattleActor *pActor;
 
             if (index >= 0 && (pActor = pArg[index]) != 0) {
                 BattleSprite *pSprites = pActor->pSprites;
-                BattleSprite *pJoint = &pSprites[D_800D3304[k].jointIndex + 1];
+                BattleSprite *pJoint = &pSprites[g_BattlePartSlots[k].jointIndex + 1];
                 s32 vec[4];
 
                 CompMatrix(&pSprites->localTransform, &pJoint->globalTransform, pMatrix);
                 SetRotMatrix(pMatrix);
                 SetTransMatrix(pMatrix);
-                gte_ldv0(&D_800D3304[k].sourcePos);
+                gte_ldv0(&g_BattlePartSlots[k].sourcePos);
                 gte_mvmva(1, 0, 0, 0, 0);
                 gte_stlvnl(vec);
                 *pX = *(u16 *)&vec[0];
                 *pY = *(u16 *)&vec[1];
                 *pZ = *(u16 *)&vec[2];
             } else {
-                *pX = D_800D3304[k].sourcePos.vx;
-                *pY = D_800D3304[k].sourcePos.vy;
-                *pZ = D_800D3304[k].sourcePos.vz;
+                *pX = g_BattlePartSlots[k].sourcePos.vx;
+                *pY = g_BattlePartSlots[k].sourcePos.vy;
+                *pZ = g_BattlePartSlots[k].sourcePos.vz;
             }
         }
         pZ += 10;
@@ -402,10 +402,10 @@ void BattleFreeSceneResources(void) {
     func_800A9FF0(0x1F);
     D_800C3E38 = 0;
     i = 0;
-    if (D_800658C8 != 0) {
-        HeapFree(D_800658C8);
+    if (g_BattleStageData != 0) {
+        HeapFree(g_BattleStageData);
     }
-    D_800658C8 = 0;
+    g_BattleStageData = 0;
     for (; i < 2;) {
         if (D_800C3D50[i] != 0) {
             HeapFreeIfNotNull(D_800C3D50[i]);
@@ -418,7 +418,7 @@ void BattleFreeSceneResources(void) {
     }
     D_800C3EA0 = 0;
     for (; i < 2; i++) {
-        GfxLineScrollFree(&D_800C3DA0[i]);
+        GfxLineScrollFree(&g_BattleLineScrolls[i]);
     }
 }
 typedef struct {
@@ -462,7 +462,7 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
     s16 state;
     s32 flags;
 
-    oldShift = D_80050100;
+    oldShift = g_GfxOTDepthShift;
     numChildren = pSkeleton->count;
     pSkeleton++;
     for (i = 1; i < numChildren; i++) {
@@ -506,18 +506,18 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
                 break;
             }
             if (state == 0) {
-                D_80050100 = 0x10;
+                g_GfxOTDepthShift = 0x10;
                 ModelRenderPacket(pMesh->pParts[*(u16 *)(pSkeleton->unk00 + 8)],
                                   ((void **)&pSkeleton->p68)[packetIndex], &pOt[otIndex - 1], flags);
             } else {
-                D_80050100 = oldShift;
+                g_GfxOTDepthShift = oldShift;
                 ModelRenderPacket(pMesh->pParts[*(u16 *)(pSkeleton->unk00 + 8)],
                                   ((void **)&pSkeleton->p68)[packetIndex], pOt, flags);
             }
         }
         pSkeleton++;
     }
-    D_80050100 = oldShift;
+    g_GfxOTDepthShift = oldShift;
 }
 */
 s32 BattlePushTargetOutOfCircles(u16 *pPos, s16 *pTarget) {
@@ -558,22 +558,22 @@ void BattleSteerActorTowardCircles(void *pArg) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A4DB8);
 s32 BattleGetTriangleVertexTable(void) {
-    return (s32)D_800D3344;
+    return (s32)g_BattleTriangleVertices;
 }
 
 s32 BattleGetTriangleEntryTable(void) {
-    return (s32)D_800D39CC;
+    return (s32)g_BattleTriangles;
 }
 
 s32 BattleFindTriangleContainingPoint(s32 arg0) {
     BattleMisc22Entry *pEntry;
     s32 i;
 
-    if (D_800D3344 != 0 && D_800D39CC != 0) {
-        for (i = 0; i < D_800D3348; i++) {
-            pEntry = &D_800D39CC[i];
-            if (BattleTestPointInTriangle(&D_800D3344[pEntry->unk0], &D_800D3344[pEntry->unk2],
-                              &D_800D3344[pEntry->unk4], arg0) == -1) {
+    if (g_BattleTriangleVertices != 0 && g_BattleTriangles != 0) {
+        for (i = 0; i < g_BattleTriangleCount; i++) {
+            pEntry = &g_BattleTriangles[i];
+            if (BattleTestPointInTriangle(&g_BattleTriangleVertices[pEntry->unk0], &g_BattleTriangleVertices[pEntry->unk2],
+                              &g_BattleTriangleVertices[pEntry->unk4], arg0) == -1) {
                 return i;
             }
         }
@@ -584,11 +584,11 @@ s32 BattleFindTriangleContainingPoint(s32 arg0) {
 s32 BattleProjectPointOntoIndexedTriangle(s32 arg0, s32 index, s32 arg2) {
     BattleMisc22Entry *pEntry;
 
-    if (D_800D3344 == 0 || D_800D39CC == 0 || index < 0) {
+    if (g_BattleTriangleVertices == 0 || g_BattleTriangles == 0 || index < 0) {
         return -1;
     }
-    pEntry = &D_800D39CC[index];
-    BattleProjectPointOntoTriangle(&D_800D3344[pEntry->unk0], &D_800D3344[pEntry->unk2],
-                  &D_800D3344[pEntry->unk4], arg0, arg2);
-    return D_800D39CC[index].unkC;
+    pEntry = &g_BattleTriangles[index];
+    BattleProjectPointOntoTriangle(&g_BattleTriangleVertices[pEntry->unk0], &g_BattleTriangleVertices[pEntry->unk2],
+                  &g_BattleTriangleVertices[pEntry->unk4], arg0, arg2);
+    return g_BattleTriangles[index].unkC;
 }

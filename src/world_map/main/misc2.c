@@ -84,7 +84,7 @@ extern void* D_8005945C;
 extern void* D_8009C7E4;
 extern s32 D_8009C174;
 extern void* D_8009BD20;
-extern u8* D_8009BE3C;
+extern u8* g_WorldMapRenderContext;
 extern u_long* D_8009C800;
 extern u_long* D_8009C890;
 extern s32 D_8009D14C;
@@ -93,18 +93,18 @@ extern u_char D_80059179;
 
 extern u32 D_8005A4E4[];
 extern u8 D_8009CEC4[];
-extern s32 D_8009BBB4;
+extern s32 g_WorldMapScrollX;
 extern s32 D_8009BBB8;
 extern s32 D_8009BBBC;
-extern s32 D_8009BD38;
+extern s32 g_WorldMapCameraRot;
 extern s32 D_8009BD3C;
 extern s32 D_8009BE0C;
-extern s32 D_8009BE28;
+extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE2C;
 extern s32 D_8009BE30;
 extern s32 D_8009C838;
 extern s32 D_8009C83C;
-extern s16 D_8009D154;
+extern s16 g_WorldMapTrailCursor;
 extern s32 D_8009D3F0;
 extern s16 D_8009D52C;
 extern s32 D_8009D55C;
@@ -120,11 +120,11 @@ extern u8 D_800658DC[];
 extern u8 D_80059508;
 
 extern WorldMapActor* D_8009BE24;
-extern s32 D_8009BE10;
-extern u8* D_8009BE14;
-extern u8* D_8009BE18;
-extern s32 D_8009BE38;
-extern Vector16* D_8009D30C;
+extern s32 g_WorldMapMode;
+extern u8* g_WorldMapSlotPrims;
+extern u8* g_WorldMapSlotPrimsCopy;
+extern s32 g_WorldMapSlotPositionIndex;
+extern Vector16* g_WorldMapSlotPositions;
 extern s32 D_8009C180;
 extern s32 D_8009CD48;
 extern s32 D_8009BD30;
@@ -142,7 +142,7 @@ extern s32 D_8009BCC4;
 extern s32 D_8009BE40;
 extern s32 D_8009D64C;
 extern s32 D_8009D80C;
-extern s32* D_80062528;
+extern s32* g_SoundAudioManager;
 extern s32 D_8009CD64;
 extern WorldMapEntry* D_8009D780;
 extern WorldMapEntry* D_8009D7D0;
@@ -150,19 +150,19 @@ extern u8 D_8009A250[];
 extern u8 D_80062648[];
 
 void WorldMapFreePrimBuffers(void) {
-    HeapFree(D_8009BE18);
-    HeapFree(D_8009BE14);
-    HeapFree(D_8009D30C);
+    HeapFree(g_WorldMapSlotPrimsCopy);
+    HeapFree(g_WorldMapSlotPrims);
+    HeapFree(g_WorldMapSlotPositions);
 }
 
 void WorldMapAddSlotPosition(s16 arg0, s32* pVec) {
     s32 index;
 
-    index = D_8009BE38;
-    D_8009D30C[index].vx = pVec[0] >> 12;
-    D_8009D30C[index].vz = pVec[2] >> 12;
-    D_8009D30C[index].vy = arg0;
-    D_8009BE38 = (index + 1) & 0xF;
+    index = g_WorldMapSlotPositionIndex;
+    g_WorldMapSlotPositions[index].vx = pVec[0] >> 12;
+    g_WorldMapSlotPositions[index].vz = pVec[2] >> 12;
+    g_WorldMapSlotPositions[index].vy = arg0;
+    g_WorldMapSlotPositionIndex = (index + 1) & 0xF;
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc2", func_800747DC);
@@ -333,15 +333,15 @@ typedef struct {
     /* 0x201C */ s32 unk201C; // D_8009D64C
     /* 0x2020 */ SlotBlock unk2020;  // D_8009C854
     /* 0x2040 */ UnkBlock unk2040;   // D_8009CEC4
-    /* 0x22C0 */ s32 unk22C0;        // D_8009D154
-    /* 0x22C4 */ s32 unk22C4;        // D_8009BD38
+    /* 0x22C0 */ s32 unk22C0;        // g_WorldMapTrailCursor
+    /* 0x22C4 */ s32 unk22C4;        // g_WorldMapCameraRot
     /* 0x22C8 */ s32 unk22C8;        // D_8009BD3C
     /* 0x22CC */ s32 unk22CC;        // D_8009D3F0
     /* 0x22D0 */ s32 unk22D0;        // D_8009BE0C
-    /* 0x22D4 */ WorldMapQuad unk22D4; // D_8009BBB4
+    /* 0x22D4 */ WorldMapQuad unk22D4; // g_WorldMapScrollX
     /* 0x22E4 */ s32 unk22E4;        // D_8009C838
     /* 0x22E8 */ s32 unk22E8;        // D_8009C83C
-    /* 0x22EC */ WorldMapQuad unk22EC; // D_8009BE28
+    /* 0x22EC */ WorldMapQuad unk22EC; // g_WorldMapCameraTarget
 } WorldMapSaveData; // Size: 0x22FC
 
 void WorldMapSaveState(void) {
@@ -358,29 +358,29 @@ void WorldMapSaveState(void) {
     pSave->unk201C = D_8009D64C;
     pSave->unk2020 = *(SlotBlock*)D_8009C854;
     pSave->unk2040 = *(UnkBlock*)D_8009CEC4;
-    pSave->unk22C0 = D_8009D154;
-    pSave->unk22C4 = D_8009BD38;
+    pSave->unk22C0 = g_WorldMapTrailCursor;
+    pSave->unk22C4 = g_WorldMapCameraRot;
     pSave->unk22C8 = D_8009BD3C;
     pSave->unk22CC = D_8009D3F0;
     pSave->unk22D0 = D_8009BE0C;
     pSave->unk22E4 = D_8009C838;
     pSave->unk22E8 = D_8009C83C;
-    pSave->unk22D4.w0 = D_8009BBB4;
+    pSave->unk22D4.w0 = g_WorldMapScrollX;
     pSave->unk22D4.w1 = D_8009BBB8;
     pSave->unk22D4.w2 = D_8009BBBC;
-    pSave->unk22EC.w0 = D_8009BE28;
+    pSave->unk22EC.w0 = g_WorldMapCameraTarget;
     pSave->unk22EC.w1 = D_8009BE2C;
     pSave->unk22EC.w2 = D_8009BE30;
 }
 
-extern s32 D_8009C5AC;
+extern s32 g_WorldMapPlayerPosition;
 
 void WorldMapLoadState(void) {
     WorldMapSaveData* pSave;
 
     pSave = (WorldMapSaveData*)D_8005A4E4;
     *(ActorBlock*)D_8009BE24 = pSave->actors;
-    *(WorldMapQuad*)&D_8009C5AC = pSave->unk2000;
+    *(WorldMapQuad*)&g_WorldMapPlayerPosition = pSave->unk2000;
     *(WorldMapQuad*)&D_8009D55C = pSave->unk2000;
     *(SlotBlock*)D_8009C854 = pSave->unk2020;
     D_8009D52C = pSave->unk2010;
@@ -388,21 +388,21 @@ void WorldMapLoadState(void) {
     D_8009BCC4 = pSave->unk2018;
     D_8009D64C = pSave->unk201C;
     *(UnkBlock*)D_8009CEC4 = pSave->unk2040;
-    *(WorldMapShortQuad*)&D_8009BD38 = *(WorldMapShortQuad*)&pSave->unk22C4;
-    *(WorldMapQuad*)&D_8009BBB4 = pSave->unk22D4;
+    *(WorldMapShortQuad*)&g_WorldMapCameraRot = *(WorldMapShortQuad*)&pSave->unk22C4;
+    *(WorldMapQuad*)&g_WorldMapScrollX = pSave->unk22D4;
     *(WorldMapShortQuad*)&D_8009C838 = *(WorldMapShortQuad*)&pSave->unk22E4;
-    *(WorldMapQuad*)&D_8009BE28 = pSave->unk22EC;
-    D_8009D154 = pSave->unk22C0;
+    *(WorldMapQuad*)&g_WorldMapCameraTarget = pSave->unk22EC;
+    g_WorldMapTrailCursor = pSave->unk22C0;
     D_8009D3F0 = pSave->unk22CC;
     D_8009BE0C = pSave->unk22D0;
 }
 
-extern s32 D_8009D7F0;
-extern u16 D_8009BD3A;
+extern s32 g_WorldMapPrimPacketIndex;
+extern u16 g_WorldMapViewRotationY;
 extern s16 D_8006F950;
 extern void* D_8009BC3C;
 extern void* D_8009BCB4;
-extern void* D_8009D528;
+extern void* g_WorldMapCompressedMapData;
 extern void WorldMapWaitForQueuedLoads(void);
 extern void WorldMapFreeSpritePrimBuffers(void);
 extern void WorldMapFreeSemiTransPrimBuffers(void);
@@ -423,7 +423,7 @@ void WorldMapEnterMenuMode(void) {
     pFlags = &g_GameState.unk1836;
     pOut = (s16*)(pFlags + 3);
     *pFlags = 1;
-    D_8006F950 = (D_8009BD3A + 0x2000) & 0x3FFF;
+    D_8006F950 = (g_WorldMapViewRotationY + 0x2000) & 0x3FFF;
     for (; i < 3; i++, pOut++) {
         *pOut = g_GameState.gearRide[i];
     }
@@ -456,7 +456,7 @@ void WorldMapEnterMenuMode(void) {
     rect.w = 0x140;
     rect.h = 0x50;
     StoreImage(&rect, D_8009C890);
-    if (D_8009D7F0 == 0) {
+    if (g_WorldMapPrimPacketIndex == 0) {
         rect.x = 0;
         rect.y = 0xD8;
         rect.w = 0x140;
@@ -472,8 +472,8 @@ void WorldMapEnterMenuMode(void) {
     func_80072DB4(0x10, 0, 8, 2);
     do {
     } while (ArchiveDataSync() >= 2);
-    LZSSDecompress(D_8009D528, D_8009C7E4);
-    HeapFree(D_8009D528);
+    LZSSDecompress(g_WorldMapCompressedMapData, D_8009C7E4);
+    HeapFree(g_WorldMapCompressedMapData);
     rect.x = 0;
     rect.y = 0;
     rect.w = 0x140;
@@ -506,7 +506,7 @@ void WorldMapExitMenuMode(void) {
     rect.h = 0xD8;
     MoveImage(&rect, 0, 0);
     MoveImage(&rect, 0, 0xD8);
-    ClearOTagR(*(u_long**)(D_8009BE3C + 0x70), 0x400);
+    ClearOTagR(*(u_long**)(g_WorldMapRenderContext + 0x70), 0x400);
     ArchiveCdDataSync(0);
     WorldMapLoadTextureClut();
     rect.x = 0x180;
@@ -568,7 +568,7 @@ void WorldMapSyncGearRideActors(void) {
         }
     }
     if (!(g_GameState.unk1834 & 0x4000)) {
-        D_8009BE10 = count != 0 ? 2 : 1;
+        g_WorldMapMode = count != 0 ? 2 : 1;
     }
 }
 
@@ -642,7 +642,7 @@ void WorldMapFlushDrawAndCache(void) {
     FlushCache();
     ExitCriticalSection();
 }
-extern int D_80059488;
+extern int g_SpuChannelMask;
 extern DISPENV D_8009BC9C;
 extern DISPENV D_8009BC24;
 extern DRAWENV D_8009BC40;
@@ -668,10 +668,10 @@ void WorldMapWaitForButtonRelease(void) {
     DISPENV* pDispEnv;
     s32 savedValue;
 
-    savedValue = D_80059488;
+    savedValue = g_SpuChannelMask;
     DrawSync(0);
     Vsync(0);
-    if (D_8009D7F0 == 0) {
+    if (g_WorldMapPrimPacketIndex == 0) {
         rect.x = 0;
         rect.y = 0xD8;
         rect.w = 0x140;
@@ -710,10 +710,10 @@ void WorldMapWaitForButtonRelease(void) {
     rect.h = 0xD8;
     MoveImage(&rect, 0, 0xD8);
     pDispEnv = &D_8009BC24;
-    PutDispEnv((DISPENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
+    PutDispEnv((DISPENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
     pDispEnv = (DISPENV*)((u8*)pDispEnv - 0x5C);
-    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
-    D_80059488 = savedValue;
+    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
+    g_SpuChannelMask = savedValue;
 }
 
 extern int ControllerGetType(int controllerIndex);
@@ -723,10 +723,10 @@ void WorldMapWaitForControllerConnected(void) {
     DISPENV* pDispEnv;
     s32 savedValue;
 
-    savedValue = D_80059488;
+    savedValue = g_SpuChannelMask;
     DrawSync(0);
     Vsync(0);
-    if (D_8009D7F0 == 0) {
+    if (g_WorldMapPrimPacketIndex == 0) {
         rect.x = 0;
         rect.y = 0xD8;
         rect.w = 0x140;
@@ -765,19 +765,19 @@ void WorldMapWaitForControllerConnected(void) {
     rect.h = 0xD8;
     MoveImage(&rect, 0, 0xD8);
     pDispEnv = &D_8009BC24;
-    PutDispEnv((DISPENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
+    PutDispEnv((DISPENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
     pDispEnv = (DISPENV*)((u8*)pDispEnv - 0x5C);
-    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + D_8009D7F0 * 0x78));
-    D_80059488 = savedValue;
+    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
+    g_SpuChannelMask = savedValue;
 }
 void WorldMapPlayBgmFromBuffer(u8* pSrc, s32 index) {
     u8* pBuffer;
 
     SoundStopAllAudioManagers();
-    SoundDestroyAudioManager(D_80062528);
+    SoundDestroyAudioManager(g_SoundAudioManager);
     memcpy(D_80062648, pSrc, ArchiveDecodeAlignedSize(index));
-    D_80062528 = SoundCreateAudioManagerOnHeap(D_80062648);
-    SoundPlayAudioManager(D_80062528, 0x7F, 0);
+    g_SoundAudioManager = SoundCreateAudioManagerOnHeap(D_80062648);
+    SoundPlayAudioManager(g_SoundAudioManager, 0x7F, 0);
 }
 void WorldMapInterpolateQuadraticVector(s32 t, s16* pRow0, s16* pRow1, s16* pRow2, s32* pOut) {
     s32 s;

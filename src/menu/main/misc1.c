@@ -2,7 +2,7 @@
 
 #include "system/menu.h"
 
-extern u8 D_80059460; // Index of the menu overlay the menu was entered with
+extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 extern u_char D_801EA524[]; // String IDs of the menu strings
 
 void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
@@ -16,7 +16,7 @@ void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4,
     u_char arg6, u_char arg7);
 void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries);
 void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
-void func_801E8474(s32 arg0, void* pArg1);
+void MenuRevealSelectionMenu(s32 arg0, void* pArg1);
 extern int ArchiveGetDiscNumber(void);
 void MenuWaitForDiscChange(u_char arg0);
 s32 MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2);
@@ -42,7 +42,7 @@ extern u8 D_801EA8FC;
 extern u8 D_801E96A4;
 extern u8 D_801E96A5;
 
-extern u8 D_80059171;
+extern u8 g_ShopIndex;
 extern u8 D_800594D0;
 extern u8 D_800594CC;
 void func_801D29A8(s32 arg0, s32 arg1);
@@ -97,7 +97,7 @@ void MenuNormalMenuMain(void) {
 void MenuCdChangeMain(void) {
     u_char shouldReset;
 
-    D_80059171 = 1;
+    g_ShopIndex = 1;
     D_801E977A = 0;
     MenuStartOpenAnimation();
     shouldReset = 1;
@@ -120,14 +120,14 @@ void MenuCdChangeMain(void) {
     }
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
-    MenuWaitForDiscChange(D_80059171);
+    MenuWaitForDiscChange(g_ShopIndex);
 }
 
 void MenuLoadGameMain(void) {
     u_char shouldContinue;
 
     shouldContinue = 1;
-    func_801E8474(4, D_801EA1D4);
+    MenuRevealSelectionMenu(4, D_801EA1D4);
     MenuLoadStringsFromIds(8, (u8*)g_Menu + 0x6E0, D_801EA530, (u8*)g_Menu->pManager + 0xC);
     g_Menu->unk2D8 = 0;
     do {
@@ -266,7 +266,7 @@ void MenuInitializeMenuData(void) {
     MenuMenuUnk1Manager(1);
     g_Menu->pCursors = HeapAlloc(sizeof(MenuPointerCursors), 0);
     bzero(g_Menu->pCursors, sizeof(MenuPointerCursors));
-    switch (D_80059460) {
+    switch (g_MenuOverlayIndex) {
         case 0:
             MenuMenuUnk2Manager(1);
             MenuUnk340Manager(1);
@@ -280,13 +280,13 @@ void MenuInitializeMenuData(void) {
     }
 }
 void MenuFinalizeMenuData(void) {
-    switch (D_80059460) {
+    switch (g_MenuOverlayIndex) {
         case 0:
             MenuResetSelectionCursorFlags();
             func_801D29A8(0, 0);
             g_Menu->pManager->unk5[1] = 0;
             g_Menu->pManager->unk5[0] = 0;
-            if (D_80059171 == 0) {
+            if (g_ShopIndex == 0) {
                 D_800594CC = g_Menu->mainMenuChoice;
             }
             break;
@@ -317,7 +317,7 @@ void MenuFinalizeMenuData(void) {
         MenuRenderFrame();
         HeapFree(g_Menu->unk2E4);
     }
-    switch (D_80059460) {
+    switch (g_MenuOverlayIndex) {
         case 0:
             MenuMenuUnk2Manager(MENU_DATA_FREE);
             MenuUnk340Manager(MENU_DATA_FREE);
@@ -352,7 +352,7 @@ void func_801C62A8(void) {
     MenuSetupScreen();
     g_Menu->shouldDrawMenu = 1;
     g_Menu->unk32A = 1;
-    menuIndex = D_80059460;
+    menuIndex = g_MenuOverlayIndex;
     switch (menuIndex) {
         case 0:
             func_801D2D38();

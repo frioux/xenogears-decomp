@@ -36,8 +36,8 @@ void FieldRenderSync(void) {
     Vsync(0);
 }
 
-extern s32 D_8004F344;
-extern void* D_8005A4A0;
+extern s32 g_GameUITextureFileStaged;
+extern void* g_GameUITextureFileBuffer;
 extern s16 D_800C2690;
 extern s16 D_800C2692;
 extern s16 D_800C38FC;
@@ -85,23 +85,23 @@ void FieldLoadUITextures(void) {
     s32 offset;
     int i;
 
-    if (D_8004F344 == 0) {
-        D_8005A4A0 = HeapAlloc(ArchiveDecodeAlignedSize(0xA7), 1);
-        HeapPinBlock(D_8005A4A0);
-        ArchiveReadFileToBuffer(0xA7, D_8005A4A0, 0, 0x80);
+    if (g_GameUITextureFileStaged == 0) {
+        g_GameUITextureFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0xA7), 1);
+        HeapPinBlock(g_GameUITextureFileBuffer);
+        ArchiveReadFileToBuffer(0xA7, g_GameUITextureFileBuffer, 0, 0x80);
         ArchiveCdDataSync(0);
     }
-    HeapUnpinBlock(D_8005A4A0);
-    D_8004F344 = 0;
+    HeapUnpinBlock(g_GameUITextureFileBuffer);
+    g_GameUITextureFileStaged = 0;
     D_800C2692 = 0;
     D_800C2690 = 0;
     D_800C38FE = 0;
     D_800C38FC = 0;
-    ResolveArchiveEntryPointers(D_8005A4A0);
+    ResolveArchiveEntryPointers(g_GameUITextureFileBuffer);
     pBase = (u8*)D_800ADC44;
     pX = (s16*)pBase;
     pHeight = (s16*)pBase + 5;
-    pEntry = (s32*)((u8*)D_8005A4A0 + 4);
+    pEntry = (s32*)((u8*)g_GameUITextureFileBuffer + 4);
     offset = 0;
     for (i = 0; i < 8; i++) {
         FieldLoadTIMWithClut((u_long*)pEntry[i], *pX, *(s16*)(pBase + offset + 2),
@@ -118,7 +118,7 @@ void FieldLoadUITextures(void) {
     D_800B004C.h = 1;
     StoreImage(&D_800B004C, D_800AFC08);
     DrawSync(0);
-    HeapFree(D_8005A4A0);
+    HeapFree(g_GameUITextureFileBuffer);
 }
 */
 
@@ -147,14 +147,14 @@ void FieldSetMatrix(s16* pOut, int x0, int x1, int x2, int x3, int x4, int x5, i
 extern s32 D_8005A420[];
 extern s32 D_8005A450[];
 // The s16 entry table at D_800B21DC is followed immediately by its entry count at
-// D_800B2264; the original reaches both through one base register.
+// g_FieldActorModelSlotCount; the original reaches both through one base register.
 typedef struct {
     /* 0x000 */ s16 entries[0x44];
     /* 0x088 */ s32 count;
 } FieldSoundList;
 
 extern StreamDataQueueEntry D_800B2394[];
-extern s32 D_800B2264;
+extern s32 g_FieldActorModelSlotCount;
 extern void* D_800ADB20;
 extern s32 D_800ADB30;
 extern s32 D_8004F370;
@@ -166,10 +166,10 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 // 90.25%: structure, frame (0x38, s0-s4 + ra) and size (560 bytes, same as the
 // original) are right; the two remaining gaps are both gcc rematerialising where the
 // original reuses a materialised address:
-//  1. the original builds &D_800B2264 into $v1 (lui+addiu), loads the count with
+//  1. the original builds &g_FieldActorModelSlotCount into $v1 (lui+addiu), loads the count with
 //     `lw 0($v1)` and then `addiu $s4,$v1,-0x88` for the s16 table at D_800B21DC,
 //     reloading the count inside the loop as `lw 0x88($s4)`. This source computes the
-//     base as one constant (`lui %hi(D_800B2264); addiu -0x88`) and re-forms a second
+//     base as one constant (`lui %hi(g_FieldActorModelSlotCount); addiu -0x88`) and re-forms a second
 //     lui/%lo pair for the count instead; gcc's fold_rtx always folds the +0x88 back to
 //     the bare symbol, so the two accesses are never expressed off one register. Same
 //     wall as func_8007520C (misc2) and func_800A0EE8 (misc6), just in the other
@@ -188,7 +188,7 @@ void func_80077884(void) {
     FieldSoundList* pSoundList;
     void* pBuffer;
 
-    if (D_800B2264 == 0) {
+    if (g_FieldActorModelSlotCount == 0) {
         return;
     }
 
@@ -203,7 +203,7 @@ void func_80077884(void) {
     D_800ADB20 = HeapAlloc(nSize, 1);
     FieldMoveStoredImageToHeap(1);
 
-    pSoundList = (FieldSoundList*)((u8*)&D_800B2264 - 0x88);
+    pSoundList = (FieldSoundList*)((u8*)&g_FieldActorModelSlotCount - 0x88);
     for (i = 0; i < pSoundList->count; i++) {
         D_800B2394[i * 2 + 1].archiveIndex = pSoundList->entries[i] + 0x6BB;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BB), 1);
@@ -211,7 +211,7 @@ void func_80077884(void) {
         D_800B2394[i * 2 + 1].pData = pBuffer;
     }
 
-    pSoundList = (FieldSoundList*)((u8*)&D_800B2264 - 0x88);
+    pSoundList = (FieldSoundList*)((u8*)&g_FieldActorModelSlotCount - 0x88);
     for (i = 0; i < pSoundList->count; i++) {
         D_800B2394[i * 2].archiveIndex = pSoundList->entries[i] + 0x6BA;
         pBuffer = HeapAlloc(ArchiveDecodeAlignedSize((s16)pSoundList->entries[i] + 0x6BA), 0);
@@ -229,7 +229,7 @@ void func_80077884(void) {
 }
 */
 extern s32* D_801E8644;
-extern void* D_801E8670[];
+extern void* g_FieldActorModelPointers[];
 extern u8 D_800B225C;
 extern u8 D_800B225D;
 extern u8 D_800B225E;
@@ -242,7 +242,7 @@ extern void func_801E742C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s16 arg4, s32 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077AB4);
 // 64.39%: the C below is structurally right (count guard, then HeapChangeCurrentUser(8, NULL))
-// but the original materialises &D_800B2264 into $s0 ONCE and reaches the loop vectors and
+// but the original materialises &g_FieldActorModelSlotCount into $s0 ONCE and reaches the loop vectors and
 // D_800B223C with `addiu` off it, while gcc rematerialises a %hi/%lo pair for every one of
 // those addresses. Same root cause as func_8007520C (misc2) and func_800A0EE8 (misc6).
 // The loop itself is: 8 max entries of three zeroed SVECTOR vertices (8 bytes apart) plus a
@@ -257,7 +257,7 @@ void func_80077AB4(void) {
     s32 clut;
     int texOffset;
 
-    pCount = &D_800B2264;
+    pCount = &g_FieldActorModelSlotCount;
     if (*pCount == 0) {
         return;
     }
@@ -281,7 +281,7 @@ void func_80077AB4(void) {
                 clut >> 16, pVector++);
             texOffset++;
             HeapFree(pData[i]);
-            ((s32*)(pCount - 22))[i] = *(s16*)((u8*)D_801E8670[i] + 0x1C);
+            ((s32*)(pCount - 22))[i] = *(s16*)((u8*)g_FieldActorModelPointers[i] + 0x1C);
             clut += 0x10000;
         }
     }

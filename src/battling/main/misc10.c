@@ -4,9 +4,9 @@
 #include "system/archive.h"
 
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
-extern u8 D_800928A0;
+extern u8 g_BattleDrawBufferIndex;
 extern s16 D_80092780;
-extern s32 D_80092794;
+extern s32 g_BattleScreenMode;
 extern s32 D_800928C8;
 extern u8 D_8005061C;
 extern u8* D_800927B4[];
@@ -19,7 +19,7 @@ extern u8 D_80091FB0[];
 extern u8 D_80092920;
 extern u8 D_80099D9D;
 extern u8 D_80099D9E;
-extern s32 D_80059488;
+extern s32 g_SpuChannelMask;
 extern s32 D_8009292C;
 extern u8* D_80092938;
 extern u8* D_80092784;
@@ -179,8 +179,8 @@ extern u8* BattleSetActorSoundTable(Misc10Actor* pActor);
 s32 BattleQueueActorPrims(Misc10Actor* pActor) {
     u32* pData = pActor->unk284;
 
-    func_8008E3CC((u8*)pData[D_800928A0 + 1] + 8, 0xC0, 0);
-    BattleDrawTextPrims((u8*)pData[D_800928A0 + 1] + 4);
+    func_8008E3CC((u8*)pData[g_BattleDrawBufferIndex + 1] + 8, 0xC0, 0);
+    BattleDrawTextPrims((u8*)pData[g_BattleDrawBufferIndex + 1] + 4);
     BattleAttachActorPrims(pData);
     BattleAddSharedPrim();
     return 0;
@@ -373,7 +373,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
 */
 
 void BattleUpdateEffectImage(void) {
-    if (D_80092784 != NULL && (D_80059488 & 0x1)) {
+    if (D_80092784 != NULL && (g_SpuChannelMask & 0x1)) {
         func_8008E120();
     }
 }
@@ -439,9 +439,9 @@ void BattleReturnToMainLoop(void) {
 s32 BattleCheckModeOver(void) {
     s32 result = 0;
 
-    if (D_80092794 == 5 || D_80092794 == 7) {
+    if (g_BattleScreenMode == 5 || g_BattleScreenMode == 7) {
         result = 1;
-    } else if (D_80092794 == 1 && D_800928C8 == 4 && D_8005061C == 0) {
+    } else if (g_BattleScreenMode == 1 && D_800928C8 == 4 && D_8005061C == 0) {
         result = 1;
     }
     return result;
@@ -649,7 +649,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 }
 */
 void BattleAddSharedPrim(void) {
-    AddPrim(D_80092938, &D_8009A300[D_800928A0]);
+    AddPrim(D_80092938, &D_8009A300[g_BattleDrawBufferIndex]);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086E70);

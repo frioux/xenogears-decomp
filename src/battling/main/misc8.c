@@ -12,12 +12,12 @@ extern u16 D_80091672;
 extern u16 D_800916AE;
 extern u8 D_80092758;
 extern u_long *D_80092760;
-extern u8 D_800928A0;
-extern s32 D_800926DC;
-extern s32 D_80092700;
-extern s32 D_80092704;
-extern u8 D_8009273C;
-extern u8 D_80092740;
+extern u8 g_BattleDrawBufferIndex;
+extern s32 g_BattleTextPrimCount;
+extern s32 g_BattleCursorIndex0;
+extern s32 g_BattleCursorIndex1;
+extern u8 g_BattleTextSpriteEntry0;
+extern u8 g_BattleTextSpriteEntry1;
 extern u16 D_8009286C;
 extern void *D_80092880;
 extern u16 D_8009553C;
@@ -192,7 +192,7 @@ void BattleSaveScreenImage(void) {
         HeapToggleErrorHandler(0);
     }
     DrawSync(0);
-    rect = D_8009A0D8[((D_800928A0 + 1) & 1)].rect;
+    rect = D_8009A0D8[((g_BattleDrawBufferIndex + 1) & 1)].rect;
     MoveImage(&rect, 0x140, 0x100);
     if (D_80092760 != 0) {
         StoreImage(&rect, D_80092760);
@@ -242,10 +242,10 @@ void func_80080C48(s32 a0) {
 */
 
 void BattleResetTextPrimQueue(void) {
-    D_800926DC = 0;
+    g_BattleTextPrimCount = 0;
 }
 
-extern u8 *D_800926D4[];
+extern u8 *g_BattleTextPrimBuffers[];
 extern s32 D_800912F0;
 extern DR_MOVE D_80095498[];
 extern DR_TPAGE D_800954C8[];
@@ -255,26 +255,26 @@ void BattleDrawTextPrims(u8 *p) {
     u8 *pEntry;
     RECT rect;
 
-    pEntry = D_800926D4[D_800928A0];
-    for (i = 0; i < D_800926DC; i++, pEntry += 0x28) {
+    pEntry = g_BattleTextPrimBuffers[g_BattleDrawBufferIndex];
+    for (i = 0; i < g_BattleTextPrimCount; i++, pEntry += 0x28) {
         AddPrim(p, pEntry);
     }
-    D_800926DC = 0;
+    g_BattleTextPrimCount = 0;
     BattleDrawTextSprites(p);
     if (((D_80092734 != 0) && (D_80092758 != 0)) || (D_800912F0 != 0)) {
         if (D_80092734 != 0) {
-            AddPrim(p, &D_80092734->frames[D_800928A0]);
-            SetDrawTPage(&D_800954C8[D_800928A0], 0, 0, GetTPage(0, 2, 0, 0));
-            AddPrim(p, &D_800954C8[D_800928A0]);
+            AddPrim(p, &D_80092734->frames[g_BattleDrawBufferIndex]);
+            SetDrawTPage(&D_800954C8[g_BattleDrawBufferIndex], 0, 0, GetTPage(0, 2, 0, 0));
+            AddPrim(p, &D_800954C8[g_BattleDrawBufferIndex]);
         }
         rect.x = 0x140;
         rect.y = 0x100;
         rect.w = 0x140;
         rect.h = 0xDA;
-        SetDrawMove(&D_80095498[D_800928A0], &rect,
-                    D_8009A0D8[D_800928A0].rect.x,
-                    D_8009A0D8[D_800928A0].rect.y);
-        AddPrim(p, &D_80095498[D_800928A0]);
+        SetDrawMove(&D_80095498[g_BattleDrawBufferIndex], &rect,
+                    D_8009A0D8[g_BattleDrawBufferIndex].rect.x,
+                    D_8009A0D8[g_BattleDrawBufferIndex].rect.y);
+        AddPrim(p, &D_80095498[g_BattleDrawBufferIndex]);
     }
     D_800912F0 = 0;
 }
@@ -354,16 +354,16 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
     RECT rect;
 
     if (mode == 0) {
-        if (entry == D_8009273C) {
+        if (entry == g_BattleTextSpriteEntry0) {
             return;
         }
-        D_8009273C = entry;
+        g_BattleTextSpriteEntry0 = entry;
         BattleRenderCenteredText(&D_80095510[0], entry, 0);
     } else {
-        if (entry == D_80092740) {
+        if (entry == g_BattleTextSpriteEntry1) {
             return;
         }
-        D_80092740 = entry;
+        g_BattleTextSpriteEntry1 = entry;
         BattleRenderCenteredText(&D_80095540, entry, 1);
     }
     rect.x = 0x140;
@@ -377,22 +377,22 @@ void BattleDrawTextSprites(u8 *p) {
     u16 off;
     u8 *pBase;
 
-    if (D_8009273C != 0) {
+    if (g_BattleTextSpriteEntry0 != 0) {
         pBase = (u8 *)&D_80095510[0];
-        off = D_800928A0 * 0x14;
+        off = g_BattleDrawBufferIndex * 0x14;
         *(u16 *)(pBase + off + 0x14) = D_8009553C;
         *(u16 *)(pBase + off + 0xC) = D_8009553E;
         AddPrim(p, pBase + (off + 4));
     }
-    if (D_80092740 != 0) {
+    if (g_BattleTextSpriteEntry1 != 0) {
         pBase = (u8 *)&D_80095540;
-        off = D_800928A0 * 0x14;
+        off = g_BattleDrawBufferIndex * 0x14;
         *(u16 *)(pBase + off + 0x14) = D_8009556C;
         *(u16 *)(pBase + off + 0xC) = D_8009556E;
         AddPrim(p, pBase + (off + 4));
     }
-    if (D_8009273C | D_80092740) {
-        AddPrim(p, &D_80095570[D_800928A0]);
+    if (g_BattleTextSpriteEntry0 | g_BattleTextSpriteEntry1) {
+        AddPrim(p, &D_80095570[g_BattleDrawBufferIndex]);
     }
 }
 
@@ -466,8 +466,8 @@ void BattleInitTextLists(void) {
         func_800812BC(p);
     }
     D_80092734 = 0;
-    D_80092700 = 0;
-    D_80092704 = 1;
+    g_BattleCursorIndex0 = 0;
+    g_BattleCursorIndex1 = 1;
     func_80080F04();
 }
 
@@ -612,7 +612,7 @@ typedef struct {
     /* 0x14 */ SPRT copies[5];
 } Misc8DimSprites; // Size: 0x78
 
-extern Misc8BattleGrid D_800928DC[];
+extern Misc8BattleGrid g_BattleGridCells[];
 extern POLY_G4 D_80095580[2];
 extern DR_TPAGE D_800955C8[4];
 extern Misc8DimSprites D_800955F8;
@@ -637,7 +637,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081ECC);
    plus one trailing word), the four GetTPage/SetDrawTPage pairs with
    D_800955C8 in $s0, the header stores, the func_800732AC copy of the 0x14-byte
    sprite template into five 0x14-byte copies, the eight copy fixups, the
-   0x4000-entry x12 scale loop on D_800928DC and the func_80087830 tail.
+   0x4000-entry x12 scale loop on g_BattleGridCells and the func_80087830 tail.
    Tried: per-vertex interleaved field writes (70.16%), all four setRGB first
    then setXYWH(0,0,0x140,0x60) (67.89% - setXYWH is what makes retail's
    x3,y3 come out as the single 0x600140 constant, so it is probably the right
@@ -693,7 +693,7 @@ void func_80081ECC(void) {
     D_800955F8.copies[4].w = 0x40;
 
     for (i = 0; i < 0x4000; i++) {
-        D_800928DC[i].unk0 = D_800928DC[i].unk0 * 12;
+        g_BattleGridCells[i].unk0 = g_BattleGridCells[i].unk0 * 12;
     }
     func_80087830();
 }

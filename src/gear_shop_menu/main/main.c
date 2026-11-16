@@ -15,10 +15,10 @@
  * TODO: probably should be in a header for main program stuff since this is not coming from the overlay
  */
 
-extern u8   D_80059171; // probably something like: DEBUGGER_ATTACHED, guards a breakpoint left in the code
+extern u8   g_ShopIndex; // probably something like: DEBUGGER_ATTACHED, guards a breakpoint left in the code
 extern s32* D_8005917C;
 extern u32* D_8005945C; // file handle used to retrieve the overlay's resources
-extern SoundFile* D_8006259C;
+extern SoundFile* g_MenuSedsFile;
 
 /*
  * this function doesn't seem to get called by anything, possibly dead code?
@@ -269,13 +269,13 @@ void GearShopMenuLoadResources(void) {
     if (g_MenuDebugEnabled) {
         ArchiveSetIndex(0x10, 2);
         pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(5U), 0U);
-        D_8006259C = pSoundFile;
+        g_MenuSedsFile = pSoundFile;
         ArchiveReadFileToBuffer(5, (s32) pSoundFile, 0U, 0x80U);
         ArchiveCdDataSync(0);
         ArchiveSetIndex(0x10, 0);
-        SoundAddSedsEntry(D_8006259C);
+        SoundAddSedsEntry(g_MenuSedsFile);
     }
-    g_Menu->unk2E4 = D_8006259C;
+    g_Menu->unk2E4 = g_MenuSedsFile;
     g_Menu->pGearShopEntries = LZSSHeapDecompress((void *)pFileHandle[8], 1);
     HeapFree(pFileHandle);
 }
@@ -437,7 +437,7 @@ void GearShopMenuFillVramRectWhite(void) {
 void GearShopMenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    func_801C5EE8(g_Menu->unk4E0, &D_801D6A80, 0, 4);
+    func_801C5EE8(g_Menu->unk4E0, &g_MenuStringIds, 0, 4);
     GearShopMenuFillVramRectWhite();
 }
 
@@ -459,27 +459,27 @@ void GearShopMenuInitializeWindowBorders(void) {
 }
 
 void GearShopMenuSetSelectionCursor(s32 arg0, u8 doInit) {
-    func_8002675C(g_Menu->resources, 0x108, g_Menu->unk348->polysPointerCursor, g_Menu->renderContext, D_801D6BFC[arg0], D_801D6C20[arg0], 0x1000U);
+    func_8002675C(g_Menu->resources, 0x108, g_Menu->unk348->polysPointerCursor, g_Menu->renderContext, g_SelectionCursorX[arg0], g_SelectionCursorY[arg0], 0x1000U);
     g_Menu->unk348->cursorRenderContext = (u8) g_Menu->renderContext;
 
     if (doInit) {
         setXY4(&g_Menu->unk348->polyG4s[g_Menu->renderContext],
-               D_801D6BFC[arg0] + 0x14, D_801D6C20[arg0] - 0x24,
-               D_801D6BFC[arg0] + (g_Menu->unk348->unk15B + 0x14), D_801D6C20[arg0] - 0x24,
-               D_801D6BFC[arg0] + 0x14, D_801D6C20[arg0] - 0x14,
-               D_801D6BFC[arg0] + (g_Menu->unk348->unk15B + 0x14), D_801D6C20[arg0] - 0x14
+               g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x24,
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x24,
+               g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x14,
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x14
         );
 
         setXY3(&g_Menu->unk348->lines1[g_Menu->renderContext],
-               D_801D6BFC[arg0] + 0x14, D_801D6C20[arg0] - 0x24,
-               D_801D6BFC[arg0] + (g_Menu->unk348->unk15B + 0x14), D_801D6C20[arg0] - 0x24,
-               D_801D6BFC[arg0] + (g_Menu->unk348->unk15B + 0x14), D_801D6C20[arg0] - 0x14
+               g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x24,
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x24,
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x14
         );
 
         setXY3(&g_Menu->unk348->lines2[g_Menu->renderContext],
-               D_801D6BFC[arg0] + 0x14, D_801D6C20[arg0] - 0x24,
-               D_801D6BFC[arg0] + 0x14, D_801D6C20[arg0] - 0x14,
-               D_801D6BFC[arg0] + (g_Menu->unk348->unk15B + 0x14), D_801D6C20[arg0] - 0x14
+               g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x24,
+               g_SelectionCursorX[arg0] + 0x14, g_SelectionCursorY[arg0] - 0x14,
+               g_SelectionCursorX[arg0] + (g_Menu->unk348->unk15B + 0x14), g_SelectionCursorY[arg0] - 0x14
         );
 
         g_Menu->unk348->unk159 = (u8) g_Menu->renderContext;
@@ -597,7 +597,7 @@ void GearShopMenuLoadGearShopInventory(void) {
     int i, j;
     GearShopDefinition *pShopDef;
 
-    pShopDef = &g_Menu->pGearShopEntries[D_80059171];
+    pShopDef = &g_Menu->pGearShopEntries[g_ShopIndex];
 
     g_GearShopInventoryCounts[0] = 0;
     for(i = 0; i < 20; i++) {
@@ -1886,7 +1886,7 @@ void GearShopMenuPollInput(void) {
             if (wasControllerUnplugged == 0) {
                 wasControllerUnplugged++;
                 SoundMuteAllSpuChannels();
-                savedValue = D_80059488;
+                savedValue = g_SpuChannelMask;
             }
             continue;
         }
@@ -1894,7 +1894,7 @@ void GearShopMenuPollInput(void) {
         isLooping--;
         if (wasControllerUnplugged) {
             SoundEnableAllSpuChannels();
-            D_80059488 = savedValue;
+            g_SpuChannelMask = savedValue;
         }
     }
 
@@ -2158,17 +2158,17 @@ void GearShopMenuRenderDebugValues(void) {
     int digitsOffset;
     int curValue;
 
-    if ((D_801D697C != 0) && ((u8) g_Menu->unk458[1]->unk12 != 0)) {
+    if ((g_GearShopDebugEnabled != 0) && ((u8) g_Menu->unk458[1]->unk12 != 0)) {
         // X, Y, Z letters
-        func_8002675C(g_Menu->resources, 0x21, &D_801D7108[0], g_Menu->renderContext, 0x10, 0x10, 0x1000U);
-        func_8002675C(g_Menu->resources, 0x22, &D_801D7108[2], g_Menu->renderContext, 0x10, 0x20, 0x1000U);
-        func_8002675C(g_Menu->resources, 0x23, &D_801D7108[4], g_Menu->renderContext, 0x10, 0x30, 0x1000U);
+        func_8002675C(g_Menu->resources, 0x21, &g_GearShopDebugDigitPrims[0], g_Menu->renderContext, 0x10, 0x10, 0x1000U);
+        func_8002675C(g_Menu->resources, 0x22, &g_GearShopDebugDigitPrims[2], g_Menu->renderContext, 0x10, 0x20, 0x1000U);
+        func_8002675C(g_Menu->resources, 0x23, &g_GearShopDebugDigitPrims[4], g_Menu->renderContext, 0x10, 0x30, 0x1000U);
         // A, G, S letters
-        func_8002675C(g_Menu->resources, 0xA, &D_801D7108[6], g_Menu->renderContext, 0x10, 0x40, 0x1000U);
-        func_8002675C(g_Menu->resources, 0x10, &D_801D7108[8], g_Menu->renderContext, 0x10, 0x50, 0x1000U);
-        func_8002675C(g_Menu->resources, 0x1C, &D_801D7108[10], g_Menu->renderContext, 0x10, 0x60, 0x1000U);
+        func_8002675C(g_Menu->resources, 0xA, &g_GearShopDebugDigitPrims[6], g_Menu->renderContext, 0x10, 0x40, 0x1000U);
+        func_8002675C(g_Menu->resources, 0x10, &g_GearShopDebugDigitPrims[8], g_Menu->renderContext, 0x10, 0x50, 0x1000U);
+        func_8002675C(g_Menu->resources, 0x1C, &g_GearShopDebugDigitPrims[10], g_Menu->renderContext, 0x10, 0x60, 0x1000U);
 
-        func_8002675C(g_Menu->resources, MENU_TEX_PLUS, &D_801D7108[12], g_Menu->renderContext, 0xA0, 0x64, 0x1000U);
+        func_8002675C(g_Menu->resources, MENU_TEX_PLUS, &g_GearShopDebugDigitPrims[12], g_Menu->renderContext, 0xA0, 0x64, 0x1000U);
         values[0] = g_Menu->cameraPosition.vx;
         values[1] = g_Menu->cameraPosition.vy;
         values[2] = g_Menu->cameraPosition.vz;
@@ -2176,7 +2176,7 @@ void GearShopMenuRenderDebugValues(void) {
         values[4] = g_LibGearModels[1]->ground;
         values[5] = g_LibGearModels[1]->scale;
 
-        D_801D9048 = 7; // poly count
+        g_GearShopDebugPrimCount = 7; // poly count
 
         // There's 6 values to process in total (X, Y, Z, A, G, S)
         for(i = 0; i < 6; i++) {
@@ -2186,10 +2186,10 @@ void GearShopMenuRenderDebugValues(void) {
             // Negative value, add a minus symbol to it first
             if (curValue < 0) {
                 digitsOffset = 1;
-                D_801D9048 += func_8002675C(
+                g_GearShopDebugPrimCount += func_8002675C(
                     g_Menu->resources,
                     MENU_TEX_MINUS,
-                    &D_801D7108[D_801D9048 * 2],
+                    &g_GearShopDebugDigitPrims[g_GearShopDebugPrimCount * 2],
                     g_Menu->renderContext,
                     0x30, LETTER_HEIGHT * (i + 1),
                     0x1000
@@ -2201,10 +2201,10 @@ void GearShopMenuRenderDebugValues(void) {
            //;
             for (j = 0; j < 9; j++) {
                 if (g_Menu->digits[j] != 0xFF) {
-                    D_801D9048 += func_8002675C(
+                    g_GearShopDebugPrimCount += func_8002675C(
                         g_Menu->resources,
                         g_Menu->digits[j],
-                        &D_801D7108[D_801D9048 * 2],
+                        &g_GearShopDebugDigitPrims[g_GearShopDebugPrimCount * 2],
                         g_Menu->renderContext,
                         (LETTER_WIDTH * digitsOffset++) + 0x30,
                         LETTER_HEIGHT * (i + 1),
@@ -2214,7 +2214,7 @@ void GearShopMenuRenderDebugValues(void) {
             }
         }
         // Render the values
-        GearShopMenuRenderString(D_801D9048, &D_801D7108[0], g_Menu->renderContext);
+        GearShopMenuRenderString(g_GearShopDebugPrimCount, &g_GearShopDebugDigitPrims[0], g_Menu->renderContext);
     }
 }
 
@@ -2531,17 +2531,17 @@ void GearShopMenuSetMenuStringPosition(s32 arg0, MenuString *pStringList, s32 __
             GearShopMenuClearStringRenderFlags(arg0, pUnkByteArray);
 
             setXY4(&pStringList[choice].polys[g_Menu->renderContext],
-                (D_801D6BFC[scrollOffset + choice]) + (22 + pPaddingOffsets[choice]), // x0
-                D_801D6C20[scrollOffset + choice] - 34, // y0
+                (g_SelectionCursorX[scrollOffset + choice]) + (22 + pPaddingOffsets[choice]), // x0
+                g_SelectionCursorY[scrollOffset + choice] - 34, // y0
 
-                pStringList[choice].width + ((D_801D6BFC[scrollOffset + choice]) + (22 + pPaddingOffsets[choice])), // x1
-                D_801D6C20[scrollOffset + choice] - 34, // y1
+                pStringList[choice].width + ((g_SelectionCursorX[scrollOffset + choice]) + (22 + pPaddingOffsets[choice])), // x1
+                g_SelectionCursorY[scrollOffset + choice] - 34, // y1
 
-                (D_801D6BFC[scrollOffset + choice]) + (22 + pPaddingOffsets[choice]), // x2
-                D_801D6C20[scrollOffset + choice] - 21, // y2
+                (g_SelectionCursorX[scrollOffset + choice]) + (22 + pPaddingOffsets[choice]), // x2
+                g_SelectionCursorY[scrollOffset + choice] - 21, // y2
 
-                pStringList[choice].width + ((D_801D6BFC[scrollOffset + choice]) + (22 + pPaddingOffsets[choice])), // x3
-                D_801D6C20[scrollOffset + choice] - 21 // y3
+                pStringList[choice].width + ((g_SelectionCursorX[scrollOffset + choice]) + (22 + pPaddingOffsets[choice])), // x3
+                g_SelectionCursorY[scrollOffset + choice] - 21 // y3
             );
             break;
         case TRUE:
@@ -2637,10 +2637,10 @@ void GearShopMenuInitializeSubmenu(u_char offset) {
         g_Menu->subMenuNumChoices = 0;
         
         for (j = 0; j < i; j++) {
-            if (D_801D69A0[((offset + g_Menu->mainMenuChoice) * 8) + (j * 2)] != MENU_RESOURCE_NONE) {
+            if (g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + (j * 2)] != MENU_RESOURCE_NONE) {
                 g_Menu->unk354->unk1400 += func_8002675C(
                     g_Menu->resources, 
-                    D_801D69A0[((offset + g_Menu->mainMenuChoice) * 8) + (j * 2)],
+                    g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + (j * 2)],
                     &g_Menu->unk354->polys0[g_Menu->unk354->unk1400 * 2], 
                     g_Menu->renderContext,
                     0xA0, 0x96,
@@ -2661,10 +2661,10 @@ void GearShopMenuInitializeSubmenu(u_char offset) {
         
         g_Menu->unk354->unk1404 = 0;
         for (j = 0; j < i; j++) {
-            if (D_801D69A0[((offset + g_Menu->mainMenuChoice) * 8) + j * 2] != MENU_RESOURCE_NONE) {
+            if (g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + j * 2] != MENU_RESOURCE_NONE) {
                 g_Menu->unk354->unk1404 += func_8002675C(
                     g_Menu->resources, 
-                    D_801D69A0[((offset + g_Menu->mainMenuChoice) * 8) + j * 2 + 1],
+                    g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + j * 2 + 1],
                     &g_Menu->unk354->polys500[g_Menu->unk354->unk1404 * 2],
                     g_Menu->renderContext,
                     0xA0, 0x96, 
@@ -2733,10 +2733,10 @@ void GearShopMenuUpdateSubmenuTextures(u_char offset) {
         // The ball cursor for the menu option
         if(i == g_Menu->subMenuChoice) {
             // Active / selected variant
-            index = D_801D69A0[((offset + g_Menu->mainMenuChoice) * 8) + (i * 2)] + 0xD;
+            index = g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + (i * 2)] + 0xD;
         } else {
             // Inactive / non-selected variant
-            index = D_801D69A0[((offset + g_Menu->mainMenuChoice) * 8) + (i * 2)];
+            index = g_GearShopSubmenuTextureIds[((offset + g_Menu->mainMenuChoice) * 8) + (i * 2)];
         }
 
         g_Menu->unk354->unk1400 += func_8002675C(
@@ -2783,7 +2783,7 @@ u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
     // intentionally using selection w/o intialization
     if (selection) {
         GearShopMenuNoOp2();
-        GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A20[0], g_Menu->pManager->unkC);
+        GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->unkC);
     }
 
     // Render selection menu as active agian
@@ -2808,9 +2808,9 @@ void GearShopMenuShopModeMain(void) {
 
     // Options here are "Tune up", "Buy", "Sell", "Exit"
     g_Menu->mainMenuChoice = 2; // Start cursor at "Buy" option
-    GearShopMenuInitializeShopModeSelectionMenu(5, &D_801D6980);
+    GearShopMenuInitializeShopModeSelectionMenu(5, &g_GearShopMainMenuTextureIds);
 
-    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &D_801D6A20[0], g_Menu->pManager->unkC);
+    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->unkC);
 
     if (g_gearShopAvailableCharacterCount >= 2) {
         g_Menu->pManager->shoulderButtonUiActive = TRUE;
@@ -2859,13 +2859,13 @@ void GearShopMenuShopModeMain(void) {
         }
         
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            GearShopMenuUpdateSelectionMenuTextures(4, g_Menu->mainMenuChoice, &D_801D6980);
-            GearShopMenuSetMenuStringPosition(4, g_Menu->unk6E0, &D_801D6A20[0], &D_801D6A30, g_Menu->pManager->unkC, g_Menu->mainMenuChoice, 0, 0);
+            GearShopMenuUpdateSelectionMenuTextures(4, g_Menu->mainMenuChoice, &g_GearShopMainMenuTextureIds);
+            GearShopMenuSetMenuStringPosition(4, g_Menu->unk6E0, &g_GearShopMainMenuStringIds[0], &g_GearShopMainMenuStringOffsets, g_Menu->pManager->unkC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
     }
     
-    D_801D697C = 0;
+    g_GearShopDebugEnabled = 0;
     GearShopMenuFreeGearView();
     GearShopMenuShoulderButtonUiFree();
 }

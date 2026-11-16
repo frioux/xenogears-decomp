@@ -310,11 +310,11 @@ extern u8 g_SoundReverbDelay;
 extern u8 g_SoundReverbFeedback;
 extern s32 g_SoundReverbMemoryHandle;
 
-extern s32 D_80059404;
-extern s32 D_800594E4;
-extern s32 D_80059544;
-extern AudioManager* D_800595D8;
-extern s32 D_80059478;
+extern s32 g_SoundEffectElementPairCount;
+extern s32 g_SoundRandomSeed;
+extern s32 g_SoundSoundEffectChannelCount;
+extern AudioManager* g_SoundEffectAudioManager;
+extern s32 g_SoundEffectElementCount;
 
 // Heap
 extern SoundHeapBlockHeader* g_SoundHeapHead;
@@ -322,7 +322,7 @@ extern u32 g_SoundHeapEnd;
 extern u32 g_SoundHeapSize;
 
 // SPU Transfer Command Queue
-extern s16 D_80059548;
+extern s16 g_SoundDecodedReadResult;
 extern SoundTransferCommand* g_SoundTransferQueue;
 extern u16 g_SoundTransferQueueReadIndex;
 extern u16 g_SoundTransferQueueWriteIndex;
@@ -336,7 +336,7 @@ extern s32 g_SoundUploadBytesRemaining;
 extern u_long g_unk_SoundEvent; // Event Descriptor
 
 extern SoundFile* g_SoundSedsLinkedList;
-extern s32 D_800508A4[]; // AudioEnvelope step handler table
+extern s32 g_SoundEnvelopeStepHandlers[]; // AudioEnvelope step handler table
 extern SoundWDSEntry* g_SoundWdsLinkedList;
 
 extern int g_SoundWdsCurSpuAddress;

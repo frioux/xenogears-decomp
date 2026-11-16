@@ -61,7 +61,7 @@ void FieldScriptVMHandlerDecreasePartyHp(void) {
 // does gcc keep the original store-then-load order.
 extern s16 D_800B2340[];
 
-void func_80096AF4(void) {
+void FieldScriptSetShorts2340To2346(void) {
     D_800B2340[2] = FieldScriptVMGetArgument(1);
     D_800B2340[3] = FieldScriptVMGetArgument(3);
     D_800B2340[0] = FieldScriptVMGetArgument(5);

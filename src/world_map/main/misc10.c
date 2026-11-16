@@ -169,7 +169,7 @@ extern WorldMapSceneLayer* D_8009C620;
 extern WorldMapVec D_8009D55C;
 extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
-extern u16 D_8009D154;
+extern u16 g_WorldMapTrailCursor;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088B40);
 /* 73.64%: structure confirmed (loop over D_8009AFDC calling WorldMapSetSpriteSetParent(0x45,id),
@@ -623,7 +623,7 @@ s32 func_8008A5B8(s32 arg0) {
         pActor->unk3C = 0;
         pActor->unk38 = 0;
         pActor->unk20 = 2;
-        D_8009D154 = 0;
+        g_WorldMapTrailCursor = 0;
         pActor->unk48 = unk1824;
     }
     pTrail = D_8009CEC4;
