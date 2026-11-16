@@ -3604,27 +3604,26 @@ s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801D05BC);
-// 89.44%: structurally right (block order, switch tail-merge, digit loop, two accumulators) but the
-// frame is 8 bytes short: retail keeps &sp20 (the RECT) in $fp and spills the 0x3C30 + i*0x80
-// accumulator to 0x90($sp), this version does the reverse and puts 0x3C30 in $s8, so i lands in $s2
-// instead of $s3. Same tie-break as gear_shop_menu/main/render.c func_801D18F8 (see the note there).
-// One mechanical delta worth attacking first: retail's y argument 0x32 + FONT_LETTER_HEIGHT * i is
-// passed with NO andi 0xffff although ShopMenuSetVertices takes a u_short (ShopMenuInitializeScrollBar's
-// andi on a2 proves the parameter type), and retail keeps a second i*0xD accumulator at 0x88($sp)
-// for 0x36 + FONT_LETTER_HEIGHT * i. Here the u_short conversion of the y kills that reduction: gcc
-// folds 0x32+0xD*i into 0xD*i plus an addiu and an andi, which is what generates one accumulator and
-// the 8-byte-smaller frame. So retail's y expression did not need a truncation at all; find the source
-// shape where gcc knows 0x32+0xD*i is in range (suspicion: the y comes from a local the original
-// incremented itself, not from gcc's strength reduction) and the frame should become 0xC0.
-// Ruled out since: a hoisted `int y = 0x32` incremented in the for-header and passed to both
-// ShopMenuSetVertices calls is WORSE (88.23%): it does reproduce retail's 0x32-based accumulator
-// but gcc still emits one andi 0xffff (CSE'd, hoisted above both calls), so the truncation is the
-// blocker and not the shape of the accumulator. Landing it needs a y whose RTL is ALREADY a
-// zero/sign extend (gcc only cancels a redundant `and` in that case), yet retail's slot is
-// word-sized and incremented with lw/addiu/sw -- that combination is the open question here.
-// The u_short parameter type itself is confirmed twice: andi 0xFFFF on the y argument of the
-// matched ShopMenuUpdateScrollBarHandle (asm/shop_menu/matchings/main/misc/ShopMenuUpdateScrollBarHandle.s:2038)
-// and func_8002675C's y is 0x36+0xD*i with a plain addiu, i.e. a wider parameter.
+// Best attempt: 94.20%, 1652 bytes (retail 1628). Structure is retail's: the three-way compare
+// tree, the shared switch tail, the digit loop, the two setRECT/LoadImage pairs and the two
+// renderContext stores to the same field are all reproduced. The whole delta is ONE conversion:
+// retail passes the y argument 0x32 + FONT_LETTER_HEIGHT * i with NO andi 0xFFFF although
+// ShopMenuSetVertices takes u_short (proven by ShopMenuUpdateScrollBarHandle, whose matched asm
+// andi's x/y/height at 0x2034-0x204C), and keeps the y as a word accumulator at 0x80($sp)
+// (lw/addiu/sw at the loop tail). That missing andi needs one extra live register across both
+// ShopMenuSetVertices calls, which costs the extra spill, the +8 frame (200 vs 192) and every
+// register shift (ours s4 = &rect, retail s8/$fp = &rect).
+// PROBED, do not redo: temporarily giving ShopMenuSetVertices `int` params (which only this unit
+// would then disagree with) removes the andi and scores 98.35%, 1636 bytes - so the andi is the
+// whole first delta, and a K&R / no-prototype declaration in the original translation unit (where
+// this function probably lived alone) is the only mechanism that yields retail's untruncated
+// argument. Not expressible once the definition is in the same TU as the call, so the u_short
+// form is the ceiling here.
+// The residual 8 bytes at 98.35%: cc1 makes a SECOND pseudo of &rect for the digit loop's giv base
+// (&rect + 0x10, read as 0x28(a1) off it) and spills it to 120($sp), where retail keeps &rect in
+// $fp and emits addiu a1, $fp, 0x10. Same allocno tie as gear_shop_menu/main/render.c
+// func_801D18F8 (parked 98.73% there), whose note lists the pointer-local shapes already tried.
+// Preset screened: 2.7.2-cdk 88.58 (the unit's 2.6.0 is best).
 /*
 void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT rect;
@@ -3633,6 +3632,7 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
     int places[5];
     s32 quotient;
     u8 didRounding;
+    RECT* pRect;
     s32 j;
     s32 k;
     u8 itemType;
@@ -3644,6 +3644,7 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     places[0] = 1;
     places[1] = 10;
+    pRect = &rect;
     places[2] = 100;
     places[3] = 1000;
     places[4] = 10000;
@@ -3658,18 +3659,18 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             itemType = pItemTypes[scrollOffset + i];
             switch (itemType) {
                 case ITEM_TYPE_WEAPON:
-                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
-                        GetWeaponName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    g_Menu->pShop->unk3C30[i].width =
+                        SystemRenderStringEntry(GetWeaponName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
                     break;
 
                 case ITEM_TYPE_ACCESSORY:
-                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
-                        GetAccessoryName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    g_Menu->pShop->unk3C30[i].width =
+                        SystemRenderStringEntry(GetAccessoryName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
                     break;
 
                 case ITEM_TYPE_ITEM:
-                    g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(
-                        GetItemName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
+                    g_Menu->pShop->unk3C30[i].width =
+                        SystemRenderStringEntry(GetItemName(pItemIds[scrollOffset + i]), pWorkspace, 0x24, 0);
                     break;
             }
 
@@ -3677,34 +3678,35 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             for (j = 4, k = 0; j > 0; k++, j--) {
                 quotient = qty / places[j];
                 if (quotient || didRounding) {
-                    digitBuffer[k * 2] = quotient + 0x10;
+                    ((u8*)pRect)[8 + k * 2] = quotient + 0x10;
                     didRounding = TRUE;
                     qty -= (quotient * places[j]);
                 } else {
-                    digitBuffer[k * 2] = 0xC3;
+                    ((u8*)pRect)[8 + k * 2] = 0xC3;
                 }
             }
-            digitBuffer[8] = (qty % 10) + 0x10;
-            SystemDecodeGlyphCodesN((u16*)digitBuffer, stringBuffer, 5);
+            ((u8*)pRect)[16] = (qty % 10) + 0x10;
+            SystemDecodeGlyphCodesN((u16*)((u8*)pRect + 8), stringBuffer, 5);
             g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(stringBuffer, pWorkspace, 0x24, 1);
-            setRECT(&rect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
-            LoadImage(&rect, pWorkspace);
+            setRECT(pRect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(pRect, pWorkspace);
             ShopMenuSetStringPrimitives(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
             ShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i,
                 g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
-            LoadImage(&rect, pWorkspace);
+            setRECT(pRect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            LoadImage(pRect, pWorkspace);
             DrawSync(0);
             ShopMenuSetStringPrimitives(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
             ShopMenuSetVertices(g_Menu->pShop->unk4030[i].vertices, 0x8C, 0x32 + FONT_LETTER_HEIGHT * i,
                 g_Menu->pShop->unk4030[i].width, FONT_LETTER_HEIGHT);
             g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
-            g_Menu->pShop->unk4030[i].renderContext = g_Menu->renderContext;
+            g_Menu->pShop->unk3C30[i].renderContext = g_Menu->renderContext;
             g_Menu->pShop->unk4684[i] = 1;
 
             if (pItemSellQtys[scrollOffset + i]) {
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xE5,
-                    g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4,
-                    0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
+                    g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i,
+                    0x1000);
 
                 tensDigit = pItemSellQtys[scrollOffset + i] / 10;
                 if (tensDigit) {
@@ -3715,8 +3717,8 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
                 onesDigit = pItemSellQtys[scrollOffset + i] % 10;
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit,
-                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2],
-                    g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
+                    &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext,
+                    0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000);
                 g_Menu->pShop->unk4694[i] = g_Menu->renderContext;
             }
         } else {
@@ -3727,6 +3729,7 @@ void func_801D05BC(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
     HeapFree(pWorkspace);
 }
 */
+
 
 void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pItemSellQtys, int listLength,
     u_char* pInventoryItemIds, u_char* pInventoryQtys, u_char* pItemTypes, u_char isBulkSale, u_char characterIndex) {
