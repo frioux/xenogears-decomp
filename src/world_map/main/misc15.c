@@ -5,23 +5,23 @@
 #include "psyq/libgpu.h"
 
 typedef struct {
-    /* 0x00 */ u16 unk0;
-    /* 0x02 */ u16 unk2;
-    /* 0x04 */ s16 unk4;
+    /* 0x00 */ u16 state;
+    /* 0x02 */ u16 stateTimer;
+    /* 0x04 */ s16 command;
     /* 0x06 */ u8 unk6[0x12];
-    /* 0x18 */ s32 unk18;
-    /* 0x1C */ s32 unk1C;
+    /* 0x18 */ s32 pEnterHandler; // called once in state 0; its return is the next state
+    /* 0x1C */ s32 pUpdateHandler; // called every frame in state 1; NULL while the slot is free
     /* 0x20 */ u16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 unk24[0x28];
-    /* 0x4C */ s32 unk4C;
+    /* 0x4C */ s32 pSprite;
     /* 0x50 */ u8 unk50[0x30];
 } Misc15Slot; // Size: 0x80
 
 typedef struct {
-    /* 0x0 */ s32 unk0;
-    /* 0x4 */ u32 unk4;
-    /* 0x8 */ s32 unk8;
+    /* 0x0 */ s32 sector;
+    /* 0x4 */ u32 size;
+    /* 0x8 */ s32 dest;
     /* 0xC */ u8 unkC[0x18];
 } Misc15CdRequest; // Size: 0x24
 
@@ -30,9 +30,9 @@ typedef struct {
 } Misc15Block16; // Size: 0x10
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 z;
     /* 0x6 */ s16 unk6;
     /* 0x8 */ s16 unk8;
     /* 0xA */ u16 unkA;
@@ -140,13 +140,13 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     s32 lba;
     u32 size;
 
-    lba = p->unk0;
+    lba = p->sector;
     g_WorldMapCdReadState = 1;
     pLoc = &g_WorldMapCdReadLocation;
     /* retail keeps this dead store: the volatile store blocks gcc's elimination */
     *(u8 *volatile *)&g_WorldMapCdRequestCursor = (u8 *)p;
     g_WorldMapCdRequestCursor = (u8 *)p + 0xC;
-    size = p->unk4;
+    size = p->size;
     D_8009BE48 = 0;
     D_8009CCB0 = 0;
     g_WorldMapCdReadErrorCount = 0;
@@ -154,8 +154,8 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     g_WorldMapCdExpectedSector = lba;
     g_WorldMapCdCurrentSector = lba;
     g_WorldMapCdReadSectorsLeft = (size + 0x7FF) >> 11;
-    g_WorldMapCdReadBytesLeft = p->unk4;
-    g_WorldMapCdReadDest = p->unk8;
+    g_WorldMapCdReadBytesLeft = p->size;
+    g_WorldMapCdReadDest = p->dest;
     CdIntToPos(lba, pLoc);
     CdSyncCallback(func_80096A6C);
     CdControlF(CdlSetloc, (u8 *)pLoc);
@@ -185,9 +185,9 @@ void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     *(s32 *)0x1F800004 = 0;
     *(s32 *)0x1F800008 = -(height >> 12);
     ApplyMatrixLV((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
-    pOut->unk0 = *(s32 *)0x1F800010;
-    pOut->unk2 = pOut->unkA + *(s32 *)0x1F800014;
-    pOut->unk4 = *(s32 *)0x1F800018;
+    pOut->x = *(s32 *)0x1F800010;
+    pOut->y = pOut->unkA + *(s32 *)0x1F800014;
+    pOut->z = *(s32 *)0x1F800018;
     *(u16 *)0x1F8000A0 = 0;
     *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
     *(u16 *)0x1F8000A4 = *(u16 *)(pAngles + 4);
@@ -199,9 +199,9 @@ void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
 }
 */
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
+    /* 0x0 */ s16 rotX;
+    /* 0x2 */ s16 rotY;
+    /* 0x4 */ s16 rotZ;
 } Misc15Rot; // Size: 0x6
 
 void WorldMapExtractRotationFromMatrix(MATRIX *pMtx, Misc15Rot *pRot) {
@@ -210,21 +210,21 @@ void WorldMapExtractRotationFromMatrix(MATRIX *pMtx, Misc15Rot *pRot) {
     if ((pAngles[6] | pAngles[8]) == 0) {
         return;
     }
-    pRot->unk2 = ratan2((s16)pAngles[6], (s16)pAngles[8]) & 0xFFF;
+    pRot->rotY = ratan2((s16)pAngles[6], (s16)pAngles[8]) & 0xFFF;
     *(MATRIX *)0x1F8000F0 = *pMtx;
     *(MATRIX *)0x1F800110 = g_WorldMapIdentityMatrix;
-    RotMatrixY(pRot->unk2, (MATRIX *)0x1F800110);
+    RotMatrixY(pRot->rotY, (MATRIX *)0x1F800110);
     MulMatrix0((MATRIX *)0x1F8000F0, (MATRIX *)0x1F800110, (MATRIX *)0x1F800130);
-    pRot->unk0 = ratan2(*(s16 *)0x1F80013A, *(s16 *)0x1F800138);
+    pRot->rotX = ratan2(*(s16 *)0x1F80013A, *(s16 *)0x1F800138);
     *(MATRIX *)0x1F800110 = g_WorldMapIdentityMatrix;
-    RotMatrixX(pRot->unk0, (MATRIX *)0x1F800110);
+    RotMatrixX(pRot->rotX, (MATRIX *)0x1F800110);
     MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800110, (MATRIX *)0x1F8000F0);
-    pRot->unk4 = -ratan2(*(s16 *)0x1F8000F6, *(s16 *)0x1F8000F8);
+    pRot->rotZ = -ratan2(*(s16 *)0x1F8000F6, *(s16 *)0x1F8000F8);
 }
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 z;
     /* 0x6 */ s16 unk6;
     /* 0x8 */ s16 unk8;
     /* 0xA */ s16 unkA;
@@ -269,9 +269,9 @@ void func_80097244(Misc15Frame *p) {
     s32 m7;
     s32 m8;
 
-    ((VECTOR *)0x1F800000)->vx = p->unk8 - p->unk0;
-    ((VECTOR *)0x1F800000)->vy = p->unkA - p->unk2;
-    ((VECTOR *)0x1F800000)->vz = p->unkC - p->unk4;
+    ((VECTOR *)0x1F800000)->vx = p->unk8 - p->x;
+    ((VECTOR *)0x1F800000)->vy = p->unkA - p->y;
+    ((VECTOR *)0x1F800000)->vz = p->unkC - p->z;
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800030);
     OuterProduct12((VECTOR *)0x1F800030, &p->unk10, (VECTOR *)0x1F800000);
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
@@ -296,9 +296,9 @@ void func_80097244(Misc15Frame *p) {
     D_8009C814 = m6;
     D_8009C816 = m7;
     D_8009C818 = m8;
-    ((SVECTOR *)0x1F800040)->vx = -(u16)p->unk0;
-    ((SVECTOR *)0x1F800040)->vy = -(u16)p->unk2;
-    ((SVECTOR *)0x1F800040)->vz = -(u16)p->unk4;
+    ((SVECTOR *)0x1F800040)->vx = -(u16)p->x;
+    ((SVECTOR *)0x1F800040)->vy = -(u16)p->y;
+    ((SVECTOR *)0x1F800040)->vz = -(u16)p->z;
     *(MATRIX *)0x1F800048 = *pMtx;
     ApplyMatrix((MATRIX *)0x1F800048, (SVECTOR *)0x1F800040, (VECTOR *)0x1F800000);
     TransMatrix(pMtx, (VECTOR *)0x1F800000);
@@ -317,9 +317,9 @@ void WorldMapBuildRotationMatrix(Misc15Rot *p) {
     RotMatrixZ(-g_WorldMapViewRotationZ, (MATRIX *)0x1F800130);
     MulMatrix0(pMtx, (MATRIX *)0x1F800110, (MATRIX *)0x1F800150);
     MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800150, &g_WorldMapViewMatrix);
-    ((SVECTOR *)0x1F8000A0)->vx = -(u16)p->unk0;
-    ((SVECTOR *)0x1F8000A0)->vy = -(u16)p->unk2;
-    ((SVECTOR *)0x1F8000A0)->vz = -(u16)p->unk4;
+    ((SVECTOR *)0x1F8000A0)->vx = -(u16)p->rotX;
+    ((SVECTOR *)0x1F8000A0)->vy = -(u16)p->rotY;
+    ((SVECTOR *)0x1F8000A0)->vz = -(u16)p->rotZ;
     *pMtx = g_WorldMapViewMatrix;
     ApplyMatrix(pMtx, (SVECTOR *)0x1F8000A0, (VECTOR *)0x1F800000);
     TransMatrix(&g_WorldMapViewMatrix, (VECTOR *)0x1F800000);
@@ -338,27 +338,27 @@ void WorldMapClearSlotPool(void) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
-        g_WorldMapSlots[i].unk4C = 0;
-        g_WorldMapSlots[i].unk18 = 0;
-        g_WorldMapSlots[i].unk1C = 0;
+        g_WorldMapSlots[i].pSprite = 0;
+        g_WorldMapSlots[i].pEnterHandler = 0;
+        g_WorldMapSlots[i].pUpdateHandler = 0;
     }
 }
 
 void WorldMapSetSlotEnterHandler(s32 value, s32 index) {
-    g_WorldMapSlots[index].unk0 = 0;
-    g_WorldMapSlots[index].unk18 = value;
+    g_WorldMapSlots[index].state = 0;
+    g_WorldMapSlots[index].pEnterHandler = value;
 }
 
 void WorldMapAddSlot(s32 value18, s32 value1C) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
-        if (g_WorldMapSlots[i].unk1C == 0) {
-            g_WorldMapSlots[i].unk0 = 0;
-            g_WorldMapSlots[i].unk2 = 0;
-            g_WorldMapSlots[i].unk4 = 0;
-            g_WorldMapSlots[i].unk18 = value18;
-            g_WorldMapSlots[i].unk1C = value1C;
+        if (g_WorldMapSlots[i].pUpdateHandler == 0) {
+            g_WorldMapSlots[i].state = 0;
+            g_WorldMapSlots[i].stateTimer = 0;
+            g_WorldMapSlots[i].command = 0;
+            g_WorldMapSlots[i].pEnterHandler = value18;
+            g_WorldMapSlots[i].pUpdateHandler = value1C;
             g_WorldMapSlots[i].unk20 = 0;
             g_WorldMapSlots[i].unk22 = 0;
             break;
@@ -369,11 +369,11 @@ void WorldMapAddSlot(s32 value18, s32 value1C) {
 s32 WorldMapStartSlot(s32 index, s16 value) {
     Misc15Slot *pSlot = &g_WorldMapSlots[index];
 
-    if (pSlot->unk4 != 0) {
+    if (pSlot->command != 0) {
         return 0;
     }
-    pSlot->unk0 = 1;
-    pSlot->unk4 = value;
+    pSlot->state = 1;
+    pSlot->command = value;
     return 1;
 }
 
