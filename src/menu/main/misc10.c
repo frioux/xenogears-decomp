@@ -417,6 +417,163 @@ void MenuFreeSubMenuPanels(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
+/* Best: 89.92% (1008 bytes, retail 1024). Applies one inventory item's stat
+   effects to g_GameState.characters[charIndex]; returns nonzero when the item
+   could not do anything (both bars already full), which is why its caller
+   (misc9) consumes the item only on 0.
+
+   Settled: pItem = pDressingRoom->pItemsData + itemIndex (MenuShopItem is 0x10
+   bytes; the fields this unit reads are 0x8 = amount (u8), 0xA = effect flags,
+   0xC = stat/status flags). 0xA: 0x8000 hp, 0x4000 mp, 4 stat bonuses, 2 the
+   0x78 field, 1 the inventory rebuild call. 0xC: 0x8000 attack, 0x4000 defense,
+   0x2000 ether, 0x1000 etherDefense, 0x800 maxHp, 0x400 maxMp; the 0x78 block
+   runs when 0xA has bit 2, and builds the result as
+   hpFull && mpFull / hpFull / mpFull / 0 for the four 0xA flag combinations.
+   Every branch is written as `if (hp == maxHp) hpFull = 1; else ...` (the
+   equality in the `if` gives retail's bne-to-body plus its one-instruction j);
+   the whole 0xA&4 block and all six clamps are instruction-identical.
+
+   The two multiplications are the reason this is parked. A literal
+   (`hp + amount * 50`) makes gcc 2.6.0 synthesise a shift chain
+   (sll,addu,sll,addu,sll) - retail has `mult v1,v0` with the 50 materialised by
+   `ori v0,zero,0x32` in the preceding bne's delay slot. It only emits `mult`
+   when the multiplier is a *variable*, so the source multiplied by a local
+   (`hpScale = 50`) - but then the li's position and register differ from
+   retail: retail's 50 sits in block 1's bne delay slot (matched) and its 10 is
+   hoisted from the head of the merge block into the FIRST beqz's delay slot,
+   while this body puts the 10 in block 2's beqz slot and retail has `nop`
+   there.
+
+   Also left: (a) frame 40 vs retail's 48 - declared-but-unused s32 locals do
+   not grow the frame on gcc 2.6.0, so whatever occupies retail's extra 8 bytes
+   is live; (b) the 0xA&2 block - retail keeps the lh 0xC in a register, copies
+   it (`move v1,v0`) and compares `slt` against the `andi 0xff` copy, then
+   reloads `lbu 0xC(s0)` for the subtraction, where this body's `(u8)` cast
+   folds into a single lbu and gives `sltu`; (c) the final block - this body
+   builds the result in a0 and copies, retail builds it in v0.
+   Tried: both scales as literals/u16/s32 locals at the top, both inside their
+   else blocks, 2.7.2 and 2.7.2-cdk (82.27 / 77.23), -O1/-O3 (79.53 / 86.60).
+   Next: a permuter run from this body, then (b)+(c) by hand.
+
+   Item record as this unit reads it: the tail of MenuShopItem's unk4 blob,
+   split into the stat-effect fields.
+typedef struct {
+    u16 unk0;                  // 0x00
+    u16 price;                 // 0x02
+    u8 unk4[4];                // 0x04
+    u8 amount;                 // 0x08
+    u8 unk9;                   // 0x09
+    s16 unkA;                  // 0x0A
+    s16 unkC;                  // 0x0C
+    u8 unkE[2];                // 0x0E
+} MenuItemStatEffect; // Size: 0x10
+
+s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
+    MenuItemStatEffect* pItem;
+    GameCharacter* pChar;
+    u8 hpFull;
+    u8 mpFull;
+    s32 result;
+    s32 hpScale;
+    s32 mpScale;
+
+    hpFull = 0;
+    mpFull = 0;
+    pItem = (MenuItemStatEffect*)(pDressingRoom->pItemsData + itemIndex);
+    pChar = &g_GameState.characters[charIndex];
+    if (pItem->unkA & 0x8000) {
+        if (pChar->hp == pChar->maxHp) {
+            hpFull = 1;
+        } else {
+            hpScale = 50;
+            pChar->hp = pChar->hp + pItem->amount * hpScale;
+        }
+    }
+    mpScale = 10;
+    if (pItem->unkA & 0x4000) {
+        if (pChar->mp == pChar->maxMp) {
+            mpFull = 1;
+        } else {
+            pChar->mp = pChar->mp + pItem->amount * mpScale;
+        }
+    }
+    if (pChar->hp > pChar->maxHp) {
+        pChar->hp = pChar->maxHp;
+    }
+    if (pChar->mp > pChar->maxMp) {
+        pChar->mp = pChar->maxMp;
+    }
+    if (pItem->unkA & 4) {
+        if (pItem->unkC & 0x8000) {
+            pChar->attack = pChar->attack + pItem->amount;
+        }
+        if (pItem->unkC & 0x4000) {
+            pChar->defense = pChar->defense + pItem->amount;
+        }
+        if (pItem->unkC & 0x2000) {
+            pChar->ether = pChar->ether + pItem->amount;
+        }
+        if (pItem->unkC & 0x1000) {
+            pChar->etherDefense = pChar->etherDefense + pItem->amount;
+        }
+        if (pItem->unkC & 0x800) {
+            pChar->maxHp = pChar->maxHp + pItem->amount;
+        }
+        if (pItem->unkC & 0x400) {
+            pChar->maxMp = pChar->maxMp + pItem->amount;
+        }
+        if (pChar->attack > 200) {
+            pChar->attack = 200;
+        }
+        if (pChar->defense > 200) {
+            pChar->defense = 200;
+        }
+        if (pChar->ether > 200) {
+            pChar->ether = 200;
+        }
+        if (pChar->etherDefense > 200) {
+            pChar->etherDefense = 200;
+        }
+        if (pChar->maxHp > 999) {
+            pChar->maxHp = 999;
+        }
+        if (pChar->maxMp > 99) {
+            pChar->maxMp = 99;
+        }
+    }
+    if (pItem->unkA & 2) {
+        if (pItem->unkC & 0x8000) {
+            pChar->unk78 = pChar->unk78 + pItem->amount;
+            if (pChar->unk78 > 200) {
+                pChar->unk78 = 200;
+            }
+        } else if (pChar->unk78 < (u8)pItem->unkC) {
+            pChar->unk78 = 0;
+        } else {
+            pChar->unk78 = pChar->unk78 - pItem->unkC;
+        }
+    }
+    if (pItem->unkA & 1) {
+        if (pItem->amount == 1) {
+            MenuFillInventoryTables();
+        } else if (pItem->amount == 2) {
+            func_801E5178();
+        }
+    }
+    if (pItem->unkA & 0x8000) {
+        if (pItem->unkA & 0x4000) {
+            result = hpFull ? mpFull : 0;
+        } else {
+            result = hpFull;
+        }
+    } else if (pItem->unkA & 0x4000) {
+        result = mpFull;
+    } else {
+        result = 0;
+    }
+    return result;
+}
+*/
 void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
     GameCharacter* pChar;
     GameCharacter* pTarget;
