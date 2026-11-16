@@ -483,7 +483,13 @@ void func_8007D0B4(SVector *pVec) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
+void func_8007D0B4(SVector *pVec) {
+    u8 offset = 0x18;
+
+    pVec->vx = (pVec->vx - offset) + rand() % 0x30;
+    pVec->vy = (pVec->vy - offset) + rand() % 0x30;
+    pVec->vz = (pVec->vz - offset) + rand() % 0x30;
+}
 
 // s32, not void: retail keeps a nop in the switch guard's delay slot, which gcc
 // 2.7.2 only emits for a non-void return type.
