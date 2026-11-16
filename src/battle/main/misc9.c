@@ -46,7 +46,7 @@ extern u8 D_800CD1B2[];
 extern u8 D_800D32B1[];
 extern u8 D_800D32F1[];
 extern u8 func_8007A628(u8 arg0, u8 arg1);
-extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
+extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 
@@ -76,7 +76,7 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
     do {
         idx = i++;
         if (func_8007A628(idx, 0) != 0) {
-            if (pField[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+            if (pField[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
             }
@@ -114,7 +114,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     for (i = 3; i < 0xB; i++) {
         idx = i;
         if (func_8007A628(idx, 0) != 0) {
-            if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+            if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = i;
                 count++;
             }
@@ -167,7 +167,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
         idx = i++;
         if (func_8007A628(idx, 0) != 0) {
             if (D_800D32A1[offset] != 0) {
-                if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+                if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                     buf[count] = idx;
                     count++;
                 }
@@ -220,7 +220,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     do {
         idx = i++;
         if (func_8007A628(idx, 1) != 0) {
-            if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+            if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                 buf[count] = idx;
                 count++;
             }
@@ -274,7 +274,7 @@ void func_8007DFD4(u8 **arg0, s32 arg1) {
         idx = i++;
         if (func_8007A628(idx, 1) != 0) {
             if (D_800D32A1[offset] != 0) {
-                if (pRow[(*arg0)[3]] & func_8007A280(idx, (*arg0)[1], 0, 1)) {
+                if (pRow[(*arg0)[3]] & BattleSlotWordVarGetSet(idx, (*arg0)[1], 0, 1)) {
                     buf[count] = idx;
                     count++;
                 }

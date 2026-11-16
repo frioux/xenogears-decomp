@@ -72,7 +72,7 @@ extern void func_800785D4(u8 arg0, u8 arg1);
 extern void func_80078658(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF7(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF8(u8 arg0);
-extern s32 func_8007A280(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
+extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern void BattleUpdateFrame(void);
 extern void func_800793F0(u8 arg0);
 extern void BattleQueueCommand1BAndFE(u8 arg0);
@@ -80,7 +80,7 @@ extern void BattleClearSlotCurveState(void);
 extern void BattleClearSlotCurveEntry(void);
 extern s32 BattleFindMinValueOtherSlot(u8 arg0);
 extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
-extern s32 func_80079ED8(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
+extern s32 BattleSlotByteVarGetSet(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
 extern u8 D_800C3D19[];
 extern u8 D_800C3D1A[];
 extern u8 D_800D340C[];
@@ -241,22 +241,22 @@ void func_80078E24(u8 arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1) {
-    func_80079ED8(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
+    BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
 }
 void BattleAddCommandByteVar(u8 arg0, u8 arg1) {
     s32 value;
 
-    value = func_80079ED8(arg0, D_800D2E5C[arg1].unk1, 0, 1);
-    func_80079ED8(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 + value, 0);
+    value = BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
+    BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 + value, 0);
 }
 void BattleApplyCommandWordVar(u8 arg0, u8 arg1) {
-    func_8007A280(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 | (D_800D2E5C[arg1].unk5 << 8), 0);
+    BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 | (D_800D2E5C[arg1].unk5 << 8), 0);
 }
 void BattleAddCommandWordVar(u8 arg0, u8 arg1) {
     s32 value;
 
-    value = func_8007A280(arg0, D_800D2E5C[arg1].unk1, 0, 1);
-    func_8007A280(arg0, D_800D2E5C[arg1].unk1,
+    value = BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
+    BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1,
                   (u16)(D_800D2E5C[arg1].unk4 + (value + (D_800D2E5C[arg1].unk5 << 8))), 0);
 }
 void BattleQueueCommandF4(u8 arg0, u8 arg1) {

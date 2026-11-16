@@ -147,7 +147,7 @@ u8 BattleFindFirstFlagTableMatch(u16 arg0) {
 }
 // Reads or writes byte variable `reg` of slot `slot`: a zero `pRead` stores
 // `value` into it, a non-zero one returns its current value.
-u8 func_80079ED8(u8 slot, u8 reg, u8 value, u8 get) {
+u8 BattleSlotByteVarGetSet(u8 slot, u8 reg, u8 value, u8 get) {
     u8 *p;
     u8 result;
 
@@ -232,10 +232,10 @@ u8 func_80079ED8(u8 slot, u8 reg, u8 value, u8 get) {
     }
     return result;
 }
-// The 16-bit half of the variable-register file read/written by func_80079ED8:
+// The 16-bit half of the variable-register file read/written by BattleSlotByteVarGetSet:
 // word variable `reg` of slot `slot`, stored when `get` is zero and returned
 // otherwise.
-u16 func_8007A280(u8 slot, u8 reg, u16 value, u8 get) {
+u16 BattleSlotWordVarGetSet(u8 slot, u8 reg, u16 value, u8 get) {
     u16 *p;
     u16 result;
 

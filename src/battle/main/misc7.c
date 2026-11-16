@@ -58,8 +58,8 @@ u16 BattleRandomRange(int, u16);
 u8 func_8007A628(u8, u8);
 u16 BattleSlotBitMask(u8);
 s32 BattleFindFirstFlagTableMatch(u16);
-s32 func_80079ED8(u8, u8, u8, s32);
-s32 func_8007A280(u8, u8, s32, s32);
+s32 BattleSlotByteVarGetSet(u8, u8, u8, s32);
+s32 BattleSlotWordVarGetSet(u8, u8, s32, s32);
 
 // Preset screened twice, both times Default wins. gcc 2.7.2-cdk is ruled out:
 // the 11 matched functions drop to 41.73-99.09% and, with maspsx
@@ -76,7 +76,7 @@ s32 func_8007A280(u8, u8, s32, s32);
 void BattleByteRegSetMatched(BattleCommand **p, u8 index) {
     u16 *pField = D_800D3400[index].unk20;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)->unk3]);
-    u8 result = func_80079ED8(value, (*p)->unk2, 0, 1);
+    u8 result = BattleSlotByteVarGetSet(value, (*p)->unk2, 0, 1);
     u8 *pTable = D_800D3400[index].unk30;
 
     pTable[(*p)->unk1] = result;
@@ -97,7 +97,7 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
         D_800D2E5C = 0x20;
         ret = arg2 + 1;
     } else {
-        func_80079ED8(value, (*p)[2], (D_800D3420 + 0x10 + slot)[(*p)[1]], 0);
+        BattleSlotByteVarGetSet(value, (*p)[2], (D_800D3420 + 0x10 + slot)[(*p)[1]], 0);
     }
     return ret;
 }
@@ -107,7 +107,7 @@ void BattleWordRegCopyFromMatchedSlot(BattleCommand **p, u8 index) {
     u16 *pTable = D_800D3400[index].unk20;
     u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)->unk3]);
 
-    pTable[(*p)->unk1] = func_8007A280(value, (*p)->unk2, 0, 1);
+    pTable[(*p)->unk1] = BattleSlotWordVarGetSet(value, (*p)->unk2, 0, 1);
 }
 u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
     u16 *pField = D_800D3400[index].unk20;
@@ -118,7 +118,7 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
         D_800D2E5C = 0x20;
         ret = arg2 + 1;
     } else {
-        func_8007A280(value, (*p)->unk2, pField[(*p)->unk1], 0);
+        BattleSlotWordVarGetSet(value, (*p)->unk2, pField[(*p)->unk1], 0);
     }
     return ret;
 }

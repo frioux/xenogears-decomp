@@ -157,10 +157,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc6_r2", func_8007B360);
 void BattleSlotSetByteField(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
-    func_80079ED8((u8)(index + 3), pArgs[1], pArgs[2], 0);
+    BattleSlotByteVarGetSet((u8)(index + 3), pArgs[1], pArgs[2], 0);
 }
 void BattleSlotSetWordField(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
-    func_8007A280((u8)(index + 3), pArgs[1], pArgs[2] | (pArgs[3] << 8), 0);
+    BattleSlotWordVarGetSet((u8)(index + 3), pArgs[1], pArgs[2] | (pArgs[3] << 8), 0);
 }
