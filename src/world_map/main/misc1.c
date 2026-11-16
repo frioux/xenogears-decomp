@@ -658,6 +658,30 @@ void func_80073448(s32 arg0) {
 }
 */
 
+// Header of the decompressed map data block: one offset per sub-block, relative to the start
+// of the block. The offsets are named after the D_ global the sub-block is stored into.
+typedef struct {
+    /* 0x00 */ s32 unk0;
+    /* 0x04 */ s32 pointTableOffset;
+    /* 0x08 */ s32 modelOffset;
+    /* 0x0C */ s32 modelRelocOffset;
+    /* 0x10 */ s32 spriteSetOffset;
+    /* 0x14 */ s32 unk14;
+    /* 0x18 */ s32 spriteGroupOffset;
+    /* 0x1C */ s32 stringTableOffset;
+    /* 0x20 */ s32 tileAnimOffset;
+    /* 0x24 */ s32 frameAnimOffset;
+    /* 0x28 */ s32 unk28;
+    /* 0x2C */ s32 tileGroupOffsets[0x10];
+} WorldMapMapDataHeader; // Size: 0x6C
+
+// Head of the point table block: the offsets of the point array and of the four rect offsets
+// that follow, relative to the block itself.
+typedef struct {
+    /* 0x0 */ s32 pointOffset;
+    /* 0x4 */ s32 rectOffset;
+} WorldMapPointTableHeader; // Size: 0x8
+
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern s32 D_8009CD48;
 extern s32 D_8009D308;
@@ -671,39 +695,42 @@ extern s32* D_8009BD00;
 extern s32 D_8009D73C[];
 
 void WorldMapDecompressMapTables(void) {
-    s32* pHeader;
     u8* pBase;
-    s32* pEntry;
     u8* pMapBase;
-    s32* p;
+    WorldMapMapDataHeader* pHeader;
+    WorldMapPointTableHeader* pTable;
+    s32* pRect;
     s32 i;
 
-    pEntry = D_8009C180;
-    pHeader = pEntry;  /* typed temp for the compressed block: 2.7.2 allocates retail's registers only with it */
-    D_8009C180 = LZSSHeapDecompress(pHeader, 0);
-    HeapFree(pHeader);
+    // One variable holds the compressed block and then the point table inside the decompressed
+    // one: retail's codegen keeps both in the same callee-saved register.
+    pTable = (WorldMapPointTableHeader*)D_8009C180;
+    D_8009C180 = LZSSHeapDecompress(pTable, 0);
+    HeapFree(pTable);
     pBase = (u8*)D_8009C180;
-    pHeader = (s32*)pBase;
-    pEntry = (s32*)(pBase + pHeader[1]);
-    D_8009CD48 = (s32)(pBase + pHeader[2]);
-    D_8009D308 = (s32)(pBase + pHeader[3]);
-    D_8009BD30 = (s32)(pBase + pHeader[4]);
+    pHeader = (WorldMapMapDataHeader*)pBase;
+    pTable = (WorldMapPointTableHeader*)(pBase + pHeader->pointTableOffset);
+    D_8009CD48 = (s32)(pBase + pHeader->modelOffset);
+    D_8009D308 = (s32)(pBase + pHeader->modelRelocOffset);
+    D_8009BD30 = (s32)(pBase + pHeader->spriteSetOffset);
+    // second live copy of the block base, as retail's codegen has
     pMapBase = pBase;
-    D_8009C7EC = (s32)(pMapBase + pHeader[5]);
-    D_8009BCC0 = (s32)(pMapBase + pHeader[6]);
-    D_8009D784 = (s32)(pMapBase + pHeader[7]);
-    D_8009D77C = (s32)(pMapBase + pHeader[8]);
-    D_8009D7C8 = (s32)(pMapBase + pHeader[9]);
+    D_8009C7EC = (s32)(pMapBase + pHeader->unk14);
+    D_8009BCC0 = (s32)(pMapBase + pHeader->spriteGroupOffset);
+    D_8009D784 = (s32)(pMapBase + pHeader->stringTableOffset);
+    D_8009D77C = (s32)(pMapBase + pHeader->tileAnimOffset);
+    D_8009D7C8 = (s32)(pMapBase + pHeader->frameAnimOffset);
     for (i = 0; i < 0x10; i++) {
-        D_8009D73C[i] = (s32)(pMapBase + pHeader[0xB + i]);
+        D_8009D73C[i] = (s32)(pMapBase + pHeader->tileGroupOffsets[i]);
     }
-    D_8009D3F4 = (WorldMapPoint*)((u8*)pEntry + pEntry[0]);
-    p = (s32*)((u8*)pEntry + pEntry[1]);
-    D_8009BD00 = p;
-    p[0] = (s32)((u8*)pEntry + p[0]);
-    D_8009BD00[1] = (s32)((u8*)pEntry + p[1]);
-    D_8009BD00[2] = (s32)((u8*)pEntry + p[2]);
-    D_8009BD00[3] = (s32)((u8*)pEntry + p[3]);
+    // The sub-block offsets are relative to the point table itself, not to the block.
+    D_8009D3F4 = (WorldMapPoint*)((u8*)pTable + pTable->pointOffset);
+    pRect = (s32*)((u8*)pTable + pTable->rectOffset);
+    D_8009BD00 = pRect;
+    pRect[0] = (s32)((u8*)pTable + pRect[0]);
+    D_8009BD00[1] = (s32)((u8*)pTable + pRect[1]);
+    D_8009BD00[2] = (s32)((u8*)pTable + pRect[2]);
+    D_8009BD00[3] = (s32)((u8*)pTable + pRect[3]);
 }
 
 void WorldMapAllocWorkBuffers(void) {
