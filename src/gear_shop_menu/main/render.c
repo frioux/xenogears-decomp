@@ -1062,7 +1062,7 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
 }
 
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
-// Best parked attempt: 98.73%, 1584 bytes (retail is 1572). Structure is exact - every block, call,
+// Best parked attempt: 98.98%, 1584 bytes (retail is 1572). Structure is exact - every block, call,
 // branch, the two setRECTs, the digit loop, the tail and the spill SET are retail's; the whole delta
 // is ONE allocno tie: which of the two loop-carried addresses gets $fp.
 //   retail: $fp = &sp20 (RECT), slots 0x78 = 0x4030+i*0x80, 0x80 = 0x32+0xD*i, 0x88 = 0xD*i,
@@ -1089,6 +1089,16 @@ INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
 // What is left to try: make gcc CSE the digit-loop giv base onto the LoadImage pointer so there is
 // ONE pseudo for &sp20, or make one of the two candidates win $fp. Kernel: retail has 10
 // loop-carried values here, we have 11.
+// Round 126: `setRECT(&sp20, ...)` instead of `setRECT(pRect, ...)` takes the eight RECT
+// store references off the &rect allocno: 98.73 -> 98.98 and &rect lands in $s7, but the
+// 11th loop-carried value survives and the frame stays 200.
+// Replacing the `places[j]` walk with an explicit pointer (`pPlace = &places[4]`, or
+// `(s32*)pRect + 0xE`, decremented in the body) IS the fix for the count: frame 192, four
+// spill slots in retail's order 0x78/0x80/0x88/0x90, $s8 = &rect, and 1580 bytes. But it
+// costs the k-loop's `li t0,0xc3` hoist and re-ties the registers (i in $s2 not $s3,
+// workspace in $s7 and the 0x1db0 base in $s6, i.e. swapped vs retail) -> 95.95%.
+// So the remaining gap is a pure allocno-priority tie in the 1580-byte form and an
+// 11-vs-10-candidate tie in the 1584-byte form; no source shape tried spans both.
 /*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
@@ -1143,11 +1153,11 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
             ((u8*)pRect)[16] = (qty % 10) + 0x10;
             SystemDecodeGlyphCodesN((u16*)((u8*)pRect + 8), sp38, 5);
             g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24U, 1U);
-            setRECT(pRect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage(pRect, pWorkspace);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk3C30[i], i, 0x80, 0x81);
             GearShopMenuSetVertices(g_Menu->pShop->unk3C30[i].vertices, 0x24, 0x32 + FONT_LETTER_HEIGHT * i, g_Menu->pShop->unk3C30[i].width, FONT_LETTER_HEIGHT);
-            setRECT(pRect, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
+            setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage(pRect, pWorkspace);
             DrawSync(0);
             GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->unk4030[i], i, 0x80, 0x82);
