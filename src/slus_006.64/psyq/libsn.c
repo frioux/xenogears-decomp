@@ -30,33 +30,42 @@ void PCclose(int fd) {
     __asm__ volatile("move $5, %0\n\tbreak 260" : : "r"(fd));
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PClseek);
-/* Same shape as PCopen but with three shifted arguments (84.38%).
-int PClseek(int fd, int offset, int mode) {
+/* 91.67%, decomp-permuter score 135 (base 185): argument shift and break match. Retail tail is a select, beqz v0 / addu v0,v1,zero / addiu v0,zero,-1; the body below zeroes value to stop gcc folding the test into value and gets beqz v0, but the -1 lands in v1 with the copy after jr (v1,zero then li v1,-1 then jr ra then move v0,v1). Same wall as PCcreate: retail stores -1 into the returned pseudo in v0 and copies v1 in the branch delay slot, which needs a real copy statement whose condition survives copy propagation. Tried: honest select, if/else, ternary, separate ret, -one temp. */
+/* int PClseek(int fd, int offset, int mode) {
     int status;
     int value;
+    int one;
 
-    __asm__ volatile("move $5, %2\n\tmove $6, %3\n\tmove $7, %4\n\tbreak 263"
+    one = 1;
+    __asm__ volatile("move $7, %4\n\tmove $6, %3\n\tmove $5, %2\n\tbreak 263"
                      : "=r"(status), "=r"(value) : "r"(fd), "r"(offset), "r"(mode));
-    if (status != 0)
-        value = -1;
+    value = 0;
+    if (status != value) {
+        status = -one;
+        value = status;
+    }
     return value;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PClseek);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCcreate);
-/* Same shape as PCopen, second argument passed as zero (84.38%).
-int PCcreate(char *pathname, int mode) {
-    int status;
+
+/* 99.38%, decomp-permuter score 5 (base 165, then 2023 iters from 5: NONE): retail is a select, beqz v0, addu v0,v1,zero, addiu v0,zero,-1. The body below reproduces retail exactly except that the branch tests value ($v1, the copy source) instead of status ($v0). Retail needs the branch operand and the copy source in different registers, which needs a real copy statement (so the returned pseudo gets $v0) whose condition survives copy propagation - and gcc folds value==status into a branch on $v1. Every honest select form (ret=value then if, if/else, ternary, separate ret, register asm("$2")) is 84.38% or worse with li v1,-1 and the copy after jr. Semantic note: this body branches on value rather than status, which is not what retail does. */
+/* int PCcreate(char *pathname, int mode) {
     int value;
+    int status;
 
     __asm__ volatile("move $5, %2\n\tmove $6, $zero\n\tbreak 258"
                      : "=r"(status), "=r"(value) : "r"(pathname));
-    if (status != 0)
+    value = status;
+    status = value != 0;
+    if (status)
         value = -1;
-    return value;
+    status = value;
+    return status;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCcreate);
 
 int PCinit(void) {
     __asm__ volatile("break 257");
