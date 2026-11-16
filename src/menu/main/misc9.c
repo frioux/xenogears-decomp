@@ -263,7 +263,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
    0xFC..0x18C is exactly 144 bytes, so a C switch's 44-byte table does NOT shift
    the overlay - the next stub's table starts with its own `.align 3`, which supplies
    the pad (misc10's two converted 10-case tables are 0x50 = 2 x 40, no pad, and
-   `make check` passes). So JTBL_LAYOUT is not the blocker here, the 2 insns are.
+   `make check` passes). So JTBL_LAYOUT is probably not the blocker here, the 2
+   insns are - but that is inferred from misc10, not measured for a 44-byte table:
+   converting one of these and running check_bin.sh menu settles it in a minute.
    func_801DB920 returns u_char (retail does `andi v0,v0,0xFF` after the call). */
 /*
 s32 func_801DBE54(void) {
