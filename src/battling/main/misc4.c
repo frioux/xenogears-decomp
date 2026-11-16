@@ -123,7 +123,7 @@ struct ActorScript {
     /* 0x0 */ u8 basePartIndex;
     /* 0x1 */ u8 partIndex0;
     /* 0x2 */ u8 partIndex1;
-    /* 0x3 */ u8 unk3;
+    /* 0x3 */ u8 radius;
     /* 0x4 */ s16 vertexIndex0;
     /* 0x6 */ s16 vertexIndex1;
     /* 0x8 */ s16 baseVertexIndex;
@@ -144,7 +144,7 @@ typedef struct {
     /* 0x0 */ u8 pad00[0x6];
     /* 0x6 */ u16 flags;
     /* 0x8 */ u8 pad08[0x2];
-    /* 0xA */ u16 unkA;
+    /* 0xA */ u16 flags2;
 } ActorSub;
 
 // Actor pointer at 0x15CC, aimed at the actor's own 0x9CC.
@@ -202,7 +202,7 @@ typedef struct {
 // reads; the reset clears everything but the pointer and the gauge byte.
 typedef struct {
     /* 0x0 */ u32 unk0;
-    /* 0x4 */ u8 unk4;
+    /* 0x4 */ u8 percent;
     /* 0x5 */ u8 pad5[0x3];
     /* 0x8 */ u32 unk8;
     /* 0xC */ u32 unkC;
@@ -271,7 +271,7 @@ struct Actor {
     /* 0x0C3 */ u8 unkC3;
     /* 0x0C4 */ u8 state;
     /* 0x0C5 */ u8 unkC5;
-    /* 0x0C6 */ u8 unkC6;
+    /* 0x0C6 */ u8 prevState;
     /* 0x0C7 */ u8 padC7;
     /* 0x0C8 */ s16 unkC8;
     /* 0x0CA */ s16 moveTimer;
@@ -299,8 +299,8 @@ struct Actor {
     /* 0x918 */ u8 pad918[0x14];
     // Two world points whose y words bound the actor vertically; func_80078920
     // compares them with the other actor's before pushing the two apart.
-    /* 0x92C */ Vec4 unk92C;
-    /* 0x93C */ Vec4 unk93C;
+    /* 0x92C */ Vec4 baseVertexPos;
+    /* 0x93C */ Vec4 edgeMidPos;
     /* 0x94C */ s32 unk94C;
     /* 0x950 */ s32 unk950;
     /* 0x954 */ s32 unk954;
@@ -351,14 +351,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
 /* Best attempt: 97.75%. Instruction-for-instruction identical to the original
    (same 256 instructions, same frame, same calls and delay slots); the residual
    is register naming only.  Every remaining difference is an allocator tie: the
-   original caches p->unk93C.y in $a2 and q->unk92C.y in $a1 for the overlap test
+   original caches p->edgeMidPos.y in $a2 and q->baseVertexPos.y in $a1 for the overlap test
    (we get $a1/$a2 the other way round), keeps &edge1 in $s6 / &edge2 in $s7 (we
    are swapped), and reuses $s6 for the angle after &edge1 dies where we reach for
    $s3.  Two levers that were measured and are worth retrying: the function wants a
    NON-VOID return type - with void gcc 2.7.2 steals the second slt into the delay
    slot at 0x80078ee4 and the function comes out 4 bytes short (255 insns); and
-   hoisting q->unk92C.y into a variable that is live into the body (reusing the
-   angle local, i.e. 'angle = q->unk92C.y;' before the test, then using angle for
+   hoisting q->baseVertexPos.y into a variable that is live into the body (reusing the
+   angle local, i.e. 'angle = q->baseVertexPos.y;' before the test, then using angle for
    the second term) reaches 99.13% - a dedicated local of its own does not (it
    goes back to 97.75%), so the lever is the variable's live range, not its
    existence.  The permuter from this body scored 430 and its best candidate (230)
@@ -389,16 +389,16 @@ s32 func_80078920(Actor* p, Actor* q) {
     if (D_8009284C >= 0x301) {
         return;
     }
-    if ((p->unk93C.y < q->unk92C.y && q->unk93C.y < p->unk93C.y) ||
-        (q->unk92C.y < p->unk92C.y && p->unk92C.y < q->unk93C.y) ||
-        (q->unk93C.y < p->unk92C.y && p->unk93C.y < q->unk93C.y) ||
-        (p->unk92C.y < q->unk93C.y && q->unk92C.y < p->unk93C.y)) {
+    if ((p->edgeMidPos.y < q->baseVertexPos.y && q->edgeMidPos.y < p->edgeMidPos.y) ||
+        (q->baseVertexPos.y < p->baseVertexPos.y && p->baseVertexPos.y < q->edgeMidPos.y) ||
+        (q->edgeMidPos.y < p->baseVertexPos.y && p->edgeMidPos.y < q->edgeMidPos.y) ||
+        (p->baseVertexPos.y < q->edgeMidPos.y && q->baseVertexPos.y < p->edgeMidPos.y)) {
         mid.x = (p->prevPosition.x + q->prevPosition.x) / 2;
         mid.z = (p->prevPosition.z + q->prevPosition.z) / 2;
         perp.z = (q->prevPosition.x - p->prevPosition.x) + mid.z;
         perp.x = (p->prevPosition.z - q->prevPosition.z) + mid.x;
-        radiusP = p->pScript->unk3;
-        radiusQ = q->pScript->unk3;
+        radiusP = p->pScript->radius;
+        radiusQ = q->pScript->radius;
         BattleActorSelectEdgeForSegment(&mid, &perp, p, &pEdge1);
         BattleActorSelectEdgeForSegment(&mid, &perp, q, &pEdge2);
         edge1 = *pEdge1;
@@ -586,7 +586,7 @@ void func_80078F00(Actor* p) {
     D_8009264E = 1;
     D_80096FB8[(p->flags >> 27) & 1].unk0 = (u32)D_8006FC74;
     D_80096FB8[(p->flags >> 27) & 1].unk8 = 0;
-    D_80096FB8[(p->flags >> 27) & 1].unk4 = 0;
+    D_80096FB8[(p->flags >> 27) & 1].percent = 0;
     D_80096FB8[(p->flags >> 27) & 1].unkC = 0;
     D_80096FB8[(p->flags >> 27) & 1].unk10 = 0;
     func_80090CC0(p);
@@ -601,7 +601,7 @@ void func_80078F00(Actor* p) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
 
 /* Best attempt: 98.96%. Only the register names of the state block and
-   the trailing p->flags/p->unkC6 update differ (mask in v1 vs a0).
+   the trailing p->flags/p->prevState update differ (mask in v1 vs a0).
 void func_8007920C(Actor* p) {
     ActorScript* pScript = p->pScript;
     s32 pos[3][4];
@@ -610,7 +610,7 @@ void func_8007920C(Actor* p) {
 
     BattleTransformEntryVertex(p, pScript->partIndex0, pScript->vertexIndex0, pos[0]);
     BattleTransformEntryVertex(p, pScript->partIndex1, pScript->vertexIndex1, pos[1]);
-    p->unk93C = (pos[0][0] + pos[1][0]) / 2;
+    p->edgeMidPos = (pos[0][0] + pos[1][0]) / 2;
     p->unk940 = (pos[0][1] + pos[1][1]) / 2;
     p->unk944 = (pos[0][2] + pos[1][2]) / 2;
 
@@ -634,30 +634,30 @@ void func_8007920C(Actor* p) {
     }
 
     if ((p->flags & 0x60000000) == 0x20000000) {
-        func_8007DC74(&p->unk93C, &p->unk95C);
+        func_8007DC74(&p->edgeMidPos, &p->unk95C);
     }
 
     if (BattleGetScreenMode() != 7 && (p->flags & 0x60000000) == 0x20000000 && p->unk940 >= 0x81 &&
         p->unk960 < 0x80) {
-        BattlePlaySoundEffectByIdx(p, 0x3A, &p->unk93C, 2);
+        BattlePlaySoundEffectByIdx(p, 0x3A, &p->edgeMidPos, 2);
     }
 
     p->unk96E = pos[0][1];
     p->unk96C = pos[1][1];
-    BattleTransformEntryVertex(p, pScript->basePartIndex, pScript->baseVertexIndex, &p->unk92C);
+    BattleTransformEntryVertex(p, pScript->basePartIndex, pScript->baseVertexIndex, &p->baseVertexPos);
 
     p->unk930 -= 0x38;
-    p->unk94C = (p->unk93C + p->unk92C) / 2;
+    p->unk94C = (p->edgeMidPos + p->baseVertexPos) / 2;
     p->unk954 = (p->unk944 + p->unk934) / 2;
     p->unk950 = (p->unk940 + p->unk930) / 2;
 
     if ((p->flags & 0x8000) && p->unkC5 == 0 && (p->state & 1)) {
         BattleEffectSetColor(&p->effectColor);
         flag = (p->flags >> 27) & 1;
-        func_8007CD44(flag, &p->unk92C, &p->unk93C, flag);
+        func_8007CD44(flag, &p->baseVertexPos, &p->edgeMidPos, flag);
         if (!(p->flags & 0x10000)) {
             func_8008ED6C(p, 8);
-            func_8008EBD0(p, 8, &p->unk93C, 2);
+            func_8008EBD0(p, 8, &p->edgeMidPos, 2);
         }
     }
 
@@ -688,14 +688,14 @@ void func_8007920C(Actor* p) {
             func_8008ED6C(p, 9);
             break;
         case 2:
-            func_8008EBD0(p, 9, &p->unk93C, 2);
+            func_8008EBD0(p, 9, &p->edgeMidPos, 2);
             func_8008ED6C(p, 7);
             break;
         }
     }
 
     p->flags = (p->flags & 0xFFFEFFFF) | (((p->flags >> 15) & 1) << 16);
-    p->unkC6 = p->state;
+    p->prevState = p->state;
     p->stateFlags = (p->stateFlags & 0xFFFFFFF3) | ((p->stateFlags & 3) << 2);
 }
 */
@@ -774,7 +774,7 @@ char BattleResetForNextRound(void) {    g_BattleActor1.unkCC = 0x400;
 }
 
 void BattleActorSetUnk15CCFlags(Actor* p) {
-    p->pState->unkA = (p->pState->unkA & 0xFEFF) | ((p->flags << 6) & 0x100);
+    p->pState->flags2 = (p->pState->flags2 & 0xFEFF) | ((p->flags << 6) & 0x100);
     p->pState->flags = (p->pState->flags & 0xDFFF) | ((p->flags >> 2) & 0x2000);
     p->pState->flags = (p->pState->flags & 0xBFFF) | ((p->flags >> 5) & 0x4000);
 }
@@ -784,7 +784,7 @@ void BattleActorLoadUnk15CCFlags(Actor* p) {
     u32 signBit = 0x80000000; // a literal here gives `sll 17; srl 31`, retail has `sll 17; slti 0`
     u32 masked;
 
-    p->flags = (p->flags & ~4) | ((p->pState->unkA >> 6) & 4);
+    p->flags = (p->flags & ~4) | ((p->pState->flags2 >> 6) & 4);
     p->flags = (p->flags & 0xFFFF7FFF) | ((p->pState->flags << 2) & 0x8000);
     masked = p->flags & 0xFFF7FFFF;
     flag = ((p->pState->flags << 17) & signBit) != 0;
