@@ -725,18 +725,18 @@ void func_80081F80(SpriteData*, s16, FieldActor*);
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
     s16 current;
-    int new_var2;
-    s16 new_var;
+    s16 angleCopy;
 
     if (pActorData->moveModified.vx != 0 || pActorData->moveModified.vz != 0) {
         current = pActorData->rotation.vy;
         if (!(current & 0x8000)) {
-            angle = (new_var2 = current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
+            angle = (current + ((direction & 1) ? -0x400 : 0x400)) & 0xFFF;
+            // the do/while(0) holds the vy store out of the jal delay slot; a bare block does not
             do {
-                new_var = angle;
+                angleCopy = angle;
                 pActorData->rotation.vx = angle;
             } while (0);
-            pActorData->rotation.vy = new_var;
+            pActorData->rotation.vy = angleCopy;
             func_80081F80(pSprite, pActorData->rotation.vx, pActor);
             angle = pActorData->rotation.vy | 0x8000;
             pActorData->rotation.vx = angle;
