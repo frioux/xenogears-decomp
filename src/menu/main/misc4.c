@@ -200,15 +200,15 @@ void func_801CE540(void) {
 */
 void func_801CE660(void) {
     u8* pData;
-    u8 new_var;
 
     if (((u8*)g_Menu->pManager)[0x7]) {
+        // The body written twice behind an uninitialised test is what makes gcc
+        // 2.7.2 keep g_Menu in $v1 here; one copy scores 99.80.
         if (pData) {
             pData = (u8*)g_Menu->unk358;
             func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            new_var = pData[0x2AE0];
-            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), new_var);
+            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
             func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
                           pData[0x2AEE]);
@@ -234,8 +234,7 @@ void func_801CE660(void) {
             pData = (u8*)g_Menu->unk358;
             func_801CE198(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
-            new_var = pData[0x2AE0];
-            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), new_var);
+            func_801CE198(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
             pData = (u8*)g_Menu->unk358;
             func_801CE198(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
                           pData[0x2AEE]);
