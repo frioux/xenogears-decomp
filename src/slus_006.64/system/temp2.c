@@ -8,12 +8,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800248D4);
 // Work list and image-list setup; g_GfxWorkListCapacity is the work list entry budget.
 extern u32 g_GfxWorkListCapacity;
 extern u8 g_IsBattle;
-extern u8 D_800591AE;
+extern u8 g_GfxSpritesUseBaseMatrix;
 extern void WorkListsReset(void);
 
 void GfxResetWorkLists(void) {
     g_IsBattle = 0;
-    D_800591AE = 0;
+    g_GfxSpritesUseBaseMatrix = 0;
     g_GfxWorkListCapacity = 0x2000;
     WorkListsReset();
     SpriteAnimFrameListReset();

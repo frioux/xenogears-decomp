@@ -183,7 +183,7 @@ extern s32 D_8004F380;
 extern s32 D_8004F37C;
 extern s32 D_8004F378;
 extern u8 D_8005942C;
-extern u8 D_800594D0;
+extern u8 g_GameDiscChangeRequest;
 extern s16 g_GameWdsEntryReleased;
 extern s32 g_FieldScriptWalkFrameCounter;
 extern s32 g_GameAudioFadeInPending;
@@ -223,7 +223,7 @@ void SystemResetGlobalState(void) {
     D_8004F37C = 0;
     D_8004F378 = 0;
     D_8005942C = 0;
-    D_800594D0 = 0;
+    g_GameDiscChangeRequest = 0;
     g_GameWdsEntryReleased = 0;
     g_FieldScriptWalkFrameCounter = 0;
     g_GameStagedFileTag = -1;
@@ -621,14 +621,14 @@ void SystemSetDrawEnvBackgroundColor(DRAWENV* pDrawEnv) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp3", func_8001B970);
 /*
-Best: 85.15%. The tail needs D_8005947C/D_800594CC defined in this unit to get
+Best: 85.15%. The tail needs D_8005947C/g_MenuSavedMainMenuChoice defined in this unit to get
 %gp_rel. That is safe now: maspsx only relaxes the `lui $at` form, and
 GameSetUpDisplayAndChangeState reads D_8005947C through `lui $v0`, so it keeps %hi/%lo (verified
 by GameSetUpDisplayAndChangeState matching 100% while D_8005959C is defined here). The remaining
 diff is the inner loop: the original keeps the even byte on an
 advancing pointer and recomputes the odd byte as (i + j) + (g_GameState + 1),
 gcc merges the two into one base with 0/1 offsets.
-A restructured attempt (gp_rel tail confirmed OK by defining D_8005947C/D_800594CC here)
+A restructured attempt (gp_rel tail confirmed OK by defining D_8005947C/g_MenuSavedMainMenuChoice here)
 left three gaps: gcc hoists the 0xF literal and the odd base out of the outer loop into
 s4/s5 (the original reloads both per row into t1/t2 and saves only s0-s3), and the copy-back
 loop comes out `sltu` where the original has `slt`, so the source compared something signed.
@@ -676,7 +676,7 @@ void func_8001B970(void) {
     for (i = 19; i >= 0; i--) {
         ((s16*)&g_SoundVolumeController)[i - 16] = 0;
     }
-    D_800594CC = 6;
+    g_MenuSavedMainMenuChoice = 6;
     D_8005947C = 0;
 } */
 

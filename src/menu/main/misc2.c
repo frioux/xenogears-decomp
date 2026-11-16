@@ -29,7 +29,7 @@ extern void GameRandomByteRange(s32 arg0, u8 arg1);
 extern void GameCheckAndHandleSoftReset(void);
 extern s32* g_DebuggerState; // -1 when no debugger is attached
 extern int g_SpuChannelMask;
-extern u8 D_801E9784;
+extern u8 g_MenuSoftResetEnabled;
 extern s32 ArchiveGetDiscNumber(void);
 extern int ControllerGetType(int controllerIndex);
 extern int ControllerPopState(void);
@@ -85,7 +85,7 @@ void MenuRenderFrame(void) {
 
     MenuPollInput();
 
-    if (D_801E9784) {
+    if (g_MenuSoftResetEnabled) {
         GameCheckAndHandleSoftReset();
     }
 

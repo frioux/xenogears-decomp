@@ -28,7 +28,7 @@ void func_801D29A8(s32 a0, s32 a1);
 void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void MenuRevealSelectionMenu(s32 a0, u32* a1);
 
-extern u32 D_801EA19C[];
+extern u32 g_MenuMainSelectionResourceIds[];
 extern u32 D_801EA164[];
 extern s16 D_801E9A1C[][2];
 extern s16 D_801E9A48[][2];
@@ -302,7 +302,7 @@ void func_801D2D38(void) {
             MenuLoadCharacterNameTexture((u_char)((characterId == 0xFF) ? 0xFF : characterId + 0xB), 6 + (j << 1));
         }
     }
-    MenuRevealSelectionMenu(8, D_801EA19C);
+    MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
     func_801D29A8(1, 0);
     MenuCreatePlayTimeWindow();
 }

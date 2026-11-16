@@ -474,8 +474,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5E4C);
 extern s32 D_801E9F98[];
 extern s32 D_801E9FBC[];
 extern s32 D_801EA494[];
-extern u32 D_801EA590[];
-extern u8 D_801EA5DC[];
+extern u32 g_MenuSlotNameTextureX[];
+extern u8 g_MenuSlotNameTextureY[];
 extern u16 g_SystemPalette1;
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 
@@ -491,7 +491,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E61B0);
    are needed to get retail's lhu (a plain D_801E9F98[0] gives lw).
    Left, four instructions: (1) retail's primOffset lands in $s4 and j*0x50 in
    $s3, ours swaps them; (2) retail emits "addiu s5,s5,4" (j++) right after
-   the D_801EA5DC load and ours after the call; (3) the MenuSetFt4QuadVertices argument
+   the g_MenuSlotNameTextureY load and ours after the call; (3) the MenuSetFt4QuadVertices argument
    setup order differs (retail forms the 0x820 sum after loading base/ctx);
    (4) retail reads the byte it stores to 0x130E/0x1311 with "lbu 776(v1)",
    ours with "lw" - (u_char), (u8) and (s8) casts on g_Menu->renderContext all
@@ -524,7 +524,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E61B0);
                g_SystemPalette1;
            MenuSetFt4QuadVertices((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)),
                          *(u16*)D_801E9F98 + j * 0x50, *(u16*)D_801E9FBC + 7,
-                         (u_char)(D_801EA590[j] << 2), D_801EA5DC[j * 4], 0x48, 0xD);
+                         (u_char)(g_MenuSlotNameTextureX[j] << 2), g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
            ((u8*)g_Menu->unk34C + offset)[0x1311] = (u_char)g_Menu->renderContext;
        }
    }

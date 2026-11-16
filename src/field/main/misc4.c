@@ -114,7 +114,7 @@ void FieldOrVramStripPixels(void) {
     }
 }
 
-extern u_char D_800594D0;
+extern u_char g_GameDiscChangeRequest;
 extern u_char D_8005942C;
 extern s32 D_8004F310;
 extern s32 g_GamePartySkinsInitialized;
@@ -174,7 +174,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
       register ($s1, then $s3) for the later loops. Declaration orders tried:
       rect/i/nFadeStep/nFade, nFade first, nFadeStep first; all four give the
       same allocation.
-   2. nFadeStep: retail is [lbu $v0,D_800594D0][beq -> end][move $s2,zero]
+   2. nFadeStep: retail is [lbu $v0,g_GameDiscChangeRequest][beq -> end][move $s2,zero]
       [lbu $v0,D_8005942C][bne -> end][li $s2,0x20][move $s2,zero], i.e. a
       store of 0, then 0x20, then 0 again on the Y==1 path. The "0x20 unless
       either flag is 1" spelling (body below) reaches the same instruction
@@ -218,7 +218,7 @@ void func_80078D44(void) {
         DrawSync(0);
         FieldClearAndSwapOTag();
         FieldRenderSync();
-        if (D_800594D0 == 1 || D_8005942C == 1) {
+        if (g_GameDiscChangeRequest == 1 || D_8005942C == 1) {
             FieldZoomFadeEffectLoadTextures(0, 0);
         } else {
             FieldZoomFadeEffectLoadTextures(1, 1);
@@ -233,7 +233,7 @@ void func_80078D44(void) {
             LibGearSetDirectKeyframes(1);
         }
         nFadeStep = 0x20;
-        if (D_800594D0 == 1 || D_8005942C == 1) {
+        if (g_GameDiscChangeRequest == 1 || D_8005942C == 1) {
             nFadeStep = 0;
         }
         nFade = 0x800000;
@@ -268,7 +268,7 @@ void func_80078D44(void) {
                 nFade -= 0x40000;
             } while (nFade >= 0);
         }
-        if (D_800594D0 == 1) {
+        if (g_GameDiscChangeRequest == 1) {
             rect.x = 0;
             rect.y = 0;
             rect.w = 0x140;
@@ -287,7 +287,7 @@ void func_80078D44(void) {
         FieldRenderSync();
         ControllerResetState();
         g_GameWdsBankLoadState = 0;
-        if (D_800594D0 == 1) {
+        if (g_GameDiscChangeRequest == 1) {
             g_GameRequestedWdsBankIndex = 0xE;
             FieldFreePendingAudioManager();
         }
@@ -302,7 +302,7 @@ void func_80078D44(void) {
             FieldFreePendingAudioManager();
         }
         FieldScriptUpdateMemoryEachFrame();
-        if (D_800594D0 != 1) {
+        if (g_GameDiscChangeRequest != 1) {
             if (D_8005942C != 1) {
                 FieldFadeToBlack(0x20);
                 for (i = 0; i < 0x20; i++) {
@@ -310,7 +310,7 @@ void func_80078D44(void) {
                     FieldZoomFadeEffectUpdate();
                     func_8007554C();
                     FieldTickSkipCounter();
-                    if (D_800594D0 != 1) {
+                    if (g_GameDiscChangeRequest != 1) {
                         FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
                         nFade -= 0x40000;
                         if (nFade < 0) {

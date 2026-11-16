@@ -121,8 +121,8 @@ typedef struct {
 
 extern MovieSlot D_8007713C[2];
 extern s32 D_8007739C;
-extern s32 D_800773AC;
-extern s32 D_800773B4;
+extern s32 g_MoviePadButtons;
+extern s32 g_MoviePrevPadButtons;
 extern s32 D_80077438;
 extern s32 D_80077454;
 extern RECT D_800704E0; // .rodata
@@ -162,9 +162,9 @@ typedef struct {
 extern MovieDrawBuffer D_80077124[];
 extern MovieDrawBuffer* D_80077120;
 extern s32 D_8007744C;
-extern s32 D_80077394;
-extern s32 D_800773AC;
-extern s32 D_800773B4;
+extern s32 g_MovieHeapDebugEnabled;
+extern s32 g_MoviePadButtons;
+extern s32 g_MoviePrevPadButtons;
 
 void MovieClearFrameBuffer(void) {
     RECT rect;
@@ -369,32 +369,32 @@ void func_80075D8C(void) {
         FontPrintf(D_80070450);
         FontPrintf(hexMode ? D_80070464 : D_8007046C);
         MovieUpdatePadCursor(0, 0, &action);
-        if ((D_800773B4 & 0x1000) == 0 && (D_800773AC & 0x1000) != 0) {
+        if ((g_MoviePrevPadButtons & 0x1000) == 0 && (g_MoviePadButtons & 0x1000) != 0) {
             if (entry > 0) {
                 entry--;
             }
         }
-        if ((D_800773B4 & 0x10) == 0 && (D_800773AC & 0x10) != 0) {
+        if ((g_MoviePrevPadButtons & 0x10) == 0 && (g_MoviePadButtons & 0x10) != 0) {
             entry -= 0x14;
             if (entry < 0) {
                 entry = 0;
             }
         }
-        if ((D_800773B4 & 0x4000) == 0 && (D_800773AC & 0x4000) != 0) {
+        if ((g_MoviePrevPadButtons & 0x4000) == 0 && (g_MoviePadButtons & 0x4000) != 0) {
             if (entry < count - 0x14) {
                 entry++;
             }
         }
-        if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0) {
+        if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0) {
             entry += 0x14;
             if (entry > count - 0x14) {
                 entry = count - 0x14;
             }
         }
-        if ((D_800773B4 & 0x8) == 0 && (D_800773AC & 0x8) != 0) {
+        if ((g_MoviePrevPadButtons & 0x8) == 0 && (g_MoviePadButtons & 0x8) != 0) {
             hexMode = 1 - hexMode;
         }
-        if ((D_800773B4 & 0x4) == 0 && (D_800773AC & 0x4) != 0) {
+        if ((g_MoviePrevPadButtons & 0x4) == 0 && (g_MoviePadButtons & 0x4) != 0) {
             showName = 1 - showName;
         }
         do {
@@ -442,7 +442,7 @@ void func_80075D8C(void) {
             j++;
         } while (j < entry + 0x14);
         FontPrintf(D_80070430);
-        if (D_80077394 > 0) {
+        if (g_MovieHeapDebugEnabled > 0) {
             HeapDebugDump(1, 0, 6, 0x808D);
         }
         FontDrawLetters(D_80077120->ot);
@@ -465,7 +465,7 @@ void MovieResetPlaybackAndClearScreen(void) {
 
     rect = D_800704E0;
     D_80077028 = 0;
-    D_800773AC = -1;
+    g_MoviePadButtons = -1;
     if (D_80077448 == 0) {
         ArchiveSetIndex(0x18, 0);
         if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
@@ -508,7 +508,7 @@ s32 MovieStartStreamWithMode(u8 mode) {
 
     state = D_80077448;
     D_80077028 = mode;
-    D_800773AC = -1;
+    g_MoviePadButtons = -1;
     if (state == 0) {
         ArchiveSetIndex(0x18, 0);
         if (D_8007711C >= (s16)ArchiveDecodeSizeAbsolute(2)) {
@@ -701,13 +701,13 @@ void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2) {
 }
 
 void MovieFadeAudioOnPadPress(void) {
-    D_800773B4 = D_800773AC;
-    D_800773AC = ControllerGetButtonState(0);
-    if (D_800773B4 == D_800773AC) {
-        if (D_800773B4 != 0) {
+    g_MoviePrevPadButtons = g_MoviePadButtons;
+    g_MoviePadButtons = ControllerGetButtonState(0);
+    if (g_MoviePrevPadButtons == g_MoviePadButtons) {
+        if (g_MoviePrevPadButtons != 0) {
             D_80076F04++;
             if (D_80076F08 < D_80076F04) {
-                D_800773B4 = 0;
+                g_MoviePrevPadButtons = 0;
                 D_80076F08 = 1;
                 D_80076F04 = 0;
             }
@@ -719,11 +719,11 @@ void MovieFadeAudioOnPadPress(void) {
         D_80076F08 = 0x5A;
         D_80076F04 = 0;
     }
-    if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0 && D_80077028 == 0) {
+    if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0 && D_80077028 == 0) {
         SoundSetCdVolumeWithFade(0, 0xA);
         D_80077014 = 5;
     }
-    if ((D_800773B4 & 0x800) == 0 && (D_800773AC & 0x800) != 0 && D_80077028 == 0) {
+    if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 && D_80077028 == 0) {
         SoundSetCdVolumeWithFade(0, 0xA);
         D_80077014 = 5;
     }

@@ -3,7 +3,7 @@
 #include "system/menu.h"
 
 extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
-extern u_char D_801EA524[]; // String IDs of the menu strings
+extern u_char g_MenuMainTitleStringIds[]; // String IDs of the menu strings
 
 void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 
@@ -23,13 +23,13 @@ s32 MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2);
 void MenuStartOpenAnimation(void);
 void MenuSetupPointerCursors(s32 arg0);
 
-extern u8 D_801EA19C[];
-extern u8 D_801EA528[];
-extern u8 D_801E9E64[];
-extern u8 D_801EA1D4[];
-extern u8 D_801EA530[];
-extern u8 D_801E9E84[];
-extern u8 D_801E9784;
+extern u8 g_MenuMainSelectionResourceIds[];
+extern u8 g_MenuMainRowStringIds[];
+extern u8 g_MenuMainRowXOffsets[];
+extern u8 g_MenuLoadGameSelectionResourceIds[];
+extern u8 g_MenuLoadGameRowStringIds[];
+extern u8 g_MenuLoadGameRowXOffsets[];
+extern u8 g_MenuSoftResetEnabled;
 void MenuHidePointerCursors(void);
 void func_801D2D38(void);
 void MenuSetupScreen(void);
@@ -43,8 +43,8 @@ extern u8 D_801E96A4;
 extern u8 g_MenuSaveSlotForceDiscOne;
 
 extern u8 g_ShopIndex;
-extern u8 D_800594D0;
-extern u8 D_800594CC;
+extern u8 g_GameDiscChangeRequest;
+extern u8 g_MenuSavedMainMenuChoice;
 void func_801D29A8(s32 arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
@@ -87,8 +87,8 @@ void MenuNormalMenuMain(void) {
                 break;
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            MenuSetSelectionMenuPrims(7, g_Menu->mainMenuChoice, (s32*)D_801EA19C);
-            func_801E8070(8, g_Menu->unk6E0, D_801EA528, D_801E9E64,
+            MenuSetSelectionMenuPrims(7, g_Menu->mainMenuChoice, (s32*)g_MenuMainSelectionResourceIds);
+            func_801E8070(8, g_Menu->unk6E0, g_MenuMainRowStringIds, g_MenuMainRowXOffsets,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
@@ -127,8 +127,8 @@ void MenuLoadGameMain(void) {
     u_char shouldContinue;
 
     shouldContinue = 1;
-    MenuRevealSelectionMenu(4, D_801EA1D4);
-    MenuLoadStringsFromIds(8, (u8*)g_Menu + 0x6E0, D_801EA530, (u8*)g_Menu->pManager + 0xC);
+    MenuRevealSelectionMenu(4, g_MenuLoadGameSelectionResourceIds);
+    MenuLoadStringsFromIds(8, (u8*)g_Menu + 0x6E0, g_MenuLoadGameRowStringIds, (u8*)g_Menu->pManager + 0xC);
     g_Menu->unk2D8 = 0;
     do {
         MenuRenderFrame();
@@ -139,7 +139,7 @@ void MenuLoadGameMain(void) {
                 MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
                 g_Menu->unk348->shadeWidth = 0x40;
                 shouldContinue = func_801C531C(7);
-                D_801E9784 = 0;
+                g_MenuSoftResetEnabled = 0;
                 g_Menu->unk2D8 = 0;
                 break;
             case 1:
@@ -158,14 +158,14 @@ void MenuLoadGameMain(void) {
                 break;
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            MenuSetSelectionMenuPrims(3, g_Menu->mainMenuChoice, (s32*)D_801EA1D4);
-            func_801E8070(8, g_Menu->unk6E0, D_801EA530, D_801E9E84,
+            MenuSetSelectionMenuPrims(3, g_Menu->mainMenuChoice, (s32*)g_MenuLoadGameSelectionResourceIds);
+            func_801E8070(8, g_Menu->unk6E0, g_MenuLoadGameRowStringIds, g_MenuLoadGameRowXOffsets,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
         if (ArchiveGetDiscNumber() == 1 && g_Menu->unk2D8 >= 0x259) {
             shouldContinue = 0;
-            D_800594D0 = 1;
+            g_GameDiscChangeRequest = 1;
         }
     } while (shouldContinue);
     MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
@@ -287,7 +287,7 @@ void MenuFinalizeMenuData(void) {
             g_Menu->pManager->unk5[1] = 0;
             g_Menu->pManager->unk5[0] = 0;
             if (g_ShopIndex == 0) {
-                D_800594CC = g_Menu->mainMenuChoice;
+                g_MenuSavedMainMenuChoice = g_Menu->mainMenuChoice;
             }
             break;
         case 2:
@@ -341,7 +341,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
    original lays the outer test's then-block out of line (beqz $v0 -> call block) and
    falls through to the second test, then to a "j end".  Tried: else-if, `!=`/else
    (87.67%), 2-way switch with default (92.33%), early break + separate if (92.33%),
-   nested if (92.33%), 2-way switch (92.33%), switch on D_800594D0 (92.33%), two
+   nested if (92.33%), 2-way switch (92.33%), switch on g_GameDiscChangeRequest (92.33%), two
    independent ifs (90.47%, 340 bytes), case order 2 before 0 (86.98%), gcc-2.6.0 (92.33%).
    Instruction multiset is identical; this is a bb-reorder tie-break: retail keeps both
    compare insns adjacent at the top and puts both call blocks after a `j end`.
@@ -359,14 +359,14 @@ void func_801C62A8(void) {
             MenuNormalMenuMain();
             break;
         case 2:
-            D_800594D0 = 0;
+            g_GameDiscChangeRequest = 0;
             MenuLoadGameMain();
             g_Menu->pManager->shouldRenderSelectionMenu = 0;
             g_Menu->pManager->shouldRenderPointerCursor = 0;
             g_Menu->pManager->unk3 = 0;
-            if (D_800594D0 == 0) {
+            if (g_GameDiscChangeRequest == 0) {
                 MenuWaitForDiscChange(0);
-            } else if (D_800594D0 == menuIndex) {
+            } else if (g_GameDiscChangeRequest == menuIndex) {
                 MenuWaitForDiscChange(((u8*)g_GameState.fieldScriptMemory)[0xA4]);
             }
             break;
@@ -471,7 +471,7 @@ void MenuFillVramRectWhite(void) {
 void MenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    MenuUploadStringTextures(g_Menu->unk4E0, D_801EA524, 0, 4);
+    MenuUploadStringTextures(g_Menu->unk4E0, g_MenuMainTitleStringIds, 0, 4);
     MenuFillVramRectWhite();
 }
 void MenuInitializeWindowBorders(void) {

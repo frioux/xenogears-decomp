@@ -592,14 +592,14 @@ void FieldInitializeStreamPlayer(void) {
 
 extern s32 g_FieldFrameBufferIndex;
 extern s32 g_FieldStreamTextSegmentActive;
-extern s32 D_800B00E4;
+extern s32 g_FieldStreamFramePending;
 extern s32 g_FieldStreamFramePosition;
 
 typedef void (*FieldRenderContextCallback)(u_short, int, u_short);
 
 void FieldSelectStreamRenderContext(u_short arg0, int arg1, u_short arg2) {
     g_FieldStreamFramePosition = arg0;
-    D_800B00E4 = 0;
+    g_FieldStreamFramePending = 0;
     if (arg2 == 0) {
         g_FieldFrameBufferIndex = 1;
     } else {

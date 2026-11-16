@@ -12,22 +12,22 @@ extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern s32 ArchiveReadFileFromCdSector(s32 sector, void* pDestBuffer, s32 fileSize, s32 arg3, u32 flags);
 
 // .data
-extern s32 D_80076E4C;
-extern s32 D_80076E5C;
-extern void* D_80076EA0;
-extern s32 D_80076EAC;
-extern s32 D_80076EB0;
-extern s32 D_80076EC8;
-extern s32 D_80076ECC;
-extern s32 D_80076EF4;
-extern s32 D_80076EF8;
-extern s32 D_80076F3C[];
+extern s32 g_MovieStreamReadErrors;
+extern s32 g_MovieVsyncCount;
+extern void* g_MovieReadBuffer;
+extern s32 g_MovieStreamCommandBefore;
+extern s32 g_MovieStreamCommandNow;
+extern s32 g_MoviePlayTimeSeconds;
+extern s32 g_MoviePlayTimeFrames;
+extern s32 g_MovieRandomSeedA;
+extern s32 g_MovieRandomSeedB;
+extern s32 g_MovieStreamReadCount[];
 // .bss
-extern u_char D_80076F84[];
-extern u_char D_80076FCC[];
+extern u_char g_MovieCdControlResult[];
+extern u_char g_MovieGlowColours[];
 extern u_char D_80076FCD[];
 extern u_char D_80076FCE[];
-extern u_char D_80076FDC[];
+extern u_char g_MovieGlowTargetColours[];
 extern u_char D_80076FDD[];
 extern u_char D_80076FDE[];
 extern s32 D_80076FAC[];
@@ -41,8 +41,8 @@ typedef struct {
 
 extern MovieColour D_80076F8C[];
 extern MovieColour D_80076F9C[];
-extern s32 D_80076FEC[];
-extern s32 D_80076FFC[];
+extern s32 g_MovieGlowFadeSteps[];
+extern s32 g_MovieGlowFadeDurations[];
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 
@@ -52,19 +52,19 @@ typedef struct {
     /* 0x4 */ u32 unk4;
 } MovieStreamEntry; // Size: 0x8
 
-extern s32 D_80076E48;
-extern MovieStreamEntry* D_80076E7C;
-extern u32* D_80076E84;
-extern s32 D_80076E94;
-extern u32* D_80076E9C;
-extern s32 D_80076EA4;
-extern s32 D_80076EB4;
-extern s32 D_80076EB8;
-extern s32 D_80076EBC;
-extern s32 D_800773AC;
-extern s32 D_800773B4;
+extern s32 g_MovieStreamCommand;
+extern MovieStreamEntry* g_MovieStreamSections;
+extern u32* g_MovieStreamWritePtr;
+extern s32 g_MovieStreamBytesLeft;
+extern u32* g_MovieStreamBlock;
+extern s32 g_MovieStreamCancelCount;
+extern s32 g_MovieStreamSectionIndex;
+extern s32 g_MovieStreamMode;
+extern s32 g_MovieRandomMode;
+extern s32 g_MoviePadButtons;
+extern s32 g_MoviePrevPadButtons;
 extern u8 D_80076F7C[];
-extern s32 D_80076F80;
+extern s32 g_MovieStreamReleaseSection;
 extern u32* func_80028B14(void);
 extern s32 func_80028F30(u8* pArg0, s32* pArg1);
 extern void ArchiveReleaseStreamBlock(u32* pStream);
@@ -76,74 +76,74 @@ void MovieUpdateStream(void) {
     s32 size;
     u32 value;
 
-    if ((D_800773B4 & 0x20) == 0 && (D_800773AC & 0x20) != 0) {
+    if ((g_MoviePrevPadButtons & 0x20) == 0 && (g_MoviePadButtons & 0x20) != 0) {
         func_80071C34(1);
     }
-    if ((D_800773B4 & 0x10) == 0 && (D_800773AC & 0x10) != 0) {
+    if ((g_MoviePrevPadButtons & 0x10) == 0 && (g_MoviePadButtons & 0x10) != 0) {
         func_80071C34(2);
     }
-    if ((D_800773B4 & 0x80) == 0 && (D_800773AC & 0x80) != 0) {
+    if ((g_MoviePrevPadButtons & 0x80) == 0 && (g_MoviePadButtons & 0x80) != 0) {
         func_80071C34(3);
     }
-    if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0) {
-        D_80076EA4++;
+    if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0) {
+        g_MovieStreamCancelCount++;
         ArchiveStopTransfer(0);
     }
-    if ((D_800773B4 & 0x1000) == 0 && (D_800773AC & 0x1000) != 0) {
+    if ((g_MoviePrevPadButtons & 0x1000) == 0 && (g_MoviePadButtons & 0x1000) != 0) {
         func_80071C34(7);
     }
-    if ((D_800773B4 & 0x4000) == 0 && (D_800773AC & 0x4000) != 0) {
+    if ((g_MoviePrevPadButtons & 0x4000) == 0 && (g_MoviePadButtons & 0x4000) != 0) {
         func_80071C34(9);
     }
-    if ((D_800773B4 & 0x8) == 0 && (D_800773AC & 0x8) != 0) {
-        D_80076EB8 = 1 - D_80076EB8;
+    if ((g_MoviePrevPadButtons & 0x8) == 0 && (g_MoviePadButtons & 0x8) != 0) {
+        g_MovieStreamMode = 1 - g_MovieStreamMode;
     }
-    if ((D_800773B4 & 0x4) == 0 && (D_800773AC & 0x4) != 0 && D_80076E48 < 0xB) {
+    if ((g_MoviePrevPadButtons & 0x4) == 0 && (g_MoviePadButtons & 0x4) != 0 && g_MovieStreamCommand < 0xB) {
         MovieStartStreamRead();
     }
 
-    if (D_80076EB8 == 1) {
-        D_80076E9C = func_80028B14();
-        if (D_80076E9C != 0) {
-            if (D_80076E94 >= 0x801) {
+    if (g_MovieStreamMode == 1) {
+        g_MovieStreamBlock = func_80028B14();
+        if (g_MovieStreamBlock != 0) {
+            if (g_MovieStreamBytesLeft >= 0x801) {
                 for (size = 0; size < 0x200; size++) {
-                    *D_80076E84++ = D_80076E9C[size];
+                    *g_MovieStreamWritePtr++ = g_MovieStreamBlock[size];
                 }
             } else {
-                for (size = 0; size < D_80076E94 / 4; size++) {
-                    *D_80076E84++ = D_80076E9C[size];
+                for (size = 0; size < g_MovieStreamBytesLeft / 4; size++) {
+                    *g_MovieStreamWritePtr++ = g_MovieStreamBlock[size];
                 }
             }
-            D_80076E94 -= 0x800;
-            if (D_80076E94 <= 0) {
-                if (D_80076E48 == 0xC) {
-                    D_80076EB4++;
-                    size = D_80076E7C[D_80076EB4].unk0;
+            g_MovieStreamBytesLeft -= 0x800;
+            if (g_MovieStreamBytesLeft <= 0) {
+                if (g_MovieStreamCommand == 0xC) {
+                    g_MovieStreamSectionIndex++;
+                    size = g_MovieStreamSections[g_MovieStreamSectionIndex].unk0;
                     if (size != 0) {
-                        D_80076E94 = ArchiveDecodeAlignedSize(size);
+                        g_MovieStreamBytesLeft = ArchiveDecodeAlignedSize(size);
                     }
-                    D_80076E84 = (u32*)D_80076E7C[D_80076EB4].unk4;
+                    g_MovieStreamWritePtr = (u32*)g_MovieStreamSections[g_MovieStreamSectionIndex].unk4;
                 }
             }
-            ArchiveReleaseStreamBlock(D_80076E9C);
+            ArchiveReleaseStreamBlock(g_MovieStreamBlock);
         }
     }
-    if (D_80076EB8 == 2) {
-        if (func_80028F30(D_80076F7C, &D_80076F80) == 0) {
-            ArchiveReleaseStreamSection(D_80076F80);
+    if (g_MovieStreamMode == 2) {
+        if (func_80028F30(D_80076F7C, &g_MovieStreamReleaseSection) == 0) {
+            ArchiveReleaseStreamSection(g_MovieStreamReleaseSection);
         }
     }
 
-    if ((D_800773B4 & 0x2000) == 0 && (D_800773AC & 0x2000) != 0) {
+    if ((g_MoviePrevPadButtons & 0x2000) == 0 && (g_MoviePadButtons & 0x2000) != 0) {
         func_80071C34(0xB);
     }
-    if ((D_800773B4 & 0x8000) == 0 && (D_800773AC & 0x8000) != 0) {
+    if ((g_MoviePrevPadButtons & 0x8000) == 0 && (g_MoviePadButtons & 0x8000) != 0) {
         func_80071C34(0xD);
     }
-    if (D_80076EBC != 0) {
+    if (g_MovieRandomMode != 0) {
         value = MovieGetRandomNumber() & 0xFF;
         if (value == 0) {
-            if (D_80076E48 < 0xB) {
+            if (g_MovieStreamCommand < 0xB) {
                 MovieStartStreamRead();
             }
         }
@@ -151,34 +151,34 @@ void MovieUpdateStream(void) {
             func_80071C34(value);
         }
     }
-    if ((D_800773B4 & 0x100) == 0 && (D_800773AC & 0x100) != 0) {
-        D_80076EBC = 1 - D_80076EBC;
+    if ((g_MoviePrevPadButtons & 0x100) == 0 && (g_MoviePadButtons & 0x100) != 0) {
+        g_MovieRandomMode = 1 - g_MovieRandomMode;
     }
 }
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800712C4);
 
 void MovieStartStreamRead(void) {
-    if (D_80076EA0 == NULL) {
-        D_80076EA0 = HeapAlloc(0x2000, 0);
+    if (g_MovieReadBuffer == NULL) {
+        g_MovieReadBuffer = HeapAlloc(0x2000, 0);
     }
-    if (D_80076EA0 != NULL) {
-        ArchiveReadFileFromCdSector(0x40, D_80076EA0, 0x2000, 0, 0);
+    if (g_MovieReadBuffer != NULL) {
+        ArchiveReadFileFromCdSector(0x40, g_MovieReadBuffer, 0x2000, 0, 0);
     }
-    D_80076F3C[0]++;
-    if (D_80076E4C == 0) {
-        D_80076EAC = D_80076EB0;
-        D_80076EB0 = 0;
+    g_MovieStreamReadCount[0]++;
+    if (g_MovieStreamReadErrors == 0) {
+        g_MovieStreamCommandBefore = g_MovieStreamCommandNow;
+        g_MovieStreamCommandNow = 0;
     }
 }
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80071C34);
 
 void MovieUpdateFrameCounter(void) {
-    D_80076E5C++;
-    if (++D_80076ECC >= 0x3C) {
-        D_80076ECC = 0;
-        D_80076EC8++;
+    g_MovieVsyncCount++;
+    if (++g_MoviePlayTimeFrames >= 0x3C) {
+        g_MoviePlayTimeFrames = 0;
+        g_MoviePlayTimeSeconds++;
     }
 }
 
@@ -191,7 +191,7 @@ void MoviePauseCdDrive(void) {
         ArchiveCdSetMode(0);
         ArchiveCdDataSync(0);
         Vsync(3);
-        while (CdControlB(8, 0, D_80076F84) == 0) {
+        while (CdControlB(8, 0, g_MovieCdControlResult) == 0) {
         }
     }
 }
@@ -261,17 +261,17 @@ void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
     // The colour triplets are 4-byte structs and splat labels every byte, so the
     // three channels are addressed as byte arrays a stride of 4 apart.
     for (i = 0; i < 0x10; i += 4) {
-        D_80076FCC[i] = color;
+        g_MovieGlowColours[i] = color;
         D_80076FCD[i] = color;
         D_80076FCE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
-        D_80076FDC[i] = color;
+        g_MovieGlowTargetColours[i] = color;
         D_80076FDD[i] = color;
         D_80076FDE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
     }
 
     for (j = 0; j < 4; j++) {
-        D_80076FEC[j] = 0;
-        D_80076FFC[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+        g_MovieGlowFadeSteps[j] = 0;
+        g_MovieGlowFadeDurations[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
     }
 
     SetPolyG4(pPoly0);
@@ -319,9 +319,9 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 
     for (i = 0; i < 4; i++) {
-        if (++D_80076FEC[i] > D_80076FFC[i]) {
-            D_80076FEC[i] = 0;
-            D_80076FFC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+        if (++g_MovieGlowFadeSteps[i] > g_MovieGlowFadeDurations[i]) {
+            g_MovieGlowFadeSteps[i] = 0;
+            g_MovieGlowFadeDurations[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
             *pColR = *pTargetR;
             *pColG = *pTargetG;
             *pColB = *pTargetB;
@@ -330,9 +330,9 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
             *pTargetB = (MovieGetRandomNumber() & 0x3F) - 0x42;
         }
 
-        dr = (*pTargetR - *pColR) * D_80076FEC[i] / D_80076FFC[i];
-        dg = (*pTargetG - *pColG) * D_80076FEC[i] / D_80076FFC[i];
-        db = (*pTargetB - *pColB) * D_80076FEC[i] / D_80076FFC[i];
+        dr = (*pTargetR - *pColR) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
+        dg = (*pTargetG - *pColG) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
+        db = (*pTargetB - *pColB) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
         r = *pColR + dr;
         g = *pColG + dg;
         b = *pColB + db;
@@ -376,64 +376,64 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800737EC);
 
 extern int ControllerGetButtonState(int controllerIndex);
-extern s32 D_80077118;
-extern s32 D_80077394;
+extern s32 g_MovieCursorIndex;
+extern s32 g_MovieHeapDebugEnabled;
 extern s32 D_800773B0;
-extern s32 D_80076EEC;
-extern s32 D_80076EF0;
+extern s32 g_MoviePadRepeatCount;
+extern s32 g_MoviePadRepeatDelay;
 
 s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut) {
-    D_800773B4 = D_800773AC;
-    D_800773AC = ControllerGetButtonState(0);
-    if (D_800773B4 == D_800773AC) {
-        if (D_800773B4 != 0) {
-            D_80076EEC++;
-            if (D_80076EF0 < D_80076EEC) {
-                D_800773B4 = 0;
-                D_80076EF0 = 1;
-                D_80076EEC = 0;
+    g_MoviePrevPadButtons = g_MoviePadButtons;
+    g_MoviePadButtons = ControllerGetButtonState(0);
+    if (g_MoviePrevPadButtons == g_MoviePadButtons) {
+        if (g_MoviePrevPadButtons != 0) {
+            g_MoviePadRepeatCount++;
+            if (g_MoviePadRepeatDelay < g_MoviePadRepeatCount) {
+                g_MoviePrevPadButtons = 0;
+                g_MoviePadRepeatDelay = 1;
+                g_MoviePadRepeatCount = 0;
             }
         } else {
-            D_80076EF0 = 0x10;
-            D_80076EEC = 0;
+            g_MoviePadRepeatDelay = 0x10;
+            g_MoviePadRepeatCount = 0;
         }
     } else {
-        D_80076EF0 = 0x10;
-        D_80076EEC = 0;
+        g_MoviePadRepeatDelay = 0x10;
+        g_MoviePadRepeatCount = 0;
     }
-    if ((D_800773B4 & 0x1000) == 0 && (D_800773AC & 0x1000) != 0) {
-        if (--D_80077118 < arg0) {
-            D_80077118 = arg1;
+    if ((g_MoviePrevPadButtons & 0x1000) == 0 && (g_MoviePadButtons & 0x1000) != 0) {
+        if (--g_MovieCursorIndex < arg0) {
+            g_MovieCursorIndex = arg1;
         }
     }
-    if ((D_800773B4 & 0x4000) == 0 && (D_800773AC & 0x4000) != 0) {
-        if (++D_80077118 > arg1) {
-            D_80077118 = arg0;
+    if ((g_MoviePrevPadButtons & 0x4000) == 0 && (g_MoviePadButtons & 0x4000) != 0) {
+        if (++g_MovieCursorIndex > arg1) {
+            g_MovieCursorIndex = arg0;
         }
     }
     *pOut = 0;
-    if ((D_800773B4 & 0x10) == 0 && (D_800773AC & 0x10) != 0) {
+    if ((g_MoviePrevPadButtons & 0x10) == 0 && (g_MoviePadButtons & 0x10) != 0) {
         *pOut = 1;
     }
-    if ((D_800773B4 & 0x20) == 0 && (D_800773AC & 0x20) != 0) {
+    if ((g_MoviePrevPadButtons & 0x20) == 0 && (g_MoviePadButtons & 0x20) != 0) {
         *pOut = 2;
     }
-    if ((D_800773B4 & 0x40) == 0 && (D_800773AC & 0x40) != 0) {
+    if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0) {
         *pOut = 3;
     }
-    if ((D_800773B4 & 0x80) == 0 && (D_800773AC & 0x80) != 0) {
+    if ((g_MoviePrevPadButtons & 0x80) == 0 && (g_MoviePadButtons & 0x80) != 0) {
         *pOut = 4;
     }
-    if ((D_800773B4 & 0x100) == 0 && (D_800773AC & 0x100) != 0) {
+    if ((g_MoviePrevPadButtons & 0x100) == 0 && (g_MoviePadButtons & 0x100) != 0) {
         D_800773B0 = 1 - D_800773B0;
     }
-    if ((D_800773B4 & 0x800) == 0 && (D_800773AC & 0x800) != 0) {
-        D_80077394 = 1 - D_80077394;
+    if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0) {
+        g_MovieHeapDebugEnabled = 1 - g_MovieHeapDebugEnabled;
     }
-    if ((D_800773B4 & 0x2000) == 0 && (D_800773AC & 0x2000) != 0) {
+    if ((g_MoviePrevPadButtons & 0x2000) == 0 && (g_MoviePadButtons & 0x2000) != 0) {
         return 1;
     }
-    if ((D_800773B4 & 0x8000) == 0 && (D_800773AC & 0x8000) != 0) {
+    if ((g_MoviePrevPadButtons & 0x8000) == 0 && (g_MoviePadButtons & 0x8000) != 0) {
         return -1;
     }
     return 0;
@@ -447,14 +447,14 @@ s32 MovieGetRandomNumber(void) {
     s32 db;
     s32 r;
 
-    a = D_80076EF4 * 5 + 1;
-    b = D_80076EF8 * 7 + 3;
-    D_80076EF4 = a;
-    D_80076EF8 = b;
+    a = g_MovieRandomSeedA * 5 + 1;
+    b = g_MovieRandomSeedB * 7 + 3;
+    g_MovieRandomSeedA = a;
+    g_MovieRandomSeedB = b;
     r = (a ^ b) + 1;
-    D_80076EF4 = r;
+    g_MovieRandomSeedA = r;
     if (r < 0) {
-        D_80076EF4 = -r;
+        g_MovieRandomSeedA = -r;
     }
-    return D_80076EF4;
+    return g_MovieRandomSeedA;
 }

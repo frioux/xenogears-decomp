@@ -1559,3 +1559,7 @@ g_ArchiveStreamQueueCount = 0x8004FE00;
 g_ArchiveStreamResumedFile = 0x8004FE3C;
 g_ArchiveStreamPositionErrors = 0x8004FDE8;
 g_ArchiveStreamSeekWindow = 0x8004FDE0;
+g_MemberChangeMenuLockedCharacterFlags = 0x8006F94C;
+g_GfxSpritesUseBaseMatrix = 0x800591AE;
+g_GameDiscChangeRequest = 0x800594D0;
+g_MenuSavedMainMenuChoice = 0x800594CC;

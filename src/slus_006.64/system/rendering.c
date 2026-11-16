@@ -26,7 +26,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
 
 extern MATRIX g_GfxBaseMatrix;
 extern u8 g_IsBattle;
-extern u8 D_800591AE;
+extern u8 g_GfxSpritesUseBaseMatrix;
 
 /* Best attempt: 90.89% (332 bytes, the original is 336). Field/cast shapes are
    right (the `lb` loads want the (s8) offsets, the flags read wants the (u32)
@@ -51,7 +51,7 @@ void func_8001E148(SpriteData* pSpriteData) {
     s32 yOffset;
     s32 xOffset;
 
-    if ((g_IsBattle != 0) || (D_800591AE != 0)) {
+    if ((g_IsBattle != 0) || (g_GfxSpritesUseBaseMatrix != 0)) {
         SpriteUpdateTransformMatrix(pSpriteData);
     }
 

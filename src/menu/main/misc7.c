@@ -55,22 +55,22 @@ extern s32 D_801E9B60[];
 extern s32 D_801E9C20[];
 extern s32 g_MenuCharacterIconTexIds[];
 extern s32 D_801EA39C[];
-extern s32 D_801E9B28;
-extern s32 D_801E9B38;
-extern s32 D_801E9B3C;
-extern s32 D_801E9B40;
-extern s32 D_801E9B44;
-extern s32 D_801E9B48;
-extern s32 D_801E9B4C;
-extern s32 D_801E9B50;
-extern s32 D_801E9B54;
-extern s32 D_801E9B2C;
-extern s32 D_801E9B30;
-extern s32 D_801E9B34;
+extern s32 g_MenuCharacterHpDigitsX;
+extern s32 g_MenuCharacterMpDigitsX;
+extern s32 g_MenuCharacterMpDigitsY;
+extern s32 g_MenuCharacterMaxMpDigitsX;
+extern s32 g_MenuCharacterMaxMpDigitsY;
+extern s32 g_MenuCharacterWideNumberDigitsX;
+extern s32 g_MenuCharacterWideNumberDigitsY;
+extern s32 g_MenuCharacterWideNumber2DigitsX;
+extern s32 g_MenuCharacterWideNumber2DigitsY;
+extern s32 g_MenuCharacterHpDigitsY;
+extern s32 g_MenuCharacterMaxHpDigitsX;
+extern s32 g_MenuCharacterMaxHpDigitsY;
 extern s32 g_MenuCharacterNumberOrigins;
-extern s32 D_801E9B1C;
-extern s32 D_801E9B20;
-extern s32 D_801E9B24;
+extern s32 g_MenuCharacterLevelDigitsY;
+extern s32 g_MenuCharacterUnk63DigitsX;
+extern s32 g_MenuCharacterUnk63DigitsY;
 extern u16 D_801E9B58;
 extern u16 D_801E9D38;
 extern u16 D_801E9D3C;
@@ -416,8 +416,8 @@ void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->hpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysHp[pWindow->hpPrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B28 + i * 8,
-                y + D_801E9B2C, 0x1000);
+                g_Menu->renderContext, x + g_MenuCharacterHpDigitsX + i * 8,
+                y + g_MenuCharacterHpDigitsY, 0x1000);
         }
     }
     i = 0;
@@ -431,8 +431,8 @@ void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->maxHpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
                 &pWindow->polysMaxHp[pWindow->maxHpPrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B30 + n * 8,
-                y + D_801E9B34, 0x1000);
+                g_Menu->renderContext, x + g_MenuCharacterMaxHpDigitsX + n * 8,
+                y + g_MenuCharacterMaxHpDigitsY, 0x1000);
             n++;
         }
     }
@@ -449,8 +449,8 @@ void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->mpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[7 + i],
                 &pWindow->polysMp[pWindow->mpPrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B38 + i * 8,
-                y + D_801E9B3C, 0x1000);
+                g_Menu->renderContext, x + g_MenuCharacterMpDigitsX + i * 8,
+                y + g_MenuCharacterMpDigitsY, 0x1000);
         }
     }
     i = 0;
@@ -464,8 +464,8 @@ void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->maxMpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
                 &pWindow->polysMaxMp[pWindow->maxMpPrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B40 + n * 8,
-                y + D_801E9B44, 0x1000);
+                g_Menu->renderContext, x + g_MenuCharacterMaxMpDigitsX + n * 8,
+                y + g_MenuCharacterMaxMpDigitsY, 0x1000);
             n++;
         }
     }
@@ -481,8 +481,8 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
             pWindow->wideNumberPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
                 &pWindow->polysWideNumber[pWindow->wideNumberPrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B48 + i * 8,
-                y + D_801E9B4C, 0x1000);
+                g_Menu->renderContext, x + g_MenuCharacterWideNumberDigitsX + i * 8,
+                y + g_MenuCharacterWideNumberDigitsY, 0x1000);
         }
     }
     MenuParseNumberToDigits(((MenuCharacterWideNumbers*)(void*)&g_GameState.characters[characterId])->unk48);
@@ -492,8 +492,8 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
             pWindow->wideNumber2PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
                 &pWindow->polysWideNumber2[pWindow->wideNumber2PrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B50 + i * 8,
-                y + D_801E9B54, 0x1000);
+                g_Menu->renderContext, x + g_MenuCharacterWideNumber2DigitsX + i * 8,
+                y + g_MenuCharacterWideNumber2DigitsY, 0x1000);
         }
     }
 }
@@ -508,7 +508,7 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
             pWindow->levelPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysLevel[pWindow->levelPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterNumberOrigins + i * 8, y + D_801E9B1C,
+                g_Menu->renderContext, x + g_MenuCharacterNumberOrigins + i * 8, y + g_MenuCharacterLevelDigitsY,
                 0x1000);
         }
     }
@@ -519,7 +519,7 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
             pWindow->unk1272PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->unk0A00[pWindow->unk1272PrimCount * 2],
-                g_Menu->renderContext, x + D_801E9B20 + i * 8, y + D_801E9B24,
+                g_Menu->renderContext, x + g_MenuCharacterUnk63DigitsX + i * 8, y + g_MenuCharacterUnk63DigitsY,
                 0x1000);
         }
     }

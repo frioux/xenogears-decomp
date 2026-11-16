@@ -934,3 +934,4 @@ g_FieldWalkmeshTriCount = 0x800AFB54;
 g_FieldScriptVMScriptEndFlag = 0x800AFFEC;
 g_FieldGearObjectCapacity = 0x800B234A;
 g_FieldMaterialAngles = 0x800ADFA8;
+g_FieldStreamFramePending = 0x800B00E4;

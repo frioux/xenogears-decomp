@@ -51,12 +51,12 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2);
 void func_801E733C(void);
 
 extern s32 g_MenuSubMenuChoiceIds[];
-extern s32 D_801EA1F0[];
+extern s32 g_MenuSubMenuChoiceTextIds[];
 extern u8 g_MenuNameTextureX[];
 extern u8 g_MenuNameTextureY[];
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
-extern u8 D_801EA590[];
-extern u8 D_801EA5DC[];
+extern u8 g_MenuSlotNameTextureX[];
+extern u8 g_MenuSlotNameTextureY[];
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
 extern void MenuMovePointerCursor(s32 arg0, s32 arg1);
@@ -158,8 +158,8 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
     pBuf = HeapAlloc(0x3F6, 0);
     bzero(pBuf, 0x3F6);
     SystemRenderStringEntry(text, pBuf, 0x24, 0);
-    rect.x = *(u16*)(D_801EA590 + (u_char)index * 4) + 0x180;
-    rect.y = *(u16*)(D_801EA5DC + (u_char)index * 4);
+    rect.x = *(u16*)(g_MenuSlotNameTextureX + (u_char)index * 4) + 0x180;
+    rect.y = *(u16*)(g_MenuSlotNameTextureY + (u_char)index * 4);
     rect.w = 0x28;
     rect.h = 0xD;
     LoadImage(&rect, (u_long*)pBuf);
@@ -467,12 +467,12 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    / sw s1 / sw s0 / lw v0,852. One address local keeps retail's order (its init
    is scheduled into the lw 852 delay slot) but can only derive the OTHER base:
    loop-1 base as `pCursor[idx]` with the text access inline (`pCursor[idx + 1]`,
-   `g_MenuSubMenuChoiceIds[idx + 1]`) or both as symbols (`D_801EA1F0[idx]`) drops s5
+   `g_MenuSubMenuChoiceIds[idx + 1]`) or both as symbols (`g_MenuSubMenuChoiceTextIds[idx]`) drops s5
    entirely - 86.67% and 91.27%, 680 bytes. Permuter 4 min from the 99.79% body:
    no gain. Next lever: something that stops the entry block from being the
    loop preheader, so the hoisted pair lands after the stores.
    Round 112: the inline `g_MenuSubMenuChoiceIds[idx + 1]` form (no pText local) makes gcc
-   form a second full lui/addiu of D_801EA1F0 in loop 2's preheader (91.84%), and
+   form a second full lui/addiu of g_MenuSubMenuChoiceTextIds in loop 2's preheader (91.84%), and
    a single pointer local folds to the symbol the same way. Confirmed the two
    pointer locals give retail's exact pair (`lui/addiu s4` + `addiu s5,s4,4`) but
    88.09% because both invariants are emitted inside the prologue save region;
@@ -591,7 +591,7 @@ void MenuSetSubMenuChoicePrims(u_char selected) {
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys0PrimCount;
         off = g_Menu->unk354->polys500PrimCount * 0x50 + 0x500;
         g_Menu->unk354->polys500PrimCount = func_8002675C(g_Menu->resources,
-            D_801EA1F0[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
+            g_MenuSubMenuChoiceTextIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
             (POLY_FT4*)(off + (s32)g_Menu->unk354),
             g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys500PrimCount;
     }

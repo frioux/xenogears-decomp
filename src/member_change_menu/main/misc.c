@@ -8,7 +8,7 @@
 
 // Bit masks
 extern u_short g_MemberChangeMenuCharacterBitMasks[];
-extern u_short D_8006F94C;
+extern u_short g_MemberChangeMenuLockedCharacterFlags;
 extern u_char g_MemberChangeMenuStringIds[];
 
 extern int g_MemberChangeMenuPointerCursorInitX[]; // X positions for cursor?
@@ -1989,12 +1989,12 @@ u_char MemberChangeMenuSwapCharacters(u_char isBenchedWindowActive, s32 curCharI
     }
 
     if (g_Menu->pManager->currentCharacterIDs[srcIndex] == 0xFF ||
-        MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->pManager->currentCharacterIDs[srcIndex])) {
+        MemberChangeMenuIsCharacterFlagSet(g_MemberChangeMenuLockedCharacterFlags, g_Menu->pManager->currentCharacterIDs[srcIndex])) {
         canSwapSrc = FALSE;
     }
 
     if (g_Menu->characterIds[dstIndex] == 0xFF ||
-        MemberChangeMenuIsCharacterFlagSet(D_8006F94C, g_Menu->characterIds[dstIndex])) {
+        MemberChangeMenuIsCharacterFlagSet(g_MemberChangeMenuLockedCharacterFlags, g_Menu->characterIds[dstIndex])) {
         canSwapDst = FALSE;
     }
 
