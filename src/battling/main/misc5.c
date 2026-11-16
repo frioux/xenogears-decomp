@@ -138,6 +138,7 @@ extern u8 D_800928A0;
 extern int rand(void);
 
 extern void BattleDrawLineQuads(s32);
+extern void func_8007D0B4(SVector *pVec);
 extern void func_8007D334(s32, s32, s32);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
@@ -482,9 +483,55 @@ void func_8007D0B4(SVector *pVec) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
+void func_8007D0B4(SVector *pVec) {
+    u8 offset = 0x18;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D190);
+    pVec->vx = (pVec->vx - offset) + rand() % 0x30;
+    pVec->vy = (pVec->vy - offset) + rand() % 0x30;
+    pVec->vz = (pVec->vz - offset) + rand() % 0x30;
+}
+
+// s32, not void: retail keeps a nop in the switch guard's delay slot, which gcc
+// 2.7.2 only emits for a non-void return type.
+s32 func_8007D190(VECTOR *pVec, s32 action) {
+    SVector vec;
+
+    vec.vx = pVec->vx;
+    vec.vy = pVec->vy;
+    vec.vz = pVec->vz;
+    switch (action) {
+    case 8:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 0:
+        BattleEffectAddSlot(&vec, 0);
+        break;
+    case 9:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 1:
+        BattleEffectAddSlot(&vec, 1);
+        break;
+    case 10:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 2:
+        BattleEffectAddSlot(&vec, 2);
+        break;
+    case 11:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 3:
+        BattleEffectAddSlot(&vec, 3);
+        break;
+    case 12:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 4:
+        BattleEffectAddSlot(&vec, 4);
+        break;
+    }
+}
 
 s32 BattleEffectIsTwoVertexType(s32 arg0) {
     if (arg0 < 0x10) {
@@ -553,20 +600,21 @@ void func_8007D6B8(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
 
-/* Best attempt: objdiff 91.67%. Loop head, break-on-zero, the two rand()
-   modulo-64 computations ((src - 0x20) + rand() % 64, i.e. the -0x20 attached
-   to the source value, not folded after the add) and the table lookup all
-   match. Only the induction anchor differs: retail keeps the second pointer
-   at entry+6 (lb/sb at -0/-1/1), gcc anchors it at entry+7 (every entry
-   displacement is off by one) and merges (s8)vz << 7 into sll 24/sra 17
-   where retail does sra 24 then sll 7. */
-
+/* Best attempt: objdiff 96.85%, retail's exact size (368 bytes). Everything is
+   byte-identical except the register representation of the two u16 jitter
+   values: retail carries them as value << 16 in s1 and extracts (s8) with a
+   single sra 24, gcc carries the raw u16 and extracts with sll 24 / sra 24 (and
+   for vz fuses the << 7 into sra 17). The store order (unk7 before unk6) and
+   the separate s8 texel local came from the permuter (91.67 -> 95.82 ->
+   96.85); one more permuter run from this body is the next step. */
 /*
 void func_8007D7A8(VECTOR *pSrc, s32 count) {
     BattleSpriteEntry *pEntry = (BattleSpriteEntry *)D_800926BC;
     u16 vx;
+    s8 texel;
     u16 vz;
     u16 v;
+    s32 index;
     s32 i;
 
     for (i = 0; i < 0xFB; i++, pEntry++) {
@@ -575,14 +623,16 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
         }
         if (pEntry->unk6 == 0) {
             vx = pSrc->vx - 32 + rand() % 64;
+            texel = (s8)vx;
             pEntry->unk0 = vx;
             vz = pSrc->vz - 32 + rand() % 64;
+            index = (((s8)vz) << 7) + texel;
             pEntry->unk4 = vz;
-            v = *(u16 *)(D_800928DC + ((((s8)vz) << 7) + (s8)vx) * 4);
+            v = *(u16 *)(D_800928DC + index * 4);
             pEntry->unk8 = v;
             pEntry->unk2 = v;
-            pEntry->unk6 = 0x14;
             pEntry->unk7 = -(rand() % 10 + 10);
+            pEntry->unk6 = 0x14;
             count--;
         }
     }
