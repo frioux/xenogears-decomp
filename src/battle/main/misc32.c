@@ -120,7 +120,7 @@ void func_800BD1FC(s32 slot) {
     u8 *pByte;
     s32 offset;
     s32 kind;
-    void *pSprite;
+    void **pEntry;
 
     pBase = g_BattleStateWork;
     pRow = pBase + (D_800C360C - 1) * 0x48;
@@ -146,38 +146,12 @@ void func_800BD1FC(s32 slot) {
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 
-// best 94.66%: COMPILES. Everything matches - the `li 0x8C8C` in the compare's
-// delay slot, the frame saves, the row store order - except one thing: gcc's LICM
-// hoists `lui %hi(D_800C360C)` out of the loop into $s3, which needs a fifth saved
-// register (pBase moves to $s4) and makes the frame 0x2C instead of retail's 0x28.
-// Retail re-forms the %hi inside the loop every iteration (v0, dying at the load).
-// Tried: a volatile read of the global (the load stops moving, the %hi
-// still hoists), the `pRow = pBase + row; pRow[i + 0x150]` pointer form (same hoist,
-// and its addu operands flip to base-first), and the do-while form. The `lw` itself
-// is already inside the loop in both compiles (the call blocks its hoist); only the
-// address word moves, so this is loop.c, not register allocation.
-// MECHANISM (from cc1 -da: build/src/.../misc32.c.i.loop lists the loop's
-// "N real insns" and one line per movable, "moved to"/"not desirable"): loop.c's
-// move_movables hoists a loop-invariant constant when
-// threshold * savings * lifetime >= insn_count, with threshold =
-// (loop_has_call ? 1 : 2) * (1 + n_non_fixed_regs) = 29 here, savings = 1 and
-// lifetime = 1. Natural bodies for this loop all come out at 27-29 real insns, so
-// the D_800C360C `high` - the lowest-UID constant in the body, hence first in the
-// movable chain - always passes and is hoisted; every later candidate (7, 0x8C8C,
-// D_800C3E1C's high) is then blocked by the `threshold -= 3` a move performs.
-// insn_count must reach 30 to flip it, and only insns that survive to loop.c count:
-// pointer locals (pRow, pByte) are copy-propagated away by cse1 (still 28), while a
-// dead `count = row;` store does survive and compile to nothing - two of them give
-// insn_count 30, no hoist, retail's prologue save order, and a body that differs
-// only in the two adds coming out i-then-base instead of base-then-i. No realistic
-// source shape found that adds 2 such insns, so this stays parked.
 void func_800BD2E4(void) {
     u8 *pSlot;
     u8 *pBase;
-    s32 row;
     void **pEntry;
-    void *pSprite;
     u8 flag;
+    mem_addr rowAddr;
     s32 i;
 
     flag = 0;
@@ -185,13 +159,15 @@ void func_800BD2E4(void) {
     pSlot = g_BattleStateWork;
     pBase = pSlot;
     while (i != 0xB) {
-        row = (D_800C360C - 1) * 0x48;
-        if (*(u8 *)(row + (u32)pBase + i + 0x150) == 7) {
+        rowAddr = (D_800C360C - 1) * 0x48 + (mem_addr)pBase + i + 0x150;
+        if (*(u8 *)rowAddr == 7) {
             flag = 1;
         }
         pEntry = (void **)(pSlot + 0x8C8C);
-        pSprite = *pEntry;
-        if (pSprite != NULL && (D_800C3E1C != pSprite || !flag)) {
+        if (*pEntry != NULL && (D_800C3E1C != *pEntry || !flag)) {
+            // Two copies of the call: loop.c counts the extra branch before jump
+            // opt merges them, which is what keeps the D_800C360C address from
+            // being hoisted out of the loop.
             if (flag) {
                 func_800BD1FC(i);
             } else {
