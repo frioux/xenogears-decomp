@@ -89,7 +89,69 @@ void BattleRollAndClearTargetConditions(void) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80095D4C);
+void func_80095D4C(void) {
+    u8 chance;
+    u16 hp;
+    u16 dmg;
+
+    switch (D_800C3DFC->unk17[1]) {
+    case 0:
+        chance = D_800C3E00->unk5C[4];
+        break;
+    case 1:
+        chance = D_800C3DFC->unk1C;
+        break;
+    }
+
+    if (chance < rand() % 100) {
+        D_800C34B0->unk5FA0[D_800C3E50] = 6;
+        return;
+    }
+
+    switch (D_800C3DFC->unk17[3]) {
+    case 0:
+        hp = D_800C3E00->unk4E;
+        break;
+    case 1:
+        hp = D_800C3E34->unk4E;
+        break;
+    case 2:
+        hp = *(u16 *)&D_800C3E00->unk50[2];
+        break;
+    case 3:
+        hp = *(u16 *)&D_800C3E34->unk50[2];
+        break;
+    }
+
+    dmg = hp * D_800C3DFC->unk11 / 20;
+    if (D_800C3DFC->unk17[3] == 5) {
+        dmg = D_800C3E34->unk4C - 1;
+    }
+
+    switch (D_800C3DFC->unk17[3]) {
+    case 0:
+    case 1:
+    case 5:
+        D_800C34B0->unk5FA0[D_800C3E04] = 2;
+        D_800C34B0->unk5FA0[D_800C3E50] = 0;
+        D_800C34B0->unk5F6C[D_800C3E04] = dmg;
+        D_800C34B0->unk5F6C[D_800C3E50] = dmg;
+        break;
+    case 2:
+    case 3:
+        if ((D_800C3E34->unk88 | D_800C3E34->unk8A) & 0x200) {
+            D_800C34B0->unk5FA0[D_800C3E50] = 6;
+            return;
+        }
+        D_800C34B0->unk5FA0[D_800C3E04] = 3;
+        D_800C34B0->unk5FA0[D_800C3E50] = 1;
+        D_800C34B0->unk5F6C[D_800C3E04] = dmg;
+        D_800C34B0->unk5F6C[D_800C3E50] = dmg;
+        break;
+    default:
+        return;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 /* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
