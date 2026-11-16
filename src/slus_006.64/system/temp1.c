@@ -2,6 +2,29 @@
 #include "system/menu.h"
 #include "system/animation.h"
 
+// SpriteData's 0x3C flag word. The shared header only splits bits 20-31 into
+// fields (bits 3-7 sit inside its 20-bit field_0x3C_0), so the bits this unit
+// sets get names here; the word member is for the places that change two bits
+// with one read-modify-write.
+typedef union {
+    /* 0x0 */ u32 flags;
+    struct {
+        /* 0x0 */ u32 unk0: 3;
+        /* 0x3 */ u32 flipX: 1;
+        /* 0x4 */ u32 flipY: 1;
+        /* 0x5 */ u32 direction: 3;
+        /* 0x8 */ u32 unk8: 24;
+    } fields;
+} SpriteFlagsWord;
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x3C];
+    /* 0x3C */ SpriteFlagsWord flags_0x3C;
+} SpriteDataFlagsView;
+
+#define g_SpriteFlags0x3C(pSpriteData) \
+    (((SpriteDataFlagsView*)(pSpriteData))->flags_0x3C)
+
 // Sprite / Animation functions
 
 // .sbss
@@ -111,12 +134,10 @@ void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData) {
     } else {
         pSpriteData->flags_0xAC.flags &= ~8;
     }
-    // 0x3C has no field for bits 5-7 (they sit inside the 20-bit field_0x3C_0), so the word
-    // is rewritten whole
-    *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~8) |
-                                       (((((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
-                                         (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1))
-                                        << 3);
+    // the direction bit is set from the pair of animation flags, so this stays a
+    // single read-modify-write of the word's flip field
+    g_SpriteFlags0x3C(pSpriteData).fields.flipX = (((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
+                                                 (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1);
     func_8001D2B0(pSpriteData, frameIndex);
 }
 
@@ -232,15 +253,12 @@ s32 SpriteComputeAngleFromPoints(SLineEnds line) {
 }
 
 void SpriteSetFrameAndFlips(SpriteData* pSpriteData, s32 arg1, s32 arg2, s32 arg3) {
-    // the flip bits are bits 3-4 of field_0x3C_0, which has no field of its own, so the
-    // whole word is rewritten
-    u32 flags = *(u32*)((u8*)pSpriteData + 0x3C);
+    // both flip bits change together, so the word is copied out, edited and stored back
+    SpriteFlagsWord flags = g_SpriteFlags0x3C(pSpriteData);
 
-    flags &= ~0x10;
-    flags |= (arg3 & 1) << 4;
-    flags &= ~8;
-    flags |= (arg2 & 1) << 3;
-    *(u32*)((u8*)pSpriteData + 0x3C) = flags;
+    flags.fields.flipY = arg3 & 1;
+    flags.fields.flipX = arg2 & 1;
+    g_SpriteFlags0x3C(pSpriteData) = flags;
     pSpriteData->animScriptWaitTimer = 0;
     pSpriteData->flags_0xA8 &= ~0x300000;
     pSpriteData->flags_0xA8 &= ~0xE0000;
@@ -293,10 +311,7 @@ void func_80023290(SpriteData* pSpriteData, s32 direction) {
     s32 animType;
     s32 dir;
 
-    // 0x3C has no field for bits 5-7 (they sit inside the 20-bit field_0x3C_0), so the word
-    // is rewritten whole
-    *(u32*)((u8*)pSpriteData + 0x3C) =
-        (*(u32*)((u8*)pSpriteData + 0x3C) & ~0xE0) | ((direction & 7) << 5);
+    g_SpriteFlags0x3C(pSpriteData).fields.direction = direction & 7;
     if (direction & 7) {
         pSpriteData->prim |= 2;
     } else {
@@ -304,10 +319,9 @@ void func_80023290(SpriteData* pSpriteData, s32 direction) {
     }
     animType = (pSpriteData->field_0x40 >> 13) & 0xF;
     if (animType == 8 || animType == 9) {
-        dir = (pSpriteData->field_0x3C_0 >> 5) & 7;
+        dir = g_SpriteFlags0x3C(pSpriteData).fields.direction;
         if (dir) {
-            *(u32*)((u8*)pSpriteData + 0x3C) =
-                (*(u32*)((u8*)pSpriteData + 0x3C) & ~0xE0) | (((dir - 1) & 7) << 5);
+            g_SpriteFlags0x3C(pSpriteData).fields.direction = (dir - 1) & 7;
         }
     } else {
         func_8001F6B0(pSpriteData);
