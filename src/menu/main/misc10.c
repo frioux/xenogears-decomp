@@ -607,22 +607,22 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     u8 i;
 
     pChar = &g_GameState.characters[charIndex];
-    pChar->unk2D[0] = 0;
-    *(u16*)&pChar->unk2D[5] = 0;
-    pChar->unk0[0x28] = 0;
-    pChar->unk0[0x29] = 0;
-    pChar->unk0[0x2A] = 0;
-    pChar->unk0[0x2B] = 0;
+    pChar->unk2D = 0;
+    pChar->unk32 = 0;
+    pChar->attackFromEquipment = 0;
+    pChar->defenseFromEquipment = 0;
+    pChar->agilityFromEquipment = 0;
+    pChar->etherFromEquipment = 0;
     pChar->etherDefenseFromEquipment = 0;
-    pChar->unk2D[1] = 0;
-    pChar->unk2D[2] = 0;
-    pChar->unk2D[3] = 0;
-    pChar->unk2D[4] = 0;
-    *(u16*)&pChar->unk79[5] = 0;
-    *(u16*)&pChar->unk79[9] = 0;
-    *(u16*)&pChar->unk79[0xD] = 0;
-    *(u16*)&pChar->unk79[0x11] = 0;
-    *(u16*)&pChar->unk79[0x15] = 0;
+    pChar->hitPercentageFromEquipment = 0;
+    pChar->evadePercentageFromEquipment = 0;
+    pChar->unk30 = 0;
+    pChar->unk31 = 0;
+    pChar->unk7E = 0;
+    pChar->unk82 = 0;
+    pChar->unk86 = 0;
+    pChar->unk8A = 0;
+    pChar->unk8E = 0;
     pChar->field_0xA1[0] = 0;
 
     for (i = 0; i < 3; i++) {
@@ -630,29 +630,29 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
            only a separate copy of the base reproduces. */
         pAccessory = pDressingRoom->pAccessoriesData;
         pAccessory += pChar->accessorySlots[i];
-        pChar->unk2D[0] += pAccessory->defense;
+        pChar->unk2D += pAccessory->defense;
         switch (pAccessory->unk9[0]) {
         case 1:
-            *(u16*)&pChar->unk79[5] |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk7E |= *(u16*)&pAccessory->unk9[1];
             break;
         case 2:
-            *(u16*)&pChar->unk79[9] |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk82 |= *(u16*)&pAccessory->unk9[1];
             break;
         case 3:
-            *(u16*)&pChar->unk79[0xD] |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk86 |= *(u16*)&pAccessory->unk9[1];
             break;
         case 4:
-            *(u16*)&pChar->unk79[0x11] |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk8A |= *(u16*)&pAccessory->unk9[1];
             break;
         case 7:
-            *(u16*)&pChar->unk79[0x15] |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk8E |= *(u16*)&pAccessory->unk9[1];
             break;
         case 5:
-            *(u16*)&pChar->unk2D[5] |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk32 |= *(u16*)&pAccessory->unk9[1];
             break;
         case 8:
         case 9:
-            pChar->unk2D[3] += pAccessory->unk9[1];
+            pChar->unk30 += pAccessory->unk9[1];
             break;
         case 10:
             pChar->field_0xA1[0] += pAccessory->unk9[1];
@@ -662,53 +662,53 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
            tests, and adds it as the left operand, so spell it that way. */
         value = pAccessory->unk9[3];
         if (*(s16*)&pAccessory->unk9[3] & 0x8000) {
-            pChar->unk0[0x28] = value + pChar->unk0[0x28];
+            pChar->attackFromEquipment = value + pChar->attackFromEquipment;
         }
         if (*(u16*)&pAccessory->unk9[3] & 0x4000) {
-            pChar->unk0[0x29] = value + pChar->unk0[0x29];
+            pChar->defenseFromEquipment = value + pChar->defenseFromEquipment;
         }
         if (*(u16*)&pAccessory->unk9[3] & 0x2000) {
-            pChar->unk0[0x2A] = value + pChar->unk0[0x2A];
+            pChar->agilityFromEquipment = value + pChar->agilityFromEquipment;
         }
         if (*(u16*)&pAccessory->unk9[3] & 0x1000) {
-            pChar->unk0[0x2B] = value + pChar->unk0[0x2B];
+            pChar->etherFromEquipment = value + pChar->etherFromEquipment;
         }
         if (*(u16*)&pAccessory->unk9[3] & 0x800) {
             pChar->etherDefenseFromEquipment = value + pChar->etherDefenseFromEquipment;
         }
         if (*(u16*)&pAccessory->unk9[3] & 0x400) {
-            pChar->unk2D[1] = value + pChar->unk2D[1];
+            pChar->hitPercentageFromEquipment = value + pChar->hitPercentageFromEquipment;
         }
         if (*(u16*)&pAccessory->unk9[3] & 0x200) {
-            pChar->unk2D[2] = value + pChar->unk2D[2];
+            pChar->evadePercentageFromEquipment = value + pChar->evadePercentageFromEquipment;
         }
         if (*(u16*)&pAccessory->unk9[3] & 0x100) {
-            pChar->unk2D[0] = value + pChar->unk2D[0];
+            pChar->unk2D = value + pChar->unk2D;
         }
     }
 
     pWeapon = pDressingRoom->pWeaponsData;
     pWeapon += pChar->weaponId[0];
-    pChar->unk0[4] = pWeapon->attack;
-    *(u16*)pChar->unk0 = *(u16*)&pWeapon->unk7[1];
-    pChar->unk0[2] = pWeapon->unk7[3];
-    pChar->unk0[3] = pWeapon->unk7[4];
+    pChar->slots[0].attack = pWeapon->attack;
+    pChar->slots[0].flags = *(u16*)&pWeapon->unk7[1];
+    pChar->slots[0].unk2 = pWeapon->unk7[3];
+    pChar->slots[0].unk3 = pWeapon->unk7[4];
     if (pChar->unk56 == 4) {
         pWeapon = pDressingRoom->pWeaponsData;
         pWeapon += pChar->extraWeaponIds[0];
-        pChar->unk0[4] = pWeapon->attack;
-        *(u16*)pChar->unk0 = *(u16*)&pWeapon->unk7[1];
-        pChar->unk0[2] = pWeapon->unk7[3];
-        pChar->unk0[3] = pWeapon->unk7[4];
+        pChar->slots[0].attack = pWeapon->attack;
+        pChar->slots[0].flags = *(u16*)&pWeapon->unk7[1];
+        pChar->slots[0].unk2 = pWeapon->unk7[3];
+        pChar->slots[0].unk3 = pWeapon->unk7[4];
         pWeapon = pDressingRoom->pWeaponsData;
         pWeapon += pChar->extraWeaponIds[3];
-        pChar->unk0[0x1C] = pWeapon->attack;
-        *(u16*)&pChar->unk0[0x18] = *(u16*)&pWeapon->unk7[1];
-        pChar->unk0[0x1A] = pWeapon->unk7[3];
-        pChar->unk0[0x1B] = pWeapon->unk7[4];
+        pChar->slots[3].attack = pWeapon->attack;
+        pChar->slots[3].flags = *(u16*)&pWeapon->unk7[1];
+        pChar->slots[3].unk2 = pWeapon->unk7[3];
+        pChar->slots[3].unk3 = pWeapon->unk7[4];
     }
-    if (pChar->unk0[3] == 0x64) {
-        *(u16*)&pChar->unk79[0x15] |= *(u16*)pChar->unk0;
+    if (pChar->slots[0].unk3 == 0x64) {
+        pChar->unk8E |= pChar->slots[0].flags;
     }
 }
 
@@ -717,16 +717,16 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
 
     pChar = &g_GameState.characters[charIndex];
     if (pChar->unk56 == 4) {
-        pDressingRoom->unkB8[0] = (pChar->unk0[4] + pChar->unk0[0x1C]) * 6 / 10;
+        pDressingRoom->unkB8[0] = (pChar->slots[0].attack + pChar->slots[3].attack) * 6 / 10;
     } else {
-        pDressingRoom->unkB8[0] = pChar->attack + pChar->unk0[0x28] + pChar->unk0[4];
+        pDressingRoom->unkB8[0] = pChar->attack + pChar->attackFromEquipment + pChar->slots[0].attack;
     }
-    pDressingRoom->unkB8[1] = pChar->hitPercentage + pChar->unk2D[1];
-    pDressingRoom->unkB8[2] = pChar->defense + pChar->unk0[0x29] + pChar->unk2D[0];
-    pDressingRoom->unkB8[3] = pChar->evadePercentage + pChar->unk2D[2];
-    pDressingRoom->unkB8[4] = pChar->ether + pChar->unk0[0x2B];
+    pDressingRoom->unkB8[1] = pChar->hitPercentage + pChar->hitPercentageFromEquipment;
+    pDressingRoom->unkB8[2] = pChar->defense + pChar->defenseFromEquipment + pChar->unk2D;
+    pDressingRoom->unkB8[3] = pChar->evadePercentage + pChar->evadePercentageFromEquipment;
+    pDressingRoom->unkB8[4] = pChar->ether + pChar->etherFromEquipment;
     pDressingRoom->unkB8[5] = pChar->etherDefense + pChar->etherDefenseFromEquipment;
-    pDressingRoom->unkB8[6] = pChar->agility + pChar->unk0[0x2A];
+    pDressingRoom->unkB8[6] = pChar->agility + pChar->agilityFromEquipment;
     if (pDressingRoom->unkB8[0] > 0xFA) {
         pDressingRoom->unkB8[0] = 0xFA;
     }

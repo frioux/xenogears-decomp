@@ -652,7 +652,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 // the whole dist threshold chain (note the two conditions must both read
 // `pPos->unk4 >= -0xBF`, and the two distance variables must be separate locals
 // or gcc copies the func_80094154 return into v1 and never fills the bgez slot).
-// Reading pPos->z before pPos->unk4 = g_GameState.unk182E is required for the
+// Reading pPos->z before pPos->unk4 = g_GameState.scriptPosY is required for the
 // 0x182C block to match.
 // Permuter run 1 (base=1695 -> 1352) only found `s16 tilt = (s16)pSlot->unk4A`
 // hoisted before the 0x182E store; that scores 96.22 but costs a callee-saved
@@ -712,9 +712,9 @@ s32 func_80087FD0(s32 index) {
         pLayer->unk8 = pSlot->unk28 >> 12;
         pLayer->unkC = pSlot->unk2C >> 12;
         pLayer->unk10 = pSlot->unk30 >> 12;
-        pPos->x = *(u16*)&g_GameState.unk182C - (pSlot->unk28 >> 12);
-        pPos->z = *(u16*)&g_GameState.unk1830 - (pSlot->unk30 >> 12);
-        pPos->unk4 = g_GameState.unk182E;
+        pPos->x = *(u16*)&g_GameState.scriptPosX - (pSlot->unk28 >> 12);
+        pPos->z = *(u16*)&g_GameState.scriptPosZ - (pSlot->unk30 >> 12);
+        pPos->unk4 = g_GameState.scriptPosY;
         WorldMapWrapDeltaScaled(pPos);
         dist = SquareRoot0(pPos->x * pPos->x + pPos->z * pPos->z);
         if (dist < 0x100 && pPos->unk4 >= -0xBF) {

@@ -2690,19 +2690,19 @@ void ShopMenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 character
     pCharacter = &g_GameState.characters[characterIndex];
 
     if (pCharacter->unk56 == 4) {
-        pDressingRoom->unkB8[0] = pCharacter->unk0[4] + pCharacter->unk0[0x1C];
+        pDressingRoom->unkB8[0] = pCharacter->slots[0].attack + pCharacter->slots[3].attack;
     } else {
-        pDressingRoom->unkB8[0] = pCharacter->unk0[4] + (pCharacter->attack + pCharacter->unk0[0x28]);
+        pDressingRoom->unkB8[0] = pCharacter->slots[0].attack + (pCharacter->attack + pCharacter->attackFromEquipment);
     }
-    pDressingRoom->unkB8[0] = pCharacter->unk0[4] + (pCharacter->attack + pCharacter->unk0[0x28]);
-    pDressingRoom->unkB8[1] = pCharacter->hitPercentage + pCharacter->unk2D[1];
-    pDressingRoom->unkB8[2] = pCharacter->unk2D[0] + (pCharacter->defense + pCharacter->unk0[0x29]);
-    pDressingRoom->unkB8[3] = pCharacter->evadePercentage + pCharacter->unk2D[2];
-    pDressingRoom->unkB8[4] = pCharacter->ether + pCharacter->unk0[0x2B];
+    pDressingRoom->unkB8[0] = pCharacter->slots[0].attack + (pCharacter->attack + pCharacter->attackFromEquipment);
+    pDressingRoom->unkB8[1] = pCharacter->hitPercentage + pCharacter->hitPercentageFromEquipment;
+    pDressingRoom->unkB8[2] = pCharacter->unk2D + (pCharacter->defense + pCharacter->defenseFromEquipment);
+    pDressingRoom->unkB8[3] = pCharacter->evadePercentage + pCharacter->evadePercentageFromEquipment;
+    pDressingRoom->unkB8[4] = pCharacter->ether + pCharacter->etherFromEquipment;
     pDressingRoom->unkB8[5] = 0x63;
     pDressingRoom->unkB8[6] = pCharacter->etherDefense + pCharacter->etherDefenseFromEquipment;
     pDressingRoom->unkB8[7] = 0xA;
-    pDressingRoom->unkB8[8] = pCharacter->agility + pCharacter->unk0[0x2A];
+    pDressingRoom->unkB8[8] = pCharacter->agility + pCharacter->agilityFromEquipment;
 
     if (pDressingRoom->unkB8[0] >= 1000) {
         pDressingRoom->unkB8[0] = 999;
