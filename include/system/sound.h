@@ -22,13 +22,13 @@ typedef struct {
     u8 unk16[6];
     u32 startAddress;
     u32 loopAddress;
-    u8 unkAdsr1;
-    u8 unkAdsr2;
-    u8 unkAdsr3;
-    u8 unkAdsr4;
+    u8 attackMode;
+    u8 sustainMode;
+    u8 releaseMode;
+    u8 attackRate;
     u8 adsrDR;
-    u8 unkAdsr5;
-    u8 unkAdsr6;
+    u8 sustainRate;
+    u8 releaseRate;
     u8 adsrSR;
 } SoundVoiceData;
 
@@ -71,7 +71,7 @@ typedef struct {
 
 typedef struct {
     /* 0x0 */ u_char flags;
-    /* 0x1 */ u_char unk1; // Type of memory/data?
+    /* 0x1 */ u_char type;
     /* 0x2 */ short nextBlockIndex;
     /* 0x4 */ int spuAddress;
     /* 0x8 */ int size;
@@ -93,8 +93,8 @@ typedef struct {
 struct SoundFile_t {
     /* 0x0  */ u_int magic;
     /* 0x4  */ undefined32 unk4;
-    /* 0x8  */ undefined32 unk8; // Size?
-    /* 0xC  */ undefined16 unkC; // File format version?
+    /* 0x8  */ undefined32 fileSize;
+    /* 0xC  */ undefined16 version;
     /* 0xE  */ undefined16 unkE;
     /* 0x10 */ undefined32 unk10; // smdId?
     /* 0x14 */ u_short sedId;
@@ -154,7 +154,7 @@ typedef struct {
     /* 0x0 */ u8 count;
     /* 0x1 */ u8 unk1;
     /* 0x2 */ u8 savedOctave;
-    /* 0x3 */ u8 unk3;
+    /* 0x3 */ u8 endOctave;
     /* 0x4 */ u8* start;
     /* 0x8 */ u8* end;
 } AudioLoop; // Size: 0xC
@@ -163,18 +163,18 @@ typedef struct {
 
 // Per-voice modulation state: a stepped value driven by one of the step handlers.
 typedef struct {
-    /* 0x0  */ undefined32 unk_0x0;
+    /* 0x0  */ undefined32 pStepHandler; // g_SoundEnvelopeStepHandlers entry, called with this envelope
     /* 0x4  */ s32 value;
-    /* 0x8  */ undefined32 unk_0x8;
+    /* 0x8  */ undefined32 stepDelta; // signed delta the step handlers add to value
     /* 0xC  */ s32 delta;
     /* 0x10 */ u16 count;
     /* 0x12 */ u16 reload;
-    /* 0x14 */ u16 unk_0x14;
-    /* 0x16 */ u16 unk_0x16;
-    /* 0x18 */ u16 unk_0x18;
-    /* 0x1A */ u16 unk_0x1A;
-    /* 0x1C */ u8 unk_0x1C;
-    /* 0x1D */ u8 unk_0x1D;
+    /* 0x14 */ u16 delayCount;
+    /* 0x16 */ u16 delayReload;
+    /* 0x18 */ u16 rampLevel;
+    /* 0x1A */ u16 rampStep;
+    /* 0x1C */ u8 target; // 0 = pitch, 1 = volume, 2 = pan
+    /* 0x1D */ u8 handlerIndex;
     /* 0x1E */ u16 flags;
 } AudioEnvelope; // Size: 0x20
 
@@ -190,24 +190,25 @@ typedef struct {
 typedef struct {
     /* 0x0   */ u16 active_flag;
     /* 0x2   */ u16 status_flags;
-    /* 0x4   */ u16 unk_0x04; // Instrument flags?
-    /* 0x6   */ s8 unk_0x06[0x2];
+    /* 0x4   */ u16 rampFlags; // one bit per running ramp
+    /* 0x6   */ s8 elementIndex;
+    /* 0x7   */ s8 unk_0x07;
     /* 0x8   */ s32 unk_0x8;
     /* 0xC   */ s8 unk_0x0C[0x8];
     /* 0x14  */ u32 unk14;
     /* 0x18  */ u8* savedScriptIP;
     /* 0x1C  */ s8 unk_0x1C[0x04];
-    /* 0x20  */ u16 unk_0x20;
+    /* 0x20  */ u16 loopCount;
     /* 0x22  */ u8 unk_0x22;
     /* 0x23  */ u8 savedOctave;
     /* 0x24  */ u8 unk_0x24;
-    /* 0x25  */ u8 unk_0x25;
-    /* 0x26  */ u8 unk_0x26;
+    /* 0x25  */ u8 sndId;
+    /* 0x26  */ u8 toneIndex;
     /* 0x27  */ u8 voice_number;
     /* 0x28  */ u8 unk_0x28; // instrument number?
     /* 0x29  */ s8 unk29;
     /* 0x2A  */ s16 unk2A;
-    /* 0x2C  */ u32 unk2C; // SoundWDSEntry* ?
+    /* 0x2C  */ u32 pWds; // SoundWDSEntry*
     /* 0x30  */ SoundVoiceData voice_data;
     /* 0x5C  */ s16 fermataDuration;
     /* 0x5E  */ u8 unk_0x5E[0x02];
@@ -218,70 +219,74 @@ typedef struct {
     /* 0x66  */ u16 octave;
     /* 0x68  */ u32 unk68; // Final note to play?
     /* 0x6C  */ s16 unk_0x6C;
-    /* 0x6E  */ s16 unk_0x6E;
+    /* 0x6E  */ s16 detune;
     /* 0x70  */ u16 unk_0x70;
-    /* 0x72  */ u16 unk_0x72;
-    /* 0x74  */ u16 unk_0x74; // Pan?
-    /* 0x76  */ s16 unk_0x76;
+    /* 0x72  */ u16 loopIndex;
+    /* 0x74  */ u16 pan;
+    /* 0x76  */ s16 volume;
     /* 0x78  */ u32 unk_0x78;
     /* 0x7C  */ AudioElementRamp ramp;
-    /* 0x84  */ s32 unk_0x84;
+    /* 0x84  */ s32 noteStep;
     /* 0x88  */ s32 unk_0x88;
-    /* 0x8C  */ u16 unk_0x8C;
-    /* 0x8E  */ u16 unk_0x8E;
-    /* 0x90  */ u16 unk_0x90; // Step per frame
-    /* 0x92  */ u16 unk_0x92; // Total delta
-    /* 0x94  */ u16 unk_0x94;
+    /* 0x8C  */ u16 volumeStep;
+    /* 0x8E  */ u16 volumeTarget;
+    /* 0x90  */ u16 panStep;
+    /* 0x92  */ u16 panTarget;
+    /* 0x94  */ u16 noteFrames;
     /* 0x96  */ u16 unk_0x96;
-    /* 0x98  */ u16 unk_0x98; // Frames
-    /* 0x9A  */ u16 unk_0x9A;
+    /* 0x98  */ u16 panFrames;
+    /* 0x9A  */ u16 volumeFrames;
     /* 0x9C  */ AudioLoop loops[NUM_SOUND_LOOPS];
-    /* 0xCC  */ u16 unk_0xCC;
-    /* 0xCE  */ u16 unk_0xCE;
-    /* 0xD0  */ u8 unk_0xD0[0x8];
+    /* 0xCC  */ u16 envelopeIndex;
+    /* 0xCE  */ u16 activeEnvelopeMask;
+    /* 0xD0  */ s16 noteOffset; // summed from the envelopes into the note
+    /* 0xD2  */ s16 volumeOffset;
+    /* 0xD4  */ s16 panOffset;
+    /* 0xD6  */ u16 pad0xD6;
     /* 0xD8  */ AudioEnvelope envelopes[NUM_VOICE_ENVELOPES];
 } AudioElement;
 
 typedef struct AudioManager {
     /* 0x0  */ struct AudioManager* next;
-    /* 0x4  */ struct AudioManager* unk_Manager_0x4;
-    /* 0x8  */ s32 unk_0x8; // Seq file pointer?
-    /* 0xC  */ s32 unk_0xc; // Pointer to percussion data?
-    /* 0x10 */ s16 unk_Flags;
+    /* 0x4  */ struct AudioManager* pBackup;
+    /* 0x8  */ s32 pSeqHeader; // sequence file image
+    /* 0xC  */ s32 pPercussionData;
+    /* 0x10 */ s16 flags;
     /* 0x12 */ s16 unk_0x12;
     /* 0x14 */ u8 elementCount;
-    /* 0x15 */ u8 unk_0x15;
-    /* 0x16 */ s16 unk_0x16;
+    /* 0x15 */ u8 percussionCount;
+    /* 0x16 */ s16 sndId;
     /* 0x18 */ s16 unk_0x18;
     /* 0x1A */ u8 unk_0x1a;
     /* 0x1B */ u8 unk_0x1b;
-    /* 0x1C */ u16 unk_0x1c;
+    /* 0x1C */ u16 noiseClock;
     /* 0x1E */ u8 unk_0x1e[2];
     /* 0x20 */ s32 unk_0x20;
     /* 0x24 */ s32 unk_0x24;
     /* 0x28 */ s32 unk_0x28;                  
     /* 0x2C */ s32 unk_0x2c;
     /* 0x30 */ s16 unk_0x30;
-    /* 0x32 */ s16 unk_0x32;
-    /* 0x34 */ s16 unk_0x34;
-    /* 0x36 */ u16 unk_0x36;
-    /* 0x38 */ s16 unk_0x38;
-    /* 0x3A */ s16 unk_0x3a;
-    /* 0x3C */ s16 unk_0x3c;
+    /* 0x32 */ s16 barCount;
+    /* 0x34 */ s16 beatCount;
+    /* 0x36 */ u16 tickCount;
+    /* 0x38 */ s16 beatsPerBar;
+    /* 0x3A */ s16 ticksPerBeat;
+    /* 0x3C */ s16 beatDivisor;
     /* 0x3E */ s16 unk_0x3e;
-    /* 0x40 */ u8 unk_0x40[0x02];
+    /* 0x40 */ u8 unk_0x40;
+    /* 0x41 */ u8 reverbType;
     /* 0x42 */ u8 reverbDelay;
     /* 0x43 */ u8 reverbFeedback;
     /* 0x44 */ s16 reverbDepth;
     /* 0x46 */ u8 unk_0x46[0x02];
-    /* 0x48 */ s32 unk_0x48;
-    /* 0x4C */ s32 unk_0x4c;
-    /* 0x50 */ s32 unk_0x50;
-    /* 0x54 */ s32 unk_0x54;
-    /* 0x58 */ s32 unk_0x58;                          
-    /* 0x5C */ s32 unk_0x5c;
-    /* 0x60 */ u16 unk_0x60;
-    /* 0x62 */ u16 unk_0x62;
+    /* 0x48 */ s32 activeElementMask;
+    /* 0x4C */ s32 muteFlags;
+    /* 0x50 */ s32 tickAccumulator;
+    /* 0x54 */ s32 tickRate;
+    /* 0x58 */ s32 tempo;
+    /* 0x5C */ s32 tempoStep;
+    /* 0x60 */ u16 tempoFrames;
+    /* 0x62 */ u16 tempoTarget;
     /* 0x64 */ AudioInterpolator unk_Interpolator_0x64;
     /* 0x70 */ AudioInterpolator unk_Interpolator_0x70;
     /* 0x7C */ AudioInterpolator unk_Interpolator_0x7c;
@@ -296,7 +301,7 @@ typedef struct {
     /* 0x28 */ s16 currentMasterVolume;
     /* 0x2A */ s16 currentCdVolume;
     /* 0x2C */ s16 currentReverbDepth;
-    /* 0x2E */ s16 unk_field2;
+    /* 0x2E */ s16 cdMixVolume;
 
     /* 0x30 */ AudioInterpolator masterInterpolator;
     /* 0x3C */ AudioInterpolator cdInterpolator;
