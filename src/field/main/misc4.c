@@ -463,7 +463,7 @@ void func_80079288(void) {
 }
 */
 
-extern s32 D_800AFC78;
+extern s32 g_FieldInitialWdsBankIndex;
 extern s32 g_FieldSuppressStateChange;
 extern s16 g_GameWdsEntryReleased;
 extern s32 g_FieldNextGameState;
@@ -484,8 +484,8 @@ void FieldAdvanceGameState(int state) {
 
         FieldScriptSyncMemoryWithGameState();
         nSaved = g_pGameState->fieldScriptMemory[1];
-        g_GameRequestedWdsBankIndex = D_800AFC78;
-        g_pGameState->wdsBankIndex = D_800AFC78;
+        g_GameRequestedWdsBankIndex = g_FieldInitialWdsBankIndex;
+        g_pGameState->wdsBankIndex = g_FieldInitialWdsBankIndex;
         g_pGameState->unk2320 = nSaved;
         if (g_FieldSuppressStateChange != 0) {
             return;
@@ -544,17 +544,17 @@ void FieldSwapRenderContext(void) {
     PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
 }
 
-extern RECT D_800AFE4C;
-extern TILE D_800AFE54[];
-extern DR_MODE D_800AFE24[];
+extern RECT g_FieldColorFillRect;
+extern TILE g_FieldColorFillTiles[];
+extern DR_MODE g_FieldColorFillDrawModes[];
 	
 void FieldRenderColorFill(int color) {
     FieldClearAndSwapOTag();
-    setRGB(D_800AFE54[g_FieldCurRenderContextIndex], color * 4);
-    addPrim(g_FieldCurRenderContext->ot1, &D_800AFE54[g_FieldCurRenderContextIndex]);
-    addPrim(g_FieldCurRenderContext->ot1, &D_800AFE24[g_FieldCurRenderContextIndex]);
+    setRGB(g_FieldColorFillTiles[g_FieldCurRenderContextIndex], color * 4);
+    addPrim(g_FieldCurRenderContext->ot1, &g_FieldColorFillTiles[g_FieldCurRenderContextIndex]);
+    addPrim(g_FieldCurRenderContext->ot1, &g_FieldColorFillDrawModes[g_FieldCurRenderContextIndex]);
     FieldRenderSync();
-    MoveImage(&D_800AFE4C, 0, g_FieldCurRenderContextIndex * 0x100);
+    MoveImage(&g_FieldColorFillRect, 0, g_FieldCurRenderContextIndex * 0x100);
     PutDispEnv(&g_FieldCurRenderContext->dispEnv);
     PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
     DrawOTag(g_FieldCurRenderContext->ot1 + 1);
@@ -562,18 +562,18 @@ void FieldRenderColorFill(int color) {
 
 
 extern s32 g_FieldSceneReloadFlags;
-extern u_char D_80059179;
+extern u_char g_FieldPlayerWalkmeshMaterial;
 extern s16 g_FieldPlayerWalkmeshMaterialOverride;
 extern s32 g_PlayerActorIndex;
 
 void FieldUpdatePlayerWalkmeshMaterial(void) {
     if (g_FieldSceneReloadFlags != 0 && (g_FieldActors[g_PlayerActorIndex].pActorData->curWalkmeshTriMaterial & 0xC0) == 0) {
-        D_80059179 = 0;
+        g_FieldPlayerWalkmeshMaterial = 0;
     } else {
-        D_80059179 = 1;
+        g_FieldPlayerWalkmeshMaterial = 1;
     }
     if (g_FieldPlayerWalkmeshMaterialOverride != 0xFF) {
-        D_80059179 = g_FieldPlayerWalkmeshMaterialOverride;
+        g_FieldPlayerWalkmeshMaterial = g_FieldPlayerWalkmeshMaterialOverride;
     }
 }
 
@@ -683,13 +683,13 @@ void func_8007A5C4(void) {
 */
 
 
-extern SVec4 D_800ADCE0[]; // X0 -> X3 positions
-extern SVec4 D_800ADD28[]; // Y0 -> Y3 positions
-extern SVec4 D_800ADD70[]; // U0 -> U3s
-extern SVec4 D_800ADDB8[]; // V0 -> V3s
+extern SVec4 g_FieldTableQuadVertexXs[]; // X0 -> X3 positions
+extern SVec4 g_FieldTableQuadVertexZs[]; // Y0 -> Y3 positions
+extern SVec4 g_FieldTableQuadTextureUs[]; // U0 -> U3s
+extern SVec4 g_FieldTableQuadTextureVs[]; // V0 -> V3s
 
 // Texture / Clut stuff
-extern short D_800ADE00[];
+extern short g_FieldTableQuadTexParams[];
 extern short D_800ADE02[];
 extern short D_800ADE04[];
 extern short D_800ADE06[];
@@ -708,26 +708,26 @@ void FieldInitTableQuad(Quad* pPart, int x, int y, int tex) {
     nIndexTex = tex * 0x6,
 
     // Set Position 0, 1, 2, and 3
-    pPart->vertices[0].vx = D_800ADCE0[x].x;
+    pPart->vertices[0].vx = g_FieldTableQuadVertexXs[x].x;
     pPart->vertices[0].vy = 0x0;
-    pPart->vertices[0].vz = D_800ADD28[y].x;
+    pPart->vertices[0].vz = g_FieldTableQuadVertexZs[y].x;
 
-    pPart->vertices[1].vx = D_800ADCE0[x].y;
+    pPart->vertices[1].vx = g_FieldTableQuadVertexXs[x].y;
     pPart->vertices[1].vy = 0;
-    pPart->vertices[1].vz = D_800ADD28[y].y;
+    pPart->vertices[1].vz = g_FieldTableQuadVertexZs[y].y;
 
-    pPart->vertices[2].vx = D_800ADCE0[x].z;
+    pPart->vertices[2].vx = g_FieldTableQuadVertexXs[x].z;
     pPart->vertices[2].vy = 0;
-    pPart->vertices[2].vz = D_800ADD28[y].z;
+    pPart->vertices[2].vz = g_FieldTableQuadVertexZs[y].z;
 
-    pPart->vertices[3].vx = D_800ADCE0[x].w;
+    pPart->vertices[3].vx = g_FieldTableQuadVertexXs[x].w;
     pPart->vertices[3].vy = 0;
-    pPart->vertices[3].vz = D_800ADD28[y].w;
+    pPart->vertices[3].vz = g_FieldTableQuadVertexZs[y].w;
     
     setRGB0(&pPart->polys[0], 0x80, 0x80, 0x80);
     
     pPart->polys[0].tpage = GetTPage(
-        D_800ADE00[nIndexTex], 
+        g_FieldTableQuadTexParams[nIndexTex], 
         D_800ADE02[nIndexTex], 
         D_800ADE04[nIndexTex], 
         D_800ADE06[nIndexTex]
@@ -736,10 +736,10 @@ void FieldInitTableQuad(Quad* pPart, int x, int y, int tex) {
     pPart->polys[0].clut = GetClut(D_800ADE08[nIndexTex], D_800ADE0A[nIndexTex]);
     
     FieldClampPolyFT4UVs(&pPart->polys[0], 
-        D_800ADD70[x].x, D_800ADDB8[y].x, 
-        D_800ADD70[x].y, D_800ADDB8[y].y, 
-        D_800ADD70[x].z, D_800ADDB8[y].z, 
-        D_800ADD70[x].w, D_800ADDB8[y].w
+        g_FieldTableQuadTextureUs[x].x, g_FieldTableQuadTextureVs[y].x, 
+        g_FieldTableQuadTextureUs[x].y, g_FieldTableQuadTextureVs[y].y, 
+        g_FieldTableQuadTextureUs[x].z, g_FieldTableQuadTextureVs[y].z, 
+        g_FieldTableQuadTextureUs[x].w, g_FieldTableQuadTextureVs[y].w
     );
 
     *pNextPoly = pPart->polys[0];
@@ -860,10 +860,10 @@ extern s32 g_pFieldControllerBuffer2;
 
 extern u_short g_FieldMouseSpeedX;
 extern u_short g_FieldMouseSpeedY;
-extern s32 D_800C3A44;
-extern s32 D_800C3A4C;
-extern s32 D_800C3A50;
-extern s32 D_800C3A54;
+extern s32 g_FieldMouseLimitMinX;
+extern s32 g_FieldMouseLimitMinY;
+extern s32 g_FieldMouseLimitMaxX;
+extern s32 g_FieldMouseLimitMaxY;
 extern int g_FieldMousePositionsX[2];
 extern int g_FieldMousePositionsY[2];
 
@@ -873,10 +873,10 @@ void FieldSetControllerBuffers(void* controllerBuffer1, void* controllerBuffer2)
 }
 
 void FieldSetMouseLimits(int arg0, int arg1, int arg2, int arg3) {
-    D_800C3A44 = arg0 * g_FieldMouseSpeedX;
-    D_800C3A50 = arg1 * g_FieldMouseSpeedX;
-    D_800C3A4C = arg2 * g_FieldMouseSpeedY;
-    D_800C3A54 = arg3 * g_FieldMouseSpeedY;
+    g_FieldMouseLimitMinX = arg0 * g_FieldMouseSpeedX;
+    g_FieldMouseLimitMaxX = arg1 * g_FieldMouseSpeedX;
+    g_FieldMouseLimitMinY = arg2 * g_FieldMouseSpeedY;
+    g_FieldMouseLimitMaxY = arg3 * g_FieldMouseSpeedY;
 }
 
 void FieldSetMouseSpeed(u_short xSpeed, u_short ySpeed) {
@@ -912,15 +912,15 @@ void FieldUpdateMousePosition(int controllerIndex) {
         && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
         g_FieldMousePositionsX[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
         g_FieldMousePositionsY[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][5];
-        if (g_FieldMousePositionsX[controllerIndex] > D_800C3A50) {
-            g_FieldMousePositionsX[controllerIndex] = D_800C3A50;
-        } else if (g_FieldMousePositionsX[controllerIndex] < D_800C3A44) {
-            g_FieldMousePositionsX[controllerIndex] = D_800C3A44;
+        if (g_FieldMousePositionsX[controllerIndex] > g_FieldMouseLimitMaxX) {
+            g_FieldMousePositionsX[controllerIndex] = g_FieldMouseLimitMaxX;
+        } else if (g_FieldMousePositionsX[controllerIndex] < g_FieldMouseLimitMinX) {
+            g_FieldMousePositionsX[controllerIndex] = g_FieldMouseLimitMinX;
         }
-        if (g_FieldMousePositionsY[controllerIndex] > D_800C3A54) {
-            g_FieldMousePositionsY[controllerIndex] = D_800C3A54;
-        } else if (g_FieldMousePositionsY[controllerIndex] < D_800C3A4C) {
-            g_FieldMousePositionsY[controllerIndex] = D_800C3A4C;
+        if (g_FieldMousePositionsY[controllerIndex] > g_FieldMouseLimitMaxY) {
+            g_FieldMousePositionsY[controllerIndex] = g_FieldMouseLimitMaxY;
+        } else if (g_FieldMousePositionsY[controllerIndex] < g_FieldMouseLimitMinY) {
+            g_FieldMousePositionsY[controllerIndex] = g_FieldMouseLimitMinY;
         }
     }
 }
@@ -1576,18 +1576,18 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
 }
 */
 
-extern int D_800ADC10;
+extern int g_FieldScratchpadOffset;
 
 // Pointer into the scratchpad area for the script VM
 int FieldAllocScratchpad(int size) {
-    int offset = D_800ADC10;
+    int offset = g_FieldScratchpadOffset;
 
-    D_800ADC10 = offset + size;
+    g_FieldScratchpadOffset = offset + size;
     return 0x1F800000 + offset * 4;
 }
 
 void FieldFreeScratchpad(int size) {
-    D_800ADC10 -= size;
+    g_FieldScratchpadOffset -= size;
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007CD80);

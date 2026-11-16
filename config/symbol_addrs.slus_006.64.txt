@@ -1611,3 +1611,6 @@ g_GameResumeScene = 0x8005947C;
 g_SoundStreamReserveStart = 0x80059480;
 g_SoundStreamReserveBlock = 0x800594AC;
 g_SystemStreamedFileData = 0x8005949C;
+g_MenuGearShopHeapAnchorBlock = 0x800658CC;
+g_MenuGearShopHeapReserve = 0x8006BE24;
+g_FieldPlayerWalkmeshMaterial = 0x80059179;

@@ -89,7 +89,7 @@ extern u_long* g_WorldMapSavedVramTexture;
 extern u_long* g_WorldMapSavedVramStrip;
 extern s32 g_WorldMapSavedModeFlag;
 extern s32 D_8009D804;
-extern u_char D_80059179;
+extern u_char g_FieldPlayerWalkmeshMaterial;
 
 extern u32 g_WorldMapSaveBlock[];
 extern u8 g_WorldMapTrail[];
@@ -427,9 +427,9 @@ void WorldMapEnterMenuMode(void) {
     for (; i < 3; i++, pOut++) {
         *pOut = g_GameState.gearRide[i];
     }
-    g_WorldMapSavedModeFlag = D_80059179;
+    g_WorldMapSavedModeFlag = g_FieldPlayerWalkmeshMaterial;
     if ((s16)WorldMapGetTileHalfIndex((s32)&g_WorldMapScrollTargetX) == 4) {
-        D_80059179 = 1;
+        g_FieldPlayerWalkmeshMaterial = 1;
     }
     WorldMapWaitForQueuedLoads();
     WorldMapFreeSpritePrimBuffers();
@@ -532,7 +532,7 @@ void WorldMapExitMenuMode(void) {
     mode = g_WorldMapSavedModeFlag;
     D_8009D804 = 0;
     g_GameState.unk1836 = 0;
-    D_80059179 = mode;
+    g_FieldPlayerWalkmeshMaterial = mode;
     WorldMapSyncGearRideActors();
 }
 

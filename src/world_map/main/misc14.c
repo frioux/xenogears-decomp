@@ -29,17 +29,17 @@ typedef struct {
 extern int Vsync(int mode);
 extern u32 ArchiveGetDebugTable(void);
 extern s32 g_WorldMapLoadQueueHead;
-extern s32 D_8009BE44;
-extern s32 D_8009D808;
-extern SVec* D_8009BE08;
-extern SVec4* D_8009D3C0;
-extern void* D_8009D7D4;
+extern s32 g_WorldMapLoadQueueTail;
+extern s32 g_WorldMapLoadRecordCount;
+extern SVec* g_WorldMapCdRequestRecords;
+extern SVec4* g_WorldMapFileLoadRecords;
+extern void* g_WorldMapCdSectorRemainder;
 extern void* g_WorldMapCdRequestQueue[16];
 extern void* g_WorldMapFileLoadRequestQueue[16];
 extern WorldMapRect** g_WorldMapRects;
 extern void* g_WorldMapAreaRect;
 extern s16 g_WorldMapAreaId;
-extern s16 D_8009CE68;
+extern s16 g_WorldMapMode4AreaId;
 extern void WorldMapSortCdRequestsBySector(SVec* pRecord);
 extern void WorldMapSortFileLoadsByOffset(SVec4* pRecord);
 extern void WorldMapUpdateLoadQueue(void);
@@ -77,10 +77,10 @@ s32 WorldMapSelectAreaAtPosition(SVec* p, s32 index) {
             if (pRect->mode == 4) {
                 g_WorldMapAreaRect = (void*)-1;
                 g_WorldMapAreaId = -1;
-                D_8009CE68 = pRect->value;
+                g_WorldMapMode4AreaId = pRect->value;
             } else {
                 g_WorldMapAreaRect = pRect;
-                D_8009CE68 = -1;
+                g_WorldMapMode4AreaId = -1;
                 g_WorldMapAreaId = pRect->value;
             }
             return 1;
@@ -89,7 +89,7 @@ s32 WorldMapSelectAreaAtPosition(SVec* p, s32 index) {
     }
     g_WorldMapAreaRect = (void*)-1;
     g_WorldMapAreaId = -1;
-    D_8009CE68 = -1;
+    g_WorldMapMode4AreaId = -1;
     return 0;
 }
 
@@ -385,32 +385,32 @@ void WorldMapInitLoadQueues(void) {
     if ((first == 0) | (second == 0xFFFFFFFF)) {
         pSlot = &D_8009D7C4;
         g_WorldMapLoadQueueHead = 0;
-        D_8009BE44 = 0;
+        g_WorldMapLoadQueueTail = 0;
         g_WorldMapCdReadState = 0;
         for (i = 15; i >= 0; i--) {
             *pSlot-- = NULL;
         }
-        D_8009BE08 = HeapAlloc(0x4200, 0);
-        D_8009D7D4 = HeapAlloc(0x800, 0);
+        g_WorldMapCdRequestRecords = HeapAlloc(0x4200, 0);
+        g_WorldMapCdSectorRemainder = HeapAlloc(0x800, 0);
         i = 7;
         pName = &D_8009C58F;
-        D_8009D808 = 0;
+        g_WorldMapLoadRecordCount = 0;
         do {
             *pName-- = 0;
         } while (--i >= 0);
     } else {
         pSlot = &D_8009C660;
         g_WorldMapLoadQueueHead = 0;
-        D_8009BE44 = 0;
+        g_WorldMapLoadQueueTail = 0;
         g_WorldMapCdReadState = 0;
         for (i = 15; i >= 0; i--) {
             *pSlot-- = NULL;
         }
-        D_8009D3C0 = HeapAlloc(0x5800, 0);
-        D_8009D7D4 = HeapAlloc(0x800, 0);
+        g_WorldMapFileLoadRecords = HeapAlloc(0x5800, 0);
+        g_WorldMapCdSectorRemainder = HeapAlloc(0x800, 0);
         i = 7;
         pName = &D_8009C58F;
-        D_8009D808 = 0;
+        g_WorldMapLoadRecordCount = 0;
         do {
             *pName-- = 0;
         } while (--i >= 0);
@@ -423,12 +423,12 @@ void WorldMapFreeLoadQueues(void) {
     void* pDebugTable;
 
     if ((first == 0) | (second == 0xFFFFFFFF)) {
-        pDebugTable = D_8009BE08;
+        pDebugTable = g_WorldMapCdRequestRecords;
     } else {
-        pDebugTable = D_8009D3C0;
+        pDebugTable = g_WorldMapFileLoadRecords;
     }
     HeapFree(pDebugTable);
-    HeapFree(D_8009D7D4);
+    HeapFree(g_WorldMapCdSectorRemainder);
 }
 
 void WorldMapWaitForLoadSlotFree(void) {
@@ -436,12 +436,12 @@ void WorldMapWaitForLoadSlotFree(void) {
     u32 second = ArchiveGetDebugTable();
 
     if ((first == 0) | (second == 0xFFFFFFFF)) {
-        while (g_WorldMapCdRequestQueue[D_8009BE44] != NULL) {
+        while (g_WorldMapCdRequestQueue[g_WorldMapLoadQueueTail] != NULL) {
             Vsync(0);
             WorldMapUpdateLoadQueue();
         }
     } else {
-        while (g_WorldMapFileLoadRequestQueue[D_8009BE44] != NULL) {
+        while (g_WorldMapFileLoadRequestQueue[g_WorldMapLoadQueueTail] != NULL) {
             Vsync(0);
             WorldMapUpdateLoadQueue();
         }
@@ -452,10 +452,10 @@ s32 WorldMapAddCdRequest(s32 x, s32 y, s32 z) {
     SVec* p;
     s32 index;
 
-    if (D_8009D808 < 0x58) {
-        index = D_8009D808;
-        D_8009D808 = index + 1;
-        p = &D_8009BE08[D_8009BE44 * 0x58];
+    if (g_WorldMapLoadRecordCount < 0x58) {
+        index = g_WorldMapLoadRecordCount;
+        g_WorldMapLoadRecordCount = index + 1;
+        p = &g_WorldMapCdRequestRecords[g_WorldMapLoadQueueTail * 0x58];
         p += index;
         p->x = x;
         p->y = y;
@@ -469,10 +469,10 @@ s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w) {
     SVec4* p;
     s32 index;
 
-    if (D_8009D808 < 0x58) {
-        index = D_8009D808;
-        D_8009D808 = index + 1;
-        p = &D_8009D3C0[D_8009BE44 * 0x58];
+    if (g_WorldMapLoadRecordCount < 0x58) {
+        index = g_WorldMapLoadRecordCount;
+        g_WorldMapLoadRecordCount = index + 1;
+        p = &g_WorldMapFileLoadRecords[g_WorldMapLoadQueueTail * 0x58];
         p += index;
         p->x = x;
         p->y = y;
@@ -484,17 +484,17 @@ s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w) {
 }
 
 s32 WorldMapSubmitCdRequests(void) {
-    s32 index = D_8009BE44;
-    SVec* p = &D_8009BE08[index * 0x58];
+    s32 index = g_WorldMapLoadQueueTail;
+    SVec* p = &g_WorldMapCdRequestRecords[index * 0x58];
 
     if (p->x != 0 && g_WorldMapCdRequestQueue[index] == NULL) {
         WorldMapSortCdRequestsBySector(p);
-        D_8009D808 = 0;
-        g_WorldMapCdRequestQueue[D_8009BE44] = p;
-        D_8009BE44 = (D_8009BE44 + 1) & 0xF;
+        g_WorldMapLoadRecordCount = 0;
+        g_WorldMapCdRequestQueue[g_WorldMapLoadQueueTail] = p;
+        g_WorldMapLoadQueueTail = (g_WorldMapLoadQueueTail + 1) & 0xF;
         return 0;
     }
-    D_8009D808 = 0;
+    g_WorldMapLoadRecordCount = 0;
     return -1;
 }
 
@@ -548,22 +548,22 @@ void WorldMapSortFileLoadsByOffset(SVec4* pList) {
     }
 }
 s32 WorldMapSubmitFileLoads(void) {
-    s32 index = D_8009BE44;
-    SVec4* p = &D_8009D3C0[index * 0x58];
+    s32 index = g_WorldMapLoadQueueTail;
+    SVec4* p = &g_WorldMapFileLoadRecords[index * 0x58];
 
     if (p->x != 0 && g_WorldMapFileLoadRequestQueue[index] == NULL) {
         WorldMapSortFileLoadsByOffset(p);
-        D_8009D808 = 0;
-        g_WorldMapFileLoadRequestQueue[D_8009BE44] = p;
-        D_8009BE44 = (D_8009BE44 + 1) & 0xF;
+        g_WorldMapLoadRecordCount = 0;
+        g_WorldMapFileLoadRequestQueue[g_WorldMapLoadQueueTail] = p;
+        g_WorldMapLoadQueueTail = (g_WorldMapLoadQueueTail + 1) & 0xF;
         return 0;
     }
-    D_8009D808 = 0;
+    g_WorldMapLoadRecordCount = 0;
     return -1;
 }
 
 s32 WorldMapGetQueuedLoadCount(void) {
-    s32 diff = D_8009BE44 - g_WorldMapLoadQueueHead;
+    s32 diff = g_WorldMapLoadQueueTail - g_WorldMapLoadQueueHead;
 
     if (diff < 0) {
         diff += 0x10;
@@ -591,8 +591,8 @@ extern int PClseek(int fd, int offset, int mode);
 extern int PCread(int fd, char* buff, int len);
 extern int PCclose(int fd);
 extern s32 D_8009BE48;
-extern s32 D_8009CCA0;
-extern s32 D_8009CCA8;
+extern s32 g_WorldMapCdRetryCount;
+extern s32 g_WorldMapCdReadErrorCount;
 extern s32 D_8009CCB0;
 
 void WorldMapReadFileEntries(WorldMapLoadEntry* pEntry) {
@@ -601,8 +601,8 @@ void WorldMapReadFileEntries(WorldMapLoadEntry* pEntry) {
 
     D_8009BE48 = 0;
     D_8009CCB0 = 0;
-    D_8009CCA8 = 0;
-    D_8009CCA0 = 0;
+    g_WorldMapCdReadErrorCount = 0;
+    g_WorldMapCdRetryCount = 0;
     for (; pEntry->pName != NULL; pEntry++) {
         retry = 0;
         do {

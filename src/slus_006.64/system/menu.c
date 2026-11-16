@@ -18,8 +18,8 @@ extern char g_StrDebugRobotFormat[];   // "\n\n     Robo =(%d)\n"
 extern char g_StrDebugShopFormat[];   // "\n\n     ShopNo =(%d)\n"
 extern char g_StrDebugCdFormat[];   // "\n\n     CdNo =(%d)\n"
 extern void* g_MenuResourcesFile;    // Menu resources file
-extern void* D_800658CC;
-extern void* D_8006BE24;
+extern void* g_MenuGearShopHeapAnchorBlock;
+extern void* g_MenuGearShopHeapReserve;
 extern void* g_MenuGfxEnvOtBuffer0;
 extern void* D_8005A4B0;
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
@@ -246,9 +246,9 @@ void MenuExecute(void) {
         if (g_MenuOverlayIndex == 5) {
             ArchiveSetIndex(4, 0);
             pDebugData = HeapAlloc(4, 1);
-            D_800658CC = pDebugData;
+            g_MenuGearShopHeapAnchorBlock = pDebugData;
             // Reserve the rest of the heap, up to the top of memory
-            D_8006BE24 = HeapAlloc((u32)pDebugData - 0x801DC000, 1);
+            g_MenuGearShopHeapReserve = HeapAlloc((u32)pDebugData - 0x801DC000, 1);
             ArchiveReadFileToBuffer(0x6B9, (void*)0x801DC000, 0, 0x80);
             ArchiveCdDataSync(0);
             ArchiveSetIndex(0x10, 0);
@@ -290,8 +290,8 @@ void MenuExecute(void) {
         HeapFree(pBlockReserve);
         HeapFree(pOverlayReserve);
         if (g_MenuOverlayIndex == 5) {
-            HeapFree(D_800658CC);
-            HeapFree(D_8006BE24);
+            HeapFree(g_MenuGearShopHeapAnchorBlock);
+            HeapFree(g_MenuGearShopHeapReserve);
             HeapFree(g_MenuGfxEnvOtBuffer0);
             HeapFree(D_8005A4B0);
         }

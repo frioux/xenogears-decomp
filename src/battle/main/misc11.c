@@ -42,7 +42,7 @@ extern void BattleReleaseCharSlot(u8 arg0);
 extern u8 g_BattleSlotConditions[];
 extern u8 D_800C3EB8[];
 extern u8 g_BattleActorCharIds[];
-extern u8 D_80059179;
+extern u8 g_FieldPlayerWalkmeshMaterial;
 extern u8 D_800C4022[];
 extern u8 g_BattleCommandRecords[];
 extern void BattleClearFlagC6(void);
@@ -813,7 +813,7 @@ void func_800826CC(u8 arg0) {
     D_800C3EB8[arg0 * 0x1C] = 1;
     g_BattleCommandQueue[arg0 + 0x2EB] = 1;
     for (i = 0; i < 3; i++) {
-        if (g_GameState.partyMembers[i] == g_BattleActorCharIds[arg0] && D_80059179 == 0) {
+        if (g_GameState.partyMembers[i] == g_BattleActorCharIds[arg0] && g_FieldPlayerWalkmeshMaterial == 0) {
             g_GameState.gearRide[i] = 1;
         }
     }

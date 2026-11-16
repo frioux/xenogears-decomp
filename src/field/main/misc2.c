@@ -1119,7 +1119,7 @@ void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
 extern s16 g_FieldScreenEffectEnabled;
-extern s32 D_800ADB50;
+extern s32 g_FieldScreenEffectSuppressed;
 extern s32 g_FieldScreenEffectData;
 extern s16 g_FieldScriptRenderContextIndex;
 
@@ -1130,7 +1130,7 @@ void FieldRenderScreenEffect(void) {
     if (g_FieldScreenEffectEnabled == 0) {
         return;
     }
-    if (D_800ADB50 != 0) {
+    if (g_FieldScreenEffectSuppressed != 0) {
         return;
     }
 
