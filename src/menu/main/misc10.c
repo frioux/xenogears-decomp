@@ -42,8 +42,9 @@ void func_801DDF24(u8, u8, u8);
 void func_801E86C8(u8);
 void MenuStartOpenAnimation(void);
 void MenuResetSelectionCursorFlags(void);
-void MenuMovePointerCursor(u8, u8);
+void MenuMovePointerCursor(s32, u8);
 void MenuDrawStatTable(u8, u8, u8, u8);
+void MenuDrawGearScreen(u_char, u_char);
 void MenuSetSubMenuChoicePrims(u8);
 
 int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1) {
@@ -272,20 +273,18 @@ void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->unk360);
     func_801C72BC(0x13);
 }
-/* objdiff 75.76% (1044 bytes; retail 1188 = 36 insns short). Structure matches retail's call sequence exactly (all 24 calls in order) and the case-4 nested dispatch tree; residue is pre-loop/prologue register allocation and blocks gcc folded into the same basic block. Settled by measurement: 'slot' is an int (not u8: retail masks only lastSlot in 'slot != (u8)lastSlot'), lastSlot/firstDraw/active are u8, the scan is a bounded for over currentCharacterIDs, and retail does NOT keep g_Menu->pManager in a local - it reloads g_Menu->pManager for every store.
-   nb: this body DID NOT COMPILE in its last state - it still needed a
-   re-diff after the pManager de-localisation, so treat 75.76% as the
-   first-draft number.
-void func_801E2BE4(void) {
-    int i;
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
+/* objdiff 96.76% (1188 bytes, exactly retail's size). Structure is complete: every call, both switches and all case bodies are in retail's body order (4, 5, 1, 3, 9, 10 and the nested 0, 1, 2). The one residue is the `lastSlot = slot` copy: retail emits a two-instruction u8 copy (`move v0,s1` before the MenuComputeCharacterStats jal, `move s0,v0` in its delay slot) AFTER that call, while gcc 2.6.0 here always folds it to a single `move s0,s1` and then steals it into the PREVIOUS call's delay slot, so every branch past it is 4 bytes early and one extra instruction turns up later. Tried: plain assignment, embedded assignment in the MenuDrawGearScreen argument, an extra u8 intermediate local, and a 3 min permuter run (best was a bogus case-3 mutation at 96.04). Note the MenuMovePointerCursor prototype must be (s32, u8) or every call site gains a useless andi.
+u8 func_801E2BE4(void) {
     u8 active;
-    u8 firstDraw;
     u8 lastSlot;
-    int slot;
+    u8 firstDraw;
+    s32 slot;
+    s32 i;
 
     active = 1;
-    firstDraw = 1;
     lastSlot = 0xF3;
+    firstDraw = 1;
     slot = g_Menu->unk4DA[2];
     g_Menu->subMenuChoice = 2;
     g_Menu->subMenuPrevChoice = 0xFF;
@@ -324,11 +323,12 @@ void func_801E2BE4(void) {
             g_Menu->pManager->unk4A[1] = 0;
             switch (g_Menu->subMenuChoice) {
             case 0:
+                lastSlot = slot;
                 g_Menu->pManager->unkA = 0;
-                func_801E05D0(slot, 0, 0);
+                func_801E05D0(lastSlot, 0, 0);
                 MenuFreeCharacterSpriteRecords();
-                MenuDrawStatTable(slot, 0, 0, 0);
-                func_801D8EA4(slot, 0, 0, 0);
+                MenuDrawStatTable(lastSlot, 0, 0, 0);
+                func_801D8EA4(lastSlot, 0, 0, 0);
                 g_Menu->pManager->unkA = 1;
                 lastSlot = 0xFF;
                 break;
@@ -357,7 +357,7 @@ void func_801E2BE4(void) {
             if (g_Menu->subMenuChoice != 0) {
                 g_Menu->subMenuChoice--;
             } else {
-                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices - 1;
+                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices + 0xFF;
             }
             break;
         case 3:
@@ -377,8 +377,9 @@ void func_801E2BE4(void) {
     MenuLoadSubMenuChoiceStrings(0);
     g_Menu->pManager->unk4 = 0;
     g_Menu->pManager->unk3 = 0;
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
+    return 1;
+}
+*/
 
 void MenuFreeSubMenuPanels(u8 arg0) {
     switch (g_Menu->mainMenuChoice + arg0) {
