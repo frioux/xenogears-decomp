@@ -34,6 +34,13 @@ extern s32 D_8009C7E8;
 extern s32 D_8009BD34;
 extern s32 D_8009BE0C;
 extern s32 D_8009BE10;
+extern s32 D_8009C5A8;
+extern s32 D_8009C5AC;
+extern s32 D_8009C5B0;
+extern s32 D_8009C5B4;
+extern s32 D_8009C584;
+extern s32 D_8009C170;
+extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 D_8009D3F0;
 extern s16 D_8009BD38;
 extern s16 D_8009BD3C;
@@ -71,19 +78,26 @@ typedef struct {
     /* 0x64 */ void *unk64;
     /* 0x68 */ void *unk68;
     /* 0x6C */ u32 unk6C;
-    /* 0x70 */ u8 unk70[0x4];
+    /* 0x70 */ s32 unk70;
     /* 0x74 */ u32 unk74;
-    /* 0x78 */ u8 unk78[0x8];
+    /* 0x78 */ u8 unk78[0x4];
+    /* 0x7C */ s32 unk7C;
 } WorldMapPlayer; // Size: 0x80
 
 typedef struct {
-    /* 0x000 */ u8 unk0[0x8];
-    /* 0x008 */ u32 unk8[4];
-    /* 0x018 */ u8 unk18[0x98];
-    /* 0x0B0 */ u32 unk0B0[4];
-    /* 0x0C0 */ u8 unk0C0[0x44];
-    /* 0x104 */ u32 unk104[4];
-} WorldMapSource; // Size: 0x114
+    /* 0x00 */ u16 unk0;
+    /* 0x02 */ u8 unk2[0x6];
+    /* 0x08 */ s32 unk8[4];
+    /* 0x18 */ u8 unk18[0x4];
+    /* 0x1C */ u16 unk1C;
+    /* 0x1E */ u8 unk1E[0x2];
+    /* 0x20 */ MATRIX matrix;
+    /* 0x40 */ u8 unk40[0x14];
+} WorldMapRot; // Size: 0x54
+
+typedef struct {
+    /* 0x000 */ WorldMapRot entry[4];
+} WorldMapSource; // Size: 0x150, the entry table at D_8009C620 has stride 0x54
 
 extern WorldMapPlayer *D_8009BE24;
 extern WorldMapSource *D_8009C620;
@@ -95,14 +109,6 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u32 w[9];
 } WorldMapG4; // Size: 0x24, two POLY_G4-shaped primitives are not it
-
-typedef struct {
-    /* 0x00 */ u8 unk0[0x1C];
-    /* 0x1C */ u16 unk1C;
-    /* 0x1E */ u8 unk1E[0x2];
-    /* 0x20 */ MATRIX matrix;
-    /* 0x40 */ u8 unk40[0x14];
-} WorldMapRot; // Size: 0x54
 
 void WorldMapGetGameStatePosition(s32 *pOut) {
     pOut[0] = g_GameState.unk182C << 12;
@@ -153,7 +159,167 @@ s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
     return -1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
+/* best: 87.06% (860 bytes, retail 868 - 2 insns short). Decoded structure and
+   every relocation is right; residues: (1) gcc fills the WorldMapGetGameStatePosition
+   jal slot with `addiu a0,s1,0x28` and then emits li s3,1 before the `sh zero,0x24(s1)`
+   store where retail has `addiu a0` FIRST, the store in the slot and li s3,1 after it.
+   (2) the D_8009C5A8 compare chain and the scratchpad tail are two instructions short.
+   Parked rather than left in C: the unit owns these tables (E190 owns jtbl_800709F8 and
+   jtbl_80070A10 at +0/+0x18), so a body that is 8 bytes short shifts the overlay.
+s32 func_8008E190(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    u8 *pScratch;
+    s32 nRet;
+    u16 nAngle;
+
+    pPlayer = D_8009BE24 + idx;
+    WorldMapGetGameStatePosition(&pPlayer->unk28);
+    pPlayer->unk24 = 0;
+    nRet = 1;
+    nAngle = g_GameState.unk1832;
+    pPlayer->unk40 = 0;
+    pPlayer->unk3C = 0;
+    pPlayer->unk38 = 0;
+    pPlayer->unk64 = 0;
+    pPlayer->unk60 = 0;
+    pPlayer->unk74 = 0;
+    pPlayer->unk68 = (void *)0xFFD80000;
+    pPlayer->unk70 = 0;
+    pPlayer->unk6C = 0;
+    pPlayer->unk48 = nAngle;
+    pScratch = (u8 *)0x1F800000;
+    switch (g_GameState.unk1834 & 0x1FFF) {
+    case 0:
+        nRet = 3;
+        break;
+    case 1:
+    case 2:
+        pPlayer->unk4A = 0xC;
+        break;
+    case 3:
+    case 4:
+        pPlayer->unk4A = 0x20;
+        break;
+    }
+    switch (D_8009BE10) {
+    case 1:
+        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        break;
+    case 2:
+    case 3:
+        pPlayer->unk20 = 1;
+        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        break;
+    case 4:
+    case 5:
+        pPlayer->unk20 = 3;
+        pPlayer->unk28 = D_8009C5AC;
+        pPlayer->unk30 = D_8009C5B4;
+        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30) + 0xFFFC0000;
+        pPlayer->unk48 = D_8009C584;
+        pPlayer->unk74 = D_8009C170;
+        *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
+        nAngle = pPlayer->unk48;
+        D_8009C620->entry[3].unk0 = 1;
+        D_8009C620->entry[2].unk0 = 1;
+        D_8009C620->entry[1].unk0 = 1;
+        D_8009D52C = nAngle;
+        break;
+    case 7:
+        pPlayer->unk20 = 2;
+        pPlayer->unk28 = D_8009C5AC;
+        pPlayer->unk30 = D_8009C5B4;
+        pPlayer->unk48 = D_8009C584;
+        pPlayer->unk74 = D_8009C170;
+        pPlayer->unk2C = D_8009C5B0;
+        *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
+        D_8009D52C = pPlayer->unk48;
+        break;
+    }
+    *(Quad *)D_8009C620->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    D_8009C620->entry[0].unk0 = pPlayer->unk24;
+    *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
+    *(s16 *)(pScratch + 0xA4) = D_8009BD3C;
+    *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[0].matrix);
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[1].matrix);
+    WorldMapSetGameStatePosition(&pPlayer->unk28);
+    g_GameState.unk1832 = pPlayer->unk48;
+    switch (D_8009C5A8) {
+    case 2:
+        pPlayer->unk20 = 0x24;
+        break;
+    case 3:
+        pPlayer->unk20 = 0x28;
+        pPlayer->unk7C = 0;
+        break;
+    case 4:
+        pPlayer->unk20 = 0x30;
+        pPlayer->unk7C = 0;
+        break;
+    case 5:
+        pPlayer->unk20 = 0x34;
+        pPlayer->unk7C = 0;
+        break;
+    }
+    return nRet;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
+/* best: 96.21%, 396 bytes = retail's exact size, every instruction and relocation
+   right except the switch table operand (jtbl_80070A30 vs .rodata) and the position of
+   the D_8009C620 load in the scratchpad tail: retail emits `lui a1,%hi / lw a1` BEFORE
+   the three `sh` stores and loads D_8009BD3C after `sh 0xA0`, this body emits the
+   pointer load last and hoists D_8009BD3C to the top of the block. Tried: x/z/y store
+   order (93.59), x/y/z (93.59), a MATRIX *pMat local for the first RotMatrixYXZ
+   argument (no change, gcc sinks the address to the argument anyway). PARKED FOR A
+   LAYOUT REASON: E190 (parked just above, 87.06) owns jtbl_800709F8/jtbl_80070A10 at
+   .rodata+0/+0x18, and C tables are emitted before asm-owned ones, so converting this
+   function alone puts its table at +0 and shifts the whole overlay (check_bin MISMATCH).
+   The two must be converted together, in address order.
+s32 func_8008E4F4(s32 idx) {
+    WorldMapPlayer *pPlayer;
+    u8 *pScratch;
+    s32 nRet;
+
+    pPlayer = D_8009BE24 + idx;
+    *(Quad *)D_8009C620->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
+    D_8009C620->entry[0].unk0 = pPlayer->unk24;
+    nRet = 1;
+    pScratch = (u8 *)0x1F800000;
+    if ((g_GameState.unk1834 & 0x1FFF) == 0) {
+        nRet = 3;
+    }
+    switch (D_8009BE10) {
+    case 1:
+        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        break;
+    case 2:
+    case 3:
+        pPlayer->unk20 = 1;
+        pPlayer->unk2C = WorldMapGetTilePlaneHeight(pPlayer->unk28, pPlayer->unk30);
+        break;
+    case 4:
+    case 5:
+        D_8009C620->entry[3].unk0 = 1;
+        D_8009C620->entry[2].unk0 = 1;
+        D_8009C620->entry[1].unk0 = 1;
+        break;
+    case 6:
+    case 7:
+        D_8009C620->entry[3].unk0 = 0;
+        D_8009C620->entry[2].unk0 = 0;
+        D_8009C620->entry[1].unk0 = 0;
+        break;
+    }
+    *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
+    *(s16 *)(pScratch + 0xA4) = D_8009BD3C;
+    *(s16 *)(pScratch + 0xA2) = pPlayer->unk48;
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[0].matrix);
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &D_8009C620->entry[1].matrix);
+    return nRet;
+}
+*/
 s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     WorldMapPlayer *pPlayer;
     u16 nAngle;
@@ -176,7 +342,7 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     pPlayer->unk48 = nAngle;
     *(Quad *)D_8009D55C = *(Quad *)&pPlayer->unk28;
     D_8009D52C = pPlayer->unk48;
-    *(Quad *)D_8009C620->unk8 = *(Quad *)&pPlayer->unk28;
+    *(Quad *)D_8009C620->entry[0].unk8 = *(Quad *)&pPlayer->unk28;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E76C);
@@ -188,8 +354,8 @@ s32 WorldMapModeInitActorRotation(s32 idx) {
     WorldMapSetSpriteSetParent(0, 3);
     pPlayer = D_8009BE24 + idx;
     pPlayer->unk20 = 0;
-    *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009C620->unk0B0;
-    *(Quad *)&pPlayer->unk38 = *(Quad *)D_8009C620->unk104;
+    *(Quad *)&pPlayer->unk28 = *(Quad *)D_8009C620->entry[2].unk8;
+    *(Quad *)&pPlayer->unk38 = *(Quad *)D_8009C620->entry[3].unk8;
     nMode = D_8009BE10;
     pPlayer->unk50 = 0;
     pPlayer->unk54 = 0x40;
