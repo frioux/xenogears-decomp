@@ -25,13 +25,13 @@ typedef union {
 typedef struct {
     /* 0x00 */ BattleQuad pos;
     /* 0x10 */ BattleQuad prevPos;
-    /* 0x20 */ BattleQuad unk20;
-    /* 0x30 */ BattleQuad unk30;
+    /* 0x20 */ BattleQuad endPos;
+    /* 0x30 */ BattleQuad prevEndPos;
     /* 0x40 */ u8 unk40[0x3];
     /* 0x43 */ u8 unk43;
     /* 0x44 */ BattleSlotFlags unk44;
     /* 0x48 */ u8 pad48[0x8];
-    /* 0x50 */ s32 unk50;
+    /* 0x50 */ s32 pActionEntry;
 } BattleActorSlot; // Size: 0x54
 
 typedef struct {
@@ -40,16 +40,16 @@ typedef struct {
     /* 0x4 */ s16 z;
     /* 0x6 */ u16 flags;
     /* 0x8 */ u8 index;
-    /* 0x9 */ u8 unk9;
-    /* 0xA */ u8 unkA;
+    /* 0x9 */ u8 frameDelta;
+    /* 0xA */ u8 frameLimit;
 } BattleActorState;
 
 typedef struct {
     /* 0x0 */ u8 pad0[0x6];
     /* 0x6 */ u16 flags;
     /* 0x8 */ u8 index;
-    /* 0x9 */ u8 unk9;
-    /* 0xA */ u8 unkA;
+    /* 0x9 */ u8 frameDelta;
+    /* 0xA */ u8 frameLimit;
 } BattleActorAnimData;
 
 typedef struct {
@@ -76,7 +76,7 @@ typedef struct {
 /* Per-part animation record in the model's part table. */
 typedef struct {
     /* 0x00 */ u8 pad00[0x12];
-    /* 0x12 */ s16 unk12;
+    /* 0x12 */ s16 frame;
 } BattlePartAnim; // Size: 0x14
 
 /* The model object's part tables. */
@@ -102,8 +102,8 @@ typedef struct {
 
 /* Per-part timing table an actor points at from +0x7C. */
 typedef struct {
-    /* 0x0 */ u8 unk0;
-    /* 0x1 */ u8 unk1;
+    /* 0x0 */ u8 frameLimit;
+    /* 0x1 */ u8 animSpeed;
 } BattlePartTiming; // Size: 0x2
 
 typedef struct {
@@ -114,45 +114,45 @@ typedef struct {
     /* 0x04C */ u8 partIndex;
     /* 0x04D */ u8 unk4D;
     /* 0x04E */ u8 prevPartIndex;
-    /* 0x04F */ u8 unk4F;
-    /* 0x050 */ s16 unk50;
+    /* 0x04F */ u8 animSpeed;
+    /* 0x050 */ s16 lastFrame;
     /* 0x052 */ u8 unk52;
     /* 0x053 */ u8 pad53;
-    /* 0x054 */ s32 unk54;
+    /* 0x054 */ s32 angle;
     /* 0x058 */ u8 pad58[0x4];
     /* 0x05C */ BattleModelLink *pModelLink;
     /* 0x060 */ u8 pad60[0x1C];
     /* 0x07C */ BattlePartTiming *pPartTimings;
     /* 0x080 */ u8 pad80[0x4];
-    /* 0x084 */ s32 unk84;
+    /* 0x084 */ s32 pActionEntry;
     /* 0x088 */ u8 pad88[0x2C];
     /* 0x0B4 */ s16 unkB4;
     /* 0x0B6 */ u16 gaugePoints;
     /* 0x0B8 */ u8 padB8[0x2];
     /* 0x0BA */ s16 gaugeLevel;
-    /* 0x0BC */ s16 unkBC;
+    /* 0x0BC */ s16 gaugeMax;
     /* 0x0BE */ u8 padBE[0x12];
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 padD4[0x4];
     /* 0x0D8 */ u8 *pTarget;
     /* 0x0DC */ u8 padDC[0x28];
     /* 0x104 */ BattleActorSlot slots[16];
-    /* 0x644 */ u32 unk644;
+    /* 0x644 */ u32 gaugePercent;
     /* 0x648 */ u8 pad648[0x2BC];
     /* 0x904 */ u8 *pVisiblePartIndices;
     /* 0x908 */ u8 visiblePartCount;
-    /* 0x909 */ u8 unk909;
+    /* 0x909 */ u8 typeId;
     /* 0x90A */ u8 pad90A[0x4];
     /* 0x90E */ u8 unk90E;
     /* 0x90F */ u8 pad90F[0x89];
-    /* 0x998 */ s16 unk998;
-    /* 0x99A */ s16 unk99A;
-    /* 0x99C */ s16 unk99C;
-    /* 0x99E */ s16 unk99E;
+    /* 0x998 */ s16 animFrame;
+    /* 0x99A */ s16 frameDelta;
+    /* 0x99C */ s16 frameLimit;
+    /* 0x99E */ s16 frameAccum;
     /* 0x9A0 */ u8 pad9A0[0xC2C];
     /* 0x15CC */ BattleActorState *pState;
     /* 0x15D0 */ BattleActorAnimData *pAnimData;
-    /* 0x15D4 */ u8 unk15D4;
+    /* 0x15D4 */ u8 effectColor;
     /* 0x15D5 */ u8 pad15D5[0x17];
     /* 0x15EC */ s16 unk15EC;
     /* 0x15EE */ s16 unk15EE;
@@ -442,17 +442,17 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
 
     arg2 &= 1;
     p4->prevPos = p4->pos;
-    p4->unk30 = p4->unk20;
+    p4->prevEndPos = p4->endPos;
     p4->pos = *p0;
-    p4->unk20 = *p1;
+    p4->endPos = *p1;
     flags = p4->unk44.flags;
     flags &= ~2;
     flags |= arg2 << 1;
     p4->unk43 = arg5;
     p4->unk44.flags = flags;
     p4->unk44.byte.state = 2;
-    p4->unk44.byte.unk47 = p6->unk644;
-    p4->unk50 = p6->unk84;
+    p4->unk44.byte.unk47 = p6->gaugePercent;
+    p4->pActionEntry = p6->pActionEntry;
     p4->unk44.byte.unk46 = p3[1];
     g_BattleSlotStoreCount++;
 }
@@ -559,7 +559,7 @@ void func_80073F34(Actor *p0, u8 *p1) {
         vecA.vy = (vecA.vy + vecB.vy) / 2;
         vecA.vz = (vecA.vz + vecB.vz) / 2;
     }
-    BattleEffectSetColor(&p0->unk15D4);
+    BattleEffectSetColor(&p0->effectColor);
     if (p1[1] >= 0x20) {
         func_8007C880((p0->flags >> 27) & 1, &vecA, r, p1[1] - 0x20);
     } else {
@@ -590,7 +590,7 @@ void BattleUpdatePartDrawFlags(Actor *p0) {
 
         pPart->pDraw->flags |= 1;
     }
-    if (p0->unk909 == 0xD) {
+    if (p0->typeId == 0xD) {
         pParts[0xD]->pDraw->flags |= 1;
     }
 }
@@ -609,15 +609,15 @@ void BattleActorApplyAnimationCommand(Actor *p0) {
     p0->y = pState->y;
     p0->z = pState->z;
     p0->partIndex = pData->index;
-    p0->unk54 = (pState->flags << 20) >> 20;
+    p0->angle = (pState->flags << 20) >> 20;
     pAnim = &p0->pModelLink->pModel->pAnims[pData->index];
     if (pData->flags & 0x1000) {
         BattleUpdatePartDrawFlags(p0);
         BattleResetPartAnim(pAnim);
     }
-    func_80074678(p0, pAnim->unk12, p0->pAnimData->unk9);
-    if (pData->unkA != 0) {
-        func_8008B730(pAnim, pData->unk9, pData->unkA);
+    func_80074678(p0, pAnim->frame, p0->pAnimData->frameDelta);
+    if (pData->frameLimit != 0) {
+        func_8008B730(pAnim, pData->frameDelta, pData->frameLimit);
     }
 }
 
@@ -634,11 +634,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
    be kept: `part = p0->partIndex;` + `(u8)part != p0->prevPartIndex` reproduces the original's
    redundant `andi a0,a1,0xff` and, with `&D_80091130[part]` as the first
    statement of the if-body, its second `sll/addu s4` (gcc CSEs the two identical
-   `&D_80091130[p0->partIndex]` forms away); `old + (p0->unk4F + p0->unk52)` gives the
+   `&D_80091130[p0->partIndex]` forms away); `old + (p0->animSpeed + p0->unk52)` gives the
    original's operand order; the read-modify-writes must be written on the FIELD
    (`p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11)`) so gcc tests the
-   stored register and stores before the branch; `p0->unk998 = pAnim->unk12;`
-   before `p0->unk99A = delta;`; `i = 0;` as its own statement plus `while
+   stored register and stores before the branch; `p0->animFrame = pAnim->frame;`
+   before `p0->frameDelta = delta;`; `i = 0;` as its own statement plus `while
    (i < delta)`; unkA declared before unk9 for the two zero-inits. */
 /* void func_80074BA4(Actor *p0) {
     BattleActorState *pState = p0->pState;
@@ -652,7 +652,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
     s32 unkA = 0;
     s32 unk9 = 0;
 
-    pState->flags = (pState->flags & 0xF000) | (p0->unk54 & 0xFFF);
+    pState->flags = (pState->flags & 0xF000) | (p0->angle & 0xFFF);
     pState->x = p0->x;
     pState->y = p0->y;
     pState->z = p0->z;
@@ -666,18 +666,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
         p0->prevPartIndex = part;
         p0->flags = (p0->flags | 0x1000) & ~0x800;
         if ((p0->flags & 0x10000000) == 0) {
-            p0->unk99C = p0->pPartTimings[p0->partIndex].unk0;
+            p0->frameLimit = p0->pPartTimings[p0->partIndex].frameLimit;
         }
         if (p0->flags & 0x02000000) {
-            p0->unk99C = 1;
+            p0->frameLimit = 1;
             p0->flags &= ~0x02000000;
         }
-        p0->unk4F = (p0->pPartTimings[p0->partIndex].unk1 * p0->unk15F2) / 256;
+        p0->animSpeed = (p0->pPartTimings[p0->partIndex].animSpeed * p0->unk15F2) / 256;
         pAnim = &p0->pModelLink->pModel->pAnims[p0->partIndex];
         BattleUpdatePartDrawFlags(p0);
         BattleResetPartAnim(pAnim);
-        p0->unk99E = 0;
-        p0->unk50 = -1;
+        p0->frameAccum = 0;
+        p0->lastFrame = -1;
         p0->flags &= ~0x10000000;
         pState->flags |= 0x1000;
         if (pMode->mode == 2) {
@@ -687,16 +687,16 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
         }
     }
     i = 0;
-    old = p0->unk99E;
-    p0->unk99E = old + (p0->unk4F + p0->unk52);
-    delta = ((p0->unk99E << 16) >> 20) - ((old << 16) >> 20);
-    p0->unk998 = pAnim->unk12;
-    p0->unk99A = delta;
+    old = p0->frameAccum;
+    p0->frameAccum = old + (p0->animSpeed + p0->unk52);
+    delta = ((p0->frameAccum << 16) >> 20) - ((old << 16) >> 20);
+    p0->animFrame = pAnim->frame;
+    p0->frameDelta = delta;
     while (i < delta) {
-        if (p0->unk99C != 1) {
-            p0->unk99C--;
-            if (p0->unk99C < 1) {
-                p0->unk99C = 1;
+        if (p0->frameLimit != 1) {
+            p0->frameLimit--;
+            if (p0->frameLimit < 1) {
+                p0->frameLimit = 1;
             }
         }
         i++;
@@ -704,9 +704,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
     switch (pMode->mode) {
     case 0:
         if ((p0->flags & 0x800) == 0) {
-            ret = func_8008B730(pAnim, delta, p0->unk99C);
+            ret = func_8008B730(pAnim, delta, p0->frameLimit);
             unk9 = delta;
-            unkA = p0->unk99C;
+            unkA = p0->frameLimit;
             p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
             if (p0->flags & 0x800) {
                 if (pMode->next == -1) {
@@ -719,9 +719,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
         break;
     case 1:
         p0->flags &= ~0x1000;
-        ret = func_8008B730(pAnim, delta, p0->unk99C);
+        ret = func_8008B730(pAnim, delta, p0->frameLimit);
         unk9 = delta;
-        unkA = p0->unk99C;
+        unkA = p0->frameLimit;
         p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
         if (p0->flags & 0x800) {
             p0->flags |= 0x10000000;
@@ -733,9 +733,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
     case 2:
         p0->flags &= ~0x1000;
         if ((p0->flags & 0x800) == 0) {
-            ret = func_8008B730(pAnim, delta, p0->unk99C);
+            ret = func_8008B730(pAnim, delta, p0->frameLimit);
             unk9 = delta;
-            unkA = p0->unk99C;
+            unkA = p0->frameLimit;
             p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
         }
         if (p0->flags & 0x400) {
@@ -749,15 +749,15 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
         break;
     case 3:
         if ((p0->flags & 0x800) == 0) {
-            ret = func_8008B730(pAnim, delta, p0->unk99C);
+            ret = func_8008B730(pAnim, delta, p0->frameLimit);
             unk9 = delta;
-            unkA = p0->unk99C;
+            unkA = p0->frameLimit;
             p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11);
         }
         break;
     }
-    pState->unk9 = unk9;
-    pState->unkA = unkA;
+    pState->frameDelta = unk9;
+    pState->frameLimit = unkA;
 } */
 
 extern Actor g_BattleActor1;
@@ -793,7 +793,7 @@ void BattleSetResultCode(s32 arg0) {
         g_BattleResultCode = 0x82;
         return;
     }
-    v = p->unkBC;
+    v = p->gaugeMax;
     a = (v * 176) / 255;
     if (a < p->unk1654) {
         g_BattleResultCode = 0x83;
