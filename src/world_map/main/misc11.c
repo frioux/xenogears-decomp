@@ -109,34 +109,35 @@ extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
 extern s16 D_8009D154;
 
-/* func_8008A72C, func_8008B2BC, func_8008B644, func_8008BB40, func_8008C364,
-   func_8008C844 and func_8008D678 each jr through a jtbl_ table of this unit. The
-   unit owns its .rodata (config/world_map.yaml), so a C switch keeps the layout -
-   converting func_8008B2BC shifted nothing but its own bytes and the table words
-   that follow from its case labels - but all seven are still unmatched. */
+/* func_8008A72C, func_8008B2BC, func_8008BB40, func_8008C364, func_8008C844 and
+   func_8008D678 each jr through a jtbl_ table of this unit; func_8008B644 did too
+   and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
+   function's table where the function is in the file, so converting a stub keeps
+   every table in place - only that function's own instructions and its table
+   words change (proved with check_bin.sh for func_8008B644). */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
-/* 87.47% (476 bytes, retail 476). Structure, the whole switch (13 entries = min 1
-   max 13, so cases 8-13 must be listed empty), the case-body order (cases 4-6 as the
-   cross-jumped "li v0,3 / j" arm, case 7 inline) and everything after the table are
-   byte-identical. What is left is one pre-reload-scheduler ordering in the block that
-   sets up unk38..unk5C plus the unk48 re-read:
-   retail  = sw zero 0x40/0x3C/0x38, lhu g_GameState+0x1824, lw D_8009BE10,
-             li 8/sh 0x4A, li 0xF/sw 0x58, addiu a0,-1, sh 0x48, lh 0x48,
-             sltiu, beqz, sw 0x5C (in the delay slot)
-   gcc     = li 8/sh 0x4A above the three zero stores, both loads below them, and the
-             sh 0x48 / lh 0x48 pair folded into sh 0x48 / sll+sra.
-   Tried: source reorder (unk48 before unk4A/unk58), a u16 local for the global, a
-   s32 mode local assigned before the stores (identical 87.47), a volatile read for
-   unk5C (gives the lh but 480 bytes, 86.63), and do/while (0) around the three zero
-   stores - that does put the zeros first and keeps the constants after them, but it
-   makes gcc materialise g_GameState+0x1824 into a saved register (lui/addiu/lhu 4(sN))
-   and the frame grows to 484 bytes (83.45). Permuter: base 1265 best 1053, best
-   candidate reads unk48 into a s16 BEFORE the store (wrong semantics, 86.34 on
-   objdiff). NOTE the "BLOCKED (JTBL)" claim above is wrong for this stub: converting
-   it leaves the overlay byte-identical except for this function's own instructions
-   and three jtbl words that follow from the case labels moving (checked with
-   tools/scripts/check_bin.sh world_map), so the C switch layout is safe here.
+/* 97.39% (472 bytes, retail 476 - one instruction short). The head block is now
+   byte-identical, including the unk48 sh/lh re-read that every earlier attempt
+   folded into an sll/sra: it needs the assignments in RETAIL'S order, not the order
+   the old parked body had -
+     unk40/unk3C/unk38 = 0; unk48 = g_GameState.unk1824; mode = D_8009BE10;
+     unk4A = 8; unk58 = 0xF; unk5C = pActor->unk48;
+   (mode LAST of the two loads, and unk5C written as a re-read of the FIELD, which
+   is what makes gcc emit sh 0x48 / lh 0x48 instead of sh 0x48 / sll+sra). The
+   switch table is 14 words (13 cases, table at an 8-aligned unit offset, the pad
+   comes from the next dlabel's .align 3, so a C switch keeps the layout).
+   The remaining diff is ONE instruction, in the case 1-3 gear arm: retail is
+     lw v0,D_8009C5AC; nop; sw v0,0x28(s0); lui a1,D_8009C5B4; lw a1,...
+   and gcc emits
+     lw v0,D_8009C5AC; lui a1,D_8009C5B4; lw a1,...; sw v0,0x28(s0)
+   i.e. it hoists the second global load above the first store, so gas fills the
+   load-delay slot with lui a1 instead of emitting retail's nop and the function is
+   4 bytes short. Tried: the old parked source order (87.47), gearRide[2] variants,
+   a u16 local for the angle, volatile unk48, do/while (0) around the stores (all
+   worse or unchanged). NOTE the gear flag is g_GameState+0x22B2 = gearRide[1],
+   NOT gearRide[2]: the old body read the wrong byte of gearRide and only reached
+   87.47.
 int func_8008B2BC(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 mode;
@@ -155,19 +156,19 @@ int func_8008B2BC(int index) {
     pActor->unk28 = g_GameState.unk1820 << 12;
     pActor->unk30 = g_GameState.unk1822 << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-    mode = D_8009BE10;
     pActor->unk40 = 0;
     pActor->unk3C = 0;
     pActor->unk38 = 0;
+    pActor->unk48 = g_GameState.unk1824;
+    mode = D_8009BE10;
     pActor->unk4A = 8;
     pActor->unk58 = 0xF;
-    pActor->unk48 = g_GameState.unk1824;
     pActor->unk5C = pActor->unk48;
     switch (mode) {
     case 1:
     case 2:
     case 3:
-        if (g_GameState.gearRide[2] == 0) {
+        if (g_GameState.gearRide[1] == 0) {
             pActor->unk28 = D_8009C5AC;
             pActor->unk30 = D_8009C5B4;
             pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
@@ -183,14 +184,14 @@ int func_8008B2BC(int index) {
         pActor->unk20 = 3;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[1] != 0xFF) {
-            g_GameState.gearRide[2] = 1;
+            g_GameState.gearRide[1] = 1;
         }
         break;
     case 7:
         pActor->unk20 = 2;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[1] != 0xFF) {
-            g_GameState.gearRide[2] = 1;
+            g_GameState.gearRide[1] = 1;
         }
         break;
     case 8:
