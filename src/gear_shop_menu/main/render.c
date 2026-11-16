@@ -1061,22 +1061,11 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
     return var_s6;
 }
 
-// Best parked attempt: 98.73%, 1576 bytes (retail 1572), frame 192 = retail's and its spill order.
-// Form (a) was 1584b/frame 200 at 98.98 and form (b) = (a) + setRECT(&sp20) also 98.98; the body below
-// is form (c) = (b) + an explicit places pointer, the only form with retail's frame. On it,
-// `pRect = &sp20` must be the loop body's first statement (95.87 before HeapAlloc, 97.02 there) and the
-// permuter's `u32 polyColor = 0x1000;` hoist for the tensDigit call is worth 97.02 -> 98.73.
-// Remaining 4 bytes/1 insn: `li t2,0xc3` is re-loaded inside the k-loop where retail hoists `li t0,0xc3`
-// (a `u8 blankDigit` local scores 93.34), plus two equal-priority allocno swaps - i in $s2 (retail $s3)
-// against the RECT width 0x28 constant, pWorkspace in $s7 (retail $s6) against the inventory base giv.
-INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D18F8);
-/*
 void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSellQtys, u8* pItemQtys) {
     RECT sp20;
     u8 sp28[0xE];
     u8 sp38[0xE];
     int places[5]; // sp48
-    s32* pPlace;
     u32 polyColor;
     s32 quotient;
     u8 didRounding;
@@ -1087,8 +1076,8 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
     u8 tensDigit;
     u8 onesDigit;
     s32 qty;
-    void* pWorkspace;
     int i;
+    void* pWorkspace;
 
     places[0] = 1;
     places[1] = 10;
@@ -1114,20 +1103,19 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 g_Menu->pShop->unk3C30[i].width = SystemRenderStringEntry(GetGearAccessoryName(pItemIds[scrollOffset + i]), pWorkspace, 0x24U, 0U);
             }
             didRounding = FALSE;
-            pPlace = &places[4];
             for (j = 4, k = 0; j > 0; k++, j--) {
-                quotient = qty / *pPlace;
+                quotient = qty / places[j];
                 if (quotient || didRounding) {
-                    ((u8*)pRect)[8 + k * 2] = quotient + 0x10;
+                    ((u8*)pRect)[8 + k * 2] = 0x10;
+                    ((u8*)pRect)[8 + k * 2] = quotient + ((u8*)pRect)[8 + k * 2];
                     didRounding = TRUE;
-                    qty -= (quotient * *pPlace);
+                    qty -= (quotient * places[j]);
                 } else {
                     ((u8*)pRect)[8 + k * 2] = 0xC3;
                 }
-                pPlace--;
             }
             ((u8*)pRect)[16] = (qty % 10) + 0x10;
-            SystemDecodeGlyphCodesN((u16*)((u8*)pRect + 8), sp38, 5);
+            SystemDecodeGlyphCodesN((u16*)((u8*)&sp20 + 8), sp38, 5);
             g_Menu->pShop->unk4030[i].width = SystemRenderStringEntry(&sp38, pWorkspace, 0x24U, 1U);
             setRECT(&sp20, 0x180 + (i & 1) * 0x18, 0x80 + (i / 2) * FONT_LETTER_HEIGHT, 0x28, FONT_LETTER_HEIGHT);
             LoadImage(pRect, pWorkspace);
@@ -1145,7 +1133,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, 0xE5, g_Menu->pShop->polysShopInventory[i * 4], g_Menu->renderContext, 0xB4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
                 tensDigit = pItemSellQtys[scrollOffset + i] / 10;
                 if (tensDigit) {
-                    do { g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, polyColor); } while (0);
+                    g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, tensDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xBC, 0x36 + FONT_LETTER_HEIGHT * i, polyColor);
                 }
                 onesDigit = pItemSellQtys[scrollOffset + i] % 10;
                 g_Menu->pShop->unk468C[i] += func_8002675C(g_Menu->resources, onesDigit, &g_Menu->pShop->polysShopInventory[i * 4][g_Menu->pShop->unk468C[i] * 2], g_Menu->renderContext, 0xC4, 0x36 + FONT_LETTER_HEIGHT * i, 0x1000U);
@@ -1158,7 +1146,6 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     HeapFree(pWorkspace);
 }
-*/
 
 
 /*
