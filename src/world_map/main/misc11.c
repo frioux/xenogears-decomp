@@ -3,10 +3,10 @@
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
-    /* 0x04 */ u16 unk04;
-    /* 0x06 */ u16 unk06;
+    /* 0x04 */ s16 unk04;
+    /* 0x06 */ s16 unk06;
     /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
-    /* 0x20 */ u16 unk20;
+    /* 0x20 */ s16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ s16 unk24;
     /* 0x26 */ undefined16 unk26;
@@ -96,13 +96,18 @@ extern void *SpriteAllocFromAnimFile(void *, s16, s16, s16, s16, s16);
 extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetScale(void *, s16);
 extern void WorldMapWrapPosition(void *);
+extern s32 rcos(s32);
+extern s32 rsin(s32);
+extern void WorldMapBuildDirectionFromPositions(WorldMapPos *, WorldMapPos *, s32 *, s16 *);
+extern void WorldMapAddSlotPosition(s16, s32 *);
+extern s32 WorldMapStartSlot(s32, s32);
 extern s32 D_8009C5AC;
 extern s32 D_8009C5B4;
 extern s32 D_8009C584;
 extern WorldMapVec D_8009D55C;
 extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
-extern u16 D_8009D154;
+extern s16 D_8009D154;
 
 /* func_8008A72C, func_8008B2BC, func_8008B644, func_8008BB40, func_8008C364,
    func_8008C844 and func_8008D678 each jr through a jtbl_ table of this unit. The
@@ -254,7 +259,143 @@ int func_8008B54C(int index) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B644);
+int func_8008B644(int index) {
+    s32 result = 1;
+    WorldMapPos *pScratch = (WorldMapPos *)0x1F800000;
+    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pTarget;
+    WorldMapTrail *pTrail;
+    u16 angle;
+
+    switch (pActor->unk04) {
+    case 1:
+        pTarget = &D_8009BE24[pActor->unk06];
+        pActor->unk04 = 0;
+        pActor->unk20 = 8;
+        break;
+    case 2:
+        pActor->unk04 = 0;
+        pActor->unk20 = 0x28;
+        break;
+    case 3:
+        pActor->unk04 = 0;
+        pActor->unk20 = 1;
+        break;
+    case 5:
+        pActor->unk04 = 0;
+        pActor->unk20 = 0x30;
+        break;
+    }
+    switch (pActor->unk20) {
+    case 0:
+    case 1:
+        if (((u8 *)&g_GameState.unk22B0)[index] == 0) {
+            pTrail = &D_8009CEC4[(D_8009D154 - pActor->unk58) & 0x1F];
+            if ((pActor->unk28 == pTrail->vec.unk00) & (pActor->unk2C == pTrail->vec.unk04) &
+                (pActor->unk30 == pTrail->vec.unk08)) {
+                if (((s8 *)pActor->unk4C)[0xAF] != 0) {
+                    SpritePlayAnimation(pActor->unk4C, 0);
+                    WorldMapDeactivateSpriteGroup(index + 0x2E);
+                }
+            } else {
+                if (((s8 *)pActor->unk4C)[0xAF] != 1) {
+                    SpritePlayAnimation(pActor->unk4C, 1);
+                }
+                WorldMapUpdateSpriteGroupFromActor(index + 0x2E, pActor, (WorldMapScreenPos *)pScratch);
+            }
+            pActor->unk28 = pTrail->vec.unk00;
+            pActor->unk2C = pTrail->vec.unk04;
+            pActor->unk30 = pTrail->vec.unk08;
+            pActor->unk48 = pTrail->unk10;
+            pActor->unk24 = 0;
+        } else {
+            pTarget = &D_8009BE24[index + 3];
+            pActor->unk28 = pTarget->unk28;
+            pActor->unk2C = pTarget->unk2C;
+            pActor->unk30 = pTarget->unk30;
+            pActor->unk48 = pTarget->unk48;
+            pActor->unk24 = 1;
+            WorldMapDeactivateSpriteGroup(index + 0x2E);
+        }
+        break;
+    case 2:
+        pActor->unk28 = D_8009BE24[7].unk28;
+        pActor->unk2C = D_8009BE24[7].unk2C;
+        pActor->unk30 = D_8009BE24[7].unk30;
+        pActor->unk48 = D_8009BE24[7].unk48;
+        break;
+    case 8:
+        WorldMapBuildDirectionFromPositions(&pActor->unk28, &pTarget->unk28, &pActor->unk38, &pActor->unk48);
+        pActor->unk50 = pTarget->unk28 >> 12;
+        pActor->unk54 = pTarget->unk30 >> 12;
+        SpritePlayAnimation(pActor->unk4C, 1);
+        pActor->unk20++;
+        /* falls through */
+    case 9:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            pActor->unk20++;
+        }
+        WorldMapUpdateSpriteGroupFromActor(index + 0x2E, pActor, (WorldMapScreenPos *)pScratch);
+        break;
+    case 10:
+        if (WorldMapStartSlot(pActor->unk06, 4)) {
+            pActor->unk24 = 1;
+            pActor->unk20 = 2;
+            WorldMapDeactivateSpriteGroup(index + 0x2E);
+        }
+        break;
+    case 40:
+        pActor->unk28 = g_GameState.unk1930[0x13 + index * 3] << 12;
+        pActor->unk30 = g_GameState.unk1930[0x14 + index * 3] << 12;
+        pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+        angle = (&g_GameState.unk1824)[index];
+        pActor->unk5C = angle;
+        pActor->unk48 = angle;
+        pScratch->x = pActor->unk28 + rcos((s16)angle) * 0x30;
+        pScratch->z = pActor->unk30 + (-rsin(pActor->unk48)) * 0x30;
+        WorldMapBuildDirectionFromPositions(&pActor->unk28, pScratch, &pActor->unk38, &pActor->unk48);
+        pActor->unk50 = pScratch->x >> 12;
+        pActor->unk54 = pScratch->z >> 12;
+        pActor->unk24 = 0;
+        SpritePlayAnimation(pActor->unk4C, 1);
+        pActor->unk20++;
+        /* falls through */
+    case 41:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            pActor->unk20++;
+        }
+        break;
+    case 42:
+        ((u8 *)&g_GameState.unk22B0)[index] = 0;
+        pActor->unk20 = 0x40;
+        break;
+    case 48:
+        WorldMapBuildDirectionFromPositions(&pActor->unk28, &D_8009BE24[1].unk28, &pActor->unk38,
+                                           &pActor->unk48);
+        pActor->unk50 = D_8009BE24[1].unk28 >> 12;
+        pActor->unk54 = D_8009BE24[1].unk30 >> 12;
+        SpritePlayAnimation(pActor->unk4C, 1);
+        pActor->unk20++;
+        /* falls through */
+    case 49:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            pActor->unk20++;
+        }
+        break;
+    case 50:
+        if (WorldMapStartSlot(1, 6)) {
+            pActor->unk20 = 0;
+        }
+        break;
+    case 64:
+        /* reached from case 42; nothing to do, it falls through to the tail */
+        break;
+    }
+    if (pActor->unk24 == 0) {
+        WorldMapAddSlotPosition(0, &pActor->unk28);
+    }
+    return result;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
 /* 87.64% (476 bytes, retail 476). The whole head, the if/else inversion (written
    as "if (gearRide[2] == 0) { gear position } else { unk20 = 1; unk24 = 1; }",
