@@ -2,6 +2,23 @@
 #include "psyq/libgpu.h"
 #include "battle/battle_work.h"
 
+// The colour ramp the pulse triangles fade along: the whole word is stepped,
+// the low byte is the shade written into the triangle vertices.
+typedef union {
+    /* 0x0 */ s32 value;
+    /* 0x0 */ u8 level;
+} BattleColorRamp;
+
+// g_BattlePulseTrianglePrims: the eight POLY_G3 triangles BattleInitPulseTriangles
+// builds, then the ramp and flags BattleUpdateRotationBuffer pulses them with.
+typedef struct {
+    /* 0x00 */ POLY_G3 prims[8];
+    /* 0xE0 */ BattleColorRamp fade;
+    /* 0xE4 */ u8 firstPrim; // index of the first triangle drawn this frame
+    /* 0xE5 */ u8 fading;    // 1 while fading down, 0 while fading up
+    /* 0xE6 */ u8 enabled[4];
+} BattlePulseWork; // Size: 0xEA
+
 extern u8 D_8005959C;
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattleDisplayMode;
@@ -12,7 +29,7 @@ extern BattlePrimPool *g_BattlePrimPool;
 extern s32 g_BattlePrimStartIndex;
 extern void *g_BattleSpriteArchive;
 extern BattleWork *g_BattleDisplayState;
-extern u8 *g_BattlePulseTrianglePrims;
+extern BattlePulseWork *g_BattlePulseTrianglePrims;
 extern u16 D_800C3254[];
 extern u8 D_800D3280;
 extern u8 g_BattleActorCharIds[];
@@ -245,27 +262,37 @@ void BattleUpdateRotationBuffer(void) {
         return;
     }
 
-    if (g_BattlePulseTrianglePrims[0xE5] != 0) {
-        *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) -= 4;
-        if (*(s32 *)(g_BattlePulseTrianglePrims + 0xE0) < 0x40) {
-            g_BattlePulseTrianglePrims[0xE5] = 0;
-            *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) = 0x40;
+    if (g_BattlePulseTrianglePrims->fading != 0) {
+        g_BattlePulseTrianglePrims->fade.value -= 4;
+        if (g_BattlePulseTrianglePrims->fade.value < 0x40) {
+            g_BattlePulseTrianglePrims->fading = 0;
+            g_BattlePulseTrianglePrims->fade.value = 0x40;
         }
     } else {
-        *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) += 4;
-        if (*(s32 *)(g_BattlePulseTrianglePrims + 0xE0) >= 0x100) {
-            g_BattlePulseTrianglePrims[0xE5] = 1;
-            *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) = 0xFC;
+        g_BattlePulseTrianglePrims->fade.value += 4;
+        if (g_BattlePulseTrianglePrims->fade.value >= 0x100) {
+            g_BattlePulseTrianglePrims->fading = 1;
+            g_BattlePulseTrianglePrims->fade.value = 0xFC;
         }
     }
 
     i = 0;
     do {
-        if (*(u8 *)(g_BattlePulseTrianglePrims + i + 0xE6) != 0) {
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + g_BattlePulseTrianglePrims[0xE4]) * 0x1C + 4] = g_BattlePulseTrianglePrims[0xE0];
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + g_BattlePulseTrianglePrims[0xE4]) * 0x1C + 5] = 0;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + g_BattlePulseTrianglePrims[0xE4]) * 0x1C + 6] = 0;
-            AddPrim(g_BattleCurOT + 4, (u8 *)((i * 2 + g_BattlePulseTrianglePrims[0xE4]) * 0x1C + (s32)g_BattlePulseTrianglePrims));
+        if (g_BattlePulseTrianglePrims->enabled[i] != 0) {
+            // Retail re-derives the packet address at each store instead of keeping it in
+            // a register, which only the explicit offset form above produces.
+            ((POLY_G3 *)((i * 2 + g_BattlePulseTrianglePrims->firstPrim) * sizeof(POLY_G3) +
+                         (s32)g_BattlePulseTrianglePrims))
+                ->r0 = g_BattlePulseTrianglePrims->fade.level;
+            ((POLY_G3 *)((i * 2 + g_BattlePulseTrianglePrims->firstPrim) * sizeof(POLY_G3) +
+                         (s32)g_BattlePulseTrianglePrims))
+                ->g0 = 0;
+            ((POLY_G3 *)((i * 2 + g_BattlePulseTrianglePrims->firstPrim) * sizeof(POLY_G3) +
+                         (s32)g_BattlePulseTrianglePrims))
+                ->b0 = 0;
+            AddPrim(g_BattleCurOT + 4,
+                    (u8 *)((i * 2 + g_BattlePulseTrianglePrims->firstPrim) * sizeof(POLY_G3) +
+                           (s32)g_BattlePulseTrianglePrims));
         }
         i++;
     } while (i < 4);
