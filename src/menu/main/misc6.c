@@ -16,7 +16,7 @@ void MenuPlaySoundEffect(u_char soundEffectId);
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
 void func_801E53CC(u_char a0);
 void MenuFreeWindow(u_char a0);
-void func_801D5BA4(u_char a0, u_char a1);
+void MenuSetGoldDigits(u_char a0, u_char a1);
 void MenuSetPlayTimeDigitPrims(u_char a0, u_char a1);
 void MenuSetGearWindowContents(u_char a0, u_char a1);
 void func_801D7CFC(u_char a0, u_char a1, u_char a2);
@@ -234,7 +234,7 @@ void func_801D261C(void) {
 */
 void MenuCreateGoldWindow(void) {
     MenuCreateWindow(0, 0xD4, 0xB2, 0x60, 0x10, 0, 0, 4, 0);
-    func_801D5BA4(0xD8, 0xB6);
+    MenuSetGoldDigits(0xD8, 0xB6);
 }
 void MenuCreatePlayTimeWindow(void) {
     MenuCreateWindow(1, 0xCC, 0xC6, 0x50, 0x10, 0, 0, 4, 0);

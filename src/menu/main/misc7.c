@@ -24,13 +24,13 @@ typedef struct {
 void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
-void func_801D433C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuSetWindowBorderBottom(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D4688(u_char a0, u_short a1, u_short a2, u_short a3);
 void func_801D49D0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2);
-void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3);
-void func_801D53D0(u_char a0, u_char a1, s32 a2, s32 a3);
+void MenuSetCharacterHpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
+void MenuSetCharacterMpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterWideNumberDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterLevelDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 extern s32 D_801E9A78[];
@@ -147,7 +147,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
    first call's `addiu a1,s4,0x8` (x + 8) and then `addiu s2,a2,-0x8` (the shared
    top), gcc emits the s2 one 8 slots earlier. The 16 UV byte stores off
    `g_Menu->renderContext * 0x28 + (u8*)pWindow` and the rest of the decode are
-   exact (see func_801D433C's note for why the stores must be written that way).
+   exact (see MenuSetWindowBorderBottom's note for why the stores must be written that way).
    Tried: `top` local assigned before/after halfWidth (99.89), `y - 8` inline in
    both calls (99.89, but then the `andi a1,a1,0xFFFF`/store-lw pair swaps
    instead), halfWidth inline (99.89), `(u16)(x + 8)` cast (98.09), `x += 8` then
@@ -189,7 +189,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
        }
    }
 */
-void func_801D433C(u_char index, u_short x, u_short y, u_short width, u_short height) {
+void MenuSetWindowBorderBottom(u_char index, u_short x, u_short y, u_short width, u_short height) {
     MenuWindow* pWindow = g_Menu->windows[index];
     u16 bottom;
     s32 halfWidth;
@@ -322,7 +322,7 @@ void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short he
     MenuSetQuadVertices(pWindow->vertsBackground, x, y, width, height);
     MenuInitializeWindowBorderCorners(index, x, y, width, height);
     func_801D3FF8(index, x, y, width);
-    func_801D433C(index, x, y, width, height);
+    MenuSetWindowBorderBottom(index, x, y, width, height);
     func_801D4688(index, x, y, height);
     func_801D49D0(index, x, y, width, height);
     if (hasScrollBar != 0) {
@@ -387,7 +387,7 @@ void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
         }
     }
 }
-void func_801D51EC(u_char index, u_char characterId, s32 x, s32 y) {
+void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
     MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
     s32 n;
@@ -420,7 +420,7 @@ void func_801D51EC(u_char index, u_char characterId, s32 x, s32 y) {
         }
     }
 }
-void func_801D53D0(u_char index, u_char characterId, s32 x, s32 y) {
+void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
     MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
     s32 i;
     s32 n;
@@ -530,8 +530,8 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     y = pTween->unk1C / 256 + pTween->unk8;
     func_801D4F2C(index, characterId, x, y);
     MenuSetCharacterWindowIcons(index, x, y);
-    func_801D51EC(index, characterId, x, y);
-    func_801D53D0(index, characterId, x, y);
+    MenuSetCharacterHpDigits(index, characterId, x, y);
+    MenuSetCharacterMpDigits(index, characterId, x, y);
     MenuSetCharacterWideNumberDigits(index, characterId, x, y);
     MenuSetCharacterLevelDigits(index, characterId, x, y);
     g_Menu->pManager->unk0[index] = 1;
@@ -547,7 +547,7 @@ typedef struct {
     /* 0x324 */ u_char renderContext;
 } MenuGoldWindow; // Size: 0x328
 
-void func_801D5BA4(s32 x, s32 y) {
+void MenuSetGoldDigits(s32 x, s32 y) {
     s32 i;
     s32 digitX;
 
@@ -661,7 +661,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
 /* Best: 93.40%. Two diffs left. (1) retail has `addiu s0,s0,1` in the delay
    slot of the `digit == 0xFFFF` beq and then does the render; gcc puts the
    increment at the end of the body - the same delay-slot-fill puzzle as the
-   func_801D5BA4 note. (2) second loop: retail loads lhu 0xA8 twice (a1 for the
+   MenuSetGoldDigits note. (2) second loop: retail loads lhu 0xA8 twice (a1 for the
    arg, v0 for the width subtraction) and loads x/y straight into a1/a2; gcc
    CSEs the twin lhu and then emits `move a1,v1`/`move a2,t0`.
    Tried: `if (== 0xFFFF) continue;` form (same), outer `if (count > 0)` guard
@@ -669,7 +669,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
    Symbols added: D_801E9B60, D_801E9C20, D_801EA39C (all live in
    asm/menu/data/246A4.data.s).
    Round 121: the increment-in-the-beq-delay-slot shape is `digits[i++]` plus a
-   value local (that closed func_801D51EC/53D0/5BA4 here) - for this function it
+   value local (that closed MenuSetCharacterHpDigits/53D0/5BA4 here) - for this function it
    is `pId = &D_801EA39C[a0 * 0x18 + i++]` + `*pId` twice, but taken literally it
    collapses to 77.82% (432 bytes): the address local changes the whole loop, so
    the x/y arrays must be indexed off a separate counter. Loop 2's twin `lhu`

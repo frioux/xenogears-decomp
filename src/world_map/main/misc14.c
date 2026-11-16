@@ -353,7 +353,7 @@ s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     } else {
         found = 0;
         for (i = 0; i < count; i += 2) {
-            if (func_80085418(&D_1F800060, 0x70, spriteIndex, D_8009D718[i]) == 0) {
+            if (WorldMapCheckTriangleEdgeSide(&D_1F800060, 0x70, spriteIndex, D_8009D718[i]) == 0) {
                 D_8009D718[i] = -1;
                 found += 2;
             }

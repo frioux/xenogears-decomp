@@ -72,7 +72,7 @@ extern s32 D_801EA048;
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
-/* Best: 68.99% (556 vs 484 bytes). Shape is certain (it is the func_801D51EC
+/* Best: 68.99% (556 vs 484 bytes). Shape is certain (it is the MenuSetCharacterHpDigits
    idiom from misc7: MenuParseNumberToDigits, then a counter byte at
    unk34C + index*0x87C + 0x130A, then two loops over g_Menu->digits[6+i] that
    accumulate func_8002675C return values, the second one with an n counter for

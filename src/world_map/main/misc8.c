@@ -953,7 +953,7 @@ void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMa
     VectorNormal(&pWork->vert2, (VECTOR *)pNormal);
     WorldMapInterpolatePlaneHeight(pOut, (WorldMapPos *)pA, pNormal);
 }
-s32 func_80085418(WorldMapPos *pPos, s32 yOffset, u16 setIndex, u16 triIndex) {
+s32 WorldMapCheckTriangleEdgeSide(WorldMapPos *pPos, s32 yOffset, u16 setIndex, u16 triIndex) {
     WorldMapEntry *pEntry;
     WorldMapMesh *pMesh;
     WorldMapTriangle *pTri;
@@ -1028,7 +1028,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80085760);
 // pointer locals here push the frame to 0x40 and cost the 8 insns.
 // Everything else is mapped: a0 = a WorldMapPos used only by the switch arms,
 // a1 = the WorldMapPos the clip origin comes from, a2 = setIndex as s32 (no
-// andi before the *0x54 chain, unlike func_80085418 whose is u16), a3 =
+// andi before the *0x54 chain, unlike WorldMapCheckTriangleEdgeSide whose is u16), a3 =
 // triIndex. After the three MVMVA passes it packs (vz<<16)|(u16)vx for the
 // three vertices and the clip origin into the three longs at 0x1F800030 and
 // calls NormalClip(v0,v1,origin) -> bit 1, (v1,v2) -> bit 2, (v2,v0) -> bit 4;
