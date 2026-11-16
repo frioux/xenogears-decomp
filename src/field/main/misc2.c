@@ -189,8 +189,9 @@ void FieldMathIntersectLines(SVec4* pA, SVec4* pB, SVec4* pOut) {
     pOut->y = pB->y + ((t * nB.vz) >> 12);
 }
 
-// PARKED 95.08% (420 bytes vs the original's 408; permuter-tuned body). Clean form
-// below is 91.81%. Two findings from this round:
+// PARKED 91.81% / 408 bytes - retail's exact size, so the shape is right and only one
+// allocator decision is missing (see ROUND 146 at the end of this note). Two findings
+// from the first round on this function:
 // (1) THE PLAIN POINTER IS WORTHLESS: `u_char* pCam = (u_char*)&g_CamInterpolation`
 //     scores 62.01% because gcc folds every post-call use back into a fresh
 //     %hi/%lo pair (`sw $zero,%lo(g_CamInterpolation-0x104)($at)`), so the `$s0`
@@ -207,33 +208,56 @@ void FieldMathIntersectLines(SVec4* pA, SVec4* pB, SVec4* pOut) {
 //     genuinely loaded value without a local's address being taken (a global
 //     pointer datum would need new data, which this unit cannot add).
 // Screened already: Default 62.01, cdk 65.16, 2.6.0 62.01 on the plain form.
-// permuter runs: 62.01 -> 91.81 -> 94.64 -> 95.08, still falling slowly; the
-// candidates are in permuter/func_8007254C/.
+// permuter runs: 62.01 -> 91.81 -> 94.64 -> 95.08, still falling slowly.
+// ROUND 146: the body below is the clean spelling of that 91.81% shape and it now
+// measures 91.81% / 408 bytes, i.e. EXACTLY retail's size - the older 95.08% note
+// above came from an earlier tree (a permuter soup of the same shape compiles to
+// byte-identical output today, so the difference was the headers, not the C). The
+// address-taken-pointer launder is what makes the whole camera block address as
+// `disp(base)` instead of `%lo(sym+K)($at)`; it costs one stack slot and one reload.
+// Everything else is now instruction-for-instruction retail's: same 4 base insns
+// (lui/addiu + sw/lw of the pointer), same offsets, same store order, same CSE of
+// the 8 / 0x800 / 0x10000000 / 0x1000 constants, same $at-form for the three
+// CameraInterpolation members at +0x4/+0x8/+0xA. What is left is ONE allocator
+// decision: retail holds the base in a callee-saved $s0 (frame 0x18, saved in the
+// prologue, restored in the epilogue) so that the pre-call `sw v0,0($s0)` and the
+// post-call block share it; ours re-loads the spilled pointer into $v0 just after
+// the jal (frame 0x20), which also swaps v0/v1 through the whole post-call block.
+// cse cannot hoist that load above the FieldMatrixSetIdentity call (a call clobbers
+// memory, and pCam's address escapes), and 2.7.2 will not put a *constant* symbol
+// address in a callee-saved register - it rematerialises or spills instead. Every
+// other launder (a second pointer fed from the first, an s32 holding the address, a
+// one-field struct) costs a `lw` plus a save/restore, i.e. +8 bytes, so the size
+// gate fails even when the shape is right.
+// Preset: --sweep over gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1/-O2/-O3 x -G4/-G8 x
+// -mcpu 3000/r8000 tops out at 66.27 (cdk -O1) on the plain form, so this is not a
+// flag question. Permuter (round 146, 5 min, this body, base = the parked body)
+// found nothing better: RESULT PERMUTER_NONE, best candidate 465 against our 408-byte
+// base.
 /*
-extern VECTOR g_CameraEye;
 extern void FieldMatrixSetIdentity(MATRIX* pMatrix);
+extern VECTOR g_CameraEye;
+extern VECTOR g_CameraUp;
 
-// The original keeps &g_CamInterpolation in $s0 for the whole function and reaches
-// the camera block that sits below it (g_CameraEye..g_CameraUp at 0x800AF880) with
-// negative displacements, so those stores are spelled as offsets from that base.
 void func_8007254C(void) {
-    u_char* pCam;
-    u_char** pCamRef;
+    u_char* pCam = (u_char*)&g_CamInterpolation;
+    u_char** pCamRef = &pCam;
 
-    pCam = (u_char*)&g_CamInterpolation;
-    *(s32*)pCam = 8;
+    (void)pCamRef;
+
+    *(s32*)(pCam + 0x0) = 8;
     g_CamInterpolation.eyeStepDistance = 8;
     g_Scene.unk5C = 0x400000;
     g_Scene.unk60 = 0x8000000;
     g_Scene.sceneAngle.vy = 0x800;
-    *(s32*)((u_char*)&g_Scene + 0xA8) = 0;
-    *(s32*)((u_char*)&g_Scene + 0xA4) = 0;
-    *(s32*)((u_char*)&g_Scene + 0xA0) = 0;
-    *(s32*)((u_char*)&g_Scene + 0xB4) = 0;
-    *(s32*)((u_char*)&g_Scene + 0xB0) = 0;
-    *(s32*)((u_char*)&g_Scene + 0xAC) = 0;
-    *(s16*)((u_char*)&g_Scene + 0x98) = 0;
-    *(s16*)((u_char*)&g_Scene + 0x9C) = 0;
+    ((s32*)g_Scene.unk98)[4] = 0;
+    ((s32*)g_Scene.unk98)[3] = 0;
+    ((s32*)g_Scene.unk98)[2] = 0;
+    ((s32*)g_Scene.unk98)[7] = 0;
+    ((s32*)g_Scene.unk98)[6] = 0;
+    ((s32*)g_Scene.unk98)[5] = 0;
+    ((s16*)g_Scene.unk98)[0] = 0;
+    ((s16*)g_Scene.unk98)[2] = 0;
     g_Scene.unk48 = 0;
     g_CamInterpolation.curAngleY = 0;
     g_CamInterpolation.targetAngleY = 0;
@@ -245,43 +269,43 @@ void func_8007254C(void) {
     g_Scene.unk7C = 0x800;
     g_Scene.camRotation.vx = 0;
     g_Scene.camRotation.vy = 0;
-    pCamRef = &pCam;
     g_Scene.camRotation.vz = 0;
-    FieldMatrixSetIdentity((MATRIX*)(*pCamRef + 0x2C));
+    FieldMatrixSetIdentity((MATRIX*)(pCam + 0x2C));
 
-    *(s32*)(*pCamRef - 0x104) = 0;
+    *(s32*)(pCam - 0x104) = 0;
     g_CameraEye.vy = 0;
     g_CameraEye.vz = 0;
-    *(s32*)(*pCamRef - 0xE0) = 0x10000000;
+    *(s32*)(pCam - 0xE0) = 0x10000000;
     *(s32*)(pCam - 0xB0) = 0x10000000;
-    *(s16*)(*pCamRef + 0x78) = 0x1E;
+    *(s16*)(pCam + 0x78) = 0x1E;
     *(s32*)(pCam + 0x74) = 0x200;
     *(s32*)(pCam - 0xF4) = 0;
     *(s32*)(pCam - 0xF0) = 0;
-    *(s32*)(*pCamRef - 0xEC) = 0;
-    *(s32*)(*pCamRef - 0xE4) = 0;
-    *(s32*)(*pCamRef - 0xDC) = 0;
-    *(s32*)(*pCamRef - 0xA4) = 0;
+    *(s32*)(pCam - 0xEC) = 0;
+    *(s32*)(pCam - 0xE4) = 0;
+    *(s32*)(pCam - 0xDC) = 0;
+    *(s32*)(pCam - 0xA4) = 0;
     *(s32*)(pCam - 0xA0) = 0;
-    *(s32*)(*pCamRef - 0x9C) = 0;
+    *(s32*)(pCam - 0x9C) = 0;
     *(s32*)(pCam - 0xD4) = 0;
     *(s32*)(pCam - 0xD0) = 0;
-    *(s32*)(*pCamRef - 0xCC) = 0;
+    *(s32*)(pCam - 0xCC) = 0;
     *(s32*)(pCam - 0xC4) = 0;
-    *(s32*)(*pCamRef - 0xC0) = 0;
+    *(s32*)(pCam - 0xC0) = 0;
     *(s32*)(pCam - 0xBC) = 0;
-    *(s32*)(*pCamRef - 0xB4) = 0;
+    *(s32*)(pCam - 0xB4) = 0;
     *(s32*)(pCam - 0xAC) = 0;
     *(s16*)(pCam + 0x7C) = 0;
     *(s16*)(pCam + 0x8C) = 0;
-    *(s16*)(*pCamRef + 0x98) = 0;
-    *(s16*)(*pCamRef + 0x7A) = 0x1000;
-    *(s16*)(*pCamRef - 0x50) = 0;
+    *(s16*)(pCam + 0x98) = 0;
+    *(s16*)(pCam + 0x7A) = 0x1000;
+    *(s16*)(pCam - 0x50) = 0;
     *(s16*)(pCam - 0x48) = 0;
     *(s16*)(pCam - 0x46) = 0;
     *(s16*)(pCam - 0x24) = 0;
 }
 */
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_8007254C);
 
 
