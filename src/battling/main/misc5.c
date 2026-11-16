@@ -138,6 +138,7 @@ extern u8 D_800928A0;
 extern int rand(void);
 
 extern void BattleDrawLineQuads(s32);
+extern void func_8007D0B4(SVector *pVec);
 extern void func_8007D334(s32, s32, s32);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
@@ -484,7 +485,47 @@ void func_8007D0B4(SVector *pVec) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D0B4);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D190);
+// s32, not void: retail keeps a nop in the switch guard's delay slot, which gcc
+// 2.7.2 only emits for a non-void return type.
+s32 func_8007D190(VECTOR *pVec, s32 action) {
+    SVector vec;
+
+    vec.vx = pVec->vx;
+    vec.vy = pVec->vy;
+    vec.vz = pVec->vz;
+    switch (action) {
+    case 8:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 0:
+        BattleEffectAddSlot(&vec, 0);
+        break;
+    case 9:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 1:
+        BattleEffectAddSlot(&vec, 1);
+        break;
+    case 10:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 2:
+        BattleEffectAddSlot(&vec, 2);
+        break;
+    case 11:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 3:
+        BattleEffectAddSlot(&vec, 3);
+        break;
+    case 12:
+        func_8007D0B4(&vec);
+        /* fallthrough */
+    case 4:
+        BattleEffectAddSlot(&vec, 4);
+        break;
+    }
+}
 
 s32 BattleEffectIsTwoVertexType(s32 arg0) {
     if (arg0 < 0x10) {
