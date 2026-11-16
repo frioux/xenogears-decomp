@@ -5,6 +5,7 @@
 
 extern u8 D_801EA6D0[][0x10];
 extern u8* D_801EA6F4;
+extern s32 D_801E9810[];
 extern s32 D_801E9818[];
 extern s32 D_801E9820[];
 extern u16 D_8005A3A0[0x10];
@@ -133,7 +134,10 @@ extern void MenuWaitCardOperationFrames(u_char index);
    aggregate copy is impossible in C (a {u32;s16;} struct is 8 bytes and copies 8),
    and two field assignments are merged by -fcross-jumping. func_801CB304 and
    misc4's func_801CD2AC use the same idiom. Also: unk4F84 is a s32 write cursor
-   here (lw/addiu/sw), so it is reached through a cast over the header's u8[8]. */
+   here (lw/addiu/sw), so it is reached through a cast over the header's u8[8].
+   Permuter (4 min, 1289 iterations, base=80 best=80) found nothing for the addu
+   order, so the remaining two diffs are a1/v0 register swap (GIV_TIE) in the
+   strcat index math and the MenuReadFileChunk argument's addu operand order. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
 /*
 void func_801C90B0(u_char a0, u_char a1) {
@@ -315,7 +319,90 @@ s32 MenuFindFirstValidSlot(s32 a0) {
     return result;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
+
+/* Best attempt: 83.27% (668 bytes vs retail's 684). Structure is settled: each case
+   is a step-3 search over D_801E9810 whose hit stores i - 3 and returns, followed --
+   only when that search found nothing -- by a step-1 search over D_801E9818, each
+   phase guarded by BOTH `i >= 0` and `i - 1 >= 0` (the first is redundant in C but
+   retail emits both compares at all three sites, so keep it). Case 2 is a flag test
+   on ((u8*)menuUnk2)[0x4FE4 + i / 15], divisor FIFTEEN, plus the same clamp. Retail's
+   D_801E9810/9818/9820/9828 are one s32 table at index +0/+2/+4/+6.
+   Remaining diff is allocator-only: case 1 hoists `lw 0x32C(g_Menu)` out of both of
+   its loops where retail reloads it every iteration, which also gives retail a
+   separate a0 = i - 3 induction variable that mine recomputes; and case 2's
+   `lui 0x88888889` sits in the dispatch delay slot in retail.
+   Tried: pMenu local vs inline g_Menu->menuUnk2 (inline 83.27 beats local 77.27),
+   gcc-2.7.2-cdk 74.56. func_801C9EF4 is the ascending mirror (D_801E9828 / D_801E9820,
+   +3 then +1, `slti 0x1E`), so any fix here should transfer. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
+/*
+void func_801CA1D4(s32 a0, s32 a1) {
+    s32 i;
+    s32 j;
+
+    switch (a0) {
+    case 0:
+        for (i = a1; i - 3 >= 0; i -= 3) {
+            j = D_801E9810[i];
+            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+                g_Menu->menuUnk2->unk4F7C = i - 3;
+                break;
+            }
+        }
+        if (i - 3 >= 0) {
+            break;
+        }
+        i = g_Menu->menuUnk2->unk4F7C - 3;
+        if (i >= 0) {
+            for (; i - 1 >= 0; i--) {
+                j = D_801E9818[i];
+                if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+                    g_Menu->menuUnk2->unk4F7C = i - 1;
+                    break;
+                }
+            }
+        }
+        break;
+    case 1:
+        for (i = a1; i - 3 >= 0; i -= 3) {
+            j = D_801E9810[i];
+            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
+                g_Menu->menuUnk2->unk4F7C = i - 3;
+                break;
+            }
+        }
+        if (i - 3 >= 0) {
+            break;
+        }
+        i = g_Menu->menuUnk2->unk4F7C - 3;
+        if (i >= 0) {
+            for (; i - 1 >= 0; i--) {
+                j = D_801E9818[i];
+                if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
+                    g_Menu->menuUnk2->unk4F7C = i - 1;
+                    break;
+                }
+            }
+        }
+        break;
+    case 2:
+        i = a1 - 3;
+        if (((u8*)&g_Menu->menuUnk2->unk4FE4)[i / 15] != 0) {
+            if (i >= 0) {
+                g_Menu->menuUnk2->unk4F7C = i;
+            } else {
+                i = g_Menu->menuUnk2->unk4F7C - 3;
+                if (i >= 0) {
+                    if (i - 1 >= 0) {
+                        g_Menu->menuUnk2->unk4F7C = i - 1;
+                    }
+                }
+            }
+        }
+        break;
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
 
 /* Best attempt: 83.32%. Cases 0 and 2 are exact; case 1 is a pure register
