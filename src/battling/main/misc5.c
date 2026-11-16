@@ -86,20 +86,22 @@ typedef struct {
     /* 0x78 */ u32 unk78;
 } BattleSlot; // Size: 0x7C
 
-// 0xC-byte primitive template func_8007D6B8 allocates at D_800926C0/D_800926C4.
+// 0xC-byte primitive template func_8007D6B8 allocates at D_800926C0/D_800926C4:
+// a 0x68 tile prim, whose tag word is the OT link plus the prim's length.
 typedef struct {
     /* 0x0 */ u8 unk0[3];
-    /* 0x3 */ u8 unk3;
+    /* 0x3 */ u8 len;
     /* 0x4 */ u32 unk4;
     /* 0x8 */ u8 unk8[4];
 } BattlePrimTemplate; // Size: 0xC
 
-// 0xA-byte entry table func_8007D6B8 allocates at g_BattleSpriteEntries.
+// 0xA-byte entry table func_8007D6B8 allocates at g_BattleSpriteEntries: where
+// func_8007D7A8 put an entry on the grid and how long it lives.
 typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ u16 unk2;
-    /* 0x4 */ u16 unk4;
-    /* 0x6 */ s8 unk6;
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 z;
+    /* 0x6 */ s8 life; // 0 marks a free entry; set to the entry's frame countdown
     /* 0x7 */ s8 unk7;
     /* 0x8 */ u16 unk8;
 } BattleSpriteEntry; // Size: 0xA
@@ -128,21 +130,23 @@ extern u8 D_8009269C[];
 extern s32 g_BattleDrawFlags;
 extern VECTOR g_BattleViewOrigin;
 
-// 0xC-byte entry table BattleInitSpriteBuffers allocates at g_BattleSpriteSlots.
+// 0xC-byte entry table BattleInitSpriteBuffers allocates at g_BattleSpriteSlots:
+// one particle's position, its per-frame movement and its remaining frames.
 typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ u16 unk2;
-    /* 0x4 */ u16 unk4;
-    /* 0x6 */ s16 unk6;
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 z;
+    /* 0x6 */ s16 life; // 0 marks a free entry; counts down every frame
     /* 0x8 */ s8 unk8;
     /* 0x9 */ s8 unk9;
     /* 0xA */ u16 unkA;
 } BattleSpriteSlot; // Size: 0xC
 
-// 0x10-byte primitive template BattleInitSpriteBuffers allocates at D_800926CC/D_800926D0.
+// 0x10-byte primitive template BattleInitSpriteBuffers allocates at D_800926CC/D_800926D0:
+// a 0x60 tile prim, whose tag word is the OT link plus the prim's length.
 typedef struct {
     /* 0x0 */ u8 unk0[3];
-    /* 0x3 */ u8 unk3;
+    /* 0x3 */ u8 len;
     /* 0x4 */ u32 unk4;
     /* 0x8 */ u8 unk8[4];
     /* 0xC */ u16 unkC;
@@ -768,16 +772,16 @@ void func_8007D6B8(void) {
     D_800926C4 = HeapAlloc(0xBF4, 0);
     pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
     for (i = 0; i < 0xFF; i++) {
-        ((BattlePrimTemplate *)D_800926C0)[i].unk3 = 2;
+        ((BattlePrimTemplate *)D_800926C0)[i].len = 2;
         ((BattlePrimTemplate *)D_800926C0)[i].unk4 = 0x6880B0F0;
-        ((BattlePrimTemplate *)D_800926C4)[i].unk3 = 2;
+        ((BattlePrimTemplate *)D_800926C4)[i].len = 2;
         ((BattlePrimTemplate *)D_800926C4)[i].unk4 = 0x6880B0F0;
-        pEntry[i].unk4 = 0;
-        pEntry[i].unk2 = 0;
-        pEntry[i].unk0 = 0;
-        pEntry[i].unk6 = 0;
-        pEntry[i].unk4 = 0;
-        pEntry[i].unk0 = 0;
+        pEntry[i].z = 0;
+        pEntry[i].y = 0;
+        pEntry[i].x = 0;
+        pEntry[i].life = 0;
+        pEntry[i].z = 0;
+        pEntry[i].x = 0;
     }
 }
 */
@@ -805,18 +809,18 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
         if (count == 0) {
             break;
         }
-        if (pEntry->unk6 == 0) {
+        if (pEntry->life == 0) {
             vx = pSrc->vx - 32 + rand() % 64;
             texel = (s8)vx;
-            pEntry->unk0 = vx;
+            pEntry->x = vx;
             vz = pSrc->vz - 32 + rand() % 64;
             index = (((s8)vz) << 7) + texel;
-            pEntry->unk4 = vz;
+            pEntry->z = vz;
             v = *(u16 *)(g_BattleGridCells + index * 4);
             pEntry->unk8 = v;
-            pEntry->unk2 = v;
+            pEntry->y = v;
             pEntry->unk7 = -(rand() % 10 + 10);
-            pEntry->unk6 = 0x14;
+            pEntry->life = 0x14;
             count--;
         }
     }
@@ -838,14 +842,14 @@ void BattleInitSpriteBuffers(void) {
     pSlot = (BattleSpriteSlot *)g_BattleSpriteSlots;
     pTemplate = (BattlePrimTemplate16 *)pTemplateBuf;
     for (i = 0; i < 0x21C; i++, pSlot++, pTemplate++) {
-        pTemplate->unk3 = 3;
+        pTemplate->len = 3;
         pTemplate->unk4 = 0x60FFD0A0;
         pTemplate->unkC = rand() % 3 + 2;
         pTemplate->unkE = rand() % 3 + 2;
-        pSlot->unk4 = 0;
-        pSlot->unk2 = 0;
-        pSlot->unk0 = 0;
-        pSlot->unk6 = 0;
+        pSlot->z = 0;
+        pSlot->y = 0;
+        pSlot->x = 0;
+        pSlot->life = 0;
         pSlot->unk9 = 0;
         pSlot->unkA = 0;
         pSlot->unk8 = 0;
