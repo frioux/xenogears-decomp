@@ -74,6 +74,7 @@ extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void func_80077698(void);
+extern void func_800826CC(u8 arg0);
 
 /* 82.95%: best of 6 shapes. The loop body matches instruction for
    instruction (four reloads of the volatile counter, the two separate
@@ -271,27 +272,48 @@ void BattleSetActorFlag34(u8 index) {
 
     pEntry[0x34] = 1;
 }
-/* 86.16%: first full reconstruction, every block present and in retail's
-   order. Remaining: (a) the BattlePairTargetable fill loop - retail copies i to a
-   second reg (`move s1,s0`) and increments i in the beqz delay slot so the
-   store uses the old i, we store i directly, 1 insn short; (b) case 1 reuses
-   the D_800C3EAC load from the D_800C4022 store for the +0x3C read (we
-   reload, +2 insns); (c) case 2: retail keeps (info[1]+0x16)*0x28 undistributed
-   and re-forms D_800CDD53/D_800CCD38 as sym+reg memory operands twice each,
-   our cse folds the 0x16*0x28 into the symbol and shares the address in a
-   register (the same cse-address-sharing wall as func_800826CC); (d) arg0
-   lives in s3 in retail, s2 here. */
+/* 88.65%: second full reconstruction; every block, call and branch is in
+   retail's order and the function is 1244 bytes against retail's 1220. What the
+   shape work settled since the 86.16 park:
+   (a) the function is `void`, not u8 - retail's epilogue has no copy of the
+       `ret` flag into $v0 (it is only ever tested), which removes one move.
+   (b) the BattlePairTargetable fill loop must READ AND BUMP in one statement:
+       `while (i < 0xB) { slot = i++; ... }` gives retail's `move s1,s0` plus
+       `sb s1` (a plain `slot = i;` is copy-propagated away and the loop stores
+       the counter directly). Only the `addiu s0,s0,1` position is still off:
+       retail has it in the beqz delay slot, ours hoists it above the call and
+       reorg fills the slot with `slti`.
+   (c) the random-target loop is a do/do whose outer test reads the GLOBAL
+       (`while (D_800C3E2C == arg0)`), which is what makes retail reload it.
+   (d) case 2's cost index must go through a local first (`i = info[1] + 0x16;`)
+       or gcc distributes the multiply and folds 0x16*0x28 into the symbol as
+       `D_800CDD53+880`; and the D_800CCD38 offset must be a local too
+       (`i = arg0 * 0x170;`) or gcc materialises the address once with `la` and
+       shares it instead of re-forming retail's two sym+reg operands. Both from
+       one 4-minute permuter run (base 5054 -> 3469) plus a hand improvement.
+   Still open: (i) case 1's command-queue block - retail loads D_800C3EAC twice
+   for the last two statements and reuses each load across a store
+   (lbu 0x2DA + lbu 0x3C share one; lbu 0x2DA, the D_800C3FFE index and the
+   `D_800C3EAC[0x2DA]++` share the other), we reload once per statement, +2
+   loads; a pointer local covers them but keeps the value live across
+   BattleSlotBitMask, which needs a sixth callee-saved register.
+   (ii) arg0 sits in s2, retail has it in s3 (s0..s4 are used in both).
+   (iii) the tail `while (a && b && c)` block is laid out with the third test
+   hoisted above the body, costing one instruction.
+   Tried and no help: -O3, -G0, cdk (preset is not the issue), `li` order,
+   pointer locals for the queue base, s32/u8 slot, do/while(0) around the
+   queue block. */
 /*
-u8 func_80080C94(u8 arg0) {
+void func_80080C94(u8 arg0) {
     u8 info[8];
     u8 buf[0xB];
     u8 *pBuf;
-    u8 ret = 1;
     u8 cost;
+    u8 ret = 1;
     s32 idx;
     s32 r;
     s32 i;
-    s32 sel;
+    s32 slot;
 
     BattleUpdateFrame();
     for (i = 0xA; i >= 0; i--) {
@@ -302,19 +324,19 @@ u8 func_80080C94(u8 arg0) {
     BattleClearSlotFlag15A1(arg0);
     func_8009BAC4(arg0, info, D_800C3EAC + arg0 * 0x40 + 0x2A);
     if (info[0] == 1 || info[0] == 2) {
-        i = 0;
         pBuf = buf;
-        for (i = 0; i < 0xB; i++) {
-            if (BattlePairTargetable(arg0, i) != 0) {
-                *pBuf++ = i;
+        i = 0;
+        while (i < 0xB) {
+            slot = i++;
+            if (BattlePairTargetable(arg0, slot) != 0) {
+                *pBuf++ = slot;
             }
         }
         do {
             do {
-                sel = buf[GameRandomByteRange(0, 0xA)];
-                D_800C3E2C = sel;
-            } while (sel == 0xFF);
-        } while (sel == arg0);
+                D_800C3E2C = buf[GameRandomByteRange(0, 0xA)];
+            } while (D_800C3E2C == 0xFF);
+        } while (D_800C3E2C == arg0);
     }
     BattleInitSlotRowsForActor(arg0, D_800C3E2C);
     idx = arg0 * 0x40;
@@ -345,11 +367,13 @@ u8 func_80080C94(u8 arg0) {
         BattleQueueCommandFE(arg0);
         break;
     case 2:
-        cost = D_800CDD53[(info[1] + 0x16) * 0x28 + arg0 * 0x5F0];
-        if (*(u16 *)(D_800CCD38 + arg0 * 0x170) >= cost) {
-            *(u16 *)(D_800CCD38 + arg0 * 0x170) -= cost;
-            ret = 0;
+        i = info[1] + 0x16;
+        cost = D_800CDD53[i * 0x28 + arg0 * 0x5F0];
+        i = arg0 * 0x170;
+        if (*(u16 *)(D_800CCD38 + i) >= cost) {
+            *(u16 *)(D_800CCD38 + i) -= cost;
             D_800C3EAC[0x2E6] = info[1];
+            ret = 0;
             func_8008ADD0(arg0);
         }
         break;
@@ -370,7 +394,6 @@ u8 func_80080C94(u8 arg0) {
         BattleUpdateFrame();
     }
     D_800C204C = 0;
-    return ret;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080C94);
