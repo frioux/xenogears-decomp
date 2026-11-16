@@ -412,10 +412,10 @@ void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     s32 rowOff = arg1 * 0x40;
     u16 val = p[2] | (p[3] << 8);
-    mem_addr addr;
+    mem_addr regFileBase;
 
-    addr = (mem_addr)D_800D3420;
-    *((u16 *)((p[1] << 1) + (rowOff + addr))) = val;
+    regFileBase = (mem_addr)D_800D3420;
+    *((u16 *)((p[1] << 1) + (rowOff + regFileBase))) = val;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
 /* 53.44% - the value expression and the index come out right, but gcc forms the
