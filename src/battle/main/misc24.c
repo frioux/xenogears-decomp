@@ -223,20 +223,6 @@ void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
-/* 96.25% - gain over the 88.71 body: bind the else-branch table base to a u8 *
-   local (*(u8 **)(arg1 + 0xC) + 4) and index it in u8 rather than forming a
-   s32 * and casting; permuter score 262 -> 227, 1408 further iters found
-   nothing better. Remaining: (1) both arg0[*pCount + ..] stores emit
-   "addu v0,v0,a0" where the original has "addu v0,a0,v0" ('*pCount + 0x2A +
-   arg0' reassociates the same way); (2) the else branch folds the +4 into the
-   -0x138 displacement (lw v0,-308(v0)) where the original keeps
-   "lw v1,4(v0)" then "lw v0,-312(v0)", which leaves every branch offset 8
-   bytes short of the original; (3) original reloads arg0[0x2B] for the "++"
-   where gcc CSEs it into one load plus "andi". Also tried: nested ifs with
-   bare dereferences (64.61), a u8 *pCount = arg0 + 0x2B local (88.71),
-   pointer locals for both table bases (88.71), and a u16 n = D_800C3E30 local,
-   which is needed to hoist the lhu before the stores.
-*/
 void func_800AA934(u8 *arg0, u8 *arg1, void *arg2, s32 arg3) {
     s32 *pTable;
     u8 *pCount;
