@@ -40,8 +40,8 @@ typedef struct {
     /* 0x54 */ s16 rot[3];
     /* 0x5A */ u16 pad5A;
     /* 0x5C */ s32 pos[3];
-    /* 0x68 */ void* p68;
-    /* 0x6C */ void* p6C;
+    /* 0x68 */ void* pModelPacketBuffer; // what ModelAllocatePackets hands back
+    /* 0x6C */ void* pCurModelPacket; // the packet being built, initialised from the buffer
     /* 0x70 */ BattleBlock* p70;
     /* 0x74 */ BattleBlock* p74;
     /* 0x78 */ BattleBlock* p78;
@@ -81,23 +81,25 @@ typedef struct {
 } BattleSpriteState; // Size: 0xA8
 
 // A battle participant. g_BattleActors[] holds one pointer per slot. Only the
-// fields read by src/battle/main/misc24 are named; other battle units reach
-// past 0x186, so 0x1A0 is a lower bound on the real size.
+// fields read by src/battle/main/misc24 and misc25 are named; other battle
+// units reach past 0x186, so 0x1A0 is a lower bound on the real size. The gear
+// side's Model (include/libgear/main.h) is the same layout and names the
+// height/attach/position fields below the same way.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x4];
+    /* 0x000 */ void* pMesh; // the actor's mesh; BattleFreeModelMesh frees it
     /* 0x004 */ BattleSprite* pSprites;
     /* 0x008 */ s32 unk8;
     /* 0x00C */ s32 unkC;
     /* 0x010 */ s32 unk10;
     /* 0x014 */ s32 unk14;
     /* 0x018 */ s32 unk18;
-    /* 0x01C */ s16 unk1C;
-    /* 0x01E */ s16 unk1E;
+    /* 0x01C */ s16 scale;
+    /* 0x01E */ s16 groundTriangleIndex; // the ground search's last hit, handed back to it as the next hint
     /* 0x020 */ u8 unk20[0x3];
     /* 0x023 */ u8 unk23;
-    /* 0x024 */ s16 unk24;
-    /* 0x026 */ s16 unk26;
-    /* 0x028 */ s16 unk28;
+    /* 0x024 */ s16 height;
+    /* 0x026 */ s16 width;
+    /* 0x028 */ s16 depth;
     /* 0x02A */ u8 unk2A[0x1];
     /* 0x02B */ u8 commandCount;
     /* 0x02C */ u8 unk2C[0x8];
@@ -120,16 +122,19 @@ typedef struct {
     /* 0x058 */ u16 unk58;
     /* 0x05A */ u16 unk5A;
     /* 0x05C */ u8 parentActorSlot; // g_BattleActors slot of the actor whose transform this one inherits; 0xFF = none
-    /* 0x05D */ u8 unk5D;
-    /* 0x05E */ s16 unk5E;
-    /* 0x060 */ u8 unk60[0xA];
-    /* 0x06A */ u16 unk6A;
-    /* 0x06C */ u16 unk6C;
-    /* 0x06E */ u16 unk6E;
+    /* 0x05D */ u8 isAttached;
+    /* 0x05E */ s16 parentJointIndex; // which of the parent's sprites this one hangs off
+    /* 0x060 */ s16 groundY; // height of the ground point BattleSnapActorToGround projected onto
+    /* 0x062 */ u8 unk62;
+    /* 0x063 */ u8 unk63;
+    /* 0x064 */ u8 unk64[0x6];
+    /* 0x06A */ u16 attachOffsetX;
+    /* 0x06C */ u16 attachOffsetY;
+    /* 0x06E */ u16 attachOffsetZ;
     /* 0x070 */ u16 unk70[0xC];
-    /* 0x088 */ s16 unk88;
-    /* 0x08A */ s16 unk8A;
-    /* 0x08C */ s16 unk8C;
+    /* 0x088 */ s16 posX;
+    /* 0x08A */ s16 posY;
+    /* 0x08C */ s16 posZ;
     /* 0x08E */ u16 unk8E;
     /* 0x090 */ u8 unk90[0x8];
     /* 0x098 */ s16 unk98;
@@ -142,10 +147,10 @@ typedef struct {
     /* 0x0B0 */ u8* unkB0;
     /* 0x0B4 */ u8* unkB4;
     /* 0x0B8 */ u8 unkB8[0x52];
-    /* 0x10A */ u16 unk10A;
-    /* 0x10C */ u8 unk10C;
+    /* 0x10A */ u16 modelBitMask;
+    /* 0x10C */ u8 numEntries;
     /* 0x10D */ u8 unk10D[0x3];
-    /* 0x110 */ mem_addr unk110;
+    /* 0x110 */ mem_addr pEntries; // numEntries BattleActorEntry records
     /* 0x114 */ u8 unk114[0x8C];
 } BattleActor; // Size: 0x1A0
 

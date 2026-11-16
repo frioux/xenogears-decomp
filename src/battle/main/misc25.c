@@ -449,14 +449,14 @@ void BattleSnapActorToGround(BattleActor *pActor) {
     vec[0] = ((u16 *)pActor->pSprites->pos)[0];
     vec[1] = ((u16 *)pActor->pSprites->pos)[2];
     vec[2] = ((u16 *)pActor->pSprites->pos)[4];
-    index = BattleFindGroundTriangle(vec, pActor->unk1E, 4);
-    pActor->unk1E = index;
+    index = BattleFindGroundTriangle(vec, pActor->groundTriangleIndex, 4);
+    pActor->groundTriangleIndex = index;
     if (index < 0) {
         index = BattleFindTriangleContainingPoint(vec);
-        pActor->unk1E = index;
+        pActor->groundTriangleIndex = index;
     }
-    BattleProjectPointOntoIndexedTriangle(vec, pActor->unk1E, unk10);
-    ((u16 *)pActor->unk60)[0] = vec[1];
+    BattleProjectPointOntoIndexedTriangle(vec, pActor->groundTriangleIndex, unk10);
+    pActor->groundY = vec[1];
     if (pActor->unk36 == 0) {
         pActor->pSprites->pos[1] = vec[1];
     }
@@ -464,9 +464,9 @@ void BattleSnapActorToGround(BattleActor *pActor) {
 
 void BattleFreeActorBuffer(BattleActor *pActor) {
     if (pActor->unkC != 0) {
-        if (pActor->unk60[3] != 0) {
+        if (pActor->unk63 != 0) {
             SoundRemoveSedsEntry(((s32 *)pActor->unkB4)[2]);
-            pActor->unk60[3] = 0;
+            pActor->unk63 = 0;
         }
         HeapFree((void *)pActor->unkC);
         pActor->unkC = 0;

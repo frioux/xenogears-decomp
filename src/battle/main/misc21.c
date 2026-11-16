@@ -115,8 +115,8 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
     pSprites[0].unk7 = 0;
     pSprites[0].jointIndex = 0xFFFF;
     pSprites[0].count = numSprites;
-    pSprites[0].p68 = NULL;
-    pSprites[0].p6C = NULL;
+    pSprites[0].pModelPacketBuffer = NULL;
+    pSprites[0].pCurModelPacket = NULL;
     pSprites[0].rot[0] = 0;
     pSprites[0].rot[1] = 0;
     pSprites[0].rot[2] = 0;
@@ -146,8 +146,8 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
         pSprite->jointIndex = partIndex;
 
         if (partIndex != 0xFFFF) {
-            ModelAllocatePackets(pMesh->pParts[partIndex], &pSprite->p68, &pSprite->p6C);
-            if (pSprite->p68 == NULL) {
+            ModelAllocatePackets(pMesh->pParts[partIndex], &pSprite->pModelPacketBuffer, &pSprite->pCurModelPacket);
+            if (pSprite->pModelPacketBuffer == NULL) {
                 BattleFreeModelSkeleton(pSprites);
                 return NULL;
             }
@@ -157,11 +157,11 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
                 ModelPacketSetBaseClut(clutX, clutY);
             }
 
-            ModelInitializePacket(pMesh->pParts[partIndex], pSprite->p68, packetIndex);
-            memcpy(pSprite->p6C, pSprite->p68, pMesh->pParts[partIndex]->unk20[1].modelPacketSize);
+            ModelInitializePacket(pMesh->pParts[partIndex], pSprite->pModelPacketBuffer, packetIndex);
+            memcpy(pSprite->pCurModelPacket, pSprite->pModelPacketBuffer, pMesh->pParts[partIndex]->unk20[1].modelPacketSize);
         } else {
-            pSprite->p68 = NULL;
-            pSprite->p6C = NULL;
+            pSprite->pModelPacketBuffer = NULL;
+            pSprite->pCurModelPacket = NULL;
         }
 
         pSprite->rot[0] = 0;
@@ -398,7 +398,7 @@ void BattleRenderModel(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATR
             SetTransMatrix(pMatrix);
 
             pPart = pMesh->pParts[pSkeleton->jointIndex];
-            pPacket = ((void**)&pSkeleton->p68)[packetIndex];
+            pPacket = ((void**)&pSkeleton->pModelPacketBuffer)[packetIndex];
             ModelRenderPacket(pPart, pPacket, (u_long*)arg5, arg4);
         }
         pSkeleton++;
@@ -411,10 +411,10 @@ void BattleFreeModelSkeleton(BattleSprite* pSprites) {
     if (pSprites != NULL) {
         pSprite = pSprites;
         for (i = 0; i < pSprites->count; i++, pSprite++) {
-            if (pSprite->p68 != NULL) {
-                HeapFree(pSprite->p68);
-                pSprite->p68 = NULL;
-                pSprite->p6C = NULL;
+            if (pSprite->pModelPacketBuffer != NULL) {
+                HeapFree(pSprite->pModelPacketBuffer);
+                pSprite->pModelPacketBuffer = NULL;
+                pSprite->pCurModelPacket = NULL;
             }
         }
         pSprites->count = 0;
