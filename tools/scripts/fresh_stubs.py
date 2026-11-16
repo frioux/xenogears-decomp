@@ -35,9 +35,8 @@ for path,fs in byfile.items():
         idx=[i for i,l in enumerate(L) if "INCLUDE_ASM" in l and re.search(r'[,(\s]%s\s*[,)]'%re.escape(n),l)]
         if not idx: continue
         i=idx[0]
-        win=L[max(0,i-200):i]
-        if any("%" in l for l in L[max(0,i-60):i]): continue  # park note near (percentages only; printf formats would false-positive in a wider window)
-        if any("/*" in l and "*/" not in l for l in win): continue  # park body above (long parks exceed the 60-line window)
+        win=L[max(0,i-60):i]
+        if any("%" in l for l in win): continue          # park note near
         if any(re.search(r'\b%s\s*\('%re.escape(n),l) for l in win): continue  # parked body above
         nxt=[j for j in range(i+1,len(L)) if "INCLUDE_ASM" in L[j]]
         below=L[i+1:(nxt[0] if nxt else len(L))]

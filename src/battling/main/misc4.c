@@ -346,6 +346,26 @@ extern s32 BattleActorSelectEdgeForSegment(Vec4* pFrom, Vec4* pTo, Actor* pEdges
 // Pushes two actors apart along the perpendicular of the segment between their
 // previous positions when their vertical spans meet.  Gives up entirely once the
 // battle has run past 0x300 frames.
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078920);
+
+/* Best attempt: 97.75%. Instruction-for-instruction identical to the original
+   (same 256 instructions, same frame, same calls and delay slots); the residual
+   is register naming only.  Every remaining difference is an allocator tie: the
+   original caches p->unk93C.y in $a2 and q->unk92C.y in $a1 for the overlap test
+   (we get $a1/$a2 the other way round), keeps &edge1 in $s6 / &edge2 in $s7 (we
+   are swapped), and reuses $s6 for the angle after &edge1 dies where we reach for
+   $s3.  Two levers that were measured and are worth retrying: the function wants a
+   NON-VOID return type - with void gcc 2.7.2 steals the second slt into the delay
+   slot at 0x80078ee4 and the function comes out 4 bytes short (255 insns); and
+   hoisting q->unk92C.y into a variable that is live into the body (reusing the
+   angle local, i.e. 'angle = q->unk92C.y;' before the test, then using angle for
+   the second term) reaches 99.13% - a dedicated local of its own does not (it
+   goes back to 97.75%), so the lever is the variable's live range, not its
+   existence.  The permuter from this body scored 430 and its best candidate (230)
+   was that hoist.  Also note struct Actor's 0x6C is a 4-word vector (retail does
+   lw at 0x6C/0x70/0x74), not the VECTOR it used to be declared as, and the two
+   points at 0x92C/0x93C are Vec4s whose .y words this function compares.
+
 s32 func_80078920(Actor* p, Actor* q) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
     Vec4 edge1;
@@ -424,6 +444,7 @@ s32 func_80078920(Actor* p, Actor* q) {
         }
     }
 }
+*/
 
 void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
