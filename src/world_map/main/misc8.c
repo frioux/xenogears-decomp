@@ -8,33 +8,33 @@
 
 typedef struct {
     /* 0x00 */ u32 unk0;
-    /* 0x04 */ s16 unk4;
+    /* 0x04 */ s16 command;
     /* 0x06 */ u8 unk6[0x1A];
-    /* 0x20 */ s16 unk20;
+    /* 0x20 */ s16 state;
     /* 0x22 */ u16 pad22;
     /* 0x24 */ s16 unk24;
     /* 0x26 */ u16 pad26;
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
     /* 0x34 */ s32 unk34;
     /* 0x38 */ s32 unk38;
     /* 0x3C */ s32 unk3C;
     /* 0x40 */ s32 unk40;
     /* 0x44 */ s32 unk44;
-    /* 0x48 */ s16 unk48;
+    /* 0x48 */ s16 angle;
     /* 0x4A */ u16 pad4A;
-    /* 0x4C */ void *unk4C;
+    /* 0x4C */ void *pSprite;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
     /* 0x60 */ s32 unk60;
     /* 0x64 */ s32 unk64;
-    /* 0x68 */ s32 unk68;
-    /* 0x6C */ s32 unk6C;
-    /* 0x70 */ s32 unk70;
-    /* 0x74 */ s32 unk74;
+    /* 0x68 */ s32 rotY;
+    /* 0x6C */ s32 scaleAngle;
+    /* 0x70 */ s32 scale;
+    /* 0x74 */ s32 scaleStep;
     /* 0x78 */ u32 unk78;
     /* 0x7C */ s32 unk7C;
 } WorldMapActor; // Size: 0x80
@@ -70,7 +70,7 @@ typedef struct {
     /* 0xA */ s16 z;
 } WorldMapSpritePosWhole; // Size: 0xC
 
-// One triangle of a sprite set's mesh: three indices into WorldMapMesh::unk4.
+// One triangle of a sprite set's mesh: three indices into WorldMapMesh::pVerts.
 typedef struct {
     /* 0x0 */ s16 vert[3];
     /* 0x6 */ u8 unk6[0x8];
@@ -78,25 +78,25 @@ typedef struct {
 
 typedef struct {
     /* 0x0 */ s32 unk0;
-    /* 0x4 */ SVECTOR *unk4;
+    /* 0x4 */ SVECTOR *pVerts;
     /* 0x8 */ WorldMapTriangle tris[1];
 } WorldMapMesh; // Size: 0x16
 
 typedef struct WorldMapEntry {
     /* 0x00 */ s16 unk0;
-    /* 0x02 */ s16 unk2;
-    /* 0x04 */ u16 unk4;
+    /* 0x02 */ s16 partIndex;
+    /* 0x04 */ u16 flags;
     /* 0x06 */ u16 pad6;
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ s32 unkC;
-    /* 0x10 */ s32 unk10;
+    /* 0x08 */ s32 x;
+    /* 0x0C */ s32 y;
+    /* 0x10 */ s32 z;
     /* 0x14 */ u8 unk14[4];
-    /* 0x18 */ SVECTOR unk18;
+    /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX mat;
-    /* 0x40 */ ModelPart *unk40;
-    /* 0x44 */ WorldMapMesh *unk44;
+    /* 0x40 */ ModelPart *pModel;
+    /* 0x44 */ WorldMapMesh *pMesh;
     /* 0x48 */ void *pPackets[2]; // prim lists, [0] source and [1] destination; g_WorldMapPrimPacketIndex picks one
-    /* 0x50 */ struct WorldMapEntry *unk50;
+    /* 0x50 */ struct WorldMapEntry *pParent;
 } WorldMapEntry; // Size: 0x54
 
 extern WorldMapActor *g_WorldMapSlots; // actors, 0x80 apart
@@ -131,11 +131,11 @@ typedef struct {
 // One sprite set definition inside the block D_8009BD30 points at.
 typedef struct {
     /* 0x0 */ u16 partIndex; // index into ModelFileHeader::modelParts
-    /* 0x2 */ u16 unk2;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ s16 unk8;
-    /* 0xA */ u16 unkA[3];
+    /* 0x2 */ u16 flags;
+    /* 0x4 */ s16 x;
+    /* 0x6 */ s16 y;
+    /* 0x8 */ s16 z;
+    /* 0xA */ u16 rot[3];
 } WorldMapSpriteSetDef; // Size: 0x10
 
 typedef struct {
@@ -264,19 +264,19 @@ extern void GfxSetBaseMatrix(MATRIX *p);
 extern void AnimScriptTick(void *p);
 
 void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
-    if (pActor->unk20 == 0) {
+    if (pActor->state == 0) {
         return;
     }
-    if (pActor->unk20 != 1) {
+    if (pActor->state != 1) {
         return;
     }
     {
         pModel->rot.vz = 0;
         pModel->rot.vx = 0;
-        pModel->rot.vy = pActor->unk68;
-        pModel->scale.vx = pActor->unk70 & 0x7FFF;
+        pModel->rot.vy = pActor->rotY;
+        pModel->scale.vx = pActor->scale & 0x7FFF;
         pModel->scale.vy = 0x1000;
-        pModel->scale.vz = rcos(pActor->unk6C) * 6;
+        pModel->scale.vz = rcos(pActor->scaleAngle) * 6;
         RotMatrix(&pModel->rot, &pModel->mat);
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
@@ -296,8 +296,8 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
             pActor->unk54 = 0x80;
             pActor->unk60 = -pActor->unk60;
         }
-        pActor->unk6C = (pActor->unk6C + 8) & 0xFFF;
-        pActor->unk70 += pActor->unk74;
+        pActor->scaleAngle = (pActor->scaleAngle + 8) & 0xFFF;
+        pActor->scale += pActor->scaleStep;
     }
 }
 // Best: 98.71%. Instruction multiset and registers are identical bar one
@@ -308,19 +308,19 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
 // early returns, not one `if (x == 1)`.
 /*
 void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
-    if (pActor->unk20 == 0) {
+    if (pActor->state == 0) {
         return;
     }
-    if (pActor->unk20 != 1) {
+    if (pActor->state != 1) {
         return;
     }
     {
         pModel->rot.vz = 0;
         pModel->rot.vx = 0;
-        pModel->rot.vy = pActor->unk68;
-        pModel->scale.vx = pActor->unk70 & 0x7FFF;
+        pModel->rot.vy = pActor->rotY;
+        pModel->scale.vx = pActor->scale & 0x7FFF;
         pModel->scale.vy = 0x1000;
-        pModel->scale.vz = rcos(pActor->unk6C) * 6;
+        pModel->scale.vz = rcos(pActor->scaleAngle) * 6;
         RotMatrix(&pModel->rot, &pModel->mat);
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
@@ -340,8 +340,8 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
             pActor->unk54 = 0x80;
             pActor->unk60 = -pActor->unk60;
         }
-        pActor->unk6C = (pActor->unk6C + 8) & 0xFFF;
-        pActor->unk70 += pActor->unk74;
+        pActor->scaleAngle = (pActor->scaleAngle + 8) & 0xFFF;
+        pActor->scale += pActor->scaleStep;
     }
 }
 */
@@ -376,7 +376,7 @@ void WorldMapSetSpritePrimColor(u8 *pData, s32 count, s32 r, s32 g, s32 b) {
 s32 WorldMapSetupSpriteSetPrims(s32 arg0) {
     WorldMapEntry *pEntry = &g_WorldMapGroups[arg0 + 78];
 
-    WorldMapBuildSpritePrims(pEntry, pEntry->pPackets[0], pEntry->unk40->polyCount, 3);
+    WorldMapBuildSpritePrims(pEntry, pEntry->pPackets[0], pEntry->pModel->polyCount, 3);
     return 1;
 }
 s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
@@ -386,42 +386,42 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
     s32 *pSlots;
     s32 i;
 
-    switch (pActor->unk4) {
+    switch (pActor->command) {
     case 0:
         break;
     case 1:
         pSlots = &pActor->unk50;
-        pActor->unk20 = 1;
-        pActor->unk4 = 0;
-        pEntry->unk8 = D_8009AABC[row * 14];
-        pEntry->unkC = D_8009AABC[row * 14 + 1];
-        pEntry->unk10 = D_8009AABC[row * 14 + 2];
+        pActor->state = 1;
+        pActor->command = 0;
+        pEntry->x = D_8009AABC[row * 14];
+        pEntry->y = D_8009AABC[row * 14 + 1];
+        pEntry->z = D_8009AABC[row * 14 + 2];
         for (i = 3; i < 0xE; i++) {
             *pSlots++ = D_8009AABC[row * 14 + i];
         }
         break;
     case 2:
         pSlots = &pActor->unk50;
-        pActor->unk20 = 1;
-        pActor->unk4 = 0;
-        pEntry->unk8 = D_8009AB48[row * 14];
-        pEntry->unkC = D_8009AB48[row * 14 + 1];
-        pEntry->unk10 = D_8009AB48[row * 14 + 2];
+        pActor->state = 1;
+        pActor->command = 0;
+        pEntry->x = D_8009AB48[row * 14];
+        pEntry->y = D_8009AB48[row * 14 + 1];
+        pEntry->z = D_8009AB48[row * 14 + 2];
         for (i = 3; i < 0xE; i++) {
             *pSlots++ = D_8009AB48[row * 14 + i];
         }
         break;
     case 3:
-        pActor->unk4 = 0;
-        pActor->unk20 = 0;
+        pActor->command = 0;
+        pActor->state = 0;
         break;
     case 4:
         pSlots = &pActor->unk50;
-        pActor->unk20 = 1;
-        pActor->unk4 = 0;
-        pEntry->unk8 = D_8009ABD4[row * 14];
-        pEntry->unkC = D_8009ABD4[row * 14 + 1];
-        pEntry->unk10 = D_8009ABD4[row * 14 + 2];
+        pActor->state = 1;
+        pActor->command = 0;
+        pEntry->x = D_8009ABD4[row * 14];
+        pEntry->y = D_8009ABD4[row * 14 + 1];
+        pEntry->z = D_8009ABD4[row * 14 + 2];
         for (i = 3; i < 0xE; i++) {
             *pSlots++ = D_8009ABD4[row * 14 + i];
         }
@@ -429,7 +429,7 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
     }
     WorldMapBuildActorModelMatrix(pActor, pEntry, (WorldMapModel *)PSX_SCRATCH);
     WorldMapSetSpritePrimColor(pEntry->pPackets[g_WorldMapPrimPacketIndex],
-                               pEntry->unk40->polyCount,
+                               pEntry->pModel->polyCount,
                                pActor->unk50, pActor->unk54, pActor->unk58);
     return 1;
 }
@@ -441,8 +441,8 @@ s32 WorldMapReturnSuccess(void) {
 s32 WorldMapWaitForQueueDrain(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
 
-    if (pActor->unk4 == 1) {
-        pActor->unk4 = 0;
+    if (pActor->command == 1) {
+        pActor->command = 0;
         DrawSync(0);
         Vsync(0);
         WorldMapFreeGridImages();
@@ -586,17 +586,17 @@ s32 func_8008390C(s32 arg0) {
     v = *(s32 *)g_WorldMapPlayerPosition;
     g_WorldMapCameraTarget = v;
     g_WorldMapScrollTargetX = v;
-    pActor->unk28 = v;
+    pActor->x = v;
     v = D_8009C5B0;
     D_8009BE2C = v;
     g_WorldMapScrollTargetY = v;
-    pActor->unk2C = v;
+    pActor->y = v;
     v = D_8009C5B4;
     D_8009BE30 = v;
     g_WorldMapScrollTargetZ = v;
-    pActor->unk30 = v;
-    pActor->unk20 = 0;
-    pActor->unk4 = 0;
+    pActor->z = v;
+    pActor->state = 0;
+    pActor->command = 0;
     *(s32 *)(p + 0x5C) = 0x960000;
     g_WorldMapCameraRot = -0x20;
     g_WorldMapViewRotationY = 0x400;
@@ -623,21 +623,21 @@ s32 WorldMapSetActorPosition(s32 arg0) {
     s32 y;
     s32 z;
 
-    pActor->unk28 = 0x1800000;
-    pActor->unk2C = 0x80000;
-    pActor->unk30 = 0x1A00000;
-    pActor->unk20 = 0;
+    pActor->x = 0x1800000;
+    pActor->y = 0x80000;
+    pActor->z = 0x1A00000;
+    pActor->state = 0;
     g_WorldMapGroups[8].unk0 = 1;
     g_WorldMapGroups[7].unk0 = 1;
-    x = pActor->unk28 >> 12;
-    g_WorldMapGroups[8].unk8 = x;
-    g_WorldMapGroups[7].unk8 = x;
-    y = pActor->unk2C >> 12;
-    g_WorldMapGroups[8].unkC = y;
-    g_WorldMapGroups[7].unkC = y;
-    z = pActor->unk30 >> 12;
-    g_WorldMapGroups[8].unk10 = z;
-    g_WorldMapGroups[7].unk10 = z;
+    x = pActor->x >> 12;
+    g_WorldMapGroups[8].x = x;
+    g_WorldMapGroups[7].x = x;
+    y = pActor->y >> 12;
+    g_WorldMapGroups[8].y = y;
+    g_WorldMapGroups[7].y = y;
+    z = pActor->z >> 12;
+    g_WorldMapGroups[8].z = z;
+    g_WorldMapGroups[7].z = z;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
@@ -705,25 +705,25 @@ void WorldMapInitSpriteSets(void) {
     pDef = pSetTable->defs;
     for (i = 0; i < D_8009D7E0; i++, pDef++) {
         g_WorldMapGroups[i].unk0 = 0;
-        g_WorldMapGroups[i].unk2 = pDef->partIndex;
-        g_WorldMapGroups[i].unk4 = pDef->unk2;
-        g_WorldMapGroups[i].unk8 = pDef->unk4;
-        g_WorldMapGroups[i].unkC = pDef->unk6;
-        g_WorldMapGroups[i].unk10 = -pDef->unk8;
-        g_WorldMapGroups[i].unk18.vx = pDef->unkA[0];
-        g_WorldMapGroups[i].unk18.vy = pDef->unkA[1];
-        g_WorldMapGroups[i].unk18.vz = pDef->unkA[2];
-        RotMatrixYXZ(&g_WorldMapGroups[i].unk18, &g_WorldMapGroups[i].mat);
-        pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[g_WorldMapGroups[i].unk2];
-        g_WorldMapGroups[i].unk40 = pPart;
+        g_WorldMapGroups[i].partIndex = pDef->partIndex;
+        g_WorldMapGroups[i].flags = pDef->flags;
+        g_WorldMapGroups[i].x = pDef->x;
+        g_WorldMapGroups[i].y = pDef->y;
+        g_WorldMapGroups[i].z = -pDef->z;
+        g_WorldMapGroups[i].rot.vx = pDef->rot[0];
+        g_WorldMapGroups[i].rot.vy = pDef->rot[1];
+        g_WorldMapGroups[i].rot.vz = pDef->rot[2];
+        RotMatrixYXZ(&g_WorldMapGroups[i].rot, &g_WorldMapGroups[i].mat);
+        pPart = &((ModelFileHeader *)D_8009CD48)->modelParts[g_WorldMapGroups[i].partIndex];
+        g_WorldMapGroups[i].pModel = pPart;
         ModelAllocatePackets(pPart, &g_WorldMapGroups[i].pPackets[0], &g_WorldMapGroups[i].pPackets[1]);
-        ModelInitializePacket(g_WorldMapGroups[i].unk40, g_WorldMapGroups[i].pPackets[0], 1);
+        ModelInitializePacket(g_WorldMapGroups[i].pModel, g_WorldMapGroups[i].pPackets[0], 1);
         memcpy(g_WorldMapGroups[i].pPackets[1], g_WorldMapGroups[i].pPackets[0],
-               g_WorldMapGroups[i].unk40->unk20[1].modelPacketSize);
-        pMesh = ((WorldMapMesh **)D_8009D308)[g_WorldMapGroups[i].unk2];
-        g_WorldMapGroups[i].unk44 = pMesh;
-        pMesh->unk4 = (SVECTOR *)((u8 *)pMesh + (s32)pMesh->unk4);
-        g_WorldMapGroups[i].unk50 = 0;
+               g_WorldMapGroups[i].pModel->unk20[1].modelPacketSize);
+        pMesh = ((WorldMapMesh **)D_8009D308)[g_WorldMapGroups[i].partIndex];
+        g_WorldMapGroups[i].pMesh = pMesh;
+        pMesh->pVerts = (SVECTOR *)((u8 *)pMesh + (s32)pMesh->pVerts);
+        g_WorldMapGroups[i].pParent = 0;
     }
     g_GfxOTDepthShift = 2;
     D_8009C16C = -1;
@@ -736,13 +736,13 @@ void WorldMapFreeSpriteSets(void) {
 
     for (i = 0; i < D_8009D7E0; i++) {
         HeapFree(g_WorldMapGroups[i].pPackets[0]);
-        ModelPartFreeLightData(g_WorldMapGroups[i].unk40);
+        ModelPartFreeLightData(g_WorldMapGroups[i].pModel);
     }
     HeapFree(g_WorldMapGroups);
 }
 
 void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1) {
-    g_WorldMapGroups[arg1].unk50 = &g_WorldMapGroups[arg0];
+    g_WorldMapGroups[arg1].pParent = &g_WorldMapGroups[arg0];
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_800848F4);
 // Best: 76.46% (1060 bytes vs 1036). Structure and every call/offset in the
@@ -786,14 +786,14 @@ void func_800848F4(void) {
             continue;
         }
         *pMat = g_WorldMapGroups[i].mat;
-        pMat->t[1] = g_WorldMapGroups[i].unk8;
-        pMat->t[2] = g_WorldMapGroups[i].unkC;
-        pMat->t[3] = -g_WorldMapGroups[i].unk10;
-        pChain = g_WorldMapGroups[i].unk50;
+        pMat->t[1] = g_WorldMapGroups[i].x;
+        pMat->t[2] = g_WorldMapGroups[i].y;
+        pMat->t[3] = -g_WorldMapGroups[i].z;
+        pChain = g_WorldMapGroups[i].pParent;
         while (pChain != 0) {
-            pChain->mat.t[1] = pChain->unk8;
-            pChain->mat.t[2] = pChain->unkC;
-            pChain->mat.t[3] = -pChain->unk10;
+            pChain->mat.t[1] = pChain->x;
+            pChain->mat.t[2] = pChain->y;
+            pChain->mat.t[3] = -pChain->z;
             gte_SetRotMatrix(&pChain->mat);
             gte_ldclmv(&pMat->m[0][0]);
             gte_mvmva(1, 0, 3, 3, 0);
@@ -808,7 +808,7 @@ void func_800848F4(void) {
             gte_ldlv0(&pMat->t[1]);
             gte_rt();
             gte_stlvnl(&pMat->t[1]);
-            pChain = pChain->unk50;
+            pChain = pChain->pParent;
         }
         pDelta->x = pMat->t[1] - camX;
         pDelta->z = -pMat->t[3] - camZ;
@@ -830,8 +830,8 @@ void func_800848F4(void) {
         if (*(s32 *)0x1F800028 >= 0xD80) {
             continue;
         }
-        ModelRenderPacket(g_WorldMapGroups[i].unk40, g_WorldMapGroups[i].pPackets[g_WorldMapPrimPacketIndex],
-                          *(u_long **)(g_WorldMapRenderContext + 0x70), D_8009AD2C[g_WorldMapGroups[i].unk4]);
+        ModelRenderPacket(g_WorldMapGroups[i].pModel, g_WorldMapGroups[i].pPackets[g_WorldMapPrimPacketIndex],
+                          *(u_long **)(g_WorldMapRenderContext + 0x70), D_8009AD2C[g_WorldMapGroups[i].flags]);
     }
 }
 */
@@ -858,9 +858,9 @@ void func_800848F4(void) {
 //         0x1F8000F0, 0x1F800110); SetRotMatrix/SetTransMatrix(0x1F800110);
 //         RTPS on 0x1F8000A0, flag to 0x1F800020 (bltz skips), SZ3 to 0x1F800028
 //         (>= 0xD80 skips), then
-//         ModelRenderPacket(g_WorldMapGroups[i].unk40,
+//         ModelRenderPacket(g_WorldMapGroups[i].pModel,
 //             *(u32 *)((u8 *)g_WorldMapGroups + g_WorldMapPrimPacketIndex * 4 + 0x48),
-//             *(u32 *)(g_WorldMapRenderContext + 0x70), D_8009AD2C[g_WorldMapGroups[i].unk4]).
+//             *(u32 *)(g_WorldMapRenderContext + 0x70), D_8009AD2C[g_WorldMapGroups[i].flags]).
 // The GTE encodings are the DMPSX 4.3 spellings (interleaved ctc2 of $12-$14 for
 // the matrix load, nop;nop;.word for MVMVA), which inline_c.h still carries, so
 // this is a body to write, not a wall -- but it is a two-hour job, not a stub.
@@ -872,7 +872,7 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
     s16 i;
 
     for (i = 0; i < D_8009D7E0; i++) {
-        if ((pEntry->unk4 & 1) && (result = func_80084DB8(pArg, i)) != 0) {
+        if ((pEntry->flags & 1) && (result = func_80084DB8(pArg, i)) != 0) {
             *pOut = i;
             return result;
         }
@@ -897,12 +897,12 @@ void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMa
     long flag;
 
     pEntry = &g_WorldMapGroups[setIndex];
-    pOut->x = (pPos->x >> 12) - pEntry->unk8;
-    pOut->z = pEntry->unk10 - (pPos->z >> 12);
+    pOut->x = (pPos->x >> 12) - pEntry->x;
+    pOut->z = pEntry->z - (pPos->z >> 12);
     *pMat = pEntry->mat;
     pMat->t[2] = 0;
     pMat->t[0] = 0;
-    pMat->t[1] = pEntry->unkC;
+    pMat->t[1] = pEntry->y;
     pWork->scale.vz = 0x800;
     pWork->scale.vy = 0x800;
     pWork->scale.vx = 0x800;
@@ -911,10 +911,10 @@ void WorldMapProjectTriangleNormal(WorldMapPos *pPos, WorldMapPos *pOut, WorldMa
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
 
-    pMesh = pEntry->unk44;
+    pMesh = pEntry->pMesh;
     pTri = pMesh->tris;
     pTri += triIndex;
-    pVerts = pMesh->unk4;
+    pVerts = pMesh->pVerts;
     RotTrans(&pVerts[pTri->vert[0]], pA, &flag);
     RotTrans(&pVerts[pTri->vert[1]], pB, &flag);
     RotTrans(&pVerts[pTri->vert[2]], &pWork->vert2, &flag);
@@ -953,7 +953,7 @@ s32 WorldMapCheckTriangleEdgeSide(WorldMapPos *pPos, s32 yOffset, u16 setIndex, 
     *pMat = pEntry->mat;
     pMat->t[2] = 0;
     pMat->t[0] = 0;
-    pMat->t[1] = pEntry->unkC;
+    pMat->t[1] = pEntry->y;
     pWork->scale.vz = 0x800;
     pWork->scale.vy = 0x800;
     pWork->scale.vx = 0x800;
@@ -961,10 +961,10 @@ s32 WorldMapCheckTriangleEdgeSide(WorldMapPos *pPos, s32 yOffset, u16 setIndex, 
     ScaleMatrix(pMat, pB);
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
-    pMesh = pEntry->unk44;
+    pMesh = pEntry->pMesh;
     pTri = pMesh->tris;
     pTri += triIndex;
-    pVerts = pMesh->unk4;
+    pVerts = pMesh->pVerts;
     RotTrans(&pVerts[pTri->vert[0]], pA, &flag);
     RotTrans(&pVerts[pTri->vert[1]], pB, &flag);
     RotTrans(&pVerts[pTri->vert[2]], &pWork->vert2, &flag);
@@ -979,12 +979,12 @@ s32 WorldMapCheckTriangleEdgeSide(WorldMapPos *pPos, s32 yOffset, u16 setIndex, 
     pWork->vert2.vy >>= 2;
     pWork->vert2.vz >>= 2;
     VectorNormal(&pWork->vert2, pNormal);
-    x = (pPos->x >> 12) - pEntry->unk8 - pA->vx;
+    x = (pPos->x >> 12) - pEntry->x - pA->vx;
     pLine->m[0][0] = x;
     pLine->m[1][0] = x;
     y = (pPos->y >> 12) - pA->vy;
     pLine->m[0][1] = y;
-    entryZ = pEntry->unk10;
+    entryZ = pEntry->z;
     z = entryZ - (pPos->z >> 12);
     pLine->m[1][1] = y - yOffset;
     z -= pWork->vert0.vz;
@@ -1038,21 +1038,21 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
     s32 clip;
 
     pEntry = &g_WorldMapGroups[setIndex];
-    pPosVec->vx = (pRef->x >> 12) - pEntry->unk8;
-    pPosVec->vz = pEntry->unk10 - (pRef->z >> 12);
+    pPosVec->vx = (pRef->x >> 12) - pEntry->x;
+    pPosVec->vz = pEntry->z - (pRef->z >> 12);
     *pMat = pEntry->mat;
     pMat->t[2] = 0;
     pMat->t[0] = 0;
-    pMat->t[1] = pEntry->unkC;
+    pMat->t[1] = pEntry->y;
     pVert0->vz = 0x800;
     pVert0->vy = 0x800;
     pVert0->vx = 0x800;
     ScaleMatrix(pMat, pVert0);
     SetRotMatrix(pMat);
     SetTransMatrix(pMat);
-    pMesh = pEntry->unk44;
+    pMesh = pEntry->pMesh;
     pTri = &pMesh->tris[triIndex];
-    pVerts = pMesh->unk4;
+    pVerts = pMesh->pVerts;
     gte_ldv0(&pVerts[pTri->vert[0]]);
     gte_mvmva(1, 0, 0, 0, 0);
     gte_stlvnl(pVert0);
@@ -1084,21 +1084,21 @@ s32 func_80085760(WorldMapPos *pPos, WorldMapPos *pRef, s32 setIndex, s32 triInd
     }
     switch (clip) {
     case 3:
-        pArgs->vx = ((pEntry->unk10 - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->unk8) & 0xFFFF);
+        pArgs->vx = ((pEntry->z - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->x) & 0xFFFF);
         pArgs->vy = (pVert1->vz << 16) | ((u16 *)pVert1)[0];
         if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) != 0) {
             clip = 1;
         }
         break;
     case 5:
-        pArgs->vx = ((pEntry->unk10 - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->unk8) & 0xFFFF);
+        pArgs->vx = ((pEntry->z - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->x) & 0xFFFF);
         pArgs->vy = (pVert0->vz << 16) | ((u16 *)pVert0)[0];
         if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) != 0) {
             clip = 4;
         }
         break;
     case 6:
-        pArgs->vx = ((pEntry->unk10 - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->unk8) & 0xFFFF);
+        pArgs->vx = ((pEntry->z - (pPos->z >> 12)) << 16) | (((pPos->x >> 12) - pEntry->x) & 0xFFFF);
         pArgs->vy = (pVert2->vz << 16) | ((u16 *)pVert2)[0];
         if (NormalClip(pArgs->vx, pArgs->vy, pArgs->vz) != 0) {
             clip = 2;
@@ -1151,13 +1151,13 @@ void func_80085CDC(void) {
     pCam = (WorldMapPos *)&g_WorldMapCameraTarget;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
-        if ((pActor->unk24 == 0) & (pActor->unk4C != 0)) {
-            pScratch[2] = pActor->unk28 - pCam->x;
-            pScratch[4] = pActor->unk30 - pCam->z;
+        if ((pActor->unk24 == 0) & (pActor->pSprite != 0)) {
+            pScratch[2] = pActor->x - pCam->x;
+            pScratch[4] = pActor->z - pCam->z;
             WorldMapWrapDelta(&pScratch[2]);
-            ((WorldMapSpritePos *)pActor->unk4C)->x = pScratch[2] << 4;
-            ((WorldMapSpritePos *)pActor->unk4C)->z = -pScratch[4] << 4;
-            ((WorldMapSpritePos *)pActor->unk4C)->y = pActor->unk2C << 4;
+            ((WorldMapSpritePos *)pActor->pSprite)->x = pScratch[2] << 4;
+            ((WorldMapSpritePos *)pActor->pSprite)->z = -pScratch[4] << 4;
+            ((WorldMapSpritePos *)pActor->pSprite)->y = pActor->y << 4;
         }
     }
     pMat = &g_WorldMapViewMatrix;
@@ -1165,12 +1165,12 @@ void func_80085CDC(void) {
     SetTransMatrix(pMat);
     pActor = g_WorldMapSlots;
     for (i = 0; i < 0x40; i++, pActor++) {
-        if ((pActor->unk24 == 0) & (pActor->unk4C != 0)) {
-            v = ((WorldMapSpritePosWhole *)pActor->unk4C)->x;
+        if ((pActor->unk24 == 0) & (pActor->pSprite != 0)) {
+            v = ((WorldMapSpritePosWhole *)pActor->pSprite)->x;
             ((SVECTOR *)pScratch)->vx = v;
-            v = ((WorldMapSpritePosWhole *)pActor->unk4C)->y;
+            v = ((WorldMapSpritePosWhole *)pActor->pSprite)->y;
             ((SVECTOR *)pScratch)->vy = v;
-            v = ((WorldMapSpritePosWhole *)pActor->unk4C)->z;
+            v = ((WorldMapSpritePosWhole *)pActor->pSprite)->z;
             ((SVECTOR *)pScratch)->vz = v;
             gte_ldv0((SVECTOR *)pScratch);
             gte_rtps();
@@ -1181,9 +1181,9 @@ void func_80085CDC(void) {
     i = 0;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
-        if ((pActor->unk24 == 0) & (pActor->unk4C != 0) & (pScratch[i + 6] < 0xB00)) {
-            SpriteDrawFrame(pActor->unk4C, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pScratch[i + 6] >> 4));
-            ang = pActor->unk48;
+        if ((pActor->unk24 == 0) & (pActor->pSprite != 0) & (pScratch[i + 6] < 0xB00)) {
+            SpriteDrawFrame(pActor->pSprite, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pScratch[i + 6] >> 4));
+            ang = pActor->angle;
             cur = pActor->unk5C;
             d = ang - cur;
             if (d < 0) {
@@ -1204,8 +1204,8 @@ void func_80085CDC(void) {
                 }
             }
             pActor->unk5C = d;
-            func_800223B0(pActor->unk4C, (d - *(u16 *)&g_WorldMapViewRotationY - 0x400) & 0xFFF);
-            AnimScriptTick(pActor->unk4C);
+            func_800223B0(pActor->pSprite, (d - *(u16 *)&g_WorldMapViewRotationY - 0x400) & 0xFFF);
+            AnimScriptTick(pActor->pSprite);
         }
     }
 }
