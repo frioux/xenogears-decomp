@@ -1158,6 +1158,7 @@ void func_801D18F8(s32 scrollOffset, u8* pItemIds, u8* pItemTypes, u8* pItemSell
 
     HeapFree(pWorkspace);
 }
+*/
 
 
 /*
@@ -2824,4 +2825,3 @@ s32 GearShopMenuComputeEquipWeightPenalty(u8 index) {
     }
     return result;
 }
-*/
