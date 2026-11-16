@@ -544,11 +544,18 @@ void WorldMapInitGfxEnv(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
-/* best: 92.05%. Jump table shape matches (5 entries, .rodata vs jtbl_ is the
-   linker-equivalent difference). Needs the value pseudo in $v0 instead of $a1
-   and gcc kept case 3 and case 4 as one shared block where the original has
-   two identical blocks. The explicit case 0 is required for a 5 entry table.
-
+/* best: 92.05%. JTBL_LAYOUT, do not retry: retail's jtbl_8006FB0C is SIX words
+   (.size 0x18, the last one 0x00000000) while the 5-case switch emits five
+   (0x14), so converting this stub shortens the unit's .rodata by 4 bytes and
+   shifts every later table; the next stub's table starts at 0x34, i.e. the zero
+   word belongs to this one. Body-level residue: the value pseudo lands in $a1
+   where retail uses $v0 (retail reuses $v0, dead after `jr v0`), and gcc merges
+   case 3 and case 4 into one block where retail has two. Shapes tried: the
+   explicit case 0 (required for a five-entry table, retail jumps it straight to
+   the epilogue), every case as `nMode = N; break;`, one shared store after the
+   switch.
+*/
+/*
 void func_80073300(void) {
     s32 nMode;
 
