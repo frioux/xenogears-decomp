@@ -115,9 +115,11 @@ typedef struct {
 s32 D_80059524;
 
 void GfxSetRenderContext(int context) {
-    // The tile-list heads are the two words at D_80059300; the pointer local
+    // The tile-list heads are the two words at D_80059300. The pointer local
     // with the embedded assignment is what keeps retail's single context*4
-    // before the symbol address (a plain index moves the sll after the lui).
+    // before the symbol address: a plain index or a typed head array moves the
+    // sll after the lui and stalls at 95.00%. The s32* element type is part of
+    // that (a LinkedListEntry** local gives the same 95.00%).
     s32* pLists;
     LinkedListEntry* pCurEntry;
     void* pPrimBuffer;
