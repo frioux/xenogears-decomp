@@ -542,3 +542,5 @@ g_WorldMapGridTileIds = 0x8009D570;
 g_WorldMapCdCurrentSector = 0x8009D614;
 g_WorldMapCdRequestQueue = 0x8009D788;
 g_WorldMapCdExpectedSector = 0x8009D7F4;
+g_WorldMapMode7SoundBankFileIndex = 0x8009D800;
+g_WorldMapMode7SoundBankBuffer = 0x8009C888;

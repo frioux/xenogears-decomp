@@ -95,3 +95,4 @@ g_MovieTotalFrames = 0x8007739C;
 g_MovieLoopPlayback = 0x80077438;
 g_MovieStreamArchiveSection = 0x80077448;
 g_MovieStreamRgb24 = 0x80077454;
+g_MovieStreamSlots = 0x8007713C;

@@ -30,8 +30,8 @@ extern s32 g_BattlePrimStartIndex;
 extern void *g_BattleSpriteArchive;
 extern BattleWork *g_BattleDisplayState;
 extern BattlePulseWork *g_BattlePulseTrianglePrims;
-extern u16 D_800C3254[];
-extern u8 D_800D3280;
+extern u16 g_BattleSlotScreenOrigins[];
+extern u8 g_BattleSlotPageIndex;
 extern u8 g_BattleActorCharIds[];
 extern u8 *g_BattleSpriteColumnWork;
 extern u8 D_800C3EB6;
@@ -428,7 +428,7 @@ void func_800765C4(s32 arg0) {
     u32 height;
     u32 divisor;
 
-    pEntry = &D_800C3254[D_800D3280 * 3 + arg0];
+    pEntry = &g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + arg0];
     base = *pEntry;
     *(s32 *)(g_BattleDisplayState + 0x44) = 0x1C;
     *(s32 *)(g_BattleDisplayState + 0x34) = arg0 * 0x60 + (base + 0x48);

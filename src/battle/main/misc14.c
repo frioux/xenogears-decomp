@@ -46,7 +46,7 @@ extern u16 D_800C3448[];
 extern u8 g_BattleDisplayMode;
 extern u8 D_800CCDC4[];
 extern u8 D_800CCDC6[];
-extern u8 D_800C3CF9[];
+extern u8 g_BattleValueDigitSpriteIds[];
 extern s32 g_BattleLerpStepsPerFrame;
 extern u8 g_BattleLerpDirX;
 extern s32 g_BattleLerpStepX;
@@ -378,9 +378,9 @@ void func_800898F0(u8 arg0) {
     g_BattleSpriteColumnWork[0x5D7C] = 0;
     BattleParseNumberToDigits(*(u16*)(D_800CCDC4 + arg0 * 0x170));
     for (i = 0; i < 4; i++) {
-        if (D_800C3CF9[i] != 0xFF) {
+        if (g_BattleValueDigitSpriteIds[i] != 0xFF) {
             off = g_BattleSpriteColumnWork[0x5D7C] * 0x50 + 0x5280;
-            g_BattleSpriteColumnWork[0x5D7C] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
+            g_BattleSpriteColumnWork[0x5D7C] += BattleDrawSpritePackage(g_BattleValueDigitSpriteIds[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
         }
         pitch += 0x80000;
     }
@@ -389,9 +389,9 @@ void func_800898F0(u8 arg0) {
     BattleParseNumberToDigits(*(u16*)(D_800CCDC6 + arg0 * 0x170));
     pitch = 0x48 << 16;
     for (i = 0; i < 4; i++) {
-        if (D_800C3CF9[i] != 0xFF) {
+        if (g_BattleValueDigitSpriteIds[i] != 0xFF) {
             off = g_BattleSpriteColumnWork[0x5D7D] * 0x50 + 0x53C0;
-            g_BattleSpriteColumnWork[0x5D7D] += BattleDrawSpritePackage(D_800C3CF9[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
+            g_BattleSpriteColumnWork[0x5D7D] += BattleDrawSpritePackage(g_BattleValueDigitSpriteIds[i] + 0x92, (s32)(off + (s32)g_BattleSpriteColumnWork), pitch >> 16, 0xCC);
         }
         pitch += 0x80000;
     }

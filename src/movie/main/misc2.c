@@ -119,7 +119,7 @@ typedef struct {
     /* 0x56 */ u8 pad56[0xE2];
 } MovieSlot; // Size: 0x138
 
-extern MovieSlot D_8007713C[2];
+extern MovieSlot g_MovieStreamSlots[2];
 extern s32 g_MovieTotalFrames;
 extern s32 g_MoviePadButtons;
 extern s32 g_MoviePrevPadButtons;
@@ -151,7 +151,7 @@ extern void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w,
 extern void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
 
 // The two double-buffered draw environments the debug menu alternates between;
-// each one starts 0x18 bytes before the matching MovieSlot entry (D_8007713C).
+// each one starts 0x18 bytes before the matching MovieSlot entry (g_MovieStreamSlots).
 typedef struct {
     /* 0x0  */ DRAWENV drawEnv;
     /* 0x5C */ DISPENV dispEnv;
@@ -335,7 +335,7 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 //      and keeps a nop in the slot (worth 99.14 -> 99.66 with the in-body init).
 // Frame/registers are retail's on the in-body variant (0x48, 7 saves, s1=entry,
 // s2=hexMode, s3=showName); MovieDrawBuffer and the D_80077124[] draw buffers (each
-// 0x18 bytes before its D_8007713C[] MovieSlot) came out of this function.
+// 0x18 bytes before its g_MovieStreamSlots[] MovieSlot) came out of this function.
 /*
 void func_80075D8C(void) {
     s32 alignedIndex;
@@ -481,22 +481,22 @@ void MovieResetPlaybackAndClearScreen(void) {
     } else if (g_MovieStreamArchiveSection == 2) {
         return;
     }
-    D_8007713C[0].unk0 = 0;
-    D_8007713C[1].unk0 = 0;
+    g_MovieStreamSlots[0].unk0 = 0;
+    g_MovieStreamSlots[1].unk0 = 0;
     if (g_MovieStreamRgb24 != 0) {
-        D_8007713C[0].unk55 = 1;
-        D_8007713C[1].unk55 = 1;
+        g_MovieStreamSlots[0].unk55 = 1;
+        g_MovieStreamSlots[1].unk55 = 1;
     }
     func_80076488();
     Vsync(0);
     ClearImage(&rect, 0, 0, 0);
     DrawSync(0);
     Vsync(0);
-    D_8007713C[0].unk0 = 1;
-    D_8007713C[1].unk0 = 1;
+    g_MovieStreamSlots[0].unk0 = 1;
+    g_MovieStreamSlots[1].unk0 = 1;
     if (g_MovieStreamRgb24 != 0) {
-        D_8007713C[0].unk55 = 0;
-        D_8007713C[1].unk55 = 0;
+        g_MovieStreamSlots[0].unk55 = 0;
+        g_MovieStreamSlots[1].unk55 = 0;
     }
 }
 
@@ -522,10 +522,10 @@ s32 MovieStartStreamWithMode(u8 mode) {
     } else if (state == 2) {
         return;
     }
-    D_8007713C[0].unk0 = 0;
-    D_8007713C[1].unk0 = 0;
-    D_8007713C[0].unk55 = 1;
-    D_8007713C[1].unk55 = 1;
+    g_MovieStreamSlots[0].unk0 = 0;
+    g_MovieStreamSlots[1].unk0 = 0;
+    g_MovieStreamSlots[0].unk55 = 1;
+    g_MovieStreamSlots[1].unk55 = 1;
     func_80076488();
 }
 

@@ -14,14 +14,14 @@ typedef struct {
     /* 0x0EC */ s32 valueSpriteCount[3];
 } BattleDigitState; // Size: 0xF8
 
-extern u8 D_800C3D48;
+extern u8 g_BattleOverlayEnabled;
 extern u8 D_800C48EA;
-extern s32 *D_800C3E54;
+extern s32 *g_BattleAudioManager;
 extern u8 *g_BattleCommandQueue;
 extern BattleDigitState *g_BattleDisplayState;
 extern u8 D_800D3725[];
-extern s32 D_800D3284;
-extern s32 D_800D328C;
+extern s32 g_BattleOverlayHeapBlock1;
+extern s32 g_BattleOverlayHeapBlock2;
 extern s32 *g_DebuggerState;
 extern u8 *g_BattleCurOT;
 extern u8 *g_BattleGraphicsWork;
@@ -57,7 +57,7 @@ extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 g_BattlePendingSlotMask;
 extern u8 D_800C402F[];
 extern u8 g_BattleCommandArgs;
-extern u8 D_800D2E60;
+extern u8 g_BattleCommandTiles;
 extern void BattleResetActorStatDisplay(u8);
 extern void func_80071B94(s32);
 extern u16 func_80098AF8(s32, s32);
@@ -65,10 +65,10 @@ extern void BattleSetSlotFlagB4(s32);
 extern void BattleClearSlotFlagB4(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
 extern u8 g_BattlePrimStartIndex;
-extern u8 D_800D2D88[];
-extern u8 D_800D3280;
-extern u16 D_800C3076[];
-extern u16 D_800C3254[];
+extern u8 g_BattleStatDigitSpriteIds[];
+extern u8 g_BattleSlotPageIndex;
+extern u16 g_BattleStatDigitXOffsets[];
+extern u16 g_BattleSlotScreenOrigins[];
 extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void func_80072938(POLY_FT4 *, s32, s32, s32);
 extern u8 D_800D3298;
@@ -79,7 +79,7 @@ extern u16 D_800CCD6C[];
 extern u16 D_800CCD6E[];
 extern u8 D_800CCE44[];
 extern u16 D_800D2E1C[];
-extern u8 D_800C3CF9[];
+extern u8 g_BattleValueDigitSpriteIds[];
 extern u8 D_800D32A0[];
 extern BattleTableEntry D_800CCDC4[]; // per-slot table family, stride 0x170
 extern void BattleParseNumberToDigits(s32);
@@ -88,12 +88,12 @@ void BattleLoadOverlay(void) {
     s32 first;
     s32 second;
 
-    if (D_800C3D48 != 0) {
+    if (g_BattleOverlayEnabled != 0) {
         BattleSetArchive20Entry0();
         first = BattleAllocHeapBlock(4, 1);
-        D_800D3284 = first;
+        g_BattleOverlayHeapBlock1 = first;
         second = BattleAllocHeapBlock(first + 0x7FE1B000, 1);
-        D_800D328C = second;
+        g_BattleOverlayHeapBlock2 = second;
         ArchiveReadFileToBuffer(1, (void *)0x801E5000, 0, 0x80);
         BattleWaitForArchiveSync();
         func_801E5160();
@@ -101,7 +101,7 @@ void BattleLoadOverlay(void) {
 }
 
 void BattleSetOverlayArg(u8 arg0) {
-    if (D_800C3D48 != 0) {
+    if (g_BattleOverlayEnabled != 0) {
         func_801E879C(arg0);
     }
 }
@@ -110,11 +110,11 @@ void BattleFadeOutAudioIfOverlayIdle(void) {
     u8 result;
 
     result = 0;
-    if (D_800C3D48 != 0) {
+    if (g_BattleOverlayEnabled != 0) {
         result = func_801E563C();
     }
     if (result == 0 && D_800C48EA == 0x81) {
-        SoundSetAudioManagerVolumeWithFade(D_800C3E54, 0, 0xF0);
+        SoundSetAudioManagerVolumeWithFade(g_BattleAudioManager, 0, 0xF0);
     }
 }
 
@@ -338,7 +338,7 @@ void BattleResetActorCommandSlots(void) {
                 D_800C402F[j] = 0xFF;
             }
             g_BattleCommandArgs = 4;
-            D_800D2E60 = 0x17;
+            g_BattleCommandTiles = 0x17;
             BattleResetActorStatDisplay(i);
             func_80071B94(1);
         }
@@ -440,11 +440,11 @@ void BattleRenderActorStatDigits(s32 slot, u8 arg1) {
 
     first = g_BattleDisplayState->statSpriteCount[slot];
     for (i = 0; i < 5; i++) {
-        if (D_800D2D88[i] != 0xFF) {
+        if (g_BattleStatDigitSpriteIds[i] != 0xFF) {
             g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
-                D_800D2D88[i] + 0x67,
+                g_BattleStatDigitSpriteIds[i] + 0x67,
                 (s32)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
-                (s16)(D_800C3076[slot * 24 + i] + D_800C3254[D_800D3280 * 3 + slot]),
+                (s16)(g_BattleStatDigitXOffsets[slot * 24 + i] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
                 0x10);
         }
     }
@@ -472,11 +472,11 @@ void BattleRenderActorValueDigits(s32 slot) {
     BattleParseNumberToDigits(amount);
 
     for (i = 0; i < 4; i++) {
-        if (D_800C3CF9[i] != 0xFF) {
+        if (g_BattleValueDigitSpriteIds[i] != 0xFF) {
             g_BattleDisplayState->valueSpriteCount[slot] += BattleDrawSpritePackage(
-                D_800C3CF9[i] + 0x83,
+                g_BattleValueDigitSpriteIds[i] + 0x83,
                 (s32)(g_BattleGraphicsWork + (slot * 320 + 0x6008)) + g_BattleDisplayState->valueSpriteCount[slot] * 80,
-                (s16)(slot * 96 + (D_800C3254[D_800D3280 * 3 + slot] + 0x4A) + i * 6),
+                (s16)(slot * 96 + (g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot] + 0x4A) + i * 6),
                 0x25);
         }
     }

@@ -13,7 +13,7 @@ extern BattleWork *g_BattleDisplayState;
 extern u8 D_800C400B[];
 extern u8 D_800C4022[];
 extern u8 D_800C402F[];
-extern u8 D_800D2E60[];
+extern u8 g_BattleCommandTiles[];
 extern u8 D_800D2E61[];
 extern s32 g_SystemSemiTransMode;
 extern u8 g_BattleSlotEnabledFlags[];
@@ -565,7 +565,7 @@ void func_800785D4(u8 color, u8 index) {
     u8 *pEntry;
 
     pEntry = g_BattleCommandQueue;
-    tile = D_800D2E60[index * 8] | (D_800D2E61[index * 8] << 8);
+    tile = g_BattleCommandTiles[index * 8] | (D_800D2E61[index * 8] << 8);
     D_800C400B[pEntry[0x2DA] * 0x48] = color;
     pEntry = g_BattleCommandQueue;
     *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
