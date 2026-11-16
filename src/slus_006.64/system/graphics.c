@@ -1,4 +1,6 @@
 #include "common.h"
+#include "system/memory.h"
+#include "psyq/libgpu.h"
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/graphics", GfxLoadImageAccelerated);
 /*
@@ -32,10 +34,6 @@ void GfxLoadImageAccelerated(void) {
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/graphics", GfxLoadClutsAccelerated);
-/*
-99.11%: same instructions and size, but gcc puts &rect in $s4 and pData in $s3;
-the original has &rect in $s3 and pData in $s4. Needs these declarations:
 
 RECT* D_800592F0;
 u_long* D_800592F4;
@@ -51,15 +49,17 @@ void GfxLoadClutsAccelerated(u8* pData, int x, u16 y) {
     count = *pOffset++;
     offset = 0;
     rect.y = y;
-    while (count-- > 0) {
-        pClut = (u16*)(pData + *pOffset++);
-        rect.w = *pClut++;
-        rect.h = *pClut++;
-        rect.x = x + offset;
-        offset += 0x40;
-        D_800592F0 = &rect;
-        D_800592F4 = (u_long*)pClut;
-        GfxLoadImageAccelerated();
-    }
+    // Load-bearing block: without it gcc puts pData in $s3 and &rect in $s4.
+    do {
+        while (count-- > 0) {
+            pClut = (u16*)(*pOffset++ + (mem_addr)pData);
+            rect.w = *pClut++;
+            rect.h = *pClut++;
+            rect.x = x + offset;
+            offset += 0x40;
+            D_800592F0 = &rect;
+            D_800592F4 = (u_long*)pClut;
+            GfxLoadImageAccelerated();
+        }
+    } while (0);
 }
-*/
