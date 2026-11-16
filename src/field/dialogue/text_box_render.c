@@ -20,7 +20,7 @@ extern u_short g_FieldButtonsPressedOnce;
 
 // Cursor up/down input for the text box holding the top message; moves the
 // cursor within maxPosition and forwards the line offset to the string.
-void func_8007DCF8(int index) {
+void func_8007DCF8(int index, u_long* pOt, int ctx) {
     if (g_FieldTextBoxes[index].cursor.visibility == 0) {
         if (g_FieldTextBoxes[index].windowOpenTimer == 0) {
             if (g_FieldTextBoxes[index].order == 0) {
@@ -373,6 +373,7 @@ extern u_short g_FieldP1ButtonsReleased;
 // One draw mode per render context that closes the text box list.
 extern DR_MODE D_800B1DF4[2][0x10];
 
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
 // 91.11%, 1428 bytes against retail's 1448: every call, both loops, the order
 // renumbering and both addPrim chains are in place; the 61 instructions that
 // still differ are all allocation. Retail keeps `count` on the stack and runs a
@@ -386,8 +387,12 @@ extern DR_MODE D_800B1DF4[2][0x10];
 // context (drawModes[ctx], ctx*0xC), the order loop's else-if test really is in
 // the original (it reloads the order and compares it against 0xFFFF), and the
 // string helpers take the box's _pad[0] (box+0xA8 is its buffer pointer, which
-// retail addresses through g_FieldTextBoxes).
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
+// retail addresses through g_FieldTextBoxes). func_8007DCF8 takes three
+// arguments (retail sets a0=i, a1=pOt and a2=ctx at each call) even though its
+// body reads only the first, which is why its prototype above has three.
+// Round 165: retried the spelled-out pBuffer form (89.43%), an element-pointer
+// local for the addPrim argument (91.16% but 1420 bytes, further from retail's
+// 1448) and re-measured the parked body itself at 91.11%/1428, unchanged.
 /*
 void func_8008004C(u_long* pOt, int ctx) {
     s32 order[4];
