@@ -5,6 +5,8 @@
 #include "psyq/inline_c.h"
 #include "system/graphics.h"
 
+#define BATTLE_TWEEN_STEP_MAX 7
+
 typedef struct {
     /* 0x0 */ struct _BattleMisc22Spr *pSprites;
     /* 0x4 */ s16 capacity;
@@ -226,11 +228,12 @@ s32 func_800A32D8(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 arg3, s16 cou
         pCmd->unk16 = w4;
         pCmd->unk18 = w5;
         pCmd->unk5C = 0;
-        if (count < 7) {
+        if (count < BATTLE_TWEEN_STEP_MAX) {
             pCmd->count = count;
         } else {
-            pCmd->count = 7;
+            pCmd->count = BATTLE_TWEEN_STEP_MAX;
         }
+        // the step is derived from the value the 16-bit field holds, so the store must be re-read
         *(volatile s16 *)&pCmd->startX = a * 64;
         pCmd->deltaX = (pCmd->startX - d * 64) / (s16)divisor;
         *(volatile s16 *)&pCmd->startY = b * 64;
