@@ -16,6 +16,14 @@ extern u8 D_801E9785;
 extern u8 D_80059171;
 
 void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
+void MenuInitializeUnk42CPanel(void);
+void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
+void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3);
+void MenuFreeArrowCursor(u_char index);
+void MenuStartOpenAnimation(void);
+void func_801D29A8(s32 arg0, s32 arg1);
+void MenuSwapInventoryItems(s32 index0, s32 index1);
+u_char func_801DB920(s32 arg0, s32 arg1);
 void MenuRenderFrame(void);
 void MenuHidePointerCursors(void);
 void MenuFreeWindow(s32 arg0);
@@ -27,7 +35,7 @@ void MenuSetupPointerCursors(s32 arg0);
 void MenuInitializeArrowCursor(s32 arg0);
 void func_801D3488(s32 arg0, s32 arg1);
 void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
-void MenuCreateWindow(u_char a0, u_char a1, u_char a2, u_char a3, u16 a4, u_char a5, u_char a6, u32 a7, u_char a8);
+void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
 void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
@@ -234,6 +242,167 @@ void MenuFitInventoryWindowToItems(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+/* Best: 93.91%, 888 bytes (retail 896) - 222 vs 224 insns, 2 short. Everything else
+   is retail's: the prologue save order, the 8 switch arms, the case listing order
+   (4, 5, 1, 3, 0, 2, 9, 10 in the source, which is retail's body order - ascending
+   gives 67%), every store and every delay slot except the two below. Decode: the
+   inventory panel cursor, 16 columns x D_801EA728 rows; col/row are s32, prevCol,
+   prevRow and selectedSlot start at 0xFF, needsOpen/active are u8.
+   Delta 1 (dispatch, +1 insn in retail): retail's `beqz v0,X` duplicates the loop
+   test's `andi v0,s6,0xFF` into its delay slot and targets the `bnez`; ours targets
+   the andi block and fills the slot with `sll v0,v1,2`.
+   Delta 2 (+1 insn in retail): retail's shared `selectedSlot = 0xFF` tail
+   (jtbl case 4 success + case 5 else) sits AFTER case 5's body, reached by a `j`
+   from the s2 store block plus case 5's `bne`; ours merges the same two stores into
+   one block that sits right after case 4's else and falls through, putting
+   `ori s3,0xFF` in a `j` delay slot. Same instructions, one fewer.
+   Both are gcc finding the shorter encoding; not moveable by source order (tried:
+   store order inside each arm, selectedSlot before/after the func_801DB920 call,
+   case 5 if/else inverted, do-while vs while, `while (active)` vs `!= 0`).
+   JUMP TABLE: all three misc9 tables are 11 words plus one pad word, and the range
+   0xFC..0x18C is exactly 144 bytes, so a C switch's 44-byte table does NOT shift
+   the overlay - the next stub's table starts with its own `.align 3`, which supplies
+   the pad (misc10's two converted 10-case tables are 0x50 = 2 x 40, no pad, and
+   `make check` passes). So JTBL_LAYOUT is probably not the blocker here, the 2
+   insns are - but that is inferred from misc10, not measured for a 44-byte table:
+   converting one of these and running check_bin.sh menu settles it in a minute.
+   func_801DB920 returns u_char (retail does `andi v0,v0,0xFF` after the call). */
+/*
+s32 func_801DBE54(void) {
+    u8 active;
+    u8 needsOpen;
+    s32 row;
+    s32 prevRow;
+    s32 col;
+    s32 prevCol;
+    s32 selectedSlot;
+
+    active = 1;
+    needsOpen = 1;
+    row = 0;
+    prevRow = 0xFF;
+    col = 0;
+    prevCol = 0xFF;
+    selectedSlot = 0xFF;
+    MenuInitializeUnk42CPanel();
+    MenuFitInventoryWindowToItems();
+    MenuInitializeArrowCursor(0);
+    MenuInitializeArrowCursor(1);
+    do {
+        MenuRenderFrame();
+        if (row != prevRow) {
+            func_801DA5BC(row);
+            MenuCreateScrollHandle(0xC, D_801EA72C * row / 100 + 0x12, D_801EA724);
+            prevRow = row;
+        }
+        func_801DB0A8(col, row, 0, 0);
+        if (col != prevCol) {
+            func_801DA9A8(col, row);
+            prevCol = col;
+        }
+        if (needsOpen) {
+            MenuCreateWindow(3, 0xC, 0xA, 0x124, 0x84, 0, 1, 4, 1);
+            MenuCreateWindow(4, 8, 0x8F, 0x130, 0x22, 0, 1, 4, 0);
+            MenuStartOpenAnimation();
+            needsOpen = 0;
+            func_801D29A8(0, 0);
+        }
+        func_801DB0A8(selectedSlot, row, 1, 1);
+        switch (g_Menu->input) {
+        case 4:
+            if (selectedSlot == 0xFF) {
+                selectedSlot = row * 2 + col;
+            } else if (row * 2 + col == selectedSlot) {
+                if (func_801DB920(row, col) != 0) {
+                    prevRow = 0xFF;
+                    prevCol = 0xFF;
+                }
+                selectedSlot = 0xFF;
+            } else {
+                MenuSwapInventoryItems(row * 2 + col, selectedSlot);
+                prevRow = 0xFF;
+                prevCol = 0xFF;
+                selectedSlot = 0xFF;
+            }
+            break;
+        case 5:
+            if (selectedSlot != 0xFF) {
+                selectedSlot = 0xFF;
+            } else {
+                active = 0;
+            }
+            break;
+        case 1:
+            if (col + 2 < 0x10) {
+                col = col + 2;
+            } else {
+                row++;
+                if (row > D_801EA728) {
+                    row--;
+                }
+            }
+            prevCol = 0xFF;
+            break;
+        case 3:
+            if (col - 2 >= 0) {
+                col = col - 2;
+            } else {
+                row--;
+                if (row < 0) {
+                    row++;
+                }
+            }
+            prevCol = 0xFF;
+            break;
+        case 0:
+            if (col + 1 < 0x10) {
+                col = col + 1;
+            } else {
+                row++;
+                if (row > D_801EA728) {
+                    row--;
+                } else {
+                    col = 0xE;
+                }
+            }
+            prevCol = 0xFF;
+            break;
+        case 2:
+            if (col - 1 >= 0) {
+                col = col - 1;
+            } else {
+                row--;
+                if (row < 0) {
+                    row++;
+                } else {
+                    col = 1;
+                }
+            }
+            prevCol = 0xFF;
+            break;
+        case 9:
+            row += 8;
+            if (row > D_801EA728) {
+                row = D_801EA728;
+            }
+            prevCol = 0xFF;
+            break;
+        case 10:
+            row -= 8;
+            if (row < 0) {
+                row = 0;
+            }
+            prevCol = 0xFF;
+            break;
+        }
+    } while (active);
+    MenuHidePointerCursors();
+    MenuFreeArrowCursor(0);
+    MenuFreeArrowCursor(1);
+    MenuClearBytes(8, g_Menu->pManager->unk38);
+    return 1;
+}
+*/
 
 void MenuCreateUnk430Panel(u_char arg0) {
     s32 kind;
