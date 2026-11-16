@@ -30,7 +30,7 @@ typedef struct {
 } MenuGearWindowPrims; // Size: 0x2AE1
 
 // The two 32-bit numbers the gear window draws wide (7 digits). They sit in the
-// span GameCharacter keeps opaque (unk2D), so this unit views the character
+// span GameCharacter keeps opaque (unk34), so this unit views the character
 // through them instead of splitting that shared array.
 typedef struct {
     /* 0x00 */ u8 unk0[0x44];

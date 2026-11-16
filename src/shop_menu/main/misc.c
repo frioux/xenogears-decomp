@@ -2696,7 +2696,7 @@ void ShopMenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 character
     }
     pDressingRoom->statValues[0] = pCharacter->slots[0].attack + (pCharacter->attack + pCharacter->attackFromEquipment);
     pDressingRoom->statValues[1] = pCharacter->hitPercentage + pCharacter->hitPercentageFromEquipment;
-    pDressingRoom->statValues[2] = pCharacter->unk2D + (pCharacter->defense + pCharacter->defenseFromEquipment);
+    pDressingRoom->statValues[2] = pCharacter->defenseFromAccessories + (pCharacter->defense + pCharacter->defenseFromEquipment);
     pDressingRoom->statValues[3] = pCharacter->evadePercentage + pCharacter->evadePercentageFromEquipment;
     pDressingRoom->statValues[4] = pCharacter->ether + pCharacter->etherFromEquipment;
     pDressingRoom->statValues[5] = 0x63;

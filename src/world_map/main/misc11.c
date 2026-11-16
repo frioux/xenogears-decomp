@@ -121,7 +121,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
    byte-identical, including the unk48 sh/lh re-read that every earlier attempt
    folded into an sll/sra: it needs the assignments in RETAIL'S order, not the order
    the old parked body had -
-     unk40/unk3C/unk38 = 0; unk48 = g_GameState.unk1824; mode = g_WorldMapMode;
+     unk40/unk3C/unk38 = 0; unk48 = g_GameState.worldMapPlayerRotation; mode = g_WorldMapMode;
      unk4A = 8; unk58 = 0xF; unk5C = pActor->unk48;
    (mode LAST of the two loads, and unk5C written as a re-read of the FIELD, which
    is what makes gcc emit sh 0x48 / lh 0x48 instead of sh 0x48 / sll+sra). The
@@ -175,7 +175,7 @@ int func_8008B2BC(int index) {
     pActor->unk40 = 0;
     pActor->unk3C = 0;
     pActor->unk38 = 0;
-    pActor->unk48 = g_GameState.unk1824;
+    pActor->unk48 = g_GameState.worldMapPlayerRotation;
     mode = g_WorldMapMode;
     pActor->unk4A = 8;
     pActor->unk58 = 0xF;
@@ -263,7 +263,7 @@ int func_8008B54C(int index) {
     pActor->unk30 = g_GameState.worldMapPosZ << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     {
-        u16 unk48 = g_GameState.unk1824;
+        u16 unk48 = g_GameState.worldMapPlayerRotation;
         pActor->unk24 = 1;
         pActor->unk4A = 8;
         pActor->unk20 = 2;
@@ -365,7 +365,7 @@ int WorldMapUpdateActorSlot(int index) {
         pActor->x = g_GameState.fieldScriptMemory[0x13 + index * 3] << 12;
         pActor->z = g_GameState.fieldScriptMemory[0x14 + index * 3] << 12;
         pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
-        angle = (&g_GameState.unk1824)[index];
+        angle = (&g_GameState.worldMapPlayerRotation)[index];
         pActor->drawAngle = angle;
         pActor->angle = angle;
         pScratch->x = pActor->x + rcos((s16)angle) * 0x30;
@@ -449,7 +449,7 @@ int func_8008BB40(int index) {
     pActor->unk38 = 0;
     pActor->unk4A = 8;
     pActor->unk58 = 0x1E;
-    pActor->unk48 = g_GameState.unk1824;
+    pActor->unk48 = g_GameState.worldMapPlayerRotation;
     pActor->unk5C = pActor->unk48;
     switch (g_WorldMapMode) {
     case 1:
@@ -522,7 +522,7 @@ int func_8008BDD0(int index) {
     pActor->unk30 = g_GameState.worldMapPosZ << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     {
-        u16 unk48 = g_GameState.unk1824;
+        u16 unk48 = g_GameState.worldMapPlayerRotation;
         pActor->unk24 = 1;
         pActor->unk4A = 8;
         pActor->unk20 = 2;

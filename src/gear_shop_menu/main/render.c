@@ -2564,7 +2564,7 @@ void GearShopMenuFillDressingRoomStats(MenuDressingRoom* pView, u_char gearId) {
         pView->totalAttack = pGear->weaponData[0].attack + ether;
     }
 
-    pView->totalResponsiveness = pGear->unk9F + pGear->responsiveness;
+    pView->totalResponsiveness = pGear->responsivenessFromFrame + pGear->responsiveness;
     pView->totalAgility = pGear->agility - pGear->weightPenalty;
     pView->totalEtherAmplification = pGear->etherAmplification;
     pView->unkB5 = pGear->unk9D;
@@ -2595,7 +2595,7 @@ void GearShopMenuApplyGearFrame(MenuDressingRoom* arg0, u_char gearIndex) {
     pGear->agility = pPreview->agility;
     pGear->etherAmplification = pPreview->etherAmplification;
     pGear->unk9D = pPreview->unk16;
-    pGear->unk9F = pPreview->responsiveness;
+    pGear->responsivenessFromFrame = pPreview->responsiveness;
     if (pGear->maxHp < pGear->hp) {
         pGear->hp = pGear->maxHp;
     }

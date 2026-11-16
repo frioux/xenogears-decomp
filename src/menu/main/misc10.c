@@ -613,7 +613,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     u8 i;
 
     pChar = &g_GameState.characters[charIndex];
-    pChar->unk2D = 0;
+    pChar->defenseFromAccessories = 0;
     pChar->unk32 = 0;
     pChar->attackFromEquipment = 0;
     pChar->defenseFromEquipment = 0;
@@ -636,7 +636,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
            only a separate copy of the base reproduces. */
         pAccessory = pDressingRoom->pAccessoriesData;
         pAccessory += pChar->accessorySlots[i];
-        pChar->unk2D += pAccessory->defense;
+        pChar->defenseFromAccessories += pAccessory->defense;
         switch (pAccessory->effectType) {
         case 1:
             pChar->unk7E |= pAccessory->effectFlags;
@@ -689,7 +689,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
             pChar->evadePercentageFromEquipment = value + pChar->evadePercentageFromEquipment;
         }
         if (*(u16*)&pAccessory->unkC[0] & 0x100) {
-            pChar->unk2D = value + pChar->unk2D;
+            pChar->defenseFromAccessories = value + pChar->defenseFromAccessories;
         }
     }
 
@@ -728,7 +728,7 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
         pDressingRoom->statValues[0] = pChar->attack + pChar->attackFromEquipment + pChar->slots[0].attack;
     }
     pDressingRoom->statValues[1] = pChar->hitPercentage + pChar->hitPercentageFromEquipment;
-    pDressingRoom->statValues[2] = pChar->defense + pChar->defenseFromEquipment + pChar->unk2D;
+    pDressingRoom->statValues[2] = pChar->defense + pChar->defenseFromEquipment + pChar->defenseFromAccessories;
     pDressingRoom->statValues[3] = pChar->evadePercentage + pChar->evadePercentageFromEquipment;
     pDressingRoom->statValues[4] = pChar->ether + pChar->etherFromEquipment;
     pDressingRoom->statValues[5] = pChar->etherDefense + pChar->etherDefenseFromEquipment;
@@ -790,7 +790,7 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     } else {
         pDressingRoom->totalAttack = pGear->weaponData[0].attack + value;
     }
-    pDressingRoom->totalResponsiveness = pGear->unk9F + pGear->responsiveness;
+    pDressingRoom->totalResponsiveness = pGear->responsivenessFromFrame + pGear->responsiveness;
     pDressingRoom->totalAgility = pGear->agility - pGear->weightPenalty;
     pDressingRoom->totalEtherAmplification = pGear->etherAmplification + pGear->unk54;
     pDressingRoom->unkB5 = pGear->unk9D;
@@ -818,7 +818,7 @@ void MenuApplyGearFrame(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pGear->agility = pFrame->agility;
     pGear->etherAmplification = pFrame->etherAmplification;
     pGear->unk9D = pFrame->unk16;
-    pGear->unk9F = pFrame->responsiveness;
+    pGear->responsivenessFromFrame = pFrame->responsiveness;
     if (pGear->maxHp < pGear->hp) {
         pGear->hp = pGear->maxHp;
     }

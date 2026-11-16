@@ -606,7 +606,7 @@ void WorldMapSetPositionFromState(void) {
     case 2:
         nPos = g_GameState.worldMapPosX << 12;
         g_WorldMapPlayerPosition = nPos;
-        g_WorldMapPlayerRotation = g_GameState.unk1824;
+        g_WorldMapPlayerRotation = g_GameState.worldMapPlayerRotation;
         nPos = g_GameState.worldMapPosZ << 12;
         D_8009C5B4 = nPos;
         break;

@@ -38,7 +38,7 @@ typedef struct {
     /* 0x2A */ u8 agilityFromEquipment;
     /* 0x2B */ u8 etherFromEquipment;
     /* 0x2C */ u8 etherDefenseFromEquipment;
-    /* 0x2D */ u8 unk2D;
+    /* 0x2D */ u8 defenseFromAccessories; // total of the three accessories' defense field
     /* 0x2E */ u8 hitPercentageFromEquipment;
     /* 0x2F */ u8 evadePercentageFromEquipment;
     /* 0x30 */ u8 unk30;
@@ -160,7 +160,7 @@ typedef struct {
     /* 0x9c */ u8 unk9C;
     /* 0x9d */ u8 unk9D;
     /* 0x9e */ u8 etherAmplification;
-    /* 0x9f */ u8 unk9F;
+    /* 0x9f */ u8 responsivenessFromFrame;
     /* 0xA0 */ int unkA0;
 } GameGear; // size: 0xA4
 
@@ -203,7 +203,11 @@ typedef struct {
     // WorldMapSetPositionFromState copies into g_WorldMapPlayerPosition.
     /* 0x1820 */ u16 worldMapPosX;
     /* 0x1822 */ u16 worldMapPosZ;
-    /* 0x1824 */ u16 unk1824;
+    // World map facing angle of the player actor, copied into g_WorldMapPlayerRotation
+    // by WorldMapSetPositionFromState. The three party actors' angles follow it in
+    // unk1826 (a u16[3] there); splitting that span changes the load schedule of
+    // WorldMapInitPartyActorSprite0/1/2, so it stays opaque.
+    /* 0x1824 */ u16 worldMapPlayerRotation;
     /* 0x1826 */ undefined8 unk1826[0x6]; // +0x1824..+0x182B read as a u16[4] of actor angles
     // World map position a field script latches with the 0x17FC30 opcode, see
     // WorldMapGetGameStatePosition and FieldScriptSetGameState17FC30.

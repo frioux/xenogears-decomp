@@ -682,7 +682,7 @@ s32 func_8008A5B8(s32 arg0) {
     pActor->z = g_GameState.worldMapPosZ << 12;
     pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     {
-        u16 nAngle = g_GameState.unk1824;
+        u16 nAngle = g_GameState.worldMapPlayerRotation;
 
         pActor->unk24 = 1;
         pActor->moveSpeed = 8;
