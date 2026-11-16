@@ -722,6 +722,23 @@ void SpriteSetDirection(SpriteData*, s16);
 
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
+/* 96.86% (144 vs 148 bytes), permuter base 113 -> best 113 (2 runs, 1896
+   iters: it has nothing left). Was 92.51% before the do/while(0) edit below,
+   which moved the vy store out of the jal delay slot; a bare block, an
+   if/else and a flat sequence all fall back to 92.51%, so the wrapper is
+   load-bearing and must stay.
+   Frame and every other instruction match. The branch shape only comes out
+   with the ternary INSIDE the arithmetic, which gives retail's cond-add with
+   the delay slot filled.
+   Only residual, allocator: retail loads vy into v0, copies it (move v1,v0)
+   and tests in place (andi v0,v0,0x8000), keeping the copy in v1 for the
+   addiu; we load straight into v1 and are one instruction short, which also
+   makes the frame 0x18 instead of 0x20 (saves at 0x10/0x14 vs 0x18/0x1C) and
+   shortens the two branch displacements. Tried: s16 vs int current, reading
+   the field directly in the test, an assignment inside the condition, an
+   unused int local (frame only, no instruction), a bare block, gcc-2.7.2-cdk
+   (89.27%) and 2.6.0 (92.51%). Looks like a wall, not a tie.
+*//*
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
     s16 current;
@@ -743,7 +760,9 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
             pActorData->rotation.vy = angle;
         }
     }
-}
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
 void FieldNoOp(void) {
