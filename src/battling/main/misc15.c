@@ -24,12 +24,22 @@ typedef struct HeapNode {
     /* 0xC */ WorkBlock* pBlock;
 } HeapNode; // Size: 0x10
 
+// One 8-byte vertex run of a packet node: three vertex indices into the
+// model's vertex array (func_8008C4B0/620 scale each by 8) and padding.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ u16 pad6;
+} VertexIndexSet; // Size: 0x8
+
 // One entry of the packet list at D_80059528: a flag byte and a count, then
 // count 8-byte vertex runs immediately after this 4-byte header.
 typedef struct {
     /* 0x0 */ u8 flags;
     /* 0x1 */ u8 unk1;
     /* 0x2 */ s16 count;
+    /* 0x4 */ VertexIndexSet verts[0];
 } PacketNode; // Size: 0x4
 
 // The work data a model block holds at +0x14: the counts BattleInitWorkBlock
@@ -52,7 +62,7 @@ typedef struct {
     /* 0x02 */ u16 count;
     /* 0x04 */ u8 unk4[0x4];
     /* 0x08 */ void* pVerts;
-    /* 0x0C */ void* pData;
+    /* 0x0C */ WorkData* pData;
     /* 0x10 */ void* pPackets[1];
 } RenderRecord; // Size: 0x14
 
@@ -161,10 +171,10 @@ extern void* g_pCurModelVertices;
 extern void* D_80059568;
 extern s32 D_800595C0;
 extern void* D_80059528;
-extern void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices);
-extern void func_8008C620(void* pNode, s16 n);
+extern void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices);
+extern void func_8008C620(VertexIndexSet* pVerts, s16 n);
 extern void func_800732AC(void* pDst, void* pSrc, s32 n);
-extern void func_8008C4B0(void* pNode, s16 n);
+extern void func_8008C4B0(VertexIndexSet* pVerts, s16 n);
 extern void func_800316C0(void* pOT, void* pPrim);
 extern void func_80031750(void* pOT, void* pPrim);
 extern VECTOR D_8009A2C8;
@@ -215,33 +225,36 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
    both jal delay slots. Still different: gcc turns `i = count - 1; while
    (i != -1)` into a `beqz count` guard plus a fall-through body, while retail
    jumps straight to the latch (`j`, `addiu s1,s1,-1`) and has the loop test at
-   the bottom; and gcc keeps the `D_80059528 = *(pData + 0x10)` store in the
+   the bottom; and gcc keeps the `D_80059528 = pData->pNodes` store in the
    preheader where retail merges it into the latch block, which also reorders the
    preheader loads. Writing that store at the loop top through a pCur local
    instead drops to 73.73% (gcc folds the redundant reload), `while (--i != -1)`
    with a single decrement is 87.64%, and the original 83.00% park note's
-   `do/while` variants were 74-80%.
-void func_8008BD70(u8* pData, void* pPacket, void* pUnk, void* pVertices) {
+   `do/while` variants were 74-80%. Typing the body against WorkData/PacketNode
+   (as below) scores 90.49% at the same 228 bytes: the raw `*(u16*)(pData + 6)`
+   and `*(s16*)(pNode + 2)` spellings are worth 3 points here, so a re-park must
+   go back to them.
+void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices) {
     s32 i;
-    u8* pNode;
+    PacketNode* pNode;
 
-    i = *(u16*)(pData + 6) - 1;
-    D_80059528 = *(void**)(pData + 0x10);
-    D_800595C0 += *(u16*)(pData + 4);
+    i = pData->nodeCount - 1;
+    D_80059528 = pData->pNodes;
+    D_800595C0 += pData->unk4;
     g_pCurModelPacket = pPacket;
     D_80059568 = pUnk;
     g_pCurModelVertices = pVertices;
     while (i != -1) {
-        pNode = (u8*)D_80059528;
-        D_80059528 = pNode + 4;
-        if (pNode[0] & 8) {
+        pNode = D_80059528;
+        D_80059528 = pNode->verts;
+        if (pNode->flags & 8) {
             i--;
-            func_8008C620(pNode + 4, *(s16*)(pNode + 2));
+            func_8008C620(pNode->verts, pNode->count);
         } else {
             i--;
-            func_8008C4B0(pNode + 4, *(s16*)(pNode + 2));
+            func_8008C4B0(pNode->verts, pNode->count);
         }
-        D_80059528 = (u8*)D_80059528 + (*(s16*)(pNode + 2) << 3);
+        D_80059528 = (u8*)D_80059528 + (pNode->count << 3);
     }
 }
 */
