@@ -154,7 +154,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
    `x += halfWidth` (97.01, loses retail's `addiu s0,s0,8`). So it is an emission
    order tie, not a source shape. Note the second call's x must be written back
    into the `x` parameter (`x = halfWidth + 8 + x;`) - a separate local costs a
-   register and 4 bytes.
+   register and 4 bytes. Round 121: permuter, 1547 iterations from this body,
+   best = base (no improvement); `y - 8` twice inline puts the a1 add in retail's
+   slot but moves the s2 add one insn late (98.09). Still an emission-order tie.
    void func_801D3FF8(u_char index, u_short x, u_short y, u_short width) {
        MenuWindow* pWindow = g_Menu->windows[index];
        u16 top;
@@ -187,51 +189,37 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3FF8);
        }
    }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D433C);
-/* Best: 99.00%. The sibling of MenuInitializeWindowBorderCorners (bottom border instead of the
-   corners) and the decode is complete: 16 UV stores to polysWindowBorderBottom
-   [ctx] and [ctx+2], two MenuSetQuadVertices quads, then a 2-iteration
-   MenuSetPolySemiTransGrey loop. Three codegen facts already worked out here: the UV
-   stores must be byte offsets off a raw pointer with the context product FIRST
-   (`g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC`); a struct access
-   (`pWindow->polysWindowBorderBottom[ctx].u0`) gives the reversed addu and an
-   `addiu v1,v1,2` for the [ctx+2] group instead of retail's +0x50
-   displacement; and the second quad's x argument must be written
-   `halfWidth + 8 + x`, the only order that gives retail's `addiu s0,s0,8` /
-   `addu s4,s4,s0` and the s4=x / s3=(u16)halfWidth assignment.
-   One instruction left: retail computes the second call's address
-   (`addiu a0,s6,0x5F0`) AFTER the x sum, gcc hoists it before it.
-   void func_801D433C(u_char index, u_short x, u_short y, u_short width, u_short height) {
-       MenuWindow* pWindow = g_Menu->windows[index];
-       u16 bottom;
-       s32 halfWidth;
-       s32 i;
+void func_801D433C(u_char index, u_short x, u_short y, u_short width, u_short height) {
+    MenuWindow* pWindow = g_Menu->windows[index];
+    u16 bottom;
+    s32 halfWidth;
+    s32 i;
 
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1ED) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F4) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F5) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FC) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FD) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x204) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x205) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23C) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23D) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x244) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x245) = 0x84;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24C) = 8;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24D) = 0x94;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x254) = 0xF;
-       *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x255) = 0x94;
-       bottom = y + height - 8;
-       halfWidth = (width - 0x10) / 2;
-       MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
-       MenuSetQuadVertices(pWindow->vertsWindowBorderBottom2, halfWidth + 8 + x, bottom, halfWidth, 0x10);
-       for (i = 0; i < 2; i++) {
-           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
-       }
-   }
-*/
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1EC) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1ED) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F4) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1F5) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FC) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x1FD) = 0x94;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x204) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x205) = 0x94;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23C) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x23D) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x244) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x245) = 0x84;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24C) = 8;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x24D) = 0x94;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x254) = 0xF;
+    *(u8*)(g_Menu->renderContext * 0x28 + (u8*)pWindow + 0x255) = 0x94;
+    bottom = y + height - 8;
+    halfWidth = (width - 0x10) / 2;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
+    x = halfWidth + 8 + x;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderBottom2, x, bottom, halfWidth, 0x10);
+    for (i = 0; i < 2; i++) {
+        MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
 /* Best: 94.26% (844 bytes; retail is 836). Decode is complete - the vertical
    border sibling of func_801D3FF8 (see its note): 16 UV byte stores to
