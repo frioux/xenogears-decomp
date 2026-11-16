@@ -469,7 +469,11 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
 
 int WorldMapUpdateGroup4And5Scale(int idx) {
     WorldMapPlayer *pPlayer = D_8009BE24 + idx;
-    u8 *pWork = (u8 *)D_8009C620;
+    WorldMapSceneLayer *pLayer = D_8009C620;
+    // 0x158/0x15C/0x160 are layer 4's pos, 0x1AC/0x1B0/0x1B4 layer 5's; the six
+    // pos stores stay untyped because the typed form lets gcc hoist the -0x40
+    // pair above the D_8009C5AC load, which retail does not
+    u8 *pWork = (u8 *)pLayer;
     u32 *pScratch = (u32 *)0x1F800000;
     // second layer's scale; retail keeps this field's address in a register,
     // which is what makes the player pointer land in $a2
@@ -481,8 +485,8 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
 
     if (pPlayer->unk4 != 0) {
         pPlayer->unk4 = 0;
-        *(s16 *)(pWork + 0x1A4) = 0;
-        *(s16 *)(pWork + 0x150) = 0;
+        pLayer[5].unk0 = 0;
+        pLayer[4].unk0 = 0;
     }
     *(s32 *)(pWork + 0x1AC) = D_8009C5AC >> 12;
     *(s32 *)(pWork + 0x158) = D_8009C5AC >> 12;
@@ -505,17 +509,17 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
     *(MATRIX *)&pScratch[0x3C] = D_8009A180;
     *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
     w = pPlayer->unk50;
-    *(u32 *)0x1F800008 = w;
-    *(u32 *)0x1F800000 = w;
+    pScratch[2] = w;
+    pScratch[0] = w;
     x = *pScale2;
-    *(u32 *)0x1F800014 = 0x1000;
-    *(u32 *)0x1F800004 = 0x1000;
-    *(u32 *)0x1F800018 = x;
-    *(u32 *)0x1F800010 = x;
-    ScaleMatrix((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000);
-    ScaleMatrix((MATRIX *)0x1F800110, (VECTOR *)0x1F800010);
-    *(MATRIX *)(pWork + 0x170) = *(MATRIX *)0x1F8000F0;
-    *(MATRIX *)(pWork + 0x1C4) = *(MATRIX *)0x1F800110;
+    pScratch[5] = 0x1000;
+    pScratch[1] = 0x1000;
+    pScratch[6] = x;
+    pScratch[4] = x;
+    ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
+    ScaleMatrix((MATRIX *)&pScratch[0x44], (VECTOR *)&pScratch[4]);
+    pLayer[4].mat = *(MATRIX *)&pScratch[0x3C];
+    pLayer[5].mat = *(MATRIX *)&pScratch[0x44];
     return 1;
 }
 int WorldMapSetupGroup6And7ScaledPrims(int idx) {
@@ -549,7 +553,10 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
 
 int WorldMapUpdateGroup6And7Scale(int idx) {
     WorldMapPlayer *pPlayer = D_8009BE24 + idx;
-    u8 *pWork = (u8 *)D_8009C620;
+    WorldMapSceneLayer *pLayer = D_8009C620;
+    // 0x200/0x204/0x208 are layer 6's pos, 0x254/0x258/0x25C layer 7's; untyped
+    // for the reason given in WorldMapUpdateGroup4And5Scale
+    u8 *pWork = (u8 *)pLayer;
     u32 *pScratch = (u32 *)0x1F800000;
     // second layer's scale; retail keeps this field's address in a register,
     // which is what makes the player pointer land in $a2
@@ -561,8 +568,8 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
 
     if (pPlayer->unk4 != 0) {
         pPlayer->unk4 = 0;
-        *(s16 *)(pWork + 0x24C) = 0;
-        *(s16 *)(pWork + 0x1F8) = 0;
+        pLayer[7].unk0 = 0;
+        pLayer[6].unk0 = 0;
     }
     *(s32 *)(pWork + 0x254) = D_8009C5AC >> 12;
     *(s32 *)(pWork + 0x200) = D_8009C5AC >> 12;
@@ -585,17 +592,17 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
     *(MATRIX *)&pScratch[0x3C] = D_8009A180;
     *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
     w = pPlayer->unk50;
-    *(u32 *)0x1F800008 = w;
-    *(u32 *)0x1F800000 = w;
+    pScratch[2] = w;
+    pScratch[0] = w;
     x = *pScale2;
-    *(u32 *)0x1F800014 = 0x1000;
-    *(u32 *)0x1F800004 = 0x1000;
-    *(u32 *)0x1F800018 = x;
-    *(u32 *)0x1F800010 = x;
-    ScaleMatrix((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000);
-    ScaleMatrix((MATRIX *)0x1F800110, (VECTOR *)0x1F800010);
-    *(MATRIX *)(pWork + 0x218) = *(MATRIX *)0x1F8000F0;
-    *(MATRIX *)(pWork + 0x26C) = *(MATRIX *)0x1F800110;
+    pScratch[5] = 0x1000;
+    pScratch[1] = 0x1000;
+    pScratch[6] = x;
+    pScratch[4] = x;
+    ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
+    ScaleMatrix((MATRIX *)&pScratch[0x44], (VECTOR *)&pScratch[4]);
+    pLayer[6].mat = *(MATRIX *)&pScratch[0x3C];
+    pLayer[7].mat = *(MATRIX *)&pScratch[0x44];
     return 1;
 }
 
@@ -1040,22 +1047,22 @@ int WorldMapInitGroup9Actor(int idx) {
 }
 int WorldMapUpdateGroup9Actor(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
-    u8 *pWork = (u8 *)D_8009C620;
+    WorldMapSceneLayer *pLayer = D_8009C620;
 
     if (*(s16 *)(pPlayer + 4) == 1) {
         *(s16 *)(pPlayer + 4) = 0;
-        *(s16 *)(pWork + 0x2F4) = 1;
-        *(s16 *)(pWork + 0x24C) = 1;
-        *(s16 *)(pWork + 0x2A0) = 1;
+        pLayer[9].unk0 = 1;
+        pLayer[7].unk0 = 1;
+        pLayer[8].unk0 = 1;
         WorldMapDeactivateSpriteGroup(0x16);
         return 3;
     }
     *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
     WorldMapWrapPosition(pPlayer + 0x28);
     *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
-    *(s32 *)(pWork + 0x2FC) = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(s32 *)(pWork + 0x300) = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(s32 *)(pWork + 0x304) = *(s32 *)(pPlayer + 0x30) >> 12;
+    pLayer[9].pos.x = *(s32 *)(pPlayer + 0x28) >> 12;
+    pLayer[9].pos.y = *(s32 *)(pPlayer + 0x2C) >> 12;
+    pLayer[9].pos.z = *(s32 *)(pPlayer + 0x30) >> 12;
     *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
     *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
     *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
@@ -1084,12 +1091,12 @@ int WorldMapInitGroup10Actor(int idx) {
 
 int WorldMapUpdateGroup10Actor(int idx) {
     u8 *pPlayer = (u8 *)D_8009BE24 + (idx << 7);
-    u8 *pWork = (u8 *)D_8009C620;
+    WorldMapSceneLayer *pLayer = D_8009C620;
 
     if (*(s16 *)(pPlayer + 4) == 1) {
         *(s16 *)(pPlayer + 4) = 0;
-        *(s16 *)(pWork + 0x348) = 1;
-        *(s16 *)(pWork + 0x39C) = 1;
+        pLayer[10].unk0 = 1;
+        pLayer[11].unk0 = 1;
         WorldMapDeactivateSpriteGroup(0x17);
         *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
         *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
@@ -1100,9 +1107,9 @@ int WorldMapUpdateGroup10Actor(int idx) {
     *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
     WorldMapWrapPosition(pPlayer + 0x28);
     *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
-    *(s32 *)(pWork + 0x350) = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(s32 *)(pWork + 0x354) = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(s32 *)(pWork + 0x358) = *(s32 *)(pPlayer + 0x30) >> 12;
+    pLayer[10].pos.x = *(s32 *)(pPlayer + 0x28) >> 12;
+    pLayer[10].pos.y = *(s32 *)(pPlayer + 0x2C) >> 12;
+    pLayer[10].pos.z = *(s32 *)(pPlayer + 0x30) >> 12;
     *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
     *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
     *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
