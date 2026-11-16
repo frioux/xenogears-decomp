@@ -334,6 +334,31 @@ void FieldUpdateFrame(void) {
 
 // FieldMain-related predicate used by callers in misc6; returns -1 while the
 // player actor's script flags have 0x800 set and the field is idle.
+// 96.67% (permuter score 240): the early-return shape is right and the whole
+// tail (gcc 2.7.2 gives the original's negu in $v0) matches; only the first
+// two compares differ. The original allocates result=0 in $v0 at entry, the
+// literal 1 in $v1 and the D_800ADBD0 load in $a0, and keeps $v0=0 live across
+// the second bnez (whose delay slot is a nop, not the extra move v0,zero this
+// body emits). That means local-alloc saw the result pseudo live over the load;
+// gcc's sched2 only moves that move v0,zero down into the first bne delay slot.
+// Not a preset problem: gcc 2.6.0 gives the identical 96.33 shape and
+// 2.7.2-cdk 85.67.
+// The dead 'new_var' assignment above is load-bearing: it shifts the load from
+// $v1 to $v0 (96.33 -> 96.67); a second dead var does nothing more.
+// 15th-16th attempts, same shape family, both worse: one merged
+// return -(a == 1 && b == 0 && flags) scores 87.50% (the && forces the sltu into
+// $a0 and leaves negu v0,a0, the coalescing wall), and if (a == 1 && b == 0)
+// return -(...); return 0; scores 91.50% (extra j, the zero return lands after
+// the compute block instead of being the branch target).
+// Tried and all <= this (13 attempts): s32 result = 0; if (a && b) result =
+// ...; return result; (96.00%, leaves negu a0,v0; move v0,a0), two separate
+// return 0; early exits, nested ifs (91.50%, extra j), a flags local, a mode
+// local, goto out with a result local (95.33%), (u32) and 1 != x operand
+// forms, a helper function (44.30%), and a ?: return (91.50%, 128 bytes).
+// Permuter: 3 min / 2076 iterations from this body, base 240 best 240 - the
+// shape family is exhausted, the next idea has to materialise the 0 before the
+// first compare without constant-folding it away.
+/*
 s32 func_80077E10(void) {
     int new_var;
     new_var = (D_800ADBD0 != 1) || (D_800B2344 != 0);
@@ -342,4 +367,7 @@ s32 func_80077E10(void) {
     }
     return -((FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x800) != 0);
 }
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077E10);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldMain);
