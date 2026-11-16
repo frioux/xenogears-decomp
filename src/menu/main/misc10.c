@@ -261,13 +261,6 @@ void MenuFreeCharacterScreenBuffers(void) {
     func_801C72BC(0x13);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E3088);
-
-/* objdiff 99.87% (312 bytes, same size) but NOT linkable: the jump table
-   jtbl_801C51DC lives in asm/menu/data/0.rodata.s and its entries are .word
-   .L801E31B0/.L801E30C8/... labels defined inside this function's asm, so
-   converting the function leaves those references undefined and the overlay
-   stops linking. Checked with tools/scripts/check_bin.sh menu.
 void func_801E3088(u8 arg0) {
     switch (g_Menu->mainMenuChoice + arg0) {
     case 0:
@@ -303,7 +296,6 @@ void func_801E3088(u8 arg0) {
         break;
     }
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
 void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 targetIndex, u8 slotIndex, u8 isGear) {
     GameCharacter* pChar;
