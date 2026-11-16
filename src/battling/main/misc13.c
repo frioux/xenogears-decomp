@@ -14,9 +14,9 @@ typedef struct Misc13Node {
     /* 0x00 */ s32 state;
     /* 0x04 */ void* pData;
     /* 0x08 */ u8 unk08[0x2C];
-    /* 0x34 */ s32 unk34;
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ s32 unk3C;
+    /* 0x34 */ s32 positionX;
+    /* 0x38 */ s32 positionY;
+    /* 0x3C */ s32 positionZ;
     /* 0x40 */ u8 unk40[0x50];
     /* 0x90 */ struct Misc13Node* pChildA;
     /* 0x94 */ struct Misc13Node* pChildB;
@@ -25,7 +25,7 @@ typedef struct Misc13Node {
 // The payload used by state 1: one model part and the packets allocated for it.
 typedef struct {
     /* 0x00 */ s32 flags;
-    /* 0x04 */ s32 unk04;
+    /* 0x04 */ s32 renderMode;
     /* 0x08 */ void* pPacketBuffer;
     /* 0x0C */ void* pCurrentPacket;
     /* 0x10 */ s32 unk10;
@@ -83,16 +83,17 @@ typedef struct {
     /* 0x0C */ u32* pLastA;
     /* 0x10 */ u32* pLastB;
     /* 0x14 */ u16 count;
-    /* 0x16 */ u8 unk16;
-    /* 0x17 */ u8 unk17;
+    /* 0x16 */ u8 flags;
+    /* 0x17 */ u8 depthShift;
     /* 0x18 */ u8 unk18[0x50];
 } Misc13Buffer; // Size: 0x68
 
-// The 0x1C-byte payload allocated by BattleCreateEntryList.
+// The 0x1C-byte payload allocated by BattleCreateEntryList; Misc13EntryList is
+// the same record as the state-2 code reads it.
 typedef struct {
     /* 0x00 */ s32 unk00;
-    /* 0x04 */ s32 unk04;
-    /* 0x08 */ s32 unk08;
+    /* 0x04 */ void* pData;
+    /* 0x08 */ Misc13Entry* pEntries;
     /* 0x0C */ s32 unk0C;
     /* 0x10 */ s16 unk10;
     /* 0x12 */ s16 unk12;
@@ -170,8 +171,8 @@ Misc13Scale* BattleCreateEntryList(void) {
     pSprite->unk14 = 0x1000;
     pSprite->unk12 = 0x1000;
     pSprite->unk10 = 0x1000;
-    pSprite->unk04 = 0;
-    pSprite->unk08 = 0;
+    pSprite->pData = 0;
+    pSprite->pEntries = 0;
     return pSprite;
 }
 
@@ -195,7 +196,7 @@ void BattleFreeEntryList(Misc13EntryList* pList) {
 }
 
 Misc13ModelPart* BattleInitModelPart(Misc13ModelPart* pPart) {
-    pPart->unk04 = 1;
+    pPart->renderMode = 1;
     pPart->flags = 0;
     pPart->pPacketBuffer = NULL;
     pPart->pCurrentPacket = NULL;
@@ -305,8 +306,8 @@ Misc13Buffer* BattleCreateOrderingTablePair(u16 count) {
     HeapSetCurrentContentType(0xC);
     pBuffer->pArrayA = HeapAlloc(count * 8, 0);
     pBuffer->pArrayB = pBuffer->pArrayA + count;
-    pBuffer->unk16 = 1;
-    pBuffer->unk17 = 0xE;
+    pBuffer->flags = 1;
+    pBuffer->depthShift = 0xE;
     pBuffer->unk00 = 0;
     pBuffer->count = count;
     pBuffer->pLastA = &pBuffer->pArrayA[count - 1];
@@ -316,10 +317,10 @@ Misc13Buffer* BattleCreateOrderingTablePair(u16 count) {
         while (i != count) {
             i <<= 1;
             if (i > 0x4000) {
-                pBuffer->unk17 = 0xE;
+                pBuffer->depthShift = 0xE;
                 break;
             }
-            pBuffer->unk17--;
+            pBuffer->depthShift--;
         }
     }
     return pBuffer;
@@ -366,15 +367,15 @@ Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     pA = pGroup->pNode1;
     pB = pGroup->pNode2;
     pC = pGroup->pNode3;
-    pC->unk38 = -2;
-    pB->unk38 = -2;
-    pA->unk38 = -2;
-    pGroup->pNode1->unk34 = 0;
-    pGroup->pNode1->unk3C = 1;
-    pGroup->pNode2->unk34 = -1;
-    pGroup->pNode2->unk3C = -1;
-    pGroup->pNode3->unk34 = 1;
-    pGroup->pNode3->unk3C = -1;
+    pC->positionY = -2;
+    pB->positionY = -2;
+    pA->positionY = -2;
+    pGroup->pNode1->positionX = 0;
+    pGroup->pNode1->positionZ = 1;
+    pGroup->pNode2->positionX = -1;
+    pGroup->pNode2->positionZ = -1;
+    pGroup->pNode3->positionX = 1;
+    pGroup->pNode3->positionZ = -1;
     pSprite = (Misc13Sprite*)pGroup->pNode1->pData;
     pSprite->unk10 = 0x800;
     pSprite->unk0E = 0x800;
