@@ -1203,7 +1203,7 @@ void GearShopMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, u_sh
         pWindowParameters->curWidth = 0;
         pWindowParameters->curHeight = 0;
         g_Menu->pManager->isWindowOpening[windowIndex] = TRUE;
-        pWindowParameters->unk12 = arg6;
+        pWindowParameters->useDefaultMatrix = arg6;
         pWindowParameters->zIndex = zIndex;
         return;
     }
@@ -1249,7 +1249,7 @@ void GearShopMenuUpdateWindows(void) {
                 ((windowParams->y + ((u16) windowParams->height >> 1)) - (heightOffset >> 1)),
                 widthOffset,
                 (s32) heightOffset,
-                (s32) windowParams->unk12,
+                (s32) windowParams->useDefaultMatrix,
                 windowParams->zIndex,
                 (s32) windowParams->hasScrollBar);
         }
@@ -2361,8 +2361,8 @@ void GearShopMenuConfirmationWindowInitialize(u8 stringIndex) {
     g_Menu->pManager->shouldRenderModalStrings = 1;
     HeapFree(g_Menu->modalStrings[0]->pVramBuffer);
     HeapFree(g_Menu->modalStrings[2]->pVramBuffer);
-    if (g_Menu->pManager->unk5B == 2) {
-        g_Menu->pManager->unk5B = 1;
+    if (g_Menu->pManager->finalPriceRenderState == 2) {
+        g_Menu->pManager->finalPriceRenderState = 1;
     }
     GearShopMenuUpdateAndRender();
     GearShopMenuUpdateAndRender();
@@ -2380,7 +2380,7 @@ void GearShopMenuConfirmationWindowFree(void) {
             HeapFree(g_Menu->modalStrings[i]);
         }
     }
-    g_Menu->pManager->unk5B = 0;
+    g_Menu->pManager->finalPriceRenderState = 0;
     GearShopMenuUpdateAndRender();
 }
 
@@ -2804,7 +2804,7 @@ void GearShopMenuShopModeMain(void) {
 
     isRunning = TRUE;
     GearShopMenuCreateGearModel(1, g_gearShopCurrentGearId);
-    g_Menu->pManager->unk5C[7] = 1;
+    g_Menu->pManager->isPanelActive[0] = 1;
 
     // Options here are "Tune up", "Buy", "Sell", "Exit"
     g_Menu->mainMenuChoice = 2; // Start cursor at "Buy" option

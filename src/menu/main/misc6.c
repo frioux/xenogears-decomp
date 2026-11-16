@@ -366,10 +366,10 @@ void func_801D3488(u_char a0, u_char a1) {
         return;
     }
 
-    if (g_Menu->pManager->unk63[4] == 0) {
+    if (g_Menu->pManager->isPanelActive[4] == 0) {
         g_Menu->pShoulderButtonUi = HeapAlloc(0x1C4, 0);
         bzero(g_Menu->pShoulderButtonUi, 0x1C4);
-        g_Menu->pManager->unk63[4] = 1;
+        g_Menu->pManager->isPanelActive[4] = 1;
     }
 
     for (i = 0; i < 2; i++) {
@@ -388,9 +388,9 @@ void func_801D3488(u_char a0, u_char a1) {
 }
 */
 void MenuFreeShoulderButtonUi(void) {
-    if (g_Menu->pManager->unk5C[0xB] != 0) {
+    if (g_Menu->pManager->isPanelActive[4] != 0) {
         g_Menu->pManager->shoulderButtonUiActive = 0;
-        g_Menu->pManager->unk5C[0xB] = 0;
+        g_Menu->pManager->isPanelActive[4] = 0;
         HeapFree(g_Menu->pShoulderButtonUi);
     }
 }
@@ -417,7 +417,7 @@ void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4,
         pParams->curWidth = 0;
         pParams->curHeight = 0;
         g_Menu->pManager->isWindowOpening[a0] = 1;
-        pParams->unk12 = a6;
+        pParams->useDefaultMatrix = a6;
         pParams->zIndex = a7;
         return;
     }
@@ -459,7 +459,7 @@ void MenuUpdateWindowAnimations(void) {
                 (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->curHeight / 2),
                 pWindowInfo->curWidth,
                 pWindowInfo->curHeight,
-                pWindowInfo->unk12,
+                pWindowInfo->useDefaultMatrix,
                 pWindowInfo->zIndex,
                 pWindowInfo->hasScrollBar
             );

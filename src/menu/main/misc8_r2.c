@@ -136,7 +136,7 @@ void MenuFreeUnk42CPanel(void) {
    render the item name + 2-digit quantity into two 16-record MenuString arrays
    at unk42C + 0x00 and + 0x800, upload both with a LoadImage of one 0x28 x 0xD
    cell, then set up their prims with func_801E7C50 and MenuSetQuadVertices.
-   The flag byte is pDressingRoom->pItemsData[id].unk4[2]; bit 0x80 is the
+   The flag byte is pDressingRoom->pItemsData[id].displayFlags; bit 0x80 is the
    shaded variant and is dropped when bit 0x20 is set while g_ShopIndex is 0. */
 /*
 void func_801DA5BC(s32 arg0) {
@@ -175,7 +175,7 @@ void func_801DA5BC(s32 arg0) {
             rect.h = FONT_LETTER_HEIGHT;
             LoadImage(&rect, (u_long*)pWorkspace);
             DrawSync(0);
-            itemFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].unk4[2];
+            itemFlags = g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + i]].displayFlags;
             if ((itemFlags & 0x20) && (g_ShopIndex == 0)) {
                 itemFlags = 0;
             } else {

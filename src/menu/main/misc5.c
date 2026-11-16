@@ -220,7 +220,7 @@ void MenuAddUnk1BE0Prims(void) {
     u32 offset;
 
     for (i = 0; i < 4; i++) {
-        if (g_Menu->pManager->unk5C[i]) {
+        if (g_Menu->pManager->shouldRenderStrings1BE0[i]) {
             offset = i * sizeof(MenuString) + 0x1BE0;
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu + g_Menu->unk1BE0[i].renderContext * 40));
         }

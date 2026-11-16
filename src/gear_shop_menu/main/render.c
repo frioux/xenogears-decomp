@@ -97,8 +97,8 @@ void GearShopMenuRenderShopUi(void) {
             GearShopMenuRenderString(g_Menu->pShop->goldBeforeStrLen, g_Menu->pShop->polysGoldBefore, g_Menu->pShop->goldBeforeRenderCtx);
             GearShopMenuRenderString(g_Menu->pShop->totalPriceStrLen, g_Menu->pShop->polysTotalPrice, g_Menu->pShop->totalPriceRenderCtx);
             GearShopMenuRenderString(g_Menu->pShop->goldAfterStrLen, g_Menu->pShop->polysGoldAfter, g_Menu->pShop->goldAfterRenderCtx);
-            if (g_Menu->pShop->shouldRenderUnk14F0 != 0) {
-                GearShopMenuRenderString(g_Menu->pShop->unk14F0PrimCount, g_Menu->pShop->unk14F0, g_Menu->pShop->unk14F0RenderCtx);
+            if (g_Menu->pShop->shouldRenderSalesTotal != 0) {
+                GearShopMenuRenderString(g_Menu->pShop->salesTotalPrimCount, g_Menu->pShop->polysSalesTotal, g_Menu->pShop->salesTotalRenderCtx);
             }
         }
 
@@ -111,11 +111,11 @@ void GearShopMenuRenderShopUi(void) {
             GearShopMenuRenderString(g_Menu->pShop->polys3020PrimCounts[i], g_Menu->pShop->polys3020[i], g_Menu->pShop->polys3020RenderCtxs[i]);
         }
     }
-    if (g_Menu->pManager->unk5B == 1) {
+    if (g_Menu->pManager->finalPriceRenderState == 1) {
         GearShopMenuRenderString(g_Menu->pShop->finalPriceStrLen, g_Menu->pShop->polysFinalPrice, g_Menu->pShop->finalPriceRenderCtx);
     }
-    if (g_Menu->pManager->unk5C[8] != 0) {
-        GearShopMenuRenderString(g_Menu->pShop->unk17C0PrimCount, g_Menu->pShop->unk17C0, g_Menu->pShop->unk17C0RenderCtx);
+    if (g_Menu->pManager->isPanelActive[1] != 0) {
+        GearShopMenuRenderString(g_Menu->pShop->goldAmountPrimCount, g_Menu->pShop->polysGoldAmount, g_Menu->pShop->goldAmountRenderCtx);
     }
 }
 
@@ -125,7 +125,7 @@ void GearShopMenuRenderShopUi(void) {
  */
 void GearShopMenuRenderGearModel(void) {
     // most likely: if helper library is loaded into memory
-    if (g_Menu->pManager->unk5C[7]) {
+    if (g_Menu->pManager->isPanelActive[0]) {
         LibGearRenderFrame(&g_Menu->modelMatrix, &g_Menu->unk298, g_Menu->pGfxEnv->otBuffer, g_Menu->renderContext);
     }
 }
@@ -133,7 +133,7 @@ void GearShopMenuRenderGearModel(void) {
 void GearShopMenuRenderGearPanelStrings(void) {
     s32 i;
 
-    if (g_Menu->pManager->unk5C[9] != 0) {
+    if (g_Menu->pManager->isPanelActive[2] != 0) {
         if (g_Menu->menuUnk8->sparklesActive != 0) {
             GearShopMenuRenderString(g_Menu->menuUnk8->sparklePrimCount, g_Menu->menuUnk8->polysD0, g_Menu->menuUnk8->sparkleRenderContext);
             GearShopMenuRenderString(g_Menu->menuUnk8->sparklePrimCount, &g_Menu->menuUnk8->polysD0[4], g_Menu->menuUnk8->sparkleRenderContext);
@@ -148,7 +148,7 @@ void GearShopMenuRenderGearPanelStrings(void) {
             GearShopMenuRenderString(g_Menu->menuUnk8->optionHighlightPrimCount, g_Menu->menuUnk8->polysD00, g_Menu->menuUnk8->optionHighlightRenderContext);
         }
     }
-    if (g_Menu->pManager->unk5C[0xA] != 0) {
+    if (g_Menu->pManager->isPanelActive[3] != 0) {
         GearShopMenuRenderString(1U, g_Menu->menuUnk8->unk0.polys, g_Menu->renderContext);
         GearShopMenuRenderString(0xEU, g_Menu->menuUnk8->polys12A0, g_Menu->menuUnk8->gearStatStringsRenderContext);
         GearShopMenuRenderString(g_Menu->menuUnk8->gearHpStrLen, g_Menu->menuUnk8->polys1700, g_Menu->menuUnk8->gearStatStringsRenderContext);
@@ -341,7 +341,7 @@ void GearShopMenuAnimatePanelSparkles(void) {
 }
 
 void GearShopMenuUpdateGearPanelAnimations(void) {
-    if (g_Menu->pManager->unk5C[9]) {
+    if (g_Menu->pManager->isPanelActive[2]) {
         GearShopMenuAnimateOptionMarkers();
         GearShopMenuAnimateOptionHighlight();
         GearShopMenuAnimatePanelSparkles();
@@ -508,7 +508,7 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
     HeapFree(g_Menu->unk458[modelIndex]->unk4);
     g_Menu->unk458[modelIndex]->unk12 = 1;
     GearShopMenuBuildGearStatsGraphics();
-    g_Menu->pManager->unk5C[0xA] = 1;
+    g_Menu->pManager->isPanelActive[3] = 1;
 }
 
 void GearShopMenuOpenGearPanel(void) {
@@ -536,7 +536,7 @@ void GearShopMenuOpenGearPanel(void) {
     g_Menu->menuUnk8->optionHighlightGlyphIndex = 0;
     g_Menu->menuUnk8->sparkleX = 0x18;
     g_Menu->menuUnk8->sparkleY = 0x6E;
-    g_Menu->pManager->unk5C[9] = 1;
+    g_Menu->pManager->isPanelActive[2] = 1;
 
     while (g_Menu->menuUnk8->optionMarkerStates[0] != 2) {
         GearShopMenuUpdateAndRender();
@@ -555,7 +555,7 @@ void GearShopMenuCloseGearPanel(void) {
     g_Menu->menuUnk8->optionMarkerTimers[0] = 0;
     g_Menu->menuUnk8->optionMarkerTimers[1] = 0;
     g_Menu->menuUnk8->optionHighlightTimer = 0;
-    g_Menu->pManager->unk5C[9] = 1;
+    g_Menu->pManager->isPanelActive[2] = 1;
 
     pushXYZ(
          0x400, 0, -0x400,
@@ -776,17 +776,17 @@ void GearShopMenuBuildTransactionSummary(u32 startingBalance, u32 totalPrice, u3
     }
     g_Menu->pShop->goldAfterRenderCtx = (u8) g_Menu->renderContext;
 
-    g_Menu->pShop->unk14F0PrimCount = 0;
-    g_Menu->pShop->shouldRenderUnk14F0 = 0;
+    g_Menu->pShop->salesTotalPrimCount = 0;
+    g_Menu->pShop->shouldRenderSalesTotal = 0;
 
     if (renderSalesTotal) {
         GearShopMenuParseNumberToString(salesTotal);
         for(i = 0; i < 9; i++) {
             if(g_Menu->digits[i] != 0xFF) {
-                g_Menu->pShop->unk14F0PrimCount += func_8002675C(
+                g_Menu->pShop->salesTotalPrimCount += func_8002675C(
                     g_Menu->resources,
                     g_Menu->digits[i],
-                    &g_Menu->pShop->unk14F0[(g_Menu->pShop->unk14F0PrimCount)*2],
+                    &g_Menu->pShop->polysSalesTotal[(g_Menu->pShop->salesTotalPrimCount)*2],
                     g_Menu->renderContext,
                     ((i * 8) + g_GearShopTotalPriceX) - (renderSalesTotal * 0x10),
                     g_GearShopTotalPriceY - (renderSalesTotal * 8),
@@ -794,8 +794,8 @@ void GearShopMenuBuildTransactionSummary(u32 startingBalance, u32 totalPrice, u3
                 );
             }
         }
-        g_Menu->pShop->unk14F0RenderCtx = (u8) g_Menu->renderContext;
-        g_Menu->pShop->shouldRenderUnk14F0 = 1;
+        g_Menu->pShop->salesTotalRenderCtx = (u8) g_Menu->renderContext;
+        g_Menu->pShop->shouldRenderSalesTotal = 1;
     }
     g_Menu->pShop->shouldRenderPrices = 1;
 }
@@ -831,21 +831,21 @@ void GearShopMenuBuildFinalPriceGraphics(int number, u8 arg1) {
         var_s1 += 8;
     }
     g_Menu->pShop->finalPriceRenderCtx = g_Menu->renderContext;
-    g_Menu->pManager->unk5B = 2;
+    g_Menu->pManager->finalPriceRenderState = 2;
 }
 
 void GearShopMenuBuildGoldGraphics(u32 value) {
     int i;
 
     GearShopMenuParseNumberToString(value);
-    g_Menu->pShop->unk17C0PrimCount = 0;
+    g_Menu->pShop->goldAmountPrimCount = 0;
 
     for(i = 0; i < 9; i++) {
         if(g_Menu->digits[i] != 0xFF) {
-            g_Menu->pShop->unk17C0PrimCount += func_8002675C(
+            g_Menu->pShop->goldAmountPrimCount += func_8002675C(
                 g_Menu->resources,
                 g_Menu->digits[i],
-                &g_Menu->pShop->unk17C0[g_Menu->pShop->unk17C0PrimCount * 2],
+                &g_Menu->pShop->polysGoldAmount[g_Menu->pShop->goldAmountPrimCount * 2],
                 g_Menu->renderContext,
                 0xAA + (i * 8),
                 0xAE,
@@ -854,17 +854,17 @@ void GearShopMenuBuildGoldGraphics(u32 value) {
         }
     }
 
-    g_Menu->pShop->unk17C0PrimCount += func_8002675C(
+    g_Menu->pShop->goldAmountPrimCount += func_8002675C(
         g_Menu->resources,
         0x10,
-        &g_Menu->pShop->unk17C0[g_Menu->pShop->unk17C0PrimCount * 2],
+        &g_Menu->pShop->polysGoldAmount[g_Menu->pShop->goldAmountPrimCount * 2],
         g_Menu->renderContext,
         0xF2,
         0xAE,
         0x1000
     );
-    g_Menu->pShop->unk17C0RenderCtx = g_Menu->renderContext;
-    g_Menu->pManager->unk5C[8] = 1;
+    g_Menu->pShop->goldAmountRenderCtx = g_Menu->renderContext;
+    g_Menu->pManager->isPanelActive[1] = 1;
 }
 
 void GearShopMenuResetShopUi(u8 arg0) {
@@ -2308,7 +2308,7 @@ void GearShopMenuTuneUpFuel(void) {
     GearShopMenuUpdateAndRender();
     GearShopMenuInitializePointerCursors(0);
     if (GearShopMenuShowModal(var_s2, 0xFF, var_s6) != 0) {
-        g_Menu->pManager->unk5B = 0;
+        g_Menu->pManager->finalPriceRenderState = 0;
         switch (var_s1) {
             case 1:
                 if (g_GameState.gold < var_s0) {
@@ -2341,7 +2341,7 @@ void GearShopMenuTuneUpFuel(void) {
         GearShopMenuPlaySoundEffect(0xD1);
     }
     GearShopMenuFreePointerCursors(0);
-    g_Menu->pManager->unk5C[8] = 0;
+    g_Menu->pManager->isPanelActive[1] = 0;
     GearShopMenuFreeWindow(5);
 }
 
@@ -2401,8 +2401,8 @@ s32 GearShopMenuShopModeSubmenu(void) {
                 g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
             }
             if (g_Menu->menuUnk8->optionMarkerStates[0] == 0) {
-                g_Menu->pManager->unk5C[0xA] = 1;
-                g_Menu->pManager->unk5C[9] = 0;
+                g_Menu->pManager->isPanelActive[3] = 1;
+                g_Menu->pManager->isPanelActive[2] = 0;
             }
 
             switch (g_Menu->input) {
@@ -2410,7 +2410,7 @@ s32 GearShopMenuShopModeSubmenu(void) {
                     g_Menu->pManager->shouldRenderPointerCursor = 0;
                     g_Menu->pManager->unk3 = 0;
                     g_Menu->pManager->shouldRenderSubmenuStrings = 0;
-                    g_Menu->pManager->unk5C[0xA] = 0;
+                    g_Menu->pManager->isPanelActive[3] = 0;
                     GearShopMenuClearStringRenderFlags(4, (s8* ) g_Menu->pManager->shouldRenderStrings);
                     GearShopMenuPlaySoundEffect(2);
                     GearShopMenuOpenGearPanel();
@@ -2523,7 +2523,7 @@ void GearShopMenuFreeGearView(void) {
     }
 
     g_GearShopDebugEnabled = 0;
-    g_Menu->pManager->unk5C[7] = 0;
+    g_Menu->pManager->isPanelActive[0] = 0;
     GearShopMenuUpdateAndRender();
     LibGearShutdown();
     g_Menu->unk458[0]->unk12 = 0;
@@ -2595,7 +2595,7 @@ void GearShopMenuApplyGearFrame(MenuDressingRoom* arg0, u_char gearIndex) {
     pGear->agility = pPreview->agility;
     pGear->etherAmplification = pPreview->etherAmplification;
     pGear->unk9D = pPreview->unk16;
-    pGear->unk9F = pPreview->unk17;
+    pGear->unk9F = pPreview->responsiveness;
     if (pGear->maxHp < pGear->hp) {
         pGear->hp = pGear->maxHp;
     }
@@ -2696,26 +2696,26 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
             pGear->unk50[i] += pAccessory->unk10[i];
         }
 
-        switch(pAccessory->unk15) {
+        switch(pAccessory->effectType) {
             case 1:
-                pGear->unk7E |= pAccessory->unk16;
+                pGear->unk7E |= pAccessory->effectFlags;
                 break;
             case 2:
-                pGear->unk82 |= pAccessory->unk16;
+                pGear->unk82 |= pAccessory->effectFlags;
                 break;
             case 3:
-                pGear->unk86 |= pAccessory->unk16;
+                pGear->unk86 |= pAccessory->effectFlags;
                 break;
             case 4:
                 for(i = 0; i < 16; i++) {
-                    pGear->unk6E |= pAccessory->unk16;
-                    if(pAccessory->unk16 & (0x8000 >> i)) {
+                    pGear->unk6E |= pAccessory->effectFlags;
+                    if(pAccessory->effectFlags & (0x8000 >> i)) {
                         pGear->unk88[i] += pAccessory->unk1A;
                     }
                 }
                 break;
             case 5:
-                pGear->unk4F += pAccessory->unk16;
+                pGear->unk4F += pAccessory->effectFlags;
                 break;
             case 6:
                 if( (*pFlags1 & 0x1000) && (*pFlags1 & 0x800) )
@@ -2731,12 +2731,12 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
                 }
                 break;
             case 9:
-                pGear->unk48 |= pAccessory->unk16;
+                pGear->unk48 |= pAccessory->effectFlags;
             case 10:
-                pGear->unk55[1] += (u8) pAccessory->unk16;
+                pGear->unk55[1] += (u8) pAccessory->effectFlags;
                 break;
             case 11:
-                pGear->unk55[2] += (u8) pAccessory->unk16;
+                pGear->unk55[2] += (u8) pAccessory->effectFlags;
                 break;
         }
     }

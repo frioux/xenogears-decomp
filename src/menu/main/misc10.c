@@ -244,7 +244,7 @@ u8 MenuInitializeGearScreenBuffers(void) {
     func_801C72BC(3);
     i = 0;
     while (1) {
-        if (g_Menu->pManager->unk60[i] != 0) {
+        if (g_Menu->pManager->isGearScreenActive[i] != 0) {
             break;
         }
         i++;
@@ -461,8 +461,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
    else blocks, 2.7.2 and 2.7.2-cdk (82.27 / 77.23), -O1/-O3 (79.53 / 86.60).
    Next: a permuter run from this body, then (b)+(c) by hand.
 
-   Item record as this unit reads it: the tail of MenuShopItem's unk4 blob,
-   split into the stat-effect fields.
+   Item record as this unit reads it; the stat-effect fields are the same ones
+   MenuShopItem now declares at 0x8/0xA/0xC.
 typedef struct {
     u16 unk0;                  // 0x00
     u16 price;                 // 0x02
@@ -637,58 +637,58 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
         pAccessory = pDressingRoom->pAccessoriesData;
         pAccessory += pChar->accessorySlots[i];
         pChar->unk2D += pAccessory->defense;
-        switch (pAccessory->unk9[0]) {
+        switch (pAccessory->effectType) {
         case 1:
-            pChar->unk7E |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk7E |= pAccessory->effectFlags;
             break;
         case 2:
-            pChar->unk82 |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk82 |= pAccessory->effectFlags;
             break;
         case 3:
-            pChar->unk86 |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk86 |= pAccessory->effectFlags;
             break;
         case 4:
-            pChar->unk8A |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk8A |= pAccessory->effectFlags;
             break;
         case 7:
-            pChar->unk8E |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk8E |= pAccessory->effectFlags;
             break;
         case 5:
-            pChar->unk32 |= *(u16*)&pAccessory->unk9[1];
+            pChar->unk32 |= pAccessory->effectFlags;
             break;
         case 8:
         case 9:
-            pChar->unk30 += pAccessory->unk9[1];
+            pChar->unk30 += pAccessory->effectFlags;
             break;
         case 10:
-            pChar->field_0xA1[0] += pAccessory->unk9[1];
+            pChar->field_0xA1[0] += pAccessory->effectFlags;
             break;
         }
         /* Retail keeps the byte at 0xC in one register across the eight bit
            tests, and adds it as the left operand, so spell it that way. */
-        value = pAccessory->unk9[3];
-        if (*(s16*)&pAccessory->unk9[3] & 0x8000) {
+        value = pAccessory->unkC[0];
+        if (*(s16*)&pAccessory->unkC[0] & 0x8000) {
             pChar->attackFromEquipment = value + pChar->attackFromEquipment;
         }
-        if (*(u16*)&pAccessory->unk9[3] & 0x4000) {
+        if (*(u16*)&pAccessory->unkC[0] & 0x4000) {
             pChar->defenseFromEquipment = value + pChar->defenseFromEquipment;
         }
-        if (*(u16*)&pAccessory->unk9[3] & 0x2000) {
+        if (*(u16*)&pAccessory->unkC[0] & 0x2000) {
             pChar->agilityFromEquipment = value + pChar->agilityFromEquipment;
         }
-        if (*(u16*)&pAccessory->unk9[3] & 0x1000) {
+        if (*(u16*)&pAccessory->unkC[0] & 0x1000) {
             pChar->etherFromEquipment = value + pChar->etherFromEquipment;
         }
-        if (*(u16*)&pAccessory->unk9[3] & 0x800) {
+        if (*(u16*)&pAccessory->unkC[0] & 0x800) {
             pChar->etherDefenseFromEquipment = value + pChar->etherDefenseFromEquipment;
         }
-        if (*(u16*)&pAccessory->unk9[3] & 0x400) {
+        if (*(u16*)&pAccessory->unkC[0] & 0x400) {
             pChar->hitPercentageFromEquipment = value + pChar->hitPercentageFromEquipment;
         }
-        if (*(u16*)&pAccessory->unk9[3] & 0x200) {
+        if (*(u16*)&pAccessory->unkC[0] & 0x200) {
             pChar->evadePercentageFromEquipment = value + pChar->evadePercentageFromEquipment;
         }
-        if (*(u16*)&pAccessory->unk9[3] & 0x100) {
+        if (*(u16*)&pAccessory->unkC[0] & 0x100) {
             pChar->unk2D = value + pChar->unk2D;
         }
     }
@@ -696,22 +696,22 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     pWeapon = pDressingRoom->pWeaponsData;
     pWeapon += pChar->weaponId[0];
     pChar->slots[0].attack = pWeapon->attack;
-    pChar->slots[0].flags = *(u16*)&pWeapon->unk7[1];
-    pChar->slots[0].unk2 = pWeapon->unk7[3];
-    pChar->slots[0].unk3 = pWeapon->unk7[4];
+    pChar->slots[0].flags = pWeapon->slotFlags;
+    pChar->slots[0].unk2 = pWeapon->unkA;
+    pChar->slots[0].unk3 = pWeapon->unkB;
     if (pChar->unk56 == 4) {
         pWeapon = pDressingRoom->pWeaponsData;
         pWeapon += pChar->extraWeaponIds[0];
         pChar->slots[0].attack = pWeapon->attack;
-        pChar->slots[0].flags = *(u16*)&pWeapon->unk7[1];
-        pChar->slots[0].unk2 = pWeapon->unk7[3];
-        pChar->slots[0].unk3 = pWeapon->unk7[4];
+        pChar->slots[0].flags = pWeapon->slotFlags;
+        pChar->slots[0].unk2 = pWeapon->unkA;
+        pChar->slots[0].unk3 = pWeapon->unkB;
         pWeapon = pDressingRoom->pWeaponsData;
         pWeapon += pChar->extraWeaponIds[3];
         pChar->slots[3].attack = pWeapon->attack;
-        pChar->slots[3].flags = *(u16*)&pWeapon->unk7[1];
-        pChar->slots[3].unk2 = pWeapon->unk7[3];
-        pChar->slots[3].unk3 = pWeapon->unk7[4];
+        pChar->slots[3].flags = pWeapon->slotFlags;
+        pChar->slots[3].unk2 = pWeapon->unkA;
+        pChar->slots[3].unk3 = pWeapon->unkB;
     }
     if (pChar->slots[0].unk3 == 0x64) {
         pChar->unk8E |= pChar->slots[0].flags;
@@ -818,7 +818,7 @@ void MenuApplyGearFrame(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pGear->agility = pFrame->agility;
     pGear->etherAmplification = pFrame->etherAmplification;
     pGear->unk9D = pFrame->unk16;
-    pGear->unk9F = pFrame->unk17;
+    pGear->unk9F = pFrame->responsiveness;
     if (pGear->maxHp < pGear->hp) {
         pGear->hp = pGear->maxHp;
     }

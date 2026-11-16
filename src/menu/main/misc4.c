@@ -425,7 +425,7 @@ void func_801CF8D8(void) {
 
     for (i = 0; i < 2; i++) {
         pData = (u8*)g_Menu->menuUnk2;
-        if (pData[0x4FE4 + i] && g_Menu->pManager->unk63[5]) {
+        if (pData[0x4FE4 + i] && g_Menu->pManager->isPanelActive[5]) {
             func_8002675C(g_Menu->resources,
                           (((u8*)g_Menu->pManager)[0x2F] && i == D_801E981C[pData[0x4F7C]] / 16)
                               ? 0x122

@@ -99,14 +99,14 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     result = 0;
     refresh = 1;
     active = 1;
-    flags = pItem->unk4[2];
+    flags = pItem->displayFlags;
     if (flags & 0x80) {
         result = 1;
         if (flags & 0x20) {
             result = g_ShopIndex != 0;
         }
     }
-    paged = ((u16*)pItem->unk4)[0] & 1;
+    paged = pItem->flags & 1;
     if (result == 0) {
         return result;
     }

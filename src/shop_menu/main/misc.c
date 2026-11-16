@@ -1245,7 +1245,7 @@ void ShopMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, u_short 
         pWindowParams->curWidth = 0;
         pWindowParams->curHeight = 0;
         g_Menu->pManager->isWindowOpening[windowIndex] = 1;
-        pWindowParams->unk12 = arg6;
+        pWindowParams->useDefaultMatrix = arg6;
         pWindowParams->zIndex = zIndex;
         return;
     }
@@ -1288,7 +1288,7 @@ void ShopMenuUpdateWindows(void) {
                 (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->curHeight / 2),
                 pWindowInfo->curWidth,
                 pWindowInfo->curHeight,
-                pWindowInfo->unk12,
+                pWindowInfo->useDefaultMatrix,
                 pWindowInfo->zIndex,
                 pWindowInfo->hasScrollBar
             );
@@ -2198,8 +2198,8 @@ void ShopMenuConfirmationWindowInitialize(u_char stringIndex) {
     g_Menu->pManager->shouldRenderModalStrings = 1;
     HeapFree(g_Menu->modalStrings[0]->pVramBuffer);
     HeapFree(g_Menu->modalStrings[2]->pVramBuffer);
-    if (g_Menu->pManager->unk5B == 2) {
-        g_Menu->pManager->unk5B = 1;
+    if (g_Menu->pManager->finalPriceRenderState == 2) {
+        g_Menu->pManager->finalPriceRenderState = 1;
     }
     ShopMenuUpdateAndRender();
     ShopMenuUpdateAndRender();
@@ -2215,7 +2215,7 @@ void ShopMenuConfirmationWindowFree(void) {
             HeapFree(g_Menu->modalStrings[i]);
         }
     }
-    g_Menu->pManager->unk5B = 0;
+    g_Menu->pManager->finalPriceRenderState = 0;
     ShopMenuUpdateAndRender();
 }
 
@@ -2783,7 +2783,7 @@ void ShopMenuAddShopPrims(void) {
             ShopMenuRenderString(g_Menu->pShop->polys3020PrimCounts[i], g_Menu->pShop->polys3020[i], g_Menu->pShop->polys3020RenderCtxs[i]);
         }
     }
-    if (g_Menu->pManager->unk5B == 1) {
+    if (g_Menu->pManager->finalPriceRenderState == 1) {
         ShopMenuRenderString(g_Menu->pShop->finalPriceStrLen, g_Menu->pShop->polysFinalPrice, g_Menu->pShop->finalPriceRenderCtx);
     }
 }
@@ -3608,7 +3608,7 @@ void ShopMenuSetFinalPriceGraphics(unsigned int number) {
         }
     }
     g_Menu->pShop->finalPriceRenderCtx = g_Menu->renderContext;
-    g_Menu->pManager->unk5B = 2;
+    g_Menu->pManager->finalPriceRenderState = 2;
 }
 
 u_char ShopMenuBuyMenu(void) {
@@ -4179,7 +4179,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
     for (i = 0; i < listLength; i++) {
         if (pInventoryItemIds[i]) {
             if (pInventoryQtys[i]) {
-                if ((pItemTypes[i] != ITEM_TYPE_ITEM) || ((g_Menu->pDressingRoom->pItemsData[pInventoryItemIds[i]].unk4[2] & 0x10) == 0)) {
+                if ((pItemTypes[i] != ITEM_TYPE_ITEM) || ((g_Menu->pDressingRoom->pItemsData[pInventoryItemIds[i]].displayFlags & 0x10) == 0)) {
                     pItemIds[itemCount] = pInventoryItemIds[i];
                     pItemQtys[itemCount] = pInventoryQtys[i];
                     pItemIsOwned[itemCount] = 1;

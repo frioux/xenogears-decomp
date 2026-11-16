@@ -852,7 +852,7 @@ void MemberChangeMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, 
         pWindowParams->curWidth = 0;
         pWindowParams->curHeight = 0;
         g_Menu->pManager->isWindowOpening[windowIndex] = 1;
-        pWindowParams->unk12 = arg6;
+        pWindowParams->useDefaultMatrix = arg6;
         pWindowParams->zIndex = zIndex;
         return;
     }
@@ -895,7 +895,7 @@ void MemberChangeMenuUpdateWindows(void) {
                 (pWindowInfo->y + (pWindowInfo->height / 2)) - (pWindowInfo->curHeight / 2),
                 pWindowInfo->curWidth,
                 pWindowInfo->curHeight,
-                pWindowInfo->unk12,
+                pWindowInfo->useDefaultMatrix,
                 pWindowInfo->zIndex,
                 pWindowInfo->hasScrollBar
             );

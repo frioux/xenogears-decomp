@@ -284,7 +284,7 @@ s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
                 if (g_Menu->pManager->currentCharacterIDs[arg0] != 0xFF) {
                     break;
                 }
-            } else if (g_Menu->pManager->unk60[arg0] != 0) {
+            } else if (g_Menu->pManager->isGearScreenActive[arg0] != 0) {
                 arg0--;
                 break;
             }
@@ -299,7 +299,7 @@ s32 func_801D9704(s32 arg0, u_char arg1, u_char arg2) {
                 if (g_Menu->pManager->currentCharacterIDs[arg0] != 0xFF) {
                     break;
                 }
-            } else if (g_Menu->pManager->unk60[arg0] != 0) {
+            } else if (g_Menu->pManager->isGearScreenActive[arg0] != 0) {
                 arg0++;
                 break;
             }
@@ -332,7 +332,7 @@ s32 func_801D9808(void) {
     do {
         MenuRenderFrame();
         if (firstPass != 0) {
-            MenuLoadStringsFromIds(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->unk5C);
+            MenuLoadStringsFromIds(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->shouldRenderStrings1BE0);
             func_801E86C8(0);
             g_Menu->subMenuPrevChoice = 0xFF;
             switch (SoundGetVolumeMode()) {
@@ -350,7 +350,7 @@ s32 func_801D9808(void) {
             firstPass = 0;
         }
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            func_801E8070(6, g_Menu->unk1BE0, g_MenuNameTextureX, D_801E9F88, g_Menu->pManager->unk5C,
+            func_801E8070(6, g_Menu->unk1BE0, g_MenuNameTextureX, D_801E9F88, g_Menu->pManager->shouldRenderStrings1BE0,
                           g_Menu->subMenuChoice, 7, 0);
             MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
@@ -389,7 +389,7 @@ s32 func_801D9808(void) {
         }
         func_800386C4(choice);
     }
-    MenuClearBytes(4, g_Menu->pManager->unk5C);
+    MenuClearBytes(4, g_Menu->pManager->shouldRenderStrings1BE0);
     g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
     return 1;

@@ -133,7 +133,14 @@ typedef struct {
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u_short price;
-    /* 0x4 */ u8 unk4[0xC];
+    /* 0x4 */ u16 flags; // Bit 0 = the item opens the character sub-list
+    /* 0x6 */ u8 displayFlags; // 0x80 = shaded name prim, 0x20 = unshaded in the shop, 0x10 = hidden from the sell list
+    /* 0x7 */ u8 unk7;
+    /* 0x8 */ u8 amount; // Stat effect magnitude, the fields below select what it is applied to
+    /* 0x9 */ u8 unk9;
+    /* 0xA */ s16 effectFlags;
+    /* 0xC */ s16 statFlags;
+    /* 0xE */ u8 unkE[0x2];
 } MenuShopItem; // Size: 0x10
 
 typedef struct {
@@ -164,7 +171,10 @@ typedef struct {
     /* 0x2 */ u16 unk2;
     /* 0x4 */ u_short price;
     /* 0x6 */ u8 equipGroup; // group id
-    /* 0x7 */ u8 unk7[5];
+    /* 0x7 */ u8 unk7;
+    /* 0x8 */ u16 slotFlags; // Copied into GameCharacterSlot.flags
+    /* 0xA */ u8 unkA; // Copied into GameCharacterSlot.unk2
+    /* 0xB */ u8 unkB; // Copied into GameCharacterSlot.unk3
     /* 0xC */ u8 attack;
     /* 0xD */ u8 unkD[3];
 } MenuShopWeapon; // Size: 0x10
@@ -174,7 +184,9 @@ typedef struct {
     /* 0x2 */ u_short price;
     /* 0x4 */ u8 unk4[4];
     /* 0x8 */ u8 defense;
-    /* 0x9 */ u8 unk9[5];
+    /* 0x9 */ u8 effectType; // switch: which effect the flags below drive
+    /* 0xA */ u16 effectFlags;
+    /* 0xC */ u8 unkC[2]; // 0xC is the effect magnitude, 0xD its stat bits (retail reads the pair as one halfword)
     /* 0xE */ u16 equipGroup; // group id
 } MenuShopAccessory; // Size: 0x10
 
@@ -279,10 +291,10 @@ typedef struct {
     /* 0x53 */ u_char shoulderButtonUiActive;
     /* 0x54 */ u8 shouldRenderStrings18E0[0x6];
     /* 0x5A */ u8 shouldRenderShop; // Gates the shop's primitive batch
-    /* 0x5B */ u8 unk5B;
-    /* 0x5C */ u8 unk5C[0x4];
-    /* 0x60 */ u8 unk60[0x3];
-    /* 0x63 */ u8 unk63[0x9];
+    /* 0x5B */ u8 finalPriceRenderState; // 0 off, 1 drawn, 2 built but hidden under a modal
+    /* 0x5C */ u8 shouldRenderStrings1BE0[0x4]; // One flag per g_Menu->unk1BE0 string
+    /* 0x60 */ u8 isGearScreenActive[0x3]; // Gear screen buffer slots, MenuInitializeGearScreenBuffers returns the first set one
+    /* 0x63 */ u8 isPanelActive[0x9]; // One flag per panel built on demand: gear model, shop prices, gear stats/strings, shoulder button UI, card slots
 } MenuManager; // Size: 0x6C
 
 // A menu with N options, each having a cursor and some text/content
@@ -320,7 +332,7 @@ typedef struct {
     /* 0x14 */ u8 agility; // 10 -- agility?
     /* 0x15 */ u8 etherAmplification; // 10 -- eth amp?
     /* 0x16 */ u8 unk16; // 0
-    /* 0x17 */ u8 unk17; // 0
+    /* 0x17 */ u8 responsiveness; // 0, added to the gear's responsiveness total
 } GearFrame; /* size: 0x18 */
 
 typedef struct {
@@ -347,8 +359,8 @@ typedef struct {
     /* 0x0F */ u8 unkF;
     /* 0x10 */ u8 unk10[4];
     /* 0x14 */ u8 responsiveness;
-    /* 0x15 */ u8 unk15;
-    /* 0x16 */ u16 unk16;
+    /* 0x15 */ u8 effectType; // switch: which effect the flags/amount below drive
+    /* 0x16 */ u16 effectFlags;
     /* 0x18 */ u8 unk18;
     /* 0x19 */ u8 unk19;
     /* 0x1A */ u8 unk1A;
@@ -578,7 +590,7 @@ typedef struct {
     /* 0xC  */ int zIndex;
     /* 0x10 */ u_char index;
     /* 0x11 */ u_char isOpen;
-    /* 0x12 */ u_char unk12;
+    /* 0x12 */ u_char useDefaultMatrix; // Stored for the deferred MenuSetWindow call
     /* 0x13 */ u_char hasScrollBar;
     /* 0x14 */ u8 unk14[0x4];
 } MenuWindowParameters; // Size: 0x18
@@ -606,8 +618,8 @@ typedef struct {
     /* 0xC80  */ POLY_FT4 polysGoldBefore[9 * 2];
     /* 0xF50  */ POLY_FT4 polysTotalPrice[9 * 2];
     /* 0x1220 */ POLY_FT4 polysFinalPrice[9 * 2];
-    /* 0x14F0 */ POLY_FT4 unk14F0[9*2]; // I suspect these are the "sell" versions of the above
-    /* 0x17C0 */ POLY_FT4 unk17C0[9*2];
+    /* 0x14F0 */ POLY_FT4 polysSalesTotal[9*2];
+    /* 0x17C0 */ POLY_FT4 polysGoldAmount[9*2];
     /* 0x1A90 */ POLY_FT4 unk1A90[2];
     /* 0x1AE0 */ POLY_FT4 polysGoldAfter[9 * 2];
     /* 0x1DB0 */ POLY_FT4 polysShopInventory[SHOP_MAX_ITEMS_IN_VIEW][2];
@@ -656,11 +668,11 @@ typedef struct {
     /* 0x46B4 */ u_char finalPriceStrLen;
     /* 0x46B5 */ u8 shouldRenderStr44B0;
     /* 0x46B6 */ u8 shouldRenderStr4530;
-    /* 0x46B7 */ u8 unk14F0RenderCtx;
-    /* 0x46B8 */ u8 unk14F0PrimCount;
-    /* 0x46B9 */ u8 shouldRenderUnk14F0;
-    /* 0x46BA */ u8 unk17C0RenderCtx;
-    /* 0x46BB */ u8 unk17C0PrimCount;
+    /* 0x46B7 */ u8 salesTotalRenderCtx;
+    /* 0x46B8 */ u8 salesTotalPrimCount;
+    /* 0x46B9 */ u8 shouldRenderSalesTotal;
+    /* 0x46BA */ u8 goldAmountRenderCtx;
+    /* 0x46BB */ u8 goldAmountPrimCount;
     /* 0x46BC */ u8 polys27B0PrimCounts[0x9];
     /* 0x46C5 */ u8 polys3020PrimCounts[0x9];
     /* 0x46CE */ u8 polys27B0RenderCtxs[0x9];
