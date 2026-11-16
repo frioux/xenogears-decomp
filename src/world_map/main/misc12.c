@@ -115,15 +115,15 @@ typedef struct {
 } WorldMapG4; // Size: 0x24, two POLY_G4-shaped primitives are not it
 
 void WorldMapGetGameStatePosition(s32 *pOut) {
-    pOut[0] = g_GameState.unk182C << 12;
-    pOut[1] = g_GameState.unk182E << 12;
-    pOut[2] = g_GameState.unk1830 << 12;
+    pOut[0] = g_GameState.scriptPosX << 12;
+    pOut[1] = g_GameState.scriptPosY << 12;
+    pOut[2] = g_GameState.scriptPosZ << 12;
 }
 
 void WorldMapSetGameStatePosition(s32 *pIn) {
-    g_GameState.unk182C = pIn[0] >> 12;
-    g_GameState.unk182E = pIn[1] >> 12;
-    g_GameState.unk1830 = pIn[2] >> 12;
+    g_GameState.scriptPosX = pIn[0] >> 12;
+    g_GameState.scriptPosY = pIn[1] >> 12;
+    g_GameState.scriptPosZ = pIn[2] >> 12;
 }
 
 void WorldMapSelectAreaRectByState(void) {
@@ -180,7 +180,7 @@ s32 func_8008E190(s32 idx) {
     WorldMapGetGameStatePosition(&pPlayer->unk28);
     pPlayer->unk24 = 0;
     nRet = 1;
-    nAngle = g_GameState.unk1832;
+    nAngle = g_GameState.scriptAngle;
     pPlayer->unk40 = 0;
     pPlayer->unk3C = 0;
     pPlayer->unk38 = 0;
@@ -248,7 +248,7 @@ s32 func_8008E190(s32 idx) {
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
     WorldMapSetGameStatePosition(&pPlayer->unk28);
-    g_GameState.unk1832 = pPlayer->unk48;
+    g_GameState.scriptAngle = pPlayer->unk48;
     switch (D_8009C5A8) {
     case 2:
         pPlayer->unk20 = 0x24;
@@ -331,7 +331,7 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     pPlayer = g_WorldMapSlots + idx;
     WorldMapGetGameStatePosition(&pPlayer->unk28);
     pPlayer->unk2C = 0x80000;
-    nAngle = g_GameState.unk1832;
+    nAngle = g_GameState.scriptAngle;
     pPlayer->unk4A = 0x20;
     pPlayer->unk74 = 3;
     pPlayer->unk68 = (s16 *)0xFFD80000;

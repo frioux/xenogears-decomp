@@ -604,17 +604,17 @@ void WorldMapSetPositionFromState(void) {
     switch (nMode) {
     case 1:
     case 2:
-        nPos = g_GameState.unk1820 << 12;
+        nPos = g_GameState.worldMapPosX << 12;
         g_WorldMapPlayerPosition = nPos;
         g_WorldMapPlayerRotation = g_GameState.unk1824;
-        nPos = g_GameState.unk1822 << 12;
+        nPos = g_GameState.worldMapPosZ << 12;
         D_8009C5B4 = nPos;
         break;
     case 4:
     case 5:
     case 7:
         WorldMapGetGameStatePosition(&g_WorldMapPlayerPosition);
-        g_WorldMapPlayerRotation = g_GameState.unk1832;
+        g_WorldMapPlayerRotation = g_GameState.scriptAngle;
         break;
     }
 }
@@ -640,7 +640,7 @@ void func_80073448(s32 arg0) {
     if (g_GameState.worldMapState & 0x2000) {
         g_GameState.worldMapState &= ~0x2000;
         WorldMapGetGameStatePosition(&g_WorldMapPlayerPosition);
-        g_WorldMapPlayerRotation = g_GameState.unk1832;
+        g_WorldMapPlayerRotation = g_GameState.scriptAngle;
     } else {
         p = g_WorldMapPoints;
         while (*(s16*)&p->id != -1) {
@@ -1157,7 +1157,7 @@ void func_800740B8(void) {
     nTileFlags = ((u32*)g_GameState.fieldScriptMemory)[0x7F];
     pTile = &D_8009C898[g_WorldMapPrimPacketIndex * 0x20];
     // the three tiles the map script marks are replaced by script-set positions
-    pPoint18 = (u16*)&g_GameState.unk182C;
+    pPoint18 = (u16*)&g_GameState.scriptPosX;
     pPoint19 = &g_GameState.unk184E;
     pPoint1A = (u16*)&g_GameState.unk1838[0xC];
     pPos = D_8009B6F4;

@@ -133,7 +133,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 
 u8 BattleGetGameCharacterField5(u8 arg0) {
-    return g_GameState.characters[arg0].unk0[5];
+    return g_GameState.characters[arg0].slots[0].unk5;
 }
 
 // One 0x10-byte record the battle work block keeps at +0x5818, one per slot,
@@ -150,14 +150,14 @@ s32 BattleIsCharacterInParty(u8 arg0) {
 
     s32 ret;
 
-    if (g_GameState.characters[4].unk0[6] == id) {
+    if (g_GameState.characters[4].slots[0].characterId == id) {
         ret = 1;
-    } else if (g_GameState.characters[4].unk0[0xE] == id) {
+    } else if (g_GameState.characters[4].slots[1].characterId == id) {
         ret = 1;
-    } else if (g_GameState.characters[4].unk0[0x16] == id) {
+    } else if (g_GameState.characters[4].slots[2].characterId == id) {
         ret = 1;
     } else {
-        ret = g_GameState.characters[4].unk0[0x1E] == id;
+        ret = g_GameState.characters[4].slots[3].characterId == id;
     }
     return ret;
 }
@@ -176,7 +176,7 @@ Best attempt: 76.74% (round 18, first attempt on this stub). The 4-way
    `g_GameState+0x502` load into a register (emitting `lui a0; addiu a0,1282;
    lbu 0(a0)`, i.e. an `la`, instead of the folded `lbu %lo(g_GameState+0x502)`)
    and then reuses it as `a0-2/-3/-4` for the stores. BattleIsCharacterInParty in this same
-   unit uses the identical `g_GameState.characters[4].unk0[6]` expression and
+   unit uses the identical `g_GameState.characters[4].slots[0].characterId` expression and
    DOES fold, so the trigger is the store block coexisting with the loads; raw
    `((u8*)&g_GameState)[N]` and struct spellings both give 76.74%.
 PARKED (76.74%)

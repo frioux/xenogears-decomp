@@ -349,10 +349,10 @@ void FieldScriptSetGameState184E(void) {
 }
 
 void FieldScriptWriteGameState17FC30(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk182C);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), *(u_short*)&g_pGameState->unk182E);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), *(u_short*)&g_pGameState->unk1830);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(4), g_pGameState->unk1832);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->scriptPosX);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), *(u_short*)&g_pGameState->scriptPosY);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), *(u_short*)&g_pGameState->scriptPosZ);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(4), g_pGameState->scriptAngle);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
 
@@ -369,16 +369,16 @@ void FieldScriptSetGameState17FC30(void) {
 
     value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     pActor = g_FieldScriptVMCurActor;
-    *(u_short*)&g_pGameState->unk182C = value;
+    g_pGameState->scriptPosX = value;
     value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    *(u_short*)&g_pGameState->unk182E = value;
+    g_pGameState->scriptPosY = value;
     value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    *(u_short*)&g_pGameState->unk1830 = value;
+    g_pGameState->scriptPosZ = value;
     value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    g_pGameState->unk1832 = value;
+    g_pGameState->scriptAngle = value;
     pActor->scriptInstructionPointer += 0xA;
 }
 

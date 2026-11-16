@@ -16,14 +16,35 @@
 #define MAX_GOLD_AMOUNT 9999999
 
 
+// One of the four 0x8-byte records at the head of a GameCharacter: the cached
+// stats of one equipped weapon at +0x0..+0x4, written by
+// MenuApplyEquippedItemBonuses, and, in g_GameState.characters[4], the id of the
+// character in that battle party slot at +0x6 (see BattleIsCharacterInParty).
 typedef struct {
-    /* 0x0  */ u8 unk0[0x28];
+    /* 0x0 */ u16 flags; // OR'ed into unk8E while unk3 reads 0x64 (fully charged)
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 unk3;
+    /* 0x4 */ u8 attack;
+    /* 0x5 */ u8 unk5;
+    /* 0x6 */ u8 characterId;
+    /* 0x7 */ u8 unk7;
+} GameCharacterSlot; // Size: 0x8
+
+typedef struct {
+    /* 0x00 */ GameCharacterSlot slots[4];
+    /* 0x20 */ u8 unk20[8];
     /* 0x28 */ u8 attackFromEquipment;
     /* 0x29 */ u8 defenseFromEquipment;
     /* 0x2A */ u8 agilityFromEquipment;
-    /* 0x2B */ u8 unk2B;
+    /* 0x2B */ u8 etherFromEquipment;
     /* 0x2C */ u8 etherDefenseFromEquipment;
-    /* 0x2D  */ undefined8 unk2D[0x1F];
+    /* 0x2D */ u8 unk2D;
+    /* 0x2E */ u8 hitPercentageFromEquipment;
+    /* 0x2F */ u8 evadePercentageFromEquipment;
+    /* 0x30 */ u8 unk30;
+    /* 0x31 */ u8 unk31;
+    /* 0x32 */ u16 unk32;
+    /* 0x34 */ u8 unk34[0x18];
     /* 0x4C */ u_short hp;
     /* 0x4E */ u_short maxHp;
     /* 0x50 */ u_short mp;
@@ -48,7 +69,17 @@ typedef struct {
     /* 0x74 */ undefined8 accessorySlots[0x3];
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;
-    /* 0x79 */ undefined8 unk79[0x27];
+    /* 0x79 */ u8 unk79[0x5];
+    /* 0x7E */ u16 unk7E; // accessory flag word, OR'ed from the slot[0] flags
+    /* 0x80 */ u16 unk80;
+    /* 0x82 */ u16 unk82;
+    /* 0x84 */ u16 unk84;
+    /* 0x86 */ u16 unk86;
+    /* 0x88 */ u16 unk88;
+    /* 0x8A */ u16 unk8A;
+    /* 0x8C */ u16 unk8C;
+    /* 0x8E */ u16 unk8E;
+    /* 0x90 */ u8 unk90[0x10];
     /* 0xA0 */ u_char gearId;
     /* 0xA1 */ undefined8 field_0xA1[0x3];
 } GameCharacter; // size: 0xA4
@@ -92,7 +123,7 @@ typedef struct {
     /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 unk50[4];
     /* 0x54 */ u8 unk54;
-    /* 0x56 */ u8 unk55[3];
+    /* 0x55 */ u8 unk55[3];
     /* 0x58 */ u16 unk58;
     /* 0x5A */ u16 unk5A;
     /* 0x5C */ u8 unk5C[4];
@@ -114,7 +145,7 @@ typedef struct {
     /* 0x7B */ u8 unk7B;
     /* 0x7C */ u8 unk7C;
     /* 0x7D */ u8 unk7D;
-    /* 0x76 */ u16 unk7E;
+    /* 0x7E */ u16 unk7E;
     /* 0x80 */ u8 unk80;
     /* 0x81 */ u8 unk81;
     /* 0x82 */ u16 unk82;
@@ -168,14 +199,18 @@ typedef struct {
     /* 0x1648 */ undefined8 unk1648[0x74];
     /* 0x16BC */ UnkGearState unk16BC[10];
     /* 0x17FC */ undefined8 unk17FC[0x24];
-    /* 0x1820 */ u16 unk1820;
-    /* 0x1822 */ u16 unk1822;
+    // World map ground position in map units; << 12 gives the actor coordinate
+    // WorldMapSetPositionFromState copies into g_WorldMapPlayerPosition.
+    /* 0x1820 */ u16 worldMapPosX;
+    /* 0x1822 */ u16 worldMapPosZ;
     /* 0x1824 */ u16 unk1824;
-    /* 0x1826 */ undefined8 unk1826[0x6];
-    /* 0x182C */ s16 unk182C;
-    /* 0x182E */ s16 unk182E;
-    /* 0x1830 */ s16 unk1830;
-    /* 0x1832 */ u16 unk1832;
+    /* 0x1826 */ undefined8 unk1826[0x6]; // +0x1824..+0x182B read as a u16[4] of actor angles
+    // World map position a field script latches with the 0x17FC30 opcode, see
+    // WorldMapGetGameStatePosition and FieldScriptSetGameState17FC30.
+    /* 0x182C */ s16 scriptPosX;
+    /* 0x182E */ s16 scriptPosY;
+    /* 0x1830 */ s16 scriptPosZ;
+    /* 0x1832 */ u16 scriptAngle;
     /* 0x1834 */ u16 worldMapState;
     /* 0x1836 */ u16 unk1836;
     /* 0x1838 */ undefined8 unk1838[0x16];

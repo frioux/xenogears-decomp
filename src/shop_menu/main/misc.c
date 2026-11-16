@@ -2690,19 +2690,19 @@ void ShopMenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 character
     pCharacter = &g_GameState.characters[characterIndex];
 
     if (pCharacter->unk56 == 4) {
-        pDressingRoom->statValues[0] = pCharacter->unk0[4] + pCharacter->unk0[0x1C];
+        pDressingRoom->statValues[0] = pCharacter->slots[0].attack + pCharacter->slots[3].attack;
     } else {
-        pDressingRoom->statValues[0] = pCharacter->unk0[4] + (pCharacter->attack + pCharacter->unk0[0x28]);
+        pDressingRoom->statValues[0] = pCharacter->slots[0].attack + (pCharacter->attack + pCharacter->attackFromEquipment);
     }
-    pDressingRoom->statValues[0] = pCharacter->unk0[4] + (pCharacter->attack + pCharacter->unk0[0x28]);
-    pDressingRoom->statValues[1] = pCharacter->hitPercentage + pCharacter->unk2D[1];
-    pDressingRoom->statValues[2] = pCharacter->unk2D[0] + (pCharacter->defense + pCharacter->unk0[0x29]);
-    pDressingRoom->statValues[3] = pCharacter->evadePercentage + pCharacter->unk2D[2];
-    pDressingRoom->statValues[4] = pCharacter->ether + pCharacter->unk0[0x2B];
+    pDressingRoom->statValues[0] = pCharacter->slots[0].attack + (pCharacter->attack + pCharacter->attackFromEquipment);
+    pDressingRoom->statValues[1] = pCharacter->hitPercentage + pCharacter->hitPercentageFromEquipment;
+    pDressingRoom->statValues[2] = pCharacter->unk2D + (pCharacter->defense + pCharacter->defenseFromEquipment);
+    pDressingRoom->statValues[3] = pCharacter->evadePercentage + pCharacter->evadePercentageFromEquipment;
+    pDressingRoom->statValues[4] = pCharacter->ether + pCharacter->etherFromEquipment;
     pDressingRoom->statValues[5] = 0x63;
     pDressingRoom->statValues[6] = pCharacter->etherDefense + pCharacter->etherDefenseFromEquipment;
     pDressingRoom->statValues[7] = 0xA;
-    pDressingRoom->statValues[8] = pCharacter->agility + pCharacter->unk0[0x2A];
+    pDressingRoom->statValues[8] = pCharacter->agility + pCharacter->agilityFromEquipment;
 
     if (pDressingRoom->statValues[0] >= 1000) {
         pDressingRoom->statValues[0] = 999;

@@ -678,11 +678,11 @@ s32 func_8008A5B8(s32 arg0) {
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
     *(u32*)((u8*)pActor->pSprite + 0x3C) &= ~4;
-    pActor->x = g_GameState.unk1820 << 12;
-    pActor->z = g_GameState.unk1822 << 12;
+    pActor->x = g_GameState.worldMapPosX << 12;
+    pActor->z = g_GameState.worldMapPosZ << 12;
     pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     {
-        u16 unk1824 = g_GameState.unk1824;
+        u16 nAngle = g_GameState.unk1824;
 
         pActor->unk24 = 1;
         pActor->moveSpeed = 8;
@@ -691,7 +691,7 @@ s32 func_8008A5B8(s32 arg0) {
         pActor->dirX = 0;
         pActor->state = 2;
         g_WorldMapTrailCursor = 0;
-        pActor->angle = unk1824;
+        pActor->angle = nAngle;
     }
     pTrail = g_WorldMapTrail;
     for (i = 0; i < 0x20; i++, pTrail++) {

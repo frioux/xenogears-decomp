@@ -169,8 +169,8 @@ int func_8008B2BC(int index) {
         pActor->unk24 = 1;
         result = 3;
     }
-    pActor->unk28 = g_GameState.unk1820 << 12;
-    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk28 = g_GameState.worldMapPosX << 12;
+    pActor->unk30 = g_GameState.worldMapPosZ << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk40 = 0;
     pActor->unk3C = 0;
@@ -259,8 +259,8 @@ int func_8008B54C(int index) {
     SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x1800);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.unk1820 << 12;
-    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk28 = g_GameState.worldMapPosX << 12;
+    pActor->unk30 = g_GameState.worldMapPosZ << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     {
         u16 unk48 = g_GameState.unk1824;
@@ -441,8 +441,8 @@ int func_8008BB40(int index) {
         pActor->unk24 = 1;
         result = 3;
     }
-    pActor->unk28 = g_GameState.unk1820 << 12;
-    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk28 = g_GameState.worldMapPosX << 12;
+    pActor->unk30 = g_GameState.worldMapPosZ << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     pActor->unk40 = 0;
     pActor->unk3C = 0;
@@ -518,8 +518,8 @@ int func_8008BDD0(int index) {
     SpritePlayAnimation(pActor->unk4C, 0);
     SpriteSetScale(pActor->unk4C, 0x1800);
     *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.unk1820 << 12;
-    pActor->unk30 = g_GameState.unk1822 << 12;
+    pActor->unk28 = g_GameState.worldMapPosX << 12;
+    pActor->unk30 = g_GameState.worldMapPosZ << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
     {
         u16 unk48 = g_GameState.unk1824;
