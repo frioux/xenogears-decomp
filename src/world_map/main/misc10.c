@@ -236,6 +236,32 @@ s32 func_80088B40(s32 arg0) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088C90);
+/* 85.32% (108 bytes, retail 112): the load mode is the whole game. `s32 id` read
+   once in the while condition gives retail's single `lh` and drops the 16-byte
+   phantom frame; an `s16 id`, or a bare `*pIds` used as the array index, makes
+   gcc load HImode (lhu) and sign-extend with sll/sra (52.71%), which also costs a
+   register and the frame. 0x16A4 is g_WorldMapGroups[0x45] (69 * 0x54), i.e. the
+   sprite set WorldMapSetSpriteSetParent parents, so the flag store is
+   g_WorldMapGroups[0x45].unk0 -- the typed form compiles to retail's
+   `sh v0,0x16A4(a1)`. Only difference left: retail loads *pIds twice after the
+   guard (a second `lh v0,0(a0)` that feeds the first body iteration, 112 vs 108
+   bytes) and has g_WorldMapGroups loaded before D_8009AFDC; mine reuses the
+   tested value. `while ((id = *pIds++) != -1)` (post-increment in the condition)
+   drops the extra load and the `addiu a0,a0,-2` tail: 77.18%, 100 bytes.
+s32 func_80088C90(void) {
+    s16* pIds;
+    s32 id;
+
+    g_WorldMapGroups[0x45].unk0 = 1;
+    pIds = D_8009AFDC;
+    while ((id = *pIds) != -1) {
+        g_WorldMapGroups[id].unk0 = 1;
+        pIds++;
+    }
+    return 3;
+}
+*/
+
 /* 85.32% (was 52.89): the load mode is the whole game. `s32 id` read once in
    the while condition gives retail's single `lh` and drops the 16-byte phantom
    frame; an `s16 id`, or a bare `*pIds * 0x54` with or without an `(s32)` cast,
@@ -263,6 +289,28 @@ s32 func_80088C90(void) {
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088D00);
+/* 84.68% (100 bytes, retail 100): every instruction is retail's except the
+   position of the g_WorldMapGroups load and the +0x16A4 fold. Retail loads
+   g_WorldMapGroups before the branch and keeps `addiu a1,a1,0x16A4` in the bne
+   delay slot, then stores at 8/0xC/0x10; gcc sinks the global load into the
+   taken block and folds 0x16A4+8 into the displacements (sw ...,0x16AC(a0)).
+   Same result for the 0x16AC form, for the WorldMapSceneLayer typed form
+   `&g_WorldMapGroups[0x45]` (0x16A4 is exactly group 0x45), for a u8* base
+   local and for a s32* pSrc indexed [2]/[3]/[4]: the pointer value is only
+   needed inside the if, so gcc sinks it and folds the constant.
+s32 func_80088D00(s32 arg0) {
+    WorldMapActor* pActor;
+    WorldMapSceneLayer* pLayer;
+
+    pActor = (WorldMapActor*)&g_WorldMapSlots[arg0];
+    pLayer = &g_WorldMapGroups[0x45];
+    if (g_GameState.fieldScriptMemory[0] == 0x99) {
+        pLayer->pos.x = pActor->x >> 12;
+        pLayer->pos.y = pActor->y >> 12;
+        pLayer->pos.z = pActor->z >> 12;
+    }
+    return 1;
+}
 /* 84.68%: with pSrc computed before the if (the only shape that keeps the
    g_WorldMapGroups load above the branch, as retail does) gcc folds +0x16A4 into the
    three store displacements (0x16AC/0x16B0/0x16B4) instead of retail's
