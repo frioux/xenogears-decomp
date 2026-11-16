@@ -4,6 +4,9 @@
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/graphics", GfxLoadImageAccelerated);
 /*
+Switches $sp into the HeapAlloc'd block around LoadImage. No C construct emits
+that (it is not alloca), so this one cannot be matched and stays a stub; the body
+below is the parked attempt (needs inline asm, which game code may not use).
 Matches on ASPSX 2.56, GCC 2.6.0
 
 void GfxLoadImageAccelerated(void) {
