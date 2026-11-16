@@ -1245,6 +1245,118 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
  * }
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
+/* Best attempt: objdiff 85.60% (992 bytes vs retail 984). The stream command record is
+ * [0] cmd 0x1200/0x1201, [4..0xA] four u16 offsets, [0xC] width, [0x14] frames left,
+ * [0x18] chunk count, [0x1C] chunk-height table; the section search loop and the
+ * LoadImage strip loop match block for block. Remaining deltas: the search loop is
+ * rotated the other way (retail ends with bnez, ours with beqz plus a j), the sector
+ * address addu operand order (write i * CD_SECTOR_SIZE + (mem_addr)D_8004FE08), the
+ * load order inside the two rect switches, and the D_80059F44/D_80059F4C/D_80059F50
+ * update order after DrawSync. Next step is a permuter run, not more hand shapes.
+ *
+ * void func_8002BF38(void) {
+ *     ArchiveStreamFileSectionHeader* pSection;
+ *     RECT rect;
+ *     u32* pData;
+ *     u16* pArgs;
+ *     u32 cmd;
+ *     s16 i;
+ *
+ *     i = 0;
+ *     pSection = D_8004FE2C;
+ *     if (D_8004FE40 > 0) {
+ *         do {
+ *             if ((pSection->state == 1) && (pSection->id == D_8004FE28))
+ *                 break;
+ *             i++;
+ *             pSection++;
+ *         } while (i < D_8004FE40);
+ *     }
+ *     if (i == D_8004FE40)
+ *         return;
+ *
+ *     pSection->state = 2;
+ *     pData = (u32*)(D_8004FE08 + (i * CD_SECTOR_SIZE));
+ *
+ *     if (D_80059F50 == 0) {
+ *         cmd = *pData++;
+ *         if ((cmd != 0x1200) && (cmd != 0x1201))
+ *             return;
+ *
+ *         pArgs = (u16*)pData;
+ *         if (cmd == 0x1200) {
+ *             switch (D_80059F24) {
+ *                 case 1:
+ *                     D_80059F40 = D_80059F28 + pArgs[2];
+ *                     D_80059F44 = D_80059F2C + pArgs[3];
+ *                     break;
+ *                 case 2:
+ *                     D_80059F40 = D_80059F28 + pArgs[0] + pArgs[2];
+ *                     D_80059F44 = D_80059F2C + pArgs[1] + pArgs[3];
+ *                     break;
+ *                 default:
+ *                     D_80059F40 = pArgs[0] + pArgs[2];
+ *                     D_80059F44 = pArgs[1] + pArgs[3];
+ *                     break;
+ *             }
+ *         }
+ *
+ *         if (cmd == 0x1201) {
+ *             switch (D_80059F30) {
+ *                 case 1:
+ *                     D_80059F40 = D_80059F34 + pArgs[2];
+ *                     D_80059F44 = D_80059F38 + pArgs[3];
+ *                     break;
+ *                 case 2:
+ *                     D_80059F40 = D_80059F34 + pArgs[0] + pArgs[2];
+ *                     D_80059F44 = D_80059F38 + pArgs[1] + pArgs[3];
+ *                     break;
+ *                 default:
+ *                     D_80059F40 = pArgs[0] + pArgs[2];
+ *                     D_80059F44 = pArgs[1] + pArgs[3];
+ *                     break;
+ *             }
+ *         }
+ *
+ *         pData += 2;
+ *         D_80059F48 = *(u16*)pData;
+ *         pData += 2;
+ *         if (D_80059F3C == 0)
+ *             D_80059F3C = *pData;
+ *         pData++;
+ *         D_80059F50 = *pData;
+ *         pData++;
+ *         D_80059F4C = (u16*)pData;
+ *     } else {
+ *         rect.x = D_80059F40;
+ *         rect.y = D_80059F44;
+ *         rect.w = D_80059F48;
+ *         rect.h = *D_80059F4C;
+ *         LoadImage(&rect, (u_long*)pData);
+ *         DrawSync(0);
+ *
+ *         D_80059F44 = D_80059F44 + *D_80059F4C;
+ *         D_80059F4C += 1;
+ *         D_80059F50 -= 1;
+ *         if (D_80059F50 <= 0) {
+ *             D_80059F50 = 0;
+ *             D_80059F3C -= 1;
+ *             for (i = 0; i < D_8004FE40; i++) {
+ *                 D_8004FE2C[i].state = 0;
+ *                 D_8004FE2C[i].id = 0;
+ *             }
+ *             if (D_80059F3C <= 0) {
+ *                 g_ArchiveCurFileSize = 0;
+ *                 D_8004FDFC = 0;
+ *                 return;
+ *             }
+ *         }
+ *         pSection->state = 0;
+ *     }
+ *
+ *     D_8004FE28 += 1;
+ * }
+ */
 
 void ArchivePrintDebugState(void) {
     func_800379C8(D_80018944, g_ArchiveTable, D_8004FE08, D_8004FE2C);
