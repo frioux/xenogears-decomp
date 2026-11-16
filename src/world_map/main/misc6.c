@@ -63,6 +63,7 @@ extern u32 D_8009C5B4;
 extern u16 D_8009A698;
 extern u16 D_8009A6AC[];
 extern u16 D_8009A68C[];
+extern u16 D_8009A684[];
 extern WorldMapPath D_8009A65C[];
 extern u8 D_8009A660[];
 extern u32 D_8009BE0C;
@@ -77,7 +78,7 @@ extern u32 D_8009D564;
 
 extern void WorldMapSetupPrimTemplates(void *, void *, int);
 extern void WorldMapSetSpriteSetParent(int, int);
-extern void func_80089160(int, void *, int);
+extern void func_80089160(int, void *, void *);
 extern void WorldMapWrapPosition(VECTOR *);
 extern int func_80093A5C(int, int);
 extern void SoundSetAudioManagerVolumeWithFade(void *, int, int);
@@ -169,7 +170,7 @@ extern void func_8007E4E4(int);
 extern int func_8007ECA4(int);
 extern void func_8007EE34(int);
 extern int WorldMapInitSlotActor(int);
-extern void func_8007F968(int);
+extern int func_8007F968(int);
 extern void func_8007FC8C(int);
 extern int func_8007FD30(int);
 extern void WorldMapEnterNop(void);
@@ -609,6 +610,128 @@ int WorldMapInitSlotActor(int index) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
+/* 96.00%: registers and the whole dispatch/prologue match (s2 = pActor,
+   s0 = pRefActor, s3 = pGroup, s4 = 0x1F800000 base) and the C is 28 bytes
+   SHORT of retail's 0x324 - the remaining deltas are inside case 0 (retail
+   builds $s1 = pScratch+0xA0 and $s0 = pScratch+0xA8 and copies them into
+   a1/a2 for each func_80089160 call) and the ScaleMatrix tail. Levers already
+   used: ONE u8 *pScratch local for the whole function (the decisive one - five
+   separate pointer locals cost s-registers and a lui/ori pair each: 70.01 ->
+   91.83%), scratchpad pointers declared inside the blocks that use them,
+   pActor declared before pRefActor (91.83 -> 92.82), and an s32 copy of
+   unk5C[0] for the three ScaleMatrix stores (92.82 -> 96.00, removes a
+   duplicate lw). func_80089160's third parameter is declared void* in the
+   extern above (it is the 0x1F8000A8 SVECTOR, not an int).
+int func_8007F968(int index) {
+    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pRefActor = &D_8009BE24[3];
+    WorldMapGroup *pGroup = &D_8009C620->unk000[index];
+    u8 *pScratch = (u8 *)PSX_SCRATCH;
+    s16 nState;
+    s32 nScale;
+
+    // the object reads the state word unsigned here; the field stays s16 for
+    // the group actors' switches on the same offset
+    nState = *(u16 *)&pActor->unk04 - 1;
+    switch (nState) {
+    case 0:
+        pActor->unk04 = 0;
+        break;
+    case 1:
+        pActor->unk04 = 0;
+        pActor->unk20 = 1;
+        break;
+    case 2:
+        pActor->unk22 = 0x3C;
+        pActor->unk38 = -0x85A;
+        pActor->unk40 = 0xDA6;
+        pActor->unk20 = 0;
+        pActor->unk04 = 0;
+        pActor->unk3C = 0;
+        pActor->unk5C[0] = D_8009A684[index];
+        pGroup->unk00 = 0;
+        pGroup->unk18.vx = pGroup->unk18.vy = pGroup->unk18.vz = 0;
+        RotMatrixYXZ(&pGroup->unk18, &pGroup->unk20);
+        WorldMapDeactivateSpriteGroup(0x23);
+        WorldMapDeactivateSpriteGroup(0x24);
+        break;
+    case 3:
+        pActor->unk22 = 4;
+        pActor->unk20 = 1;
+        pActor->unk04 = 0;
+        pActor->unk5C[0] = D_8009A684[index];
+        pGroup->unk00 = 0;
+        pGroup->unk18.vx = pGroup->unk18.vy = pGroup->unk18.vz = 0;
+        RotMatrixYXZ(&pGroup->unk18, &pGroup->unk20);
+        WorldMapDeactivateSpriteGroup(0x23);
+        WorldMapDeactivateSpriteGroup(0x24);
+        break;
+    case 4:
+        pActor->unk20 = 1;
+        pActor->unk04 = 0;
+        pActor->unk22 = 0x1E;
+        break;
+    }
+    switch (pActor->unk20) {
+    case 0:
+    {
+        SVECTOR *pPos = (SVECTOR *)(pScratch + 0xA0);
+        SVECTOR *pAngle = (SVECTOR *)(pScratch + 0xA8);
+
+        pActor->unk28 = pRefActor->unk28;
+        pActor->unk2C = pRefActor->unk2C;
+        pActor->unk30 = pRefActor->unk30;
+        pPos->vx = (pActor->unk28 + 0x42D000) >> 12;
+        pPos->vy = pActor->unk2C >> 12;
+        pPos->vz = (pActor->unk30 - 0x6D3000) >> 12;
+        pAngle->vx = 0;
+        pAngle->vz = 0;
+        pAngle->vy = ratan2(0x85A, 0xDA6) & 0xFFF;
+        func_80089160(0x23, pPos, pAngle);
+        func_80089160(0x24, pPos, pAngle);
+        break;
+    }
+    case 1:
+        if ((s16)--pActor->unk22 < 0) {
+            pActor->unk22 = 0;
+            pActor->unk5C[0] -= 0x80;
+        }
+        break;
+    }
+    {
+        MATRIX *pRot = (MATRIX *)(pScratch + 0xF0);
+        MATRIX *pTmp = (MATRIX *)(pScratch + 0x110);
+        VECTOR *pScale = (VECTOR *)pScratch;
+
+        pRot->m[0][0] = 0xDA6;
+        pRot->m[0][1] = 0;
+        pRot->m[0][2] = 0x85A;
+        pRot->m[1][0] = 0;
+        pRot->m[1][1] = -0x1000;
+        pRot->m[1][2] = 0;
+        pRot->m[2][0] = -0x85A;
+        pRot->m[2][1] = 0;
+        pRot->m[2][2] = 0xDA6;
+        pGroup->unk18.vz = (pGroup->unk18.vz + 0x100) & 0xFFF;
+        RotMatrixYXZ(&pGroup->unk18, pTmp);
+        MulMatrix0(pRot, pTmp, &pGroup->unk20);
+        pGroup->unk08 = pActor->unk28 >> 12;
+        pGroup->unk0C = pActor->unk2C >> 12;
+        pGroup->unk10 = pActor->unk30 >> 12;
+        nScale = pActor->unk5C[0];
+        pScale->vz = 0x2000;
+        pScale->vy = nScale;
+        pScale->vx = nScale;
+        ScaleMatrix(&pGroup->unk20, pScale);
+    }
+    if (pActor->unk5C[0] < 0) {
+        pActor->unk5C[0] = 0;
+        pGroup->unk00 = 1;
+        return 3;
+    }
+    return 1;
+}
+*/
 
 /* 88.66%: instruction multiset identical. Retail materialises all the
    immediates first (lui/ori v1 = 0x1498000, lui/ori a0 = 0x4AF2000,
