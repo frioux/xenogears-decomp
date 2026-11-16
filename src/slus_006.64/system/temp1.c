@@ -620,11 +620,11 @@ AnimTask* func_80023FD8(s32 index, void* pAnimFile, ActorRotation* pOffset, s32 
 }
 */
 
-extern void SpriteAllocFromAnimFile(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
+extern void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 
-void SpriteAllocFromAnimFileWithClut(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s32 arg6) {
+void SpriteAllocFromAnimFileWithClut(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5, s32 arg6) {
     D_800591B8 = arg6;
-    SpriteAllocFromAnimFile(arg0, arg1, arg2, arg3, arg4, arg5);
+    SpriteAllocFromAnimFile(pAnimFile, arg1, arg2, arg3, arg4, arg5);
     D_800591B8 = 0;
 }
 
@@ -697,12 +697,12 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
 }
 */
 
-void SpriteAllocFromAnimFile(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
+void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     SpriteData* pSpriteData;
 
     pSpriteData = HeapAlloc(sizeof(SpriteData), 0);
     pSpriteData->allocatedDataSize = sizeof(SpriteData);
-    func_8002435C(pSpriteData, (void*)arg0, arg1, arg2, arg3, arg4, arg5);
+    func_8002435C(pSpriteData, pAnimFile, arg1, arg2, arg3, arg4, arg5);
 }
 
 extern void SpriteSetAnimFile(SpriteData* pSpriteData, void* pAnimFile);
