@@ -1067,17 +1067,12 @@ extern const char D_8006FB28[];
 // and every instruction matches except one register pair in the actor loop: the original
 // keeps pActor in $a1 and pActor->pActorData in $a2, gcc 2.7.2 puts pActorData in $a1.
 // That is the entire diff - 7 lines, 6 of them the two register names swapping - so it
-// is a GIV_TIE, a permuter job and not a hand job. Not worth running: this stub can never
-// become C (see below), so a 100.00% body would buy nothing.
-// It is blocked by its own .rodata: D_8006FB28 ("CHAR      ") is the 4th of the nine
-// strings the six stubs own, and C .rodata links before asm .rodata, so a stub can only
-// become C as part of a PREFIX of that region, starting at D_8006FB04:
-//   D_8006FB04 func_800739C0 (286 insns, STACK_SWITCH)   D_8006FB10 FieldRenderModels
-//   D_8006FB1C func_8007520C (47 insns, 100.00% exact)    D_8006FB28 func_800752C8 (this)
-//   D_8006FB34..FB64 func_8007554C (241 insns)            D_8006FB70 func_800759E4 (77)
-// The prefix stops at func_800739C0, which cannot be C at all because it switches $sp into
-// the scratchpad, so the strings from D_8006FB28 on stay asm permanently.
-// The constant the object needs is commented at the top of the block.
+// is a GIV_TIE, a permuter job and not a hand job.
+// The .rodata is NOT a blocker (that claim in the previous note was wrong): gcc 2.7.2
+// emits a C definition at its own place in the source, so a
+// `const char D_8006FB28[0xC] = "CHAR      ";` written here, between the
+// FieldRenderModels wrapper and this function, lands exactly where the original has it.
+// Proven by func_8007520C, which converted that way and passes check_bin.
 // screened: Default 99.60 (best), cdk 93.87, 2.6.0 99.60 - not a preset question.
 /*
 void func_800752C8(void) {
@@ -1188,12 +1183,10 @@ void FieldRenderFrame(void) {
 
 
 // This unit owns 0x8006FB04..0x8006FB80 of .rodata (0x7C bytes, per field.yaml):
-// nine 0xC-byte strings plus D_8006FB70 = VECTOR {0, 0, 0x1000, 0}. The strings
-// come from the five stubs above (each owns the dlabel at the top of its .s), and C
-// .rodata is linked *before* asm .rodata, so defining only the VECTOR here shifts
-// the whole overlay by 0x10. D_8006FB70 is the LAST piece of the region, so this
-// function only becomes C after all five owners above are converted, in address
-// order, each moving its own constant into C (see the note above func_800752C8).
+// nine 0xC-byte strings plus D_8006FB70 = VECTOR {0, 0, 0x1000, 0}. Each string is the
+// dlabel at the top of the .s of the stub that follows it, and a C const takes that
+// stub's place in the layout when it is defined between the same two functions, so the
+// stubs convert independently - one at a time is fine, address order is not required.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800759E4);
 
 void FieldSetSpriteColorRGB(SpriteData* pSpriteData, u_char* pColor) {
