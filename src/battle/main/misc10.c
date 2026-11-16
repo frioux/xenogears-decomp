@@ -161,106 +161,110 @@ s32 BattleActorSlotHasFlag80(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EF6C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
-/* 92.62% - RODATA-BLOCKED, do not convert: the switch's table is jtbl_8006FE0C,
-   which splat already emits inside the 0x133C-byte asm rodata blob
-   (build/asm/battle/data/0.rodata.s, 132 tables). cc1 emits its own 0x70-byte
-   table into misc10.c.o(.rodata); linker/battle.ld puts every unit's C .rodata
-   after that blob and battle_TEXT_START immediately follows it, so the whole
-   overlay shifts by 0x70 and make check fails while objdiff still reads ~93%.
-   Unconvertible until the overlay's rodata block as a whole moves to C, and an
-   if/else chain cannot reproduce the sltiu plus table dispatch.
-   Code shape: 174 insns vs the original's 172. Remaining differences are the
-   block ordering of the loop tail (retail: `or v1,s3,s0` fills the load-delay
-   slot after `lw (*arg0)` and the back edge is `beqz v0,looptop` with
-   `addu s3,v1,zero` in its delay slot; gcc emits `bnez v0,<store>` plus a `j`)
-   and one extra nop. Tried: acc = ret | acc (91.16), ret = acc then break,
-   for(;;) variants, inverting the `< 0x80` test to `>= 0x80 with continue`,
-   a named `next` temp for acc | ret (92.01), and ((cont & 0xFF) == 0) to force
-   the retail's `andi v0,s4,0xff` (92.62, the andi is right, the tail ordering
-   is not).
-   Needs these declarations, kept out of the file until it is matched:
+/* Best: 99.30%. The switch and the loop are right; one copy is missing (684
+   bytes against the original's 688). Retail's loop tail is
+
+       andi v0,s4,0xff ; beqz v0,exit ; andi v0,s0,0xff
+       lw v0,0(s1) ; or v1,s3,s0 ; lbu v0,0(v0) ; nop ; sltiu v0,v0,0x80
+       beqz v0,looptop ; addu s3,v1,zero ; addu s0,s3,zero ; andi v0,s0,0xff
+
+   i.e. the OR lands in a temp (v1) which is copied into the accumulator in the
+   back edge's delay slot, and the result is copied into ret afterwards. gcc
+   folds `acc = next; ret = acc;` into `ret = acc|ret; acc = ret`, which loses
+   that copy (`or s0,s3,s0` + `move s3,s0`, 684 bytes, this body). Spelling the
+   second statement `ret = next;` keeps the temp and the exact size but then the
+   exit branch loses its own duplicated `andi v0,s0,0xff` (96.95%). Also tried:
+   for(;;) with continue/break (93.49), chained `ret = acc = next;` (96.95),
+   `acc = next = acc | ret;` (96.02), a u8 opcode local for the loop test
+   (98.92), two inline returns (93.49), and 1225 permuter iterations from this
+   body (RESULT PERMUTER_NONE). The old RODATA-BLOCKED note here was stale:
+   config/battle.yaml line 61 gives main/misc10 its own .rodata range, so the
+   switch's table stays in the unit. Needs these declarations:
      s32 BattleSetTextScale(u8 **arg0, u8 arg1);
      s32 BattleWordRegEqImm(u8 **arg0, u8 arg1);
      s32 BattleByteRegLeImm(u8 **arg0, u8 arg1);
      void BattleScriptCursorSkipWord(u8 **pCursor);
 
-s32 func_8007F8C0(u8 **arg0, u8 arg1) {
+s32 func_8007F8C0(u8 **pCursor, u8 arg1) {
     s32 ret = 0;
     s32 cont = 0;
     s32 acc = 0;
     s32 next;
 
-    for (;;) {
-        switch ((*arg0)[0]) {
+    do {
+        switch ((*pCursor)[0]) {
         case 0x80:
         case 0x9A:
             ret = 1;
             break;
+        case 0x99:
+            cont = 1;
+            break;
         case 0x81:
-            ret = BattleSetTextScale(arg0, arg1);
+            ret = BattleSetTextScale(pCursor, arg1);
             break;
         case 0x82:
-            ret = BattleWordRegEqImm(arg0, arg1);
+            ret = BattleWordRegEqImm(pCursor, arg1);
             break;
         case 0x83:
-            ret = BattleByteRegLeImm(arg0, arg1);
+            ret = BattleByteRegLeImm(pCursor, arg1);
             break;
         case 0x84:
-            ret = BattleWordRegLeImm(arg0, arg1);
+            ret = BattleWordRegLeImm(pCursor, arg1);
             break;
         case 0x85:
-            ret = BattleByteRegGeImm(arg0, arg1);
+            ret = BattleByteRegGeImm(pCursor, arg1);
             break;
         case 0x86:
-            ret = BattleWordRegGeImm(arg0, arg1);
+            ret = BattleWordRegGeImm(pCursor, arg1);
             break;
         case 0x87:
-            ret = BattleByteRegEqReg(arg0, arg1);
+            ret = BattleByteRegEqReg(pCursor, arg1);
             break;
         case 0x88:
-            ret = BattleWordRegEqReg(arg0, arg1);
+            ret = BattleWordRegEqReg(pCursor, arg1);
             break;
         case 0x89:
-            ret = BattleByteRegLeReg(arg0, arg1);
+            ret = BattleByteRegLeReg(pCursor, arg1);
             break;
         case 0x8A:
-            ret = BattleWordRegLeReg(arg0, arg1);
+            ret = BattleWordRegLeReg(pCursor, arg1);
             break;
         case 0x8B:
-            ret = BattleByteRegTestImm(arg0, arg1);
+            ret = BattleByteRegTestImm(pCursor, arg1);
             break;
         case 0x8C:
-            ret = BattleWordRegTestImm(arg0, arg1);
+            ret = BattleWordRegTestImm(pCursor, arg1);
             break;
         case 0x8D:
-            ret = BattleByteRegTestReg(arg0, arg1);
+            ret = BattleByteRegTestReg(pCursor, arg1);
             break;
         case 0x8E:
-            ret = BattleWordRegTestReg(arg0, arg1);
+            ret = BattleWordRegTestReg(pCursor, arg1);
             break;
         case 0x8F:
-            ret = BattleByteRegNeImm(arg0, arg1);
+            ret = BattleByteRegNeImm(pCursor, arg1);
             break;
         case 0x90:
-            ret = BattleWordRegNeImm(arg0, arg1);
+            ret = BattleWordRegNeImm(pCursor, arg1);
             break;
         case 0x91:
-            ret = BattleByteRegNeReg(arg0, arg1);
+            ret = BattleByteRegNeReg(pCursor, arg1);
             break;
         case 0x92:
-            ret = BattleWordRegNeReg(arg0, arg1);
+            ret = BattleWordRegNeReg(pCursor, arg1);
             break;
         case 0x93:
-            ret = BattleDwordRegEqReg(arg0, arg1);
+            ret = BattleDwordRegEqReg(pCursor, arg1);
             break;
         case 0x94:
-            ret = BattleDwordRegLeReg(arg0, arg1);
+            ret = BattleDwordRegLeReg(pCursor, arg1);
             break;
         case 0x95:
-            ret = BattleTableEntryFlag8000(arg0);
+            ret = BattleTableEntryFlag8000(pCursor);
             break;
         case 0x96:
-            ret = BattleSlotCountIsZero(arg0);
+            ret = BattleSlotCountIsZero(pCursor);
             break;
         case 0x97:
             ret = BattleStateWordLowBitsClear();
@@ -268,25 +272,18 @@ s32 func_8007F8C0(u8 **arg0, u8 arg1) {
         case 0x98:
             ret = func_8007EEE8();
             break;
-        case 0x99:
-            cont = 1;
-            break;
         case 0x9B:
             ret = BattleActorSlotHasFlag80(arg1);
             break;
         }
-        BattleScriptCursorSkipWord(arg0);
+        BattleScriptCursorSkipWord(pCursor);
         if (!(cont & 0xFF)) {
-            break;
+            return ret & 0xFF;
         }
         next = acc | ret;
-        if ((*arg0)[0] >= 0x80) {
-            acc = next;
-            continue;
-        }
+        acc = next;
         ret = acc;
-        break;
-    }
+    } while ((*pCursor)[0] >= 0x80);
 
     return ret & 0xFF;
 }
