@@ -41,13 +41,18 @@ typedef struct {
 // units reach further).
 typedef struct BattleActor {
     /* 0x0000 */ Vec4 position;
-    /* 0x0010 */ u8 unk10[0x4];
+    /* 0x0010 */ s32 unk10;
     /* 0x0014 */ s32 unk14;
-    /* 0x0018 */ u8 unk18[0x8];
+    /* 0x0018 */ s32 unk18;
+    /* 0x001C */ u8 unk1C[0x4];
     /* 0x0020 */ s32 unk20;
-    /* 0x0024 */ u8 unk24[0x4];
+    /* 0x0024 */ s32 unk24;
     /* 0x0028 */ s32 unk28;
-    /* 0x002C */ u8 unk2C[0x14];
+    /* 0x002C */ s32 unk2C;
+    /* 0x0030 */ s32 unk30;
+    /* 0x0034 */ s32 unk34;
+    /* 0x0038 */ s32 unk38;
+    /* 0x003C */ u8 unk3C[0x4];
     /* 0x0040 */ s32 unk40;
     /* 0x0044 */ s32 unk44;
     /* 0x0048 */ s32 unk48;
@@ -65,7 +70,11 @@ typedef struct BattleActor {
     /* 0x007C */ u8 unk7C[0x4];
     /* 0x0080 */ u8* pActionEntries;
     /* 0x0084 */ u8* unk84;
-    /* 0x0088 */ u8 unk88[0x28];
+    /* 0x0088 */ s32 unk88;
+    /* 0x008C */ s32 unk8C;
+    /* 0x0090 */ s32 unk90;
+    /* 0x0094 */ s32 unk94;
+    /* 0x0098 */ u8 unk98[0x18];
     /* 0x00B0 */ s32 unkB0;
     /* 0x00B4 */ s16 unkB4;
     /* 0x00B6 */ s16 unkB6;
@@ -95,10 +104,12 @@ typedef struct BattleActor {
     /* 0x0100 */ s32 unk100;
     /* 0x0104 */ u8 unk104[0x540];
     /* 0x0644 */ s32 unk644;
-    /* 0x0648 */ u8 unk648[0x2C1];
+    /* 0x0648 */ s32 unk648;
+    /* 0x064C */ u8 unk64C[0x2BD];
     /* 0x0909 */ u8 unk909;
     /* 0x090A */ u8 unk90A;
-    /* 0x090B */ u8 unk90B[0x3];
+    /* 0x090B */ u8 unk90B;
+    /* 0x090C */ s16 unk90C;
     /* 0x090E */ u8 unk90E;
     /* 0x090F */ u8 unk90F;
     /* 0x0910 */ u8 unk910;
@@ -108,7 +119,9 @@ typedef struct BattleActor {
     /* 0x0918 */ u8 unk918[0x14];
     /* 0x092C */ Vec4 unk92C;
     /* 0x093C */ Vec4 unk93C;
-    /* 0x094C */ u8 unk94C[0x24];
+    /* 0x094C */ u8 unk94C[0x10];
+    /* 0x095C */ Vec4 unk95C;
+    /* 0x096C */ u8 unk96C[0x4];
     /* 0x0970 */ s32 unk970;
     /* 0x0974 */ Vec4 unk974;
     /* 0x0984 */ u8 unk984[0x1C];
@@ -974,7 +987,143 @@ void BattleActorApplyCenterPosition(BattleActor* p) {
     p->flags |= 0x2000000;
 }
 
+extern s32 D_80092850;
+extern u8 D_80092884;
+extern s32 func_8008B650(s32 value, s32 max, s32 step);
+extern u8 g_BattleCameraLerpFrames;
+
+/* 89.19%: every call, both lerp limiter paths, the unkC5==4 reset, the 0x40000
+   cos/sin pair, the p->unk44 steer block, the D_80092850 target-follow block and
+   the final fade all line up, and the frame is retail's exactly (0x30, s0/s1/s2,
+   delta at sp+0x10). Three residuals, all allocator/scheduling, no structure:
+   - the p->unkC5==2 block: retail keeps the 0xFFF7FFFF mask in $a0, the 0x90C
+     value in $v1 and the flags in $v0, and its two `sw 0xD0` stores are merged by
+     cross-jumping into one at the join; ours uses $v0/$a0/$v1 and sinks the store
+     into the following `if (p->flags & 0x40000)` arm. Declaring a shared `u32
+     flags` local and storing once after the if/else removes the duplicate store
+     but gcc then sinks it 2 instructions late (worth 1 store, lost elsewhere).
+   - every `mult` here yields `mfhi $t1` in retail and `mfhi $a3` in ours (6
+     sites); the multiset is otherwise identical.
+   - the D_80092850 block: retail issues all three p->pTarget loads first (raw
+     values spilled to sp+0x10..0x18) and pipelines the three mults; ours computes
+     one delta at a time. A `Vec4 target = p->pTarget->position;` copy at the head
+     of the block gets the pipelined shape but costs 0x10 of frame (0x40 vs 0x30),
+     which is the wrong trade. The switch on ((p->flags >> 29) & 3) needs its
+     operand in a local (`mode`) to get retail's slti pivot; alpha must be
+     `= 0x80` before the switch with an empty case 2, otherwise gcc emits a flat
+     compare chain.
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80078194);
+/*
+void func_80078194(BattleActor* p) {
+    s32 angle;
+    s32 target;
+    s32 alpha;
+    s32 mode;
+
+    p->unk6C = p->position;
+    p->unk95C = p->unk93C;
+    angle = p->unk40;
+    target = D_80092934;
+    if (p->flags & 0x8000000) {
+        target += 0x800;
+    }
+    if (p->state == 0) {
+        if (p->unkFC != 0) {
+            p->unk648 = target;
+        } else {
+            p->unk648 = func_8008B650(p->unk648, target, 0x100);
+        }
+        if (g_BattleCameraLerpFrames >= 5) {
+            g_BattleCameraLerpFrames = 4;
+        }
+    } else if (p->state == 1) {
+        if (D_8009284C >= 0x101) {
+            if (p->unkFC != 0) {
+                p->unk648 = target;
+            } else {
+                p->unk648 = func_8008B650(p->unk648, target, 0x100);
+            }
+        }
+        if (g_BattleCameraLerpFrames >= 3) {
+            g_BattleCameraLerpFrames = 2;
+        }
+    }
+    if (p->unkC5 == 4) {
+        angle = -(p->unkC3 * 0x50) / 3;
+        p->unk54 = target;
+        p->unk648 = target;
+        p->unkFC = 0;
+        p->unk40 = 0;
+        p->unk94 = 0;
+        p->unk8C = 0;
+        p->unk88 = 0;
+        p->unk90 = 0;
+    } else {
+        p->unk54 = p->unk648 + p->unkFC;
+    }
+    if (p->unkC5 == 2) {
+        if ((p->flags & 1) || (p->state & 2)) {
+            p->unk90C = target;
+        }
+        p->flags = (p->flags | 0x100) & 0xFFF7FFFF;
+        p->unk54 = p->unk90C;
+    } else {
+        p->flags &= ~0x100;
+    }
+    if (p->flags & 0x40000) {
+        p->unk10 = -(rcos(p->unk648 + p->unkFC) * angle) >> 12;
+        p->unk18 = -(rsin(p->unk648 + p->unkFC) * angle) >> 12;
+    } else {
+        p->flags &= 0xFFF7FFFF;
+    }
+    p->unk14 += 0xA;
+    if (p->unk44 != 0 && p->position.y == p->unkB0) {
+        p->unk44 = p->unk44 * 0xA0 / 256;
+        p->unk30 = -(rcos(target) * p->unk44) >> 12;
+        p->unk38 = -(rsin(target) * p->unk44) >> 12;
+        p->unk10 += p->unk30;
+        p->unk14 += p->unk34;
+        p->unk18 += p->unk38;
+    }
+    if (D_80092850 >= 0x281 && D_80092884 != 0) {
+        Vec4 delta;
+
+        delta.x = (p->pTarget->position.x - p->position.x) / 12;
+        delta.y = (p->pTarget->position.y - p->position.y) / 12;
+        delta.z = (p->pTarget->position.z - p->position.z) / 12;
+        p->unk10 += delta.x;
+        p->unk14 += delta.y;
+        p->unk18 += delta.z;
+    }
+    mode = (p->flags >> 29) & 3;
+    alpha = 0x80;
+    switch (mode) {
+    case 1:
+        alpha = 0;
+        break;
+    case 0:
+        alpha = 0xFF;
+        break;
+    case 2:
+        break;
+    case 3:
+        alpha = 0;
+        break;
+    }
+    if (p->state == 4) {
+        alpha = 0xFF;
+    }
+    if (p->flags & 0x40000) {
+        p->unk20 = p->unk20 * alpha / 256;
+        p->unk28 = p->unk28 * alpha / 256;
+    }
+    p->unk10 += p->unk20;
+    p->unk14 += p->unk24;
+    p->unk18 += p->unk28;
+}
+
+*/
 
 extern s32 BattleVectorDistance2D(Vec4*, Vec4*);
 
