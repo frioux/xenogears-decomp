@@ -10,25 +10,42 @@ typedef struct {
     /* 0x3 */ u8 a;
 } Color4; // Size: 0x4
 
+// Same layout as a POLY_FT4 (include/psyq/libgpu.h): tag, colour/code, then four
+// vertices of x/y plus u/v, with the clut/tpage pair at the first two vertices.
 typedef struct {
-    /* 0x00 */ u32 unk0;
+    /* 0x00 */ u32 tag;
     /* 0x04 */ u8 r;
     /* 0x05 */ u8 g;
     /* 0x06 */ u8 b;
-    /* 0x07 */ u8 unk7;
-    /* 0x08 */ u8 unk8[6];
-    /* 0x0E */ u16 unkE;
-    /* 0x10 */ u8 unk10[6];
-    /* 0x16 */ u16 unk16;
-    /* 0x18 */ u8 unk18[0x10];
+    /* 0x07 */ u8 code;
+    /* 0x08 */ s16 x0;
+    /* 0x0A */ s16 y0;
+    /* 0x0C */ u8 u0;
+    /* 0x0D */ u8 v0;
+    /* 0x0E */ u16 clut;
+    /* 0x10 */ s16 x1;
+    /* 0x12 */ s16 y1;
+    /* 0x14 */ u8 u1;
+    /* 0x15 */ u8 v1;
+    /* 0x16 */ u16 tpage;
+    /* 0x18 */ s16 x2;
+    /* 0x1A */ s16 y2;
+    /* 0x1C */ u8 u2;
+    /* 0x1D */ u8 v2;
+    /* 0x1E */ u16 pad1E;
+    /* 0x20 */ s16 x3;
+    /* 0x22 */ s16 y3;
+    /* 0x24 */ u8 u3;
+    /* 0x25 */ u8 v3;
+    /* 0x26 */ u16 pad26;
 } SlotMotion; // Size: 0x28
 
 typedef struct {
     /* 0x00 */ u8 unk0[0xA];
-    /* 0x0A */ u8 unkA;
+    /* 0x0A */ u8 frameCount;
     /* 0x0B */ u8 unkB;
-    /* 0x0C */ u16 unkC;
-    /* 0x0E */ u16 unkE;
+    /* 0x0C */ u16 clut;
+    /* 0x0E */ u16 tpage;
     /* 0x10 */ u16 unk10;
     /* 0x12 */ u16 unk12;
 } BattleAction; // Size: 0x14
@@ -43,19 +60,19 @@ typedef struct {
 typedef struct {
     /* 0x00 */ SlotMotion unk0;
     /* 0x28 */ SlotMotion unk28;
-    /* 0x50 */ u8 unk50;
-    /* 0x51 */ s8 unk51;
-    /* 0x52 */ u8 unk52;
-    /* 0x53 */ u8 unk53;
-    /* 0x54 */ u16 unk54;
-    /* 0x56 */ u16 unk56;
-    /* 0x58 */ u16 unk58;
+    /* 0x50 */ u8 active;
+    /* 0x51 */ s8 frame;
+    /* 0x52 */ u8 frameCount;
+    /* 0x53 */ u8 type;
+    /* 0x54 */ u16 x;
+    /* 0x56 */ u16 y;
+    /* 0x58 */ u16 z;
     /* 0x5A */ u16 unk5A;
     /* 0x5C */ u16 unk5C;
     /* 0x5E */ u16 unk5E;
     /* 0x60 */ u32 unk60;
     /* 0x64 */ u16 unk64;
-    /* 0x66 */ u16 unk66;
+    /* 0x66 */ u16 vy;
     /* 0x68 */ u16 unk68;
     /* 0x6A */ u16 unk6A;
     /* 0x6C */ u32 unk6C;
@@ -201,14 +218,14 @@ void BattleEffectUpdateSlots(void) {
     u32 v;
 
     for (i = 0; i < 0x3C; i++, p++) {
-        if (p->unk50 != 0) {
-            if (p->unk51 == p->unk52) {
-                p->unk50 = 0;
+        if (p->active != 0) {
+            if (p->frame == p->frameCount) {
+                p->active = 0;
             } else {
-                p->unk51++;
-                if (p->unk53 == 0) {
-                    p->unk66 += p->unk64;
-                    p->unk56 += p->unk66;
+                p->frame++;
+                if (p->type == 0) {
+                    p->vy += p->unk64;
+                    p->y += p->vy;
                 }
             }
         }
@@ -244,35 +261,35 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
     s32 i;
 
     for (i = 0; i < 0x3C; i++, pSlot++) {
-        if (pSlot->unk50 == 0) {
+        if (pSlot->active == 0) {
             break;
         }
     }
     if (i == 0x3C) {
         return;
     }
-    pSlot->unk50 = 1;
+    pSlot->active = 1;
     pAction = &D_80092A74[action];
-    pSlot->unk53 = 0;
-    pSlot->unk51 = 0;
+    pSlot->type = 0;
+    pSlot->frame = 0;
     pSlot->unk60 = (u32)pAction;
-    pSlot->unk52 = pAction->unkA;
+    pSlot->frameCount = pAction->frameCount;
     pSlot->unk64 = pAction->unk10;
-    pSlot->unk66 = 0;
-    pSlot->unk54 = pVec->vx;
-    pSlot->unk56 = pVec->vy;
-    pSlot->unk58 = pVec->vz;
+    pSlot->vy = 0;
+    pSlot->x = pVec->vx;
+    pSlot->y = pVec->vy;
+    pSlot->z = pVec->vz;
     pMotion = &pSlot->unk0;
-    pMotion->unk16 = pAction->unkE;
+    pMotion->tpage = pAction->tpage;
     if (action == 2) {
-        pMotion->unk7 &= 0xFE;
+        pMotion->code &= 0xFE;
         pMotion->r = D_800926B8.r;
         pMotion->g = D_800926B9;
         pMotion->b = D_800926BA;
     } else {
-        pMotion->unk7 |= 1;
+        pMotion->code |= 1;
     }
-    pMotion->unkE = pAction->unkC;
+    pMotion->clut = pAction->clut;
     pSlot->unk28 = *pMotion;
 }
 
@@ -299,7 +316,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
 
     pEntry = D_80092AD8;
     for (i = 0; i < 0x3C; i++, pEntry++) {
-        if (pEntry->unk50 != 0) {
+        if (pEntry->active != 0) {
             if (pEntry->unk78 == arg2) {
                 if (pEntry->unk72 == g_BattleDrawFlags) {
                     return;
@@ -310,7 +327,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
 
     pSlot = D_80092AD8;
     for (i = 0; i < 0x3C; i++, pSlot++) {
-        if (pSlot->unk50 == 0) {
+        if (pSlot->active == 0) {
             break;
         }
     }
@@ -321,37 +338,37 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     u = D_80092698[0] * 4 + 8;
     pMotion = &pSlot->unk0;
     u += arg0 * 4;
-    pMotion->unk18[0xC] = u;
-    pMotion->unk18[4] = u;
-    pMotion->unk10[4] = u;
-    pMotion->unk8[4] = u;
+    pMotion->u3 = u;
+    pMotion->u2 = u;
+    pMotion->u1 = u;
+    pMotion->u0 = u;
     v = D_8009269C[0];
-    pMotion->unk18[0xD] = v;
-    pMotion->unk18[5] = v;
-    pMotion->unk10[5] = v;
-    pMotion->unk8[5] = v;
-    pMotion->unk16 = D_80092694;
-    pMotion->unk7 &= 0xFE;
-    pMotion->unkE = D_800926A0;
+    pMotion->v3 = v;
+    pMotion->v2 = v;
+    pMotion->v1 = v;
+    pMotion->v0 = v;
+    pMotion->tpage = D_80092694;
+    pMotion->code &= 0xFE;
+    pMotion->clut = D_800926A0;
     pSlot->unk28 = *pMotion;
 
-    pSlot->unk52 = 7;
-    pSlot->unk53 = 1;
-    pSlot->unk50 = 1;
-    pSlot->unk51 = 0;
-    pSlot->unk54 = pVec->vx;
-    pSlot->unk56 = pVec->vy;
+    pSlot->frameCount = 7;
+    pSlot->type = 1;
+    pSlot->active = 1;
+    pSlot->frame = 0;
+    pSlot->x = pVec->vx;
+    pSlot->y = pVec->vy;
     pSlot->unk72 = g_BattleDrawFlags;
     pSlot->unk78 = arg2;
     pSlot->unk6C = 0;
     pSlot->unk70 = D_800926A4;
-    pSlot->unk58 = pVec->vz;
+    pSlot->z = pVec->vz;
     pSlot->unk74 = D_80091228[arg3];
 
     id = D_800926A4 - 1;
     pEntry = D_80092AD8;
     for (i = 0; i < 0x3C; i++, pEntry++) {
-        if (pEntry->unk50 != 0 && pEntry->unk78 == arg2 && pEntry != pSlot && pEntry->unk53 == 1 && pEntry->unk70 == id) {
+        if (pEntry->active != 0 && pEntry->unk78 == arg2 && pEntry != pSlot && pEntry->type == 1 && pEntry->unk70 == id) {
             pSlot->unk6C = (u32)pEntry;
         }
     }
@@ -369,8 +386,8 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
    load-delay slots with the t1 = slot + 0x28 / t2 = slot + 0x20 / a2 = slot
    address setup of the SlotMotion copy and hoists the pVec and D_800926A4 loads,
    gcc leaves nop there and keeps each load next to its store. Tried: the u/v
-   pair in ascending order, unk68 stored with unk66 instead of after unk6A, the
-   u/v block before the unk64..68 stores, and slot->unk0 in place of a pMotion
+   pair in ascending order, unk68 stored with vy instead of after unk6A, the
+   u/v block before the unk64/68 stores, and slot->unk0 in place of a pMotion
    pointer (all 82-85%); the first two halves of the function and the trailing
    search loop are byte-identical. */
 /*
@@ -384,7 +401,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     s32 i;
 
     for (i = 0; i < 0x3C; i++, pEntry++) {
-        if (pEntry->unk50 != 0) {
+        if (pEntry->active != 0) {
             if (pEntry->unk70 == arg3) {
                 if (pEntry->unk6C == g_BattleDrawFlags) {
                     return;
@@ -395,7 +412,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 
     pSlot = D_80092AD8;
     for (i = 0; i < 0x3C; i++, pSlot++) {
-        if (pSlot->unk50 == 0) {
+        if (pSlot->active == 0) {
             break;
         }
     }
@@ -403,43 +420,43 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
         return;
     }
 
-    pSlot->unk52 = 7;
-    pSlot->unk53 = 2;
-    pSlot->unk50 = 1;
-    pSlot->unk51 = 0;
-    pSlot->unk54 = pPos->vx;
-    pSlot->unk56 = pPos->vy;
-    pSlot->unk58 = pPos->vz;
+    pSlot->frameCount = 7;
+    pSlot->type = 2;
+    pSlot->active = 1;
+    pSlot->frame = 0;
+    pSlot->x = pPos->vx;
+    pSlot->y = pPos->vy;
+    pSlot->z = pPos->vz;
     pSlot->unk6C = g_BattleDrawFlags;
     pSlot->unk64 = pVec->vx;
-    pSlot->unk66 = pVec->vy;
+    pSlot->vy = pVec->vy;
 
     pMotion = &pSlot->unk0;
     u = D_80092698[0] * 4 + 8;
     u += arg0 * 4;
-    pMotion->unk18[0xC] = u;
-    pMotion->unk18[4] = u;
-    pMotion->unk10[4] = u;
-    pMotion->unk8[4] = u;
+    pMotion->u3 = u;
+    pMotion->u2 = u;
+    pMotion->u1 = u;
+    pMotion->u0 = u;
     v = D_8009269C[0];
-    pMotion->unk18[0xD] = v;
-    pMotion->unk18[5] = v;
-    pMotion->unk10[5] = v;
-    pMotion->unk8[5] = v;
+    pMotion->v3 = v;
+    pMotion->v2 = v;
+    pMotion->v1 = v;
+    pMotion->v0 = v;
 
     pSlot->unk70 = arg3;
     pSlot->unk60 = 0;
     pSlot->unk6A = D_800926A4;
     pSlot->unk68 = pVec->vz;
-    pMotion->unk16 = D_80092694;
-    pMotion->unk7 &= 0xFE;
-    pMotion->unkE = D_800926A0;
+    pMotion->tpage = D_80092694;
+    pMotion->code &= 0xFE;
+    pMotion->clut = D_800926A0;
     pSlot->unk28 = *pMotion;
 
     id = D_800926A4 - 1;
     pEntry = D_80092AD8;
     for (i = 0; i < 0x3C; i++, pEntry++) {
-        if (pEntry->unk50 != 0 && pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->unk53 == 2 && pEntry->unk6A == id) {
+        if (pEntry->active != 0 && pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->type == 2 && pEntry->unk6A == id) {
             pSlot->unk60 = (u32)pEntry;
         }
     }
