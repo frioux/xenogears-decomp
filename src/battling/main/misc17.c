@@ -65,7 +65,7 @@ typedef struct {
     /* 0x0A */ s16 targetAngle;
     /* 0x0C */ s16 maxDistance;
     /* 0x0E */ u8 unkE;
-    /* 0x0F */ u8 unkF;
+    /* 0x0F */ u8 difficulty;
     /* 0x10 */ s32 unk10;
     /* 0x14 */ s32 unk14;
     /* 0x18 */ s32 unk18;
@@ -73,7 +73,7 @@ typedef struct {
     /* 0x20 */ s32 unk20;
     /* 0x24 */ s32 unk24;
     /* 0x28 */ s32 unk28;
-    /* 0x2C */ BattleWorkFlags unk2C;
+    /* 0x2C */ BattleWorkFlags flags;
     /* 0x30 */ u16 unk30;
     /* 0x32 */ u16 pad32;
 } BattleWork; // Size: 0x34
@@ -90,17 +90,17 @@ typedef struct BattleActor {
     /* 0x098 */ s32 stepForward;
     /* 0x09C */ s32 stepBack;
     /* 0x0A0 */ u8 unkA0[0x14];
-    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 unkB6;
     /* 0x0B8 */ u8 unkB8[0x4];
-    /* 0x0BC */ s16 unkBC;
+    /* 0x0BC */ s16 gaugeMax;
     /* 0x0BE */ s16 unkBE;
     /* 0x0C0 */ u8 unkC0[0xC];
     /* 0x0CC */ u16 unkCC;
     /* 0x0CE */ s16 unkCE;
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 unkD4[0x835];
-    /* 0x909 */ u8 unk909;
+    /* 0x909 */ u8 typeId;
     /* 0x90A */ u8 unk90A[0xCF2];
     /* 0x15FC */ BattleWork* pWork;
     /* 0x1600 */ u8 unk1600[0x64];
@@ -280,7 +280,7 @@ void BattleIncrementSoundSlotTimers(void) {
 u8* BattleSetActorSoundTable(BattleActor* pActor) {
     u8* pTable;
 
-    switch (pActor->unk909) {
+    switch (pActor->typeId) {
     case 9:
         pTable = D_80091FA0;
         break;
@@ -480,9 +480,9 @@ void BattleQueueMessage3AndDelay60(BattleActor* pActor, BattleWork* pWork) {
 void BattleToggleActionFlag2000(BattleActor* pActor, BattleWork* pWork) {
     u32 flags;
 
-    flags = pWork->unk2C.flags;
-    pWork->unk2C.flags = (flags & ~0x2000) | ((((flags >> 13) & 1) ^ 1) << 13);
-    if (pWork->unk2C.flags & 0x2000) {
+    flags = pWork->flags.flags;
+    pWork->flags.flags = (flags & ~0x2000) | ((((flags >> 13) & 1) ^ 1) << 13);
+    if (pWork->flags.flags & 0x2000) {
         pActor->flags |= 2;
         pWork->delay = 0x3C;
     } else {
@@ -535,7 +535,7 @@ void BattleSetRandomFacingAround0(BattleActor* pActor, BattleWork* pWork) {
     pWork->delay = timer;
 }
 void BattleSetActionFieldFAndDispatch(BattleActor* pActor, BattleWork* pWork, u8 value) {
-    pWork->unkF = value;
+    pWork->difficulty = value;
     BattleDispatchWorkState(pActor);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
@@ -643,5 +643,5 @@ void func_8008F280(BattleActor* pActor) {
     BattleUpdateActorApproach(pActor, pWork->targetAngle, pWork->maxDistance);
 }*/
 s32 BattleCheckValueAboveScaledMax(BattleActor* pActor, s32 arg1) {
-    return (pActor->unkBC * arg1) / 255 < pActor->unkB4;
+    return (pActor->gaugeMax * arg1) / 255 < pActor->gaugeValue;
 }
