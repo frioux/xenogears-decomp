@@ -117,7 +117,7 @@ void MenuAddUnk4E0Prims(void) {
     u32 offset;
 
     for (i = 0; i < 4; i++) {
-        if (g_Menu->pManager->unk34[i]) {
+        if (g_Menu->pManager->shouldRenderStrings4E0[i]) {
             offset = i * sizeof(MenuString) + 0x4E0;
             AddPrim(&g_Menu->pGfxEnv->ot[4],
                     (void*)(offset + (u32)g_Menu + g_Menu->unk4E0[i].renderContext * 40));
@@ -157,7 +157,7 @@ void MenuAddUnk10E0Prims(void) {
     u32 offset;
 
     for (i = 0; i < 8; i++) {
-        if (g_Menu->pManager->unk38[i]) {
+        if (g_Menu->pManager->shouldRenderStrings10E0[i]) {
             offset = i * sizeof(MenuString) + 0x10E0;
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50), (POLY_FT4*)(offset + (u32)g_Menu),
                           g_Menu->unk10E0[i].renderContext);
@@ -170,7 +170,7 @@ void MenuAddUnk14E0Prims(void) {
     u32 offset;
 
     for (i = 0; i < 6; i++) {
-        if (g_Menu->pManager->unk40[i]) {
+        if (g_Menu->pManager->shouldRenderStrings14E0[i]) {
             offset = i * sizeof(MenuString) + 0x14E0;
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50), (POLY_FT4*)(offset + (u32)g_Menu),
                           g_Menu->unk14E0[i].renderContext);
@@ -181,7 +181,7 @@ void MenuAddUnk14E0Prims(void) {
 void MenuAddUnk17E0Prim(void) {
     u32 offset;
 
-    if (g_Menu->pManager->unk4E) {
+    if (g_Menu->pManager->shouldRenderStrings17E0[0]) {
         offset = g_Menu->unk17E0[0].renderContext * 40 + 0x17E0;
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu));
     }
@@ -208,7 +208,7 @@ void MenuAddUnk18E0Prims(void) {
     s32 i;
 
     for (i = 0; i < 6; i++) {
-        if (g_Menu->pManager->unk54[i] && g_Menu->unk18E0[i].hasVertices) {
+        if (g_Menu->pManager->shouldRenderStrings18E0[i] && g_Menu->unk18E0[i].hasVertices) {
             MenuRenderTransformedQuads(1, g_Menu->unk18E0[i].vertices, g_Menu->unk18E0[i].polys,
                           g_Menu->unk18E0[i].renderContext);
         }
@@ -290,11 +290,11 @@ void MenuAddUnk42CPrims(void) {
     u32 offset;
     u32 offset2;
 
-    if (g_Menu->pManager->unk48 == 0) {
+    if (g_Menu->pManager->shouldRenderUnk42C == 0) {
         return;
     }
     for (i = 0; i < 16; i++) {
-        if (g_Menu->unk42C->unk1184[i]) {
+        if (g_Menu->unk42C->shouldRenderRows[i]) {
             offset = i * sizeof(MenuString);
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu->unk42C + 0x50),
                           (POLY_FT4*)(offset + (u32)g_Menu->unk42C),
@@ -305,7 +305,7 @@ void MenuAddUnk42CPrims(void) {
                           ((u8*)((u32)g_Menu->unk42C + offset))[0x87D]);
         }
     }
-    if (g_Menu->unk42C->unk1184[0x10]) {
+    if (g_Menu->unk42C->shouldRenderPrimGroup) {
         MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->unk42C + 0x1050), (POLY_FT4*)((u32)g_Menu->unk42C + 0x1000),
                       ((u8*)g_Menu->unk42C)[0x107D]);
         MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->unk42C + 0x10D0), (POLY_FT4*)((u32)g_Menu->unk42C + 0x1080),
@@ -357,7 +357,7 @@ void MenuAddUnk434Prims(void) {
         return;
     }
     for (i = 0, offset2 = 0x400; i < 8; i++, offset2 += sizeof(MenuString)) {
-        if (g_Menu->unk434->unkA10[i]) {
+        if (g_Menu->unk434->shouldRenderRows[i]) {
             offset = i * sizeof(MenuString);
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu->unk434 + 0x50),
                           (POLY_FT4*)(offset + (u32)g_Menu->unk434),
@@ -369,7 +369,7 @@ void MenuAddUnk434Prims(void) {
     }
     MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->unk434 + 0x850), (POLY_FT4*)((u32)g_Menu->unk434 + 0x800),
                   ((u8*)g_Menu->unk434)[0x87D]);
-    if (g_Menu->unk434->unkA18[0]) {
+    if (g_Menu->unk434->shouldRenderStrings880[0]) {
         for (i = 0; i < 3; i++) {
             offset2 = i * sizeof(MenuString) + 0x880;
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk434 + 0x50),

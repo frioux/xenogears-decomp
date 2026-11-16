@@ -166,8 +166,8 @@ void MemberChangeMenuLoadResources(void) {
     g_Menu->menuUnk2->unk4B96 = 0x11;
     g_Menu->menuUnk2->unk4B97 = 1;
     bzero(g_Menu->menuUnk2->unk4B98, 0x5C);
-    memmove(&g_Menu->menuUnk2->unk4BF4, g_Menu->menuUnk2->tim.caddr, 0x20);
-    memmove(&g_Menu->menuUnk2->unk4C14, g_Menu->menuUnk2->tim.paddr, 0x80);
+    memmove(&g_Menu->menuUnk2->saveIconPalette, g_Menu->menuUnk2->tim.caddr, 0x20);
+    memmove(&g_Menu->menuUnk2->saveIconImage, g_Menu->menuUnk2->tim.paddr, 0x80);
     HeapFree(pResourceEntry);
 
     // Menu TIM Textures
@@ -912,14 +912,14 @@ void MemberChangeMenuDrawCursors(void) {
                 if (g_Menu->pCursors->shouldUpdatePosition[i]) {
                     setXY4(
                         &g_Menu->pCursors->polysCursor[i * 2 + g_Menu->pCursors->renderContexts[i]],
-                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10,
-                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 8,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] - 6,
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 24,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] - 6,
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 8,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 10,
+                        g_MemberChangeMenuPointerCursorBoxX[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 24,
+                        g_MemberChangeMenuPointerCursorBoxY[g_MemberChangeMenuPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 10
                     );
                 }
 
@@ -936,7 +936,7 @@ void MemberChangeMenuRenderStrings4E0(void) {
     int i;
 
     for (i = 0; i < 4; i++) {
-        if (g_Menu->pManager->unk34[i]) {
+        if (g_Menu->pManager->shouldRenderStrings4E0[i]) {
             AddPrim(&g_Menu->pGfxEnv->ot[4],  &g_Menu->unk4E0[i].polys[g_Menu->unk4E0[i].renderContext]);
         }
     }
@@ -1525,7 +1525,7 @@ void MemberChangeMenuUpdateAndRender(void) {
     Vsync(0);
     PutDrawEnv(&g_Menu->pGfxEnv->drawEnv);
     PutDispEnv(&g_Menu->pGfxEnv->dispEnv);
-    MoveImage(&g_Menu->pSelectionMenu->unk1180, 0, renderContext * 0xE0);
+    MoveImage(&g_Menu->pSelectionMenu->vramRect, 0, renderContext * 0xE0);
     DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
 }
 
@@ -2209,10 +2209,10 @@ void MemberChangeMenuMain(void) {
     MemberChangeMenuDressingRoomManager(MENU_DATA_INITIALIZE);
     MemberChangeMenuUnk348Manager(MENU_DATA_INITIALIZE);
     MemberChangeMenuSetCharacters(MENU_DATA_INITIALIZE);
-    g_Menu->pSelectionMenu->unk1180.x = 0x2C0;
-    g_Menu->pSelectionMenu->unk1180.y = 0x100;
-    g_Menu->pSelectionMenu->unk1180.w = 0x140;
-    g_Menu->pSelectionMenu->unk1180.h = 0xE0;
+    g_Menu->pSelectionMenu->vramRect.x = 0x2C0;
+    g_Menu->pSelectionMenu->vramRect.y = 0x100;
+    g_Menu->pSelectionMenu->vramRect.w = 0x140;
+    g_Menu->pSelectionMenu->vramRect.h = 0xE0;
     g_Menu->unk348->shadeWidth = 0x40;
     MemberChangeMenuInitialize();
     MemberChangeMenuResetRenderContext();

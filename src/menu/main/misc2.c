@@ -53,10 +53,10 @@ void MenuInitializeWindowBorders(void);
 void func_801C6F70(void);
 
 void MenuSetupScreen(void) {
-    g_Menu->pSelectionMenu->unk1180.x = 0x2C0;
-    g_Menu->pSelectionMenu->unk1180.y = 0x100;
-    g_Menu->pSelectionMenu->unk1180.w = 0x140;
-    g_Menu->pSelectionMenu->unk1180.h = 0xE0;
+    g_Menu->pSelectionMenu->vramRect.x = 0x2C0;
+    g_Menu->pSelectionMenu->vramRect.y = 0x100;
+    g_Menu->pSelectionMenu->vramRect.w = 0x140;
+    g_Menu->pSelectionMenu->vramRect.h = 0xE0;
     g_Menu->unk348->shadeWidth = 0x40;
     func_801C6AA0();
     MenuResetRenderContext();
@@ -99,7 +99,7 @@ void MenuRenderFrame(void) {
     ClearOTagR(g_Menu->pGfxEnv->ot, 0x10);
     GameRandomByteRange(0, 0xFF);
     MenuUpdateTransitionEffect();
-    g_Menu->unk2D8++;
+    g_Menu->idleFrameCount++;
     MenuSetPlayTimeDigits(g_SpuChannelMask);
     MenuUpdatePlayTimeDigits();
     MenuAddScreenPrims();
@@ -108,7 +108,7 @@ void MenuRenderFrame(void) {
     Vsync(0);
     PutDrawEnv(&g_Menu->pGfxEnv->drawEnv);
     PutDispEnv(&g_Menu->pGfxEnv->dispEnv);
-    MoveImage(&g_Menu->pSelectionMenu->unk1180, 0, renderContext * 0xE0);
+    MoveImage(&g_Menu->pSelectionMenu->vramRect, 0, renderContext * 0xE0);
     DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
     MenuUpdateCardStatus();
     MenuRunCardSlotOperations();
@@ -201,19 +201,19 @@ void MenuPollInput(void) {
     g_Menu->input = input;
 }
 void MenuSetPlayTimeDigits(u32 value) {
-    ((u32*)g_Menu->unk2EC)[0] = value / 21600000;
+    ((u32*)g_Menu->playTimeDigitIds)[0] = value / 21600000;
     value %= 21600000;
-    ((u32*)g_Menu->unk2EC)[1] = value / 2160000;
+    ((u32*)g_Menu->playTimeDigitIds)[1] = value / 2160000;
     value %= 2160000;
-    ((u32*)g_Menu->unk2EC)[2] = value / 216000;
+    ((u32*)g_Menu->playTimeDigitIds)[2] = value / 216000;
     value %= 216000;
-    ((u32*)g_Menu->unk2EC)[3] = value / 36000;
+    ((u32*)g_Menu->playTimeDigitIds)[3] = value / 36000;
     value %= 36000;
-    ((u32*)g_Menu->unk2EC)[4] = value / 3600;
+    ((u32*)g_Menu->playTimeDigitIds)[4] = value / 3600;
     value %= 3600;
-    ((u32*)g_Menu->unk2EC)[5] = value / 600;
+    ((u32*)g_Menu->playTimeDigitIds)[5] = value / 600;
     value %= 600;
-    ((u32*)g_Menu->unk2EC)[6] = value / 60;
+    ((u32*)g_Menu->playTimeDigitIds)[6] = value / 60;
 }
 void MenuParseNumberToDigits(u32 number) {
     s32 i;
@@ -368,7 +368,7 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
     pVertices[3].vz = 0;
 }
 void MenuPlaySoundEffect(u_char soundEffectId) {
-    if (g_Menu->unk32A) {
+    if (g_Menu->soundEffectsEnabled) {
         SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 16) | soundEffectId);
     }
 }
@@ -433,19 +433,19 @@ void MenuClearCardEvents(void) {
 }
 s32 MenuWaitForCardEvent(void) {
     while (1) {
-        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]) == 1) {
+        if (TestEvent(g_Menu->menuUnk2->cardEvents[3]) == 1) {
             MenuClearCardEvents();
             return 3;
         }
-        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[3]) == 1) {
+        if (TestEvent(g_Menu->menuUnk2->cardEvents[1]) == 1) {
             MenuClearCardEvents();
             return 1;
         }
-        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[2]) == 1) {
+        if (TestEvent(g_Menu->menuUnk2->cardEvents[0]) == 1) {
             MenuClearCardEvents();
             return 0;
         }
-        if (TestEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[4]) == 1) {
+        if (TestEvent(g_Menu->menuUnk2->cardEvents[2]) == 1) {
             MenuClearCardEvents();
             return 2;
         }
@@ -460,10 +460,10 @@ s32 MenuGetCardErrorCode(long chan) {
 void MenuCloseCardEvents(void) {
     MenuRenderFrame();
     EnterCriticalSection();
-    CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[2]);
-    CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[3]);
-    CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[4]);
-    CloseEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]);
+    CloseEvent(g_Menu->menuUnk2->cardEvents[0]);
+    CloseEvent(g_Menu->menuUnk2->cardEvents[1]);
+    CloseEvent(g_Menu->menuUnk2->cardEvents[2]);
+    CloseEvent(g_Menu->menuUnk2->cardEvents[3]);
     ExitCriticalSection();
 }
 s32 MenuCheckCardSlot(u8 index) {
@@ -472,17 +472,17 @@ s32 MenuCheckCardSlot(u8 index) {
     s32 i;
 
     result = 1;
-    ((u8*)g_Menu->menuUnk2 + index)[0x4FE4] = result;
+    g_Menu->menuUnk2->cardStatus[index] = result;
     cardResult = MenuGetCardErrorCode((index != 0) << 4);
-    if (cardResult == 0 && g_Menu->menuUnk2->unk4F74[index] == -1) {
+    if (cardResult == 0 && g_Menu->menuUnk2->cardErrorCodes[index] == -1) {
         cardResult = 1;
-        g_Menu->menuUnk2->unk4F74[index] = 0;
+        g_Menu->menuUnk2->cardErrorCodes[index] = 0;
     } else {
-        g_Menu->menuUnk2->unk4F74[index] = cardResult;
+        g_Menu->menuUnk2->cardErrorCodes[index] = cardResult;
     }
     if (cardResult == -1) {
         ((u8*)g_Menu->menuUnk2 + index)[0x4F8A] = 0;
-        ((u8*)g_Menu->menuUnk2 + index)[0x4FE4] = 0;
+        g_Menu->menuUnk2->cardStatus[index] = 0;
         D_801EA900[index] = 0;
         for (i = 0; i < 0x10; i++) {
             ((u8*)g_Menu->menuUnk2 + (index * 0x10 + i))[0x4FAE] = 0xFF;
@@ -493,21 +493,21 @@ s32 MenuCheckCardSlot(u8 index) {
     if (cardResult == -2) {
         result = 0;
     }
-    if (((u8*)g_Menu->menuUnk2 + index)[0x4FE8] != ((u8*)g_Menu->menuUnk2 + index)[0x4FE4]) {
+    if (g_Menu->menuUnk2->previousCardStatus[index] != g_Menu->menuUnk2->cardStatus[index]) {
         ((u8*)g_Menu->menuUnk2 + index)[0x4F88] = 0;
-        ((u8*)g_Menu->menuUnk2 + index)[0x4FE8] = ((u8*)g_Menu->menuUnk2 + index)[0x4FE4];
+        g_Menu->menuUnk2->previousCardStatus[index] = g_Menu->menuUnk2->cardStatus[index];
     }
     return result;
 }
 void MenuUpdateCardStatus(void) {
     u_char count;
 
-    if (g_Menu->menuUnk2->unk4FE6) {
+    if (g_Menu->menuUnk2->cardPollMode) {
         count = ++g_Menu->cardCheckTimer;
         if (D_801E9779 < count) {
             MenuCheckCardSlot(0);
             MenuCheckCardSlot(1);
-            if (g_Menu->menuUnk2->unk4F74[0] == -1 && g_Menu->menuUnk2->unk4F74[1] == -1) {
+            if (g_Menu->menuUnk2->cardErrorCodes[0] == -1 && g_Menu->menuUnk2->cardErrorCodes[1] == -1) {
                 g_Menu->unk334 = 0;
             }
             g_Menu->cardCheckTimer = 0;
@@ -517,18 +517,18 @@ void MenuUpdateCardStatus(void) {
 void MenuWaitCardOperationFrames(u8 index) {
     s32 i;
 
-    if (g_Menu->menuUnk2->unk4F74[index] != -2) {
-        g_Menu->menuUnk2->unk4FE6 = 2;
+    if (g_Menu->menuUnk2->cardErrorCodes[index] != -2) {
+        g_Menu->menuUnk2->cardPollMode = 2;
         for (i = 0x3B; i != 0; i--) {
             MenuRenderFrame();
         }
-        g_Menu->menuUnk2->unk4FE6 = 0;
+        g_Menu->menuUnk2->cardPollMode = 0;
     }
 }
 void MenuWaitCardOperationVsyncs(u8 index) {
     s32 i;
 
-    if (g_Menu->menuUnk2->unk4F74[index] != -2) {
+    if (g_Menu->menuUnk2->cardErrorCodes[index] != -2) {
         for (i = 0x3B; i != 0; i--) {
             Vsync(0);
         }

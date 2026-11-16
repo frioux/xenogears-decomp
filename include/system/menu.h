@@ -140,8 +140,8 @@ typedef struct {
     /* 0x00 */ u32 equipFlags;
     /* 0x04 */ u16 price;
     /* 0x06 */ u16 unk6;
-    /* 0x08 */ u16 unk8;
-    /* 0x0A */ u16 unkA;
+    /* 0x08 */ u16 baseDefense;
+    /* 0x0A */ u16 baseEtherDefense;
     /* 0x0C */ u16 unkC;
     /* 0x0E */ u16 unkE;
     /* 0x10 */ u16 unk10;
@@ -163,7 +163,7 @@ typedef struct {
     /* 0x0 */ u_short equipFlags; // Which characters can use this item?
     /* 0x2 */ u16 unk2;
     /* 0x4 */ u_short price;
-    /* 0x6 */ u8 unk6; // group id
+    /* 0x6 */ u8 equipGroup; // group id
     /* 0x7 */ u8 unk7[5];
     /* 0xC */ u8 attack;
     /* 0xD */ u8 unkD[3];
@@ -175,14 +175,14 @@ typedef struct {
     /* 0x4 */ u8 unk4[4];
     /* 0x8 */ u8 defense;
     /* 0x9 */ u8 unk9[5];
-    /* 0xE */ u16 unkE; // group id
+    /* 0xE */ u16 equipGroup; // group id
 } MenuShopAccessory; // Size: 0x10
 
 typedef struct {
     /* 0x0  */ DRAWENV drawEnv;
     /* 0x5C */ DISPENV dispEnv;
     /* 0x70 */ unsigned long ot[16];  // 0x70 = ot[0], 0x74 = ot[1], 0x78 = ot[2], 0x7C = ot[3], 0x80 = ot[4]
-    /* 0xB0 */ u32 unkB0;
+    /* 0xB0 */ u32 otBuffer;
 } GfxEnvironment; // Size: 0xB4
 
 typedef struct {
@@ -223,25 +223,28 @@ typedef struct {
     /* 0x4B96 */ u8 unk4B96;
     /* 0x4B97 */ u8 unk4B97;
     /* 0x4B98 */ u8 unk4B98[0x5C];
-    /* 0x4BF4 */ u8 unk4BF4[0x20];
-    /* 0x4C14 */ u8 unk4C14[0x80];
+    /* 0x4BF4 */ u8 saveIconPalette[0x20];
+    /* 0x4C14 */ u8 saveIconImage[0x80];
     /* 0x4C94 */ u8 unk4C94[0x2E0];
-    /* 0x4F74 */ s32 unk4F74[2];
-    /* 0x4F7C */ s32 unk4F7C;
+    /* 0x4F74 */ s32 cardErrorCodes[2];
+    /* 0x4F7C */ s32 selectedSlot;
     /* 0x4F80 */ s32 unk4F80;
     /* 0x4F84 */ u8 unk4F84[0x8];
     /* 0x4F8C */ u8 unk4F8C;
     /* 0x4F8D */ u8 unk4F8D;
     /* 0x4F8E */ u8 unk4F8E[0x20];
     /* 0x4FAE */ u8 unk4FAE[0x20];
-    /* 0x4FCE */ u8 unk4FCE[0xC];
+    /* 0x4FCE */ u8 gameSerialCode[0xC];
     /* 0x4FDA */ u8 unk4FDA;
     /* 0x4FDB */ u8 unk4FDB;
     /* 0x4FDC */ u8 unk4FDC[0x8];
-    /* 0x4FE4 */ u8 unk4FE4;
-    /* 0x4FE5 */ u8 unk4FE5;
-    /* 0x4FE6 */ u8 unk4FE6;
-    /* 0x4FE7 */ u8 unk4FE7[0x4D];
+    /* 0x4FE4 */ u8 cardStatus[2];
+    /* 0x4FE6 */ u8 cardPollMode;
+    /* 0x4FE7 */ u8 unk4FE7;
+    /* 0x4FE8 */ u8 previousCardStatus[2];
+    /* 0x4FEA */ u8 pad4FEA[0x2];
+    /* 0x4FEC */ s32 cardEvents[4];
+    /* 0x4FFC */ u8 pad4FFC[0x38];
 } MenuUnk2; // Size: 0x5034
 
 typedef struct {
@@ -249,33 +252,32 @@ typedef struct {
     /* 0x3  */ u8 unk3;
     /* 0x4  */ u8 shouldRenderPointerCursor; // On the ball selection windows?
     /* 0x5  */ u8 unk5[0x3];
-    /* 0x8  */ u8 unk8;
+    /* 0x8  */ u8 shouldRenderUnk35C;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
     /* 0xA  */ u8 shouldRenderSubmenuStrings; // Gates MenuUnk5 (unk354) string prims
     /* 0xB  */ u8 unkB;
     /* 0xC  */ u8 shouldRenderStrings[0x8]; // One flag per g_Menu->unk6E0 string
     /* 0x14 */ u8 shouldRenderSubMenuChoiceStrings[0x6]; // One flag per g_Menu->subMenuChoiceStrings
-    /* 0x1A */ u8 unk1A[0x6];
+    /* 0x1A */ u8 shouldRenderStringsDE0[0x6];
     /* 0x20 */ u8 shouldRenderWindow[MENU_MAX_NUM_WINDOWS];
     /* 0x27 */ u8 isWindowOpening[MENU_MAX_NUM_WINDOWS]; // Open tween runs while isOpen == 0
     /* 0x2B */ u8 shouldRenderModalStrings;
     /* 0x2C */ u_char shouldRenderCursors;
     /* 0x30 */ u8 currentCharacterIDs[0x3];
     /* 0x33 */ u8 _pad33;
-    /* 0x34 */ u8 unk34[0x4];
-    /* 0x38 */ u8 unk38[0x8];
-    /* 0x40 */ u8 unk40[0x6];
+    /* 0x34 */ u8 shouldRenderStrings4E0[0x4];
+    /* 0x38 */ u8 shouldRenderStrings10E0[0x8];
+    /* 0x40 */ u8 shouldRenderStrings14E0[0x6];
     /* 0x46 */ u8 shouldRenderCharacters;
     /* 0x47 */ u8 unk47;
-    /* 0x48 */ u8 unk48;
+    /* 0x48 */ u8 shouldRenderUnk42C;
     /* 0x49 */ u_char scrollHandleActive;
     /* 0x4A */ u8 shouldRenderPanel[0x4]; // One flag per 0x360/0x430/0x434/0x438 panel
-    /* 0x4E */ u8 unk4E;
-    /* 0x4F */ u8 unk4F;
+    /* 0x4E */ u8 shouldRenderStrings17E0[2];
     /* 0x50 */ u8 shouldRenderArrowCursor[MENU_MAX_NUM_ARROW_CURSORS]; // Should render arrow cursor (array, size 3?)
     /* 0x52 */ u8 unk52;
     /* 0x53 */ u_char shoulderButtonUiActive;
-    /* 0x54 */ u8 unk54[0x6];
+    /* 0x54 */ u8 shouldRenderStrings18E0[0x6];
     /* 0x5A */ u8 shouldRenderShop; // Gates the shop's primitive batch
     /* 0x5B */ u8 unk5B;
     /* 0x5C */ u8 unk5C[0x4];
@@ -287,7 +289,7 @@ typedef struct {
 typedef struct {
     /* 0x0    */ POLY_FT4 polysCursors[28 * 2]; // Cursor for each menu option
     /* 0x8C0  */ POLY_FT4 polysTexts[28 * 2]; // Texts / content for each menu option
-    /* 0x1180 */ RECT unk1180;
+    /* 0x1180 */ RECT vramRect;
     /* 0x1188 */ int numCursors;
     /* 0x118C */ int numTexts;
     /* 0x1190 */ u_char cursorsRenderCtx;
@@ -315,8 +317,8 @@ typedef struct {
     /* 0x0A */ u16 price; // 0x320 or 800
     /* 0x0C */ int unkC; // 0
     /* 0x10 */ int unk10; // 0
-    /* 0x14 */ u8 unk14; // 10 -- agility?
-    /* 0x15 */ u8 unk15; // 10 -- eth amp?
+    /* 0x14 */ u8 agility; // 10 -- agility?
+    /* 0x15 */ u8 etherAmplification; // 10 -- eth amp?
     /* 0x16 */ u8 unk16; // 0
     /* 0x17 */ u8 unk17; // 0
 } GearFrame; /* size: 0x18 */
@@ -337,7 +339,7 @@ typedef struct {
     /* 0x00 */ u32 equipFlags;
     /* 0x04 */ u16 price;
     /* 0x06 */ u16 weight;
-    /* 0x08 */ u16 unk8;
+    /* 0x08 */ u16 equipGroup;
     /* 0x0A */ u16 unkA;
     /* 0x0C */ u8 unkC;
     /* 0x0D */ u8 defense;
@@ -361,7 +363,7 @@ typedef struct {
     /* 0x08 */ u16 price;
     /* 0x0A */ u16 unkA;
     /* 0x0C */ u16 unkC;
-    /* 0x0E */ u8 unkE;
+    /* 0x0E */ u8 attack;
     /* 0x0F */ u8 unkF;
     /* 0x10 */ u8 unk10;
     /* 0x11 */ u8 unk11;
@@ -386,14 +388,14 @@ typedef struct {
     /* 0xAA */ u16 unkAA;
     /* 0xAC */ u16 fuel;
     /* 0xAE */ u16 maxFuel;
-    /* 0xB0 */ u16 unkB0; // maybe ether??
+    /* 0xB0 */ u16 totalAttack; // maybe ether??
     /* 0xB2 */ u8 totalResponsiveness; // responsiveness
-    /* 0xB3 */ u8 unkB3;
-    /* 0xB4 */ u8 unkB4;
+    /* 0xB3 */ u8 totalAgility;
+    /* 0xB4 */ u8 totalEtherAmplification;
     /* 0xB5 */ u8 unkB5;
     /* 0xB6 */ u8 unkB6;
     /* 0xB7 */ u8 unkB7;
-    /* 0xB8 */ u16 unkB8[9];
+    /* 0xB8 */ u16 statValues[9];
     /* 0xCA */ u16 unkCA;
 } MenuDressingRoom; // Size: 0xCC
 
@@ -455,7 +457,9 @@ typedef struct {
 typedef struct {
     /* 0x0000 */ u8 unk0[0x1180];
     /* 0x1180 */ void* pVramBuffer;
-    /* 0x1184 */ u8 unk1184[0x14];
+    /* 0x1184 */ u8 shouldRenderRows[0x10];
+    /* 0x1194 */ u8 shouldRenderPrimGroup;
+    /* 0x1195 */ u8 pad1195[0x3];
 } MenuUnk9; // Size: 0x1198
 
 // MenuString-shaped sprite records plus one visibility flag per record (0xA1C bytes, allocated in misc9)
@@ -464,9 +468,9 @@ typedef struct {
     /* 0x0400 */ MenuString unk400[8];
     /* 0x0800 */ MenuString unk800;
     /* 0x0880 */ MenuString unk880[3];
-    /* 0x0A00 */ u8 unkA00[0x10];
-    /* 0x0A10 */ u8 unkA10[8];
-    /* 0x0A18 */ u8 unkA18[3];
+    /* 0x0A00 */ void* pStringLists[4];
+    /* 0x0A10 */ u8 shouldRenderRows[8];
+    /* 0x0A18 */ u8 shouldRenderStrings880[3];
     /* 0x0A1B */ u8 unkA1B;
 } MenuCharacterSpriteRecords; // Size: 0xA1C
 
@@ -614,8 +618,8 @@ typedef struct {
     /* 0x3A40 */ LINE_F3 linesPortraitHighlight2[9 * 2]; // Red highlight line around portraits, 2nd half
     /* 0x3BF0 */ LINE_F2 lines3BF0[2]; // White line between gold amounts?
     /* 0x3C10 */ u8 unk3C10[0x20];
-    /* 0x3C30 */ MenuString unk3C30[8];
-    /* 0x4030 */ MenuString unk4030[8];
+    /* 0x3C30 */ MenuString strItemNames[8];
+    /* 0x4030 */ MenuString strItemQuantities[8];
     /* 0x4430 */ MenuString strItemDesc;
     /* 0x44B0 */ MenuString str44B0;
     /* 0x4530 */ MenuString str4530;
@@ -630,7 +634,7 @@ typedef struct {
     /* 0x464C */ void* pGearFrameNames;
     /* 0x4650 */ void* pGearEngineNames;
     /* 0x4654 */ u_char curItemQuantities[MAX_SHOP_ITEMS];
-    /* 0x4684 */ u8 unk4684[0x8];
+    /* 0x4684 */ u8 shouldRenderItemRows[0x8];
     /* 0x468C */ u8 inventoryPrimCounts[0x8];
     /* 0x4694 */ u8 inventoryRenderCtxs[0x8];
     /* 0x469C */ u8 shouldRenderPortraitHighlight[0x9];
@@ -650,18 +654,23 @@ typedef struct {
     /* 0x46B2 */ u8 shouldRenderPrices;
     /* 0x46B3 */ u_char finalPriceRenderCtx;
     /* 0x46B4 */ u_char finalPriceStrLen;
-    /* 0x46B5 */ u8 unk46B5;
-    /* 0x46B6 */ u8 unk46B6[0x6];
+    /* 0x46B5 */ u8 shouldRenderStr44B0;
+    /* 0x46B6 */ u8 shouldRenderStr4530;
+    /* 0x46B7 */ u8 unk14F0RenderCtx;
+    /* 0x46B8 */ u8 unk14F0PrimCount;
+    /* 0x46B9 */ u8 shouldRenderUnk14F0;
+    /* 0x46BA */ u8 unk17C0RenderCtx;
+    /* 0x46BB */ u8 unk17C0PrimCount;
     /* 0x46BC */ u8 polys27B0PrimCounts[0x9];
     /* 0x46C5 */ u8 polys3020PrimCounts[0x9];
     /* 0x46CE */ u8 polys27B0RenderCtxs[0x9];
     /* 0x46D7 */ u8 polys3020RenderCtxs[0x9];
-    /* 0x46E0 */ u16 unk46E0[0x10];
-    /* 0x4700 */ u16 unk4700[0x10];
+    /* 0x46E0 */ u16 previousTotalAttacks[0x10];
+    /* 0x4700 */ u16 previousTotalDefenses[0x10];
     // /* 0x4720 */ u_char gearShopItemTables[5 * 20]; // Frames, armor, engines, weapons, parts. Not necessarily in that order.
     /* 0x4720 */ GearShopItemTableEntry gearShopItemTables[5]; // Frames, armor, engines, weapons, parts. Not necessarily in that order.
     /* 0x4784 */ u8 unk4784;
-    /* 0x4785 */ u8 unk4785;
+    /* 0x4785 */ u8 shouldRenderStr45B0;
     /* 0x4786 */ u8 unk4786[0x2];
 } MenuShop; // Size: 0x4788
 
@@ -714,9 +723,9 @@ typedef struct {
     /* 0x1E0  */ VECTOR translation;
     /* 0x1F0  */ MATRIX matTransform;
     /* 0x210  */ u8 unk1D8[0x8];
-    /* 0x218  */ SVECTOR unk218;
+    /* 0x218  */ SVECTOR modelRotation;
     /* 0x220  */ VECTOR cameraPosition;
-    /* 0x230  */ MATRIX unk230;
+    /* 0x230  */ MATRIX modelMatrix;
     /* 0x250  */ u8 unk250[0x48];
     /* 0x298  */ s16 unk298;
     /* 0x29A  */ s16 unk29A;
@@ -744,12 +753,12 @@ typedef struct {
     /* 0x2C6  */ s16 unk2C6;
     /* 0x2C8  */ s16 unk2C8;
     /* 0x2CA  */ s16 unk2CA[6];
-    /* 0x2D8  */ u32 unk2D8;
+    /* 0x2D8  */ u32 idleFrameCount;
     /* 0x2DC  */ MenuResourceDirectory *resources;
     /* 0x2E0  */ void* unk2E0; // Pointer to resources (bin 3)
     /* 0x2E4  */ SoundFile* unk2E4; // Pointer to SEDS file
     /* 0x2E8  */ undefined32 unk2E8;
-    /* 0x2EC  */ s32 unk2EC[7]; // Texture ids of the play time digits
+    /* 0x2EC  */ s32 playTimeDigitIds[7]; // Texture ids of the play time digits
     /* 0x308  */ int renderContext;
     /* 0x30C  */ u_char availableCharacters[0x10];
     /* 0x31C  */ u_char digits[0x9]; // Buffer for numbers parsed into a string
@@ -758,7 +767,7 @@ typedef struct {
     /* 0x327  */ u_char shouldDrawMenu;
     /* 0x328  */ u8 unk328;
     /* 0x329  */ u_char transitionEffectState;
-    /* 0x32A  */ u8 unk32A; // Sound effects enabled?
+    /* 0x32A  */ u8 soundEffectsEnabled; // Sound effects enabled?
     /* 0x32B  */ u8 unk32B;
     /* 0x32C  */ MenuUnk2* menuUnk2;
     /* 0x330  */ MenuDressingRoom* pDressingRoom;
@@ -832,7 +841,7 @@ typedef struct {
     /* 0x4D0  */ s32 characterCellTimer; // Frames spent on the current characterCellFrame
     /* 0x4D4  */ s32 characterCellShade; // Written to every colour channel of the character cell prims
     /* 0x4D8  */ u8 unk4D8;
-    /* 0x4D9  */ u8 unk4D9;
+    /* 0x4D9  */ u8 characterCellShadeReversing;
     /* 0x4DA  */ u8 unk4DA[0x6];
     /* 0x4E0  */ MenuString unk4E0[4];
     /* 0x6E0  */ MenuString unk6E0[8];

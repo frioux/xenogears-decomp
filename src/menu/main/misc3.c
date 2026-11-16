@@ -79,7 +79,7 @@ int func_801C8D78(u_char a0) {
 
 
 void MenuRunCardSlotOperations(void) {
-    switch (g_Menu->menuUnk2->unk4FE6) {
+    switch (g_Menu->menuUnk2->cardPollMode) {
     case 1:
         if (g_Menu->menuUnk2->unk4F84[4] == 0) {
             if ((u_char)func_801C8D78(0) != 0) {
@@ -193,7 +193,7 @@ void func_801C9270(int a0) {
         pRecord = &g_Menu->menuUnk2->records[g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + j]];
         matched = 1;
         for (i = 0; i < 0xC; i++) {
-            if (pRecord->ids[i] != g_Menu->menuUnk2->unk4FCE[i]) {
+            if (pRecord->ids[i] != g_Menu->menuUnk2->gameSerialCode[i]) {
                 matched = 0;
                 break;
             }
@@ -212,22 +212,17 @@ void func_801C9270(int a0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
 extern s32 D_801E981C[];
 
-typedef struct {
-    /* 0x4FE4 */ u8 pad0[0x4FE4];
-    /* 0x4FE4 */ u8 flags[0x4];
-} MenuUnk2Flags;
-
 u_char MenuIsSlotUsable(s32 a0) {
     MenuUnk2* pMenu = g_Menu->menuUnk2;
     s32 result = 1;
     s32 j;
-    s32 idx = pMenu->unk4F7C;
+    s32 idx = pMenu->selectedSlot;
 
     switch (a0) {
     case 0:
         if (*(s32*)&pMenu->unk4F84[4] & 0xFFFF0000) {
             j = D_801E981C[idx];
-            if (((MenuUnk2Flags*)pMenu)->flags[j / 16] != 0) {
+            if (pMenu->cardStatus[j / 16] != 0) {
                 if (pMenu->unk4FAE[j] != 0xFF) {
                     break;
                 }
@@ -238,7 +233,7 @@ u_char MenuIsSlotUsable(s32 a0) {
     case 1:
         if (*(s32*)&pMenu->unk4F84[4] & 0xFFFF0000) {
             j = D_801E981C[idx];
-            if (((MenuUnk2Flags*)pMenu)->flags[j / 16] != 0) {
+            if (pMenu->cardStatus[j / 16] != 0) {
                 if (pMenu->unk4FAE[j] != 0xFF) {
                     if (pMenu->unk4F8E[j] != 0) {
                         break;
@@ -250,7 +245,7 @@ u_char MenuIsSlotUsable(s32 a0) {
         break;
     case 2:
         j = D_801E981C[idx];
-        if (((MenuUnk2Flags*)pMenu)->flags[j / 16] == 0) {
+        if (pMenu->cardStatus[j / 16] == 0) {
             result = 0;
         }
         break;
@@ -273,9 +268,9 @@ s32 MenuFindFirstValidSlot(s32 a0) {
     s32 i;
     s32 j;
 
-    start = (g_Menu->menuUnk2->unk4FE4 == 0) ? 0xF : 0;
+    start = (g_Menu->menuUnk2->cardStatus[0] == 0) ? 0xF : 0;
     limit = 0x1E;
-    if (g_Menu->menuUnk2->unk4FE5 == 0) {
+    if (g_Menu->menuUnk2->cardStatus[1] == 0) {
         limit = 0xF;
     }
     for (i = start; i < limit; i++) {
@@ -286,7 +281,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
         case 0:
             if (*(s32*)&g_Menu->menuUnk2->unk4F84[4] & 0xFFFF0000) {
                 j = D_801E981C[i];
-                if (((MenuUnk2Flags*)g_Menu->menuUnk2)->flags[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
                     result = i;
                     searching = 0;
                 }
@@ -297,7 +292,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
         case 1:
             if (*(s32*)&g_Menu->menuUnk2->unk4F84[4] & 0xFFFF0000) {
                 j = D_801E981C[i];
-                if (((MenuUnk2Flags*)g_Menu->menuUnk2)->flags[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF &&
+                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF &&
                     g_Menu->menuUnk2->unk4F8E[j] != 0) {
                     result = i;
                     searching = 0;
@@ -308,7 +303,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
             break;
         case 2:
             j = D_801E981C[i];
-            if (((MenuUnk2Flags*)g_Menu->menuUnk2)->flags[j / 16] != 0) {
+            if (g_Menu->menuUnk2->cardStatus[j / 16] != 0) {
                 result = i;
                 searching = 0;
             }
@@ -345,19 +340,19 @@ void func_801CA1D4(s32 a0, s32 a1) {
         for (i = a1; i - 3 >= 0; i -= 3) {
             j = D_801E9810[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
-                g_Menu->menuUnk2->unk4F7C = i - 3;
+                g_Menu->menuUnk2->selectedSlot = i - 3;
                 break;
             }
         }
         if (i - 3 >= 0) {
             break;
         }
-        i = g_Menu->menuUnk2->unk4F7C - 3;
+        i = g_Menu->menuUnk2->selectedSlot - 3;
         if (i >= 0) {
             for (; i - 1 >= 0; i--) {
                 j = D_801E9818[i];
                 if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
-                    g_Menu->menuUnk2->unk4F7C = i - 1;
+                    g_Menu->menuUnk2->selectedSlot = i - 1;
                     break;
                 }
             }
@@ -367,19 +362,19 @@ void func_801CA1D4(s32 a0, s32 a1) {
         for (i = a1; i - 3 >= 0; i -= 3) {
             j = D_801E9810[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
-                g_Menu->menuUnk2->unk4F7C = i - 3;
+                g_Menu->menuUnk2->selectedSlot = i - 3;
                 break;
             }
         }
         if (i - 3 >= 0) {
             break;
         }
-        i = g_Menu->menuUnk2->unk4F7C - 3;
+        i = g_Menu->menuUnk2->selectedSlot - 3;
         if (i >= 0) {
             for (; i - 1 >= 0; i--) {
                 j = D_801E9818[i];
                 if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
-                    g_Menu->menuUnk2->unk4F7C = i - 1;
+                    g_Menu->menuUnk2->selectedSlot = i - 1;
                     break;
                 }
             }
@@ -387,14 +382,14 @@ void func_801CA1D4(s32 a0, s32 a1) {
         break;
     case 2:
         i = a1 - 3;
-        if (((u8*)&g_Menu->menuUnk2->unk4FE4)[i / 15] != 0) {
+        if (((u8*)&g_Menu->menuUnk2->cardStatus[0])[i / 15] != 0) {
             if (i >= 0) {
-                g_Menu->menuUnk2->unk4F7C = i;
+                g_Menu->menuUnk2->selectedSlot = i;
             } else {
-                i = g_Menu->menuUnk2->unk4F7C - 3;
+                i = g_Menu->menuUnk2->selectedSlot - 3;
                 if (i >= 0) {
                     if (i - 1 >= 0) {
-                        g_Menu->menuUnk2->unk4F7C = i - 1;
+                        g_Menu->menuUnk2->selectedSlot = i - 1;
                     }
                 }
             }
@@ -424,7 +419,7 @@ void func_801CA480(s32 a0, s32 a1) {
         for (i = a1; i + 1 < 0x1E; i++) {
             j = D_801E9820[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
-                g_Menu->menuUnk2->unk4F7C = i + 1;
+                g_Menu->menuUnk2->selectedSlot = i + 1;
                 break;
             }
         }
@@ -433,15 +428,15 @@ void func_801CA480(s32 a0, s32 a1) {
         for (i = a1; i + 1 < 0x1E; i++) {
             j = D_801E9820[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
-                g_Menu->menuUnk2->unk4F7C = i + 1;
+                g_Menu->menuUnk2->selectedSlot = i + 1;
                 break;
             }
         }
         break;
     case 2:
         i = a1 + 1;
-        if (((u8*)&g_Menu->menuUnk2->unk4FE4)[i / 15] != 0 && i < 0x1E) {
-            g_Menu->menuUnk2->unk4F7C = i;
+        if (((u8*)&g_Menu->menuUnk2->cardStatus[0])[i / 15] != 0 && i < 0x1E) {
+            g_Menu->menuUnk2->selectedSlot = i;
         }
         break;
     }
@@ -470,7 +465,7 @@ void func_801CA5F0(s32 a0, s32 a1) {
         for (i = a1; i - 1 >= 0; i--) {
             j = D_801E9818[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
-                g_Menu->menuUnk2->unk4F7C = i - 1;
+                g_Menu->menuUnk2->selectedSlot = i - 1;
                 break;
             }
         }
@@ -479,17 +474,17 @@ void func_801CA5F0(s32 a0, s32 a1) {
         for (i = a1; i - 1 >= 0; i--) {
             j = D_801E9818[i];
             if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
-                g_Menu->menuUnk2->unk4F7C = i - 1;
+                g_Menu->menuUnk2->selectedSlot = i - 1;
                 break;
             }
         }
         break;
     case 2:
         i = a1 - 1;
-        pFlags = (u8*)&g_Menu->menuUnk2->unk4FE4;
+        pFlags = (u8*)&g_Menu->menuUnk2->cardStatus[0];
         j = i / 15;
         if (pFlags[j] != 0 && i >= 0) {
-            g_Menu->menuUnk2->unk4F7C = i;
+            g_Menu->menuUnk2->selectedSlot = i;
         }
         break;
     }
@@ -544,9 +539,9 @@ u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
 
 void MenuResetSlotSelection(void) {
     g_Menu->menuUnk2->unk4F80 = 0xFF;
-    g_Menu->menuUnk2->unk4F7C = 0;
-    if (g_Menu->menuUnk2->unk4FE4 == 0 && g_Menu->menuUnk2->unk4FE5 != 0) {
-        g_Menu->menuUnk2->unk4F7C = 0xF;
+    g_Menu->menuUnk2->selectedSlot = 0;
+    if (g_Menu->menuUnk2->cardStatus[0] == 0 && g_Menu->menuUnk2->cardStatus[1] != 0) {
+        g_Menu->menuUnk2->selectedSlot = 0xF;
     }
 }
 
@@ -607,17 +602,17 @@ u_char MenuWaitForCardStatusChange(u_char a0) {
     u_char changed;
     u_char result;
 
-    prev[0] = g_Menu->menuUnk2->unk4FE4;
-    prev[1] = g_Menu->menuUnk2->unk4FE5;
+    prev[0] = g_Menu->menuUnk2->cardStatus[0];
+    prev[1] = g_Menu->menuUnk2->cardStatus[1];
     func_801D2F4C(a0 * 3 + 0x29);
     g_Menu->input = 8;
-    g_Menu->menuUnk2->unk4FE6 = 2;
+    g_Menu->menuUnk2->cardPollMode = 2;
     result = 0;
     changed = 0;
     while (g_Menu->input == 8) {
         MenuRenderFrame();
         pMenu = g_Menu->menuUnk2;
-        if (prev[0] != pMenu->unk4FE4 || prev[1] != pMenu->unk4FE5) {
+        if (prev[0] != pMenu->cardStatus[0] || prev[1] != pMenu->cardStatus[1]) {
             changed = 1;
             break;
         }

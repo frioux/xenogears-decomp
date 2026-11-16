@@ -324,7 +324,7 @@ void func_801CE860(void) {
 void MenuAddUnk35CPrims(void) {
     u8* pData;
 
-    if (g_Menu->pManager->unk8) {
+    if (g_Menu->pManager->shouldRenderUnk35C) {
         pData = (u8*)g_Menu->unk35C;
         MenuRenderTransformedQuads(pData[0x32F3], (SVECTOR*)(pData + 0x2420), (POLY_FT4*)pData, pData[0x32F1]);
         func_801CE860();
@@ -376,14 +376,14 @@ void func_801CF37C(void) {
     if (g_Menu->unk4D8 != 2) {
         return;
     }
-    character = g_Menu->menuUnk2->unk4FAE[D_801E981C[g_Menu->menuUnk2->unk4F7C]];
+    character = g_Menu->menuUnk2->unk4FAE[D_801E981C[g_Menu->menuUnk2->selectedSlot]];
     for (i = 0; i < 0x20; i++) {
         if (character != g_Menu->menuUnk2->unk4FAE[i]) {
             continue;
         }
         valid = 1;
         if (character == 0xFF) {
-            valid = i == D_801E981C[g_Menu->menuUnk2->unk4F7C];
+            valid = i == D_801E981C[g_Menu->menuUnk2->selectedSlot];
         }
         if (!valid) {
             continue;
@@ -487,7 +487,7 @@ void func_801CFF64(void) {
     ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk14 =
         *(u16*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + 0x20;
     ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk16 = 0x68;
-    if (g_Menu->unk2D8 % 6 >= 4 || ((u8*)g_Menu->pManager)[0x52] == 2) {
+    if (g_Menu->idleFrameCount % 6 >= 4 || ((u8*)g_Menu->pManager)[0x52] == 2) {
         MenuRenderString(2, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x3F0), ((u8**)g_Menu->unk44C)[0][0x7B8]);
     }
     MenuRenderString(0xC, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x30), ((u8**)g_Menu->unk44C)[0][0x7B8]);
@@ -515,16 +515,16 @@ void MenuAddCellGridPrims(void) {
             g_Menu->characterCellFrame = 0;
         }
     }
-    if (!g_Menu->unk4D9) {
+    if (!g_Menu->characterCellShadeReversing) {
         g_Menu->characterCellShade += 4;
         if (g_Menu->characterCellShade >= 0x81) {
-            g_Menu->unk4D9 = 1;
+            g_Menu->characterCellShadeReversing = 1;
             g_Menu->characterCellShade = 0x7C;
         }
     } else {
         g_Menu->characterCellShade -= 4;
         if (g_Menu->characterCellShade < 0) {
-            g_Menu->unk4D9 = 0;
+            g_Menu->characterCellShadeReversing = 0;
             g_Menu->characterCellShade = 4;
         }
     }

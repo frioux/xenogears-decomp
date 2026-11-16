@@ -129,7 +129,7 @@ void MenuLoadGameMain(void) {
     shouldContinue = 1;
     MenuRevealSelectionMenu(4, g_MenuLoadGameSelectionResourceIds);
     MenuLoadStringsFromIds(8, (u8*)g_Menu + 0x6E0, g_MenuLoadGameRowStringIds, (u8*)g_Menu->pManager + 0xC);
-    g_Menu->unk2D8 = 0;
+    g_Menu->idleFrameCount = 0;
     do {
         MenuRenderFrame();
         switch (g_Menu->input) {
@@ -140,7 +140,7 @@ void MenuLoadGameMain(void) {
                 g_Menu->unk348->shadeWidth = 0x40;
                 shouldContinue = func_801C531C(7);
                 g_MenuSoftResetEnabled = 0;
-                g_Menu->unk2D8 = 0;
+                g_Menu->idleFrameCount = 0;
                 break;
             case 1:
                 if (g_Menu->mainMenuChoice != 0) {
@@ -148,13 +148,13 @@ void MenuLoadGameMain(void) {
                 } else {
                     g_Menu->mainMenuChoice = 2;
                 }
-                g_Menu->unk2D8 = 0;
+                g_Menu->idleFrameCount = 0;
                 break;
             case 3:
                 if (++g_Menu->mainMenuChoice >= 3) {
                     g_Menu->mainMenuChoice = 0;
                 }
-                g_Menu->unk2D8 = 0;
+                g_Menu->idleFrameCount = 0;
                 break;
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
@@ -163,7 +163,7 @@ void MenuLoadGameMain(void) {
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
-        if (ArchiveGetDiscNumber() == 1 && g_Menu->unk2D8 >= 0x259) {
+        if (ArchiveGetDiscNumber() == 1 && g_Menu->idleFrameCount >= 0x259) {
             shouldContinue = 0;
             g_GameDiscChangeRequest = 1;
         }
@@ -351,7 +351,7 @@ void func_801C62A8(void) {
     MenuInitializeMenuData();
     MenuSetupScreen();
     g_Menu->shouldDrawMenu = 1;
-    g_Menu->unk32A = 1;
+    g_Menu->soundEffectsEnabled = 1;
     menuIndex = g_MenuOverlayIndex;
     switch (menuIndex) {
         case 0:
@@ -447,7 +447,7 @@ void MenuResetAnimationCounters(void) {
     g_Menu->characterCellFrame = 0;
     g_Menu->characterCellTimer = 0;
     g_Menu->unk4D8 = 0;
-    g_Menu->unk4D9 = 0;
+    g_Menu->characterCellShadeReversing = 0;
     g_Menu->characterCellShade = 0;
 }
 

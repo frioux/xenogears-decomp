@@ -61,7 +61,7 @@ s32 MenuBeginCardOperation(void) {
     g_Menu->pManager->_pad33 = 1;
     for (; g_Menu->transitionEffectState != 0; MenuRenderFrame()) {
     }
-    g_Menu->menuUnk2->unk4FE7[0] = 1;
+    g_Menu->menuUnk2->unk4FE7 = 1;
     MenuRenderFrame();
     MenuOpenCardEvents();
     DrawSync(0);
@@ -72,11 +72,11 @@ s32 MenuBeginCardOperation(void) {
     D_801EA720 = CdReadCallback(0);
     ExitCriticalSection();
     pMenu = g_Menu->menuUnk2;
-    pMenu->unk4FE7[2] = 0xFF;
-    pMenu->unk4FE7[1] = 0xFF;
+    pMenu->previousCardStatus[1] = 0xFF;
+    pMenu->previousCardStatus[0] = 0xFF;
     g_Menu->menuUnk2->unk4F84[4] = 0;
     g_Menu->menuUnk2->unk4F84[5] = 0;
-    g_Menu->menuUnk2->unk4FE6 = 2;
+    g_Menu->menuUnk2->cardPollMode = 2;
     g_Menu->cardCheckTimer = 0x3C;
     MenuRenderFrame();
     MenuRenderFrame();

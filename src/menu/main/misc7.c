@@ -599,17 +599,17 @@ void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     // is summed in integer space: `polys[i]` gives the commuted addu retail does
     // not have (MenuSetGoldDigits above has the same constraint).
     for (i = 0; i < 3; i++) {
-        func_8002675C(g_Menu->resources, g_Menu->unk2EC[i],
+        func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)(i * sizeof(g_Menu->unk344->polys[0]) + (s32)g_Menu->unk344->polys),
                       g_Menu->renderContext, x + i * 8, y, 0x1000);
     }
     for (i = 3; i < 5; i++) {
-        func_8002675C(g_Menu->resources, g_Menu->unk2EC[i],
+        func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)(i * sizeof(g_Menu->unk344->polys[0]) + (s32)g_Menu->unk344->polys),
                       g_Menu->renderContext, x + i * 8 + 8, y, 0x1000);
     }
     for (i = 5; i < 7; i++) {
-        func_8002675C(g_Menu->resources, g_Menu->unk2EC[i],
+        func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)(i * sizeof(g_Menu->unk344->polys[0]) + (s32)g_Menu->unk344->polys),
                       g_Menu->renderContext, x + i * 8 + 0x10, y, 0x1000);
     }
