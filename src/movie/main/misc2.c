@@ -14,7 +14,7 @@ extern s32 ArchiveDecodeSizeAbsolute(int entryIndex);
 extern u32 g_ArchiveTable;
 extern int ControllerGetButtonState(int controllerIndex);
 extern void SoundSetCdVolumeWithFade(s32 volume, s32 frames);
-extern void Vsync(s32 mode);
+extern int Vsync(s32 mode);
 extern char* ArchiveGetFilePath(int entryIndex);
 extern u32 ArchiveGetDebugTable(void);
 extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
@@ -529,6 +529,151 @@ s32 MovieStartStreamWithMode(u8 mode) {
     func_80076488();
 }
 
+typedef void (*MovieFrameCallback)(u16 frame, s32 arg1, u16 arg2);
+extern void func_801D37CC(int, int, int, int, int, int, int, int, int, int, int, int, MovieFrameCallback);
+extern void func_801D3538(int, int, int, int, int, int, int);
+extern void func_801D43B0(void);
+extern void func_801D3F7C(void);
+extern void func_801D4318(void);
+extern void GameCheckAndHandleSoftReset(void);
+extern s32 D_80077020;
+extern s32 D_80077398;
+extern s32 D_800773A0;
+extern s32 D_800773A4;
+extern s32 D_800773A8;
+extern s32 D_800773B8[];
+extern s32 D_800773BC[];
+extern u8 D_8004FE46;
+extern void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2);
+
+typedef struct {
+    /* 0x0   */ u8 unk0[0x90];
+    /* 0x90  */ RECT clearRect;
+    /* 0x98  */ u8 unk98[0x200];
+    /* 0x298 */ RECT moveRect;
+} MovieRenderLocals; // Size: 0x2A0
+
+// func_80076488: parked at 82.97%, 1076 bytes (retail 1076, frame 0x308 both).
+// Groundwork that is now measured and reusable:
+//  - the frame is one 0x2A0 local, declared here as MovieRenderLocals:
+//    [0x90 pad][RECT clearRect at 0x90][0x200 pad][RECT moveRect at 0x298], placed
+//    at sp+0x38, so clearRect lands on retail's 0xC8 and moveRect on 0x2D0. Nothing
+//    else reproduces those two offsets (declaration order does not move them).
+//  - Vsync is `int Vsync(int)`, not void: retail uses its return value as the two
+//    per-frame timestamps stored to D_800773B8/D_800773BC (stride 8, two s32
+//    pointers advanced by 2, which is why retail has two separate base registers).
+//  - D_80077024 is stored 32-bit and read `lhu` twice; D_800773A0 is `lw` in the
+//    (0xF0 - x) / 2 and `lh` as an argument; D_80077454 is `lhu`.
+//  Residual (measured, not guessed): the D_80077438 boolean argument. Retail emits
+//  `beqz` + `ori v0,zero,1` with the store duplicated into both branches, and both
+//  `lhu` of D_80077024 come from ONE `t0` materialisation. Every spelling tried
+//  (flags if/else, inline ternary, `!= 0`) makes gcc compute `sltu v0,zero,v0` and
+//  sink the D_80077438 load into the argument setup, which reorders the whole
+//  13-argument block. That single argument is what holds this at 82.97%.
+/*
+s32 func_80076488(void) {
+    MovieRenderLocals locals;
+    s32 state;
+    s32 index;
+    s32 mode;
+    s32 i;
+    s32 nFrames;
+    s32 nCounter;
+    s32 nRate;
+    s32 v0;
+    s32 v1;
+    s32* pTimeA;
+    s32* pTimeB;
+    MovieDrawBuffer* pDrawBuffer;
+
+    locals.clearRect = D_800704E0;
+    state = D_80077448;
+    D_80077014 = 0;
+    D_80077020 = 0;
+    mode = 1;
+    if (state == 0) {
+        mode = 0;
+        index = D_8007711C + 3;
+    } else {
+        index = D_8007711C + 2;
+    }
+    if (ArchiveDecodeSize(index) == 0x18) {
+        SetDispMask(1);
+        D_8004FE46 = 0;
+        return;
+    }
+    Vsync(0);
+    ClearImage(&locals.clearRect, 0, 0, 0);
+    DrawSync(0);
+    Vsync(0);
+    D_80077018 = 0;
+    D_8007701C = 0;
+    func_801D43B0();
+    if (D_800773A0 > 0) {
+        D_80077024 = (0xF0 - D_800773A0) / 2;
+    } else {
+        D_80077024 = 0;
+    }
+    func_801D3538(0x140, 0xF0, 0x80, 0x10, 0x20, 0x800, *(u16*)&D_80077454);
+    D_801D68B4 = 0;
+    func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&D_8007739C,
+        *(u16*)&D_80077398, mode, D_80077438 ? 1 : 0, 0, *(u16*)&D_80077024, 0,
+        *(u16*)&D_80077024 + 0xF0, *(s16*)&D_800773A0, MovieRequestFrame);
+    nRate = 0x1E;
+    PutDrawEnv(&D_80077124[D_80077018].drawEnv);
+    pDrawBuffer = D_80077124;
+    PutDispEnv(&D_80077124[D_80077018].dispEnv);
+    SetDispMask(1);
+    for (;;) {
+        if (D_80077020 == 0) {
+            nFrames = nRate / 10;
+            pTimeA = D_800773B8;
+            pTimeB = D_800773BC;
+            nCounter = 1;
+            for (i = 0; i < nFrames; i++) {
+                v0 = Vsync(1);
+                func_801D3F7C();
+                v1 = Vsync(1);
+                if (nCounter < 0x20) {
+                    *pTimeA = v0;
+                    *pTimeB = v1;
+                }
+                nCounter += 2;
+                pTimeB += 2;
+                pTimeA += 2;
+            }
+            nRate = nRate % 10;
+        }
+        nRate += 0x1E;
+        MovieFadeAudioOnPadPress();
+        GameCheckAndHandleSoftReset();
+        Vsync(0);
+        PutDispEnv(&D_80077124[D_8007701C].dispEnv);
+        D_8007701C = D_80077018;
+        if (D_80077014 == 1) {
+            break;
+        }
+        if (D_80077014 > 1) {
+            D_80077014 -= 1;
+        }
+    }
+    func_801D4318();
+    if (D_8007701C != 0) {
+        return 0;
+    }
+    DrawSync(0);
+    Vsync(0);
+    locals.moveRect.x = 0;
+    locals.moveRect.y = 0xF0;
+    locals.moveRect.w = 0x1E0;
+    locals.moveRect.h = 0xF0;
+    MoveImage(&locals.moveRect, 0, 0);
+    DrawSync(0);
+    Vsync(0);
+    PutDispEnv(&D_80077124[1].dispEnv);
+    return 0;
+}
+*/
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
 
 void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2) {
@@ -680,4 +825,3 @@ void MovieBuildViewMatrix(void) {
     pTrans[2] = D_80076F34 - D_80077044;
     CompMatrix(pRotMatrix, &D_800770B8, &D_80077050);
 }
-
