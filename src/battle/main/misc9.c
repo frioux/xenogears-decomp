@@ -516,19 +516,12 @@ void func_8007E7E4(u8 **arg0) {
     } while (addr < (s32)D_800CD1B2);
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E7E4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E8AC);
-/* best: 95.38%. Identical instruction multiset and instruction order; only the
-   v0/v1 pair is mirrored (original: p[2] in v1, p[1] in v0, sum in v1, the
-   D_800D3364 pointer reusing v0). Same allocator tie as func_8007E740. Tried:
-   both summand orders, inline index, s32 idx local, pointer local for the base.
-   Confirmed a pure labelling tie: both sides end in the same `addu v0,v0,v1`;
-   only the two scale temps and the D_800D3364 pointer swap v0/v1.
 void func_8007E8AC(u8 **arg0) {
     u8 *p = *arg0;
     s32 idx = p[2] * 8 + p[1] * 0x40;
 
-    D_800D3364[idx + 0x140] = p[3];
-} */
+    D_800D3364[(u32)(idx + 0x140)] = p[3];
+}
 void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
     u16 *pRegs = D_800D3400[arg1].unk20;
 
