@@ -632,8 +632,218 @@ void func_8009B46C(u16* arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B46C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B684);
+void func_8009B684(u8 arg0, u16 arg1) {
+    switch (arg0) {
+    case 0:
+        switch (arg1) {
+        case 0x2000:
+            D_800C34B0->unk5FC7 = 1;
+            break;
+        case 0x1000:
+            D_800C34B0->unk5FC7 = 2;
+            break;
+        case 0x800:
+            D_800C34B0->unk5FC7 = 3;
+            break;
+        case 0x400:
+            D_800C34B0->unk5FC7 = 4;
+            break;
+        case 0x200:
+            D_800C34B0->unk5FC7 = 5;
+            break;
+        case 0x1:
+            D_800C34B0->unk5FC7 = 8;
+            break;
+        }
+        break;
+    case 2:
+        switch (arg1) {
+        case 0x2000:
+            D_800C34B0->unk5FC7 = 9;
+            break;
+        case 0x1000:
+            D_800C34B0->unk5FC7 = 0xA;
+            break;
+        case 0x800:
+            D_800C34B0->unk5FC7 = 0xB;
+            break;
+        case 0x400:
+            D_800C34B0->unk5FC7 = 0xC;
+            break;
+        case 0x1:
+            D_800C34B0->unk5FC7 = 0xD;
+            break;
+        case 0x20:
+            D_800C34B0->unk5FC7 = 7;
+            break;
+        }
+        break;
+    case 5:
+        switch (arg1) {
+        case 0x8000:
+            D_800C34B0->unk5FC7 = 0xE;
+            break;
+        case 0x4000:
+            D_800C34B0->unk5FC7 = 0xF;
+            break;
+        case 0x2000:
+            D_800C34B0->unk5FC7 = 0x10;
+            break;
+        case 0x1000:
+            D_800C34B0->unk5FC7 = 0x11;
+            break;
+        case 0x800:
+            D_800C34B0->unk5FC7 = 0x12;
+            break;
+        case 0x1800:
+            D_800C34B0->unk5FC7 = 0x13;
+            break;
+        }
+        break;
+    case 7:
+        switch (arg1) {
+        case 0x8000:
+            D_800C34B0->unk5FC7 = 0x15;
+            break;
+        case 0x4000:
+            D_800C34B0->unk5FC7 = 0x16;
+            break;
+        case 0x1000:
+            D_800C34B0->unk5FC7 = 0x18;
+            break;
+        case 0x8:
+        case 0x2:
+            D_800C34B0->unk5FC7 = 0x19;
+            break;
+        case 0x1:
+        case 0x4:
+            D_800C34B0->unk5FC7 = 0x1A;
+            break;
+        }
+        break;
+    case 9:
+        switch (arg1) {
+        case 0x8000:
+            D_800C34B0->unk5FC7 = 0x1B;
+            break;
+        case 0x4000:
+            D_800C34B0->unk5FC7 = 0x1C;
+            break;
+        case 0x2000:
+            D_800C34B0->unk5FC7 = 0x1D;
+            break;
+        case 0x1000:
+            D_800C34B0->unk5FC7 = 0x1E;
+            break;
+        case 0x400:
+            D_800C34B0->unk5FC7 = 0x1F;
+            break;
+        case 0x800:
+            D_800C34B0->unk5FC7 = 0x20;
+            break;
+        case 0x100:
+            D_800C34B0->unk5FC7 = 0x21;
+            break;
+        case 0x200:
+            D_800C34B0->unk5FC7 = 0x22;
+            break;
+        }
+        break;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
+// PARKED (99.72%, 720 bytes = retail's exact size and instruction multiset).
+// 180 instructions against retail's 180; the ONLY difference is the destination
+// of the four `mfhi` in the mod-by-100 sequences: retail has `mfhi a0; sra a0,a0,5`
+// (the HI pseudo coalesced with the quotient pseudo), gcc 2.6.0 here emits
+// `mfhi a3; sra a0,a3,5`. Everything else matches, and two shapes are
+// load-bearing: the switch cases are listed in retail's emitted body order
+// (3,4,5,7,0/8,2/9,1/6/10 - any other order moves the blocks) and the tail is
+// `if (r >= 0x3C) pInfo[1] = mask; else pInfo[1] = 0;`, which is what lets gcc
+// tail-merge the zero store with the unk56 == 8 one (the if/else written the
+// other way round is 8 bytes longer).
+// Tried: 6 declaration orders of mask/count/bit, u32 bit (716 bytes, worse), a
+// shared `s32 r = rand() % 100` local (99.50), an unused u32 local, `% 0x64`,
+// early returns instead of the if/else tail, both operand orders of
+// `(0x8000 >> bit) & mask` (the swapped one is what matches), gcc-2.7.2 -O2 and
+// -O3 (99.72 too, so not the preset) and a 4-minute permuter run (base=40
+// best=40, 1146 iterations). The `lw v0,<jtbl>` operand in the diff is the
+// usual jtbl_/.rodata difference.
+/*
+void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
+    BattleTableEntry* p = &D_800CCCE8[arg0];
+    u16 mask;
+    u8 count;
+    u8 bit;
+
+    if (D_800CCE42[arg0 * 0x170] & 0x80) {
+        mask = 1;
+    } else {
+        if (rand() % 100 < 10 && !(p->unk7A & 0x100) && *pStatus == 0) {
+            *pInfo = 4;
+            return;
+        }
+        switch (p->unk56) {
+        case 3:
+            mask = 0xC3C0;
+            count = 0xA;
+            break;
+        case 4:
+            mask = 0xDF80;
+            count = 0xA;
+            break;
+        case 5:
+            mask = 0x1000;
+            count = 4;
+            break;
+        case 7:
+            mask = 0xE000;
+            count = 3;
+            break;
+        case 0:
+        case 8:
+            mask = 0xC000;
+            count = 2;
+            break;
+        case 2:
+        case 9:
+            mask = 0xBFE0;
+            count = 0xB;
+            break;
+        case 1:
+        case 6:
+        case 10:
+            mask = 0xF000;
+            count = 4;
+            break;
+        }
+        if (rand() % 100 < 25 && !(p->unk7A & 0x20)) {
+            *pInfo = 2;
+            bit = rand() % count;
+            if (*(u16*)&g_GameState.unk16BC[p->unk56].unk6 & ((0x8000 >> bit) & mask)) {
+                pInfo[1] = bit;
+                return;
+            }
+        }
+        if (p->unk56 == 8) {
+            *pInfo = 0;
+            pInfo[1] = 0;
+            return;
+        }
+        mask = 1;
+    }
+    *pInfo = mask;
+    if (rand() % 100 < 0x50) {
+        if (rand() % 100 >= 0x3C) {
+            pInfo[1] = mask;
+        } else {
+            pInfo[1] = 0;
+        }
+    } else {
+        pInfo[1] = 2;
+    }
+}
+*/
 // best 98.33% (was 86.33%): only the last four instructions differ, and only by
 // register: gcc puts the second D_800C3E50 load in $v0 where retail has $v1, so
 // mfhi lands in $a1 instead of $v0. Permuter score 50, stuck over 1907+1250
