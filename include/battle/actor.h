@@ -8,7 +8,7 @@
 // A queued movement/rotation command, allocated by BattleAllocBlock and linked
 // into the owning sprite's p70 slot.
 typedef struct {
-    /* 0x0 */ u8 unk0;
+    /* 0x0 */ u8 inUse; // BattleAllocBlock hands out blocks with this clear; BattleFreeBlock clears it
     /* 0x1 */ u8 unk1;
     /* 0x2 */ u8 unk2;
     /* 0x3 */ u8 unk3;
@@ -99,7 +99,7 @@ typedef struct {
     /* 0x026 */ s16 unk26;
     /* 0x028 */ s16 unk28;
     /* 0x02A */ u8 unk2A[0x1];
-    /* 0x02B */ u8 unk2B;
+    /* 0x02B */ u8 commandCount;
     /* 0x02C */ u8 unk2C[0x8];
     /* 0x034 */ u8 unk34;
     /* 0x035 */ u8 unk35;
@@ -119,7 +119,7 @@ typedef struct {
     /* 0x054 */ s32 unk54;
     /* 0x058 */ u16 unk58;
     /* 0x05A */ u16 unk5A;
-    /* 0x05C */ u8 unk5C;
+    /* 0x05C */ u8 parentActorSlot; // g_BattleActors slot of the actor whose transform this one inherits; 0xFF = none
     /* 0x05D */ u8 unk5D;
     /* 0x05E */ s16 unk5E;
     /* 0x060 */ u8 unk60[0xA];
@@ -163,8 +163,8 @@ typedef struct {
     /* 0x3C */ u8 unk3C[0x13];
     /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 unk50[0x10];
-    /* 0x60 */ u32 unk60; // scaled current hp
-    /* 0x64 */ u32 unk64; // scaled max hp
+    /* 0x60 */ u32 hp; // scaled current hp
+    /* 0x64 */ u32 maxHp; // scaled max hp
     /* 0x68 */ u8 unk68[0x14];
     /* 0x7C */ u16 unk7C;
     /* 0x7E */ u8 unk7E[0x2];
@@ -194,8 +194,8 @@ typedef struct {
     /* 0x004 */ u8 unk04[0x34];
     /* 0x038 */ u16 unk38;
     /* 0x03A */ u8 unk3A[0x12];
-    /* 0x04C */ u16 unk4C; // hp, scaled by 50 into +0x104
-    /* 0x04E */ u16 unk4E; // max hp, scaled by 50 into +0x108
+    /* 0x04C */ u16 hp;
+    /* 0x04E */ u16 maxHp; // both scaled by 50 into state.hp / state.maxHp
     /* 0x050 */ u16 unk50; // scaled by 10 into unk5F6C
     /* 0x052 */ u16 unk52;
     /* 0x054 */ u16 unk54;
@@ -218,12 +218,15 @@ typedef struct {
     /* 0x0A4 */ BattleSlotState state;
 } BattleTableEntry; // Size: 0x170
 
-// The per-slot battle register file (g_BattleSlotRegs[slot]): the dword, word and
-// byte registers the script's comparison ops test against, indexed by the
-// operand byte that follows the opcode. +0x00 is read as a script cursor by
-// src/battle/main/misc4.
+// The per-slot battle register file (g_BattleSlotRegs[slot]): the two script
+// cursors at +0x00/+0x08 and the dword, word and byte registers the script's
+// comparison ops test against, indexed by the operand byte that follows the
+// opcode.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x10];
+    /* 0x00 */ u8* pScriptCursor; // the script BattleScriptResetActorState walks
+    /* 0x04 */ u8 unk04[0x4];
+    /* 0x08 */ u8* pScanCursor; // the script BattleScriptScanForOpcode62 scans
+    /* 0x0C */ u8 unk0C[0x4];
     /* 0x10 */ u32 unk10[4]; // dword registers
     /* 0x20 */ u16 unk20[8]; // word registers
     /* 0x30 */ u8 unk30[0x10]; // byte registers
@@ -296,7 +299,7 @@ typedef struct {
     /* 0x5FC1 */ u8 unk5FC1;
     /* 0x5FC2 */ u8 unk5FC2;
     /* 0x5FC3 */ u8 unk5FC3[4];
-    /* 0x5FC7 */ u8 unk5FC7;
+    /* 0x5FC7 */ u8 commandCode;
 } BattleWorkBlock; // Size: 0x5FC8
 
 // One instruction of the bytecode a battle slot's handlers step through: the

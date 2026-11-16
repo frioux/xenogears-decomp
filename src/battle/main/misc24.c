@@ -233,12 +233,12 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
 
     if (pActor != 0) {
         if (pSource != 0) {
-            if (pActor->unk2B != 0) {
-                if (pActor->unk2B < 5) {
-                    pActor->unk2B = pActor->unk2B + 1;
+            if (pActor->commandCount != 0) {
+                if (pActor->commandCount < 5) {
+                    pActor->commandCount = pActor->commandCount + 1;
                 }
-                pActor->unk2A[pActor->unk2B] = pSource->unk20[0];
-                pActor->unk2C[pActor->unk2B + 2] = arg3;
+                pActor->unk2A[pActor->commandCount] = pSource->unk20[0];
+                pActor->unk2C[pActor->commandCount + 2] = arg3;
             } else {
                 if (arg3 < 0x50) {
                     pActor->unk10 = ((s32 *)pSource->unk8)[arg3];
@@ -288,34 +288,34 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
     SVECTOR vec;
 
     pMatrix = (MATRIX *)PSX_SCRATCH;
-    if (g_BattleActors[pActor->unk5C] != NULL) {
+    if (g_BattleActors[pActor->parentActorSlot] != NULL) {
         if (!(pActor->flags4A & 0x10)) {
-            pActor->unk34 = g_BattleActors[pActor->unk5C]->unk34;
+            pActor->unk34 = g_BattleActors[pActor->parentActorSlot]->unk34;
         }
         if (pActor->unk34 != 0) {
             if (pActor->unk5D != 0) {
                 index = pActor->unk5E;
                 if (index != 0) {
-                    pSprites = g_BattleActors[pActor->unk5C]->pSprites;
+                    pSprites = g_BattleActors[pActor->parentActorSlot]->pSprites;
                     MulMatrix0(&pSprites->globalTransform,
                                &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
                                     ->globalTransform,
                                pMatrix);
                 } else {
-                    pMatrix = &g_BattleActors[pActor->unk5C]->pSprites->globalTransform;
+                    pMatrix = &g_BattleActors[pActor->parentActorSlot]->pSprites->globalTransform;
                 }
                 MulMatrix2(pMatrix, &pActor->pSprites->localTransform);
                 MulMatrix2(pMatrix, &pActor->pSprites->globalTransform);
             }
             index = pActor->unk5E;
             if (index != 0) {
-                pSprites = g_BattleActors[pActor->unk5C]->pSprites;
+                pSprites = g_BattleActors[pActor->parentActorSlot]->pSprites;
                 CompMatrix(&pSprites->localTransform,
                            &((BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites))
                                 ->globalTransform,
                            pMatrix);
             } else {
-                pMatrix = &g_BattleActors[pActor->unk5C]->pSprites->localTransform;
+                pMatrix = &g_BattleActors[pActor->parentActorSlot]->pSprites->localTransform;
             }
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
@@ -328,7 +328,7 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
             gte_stlvnl((u8 *)pActor->pSprites + 0x5C);
         }
     } else {
-        pActor->unk5C = 0xFF;
+        pActor->parentActorSlot = 0xFF;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AAD54);
@@ -348,7 +348,7 @@ void BattleQueueSpriteRotationTween(u8 *pPool, BattleSprite *pSprite, s32 arg2, 
             pNode = pSprite->p70;
         }
         if (pNode != NULL) {
-            pNode->unk0 = 1;
+            pNode->inUse = 1;
             pNode->unk2 = 3;
             pNode->unk1 = 0;
             pNode->unk3 = 0xFE;
@@ -389,7 +389,7 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
         pNode = pSprite->p70;
     }
     if (pNode != NULL) {
-        pNode->unk0 = 1;
+        pNode->inUse = 1;
         pNode->unk2 = arg2 + 7;
         pNode->unk1 = 0;
         pNode->unk3 = 0xFE;

@@ -349,14 +349,14 @@ void BattleClearActorPercent99(void) {
 }
 void BattleSetSlotState2FromActorField4F(void) {
     BattleSlotState *p = D_800D2DC8;
-    u32 v = p->unk4F * p->unk64;
+    u32 v = p->unk4F * p->maxHp;
     u32 q = v / 10;
 
     g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
     g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
-    u32 v = g_BattleCurrentRow->unk11 * D_800D2DC8->unk64;
+    u32 v = g_BattleCurrentRow->unk11 * D_800D2DC8->maxHp;
     u32 q = v / 20;
 
     g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
@@ -497,83 +497,83 @@ void BattleSetCommandCodeForFlagBit(u8 arg0, u16 arg1) {
     case 0:
         switch (arg1) {
         case 0x400:
-            g_BattleCurWorkBlock->unk5FC7 = 0x24;
+            g_BattleCurWorkBlock->commandCode = 0x24;
             break;
         case 0x200:
-            g_BattleCurWorkBlock->unk5FC7 = 0x25;
+            g_BattleCurWorkBlock->commandCode = 0x25;
             break;
         case 0x100:
-            g_BattleCurWorkBlock->unk5FC7 = 0x26;
+            g_BattleCurWorkBlock->commandCode = 0x26;
             break;
         case 0x80:
-            g_BattleCurWorkBlock->unk5FC7 = 0x27;
+            g_BattleCurWorkBlock->commandCode = 0x27;
             break;
         case 0x40:
-            g_BattleCurWorkBlock->unk5FC7 = 0x28;
+            g_BattleCurWorkBlock->commandCode = 0x28;
             break;
         case 0x20:
-            g_BattleCurWorkBlock->unk5FC7 = 0x29;
+            g_BattleCurWorkBlock->commandCode = 0x29;
             break;
         case 0x10:
-            g_BattleCurWorkBlock->unk5FC7 = 0x2A;
+            g_BattleCurWorkBlock->commandCode = 0x2A;
             break;
         case 4:
-            g_BattleCurWorkBlock->unk5FC7 = 0x2B;
+            g_BattleCurWorkBlock->commandCode = 0x2B;
             break;
         }
         break;
     case 1:
         switch (arg1) {
         case 0x1000:
-            g_BattleCurWorkBlock->unk5FC7 = 0x2D;
+            g_BattleCurWorkBlock->commandCode = 0x2D;
             break;
         case 0x800:
-            g_BattleCurWorkBlock->unk5FC7 = 0x2E;
+            g_BattleCurWorkBlock->commandCode = 0x2E;
             break;
         case 0x400:
-            g_BattleCurWorkBlock->unk5FC7 = 0x2F;
+            g_BattleCurWorkBlock->commandCode = 0x2F;
             break;
         case 0x40:
-            g_BattleCurWorkBlock->unk5FC7 = 0x15;
+            g_BattleCurWorkBlock->commandCode = 0x15;
             break;
         case 0x20:
-            g_BattleCurWorkBlock->unk5FC7 = 0x16;
+            g_BattleCurWorkBlock->commandCode = 0x16;
             break;
         case 8:
         case 2:
-            g_BattleCurWorkBlock->unk5FC7 = 0x19;
+            g_BattleCurWorkBlock->commandCode = 0x19;
             break;
         case 4:
         case 1:
-            g_BattleCurWorkBlock->unk5FC7 = 0x1A;
+            g_BattleCurWorkBlock->commandCode = 0x1A;
             break;
         }
         break;
     case 3:
         switch (arg1) {
         case 0x8000:
-            g_BattleCurWorkBlock->unk5FC7 = 0x1B;
+            g_BattleCurWorkBlock->commandCode = 0x1B;
             break;
         case 0x4000:
-            g_BattleCurWorkBlock->unk5FC7 = 0x1C;
+            g_BattleCurWorkBlock->commandCode = 0x1C;
             break;
         case 0x2000:
-            g_BattleCurWorkBlock->unk5FC7 = 0x1D;
+            g_BattleCurWorkBlock->commandCode = 0x1D;
             break;
         case 0x1000:
-            g_BattleCurWorkBlock->unk5FC7 = 0x1E;
+            g_BattleCurWorkBlock->commandCode = 0x1E;
             break;
         case 0x400:
-            g_BattleCurWorkBlock->unk5FC7 = 0x1F;
+            g_BattleCurWorkBlock->commandCode = 0x1F;
             break;
         case 0x800:
-            g_BattleCurWorkBlock->unk5FC7 = 0x20;
+            g_BattleCurWorkBlock->commandCode = 0x20;
             break;
         case 0x100:
-            g_BattleCurWorkBlock->unk5FC7 = 0x21;
+            g_BattleCurWorkBlock->commandCode = 0x21;
             break;
         case 0x200:
-            g_BattleCurWorkBlock->unk5FC7 = 0x22;
+            g_BattleCurWorkBlock->commandCode = 0x22;
             break;
         }
         break;

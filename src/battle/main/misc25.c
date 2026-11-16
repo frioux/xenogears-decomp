@@ -185,7 +185,7 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
         pBlock = BattleAllocBlock(pPool);
     }
     if (pBlock != NULL) {
-        pBlock->unk0 = 1;
+        pBlock->inUse = 1;
         pBlock->unk1 = unk1;
         pBlock->unk2 = command + 3;
         pBlock->unk3 = unk3;
@@ -504,7 +504,7 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
         }
         pBlock = g_BattleBlockSlots[index];
         if (pBlock != NULL) {
-            pBlock->unk0 = 1;
+            pBlock->inUse = 1;
             pBlock->unk1 = 0;
             pBlock->unk2 = unk2;
             pBlock->unk3 = unk3;

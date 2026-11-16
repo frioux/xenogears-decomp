@@ -511,7 +511,7 @@ void BattleResetBlockPool(BattleBlockPool* pPool) {
         pBlock = (BattleBlock*)pPool->pBlocks;
         pPool->usedCount = 0;
         for (i = 0; i < pPool->capacity; i++) {
-            pBlock->unk0 = 0;
+            pBlock->inUse = 0;
             pBlock++;
         }
     }
@@ -521,10 +521,10 @@ BattleBlock* BattleAllocBlock(BattleBlockPool* pPool) {
 
     if (pPool->usedCount < pPool->capacity) {
         pBlock = &((BattleBlock*)pPool->pBlocks)[pPool->usedCount];
-        if (pBlock->unk0 == 0) {
+        if (pBlock->inUse == 0) {
             pPool->usedCount++;
             while (pPool->usedCount < pPool->capacity &&
-                   ((BattleBlock*)pPool->pBlocks)[pPool->usedCount].unk0 != 0) {
+                   ((BattleBlock*)pPool->pBlocks)[pPool->usedCount].inUse != 0) {
                 pPool->usedCount++;
             }
             return pBlock;
@@ -542,7 +542,7 @@ s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock) {
     if (index < pPool->usedCount) {
         pPool->usedCount = index;
     }
-    pBlock->unk0 = 0;
+    pBlock->inUse = 0;
     return index;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);

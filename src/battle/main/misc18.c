@@ -112,10 +112,10 @@ void BattleRollSlotConditionAction(void) {
 
     switch (g_BattleCurrentRow->unk17[3]) {
     case 0:
-        hp = g_BattleActingSlot->unk4E;
+        hp = g_BattleActingSlot->maxHp;
         break;
     case 1:
-        hp = D_800C3E34->unk4E;
+        hp = D_800C3E34->maxHp;
         break;
     case 2:
         hp = g_BattleActingSlot->unk52;
@@ -127,7 +127,7 @@ void BattleRollSlotConditionAction(void) {
 
     dmg = hp * g_BattleCurrentRow->unk11 / 20;
     if (g_BattleCurrentRow->unk17[3] == 5) {
-        dmg = D_800C3E34->unk4C - 1;
+        dmg = D_800C3E34->hp - 1;
     }
 
     switch (g_BattleCurrentRow->unk17[3]) {
@@ -177,26 +177,26 @@ void BattleSetSlotConditionActionValue(void) {
     case 0:
         if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80) {
             g_BattleCurWorkBlock->unk5F6C[D_800C3E50] =
-                ((BattleSlotState *)D_800D2DC8)->unk60 / g_BattleCurrentRow->unk11;
+                ((BattleSlotState *)D_800D2DC8)->hp / g_BattleCurrentRow->unk11;
         } else {
             g_BattleCurWorkBlock->unk5F6C[D_800C3E50] =
-                D_800C3E34->unk4C / g_BattleCurrentRow->unk11;
+                D_800C3E34->hp / g_BattleCurrentRow->unk11;
         }
         break;
     case 1:
         if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80) {
-            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->unk60 - 1;
+            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->hp - 1;
         } else {
-            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = D_800C3E34->unk4C - 1;
+            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = D_800C3E34->hp - 1;
         }
         break;
     case 2:
         if (g_BattleCurWorkBlock->slots[D_800C3E04].state.unkB6 & 0x80) {
             g_BattleCurWorkBlock->unk5F6C[D_800C3E50] =
-                D_800D2D6C->unk64 - D_800D2D6C->unk60;
+                D_800D2D6C->maxHp - D_800D2D6C->hp;
         } else {
             g_BattleCurWorkBlock->unk5F6C[D_800C3E50] =
-                g_BattleActingSlot->unk4E - g_BattleActingSlot->unk4C;
+                g_BattleActingSlot->maxHp - g_BattleActingSlot->hp;
         }
         break;
     case 3:
@@ -206,19 +206,19 @@ void BattleSetSlotConditionActionValue(void) {
         g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = 1;
         break;
     case 5:
-        g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = D_800C3E34->unk4C;
+        g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = D_800C3E34->hp;
         break;
     case 6:
         g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 0;
         if (g_BattleWorkBlock[D_800C3E50].state.unkB6 & 0x80) {
-            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->unk64;
-            if (((BattleSlotState *)D_800D2DC8)->unk64 >= 0x2710) {
-                ((BattleSlotState *)D_800D2DC8)->unk64 = 0x270F;
+            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->maxHp;
+            if (((BattleSlotState *)D_800D2DC8)->maxHp >= 0x2710) {
+                ((BattleSlotState *)D_800D2DC8)->maxHp = 0x270F;
             }
         } else {
-            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = D_800C3E34->unk4E;
-            if (D_800C3E34->unk4E >= 0x2710) {
-                D_800C3E34->unk4E = 0x270F;
+            g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = D_800C3E34->maxHp;
+            if (D_800C3E34->maxHp >= 0x2710) {
+                D_800C3E34->maxHp = 0x270F;
             }
         }
         break;
@@ -378,7 +378,7 @@ void BattleRollPercentAndSetState38(void) {
     s32 t = g_BattleActingSlot->unk5B + g_BattleCurrentRow->unk14;
 
     if (rand() % 100 >= t) {
-        g_BattleCurWorkBlock->unk5FC7 = 0x38;
+        g_BattleCurWorkBlock->commandCode = 0x38;
         D_800D2DC4 = 1;
     }
 }
@@ -442,7 +442,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock + D_800C3E04 * 0x5F0 + 0x1378);
     g_BattleCurWorkBlock->unk5FA0[D_800C3E04] = 7;
     g_BattleCurWorkBlock->unk5F6C[D_800C3E04] = 0;
-    g_BattleCurWorkBlock->unk5FC7 = 0x34;
+    g_BattleCurWorkBlock->commandCode = 0x34;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
@@ -510,14 +510,14 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
     case 9:
         if (arg2 & 0xF000) {
             if (D_800C3E34->unk8E & 0xF000) {
-                g_BattleCurWorkBlock->unk5FC7 = 0x39;
+                g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
             }
             D_800C3E34->unk8C &= 0xFFF;
         }
         if (arg2 & 0xF00) {
             if (D_800C3E34->unk8E & 0xF00) {
-                g_BattleCurWorkBlock->unk5FC7 = 0x39;
+                g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
             }
             D_800C3E34->unk8C &= 0xF0FF;
@@ -531,10 +531,10 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
         if (arg2 & 0x2) {
             if (BattleTestActorSlotFlagsC002ByMode()) {
                 D_800C3E34->unk7C |= arg2;
-                g_BattleCurWorkBlock->unk5FC7 = 0x31;
+                g_BattleCurWorkBlock->commandCode = 0x31;
                 D_800C3E34->unk7A = 0xFFEF;
             } else {
-                g_BattleCurWorkBlock->unk5FC7 = 0x32;
+                g_BattleCurWorkBlock->commandCode = 0x32;
             }
         }
         break;
