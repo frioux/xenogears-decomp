@@ -385,63 +385,39 @@ void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D51EC);
-/* Best: 98.31%, frame 0x38, a1 and n share s2 as in retail. The one remaining
-   diff is loop 2's `i++`: retail has `addiu s1,s1,1` in the `beq
-   digits[6+i]==0xFF` delay slot with `ori v0,0x1000` first in the body, gcc
-   puts the `li 0x1000` in the slot and `addiu s1,s1,1` in the latch. That is
-   reorg's delay-slot choice, not allocation (both sides are 122 insns).
-   The key discovery is the statement order after loop 1: gcc's loop-2 preheader
-   hoists the `n = 0` biv init to the TOP of the fall-through block, so reorg
-   steals it into loop 1's back-branch slot and a1 has to keep a register of its
-   own (frame 0x40). Writing `i = 0;` as a statement BEFORE the second
-   MenuParseNumberToDigits call (and `n = 0` after the counter store) makes `i = 0` the
-   block's first insn - reorg rejects it because s1 is live at loop 1's head -
-   so reorg takes the `andi v1,s2,0xFF` of the second characters[] chain instead,
-   exactly like retail, and a1 then dies before n is born. Re-read since: retail
-   keeps `addiu s1,s1,1` in the latch for loop 1 but has it in the `beq` delay
-   slot with no latch copy for loop 2 - i.e. in retail's RTL the loop-2
-   increment sits at the top of the body block. No for/while/continue/
-   digits[i++] shape gives that (a `while (i < 3)` puts the test at the head,
-   where retail's head starts at the `g_Menu` load), and cdk does not change it,
-   so this is an RTL rotation, not a delay-slot choice. Tried: `continue`
-   form, n=0 before the call / after the sb, i=0 only in the for-init, `i < 3`
-   with the increment in the latch: all 94.45-98.31%. Round 121: permuter, 1020
-   iterations from the 98.31% body, best = base; spelling loop 2's guard
-   `digits[6 + i++]` and re-reading the digit in the body drops it to 94.38%
-   (492 bytes), so the increment cannot come from the index expression.
-   void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
-       u8* pWindow = (u8*)g_Menu->unk39C[a0];
-       s32 i;
-       s32 n;
+void func_801D51EC(u_char a0, u_char a1, s32 a2, s32 a3) {
+    u8* pWindow = (u8*)g_Menu->unk39C[a0];
+    s32 i;
+    s32 n;
 
-       MenuParseNumberToDigits(g_GameState.characters[a1].hp);
-       pWindow[0x1273] = 0;
-       for (i = 0; i < 3; i++) {
-           if (g_Menu->digits[6 + i] != 0xFF) {
-               pWindow[0x1273] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[6 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1273] * 0x50 + 0xAF0)),
-                   g_Menu->renderContext, a2 + D_801E9B28 + i * 8,
-                   a3 + D_801E9B2C, 0x1000);
-           }
-       }
-       i = 0;
-       MenuParseNumberToDigits(g_GameState.characters[a1].maxHp);
-       pWindow[0x1274] = 0;
-       n = 0;
-       for (; i < 3; i++) {
-           if (g_Menu->digits[6 + i] != 0xFF) {
-               pWindow[0x1274] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[6 + i],
-                   (POLY_FT4*)((u8*)pWindow + (pWindow[0x1274] * 0x50 + 0xBE0)),
-                   g_Menu->renderContext, a2 + D_801E9B30 + n * 8,
-                   a3 + D_801E9B34, 0x1000);
-               n++;
-           }
-       }
-   }
-*/
+    MenuParseNumberToDigits(g_GameState.characters[a1].hp);
+    pWindow[0x1273] = 0;
+    for (i = 0; i < 3; i++) {
+        if (g_Menu->digits[6 + i] != 0xFF) {
+            pWindow[0x1273] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[6 + i],
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1273] * 0x50 + 0xAF0)),
+                g_Menu->renderContext, a2 + D_801E9B28 + i * 8,
+                a3 + D_801E9B2C, 0x1000);
+        }
+    }
+    i = 0;
+    MenuParseNumberToDigits(g_GameState.characters[a1].maxHp);
+    pWindow[0x1274] = 0;
+    n = 0;
+    for (; i < 3; ) {
+        u8 digit = g_Menu->digits[6 + i++];
+
+        if (digit != 0xFF) {
+            pWindow[0x1274] += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)((u8*)pWindow + (pWindow[0x1274] * 0x50 + 0xBE0)),
+                g_Menu->renderContext, a2 + D_801E9B30 + n * 8,
+                a3 + D_801E9B34, 0x1000);
+            n++;
+        }
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D53D0);
 /* Best: 98.31%. Same shape as func_801D51EC, which see: `i = 0;` written
    before the second MenuParseNumberToDigits call and `n = 0;` after the counter store
