@@ -1,4 +1,5 @@
 #include "common.h"
+#include "battle/actor.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
@@ -346,7 +347,7 @@ extern u8 D_800D3314[];
 extern u8 D_800D3316[];
 extern u8 D_800D3330[];
 
-void BattleTransformPartPositions(u8 **pArg) {
+void BattleTransformPartPositions(BattleActor **pArg) {
     u16 *pZ;
     u16 *pY;
     u16 *pX;
@@ -361,16 +362,14 @@ void BattleTransformPartPositions(u8 **pArg) {
     do {
         if (*(s16 *)(D_800D330A + i) != 0) {
             s16 index = *(s16 *)(D_800D3314 + i);
-            u8 *pEntry;
+            BattleActor *pActor;
 
-            if (index >= 0 && (pEntry = pArg[index]) != 0) {
-                u8 *pMat = *(u8 **)(pEntry + 4);
-                s32 offset = *(s16 *)(D_800D3316 + i) * 124;
+            if (index >= 0 && (pActor = pArg[index]) != 0) {
+                BattleSprite *pSprites = pActor->pSprites;
+                BattleSprite *pJoint = &pSprites[*(s16 *)(D_800D3316 + i) + 1];
                 s32 vec[4];
 
-                /* retail re-reads the part pointer for the second argument; reusing pMat
-                   makes gcc rotate the CompMatrix argument registers. */
-                CompMatrix(pMat + 0xC, *(u8 **)(pEntry + 4) + offset + 0xA8, pMatrix);
+                CompMatrix(&pSprites->localTransform, &pJoint->globalTransform, pMatrix);
                 SetRotMatrix(pMatrix);
                 SetTransMatrix(pMatrix);
                 gte_ldv0((SVECTOR *)(i + D_800D330C));
