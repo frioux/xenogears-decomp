@@ -16,7 +16,6 @@ extern u8 D_800D2DC4;
 extern BattleSlotState *D_800D2D6C;
 extern u8 *D_800D2DC8;
 
-extern u8 D_800D220E[];
 extern u16 D_800D2C98;
 extern u16 D_800D2C9E;
 
@@ -25,6 +24,15 @@ extern u16 D_800D2C9E;
 // reaches through a second base of its own.
 extern BattleTableEntry D_800CCCE8[];
 extern u8 D_800CCE44[][0x170];
+
+// Per-slot entry of the table at 0x800D220E: one word per battle slot, 0x10
+// bytes apart. Only the word at +0 is read here.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u8 unk2[0xE];
+} BattleSlotWordEntry; // Size: 0x10
+
+extern BattleSlotWordEntry D_800D220E[];
 
 extern s32 rand(void);
 extern s8 func_80097964(u8, u8, u16);
@@ -437,7 +445,7 @@ void BattleInitActiveSlotActions(u8 sel) {
         mask <<= 1;
     }
 
-    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = *(u16 *)(D_800D220E + sel * 0x10);
+    *(u16 *)((u8 *)D_800C34B0 + 0x5FB0) = D_800D220E[sel].unk0;
 
     if (D_800D2C9E & 0x8000) {
         D_800D2C98 = 0xC2;
