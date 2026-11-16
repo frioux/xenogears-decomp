@@ -21,7 +21,7 @@ extern u16 D_800C3EC0[];
 extern long ratan2(long y, long x);
 extern u8 D_800C3E9B[];
 extern u8 D_800D3274;
-extern void func_800841E0(void);
+extern u8 func_800841E0(u8);
 
 typedef struct {
     /* 0x00 */ u16 unk0[12];
@@ -52,6 +52,7 @@ extern u8 g_BattleSlotFlags[];
 extern u8 *g_BattleSlotParamTable;
 extern BattleUnk170 g_BattleSlotEntries[];
 extern BattleUnk170 D_800CCE08[];
+extern BattleUnk170 D_800CCD34[];
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x24];
@@ -669,6 +670,93 @@ u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_800841E0);
+/* 90.21% (880 bytes vs retail 872): structure, calls, both candidate
+   loops (3..10 / 0..2 duplicated as retail has them), the same-row filter
+   and both single-pass sorts are in place; 8 bytes long. Remaining diff
+   to chase: the stack arrays (list at sp+0x10, sameRow at sp+0x20) and
+   the count/pointer pair per candidate loop. D_800CCD34 is the 0x170-byte
+   slot table (its .unk0 is the sort key); D_800CCE08 is field 0xD4 of the
+   same table. Retail's caller BattleEnsureTargetSlotInCandidateList passes
+   arg0 in $a0 with no instruction, so the prototype is u8.
+u8 func_800841E0(u8 arg0) {
+    s32 i;
+    s32 n;
+    s32 count;
+    u8 tmp;
+    u8 list[12];
+    u8 sameRow[12];
+    u8 *p;
+
+    D_800D3274 = 0;
+    for (i = 0; i < 12; i++) {
+        list[i] = 0xFF;
+        D_800C3E90[i] = 0xFF;
+        sameRow[i] = 0;
+    }
+    if (arg0 < 3) {
+        count = 0;
+        p = list;
+        for (i = 3; i < 0xB; i++) {
+            if (BattlePairTargetable(arg0, i) != 0) {
+                *p = i;
+                p++;
+                count++;
+                D_800D3274++;
+            }
+        }
+    } else {
+        count = 0;
+        p = list;
+        for (i = 0; i < 3; i++) {
+            if (BattlePairTargetable(arg0, i) != 0) {
+                *p = i;
+                p++;
+                count++;
+                D_800D3274++;
+            }
+        }
+    }
+    if (count > 0) {
+        n = 0;
+        for (i = 0; i < count; i++) {
+            if (g_BattleSlotRecords[arg0][0] == g_BattleSlotRecords[list[i]][0]) {
+                D_800C3E90[n] = list[i];
+                list[i] = 0xFF;
+                sameRow[n] = 1;
+                n++;
+            }
+        }
+    }
+    if (count > 0) {
+        for (i = 0; i < count; i++) {
+            if (list[i] != 0xFF) {
+                D_800C3E90[n] = list[i];
+                n++;
+            }
+        }
+    }
+    if (sameRow[0] != 0) {
+        for (i = 1; i < count; i++) {
+            if (sameRow[i] != 0
+                && D_800CCD34[D_800C3E90[i - 1]].unk0 > D_800CCD34[D_800C3E90[i]].unk0) {
+                tmp = D_800C3E90[i - 1];
+                D_800C3E90[i - 1] = D_800C3E90[i];
+                D_800C3E90[i] = tmp;
+            }
+        }
+    } else {
+        for (i = 1; i < count; i++) {
+            if (D_800CCD34[D_800C3E90[i - 1]].unk0 > D_800CCD34[D_800C3E90[i]].unk0) {
+                tmp = D_800C3E90[i - 1];
+                D_800C3E90[i - 1] = D_800C3E90[i];
+                D_800C3E90[i] = tmp;
+            }
+        }
+    }
+    return D_800C3E90[0];
+}
+*/
+
 u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     s32 i;
     s32 j;
@@ -844,7 +932,7 @@ void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     off = arg0 * 0x40;
     g_BattleCommandQueue[0x2E8] = (g_BattleCommandQueue + off)[0x3C];
     found = 0;
-    func_800841E0();
+    func_800841E0(arg0);
     for (i = 0; i < D_800D3274; i++) {
         if (D_800C3E90[i] == (g_BattleCommandQueue + off)[0x3C]) {
             found++;
