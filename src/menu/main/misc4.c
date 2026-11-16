@@ -156,27 +156,27 @@ void MenuAddGoldAndPlayTimePrims(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
-/* 97.78% under the unit flags, 100.00 under gcc 2.6.0: this function is NOT a
-   2.7.2 function.  The body below is retail's exact instruction multiset at
-   retail's exact size (292 bytes) and it is BYTE-IDENTICAL when compiled with
-   tools/gcc-2.6.0-psx, which is what emits retail's `addiu s1,s1,1` in the
-   beqz delay slot (2.7.2's reorg leaves the increment at the latch and puts a
-   nop in the slot - six source shapes, a do/while and the first AddPrim written
-   as an array subscript all gave that same single delta).
-   The rest of the unit agrees: `try_flags.sh menu/main/misc4 --all
-   --gcc gcc-2.6.0-psx` scores 13 of its 14 C functions 100.00; the only
-   exception is MenuUpdateSubMenuChoice at 98.13 (it is 100.00 under 2.7.2).
-   So the unit wants a preset split - MenuUpdateSubMenuChoice on the Default
-   preset, everything after it on XenoLibrary (gcc-2.6.0) - after which this
-   body can be un-parked as is.  Always written as &pData[a*b + K]: the plain
-   `pData + a*b + K` form makes gcc reassociate and costs the +0x50 addiu order.
+/* 97.78% under the unit flags, 100.00 (byte-identical, 292 bytes) under
+   gcc-2.6.0-psx. This body is the source; the only delta 2.7.2 leaves is the
+   loop increment, which retail keeps in the `beqz` delay slot where 2.7.2's
+   reorg leaves the latch copy and a nop (2.6.0 emits retail's shape as written).
+   Unit screening (try_flags.sh --all, both presets, current file):
+     2.7.2: everything 100.00 except this function (97.78);
+     2.6.0: everything 100.00 except MenuUpdateSubMenuChoice (98.13).
+   So the unit wants a split at func_801CD81C: MenuUpdateSubMenuChoice on the
+   Default preset, the rest on XenoLibrary (gcc-2.6.0), after which this body
+   un-parks as is. 2.7.2 shapes tried for the delay slot: read-and-bump
+   `if (unk0[i++])` 94.43, `slot = i++` copy 96.53, do/while and the first
+   AddPrim spelled as a subscript: no better. Always written as
+   &pData[a*b + K]: the plain `pData + a*b + K` form reassociates and costs the
+   +0x50 addiu order.
 void func_801CE540(void) {
     s32 i;
     u8* pData;
 
     for (i = 0; i < 3; i++) {
         pData = (u8*)g_Menu->unk39C[i];
-        if (((u8*)g_Menu->pManager)[i]) {
+        if (g_Menu->pManager->unk0[i]) {
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(pData + pData[0x1270] * sizeof(POLY_FT4)));
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[pData[0x1270] * sizeof(POLY_FT4) + 0x50]);
             MenuRenderString(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
@@ -406,11 +406,18 @@ void func_801CF37C(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF5E4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF8D8);
-/* 70.72% (548 vs 620 bytes): the two func_8002675C calls and the AddPrim
-   loop are in place; what is still wrong is the register/stack-arg layout of
-   the six loop-invariant constants (retail hoists 0x1E/0x1B/0x36/0x1000/0x4D94
-   into $s4/$s6/$fp/$s7/$s3 with i in $s1, mine allocates differently) and the
-   `rendered[2]` flag array, so the whole prologue and most operands differ.
+/* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->unk4D8)`
+   (retail loads it before the frame adjust for the guard's lbu 0x4D8); the
+   old park was missing that test, which is 52 bytes of the gap. Everything else
+   is retail structure: 5 loop-invariant constants (x0 0x1E, x1 0x1B, y 0x36,
+   scale 0x1000, base 0x4D94), rendered[2] zeroed on the stack, two func_8002675C
+   calls and the AddPrim pair. Still open: the register assignment of those
+   constants, and the first call's index argument, which retail builds as a u8
+   flag - `li v1,1` before the `unk2F` test, cleared when i ==
+   D_801E981C[selectedSlot] / 16, then `andi v0,v1,0xFF` + `beqz` choosing
+   0x122/0x115 - so it was a named local (`u8 useAlt = 1; if (...) useAlt = 0;`)
+   and not the single ternary expression written here. Retail also recomputes
+   `j*2` (sll at the loop latch) and copies base into s2 for the loop.
 void func_801CF8D8(void) {
     s32 x0 = 0x1E;
     s32 x1 = 0x1B;
@@ -418,36 +425,38 @@ void func_801CF8D8(void) {
     s32 scale = 0x1000;
     s32 base = 0x4D94;
     u8 rendered[2] = { 0, 0 };
-    u8* pData;
+    MenuUnk2* pData;
     s32 count;
     s32 i;
     s32 j;
 
-    for (i = 0; i < 2; i++) {
-        pData = (u8*)g_Menu->menuUnk2;
-        if (pData[0x4FE4 + i] && g_Menu->pManager->isPanelActive[5]) {
-            func_8002675C(g_Menu->resources,
-                          (((u8*)g_Menu->pManager)[0x2F] && i == D_801E981C[pData[0x4F7C]] / 16)
-                              ? 0x122
-                              : 0x115,
-                          (POLY_FT4*)(pData + base), g_Menu->renderContext, x0, y, scale);
-            count = func_8002675C(g_Menu->resources, i + 0x162, (POLY_FT4*)(pData + base + 0x50),
-                                  g_Menu->renderContext, x1, y, scale);
-            rendered[i] = 1;
-        }
-        if (rendered[i]) {
-            for (j = 0; j < count; j++) {
+    if (g_Menu->unk4D8) {
+        for (i = 0; i < 2; i++) {
+            pData = g_Menu->menuUnk2;
+            if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {
+                func_8002675C(g_Menu->resources,
+                              (((u8*)g_Menu->pManager)[0x2F] && i == D_801E981C[pData->selectedSlot] / 16)
+                                  ? 0x122
+                                  : 0x115,
+                              (POLY_FT4*)((u8*)pData + base), g_Menu->renderContext, x0, y, scale);
+                count = func_8002675C(g_Menu->resources, i + 0x162, (POLY_FT4*)((u8*)pData + base + 0x50),
+                                      g_Menu->renderContext, x1, y, scale);
+                rendered[i] = 1;
+            }
+            if (rendered[i]) {
+                for (j = 0; j < count; j++) {
+                    AddPrim(&g_Menu->pGfxEnv->ot[4],
+                            (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
+                                    ((2 * j + g_Menu->renderContext) * sizeof(POLY_FT4) + 0x50)));
+                }
                 AddPrim(&g_Menu->pGfxEnv->ot[4],
                         (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
-                                ((2 * j + g_Menu->renderContext) * sizeof(POLY_FT4) + 0x50)));
+                                g_Menu->renderContext * sizeof(POLY_FT4)));
             }
-            AddPrim(&g_Menu->pGfxEnv->ot[4],
-                    (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
-                            g_Menu->renderContext * sizeof(POLY_FT4)));
+            base += 0xF0;
+            x0 += 0x90;
+            x1 += 0x90;
         }
-        base += 0xF0;
-        x0 += 0x90;
-        x1 += 0x90;
     }
 }
 */
