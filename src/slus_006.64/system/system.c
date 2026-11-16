@@ -32,6 +32,18 @@ extern u8 D_8005A068[];
 extern s16 D_8005A0C0;
 extern u8 D_8005A0C2;
 
+// Header at the start of the font file. Glyph bitmaps are 0x16 bytes each
+// (0x16 * code is how func_80034FFC addresses one) and start at 0x2's offset.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 glyphDataOffset;
+    /* 0x4 */ u16 leadByte;              // first byte of a two-byte code
+    /* 0x6 */ u16 doubleByteGlyphOffset; // bias added to a two-byte glyph's address
+    /* 0x8 */ u16 narrowGlyphCount;      // this many codes from 0xC draw 2px wide
+    /* 0xA */ u16 narrowTrailByteCount;  // trail bytes below this draw 2px wide
+    /* 0xC */ u16 singleByteCodeBase;
+} SystemFontFileHeader; // Size: 0xE
+
 // Font file metrics, filled in by SystemInitializeFont
 extern void* D_8005935C;
 extern int D_8005934C;
@@ -158,9 +170,7 @@ void SystemFreeData(void) {
 }
 
 
-// The font file header is a run of u16s: 0x2 is the offset to the glyph data,
-// 0x4..0xC are the metrics the codecs above compare against.
-void SystemInitializeFont(void* pFontFile) {
+void SystemInitializeFont(SystemFontFileHeader* pFontFile) {
     int dataOffset;
 
     if (pFontFile == NULL) {
@@ -171,12 +181,15 @@ void SystemInitializeFont(void* pFontFile) {
     HeapPinBlock(pFontFile);
     g_SystemFontFile = pFontFile;
     D_8005935C = pFontFile;
-    dataOffset = *(u16*)((u8*)pFontFile + 0x2);
-    D_8005934C = *(u16*)((u8*)pFontFile + 0x4);
-    D_80059350 = *(u16*)((u8*)pFontFile + 0x6);
-    D_80059354 = *(u16*)((u8*)pFontFile + 0x8);
-    D_80059358 = *(u16*)((u8*)pFontFile + 0xA);
-    D_80059364 = *(u16*)((u8*)pFontFile + 0xC);
+    // Read through a u16 cast rather than pFontFile->field: as field lvalues
+    // gcc hoists all six loads above the two pointer stores, and retail
+    // interleaves them (66.5% vs 100%).
+    dataOffset = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, glyphDataOffset));
+    D_8005934C = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, leadByte));
+    D_80059350 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, doubleByteGlyphOffset));
+    D_80059354 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, narrowGlyphCount));
+    D_80059358 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, narrowTrailByteCount));
+    D_80059364 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, singleByteCodeBase));
     D_8005935C = (u8*)pFontFile + dataOffset;
 }
 
