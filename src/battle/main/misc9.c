@@ -479,6 +479,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
    Decisive: the MATCHED divide sibling BattleDwordRegDivImm has byte-identical asm
    (same base v0 / slot v1 allocation) under the same C shape, so the split is
    the multiply's HI/LO pseudo shifting the allocator, not the source.
+   Update: the sibling func_8007E8AC matched this same mirror v0/v1 tie only
+   after its index expression became unsigned, `D_800D3364[(u32)(idx + 0x140)]`
+   (`u32 idx` instead, or a cast of `idx` alone, stays at 95.38%). Worth trying
+   an unsigned form of the product or of the store index here.
 void func_8007E740(u8 **arg0, u8 arg1) {
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
     u8 *p = *arg0;
