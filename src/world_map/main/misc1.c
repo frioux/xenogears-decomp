@@ -11,8 +11,11 @@ extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flag
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 extern void WorldMapGetGameStatePosition(void* pVector);
 
-// g_WorldMapStreamQueue .. D_8009D414 are the 3-entry StreamDataQueueEntry stream request
-// table; g_WorldMapPlayerPosition/B0/B4 are the 12.4 fixed point position written by
+// The stream request table at g_WorldMapStreamQueue: g_WorldMapStreamQueue and the D_ symbols
+// that follow are its entries, one object each. Retail stores every entry field through its own
+// absolute symbol, and that shape is load-bearing - one `StreamDataQueueEntry[]` object makes gcc
+// keep the base in a saved register across the HeapAlloc calls below and the function grows 8 bytes.
+// g_WorldMapPlayerPosition/B0/B4 are the 12.4 fixed point position written by
 // WorldMapGetGameStatePosition.
 extern void* g_MenuResourcesFile;
 extern void* g_MenuSedsFile;
@@ -30,14 +33,12 @@ extern s32 D_8009C5B0;
 extern s32 D_8009C5B4;
 extern s32 D_8009D3C4;
 extern s32 g_WorldMapSedsBankFileIndex;
-extern u16 g_WorldMapStreamQueue;
-extern void* D_8009D3FC;
-extern u16 D_8009D400;
-extern void* D_8009D404;
-extern u16 D_8009D408;
-extern void* D_8009D40C;
-extern u16 D_8009D410;
-extern void* D_8009D414;
+extern StreamDataQueueEntry g_WorldMapStreamQueue;
+extern StreamDataQueueEntry D_8009D400;
+extern StreamDataQueueEntry D_8009D408;
+extern StreamDataQueueEntry D_8009D410;
+extern StreamDataQueueEntry D_8009D418;
+extern StreamDataQueueEntry D_8009D420;
 extern void* g_WorldMapCompressedMapData;
 
 typedef struct {
@@ -290,14 +291,14 @@ void func_80071EF0(void) {
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
     pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
     g_WorldMapDecompressedMapData = pBuffer;
-    D_8009D410 = 0;
-    D_8009D3FC = pBuffer;
-    D_8009D414 = 0;
+    D_8009D410.archiveIndex = 0;
+    g_WorldMapStreamQueue.pData = pBuffer;
+    D_8009D410.pData = 0;
     pQueue->archiveIndex = D_8009D3C4;
-    D_8009D400 = D_8009C17C;
-    D_8009D408 = g_WorldMapReloadFileIndex;
-    D_8009D404 = D_8009C59C;
-    D_8009D40C = g_WorldMapLoadedFileData;
+    D_8009D400.archiveIndex = D_8009C17C;
+    D_8009D408.archiveIndex = g_WorldMapReloadFileIndex;
+    D_8009D400.pData = D_8009C59C;
+    D_8009D408.pData = g_WorldMapLoadedFileData;
     func_80029AFC(pQueue, 0, 0);
 }
 */
@@ -307,14 +308,14 @@ void WorldMapQueueTwoFileLoads(void) {
 
     g_MenuResourcesFile = HeapAlloc(ArchiveDecodeAlignedSize(0x26), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0x25), 1);
-    g_WorldMapStreamQueue = 0x25;
+    g_WorldMapStreamQueue.archiveIndex = 0x25;
     g_WorldMapCompressedMapData = pBuffer;
-    D_8009D3FC = pBuffer;
-    D_8009D400 = 0x26;
-    D_8009D408 = 0;
-    D_8009D40C = 0;
-    D_8009D404 = g_MenuResourcesFile;
-    func_80029AFC((StreamDataQueueEntry*)&g_WorldMapStreamQueue, 0, 0);
+    g_WorldMapStreamQueue.pData = pBuffer;
+    D_8009D400.archiveIndex = 0x26;
+    D_8009D408.archiveIndex = 0;
+    D_8009D408.pData = 0;
+    D_8009D400.pData = g_MenuResourcesFile;
+    func_80029AFC(&g_WorldMapStreamQueue, 0, 0);
 }
 
 extern s32 g_WorldMapAudioManagerLoaded;
@@ -326,38 +327,34 @@ extern void* g_WorldMapWdsFileBuffer;
 extern void* g_WorldMapSoundBankBuffer;
 extern void* g_WorldMapMode7SoundBankBuffer;
 extern void* D_8009C614;
-extern u16 D_8009D418;
-extern void* D_8009D41C;
-extern u16 D_8009D420;
-extern s32 D_8009D424;
 
 void WorldMapQueueFileLoads(void) {
     void* pBuffer;
 
     g_WorldMapAudioManagerLoaded++;
-    g_WorldMapStreamQueue = g_WorldMapWdsFileIndex;
+    g_WorldMapStreamQueue.archiveIndex = g_WorldMapWdsFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapWdsFileIndex), 1);
     g_WorldMapWdsFileBuffer = pBuffer;
-    D_8009D3FC = pBuffer;
-    D_8009D400 = g_WorldMapSoundBankFileIndex;
+    g_WorldMapStreamQueue.pData = pBuffer;
+    D_8009D400.archiveIndex = g_WorldMapSoundBankFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapSoundBankFileIndex), 0);
     g_WorldMapSoundBankBuffer = pBuffer;
-    D_8009D404 = pBuffer;
-    D_8009D408 = g_WorldMapSedsBankFileIndex;
+    D_8009D400.pData = pBuffer;
+    D_8009D408.archiveIndex = g_WorldMapSedsBankFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapSedsBankFileIndex), 0);
     g_MenuSedsFile = pBuffer;
-    D_8009D40C = pBuffer;
-    D_8009D410 = g_WorldMapMode7SoundBankFileIndex;
+    D_8009D408.pData = pBuffer;
+    D_8009D410.archiveIndex = g_WorldMapMode7SoundBankFileIndex;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapMode7SoundBankFileIndex), 0);
     g_WorldMapMode7SoundBankBuffer = pBuffer;
-    D_8009D414 = pBuffer;
-    D_8009D418 = D_8009BCC8;
+    D_8009D410.pData = pBuffer;
+    D_8009D418.archiveIndex = D_8009BCC8;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009BCC8), 0);
     D_8009C614 = pBuffer;
-    D_8009D41C = pBuffer;
-    D_8009D420 = 0;
-    D_8009D424 = 0;
-    func_80029AFC((StreamDataQueueEntry*)&g_WorldMapStreamQueue, 0, 0);
+    D_8009D418.pData = pBuffer;
+    D_8009D420.archiveIndex = 0;
+    D_8009D420.pData = 0;
+    func_80029AFC(&g_WorldMapStreamQueue, 0, 0);
 }
 
 void WorldMapLoadSedsBank(void) {
