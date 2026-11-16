@@ -35,6 +35,80 @@ typedef struct {
     /* 0x00A */ u8 unkA[0x166];
 } BattleSlotFlagEntry; // Size: 0x170
 
+// A second view of the 0x170-byte battle slot entry at D_800CCCE8, covering the
+// two variable-register files the script VM's byte/word register accessors below
+// index by register number: 24 byte variables and 24 word variables. Each
+// register number is a distinct field of the entry; include/battle/actor.h's
+// BattleTableEntry keeps these offsets inside its opaque arrays, and only the
+// registers these two accessors reach are split out here.
+typedef struct {
+    /* 0x000 */ u8 unk000[0x4];
+    /* 0x004 */ u8 unk004; // byte variable 0
+    /* 0x005 */ u8 unk005[0x28];
+    /* 0x02D */ u8 unk02D; // byte variable 7
+    /* 0x02E */ u8 unk02E[0x6];
+    /* 0x034 */ u16 unk034; // word variable 21
+    /* 0x036 */ u16 unk036; // word variable 22
+    /* 0x038 */ u16 unk038; // word variable 23
+    /* 0x03A */ u8 unk03A[0x12];
+    /* 0x04C */ u16 unk04C; // word variable 1
+    /* 0x04E */ u16 unk04E; // word variable 0
+    /* 0x050 */ u8 unk050[0x6];
+    /* 0x056 */ u8 unk056; // byte variable 1
+    /* 0x057 */ u8 unk057;
+    /* 0x058 */ u8 unk058; // byte variable 4
+    /* 0x059 */ u8 unk059; // byte variable 5
+    /* 0x05A */ u8 unk05A; // byte variable 6
+    /* 0x05B */ u8 unk05B; // byte variable 9
+    /* 0x05C */ u8 unk05C; // byte variable 10
+    /* 0x05D */ u8 unk05D; // byte variable 8
+    /* 0x05E */ u8 unk05E; // byte variable 11
+    /* 0x05F */ u8 unk05F; // byte variable 12
+    /* 0x060 */ u8 unk060; // byte variable 13
+    /* 0x061 */ u8 unk061; // byte variable 14
+    /* 0x062 */ u8 unk062[0x2];
+    /* 0x064 */ u8 unk064; // byte variable 15
+    /* 0x065 */ u8 unk065; // byte variable 16
+    /* 0x066 */ u8 unk066; // byte variable 17
+    /* 0x067 */ u8 unk067; // byte variable 18
+    /* 0x068 */ u8 unk068[0x14];
+    /* 0x07C */ u16 unk07C; // word variable 2
+    /* 0x07E */ u16 unk07E; // word variable 3
+    /* 0x080 */ u16 unk080; // word variable 4
+    /* 0x082 */ u16 unk082; // word variable 5
+    /* 0x084 */ u16 unk084; // word variable 6
+    /* 0x086 */ u16 unk086; // word variable 7
+    /* 0x088 */ u16 unk088; // word variable 8
+    /* 0x08A */ u16 unk08A; // word variable 9
+    /* 0x08C */ u16 unk08C; // word variable 10
+    /* 0x08E */ u16 unk08E; // word variable 11
+    /* 0x090 */ u8 unk090[0x26];
+    /* 0x0B6 */ u8 unk0B6; // byte variable 20
+    /* 0x0B7 */ u8 unk0B7[0x29];
+    /* 0x0E0 */ u8 unk0E0; // byte variable 2
+    /* 0x0E1 */ u8 unk0E1[0x2];
+    /* 0x0E3 */ u8 unk0E3; // byte variable 3
+    /* 0x0E4 */ u8 unk0E4[0x2C];
+    /* 0x110 */ u16 unk110; // word variable 12
+    /* 0x112 */ u16 unk112;
+    /* 0x114 */ u16 unk114; // word variable 13
+    /* 0x116 */ u16 unk116; // word variable 14
+    /* 0x118 */ u8 unk118[0x8];
+    /* 0x120 */ u16 unk120; // word variable 15
+    /* 0x122 */ u16 unk122; // word variable 16
+    /* 0x124 */ u16 unk124; // word variable 17
+    /* 0x126 */ u16 unk126; // word variable 18
+    /* 0x128 */ u16 unk128; // word variable 19
+    /* 0x12A */ u16 unk12A; // word variable 20
+    /* 0x12C */ u8 unk12C[0x10];
+    /* 0x13C */ u8 unk13C; // byte variable 19
+    /* 0x13D */ u8 unk13D[0x3];
+    /* 0x140 */ u8 unk140; // byte variable 21
+    /* 0x141 */ u8 unk141; // byte variable 22
+    /* 0x142 */ u8 unk142; // byte variable 23
+    /* 0x143 */ u8 unk143[0x2D];
+} BattleSlotVarEntry; // Size: 0x170
+
 // One 0x1C-byte entry of the slot record table at D_800C3E9C; only the byte at
 // 0x1B (the entry's high-bit flag) is read here.
 typedef struct {
@@ -46,6 +120,7 @@ extern BattleScreenSlot D_800D3718[];
 extern BattleSlotFlagEntry D_800CCD64[];
 extern BattleSlotRecord D_800C3E9C[];
 extern BattleSlotRegs D_800D3400[];
+extern BattleSlotVarEntry D_800CCCE8[];
 
 void BattleSetSlotFlagB4(u8 arg0) {
     D_800D2D28[0xB4] = 1;
@@ -70,8 +145,181 @@ u8 BattleFindFirstFlagTableMatch(u16 arg0) {
     }
     return i;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_80079ED8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A280);
+// Reads or writes byte variable `reg` of slot `slot`: a zero `pRead` stores
+// `value` into it, a non-zero one returns its current value.
+u8 func_80079ED8(u8 slot, u8 reg, u8 value, u8 get) {
+    u8 *p;
+    u8 result;
+
+    switch (reg) {
+    case 0:
+        p = &D_800CCCE8[slot].unk004;
+        break;
+    case 1:
+        p = &D_800CCCE8[slot].unk056;
+        break;
+    case 2:
+        p = &D_800CCCE8[slot].unk0E0;
+        break;
+    case 3:
+        p = &D_800CCCE8[slot].unk0E3;
+        break;
+    case 4:
+        p = &D_800CCCE8[slot].unk058;
+        break;
+    case 5:
+        p = &D_800CCCE8[slot].unk059;
+        break;
+    case 6:
+        p = &D_800CCCE8[slot].unk05A;
+        break;
+    case 7:
+        p = &D_800CCCE8[slot].unk02D;
+        break;
+    case 8:
+        p = &D_800CCCE8[slot].unk05D;
+        break;
+    case 9:
+        p = &D_800CCCE8[slot].unk05B;
+        break;
+    case 10:
+        p = &D_800CCCE8[slot].unk05C;
+        break;
+    case 11:
+        p = &D_800CCCE8[slot].unk05E;
+        break;
+    case 12:
+        p = &D_800CCCE8[slot].unk05F;
+        break;
+    case 13:
+        p = &D_800CCCE8[slot].unk060;
+        break;
+    case 14:
+        p = &D_800CCCE8[slot].unk061;
+        break;
+    case 15:
+        p = &D_800CCCE8[slot].unk064;
+        break;
+    case 16:
+        p = &D_800CCCE8[slot].unk065;
+        break;
+    case 17:
+        p = &D_800CCCE8[slot].unk066;
+        break;
+    case 18:
+        p = &D_800CCCE8[slot].unk067;
+        break;
+    case 19:
+        p = &D_800CCCE8[slot].unk13C;
+        break;
+    case 20:
+        p = &D_800CCCE8[slot].unk0B6;
+        break;
+    case 21:
+        p = &D_800CCCE8[slot].unk140;
+        break;
+    case 22:
+        p = &D_800CCCE8[slot].unk141;
+        break;
+    case 23:
+        p = &D_800CCCE8[slot].unk142;
+        break;
+    }
+    if (get == 0) {
+        *p = value;
+    } else {
+        result = *p;
+    }
+    return result;
+}
+// The 16-bit half of the variable-register file read/written by func_80079ED8:
+// word variable `reg` of slot `slot`, stored when `get` is zero and returned
+// otherwise.
+u16 func_8007A280(u8 slot, u8 reg, u16 value, u8 get) {
+    u16 *p;
+    u16 result;
+
+    switch (reg) {
+    case 0:
+        p = &D_800CCCE8[slot].unk04E;
+        break;
+    case 1:
+        p = &D_800CCCE8[slot].unk04C;
+        break;
+    case 2:
+        p = &D_800CCCE8[slot].unk07C;
+        break;
+    case 3:
+        p = &D_800CCCE8[slot].unk07E;
+        break;
+    case 4:
+        p = &D_800CCCE8[slot].unk080;
+        break;
+    case 5:
+        p = &D_800CCCE8[slot].unk082;
+        break;
+    case 6:
+        p = &D_800CCCE8[slot].unk084;
+        break;
+    case 7:
+        p = &D_800CCCE8[slot].unk086;
+        break;
+    case 8:
+        p = &D_800CCCE8[slot].unk088;
+        break;
+    case 9:
+        p = &D_800CCCE8[slot].unk08A;
+        break;
+    case 10:
+        p = &D_800CCCE8[slot].unk08C;
+        break;
+    case 11:
+        p = &D_800CCCE8[slot].unk08E;
+        break;
+    case 12:
+        p = &D_800CCCE8[slot].unk110;
+        break;
+    case 13:
+        p = &D_800CCCE8[slot].unk114;
+        break;
+    case 14:
+        p = &D_800CCCE8[slot].unk116;
+        break;
+    case 15:
+        p = &D_800CCCE8[slot].unk120;
+        break;
+    case 16:
+        p = &D_800CCCE8[slot].unk122;
+        break;
+    case 17:
+        p = &D_800CCCE8[slot].unk124;
+        break;
+    case 18:
+        p = &D_800CCCE8[slot].unk126;
+        break;
+    case 19:
+        p = &D_800CCCE8[slot].unk128;
+        break;
+    case 20:
+        p = &D_800CCCE8[slot].unk12A;
+        break;
+    case 21:
+        p = &D_800CCCE8[slot].unk034;
+        break;
+    case 22:
+        p = &D_800CCCE8[slot].unk036;
+        break;
+    case 23:
+        p = &D_800CCCE8[slot].unk038;
+        break;
+    }
+    if (get == 0) {
+        *p = value;
+    } else {
+        result = *p;
+    }
+    return result;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
 /* 99.12% - identical instruction sequence, only the two register choices
    differ: the original keeps res in a2 and the row offset arg0*0x170 in v1
@@ -183,6 +431,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A92C);
    *(u16*)(pBase + (p[1] << 1))) DOES fix the association - the two addus become
    (rowOff+base) then +idx2, as retail - but gcc then emits the lui/addiu group
    and the `lw p` two statements early (17.00%). 84.67% is still the best.
+   Round 135: the typed spelling of the same body, with the row pointer taken
+   from the declared register file (`D_800D3400[arg1].unk20`, i.e. D_800D3420),
+   is 13.33% and shows the wall plainly: any pointer local expands to its
+   lui/addiu FIRST, so the only shape that keeps the base materialisation after
+   the p[] loads is the single inline address expression above.
 void func_8007A92C(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     s32 rowOff = arg1 * 0x40;
@@ -203,6 +456,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    sinks the one-use value into the store, so the pointer init is expanded
    first. Same wall as func_8007A92C; gcc-2.6.0, 2.7.2-cdk, -O1 and -O3 all
    fail on it too.
+   Round 135: the typed spelling `D_800D3400[arg1].unk10[p[1]] = val` (dword
+   register file, D_800D3410) written as one expression is 7.50% - the address
+   expansion takes over the register allocation - so the separate-locals body
+   below stays the best.
 void func_8007A968(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u32 val = (p[2] + (p[3] << 8)) * 0x10;
@@ -286,6 +543,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    'mult <first source operand>,<second>' and always defers the SECOND operand's
    lbu to the mult point, so 'pRow[p[1]] * p[2]' buys the mult order and loses
    the p[2] load (71.50%). The two are mutually exclusive.
+   Round 135: 99.09%, and the body below (53.44%) was stale - `D_800D3430 +
+   arg1 * 0x40` does not compile against today's externs. Taking the row pointer
+   from the declared register file (`D_800D3400[arg1].unk30`) fixes both the
+   missing symbol and the two-instructions-early lui/addiu, leaving exactly one
+   instruction: the mult operand order. Permuter from that body: 1370
+   iterations, base=10 best=10, no improvement.
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
