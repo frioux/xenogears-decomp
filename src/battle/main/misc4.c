@@ -92,6 +92,8 @@ extern u8 D_800D3404[];
 extern u8 D_800D3408[];
 extern BattleTableEntry D_800CCCE8[];
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
+extern void func_80078998(u8 arg0, u8 arg1, u8 arg2);
+extern void func_80078E24(u8 arg0, u8 arg1, u8 arg2);
 
 void BattleQueueCommandF8(u8 arg0) {
     if (D_800C3E8C != 0) {
@@ -168,20 +170,20 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     BattleBeginAnimTask(BattleSlotBitMask(arg0) | D_800D2E5C[arg1].unk6);
     func_800785D4(arg0, arg1);
 }
-void BattleQueueCommandFC(u8 arg0, u8 arg1) {
+void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xFC;
     func_800785D4(arg0, arg1);
 }
-void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1) {
+void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk4;
     func_800785D4(arg0, arg1);
 }
 
-void BattleSetPendingActorMask(u8 arg0, u8 arg1) {
+void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
     D_800D39E0 = D_800D2E5C[arg1].unk6;
 }
 
-void BattleQueueCommandF9(u8 arg0, u8 arg1) {
+void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xF9;
     func_800785D4(arg0, arg1);
     D_800D2DE4[arg0] = 0xFF;
@@ -240,31 +242,31 @@ void func_80078E24(u8 arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
-void BattleApplyCommandByteVar(u8 arg0, u8 arg1) {
+void BattleApplyCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4, 0);
 }
-void BattleAddCommandByteVar(u8 arg0, u8 arg1) {
+void BattleAddCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     s32 value;
 
     value = BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
     BattleSlotByteVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 + value, 0);
 }
-void BattleApplyCommandWordVar(u8 arg0, u8 arg1) {
+void BattleApplyCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
     BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, D_800D2E5C[arg1].unk4 | (D_800D2E5C[arg1].unk5 << 8), 0);
 }
-void BattleAddCommandWordVar(u8 arg0, u8 arg1) {
+void BattleAddCommandWordVar(u8 arg0, u8 arg1, u8 arg2) {
     s32 value;
 
     value = BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1, 0, 1);
     BattleSlotWordVarGetSet(arg0, D_800D2E5C[arg1].unk1,
                   (u16)(D_800D2E5C[arg1].unk4 + (value + (D_800D2E5C[arg1].unk5 << 8))), 0);
 }
-void BattleQueueCommandF4(u8 arg0, u8 arg1) {
+void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     D_800C402F[D_800C3EAC->count * 72] = 0xF4;
     func_800785D4(arg0, arg1);
 }
-void BattleQueueCommandF6(u8 arg0, u8 arg1) {
+void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xF6;
     D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].unk6;
     func_800785D4(arg0, arg1);
@@ -302,7 +304,85 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
         }
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_800793F0);
+void func_800793F0(u8 arg0) {
+    u8 again;
+    u8 idx;
+    u8 slot;
+    s32 i;
+    s32 j;
+
+    i = 0;
+    again = 1;
+    do {
+        j = 0;
+        slot = 0;
+        for (; j < 0xB; j++) {
+            idx = j;
+            if (BattleMaskHasSlotBit(D_800D2E5C[i].unk6, idx) != 0) {
+                slot = idx;
+                break;
+            }
+        }
+        BattleClearSlotCurveEntry();
+        switch (D_800D2E5C[i].unk0) {
+        case 0x0:
+            again = 0;
+            break;
+        case 0x1:
+            func_80078998(arg0, i, slot);
+            break;
+        case 0x2:
+            BattleQueueCommandFD(arg0, i, slot);
+            break;
+        case 0x3:
+            BattleQueueCommandFC(arg0, i, slot);
+            break;
+        case 0x4:
+            BattleQueueCommandFromRecordByte(arg0, i, slot);
+            break;
+        case 0x5:
+            BattleSetPendingActorMask(arg0, i, slot);
+            break;
+        case 0x6:
+            BattleQueueCommandF9(arg0, i, slot);
+            break;
+        case 0x7:
+            func_80078E24(arg0, i, slot);
+            break;
+        case 0x8:
+            BattleApplyCommandByteVar(arg0, i, slot);
+            break;
+        case 0x9:
+            BattleAddCommandByteVar(arg0, i, slot);
+            break;
+        case 0xA:
+            BattleApplyCommandWordVar(arg0, i, slot);
+            break;
+        case 0xB:
+            BattleAddCommandWordVar(arg0, i, slot);
+            break;
+        case 0xC:
+            func_80078658(i, arg0);
+            break;
+        case 0xD:
+            BattleQueueCommandF4(arg0, i, slot);
+            break;
+        case 0xE:
+            BattleQueueCommandF7(D_800D2E5C[i].unk4, arg0);
+            break;
+        case 0xF:
+            BattleQueueCommandF6(arg0, i, slot);
+            break;
+        case 0x10:
+            BattleQueueCommandF8(arg0);
+            break;
+        default:
+            BattlePrintLanguageErrorLoop(arg0, i);
+            break;
+        }
+        i++;
+    } while (i < 0x20 || again != 0);
+}
 void BattleQueueCommand1BAndFE(u8 arg0) {
     if (D_800D32A1[arg0 * 8] != 0) {
         D_800C400B[D_800C3EAC->count * 72] = arg0;
