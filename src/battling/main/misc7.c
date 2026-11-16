@@ -441,8 +441,9 @@ void func_80080570(void) {
     switch (entry0) {
     case 4:
     case 7:
-    case 29:
+    case 11:
     case 30:
+    case 31:
         entry0 = (entry1 == 0);
         break;
     case 5:
@@ -450,7 +451,6 @@ void func_80080570(void) {
     case 8:
     case 9:
     case 10:
-    case 11:
     case 12:
     case 13:
     case 14:
@@ -468,15 +468,16 @@ void func_80080570(void) {
     case 26:
     case 27:
     case 28:
-    case 31:
+    case 29:
         break;
     }
     BattleLoadSlotEntry(0, entry0);
     switch (entry1) {
     case 4:
     case 7:
-    case 29:
+    case 11:
     case 30:
+    case 31:
         entry1 = entry0 != 1;
         break;
     case 5:
@@ -484,7 +485,6 @@ void func_80080570(void) {
     case 8:
     case 9:
     case 10:
-    case 11:
     case 12:
     case 13:
     case 14:
@@ -502,7 +502,7 @@ void func_80080570(void) {
     case 26:
     case 27:
     case 28:
-    case 31:
+    case 29:
         break;
     }
     BattleLoadSlotEntry(1, entry1);
