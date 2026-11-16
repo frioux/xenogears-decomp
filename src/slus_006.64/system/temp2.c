@@ -621,7 +621,14 @@ void func_80025C04(s32 count, s32 intensity, u16 *pDst, u16 *pSrc) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025D4C);
-/*
+/* Best parked version 87.89% (604 bytes, retail's exact size).
+Re-parked after a re-measure under this unit's preset (XenoGraphicsDiv, gcc
+2.7.2-cdk): the parked body below still scores 87.89% at retail's exact 604
+bytes, identical to the gcc-2.6.0 number, so the preset is not the difference.
+The permuter cannot be pointed at this stub: its base source is the unit's
+preprocessed file and the GTE macros are inline asm, which the permuter's C
+parser rejects ('Syntax error in base.c ... mtc2').
+
 Un-park screen: best 87.89% (604 bytes, the original's exact size). This stub
 is NOT one of the unreachable "handwritten function" ones: gte_ldlvl (lwc2
 $9/$10/$11 off the long[3] scratch) and gte_stlvl_gpr (swc2 back into the same
@@ -1347,7 +1354,26 @@ void func_80026FE8(s32 count, s32 level, u16* pDst, u16* pSrc, u16* pSrc2) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_8002709C);
-/*
+/* Best parked version 80.74% (808 bytes, retail's exact size).
+Re-measured this round under the unit's own preset (XenoGraphicsDiv, gcc
+2.7.2-cdk): un-parked, filled in the block typedef below (the parked copy had
+its fields in // comments, so it did not compile), and it scores 80.74% at the
+original's exact 808 bytes - so the fills, the loop bounds and the call set
+are all right and only the register/frame layout is left, as the note below
+says.
+Two traps this cost, worth knowing before the next attempt:
+1. THE PARK BLOCK CANNOT CONTAIN A STAR-SLASH. The first un-park declared the
+   fields with psyq-style inline offset comments, whose own terminators close
+   the enclosing park comment: the body then reads as live C and maspsx reports
+   'symbol already defined'. The fields below therefore keep their offsets as
+   trailing // comments, which also means the struct compiles as soon as the
+   block is un-parked (the previously parked copy had its fields commented out
+   and did not compile at all).
+2. permute.py died on that same broken text ('Syntax error in base.c' at the
+   star-slash) before it ever reached the body, so the permuter has NOT
+   actually been tried on this function - with the block fixed above it is the
+   obvious next step for a body that is register/frame layout only.
+
 Parked at 80.74%, 808 bytes (the original's exact size), first body written
 from the derivation below - so the fills, the six loops' bounds and the call
 set are all right. What is left is register allocation only:
@@ -1365,25 +1391,26 @@ for the `vz < 0` test, so pVec->vz is both.
 
 // Block func_8002709C allocates: the prims func_800273C4 fills, then the
 // draw state it copies in.
+
 typedef struct {
-      // 0x000 POLY_FT4 ft4[16];
-      // 0x280 POLY_F4 f4[4];
-      // 0x2E0 POLY_G4 g4[2];
-      // 0x328 s32 unk328;
-      // 0x32C s32 unk32C;
-      // 0x330 s32 unk330;
-      // 0x334 u16 width;
-      // 0x336 u16 height;
-      // 0x338 u16 unk338;
-      // 0x33A u16 unk33A;
-      // 0x33C u16 vx;
-      // 0x33E u16 vy;
-      // 0x340 u16 vz;
-      // 0x342 u16 unk342;
-      // 0x344 u16 unk344;
-      // 0x346 u16 unk346;
-      // 0x348 u16 unk348;
-      // 0x34A u16 unk34A;
+    POLY_FT4 ft4[16];  // 0x000
+    POLY_F4 f4[4];     // 0x280
+    POLY_G4 g4[2];     // 0x2E0
+    s32 unk328;        // 0x328
+    s32 unk32C;        // 0x32C
+    s32 unk330;        // 0x330
+    u16 width;         // 0x334
+    u16 height;        // 0x336
+    u16 unk338;        // 0x338
+    u16 unk33A;        // 0x33A
+    u16 vx;            // 0x33C
+    u16 vy;            // 0x33E
+    u16 vz;            // 0x340
+    u16 unk342;        // 0x342
+    u16 unk344;        // 0x344
+    u16 unk346;        // 0x346
+    u16 unk348;        // 0x348
+    u16 unk34A;        // 0x34A
 } Temp2FillBlock; // Size: 0x34C
 
 void* func_8002709C(s32 width, s32 height, s32 arg2, s32 arg3, s32 clutX,
