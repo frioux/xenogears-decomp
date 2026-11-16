@@ -1,19 +1,19 @@
 #include "common.h"
 #include "psyq/libgte.h"
 
-extern s32 D_8009292C;
+extern s32 g_BattleMotionSpeedScale;
 extern s32 D_80092918;
 extern s32 D_80092944;
-extern s32 D_80092950;
+extern s32 g_BattleRoundNumber;
 extern s16 D_8009881E;
 extern s16 D_80097102;
-extern s16 D_80099DA4;
+extern s16 g_BattleMotionSpeedScaleOption;
 extern u8 D_800928FC;
-extern u8 D_80099D9A;
+extern u8 g_BattleFrameRateLevel;
 extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
-extern u8 D_80099DA1;
-extern u8 D_80099DA2;
+extern u8 g_BattleMotionSpeedLevel;
+extern u8 g_BattleAiBehaviorLevel;
 typedef struct {
     /* 0x00 */ u8 pad00[0x2C];
     /* 0x2C */ s16 unk2C;
@@ -707,19 +707,19 @@ void BattleInitOptionDefaults(void) {
     BattleEffectCreateWork();
     BattleApplyOptionWord();
     g_BattlePlayer1ComControlled = 1;
-    D_80099DA1 = 3;
-    D_8009292C = 0x100;
+    g_BattleMotionSpeedLevel = 3;
+    g_BattleMotionSpeedScale = 0x100;
     g_BattlePlayer2ComControlled = 0;
-    D_80099D9A = 0;
-    D_80099DA2 = 0;
-    D_80099DA4 = 0x100;
+    g_BattleFrameRateLevel = 0;
+    g_BattleAiBehaviorLevel = 0;
+    g_BattleMotionSpeedScaleOption = 0x100;
 }
 
 void BattleNoop(void) {
 }
 
 void BattleResetState(void) {
-    D_80092950 = 0;
+    g_BattleRoundNumber = 0;
     D_8009881E = 0;
     D_80097102 = 0;
     D_80092918 = 0;
@@ -755,11 +755,11 @@ char BattleResetForNextRound(void) {    g_BattleActor1.unkCC = 0x400;
     D_80091144 = 0;
     D_80091145 = 0;
     D_80092664 = 0;
-    D_80092950++;
+    g_BattleRoundNumber++;
     SystemStringReset(g_BattleMessageWindow);
-    D_80099D9A = 0;
+    g_BattleFrameRateLevel = 0;
     if (D_8005061C != 0) {
-        switch ((D_80092950 - 1) % 5) {
+        switch ((g_BattleRoundNumber - 1) % 5) {
         case 3:
             g_BattleStageLightIndex = 1;
             break;
@@ -817,7 +817,7 @@ void BattleSaveActorVectors(s32 unk0) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
 
 void BattleActorSetModelByTimer(Actor* p) {
-    D_8009292C = 0x100;
+    g_BattleMotionSpeedScale = 0x100;
     if (D_800928AC < 0x78) {
         p->unk4F = 0x10;
         p->unk52 = 0;
@@ -832,7 +832,7 @@ void BattleActorSetModelByTimer(Actor* p) {
 }
 
 void BattleActorSetModelIndex9(Actor* p) {
-    D_8009292C = 0x100;
+    g_BattleMotionSpeedScale = 0x100;
     p->unk4F = 0x10;
     p->unk52 = 0;
     p->modelIndex = 9;
@@ -915,7 +915,7 @@ void func_8007AC3C(void) {
     VECTOR* pB = (VECTOR*)&g_BattleActor0;
 
     D_800928AC = 0x96;
-    D_8009292C = 0x100;
+    g_BattleMotionSpeedScale = 0x100;
     SetGeomScreen(0x200);
     *pA = *(VECTOR*)&D_80092A34;
     *pB = *(VECTOR*)&D_80092A44;
@@ -937,7 +937,7 @@ void BattleActorInitModelState(Actor* p, u8 unk4C) {
     p->unk4F = 0x10;
     p->modelIndex = unk4C;
     p->unk52 = 0;
-    D_8009292C = 0x100;
+    g_BattleMotionSpeedScale = 0x100;
     func_80074BA4();
     func_80074678(p, p->unk998, p->unk99A);
 }

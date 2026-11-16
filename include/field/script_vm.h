@@ -30,7 +30,7 @@ extern char D_8006FD84[];
 extern int D_800ADBE0;
 extern int g_FieldEntryStateGate;
 extern int D_800ADBEC;
-extern int D_800ADB1C;
+extern int g_FieldEntryRoutineFinished;
 
 extern int FieldScriptVMGetInstructionArgument(int);
 extern int FieldScriptVMGetVariableSign(int);

@@ -7,7 +7,7 @@
 #include "field/script_vm.h"
 #include "field/text_box.h"
 
-extern s32 D_800ADB1C; // Is current actor a 2D actor (0) maybe?
+extern s32 g_FieldEntryRoutineFinished; // Is current actor a 2D actor (0) maybe?
 extern s32 g_FieldCurActorIndex;
 extern s8 D_800B21CE;
 extern s8 D_800B21CF[];
@@ -372,7 +372,7 @@ void FieldSetCurrentActorRotation(int rotation) {
     short rotationValue2D;
     short rotationValue3D;
 
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         rotationValue3D = rotation | 0x8000;
         g_FieldScriptVMCurActor->rotation.vx = rotationValue3D;
         g_FieldScriptVMCurActor->rotation.vy = rotationValue3D;
@@ -393,7 +393,7 @@ void FieldScriptSetActorRotation(int angle) {
     actorIndex = FieldScriptVMGetActorIndex(1);
     if (actorIndex != ACTOR_ID_INVALID) {
         pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
-        if (D_800ADB1C == 0) {
+        if (g_FieldEntryRoutineFinished == 0) {
             rotAngle3D = angle | 0x8000;
             pActor->rotation.vx = rotAngle3D;
             pActor->rotation.vy = rotAngle3D;
@@ -422,7 +422,7 @@ void FieldScriptSetActorRotationTowardActor(void) {
                 pTargetActor->position.vx - pActor->position.vx
             ) | 0x8000;
 
-            if (D_800ADB1C == 0) {
+            if (g_FieldEntryRoutineFinished == 0) {
                 pActor->rotation.vx = rotation;
                 pActor->rotation.vy = rotation;
                 pActor->rotation.vz = rotation;
@@ -442,7 +442,7 @@ void FieldSetCurrentActorRotationFromCameraRelativeAngle(int rotation) {
     g_FieldScriptVMCurActor->rotation.vy = rotationValue;
 
     // 3D Actor?
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->rotation.vz = rotationValue;
     }
 
@@ -505,7 +505,7 @@ void FieldScriptSetCurActorRotationFromTableRelativeToCamera(void) {
     g_FieldScriptVMCurActor->rotation.vy = rotationValue;
 
     // 3D Actor?
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->rotation.vz = rotationValue;
     }
 
@@ -519,7 +519,7 @@ void FieldScriptSetCurActorRotationFromTable(void) {
     g_FieldScriptVMCurActor->rotation.vy = rotationValue;
 
     // 3D Actor?
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->rotation.vz = rotationValue;
     }
 
@@ -837,7 +837,7 @@ void func_8009B8E4(void) {
     int direction = FieldScriptVMGetArgument(1);
     int duration = FieldScriptVMGetArgument(3);
 
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         s32 angle = (direction + 4 & 7) << 9;
 
         g_Scene.sceneAngle.vy = angle;

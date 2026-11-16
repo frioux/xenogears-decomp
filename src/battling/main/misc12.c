@@ -107,7 +107,7 @@ typedef struct {
 
 extern BattleEnv g_BattleBaseMatrix;
 extern BattleEnv g_BattleScaleMatrix;
-extern BattleEnv D_8009A2D8;
+extern BattleEnv g_BattleBaseMatrixCopy;
 extern s16 D_80096FE8;
 
 extern s32 g_BattleOptionFlags;
@@ -116,10 +116,10 @@ extern u8 D_8005061C;
 extern u8 g_BattleDifficultyLevel;
 extern u8 g_BattlePlayer1Vibration;
 extern u8 g_BattlePlayer2Vibration;
-extern u8 D_80099D9F;
+extern u8 g_BattleMatchCount;
 extern s16 g_BattleScreenWidth;
 extern s16 g_BattleScreenHeight;
-extern u8 D_80091A6C[];
+extern u8 g_BattleExtraEntries[];
 extern u8 g_BattleExtraEntryQueued;
 extern s32 g_BattleEntryCount;
 extern s32 g_BattleHeapDumpScroll;
@@ -202,7 +202,7 @@ void BattleAppendExtraQueueEntry(void) {
         return;
     }
     g_BattleExtraEntryQueued = 1;
-    g_BattleEntries[g_BattleEntryCount++] = D_80091A6C;
+    g_BattleEntries[g_BattleEntryCount++] = g_BattleExtraEntries;
 }
 
 s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
@@ -263,7 +263,7 @@ void func_80088A40(void) {
     pFlags->mode = 1;
     pFlags->flagB = g_BattlePlayer1Vibration & 1;
     pFlags->flagC = g_BattlePlayer2Vibration & 1;
-    pFlags->value = D_80099D9F & 0x7F;
+    pFlags->value = g_BattleMatchCount & 0x7F;
     pFlags->scale = g_BattleDifficultyLevel & 7;
 }
 */
@@ -283,7 +283,7 @@ void BattleApplyOptionWord(void) {
     if ((flags & 0xF) == 1) {
         g_BattlePlayer1Vibration = (flags >> 4) & 1;
         g_BattlePlayer2Vibration = (flags >> 5) & 1;
-        D_80099D9F = (flags >> 6) & 0x7F;
+        g_BattleMatchCount = (flags >> 6) & 0x7F;
         g_BattleDifficultyLevel = (flags >> 13) & 7;
         if (flags & 0x10000) {
             i = 7;
@@ -295,7 +295,7 @@ void BattleApplyOptionWord(void) {
     } else {
         g_BattlePlayer1Vibration = 0;
         g_BattlePlayer2Vibration = 0;
-        D_80099D9F = 2;
+        g_BattleMatchCount = 2;
         g_BattleDifficultyLevel = 0;
         func_80088A40();
     }
@@ -350,14 +350,14 @@ extern u8 g_BattleHeapContentTypes[];
 extern s32 g_DebugTable;
 extern void* g_BattleDrawSlot;
 extern void* g_BattleDisplaySlot;
-extern s32 D_800928CC;
+extern s32 g_BattleDebugDrawMode;
 extern u16 D_80092898;
 extern s32 g_BattleMultiplyNodeMatrices;
 extern u16 g_BattleDebugFlags;
 extern s32 g_BattleDrawFlags;
 extern s32 D_80092930;
 extern u8 g_BattleDrawBufferIndex;
-extern u8 D_80092920;
+extern u8 g_BattleControlFlags;
 extern void* FontLoadFont(s32, s32, s32, s32, s32, u32, s32, s32, s32, s32, void*);
 extern void BattleSetTpage(s32, s32);
 extern void BattleSetClut(s32, s32);
@@ -376,13 +376,13 @@ void BattleInitGraphics(void) {
     BattleInitSlotDrawEntry(1);
     switch (g_DebugTable) {
     case -1:
-        D_800928CC = 2;
+        g_BattleDebugDrawMode = 2;
         break;
     case 0:
-        D_800928CC = 1;
+        g_BattleDebugDrawMode = 1;
         break;
     default:
-        D_800928CC = 0;
+        g_BattleDebugDrawMode = 0;
         break;
     }
     g_BattleDrawSlot = g_BattleDrawBuffers;
@@ -394,7 +394,7 @@ void BattleInitGraphics(void) {
     D_80092930 = 0;
     g_BattleDrawFlags = 0;
     g_BattleDrawBufferIndex = 0;
-    D_80092920 = 0;
+    g_BattleControlFlags = 0;
     D_80092930 = 0;
     g_BattleDebugFlags = 7;
     BattleInitSoundSlots();
@@ -426,7 +426,7 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
 
     scaleW = (w << 12) / 320 * h / w;
     scaleH = (h << 12) / 240 * h / w;
-    D_8009A2D8 = g_BattleBaseMatrix;
+    g_BattleBaseMatrixCopy = g_BattleBaseMatrix;
     g_BattleScaleMatrix = g_BattleBaseMatrix;
     ((s16*)&g_BattleScaleMatrix)[0] = scaleW;
     D_80096FE8 = scaleH;

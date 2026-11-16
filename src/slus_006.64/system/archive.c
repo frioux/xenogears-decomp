@@ -11,18 +11,18 @@
 #include "psyq/libcd.h"
 #include "psyq/libgpu.h"
 
-extern s8* D_8004FE08;
+extern s8* g_ArchiveStreamWritePointer;
 extern StreamDataQueueEntry* g_ArchiveStreamQueue;
 extern s32 g_ArchiveStreamQueueCount;
 extern s32 g_ArchiveStreamQueueIndex;
 extern s16 D_8004FE24;
-extern u16 D_8004FE26;
-extern u16 D_8004FE28;
+extern u16 g_ArchiveStreamNextSectionId;
+extern u16 g_ArchiveStreamCurSectionId;
 extern void* g_ArchiveCurStreamFile; // Current stream file struct
 extern s32 D_80059F00;
 extern u32 g_ArchiveCurEntryIndex;
 extern s16 D_80059F60;
-extern s32 D_8005A4DC;
+extern s32 g_ArchiveReadRetryCount;
 extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
 extern void ArchiveStreamFileDataCallback();
@@ -32,25 +32,25 @@ extern void ArchiveCdDataSync(int);
 extern int ArchiveDecodeSizeAligned(int);
 extern int ArchiveDecodeSectorAligned(int);
 extern s32 g_ArchiveCurFileSector;
-extern char D_80018944[];
-extern char D_80018954[];
-extern char D_80018964[];
-extern char D_80018974[];
+extern char g_StrArchiveDebugStreamState[];
+extern char g_StrArchiveDebugCounters[];
+extern char g_StrArchiveDebugImageRect[];
+extern char g_StrArchiveDebugChunkHeights[];
 extern void func_800379C8(char*, ...);
-extern s32 D_80059F3C;
+extern s32 g_ArchiveImageBlocksLeft;
 extern int D_80059F04;
-extern CdlLOC D_80059EF8;
-extern u8 D_800596F8[];
-extern s32 D_8004FDE4;
+extern CdlLOC g_ArchiveSectorLocation;
+extern u8 g_ArchiveSectorScratch[];
+extern s32 g_ArchiveFilePositionErrorCount;
 extern s32 D_8004FDEC;
 extern s32 g_ArchiveStreamResumedFile;
 extern s32 g_ArchiveStreamSeekWindow;
 extern s32 g_ArchiveStreamPositionErrors;
-extern s16 D_80059F40;
-extern s16 D_80059F44;
-extern s16 D_80059F48;
-extern u16* D_80059F4C;
-extern s32 D_80059F50;
+extern s16 g_ArchiveImageRectX;
+extern s16 g_ArchiveImageRectY;
+extern s16 g_ArchiveImageRectW;
+extern u16* g_ArchiveImageChunkHeights;
+extern s32 g_ArchiveImageChunksLeft;
 extern s16 D_80059F24;
 extern u16 D_80059F28;
 extern u16 D_80059F2C;
@@ -75,13 +75,13 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     for (i = 2, pData = &D_80059F00; i >= 0; i--)
         *pData-- = 0;
     
-    D_8004FDFC = 1;
-    D_8004FE08 = pDestBuffer;
-    D_8004FE38 = arg2 & 0xFFFF;
+    g_ArchivePendingReadCount = 1;
+    g_ArchiveStreamWritePointer = pDestBuffer;
+    g_ArchiveCdChannel = arg2 & 0xFFFF;
     g_ArchiveStreamQueueIndex = 0;
     g_ArchiveStreamQueue = NULL;
-    D_8004FE34 = 0;
-    D_8005A4DC = 0;
+    g_ArchiveStreamStopFlag = 0;
+    g_ArchiveReadRetryCount = 0;
     pLoc = &g_ArchiveCdCurLocation;
     CdIntToPos(g_ArchiveCurFileSector, pLoc);
     
@@ -89,11 +89,11 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
         ArchiveChangeStreamingFile(pDestBuffer);
         nStreamSectors = *(u32*)g_ArchiveCurStreamFile;
         if (nStreamSectors) {
-            D_8004FE08 = g_ArchiveCurStreamFile + nStreamSectors * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
-            D_8004FE2C = g_ArchiveCurStreamFile + 4;
-            D_8004FE40 = nStreamSectors;
-            D_8004FE26 = 0;
-            D_8004FE28 = 0;
+            g_ArchiveStreamWritePointer = g_ArchiveCurStreamFile + nStreamSectors * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+            g_ArchiveStreamSections = g_ArchiveCurStreamFile + 4;
+            g_ArchiveStreamSectionCount = nStreamSectors;
+            g_ArchiveStreamNextSectionId = 0;
+            g_ArchiveStreamCurSectionId = 0;
             D_8004FE24 = 0;
             ArchiveClearStreamFileSections();
             
@@ -101,14 +101,14 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
                 pFilePath2 = ArchiveGetFilePath(dbgEntryIndex);
                 
                 for (i = 0; i < RETRY_COUNT; i++) {
-                    D_8004FE4C = PCopen(pFilePath2, 0, 0);
-                    if (D_8004FE4C == -1)
+                    g_ArchiveDebugFileHandle = PCopen(pFilePath2, 0, 0);
+                    if (g_ArchiveDebugFileHandle == -1)
                         GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
                     else
                         break;
                 }
 
-                return -(~D_8004FE4C == 0) & -3;
+                return -(~g_ArchiveDebugFileHandle == 0) & -3;
             }
 
             g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
@@ -116,7 +116,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
             CdSyncCallback(&ArchiveCdDriveCommandHandler);
             pReadyCallback = &func_8002B2F0;
             CdReadyCallback(pReadyCallback);
-            D_8005A488 += 1;
+            g_ArchiveCdReadStartCount += 1;
             CdControlF(CdlSetloc, (void*)pLoc);
             return 0;
         }
@@ -127,12 +127,12 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
         ArchiveChangeStreamingFile(pDestBuffer);
         nStreamSectors2 = *(u32*)g_ArchiveCurStreamFile;
         if (nStreamSectors2) {
-            D_8004FE08 = g_ArchiveCurStreamFile + (nStreamSectors2 * sizeof(ArchiveStreamFileSectionHeader)) + STREAM_FILE_HEADER_SIZE;
-            D_8004FE2C = g_ArchiveCurStreamFile + 4;
-            D_8004FE40 = nStreamSectors2;
+            g_ArchiveStreamWritePointer = g_ArchiveCurStreamFile + (nStreamSectors2 * sizeof(ArchiveStreamFileSectionHeader)) + STREAM_FILE_HEADER_SIZE;
+            g_ArchiveStreamSections = g_ArchiveCurStreamFile + 4;
+            g_ArchiveStreamSectionCount = nStreamSectors2;
             D_80059F60 = 0;
-            D_8004FE26 = 0;
-            D_8004FE28 = 0;
+            g_ArchiveStreamNextSectionId = 0;
+            g_ArchiveStreamCurSectionId = 0;
             D_8004FE24 = 0;
             ArchiveClearStreamFileSections();
             
@@ -141,20 +141,20 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
                 *pCdMode-- = 0;
 
             // CD Mode - double speed, 2340 byte size
-            D_80059F18[0] = flags | CdlModeSpeed | CdlModeSize1;
+            g_ArchiveCdMode[0] = flags | CdlModeSpeed | CdlModeSize1;
             
             if (g_ArchiveDebugTable) {
                 pFilePath2 = ArchiveGetFilePath(dbgEntryIndex);
 
                 for (i = 0; i < RETRY_COUNT; i++) {
-                    D_8004FE4C = PCopen(pFilePath2, 0, 0);
-                    if (D_8004FE4C == -1)
+                    g_ArchiveDebugFileHandle = PCopen(pFilePath2, 0, 0);
+                    if (g_ArchiveDebugFileHandle == -1)
                         GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
                     else
                         break;
                 }
                 
-                return -(~D_8004FE4C == 0) & -3;
+                return -(~g_ArchiveDebugFileHandle == 0) & -3;
             }
             return 0;
         }
@@ -190,7 +190,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
                 GfxDrawArchiveReadRetry(i, 0, 0, 0xFF);
             } else {
                 g_ArchiveCurFileSize = 0;
-                D_8004FDFC = 0;
+                g_ArchivePendingReadCount = 0;
                 return 0;
             }
         }
@@ -203,7 +203,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     CdSyncCallback(&ArchiveCdDriveCommandHandler);
     pReadyCallback = &ArchiveCdReadyReadFile;
     CdReadyCallback(pReadyCallback);
-    D_8005A488 += 1;
+    g_ArchiveCdReadStartCount += 1;
     CdControlF(CdlSetloc, (void*)pLoc);
     return 0;
 }
@@ -279,16 +279,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *     }
  *
  *     ArchiveCdDataSync(0);
- *     D_8004FE18 = g_CurArchiveOffset;
+ *     g_ArchiveHeaderOffsetBase = g_CurArchiveOffset;
  *     for (i = 2, pWord = &D_80059F00; i >= 0; i--) {
  *         *pWord-- = 0;
  *     }
  *
  *     g_ArchiveStreamQueueIndex = 0;
  *     g_ArchiveStreamQueue = pQueue;
- *     D_8004FDFC = nCount;
+ *     g_ArchivePendingReadCount = nCount;
  *     g_ArchiveStreamQueueCount = nCount;
- *     D_8004FE08 = pQueue->pData;
+ *     g_ArchiveStreamWritePointer = pQueue->pData;
  *
  *     if (pQueue->archiveIndex == 0 || pQueue->pData == NULL) {
  *         ArchiveCdSeekToFile(channel);
@@ -296,10 +296,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *         g_ArchiveCurEntryIndex = pQueue->archiveIndex;
  *         g_ArchiveCurFileSector = ArchiveDecodeSector(pQueue->archiveIndex);
  *         g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(pQueue->archiveIndex);
- *         D_8004FE38 = channel & 0xFFFF;
+ *         g_ArchiveCdChannel = channel & 0xFFFF;
  *         g_ArchiveStreamResumedFile = 0;
- *         D_8004FE34 = 0;
- *         D_8005A4DC = 0;
+ *         g_ArchiveStreamStopFlag = 0;
+ *         g_ArchiveReadRetryCount = 0;
  *         pLoc = &g_ArchiveCdCurLocation;
  *         CdIntToPos(g_ArchiveCurFileSector, pLoc);
  *
@@ -337,14 +337,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  *             CdDataCallback(&ArchiveRestorePendingCount);
  *             CdSyncCallback(&ArchiveCdDriveCommandHandler);
  *             CdReadyCallback(&ArchiveCdReadyReadQueuedFile);
- *             D_8005A488 += 1;
+ *             g_ArchiveCdReadStartCount += 1;
  *             CdControlF(CdlSetloc, (void*)pLoc);
  *             return 0;
  *         }
  *     }
  *
  *     g_ArchiveCurFileSize = 0;
- *     D_8004FDFC = 0;
+ *     g_ArchivePendingReadCount = 0;
  *     return 0;
  * }
  */
@@ -373,7 +373,7 @@ void ArchiveCdSeekOrPause(int entryIndex) {
     CdlLOC* pCdLocation;
 
     if ((g_ArchiveDebugTable == 0) && (ArchiveDataSync() == 0)) {
-        D_8004FE18 = g_CurArchiveOffset;
+        g_ArchiveHeaderOffsetBase = g_CurArchiveOffset;
         if (entryIndex > 0) {
             pCdLocation = &g_ArchiveCdCurLocation;
             nSector = ArchiveDecodeSector(entryIndex);
@@ -427,29 +427,29 @@ void ArchiveCdSetMode(u_char mode) {
         *pParam-- = 0;
     }
     
-    D_80059F18[0] = mode;
-    CdControlF(CdlSetmode, &D_80059F18);
+    g_ArchiveCdMode[0] = mode;
+    CdControlF(CdlSetmode, &g_ArchiveCdMode);
 }
 
 void ArchiveStopTransfer(int channel) {
     int i;
 
-    D_8004FE34 = 1;
-    D_8004FE38 = channel;
+    g_ArchiveStreamStopFlag = 1;
+    g_ArchiveCdChannel = channel;
     if (g_ArchiveDebugTable) {
         g_ArchiveCurFileSize = 0;
-        D_8004FDFC = 0;
+        g_ArchivePendingReadCount = 0;
 
         // Close (debug) streaming file handle
-        if (D_8004FE4C != -1) {
-            while (i = PCclose(D_8004FE4C)) {
+        if (g_ArchiveDebugFileHandle != -1) {
+            while (i = PCclose(g_ArchiveDebugFileHandle)) {
                 if (i != 0) {
                     if (i + 1 < 4)
                         continue;
                 }
                 break;
             }
-            D_8004FE4C = -1;
+            g_ArchiveDebugFileHandle = -1;
         }
     }
 }
@@ -520,12 +520,12 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
     switch (g_ArchiveCdDriveState) {
         case ARCHIVE_CD_DRIVE_READ_SECTOR:
             if (status == CdlComplete) {
-                D_8005A48C += 1;
+                g_ArchiveCdReadCompleteCount += 1;
                 g_ArchiveCdDriveState += 1;
                 CdControlF(CdlReadN, NULL);
             } else {
-                D_8005A490 += 1;
-                D_80059F08 = CdReadyCallback(NULL);
+                g_ArchiveCdReadStatusErrorCount += 1;
+                g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
                 g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
                 CdControlF(CdlNop, NULL);
@@ -534,13 +534,13 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
 
         case ARCHIVE_CD_DRIVE_READ_DONE:
             if (status == CdlComplete) {
-                D_8005A48C += 1;
+                g_ArchiveCdReadCompleteCount += 1;
                 CdSyncCallback(NULL);
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_IDLE;
                 return;
             }
-            D_8005A490 += 1;
-            D_80059F08 = CdReadyCallback(NULL);
+            g_ArchiveCdReadStatusErrorCount += 1;
+            g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
             g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
             g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
             CdControlF(CdlNop, NULL);
@@ -584,13 +584,13 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
         case ARCHIVE_CD_DRIVE_READ_DATA_SECTOR:
             if (status == CdlComplete) {
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
-                D_8005A488 += 1;
-                D_8005A494 += 1;
-                CdReadyCallback(D_80059F08);
+                g_ArchiveCdReadStartCount += 1;
+                g_ArchiveCdDataSectorCompleteCount += 1;
+                CdReadyCallback(g_ArchiveSavedReadyCallback);
                 CdControlF(CdlSetloc, &g_ArchiveCdCurLocation);
             } else {
                 g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
-                D_8005A498 += 1;
+                g_ArchiveCdDataSectorErrorCount += 1;
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
                 CdControlF(CdlNop, NULL);
             }
@@ -599,12 +599,12 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
         case ARCHIVE_CD_DRIVE_HALT:
             if (status == CdlComplete) {
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_DATA_SECTOR;
-                D_8005A4A8 += 1;
+                g_ArchiveCdHaltCompleteCount += 1;
                 CdControlF(CdlPause, NULL);
             } else {
                 g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
-                D_8005A4B4 += 1;
+                g_ArchiveCdHaltErrorCount += 1;
                 CdControlF(CdlNop, NULL);
             }
             break;
@@ -612,10 +612,10 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
         case ARCHIVE_CD_DRIVE_SET_ADPCM_PLAY_CHANNEL:
             if (status == CdlComplete) {
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_ADPCM_SECTOR;
-                channel = D_8004FE38;
+                channel = g_ArchiveCdChannel;
                 D_80059F15 = channel;
-                D_80059F14[0] = 1;
-                CdControlF(CdlSetfilter, &D_80059F14);
+                g_ArchiveCdFilter[0] = 1;
+                CdControlF(CdlSetfilter, &g_ArchiveCdFilter);
             } else {
                 g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_ADPCM;
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
@@ -626,14 +626,14 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
         case ARCHIVE_CD_DRIVE_READ_ADPCM_SECTOR:
             if (status == CdlComplete) {
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
-                D_8005A488 += 1;
-                D_8005A494 += 1;
-                CdReadyCallback(D_80059F08);
+                g_ArchiveCdReadStartCount += 1;
+                g_ArchiveCdDataSectorCompleteCount += 1;
+                CdReadyCallback(g_ArchiveSavedReadyCallback);
                 CdControlF(CdlSetloc, &g_ArchiveCdCurLocation);
             } else {
                 g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_ADPCM;
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
-                D_8005A498 += 1;
+                g_ArchiveCdDataSectorErrorCount += 1;
                 CdControlF(CdlNop, NULL);
             }
             break;
@@ -645,7 +645,7 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
             } else {
                 g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_RESET_MODE;
                 g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
-                D_8005A4B4 += 1;
+                g_ArchiveCdHaltErrorCount += 1;
                 CdControlF(CdlNop, NULL);
             }
             break;
@@ -684,11 +684,11 @@ void ArchiveCdDriveCommandHandler(u_char status, u_char* pResult) {
                         break;
                     case ARCHIVE_CD_DRIVE_ERR_ADPCM:
                         g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_SET_ADPCM_PLAY_CHANNEL;
-                        CdControlF(CdlSetmode, &D_80059F18);
+                        CdControlF(CdlSetmode, &g_ArchiveCdMode);
                         break;
                     case ARCHIVE_CD_DRIVE_ERR_RESET_MODE:
                         g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_RESET_MODE;
-                        CdControlF(CdlSetmode, &D_80059F18);
+                        CdControlF(CdlSetmode, &g_ArchiveCdMode);
                         break;
                     default:
                         return;
@@ -719,38 +719,38 @@ void ArchiveCdReadyReadQueuedFile(u_char status) {
     if (status != CdlDataReady)
         goto error;
 
-    if (D_8004FE34 > 0) {
+    if (g_ArchiveStreamStopFlag > 0) {
         CdReadyCallback(NULL);
         CdDataCallback(NULL);
         g_ArchiveCurFileSize = 0;
-        ArchiveCdSeekToFile(D_8004FE38);
+        ArchiveCdSeekToFile(g_ArchiveCdChannel);
         g_ArchiveStreamQueueCount = 0;
-        D_8004FDFC = 0;
+        g_ArchivePendingReadCount = 0;
         return;
     }
 
     if (g_ArchiveCurFileSize >= CD_SECTOR_SIZE) {
         if (g_ArchiveStreamResumedFile == 0) {
-            CdGetSector(&D_80059EF8, 3);
-            CdGetSector(D_8004FE08, CD_SECTOR_SIZE / 4);
+            CdGetSector(&g_ArchiveSectorLocation, 3);
+            CdGetSector(g_ArchiveStreamWritePointer, CD_SECTOR_SIZE / 4);
         }
     } else if (g_ArchiveCurFileSize > 0) {
         if (g_ArchiveStreamResumedFile == 0) {
-            CdGetSector(&D_80059EF8, 3);
-            CdGetSector(D_8004FE08, (g_ArchiveCurFileSize + 3) / 4);
+            CdGetSector(&g_ArchiveSectorLocation, 3);
+            CdGetSector(g_ArchiveStreamWritePointer, (g_ArchiveCurFileSize + 3) / 4);
             nWords = (g_ArchiveCurFileSize + 3) / 4;
             nHalfSector = CD_SECTOR_SIZE / 4;
             nHalfSector = nHalfSector - nWords;
-            CdGetSector(D_800596F8, nHalfSector);
+            CdGetSector(g_ArchiveSectorScratch, nHalfSector);
         }
     }
 
-    if ((CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) && (g_ArchiveStreamResumedFile == 0)) {
+    if ((CdPosToInt(&g_ArchiveSectorLocation) != g_ArchiveCurFileSector) && (g_ArchiveStreamResumedFile == 0)) {
         g_ArchiveStreamPositionErrors += 1;
         goto error;
     }
 
-    D_8004FE08 += CD_SECTOR_SIZE;
+    g_ArchiveStreamWritePointer += CD_SECTOR_SIZE;
     g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
     g_ArchiveCurFileSector += 1;
     if (g_ArchiveCurFileSize > 0)
@@ -761,7 +761,7 @@ void ArchiveCdReadyReadQueuedFile(u_char status) {
     nId = pEntry->archiveIndex;
     g_ArchiveStreamQueueIndex = entryIndex;
     pData = pEntry->pData;
-    D_8004FE08 = pData;
+    g_ArchiveStreamWritePointer = pData;
 
     if ((nId == 0) || (pData == NULL))
         goto noEntry;
@@ -787,7 +787,7 @@ seek:
 
     g_ArchiveStreamResumedFile = 0;
     g_ArchiveCurFileSector = nSector;
-    D_80059F08 = CdReadyCallback(NULL);
+    g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_DATA_SECTOR;
     CdSyncCallback(&ArchiveCdDriveCommandHandler);
@@ -798,25 +798,25 @@ seek:
 noEntry:
     g_ArchiveCurFileSize = 0;
     CdReadyCallback(NULL);
-    ArchiveCdSeekToFile(D_8004FE38);
+    ArchiveCdSeekToFile(g_ArchiveCdChannel);
     g_ArchiveStreamQueueCount = 0;
-    D_8004FDFC = 0;
+    g_ArchivePendingReadCount = 0;
     return;
 
 error:
-    D_8005A4DC += 1;
-    D_80059F08 = CdReadyCallback(NULL);
+    g_ArchiveReadRetryCount += 1;
+    g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
-    if (D_8005A4DC < 3) {
+    if (g_ArchiveReadRetryCount < 3) {
         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
     } else {
         for (i = 9999; i >= 0; i--) {
             for (j = 1999; j >= 0; j--) {
             }
         }
-        D_8005A4DC = 0;
+        g_ArchiveReadRetryCount = 0;
         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
-        D_8005A4A4 += 1;
+        g_ArchiveCdReadRetryExhaustedCount += 1;
     }
     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
     CdSyncCallback(&ArchiveCdDriveCommandHandler);
@@ -832,28 +832,28 @@ void ArchiveCdReadyReadFile(u_char status) {
     if (status != CdlDataReady)
         goto error;
 
-    if (D_8004FE34 > 0)
+    if (g_ArchiveStreamStopFlag > 0)
         goto halt;
 
     if (g_ArchiveCurFileSize >= CD_SECTOR_SIZE) {
-        CdGetSector(&D_80059EF8, 3);
-        CdGetSector(D_8004FE08, CD_SECTOR_SIZE / 4);
+        CdGetSector(&g_ArchiveSectorLocation, 3);
+        CdGetSector(g_ArchiveStreamWritePointer, CD_SECTOR_SIZE / 4);
     } else if (g_ArchiveCurFileSize > 0) {
-        CdGetSector(&D_80059EF8, 3);
-        CdGetSector(D_8004FE08, (g_ArchiveCurFileSize + 3) / 4);
+        CdGetSector(&g_ArchiveSectorLocation, 3);
+        CdGetSector(g_ArchiveStreamWritePointer, (g_ArchiveCurFileSize + 3) / 4);
         nWords = (g_ArchiveCurFileSize + 3) / 4;
         nHalfSector = CD_SECTOR_SIZE / 4;
         nHalfSector = nHalfSector - nWords;
-        CdGetSector(D_800596F8, nHalfSector);
+        CdGetSector(g_ArchiveSectorScratch, nHalfSector);
     }
 
-    if (CdPosToInt(&D_80059EF8) != g_ArchiveCurFileSector) {
-        D_8004FDE4 += 1;
+    if (CdPosToInt(&g_ArchiveSectorLocation) != g_ArchiveCurFileSector) {
+        g_ArchiveFilePositionErrorCount += 1;
         goto error;
     }
 
     g_ArchiveCurFileSector += 1;
-    D_8004FE08 += CD_SECTOR_SIZE;
+    g_ArchiveStreamWritePointer += CD_SECTOR_SIZE;
     g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
     if (g_ArchiveCurFileSize > 0)
         return;
@@ -861,24 +861,24 @@ void ArchiveCdReadyReadFile(u_char status) {
 halt:
     CdReadyCallback(NULL);
     g_ArchiveCurFileSize = 0;
-    ArchiveCdSeekToFile(D_8004FE38);
-    D_8004FDFC = 0;
+    ArchiveCdSeekToFile(g_ArchiveCdChannel);
+    g_ArchivePendingReadCount = 0;
     return;
 
 error:
-    D_8005A4DC += 1;
-    D_80059F08 = CdReadyCallback(NULL);
+    g_ArchiveReadRetryCount += 1;
+    g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
-    if (D_8005A4DC < 3) {
+    if (g_ArchiveReadRetryCount < 3) {
         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
     } else {
         for (i = 9999; i >= 0; i--) {
             for (j = 1999; j >= 0; j--) {
             }
         }
-        D_8005A4DC = 0;
+        g_ArchiveReadRetryCount = 0;
         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
-        D_8005A4A4 += 1;
+        g_ArchiveCdReadRetryExhaustedCount += 1;
     }
     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
     CdSyncCallback(&ArchiveCdDriveCommandHandler);
@@ -893,30 +893,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * CdPosToInt matches byte for byte.
  *
  * What this attempt got right:
- *  - the search loop reads the globals directly (`for (i = 0; i < D_8004FE40; i++)`
- *    with `entryIndex = g_ArchiveStreamQueueIndex++` and D_8004FE2C in the body) so gcc hoists the
- *    loop-invariant copies (`lw v0,D_8004FE40` + `blez v0`, `move a1,v0`);
+ *  - the search loop reads the globals directly (`for (i = 0; i < g_ArchiveStreamSectionCount; i++)`
+ *    with `entryIndex = g_ArchiveStreamQueueIndex++` and g_ArchiveStreamSections in the body) so gcc hoists the
+ *    loop-invariant copies (`lw v0,g_ArchiveStreamSectionCount` + `blez v0`, `move a1,v0`);
  *  - the two delay loops need their OWN counters (k/l); reusing the search loop's
  *    `i` puts the outer 9999 counter in a0 instead of v1;
- *  - `D_8004FE26 = *(volatile u16*)&D_8004FE26 + 1;` is the spelling that keeps
+ *  - `g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;` is the spelling that keeps
  *    retail's TWO lhu of the id counter. gcc's cse merges a plain second read with
- *    the `pCurrent->id = D_8004FE26` read (the store through s1 in between is not
+ *    the `pCurrent->id = g_ArchiveStreamNextSectionId` read (the store through s1 in between is not
  *    treated as aliasing), so the increment read has to be volatile to survive.
  *
  * Remaining delta: same instruction set, same size, three ordering differences,
  * all inside the found block. Retail:
  *   li v0,0x1 <- (reorg steals it into the beq delay slot) ; li a1,0x200 ;
- *   lhu a2,D_8004FE26 ; sll a0,s2,0xb ; sh v0,0(s1) ; lhu v0,D_8004FE26 ;
- *   lui/lw v1,D_8004FE08 ; addiu v0,v0,1 ; sh a2,2(s1) ; sh v0,D_8004FE26 ;
+ *   lhu a2,g_ArchiveStreamNextSectionId ; sll a0,s2,0xb ; sh v0,0(s1) ; lhu v0,g_ArchiveStreamNextSectionId ;
+ *   lui/lw v1,g_ArchiveStreamWritePointer ; addiu v0,v0,1 ; sh a2,2(s1) ; sh v0,g_ArchiveStreamNextSectionId ;
  *   jal CdGetSector ; addu a0,a0,v1
  * Ours:
- *   li a1,0x200 <- ; li v0,0x1 ; lhu a2,D_8004FE26 ; lui/lw a0,D_8004FE08 ;
- *   sll v1,s2,0xb ; sh v0,0(s1) ; lhu v0,D_8004FE26 ; nop ; addiu v0,v0,1 ;
- *   sh a2,2(s1) ; sh v0,D_8004FE26 ; jal CdGetSector ; addu a0,v1,a0
+ *   li a1,0x200 <- ; li v0,0x1 ; lhu a2,g_ArchiveStreamNextSectionId ; lui/lw a0,g_ArchiveStreamWritePointer ;
+ *   sll v1,s2,0xb ; sh v0,0(s1) ; lhu v0,g_ArchiveStreamNextSectionId ; nop ; addiu v0,v0,1 ;
+ *   sh a2,2(s1) ; sh v0,g_ArchiveStreamNextSectionId ; jal CdGetSector ; addu a0,v1,a0
  * All three are sched2's choice of insn order, not the C:
  *  1. the state constant is emitted after the call's 0x200 constant, so reorg steals
  *     the wrong one into the beq delay slot;
- *  2. `lw D_8004FE08` is scheduled before `sll`, which also hands a0 to the load and
+ *  2. `lw g_ArchiveStreamWritePointer` is scheduled before `sll`, which also hands a0 to the load and
  *     v1 to the shift (retail: sll into a0, load into v1, `addu a0,a0,v1`);
  *  3. with the load no longer sitting between the two id reads, MASPSX has to insert
  *     a load-delay nop after the volatile `lhu v0` (see
@@ -926,7 +926,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * Measured and rejected: state-first WITHOUT volatile is 97.46% but has only one
  * lhu and is 728 bytes (one insn short - there is no way to make the second plain
  * read survive cse); both id reads volatile 96.81% (same block as here); volatile
- * read into a u16 local then `D_8004FE26 = nId + 1` 96.81%; volatile increment read
+ * read into a u16 local then `g_ArchiveStreamNextSectionId = nId + 1` 96.81%; volatile increment read
  * first and plain read second 96.48%; `nOffset = entryIndex * CD_SECTOR_SIZE;` as
  * its own statement before the call 96.81% (gcc folds the local back). Next idea:
  * make sched2 emit the shift before the load - that is the insn that decides the
@@ -945,20 +945,20 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *     if (status != CdlDataReady)
  *         goto error;
  *
- *     if (D_8004FE34 > 0) {
+ *     if (g_ArchiveStreamStopFlag > 0) {
  *         CdReadyCallback(NULL);
  *         CdDataCallback(NULL);
  *         g_ArchiveCurFileSize = 0;
- *         ArchiveCdSeekToFile(D_8004FE38);
- *         D_8004FDFC = 0;
+ *         ArchiveCdSeekToFile(g_ArchiveCdChannel);
+ *         g_ArchivePendingReadCount = 0;
  *         return;
  *     }
  *
  *     if (g_ArchiveCurFileSize > 0) {
- *         for (i = 0; i < D_8004FE40; i++) {
+ *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
  *             entryIndex = g_ArchiveStreamQueueIndex++;
- *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)D_8004FE2C);
- *             if (g_ArchiveStreamQueueIndex >= D_8004FE40)
+ *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+ *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
  *                 g_ArchiveStreamQueueIndex = 0;
  *             if (pCurrent->state == 0)
  *                 break;
@@ -967,20 +967,20 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *         if (pCurrent->state != 0)
  *             goto errorNoInc;
  *
- *         pLoc = &D_80059EF8;
+ *         pLoc = &g_ArchiveSectorLocation;
  *         CdGetSector(pLoc, 3);
  *         if (CdPosToInt(pLoc) == g_ArchiveCurFileSector) {
  *             pCurrent->state = 1;
- *             pCurrent->id = D_8004FE26;
- *             D_8004FE26 = *(volatile u16*)&D_8004FE26 + 1;
- *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)D_8004FE08), CD_SECTOR_SIZE / 4);
+ *             pCurrent->id = g_ArchiveStreamNextSectionId;
+ *             g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;
+ *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE / 4);
  *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
  *             g_ArchiveCurFileSector += 1;
  *             if (g_ArchiveCurFileSize > 0)
  *                 return;
  *         } else {
  *             D_8004FDEC += 1;
- *             pBuf = D_800596F8;
+ *             pBuf = g_ArchiveSectorScratch;
  *             CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
  *             goto error;
  *         }
@@ -991,20 +991,20 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *     return;
  *
  * error:
- *     D_8005A4DC += 1;
+ *     g_ArchiveReadRetryCount += 1;
  * errorNoInc:
- *     D_80059F08 = CdReadyCallback(NULL);
+ *     g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
  *     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
- *     if (D_8005A4DC < 3) {
+ *     if (g_ArchiveReadRetryCount < 3) {
  *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
  *     } else {
  *         for (k = 9999; k >= 0; k--) {
  *             for (l = 1999; l >= 0; l--) {
  *             }
  *         }
- *         D_8005A4DC = 0;
+ *         g_ArchiveReadRetryCount = 0;
  *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
- *         D_8005A4A4 += 1;
+ *         g_ArchiveCdReadRetryExhaustedCount += 1;
  *     }
  *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
  *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
@@ -1017,16 +1017,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  * identical to retail; all remaining deltas are sched2 ordering + one register
  * copy. What this version fixed vs the old park: numSections and pSection are
  * read through the globals *inside* the loop body so gcc 2.6 loop.c hoists
- * them into the post-entry-test preheader exactly like retail (lw D_8004FE40,
- * blez, move s0,zero, lw D_8004FE2C, move a0,v0); and the sector offset is a
+ * them into the post-entry-test preheader exactly like retail (lw g_ArchiveStreamSectionCount,
+ * blez, move s0,zero, lw g_ArchiveStreamSections, move a0,v0); and the sector offset is a
  * local (`nSectorOffset`) rather than `entryIndex * CD_SECTOR_SIZE` inside the
  * call.
  * Remaining: (a) retail has `lw v0,g_ArchiveStreamQueueIndex; nop; move a1,v0` (a copy of the
  * loaded entry index before addiu/sll) while we allocate the load directly;
  * (b) inside the found block retail emits `li v0,0x1; sh v0,0(p)` before
- * `lhu v0,D_8004FE26` and its `addiu v1,v0,1` before the id store, ours emits
+ * `lhu v0,g_ArchiveStreamNextSectionId` and its `addiu v1,v0,1` before the id store, ours emits
  * them after (same registers otherwise). Measured: `pCurrent->id =
- * D_8004FE26++` 90.19%; old park 87.60%.
+ * g_ArchiveStreamNextSectionId++` 90.19%; old park 87.60%.
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
 /* void func_8002B8B0(void) {
@@ -1036,11 +1036,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  *     int nSectorOffset;
  *
  *     if (g_ArchiveCurFileSize > 0) {
- *         for (i = 0; i < D_8004FE40; i++) {
+ *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
  *             entryIndex = g_ArchiveStreamQueueIndex;
- *             pCurrent = &D_8004FE2C[entryIndex];
+ *             pCurrent = &g_ArchiveStreamSections[entryIndex];
  *             g_ArchiveStreamQueueIndex = entryIndex + 1;
- *             if (g_ArchiveStreamQueueIndex >= D_8004FE40) {
+ *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount) {
  *                 g_ArchiveStreamQueueIndex = 0;
  *             }
  *             if (pCurrent->state == 0) {
@@ -1050,11 +1050,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  *
  *         if (pCurrent->state == 0) {
  *             pCurrent->state = 1;
- *             pCurrent->id = D_8004FE26;
- *             D_8004FE26 += 1;
+ *             pCurrent->id = g_ArchiveStreamNextSectionId;
+ *             g_ArchiveStreamNextSectionId += 1;
  *             nSectorOffset = entryIndex * CD_SECTOR_SIZE;
  *             for (i = 0; i < RETRY_COUNT; i++) {
- *                 if (PCread(D_80059F04, D_8004FE08 + nSectorOffset, CD_SECTOR_SIZE) != 0) {
+ *                 if (PCread(D_80059F04, g_ArchiveStreamWritePointer + nSectorOffset, CD_SECTOR_SIZE) != 0) {
  *                     break;
  *                 }
  *                 GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
@@ -1073,7 +1073,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  */
 
 void ArchiveRestorePendingCount(void) {
-    D_8004FDFC = g_ArchiveStreamQueueCount;
+    g_ArchivePendingReadCount = g_ArchiveStreamQueueCount;
 }
 
 void ArchiveStreamFileDataCallback(void) {
@@ -1081,27 +1081,27 @@ void ArchiveStreamFileDataCallback(void) {
     ArchiveStreamFileSectionHeader* pCurrent;
     s16 i;
 
-    pSection = D_8004FE2C;
-    for (i = 0; i < D_8004FE40; i++, pSection++) {
-        if (pSection->state == 1 && pSection->id == D_8004FE28)
+    pSection = g_ArchiveStreamSections;
+    for (i = 0; i < g_ArchiveStreamSectionCount; i++, pSection++) {
+        if (pSection->state == 1 && pSection->id == g_ArchiveStreamCurSectionId)
             break;
     }
 
-    if (i == D_8004FE40)
+    if (i == g_ArchiveStreamSectionCount)
         return;
 
     pSection->state = 3;
-    D_8004FE28 += 1;
+    g_ArchiveStreamCurSectionId += 1;
     if (g_ArchiveCurFileSize > 0)
         return;
 
-    if (D_8004FDFC >= 2)
+    if (g_ArchivePendingReadCount >= 2)
         return;
 
     g_ArchiveCurFileSize = 0;
     CdDataCallback(NULL);
-    ArchiveCdSeekToFile(D_8004FE38);
-    D_8004FDFC = 0;
+    ArchiveCdSeekToFile(g_ArchiveCdChannel);
+    g_ArchivePendingReadCount = 0;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
@@ -1113,11 +1113,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
  * state 2, then either feeds one queued LoadImage chunk from the sector or
  * parses the sector's 0x1200/0x1201 command block (position + size, scaling by
  * D_80059F24/D_80059F28-D_80059F2C for command 0x1200 and D_80059F30/
- * D_80059F34-D_80059F38 for 0x1201) and arms D_80059F4C/D_80059F50 for the
+ * D_80059F34-D_80059F38 for 0x1201) and arms g_ArchiveImageChunkHeights/g_ArchiveImageChunksLeft for the
  * chunk loop.
  *
  * What is confirmed against retail:
- *  - the branch on D_80059F50 is `if (D_80059F50 == 0)` with the command path as
+ *  - the branch on g_ArchiveImageChunksLeft is `if (g_ArchiveImageChunksLeft == 0)` with the command path as
  *    the THEN block (retail bnez's out of line to the LoadImage block);
  *  - `nCommand >= 0x1200 && nCommand <= 0x1201` is retail's sltiu range check,
  *    and the two command bodies are two sequential ifs, not a switch with
@@ -1126,13 +1126,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
  *    case 1 and default share their tail (gcc cross-jumps them);
  *  - the section-clearing loop must be `pIter[j].state` (indexed) with a pointer
  *    local, not `pIter++`;
- *  - `pBuf = (u_long*)(i * CD_SECTOR_SIZE + (mem_addr)D_8004FE08);` (index first
+ *  - `pBuf = (u_long*)(i * CD_SECTOR_SIZE + (mem_addr)g_ArchiveStreamWritePointer);` (index first
  *    gives retail's addu operand order).
  * Remaining deltas: retail keeps i in a0 and the loop bound in v1 (ours the
  * other way round), keeps pBuf in a2 and the u16 alias in a3 (ours swapped), and
- * tests D_80059F3C with bgtz to the shared state=0 tail where ours emits blez to
+ * tests g_ArchiveImageBlocksLeft with bgtz to the shared state=0 tail where ours emits blez to
  * the error block (same blocks, opposite fallthrough). Tried: both tail shapes
- * (one shared `state = 0; D_8004FE28++` after the if, and two copies that
+ * (one shared `state = 0; g_ArchiveStreamCurSectionId++` after the if, and two copies that
  * cross-jump); gcc emits the same 82.06% for both.
  *
  * void func_8002BB50(void) {
@@ -1147,101 +1147,101 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BB50);
  *     s32 nCommand;
  *     s32 nChunks;
  *
- *     pSection = D_8004FE2C;
- *     for (i = 0; i < D_8004FE40; i++, pSection++) {
- *         if (pSection->state == 1 && pSection->id == D_8004FE28)
+ *     pSection = g_ArchiveStreamSections;
+ *     for (i = 0; i < g_ArchiveStreamSectionCount; i++, pSection++) {
+ *         if (pSection->state == 1 && pSection->id == g_ArchiveStreamCurSectionId)
  *             break;
  *     }
  *
- *     if (i == D_8004FE40)
+ *     if (i == g_ArchiveStreamSectionCount)
  *         return;
  *
  *     pSection->state = 2;
- *     pBuf = (u_long*)(i * CD_SECTOR_SIZE + (mem_addr)D_8004FE08);
+ *     pBuf = (u_long*)(i * CD_SECTOR_SIZE + (mem_addr)g_ArchiveStreamWritePointer);
  *
- *     if (D_80059F50 == 0) {
+ *     if (g_ArchiveImageChunksLeft == 0) {
  *         nCommand = *pBuf++;
  *         pData = (u16*)pBuf;
  *         if (nCommand >= 0x1200 && nCommand <= 0x1201) {
  *             if (nCommand == 0x1200) {
  *                 switch (D_80059F24) {
  *                 case 1:
- *                     D_80059F40 = D_80059F28 + pData[2];
- *                     D_80059F44 = D_80059F2C + pData[3];
+ *                     g_ArchiveImageRectX = D_80059F28 + pData[2];
+ *                     g_ArchiveImageRectY = D_80059F2C + pData[3];
  *                     break;
  *                 case 2:
- *                     D_80059F40 = D_80059F28 + pData[0] + pData[2];
- *                     D_80059F44 = D_80059F2C + pData[1] + pData[3];
+ *                     g_ArchiveImageRectX = D_80059F28 + pData[0] + pData[2];
+ *                     g_ArchiveImageRectY = D_80059F2C + pData[1] + pData[3];
  *                     break;
  *                 default:
- *                     D_80059F40 = pData[0] + pData[2];
- *                     D_80059F44 = pData[1] + pData[3];
+ *                     g_ArchiveImageRectX = pData[0] + pData[2];
+ *                     g_ArchiveImageRectY = pData[1] + pData[3];
  *                     break;
  *                 }
  *             }
  *             if (nCommand == 0x1201) {
  *                 switch (D_80059F30) {
  *                 case 1:
- *                     D_80059F40 = D_80059F34 + pData[2];
- *                     D_80059F44 = D_80059F38 + pData[3];
+ *                     g_ArchiveImageRectX = D_80059F34 + pData[2];
+ *                     g_ArchiveImageRectY = D_80059F38 + pData[3];
  *                     break;
  *                 case 2:
- *                     D_80059F40 = D_80059F34 + pData[0] + pData[2];
- *                     D_80059F44 = D_80059F38 + pData[1] + pData[3];
+ *                     g_ArchiveImageRectX = D_80059F34 + pData[0] + pData[2];
+ *                     g_ArchiveImageRectY = D_80059F38 + pData[1] + pData[3];
  *                     break;
  *                 default:
- *                     D_80059F40 = pData[0] + pData[2];
- *                     D_80059F44 = pData[1] + pData[3];
+ *                     g_ArchiveImageRectX = pData[0] + pData[2];
+ *                     g_ArchiveImageRectY = pData[1] + pData[3];
  *                     break;
  *                 }
  *             }
  *             pData += 4;
- *             D_80059F48 = pData[0];
+ *             g_ArchiveImageRectW = pData[0];
  *             pData += 4;
- *             if (D_80059F3C == 0)
- *                 D_80059F3C = *(u32*)pData;
+ *             if (g_ArchiveImageBlocksLeft == 0)
+ *                 g_ArchiveImageBlocksLeft = *(u32*)pData;
  *             pData += 2;
  *             nChunks = *(u32*)pData;
  *             pData += 2;
- *             D_80059F4C = pData;
- *             D_80059F50 = nChunks;
- *             D_8004FE28 += 1;
+ *             g_ArchiveImageChunkHeights = pData;
+ *             g_ArchiveImageChunksLeft = nChunks;
+ *             g_ArchiveStreamCurSectionId += 1;
  *             return;
  *         }
  *     } else {
- *         rect.x = D_80059F40;
- *         rect.y = D_80059F44;
- *         rect.w = D_80059F48;
- *         rect.h = D_80059F4C[0];
+ *         rect.x = g_ArchiveImageRectX;
+ *         rect.y = g_ArchiveImageRectY;
+ *         rect.w = g_ArchiveImageRectW;
+ *         rect.h = g_ArchiveImageChunkHeights[0];
  *         LoadImage(&rect, pBuf);
- *         pChunk = D_80059F4C;
- *         D_80059F4C = pChunk + 1;
- *         D_80059F50 -= 1;
- *         D_80059F44 += pChunk[0];
- *         if (D_80059F50 <= 0) {
- *             D_80059F3C -= 1;
- *             D_80059F50 = 0;
- *             pIter = D_8004FE2C;
- *             for (j = 0; j < D_8004FE40; j++) {
+ *         pChunk = g_ArchiveImageChunkHeights;
+ *         g_ArchiveImageChunkHeights = pChunk + 1;
+ *         g_ArchiveImageChunksLeft -= 1;
+ *         g_ArchiveImageRectY += pChunk[0];
+ *         if (g_ArchiveImageChunksLeft <= 0) {
+ *             g_ArchiveImageBlocksLeft -= 1;
+ *             g_ArchiveImageChunksLeft = 0;
+ *             pIter = g_ArchiveStreamSections;
+ *             for (j = 0; j < g_ArchiveStreamSectionCount; j++) {
  *                 pIter[j].state = 0;
  *                 pIter[j].id = 0;
  *             }
- *             if (D_80059F3C > 0) {
+ *             if (g_ArchiveImageBlocksLeft > 0) {
  *                 pSection->state = 0;
- *                 D_8004FE28 += 1;
+ *                 g_ArchiveStreamCurSectionId += 1;
  *                 return;
  *             }
  *         } else {
  *             pSection->state = 0;
- *             D_8004FE28 += 1;
+ *             g_ArchiveStreamCurSectionId += 1;
  *             return;
  *         }
  *     }
  *
  *     g_ArchiveCurFileSize = 0;
  *     CdDataCallback(NULL);
- *     ArchiveCdSeekToFile(D_8004FE38);
- *     D_8004FDFC = 0;
+ *     ArchiveCdSeekToFile(g_ArchiveCdChannel);
+ *     g_ArchivePendingReadCount = 0;
  * }
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
@@ -1250,8 +1250,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
  * [0x18] chunk count, [0x1C] chunk-height table; the section search loop and the
  * LoadImage strip loop match block for block. Remaining deltas: the search loop is
  * rotated the other way (retail ends with bnez, ours with beqz plus a j), the sector
- * address addu operand order (write i * CD_SECTOR_SIZE + (mem_addr)D_8004FE08), the
- * load order inside the two rect switches, and the D_80059F44/D_80059F4C/D_80059F50
+ * address addu operand order (write i * CD_SECTOR_SIZE + (mem_addr)g_ArchiveStreamWritePointer), the
+ * load order inside the two rect switches, and the g_ArchiveImageRectY/g_ArchiveImageChunkHeights/g_ArchiveImageChunksLeft
  * update order after DrawSync. Next step is a permuter run, not more hand shapes.
  *
  * void func_8002BF38(void) {
@@ -1263,22 +1263,22 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
  *     s16 i;
  *
  *     i = 0;
- *     pSection = D_8004FE2C;
- *     if (D_8004FE40 > 0) {
+ *     pSection = g_ArchiveStreamSections;
+ *     if (g_ArchiveStreamSectionCount > 0) {
  *         do {
- *             if ((pSection->state == 1) && (pSection->id == D_8004FE28))
+ *             if ((pSection->state == 1) && (pSection->id == g_ArchiveStreamCurSectionId))
  *                 break;
  *             i++;
  *             pSection++;
- *         } while (i < D_8004FE40);
+ *         } while (i < g_ArchiveStreamSectionCount);
  *     }
- *     if (i == D_8004FE40)
+ *     if (i == g_ArchiveStreamSectionCount)
  *         return;
  *
  *     pSection->state = 2;
- *     pData = (u32*)(D_8004FE08 + (i * CD_SECTOR_SIZE));
+ *     pData = (u32*)(g_ArchiveStreamWritePointer + (i * CD_SECTOR_SIZE));
  *
- *     if (D_80059F50 == 0) {
+ *     if (g_ArchiveImageChunksLeft == 0) {
  *         cmd = *pData++;
  *         if ((cmd != 0x1200) && (cmd != 0x1201))
  *             return;
@@ -1287,16 +1287,16 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
  *         if (cmd == 0x1200) {
  *             switch (D_80059F24) {
  *                 case 1:
- *                     D_80059F40 = D_80059F28 + pArgs[2];
- *                     D_80059F44 = D_80059F2C + pArgs[3];
+ *                     g_ArchiveImageRectX = D_80059F28 + pArgs[2];
+ *                     g_ArchiveImageRectY = D_80059F2C + pArgs[3];
  *                     break;
  *                 case 2:
- *                     D_80059F40 = D_80059F28 + pArgs[0] + pArgs[2];
- *                     D_80059F44 = D_80059F2C + pArgs[1] + pArgs[3];
+ *                     g_ArchiveImageRectX = D_80059F28 + pArgs[0] + pArgs[2];
+ *                     g_ArchiveImageRectY = D_80059F2C + pArgs[1] + pArgs[3];
  *                     break;
  *                 default:
- *                     D_80059F40 = pArgs[0] + pArgs[2];
- *                     D_80059F44 = pArgs[1] + pArgs[3];
+ *                     g_ArchiveImageRectX = pArgs[0] + pArgs[2];
+ *                     g_ArchiveImageRectY = pArgs[1] + pArgs[3];
  *                     break;
  *             }
  *         }
@@ -1304,65 +1304,65 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002BF38);
  *         if (cmd == 0x1201) {
  *             switch (D_80059F30) {
  *                 case 1:
- *                     D_80059F40 = D_80059F34 + pArgs[2];
- *                     D_80059F44 = D_80059F38 + pArgs[3];
+ *                     g_ArchiveImageRectX = D_80059F34 + pArgs[2];
+ *                     g_ArchiveImageRectY = D_80059F38 + pArgs[3];
  *                     break;
  *                 case 2:
- *                     D_80059F40 = D_80059F34 + pArgs[0] + pArgs[2];
- *                     D_80059F44 = D_80059F38 + pArgs[1] + pArgs[3];
+ *                     g_ArchiveImageRectX = D_80059F34 + pArgs[0] + pArgs[2];
+ *                     g_ArchiveImageRectY = D_80059F38 + pArgs[1] + pArgs[3];
  *                     break;
  *                 default:
- *                     D_80059F40 = pArgs[0] + pArgs[2];
- *                     D_80059F44 = pArgs[1] + pArgs[3];
+ *                     g_ArchiveImageRectX = pArgs[0] + pArgs[2];
+ *                     g_ArchiveImageRectY = pArgs[1] + pArgs[3];
  *                     break;
  *             }
  *         }
  *
  *         pData += 2;
- *         D_80059F48 = *(u16*)pData;
+ *         g_ArchiveImageRectW = *(u16*)pData;
  *         pData += 2;
- *         if (D_80059F3C == 0)
- *             D_80059F3C = *pData;
+ *         if (g_ArchiveImageBlocksLeft == 0)
+ *             g_ArchiveImageBlocksLeft = *pData;
  *         pData++;
- *         D_80059F50 = *pData;
+ *         g_ArchiveImageChunksLeft = *pData;
  *         pData++;
- *         D_80059F4C = (u16*)pData;
+ *         g_ArchiveImageChunkHeights = (u16*)pData;
  *     } else {
- *         rect.x = D_80059F40;
- *         rect.y = D_80059F44;
- *         rect.w = D_80059F48;
- *         rect.h = *D_80059F4C;
+ *         rect.x = g_ArchiveImageRectX;
+ *         rect.y = g_ArchiveImageRectY;
+ *         rect.w = g_ArchiveImageRectW;
+ *         rect.h = *g_ArchiveImageChunkHeights;
  *         LoadImage(&rect, (u_long*)pData);
  *         DrawSync(0);
  *
- *         D_80059F44 = D_80059F44 + *D_80059F4C;
- *         D_80059F4C += 1;
- *         D_80059F50 -= 1;
- *         if (D_80059F50 <= 0) {
- *             D_80059F50 = 0;
- *             D_80059F3C -= 1;
- *             for (i = 0; i < D_8004FE40; i++) {
- *                 D_8004FE2C[i].state = 0;
- *                 D_8004FE2C[i].id = 0;
+ *         g_ArchiveImageRectY = g_ArchiveImageRectY + *g_ArchiveImageChunkHeights;
+ *         g_ArchiveImageChunkHeights += 1;
+ *         g_ArchiveImageChunksLeft -= 1;
+ *         if (g_ArchiveImageChunksLeft <= 0) {
+ *             g_ArchiveImageChunksLeft = 0;
+ *             g_ArchiveImageBlocksLeft -= 1;
+ *             for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
+ *                 g_ArchiveStreamSections[i].state = 0;
+ *                 g_ArchiveStreamSections[i].id = 0;
  *             }
- *             if (D_80059F3C <= 0) {
+ *             if (g_ArchiveImageBlocksLeft <= 0) {
  *                 g_ArchiveCurFileSize = 0;
- *                 D_8004FDFC = 0;
+ *                 g_ArchivePendingReadCount = 0;
  *                 return;
  *             }
  *         }
  *         pSection->state = 0;
  *     }
  *
- *     D_8004FE28 += 1;
+ *     g_ArchiveStreamCurSectionId += 1;
  * }
  */
 
 void ArchivePrintDebugState(void) {
-    func_800379C8(D_80018944, g_ArchiveTable, D_8004FE08, D_8004FE2C);
-    func_800379C8(D_80018954, D_8004FE40, g_ArchiveStreamQueueIndex, D_80059F3C, D_80059F50);
-    func_800379C8(D_80018964, D_80059F40, D_80059F44, D_80059F48, D_80059F4C);
-    func_800379C8(D_80018974, D_80059F4C[0], D_80059F4C[1], D_80059F4C[2]);
+    func_800379C8(g_StrArchiveDebugStreamState, g_ArchiveTable, g_ArchiveStreamWritePointer, g_ArchiveStreamSections);
+    func_800379C8(g_StrArchiveDebugCounters, g_ArchiveStreamSectionCount, g_ArchiveStreamQueueIndex, g_ArchiveImageBlocksLeft, g_ArchiveImageChunksLeft);
+    func_800379C8(g_StrArchiveDebugImageRect, g_ArchiveImageRectX, g_ArchiveImageRectY, g_ArchiveImageRectW, g_ArchiveImageChunkHeights);
+    func_800379C8(g_StrArchiveDebugChunkHeights, g_ArchiveImageChunkHeights[0], g_ArchiveImageChunkHeights[1], g_ArchiveImageChunkHeights[2]);
 }
 
 u32 ArchiveGetDebugTable(void) {

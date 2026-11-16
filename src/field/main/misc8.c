@@ -1556,33 +1556,33 @@ void FieldScriptVM2Run(void) {
 
 extern s16 g_FieldMotionSlotActorIds[];
 
-extern s16 D_800B22E8[];
+extern s16 g_FieldMotionSlotPathStart[];
 extern s16 D_800B22EA[];
 extern s16 D_800B22EC[];
-extern s16 D_800B2300[];
+extern s16 g_FieldMotionSlotPathEnd[];
 extern s16 D_800B2302[];
 extern s16 D_800B2304[];
-extern s32 D_800B2318[];
-extern s16 D_800B2324[];
+extern s32 g_FieldMotionSlotFrameCount[];
+extern s16 g_FieldMotionSlotTargetPositions[];
 extern s16 D_800B2326[];
 extern s16 D_800B2328[];
 long FieldGetVec3Magnitude(long x, long y, long z);
 
 void FieldUpdateMotionSlotSteps(int index, VECTOR* pPosition) {
     s16* pPos = (s16*)pPosition;
-    s32 stepX = ((D_800B22E8[index * 4] - D_800B2300[index * 4]) << 16) / D_800B2318[index];
-    s32 stepY = ((D_800B22EA[index * 4] - D_800B2302[index * 4]) << 16) / D_800B2318[index];
-    s32 stepZ = ((D_800B22EC[index * 4] - D_800B2304[index * 4]) << 16) / D_800B2318[index];
+    s32 stepX = ((g_FieldMotionSlotPathStart[index * 4] - g_FieldMotionSlotPathEnd[index * 4]) << 16) / g_FieldMotionSlotFrameCount[index];
+    s32 stepY = ((D_800B22EA[index * 4] - D_800B2302[index * 4]) << 16) / g_FieldMotionSlotFrameCount[index];
+    s32 stepZ = ((D_800B22EC[index * 4] - D_800B2304[index * 4]) << 16) / g_FieldMotionSlotFrameCount[index];
     s32 remaining;
 
-    remaining = D_800B2318[index] - FieldGetVec3Magnitude(
-        D_800B2324[index * 4] - pPos[1],
+    remaining = g_FieldMotionSlotFrameCount[index] - FieldGetVec3Magnitude(
+        g_FieldMotionSlotTargetPositions[index * 4] - pPos[1],
         D_800B2326[index * 4] - pPos[3],
         D_800B2328[index * 4] - pPos[5]);
 
-    ((s16*)D_800B2318)[index - 0x6E] = (stepX * remaining) >> 16;
-    ((s16*)D_800B2318)[index - 0x6B] = (stepY * remaining) >> 16;
-    ((s16*)D_800B2318)[index - 0x68] = (stepZ * remaining) >> 16;
+    ((s16*)g_FieldMotionSlotFrameCount)[index - 0x6E] = (stepX * remaining) >> 16;
+    ((s16*)g_FieldMotionSlotFrameCount)[index - 0x6B] = (stepY * remaining) >> 16;
+    ((s16*)g_FieldMotionSlotFrameCount)[index - 0x68] = (stepZ * remaining) >> 16;
 }
 
 void FieldUpdateMotionSlots(void) {

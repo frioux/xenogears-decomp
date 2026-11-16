@@ -92,7 +92,7 @@ typedef struct BattleActor {
 extern s32 func_80073DE4(BattleActor* p, s32 arg1);
 extern void BattleTryQueueMessage5(BattleActor* p);
 extern void BattleQueueMessage(BattleActor* p, s32 arg1);
-extern u8 D_80092884;
+extern u8 g_BattleOptionOn;
 extern u32 BattleGetGridCellAtPosition(Vec4* p);
 extern void func_8008F7B8(BattleWork* pWork);
 extern s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1);
@@ -201,7 +201,7 @@ void BattleQueueMessages4Then3(BattleActor* pActor) {
             return;
         }
     }
-    if (D_80092884 != 0) {
+    if (g_BattleOptionOn != 0) {
         BattleTryQueueMessage5(pActor);
         BattleQueueMessage(pActor, 4);
         BattleQueueMessage(pActor, 3);

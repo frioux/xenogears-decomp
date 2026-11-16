@@ -757,14 +757,14 @@ extern u8 D_8006FE88[];
 extern s32 g_BattleCursorIndex0;
 extern s32 g_BattleCursorIndex1;
 extern s32 g_BattleSlotConfirmFlags;
-extern s32 D_80092714;
-extern s32 D_80092718;
-extern s32 D_8009271C;
-extern s32 D_80092720;
-extern s32 D_80092724;
-extern s32 D_80092728;
-extern s32 D_8009272C;
-extern s32 D_80092730;
+extern s32 g_BattlePrevCursorIndex0;
+extern s32 g_BattleCursor0Step;
+extern s32 g_BattleCursor0Offset;
+extern s32 g_BattlePrevCursorIndex1;
+extern s32 g_BattleCursor1Step;
+extern s32 g_BattleCursor1Offset;
+extern s32 g_BattleSlot0TextColor;
+extern s32 g_BattleSlot1TextColor;
 
 void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade);
 s32 BattleTestSlotBit(s32 slot);
@@ -776,8 +776,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
    bytes on nothing), and D_80099DA8[g_BattleDrawBufferIndex * 10] reproduces the mul-by-0x190
    chain. What is left, all inside the two cursor blocks:
    1. THE ALIAS TRAP, and the reason this cannot reach 100.00%: retail stores the
-      step to D_80092718, then loads D_80092718, stores it back to D_80092718 and
-      then to D_8009271C (sw / lw / sw / sw, four instructions, twice). A store
+      step to g_BattleCursor0Step, then loads g_BattleCursor0Step, stores it back to g_BattleCursor0Step and
+      then to g_BattleCursor0Offset (sw / lw / sw / sw, four instructions, twice). A store
       then a load of the same word means the original source had TWO symbol names
       at 0x80092718 (gcc cannot forward across differing objects), i.e.
       A = step; B = A; C = B; with A and B aliases. symbol_addrs.battling.txt has
@@ -799,7 +799,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
    as ((0x24 - abs(step)) << 6) / 0x24 (magic 0x38E38E39, shift 3) and the third
    and fourth pass x = -0x24 / 0x24 with shade 0; the offset table D_800912E0 is
    two 8-byte s16 quads, {1,-1,2,36} for a negative step and {-1,-2,1,-36} for a
-   non-negative one, indexed by the s32 compare D_80092718 >= 0, and the compare
+   non-negative one, indexed by the s32 compare g_BattleCursor0Step >= 0, and the compare
    is evaluated BEFORE the first call of the block while its sll 3 lands inside
    the if body - so write the compare into a local above the call, not
    &D_800912E0[expr] at the use. Last call of block 1 does not advance pPkt.
@@ -815,7 +815,7 @@ void func_8007F258(void* pOt, s32 arg) {
 
     pPkt = &D_80099DA8[g_BattleDrawBufferIndex * 10];
 
-    delta = D_80092714 - g_BattleCursorIndex0;
+    delta = g_BattlePrevCursorIndex0 - g_BattleCursorIndex0;
     if (delta != 0) {
         if (delta < 0) {
             step = -delta;
@@ -830,10 +830,10 @@ void func_8007F258(void* pOt, s32 arg) {
         } else {
             step = 0x24;
         }
-        D_80092718 = step;
-        D_8009271C = D_80092718;
+        g_BattleCursor0Step = step;
+        g_BattleCursor0Offset = g_BattleCursor0Step;
     }
-    delta = D_80092720 - g_BattleCursorIndex1;
+    delta = g_BattlePrevCursorIndex1 - g_BattleCursorIndex1;
     if (delta != 0) {
         if (delta < 0) {
             step = -delta;
@@ -848,83 +848,83 @@ void func_8007F258(void* pOt, s32 arg) {
         } else {
             step = 0x24;
         }
-        D_80092724 = step;
-        D_80092728 = D_80092724;
+        g_BattleCursor1Step = step;
+        g_BattleCursor1Offset = g_BattleCursor1Step;
     }
 
-    step = D_80092718;
+    step = g_BattleCursor0Step;
     if (step != 0) {
         if (step > 0) {
             step -= 2;
         } else {
             step += 2;
         }
-        D_80092718 = step;
+        g_BattleCursor0Step = step;
     }
-    step = D_8009271C;
+    step = g_BattleCursor0Offset;
     if (step != 0) {
         if (step > 0) {
             step -= 4;
         } else {
             step += 4;
         }
-        D_8009271C = step;
+        g_BattleCursor0Offset = step;
     }
-    step = D_80092724;
+    step = g_BattleCursor1Step;
     if (step != 0) {
         if (step > 0) {
             step -= 2;
         } else {
             step += 2;
         }
-        D_80092724 = step;
+        g_BattleCursor1Step = step;
     }
-    step = D_80092728;
+    step = g_BattleCursor1Offset;
     if (step != 0) {
         if (step > 0) {
             step -= 4;
         } else {
             step += 4;
         }
-        D_80092728 = step;
+        g_BattleCursor1Offset = step;
     }
 
-    sign = D_80092718 >= 0;
-    step = D_8009271C;
+    sign = g_BattleCursor0Step >= 0;
+    step = g_BattleCursor0Offset;
     if (step < 0) {
         step = -step;
     }
     shade = ((0x24 - step) << 6) / 0x24;
-    D_80092714 = g_BattleCursorIndex0;
-    D_80092720 = g_BattleCursorIndex1;
-    func_8007F05C(g_BattleCursorIndex0, pPkt++, 0, D_8009271C, shade);
+    g_BattlePrevCursorIndex0 = g_BattleCursorIndex0;
+    g_BattlePrevCursorIndex1 = g_BattleCursorIndex1;
+    func_8007F05C(g_BattleCursorIndex0, pPkt++, 0, g_BattleCursor0Offset, shade);
     if ((g_BattleSlotConfirmFlags & 1) == 0) {
         pOff = &D_800912E0[sign];
-        step = D_80092718;
+        step = g_BattleCursor0Step;
         if (step < 0) {
             step = -step;
         }
         shade = ((0x24 - step) << 6) / 0x24;
-        func_8007F05C(g_BattleCursorIndex0 + pOff->unk0, pPkt++, 0, D_80092718 + pOff->unk6, shade);
+        func_8007F05C(g_BattleCursorIndex0 + pOff->unk0, pPkt++, 0, g_BattleCursor0Step + pOff->unk6, shade);
         func_8007F05C(g_BattleCursorIndex0 + pOff->unk2, pPkt++, 0, -0x24, 0);
         func_8007F05C(g_BattleCursorIndex0 + pOff->unk4, pPkt++, 0, 0x24, 0);
     }
 
-    sign = D_80092724 >= 0;
-    step = D_80092728;
+    sign = g_BattleCursor1Step >= 0;
+    step = g_BattleCursor1Offset;
     if (step < 0) {
         step = -step;
     }
     shade = ((0x24 - step) << 6) / 0x24;
-    func_8007F05C(g_BattleCursorIndex1, pPkt++, 1, D_80092728, shade);
+    func_8007F05C(g_BattleCursorIndex1, pPkt++, 1, g_BattleCursor1Offset, shade);
     if ((g_BattleSlotConfirmFlags & 2) == 0) {
         pOff = &D_800912E0[sign];
-        step = D_80092724;
+        step = g_BattleCursor1Step;
         if (step < 0) {
             step = -step;
         }
         shade = ((0x24 - step) << 6) / 0x24;
-        func_8007F05C(g_BattleCursorIndex1 + pOff->unk0, pPkt++, 1, D_80092724 + pOff->unk6, shade);
+        func_8007F05C(g_BattleCursorIndex1 + pOff->unk0, pPkt++, 1, g_BattleCursor1Step + pOff->unk6, shade);
         func_8007F05C(g_BattleCursorIndex1 + pOff->unk2, pPkt++, 1, -0x24, 0);
         func_8007F05C(g_BattleCursorIndex1 + pOff->unk4, pPkt, 1, 0x24, 0);
     }
@@ -933,16 +933,16 @@ void func_8007F258(void* pOt, s32 arg) {
     BattleByteRegTestReg(D_8006FE88);
     BattleSetTextCursor(0x50, 0x78);
     if (BattleTestSlotBit(g_BattleEntries[g_BattleCursorIndex0][0]) != 0) {
-        func_8007EE68(D_8009272C);
+        func_8007EE68(g_BattleSlot0TextColor);
     } else {
-        BattleSetTextColor(D_8009272C);
+        BattleSetTextColor(g_BattleSlot0TextColor);
     }
     BattleByteRegTestReg((u8*)g_BattleEntries[g_BattleCursorIndex0][2]);
     BattleSetTextCursor(0xF0, 0x78);
     if (BattleTestSlotBit(g_BattleEntries[g_BattleCursorIndex1][0]) != 0) {
-        func_8007EE68(D_80092730);
+        func_8007EE68(g_BattleSlot1TextColor);
     } else {
-        BattleSetTextColor(D_80092730);
+        BattleSetTextColor(g_BattleSlot1TextColor);
     }
     BattleByteRegTestReg((u8*)g_BattleEntries[g_BattleCursorIndex1][2]);
     BattleSetTextColor(0);

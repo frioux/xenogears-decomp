@@ -243,7 +243,7 @@ extern void func_801E742C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s16 arg4, s32 
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077AB4);
 // 64.39%: the C below is structurally right (count guard, then HeapChangeCurrentUser(8, NULL))
 // but the original materialises &g_FieldActorModelSlotCount into $s0 ONCE and reaches the loop vectors and
-// D_800B223C with `addiu` off it, while gcc rematerialises a %hi/%lo pair for every one of
+// g_FieldMotionSlotSteps with `addiu` off it, while gcc rematerialises a %hi/%lo pair for every one of
 // those addresses. Same root cause as func_8007520C (misc2) and func_800A0EE8 (misc6).
 // The loop itself is: 8 max entries of three zeroed SVECTOR vertices (8 bytes apart) plus a
 // per-entry s32 result; the third and eighth arguments are a `0xFC` byte counter (offsets

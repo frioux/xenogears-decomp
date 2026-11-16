@@ -245,7 +245,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
         }
 
         // Various exit checks
-        if ((D_800ADB1C != 0 && (D_800ADBE0 == 0 ||  g_FieldEntryStateGate == 0 ||  D_800ADBEC == 0))) {
+        if ((g_FieldEntryRoutineFinished != 0 && (D_800ADBE0 == 0 ||  g_FieldEntryStateGate == 0 ||  D_800ADBEC == 0))) {
             return;
         }
 
@@ -284,7 +284,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
 // from 0x4C($a1) in the join block).  Sizes are identical (636 bytes).
 /*
 extern s32 g_FieldActiveActorCount;
-extern s32 D_800ADB1C;
+extern s32 g_FieldEntryRoutineFinished;
 extern s32 g_FieldMode;
 extern FieldActor* g_FieldScriptVMCurFieldActor;
 extern s32 D_800ADB68;
@@ -321,7 +321,7 @@ void func_800A2030(void) {
             continue;
         }
 
-        if (D_800ADB1C != 0 && (D_800ADBE0 == 0 || g_FieldEntryStateGate == 0 || D_800ADBEC == 0)) {
+        if (g_FieldEntryRoutineFinished != 0 && (D_800ADBE0 == 0 || g_FieldEntryStateGate == 0 || D_800ADBEC == 0)) {
             return;
         }
 
@@ -373,7 +373,7 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A2030);
 
 // Changes current actor to the top of the field actor array and runs a script routine on it
 extern FieldActor* g_FieldScriptVMCurFieldActor;
-extern s32 D_800ADB1C;
+extern s32 g_FieldEntryRoutineFinished;
 void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
     int i;
     ActorData* pNewActor;
@@ -397,13 +397,13 @@ void FieldScriptRunFirstActorRoutine(int scriptRoutineIndex) {
     }
     
     g_FieldCurActorIndex = 0;
-    D_800ADB1C = 0;
+    g_FieldEntryRoutineFinished = 0;
     g_FieldScriptVMScriptEndFlag = 0;
 
     // Run entry point routine
     g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(0, scriptRoutineIndex);
     FieldScriptVMRun(0xFFFF);
-    D_800ADB1C = 1;
+    g_FieldEntryRoutineFinished = 1;
 
     // Running VM bytecode will likely have changed some fields, so they are copied back into the top
     // of the actor array.

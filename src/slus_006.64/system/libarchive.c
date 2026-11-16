@@ -16,15 +16,15 @@ extern void GfxDrawArchiveReadRetry(int, int, int, int);
 extern int ArchiveDecodeSizeAligned(int entryIndex);
 
 void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
-    D_8005A488 = 0;
-    D_8005A48C = 0;
-    D_8005A490 = 0;
-    D_8005A494 = 0;
-    D_8005A498 = 0;
+    g_ArchiveCdReadStartCount = 0;
+    g_ArchiveCdReadCompleteCount = 0;
+    g_ArchiveCdReadStatusErrorCount = 0;
+    g_ArchiveCdDataSectorCompleteCount = 0;
+    g_ArchiveCdDataSectorErrorCount = 0;
     D_8005A49C = 0;
-    D_8005A4A4 = 0;
-    D_8005A4A8 = 0;
-    D_8005A4B4 = 0;
+    g_ArchiveCdReadRetryExhaustedCount = 0;
+    g_ArchiveCdHaltCompleteCount = 0;
+    g_ArchiveCdHaltErrorCount = 0;
     
     if ( (pDebugTable == NULL) || (pDebugTable == -1) ) {
         while (CdInit() == 0);
@@ -49,10 +49,10 @@ void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
     g_ArchiveTable = pArchiveTable;
     g_ArchiveHeader = pHeaderTable;
     g_CurArchiveOffset = 0;
-    D_8004FDFC = 0;
+    g_ArchivePendingReadCount = 0;
     g_ArchiveCurFileSize = 0;
     g_ArchiveCdDriveState = 0;
-    D_8004FE4C = -1;
+    g_ArchiveDebugFileHandle = -1;
     
     if (!pDebugTable) {
         ArchiveReadFileFromCdSector(0x18, pArchiveTable, (0x10 * CD_SECTOR_SIZE), 0, 0);
@@ -74,7 +74,7 @@ void ArchiveReset(void) {
     CdDataCallback(0);
     CdSyncCallback(NULL);
     CdReadyCallback(NULL);
-    D_8004FDFC = 0;
+    g_ArchivePendingReadCount = 0;
     g_ArchiveCurFileSize = 0;
     g_ArchiveCdDriveState = 0;
 }
@@ -193,7 +193,7 @@ int ArchiveGetCurFileSize(void) {
 int ArchiveDataSync(void) {
     int nResult;
 
-    nResult = D_8004FDFC;
+    nResult = g_ArchivePendingReadCount;
     if (nResult == 0) {
         if (g_ArchiveDebugTable == NULL && CdDataSync(1)) {
             return 1;
@@ -235,7 +235,7 @@ int ArchiveDecodeSize(int entryIndex) {
     return nFileSize;
 }
 
-// Uses D_8004FE18 as archive offset
+// Uses g_ArchiveHeaderOffsetBase as archive offset
 int ArchiveDecodeSizeAligned(int entryIndex) {
     char* pFilepath;
     int hArchiveFile;
@@ -253,7 +253,7 @@ int ArchiveDecodeSizeAligned(int entryIndex) {
         }
     }
     
-    nOffset = (entryIndex + D_8004FE18 - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
+    nOffset = (entryIndex + g_ArchiveHeaderOffsetBase - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
     pArchiveEntry = nOffset + g_ArchiveTable;
     nFileSize = (
         (pArchiveEntry[6] << 0x18) + 
@@ -319,12 +319,12 @@ int ArchiveDecodeSector(int entryIndex) {
     return (pArchiveEntry[2] << 0x10) + (pArchiveEntry[1] << 0x8) + pArchiveEntry[0];
 }
 
-// Same as ArchiveDecodeSector, but uses D_8004FE18 as current archive offset
+// Same as ArchiveDecodeSector, but uses g_ArchiveHeaderOffsetBase as current archive offset
 int ArchiveDecodeSectorAligned(int entryIndex) {
     u_char* pArchiveEntry;
     unsigned int nOffset;
 
-    nOffset = (entryIndex + D_8004FE18 - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
+    nOffset = (entryIndex + g_ArchiveHeaderOffsetBase - 1) * ARCHIVE_HEADER_ENTRY_SIZE;
     pArchiveEntry = nOffset + g_ArchiveTable;
     return (pArchiveEntry[2] << 0x10) + (pArchiveEntry[1] << 0x8) + pArchiveEntry[0];
 }
@@ -388,11 +388,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  * to s2 only when the global is referenced twice (guard on the global, then
  * assign from it) - writing `pData = g_ArchiveCurStreamFile; if (!pData)` puts
  * the load straight into s2 and emits the prologue first (93.87%). The debug
- * loop's D_8004FE2C load must come from inside the loop body so loop.c hoists
+ * loop's g_ArchiveStreamSections load must come from inside the loop body so loop.c hoists
  * it into the preheader, after the entry test. Still different: the original
  * keeps the section count in a1, g_ArchiveStreamQueueIndex in v1, the header base in a3 and a
  * loop-invariant copy of the limit in a1 (`move a1,v0` after the entry test,
- * which needs either a second reference to D_8004FE40 or a two-variable loop
+ * which needs either a second reference to g_ArchiveStreamSectionCount or a two-variable loop
  * bound), reuses v0 for the g_ArchiveStreamQueue queue index, and materialises
  * `move v0,zero` in the g_ArchiveCurFileSize blez delay slot instead of
  * sharing the trailing NULL block.
@@ -419,7 +419,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *     pData = pData + nSections * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
  *
  *     if (g_ArchiveDebugTable != 0) {
- *         if (D_8004FE4C == -1) {
+ *         if (g_ArchiveDebugFileHandle == -1) {
  *             return NULL;
  *         }
  *
@@ -427,9 +427,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             return NULL;
  *         }
  *
- *         nLimit = D_8004FE40;
+ *         nLimit = g_ArchiveStreamSectionCount;
  *         for (i = 0; i < nLimit; i++) {
- *             pHeaders = D_8004FE2C;
+ *             pHeaders = g_ArchiveStreamSections;
  *             nIndex = g_ArchiveStreamQueueIndex;
  *             pHeader = pHeaders + nIndex;
  *             g_ArchiveStreamQueueIndex = nIndex + 1;
@@ -449,7 +449,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *         pData += nIndex * CD_SECTOR_SIZE;
  *
  *         for (i = 0; i < RETRY_COUNT; i++) {
- *             if (PCread(D_8004FE4C, pData, CD_SECTOR_SIZE) != 0) {
+ *             if (PCread(g_ArchiveDebugFileHandle, pData, CD_SECTOR_SIZE) != 0) {
  *                 goto readDone;
  *             }
  *             GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
@@ -465,13 +465,13 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *
  *         g_ArchiveCurFileSize = 0;
  *         for (i = 0; i < RETRY_COUNT; i++) {
- *             if (PCclose(D_8004FE4C) == 0) {
+ *             if (PCclose(g_ArchiveDebugFileHandle) == 0) {
  *                 break;
  *             }
  *             GfxDrawArchiveReadRetry(i, 0, 0, 0xFF);
  *         }
  *
- *         D_8004FE4C = -1;
+ *         g_ArchiveDebugFileHandle = -1;
  *         if (g_ArchiveStreamQueue != 0) {
  *             nIndex = g_ArchiveStreamQueueIndex + 1;
  *             pEntry = ((StreamDataQueueEntry*)g_ArchiveStreamQueue) + nIndex;
@@ -482,21 +482,21 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             if (nId > 0 && pEntry->pData != NULL) {
  *                 pPath = ArchiveGetFilePath(nId);
  *                 for (i = 0; i < RETRY_COUNT; i++) {
- *                     D_8004FE4C = PCopen(pPath, 0, 0);
- *                     if (D_8004FE4C != -1) {
+ *                     g_ArchiveDebugFileHandle = PCopen(pPath, 0, 0);
+ *                     if (g_ArchiveDebugFileHandle != -1) {
  *                         break;
  *                     }
  *                     GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
  *                 }
  *                 g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nId);
- *                 D_8004FDFC -= 1;
+ *                 g_ArchivePendingReadCount -= 1;
  *                 return pData;
  *             }
  *
  *             g_ArchiveCurFileSize = 0;
  *         }
  *
- *         D_8004FDFC = 0;
+ *         g_ArchivePendingReadCount = 0;
  *         return pData;
  *     }
  *
@@ -506,7 +506,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *         }
  *     }
  *
- *     if (i == D_8004FE40) {
+ *     if (i == g_ArchiveStreamSectionCount) {
  *         return NULL;
  *     }
  *
@@ -522,8 +522,8 @@ int ArchiveCheckStreamFileSectionStates(int sectionIndex, int maxEntries, int ta
     
     i = 0;
     while (i < maxEntries) {
-        pSectionHeader = D_8004FE2C + sectionIndex;
-        nSections = D_8004FE40;
+        pSectionHeader = g_ArchiveStreamSections + sectionIndex;
+        nSections = g_ArchiveStreamSectionCount;
 
         while (1) {
             if (pSectionHeader->state == targetState) {
@@ -553,12 +553,12 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
     ArchiveStreamFileSectionHeader* pSectionHeader;
     ArchiveStreamFileSectionHeader* pNextSectionHeader;
 
-    pSectionHeader = D_8004FE2C + sectionIndex;
+    pSectionHeader = g_ArchiveStreamSections + sectionIndex;
     nSize = pSectionHeader->size;
     nNextIndex = sectionIndex + nSize;
     
-    if (nNextIndex < D_8004FE40) {
-        pNextSectionHeader = D_8004FE2C + nNextIndex;
+    if (nNextIndex < g_ArchiveStreamSectionCount) {
+        pNextSectionHeader = g_ArchiveStreamSections + nNextIndex;
         if (pNextSectionHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
             pSectionHeader->size += pNextSectionHeader->size;
         }
@@ -639,7 +639,7 @@ s32 ArchiveReadFileToBuffer(s32 index, s32 pBuffer, u32 arg2, u32 flags) {
         return -3;
     }
     ArchiveCdDataSync(0);
-    D_8004FE18 = g_CurArchiveOffset;
+    g_ArchiveHeaderOffsetBase = g_CurArchiveOffset;
     g_ArchiveCurFileSector = ArchiveDecodeSector(index);
     g_ArchiveCurFileSize = ArchiveDecodeAlignedSize(index);
     return ArchiveReadFile(index, pBuffer, arg2, flags);

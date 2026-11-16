@@ -278,7 +278,7 @@ void BattlePrintMessageQueue(BattleActor* p) {
 
 extern s32 BattleGetScreenMode(void);
 extern void BattleSetTextCursor(s32 a0, s32 a1);
-extern s32 D_8009292C;
+extern s32 g_BattleMotionSpeedScale;
 extern u8 g_BattlePlayer2Vibration;
 extern u8 g_BattlePlayer1Vibration;
 extern u32 D_80091198[];
@@ -308,7 +308,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     }
     // the do-block keeps the 0x8000000 test out of the mult shadow
     do {
-        prod = p->unk15F4 * D_8009292C;
+        prod = p->unk15F4 * g_BattleMotionSpeedScale;
         flags = p->flags;
         flags &= ~0x80000;
         p->flags = flags;
@@ -988,7 +988,7 @@ void BattleActorApplyCenterPosition(BattleActor* p) {
 }
 
 extern s32 D_80092850;
-extern u8 D_80092884;
+extern u8 g_BattleOptionOn;
 extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern u8 g_BattleCameraLerpFrames;
 
@@ -1086,7 +1086,7 @@ void func_80078194(BattleActor* p) {
         p->vy += p->unk34;
         p->vz += p->unk38;
     }
-    if (D_80092850 >= 0x281 && D_80092884 != 0) {
+    if (D_80092850 >= 0x281 && g_BattleOptionOn != 0) {
         Vec4 delta;
 
         delta.x = (p->pTarget->position.x - p->position.x) / 12;

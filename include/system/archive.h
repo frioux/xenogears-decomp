@@ -58,39 +58,39 @@ typedef struct {
     u8 *entries[1];
 } SystemDataEntries;
 
-extern ArchiveStreamFileSectionHeader* D_8004FE2C;
-extern int D_8004FE40;
+extern ArchiveStreamFileSectionHeader* g_ArchiveStreamSections;
+extern int g_ArchiveStreamSectionCount;
 
 extern u32 g_ArchiveDebugTable;
 extern u32 g_ArchiveHeader;
 extern u32 g_ArchiveTable;
 extern u32 g_CurArchiveOffset;
-extern int D_8004FE18;
+extern int g_ArchiveHeaderOffsetBase;
 extern u_int g_ArchiveCdDriveState;
 extern u_int g_ArchiveCdDriveError;
 extern void* g_ArchiveCurStreamFile;
 extern CdlLOC g_ArchiveCdCurLocation;
 extern int g_ArchiveCurFileSize;
 
-extern s32 D_8004FDFC;
-extern s32 D_8004FE4C;
+extern s32 g_ArchivePendingReadCount;
+extern s32 g_ArchiveDebugFileHandle;
 extern u_char* D_80059F1C;
 extern s32 D_8005A49C;
-extern s32 D_8005A4A4;
+extern s32 g_ArchiveCdReadRetryExhaustedCount;
 
-extern u32 D_8005A488;
-extern u32 D_8005A48C;
-extern u32 D_8005A490;
-extern u32 D_8005A494;
-extern u32 D_8005A498;
-extern u32 D_8005A4A8;
-extern u32 D_8005A4B4;
-extern void* D_80059F08;
-extern char D_80059F14[]; // CdlFilter
-extern u_char D_80059F18[]; // u_char* - mode
+extern u32 g_ArchiveCdReadStartCount;
+extern u32 g_ArchiveCdReadCompleteCount;
+extern u32 g_ArchiveCdReadStatusErrorCount;
+extern u32 g_ArchiveCdDataSectorCompleteCount;
+extern u32 g_ArchiveCdDataSectorErrorCount;
+extern u32 g_ArchiveCdHaltCompleteCount;
+extern u32 g_ArchiveCdHaltErrorCount;
+extern void* g_ArchiveSavedReadyCallback;
+extern char g_ArchiveCdFilter[]; // CdlFilter
+extern u_char g_ArchiveCdMode[]; // u_char* - mode
 extern u8* D_80059F1B;
-extern int D_8004FE34;
-extern int D_8004FE38;
+extern int g_ArchiveStreamStopFlag;
+extern int g_ArchiveCdChannel;
 extern char D_80059F15;
 
 int ArchiveSetIndex(int directoryIndex, int entryIndex);

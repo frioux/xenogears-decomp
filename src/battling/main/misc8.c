@@ -5,13 +5,13 @@
 
 extern u16 D_800915BE;
 extern u16 D_80091636;
-extern u8 D_800926FC;
-extern u8 D_8009275C;
+extern u8 g_BattleScreenRestoreCount;
+extern u8 g_BattleScreenRestorePending;
 extern u16 D_80091762;
 extern u16 D_80091672;
 extern u16 D_800916AE;
-extern u8 D_80092758;
-extern u_long *D_80092760;
+extern u8 g_BattleTextWindowVisible;
+extern u_long *g_BattleScreenImageBuffer;
 extern u8 g_BattleDrawBufferIndex;
 extern s32 g_BattleTextPrimCount;
 extern s32 g_BattleCursorIndex0;
@@ -34,9 +34,9 @@ extern u8 D_8009A2BE;
 extern u16 D_8009A2C2;
 extern u16 D_8009A2C6;
 extern s32 g_BattleMode;
-extern s32 D_800928D8;
-extern s32 D_80092924;
-extern s32 D_80092940;
+extern s32 g_BattleSpriteArchiveBuffer;
+extern s32 g_BattleStateAdvanceRequested;
+extern s32 g_BattleSpriteArchiveFreed;
 
 extern void BattleClearTextSpriteEntries(void);
 extern void BattleInitTutorialMessage(void);
@@ -83,11 +83,11 @@ typedef struct {
     /* 0x1C */ BattleTextFrame frames[2]; /* current, saved */
 } BattleTextList; // Size: 0x3C
 
-extern BattleTextList D_800915AC[8];
+extern BattleTextList g_BattleTextLists[8];
 extern BattleTextList D_80091660[];
 extern BattleTextList D_800916D8[];
-extern BattleTextList *D_80092734;
-extern BattleTextList *D_80092738;
+extern BattleTextList *g_BattleCurrentTextList;
+extern BattleTextList *g_BattlePrevTextList;
 
 // Per-draw-buffer slot record, 0xF8 bytes: it starts with the screen area the
 // slot's text window covers.
@@ -112,12 +112,12 @@ extern s32 BattleLoadArchiveEntry(s32 a0);
 extern void ArchiveCdDataSync(s32 mode);
 
 void BattleRequestStateAdvance(void) {
-    D_80092924 = 1;
+    g_BattleStateAdvanceRequested = 1;
     BattleClearTextSpriteEntries();
 }
 
 void BattleStartTutorial(void) {
-    D_80092924 = 1;
+    g_BattleStateAdvanceRequested = 1;
     BattleInitTutorialMessage();
     BattleLoadSlotEntry(0, 0);
     BattleLoadSlotEntry(1, 1);
@@ -125,77 +125,77 @@ void BattleStartTutorial(void) {
 
 void BattleSetCurrentTextList(s32 a0) {
     if (a0 == 0xFF) {
-        D_80092734 = D_80092738;
+        g_BattleCurrentTextList = g_BattlePrevTextList;
     } else {
-        D_80092738 = D_80092734;
-        D_80092734 = &D_800915AC[a0];
+        g_BattlePrevTextList = g_BattleCurrentTextList;
+        g_BattleCurrentTextList = &g_BattleTextLists[a0];
     }
 }
 
 s32 BattleIsDefaultTextList(void) {
-    return D_80092734 == D_80091660;
+    return g_BattleCurrentTextList == D_80091660;
 }
 
 void BattleInitTextWindow(void) {
     SoundStopAllElements();
-    D_80092734 = 0;
+    g_BattleCurrentTextList = 0;
     BattleSetCurrentTextList(3);
     D_80091672 = 0;
     D_800916AE = 0;
     g_BattleMode = 0;
-    D_80092758 = 0;
+    g_BattleTextWindowVisible = 0;
     BattleClearTextSpriteEntries();
-    D_80092924 = 0;
+    g_BattleStateAdvanceRequested = 0;
     BattleFreeScreenBuffer(0);
-    D_80092940 = 0;
-    D_800928D8 = BattleLoadArchiveEntry(6);
+    g_BattleSpriteArchiveFreed = 0;
+    g_BattleSpriteArchiveBuffer = BattleLoadArchiveEntry(6);
 }
 
 void BattleFreeTextArchive(void) {
-    if (D_80092940 == 0) {
+    if (g_BattleSpriteArchiveFreed == 0) {
         ArchiveCdDataSync(0);
-        HeapFree(D_800928D8);
-        D_80092940 = 1;
+        HeapFree(g_BattleSpriteArchiveBuffer);
+        g_BattleSpriteArchiveFreed = 1;
     }
 }
 
 void BattleFreeScreenBuffer(s32 a0) {
     if (a0 != 0) {
-        D_80092760 = 0;
+        g_BattleScreenImageBuffer = 0;
     }
-    if (D_80092760 != 0) {
-        HeapFree(D_80092760);
-        D_80092760 = 0;
+    if (g_BattleScreenImageBuffer != 0) {
+        HeapFree(g_BattleScreenImageBuffer);
+        g_BattleScreenImageBuffer = 0;
     }
 }
 
 void BattleRestoreScreenImage(void) {
     RECT rect;
 
-    if (D_80092760 != 0) {
+    if (g_BattleScreenImageBuffer != 0) {
         DrawSync(0);
         rect.x = 0x140;
         rect.y = 0x100;
         rect.w = 0x140;
         rect.h = 0xDA;
-        func_8007313C(D_80092760, (u8 *)D_80092760 + 0x21E80);
-        LoadImage(&rect, D_80092760);
+        func_8007313C(g_BattleScreenImageBuffer, (u8 *)g_BattleScreenImageBuffer + 0x21E80);
+        LoadImage(&rect, g_BattleScreenImageBuffer);
     }
 }
 
 void BattleSaveScreenImage(void) {
     RECT rect;
 
-    if (D_80092760 == 0) {
+    if (g_BattleScreenImageBuffer == 0) {
         HeapToggleErrorHandler(1);
-        D_80092760 = HeapAlloc(0x22100, 0);
+        g_BattleScreenImageBuffer = HeapAlloc(0x22100, 0);
         HeapToggleErrorHandler(0);
     }
     DrawSync(0);
     rect = g_BattleDrawBuffers[((g_BattleDrawBufferIndex + 1) & 1)].rect;
     MoveImage(&rect, 0x140, 0x100);
-    if (D_80092760 != 0) {
-        StoreImage(&rect, D_80092760);
+    if (g_BattleScreenImageBuffer != 0) {
+        StoreImage(&rect, g_BattleScreenImageBuffer);
     }
     DrawSync(0);
 }
@@ -217,23 +217,23 @@ void func_80080C48(s32 a0) {
     SoundStopAllElements();
     BattlePlaySoundEffectById(0x1F);
     if (a0 == 1) {
-        D_80092734 = 0;
+        g_BattleCurrentTextList = 0;
         BattleSetCurrentTextList(0);
         D_800915BE = 0;
         D_80091636 = 1;
         BattleSetScreenMode(0);
-        D_80092758 = 1;
-        D_800926FC = 0;
-        D_8009275C = 1;
+        g_BattleTextWindowVisible = 1;
+        g_BattleScreenRestoreCount = 0;
+        g_BattleScreenRestorePending = 1;
         BattleSaveScreenImage();
     } else if (a0 == 2) {
-        D_80092734 = 0;
+        g_BattleCurrentTextList = 0;
         BattleSetCurrentTextList(7);
         D_80091762 = 1;
         BattleSetScreenMode(0);
-        D_80092758 = 1;
-        D_800926FC = 0;
-        D_8009275C = 1;
+        g_BattleTextWindowVisible = 1;
+        g_BattleScreenRestoreCount = 0;
+        g_BattleScreenRestorePending = 1;
         BattleSaveScreenImage();
     } else {
         BattleResetTextListState();
@@ -246,9 +246,9 @@ void BattleResetTextPrimQueue(void) {
 }
 
 extern u8 *g_BattleTextPrimBuffers[];
-extern s32 D_800912F0;
-extern DR_MOVE D_80095498[];
-extern DR_TPAGE D_800954C8[];
+extern s32 g_BattleScreenCopyRequest;
+extern DR_MOVE g_BattleScreenMovePrims[];
+extern DR_TPAGE g_BattleTextWindowTpagePrims[];
 
 void BattleDrawTextPrims(u8 *p) {
     s32 i;
@@ -261,22 +261,22 @@ void BattleDrawTextPrims(u8 *p) {
     }
     g_BattleTextPrimCount = 0;
     BattleDrawTextSprites(p);
-    if (((D_80092734 != 0) && (D_80092758 != 0)) || (D_800912F0 != 0)) {
-        if (D_80092734 != 0) {
-            AddPrim(p, &D_80092734->frames[g_BattleDrawBufferIndex]);
-            SetDrawTPage(&D_800954C8[g_BattleDrawBufferIndex], 0, 0, GetTPage(0, 2, 0, 0));
-            AddPrim(p, &D_800954C8[g_BattleDrawBufferIndex]);
+    if (((g_BattleCurrentTextList != 0) && (g_BattleTextWindowVisible != 0)) || (g_BattleScreenCopyRequest != 0)) {
+        if (g_BattleCurrentTextList != 0) {
+            AddPrim(p, &g_BattleCurrentTextList->frames[g_BattleDrawBufferIndex]);
+            SetDrawTPage(&g_BattleTextWindowTpagePrims[g_BattleDrawBufferIndex], 0, 0, GetTPage(0, 2, 0, 0));
+            AddPrim(p, &g_BattleTextWindowTpagePrims[g_BattleDrawBufferIndex]);
         }
         rect.x = 0x140;
         rect.y = 0x100;
         rect.w = 0x140;
         rect.h = 0xDA;
-        SetDrawMove(&D_80095498[g_BattleDrawBufferIndex], &rect,
+        SetDrawMove(&g_BattleScreenMovePrims[g_BattleDrawBufferIndex], &rect,
                     g_BattleDrawBuffers[g_BattleDrawBufferIndex].rect.x,
                     g_BattleDrawBuffers[g_BattleDrawBufferIndex].rect.y);
-        AddPrim(p, &D_80095498[g_BattleDrawBufferIndex]);
+        AddPrim(p, &g_BattleScreenMovePrims[g_BattleDrawBufferIndex]);
     }
-    D_800912F0 = 0;
+    g_BattleScreenCopyRequest = 0;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080F04);
@@ -285,13 +285,13 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80080F04);
    D_8009551C/D_80095520 (and D_8009554C/D_80095550 for the second half), and
    h/clut to D_80095526/D_80095522: the retail immediates are
    `sh $s3,%lo(D_80095526)($at)` (0x5526), so the address is not formed as
-   base+0x16 off D_80095510.  Spelling them as extern scalars gives those
+   base+0x16 off g_BattleCenteredTextSprites.  Spelling them as extern scalars gives those
    instruction shapes but only 63.38%: gcc then sinks all four of those stores
    BELOW the 0x14-byte struct copy (they do not alias it as far as it knows),
    while retail keeps h/clut before the copy.  Writing them as sprite fields
    (pSprt->x0 ...) keeps retail's order but uses s0-relative addressing and
    fails to merge the two halfword pairs.
-   Also missing: the last two words are reloaded through %hi(D_80095570)
+   Also missing: the last two words are reloaded through %hi(g_BattleTextSpriteTpagePrims)
    instead of `lw $v1,4($s0)`.  Explicit statement order has no effect (the
    copy is emitted first and the scalar stores after it either way).
 void func_80080F04(void) {
@@ -300,7 +300,7 @@ void func_80080F04(void) {
     SPRT *pSprt;
 
     pData = HeapAlloc(0x6B4, 0);
-    p = D_80095510;
+    p = g_BattleCenteredTextSprites;
     D_80095540.pData = pData;
     p[0].pData = pData;
     pSprt = &p[0].sprt[0];
@@ -323,9 +323,9 @@ void func_80080F04(void) {
     pSprt->h = 0xD;
     pSprt->clut = g_SystemPalette2;
     p[1].sprt[1] = p[1].sprt[0];
-    SetDrawTPage((DR_TPAGE *)D_80095570, 0, 0, GetTPage(0, 0, 0x140, 0x30));
-    D_80095578 = *(u32 *)D_80095570;
-    D_8009557C = *((u32 *)D_80095570 + 1);
+    SetDrawTPage((DR_TPAGE *)g_BattleTextSpriteTpagePrims, 0, 0, GetTPage(0, 0, 0x140, 0x30));
+    D_80095578 = *(u32 *)g_BattleTextSpriteTpagePrims;
+    D_8009557C = *((u32 *)g_BattleTextSpriteTpagePrims + 1);
 }
 */
 
@@ -336,11 +336,11 @@ typedef struct {
     /* 0x2E */ s16 x;
 } Misc8Text; // Size: 0x30
 
-extern Misc8Text D_80095510[2];
+extern Misc8Text g_BattleCenteredTextSprites[2];
 extern Misc8Text D_80095540;
 extern u16 D_8009556C;
 extern u16 D_8009556E;
-extern DR_TPAGE D_80095570[];
+extern DR_TPAGE g_BattleTextSpriteTpagePrims[];
 
 void BattleRenderCenteredText(Misc8Text *p, s32 entry, s32 flag) {
     s32 len;
@@ -358,7 +358,7 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
             return;
         }
         g_BattleTextSpriteEntry0 = entry;
-        BattleRenderCenteredText(&D_80095510[0], entry, 0);
+        BattleRenderCenteredText(&g_BattleCenteredTextSprites[0], entry, 0);
     } else {
         if (entry == g_BattleTextSpriteEntry1) {
             return;
@@ -370,7 +370,7 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
     rect.y = 0x30;
     rect.w = 0x42;
     rect.h = 0xD;
-    LoadImage(&rect, D_80095510[0].pData);
+    LoadImage(&rect, g_BattleCenteredTextSprites[0].pData);
 }
 
 void BattleDrawTextSprites(u8 *p) {
@@ -378,7 +378,7 @@ void BattleDrawTextSprites(u8 *p) {
     u8 *pBase;
 
     if (g_BattleTextSpriteEntry0 != 0) {
-        pBase = (u8 *)&D_80095510[0];
+        pBase = (u8 *)&g_BattleCenteredTextSprites[0];
         off = g_BattleDrawBufferIndex * 0x14;
         *(u16 *)(pBase + off + 0x14) = D_8009553C;
         *(u16 *)(pBase + off + 0xC) = D_8009553E;
@@ -392,7 +392,7 @@ void BattleDrawTextSprites(u8 *p) {
         AddPrim(p, pBase + (off + 4));
     }
     if (g_BattleTextSpriteEntry0 | g_BattleTextSpriteEntry1) {
-        AddPrim(p, &D_80095570[g_BattleDrawBufferIndex]);
+        AddPrim(p, &g_BattleTextSpriteTpagePrims[g_BattleDrawBufferIndex]);
     }
 }
 
@@ -462,10 +462,10 @@ void BattleInitTextLists(void) {
     u32 i;
     BattleTextList *p;
 
-    for (i = 0, p = D_800915AC; i < 8; i++, p++) {
+    for (i = 0, p = g_BattleTextLists; i < 8; i++, p++) {
         func_800812BC(p);
     }
-    D_80092734 = 0;
+    g_BattleCurrentTextList = 0;
     g_BattleCursorIndex0 = 0;
     g_BattleCursorIndex1 = 1;
     func_80080F04();
@@ -477,7 +477,7 @@ void BattleDrawTextList(BattleTextList *p) {
     if (p == 0) {
         return;
     }
-    D_80092734 = p;
+    g_BattleCurrentTextList = p;
     if (p == D_800916D8) {
         return;
     }
@@ -517,7 +517,7 @@ void BattleDrawTextList(BattleTextList *p) {
     if (p == 0) {
         return;
     }
-    D_80092734 = (s32 *)p;
+    g_BattleCurrentTextList = (s32 *)p;
     if ((s32 *)p == (s32 *)D_800916D8) {
         return;
     }
@@ -550,25 +550,25 @@ void BattleUpdateTextWindow(void) {
     s32 unk[2]; /* unused: retail's frame keeps 8 bytes of locals here */
     BattleTextList *p;
 
-    if (D_8009275C != 0) {
+    if (g_BattleScreenRestorePending != 0) {
         BattleRestoreScreenImage();
-        D_8009275C = 0;
+        g_BattleScreenRestorePending = 0;
     }
     ControllerMergeStates();
-    p = D_80092734;
+    p = g_BattleCurrentTextList;
     if (p == D_800916D8) {
         func_80081A44();
     } else {
         if (p != 0) {
             if (g_C1ButtonStateReleased & 1) {
-                if (D_800926FC < 5) {
-                    D_800926FC++;
+                if (g_BattleScreenRestoreCount < 5) {
+                    g_BattleScreenRestoreCount++;
                     BattleRestoreScreenImage();
                 }
             }
             func_8008162C(p, D_800928FC);
         }
-        BattleDrawTextList(D_80092734);
+        BattleDrawTextList(g_BattleCurrentTextList);
     }
 }
 

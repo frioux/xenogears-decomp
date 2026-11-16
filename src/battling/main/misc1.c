@@ -316,8 +316,8 @@ s32 BattleSetFacingAngleFromVector(BattleActorView* p) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007107C);
 
-extern s32 D_800925E0;
-extern s32 D_800925E4;
+extern s32 g_BattleWindowPosX;
+extern s32 g_BattleWindowPosY;
 extern u8 g_BattleDrawBufferIndex;
 extern DR_TPAGE g_BattleTpagePrims[];
 
@@ -336,7 +336,7 @@ void BattleQueueSpriteAndTpagePrims(void* pOt) {
     BattleSpritePacket* pPacket;
 
     pPacket = g_BattleDrawSlot;
-    pPacket->unk7C = D_800925E0 | (D_800925E4 << 16);
+    pPacket->unk7C = g_BattleWindowPosX | (g_BattleWindowPosY << 16);
     AddPrim(pOt, &pPacket->tag);
     AddPrim(pOt, &g_BattleTpagePrims[g_BattleDrawBufferIndex]);
 }
@@ -434,9 +434,9 @@ extern s16 D_80098698;
 extern s16 D_80098692;
 extern s32 D_8009105C[];
 extern s32 D_800925E8;
-extern s32 D_800925E0;
+extern s32 g_BattleWindowPosX;
 extern s32 D_800925EC;
-extern s32 D_800925E4;
+extern s32 g_BattleWindowPosY;
 extern s16 D_80092600;
 extern s16 D_800987E0;
 extern u16 D_800987E8;
@@ -464,9 +464,9 @@ void func_8007191C(u32 idx) {
     D_80098692 = value;
     BattleSetValueAndClearFlags(D_8009105C[idx]);
     D_800925E8 = 0xA0;
-    D_800925E0 = 0xA0;
+    g_BattleWindowPosX = 0xA0;
     D_800925EC = 0x6D;
-    D_800925E4 = 0x6D;
+    g_BattleWindowPosY = 0x6D;
     D_80092600 = 0;
     D_800987E0 = D_800987E8;
     D_800970C4 = D_800970CC;
@@ -476,12 +476,12 @@ void func_8007191C(u32 idx) {
 extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
 extern s32 g_BattleMode;
-extern u8 D_80092884;
+extern u8 g_BattleOptionOn;
 extern u8* g_BattleMessageStringTable;
 extern u8 D_800929BC;
 extern s32 D_800925DC;
-extern u8 D_80092604;
-extern s32 D_80092904;
+extern u8 g_BattleTutorialLineOffset;
+extern s32 g_BattleEffectPlaceMode;
 extern s32 g_BattleStateStep;
 extern u8 g_BattleTutorialScript[];
 extern u8* GetStringEntry(u8* pData, s32 index);
@@ -492,14 +492,14 @@ void BattleInitTutorialMessage(void) {
     g_BattlePlayer2ComControlled = 0;
     BattleSetScreenMode(7);
     g_BattleMode = 5;
-    D_80092884 = 0;
+    g_BattleOptionOn = 0;
     func_80032F54(&g_BattleTutorialWindow[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
     SystemStringPushBuffer(&g_BattleTutorialWindow[0], GetStringEntry(g_BattleMessageStringTable, 0x42));
     D_800929BC = 0x1E;
     D_800925DC = 0;
     BattleSetValueAndClearFlags(&g_BattleTutorialScript[0]);
-    D_80092604 = 0;
-    D_80092904 = 0;
+    g_BattleTutorialLineOffset = 0;
+    g_BattleEffectPlaceMode = 0;
     g_BattleStateStep = 0;
     func_8007191C(9);
 }
@@ -633,7 +633,7 @@ typedef struct {
 extern BattleEffectPoolRef* g_BattleEffectPool;
 
 extern s32 g_BattleStateStep;
-extern s32 D_80092904;
+extern s32 g_BattleEffectPlaceMode;
 extern s32 D_80092938;
 extern u16 D_8009260C;
 extern u8 g_BattleResultCode;
@@ -772,7 +772,7 @@ fade:
         pMsg->unk6 = 0xB4;
         g_BattleMessageShownIndex = g_BattleMessageIndex;
     }
-    func_8007099C(D_80092904);
+    func_8007099C(g_BattleEffectPlaceMode);
     D_80098774 = 0;
 }
 */
@@ -792,11 +792,11 @@ extern void* g_BattleRenderActor;
 extern s32 D_80096FB0;
 extern s32 D_80096FAC;
 extern s32 g_BattleViewOrigin;
-extern u8 D_80092618;
-extern s32 D_8009261C;
-extern s32 D_80092620;
-extern s32 D_80092624;
-extern s32 D_80092628;
+extern u8 g_BattleRenderToggleCount;
+extern s32 g_BattleRenderAngleX;
+extern s32 g_BattleRenderAngleYStep;
+extern s32 g_BattleRenderOffsetY;
+extern s32 g_BattleRenderOffsetZ;
 extern s32 D_8009262C;
 extern s16 D_80092632;
 extern void* g_BattleLightGroup;
@@ -804,7 +804,7 @@ extern void* g_BattleNodeTree;
 
 // The block the actor's script pointer (+0x8FC) addresses: the five signed
 // halfwords and the unsigned one BattleInitRenderScene copies into the render
-// state at D_80092618..D_80092632.
+// state at g_BattleRenderToggleCount..D_80092632.
 struct BattleScriptBlock {
     /* 0x00 */ u8 unk00[0x14];
     /* 0x14 */ s16 unk14;
@@ -850,11 +850,11 @@ void BattleInitRenderScene(BattleActorView* p) {
     w = pScript->unk1A;
     u = pScript->unk1C;
     v = pScript->unk1E;
-    D_80092618 = 1;
-    D_8009261C = x;
-    D_80092620 = y;
-    D_80092624 = z;
-    D_80092628 = w;
+    g_BattleRenderToggleCount = 1;
+    g_BattleRenderAngleX = x;
+    g_BattleRenderAngleYStep = y;
+    g_BattleRenderOffsetY = z;
+    g_BattleRenderOffsetZ = w;
     D_8009262C = u;
     D_80092632 = v;
 }

@@ -11,7 +11,7 @@ extern u8 D_80092848;
 extern u8 g_BattleDrawBufferIndex;
 extern u8 D_80096DE0[];
 extern u8 D_80096E00[];
-extern u8 D_80099DA2;
+extern u8 g_BattleAiBehaviorLevel;
 extern u8 g_BattlePlayer2ComControlled;
 
 typedef struct {
@@ -544,8 +544,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
    the 0..0xD one (case 0 shares the default). From the first switch to the end
    the instruction stream is identical; the whole remaining difference is the
    ENTRY BLOCK order. Retail emits: sw s0 / sw ra / sw s1 / lw s1,0x15FC(s0) /
-   lbu D_80099DA2 / lbu D_80092848 / ori+lui+sb g_BattlePlayer2ComControlled / beq. gcc emits:
-   sw s0 / lbu D_80099DA2 / li+sb g_BattlePlayer2ComControlled / lbu D_80092848 / sw ra / sw s1 /
+   lbu g_BattleAiBehaviorLevel / lbu D_80092848 / ori+lui+sb g_BattlePlayer2ComControlled / beq. gcc emits:
+   sw s0 / lbu g_BattleAiBehaviorLevel / li+sb g_BattlePlayer2ComControlled / lbu D_80092848 / sw ra / sw s1 /
    lw s1,0x15FC(s0) / beq - it sinks the pWork load below the two global reads
    and splits them around the flag store, and it also steals the flag-test
    body's lw v0,0xD0(s0) into the beqz delay slot where retail has a nop.
@@ -559,7 +559,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
    assigning pWork inside the reset block after its own uses - no source retail
    can have written, and it trades the adjacent global loads for the pWork load
    and its save, so it is not worth keeping.
-// The per-state action handler. A change of state (D_80099DA2) resets the work
+// The per-state action handler. A change of state (g_BattleAiBehaviorLevel) resets the work
 // slot, the actor's flags and the work flags word, then the state's handler
 // runs and most states advance the actor's approach animation at the end.
 void func_8008F280(BattleActor* pActor) {
@@ -567,20 +567,20 @@ void func_8008F280(BattleActor* pActor) {
 
     pWork = pActor->pWork;
     g_BattlePlayer2ComControlled = 1;
-    if (D_80092848 != D_80099DA2) {
+    if (D_80092848 != g_BattleAiBehaviorLevel) {
         pWork->delay = 0;
         pWork->maxDistance = 0;
         pActor->flags &= ~2;
         pActor->distance = 0;
         pActor->flags &= ~0x38;
         pWork->unk2C.flags &= ~0x2000;
-        D_80092848 = D_80099DA2;
+        D_80092848 = g_BattleAiBehaviorLevel;
         pActor->unkCE = pActor->unkCC + 0x800;
     }
     if (pWork->unk2C.flags & 0x2000) {
         pActor->flags |= 2;
     }
-    switch (D_80099DA2) {
+    switch (g_BattleAiBehaviorLevel) {
     case 2:
     case 8:
     case 9:
@@ -595,7 +595,7 @@ void func_8008F280(BattleActor* pActor) {
         }
         break;
     }
-    switch (D_80099DA2) {
+    switch (g_BattleAiBehaviorLevel) {
     case 3:
         BattleQueueRandomMessagesAndDelay(pActor, pWork, 0);
         break;

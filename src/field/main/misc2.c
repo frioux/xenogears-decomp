@@ -745,7 +745,7 @@ extern MATRIX D_800AF85C;
 extern s32 D_800AF8E0;
 extern s32 D_800AF8E4;
 extern s32 D_800AF8E8;
-extern SVECTOR D_800B2184;
+extern SVECTOR g_FieldRotationVector;
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraAt;
 extern VECTOR g_CameraUp;
@@ -779,7 +779,7 @@ void func_800739C0(void) {
     s16 updateAngle;
 
     func_8008110C();
-    RotMatrix(&D_800B2184, &D_800AFC30);
+    RotMatrix(&g_FieldRotationVector, &D_800AFC30);
     // &g_CameraAt.vz: the original reaches g_CameraEye.vx, g_CameraUp and
     // g_Scene.viewMatrix off this one base register, as displacements.
     pCam = (u_char*)&g_CameraAt + 8;

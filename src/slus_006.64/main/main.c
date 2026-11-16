@@ -14,7 +14,7 @@ extern void* g_CurGameStateOverlayBuffer;
 extern u_short g_C1ButtonState;
 
 extern s32 D_80059560;
-extern s32 D_800595AC;
+extern s32 g_GameWdsEntrySlot3;
 extern u_char D_8004FE44;
 extern u_char D_8004FE45;
 extern u_char D_8004FE46;
@@ -90,7 +90,7 @@ void MainSystemInit(void) {
     SoundLoadWdsFile(pWdsFile2, 0);
     D_80059560 = SoundLoadWdsFile(pWdsFile3, 0);
     SoundLoadWdsFile(pWdsFile4, 0);
-    D_800595AC = SoundLoadWdsFile(pWdsFile5, 0);
+    g_GameWdsEntrySlot3 = SoundLoadWdsFile(pWdsFile5, 0);
 
     // Font and gauge data live in a different heap
     prevHeapUser = HeapGetCurrentUser();

@@ -9,70 +9,70 @@
    gp-relative insn, so gcc rematerialises it at each use instead of holding
    it in a saved register across the call the way the original does. */
 extern u8 g_BattleDifficultyLevel[];
-extern u8 D_80099D9A[];
-extern u8 D_80099DA1[];
+extern u8 g_BattleFrameRateLevel[];
+extern u8 g_BattleMotionSpeedLevel[];
 extern u8 g_BattlePlayer1Vibration[];
 extern u8 g_BattlePlayer2Vibration[];
 extern u8 g_BattlePlayer1ComControlled[];
 extern u8 g_BattlePlayer2ComControlled[];
-extern u8 D_80099D9F[];
-extern u8 D_80099DA2[];
-extern u32 D_800912F4[];
-extern s32* D_80092734;
-extern u8 D_80092884;
-extern s32 D_800912F0;
+extern u8 g_BattleMatchCount[];
+extern u8 g_BattleAiBehaviorLevel[];
+extern u32 g_BattleDifficultyNames[];
+extern s32* g_BattleCurrentTextList;
+extern u8 g_BattleOptionOn;
+extern s32 g_BattleScreenCopyRequest;
 extern s32 D_80098800[];
 extern s32 D_800970E4[];
-extern s32 D_80092950;
-extern u8* D_8009132C[];
-extern u8 D_80091300[];
-extern u8 D_8006FF7C[];
-extern char D_8006FF60[];
+extern s32 g_BattleRoundNumber;
+extern u8* g_BattleAiBehaviorNames[];
+extern u8 g_BattleFrameRateTable[];
+extern u8 g_StrEmpty[];
+extern char g_StrFpsFormat[];
 extern s32 D_8009274C;
 extern s32 D_80092750;
 extern u8* g_BattleSpriteRects;
 extern s32 g_BattleCursorIndex0;
 extern s32 g_BattleCursorIndex1;
 extern s32 g_BattleSlotConfirmFlags;
-extern s32 D_80092714;
-extern s32 D_80092720;
+extern s32 g_BattlePrevCursorIndex0;
+extern s32 g_BattlePrevCursorIndex1;
 extern s32 D_80091364;
 extern s32 g_BattleEntryCount;
 extern s32 g_BattleMode;
 extern s32 D_80092748;
 extern s32** g_BattleEntries;
-extern u8 D_8006FF5C[];
-extern u8 D_8006FFA0[];
-extern u8 D_8006FFA4[];
-extern u8 D_8006FFA8[];
-extern u8 D_8006FF68[];
-extern u8 D_8006FF6C[];
-extern u8 D_8006FF74[];
-extern s32 D_8009130C[];
-extern s32 D_8009292C;
-extern u16 D_80099DA4[];
-extern u8* D_800928D8;
-extern s32 D_80092940;
+extern u8 g_StrIntFormat[];
+extern u8 g_StrNumberPlaceholder[];
+extern u8 g_StrOn[];
+extern u8 g_StrOff[];
+extern u8 g_StrCom[];
+extern u8 g_StrUser1[];
+extern u8 g_StrUser2[];
+extern s32 g_BattleMotionSpeedTable[];
+extern s32 g_BattleMotionSpeedScale;
+extern u16 g_BattleMotionSpeedScaleOption[];
+extern u8* g_BattleSpriteArchiveBuffer;
+extern s32 g_BattleSpriteArchiveFreed;
 extern s16 D_800916E2;
 extern s16 D_8009171E;
 extern u8 D_80091369;
 extern u8 D_80091391;
-extern s32 D_80092718;
-extern s32 D_8009271C;
-extern s32 D_80092724;
-extern s32 D_80092728;
+extern s32 g_BattleCursor0Step;
+extern s32 g_BattleCursor0Offset;
+extern s32 g_BattleCursor1Step;
+extern s32 g_BattleCursor1Offset;
 extern u8 D_800916D8[];
 extern u8* D_800916DC;
 extern s16 D_800916EA;
 extern u8 D_80091714[];
 extern u8* D_80091718;
 extern s16 D_80091726;
-extern s32 D_8009272C;
-extern s32 D_80092730;
+extern s32 g_BattleSlot0TextColor;
+extern s32 g_BattleSlot1TextColor;
 extern s32 D_80092754;
 extern s32 D_80092938;
-extern u8 D_8006FF80[];
-extern u8 D_8006FF90[];
+extern u8 g_StrVibrationOn[];
+extern u8 g_StrVibrationOff[];
 
 void BattleSetTextColor(s32 arg);
 void BattleClearTextSpriteEntries(void);
@@ -106,9 +106,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 /* void func_8007F854(void) {
     s32 tmp[2];
 
-    D_800912F0 = 1;
+    g_BattleScreenCopyRequest = 1;
     BattleSetScreenMode(1);
-    D_80092734 = 0;
+    g_BattleCurrentTextList = 0;
     BattleClearTextSpriteEntries();
     D_80098800[0] |= 0xC;
     D_800970E4[0] |= 0xC;
@@ -118,7 +118,7 @@ void BattleResetTextListState(void) {
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
 
     BattleSetScreenMode(1);
-    D_80092734 = 0;
+    g_BattleCurrentTextList = 0;
     BattleClearTextSpriteEntries();
 }
 
@@ -127,14 +127,14 @@ void BattleExitOptionsScreen(void) {
     s32 current;
 
     func_80080C48(0);
-    if (D_80099D9F[0] != 0) {
+    if (g_BattleMatchCount[0] != 0) {
         mode = 3;
     } else {
-        current = D_80092950;
+        current = g_BattleRoundNumber;
         if (current == 1) {
             mode = 3;
         } else {
-            D_80092950 = current - 1;
+            g_BattleRoundNumber = current - 1;
             mode = 6;
         }
     }
@@ -160,7 +160,7 @@ void BattleSetRowTextColor(Misc7Struct* p, s32 arg) {
 }
 
 u32 BattleGetDifficultyText(void) {
-    return D_800912F4[g_BattleDifficultyLevel[0]];
+    return g_BattleDifficultyNames[g_BattleDifficultyLevel[0]];
 }
 
 void BattleDrawOptionRows0To4(Misc7Struct* p) {
@@ -173,24 +173,24 @@ void BattleDrawOptionRows0To4(Misc7Struct* p) {
     BattleSetRowTextColor(p, 0);
     BattleDrawTextRight((u8*)BattleGetDifficultyText());
     BattleSetRowTextColor(p, 1);
-    Sprintf(buf, D_8006FF5C, D_80099DA1[0] + 1);
-    value = D_8009130C[D_80099DA1[0]];
-    D_8009292C = value;
-    D_80099DA4[0] = value;
+    Sprintf(buf, g_StrIntFormat, g_BattleMotionSpeedLevel[0] + 1);
+    value = g_BattleMotionSpeedTable[g_BattleMotionSpeedLevel[0]];
+    g_BattleMotionSpeedScale = value;
+    g_BattleMotionSpeedScaleOption[0] = value;
     BattleDrawTextRight(buf);
     BattleSetRowTextColor(p, 2);
-    Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
+    Sprintf(buf, g_StrFpsFormat, g_BattleFrameRateTable[g_BattleFrameRateLevel[0]]);
     BattleDrawTextRight(buf);
     BattleSetRowTextColor(p, 3);
-    pText = D_8006FF6C;
+    pText = g_StrUser1;
     if (g_BattlePlayer1ComControlled[0] != 0) {
-        pText = D_8006FF68;
+        pText = g_StrCom;
     }
     BattleDrawTextRight(pText);
     BattleSetRowTextColor(p, 4);
-    pText = D_8006FF74;
+    pText = g_StrUser2;
     if (g_BattlePlayer2ComControlled[0] != 0) {
-        pText = D_8006FF68;
+        pText = g_StrCom;
     }
     BattleDrawTextRight(pText);
     BattleSetTextColor(0);
@@ -201,12 +201,12 @@ void BattleDrawOptionRows0To2(Misc7Struct* p) {
 
     BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
     BattleSetTextColor(0);
-    BattleDrawTextRight(D_8006FF7C);
+    BattleDrawTextRight(g_StrEmpty);
     BattleSetRowTextColor(p, 1);
-    BattleDrawTextRight(D_8009132C[D_80099DA2[0]]);
-    BattleSetTextSpriteEntry(D_80099DA2[0] + 0x15, 1);
+    BattleDrawTextRight(g_BattleAiBehaviorNames[g_BattleAiBehaviorLevel[0]]);
+    BattleSetTextSpriteEntry(g_BattleAiBehaviorLevel[0] + 0x15, 1);
     BattleSetRowTextColor(p, 2);
-    Sprintf(buf, D_8006FF60, D_80091300[D_80099D9A[0]]);
+    Sprintf(buf, g_StrFpsFormat, g_BattleFrameRateTable[g_BattleFrameRateLevel[0]]);
     BattleDrawTextRight(buf);
     BattleSetTextColor(0);
 }
@@ -220,16 +220,16 @@ void BattleDrawVibrationOptions(void) {
     pPad = (Misc7Struct*)D_800916D8;
     flag = !(g_BattleSlotConfirmFlags & 1);
     if (flag && D_800916EA == 0) {
-        D_8009272C = 1;
+        g_BattleSlot0TextColor = 1;
     } else {
-        D_8009272C = 0;
+        g_BattleSlot0TextColor = 0;
     }
     BattleSetTextCursor(0x50, 0x8C);
     if (ControllerGetType(0) == 4 && g_BattlePlayer1ComControlled[0] == 0) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
         }
-        BattleByteRegTestReg((g_BattlePlayer1Vibration[0] & 1) ? D_8006FF80 : D_8006FF90);
+        BattleByteRegTestReg((g_BattlePlayer1Vibration[0] & 1) ? g_StrVibrationOn : g_StrVibrationOff);
         D_800916DC[0x14] &= ~4;
     } else {
         D_800916DC[0x14] |= 4;
@@ -241,16 +241,16 @@ void BattleDrawVibrationOptions(void) {
     }
     pPad = (Misc7Struct*)D_80091714;
     if (flag && D_80091726 == 0) {
-        D_80092730 = 1;
+        g_BattleSlot1TextColor = 1;
     } else {
-        D_80092730 = 0;
+        g_BattleSlot1TextColor = 0;
     }
     BattleSetTextCursor(0xF0, 0x8C);
     if (ControllerGetType(1) == 4 && g_BattlePlayer2ComControlled[0] == 0) {
         if (flag) {
             BattleSetRowTextColor(pPad, 1);
         }
-        BattleByteRegTestReg((g_BattlePlayer2Vibration[0] & 1) ? D_8006FF80 : D_8006FF90);
+        BattleByteRegTestReg((g_BattlePlayer2Vibration[0] & 1) ? g_StrVibrationOn : g_StrVibrationOff);
         D_80091718[0x14] &= ~4;
     } else {
         D_80091718[0x14] |= 4;
@@ -266,25 +266,25 @@ void BattleDrawOptionRows4To6(Misc7Struct* p) {
 
     BattleSetTextColor(0);
     BattleSetTextCursor(p->unk24 + p->unk28 - 0xA, p->unk14);
-    BattleDrawTextRight(D_8006FF7C);
-    BattleDrawTextRight(D_8006FF7C);
-    BattleDrawTextRight(D_8006FF7C);
-    BattleDrawTextRight(D_8006FF7C);
+    BattleDrawTextRight(g_StrEmpty);
+    BattleDrawTextRight(g_StrEmpty);
+    BattleDrawTextRight(g_StrEmpty);
+    BattleDrawTextRight(g_StrEmpty);
     BattleSetRowTextColor(p, 4);
-    flag = D_80099D9F[0];
+    flag = g_BattleMatchCount[0];
     if (flag != 0) {
-        Sprintf(buf, D_8006FF5C, flag);
+        Sprintf(buf, g_StrIntFormat, flag);
         pText = buf;
     } else {
-        pText = D_8006FFA0;
+        pText = g_StrNumberPlaceholder;
     }
     BattleDrawTextRight(pText);
     BattleSetRowTextColor(p, 5);
-    BattleDrawTextRight((u8*)D_800912F4[g_BattleDifficultyLevel[0]]);
+    BattleDrawTextRight((u8*)g_BattleDifficultyNames[g_BattleDifficultyLevel[0]]);
     BattleSetRowTextColor(p, 6);
-    pText = D_8006FFA8;
-    if (D_80092884 != 0) {
-        pText = D_8006FFA4;
+    pText = g_StrOff;
+    if (g_BattleOptionOn != 0) {
+        pText = g_StrOn;
     }
     BattleDrawTextRight(pText);
     BattleSetTextColor(0);
@@ -341,11 +341,11 @@ void BattleMoveDifficultyCursor(void) {
 }
 
 void BattleMoveSpeedCursor(void) {
-    D_80099DA1[0] = WorldMapInitializeModeWithActors(D_80099DA1[0], 7, 2);
+    g_BattleMotionSpeedLevel[0] = WorldMapInitializeModeWithActors(g_BattleMotionSpeedLevel[0], 7, 2);
 }
 
 void BattleMoveFrameRateCursor(void) {
-    D_80099D9A[0] = WorldMapInitializeModeWithActors(D_80099D9A[0], 4, 2);
+    g_BattleFrameRateLevel[0] = WorldMapInitializeModeWithActors(g_BattleFrameRateLevel[0], 4, 2);
 }
 
 void BattleMoveVibrationCursorPad0(void) {
@@ -365,18 +365,18 @@ void BattleMoveComCursorPad1(void) {
 }
 
 void BattleMoveValueOptionCursor(void) {
-    D_80099D9F[0] = WorldMapInitializeModeWithActors(D_80099D9F[0], 3, 2);
+    g_BattleMatchCount[0] = WorldMapInitializeModeWithActors(g_BattleMatchCount[0], 3, 2);
 }
 
 s32 BattleMoveOnOffCursor(void) {
-    s32 value = WorldMapInitializeModeWithActors(D_80092884, 1, 1);
+    s32 value = WorldMapInitializeModeWithActors(g_BattleOptionOn, 1, 1);
 
-    D_80092884 = value;
+    g_BattleOptionOn = value;
     return value;
 }
 
 void BattleMoveComBehaviorCursor(void) {
-    D_80099DA2[0] = WorldMapInitializeModeWithActors(D_80099DA2[0], 0xD, 3);
+    g_BattleAiBehaviorLevel[0] = WorldMapInitializeModeWithActors(g_BattleAiBehaviorLevel[0], 0xD, 3);
 }
 
 void BattleHandleSelectionInputPad0(void) {
@@ -518,8 +518,8 @@ void BattleLoadSelectionTextures(s32 idx0, s32 idx1) {
     ArchiveReadFileFromCdSector(ArchiveDecodeSector(6) + idx1 * 2, pBuf + 0x1000, 0x1000, 0, 0);
     g_BattleCursorIndex0 = idx0;
     g_BattleCursorIndex1 = idx1;
-    D_80092714 = idx0;
-    D_80092720 = idx1;
+    g_BattlePrevCursorIndex0 = idx0;
+    g_BattlePrevCursorIndex1 = idx1;
     g_BattleSlotConfirmFlags = 3;
     ArchiveCdDataSync(0);
     pSrc = pBuf + 0x1000;
@@ -536,16 +536,16 @@ void BattleInitOptionsScreen(s32 mode) {
     u8* pSprite;
     s32 i;
 
-    if (D_80092940 == 0) {
+    if (g_BattleSpriteArchiveFreed == 0) {
         ArchiveCdDataSync(0);
         pSprite = g_BattleSpriteRects;
         for (i = 0; i < 0x31; i++) {
-            LoadImage((RECT*)pSprite, (u_long*)(D_800928D8 + i * 0x1000));
-            LoadImage((RECT*)(pSprite + 8), (u_long*)(D_800928D8 + i * 0x1000 + 0x100));
+            LoadImage((RECT*)pSprite, (u_long*)(g_BattleSpriteArchiveBuffer + i * 0x1000));
+            LoadImage((RECT*)(pSprite + 8), (u_long*)(g_BattleSpriteArchiveBuffer + i * 0x1000 + 0x100));
             pSprite += 0x14;
         }
-        HeapFree(D_800928D8);
-        D_80092940 = 1;
+        HeapFree(g_BattleSpriteArchiveBuffer);
+        g_BattleSpriteArchiveFreed = 1;
     }
     g_BattleMode = mode;
     D_800916E2 = (mode == 4) ? 3 : 4;
@@ -559,11 +559,11 @@ void BattleInitOptionsScreen(s32 mode) {
     }
     BattleSetScreenMode(1);
     g_BattleSlotConfirmFlags = 0;
-    D_80092728 = 0;
-    D_80092724 = 0;
-    D_8009271C = 0;
-    D_80092718 = 0;
-    D_80092714 = g_BattleCursorIndex0;
-    D_80092720 = g_BattleCursorIndex1;
+    g_BattleCursor1Offset = 0;
+    g_BattleCursor1Step = 0;
+    g_BattleCursor0Offset = 0;
+    g_BattleCursor0Step = 0;
+    g_BattlePrevCursorIndex0 = g_BattleCursorIndex0;
+    g_BattlePrevCursorIndex1 = g_BattleCursorIndex1;
     BattleSetCurrentTextList(5);
 }

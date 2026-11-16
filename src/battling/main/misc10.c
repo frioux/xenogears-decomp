@@ -16,11 +16,11 @@ extern s32 D_80092948;
 extern u8 D_80097919;
 extern u8 D_80099035;
 extern u8 D_80091FB0[];
-extern u8 D_80092920;
+extern u8 g_BattleControlFlags;
 extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
 extern s32 g_SpuChannelMask;
-extern s32 D_8009292C;
+extern s32 g_BattleMotionSpeedScale;
 extern u8* D_80092938;
 extern u8* D_80092784;
 
@@ -207,7 +207,7 @@ void BattleUpdateEffectTimer(void) {
             D_80092780 = 0;
             D_80092784 = 0;
             SoundSetAudioManagerMasterVolumeWithFade(D_80092948, 0x100, 0);
-            D_8009292C = 0x100;
+            g_BattleMotionSpeedScale = 0x100;
             BattleEffectFreeResources();
         } else {
             func_8008E3CC(D_80092938, timer, 1);
@@ -379,7 +379,7 @@ void BattleUpdateEffectImage(void) {
 }
 
 void BattleSetBothSidesCom(void) {
-    D_80092920 &= 0xFE;
+    g_BattleControlFlags &= 0xFE;
     BattleClearScreen(0);
     BattleSetScreenMode(5);
     g_BattlePlayer2ComControlled = 1;
@@ -388,11 +388,11 @@ void BattleSetBothSidesCom(void) {
 }
 
 void BattleSetBothSidesUser(void) {
-    u8 flags = D_80092920;
+    u8 flags = g_BattleControlFlags;
 
     g_BattlePlayer2ComControlled = 0;
     g_BattlePlayer1ComControlled = 0;
-    D_80092920 = flags | 0x1;
+    g_BattleControlFlags = flags | 0x1;
 }
 
 void BattleLoadSlotEntry(s32 index, s32 value) {

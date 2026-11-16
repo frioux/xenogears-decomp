@@ -846,8 +846,8 @@ extern u8 D_800928FC;
 extern s32 g_BattleMode;
 extern u16 D_8009881E;
 extern s32 D_8009263C;
-extern u8 D_80092884;
-extern s32 D_80092950;
+extern u8 g_BattleOptionOn;
+extern s32 g_BattleRoundNumber;
 extern s32 D_80092850;
 extern s32 D_8009284C;
 extern s32 g_BattleFacingAngle;
@@ -952,13 +952,13 @@ void func_800751C8(u8 *p0, u8 *p1) {
             if (BattleGetScreenMode() != 7) {
                 if (g_BattleMode == 4) {
                     BattleByteRegTestReg(D_8006FC6C);
-                    if (D_80092884 != 0) {
+                    if (g_BattleOptionOn != 0) {
                         BattleByteRegTestReg(D_8006FC74);
                         BattleByteRegTestReg(D_8006FC78);
                     }
                 } else {
                     BattleByteRegTestReg(D_8006FC8C);
-                    if (D_80092884 != 0) {
+                    if (g_BattleOptionOn != 0) {
                         BattleByteRegTestReg(D_8006FC74);
                         BattleByteRegTestReg(D_8006FC94);
                     }
@@ -968,14 +968,14 @@ void func_800751C8(u8 *p0, u8 *p1) {
             if (BattleGetScreenMode() != 7) {
                 if (g_BattleMode == 4) {
                     BattleByteRegTestReg(D_8006FCA8);
-                    if (D_80092884 != 0) {
+                    if (g_BattleOptionOn != 0) {
                         BattleByteRegTestReg(D_8006FC74);
                         BattleByteRegTestReg(D_8006FC78);
                     }
                 } else {
-                    Sprintf(buf, D_8006FCB4, D_80092950);
+                    Sprintf(buf, D_8006FCB4, g_BattleRoundNumber);
                     BattleByteRegTestReg(buf);
-                    if (D_80092884 != 0) {
+                    if (g_BattleOptionOn != 0) {
                         BattleByteRegTestReg(D_8006FC74);
                         BattleByteRegTestReg(D_8006FC94);
                     }

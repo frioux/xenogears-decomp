@@ -418,7 +418,7 @@ void FieldScriptSetByte234C(void) {
 
 extern s32 g_FieldActiveActorCount;
 extern s32 g_PlayerActorIndex;
-extern FieldScriptGlobalU16 D_800B234E;
+extern FieldScriptGlobalU16 g_FieldPlayerActorPartySlot;
 extern FieldScriptGlobalS16 g_FieldPlayerActorIndex16;
 
 // Switch the actor controlled by the player
@@ -429,9 +429,9 @@ void FieldScriptSetPlayerActor(void) {
         int i;
 
         if (actorIndex == g_FieldPartyActorSlots[0]) {
-            D_800B234E.value = 0;
+            g_FieldPlayerActorPartySlot.value = 0;
         } else {
-            D_800B234E.value = 1;
+            g_FieldPlayerActorPartySlot.value = 1;
         }
         g_PlayerActorIndex = actorIndex;
         g_FieldPlayerActorIndex16.value = actorIndex;
@@ -925,29 +925,29 @@ void FieldScriptWritePartySlotOfActor(void) {
 
 // One u16 field each of two 8-byte-stride records, so every reference is a
 // separate symbol with no addend.
-extern u16 D_800B22E8[];
+extern u16 g_FieldMotionSlotPathStart[];
 extern u16 D_800B22EA[];
 extern u16 D_800B22EC[];
-extern u16 D_800B2300[];
+extern u16 g_FieldMotionSlotPathEnd[];
 extern u16 D_800B2302[];
 extern u16 D_800B2304[];
-extern s32 D_800B2318[];
+extern s32 g_FieldMotionSlotFrameCount[];
 
 void FieldScriptSetMotionSlotPath(void) {
     int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
 
-    D_800B22E8[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathStart[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
     D_800B22EA[index * 4] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
     D_800B22EC[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
-    D_800B2300[index * 4] = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotPathEnd[index * 4] = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
     D_800B2302[index * 4] = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
     D_800B2304[index * 4] = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
-    D_800B2318[index] = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
+    g_FieldMotionSlotFrameCount[index] = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
 extern s16 g_FieldMotionSlotActorIds[];
-extern s16 D_800B2324[];
+extern s16 g_FieldMotionSlotTargetPositions[];
 extern s16 D_800B2326[];
 extern s16 D_800B2328[];
 
@@ -955,7 +955,7 @@ void FieldScriptSetMotionSlotTarget(void) {
     int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     int actorIndex;
 
-    D_800B2324[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    g_FieldMotionSlotTargetPositions[index * 4] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
     D_800B2328[index * 4] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
     D_800B2326[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     actorIndex = FieldScriptVMGetActorIndex(0xA);
@@ -1245,7 +1245,7 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
     g_FieldPartyModelLoadPartyIndex = partyIndex;
     g_FieldPartyModelLoadCharacter = characterId;
     ArchiveSetIndex(4, 0);
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         ArchiveCdDataSync(0);
     }
     if ((g_GameSceneMapNum & 0xC000) == 0) {
@@ -1271,7 +1271,7 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
         g_GamePartyMemberSkins[g_FieldPartyModelLoadPartyIndex] = characterIndex;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
     }
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         ArchiveCdDataSync(0);
     }
     g_FieldPartyModelLoadState = 1;
@@ -1319,7 +1319,7 @@ extern void* g_GameWdsEntries[];
 
 extern s32 D_80062524;
 
-extern s32 D_800595AC;
+extern s32 g_GameWdsEntrySlot3;
 
 extern s32 D_8004F370;
 
@@ -1343,7 +1343,7 @@ void FieldScriptLoadWdsSoundFile(void) {
             SoundGetPendingSpuCommandType(0x10);
             HeapFree(g_FieldWdsLoadBuffer);
             if (g_FieldWdsLoadSlotIndex == 3) {
-                D_800595AC = D_80062524;
+                g_GameWdsEntrySlot3 = D_80062524;
             }
             g_FieldScriptVMStopFlag = 1;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
@@ -1406,7 +1406,7 @@ void FieldScriptLoadSpecialAnimArchive(void) {
         pBuffer = HeapAlloc(bufferSize, 0);
         g_FieldScriptVMCurActor->unk120 = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
-        if (D_800ADB1C == 0) {
+        if (g_FieldEntryRoutineFinished == 0) {
             ArchiveCdDataSync(0);
         }
         g_FieldSpecialAnimLoadPending = 1;
@@ -1439,14 +1439,14 @@ void FieldScriptSetVectorTable221C(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
 }
 
-extern s16 D_800B223C[];
+extern s16 g_FieldMotionSlotSteps[];
 
 void FieldScriptSetVectorTable223C(void) {
     int index = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
 
-    D_800B223C[index] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
-    D_800B223C[index + 3] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
-    D_800B223C[index + 6] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
+    g_FieldMotionSlotSteps[index] = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    g_FieldMotionSlotSteps[index + 3] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
+    g_FieldMotionSlotSteps[index + 6] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
 }
 
@@ -1468,11 +1468,11 @@ void FieldScriptSetUpdateAngle(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern s32 D_800ADB1C;
+extern s32 g_FieldEntryRoutineFinished;
 extern s16 g_FieldModelAnimationIds[];
 
 void FieldScriptSetGearModelAnimation(void) {
-    if (D_800ADB1C != 0) {
+    if (g_FieldEntryRoutineFinished != 0) {
         LibGearSetModelAnimation(FieldScriptVMGetArgument(1) & 0xFFFF, 0, FieldScriptVMGetArgument(3));
         g_FieldModelAnimationIds[FieldScriptVMGetArgument(1)] = FieldScriptVMGetArgument(3);
     }
@@ -1533,12 +1533,12 @@ void FieldScriptHandleDistortion(void) {
 }
 
 
-extern FieldScriptGlobalS16 D_800B2184;
+extern FieldScriptGlobalS16 g_FieldRotationVector;
 extern FieldScriptGlobalS16 D_800B2186;
 extern FieldScriptGlobalS16 D_800B2188;
 
 void FieldScriptSetRotationVector(void) {
-    D_800B2184.value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
+    g_FieldRotationVector.value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(7));
     D_800B2188.value = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(7));
     D_800B2186.value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(7));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
@@ -1897,7 +1897,7 @@ void FieldScriptSetAudioInterpolator70(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else if (g_GameRequestedWdsBankIndex == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
-    } else if (D_800ADB1C == 0) {
+    } else if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
@@ -1914,7 +1914,7 @@ void FieldScriptSetAudioInterpolator7C(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
     } else if (g_GameRequestedWdsBankIndex == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
-    } else if (D_800ADB1C == 0) {
+    } else if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
@@ -1930,7 +1930,7 @@ void FieldScriptSetAudioInterpolator64(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else if (g_GameRequestedWdsBankIndex == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
-    } else if (D_800ADB1C == 0) {
+    } else if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
@@ -1947,7 +1947,7 @@ void FieldScriptSetAudioInterpolator88(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
     } else if (g_GameRequestedWdsBankIndex == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
-    } else if (D_800ADB1C == 0) {
+    } else if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
@@ -1963,7 +1963,7 @@ void FieldScriptSetAudioMuteFlags(void) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     } else if (g_GameRequestedWdsBankIndex == CHARACTER_ID_NONE) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
-    } else if (D_800ADB1C == 0) {
+    } else if (g_FieldEntryRoutineFinished == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
@@ -2951,7 +2951,7 @@ extern void FieldStartWdsBankLoad(int, int);
 void func_8008F7B8(void) {
     int characterId = FieldScriptVMGetArgument(1);
 
-    if (D_800ADB1C == 0) {
+    if (g_FieldEntryRoutineFinished == 0) {
         FieldFreePendingAudioManager();
         if (characterId != g_GameRequestedWdsBankIndex) {
             SoundFreeLoadedWdsAndAudioManager();
