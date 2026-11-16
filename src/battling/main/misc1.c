@@ -81,7 +81,6 @@ void func_800708C4(s32* p, s32 step) {
 */
 
 extern VECTOR D_80097010;
-extern VECTOR D_8009872C;
 extern VECTOR D_80099078;
 extern s32 D_80097014;
 extern s32 D_80097018;
@@ -89,6 +88,9 @@ extern s32 D_80098780;
 extern s32 D_80097064;
 extern s32 D_80098730;
 extern s32 D_80098734;
+
+// One past the last of the three effect-cell frame counters.
+extern s32 D_80092A30;
 extern void func_80070808(VECTOR* pVec, s32 step);
 extern void func_800708C4(VECTOR* pVec, s32 step);
 extern void func_80083738(VECTOR* pA, VECTOR* pB);
@@ -309,13 +311,28 @@ void func_80071794(u8* p) {
 
 extern s32 D_800925D4;
 extern s32 D_800925D8;
-extern u8 D_8009868C[];
+
+// The battle message window the tutorial text is drawn into: the box rectangle
+// func_80032F54 fills in, the line count at +0xC and the redraw flag at +0x68.
+typedef struct {
+    /* 0x00 */ s16 unk0;
+    /* 0x02 */ s16 unk2;
+    /* 0x04 */ s16 unk4;
+    /* 0x06 */ s16 unk6;
+    /* 0x08 */ s16 unk8;
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ u8 unkE[0x5A];
+    /* 0x68 */ u8 unk68;
+} BattleMessageWindow; // Size: 0x69
+
+extern BattleMessageWindow D_8009868C;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 
 void BattleInitMessageWindow(void) {
     D_800925D8 = -1;
     D_800925D4 = 0;
-    func_80032F54(&D_8009868C[0], 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
+    func_80032F54(&D_8009868C, 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
 }
 
 extern u8 D_80092608;
@@ -479,7 +496,213 @@ void BattleInitOnce(void) {
     D_80098814 = 0;
 }
 
+// The position every effect vector is placed against: three 16.16 words.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+} BattleAnchor; // Size: 0xC
+
+// The battling overlay's battle state (D_8009872C): the anchor position every
+// effect vector is placed against, the fade intensity at +0xD0 the draw units
+// read, and the frame flags the effect cells below are switched on through.
+typedef struct {
+    /* 0x000 */ BattleAnchor position;
+    /* 0x00C */ u8 unkC[0x40];
+    /* 0x04C */ u8 unk4C;
+    /* 0x04D */ u8 unk4D[0x2];
+    /* 0x04F */ u8 unk4F;
+    /* 0x050 */ u8 unk50[0x2];
+    /* 0x052 */ u8 unk52;
+    /* 0x053 */ u8 unk53[0x61];
+    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B8 */ u8 unkB8[0x18];
+    /* 0x0D0 */ u32 unkD0;
+} BattleState; // Size: 0xD4
+
+extern BattleState D_8009872C;
+
+// The anchor's y and z words: retail's object reaches them as their own
+// symbols, not as displacements off D_8009872C.
+extern s32 D_80098730;
+extern s32 D_80098734;
+
+// One past the last of the three effect-cell frame counters.
+extern s32 D_80092A30;
+
+// One of the effect cells func_80072170 steps: the 16.16 origin a burst is
+// placed at (a source actor's origin plus the battle state's anchor) and the
+// frames left before the next burst.
+typedef struct {
+    /* 0x00 */ s32 x;
+    /* 0x04 */ s32 y;
+    /* 0x08 */ s32 z;
+    /* 0x0C */ s32 frames;
+} BattleEffectEmitter; // Size: 0x10
+
+extern BattleEffectEmitter D_800929F4[];
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x60];
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ s32 unk64;
+    /* 0x68 */ s32 unk68;
+} BattleEffectOrigin; // Size: 0x6C
+
+// The origins a burst is jittered around: the number of entries and the array
+// of per-sprite origins, reached through the pool D_80098788 points at.
+typedef struct {
+    /* 0x0 */ s16 count;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ BattleEffectOrigin** pOrigins;
+} BattleEffectPool; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ u8 unk0[0x4];
+    /* 0x4 */ BattleEffectPool* pPool;
+} BattleEffectPoolRef; // Size: 0x8
+
+extern BattleEffectPoolRef* D_80098788;
+
+extern s32 D_80092900;
+extern s32 D_80092904;
+extern s32 D_80092938;
+extern u16 D_8009260C;
+extern u8 D_80050622;
+extern u8* D_80092880;
+extern void BattleEffectAddSlotFromVector(VECTOR* pVec, s32 action);
+extern void BattlePlaySoundEffectById(s32 id);
+extern void SystemStringFreeBufferStack(void* pString);
+extern u8* GetStringEntry(u8* pData, s32 index);
+extern void SystemStringPushBuffer(void* pString, u8* pEntry);
+extern void func_8008E2B8(u8* p0, s32 color, s32 flag);
+extern void BattleClearScreen(s32 arg);
+extern void BattleReturnToMainLoop(void);
+extern void func_8007107C(void);
+extern void func_8007099C(s32 mode);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
+
+/* 97.21%: same size as retail (1080 bytes) and every statement, call, constant,
+   case order and jump-table entry is right; the fade/case 2/3/4/tail blocks match
+   instruction for instruction. What is left is allocation in the case-1 loop: retail
+   keeps SIX saved registers and this body five (frame 0x40 vs 0x38) because retail
+   holds the effect-cell array base in $s4 as well as the incrementing element pointer
+   in $s2 (its add-slot call is 'addu a0,s0,s4' where ours re-forms %hi/%lo), and it
+   stores the decremented frame count through $s2+0xC while ours goes through the
+   folded %hi(D_800929F4)+index form. Try a base local that is never incremented,
+   used for &pEmitters[i], plus pEmitter = pEmitters for the IV; then run the permuter.
+   Two more leads: 'lh' vs 'lhu' at the func_8008E2B8 call sites is fixed here only by
+   the (s16) cast \u2014 retail loads D_8009260C as a halfword (signed) both times; and the
+   loop test needs a SIGNED compare ('slt', not 'sltu'), which is why the bound is cast.
+   D_80098730/D_80098734 are reached as their own symbols in the fade branch (retail
+   forms three lui/lw pairs there) while case 1 reads the same words as displacements
+   off D_8009872C: that mix of spellings is retail's, not an accident.
+   NOTE: this body needs D_8009872C declared as BattleState, the type the declarations
+   above now give it; the older parked bodies in this file (func_8007099C, func_80071F8C)
+   still spell it as a VECTOR.
+   attempt:
+// Steps the battle display state machine for the current frame: plays the
+// effect sound, places a burst from a random source actor on the effect cells,
+// fades the screen and keeps the tutorial message text in step.
+void func_80072170(void) {
+    BattleState* pState;
+    BattleMessageWindow* pMsg;
+    BattleAnchor* pAnchor;
+    BattleEffectEmitter* pEmitter;
+    BattleEffectOrigin* pOrigin;
+    s32* pFrames;
+    long vec[3];
+    s32 i;
+    s32 frames;
+    s32 count;
+
+    if (D_8009293C == 0) {
+        return;
+    }
+    pState = &D_8009872C;
+    pMsg = &D_8009868C;
+    switch (D_80092900) {
+    case 11:
+        BattlePlaySoundEffectById(0x2A);
+        BattlePlaySoundEffectById(0x2B);
+        BattlePlaySoundEffectById(0x2C);
+        D_80092900 = 1;
+    case 1:
+        pAnchor = &D_8009872C.position;
+        pEmitter = D_800929F4;
+        pFrames = &D_800929F4[0].frames;
+        i = 0;
+        do {
+            frames = *pFrames - 1;
+            pEmitter->frames = frames;
+            if (frames == -1) {
+                pOrigin = D_80098788->pPool->pOrigins[rand() % D_80098788->pPool->count];
+                D_800929F4[i].x = pOrigin->unk60 + pAnchor->x;
+                D_800929F4[i].y = pOrigin->unk64 + pAnchor->y;
+                D_800929F4[i].z = pOrigin->unk68 + pAnchor->z;
+                *pFrames = rand() % 16 + 8;
+            }
+            if (*pFrames & 1) {
+                BattleEffectAddSlotFromVector((VECTOR*)&D_800929F4[i], 9);
+            }
+            pFrames += 4;
+            i++;
+            pEmitter++;
+        } while ((s32)pFrames < (s32)&D_80092A30);
+        break;
+    case 2:
+        pState->unkB4 = 1;
+        D_8009260C = 0xFF;
+        D_80092900++;
+    case 3:
+        func_8008E2B8((u8*)D_80092938, (s16)D_8009260C, 0);
+        if ((s16)D_8009260C < 0) {
+            D_8009260C = 0;
+        }
+        D_8009260C -= 8;
+fade:
+        pState->unk4F = 0x10;
+        pState->unk4C = 0xA;
+        pState->unk52 = 0;
+        pState->unkB6 = 0x1000;
+        pState->unkD0 |= 0x400;
+        if (rand() & 1) {
+            count = D_80098788->pPool->count;
+            pOrigin = D_80098788->pPool->pOrigins[rand() % count];
+            vec[0] = pOrigin->unk60 + D_8009872C.position.x;
+            vec[1] = pOrigin->unk64 + D_80098730;
+            vec[2] = pOrigin->unk68 + D_80098734;
+            BattleEffectAddSlotFromVector((VECTOR*)vec, 0xB);
+            BattleEffectAddSlotFromVector((VECTOR*)vec, 8);
+        }
+        break;
+    case 4:
+        D_8009260C += 3;
+        if ((s16)D_8009260C >= 0x100) {
+            D_8009260C = 0xFF;
+            D_80050622 = 0x7F;
+            BattleClearScreen(0);
+            BattleReturnToMainLoop();
+        }
+        func_8008E2B8((u8*)D_80092938, (s16)D_8009260C, 1);
+        goto fade;
+    }
+    func_8007107C();
+    if (D_800925D4 != D_800925D8) {
+        pMsg->unk68 = 1;
+        SystemStringFreeBufferStack(pMsg);
+        SystemStringPushBuffer(pMsg, GetStringEntry(D_80092880, D_800925D4));
+        pMsg->unkC = 2;
+        pMsg->unk6 = 0xB4;
+        D_800925D8 = D_800925D4;
+    }
+    func_8007099C(D_80092904);
+    D_80098774 = 0;
+}
+*/
+
 
 void BattleEmptyFunction(void) {
 }
