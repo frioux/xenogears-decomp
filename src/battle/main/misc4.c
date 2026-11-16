@@ -47,7 +47,7 @@ extern u8 g_BattleActorCountdownState[];
 extern u8 g_BattleSlotScriptFlags[];
 extern BattleTableEntry g_BattleSlotEntries[];
 extern u8 g_BattleSlotFlags[];
-extern u16 g_BattleActionSlotMask;
+extern u16 g_BattleActionSlotMask[];
 extern void BattleBeginActorAction(u8 arg0, u16 arg1, u8 arg2);
 extern void BattleApplySlotCurveAndStep(u8 arg0);
 extern u8 g_BattleSoundEnabled;
@@ -110,22 +110,24 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
         BattleQueueCommandF8(arg1);
     }
 }
-/* Best: 89.11% (408 bytes vs retail 420), and it compiles. Structure is exact -
-   all four calls, the 0xFD scan and both table stores line up; the whole gap is
-   &g_BattleActionSlotMask: retail forms it ONCE into $s1 (lui/addiu), keeps it across the
-   func_800785D4 call and reads it three times (`lhu v1,0(s1)`, `lhu v0,0(s1)`,
-   and through a copy in $t0 for the scan). gcc 2.7.2 folds the constant address
-   into each load (`lui %hi; lhu %lo`), which costs the three instructions.
-   MEASURED: under -G0 gcc DOES keep &g_BattleActionSlotMask in a register (the -G0 build of
-   this function scores 94.59%), so this is the -G setting, not the source - but
-   this unit cannot move to -G0: matched BattleQueueCommandFD drops to 99.67.
-   The same wall is parked in misc15 func_8008ADD0 (g_BattleActionSlotMask again), so it is
-   one shared question, not a per-function one. Tried: pValue assigned at the
-   top and just before the g_BattleCommandRecords store (identical), no pQueue local
-   (reloads g_BattleCommandQueue in the loop), u16 *pValue = &g_BattleActionSlotMask.
-void func_80078998(u8 arg0, u8 arg1) {
+/* Best: 95.44% (400 bytes vs retail 420), and it compiles: the original declaration of
+   the extern was 3-argument, the parked body 2-argument, which is why the sweep scored it ERROR.
+   REAL PERCENTAGES: 95.44 with the g_BattleActionSlotMask declaration spelled as an ARRAY and the
+   pMask copy below (94.59 without the copy), 89.11 with the realistic scalar declaration - the
+   array spelling is what makes gcc MATERIALISE the address (lui/addiu into a saved register,
+   lhu 0(sN) at three sites) instead of folding it into each load (lui %at; lhu %lo(%at)); under
+   -G0 the scalar form already does that (94.59), so it is the -G8 small-data fold, not the source.
+   Remaining gap: with the base in a register gcc swaps the two callee-saved allocations (retail
+   s0 = arg1*8, s1 = &g_BattleActionSlotMask; ours the reverse) and merges i = 0 into the beq delay
+   slot, which is 5 instructions. Permuter run from the 94.59 body found the pMask copy (559 -> 474).
+   Tried: volatile u16 *pValue (88.87), pointer assigned at the top and just before the store
+   (identical), declaration order of the four locals (identical), no pQueue local (reloads
+   g_BattleCommandQueue in the loop).*/
+/*
+void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
     BattleCommandQueue *pQueue;
     u16 *pValue;
+    u16 *pMask;
     s32 i;
     s32 n;
 
@@ -134,8 +136,8 @@ void func_80078998(u8 arg0, u8 arg1) {
     BattleBeginActorAction(arg0, g_BattleCommandArgs[arg1].slotMask, g_BattleCommandArgs[arg1].unk2);
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
     D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandArgs[arg1].unk2;
-    pValue = &g_BattleActionSlotMask;
-    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = *pValue;
+    pValue = g_BattleActionSlotMask;
+    g_BattleCommandRecords[g_BattleCommandQueue->count][0] = *(pMask = pValue);
     func_800785D4(arg0, arg1);
     if (g_BattleCommandArgs[arg1].slotMask != *pValue) {
         pQueue = g_BattleCommandQueue;
@@ -143,7 +145,7 @@ void func_80078998(u8 arg0, u8 arg1) {
         n = 0;
         while (n < pQueue->count) {
             if (D_800C402F[i] == 0xFD) {
-                *(u16 *)((u8 *)g_BattleCommandRecords + i) = *pValue;
+                *(u16 *)((u8 *)g_BattleCommandRecords + i) = *pMask;
                 break;
             }
             n++;
@@ -194,24 +196,24 @@ void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleSlotEntries[arg0].flags &= 0x8000;
 }
 
-/* Best: 70.25% (560 bytes, exactly retail's size). The prologue and the flag
-   scan are byte-identical, including the `idx` copy the loop needs (`u8 idx = i`
-   at the top of the body, `slot = idx` in the break): with `slot = i` written
-   directly gcc keeps the branch inverted and the loop never matches. Everything
-   from the 0xC3E3D store to the memmove differs only in instruction ORDER and
-   CSE: retail hoists (slot-3)<<6, (arg0-3)<<6 and then arg0*0x170 in that order
-   and keeps one register (v0) for all four register-file words, ours hoists
-   arg0*0x170 first and merges the four loads above the four stores. The copy is
-   four u32 accesses off the four absolute symbols g_BattleSlotRegs/04/08/0C (that is
-   what retail's four distinct relocations are), NOT one typed struct copy:
-   `*(BattleSlotRegsHead *)...= *(...)` gives a 4-register block move and
-   `g_BattleSlotRegs[i].unk0` lanes give a base register instead of retail's
-   symbol+index `$at` form. Tried: u8 src/dst locals (masks the result, 62.56),
-   inline (slot-3)*0x40 at every use (68.14, 552 bytes), the four copies wrapped
-   in an empty do/while block (68.89). Remaining gap is cse/insn-order, not
-   source shape. NOTE the four loads also want to stay *interleaved* with their
-   stores; ours hoists them (t0-t3 vs retail's repeated v0).
-void func_80078E24(u8 arg0, u8 arg1) {
+/* REAL PERCENTAGE 70.25% (560 bytes, retail's exact size) with the third parameter added to the
+   definition (the extern in this file takes 3 args and BattleDispatchCommandRecords passes a2, so
+   the 2-argument park never compiled - that is what the sweep reported as ERROR; the note's 70.25
+   was in fact measured on this shape). Prologue and the slot-flag scan are byte-identical,
+   including the idx copy the loop needs (u8 idx = i at the top of the body, slot = idx in the
+   break): with slot = i written directly gcc keeps the branch inverted and the loop never matches.
+   Everything from the 0xC3E3D store to the memmove differs only in instruction ORDER and CSE:
+   retail hoists (slot-3)<<6, (arg0-3)<<6 and then arg0*0x170 in that order and keeps one register
+   (v0) for all four register-file words, ours hoists arg0*0x170 first and merges the four loads
+   above the four stores. The copy is four u32 accesses off the four absolute symbols
+   g_BattleSlotRegs/04/08/0C (that is what retail's four distinct relocations are), NOT one typed
+   struct copy: *(Head*)... = *(...) gives a 4-register block move and g_BattleSlotRegs[i].unk0
+   lanes give a base register instead of retail's symbol+index $at form. Tried: u8 src/dst locals
+   (masks the result, 62.56), inline (slot-3)*0x40 at every use (68.14, 552 bytes), the four copies
+   wrapped in an empty do/while block (68.89). NOTE the four loads also want to stay interleaved with
+   their stores; ours hoists them (t0-t3 vs retail's repeated v0).*/
+/*
+void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
     u8 slot;
     u8 idx;
     s32 i;
@@ -239,12 +241,13 @@ void func_80078E24(u8 arg0, u8 arg1) {
     D_800C402F[g_BattleCommandQueue->count * 72] = 0xFB;
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
+
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     BattleSlotByteVarGetSet(arg0, g_BattleCommandArgs[arg1].unk1, g_BattleCommandArgs[arg1].unk4, 0);
 }
+
 void BattleAddCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
     s32 value;
 
