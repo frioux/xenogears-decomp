@@ -101,49 +101,63 @@ extern s32 g_BattleColorMode;
 extern void func_800BD3AC(void *pSprite, u16 arg1, u8 arg2);
 extern void func_800BD1FC(s32 slot);
 
-// best 91.07%: the instruction multiset and the frame are retail's; what is left
-// is register choice and statement order. Retail loads the call's last argument
-// (`lbu a2,0x150(a1)`) before the two global stores, keeps the sprite in $t0 (so
-// $a0 can hold the 0x174 byte) and puts the row sum straight into $v0 in the tail.
-// Tried: direct call arguments instead of the `kind` local, pByte/pHalf swapped in
-// the declaration list, an `s32 offset` local, an `s32 row` local (that one
-// restructures the head), and both pointer-cast spellings of the row base.
-// Realistic form: the row is a 0x48-byte record of four 11-entry arrays (u16 at
-// +0x138, u8 at +0x150, u16 at +0x15C, u8 at +0x174 - the block misc12 reaches as
-// g_BattleCommandRows[]), indexed by g_BattleCommandRowIndex - 1; a slot's sprite is at +0x8C8C.
-// 91.07%: COMPILES (externs added: D_800C3D38, g_BattleColorMode, D_800C3E1C,
-// func_800BD3AC prototype). Register tie + $a1 vs $v0 in the tail's row sum.
+// Parked at 92.59%, one instruction SHORT (228 bytes vs retail's 232), so it cannot
+// link: retail loads the slot's sprite into $t0 and copies it into $a0 in the jal's
+// delay slot (`move a0,t0`), while gcc here allocates the sprite straight to $a0,
+// deletes the copy and puts the g_BattleColorMode store in the slot instead. Every
+// other instruction is retail's, including the two differing addu operand orders
+// (`addu a3,slot*2,row` for the u16 arrays, `addu a1,row,slot` for the u8 ones) that
+// the typed row access reproduces and the raw pointer spelling does not: that older
+// form measured 91.07% and 236 bytes, one instruction LONG. The row is
+// g_BattleStateWork + (g_BattleCommandRowIndex - 1) * 0x48, re-derived after the call
+// because retail reloads the global there; its four per-slot arrays are the block
+// misc12 reaches as g_BattleCommandRows[], so the view below starts at
+// g_BattleStateWork and carries the 0x138 offset the arguments need.
+// Tried: one pointer reused for both index sums, (u32) casts of the sums, the row
+// base split over two statements, the `kind` local vs. the direct argument, both
+// store orders, and direct (u8 *) pointer arithmetic. Shapes that do force a real
+// argument copy need a second saved register (frame 0x28 instead of 0x20).
 /*
+// The battle work block as the command-row code sees it: this unit only reaches one
+// row's four 11-entry per-slot arrays.
+typedef struct {
+    u8 unk0[0x138];  // 0x000
+    u16 unk138[11];  // 0x138 command values, one per slot
+    u8 pad14E[0x2];  // 0x14E
+    u8 unk150[11];   // 0x150 command kinds
+    u8 pad15B[0x1];  // 0x15B
+    u16 unk15C[11];  // 0x15C timers
+    u8 pad172[0x2];  // 0x172
+    u8 unk174[11];   // 0x174 sprite color modes
+    u8 pad17F[0x1];  // 0x17F
+} BattleCommandRowTable;  // Size: 0x180
+
 void func_800BD1FC(s32 slot) {
     u8 *pBase;
-    u8 *pHalf;
-    u8 *pByte;
-    s32 offset;
+    BattleCommandRowTable *pRow;
+    void *pSprite;
     s32 kind;
-    void **pEntry;
 
     pBase = g_BattleStateWork;
-    pRow = pBase + (g_BattleCommandRowIndex - 1) * 0x48;
-    offset = slot * 2;
-    pByte = pRow + slot;
-    if (pByte[0x150] == 0xFF) {
+    pRow = (BattleCommandRowTable *)(pBase + (g_BattleCommandRowIndex - 1) * 0x48);
+    if (pRow->unk150[slot] == 0xFF) {
         return;
     }
-    pHalf = (u8 *)(offset + pRow);
-    if (*(u16 *)(pHalf + 0x138) == 0xFFFF) {
+    if (pRow->unk138[slot] == 0xFFFF) {
         return;
     }
     pSprite = *(void **)(pBase + slot * 4 + 0x8C8C);
     if (pSprite == NULL) {
         return;
     }
-    kind = pByte[0x150];
-    D_800C3D38 = *(u16 *)(pHalf + 0x15C);
-    g_BattleColorMode = pByte[0x174];
-    func_800BD3AC(pSprite, *(u16 *)(pHalf + 0x138), kind);
-    pRow = pBase + (g_BattleCommandRowIndex - 1) * 0x48;
-    *(u16 *)(offset + pRow + 0x138) = 0xFFFF;
-}*/
+    kind = pRow->unk150[slot];
+    D_800C3D38 = pRow->unk15C[slot];
+    g_BattleColorMode = pRow->unk174[slot];
+    func_800BD3AC(pSprite, pRow->unk138[slot], kind);
+    pRow = (BattleCommandRowTable *)(pBase + (g_BattleCommandRowIndex - 1) * 0x48);
+    pRow->unk138[slot] = 0xFFFF;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 
 void BattleUpdateCommandRows(void) {
@@ -384,6 +398,9 @@ void func_800BDC14(Misc32Task *pTask) {
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
 }*/
+// Round 165: re-measured at 91.60% / 100 bytes (retail's size, same instruction
+// multiset), body compiles cleanly against today's externs, so the diagnosis above
+// stands: this is the local-alloc tie it says it is.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 
 extern void func_800BDC14(Misc32Task *pTask);
