@@ -81,25 +81,22 @@ u_int FieldPopActorScriptWorkWord(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
 
-/* 71.39%: identical size (468 bytes) and every block is the right shape; the
-   residual is register allocation. gcc here keeps `actorIndex * 0x5C` in one
-   pseudo across all four `g_FieldActors[actorIndex]` accesses and reuses
-   `&g_FieldActors[actorIndex]`, where the original recomputes it once after the
-   first HeapAlloc and once more after the loop. `D_800B2180++` is also emitted
-   as `lui at; sw %lo(at)` instead of addressing the counter through one
-   register (`lui v1,%hi; addiu v1,v1,%lo; lw/sw 0(v1)`); `volatile` makes it
-   worse (gcc then reloads the counter). The frame (0x88) needs the unused 0x60
-   local; reg assignment wants `int numWords` declared before the pointers and
-   the unused array last.
+/* 90.26% (468 bytes vs retail 456: three instructions too many). The levers
+   that got it from 71.39% here: D_800B2180 is indexed as D_800B2180[0]++
+   (a plain scalar is emitted as lui at + sw sym), and the whole tail from the
+   pActor reload to the pShadow store is wrapped in a one-iteration do-while
+   so cc1 schedules it as a single unit. Residue: retail stores pActorData and
+   only THEN re-forms the g_FieldActors base for the reload (sw v0,76(a0);
+   lui v0; lw v0; move a0,zero; addu v1,v1,v0; lw v1,76(v1)), while gcc forms
+   both bases before the store and so puts the loop counter in a2 instead of
+   a0, plus the unk5A/status pair gets a third base load (gcc reloads the
+   volatile g_FieldActors where retail reuses one register for two reads).
+   Tried: pActor/pFieldActor locals, indexed vs pointer forms, removing the
+   pActor local, permuter (found the do-while).
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
-/* 71.39%: correct size (468 bytes) and frame (0x88, which needs the unused
-   local to fill 0x78 bytes). Residual is address materialisation: the
-   original recomputes `actorIndex * 0x5C` and reloads g_FieldActors for
-   every `g_FieldActors[actorIndex].` access and addresses D_800B2180 through
-   a register (`lui v1,%hi; addiu v1,v1,%lo; lw 0(v1); addiu; sw 0(v1)`),
-   where gcc CSEs the index scaling and emits `lui at; sw %lo(at)`.
-extern int D_800B2180;
+/*
+extern int D_800B2180[];
 void func_80080A74(int actorIndex);
 void FieldInitShadowQuad(Quad* pQuad);
 
@@ -107,68 +104,36 @@ void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
     int i;
     u_int* pData;
+    ActorData* pActor;
     FieldActorModelData* pModelData;
-    u8 unused[0x60]; // original has an unused stack slot; reproduces the frame
-
-    if (actorIndex < g_FieldActiveActorCount) {
-        D_800B2180++;
-        pActor = HeapAlloc(0x138, 0);
-        g_FieldActors[actorIndex].pActorData = pActor;
-        pActor = g_FieldActors[actorIndex].pActorData;
-        pData = (u_int*)pActor;
-        for (i = 0; i < numWords; i++) {
-            *pData++ = 0;
-        }
-        g_FieldActors[actorIndex].unk5A = 0;
-        if (g_FieldActors[actorIndex].status & 0x2000) {
-            pModelData = g_FieldActors[actorIndex].pModelData;
-            pActor->unk118 = HeapAlloc(0x80, 0);
-            if (pModelData->pScripts != NULL) {
-                for (i = 0; i < pModelData->pScripts->numScripts; i++) {
-                    pModelData->pScripts->pScripts[i].pCallback = FieldPopActorScriptWorkWord;
-                    ((u_int*)pActor->unk118)[i] = 0;
-                }
-            }
-        }
-        func_80080A74(actorIndex);
-        g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
-        FieldInitShadowQuad((Quad*)g_FieldActors[actorIndex].pShadow);
-    }
-}
-
-extern int D_800B2180;
-void func_80080A74(int actorIndex);
-void FieldInitShadowQuad(Quad* pQuad);
-
-void func_80080F44(int actorIndex) {
-    int numWords = sizeof(ActorData) / sizeof(u_int);
-    int i;
-    u_int* pData;
-    FieldActorModelData* pModelData;
+    FieldActor* pFieldActor;
     u8 unused[0x60];
 
     if (actorIndex < g_FieldActiveActorCount) {
-        D_800B2180++;
-        pActor = HeapAlloc(0x138, 0);
-        g_FieldActors[actorIndex].pActorData = pActor;
-        pActor = g_FieldActors[actorIndex].pActorData;
-        pData = (u_int*)pActor;
+        D_800B2180[0]++;
+        g_FieldActors[actorIndex].pActorData = HeapAlloc(0x138, 0);
+        pData = (u_int*)g_FieldActors[actorIndex].pActorData;
         for (i = 0; i < numWords; i++) {
             *pData++ = 0;
         }
         g_FieldActors[actorIndex].unk5A = 0;
-        if (g_FieldActors[actorIndex].status & 0x2000) {
-            pModelData = g_FieldActors[actorIndex].pModelData;
-            pActor->unk118 = HeapAlloc(0x80, 0);
-            if (pModelData->pScripts != NULL) {
-                for (i = 0; i < pModelData->pScripts->numScripts; i++) {
-                    pModelData->pScripts->pScripts[i].pCallback = FieldPopActorScriptWorkWord;
-                    ((u_int*)pActor->unk118)[i] = 0;
+        do {
+            pActor = g_FieldActors[actorIndex].pActorData;
+            pFieldActor = &g_FieldActors[actorIndex];
+            if (pFieldActor->status & 0x2000) {
+                pModelData = pFieldActor->pModelData;
+                pActor->unk118 = HeapAlloc(0x80, 0);
+                if (pModelData->pScripts != NULL) {
+                    for (i = 0; i < pModelData->pScripts->numScripts; i++) {
+                        pModelData->pScripts->pScripts[i].pCallback = FieldPopActorScriptWorkWord;
+                        ((u_int*)pActor->unk118)[i] = 0;
+                    }
                 }
             }
-        }
-        func_80080A74(actorIndex);
-        g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
+            func_80080A74(actorIndex);
+            g_FieldActors[actorIndex].pShadow = HeapAlloc(0x70, 0);
+            // the one-iteration do-while keeps cc1 scheduling the tail as one unit
+        } while (0);
         FieldInitShadowQuad((Quad*)g_FieldActors[actorIndex].pShadow);
     }
 }
@@ -278,21 +243,30 @@ int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     return -((actorType & (pActor->curWalkmeshTriMaterial >> 3)) != 0);
 }
 
+/* 58.17% (ours 644 bytes; retail 640). Structure is right - status & 0x40
+   selects the two halves, the scale is (N / pActorData->moveSpeed >> 8) << 5
+   with N = 0x40000 (status bit clear, and the 0x20000-set path stores
+   moveSpeed = 0x4000000 / moveSpeed) or 0x80000 (flags & 0x2000, 0x20000
+   clear), and the shared step.x/step.z computation is duplicated in the
+   original: one copy inline after the 0x40000 case, one at 0x800820FC that the
+   0x40000-free paths jump into. arg0 is SpriteData* (step at 0xC/0x14,
+   moveSpeed at 0x18), arg2 is FieldActor*, and scaleX/scaleZ must be read
+   signed (lh, so cast the header's u_short to s16).
+   Round 166 PARK REPAIR: this body now COMPILES against today's header (it was
+   written when the 0x12C word was read through a now-gone ActorFlags12CView
+   typedef; bits 13-15 are ActorData::flags12C_0xE, and g_FieldActorModelPointers
+   is declared here because only field/main/main.c has it) and the real score is
+   the 58.17% below, so the old number was not fiction.
+   Residue: gcc lays the flags & 0x2000 then-block out as fall-through where the
+   original jumps forward over the 0x80000 block, uses at to form
+   g_FieldActorModelPointers + (flags12C_0xE * 4) where the original keeps it in
+   v1 via lui/addiu, and spills one extra register (frame 0x38 vs 0x28).
+   else if (!(flags & 0x2000)) first gives 55.87%.
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081F80);
-/* 58.17% (644 bytes vs 644): the structure is right - status & 0x40 selects the
-   two halves, the scale is `(N / pActorData->moveSpeed >> 8) << 5` with
-   N = 0x40000 (status bit clear, and the 0x20000-set path stores
-   moveSpeed = 0x4000000 / moveSpeed) or 0x80000 (flags & 0x2000, 0x20000 clear),
-   and the shared step.x/step.z computation is duplicated in the original: one
-   copy inline after the 0x40000 case, one at 0x800820FC that the 0x40000-free
-   paths jump into. arg0 is SpriteData* (step at 0xC/0x14, moveSpeed at 0x18),
-   arg2 is FieldActor*, and scaleX/scaleZ must be read signed (`lh`, so cast the
-   header's u_short to s16); the 0x12C word is read whole through
-   ActorFlags12CView. Residual: gcc lays the `flags & 0x2000` then-block out as
-   fall-through where the original jumps forward over the 0x80000 block, uses
-   `at` to form `g_FieldActorModelPointers + ((flags12C >> 11) & 0x1C)` where the original keeps
-   it in v1 via `lui/addiu`, and spills one extra register (frame 0x38 vs 0x28).
-   `else if (!(flags & 0x2000))` first gives 55.87%.
+/*
+extern void* g_FieldActorModelPointers[];
+
 void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
     int scale;
     int a;
@@ -312,8 +286,8 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
         pSprite->step.z = 0;
     } else if (pActor->pActorData->flags & 0x2000) {
         if (pActor->pActorData->flags & 0x20000) {
-            pSprite->step.x = -((s32*)g_FieldActorModelPointers[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x128 / 4] << 16;
-            pSprite->step.z = -((s32*)g_FieldActorModelPointers[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7])[0x130 / 4] << 16;
+            pSprite->step.x = -((s32*)g_FieldActorModelPointers[pActor->pActorData->flags12C_0xE])[0x128 / 4] << 16;
+            pSprite->step.z = -((s32*)g_FieldActorModelPointers[pActor->pActorData->flags12C_0xE])[0x130 / 4] << 16;
         } else {
             scale = (0x80000 / pActor->pActorData->moveSpeed >> 8) << 5;
             a = angle & 0xFFF;
@@ -386,12 +360,12 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
         return;
     }
     if (actorId < 0x10) {
-        LibGearSetModelAnimation((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, D_800ADFB8[actorId]);
-        pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = D_800ADFB8[actorId];
+        LibGearSetModelAnimation(pActor->pActorData->flags12C_0xE, 0, D_800ADFB8[actorId]);
+        pTable[pActor->pActorData->flags12C_0xE] = D_800ADFB8[actorId];
     } else {
         actorId -= 0x10;
-        LibGearSetModelAnimation((((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7, 0, actorId);
-        pTable[(((ActorFlags12CView*)pActor->pActorData)->flags12C >> 13) & 7] = actorId;
+        LibGearSetModelAnimation(pActor->pActorData->flags12C_0xE, 0, actorId);
+        pTable[pActor->pActorData->flags12C_0xE] = actorId;
     }
 }
 */
