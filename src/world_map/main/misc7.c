@@ -2,6 +2,7 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/memory.h"
+#include "psyq/rand.h"
 #include "system/model.h"
 #include "system/sound.h"
 
@@ -533,7 +534,113 @@ s32 WorldMapResetSlotColorFade(s32 index) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081FD8);
+s32 func_80081FD8(s32 index) {
+    WorldMapSlot *pSlot = &D_8009BE24[index];
+    s32 i;
+    u16 *pFill;
+    s32 start;
+    s16 state;
+
+    state = pSlot->unk4 - 1;
+    switch (state) {
+    case 0:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 1;
+        break;
+    case 1:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 2;
+        break;
+    case 2:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 3;
+        break;
+    case 3:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 4;
+        break;
+    case 4:
+        pSlot->unk4 = 0;
+        pSlot->unk20 = 5;
+        break;
+    }
+    switch (pSlot->unk20) {
+    case 0:
+        break;
+    case 1:
+        pFill = (u16 *)D_8009D148;
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = pSlot->unk50;
+        }
+        start = rand() & 0x3F;
+        pFill = (u16 *)D_8009D148 + start;
+        i = start;
+        while (i < start + (rand() & 0x1F) + 1) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            i++;
+            pFill++;
+        }
+        start = (rand() & 0x3F) + 0x40;
+        pFill = (u16 *)D_8009D148 + start;
+        i = start;
+        while (i < start + (rand() & 0x1F) + 1) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            i++;
+            pFill++;
+        }
+        start = (rand() & 0x1F) + 0x80;
+        pFill = (u16 *)D_8009D148 + start;
+        i = start;
+        while (i < start + (rand() & 0x1F) + 1) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            i++;
+            pFill++;
+        }
+        break;
+    case 2:
+        pFill = (u16 *)D_8009D148;
+        pSlot->unk50 += 1;
+        if (pSlot->unk50 >= 0x41) {
+            pSlot->unk50 = 0x40;
+        }
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = pSlot->unk50;
+        }
+        break;
+    case 3:
+        pFill = (u16 *)D_8009D148;
+        pSlot->unk50 -= 1;
+        if (pSlot->unk50 < 2) {
+            pSlot->unk50 = 2;
+        }
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = pSlot->unk50;
+        }
+        break;
+    case 4:
+        pFill = (u16 *)D_8009D148;
+        for (i = 0; i < 0xC0; i++) {
+            if ((rand() & 3) == 0) {
+                *pFill = (rand() & 0x3F) + 1;
+            }
+            pFill++;
+        }
+        break;
+    case 5:
+        pFill = (u16 *)D_8009D148;
+        for (i = 0xBF; i >= 0; i--) {
+            *pFill++ = 2;
+        }
+        break;
+    }
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
 s32 WorldMapExitToMap269(void) {
     u16 v;
