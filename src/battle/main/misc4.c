@@ -4,13 +4,13 @@
 // One 8-byte battle command argument record, indexed by actor. Entry 0 sits at
 // D_800D2E5C, the same address this unit clears as a 0x100-byte scratch buffer.
 typedef struct {
-    /* 0x0 */ u8 unk0;
+    /* 0x0 */ u8 opcode;
     /* 0x1 */ u8 unk1;
     /* 0x2 */ u8 unk2;
     /* 0x3 */ u8 unk3;
     /* 0x4 */ u8 unk4;
     /* 0x5 */ u8 unk5;
-    /* 0x6 */ u16 unk6;
+    /* 0x6 */ u16 slotMask;
 } BattleCommandArg; // Size: 0x8
 
 // The command queue header D_800C3EAC points at. Only the tail this unit fills
@@ -131,13 +131,13 @@ void func_80078998(u8 arg0, u8 arg1) {
 
     BattleQueueCommandF8IfFlagged(arg1, arg0);
     D_800C3EAC->unk2DC = D_800D2E5C[arg1].unk1 + 1;
-    BattleBeginActorAction(arg0, D_800D2E5C[arg1].unk6, D_800D2E5C[arg1].unk2);
+    BattleBeginActorAction(arg0, D_800D2E5C[arg1].slotMask, D_800D2E5C[arg1].unk2);
     BattleApplySlotCurveAndStep(D_800C3EAC->count);
     D_800C402F[D_800C3EAC->count * 72] = D_800D2E5C[arg1].unk2;
     pValue = &D_800D2C94;
     D_800C3FFE[D_800C3EAC->count][0] = *pValue;
     func_800785D4(arg0, arg1);
-    if (D_800D2E5C[arg1].unk6 != *pValue) {
+    if (D_800D2E5C[arg1].slotMask != *pValue) {
         pQueue = D_800C3EAC;
         i = 0;
         n = 0;
@@ -158,7 +158,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
 void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xFD;
     D_800C4022[D_800C3EAC->count][0] = 0;
-    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].unk6;
+    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].slotMask;
     func_800877E0(arg0, arg2);
     if (D_800D2E5C[arg1].unk4 != 1) {
         if (D_800D32A1[arg0 * 8] == 0) {
@@ -167,7 +167,7 @@ void BattleQueueCommandFD(u8 arg0, u8 arg1, u8 arg2) {
             func_800881B8(arg0, arg2);
         }
     }
-    BattleBeginAnimTask(BattleSlotBitMask(arg0) | D_800D2E5C[arg1].unk6);
+    BattleBeginAnimTask(BattleSlotBitMask(arg0) | D_800D2E5C[arg1].slotMask);
     func_800785D4(arg0, arg1);
 }
 void BattleQueueCommandFC(u8 arg0, u8 arg1, u8 arg2) {
@@ -180,7 +180,7 @@ void BattleQueueCommandFromRecordByte(u8 arg0, u8 arg1, u8 arg2) {
 }
 
 void BattleSetPendingActorMask(u8 arg0, u8 arg1, u8 arg2) {
-    D_800D39E0 = D_800D2E5C[arg1].unk6;
+    D_800D39E0 = D_800D2E5C[arg1].slotMask;
 }
 
 void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
@@ -220,7 +220,7 @@ void func_80078E24(u8 arg0, u8 arg1) {
 
     for (i = 0; i < 11; i++) {
         idx = i;
-        if (BattleMaskHasSlotBit(D_800D2E5C[arg1].unk6, idx) != 0) {
+        if (BattleMaskHasSlotBit(D_800D2E5C[arg1].slotMask, idx) != 0) {
             slot = idx;
             break;
         }
@@ -268,7 +268,7 @@ void BattleQueueCommandF4(u8 arg0, u8 arg1, u8 arg2) {
 }
 void BattleQueueCommandF6(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[D_800C3EAC->count * 72] = 0xF6;
-    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].unk6;
+    D_800C3FFE[D_800C3EAC->count][0] = D_800D2E5C[arg1].slotMask;
     func_800785D4(arg0, arg1);
 }
 void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
@@ -318,13 +318,13 @@ void func_800793F0(u8 arg0) {
         slot = 0;
         for (; j < 0xB; j++) {
             idx = j;
-            if (BattleMaskHasSlotBit(D_800D2E5C[i].unk6, idx) != 0) {
+            if (BattleMaskHasSlotBit(D_800D2E5C[i].slotMask, idx) != 0) {
                 slot = idx;
                 break;
             }
         }
         BattleClearSlotCurveEntry();
-        switch (D_800D2E5C[i].unk0) {
+        switch (D_800D2E5C[i].opcode) {
         case 0x0:
             again = 0;
             break;
@@ -381,7 +381,7 @@ void func_800793F0(u8 arg0) {
             break;
         }
         i++;
-    } while (i < 0x20 || again != 0);
+    } while (i < 0x20 || again);
 }
 void BattleQueueCommand1BAndFE(u8 arg0) {
     if (D_800D32A1[arg0 * 8] != 0) {
@@ -495,7 +495,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
             goto done;
         }
     }
-    D_800D2E5C[0].unk0 = 0;
+    D_800D2E5C[0].opcode = 0;
     if (D_800C3D18[slot * 4] != 0) {
         pCursor = *(u8 **)&D_800D3400[slot].unk0[8];
         p = D_800D2E5C;
@@ -519,7 +519,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
             }
         }
     }
-    if (D_800D2E5C[0].unk0 != 0) {
+    if (D_800D2E5C[0].opcode != 0) {
         func_800793F0(slot + 3);
     }
 done:
