@@ -1190,6 +1190,11 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 // A 3-minute permuter run on the previous body (676 iterations, base 2411)
 // reached 2131 only by deleting the `return frame` of the unk18 early-exit,
 // which is not a fix.
+// Round 165 (park repair): this body did NOT compile against the current headers
+// -- it compared pSource->unk10, renamed to mode -- so its recorded 88.98% came
+// from an older variant. Fixed to pSource->mode, un-parked and re-measured:
+// 88.98%, 1048 bytes against retail's 1028 (retail 0x404, ours 0x418). The
+// deltas above are unchanged, so the note stands; re-parked.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1258);
 /*
 s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
@@ -1274,7 +1279,7 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
         pDstBase = pSource->pUnk4;
         pSrcBase = (u16*)pTexture->pUnkC;
 
-        if (pSource->unk10 < 4) {
+        if (pSource->mode < 4) {
             for (y = 0; y < dstRect.h; y++) {
                 for (x = 0; x < dstRect.w; x++) {
                     dstAddr = dstRect.x * 2 + (u32)pDstBase;
@@ -1920,6 +1925,12 @@ void func_801E63A8(Model* pModel) {
 // moved above pJoint's, and `pChild = pChild + 1` in the loop tail.
 // Screened: 98.63 best (2.6.0 and 2.7.2 -O2 alike), 93.73 under 2.7.2-cdk. Closest park in the
 // unit, but not a preset problem.
+// Round 165 (park repair): re-measured live at 98.63%, 240 bytes against retail's
+// 240, same single s0/s1 (pJoint/i) swap and nothing else. `i = 1` hoisted by hand
+// into the declarations plus `for (; i < numChildren; i++)` changes nothing.
+// decomp-permuter could NOT be used on this body: its base fails to compile with
+// "conversion to non-scalar type requested" at the two `(ModelJoint*)` casts
+// (permuter/func_801E6578/log.txt), so the 95-99.6% class tool has not run here.
 /*
 void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
