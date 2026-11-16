@@ -563,17 +563,62 @@ void SpriteDrawModelPartsInBaseMatrix(WorkListEntry* pTask) {
 }
 
 // splat marks 80025C04, 80025D4C, 80026F44 and 80026FE8 "Handwritten
-// function": GTE sequences against fixed GTE registers, i.e. Psy-Q Lite
-// assembly, not gcc output. 80025D4C's lwc2/swc2 traffic does have macros
-// (gte_ldlvl / gte_stlvl_gpr, see its park note), but the bare mtc2/mfc2
-// forms of the other three have no source spelling. Round 63 proved it for
-// 80026F44 (addi/bne operands no gcc emits, see its park note) and confirmed
-// 80025C04 is not convertible either: it uses the scratchpad at 0x1F800004 as
-// an explicit IR buffer (lui $t0,0x1F80 hoisted once, every other access an
-// offset off it, swc2/lwc2 to 0x1F800004/8/C and 0x1F800014/18/1C) and none of
-// those addresses exists in symbol_addrs, so they are absolute immediates in
-// the original object, not symbols a C file can name.
+// function", but only two of them really are: 80026F44 and 80026FE8 contain
+// trapping-immediate ALU ops that no gcc emits (80026F44 0x20050020 addi,
+// 80026FE8 three addi and three add). 80025C04 and 80025D4C are ordinary GTE
+// code and their mtc2/lwc2/swc2 all have macros in psyq/inline_c.h.
+// 80025C04 best attempt below: 87.30% at the original's exact 316 bytes.
+// Remaining, all allocator/scheduling, no structure left:
+//  - retail's scratchpad base is $t0 and holds it across the loop; ours parks
+//    the 0x1F800000 lui in $t1 and copies it to $t0 (one extra move).
+//  - the accumulator at 0x1F800000: retail stores the clamped red with sh and
+//    then RE-READS it in both arms of the green/blue ifs; gcc 2.7.2 keeps the
+//    stored value in a register (v1) and defers the sh past the loads. Making
+//    the u16 view volatile is the untried lever.
+// NOT reachable, whatever the C: splat renders the two GTE buffer addresses as
+// addiu $v0,$t0,%lo(D_1F800004) / %lo(D_1F800014), so the expected object
+// carries an R_MIPS_LO16 reloc there with a literal-zero immediate, while any
+// C spelling that keeps the base a runtime register emits addiu $v0,$t0,4 with
+// no reloc. Same linked bytes (retail's lui has no %hi reloc at all, splat
+// printed it as a raw (0x1F800000 >> 16)), but objdiff can never score them
+// equal. Naming the symbols instead (extern s32 D_1F800004; gte_ldlvl(&D_...))
+// does emit the %lo form, but then gcc gives the hi its own %hi reloc and a
+// separate register, and the score falls to 80.05% with 320 bytes.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025C04);
+/*
+// Interpolates 16-bit colours of pSrc into pDst through GPF: the source colour
+// is staged in the scratchpad as IR1-IR3, GPF blends it against the running
+// colour at 0x1F800000 and the result is clamped and packed back.
+void func_80025C04(s32 count, s32 intensity, u16 *pDst, u16 *pSrc) {
+    s32 *pScratch = (s32 *)PSX_SCRATCH;
+    u16 *pAcc = (u16 *)PSX_SCRATCH;
+    u16 value;
+
+    gte_lddp(intensity << 7);
+    while (--count != -1) {
+        pScratch[1] = *pSrc & 0x1F;
+        pScratch[2] = *pSrc & 0x3E0;
+        pScratch[3] = *pSrc & 0x7C00;
+        gte_ldlvl(pScratch + 1);
+        gte_gpf12();
+        gte_stlvl(pScratch + 5);
+        pAcc[0] = (pScratch[5] < 0x20) ? (pAcc[10] & 0x1F) : 0x1F;
+        if (pScratch[6] >= 0x3E1) {
+            pAcc[0] |= 0x3E0;
+        } else {
+            pAcc[0] |= pAcc[12] & 0x3E0;
+        }
+        if (pScratch[7] >= 0x7C01) {
+            pAcc[0] |= 0x7C00;
+        } else {
+            pAcc[0] |= pAcc[14] & 0x7C00;
+        }
+        value = pAcc[0] | (*pSrc++ & 0x8000);
+        pAcc[0] = value;
+        *pDst++ = value;
+    }
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025D4C);
 /*
