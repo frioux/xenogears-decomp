@@ -5,17 +5,17 @@
 
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
-extern s16 D_80092780;
+extern s16 g_BattleEffectFrameTimer;
 extern s32 g_BattleScreenMode;
 extern s32 g_BattleMode;
-extern u8 D_8005061C;
-extern u8* D_800927B4[];
-extern s32 D_800927C4;
-extern s32 D_800917F0;
-extern s32 D_80092948;
-extern u8 D_80097919;
-extern u8 D_80099035;
-extern u8 D_80091FB0[];
+extern u8 g_BattleTransitionFlag;
+extern u8* g_BattleSlotEntryBuffers[];
+extern s32 g_BattleSedsEntryId;
+extern s32 g_BattleAudioManagerEnabled;
+extern s32 g_BattlingAudioManager;
+extern u8 g_BattleSlot1EntryId;
+extern u8 g_BattleSlot0EntryId;
+extern u8 g_BattleRotatedPartModel[];
 extern u8 g_BattleControlFlags;
 extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
@@ -168,7 +168,7 @@ typedef struct {
 extern Misc10ActionRow* D_80092874;
 extern u8 g_BattleActor1[];
 extern u8 g_BattleActor0[];
-extern Misc10Prim D_8009A300[];
+extern Misc10Prim g_BattleSharedPrimBuffer[];
 
 extern void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY);
 extern void BattleClearTpageAndClut(void);
@@ -187,7 +187,7 @@ s32 BattleQueueActorPrims(Misc10Actor* pActor) {
 }
 
 void BattleDrawEffectFrame(void) {
-    if (D_80092780 != 0) {
+    if (g_BattleEffectFrameTimer != 0) {
         func_8008E120();
         func_8007F258(D_80092938, 0);
         BattleDrawTextPrims(D_80092938);
@@ -199,14 +199,14 @@ void BattleDrawEffectFrame(void) {
 void BattleUpdateEffectTimer(void) {
     s16 timer;
 
-    timer = D_80092780;
+    timer = g_BattleEffectFrameTimer;
     if (timer != 0) {
         timer = timer - 4;
-        D_80092780 = timer;
+        g_BattleEffectFrameTimer = timer;
         if (timer <= 0) {
-            D_80092780 = 0;
+            g_BattleEffectFrameTimer = 0;
             D_80092784 = 0;
-            SoundSetAudioManagerMasterVolumeWithFade(D_80092948, 0x100, 0);
+            SoundSetAudioManagerMasterVolumeWithFade(g_BattlingAudioManager, 0x100, 0);
             g_BattleMotionSpeedScale = 0x100;
             BattleEffectFreeResources();
         } else {
@@ -230,7 +230,7 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     pDraw = (Misc10Draw*)BattleCreateObject();
     pBuf = (u8*)BattleCreateModelPart();
     BattleSetNodeModelPart(pDraw, pBuf);
-    BattleAttachModelPart(pBuf, D_80091FB0);
+    BattleAttachModelPart(pBuf, g_BattleRotatedPartModel);
     BattleAppendListEntry(arg0, pDraw);
     pDraw->rotY = 0xC00;
     pDraw->rotX = 0;
@@ -397,24 +397,24 @@ void BattleSetBothSidesUser(void) {
 
 void BattleLoadSlotEntry(s32 index, s32 value) {
     if (index != 0) {
-        D_80097919 = value;
+        g_BattleSlot1EntryId = value;
     } else {
-        D_80099035 = value;
+        g_BattleSlot0EntryId = value;
     }
-    if (D_800927B4[index] != NULL) {
-        HeapFree(D_800927B4[index]);
-        D_800927B4[index] = NULL;
+    if (g_BattleSlotEntryBuffers[index] != NULL) {
+        HeapFree(g_BattleSlotEntryBuffers[index]);
+        g_BattleSlotEntryBuffers[index] = NULL;
     }
     ArchiveSetIndex(0x30, 1);
-    D_800927B4[index] = BattleLoadArchiveEntry(value + 2);
+    g_BattleSlotEntryBuffers[index] = BattleLoadArchiveEntry(value + 2);
     ArchiveSetIndex(0x30, 0);
 }
 
 void BattleFreeSlotEntry(s32 index) {
     ArchiveCdDataSync(0);
-    if (D_800927B4[index] != NULL) {
-        HeapFree(D_800927B4[index]);
-        D_800927B4[index] = NULL;
+    if (g_BattleSlotEntryBuffers[index] != NULL) {
+        HeapFree(g_BattleSlotEntryBuffers[index]);
+        g_BattleSlotEntryBuffers[index] = NULL;
     }
 }
 
@@ -423,16 +423,16 @@ void BattleAllocResourceBuffer(Misc10Resource* pResource, u_int allocFlags) {
 }
 
 void BattleReturnToMainLoop(void) {
-    SoundRemoveSedsEntry(D_800927C4);
-    if (D_800917F0 != 0) {
-        SoundStopAudioManager(D_80092948);
-        SoundDestroyAudioManager(D_80092948);
+    SoundRemoveSedsEntry(g_BattleSedsEntryId);
+    if (g_BattleAudioManagerEnabled != 0) {
+        SoundStopAudioManager(g_BattlingAudioManager);
+        SoundDestroyAudioManager(g_BattlingAudioManager);
     }
     func_80088A40();
     ChangeGameState(1);
     DrawSync(0);
     Vsync(2);
-    D_8005061C = 1;
+    g_BattleTransitionFlag = 1;
     MainLoop(0);
 }
 
@@ -441,7 +441,7 @@ s32 BattleCheckModeOver(void) {
 
     if (g_BattleScreenMode == 5 || g_BattleScreenMode == 7) {
         result = 1;
-    } else if (g_BattleScreenMode == 1 && g_BattleMode == 4 && D_8005061C == 0) {
+    } else if (g_BattleScreenMode == 1 && g_BattleMode == 4 && g_BattleTransitionFlag == 0) {
         result = 1;
     }
     return result;
@@ -649,7 +649,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 }
 */
 void BattleAddSharedPrim(void) {
-    AddPrim(D_80092938, &D_8009A300[g_BattleDrawBufferIndex]);
+    AddPrim(D_80092938, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086E70);

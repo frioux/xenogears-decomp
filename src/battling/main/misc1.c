@@ -510,7 +510,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071AD0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071DA4);
 
 extern s32 D_8009284C;
-extern s32 D_80092948;
+extern s32 g_BattlingAudioManager;
 extern void SoundStopAudioManager(s32 arg);
 extern void SoundStopAllElements(void);
 extern void func_80071DA4(u8* p);
@@ -530,7 +530,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071F8C);
 void func_80071F8C(s32 mode) {
     switch (mode) {
     case 0:
-        SoundStopAudioManager(D_80092948);
+        SoundStopAudioManager(g_BattlingAudioManager);
         SoundStopAllElements();
         break;
     case 1:

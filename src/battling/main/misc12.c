@@ -117,7 +117,7 @@ extern s16 D_80096FE8;
 
 extern s32 g_BattleOptionFlags;
 extern VECTOR g_BattleViewOrigin;
-extern u8 D_8005061C;
+extern u8 g_BattleTransitionFlag;
 extern u8 g_BattleDifficultyLevel;
 extern u8 g_BattlePlayer1Vibration;
 extern u8 g_BattlePlayer2Vibration;
@@ -261,7 +261,7 @@ typedef struct {
 void func_80088A40(void) {
     BattleFlagBits* pFlags;
 
-    if (D_8005061C == 0) {
+    if (g_BattleTransitionFlag == 0) {
         return;
     }
     pFlags = (BattleFlagBits*)&g_BattleOptionFlags;
@@ -279,7 +279,7 @@ void BattleApplyOptionWord(void) {
     s32 i;
     u8* pBytes;
 
-    if (D_8005061C == 0) {
+    if (g_BattleTransitionFlag == 0) {
         return;
     }
     pFlags = (u32*)&g_BattleOptionFlags;

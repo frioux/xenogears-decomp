@@ -157,15 +157,15 @@ typedef struct {
     /* 0x76 */ u8 b0;
 } EffectSource; // Size: 0x77+
 
-extern s32 D_80092824;
-extern void* D_80092828;
+extern s32 g_BattleObjectTreeNodeCount;
+extern void* g_BattleObjectTreeRoot;
 extern void* BattleCreateObjectTree(ObjectNode* pNode, void* pArg);
 extern s32 BattleCreateObject(void);
 extern void BattleAppendListEntry(s32 handle, void* pNode);
 extern void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData);
 extern s32 rand(void);
 extern u8 g_BattleDrawBufferIndex;
-extern s32 D_800928E4;
+extern s32 g_BattleCurrentOrderingTable;
 extern void* g_pCurModelPacket;
 extern void* g_pCurModelVertices;
 extern void* D_80059568;
@@ -177,13 +177,13 @@ extern void func_800732AC(void* pDst, void* pSrc, s32 n);
 extern void func_8008C4B0(VertexIndexSet* pVerts, s16 n);
 extern void func_800316C0(void* pOT, void* pPrim);
 extern void func_80031750(void* pOT, void* pPrim);
-extern VECTOR D_8009A2C8;
+extern VECTOR g_BattleShadowPlaneNormal;
 extern s32 D_8009A2CC;
 extern s32 D_8009A2D0;
 extern void func_8008C3A8(void* pSrc, void* pDst, u16 n);
 extern void func_80031804(void* pOT, void* pPrim);
-extern EffectVert* D_80092830;
-extern SVECTOR* D_8009282C;
+extern EffectVert* g_BattleScratchViewOrigin;
+extern SVECTOR* g_BattleTrailVertScratch;
 extern void func_80031708(void* pOT, void* pPrim);
 // An 8-byte, byte-aligned chunk: assigning one copies 8 bytes with lwl/lwr.
 typedef struct {
@@ -211,10 +211,10 @@ void BattleProjectShadowVerts(RenderRecord* pRecord, u8* pDst) {
     vec.vx = -8;
     vec.vy = -8;
     vec.vz = -16;
-    VectorNormal(&vec, &D_8009A2C8);
-    D_8009A2C8.vx <<= 4;
-    D_8009A2C8.vy <<= 4;
-    D_8009A2C8.vz <<= 4;
+    VectorNormal(&vec, &g_BattleShadowPlaneNormal);
+    g_BattleShadowPlaneNormal.vx <<= 4;
+    g_BattleShadowPlaneNormal.vy <<= 4;
+    g_BattleShadowPlaneNormal.vz <<= 4;
     func_8008C3A8(pRecord->pVerts, pDst, pRecord->count);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008BD70);
@@ -334,7 +334,7 @@ HeapNode* BattleCreateWorkNode(ObjectNode* pOwner) {
     HeapSetCurrentContentType(7);
     pNode = HeapAlloc(0x10, 2);
     type = pOwner->type;
-    pWork = D_80092828;
+    pWork = g_BattleObjectTreeRoot;
     pNode->pOwner = pOwner;
     pNode->pBlock = NULL;
     pNode->type = type;
@@ -371,7 +371,7 @@ void* BattleCreateObjectTree(ObjectNode* pNode, void* pArg) {
         BattleInitWorkBlock(pBlock, pData);
     }
     pChild = pNode->pChild94;
-    D_80092824++;
+    g_BattleObjectTreeNodeCount++;
     if (pChild != NULL)
         BattleAppendListEntry((s32)pWork, BattleCreateObjectTree(pChild, pWork));
     if (pNode->pChild90 != NULL)
@@ -379,11 +379,11 @@ void* BattleCreateObjectTree(ObjectNode* pNode, void* pArg) {
     return pWork;
 }
 void BattleResetObjectCountAndCreateTree(void* pWork) {
-    D_80092824 = 0;
+    g_BattleObjectTreeNodeCount = 0;
     BattleCreateObjectTree(pWork, NULL);
 }
 void BattleInitObjectTree(void* pWork) {
-    D_80092828 = pWork;
+    g_BattleObjectTreeRoot = pWork;
     BattleResetObjectCountAndCreateTree(pWork);
 }
 void BattleQueueNodePrims(ObjectNode* pNode) {
@@ -397,7 +397,7 @@ void BattleQueueNodePrims(ObjectNode* pNode) {
         if ((*pPart->pFlags & 1) == 0) {
             pRender = pModel->pRender;
             func_8008BD70(pRender->pData, pRender->pPackets[g_BattleDrawBufferIndex],
-                          (u8*)D_800928E4 + 4, pRender->pVerts);
+                          (u8*)g_BattleCurrentOrderingTable + 4, pRender->pVerts);
         }
     }
     if (pNode->pChild94 != NULL)
@@ -408,8 +408,8 @@ void BattleQueueNodePrims(ObjectNode* pNode) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
 /* Best C match, 73.52% (272 bytes vs retail 280). Two shapes are already right
    and must be kept when this is picked up again:
-     - the reference-VECTOR read is gte_ld3_gpr(tx, ty, tz, &D_8009A2C8): one
-       `la` plus 0/4/8 displacements. Written as `D_8009A2C8.vx/vy/vz` (or
+     - the reference-VECTOR read is gte_ld3_gpr(tx, ty, tz, &g_BattleShadowPlaneNormal): one
+       `la` plus 0/4/8 displacements. Written as `g_BattleShadowPlaneNormal.vx/vy/vz` (or
        through any pointer local) gcc folds each field into its own lui/lo
        address and the whole register allocation shifts (67.33%).
      - the loop is do/while over a signed count (`n--; while (n != 0)`); with a
@@ -431,7 +431,7 @@ void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n) {
     s32 z;
     s32 den;
 
-    gte_ld3_gpr(tx, ty, tz, &D_8009A2C8);
+    gte_ld3_gpr(tx, ty, tz, &g_BattleShadowPlaneNormal);
     gte_ldv0(pSrc);
     pSrc++;
     do {
@@ -504,17 +504,17 @@ void BattleAddTri3Prim(TriTrail* pTrail, u8* pOT) {
     s32 i;
     long otz;
 
-    pRef = D_80092830;
-    D_8009282C[0].vx = pTrail->v0.vx - pRef->vx;
-    D_8009282C[0].vy = pTrail->v0.vy - pRef->vy;
-    D_8009282C[0].vz = pTrail->v0.vz - pRef->vz;
-    D_8009282C[1].vx = pTrail->v1.vx - pRef->vx;
-    D_8009282C[1].vy = pTrail->v1.vy - pRef->vy;
-    D_8009282C[1].vz = pTrail->v1.vz - pRef->vz;
-    D_8009282C[2].vx = pTrail->v2.vx - pRef->vx;
-    D_8009282C[2].vy = pTrail->v2.vy - pRef->vy;
-    D_8009282C[2].vz = pTrail->v2.vz - pRef->vz;
-    gte_ldv3c(D_8009282C);
+    pRef = g_BattleScratchViewOrigin;
+    g_BattleTrailVertScratch[0].vx = pTrail->v0.vx - pRef->vx;
+    g_BattleTrailVertScratch[0].vy = pTrail->v0.vy - pRef->vy;
+    g_BattleTrailVertScratch[0].vz = pTrail->v0.vz - pRef->vz;
+    g_BattleTrailVertScratch[1].vx = pTrail->v1.vx - pRef->vx;
+    g_BattleTrailVertScratch[1].vy = pTrail->v1.vy - pRef->vy;
+    g_BattleTrailVertScratch[1].vz = pTrail->v1.vz - pRef->vz;
+    g_BattleTrailVertScratch[2].vx = pTrail->v2.vx - pRef->vx;
+    g_BattleTrailVertScratch[2].vy = pTrail->v2.vy - pRef->vy;
+    g_BattleTrailVertScratch[2].vz = pTrail->v2.vz - pRef->vz;
+    gte_ldv3c(g_BattleTrailVertScratch);
     gte_rtpt();
     i = g_BattleDrawBufferIndex;
     *(Bytes8*)&pTrail->v2 = *(Bytes8*)&pTrail->v1;
@@ -569,7 +569,7 @@ void BattleAddSpritePrim(SpriteTrail* pTrail, u8* pOT) {
     long sxy;
     s32 otz;
 
-    pRef = D_80092830;
+    pRef = g_BattleScratchViewOrigin;
     vec.vx = pTrail->v0.vx - pRef->vx;
     vec.vy = pTrail->v0.vy - pRef->vy;
     vec.vz = pTrail->v0.vz - pRef->vz;

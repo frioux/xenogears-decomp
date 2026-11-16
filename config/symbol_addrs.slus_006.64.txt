@@ -1614,3 +1614,6 @@ g_SystemStreamedFileData = 0x8005949C;
 g_MenuGearShopHeapAnchorBlock = 0x800658CC;
 g_MenuGearShopHeapReserve = 0x8006BE24;
 g_FieldPlayerWalkmeshMaterial = 0x80059179;
+g_BattleTransitionFlag = 0x8005061C;
+g_SpriteVramSlotRow = 0x80059194;
+g_SpriteVramSlotXOffset = 0x80059196;

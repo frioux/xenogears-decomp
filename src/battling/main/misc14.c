@@ -10,7 +10,7 @@ extern u8 g_BattleDrawBufferIndex;
 extern u32 D_80092818[];
 extern s32 D_80092810;
 extern s32 D_80092820;
-extern u32 D_800928E4;
+extern u32 g_BattleCurrentOrderingTable;
 extern s32 g_GfxOTDepthShift;
 extern s32 D_80050104;
 extern s32 D_80091C30;
@@ -69,7 +69,7 @@ void BattleRenderActorModel(Misc14ModelPart *pPart) {
             gte_SetBackColor(0x40, 0x40, 0x40);
         }
     }
-    ModelRenderPacket(pPart->pModelPart, pPart->pPacket[g_BattleDrawBufferIndex], (u_long *)D_800928E4, pPart->renderMode);
+    ModelRenderPacket(pPart->pModelPart, pPart->pPacket[g_BattleDrawBufferIndex], (u_long *)g_BattleCurrentOrderingTable, pPart->renderMode);
 }
 
 // The colour word BattleSetColorIfChanged copies in one move; the fourth byte
@@ -246,7 +246,7 @@ void BattleClearOrderingTable(Misc14DisplayWork *pWork) {
     s32 n = pWork->count;
 
     ClearOTagR(pWork->pOt[g_BattleDrawBufferIndex], n);
-    D_800928E4 = (u32)pWork->pOt[g_BattleDrawBufferIndex];
+    g_BattleCurrentOrderingTable = (u32)pWork->pOt[g_BattleDrawBufferIndex];
     g_GfxOTDepthShift = pWork->depthShift;
 }
 

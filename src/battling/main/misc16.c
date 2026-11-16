@@ -72,8 +72,8 @@ extern u8 g_BattleDrawBufferIndex;
 
 extern u16 D_80091CE0[];
 
-extern SVECTOR* D_8009282C;
-extern SVECTOR* D_80092830;
+extern SVECTOR* g_BattleTrailVertScratch;
+extern SVECTOR* g_BattleScratchViewOrigin;
 
 extern VECTOR g_BattleViewOrigin;
 extern VECTOR D_80096FAC;
@@ -449,11 +449,11 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
     Misc16Entry* pEntry;
     void (*pCallback)(u8*, u8*);
 
-    D_8009282C = (SVECTOR*)0x1F800000;
-    D_80092830 = (SVECTOR*)0x1F800030;
-    D_80092830->vx = g_BattleViewOrigin.vx;
-    D_80092830->vy = D_80096FAC.vx;
-    D_80092830->vz = D_80096FB0.vx;
+    g_BattleTrailVertScratch = (SVECTOR*)0x1F800000;
+    g_BattleScratchViewOrigin = (SVECTOR*)0x1F800030;
+    g_BattleScratchViewOrigin->vx = g_BattleViewOrigin.vx;
+    g_BattleScratchViewOrigin->vy = D_80096FAC.vx;
+    g_BattleScratchViewOrigin->vz = D_80096FB0.vx;
     pEntry = (Misc16Entry*)pWork->pEntries;
     pCallback = (void (*)(u8*, u8*))pWork->pCallback;
     for (i = 0; i < pWork->count; i++) {

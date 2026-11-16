@@ -483,25 +483,25 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F1D4);
 
 // .sdata
-s16 D_80059194;
-s16 D_80059196;
+s16 g_SpriteVramSlotRow;
+s16 g_SpriteVramSlotXOffset;
 
 SVEC2* SpriteNextVramSlot(SVEC2* pDest, s32 amount) {
     SVEC2 pos;
     u16 offset;
 
-    if (D_80059196 + amount >= 0x41) {
-        D_80059196 = 0;
-        D_80059194++;
-        if (D_80059194 >= 3) {
-            D_80059194 = 0;
+    if (g_SpriteVramSlotXOffset + amount >= 0x41) {
+        g_SpriteVramSlotXOffset = 0;
+        g_SpriteVramSlotRow++;
+        if (g_SpriteVramSlotRow >= 3) {
+            g_SpriteVramSlotRow = 0;
         }
     }
-    offset = D_80059196;
+    offset = g_SpriteVramSlotXOffset;
     pos.x = offset + 0x300;
-    pos.y = D_80059194 * 0x40 + 0x140;
+    pos.y = g_SpriteVramSlotRow * 0x40 + 0x140;
     *pDest = pos;
-    D_80059196 = offset + amount;
+    g_SpriteVramSlotXOffset = offset + amount;
     return pDest;
 }
 

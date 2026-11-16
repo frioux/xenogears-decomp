@@ -66,7 +66,7 @@ extern u8 D_800928F0;
 extern u8 D_80091144;
 extern u8 D_80091145;
 extern u8 D_80092664;
-extern u8 D_8005061C;
+extern u8 g_BattleTransitionFlag;
 extern u8 g_BattleResultCode;
 extern s32 g_BattleCameraAngleStep;
 extern s32 g_BattleRoundOver;
@@ -767,7 +767,7 @@ char BattleResetForNextRound(void) {    g_BattleActor1.unkCC = 0x400;
     g_BattleRoundNumber++;
     SystemStringReset(g_BattleMessageWindow);
     g_BattleFrameRateLevel = 0;
-    if (D_8005061C != 0) {
+    if (g_BattleTransitionFlag != 0) {
         switch ((g_BattleRoundNumber - 1) % 5) {
         case 3:
             g_BattleStageLightIndex = 1;

@@ -287,7 +287,7 @@ extern int g_FieldArchiveStreamActive;
 extern s32 g_GameWdsBankLoadState;
 extern s32 g_FieldTransitionBusyFlag;
 extern s32 D_800ADBE8;
-extern u8 D_8005061C;
+extern u8 g_BattleTransitionFlag;
 extern u8 D_8005061D;
 extern u8 D_8005061E;
 extern u8 D_8005061F;
@@ -301,7 +301,7 @@ void FieldScriptSetTransitionParams(void) {
         g_FieldScriptVMStopFlag = 1;
     } else {
         func_800379B4(0);
-        D_8005061C = FieldScriptVMGetArgument(1);
+        g_BattleTransitionFlag = FieldScriptVMGetArgument(1);
         D_8005061D = FieldScriptVMGetArgument(3);
         D_8005061E = FieldScriptVMGetArgument(5);
         D_8005061F = FieldScriptVMGetArgument(7);
