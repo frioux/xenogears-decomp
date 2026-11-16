@@ -168,12 +168,12 @@ extern void func_800925A0(void);
 extern int WorldMapSetActorScriptTables(int);
 extern void func_8007DE98(int);
 extern int func_8007E450(int);
-extern void func_8007E4E4(int);
+extern int func_8007E4E4(int);
 extern int func_8007ECA4(int);
 extern void func_8007EE34(int);
 extern int WorldMapInitSlotActor(int);
 extern int func_8007F968(int);
-extern void func_8007FC8C(int);
+extern int func_8007FC8C(int);
 extern int func_8007FD30(int);
 extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
@@ -483,53 +483,54 @@ int WorldMapSetActorScriptTables(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
-/* 41.32% (24.00% without the volatile casts). Same body as func_80080578 plus
-   three stores. Retail is in strict source order; gcc 2.7.2's post-reload
-   scheduler hoists every load (and `li` of a store constant) to the top of the
-   block. Tried: locals for the three copies (24.00%), volatile-qualified loads
-   + store (41.32%, the loads then land at the very top), -O1
-   (75.00% on func_80080578), -O3 (27.21%), gcc 2.6.0 (27.03%), -mcpu=r8000
-   (32.57%). PROVEN round 12: the unit IS scheduled, so no preset can fix this
-   shape. -fno-schedule-insns2 keeps this at 49.68% (80080578) but drops every
-   matched function in the file (D414 75.94, D600 75.94, D690 66.42, D774
-   63.91, DE14 74.97, 8032C 76.47, vs 100.00 stock); -fno-schedule-insns2
-   -fno-schedule-insns gives 80.59% on 80080578 with every register correct and
-   only the addu two slots early (41.61-68.76 on the matched ones). Volatile on
-   all eleven touched globals reproduces the exact master store order but moves
-   the three sources to $5/$6/$7 (23.21%).
-int func_8007E450(int index) {
+/* 52.59% (148 bytes = retail's 37 insns). func_80080578's body plus the three
+   unk58/state/unk50 stores; the same `do { } while (0);` grouping applies
+   (without it the body did not even compile any more - the old 41.32% note was
+   from a variant that predates `g_WorldMapCameraTarget` becoming an array, so
+   `g_WorldMapCameraTarget = x` was a hard error: the park scored ERROR in the
+   sweep, not 41.32%). Retail's memory order is now reproduced exactly; what is
+   left is register allocation: retail holds pActor in v1 and the three loaded
+   values in a0/a1/a2, ours holds pActor in a2 and the loads in v1/a0/a1,
+   because retail's `li` for the return value and the unk7C store stay above the
+   three loads and ours defers them. Tried (round 163): literals vs locals for
+   every constant, the volatile form, -O1/-O3/gcc 2.6.0/-mcpu=r8000, all worse.
+*/
+/* int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    int nScale = 0x1000;
     u32 unkAc;
     u32 unkB0;
     u32 unkB4;
-    int nOne;
 
-    g_WorldMapRotationMatrixValid = 0;
-    pActor->unk7C = nScale;
-    unkAc = *(u32 *)g_WorldMapPlayerPosition;
-    unkB0 = D_8009C5B0;
-    unkB4 = D_8009C5B4;
-    g_WorldMapFadeLevel = 0x78;
-    nOne = 1;
-    g_WorldMapCameraTarget = unkAc;
-    g_WorldMapScrollTargetX = unkAc;
-    D_8009BE2C = unkB0;
-    g_WorldMapScrollTargetY = unkB0;
-    D_8009BE30 = unkB4;
-    g_WorldMapScrollTargetZ = unkB4;
-    pActor->command = nOne;
-    pActor->unk58 = 0x40;
-    pActor->state = 0;
-    pActor->unk50 = 0;
+    do {
+        g_WorldMapRotationMatrixValid = 0;
+        pActor->unk7C = 0x1000;
+        unkAc = *(u32 *)g_WorldMapPlayerPosition;
+        unkB0 = D_8009C5B0;
+        unkB4 = D_8009C5B4;
+        g_WorldMapFadeLevel = 0x78;
+        g_WorldMapCameraTarget[0] = unkAc;
+        g_WorldMapScrollTargetX = unkAc;
+        D_8009BE2C = unkB0;
+        g_WorldMapScrollTargetY = unkB0;
+        D_8009BE30 = unkB4;
+        g_WorldMapScrollTargetZ = unkB4;
+        pActor->command = 1;
+        pActor->unk58 = (void *)0x40;
+        pActor->state = 0;
+        pActor->unk50 = 0;
+    } while (0);
     return 1;
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
-/* 86.92% (1716 bytes against retail's 1752) - two switches on
+/* 86.92% (1716 bytes against retail's 1752), re-measured in round 163: the body
+   compiles now that the extern says `int func_8007E4E4(int)` - it returns 1,
+   and the old `extern void` made the park a hard error, which is why the sweep
+   scored it ERROR instead of 86.92%. BLOCKED (owns jtbl_8006FE94/FEF4), so do
+   not convert it. Two switches on
    pActor->command - 1 (24 cases) and pActor->state (26 cases), then the rand
    jitter tail. Structure, case order (retail emits the bodies in source order)
-   and both dispatch chains now agree; the levers that got it here:
+   and both dispatch chains agree; the levers that got it here:
    - switch 2 needs an explicit `case 0: break;` - without it gcc subtracts the
      minimum case (1) and emits sltiu 25, retail tests the raw lh against 26.
    - g_WorldMapCameraTarget/BBB4 as `extern s32 X[]` with X[0] RMW: retail materialises the
@@ -543,14 +544,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
    `sh zero,0x4(s0)` (command = 0) BEFORE their own BD38 store; ours emits that
    store after the BD38 store, so cross-jumping folds it into the shared
    BD3A/BD3C tail. Moving `pActor->command = 0;` earlier/later in the case body
-   is the lever to try. (2) In case 1's clamp branch retail stores D_8009BE30
-   before `sh v0,0x20(s0)`, ours the other way round. (3) case 3's second test
-   is `bnez` to the else with `lui a1,0xFFFB3C00` in the delay slot, ours is
-   `beqz` with the lui before the branch. (4) case 4 and case 25 order the
-   unk5C[0]/unk60 load against the lhu of g_WorldMapViewRotationY differently.
+   is the lever to try - the `do { } while (0);` grouping that closed the
+   scheduled-stores family in this file is the obvious next try. (2) In case 1's
+   clamp branch retail stores D_8009BE30 before `sh v0,0x20(s0)`, ours the other
+   way round. (3) case 3's second test is `bnez` to the else with
+   `lui a1,0xFFFB3C00` in the delay slot, ours is `beqz` with the lui before the
+   branch. (4) case 4 and case 25 order the unk5C[0]/unk60 load against the lhu
+   of g_WorldMapViewRotationY differently.
    The earlier note on func_80080600 (same shape, 79.99%) still applies for the
    tail: the u16 reload of 0xA2 is real, keep `*(u16 *)(pScratch + 0xA2)`.
-s32 func_8007E4E4(int index) {
+/* s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s16 nState;
@@ -968,35 +971,34 @@ int func_8007F968(int index) {
 }
 */
 
-/* 88.66%: instruction multiset identical. Retail materialises all the
-   immediates first (lui/ori v1 = 0x1498000, lui/ori a0 = 0x4AF2000,
-   li v0 = 3 for the return) and only then starts storing, and it defers
-   the unk58 = 0x80 store to the very end; gcc reorders my stores the
-   other way (0x58 right after 0x54). Tried literals and int locals for
-   the two big constants - gcc folds the locals straight back into the
-   stores. Group bases are groups[9] (s1 + 0x2F4) and groups[10]
-   (s1 + 0x348). Retail's store order is 0x28, 0x2C, 0x54, 0x20, 0x30, 0x50,
-   0x58 (the last one deferred), which is the source order below.
-*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
-/* 88.66%
-int func_8007FC8C(int index) {
+/* 93.41% (164 bytes = retail's 41 insns). Instruction multiset identical; the
+   only deltas are (1) retail's `li v0,3` (the return value) sits BEFORE the
+   store block, so v0 is occupied and the two big constants land in v1 and a0,
+   where ours materialises it after the last store and uses v0/v1; (2) that
+   follows from (1). `int nRet = 3;` + `return nRet;` folds straight back to
+   `return 3;`. The `do { } while (0);` around the seven stores was worth
+   88.66 -> 93.41 (it stops sched2 from pulling the 0x58 = 0x80 store up to
+   fourth position). Locals for the two constants compile identically to the
+   literals. Retail's group bases are root-relative (s1 + 0x2F4 / s1 + 0x348),
+   so the group pointer must stay spelled through pRoot.
+   The function returns int (retail loads v0 = 3 and never stores it).
+   permute.sh 3 min (991 iterations, base 130) found nothing.
+*/
+/* int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    int nX;
-    int nZ;
-
     WorldMapSetupPrimTemplates(&pRoot->groups[9], pRoot->groups[9].pPrims, *(u16 *)((u8 *)pRoot->groups[9].pPrimHeader + 4));
     WorldMapSetupPrimTemplates(&pRoot->groups[10], pRoot->groups[10].pPrims, *(u16 *)((u8 *)pRoot->groups[10].pPrimHeader + 4));
-    nX = 0x1498000;
-    nZ = 0x4AF2000;
-    pActor->x = nX;
-    pActor->y = 0xFFF80000;
-    pActor->unk54 = (void *)-0x800;
-    pActor->state = 0;
-    pActor->z = nZ;
-    pActor->unk50 = 0;
-    pActor->unk58 = (void *)0x80;
+    do {
+        pActor->x = 0x1498000;
+        pActor->y = 0xFFF80000;
+        pActor->unk54 = (void *)-0x800;
+        pActor->state = 0;
+        pActor->z = 0x4AF2000;
+        pActor->unk50 = 0;
+        pActor->unk58 = (void *)0x80;
+    } while (0);
     return 3;
 }
 */
@@ -1169,41 +1171,42 @@ int WorldMapInitActorScript(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
-/* 34.97%: byte count is retail's (34 insns) and the instruction multiset is
-   identical; only the schedule differs. Retail's MEMORY ops are in strict
-   source order (sw g_WorldMapRotationMatrixValid, sw 0x7C($v1), then the three D_8009C5xx loads,
-   then sw g_WorldMapFadeLevel, then the six paired stores, then sh 4($v1), sh 0x20($v1));
-   only the immediate loads are hoisted (li 0x1000 before the first store,
-   li 1 before the pairs). gcc 2.7.2 sched2 hoists the three D_8009C5xx loads
-   to the very top of the block, above the sll, which rotates everything after
-   it. Confirmed the mechanism: compiled with -fno-schedule-insns2 the tail
-   (li 1 / sh 4($v1) / six pairs in x,y,z order) is exactly retail's and only
-   the head differs. Volatile on the three loads changes nothing (34.97%).
-   Same body as func_8007E450 (whose note has the preset screen) and as
-   misc7's func_800813E8 (76.59% there, where retail's sh pairs are first).
-int func_80080578(int index) {
+/* 64.06% (136 bytes = retail's 34 insns). func_8007E450's body without the
+   unk58/state/unk50 stores. The whole body is one `do { } while (0);` block:
+   without it the memory ops are rotated by sched2 (it pulls the three
+   D_8009C5xx loads up above everything) and the body does not even compile in
+   the old parked spelling, which is why the sweep scored it ERROR rather than
+   the 34.97% the old note claimed (`g_WorldMapCameraTarget` became an array
+   after that note was written, so `g_WorldMapCameraTarget = x` is a hard
+   error; it must be written `g_WorldMapCameraTarget[0] = x`, and that array
+   form is forced anyway - WorldMapInitializeModeWithActors takes its address).
+   With the do block every memory op is in retail's order and the only delta
+   left is register allocation: retail keeps pActor in v1 and the three loaded
+   values in a0/a1/a2 and stores unk7C before them; ours keeps pActor in a2,
+   the loads in v1/a0/a1, and defers the `li 0x1000` + `sw 0x7C` below the
+   loads. Same body as misc7's func_800813E8 (76.59% there).
+/* int func_80080578(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    int nScale = 0x1000;
     u32 unkAc;
     u32 unkB0;
     u32 unkB4;
-    int nOne;
 
-    g_WorldMapRotationMatrixValid = 0;
-    pActor->unk7C = nScale;
-    unkAc = *(u32 *)g_WorldMapPlayerPosition;
-    unkB0 = D_8009C5B0;
-    unkB4 = D_8009C5B4;
-    g_WorldMapFadeLevel = 0x78;
-    nOne = 1;
-    g_WorldMapCameraTarget = unkAc;
-    g_WorldMapScrollTargetX = unkAc;
-    D_8009BE2C = unkB0;
-    g_WorldMapScrollTargetY = unkB0;
-    D_8009BE30 = unkB4;
-    g_WorldMapScrollTargetZ = unkB4;
-    pActor->command = nOne;
-    pActor->state = 0;
+    do {
+        g_WorldMapRotationMatrixValid = 0;
+        pActor->unk7C = 0x1000;
+        unkAc = *(u32 *)g_WorldMapPlayerPosition;
+        unkB0 = D_8009C5B0;
+        unkB4 = D_8009C5B4;
+        g_WorldMapFadeLevel = 0x78;
+        g_WorldMapCameraTarget[0] = unkAc;
+        g_WorldMapScrollTargetX = unkAc;
+        D_8009BE2C = unkB0;
+        g_WorldMapScrollTargetY = unkB0;
+        D_8009BE30 = unkB4;
+        g_WorldMapScrollTargetZ = unkB4;
+        pActor->command = 1;
+        pActor->state = 0;
+    } while (0);
     return 1;
 }
 */
