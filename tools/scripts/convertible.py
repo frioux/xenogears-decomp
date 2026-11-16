@@ -25,6 +25,15 @@ INSN = re.compile(r"^\s+/\*\s*[0-9A-Fa-f]+\s+[0-9A-Fa-f]{8}\s+[0-9A-Fa-f]{8}\s*\
 STUB = re.compile(r'INCLUDE_ASM\(\s*"([^"]+)"\s*,\s*(\w+)\s*\)')
 
 
+def owns_tables(binary, unit):
+    """own_rodata.py gave the unit its switch tables: a C switch there links."""
+    try:
+        cfg = (ROOT / "config" / (binary + ".yaml")).read_text()
+    except OSError:
+        return False
+    return re.search(r"\.rodata, %s\]" % re.escape(unit), cfg) is not None
+
+
 def main():
     binary, unit = sys.argv[1].split("/", 1)
     src = ROOT / "src" / binary / (unit + ".c")
@@ -58,7 +67,7 @@ def main():
             other = [n for n in names if not n.startswith("jtbl_")]
             if other:
                 problems.append("owns rodata " + ", ".join(other) + " (convert with the const in the same commit)")
-            if jtbl:
+            if jtbl and not owns_tables(binary, unit):
                 problems.append("owns " + ", ".join(jtbl) + " (needs own_rodata.py for the unit first)")
         rows.append(("BLOCKED" if problems else "OK", name, n_insn, "; ".join(problems)))
     ok = [r for r in rows if r[0] == "OK"]
