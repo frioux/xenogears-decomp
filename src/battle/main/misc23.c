@@ -21,6 +21,7 @@ extern s32 BattleFindFirstActorInMask(void);
 extern void BattleFreeImageEntry(void *);
 extern void func_800A64E4(void);
 extern void func_800BF85C(s32, s32);
+extern void func_800A3640(void *, s32, s32, s16, s32, s16, s16, s32, s32, s32, s32, s16, s16, s16, s16, s32, s32, s32, s32);
 
 extern u8 *D_800D33E4;
 extern u16 D_800D361A;
@@ -211,7 +212,127 @@ void BattleSetColorSources(s32 arg0, s32 arg1) {
     D_800D2D48 = (u8 *)arg1;
 }
 
+extern u8 D_800D3600[];
+extern s32 D_800D360C;
+extern s16 D_800D2D2C;
+extern s16 D_800D2D30;
+extern s16 D_800D2D34;
+extern s16 D_800C3EA8;
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
+/* 99.16% (unit preset XenoBattle260Div0): the whole function is recovered and the
+   compiled body is retail's exact size (1424 bytes) with retail's frame, register
+   roles and instruction order. The ONLY difference is the operand order of the 30
+   address addus of the two colour-copy loops: retail has "addu v0,v0,a1" /
+   "addu v0,v0,a2" (the freshly loaded pool base first), gcc emits "addu v0,a1,v0"
+   (biv first). Same value, different encoding, so objdiff cannot pass it and the
+   linked bytes differ.
+   This is the SAME tie as the parked func_800A64E4 below (98.71%, 18 sites), so one
+   source lever would close both. Shapes tried at that sum, each leaving everything
+   else byte-identical: D_X[i * 0x24 + K] (parked below), *(u8 *)(D_X + i * 0x24 + K),
+   the same with a mem_addr cast, the mem_addr sum grouped as (i * 0x24 + K), an
+   embedded assignment (pBase = (mem_addr)D_X) per load, two running byte offsets
+   (off24 += 0x24, off18 += 0x18) instead of the strength-reduced bivs, and a
+   volatile D_X (that one is worse: 98.03%, 1440 bytes). A 4-minute permuter run
+   found nothing (993 iterations, base=300 best=300). So the order is set by loop.c
+   when it builds the address giv, not by the source spelling.
+   What DID matter, for whoever unparks it: the first clear loop is a BYTE OFFSET
+   loop - for (offset = 0x12; offset >= 0; offset -= 6) D_800C3AAC[offset] = 0; -
+   and it needs its own local (retail keeps it in $v0, the other three loops use
+   $a3); with i * 6 gcc keeps a counter and an offset register and the window is
+   five instructions wrong. The func_800A3640 call takes 19 parameters - a0 is
+   &D_800D3600, a1 0, a2 1, a3 0x601 and the fifteen stack words 0x10..0x48 are
+   0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C,
+   D_800C3EA8, 0, 0, 0, 0 (the s16 ones are passed as promoted shorts, which is
+   why each is one sign-extended word in its own slot) - and with that prototype in
+   scope that whole call is byte-identical. D_800D360C = 0 belongs between the call
+   and the first HeapAlloc; the two 0x88 allocations fill D_800C3AC4 (the copy
+   destination) and D_800C3AC8. */
+/*
+void func_800A5EB4(void) {
+    u8 *pEntry;
+    u8 *pDst;
+    s32 offset;
+    s32 i;
+
+    for (offset = 0x12; offset >= 0; offset -= 6) {
+        D_800C3AAC[offset] = 0;
+    }
+    pEntry = *(u8 **)(D_800D33E4 + 0x118);
+    for (i = 0; i < *(u8 *)(D_800D33E4 + 0x10E); i++) {
+        if (*(u16 *)(pEntry + 0x1A) != 0) {
+            *(void **)pEntry = D_800D3600;
+        }
+        pEntry += 0x30;
+    }
+    func_800A3640(D_800D3600, 0, 1, 0x601, 0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C, D_800C3EA8, 0, 0, 0, 0);
+    D_800D360C = 0;
+    D_800C3AC4 = HeapAlloc(0x88, 1);
+    D_800C3AC8 = HeapAlloc(0x88, 1);
+    pDst = D_800C3AC4;
+    for (i = 0; i < 4; i++) {
+        if (D_800C3EA0 != NULL) {
+            pDst[0] = D_800C3EA0[i * 0x24 + 0x1740];
+            pDst[1] = D_800C3EA0[i * 0x24 + 0x1741];
+            pDst[2] = D_800C3EA0[i * 0x24 + 0x1742];
+            pDst += 4;
+            pDst[0] = D_800C3EA0[i * 0x24 + 0x1748];
+            pDst[1] = D_800C3EA0[i * 0x24 + 0x1749];
+            pDst[2] = D_800C3EA0[i * 0x24 + 0x174A];
+            pDst += 4;
+            pDst[0] = D_800C3EA0[i * 0x24 + 0x1750];
+            pDst[1] = D_800C3EA0[i * 0x24 + 0x1751];
+            pDst[2] = D_800C3EA0[i * 0x24 + 0x1752];
+            pDst += 4;
+            pDst[0] = D_800C3EA0[i * 0x24 + 0x1758];
+            pDst[1] = D_800C3EA0[i * 0x24 + 0x1759];
+            pDst[2] = D_800C3EA0[i * 0x24 + 0x175A];
+            pDst += 4;
+            pDst[0] = D_800C3EA0[i * 0x18 + 0x16E0];
+            pDst[1] = D_800C3EA0[i * 0x18 + 0x16E1];
+            pDst[2] = D_800C3EA0[i * 0x18 + 0x16E2];
+            pDst += 4;
+        } else {
+            pDst += 0x14;
+        }
+        if (D_800C3D50[0] != NULL) {
+            pDst[0] = D_800C3D50[0][i * 0x18 + 0x284];
+            pDst[1] = D_800C3D50[0][i * 0x18 + 0x285];
+            pDst[2] = D_800C3D50[0][i * 0x18 + 0x286];
+        }
+        pDst += 4;
+    }
+    for (i = 0; i < 2; i++) {
+        if (D_800C3D50[0] != NULL) {
+            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2E4];
+            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2E5];
+            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2E6];
+            pDst += 4;
+            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2EC];
+            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2ED];
+            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2EE];
+            pDst += 4;
+            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2F4];
+            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2F5];
+            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2F6];
+            pDst += 4;
+            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2FC];
+            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2FD];
+            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2FE];
+            pDst += 4;
+        } else {
+            pDst += 0x10;
+        }
+    }
+    pDst[0] = D_800D2D40[0];
+    pDst[1] = D_800D2D40[1];
+    pDst[2] = D_800D2D40[2];
+    pDst += 4;
+    pDst[0] = D_800D2D48[0];
+    pDst[1] = D_800D2D48[1];
+    pDst[2] = D_800D2D48[2];
+}
+*/
 
 void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
     if (arg0 < 4) {
