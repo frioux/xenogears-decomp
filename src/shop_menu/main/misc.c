@@ -3158,21 +3158,28 @@ void ShopMenuSetQuantityHeldGraphics(u_char itemType, u_char itemID) {
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", func_801CEB3C);
-// 99.47%, same byte count as retail (1892): buy-menu item description update -- returns the
-// item's price and draws the description string into strItemDesc, the 'E' marker on the
-// portraits that already have the item, and each portrait's two stat-change digits. The
-// whole body below is correct down to the instruction stream and the stack frame; the ONLY
-// remaining difference is that gcc puts the digit-column accumulator in $s6/$s7 and the
-// polys27B0[] induction base in the other one, the reverse of retail ($s6 = column, the
-// biv increments in retail's order). A 5-minute permuter run from this body found nothing
-// (base 260, best 260), so it is a GIV_TIE, not a source shape. Load-bearing details found
-// on the way: the two 3-digit loops must be `for (k = 0, col = x; k < 3; )` with the read
-// and bump in one expression (`digit = g_Menu->digits[6 + k++]`) and `col += 8` at the end
-// of the body, the digit column base must be an ACCUMULATOR (`x = 0x49; ... x += 0x1A;`
-// before `j++`) or gcc emits an extra copy of the base and drops the 0x1000 constant out
-// of $s8 (1904 bytes), delta[] must be zeroed per character before
-// ShopMenuComputeStatChange, and the scalars' DECLARATION ORDER fixes the stack frame
+// 99.89%, same byte count as retail (1892) and the same frame: buy-menu item description
+// update -- returns the item's price and draws the description string into strItemDesc, the
+// 'E' marker on the portraits that already have it, and each portrait's two stat-change
+// digits. The only residual is a GIV_TIE: retail puts the digit-column accumulator in $s6
+// and the inducted polys3020[] base in $s7, this body has the two the other way round -- the
+// same instruction multiset and word count, only those two register names and the preheader
+// `li` order differ. Two permuter runs from these bodies found nothing (the 99.47% body:
+// base 260 best 260 over 3031 iterations; this one: base 70 best 70 over 2306), and hand
+// tries of the declaration order, the init order and the col-copy placement did not move it,
+// so it is an allocator tie, not a source shape.
+// The lever that got 99.47 -> 99.89: the column base must be initialised in the OUTER loop's
+// init clause and be LAST there (`for (i = 0, j = 0, x = 0x49; i < 0x10; i++)`); as a
+// statement before the loop, or listed first in the clause, the preheader `li` lands in the
+// wrong slot.
+// Load-bearing details found on the way: the two 3-digit loops are
+// `for (k = 0, col = x; k < 3; )` with the read and bump in one expression
+// (`digit = g_Menu->digits[6 + k++]`) and `col += 8` at the end of the body; the digit column
+// must be an ACCUMULATOR (`x += 0x1A` before `j++`) or gcc emits an extra copy of the base and
+// drops the 0x1000 constant out of $s8 (1904 bytes); delta[] must be zeroed per character
+// before ShopMenuComputeStatChange; and the scalars' DECLARATION ORDER fixes the stack frame
 // (price 0x38, equippedFlags 0x40, equipFlags 0x48, itemId 0x50, itemType 0x58).
+
 /*
 // Draws the buy menu's description of the item under the cursor (description text, the 'E'
 // marker on the portraits that have it equipped, and each portrait's stat change digits)
@@ -3252,8 +3259,7 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
 
     g_Menu->pShop->unk46A9 = 0;
 
-    x = 0x49;
-    for (i = 0, j = 0; i < 0x10; i++) {
+    for (i = 0, j = 0, x = 0x49; i < 0x10; i++) {
         if (!g_Menu->availableCharacters[i]) {
             continue;
         }
