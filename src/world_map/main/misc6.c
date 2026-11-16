@@ -843,18 +843,21 @@ int WorldMapInitSlotActor(int index) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
-/* 96.00%: registers and the whole dispatch/prologue match (s2 = pActor,
-   s0 = pRefActor, s3 = pGroup, s4 = 0x1F800000 base) and the C is 28 bytes
-   SHORT of retail's 0x324 - the remaining deltas are inside case 0 (retail
-   builds $s1 = pScratch+0xA0 and $s0 = pScratch+0xA8 and copies them into
-   a1/a2 for each func_80089160 call) and the ScaleMatrix tail. Levers already
-   used: ONE u8 *pScratch local for the whole function (the decisive one - five
-   separate pointer locals cost s-registers and a lui/ori pair each: 70.01 ->
-   91.83%), scratchpad pointers declared inside the blocks that use them,
-   pActor declared before pRefActor (91.83 -> 92.82), and an s32 copy of
-   unk5C[0] for the three ScaleMatrix stores (92.82 -> 96.00, removes a
-   duplicate lw). func_80089160's third parameter is declared void* in the
-   extern above (it is the 0x1F8000A8 SVECTOR, not an int).
+// 99.81% (permuter 15, from 235): every instruction now agrees with retail EXCEPT
+// the 8 bytes of stack frame - retail is 0x30 with ra/s0-s4 at 0x2C..0x18, so
+// vars=8 (args=16, regs=24); mine is 0x28 and stores NO locals at all, so the
+// eight bytes are a slot gcc allocated and then optimized away. Both disassemble
+// to the same 804 bytes of code, so no C edit that changes an instruction can
+// close it. What the permuter/objdiff last bought: inlining the pScratch+0xF0
+// cast instead of a pRot local, chained stores (unk20 = (unk04 = 0),
+// pAngle->vx = (pAngle->vz = 0)), (unk2C >> 6) >> 6, and an empty 'if (1) {}'
+// after case 4. Remaining objdiff 'diffs' are reloc-only and link identically:
+// jtbl_800701CC vs .rodata, and addiu s1,s0,s4,%lo(D_1F8000A0/0xA8/0x110)
+// where retail names the scratchpad symbols and this unit has none - giving them
+// real names in symbol_addrs.world_map.txt plus 'extern' use here should let
+// those three show as matched too. Do not re-park below 99.81 without checking
+// the frame size first.
+/*
 int func_8007F968(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     WorldMapActor *pRefActor = &D_8009BE24[3];
@@ -878,8 +881,7 @@ int func_8007F968(int index) {
         pActor->unk22 = 0x3C;
         pActor->unk38 = -0x85A;
         pActor->unk40 = 0xDA6;
-        pActor->unk20 = 0;
-        pActor->unk04 = 0;
+        pActor->unk20 = (pActor->unk04 = 0);
         pActor->unk3C = 0;
         pActor->unk5C[0] = D_8009A684[index];
         pGroup->unk00 = 0;
@@ -903,6 +905,8 @@ int func_8007F968(int index) {
         pActor->unk20 = 1;
         pActor->unk04 = 0;
         pActor->unk22 = 0x1E;
+        if (1) {
+        }
         break;
     }
     switch (pActor->unk20) {
@@ -917,8 +921,7 @@ int func_8007F968(int index) {
         pPos->vx = (pActor->unk28 + 0x42D000) >> 12;
         pPos->vy = pActor->unk2C >> 12;
         pPos->vz = (pActor->unk30 - 0x6D3000) >> 12;
-        pAngle->vx = 0;
-        pAngle->vz = 0;
+        pAngle->vx = (pAngle->vz = 0);
         pAngle->vy = ratan2(0x85A, 0xDA6) & 0xFFF;
         func_80089160(0x23, pPos, pAngle);
         func_80089160(0x24, pPos, pAngle);
@@ -932,24 +935,23 @@ int func_8007F968(int index) {
         break;
     }
     {
-        MATRIX *pRot = (MATRIX *)(pScratch + 0xF0);
         MATRIX *pTmp = (MATRIX *)(pScratch + 0x110);
         VECTOR *pScale = (VECTOR *)pScratch;
 
-        pRot->m[0][0] = 0xDA6;
-        pRot->m[0][1] = 0;
-        pRot->m[0][2] = 0x85A;
-        pRot->m[1][0] = 0;
-        pRot->m[1][1] = -0x1000;
-        pRot->m[1][2] = 0;
-        pRot->m[2][0] = -0x85A;
-        pRot->m[2][1] = 0;
-        pRot->m[2][2] = 0xDA6;
+        ((MATRIX *)(pScratch + 0xF0))->m[0][0] = 0xDA6;
+        ((MATRIX *)(pScratch + 0xF0))->m[0][1] = 0;
+        ((MATRIX *)(pScratch + 0xF0))->m[0][2] = 0x85A;
+        ((MATRIX *)(pScratch + 0xF0))->m[1][0] = 0;
+        ((MATRIX *)(pScratch + 0xF0))->m[1][1] = -0x1000;
+        ((MATRIX *)(pScratch + 0xF0))->m[1][2] = 0;
+        ((MATRIX *)(pScratch + 0xF0))->m[2][0] = -0x85A;
+        ((MATRIX *)(pScratch + 0xF0))->m[2][1] = 0;
+        ((MATRIX *)(pScratch + 0xF0))->m[2][2] = 0xDA6;
         pGroup->unk18.vz = (pGroup->unk18.vz + 0x100) & 0xFFF;
         RotMatrixYXZ(&pGroup->unk18, pTmp);
-        MulMatrix0(pRot, pTmp, &pGroup->unk20);
+        MulMatrix0((MATRIX *)(pScratch + 0xF0), pTmp, &pGroup->unk20);
         pGroup->unk08 = pActor->unk28 >> 12;
-        pGroup->unk0C = pActor->unk2C >> 12;
+        pGroup->unk0C = (pActor->unk2C >> 6) >> 6;
         pGroup->unk10 = pActor->unk30 >> 12;
         nScale = pActor->unk5C[0];
         pScale->vz = 0x2000;
