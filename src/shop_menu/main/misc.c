@@ -576,7 +576,7 @@ void ShopMenuHidePointerCursor(void) {
 }
 
 // ShopMenuSetPolyGradientColor
-void func_801C6460(POLY_G4* pPoly, u_char red, u_char green, u_char blue) {
+void ShopMenuSetPolyG4Gradient(POLY_G4* pPoly, u_char red, u_char green, u_char blue) {
     SetPolyG4(pPoly);
     setRGB0(pPoly, red, green, blue);
     setRGB1(pPoly, red, green, blue);
@@ -597,7 +597,7 @@ void ShopMenuInitializeBackgrounds(void) {
 
     for (i = 0; i < 2; i++) {
         // Yellow -> Black gradient
-        func_801C6460(&g_Menu->unk348->polyG4s[i], 128, 128, 0);
+        ShopMenuSetPolyG4Gradient(&g_Menu->unk348->polyG4s[i], 128, 128, 0);
         SetSemiTrans(&g_Menu->unk348->polyG4s[i], 1);
 
         // Green lines

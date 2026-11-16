@@ -437,7 +437,7 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
-void func_8009E868(u8 arg0, u16 arg1) {
+void BattleSetCommandCodeForFlagBit(u8 arg0, u16 arg1) {
     switch (arg0) {
     case 0:
         switch (arg1) {
