@@ -346,7 +346,7 @@ void ShopMenuInitialize(void) {
 
     g_Menu->mainMenuChoice = 4;
     g_Menu->mainMenuPrevChoice = 0xFF;
-    g_Menu->unk326 = 0x3C;
+    g_Menu->cardCheckTimer = 0x3C;
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
@@ -396,7 +396,7 @@ void ShopMenuSetStringPrimitives(MenuString* pString, int index, s32 arg2, u32 a
         setRGB0(pPoly, 128, 128, 128);
 
         if (!(attr & 0xFF)) {
-            pString->unk7C = (index & 1);
+            pString->palette = (index & 1);
             setTPage(pPoly, 0, 0, 320, 0);
 
             #define texCoordV  (((index + arg2) / 4) * FONT_LETTER_HEIGHT)
@@ -417,7 +417,7 @@ void ShopMenuSetStringPrimitives(MenuString* pString, int index, s32 arg2, u32 a
                 setRGB0(pPoly, var_s1, var_s1, var_s1);
             }
 
-            pString->unk7C = (attr & 0x7F) + 0xFF;
+            pString->palette = (attr & 0x7F) + 0xFF;
             setTPage(pPoly, 0, 0, 0x180, 0x80);
             pPoly->tpage = var_s1 | pPoly->tpage;
 
@@ -434,7 +434,7 @@ void ShopMenuSetStringPrimitives(MenuString* pString, int index, s32 arg2, u32 a
             #undef texCoordU
         }
 
-        MenuSetSystemPalette(pPoly, pString->unk7C);
+        MenuSetSystemPalette(pPoly, pString->palette);
     }
 
     pString->hasVertices = 0;
@@ -866,7 +866,7 @@ void ShopMenuInitializeWindowGraphics(u_char index) {
     rect.w = 256;
 
     g_Menu->pManager->shouldRenderWindow[index] = FALSE;
-    g_Menu->pManager->unk27[index] = FALSE;
+    g_Menu->pManager->isWindowOpening[index] = FALSE;
 
     // Window background
     for (i = 0; i < 2; i++) {
@@ -1218,7 +1218,7 @@ void ShopMenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_shor
 
 void ShopMenuFreeWindow(u_char index) {
     g_Menu->pManager->shouldRenderWindow[index] = FALSE;
-    g_Menu->pManager->unk27[index] = FALSE;
+    g_Menu->pManager->isWindowOpening[index] = FALSE;
     HeapFree(g_Menu->windows[index]);
     HeapFree(g_Menu->windowParameters[index]);
 }
@@ -1244,7 +1244,7 @@ void ShopMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, u_short 
         pWindowParams->height = height;
         pWindowParams->curWidth = 0;
         pWindowParams->curHeight = 0;
-        g_Menu->pManager->unk27[windowIndex] = 1;
+        g_Menu->pManager->isWindowOpening[windowIndex] = 1;
         pWindowParams->unk12 = arg6;
         pWindowParams->zIndex = zIndex;
         return;
@@ -1260,7 +1260,7 @@ void ShopMenuUpdateWindows(void) {
 
     for (i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         pWindowInfo = g_Menu->windowParameters[i];
-        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->isOpen == 0) {
+        if ((g_Menu->pManager->isWindowOpening[i]) && pWindowInfo->isOpen == 0) {
 
             flag = 0;
 
@@ -2737,7 +2737,7 @@ void ShopMenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 character
 void ShopMenuAddShopPrims(void) {
     int i;
 
-    if (g_Menu->pManager->unk5A) {
+    if (g_Menu->pManager->shouldRenderShop) {
         for (i = 0; i < 9; i++) {
             if (g_Menu->pShop->shouldRenderPortraitHighlight[i]) {
                 AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->linesPortraitHighlight1[(i * 2) + g_Menu->renderContext]);
@@ -2779,8 +2779,8 @@ void ShopMenuAddShopPrims(void) {
         }
 
         for (i = 0; i < 9; i++) {
-            ShopMenuRenderString(g_Menu->pShop->unk46BC[i], g_Menu->pShop->polys27B0[i], g_Menu->pShop->unk46CE[i]);
-            ShopMenuRenderString(g_Menu->pShop->unk46C5[i], g_Menu->pShop->polys3020[i], g_Menu->pShop->unk46D7[i]);
+            ShopMenuRenderString(g_Menu->pShop->polys27B0PrimCounts[i], g_Menu->pShop->polys27B0[i], g_Menu->pShop->polys27B0RenderCtxs[i]);
+            ShopMenuRenderString(g_Menu->pShop->polys3020PrimCounts[i], g_Menu->pShop->polys3020[i], g_Menu->pShop->polys3020RenderCtxs[i]);
         }
     }
     if (g_Menu->pManager->unk5B == 1) {
@@ -2812,7 +2812,7 @@ void ShopMenuUpdateCharacterPortraits(void) {
     int characterIndex;
     int numCharacters;
 
-    g_Menu->pManager->unk5A = 1;
+    g_Menu->pManager->shouldRenderShop = 1;
 
     // This loop seems horribly inefficient, because for each character index, all
     // portraits are recomputed and the entire menu redrawn...
@@ -3430,8 +3430,8 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
             );
         }
 
-        g_Menu->pShop->unk46BC[j] = 0;
-        g_Menu->pShop->unk46C5[j] = 0;
+        g_Menu->pShop->polys27B0PrimCounts[j] = 0;
+        g_Menu->pShop->polys3020PrimCounts[j] = 0;
 
         if (g_Menu->pShop->shouldRenderPortraitHighlight[j]) {
             delta[1] = 0;
@@ -3443,9 +3443,9 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
                 for (k = 0, col = x; k < 3; ) {
                     digit = g_Menu->digits[6 + k++];
                     if (digit != 0xFF) {
-                        g_Menu->pShop->unk46BC[j] += func_8002675C(
+                        g_Menu->pShop->polys27B0PrimCounts[j] += func_8002675C(
                             g_Menu->resources, digit,
-                            &g_Menu->pShop->polys27B0[j][g_Menu->pShop->unk46BC[j] * 2],
+                            &g_Menu->pShop->polys27B0[j][g_Menu->pShop->polys27B0PrimCounts[j] * 2],
                             g_Menu->renderContext,
                             col, 0xBE,
                             0x1000
@@ -3454,8 +3454,8 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
                     col += 8;
                 }
                 ShopMenuSetStatChangeColor(
-                    g_Menu->pShop->unk46BC[j], g_Menu->pShop->polys27B0[j], isImprovement[0]);
-                g_Menu->pShop->unk46CE[j] = g_Menu->renderContext;
+                    g_Menu->pShop->polys27B0PrimCounts[j], g_Menu->pShop->polys27B0[j], isImprovement[0]);
+                g_Menu->pShop->polys27B0RenderCtxs[j] = g_Menu->renderContext;
             }
 
             if (delta[1]) {
@@ -3463,9 +3463,9 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
                 for (k = 0, col = x; k < 3; ) {
                     digit = g_Menu->digits[6 + k++];
                     if (digit != 0xFF) {
-                        g_Menu->pShop->unk46C5[j] += func_8002675C(
+                        g_Menu->pShop->polys3020PrimCounts[j] += func_8002675C(
                             g_Menu->resources, digit,
-                            &g_Menu->pShop->polys3020[j][g_Menu->pShop->unk46C5[j] * 2],
+                            &g_Menu->pShop->polys3020[j][g_Menu->pShop->polys3020PrimCounts[j] * 2],
                             g_Menu->renderContext,
                             col, 0xC6,
                             0x1000
@@ -3474,8 +3474,8 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
                     col += 8;
                 }
                 ShopMenuSetStatChangeColor(
-                    g_Menu->pShop->unk46C5[j], g_Menu->pShop->polys3020[j], isImprovement[1]);
-                g_Menu->pShop->unk46D7[j] = g_Menu->renderContext;
+                    g_Menu->pShop->polys3020PrimCounts[j], g_Menu->pShop->polys3020[j], isImprovement[1]);
+                g_Menu->pShop->polys3020RenderCtxs[j] = g_Menu->renderContext;
             }
         }
 
@@ -3663,7 +3663,7 @@ u_char ShopMenuBuyMenu(void) {
             itemPrice = func_801CEB3C(curChoice, scrollOffset, &sp28);
             prevChoice = curChoice;
             prevScrollOffset = scrollOffset;
-            g_Menu->pManager->unk5A = TRUE;
+            g_Menu->pManager->shouldRenderShop = TRUE;
         }
 
         ShopMenuUpdateArrowCursor(curChoice, scrollOffset, 0, 0);
@@ -3694,7 +3694,7 @@ u_char ShopMenuBuyMenu(void) {
             case MENU_INPUT_CONFIRM:
                 if (totalPrice != 0) {
                     ShopMenuPlaySoundEffect(2);
-                    g_Menu->pManager->unk5A = FALSE;
+                    g_Menu->pManager->shouldRenderShop = FALSE;
                     g_Menu->pManager->shouldRenderWindow[2] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[3] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[5] = FALSE;
@@ -3727,7 +3727,7 @@ u_char ShopMenuBuyMenu(void) {
                 isRunning = FALSE;
                 g_Menu->pManager->shouldRenderStrings[0] = 0;
                 if (totalPrice != 0) {
-                    g_Menu->pManager->unk5A = FALSE;
+                    g_Menu->pManager->shouldRenderShop = FALSE;
                     g_Menu->pManager->shouldRenderWindow[2] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[3] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[5] = FALSE;
@@ -4203,7 +4203,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
             itemPrice = ShopMenuUpdateItemDescription(pItemIds[scrollOffset + rowIndex], pItemTypes[scrollOffset + rowIndex]);
             newRowIndex = rowIndex;
             newScrollOffset = scrollOffset;
-            g_Menu->pManager->unk5A = 1;
+            g_Menu->pManager->shouldRenderShop = 1;
         }
 
         ShopMenuUpdateArrowCursor(rowIndex, scrollOffset, 0, 0);
@@ -4231,7 +4231,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
             case MENU_INPUT_CONFIRM:
                 if (cartTotal != 0) {
                     ShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
-                    g_Menu->pManager->unk5A = FALSE;
+                    g_Menu->pManager->shouldRenderShop = FALSE;
                     g_Menu->pManager->shouldRenderWindow[2] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[3] = FALSE;
                     g_Menu->pManager->scrollHandleActive = FALSE;
@@ -4259,7 +4259,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
             case MENU_INPUT_BACK:
                 continueProcessing = FALSE;
                 if (cartTotal != 0) {
-                    g_Menu->pManager->unk5A = FALSE;
+                    g_Menu->pManager->shouldRenderShop = FALSE;
                     g_Menu->pManager->shouldRenderWindow[2] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[3] = FALSE;
                     g_Menu->pManager->scrollHandleActive = FALSE;
@@ -4451,7 +4451,7 @@ void ShopMenuSellItemsMenu(void) {
 void ShopMenuClearShopGraphics(u_char arg0, u_char arg1) {
     int i;
 
-    g_Menu->pManager->unk5A = 0;
+    g_Menu->pManager->shouldRenderShop = 0;
     g_Menu->pShop->shouldRenderItemDesc = 0;
     g_Menu->pShop->unk46B5 = 0;
     g_Menu->pShop->shouldRenderPrices = 0;
@@ -4461,8 +4461,8 @@ void ShopMenuClearShopGraphics(u_char arg0, u_char arg1) {
 
     for (i = 0; i < 9; i++) {
         g_Menu->pShop->shouldRenderPortraitHighlight[i] = 0;
-        g_Menu->pShop->unk46BC[i] = 0;
-        g_Menu->pShop->unk46C5[i] = 0;
+        g_Menu->pShop->polys27B0PrimCounts[i] = 0;
+        g_Menu->pShop->polys3020PrimCounts[i] = 0;
     }
 
     for (i = 0; i < 8; i++) {

@@ -416,7 +416,7 @@ void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4,
         pParams->height = a4;
         pParams->curWidth = 0;
         pParams->curHeight = 0;
-        g_Menu->pManager->unk27[a0] = 1;
+        g_Menu->pManager->isWindowOpening[a0] = 1;
         pParams->unk12 = a6;
         pParams->zIndex = a7;
         return;
@@ -432,7 +432,7 @@ void MenuUpdateWindowAnimations(void) {
 
     for (i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         pWindowInfo = g_Menu->windowParameters[i];
-        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->isOpen == 0) {
+        if ((g_Menu->pManager->isWindowOpening[i]) && pWindowInfo->isOpen == 0) {
             flag = 0;
 
             if ((pWindowInfo->curWidth + 32) >= pWindowInfo->width) {

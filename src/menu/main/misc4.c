@@ -85,7 +85,7 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
         }
     }
     MenuParseNumberToDigits(g_GameState.characters[characterIndex].unk63);
-    pCharacter->unkBE1 = 0;
+    pCharacter->polys5F0PrimCount = 0;
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CDC6C);
@@ -93,7 +93,7 @@ void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2
     func_801CD81C(pCharacter, arg1, arg2, arg3, arg4, arg5);
     MenuBuildCharacterLevelDigits(pCharacter, arg1, arg2, arg3, arg4);
     func_801CDC6C(pCharacter, arg1, arg2, arg3, arg4, arg5);
-    pCharacter->unkBE7 = 1;
+    pCharacter->shouldRender = 1;
     pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
 }
 void MenuRenderTransformedQuads(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
@@ -509,23 +509,23 @@ void MenuAddCellGridPrims(void) {
     func_801CFB48();
     func_801CF8D8();
     func_801CFF64();
-    if (++g_Menu->unk4D0 == 0xF) {
-        g_Menu->unk4D0 = 0;
-        if (++g_Menu->unk4CC == 6) {
-            g_Menu->unk4CC = 0;
+    if (++g_Menu->characterCellTimer == 0xF) {
+        g_Menu->characterCellTimer = 0;
+        if (++g_Menu->characterCellFrame == 6) {
+            g_Menu->characterCellFrame = 0;
         }
     }
     if (!g_Menu->unk4D9) {
-        g_Menu->unk4D4 += 4;
-        if (g_Menu->unk4D4 >= 0x81) {
+        g_Menu->characterCellShade += 4;
+        if (g_Menu->characterCellShade >= 0x81) {
             g_Menu->unk4D9 = 1;
-            g_Menu->unk4D4 = 0x7C;
+            g_Menu->characterCellShade = 0x7C;
         }
     } else {
-        g_Menu->unk4D4 -= 4;
-        if (g_Menu->unk4D4 < 0) {
+        g_Menu->characterCellShade -= 4;
+        if (g_Menu->characterCellShade < 0) {
             g_Menu->unk4D9 = 0;
-            g_Menu->unk4D4 = 4;
+            g_Menu->characterCellShade = 4;
         }
     }
 }

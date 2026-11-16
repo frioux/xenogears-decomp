@@ -153,7 +153,7 @@ typedef struct {
     /* 0x50 */ SVECTOR vertices[4];
     /* 0x70 */ RECT vramDest;
     /* 0x78 */ void* pVramBuffer;
-    /* 0x7C */ u8 unk7C; // Palette?
+    /* 0x7C */ u8 palette; // System palette index, selects g_SystemPalette1 / g_SystemPalette2
     /* 0x7D */ u8 renderContext;
     /* 0x7E */ u8 width;
     /* 0x7F */ u8 hasVertices; // Set when vertices[] must go through RotTransPers4
@@ -257,7 +257,7 @@ typedef struct {
     /* 0x14 */ u8 shouldRenderSubMenuChoiceStrings[0x6]; // One flag per g_Menu->subMenuChoiceStrings
     /* 0x1A */ u8 unk1A[0x6];
     /* 0x20 */ u8 shouldRenderWindow[MENU_MAX_NUM_WINDOWS];
-    /* 0x27 */ u8 unk27[MENU_MAX_NUM_WINDOWS];
+    /* 0x27 */ u8 isWindowOpening[MENU_MAX_NUM_WINDOWS]; // Open tween runs while isOpen == 0
     /* 0x2B */ u8 shouldRenderModalStrings;
     /* 0x2C */ u_char shouldRenderCursors;
     /* 0x30 */ u8 currentCharacterIDs[0x3];
@@ -276,7 +276,7 @@ typedef struct {
     /* 0x52 */ u8 unk52;
     /* 0x53 */ u_char shoulderButtonUiActive;
     /* 0x54 */ u8 unk54[0x6];
-    /* 0x5A */ u8 unk5A;
+    /* 0x5A */ u8 shouldRenderShop; // Gates the shop's primitive batch
     /* 0x5B */ u8 unk5B;
     /* 0x5C */ u8 unk5C[0x4];
     /* 0x60 */ u8 unk60[0x3];
@@ -488,15 +488,15 @@ typedef struct {
     /* 0xAF0 */ POLY_FT4 polysMaxMpString[4];
     /* 0xB90 */ u8 unkB90[0x50];
     /* 0xBE0 */ u_char levelStringLength;
-    /* 0xBE1 */ u8 unkBE1; // Num polys5F0
+    /* 0xBE1 */ u8 polys5F0PrimCount;
     /* 0xBE2 */ u_char hpStringLength;
     /* 0xBE3 */ u_char maxHpStringLength;
     /* 0xBE4 */ u_char mpStringLength;
     /* 0xBE5 */ u_char maxMpStringLength;
     /* 0xBE6 */ u_char renderContext;
-    /* 0xBE7 */ u8 unkBE7; // Is active / should render?
+    /* 0xBE7 */ u8 shouldRender;
     /* 0xBE8 */ u_char descriptionStringsLength;
-    /* 0xBE9 */ u8 unkBE9;
+    /* 0xBE9 */ u8 polys2D0PrimCount;
     /* 0xBEA */ u8 unkBEA[0x2];
 } MenuCharacter; // Size: 0xBEC
 
@@ -652,10 +652,10 @@ typedef struct {
     /* 0x46B4 */ u_char finalPriceStrLen;
     /* 0x46B5 */ u8 unk46B5;
     /* 0x46B6 */ u8 unk46B6[0x6];
-    /* 0x46BC */ u8 unk46BC[0x9]; // Number string Lengths
-    /* 0x46C5 */ u8 unk46C5[0x9]; // Number string Lengths
-    /* 0x46CE */ u8 unk46CE[0x9]; // Render contexts
-    /* 0x46D7 */ u8 unk46D7[0x9]; // Render contexts
+    /* 0x46BC */ u8 polys27B0PrimCounts[0x9];
+    /* 0x46C5 */ u8 polys3020PrimCounts[0x9];
+    /* 0x46CE */ u8 polys27B0RenderCtxs[0x9];
+    /* 0x46D7 */ u8 polys3020RenderCtxs[0x9];
     /* 0x46E0 */ u16 unk46E0[0x10];
     /* 0x4700 */ u16 unk4700[0x10];
     // /* 0x4720 */ u_char gearShopItemTables[5 * 20]; // Frames, armor, engines, weapons, parts. Not necessarily in that order.
@@ -754,7 +754,7 @@ typedef struct {
     /* 0x30C  */ u_char availableCharacters[0x10];
     /* 0x31C  */ u_char digits[0x9]; // Buffer for numbers parsed into a string
     /* 0x325  */ u_char input;
-    /* 0x326  */ u8 unk326;
+    /* 0x326  */ u8 cardCheckTimer; // Frames until the card slots are polled again
     /* 0x327  */ u_char shouldDrawMenu;
     /* 0x328  */ u8 unk328;
     /* 0x329  */ u_char transitionEffectState;
@@ -828,9 +828,9 @@ typedef struct {
     /* 0x4C4  */ s32 texPageX3;
     /* 0x4C8  */ s32 texPageY3;
 
-    /* 0x4CC  */ s32 unk4CC;
-    /* 0x4D0  */ s32 unk4D0;
-    /* 0x4D4  */ s32 unk4D4;
+    /* 0x4CC  */ s32 characterCellFrame; // Indexes the 6-entry colour table stepped every 15 frames
+    /* 0x4D0  */ s32 characterCellTimer; // Frames spent on the current characterCellFrame
+    /* 0x4D4  */ s32 characterCellShade; // Written to every colour channel of the character cell prims
     /* 0x4D8  */ u8 unk4D8;
     /* 0x4D9  */ u8 unk4D9;
     /* 0x4DA  */ u8 unk4DA[0x6];

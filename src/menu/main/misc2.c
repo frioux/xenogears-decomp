@@ -503,14 +503,14 @@ void MenuUpdateCardStatus(void) {
     u_char count;
 
     if (g_Menu->menuUnk2->unk4FE6) {
-        count = ++g_Menu->unk326;
+        count = ++g_Menu->cardCheckTimer;
         if (D_801E9779 < count) {
             MenuCheckCardSlot(0);
             MenuCheckCardSlot(1);
             if (g_Menu->menuUnk2->unk4F74[0] == -1 && g_Menu->menuUnk2->unk4F74[1] == -1) {
                 g_Menu->unk334 = 0;
             }
-            g_Menu->unk326 = 0;
+            g_Menu->cardCheckTimer = 0;
         }
     }
 }

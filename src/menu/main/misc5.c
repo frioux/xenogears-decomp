@@ -245,14 +245,14 @@ void MenuAddDimEffectPrims(void) {
     AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
 }
 void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag) {
-    if (pCharacter->unkBE7 == 0) {
+    if (pCharacter->shouldRender == 0) {
         return;
     }
     AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polysPortraitSmall[pCharacter->renderContext]);
     AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polys4B0[pCharacter->renderContext]);
     MenuRenderString(pCharacter->descriptionStringsLength, pCharacter, pCharacter->renderContext);
     MenuRenderString(pCharacter->levelStringLength, pCharacter->polysLevelString, pCharacter->renderContext);
-    MenuRenderString(pCharacter->unkBE1, pCharacter->polys5F0, pCharacter->renderContext);
+    MenuRenderString(pCharacter->polys5F0PrimCount, pCharacter->polys5F0, pCharacter->renderContext);
     MenuRenderString(pCharacter->hpStringLength, pCharacter->polysHpString, pCharacter->renderContext);
     MenuRenderString(pCharacter->maxHpStringLength, pCharacter->polysMaxHpString, pCharacter->renderContext);
     MenuRenderString(pCharacter->mpStringLength, pCharacter->polysMpString, pCharacter->renderContext);

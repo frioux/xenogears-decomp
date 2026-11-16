@@ -59,7 +59,7 @@ void GearShopMenuShoulderButtonUiFree(void) {
 void GearShopMenuRenderShopUi(void) {
     int i;
 
-    if (g_Menu->pManager->unk5A) {
+    if (g_Menu->pManager->shouldRenderShop) {
         for(i = 0; i < 9; i++) {
             if (g_Menu->pShop->shouldRenderPortraitHighlight[i]) {
                 AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->pShop->linesPortraitHighlight1[(i*2) + g_Menu->renderContext]);
@@ -107,8 +107,8 @@ void GearShopMenuRenderShopUi(void) {
         }
 
         for(i = 0; i < 9; i++) {
-            GearShopMenuRenderString(g_Menu->pShop->unk46BC[i], g_Menu->pShop->polys27B0[i], g_Menu->pShop->unk46CE[i]);
-            GearShopMenuRenderString(g_Menu->pShop->unk46C5[i], g_Menu->pShop->polys3020[i], g_Menu->pShop->unk46D7[i]);
+            GearShopMenuRenderString(g_Menu->pShop->polys27B0PrimCounts[i], g_Menu->pShop->polys27B0[i], g_Menu->pShop->polys27B0RenderCtxs[i]);
+            GearShopMenuRenderString(g_Menu->pShop->polys3020PrimCounts[i], g_Menu->pShop->polys3020[i], g_Menu->pShop->polys3020RenderCtxs[i]);
         }
     }
     if (g_Menu->pManager->unk5B == 1) {
@@ -593,7 +593,7 @@ void GearShopMenuUpdateCharacterPortraits(void) {
     int characterIndex;
     int numCharacters;
 
-    g_Menu->pManager->unk5A = 1;
+    g_Menu->pManager->shouldRenderShop = 1;
 
     // This loop seems horribly inefficient, because for each character index, all
     // portraits are recomputed and the entire menu redrawn...
@@ -870,7 +870,7 @@ void GearShopMenuBuildGoldGraphics(u32 value) {
 void GearShopMenuResetShopUi(u8 arg0) {
     int i;
 
-    g_Menu->pManager->unk5A = 0;
+    g_Menu->pManager->shouldRenderShop = 0;
     g_Menu->pShop->shouldRenderItemDesc = 0;
     g_Menu->pShop->unk46B5 = 0;
     g_Menu->pShop->shouldRenderPrices = 0;
@@ -879,8 +879,8 @@ void GearShopMenuResetShopUi(u8 arg0) {
     g_Menu->pShop->numPortraits = 0;
     for(i = 0; i < 9; i++) {
         g_Menu->pShop->shouldRenderPortraitHighlight[i] = 0;
-        g_Menu->pShop->unk46BC[i] = 0;
-        g_Menu->pShop->unk46C5[i] = 0;
+        g_Menu->pShop->polys27B0PrimCounts[i] = 0;
+        g_Menu->pShop->polys3020PrimCounts[i] = 0;
     }
     for(i = 0; i < 8; i++) {
         g_Menu->pShop->unk4684[i] = 0;
@@ -1257,7 +1257,7 @@ void GearShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQ
             newRowIndex = rowIndex;
             newScrollOffset = scrollOffset;
             itemPrice = GearShopMenuBuildSellItemDetails(pItemIds[scrollOffset+rowIndex], pItemTypes[scrollOffset+rowIndex]);
-            g_Menu->pManager->unk5A = 1;
+            g_Menu->pManager->shouldRenderShop = 1;
         }
 
         GearShopMenuUpdateArrowCursor(rowIndex, scrollOffset, 0, 0);
@@ -1278,7 +1278,7 @@ void GearShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQ
             case MENU_INPUT_CONFIRM:
                 if (cartTotal) {
                     GearShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
-                    g_Menu->pManager->unk5A = 0;
+                    g_Menu->pManager->shouldRenderShop = 0;
                     g_Menu->pManager->shouldRenderWindow[2] = 0;
                     g_Menu->pManager->shouldRenderWindow[3] = 0;
                     g_Menu->pManager->scrollHandleActive = 0;
@@ -1306,7 +1306,7 @@ void GearShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQ
             case MENU_INPUT_BACK:
                 continueProcessing = FALSE;
                 if (cartTotal != 0) {
-                    g_Menu->pManager->unk5A = 0;
+                    g_Menu->pManager->shouldRenderShop = 0;
                     g_Menu->pManager->shouldRenderWindow[2] = 0;
                     g_Menu->pManager->shouldRenderWindow[3] = 0;
                     g_Menu->pManager->scrollHandleActive = 0;
@@ -1877,8 +1877,8 @@ s32 GearShopMenuBuildPurchaseItemDetails(s32 rowIndex, s32 scrollOffset, u8 *unu
                     0x1000
                 );
             }
-            g_Menu->pShop->unk46BC[currentSlot] = 0;
-            g_Menu->pShop->unk46C5[currentSlot] = 0;
+            g_Menu->pShop->polys27B0PrimCounts[currentSlot] = 0;
+            g_Menu->pShop->polys3020PrimCounts[currentSlot] = 0;
             if( (u8)(itemType + 0xFD) < 2 && g_Menu->pShop->shouldRenderPortraitHighlight[currentSlot]) {
                 sp28[1] = 0;
                 sp28[0] = 0;
@@ -1887,36 +1887,36 @@ s32 GearShopMenuBuildPurchaseItemDetails(s32 rowIndex, s32 scrollOffset, u8 *unu
                     GearShopMenuParseNumberToString(sp28[0]);
                     for(j = 0; j < 3; j++) {
                         if(g_Menu->digits[6+j] != 0xff) {
-                            g_Menu->pShop->unk46BC[currentSlot] += func_8002675C(
+                            g_Menu->pShop->polys27B0PrimCounts[currentSlot] += func_8002675C(
                                 g_Menu->resources,
                                 g_Menu->digits[6+j],
-                                &g_Menu->pShop->polys27B0[currentSlot][g_Menu->pShop->unk46BC[currentSlot]*2],
+                                &g_Menu->pShop->polys27B0[currentSlot][g_Menu->pShop->polys27B0PrimCounts[currentSlot]*2],
                                 g_Menu->renderContext,
                                 (currentSlot * FONT_LETTER_HEIGHT * 2) + xPos + (8*j),
                                 0xBE,
                                 0x1000U);
                         }
                     }
-                    GearShopMenuSetStatDeltaColor(g_Menu->pShop->unk46BC[currentSlot], &g_Menu->pShop->polys27B0[currentSlot], sp30[0]);
-                    g_Menu->pShop->unk46CE[currentSlot] = g_Menu->renderContext;
+                    GearShopMenuSetStatDeltaColor(g_Menu->pShop->polys27B0PrimCounts[currentSlot], &g_Menu->pShop->polys27B0[currentSlot], sp30[0]);
+                    g_Menu->pShop->polys27B0RenderCtxs[currentSlot] = g_Menu->renderContext;
                 }
 
                 if(sp28[1]) {
                     GearShopMenuParseNumberToString(sp28[1]);
                     for(j = 0; j < 3; j++) {
                         if(g_Menu->digits[6+j] != 0xff) {
-                            g_Menu->pShop->unk46C5[currentSlot] += func_8002675C(
+                            g_Menu->pShop->polys3020PrimCounts[currentSlot] += func_8002675C(
                                 g_Menu->resources,
                                 g_Menu->digits[6+j],
-                                &g_Menu->pShop->polys3020[currentSlot][g_Menu->pShop->unk46C5[currentSlot]*2],
+                                &g_Menu->pShop->polys3020[currentSlot][g_Menu->pShop->polys3020PrimCounts[currentSlot]*2],
                                 g_Menu->renderContext,
                                 (currentSlot * FONT_LETTER_HEIGHT * 2) + xPos + (8*j),
                                 0xC6,
                                 0x1000U);
                         }
                     }
-                    GearShopMenuSetStatDeltaColor(g_Menu->pShop->unk46C5[currentSlot], &g_Menu->pShop->polys3020[currentSlot], sp30[1]);
-                    g_Menu->pShop->unk46D7[currentSlot] = g_Menu->renderContext;
+                    GearShopMenuSetStatDeltaColor(g_Menu->pShop->polys3020PrimCounts[currentSlot], &g_Menu->pShop->polys3020[currentSlot], sp30[1]);
+                    g_Menu->pShop->polys3020RenderCtxs[currentSlot] = g_Menu->renderContext;
                 }
             }
             currentSlot++;
@@ -2102,7 +2102,7 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
             newRowIndex = rowIndex;
             itemPrice = GearShopMenuBuildPurchaseItemDetails(rowIndex, scrollOffset, values);
             newScrollOffset = scrollOffset;
-            g_Menu->pManager->unk5A = 1;
+            g_Menu->pManager->shouldRenderShop = 1;
             if (disableQuantitySelection) {
                 unkWindowX = 0xC8;
                 projectedRemainingFunds = newProjectedRemainingFunds;
@@ -2146,7 +2146,7 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
 
                 if (cartTotal != 0) {
                     GearShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
-                    g_Menu->pManager->unk5A = FALSE;
+                    g_Menu->pManager->shouldRenderShop = FALSE;
                     g_Menu->pManager->shouldRenderWindow[2] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[3] = FALSE;
                     g_Menu->pManager->scrollHandleActive = FALSE;
@@ -2192,7 +2192,7 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
                 continueProcessing = FALSE;
                 g_Menu->pManager->shouldRenderStrings[disableQuantitySelection] = 0;
                 if(cartTotal && !disableQuantitySelection) {
-                    g_Menu->pManager->unk5A = 0;
+                    g_Menu->pManager->shouldRenderShop = 0;
                     g_Menu->pManager->shouldRenderWindow[2] = 0;
                     g_Menu->pManager->shouldRenderWindow[3] = 0;
                     g_Menu->pManager->scrollHandleActive = 0;

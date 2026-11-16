@@ -320,7 +320,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
         pPoly = &pStringList->polys[i];
         MenuInitializePolyFt4(pPoly);
         if ((flags & 0xFF) == 0) {
-            pStringList->unk7C = column;
+            pStringList->palette = column;
             pPoly->tpage = GetTPage(0, 0, 0x140, 0);
             pPoly->u0 = u;
             v = (index + yOffset) / 4 * 0xD;
@@ -337,7 +337,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
                 SetSemiTrans(pPoly, 1);
                 setRGB0(pPoly, 0x20, 0x20, 0x20);
             }
-            pStringList->unk7C = (flags & 0x7F) + 0xFF;
+            pStringList->palette = (flags & 0x7F) + 0xFF;
             pPoly->tpage = color | GetTPage(0, 0, 0x180, 0x80);
             v = row * 0xD + yOffset;
             pPoly->u0 = column * 0x60;
@@ -349,7 +349,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
             pPoly->v3 = v + 0xD;
             pPoly->u3 = column * 0x60 + pStringList->width;
         }
-        if (pStringList->unk7C != 0) {
+        if (pStringList->palette != 0) {
             pPoly->clut = g_SystemPalette2;
         } else {
             pPoly->clut = g_SystemPalette1;

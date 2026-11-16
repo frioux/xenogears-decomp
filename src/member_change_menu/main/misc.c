@@ -200,7 +200,7 @@ void MemberChangeMenuInitialize(void) {
 
     g_Menu->mainMenuChoice = 4;
     g_Menu->mainMenuPrevChoice = 0xFF;
-    g_Menu->unk326 = 0x3C;
+    g_Menu->cardCheckTimer = 0x3C;
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
@@ -264,7 +264,7 @@ void MemberChangeMenuInitializeMenuStringPolys(MenuString* pString, int index, s
         setRGB0(pPoly, 128, 128, 128);
 
         if (!(attr & 0xFF)) {
-            pString->unk7C = (index & 1);
+            pString->palette = (index & 1);
             setTPage(pPoly, 0, 0, 320, 0);
 
             #define texCoordV  (((index + arg2) / 4) * 13)
@@ -285,7 +285,7 @@ void MemberChangeMenuInitializeMenuStringPolys(MenuString* pString, int index, s
                 setRGB0(pPoly, var_s1, var_s1, var_s1);
             }
 
-            pString->unk7C = (attr & 0x7F) + 0xFF;
+            pString->palette = (attr & 0x7F) + 0xFF;
             setTPage(pPoly, 0, 0, 0x180, 0x80);
             pPoly->tpage = var_s1 | pPoly->tpage;
 
@@ -302,7 +302,7 @@ void MemberChangeMenuInitializeMenuStringPolys(MenuString* pString, int index, s
             #undef texCoordU
         }
 
-        MenuSetSystemPalette(pPoly, pString->unk7C);
+        MenuSetSystemPalette(pPoly, pString->palette);
     }
 
     pString->hasVertices = 0;
@@ -471,7 +471,7 @@ void MemberChangeMenuInitializeWindowGraphics(unsigned char index) {
     rect.w = 0x100;
 
     g_Menu->pManager->shouldRenderWindow[index] = FALSE;
-    g_Menu->pManager->unk27[index] = 0;
+    g_Menu->pManager->isWindowOpening[index] = 0;
 
     // Window background
     for (i = 0; i < 2; i++) {
@@ -825,7 +825,7 @@ void MemberChangeMenuSetWindow(u_char index, u_short x, u_short y, u_short width
 
 void MemberChangeMenuFreeWindow(u_char index) {
     g_Menu->pManager->shouldRenderWindow[index] = FALSE;
-    g_Menu->pManager->unk27[index] = 0;
+    g_Menu->pManager->isWindowOpening[index] = 0;
     HeapFree(g_Menu->windows[index]);
     HeapFree(g_Menu->windowParameters[index]);
 }
@@ -851,7 +851,7 @@ void MemberChangeMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, 
         pWindowParams->height = height;
         pWindowParams->curWidth = 0;
         pWindowParams->curHeight = 0;
-        g_Menu->pManager->unk27[windowIndex] = 1;
+        g_Menu->pManager->isWindowOpening[windowIndex] = 1;
         pWindowParams->unk12 = arg6;
         pWindowParams->zIndex = zIndex;
         return;
@@ -867,7 +867,7 @@ void MemberChangeMenuUpdateWindows(void) {
 
     for (i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         pWindowInfo = g_Menu->windowParameters[i];
-        if ((g_Menu->pManager->unk27[i]) && pWindowInfo->isOpen == 0) {
+        if ((g_Menu->pManager->isWindowOpening[i]) && pWindowInfo->isOpen == 0) {
 
             flag = 0;
 
@@ -996,7 +996,7 @@ void MemberChangeMenuRenderBackgroundDim(void) {
 void MemberChangeMenuRenderCharacter(MenuCharacter* pCharacter, u_char isBenched) {
     int i;
 
-    if (pCharacter->unkBE7) {
+    if (pCharacter->shouldRender) {
         AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polysPortraitSmall[pCharacter->renderContext]);
         AddPrim(&g_Menu->pGfxEnv->ot[4], &pCharacter->polys4B0[pCharacter->renderContext]);
 
@@ -1043,7 +1043,7 @@ void MemberChangeMenuRenderCharacter(MenuCharacter* pCharacter, u_char isBenched
         }
 
         if (isBenched) {
-            for (i = 0; i < pCharacter->unkBE9; i++) {
+            for (i = 0; i < pCharacter->polys2D0PrimCount; i++) {
                 AddPrim(
                     &g_Menu->pGfxEnv->ot[4],
                     &pCharacter->polys2D0[i * 2 + pCharacter->renderContext]
@@ -1731,13 +1731,13 @@ void MemberChangeMenuSetCharacterLevelStrings(MenuCharacter* pCharacter, u_char 
     }
 
     MemberChangeMenuParseNumberToString(g_GameState.characters[characterIndex].unk63);
-    pCharacter->unkBE1 = 0;
+    pCharacter->polys5F0PrimCount = 0;
     for (i = 0, j = 0; i < 3; i++) {
         digit = g_Menu->digits[i + 6];
         if (digit != 0xFF) {
-            pCharacter->unkBE1 += func_8002675C(
+            pCharacter->polys5F0PrimCount += func_8002675C(
                 g_Menu->resources, digit,
-                &pCharacter->polys5F0[pCharacter->unkBE1 * 2], g_Menu->renderContext,
+                &pCharacter->polys5F0[pCharacter->polys5F0PrimCount * 2], g_Menu->renderContext,
                 pPositionsX[11] + j * 8,
                 pPositionsY[11] + verticalSpacing * localIndex,
                 0x1000
@@ -1746,7 +1746,7 @@ void MemberChangeMenuSetCharacterLevelStrings(MenuCharacter* pCharacter, u_char 
         }
     }
 
-    for (i = 0; i < pCharacter->unkBE1; i++) {
+    for (i = 0; i < pCharacter->polys5F0PrimCount; i++) {
         SetShadeTex(&pCharacter->polys5F0[i * 2 + g_Menu->renderContext], 0);
         setRGB0(&pCharacter->polys5F0[i * 2 + g_Menu->renderContext], 0, 128, 0);
     }
@@ -1830,8 +1830,8 @@ void MemberChangeMenuUpdateCharacter(MenuCharacter* pCharacter, u_char character
     MemberChangeMenuBuildCharacterLabelsAndPortrait(pCharacter, characterIndex, localIndex, pPositionsX, pPositionsY, verticalSpacing);
     MemberChangeMenuSetCharacterLevelStrings(pCharacter, characterIndex, localIndex, pPositionsX, pPositionsY, verticalSpacing);
     MemberChangeMenuSetCharacterHpAndMpStrings(pCharacter, characterIndex, localIndex, pPositionsX, pPositionsY, verticalSpacing);
-    pCharacter->unkBE9 = 0;
-    pCharacter->unkBE7 = 1;
+    pCharacter->polys2D0PrimCount = 0;
+    pCharacter->shouldRender = 1;
     pCharacter->renderContext = g_Menu->renderContext;
 }
 
@@ -1856,7 +1856,7 @@ void MemberChangeMenuUpdateCharacters(u_char offset) {
                 1
             );
         } else {
-            pCharacter->unkBE7 = 0;
+            pCharacter->shouldRender = 0;
         }
     }
 
@@ -1882,7 +1882,7 @@ void MemberChangeMenuUpdateCharacters(u_char offset) {
                 0
             );
         } else {
-            pCharacter->unkBE7 = 0;
+            pCharacter->shouldRender = 0;
         }
     }
 }

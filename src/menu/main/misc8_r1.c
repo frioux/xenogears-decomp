@@ -77,7 +77,7 @@ s32 MenuBeginCardOperation(void) {
     g_Menu->menuUnk2->unk4F84[4] = 0;
     g_Menu->menuUnk2->unk4F84[5] = 0;
     g_Menu->menuUnk2->unk4FE6 = 2;
-    g_Menu->unk326 = 0x3C;
+    g_Menu->cardCheckTimer = 0x3C;
     MenuRenderFrame();
     MenuRenderFrame();
     if (func_801C93A8() == 0) {

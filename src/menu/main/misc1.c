@@ -444,11 +444,11 @@ void MenuResetRenderContext(void) {
 }
 
 void MenuResetAnimationCounters(void) {
-    g_Menu->unk4CC = 0;
-    g_Menu->unk4D0 = 0;
+    g_Menu->characterCellFrame = 0;
+    g_Menu->characterCellTimer = 0;
     g_Menu->unk4D8 = 0;
     g_Menu->unk4D9 = 0;
-    g_Menu->unk4D4 = 0;
+    g_Menu->characterCellShade = 0;
 }
 
 void MenuFillVramRectWhite(void) {

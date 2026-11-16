@@ -287,7 +287,7 @@ void GearShopMenuFilterPartyMembers(void) {
 
     g_Menu->mainMenuChoice = 4;
     g_Menu->mainMenuPrevChoice = 0xFF;
-    g_Menu->unk326 = 0x3C;
+    g_Menu->cardCheckTimer = 0x3C;
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
@@ -334,7 +334,7 @@ void GearShopMenuInitializeMenuStringPolys(MenuString* pMenuString, s32 arg1, s3
         setRGB0(quad, 0x80, 0x80, 0x80);
 
         if (!attributes) {
-            pMenuString->unk7C = (arg1 & 1);
+            pMenuString->palette = (arg1 & 1);
             setTPage(quad, 0, 0, 0x140, 0);
 
 #define texCoordV  (((arg1 + arg2) / 4) * 13)
@@ -356,7 +356,7 @@ void GearShopMenuInitializeMenuStringPolys(MenuString* pMenuString, s32 arg1, s3
                 setRGB0(quad, tpage_offset, tpage_offset, tpage_offset);
             }
 
-            pMenuString->unk7C = (attributes & 0x7F) + 0xFF;
+            pMenuString->palette = (attributes & 0x7F) + 0xFF;
             setTPage(quad, 0, 0, 0x180, 0x80);
             quad->tpage = tpage_offset | quad->tpage;
 
@@ -373,7 +373,7 @@ void GearShopMenuInitializeMenuStringPolys(MenuString* pMenuString, s32 arg1, s3
 #undef texCoordV
 #undef texCoordU
         }
-        pMenuString->polys[i].clut = pMenuString->unk7C ? g_SystemPalette2 : g_SystemPalette1;
+        pMenuString->polys[i].clut = pMenuString->palette ? g_SystemPalette2 : g_SystemPalette1;
     }
 
     pMenuString->hasVertices = 0;
@@ -829,7 +829,7 @@ void GearShopMenuInitializeWindowGraphics(u_char windowIndex) {
     rect.w = 256;
 
     g_Menu->pManager->shouldRenderWindow[windowIndex] = FALSE;
-    g_Menu->pManager->unk27[windowIndex] = FALSE;
+    g_Menu->pManager->isWindowOpening[windowIndex] = FALSE;
 
     // Window background
     for (i = 0; i < 2; i++) {
@@ -1176,7 +1176,7 @@ void GearShopMenuSetWindow(u_char windowIndex, u_short x, u_short y, u_short wid
 
 void GearShopMenuFreeWindow(u_char index) {
     g_Menu->pManager->shouldRenderWindow[index] = FALSE;
-    g_Menu->pManager->unk27[index] = FALSE;
+    g_Menu->pManager->isWindowOpening[index] = FALSE;
     HeapFree(g_Menu->windows[index]);
     HeapFree(g_Menu->windowParameters[index]);
 }
@@ -1202,7 +1202,7 @@ void GearShopMenuInitializeWindow(u_char windowIndex, u_short x, u_short y, u_sh
         pWindowParameters->height = height;
         pWindowParameters->curWidth = 0;
         pWindowParameters->curHeight = 0;
-        g_Menu->pManager->unk27[windowIndex] = TRUE;
+        g_Menu->pManager->isWindowOpening[windowIndex] = TRUE;
         pWindowParameters->unk12 = arg6;
         pWindowParameters->zIndex = zIndex;
         return;
@@ -1222,7 +1222,7 @@ void GearShopMenuUpdateWindows(void) {
 
     for(i = 0; i < MENU_MAX_NUM_WINDOWS; i++) {
         windowParams = g_Menu->windowParameters[i];
-        if ((g_Menu->pManager->unk27[i]) && (windowParams->isOpen == 0)) {
+        if ((g_Menu->pManager->isWindowOpening[i]) && (windowParams->isOpen == 0)) {
             clipCount = 0;
             if ((windowParams->curWidth + 0x20) >= (s32) windowParams->width) {
                 clippedWidth = windowParams->width;

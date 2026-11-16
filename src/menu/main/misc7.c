@@ -353,7 +353,7 @@ void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short he
 }
 void MenuFreeWindow(u_char index) {
     g_Menu->pManager->shouldRenderWindow[index] = 0;
-    g_Menu->pManager->unk27[index] = 0;
+    g_Menu->pManager->isWindowOpening[index] = 0;
     HeapFree(g_Menu->windows[index]);
     HeapFree(g_Menu->windowParameters[index]);
 }
