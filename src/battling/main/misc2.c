@@ -521,7 +521,7 @@ extern void func_8007CD44(s32, void *, void *, s32);
 extern void BattleEffectQueueLineByType(void *, void *);
 extern void BattleEffectSetColor(u8 *);
 extern void func_8007C880(s32, void *, s32, s32);
-extern void func_8007D190(void *, s32);
+extern void BattleEffectAddSlotFromVector(void *, s32);
 
 void func_80073F34(u8 *p0, u8 *p1) {
     s32 vecA[4];
@@ -551,7 +551,7 @@ void func_80073F34(u8 *p0, u8 *p1) {
     if (*(u8 *)(p1 + 1) >= 0x20) {
         func_8007C880((*(u32 *)(p0 + 0xD0) >> 27) & 1, vecA, r, *(u8 *)(p1 + 1) - 0x20);
     } else {
-        func_8007D190(vecA, *(u8 *)(p1 + 1));
+        BattleEffectAddSlotFromVector(vecA, *(u8 *)(p1 + 1));
     }
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073F34);

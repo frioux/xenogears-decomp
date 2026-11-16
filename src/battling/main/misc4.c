@@ -91,7 +91,7 @@ extern void func_80074678();
 extern void BattleTransformEntryVertex();
 extern void BattleEffectSetColor();
 extern s32 func_8007CD44();
-extern void func_8007D190();
+extern void BattleEffectAddSlotFromVector();
 extern void func_8007D7A8();
 extern void func_8007DC74();
 extern s32 func_80082488();
@@ -500,8 +500,8 @@ void func_8007920C(Actor* p) {
     p->unk944 = (pos[0][2] + pos[1][2]) / 2;
 
     if ((p->unkD0 & 0x80000) && (p->unkD0 & 0x60000000) != 0x20000000 && !(p->unk90A & 1)) {
-        func_8007D190(pos[0], 9);
-        func_8007D190(pos[1], 9);
+        BattleEffectAddSlotFromVector(pos[0], 9);
+        BattleEffectAddSlotFromVector(pos[1], 9);
     }
 
     if (p->unk90B != 0) {

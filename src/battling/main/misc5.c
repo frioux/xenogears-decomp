@@ -138,7 +138,7 @@ extern u8 D_800928A0;
 extern int rand(void);
 
 extern void BattleDrawLineQuads(s32);
-extern void func_8007D0B4(SVector *pVec);
+extern void BattleEffectJitterSVector(SVector *pVec);
 extern void func_8007D334(s32, s32, s32);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
@@ -476,14 +476,14 @@ whole `rand() % 0x30` expansion. Tried: `vx - 0x18 + rand() % 0x30` (73.11%),
 the cast is folded away), a `u16 v = pVec->vx` temp (65.42%), and two statements
 per field (74.65%, the load then hoists above the call). Same under gcc-2.6.0 and
 gcc-2.7.2-cdk. Not run through the permuter yet.
-void func_8007D0B4(SVector *pVec) {
+void BattleEffectJitterSVector(SVector *pVec) {
     pVec->vx = (s16)(pVec->vx - 0x18) + rand() % 0x30;
     pVec->vy = (s16)(pVec->vy - 0x18) + rand() % 0x30;
     pVec->vz = (s16)(pVec->vz - 0x18) + rand() % 0x30;
 }
 */
 
-void func_8007D0B4(SVector *pVec) {
+void BattleEffectJitterSVector(SVector *pVec) {
     u8 offset = 0x18;
 
     pVec->vx = (pVec->vx - offset) + rand() % 0x30;
@@ -493,7 +493,7 @@ void func_8007D0B4(SVector *pVec) {
 
 // s32, not void: retail keeps a nop in the switch guard's delay slot, which gcc
 // 2.7.2 only emits for a non-void return type.
-s32 func_8007D190(VECTOR *pVec, s32 action) {
+s32 BattleEffectAddSlotFromVector(VECTOR *pVec, s32 action) {
     SVector vec;
 
     vec.vx = pVec->vx;
@@ -501,31 +501,31 @@ s32 func_8007D190(VECTOR *pVec, s32 action) {
     vec.vz = pVec->vz;
     switch (action) {
     case 8:
-        func_8007D0B4(&vec);
+        BattleEffectJitterSVector(&vec);
         /* fallthrough */
     case 0:
         BattleEffectAddSlot(&vec, 0);
         break;
     case 9:
-        func_8007D0B4(&vec);
+        BattleEffectJitterSVector(&vec);
         /* fallthrough */
     case 1:
         BattleEffectAddSlot(&vec, 1);
         break;
     case 10:
-        func_8007D0B4(&vec);
+        BattleEffectJitterSVector(&vec);
         /* fallthrough */
     case 2:
         BattleEffectAddSlot(&vec, 2);
         break;
     case 11:
-        func_8007D0B4(&vec);
+        BattleEffectJitterSVector(&vec);
         /* fallthrough */
     case 3:
         BattleEffectAddSlot(&vec, 3);
         break;
     case 12:
-        func_8007D0B4(&vec);
+        BattleEffectJitterSVector(&vec);
         /* fallthrough */
     case 4:
         BattleEffectAddSlot(&vec, 4);

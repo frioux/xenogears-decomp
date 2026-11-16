@@ -104,7 +104,7 @@ extern u8 D_80099D98;
 extern BattleWork D_80096F30;
 extern BattleWork D_80096F64;
 extern void func_8008FCC8(BattleActor* pActor, BattleWork* pWork);
-extern void func_8009031C(BattleActor* pActor, BattleWork* pWork);
+extern void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork);
 extern void func_80090580(BattleActor* pActor, BattleWork* pWork);
 extern void func_80090990(BattleActor* pActor, BattleWork* pWork);
 extern void BattleUpdateActorApproach(BattleActor* p, s32 arg1, s32 arg2);
@@ -431,7 +431,7 @@ s32 BattleDecideActorAction(BattleActor* pActor, BattleWork* pWork) {
     }
     return 1;
 }
-void func_8009031C(BattleActor* pActor, BattleWork* pWork) {
+void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
     u8 v;
 
     if (func_8008FACC(pActor, pWork) != 0) {
@@ -588,7 +588,7 @@ void BattleDispatchWorkState(BattleActor* pActor) {
             func_8008FCC8(pActor, pWork);
             break;
         case 1:
-            func_8009031C(pActor, pWork);
+            BattleUpdateWorkState1(pActor, pWork);
             break;
         case 2:
             func_80090990(pActor, pWork);

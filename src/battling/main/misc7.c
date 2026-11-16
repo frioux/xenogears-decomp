@@ -432,7 +432,7 @@ void BattleHandleSelectionInputPad1(void) {
 
 /* The empty cases spell out sprite ids 4..31: without them cc1 compares the
    special ids one by one instead of emitting the jtbl_ dispatch. */
-void func_80080570(void) {
+void BattleReloadSlotEntries(void) {
     u32 entry0;
     u32 entry1;
 

@@ -592,7 +592,7 @@ void func_80073300(void) {
 }
 */
 
-void func_80073398(void) {
+void WorldMapSetPositionFromState(void) {
     s32 nMode;
     s32 nPos;
 
