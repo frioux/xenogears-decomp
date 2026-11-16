@@ -508,30 +508,31 @@ extern int rand(void);
         }                                                               \
     }
 
-// PARK REPAIR (round 163): 96.11% (1220 bytes; the original is 1236, so this body is
-// FOUR INSTRUCTIONS SHORT). The old note 89.60% came from a version that computed the
-// step difference in a local, so its "the macro reproduces retail shape exactly" claim
-// was wrong: retail computes the `subu` AFTER the `beq` that compares the two high
-// halves, i.e. in its delay slot, and gcc only does that when the difference is
-// spelled out in the second operand of the && instead of held in a declared local.
-// That is why the macro above writes (target - value) three times.
-// What is left is the shake tail, and it is a real statement short, not a register tie:
-//  - three `if (D_800AF8Ex < 0)` guards come out as two bgez here, and
-//  - the ((s16*)g_Scene.unk98)[n] casts come out as lui/addiu plus offset-0 loads where
-//    retail folds the displacement into the load (`lh v0,152(v0)`), and retail stores
-//    `sw $zero, g_FieldCameraShakeOffset` as a bare macro store through $at where this materialises
-//    the address into a saved register.
-// The tail wants a typed struct for the g_Scene +0x98 block and for the g_FieldCameraShakeOffset/E4/E8
-// shake-offset vector (x at 0, y at 4, z at 8; three separate s32 symbols in the
-// object, added into the g_Scene +0xA0 block, with g_Scene.unk98[0]/[1]/[2] the three
-// s16 counters and +0x8/+0x14 their offset/delta pairs). Everything above the shake
-// block is exact.
-// screened: Default 96.11 (best) - not a preset question.
+// PARK (round 166): 98.25%, and the compiled size now EQUALS the original's
+// (1212 bytes = 303 instructions). Two things in the round-163 note were wrong:
+//  - the body was not short of statements, it was short because the third clamp guard
+//    reloads D_800AF8E8 where retail tests the product still sitting in $v1. Giving
+//    ONLY that product a local (shakeZ) reproduces retail exactly, and the whole tail
+//    from the +0xA2 amplitude load down is now line-for-line identical;
+//  - the initial zeroing has to go through the GLOBALS (g_FieldCameraShakeOffset = 0;),
+//    while the pointer local pShakeOffset must be assigned just before the three rand
+//    products - that is what makes retail keep &g_FieldCameraShakeOffset in $s0 for the
+//    later load/store through it while the earlier zeroing stays a macro store.
+// What is left is one class of difference in three places: gcc keeps a ZERO-offset
+// symbol address in a register (`lui/addiu $t0,&g_CameraEye` then lw+sw through it; the
+// same for &g_Scene.unk98, which it then keeps live into the else-if branch) where
+// retail folds the displacement into the load/store (`lh $v0,152($v0)`, `lui $at / sw
+// $v0,%lo(...)($at)`). It also shifts the mult temporaries one register ($t1/$t2 here
+// against retail's $t0/$t1). Naming the g_CameraEye word and the g_Scene +0x98 block as
+// fields is a struct/field job in the shared header, not a C shape.
+// permuter: base=531 best=426 (PERMUTER_BETTER, chained-assignment debris only).
+// screened: Default 98.25 (best) - not a preset question.
+/*
 void func_80072D74(void) {
-    s32* pSnapFrames;
-    s32* pShakeOffset;
     s32 atStepSq;
     s32 eyeStepSq;
+    s32* pSnapFrames;
+    s32* pShakeOffset;
 
     if (g_Scene.unk48 & FIELD_SCENE_INTERPOLATING_SCREEN_Z) {
         if (g_Scene.unk80 != 0) {
@@ -600,6 +601,8 @@ void func_80072D74(void) {
         }
     }
 }
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
 
