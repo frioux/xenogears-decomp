@@ -104,14 +104,121 @@ void BattleSetEntryColor(u8 *pActor) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008A7E0);
+// The block a node composes its placement into, named by the node's 0x8C
+// pointer: the matrix the node builds at 0x4C and the two it is multiplied
+// into, 0x6C first.
+typedef struct {
+    /* 0x00 */ u8 pad00[0x0C];
+    /* 0x0C */ MATRIX unk0C;
+    /* 0x2C */ u8 pad2C[0x20];
+    /* 0x4C */ MATRIX unk4C;
+    /* 0x6C */ MATRIX unk6C;
+} Misc14ModelMatrices; // Size: 0x8C
 
-// A model node (the record src/battling/main/misc13.c declares as Misc13Node,
-// which also carries the two child nodes this unit never reads).
+// A model node (the record src/battling/main/misc13.c declares as Misc13Node):
+// a state tag, a payload whose type depends on the state, the matrices this
+// unit composes every frame, the block they are composed into and two children.
 typedef struct Misc14ModelNode {
     /* 0x00 */ s32 state;
     /* 0x04 */ void* pData;
+    /* 0x08 */ void (*pUpdate)(void);
+    /* 0x0C */ MATRIX unk0C;
+    /* 0x2C */ SVECTOR unk2C;
+    /* 0x34 */ VECTOR unk34;
+    /* 0x44 */ SVECTOR unk44;
+    /* 0x4C */ MATRIX unk4C;
+    /* 0x6C */ MATRIX unk6C;
+    /* 0x8C */ Misc14ModelMatrices* pMatrices;
+    /* 0x90 */ struct Misc14ModelNode* pChildA;
+    /* 0x94 */ struct Misc14ModelNode* pChildB;
 } Misc14ModelNode; // Size: 0x9C
+
+// The state-5 payload as this function reads it (the layout
+// src/battling/main/misc15.c calls a ModelBlock): a type word and the record
+// the shadow pass is run from, whose vertex area is at +0x8 and whose source
+// data is at +0xC.
+typedef struct {
+    /* 0x00 */ u8 pad00[0x8];
+    /* 0x08 */ u8* pVerts;
+    /* 0x0C */ void* pData;
+} Misc14ShadowRecord; // Size: 0x10
+
+typedef struct {
+    /* 0x00 */ s32 type;
+    /* 0x04 */ Misc14ModelMatrices* pMatrices;
+    /* 0x08 */ u32 pad08;
+    /* 0x0C */ Misc14ShadowRecord* pShadow;
+} Misc14State5Data; // Size: 0x10
+
+extern s32 D_8009289C;
+// The three words the node's translation is offset by; src/battling/main/misc16.c
+// declares them the same way (one global per word, read through .vx).
+extern VECTOR D_80096FA8;
+extern VECTOR D_80096FAC;
+extern VECTOR D_80096FB0;
+extern void func_80030B14(MATRIX* pMatrix);
+extern void func_800731F8(MATRIX* pMatrix, SVECTOR* pVector);
+extern void BattleProjectShadowVerts(void* pSource, u8* pVerts);
+
+void func_8008A7E0(Misc14ModelNode* pNode) {
+    if (pNode->pUpdate != NULL) {
+        pNode->pUpdate();
+    }
+    switch (pNode->state) {
+    case 2:
+        RotMatrix(&pNode->unk44, &pNode->unk0C);
+        if (D_8009289C != 0) {
+            MulMatrix0(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk6C);
+        } else {
+            pNode->unk6C = pNode->unk0C;
+        }
+        func_800731F8(&pNode->unk0C, (SVECTOR*)((u8*)pNode->pData + 0x10));
+        pNode->unk4C = pNode->unk0C;
+        pNode->unk4C.t[2] = 0;
+        pNode->unk4C.t[1] = 0;
+        pNode->unk4C.t[0] = 0;
+        pNode->unk0C.t[0] = pNode->unk34.vx - D_80096FA8.vx;
+        pNode->unk0C.t[1] = pNode->unk34.vy - D_80096FAC.vx;
+        pNode->unk0C.t[2] = pNode->unk34.vz - D_80096FB0.vx;
+        CompMatrix(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk0C);
+        break;
+    case 0:
+    case 1:
+        if (pNode->pMatrices != NULL) {
+            pNode->unk34.vx = pNode->unk2C.vx;
+            pNode->unk34.vy = pNode->unk2C.vy;
+            pNode->unk34.vz = pNode->unk2C.vz;
+            RotMatrix(&pNode->unk44, &pNode->unk0C);
+            TransMatrix(&pNode->unk0C, &pNode->unk34);
+            MulMatrix0(&pNode->pMatrices->unk6C, &pNode->unk0C, &pNode->unk6C);
+            CompMatrix(&pNode->pMatrices->unk4C, &pNode->unk0C, &pNode->unk4C);
+            CompMatrix(&pNode->pMatrices->unk0C, &pNode->unk0C, &pNode->unk0C);
+        }
+        if (pNode->state == 1 && (*(u32*)pNode->pData & 1) == 0) {
+            func_80030B14(&pNode->unk6C);
+            gte_SetRotMatrix_gpr(&pNode->unk0C);
+            BattleRenderActorModel(pNode->pData);
+        }
+        break;
+    case 5:
+        if (((Misc14State5Data*)pNode->pData)->type == 1) {
+            pNode->unk0C = ((Misc14State5Data*)pNode->pData)->pMatrices->unk4C;
+            gte_SetRotMatrix_gpr(&pNode->unk0C);
+            if (D_80092914 != 0) {
+                BattleSetEntryColor((u8*)pNode);
+            }
+            BattleProjectShadowVerts(((Misc14State5Data*)pNode->pData)->pShadow->pData,
+                                     ((Misc14State5Data*)pNode->pData)->pShadow->pVerts);
+        }
+        break;
+    }
+    if (pNode->pChildB != NULL) {
+        func_8008A7E0(pNode->pChildB);
+    }
+    if (pNode->pChildA != NULL) {
+        func_8008A7E0(pNode->pChildA);
+    }
+}
 
 void BattleSetModelLights(Misc14ModelNode **pNodes) {
     func_80030A30(0, pNodes[0]->pData);
