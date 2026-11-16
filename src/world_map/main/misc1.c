@@ -549,16 +549,16 @@ void WorldMapInitGfxEnv(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
-/* best: 92.05%. JTBL_LAYOUT, do not retry: retail's jtbl_8006FB0C is SIX words
-   (.size 0x18, the last one 0x00000000) while the 5-case switch emits five
-   (0x14), so converting this stub shortens the unit's .rodata by 4 bytes and
-   shifts every later table; the next stub's table starts at 0x34, i.e. the zero
-   word belongs to this one. Body-level residue: the value pseudo lands in $a1
-   where retail uses $v0 (retail reuses $v0, dead after `jr v0`), and gcc merges
-   case 3 and case 4 into one block where retail has two. Shapes tried: the
-   explicit case 0 (required for a five-entry table, retail jumps it straight to
-   the epilogue), every case as `nMode = N; break;`, one shared store after the
-   switch.
+/* best: 92.05%, 144 bytes vs retail's 152. The JTBL layout is NOT a blocker (a
+   previous note was wrong): retail's table starts 8-aligned at .rodata+0x18, so
+   the trailing 0x00000000 word in jtbl_8006FB0C is the .align 3 pad before the
+   next table, and a 5-entry C table at that offset reproduces the bytes exactly.
+   The single blocker is that gcc folds `case 3:` and `case 4:` (both `nMode = 7`)
+   into ONE block (144 bytes instead of 152). Tried with no change: both arms
+   spelled separately, the arm bodies in reverse order, one arm wrapped in
+   do{...}while(0), one arm in a bare { } block. Secondary: the value pseudo lands
+   in $a1 where retail uses $v0, so the else chain emits `beq $3,$0` + `li a1,1`
+   in the delay slot instead of retail's `bnez $3` + `addiu v0,2`.
 */
 /*
 void func_80073300(void) {
@@ -592,26 +592,20 @@ void func_80073300(void) {
 }
 */
 
-/* BLOCKED, do not convert: the stub reads jtbl_8006FB24, so it needs a C switch,
-   and any C switch makes cc1 emit a table into this unit's .rodata. The overlay
-   linker places every misc unit's .rodata after the asm rodata but BEFORE .text
-   (linker/world_map.ld), so the table shifts all world_map code even at objdiff
-   100%. Same for func_80073300 above. */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073398);
-/* best: 85.11%. Cases 1,2 share a block; 4,5,7 share a block; 3 and 6 fall
-   through to the epilogue, which is why the table has 7 entries.
-
 void func_80073398(void) {
     s32 nMode;
+    s32 nPos;
 
     nMode = D_8009BE10;
     g_GameState.unk1836 = 0;
     switch (nMode) {
     case 1:
     case 2:
-        D_8009C5AC = g_GameState.unk1820 << 12;
+        nPos = g_GameState.unk1820 << 12;
+        D_8009C5AC = nPos;
         D_8009C584 = g_GameState.unk1824;
-        D_8009C5B4 = g_GameState.unk1822 << 12;
+        nPos = g_GameState.unk1822 << 12;
+        D_8009C5B4 = nPos;
         break;
     case 4:
     case 5:
@@ -621,7 +615,6 @@ void func_80073398(void) {
         break;
     }
 }
-*/
 
 /* best: 94.74%. A single s32 nPos reused for both coordinates (below) is
    better than two separate temporaries (91.29): with separate pseudos gcc picks
