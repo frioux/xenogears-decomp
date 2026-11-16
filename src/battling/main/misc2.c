@@ -299,13 +299,14 @@ extern u8 D_80091C0C[];
 extern void func_8008D680(BattleEffect *, u8 *, s32);
 extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, u8 *);
 
-void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
+void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     s32 n = D_80092648;
     BattleEffect *pEffect = D_80092644;
     u8 *p = (u8 *)pEffect;
 
-    /* Written through a byte pointer: a typed store lets gcc hoist the next
-       global load above the previous store and the original interleaves. */
+    /* Typed stores let gcc hoist the next global load above the previous
+       store; the original interleaves load and store, so the position and
+       rotation words go through a byte view. */
     *(s16 *)(p + 0x14) = D_80092A24;
     *(s16 *)(p + 0x16) = D_80092A28;
     *(s16 *)(p + 0x18) = D_80092A2C;
@@ -314,7 +315,7 @@ void BattleEffectSetMatrix(u8 *p0, u8 *p1) {
     *(s16 *)(p + 0x38) = 0;
     func_8008D680(pEffect, D_80091C0C, n);
     gte_SetTransRotMatrix_gpr(p1);
-    BattleEffectUpdateEntries(pEffect, p0, p1);
+    BattleEffectUpdateEntries(pEffect, p0, (u8 *)p1);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
@@ -329,7 +330,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
    separate walking pFlags with off += 0x44 (gcc drops off entirely, 98.09 with
    the pointer in $a0). Everything else - the frame (the unused s32 pad[2] at
    sp+0x30), both VECTOR locals at sp+0x10/sp+0x20, the 0x10-byte copies and all
-   four calls - matches instruction for instruction.
+   four calls - matches instruction for instruction. Re-confirmed this session
+   with the externs in scope: 544 bytes, the loop is still the only difference
+   (retail keeps `move t0,zero` + `lbu v0,0x67C(a2)` + `addiu v0,t0,0x64C`; gcc
+   folds off and the pointer into one register).
 extern u8 D_800910F4[];
 extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
 extern void func_8008EBD0(u8 *, s32, void *, s32);
@@ -504,18 +508,18 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     return 1;
 }
 
-/* 97.87% (428 bytes against the original's 432): the body is right but one
-   instruction is scheduled differently. The original hoists `addiu a3,sp,0x10`
-   (the vecA argument) to just after `move a0,s2`, which leaves
-   `move s3,v0` free for the BattleTransformEntryVertex delay slot; ours emits it as the last
-   argument, it takes that delay slot, and `move s3,v0` then falls into the
-   BattleEffectIsTwoVertexType delay slot, losing one `nop`. Also `lbu a2,1(s1)` in the
-   original against `lbu v1,1(s1)` here. Tried a `s32 *pVecA` temp (coalesced
-   away, no change) and both if/else orders (the inverted one is the 97.87; the
-   direct one is 89.81). gcc 2.7.2-cdk rejects the unit. The frame layout
-   (locals at sp+0x10 and sp+0x20, 0x10 unused below) matches with two s32[4]. */
-/* extern s32 BattleEffectPackKey(s32, u8, s16, s32);
-extern s32 BattleTransformEntryVertex(u8 *, u8, s16, void *);
+/* 99.91% (432 bytes, the original's size): only one instruction differs - the
+   original loads `lbu a2,1(s1)` for the `p1[1] == 0x10` test where gcc 2.7.2
+   here picks $v1; everything else, including the frame, the `move s3,v0` in the
+   second call's delay slot and the three one-word averages, matches. Earlier
+   notes claiming 428 bytes and a hoisted `addiu a3,sp,0x10` came from a body
+   that no longer compiles (its BattleTransformEntryVertex prototype conflicted
+   with the definition above); with the real prototype it is 432 bytes and the
+   tie above. Permuter: 639 iterations, base=best=10, nothing found. Also tried
+   the `s32 *pVecB` temp and both orders of the inner if. gcc 2.7.2-cdk rejects
+   the unit. */
+/*
+extern s32 BattleEffectPackKey(s32, u8, s16, s32);
 extern s32 BattleEffectIsTwoVertexType(u8);
 extern void func_8007CD44(s32, void *, void *, s32);
 extern void BattleEffectQueueLineByType(void *, void *);
@@ -523,38 +527,38 @@ extern void BattleEffectSetColor(u8 *);
 extern void func_8007C880(s32, void *, s32, s32);
 extern void BattleEffectAddSlotFromVector(void *, s32);
 
-void func_80073F34(u8 *p0, u8 *p1) {
-    s32 vecA[4];
-    s32 vecB[4];
+void func_80073F34(Actor *p0, u8 *p1) {
+    VECTOR vecA;
+    VECTOR vecB;
     s32 r;
 
-    BattleEffectPackKey((*(u32 *)(p0 + 0xD0) >> 27) & 1, *(u8 *)(p1 + 2), *(s16 *)(p1 + 4), 1);
-    r = BattleTransformEntryVertex(p0, *(u8 *)(p1 + 2), *(s16 *)(p1 + 4), vecA);
-    if (BattleEffectIsTwoVertexType(*(u8 *)(p1 + 1)) != 0) {
-        s32 *pVecB = vecB;
-
-        BattleTransformEntryVertex(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), pVecB);
-        if (*(u8 *)(p1 + 1) == 0x10) {
-            func_8007CD44((*(u32 *)(p0 + 0xD0) >> 27) & 1, vecA, pVecB, r);
+    r = BattleEffectPackKey((p0->flags >> 27) & 1, p1[2], *(s16 *)(p1 + 4), 1);
+    BattleTransformEntryVertex(p0, p1[2], *(s16 *)(p1 + 4), &vecA);
+    if (BattleEffectIsTwoVertexType(p1[1]) != 0) {
+        BattleTransformEntryVertex(p0, p1[3], *(s16 *)(p1 + 6), &vecB);
+        if (p1[1] == 0x10) {
+            func_8007CD44((p0->flags >> 27) & 1, &vecA, &vecB, r);
         } else {
-            BattleEffectQueueLineByType(vecA, pVecB);
+            BattleEffectQueueLineByType(&vecA, &vecB);
         }
         return;
     }
-    if (*(u8 *)(p1 + 2) != *(u8 *)(p1 + 3) || *(s16 *)(p1 + 4) != *(s16 *)(p1 + 6)) {
-        BattleTransformEntryVertex(p0, *(u8 *)(p1 + 3), *(s16 *)(p1 + 6), vecB);
-        vecA[0] = (vecA[0] + vecB[0]) / 2;
-        vecA[1] = (vecA[1] + vecB[1]) / 2;
-        vecA[2] = (vecA[2] + vecB[2]) / 2;
+    if (p1[2] != p1[3] || *(s16 *)(p1 + 4) != *(s16 *)(p1 + 6)) {
+        BattleTransformEntryVertex(p0, p1[3], *(s16 *)(p1 + 6), &vecB);
+        vecA.vx = (vecA.vx + vecB.vx) / 2;
+        vecA.vy = (vecA.vy + vecB.vy) / 2;
+        vecA.vz = (vecA.vz + vecB.vz) / 2;
     }
-    BattleEffectSetColor(p0 + 0x15D4);
-    if (*(u8 *)(p1 + 1) >= 0x20) {
-        func_8007C880((*(u32 *)(p0 + 0xD0) >> 27) & 1, vecA, r, *(u8 *)(p1 + 1) - 0x20);
+    BattleEffectSetColor(&p0->unk15D4);
+    if (p1[1] >= 0x20) {
+        func_8007C880((p0->flags >> 27) & 1, &vecA, r, p1[1] - 0x20);
     } else {
-        BattleEffectAddSlotFromVector(vecA, *(u8 *)(p1 + 1));
+        BattleEffectAddSlotFromVector(&vecA, p1[1]);
     }
-} */
+}
+*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073F34);
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
 
