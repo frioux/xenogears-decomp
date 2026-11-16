@@ -403,7 +403,7 @@ s32 func_801DBE54(void) {
     MenuHidePointerCursors();
     MenuFreeArrowCursor(0);
     MenuFreeArrowCursor(1);
-    MenuClearBytes(8, g_Menu->pManager->unk38);
+    MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings10E0);
     return 1;
 }
 */
@@ -426,7 +426,7 @@ void MenuCreateUnk430Panel(u_char arg0) {
         index = 1;
         break;
     }
-    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548[index], g_Menu->pManager->unk38);
+    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548[index], g_Menu->pManager->shouldRenderStrings10E0);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
     func_801D3488(2, arg0);
@@ -524,7 +524,7 @@ void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     g_Menu->unk434 = HeapAlloc(0xA1C, 0);
     bzero(g_Menu->unk434, 0xA1C);
     pManager = g_Menu->pManager;
-    MenuLoadStringsFromIds(6, g_Menu->unk14E0, D_801EA558[arg0 & 0xFF], pManager->unk40);
+    MenuLoadStringsFromIds(6, g_Menu->unk14E0, D_801EA558[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
@@ -538,7 +538,7 @@ void MenuFreeCharacterSpriteRecords(void) {
     MenuFreeWindow(4);
     MenuFreeWindow(5);
     MenuRenderFrame();
-    MenuClearBytes(6, &g_Menu->pManager->unk38[8]);
+    MenuClearBytes(6, &g_Menu->pManager->shouldRenderStrings10E0[8]);
     func_801C72BC(0x17);
     HeapFree(g_Menu->unk434);
     MenuFreeScrollHandle();
@@ -559,7 +559,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     s32 label;
 
     for (i = 0; i < 6; i++) {
-        g_Menu->pManager->unk40[i] = 0;
+        g_Menu->pManager->shouldRenderStrings14E0[i] = 0;
     }
 
     if (arg0 != 0) {
@@ -574,7 +574,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 
     for (i = start; i < count; i++) {
         func_801E8070(6, g_Menu->unk14E0, D_801EA558[arg1 & 0xFF], D_801E9EA0,
-                      g_Menu->pManager->unk40, (u8)i, (u8)i, 3);
+                      g_Menu->pManager->shouldRenderStrings14E0, (u8)i, (u8)i, 3);
     }
 
     if (g_Menu->pManager->shouldRenderWindow[4] != 0) {
@@ -776,7 +776,7 @@ void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     s32 i;
 
     for (i = 0; i < 9; i++) {
-        ((u16*)((u8*)g_Menu->unk360 + 0x280))[i] = g_Menu->pDressingRoom->unkB8[i];
+        ((u16*)((u8*)g_Menu->unk360 + 0x280))[i] = g_Menu->pDressingRoom->statValues[i];
     }
 
     if (arg1 == 0) {
@@ -875,12 +875,12 @@ void MenuUpdateDressingRoomTotals(u_char arg0) {
     func_801E3ECC(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
     charId = g_Menu->pManager->currentCharacterIDs[arg0];
     MenuFillDressingRoomGearStats(g_Menu->pDressingRoom, g_GameState.characters[charId].gearId);
-    g_Menu->pDressingRoom->unkB8[0] = g_Menu->pDressingRoom->unkB0;
-    g_Menu->pDressingRoom->unkB8[1] = g_Menu->pDressingRoom->totalDefense;
-    g_Menu->pDressingRoom->unkB8[2] = g_Menu->pDressingRoom->totalEtherDefense;
-    g_Menu->pDressingRoom->unkB8[3] = g_Menu->pDressingRoom->totalResponsiveness;
-    g_Menu->pDressingRoom->unkB8[4] = g_Menu->pDressingRoom->unkB3;
-    g_Menu->pDressingRoom->unkB8[5] = g_Menu->pDressingRoom->unkB4;
+    g_Menu->pDressingRoom->statValues[0] = g_Menu->pDressingRoom->totalAttack;
+    g_Menu->pDressingRoom->statValues[1] = g_Menu->pDressingRoom->totalDefense;
+    g_Menu->pDressingRoom->statValues[2] = g_Menu->pDressingRoom->totalEtherDefense;
+    g_Menu->pDressingRoom->statValues[3] = g_Menu->pDressingRoom->totalResponsiveness;
+    g_Menu->pDressingRoom->statValues[4] = g_Menu->pDressingRoom->totalAgility;
+    g_Menu->pDressingRoom->statValues[5] = g_Menu->pDressingRoom->totalEtherAmplification;
 }
 // Draws the three item name strings of one dressing room slot.
 void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4, u_char arg5, u_char arg6) {
@@ -903,7 +903,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
         slot += arg4 * 2;
         switch (slot) {
         case 0:
-            pStrings = ((void**)g_Menu->unk434->unkA00)[0];
+            pStrings = g_Menu->unk434->pStringLists[0];
             if (arg5 != 0) {
                 if (arg3 == 0) {
                     itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].weaponId[0];
@@ -913,13 +913,13 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             }
             break;
         case 1:
-            pStrings = ((void**)g_Menu->unk434->unkA00)[1];
+            pStrings = g_Menu->unk434->pStringLists[1];
             if (arg5 != 0) {
                 itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].accessorySlots[arg0 - 1];
             }
             break;
         case 2:
-            pStrings = ((void**)g_Menu->unk434->unkA00)[2];
+            pStrings = g_Menu->unk434->pStringLists[2];
             if (arg5 != 0) {
                 if (arg3 == 0) {
                     itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
@@ -931,7 +931,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             }
             break;
         case 3:
-            pStrings = ((void**)g_Menu->unk434->unkA00)[3];
+            pStrings = g_Menu->unk434->pStringLists[3];
             if (arg5 != 0) {
                 itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
                     .accessorySlots[arg0 - 1];
@@ -955,12 +955,12 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
                     g_Menu->unk434->unk880[i].width, 0xD);
                 g_Menu->unk434->unk880[i].renderContext = g_Menu->renderContext;
             }
-            g_Menu->unk434->unkA18[0] = 1;
+            g_Menu->unk434->shouldRenderStrings880[0] = 1;
             HeapFree(pBuf);
             return;
         }
     }
-    g_Menu->unk434->unkA18[0] = 0;
+    g_Menu->unk434->shouldRenderStrings880[0] = 0;
 }
 void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     u_char* pIds;

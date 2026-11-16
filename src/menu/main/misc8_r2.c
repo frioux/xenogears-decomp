@@ -83,9 +83,9 @@ void MenuShutdown(void) {
 
 void MenuLoadUnkDE0Strings(void) {
     if (g_MenuOverlayIndex != 2) {
-        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA53C, g_Menu->pManager->unk1A);
+        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA53C, g_Menu->pManager->shouldRenderStringsDE0);
     } else {
-        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA542, g_Menu->pManager->unk1A);
+        MenuLoadStringsFromIds(6, g_Menu->unkDE0, D_801EA542, g_Menu->pManager->shouldRenderStringsDE0);
     }
 }
 
@@ -95,7 +95,7 @@ void MenuInitializeUnk42CPanel(void) {
     MenuUnk9* pMenu;
 
     MenuSetupPointerCursors(2);
-    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548, g_Menu->pManager->unk38);
+    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548, g_Menu->pManager->shouldRenderStrings10E0);
     pMenu = HeapAlloc(0x1198, 0);
     g_Menu->unk42C = pMenu;
     bzero(pMenu, 0x1198);
@@ -106,7 +106,7 @@ void MenuFreeUnk42CPanel(void) {
     MenuFreeScrollHandle();
     MenuFreeWindow(3);
     MenuFreeWindow(4);
-    g_Menu->pManager->unk48 = 0;
+    g_Menu->pManager->shouldRenderUnk42C = 0;
     func_801C72BC(0x10);
     HeapFree(g_Menu->unk42C->pVramBuffer);
     HeapFree(g_Menu->unk42C);
@@ -192,13 +192,13 @@ void func_801DA5BC(s32 arg0) {
                                 FONT_LETTER_HEIGHT);
             ((MenuString*)g_Menu->unk42C)[i].renderContext = *(u8*)&g_Menu->renderContext;
             ((MenuString*)g_Menu->unk42C)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
-            g_Menu->unk42C->unk1184[i] = 1;
+            g_Menu->unk42C->shouldRenderRows[i] = 1;
             continue;
         }
-        g_Menu->unk42C->unk1184[i] = 0;
+        g_Menu->unk42C->shouldRenderRows[i] = 0;
     }
     HeapFree(pWorkspace);
-    g_Menu->pManager->unk48 = 1;
+    g_Menu->pManager->shouldRenderUnk42C = 1;
 }
 
 */

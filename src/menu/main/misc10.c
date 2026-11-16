@@ -319,7 +319,7 @@ u8 func_801E2BE4(void) {
             MenuResetSelectionCursorFlags();
             MenuClearSubMenuChoiceFlags();
             g_Menu->pManager->unk5[2] = 0;
-            g_Menu->pManager->unk8 = 0;
+            g_Menu->pManager->shouldRenderUnk35C = 0;
             g_Menu->pManager->shouldRenderPanel[1] = 0;
             switch (g_Menu->subMenuChoice) {
             case 0:
@@ -343,7 +343,7 @@ u8 func_801E2BE4(void) {
             }
             MenuLoadSubMenuChoiceStrings(1);
             g_Menu->pManager->unk5[2] = 1;
-            g_Menu->pManager->unk8 = 1;
+            g_Menu->pManager->shouldRenderUnk35C = 1;
             g_Menu->pManager->shouldRenderPanel[1] = 1;
             MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
             g_Menu->pManager->shouldRenderPointerCursor = 1;
@@ -393,7 +393,7 @@ void MenuFreeSubMenuPanels(u8 arg0) {
         break;
     case 2:
         g_Menu->pManager->unk5[2] = 0;
-        g_Menu->pManager->unk8 = 0;
+        g_Menu->pManager->shouldRenderUnk35C = 0;
         g_Menu->pManager->shouldRenderPanel[1] = 0;
         MenuFreeGearScreenBuffers();
         break;
@@ -409,7 +409,7 @@ void MenuFreeSubMenuPanels(u8 arg0) {
         break;
     case 6:
         g_Menu->pManager->unk5[2] = 0;
-        g_Menu->pManager->unk8 = 0;
+        g_Menu->pManager->shouldRenderUnk35C = 0;
         g_Menu->pManager->shouldRenderPanel[1] = 0;
         MenuClearSubMenuChoiceFlags();
         MenuFreeCharacterScreenBuffers();
@@ -717,36 +717,36 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
 
     pChar = &g_GameState.characters[charIndex];
     if (pChar->unk56 == 4) {
-        pDressingRoom->unkB8[0] = (pChar->unk0[4] + pChar->unk0[0x1C]) * 6 / 10;
+        pDressingRoom->statValues[0] = (pChar->unk0[4] + pChar->unk0[0x1C]) * 6 / 10;
     } else {
-        pDressingRoom->unkB8[0] = pChar->attack + pChar->unk0[0x28] + pChar->unk0[4];
+        pDressingRoom->statValues[0] = pChar->attack + pChar->unk0[0x28] + pChar->unk0[4];
     }
-    pDressingRoom->unkB8[1] = pChar->hitPercentage + pChar->unk2D[1];
-    pDressingRoom->unkB8[2] = pChar->defense + pChar->unk0[0x29] + pChar->unk2D[0];
-    pDressingRoom->unkB8[3] = pChar->evadePercentage + pChar->unk2D[2];
-    pDressingRoom->unkB8[4] = pChar->ether + pChar->unk0[0x2B];
-    pDressingRoom->unkB8[5] = pChar->etherDefense + pChar->etherDefenseFromEquipment;
-    pDressingRoom->unkB8[6] = pChar->agility + pChar->unk0[0x2A];
-    if (pDressingRoom->unkB8[0] > 0xFA) {
-        pDressingRoom->unkB8[0] = 0xFA;
+    pDressingRoom->statValues[1] = pChar->hitPercentage + pChar->unk2D[1];
+    pDressingRoom->statValues[2] = pChar->defense + pChar->unk0[0x29] + pChar->unk2D[0];
+    pDressingRoom->statValues[3] = pChar->evadePercentage + pChar->unk2D[2];
+    pDressingRoom->statValues[4] = pChar->ether + pChar->unk0[0x2B];
+    pDressingRoom->statValues[5] = pChar->etherDefense + pChar->etherDefenseFromEquipment;
+    pDressingRoom->statValues[6] = pChar->agility + pChar->unk0[0x2A];
+    if (pDressingRoom->statValues[0] > 0xFA) {
+        pDressingRoom->statValues[0] = 0xFA;
     }
-    if (pDressingRoom->unkB8[1] > 0x63) {
-        pDressingRoom->unkB8[1] = 0x63;
+    if (pDressingRoom->statValues[1] > 0x63) {
+        pDressingRoom->statValues[1] = 0x63;
     }
-    if (pDressingRoom->unkB8[2] > 0xFA) {
-        pDressingRoom->unkB8[2] = 0xFA;
+    if (pDressingRoom->statValues[2] > 0xFA) {
+        pDressingRoom->statValues[2] = 0xFA;
     }
-    if (pDressingRoom->unkB8[3] > 0x63) {
-        pDressingRoom->unkB8[3] = 0x63;
+    if (pDressingRoom->statValues[3] > 0x63) {
+        pDressingRoom->statValues[3] = 0x63;
     }
-    if (pDressingRoom->unkB8[4] > 0xFA) {
-        pDressingRoom->unkB8[4] = 0xFA;
+    if (pDressingRoom->statValues[4] > 0xFA) {
+        pDressingRoom->statValues[4] = 0xFA;
     }
-    if (pDressingRoom->unkB8[5] > 0xFA) {
-        pDressingRoom->unkB8[5] = 0xFA;
+    if (pDressingRoom->statValues[5] > 0xFA) {
+        pDressingRoom->statValues[5] = 0xFA;
     }
-    if (pDressingRoom->unkB8[6] > 0x14) {
-        pDressingRoom->unkB8[6] = 0x10;
+    if (pDressingRoom->statValues[6] > 0x14) {
+        pDressingRoom->statValues[6] = 0x10;
     }
 }
 
@@ -780,13 +780,13 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     pDressingRoom->maxFuel = pGear->maxFuel;
     value = pGear->engineOutput * (pGear->attackPower + pGear->unk55[1]);
     if (gearIndex == 5 || gearIndex == 13) {
-        pDressingRoom->unkB0 = (pGear->weaponData[0].attack + pGear->weaponData[2].attack) * 6 / 10 + value;
+        pDressingRoom->totalAttack = (pGear->weaponData[0].attack + pGear->weaponData[2].attack) * 6 / 10 + value;
     } else {
-        pDressingRoom->unkB0 = pGear->weaponData[0].attack + value;
+        pDressingRoom->totalAttack = pGear->weaponData[0].attack + value;
     }
     pDressingRoom->totalResponsiveness = pGear->unk9F + pGear->responsiveness;
-    pDressingRoom->unkB3 = pGear->agility - pGear->weightPenalty;
-    pDressingRoom->unkB4 = pGear->etherAmplification + pGear->unk54;
+    pDressingRoom->totalAgility = pGear->agility - pGear->weightPenalty;
+    pDressingRoom->totalEtherAmplification = pGear->etherAmplification + pGear->unk54;
     pDressingRoom->unkB5 = pGear->unk9D;
     pDressingRoom->unkB6 = pGear->unk9C;
 }
@@ -809,8 +809,8 @@ void MenuApplyGearFrame(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
 
     pGear->hp = pFrame->hp;
     pGear->maxHp = pFrame->hp;
-    pGear->agility = pFrame->unk14;
-    pGear->etherAmplification = pFrame->unk15;
+    pGear->agility = pFrame->agility;
+    pGear->etherAmplification = pFrame->etherAmplification;
     pGear->unk9D = pFrame->unk16;
     pGear->unk9F = pFrame->unk17;
     if (pGear->maxHp < pGear->hp) {
@@ -828,8 +828,8 @@ void MenuApplyGearArmor(MenuDressingRoom* pDressingRoom, u8 gearIndex) {
     pArmorList = pDressingRoom->pGearArmor;
     pArmor = &pArmorList[pGear->armorId];
 
-    pGear->baseDefense = pArmor->unk8;
-    pGear->baseEtherDefense = pArmor->unkA;
+    pGear->baseDefense = pArmor->baseDefense;
+    pGear->baseEtherDefense = pArmor->baseEtherDefense;
 }
 
 void MenuApplyGearEngine(MenuDressingRoom* pDressingRoom, u8 gearIndex) {

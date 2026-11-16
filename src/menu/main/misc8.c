@@ -245,7 +245,7 @@ void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
     value = arg3;
     func_801D7F50(width, height, value);
     func_801D8644(arg0, width, height, arg2, value);
-    g_Menu->pManager->unk8 = 1;
+    g_Menu->pManager->shouldRenderUnk35C = 1;
     g_Menu->unk35C->unk32F1 = *(u_char*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
@@ -404,13 +404,13 @@ void MenuOpenCardEvents(void) {
     DrawSync(0);
     Vsync(0);
     EnterCriticalSection();
-    ((s32*)&g_Menu->menuUnk2->unk4FE4)[2] = OpenEvent(0xF4000001, 4, 0x2000, 0);
-    ((s32*)&g_Menu->menuUnk2->unk4FE4)[3] = OpenEvent(0xF4000001, 0x8000, 0x2000, 0);
-    ((s32*)&g_Menu->menuUnk2->unk4FE4)[4] = OpenEvent(0xF4000001, 0x100, 0x2000, 0);
-    ((s32*)&g_Menu->menuUnk2->unk4FE4)[5] = OpenEvent(0xF4000001, 0x2000, 0x2000, 0);
-    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[2]);
-    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[3]);
-    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[4]);
-    EnableEvent(((s32*)&g_Menu->menuUnk2->unk4FE4)[5]);
+    g_Menu->menuUnk2->cardEvents[0] = OpenEvent(0xF4000001, 4, 0x2000, 0);
+    g_Menu->menuUnk2->cardEvents[1] = OpenEvent(0xF4000001, 0x8000, 0x2000, 0);
+    g_Menu->menuUnk2->cardEvents[2] = OpenEvent(0xF4000001, 0x100, 0x2000, 0);
+    g_Menu->menuUnk2->cardEvents[3] = OpenEvent(0xF4000001, 0x2000, 0x2000, 0);
+    EnableEvent(g_Menu->menuUnk2->cardEvents[0]);
+    EnableEvent(g_Menu->menuUnk2->cardEvents[1]);
+    EnableEvent(g_Menu->menuUnk2->cardEvents[2]);
+    EnableEvent(g_Menu->menuUnk2->cardEvents[3]);
     ExitCriticalSection();
 }

@@ -210,15 +210,15 @@ void GearShopMenuLoadResources(void) {
     pData = LZSSHeapDecompress((void *)pFileHandle[1], 1);
     OpenTIM((void *)pData);
     ReadTIM(&g_Menu->menuUnk2->tim);
-    memcpy(&g_Menu->menuUnk2->unk4FCE, "BISLPS-00800", 0xD);
+    memcpy(&g_Menu->menuUnk2->gameSerialCode, "BISLPS-00800", 0xD);
     g_Menu->menuUnk2->unk4B94 = 0x53;
     g_Menu->menuUnk2->unk4B95 = 0x43;
     g_Menu->menuUnk2->unk4B96 = 0x11;
     g_Menu->menuUnk2->unk4B97 = 1;
     bzero(g_Menu->menuUnk2->unk4B98, 0x5C);
 
-    memmove(g_Menu->menuUnk2->unk4BF4, (u8* ) g_Menu->menuUnk2->tim.caddr, 0x20);
-    memmove(g_Menu->menuUnk2->unk4C14, (u8* ) g_Menu->menuUnk2->tim.paddr, 0x80);
+    memmove(g_Menu->menuUnk2->saveIconPalette, (u8* ) g_Menu->menuUnk2->tim.caddr, 0x20);
+    memmove(g_Menu->menuUnk2->saveIconImage, (u8* ) g_Menu->menuUnk2->tim.paddr, 0x80);
     HeapFree(pData);
     pData = LZSSHeapDecompress((void *)pFileHandle[2], 1);
     ModelLoadTextureBlock(pData);
@@ -1643,14 +1643,14 @@ void GearShopMenuRenderPointerCursors(void) {
                 if (g_Menu->pCursors->shouldUpdatePosition[i]) {
                     setXY4(
                         &g_Menu->pCursors->polysCursor[i * 2 + g_Menu->pCursors->renderContexts[i]],
-                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] - 6,
-                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 8,
-                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10,
-                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 24,
-                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->unk4F7C]] + 10
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 8,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] - 6,
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 24,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] - 6,
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 8,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 10,
+                        g_GearShopPointerCursorBoxX[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 24,
+                        g_GearShopPointerCursorBoxY[g_GearShopPointerCursorBoxSlot[g_Menu->menuUnk2->selectedSlot]] + 10
                     );
                 }
 
@@ -1668,7 +1668,7 @@ void GearShopMenuRenderStrings4E0(void) {
     int renderContext;
 
     for(i = 0; i < 4; i++) {
-        if(g_Menu->pManager->unk34[i]) {
+        if(g_Menu->pManager->shouldRenderStrings4E0[i]) {
             renderContext = g_Menu->unk4E0[i].renderContext;
             AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->unk4E0[i].polys[renderContext]);
         }
@@ -1728,7 +1728,7 @@ void GearShopMenuRenderStringsDE0(void) {
     int renderContext;
 
     for(i = 0; i < 6; i++) {
-        if (g_Menu->pManager->unk1A[i]) {
+        if (g_Menu->pManager->shouldRenderStringsDE0[i]) {
             renderContext = g_Menu->unkDE0[i].renderContext;
             AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->unkDE0[i].polys[renderContext]);
         }
@@ -1866,7 +1866,7 @@ void GearShopMenuRender(void) {
 }
 
 void GearShopMenuPlaySoundEffect(s32 arg0) {
-    if (g_Menu->unk32A) {
+    if (g_Menu->soundEffectsEnabled) {
         SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 0x10) | (arg0 & 0xFF), arg0);
     }
 }
@@ -2137,10 +2137,10 @@ void GearShopMenuUpdateCameraTransition(void) {
 
 void GearShopMenuUpdateCameraMatrices(void) {
     GearShopMenuUpdateCameraTransition();
-    RotMatrix(&g_Menu->unk218, &g_Menu->unk230);
-    TransMatrix(&g_Menu->unk230, &g_Menu->cameraPosition);
-    SetRotMatrix(& g_Menu->unk230);
-    SetTransMatrix(&g_Menu->unk230);
+    RotMatrix(&g_Menu->modelRotation, &g_Menu->modelMatrix);
+    TransMatrix(&g_Menu->modelMatrix, &g_Menu->cameraPosition);
+    SetRotMatrix(& g_Menu->modelMatrix);
+    SetTransMatrix(&g_Menu->modelMatrix);
     RotMatrix(&g_Menu->rotation, &g_Menu->matTransform);
     TransMatrix(&g_Menu->matTransform, &g_Menu->translation);
     SetRotMatrix(&g_Menu->matTransform);
@@ -2229,7 +2229,7 @@ void GearShopMenuUpdateAndRender(void) {
     g_Menu->pGfxEnv = (g_Menu->pGfxEnv == g_Menu->gfxEnvs) ? &g_Menu->gfxEnvs[1] : g_Menu->gfxEnvs;
     g_Menu->renderContext = g_Menu->renderContext == 0;
     ClearOTagR((u32 *)g_Menu->pGfxEnv->ot, 0x10);
-    ClearOTagR((u32* )g_Menu->pGfxEnv->unkB0, 0x400);
+    ClearOTagR((u32* )g_Menu->pGfxEnv->otBuffer, 0x400);
     GearShopMenuUpdateCameraMatrices();
     GearShopMenuRenderDebugValues();
     GearShopMenuRender();
@@ -2239,8 +2239,8 @@ void GearShopMenuUpdateAndRender(void) {
     PutDrawEnv(&g_Menu->pGfxEnv->drawEnv);
     PutDispEnv(&g_Menu->pGfxEnv->dispEnv);
     ClearImage(&g_Menu->pGfxEnv->drawEnv.clip, 0U, 0U, 0U);
-    AddPrims((void* ) g_Menu->pGfxEnv->unkB0, &g_Menu->pGfxEnv->ot[0xF], g_Menu->pGfxEnv->ot);
-    DrawOTag((u32 *)(g_Menu->pGfxEnv->unkB0 + 0xFFC));
+    AddPrims((void* ) g_Menu->pGfxEnv->otBuffer, &g_Menu->pGfxEnv->ot[0xF], g_Menu->pGfxEnv->ot);
+    DrawOTag((u32 *)(g_Menu->pGfxEnv->otBuffer + 0xFFC));
 }
 
 void GearShopMenuInitializePointerCursors(u8 mode) {
@@ -2880,19 +2880,19 @@ void GearShopMenuMain(void) {
     GearShopMenuMenuUnk7Manager(MENU_DATA_INITIALIZE);
     GearShopMenuMenuShopManager(MENU_DATA_INITIALIZE);
     GearShopMenuMenuUnk8Manager(MENU_DATA_INITIALIZE);
-    g_Menu->pSelectionMenu->unk1180.x = 0x2C0;
-    g_Menu->pSelectionMenu->unk1180.y = 0x100;
-    g_Menu->pSelectionMenu->unk1180.w = 0x140;
-    g_Menu->pSelectionMenu->unk1180.h = 0xE0;
+    g_Menu->pSelectionMenu->vramRect.x = 0x2C0;
+    g_Menu->pSelectionMenu->vramRect.y = 0x100;
+    g_Menu->pSelectionMenu->vramRect.w = 0x140;
+    g_Menu->pSelectionMenu->vramRect.h = 0xE0;
     g_Menu->unk348->shadeWidth = 0x40;
     g_Menu->translation.vz = 0x200;
     g_Menu->rotation.vz = 0;
     g_Menu->rotation.vx = 0;
     g_Menu->rotation.vy = 0;
     g_Menu->cameraPosition.vz = 0x400;
-    g_Menu->unk218.vz = 0;
-    g_Menu->unk218.vx = 0;
-    g_Menu->unk218.vy = 0x400;
+    g_Menu->modelRotation.vz = 0;
+    g_Menu->modelRotation.vx = 0;
+    g_Menu->modelRotation.vy = 0x400;
     g_Menu->transitionEffectState = MENU_ANIMATION_DONE;
     g_gearShopTransitionState.start.gearY = -0x400;
     g_gearShopTransitionState.target.gearY = -0x400;
@@ -2912,7 +2912,7 @@ void GearShopMenuMain(void) {
     bzero(g_Menu->pShoulderButtonUi, sizeof(MenuShoulderButtonUi));
     GearShopMenuShoulderButtonUiInitialize();
     g_Menu->shouldDrawMenu = TRUE;
-    g_Menu->unk32A = TRUE;
+    g_Menu->soundEffectsEnabled = TRUE;
     GearShopMenuShopModeMain();
     GearShopMenuFree();
 }

@@ -65,9 +65,9 @@ void MenuInitializeCamera(void) {
     g_Menu->rotation.vx = 0;
     g_Menu->translation.vy = 0;
     g_Menu->translation.vx = 0;
-    g_Menu->unk218.vz = 0;
-    g_Menu->unk218.vy = 0;
-    g_Menu->unk218.vx = 0;
+    g_Menu->modelRotation.vz = 0;
+    g_Menu->modelRotation.vy = 0;
+    g_Menu->modelRotation.vx = 0;
     g_Menu->cameraPosition.vy = 0;
     g_Menu->cameraPosition.vx = 0;
     g_Menu->unk2E8 = 1;
@@ -310,7 +310,7 @@ void MenuMain() {
     g_Menu->pGfxEnv = &g_Menu->gfxEnvs[1];
     g_Menu->debuggerEnabled = 0;
     g_Menu->debuggerPage = 1;
-    g_Menu->unk2D8 = 0;
+    g_Menu->idleFrameCount = 0;
     g_Menu->shouldDrawMenu = FALSE;
     MenuInitializeGfxEnvironments();
     if (g_MenuDebugEnabled) {

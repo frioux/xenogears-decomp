@@ -701,7 +701,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E68AC);
                      g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
        MenuSetPlayTimeDigits(*(u32*)pArg);
        for (i = 0; i < 7; i++) {
-           func_8002675C(g_Menu->resources, ((u32*)g_Menu->unk2EC)[i],
+           func_8002675C(g_Menu->resources, ((u32*)g_Menu->playTimeDigitIds)[i],
                          (POLY_FT4*)((u8*)g_Menu->unk34C + 0x254C + i * 0x50),
                          g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A,
                          0x1000);
