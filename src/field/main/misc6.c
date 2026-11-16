@@ -11,7 +11,8 @@ extern void func_800A0C94();
 extern int ArchiveGetDiscNumber(void);
 extern void FieldScriptMemoryWriteU16(int, int);
 extern s32 D_800AFD1C; // Current actor index
-extern s32 D_800B2264;
+// Unbounded array so cc1 materialises the base in a register for a read-modify-write.
+extern s32 D_800B2264[];
 extern u8 D_800B225F[];
 extern s16 D_800B21DC[];
 extern s32 D_800B2268;
@@ -1127,36 +1128,29 @@ void FieldScriptVMHandlerIncrementCounter(void) {
 extern void* D_801E8670[];
 extern void func_801E8030(int modelIndex);
 
-// Screened 36 variants: best 90.55% here, cdk 85.13%, 2.6.0 90.55% - the
-// &D_800B2264 lui/addiu vs %hi/%lo shape is the gap.
-// 90.55%: dispatch and case 0 match exactly. Only case 1 differs - the original
-// materialises &D_800B2264 into a register (lui+addiu, then lw/sw off it), gcc
-// emits %hi/%lo per access and reloads the actor first. Pointer (`s32* p =
-// &D_800B2264; (*p)--;`) and array (`D_800B2264[0]--`) forms both produce the same
-// %hi/%lo code. Result is one insn short (236 vs 240 bytes).
-// Re-tried `(*(volatile s32*)&D_800B2264)--` (88.97%: the volatile form adds a
-// second address use and hoists the 0xCC load further) and -G0 (90.55%).
-/*
 void func_800A0EE8(void) {
-    int nModelIndex;
+    ActorData* pActor;
+    s32* pCounter;
+    s32 nModelIndex;
 
-    nModelIndex = g_FieldScriptVMCurActor->flags12C_0xE;
-    g_FieldScriptVMCurActor->flags &= ~0x2000;
+    pActor = g_FieldScriptVMCurActor;
+    nModelIndex = pActor->flags12C_0xE;
+    pActor->flags &= ~0x2000;
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
             ((u8*)D_801E8670[nModelIndex])[0x34] = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
         case 1:
-            func_801E8030(g_FieldScriptVMCurActor->flags12C_0xE);
-            D_800B2264--;
+            func_801E8030(pActor->flags12C_0xE);
+            pCounter = D_800B2264;
+            (*pCounter)--;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
     }
     D_800B00C0 = 1;
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0EE8);
+
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
 
@@ -1188,10 +1182,10 @@ void func_800A1364(void) {
     g_FieldActors[D_800AFD1C].status &= ~ACTOR_STATUS_INVISIBLE;
     g_FieldScriptVMCurActor->flags |= 0x2000;
     g_FieldScriptVMCurActor->flags &= ~0x800;
-    D_800B21DC[D_800B2264] = arg;
-    D_800B225F[D_800B2264] = 0;
-    g_FieldScriptVMCurActor->flags12C_0xE = D_800B2264 & 7;
-    D_800B2264++;
+    D_800B21DC[D_800B2264[0]] = arg;
+    D_800B225F[D_800B2264[0]] = 0;
+    g_FieldScriptVMCurActor->flags12C_0xE = D_800B2264[0] & 7;
+    D_800B2264[0]++;
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A1364);
