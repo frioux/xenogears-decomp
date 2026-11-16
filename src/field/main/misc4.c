@@ -1375,7 +1375,206 @@ int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
     return value;
 }
 
+typedef struct {
+    /* 0x0 */ s16 v0;
+    /* 0x2 */ s16 v1;
+    /* 0x4 */ s16 v2;
+    /* 0x6 */ s16 n0; // Neighbour across the v0-v1 edge
+    /* 0x8 */ s16 n1; // ... across v1-v2
+    /* 0xA */ s16 n2; // ... across v2-v0
+    /* 0xC */ u_char material;
+    /* 0xD */ u_char stepHeight;
+} FieldWalkmeshTriangleRecord; // Size: 0xE
+
+typedef struct {
+    /* 0x0 */ s16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ s16 vz;
+    /* 0x6 */ u_short pad6;
+} FieldWalkmeshVertexRecord; // Size: 0x8
+
+extern u_int* D_800AFB20;
+extern FieldWalkmeshTriangleRecord* D_800AFB24[];
+extern FieldWalkmeshVertexRecord* D_800AFB34[];
+extern u_char D_800B21CC;
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
+/* Best attempt: 92.29% (1696 bytes; the original is 1704, so two instructions
+   are missing). Every call, all eight jump-table arms, the material/flag test
+   and the edge-copy dispatch are in retail's order. What is left:
+   1. the frame is 0x78 here against retail's 0x80: retail has one more 4-byte
+      local (it keeps pActor 0x28, nSavedTri 0x30, nFlagMask 0x38, nPos 0x40 and
+      the loop counter i 0x48 in memory); here `i` stays in a register, so both
+      the frame and every saved-register offset sit 8 bytes low.
+   2. the prologue: retail computes nRef from the sra'd register value
+      (`sh v1,0(t2); sll v1,v1,0x10; ... addu s8,v1,a0`) and reloads
+      pPos->vz/pVec->vz for the pRef->vz store, while this body reloads
+      pRef->vx (`lh a0,0(t2)`) for nRef and computes the vz store first, and it
+      stores pRef->vy before pRef->vx.  Swapping nRef above the pRef->vz store
+      was tried: 91.33% (1672 bytes), worse.
+   3. the `nTri == -1` early exit is inverted: retail bne's into the body and
+      falls into its own `return -1`, gcc here merges all three `return -1`s
+      into one block at the end and beq's to it.
+   4. cases 3/5/6 compute vB/nRef/nPos into a0/a1/a2 with `nop` delay slots
+      where retail has the argument moves there (a0 = s3, a1 = s2, a2 = fp).
+   Written with direct indexing (pTri[nTri].v0, pVerts[...].v0) and NO pointer
+   locals: a pCurTri/pVert pointer pair cost 30% (51.58%, 1244 bytes), because
+   gcc then re-bases the induction register onto the verts and spills both the
+   tri table and pPoints. That is the single biggest lever in this function.
+   The vertex fields must be signed (s16) for the packing reads, which emit `lh`;
+   the edge copies read the same records as u_short and emit `lhu`, so retail's
+   source had an unsigned view for the copies and a signed one for the math.
+   Six argument call, verified against func_8007B814's site: (pVec, pPos, pActor, pPoints SVECTOR[2] out,
+   pRef SVECTOR out of (x,0,z), nMode) with
+   nMode == -1 meaning "stop when the triangle is found".
+   func_8007CD80 is the same walk with a 3-argument front end (it finds the first
+   triangle with func_8007B1C4 and clamps to g_Scene.unk4C..unk52); it inlines
+   the three NCLIPs with gte_ldsxy3/gte_nclip/gte_stopz into one stack word
+   instead of calling NormalClip. Not attempted. */
+/*
+// Walks the actor's walkmesh toward pVec, then drops pRef onto the floor of the
+// triangle it stopped in. -1 with pPoints holding the edge that was crossed.
+int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pRef, int nMode) {
+    FieldWalkmeshTriangleRecord* pTri;
+    FieldWalkmeshVertexRecord* pVerts;
+    VECTOR normal;
+    s32 nRef;
+    s32 nPos;
+    s32 nMask;
+    s32 nFlagMask;
+    s32 nTri;
+    s32 nSavedTri;
+    s32 vA;
+    s32 vB;
+    s32 vC;
+    u_int nFlags;
+    s32 i;
+
+    nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
+    pTri = D_800AFB24[pActor->walkmeshId];
+    pVerts = D_800AFB34[pActor->walkmeshId];
+    if (nTri == -1) {
+        return -1;
+    }
+
+    pRef->vx = (pPos->vx + pVec->vx) >> 16;
+    pRef->vy = 0;
+    pRef->vz = (pPos->vz + pVec->vz) >> 16;
+    nRef = (pRef->vx << 16) + ((pPos->vz + pVec->vz) >> 16);
+    nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
+
+    nFlagMask = 0;
+    if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
+        nFlagMask = -(D_800B21CC < 1);
+    }
+
+    for (i = 0; i < 0x20; i++) {
+        nSavedTri = nTri;
+        vA = (pVerts[pTri[nTri].v0].vx << 16) + pVerts[pTri[nTri].v0].vz;
+        vB = (pVerts[pTri[nTri].v1].vx << 16) + pVerts[pTri[nTri].v1].vz;
+        vC = (pVerts[pTri[nTri].v2].vx << 16) + pVerts[pTri[nTri].v2].vz;
+
+        nMask = NormalClip(vA, vB, nRef) < 0;
+        if (NormalClip(vB, vC, nRef) < 0) {
+            nMask |= 2;
+        }
+        if (NormalClip(vC, vA, nRef) < 0) {
+            nMask |= 4;
+        }
+
+        switch (nMask) {
+        case 0:
+            i = 0xFF;
+            break;
+        case 1:
+            nTri = pTri[nTri].n0;
+            break;
+        case 2:
+            nTri = pTri[nTri].n1;
+            break;
+        case 3:
+            if (NormalClip(vB, nRef, nPos) < 0) {
+                nTri = pTri[nTri].n0;
+                nMask = 1;
+            } else {
+                nTri = pTri[nTri].n1;
+                nMask = 2;
+            }
+            break;
+        case 4:
+            nTri = pTri[nTri].n2;
+            break;
+        case 5:
+            if (NormalClip(vA, nRef, nPos) < 0) {
+                nTri = pTri[nTri].n2;
+                nMask = 4;
+            } else {
+                nTri = pTri[nTri].n0;
+                nMask = 1;
+            }
+            break;
+        case 6:
+            if (NormalClip(vC, nRef, nPos) >= 0) {
+                nTri = pTri[nTri].n2;
+                nMask = 4;
+            } else {
+                nTri = pTri[nTri].n1;
+                nMask = 2;
+            }
+            break;
+        case 7:
+            nTri = -1;
+            break;
+        }
+
+        nFlags = D_800AFB20[pTri[nTri].material] & nFlagMask;
+        if ((((pActor->scriptFlags.flags >> 9) & 3) & (nFlags >> 3)) != 0
+            || (((pActor->scriptFlags.flags >> 8) & 7) & (nFlags >> 5)) != 0
+            || ((nFlags & 0x800000) != 0 && pActor->walkmeshId == 0)) {
+            nTri = -1;
+            break;
+        }
+        if (nTri == -1) {
+            break;
+        }
+    }
+
+    if (nTri != -1 && i != 0x20) {
+        if (nMode != -1) {
+            FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], pRef, &normal);
+        }
+        return 0;
+    }
+
+    switch (nMask) {
+    case 1:
+        pPoints[0].vx = pVerts[pTri[nSavedTri].v0].vx;
+        pPoints[0].vy = pVerts[pTri[nSavedTri].v0].vy;
+        pPoints[0].vz = pVerts[pTri[nSavedTri].v0].vz;
+        pPoints[1].vx = pVerts[pTri[nSavedTri].v1].vx;
+        pPoints[1].vy = pVerts[pTri[nSavedTri].v1].vy;
+        pPoints[1].vz = pVerts[pTri[nSavedTri].v1].vz;
+        break;
+    case 2:
+        pPoints[0].vx = pVerts[pTri[nSavedTri].v1].vx;
+        pPoints[0].vy = pVerts[pTri[nSavedTri].v1].vy;
+        pPoints[0].vz = pVerts[pTri[nSavedTri].v1].vz;
+        pPoints[1].vx = pVerts[pTri[nSavedTri].v2].vx;
+        pPoints[1].vy = pVerts[pTri[nSavedTri].v2].vy;
+        pPoints[1].vz = pVerts[pTri[nSavedTri].v2].vz;
+        break;
+    case 4:
+        pPoints[0].vx = pVerts[pTri[nSavedTri].v2].vx;
+        pPoints[0].vy = pVerts[pTri[nSavedTri].v2].vy;
+        pPoints[0].vz = pVerts[pTri[nSavedTri].v2].vz;
+        pPoints[1].vx = pVerts[pTri[nSavedTri].v0].vx;
+        pPoints[1].vy = pVerts[pTri[nSavedTri].v0].vy;
+        pPoints[1].vz = pVerts[pTri[nSavedTri].v0].vz;
+        break;
+    }
+    return -1;
+}
+*/
 
 extern int D_800ADC10;
 
