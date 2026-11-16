@@ -2106,10 +2106,14 @@ int FieldActorsWithinDistance(int dstActorId, int srcActorId) {
     return -(distance >= 0x10);
 }
 
-// Copies one field between two actors' sprite data. It takes the actor array
-// rather than the two sprite pointers because g_FieldActors is volatile: retail
-// re-reads the base once per copy, and handing g_FieldActors to this helper is
-// what makes that one read instead of two.
+// Copies one field between two actors, at a constant offset that the callers
+// spell with offsetof. It takes the actor array rather than the two pointers
+// because g_FieldActors is volatile: retail re-reads the base once per copy and
+// that one read has to serve both operands. Writing the copies out as typed
+// field assignments (one `actors = g_FieldActors;` per copy) does not match:
+// 83.35% for the three matrix words on their own, 51.63% for all seven, and 24
+// bytes short, because gcc then keeps one base across the copies. The 0x84 copy
+// reads u16 on purpose - retail loads it with `lhu`, not `lh`.
 static inline void CopySpriteFieldS32(FieldActor* actors, int dstId, int srcId, int offset) {
     SpriteData* dst = actors[dstId].pSpriteData;
     SpriteData* src = actors[srcId].pSpriteData;
