@@ -298,7 +298,19 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
    assignment -- that asymmetry is what stops gcc cross-jumping the two calls),
    already matches instruction for instruction. NEXT: permute this body. It
    also needs `#include "main/game.h"`, D_800CCD38/g_BattleActorCharIds and
-   BattleMaskHasStatusBit, which are declared above. */
+   BattleMaskHasStatusBit, which are declared above.
+   Round 146 re-tested this body against today's externs: still 89.19%, same two
+   shapes of the note. New data point on shape 1: retail keeps ONLY the product in
+   s1 (`s1 = arg0 * 0x170`, built once after the branch merge) and re-forms
+   `lui at,%hi(D_800CCD38); addu at,at,s1` at all three sites -- including the load
+   and the store of the `-= count`, which is NOT CSE'd. Tried this round and still
+   89.19%: `extern u8 D_800CCD38[0x170]` (bounded) instead of `[]`, and spelling the
+   index inline as `D_800CCD38 + arg0 * 0x170` instead of through the `off` local.
+   gcc 2.6 materialises the whole symbol+offset address into s1 either way. Shape 2
+   as it now reads: retail copies arg1 at entry (`move v1,a1`) for the masked
+   offset term and computes the call's `arg1 + arg2*2` destructively on the raw a1
+   (`addu a1,a1,v0`) BEFORE the offset sum; ours copies arg1 to t0 and computes the
+   call argument last. */
 /*
 s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     s32 result;
