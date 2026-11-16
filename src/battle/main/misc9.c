@@ -479,6 +479,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
    Decisive: the MATCHED divide sibling BattleDwordRegDivImm has byte-identical asm
    (same base v0 / slot v1 allocation) under the same C shape, so the split is
    the multiply's HI/LO pseudo shifting the allocator, not the source.
+   Update: the sibling func_8007E8AC matched this same mirror v0/v1 tie only
+   after its index expression became unsigned, `D_800D3364[(u32)(idx + 0x140)]`
+   (`u32 idx` instead, or a cast of `idx` alone, stays at 95.38%). Worth trying
+   an unsigned form of the product or of the store index here.
 void func_8007E740(u8 **arg0, u8 arg1) {
     u32 *pRow = (u32 *)(D_800D3410 + arg1 * 0x40);
     u8 *p = *arg0;
@@ -516,19 +520,12 @@ void func_8007E7E4(u8 **arg0) {
     } while (addr < (s32)D_800CD1B2);
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E7E4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E8AC);
-/* best: 95.38%. Identical instruction multiset and instruction order; only the
-   v0/v1 pair is mirrored (original: p[2] in v1, p[1] in v0, sum in v1, the
-   D_800D3364 pointer reusing v0). Same allocator tie as func_8007E740. Tried:
-   both summand orders, inline index, s32 idx local, pointer local for the base.
-   Confirmed a pure labelling tie: both sides end in the same `addu v0,v0,v1`;
-   only the two scale temps and the D_800D3364 pointer swap v0/v1.
 void func_8007E8AC(u8 **arg0) {
     u8 *p = *arg0;
     s32 idx = p[2] * 8 + p[1] * 0x40;
 
-    D_800D3364[idx + 0x140] = p[3];
-} */
+    D_800D3364[(u32)(idx + 0x140)] = p[3];
+}
 void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
     u16 *pRegs = D_800D3400[arg1].unk20;
 
@@ -544,21 +541,13 @@ s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
 
     return pRegs[(*ppCmd)->unk1] == (*ppCmd)->unk2;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E98C);
-/* best: 96.47%. Identical instruction multiset and order once the 16-bit value
-   is a local; only the register pair is mirrored (original: base v1, p in a0,
-   p[3] in a2; gcc: base v0, p v1, p[3] a0). Same allocator tie as func_8007E6A0.
-   Tried: value inline in the comparison (73.41%, reorders the lbu's), pField/p
-   declared in both orders, `s32 arg1` + explicit `(arg1 & 0xFF) * 0x40`, and
-   `u8 arg1` + element index `(u16 *)D_800D3420 + arg1 * 0x20` (96.47%, same two
-   mirrored pairs).
 s32 func_8007E98C(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
-    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
     s32 value = p[2] | (p[3] << 8);
+    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
 
     return pField[p[1]] == value;
-} */
+}
 s32 BattleByteRegLeImm(BattleCommand **ppCmd, u8 arg1) {
     u8 *pRegs = D_800D3400[arg1].unk30;
 
