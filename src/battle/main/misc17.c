@@ -391,7 +391,7 @@ void BattleInitActiveSlotAction(void) {
     D_800C3E34->unk8C = 0;
     D_800D2C88[t] = 2;
     p = D_800C3E34;
-    v = p->unk4E * g_BattleCurrentRow->unk11;
+    v = p->maxHp * g_BattleCurrentRow->unk11;
     if (D_800C3E50) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
     t = D_800C3E50;
@@ -423,5 +423,5 @@ void BattleClearStatusWordsOnAction6E(void) {
     if (g_BattleCurrentRow->unk1E & 0x400) {
         D_800C3E34->unk8E = 0;
     }
-    g_BattleCurWorkBlock->unk5FC7 = 0x3A;
+    g_BattleCurWorkBlock->commandCode = 0x3A;
 }

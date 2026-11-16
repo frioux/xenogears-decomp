@@ -456,7 +456,7 @@ void BattleScriptResetActorState(u8 arg0) {
 
     value = 0;
     slot = arg0 - 3;
-    pCursor = *(u8 **)g_BattleSlotRegs[slot].unk0;
+    pCursor = g_BattleSlotRegs[slot].pScriptCursor;
     p = (u8 *)g_BattleCommandArgs;
     pEnd = p + 0x100;
     do {
@@ -497,7 +497,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
     }
     g_BattleCommandArgs[0].opcode = 0;
     if (g_BattleSlotScriptFlags[slot * 4] != 0) {
-        pCursor = *(u8 **)&g_BattleSlotRegs[slot].unk0[8];
+        pCursor = g_BattleSlotRegs[slot].pScanCursor;
         p = g_BattleCommandArgs;
         pEnd = p + 0x100;
         do {
