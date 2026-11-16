@@ -661,6 +661,15 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
    but then fold K onto the window ("addiu v0,a2,0xK") - 96.70-99.02.
    Tried for the andi: (u_char)mode cast, "mode & 0xFF", an empty do/while before it, dropping the
    pWindow local entirely, and 2 permuter runs from this body (no gain, base=200 best=200).
+   Round 123 (7 more spellings, all 99.61% / 612 bytes, all identical): "(u_char)mode" on the last
+   call, "u8 shade = mode;" in its own block, "s32 shade = mode;" (assigned and declared-then-
+   assigned), "mode & 0xFF", "do { call } while (0)", and "u_char mode;" as the declaration. The
+   delta is a gcc 2.6.0 value-tracking artifact, NOT a source shape: a scratch probe compiled in
+   this unit (`s32 mode = sel ? 3 : 2; call(p, mode); call(p, mode);`) elides the narrowing in
+   straight-line code, and with a loop in front (`for (...) call(p + i, mode); call(p, mode);`) the
+   loop body keeps `andi` while the trailing call still elides it. So retail's andi cannot be
+   restored by how the last argument is spelled; a different wrap-up block would be needed, and
+   gcc 2.7.2 scores this function worse (99.15 under try_flags.sh).
    void func_801E8F60(u8 arg0, u8 arg1) {
        s32 mode;
        s32 i;
