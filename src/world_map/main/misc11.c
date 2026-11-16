@@ -3,10 +3,10 @@
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
-    /* 0x04 */ u16 unk04;
-    /* 0x06 */ u16 unk06;
+    /* 0x04 */ s16 unk04;
+    /* 0x06 */ s16 unk06;
     /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
-    /* 0x20 */ u16 unk20;
+    /* 0x20 */ s16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ s16 unk24;
     /* 0x26 */ undefined16 unk26;
@@ -96,42 +96,48 @@ extern void *SpriteAllocFromAnimFile(void *, s16, s16, s16, s16, s16);
 extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetScale(void *, s16);
 extern void WorldMapWrapPosition(void *);
+extern s32 rcos(s32);
+extern s32 rsin(s32);
+extern void WorldMapBuildDirectionFromPositions(WorldMapPos *, WorldMapPos *, s32 *, s16 *);
+extern void WorldMapAddSlotPosition(s16, s32 *);
+extern s32 WorldMapStartSlot(s32, s32);
 extern s32 D_8009C5AC;
 extern s32 D_8009C5B4;
 extern s32 D_8009C584;
 extern WorldMapVec D_8009D55C;
 extern WorldMapTrail D_8009CEC4[];
 extern u16 D_8009D52C;
-extern u16 D_8009D154;
+extern s16 D_8009D154;
 
-/* func_8008A72C, func_8008B2BC, func_8008B644, func_8008BB40, func_8008C364,
-   func_8008C844 and func_8008D678 each jr through a jtbl_ table of this unit. The
-   unit owns its .rodata (config/world_map.yaml), so a C switch keeps the layout -
-   converting func_8008B2BC shifted nothing but its own bytes and the table words
-   that follow from its case labels - but all seven are still unmatched. */
+/* func_8008A72C, func_8008B2BC, func_8008BB40, func_8008C364, func_8008C844 and
+   func_8008D678 each jr through a jtbl_ table of this unit; func_8008B644 did too
+   and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
+   function's table where the function is in the file, so converting a stub keeps
+   every table in place - only that function's own instructions and its table
+   words change (proved with check_bin.sh for func_8008B644). */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
-/* 87.47% (476 bytes, retail 476). Structure, the whole switch (13 entries = min 1
-   max 13, so cases 8-13 must be listed empty), the case-body order (cases 4-6 as the
-   cross-jumped "li v0,3 / j" arm, case 7 inline) and everything after the table are
-   byte-identical. What is left is one pre-reload-scheduler ordering in the block that
-   sets up unk38..unk5C plus the unk48 re-read:
-   retail  = sw zero 0x40/0x3C/0x38, lhu g_GameState+0x1824, lw D_8009BE10,
-             li 8/sh 0x4A, li 0xF/sw 0x58, addiu a0,-1, sh 0x48, lh 0x48,
-             sltiu, beqz, sw 0x5C (in the delay slot)
-   gcc     = li 8/sh 0x4A above the three zero stores, both loads below them, and the
-             sh 0x48 / lh 0x48 pair folded into sh 0x48 / sll+sra.
-   Tried: source reorder (unk48 before unk4A/unk58), a u16 local for the global, a
-   s32 mode local assigned before the stores (identical 87.47), a volatile read for
-   unk5C (gives the lh but 480 bytes, 86.63), and do/while (0) around the three zero
-   stores - that does put the zeros first and keeps the constants after them, but it
-   makes gcc materialise g_GameState+0x1824 into a saved register (lui/addiu/lhu 4(sN))
-   and the frame grows to 484 bytes (83.45). Permuter: base 1265 best 1053, best
-   candidate reads unk48 into a s16 BEFORE the store (wrong semantics, 86.34 on
-   objdiff). NOTE the "BLOCKED (JTBL)" claim above is wrong for this stub: converting
-   it leaves the overlay byte-identical except for this function's own instructions
-   and three jtbl words that follow from the case labels moving (checked with
-   tools/scripts/check_bin.sh world_map), so the C switch layout is safe here.
+/* 97.39% (472 bytes, retail 476 - one instruction short). The head block is now
+   byte-identical, including the unk48 sh/lh re-read that every earlier attempt
+   folded into an sll/sra: it needs the assignments in RETAIL'S order, not the order
+   the old parked body had -
+     unk40/unk3C/unk38 = 0; unk48 = g_GameState.unk1824; mode = D_8009BE10;
+     unk4A = 8; unk58 = 0xF; unk5C = pActor->unk48;
+   (mode LAST of the two loads, and unk5C written as a re-read of the FIELD, which
+   is what makes gcc emit sh 0x48 / lh 0x48 instead of sh 0x48 / sll+sra). The
+   switch table is 14 words (13 cases, table at an 8-aligned unit offset, the pad
+   comes from the next dlabel's .align 3, so a C switch keeps the layout).
+   The remaining diff is ONE instruction, in the case 1-3 gear arm: retail is
+     lw v0,D_8009C5AC; nop; sw v0,0x28(s0); lui a1,D_8009C5B4; lw a1,...
+   and gcc emits
+     lw v0,D_8009C5AC; lui a1,D_8009C5B4; lw a1,...; sw v0,0x28(s0)
+   i.e. it hoists the second global load above the first store, so gas fills the
+   load-delay slot with lui a1 instead of emitting retail's nop and the function is
+   4 bytes short. Tried: the old parked source order (87.47), gearRide[2] variants,
+   a u16 local for the angle, volatile unk48, do/while (0) around the stores (all
+   worse or unchanged). NOTE the gear flag is g_GameState+0x22B2 = gearRide[1],
+   NOT gearRide[2]: the old body read the wrong byte of gearRide and only reached
+   87.47.
 int func_8008B2BC(int index) {
     WorldMapActor *pActor = &D_8009BE24[index];
     s32 mode;
@@ -150,19 +156,19 @@ int func_8008B2BC(int index) {
     pActor->unk28 = g_GameState.unk1820 << 12;
     pActor->unk30 = g_GameState.unk1822 << 12;
     pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-    mode = D_8009BE10;
     pActor->unk40 = 0;
     pActor->unk3C = 0;
     pActor->unk38 = 0;
+    pActor->unk48 = g_GameState.unk1824;
+    mode = D_8009BE10;
     pActor->unk4A = 8;
     pActor->unk58 = 0xF;
-    pActor->unk48 = g_GameState.unk1824;
     pActor->unk5C = pActor->unk48;
     switch (mode) {
     case 1:
     case 2:
     case 3:
-        if (g_GameState.gearRide[2] == 0) {
+        if (g_GameState.gearRide[1] == 0) {
             pActor->unk28 = D_8009C5AC;
             pActor->unk30 = D_8009C5B4;
             pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
@@ -178,14 +184,14 @@ int func_8008B2BC(int index) {
         pActor->unk20 = 3;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[1] != 0xFF) {
-            g_GameState.gearRide[2] = 1;
+            g_GameState.gearRide[1] = 1;
         }
         break;
     case 7:
         pActor->unk20 = 2;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[1] != 0xFF) {
-            g_GameState.gearRide[2] = 1;
+            g_GameState.gearRide[1] = 1;
         }
         break;
     case 8:
@@ -254,7 +260,143 @@ int func_8008B54C(int index) {
     return 1;
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B644);
+int func_8008B644(int index) {
+    s32 result = 1;
+    WorldMapPos *pScratch = (WorldMapPos *)0x1F800000;
+    WorldMapActor *pActor = &D_8009BE24[index];
+    WorldMapActor *pTarget;
+    WorldMapTrail *pTrail;
+    u16 angle;
+
+    switch (pActor->unk04) {
+    case 1:
+        pTarget = &D_8009BE24[pActor->unk06];
+        pActor->unk04 = 0;
+        pActor->unk20 = 8;
+        break;
+    case 2:
+        pActor->unk04 = 0;
+        pActor->unk20 = 0x28;
+        break;
+    case 3:
+        pActor->unk04 = 0;
+        pActor->unk20 = 1;
+        break;
+    case 5:
+        pActor->unk04 = 0;
+        pActor->unk20 = 0x30;
+        break;
+    }
+    switch (pActor->unk20) {
+    case 0:
+    case 1:
+        if (((u8 *)&g_GameState.unk22B0)[index] == 0) {
+            pTrail = &D_8009CEC4[(D_8009D154 - pActor->unk58) & 0x1F];
+            if ((pActor->unk28 == pTrail->vec.unk00) & (pActor->unk2C == pTrail->vec.unk04) &
+                (pActor->unk30 == pTrail->vec.unk08)) {
+                if (((s8 *)pActor->unk4C)[0xAF] != 0) {
+                    SpritePlayAnimation(pActor->unk4C, 0);
+                    WorldMapDeactivateSpriteGroup(index + 0x2E);
+                }
+            } else {
+                if (((s8 *)pActor->unk4C)[0xAF] != 1) {
+                    SpritePlayAnimation(pActor->unk4C, 1);
+                }
+                WorldMapUpdateSpriteGroupFromActor(index + 0x2E, pActor, (WorldMapScreenPos *)pScratch);
+            }
+            pActor->unk28 = pTrail->vec.unk00;
+            pActor->unk2C = pTrail->vec.unk04;
+            pActor->unk30 = pTrail->vec.unk08;
+            pActor->unk48 = pTrail->unk10;
+            pActor->unk24 = 0;
+        } else {
+            pTarget = &D_8009BE24[index + 3];
+            pActor->unk28 = pTarget->unk28;
+            pActor->unk2C = pTarget->unk2C;
+            pActor->unk30 = pTarget->unk30;
+            pActor->unk48 = pTarget->unk48;
+            pActor->unk24 = 1;
+            WorldMapDeactivateSpriteGroup(index + 0x2E);
+        }
+        break;
+    case 2:
+        pActor->unk28 = D_8009BE24[7].unk28;
+        pActor->unk2C = D_8009BE24[7].unk2C;
+        pActor->unk30 = D_8009BE24[7].unk30;
+        pActor->unk48 = D_8009BE24[7].unk48;
+        break;
+    case 8:
+        WorldMapBuildDirectionFromPositions(&pActor->unk28, &pTarget->unk28, &pActor->unk38, &pActor->unk48);
+        pActor->unk50 = pTarget->unk28 >> 12;
+        pActor->unk54 = pTarget->unk30 >> 12;
+        SpritePlayAnimation(pActor->unk4C, 1);
+        pActor->unk20++;
+        /* falls through */
+    case 9:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            pActor->unk20++;
+        }
+        WorldMapUpdateSpriteGroupFromActor(index + 0x2E, pActor, (WorldMapScreenPos *)pScratch);
+        break;
+    case 10:
+        if (WorldMapStartSlot(pActor->unk06, 4)) {
+            pActor->unk24 = 1;
+            pActor->unk20 = 2;
+            WorldMapDeactivateSpriteGroup(index + 0x2E);
+        }
+        break;
+    case 40:
+        pActor->unk28 = g_GameState.unk1930[0x13 + index * 3] << 12;
+        pActor->unk30 = g_GameState.unk1930[0x14 + index * 3] << 12;
+        pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+        angle = (&g_GameState.unk1824)[index];
+        pActor->unk5C = angle;
+        pActor->unk48 = angle;
+        pScratch->x = pActor->unk28 + rcos((s16)angle) * 0x30;
+        pScratch->z = pActor->unk30 + (-rsin(pActor->unk48)) * 0x30;
+        WorldMapBuildDirectionFromPositions(&pActor->unk28, pScratch, &pActor->unk38, &pActor->unk48);
+        pActor->unk50 = pScratch->x >> 12;
+        pActor->unk54 = pScratch->z >> 12;
+        pActor->unk24 = 0;
+        SpritePlayAnimation(pActor->unk4C, 1);
+        pActor->unk20++;
+        /* falls through */
+    case 41:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            pActor->unk20++;
+        }
+        break;
+    case 42:
+        ((u8 *)&g_GameState.unk22B0)[index] = 0;
+        pActor->unk20 = 0x40;
+        break;
+    case 48:
+        WorldMapBuildDirectionFromPositions(&pActor->unk28, &D_8009BE24[1].unk28, &pActor->unk38,
+                                           &pActor->unk48);
+        pActor->unk50 = D_8009BE24[1].unk28 >> 12;
+        pActor->unk54 = D_8009BE24[1].unk30 >> 12;
+        SpritePlayAnimation(pActor->unk4C, 1);
+        pActor->unk20++;
+        /* falls through */
+    case 49:
+        if (WorldMapMoveActorTowardTarget(pActor) == 3) {
+            pActor->unk20++;
+        }
+        break;
+    case 50:
+        if (WorldMapStartSlot(1, 6)) {
+            pActor->unk20 = 0;
+        }
+        break;
+    case 64:
+        /* reached from case 42; nothing to do, it falls through to the tail */
+        break;
+    }
+    if (pActor->unk24 == 0) {
+        WorldMapAddSlotPosition(0, &pActor->unk28);
+    }
+    return result;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
 /* 87.64% (476 bytes, retail 476). The whole head, the if/else inversion (written
    as "if (gearRide[2] == 0) { gear position } else { unk20 = 1; unk24 = 1; }",
