@@ -239,7 +239,7 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
             pBlock->targetY = dy + dstY;
             pBlock->targetZ = dz + dstZ;
         }
-        pBlock->unk10 = 0;
+        pBlock->curFrame = 0;
         pBlock->endFrame = duration;
         if (mode == 0) {
             if (command < 2) {
@@ -514,7 +514,7 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
             pBlock->targetX = dx;
             pBlock->targetY = dy;
             pBlock->targetZ = dz;
-            pBlock->unk10 = 0;
+            pBlock->curFrame = 0;
             pBlock->endFrame = duration;
         }
     }

@@ -357,7 +357,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     s16 v;
     u16 f;
 
-    v = p->unk5B * q->unk11;
+    v = p->unk5B * q->power;
     if (p->unk8A & 0x2000) {
         v *= 2;
     }
@@ -391,7 +391,7 @@ void BattleInitActiveSlotAction(void) {
     D_800C3E34->unk8C = 0;
     g_BattleCurveTargetModes[t] = 2;
     p = D_800C3E34;
-    v = p->maxHp * g_BattleCurrentRow->unk11;
+    v = p->maxHp * g_BattleCurrentRow->power;
     if (D_800C3E50) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
     t = D_800C3E50;
@@ -402,25 +402,25 @@ void BattleClearStatusWordsOnAction6E(void) {
     if (rand() % 100 > g_BattleCurrentRow->chance) {
         return;
     }
-    if (g_BattleCurrentRow->unk1D != 0x6E) {
+    if (g_BattleCurrentRow->conditionKind != 0x6E) {
         return;
     }
-    if (g_BattleCurrentRow->unk1E & 0x8000) {
+    if (g_BattleCurrentRow->conditionFlags & 0x8000) {
         D_800C3E34->unk84 = 0;
     }
-    if (g_BattleCurrentRow->unk1E & 0x4000) {
+    if (g_BattleCurrentRow->conditionFlags & 0x4000) {
         D_800C3E34->unk86 = 0;
     }
-    if (g_BattleCurrentRow->unk1E & 0x2000) {
+    if (g_BattleCurrentRow->conditionFlags & 0x2000) {
         D_800C3E34->unk88 = 0;
     }
-    if (g_BattleCurrentRow->unk1E & 0x1000) {
+    if (g_BattleCurrentRow->conditionFlags & 0x1000) {
         D_800C3E34->unk8A = 0;
     }
-    if (g_BattleCurrentRow->unk1E & 0x800) {
+    if (g_BattleCurrentRow->conditionFlags & 0x800) {
         D_800C3E34->unk8C = 0;
     }
-    if (g_BattleCurrentRow->unk1E & 0x400) {
+    if (g_BattleCurrentRow->conditionFlags & 0x400) {
         D_800C3E34->unk8E = 0;
     }
     g_BattleCurWorkBlock->commandCode = 0x3A;

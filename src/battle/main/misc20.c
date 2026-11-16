@@ -59,7 +59,7 @@ void BattleExecuteActionRow(void) {
     }
     if (g_BattleActingSlot->unk90[0x10] == 5 || g_BattleActingSlot->unk90[0x10] == 0xD) {
         if (g_BattleCurWorkBlock->rowIndex == 1) {
-            g_BattleCurrentRow->unk22 = D_800D2D6C->weaponData[1].attack;
+            g_BattleCurrentRow->element = D_800D2D6C->weaponData[1].attack;
         }
     }
     mask = 1;
@@ -84,7 +84,7 @@ void BattleExecuteActionRow(void) {
                 func_8009DBFC(one);
             }
         skip:
-            g_BattleCurWorkBlock->unk5FB0 = ((u16 *)g_BattleCurrentRow->unk02)[0];
+            g_BattleCurWorkBlock->unk5FB0 = g_BattleCurrentRow->unk02;
             func_8009C4B4();
             BattleSetSlotBit20FromStatusBit200(D_800C3E50);
         }
@@ -104,7 +104,7 @@ void BattleSaveScriptCommandOperands(void) {
 
     g_BattleCurWorkBlock->unk5FBC = g_BattleCurrentRow->unk20;
     g_BattleCurWorkBlock->unk5FBD = g_BattleCurrentRow->unk21;
-    g_BattleCurWorkBlock->unk5FBE = g_BattleCurrentRow->unk22;
+    g_BattleCurWorkBlock->unk5FBE = g_BattleCurrentRow->element;
     g_BattleCurWorkBlock->unk5FBF = g_BattleCurrentRow->unk23;
     g_BattleCurWorkBlock->unk5FC0 = g_BattleCurWorkBlock->rowIndex;
     c = (a | b) >> 12;
@@ -322,7 +322,7 @@ u16 BattleApplySlotPercentToValue(void) {
     return ret;
 }
 s32 BattleScaleValueByRowBitPercent(s32 arg0) {
-    u16 mask = ((u16 *)g_BattleCurrentRow->unk02)[3];
+    u16 mask = g_BattleCurrentRow->statusMask;
     u8 i;
     u8 idx; /* left unassigned when the scan finds no bit, as in retail */
     u8 v;
@@ -356,14 +356,14 @@ void BattleSetSlotState2FromActorField4F(void) {
     g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
-    u32 v = g_BattleCurrentRow->unk11 * D_800D2DC8->maxHp;
+    u32 v = g_BattleCurrentRow->power * D_800D2DC8->maxHp;
     u32 q = v / 20;
 
     g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
     g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState2FromActorField5B(void) {
-    s32 v = g_BattleActingSlot->unk5B * g_BattleCurrentRow->unk11;
+    s32 v = g_BattleActingSlot->unk5B * g_BattleCurrentRow->power;
 
     g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
     g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = v;
@@ -373,14 +373,14 @@ void BattleSetSlotFields148And10C(void) {
     g_BattleWorkBlock[D_800C3E50].state.unkB7[7] = 3;
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
-    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->unk11;
+    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->power;
     s32 q = v / 20;
 
     g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 0xA;
     g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
-    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->unk11;
+    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->power;
     s32 q = v / 20;
 
     g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 0xB;

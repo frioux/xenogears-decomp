@@ -18,7 +18,7 @@ typedef struct {
     /* 0xA */ s16 targetX; // where the tween ends, or the per-frame step when the absolute bit is clear
     /* 0xC */ s16 targetY;
     /* 0xE */ s16 targetZ;
-    /* 0x10 */ s16 unk10;
+    /* 0x10 */ s16 curFrame; // counted up to endFrame by the interpolation
     /* 0x12 */ s16 endFrame; // frame the interpolation runs to
 } BattleBlock; // Size: 0x14
 
@@ -199,8 +199,8 @@ typedef struct {
 // src/battle/main/misc18 and misc19 are named.
 typedef struct {
     /* 0x000 */ u16 flags;
-    /* 0x002 */ u8 unk02;
-    /* 0x003 */ u8 unk03;
+    /* 0x002 */ u8 chance; // percent, rolled against rand() % 100 by func_80097964
+    /* 0x003 */ u8 conditionKind; // passed as that function's kind word; its bits pick the condition word to clear
     /* 0x004 */ u8 unk04[0x34];
     /* 0x038 */ u16 unk38;
     /* 0x03A */ u8 unk3A[0x12];
@@ -252,21 +252,27 @@ typedef struct {
 // by other units.
 typedef struct {
     /* 0x00 */ u16 flags;
-    /* 0x02 */ u8 unk02[0x8];
+    /* 0x02 */ u16 unk02;
+    /* 0x04 */ u8 pad04[0x4];
+    /* 0x08 */ u16 statusMask; // one bit per status; the highest set bit picks the slot's counter
     /* 0x0A */ u16 actionFlags;
     /* 0x0C */ u8 unk0C[0x5];
-    /* 0x11 */ u8 unk11;
+    /* 0x11 */ u8 power; // multiplies the target's stat to give the action's amount
     /* 0x12 */ u8 unk12[0x2];
-    /* 0x14 */ u8 unk14;
+    /* 0x14 */ u8 chanceBonus; // added to the acting slot's percent before the rand() % 100 roll
     /* 0x15 */ u8 unk15;
     /* 0x16 */ u8 opcode; // selects the handler from the D_800C34DC table
-    /* 0x17 */ u8 unk17[0x5];
+    /* 0x17 */ u8 unk17;
+    /* 0x18 */ u8 chanceSource; // which field the condition chance is read from
+    /* 0x19 */ u8 pad19;
+    /* 0x1A */ u8 amountSource; // which stat the condition amount is scaled from
+    /* 0x1B */ u8 pad1B;
     /* 0x1C */ u8 chance; // percent, rolled against rand() % 100
-    /* 0x1D */ u8 unk1D;
-    /* 0x1E */ u16 unk1E;
+    /* 0x1D */ u8 conditionKind; // passed as the kind to BattleSetSlotConditionTimer
+    /* 0x1E */ u16 conditionFlags; // passed as its flag word; its bits pick the condition word to clear
     /* 0x20 */ u8 unk20;
     /* 0x21 */ u8 unk21;
-    /* 0x22 */ u8 unk22;
+    /* 0x22 */ u8 element; // attack element, low 6 bits; copied from the equipped weapon
     /* 0x23 */ u8 unk23;
     /* 0x24 */ u8 unk24[0x3];
     /* 0x27 */ s8 unk27;

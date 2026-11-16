@@ -370,7 +370,7 @@ void BattleQueueSpriteRotationTween(u8 *pPool, BattleSprite *pSprite, s32 arg2, 
                 arg5 -= 0x1000;
             }
             pNode->targetZ = arg5;
-            pNode->unk10 = 0;
+            pNode->curFrame = 0;
             pNode->endFrame = arg2;
             pSprite->p70 = pNode;
         }
@@ -402,7 +402,7 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
         pNode->targetX = arg6;
         pNode->targetY = arg7;
         pNode->targetZ = arg8;
-        pNode->unk10 = 0;
+        pNode->curFrame = 0;
         pNode->endFrame = arg5;
         pSprite->p70 = pNode;
     }

@@ -44,14 +44,14 @@ extern u8 BattleTestActorSlotFlagsC002ByMode(void);
 extern void BattleSetCommandCodeForSlotKindFlag(u8, u16);
 
 void BattleApplyScriptConditionTimer(void) {
-    s8 ret = func_80097964(g_BattleCurrentRow->chance, g_BattleCurrentRow->unk1D,
-                           g_BattleCurrentRow->unk1E);
+    s8 ret = func_80097964(g_BattleCurrentRow->chance, g_BattleCurrentRow->conditionKind,
+                           g_BattleCurrentRow->conditionFlags);
 
     if (g_BattleCurrentRow->actionFlags & 0x4000) {
-        BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->unk1D, g_BattleCurrentRow->unk1E, 5);
+        BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->conditionKind, g_BattleCurrentRow->conditionFlags, 5);
     } else {
-        BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->unk1D, g_BattleCurrentRow->unk1E,
-                      g_BattleCurrentRow->unk11);
+        BattleSetSlotConditionTimer(D_800C3E50, g_BattleCurrentRow->conditionKind, g_BattleCurrentRow->conditionFlags,
+                      g_BattleCurrentRow->power);
         if (ret != 1) {
             BattleWorkBlock *p = g_BattleCurWorkBlock;
 
@@ -62,10 +62,10 @@ void BattleApplyScriptConditionTimer(void) {
 void BattleApplyActorConditionTimer(void) {
     BattleTableEntry *p = g_BattleActingSlot;
 
-    if (func_80097964(p->unk02, p->unk03, p->flags) == 1) {
+    if (func_80097964(p->chance, p->conditionKind, p->flags) == 1) {
         BattleRow *q = g_BattleCurrentRow;
 
-        BattleSetSlotConditionTimer(D_800C3E50, q->unk1D, q->unk1E, 5);
+        BattleSetSlotConditionTimer(D_800C3E50, q->conditionKind, q->conditionFlags, 5);
     }
 }
 void BattleRollAndClearTargetConditions(void) {
@@ -74,20 +74,20 @@ void BattleRollAndClearTargetConditions(void) {
     if (t < rand() % 100) {
         g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 6;
     } else {
-        if (g_BattleCurrentRow->unk1D & 0x80) {
+        if (g_BattleCurrentRow->conditionKind & 0x80) {
             D_800C3E34->unk7C &= 0xC000;
         }
-        if (g_BattleCurrentRow->unk1D & 0x40) {
+        if (g_BattleCurrentRow->conditionKind & 0x40) {
             D_800C3E34->unk80 = 0;
             D_800C3E34->unk7A &= 0xFFDF;
         }
-        if (g_BattleCurrentRow->unk1D & 0x20) {
+        if (g_BattleCurrentRow->conditionKind & 0x20) {
             D_800C3E34->unk84 = 0;
         }
-        if (g_BattleCurrentRow->unk1D & 0x10) {
+        if (g_BattleCurrentRow->conditionKind & 0x10) {
             D_800C3E34->unk88 = 0;
         }
-        if (g_BattleCurrentRow->unk1D & 0x8) {
+        if (g_BattleCurrentRow->conditionKind & 0x8) {
             D_800C3E34->unk8C = 0;
         }
     }
@@ -97,7 +97,7 @@ void BattleRollSlotConditionAction(void) {
     u16 hp;
     u16 dmg;
 
-    switch (g_BattleCurrentRow->unk17[1]) {
+    switch (g_BattleCurrentRow->chanceSource) {
     case 0:
         chance = g_BattleActingSlot->unk60[0];
         break;
@@ -111,7 +111,7 @@ void BattleRollSlotConditionAction(void) {
         return;
     }
 
-    switch (g_BattleCurrentRow->unk17[3]) {
+    switch (g_BattleCurrentRow->amountSource) {
     case 0:
         hp = g_BattleActingSlot->maxHp;
         break;
@@ -126,12 +126,12 @@ void BattleRollSlotConditionAction(void) {
         break;
     }
 
-    dmg = hp * g_BattleCurrentRow->unk11 / 20;
-    if (g_BattleCurrentRow->unk17[3] == 5) {
+    dmg = hp * g_BattleCurrentRow->power / 20;
+    if (g_BattleCurrentRow->amountSource == 5) {
         dmg = D_800C3E34->hp - 1;
     }
 
-    switch (g_BattleCurrentRow->unk17[3]) {
+    switch (g_BattleCurrentRow->amountSource) {
     case 0:
     case 1:
     case 5:
@@ -158,7 +158,7 @@ void BattleRollSlotConditionAction(void) {
 void BattleSetSlotConditionActionValue(void) {
     u8 chance;
 
-    switch (g_BattleCurrentRow->unk17[1]) {
+    switch (g_BattleCurrentRow->chanceSource) {
     case 0:
         chance = g_BattleActingSlot->unk60[0];
         break;
@@ -174,14 +174,14 @@ void BattleSetSlotConditionActionValue(void) {
 
     g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 0;
 
-    switch (g_BattleCurrentRow->unk17[3]) {
+    switch (g_BattleCurrentRow->amountSource) {
     case 0:
         if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80) {
             g_BattleCurWorkBlock->unk5F6C[D_800C3E50] =
-                ((BattleSlotState *)D_800D2DC8)->hp / g_BattleCurrentRow->unk11;
+                ((BattleSlotState *)D_800D2DC8)->hp / g_BattleCurrentRow->power;
         } else {
             g_BattleCurWorkBlock->unk5F6C[D_800C3E50] =
-                D_800C3E34->hp / g_BattleCurrentRow->unk11;
+                D_800C3E34->hp / g_BattleCurrentRow->power;
         }
         break;
     case 1:
@@ -270,7 +270,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 
     pBase = g_BattleCurWorkBlock;
     bitAtk = *(u8 *)(pBase + D_800C3E50 * 0x170 + 0x15A) >> 7;
-    elemAtk = g_BattleCurrentRow->unk22 & 0x3F;
+    elemAtk = g_BattleCurrentRow->element & 0x3F;
     elemDef = *(u8 *)&D_800C3E34->unk38 & 0x3F;
     bitDef = *(u8 *)(pBase + D_800C3E04 * 0x170 + 0x15A) >> 7;
     if (bitDef == 0) {
@@ -376,7 +376,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 }
 */
 void BattleRollPercentAndSetState38(void) {
-    s32 t = g_BattleActingSlot->unk5B + g_BattleCurrentRow->unk14;
+    s32 t = g_BattleActingSlot->unk5B + g_BattleCurrentRow->chanceBonus;
 
     if (rand() % 100 >= t) {
         g_BattleCurWorkBlock->commandCode = 0x38;
@@ -1022,7 +1022,7 @@ void BattleSaveScriptCommandOperandsFromActor(void) {
 
     g_BattleCurWorkBlock->unk5FBC = g_BattleCurrentRow->unk20;
     g_BattleCurWorkBlock->unk5FBD = g_BattleCurrentRow->unk21;
-    g_BattleCurWorkBlock->unk5FBE = g_BattleCurrentRow->unk22;
+    g_BattleCurWorkBlock->unk5FBE = g_BattleCurrentRow->element;
     g_BattleCurWorkBlock->unk5FBF = g_BattleCurrentRow->unk23;
     g_BattleCurWorkBlock->unk5FC0 = g_BattleCurWorkBlock->rowIndex;
 

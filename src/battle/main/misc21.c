@@ -684,7 +684,7 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                         pBlock->targetY += pSprite->rot[1];
                         pBlock->targetZ += pSprite->rot[2];
                     }
-                    pBlock->unk10 = 0;
+                    pBlock->curFrame = 0;
                     pBlock->endFrame = frames;
                     pSprite->p70 = pBlock;
                 }
@@ -729,7 +729,7 @@ s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData
                         pBlock->targetY = v1 - pSprite->pos[1];
                         pBlock->targetZ = v2 - pSprite->pos[2];
                     }
-                    pBlock->unk10 = 0;
+                    pBlock->curFrame = 0;
                     pBlock->endFrame = frames;
                     pSprite->p74 = pBlock;
                 }

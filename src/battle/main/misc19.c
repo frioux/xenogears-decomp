@@ -867,7 +867,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 // temp, u32* destination pointer local (70.17, CSEs the base).
 // PARKED (98.33%). Body COMPILES again (park triage, round 111): the park spelled
 // g_BattleCurrentRow[0x11] from a time when the symbol was a u8*; it is a BattleRow*
-// now, so the same byte is g_BattleCurrentRow->unk11 (identical code). Only the last
+// now, so the same byte is g_BattleCurrentRow->power (identical code). Only the last
 // four instructions differ, and only by register - see the note above.
 // PRESET_260: 100.00% under gcc-2.6.0 (tools/scripts/try_flags.sh), 98.33% under
 // the unit's 2.7.2 (and under 2.7.2-cdk). The last four instructions differ:
@@ -886,7 +886,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 // temp, u32* destination pointer local (70.17, CSEs the base). Permuter score 50,
 // stuck over 1907+1250 iterations.
 // PARKED (98.33%). Body compiles; g_BattleCurrentRow is a BattleRow* so the old
-// g_BattleCurrentRow[0x11] spelling is now ->unk11 (identical code).
+// g_BattleCurrentRow[0x11] spelling is now ->power (identical code).
 /*
 void func_8009BD94(void) {
     int new_var;
@@ -897,7 +897,7 @@ void func_8009BD94(void) {
     new_var = D_800C3E50;
     new_var = (u32)g_BattleCurWorkBlock + new_var * 4 - -0x5F6C;
     *(u32*)new_var =
-        (u32)(g_BattleCurrentRow->unk11 * *(s32*)(D_800D2DC8 + 0x64)) / 20;
+        (u32)(g_BattleCurrentRow->power * *(s32*)(D_800D2DC8 + 0x64)) / 20;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
