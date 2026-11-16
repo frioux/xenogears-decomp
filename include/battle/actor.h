@@ -164,7 +164,7 @@ typedef struct {
     /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 unk50[0x10];
     /* 0x60 */ u32 unk60; // scaled current hp
-    /* 0x64 */ s32 unk64; // scaled max hp
+    /* 0x64 */ u32 unk64; // scaled max hp
     /* 0x68 */ u8 unk68[0x14];
     /* 0x7C */ u16 unk7C;
     /* 0x7E */ u8 unk7E[0x2];
@@ -196,7 +196,9 @@ typedef struct {
     /* 0x03A */ u8 unk3A[0x12];
     /* 0x04C */ u16 unk4C; // hp, scaled by 50 into +0x104
     /* 0x04E */ u16 unk4E; // max hp, scaled by 50 into +0x108
-    /* 0x050 */ u8 unk50[0x6];
+    /* 0x050 */ u16 unk50; // scaled by 10 into unk5F6C
+    /* 0x052 */ u16 unk52;
+    /* 0x054 */ u16 unk54;
     /* 0x056 */ u8 unk56;
     /* 0x057 */ u8 unk57[0x4];
     /* 0x05B */ u8 unk5B;

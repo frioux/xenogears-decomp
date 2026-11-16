@@ -116,10 +116,10 @@ void func_80095D4C(void) {
         hp = D_800C3E34->unk4E;
         break;
     case 2:
-        hp = *(u16 *)&D_800C3E00->unk50[2];
+        hp = D_800C3E00->unk52;
         break;
     case 3:
-        hp = *(u16 *)&D_800C3E34->unk50[2];
+        hp = D_800C3E34->unk52;
         break;
     }
 
@@ -152,7 +152,84 @@ void func_80095D4C(void) {
         return;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096018);
+void func_80096018(void) {
+    u8 chance;
+
+    switch (D_800C3DFC->unk17[1]) {
+    case 0:
+        chance = D_800C3E00->unk5C[4];
+        break;
+    case 1:
+        chance = D_800C3DFC->unk1C;
+        break;
+    }
+
+    if (chance < rand() % 100) {
+        D_800C34B0->unk5FA0[D_800C3E50] = 6;
+        return;
+    }
+
+    D_800C34B0->unk5FA0[D_800C3E50] = 0;
+
+    switch (D_800C3DFC->unk17[3]) {
+    case 0:
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                ((BattleSlotState *)D_800D2DC8)->unk60 / D_800C3DFC->unk11;
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                D_800C3E34->unk4C / D_800C3DFC->unk11;
+        }
+        break;
+    case 1:
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->unk60 - 1;
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk4C - 1;
+        }
+        break;
+    case 2:
+        if (D_800C34B0->slots[D_800C3E04].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                D_800D2D6C->unk64 - D_800D2D6C->unk60;
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] =
+                D_800C3E00->unk4E - D_800C3E00->unk4C;
+        }
+        break;
+    case 3:
+        D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk50 * 10;
+        break;
+    case 4:
+        D_800C34B0->unk5F6C[D_800C3E50] = 1;
+        break;
+    case 5:
+        D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk4C;
+        break;
+    case 6:
+        D_800C34B0->unk5FA0[D_800C3E50] = 0;
+        if (D_800CCCE8[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5F6C[D_800C3E50] = ((BattleSlotState *)D_800D2DC8)->unk64;
+            if (((BattleSlotState *)D_800D2DC8)->unk64 >= 0x2710) {
+                ((BattleSlotState *)D_800D2DC8)->unk64 = 0x270F;
+            }
+        } else {
+            D_800C34B0->unk5F6C[D_800C3E50] = D_800C3E34->unk4E;
+            if (D_800C3E34->unk4E >= 0x2710) {
+                D_800C3E34->unk4E = 0x270F;
+            }
+        }
+        break;
+    case 7:
+        if (D_800C34B0->slots[D_800C3E50].state.unkB6 & 0x80) {
+            D_800C34B0->unk5FA0[D_800C3E50] = 6;
+        } else {
+            D_800C3E34->unk7C |= 1;
+            D_800C3E34->unk80 |= 1;
+        }
+        break;
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 /* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
    used raw u8-array spellings of D_800C3DFC / D_800C3E00 / D_800C3E34; with
