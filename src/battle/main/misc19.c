@@ -99,7 +99,8 @@ u8 func_8009A258(u8 arg0, u8 arg1) {
 
     p = p + arg1 * 0x28;
     q = (u8*)(arg0 * 0x170) + (u32)D_800C34B0;
-    sum = p[0x14] + q[0x5B];
+    sum = p[0x14];
+    sum = sum + q[0x5B];
     value = sum;
     if (value > 0x64) {
         if (value || sum) {
