@@ -398,30 +398,11 @@ int SystemStringGetUnk6B(SystemString* pString) {
     return 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033CF0);
-
-/* Best attempt, 96.49%, 228 bytes (the original is 228 too): every insn is
-   right and in the right place except pScanEnd, which gcc folds to
-   `addiu v1,v0,-2` off pEnd and emits one insn early; the original has
-   `addiu v1,a0,20` off pScan after the bne.
-   - `v = value;` as a statement (not using the parameter directly) is what
-     fixes the entry block: gcc emits the parameter copy after the
-     `lui/ori` of 1000000000 instead of before it (92.98% -> 96.49%).
-   - The scan loop only matches in this shape: while/break, while with &&
-     and do/while are all rotated by loop.c; the two gotos to a label after
-     the block stop the rotation.
-   - pScanEnd is the only remaining diff. cse folds pScan + 10 to pEnd - 2
-     because pScan's register carries the equivalence pEnd - 11; hiding the
-     offset (mem_addr intermediate) and moving the assignment inside the if
-     both still fold, and the in-if form also forces pEnd out of v0 (the andi
-     clobbers it) so reorg then steals the `sh a1,-22(v0)` store into the
-     bne delay slot (224 bytes, 96.47%).
 void func_80033CF0(int value, int glyphOffset, int flag) {
     u32 divisor = 1000000000;
     u16* pDigit = D_8005A0CA;
     u16* pEnd;
     u16* pScan;
-    u16* pScanEnd;
     int i;
     int sign = flag;
     s32 v;
@@ -449,11 +430,11 @@ void func_80033CF0(int value, int glyphOffset, int flag) {
     pEnd[0] = 0xFFFF;
     pEnd[-11] = glyphOffset;
 
-    pScanEnd = pScan + 10;
+    pEnd = pScan + 10;
 
     if ((glyphOffset & 0xFFF0) == glyphOffset) {
         for (;;) {
-            if (pScan == pScanEnd) {
+            if (pScan == pEnd) {
                 goto scanDone;
             }
             pScan++;
@@ -470,7 +451,6 @@ scanDone:
 
     SystemDecodeGlyphCodes(pScan);
 }
-*/
 
 void SystemStringSetCurrentData(SystemString* pString, void* pData) {
     void* pOld = pString->pCur;
