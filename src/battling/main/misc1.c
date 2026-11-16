@@ -39,6 +39,8 @@ extern s32 D_800987FC;
 /* 66.68%: original keeps &D_8009867C in $s0 across the first call and reads and
    stores through it; ours rematerialises the address (lui at / lw / sw). The same
    C without the pointer local scores the same; -G0 65.72, gcc 2.6.0 65.72.
+   func_80070808's body shows D_8009867C/80/84 are the vx/vy/vz of one VECTOR:
+   it reads 0x0(a0) with 0x0(s0) and stores the result back through 0x0(s0).
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80070808);
 
@@ -59,7 +61,8 @@ extern void func_800828F8(s32* pA, s32* pB, s32 limit);
 
 /* 74.00%: same missing shape as func_80070808, the original keeps &D_8009871C in
    $s2 across all four calls and reaches it through the register; ours re-forms it
-   with lui/addiu each time.
+   with lui/addiu each time. D_8009871C/20/24 are also one VECTOR seen by
+   func_800708C4 as 0x0/0x4/0x8(s2).
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_800708C4);
 
@@ -419,7 +422,7 @@ void func_80071F8C(s32 mode) {
         SoundStopAllElements();
         break;
     case 1:
-        func_80071DA4(&D_8009872C[0]);
+        func_80071DA4((u8*)&D_8009872C);
         if (D_800970C4 * 0x100 / D_800970CC < D_800987E0 * 0x100 / D_800987E8) {
             D_800925D4 = 0x43;
         } else {
@@ -427,7 +430,7 @@ void func_80071F8C(s32 mode) {
         }
         break;
     case 2:
-        func_80071DA4(&D_80097010[0]);
+        func_80071DA4((u8*)&D_80097010);
         break;
     case 3:
         D_80098720 = -D_8009284C;
