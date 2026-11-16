@@ -10,14 +10,10 @@ extern s32* g_BattleGridCells;
 extern u8 g_BattleDrawBufferIndex;
 
 typedef struct {
-    /* 0x0 */ u8 unk0[0x8];
-} Unk8; // Size: 0x8
-
-typedef struct {
     /* 0x0 */ s32 unk0[4];
 } Unk16; // Size: 0x10
 
-extern Unk8 g_BattlePlaneNormal;
+extern SVECTOR g_BattlePlaneNormal;
 extern s32 g_BattleCameraPos;
 extern s32 g_BattleCameraTarget;
 extern s32 D_80098720;
@@ -159,12 +155,129 @@ void BattleDrawArcOutline(s32 arg0, s32 arg1, s32 arg2) {
     func_80087698(x0, y0, px, py);
 }
 
-void BattleCopyPlaneNormal(Unk8* p) {
+void BattleCopyPlaneNormal(SVECTOR* p) {
     *p = g_BattlePlaneNormal;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
+extern void MathTriangleNormal(SVECTOR* pVertex1, SVECTOR* pVertex2, SVECTOR* pVertex3, SVECTOR* pNormal);
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082488);
+/* PARK 98.96% (0x3F8 bytes, the original's exact size - only the prologue's
+   register choice for the mask/index and one addu operand order differ).
+   The floor of a grid cell is two triangles cut by the diagonal from the near
+   corner to the far one; this returns the height of that plane under pPos.
+   Four stack tricks were needed to reproduce the frame: the cell corners are
+   four SVECTORs at 0x18, the triangle is a second SVECTOR[3] at 0x40, and the
+   three pad arrays are addressable-but-unused locals that the original has
+   (0x10 and 0x58 are never written) - gcc 2.7.2 only allocates space for an
+   unused aggregate, not for an unused scalar.  The 12-byte VECTOR view of the
+   long dot product is taken at &v3, the dead fourth corner, which is where the
+   original stores it too.
+   The height patch is a two-case switch with fall-through: retail's arms are
+   "h += 0xC0" falling into "h += 0x40" (cross-jumped if/else-if instead folds
+   the two adds into one +0x100 and shrinks the body), and each check re-forms
+   g_BattleGridCells[idx] from scratch, so they are written as full array
+   accesses rather than through the pCell pointer.
+   Remaining diff: retail holds pPos->vx in t2/pPos->vz in t1 and the 0xFFFFFF00
+   mask in a0 (ours: v0/a0/a3) and forms the cell address as addu idx,base
+   (ours: base,idx).  Readable as: mx/mz = coordinate & 0xFFFFFF00,
+   col/row = coordinate >> 8, side = the 3x3 determinant that says which side of
+   the diagonal the point is on, then dot products with g_BattlePlaneNormal. */
+/*
+// The floor of a grid cell is two triangles cut by the diagonal from the
+// near corner to the far one; this returns the height of that plane under pPos.
+s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
+    SVECTOR padTop[1];
+    SVECTOR v0;
+    SVECTOR v1;
+    SVECTOR v2;
+    SVECTOR v3;
+    SVECTOR padMid[1];
+    SVECTOR tri[3];
+    SVECTOR padBottom[1];
+    VECTOR* pRef;
+    s32* pCell;
+    s32 row;
+    s32 col;
+    s32 mx;
+    s32 mz;
+    s32 side;
+
+    mx = pPos->vx & 0xFFFFFF00;
+    col = pPos->vx >> 8;
+    mz = pPos->vz & 0xFFFFFF00;
+    row = pPos->vz >> 8;
+    pCell = &g_BattleGridCells[(row << 7) + col];
+
+    v0.vx = mx;
+    v0.vy = *(u16*)&pCell[0];
+    v0.vz = mz;
+    v1.vx = mx + 0x100;
+    v1.vy = *(u16*)&pCell[0x81];
+    v1.vz = mz + 0x100;
+    v2.vx = mx + 0x100;
+    v2.vy = *(u16*)&pCell[1];
+    v2.vz = mz;
+    v3.vx = mx;
+    v3.vy = *(u16*)&pCell[0x80];
+    v3.vz = mz + 0x100;
+
+    if (fixHeights) {
+        switch (g_BattleGridCells[(row << 7) + col] & 0x3000000) {
+        case 0x1000000:
+            v0.vy = v0.vy + 0xC0;
+        case 0x3000000:
+            v0.vy = v0.vy + 0x40;
+            break;
+        }
+        switch (g_BattleGridCells[(row << 7) + col + 0x81] & 0x3000000) {
+        case 0x1000000:
+            v1.vy = v1.vy + 0xC0;
+        case 0x3000000:
+            v1.vy = v1.vy + 0x40;
+            break;
+        }
+        switch (g_BattleGridCells[(row << 7) + col + 1] & 0x3000000) {
+        case 0x1000000:
+            v2.vy = v2.vy + 0xC0;
+        case 0x3000000:
+            v2.vy = v2.vy + 0x40;
+            break;
+        }
+        switch (g_BattleGridCells[(row << 7) + col + 0x80] & 0x3000000) {
+        case 0x1000000:
+            v3.vy = v3.vy + 0xC0;
+        case 0x3000000:
+            v3.vy = v3.vy + 0x40;
+            break;
+        }
+    }
+
+    side = (v0.vz - v1.vz) * pPos->vx + (v1.vx - v0.vx) * pPos->vz +
+           v0.vx * v1.vz - v1.vx * v0.vz;
+    if (side < 0) {
+        tri[0] = v0;
+        tri[1] = v1;
+        tri[2] = v2;
+    } else {
+        tri[0] = v0;
+        tri[1] = v3;
+        tri[2] = v1;
+    }
+
+    MathTriangleNormal(&tri[0], &tri[1], &tri[2], &g_BattlePlaneNormal);
+
+    pRef = (VECTOR*)&v3;
+    pRef->vx = tri[0].vx;
+    pRef->vy = tri[0].vy;
+    pRef->vz = tri[0].vz;
+    return pPos->vy + ((pRef->vx * g_BattlePlaneNormal.vx + pRef->vy * g_BattlePlaneNormal.vy +
+                        pRef->vz * g_BattlePlaneNormal.vz) -
+                       (pPos->vx * g_BattlePlaneNormal.vx + pPos->vy * g_BattlePlaneNormal.vy +
+                        pPos->vz * g_BattlePlaneNormal.vz)) /
+                          g_BattlePlaneNormal.vy;
+}
+*/
 s16 BattleGetGridValueAtPosition(u8* p) {
     s32 tmp[12];
     s32 a;
