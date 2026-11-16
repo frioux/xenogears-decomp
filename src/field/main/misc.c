@@ -314,8 +314,8 @@ void FieldScriptSetTransitionParams(void) {
 }
 
 void FieldScriptWriteGameState17FC48(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x48]);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), *(u_short*)&g_pGameState->unk17FC[0x4A]);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u_short*)&g_pGameState->unk1838)[6]);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), ((u_short*)&g_pGameState->unk1838)[7]);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -349,10 +349,10 @@ void FieldScriptSetGameState184E(void) {
 }
 
 void FieldScriptWriteGameState17FC30(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x30]);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), *(u_short*)&g_pGameState->unk17FC[0x32]);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), *(u_short*)&g_pGameState->unk17FC[0x34]);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(4), *(u_short*)&g_pGameState->unk17FC[0x36]);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk182C);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), *(u_short*)&g_pGameState->unk182E);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(3), *(u_short*)&g_pGameState->unk1830);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(4), g_pGameState->unk1832);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
 
@@ -369,21 +369,21 @@ void FieldScriptSetGameState17FC30(void) {
 
     value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     pActor = g_FieldScriptVMCurActor;
-    *(u_short*)&g_pGameState->unk17FC[0x30] = value;
+    *(u_short*)&g_pGameState->unk182C = value;
     value = FieldScriptArgument2(3, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    *(u_short*)&g_pGameState->unk17FC[0x32] = value;
+    *(u_short*)&g_pGameState->unk182E = value;
     value = FieldScriptArgument3(5, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    *(u_short*)&g_pGameState->unk17FC[0x34] = value;
+    *(u_short*)&g_pGameState->unk1830 = value;
     value = FieldScriptArgument4(7, SCRIPT_READ_U8(pActor->scriptInstructionPointer + 9));
     pActor = g_FieldScriptVMCurActor;
-    *(u_short*)&g_pGameState->unk17FC[0x36] = value;
+    g_pGameState->unk1832 = value;
     pActor->scriptInstructionPointer += 0xA;
 }
 
 void FieldScriptWriteGameState17FC38(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), *(u_short*)&g_pGameState->unk17FC[0x38]);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_pGameState->unk1834);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -391,7 +391,7 @@ void FieldScriptSetGameState17FC38(void) {
     int value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(3));
     ActorData* pActor = g_FieldScriptVMCurActor;
 
-    *(u_short*)&g_pGameState->unk17FC[0x38] = value;
+    g_pGameState->unk1834 = value;
     pActor->scriptInstructionPointer += 4;
 }
 
@@ -2106,20 +2106,24 @@ int FieldActorsWithinDistance(int dstActorId, int srcActorId) {
     return -(distance >= 0x10);
 }
 
+// Copies one field between two actors' sprite data. It takes the actor array
+// rather than the two sprite pointers because g_FieldActors is volatile: retail
+// re-reads the base once per copy, and handing g_FieldActors to this helper is
+// what makes that one read instead of two.
 static inline void CopySpriteFieldS32(FieldActor* actors, int dstId, int srcId, int offset) {
-    void* dst = actors[dstId].pSpriteData;
-    void* src = actors[srcId].pSpriteData;
+    SpriteData* dst = actors[dstId].pSpriteData;
+    SpriteData* src = actors[srcId].pSpriteData;
     *(s32*)((u8*)dst + offset) = *(s32*)((u8*)src + offset);
 }
 
 static inline void CopySpriteFieldU16(FieldActor* actors, int dstId, int srcId, int offset) {
-    void* dst = actors[dstId].pSpriteData;
-    void* src = actors[srcId].pSpriteData;
+    SpriteData* dst = actors[dstId].pSpriteData;
+    SpriteData* src = actors[srcId].pSpriteData;
     *(u16*)((u8*)dst + offset) = *(u16*)((u8*)src + offset);
 }
 
-static inline void CopyActorFieldS32(FieldActor* base, int dstId, int srcId, int offset) {
-    *(s32*)((u8*)&base[dstId] + offset) = *(s32*)((u8*)&base[srcId] + offset);
+static inline void CopyActorFieldS32(FieldActor* actors, int dstId, int srcId, int offset) {
+    *(s32*)((u8*)&actors[dstId] + offset) = *(s32*)((u8*)&actors[srcId] + offset);
 }
 
 void FieldActorCopyPlacement(int dstActorId, int srcActorId) {
