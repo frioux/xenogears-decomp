@@ -312,37 +312,28 @@ u16 BattleSlotWordVarGetSet(u8 slot, u8 reg, u16 value, u8 get) {
     }
     return result;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A628);
-/* 99.12% - identical instruction sequence, only the two register choices
-   differ: the original keeps res in a2 and the row offset arg0*0x170 in v1
-   (sll v1,v0,4 / addu at,at,v1 / addu at,at,v1), ours puts res in v1 and the
-   offset in a0. Same body as BattleSlotFlagsC002Clear (which matches 100% with res in v1,
-   offset in a0), so the two differ only in allocation: this one needs res out of
-   v1. Tried: res declared before/after off, off/f as top-level declarations,
-   u32/u8 res. The u8 res is what produces the sltiu v0 + move (a2,v0) copy.
-   Round 35: everything (three branches, both delay-slot stores of res, all
-   loads, the arg0*0x170 sequence) is identical; the ONLY difference is res
-   landing in v1 instead of a2 while off lands in a0 instead of v1 - a global.c
-   priority tie. Also tried: the offset written inline twice (cse makes one
-   pseudo, same 99.12%) and dropping the `u32 f` local (89.10%, it turns the
-   andi+sltiu into srl+xori).
 u32 func_8007A628(u8 arg0, u8 arg1) {
-    s32 off;
-    u32 f;
     u8 res = 0;
 
-    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3EB7[arg0 * 0x1C] == 0) {
-        off = arg0 * 0x170;
-        if ((*(u16 *)(g_BattleSlotEntries + off) & 0xC002) == 0) {
-            res = 1;
-            if (arg1 == 0) {
-                f = *(u16 *)(D_800CCD6C + off) & 0x20;
-                res = f == 0;
+    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
+        do {
+            if ((g_BattleSlotEntries[arg0].flags & 0xC002) == 0) {
+                res = 1;
+                if (arg1 == 0) {
+                    u32 f = g_BattleSlotEntries[arg0].unk8 & 0x20;
+
+                    res = f == 0;
+                }
             }
-        }
+        } while (0);
     }
     return res;
-} */
+}
+/* The do-while is load-bearing: without it gcc 2.7.2 allocates res to v1 and the
+   arg0 * 0x170 offset to a0, the opposite of the original (res in a2, offset in
+   v1, reused for both flag words). The word at 0x8 is the original's
+   D_800CCD6C, spelled through the entry struct, so objdiff sees an addend
+   difference only. */
 u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
     u8 res = 0;
 
@@ -500,7 +491,7 @@ void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     pRow[p[1]] = v;
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
-/* 99.55% - one insn off: the original's multiply is mult v1,v0 (value first,
+/* 99.09% - one instruction off: the original's multiply is mult v1,v0 (value first,
    p[2] second); writing `p[2] * pRow[p[1]]` is the only shape that also gets the
    lbu order right (lbu p[1], lbu p[2], addu row base, lbu row), but then gcc
    emits mult v0,v1. `pRow[p[1]] * p[2]` flips the mult but also flips the loads
@@ -523,9 +514,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
    missing symbol and the two-instructions-early lui/addiu, leaving exactly one
    instruction: the mult operand order. Permuter from that body: 1370
    iterations, base=10 best=10, no improvement.
+   Round 164 (park repair): re-measured, 99.09% (88 bytes, the original's size);
+   the only difference is `mult v0,v1` against the original's `mult v1,v0`. Every
+   row-first spelling (element pointer, `u8 n = p[2]` between the pointer and the
+   product, `u8 cur = pRow[p[1]]`) is 71.05%: cse sinks the single-use p[2] load
+   to the multiply, so the lbu order breaks before the mult order can help. The
+   body below is the 99.09% one.
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
     s16 v = p[2] * pRow[p[1]];
     u8 res = v;
 
