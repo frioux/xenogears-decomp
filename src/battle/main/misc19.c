@@ -90,7 +90,6 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // $v0, q byte in $v1; here the other way round). Tried: s32 sum + u8 copy, `+=` vs
 // one expression, sum kept live via a wider compare, the 0x5B offset in a local
 // (permuter found that one, no change), permuter 1837 iterations (best 91.8%).
-/*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
     u8* p = (u8*)off + (u32)D_800C34B0;
@@ -99,16 +98,19 @@ u8 func_8009A258(u8 arg0, u8 arg1) {
     u8 value;
 
     p = p + arg1 * 0x28;
-    q = (u8*)D_800C34B0 + arg0 * 0x170;
+    q = (u8*)(arg0 * 0x170) + (u32)D_800C34B0;
     sum = p[0x14] + q[0x5B];
     value = sum;
     if (value > 0x64) {
-        value = 0x64;
+        if (value || sum) {
+            value = 0x64;
+        } else {
+            value = 0x64;
+        }
     }
     return value;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 
 u8 BattleGetGameCharacterField5(u8 arg0) {
