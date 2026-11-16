@@ -33,6 +33,18 @@ void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
 void func_801E8070(s32, void*, void*, void*, void*, u8, u8, u8);
 void MenuCreateWindow(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
+void MenuApplyEquippedItemBonuses(MenuDressingRoom*, u8);
+void MenuComputeCharacterStats(MenuDressingRoom*, u8);
+void func_801D261C(void);
+void func_801D29A8(s32, s32);
+void func_801D8EA4(u8, u8, u8, u8);
+void func_801DDF24(u8, u8, u8);
+void func_801E86C8(u8);
+void MenuStartOpenAnimation(void);
+void MenuResetSelectionCursorFlags(void);
+void MenuMovePointerCursor(u8, u8);
+void MenuDrawStatTable(u8, u8, u8, u8);
+void MenuSetSubMenuChoicePrims(u8);
 
 int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1) {
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
@@ -260,7 +272,114 @@ void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->unk360);
     func_801C72BC(0x13);
 }
+/* objdiff 75.76% (1044 bytes; retail 1188 = 36 insns short). Structure matches retail's call sequence exactly (all 24 calls in order) and the case-4 nested dispatch tree; residue is pre-loop/prologue register allocation and blocks gcc folded into the same basic block. Settled by measurement: 'slot' is an int (not u8: retail masks only lastSlot in 'slot != (u8)lastSlot'), lastSlot/firstDraw/active are u8, the scan is a bounded for over currentCharacterIDs, and retail does NOT keep g_Menu->pManager in a local - it reloads g_Menu->pManager for every store.
+   nb: this body DID NOT COMPILE in its last state - it still needed a
+   re-diff after the pManager de-localisation, so treat 75.76% as the
+   first-draft number.
+void func_801E2BE4(void) {
+    int i;
+    u8 active;
+    u8 firstDraw;
+    u8 lastSlot;
+    int slot;
+
+    active = 1;
+    firstDraw = 1;
+    lastSlot = 0xF3;
+    slot = g_Menu->unk4DA[2];
+    g_Menu->subMenuChoice = 2;
+    g_Menu->subMenuPrevChoice = 0xFF;
+    MenuInitializeCharacterScreenBuffers();
+    for (i = 0; i < 3; i++) {
+        if (g_Menu->pManager->currentCharacterIDs[i] != 0xFF) {
+            slot = i;
+            break;
+        }
+    }
+    while (active != 0) {
+        MenuRenderFrame();
+        if (slot != lastSlot) {
+            MenuApplyEquippedItemBonuses(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[slot]);
+            MenuComputeCharacterStats(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[slot]);
+            lastSlot = slot;
+            MenuDrawGearScreen(lastSlot, 0);
+            if (firstDraw != 0) {
+                MenuStartOpenAnimation();
+                firstDraw = 0;
+                func_801D29A8(0, 0);
+                func_801E86C8(0);
+            }
+        }
+        if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
+            func_801D261C();
+            MenuSetSubMenuChoicePrims(0);
+            g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
+        }
+        switch (g_Menu->input) {
+        case 4:
+            MenuResetSelectionCursorFlags();
+            MenuClearSubMenuChoiceFlags();
+            g_Menu->pManager->unk5[2] = 0;
+            g_Menu->pManager->unk8 = 0;
+            g_Menu->pManager->unk4A[1] = 0;
+            switch (g_Menu->subMenuChoice) {
+            case 0:
+                g_Menu->pManager->unkA = 0;
+                func_801E05D0(slot, 0, 0);
+                MenuFreeCharacterSpriteRecords();
+                MenuDrawStatTable(slot, 0, 0, 0);
+                func_801D8EA4(slot, 0, 0, 0);
+                g_Menu->pManager->unkA = 1;
+                lastSlot = 0xFF;
+                break;
+            case 1:
+                func_801DDF24(slot, 0, 0);
+                MenuFreeUnk430Panel(0);
+                lastSlot = 0xFF;
+                break;
+            case 2:
+                MenuRunUnk438PanelLoop(slot);
+                break;
+            }
+            MenuLoadSubMenuChoiceStrings(1);
+            g_Menu->pManager->unk5[2] = 1;
+            g_Menu->pManager->unk8 = 1;
+            g_Menu->pManager->unk4A[1] = 1;
+            MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
+            g_Menu->pManager->unk4 = 1;
+            g_Menu->subMenuPrevChoice = 0xFF;
+            func_801D3488(0, 0);
+            break;
+        case 5:
+            active = 0;
+            break;
+        case 1:
+            if (g_Menu->subMenuChoice != 0) {
+                g_Menu->subMenuChoice--;
+            } else {
+                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices - 1;
+            }
+            break;
+        case 3:
+            g_Menu->subMenuChoice++;
+            if (g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
+                g_Menu->subMenuChoice = 0;
+            }
+            break;
+        case 9:
+            slot = func_801D9704(slot, 0, 0);
+            break;
+        case 10:
+            slot = func_801D9704(slot, 1, 0);
+            break;
+        }
+    }
+    MenuLoadSubMenuChoiceStrings(0);
+    g_Menu->pManager->unk4 = 0;
+    g_Menu->pManager->unk3 = 0;
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
+
 void func_801E3088(u8 arg0) {
     switch (g_Menu->mainMenuChoice + arg0) {
     case 0:
