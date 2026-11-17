@@ -415,27 +415,39 @@ extern MenuGlyphCellPos D_801E9994[0x15];
 extern MenuGlyphCellPos D_801E99E8[2];
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5B88);
-/* Best: 99.94% under the unit preset (708 bytes = retail's size, instruction stream
-   identical; the one differing word is mfhi's destination - retail has
-   mfhi a1 / sra a1,a1,0x2, gcc 2.7.2 here emits mfhi t0 / sra a1,t0,0x2).
-   Two permuter runs (1136 and 2017 mutants) found nothing better, so this is not a
-   source shape: the same body scores 100.00 under gcc 2.6.0 (try_flags.sh), i.e. the
-   mfhi+sra fusion is a property of the compiler version.  Switching this unit needs a
-   split: under 2.6.0 every already-matched C function of the unit stays 100.00 except
-   MenuFillInventoryTables (93.06).
-   Settled shape: nested loops i = 0..0x1F, j = 0..1, prim at
-   g_Menu->unk34C + (i * 2 + j) * 0x28; the atlas cell is D_801E9994[i % 0x15] plus
-   row offset (i / 0x15) * 8 in x and D_801E99E8[i / 0x15] in y (both tables have to be
-   pointer locals, the plain array form folds the address through $at); uv from
-   (i % 0x10) * 0x10 and (i / 0x10) * 0x10 - 0x20.  `i = 0` FIRST in the outer for-init
-   fixes the prologue save order (97.31 -> 99.63), and carrying (i * 2 + j) * 0x28
-   through a separate temp before assigning the s32 offset took it 99.63 -> 99.94.
+/* Park: 99.94% under the unit preset (708 bytes = retail's size, the instruction
+   stream is identical word for word except ONE mfhi destination: retail has
+   "mfhi a1 / sra a1,a1,0x2", gcc 2.7.2 emits "mfhi t0 / sra a1,t0,0x2".  Every other
+   register, relocation and delay slot already agrees, so this is not a source shape:
+   gcc's local-alloc coalesces the multiply-high temp with the quotient pseudo only in
+   2.6.0.  The body below scores 100.00 (byte-identical) under gcc 2.6.0 with the
+   Default flag set; two permuter runs (1136 and 2017 mutants) and every spelling of
+   the divide (i % 0x15 via CSE, col = i - row * 0x15, row/col locals) leave 2.7.2 at
+   99.94.
+   FIX: a one-function preset split.  In config/menu.yaml replace
+   [0x1FA28, c, main/misc11_r2] with
+   [0x1FA28, c, main/misc11_r2], [0x20B88, c, main/misc11_r2_260],
+   [0x20E4C, c, main/misc11_r2]
+   and put the body below in src/menu/main/misc11_r2_260.c on the XenoLibrary preset
+   (gcc 2.6.0, Default flags).  It cannot be a whole-unit switch: under 2.6.0
+   MenuFillInventoryTables drops to 93.06 and MenuDrawSlotResourceSprites to 99.39,
+   every other C function of the unit stays 100.00.
+   Shape: nested loops i = 0..0x1F, j = 0..1, prim at g_Menu->unk34C + (i * 2 + j) * 0x28;
+   the atlas cell is D_801E9994[i % 0x15] plus the row offset (i / 0x15) * 8 in x and
+   D_801E99E8[i / 0x15] in y (both tables have to be pointer locals, the plain array form
+   folds the address through $at); uv from (i % 0x10) * 0x10 and (i / 0x10) * 0x10 - 0x20.
+   `i = 0` FIRST in the outer for-init fixes the prologue save order, and carrying
+   (i * 2 + j) * 0x28 through a separate temp before assigning the s32 offset is what
+   gives retail's s0.  The prim address is re-formed from g_Menu->unk34C at every store
+   (retail reloads 0x34C each time), so it must NOT be a pointer local.
 
 void func_801E5B88(void) {
-    int offsetTmp;
     MenuGlyphCellPos* pCellX;
     MenuGlyphCellPos* pCellY;
+    s32 offsetTmp;
     s32 offset;
+    s32 row;
+    s32 col;
     s32 i;
     s32 j;
 
@@ -444,18 +456,20 @@ void func_801E5B88(void) {
             offsetTmp = (i * 2 + j) * 0x28;
             offset = offsetTmp;
             MenuInitializePolyFt4((POLY_FT4*)(offset + (u32)g_Menu->unk34C));
+            row = i / 0x15;
+            col = i - row * 0x15;
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x0 =
-                pCellX[i % 0x15].unk0 + (i / 0x15) * 8;
-            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y0 = pCellY[i / 0x15].unk0;
+                pCellX[col].unk0 + row * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y0 = pCellY[row].unk0;
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x1 =
-                pCellX[i % 0x15].unk0 + (i / 0x15) * 8 + 0xC;
-            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y1 = pCellY[i / 0x15].unk0;
+                pCellX[col].unk0 + row * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y1 = pCellY[row].unk0;
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x2 =
-                pCellX[i % 0x15].unk0 + (i / 0x15) * 8;
-            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y2 = pCellY[i / 0x15].unk0 + 0x10;
+                pCellX[col].unk0 + row * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y2 = pCellY[row].unk0 + 0x10;
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->x3 =
-                pCellX[i % 0x15].unk0 + (i / 0x15) * 8 + 0xC;
-            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y3 = pCellY[i / 0x15].unk0 + 0x10;
+                pCellX[col].unk0 + row * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->y3 = pCellY[row].unk0 + 0x10;
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u0 = (i % 0x10) * 0x10;
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->v0 = (i / 0x10) * 0x10 - 0x20;
             ((POLY_FT4*)(offset + (u32)g_Menu->unk34C))->u1 = (i % 0x10) * 0x10 + 0xC;
