@@ -126,7 +126,7 @@ typedef struct {
     /* 0x4E */ u8 unk4E;
     /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 unk50[4];
-    /* 0x54 */ u8 unk54;
+    /* 0x54 */ u8 etherAmplificationFromEquipment; // added to etherAmplification for the total shown
     /* 0x55 */ u8 unk55[3];
     /* 0x58 */ u16 unk58;
     /* 0x5A */ u16 unk5A;
@@ -193,7 +193,7 @@ typedef struct {
     /* 0x18 */ s16 unk18;
     /* 0x1A */ s16 unk1A;
     /* 0x1C */ s16 unk1C;
-    /* 0x1E */ s16 unk1E;
+    /* 0x1E */ s16 statusFlags; // status bit mask, tested through BattleMaskHasStatusBit
 } UnkGearState; /* size: 0x20 */
 
 typedef struct {

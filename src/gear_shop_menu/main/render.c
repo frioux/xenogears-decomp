@@ -2667,7 +2667,7 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
     characterId = g_GearShopGearPilotIds[gearId];
 
     pFlags1 = &g_GameState.unk16BC[characterId].unk8;
-    pFlags2 = &g_GameState.unk16BC[characterId].unk1E;
+    pFlags2 = &g_GameState.unk16BC[characterId].statusFlags;
 
     pGear->defenseFromEquipment = 0;
     pGear->etherDefenseFromEquipment = 0;
@@ -2692,7 +2692,7 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
         pGear->unk55[i] = 0;
     }
 
-    pGear->unk54 = 0;
+    pGear->etherAmplificationFromEquipment = 0;
     pGear->unk7E = 0;
     pGear->unk82 = 0;
     pGear->unk86 &= 0xF000;

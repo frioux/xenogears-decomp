@@ -109,7 +109,7 @@ void FieldScriptSetGearStateFlag(void) {
     int index = FieldScriptVMGetArgument(1);
     int value = FieldScriptVMGetArgument(3);
 
-    g_pGameState->unk16BC[index].unk1E |= value;
+    g_pGameState->unk16BC[index].statusFlags |= value;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
