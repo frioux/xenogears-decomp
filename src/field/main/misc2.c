@@ -1087,8 +1087,7 @@ void func_800752C8(void) {
     func_80075B44(g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex);
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
-        // Offset-first integer arithmetic: matches the original's addu operand order
-        pActor = (FieldActor*)(i * 0x5C + (int)g_FieldActors);
+        pActor = (FieldActor*)(i * sizeof(FieldActor) + (mem_addr)g_FieldActors);
         // The original reads status as a 32-bit word
         if ((*(u_int*)&pActor->status & 0x60) == 0x40) {
             if ((pActor->pActorData->flags & 0x600) == 0x200) {
