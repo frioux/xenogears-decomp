@@ -2,6 +2,10 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
+// Tile coordinates the sprite-group calls below read out of the scratchpad: the
+// three halfwords at 0x1F8000A0 are one short vector, handed over by address.
+#define WORLD_MAP_TILE_POS ((SVECTOR *)0x1F8000A0)
+
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ s16 command;
@@ -618,33 +622,34 @@ int WorldMapInitReturnThree(void) {
 }
 
 int WorldMapActivateSpriteGroup9Timed(int idx) {
-    // byte view of the player slot: through a typed WorldMapPlayer * gcc lifts the
-    // three position words above the stores and settles on $a3 for the slot
-    // (73.27%, 324 bytes) where retail interleaves load/store on $a2
-    u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
+    // char view of the slot for the five stores below: written as members, gcc
+    // hoists the three global loads above the sh pair and the block loses retail's
+    // interleaved load/store (324 bytes against retail's 336)
+    u8 *pSlotBytes = (u8 *)pPlayer;
     s16 timer;
     int nResult = 1;
 
-    if (*(s16 *)(pPlayer + 4) == 1) {
-        *(s16 *)(pPlayer + 4) = 0;
-        *(s16 *)(pPlayer + 0x22) = 0x3C;
-        *(s32 *)(pPlayer + 0x28) = g_WorldMapPlayerPosition;
-        *(s32 *)(pPlayer + 0x2C) = g_WorldMapPlayerPositionY;
-        *(s32 *)(pPlayer + 0x30) = g_WorldMapPlayerPositionZ;
+    if (pPlayer->command == 1) {
+        *(s16 *)(pSlotBytes + 4) = 0;
+        *(s16 *)(pSlotBytes + 0x22) = 60;
+        *(s32 *)(pSlotBytes + 0x28) = g_WorldMapPlayerPosition;
+        *(s32 *)(pSlotBytes + 0x2C) = g_WorldMapPlayerPositionY;
+        *(s32 *)(pSlotBytes + 0x30) = g_WorldMapPlayerPositionZ;
     }
-    timer = *(u16 *)(pPlayer + 0x22);
+    timer = pPlayer->stateTimer;
     timer--;
-    *(s16 *)(pPlayer + 0x22) = timer;
+    pPlayer->stateTimer = timer;
     if (timer > 0) {
-        *(s32 *)(pPlayer + 0x28) += -0x95D0;
-        *(s32 *)(pPlayer + 0x30) += 0x2F130;
-        *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
-        *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
-        *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-        func_80089160(9, (void *)0x1F8000A0, (s32)g_WorldMapSpriteGroup9Rotation);
+        pPlayer->x += -0x95D0;
+        pPlayer->z += 0x2F130;
+        WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
+        WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
+        WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
+        func_80089160(9, WORLD_MAP_TILE_POS, (s32)g_WorldMapSpriteGroup9Rotation);
     } else {
-        *(s16 *)(pPlayer + 0x22) = 0x3C;
-        *(WorldMapPos *)(pPlayer + 0x28) = *(WorldMapPos *)&g_WorldMapPlayerPosition;
+        pPlayer->stateTimer = 60;
+        *(WorldMapPos *)&pPlayer->x = *(WorldMapPos *)&g_WorldMapPlayerPosition;
         WorldMapDeactivateSpriteGroup(9);
         nResult = 3;
     }
@@ -1161,30 +1166,27 @@ int WorldMapInitGroup9Actor(int idx) {
     return 1;
 }
 int WorldMapUpdateGroup9Actor(int idx) {
-    // byte view of the player slot: with a typed pointer gcc reuses the actor's
-    // position words instead of reloading them, losing retail's two load-delay
-    // nops (62.97%, 276 bytes against retail's 280)
-    u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapSceneLayer *pLayer = g_WorldMapGroups;
 
-    if (*(s16 *)(pPlayer + 4) == 1) {
-        *(s16 *)(pPlayer + 4) = 0;
+    if (pPlayer->command == 1) {
+        pPlayer->command = 0;
         pLayer[9].unk0 = 1;
         pLayer[7].unk0 = 1;
         pLayer[8].unk0 = 1;
         WorldMapDeactivateSpriteGroup(0x16);
         return 3;
     }
-    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    WorldMapWrapPosition(pPlayer + 0x28);
-    *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
-    pLayer[9].pos.x = *(s32 *)(pPlayer + 0x28) >> 12;
-    pLayer[9].pos.y = *(s32 *)(pPlayer + 0x2C) >> 12;
-    pLayer[9].pos.z = *(s32 *)(pPlayer + 0x30) >> 12;
-    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-    func_80089160(0x16, (void *)0x1F8000A0, 0);
+    pPlayer->z += pPlayer->dirZ;
+    WorldMapWrapPosition(&pPlayer->x);
+    pPlayer->y = func_80093A5C(pPlayer->x, pPlayer->z) - 0x4000;
+    pLayer[9].pos.x = pPlayer->x >> 12;
+    pLayer[9].pos.y = pPlayer->y >> 12;
+    pLayer[9].pos.z = pPlayer->z >> 12;
+    WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
+    WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
+    WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
+    func_80089160(0x16, WORLD_MAP_TILE_POS, 0);
     return 1;
 }
 
@@ -1208,32 +1210,29 @@ int WorldMapInitGroup10Actor(int idx) {
 }
 
 int WorldMapUpdateGroup10Actor(int idx) {
-    // byte view of the player slot, for the reason given in WorldMapUpdateGroup9Actor;
-    // a typed pointer gives 82.99% (340 bytes against retail's 348): gcc hoists the
-    // third position load and the call's constants above the scratchpad stores
-    u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapSceneLayer *pLayer = g_WorldMapGroups;
 
-    if (*(s16 *)(pPlayer + 4) == 1) {
-        *(s16 *)(pPlayer + 4) = 0;
+    if (pPlayer->command == 1) {
+        pPlayer->command = 0;
         pLayer[10].unk0 = 1;
         pLayer[11].unk0 = 1;
         WorldMapDeactivateSpriteGroup(0x17);
-        *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
-        *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
-        *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-        func_80089160(0x1C, (void *)0x1F8000A0, 0);
+        WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
+        WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
+        WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
+        func_80089160(0x1C, WORLD_MAP_TILE_POS, 0);
         return 3;
     }
-    *(s32 *)(pPlayer + 0x30) += *(s32 *)(pPlayer + 0x40);
-    WorldMapWrapPosition(pPlayer + 0x28);
-    *(s32 *)(pPlayer + 0x2C) = func_80093A5C(*(s32 *)(pPlayer + 0x28), *(s32 *)(pPlayer + 0x30)) - 0x4000;
-    pLayer[10].pos.x = *(s32 *)(pPlayer + 0x28) >> 12;
-    pLayer[10].pos.y = *(s32 *)(pPlayer + 0x2C) >> 12;
-    pLayer[10].pos.z = *(s32 *)(pPlayer + 0x30) >> 12;
-    *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
-    *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
-    *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-    func_80089160(0x17, (void *)0x1F8000A0, 0);
+    pPlayer->z += pPlayer->dirZ;
+    WorldMapWrapPosition(&pPlayer->x);
+    pPlayer->y = func_80093A5C(pPlayer->x, pPlayer->z) - 0x4000;
+    pLayer[10].pos.x = pPlayer->x >> 12;
+    pLayer[10].pos.y = pPlayer->y >> 12;
+    pLayer[10].pos.z = pPlayer->z >> 12;
+    WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
+    WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
+    WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
+    func_80089160(0x17, WORLD_MAP_TILE_POS, 0);
     return 1;
 }
