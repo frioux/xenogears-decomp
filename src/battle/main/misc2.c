@@ -144,7 +144,7 @@ void BattleAddTwoPrimLists(void) {
     s32 offset;
     BattleWork *pWork;
 
-    if (g_BattleDisplayState->unkCB == 0) {
+    if (g_BattleDisplayState->primListsPending == 0) {
         return;
     }
 
@@ -152,23 +152,23 @@ void BattleAddTwoPrimLists(void) {
     offset = 0x641C;
     do {
         pWork = g_BattleDisplayState;
-        func_800728B8((u8 *)(offset + (s32)g_BattleGraphicsWork), pWork->unkD0[i], pWork->unkA3);
+        func_800728B8((u8 *)(offset + (s32)g_BattleGraphicsWork), pWork->packageCounts[i], pWork->primStart);
         offset += 0xFA0;
         i++;
     } while (i < 2);
 }
 
 void BattleAddThreeFlaggedPrimLists(void) {
-    if (g_BattleDisplayState->unk9C != 0) {
-        func_800728B8(g_BattleGraphicsWork + 0xBA8, g_BattleDisplayState->unkF8, g_BattleDisplayState->unkA5);
+    if (g_BattleDisplayState->spriteColumnPending != 0) {
+        func_800728B8(g_BattleGraphicsWork + 0xBA8, g_BattleDisplayState->spriteColumnPackageCount, g_BattleDisplayState->spriteColumnPrimStart);
     }
 
-    if (g_BattleDisplayState->unk9E != 0) {
-        func_800728B8(g_BattleGraphicsWork + 0x27C8, g_BattleDisplayState->unk100, g_BattleDisplayState->unkA7);
+    if (g_BattleDisplayState->cursorPending != 0) {
+        func_800728B8(g_BattleGraphicsWork + 0x27C8, g_BattleDisplayState->cursorPackageCount, g_BattleDisplayState->cursorPrimStart);
     }
 
-    if (g_BattleDisplayState->unk9D != 0) {
-        func_800728B8(g_BattleGraphicsWork + 0x1E68, g_BattleDisplayState->unkFC, g_BattleDisplayState->unkA6);
+    if (g_BattleDisplayState->menuColumnPending != 0) {
+        func_800728B8(g_BattleGraphicsWork + 0x1E68, g_BattleDisplayState->menuColumnPackageCount, g_BattleDisplayState->menuColumnPrimStart);
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
@@ -258,7 +258,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074AB8);
 void BattleUpdateRotationBuffer(void) {
     s32 i;
 
-    if (g_BattleDisplayState->unkC6 == 0) {
+    if (g_BattleDisplayState->pulseTriangleActive == 0) {
         return;
     }
 
@@ -298,7 +298,7 @@ void BattleUpdateRotationBuffer(void) {
     } while (i < 4);
 }
 void BattleAddThreePrimLists(void) {
-    if (g_BattleDisplayState->unkA8 == 0) {
+    if (g_BattleDisplayState->spriteWorkListsPending == 0) {
         return;
     }
 
@@ -311,13 +311,13 @@ void BattleAddPrimAndRenderObject(void) {
     BattlePrimPool *pPool;
     s32 off;
 
-    if (g_BattleDisplayState->unkC8 != 0) {
+    if (g_BattleDisplayState->packagePending != 0) {
         pPool = g_BattlePrimPool;
-        off = pPool->unk7F4 * sizeof(POLY_FT4) + 0x7A4;
+        off = pPool->primIndex * sizeof(POLY_FT4) + 0x7A4;
         AddPrim(g_BattleCurOT + 4, (u8 *)(off + (s32)pPool));
     }
 
-    if (g_BattleDisplayState->unkC9 != 0) {
+    if (g_BattleDisplayState->objectRenderPending != 0) {
         func_80034888(D_800D2DAC, g_BattleCurOT + 4, g_BattlePrimStartIndex);
     }
 }

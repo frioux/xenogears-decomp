@@ -30,18 +30,18 @@ typedef struct {
     /* 0x000 */ u8 unk0[0x7C];
     /* 0x07C */ u8 slotMarks[3]; // raised for each slot the action's target mask covers
     /* 0x07F */ u8 unk7F[0x1D];
-    /* 0x09C */ u8 unk9C;
-    /* 0x09D */ u8 unk9D;
-    /* 0x09E */ u8 unk9E;
+    /* 0x09C */ u8 spriteColumnPending;
+    /* 0x09D */ u8 menuColumnPending;
+    /* 0x09E */ u8 cursorPending;
     /* 0x09F */ u8 unk9F[0x10];
     /* 0x0AF */ u8 unkAF;
     /* 0x0B0 */ u8 unkB0[4]; // prim flags the *PrimFlags*Slots pairs below raise
     /* 0x0B4 */ u8 unkB4[3];
     /* 0x0B7 */ u8 unkB7;
     /* 0x0B8 */ u8 unkB8[0xE];
-    /* 0x0C6 */ u8 unkC6;
+    /* 0x0C6 */ u8 pulseTriangleActive;
     /* 0x0C7 */ u8 unkC7[4];
-    /* 0x0CB */ u8 unkCB;
+    /* 0x0CB */ u8 primListsPending;
 } BattleDisplayState; // Size: 0xCC
 
 extern BattleCommandQueue *g_BattleCommandQueue;
@@ -265,17 +265,17 @@ void func_8008ADD0(u8 arg0) {
 */
 
 void BattleClearPrimFlagsFourSlots(u8 arg0) {
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 0;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = g_BattleDisplayState->unkB0[3] = 0;
     g_BattleDisplayState->unkB7 = 0;
     if (arg0 == 0) {
-        g_BattleDisplayState->unkCB = 1;
+        g_BattleDisplayState->primListsPending = 1;
     }
 }
 void BattleSetPrimFlagsFourSlots(u8 arg0) {
     u16 value;
 
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 1;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = g_BattleDisplayState->unkB0[3] = 1;
     g_BattleDisplayState->unkB7 = 1;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
@@ -338,12 +338,12 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     }
     if (*(u16 *)(D_800CCD38 + arg0 * 0x170) >= count && inParty != 0) {
         BattleClearPrimFlagsFourSlots(1);
-        g_BattleDisplayState->unkC6 = 1;
+        g_BattleDisplayState->pulseTriangleActive = 1;
         if (BattleRunTargetSlotSelection(entry, arg0, 0) != 0) {
             *(u16 *)(D_800CCD38 + arg0 * 0x170) -= count;
             result = 1;
         } else {
-            g_BattleDisplayState->unkC6 = 0;
+            g_BattleDisplayState->pulseTriangleActive = 0;
             BattleSetPrimFlagsFourSlots(arg0);
         }
         canAct = 0;
@@ -406,7 +406,7 @@ u8 func_8008B478(u8 arg0) {
     primCount = 0;
     g_BattleCursorScrollY = 0;
     g_BattleCursorScrollState = 0;
-    g_BattleDisplayState->unkCB = 0;
+    g_BattleDisplayState->primListsPending = 0;
     func_8008F8F4(0, 0x1C, 0xA0, 0xAC, 0x38, 0, 1);
     func_8008F8F4(1, 0x20, 0x2C, 0x118, 0x70, 0, 1);
     func_8008F8F4(2, 0xD0, 0xA4, 0x50, 0x18, 0, 1);
@@ -576,17 +576,17 @@ void BattleActivateSelectedCommand(u8 arg0) {
     }
 }
 void BattleClearPrimFlagsTwoSlots(u8 arg0) {
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 0;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 0;
     g_BattleDisplayState->unkB7 = 0;
     if (arg0 == 0) {
-        g_BattleDisplayState->unkCB = 1;
+        g_BattleDisplayState->primListsPending = 1;
     }
 }
 void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     u16 value;
 
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 1;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 1;
     g_BattleDisplayState->unkB7 = 2;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
@@ -608,11 +608,11 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     if (value != 0) {
         if (arg3 == 0) {
             BattleClearPrimFlagsTwoSlots(1);
-            g_BattleDisplayState->unkC6 = 1;
+            g_BattleDisplayState->pulseTriangleActive = 1;
             if (BattleRunTargetSlotSelection(entry, arg0, 0) != 0) {
                 result = 1;
             } else {
-                g_BattleDisplayState->unkC6 = 0;
+                g_BattleDisplayState->pulseTriangleActive = 0;
                 BattleSetPrimFlagsTwoSlots(arg0);
             }
         } else if (BattleIsCharacterInParty(value - 0x32) != 0) {
@@ -683,7 +683,7 @@ u8 func_8008BED8(u8 arg0) {
     primCount = 0;
     g_BattleCursorScrollY = 0;
     g_BattleCursorScrollState = 0;
-    g_BattleDisplayState->unkCB = 0;
+    g_BattleDisplayState->primListsPending = 0;
     func_8008F8F4(0, 0x20, 0x58, 0x118, 0x78, 0, 1);
     func_8008F8F4(1, 0x10, 0x2C, 0x128, 0x28, 0, 1);
     BattleInitPulseTrianglePrims();
@@ -797,10 +797,10 @@ u8 func_8008BED8(u8 arg0) {
 }
 */
 void BattleFreeSlotPrims(u8 arg0) {
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 0;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
     g_BattleDisplayState->unkB7 = 0;
     if (arg0 != 0) {
-        g_BattleDisplayState->unkC6 = 0;
+        g_BattleDisplayState->pulseTriangleActive = 0;
         BattleFreeSlotBuffers(0);
         BattleFreeSlotBuffers(1);
         BattleUpdateFrame();
@@ -813,7 +813,7 @@ void BattleFreeSlotPrims(u8 arg0) {
 void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
     u16 value;
 
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 1;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
     g_BattleDisplayState->unkB7 = 3;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 1;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
@@ -840,7 +840,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
       with the 0x40 literal the order is wrong at exactly the three sites where
       the pointer lands in $v0 rather than $a0. Both `g_BattleCommandQueue[arg0 * 0x40 +
       0x3C]` and `(g_BattleCommandQueue + arg0 * 0x40)[0x3C]` measured identical.
-   Everything else matches, including the shared epilogue, `g_BattleDisplayState->unkCB =
+   Everything else matches, including the shared epilogue, `g_BattleDisplayState->primListsPending =
    result` / `D_800C4928 = result` both storing $s3 (the source has to store the
    `result` local there, not the literal 1), the `sb` in BattleFreeSlotPrims's
    jal delay slot, the `addiu v0,v0,0xFF` (255, not -1) form of `x - 1`, and the
@@ -859,7 +859,7 @@ s32 func_8008C4A8(u8 arg0) {
     if ((func_8008C81C(arg0) & 0xFF) != 0) {
         BattleNoOpCallback(arg0, 0x100);
         BattleFreeSlotPrims(1);
-        g_BattleDisplayState->unkCB = result;
+        g_BattleDisplayState->primListsPending = result;
         result = 0;
     } else {
         BattleNoOpCallback(arg0, 0x80);
@@ -899,17 +899,17 @@ s32 func_8008C4A8(u8 arg0) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 void BattleClearPrimFlagsThreeSlots(u8 arg0) {
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 0;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = 0;
     g_BattleDisplayState->unkB7 = 0;
     if (arg0 == 0) {
-        g_BattleDisplayState->unkCB = 1;
+        g_BattleDisplayState->primListsPending = 1;
     }
 }
 void BattleSetPrimFlagsThreeSlots(u8 arg0) {
     u16 value;
 
-    g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 1;
+    g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
     g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = 1;
     g_BattleDisplayState->unkB7 = 4;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
