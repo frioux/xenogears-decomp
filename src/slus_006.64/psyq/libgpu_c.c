@@ -12,7 +12,7 @@ extern u_long *D_800569A8;
 
 extern volatile u_long *D_800569B0;
 extern volatile u_long *D_800569C0;
-extern u_long D_800569C4;
+extern volatile u_long D_800569C4[];
 extern u_long D_800569C8;
 extern u_long D_800569CC;
 
@@ -195,23 +195,24 @@ void func_80046EFC(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
 
-/* best 94.49%: identical instruction multiset and size (364 bytes); the only
-   differences are the scheduler/allocator choices inside the first printf's
-   argument setup (retail keeps the D_800569A4 pointer in v1 and the discarded
-   status read in v0, gcc picks a2/v1) plus one address form (retail reaches
-   D_800569C4 with lui+addiu, reproduced here by the volatile pointer local).
-   Tried: inline vs local que, (void) read before/after the que, pointer vs
-   array declaration of D_800569C4, SetIntrMask returning int vs u_short, and
-   both orders of the SetIntrMask(0)/D_800569D8 assignments.
+/* best 94.49% (364 bytes = retail's exact size, identical instruction multiset).
+   The two ingredients found so far: the discarded status read is a bare
+   '(void)*D_800569A4;' statement before the first printf, and the queue word
+   D_800569C4 must be declared volatile AND as an array ('extern volatile u_long
+   D_800569C4[];' read as D_800569C4[0]) - that is what materialises its address
+   with lui+addiu instead of the 2-instruction lui+lw form retail does not have.
+   Left: the register allocation of the first printf's argument setup (retail
+   keeps the D_800569A4 pointer in v1 and the dead status read in v0, gcc picks
+   a2/v1 and loads the A8 word earlier). Tried: inline vs pointer-local que,
+   (void) read before/after the que, SetIntrMask returning int vs u_short, both
+   orders of the SetIntrMask(0)/D_800569D8 pair, and two permuter runs (a 3 min
+   run found only the volatile D_800569C4 above).
 int func_80046F30(void) {
     if (D_800569E8 < Vsync(-1) || D_800569EC++ > 0xF0000) {
-        volatile u_long *pStat = D_800569A4;
-        volatile u_long *pFunc = &D_800569C4;
-
-        (void)*pStat;
-        printf(D_80019240, (D_800569D4 - D_800569D8) & 0x3F, *pStat, *D_800569B0,
-               *D_800569A8);
-        printf(D_80019274, *pFunc, D_800569C8, D_800569CC);
+        (void)*D_800569A4;
+        printf(D_80019240, (D_800569D4 - D_800569D8) & 0x3F, *D_800569A4,
+               *D_800569B0, *D_800569A8);
+        printf(D_80019274, D_800569C4[0], D_800569C8, D_800569CC);
         D_800569E4 = SetIntrMask(0);
         D_800569D8 = 0;
         D_800569D4 = D_800569D8;
@@ -222,8 +223,10 @@ int func_80046F30(void) {
         SetIntrMask(D_800569E4);
         return -1;
     }
+
     return 0;
 } */
+
 
 int func_8004709C(u_long mode) {
     *D_800569A4 = 0x10000007;
