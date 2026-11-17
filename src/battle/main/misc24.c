@@ -245,10 +245,10 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                 pActor->commandArgs[pActor->commandCount] = arg3;
             } else {
                 if (arg3 < 0x50) {
-                    pActor->unk10 = ((s32 *)pSource->unk8)[arg3];
+                    pActor->actionValue = ((s32 *)pSource->pActionTable)[arg3];
                 } else {
                     pGroupTable = *(s32 **)((u8 *)pSource->pBuffer + 4);
-                    pActor->unk10 = pGroupTable[arg3 - 0x4E];
+                    pActor->actionValue = pGroupTable[arg3 - 0x4E];
                 }
                 n = g_BattleCommandActorMask;
                 pActor->unk42 = 0;
@@ -437,11 +437,11 @@ s32 BattleGetSoundBankId(BattleActor *pActor, s32 arg1) {
         return g_BattleSoundBankMain->unk14 << 16;
     }
     if (arg1 == 1) {
-        pBank = ((Temp8 *)pActor->unkB0)->pUnk8;
+        pBank = ((Temp8 *)pActor->pSoundBank1)->pUnk8;
         return pBank->unk14 << 16;
     }
     if (arg1 == 2) {
-        pBank = ((Temp8 *)pActor->unkB4)->pUnk8;
+        pBank = ((Temp8 *)pActor->pSoundBank2)->pUnk8;
         return pBank->unk14 << 16;
     }
     if (arg1 == 3) {

@@ -88,11 +88,11 @@ typedef struct {
 typedef struct {
     /* 0x000 */ void* pMesh; // the actor's mesh; BattleFreeModelMesh frees it
     /* 0x004 */ BattleSprite* pSprites;
-    /* 0x008 */ s32 unk8;
+    /* 0x008 */ s32 pActionTable; // address of the s32 action-value table a queued command id indexes
     /* 0x00C */ s32 pBuffer; // the block BattleFreeActorBuffer HeapFree()s; its +4 holds a pointer into the action-value table
-    /* 0x010 */ s32 unk10;
-    /* 0x014 */ s32 unk14;
-    /* 0x018 */ s32 unk18;
+    /* 0x010 */ s32 actionValue; // the entry the queued command selects from that table
+    /* 0x014 */ s32 pActionTableLow; // the s32 table BattleGetActorActionEntry reads for action codes below 0x40 (indexed code + 1)
+    /* 0x018 */ s32 pActionTableHigh; // and from 0x40 up (indexed code - 0x3F)
     /* 0x01C */ s16 scale;
     /* 0x01E */ s16 groundTriangleIndex; // the ground search's last hit, handed back to it as the next hint
     /* 0x020 */ u8 unk20[0x3];
@@ -146,8 +146,8 @@ typedef struct {
     /* 0x0A4 */ mem_addr pPointList; // where pPointCursor restarts after the last step
     /* 0x0A8 */ mem_addr pModelFile; // the loaded model file; freed just before BattleFreeModelMesh(pMesh)
     /* 0x0AC */ mem_addr unkAC;
-    /* 0x0B0 */ u8* unkB0;
-    /* 0x0B4 */ u8* unkB4;
+    /* 0x0B0 */ u8* pSoundBank1; // the libgear texture-upload record whose +8 SEDS entry feeds battle sound bank 1
+    /* 0x0B4 */ u8* pSoundBank2; // and bank 2
     /* 0x0B8 */ u8 unkB8[0x52];
     /* 0x10A */ u16 modelBitMask;
     /* 0x10C */ u8 numEntries;
@@ -307,16 +307,16 @@ typedef struct {
     /* 0x5750 */ BattleGearWeaponRecord gearWeapons[50];
     /* 0x5B38 */ BattleGearWeaponRecord gearWeaponIds[50];
     /* 0x5F20 */ u8 unk5F20[0x4C];
-    /* 0x5F6C */ s32 slotAmounts[12]; // the amount the current action deals to each slot; its state code is unk5FA0
+    /* 0x5F6C */ s32 slotAmounts[12]; // the amount the current action deals to each slot; its state code is slotStates
     /* 0x5F9C */ u8 unk5F9C[4];
-    /* 0x5FA0 */ u8 unk5FA0[12];
+    /* 0x5FA0 */ u8 slotStates[12]; // the state each slot's action reached; 0xFF = cleared
     /* 0x5FAC */ u16 activeSlotMask; // the slots the current row runs for; BattleFilterSlotMaskByGroup narrows it
     /* 0x5FAE */ u16 slotMask; // the same mask before that filter
     /* 0x5FB0 */ u16 unk5FB0;
     /* 0x5FB2 */ u8 unk5FB2[0xA];
     /* 0x5FBC */ u8 unk5FBC;
     /* 0x5FBD */ u8 unk5FBD;
-    /* 0x5FBE */ u8 unk5FBE;
+    /* 0x5FBE */ u8 element; // the current action's element: the row's byte, with its low 6 bits filled from the affinity nibble when the row left them clear
     /* 0x5FBF */ u8 unk5FBF;
     /* 0x5FC0 */ u8 unk5FC0;
     /* 0x5FC1 */ u8 actorIndex; // selects the actor's row table (stride 0x690)

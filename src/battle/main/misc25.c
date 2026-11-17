@@ -154,9 +154,9 @@ s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
         *pOut = pActor->commands[0] & 0x80;
     }
     if ((sel & 0xFF) < 0x40) {
-        return ((s32 *)(u32)pActor->unk14)[(sel & 0xFF) + 1];
+        return ((s32 *)(u32)pActor->pActionTableLow)[(sel & 0xFF) + 1];
     }
-    return ((s32 *)(u32)pActor->unk18)[(sel & 0xFF) - 0x3F];
+    return ((s32 *)(u32)pActor->pActionTableHigh)[(sel & 0xFF) - 0x3F];
 }
 // Queues a transform command on pNode (and, with flag 0x80, on every child) and
 // applies the command's target transform to the node when it is issued directly
@@ -463,12 +463,12 @@ void BattleSnapActorToGround(BattleActor *pActor) {
 void BattleFreeActorBuffer(BattleActor *pActor) {
     if (pActor->pBuffer != 0) {
         if (pActor->hasSedsEntry != 0) {
-            SoundRemoveSedsEntry(((s32 *)pActor->unkB4)[2]);
+            SoundRemoveSedsEntry(((s32 *)pActor->pSoundBank2)[2]);
             pActor->hasSedsEntry = 0;
         }
         HeapFree((void *)pActor->pBuffer);
         pActor->pBuffer = 0;
-        pActor->unk18 = 0;
+        pActor->pActionTableHigh = 0;
     }
 }
 
