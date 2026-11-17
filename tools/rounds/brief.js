@@ -38,6 +38,7 @@ RULES
 - Do not define new globals or data unless the original object really has that data in this unit.
 
 BATCH SIZE: this list was sized so you can actually finish it. If a function is over ~120 instructions, it will eat 10+ minutes on its own - work the small ones first, and when your list runs out, PARK and report rather than starting new functions (a parked attempt with a percentage is worth more to me than a fourth uncommitted body). A parked note that says 95%+ with many shapes tried is a permuter job (see RULES), not a hand job: run it, and move on if two runs find nothing.
+- A PARK AT RETAIL'S EXACT SIZE WITH ONE SWAPPED LOAD/STORE PAIR IS OFTEN A **TYPE WIDTH**, not an allocator tie (round 194). battle/misc32 func_800BD1FC sat at 96.55% through four hand rounds and a permuter run that tried statement order, comma-folding, pointer aliasing and store order - none of which could work, because retail's two loads have DIFFERENT widths (lhu 0x15C then lbu 0x174) and the C said u16 for both. Declaring the timer s32 (matching D_800C3D38) flipped the order and the function matched. Before concluding a tie is unreachable, give each local in the swapped pair the other width (u8/u16/s16/s32) and re-measure.
 JOB CONTROL: you are killed at ${w.minutes || 30} minutes. Run \`git add -A && git commit -m "match N in ${w.unit}"\` after every 2-3 matches instead of saving it for the end, and plan to be done writing by minute ${(w.minutes || 30) - 8}.
 
 Compiler preset for this unit: ${w.preset}${w.presetNote ? " - " + w.presetNote : ""}.
