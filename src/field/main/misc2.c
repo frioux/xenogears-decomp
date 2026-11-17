@@ -548,6 +548,17 @@ extern int rand(void);
 // is wrong; nothing tried so far separates the load and store RTL, and a second
 // permuter run found only a semantically invalid move (pShake assigned inside the vx
 // step's if-body, 285).
+// round 186 re-measured 98.99 and settled what the remaining difference is with a
+// diagnostic: pointing ONLY this step's store at g_CameraEye2 (a different symbol)
+// makes the vx load symbolic (lui $a1 / lw %lo($a1)) and makes the eye2 pair
+// materialise a base - so gcc 2.7.2 cse shares every field address that is used twice
+// (load and store), and retail's one symbolic load plus one symbolic store at offset 0
+// is a reload tie, not reachable from a different lvalue spelling. Tried, each verified
+// byte-identical to this body: a pointer local for the store, declared before the step
+// and inside the if-body; a volatile store through the symbol; volatile on both
+// accesses; the s32-array and long casts; a do-while around the store (that one only
+// renumbers the base to $a3 and measures 98.93). Stop here unless the register allocator
+// is understood better than this note.
 /*
 void func_80072D74(void) {
     s32 atStepSq;
