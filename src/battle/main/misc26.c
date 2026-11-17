@@ -313,17 +313,19 @@ s32 BattleGetActorFlag41(void) {
     return 1;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
-// best 93.55% under cdk -G0 (88.68% without the `pTask = pArg` copy the pointer
-// alias buys). Same instruction multiset and the same instruction order; only the
-// v0/v1 pair holding num and the (end - start) delta is swapped: retail keeps the
-// divisor in v1 and the quotient in v0, this body the other way round. Three
-// permuter runs from this body (4 min each) reached 105/573 and only by adding
-// dead-variable hacks. Tried: `s32/u32/s16 base`, the timer kept in a local, the
-// timer store moved earlier, a second variable holding num, `unsigned base`.
+// best 99.21% under cdk (objdiff), permuter score 30/573; was 93.55% before the
+// permuter body. Div and mult now match retail exactly; the one difference left is
+// which register keeps (end - start) * num / 0x20: retail does sra v1 into the
+// product's own register, gcc here coalesces the sra with the bgez/addu+31 temp in
+// v0, which also swaps the register the tail loads pTask->current with (retail v0,
+// here v1). Tried: the else-branch load kept in timer/n/num/base instead of delta
+// (all worse - delta is the only one that pays), delta/0x20 folded into delta and
+// into one expression with the multiply (93.5-94.6%), and two more 4-minute
+// permuter runs (PERMUTER_NONE at 30 both times).
 /*
 void func_800B3B94(BattleImageTask *pArg) {
     BattleImageTask *pTask = pArg;
+    void (*pOnFree)(void *);
     s32 timer;
     s32 n;
     s32 num;
@@ -336,13 +338,19 @@ void func_800B3B94(BattleImageTask *pArg) {
         num = n * 0x20 / pTask->length;
         pArg->timer = n;
         base = pTask->end;
-        delta = (base - pTask->start) * num;
+        delta = (base - pTask->start);
+        delta = delta * num;
         pTask->current = base - delta / 0x20;
-    } else if (pTask->current == 0) {
-        pTask->timerEntry.onFreeCallback(pTask);
+    } else {
+        delta = pTask->current;
+        if (delta == 0) {
+            pOnFree = pTask->timerEntry.onFreeCallback;
+            pOnFree(pTask);
+        }
     }
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
 
 
 void BattleFreeImageTask(u8 *pEntry) {
