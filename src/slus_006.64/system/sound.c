@@ -2366,25 +2366,31 @@ void SoundReleaseAllVoices(AudioManager* manager) {
     } while (cnt);
 }
 
+// One 5-byte record of the percussion map: the slot it fills and the word stored there.
+typedef struct {
+    /* 0x0 */ u8 index;
+    /* 0x1 */ u8 value[4];
+} SoundPercussionEntry; // Size: 0x5
+
 void SoundCopyPercussionTable(AudioManager* pManager, AudioManager* pSrc) {
     u32* pTable;
-    u8* pData;
     u32* pSlot;
+    SoundPercussionEntry* pEntry;
     u32 cnt;
 
     // the percussion map is the tail of the manager's heap block
     pTable = (u32*)((u8*)pManager + SoundCalculateAudioManagerSize(pSrc->elementCount));
     pManager->pPercussionData = (s32)pTable;
-    // the sequence header stores the percussion table offset as a 16-bit field
-    pData = (u8*)pSrc + (u16)pSrc->unk_0x20;
+    // the sequence header stores the percussion map offset as a 16-bit field
+    pEntry = (SoundPercussionEntry*)((u8*)pSrc + (u16)pSrc->unk_0x20);
     cnt = pSrc->percussionCount;
 
     do {
-        u32 value = pData[1] | (pData[2] << 8) | (pData[3] << 16) | (pData[4] << 24);
+        u32 value = pEntry->value[0] | (pEntry->value[1] << 8) | (pEntry->value[2] << 16) | (pEntry->value[3] << 24);
 
-        pSlot = pTable + pData[0];
+        pSlot = pTable + pEntry->index;
         *pSlot = value;
-        pData += 5;
+        pEntry++;
         cnt--;
     } while (cnt);
 }
