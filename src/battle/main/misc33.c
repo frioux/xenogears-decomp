@@ -60,7 +60,7 @@ typedef struct {
     /* 0x34 */ s32 timer; // BattleIncrementStateTimer raises it, func_800B9F78 counts it down once a frame
     /* 0x38 */ u8 unk38[0xC];
     /* 0x44 */ s32 targetDistance; // measured by BattleFaceTargetAndMeasureDistance
-    /* 0x48 */ u8 unk48;
+    /* 0x48 */ u8 actionDone; // set when the current step's action has finished; state 4 waits on it
     /* 0x49 */ u8 pendingStep; // stateStep copied by BattleApplyStateStep, run once and cleared
     /* 0x4A */ u8 unk4A;
     /* 0x4B */ u8 pad4B;
@@ -82,7 +82,7 @@ extern BattleActorRow D_800C3FB8[];
 // sprite's row index is its animation direction (unkA8>>30) and part key (flags&3).
 typedef struct {
     /* 0x00 */ u8 unk0[0x7];
-    /* 0x07 */ u8 unk7;
+    /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, clear means idle
     /* 0x08 */ u8 unk8[0x14];
 } BattleSpriteSensorRow; // Size: 0x1C
 extern BattleActorSprite *g_BattleActorList;
@@ -500,7 +500,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
    post-call load dead; ours reloads after the call and keeps the store last, and the
    %hi/%lo base registers come out v0 where retail has v1.  Same instruction multiset.
    The PRE-call order is fixed and matches: pUpdate, g_BattleState, g_BattleCommandRowIndex,
-   unk4A, unk48(1), unk30(0), pendingStep, pathIndex(1), pCurSprite.
+   unk4A, actionDone(1), unk30(0), pendingStep, pathIndex(1), pCurSprite.
    void func_800BED4C(void) {
        BattleMisc33State *pState;
 
@@ -509,7 +509,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
        g_BattleState = pState;
        g_BattleCommandRowIndex = 0;
        pState->unk4A = 0;
-       g_BattleState->unk48 = 1;
+       g_BattleState->actionDone = 1;
        g_BattleState->unk30 = 0;
        g_BattleState->pendingStep = 0;
        g_BattleState->pathIndex = 1;
@@ -600,7 +600,7 @@ void BattleSetCurrentActorSprite(s32 actorIndex) {
     pSprite = g_BattleState->pCurSprite;
     if (pSprite != NULL && g_BattleState->actorIndex != actorIndex) {
         part = pSprite->unkA8 >> 30;
-        if (((BattleSpriteSensorRow *)g_BattleStateWork)[((g_BattleState->pCurSprite->flags.word & 3) << 2) | part].unk7 == 0) {
+        if (((BattleSpriteSensorRow *)g_BattleStateWork)[((g_BattleState->pCurSprite->flags.word & 3) << 2) | part].flags == 0) {
             SpritePlayAnimation(g_BattleState->pCurSprite, g_BattleState->pCurSprite->animId);
         }
     }
