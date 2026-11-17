@@ -20,8 +20,6 @@ extern u8 g_BattleTextSpriteEntry0;
 extern u8 g_BattleTextSpriteEntry1;
 extern u16 g_BattleScreenHeight;
 extern void *g_BattleMessageStringTable;
-extern u16 D_8009553C;
-extern u16 D_8009553E;
 extern u8 g_BattleTextPadIndex;
 extern u8 D_8009A1C4;
 extern u8 D_8009A1C5;
@@ -341,14 +339,12 @@ void func_80080F04(void) {
 typedef struct {
     /* 0x00 */ u_long *pData;
     /* 0x04 */ SPRT sprt[2];
-    /* 0x2C */ s16 width;
-    /* 0x2E */ s16 x;
+    /* 0x2C */ u16 width;
+    /* 0x2E */ u16 x;
 } Misc8Text; // Size: 0x30
 
 extern Misc8Text g_BattleCenteredTextSprites[2];
 extern Misc8Text D_80095540;
-extern u16 D_8009556C;
-extern u16 D_8009556E;
 extern DR_TPAGE g_BattleTextSpriteTpagePrims[];
 
 void BattleRenderCenteredText(Misc8Text *p, s32 entry, s32 flag) {
@@ -386,21 +382,22 @@ void BattleDrawTextSprites(u8 *p) {
     Misc8Text *pText;
     u16 off;
 
-    // The (x,y) and (w,h) pairs are stored whole from the packed sprite
-    // templates; reaching them by byte offset is what reproduces retail's
-    // single addiu for the indexed sprite address.
+    // A text object holds one sprite per draw buffer; the indexed sprite's
+    // (x,y) and (w,h) pairs are copied from the object's own width/x. The
+    // stores go through byte offsets because a typed field store makes gcc
+    // fold the sprite's +4 into the symbol address and add an instruction.
     if (g_BattleTextSpriteEntry0 != 0) {
         pText = &g_BattleCenteredTextSprites[0];
         off = g_BattleDrawBufferIndex * sizeof(SPRT);
-        *(u16 *)((u8 *)pText + (off + 0x14)) = D_8009553C;
-        *(u16 *)((u8 *)pText + (off + 0xC)) = D_8009553E;
+        *(u16 *)((u8 *)pText + (off + 0x14)) = pText->width;
+        *(u16 *)((u8 *)pText + (off + 0xC)) = pText->x;
         AddPrim(p, (u8 *)pText + (off + 4));
     }
     if (g_BattleTextSpriteEntry1 != 0) {
         pText = &D_80095540;
         off = g_BattleDrawBufferIndex * sizeof(SPRT);
-        *(u16 *)((u8 *)pText + (off + 0x14)) = D_8009556C;
-        *(u16 *)((u8 *)pText + (off + 0xC)) = D_8009556E;
+        *(u16 *)((u8 *)pText + (off + 0x14)) = pText->width;
+        *(u16 *)((u8 *)pText + (off + 0xC)) = pText->x;
         AddPrim(p, (u8 *)pText + (off + 4));
     }
     if (g_BattleTextSpriteEntry0 | g_BattleTextSpriteEntry1) {
