@@ -752,7 +752,7 @@ s32 func_80087FD0(s32 index) {
     return 1;
 }
 */
-s32 func_80088570(s32 index) {
+s32 WorldMapInitializePlayerSlot(s32 index) {
     WorldMapPlayer* pSlot;
     u16* pCount;
     s32 posZ;

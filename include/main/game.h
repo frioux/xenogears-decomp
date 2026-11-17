@@ -257,7 +257,7 @@ typedef struct {
     // The world-map state a party slot writes before the map's script runs:
     // the party's gearRide[3] bytes at +0x4/+0x6/+0x8 (compared back by
     // WorldMapSyncGearRideActors), the tile the player actor stood on at
-    // +0xC/+0xE and its waypoint index at +0x10 (func_80088570). All are
+    // +0xC/+0xE and its waypoint index at +0x10 (WorldMapInitializePlayerSlot). All are
     // reached through casts, so the span stays as it is.
     /* 0x1838 */ undefined8 unk1838[0x14];
     // World-map position the field scripts set, split as map units << 12 |
@@ -267,7 +267,7 @@ typedef struct {
     /* 0x184E */ undefined16 mapPosX;
     /* 0x1850 */ undefined16 mapPosZFraction;
     /* 0x1852 */ undefined16 mapPosZ;
-    // Counted once by func_80088570 (world map party init) when it places the
+    // Counted once by WorldMapInitializePlayerSlot (world map party init) when it places the
     // player from mapPosX/mapPosZ; zero tells it to start at its own default
     // tile instead. FieldScriptSetGameState184E clears it when a script sets a
     // new position, and raises the flag below.
