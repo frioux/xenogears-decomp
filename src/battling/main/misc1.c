@@ -35,7 +35,7 @@ typedef struct {
 extern BattleAnchor g_BattleCameraTarget;
 extern s32 D_80098680;
 extern s32 D_80098684;
-extern s32 D_800925F4;
+extern s32 g_BattleEffectPlaceYOffset;
 extern s32 g_BattleScriptCursor;
 extern s32 g_BattleScriptWait;
 extern s32 D_80097058;
@@ -57,7 +57,7 @@ void func_80070808(s32* p, s32 step) {
 
     *pX += BattleRoundDivAwayFromZero(p[0], *pX, step);
     D_80098684 += BattleRoundDivAwayFromZero(p[2], D_80098684, step);
-    D_80098680 += BattleRoundDivAwayFromZero(p[1], D_80098680 + D_800925F4, step);
+    D_80098680 += BattleRoundDivAwayFromZero(p[1], D_80098680 + g_BattleEffectPlaceYOffset, step);
 }
 */
 
@@ -111,9 +111,9 @@ extern s32 func_80082488(VECTOR* pVec, s32 mode);
    &g_BattleCameraTarget in $s0 across the rcos call (sw v0,0(s0), then lw v0,0(s0)) where
    ours rematerialises the symbol as a direct %lo store. A pointer local does
    not stop that. Do not re-derive the shape: the do-while around the
-   D_800925F4 store is load-bearing (91.24 -> 92.82, and it restores retail's
+   g_BattleEffectPlaceYOffset store is load-bearing (91.24 -> 92.82, and it restores retail's
    byte count), and the y local is what stops gcc folding
-   (g_BattleSceneOriginYMirror - 0x20) - D_800925F4 into g_BattleSceneOriginYMirror - (D_800925F4 + 0x20).
+   (g_BattleSceneOriginYMirror - 0x20) - g_BattleEffectPlaceYOffset into g_BattleSceneOriginYMirror - (g_BattleEffectPlaceYOffset + 0x20).
 */
 
 // The battling overlay's battle state (g_BattleActor1): the anchor position every
@@ -168,7 +168,7 @@ void BattlePlaceEffectByMode(s32 mode) {
         vec = g_BattleActor0;
     place_message:
         vec.vy -= 0xA0;
-        D_800925F4 = 0;
+        g_BattleEffectPlaceYOffset = 0;
         func_80070808(&vec, 4);
         break;
     case 3:
@@ -180,23 +180,23 @@ void BattlePlaceEffectByMode(s32 mode) {
         // the block keeps the scale store in front of the vector copy
         do {
             if (mode) {
-                D_800925F4 = scale;
+                g_BattleEffectPlaceYOffset = scale;
             } else {
-                D_800925F4 = scale;
+                g_BattleEffectPlaceYOffset = scale;
             }
         } while (0);
         vec = D_80099078;
         pVec = &vec;
-        vec.vy += D_800925F4;
+        vec.vy += g_BattleEffectPlaceYOffset;
         func_80070808(pVec, 0x10);
         vec.vx = g_BattleActor1.position.x + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
         y = g_BattleSceneOriginYMirror - 0x20;
-        vec.vy = y - D_800925F4;
+        vec.vy = y - g_BattleEffectPlaceYOffset;
         vec.vz = g_BattleSceneOriginZ + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
         func_800708C4(pVec, 0x46);
         delta = func_80082488(&g_BattleCameraPos, 0) - 0x40;
         offset = delta;
-        offset -= D_800925F4;
+        offset -= g_BattleEffectPlaceYOffset;
         if (offset < D_80098720) {
             D_80098720 = offset;
         }

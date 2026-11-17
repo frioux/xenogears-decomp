@@ -456,7 +456,7 @@ extern FieldScriptGlobalU16 D_800B2348;
 // is folded back to the same immediate form. Also 19.92% with a cast pointer
 // (`u16* p = (u16*)&D_800B2348; (*p)++;`): gcc still folds and allocates worse.
 // The `lui+addiu` form appears where the C uses the symbol's address as a VALUE
-// (cf. func_8008861C's `$a2 = &g_FieldDefaultParticleBanks`), and a deref of
+// (cf. FieldClearParticleBankDirections's `$a2 = &g_FieldDefaultParticleBanks`), and a deref of
 // `&sym` never survives fold, so a pointer local is not enough.
 // preset screen: 2.7.2 79.83%, cdk 79.83%, 2.6.0 79.83% - no compiler
 // fixes it.
@@ -631,7 +631,7 @@ extern ParticleBankHandle g_FieldScriptParticleBank;
 //   `sh 0x32`, and 99.50% is the ceiling of every typed form tried.
 // 0x78 = sizeof(ParticleBank), 4 = sizeof(ParticleBankAngleOffset),
 // 0x32 = byte offset of directions[0].z.
-void func_8008861C(void) {
+void FieldClearParticleBankDirections(void) {
     int i;
 
     for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
@@ -805,7 +805,7 @@ void FieldScriptInitializeParticleBank(void) {
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].max = FieldScriptVMGetArgument(3);
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].swait = FieldScriptVMGetArgument(5);
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].ewait = FieldScriptVMGetArgument(7);
-    func_8008861C();
+    FieldClearParticleBankDirections();
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
 }
