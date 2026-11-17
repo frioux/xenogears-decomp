@@ -40,7 +40,7 @@ typedef struct {
     /* 0x30 */ BattleQuad prevEndPos;
     /* 0x40 */ u8 unk40[0x3];
     /* 0x43 */ u8 partIndex;
-    /* 0x44 */ BattleSlotFlags unk44;
+    /* 0x44 */ BattleSlotFlags slotFlags;
     /* 0x48 */ u8 pad48[0x8];
     /* 0x50 */ s32 pActionEntry;
 } BattleActorSlot; // Size: 0x54
@@ -443,10 +443,10 @@ void BattleCommitSlotStates(Actor *p0) {
 
     for (i = 0; i < 16; i++) {
         pSlot = &p0->slots[i];
-        if (pSlot->unk44.byte.state == 2) {
-            pSlot->unk44.byte.state = 1;
+        if (pSlot->slotFlags.byte.state == 2) {
+            pSlot->slotFlags.byte.state = 1;
         } else {
-            pSlot->unk44.byte.state = 0;
+            pSlot->slotFlags.byte.state = 0;
         }
     }
 }
@@ -462,15 +462,15 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
     p4->prevEndPos = p4->endPos;
     p4->pos = *p0;
     p4->endPos = *p1;
-    flags = p4->unk44.flags;
+    flags = p4->slotFlags.flags;
     flags &= ~2;
     flags |= arg2 << 1;
     p4->partIndex = arg5;
-    p4->unk44.flags = flags;
-    p4->unk44.byte.state = 2;
-    p4->unk44.byte.gaugePercent = p6->gaugePercent;
+    p4->slotFlags.flags = flags;
+    p4->slotFlags.byte.state = 2;
+    p4->slotFlags.byte.gaugePercent = p6->gaugePercent;
     p4->pActionEntry = p6->pActionEntry;
-    p4->unk44.byte.actionId = p3[1];
+    p4->slotFlags.byte.actionId = p3[1];
     g_BattleSlotStoreCount++;
 }
 
