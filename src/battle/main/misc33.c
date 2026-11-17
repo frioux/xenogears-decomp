@@ -78,6 +78,13 @@ typedef struct {
 } BattleActorRow; // Size: 0x48
 
 extern BattleActorRow D_800C3FB8[];
+// One 0x1C-byte row of the sensor table the battle state work block starts with; a
+// sprite's row index is its animation direction (unkA8>>30) and part key (flags&3).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x7];
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 unk8[0x14];
+} BattleSpriteSensorRow; // Size: 0x1C
 extern BattleActorSprite *g_BattleActorList;
 extern u8 D_800C3780;
 extern s16 g_BattleDigitTextureIds[];
@@ -362,51 +369,51 @@ void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
-/* best 82.71%: retail walks ONE pointer that is decremented in the loop-test
-   block's branch delay slot, so both `lw` reads are at offset 0(v1) and the
-   pointer is restored with a dead `addiu v1,v1,4` after the loop; gcc keeps the
-   source pointer as the base here and reads the quotient at -4(v1), and it also
-   emits a `beqz` loop guard instead of retail's `j` into the test block.  The
-   divisors really are tab[n-1] (quotient) and tab[n] (remainder) -- the two
-   divu are NOT CSE'd, so a single `divisor` local (which merges them into one
-   div with mflo+mfhi) is wrong.  `(u32)` on both divisions is required: retail
-   uses divu, and the table D_800C37A4 holds u32.
-s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
-    u8 *pDst;
-    u8 digit;
-    s32 count;
-    u32 *pTab;
+/* best 92.86% (164 bytes, retail 168).  Structure is right: the loop is entered
+   through a PEELED first remainder (`value %= *pTab; pTab--;` before the loop,
+   which is why retail's preheader `j`s into the latch block and the latch is also
+   the entry), then the body divides by *pTab, n--, and the latch re-remainders with
+   *pTab before pTab--.  The two `lw 0(v1)` are NOT CSE'd because the `sb` of the
+   digit sits between them.  The two remaining diffs: retail emits the preheader
+   `lui/addiu` of D_800C37A4 BEFORE the `sll v1,a2,2`, and retail's exit path has a
+   DEAD `addiu v1,v1,4` (a giv bump-back no source shape here reproduces; 3-minute
+   permuter run from this body: NONE, base=160).  Parked pending that dead insn.
+   s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
+       u8 *pDst;
+       u8 digit;
+       s32 count;
+       u32 *pTab;
 
-    count = 0;
-    pDst = pBuf + 1;
-    if (value < 0) {
-        count = 1;
-        pBuf[1] = '-';
-        pDst = pBuf + 2;
-        value = -value;
-        n--;
-    }
-    pTab = &D_800C37A4[n];
-    while (n != 0) {
-        digit = (u32)value / pTab[-1];
-        if (digit != 0) {
-            started = 1;
-        }
-        n--;
-        if (started != 0) {
-            *pDst = digit + base;
-            pDst++;
-            count++;
-        }
-        value = (u32)value % *pTab;
-        pTab--;
-    }
-    *pDst = value + base;
-    pBuf[0] = count + 1;
-    return count + 1;
-}
+       count = 0;
+       pDst = pBuf + 1;
+       if (value < 0) {
+           count = 1;
+           pBuf[1] = '-';
+           pDst = pBuf + 2;
+           value = -value;
+           n--;
+       }
+       pTab = &D_800C37A4[n];
+       value = (u32)value % *pTab;
+       pTab--;
+       for (; n != 0; pTab--) {
+           digit = (u32)value / *pTab;
+           n--;
+           if (digit != 0) {
+               started = 1;
+           }
+           if (started != 0) {
+               *pDst = digit + base;
+               pDst++;
+               count++;
+           }
+           value = (u32)value % *pTab;
+       }
+       *pDst = value + base;
+       pBuf[0] = count + 1;
+       return count + 1;
+   }
 */
-
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
 typedef struct {
@@ -484,32 +491,34 @@ void BattleResetStateGlobals(void) {
     g_BattleSlotBitMask = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
-/* best 85.18% (144 bytes, retail 156).  The 12 missing bytes are one extra reload:
-   after the BattleSetStateStep call retail does `lw v0,%lo(g_BattleState)($s0)` and never
-   uses it, so its g_BattleState address pseudo is live across the call and lands in $s0
-   (with the constant 1 in $s1 where ours uses $s0); ours keeps the address in $a1.
-   A plain dead `pState = g_BattleState;` after the call is deleted by gcc, so what retail
-   actually read is still unknown.  Retail store order: pUpdate, g_BattleState, g_BattleCommandRowIndex,
-   unk4A, unk48, unk30, pendingStep, pathIndex, pCurSprite, timer (in the call's delay slot).
-void func_800BED4C(void) {
-    BattleMisc33State *pState;
+/* best 88.03% (156 bytes = retail's size).  The address of g_BattleState has to be
+   live ACROSS the BattleSetStateStep call (retail reloads it into $s0 for every store
+   and has ONE dead post-call `lw v0,0(s0)`), which only happens if a g_BattleState
+   store follows the call -- so `g_BattleState->timer = 0;` is after it, NOT before
+   (before the call the body is 144 bytes, 85.18%).  Retail then reorg'd the timer
+   store into the jal delay slot using the reload it made BEFORE the call, leaving the
+   post-call load dead; ours reloads after the call and keeps the store last, and the
+   %hi/%lo base registers come out v0 where retail has v1.  Same instruction multiset.
+   The PRE-call order is fixed and matches: pUpdate, g_BattleState, g_BattleCommandRowIndex,
+   unk4A, unk48(1), unk30(0), pendingStep, pathIndex(1), pCurSprite.
+   void func_800BED4C(void) {
+       BattleMisc33State *pState;
 
-    pState = HeapAlloc(0x50, 0);
-    pState->pUpdate = func_800B9F78;
-    g_BattleState = pState;
-    g_BattleCommandRowIndex = 0;
-    pState->unk4A = 0;
-    g_BattleState->unk48 = 1;
-    g_BattleState->unk30 = 0;
-    g_BattleState->pendingStep = 0;
-    g_BattleState->pathIndex = 1;
-    g_BattleState->pCurSprite = NULL;
-    g_BattleState->timer = 0;
-    BattleSetStateStep(0);
-    pState = g_BattleState;
-    g_NumFlaggedTimerWorkListEntries = 0;
-    g_FlagTimerWorkListAdds = 1;
-}
+       pState = HeapAlloc(0x50, 0);
+       pState->pUpdate = func_800B9F78;
+       g_BattleState = pState;
+       g_BattleCommandRowIndex = 0;
+       pState->unk4A = 0;
+       g_BattleState->unk48 = 1;
+       g_BattleState->unk30 = 0;
+       g_BattleState->pendingStep = 0;
+       g_BattleState->pathIndex = 1;
+       g_BattleState->pCurSprite = NULL;
+       BattleSetStateStep(0);
+       g_BattleState->timer = 0;
+       g_NumFlaggedTimerWorkListEntries = 0;
+       g_FlagTimerWorkListAdds = 1;
+   }
 */
 void BattleDestroyState(void) {
     HeapFree(g_BattleState);
@@ -583,13 +592,6 @@ s16 BattleAngleToTarget(BattleActorSprite *p) {
     vec1.vy = c3;
     return SpriteComputeAngleFromPoints(vec1, vec0);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
-/* best 94.02%: every instruction is right but one register tie.  Retail keeps the
-   new sprite pointer in $a2 and copies it with `move a0,a2` in the SpritePlayAnimation
-   jal delay slot; ours allocates it straight to $a0 (so the slot gets a nop) and the
-   sensor-table base lands in $a1 instead of $v1.  The sprite-table entry is the same
-   0x1C-byte stride g_BattleStateWork table that func_800BF3E8 walks, and the 4-bit key is
-   the (unkA8>>30) | ((flags.word&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
 void func_800BEFF4(s32 actorIndex) {
     BattleActorSprite *pSprite;
     u8 *pBase;
@@ -598,16 +600,14 @@ void func_800BEFF4(s32 actorIndex) {
     pSprite = g_BattleState->pCurSprite;
     if (pSprite != NULL && g_BattleState->actorIndex != actorIndex) {
         part = pSprite->unkA8 >> 30;
-        pBase = g_BattleStateWork;
-        if (*(u8 *)(pBase + (((pSprite->flags.word & 3) << 2) | part) * 0x1C + 0x7) == 0) {
-            SpritePlayAnimation(pSprite, pSprite->animId);
+        if (((BattleSpriteSensorRow *)g_BattleStateWork)[((g_BattleState->pCurSprite->flags.word & 3) << 2) | part].unk7 == 0) {
+            SpritePlayAnimation(g_BattleState->pCurSprite, g_BattleState->pCurSprite->animId);
         }
     }
     g_BattleState->actorIndex = actorIndex;
     pBase = g_BattleStateWork;
     g_BattleState->pCurSprite = *(void **)(pBase + actorIndex * 4 + 0x8C8C);
 }
-*/
 
 void BattleSetStateStep(s32 arg0) {
     g_BattleState->stateStep = arg0;
