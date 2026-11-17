@@ -96,45 +96,11 @@ void func_800379C8(char* pFormat) {
 void ArchiveNoOp(void) {
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
-
-/* 98.99%, 432 bytes = retail's exact instruction count (108 insns). The queue
-   store is SOLVED: with D_8005A1DC declared as a StreamDataQueueEntry[] and the
-   first field stored through the pointer taken for the func_80029AFC call, gcc
-   shares the address and emits retail's `sh $s2,0($a0)` (a local
-   `StreamDataQueueEntry*` over three separate 8-byte symbols does not: cse folds
-   the store back to the symbol and the bytes come out `sh $sN,0($at)`; that was
-   round 194's 98.01%). Entries 1 and 2 must still be written as the absolute
-   D_8005A1E4/D_8005A1EC and the pData fields as D_8005A1E0/E8/F0, because a
-   `pQueue[1]` access renders the relocation as D_8005A1DC+0x8, which objdiff
-   never scores as retail's D_8005A1E4.
-   The do-while(0) around the two HeapAlloc/HeapPinBlock pairs is load-bearing
-   (found by the permuter in round 194): it is what puts the size temp in $s0 and
-   pFirst/pSecond in retail's registers.
-   REMAINING WALL - one allocator tie, everything else follows from it: retail
-   keeps the doubled index in $s0 (so the size temp is $s2, pFirst $s3, and the
-   second size sum is computed IN PLACE on the index: `addiu s0,s0,7; addu
-   s0,s0,s4`). We hold the index in $s3, so the temp lands in $s0, pFirst in $s2,
-   and that sum goes to $v0. Two permuter runs from this body (1547 and 1780
-   iterations) could not move it; they contributed only the `nFirstSize =
-   nBaseIndex + 7;` local (which keeps the +7 off the index and is why this body
-   is 98.99% and not 98.71%) and the `(pQueue + 0)` spelling. Do NOT inline the
-   first size as `ArchiveDecodeAlignedSize(nIndex + nBaseIndex + 7)`: that
-   associates (nIndex + nBaseIndex) + 7 and gives `addu a0,s3,s4` / `addiu
-   a0,a0,7` where retail has `addiu a0,s4,7` / `addu a0,s0,a0` (95.29%). The
-   nFirstSize local is what fixes the association; retail's temp still lives in
-   $a0 only (dead after the call), so it was never a saved local there.
-
-/*
-extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
-extern int ArchiveDecodeSizeAbsolute(int entryIndex);
-extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
-
 extern StreamDataQueueEntry D_8005A1DC[];
 extern void* D_8005A1E0;
 extern u16 D_8005A1E4;
-extern u16 D_8005A1EC;
 extern void* D_8005A1E8;
+extern u16 D_8005A1EC;
 extern void* D_8005A1F0;
 extern void* g_BattleStageData;
 
@@ -144,7 +110,7 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     void* pFirst;
     void* pSecond;
     int nSectionIndex;
-    int nEntryIndex;
+    unsigned int nEntryIndex;
     int nResult;
     short nCount;
 
@@ -154,10 +120,17 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
     nCount = ArchiveDecodeSizeAbsolute(5);
     if (nIndex >= nCount / 2) {
-        nResult = -1;
-        *pOut1 = 0;
-        *pOut2 = 0;
-        *pOut3 = 0;
+        if (pFirst) {
+            nResult = -1;
+            *pOut1 = 0;
+            *pOut2 = 0;
+            *pOut3 = 0;
+        } else {
+            nResult = -1;
+            *pOut1 = 0;
+            *pOut2 = 0;
+            *pOut3 = 0;
+        }
     } else {
         nIndex *= 2;
         do {
@@ -183,4 +156,3 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     ArchiveSetIndex(nSectionIndex, nEntryIndex);
     return nResult;
 }
-*/
