@@ -110,7 +110,7 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     cur = D_800CCDC4[arg0].flags;
     dmg = *(u16 *)(D_800CEF10 + idx);
     if (cur >= trigger &&
-        (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk1E, arg1) != 0 &&
+        (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, arg1) != 0 &&
         (D_800CCD62[arg0].flags & statusMasks[arg1]) == 0) {
         BattleClearPrimFlagsThreeSlots(1);
         g_BattleDisplayState->pulseTriangleActive = 1;
@@ -182,7 +182,7 @@ u8 func_8008CFB8(u8 arg0) {
         damage[i] = 0;
     }
     for (i = 0, rowOffset = 0x25 * 0x28; i < (limit = 4); i++) {
-        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk1E, i) != 0 &&
+        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, i) != 0 &&
             (D_800CCD62[arg0].flags & statusMasks[i]) == 0) {
             codes[i] = D_800CCD88[arg0 * 0x170] * 4 + i;
             rowBase = rowOffset + arg0 * 0x690;

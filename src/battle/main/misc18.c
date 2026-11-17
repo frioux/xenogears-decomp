@@ -597,7 +597,7 @@ void BattleResetSlotConditionCounters(void) {
         }
     }
 
-    flag = (u16)g_GameState.unk16BC[8].unk1E;
+    flag = (u16)g_GameState.unk16BC[8].statusFlags;
     g_GameState.characters[8].agility = 7;
     if (flag & 0x2000) {
         g_GameState.unk16BC[8].unk6 |= 0x800;

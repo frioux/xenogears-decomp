@@ -259,7 +259,7 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     tbl[1] = D_800C3250;
     tbl[2] = D_800C3252;
     tbl[3] = D_800C323A;
-    if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk1E,
+    if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags,
                            arg1)) {
         if ((g_BattleWorkBlock[arg0].unk7A & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);

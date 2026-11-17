@@ -949,7 +949,7 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
     }
     pDressingRoom->totalResponsiveness = pGear->responsivenessFromFrame + pGear->responsiveness;
     pDressingRoom->totalAgility = pGear->agility - pGear->weightPenalty;
-    pDressingRoom->totalEtherAmplification = pGear->etherAmplification + pGear->unk54;
+    pDressingRoom->totalEtherAmplification = pGear->etherAmplification + pGear->etherAmplificationFromEquipment;
     pDressingRoom->unkB5 = pGear->unk9D;
     pDressingRoom->unkB6 = pGear->unk9C;
 }
