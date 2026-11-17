@@ -494,6 +494,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
    because retail's `li` for the return value and the unk7C store stay above the
    three loads and ours defers them. Tried (round 163): literals vs locals for
    every constant, the volatile form, -O1/-O3/gcc 2.6.0/-mcpu=r8000, all worse.
+   Re-measured round 185 (park-repair): the body COMPILES and really is 52.59%
+   / 148 bytes = retail's 37 insns; the round 163 sweep ERROR row was tooling.
 */
 /* int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -523,7 +525,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
-/* 86.92% (1716 bytes against retail's 1752), re-measured in round 163: the body
+/* 86.92% (1716 bytes against retail's 1752) - CONFIRMED in round 185, and the
+   body compiles as it stands. It can never link: this stub's .s owns
+   jtbl_8006FE94 and jtbl_8006FEF4 (grep dlabel), so converting it drops 36
+   bytes of jump tables and the overlay shifts. Leave it INCLUDE_ASM.
+   Re-measured in round 163: the body
    compiles now that the extern says `int func_8007E4E4(int)` - it returns 1,
    and the old `extern void` made the park a hard error, which is why the sweep
    scored it ERROR instead of 86.92%. BLOCKED (owns jtbl_8006FE94/FEF4), so do
@@ -965,6 +971,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
    so the group pointer must stay spelled through pRoot.
    The function returns int (retail loads v0 = 3 and never stores it).
    permute.sh 3 min (991 iterations, base 130) found nothing.
+   Re-measured round 185 (park-repair): compiles, 93.41%, 164 bytes = retail's
+   41 insns; dropping the do/while wrapper (a plain block) is 88.66%.
 */
 /* int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
@@ -1173,6 +1181,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
    values in a0/a1/a2 and stores unk7C before them; ours keeps pActor in a2,
    the loads in v1/a0/a1, and defers the `li 0x1000` + `sw 0x7C` below the
    loads. Same body as misc7's func_800813E8 (76.59% there).
+   Re-measured round 185 (park-repair): compiles, 64.06%, 136 bytes = retail's
+   34 insns - the round 163 sweep ERROR row was tooling. NOTE this note block
+   has no closing line of its own before the body, so the whole note-and-body
+   is ONE comment; park.py therefore reports "no unpark state found" for this
+   function. Insert the closing line after this note by hand to unpark it.
 /* int func_80080578(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u32 unkAc;
