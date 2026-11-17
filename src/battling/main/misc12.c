@@ -19,6 +19,18 @@ typedef struct {
     /* 0x4 */ void* pData;
 } BattleMisc12Owner; // Size: 0x8
 
+// 0x10-byte GPU tile packet: tag word (with its length byte), the primitive
+// code word, then the position and size halfwords.
+typedef struct {
+    /* 0x0 */ u8 tag[3];
+    /* 0x3 */ u8 len;
+    /* 0x4 */ u32 code;
+    /* 0x8 */ u16 x;
+    /* 0xA */ u16 y;
+    /* 0xC */ u16 w;
+    /* 0xE */ u16 h;
+} BattleTilePacket; // Size: 0x10
+
 // Slot table entry, 0xF8 bytes, indexed by slot number: the draw environment
 // BattleInitDrawEnvs fills with SetDefDrawEnv, the display environment
 // func_80089330 fills with SetDefDispEnv (a copy of it goes to PutDispEnv), and
@@ -42,20 +54,11 @@ typedef struct {
     /* 0x7E */ u16 y0;
     /* 0x80 */ u16 uv;
     /* 0x82 */ u16 clut;
-    /* 0x84 */ u8 unk84[0x74];
+    /* 0x84 */ u8 unk84[0x4C];
+    /* 0xD0 */ DR_MODE drawAreaMode;   // draw area, from drawEnv.clip
+    /* 0xDC */ DR_MODE drawOffsetMode; // draw offset, from drawEnv.ofs
+    /* 0xE8 */ BattleTilePacket tile;  // the tile func_80089330 sets to the screen size
 } BattleEntry; // Size: 0xF8
-
-// 0x10-byte GPU tile packet: tag word (with its length byte), the primitive
-// code word, then the position and size halfwords.
-typedef struct {
-    /* 0x0 */ u8 tag[3];
-    /* 0x3 */ u8 len;
-    /* 0x4 */ u32 code;
-    /* 0x8 */ u16 x;
-    /* 0xA */ u16 y;
-    /* 0xC */ u16 w;
-    /* 0xE */ u16 h;
-} BattleTilePacket; // Size: 0x10
 
 // Sprite set up by BattleInitSpritePrims: a drawing-area and a drawing-offset draw
 // mode per draw buffer (0/1), plus a tile per buffer. The head is the record
