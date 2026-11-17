@@ -74,11 +74,18 @@ typedef struct BattleActor {
     /* 0x007C */ u8 unk7C[0x4];
     /* 0x0080 */ u8* pActionEntries;
     /* 0x0084 */ u8* pActionEntry;
-    /* 0x0088 */ s32 unk88;
-    /* 0x008C */ s32 unk8C;
-    /* 0x0090 */ s32 unk90;
-    /* 0x0094 */ s32 unk94;
-    /* 0x0098 */ u8 unk98[0x18];
+    // Ramped 0..0x100 deflection of one input direction each: func_80076884
+    // charges the direction a 0xF000 flag bit or the stick axis selects and
+    // decays the other three; (right - left, up - down) give distance and
+    // targetAngle.
+    /* 0x0088 */ s32 inputLeft;
+    /* 0x008C */ s32 inputUp;
+    /* 0x0090 */ s32 inputRight;
+    /* 0x0094 */ s32 inputDown;
+    // Per-frame charge and decay applied to those four ramps (func_80076884).
+    /* 0x0098 */ s32 inputRampStep;
+    /* 0x009C */ s32 inputDecayStep;
+    /* 0x00A0 */ u8 unkA0[0x10];
     /* 0x00B0 */ s32 floorY;
     /* 0x00B4 */ s16 gaugeValue;
     /* 0x00B6 */ s16 gaugePoints;
@@ -95,7 +102,8 @@ typedef struct BattleActor {
     /* 0x00C6 */ u8 unkC6[0x2];
     /* 0x00C8 */ s16 unkC8;
     /* 0x00CA */ s16 moveTimer;
-    /* 0x00CC */ u8 unkCC[0x4];
+    /* 0x00CC */ u16 unkCC;
+    /* 0x00CE */ s16 unkCE;
     /* 0x00D0 */ u32 flags;
     /* 0x00D4 */ u32 stateFlags;
     /* 0x00D8 */ struct BattleActor* pTarget;
@@ -126,7 +134,9 @@ typedef struct BattleActor {
     // flushed each frame and no action is entered.
     /* 0x0914 */ s16 actionWaitTimer;
     /* 0x0916 */ s16 unk916;
-    /* 0x0918 */ u8 unk918[0x14];
+    /* 0x0918 */ u8 unk918;
+    /* 0x0919 */ u8 pad919[0x3];
+    /* 0x091C */ Vec4 unk91C;
     // One of the two world points whose y words bound the actor; 0x93C is the
     // other (src/battling/main/misc4.c names the pair).
     /* 0x092C */ Vec4 baseVertexPos;
@@ -150,7 +160,10 @@ typedef struct BattleActor {
     /* 0x15F4 */ s16 moveSpeedBase;
     /* 0x15F6 */ u8 unk15F6[0xA];
     /* 0x1600 */ BattleActionData* pActionData;
-    /* 0x1604 */ u8 unk1604[0x66];
+    /* 0x1604 */ u8 unk1604[0x58];
+    /* 0x165C */ s32 unk165C;
+    /* 0x1660 */ s32 unk1660;
+    /* 0x1664 */ u8 unk1664[0x6];
 } BattleActor; // Size: 0x166A
 
 s32 BattleActorDeltaUnk15E8(BattleActor* p0, BattleActor* p1) {
@@ -1126,10 +1139,10 @@ void func_80078194(BattleActor* p) {
         p->facingAngle = target;
         p->angleOffset = 0;
         p->stepDistance = 0;
-        p->unk94 = 0;
-        p->unk8C = 0;
-        p->unk88 = 0;
-        p->unk90 = 0;
+        p->inputDown = 0;
+        p->inputUp = 0;
+        p->inputLeft = 0;
+        p->inputRight = 0;
     } else {
         p->angle = p->facingAngle + p->angleOffset;
     }
