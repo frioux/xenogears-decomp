@@ -135,15 +135,15 @@ typedef struct _Temp8 {
     /* 0xC  */ void* pUnkC;
     /* 0x10 */ u8 mode; // 0/1 raw copy, 4 fade, 5 blend
     /* 0x11 */ u8 unk11;
-    /* 0x12 */ s16 unk12;
-    /* 0x14 */ u16 unk14;
-    /* 0x16 */ u16 unk16;
+    /* 0x12 */ s16 pixelCount; // pixels the upload writes; the GPF helpers loop this many times
+    /* 0x14 */ u16 unk14; // blend input angleStep advances; a sound-bank record read through this type keeps its base id here
+    /* 0x16 */ u16 angleStep;
     /* 0x18 */ u16 prevFrame; // the interpolated frame last applied; the same value again skips the upload
     /* 0x1A */ u16 isLoaded; // buffers below are held; cleared by LibGearFlushTexture
     /* 0x1C */ void* pRows; // region rows of 3 pixels, indexed by rect.y + row
-    /* 0x20 */ s16 unk20;
-    /* 0x22 */ s16 unk22;
-    /* 0x24 */ s16 (*pInterpolate)(u_short frame, s16 x, s16 y); // maps the frame counter to the blend value
+    /* 0x20 */ s16 divisor; // second argument of pInterpolate
+    /* 0x22 */ s16 offset; // third argument of pInterpolate
+    /* 0x24 */ s16 (*pInterpolate)(u_short frame, s16 x, s16 y); // maps unk14 to the blend value; called with (unk14, divisor, offset)
     /* 0x28 */ RECT rect;
 } Temp8; // Size: 0x30
 
@@ -228,8 +228,8 @@ typedef struct {
     /* 0x4C  */ u32 unk4C;
     /* 0x50  */ u32 unk50;
     /* 0x54  */ u32 unk54;
-    /* 0x58  */ s16 unk58;
-    /* 0x5A  */ s16 sourceJointIndex; // joint of the model unk58 selects, whose transform places this one
+    /* 0x58  */ s16 sourceModelSlot; // g_LibGearModels slot whose transform places this one; 0xFF..0xFA pick it indirectly, 1..0x7F is slot + 1
+    /* 0x5A  */ s16 sourceJointIndex; // joint of the model sourceModelSlot selects, whose transform places this one
     /* 0x5C  */ u8 parentModelSlot; // g_LibGearModels slot whose transform this one inherits; 0xFF = none
     /* 0x5D  */ u8 isAttached;
     /* 0x5E  */ s16 parentJointIndex;
