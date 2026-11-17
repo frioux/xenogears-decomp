@@ -550,7 +550,12 @@ by stub count, 10 to 16 with the method below).
 ## Presets (settled; do not re-screen)
 
 `gears.toml` is the truth, keyed per file; a unit not listed there is Default (gcc
-2.7.2, `-O2 -G8`). Read the unit's preset from it and pass it to the worker verbatim.
+2.7.2, `-O2 -G8`). Read the unit's preset from it and pass it to the worker verbatim,
+with `tools/scripts/preset_for.py <unit>` (it agrees with `build.ninja` on all 204 units).
+Reading it by eye cost two rounds: `paths` arrays are multi-line, the last listing preset
+wins, `{binary}` is a placeholder, and `battle/main/misc1.` is a prefix of misc13/misc19
+unless the match stops at the dot - round 171 briefed `battle/misc19` as XenoBattle260
+when it is Default, and round 172 nearly did the same to `battle/misc13`.
 Workers never edit `gears.toml`; they report `PRESET_260` / `PRESET_G0` /
 `PRESET_CDK` with both percentages and the scores of every already-matched function,
 and you decide.
