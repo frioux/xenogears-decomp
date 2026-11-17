@@ -554,28 +554,37 @@ void BattleDrawTextList(BattleTextList *p) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008162C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
-/* PARK 94.33% (740 bytes, retail's exact size). g_BattleMode 1..5 selects a
-   vibration-option screen; each arm tests g_BattleSlotConfirmFlags. Everything
-   but case 2 is instruction-identical, including the cross-jumped arms and
-   gcc's shared tails: case 1 and case 4 share the flags==0/3 handling, case 1
-   and case 5 share the "func_8008162C(list5, 0)" call tail (so case 5's
-   flags==0 arm must NOT set D_80092754), and case 3's call is its own copy.
-   The inverted ternary `(flags & 1) == 0 ? 4 : 5` is what gives retail's
-   bnez + li 5 + li 4 order (the plain `? 5 : 4` gives beqz + li 4).
-   Residual, all in case 2 and all one allocator tie:
-     - retail reads g_BattleSlotConfirmFlags TWICE (one load per ternary) and
-       reuses $v0 for both the value and the (5,4) arm, ours cse's the load
-       into $a0 and uses $v1 for the arm;
-     - retail rematerialises the constant 1 (`li v1,1` / `li v0,1`), ours keeps
-       it in $s1 across the two func_8008162C calls, which grows the frame from
-       0x18 to 0x20 (+3 insns: saved/restored s1).
-   Tried and measured: s32 v local for each ternary (same), D_80092754 stored
-   after the two ternaries (91.44), reading the flags through a volatile
-   (91.97), &g_BattleTextLists[5]/[6] vs D_800916D8+0x3C for the two calls
-   (both 740 bytes; the g_BattleTextLists form reproduces retail's
-   `la s0` + `addiu a0,s0,0x3C` and is the one parked), gcc-2.7.2-cdk (83.90),
-   -O3 (identical), and a 4-minute permuter run (best 810, semantically wrong
-   candidates only).
+/* PARK 98.01% (732 bytes, retail 740: two instructions SHORT, so it cannot
+   link). g_BattleMode 1..5 selects a vibration-option screen; each arm tests
+   g_BattleSlotConfirmFlags. Every arm but case 2 is instruction-identical,
+   including the cross-jumped arms and gcc's shared tails: cases 1 and 4 share
+   the flags==0/3 handling, cases 1 and 5 share the func_8008162C(list5,0) tail
+   (so case 5's flags==0 arm must NOT set D_80092754), case 3's call is its own
+   copy. The inverted ternary `(flags & 1) == 0 ? 4 : 5` is what gives retail's
+   bnez + li 5 + li 4 order.
+   The 98.01% body below has retail's frame (0x18) and its single case-2
+   residual is the RELOAD: retail reads g_BattleSlotConfirmFlags twice inside
+   case 2 (once per ternary, `lui v0` + `lw v0` again after the D_800916E2
+   store, then `nop; andi v0,v0,2`) and lets the arm value reuse $v0; gcc cse's
+   the two reads here (one load, arm forced into $a0/$v1). The `flags` local is
+   load-bearing: it is what stops cse from sharing the constant 1 across the two
+   func_8008162C calls, which is what keeps retail's 0x18 frame (without it the
+   frame is 0x20 with +3 insns and 94.33%). Every other body shape below keeps
+   one or the other of those two properties, never both.
+   Reached 96.05% (752 bytes) by forcing the reload with
+   `*(volatile s16 *)&D_800916E2 = ...` for the first store plus
+   `(*(volatile s32 *)&g_BattleSlotConfirmFlags & 2)` for the second ternary:
+   that reproduces retail's store-then-reload order and its `nop` exactly, but
+   gcc then shares the constant 1 across the calls again (0x20 frame, `li s1,1`
+   instead of retail's `li v1,1` + `li v0,1`), i.e. +3 insns, and the two ternary
+   arms land in $v1 where retail has $v0.
+   Also tried: s32 v local for each ternary (same), D_80092754 stored after the
+   two ternaries (91.44), a plain s32* pointer local for the second read (cse'd),
+   &g_BattleTextLists[5]/[6] vs D_800916D8 + 0x3C (both 740 in the base body),
+   gcc-2.7.2-cdk (83.90), -O3 (identical), a 4-minute permuter run from the
+   base body (nothing usable) and a 4-minute run from this 98.01% body (best
+   359 vs base 376, and every candidate reassigned `flags` between the two
+   ternaries, i.e. semantically wrong).
 void func_80081A44(void) {
     switch (g_BattleMode) {
     case 1:
@@ -595,10 +604,13 @@ void func_80081A44(void) {
         g_BattlePlayer1ComControlled = 0;
         g_BattlePlayer2ComControlled = 1;
         break;
-    case 2:
+    case 2: {
+        s32 flags;
+
         D_80092754 = 1;
+        flags = g_BattleSlotConfirmFlags;
         D_800916E2 = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
-        D_8009171E = (g_BattleSlotConfirmFlags & 2) == 0 ? 4 : 5;
+        D_8009171E = (flags & 2) == 0 ? 4 : 5;
         func_8008162C(&g_BattleTextLists[5], 0);
         func_8008162C(&g_BattleTextLists[6], 1);
         if (g_BattleSlotConfirmFlags == 3) {
@@ -607,6 +619,7 @@ void func_80081A44(void) {
         g_BattlePlayer1ComControlled = 0;
         g_BattlePlayer2ComControlled = 0;
         break;
+    }
     case 3:
         switch (g_BattleSlotConfirmFlags) {
         case 0:
