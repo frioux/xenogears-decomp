@@ -61,7 +61,7 @@ void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 void MenuShutdown(void) {
     s32 i;
 
-    g_Menu->unk4D8 = 0;
+    g_Menu->cardSlotState = 0;
     MenuClearGlyphTexture();
     MenuFreeCellPrimBlocks();
     MenuFreePrimBuffer();

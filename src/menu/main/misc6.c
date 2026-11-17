@@ -345,7 +345,7 @@ void MenuFreeScrollHandle(void) {
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3488);
 /* PARKED 98.90% (492 bytes, identical instruction multiset). The first loop, the
-   early-return ternary (write it as "a1 == 0 ? unk32B : unk33B", not the other way
+   early-return ternary (write it as "a1 == 0 ? availableCharacterCount : gearCharacterCount", not the other way
    round), the HeapAlloc/bzero block and the tail all match exactly. The only
    difference left is in the 4-iteration MenuSetQuadVertices loop, and it is NOT an
    allocator tie - the add operand ORDER differs.  Retail loads pUi into v1 and forms
@@ -362,7 +362,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3488);
 void func_801D3488(u_char a0, u_char a1) {
     s32 i;
 
-    if ((a1 == 0 ? g_Menu->unk32B : g_Menu->unk33B) == 1) {
+    if ((a1 == 0 ? g_Menu->availableCharacterCount : g_Menu->gearCharacterCount) == 1) {
         return;
     }
 

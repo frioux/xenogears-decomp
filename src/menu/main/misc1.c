@@ -59,7 +59,7 @@ void MenuNormalMenuMain(void) {
         switch (g_Menu->input) {
             case 4:
                 isHandled = 1;
-                if (g_Menu->mainMenuChoice == 2 && g_Menu->unk33B == 0) {
+                if (g_Menu->mainMenuChoice == 2 && g_Menu->gearCharacterCount == 0) {
                     isHandled = 0;
                     MenuPlaySoundEffect(4);
                 }
@@ -446,7 +446,7 @@ void MenuResetRenderContext(void) {
 void MenuResetAnimationCounters(void) {
     g_Menu->characterCellFrame = 0;
     g_Menu->characterCellTimer = 0;
-    g_Menu->unk4D8 = 0;
+    g_Menu->cardSlotState = 0;
     g_Menu->characterCellShadeReversing = 0;
     g_Menu->characterCellShade = 0;
 }

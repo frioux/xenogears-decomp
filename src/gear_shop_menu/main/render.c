@@ -506,7 +506,7 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
     }
     LibGearSetModelAnimation((s3 & 0xFF), 0, characterId );
     HeapFree(g_Menu->unk458[modelIndex]->unk4);
-    g_Menu->unk458[modelIndex]->unk12 = 1;
+    g_Menu->unk458[modelIndex]->isModelCreated = 1;
     GearShopMenuBuildGearStatsGraphics();
     g_Menu->pManager->isPanelActive[3] = 1;
 }
@@ -659,7 +659,7 @@ void GearShopMenuChangeCurrentGear(u_char mode) {
         }
 
         GearShopMenuUpdateAndRender();
-        g_Menu->unk458[1]->unk12 = 0;
+        g_Menu->unk458[1]->isModelCreated = 0;
         LibGearFreeModel(1);
         GearShopMenuUpdateAndRender();
         GearShopMenuLoadGearModelFiles(g_GameState.characters[characterIndex].gearId, 1);
@@ -2542,8 +2542,8 @@ void GearShopMenuFreeGearView(void) {
     g_Menu->pManager->isPanelActive[0] = 0;
     GearShopMenuUpdateAndRender();
     LibGearShutdown();
-    g_Menu->unk458[0]->unk12 = 0;
-    g_Menu->unk458[1]->unk12 = 0;
+    g_Menu->unk458[0]->isModelCreated = 0;
+    g_Menu->unk458[1]->isModelCreated = 0;
     HeapFree(g_Menu->unk458[0]);
     HeapFree(g_Menu->unk458[1]);
 }

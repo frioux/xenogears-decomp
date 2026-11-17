@@ -722,7 +722,7 @@ typedef struct {
     /* 0x04 */ u8 *unk4;
     /* 0x08 */ SVECTOR position; // Becomes the gear model skeleton's translation when the model is created
     /* 0x10 */ u16 unk10;
-    /* 0x12 */ s8 unk12;
+    /* 0x12 */ s8 isModelCreated; // Set by GearShopMenuCreateGearModel, cleared before LibGearFreeModel
     /* 0x13 */ u8 unk13;
 } SystemMenuArchiveData; /* size: 0x14 */
 
@@ -777,7 +777,7 @@ typedef struct {
     /* 0x328  */ u8 unk328;
     /* 0x329  */ u_char transitionEffectState;
     /* 0x32A  */ u8 soundEffectsEnabled; // Sound effects enabled?
-    /* 0x32B  */ u8 unk32B;
+    /* 0x32B  */ u8 availableCharacterCount; // Party slots holding an available character, built in func_801C6AA0
     /* 0x32C  */ MenuUnk2* menuUnk2;
     /* 0x330  */ MenuDressingRoom* pDressingRoom;
     /* 0x334  */ u8 unk334;
@@ -787,7 +787,7 @@ typedef struct {
     /* 0x338  */ u_char subMenuChoice;
     /* 0x339  */ u_char subMenuPrevChoice;
     /* 0x33A  */ u_char subMenuNumChoices;
-    /* 0x33B  */ u8 unk33B;
+    /* 0x33B  */ u8 gearCharacterCount; // Party slots whose character has a gear, built in func_801C6AA0
     /* 0x33C */ MenuManager* pManager;
     /* 0x340  */ void* pGoldWindow; // Gold-window prim block, see MenuGoldWindow in misc7
     /* 0x344  */ MenuPlayTimeDigits* pPlayTimeDigits;
@@ -849,7 +849,7 @@ typedef struct {
     /* 0x4CC  */ s32 characterCellFrame; // Indexes the 6-entry colour table stepped every 15 frames
     /* 0x4D0  */ s32 characterCellTimer; // Frames spent on the current characterCellFrame
     /* 0x4D4  */ s32 characterCellShade; // Written to every colour channel of the character cell prims
-    /* 0x4D8  */ u8 unk4D8;
+    /* 0x4D8  */ u8 cardSlotState; // 0 off, 1 set while the card slots are read, 2 slot list ready
     /* 0x4D9  */ u8 characterCellShadeReversing;
     /* 0x4DA  */ u8 unk4DA[0x2];
     /* 0x4DC  */ u_char characterSlot; // Party slot the dressing room / item cursor sits on

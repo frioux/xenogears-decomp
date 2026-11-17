@@ -2158,7 +2158,7 @@ void GearShopMenuRenderDebugValues(void) {
     int digitsOffset;
     int curValue;
 
-    if ((g_GearShopDebugEnabled != 0) && ((u8) g_Menu->unk458[1]->unk12 != 0)) {
+    if ((g_GearShopDebugEnabled != 0) && ((u8) g_Menu->unk458[1]->isModelCreated != 0)) {
         // X, Y, Z letters
         func_8002675C(g_Menu->resources, 0x21, &g_GearShopDebugDigitPrims[0], g_Menu->renderContext, 0x10, 0x10, 0x1000U);
         func_8002675C(g_Menu->resources, 0x22, &g_GearShopDebugDigitPrims[2], g_Menu->renderContext, 0x10, 0x20, 0x1000U);
