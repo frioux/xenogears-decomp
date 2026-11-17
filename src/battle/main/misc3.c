@@ -2,6 +2,14 @@
 #include "psyq/libgpu.h"
 #include "battle/battle_work.h"
 
+// Size of the pool BattleAllocPacketPrimitives hands out (g_BattleGraphicsWork's
+// pPacketPrims): the 0x50-byte POLY_FT4 pairs BattleInitPacketPrimitives fills,
+// then the menu cell state at the pool's tail.
+#define BATTLE_PACKET_PRIM_POOL_SIZE 0x670
+// Size of the pulse-triangle pool BattleInitPulseTrianglePrims clears: the eight
+// POLY_G3 at +0x0 and the fade ramp and flags that follow them at +0xE0.
+#define BATTLE_PULSE_TRIANGLE_POOL_SIZE 0xEC
+
 extern u8 *g_BattlePulseTrianglePrims;
 extern u8 g_BattlePrimStartIndex;
 extern u8 g_BattleActorCharIds[];
@@ -323,10 +331,10 @@ void BattleInitSlotPrims(u8 index) {
 }
 
 void BattleAllocPacketPrimitives(void) {
-    u8 *p = (u8 *)BattleAllocHeapBlock(0x670, 0);
+    u8 *p = (u8 *)BattleAllocHeapBlock(BATTLE_PACKET_PRIM_POOL_SIZE, 0);
 
     g_BattleGraphicsWork->pPacketPrims = p;
-    bzero(p, 0x670);
+    bzero(p, BATTLE_PACKET_PRIM_POOL_SIZE);
     BattleInitPacketPrimitives();
 }
 
@@ -339,53 +347,53 @@ void BattleInitPulseTrianglePrims(void) {
     s32 i;
     s32 j;
 
-    bzero(g_BattlePulseTrianglePrims, 0xEC);
+    bzero(g_BattlePulseTrianglePrims, BATTLE_PULSE_TRIANGLE_POOL_SIZE);
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 2; j++) {
-            SetPolyG3((POLY_G3 *)((i * 2 + j) * 0x1C + (mem_addr)g_BattlePulseTrianglePrims));
+            SetPolyG3((POLY_G3 *)((i * 2 + j) * sizeof(POLY_G3) + (mem_addr)g_BattlePulseTrianglePrims));
             switch (i) {
             case 0:
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0xC0;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x70;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0xB0;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x78;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0xB0;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x68;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x0 = 0xC0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y0 = 0x70;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x1 = 0xB0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y1 = 0x78;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x2 = 0xB0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y2 = 0x68;
                 break;
             case 1:
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0xA0;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x90;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0x98;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x80;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0xA8;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x80;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x0 = 0xA0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y0 = 0x90;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x1 = 0x98;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y1 = 0x80;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x2 = 0xA8;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y2 = 0x80;
                 break;
             case 2:
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0x80;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x70;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0x90;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x68;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0x90;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x78;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x0 = 0x80;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y0 = 0x70;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x1 = 0x90;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y1 = 0x68;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x2 = 0x90;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y2 = 0x78;
                 break;
             case 3:
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x0 = 0xA0;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y0 = 0x50;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x1 = 0x98;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y1 = 0x60;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->x2 = 0xA8;
-                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * 0x1C))->y2 = 0x60;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x0 = 0xA0;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y0 = 0x50;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x1 = 0x98;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y1 = 0x60;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->x2 = 0xA8;
+                ((POLY_G3 *)(g_BattlePulseTrianglePrims + (i * 2 + j) * sizeof(POLY_G3)))->y2 = 0x60;
                 break;
             }
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 4] = 0xFF;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 5] = 0;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 6] = 0;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0xC] = 0x40;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0xD] = 0;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0xE] = 0;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0x14] = 0x40;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0x15] = 0;
-            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * 0x1C + 0x16] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 4] = 0xFF;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 5] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 6] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 0xC] = 0x40;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 0xD] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 0xE] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 0x14] = 0x40;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 0x15] = 0;
+            ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 0x16] = 0;
         }
     }
     *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) = 0xFF;
