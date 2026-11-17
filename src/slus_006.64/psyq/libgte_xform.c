@@ -13,18 +13,6 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_xform", RotTrans);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_xform", NormalClip);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_xform", RotTransPers4);
-/* 100.00% (120 bytes) in report mode with the body at the end of this comment,
-   but it cannot be un-parked until the two tail pad words at 0x3AFB4 are carved
-   into their own `asm` subsegment, which needs one more .c file for the range
-   from RotTrans on - over this round's three-file budget. Two things make it
-   work, both inherited from RotTransPers3 next door: load each group of three
-   stack-passed pointers inside one asm block and pin them to t0-t2, because gcc
-   otherwise hoists those loads to the function top; and pin the flag values,
-   flg1 in $3 (it has to survive RTPS) and flg2 in $8, which is why the merge is
-   spelled `flg2 |= flg1;` - writing `flg2 | flg1` puts the or destination in
-   v1 instead of t0. The two three-pointer loads here are gte_ld_arg_ptr4's
-   shape (inline_c.h) with this signature's slot offsets.
 long RotTransPers4(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, SVECTOR *v3,
                    long *sxy0, long *sxy1, long *sxy2, long *sxy3, long *p,
                    long *flag) {
@@ -55,4 +43,3 @@ long RotTransPers4(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, SVECTOR *v3,
     *q2 = flg2;
     return sz3 >> 2;
 }
-*/
