@@ -98,7 +98,7 @@ void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
         pSaveGear->unk2C = pGear->hp;
         pSaveGear->unk38 = pGear->unk99;
         pSaveGear->unk39 = pGear->attackPower;
-        pSaveGear->unk3A = pGear->unk75;
+        pSaveGear->unk3A = pGear->baseWeightClass;
     }
     pSlot->namesA = *(MenuSaveNamesA*)((u32*)&g_GameState);
     pSlot->namesB = *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4);
@@ -154,7 +154,7 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
         pGear->hp = pSaveGear->unk2C;
         pGear->unk99 = pSaveGear->unk38;
         pGear->attackPower = pSaveGear->unk39;
-        pGear->unk75 = pSaveGear->unk3A;
+        pGear->baseWeightClass = pSaveGear->unk3A;
     }
     *(MenuSaveNamesA*)((u32*)&g_GameState) = pSlot->namesA;
     *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4) = pSlot->namesB;

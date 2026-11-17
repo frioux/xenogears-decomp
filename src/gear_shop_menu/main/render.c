@@ -2821,7 +2821,7 @@ s32 GearShopMenuComputeEquipWeightPenalty(u8 index) {
     u8 result;
 
     pGear = &g_GameState.gears[index];
-    temp_v0 = (s32) ((pGear->weightFromEquipment / 120) - pGear->unk75) / 2;
+    temp_v0 = (s32) ((pGear->weightFromEquipment / 120) - pGear->baseWeightClass) / 2;
     result = temp_v0;
     if (temp_v0 << 16 < 0) {
         result = 0;
