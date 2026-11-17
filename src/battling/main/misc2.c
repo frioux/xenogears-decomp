@@ -481,7 +481,13 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    session as `arg1 = *(s16 *)(p0 + 0xB6) + arg1` in place and with a `hw`
    local (both 97.78%, operands come out swapped as well); 2.6.0 gives 97.22
    and 2.7.2-cdk 97.78, so the preset is not the lever. Retested this session:
-   2.7.2-cdk -O2 98.06, -O3 98.06, -G0 98.06, cdk -O3 compile-failed. */
+   2.7.2-cdk -O2 98.06, -O3 98.06, -G0 98.06, cdk -O3 compile-failed. Round 199:
+   retail's allocation is OURS ONE REGISTER HIGHER - retail `lh v1,0xB6` + sum
+   in `$a1` (the parameter's own register, freed by the add) against ours
+   `lh v0` + sum in `$v1` - and `arg1 += hw;` / `arg1 += *(s16 *)(p0 + 0xB6);`
+   do NOT coalesce the sum into that `$a1` (both `addu v1,a1,v0`, 97.78), so the
+   in-place spelling is not the lever either. A single shared exit (`result`
+   variable) is worse: it grows the frame to 76 bytes and 84.17%. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
     s32 t = *(s16 *)(p0 + 0xB6) + arg1;
 
