@@ -10,12 +10,12 @@ typedef struct {
     /* 0x08 */ u8 pad08[0x14];
     /* 0x1C */ u8 stateStep; // state step, copied to 0x49 when the step changes
     /* 0x1D */ u8 pad1D[0x3];
-    /* 0x20 */ u32 unk20; // actor id handed to func_800BEE2C
+    /* 0x20 */ u32 initialActorIndex; // actor index BattleSetCurrentActorSprite is handed at init
     /* 0x24 */ s32 actorIndex; // index of the acting slot's sprite in the 0x8C8C table
     /* 0x28 */ u8 pad28[0xC];
     /* 0x34 */ u32 timer; // counted down once a frame by the state loop
     /* 0x38 */ u8 pad38[0x10];
-    /* 0x48 */ u8 unk48;
+    /* 0x48 */ u8 pendingAction; // 0x905C request: the frame loop runs it once when this is set
     /* 0x49 */ u8 pendingStep; // step the state loop dispatches once, then clears
     /* 0x4A */ u8 unk4A;
     /* 0x4B */ u8 pad4B;
@@ -93,7 +93,7 @@ typedef struct BattleActorSprite {
     /* 0x3C */ u32 flags; // 0x4: transform matrix dirty
     /* 0x40 */ u8 unk40[0x24];
     /* 0x64 */ void* pSpriteBytecode;
-    /* 0x68 */ u8 unk68[0x4];
+    /* 0x68 */ void* pCallback; // the slot SpriteSetCallback stores into
     /* 0x6C */ void* field_0x6C;
     /* 0x70 */ u8 unk70[0x4];
     /* 0x74 */ struct BattleActorSprite* pTargetEntitySprite;
@@ -313,21 +313,21 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
 
     switch (code) {
         case 0xFA:
-            g_BattleState->unk48 = 1;
+            g_BattleState->pendingAction = 1;
             SpriteSetCallback(pSprite, 0);
             pBase = g_BattleStateWork;
             pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             BattleSetSlotFlagB4(pSlot[0x172]);
             break;
         case 0xF8:
-            g_BattleState->unk48 = 1;
+            g_BattleState->pendingAction = 1;
             SpriteSetCallback(pSprite, 0);
             pBase = g_BattleStateWork;
             pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             BattleClearSlotFlagB4(pSlot[0x172]);
             break;
         case 0xF7:
-            g_BattleState->unk48 = 1;
+            g_BattleState->pendingAction = 1;
             SpriteSetCallback(pSprite, 0);
             pBase = g_BattleStateWork;
             pSlot = pBase + g_BattleCommandRowIndex * 0x48;
@@ -360,7 +360,7 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
             BattleBeginAnimTask(*(u16 *)(pSlot + 0x14E));
             break;
         case 0xF3:
-            g_BattleState->unk48 = 1;
+            g_BattleState->pendingAction = 1;
             pBase = g_BattleStateWork;
             pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             id = *(u16 *)(pSlot + 0x172);
@@ -373,7 +373,7 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9508);
 
 void BattleApplyStateStep(void) {
-    g_BattleState->unk48 = 1;
+    g_BattleState->pendingAction = 1;
     g_BattleState->pendingStep = g_BattleState->stateStep;
 }
 void BattleFaceActorsTowardEachOther(BattleActorSprite* p0, BattleActorSprite* p1) {
@@ -390,7 +390,7 @@ void BattleFaceActorsTowardEachOther(BattleActorSprite* p0, BattleActorSprite* p
 void BattleActorSnapToTargetAndFace(BattleActorSprite* pSprite, BattleActorSprite* pTarget) {
     pSprite->position.value.x = pSprite->targetPosition.x << 16;
     pSprite->position.value.z = pSprite->targetPosition.z << 16;
-    g_BattleState->unk48 = 1;
+    g_BattleState->pendingAction = 1;
     BattleSetStateStep(4);
     SpritePlayAnimation(pSprite, pSprite->animId);
     BattleFaceActorsTowardEachOther(pSprite, pTarget);
@@ -458,7 +458,7 @@ void func_800B9C78(void) {
             BattleWaitArchiveSync();
             pRow = g_BattleStateWork;
             pRow += g_BattleCommandRowIndex * 0x48;
-            func_800BEE2C(g_BattleState->unk20, *(u16 *)(pRow + 0x14E), 4);
+            func_800BEE2C(g_BattleState->initialActorIndex, *(u16 *)(pRow + 0x14E), 4);
             BattleSetStateStep(0xA);
             break;
         case 0xFC:
