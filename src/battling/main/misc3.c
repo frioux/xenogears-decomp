@@ -9,6 +9,8 @@ extern char D_8006FCC8[];
 extern s32 D_8009284C;
 extern u8 D_80091178[];
 extern u8 D_80091179[];
+extern s32 D_80092654;
+extern s32 D_80092658;
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -187,6 +189,63 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     }
     nx = (v.vx << 12) / dist;
     ny = (v.vy << 12) / dist;
+    along = (ex * nx + ey * ny) / 4096;
+    cross = (ey * nx - ex * ny) / 4096;
+    if (along < 0) {
+        return 0;
+    }
+    return (cross * cross - r * r < 0) & (dist + r >= along);
+}
+*/
+
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
+
+/* 95.65% (460 vs retail's 452 bytes): the instruction stream is IDENTICAL - the
+   two divides, both 0xFFF roundings, the mult/mflo order, both delta blocks, the
+   SquareRoot0 hit-point pass and the two D_80092654/58 stores all line up. The
+   only difference is register allocation: retail needs 7 saved registers
+   (s0=ex, s1=ey, s2=nx, s3=ny, s4=x1, s5=y1, s6=r) and this body needs 8
+   (along also gets s0, pushing y1 to s6, r to s7 and growing the frame 0x50 ->
+   0x58). Cause: gcc coalesces `along` with the quotient, so the merged pseudo
+   crosses the hit-point SquareRoot0 call and must be call-saved; retail kept
+   the pre-divide value in $v1 (a call-clobbered temp) and only the quotient in
+   s0, reusing ex's register after ex dies.
+   Tried: along/cross declared in both orders; both roundings written after both
+   divides; the explicit `if (x < 0) x += 0xFFF; x >>= 12;` spelling instead of
+   `/ 4096` (identical code either way); `- r * r` vs `- vSq.vz` (vSq.vz is
+   retail's, and is what this body uses). Permuter: 2095 iterations, base=454;
+   its only better candidate (190) copies ny into a temporary and then computes
+   `hy = t * t` after that temporary has been overwritten by the hit-point pass
+   - wrong code, discarded.
+// The closest approach of the segment (x1,y1)-(x2,y2) to the circle at
+// (x3,y3) with radius r, in 12-bit fixed point: returns 1 when the segment
+// passes through the circle and stores that point in D_80092654/D_80092658.
+s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
+    VECTOR v;
+    VECTOR vSq;
+    s32 ex;
+    s32 ey;
+    s32 dist;
+    s32 nx;
+    s32 ny;
+    s32 along;
+    s32 cross;
+    s32 delta;
+    s32 hit;
+    s32 t;
+
+    v.vx = x2 - x1;
+    v.vy = y2 - y1;
+    v.vz = r;
+    ex = x3 - x1;
+    ey = y3 - y1;
+    Square0(&v, &vSq);
+    dist = SquareRoot0(vSq.vx + vSq.vy);
+    if (dist == 0) {
+        return 0;
+    }
+    nx = (v.vx << 12) / dist;
+    ny = (v.vy << 12) / dist;
     along = ex * nx + ey * ny;
     if (along < 0) {
         along += 0xFFF;
@@ -197,56 +256,53 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
         cross += 0xFFF;
     }
     cross >>= 12;
+    delta = cross * cross - vSq.vz;
+    hit = delta < 0;
     if (along < 0) {
-        return 0;
+        hit = 0;
     }
-    return (cross * cross - r * r < 0) & (dist + r >= along);
+    if (dist + r < along) {
+        hit = 0;
+    }
+    if (hit) {
+        if (delta < 0) {
+            delta = -delta;
+        }
+        t = along - SquareRoot0(delta);
+        D_80092654 = x1 + (t * nx) / 4096;
+        D_80092658 = y1 + (t * ny) / 4096;
+    }
+    return hit;
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
-
-extern s32 D_80092654;
-extern s32 D_80092658;
 
 extern s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075A4C);
-
-/* 97.23% (260 vs retail's 268 bytes): the four calls, the argument order, the
-   stack-argument stores, the D_80092654/58 stores (which land after the arg
-   loads, matching retail) and the frame (0x38, s0-s3) are all right. The
-   residual is the three "hit" early exits: retail has bnez + "li v0,1" in the
-   delay slot for all three, and no return block of its own. The goto form
-   threads all three branches to the shared exit but gcc then returns the raw
-   call value, so no "li v0,1" is emitted (that is the 8 missing bytes). The
-   plain if/return form does emit "li v0,1" (95.92%, retail's 268 bytes) but
-   leaves the third return block after the fourth call, where reorg fills its
-   delay slot from the following "sw" instead of duplicating the li. A
-   "return f1() || f2() || f3() || f4()" chain is 82.86% (it needs an s4
-   accumulator). A "hit = 1; goto done;" form is untried.
-short func_80075A4C(BattleActor* p, s32 x, s32 z, s32 r) {
+s32 func_80075A4C(BattleActor* p, s32 x, s32 z, s32 r) {
     s32 hit;
 
     D_80092654 = x;
     D_80092658 = z;
     hit = func_80075750(p->vx, p->vz, p->position.x, p->position.z, x, z, r);
     if (hit) {
+        hit = TRUE;
         goto done;
     }
     hit = func_80075750(p->steerVx, p->steerVz, p->pushVx, p->pushVz, x, z, r);
     if (hit) {
+        hit = TRUE;
         goto done;
     }
     hit = func_80075750(p->position.x, p->position.z, p->pushVx, p->pushVz, x, z, r);
     if (hit) {
+        hit = TRUE;
         goto done;
     }
     hit = func_80075750(p->vx, p->vz, p->steerVx, p->steerVz, x, z, r) != 0;
 done:
     return hit;
 }
-*/
 
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
@@ -774,6 +830,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
    shared tail uses `>> 16`. BattleDequeueMessage must be declared s32: with a u8
    return every caller gets an `andi v0,v0,0xff` retail does not have (verified:
    the callee still matches 100.00% as s32).
+   Permuter: 1679 iterations from this body found nothing (base=462, best=462).
 extern s32 BattleEffectAddSlotFromVector(Vec4* pVec, s32 action);
 extern void func_8008ED6C(u8* p, s32 idx);
 extern void func_8008EBD0(u8* p, s32 idx, void* pData, s32 flags);
