@@ -6,6 +6,11 @@
 // Quantity MenuFillInventoryTables gives every filled slot.
 #define MENU_INVENTORY_FILL_QUANTITY 10
 
+// Byte sizes of the two menu scratch buffers this unit allocates: one prim block
+// per character cell (g_Menu->pCellPrimBlocks) and g_Menu->pPrimBuffer.
+#define MENU_CELL_PRIM_BLOCK_SIZE 344
+#define MENU_PRIM_BUFFER_SIZE 11712
+
 
 // The save-slot record this unit writes: a packed copy of the parts of
 // g_GameState that live in a save file.  Everything is word-aligned so the
@@ -87,12 +92,12 @@ void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
     u32 size;
 
     for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
-        offset = i * 0xA4 + 0x290;
+        offset = i * sizeof(MenuSaveCharacter) + 0x290;
         *(MenuSaveCharacter*)((mem_addr)pSlot + offset) =
             *(MenuSaveCharacter*)&g_GameState.characters[i];
     }
     for (i = 0; i < MAX_GAME_GEARS; i++) {
-        s32 gearOffset = i * 0x3C + 0x99C;
+        s32 gearOffset = i * sizeof(MenuSaveGear) + 0x99C;
         pSaveGear = (MenuSaveGear*)((mem_addr)pSlot + gearOffset);
         pGear = &g_GameState.gears[i];
         pSaveGear->head = *(MenuSaveGearHead20*)pGear;
@@ -396,9 +401,9 @@ void MenuCreateCellPrimBlocks(void) {
     int i;
 
     for (i = 0; i < 32; i++) {
-        pMem = HeapAlloc(0x158, 0);
+        pMem = HeapAlloc(MENU_CELL_PRIM_BLOCK_SIZE, 0);
         g_Menu->pCellPrimBlocks[i] = pMem;
-        bzero(pMem, 0x158);
+        bzero(pMem, MENU_CELL_PRIM_BLOCK_SIZE);
         func_801E56E8(i);
         MenuInitializeCellLinePrims(i);
     }
@@ -551,9 +556,9 @@ void MenuAllocatePrimBuffer(void) {
     void* pMem;
     u32 unk[2]; // unused: the original frame has 8 bytes of locals we cannot express
 
-    pMem = HeapAlloc(0x2DC0, 0);
+    pMem = HeapAlloc(MENU_PRIM_BUFFER_SIZE, 0);
     g_Menu->pPrimBuffer = pMem;
-    bzero(pMem, 0x2DC0);
+    bzero(pMem, MENU_PRIM_BUFFER_SIZE);
     func_801E5B88();
     func_801E5E4C();
 }
@@ -748,7 +753,7 @@ void MenuDrawSlotSprite(u8 arg0, u8* pArg1) {
 
     offset = 0xA98 + arg0 * 0x87C;
     pPrims = (u8*)(offset + (u32)g_Menu->pPrimBuffer);
-    func_8002675C(g_Menu->resources, (pArg1 + arg0)[0x1C] + 0x14E, pPrims,
+    func_8002675C(g_Menu->resources, (pArg1 + arg0)[0x1C] + MENU_TEX_CHARACTER_PORTRAITS_SMALL, pPrims,
                   g_Menu->renderContext, g_MenuSlotSpriteX[arg0], g_MenuSlotSpriteY[arg0], 0x1000);
 }
 
