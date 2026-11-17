@@ -55,23 +55,24 @@ typedef union {
 
 // The per-slot action state the battle main loop runs on. +0x04 counts down to
 // the next state change and is stored as a byte elsewhere, so it is read
-// through a u16 here and compared signed.
+// through a u16 here and compared signed. The names are the ones the same
+// struct carries in src/battling/main/misc18.c, which writes it.
 typedef struct {
     /* 0x00 */ struct BattleActor* pOwner;
     /* 0x04 */ u16 delay;
     /* 0x06 */ u16 pad6;
-    /* 0x08 */ u8 unk8;
-    /* 0x09 */ u8 unk9;
+    /* 0x08 */ u8 state;
+    /* 0x09 */ u8 ticks;
     /* 0x0A */ s16 targetAngle;
     /* 0x0C */ s16 maxDistance;
-    /* 0x0E */ u8 unkE;
+    /* 0x0E */ u8 setFlag8000;
     /* 0x0F */ u8 difficulty;
-    /* 0x10 */ s32 unk10;
-    /* 0x14 */ s32 unk14;
-    /* 0x18 */ s32 unk18;
-    /* 0x1C */ s32 unk1C;
+    /* 0x10 */ s32 actionChance0;
+    /* 0x14 */ s32 actionChance1;
+    /* 0x18 */ s32 actionChance2;
+    /* 0x1C */ s32 actionChance3;
     /* 0x20 */ s32 unk20;
-    /* 0x24 */ s32 unk24;
+    /* 0x24 */ s32 breakThreshold;
     /* 0x28 */ s32 unk28;
     /* 0x2C */ BattleWorkFlags flags;
     /* 0x30 */ u16 unk30;
@@ -91,7 +92,7 @@ typedef struct BattleActor {
     /* 0x09C */ s32 stepBack;
     /* 0x0A0 */ u8 unkA0[0x14];
     /* 0x0B4 */ s16 gaugeValue;
-    /* 0x0B6 */ s16 unkB6;
+    /* 0x0B6 */ s16 gaugePoints;
     /* 0x0B8 */ u8 unkB8[0x4];
     /* 0x0BC */ s16 gaugeMax;
     /* 0x0BE */ s16 unkBE;
