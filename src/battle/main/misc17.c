@@ -24,11 +24,11 @@ extern BattleSpriteWork *g_BattleDisplayState;
 extern u8 g_BattleCurSlotIndex;
 extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
-extern s32 g_BattlePrimStartIndex;
+extern u8 g_BattlePrimStartIndex;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleTargetSlotEntry;
 extern BattleTableEntry g_BattleWorkBlock[];
-extern u8 g_BattleCurveTargets[];
+extern s32 g_BattleCurveTargets[];
 extern u8 g_BattleCurveTargetModes[];
 extern u16 g_BattleCommandCellFlags;
 extern u16 D_800C324E;
@@ -83,7 +83,7 @@ void BattleBuildSpriteColumn8(s32 arg0) {
             (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 80, 0x20,
             (s16)(offset + arg0));
     }
-    g_BattleDisplayState->spriteColumnPrimStart = *(u8 *)&g_BattlePrimStartIndex;
+    g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex;
     g_BattleDisplayState->spriteColumnPending = 1;
 }
 /* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
@@ -182,7 +182,7 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
         func_800916D4(arg1, arg2, arg0);
         func_8009187C(arg0, arg1, arg2);
         func_80091B38(arg0, arg1, arg2);
-        g_BattleGraphicsWork->pPacketPrims[0x66A] = *(u8 *)&g_BattlePrimStartIndex;
+        g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex;
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
     } else {
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
@@ -271,7 +271,7 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
         if ((g_BattleWorkBlock[arg0].unk7A & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);
             func_8009382C(arg0, arg1);
-            g_BattleGraphicsWork->pPacketPrims[0x66A] = *(u8 *)&g_BattlePrimStartIndex;
+            g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex;
             g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
         } else {
             g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
@@ -292,25 +292,19 @@ void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800941A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
-/* 99.77%: instruction multiset identical; the only difference is the operand
-   order of one addu for i*0x170 + pBase (original base-first, gcc index-first).
-   Tried: array-ref, pointer-plus (this version), integer base and a pointer
-   local for that sum; also 2.7.2-cdk -> 99.77. */
 void BattleAccumulateSlotValueByRowFlag(void) {
-    u8 *pBase = (u8 *)g_BattleCurWorkBlock;
-    u8 *pOther = (u8 *)(g_BattleCurSlotIndex * 4 + (u32)pBase);
-    u8 *pRow;
-    u8 i;
+    BattleWorkBlock *pWork = g_BattleCurWorkBlock;
+    u8 slot;
 
-    for (i = 0; i < 3; i++) {
-        if (((u8 *)(pBase + i))[0x5FA0] != 0) {
+    for (slot = 0; slot < sizeof(pWork->slots) / sizeof(pWork->slots[0]); slot++) {
+        if (pWork->slotStates[slot] != 0) {
             continue;
         }
-        pRow = pBase + i * 0x170;
-        if (pRow[0x15A] & 0x80) {
-            *(u32 *)(i * 4 + (s32)pBase + 0x5F60) += *(u32 *)(pOther + 0x5F6C);
+        // unk5F20 still covers the two per-party-slot dword accumulators opaquely (+0x34 and +0x40).
+        if (pWork->slots[slot].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
+            ((s32 *)(pWork->unk5F20 + 0x40))[slot] += pWork->slotAmounts[g_BattleCurSlotIndex];
         } else {
-            *(u32 *)(i * 4 + (s32)pBase + 0x5F54) += *(u32 *)(pOther + 0x5F6C);
+            ((s32 *)(pWork->unk5F20 + 0x34))[slot] += pWork->slotAmounts[g_BattleCurSlotIndex];
         }
     }
 }
@@ -423,11 +417,11 @@ void BattleComputeActionAmount(void) {
         }
         if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 0x4000) {
             g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 3;
-            *(s32 *)(g_BattleTargetSlotIndex * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxMp / 10) * 2;
+            g_BattleCurveTargets[g_BattleTargetSlotIndex] = (u16)(g_BattleActingSlot->maxMp / 10) * 2;
         }
         if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 0x1000) {
             g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 2;
-            *(s32 *)(g_BattleTargetSlotIndex * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxHp / 10) * 2;
+            g_BattleCurveTargets[g_BattleTargetSlotIndex] = (u16)(g_BattleActingSlot->maxHp / 10) * 2;
         }
     }
     if (g_BattleCurrentRow->element & 0x20) {
@@ -539,6 +533,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
 void BattleInitActiveSlotAction(void) {
     s32 t;
     BattleTableEntry *p;
+    s32 *pCurveTarget;
     s32 v;
 
     if (g_BattleWorkBlock[g_BattleCurSlotIndex].characterId == 2) {
@@ -556,7 +551,10 @@ void BattleInitActiveSlotAction(void) {
     if (g_BattleCurSlotIndex) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
     t = g_BattleCurSlotIndex;
-    *(s32 *)(t * 4 + g_BattleCurveTargets) = v / 10;
+    // A pointer, not g_BattleCurveTargets[t]: the indexed form schedules `1 << t` into the
+    // load's delay slot, which drops retail's nop (4 bytes short).
+    pCurveTarget = g_BattleCurveTargets + t;
+    *pCurveTarget = v / 10;
     g_BattleCommandCellFlags |= 1 << t;
 }
 void BattleClearStatusWordsOnAction6E(void) {
