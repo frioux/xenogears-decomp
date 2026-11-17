@@ -364,6 +364,83 @@ void func_800BFDA8(u8 *pActor, s32 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
+// 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
+// every instruction is present and in retail's order; what is left is
+//  (a) gcc hoists D_800C37D4's address out of the outer restart loop to the prologue
+//      where retail re-forms it at the top of the loop (.L800C05A8),
+//  (b) gcc picks pSpriteSlot as the base for the slot accesses, so pSlot's two byte
+//      reads come out as lbu 1(s3)/lbu 0(s3) off a derived base+7 pointer instead of
+//      retail's lbu 8(s2)/lbu 7(s2),
+//  (c) the two jump-table/table bases land in the opposite callee-saved registers
+//      (s6/s7 swapped) and i/pSlot swap s2/s3.
+// Tried: index form (no strength reduction: gcc re-derives i*0x1C with shifts and
+// folds 0x8C8C into the symbol), `for (i = 0; ...)` instead of the do/while,
+// pExpectedAnimIds pointer local, `s32 spritesOff = 0x8C8C` local (60.65%), both
+// orders of the two pointer inits, u8* vs BattleActorSlot* slot pointer, declaration
+// orders, and a 4-minute permuter run (base=1405 best=800, and its two best edits read
+// new_var->unk8 from a pointer that never advances - wrong code, not portable).
+// The outer loop must stay a loop (a `goto rescan` puts the jtbl address in the wrong
+// block: retail forms it in the prologue, D_800C37D4 inside the loop).
+/*
+void func_800C0564(void) {
+    u8 *pBase;
+    BattleActorSlot *pSlot;
+    u8 *pSpriteSlot;
+    SpriteData *pSprite;
+    s32 i;
+    u8 needsWait;
+
+    pBase = (u8 *)g_BattleStateWork;
+    needsWait = 0;
+    i = 0;
+    while (1) {
+        pSlot = (BattleActorSlot *)pBase;
+        pSpriteSlot = (u8 *)pSlot;
+        do {
+            pSprite = *(SpriteData **)(pSpriteSlot + 0x8C8C);
+            if (pSprite != NULL) {
+                if (pSlot->unk8 != 0) {
+                    if (pSprite->pSpriteBytecode != NULL) {
+                        needsWait = 1;
+                    }
+                } else if (BattleGetActorConditionCode(i) != 8) {
+                    switch ((s8)pSprite->flags_0xAC.bytes[3]) {
+                    case 0:
+                    case 1:
+                    case 5:
+                    case 7:
+                    case 14:
+                    case 15:
+                    case 20:
+                    case 21:
+                    case 22:
+                    case 24:
+                        break;
+                    default:
+                        if (pSlot->unk7 == 0 &&
+                            (s8)pSprite->flags_0xAC.bytes[3] !=
+                                D_800C37D4[BattleGetActorConditionCode(i)] &&
+                            (s8)pSprite->flags_0xAC.bytes[3] != (s8)pSprite->flags_0xB0.bytes[0]) {
+                            needsWait = 1;
+                        }
+                    }
+                }
+            }
+            pSlot++;
+            i++;
+            pSpriteSlot += 4;
+        } while (i != 11);
+        if (needsWait == 0) {
+            break;
+        }
+        needsWait = 0;
+        func_800BE790();
+        i = 0;
+    }
+}
+*/
+extern u16 D_800C37D4[];
+extern s32 BattleGetActorConditionCode(s32 slot);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
 s32 BattleComputeVectorDistance(VECTOR *pVec0, VECTOR *pVec1) {
     VECTOR v;
