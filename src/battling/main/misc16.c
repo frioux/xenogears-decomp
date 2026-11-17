@@ -36,22 +36,22 @@ struct Misc16Work {
     /* 0x34 */ u16 rotX;
     /* 0x36 */ u16 rotY;
     /* 0x38 */ u16 rotZ;
-    /* 0x3A */ u16 unk3A;
+    /* 0x3A */ u16 pad3A;
     /* 0x3C */ u16 extraRotX;
     /* 0x3E */ u16 extraRotY;
     /* 0x40 */ u16 extraRotZ;
-    /* 0x42 */ u16 unk42;
+    /* 0x42 */ u16 pad42;
     /* 0x44 */ s16 angleRange;
     /* 0x46 */ s16 unk46;
     /* 0x48 */ s16 depthBase;
     /* 0x4A */ s16 depthRange;
     /* 0x4C */ u8 unk4C[2];
-    /* 0x4E */ s16 unk4E;
+    /* 0x4E */ s16 updateKind;
     /* 0x50 */ s32 pUpdateEntry;
     /* 0x54 */ s32 pCallback;
     /* 0x58 */ void (*pInitEntry)(u8*, Misc16Work*);
     /* 0x5C */ s32 pUpdate;
-    /* 0x60 */ s32 unk60;
+    /* 0x60 */ s32 pHalveEntryCountIfBelow;
     /* 0x64 */ s16 unk64;
     /* 0x66 */ s16 kindIndex;
     /* 0x68 */ s16 unk68;
@@ -191,7 +191,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D3F4);
 /* 96.92% - everything matches except the load of D_80091CC4 into $a0
    where retail uses $v1 (and therefore has a nop after the lw before the
    store to pUpdate).  Tried: an s16 second parameter, a s32 one with an
-   explicit (s16) cast on the index (that one fixes the unk4E store's extra
+   explicit (s16) cast on the index (that one fixes the updateKind store's extra
    move), and an s32 then u32 local for the loaded word declared first or
    last.  The register is an allocator pick; $a0 is free at that point in
    both versions.
@@ -206,7 +206,7 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     pWork->rangeY = 0x1000;
     pWork->rangeZ = 0x1000;
     pWork->angleRange = 1;
-    pWork->unk4E = arg1;
+    pWork->updateKind = arg1;
     pWork->unk2 = 0;
     pWork->unk4 = 0;
     pWork->unk6 = 0;
@@ -230,7 +230,7 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     pWork->pUpdate = kind;
     pWork->pEntries = NULL;
     pWork->kindIndex = arg0;
-    pWork->unk60 = D_80091CDC;
+    pWork->pHalveEntryCountIfBelow = D_80091CDC;
     pWork->unk64 = 0;
     pWork->entryLife = 0x64;
     pWork->r = 0xFF;
