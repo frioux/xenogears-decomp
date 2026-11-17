@@ -18,7 +18,7 @@ extern u8 D_800D2E61[];
 extern s32 g_SystemSemiTransMode;
 extern u8 g_BattleSlotEnabledFlags[];
 extern u8 g_BattleActorCountdownState[];
-extern u16 D_800D2DF0[];
+extern u16 g_BattleSlotDisplayValues[];
 extern u8 g_BattleTextSlotCount;
 extern u8 *D_800C3DDC;
 extern u8 D_800D2E5F[];
@@ -550,7 +550,7 @@ void func_80078310(u8 *pTimData, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
-void func_80078508(u8 *pOut) {
+void BattleResetSlotDisplayValues(u8 *pOut) {
     s32 i;
     u16 emptyValue;
     u8 *pFlags;
@@ -562,7 +562,7 @@ void func_80078508(u8 *pOut) {
     i = 0;
     emptyValue = 0xFF;
     pFlags = pOut;
-    pBase = D_800D2DF0;
+    pBase = g_BattleSlotDisplayValues;
     pExtra = pBase + 0x16;
     pValue = pBase;
     pValue2 = pValue + 0xB;

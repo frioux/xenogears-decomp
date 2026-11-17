@@ -300,7 +300,7 @@ extern s32 g_BattleMotionSpeedScale;
 extern u8 g_BattlePlayer2Vibration;
 extern u8 g_BattlePlayer1Vibration;
 extern u32 D_80091198[];
-// One 0x14-byte record per battle slot. The draw code in func_8007661C reads
+// One 0x14-byte record per battle slot. The draw code in BattleDrawFrameHud reads
 // the same record's +0xC and +0x10 words.
 typedef struct {
     /* 0x00 */ u32 value;
@@ -310,7 +310,7 @@ typedef struct {
     /* 0x10 */ s32 unk10;
 } BattleSlotGauge; // Size: 0x14
 
-extern BattleSlotGauge D_80096FB8[];
+extern BattleSlotGauge g_BattleSlotGauges[];
 
 void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     u32 flags;
@@ -340,9 +340,9 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
         BattleSetTextCursor(0xF0, 0x28);
     }
     if (p->actionIndex != 0) {
-        D_80096FB8[((p->flags >> 27) & 1)].value = D_80091198[p->actionIndex];
+        g_BattleSlotGauges[((p->flags >> 27) & 1)].value = D_80091198[p->actionIndex];
         pActionData = p->pActionData;
-        D_80096FB8[((p->flags >> 27) & 1)].percent = (pActionData->points[p->actionIndex] * pActionData->scale) / 100;
+        g_BattleSlotGauges[((p->flags >> 27) & 1)].percent = (pActionData->points[p->actionIndex] * pActionData->scale) / 100;
     }
 }
 
@@ -354,11 +354,11 @@ extern char D_8006FD04[];
 extern char D_8006FD08[];
 extern char D_8006FD10[];
 
-// The three later gauge reads reach D_80096FB8 with the record offsets folded in
+// The three later gauge reads reach g_BattleSlotGauges with the record offsets folded in
 // where retail's object names D_80096FBC/FC4/FC8 -- the same three addresses, so
 // the linked bytes are identical and diff_func.sh prints MATCH at retail's 428
 // bytes; objdiff stops at 99.72% on that relocation spelling alone.
-void func_8007661C(BattleActor* p) {
+void BattleDrawFrameHud(BattleActor* p) {
     char buf[0x10];
     s32 h;
     s32 w;
@@ -373,8 +373,8 @@ void func_8007661C(BattleActor* p) {
         h = 0xB2;
     }
     BattleSetTextCursor(w, h);
-    Sprintf(buf, D_8006FD04, D_80096FB8[((p->flags >> 27) & 1)].value);
-    if (D_80096FB8[((p->flags >> 27) & 1)].value == D_8009112C) {
+    Sprintf(buf, D_8006FD04, g_BattleSlotGauges[((p->flags >> 27) & 1)].value);
+    if (g_BattleSlotGauges[((p->flags >> 27) & 1)].value == D_8009112C) {
         color = 0xE7;
     } else {
         color = 0x100;
@@ -383,11 +383,11 @@ void func_8007661C(BattleActor* p) {
     BattleDrawTextLeft(buf);
     BattleSetTextScale(0x100);
     BattleSetTextCursor(w + 0x34, h);
-    Sprintf(buf, D_8006FD08, D_80096FB8[((p->flags >> 27) & 1)].percent);
+    Sprintf(buf, D_8006FD08, g_BattleSlotGauges[((p->flags >> 27) & 1)].percent);
     BattleDrawTextLeft(buf);
     BattleSetTextCursor(w, h + 0x14);
-    h = D_80096FB8[((p->flags >> 27) & 1)].unkC >> 4;
-    Sprintf(buf, D_8006FD10, h, D_80096FB8[((p->flags >> 27) & 1)].unk10 >> 4);
+    h = g_BattleSlotGauges[((p->flags >> 27) & 1)].unkC >> 4;
+    Sprintf(buf, D_8006FD10, h, g_BattleSlotGauges[((p->flags >> 27) & 1)].unk10 >> 4);
     BattleDrawTextLeft(buf);
 }
 

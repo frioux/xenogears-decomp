@@ -50,7 +50,7 @@ extern u8 D_800D2DD7[];
 extern u8 D_800D2DD8[];
 extern u8 D_800D2DE3[];
 extern u16 D_800D2E04[];
-extern u16 D_800D2DF0[];
+extern u16 g_BattleSlotDisplayValues[];
 extern u16 g_BattleSlotCountdownTimers[];
 extern u16 D_800D2C9E;
 extern u16 BattleMaskHasSlotBit(u16, u8);

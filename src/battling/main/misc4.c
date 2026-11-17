@@ -209,7 +209,7 @@ typedef struct {
     /* 0x10 */ u32 unk10;
 } BattleSlotReset; // Size: 0x14
 
-extern BattleSlotReset D_80096FB8[];
+extern BattleSlotReset g_BattleSlotGauges[];
 
 extern u32 D_8006FC74[];
 // The two bytes D_8009264C carries; the reset points the actor's 0x84 slot at it
@@ -593,11 +593,11 @@ void func_80078F00(Actor* p) {
     p->stateFlags &= ~0x10;
     p->pActionEntry = D_8009264C;
     D_8009264E = 1;
-    D_80096FB8[(p->flags >> 27) & 1].unk0 = (u32)D_8006FC74;
-    D_80096FB8[(p->flags >> 27) & 1].unk8 = 0;
-    D_80096FB8[(p->flags >> 27) & 1].percent = 0;
-    D_80096FB8[(p->flags >> 27) & 1].unkC = 0;
-    D_80096FB8[(p->flags >> 27) & 1].unk10 = 0;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].unk0 = (u32)D_8006FC74;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].unk8 = 0;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].percent = 0;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].unkC = 0;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].unk10 = 0;
     BattleInitActorWork(p);
     BattleActorResetUnk15D8(&p->unk15D8);
     BattleInitSemiTransQuadPacket(p);

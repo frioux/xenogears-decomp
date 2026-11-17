@@ -605,7 +605,7 @@ void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
 void BattleResetDisplayValues(void) {
     u8 buf[0x10];
 
-    func_80078508(buf);
+    BattleResetSlotDisplayValues(buf);
 }
 s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
     u8 *pRegs = g_BattleSlotRegs[arg1].byteRegs;
