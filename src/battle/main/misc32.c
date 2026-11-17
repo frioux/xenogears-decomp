@@ -98,7 +98,70 @@ extern s32 g_BattleCommandRowIndex;
 extern void *D_800C3E1C;
 extern s32 D_800C3D38;
 extern s32 g_BattleColorMode;
-extern void func_800BD3AC(void *pSprite, u16 arg1, u8 arg2);
+
+// The battle actor sprite func_800BD3AC spawns an effect for: this unit reads only
+// its fixed-point position and bit 2 of its flags word. misc33 declares the whole
+// record as BattleActorSprite.
+typedef struct {
+    /* 0x00 */ IVEC3 position; // 16.16, copied into the effect task
+    /* 0x0C */ u8 unkC[0xA0];
+    /* 0xAC */ u32 flags;
+} Misc32ActorSprite; // Size: 0xB0
+
+// One 0x18-byte sprite-list entry ResourceHelperGetSpriteList fills in (misc33
+// declares the same record as BattleSpritePart).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x18];
+} Misc32SpritePart; // Size: 0x18
+
+// The effect task WorkListsAddTasks allocates for func_800BD3AC (0x1B0 bytes): the
+// two work-list entries, the render transform func_800BDA1C walks (the rotation at
+// 0x40, the fixed-point position the step callbacks advance at 0x48, the scale at
+// 0x58) and the sprite list at 0x90 whose count is at 0x8C. Every function in this
+// unit drives one.
+typedef struct Misc32Task {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry workEntry;
+    /* 0x38 */ struct Misc32Task *pNext; // link in g_BattleTaskUnlinkList
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ SVECTOR rot;
+    /* 0x48 */ s32 posX;
+    /* 0x4C */ s32 posY;
+    /* 0x50 */ s32 posZ;
+    /* 0x54 */ s32 unk54;
+    /* 0x58 */ s32 scaleX;
+    /* 0x5C */ s32 scaleY;
+    /* 0x60 */ s32 scaleZ;
+    /* 0x64 */ s32 unk64;
+    /* 0x68 */ u8 unk68[0x10];
+    /* 0x78 */ Misc32ActorSprite *pSprite; // the actor the effect is drawn for
+    /* 0x7C */ u8 unk7C; // nonzero: posX steps the other way
+    /* 0x7D */ u8 unk7D[0x3];
+    /* 0x80 */ u8 unk80[0x3]; // colors, faded by BattleStepEffectColorFade
+    /* 0x83 */ u8 unk83;
+    /* 0x84 */ u32 unk84;
+    /* 0x88 */ s32 timer;
+    /* 0x8C */ s32 partCount;
+    /* 0x90 */ Misc32SpritePart parts[12];
+} Misc32Task; // Size: 0x1B0
+
+extern Misc32Task *g_BattleTaskUnlinkList;
+extern void *g_BattleState;
+extern u8 *g_BattleSpriteArchive;
+extern s16 g_BattleDigitTextureIds[];
+extern u8 D_800C4929;
+extern Misc32Task *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCallback,
+                                     void *pWorkCallback, void *pOnFreeCallback);
+extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, Misc32SpritePart *pOut, s16 x, s16 y);
+extern s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
+extern void func_800BDE58(void);
+extern void func_800BDA1C(u8 *pTask);
+extern void BattleUnlinkAndFreeTask(void *pEntry);
+extern void BattleStepEffectColorFade(Misc32Task *pTask);
+extern void BattleStepEffectPosition(Misc32Task *pTask);
+extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
+
+extern void func_800BD3AC(Misc32ActorSprite *pSprite, s32 value, s32 kind);
 extern void func_800BD1FC(s32 slot);
 
 // Parked at 92.59%, one instruction SHORT (228 bytes vs retail's 232), so it cannot
@@ -192,22 +255,120 @@ void BattleUpdateCommandRows(void) {
         i++;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD3AC);
-// An entry of the work list g_BattleTaskUnlinkList heads (the onFreeCallback list): only the
-// next link is used by this unit.
-typedef struct Misc32TaskNode {
-    /* 0x00 */ u8 unk0[0x38];
-    /* 0x38 */ struct Misc32TaskNode *pNext;
-} Misc32TaskNode; // Size: 0x3C
+// Spawns the sprite-list effect that draws <value> next to <pSprite>. <kind> selects
+// the frame the effect is in: 4 is the spawn frame, before the number's digits are
+// added to the sprite list; the other kinds pick the number's colour channels.
+void func_800BD3AC(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
+    Misc32Task *pTask;
+    Misc32Task *pCur;
+    WorkListCallback_t pCallback;
+    u8 digits[6];
+    u8 unkBuf[0x30]; // unused: reproduces retail's 0x68 frame
+    s32 tex;
+    s32 i;
 
-extern Misc32TaskNode *g_BattleTaskUnlinkList;
+    if (g_BattleState == NULL) {
+        return;
+    }
+    func_800BDE58();
+    pCur = g_BattleTaskUnlinkList;
+    D_800C4929 = 0;
+    while (pCur != NULL) {
+        if (pCur->pSprite == pSprite) {
+            pCallback = pCur->timerEntry.onFreeCallback;
+            pCallback(pCur);
+        }
+        pCur = pCur->pNext;
+    }
+    pTask = WorkListsAddTasks(0x1B0, NULL, BattleStepEffectPosition, func_800BDA1C, BattleUnlinkAndFreeTask);
+    pTask->pSprite = pSprite;
+    pTask->timer = 8;
+    pTask->pNext = g_BattleTaskUnlinkList;
+    pTask->posX = pSprite->position.x;
+    g_BattleTaskUnlinkList = pTask;
+    pTask->posY = pSprite->position.y;
+    pTask->posZ = pSprite->position.z;
+    pTask->scaleX = 0x2000;
+    pTask->scaleY = 0x2000;
+    pTask->scaleZ = 0x2000;
+    pTask->unk83 = 0x2D;
+    pTask->rot.vx = 0;
+    pTask->rot.vy = 0;
+    pTask->rot.vz = 0;
+    pTask->unk80[0] = 0x80;
+    pTask->unk80[1] = 0x80;
+    pTask->unk80[2] = 0x80;
+    pTask->unk7C = (pSprite->flags >> 2) & 1;
+    pTask->partCount = 0;
+    if (kind != 4) {
+        func_800BE6E8(value, digits, 5, 0, 0);
+        tex = g_BattleDigitTextureIds[digits[0]];
+    }
+    switch (kind) {
+    // retail emits the case bodies in this order, so the labels are listed in it
+    case 4:
+        pTask->timer = 0x40;
+        pTask->partCount = ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x7C, &pTask->parts[0], -0x14, -0x10);
+        pTask->unk83 = (pTask->unk83 & 0xFE) | 2;
+        TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFade);
+        break;
+    case 5:
+        pTask->unk80[0] = 0x80;
+        pTask->unk80[1] = 0;
+        pTask->unk80[2] = 0;
+        pTask->unk83 = (pTask->unk83 & 0xFE);
+        break;
+    case 10:
+        pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x7F,
+                                                        &pTask->parts[pTask->partCount], tex, 0);
+        break;
+    case 11:
+        pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x91,
+                                                        &pTask->parts[pTask->partCount], tex, 0);
+        pTask->unk80[2] = 0x80;
+        pTask->unk80[0] = 0;
+        pTask->unk80[1] = 0;
+        pTask->unk83 = (pTask->unk83 & 0xFE);
+        break;
+    case 1:
+        pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x80,
+                                                        &pTask->parts[pTask->partCount], tex, -0x10);
+        tex += 0x20;
+        break;
+    case 3:
+        pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x80,
+                                                        &pTask->parts[pTask->partCount], tex, -0x10);
+        tex += 0x20;
+        pTask->unk80[0] = 0x80;
+        pTask->unk80[2] = 0x80;
+        pTask->unk80[1] = 0;
+        pTask->unk83 = (pTask->unk83 & 0xFE);
+        break;
+    case 2:
+        pTask->unk80[0] = 0;
+        pTask->unk80[1] = 0x80;
+        pTask->unk80[2] = 0;
+        pTask->unk83 = (pTask->unk83 & 0xFE);
+        break;
+    }
+    if (kind != 4) {
+        i = 0;
+        while (i != digits[0]) {
+            pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, digits[i + 1] + 0x72,
+                                                            &pTask->parts[pTask->partCount], tex, -0x10);
+            i++;
+            tex += 10;
+        }
+    }
+}
+
 extern void WorkListsDeleteTasks(WorkListEntry *pTasks);
 
 // The g_BattleTaskUnlinkList list's on-free callback: unlink the entry, then free it.
 void BattleUnlinkAndFreeTask(void *pEntry) {
-    Misc32TaskNode *pCur;
-    Misc32TaskNode *pPrev;
-    Misc32TaskNode *pTarget;
+    Misc32Task *pCur;
+    Misc32Task *pPrev;
+    Misc32Task *pTarget;
 
     pCur = g_BattleTaskUnlinkList;
     pPrev = NULL;
@@ -292,30 +453,6 @@ void func_800BDA1C(u8 *pTask) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
-// A battle effect driven by the timer work list. Both work-list entries sit inside
-// the task allocation: the timer entry at 0x0 (TimerWorkListSetTaskCallback and
-// TimerWorkListRemoveTask take the task pointer itself) and the render entry at
-// 0x1C, which BattleFreeTimerTask unlinks on its own.
-typedef struct {
-    /* 0x00 */ WorkListEntry timerEntry;
-    /* 0x1C */ WorkListEntry workEntry;
-    /* 0x38 */ u8 unk38[0x8];
-    /* 0x40 */ s32 unk40;
-    /* 0x44 */ s32 unk44;
-    /* 0x48 */ s32 position;
-    /* 0x4C */ u8 unk4C[0x14];
-    /* 0x60 */ u8 unk60[0x3];
-    /* 0x63 */ u8 unk63;
-    /* 0x64 */ s32 unk64;
-    /* 0x68 */ u8 unk68[0x14];
-    /* 0x7C */ u8 unk7C; // nonzero: position steps the other way
-    /* 0x7D */ u8 unk7D[0x3];
-    /* 0x80 */ u8 unk80[0x3]; // colors, faded by BattleStepEffectColorFade
-    /* 0x83 */ u8 unk83;
-    /* 0x84 */ u32 unk84;
-    /* 0x88 */ s32 timer;
-} Misc32Task; // Size: 0x8C
-
 // Declared after the struct: the timer update takes the task. It reads none of
 // the argument's fields, it works off g_BattleTimerTask.
 extern void func_800BDF1C(Misc32Task *pTask);
@@ -408,9 +545,9 @@ extern void func_800BDC14(Misc32Task *pTask);
 void BattleStepEffectPosition(Misc32Task *pTask) {
     func_800BDF1C(pTask);
     if (pTask->unk7C != 0) {
-        pTask->position += 0xC0000;
+        pTask->posX += 0xC0000;
     } else {
-        pTask->position -= 0xC0000;
+        pTask->posX -= 0xC0000;
     }
     if (--pTask->timer < 0) {
         do { /* the do-while stops reorg hoisting the call's move a0,s0 */
