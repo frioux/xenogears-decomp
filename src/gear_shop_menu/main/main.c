@@ -211,11 +211,11 @@ void GearShopMenuLoadResources(void) {
     OpenTIM((void *)pData);
     ReadTIM(&g_Menu->menuUnk2->tim);
     memcpy(&g_Menu->menuUnk2->gameSerialCode, "BISLPS-00800", 0xD);
-    g_Menu->menuUnk2->unk4B94 = 0x53;
-    g_Menu->menuUnk2->unk4B95 = 0x43;
-    g_Menu->menuUnk2->unk4B96 = 0x11;
-    g_Menu->menuUnk2->unk4B97 = 1;
-    bzero(g_Menu->menuUnk2->unk4B98, 0x5C);
+    g_Menu->menuUnk2->saveFileMagic[0] = 0x53;
+    g_Menu->menuUnk2->saveFileMagic[1] = 0x43;
+    g_Menu->menuUnk2->saveIconDisplayFlag = 0x11;
+    g_Menu->menuUnk2->saveBlockCount = 1;
+    bzero(g_Menu->menuUnk2->saveTitle, 0x5C);
 
     memmove(g_Menu->menuUnk2->saveIconPalette, (u8* ) g_Menu->menuUnk2->tim.caddr, 0x20);
     memmove(g_Menu->menuUnk2->saveIconImage, (u8* ) g_Menu->menuUnk2->tim.paddr, 0x80);

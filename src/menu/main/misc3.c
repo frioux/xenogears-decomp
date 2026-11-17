@@ -506,17 +506,17 @@ void func_801CA8C0(u_char a0) {
     s32 tens;
 
     n = a0 + 1;
-    *(MenuUnk2Text*)g_Menu->menuUnk2->unk4B98 = D_801C50E0;
+    *(MenuUnk2Text*)g_Menu->menuUnk2->saveTitle = D_801C50E0;
     tens = n / 10;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1A] = 0x82;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1B] = tens + 0x4F;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1C] = 0x82;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1D] = n % 10 + 0x4F;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1E] = 0x81;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x1F] = 0x40;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x20] = 0;
-    ((u8*)g_Menu->menuUnk2->unk4B98)[0x21] = 0;
-    strcat(g_Menu->menuUnk2->unk4B98, &g_Menu->menuUnk2->unk4FE7[0x15]);
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1A] = 0x82;
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1B] = tens + 0x4F;
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1C] = 0x82;
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1D] = n % 10 + 0x4F;
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1E] = 0x81;
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x1F] = 0x40;
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x20] = 0;
+    ((u8*)g_Menu->menuUnk2->saveTitle)[0x21] = 0;
+    strcat(g_Menu->menuUnk2->saveTitle, &g_Menu->menuUnk2->unk4FE7[0x15]);
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);

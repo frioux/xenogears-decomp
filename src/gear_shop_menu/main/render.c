@@ -492,7 +492,7 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
         0,
         0,
         (s3 & 0xFF) + 0x1C0,
-        &g_Menu->unk458[modelIndex]->unk8
+        &g_Menu->unk458[modelIndex]->position
     );
 
     g_LibGearModels[modelIndex]->ground = g_GearShopGearModelGround[gearId];
@@ -2501,17 +2501,17 @@ void GearShopMenuInitializeGearView(void) {
     g_Menu->unk2A6 = 0;
     g_Menu->unk2A8 = 0;
 
-    g_Menu->unk2B8 = 0x600;
-    g_Menu->unk2BA = 0;
-    g_Menu->unk2BC = 0;
-    g_Menu->unk2BE = 0x600;
-    g_Menu->unk2C0 = 0;
-    g_Menu->unk2C2 = 0;
-    g_Menu->unk2C4 = 0x600;
-    g_Menu->unk2C6 = 0;
-    g_Menu->unk2C8 = 0;
+    g_Menu->colorMatrix.m[0][0] = 0x600;
+    g_Menu->colorMatrix.m[0][1] = 0;
+    g_Menu->colorMatrix.m[0][2] = 0;
+    g_Menu->colorMatrix.m[1][0] = 0x600;
+    g_Menu->colorMatrix.m[1][1] = 0;
+    g_Menu->colorMatrix.m[1][2] = 0;
+    g_Menu->colorMatrix.m[2][0] = 0x600;
+    g_Menu->colorMatrix.m[2][1] = 0;
+    g_Menu->colorMatrix.m[2][2] = 0;
 
-    D_801E8644 = &g_Menu->unk2B8;
+    D_801E8644 = (s16*)&g_Menu->colorMatrix;
     SetBackColor(0x3C, 0x3C, 0x3C);
 
     g_Menu->gfxEnvs[0].otBuffer = g_MenuGfxEnvOtBuffer0[0];

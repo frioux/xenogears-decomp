@@ -230,11 +230,10 @@ typedef struct {
     /* 0x0   */ MenuUnk2Record records[0x20];
     /* 0xB80 */ TIM_IMAGE tim;
     /* 0xB94 */ MenuUnk2ImageChunk chunks[0x20];
-    /* 0x4B94 */ u8 unk4B94;
-    /* 0x4B95 */ u8 unk4B95;
-    /* 0x4B96 */ u8 unk4B96;
-    /* 0x4B97 */ u8 unk4B97;
-    /* 0x4B98 */ u8 unk4B98[0x5C];
+    /* 0x4B94 */ u8 saveFileMagic[0x2];
+    /* 0x4B96 */ u8 saveIconDisplayFlag;
+    /* 0x4B97 */ u8 saveBlockCount;
+    /* 0x4B98 */ u8 saveTitle[0x5C]; // Shift-JIS title; the slot number is spliced in at 0x1A
     /* 0x4BF4 */ u8 saveIconPalette[0x20];
     /* 0x4C14 */ u8 saveIconImage[0x80];
     /* 0x4C94 */ u8 unk4C94[0x2E0];
@@ -720,8 +719,7 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 *unk0; // data read from CD
     /* 0x04 */ u8 *unk4;
-    /* 0x08 */ int unk8;
-    /* 0x0C */ int unkC;
+    /* 0x08 */ SVECTOR position; // Becomes the gear model skeleton's translation when the model is created
     /* 0x10 */ u16 unk10;
     /* 0x12 */ s8 unk12;
     /* 0x13 */ u8 unk13;
@@ -762,16 +760,7 @@ typedef struct {
     /* 0x2B2  */ s16 unk2B2;
     /* 0x2B4  */ s16 unk2B4;
     /* 0x2B6  */ s16 unk2B6;
-    /* 0x2B8  */ s16 unk2B8;
-    /* 0x2BA  */ s16 unk2BA;
-    /* 0x2BC  */ s16 unk2BC;
-    /* 0x2BE  */ s16 unk2BE;
-    /* 0x2C0  */ s16 unk2C0;
-    /* 0x2C2  */ s16 unk2C2;
-    /* 0x2C4  */ s16 unk2C4;
-    /* 0x2C6  */ s16 unk2C6;
-    /* 0x2C8  */ s16 unk2C8;
-    /* 0x2CA  */ s16 unk2CA[6];
+    /* 0x2B8  */ MATRIX colorMatrix; // Gear model colour matrix, handed to SetColorMatrix through D_801E8644
     /* 0x2D8  */ u32 idleFrameCount;
     /* 0x2DC  */ MenuResourceDirectory *resources;
     /* 0x2E0  */ void* pStringBank; // Decompressed string bank, indexes through GetStringEntry
@@ -802,7 +791,7 @@ typedef struct {
     /* 0x340  */ void* pGoldWindow; // Gold-window prim block, see MenuGoldWindow in misc7
     /* 0x344  */ MenuPlayTimeDigits* pPlayTimeDigits;
     /* 0x348  */ MenuUnk1* pCursorPrims; // Selection cursor prims and the shading behind them
-    /* 0x34C  */ void* unk34C;
+    /* 0x34C  */ void* pPrimBuffer; // Scratch prim buffer, see MenuAllocatePrimBuffer
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
     /* 0x354  */ MenuUnk5* pSubmenuPrims; // Submenu option cursor and text prims
     /* 0x358  */ void* unk358;
@@ -811,7 +800,7 @@ typedef struct {
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];
     /* 0x380  */ MenuWindowParameters* windowParameters[MENU_MAX_NUM_WINDOWS];
     /* 0x39C  */ MenuCharacterWindow* characterWindows[3];
-    /* 0x3A8  */ void* unk3A8[32];
+    /* 0x3A8  */ void* pCellPrimBlocks[32]; // One prim block per character cell, see MenuCreateCellPrimBlocks
     /* 0x428  */ MenuPointerCursors* pCursors;
     /* 0x42C  */ MenuUnk9* pItemRows; // Item name and quantity rows
     /* 0x430  */ void* unk430;
