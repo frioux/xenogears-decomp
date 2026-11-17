@@ -144,6 +144,19 @@ void BattleAdvancePrimitiveCursor(void) {
 }
 
 
+// What a saved primitive's code byte and colour flag select: bit 2 asks for a
+// texture coordinate per vertex, bit 3 for four vertices instead of three, bit 4
+// for a colour per vertex, and 0x100 marks a record that carries no colours and
+// takes the flat 0x80 instead. Each combination is one of the eight POLY_*
+// packets.
+#define BATTLE_PRIM_KIND_MASK 0x1C
+#define BATTLE_PRIM_TEXTURED 0x004
+#define BATTLE_PRIM_QUAD 0x008
+#define BATTLE_PRIM_GOURAUD 0x010
+#define BATTLE_PRIM_UNLIT 0x100
+#define BATTLE_PRIM_UNLIT_RGB 0x80 // the colour an unlit record's vertices take
+#define BATTLE_TPAGE_ABR_MASK 0xFF9F // clears the semi-transparency bits of a tpage
+
 // One 4-byte entry of a saved model primitive's trailing data: the per-vertex
 // texture coordinate and its clut on a textured record, or a vertex colour.
 typedef union {
@@ -156,7 +169,7 @@ typedef union {
         /* 0x0 */ u8 r;
         /* 0x1 */ u8 g;
         /* 0x2 */ u8 b;
-        /* 0x3 */ u8 code;
+        /* 0x3 */ u8 code; // the record's own packet code, unused here
     } color;
 } BattlePrimEntry; // Size: 0x4
 
@@ -188,6 +201,8 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
 
     pSrc = (BattleModelPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
     count = pFrame->primCount;
+    // assigned in two steps on purpose: that is what keeps the mask's result in
+    // the abr register instead of the loaded mode's
     if (mode != 0) {
         abr = (mode - 1) & 3;
         abr <<= 5;
@@ -199,11 +214,11 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
         if (mode != 0) {
             SetSemiTrans(pDst, mode != 0);
         }
-        kind = pSrc->code & 0x1C;
-        kind |= ((pSrc->flags ^ 1) & 1) << 8;
+        kind = pSrc->code & BATTLE_PRIM_KIND_MASK;
+        kind |= ((pSrc->flags ^ 1) & 1) << 8; // no colours: the unlit kind
         switch (kind) {
-        case 0x010:
-        case 0x110: {
+        case BATTLE_PRIM_GOURAUD:
+        case BATTLE_PRIM_GOURAUD | BATTLE_PRIM_UNLIT: {
             POLY_G3 *pPoly = (POLY_G3 *)pDst;
 
             pPoly->r0 = pSrc->entries[0].color.r;
@@ -217,8 +232,8 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->b2 = pSrc->entries[2].color.b;
             break;
         }
-        case 0x018:
-        case 0x118: {
+        case BATTLE_PRIM_GOURAUD | BATTLE_PRIM_QUAD:
+        case BATTLE_PRIM_GOURAUD | BATTLE_PRIM_QUAD | BATTLE_PRIM_UNLIT: {
             POLY_G4 *pPoly = (POLY_G4 *)pDst;
 
             pPoly->r0 = pSrc->entries[0].color.r;
@@ -235,10 +250,10 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->b3 = pSrc->entries[3].color.b;
             break;
         }
-        case 0x000:
-        case 0x008:
-        case 0x100:
-        case 0x108: {
+        case 0:
+        case BATTLE_PRIM_QUAD:
+        case BATTLE_PRIM_UNLIT:
+        case BATTLE_PRIM_QUAD | BATTLE_PRIM_UNLIT: {
             POLY_F3 *pPoly = (POLY_F3 *)pDst;
 
             pPoly->r0 = pSrc->entries[0].color.r;
@@ -246,15 +261,15 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->b0 = pSrc->entries[0].color.b;
             break;
         }
-        case 0x104: {
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_UNLIT: {
             POLY_FT3 *pPoly = (POLY_FT3 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
-            pPoly->r0 = 0x80;
-            pPoly->g0 = 0x80;
-            pPoly->b0 = 0x80;
+            pPoly->r0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b0 = BATTLE_PRIM_UNLIT_RGB;
             pPoly->tpage = pSrc->entries[1].tex.clut;
             pPoly->clut = pSrc->entries[0].tex.clut;
             pPoly->u0 = pSrc->entries[0].tex.u;
@@ -265,11 +280,11 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->v2 = pSrc->entries[2].tex.v;
             break;
         }
-        case 0x004: {
+        case BATTLE_PRIM_TEXTURED: {
             POLY_FT3 *pPoly = (POLY_FT3 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
             pPoly->r0 = pSrc->entries[3].color.r;
             pPoly->g0 = pSrc->entries[3].color.g;
@@ -284,21 +299,21 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->v2 = pSrc->entries[2].tex.v;
             break;
         }
-        case 0x114: {
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD | BATTLE_PRIM_UNLIT: {
             POLY_GT3 *pPoly = (POLY_GT3 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
-            pPoly->r0 = 0x80;
-            pPoly->g0 = 0x80;
-            pPoly->b0 = 0x80;
-            pPoly->r1 = 0x80;
-            pPoly->g1 = 0x80;
-            pPoly->b1 = 0x80;
-            pPoly->r2 = 0x80;
-            pPoly->g2 = 0x80;
-            pPoly->b2 = 0x80;
+            pPoly->r0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->r1 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g1 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b1 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->r2 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g2 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b2 = BATTLE_PRIM_UNLIT_RGB;
             pPoly->tpage = pSrc->entries[1].tex.clut;
             pPoly->clut = pSrc->entries[0].tex.clut;
             pPoly->u0 = pSrc->entries[0].tex.u;
@@ -309,11 +324,11 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->v2 = pSrc->entries[2].tex.v;
             break;
         }
-        case 0x014: {
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD: {
             POLY_GT3 *pPoly = (POLY_GT3 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
             pPoly->r0 = pSrc->entries[3].color.r;
             pPoly->g0 = pSrc->entries[3].color.g;
@@ -334,15 +349,15 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->v2 = pSrc->entries[2].tex.v;
             break;
         }
-        case 0x10C: {
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD | BATTLE_PRIM_UNLIT: {
             POLY_FT4 *pPoly = (POLY_FT4 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
-            pPoly->r0 = 0x80;
-            pPoly->g0 = 0x80;
-            pPoly->b0 = 0x80;
+            pPoly->r0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b0 = BATTLE_PRIM_UNLIT_RGB;
             pPoly->tpage = pSrc->entries[1].tex.clut;
             pPoly->clut = pSrc->entries[0].tex.clut;
             pPoly->u0 = pSrc->entries[0].tex.u;
@@ -355,11 +370,11 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->v3 = pSrc->entries[3].tex.v;
             break;
         }
-        case 0x00C: {
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD: {
             POLY_FT4 *pPoly = (POLY_FT4 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
             pPoly->r0 = pSrc->entries[4].color.r;
             pPoly->g0 = pSrc->entries[4].color.g;
@@ -376,24 +391,24 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->v3 = pSrc->entries[3].tex.v;
             break;
         }
-        case 0x11C: {
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD | BATTLE_PRIM_GOURAUD | BATTLE_PRIM_UNLIT: {
             POLY_GT4 *pPoly = (POLY_GT4 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
-            pPoly->r0 = 0x80;
-            pPoly->g0 = 0x80;
-            pPoly->b0 = 0x80;
-            pPoly->r1 = 0x80;
-            pPoly->g1 = 0x80;
-            pPoly->b1 = 0x80;
-            pPoly->r2 = 0x80;
-            pPoly->g2 = 0x80;
-            pPoly->b2 = 0x80;
-            pPoly->r3 = 0x80;
-            pPoly->g3 = 0x80;
-            pPoly->b3 = 0x80;
+            pPoly->r0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b0 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->r1 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g1 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b1 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->r2 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g2 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b2 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->r3 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->g3 = BATTLE_PRIM_UNLIT_RGB;
+            pPoly->b3 = BATTLE_PRIM_UNLIT_RGB;
             pPoly->tpage = pSrc->entries[1].tex.clut;
             pPoly->clut = pSrc->entries[0].tex.clut;
             pPoly->u0 = pSrc->entries[0].tex.u;
@@ -406,11 +421,11 @@ void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
             pPoly->v3 = pSrc->entries[3].tex.v;
             break;
         }
-        case 0x01C: {
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD | BATTLE_PRIM_GOURAUD: {
             POLY_GT4 *pPoly = (POLY_GT4 *)pDst;
 
             if (mode != 0) {
-                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & BATTLE_TPAGE_ABR_MASK) | abr;
             }
             pPoly->r0 = pSrc->entries[4].color.r;
             pPoly->g0 = pSrc->entries[4].color.g;
