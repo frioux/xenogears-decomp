@@ -455,7 +455,172 @@ void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
     func_80081F80(pSprite, g_FieldScriptVMCurActor->rotation.vx, g_FieldScriptVMCurFieldActor);
 }
 
+extern s16 g_FieldWalkmeshTriCount;
+
+// Fills walkmeshTriIds[0..g_FieldWalkmeshTriCount-2] with the walkmesh triangle the actor stands on
+extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
+extern int FieldGetVec2Angle(IVEC3* pVec);
+extern long FieldGetVec2Magnitude(long, long);
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
+/* Best attempt: 96.45%, 1896 bytes against retail's 1900 (one instruction short,
+   scriptInstructionPointer += 0xB in the walk tail). Everything structural is
+   settled and matches instruction for instruction:
+   - the dispatch is switch (SCRIPT_READ_U8_REL(1) & 3); case 0 takes the frame
+     count straight from FieldScriptArgument4, case 1 divides the distance by it,
+     case 2 is the jump (step.y from SquareRoot0 of the height field at
+     SpriteData+0x1E) and case 3 either rebuilds the walkmesh triangle list
+     (byte1 == 0xF), advances along the step, or restarts the instruction.
+   - the shared walk tail hangs off case 0 and cases 1/2 goto it, which is what
+     puts it between case 0 and case 1 in the object.
+   - SpriteData+0x10 is step.y and +0x1C gravity; +0x1E is read as a signed
+     halfword, hence the ((s16*)&gravity)[1] view.
+   - unkE0 must be a signed short (include/field/actor.h): retail reads it with
+     lh in the unk102 < unkE0 test and lhu only for its own increment.
+   - VECTOR normal/point are never referenced; they only reproduce retail's
+     0xC0 frame (vars 136 vs 104).
+   What is left is register allocation and two orderings, none of them reachable
+   by the declaration order or statement order levers:
+   (a) retail keeps frameCount in $s2 and arg3 in $s3, gcc 2.7.2 gives this body
+       the opposite pair; five declaration permutations and per-case locals
+       produced identical bytes.
+   (b) the 0xF loop: retail emits walkmeshTriIds[i] = ret (sll/addu/sh) before
+       the trip-count load and puts move a2,i in the bnez delay slot, gcc hoists
+       i++ above the actor reload and sinks the store into the delay slot.
+   (c) case 3's else tail: retail stores ip before the flags mask word, gcc 2.7.2
+       finishes the flags mask first whichever order the two statements are in.
+   (d) the two pass-through calls whose result is discarded (FieldScriptArgument1
+       and 2 at the top of case 2, SquareRoot0(value)) are what retail does; they
+       stay. */
+/*
+void func_80099214(void) {
+    VECTOR normals[4];
+    SVECTOR points[4];
+    VECTOR normal;
+    VECTOR point;
+    SpriteData* pSprite;
+    s32 speed;
+    s32 frameCount;
+    s32 arg1;
+    s32 arg2;
+    s32 arg3;
+    s32 walkmesh;
+    s32 value;
+    s32 angle;
+    s32 xDelta;
+    s32 zDelta;
+    int i;
+
+
+    pSprite = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x10000;
+    switch (SCRIPT_READ_U8_REL(1) & 3) {
+    case 0:
+        frameCount = FieldScriptArgument4(8, SCRIPT_READ_U8_REL(0xA));
+walk:
+        if (frameCount == 0) {
+            frameCount = 1;
+        }
+        arg1 = FieldScriptArgument1(2, SCRIPT_READ_U8_REL(0xA));
+        arg2 = FieldScriptArgument2(4, SCRIPT_READ_U8_REL(0xA));
+        if ((SCRIPT_READ_U8_REL(1) & 0x80) == 0) {
+            arg3 = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(0xA));
+        } else {
+            walkmesh = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(0xA));
+            func_8007B1C4(arg1, arg2, walkmesh, &points[walkmesh], &normals[walkmesh]);
+            arg3 = points[walkmesh].vy;
+            g_FieldScriptVMCurActor->walkmeshId = walkmesh;
+        }
+        pSprite->step.y = -((s32)pSprite->gravity * frameCount / 2);
+        pSprite->step.y += ((arg3 << 16) - g_FieldScriptVMCurActor->position.vy) / frameCount;
+        xDelta = ((arg1 << 16) - g_FieldScriptVMCurActor->position.vx) / (frameCount + 1);
+        zDelta = ((arg2 << 16) - g_FieldScriptVMCurActor->position.vz) / (frameCount + 1);
+        g_FieldScriptVMCurActor->unkD0.vy = 0;
+        g_FieldScriptVMCurActor->unkE0 = frameCount;
+        g_FieldScriptVMCurActor->unk102 = 0;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 0xB;
+        g_FieldScriptVMCurActor->unkD0.vx = xDelta;
+        g_FieldScriptVMCurActor->unkD0.vz = zDelta;
+        break;
+    case 1:
+        arg1 = FieldScriptArgument1(2, SCRIPT_READ_U8_REL(0xA));
+        arg2 = FieldScriptArgument2(4, SCRIPT_READ_U8_REL(0xA));
+        xDelta = (arg1 << 16) - g_FieldScriptVMCurActor->position.vx;
+        zDelta = (arg2 << 16) - g_FieldScriptVMCurActor->position.vz;
+        speed = FieldScriptArgument4(8, SCRIPT_READ_U8_REL(0xA));
+        frameCount = FieldGetVec2Magnitude(xDelta >> 16, zDelta >> 16) / speed;
+        goto walk;
+    case 2:
+        FieldScriptArgument1(2, SCRIPT_READ_U8_REL(0xA));
+        FieldScriptArgument2(4, SCRIPT_READ_U8_REL(0xA));
+        arg3 = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(0xA));
+        value = -FieldScriptArgument4(8, SCRIPT_READ_U8_REL(0xA));
+        speed = value * 2;
+        xDelta = (arg3 << 16) - g_FieldScriptVMCurActor->position.vy;
+        pSprite->step.y = -CONV_FROM_GTE(SquareRoot0(((s16*)&pSprite->gravity)[1] * speed));
+        SquareRoot0(value);
+        frameCount = SquareRoot0(abs(value - (xDelta >> 16)));
+        if (frameCount < 0) {
+            frameCount = -frameCount;
+        }
+        goto walk;
+    case 3:
+        if (SCRIPT_READ_U8_REL(1) == 0xF) {
+            for (i = 0; i < g_FieldWalkmeshTriCount - 1; i++) {
+                g_FieldScriptVMCurActor->walkmeshTriIds[i] = func_8007B1C4(
+                    ((s16*)&g_FieldScriptVMCurActor->position)[1],
+                    ((s16*)&g_FieldScriptVMCurActor->position)[5],
+                    i, &points[i], &normals[i]);
+            }
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x10000;
+            g_FieldScriptVMCurActor->flags &= ~0x200000;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+        }
+        if (g_FieldScriptVMCurActor->unk102 < g_FieldScriptVMCurActor->unkE0) {
+            g_FieldScriptVMCurActor->position.vx += g_FieldScriptVMCurActor->unkD0.vx;
+            g_FieldScriptVMCurActor->position.vz += g_FieldScriptVMCurActor->unkD0.vz;
+            g_FieldScriptVMCurActor->position.vy += pSprite->step.y;
+            pSprite->step.y += pSprite->gravity;
+            if (g_FieldScriptVMCurActor->unkD0.vx != 0 || g_FieldScriptVMCurActor->unkD0.vz != 0) {
+                if ((g_FieldScriptVMCurActor->scriptFlags.flags & 0x8000) == 0) {
+                    angle = FieldGetVec2Angle((IVEC3*)&g_FieldScriptVMCurActor->unkD0) | 0x8000;
+                    g_FieldScriptVMCurActor->rotation.vx = angle;
+                    g_FieldScriptVMCurActor->rotation.vy = angle;
+                }
+            }
+        } else {
+            g_FieldScriptVMCurActor->scriptInstructionPointer -= 0xB;
+            arg1 = FieldScriptArgument1(2, SCRIPT_READ_U8_REL(0xA));
+            arg2 = FieldScriptArgument2(4, SCRIPT_READ_U8_REL(0xA));
+            if ((SCRIPT_READ_U8_REL(1) & 0x80) != 0) {
+                walkmesh = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(0xA));
+                g_FieldScriptVMCurActor->walkmeshTriIds[walkmesh] =
+                    func_8007B1C4(arg1, arg2, walkmesh, &points[walkmesh], &normals[walkmesh]);
+                arg3 = points[walkmesh].vy;
+            } else {
+                arg3 = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(0xA));
+            }
+            pSprite->step.y = 0;
+            g_FieldScriptVMCurActor->position.vx = arg1 << 16;
+            g_FieldScriptVMCurActor->position.vy = arg3 << 16;
+            g_FieldScriptVMCurActor->position.vz = arg2 << 16;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 0xD;
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x10000;
+            g_FieldScriptVMCurActor->flags &= ~0x200000;
+        }
+        g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[0] = ((s16*)&g_FieldScriptVMCurActor->position)[1];
+        g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[1] = ((s16*)&g_FieldScriptVMCurActor->position)[3];
+        g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[2] = ((s16*)&g_FieldScriptVMCurActor->position)[5];
+        pSprite->position.x = g_FieldScriptVMCurActor->position.vx;
+        pSprite->position.y = g_FieldScriptVMCurActor->position.vy;
+        pSprite->position.z = g_FieldScriptVMCurActor->position.vz;
+        g_FieldScriptVMCurActor->unk102++;
+        break;
+    }
+    g_FieldScriptVMStopFlag = 1;
+}
+*/
 
 void FieldScriptVMHandlerWalkToPositionUnbounded(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 0;

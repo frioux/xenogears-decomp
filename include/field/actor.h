@@ -284,7 +284,7 @@ typedef struct {
     /* 0xCE  */ u_char curScriptIndex;
     /* 0xCF  */ u_char unkCF; // Unknown event slot id
     /* 0xD0  */ VECTOR unkD0;
-    /* 0xE0  */ u_short unkE0;
+    /* 0xE0  */ short unkE0;
     /* 0xE2  */ u_char curDoorStep;
     /* 0xE3  */ u_char unkE3; // timer?
     /* 0xE4  */ short characterId;
