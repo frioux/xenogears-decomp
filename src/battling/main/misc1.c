@@ -96,8 +96,6 @@ extern void func_800708C4(VECTOR* pVec, s32 step);
 extern void func_80083738(VECTOR* pA, VECTOR* pB);
 extern s32 func_80082488(VECTOR* pVec, s32 mode);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
-
 /* 92.82%: same size as retail and every statement/call/constant is right; the
    gaps are allocation and position. Remaining diffs, all in the case 3/4 tail:
    (a) retail forms &vec (s0) after the D_80099078 copy, ours hoists the
@@ -109,64 +107,6 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
    D_800925F4 store is load-bearing (91.24 -> 92.82, and it restores retail's
    byte count), and the y local is what stops gcc folding
    (g_BattleSceneOriginYMirror - 0x20) - D_800925F4 into g_BattleSceneOriginYMirror - (D_800925F4 + 0x20).
-*/
-/* attempt:
-void func_8007099C(s32 mode) {
-    VECTOR vec;
-    s32 scale;
-    s32 y;
-    s32 offset;
-    s32* pBase;
-
-    switch (mode) {
-    case 0:
-        func_80083738(&g_BattleActor1, &g_BattleActor0);
-        break;
-    case 1:
-        vec = g_BattleActor1;
-        goto place_message;
-    case 2:
-        vec = g_BattleActor0;
-    place_message:
-        vec.vy -= 0xA0;
-        D_800925F4 = 0;
-        func_80070808(&vec, 4);
-        break;
-    case 3:
-        scale = 0xA0;
-        goto rotate_message;
-    case 4:
-        scale = 0x80;
-    rotate_message:
-        // the block keeps the scale store in front of the vector copy
-        do {
-            D_800925F4 = scale;
-        } while (0);
-        vec = D_80099078;
-        vec.vy += D_800925F4;
-        func_80070808(&vec, 0x10);
-        vec.vx = g_BattleActor1.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
-        y = g_BattleSceneOriginYMirror - 0x20;
-        vec.vy = y - D_800925F4;
-        vec.vz = D_80098734 + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
-        func_800708C4(&vec, 0x46);
-        offset = func_80082488(&g_BattleCameraPos, 0) - 0x40;
-        offset -= D_800925F4;
-        if (offset < D_80098720) {
-            D_80098720 = offset;
-        }
-        break;
-    case 5:
-        pBase = &g_BattleCameraTarget;
-        *pBase = g_BattleActor0.vx;
-        D_80098680 = g_BattleSceneOriginY - 0xC0;
-        D_80098684 = D_80097018;
-        g_BattleCameraPos = *pBase + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
-        D_80098720 = g_BattleSceneOriginY - 0xD0;
-        D_80098724 = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
-        break;
-    }
-}
 */
 
 // The position every effect vector is placed against: three 16.16 words.
@@ -196,6 +136,88 @@ typedef struct {
 } BattleState; // Size: 0xD4
 
 extern BattleState g_BattleActor1;
+
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
+
+/* Parked at 92.82%, 732 bytes (retail's exact size): every statement, call and
+   constant is right; three allocator/position differences remain.
+   (a) retail forms &vec (addiu s0,sp,0x10) after the 16-byte D_80099078 copy,
+   ours hoists it to the top of the case 3/4 block;
+   (b) func_80082488's result stays in $v0 in retail (addiu v0,v0,-0x40,
+   subu v0,v0,a0) where ours moves it to $a0;
+   (c) case 5 keeps &g_BattleCameraTarget in $s0 across the rcos/rsin calls
+   (sw v0,0(s0), then lw v0,0(s0)); gcc folds the address into a direct symbol
+   store however it is spelled (s32* local, typed BattleAnchor* local, mem_addr
+   assigned local, two locals, array-typed global).
+   Assigning the pointer BEFORE the switch does fix (c) but makes cc1 form the
+   address in the prologue: 95.10% at 736 bytes, which cannot link. Two permuter
+   runs (5 min each) found nothing better than that; the second one's best
+   candidate just moved the assignment into case 0, which is wrong code.
+   Load-bearing and not to be re-derived: the do-while around the D_800925F4
+   store (91.24 -> 92.82 and it restores retail's byte count) and the y local,
+   which stops gcc folding g_BattleSceneOriginYMirror - 0x20 - D_800925F4 into
+   g_BattleSceneOriginYMirror - (D_800925F4 + 0x20).
+   g_BattleActor1 is declared as BattleState here, so its anchor is copied
+   through a (VECTOR*) cast (the record's first 16 bytes are one VECTOR).
+   attempt:
+void func_8007099C(s32 mode) {
+    VECTOR vec;
+    s32 scale;
+    s32 y;
+    s32 offset;
+    BattleAnchor* pTarget;
+
+    switch (mode) {
+    case 0:
+        func_80083738((VECTOR*)&g_BattleActor1, &g_BattleActor0);
+        break;
+    case 1:
+        vec = *(VECTOR*)&g_BattleActor1;
+        goto place_message;
+    case 2:
+        vec = g_BattleActor0;
+    place_message:
+        vec.vy -= 0xA0;
+        D_800925F4 = 0;
+        func_80070808(&vec, 4);
+        break;
+    case 3:
+        scale = 0xA0;
+        goto rotate_message;
+    case 4:
+        scale = 0x80;
+    rotate_message:
+        // the block keeps the scale store in front of the vector copy
+        do {
+            D_800925F4 = scale;
+        } while (0);
+        vec = D_80099078;
+        vec.vy += D_800925F4;
+        func_80070808(&vec, 0x10);
+        vec.vx = g_BattleActor1.position.x + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
+        y = g_BattleSceneOriginYMirror - 0x20;
+        vec.vy = y - D_800925F4;
+        vec.vz = D_80098734 + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
+        func_800708C4(&vec, 0x46);
+        offset = func_80082488(&g_BattleCameraPos, 0) - 0x40;
+        offset -= D_800925F4;
+        if (offset < D_80098720) {
+            D_80098720 = offset;
+        }
+        break;
+    case 5:
+        pTarget = &g_BattleCameraTarget;
+        pTarget->x = g_BattleActor0.vx;
+        D_80098680 = g_BattleSceneOriginY - 0xC0;
+        D_80098684 = D_80097018;
+        g_BattleCameraPos.vx = pTarget->x + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
+        D_80098720 = g_BattleSceneOriginY - 0xD0;
+        D_80098724 = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
+        break;
+    }
+}
+*/
+
 
 extern void BattleClearSpriteTables(void);
 
