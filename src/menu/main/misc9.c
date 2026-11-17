@@ -1092,7 +1092,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             pBuf = HeapAlloc(0x3F6, 0);
             bzero(pBuf, 0x3F6);
             for (i = 0; i < 3; i++) {
-                g_Menu->pCharacterSpriteRecords->unk880[i].width = SystemRenderStringEntry(GetStringEntry(pStrings, itemId * 3 + i),
+                g_Menu->pCharacterSpriteRecords->slotStrings[i].width = SystemRenderStringEntry(GetStringEntry(pStrings, itemId * 3 + i),
                     pBuf, 0x24, 0);
                 rect.x = 0x180 + ((i + 8) & 1) * 0x18;
                 rect.y = 0x80 + ((i + 8) / 2) * 0xD;
@@ -1100,10 +1100,10 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
                 rect.h = 0xD;
                 LoadImage(&rect, (u_long*)pBuf);
                 DrawSync(0);
-                func_801E7C50(&g_Menu->pCharacterSpriteRecords->unk880[i], i + 8, 0x80, 0x81);
-                MenuSetQuadVertices(g_Menu->pCharacterSpriteRecords->unk880[i].vertices, 0x10, i * 0x10 + 0x96,
-                    g_Menu->pCharacterSpriteRecords->unk880[i].width, 0xD);
-                g_Menu->pCharacterSpriteRecords->unk880[i].renderContext = g_Menu->renderContext;
+                func_801E7C50(&g_Menu->pCharacterSpriteRecords->slotStrings[i], i + 8, 0x80, 0x81);
+                MenuSetQuadVertices(g_Menu->pCharacterSpriteRecords->slotStrings[i].vertices, 0x10, i * 0x10 + 0x96,
+                    g_Menu->pCharacterSpriteRecords->slotStrings[i].width, 0xD);
+                g_Menu->pCharacterSpriteRecords->slotStrings[i].renderContext = g_Menu->renderContext;
             }
             g_Menu->pCharacterSpriteRecords->shouldRenderStrings880[0] = 1;
             HeapFree(pBuf);
