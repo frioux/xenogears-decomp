@@ -598,15 +598,22 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
     return 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
-/* 99.90%, 604 bytes = retail's exact size; instruction stream identical except
-   that retail loads p->unk6C into $v0 and stores it twice, ours into $v1 (the
-   second value, p->unk70, is $v1 in both). One `s32 scale` reused for both
-   scratchpad vectors gets here; two locals let gcc hoist the second load and
-   reuse the dead actor pointer in $a2 (97.16%). Tried: u32/register scale,
-   declaration order permutations, splitting the loads (all 99.90 or worse) and
-   permute.sh (PERMUTER_NONE base=15 best=15, 1231 iterations). A pure
-   allocator tie in the load destination at this point.
-s32 func_8007A1B4(s32 index) {
+/* 99.90%, 604 bytes = retail's exact size. The whole residual is that retail
+   loads p->unk6C into $v0 and stores it twice, while this body's single
+   `scale` variable is $v1 for both values. Cause: local-alloc's combine_regs
+   merges the two non-overlapping webs of the one variable, and their union
+   contains the `li $v0,0x1000` plus its two stores, so $v0 is not free and
+   both webs get $v1. Two separate locals break the merge and do give retail's
+   $v0 then $v1, but then the p->unk70 load is moved up to just after the
+   p->unk6C load (into the dead $a2): 97.16%. do/while containers (around the
+   assignment, the stores, the whole pair) move that hoist rather than remove
+   it, 94.5-97.2%, and drag the pMtxA address formation along. Volatile on one
+   scratch store: 95.12%, 608 bytes. Plain memory stores instead of the local:
+   cse reuses the 0x6000-test load and p leaves $a2, 95.5%. Embedded
+   assignment for the 0x70 store: 97.16%. permute.sh from THIS body (third
+   run; the first two ran against a body whose extern arity was wrong):
+   PERMUTER_NONE base=15 best=15, 1219 iterations.
+/*s32 func_8007A1B4(s32 index) {
     WorldMapEntry *pEntry;
     MATRIX *pMtxA;
     MATRIX *pMtxB;
