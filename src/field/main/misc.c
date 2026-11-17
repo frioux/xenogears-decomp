@@ -621,56 +621,27 @@ typedef struct {
 
 extern ParticleBankHandle g_FieldScriptParticleBank;
 
-// 92.50%: the single bankIndex load, &g_FieldDefaultParticleBanks materialised
-// in $a2 and the .x store through %hi/%lo(g_FieldDefaultParticleBanks + 0x30)
-// all match. Ours spends one extra `addu`: gcc builds
-// (&banks + 0x78*bankIndex) as an intermediate and then adds 4*i, where the
-// original shares the 4*i + 0x78*bankIndex sum with the .x store. A u8* base
-// with an explicit byte offset gets the sum right (and the loop test moves
-// after both stores), a ParticleBank* base gets the store order right. Best:
-// 92.50% with
-//   ParticleBank* pBank = &g_FieldDefaultParticleBanks[bankIndex];
-//   pBank->directions[i].z = 0;
-//   g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
-// Byte-offset forms (`u8* pBanks` + `int offset = i * 4 + bank * 0x78`)
-// and a flat element index `bank * 30 + i` both give 87.05% (the bank
-// term and the 4*i term stop being shared).
-// `ParticleBank* pBanks = g_FieldDefaultParticleBanks;` (pointer to the array
-// start, index shared) gives 82.27%: the association comes out (base + 0x78*bank)
-// + 4*i, one addu more than the original's (4*i + 0x78*bank) + base.
-// preset screen: 2.7.2 92.50%, cdk 66.55%, 2.6.0 92.50% - no compiler
-// fixes it.
-// 99.50% (up from 92.50: the earlier note above is superseded except for the
-// preset screen): same instruction stream as retail except one constant.
-// The permuter took this from 92.50 to 99.50 (scores 165 -> 160 -> 10, then
-// PERMUTER_NONE from 10). The winning shape drops the pBank temp and
-// writes the .z store through the bank element inline:
-//   (*(g_FieldDefaultParticleBanks[bankIndex].directions + i)).z = 0;
-//   g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
-// That makes gcc add the two variable terms first (addu a0,a0,v0 = 4*i +
-// 0x78*bankIndex) and the symbol base last, which is retail. What is left is
-// one constant-fold tie: gcc folds the `directions` field offset (0x30) into
-// the base register, so it emits `addiu a2,a2,%lo(banks + 0x30)` + `sh 0x2(v0)`
-// where retail has `addiu a2,a2,%lo(banks)` + `sh 0x32(v0)` (a2 is the plain
-// symbol register). Any base without the struct offset (ParticleBank* pBank,
-// or a u_char* of the array) restores the addend but loses the association:
-// pBank + (*(pBank->directions + i)) 92.73%, pBank + u_char* + 0x32 92.73%,
-// u_char* base + explicit byte sum 70.86%, int offset local 56.55%,
-// ParticleBankAngleOffset* ptr local 92.00%. Structural wall, not an
-// allocator tie - permuter found nothing in 2.6k iterations from 99.50.
-/*
+// Zeroes the .z (and .x) of every direction in the script's current bank.
+// Two load-bearing spellings, both found by the permuter:
+// - `banks` is assigned INSIDE the loop so gcc hoists it into the preheader
+//   after `i = 0`; assigning it above the loop emits the address load first.
+// - the .z store is a flat byte-offset store: with a typed `directions[i].z`
+//   gcc folds the 0x30 field offset into the base register
+//   (`%lo(banks + 0x30)` + `sh 0x2`) instead of retail's `%lo(banks)` +
+//   `sh 0x32`, and 99.50% is the ceiling of every typed form tried.
+// 0x78 = sizeof(ParticleBank), 4 = sizeof(ParticleBankAngleOffset),
+// 0x32 = byte offset of directions[0].z.
 void func_8008861C(void) {
     int i;
 
     for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
         int bankIndex = g_FieldScriptParticleBank.bankIndex;
+        u32 banks = (u32)g_FieldDefaultParticleBanks;
 
-        (*(g_FieldDefaultParticleBanks[bankIndex].directions + i)).z = 0;
+        *(s16 *)((bankIndex * 0x78 + i * 4) + banks + 0x32) = 0;
         g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008861C);
 
 extern s32 g_FieldParticleBankTargetActor;
 extern s32 g_FieldParticleBankModeBits;
