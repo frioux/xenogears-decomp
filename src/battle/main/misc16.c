@@ -129,25 +129,30 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     return ret;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
-/* 98.03%, and retail's 880 bytes exactly (220 insns): the whole body is
-   instruction-identical apart from the POSITION of three prologue insns --
-   `sw s7,0x64(sp); li s7,2` (the `state = 2` save/init pair) must come after
-   the `cursor = 0; lastCursor = 0xFF;` pair, and `li s5,0x5C8` (rowOffset) 7
-   slots later than gcc puts it. Writing the inits in retail's order
-   (cursor, lastCursor, state) does move them there but then swaps cursor into
-   $s4 and state into $s3, so the pair order and the register choice trade off
-   against each other (the permuter's earlier win was an extra `u8 limit`
-   local that fixed an $s2/$s4 tie). Tried: 6 init orders, 3 declaration
-   orders, the for-init comma assignment for rowOffset, a rowBase local for the
-   row address, `while (state == 2)` (the loop shape below - it is what makes
-   gcc emit retail's entry `j test` and puts state in $s7/arg0 in $s8), and two
-   permuter runs (the second found nothing from this body). Everything else is
-   matched: the 4-entry code/damage fill, the status-mask row table read
-   (D_800CCD62[slot].flags, D_800CCD88[slot * 0x170], D_800CEF10 +
-   rowOffset + slot * 0x690 + 0x24), the three func_8008F8F4 call sites, the
-   func_800930AC(codes, damage) pair, the menu-event switch (source case order
-   5,4,1,3 -- that is what reproduces retail's case-body layout) and the five
-   teardown calls. */
+/* 98.49% and retail's 880 bytes exactly (220 insns). Writing the three inits in
+   retail's order (cursor = 0; lastCursor = 0xFF; state = 2) reproduces retail's
+   prologue positions, and two differences are left:
+   1. s3 and s4 are swapped between `cursor` and the masked copy of arg0 (the
+      andi of the parameter). Retail: cursor = s3, masked arg0 = s4. With
+      `state = 2` first instead, this tie comes out retail's way but then the
+      `sw s7 / li s7,2` pair is emitted at the top of the prologue (98.03%).
+   2. `li s5,0x5C8` (rowOffset = 0x25 * 0x28) is emitted 7 insns earlier than
+      retail's. Retail has [i = 0][andi + 0x170 chain][li s5][codes ptr], so its
+      0x170 computation looks like a source statement rather than a hoisted loop
+      invariant; a `s32 slotOffset = arg0 * 0x170;` statement does put it in
+      retail's place and fixes the s3/s4 tie as a side effect, but the extra
+      local costs a stack slot: 892 bytes.
+   Everything else is instruction-identical: the 4-entry code/damage fill, the
+   status-mask row table read (D_800CCD62[slot].flags, D_800CCD88[slot * 0x170],
+   D_800CEF10 + rowOffset + slot * 0x690 + 0x24), the three func_8008F8F4 call
+   sites, func_800930AC(codes, damage), the menu-event switch (source case order
+   5,4,1,3 reproduces retail's case-body layout) and the five teardown calls.
+   Tried on top of this body: u8/s16/s32 `limit`, u8/s32 `state`, s32
+   `cursorTimer`, 6 declaration orders (limit/state/cursor placed first, timer
+   and lastCursor swapped), the for-init comma assignment for rowOffset, a
+   rowBase local for the row address, and the while-form second loop above. None
+   of them move the s3/s4 tie without changing the frame. Plus the two permuter
+   runs from round 167 on the state-first body.
 /*
 u8 func_8008CFB8(u8 arg0) {
     u8 codes[4];
@@ -163,9 +168,9 @@ u8 func_8008CFB8(u8 arg0) {
     s32 rowBase;
     s32 i;
 
-    state = 2;
     cursor = 0;
     lastCursor = 0xFF;
+    state = 2;
     statusMasks[0] = D_800C324E;
     statusMasks[1] = D_800C3250;
     statusMasks[2] = D_800C3252;
