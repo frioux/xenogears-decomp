@@ -163,13 +163,28 @@ s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
     return -1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
-/* best: 87.06% (860 bytes, retail 868 - 2 insns short). Decoded structure and
-   every relocation is right; residues: (1) gcc fills the WorldMapGetGameStatePosition
-   jal slot with `addiu a0,s1,0x28` and then emits li s3,1 before the `sh zero,0x24(s1)`
-   store where retail has `addiu a0` FIRST, the store in the slot and li s3,1 after it.
-   (2) the D_8009C5A8 compare chain and the scratchpad tail are two instructions short.
-   Parked rather than left in C: the unit owns these tables (E190 owns jtbl_800709F8 and
-   jtbl_80070A10 at +0/+0x18), so a body that is 8 bytes short shifts the overlay.
+/* best: 87.34%, 864 bytes against retail's 868 (one instruction short). Decoded
+   structure and every relocation is right. Measured this round, so a later agent
+   does not redo it:
+   - The scratchpad stores do NOT need symbol names. Retail's `addiu $s0,$s2,%lo(D_1F8000A0)`
+     and `sh $v0,(0x1F8000A0 & 0xFFFF)($s2)` are the same instructions as this body's
+     `$s2 + 0xA0` offset stores: the %lo addend comes from a linker reloc in the original
+     object, the linked bytes are identical. objdiff only shows the reloc name.
+   - What DOES matter there is the ORDER: gcc hoists the `lhu g_WorldMapViewRotationZ`
+     above the 0xA0 store unless the three tail stores are volatile, which is worth
+     4 bytes (860 - 864). Retail keeps source order, this body now does too.
+   - LEFT: (1) the `WorldMapGetGameStatePosition` call sequence: retail is
+     [addiu a0,s1,0x28][jal][sh zero,0x24(s1) in the slot][li s3,1], this body gets
+     reorg to steal `addiu a0` into the slot instead. (2) the case 4/5 arm: retail emits
+     `addiu v0,3 / sh v0,0x20(s1)` first, then `lui/lw g_WorldMapPlayerPosition`,
+     `nop`, `sw v0,0x28(s1)`, `lui/lw g_WorldMapPlayerPositionZ`, and the store of z in
+     the jal slot; this body hoists both global loads above the state store and loses
+     retail's load-delay nop (that nop is the missing instruction). (3) the same shape
+     in case 7. The two jtbl_ operands are the only other diff.
+   PARKED FOR A LAYOUT REASON TOO: this stub owns jtbl_800709F8/jtbl_80070A10 at
+   .rodata+0/+0x18 and func_8008E4F4 owns jtbl_80070A30 at +0x38, so the whole
+   switch family (E190, E4F4, both at retail's +0/+0x18/+0x38 which is 8-byte
+   aligned throughout) has to be converted in address order in one go.
 s32 func_8008E190(s32 idx) {
     WorldMapPlayer *pPlayer;
     u8 *pScratch;
@@ -242,9 +257,9 @@ s32 func_8008E190(s32 idx) {
     }
     *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
     g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
-    *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
-    *(s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
-    *(s16 *)(pScratch + 0xA2) = pPlayer->angle;
+    *(volatile s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
+    *(volatile s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
+    *(volatile s16 *)(pScratch + 0xA2) = pPlayer->angle;
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[0].matrix);
     RotMatrixYXZ((SVECTOR *)(pScratch + 0xA0), &g_WorldMapGroups->entry[1].matrix);
     WorldMapSetGameStatePosition(&pPlayer->x);
@@ -276,7 +291,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E4F4);
    the three `sh` stores and loads g_WorldMapViewRotationZ after `sh 0xA0`, this body emits the
    pointer load last and hoists g_WorldMapViewRotationZ to the top of the block. Tried: x/z/y store
    order (93.59), x/y/z (93.59), a MATRIX *pMat local for the first RotMatrixYXZ
-   argument (no change, gcc sinks the address to the argument anyway). PARKED FOR A
+   argument (no change, gcc sinks the address to the argument anyway), and the three
+   tail stores made volatile (96.66 but 400 bytes, one instruction LONG: retail has a
+   `nop` between `lui %hi` and `lhu %lo` of g_WorldMapViewRotationZ that this body does
+   not emit, and the load is still hoisted above the 0xA0 store). PARKED FOR A
    LAYOUT REASON: E190 (parked just above, 87.06) owns jtbl_800709F8/jtbl_80070A10 at
    .rodata+0/+0x18, and C tables are emitted before asm-owned ones, so converting this
    function alone puts its table at +0 and shifts the whole overlay (check_bin MISMATCH).
