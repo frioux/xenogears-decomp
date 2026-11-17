@@ -78,11 +78,14 @@ typedef struct {
     /* 0x5F */ u_char evadePercentage;
     /* 0x60 */ undefined16 field_0x60;
     /* 0x62 */ u_char level;
-    /* 0x63 */ undefined8 unk63;
+    /* 0x63 */ undefined8 unk63; // drawn as a 3-digit number beside the level digits, see MenuSetCharacterLevelDigits; nothing matched writes it
     /* 0x64 */ undefined8 unk64[0x6];
     /* 0x6A */ undefined8 weaponId[0x5];
     /* 0x6F */ undefined8 extraWeaponIds[0x5]; // Billy's four guns are summed, so all four slots are weapons
     /* 0x74 */ undefined8 accessorySlots[0x3];
+    // FieldScriptSetCharacterField78 stores argument - unk77 in unk78 and
+    // FieldScriptWriteCharacterFieldSum reads back their sum, so unk77 is the value
+    // the script cannot set below.
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;
     /* 0x79 */ u8 unk79;
@@ -102,7 +105,7 @@ typedef struct {
     /* 0x8A */ u16 accessoryEffectFlags4;
     /* 0x8C */ u16 activeEffectFlags7;
     /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's unk3 reads 0x64
-    /* 0x90 */ u8 unk90[0x10];
+    /* 0x90 */ u8 unk90[0x10]; // a u16[8] (7 entries read) the dressing room weighs against a per-character table to make a percentage, see the parked func_801E1418 in menu/main/misc10
     /* 0xA0 */ u_char gearId;
     /* 0xA1 */ u8 accessoryEffectFlags10; // the type-10 accessory flag word, summed not OR'ed, see MenuApplyEquippedItemBonuses
     /* 0xA2 */ undefined8 unkA2[0x2];
@@ -147,6 +150,9 @@ typedef struct {
     /* 0x4F */ u8 accessoryEffectFlags5; // summed, not OR'ed; nonzero sets the pilot's statusFlags bit 0x8000
     /* 0x50 */ u8 unk50[4];
     /* 0x54 */ u8 etherAmplificationFromEquipment; // added to etherAmplification for the total shown
+    // [1] sums the effectFlags of the effectType-9 and 10 accessories and is added
+    // to attackPower; [2] sums those of the type-11 ones. MenuApplyGearAccessories
+    // zeroes all three in one loop, so they stay a single array.
     /* 0x55 */ u8 unk55[3];
     /* 0x58 */ u16 unk58;
     /* 0x5A */ u16 unk5A;
@@ -198,6 +204,11 @@ typedef struct {
 typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ s16 unk2;
+    // unk4 and unk8 are command bit masks: unk4 is tested bit by bit against the 13
+    // learnable command rows (src/battle/main/misc13), unk8 against the
+    // command-availability masks (BattleCheckActorCommandAvailable). unk6 and unkA
+    // answer the character-side and the gear-side slot with the same test, see
+    // BattleDrawCharStatusIfFlagged.
     /* 0x04 */ s16 unk4;
     /* 0x06 */ s16 unk6;
     /* 0x08 */ s16 unk8;
