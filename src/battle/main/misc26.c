@@ -72,6 +72,23 @@ typedef struct {
     /* 0x4B */ u8 pad4B[0x5];
 } BattleScreenFadeTask; // Size: 0x50
 
+// The battle image task: a timer entry (0x00) that eases a value and a draw
+// entry (0x1C) that re-applies the resulting colour tint when it moves.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry drawEntry;
+    /* 0x38 */ s32 length; // twice the frame count the ease was given
+    /* 0x3C */ s32 timer; // counts the length down
+    /* 0x40 */ s16 start; // value the ease started from
+    /* 0x42 */ s16 end; // value the ease ends at
+    /* 0x44 */ s16 applied; // value the last tint was applied for
+    /* 0x46 */ s16 current; // value the ease is at on this frame
+    /* 0x48 */ s16 blendMode;
+    /* 0x4A */ s16 r;
+    /* 0x4C */ s16 g;
+    /* 0x4E */ s16 b;
+} BattleImageTask; // Size: 0x50
+
 extern BattleScreenFadeTask *g_BattleScreenFadeTask;
 extern BattleScaleTask *g_BattleScaleTask;
 extern u8 g_BattleScreenFadeOwnBuffer;
@@ -329,25 +346,18 @@ void BattleFreeImageTask(u8 *pEntry) {
     BattleUploadAndFreeImageResources();
 }
 
-// best 60.58% under cdk -G0 (56.38% under 2.7.2): retail keeps 0x46 in $t0 and
-// loads 0x48/0x4a/0x4c/0x4e after the branch; gcc hoists those loads above it
-// and spills two of them.
-/*
-void func_800B3C74(u8 *pArg) {
-    u8 *p = *(u8 **)(pArg + 4);
-    s16 prev;
-    s16 cur;
+// Re-applies the colour tint the image task eases whenever its value has moved
+// since the last application.
+void func_800B3C74(WorkListEntry *pEntry) {
+    BattleImageTask *pTask = pEntry->unk4;
 
-    prev = *(s16 *)(p + 0x44);
-    cur = *(s16 *)(p + 0x46);
-    if (prev != cur) {
-        *(u16 *)(p + 0x44) = *(u16 *)(p + 0x46);
-        BattleSetActorRectParams(0, *(s16 *)(p + 0x48), 0x20 - cur, *(s16 *)(p + 0x4A),
-                      *(s16 *)(p + 0x4C), *(s16 *)(p + 0x4E));
+    if (pTask->applied != pTask->current) {
+        pTask->applied = *(u16 *)&pTask->current;
+        BattleSetActorRectParams(0, pTask->blendMode, 0x20 - pTask->current,
+                      pTask->r, pTask->g, pTask->b);
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3C74);
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3CD4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3E04);
