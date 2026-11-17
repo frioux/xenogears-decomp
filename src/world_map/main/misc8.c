@@ -18,18 +18,18 @@ typedef struct {
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
     /* 0x34 */ s32 unk34;
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ s32 unk3C;
-    /* 0x40 */ s32 unk40;
+    /* 0x38 */ s32 dirX;
+    /* 0x3C */ s32 dirY;
+    /* 0x40 */ s32 dirZ;
     /* 0x44 */ s32 unk44;
     /* 0x48 */ s16 angle;
     /* 0x4A */ u16 pad4A;
     /* 0x4C */ void *pSprite;
-    /* 0x50 */ s32 unk50;
-    /* 0x54 */ s32 unk54;
-    /* 0x58 */ s32 unk58;
+    /* 0x50 */ s32 unk50; // sprite-set slots' tint red; script slots keep their command cursor here
+    /* 0x54 */ s32 green;
+    /* 0x58 */ s32 blue;
     /* 0x5C */ s32 unk5C;
-    /* 0x60 */ s32 unk60;
+    /* 0x60 */ s32 greenStep;
     /* 0x64 */ s32 unk64;
     /* 0x68 */ s32 rotY;
     /* 0x6C */ s32 scaleAngle;
@@ -281,7 +281,7 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
         pActor->unk50 += pActor->unk5C;
-        pActor->unk54 += pActor->unk60;
+        pActor->green += pActor->greenStep;
         if (pActor->unk50 >= 0x100) {
             pActor->unk50 = 0xFF;
             pActor->unk5C = -pActor->unk5C;
@@ -289,12 +289,12 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
             pActor->unk50 = 0x40;
             pActor->unk5C = -pActor->unk5C;
         }
-        if (pActor->unk54 >= 0x100) {
-            pActor->unk54 = 0xFF;
-            pActor->unk60 = -pActor->unk60;
-        } else if (pActor->unk54 < 0x80) {
-            pActor->unk54 = 0x80;
-            pActor->unk60 = -pActor->unk60;
+        if (pActor->green >= 0x100) {
+            pActor->green = 0xFF;
+            pActor->greenStep = -pActor->greenStep;
+        } else if (pActor->green < 0x80) {
+            pActor->green = 0x80;
+            pActor->greenStep = -pActor->greenStep;
         }
         pActor->scaleAngle = (pActor->scaleAngle + 8) & 0xFFF;
         pActor->scale += pActor->scaleStep;
@@ -325,7 +325,7 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
         pActor->unk50 += pActor->unk5C;
-        pActor->unk54 += pActor->unk60;
+        pActor->green += pActor->greenStep;
         if (pActor->unk50 >= 0x100) {
             pActor->unk50 = 0xFF;
             pActor->unk5C = -pActor->unk5C;
@@ -333,12 +333,12 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
             pActor->unk50 = 0x40;
             pActor->unk5C = -pActor->unk5C;
         }
-        if (pActor->unk54 >= 0x100) {
-            pActor->unk54 = 0xFF;
-            pActor->unk60 = -pActor->unk60;
-        } else if (pActor->unk54 < 0x80) {
-            pActor->unk54 = 0x80;
-            pActor->unk60 = -pActor->unk60;
+        if (pActor->green >= 0x100) {
+            pActor->green = 0xFF;
+            pActor->greenStep = -pActor->greenStep;
+        } else if (pActor->green < 0x80) {
+            pActor->green = 0x80;
+            pActor->greenStep = -pActor->greenStep;
         }
         pActor->scaleAngle = (pActor->scaleAngle + 8) & 0xFFF;
         pActor->scale += pActor->scaleStep;
@@ -430,7 +430,7 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
     WorldMapBuildActorModelMatrix(pActor, pEntry, (WorldMapModel *)PSX_SCRATCH);
     WorldMapSetSpritePrimColor(pEntry->pPackets[g_WorldMapPrimPacketIndex],
                                pEntry->pModel->polyCount,
-                               pActor->unk50, pActor->unk54, pActor->unk58);
+                               pActor->unk50, pActor->green, pActor->blue);
     return 1;
 }
 
