@@ -34,7 +34,7 @@ void MenuFreeCharacterSpriteRecords(void);
 void MenuFreeUnk35CPanel(void);
 void MenuClearSubMenuChoiceFlags(void);
 void MenuPlaySoundEffect(u8);
-u8 func_801D9704(u8, u8, u8);
+s32 func_801D9704(s32, u8, u8);
 void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
 void func_801E8070(s32, void*, void*, void*, void*, u8, u8, u8);
@@ -279,12 +279,13 @@ void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->unk360);
     func_801C72BC(0x13);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
 /* objdiff 96.76% (1188 bytes, exactly retail's size). Structure is complete: every call, both switches and all case bodies are in retail's body order (4, 5, 1, 3, 9, 10 and the nested 0, 1, 2). The one residue is the `lastSlot = slot` copy: retail emits a two-instruction u8 copy (`move v0,s1` before the MenuComputeCharacterStats jal, `move s0,v0` in its delay slot) AFTER that call, while gcc 2.6.0 here always folds it to a single `move s0,s1` and then steals it into the PREVIOUS call's delay slot, so every branch past it is 4 bytes early and one extra instruction turns up later. Tried: plain assignment, embedded assignment in the MenuDrawGearScreen argument, an extra u8 intermediate local, and a 3 min permuter run (best was a bogus case-3 mutation at 96.04). Note the MenuMovePointerCursor prototype must be (s32, u8) or every call site gains a useless andi.
+*/
 u8 func_801E2BE4(void) {
     u8 active;
     u8 lastSlot;
     u8 firstDraw;
+    u8 drawSlot;
     s32 slot;
     s32 i;
 
@@ -305,8 +306,9 @@ u8 func_801E2BE4(void) {
         MenuRenderFrame();
         if (slot != lastSlot) {
             MenuApplyEquippedItemBonuses(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[slot]);
+            drawSlot = slot;
             MenuComputeCharacterStats(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[slot]);
-            lastSlot = slot;
+            lastSlot = drawSlot;
             MenuDrawGearScreen(lastSlot, 0);
             if (firstDraw != 0) {
                 MenuStartOpenAnimation();
@@ -367,8 +369,7 @@ u8 func_801E2BE4(void) {
             }
             break;
         case 3:
-            g_Menu->subMenuChoice++;
-            if (g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
+            if (++g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
                 g_Menu->subMenuChoice = 0;
             }
             break;
@@ -385,7 +386,6 @@ u8 func_801E2BE4(void) {
     g_Menu->pManager->unk3 = 0;
     return 1;
 }
-*/
 
 void MenuFreeSubMenuPanels(u8 arg0) {
     switch (g_Menu->mainMenuChoice + arg0) {
