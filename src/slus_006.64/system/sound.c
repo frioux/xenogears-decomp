@@ -1587,7 +1587,7 @@ void SoundPlayAudioManager(AudioManager* pManager, s32 volume, s32 frames) {
     DisableEvent(g_unk_SoundEvent);
     SoundLoadAudioManagerSequenceHeader(pManager);
     func_8003B424(pManager);
-    pManager->unk_Interpolator_0x70.currentValue = 0;
+    pManager->volumeInterpolator.currentValue = 0;
     SoundSetAudioManagerVolumeWithFade(pManager, volume, frames);
 
     pManager->flags |= 0x8000;
@@ -1620,7 +1620,7 @@ void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 volume, s32 fram
         pElement++;
     } while (cnt);
 
-    pManager->unk_Interpolator_0x70.currentValue = 0;
+    pManager->volumeInterpolator.currentValue = 0;
     pManager->flags |= 0x100;
     SoundSetAudioManagerVolumeWithFade(pManager, volume, frames);
 }
@@ -1772,8 +1772,8 @@ void SoundStopElementsForSoundFile(SoundFile* pSoundFile) {
 
     do {
         if (pElement->active_flag & 0x1) {
-            // unk_0x8 holds two 16-bit ids; the second one is the owning file's sedId
-            if (((s16*)&pElement->unk_0x8)[1] == sedId) {
+            // soundId holds two 16-bit ids; the second one is the owning file's sedId
+            if (((s16*)&pElement->soundId)[1] == sedId) {
                 pElement->active_flag = 0;
                 pManager->activeElementMask &= ~(1 << (u8)pElement->elementIndex);
                 SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
@@ -1791,7 +1791,7 @@ void SoundStopElementsById(s32 sedId) {
 
     do {
         if (pElement->active_flag & 0x1) {
-            if (pElement->unk_0x8 == sedId) {
+            if (pElement->soundId == sedId) {
                 pElement->active_flag = 0;
                 pManager->activeElementMask &= ~(1 << (u8)pElement->elementIndex);
                 SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
@@ -1835,7 +1835,7 @@ void SoundSetElementVolumeById(s32 id, s32 value) {
 
     do {
         if (pElement->active_flag & 0x1) {
-            if (pElement->unk_0x8 == id) {
+            if (pElement->soundId == id) {
                 pElement->volume = value << 8;
                 pElement->status_flags = 0x100;
             }
@@ -1873,7 +1873,7 @@ void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
 
     do {
         if (pElement->active_flag & 0x1) {
-            if (pElement->unk_0x8 == id) {
+            if (pElement->soundId == id) {
                 delta = volume - pElement->volume;
                 if (delta) {
                     if (frames == 0) {
@@ -1928,7 +1928,7 @@ void SoundSetElementPanById(s32 id, s32 value) {
 
     do {
         if (pElement->active_flag & 0x1) {
-            if (pElement->unk_0x8 == id) {
+            if (pElement->soundId == id) {
                 pElement->pan = value << 8;
                 pElement->status_flags = 0x100;
             }
@@ -1975,7 +1975,7 @@ s32 SoundGetActiveElementMask(s32 id) {
         } while (--count);
     } else {
         do {
-            if ((pElement->active_flag & 0x1) && pElement->unk_0x8 == id) {
+            if ((pElement->active_flag & 0x1) && pElement->soundId == id) {
                 result |= bit;
             }
             pElement++;
@@ -1999,19 +1999,19 @@ void SoundSetAudioManagerMasterVolumeWithFade(AudioManager* pManager, s32 volume
         volume = 0x100;
     }
 
-    pManager->unk_Interpolator_0x64.targetValue = volume;
+    pManager->tempoScaleInterpolator.targetValue = volume;
 
     if (frames == 0) {
         s32 product = (s16)(pManager->tempo >> 16) * volume;
 
-        pManager->unk_Interpolator_0x64.counter = 0;
-        pManager->unk_Interpolator_0x64.currentValue = volume << 16;
+        pManager->tempoScaleInterpolator.counter = 0;
+        pManager->tempoScaleInterpolator.currentValue = volume << 16;
         pManager->tickRate = product;
     } else {
-        delta = (volume << 16) - pManager->unk_Interpolator_0x64.currentValue;
+        delta = (volume << 16) - pManager->tempoScaleInterpolator.currentValue;
         if (delta != 0) {
-            pManager->unk_Interpolator_0x64.counter = frames;
-            pManager->unk_Interpolator_0x64.stepIncrement = delta / frames;
+            pManager->tempoScaleInterpolator.counter = frames;
+            pManager->tempoScaleInterpolator.stepIncrement = delta / frames;
         }
     }
 }
@@ -2019,19 +2019,19 @@ void SoundSetAudioManagerMasterVolumeWithFade(AudioManager* pManager, s32 volume
 void SoundSetAudioManagerVolumeWithFade(AudioManager* pManager, s32 volume, s32 frames) {
     s32 delta;
 
-    pManager->unk_Interpolator_0x70.targetValue = volume << 8;
+    pManager->volumeInterpolator.targetValue = volume << 8;
 
     if (frames == 0) {
-        pManager->unk_Interpolator_0x70.currentValue = volume << 24;
-        pManager->unk_Interpolator_0x70.counter = 0;
+        pManager->volumeInterpolator.currentValue = volume << 24;
+        pManager->volumeInterpolator.counter = 0;
         unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
     } else {
-        delta = (volume << 16) - (pManager->unk_Interpolator_0x70.currentValue >> 8);
+        delta = (volume << 16) - (pManager->volumeInterpolator.currentValue >> 8);
         if (delta == 0) {
             return;
         }
-        pManager->unk_Interpolator_0x70.counter = frames;
-        pManager->unk_Interpolator_0x70.stepIncrement = (delta / frames) << 8;
+        pManager->volumeInterpolator.counter = frames;
+        pManager->volumeInterpolator.stepIncrement = (delta / frames) << 8;
     }
 
     if ((pManager->flags & 0x100) && volume != 0) {
@@ -2042,17 +2042,17 @@ void SoundSetAudioManagerVolumeWithFade(AudioManager* pManager, s32 volume, s32 
 void SoundFadeAudioManagerInterpolator7c(AudioManager* pManager, s16 volume, s32 frames) {
     s32 delta;
 
-    pManager->unk_Interpolator_0x7c.targetValue = volume << 8;
+    pManager->noteInterpolator.targetValue = volume << 8;
 
     if (frames == 0) {
-        pManager->unk_Interpolator_0x7c.currentValue = volume << 24;
-        pManager->unk_Interpolator_0x7c.counter = 0;
+        pManager->noteInterpolator.currentValue = volume << 24;
+        pManager->noteInterpolator.counter = 0;
         unk_SoundSetFlagsOnActiveVoices(0x200, pManager);
     } else {
-        delta = (volume << 16) - (pManager->unk_Interpolator_0x7c.currentValue >> 8);
+        delta = (volume << 16) - (pManager->noteInterpolator.currentValue >> 8);
         if (delta != 0) {
-            pManager->unk_Interpolator_0x7c.counter = frames;
-            pManager->unk_Interpolator_0x7c.stepIncrement = (delta / frames) << 8;
+            pManager->noteInterpolator.counter = frames;
+            pManager->noteInterpolator.stepIncrement = (delta / frames) << 8;
         }
     }
 }
@@ -2060,17 +2060,17 @@ void SoundFadeAudioManagerInterpolator7c(AudioManager* pManager, s16 volume, s32
 void SoundFadeAudioManagerInterpolator88(AudioManager* pManager, s16 volume, s32 frames) {
     s32 delta;
 
-    pManager->unk_Interpolator_0x88.targetValue = volume << 8;
+    pManager->panInterpolator.targetValue = volume << 8;
 
     if (frames == 0) {
-        pManager->unk_Interpolator_0x88.currentValue = volume << 24;
-        pManager->unk_Interpolator_0x88.counter = 0;
+        pManager->panInterpolator.currentValue = volume << 24;
+        pManager->panInterpolator.counter = 0;
         unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
     } else {
-        delta = (volume << 16) - (pManager->unk_Interpolator_0x88.currentValue >> 8);
+        delta = (volume << 16) - (pManager->panInterpolator.currentValue >> 8);
         if (delta != 0) {
-            pManager->unk_Interpolator_0x88.counter = frames;
-            pManager->unk_Interpolator_0x88.stepIncrement = (delta / frames) << 8;
+            pManager->panInterpolator.counter = frames;
+            pManager->panInterpolator.stepIncrement = (delta / frames) << 8;
         }
     }
 }
@@ -2130,7 +2130,7 @@ void SoundSetAudioManagerUnk1B(AudioManager* pManager, u8 value) {
 }
 
 void SoundGetAudioManagerPlayTime(AudioManager* pManager, u16* pOut) {
-    u32 total = (u32)pManager->unk_0x28 >> 8;
+    u32 total = (u32)pManager->playTime >> 8;
     u32 field = total / 240;
     u32 index = field / 60;
 
@@ -2143,7 +2143,7 @@ void SoundGetAudioManagerPlayTime(AudioManager* pManager, u16* pOut) {
 u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
     AudioElement* pElement = pManager->elements;
     u16 count = pManager->elementCount;
-    u16* pResult = (u16*)&pManager->unk_0x30;
+    u16* pResult = (u16*)&pManager->lowestLoopCount;
     u16 best = 0xFFFF;
 
     do {
@@ -2160,7 +2160,7 @@ u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
     return pResult;
 }
 
-// Header of an in-memory sequence file, reached through AudioManager::unk_0x8.
+// Header of an in-memory sequence file, reached through AudioManager::pSeqHeader.
 typedef struct {
     /* 0x00 */ u8 unk00[0x10];
     /* 0x10 */ u16 unk10;
@@ -2261,13 +2261,13 @@ void SoundSetAudioManagerMaxVolume(AudioManager* pManager, u16 volume) {
     u_long event = g_unk_SoundEvent;
 
     pManager->flags |= 0x20;
-    *(u16*)&pManager->unk_0x1e[0] = volume;
+    pManager->stopBar = volume;
     DisableEvent(event);
     SoundReleaseAllVoices(pManager);
     EnableEvent(g_unk_SoundEvent);
-    pManager->unk_Interpolator_0x64.targetValue = newVolume;
-    pManager->unk_Interpolator_0x64.counter = 0;
-    pManager->unk_Interpolator_0x64.currentValue = newVolume << 16;
+    pManager->tempoScaleInterpolator.targetValue = newVolume;
+    pManager->tempoScaleInterpolator.counter = 0;
+    pManager->tempoScaleInterpolator.currentValue = newVolume << 16;
     pManager->tickRate = (pManager->tempo >> 16) * newVolume;
 }
 /*
@@ -2279,13 +2279,13 @@ void SoundSetAudioManagerMaxVolume(AudioManager* pManager, u16 volume) {
     s32 newVolume = 0x7F00;
 
     pManager->flags |= 0x20;
-    *(u16*)pManager->unk_0x1e = volume;
+    pManager->stopBar = volume;
     DisableEvent(g_unk_SoundEvent);
     SoundReleaseAllVoices(pManager);
     EnableEvent(g_unk_SoundEvent);
-    pManager->unk_Interpolator_0x64.targetValue = newVolume;
-    pManager->unk_Interpolator_0x64.counter = 0;
-    pManager->unk_Interpolator_0x64.currentValue = newVolume << 16;
+    pManager->tempoScaleInterpolator.targetValue = newVolume;
+    pManager->tempoScaleInterpolator.counter = 0;
+    pManager->tempoScaleInterpolator.currentValue = newVolume << 16;
     pManager->tickRate = (pManager->tempo >> 16) * newVolume;
 }
 */
@@ -2450,7 +2450,7 @@ void SoundInitializeAudioManager(AudioManager* manager) {
     manager->barCount = 1;
     manager->unk_0x1a = 0;
     manager->unk_0x1b = 0;
-    manager->unk_0x30 = 0;
+    manager->lowestLoopCount = 0;
     manager->beatCount = 0;
     manager->beatsPerBar = 4;
     manager->tickCount = 1;
@@ -2458,21 +2458,21 @@ void SoundInitializeAudioManager(AudioManager* manager) {
     manager->beatDivisor = 4;
     manager->unk_0x3e = 4;
 
-    manager->unk_Interpolator_0x64.currentValue = 0x01000000;
-    manager->unk_Interpolator_0x70.currentValue = 0x7F000000;
+    manager->tempoScaleInterpolator.currentValue = 0x01000000;
+    manager->volumeInterpolator.currentValue = 0x7F000000;
 
     manager->tempo = 0x00660000;
     manager->tickRate = 0x6600;
-    manager->unk_0x28 = 0;
+    manager->playTime = 0;
     manager->unk_0x24 = 0;
     manager->unk_0x20 = 0;
     manager->activeElementMask = 0;
-    manager->unk_Interpolator_0x7c.currentValue = 0;
-    manager->unk_Interpolator_0x88.currentValue = 0;
-    manager->unk_Interpolator_0x64.counter = 0;
-    manager->unk_Interpolator_0x70.counter = 0;
-    manager->unk_Interpolator_0x7c.counter = 0;
-    manager->unk_Interpolator_0x88.counter = 0;
+    manager->noteInterpolator.currentValue = 0;
+    manager->panInterpolator.currentValue = 0;
+    manager->tempoScaleInterpolator.counter = 0;
+    manager->volumeInterpolator.counter = 0;
+    manager->noteInterpolator.counter = 0;
+    manager->panInterpolator.counter = 0;
     manager->tempoStep = 0;
     manager->tempoFrames = 0;
     manager->tickAccumulator = 0x00010000;
@@ -2529,12 +2529,12 @@ void func_8003B424(AudioManager* pManager) {
             value = *(u16*)(pSeqData + 0x10);
             pElement->unk_0x07 = 0x10;
             pElement->elementIndex = i;
-            pElement->unk_0x8 = value;
+            pElement->soundId = value;
             pElement->octave = 0x3C;
             pElement->unk_0x62 = 0xF;
             pElement->loopIndex = 0xFFFF;
             pElement->volume = 0x6000;
-            pElement->unk_0x78 = 0x7F000000;
+            pElement->elementVolume = 0x7F000000;
             pElement->savedScriptIP = NULL;
             *(s32*)pElement->unk_0x1C = 0;
             pElement->loopCount = 0;
@@ -2544,7 +2544,7 @@ void func_8003B424(AudioManager* pManager) {
             pElement->detune = 0;
             pElement->unk_0x64[0] = 0;
             pElement->pan = 0x4000;
-            pElement->unk_0x70 = 0;
+            pElement->slideFrames = 0;
             pElement->noteOffset = 0;
             pElement->volumeOffset = 0;
             pElement->panOffset = 0;
@@ -2652,7 +2652,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
     DisableEvent(g_unk_SoundEvent);
 
     do {
-        pElement->unk_0x8 = soundId;
+        pElement->soundId = soundId;
         *(s32*)pElement->unk_0x0C = g_SoundTimerTickCounter;
         pElement->unk_0x07 = elementFlags;
 
@@ -2678,8 +2678,8 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
             pElement->detune = 0;
             pElement->unk_0x64[0] = 0;
             pElement->volume = volume;
-            pElement->unk_0x78 = 0x7F000000;
-            pElement->unk_0x70 = 0;
+            pElement->elementVolume = 0x7F000000;
+            pElement->slideFrames = 0;
             pElement->noteOffset = 0;
             pElement->volumeOffset = 0;
             pElement->panOffset = 0;
@@ -3018,28 +3018,28 @@ s32 SoundTimerInterruptHandler(void) {
             SoundRestoreAudioManagerBackup(pManager);
         }
 
-        if (pManager->unk_Interpolator_0x64.counter != 0) {
-            SoundTickInterpolator(&pManager->unk_Interpolator_0x64);
-            pManager->tickRate = (s16)(pManager->tempo >> 16) * (s16)(pManager->unk_Interpolator_0x64.currentValue >> 16);
+        if (pManager->tempoScaleInterpolator.counter != 0) {
+            SoundTickInterpolator(&pManager->tempoScaleInterpolator);
+            pManager->tickRate = (s16)(pManager->tempo >> 16) * (s16)(pManager->tempoScaleInterpolator.currentValue >> 16);
         }
 
-        if (pManager->unk_Interpolator_0x70.counter != 0) {
-            SoundTickInterpolator(&pManager->unk_Interpolator_0x70);
+        if (pManager->volumeInterpolator.counter != 0) {
+            SoundTickInterpolator(&pManager->volumeInterpolator);
             unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
         }
 
-        if (pManager->unk_Interpolator_0x7c.counter != 0) {
-            SoundTickInterpolator(&pManager->unk_Interpolator_0x7c);
+        if (pManager->noteInterpolator.counter != 0) {
+            SoundTickInterpolator(&pManager->noteInterpolator);
             unk_SoundSetFlagsOnActiveVoices(0x200, pManager);
         }
 
-        if (pManager->unk_Interpolator_0x88.counter != 0) {
-            SoundTickInterpolator(&pManager->unk_Interpolator_0x88);
+        if (pManager->panInterpolator.counter != 0) {
+            SoundTickInterpolator(&pManager->panInterpolator);
             unk_SoundSetFlagsOnActiveVoices(0x100, pManager);
         }
 
         pManager->unk_0x20++;
-        pManager->unk_0x28 += (s16)(pManager->unk_Interpolator_0x64.currentValue >> 16);
+        pManager->playTime += (s16)(pManager->tempoScaleInterpolator.currentValue >> 16);
 
         pManager->tickAccumulator -= pManager->tickRate;
         if (pManager->tickAccumulator < 0) {
@@ -3062,15 +3062,15 @@ s32 SoundTimerInterruptHandler(void) {
 
                 if (cdVolume = pManager->activeElementMask != 0) {
                     pManager->unk_0x24++;
-                    if (pManager->unk_Interpolator_0x70.currentValue == 0) {
+                    if (pManager->volumeInterpolator.currentValue == 0) {
                         SoundStopAudioManager(pManager);
                         pManager->flags |= 0x100;
                     }
 
-                    if ((u16)pManager->barCount == *(u16*)pManager->unk_0x1e) {
+                    if ((u16)pManager->barCount == pManager->stopBar) {
                         pManager->flags &= ~0x20;
                         SoundSetAudioManagerMasterVolumeWithFade(pManager, 0, 0);
-                        *(u16*)pManager->unk_0x1e = 0;
+                        pManager->stopBar = 0;
                     }
                 } else {
                     pManager->flags &= 0x7FFF;
@@ -3152,7 +3152,7 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
         } else {
             pManager->tempo = pManager->tempoTarget << 16;
         }
-        pManager->tickRate = (s16)(pManager->tempo >> 16) * (s16)(pManager->unk_Interpolator_0x64.currentValue >> 16);
+        pManager->tickRate = (s16)(pManager->tempo >> 16) * (s16)(pManager->tempoScaleInterpolator.currentValue >> 16);
         pManager->tempoFrames = tickCounter;
     }
 
@@ -3169,10 +3169,10 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
 
                 if (elementFlags & 0x8) {
                     statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
-                    if (--pElement->unk_0x96 == 0) {
+                    if (--pElement->elementVolumeFrames == 0) {
                         elementFlags &= ~0x8;
                     }
-                    pElement->unk_0x78 += pElement->unk_0x88;
+                    pElement->elementVolume += pElement->elementVolumeStep;
                 }
                 if (elementFlags & 0x1) {
                     statusFlags |= SOUND_STATUS_PLAYING_NTOE;
@@ -3181,7 +3181,7 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
                             elementFlags &= ~0x1;
                         }
                     }
-                    pElement->unk68 += pElement->noteStep;
+                    pElement->note += pElement->noteStep;
                 }
                 if (elementFlags & 0x10) {
                     if (--pElement->panFrames == 0) {
@@ -3233,8 +3233,8 @@ void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pE
 
     func_8003E5BC(pPercussionData[0], pElement);
 
-    note = (pPercussionData[1] << 8) + pElement->detune + pElement->unk_0x6C;
-    pElement->unk68 = note << 16;
+    note = (pPercussionData[1] << 8) + pElement->detune + pElement->toneTune;
+    pElement->note = note << 16;
     statusFlags = pElement->status_flags;
     pElement->pan = pPercussionData[3] << 8;
     pElement->status_flags = statusFlags | SOUND_STATUS_VOLUME_CHANGE;
@@ -3405,7 +3405,7 @@ u8* SoundScriptStopElementsById(u8* pScript, AudioManager* pAudioManager, AudioE
 
 u8* SoundScriptJumpToInstrumentScript(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
-    s16 sedId = ((s16*)&pAudioElements->unk_0x8)[1];
+    s16 sedId = ((s16*)&pAudioElements->soundId)[1];
     s16 instrument = pScript[0] | (pScript[1] << 8);
     u8 channel = pScript[2];
 
@@ -3427,7 +3427,7 @@ u8* SoundScriptSetTempo(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     u8 value = *pScript++;
 
     pAudioManager->tempo = value << 16;
-    pAudioManager->tickRate = (value & 0xFF) * (s16)(pAudioManager->unk_Interpolator_0x64.currentValue >> 16);
+    pAudioManager->tickRate = (value & 0xFF) * (s16)(pAudioManager->tempoScaleInterpolator.currentValue >> 16);
     return pScript;
 }
 
@@ -3467,7 +3467,7 @@ u8* SoundScriptRampTempo(u8* pScript, AudioManager* pAudioManager, AudioElement*
 }
 
 u8* SoundScriptSetVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioManager->unk_Interpolator_0x70.currentValue = *pScript++ << 24;
+    pAudioManager->volumeInterpolator.currentValue = *pScript++ << 24;
     unk_SoundSetFlagsOnActiveVoices(0x100, pAudioManager);
     return pScript;
 }
@@ -3476,12 +3476,12 @@ u8* SoundScriptRampVolume(u8* pScript, AudioManager* pAudioManager, AudioElement
     u8 step = pScript[0];
     u8 target = pScript[1];
     u16 counter = step << 5;
-    s32 delta = (target << 24) - pAudioManager->unk_Interpolator_0x70.currentValue;
+    s32 delta = (target << 24) - pAudioManager->volumeInterpolator.currentValue;
 
     if ((step << 5) != 0 && delta != 0) {
-        pAudioManager->unk_Interpolator_0x70.counter = counter;
-        pAudioManager->unk_Interpolator_0x70.targetValue = target << 8;
-        pAudioManager->unk_Interpolator_0x70.stepIncrement = delta / (step << 5);
+        pAudioManager->volumeInterpolator.counter = counter;
+        pAudioManager->volumeInterpolator.targetValue = target << 8;
+        pAudioManager->volumeInterpolator.stepIncrement = delta / (step << 5);
     }
     return pScript + 2;
 }
@@ -3681,7 +3681,7 @@ u8* SoundScriptSetSustain(u8* pScript, AudioManager* pAudioManager, AudioElement
 u8* SoundScriptSetRelease(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 temp = *pScript;
     pAudioElements->voice_data.flags |= 0x80;
-    pAudioElements->unk_0x28 = temp;
+    pAudioElements->releaseRate = temp;
     pAudioElements->voice_data.releaseRate = temp;
     return pScript + 1;
 }
@@ -3774,7 +3774,7 @@ u8* SoundScriptClearUnk04Bit1(u8* pScript, AudioManager* pAudioManager, AudioEle
 u8* SoundScriptSetUnk70(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 value = *pScript++;
 
-    pAudioElements->unk_0x70 = value;
+    pAudioElements->slideFrames = value;
     if (value) {
         pAudioElements->rampFlags |= 0x4;
     } else {
@@ -3887,7 +3887,7 @@ u8* SoundScriptClearUnkCEAndF6(u8* pScript, AudioManager* pAudioManager, AudioEl
 
 // Set volume handler / Dynamic?
 u8* SoundScriptSetElementVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioElements->unk_0x78 = *pScript << 24;
+    pAudioElements->elementVolume = *pScript << 24;
     pAudioElements->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
     pAudioElements->rampFlags &= ~0x108;
     return pScript + 1;
@@ -3895,7 +3895,7 @@ u8* SoundScriptSetElementVolume(u8* pScript, AudioManager* pAudioManager, AudioE
 
 // Crescendo?
 u8* SoundScriptAddElementVolume(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioElements->unk_0x78 = (pAudioElements->unk_0x78 + ((s8)*pScript << 24)) & 0x7FFFFFFF;
+    pAudioElements->elementVolume = (pAudioElements->elementVolume + ((s8)*pScript << 24)) & 0x7FFFFFFF;
     pAudioElements->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
     pAudioElements->rampFlags &= ~0x108;
     return pScript + 1;
@@ -3903,12 +3903,12 @@ u8* SoundScriptAddElementVolume(u8* pScript, AudioManager* pAudioManager, AudioE
 
 u8* SoundScriptSetElementVolumeRamp(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u16 frames = *pScript;
-    s32 delta = ((s8)pScript[1] << 24) - pAudioElements->unk_0x78;
+    s32 delta = ((s8)pScript[1] << 24) - pAudioElements->elementVolume;
 
     if (frames && delta) {
-        pAudioElements->unk_0x96 = frames;
+        pAudioElements->elementVolumeFrames = frames;
         pAudioElements->rampFlags = (pAudioElements->rampFlags | 0x8) & ~0x100;
-        pAudioElements->unk_0x88 = delta / frames;
+        pAudioElements->elementVolumeStep = delta / frames;
     }
 
     return pScript + 2;
@@ -4367,7 +4367,7 @@ u8* SoundScriptSetExpression(u8* pScript, AudioManager* pAudioManager, AudioElem
     s32 value = *pScript++;
 
     if (value != 0) {
-        pAudioManager->unk_Interpolator_0x64.currentValue = value << 24;
+        pAudioManager->tempoScaleInterpolator.currentValue = value << 24;
         pAudioManager->tickRate = (pAudioManager->tempo >> 16) * (value << 8);
     }
     return pScript;
@@ -4433,11 +4433,11 @@ void func_8003E5BC(s16 value, AudioElement* pElement) {
     pElement->voice_data.adsrDR = (adsr >> 8) & 0xF;
     pElement->voice_data.sustainRate = (adsr >> 16) & 0x7F;
     pElement->voice_data.adsrSR = (adsr >> 12) & 0xF;
-    pElement->unk_0x28 = (adsr >> 24) & 0x1F;
-    pElement->voice_data.releaseRate = pElement->unk_0x28;
+    pElement->releaseRate = (adsr >> 24) & 0x1F;
+    pElement->voice_data.releaseRate = pElement->releaseRate;
 
     pElement->active_flag |= 0x8000;
-    pElement->unk_0x6C = pTone->unk6;
+    pElement->toneTune = pTone->unk6;
 }
 */
 
@@ -4731,7 +4731,7 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
             statusFlags = pElement->status_flags;
 
             if (statusFlags & SOUND_STATUS_VOLUME_CHANGE) {
-                currentVolume = ((s16*)&pElement->unk_0x78)[1];
+                currentVolume = ((s16*)&pElement->elementVolume)[1];
                 scale = currentVolume - ((currentVolume * pElement->volumeOffset) >> 15);
                 if (scale > 0x7FFF) {
                     scale = 0x7FFF;
@@ -4740,10 +4740,10 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
                     scale = 0;
                 }
                 scale = (pElement->volume * scale) >> 15;
-                scale = (((s16*)&pManager->unk_Interpolator_0x70)[1] * scale) >> 16;
+                scale = (((s16*)&pManager->volumeInterpolator)[1] * scale) >> 16;
 
                 pan = (s16)pElement->pan + pElement->panOffset +
-                    ((s16*)&pManager->unk_Interpolator_0x88)[1];
+                    ((s16*)&pManager->panInterpolator)[1];
                 if (pan > 0x7F00) {
                     pan = 0x7F00;
                 }
@@ -4772,8 +4772,8 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
             }
 
             if (statusFlags & SOUND_STATUS_PLAYING_NTOE) {
-                s32 note = ((s16*)&pElement->unk68)[1] + pElement->noteOffset +
-                    ((s16*)&pManager->unk_Interpolator_0x7c)[1];
+                s32 note = ((s16*)&pElement->note)[1] + pElement->noteOffset +
+                    ((s16*)&pManager->noteInterpolator)[1];
 
                 pElement->voice_data.pitch = SoundGetTonePitch((s16)note) & 0x3FFF;
                 pElement->voice_data.flags |= 0x4;
