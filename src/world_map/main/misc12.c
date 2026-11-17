@@ -73,7 +73,7 @@ typedef struct {
     /* 0x44 */ u32 unk44;
     /* 0x48 */ s16 angle;
     /* 0x4A */ u16 moveSpeed;
-    /* 0x4C */ u8 unk4C[0x4];
+    /* 0x4C */ void *pSprite;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
