@@ -197,43 +197,46 @@ int WorldMapModeInitCharacterSprite1(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
-/* 93.37% (also tried a void *pSprite temp assigned then used by both calls, as in
-   WorldMapInitActorSpriteBySlot: no change, still 93.37 with the same three head insns). (re-diffed under the current XenoWorldMap flags; cdk 83.19%, plain -G0/-O
-   variants lower). Everything is byte-identical except three insns in the prologue:
-   the original computes index*0x80 in v1 BEFORE the 0x100 push and stores the
-   0x40 stack argument just before the jal, while gcc emits the store right after
-   li 0x40 and puts the shift in v0 after it. The SAME call shape with the SAME
-   neighbours (WorldMapInitPartyActorSprite0, matched) reproduces the original prologue exactly, so
-   the trigger is something in this function's tail, not the call: the tail below is
-   itself byte-identical. Tried: flat tail without the unk48 temp (83.05), pointer
-   built as (u8*)g_WorldMapSlots + index*0x80 (93.37), cdk (83.19).
-   Round 56: re-diffed live, exactly the same 93.37 - the whole diff is the position
-   of the "sw v0,0x14(sp)" for the 0x40 arg (retail: just before the jal, so v1 holds
-   the sll and v0 the constant; ours: right after "li v0,0x40", sll into v0) plus the
-   matching addu register. The matched WorldMapInitPartyActorSprite0 has retail's
-   exact shape, so it is a scheduling/allocator artifact of this function's tail, not
-   the call: no hand shape moved it. Permuter is blocked on this unit (see WorldMapFindZoneAtPosition).
+/* 93.37% (248 bytes, retail 248 - same size, same multiset). Everything is
+   byte-identical except three insns of the prologue: retail does the index shift
+   FIRST and into v1 (sll v1,a0,7 before the 0x100 push) and stores the 0x40 stack
+   argument last, right before the jal, so v0 holds that constant and the
+   "addu s0,s0,v1" lands in the jal delay slot; gcc stores the 0x40 right after
+   "li v0,0x40" and puts the shift in v0 afterwards.
+   Round 167: the parked body used to carry the OLD field names (unk4C/unk28/...),
+   so it no longer compiled and every percentage in the older notes came from a
+   stale object - it is re-measured at 93.37 with the current field names (pSprite,
+   x, y, z, state, dirX/Y/Z, angle, moveSpeed, trailDelay). The permuter now reads
+   it and found PERMUTER_BETTER 410 -> 315 in 1608 iterations, but the winning edit
+   is a DEAD END / wrong code: it casts the 0x100 argument to (unsigned char),
+   which truncates it to 0, i.e. it buys the score by changing what the call is
+   passed (same trap as round 155's func_8008B2BC candidate). Do not port it.
+   Hand shapes already tried and measured no better: a pSprite local used by all
+   three calls (WorldMapInitActorSpriteBySlot style), the pointer built as
+   (u8 *)g_WorldMapSlots + index * 0x80, a flat tail without the angle local
+   (83.05), cdk (83.19). WorldMapInitPartyActorSprite0 (matched) has this exact
+   call shape and does reproduce retail's prologue, so the trigger is this
+   function's tail, not the call. */
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
+    u16 angle;
 
-    pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
-    SpritePlayAnimation(pActor->unk4C, 0);
-    SpriteSetScale(pActor->unk4C, 0x1800);
-    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.worldMapPosX << 12;
-    pActor->unk30 = g_GameState.worldMapPosZ << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-    {
-        u16 unk48 = g_GameState.worldMapPlayerRotation;
-        pActor->unk24 = 1;
-        pActor->unk4A = 8;
-        pActor->unk20 = 2;
-        pActor->unk40 = 0;
-        pActor->unk3C = 0;
-        pActor->unk38 = 0;
-        pActor->unk58 = 0xF;
-        pActor->unk48 = unk48;
-    }
+    pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x1800);
+    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->x = g_GameState.worldMapPosX << 12;
+    pActor->z = g_GameState.worldMapPosZ << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+    angle = g_GameState.worldMapPlayerRotation;
+    pActor->unk24 = 1;
+    pActor->moveSpeed = 8;
+    pActor->state = 2;
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->trailDelay = 0xF;
+    pActor->angle = angle;
     return 1;
 }
 */
