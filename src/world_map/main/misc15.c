@@ -5,8 +5,8 @@
 #include "psyq/libgpu.h"
 
 typedef struct {
-    /* 0x00 */ u16 state;
-    /* 0x02 */ u16 stateTimer;
+    /* 0x00 */ s16 state;
+    /* 0x02 */ s16 stateTimer;
     /* 0x04 */ s16 command;
     /* 0x06 */ u8 unk6[0x12];
     /* 0x18 */ s32 pEnterHandler; // called once in state 0; its return is the next state
@@ -71,7 +71,11 @@ extern s32 D_8009BE48;
 extern s32 D_8009CCB0;
 extern s32 g_WorldMapCdReadErrorCount;
 extern s32 g_WorldMapCdRetryCount;
-extern void func_80096A6C(void);
+extern void func_80096A6C(s32 mode, u8 *pResult);
+extern void func_80096C0C(u_char mode, u_char *pResult);
+extern s32 D_8009BCCC;
+extern s32 D_8009BCD0;
+extern s32 D_8009BCD4;
 extern u32 ArchiveGetDebugTable(void);
 extern s32 func_800968E0(void);
 extern void WorldMapReadFileEntries(void *p);
@@ -105,36 +109,27 @@ s32 WorldMapUpdateLoadQueue(void) {
     }
     return result;
 }
-// Best: 99.79% -- blocked, not a match problem: this switch's table is
-// jtbl_80070CA0 in asm/world_map/data/0.rodata.s, whose entries are
-// .word .L80096910/.L80096918/.L80096950/.L80096958. Converting the function
-// deletes those local labels from the asm and the overlay stops linking
-// (undefined reference to .L80096910 at .rodata+0x11b0). The table would have
-// to move to C with the function, and a C definition cannot name code labels.
-/*
 s32 func_800968E0(void) {
     switch (g_WorldMapCdReadState) {
     case 0:
         return 0;
-    case 1:
-    case 2:
-    case 3:
-        return 1;
     case 4:
         if (--D_8009BD2C == 0) {
             g_WorldMapCdReadState++;
         }
         return 1;
+    case 1:
+    case 2:
+    case 3:
+        return 1;
     case 5:
         g_WorldMapCdReadState = 0;
-        g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] = 0;
+        g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] = NULL;
         g_WorldMapLoadQueueHead = (g_WorldMapLoadQueueHead + 1) & 0xF;
         return 2;
     }
     return 3;
 }
- */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
 void WorldMapStartCdRead(Misc15CdRequest *p) {
     CdlLOC *pLoc;
     s32 lba;
@@ -161,7 +156,56 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     CdControlF(CdlSetloc, (u8 *)pLoc);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
+void func_80096A6C(s32 mode, u8 *pResult) {
+    CdlLOC *pLoc;
+
+    if (mode == 2) {
+        switch (g_WorldMapCdReadState) {
+        case 1:
+            g_WorldMapCdReadState = 2;
+            D_8009BCD4 = 0;
+            D_8009BCD0 = 0;
+            D_8009BCCC = 0;
+            CdReadyCallback(func_80096C0C);
+            CdControlF(0x1B, NULL);
+            break;
+        case 3:
+            if (g_WorldMapCdCurrentSector == 0) {
+                g_WorldMapCdReadState = 4;
+                D_8009BD2C = 1;
+                CdSyncCallback(NULL);
+            }
+            break;
+        case 10:
+            if (pResult[0] & 0x10) {
+                CdControlF(1, NULL);
+            } else {
+                CdControlF(0x13, NULL);
+                g_WorldMapCdReadState = 0xB;
+            }
+            break;
+        case 11:
+            g_WorldMapCdReadState = 0xC;
+            CdControlF(9, NULL);
+            break;
+        case 12:
+            pLoc = &g_WorldMapCdReadLocation;
+            g_WorldMapCdReadState = 1;
+            CdIntToPos(g_WorldMapCdExpectedSector, pLoc);
+            CdControlF(2, (u8 *)pLoc);
+            break;
+        }
+    } else {
+        if (pResult[0] & 0x10) {
+            g_WorldMapCdReadState = 0xA;
+            g_WorldMapCdReadErrorCount++;
+            CdControlF(1, NULL);
+        } else {
+            g_WorldMapCdReadState = 0xB;
+            CdControlF(0x13, NULL);
+        }
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
 // Best: 59.80%. The structure is decoded and every call/argument is right (the
@@ -392,7 +436,39 @@ void WorldMapSetSlotWaitFrames(s32 index, u16 value) {
     *(u16 *)(pSlot + 2) = value;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
+extern void SpriteDestroy(void *p);
+
+void func_80097800(void) {
+    Misc15Slot *pSlot;
+    s32 i;
+
+    for (i = 0, pSlot = g_WorldMapSlots; i < 0x40; i++, pSlot++) {
+        if (pSlot->pUpdateHandler == 0) {
+            continue;
+        }
+        switch (pSlot->state) {
+        case 0:
+            pSlot->state = ((s32(*)(s32))pSlot->pEnterHandler)(i);
+            break;
+        case 1:
+            pSlot->state = ((s32(*)(s32))pSlot->pUpdateHandler)(i);
+            break;
+        case 2:
+            if (--pSlot->stateTimer <= 0) {
+                pSlot->state = 1;
+            }
+            break;
+        case 3:
+            break;
+        case 4:
+            if (pSlot->pSprite != 0) {
+                SpriteDestroy((void *)pSlot->pSprite);
+            }
+            break;
+        }
+    }
+}
+
 // try_flags: --gp -G0 gives 88.53 but drops the matched WorldMapRefreshGrid to
 // 97.21 and WorldMapStartCdRead to 91.63, so the unit preset is right; gcc 2.6.0
 // gives 79.25 with the parked shape.
