@@ -4,27 +4,28 @@
 #include "psyq/memory.h"
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
-/* 99.94%: byte-identical size (316) and instruction stream; the ONLY difference
-   is the inner loop's back-edge target: retail's .L800378EC label sits on the
-   maspsx mult/mflo hazard nop and branches to +0x74, ours lands after that nop
-   (+0x78). Same for a `while` inner loop and for the pRow-pointer spelling
-   (97.15%). Everything else is exact, including the fresh `mult` for i*nSize
-   (a pCur local or an nRowOffset temp instead makes gcc strength-reduce it into
-   an accumulator, which is what the earlier 79.6% was).
-   WALL, and the assembler is the reason: maspsx's _handle_mflo_mfhi
-   (tools/maspsx/maspsx/__init__.py, the `next_next_instruction is mult` branch)
-   copies the instructions after mflo, appends the hazard `nop`, and only THEN
-   prints the following `$L` label, so `--print-output` shows
-   "addu / nop / $L8: / mult"; retail's aspsx printed the label first ("$L8: / nop
-   / mult", label at 0x800378EC). No C shape can move that label: for(;;)+break,
-   for(j=i;j<nCount;j++), an empty do/while at the loop head and a do/while around
-   the three memcpys were all tried (the first three 99.94% with this same single
-   difference; the memcpy do/while breaks the outer-loop rotation, 95.29%/312
-   bytes; an if/else+continue form is 81.78%). permuter from this body: 503
-   iterations, base=1 best=1. gcc itself emits the label on the `mult`, and
-   maspsx inserts its nop before any label that follows a mflo window, so the only
-   asmasp-version knob is nop_mflo_mfhi (off below aspsx 2.30), which would drop
-   the nop and the 4 bytes with it. Leave as INCLUDE_ASM.
+/* 99.94%, 316 bytes = retail's exact size and instruction stream. The ONE
+   remaining difference is a real 4-BYTE BRANCH DISPLACEMENT, not a label name:
+   the inner loop's back edge is `bnez v0,+0x74` in retail (targeting the
+   mult/mflo hazard nop, which aspsx placed AFTER the loop label) and
+   `bnez v0,+0x78` here (targeting the `mult s2,s3`, because maspsx placed its
+   hazard nop BEFORE the label). The bytes therefore differ and check_bin can
+   never pass, so this is not an objdiff artifact.
+   WHY NO C SHAPE CAN MOVE IT - verified in the raw cc1 output
+   (build/src/slus_006.64/system/archive_b.c.s): cc1 emits
+     mult $20,$18 / mflo $8 / addu $17,$8,$22 / $L8: / mult $18,$19
+   and maspsx's _handle_mflo_mfhi (tools/maspsx, the `next_next_instruction is
+   mult` branch) emits, for the mflo LINE, [addu, nop] as a unit and only then
+   replays the `$L8:` line it collected, giving addu / nop / $L8: / mult. The
+   nop is appended in the same res.extend as the instruction following mflo, so
+   the label can only ever land after it; putting the label before the addu (or
+   removing the addu) moves the label to the addu, and the other maspsx branch
+   (next IS a mult) emits two nops and 8 extra bytes. nop_mflo_mfhi off (aspsx <
+   2.30) drops the nop and 4 bytes. Shapes already measured: for(;;)+break,
+   for(j=i;j<nCount;j++), an empty do/while at the loop head (all 99.94% with
+   this same single difference), a do/while around the three memcpys
+   (95.29%/312), if/else+continue (81.78%), a pRow pointer (97.15%), and a
+   permuter run (503 iterations, base=1 best=1). Leave as INCLUDE_ASM.
 typedef s32 (*ArchiveCompareFn)(u8* pA, u8* pB);
 
 void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) {
