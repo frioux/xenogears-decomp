@@ -37,6 +37,13 @@ extern s32 g_BattleMode;
 extern s32 g_BattleSpriteArchiveBuffer;
 extern s32 g_BattleStateAdvanceRequested;
 extern s32 g_BattleSpriteArchiveFreed;
+extern s32 g_BattleSlotConfirmFlags;
+extern s32 g_BattleEntryCount;
+extern s32 D_80092754;
+extern u16 D_800916E2;
+extern u16 D_8009171E;
+extern u8 g_BattlePlayer1ComControlled;
+extern u8 g_BattlePlayer2ComControlled;
 
 extern void BattleClearTextSpriteEntries(void);
 extern void BattleInitTutorialMessage(void);
@@ -86,6 +93,7 @@ typedef struct {
 extern BattleTextList g_BattleTextLists[8];
 extern BattleTextList D_80091660[];
 extern BattleTextList D_800916D8[];
+extern BattleTextList D_80091714[];
 extern BattleTextList *g_BattleCurrentTextList;
 extern BattleTextList *g_BattlePrevTextList;
 
@@ -103,6 +111,7 @@ extern void func_800812BC(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
 extern void func_8008162C(BattleTextList *p, s32 a1);
 extern void func_80081A44(void);
+extern void BattleDrawVibrationOptions(void);
 extern s32 BattleGetTextWidth(u32 a0);
 extern void BattleSetTextColor(s32 a0);
 extern void func_80080F04(void);
@@ -545,6 +554,122 @@ void BattleDrawTextList(BattleTextList *p) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008162C);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
+/* PARK 94.33% (740 bytes, retail's exact size). g_BattleMode 1..5 selects a
+   vibration-option screen; each arm tests g_BattleSlotConfirmFlags. Everything
+   but case 2 is instruction-identical, including the cross-jumped arms and
+   gcc's shared tails: case 1 and case 4 share the flags==0/3 handling, case 1
+   and case 5 share the "func_8008162C(list5, 0)" call tail (so case 5's
+   flags==0 arm must NOT set D_80092754), and case 3's call is its own copy.
+   The inverted ternary `(flags & 1) == 0 ? 4 : 5` is what gives retail's
+   bnez + li 5 + li 4 order (the plain `? 5 : 4` gives beqz + li 4).
+   Residual, all in case 2 and all one allocator tie:
+     - retail reads g_BattleSlotConfirmFlags TWICE (one load per ternary) and
+       reuses $v0 for both the value and the (5,4) arm, ours cse's the load
+       into $a0 and uses $v1 for the arm;
+     - retail rematerialises the constant 1 (`li v1,1` / `li v0,1`), ours keeps
+       it in $s1 across the two func_8008162C calls, which grows the frame from
+       0x18 to 0x20 (+3 insns: saved/restored s1).
+   Tried and measured: s32 v local for each ternary (same), D_80092754 stored
+   after the two ternaries (91.44), reading the flags through a volatile
+   (91.97), &g_BattleTextLists[5]/[6] vs D_800916D8+0x3C for the two calls
+   (both 740 bytes; the g_BattleTextLists form reproduces retail's
+   `la s0` + `addiu a0,s0,0x3C` and is the one parked), gcc-2.7.2-cdk (83.90),
+   -O3 (identical), and a 4-minute permuter run (best 810, semantically wrong
+   candidates only).
+void func_80081A44(void) {
+    switch (g_BattleMode) {
+    case 1:
+        switch (g_BattleSlotConfirmFlags) {
+        case 0:
+            D_80092754 = 0;
+            func_8008162C(D_800916D8, 0);
+            break;
+        case 1:
+            D_80092754 = 1;
+            func_8008162C(D_80091714, 0);
+            break;
+        case 3:
+            g_BattleStateAdvanceRequested = 1;
+            break;
+        }
+        g_BattlePlayer1ComControlled = 0;
+        g_BattlePlayer2ComControlled = 1;
+        break;
+    case 2:
+        D_80092754 = 1;
+        D_800916E2 = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
+        D_8009171E = (g_BattleSlotConfirmFlags & 2) == 0 ? 4 : 5;
+        func_8008162C(&g_BattleTextLists[5], 0);
+        func_8008162C(&g_BattleTextLists[6], 1);
+        if (g_BattleSlotConfirmFlags == 3) {
+            g_BattleStateAdvanceRequested = 1;
+        }
+        g_BattlePlayer1ComControlled = 0;
+        g_BattlePlayer2ComControlled = 0;
+        break;
+    case 3:
+        switch (g_BattleSlotConfirmFlags) {
+        case 0:
+            D_80092754 = 0;
+            func_8008162C(D_800916D8, 0);
+            break;
+        case 1:
+            D_80092754 = 1;
+            func_8008162C(D_80091714, 0);
+            break;
+        case 3:
+            g_BattleStateAdvanceRequested = 1;
+            break;
+        }
+        g_BattlePlayer1ComControlled = 1;
+        g_BattlePlayer2ComControlled = 1;
+        break;
+    case 4:
+        switch (g_BattleSlotConfirmFlags) {
+        case 0:
+            D_80092754 = 0;
+            func_8008162C(D_800916D8, 0);
+            break;
+        case 1:
+            D_80092754 = 1;
+            func_8008162C(D_80091714, 0);
+            break;
+        case 3:
+            g_BattleStateAdvanceRequested = 1;
+            break;
+        }
+        g_BattlePlayer1ComControlled = 0;
+        g_BattlePlayer2ComControlled = 1;
+        break;
+    case 5:
+        switch (g_BattleSlotConfirmFlags) {
+        case 0:
+            func_8008162C(D_800916D8, 0);
+            break;
+        case 1:
+            if (g_BattleCursorIndex1 == 3) {
+                g_BattleSlotConfirmFlags = g_BattleCursorIndex1;
+            } else {
+                g_BattleCursorIndex1++;
+                if (g_BattleEntryCount < g_BattleCursorIndex1) {
+                    g_BattleCursorIndex1 -= g_BattleEntryCount;
+                }
+                if (g_BattleCursorIndex1 < 0) {
+                    g_BattleCursorIndex1 += g_BattleEntryCount;
+                }
+            }
+            break;
+        case 3:
+            g_BattleStateAdvanceRequested = 1;
+            break;
+        }
+        g_BattlePlayer1ComControlled = 0;
+        g_BattlePlayer2ComControlled = 1;
+        break;
+    }
+    BattleDrawVibrationOptions();
+}
+*/
 
 void BattleUpdateTextWindow(void) {
     s32 unk[2]; /* unused: retail's frame keeps 8 bytes of locals here */
