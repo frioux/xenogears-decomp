@@ -521,17 +521,6 @@ void func_800978FC(void) {
     } while (pSrc != pEnd);
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
-// Best: 96.83%. Instruction-identical except the prologue: retail emits the
-// `sw s2,0x20(sp)` + `move s2,zero` (i = 0 from the declaration) AFTER the
-// LZSSHeapDecompress argument setup (lui/lw a0, li a1) and before `sw ra`; we
-// emit that pair first, at the very top of the entry block. Same 2-insn class
-// as the parked WorldMapLoadTextureClut in world_map/main/misc8 (98.71%), not a register
-// numbering problem. What DID close this from 92.13%: three separate pointer
-// locals (pClut for loop 1, pClut2 for loop 2, pClut3 for loop 3 - one shared
-// pClut put i in s3 and the pointer in s2, the reverse of retail), assigning
-// `i = 0`/`i = 4` before the `pClut2/pClut3 = ...` address formation, and
-// `for (; i < N; x += 0x80, i++, pClut++)` so x += 0x80 precedes i++.
 extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
@@ -542,13 +531,12 @@ extern u16 D_8009CCB4[];
 extern u16 D_8009CD54[];
 extern u16 D_8009CD5C[];
 
-/*
 void func_800979C8(void) {
     RECT rect;
     u8 *pData;
     u8 *pDst;
     u8 *pFactors;
-    s32 i = 0;
+    s32 i;
     s32 x;
     s32 y;
     u16 *pClut;
@@ -560,6 +548,7 @@ void func_800979C8(void) {
     DrawSync(0);
     HeapFree(pData);
     HeapFree(D_8009C59C);
+    i = 0;
     pClut = D_8009CCB4;
     pData = HeapAlloc(0x400, 1);
     pDst = HeapAlloc(0x8000, 1);
@@ -600,7 +589,6 @@ void func_800979C8(void) {
     HeapFree(pData);
 }
 
-*/
 
 // Best: 63.31%. Same instruction multiset, different order: cc1 2.7.2's sched2
 // hoists the C618/C838/C83C stores above the two loads and splits the mask into
