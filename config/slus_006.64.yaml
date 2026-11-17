@@ -176,6 +176,8 @@ segments:
       - [0x3AF0C, c, psyq/libgte_nclip] # NormalClip on
       - [0x3AFB4, asm] # RotTransPers4's tail pad words (2 words)
       - [0x3AFBC, c, psyq/libgte_average] # RotAverage4 on
+      - [0x3B038, asm] # RotAverage4's tail pad word (Psy-Q pads a function to 16 bytes)
+      - [0x3B03C, c, psyq/libgte_average_b] # RotAverageNclip4 on
       - [0x3BCAC, asm] # Part of libetc
       - [0x3BD4C, c, psyq/libetc/vsync]
       - [0x3BF30, c, psyq/libapi_3]
