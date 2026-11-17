@@ -239,7 +239,7 @@ void func_8007C840(u8 **arg0, u8 arg1) {
     } while (0);
 }
 */
-void func_8007C9D4(u8 **arg0, u8 arg1) {
+void BattlePickCharSlotByFlagRetry(u8 **arg0, u8 arg1) {
     u8 buf[3];
     u16 *pRow = g_BattleSlotRows[arg1].unk10;
 
@@ -451,7 +451,7 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
         pRow[index] = result;
     }
 }
-void func_8007D478(u8 **arg0, u8 arg1) {
+void BattlePickCharSlotByEntryFlags(u8 **arg0, u8 arg1) {
     u8 buf[3];
     u16 *pRow = g_BattleSlotRows[arg1].unk10;
 
@@ -461,7 +461,7 @@ void func_8007D478(u8 **arg0, u8 arg1) {
         s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
         u8 tried = buf[idx];
-        /* second live copy of the row pointer, as in func_8007C9D4 */
+        /* second live copy of the row pointer, as in BattlePickCharSlotByFlagRetry */
         u16 *pLoopRow = g_BattleSlotRows[arg1].unk10;
         u32 flags;
 
