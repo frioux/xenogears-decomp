@@ -7,7 +7,12 @@
 // The slot id that means "no slot": an empty candidate list entry, a slot that
 // targets nothing.
 #define BATTLE_SLOT_NONE 0xFF
-// Played on every branch where the slot menu refuses the input instead of
+// The mode BattleClearSlotCurveState and BattleClearSlotCurveEntry store to mean
+// that no curve runs on the slot; BattleApplySlotCurve's switch never matches it.
+#define BATTLE_CURVE_MODE_NONE 0xFF
+// Slot flags bits that make a slot untargetable: BattlePairTargetable and
+// BattleActorTargetableWithOverride call it targetable only while they are clear.
+#define BATTLE_SLOT_FLAGS_UNTARGETABLE 0xC001
 
 extern u8 g_BattleCurveModes[];
 extern u16 g_BattleCurveValues[];
@@ -657,9 +662,9 @@ u8 BattlePairTargetable(u8 arg0, u8 arg1) {
             if (g_BattleSlotFlags[arg1 * 8] == 0) {
                 if (*(g_BattleSlotParamTable + (g_BattleSlotRecords[arg0][0] * 0x40 +
                                                g_BattleSlotRecords[arg1][0] * 8) + 0x140) == 0) {
-                    ret = (g_BattleSlotEntries[arg1].flags & 0xC001) == 0;
+                    ret = (g_BattleSlotEntries[arg1].flags & BATTLE_SLOT_FLAGS_UNTARGETABLE) == 0;
                 }
-            } else if ((D_800CCE08[arg1].flags & 0xC001) == 0) {
+            } else if ((D_800CCE08[arg1].flags & BATTLE_SLOT_FLAGS_UNTARGETABLE) == 0) {
                 ret = 1;
             }
         }
@@ -674,13 +679,13 @@ u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
         if (D_800C3EB7[arg0][0] == 0) {
             if (g_BattleSlotFlags[arg0 * 8] == 0) {
                 if (arg1 == 0) {
-                    ret = (g_BattleSlotEntries[arg0].flags & 0xC001) == 0;
+                    ret = (g_BattleSlotEntries[arg0].flags & BATTLE_SLOT_FLAGS_UNTARGETABLE) == 0;
                 } else {
                     ret = 1;
                 }
             } else {
                 if (arg1 == 0) {
-                    if ((D_800CCE08[arg0].flags & 0xC001) == 0) {
+                    if ((D_800CCE08[arg0].flags & BATTLE_SLOT_FLAGS_UNTARGETABLE) == 0) {
                         ret = 1;
                     }
                 } else {
@@ -1205,7 +1210,7 @@ void BattleClearSlotCurveState(void) {
     s32 i;
 
     for (i = 0; i < 11; i++) {
-        g_BattleCurveModes[i] = 0xFF;
+        g_BattleCurveModes[i] = BATTLE_CURVE_MODE_NONE;
         g_BattleCurveValues[i] = 0;
     }
 }
@@ -1214,9 +1219,9 @@ void BattleClearSlotCurveEntry(void) {
 
     for (i = 0; i < 0xB; i++) {
         g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveTargets[i] = 0;
-        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveTargetModes[i] = 0xFF;
+        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveTargetModes[i] = BATTLE_CURVE_MODE_NONE;
         g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveValues[i] = 0;
-        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveModes[i] = 0xFF;
+        g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveModes[i] = BATTLE_CURVE_MODE_NONE;
     }
 }
 extern u16 g_BattleCurveTargets[][2];
