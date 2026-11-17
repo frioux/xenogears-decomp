@@ -75,20 +75,20 @@ void BattleRollAndClearTargetConditions(void) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
     } else {
         if (g_BattleCurrentRow->conditionKind & 0x80) {
-            D_800C3E34->unk7C &= 0xC000;
+            D_800C3E34->activeEffectFlags1 &= 0xC000;
         }
         if (g_BattleCurrentRow->conditionKind & 0x40) {
-            D_800C3E34->unk80 = 0;
+            D_800C3E34->activeEffectFlags2 = 0;
             D_800C3E34->unk7A &= 0xFFDF;
         }
         if (g_BattleCurrentRow->conditionKind & 0x20) {
-            D_800C3E34->unk84 = 0;
+            D_800C3E34->activeEffectFlags3 = 0;
         }
         if (g_BattleCurrentRow->conditionKind & 0x10) {
-            D_800C3E34->unk88 = 0;
+            D_800C3E34->activeEffectFlags4 = 0;
         }
         if (g_BattleCurrentRow->conditionKind & 0x8) {
-            D_800C3E34->unk8C = 0;
+            D_800C3E34->activeEffectFlags7 = 0;
         }
     }
 }
@@ -99,7 +99,7 @@ void BattleRollSlotConditionAction(void) {
 
     switch (g_BattleCurrentRow->chanceSource) {
     case 0:
-        chance = g_BattleActingSlot->unk60[0];
+        chance = g_BattleActingSlot->conditionChance;
         break;
     case 1:
         chance = g_BattleCurrentRow->chance;
@@ -142,7 +142,7 @@ void BattleRollSlotConditionAction(void) {
         break;
     case 2:
     case 3:
-        if ((D_800C3E34->unk88 | D_800C3E34->accessoryEffectFlags4) & 0x200) {
+        if ((D_800C3E34->activeEffectFlags4 | D_800C3E34->accessoryEffectFlags4) & 0x200) {
             g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
             return;
         }
@@ -160,7 +160,7 @@ void BattleSetSlotConditionActionValue(void) {
 
     switch (g_BattleCurrentRow->chanceSource) {
     case 0:
-        chance = g_BattleActingSlot->unk60[0];
+        chance = g_BattleActingSlot->conditionChance;
         break;
     case 1:
         chance = g_BattleCurrentRow->chance;
@@ -227,8 +227,8 @@ void BattleSetSlotConditionActionValue(void) {
         if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
             g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
         } else {
-            D_800C3E34->unk7C |= 1;
-            D_800C3E34->unk80 |= 1;
+            D_800C3E34->activeEffectFlags1 |= 1;
+            D_800C3E34->activeEffectFlags2 |= 1;
         }
         break;
     }
@@ -274,7 +274,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     elemDef = *(u8 *)&D_800C3E34->element & 0x3F;
     bitDef = *(u8 *)(pBase + g_BattleTargetSlotIndex * 0x170 + 0x15A) >> 7;
     if (bitDef == 0) {
-        pair = g_BattleActingSlot->unk8C | g_BattleActingSlot->accessoryEffectFlags7;
+        pair = g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7;
     } else {
         pair = *(u16 *)((u8 *)D_800D2D6C + 0x84) | *(u16 *)((u8 *)D_800D2D6C + 0x86);
     }
@@ -303,7 +303,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
         }
     }
     if (bitAtk == 0) {
-        m = D_800C3E34->unk8C | D_800C3E34->accessoryEffectFlags7;
+        m = D_800C3E34->activeEffectFlags7 | D_800C3E34->accessoryEffectFlags7;
         elem2 = (m & 0xF00) >> 8;
         hitB = (m >> 1) & 1;
     } else {
@@ -395,10 +395,10 @@ void BattleRollPercentAndSwapActiveActor(void) {
     s32 lim;
 
     pTarget = D_800C3E34;
-    if (pTarget->unk7C & 0xA000) {
+    if (pTarget->activeEffectFlags1 & 0xA000) {
         return;
     }
-    t = pTarget->unk80;
+    t = pTarget->activeEffectFlags2;
     if (t & 0x1000) {
         return;
     }
@@ -406,7 +406,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (sel < 3 && !(t & 0x2000)) {
         return;
     }
-    if (!(pTarget->unk88 & 0x1000)) {
+    if (!(pTarget->activeEffectFlags4 & 0x1000)) {
         return;
     }
     t = g_BattleCurrentRow->actionFlags;
@@ -467,7 +467,7 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
             return 0;
         }
         if (flags & 0x1000) {
-            D_800C3E34->unk84 &= 0x7FFF;
+            D_800C3E34->activeEffectFlags3 &= 0x7FFF;
         }
         break;
     }
@@ -477,27 +477,27 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
         }
         break;
     case 5:
-        if ((D_800C3E34->unk7C | D_800C3E34->accessoryEffectFlags1) & 1) {
+        if ((D_800C3E34->activeEffectFlags1 | D_800C3E34->accessoryEffectFlags1) & 1) {
             return 0;
         }
         if (flags & 0x8000) {
-            D_800C3E34->unk7C &= 0xEFFF;
+            D_800C3E34->activeEffectFlags1 &= 0xEFFF;
         }
         break;
     case 7:
-        if ((D_800C3E34->unk80 | D_800C3E34->accessoryEffectFlags2) & 1) {
+        if ((D_800C3E34->activeEffectFlags2 | D_800C3E34->accessoryEffectFlags2) & 1) {
             return 0;
         }
         if (flags & 0xA) {
-            if (D_800C3E34->unk88 & 0x5) {
-                D_800C3E34->unk88 &= 0xFFFA;
+            if (D_800C3E34->activeEffectFlags4 & 0x5) {
+                D_800C3E34->activeEffectFlags4 &= 0xFFFA;
                 return 1;
             }
             break;
         }
         if (flags & 0x5) {
-            if (D_800C3E34->unk88 & 0xA) {
-                D_800C3E34->unk88 &= 0xFFF5;
+            if (D_800C3E34->activeEffectFlags4 & 0xA) {
+                D_800C3E34->activeEffectFlags4 &= 0xFFF5;
                 return 1;
             }
             break;
@@ -509,24 +509,24 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
                 g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
             }
-            D_800C3E34->unk8C &= 0xFFF;
+            D_800C3E34->activeEffectFlags7 &= 0xFFF;
         }
         if (flags & 0xF00) {
             if (D_800C3E34->accessoryEffectFlags7 & 0xF00) {
                 g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
             }
-            D_800C3E34->unk8C &= 0xF0FF;
+            D_800C3E34->activeEffectFlags7 &= 0xF0FF;
         }
         break;
     }
 
     switch (kind) {
     case 0:
-        D_800C3E34->unk7C = (flags | D_800C3E34->unk7C) & 0xFFFD;
+        D_800C3E34->activeEffectFlags1 = (flags | D_800C3E34->activeEffectFlags1) & 0xFFFD;
         if (flags & 0x2) {
             if (BattleTestActorSlotFlagsC002ByMode()) {
-                D_800C3E34->unk7C |= flags;
+                D_800C3E34->activeEffectFlags1 |= flags;
                 g_BattleCurWorkBlock->commandCode = 0x31;
                 D_800C3E34->unk7A = 0xFFEF;
             } else {
@@ -535,7 +535,7 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
         }
         break;
     case 2:
-        D_800C3E34->unk80 |= flags;
+        D_800C3E34->activeEffectFlags2 |= flags;
         if (flags & 0x800) {
             D_800C3E34->unk7A |= 0x20;
         }
@@ -544,7 +544,7 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
     case 7:
     case 9: {
         // The per-kind condition words are the u16 run at unk7A, so unk7A[kind]
-        // is unk84 for kind 5 and unk88 for kind 7. The two halves of the sum
+        // is activeEffectFlags3 for kind 5 and activeEffectFlags4 for kind 7. The two halves of the sum
         // must be spelled base-first, or gcc puts the address in the index
         // register and the shared store below cannot be cross-jumped.
         mem_addr base;
@@ -717,7 +717,7 @@ u8 BattleTestActorSlotFlagsC002ByMode(void) {
     case 2:
         n = 0;
         for (i = 0; i < 3; i++) {
-            if (g_BattleCurWorkBlock->slots[i].unk7C & 0xC002) {
+            if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 0xC002) {
                 n++;
             }
         }
@@ -728,7 +728,7 @@ u8 BattleTestActorSlotFlagsC002ByMode(void) {
     case 3:
         n = 0;
         for (i = 0; i < 3; i++) {
-            if (g_BattleCurWorkBlock->slots[i].unk7C & 0xC002) {
+            if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 0xC002) {
                 n++;
             }
         }
@@ -815,7 +815,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     case 5:
     case 7:
     case 9:
-        bits = D_800C3E34->unk88 | D_800C3E34->accessoryEffectFlags4;
+        bits = D_800C3E34->activeEffectFlags4 | D_800C3E34->accessoryEffectFlags4;
         if (bits & 5) {
             val *= 2;
         }
@@ -853,169 +853,169 @@ u16 BattleDecrementSlotConditionTimers(u8 slot) {
         return 0;
     }
     ret = 0;
-    if (pEntry->unk7C & 0x1000) {
+    if (pEntry->activeEffectFlags1 & 0x1000) {
         pCnt[1] = pCnt[1] + 0xFF;
         if (pCnt[1] == 0) {
             ret |= 0x4000;
-            pEntry->unk7C &= 0xEFFF;
+            pEntry->activeEffectFlags1 &= 0xEFFF;
         }
     }
-    if (pEntry->unk80 & 0x1000) {
+    if (pEntry->activeEffectFlags2 & 0x1000) {
         pCnt[2] = pCnt[2] + 0xFF;
         if (pCnt[2] == 0) {
             ret |= 0x2000;
-            pEntry->unk80 &= 0xEFFF;
+            pEntry->activeEffectFlags2 &= 0xEFFF;
         }
     }
-    if (pEntry->unk80 & 0x800) {
+    if (pEntry->activeEffectFlags2 & 0x800) {
         pCnt[3] = pCnt[3] + 0xFF;
         if (pCnt[3] == 0) {
             ret |= 0x1000;
-            pEntry->unk80 &= 0xF7FF;
+            pEntry->activeEffectFlags2 &= 0xF7FF;
             pEntry->unk7A &= 0xFFDF;
         }
     }
-    if ((pEntry->unk84 & 0x8000) && !(pEntry->accessoryEffectFlags3 & 0x8000)) {
+    if ((pEntry->activeEffectFlags3 & 0x8000) && !(pEntry->accessoryEffectFlags3 & 0x8000)) {
         pCnt[4] = pCnt[4] + 0xFF;
         if (pCnt[4] == 0) {
             ret |= 0x800;
-            pEntry->unk84 &= 0x7FFF;
+            pEntry->activeEffectFlags3 &= 0x7FFF;
         }
     }
-    if ((pEntry->unk84 & 0x4000) && !(pEntry->accessoryEffectFlags3 & 0x4000)) {
+    if ((pEntry->activeEffectFlags3 & 0x4000) && !(pEntry->accessoryEffectFlags3 & 0x4000)) {
         pCnt[5] = pCnt[5] + 0xFF;
         if (pCnt[5] == 0) {
             ret |= 0x400;
-            pEntry->unk84 &= 0xBFFF;
+            pEntry->activeEffectFlags3 &= 0xBFFF;
         }
     }
-    if ((pEntry->unk84 & 0x2000) && !(pEntry->accessoryEffectFlags3 & 0x2000)) {
+    if ((pEntry->activeEffectFlags3 & 0x2000) && !(pEntry->accessoryEffectFlags3 & 0x2000)) {
         pCnt[6] = pCnt[6] + 0xFF;
         if (pCnt[6] == 0) {
             ret |= 0x200;
-            pEntry->unk84 &= 0xDFFF;
+            pEntry->activeEffectFlags3 &= 0xDFFF;
         }
     }
-    if ((pEntry->unk84 & 0x1000) && !(pEntry->accessoryEffectFlags3 & 0x1000)) {
+    if ((pEntry->activeEffectFlags3 & 0x1000) && !(pEntry->accessoryEffectFlags3 & 0x1000)) {
         pCnt[7] = pCnt[7] + 0xFF;
         if (pCnt[7] == 0) {
             ret |= 0x100;
-            pEntry->unk84 &= 0xEFFF;
+            pEntry->activeEffectFlags3 &= 0xEFFF;
         }
     }
-    if ((pEntry->unk84 & 0x800) && !(pEntry->accessoryEffectFlags3 & 0x800)) {
+    if ((pEntry->activeEffectFlags3 & 0x800) && !(pEntry->accessoryEffectFlags3 & 0x800)) {
         pCnt[8] = pCnt[8] + 0xFF;
         if (pCnt[8] == 0) {
             ret |= 0x80;
-            pEntry->unk84 &= 0xF7FF;
+            pEntry->activeEffectFlags3 &= 0xF7FF;
         }
     }
-    if ((pEntry->unk88 & 0x8000) && !(pEntry->accessoryEffectFlags4 & 0x8000)) {
+    if ((pEntry->activeEffectFlags4 & 0x8000) && !(pEntry->accessoryEffectFlags4 & 0x8000)) {
         pCnt[9] = pCnt[9] + 0xFF;
         if (pCnt[9] == 0) {
             ret |= 0x40;
-            pEntry->unk88 &= 0x7FFF;
+            pEntry->activeEffectFlags4 &= 0x7FFF;
         }
     }
-    if ((pEntry->unk88 & 0x4000) && !(pEntry->accessoryEffectFlags4 & 0x4000)) {
+    if ((pEntry->activeEffectFlags4 & 0x4000) && !(pEntry->accessoryEffectFlags4 & 0x4000)) {
         pCnt[0xA] = pCnt[0xA] + 0xFF;
         if (pCnt[0xA] == 0) {
             ret |= 0x20;
-            pEntry->unk88 &= 0xBFFF;
+            pEntry->activeEffectFlags4 &= 0xBFFF;
         }
     }
-    if ((pEntry->unk88 & 0x1000) && !(pEntry->accessoryEffectFlags4 & 0x1000)) {
+    if ((pEntry->activeEffectFlags4 & 0x1000) && !(pEntry->accessoryEffectFlags4 & 0x1000)) {
         pCnt[0xB] = pCnt[0xB] + 0xFF;
         if (pCnt[0xB] == 0) {
             ret |= 0x10;
-            pEntry->unk88 &= 0xEFFF;
+            pEntry->activeEffectFlags4 &= 0xEFFF;
         }
     }
-    if (pEntry->unk8C & 0xF000) {
+    if (pEntry->activeEffectFlags7 & 0xF000) {
         if (!(pEntry->accessoryEffectFlags7 & 0xF000)) {
             pCnt[0xC] = pCnt[0xC] + 0xFF;
             if (pCnt[0xC] == 0) {
                 ret |= 8;
-                pEntry->unk8C &= 0xFFF;
+                pEntry->activeEffectFlags7 &= 0xFFF;
             }
         }
     }
-    if (pEntry->unk8C & 0xF00) {
+    if (pEntry->activeEffectFlags7 & 0xF00) {
         if (!(pEntry->accessoryEffectFlags7 & 0xF00)) {
             pCnt[0xD] = pCnt[0xD] + 0xFF;
             if (pCnt[0xD] == 0) {
                 ret |= 4;
-                pEntry->unk8C &= 0xF0FF;
+                pEntry->activeEffectFlags7 &= 0xF0FF;
             }
         }
     }
     return ret;
 }
 void BattleDecrementConditionTimers(BattleTableEntry *p, BattleTableEntry *pOther, u8 *pCnt) {
-    if (p->unk7C & 0x200) {
+    if (p->activeEffectFlags1 & 0x200) {
         pCnt[1] = pCnt[1] + 0xFF;
         if (pCnt[1] == 0) {
-            p->unk7C &= 0xFDFF;
+            p->activeEffectFlags1 &= 0xFDFF;
         }
     }
-    if (p->unk7C & 0x100) {
+    if (p->activeEffectFlags1 & 0x100) {
         pCnt[2] = pCnt[2] + 0xFF;
         if (pCnt[2] == 0) {
-            p->unk7C &= 0xFEFF;
+            p->activeEffectFlags1 &= 0xFEFF;
         }
     }
-    if (p->unk7C & 0x80) {
+    if (p->activeEffectFlags1 & 0x80) {
         pCnt[3] = pCnt[3] + 0xFF;
         if (pCnt[3] == 0) {
-            p->unk7C &= 0xFF7F;
+            p->activeEffectFlags1 &= 0xFF7F;
         }
     }
-    if (p->unk7C & 0x20) {
+    if (p->activeEffectFlags1 & 0x20) {
         pCnt[4] = pCnt[4] + 0xFF;
         if (pCnt[4] == 0) {
-            p->unk7C &= 0xFFDF;
-            pOther->unk7C &= 0xEFFF;
+            p->activeEffectFlags1 &= 0xFFDF;
+            pOther->activeEffectFlags1 &= 0xEFFF;
         }
     }
-    if (p->unk7C & 0x10) {
+    if (p->activeEffectFlags1 & 0x10) {
         pCnt[5] = pCnt[5] + 0xFF;
         if (pCnt[5] == 0) {
-            p->unk7C &= 0xFFEF;
+            p->activeEffectFlags1 &= 0xFFEF;
         }
     }
-    if (p->unk7C & 0xF000) {
+    if (p->activeEffectFlags1 & 0xF000) {
         pCnt[7] = pCnt[7] + 0xFF;
         if (pCnt[7] == 0) {
-            p->unk7C &= 0x0FFF;
+            p->activeEffectFlags1 &= 0x0FFF;
         }
     }
-    if (p->unk7C & 0xF00) {
+    if (p->activeEffectFlags1 & 0xF00) {
         pCnt[8] = pCnt[8] + 0xFF;
         if (pCnt[8] == 0) {
-            p->unk7C &= 0xF0FF;
+            p->activeEffectFlags1 &= 0xF0FF;
         }
     }
-    if (p->unk80 & 0x1000) {
+    if (p->activeEffectFlags2 & 0x1000) {
         pCnt[0xA] = pCnt[0xA] + 0xFF;
         if (pCnt[0xA] == 0) {
-            p->unk80 &= 0xEFFF;
+            p->activeEffectFlags2 &= 0xEFFF;
         }
     }
-    if (p->unk80 & 0x40) {
+    if (p->activeEffectFlags2 & 0x40) {
         pCnt[0xB] = pCnt[0xB] + 0xFF;
         if (pCnt[0xB] == 0) {
-            p->unk80 &= 0xFFBF;
+            p->activeEffectFlags2 &= 0xFFBF;
         }
     }
-    if (p->unk80 & 0x20) {
+    if (p->activeEffectFlags2 & 0x20) {
         pCnt[0xC] = pCnt[0xC] + 0xFF;
         if (pCnt[0xC] == 0) {
-            p->unk80 &= 0xFFDF;
+            p->activeEffectFlags2 &= 0xFFDF;
         }
     }
 }
 void BattleSaveScriptCommandOperandsFromActor(void) {
-    u16 ab = g_BattleActingSlot->unk8C | g_BattleActingSlot->accessoryEffectFlags7;
+    u16 ab = g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7;
 
     g_BattleCurWorkBlock->unk5FBC = g_BattleCurrentRow->unk20;
     g_BattleCurWorkBlock->unk5FBD = g_BattleCurrentRow->unk21;

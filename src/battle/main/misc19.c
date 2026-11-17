@@ -18,7 +18,7 @@ extern void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg);
 
 s32 BattleGetActorConditionCode(u8 arg0) {
     BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
-    u16 f7C = p->unk7C;
+    u16 f7C = p->activeEffectFlags1;
     u16 f80;
 
     if (f7C & 0x4000) {
@@ -30,7 +30,7 @@ s32 BattleGetActorConditionCode(u8 arg0) {
     if (f7C & 0x2000) {
         return 2;
     }
-    f80 = p->unk80;
+    f80 = p->activeEffectFlags2;
     if (f80 & 0x1000) {
         return 3;
     }
@@ -46,21 +46,21 @@ s32 BattleGetActorConditionCode(u8 arg0) {
     if (f7C & 0x2) {
         return 3;
     }
-    if ((p->unk84 | p->accessoryEffectFlags3) & 0x8000) {
+    if ((p->activeEffectFlags3 | p->accessoryEffectFlags3) & 0x8000) {
         return 7;
     }
     return p->hp < (p->maxHp >> 3) ? 5 : 0;
 }
 u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
-    u16 f7C = p->unk7C;
+    u16 f7C = p->activeEffectFlags1;
     u16 ret = 0;
     u16 f;
 
     if (f7C & 0x8000) {
         return 0;
     }
-    f = p->unk80;
+    f = p->activeEffectFlags2;
     if (f & 0x1000) {
         ret |= 0x8000;
     }
@@ -70,7 +70,7 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     if (f7C & 0x800) {
         ret |= 0x2000;
     }
-    f = p->unk8C | p->accessoryEffectFlags7;
+    f = p->activeEffectFlags7 | p->accessoryEffectFlags7;
     if (f & 0xF00) {
         ret |= (f & 0xF00) >> 3;
     }
@@ -286,7 +286,7 @@ void BattleSetSlotFlag15A1(u8 arg0) {
     p = &g_BattleCurWorkBlock->slots[arg0];
     if ((p->state.flags & 0x80) && (p->state.unk82 & 0x10)) {
         p->state.unk7C &= 0xFE4F;
-        p->unk7C &= 0xEFFF;
+        p->activeEffectFlags1 &= 0xEFFF;
     }
     if (D_800D2C34 == 4) {
         g_BattleCurWorkBlock->commandCode = 0x3D;
@@ -309,7 +309,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     if (p->state.flags & 0x80) {
         f = p->state.unk80 & 0x2000;
     } else {
-        f = p->unk88 & 0x400;
+        f = p->activeEffectFlags4 & 0x400;
     }
     if (f == 0) {
         return;
@@ -356,7 +356,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     if (p->state.flags & 0x80) {
         f = p->state.unk80 & 0x2000;
     } else {
-        f = p->unk88 & 0x400;
+        f = p->activeEffectFlags4 & 0x400;
     }
     if (f == 0) {
         return;
@@ -388,7 +388,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         pRow[30].flags = 0x2000;
         pRow[31].flags = 0x2000;
         pRow[32].flags = 0x2000;
-        r->unk88 &= 0xFBFF;
+        r->activeEffectFlags4 &= 0xFBFF;
     }
 }
 // 100.00% only under gcc-2.6.0 (88.68% on 2.7.2): 2.6.0 puts each `/20` mul by
