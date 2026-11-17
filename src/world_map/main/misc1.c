@@ -858,7 +858,7 @@ extern s32 g_GfxOTDepthShift;
 typedef struct {
     /* 0x00 */ SVECTOR viewRotation;
     /* 0x08 */ u8 unk8[0x40];
-    /* 0x48 */ long interpolated; // the two work words other units keep in locals named alike
+    /* 0x48 */ long interpolated;
     /* 0x4C */ long flag;
 } WorldMapProjectionScratch; // Size: 0x50, a view of the 0x1F800000 scratchpad
 
