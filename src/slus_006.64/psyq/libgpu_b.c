@@ -112,18 +112,22 @@ u_long DrawMode(int dfe, int dtd, u_short tpage) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 
-/* best: 71.18% (176 bytes; retail is 204: a 0x10 phantom frame plus register
-   ties). Retail's clamp layout per axis: copy the raw parameter to a spare
-   register at entry, truncate the parameter IN PLACE (sll/sra $a0), branch BLTZ
-   onto an out-of-line "v = 0" block, then "slt max-1,x" + bnez onto the clamp
-   and a j/move of the raw copy for the keep case. gcc emits bgez/beqz instead,
-   keeps the raw in $a0 and truncates into a fresh register, and drops the frame.
-   The E3 tail is func_80045BCC's tail (masked x in v0, lui 0xE3000000 in a0), so
-   the u_short code / u_long ret idiom of that park is the right one here too.
-   Missing: the 16-byte frame retail creates and never stores into (an unused
-   local is the lever that has worked in other units). The if/else clamp form
-   without the tail locals is 59.41% at the same size.
+/* best: 79.12% (188 bytes; retail is 204). The unused u_long t[4] local IS the
+   lever that buys retail's 0x10 frame, allocated in the bltz delay slot and never
+   stored into: 71.18 -> 79.12% and 176 -> 188 bytes. What is left is register
+   roles, not structure. Retail per axis: copy the raw parameter to a spare
+   register, truncate the value to s16 IN PLACE, bltz onto an out-of-line "v = 0",
+   then "slt max-1,v" + bnez onto the clamp value and a j/move of the raw copy for
+   the keep case; the merge copies the winner back through v0. gcc instead keeps
+   the raw parameter in $a0, truncates into a fresh register, and CSEs the two
+   "D_800568D4 - 1" of the ternary into the one it fed the slt. With explicit
+   copies (int rx = x; used in the keep arm) the diff shrinks to 196 bytes but
+   scores 78.82. Measured worse: s32 sx/sy, u_short xi/yi, if/else clamp blocks
+   (65.10), one-expression returns (73.08), parameter reassignment (79.12 same
+   size). The E3 tail is func_80045BCC's tail (masked x in v0, lui 0xE3000000 in
+   a0), so the u_short code / u_long ret idiom is the right one here too.
 u_long func_80045A34(int x, int y) {
+    u_long t[4];
     u_short code;
     u_long fld;
     u_long ret;
@@ -160,19 +164,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
 
-/* best: 98.53% (68 bytes, retail's exact size). Levers found this round, both
-   load-bearing: the mode test must be written INVERTED (11-bit arm first) so gcc
-   threads bnez onto the 12-bit arm, the shift must be its own statement, the dead
-   trailing test is what makes reorg fill the bnez slot and keeps x/y live across
-   the arms, and a SEPARATE ret variable plus a u_short (not u_long) local for the
-   masked x (97.94 -> 98.53) is what makes retail's `or v0,v0,a0` /`or v0,v1,v0`
-   operand order. Residual is one register only: retail masks x into v0 and lui's
-   0xE5000000 into a0, gcc the reverse (`andi a0,a0,...` / `lui v0; or v0,a0,v0`).
-   A 4-minute permuter run from this body found nothing (base 25, best 25), and
-   earlier runs from 87.94 and 97.65 found only the shapes above; also measured
-   worse: accumulate form 97.94, constant inside the arm 95.88, u_long code 97.94,
-   `x` in the dead test 85.00, `x || y` 95.88, code-first arm order 73.12.
-   -O1 gives the same 97.94, so it is not an -O question.
+/* best: 98.53% (68 bytes = retail's exact size, identical instruction
+   multiset; only the register holding the masked x differs: retail masks it into
+   $v0 and lui's 0xE5000000 into $a0, gcc the reverse, which also swaps the two
+   closing `or` operands). Levers already found, all load-bearing: the mode test
+   written INVERTED (11-bit arm first) so gcc threads bnez onto the 12-bit arm,
+   the shift as its own statement, the dead trailing test that makes reorg fill
+   the bnez slot, and a SEPARATE ret plus a u_short local for the masked x
+   (97.94 -> 98.53). Measured worse or equal since: the masked x assigned to ret
+   (97.94), `ret | const` in place (97.94), const first in the or (98.53), s16 /
+   u_long / int code (98.53 / 97.94), decl order permutations (98.53), early
+   returns with one expression (69.59 / 70.71), DrawMode style const-in-arm
+   (69.41), dead test on fld (59.41), dead test on code (63.47), `(u_long)x &
+   mask` (98.53), two earlier permuter runs (nothing).
 u_long func_80045BCC(int x, int y) {
     u_short code;
     u_long fld;
