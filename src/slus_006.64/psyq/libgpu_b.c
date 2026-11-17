@@ -110,39 +110,41 @@ u_long DrawMode(int dfe, int dtd, u_short tpage) {
     return mode | tp;
 }
 
-/* best: 58.61% -- the (s16) casts reproduce retail's clamp tests, but gcc keeps
-   the incoming x in $a0 and puts the truncated temp in $a3 (retail the reverse),
-   then allocates the E3 words from different registers as a consequence.
-u_long func_80045A34(int x, int y) {
-    if ((s16)x < 0)
-        x = 0;
-    else if ((s16)x > D_800568D4 - 1)
-        x = D_800568D4 - 1;
-    if ((s16)y < 0)
-        y = 0;
-    else if ((s16)y > D_800568D6 - 1)
-        y = D_800568D6 - 1;
-    if (D_800568D0 == 1 || D_800568D0 == 2)
-        return 0xE3000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
-    return 0xE3000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
-}
-*/
-
-/* best: 70.27% (176 bytes, same size) -- the ternary form fixes the branch
-   polarity and block order; gcc keeps the raw x in $a0 and truncates into $a2
-   where retail copies the raw x to $a3 and truncates $a0 in place, and gcc CSEs
-   the two "D_800568D4 - 1" that retail computes twice.
-u_long func_80045A34(int x, int y) {
-    x = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
-    y = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
-    if (D_800568D0 == 1 || D_800568D0 == 2)
-        return 0xE3000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
-    return 0xE3000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
-}
-*/
-
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 
+/* best: 71.18% (176 bytes; retail is 204: a 0x10 phantom frame plus register
+   ties). Retail's clamp layout per axis: copy the raw parameter to a spare
+   register at entry, truncate the parameter IN PLACE (sll/sra $a0), branch BLTZ
+   onto an out-of-line "v = 0" block, then "slt max-1,x" + bnez onto the clamp
+   and a j/move of the raw copy for the keep case. gcc emits bgez/beqz instead,
+   keeps the raw in $a0 and truncates into a fresh register, and drops the frame.
+   The E3 tail is func_80045BCC's tail (masked x in v0, lui 0xE3000000 in a0), so
+   the u_short code / u_long ret idiom of that park is the right one here too.
+   Missing: the 16-byte frame retail creates and never stores into (an unused
+   local is the lever that has worked in other units). The if/else clamp form
+   without the tail locals is 59.41% at the same size.
+u_long func_80045A34(int x, int y) {
+    u_short code;
+    u_long fld;
+    u_long ret;
+    u_long xi;
+    u_long yi;
+
+    xi = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
+    yi = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
+    if (D_800568D0 != 1 && D_800568D0 != 2) {
+        fld = yi & 0x3FF;
+        fld = fld << 10;
+        code = xi & 0x3FF;
+    } else {
+        fld = yi & 0xFFF;
+        fld = fld << 12;
+        code = xi & 0xFFF;
+    }
+    ret = code | 0xE3000000;
+    return fld | ret;
+}
+*/
 
 /* best: 70.27% -- same clamp as func_80045A34, E4 word.
 u_long func_80045B00(int x, int y) {
