@@ -320,8 +320,8 @@ void FieldScriptWriteGameState17FC48(void) {
 }
 
 void FieldScriptWriteGameState184E(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_pGameState->unk184E);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), g_pGameState->unk1852);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_pGameState->mapPosX);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), g_pGameState->mapPosZ);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 
@@ -340,10 +340,10 @@ void FieldScriptSetByte2354(void) {
 }
 
 void FieldScriptSetGameState184E(void) {
-    g_pGameState->unk184E = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
-    g_pGameState->unk1852 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
+    g_pGameState->mapPosX = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
+    g_pGameState->mapPosZ = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
     g_pGameState->unk1854 = 0;
-    g_pGameState->unk1850 = 0;
+    g_pGameState->mapPosZFraction = 0;
     g_pGameState->unk1856 = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }

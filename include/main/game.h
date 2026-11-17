@@ -151,16 +151,15 @@ typedef struct {
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;
     /* 0x79 */ u8 unk79;
-    /* 0x7A */ u8 unk7A;
-    /* 0x7B */ u8 unk7B;
-    /* 0x7C */ u8 unk7C;
-    /* 0x7D */ u8 unk7D;
+    /* 0x7A */ u16 unk7A;
+    // The gear keeps the same 2-byte active/accessory effect word grid as the
+    // character record it is copied from (GameCharacter and BattleTableEntry
+    // name the words at these offsets); no matched code here reads these.
+    /* 0x7C */ u16 activeEffectFlags1;
     /* 0x7E */ u16 accessoryEffectFlags1; // the type-1 accessory flag word, see GearShopMenuRecalculateGearStats
-    /* 0x80 */ u8 unk80;
-    /* 0x81 */ u8 unk81;
+    /* 0x80 */ u16 activeEffectFlags2;
     /* 0x82 */ u16 accessoryEffectFlags2;
-    /* 0x84 */ u8 unk84;
-    /* 0x85 */ u8 unk85;
+    /* 0x84 */ u16 activeEffectFlags3;
     /* 0x86 */ u16 accessoryEffectFlags3; // low 12 bits; the top nibble holds the equipped weapon's flags
     /* 0x88 */ u8 accessoryEffectAmounts[0x10]; // summed effectAmount of the accessories whose effectFlags set the matching accessoryEffectFlags4 bit
     /* 0x98 */ u8 agility;
@@ -231,9 +230,12 @@ typedef struct {
     // WorldMapSetPositionFromState clear it).
     /* 0x1836 */ u16 worldMapMenuActive;
     /* 0x1838 */ undefined8 unk1838[0x16];
-    /* 0x184E */ undefined16 unk184E;
-    /* 0x1850 */ undefined16 unk1850;
-    /* 0x1852 */ undefined16 unk1852;
+    // World-map position the field scripts set, split as map units << 12 |
+    // fraction: x = mapPosX << 12 | the u16 at 0x184C, z = mapPosZ << 12 |
+    // mapPosZFraction (FieldScriptSetGameState184E writes the map-unit halves).
+    /* 0x184E */ undefined16 mapPosX;
+    /* 0x1850 */ undefined16 mapPosZFraction;
+    /* 0x1852 */ undefined16 mapPosZ;
     /* 0x1854 */ undefined16 unk1854;
     /* 0x1856 */ undefined16 unk1856;
     /* 0x1858 */ undefined8 unk1858[0xCC];
