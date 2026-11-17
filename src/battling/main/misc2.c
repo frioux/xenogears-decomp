@@ -363,7 +363,7 @@ extern BattleEffectTemplate D_800910F4[];
 extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
 extern void func_8008EBD0(u8 *, s32, void *, s32);
 
-void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5) {
+void BattleSpawnEffectSlot(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5) {
     VECTOR vDiff;
     VECTOR vNormal;
     s32 pad[2];
