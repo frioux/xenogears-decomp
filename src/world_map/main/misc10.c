@@ -182,6 +182,10 @@ typedef struct {
 } WorldMapSceneLayer; // Size: 0x54
 
 extern WorldMapSpriteGroup* g_WorldMapSpriteGroups;
+extern s32 g_WorldMapMode;
+extern s32 g_WorldMapPlayerPosition;
+extern s32 g_WorldMapPlayerPositionZ;
+extern s32 g_WorldMapPlayerRotation;
 extern WorldMapTrailEntry* D_8009BDF4;
 extern WorldMapPlayer* g_WorldMapSlots;
 extern WorldMapSceneLayer* g_WorldMapGroups;
@@ -635,6 +639,102 @@ void func_80089580(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089C78);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
+/* 95.46% (612 bytes, retail 612): every instruction matches except the
+   prologue, which is reordered and one register off. Retail emits
+   `sll a2,a0,7` early and `addu s0,v1,a2` right before the jal, so reorg can
+   put `li a2,0x1E0` in the jal delay slot; gcc emits the shift into v1, the
+   g_WorldMapSlots load into v0 (retail: v1), the 0x1E0 constant early and the
+   addu in the delay slot. Everything from `move a0,v0` on is byte-identical
+   (the switch and its cross-jumped case 4-6 / case 7 body, the 32-entry trail
+   copy, the 0x1820 tail).
+   Tried, all byte-identical at 95.46%: `&g_WorldMapSlots[index]`,
+   `(u8*)g_WorldMapSlots + index * 0x80`, a named s32 offset local, pActor
+   declared first or last, the alloc call as the store's rhs, a void* pSprite
+   temp. cdk -O2: 71.79. gcc 2.7.2 -O3: 95.46. A 4-minute permuter run found
+   nothing (base 535, best 535).
+   Two VOLATILE casts below are load-bearing, not debris:
+   (1) the s16 store of `angle` is what makes gcc re-read it with `lh` for
+   unk5C (retail does sh 0x48, lh 0x48, sw 0x5C); without it gcc folds the
+   re-read into sll/sra and the function comes out 4 bytes long.
+   (2) the s32 store of x in the case 1-3 body stops gcc sinking that store
+   below the g_WorldMapPlayerPositionZ load, giving retail's lw/nop/sw order.
+   The head reads g_GameState.fieldScriptMemory[0]/[1] (0x1930/0x1932), not
+   worldMapPosX/PosZ, while the tail writes 0x1820/0x1822.
+s32 func_8008A2C8(s32 index) {
+    WorldMapActor* pActor;
+    WorldMapTrail* pTrail;
+    s32 i;
+    s32 mode;
+    s32 angle;
+
+    pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + index * 0x80);
+    pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x1800);
+    *(u32*)((u8*)pActor->pSprite + 0x3C) &= ~4;
+    pActor->unk24 = 0;
+    pActor->x = g_GameState.fieldScriptMemory[0] << 12;
+    pActor->z = g_GameState.fieldScriptMemory[1] << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+    angle = g_WorldMapPlayerRotation;
+    mode = g_WorldMapMode;
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->moveSpeed = 8;
+    *(volatile s16*)&pActor->angle = angle;
+    pActor->unk5C = pActor->angle;
+    switch (mode) {
+    case 1:
+    case 2:
+    case 3:
+        if (g_GameState.gearRide[0] == 0) {
+            *(volatile s32*)&pActor->x = g_WorldMapPlayerPosition;
+            pActor->z = g_WorldMapPlayerPositionZ;
+            pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+            pActor->angle = g_WorldMapPlayerRotation;
+            g_WorldMapScrollTargetX = *(WorldMapVec*)&pActor->x;
+            g_WorldMapPlayerAngle = pActor->angle;
+        } else {
+            pActor->state = 1;
+            pActor->unk24 = 1;
+        }
+        break;
+    case 4:
+    case 5:
+    case 6:
+        pActor->state = 3;
+        pActor->unk24 = 1;
+        if (g_GameState.partyMembers[0] != 0xFF) {
+            g_GameState.gearRide[0] = 1;
+        }
+        break;
+    case 7:
+        pActor->state = 2;
+        pActor->unk24 = 1;
+        if (g_GameState.partyMembers[0] != 0xFF) {
+            g_GameState.gearRide[0] = 1;
+        }
+        break;
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+        break;
+    }
+    g_WorldMapTrailCursor = 0;
+    for (i = 0, pTrail = g_WorldMapTrail; i < 0x20; i++, pTrail++) {
+        pTrail->vec = *(WorldMapVec*)&pActor->x;
+        pTrail->angle = pActor->angle;
+    }
+    g_GameState.worldMapPosX = pActor->x >> 12;
+    g_GameState.worldMapPosZ = pActor->z >> 12;
+    g_GameState.worldMapPlayerRotation = pActor->angle;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A52C);
 /* 76.69%: only two insns are transposed (everything else is byte-identical).
    Retail emits sll v1,a0,0x7 at the top and defers the 0x40 stack argument's
