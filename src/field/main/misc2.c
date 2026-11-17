@@ -534,18 +534,27 @@ extern int rand(void);
 //    as the neighbouring misc.c does - that makes gcc materialise &g_Scene.unk98 in a
 //    register for the guard too (`lh v0,0(v1)`), so it is worse; the array-cast form
 //    above is the one to keep.
-// What is left is one hoist in two places: gcc keeps the address of a global that is
-// otherwise only addressed as %lo(sym+N) in a register and reuses it for the store
-// (g_CameraEye at offset 0, g_Scene+0x98 for the `= 0` store); that extra live address
-// then pushes the mult temporaries up one register. Splitting the two accesses of one
-// address across statements does not stop cse, and writing them as struct fields is a
-// header job (unk98 is opaque on purpose: misc.c and misc2 index it by byte).
+// round 185: 98.99 (1212 bytes, retail's size). The permuter closed the +0x98 half of
+// the hoist: ONE `s16* pShake = (s16*)g_Scene.unk98;` local, assigned between the eye-vx
+// and eye-vz steps and used ONLY by the `pShake[0] != 0` guard, makes retail's guard
+// (`lui $v0 / lh %lo(v0)` straight off the symbol) come out right - the array-cast
+// spelling for the same guard materialises the address and is 98.25. Assigning it
+// anywhere else, or using it for the other +0x98 accesses, loses the tail again.
+// What is left is the same hoist at ONE site: the eye-vx step (g_CameraEye, offset 0)
+// keeps the symbol address in $t0 and reuses it for the store where retail forms the
+// two accesses separately (`lui $a1 / lw %lo($a1)`, then `lui $at / sw %lo($at)`); the
+// extra live address pushes the mult temporaries one register ($t1/$t2 against $t0/$t1).
+// The offsets 4 and 8 of the same vector already match, so only the 0-offset spelling
+// is wrong; nothing tried so far separates the load and store RTL, and a second
+// permuter run found only a semantically invalid move (pShake assigned inside the vx
+// step's if-body, 285).
 /*
 void func_80072D74(void) {
     s32 atStepSq;
     s32 eyeStepSq;
     s32* pSnapFrames;
     s32* pShakeOffset;
+    s16* pShake;
 
     if (g_Scene.unk48 & FIELD_SCENE_INTERPOLATING_SCREEN_Z) {
         if (g_Scene.unk80 != 0) {
@@ -569,6 +578,7 @@ void func_80072D74(void) {
     eyeStepSq = g_CamInterpolation.eyeStepDistance * g_CamInterpolation.eyeStepDistance;
 
     FIELD_CAMERA_STEP(g_CameraEye.vx, g_CameraEye2.vx, g_CamInterpolation.eyeStepDistance, eyeStepSq);
+    pShake = (s16*)g_Scene.unk98;
     FIELD_CAMERA_STEP(g_CameraEye.vz, g_CameraEye2.vz, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraEye.vy, g_CameraEye2.vy, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraAt.vx, g_CameraAt2.vx, g_CamInterpolation.atStepDistance, atStepSq);
@@ -578,7 +588,7 @@ void func_80072D74(void) {
     g_FieldCameraShakeOffset = 0;
     g_FieldCameraShakeOffsetY = 0;
     g_FieldCameraShakeOffsetZ = 0;
-    if (((s16*)g_Scene.unk98)[0] != 0) {
+    if (pShake[0] != 0) {
         s32 shakeZ;
 
         if (((s16*)g_Scene.unk98)[1] != 0) {
@@ -613,8 +623,7 @@ void func_80072D74(void) {
             ((s16*)g_Scene.unk98)[1]--;
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
@@ -793,6 +802,10 @@ extern const char D_8006FB04[];
 // updateAngle/targetAngle block is laid out on the other side (the mat-based branch
 // first) and gcc reads rotation.vy/unk11E with lhu + sll/sra where the original is lh.
 // screened: Default 76.67 (best), cdk 59.23, 2.6.0 76.16 - not a preset question.
+// round 185: re-measured, the body BUILDS and reads 76.67% (1136 bytes against retail 1176) -
+// so the sweep ERROR row was stale, not a compile break. It is still not shippable: the whole
+// function switches $sp into the scratchpad around three calls (STACK_SWITCH) and the parked
+// body emulates that with asm volatile, which game code may not use. Not a C job at all.
 /*
 void func_800739C0(void) {
     VECTOR eye;
