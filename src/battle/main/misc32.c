@@ -96,7 +96,7 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
 extern s32 g_BattleCommandRowIndex;
 extern void *D_800C3E1C;
-extern s32 D_800C3D38;
+extern s32 g_BattleEffectTimer;
 extern s32 g_BattleColorMode;
 
 // The battle actor sprite BattleAttachEffectSprite spawns an effect for: this unit reads only
@@ -228,7 +228,7 @@ void BattleAttachCommandRowEffect(s32 slot) {
     kind = pRow->unk150[slot];
     nextTimer = pRow->unk15C[slot];
     colorMode = pRow->unk174[slot];
-    D_800C3D38 = nextTimer;
+    g_BattleEffectTimer = nextTimer;
     g_BattleColorMode = colorMode;
     BattleAttachEffectSprite(pSprite, pRow->unk138[slot], kind);
     pRowAddr = pBase + (g_BattleCommandRowIndex - 1) * 0x48;

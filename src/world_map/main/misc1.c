@@ -401,7 +401,7 @@ extern s32 g_WorldMapL2R2PressedLast;
 extern s32 g_WorldMapL2R2PressEdge;
 extern s32 g_WorldMapWrapPositionsCallback;
 extern s32 D_8009C178;
-extern s32 D_8009C894;
+extern s32 g_WorldMapInitModeIndex;
 extern s32 g_WorldMapAreaIndex;
 extern int g_AnimScriptExtraTicks;
 extern s16 g_SoundControlFlags;
@@ -420,8 +420,8 @@ typedef struct {
     /* 0x4 */ WorldMapSlotHandler pUpdateHandler;
 } WorldMapSlotInitEntry; // Size: 0x8
 
-extern WorldMapSlotInitEntry D_80099E8C[];
-extern WorldMapSlotInitEntry* D_8009A034[];
+extern WorldMapSlotInitEntry g_WorldMapSlotInitEntries[];
+extern WorldMapSlotInitEntry* g_WorldMapLevelSlotInitEntries[];
 
 extern void func_80071EF0(void);
 extern s32 ArchiveDataSync(void);
@@ -540,7 +540,7 @@ void func_80072238(void) {
     D_8009C178 = 1;
     g_WorldMapWrapPositionsCallback = (s32)WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
-    if (D_8009C894 == 0) {
+    if (g_WorldMapInitModeIndex == 0) {
         SoundFreeLoadedWdsAndAudioManager();
     } else {
         SoundStopAllAudioManagers();
@@ -550,7 +550,7 @@ void func_80072238(void) {
     }
     if (g_GameState.worldMapMenuActive != 0) {
         WorldMapSetPositionFromState();
-    } else if (D_8009C894 == 0) {
+    } else if (g_WorldMapInitModeIndex == 0) {
         func_80073448(g_WorldMapAreaIndex);
     } else {
         WorldMapLoadState();
@@ -572,11 +572,11 @@ void func_80072238(void) {
     WorldMapSetupMapPrims();
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
-    if (D_8009C894 == 0) {
+    if (g_WorldMapInitModeIndex == 0) {
         g_GameCurLoadedWDS = SoundLoadWdsFile(g_WorldMapWdsFileBuffer, 0);
     }
     ArchiveSetIndex(WORLD_MAP_SOUND_ARCHIVE_INDEX, 0);
-    if (D_8009C894 == 0) {
+    if (g_WorldMapInitModeIndex == 0) {
         func_80097BC0(&g_WorldMapPlayerPosition);
         do {
             WorldMapUpdateLoadQueue();
@@ -586,7 +586,7 @@ void func_80072238(void) {
         WorldMapRefreshGrid(&g_WorldMapCameraTarget);
         WorldMapWaitForQueuedLoads();
     }
-    if (D_8009C894 == 0) {
+    if (g_WorldMapInitModeIndex == 0) {
         pLoadBuffer = g_SoundBankLoadBuffer;
         while (g_SoundControlFlags & 0x10) {
         }
@@ -615,12 +615,12 @@ void func_80072238(void) {
         memcpy(g_SoundBankLoadBuffer, pBankBuffer, ArchiveDecodeAlignedSize(nFileIndex));
         SoundReloadAudioManagerSamples(g_SoundAudioManager, 0x7F, 0xF0);
     }
-    switch (D_8009C894) {
+    switch (g_WorldMapInitModeIndex) {
     case 0:
-        for (nSlot = 0; D_80099E8C[nSlot].pEnterHandler != NULL; nSlot++) {
-            WorldMapAddSlot(D_80099E8C[nSlot].pEnterHandler, D_80099E8C[nSlot].pUpdateHandler);
+        for (nSlot = 0; g_WorldMapSlotInitEntries[nSlot].pEnterHandler != NULL; nSlot++) {
+            WorldMapAddSlot(g_WorldMapSlotInitEntries[nSlot].pEnterHandler, g_WorldMapSlotInitEntries[nSlot].pUpdateHandler);
         }
-        pLevelEntries = D_8009A034[g_WorldMapLevelIndex];
+        pLevelEntries = g_WorldMapLevelSlotInitEntries[g_WorldMapLevelIndex];
         if (pLevelEntries->pEnterHandler != NULL) {
             pEntry = pLevelEntries;
             do {
@@ -674,7 +674,7 @@ void func_80072238(void) {
     func_8008901C();
     func_800865A0();
     func_80085FE0();
-    if (D_8009C894 == 0) {
+    if (g_WorldMapInitModeIndex == 0) {
         WorldMapInitRandomTimers();
     }
     SystemTransferPaletteToVRAM(0x130, 0x1E0);

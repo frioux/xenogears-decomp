@@ -292,8 +292,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E53CC);
 void MenuInitializePolyFt4(POLY_FT4* pPoly);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 
-extern u16 D_801E9894[];
-extern u16 D_801E9914[];
+extern u16 g_MenuCellPrimXs[];
+extern u16 g_MenuCellPrimYs[];
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
 /* Best: 90.78% - every instruction matches except ONE register: retail keeps
@@ -315,8 +315,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
        s32 i;
 
        pBase = (u8*)g_Menu->pCellPrimBlocks[index];
-       pX = &D_801E9894[index * 2];
-       pY = &D_801E9914[index * 2];
+       pX = &g_MenuCellPrimXs[index * 2];
+       pY = &g_MenuCellPrimYs[index * 2];
        offset = 0xB0;
        for (i = 0; i < 2; i++) {
            MenuInitializePolyFt4((POLY_FT4*)(pBase + i * 0x28));
@@ -362,8 +362,8 @@ void MenuInitializeCellLinePrims(s32 index) {
     s32 i;
 
     pBase = (u8*)g_Menu->pCellPrimBlocks[index];
-    pX = &D_801E9894[index * 2];
-    pY = &D_801E9914[index * 2];
+    pX = &g_MenuCellPrimXs[index * 2];
+    pY = &g_MenuCellPrimYs[index * 2];
     for (i = 0; i < 2; i++) {
         offA = i * 0x18 + 0x50;
         offB = i * 0x18 + 0x80;
@@ -404,9 +404,9 @@ void MenuCreateCellPrimBlocks(void) {
     }
 }
 extern u16 D_801EA5D0[];
-extern u32 D_801EA004[];
-extern u32 D_801EA010[];
-extern u8 D_801EA8C0;
+extern u32 g_MenuSlotSpriteX[];
+extern u32 g_MenuSlotSpriteY[];
+extern u8 g_MenuGlyphIsDoubleByte;
 
 void MenuFreeCellPrimBlocks(void) {
     int i;
@@ -600,16 +600,16 @@ s32 MenuGetGlyphKromAddress(u8* p) {
 
     hi = p[0];
     lo = p[1];
-    D_801EA8C0 = 1;
+    g_MenuGlyphIsDoubleByte = 1;
     if (hi < 0x80) {
         if (hi >= 0x20) {
             lo = *(u8*)&D_801EA5D0[hi];
             hi = D_801EA5D0[hi] >> 8;
-            D_801EA8C0 = 0;
+            g_MenuGlyphIsDoubleByte = 0;
         } else {
             hi = 0x81;
             lo = 0x40;
-            D_801EA8C0 = 0;
+            g_MenuGlyphIsDoubleByte = 0;
         }
     }
     return Krom2RawAdd((hi << 8) | lo);
@@ -617,7 +617,7 @@ s32 MenuGetGlyphKromAddress(u8* p) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
 /* Best: 98.90% (584 bytes, same size as retail).  Decoded shape: index selects a
    0x200-byte MenuUnk2ImageChunk; the 0x40-entry byte table at chunk+4 is walked one
-   entry per glyph (two bytes when MenuGetGlyphKromAddress sets D_801EA8C0), each entry is
+   entry per glyph (two bytes when MenuGetGlyphKromAddress sets g_MenuGlyphIsDoubleByte), each entry is
    unpacked to 0x100 bits, MenuCompressGlyphRows compresses a row, and the bits are OR ed into
    a 0x1000-byte 4bpp texture at (i/16)*0x400 + (i%16)*4 + row*0x40 + col/4 before
    LoadImage of the 0x140,0xE0 RECT.  Everything matches except ONE insn: retail
@@ -671,7 +671,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E6668);
            }
            pSrc++;
            count++;
-           if (D_801EA8C0 != 0) {
+           if (g_MenuGlyphIsDoubleByte != 0) {
                pSrc++;
                count++;
            }
@@ -749,13 +749,13 @@ void MenuDrawSlotSprite(u8 arg0, u8* pArg1) {
     offset = 0xA98 + arg0 * 0x87C;
     pPrims = (u8*)(offset + (u32)g_Menu->pPrimBuffer);
     func_8002675C(g_Menu->resources, (pArg1 + arg0)[0x1C] + 0x14E, pPrims,
-                  g_Menu->renderContext, D_801EA004[arg0], D_801EA010[arg0], 0x1000);
+                  g_Menu->renderContext, g_MenuSlotSpriteX[arg0], g_MenuSlotSpriteY[arg0], 0x1000);
 }
 
 void MenuParseNumberToDigits(u32 number);
 
-extern u32 D_801EA01C;
-extern u32 D_801EA020;
+extern u32 g_MenuSlotDigitX;
+extern u32 g_MenuSlotDigitY;
 
 // pSlot and pCount re-derive pCounter's address: gcc emits retail's base-first
 // "addu d,base,offset" only when that sum is an assignment's own result.
@@ -779,8 +779,8 @@ void MenuDrawSlotResourceSprites(u8 arg0, u8* pArg1) {
         *((pSlot = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C) + 0x1308) += func_8002675C(
             g_Menu->resources, g_Menu->digits[6 + i],
             (POLY_FT4*)(pPrims + (*((pCount = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C) + 0x1308) * 0x50 + 0x320)),
-            g_Menu->renderContext, arg0 * 0x50 + D_801EA01C + i * 8,
-            D_801EA020, 0x1000);
+            g_Menu->renderContext, arg0 * 0x50 + g_MenuSlotDigitX + i * 8,
+            g_MenuSlotDigitY, 0x1000);
     }
     MenuParseNumberToDigits((pArg1 + arg0)[0x19]);
     pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C;

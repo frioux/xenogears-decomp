@@ -364,7 +364,7 @@ typedef struct {
     /* 0x42 */ u8 pad42[0x2];
 } BattleEffectSlot; // Size: 0x44
 
-extern BattleEffectTemplate D_800910F4[];
+extern BattleEffectTemplate g_BattleEffectTemplateTable[];
 extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
 extern void func_8008EBD0(u8 *, s32, void *, s32);
 
@@ -390,7 +390,7 @@ void BattleSpawnEffectSlot(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s
     vNormal.vx = pSrc->vx - p0->vx;
     vNormal.vy = pSrc->vy - p0->vy - 0x90;
     vNormal.vz = pSrc->vz - p0->vz;
-    pEntry = &D_800910F4[arg3];
+    pEntry = &g_BattleEffectTemplateTable[arg3];
     if (p1 != NULL) {
         vDiff.vx = p0->vx - p1->vx;
         vDiff.vy = p0->vy - p1->vy;

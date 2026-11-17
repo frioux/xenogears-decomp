@@ -148,7 +148,7 @@ extern BattleState g_BattleActor1;
 //  - pTargetX is a pointer to the anchor's x word: the field spelling
 //    (pTarget->x on a BattleAnchor*) folds the address into a %lo store, and
 //    retail keeps it in $s0 across the rcos call.
-void func_8007099C(s32 mode) {
+void BattlePlaceEffectByMode(s32 mode) {
     VECTOR vec;
     VECTOR* pVec;
     s32* pTargetX;
@@ -665,7 +665,7 @@ extern void func_8008E2B8(u8* p0, s32 color, s32 flag);
 extern void BattleClearScreen(s32 arg);
 extern void BattleReturnToMainLoop(void);
 extern void func_8007107C(void);
-extern void func_8007099C(s32 mode);
+extern void BattlePlaceEffectByMode(s32 mode);
 
 /* Steps the battle display state machine for the current frame: plays the effect
    sound, places a burst from a random source actor on the effect cells, fades the
@@ -773,7 +773,7 @@ fade:
         pMsg->y = 0xB4;
         g_BattleMessageShownIndex = g_BattleMessageIndex;
     }
-    func_8007099C(g_BattleEffectPlaceMode);
+    BattlePlaceEffectByMode(g_BattleEffectPlaceMode);
     D_80098774 = 0;
 }
 

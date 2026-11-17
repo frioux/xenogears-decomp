@@ -33,7 +33,7 @@ extern u16 D_800C3EC0[];
 extern long ratan2(long y, long x);
 extern u8 D_800C3E9B[];
 extern u8 g_BattleTargetCandidateCount;
-extern u8 func_800841E0(u8);
+extern u8 BattleBuildTargetCandidateListByRow(u8);
 
 // One command row: per slot, the curve BattleApplySlotCurve copies out of the four
 // g_BattleCurve* globals (the target it moves to and the value/mode it holds now).
@@ -117,7 +117,7 @@ extern u8 g_BattleMenuEvent;
 extern void BattlePlaySoundIfEnabled(u8);
 extern u8 func_8008BED8(u8);
 extern void BattleActivateSelectedCommand(u8);
-extern u8 D_800C3E29;
+extern u8 g_BattleLastMenuEvent;
 extern void func_800826CC(u8);
 void BattleAdvanceSlotMenuState(u8 arg0) {
     u8 a;
@@ -135,7 +135,7 @@ void BattleAdvanceSlotMenuState(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -159,7 +159,7 @@ void BattleAdvanceSlotMenuState(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 9;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 2) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 2) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
             break;
@@ -213,7 +213,7 @@ void BattleSetActorSlotDisplayMode(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x13;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 3) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -263,7 +263,7 @@ void BattleSetActorSlotMenuMode(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x13;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 3) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -322,7 +322,7 @@ void BattleAdvanceSlotMenuStateCounter(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x13;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 3) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -419,7 +419,7 @@ void BattleAdvanceSlotMenuStateSlotFlags(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x17;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 2) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 2) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x12;
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
             break;
@@ -432,7 +432,7 @@ void BattleAdvanceSlotMenuStateSlotFlags(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x18;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 3) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -472,7 +472,7 @@ void BattleAdvanceSlotMenuStateSubMode(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x15;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -489,7 +489,7 @@ void BattleAdvanceSlotMenuStateSubMode(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x17;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 2) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 2) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x12;
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
             break;
@@ -502,7 +502,7 @@ void BattleAdvanceSlotMenuStateSubMode(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x18;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 3) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -543,7 +543,7 @@ void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x15;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -567,7 +567,7 @@ void BattleAdvanceSlotMenuStateRandom(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x18;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 3) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk28 != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -606,7 +606,7 @@ void BattleAdvanceSlotMenuStateText(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x15;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
             if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E != 0) {
                 BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
             } else {
@@ -630,7 +630,7 @@ void BattleAdvanceSlotMenuStateText(u8 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x17;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && D_800C3E29 == 2) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 2) {
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x12;
             ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
             break;
@@ -691,7 +691,7 @@ u8 BattleActorTargetableWithOverride(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-u8 func_800841E0(u8 arg0) {
+u8 BattleBuildTargetCandidateListByRow(u8 arg0) {
     s32 i;
     s32 n;
     s32 count;
@@ -949,7 +949,7 @@ void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     off = arg0 * 0x40;
     g_BattleCommandQueue[0x2E8] = (g_BattleCommandQueue + off)[0x3C];
     found = 0;
-    func_800841E0(arg0);
+    BattleBuildTargetCandidateListByRow(arg0);
     for (i = 0; i < g_BattleTargetCandidateCount; i++) {
         if (g_BattleTargetCandidates[i] == (g_BattleCommandQueue + off)[0x3C]) {
             found++;
