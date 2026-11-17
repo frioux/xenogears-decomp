@@ -273,7 +273,6 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // itself (every j+1 spelling tried is still a PLUS of the BIV and a constant).
 // Preset is right: -O3 77.96, -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0
 // -O2 -G0 (the unit's) 99.66.
-// listed above assumed that derivation was unavoidable.
 // What closed 92.4 -> 99.1 earlier, in order (all source shapes, not flags):
 //   1. FontPrintf(D_8007042C) takes ONE argument (func_80075534 calls it that way);
 //      passing pPath cost a `move a1,zero`.
@@ -298,6 +297,7 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // `addiu v0,s1,0x14` (entry + 0x14) on every iteration, i.e. retail derives NO givs
 // in this loop, while the outside-init body derives `s1 = j + 1`. So the one lever
 // left is suppressing combine_givs' j+1 derivation for init-outside; every loop shape
+// listed above assumed that derivation was unavoidable.
 /*
 void func_80075D8C(void) {
     s32 alignedIndex;
