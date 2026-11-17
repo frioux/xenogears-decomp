@@ -169,27 +169,32 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
     }
     return BattleOffsetBySin;
 }
+// 97.44%, 160 bytes compiled vs retail's 156: every one of retail's 39 insns is
+// reproduced in order, plus ONE extra. Answer to the old "where does the s16 -1
+// come from" question below: retail's `addiu v1,zero,-1` at insn 1 is the constant
+// load of an EARLY redundant s16 -1 store in the original source. Leading the body
+// with `*(s16 *)(arg0 + 0x98) = -1;` (the 0x98 store repeated) moves the load to
+// insn 1, exactly retail's shape, and the rest of the function then matches
+// instruction for instruction. What is left: gcc 2.6 cannot delete the redundant
+// store, so it emits a second `sh v1,0x98` right after `li v0,1` (40 insns). What
+// would close it is an early -1 use that survives cse but emits no instruction;
+// cse re-places the load at the first surviving use, so every local-variable
+// spelling of the -1 is back at 74.36%.
+// Measured (objdiff, not the permuter): duplicate early store of 0x3A or 0x1E -
+// 97.44% too (any of the three -1 stores works), of 0x2B 76.72, of 0x18 71.15;
+// moving a -1 store to the top instead of duplicating it 94.87 (0x98/0x3A) and
+// 93.33 (0x1E); `s16 m1 = -1;` with three uses, `m1 = -1;`, `arg1 = -1;`, a dead
+// local, and the plain literals all 74.36; volatile cast on the early store 97.44
+// (same); 0xFFFF spelling for the early one 71.79; `*(s32 *)(arg0 + 0x98) = -1;`
+// then the sh 94.74; two adjacent dup stores at the top 94.87. Permuter from this
+// body: base 100 best 100, 875 iterations, nothing better. The permuter's own
+// candidate for the old 74.36 body (score 210 -> 120) moved the 0x8 = arg2 store
+// below the 0x84 store, which measures WORSE under objdiff (69.18%) - not taken.
+// Still true from the old note: 0x3C is unsigned (ori 0xFFFF) while 0x98/0x3A/0x1E
+// are signed -1 (addiu), so the two constants must stay spelled differently.
 /*
-// 74.36%, 156 bytes (retail is also 156). Every store and every constant is
-// right; the ONLY difference is where the single s16 -1 is materialised. Retail
-// emits "addiu v1,zero,-1" as insn 1 (before the 0xFFFF load); gcc puts it at
-// the boundary of the constant-store cluster: with the source order 0x3C, 0x5C,
-// 0x39 it lands just before the sb 0x39, and listing the stores in any other
-// order just moves the boundary with it. Measured: 0x5C first (74.36), 0x3C
-// first, i.e. retail's own instruction order (74.36), 0x8E = 1 moved into the
-// constant cluster so the cluster is four stores - the -1 then lands after the
-// cluster, immediately before the word-store group, and takes $2 not $3. A
-// "s16 m1 = -1;" local, a separate "m1 = -1;" statement and raw -1 literals all
-// still land the li at that boundary. Permuter from this body: base 210, best
-// 180, 1325 iterations - its only gain was moving the 0x3C store below the 0xC
-// store, which contradicts retail's own li 0xFFFF-first order, so it is not
-// taken. Untested lead: retail's placement is what a load hoisted to its
-// DEAD-store position looks like, i.e. the original source may have had a
-// redundant -1 assignment early in the function whose store gcc then deleted
-// (cse keeps the constant in the register from insn 1). Note 0x3C is unsigned
-// (ori 0xFFFF) while 0x98/0x3A/0x1E are signed -1 (addiu), so the two constants
-// must stay spelled differently.
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
+    *(s16 *)(arg0 + 0x98) = -1;
     *(u16 *)(arg0 + 0x3C) = 0xFFFF;
     *(u8 *)(arg0 + 0x5C) = 0xFF;
     *(u8 *)(arg0 + 0x39) = 0x6B;
