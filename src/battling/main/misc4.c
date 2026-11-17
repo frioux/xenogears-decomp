@@ -128,7 +128,8 @@ struct ActorScript {
     /* 0x6 */ s16 vertexIndex1;
     /* 0x8 */ s16 baseVertexIndex;
     /* 0xA */ u8 padA[0x2];
-    /* 0xC */ u16 unkC;
+    // The actor's own speed scale in 8.8, the source of the two scales at 0x15F2/0x15F4.
+    /* 0xC */ u16 speedScale;
     /* 0xE */ u8 padE[0x1];
     /* 0xF */ u8 unkF;
     /* 0x10 */ u8 pad10[0x10];
@@ -238,7 +239,9 @@ struct Actor {
     /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 pad4D;
     /* 0x04E */ u8 prevPartIndex;
-    /* 0x04F */ u8 unk4F;
+    // Per-frame part animation advance in 1/16-frame units; src/battling/main/misc2
+    // (func_80074BA4) recomputes it from the part's timing table, the reset sets 0x10.
+    /* 0x04F */ u8 animSpeed;
     /* 0x050 */ u8 pad50[0x2];
     /* 0x052 */ u8 unk52;
     /* 0x053 */ u8 pad53;
@@ -267,7 +270,8 @@ struct Actor {
     /* 0x0BE */ s16 unkBE;
     /* 0x0C0 */ u8 gaugeWidth;
     /* 0x0C1 */ u8 prevGaugeWidth;
-    /* 0x0C2 */ u8 unkC2;
+    // Frames of hit flash left, drained 0x10 at a time (src/battling/main/misc3).
+    /* 0x0C2 */ u8 flashTimer;
     /* 0x0C3 */ u8 unkC3;
     /* 0x0C4 */ u8 state;
     /* 0x0C5 */ u8 actionPhase;
@@ -297,7 +301,9 @@ struct Actor {
     // Frames left before the gauge sound repeats (misc3 BattleUpdateSlotGaugeDisplay).
     /* 0x910 */ u8 soundTimer;
     /* 0x911 */ u8 pad911[0x3];
-    /* 0x914 */ s16 unk914;
+    // Counts down after an action entry was rejected; while it runs no action is
+    // entered (src/battling/main/misc3).
+    /* 0x914 */ s16 actionWaitTimer;
     /* 0x916 */ s16 unk916;
     /* 0x918 */ u8 pad918[0x14];
     // Two world points whose y words bound the actor vertically; func_80078920
@@ -547,7 +553,7 @@ void func_80078F00(Actor* p) {
     p->prevGaugeValue = 0x12C;
     p->gaugeMax = 0x12C;
     p->unkBE = 0x480;
-    p->unkC2 = 0xF0;
+    p->flashTimer = 0xF0;
     p->angle = 0;
     p->state = 0;
     p->actionPhase = 0;
@@ -588,8 +594,8 @@ void func_80078F00(Actor* p) {
     p->flags &= ~4;
     p->flags &= ~2;
     p->flags &= ~0x38;
-    p->baseSpeedScale = pScript->unkC;
-    p->speedScale = pScript->unkC;
+    p->baseSpeedScale = pScript->speedScale;
+    p->speedScale = pScript->speedScale;
     p->stateFlags &= ~0x10;
     p->pActionEntry = D_8009264C;
     D_8009264E = 1;
@@ -601,7 +607,7 @@ void func_80078F00(Actor* p) {
     BattleInitActorWork(p);
     BattleActorResetUnk15D8(&p->unk15D8);
     BattleInitSemiTransQuadPacket(p);
-    p->unk914 = 0;
+    p->actionWaitTimer = 0;
     p->unk1668 = 0;
     p->stateFlags &= ~0x40;
 }
@@ -828,12 +834,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
 void BattleActorSetModelByTimer(Actor* p) {
     g_BattleMotionSpeedScale = 0x100;
     if (g_BattleTransitionCountdown < 0x78) {
-        p->unk4F = 0x10;
+        p->animSpeed = 0x10;
         p->unk52 = 0;
         p->modelIndex = 0x10;
         p->flags |= 0x400;
     } else {
-        p->unk4F = 0x10;
+        p->animSpeed = 0x10;
         p->unk52 = 0;
         p->modelIndex = 0;
         p->flags |= 0x400;
@@ -842,7 +848,7 @@ void BattleActorSetModelByTimer(Actor* p) {
 
 void BattleActorSetModelIndex9(Actor* p) {
     g_BattleMotionSpeedScale = 0x100;
-    p->unk4F = 0x10;
+    p->animSpeed = 0x10;
     p->unk52 = 0;
     p->modelIndex = 9;
     p->flags |= 0x2000400;
@@ -943,7 +949,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AE10);
 
 void BattleActorInitModelState(Actor* p, u8 unk4C) {
     p->pState = (ActorSub*)((u8*)p + 0x9CC);
-    p->unk4F = 0x10;
+    p->animSpeed = 0x10;
     p->modelIndex = unk4C;
     p->unk52 = 0;
     g_BattleMotionSpeedScale = 0x100;
