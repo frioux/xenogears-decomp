@@ -277,7 +277,74 @@ int OpenTMD(u_long *tmd, int obj_no) {
     return D_8005A38C = func_80047638(tmd, obj_no, &D_8005A388, &D_8005A380, &D_8005A384);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004726C);
+/* One 8-byte vertex/normal entry of the TMD data block: x, y, z and a pad. */
+typedef struct {
+    /* 0x0 */ u_short x;
+    /* 0x2 */ u_short y;
+    /* 0x4 */ u_short z;
+    /* 0x6 */ u_short pad6;
+} TmdVector; // Size: 0x8
+
+/* A mapped TMD primitive object (0x78 bytes): func_800477D0 builds the
+   header in 0x0-0x1F, and the vertices/normals named by vertIndex/normIndex
+   are copied out of the data block into verts/norms here. */
+typedef struct {
+    /* 0x00 */ u8 unk00[0x20];
+    /* 0x20 */ TmdVector verts[4];
+    /* 0x40 */ TmdVector norms[4];
+    /* 0x60 */ u_long vertBase;
+    /* 0x64 */ u_long normBase;
+    /* 0x68 */ u_short vertIndex[4];
+    /* 0x70 */ u_short normIndex[4];
+} TmdPrimObject; // Size: 0x78
+
+extern int func_800477D0(u_long *pPrim, TmdPrimObject *pObj);
+
+TmdPrimObject *func_8004726C(TmdPrimObject *pObj) {
+    TmdVector *pVert;
+    TmdVector *pNorm;
+    int size;
+
+    if ((size = func_800477D0(D_8005A388, pObj)) < 0)
+        return 0;
+
+    pVert = (TmdVector *)D_8005A380;
+    pNorm = (TmdVector *)D_8005A384;
+    pObj->vertBase = (u_long)pVert;
+    pObj->normBase = (u_long)pNorm;
+
+    pObj->norms[0].x = pNorm[pObj->normIndex[0]].x;
+    pObj->norms[0].y = pNorm[pObj->normIndex[0]].y;
+    pObj->norms[0].z = pNorm[pObj->normIndex[0]].z;
+    pObj->norms[1].x = pNorm[pObj->normIndex[1]].x;
+    pObj->norms[1].y = pNorm[pObj->normIndex[1]].y;
+    pObj->norms[1].z = pNorm[pObj->normIndex[1]].z;
+    pObj->norms[2].x = pNorm[pObj->normIndex[2]].x;
+    pObj->norms[2].y = pNorm[pObj->normIndex[2]].y;
+    pObj->norms[2].z = pNorm[pObj->normIndex[2]].z;
+
+    // advancing the prim pointer between the two copies is what retail does
+    D_8005A388 = (u_long *)((u_char *)D_8005A388 + size);
+
+    pObj->norms[3].x = pNorm[pObj->normIndex[3]].x;
+    pObj->norms[3].y = pNorm[pObj->normIndex[3]].y;
+    pObj->norms[3].z = pNorm[pObj->normIndex[3]].z;
+
+    pObj->verts[0].x = pVert[pObj->vertIndex[0]].x;
+    pObj->verts[0].y = pVert[pObj->vertIndex[0]].y;
+    pObj->verts[0].z = pVert[pObj->vertIndex[0]].z;
+    pObj->verts[1].x = pVert[pObj->vertIndex[1]].x;
+    pObj->verts[1].y = pVert[pObj->vertIndex[1]].y;
+    pObj->verts[1].z = pVert[pObj->vertIndex[1]].z;
+    pObj->verts[2].x = pVert[pObj->vertIndex[2]].x;
+    pObj->verts[2].y = pVert[pObj->vertIndex[2]].y;
+    pObj->verts[2].z = pVert[pObj->vertIndex[2]].z;
+    pObj->verts[3].x = pVert[pObj->vertIndex[3]].x;
+    pObj->verts[3].y = pVert[pObj->vertIndex[3]].y;
+    pObj->verts[3].z = pVert[pObj->vertIndex[3]].z;
+
+    return pObj;
+}
 
 int func_80047518(u_long *p, TIM_IMAGE *tim) {
     int clutSize;
