@@ -11,8 +11,8 @@ extern volatile u_long *D_800569A4;
 extern u_long *D_800569A8;
 
 extern volatile u_long *D_800569B0;
-extern u_long *D_800569C0;
-extern u_long D_800569C4;
+extern volatile u_long *D_800569C0;
+extern volatile u_long D_800569C4[];
 extern u_long D_800569C8;
 extern u_long D_800569CC;
 
@@ -21,6 +21,8 @@ extern volatile u_long D_800569D8;
 extern u_long D_800569E4;
 
 extern int func_8004696C(void);
+extern int func_8004709C(u_long mode);
+extern void func_80047178(void *p, int value, int n);
 extern int func_80046F30(void);
 
 extern u_char D_8005A27C[];
@@ -116,21 +118,17 @@ int func_8004696C(void) {
     return (D_800569D4 - D_800569D8) & 0x3F;
 } */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046C58);
-
-/* best 73.51%: prologue, both case bodies and the tail are identical; gcc
-   emits the whole switch (mode and 7) as one comparison chain where retail
-   splits it with a range test (beq v1,1 / slti v0,v1,2 / beqz / beqz v1,0),
-   i.e. retail's case tree is balanced over the values 0,1,3,5. 8 bytes short.
-   Listing the 0/5 group first does not change it.
 int func_80046C58(u_long mode) {
+    u_char v;
+
     D_800569E4 = SetIntrMask(0);
     D_800569D8 = 0;
     D_800569D4 = D_800569D8;
 
-    switch (mode & 7) {
-    case 0:
+    v = mode & 7;
+    switch (v) {
     case 5:
+    case 0:
         *D_800569B0 = 0x401;
         *D_800569C0 |= 0x800;
         *D_800569A4 = 0;
@@ -144,28 +142,31 @@ int func_80046C58(u_long mode) {
         *D_800569A4 = 0x2000000;
         *D_800569A4 = 0x1000000;
         break;
+    }
 
-    } */
+    SetIntrMask(D_800569E4);
 
-/* best 94.39%: every insn multiset and the block layout match; the only
-   difference is the tail, where retail branches on n with the n result in the
-   delay slot (bnez s0 / move v0,s0 / j / li v0,1) and gcc reverses the ternary
-   to beqz s0 / li v0,1 / j / move v0,s0. Tried if/return, nested if/else,
-   n ? n : 1, n == 0 ? 1 : n, and a ret variable; all give the reversed form.
-int func_80046DB4(int wait) {
+    if ((mode & 7) == 0)
+        return func_8004709C(mode);
+
+    return 0;
+}
+
+
+int func_80046DB4(int mode) {
     u_long n;
 
-    if (wait == 0) {
+    if (mode == 0) {
         func_80046EFC();
 
         while (D_800569D4 != D_800569D8) {
             func_8004696C();
-            if (func_80046F30())
+            if (func_80046F30() != 0)
                 return -1;
         }
 
         while ((*D_800569B0 & 0x1000000) || !(*D_800569A4 & 0x4000000)) {
-            if (func_80046F30())
+            if (func_80046F30() != 0)
                 return -1;
         }
 
@@ -177,15 +178,15 @@ int func_80046DB4(int wait) {
         func_8004696C();
 
     if ((*D_800569B0 & 0x1000000) || !(*D_800569A4 & 0x4000000)) {
-        if (n != 0)
-            return n;
-        return 1;
+        if (n == 0)
+            return 1;
+        return n;
     }
 
     return n;
-} */
+}
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046DB4);
+
 
 void func_80046EFC(void) {
     D_800569E8 = Vsync(-1) + 0xF0;
@@ -194,23 +195,24 @@ void func_80046EFC(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
 
-/* best 94.49%: identical instruction multiset and size (364 bytes); the only
-   differences are the scheduler/allocator choices inside the first printf's
-   argument setup (retail keeps the D_800569A4 pointer in v1 and the discarded
-   status read in v0, gcc picks a2/v1) plus one address form (retail reaches
-   D_800569C4 with lui+addiu, reproduced here by the volatile pointer local).
-   Tried: inline vs local que, (void) read before/after the que, pointer vs
-   array declaration of D_800569C4, SetIntrMask returning int vs u_short, and
-   both orders of the SetIntrMask(0)/D_800569D8 assignments.
+/* best 94.49% (364 bytes = retail's exact size, identical instruction multiset).
+   The two ingredients found so far: the discarded status read is a bare
+   '(void)*D_800569A4;' statement before the first printf, and the queue word
+   D_800569C4 must be declared volatile AND as an array ('extern volatile u_long
+   D_800569C4[];' read as D_800569C4[0]) - that is what materialises its address
+   with lui+addiu instead of the 2-instruction lui+lw form retail does not have.
+   Left: the register allocation of the first printf's argument setup (retail
+   keeps the D_800569A4 pointer in v1 and the dead status read in v0, gcc picks
+   a2/v1 and loads the A8 word earlier). Tried: inline vs pointer-local que,
+   (void) read before/after the que, SetIntrMask returning int vs u_short, both
+   orders of the SetIntrMask(0)/D_800569D8 pair, and two permuter runs (a 3 min
+   run found only the volatile D_800569C4 above).
 int func_80046F30(void) {
     if (D_800569E8 < Vsync(-1) || D_800569EC++ > 0xF0000) {
-        volatile u_long *pStat = D_800569A4;
-        volatile u_long *pFunc = &D_800569C4;
-
-        (void)*pStat;
-        printf(D_80019240, (D_800569D4 - D_800569D8) & 0x3F, *pStat, *D_800569B0,
-               *D_800569A8);
-        printf(D_80019274, *pFunc, D_800569C8, D_800569CC);
+        (void)*D_800569A4;
+        printf(D_80019240, (D_800569D4 - D_800569D8) & 0x3F, *D_800569A4,
+               *D_800569B0, *D_800569A8);
+        printf(D_80019274, D_800569C4[0], D_800569C8, D_800569CC);
         D_800569E4 = SetIntrMask(0);
         D_800569D8 = 0;
         D_800569D4 = D_800569D8;
@@ -221,8 +223,10 @@ int func_80046F30(void) {
         SetIntrMask(D_800569E4);
         return -1;
     }
+
     return 0;
 } */
+
 
 int func_8004709C(u_long mode) {
     *D_800569A4 = 0x10000007;
