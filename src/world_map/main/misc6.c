@@ -172,7 +172,7 @@ extern int func_8007E4E4(int);
 extern int func_8007ECA4(int);
 extern void func_8007EE34(int);
 extern int WorldMapInitSlotActor(int);
-extern int func_8007F968(int);
+extern int WorldMapUpdateSlotActor(int);
 extern int func_8007FC8C(int);
 extern int func_8007FD30(int);
 extern void WorldMapEnterNop(void);
@@ -421,11 +421,11 @@ void func_8007D918(void) {
     WorldMapAddSlot(WorldMapSetActorScriptTables, func_8007DE98);
     WorldMapAddSlot(func_8007E450, func_8007E4E4);
     WorldMapAddSlot(func_8007ECA4, func_8007EE34);
-    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
-    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
-    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
-    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
-    WorldMapAddSlot(WorldMapInitSlotActor, func_8007F968);
+    WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
+    WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
+    WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
+    WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
+    WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
     WorldMapAddSlot(func_8007FC8C, func_8007FD30);
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
@@ -845,7 +845,7 @@ int WorldMapInitSlotActor(int index) {
     return 1;
 }
 
-int func_8007F968(int index) {
+int WorldMapUpdateSlotActor(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapActor *pRefActor = &g_WorldMapSlots[3];
     WorldMapGroup *pGroup = &g_WorldMapGroups->groups[index];

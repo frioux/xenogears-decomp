@@ -750,7 +750,7 @@ void BattleInitTargetSlotFlags(s32 arg0) {
         func_80093B08(arg0);
     }
 }
-void func_800819A4(u8 arg0) {
+void BattleAppendCommandRecord(u8 arg0) {
     u16 orBits;
     s32 idx;
 
