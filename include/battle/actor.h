@@ -185,7 +185,9 @@ typedef struct {
     /* 0x80 */ u16 unk80;
     /* 0x82 */ u16 unk82;
     /* 0x84 */ u16 unk84;
-    /* 0x86 */ u8 unk86[0x13];
+    /* 0x86 */ u8 unk86[0x2];
+    /* 0x88 */ u8 statusPenaltyPercent[0x10]; // percent taken off an action, one entry per status bit, indexed by the highest set bit of BattleRow.statusMask
+    /* 0x98 */ u8 unk98; // BattleResetSlotConditionCounters keeps it within 0x10
     /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
     /* 0x9A */ u8 unk9A[0x4];
     /* 0x9E */ u8 unk9E;
@@ -199,14 +201,16 @@ typedef struct {
 
 // One slot of the per-battle-slot table family (stride 0x170). Three of them
 // open the battle work block (g_BattleCurWorkBlock->slots); g_BattleActingSlot/D_800C3E34 point
-// at the acting slot and its target. Only the fields read by
-// src/battle/main/misc18 and misc19 are named.
+// at the acting slot and its target. The first 0xA4 bytes are the character's
+// GameCharacter record (its stats, accessory effect flag words and gear id sit
+// at these offsets) and the 0xCC after them are the battle copy of it.
+// Only the fields read by src/battle/main/misc18 and misc19 are named.
 typedef struct {
     /* 0x000 */ u16 flags;
     /* 0x002 */ u8 chance; // percent, rolled against rand() % 100 by BattleTryApplySlotCondition
     /* 0x003 */ u8 conditionKind; // passed as that function's kind word; its bits pick the condition word to clear
     /* 0x004 */ u8 unk04[0x2E];
-    /* 0x032 */ u16 unk32; // flag word: bit 0x40 doubles the condition timer, the 0x400/0x200 pair picks a drop rate
+    /* 0x032 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, as in GameCharacter: bit 0x40 doubles the condition timer, the 0x400/0x200 pair picks a drop rate
     /* 0x034 */ u16 blockFlags; // 0x4000/0x8000: the action is nullified; the row's actionFlags 0x100 picks which bit is tested
     /* 0x036 */ u16 unk36;
     /* 0x038 */ u16 element; // the slot's own element mask in the low 6 bits, as the row's element: bit 0x40 raises the affinity multiplier from 15 to 18
@@ -225,16 +229,18 @@ typedef struct {
     /* 0x060 */ u8 unk60[0x1A];
     /* 0x07A */ u16 unk7A;
     /* 0x07C */ u16 unk7C;
-    /* 0x07E */ u16 unk7E;
+    /* 0x07E */ u16 accessoryEffectFlags1; // the accessory effect flag words of GameCharacter sit at these same offsets: a set bit makes the slot refuse the condition
     /* 0x080 */ u16 unk80;
-    /* 0x082 */ u16 unk82;
+    /* 0x082 */ u16 accessoryEffectFlags2;
     /* 0x084 */ u16 unk84;
-    /* 0x086 */ u16 unk86;
+    /* 0x086 */ u16 accessoryEffectFlags3;
     /* 0x088 */ u16 unk88;
-    /* 0x08A */ u16 unk8A;
+    /* 0x08A */ u16 accessoryEffectFlags4;
     /* 0x08C */ u16 unk8C;
-    /* 0x08E */ u16 unk8E;
-    /* 0x090 */ u8 unk90[0x14];
+    /* 0x08E */ u16 accessoryEffectFlags7;
+    /* 0x090 */ u8 unk90[0x10];
+    /* 0x0A0 */ u8 gearId; // the gear the slot's character has equipped, as in GameCharacter
+    /* 0x0A1 */ u8 unkA1[0x3];
     /* 0x0A4 */ BattleSlotState state;
 } BattleTableEntry; // Size: 0x170
 

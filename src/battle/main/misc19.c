@@ -46,7 +46,7 @@ s32 BattleGetActorConditionCode(u8 arg0) {
     if (f7C & 0x2) {
         return 3;
     }
-    if ((p->unk84 | p->unk86) & 0x8000) {
+    if ((p->unk84 | p->accessoryEffectFlags3) & 0x8000) {
         return 7;
     }
     return p->hp < (p->maxHp >> 3) ? 5 : 0;
@@ -70,7 +70,7 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
     if (f7C & 0x800) {
         ret |= 0x2000;
     }
-    f = p->unk8C | p->unk8E;
+    f = p->unk8C | p->accessoryEffectFlags7;
     if (f & 0xF00) {
         ret |= (f & 0xF00) >> 3;
     }
