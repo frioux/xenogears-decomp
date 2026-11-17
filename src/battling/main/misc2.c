@@ -330,8 +330,8 @@ void BattleEffectInitContext(void) {
 
 extern s32 g_BattleEffectEntryCount;
 extern s32 g_BattleEffectPosX;
-extern s32 D_80092A28;
-extern s32 D_80092A2C;
+extern s32 g_BattleEffectPosY;
+extern s32 g_BattleEffectPosZ;
 extern MATRIX g_BattleBaseMatrix;
 extern void func_8008D680(BattleEffect *, MATRIX *, s32);
 extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, MATRIX *);
@@ -345,8 +345,8 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
        (pEffect->x = ...) gcc loads all three globals before storing any of
        them (63.89%), retail interleaves load and store. */
     *(s16 *)(p + 0x14) = g_BattleEffectPosX;
-    *(s16 *)(p + 0x16) = D_80092A28;
-    *(s16 *)(p + 0x18) = D_80092A2C;
+    *(s16 *)(p + 0x16) = g_BattleEffectPosY;
+    *(s16 *)(p + 0x18) = g_BattleEffectPosZ;
     *(s16 *)(p + 0x34) = 0;
     *(s16 *)(p + 0x36) = 0;
     *(s16 *)(p + 0x38) = 0;

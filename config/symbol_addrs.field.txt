@@ -1038,3 +1038,5 @@ g_FieldStreamLoopPlayback = 0x800C3A3A;
 g_FieldGameStateChangeRequest = 0x800ADBD8;
 g_FieldMapChangeRequestGate = 0x800ADBE0;
 g_FieldMapTransitionGate = 0x800ADBEC;
+FieldRunStreamedSequence = 0x800A7C58;
+FieldUpdateSpriteSheetPrims = 0x800A84C0;

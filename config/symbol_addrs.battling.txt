@@ -741,3 +741,5 @@ g_BattleButtonStatePressedOnce = 0x8009274C;
 g_BattleButtonStateReleased = 0x80092750;
 g_BattleEffectTemplateTable = 0x800910F4;
 g_BattleFrameSkipCountdown = 0x80092664;
+g_BattleEffectPosY = 0x80092A28;
+g_BattleEffectPosZ = 0x80092A2C;

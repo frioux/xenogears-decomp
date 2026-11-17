@@ -1011,7 +1011,7 @@ extern void func_80077AB4(void);
 extern void func_80077884(void);
 extern void func_80085788(void);
 
-void func_800A7C58(void) {
+void FieldRunStreamedSequence(void) {
     RECT rect;
     RenderContext* pRenderContext;
     void* pImage;
@@ -1297,7 +1297,7 @@ extern FieldCameraPosition g_CameraAt;
 // Colour of the sprite prims, and which ordering table slot they are linked into
 #define FIELD_SPRITE_POLY_OT_INDEX 4
 
-void func_800A84C0(void) {
+void FieldUpdateSpriteSheetPrims(void) {
     s32 nCameraAngle;
     s32 nInterpAngle;
     s32 nPolyCount;
