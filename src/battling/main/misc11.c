@@ -33,11 +33,21 @@ extern BattlingLineSlotCount D_80095968[];
 extern void *BattleAllocLineSlot();
 extern void func_80085EC8(void *);
 
+// The gauge primitives of one draw buffer: the shared tpage/background prims first,
+// then the bar templates (barPrim), their two per-side copies, the gauge segments
+// and finally the four quads the side meters use.
 typedef struct {
-    /* 0x000 */ u32 unk0[0xC4];
-} BattlingWork; // Size: 0x310
+    /* 0x000 */ DR_TPAGE tpage[2];
+    /* 0x010 */ POLY_G3 background[4];
+    /* 0x080 */ POLY_F4 barPrim[6];
+    /* 0x110 */ DR_TPAGE barTpage;
+    /* 0x118 */ POLY_F4 barFront[6];
+    /* 0x1A8 */ POLY_F4 barBack[6];
+    /* 0x238 */ POLY_F3 gauge[6];
+    /* 0x2B0 */ POLY_F4 meter[4];
+} BattlingGaugeEnv; // Size: 0x310
 
-extern BattlingWork g_BattleDrawEnvPair[2];
+extern BattlingGaugeEnv g_BattleDrawEnvPair[2];
 
 extern s32 g_BattleAppendEntryCount;
 extern u32 g_NearColor;
@@ -91,7 +101,162 @@ extern u16 g_BattleQuadClut;
 extern u8 g_BattleQuadTexU;
 extern u8 g_BattleQuadTexV;
 
+extern u8 *g_BattleRootOrderingTable;
+extern s32 g_SpuChannelMask;
+
+// The bar primitives the gauge draws into, and the two texture rows the gauge
+// quads sample from.
+extern POLY_FT4 D_80095698[16];
+extern POLY_FT4 D_800958C8[];
+extern DR_TPAGE D_80095918[4];
+extern u8 D_80092860;
+extern u8 D_800987EC;
+extern u8 D_800970D0;
+
+// The gauge state of one battle side: where the bar sits (10.6 fixed point), how
+// far it is filled and how faded it is.
+typedef struct {
+    /* 0x000 */ u8 unk000[0xB6];
+    /* 0x0B6 */ u16 position;
+    /* 0x0B8 */ u8 unk0B8[0x9];
+    /* 0x0C1 */ u8 barLength;
+    /* 0x0C2 */ u8 fade;
+    /* 0x0C3 */ u8 unk0C3[0x2F];
+    /* 0x0F2 */ s16 segments;
+} BattlingGaugeState; // Size: 0xF4
+
+extern s32 func_80086FF8(BattlingGaugeState *pState, POLY_F4 *pPrim);
+extern void func_80086E70(u8 *pOt, void *pBase, s32 value, s32 flag);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
+/* Best 99.75%, at retail's exact size (1412 bytes). Everything matches but one
+   register pair, twice per function, inside the two fade loops: retail keeps the
+   reloaded fade byte in $v0 and the multiplied value in $v1
+   (lbu v0,194 / sll v1,v0,8 / subu v1,v1,v0 / sra v1,v1,8 / addu v1,a1,v1 /
+   sb v1,428), gcc 2.7.2 gives the mirror image (lbu v1 ... sb v0,428). Same
+   instruction multiset, same byte count, 17 instruction diffs.
+   Load-bearing shapes found on the way: the fade reload must be the loop's first
+   statement (else the bar pointer takes $v1 and the reload $a0); the narrow u8
+   copy of the brightness produces retail's 'move a3,a1'; and one variable reused
+   for the segment count, the bar position and the loop counter is what puts the
+   bar pointer in $a0, the count in $s2 and gives retail's six saved registers
+   (without it the body is 8 bytes short). Also needed: the multiply as its own
+   local, and the fade colour block's invariants written inside the loop so loop
+   invariant motion hoists them after the 'i = 0' initialisation.
+   Two permuter runs (4 and 3 minutes; 1702 and 1068 iterations) found nothing
+   better (second run PERMUTER_NONE, base=90 best=90). Not a preset question:
+   gcc-2.7.2-cdk scores 95.46 on this body.
+   The 0x310 layout below is confirmed by func_80085EC8, which initialises the
+   same block, and by misc10's parked func_800868E0. D_80092860 (a byte at
+   g_BattleScreenWidth + 4) is not in any symbol file yet, so the body needs
+   'D_80092860 = 0x80092860;' in config/symbol_addrs.battling.txt to link.
+void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
+    BattlingGaugeEnv *pEnv;
+    POLY_FT4 *pPacket;
+    s32 i;
+    s32 fade;
+    s32 bright;
+    s32 half;
+    s32 scaledFade;
+    u8 barBright;
+
+    pEnv = &g_BattleDrawEnvPair[g_BattleDrawBufferIndex];
+
+    i = arg0->segments;
+    if (i > 0) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->gauge[0]);
+    }
+    if (i > 1) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->gauge[1]);
+    }
+    if (i > 2) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->gauge[2]);
+    }
+
+    i = arg1->segments;
+    if (i > 0) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->gauge[3]);
+    }
+    if (i > 1) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->gauge[4]);
+    }
+    if (i > 2) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->gauge[5]);
+    }
+
+    if (func_80086FF8(arg0, &pEnv->meter[2]) != 0) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->meter[2]);
+    }
+    if (func_80086FF8(arg1, &pEnv->meter[3]) != 0) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->meter[3]);
+    }
+
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex + 2]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex + 4]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex + 6]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095918[g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex + 8]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex + 10]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095918[g_BattleDrawBufferIndex + 2]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex + 14]);
+    AddPrim(g_BattleRootOrderingTable, &D_80095698[g_BattleDrawBufferIndex + 12]);
+    AddPrim(g_BattleRootOrderingTable, &pEnv->meter[0]);
+    AddPrim(g_BattleRootOrderingTable, &pEnv->meter[1]);
+    AddPrim(g_BattleRootOrderingTable, &pEnv->background[0]);
+    AddPrim(g_BattleRootOrderingTable, &pEnv->background[2]);
+
+    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[0], D_800987EC, 0);
+    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[3], D_800970D0, 1);
+
+    i = ((s16)arg0->position) >> 6;
+    pPacket = &D_80095698[g_BattleDrawBufferIndex + 12];
+    pPacket->r0 = (i >= 0x39) ? (g_SpuChannelMask << 3) : 0xFF;
+    pPacket->y0 = pPacket->y1 = 0x60 - i;
+    pPacket->v0 = pPacket->v1 = D_80092860 - (i - 0x40);
+
+    i = ((s16)arg1->position) >> 6;
+    pPacket = D_800958C8 + g_BattleDrawBufferIndex;
+    pPacket->r0 = (i >= 0x39) ? (g_SpuChannelMask << 3) : 0xFF;
+    pPacket->y0 = pPacket->y1 = 0x60 - i;
+    pPacket->v0 = pPacket->v1 = D_80092860 - (i - 0x40);
+
+    if (arg0->fade != 0) {
+        fade = 0x100 - arg0->fade;
+        for (i = 0; i < 3; i++) {
+            bright = (fade * 3) >> 3;
+            barBright = bright;
+            half = fade >> 1;
+            scaledFade = arg0->fade;
+            scaledFade *= 0xFF;
+            pEnv->barBack[i].g0 = barBright;
+            pEnv->barBack[i].b0 = half;
+            pEnv->barBack[i].r0 = bright + (scaledFade >> 8);
+        }
+        func_80086E70(g_BattleRootOrderingTable, &pEnv->barBack[0], arg0->barLength, 0);
+    }
+
+    if (arg1->fade != 0) {
+        fade = 0x100 - arg1->fade;
+        for (i = 3; i < 6; i++) {
+            bright = (fade * 3) >> 3;
+            barBright = bright;
+            half = fade >> 1;
+            scaledFade = arg1->fade;
+            scaledFade *= 0xFF;
+            pEnv->barBack[i].g0 = barBright;
+            pEnv->barBack[i].b0 = half;
+            pEnv->barBack[i].r0 = bright + (scaledFade >> 8);
+        }
+        func_80086E70(g_BattleRootOrderingTable, &pEnv->barBack[3], arg1->barLength, 1);
+    }
+
+    for (i = 0; i < 6; i++) {
+        AddPrim(g_BattleRootOrderingTable, &pEnv->barFront[i]);
+    }
+    AddPrim(g_BattleRootOrderingTable, &pEnv->tpage[0]);
+}
+*/
 
 void BattleInitDrawEnvPair(void) {
     func_80085EC8(g_BattleDrawEnvPair);
