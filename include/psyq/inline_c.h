@@ -992,8 +992,8 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
  * Type 2 functions without nop
  */
 
-#define gte_rtps_b()		__asm__ volatile ( ".word 0x0000007f" )
-#define gte_rtpt_b()		__asm__ volatile ( ".word 0x000000bf" )
+#define gte_rtps_b()		__asm__ volatile ( "c2      0x180001" )
+#define gte_rtpt_b()		__asm__ volatile ( "c2      0x280030" )
 #define gte_rt_b()		__asm__ volatile ( ".word 0x4a480012" )
 #define gte_rtv0_b()		__asm__ volatile ( ".word 0x0000013f" )
 #define gte_rtv1_b()		__asm__ volatile ( ".word 0x0000017f" )
@@ -1691,6 +1691,12 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 #define gte_stopz_val( r0 ) __asm__ volatile (			\
 	"mfc2	%0, $24;"					\
 	"nop"							\
+	: "=r"( r0 ) )
+
+/* SZ3 read back into a general register: the functions that return opz read it
+   and shift it by 2, instead of storing it through a pointer. */
+#define gte_stsz3_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $19"					\
 	: "=r"( r0 ) )
 
 /* MAC1-MAC3 read back one at a time, so the source controls the order and the
