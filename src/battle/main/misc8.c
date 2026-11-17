@@ -451,47 +451,30 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
         pRow[index] = result;
     }
 }
-// best: 98.33% (308 bytes vs retail 312). The only missing instruction is
-// `move s2,a1` at loop entry - the same single-instruction gap, on the same
-// preheader, as func_8007C9D4: retail forms the row base in caller-saved a1,
-// uses it for the zeroing store, then copies it into s2 after the initial
-// three-byte loop test. Re-measured after fixing the body to compile: the old
-// 98.46% body read `g_BattleSlotEntries[idx].flags`, and that symbol was never
-// declared in this unit. The field is the u16 at +0 of the 0x170-byte entry, so
-// g_BattleSlotEntriesBase[idx].flags is the same address and the identical code (98.33%).
-// The duplicated `if (arg0)`, whose two arms are identical, is what puts arg0 in
-// s1 and the base in s2 the way retail has them; removing it drops the score.
-/*
 void func_8007D478(u8 **arg0, u8 arg1) {
     u8 buf[3];
-    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
-    u32 flags;
+    u16 *pRow = g_BattleSlotRows[arg1].unk10;
 
     buf[0] = buf[1] = buf[2] = 0;
     pRow[(*arg0)[1]] = 0;
-    do {
-        while ((buf[0] & buf[1] & buf[2]) == 0) {
-            s32 slot = GameRandomByteRange(0, 2);
-            u8 idx = slot;
+    while ((buf[0] & buf[1] & buf[2]) == 0) {
+        s32 slot = GameRandomByteRange(0, 2);
+        u8 idx = slot;
+        u8 tried = buf[idx];
+        /* second live copy of the row pointer, as in func_8007C9D4 */
+        u16 *pLoopRow = g_BattleSlotRows[arg1].unk10;
+        u32 flags;
 
-            if (buf[idx] == 0) {
-                flags = g_BattleSlotEntries[idx].flags;
-                if ((flags & 0x8000) && (flags & 0x4002) == 0) {
-                    if (arg0) {
-                        pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
-                        break;
-                    } else {
-                        pRow[(*arg0)[1]] = BattleSlotBitMask(idx);
-                        break;
-                    }
-                }
-                buf[idx] = 1;
+        if (tried == 0) {
+            flags = g_BattleSlotEntriesBase[idx].flags;
+            if ((flags & 0x8000) && (flags & 0x4002) == 0) {
+                pLoopRow[(*arg0)[1]] = BattleSlotBitMask(idx);
+                break;
             }
+            buf[idx] = 1;
         }
-    } while (0);
+    }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D478);
 void BattleStoreCharSlotFlagsC000ClearCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
     s32 i;
