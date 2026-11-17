@@ -25,7 +25,14 @@ s32 BattleRoundDivAwayFromZero(s32 a0, s32 a1, s32 a2) {
     return d / a2;
 }
 
-extern s32 g_BattleCameraTarget;
+// The position every effect vector is placed against: three 16.16 words.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+} BattleAnchor; // Size: 0xC
+
+extern BattleAnchor g_BattleCameraTarget;
 extern s32 D_80098680;
 extern s32 D_80098684;
 extern s32 D_800925F4;
@@ -109,13 +116,6 @@ extern s32 func_80082488(VECTOR* pVec, s32 mode);
    (g_BattleSceneOriginYMirror - 0x20) - D_800925F4 into g_BattleSceneOriginYMirror - (D_800925F4 + 0x20).
 */
 
-// The position every effect vector is placed against: three 16.16 words.
-typedef struct {
-    /* 0x0 */ s32 x;
-    /* 0x4 */ s32 y;
-    /* 0x8 */ s32 z;
-} BattleAnchor; // Size: 0xC
-
 // The battling overlay's battle state (g_BattleActor1): the anchor position every
 // effect vector is placed against, the model index and gauge words at +0x4C..+0xB6
 // (the same record src/battling/main/misc3 and misc4 name), and the frame flags
@@ -137,35 +137,25 @@ typedef struct {
 
 extern BattleState g_BattleActor1;
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007099C);
-
-/* Parked at 92.82%, 732 bytes (retail's exact size): every statement, call and
-   constant is right; three allocator/position differences remain.
-   (a) retail forms &vec (addiu s0,sp,0x10) after the 16-byte D_80099078 copy,
-   ours hoists it to the top of the case 3/4 block;
-   (b) func_80082488's result stays in $v0 in retail (addiu v0,v0,-0x40,
-   subu v0,v0,a0) where ours moves it to $a0;
-   (c) case 5 keeps &g_BattleCameraTarget in $s0 across the rcos/rsin calls
-   (sw v0,0(s0), then lw v0,0(s0)); gcc folds the address into a direct symbol
-   store however it is spelled (s32* local, typed BattleAnchor* local, mem_addr
-   assigned local, two locals, array-typed global).
-   Assigning the pointer BEFORE the switch does fix (c) but makes cc1 form the
-   address in the prologue: 95.10% at 736 bytes, which cannot link. Two permuter
-   runs (5 min each) found nothing better than that; the second one's best
-   candidate just moved the assignment into case 0, which is wrong code.
-   Load-bearing and not to be re-derived: the do-while around the D_800925F4
-   store (91.24 -> 92.82 and it restores retail's byte count) and the y local,
-   which stops gcc folding g_BattleSceneOriginYMirror - 0x20 - D_800925F4 into
-   g_BattleSceneOriginYMirror - (D_800925F4 + 0x20).
-   g_BattleActor1 is declared as BattleState here, so its anchor is copied
-   through a (VECTOR*) cast (the record's first 16 bytes are one VECTOR).
-   attempt:
+// Places the effect vector (a stack VECTOR) and the camera for the placement
+// mode g_BattleEffectPlaceMode names: recentres the tutorial message, or snaps
+// the camera onto the front actor.  objdiff 99.95%: the only difference left is
+// the switch's table operand (jtbl_ vs .rodata), check_bin.sh battling is OK.
+// Three spellings are load-bearing and look gratuitous:
+//  - the do-while plus its identical if/else arms: the arms are the same store,
+//    and the join is what puts &vec's addiu after the D_80099078 copy;
+//  - the delta/offset copy keeps the func_80082488 result in $v0 for the -0x40;
+//  - pTargetX is a pointer to the anchor's x word: the field spelling
+//    (pTarget->x on a BattleAnchor*) folds the address into a %lo store, and
+//    retail keeps it in $s0 across the rcos call.
 void func_8007099C(s32 mode) {
     VECTOR vec;
+    VECTOR* pVec;
+    s32* pTargetX;
+    s32 offset;
+    s32 delta;
     s32 scale;
     s32 y;
-    s32 offset;
-    BattleAnchor* pTarget;
 
     switch (mode) {
     case 0:
@@ -183,40 +173,45 @@ void func_8007099C(s32 mode) {
         break;
     case 3:
         scale = 0xA0;
-        goto rotate_message;
+        goto place_follow;
     case 4:
         scale = 0x80;
-    rotate_message:
+    place_follow:
         // the block keeps the scale store in front of the vector copy
         do {
-            D_800925F4 = scale;
+            if (mode) {
+                D_800925F4 = scale;
+            } else {
+                D_800925F4 = scale;
+            }
         } while (0);
         vec = D_80099078;
+        pVec = &vec;
         vec.vy += D_800925F4;
-        func_80070808(&vec, 0x10);
+        func_80070808(pVec, 0x10);
         vec.vx = g_BattleActor1.position.x + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
         y = g_BattleSceneOriginYMirror - 0x20;
         vec.vy = y - D_800925F4;
         vec.vz = g_BattleSceneOriginZ + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
-        func_800708C4(&vec, 0x46);
-        offset = func_80082488(&g_BattleCameraPos, 0) - 0x40;
+        func_800708C4(pVec, 0x46);
+        delta = func_80082488(&g_BattleCameraPos, 0) - 0x40;
+        offset = delta;
         offset -= D_800925F4;
         if (offset < D_80098720) {
             D_80098720 = offset;
         }
         break;
     case 5:
-        pTarget = &g_BattleCameraTarget;
-        pTarget->x = g_BattleActor0.vx;
+        pTargetX = &g_BattleCameraTarget.x;
+        *pTargetX = g_BattleActor0.vx;
         D_80098680 = g_BattleSceneOriginY - 0xC0;
         D_80098684 = D_80097018;
-        g_BattleCameraPos.vx = pTarget->x + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
+        g_BattleCameraPos.vx = *pTargetX + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
         D_80098720 = g_BattleSceneOriginY - 0xD0;
         D_80098724 = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
         break;
     }
 }
-*/
 
 
 extern void BattleClearSpriteTables(void);
