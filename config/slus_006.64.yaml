@@ -177,6 +177,8 @@ segments:
       - [0x3A8EC, c, psyq/libgte_b_2] # SetBackColor on
       - [0x3A958, asm] # SetGeomScreen's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A95C, c, psyq/libgte_b_3] # LocalLight on
+      - [0x3AB30, asm] # AverageSZ4's tail pad words (3 words)
+      - [0x3AB3C, c, psyq/libgte_b_4] # LightColor on
       - [0x3AE4C, c, psyq/libgte_pers] # RotTransPers
       - [0x3AE78, asm] # RotTransPers's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3AE7C, c, psyq/libgte_pers3] # RotTransPers3
