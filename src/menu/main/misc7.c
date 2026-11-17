@@ -4,6 +4,19 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
+// How many of g_Menu->digits[] each character window stat is formatted to; the
+// polys<Stat> prim arrays in MenuCharacterWindow hold two prims per digit.
+#define MENU_HP_DIGIT_COUNT 3
+#define MENU_MP_DIGIT_COUNT 2
+#define MENU_LEVEL_DIGIT_COUNT 3
+#define MENU_WIDE_NUMBER_DIGIT_COUNT 7
+
+// Entries in the character window icon tables; polysIcons holds two prims per icon.
+#define MENU_CHARACTER_ICON_COUNT 20
+
+// Border corner prims, two per corner (one per render context).
+#define MENU_WINDOW_BORDER_CORNER_COUNT 4
+
 void MenuParseNumberToDigits(u32 number);
 
 // A window's tween state, one per window: &((MenuWindowTween*)g_Menu->windowTweens)[index].
@@ -138,15 +151,15 @@ void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_sho
                                     &pWindow->polysWindowBorderCorners[2 * pWindow->borderPrimCount],
                                     g_Menu->renderContext, 0, 0, 0x1000)
                     + pWindow->borderPrimCount;
-    left = x - 8;
-    top = y + 8;
+    left = x - MENU_WINDOW_BORDER_SIZE;
+    top = y + MENU_WINDOW_BORDER_SIZE;
     MenuSetQuadVertices(pWindow->vertsWindowBorderCorners, left, top, 0x10, 0xFFF0);
-    right = x + width + 8;
+    right = x + width + MENU_WINDOW_BORDER_SIZE;
     MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[4], right, top, 0xFFF0, 0xFFF0);
-    bottom = y + height - 8;
+    bottom = y + height - MENU_WINDOW_BORDER_SIZE;
     MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[8], left, bottom, 0x10, 0x10);
     MenuSetQuadVertices(&pWindow->vertsWindowBorderCorners[12], right, bottom, 0xFFF0, 0x10);
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < MENU_WINDOW_BORDER_CORNER_COUNT; i++) {
         MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderCorners[i * 2 + g_Menu->renderContext]);
     }
 }
@@ -222,10 +235,10 @@ void MenuSetWindowBorderBottom(u_char index, u_short x, u_short y, u_short width
     (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->v2 = 0x94;
     (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->u3 = 0xF;
     (pWindow->polysWindowBorderBottom + 2 + g_Menu->renderContext)->v3 = 0x94;
-    bottom = y + height - 8;
-    halfWidth = (width - 0x10) / 2;
-    MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + 8, bottom, halfWidth, 0x10);
-    x = halfWidth + 8 + x;
+    bottom = y + height - MENU_WINDOW_BORDER_SIZE;
+    halfWidth = (width - MENU_WINDOW_BORDER_SIZE * 2) / 2;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderBottom1, x + MENU_WINDOW_BORDER_SIZE, bottom, halfWidth, 0x10);
+    x = halfWidth + MENU_WINDOW_BORDER_SIZE + x;
     MenuSetQuadVertices(pWindow->vertsWindowBorderBottom2, x, bottom, halfWidth, 0x10);
     for (i = 0; i < 2; i++) {
         MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
@@ -383,8 +396,8 @@ void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
     s32 i;
 
     pWindow->iconsPrimCount = 0;
-    for (i = 0; i < 0x14; i++) {
-        if (g_MenuCharacterIconTexIds[i] != 0xFFFF) {
+    for (i = 0; i < MENU_CHARACTER_ICON_COUNT; i++) {
+        if (g_MenuCharacterIconTexIds[i] != MENU_RESOURCE_NONE) {
             pWindow->iconsPrimCount += func_8002675C(
                 g_Menu->resources,
                 g_MenuCharacterIconTexIds[i],
@@ -403,8 +416,8 @@ void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
 
     MenuParseNumberToDigits(g_GameState.characters[characterId].hp);
     pWindow->hpPrimCount = 0;
-    for (i = 0; i < 3; i++) {
-        if (g_Menu->digits[6 + i] != 0xFF) {
+    for (i = 0; i < MENU_HP_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[6 + i] != MENU_DIGIT_NONE) {
             pWindow->hpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysHp[pWindow->hpPrimCount * 2],
@@ -416,10 +429,10 @@ void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
     MenuParseNumberToDigits(g_GameState.characters[characterId].maxHp);
     pWindow->maxHpPrimCount = 0;
     n = 0;
-    for (; i < 3; ) {
+    for (; i < MENU_HP_DIGIT_COUNT; ) {
         u8 digit = g_Menu->digits[6 + i++];
 
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             pWindow->maxHpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
                 &pWindow->polysMaxHp[pWindow->maxHpPrimCount * 2],
@@ -436,8 +449,8 @@ void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
 
     MenuParseNumberToDigits(g_GameState.characters[characterId].mp);
     pWindow->mpPrimCount = 0;
-    for (i = 0; i < 2; i++) {
-        if (g_Menu->digits[7 + i] != 0xFF) {
+    for (i = 0; i < MENU_MP_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[7 + i] != MENU_DIGIT_NONE) {
             pWindow->mpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[7 + i],
                 &pWindow->polysMp[pWindow->mpPrimCount * 2],
@@ -449,10 +462,10 @@ void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
     MenuParseNumberToDigits(g_GameState.characters[characterId].maxMp);
     pWindow->maxMpPrimCount = 0;
     n = 0;
-    for (; i < 2; ) {
+    for (; i < MENU_MP_DIGIT_COUNT; ) {
         u8 digit = g_Menu->digits[7 + i++];
 
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             pWindow->maxMpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
                 &pWindow->polysMaxMp[pWindow->maxMpPrimCount * 2],
@@ -468,8 +481,8 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
 
     MenuParseNumberToDigits(g_GameState.characters[characterId].unk44);
     pWindow->wideNumberPrimCount = 0;
-    for (i = 0; i < 7; i++) {
-        if (g_Menu->digits[2 + i] != 0xFF) {
+    for (i = 0; i < MENU_WIDE_NUMBER_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[2 + i] != MENU_DIGIT_NONE) {
             pWindow->wideNumberPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
                 &pWindow->polysWideNumber[pWindow->wideNumberPrimCount * 2],
@@ -479,8 +492,8 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
     }
     MenuParseNumberToDigits(g_GameState.characters[characterId].unk48);
     pWindow->wideNumber2PrimCount = 0;
-    for (i = 0; i < 7; i++) {
-        if (g_Menu->digits[2 + i] != 0xFF) {
+    for (i = 0; i < MENU_WIDE_NUMBER_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[2 + i] != MENU_DIGIT_NONE) {
             pWindow->wideNumber2PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
                 &pWindow->polysWideNumber2[pWindow->wideNumber2PrimCount * 2],
@@ -495,8 +508,8 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
 
     MenuParseNumberToDigits(g_GameState.characters[characterId].level);
     pWindow->levelPrimCount = 0;
-    for (i = 0; i < 3; i++) {
-        if (g_Menu->digits[6 + i] != 0xFF) {
+    for (i = 0; i < MENU_LEVEL_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[6 + i] != MENU_DIGIT_NONE) {
             pWindow->levelPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysLevel[pWindow->levelPrimCount * 2],
@@ -506,8 +519,8 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
     }
     MenuParseNumberToDigits(g_GameState.characters[characterId].unk63);
     pWindow->unk63DigitsPrimCount = 0;
-    for (i = 0; i < 3; i++) {
-        if (g_Menu->digits[6 + i] != 0xFF) {
+    for (i = 0; i < MENU_LEVEL_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[6 + i] != MENU_DIGIT_NONE) {
             pWindow->unk63DigitsPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysUnk63Digits[pWindow->unk63DigitsPrimCount * 2],
@@ -562,10 +575,10 @@ void MenuSetGoldDigits(s32 x, s32 y) {
 
     MenuParseNumberToDigits(g_GameState.gold);
     ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount = 0;
-    for (i = 0, digitX = x; i < 9; ) {
+    for (i = 0, digitX = x; i < MENU_MAX_DIGITS; ) {
         u8 digit = g_Menu->digits[i++];
 
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             // The prim address is summed in integer space: a pointer sum here
             // gives gcc the commuted `addu a2,t0,a2` retail does not have.
             ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount =
