@@ -786,35 +786,61 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
-/* 84.29%: every instruction after the flag update matches. The blocker is the
-   flag update itself: retail has the gas `sym+reg` form twice
-   (`lui at,%hi(g_BattleSlotConditions); addu at,at,v0; lbu/sb %lo(at)`, i.e. the base
-   rematerialised into $at for each access, 4 more insns) while cse in our gcc
-   makes one `la $3,g_BattleSlotConditions` and shares it (`addu v0,v0,v1`), 8 bytes
-   shorter, so the size cannot match either. gcc does emit the `sym+reg` macro
-   form for g_BattleSlotFlags/g_BattleActorCharIds in this same function; it registers an
-   address only where it is used twice. Tried: plain `|=`, array-ref, pointer
-   local, volatile. */
+/* 96.00%, and the instruction stream is identical to retail's EXCEPT one block
+   position (see the end). Size is retail's 340 bytes. Four levers found, all of
+   them load-bearing:
+   (a) THE g_BattleSlotConditions DOUBLE-$at. Retail re-forms the base for each of
+       the two references (`lui at,%hi; addu at,at,v0; lbu/sb %lo(at)`); with one
+       `|=` our gcc cse's the address into a register (`la v1,sym; addu v0,v0,v1`)
+       and is 8 bytes short. Two references only get separate reloads when their
+       RTL differs, and the RMW gives that only if the index is a NAMED LOCAL and
+       the two spellings put the symbol on opposite sides: `*(u8*)(off + (u32)sym)`
+       vs `*(u8*)((u32)sym + off)`. Inline index expressions canonicalise and
+       merge; array-vs-cast forms too; volatile and pointer locals do not help.
+       This also explains misc19.c's 94.23% park of the same access.
+   (b) `i = 0;` must be hoisted before the `if (g_BattleActorCharIds[arg0] != 7)`
+       and the loop written `for (; i < 3; i++)`: that is what puts retail's
+       `move a1,zero` in the ActorCharIds `beq` delay slot.
+   (c) the graphics-work store wants a pointer local (`pWork = g_BattleGraphicsWork
+       + arg0 * 0x1E4; pWork[0x853D] = 2;`) for retail's base-first
+       `addu v1,v1,v0`; the plain cast sum gives index-first.
+   (d) `*(g_BattleCommandQueue + arg0 + 0x2EB) = 1;` (not `[arg0 + 0x2EB]`) for
+       retail's `addu v0,v0,a0` instead of `addu v0,a0,v0`.
+   REMAINING: retail emits the `g_BattleSlotFlags[arg0 * 8] = 2` block BEFORE the
+   g_BattleActorCharIds load; ours sinks it after the lbu, which flips the tail's
+   registers and the beq target offsets. Forcing the order with `do { } while (0)`
+   around or after the store, or a volatile store, gives the right block position
+   but then `li a0,0x2` displaces arg0 from $s0 and an extra `move a0,s0` appears
+   (344 bytes, 98.35%). A 4-minute permuter run (base 505 -> 149) proposed reusing
+   the loop local for the index (`i = arg0 * 8; g_BattleSlotFlags[i] = 2;`), which
+   is the same 344-byte/no-link shape. */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800826CC);
 /*
 void func_800826CC(u8 arg0) {
     s32 i;
+    s32 cond;
+    s32 off;
+    u8 *pWork;
 
     func_80088490(arg0);
     func_8009AEFC(arg0);
     BattleFinishActorAnimationAndReleaseSlot(arg0);
-    g_BattleSlotConditions[arg0 * 0x170] |= 0x80;
+    off = arg0 * 0x170;
+    cond = *(u8 *)(off + (u32)g_BattleSlotConditions);
+    *(u8 *)((u32)g_BattleSlotConditions + off) = cond | 0x80;
     BattleReleaseCharSlot(arg0);
     g_BattleSlotFlags[arg0 * 8] = 2;
+    i = 0;
     if (g_BattleActorCharIds[arg0] != 7) {
-        *(u8 *)(arg0 * 0x1E4 + (u32)g_BattleGraphicsWork + 0x853D) = 2;
+        pWork = g_BattleGraphicsWork + arg0 * 0x1E4;
+        *(u8 *)(pWork + 0x853D) = 2;
     }
     D_800C3EB8[arg0 * 0x1C] = 1;
-    g_BattleCommandQueue[arg0 + 0x2EB] = 1;
-    for (i = 0; i < 3; i++) {
+    *(g_BattleCommandQueue + arg0 + 0x2EB) = 1;
+    for (; i < 3; i++) {
         if (g_GameState.partyMembers[i] == g_BattleActorCharIds[arg0] && g_FieldPlayerWalkmeshMaterial == 0) {
             g_GameState.gearRide[i] = 1;
         }
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800826CC);
