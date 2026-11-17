@@ -26,11 +26,11 @@ extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern s32 g_BattlePrimStartIndex;
 extern BattleRow *g_BattleCurrentRow;
-extern BattleTableEntry *D_800C3E34;
+extern BattleTableEntry *g_BattleTargetSlotEntry;
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleCurveTargets[];
 extern u8 g_BattleCurveTargetModes[];
-extern u16 D_800D2C9E;
+extern u16 g_BattleCommandCellFlags;
 extern u16 D_800C324E;
 extern u16 D_800C3250;
 extern u16 D_800C3252;
@@ -62,7 +62,7 @@ extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern u8 *D_800C3DE8;
 extern u8 D_800CCD88[];
 extern u8 g_BattleTargetSlotIndex;
-extern u8 D_800D2DC4;
+extern u8 g_BattleAmountThirdFlag;
 extern s32 func_80096AB8(void);
 extern u16 func_80096FBC(void);
 extern u16 func_80097610(void);
@@ -322,7 +322,7 @@ void BattleAccumulateSlotValueByRowFlag(void) {
    (original `addu a0,t1,v1` base-first, gcc `addu v1,a3,v1`). Making the
    count loops use a row pointer fixed their addu order (91.47 -> 91.61).
    Tried: p[0x3E] vs the full expression, one u16 *p reused vs re-declared
-   per loop. Un-parking needs `extern u16 D_800C3AA4[];`.
+   per loop. Un-parking needs `extern u16 g_BattleSavedSlotUnk7A[];`.
    Re-screened: best 96.96 under gcc-2.6.0 (90.04 under cdk). There only the
    two count loops' registers differ (n1 in a2 vs t0, base in a0 vs a3), both
    row addu's are operand-swapped, and one `j`/`nop` pair is left over. */
@@ -350,7 +350,7 @@ void func_80094D24(void) {
             p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
             if (p[0x3E] & 2) {
                 p[0x3E] &= ~2;
-                p[0x3D] = D_800C3AA4[i];
+                p[0x3D] = g_BattleSavedSlotUnk7A[i];
             }
         }
     } else if (n1 == 2 && n2 == 1) {
@@ -358,7 +358,7 @@ void func_80094D24(void) {
             p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
             if (p[0x3E] & 2) {
                 p[0x3E] &= ~2;
-                p[0x3D] = D_800C3AA4[i];
+                p[0x3D] = g_BattleSavedSlotUnk7A[i];
             }
         }
     }
@@ -380,9 +380,9 @@ void BattleComputeActionAmount(void) {
 
     rate = g_BattleCurrentRow->power;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
-        blocked = D_800C3E34->blockFlags & 0x4000;
+        blocked = g_BattleTargetSlotEntry->blockFlags & 0x4000;
     } else {
-        blocked = D_800C3E34->blockFlags & 0x8000;
+        blocked = g_BattleTargetSlotEntry->blockFlags & 0x8000;
     }
     if (blocked != 0) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
@@ -404,7 +404,7 @@ void BattleComputeActionAmount(void) {
     if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 1) {
         atkValue -= atkValue / 10;
     }
-    pDef = D_800C3E34;
+    pDef = g_BattleTargetSlotEntry;
     if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 4) {
         defValue += defValue / 5;
     }
@@ -418,8 +418,8 @@ void BattleComputeActionAmount(void) {
         defValue -= defValue / 10;
     }
     if (g_BattleCurrentRow->element & 0x10) {
-        if (!(D_800C3E34->accessoryEffectFlags2 & 0x40)) {
-            D_800C3E34->activeEffectFlags2 |= 0x40;
+        if (!(g_BattleTargetSlotEntry->accessoryEffectFlags2 & 0x40)) {
+            g_BattleTargetSlotEntry->activeEffectFlags2 |= 0x40;
         }
         if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 0x4000) {
             g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 3;
@@ -431,13 +431,13 @@ void BattleComputeActionAmount(void) {
         }
     }
     if (g_BattleCurrentRow->element & 0x20) {
-        if (!(D_800C3E34->accessoryEffectFlags2 & 0x80)) {
-            D_800C3E34->activeEffectFlags2 |= 0x80;
+        if (!(g_BattleTargetSlotEntry->accessoryEffectFlags2 & 0x80)) {
+            g_BattleTargetSlotEntry->activeEffectFlags2 |= 0x80;
         }
     }
-    if (D_800C3E34->activeEffectFlags2 & 0x40) {
+    if (g_BattleTargetSlotEntry->activeEffectFlags2 & 0x40) {
         defValue -= defValue >> 2;
-        D_800C3E34->activeEffectFlags2 &= ~0x40;
+        g_BattleTargetSlotEntry->activeEffectFlags2 &= ~0x40;
     }
     if (g_BattleActingSlot->activeEffectFlags2 & 0x80) {
         atkValue -= atkValue >> 2;
@@ -498,7 +498,7 @@ void BattleComputeActionAmount(void) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 7;
         break;
     }
-    if (D_800D2DC4 != 0) {
+    if (g_BattleAmountThirdFlag != 0) {
         if ((g_BattleCurrentRow->actionFlags & 0x100) && amount != 0) {
             amount /= 3;
         }
@@ -522,7 +522,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (p->accessoryEffectFlags4 & 0x2000) {
         v *= 2;
     }
-    r = D_800C3E34;
+    r = g_BattleTargetSlotEntry;
     f = r->activeEffectFlags7 | r->accessoryEffectFlags7;
     if (f & 0x100) {
         v = 7 * v / 10;
@@ -545,19 +545,19 @@ void BattleInitActiveSlotAction(void) {
         BattleSetSlotEntryFieldsTo2000(g_BattleCurSlotIndex, 1);
     }
     t = g_BattleCurSlotIndex;
-    D_800C3E34->activeEffectFlags1 = 0;
-    D_800C3E34->activeEffectFlags2 = 0;
-    D_800C3E34->activeEffectFlags3 = 0;
-    D_800C3E34->activeEffectFlags4 = 0;
-    D_800C3E34->activeEffectFlags7 = 0;
+    g_BattleTargetSlotEntry->activeEffectFlags1 = 0;
+    g_BattleTargetSlotEntry->activeEffectFlags2 = 0;
+    g_BattleTargetSlotEntry->activeEffectFlags3 = 0;
+    g_BattleTargetSlotEntry->activeEffectFlags4 = 0;
+    g_BattleTargetSlotEntry->activeEffectFlags7 = 0;
     g_BattleCurveTargetModes[t] = 2;
-    p = D_800C3E34;
+    p = g_BattleTargetSlotEntry;
     v = p->maxHp * g_BattleCurrentRow->power;
     if (g_BattleCurSlotIndex) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
     t = g_BattleCurSlotIndex;
     *(s32 *)(t * 4 + g_BattleCurveTargets) = v / 10;
-    D_800D2C9E |= 1 << t;
+    g_BattleCommandCellFlags |= 1 << t;
 }
 void BattleClearStatusWordsOnAction6E(void) {
     if (rand() % 100 > g_BattleCurrentRow->chance) {
@@ -567,22 +567,22 @@ void BattleClearStatusWordsOnAction6E(void) {
         return;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x8000) {
-        D_800C3E34->activeEffectFlags3 = 0;
+        g_BattleTargetSlotEntry->activeEffectFlags3 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x4000) {
-        D_800C3E34->accessoryEffectFlags3 = 0;
+        g_BattleTargetSlotEntry->accessoryEffectFlags3 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x2000) {
-        D_800C3E34->activeEffectFlags4 = 0;
+        g_BattleTargetSlotEntry->activeEffectFlags4 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x1000) {
-        D_800C3E34->accessoryEffectFlags4 = 0;
+        g_BattleTargetSlotEntry->accessoryEffectFlags4 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x800) {
-        D_800C3E34->activeEffectFlags7 = 0;
+        g_BattleTargetSlotEntry->activeEffectFlags7 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x400) {
-        D_800C3E34->accessoryEffectFlags7 = 0;
+        g_BattleTargetSlotEntry->accessoryEffectFlags7 = 0;
     }
     g_BattleCurWorkBlock->commandCode = 0x3A;
 }

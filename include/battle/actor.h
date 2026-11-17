@@ -164,7 +164,7 @@ typedef struct {
 
 // The per-slot action state a slot entry carries at +0xA4 (0xCC bytes): the
 // status words, the scaled stats and the slot's copy of the equipped weapon
-// records. D_800D2DC8 and D_800D2D6C point at the acting and the defending
+// records. g_BattleCurSlotState and g_BattleTargetSlotState point at the acting and the defending
 // slot's copy of it. Only the fields read by src/battle/main/misc19 and
 // misc20 are named.
 typedef struct {
@@ -202,7 +202,7 @@ typedef struct {
 } BattleSlotState; // Size: 0xCC
 
 // One slot of the per-battle-slot table family (stride 0x170). Three of them
-// open the battle work block (g_BattleCurWorkBlock->slots); g_BattleActingSlot/D_800C3E34 point
+// open the battle work block (g_BattleCurWorkBlock->slots); g_BattleActingSlot/g_BattleTargetSlotEntry point
 // at the acting slot and its target. The first 0xA4 bytes are the character's
 // GameCharacter record (its stats, accessory effect flag words and gear id sit
 // at these offsets) and the 0xCC after them are the battle copy of it.

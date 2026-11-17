@@ -52,7 +52,7 @@ extern u8 D_800D2DE3[];
 extern u16 D_800D2E04[];
 extern u16 g_BattleSlotDisplayValues[];
 extern u16 g_BattleSlotCountdownTimers[];
-extern u16 D_800D2C9E;
+extern u16 g_BattleCommandCellFlags;
 extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 g_BattlePendingSlotMask;
 extern u8 D_800C402F[];
@@ -305,11 +305,11 @@ void func_80072270(void) {
     u16 *pSrc;
     u16 *pDst;
 
-    if ((D_800D2C9E & 7) != 0) {
+    if ((g_BattleCommandCellFlags & 7) != 0) {
         pDst = g_BattleSlotCountdownTimers;
         pSrc = pDst - 0xB;
         for (i = 0; i < 3; i++) {
-            if (BattleMaskHasSlotBit(D_800D2C9E, i) != 0) {
+            if (BattleMaskHasSlotBit(g_BattleCommandCellFlags, i) != 0) {
                 g_BattleActorCountdownState[i] = 0;
                 *pDst = *pSrc;
                 ((u8 *)g_BattleDisplayState + i)[0x7C] = 1;
@@ -318,7 +318,7 @@ void func_80072270(void) {
             pSrc++;
         }
     }
-    D_800D2C9E = 0;
+    g_BattleCommandCellFlags = 0;
 }
 */
 

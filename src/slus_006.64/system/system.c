@@ -45,18 +45,18 @@ typedef struct {
 } SystemFontFileHeader; // Size: 0xE
 
 // Font file metrics, filled in by SystemInitializeFont
-extern void* D_8005935C;
-extern int D_8005934C;
-extern int D_80059350;
-extern int D_80059354;
-extern int D_80059358;
-extern int D_80059364;
+extern void* g_SystemFontGlyphData;
+extern int g_SystemFontLeadByte;
+extern int g_SystemFontDoubleByteGlyphOffset;
+extern int g_SystemFontNarrowGlyphCount;
+extern int g_SystemFontNarrowTrailByteCount;
+extern int g_SystemFontSingleByteCodeBase;
 
 // Scratch buffer the number/glyph converters write to
-extern u8 D_8005A0E4[];
+extern u8 g_SystemGlyphDecodeBuffer[];
 
-// Digit buffer: digits at D_8005A0CA, terminator slot at D_8005A0DE
-extern u16 D_8005A0CA[];
+// Digit buffer: digits at g_SystemNumberGlyphBuffer, terminator slot at D_8005A0DE
+extern u16 g_SystemNumberGlyphBuffer[];
 extern u16 D_8005A0DE[];
 
 
@@ -178,18 +178,18 @@ void SystemInitializeFont(SystemFontFileHeader* pFontFile) {
 
     HeapPinBlock(pFontFile);
     g_SystemFontFile = pFontFile;
-    D_8005935C = pFontFile;
+    g_SystemFontGlyphData = pFontFile;
     // The header words are read through the byte cursor, not as pFontFile->field:
     // as field lvalues gcc hoists all six loads above the two pointer stores,
     // and retail interleaves each load with its store (66.5% vs 100%).
     pFontBytes = (u8*)pFontFile;
     dataOffset = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, glyphDataOffset));
-    D_8005934C = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, leadByte));
-    D_80059350 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, doubleByteGlyphOffset));
-    D_80059354 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, narrowGlyphCount));
-    D_80059358 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, narrowTrailByteCount));
-    D_80059364 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, singleByteCodeBase));
-    D_8005935C = pFontBytes + dataOffset;
+    g_SystemFontLeadByte = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, leadByte));
+    g_SystemFontDoubleByteGlyphOffset = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, doubleByteGlyphOffset));
+    g_SystemFontNarrowGlyphCount = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, narrowGlyphCount));
+    g_SystemFontNarrowTrailByteCount = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, narrowTrailByteCount));
+    g_SystemFontSingleByteCodeBase = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, singleByteCodeBase));
+    g_SystemFontGlyphData = pFontBytes + dataOffset;
 }
 
 void SystemInitializeData(void* pSystemData) {
@@ -309,7 +309,7 @@ void* GetStringEntryFromBank34(int entryId) {
 
 void SystemDecodeGlyphCodes(u16* pInput) {
     u8* pEntry = g_SystemDataEntries->entries[0x1B];
-    u8* pOutput = D_8005A0E4;
+    u8* pOutput = g_SystemGlyphDecodeBuffer;
     u8* pPos;
 
     while (*pInput != 0xFFFF) {
@@ -369,7 +369,7 @@ int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
     u8 arg1;
 
     while (c != 0) {
-        if (c < D_8005934C) {
+        if (c < g_SystemFontLeadByte) {
             arg0 = 0;
             arg1 = c;
         } else {
@@ -399,7 +399,7 @@ int SystemStringGetUnk6B(SystemString* pString) {
 
 void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
     u32 divisor = 1000000000;
-    u16* pDigit = D_8005A0CA;
+    u16* pDigit = g_SystemNumberGlyphBuffer;
     u16* pEnd;
     u16* pScan;
     int i;
@@ -620,15 +620,15 @@ int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
 
 int SystemGetGlyphWidth(u16 first, u16 second) {
     if (first == 0) {
-        if (second - D_80059364 < D_80059354) {
+        if (second - g_SystemFontSingleByteCodeBase < g_SystemFontNarrowGlyphCount) {
             return 2;
         }
 
         return 3;
     }
 
-    if (first == D_8005934C) {
-        if (second < D_80059358) {
+    if (first == g_SystemFontLeadByte) {
+        if (second < g_SystemFontNarrowTrailByteCount) {
             return 2;
         }
     }

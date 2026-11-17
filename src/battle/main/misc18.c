@@ -2,22 +2,22 @@
 #include "main/game.h"
 #include "battle/actor.h"
 
-extern u16 D_800C3AA4[];
-extern u8 D_800D2D10[];
+extern u16 g_BattleSavedSlotUnk7A[];
+extern u8 g_BattleSlotUnk98Deltas[];
 extern u8 g_BattleActorCharIds[];
 extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleActingSlot;
-extern u8 D_800C34AD;
-extern BattleTableEntry *D_800C3E34;
+extern u8 g_BattleActorSlotFlagTestMode;
+extern BattleTableEntry *g_BattleTargetSlotEntry;
 extern u8 g_BattleTargetSlotIndex;
 extern u8 g_BattleCurSlotIndex;
-extern u8 D_800D2DC4;
-extern BattleSlotState *D_800D2D6C;
-extern u8 *D_800D2DC8;
+extern u8 g_BattleAmountThirdFlag;
+extern BattleSlotState *g_BattleTargetSlotState;
+extern u8 *g_BattleCurSlotState;
 
 extern u16 g_BattleActionParam;
-extern u16 D_800D2C9E;
+extern u16 g_BattleCommandCellFlags;
 
 // The 0x170-byte per-slot condition table. Its flag word sits at +0x8A
 // (BattleTableEntry::accessoryEffectFlags4) and its timer bytes at +0x15C, which the original
@@ -75,20 +75,20 @@ void BattleRollAndClearTargetConditions(void) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
     } else {
         if (g_BattleCurrentRow->conditionKind & 0x80) {
-            D_800C3E34->activeEffectFlags1 &= 0xC000;
+            g_BattleTargetSlotEntry->activeEffectFlags1 &= 0xC000;
         }
         if (g_BattleCurrentRow->conditionKind & 0x40) {
-            D_800C3E34->activeEffectFlags2 = 0;
-            D_800C3E34->unk7A &= 0xFFDF;
+            g_BattleTargetSlotEntry->activeEffectFlags2 = 0;
+            g_BattleTargetSlotEntry->unk7A &= 0xFFDF;
         }
         if (g_BattleCurrentRow->conditionKind & 0x20) {
-            D_800C3E34->activeEffectFlags3 = 0;
+            g_BattleTargetSlotEntry->activeEffectFlags3 = 0;
         }
         if (g_BattleCurrentRow->conditionKind & 0x10) {
-            D_800C3E34->activeEffectFlags4 = 0;
+            g_BattleTargetSlotEntry->activeEffectFlags4 = 0;
         }
         if (g_BattleCurrentRow->conditionKind & 0x8) {
-            D_800C3E34->activeEffectFlags7 = 0;
+            g_BattleTargetSlotEntry->activeEffectFlags7 = 0;
         }
     }
 }
@@ -116,19 +116,19 @@ void BattleRollSlotConditionAction(void) {
         hp = g_BattleActingSlot->maxHp;
         break;
     case 1:
-        hp = D_800C3E34->maxHp;
+        hp = g_BattleTargetSlotEntry->maxHp;
         break;
     case 2:
         hp = g_BattleActingSlot->maxMp;
         break;
     case 3:
-        hp = D_800C3E34->maxMp;
+        hp = g_BattleTargetSlotEntry->maxMp;
         break;
     }
 
     dmg = hp * g_BattleCurrentRow->power / 20;
     if (g_BattleCurrentRow->amountSource == 5) {
-        dmg = D_800C3E34->hp - 1;
+        dmg = g_BattleTargetSlotEntry->hp - 1;
     }
 
     switch (g_BattleCurrentRow->amountSource) {
@@ -142,7 +142,7 @@ void BattleRollSlotConditionAction(void) {
         break;
     case 2:
     case 3:
-        if ((D_800C3E34->activeEffectFlags4 | D_800C3E34->accessoryEffectFlags4) & 0x200) {
+        if ((g_BattleTargetSlotEntry->activeEffectFlags4 | g_BattleTargetSlotEntry->accessoryEffectFlags4) & 0x200) {
             g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
             return;
         }
@@ -178,48 +178,48 @@ void BattleSetSlotConditionActionValue(void) {
     case 0:
         if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
-                ((BattleSlotState *)D_800D2DC8)->hp / g_BattleCurrentRow->power;
+                ((BattleSlotState *)g_BattleCurSlotState)->hp / g_BattleCurrentRow->power;
         } else {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
-                D_800C3E34->hp / g_BattleCurrentRow->power;
+                g_BattleTargetSlotEntry->hp / g_BattleCurrentRow->power;
         }
         break;
     case 1:
         if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
-            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = ((BattleSlotState *)D_800D2DC8)->hp - 1;
+            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = ((BattleSlotState *)g_BattleCurSlotState)->hp - 1;
         } else {
-            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = D_800C3E34->hp - 1;
+            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->hp - 1;
         }
         break;
     case 2:
         if (g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags & 0x80) {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
-                D_800D2D6C->maxHp - D_800D2D6C->hp;
+                g_BattleTargetSlotState->maxHp - g_BattleTargetSlotState->hp;
         } else {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
                 g_BattleActingSlot->maxHp - g_BattleActingSlot->hp;
         }
         break;
     case 3:
-        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = D_800C3E34->mp * 10;
+        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->mp * 10;
         break;
     case 4:
         g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = 1;
         break;
     case 5:
-        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = D_800C3E34->hp;
+        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->hp;
         break;
     case 6:
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
         if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & 0x80) {
-            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = ((BattleSlotState *)D_800D2DC8)->maxHp;
-            if (((BattleSlotState *)D_800D2DC8)->maxHp >= 0x2710) {
-                ((BattleSlotState *)D_800D2DC8)->maxHp = 0x270F;
+            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = ((BattleSlotState *)g_BattleCurSlotState)->maxHp;
+            if (((BattleSlotState *)g_BattleCurSlotState)->maxHp >= 0x2710) {
+                ((BattleSlotState *)g_BattleCurSlotState)->maxHp = 0x270F;
             }
         } else {
-            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = D_800C3E34->maxHp;
-            if (D_800C3E34->maxHp >= 0x2710) {
-                D_800C3E34->maxHp = 0x270F;
+            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->maxHp;
+            if (g_BattleTargetSlotEntry->maxHp >= 0x2710) {
+                g_BattleTargetSlotEntry->maxHp = 0x270F;
             }
         }
         break;
@@ -227,17 +227,17 @@ void BattleSetSlotConditionActionValue(void) {
         if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
             g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
         } else {
-            D_800C3E34->activeEffectFlags1 |= 1;
-            D_800C3E34->activeEffectFlags2 |= 1;
+            g_BattleTargetSlotEntry->activeEffectFlags1 |= 1;
+            g_BattleTargetSlotEntry->activeEffectFlags2 |= 1;
         }
         break;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 /* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
-   used raw u8-array spellings of g_BattleCurrentRow / g_BattleActingSlot / D_800C3E34; with
+   used raw u8-array spellings of g_BattleCurrentRow / g_BattleActingSlot / g_BattleTargetSlotEntry; with
    today's typed externs only the field reads below changed (a byte read of
-   D_800C3E34->element, because retail uses lbu there but lhu for the 0x40 test).
+   g_BattleTargetSlotEntry->element, because retail uses lbu there but lhu for the 0x40 test).
    Same block layout and instruction multiset (226 vs 227); every
    branch, the two duplicated (elemAtk & elem2) blocks, the element case tree,
    the /10 pair and the two /5 tails line up instruction for instruction. Left:
@@ -271,12 +271,12 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     pBase = g_BattleCurWorkBlock;
     bitAtk = *(u8 *)(pBase + g_BattleCurSlotIndex * 0x170 + 0x15A) >> 7;
     elemAtk = g_BattleCurrentRow->element & 0x3F;
-    elemDef = *(u8 *)&D_800C3E34->element & 0x3F;
+    elemDef = *(u8 *)&g_BattleTargetSlotEntry->element & 0x3F;
     bitDef = *(u8 *)(pBase + g_BattleTargetSlotIndex * 0x170 + 0x15A) >> 7;
     if (bitDef == 0) {
         pair = g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7;
     } else {
-        pair = *(u16 *)((u8 *)D_800D2D6C + 0x84) | *(u16 *)((u8 *)D_800D2D6C + 0x86);
+        pair = *(u16 *)((u8 *)g_BattleTargetSlotState + 0x84) | *(u16 *)((u8 *)g_BattleTargetSlotState + 0x86);
     }
     pair >>= 12;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
@@ -293,7 +293,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     mul = 10;
     mul2 = 10;
     if (elemAtk & elemDef) {
-        if (D_800C3E34->element & 0x40) {
+        if (g_BattleTargetSlotEntry->element & 0x40) {
             mul = 0x12;
         } else {
             mul = 0xF;
@@ -303,12 +303,12 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
         }
     }
     if (bitAtk == 0) {
-        m = D_800C3E34->activeEffectFlags7 | D_800C3E34->accessoryEffectFlags7;
+        m = g_BattleTargetSlotEntry->activeEffectFlags7 | g_BattleTargetSlotEntry->accessoryEffectFlags7;
         elem2 = (m & 0xF00) >> 8;
         hitB = (m >> 1) & 1;
     } else {
         hitB = 0;
-        m = *(u16 *)(D_800D2DC8 + 0x84) | *(u16 *)(D_800D2DC8 + 0x86);
+        m = *(u16 *)(g_BattleCurSlotState + 0x84) | *(u16 *)(g_BattleCurSlotState + 0x86);
         elem2 = (m & 0xF00) >> 8;
         if (m & 2) {
             hitB = 1;
@@ -370,7 +370,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     if (((u16 *)&g_BattleActingSlot->unk04[0x2E])[0] & 0x10) {
         *pA += *pA / 5;
     }
-    if (((u16 *)&D_800C3E34->unk04[0x2E])[0] & 0x10) {
+    if (((u16 *)&g_BattleTargetSlotEntry->unk04[0x2E])[0] & 0x10) {
         *pB += *pB / 5;
     }
 }
@@ -380,7 +380,7 @@ void BattleRollPercentAndSetState38(void) {
 
     if (rand() % 100 >= t) {
         g_BattleCurWorkBlock->commandCode = 0x38;
-        D_800D2DC4 = 1;
+        g_BattleAmountThirdFlag = 1;
     }
 }
 void BattleRollPercentAndSwapActiveActor(void) {
@@ -394,7 +394,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     u8 tmp;
     s32 lim;
 
-    pTarget = D_800C3E34;
+    pTarget = g_BattleTargetSlotEntry;
     if (pTarget->activeEffectFlags1 & 0xA000) {
         return;
     }
@@ -435,8 +435,8 @@ void BattleRollPercentAndSwapActiveActor(void) {
     s = g_BattleTargetSlotIndex;
     pOld = g_BattleActingSlot;
     g_BattleTargetSlotIndex = tmp;
-    g_BattleActingSlot = D_800C3E34;
-    D_800C3E34 = pOld;
+    g_BattleActingSlot = g_BattleTargetSlotEntry;
+    g_BattleTargetSlotEntry = pOld;
     g_BattleCurSlotIndex = s;
     // row table at +0x1378, 0x5F0 bytes per slot (inside BattleWorkBlock's
     // unk450, so it is reached by offset)
@@ -463,41 +463,41 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
     case 0: {
         u16 mask = flags & 0xFFFD;
 
-        if (D_800C3E34->accessoryEffectFlags1 & mask) {
+        if (g_BattleTargetSlotEntry->accessoryEffectFlags1 & mask) {
             return 0;
         }
         if (flags & 0x1000) {
-            D_800C3E34->activeEffectFlags3 &= 0x7FFF;
+            g_BattleTargetSlotEntry->activeEffectFlags3 &= 0x7FFF;
         }
         break;
     }
     case 2:
-        if (D_800C3E34->accessoryEffectFlags2 & flags) {
+        if (g_BattleTargetSlotEntry->accessoryEffectFlags2 & flags) {
             return 0;
         }
         break;
     case 5:
-        if ((D_800C3E34->activeEffectFlags1 | D_800C3E34->accessoryEffectFlags1) & 1) {
+        if ((g_BattleTargetSlotEntry->activeEffectFlags1 | g_BattleTargetSlotEntry->accessoryEffectFlags1) & 1) {
             return 0;
         }
         if (flags & 0x8000) {
-            D_800C3E34->activeEffectFlags1 &= 0xEFFF;
+            g_BattleTargetSlotEntry->activeEffectFlags1 &= 0xEFFF;
         }
         break;
     case 7:
-        if ((D_800C3E34->activeEffectFlags2 | D_800C3E34->accessoryEffectFlags2) & 1) {
+        if ((g_BattleTargetSlotEntry->activeEffectFlags2 | g_BattleTargetSlotEntry->accessoryEffectFlags2) & 1) {
             return 0;
         }
         if (flags & 0xA) {
-            if (D_800C3E34->activeEffectFlags4 & 0x5) {
-                D_800C3E34->activeEffectFlags4 &= 0xFFFA;
+            if (g_BattleTargetSlotEntry->activeEffectFlags4 & 0x5) {
+                g_BattleTargetSlotEntry->activeEffectFlags4 &= 0xFFFA;
                 return 1;
             }
             break;
         }
         if (flags & 0x5) {
-            if (D_800C3E34->activeEffectFlags4 & 0xA) {
-                D_800C3E34->activeEffectFlags4 &= 0xFFF5;
+            if (g_BattleTargetSlotEntry->activeEffectFlags4 & 0xA) {
+                g_BattleTargetSlotEntry->activeEffectFlags4 &= 0xFFF5;
                 return 1;
             }
             break;
@@ -505,39 +505,39 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
         // falls into case 9 when the flags request neither of the 0x8A pair
     case 9:
         if (flags & 0xF000) {
-            if (D_800C3E34->accessoryEffectFlags7 & 0xF000) {
+            if (g_BattleTargetSlotEntry->accessoryEffectFlags7 & 0xF000) {
                 g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
             }
-            D_800C3E34->activeEffectFlags7 &= 0xFFF;
+            g_BattleTargetSlotEntry->activeEffectFlags7 &= 0xFFF;
         }
         if (flags & 0xF00) {
-            if (D_800C3E34->accessoryEffectFlags7 & 0xF00) {
+            if (g_BattleTargetSlotEntry->accessoryEffectFlags7 & 0xF00) {
                 g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
             }
-            D_800C3E34->activeEffectFlags7 &= 0xF0FF;
+            g_BattleTargetSlotEntry->activeEffectFlags7 &= 0xF0FF;
         }
         break;
     }
 
     switch (kind) {
     case 0:
-        D_800C3E34->activeEffectFlags1 = (flags | D_800C3E34->activeEffectFlags1) & 0xFFFD;
+        g_BattleTargetSlotEntry->activeEffectFlags1 = (flags | g_BattleTargetSlotEntry->activeEffectFlags1) & 0xFFFD;
         if (flags & 0x2) {
             if (BattleTestActorSlotFlagsC002ByMode()) {
-                D_800C3E34->activeEffectFlags1 |= flags;
+                g_BattleTargetSlotEntry->activeEffectFlags1 |= flags;
                 g_BattleCurWorkBlock->commandCode = 0x31;
-                D_800C3E34->unk7A = 0xFFEF;
+                g_BattleTargetSlotEntry->unk7A = 0xFFEF;
             } else {
                 g_BattleCurWorkBlock->commandCode = 0x32;
             }
         }
         break;
     case 2:
-        D_800C3E34->activeEffectFlags2 |= flags;
+        g_BattleTargetSlotEntry->activeEffectFlags2 |= flags;
         if (flags & 0x800) {
-            D_800C3E34->unk7A |= 0x20;
+            g_BattleTargetSlotEntry->unk7A |= 0x20;
         }
         break;
     case 5:
@@ -550,7 +550,7 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
         mem_addr base;
         u16 *pFlags;
 
-        base = (mem_addr)D_800C3E34;
+        base = (mem_addr)g_BattleTargetSlotEntry;
         pFlags = (u16 *)(base + (kind * 2));
         pFlags[0x3D] |= flags;
         break;
@@ -582,17 +582,17 @@ void BattleResetSlotConditionCounters(void) {
             pSlot = &g_BattleCurWorkBlock->slots[i];
             g_BattleActingSlot = pSlot;
             hp = pSlot->unk7A;
-            D_800D2D6C = &pSlot->state;
-            D_800C3AA4[i] = hp;
+            g_BattleTargetSlotState = &pSlot->state;
+            g_BattleSavedSlotUnk7A[i] = hp;
             for (j = 0; j < 4; j++) {
-                v = D_800D2D10[j];
+                v = g_BattleSlotUnk98Deltas[j];
                 if (v != 0) {
-                    D_800D2D6C->unk98 -= v;
-                    D_800D2D6C->unk98 += D_800D2D6C->unk50[j];
+                    g_BattleTargetSlotState->unk98 -= v;
+                    g_BattleTargetSlotState->unk98 += g_BattleTargetSlotState->unk50[j];
                 }
             }
-            if (D_800D2D6C->unk98 >= 0x11) {
-                D_800D2D6C->unk98 = 0x10;
+            if (g_BattleTargetSlotState->unk98 >= 0x11) {
+                g_BattleTargetSlotState->unk98 = 0x10;
             }
         }
     }
@@ -645,7 +645,7 @@ u8 func_80098AF8(u8 sel) {
     s32 d;
 
     g_BattleActingSlot = pActor;
-    D_800D2D6C = (BattleSlotState *)(pActor + 0xA4);
+    g_BattleTargetSlotState = (BattleSlotState *)(pActor + 0xA4);
     rowOffset = 0x1058;
 
     if (sel < 3) {
@@ -700,7 +700,7 @@ void BattleInitActiveSlotActions(u8 sel) {
 
     *(u16 *)((u8 *)g_BattleCurWorkBlock + 0x5FB0) = D_800D220E[sel].unk0;
 
-    if (D_800D2C9E & 0x8000) {
+    if (g_BattleCommandCellFlags & 0x8000) {
         g_BattleActionParam = 0xC2;
     }
 }
@@ -709,7 +709,7 @@ u8 BattleTestActorSlotFlagsC002ByMode(void) {
     u8 i;
     u8 n;
     s32 ret = 0;
-    s32 mode = D_800C34AD;
+    s32 mode = g_BattleActorSlotFlagTestMode;
 
     switch (mode) {
     case 1:
@@ -815,7 +815,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     case 5:
     case 7:
     case 9:
-        bits = D_800C3E34->activeEffectFlags4 | D_800C3E34->accessoryEffectFlags4;
+        bits = g_BattleTargetSlotEntry->activeEffectFlags4 | g_BattleTargetSlotEntry->accessoryEffectFlags4;
         if (bits & 5) {
             val *= 2;
         }

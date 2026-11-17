@@ -245,7 +245,7 @@ void FieldScriptVMRun(int maxInstructionCount) {
         }
 
         // Various exit checks
-        if ((g_FieldEntryRoutineFinished != 0 && (D_800ADBE0 == 0 ||  g_FieldEntryStateGate == 0 ||  D_800ADBEC == 0))) {
+        if ((g_FieldEntryRoutineFinished != 0 && (g_FieldMapChangeRequestGate == 0 ||  g_FieldEntryStateGate == 0 ||  g_FieldMapTransitionGate == 0))) {
             return;
         }
 
@@ -321,7 +321,7 @@ void func_800A2030(void) {
             continue;
         }
 
-        if (g_FieldEntryRoutineFinished != 0 && (D_800ADBE0 == 0 || g_FieldEntryStateGate == 0 || D_800ADBEC == 0)) {
+        if (g_FieldEntryRoutineFinished != 0 && (g_FieldMapChangeRequestGate == 0 || g_FieldEntryStateGate == 0 || g_FieldMapTransitionGate == 0)) {
             return;
         }
 

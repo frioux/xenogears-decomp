@@ -5,13 +5,13 @@
 extern u8 *D_800C3D60;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleActingSlot;
-extern BattleTableEntry *D_800C3E34;
+extern BattleTableEntry *g_BattleTargetSlotEntry;
 extern BattleWorkBlock *g_BattleCurWorkBlock;
-extern BattleSlotState *D_800D2DC8;
-extern BattleSlotState *D_800D2D6C;
+extern BattleSlotState *g_BattleCurSlotState;
+extern BattleSlotState *g_BattleTargetSlotState;
 extern u8 g_BattleCurSlotIndex;
 extern u8 g_BattleTargetSlotIndex;
-extern u8 D_800D2DC4;
+extern u8 g_BattleAmountThirdFlag;
 extern u8 *D_800C3D3C;
 extern s32 D_800C34DC[];
 extern BattleTableEntry g_BattleWorkBlock[];
@@ -50,7 +50,7 @@ void BattleExecuteActionRow(void) {
     }
     BattleSetSlotEntryFieldsTo2000(g_BattleTargetSlotIndex);
     actor = g_BattleCurWorkBlock->actorIndex;
-    D_800D2DC4 = 0;
+    g_BattleAmountThirdFlag = 0;
     D_800C3D3C = &g_BattleCurWorkBlock->slots[actor].state.unkA4;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
         if (g_BattleActingSlot->characterId == 1) {
@@ -59,7 +59,7 @@ void BattleExecuteActionRow(void) {
     }
     if (g_BattleActingSlot->gearId == 5 || g_BattleActingSlot->gearId == 0xD) {
         if (g_BattleCurWorkBlock->rowIndex == 1) {
-            g_BattleCurrentRow->element = D_800D2D6C->weaponData[1].attack;
+            g_BattleCurrentRow->element = g_BattleTargetSlotState->weaponData[1].attack;
         }
     }
     mask = 1;
@@ -67,8 +67,8 @@ void BattleExecuteActionRow(void) {
     do {
         if (g_BattleCurWorkBlock->activeSlotMask & mask) {
             pSlot = &g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex];
-            D_800C3E34 = pSlot;
-            D_800D2DC8 = &pSlot->state;
+            g_BattleTargetSlotEntry = pSlot;
+            g_BattleCurSlotState = &pSlot->state;
             D_800C3D60 = &pSlot->state.unkA4;
             BattleAdvanceActionRow();
             ((void (*)(void))D_800C34DC[g_BattleCurrentRow->opcode])();
@@ -98,7 +98,7 @@ void BattleExecuteActionRow(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
-    u16 a = D_800D2D6C->unk84;
+    u16 a = g_BattleTargetSlotState->unk84;
     u16 b = g_BattleActingSlot->accessoryEffectFlags4;
     u16 c;
 
@@ -175,70 +175,70 @@ s32 func_8009D3A0(void) {
     u8 rowMod;
     u8 isGear;
 
-    if ((g_BattleCurrentRow->actionFlags & 0x200) && (*(u16 *)((u8 *)D_800C3E34 + 0x34) & 8)) {
+    if ((g_BattleCurrentRow->actionFlags & 0x200) && (*(u16 *)((u8 *)g_BattleTargetSlotEntry + 0x34) & 8)) {
         return 3;
     }
     if (g_BattleCurrentRow->actionFlags & 0x1000) {
         return 3;
     }
-    if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x100) {
+    if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x100) {
         return 3;
     }
-    if (D_800C3E34->activeEffectFlags1 & 0x2000) {
+    if (g_BattleTargetSlotEntry->activeEffectFlags1 & 0x2000) {
         return 1;
     }
-    if (D_800C3E34->activeEffectFlags2 & 0x1000) {
+    if (g_BattleTargetSlotEntry->activeEffectFlags2 & 0x1000) {
         return 1;
     }
     if (g_BattleCurrentRow->actionFlags & 0x8000) {
         return 1;
     }
-    hit = D_800C3E34->hit;
-    isGear = ((u8 *)&g_GameState.unk22B6)[D_800D2D6C->unk04[0]];
+    hit = g_BattleTargetSlotEntry->hit;
+    isGear = ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->unk04[0]];
     evade = g_BattleActingSlot->evade;
     if (!isGear) {
-        evade = *(s8 *)&D_800D2D6C->unk9F[0] + evade;
+        evade = *(s8 *)&g_BattleTargetSlotState->unk9F[0] + evade;
     }
-    if ((s8)D_800D2DC8->unk9F[0] != 0) {
-        hit = (s8)D_800D2DC8->unk9F[0] / 2 + hit;
+    if ((s8)g_BattleCurSlotState->unk9F[0] != 0) {
+        hit = (s8)g_BattleCurSlotState->unk9F[0] / 2 + hit;
     }
     if (g_BattleActingSlot->characterId == 4) {
         if ((g_BattleCurrentRow->unk0C[4] & 0x80) && !isGear) {
             return 3;
         }
         if ((g_BattleCurrentRow->unk0C[4] & 0x20) &&
-            ((u8 *)&g_GameState.unk22B6)[D_800D2D6C->unk04[3]] == 0) {
+            ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->unk04[3]] == 0) {
             return 3;
         }
     }
-    if ((D_800D2D6C->unk80 | D_800D2D6C->unk82) & 0x800) {
+    if ((g_BattleTargetSlotState->unk80 | g_BattleTargetSlotState->unk82) & 0x800) {
         evade += (s16)evade / 2;
     }
-    if (D_800D2D6C->unk7C & 0x10) {
+    if (g_BattleTargetSlotState->unk7C & 0x10) {
         penalty = 0x3C;
     }
     if (g_BattleCurrentRow->actionFlags & 0x1000) {
         return 3;
     }
     if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
-        if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x400) {
+        if ((g_BattleCurSlotState->unk80 | g_BattleCurSlotState->unk82) & 0x400) {
             hit += (s16)hit / 2;
         }
-        if (D_800D2DC8->unk7C & 0x10) {
+        if (g_BattleCurSlotState->unk7C & 0x10) {
             limit = 0x1E;
         }
-        if (D_800D2DC8->unk7C & 0xC00) {
+        if (g_BattleCurSlotState->unk7C & 0xC00) {
             return 1;
         }
     } else {
         evade = (s16)evade / 2;
-        if (D_800C3E34->activeEffectFlags1 & 0x2000) {
+        if (g_BattleTargetSlotEntry->activeEffectFlags1 & 0x2000) {
             return 1;
         }
-        if (D_800C3E34->activeEffectFlags2 & 0x1000) {
+        if (g_BattleTargetSlotEntry->activeEffectFlags2 & 0x1000) {
             return 1;
         }
-        if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x800) {
+        if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x800) {
             hit += (s16)hit / 2;
         }
     }
@@ -250,14 +250,14 @@ s32 func_8009D3A0(void) {
     }
     rowMod = g_BattleCurrentRow->evadeModifier;
     chance = evade + (s8)rowMod - hit;
-    if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x20) {
+    if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x20) {
         roll = rand() % 100 - chance;
         if (roll < 50) {
             return 1;
         }
         return 3;
     }
-    if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x40) {
+    if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x40) {
         roll = rand() % 100 - chance;
         if (roll < 50) {
             return 1;
@@ -282,15 +282,15 @@ u16 BattleScaleValueByMultiplierByte(void) {
     u32 b;
     s32 n;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
-        f = D_800D2D6C->unk7C;
-        b = D_800D2D6C->unk9E;
+        f = g_BattleTargetSlotState->unk7C;
+        b = g_BattleTargetSlotState->unk9E;
         if ((f & 0x100) || b == 0) {
             n = 4;
         } else {
             n = b;
         }
         ret = n * ret / 4;
-        if ((D_800D2D6C->unk80 | D_800D2D6C->unk82) & 0x40) {
+        if ((g_BattleTargetSlotState->unk80 | g_BattleTargetSlotState->unk82) & 0x40) {
             ret = ret + ((ret & 0xFFFF) >> 1);
         }
     }
@@ -302,19 +302,19 @@ u16 BattleApplySlotPercentToValue(void) {
     u8 n;
 
     if (g_BattleCurrentRow->actionFlags & 0x100) {
-        n = D_800D2DC8->penaltyPercent;
-        v = D_800D2DC8->unk72;
+        n = g_BattleCurSlotState->penaltyPercent;
+        v = g_BattleCurSlotState->unk72;
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
         }
         if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
             ret = ret + v;
         }
-        if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x20) {
+        if ((g_BattleCurSlotState->unk80 | g_BattleCurSlotState->unk82) & 0x20) {
             ret = ret + (ret >> 1);
         }
     } else {
-        n = D_800D2DC8->penaltyPercent;
+        n = g_BattleCurSlotState->penaltyPercent;
         if (n != 0) {
             ret = ret * (100 - n) / 100;
         }
@@ -333,7 +333,7 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
             break;
         }
     }
-    v = D_800D2DC8->statusPenaltyPercent[idx];
+    v = g_BattleCurSlotState->statusPenaltyPercent[idx];
     if (v != 0) {
         if (v < 0x14) {
             arg0 = arg0 * (0x14 - v) / 20;
@@ -345,10 +345,10 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
 void BattleClearActorPercent99(void) {
-    D_800D2DC8->penaltyPercent = 0;
+    g_BattleCurSlotState->penaltyPercent = 0;
 }
 void BattleSetSlotState2FromActorField4F(void) {
-    BattleSlotState *p = D_800D2DC8;
+    BattleSlotState *p = g_BattleCurSlotState;
     u32 v = p->unk4F * p->maxHp;
     u32 q = v / 10;
 
@@ -356,7 +356,7 @@ void BattleSetSlotState2FromActorField4F(void) {
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
-    u32 v = g_BattleCurrentRow->power * D_800D2DC8->maxHp;
+    u32 v = g_BattleCurrentRow->power * g_BattleCurSlotState->maxHp;
     u32 q = v / 20;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
@@ -373,22 +373,22 @@ void BattleSetSlotFields148And10C(void) {
     g_BattleWorkBlock[g_BattleCurSlotIndex].state.conditionTimers[7] = 3;
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
-    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->power;
+    s32 v = g_BattleCurSlotState->unk3A * g_BattleCurrentRow->power;
     s32 q = v / 20;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0xA;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
-    s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->power;
+    s32 v = g_BattleCurSlotState->unk3A * g_BattleCurrentRow->power;
     s32 q = v / 20;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0xB;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleClearSlotConditionBits(void) {
-    BattleSlotState *p = D_800D2DC8;
-    BattleTableEntry *q = D_800C3E34;
+    BattleSlotState *p = g_BattleCurSlotState;
+    BattleTableEntry *q = g_BattleTargetSlotEntry;
 
     p->unk7C &= 0xF80B;
     q->unk7A &= 0xFFDF;
@@ -439,7 +439,7 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
 // best 98.66% at retail's exact size (0xE0): the dispatch, all four arm bodies and
 // the shared decrement tail line up. Retail keeps TWO copies of the
-// "idx = D_800D2D6C->unk04[0]; break;" arm (cases 0 and 15, at .L8009E7C0 and
+// "idx = g_BattleTargetSlotState->unk04[0]; break;" arm (cases 0 and 15, at .L8009E7C0 and
 // .L8009E814); gcc 2.6.0 cross-jumps them into a single block whenever both arms
 // are written the same way, and the second copy is exactly the 0x18 bytes the
 // merged version is short (200 vs 224). The volatile in case 15 is what keeps the
@@ -457,7 +457,7 @@ void func_8009E788(void) {
 
     switch (g_BattleCurWorkBlock->rowIndex) {
     case 0:
-        idx = D_800D2D6C->unk04[0];
+        idx = g_BattleTargetSlotState->unk04[0];
         break;
     case 3:
     case 4:
@@ -471,18 +471,18 @@ void func_8009E788(void) {
     case 12:
     case 13:
     case 14:
-        idx = D_800D2D6C->unk04[0];
+        idx = g_BattleTargetSlotState->unk04[0];
         if (((u8 *)&g_GameState.unk22B6)[idx] != 0) {
             ((u8 *)&g_GameState.unk22B6)[idx] = ((u8 *)&g_GameState.unk22B6)[idx] + 0xFF;
         }
-        idx = D_800D2D6C->unk04[3];
+        idx = g_BattleTargetSlotState->unk04[3];
         break;
     case 15:
-        idx = *(volatile u8 *)&D_800D2D6C->unk04[0];
+        idx = *(volatile u8 *)&g_BattleTargetSlotState->unk04[0];
         break;
     case 2:
     case 17:
-        idx = D_800D2D6C->unk04[3];
+        idx = g_BattleTargetSlotState->unk04[3];
         break;
     default:
         return;

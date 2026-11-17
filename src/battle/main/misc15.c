@@ -103,7 +103,7 @@ extern u8 g_BattleSlotCurveRunning;
 extern u8 g_BattleCommandCellRow;
 extern u8 D_800D3670;
 
-// Partial view of the battle command cell state based at D_800D2C9E: the command flags
+// Partial view of the battle command cell state based at g_BattleCommandCellFlags: the command flags
 // word, the per-cell use counters (D_800D2CB0) and the per-cell command ids
 // (D_800D2CE0, which the rest of the code reaches as g_BattleCommandGridIds), the last
 // two indexed by the cursor cell.
@@ -114,7 +114,7 @@ typedef struct {
     /* 0x42 */ u8 ids[0x10];
 } BattleCommandCellState; // Size: 0x52
 
-extern BattleCommandCellState D_800D2C9E;
+extern BattleCommandCellState g_BattleCommandCellFlags;
 
 void BattlePlaySoundIfEnabled(u8 arg0) {
     if (g_BattleSoundEnabled != 0) {
@@ -544,7 +544,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     BattleQueueCommandF3WithSlotMask(mask, arg0);
     BattleClearSlotCurveEntry();
     BattleBeginAction(arg0, mask, g_BattleCommandQueue->unk2E6);
-    pCell = &D_800D2C9E;
+    pCell = &g_BattleCommandCellFlags;
     if ((pCell->flags & 0x8000) == 0) {
         pUses = pCell->uses;
         if (--pUses[g_BattleCommandCellRow * 2 + D_800D3670] == 0) {

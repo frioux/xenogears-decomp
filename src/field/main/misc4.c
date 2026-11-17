@@ -353,7 +353,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
    that rebase, and rand()'s product landing in a2/a3 instead of s1/a2.
 extern s32 g_FieldMapChangeGate;
 extern s32 g_FieldEntryStateGate;
-extern s32 D_800ADBEC;
+extern s32 g_FieldMapTransitionGate;
 extern s32 g_FieldArchiveStreamActive;
 extern u_char D_800ADB04;
 extern s32 D_800ADBD0;
@@ -391,7 +391,7 @@ void func_80079288(void) {
     if (g_FieldEntryStateGate == 0) {
         return;
     }
-    if (D_800ADBEC == 0) {
+    if (g_FieldMapTransitionGate == 0) {
         return;
     }
     if (g_GameWdsBankLoadState == -1) {

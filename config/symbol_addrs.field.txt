@@ -1035,3 +1035,6 @@ g_FieldSpritePolysCopy = 0x800AFC64;
 g_FieldStreamFileIndex = 0x800C3A20;
 g_FieldStreamTotalFrames = 0x800C3A2E;
 g_FieldStreamLoopPlayback = 0x800C3A3A;
+g_FieldGameStateChangeRequest = 0x800ADBD8;
+g_FieldMapChangeRequestGate = 0x800ADBE0;
+g_FieldMapTransitionGate = 0x800ADBEC;

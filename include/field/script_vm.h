@@ -27,9 +27,9 @@ typedef void (*ScriptVMHandler)(void);
 // Is Yielding maybe?
 extern int g_FieldScriptVMStopFlag;
 extern char D_8006FD84[];
-extern int D_800ADBE0;
+extern int g_FieldMapChangeRequestGate;
 extern int g_FieldEntryStateGate;
-extern int D_800ADBEC;
+extern int g_FieldMapTransitionGate;
 extern int g_FieldEntryRoutineFinished;
 
 extern int FieldScriptVMGetInstructionArgument(int);

@@ -409,7 +409,7 @@ void FieldScriptVMHandlerMapTransitionOffset(void) {
 }
 
 extern int g_GameSceneMapNum;
-extern s32 D_800ADBD8;
+extern s32 g_FieldGameStateChangeRequest;
 extern s32 g_FieldNextGameState;
 
 int FieldGetPlayerActorDirection(void);
@@ -423,9 +423,9 @@ void FieldScriptVMSaveSceneState(void) {
 }
 
 void FieldScriptVMHandlerRestoreRandomEncounters(void) {
-    if (D_800ADBD8 != 0) {
+    if (g_FieldGameStateChangeRequest != 0) {
         g_FieldControl.isRandomEncountersEnabled = -1;
-        D_800ADBD8 = 0;
+        g_FieldGameStateChangeRequest = 0;
         g_FieldNextGameState = FieldScriptVMGetArgument(1);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -479,7 +479,7 @@ void FieldScriptVMHandlerSetFadeParams(void) {
 }
 
 extern s32 g_FieldStreamSceneActive;
-extern s32 D_800ADBEC;
+extern s32 g_FieldMapTransitionGate;
 
 void FieldScriptVMHandlerRestoreMap(void) {
     int a;
@@ -491,11 +491,11 @@ void FieldScriptVMHandlerRestoreMap(void) {
     }
 
     g_FieldControl.isRandomEncountersEnabled = -1;
-    if (D_800ADBEC != 0) {
+    if (g_FieldMapTransitionGate != 0) {
         a = FieldScriptVMGetArgument(3);
         b = FieldScriptVMGetArgument(1);
         FieldScriptVMSaveSceneState();
-        D_800ADBEC = 0;
+        g_FieldMapTransitionGate = 0;
         FieldScriptMemoryWriteU16(2, a);
         g_GameSceneMapNum = b;
         FieldScriptVMEmptyHook();
@@ -508,14 +508,14 @@ extern u8 g_FieldScriptSoundEffectBank;
 extern u8 g_SoundEffectBankIndex;
 extern u8 g_GameSelectedSkinIndex;
 extern u8 g_GameSelectedSkinLoadPending;
-extern s32 D_800ADBE0;
+extern s32 g_FieldMapChangeRequestGate;
 extern s32 g_FieldTransitionBusyFlag;
 extern s32 g_FieldMapNumChanged;
 
 void FieldScriptVMHandlerChangeMap(void) {
     int mapNum;
 
-    if (g_FieldMapChangeGate == 0 || g_FieldEntryStateGate == 0 || D_800ADBEC == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (g_FieldMapChangeGate == 0 || g_FieldEntryStateGate == 0 || g_FieldMapTransitionGate == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
         return;
@@ -525,7 +525,7 @@ void FieldScriptVMHandlerChangeMap(void) {
     g_GameSelectedSkinIndex = FieldScriptVMGetArgument(1);
     g_GameSelectedSkinLoadPending = 0;
     g_FieldMapChangeGate = 0;
-    D_800ADBE0 = 0;
+    g_FieldMapChangeRequestGate = 0;
     g_FieldTransitionBusyFlag = 1;
     mapNum = FieldScriptVMGetArgument(5);
     if (mapNum != 0x7FFF) {
@@ -541,7 +541,7 @@ void FieldScriptVMHandlerChangeMap(void) {
 }
 
 void FieldScriptVMHandlerReloadMap(void) {
-    if (g_FieldMapChangeGate == 0 || g_FieldEntryStateGate == 0 || D_800ADBEC == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
+    if (g_FieldMapChangeGate == 0 || g_FieldEntryStateGate == 0 || g_FieldMapTransitionGate == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
         return;
     }
@@ -550,7 +550,7 @@ void FieldScriptVMHandlerReloadMap(void) {
     g_GameSelectedSkinIndex = FieldScriptVMGetArgument(1);
     g_GameSelectedSkinLoadPending = 0;
     g_FieldMapChangeGate = 0;
-    D_800ADBE0 = 0;
+    g_FieldMapChangeRequestGate = 0;
     g_FieldTransitionBusyFlag = 1;
     g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;

@@ -5,7 +5,7 @@
 extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 g_BattleCurSlotIndex;
 extern BattleRow* g_BattleCurrentRow;
-extern u8* D_800D2DC8;
+extern u8* g_BattleCurSlotState;
 extern u8 g_BattleSlotConditions[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 D_800D2C34;
@@ -915,7 +915,7 @@ void func_8009BD94(void) {
     new_var = g_BattleCurSlotIndex;
     new_var = (u32)g_BattleCurWorkBlock + new_var * 4 - -0x5F6C;
     *(u32*)new_var =
-        (u32)(g_BattleCurrentRow->power * *(s32*)(D_800D2DC8 + 0x64)) / 20;
+        (u32)(g_BattleCurrentRow->power * *(s32*)(g_BattleCurSlotState + 0x64)) / 20;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
