@@ -4,8 +4,6 @@
 
 // Size of the pool BattleAllocPacketPrimitives hands out (g_BattleGraphicsWork's
 // pPacketPrims): the 0x50-byte POLY_FT4 pairs BattleInitPacketPrimitives fills,
-// then the menu cell state at the pool's tail.
-#define BATTLE_PACKET_PRIM_POOL_SIZE 0x670
 // Size of the pulse-triangle pool BattleInitPulseTrianglePrims clears: the eight
 // POLY_G3 at +0x0 and the fade ramp and flags that follow them at +0xE0.
 #define BATTLE_PULSE_TRIANGLE_POOL_SIZE 0xEC

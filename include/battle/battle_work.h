@@ -55,6 +55,8 @@ typedef struct {
 typedef struct {
     /* 0x0000 */ u8 unk0[0xA230];
     /* 0xA230 */ u8* pPacketPrims; // 0x670-byte pool of POLY_FT4 pairs
+// Byte size of the packet prim pool pPacketPrims points at (0x670).
+#define BATTLE_PACKET_PRIM_POOL_SIZE 0x670
     /* 0xA234 */ u8 unkA234[0x4];
     /* 0xA238 */ BattleTileTexture tiles[6];
 } BattleGraphicsWork; // Size: 0xA2C8
