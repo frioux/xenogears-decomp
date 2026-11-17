@@ -200,8 +200,6 @@ typedef struct {
     /* 0x76 */ u8 b;
 } BattleEffect; // Size: unknown
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80072D18);
-
 /* The depth is consumed out of $a2 by gte_ldir123_dp_a2, so the third
    parameter must stay in place. */
 void BattleScaleSVectorGpf12(SVECTOR *p0, SVECTOR *p1, s32 ir0) {
