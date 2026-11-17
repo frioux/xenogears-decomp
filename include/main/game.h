@@ -140,7 +140,7 @@ typedef struct {
     /* 0x70 */ u16 baseDefense; /* impacted by AR value of equipped armor */
     /* 0x72 */ u16 baseEtherDefense;
     /* 0x74 */ u8 attackPower;
-    /* 0x75 */ u8 unk75;
+    /* 0x75 */ u8 baseWeightClass; // the equipment weight class (weightFromEquipment / 120) above it halves into weightPenalty
     /* 0x76 */ u8 unk76;
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;
