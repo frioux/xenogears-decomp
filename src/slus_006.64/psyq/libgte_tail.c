@@ -31,9 +31,6 @@
 // output to the argument register (`__asm__("$6")`) so gcc emits the copy
 // itself; pinning it to $2 lets gcc place it at entry instead.
 
-// why each of these cannot be converted: see the note at the top of the file.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", MulMatrix0);
-
 MATRIX *CompMatrix(MATRIX *m0, MATRIX *m1, MATRIX *m2) {
     register MATRIX *pRet __asm__("$2");
 
