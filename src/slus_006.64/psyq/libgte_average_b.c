@@ -3,9 +3,11 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-// Psy-Q libgte from RotAverageNclip4 on. RotAverage4 (the function before it) is
-// padded to 16 bytes in the shipped .OBJ, so the nop at 0x3B038 is an `asm`
-// subsegment in config/slus_006.64.yaml and this file starts at 0x3B03C.
+// Psy-Q libgte from RotAverageNclip4 through RotMatrixX. RotAverage4 (the
+// function before it) is padded to 16 bytes in the shipped .OBJ, so the nop at
+// 0x3B038 is an `asm` subsegment in config/slus_006.64.yaml and this file starts
+// at 0x3B03C; it ends at 0x3B7E4, where RotMatrixX's own two pad words are that
+// file's next `asm` subsegment and psyq/libgte_average_c begins.
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotAverageNclip4);
 /* best attempt 59.52% (180 bytes, the original's size: no frame, no extra insn).
