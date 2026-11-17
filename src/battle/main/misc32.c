@@ -99,7 +99,7 @@ extern void *D_800C3E1C;
 extern s32 D_800C3D38;
 extern s32 g_BattleColorMode;
 
-// The battle actor sprite func_800BD3AC spawns an effect for: this unit reads only
+// The battle actor sprite BattleAttachEffectSprite spawns an effect for: this unit reads only
 // its fixed-point position and bit 2 of its flags word. misc33 declares the whole
 // record as BattleActorSprite.
 typedef struct {
@@ -114,7 +114,7 @@ typedef struct {
     /* 0x00 */ u8 unk0[0x18];
 } Misc32SpritePart; // Size: 0x18
 
-// The effect task WorkListsAddTasks allocates for func_800BD3AC (0x1B0 bytes): the
+// The effect task WorkListsAddTasks allocates for BattleAttachEffectSprite (0x1B0 bytes): the
 // two work-list entries, the render transform func_800BDA1C walks (the rotation at
 // 0x40, the fixed-point position the step callbacks advance at 0x48, the scale at
 // 0x58) and the sprite list at 0x90 whose count is at 0x8C. Every function in this
@@ -149,7 +149,7 @@ extern Misc32Task *g_BattleTaskUnlinkList;
 extern void *g_BattleState;
 extern u8 *g_BattleSpriteArchive;
 extern s16 g_BattleDigitTextureIds[];
-extern u8 D_800C4929;
+extern u8 g_BattleTaskListBusy;
 extern Misc32Task *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCallback,
                                      void *pWorkCallback, void *pOnFreeCallback);
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, Misc32SpritePart *pOut, s16 x, s16 y);
@@ -161,7 +161,7 @@ extern void BattleStepEffectColorFade(Misc32Task *pTask);
 extern void BattleStepEffectPosition(Misc32Task *pTask);
 extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
 
-extern void func_800BD3AC(Misc32ActorSprite *pSprite, s32 value, s32 kind);
+extern void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind);
 extern void func_800BD1FC(s32 slot);
 
 // Parked at 92.59%, one instruction SHORT (228 bytes vs retail's 232), so it cannot
@@ -216,7 +216,7 @@ void func_800BD1FC(s32 slot) {
     kind = pRow->unk150[slot];
     D_800C3D38 = pRow->unk15C[slot];
     g_BattleColorMode = pRow->unk174[slot];
-    func_800BD3AC(pSprite, pRow->unk138[slot], kind);
+    BattleAttachEffectSprite(pSprite, pRow->unk138[slot], kind);
     pRow = (BattleCommandRowTable *)(pBase + (g_BattleCommandRowIndex - 1) * 0x48);
     pRow->unk138[slot] = 0xFFFF;
 }
@@ -258,7 +258,7 @@ void BattleUpdateCommandRows(void) {
 // Spawns the sprite-list effect that draws <value> next to <pSprite>. <kind> selects
 // the frame the effect is in: 4 is the spawn frame, before the number's digits are
 // added to the sprite list; the other kinds pick the number's colour channels.
-void func_800BD3AC(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
+void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     Misc32Task *pTask;
     Misc32Task *pCur;
     WorkListCallback_t pCallback;
@@ -272,7 +272,7 @@ void func_800BD3AC(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     }
     func_800BDE58();
     pCur = g_BattleTaskUnlinkList;
-    D_800C4929 = 0;
+    g_BattleTaskListBusy = 0;
     while (pCur != NULL) {
         if (pCur->pSprite == pSprite) {
             pCallback = pCur->timerEntry.onFreeCallback;

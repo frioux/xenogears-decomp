@@ -32,7 +32,7 @@ void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pFlags);
-void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
+void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void func_801E86C8(s32 arg0);
 void MenuSetSubMenuChoicePrims(s32 arg0);
 void MenuClearBytes(s32 arg0, void* pArg1);
@@ -350,7 +350,7 @@ s32 func_801D9808(void) {
             firstPass = 0;
         }
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            func_801E8070(6, g_Menu->unk1BE0, g_MenuNameTextureX, D_801E9F88, g_Menu->pManager->shouldRenderStrings1BE0,
+            MenuSetRowQuadVertices(6, g_Menu->unk1BE0, g_MenuNameTextureX, D_801E9F88, g_Menu->pManager->shouldRenderStrings1BE0,
                           g_Menu->subMenuChoice, 7, 0);
             MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;

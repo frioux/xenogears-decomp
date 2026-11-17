@@ -33,7 +33,7 @@ void func_801C72BC(s32 arg0);
 void func_801D7F50(s32 arg0, s32 arg1, u_char arg2);
 void func_801D8644(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pFlags);
-void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
+void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void func_801E86C8(s32 arg0);
 void MenuSetSubMenuChoicePrims(s32 arg0);
 void MenuClearBytes(s32 arg0, void* pArg1);

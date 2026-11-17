@@ -47,7 +47,7 @@ void MenuInitializeArrowCursor(s32 arg0);
 void func_801D3488(s32 arg0, s32 arg1);
 void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
-void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
+void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
 void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
@@ -709,7 +709,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     }
 
     for (i = start; i < count; i++) {
-        func_801E8070(6, g_Menu->unk14E0, D_801EA558[arg1 & 0xFF], D_801E9EA0,
+        MenuSetRowQuadVertices(6, g_Menu->unk14E0, D_801EA558[arg1 & 0xFF], D_801E9EA0,
                       g_Menu->pManager->shouldRenderStrings14E0, (u8)i, (u8)i, 3);
     }
 

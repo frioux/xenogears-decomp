@@ -560,3 +560,4 @@ g_WorldMapTpageIds = 0x8009CD54;
 g_WorldMapTpageIds2 = 0x8009CD5C;
 g_WorldMapTexturePackData = 0x8009C59C;
 g_WorldMapCdSectorBuffer = 0x8009BCCC;
+g_WorldMapPartyActorAnimFile0 = 0x8009CD34;

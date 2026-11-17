@@ -12,7 +12,7 @@ void MenuRenderFrame(void);
 void MenuPlaySoundEffect(u_char soundEffectId);
 void MenuResetSelectionCursorFlags(void);
 void MenuClearBytes(s32 arg0, void* pArg1);
-void func_801E8070(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u_char arg5,
+void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u_char arg5,
     u_char arg6, u_char arg7);
 void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries);
 void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
@@ -88,7 +88,7 @@ void MenuNormalMenuMain(void) {
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             MenuSetSelectionMenuPrims(7, g_Menu->mainMenuChoice, (s32*)g_MenuMainSelectionResourceIds);
-            func_801E8070(8, g_Menu->unk6E0, g_MenuMainRowStringIds, g_MenuMainRowXOffsets,
+            MenuSetRowQuadVertices(8, g_Menu->unk6E0, g_MenuMainRowStringIds, g_MenuMainRowXOffsets,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
@@ -159,7 +159,7 @@ void MenuLoadGameMain(void) {
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             MenuSetSelectionMenuPrims(3, g_Menu->mainMenuChoice, (s32*)g_MenuLoadGameSelectionResourceIds);
-            func_801E8070(8, g_Menu->unk6E0, g_MenuLoadGameRowStringIds, g_MenuLoadGameRowXOffsets,
+            MenuSetRowQuadVertices(8, g_Menu->unk6E0, g_MenuLoadGameRowStringIds, g_MenuLoadGameRowXOffsets,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }

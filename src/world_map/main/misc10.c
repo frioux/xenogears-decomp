@@ -9,7 +9,7 @@ extern void* D_8009BE1C;
 extern void* D_8009BE20;
 extern s16 g_WorldMapSpriteSetIds[];
 
-extern void* D_8009CD34;
+extern void* g_WorldMapPartyActorAnimFile0;
 
 extern void HeapFree(void* pMem);
 extern void* SpriteAllocFromAnimFile(void* pArg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
@@ -668,7 +668,7 @@ s32 func_8008A2C8(s32 index) {
     s32 angle;
 
     pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + index * 0x80);
-    pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
+    pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
     *(u32*)((u8*)pActor->pSprite + 0x3C) &= ~4;
@@ -748,7 +748,7 @@ s32 func_8008A52C(s32 arg0) {
     u8* pActor;
 
     pActor = g_WorldMapSlots + (arg0 << 7);
-    pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
+    pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     *(u8**)(pActor + 0x4C) = pSprite;
     SpritePlayAnimation(pSprite, 0);
     SpriteSetScale(*(u8**)(pActor + 0x4C), 0x1800);
@@ -773,7 +773,7 @@ s32 func_8008A5B8(s32 arg0) {
     s32 i;
 
     pActor = (WorldMapActor*)((u8*)g_WorldMapSlots + arg0 * 0x80);
-    pSprite = SpriteAllocFromAnimFile(D_8009CD34, 0x100, 0x1E0, 0x140, 0x100, 0x40);
+    pSprite = SpriteAllocFromAnimFile(g_WorldMapPartyActorAnimFile0, 0x100, 0x1E0, 0x140, 0x100, 0x40);
     pActor->pSprite = pSprite;
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);

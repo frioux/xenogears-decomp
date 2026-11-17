@@ -40,7 +40,7 @@ void MenuPlaySoundEffect(u8);
 s32 func_801D9704(s32, u8, u8);
 void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
-void func_801E8070(s32, void*, void*, void*, void*, u8, u8, u8);
+void MenuSetRowQuadVertices(s32, void*, void*, void*, void*, u8, u8, u8);
 void MenuCreateWindow(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, u_char);
 void MenuApplyEquippedItemBonuses(MenuDressingRoom*, u8);
 void MenuComputeCharacterStats(MenuDressingRoom*, u8);
@@ -80,7 +80,7 @@ void MenuInitializeUnk438Panel(void) {
     bzero(g_Menu->unk438, 0x25C0);
     func_801C72BC(4);
     MenuLoadStringsFromIds(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
-    func_801E8070(2, (u8*)g_Menu + 0x17E0, D_801EA564, D_801E9EA0, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
+    MenuSetRowQuadVertices(2, (u8*)g_Menu + 0x17E0, D_801EA564, D_801E9EA0, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
     MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
     g_Menu->pManager->unk5[1] = 0;
     g_Menu->pManager->shouldRenderWindow[1] = 0;
@@ -305,8 +305,8 @@ u8 func_801E23CC(s32 slot) {
             MenuDrawGearScreen(lastSlot, 1);
             stringSet = (g_GameState.gearRide[slot] != 0) ? 6 : 0;
             MenuLoadUnk18E0Strings(stringSet);
-            func_801E8070(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 4, 7, 6);
-            func_801E8070(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 5, 7, 6);
+            MenuSetRowQuadVertices(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 4, 7, 6);
+            MenuSetRowQuadVertices(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 5, 7, 6);
             g_Menu->unk18E0[4].hasVertices = 1;
             g_Menu->unk18E0[5].hasVertices = 1;
             if (firstDraw != 0) {
@@ -317,7 +317,7 @@ u8 func_801E23CC(s32 slot) {
             }
         }
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            func_801E8070(4, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48 + stringSet, (u8*)g_Menu->pManager + 0x54, g_Menu->subMenuChoice, 7, 0);
+            MenuSetRowQuadVertices(4, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48 + stringSet, (u8*)g_Menu->pManager + 0x54, g_Menu->subMenuChoice, 7, 0);
             MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }

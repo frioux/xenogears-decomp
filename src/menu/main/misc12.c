@@ -399,8 +399,8 @@ void MenuClearBytes(u_char count, u_char* pBuffer) {
         } while ((s32)pBuffer < end);
     }
 }
-extern u32 D_801E9A00[]; // Cursor x positions
-extern s32 D_801E9A2C[]; // Cursor y positions
+extern u32 g_MenuCursorXPositions[]; // Cursor x positions
+extern s32 g_MenuCursorYPositions[]; // Cursor y positions
 extern u32 D_801E9EC4[];
 extern u32 D_801E9EE4[];
 extern u32 D_801E9EE8[];
@@ -410,21 +410,21 @@ extern u32 D_801E9F68[];
 extern u32 D_801E9F70[];
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 
-void func_801E8070(s32 count, MenuString* pRows, u8* pStringIds, u32* pXOffsets, u8* pFlags, u_char row,
+void MenuSetRowQuadVertices(s32 count, MenuString* pRows, u8* pStringIds, u32* pXOffsets, u8* pFlags, u_char row,
     u_char col, u_char mode) {
     s32 offset = 0;
 
     switch (mode) {
     case 0:
         MenuClearBytes(count, pFlags);
-        (g_Menu->renderContext + pRows[row].polys)->x0 = D_801E9A00[col + row] + (pXOffsets[row] + 0x16);
-        (g_Menu->renderContext + pRows[row].polys)->y0 = D_801E9A2C[col + row] - 0x22;
-        (g_Menu->renderContext + pRows[row].polys)->x1 = (u16)(D_801E9A00[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
-        (g_Menu->renderContext + pRows[row].polys)->y1 = D_801E9A2C[col + row] - 0x22;
-        (g_Menu->renderContext + pRows[row].polys)->x2 = D_801E9A00[col + row] + (pXOffsets[row] + 0x16);
-        (g_Menu->renderContext + pRows[row].polys)->y2 = D_801E9A2C[col + row] - 0x15;
-        (g_Menu->renderContext + pRows[row].polys)->x3 = (u16)(D_801E9A00[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
-        (g_Menu->renderContext + pRows[row].polys)->y3 = D_801E9A2C[col + row] - 0x15;
+        (g_Menu->renderContext + pRows[row].polys)->x0 = g_MenuCursorXPositions[col + row] + (pXOffsets[row] + 0x16);
+        (g_Menu->renderContext + pRows[row].polys)->y0 = g_MenuCursorYPositions[col + row] - 0x22;
+        (g_Menu->renderContext + pRows[row].polys)->x1 = (u16)(g_MenuCursorXPositions[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
+        (g_Menu->renderContext + pRows[row].polys)->y1 = g_MenuCursorYPositions[col + row] - 0x22;
+        (g_Menu->renderContext + pRows[row].polys)->x2 = g_MenuCursorXPositions[col + row] + (pXOffsets[row] + 0x16);
+        (g_Menu->renderContext + pRows[row].polys)->y2 = g_MenuCursorYPositions[col + row] - 0x15;
+        (g_Menu->renderContext + pRows[row].polys)->x3 = (u16)(g_MenuCursorXPositions[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
+        (g_Menu->renderContext + pRows[row].polys)->y3 = g_MenuCursorYPositions[col + row] - 0x15;
         break;
     case 1:
         MenuSetQuadVertices(pRows[row].vertices, D_801E9EC4[row], D_801E9EE4[0], pRows[row].width, MENU_ROW_QUAD_HEIGHT);

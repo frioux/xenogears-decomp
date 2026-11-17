@@ -140,7 +140,7 @@ extern BattleSpriteBody *WorkListsAddTasks(s32 allocSize, void *pData, void *pTi
                                           void *pWorkCallback, void *pOnFreeCallback);
 extern s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, BattleSpritePart *pOut, s16 x, s16 y);
-extern s32 func_800BD3AC(BattleActorSprite *p, s32 arg1, s32 arg2);
+extern s32 BattleAttachEffectSprite(BattleActorSprite *p, s32 arg1, s32 arg2);
 extern void BattleFreeTimerTaskIfActive(void);
 extern void func_800BE790(void);
 extern s32 BattleGetAdjustedWaitCountdown(void);
@@ -298,13 +298,13 @@ void BattleAttachActorAnimScripts(s32 index, s32 arg1, s32 arg2, s32 arg3) {
         pState = g_BattleState;
         g_BattleState = (BattleMisc33State *)1;
         if (arg1 != 0) {
-            func_800BD3AC(pSprite, arg1, 0);
+            BattleAttachEffectSprite(pSprite, arg1, 0);
         }
         if (arg2 != 0) {
-            func_800BD3AC(pSprite, arg2, 1);
+            BattleAttachEffectSprite(pSprite, arg2, 1);
         }
         if (arg3 != 0) {
-            func_800BD3AC(pSprite, arg3, 0xA);
+            BattleAttachEffectSprite(pSprite, arg3, 0xA);
         }
         g_BattleState = pState;
         while (BattleGetAdjustedWaitCountdown() != 0) {

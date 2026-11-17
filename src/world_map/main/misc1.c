@@ -220,7 +220,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
    g_WorldMapStreamQueue/D_8009D3FC (grows the frame to 0x38).
 */
 /*
-extern void* D_8009CD34[3];
+extern void* g_WorldMapPartyActorAnimFile0[3];
 extern void* D_8009BDF8[3];
 extern s32 D_8009C170;
 
@@ -234,7 +234,7 @@ void func_80071CDC(void) {
     for (i = 0; i < 3; i++) {
         nCharacterId = g_GameState.partyMembers[i];
         if (nCharacterId != CHARACTER_ID_NONE) {
-            D_8009CD34[i] = HeapAlloc(ArchiveDecodeAlignedSize(nCharacterId + 2), 0);
+            g_WorldMapPartyActorAnimFile0[i] = HeapAlloc(ArchiveDecodeAlignedSize(nCharacterId + 2), 0);
             nGearId = g_GameState.characters[nCharacterId].gearId;
             if (nGearId != GEAR_ID_NONE) {
                 D_8009BDF8[i] = HeapAlloc(ArchiveDecodeAlignedSize(nGearId + 0x13), 0);
@@ -243,7 +243,7 @@ void func_80071CDC(void) {
             }
         } else {
             D_8009BDF8[i] = 0;
-            D_8009CD34[i] = 0;
+            g_WorldMapPartyActorAnimFile0[i] = 0;
         }
     }
     pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
@@ -253,7 +253,7 @@ void func_80071CDC(void) {
         nCharacterId = g_GameState.partyMembers[i];
         if (nCharacterId != CHARACTER_ID_NONE) {
             pQueue[nCount].archiveIndex = nCharacterId + 2;
-            pQueue[nCount].pData = D_8009CD34[i];
+            pQueue[nCount].pData = g_WorldMapPartyActorAnimFile0[i];
             D_8009C170++;
             nCount++;
             nGearId = g_GameState.characters[nCharacterId].gearId;
@@ -387,7 +387,7 @@ extern void* g_WorldMapTilePrimBuffer;
 extern void* g_WorldMapTilePrimBufferCopy;
 extern u16 g_NextMapFlags;
 extern s32 g_WorldMapAreaMode;
-extern void* D_8009CD34[3];
+extern void* g_WorldMapPartyActorAnimFile0[3];
 extern void* D_8009BDF8[3];
 
 extern void SoundSetAudioManagerVolumeWithFade(void* p, s32 arg1, s32 arg2);
@@ -451,8 +451,8 @@ void func_8007299C(void) {
     HeapFree(g_WorldMapTilePrimBufferCopy);
     HeapFree(g_WorldMapDecompressedMapData);
     for (i = 0; i < 3; i++) {
-        if (D_8009CD34[i] != NULL) {
-            HeapFree(D_8009CD34[i]);
+        if (g_WorldMapPartyActorAnimFile0[i] != NULL) {
+            HeapFree(g_WorldMapPartyActorAnimFile0[i]);
         }
         if (D_8009BDF8[i] != NULL) {
             HeapFree(D_8009BDF8[i]);

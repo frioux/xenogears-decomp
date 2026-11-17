@@ -39,7 +39,7 @@ extern s32 g_BattleStateAdvanceRequested;
 extern s32 g_BattleSpriteArchiveFreed;
 extern s32 g_BattleSlotConfirmFlags;
 extern s32 g_BattleEntryCount;
-extern s32 D_80092754;
+extern s32 g_BattleSlotConfirmLatched;
 extern u16 D_800916E2;
 extern u16 D_8009171E;
 extern u8 g_BattlePlayer1ComControlled;
@@ -559,7 +559,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
    g_BattleSlotConfirmFlags. Every arm but case 2 is instruction-identical,
    including the cross-jumped arms and gcc's shared tails: cases 1 and 4 share
    the flags==0/3 handling, cases 1 and 5 share the func_8008162C(list5,0) tail
-   (so case 5's flags==0 arm must NOT set D_80092754), case 3's call is its own
+   (so case 5's flags==0 arm must NOT set g_BattleSlotConfirmLatched), case 3's call is its own
    copy. The inverted ternary `(flags & 1) == 0 ? 4 : 5` is what gives retail's
    bnez + li 5 + li 4 order.
    The 98.01% body below has retail's frame (0x18) and its single case-2
@@ -578,7 +578,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
    gcc then shares the constant 1 across the calls again (0x20 frame, `li s1,1`
    instead of retail's `li v1,1` + `li v0,1`), i.e. +3 insns, and the two ternary
    arms land in $v1 where retail has $v0.
-   Also tried: s32 v local for each ternary (same), D_80092754 stored after the
+   Also tried: s32 v local for each ternary (same), g_BattleSlotConfirmLatched stored after the
    two ternaries (91.44), a plain s32* pointer local for the second read (cse'd),
    &g_BattleTextLists[5]/[6] vs D_800916D8 + 0x3C (both 740 in the base body),
    gcc-2.7.2-cdk (83.90), -O3 (identical), a 4-minute permuter run from the
@@ -590,11 +590,11 @@ void func_80081A44(void) {
     case 1:
         switch (g_BattleSlotConfirmFlags) {
         case 0:
-            D_80092754 = 0;
+            g_BattleSlotConfirmLatched = 0;
             func_8008162C(D_800916D8, 0);
             break;
         case 1:
-            D_80092754 = 1;
+            g_BattleSlotConfirmLatched = 1;
             func_8008162C(D_80091714, 0);
             break;
         case 3:
@@ -607,7 +607,7 @@ void func_80081A44(void) {
     case 2: {
         s32 flags;
 
-        D_80092754 = 1;
+        g_BattleSlotConfirmLatched = 1;
         flags = g_BattleSlotConfirmFlags;
         D_800916E2 = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
         D_8009171E = (flags & 2) == 0 ? 4 : 5;
@@ -623,11 +623,11 @@ void func_80081A44(void) {
     case 3:
         switch (g_BattleSlotConfirmFlags) {
         case 0:
-            D_80092754 = 0;
+            g_BattleSlotConfirmLatched = 0;
             func_8008162C(D_800916D8, 0);
             break;
         case 1:
-            D_80092754 = 1;
+            g_BattleSlotConfirmLatched = 1;
             func_8008162C(D_80091714, 0);
             break;
         case 3:
@@ -640,11 +640,11 @@ void func_80081A44(void) {
     case 4:
         switch (g_BattleSlotConfirmFlags) {
         case 0:
-            D_80092754 = 0;
+            g_BattleSlotConfirmLatched = 0;
             func_8008162C(D_800916D8, 0);
             break;
         case 1:
-            D_80092754 = 1;
+            g_BattleSlotConfirmLatched = 1;
             func_8008162C(D_80091714, 0);
             break;
         case 3:

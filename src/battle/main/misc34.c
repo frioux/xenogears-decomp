@@ -366,7 +366,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
 // every instruction is present and in retail's order; what is left is
-//  (a) gcc hoists D_800C37D4's address out of the outer restart loop to the prologue
+//  (a) gcc hoists g_BattleConditionAnimIds's address out of the outer restart loop to the prologue
 //      where retail re-forms it at the top of the loop (.L800C05A8),
 //  (b) gcc picks pSpriteSlot as the base for the slot accesses, so pSlot's two byte
 //      reads come out as lbu 1(s3)/lbu 0(s3) off a derived base+7 pointer instead of
@@ -380,7 +380,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 // orders, and a 4-minute permuter run (base=1405 best=800, and its two best edits read
 // new_var->unk8 from a pointer that never advances - wrong code, not portable).
 // The outer loop must stay a loop (a `goto rescan` puts the jtbl address in the wrong
-// block: retail forms it in the prologue, D_800C37D4 inside the loop).
+// block: retail forms it in the prologue, g_BattleConditionAnimIds inside the loop).
 /*
 void func_800C0564(void) {
     u8 *pBase;
@@ -419,7 +419,7 @@ void func_800C0564(void) {
                     default:
                         if (pSlot->unk7 == 0 &&
                             (s8)pSprite->flags_0xAC.bytes[3] !=
-                                D_800C37D4[BattleGetActorConditionCode(i)] &&
+                                g_BattleConditionAnimIds[BattleGetActorConditionCode(i)] &&
                             (s8)pSprite->flags_0xAC.bytes[3] != (s8)pSprite->flags_0xB0.bytes[0]) {
                             needsWait = 1;
                         }
@@ -439,7 +439,7 @@ void func_800C0564(void) {
     }
 }
 */
-extern u16 D_800C37D4[];
+extern u16 g_BattleConditionAnimIds[];
 extern s32 BattleGetActorConditionCode(s32 slot);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0564);
 s32 BattleComputeVectorDistance(VECTOR *pVec0, VECTOR *pVec1) {

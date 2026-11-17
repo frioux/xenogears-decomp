@@ -69,7 +69,7 @@ extern u8* D_80091718;
 extern s16 D_80091726;
 extern s32 g_BattleSlot0TextColor;
 extern s32 g_BattleSlot1TextColor;
-extern s32 D_80092754;
+extern s32 g_BattleSlotConfirmLatched;
 extern s32 D_80092938;
 extern u8 g_StrVibrationOn[];
 extern u8 g_StrVibrationOff[];
@@ -236,7 +236,7 @@ void BattleDrawVibrationOptions(void) {
     }
     BattleSetTextColor(0);
     flag = !(g_BattleSlotConfirmFlags & 2);
-    if (flag && D_80092754 == 0) {
+    if (flag && g_BattleSlotConfirmLatched == 0) {
         flag = 0;
     }
     pPad = (Misc7Struct*)D_80091714;
