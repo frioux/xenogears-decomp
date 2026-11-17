@@ -1,6 +1,9 @@
 #ifndef _XENO_MENU_H
 #define _XENO_MENU_H
 
+// A SystemMenu.digits[] entry holding no digit (nothing is drawn for it).
+#define MENU_DIGIT_NONE 0xFF
+
 #include "psyq/libgpu.h"
 #include "system/menu_resources.h"
 #include "system/sound.h"

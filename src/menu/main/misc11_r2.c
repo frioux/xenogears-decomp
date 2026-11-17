@@ -2,19 +2,10 @@
 
 #include "system/menu.h"
 
-// Id counts of the game's inventory tables, one per table MenuFillInventoryTables
-// fills.
-#define MENU_WEAPON_ID_COUNT 72
-#define MENU_ACCESSORY_ID_COUNT 150
-#define MENU_ITEM_ID_COUNT 76
-#define MENU_GEAR_WEAPON_ID_COUNT 72
-#define MENU_GEAR_PART_ID_COUNT 105
 
 // Quantity MenuFillInventoryTables gives every filled slot.
 #define MENU_INVENTORY_FILL_QUANTITY 10
 
-// g_Menu->digits entry that holds no digit, so no prim is drawn for it.
-#define MENU_DIGIT_NONE 0xFF
 
 // The save-slot record this unit writes: a packed copy of the parts of
 // g_GameState that live in a save file.  Everything is word-aligned so the

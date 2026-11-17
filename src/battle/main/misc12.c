@@ -1,11 +1,13 @@
 #include "common.h"
 
+// The sound played when the battle menu refuses an input (battle/main/misc11 and
+// misc16 call it with the same id; kept here because this unit does not include actor.h).
+#define BATTLE_SOUND_MENU_DENIED 0x4F
+
 // The slot id that means "no slot": an empty candidate list entry, a slot that
 // targets nothing.
 #define BATTLE_SLOT_NONE 0xFF
 // Played on every branch where the slot menu refuses the input instead of
-// advancing.
-#define BATTLE_SOUND_MENU_DENIED 0x4F
 
 extern u8 g_BattleCurveModes[];
 extern u16 g_BattleCurveValues[];

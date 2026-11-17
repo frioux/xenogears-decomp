@@ -121,7 +121,7 @@ void BattleWordRegMod(BattleCommand **p, u8 index) {
 
     pRegs[pCmd->operand3] = pRegs[pCmd->operand1] % pRegs[pCmd->operand2];
 }
-void func_8007B2C0(BattleCommand **p, u8 index) {
+void BattleWordRegAnd(BattleCommand **p, u8 index) {
     BattleCommand *pCmd = *p;
 
     // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0
@@ -130,7 +130,7 @@ void func_8007B2C0(BattleCommand **p, u8 index) {
         g_BattleSlotRegs[index].wordRegs[pCmd->operand1] & g_BattleSlotRegs[index].wordRegs[pCmd->operand2];
 }
 
-void func_8007B310(BattleCommand **p, u8 index) {
+void BattleWordRegOr(BattleCommand **p, u8 index) {
     BattleCommand *pCmd = *p;
 
     // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0

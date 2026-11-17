@@ -1,6 +1,15 @@
 #ifndef _XENO_GAME_H
 #define _XENO_GAME_H
 
+// Number of ids in each inventory table (the tables themselves are declared below;
+// the MAX_INVENTORY_* macros are the array dimensions, which are larger).
+#define MENU_WEAPON_ID_COUNT 72
+#define MENU_ACCESSORY_ID_COUNT 150
+#define MENU_ITEM_ID_COUNT 76
+#define MENU_GEAR_WEAPON_ID_COUNT 72
+#define MENU_GEAR_PART_ID_COUNT 105
+
+
 #define MAX_GAME_CHARACTERS 11
 #define MAX_GAME_GEARS 20
 #define MAX_PARTY_MEMBERS 3
