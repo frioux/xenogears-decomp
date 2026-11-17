@@ -5,6 +5,13 @@
 // rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
 #define BATTLE_PERCENT_ROLL_RANGE 100
 
+// mp and maxMp are percents times this, as hp and maxHp are percents times BATTLE_ACTOR_HP_SCALE.
+#define BATTLE_MP_SCALE 10
+// accessoryEffectFlags5 bit that doubles every condition timer the slot starts.
+#define BATTLE_ACCESSORY_TIMER_DOUBLE_FLAG 0x40
+// The timer index the flag-to-timer mapping leaves when a condition flag owns no timer.
+#define BATTLE_CONDITION_TIMER_INDEX_NONE 0xF
+
 extern u16 g_BattleSavedSlotUnk7A[];
 extern u8 g_BattleSlotUnk98Deltas[];
 extern u8 g_BattleActorCharIds[];
@@ -179,7 +186,7 @@ void BattleSetSlotConditionActionValue(void) {
 
     switch (g_BattleCurrentRow->amountSource) {
     case 0:
-        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
+        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
                 ((BattleSlotState *)g_BattleCurSlotState)->hp / g_BattleCurrentRow->power;
         } else {
@@ -188,14 +195,14 @@ void BattleSetSlotConditionActionValue(void) {
         }
         break;
     case 1:
-        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
+        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = ((BattleSlotState *)g_BattleCurSlotState)->hp - 1;
         } else {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->hp - 1;
         }
         break;
     case 2:
-        if (g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags & 0x80) {
+        if (g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
                 g_BattleTargetSlotState->maxHp - g_BattleTargetSlotState->hp;
         } else {
@@ -204,7 +211,7 @@ void BattleSetSlotConditionActionValue(void) {
         }
         break;
     case 3:
-        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->mp * 10;
+        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->mp * BATTLE_MP_SCALE;
         break;
     case 4:
         g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = 1;
@@ -214,7 +221,7 @@ void BattleSetSlotConditionActionValue(void) {
         break;
     case 6:
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
-        if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & 0x80) {
+        if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = ((BattleSlotState *)g_BattleCurSlotState)->maxHp;
             if (((BattleSlotState *)g_BattleCurSlotState)->maxHp > BATTLE_HP_MAX) {
                 ((BattleSlotState *)g_BattleCurSlotState)->maxHp = BATTLE_HP_MAX;
@@ -227,7 +234,7 @@ void BattleSetSlotConditionActionValue(void) {
         }
         break;
     case 7:
-        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
+        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
             g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
         } else {
             g_BattleTargetSlotEntry->activeEffectFlags1 |= 1;
@@ -422,7 +429,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
     }
     pBase = (u8 *)g_BattleCurWorkBlock->slots;
     pActor = (BattleTableEntry *)(pBase + sel * sizeof(*pActor));
-    if (pActor->state.flags & 0x80) {
+    if (pActor->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         return;
     }
     lim = 50;
@@ -455,7 +462,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
 void BattleNop(void) {
 }
 s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
-    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
+    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         return 0;
     }
 
@@ -749,7 +756,7 @@ u8 BattleTestActorSlotFlagsC002ByMode(void) {
 void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     BattleTableEntry *pEntry;
     u8 *pTimer;
-    u8 idx = 0xF;
+    u8 idx = BATTLE_CONDITION_TIMER_INDEX_NONE;
     u8 val = count;
     u16 bits;
 
@@ -759,7 +766,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
     pEntry = &g_BattleWorkBlock[slot];
     if (kind == 0) {
         if (flag != 0x1000) {
-            idx = (flag == 0x2000) ? 0 : 0xF;
+            idx = (flag == 0x2000) ? 0 : BATTLE_CONDITION_TIMER_INDEX_NONE;
         } else {
             idx = 1;
         }
@@ -813,7 +820,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
             break;
         }
     }
-    if (idx == 0xF) {
+    if (idx == BATTLE_CONDITION_TIMER_INDEX_NONE) {
         return;
     }
     switch (kind) {
@@ -829,7 +836,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
         }
         break;
     }
-    if (pEntry->accessoryEffectFlags5 & 0x40) {
+    if (pEntry->accessoryEffectFlags5 & BATTLE_ACCESSORY_TIMER_DOUBLE_FLAG) {
         switch (kind) {
         case 5:
         case 7:
