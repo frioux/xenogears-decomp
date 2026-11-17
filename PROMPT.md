@@ -435,7 +435,13 @@ use of idle CPU there is.
 - `ERROR` rows are bodies that no longer compile on their own, or that use GTE macros or
   inline asm the permuter's C parser rejects; `~/xw/permuter-out/<Func>.error` says which.
   A stale body is worth one line in a normal brief ("the park does not compile"); the
-  rest are not permuter work.
+  rest are not permuter work. **Most ERROR rows are stale, so they are not a repair
+  queue** - round 185 spent 7 workers on the 117 worst ones and every park but
+  `battle/misc8`'s three already built; only a worker that un-parks the body and runs
+  `diff_func.sh` can tell (budget them as re-measure jobs, not matches). A park that
+  reports `Syntax error in base.c` here is usually one `park.py unpark` cannot read at
+  all: a signature left on the `/*` line (`/* int func_x(int index) {`) or a note block
+  with no closing `*/` of its own, so note+body is one comment. Un-park those by hand.
 - **A ZERO is not proof of a match: the permuter does not score stack offsets.** A park
   can read `best=0` with the instruction stream and size exact and still differ in the
   frame layout (`battling/misc3` `func_8007661C` has been parked at 99.91% on exactly
