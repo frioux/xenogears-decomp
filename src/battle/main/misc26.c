@@ -135,7 +135,7 @@ s32 BattleGetPrimitiveBufferSize(BattleModelFrame *pFrame) {
 }
 
 // Advances the primitive cursor by one packet and counts the packet emitted.
-void func_800B16F0(void) {
+void BattleAdvancePrimitiveCursor(void) {
     u8 *pCmd = D_800C3BEC;
     u8 size = pCmd[1];
 
@@ -166,7 +166,7 @@ void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
 // Emits the drawing-mode packet SetDrawTPage filled in at D_800C3BF8 as one more
 // entry of the ordering table, and claims the bytes it takes from the packet
 // buffer.
-void func_800B1F0C(u8 *pOt) {
+void BattleEmitDrawTPage(u8 *pOt) {
     u8 *pBuf = g_GfxCurWorkBuffer;
 
     if ((u8 *)(pBuf + sizeof(DR_TPAGE)) < g_GfxCurWorkBufferEnd) {
@@ -355,7 +355,7 @@ void BattleFreeImageTask(u8 *pEntry) {
 
 // Re-applies the colour tint the image task eases whenever its value has moved
 // since the last application.
-void func_800B3C74(WorkListEntry *pEntry) {
+void BattleApplyImageTaskTint(WorkListEntry *pEntry) {
     BattleImageTask *pTask = pEntry->unk4;
 
     if (pTask->applied != pTask->current) {
