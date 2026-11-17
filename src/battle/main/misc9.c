@@ -503,7 +503,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6A0);
 /* best: 99.00%. Identical instruction multiset and order; the only difference
    is the register holding the g_BattleSlotRows sum base: original a2 (and it is never
    reused), gcc v1 (which the p[1] scale temp then reuses). Same allocator tie as
-   func_8007E6F0/E740/E98C/E8AC and the misc6 D_800D34x0 family. Tried here:
+   func_8007E6F0/E740/E98C/E8AC and the misc6 D_800D34x0 family. R201 re-tested,
+   every shape 99.00%: `u8 arg1` (the andi then comes from the u8 multiply, same
+   two insns), a `u8 slot` narrowing copy, an s32 rowBase local, `register s32 *pRow`,
+   pRow declared before p, and a 4-minute permuter run (base=20 best=20, 2357
+   iterations, nothing better). Two shapes that break the shape instead: a
+   `mem_addr base` assigned then summed index-first, and a staged
+   `u8 *pRows = g_BattleSlotRows`, both 79.00% (one extra insn). Tried before:
    split summand locals (84.35%, reorders the three lbu's RHS-first), three
    explicit `s32 i3/i1/i2 = p[..]` index locals (99.00%, same base v1), the
    byte-pointer form `(s32 *)((u8 *)g_BattleSlotRows + (arg1 & 0xFF) * 0x40)` (99.00%),
@@ -521,7 +527,7 @@ void func_8007E6A0(u8 **arg0, s32 arg1) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E6F0);
 /* best: 99.00%. Same miss as func_8007E6A0 (the g_BattleSlotRows sum base: original
    a2, gcc v1); the subtraction itself is byte-exact. See the note there for the
-   shapes already tried.
+   shapes already tried, including R201's permuter run.
 void func_8007E6F0(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     s32 *pRow = (s32 *)(g_BattleSlotRows + arg1 * 0x40);
@@ -561,6 +567,7 @@ void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
 void BattleWriteWorkBufferWord(BattleCommand **ppCmd) {
     *(u16 *)(g_BattlePrimPool + (*ppCmd)->operand1 * 2 + 0x394) = (*ppCmd)->operand2;
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E7E4);
 /* best: 96.50%. Structure found: do-while with the pointer compared as a SIGNED
    int (a u16* compare gives sltu, the original has slt), and the flag tested as
    `(u8)flag` so it is truncated at each of the two test sites. Only remaining
@@ -568,7 +575,10 @@ void BattleWriteWorkBufferWord(BattleCommand **ppCmd) {
    and drops the copy at the loop back edge, the original keeps the untruncated
    value in s2 (`move s2,v0; andi v0,s2,0xff`) and re-emits the andi in the
    bnez delay slot. Tried: u8 flag (94.60%), s32+cast (96.50%), flag&0xFF
-   (94.60%), u8 copy inside the loop (96.50%).
+   (94.60%), u8 copy inside the loop (96.50%). R201: a `s32` return type with
+   `return flag;` does keep the s32 live across the loop (it moves to s3) but the
+   truncation is STILL hoisted - the latch delay slot becomes `move v0,s3` and the
+   frame grows to 0x28, 92.00%. So the hoist is cse's, not register pressure.
 void func_8007E7E4(u8 **arg0) {
     s32 flag = (*arg0)[2] != 0;
     s32 addr = (s32)D_800CCD62;
@@ -582,7 +592,6 @@ void func_8007E7E4(u8 **arg0) {
         addr += 0x170;
     } while (addr < (s32)D_800CD1B2);
 } */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E7E4);
 void BattleGetFontGlyph(u8 **arg0) {
     u8 *p = *arg0;
     s32 idx = p[2] * 8 + p[1] * 0x40;
