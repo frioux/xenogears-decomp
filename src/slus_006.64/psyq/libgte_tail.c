@@ -3,17 +3,18 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-// The middle of the tail of Psy-Q's libgte: CompMatrix through MulMatrix. Every
-// time the shipped .OBJ's 16-byte tail padding (which retail's linker kept) puts
-// a nop after a function, that pad becomes its own `asm` subsegment in
+// The middle of the tail of Psy-Q's libgte: CompMatrix through ApplyRotMatrixLV.
+// Every time the shipped .OBJ's 16-byte tail padding (which retail's linker kept)
+// puts a nop after a function, that pad becomes its own `asm` subsegment in
 // config/slus_006.64.yaml and splits the run of C: 0x39A08 for LoadAverageCol
-// starts psyq/libgte_mulmatrix0, 0x39B18 starts this file at CompMatrix, 0x3A3D8
-// starts psyq/libgte_mulmatrix2 and 0x3A4E8 starts psyq/libgte_tail_b. Keep the
-// four files one unit's worth of code.
+// starts psyq/libgte_mulmatrix0, 0x39B18 starts this file at CompMatrix, 0x3A2C4
+// (ApplyRotMatrixLV's) starts psyq/libgte_mulmatrix at MulMatrix, 0x3A3D8 starts
+// psyq/libgte_mulmatrix2 and 0x3A4E8 starts psyq/libgte_tail_b. Keep the five
+// files one unit's worth of code.
 //
 // Functions transcribed as the asm Sony wrote (the gte macros cannot express
-// these): CompMatrix, ApplyMatrixLV, PushMatrix, PopMatrix, SetMulMatrix,
-// MulMatrix. Points a transcription must observe here: maspsx aborts on a `0x..`
+// these): CompMatrix, ApplyMatrixLV, PushMatrix, PopMatrix, SetMulMatrix. Points
+// a transcription must observe here: maspsx aborts on a `0x..`
 // displacement inside inline asm (`sw $8, 0x0($t7)`); write it decimal. maspsx
 // also appends a nop after every `jal` unless it has seen a `.set noreorder`, so
 // blocks that call out open with `.set\tnoreorder` and close with `.set\treorder`
@@ -24,9 +25,9 @@
 // they carry nops after `.size`, which C cannot emit: the padding sits after
 // gcc's own `jr $ra`, so it can be reproduced neither by real C nor by a
 // trailing asm block (gcc appends its epilogue after every asm). Carve the pad
-// out as its own `asm` subsegment instead, the way the four above are: the pads
-// still waiting belong to ScaleMatrixL and ApplyRotMatrixLV here, TransMatrix,
-// ApplyMatrixSV and ScaleMatrix in psyq/libgte_tail_b.
+// out as its own `asm` subsegment instead, the way the five above are: the pad
+// still waiting belongs to ScaleMatrixL here, and TransMatrix and ScaleMatrix in
+// psyq/libgte_tail_d.
 //
 // When the original's return value move sits in the `jr` delay slot, pin the asm
 // output to the argument register (`__asm__("$6")`) so gcc emits the copy
@@ -418,81 +419,3 @@ MATRIX *SetMulMatrix(MATRIX *m0, MATRIX *m1) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", ApplyRotMatrixLV);
-
-/* The two-argument twin of MulMatrix0: the same 67 instructions with the packed
-   columns stored through m0 (a0) instead of a third pointer, and m0 returned.
-   Transcribed for the same reason as MulMatrix0. */
-MATRIX *MulMatrix(MATRIX *m0, MATRIX *m1) {
-    register MATRIX *pRet __asm__("$2");
-
-    __asm__ volatile (".set\tnoreorder\n\t"
-                      "lw\t$8, 0($4)\n\t"
-                      "lw\t$9, 4($4)\n\t"
-                      "lw\t$10, 8($4)\n\t"
-                      "lw\t$11, 12($4)\n\t"
-                      "lw\t$12, 16($4)\n\t"
-                      "ctc2\t$8, $0\n\t"
-                      "ctc2\t$9, $1\n\t"
-                      "ctc2\t$10, $2\n\t"
-                      "ctc2\t$11, $3\n\t"
-                      "ctc2\t$12, $4\n\t"
-                      "lhu\t$8, 0($5)\n\t"
-                      "lw\t$9, 4($5)\n\t"
-                      "lw\t$10, 12($5)\n\t"
-                      "lui\t$1, 65535\n\t"
-                      "and\t$9, $9, $1\n\t"
-                      "or\t$8, $8, $9\n\t"
-                      "mtc2\t$8, $0\n\t"
-                      "mtc2\t$10, $1\n\t"
-                      "nop\n\t"
-                      ".word\t0x4a486012\n\t"
-                      "lhu\t$8, 2($5)\n\t"
-                      "lw\t$9, 8($5)\n\t"
-                      "lh\t$10, 14($5)\n\t"
-                      "sll\t$9, $9, 16\n\t"
-                      "or\t$8, $8, $9\n\t"
-                      "mfc2\t$11, $9\n\t"
-                      "mfc2\t$12, $10\n\t"
-                      "mfc2\t$13, $11\n\t"
-                      "mtc2\t$8, $0\n\t"
-                      "mtc2\t$10, $1\n\t"
-                      "nop\n\t"
-                      ".word\t0x4a486012\n\t"
-                      "lhu\t$8, 4($5)\n\t"
-                      "lw\t$9, 8($5)\n\t"
-                      "lw\t$10, 16($5)\n\t"
-                      "lui\t$1, 65535\n\t"
-                      "and\t$9, $9, $1\n\t"
-                      "or\t$8, $8, $9\n\t"
-                      "mfc2\t$14, $9\n\t"
-                      "mfc2\t$15, $10\n\t"
-                      "mfc2\t$24, $11\n\t"
-                      "mtc2\t$8, $0\n\t"
-                      "mtc2\t$10, $1\n\t"
-                      "nop\n\t"
-                      ".word\t0x4a486012\n\t"
-                      "andi\t$11, $11, 65535\n\t"
-                      "sll\t$14, $14, 16\n\t"
-                      "or\t$14, $14, $11\n\t"
-                      "sw\t$14, 0($4)\n\t"
-                      "andi\t$13, $13, 65535\n\t"
-                      "sll\t$24, $24, 16\n\t"
-                      "or\t$24, $24, $13\n\t"
-                      "sw\t$24, 12($4)\n\t"
-                      "mfc2\t$8, $9\n\t"
-                      "mfc2\t$9, $10\n\t"
-                      "andi\t$8, $8, 65535\n\t"
-                      "sll\t$12, $12, 16\n\t"
-                      "or\t$8, $8, $12\n\t"
-                      "sw\t$8, 4($4)\n\t"
-                      "andi\t$15, $15, 65535\n\t"
-                      "sll\t$9, $9, 16\n\t"
-                      "or\t$9, $9, $15\n\t"
-                      "sw\t$9, 8($4)\n\t"
-                      "swc2\t$11, 16($4)\n\t"
-                      "addu\t$2, $4, $0\n\t"
-                      ".set\treorder"
-                      : "=r"(pRet) : : "$1", "$8", "$9", "$10", "$11", "$12",
-                          "$13", "$14", "$15", "$24", "memory");
-    return pRet;
-}
