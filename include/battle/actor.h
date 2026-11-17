@@ -95,7 +95,9 @@ typedef struct {
     /* 0x018 */ s32 pActionTableHigh; // and from 0x40 up (indexed code - 0x3F)
     /* 0x01C */ s16 scale;
     /* 0x01E */ s16 groundTriangleIndex; // the ground search's last hit, handed back to it as the next hint
-    /* 0x020 */ u8 unk20[0x3];
+    /* 0x020 */ u8 actorSlot; // this actor's own g_BattleActors slot: target ids 0xFD/0xF9 resolve to it and the slot tables are indexed with it
+    /* 0x021 */ u8 unk21;
+    /* 0x022 */ u8 unk22;
     /* 0x023 */ u8 unk23;
     /* 0x024 */ s16 height;
     /* 0x026 */ s16 width;
@@ -111,7 +113,7 @@ typedef struct {
     /* 0x038 */ u8 isBusy; // keeps BattleWaitAndFreeActorBuffers and BattleWaitForOtherActorAnimations waiting while it is set
     /* 0x039 */ u8 unk39;
     /* 0x03A */ s16 unk3A;
-    /* 0x03C */ u16 unk3C;
+    /* 0x03C */ u16 blockTag; // func_800A0838 compares it with each queued block's tag and sets that block's result bits
     /* 0x03E */ u16 unk3E;
     /* 0x040 */ u16 unk40;
     /* 0x042 */ u16 unk42;
@@ -205,8 +207,9 @@ typedef struct {
     /* 0x003 */ u8 conditionKind; // passed as that function's kind word; its bits pick the condition word to clear
     /* 0x004 */ u8 unk04[0x2E];
     /* 0x032 */ u16 unk32; // flag word: bit 0x40 doubles the condition timer, the 0x400/0x200 pair picks a drop rate
-    /* 0x034 */ u8 unk34[0x4];
-    /* 0x038 */ u16 unk38;
+    /* 0x034 */ u16 blockFlags; // 0x4000/0x8000: the action is nullified; the row's actionFlags 0x100 picks which bit is tested
+    /* 0x036 */ u16 unk36;
+    /* 0x038 */ u16 element; // the slot's own element mask in the low 6 bits, as the row's element: bit 0x40 raises the affinity multiplier from 15 to 18
     /* 0x03A */ u8 unk3A[0x12];
     /* 0x04C */ u16 hp;
     /* 0x04E */ u16 maxHp; // both scaled by 50 into state.hp / state.maxHp
@@ -331,10 +334,10 @@ typedef struct {
 // take the slot's instruction pointer by address, so `(*p)` is the instruction
 // being executed.
 typedef struct {
-    /* 0x0 */ u8 unk0;
-    /* 0x1 */ u8 unk1;
-    /* 0x2 */ u8 unk2;
-    /* 0x3 */ u8 unk3;
+    /* 0x0 */ u8 opcode;
+    /* 0x1 */ u8 operand1;
+    /* 0x2 */ u8 operand2;
+    /* 0x3 */ u8 operand3;
 } BattleCommand; // Size: 0x4
 
 #endif

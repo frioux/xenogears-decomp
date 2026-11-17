@@ -237,7 +237,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096494);
 /* COMPILES as written (round 111 re-check): 93.04%, 908 bytes. The parked body
    used raw u8-array spellings of g_BattleCurrentRow / g_BattleActingSlot / D_800C3E34; with
    today's typed externs only the field reads below changed (a byte read of
-   D_800C3E34->unk38, because retail uses lbu there but lhu for the 0x40 test).
+   D_800C3E34->element, because retail uses lbu there but lhu for the 0x40 test).
    Same block layout and instruction multiset (226 vs 227); every
    branch, the two duplicated (elemAtk & elem2) blocks, the element case tree,
    the /10 pair and the two /5 tails line up instruction for instruction. Left:
@@ -271,7 +271,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     pBase = g_BattleCurWorkBlock;
     bitAtk = *(u8 *)(pBase + g_BattleCurSlotIndex * 0x170 + 0x15A) >> 7;
     elemAtk = g_BattleCurrentRow->element & 0x3F;
-    elemDef = *(u8 *)&D_800C3E34->unk38 & 0x3F;
+    elemDef = *(u8 *)&D_800C3E34->element & 0x3F;
     bitDef = *(u8 *)(pBase + D_800C3E04 * 0x170 + 0x15A) >> 7;
     if (bitDef == 0) {
         pair = g_BattleActingSlot->unk8C | g_BattleActingSlot->unk8E;
@@ -293,7 +293,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     mul = 10;
     mul2 = 10;
     if (elemAtk & elemDef) {
-        if (D_800C3E34->unk38 & 0x40) {
+        if (D_800C3E34->element & 0x40) {
             mul = 0x12;
         } else {
             mul = 0xF;

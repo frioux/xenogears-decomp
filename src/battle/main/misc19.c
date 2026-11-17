@@ -928,7 +928,7 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
     u8 ret = flag != 0;
 
     if (pState->hp < ((u32)pState->maxHp >> 3)) {
-        if (!(*(u16*)(pEntry->unk04 + 0x32) & 1)) {
+        if (!(pEntry->unk36 & 1)) {
             ret |= 2;
         }
     }

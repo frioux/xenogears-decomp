@@ -113,15 +113,15 @@ s32 BattleResolveTargetSlot(BattleActor *pActor, u32 id, u16 *pOut) {
     } else if ((id & 0xFF) == 0xFE) {
         id = g_BattleCurrentActorSlot;
     } else if ((id & 0xFF) == 0xFD || (id & 0xFF) == 0xF9) {
-        id = pActor->unk20[0];
+        id = pActor->actorSlot;
     } else if ((id & 0xFF) == 0xFC) {
-        id = pActor->unk20[1];
+        id = pActor->unk21;
     } else if ((id & 0xFF) == 0xFA) {
         id = 0x1F;
     } else if ((id & 0xFF) == 0xF8) {
-        id = pActor->unk20[0] * 2 + 0xD;
+        id = pActor->actorSlot * 2 + 0xD;
     } else if ((id & 0xFF) == 0xF7) {
-        id = pActor->unk20[0] * 2 + 0xE;
+        id = pActor->actorSlot * 2 + 0xE;
     }
     *pOut = 1 << (id & 0xFF);
     return id & 0xFF;
@@ -136,11 +136,11 @@ s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
     *pOut = 0;
     if ((sel & 0xFF) >= 0xFE) {
         if ((sel & 0xFF) == 0xFF) {
-            kind = BattleGetActorActionConditionMask(pActor->unk20[0]);
+            kind = BattleGetActorActionConditionMask(pActor->actorSlot);
             if ((kind & 4) && (pActor->flags4A & 0x100)) {
                 pActor->commands[0] = 0x1B;
             } else if ((kind & 2) && (pActor->flags4A & 0x80)) {
-                if (!(D_800CCD1E[pActor->unk20[0]].flags & 1)) {
+                if (!(D_800CCD1E[pActor->actorSlot].flags & 1)) {
                     pActor->commands[0] = 6;
                 }
             } else if (!(pActor->flags4A & 0x400)) {

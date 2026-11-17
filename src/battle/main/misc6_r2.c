@@ -18,116 +18,116 @@ extern BattleOpRegs g_BattleSlotRegs[];
 void BattleByteRegAddClamp(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
-    s32 value = pRegs[pCmd->unk1] + pRegs[pCmd->unk2];
+    s32 value = pRegs[pCmd->operand1] + pRegs[pCmd->operand2];
     u8 result = value;
 
     if (value > 0xFF) {
         result = 0xFF;
     }
-    pRegs[pCmd->unk3] = result;
+    pRegs[pCmd->operand3] = result;
 }
 void BattleByteRegSubClamp(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
-    s32 value = pRegs[pCmd->unk1] - pRegs[pCmd->unk2];
+    s32 value = pRegs[pCmd->operand1] - pRegs[pCmd->operand2];
     u8 result = value;
 
     if (value < 0) {
         result = 0;
     }
-    pRegs[pCmd->unk3] = result;
+    pRegs[pCmd->operand3] = result;
 }
 // 100.0% under gcc 2.6.0-psx, 98.52% under 2.7.2-cdk and 96.5% under 2.7.2: needs a
 // 2.6.0 TU of its own.
 void BattleByteRegMulClamp(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
-    s16 value = pRegs[pCmd->unk1] * pRegs[pCmd->unk2];
+    s16 value = pRegs[pCmd->operand1] * pRegs[pCmd->operand2];
 
     if (value > 0xFF) {
         value = 0xFF;
     }
-    pRegs[pCmd->unk3] = value;
+    pRegs[pCmd->operand3] = value;
 }
 void BattleByteRegDiv(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
-    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] / pRegs[pCmd->unk2];
+    pRegs[pCmd->operand3] = pRegs[pCmd->operand1] / pRegs[pCmd->operand2];
 }
 void BattleByteRegMod(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
-    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] % pRegs[pCmd->unk2];
+    pRegs[pCmd->operand3] = pRegs[pCmd->operand1] % pRegs[pCmd->operand2];
 }
 void BattleByteRegAnd(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
-    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] & pRegs[pCmd->unk2];
+    pRegs[pCmd->operand3] = pRegs[pCmd->operand1] & pRegs[pCmd->operand2];
 }
 void BattleByteRegOr(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
-    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] | pRegs[pCmd->unk2];
+    pRegs[pCmd->operand3] = pRegs[pCmd->operand1] | pRegs[pCmd->operand2];
 }
 void BattleByteRegXor(BattleCommand **p, u8 index) {
     u8 *pRegs = g_BattleSlotRegs[index].byteRegs;
     BattleCommand *pCmd = *p;
 
-    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] ^ pRegs[pCmd->unk2];
+    pRegs[pCmd->operand3] = pRegs[pCmd->operand1] ^ pRegs[pCmd->operand2];
 }
 void BattleWordRegAddClamp(BattleCommand **p, u8 index) {
     u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
-    s32 value = pRegs[pCmd->unk1] + pRegs[pCmd->unk2];
+    s32 value = pRegs[pCmd->operand1] + pRegs[pCmd->operand2];
 
     if (value > 0xFFFF) {
         value = 0xFFFF;
     }
-    pRegs[pCmd->unk3] = value;
+    pRegs[pCmd->operand3] = value;
 }
 void BattleWordRegSubClamp(BattleCommand **p, u8 index) {
     u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
-    s32 value = pRegs[pCmd->unk1] - pRegs[pCmd->unk2];
+    s32 value = pRegs[pCmd->operand1] - pRegs[pCmd->operand2];
 
     if (value < 0) {
         value = 0;
     }
-    pRegs[pCmd->unk3] = value;
+    pRegs[pCmd->operand3] = value;
 }
 void BattleWordRegMulClamp(BattleCommand **p, u8 index) {
     u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
-    s32 value = pRegs[pCmd->unk1] * pRegs[pCmd->unk2];
+    s32 value = pRegs[pCmd->operand1] * pRegs[pCmd->operand2];
 
     if (value > 0xFFFF) {
         value = 0xFFFF;
     }
-    pRegs[pCmd->unk3] = value;
+    pRegs[pCmd->operand3] = value;
 }
 void BattleWordRegDiv(BattleCommand **p, u8 index) {
     u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
 
-    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] / pRegs[pCmd->unk2];
+    pRegs[pCmd->operand3] = pRegs[pCmd->operand1] / pRegs[pCmd->operand2];
 }
 void BattleWordRegMod(BattleCommand **p, u8 index) {
     u16 *pRegs = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
 
-    pRegs[pCmd->unk3] = pRegs[pCmd->unk1] % pRegs[pCmd->unk2];
+    pRegs[pCmd->operand3] = pRegs[pCmd->operand1] % pRegs[pCmd->operand2];
 }
 void func_8007B2C0(BattleCommand **p, u8 index) {
     BattleCommand *pCmd = *p;
 
     // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0
     // keeps it in $v1, with three accesses it allocates retail's $a2.
-    g_BattleSlotRegs[index].wordRegs[pCmd->unk3] =
-        g_BattleSlotRegs[index].wordRegs[pCmd->unk1] & g_BattleSlotRegs[index].wordRegs[pCmd->unk2];
+    g_BattleSlotRegs[index].wordRegs[pCmd->operand3] =
+        g_BattleSlotRegs[index].wordRegs[pCmd->operand1] & g_BattleSlotRegs[index].wordRegs[pCmd->operand2];
 }
 
 void func_8007B310(BattleCommand **p, u8 index) {
@@ -135,8 +135,8 @@ void func_8007B310(BattleCommand **p, u8 index) {
 
     // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0
     // keeps it in $v1, with three accesses it allocates retail's $a2.
-    g_BattleSlotRegs[index].wordRegs[pCmd->unk3] =
-        g_BattleSlotRegs[index].wordRegs[pCmd->unk1] | g_BattleSlotRegs[index].wordRegs[pCmd->unk2];
+    g_BattleSlotRegs[index].wordRegs[pCmd->operand3] =
+        g_BattleSlotRegs[index].wordRegs[pCmd->operand1] | g_BattleSlotRegs[index].wordRegs[pCmd->operand2];
 }
 
 void BattleWordRegXor(BattleCommand **p, u8 index) {
@@ -144,8 +144,8 @@ void BattleWordRegXor(BattleCommand **p, u8 index) {
 
     // Spelled out at each operand on purpose: with the base in one local gcc 2.6.0
     // keeps it in $v1, with three accesses it allocates retail's $a2.
-    g_BattleSlotRegs[index].wordRegs[pCmd->unk3] =
-        g_BattleSlotRegs[index].wordRegs[pCmd->unk1] ^ g_BattleSlotRegs[index].wordRegs[pCmd->unk2];
+    g_BattleSlotRegs[index].wordRegs[pCmd->operand3] =
+        g_BattleSlotRegs[index].wordRegs[pCmd->operand1] ^ g_BattleSlotRegs[index].wordRegs[pCmd->operand2];
 }
 
 void BattleSlotSetByteField(u8 **p, u8 index) {
