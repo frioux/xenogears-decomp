@@ -15,7 +15,7 @@ struct BattleActor;
 typedef union {
     /* 0x0 */ u32 flags;
     /* 0x0 */ struct {
-        /* 0x0 */ u32 unk2C_0 : 8;
+        /* 0x0 */ u32 random : 8;
         /* 0x0 */ u32 unk2C_8 : 1;
         /* 0x0 */ u32 unk2C_9 : 1;
         /* 0x0 */ u32 unk2C_10 : 1;
@@ -66,10 +66,11 @@ typedef struct {
     /* 0x0 */ u8 messages[3];
 } BattleActionMessages; // Size: 0x3
 
-// One entry of an actor's per-action state: 0x3 flags that action out.
+// One entry of an actor's per-action state; only the flag byte is read (clear
+// means BattleQueueActionMessages skips the action).
 typedef struct {
     /* 0x0 */ u8 unk0[0x3];
-    /* 0x3 */ u8 unk3;
+    /* 0x3 */ u8 flags;
 } BattleActionSlot; // Size: 0x4
 
 // A battle participant as this unit drives it. Only the fields this unit
@@ -86,7 +87,7 @@ typedef struct BattleActor {
     /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 gaugePoints;
     /* 0x0B8 */ u8 unkB8[0x6];
-    /* 0x0BE */ s16 unkBE;
+    /* 0x0BE */ s16 breakThresholdOffset;
     /* 0x0C0 */ u8 unkC0[0x4];
     /* 0x0C4 */ u8 state;
     /* 0x0C5 */ u8 actionPhase;
@@ -131,13 +132,13 @@ extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 arg1);
 
 s32 BattleCheckActorBelowBreakThreshold(BattleActor* pActor, s32 arg1) {
     if (arg1 != 0) {
-        return func_80073DE4(pActor, pActor->unkBE);
+        return func_80073DE4(pActor, pActor->breakThresholdOffset);
     }
-    return pActor->gaugePoints < 0x1000 - pActor->unkBE;
+    return pActor->gaugePoints < 0x1000 - pActor->breakThresholdOffset;
 }
 
 s32 BattleGetActorBreakThreshold(BattleActor* pActor, BattleWork* pWork) {
-    return 0x1000 - pActor->unkBE;
+    return 0x1000 - pActor->breakThresholdOffset;
 }
 
 s32 BattleGetActorBreakProximity(BattleActor* pActor) {
@@ -210,7 +211,7 @@ s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1) {
     pWork->flags.bits.unk2C_12 = rand() & 1;
     pWork->flags.bits.unk2C_11 = (rand() & 0xFF) < pWork->actionChance2;
     pWork->flags.bits.unk2C_8 = ((rand() & 0xFF) < pWork->actionChance0) && ((rand() % 10) < 3);
-    pWork->flags.bits.unk2C_0 = rand();
+    pWork->flags.bits.random = rand();
     pWork->unk30 = pWork->pOwner->unk1668;
 }
 void BattleQueueMessages4Then3(BattleActor* pActor) {
@@ -314,10 +315,10 @@ void BattleSetActorFlag2AndClearQueue(BattleActor* pActor, BattleWork* pWork) {
         return;
     }
     if (v != 0) {
-        if (!(pWork->flags.bits.unk2C_0 & 1)) {
+        if (!(pWork->flags.bits.random & 1)) {
             return;
         }
-    } else if (pWork->flags.bits.unk2C_0 % 6 != 0) {
+    } else if (pWork->flags.bits.random % 6 != 0) {
         return;
     }
     pActor->flags |= 2;
@@ -379,7 +380,7 @@ s32 BattleQueueActionMessages(BattleActor* pActor, BattleWork* pWork) {
         if (pActor->pActionData->actionEnabled[i] == 0) {
             continue;
         }
-        if (pActor->pActionSlots[i].unk3 == 0) {
+        if (pActor->pActionSlots[i].flags == 0) {
             continue;
         }
         if (n == 0) {
