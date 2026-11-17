@@ -9,6 +9,10 @@
 #include "field/particles.h"
 #include "field/effects.h"
 
+// Number of skin ids g_FieldRandomSkinSlots.values holds, and the largest count
+// a script may ask FieldRandomizeSkinSlots for.
+#define FIELD_RANDOM_SKIN_SLOT_COUNT 32
+
 void FieldScriptMemoryWriteU16(int, int);
 
 extern int rcos(int);
@@ -48,10 +52,10 @@ void FieldScriptSetScreenMode(void) {
             ClearImage(&rect, 0x0, 0x0, 0x0);
             DrawSync(0);
             Vsync(0);
-            SetDefDrawEnv(g_FieldRenderContexts[0].drawEnvs, 0, 0, 0x280, 0xE0);
-            SetDefDrawEnv(g_FieldRenderContexts[1].drawEnvs, 0, 0x100, 0x280, 0xE0);
-            SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, 0x280, 0xE0);
-            SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, 0x280, 0xE0);
+            SetDefDrawEnv(g_FieldRenderContexts[0].drawEnvs, 0, 0, 0x280, SCREEN_HEIGHT);
+            SetDefDrawEnv(g_FieldRenderContexts[1].drawEnvs, 0, 0x100, 0x280, SCREEN_HEIGHT);
+            SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, 0x280, SCREEN_HEIGHT);
+            SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, 0x280, SCREEN_HEIGHT);
             FieldSetScreenDimensions();
             break;
         case 1:
@@ -258,7 +262,7 @@ void FieldScriptCopyCharacter(void) {
     if (destIndex == 9) {
         pGameState->unk22B6 |= 0x2000;
     }
-    if (destIndex == 0xA) {
+    if (destIndex == 10) {
         g_pGameState->unk22B6 |= 0x1000;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
@@ -538,7 +542,7 @@ void FieldScriptWriteCharacterGearId(void) {
         FieldScriptMemoryWriteU16(
             FieldScriptVMGetInstructionArgument(3) & 0xFFFF, g_pGameState->characters[partyId].gearId);
     } else {
-        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, 0xFF);
+        FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(3) & 0xFFFF, GEAR_ID_NONE);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
@@ -912,7 +916,7 @@ void FieldScriptStopParticleActor(void) {
 void FieldScriptWritePartySlotOfActor(void) {
     int i;
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if (g_FieldPartyActorSlots[i] == g_FieldCurActorIndex) {
             FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, i);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -959,7 +963,7 @@ void FieldScriptSetMotionSlotTarget(void) {
     D_800B2328[index * 4] = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
     D_800B2326[index * 4] = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     actorIndex = FieldScriptVMGetActorIndex(0xA);
-    if (actorIndex != 0xFF) {
+    if (actorIndex != ACTOR_ID_INVALID) {
         g_FieldMotionSlotActorIds[index] = actorIndex;
     } else {
         g_FieldMotionSlotActorIds[index] = -1;
@@ -1260,7 +1264,7 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
         int archiveIndex;
 
         characterIndex = GameCharacterGetGearID(characterId);
-        if (characterIndex == 0xFF) {
+        if (characterIndex == GEAR_ID_NONE) {
             characterIndex = 0;
         }
         characterIndex += 0x10;
@@ -1657,12 +1661,12 @@ extern void LZSSDecompress(void*, void*);
 extern void func_8008B978(void*);
 
 void FieldScriptFinishPartyModelLoad(void) {
-    if (g_FieldPartyModelLoadState != 0xFF && ArchiveDataSync() == 0) {
+    if (g_FieldPartyModelLoadState != CHARACTER_ID_NONE && ArchiveDataSync() == 0) {
         ArchiveCdDataSync(0);
         LZSSDecompress(g_FieldPartyModelLoadBuffer, g_PartyDataBuffers[g_FieldPartyModelLoadPartyIndex]);
         HeapFree(g_FieldPartyModelLoadBuffer);
         func_8008B978(g_FieldPartyModelLoadCharacter);
-        g_FieldPartyModelLoadState = 0xFF;
+        g_FieldPartyModelLoadState = CHARACTER_ID_NONE;
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
     } else {
@@ -2298,7 +2302,7 @@ int FieldPartyMemberIncreaseGearHp(int partyMemberIndex, unsigned int amount) {
     unsigned int newHp;
 
     gearId = GameCharacterGetGearID(g_GamePartyMembers[partyMemberIndex]);
-    if (gearId != CHARACTER_ID_NONE) {
+    if (gearId != GEAR_ID_NONE) {
         maxHp = g_pGameState->gears[gearId].maxHp;
         newHp = g_pGameState->gears[gearId].hp + amount;
         g_pGameState->gears[gearId].hp = newHp;
@@ -2313,7 +2317,7 @@ int FieldPartyMemberDecreaseGearHp(int partyMemberIndex, unsigned int amount) {
     int newHp;
 
     gearId = GameCharacterGetGearID(g_GamePartyMembers[partyMemberIndex]);
-    if (gearId != CHARACTER_ID_NONE) {
+    if (gearId != GEAR_ID_NONE) {
         newHp = g_pGameState->gears[gearId].hp - amount;
         if (newHp <= 0) {
             newHp = 1;
@@ -2562,7 +2566,7 @@ typedef struct {
     /* 0x0 */ u32 unk0;
     /* 0x4 */ s32 unk4;
     /* 0x8 */ s32 count;
-    /* 0xC */ u16 values[0x20];
+    /* 0xC */ u16 values[FIELD_RANDOM_SKIN_SLOT_COUNT];
 } FieldRandomValues; // Size: 0x4C
 
 extern FieldRandomValues g_FieldRandomSkinSlots;
@@ -2580,13 +2584,13 @@ void FieldRandomizeSkinSlots(void) {
         return;
     }
     emptyValue = 0xFFFF;
-    for (i = 0x1F; i >= 0; i--) {
+    for (i = FIELD_RANDOM_SKIN_SLOT_COUNT - 1; i >= 0; i--) {
         g_FieldRandomSkinSlots.values[i] = emptyValue;
     }
     for (i = 0; i < g_FieldRandomSkinSlots.count; i++) {
 retry:
         value = ((rand() * (g_FieldRandomSkinSlots.unk4 + 1)) >> 15) & 0xFFFF;
-        for (j = 0; j < 0x20; j++) {
+        for (j = 0; j < FIELD_RANDOM_SKIN_SLOT_COUNT; j++) {
             if (g_FieldRandomSkinSlots.values[j] == value) {
                 goto retry;
             }
@@ -2607,8 +2611,8 @@ void FieldScriptSetRandomSkinParams(void) {
     D_800B2298.value = FieldScriptVMGetArgument(1);
     count = FieldScriptVMGetArgument(3);
     D_800B229C.value = count;
-    if (count >= 0x21) {
-        D_800B229C.value = 0x20;
+    if (count > FIELD_RANDOM_SKIN_SLOT_COUNT) {
+        D_800B229C.value = FIELD_RANDOM_SKIN_SLOT_COUNT;
     }
     FieldRandomizeSkinSlots();
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
