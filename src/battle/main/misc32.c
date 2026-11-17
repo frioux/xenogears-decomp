@@ -220,13 +220,12 @@ typedef struct {
 // after the call because retail reloads the global there; its four per-slot arrays
 // are the block misc12 reaches as g_BattleCommandRows[], so the view below starts at
 // g_BattleStateWork and carries the 0x138 offset the arguments need.
-/*
 void func_800BD1FC(s32 slot) {
     BattleCommandRowTable *new_var;
     u8 *new_var3;
     u8 *pBase;
     BattleCommandRowTable *pRow;
-    u16 nextTimer;
+    long nextTimer;
     u8 new_var2;
     void *pSprite;
     s32 kind;
@@ -254,9 +253,6 @@ void func_800BD1FC(s32 slot) {
     pRow = (BattleCommandRowTable *)new_var3;
     pRow->unk138[slot] = 0xFFFF;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
-
 
 void BattleUpdateCommandRows(void) {
     u8 *pSlot;
