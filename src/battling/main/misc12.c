@@ -19,12 +19,14 @@ typedef struct {
     /* 0x4 */ void* pData;
 } BattleMisc12Owner; // Size: 0x8
 
-// Slot table entry, 0xF8 bytes, indexed by slot number. At +0x74 it carries the
-// semi-transparent 16x16 sprite prim BattleInitSlotDrawEntry initialises: tag
+// Slot table entry, 0xF8 bytes, indexed by slot number. It starts with the draw
+// environment BattleInitDrawEnvs fills with SetDefDrawEnv. At +0x74 it carries
+// the semi-transparent 16x16 sprite prim BattleInitSlotDrawEntry initialises: tag
 // with length 3 and code 0x7D (what setSprt16 does, plus the semi-transparency
 // bit), x0/y0, then the u0/v0 halfword and the clut.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x74];
+    /* 0x00 */ DRAWENV drawEnv;
+    /* 0x5C */ u8 unk5C[0x18];
     /* 0x74 */ u8 tagAddr[3];
     /* 0x77 */ u8 len;
     /* 0x78 */ u8 unk78[3];
@@ -49,9 +51,14 @@ typedef struct {
 } BattleTilePacket; // Size: 0x10
 
 // Sprite set up by BattleInitSpritePrims: a drawing-area and a drawing-offset draw
-// mode per draw buffer (0/1), plus a tile per buffer.
+// mode per draw buffer (0/1), plus a tile per buffer. The head is the record
+// src/battling/main/misc14.c declares as Misc14DisplayWork (and misc13.c as
+// Misc13Buffer): the double-buffered ordering table, prim area and their length.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x16];
+    /* 0x00 */ s32 unk0;
+    /* 0x04 */ u_long* pOt[2];     // ordering table, one per draw buffer
+    /* 0x0C */ u_long* pPrim[2];   // prim area, one per draw buffer
+    /* 0x14 */ s16 count;          // ordering table length in words
     /* 0x16 */ u8 flags;
     /* 0x17 */ u8 depthShift;
     /* 0x18 */ DR_MODE drawAreaMode0;
