@@ -2,6 +2,18 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
+// hp and maxHp are percents, so this is a stat at full; BattleResetActorStats
+// starts both there.
+#define BATTLE_STAT_PERCENT_MAX 100
+// conditionFlags as BattleResetActorStats sets it: the conditions a slot starts
+// with (bits 6 and 13-15 clear).
+#define BATTLE_CONDITION_FLAGS_RESET 0x1FBF
+// The one effect bit BattleSetSlotEntryFieldsTo1/To2000 act on, in whichever word a
+// slot carries it: the gear side's activeEffectFlags2 (state.flags bit 0x80 set) or
+// the actor's activeEffectFlags4.
+#define BATTLE_GEAR_EFFECT_FLAG 0x2000
+#define BATTLE_ACTOR_EFFECT_FLAG 0x400
+
 
 extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 g_BattleCurSlotIndex;
@@ -316,9 +328,9 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     u16 f;
 
     if (p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
-        f = p->state.activeEffectFlags2 & 0x2000;
+        f = p->state.activeEffectFlags2 & BATTLE_GEAR_EFFECT_FLAG;
     } else {
-        f = p->activeEffectFlags4 & 0x400;
+        f = p->activeEffectFlags4 & BATTLE_ACTOR_EFFECT_FLAG;
     }
     if (f == 0) {
         return;
@@ -363,9 +375,9 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     }
     p = &g_BattleCurWorkBlock->slots[arg0];
     if (p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
-        f = p->state.activeEffectFlags2 & 0x2000;
+        f = p->state.activeEffectFlags2 & BATTLE_GEAR_EFFECT_FLAG;
     } else {
-        f = p->activeEffectFlags4 & 0x400;
+        f = p->activeEffectFlags4 & BATTLE_ACTOR_EFFECT_FLAG;
     }
     if (f == 0) {
         return;
@@ -382,7 +394,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         pRow[26].flags = 0x2000;
         pRow[27].flags = 0x2000;
         pRow[28].flags = 0x2000;
-        r->state.activeEffectFlags2 &= 0xDFFF;
+        r->state.activeEffectFlags2 &= ~BATTLE_GEAR_EFFECT_FLAG;
     } else {
         s32 rowOffset = arg0 * 0x5F0 + 0x1058;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
@@ -397,7 +409,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         pRow[30].flags = 0x2000;
         pRow[31].flags = 0x2000;
         pRow[32].flags = 0x2000;
-        r->activeEffectFlags4 &= 0xFBFF;
+        r->activeEffectFlags4 &= ~BATTLE_ACTOR_EFFECT_FLAG;
     }
 }
 // 100.00% only under gcc-2.6.0 (88.68% on 2.7.2): 2.6.0 puts each `/20` mul by
@@ -547,11 +559,11 @@ void BattleResetActorStats(void) {
     for (i = 1; i < 3; i++) {
         BattleTableEntry* p = (BattleTableEntry*)(i * 0x170 + (u32)g_BattleCurWorkBlock);
 
-        p->hp = 100;
-        p->maxHp = 100;
+        p->hp = BATTLE_STAT_PERCENT_MAX;
+        p->maxHp = BATTLE_STAT_PERCENT_MAX;
         p->evade = 20;
         p->hit = 15;
-        p->conditionFlags = 0x1FBF;
+        p->conditionFlags = BATTLE_CONDITION_FLAGS_RESET;
         p->state.unkA5 = 0;
     }
 }
