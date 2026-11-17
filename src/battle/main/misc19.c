@@ -159,8 +159,16 @@ typedef struct {
     /* 0x7 */ u8 unk7[9];
 } BattlePartyRecord; // Size: 0x10
 
+// The battle work block's working copy of the party list, one record per slot at
+// +0x5818.
+typedef struct {
+    /* 0x0000 */ u8 unk0000[0x5818];
+    /* 0x5818 */ BattlePartyRecord party[BATTLE_SLOT_COUNT];
+} BattleWorkBlockParty;
+
 s32 BattleIsCharacterInParty(u8 arg0) {
-    u8 id = ((BattlePartyRecord*)((u8*)g_BattleCurWorkBlock + 0x5818))[arg0].characterId;
+    BattlePartyRecord* pRecord = &((BattleWorkBlockParty*)g_BattleCurWorkBlock)->party[arg0];
+    u8 id = pRecord->characterId;
 
     s32 ret;
 
