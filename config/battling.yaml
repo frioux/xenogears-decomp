@@ -76,7 +76,9 @@ segments:
       - [0xC28, .rodata, main/misc17]
       - [0xC90, .rodata, main/misc18]
       - [0xCB8, c, main/misc1]
-      - [0x3228, c, main/misc2]
+      - [0x3228, c, main/misc2_grid]
+      - [0x3570, asm] # func_80072D18's tail pad word: the linker kept a 16-byte alignment nop that no C emits
+      - [0x3574, c, main/misc2]
       - [0x5C48, c, main/misc3]
       - [0x8E30, c, main/misc4]
       - [0xB780, c, main/misc5]
