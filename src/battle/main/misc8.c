@@ -67,48 +67,26 @@ extern u8 BattleSlotFlagsC000Clear(u8 arg0);
 extern u8 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C1A4);
-// best: 91.52% (396 bytes vs retail 392). Re-measured after fixing the tag
-// compares so the body compiles: the old 83.91% cannot have come from a building
-// body, because `g_BattleSlotRecords[a] != g_BattleSlotRecords[b]` on a struct
-// array is not valid C - cc1 exited and diff_func diffed a stale object.
-// The tags are read with the SCALED struct index (retail emits the x28 chain for
-// both sides and hoists the invariant (arg1 + 3) * 0x1C into s4), so the source
-// is `g_BattleSlotRecords[arg1 + 3].tag` / `g_BattleSlotRecords[idx].tag`, not a
-// 0x1C byte offset.
-// What is left: 4 bytes over; retail re-forms `lui/addiu D_800D3420` inside the
-// if-block for the tail store instead of reusing the preheader base, and keeps
-// arg1 * 0x40 in a2 and copies it to s5 at the loop preheader.
-/*
-void func_8007C1A4(u8 **arg0, u8 arg1) {
+void func_8007C1A4(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[3];
-    s32 row = arg1 * 0x40;
-    u16 *pRow = (u16 *)(D_800D3420 + row);
 
     buf[0] = buf[1] = buf[2] = 0;
-    pRow[(*arg0)[1]] = 0;
-    do {
+    g_BattleSlotRows[row].unk10[(*ppArgs)->slot] = 0;
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
 
         if (buf[idx] == 0) {
-            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0
-                && g_BattleSlotRecords[(arg1 + 3) * 0x1C] != g_BattleSlotRecords[idx * 0x1C]
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*ppArgs)->tag) != 0
+                && g_BattleSlotRecords[row + 3].tag != g_BattleSlotRecords[idx].tag
                 && g_BattleSlotFlags[idx].inUse == 0) {
-                u16 result = BattleSlotBitMask(idx);
-                s32 index = (*arg0)[1];
-                u16 *pTail = (u16 *)(D_800D3420 + row);
-
-                pTail[index] = result;
+                g_BattleSlotRows[row].unk10[(*ppArgs)->slot] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
         }
     }
-    } while (0);
 }
-*/
 void BattlePickActorSlotWithDifferentTag(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[8];
     s32 i = 3;
@@ -202,43 +180,25 @@ void BattlePickActorSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
     pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C840);
-// best: 91.44% (392 bytes, retail's exact size). Re-measured after fixing the
-// tag compares so the body compiles - the old 82.94% came from a body comparing
-// two BattleSlotRecord structs with ==, which is not valid C, so cc1 exited and
-// diff_func diffed a stale object. As in func_8007C1A4 the tags are read with
-// the SCALED struct index: `g_BattleSlotRecords[arg1 + 3].tag`.
-// What is left: retail keeps the invariant offset in s4 and re-forms
-// `lui at,%hi + addu at,at,s4 + lbu %lo(at)` per read, and its tail store puts
-// the base and the index in the opposite registers from ours.
-/*
-void func_8007C840(u8 **arg0, u8 arg1) {
+void func_8007C840(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[3];
-    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
 
     buf[0] = buf[1] = buf[2] = 0;
-    pRow[(*arg0)[1]] = 0;
-    do {
+    g_BattleSlotRows[row].unk10[(*ppArgs)->slot] = 0;
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
 
         if (buf[idx] == 0) {
-            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0
-                && g_BattleSlotRecords[(arg1 + 3) * 0x1C] == g_BattleSlotRecords[idx * 0x1C]) {
-                u16 result = BattleSlotBitMask(idx);
-                s32 index = (*arg0)[1];
-                u16 *pTail = (u16 *)(D_800D3420 + arg1 * 0x40);
-
-                pTail[index] = result;
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[idx].inUse != 0
+                && g_BattleSlotRecords[row + 3].tag == g_BattleSlotRecords[idx].tag) {
+                g_BattleSlotRows[row].unk10[(*ppArgs)->slot] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
         }
     }
-    } while (0);
 }
-*/
 void BattlePickCharSlotByFlagRetry(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[3];
     u16 *pRow = g_BattleSlotRows[row].unk10;
@@ -352,30 +312,17 @@ void BattleStoreActorSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     }
     g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007D0CC);
-/* best: 85.97% (identical instruction multiset, 124 bytes = retail's size).
-   Retail orders the block [sll a1][lui/addiu D_800D3430][lw *arg0][addu base a1]
-   [lbu idx][move a3,zero][addu addr][sb]; gcc hoists `i = 0` to the very top and
-   interleaves the two address chains the other way round. Tried: i = 0 between
-   the store and the loop, the inline *(D_800D3430 + arg1*0x40 + (*arg0)[1]) form
-   (folds into $at, frame 8), an index local. permute.sh ran once from this body
-   (1414 iterations): its best candidate (45 vs 480) reassigns pRow = *arg0 in the
-   loop, which changes what the tail store writes - wrong code, not portable.
-   This is a scheduler-priority tie.
-
-void func_8007D0CC(u8 **arg0, u8 arg1) {
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+void func_8007D0CC(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
-    pRow[(*arg0)[1]] = 0;
+    g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = 0;
     for (i = 0; i < 0x30; i++) {
-        if (g_BattleCommandGridIds[i] == (*arg0)[2]) {
-            pRow[(*arg0)[1]] = D_800D2CB0[i];
+        if (g_BattleCommandGridIds[i] == (*ppArgs)->tag) {
+            g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = D_800D2CB0[i];
             break;
         }
     }
 }
-*/
 void BattleWriteRowFieldBytes(BattleSlotArgs **ppArgs, u8 *pDst, u8 row, u8 index) {
     u16 value = g_BattleSlotRows[row].unk10[(*ppArgs)->tag];
 
