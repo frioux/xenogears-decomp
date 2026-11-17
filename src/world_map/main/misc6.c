@@ -502,19 +502,23 @@ int WorldMapSetActorScriptTables(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
-/* 52.59% (148 bytes = retail's 37 insns). func_80080578's body plus the three
-   unk58/state/unk50 stores; the same `do { } while (0);` grouping applies
-   (without it the body did not even compile any more - the old 41.32% note was
-   from a variant that predates `g_WorldMapCameraTarget` becoming an array, so
-   `g_WorldMapCameraTarget = x` was a hard error: the park scored ERROR in the
-   sweep, not 41.32%). Retail's memory order is now reproduced exactly; what is
-   left is register allocation: retail holds pActor in v1 and the three loaded
-   values in a0/a1/a2, ours holds pActor in a2 and the loads in v1/a0/a1,
-   because retail's `li` for the return value and the unk7C store stay above the
-   three loads and ours defers them. Tried (round 163): literals vs locals for
-   every constant, the volatile form, -O1/-O3/gcc 2.6.0/-mcpu=r8000, all worse.
-   Re-measured round 185 (park-repair): the body COMPILES and really is 52.59%
-   / 148 bytes = retail's 37 insns; the round 163 sweep ERROR row was tooling.
+/* 56.38% (148 bytes = retail's 37 insns) is the best of round 202's shapes; the
+   body below is that one. func_80080578's twin, with the four actor stores;
+   retail's memory order is reproduced, so all that is left is register
+   allocation plus three schedule positions: retail puts `li 0x1000` ABOVE the
+   g_WorldMapRotationMatrixValid store and the `addu`/`sw 0x7C` pair ABOVE the
+   three player-position loads, keeps pActor in v1 with the loaded values in
+   a0/a1/a2, and materialises the return's `li v0,1` before the state store
+   instead of in the jr delay slot. Ours allocates pActor to a1 and the loads
+   to v1/a0/a2 and schedules the 0x7C store after the loads.
+   Ruled out in round 202 (all measured, all below 56.38): unk7C store before
+   the rotValid store (51.08), rotValid store after the loads (51.08), no
+   do-while (42.14), pActor declared then assigned after the rotValid store
+   (34.51), s32 loads, pointer-arith base, a local for the 0x1000 (the
+   pre-switch-constant idiom), chained assignment, -O1 (70.41 but a different
+   schedule again), -O3 (does not compile), gcc-2.7.2-cdk (45.27), gcc-2.6.0
+   (22.24). The tail order below (state/unk50 before command/unk58) was worth
+   52.59 -> 56.38.
 */
 /* int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -535,14 +539,15 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
         g_WorldMapScrollTargetY = unkB0;
         D_8009BE30 = unkB4;
         g_WorldMapScrollTargetZ = unkB4;
-        pActor->command = 1;
-        pActor->unk58 = (void *)0x40;
         pActor->state = 0;
         pActor->unk50 = 0;
+        pActor->command = 1;
+        pActor->unk58 = (void *)0x40;
     } while (0);
     return 1;
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
 /* 86.92% (1716 bytes against retail's 1752) - CONFIRMED in round 185, and the
    body compiles as it stands. It can never link: this stub's .s owns
@@ -979,23 +984,19 @@ int WorldMapUpdateSlotActor(int index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 /* 93.41% (164 bytes = retail's 41 insns). Instruction multiset identical; the
-   only deltas are (1) retail's `li v0,3` (the return value) sits BEFORE the
-   store block, so v0 is occupied and the two big constants land in v1 and a0,
-   where ours materialises it after the last store and uses v0/v1; (2) that
-   follows from (1). `int nRet = 3;` + `return nRet;` folds straight back to
-   `return 3;`. The `do { } while (0);` around the seven stores was worth
-   88.66 -> 93.41 (it stops sched2 from pulling the 0x58 = 0x80 store up to
-   fourth position). Locals for the two constants compile identically to the
-   literals. Retail's group bases are root-relative (s1 + 0x2F4 / s1 + 0x348),
-   so the group pointer must stay spelled through pRoot.
-   The function returns int (retail loads v0 = 3 and never stores it).
-   permute.sh 3 min (991 iterations, base 130) found nothing.
-   Re-measured round 185 (park-repair): compiles, 93.41%, 164 bytes = retail's
-   41 insns; dropping the do/while wrapper (a plain block) is 88.66%.
+   only delta is where retail's `li v0,3` sits - BEFORE the seven stores, so v0
+   is occupied and the two big constants land in v1/a0, where ours materialises
+   it after the last store and then uses v0 for every constant. Ruled out in
+   round 202: `int nRet = 3;` / `u8 nRet = 3;` / `s32 nRet; nRet = 3;` before
+   the stores (all fold back to 93.41 - copy-prop deletes the assignment), and
+   the state/unk50/z store order (91.90). The do-while around the seven stores
+   is load-bearing (88.66 without). A 3-minute permuter run found nothing.
 */
 /* int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
+    int nRet = 3;
+
     WorldMapSetupPrimTemplates(&pRoot->groups[9], pRoot->groups[9].pPrims, *(u16 *)((u8 *)pRoot->groups[9].pPrimHeader + 4));
     WorldMapSetupPrimTemplates(&pRoot->groups[10], pRoot->groups[10].pPrims, *(u16 *)((u8 *)pRoot->groups[10].pPrimHeader + 4));
     do {
@@ -1007,7 +1008,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
         pActor->unk50 = 0;
         pActor->unk58 = (void *)0x80;
     } while (0);
-    return 3;
+    return nRet;
 }
 */
 
@@ -1186,25 +1187,25 @@ int WorldMapInitActorScript(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
-/* 64.06% (136 bytes = retail's 34 insns). func_8007E450's body without the
-   unk58/state/unk50 stores. The whole body is one `do { } while (0);` block:
-   without it the memory ops are rotated by sched2 (it pulls the three
-   D_8009C5xx loads up above everything) and the body does not even compile in
-   the old parked spelling, which is why the sweep scored it ERROR rather than
-   the 34.97% the old note claimed (`g_WorldMapCameraTarget` became an array
-   after that note was written, so `g_WorldMapCameraTarget = x` is a hard
-   error; it must be written `g_WorldMapCameraTarget[0] = x`, and that array
-   form is forced anyway - WorldMapInitializeModeWithActors takes its address).
-   With the do block every memory op is in retail's order and the only delta
-   left is register allocation: retail keeps pActor in v1 and the three loaded
-   values in a0/a1/a2 and stores unk7C before them; ours keeps pActor in a2,
-   the loads in v1/a0/a1, and defers the `li 0x1000` + `sw 0x7C` below the
-   loads. Same body as misc7's func_800813E8 (76.59% there).
-   Re-measured round 185 (park-repair): compiles, 64.06%, 136 bytes = retail's
-   34 insns - the round 163 sweep ERROR row was tooling. NOTE this note block
-   has no closing line of its own before the body, so the whole note-and-body
-   is ONE comment; park.py therefore reports "no unpark state found" for this
-   function. Insert the closing line after this note by hand to unpark it.
+/* 64.26% (136 bytes = retail's 34 insns), the best of round 202. Only THREE
+   deltas from retail, all schedule/allocation, none reachable from the source
+   order (every shape below measured):
+   (1) retail keeps pActor in v1 and the three player-position values in
+       a0/a1/a2; ours takes a2 for pActor and v1/a0/a1 for the values;
+   (2) retail's `li 0x1000` sits ABOVE the g_WorldMapRotationMatrixValid store
+       and its `sw v0,0x7C(v1)` ABOVE the three loads; ours emits the store
+       after the loads;
+   (3) the last two instructions swap - retail has `li v0,1` then `jr ra` with
+       `sh zero,32(v1)` in the delay slot, ours the other way round (reorg).
+   Tried and rejected: one do-while for the whole body (64.06 - what the park
+   used to hold), two do-while blocks (64.26, kept), three blocks (58.38),
+   loads first (52.44), unk7C after the fade store (64.06), unk7C first
+   (56.59), no block (37.03), s32 loads, pActor declared last, initialized
+   declarations, pointer-arith base, a local for the 0x1000, chained
+   assignment, volatile -fno-schedule-insns2 (54.09), -fschedule-insns (64.26),
+   -O1 (70.41 but a different schedule), gcc-2.7.2-cdk (45.27 under E450).
+   Both functions are the same body: whatever closes one closes the other.
+*/
 /* int func_80080578(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u32 unkAc;
@@ -1214,6 +1215,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
     do {
         g_WorldMapRotationMatrixValid = 0;
         pActor->unk7C = 0x1000;
+    } while (0);
+    do {
         unkAc = *(u32 *)g_WorldMapPlayerPosition;
         unkB0 = g_WorldMapPlayerPositionY;
         unkB4 = g_WorldMapPlayerPositionZ;
