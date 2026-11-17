@@ -4,18 +4,8 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
-// How many of g_Menu->digits[] each character window stat is formatted to; the
-// polys<Stat> prim arrays in MenuCharacterWindow hold two prims per digit.
-#define MENU_HP_DIGIT_COUNT 3
-#define MENU_MP_DIGIT_COUNT 2
-#define MENU_LEVEL_DIGIT_COUNT 3
-#define MENU_WIDE_NUMBER_DIGIT_COUNT 7
 
-// Entries in the character window icon tables; polysIcons holds two prims per icon.
-#define MENU_CHARACTER_ICON_COUNT 20
 
-// Border corner prims, two per corner (one per render context).
-#define MENU_WINDOW_BORDER_CORNER_COUNT 4
 
 void MenuParseNumberToDigits(u32 number);
 

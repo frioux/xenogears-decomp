@@ -5,10 +5,6 @@
 // rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
 #define BATTLE_PERCENT_ROLL_RANGE 100
 
-// mp and maxMp are percents times this, as hp and maxHp are percents times BATTLE_ACTOR_HP_SCALE.
-#define BATTLE_MP_SCALE 10
-// accessoryEffectFlags5 bit that doubles every condition timer the slot starts.
-#define BATTLE_ACCESSORY_TIMER_DOUBLE_FLAG 0x40
 // The timer index the flag-to-timer mapping leaves when a condition flag owns no timer.
 #define BATTLE_CONDITION_TIMER_INDEX_NONE 0xF
 

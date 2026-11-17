@@ -1,6 +1,11 @@
 #ifndef _XENO_BATTLE_ACTOR_H
 #define _XENO_BATTLE_ACTOR_H
 
+// mp and maxMp are percents times this, as hp and maxHp are percents times BATTLE_ACTOR_HP_SCALE.
+#define BATTLE_MP_SCALE 10
+// accessoryEffectFlags5 bit that doubles every condition timer the slot starts.
+#define BATTLE_ACCESSORY_TIMER_DOUBLE_FLAG 0x40
+
 #include "psyq/libgte.h"
 #include "field/actor.h"
 #include "main/game.h"

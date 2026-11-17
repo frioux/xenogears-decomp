@@ -3,6 +3,23 @@
 
 // A SystemMenu.digits[] entry holding no digit (nothing is drawn for it).
 #define MENU_DIGIT_NONE 0xFF
+// How many of g_Menu->digits[] each character window stat is formatted to; the
+// polys<Stat> prim arrays in MenuCharacterWindow hold two prims per digit.
+#define MENU_HP_DIGIT_COUNT 3
+#define MENU_MP_DIGIT_COUNT 2
+#define MENU_LEVEL_DIGIT_COUNT 3
+#define MENU_WIDE_NUMBER_DIGIT_COUNT 7
+// Entries in the character window icon tables; polysIcons holds two prims per icon.
+#define MENU_CHARACTER_ICON_COUNT 20
+// Border corner prims, two per corner (one per render context).
+#define MENU_WINDOW_BORDER_CORNER_COUNT 4
+#define MENU_SLOT_NONE 0xFF
+// Card slot bookkeeping, see MenuUnk2: a memory card holds 15 slots, so the second card's
+// slots start at index MENU_CARD_SLOT_COUNT, and a slot with no record reads MENU_SLOT_NONE.
+#define MENU_CARD_SLOT_COUNT 15
+#define MENU_CARD_SLOT_STATE_READY 2 // g_Menu->cardSlotState once the slot list is built
+// One card slot's save chunk, the size of MenuUnk2ImageChunk
+#define MENU_IMAGE_CHUNK_SIZE 0x200
 
 #include "psyq/libgpu.h"
 #include "system/menu_resources.h"

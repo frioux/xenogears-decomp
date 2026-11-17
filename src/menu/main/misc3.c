@@ -3,14 +3,7 @@
 #include "system/menu.h"
 #include "psyq/libapi.h"
 
-// Card slot bookkeeping, see MenuUnk2: a memory card holds 15 slots, so the second card's
-// slots start at index MENU_CARD_SLOT_COUNT, and a slot with no record reads MENU_SLOT_NONE.
-#define MENU_CARD_SLOT_COUNT 15
-#define MENU_SLOT_NONE 0xFF
-#define MENU_CARD_SLOT_STATE_READY 2 // g_Menu->cardSlotState once the slot list is built
 
-// One card slot's save chunk, the size of MenuUnk2ImageChunk
-#define MENU_IMAGE_CHUNK_SIZE 0x200
 
 extern u8 D_801EA6D0[][0x10];
 extern u8* D_801EA6F4;
