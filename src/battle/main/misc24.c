@@ -169,26 +169,29 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
     }
     return BattleOffsetBySin;
 }
-/* 74.36% - every store and constant is identical and in the same order; the
-   only difference is where the "-1" constant is materialised: the original
-   does "li v1,-1" as the very first instruction (before "li v0,0xffff"), this
-   emits it after "li v0,0x6b", just before the sb to 0x39. Permuter: 1570
-   iterations from score 85 found nothing better; the one real gain in its
-   candidate was swapping the 0x5C (0xFF) store above the 0x3C one (score
-   210 -> 85), which is kept - the new_var2 pointer, the new_var = 0 temp and
-   the (int) cast it also added were noise and are gone (same score without
-   them). Tried: raw -1 literals for the three s16 fields (74.36), a
-   "s16 m1 = -1;" decl initialiser at the top fed to 0x98/0x3A/0x1E (74.36,
-   the li still lands at its first use), and a separate "m1 = -1;" statement
-   first - gcc sinks the constant to its first use here, and the
-   0xFFFF/0xFF/0x6B/0x1 loads already match.
-   Note *(u16 *)(arg0 + 0x3C) is unsigned (ori 0xffff) while 0x98/0x3A/0x1E are
-   signed -1 (addiu), so the two constants must stay spelled differently.
-*/
 /*
+// 74.36%, 156 bytes (retail is also 156). Every store and every constant is
+// right; the ONLY difference is where the single s16 -1 is materialised. Retail
+// emits "addiu v1,zero,-1" as insn 1 (before the 0xFFFF load); gcc puts it at
+// the boundary of the constant-store cluster: with the source order 0x3C, 0x5C,
+// 0x39 it lands just before the sb 0x39, and listing the stores in any other
+// order just moves the boundary with it. Measured: 0x5C first (74.36), 0x3C
+// first, i.e. retail's own instruction order (74.36), 0x8E = 1 moved into the
+// constant cluster so the cluster is four stores - the -1 then lands after the
+// cluster, immediately before the word-store group, and takes $2 not $3. A
+// "s16 m1 = -1;" local, a separate "m1 = -1;" statement and raw -1 literals all
+// still land the li at that boundary. Permuter from this body: base 210, best
+// 180, 1325 iterations - its only gain was moving the 0x3C store below the 0xC
+// store, which contradicts retail's own li 0xFFFF-first order, so it is not
+// taken. Untested lead: retail's placement is what a load hoisted to its
+// DEAD-store position looks like, i.e. the original source may have had a
+// redundant -1 assignment early in the function whose store gcc then deleted
+// (cse keeps the constant in the register from insn 1). Note 0x3C is unsigned
+// (ori 0xFFFF) while 0x98/0x3A/0x1E are signed -1 (addiu), so the two constants
+// must stay spelled differently.
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
+    *(u16 *)(arg0 + 0x3C) = 0xFFFF;
     *(u8 *)(arg0 + 0x5C) = 0xFF;
-    *(u16 *)(arg0 + 0x3C) = -1;
     *(u8 *)(arg0 + 0x39) = 0x6B;
     *(s32 *)(arg0 + 0x8) = arg2;
     *(s32 *)(arg0 + 0xC) = 0;
@@ -223,6 +226,7 @@ void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AA898);
+
 // Appends one command byte to the actor's pending command queue, or, when the
 // queue is empty, seeds the actor's current command from the source actor's
 // command tables. The two per-command byte queues sit at 0x2A (command) and
