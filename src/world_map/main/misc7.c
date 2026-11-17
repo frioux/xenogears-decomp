@@ -6,6 +6,12 @@
 #include "system/model.h"
 #include "system/sound.h"
 
+// The fade table is 0xC0 halfword entries, filled by WorldMapFillFadeTable; the slot's
+// fade level walks between these two bounds.
+#define WORLD_MAP_FADE_ENTRY_COUNT 0xC0
+#define WORLD_MAP_FADE_LEVEL_MAX 0x40
+#define WORLD_MAP_FADE_LEVEL_MIN 2
+
 typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
@@ -49,7 +55,7 @@ typedef struct {
 
 extern WorldMapSlot *g_WorldMapSlots;
 extern WorldMapEntry *g_WorldMapGroups;
-extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr);
+extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr);
 extern u8 D_8009A758[];
 extern void WorldMapStartSlot(s32 arg0, s32 arg1);
 extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
@@ -97,7 +103,7 @@ extern void WorldMapFreeSpritePrimBuffers(void);
 extern s32 g_WorldMapPrimPacketIndex;
 extern u8 *D_8009D158;
 extern u8 *D_8009D15C;
-extern u8 *g_WorldMapFadeTable;
+extern u16 *g_WorldMapFadeTable;
 extern void SoundRemoveSedsEntry(void *p);
 extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
@@ -347,15 +353,13 @@ s32 func_800813E8(s32 index) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
-void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 abr) {
+void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr) {
     s32 i;
 
-    for (i = 0; i < count; i++) {
-        pDst[3] = 9;
-        pDst[7] = 0x2C;
-        *(u16 *)(pDst + 0x16) = GetTPage(0, abr, 0x180, 0);
-        pDst[7] |= 2;
-        pDst += 0x28;
+    for (i = 0; i < count; i++, pPrim++) {
+        setPolyFT4(pPrim);
+        pPrim->tpage = GetTPage(0, abr, 0x180, 0);
+        setSemiTrans(pPrim, 1);
     }
     memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT4));
 }
@@ -503,7 +507,7 @@ s32 func_80081C3C(void) {
     D_8009D15C = HeapAlloc(0x1E00, 0);
     g_WorldMapFadeTable = HeapAlloc(0x180, 0);
     p = D_8009D158;
-    for (i = 0; i < 0xC0; i++) {
+    for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
         p[7] = 0x2C;
         p[3] = 9;
         p[4] = 0x80;
@@ -518,8 +522,8 @@ s32 func_80081C3C(void) {
     for (i = 0; i < 0x1E0; i++) {
         *pDst++ = *pSrc++;
     }
-    pFill = (u16 *)g_WorldMapFadeTable;
-    for (i = 0xBF; i >= 0; i--) {
+    pFill = g_WorldMapFadeTable;
+    for (i = WORLD_MAP_FADE_ENTRY_COUNT - 1; i >= 0; i--) {
         *pFill++ = 1;
     }
     return 1;
@@ -546,11 +550,11 @@ s32 WorldMapFillFadeTable(s32 index) {
     s32 i;
     u16 *pFill;
     s32 start;
-    short value;
-    s16 state;
+    s16 level;
+    s16 request;
 
-    state = pSlot->unk4 - 1;
-    switch (state) {
+    request = pSlot->unk4 - 1;
+    switch (request) {
     case 0:
         pSlot->unk4 = 0;
         pSlot->unk20 = 1;
@@ -576,12 +580,12 @@ s32 WorldMapFillFadeTable(s32 index) {
     case 0:
         break;
     case 1:
-        pFill = (u16 *)g_WorldMapFadeTable;
-        for (i = 0xBF; i >= 0; i--) {
+        pFill = g_WorldMapFadeTable;
+        for (i = WORLD_MAP_FADE_ENTRY_COUNT - 1; i >= 0; i--) {
             *pFill++ = pSlot->unk50;
         }
         start = rand() & 0x3F;
-        pFill = (u16 *)g_WorldMapFadeTable + start;
+        pFill = g_WorldMapFadeTable + start;
         i = start;
         while (i < start + (rand() & 0x1F) + 1) {
             if ((rand() & 3) == 0) {
@@ -591,7 +595,7 @@ s32 WorldMapFillFadeTable(s32 index) {
             pFill++;
         }
         start = (rand() & 0x3F) + 0x40;
-        pFill = (u16 *)g_WorldMapFadeTable + start;
+        pFill = g_WorldMapFadeTable + start;
         i = start;
         while (i < start + (rand() & 0x1F) + 1) {
             if ((rand() & 3) == 0) {
@@ -601,7 +605,7 @@ s32 WorldMapFillFadeTable(s32 index) {
             pFill++;
         }
         start = (rand() & 0x1F) + 0x80;
-        pFill = (u16 *)g_WorldMapFadeTable + start;
+        pFill = g_WorldMapFadeTable + start;
         i = start;
         while (i < start + (rand() & 0x1F) + 1) {
             if ((rand() & 3) == 0) {
@@ -612,28 +616,28 @@ s32 WorldMapFillFadeTable(s32 index) {
         }
         break;
     case 2:
-        pFill = (u16 *)g_WorldMapFadeTable;
+        pFill = g_WorldMapFadeTable;
         pSlot->unk50 += 1;
-        if (pSlot->unk50 >= 0x41) {
-            pSlot->unk50 = 0x40;
+        if (pSlot->unk50 > WORLD_MAP_FADE_LEVEL_MAX) {
+            pSlot->unk50 = WORLD_MAP_FADE_LEVEL_MAX;
         }
-        for (i = 0xBF; i >= 0; i--) {
+        for (i = WORLD_MAP_FADE_ENTRY_COUNT - 1; i >= 0; i--) {
             *pFill++ = pSlot->unk50;
         }
         break;
     case 3:
-        pFill = (u16 *)g_WorldMapFadeTable;
+        pFill = g_WorldMapFadeTable;
         pSlot->unk50 -= 1;
-        if (pSlot->unk50 < 2) {
-            pSlot->unk50 = 2;
+        if (pSlot->unk50 < WORLD_MAP_FADE_LEVEL_MIN) {
+            pSlot->unk50 = WORLD_MAP_FADE_LEVEL_MIN;
         }
-        for (i = 0xBF; i >= 0; i--) {
+        for (i = WORLD_MAP_FADE_ENTRY_COUNT - 1; i >= 0; i--) {
             *pFill++ = pSlot->unk50;
         }
         break;
     case 4:
-        pFill = (u16 *)g_WorldMapFadeTable;
-        for (i = 0; i < 0xC0; i++) {
+        pFill = g_WorldMapFadeTable;
+        for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
             if ((rand() & 3) == 0) {
                 *pFill = (rand() & 0x3F) + 1;
             }
@@ -641,10 +645,11 @@ s32 WorldMapFillFadeTable(s32 index) {
         }
         break;
     case 5:
-        pFill = (u16 *)g_WorldMapFadeTable;
-        value = 2;
-        for (i = 0xBF; i >= 0; i--) {
-            *pFill++ = value;
+        pFill = g_WorldMapFadeTable;
+        // s16 local, not a literal: retail materialises the 2 once before the loop
+        level = 2;
+        for (i = WORLD_MAP_FADE_ENTRY_COUNT - 1; i >= 0; i--) {
+            *pFill++ = level;
         }
         break;
     }
