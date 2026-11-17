@@ -652,7 +652,7 @@ extern u16 g_WorldMapPad2Released;
 extern u16 g_WorldMapPad1Pressed;
 extern u16 g_WorldMapPad2Pressed;
 extern u16 g_WorldMapPad1Held;
-extern u16 D_8009CD50;
+extern u16 g_WorldMapPad2Held;
 extern u_short g_C1ButtonState;
 extern u_short g_C1ButtonStatePressedOnce;
 extern u_short g_C1ButtonStateReleased;
@@ -689,13 +689,13 @@ void WorldMapWaitForButtonRelease(void) {
         GraphicsDrawPauseLetters(0x88, 0x64);
         g_WorldMapPad2Pressed = 0;
         g_WorldMapPad2Released = 0;
-        D_8009CD50 = 0;
+        g_WorldMapPad2Held = 0;
         g_WorldMapPad1Pressed = 0;
         g_WorldMapPad1Released = 0;
         g_WorldMapPad1Held = 0;
         while (ControllerPopState() != 0) {
             g_WorldMapPad1Held |= g_C1ButtonState;
-            D_8009CD50 |= g_C2ButtonState;
+            g_WorldMapPad2Held |= g_C2ButtonState;
             g_WorldMapPad1Released |= g_C1ButtonStateReleased;
             g_WorldMapPad2Released |= g_C2ButtonStateReleased;
             g_WorldMapPad1Pressed |= g_C1ButtonStatePressedOnce;
@@ -744,13 +744,13 @@ void WorldMapWaitForControllerConnected(void) {
         GraphicsDrawPauseLetters(0x88, 0x64);
         g_WorldMapPad2Pressed = 0;
         g_WorldMapPad2Released = 0;
-        D_8009CD50 = 0;
+        g_WorldMapPad2Held = 0;
         g_WorldMapPad1Pressed = 0;
         g_WorldMapPad1Released = 0;
         g_WorldMapPad1Held = 0;
         while (ControllerPopState() != 0) {
             g_WorldMapPad1Held |= g_C1ButtonState;
-            D_8009CD50 |= g_C2ButtonState;
+            g_WorldMapPad2Held |= g_C2ButtonState;
             g_WorldMapPad1Released |= g_C1ButtonStateReleased;
             g_WorldMapPad2Released |= g_C2ButtonStateReleased;
             g_WorldMapPad1Pressed |= g_C1ButtonStatePressedOnce;

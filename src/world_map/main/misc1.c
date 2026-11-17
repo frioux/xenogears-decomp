@@ -105,9 +105,9 @@ extern u16 g_WorldMapPad1Pressed;
 extern u16 g_WorldMapPad1Released;
 extern u16 g_WorldMapPad2Pressed;
 extern u16 g_WorldMapPad2Released;
-extern u16 D_8009CD50;
-extern u_char D_8009C588;
-extern u8 D_8009B6E4[];
+extern u16 g_WorldMapPad2Held;
+extern u_char g_WorldMapCdSyncResult;
+extern u8 g_WorldMapMode4AreaRect[];
 extern s32 g_WorldMapL2R2PressEdge;
 extern s32 D_8009C178;
 extern s32 g_WorldMapMode4EntryTriggered;
@@ -144,7 +144,7 @@ extern void GameCheckAndHandleSoftReset(void);
 
 // The world map's frame loop: each pass reads the pads, drains the streaming load queue,
 // flips the swap buffer and draws a frame, until something sets g_WorldMapLoopActive to 0.
-void func_800712D0(void) {
+void WorldMapMainLoop(void) {
     WorldMapGfxEnv* pEnv;
     RECT rect;
     s32 i;
@@ -156,13 +156,13 @@ void func_800712D0(void) {
         // the pads are rebuilt from the controller states pushed since the last frame
         g_WorldMapPad2Pressed = 0;
         g_WorldMapPad2Released = 0;
-        D_8009CD50 = 0;
+        g_WorldMapPad2Held = 0;
         g_WorldMapPad1Pressed = 0;
         g_WorldMapPad1Released = 0;
         g_WorldMapPad1Held = 0;
         while (ControllerPopState() != 0) {
             g_WorldMapPad1Held |= g_C1ButtonState;
-            D_8009CD50 |= g_C2ButtonState;
+            g_WorldMapPad2Held |= g_C2ButtonState;
             g_WorldMapPad1Released |= g_C1ButtonStateReleased;
             g_WorldMapPad2Released |= g_C2ButtonStateReleased;
             g_WorldMapPad1Pressed |= g_C1ButtonStatePressedOnce;
@@ -172,7 +172,7 @@ void func_800712D0(void) {
         while (WorldMapUpdateLoadQueue() == 3) {
             Vsync(0);
         }
-        CdSync(1, &D_8009C588);
+        CdSync(1, &g_WorldMapCdSyncResult);
         pEnv = g_WorldMapGfxEnvs;
         if (g_WorldMapRenderContext == pEnv) {
             pEnv++;
@@ -259,7 +259,7 @@ void func_800712D0(void) {
                 } else if (g_WorldMapMode < 8) {
                     g_WorldMapLoopActive = 0;
                     g_WorldMapAreaMode = 0;
-                    g_WorldMapAreaRect = D_8009B6E4;
+                    g_WorldMapAreaRect = g_WorldMapMode4AreaRect;
                     g_GameState.worldMapState |= 0x2000;
                 }
             }
