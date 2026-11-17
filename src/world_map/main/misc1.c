@@ -4,6 +4,7 @@
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
 #include "system/archive.h"
+#include "system/controller.h"
 #include "system/memory.h"
 
 #define WORLD_MAP_TILE_GROUP_COUNT 16
@@ -26,6 +27,9 @@
 
 // the two per-frame map work buffers
 #define WORLD_MAP_WORK_BUFFER_SIZE 4096
+
+// one swap buffer's ordering table holds this many entries; drawing starts at the last one
+#define WORLD_MAP_OT_SIZE 0x400
 
 // archive entries loaded before the map data itself exists
 #define WORLD_MAP_SOUND_ARCHIVE_INDEX 0x24
@@ -81,14 +85,207 @@ typedef struct {
 
 extern WorldMapPoint* g_WorldMapPoints;
 
-// The world map frame render context g_WorldMapRenderContext points at: the two ordering
-// table heads it fills each frame.
+// One of the two swap buffers at g_WorldMapGfxEnvs: the draw and disp env a frame is
+// staged through, and the two ordering table heads it fills.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x70];
+    /* 0x00 */ DRAWENV drawEnv; // Size: 0x5C
+    /* 0x5C */ DISPENV dispEnv; // Size: 0x14
     /* 0x70 */ u_long* pOt[2];
-} WorldMapRenderContext; // partial view
+} WorldMapGfxEnv; // Size: 0x78
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_800712D0);
+extern s32 g_WorldMapPrimPacketIndex;
+extern s32 g_WorldMapLoopActive;
+extern WorldMapGfxEnv* g_WorldMapRenderContext;
+extern WorldMapGfxEnv g_WorldMapGfxEnvs[2];
+extern s32 g_WorldMapScrollTargetX;
+extern u8 g_FieldPlayerWalkmeshMaterial;
+extern u8 g_MenuDebugEnabled;
+extern u16 g_WorldMapPad1Held;
+extern u16 g_WorldMapPad1Pressed;
+extern u16 g_WorldMapPad1Released;
+extern u16 g_WorldMapPad2Pressed;
+extern u16 g_WorldMapPad2Released;
+extern u16 D_8009CD50;
+extern u_char D_8009C588;
+extern u8 D_8009B6E4[];
+extern s32 g_WorldMapL2R2PressEdge;
+extern s32 D_8009C178;
+extern s32 g_WorldMapMode4EntryTriggered;
+extern s32 g_WorldMapExpiredTimerCount;
+extern s32 g_WorldMapMode;
+extern s32 g_WorldMapFadeLevel;
+extern s16 g_WorldMapAreaId;
+extern s16 g_WorldMapMode4AreaId;
+extern s32 g_WorldMapAreaMode;
+extern void* g_WorldMapAreaRect;
+extern u8 g_SoundEffectBankIndex;
+extern u8 g_MenuOverlayIndex;
+extern u8 g_ShopIndex;
+
+extern int ControllerPopState(void);
+extern int ControllerGetType(int controllerIndex);
+extern s16 WorldMapGetTileHalfIndex(void* p);
+extern s32 func_80075E7C(void* p, s32 arg1);
+extern s32 WorldMapUpdateLoadQueue(void);
+extern void WorldMapWaitForQueuedLoads(void);
+extern void WorldMapUpdateSlots(void);
+extern void WorldMapEnterMenuMode(void);
+extern void WorldMapExitMenuMode(void);
+extern void WorldMapFlushDrawAndCache(void);
+extern void WorldMapWaitForButtonRelease(void);
+extern void WorldMapWaitForControllerConnected(void);
+extern void WorldMapUpdateTileAnimEntries(void);
+extern void WorldMapUpdateFrameAnimEntries(void);
+extern void MenuMain(void);
+extern void GfxSetRenderContext(int context);
+extern void GfxFlushImageList(void);
+extern void SpriteAnimFrameListFlush(void);
+extern void GameCheckAndHandleSoftReset(void);
+
+// The world map's frame loop: each pass reads the pads, drains the streaming load queue,
+// flips the swap buffer and draws a frame, until something sets g_WorldMapLoopActive to 0.
+void func_800712D0(void) {
+    WorldMapGfxEnv* pEnv;
+    RECT rect;
+    s32 i;
+
+    g_WorldMapRenderContext = &g_WorldMapGfxEnvs[1];
+    g_WorldMapPrimPacketIndex = 1;
+    g_WorldMapLoopActive = 1;
+    do {
+        // the pads are rebuilt from the controller states pushed since the last frame
+        g_WorldMapPad2Pressed = 0;
+        g_WorldMapPad2Released = 0;
+        D_8009CD50 = 0;
+        g_WorldMapPad1Pressed = 0;
+        g_WorldMapPad1Released = 0;
+        g_WorldMapPad1Held = 0;
+        while (ControllerPopState() != 0) {
+            g_WorldMapPad1Held |= g_C1ButtonState;
+            D_8009CD50 |= g_C2ButtonState;
+            g_WorldMapPad1Released |= g_C1ButtonStateReleased;
+            g_WorldMapPad2Released |= g_C2ButtonStateReleased;
+            g_WorldMapPad1Pressed |= g_C1ButtonStatePressedOnce;
+            g_WorldMapPad2Pressed |= g_C2ButtonStatePressedOnce;
+        }
+        // 3 is the queue's "nothing to do yet" result: hold the frame until a load lands
+        while (WorldMapUpdateLoadQueue() == 3) {
+            Vsync(0);
+        }
+        CdSync(1, &D_8009C588);
+        pEnv = g_WorldMapGfxEnvs;
+        if (g_WorldMapRenderContext == pEnv) {
+            pEnv++;
+        }
+        g_WorldMapRenderContext = pEnv;
+        g_WorldMapPrimPacketIndex = (g_WorldMapPrimPacketIndex == 0);
+        ClearOTagR(pEnv->pOt[0], WORLD_MAP_OT_SIZE);
+        GfxSetRenderContext(g_WorldMapPrimPacketIndex);
+        SpriteAnimFrameListFlush();
+        WorldMapUpdateSlots();
+        DrawSync(0);
+        Vsync(2);
+        GameCheckAndHandleSoftReset();
+        PutDispEnv(&g_WorldMapRenderContext->dispEnv);
+        PutDrawEnv(&g_WorldMapRenderContext->drawEnv);
+        if (g_FieldPlayerWalkmeshMaterial == 0 && g_WorldMapL2R2PressEdge != 0 && D_8009C178 == 0
+            && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == -1
+            && g_WorldMapMode4AreaId == g_WorldMapAreaId && g_WorldMapLoopActive != 0
+            && g_WorldMapExpiredTimerCount == 0) {
+            // L2+R2 leaves mode 4's map for the free-roaming map, but only from inside a
+            // map whose player tile is a road end (half index 4 is the other kind)
+            g_WorldMapL2R2PressEdge = 0;
+            if (WorldMapGetTileHalfIndex(&g_WorldMapScrollTargetX) != 4) {
+                for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+                    ((u16*)g_GameState.unk1838)[2 + i] = g_GameState.gearRide[i];
+                }
+                if (g_GameState.gearRide[0] != 0) {
+                    g_GameState.gearRide[2] = 0;
+                    g_GameState.gearRide[1] = 0;
+                    g_GameState.gearRide[0] = 0;
+                } else {
+                    // a party slot rides its gear when that character has one equipped
+                    if (g_GameState.characters[g_GameState.partyMembers[0]].gearId != CHARACTER_ID_NONE) {
+                        g_GameState.gearRide[0] = 1;
+                    }
+                    if (g_GameState.characters[g_GameState.partyMembers[1]].gearId != CHARACTER_ID_NONE) {
+                        g_GameState.gearRide[1] = 1;
+                    }
+                    if (g_GameState.characters[g_GameState.partyMembers[2]].gearId != CHARACTER_ID_NONE) {
+                        g_GameState.gearRide[2] = 1;
+                    }
+                }
+                WorldMapSyncGearRideActors();
+            }
+        } else {
+            g_WorldMapL2R2PressEdge = 0;
+        }
+        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapLoopActive != 0
+            && g_WorldMapExpiredTimerCount == 0 && (g_WorldMapPad1Released & CTRL_BTN_START) != 0) {
+            WorldMapWaitForButtonRelease();
+        }
+        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapLoopActive != 0
+            && g_WorldMapExpiredTimerCount == 0 && ControllerGetType(0) == 0) {
+            WorldMapWaitForControllerConnected();
+        }
+        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == -1
+            && g_WorldMapMode4AreaId == g_WorldMapAreaId && g_WorldMapLoopActive != 0
+            && g_WorldMapExpiredTimerCount != 0
+            && func_80075E7C(&g_WorldMapScrollTargetX, g_GameState.fieldScriptMemory[0]) == 1) {
+            // a mode 4 map's script ended: hand its party state and gear ride back to the
+            // free-roaming map
+            g_WorldMapLoopActive = 0;
+            g_WorldMapAreaMode = 1;
+            g_SoundEffectBankIndex = 0;
+            ((u16*)g_GameState.unk1838)[2] = g_GameState.gearRide[0];
+            ((u16*)g_GameState.unk1838)[3] = g_GameState.gearRide[1];
+            ((u16*)g_GameState.unk1838)[4] = g_GameState.gearRide[2];
+        }
+        g_WorldMapExpiredTimerCount = 0;
+        if ((g_WorldMapPad1Released & CTRL_BTN_SELECT) != 0) {
+            ((u16*)g_GameState.unk1838)[5] ^= 1;
+        }
+        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered != 0 && g_WorldMapLoopActive != 0) {
+            if (g_WorldMapMode > 0) {
+                if (g_WorldMapMode < 4) {
+                    WorldMapEnterMenuMode();
+                    g_MenuOverlayIndex = 0;
+                    g_MenuDebugEnabled = 0;
+                    g_ShopIndex = 1;
+                    WorldMapFlushDrawAndCache();
+                    MenuMain();
+                    WorldMapFlushDrawAndCache();
+                    WorldMapExitMenuMode();
+                } else if (g_WorldMapMode < 8) {
+                    g_WorldMapLoopActive = 0;
+                    g_WorldMapAreaMode = 0;
+                    g_WorldMapAreaRect = D_8009B6E4;
+                    g_GameState.worldMapState |= 0x2000;
+                }
+            }
+        } else {
+            g_WorldMapMode4EntryTriggered = 0;
+        }
+        GfxFlushImageList();
+        WorldMapUpdateTileAnimEntries();
+        WorldMapUpdateFrameAnimEntries();
+        SetGeomOffset(WORLD_MAP_SCREEN_WIDTH / 2, g_WorldMapFadeLevel);
+        DrawOTag(g_WorldMapRenderContext->pOt[0] + (WORLD_MAP_OT_SIZE - 1));
+    } while (g_WorldMapLoopActive != 0);
+    ResetGraph(1);
+    if (g_WorldMapPrimPacketIndex == 0) {
+        // clear the frame buffer's second page before the map hands the screen back
+        rect.x = 0;
+        rect.y = WORLD_MAP_SCREEN_HEIGHT;
+        rect.w = WORLD_MAP_SCREEN_WIDTH;
+        rect.h = WORLD_MAP_SCREEN_HEIGHT;
+        MoveImage(&rect, 0, 0);
+    }
+    WorldMapWaitForQueuedLoads();
+    DrawSync(0);
+    Vsync(0);
+    PutDispEnv(&g_WorldMapGfxEnvs[1].dispEnv);
+}
 
 int WorldMapModeInitNop(void) {
     return 1;
@@ -99,7 +296,6 @@ extern s32 g_WorldMapPathFrame;
 extern s16 g_WorldMapSlotUpdateFlags;
 extern s32 g_WorldMapScrollX;
 extern s32 g_WorldMapCameraTarget;
-extern WorldMapRenderContext* g_WorldMapRenderContext;
 extern s32 g_WorldMapGridAngle;
 
 extern void WorldMapBuildRotationMatrix(s32* p);
@@ -411,7 +607,6 @@ extern s32 g_WorldMapAreaIndex;
 extern int g_AnimScriptExtraTicks;
 extern s16 g_SoundControlFlags;
 extern u8 g_SoundBankLoadBuffer[];
-extern u8 g_FieldPlayerWalkmeshMaterial;
 extern void* g_SoundAudioManager;
 extern void* g_SoundPendingAudioManager;
 extern void* g_GameCurLoadedWDS;
@@ -456,7 +651,7 @@ extern void WorldMapSetupMapPrims(void);
 extern void WorldMapInitSpriteGroupTables(void);
 extern void* SoundLoadWdsFile(void* pBuffer, s32 arg1);
 extern void func_80097BC0(void* pPosition);
-extern void WorldMapUpdateLoadQueue(void);
+extern s32 WorldMapUpdateLoadQueue(void);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern void WorldMapRefreshGrid(void* pTarget);
 extern void WorldMapWaitForQueuedLoads(void);
@@ -782,13 +977,6 @@ void func_8007299C(void) {
 }
 */
 
-typedef struct {
-    /* 0x00 */ DRAWENV drawEnv; // Size: 0x5C
-    /* 0x5C */ DISPENV dispEnv; // Size: 0x14
-    /* 0x70 */ u8 pad70[8];
-} WorldMapGfxEnv; // Size: 0x78
-
-extern WorldMapGfxEnv g_WorldMapGfxEnvs[2];
 extern u8 g_WorldMapColorFactors;
 extern u8 D_8009BB49;
 extern u8 D_8009BB4A;
@@ -812,7 +1000,6 @@ extern u16 D_8009BCA8;
 extern u16 D_8009BCAA;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 g_WorldMapAreaMode;
-extern s32 g_WorldMapScrollTargetX;
 
 extern void SetNearColor(long rfc, long gfc, long bfc);
 
