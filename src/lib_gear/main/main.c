@@ -344,9 +344,10 @@ unsigned LibGearComputeScaledJointMatrices(ModelJoint* pJoint, int degrees) {
 void LibGearNoOp(void) {}
 
 void LibGearRenderModel(ModelMesh* pMesh, ModelJoint* pSkeleton, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 arg4, s32 arg5, s32 packetIndex) {
-    MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
-    MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
-    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    MATRIX* scratch = (MATRIX*)PSX_SCRATCH;
+    MATRIX* pRotMatrix = &scratch[1];
+    MATRIX* pTransMatrix = &scratch[2];
+    MATRIX* pMatrix = scratch;
     u_int numChildren;
     u_int i;
 
@@ -1496,8 +1497,8 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
                 pModel->commandCount++;
             }
 
-            *(u8*)((u32)pModel + pModel->commandCount + 0x2A) = pSource->unk20;
-            *(u8*)((u32)pModel + pModel->commandCount + 0x2E) = arg3;
+            pModel->unk2A[pModel->commandCount] = pSource->unk20;
+            pModel->unk2C[pModel->commandCount + 2] = arg3;
         } else {
             if (arg3 < 0x50) {
                 pModel->unk10 = ((u32*)pSource->unk8)[arg3];
@@ -2278,7 +2279,7 @@ void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
 
     *pFlags = 0;
     if (index >= 0xFE) {
-        u8 entry = pModel->unk2A;
+        u8 entry = pModel->unk2A[0];
 
         index = entry & 0x7F;
         *pFlags = entry & 0x80;
@@ -2520,7 +2521,7 @@ void LibGearJointTaskCallback(void* pTaskRaw) {
     MATRIX* pMatrix;
 
     pJointTask = (LibGearJointTask*)((u8*)pTask + pTask->spriteData.allocatedDataSize);
-    pMatrix = (MATRIX*)0x1F800000;
+    pMatrix = (MATRIX*)PSX_SCRATCH;
 
     if (pJointTask->jointIndex != 0) {
         CompMatrix(
