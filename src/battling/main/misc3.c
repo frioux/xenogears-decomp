@@ -61,9 +61,11 @@ typedef struct BattleActor {
     /* 0x004C */ u8 modelIndex;
     /* 0x004D */ u8 unk4D;
     /* 0x004E */ u8 prevPartIndex;
-    /* 0x004F */ u8 unk4F;
-    /* 0x0050 */ s16 unk50;
-    /* 0x0052 */ u8 unk52;
+    /* 0x004F */ u8 animSpeed;
+    /* 0x0050 */ s16 lastFrame;
+    // Added to animSpeed when the part animation advances (misc2 func_80074BA4);
+    // the movement sets it from the distance and the speed scale.
+    /* 0x0052 */ u8 animSpeedBonus;
     /* 0x0053 */ u8 unk53;
     /* 0x0054 */ s32 angle;
     /* 0x0058 */ s32 targetAngle;
@@ -141,7 +143,9 @@ typedef struct BattleActor {
     /* 0x15E8 */ s16 unk15E8;
     /* 0x15EA */ s16 unk15EA;
     /* 0x15EC */ u8 unk15EC[0x4];
-    /* 0x15F0 */ s16 unk15F0;
+    // The actor's step scale, copied from its script's byte at +0xF: it multiplies
+    // the distance into stepDistance.
+    /* 0x15F0 */ s16 stepScale;
     /* 0x15F2 */ s16 moveSpeed;
     /* 0x15F4 */ s16 moveSpeedBase;
     /* 0x15F6 */ u8 unk15F6[0xA];
@@ -362,8 +366,10 @@ typedef struct {
     /* 0x00 */ u32 value;
     /* 0x04 */ u8 percent;
     /* 0x05 */ u8 unk5[0x7];
-    /* 0x0C */ s32 unkC;
-    /* 0x10 */ s32 unk10;
+    // 12.4 animation frames, printed as FRAME:%d-%d: the frame the value last
+    // changed at, and the actor's current one (misc2 func_800740E4 writes both).
+    /* 0x0C */ s32 frameStart;
+    /* 0x10 */ s32 frameCurrent;
 } BattleSlotGauge; // Size: 0x14
 
 extern BattleSlotGauge g_BattleSlotGauges[];
@@ -442,8 +448,8 @@ void BattleDrawFrameHud(BattleActor* p) {
     Sprintf(buf, D_8006FD08, g_BattleSlotGauges[((p->flags >> 27) & 1)].percent);
     BattleDrawTextLeft(buf);
     BattleSetTextCursor(w, h + 0x14);
-    h = g_BattleSlotGauges[((p->flags >> 27) & 1)].unkC >> 4;
-    Sprintf(buf, D_8006FD10, h, g_BattleSlotGauges[((p->flags >> 27) & 1)].unk10 >> 4);
+    h = g_BattleSlotGauges[((p->flags >> 27) & 1)].frameStart >> 4;
+    Sprintf(buf, D_8006FD10, h, g_BattleSlotGauges[((p->flags >> 27) & 1)].frameCurrent >> 4);
     BattleDrawTextLeft(buf);
 }
 
@@ -826,7 +832,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
    Structure worth keeping: the switch on BattleDequeueMessage takes 6 cases and
    the first switch's cases must be LISTED 1, 2, 0, 3, 4, 5 (retail's body order);
    the second switch on p->state is ascending 0-4, and its case 1 recomputes
-   p->unk52 with `/ 4096` (gcc's signed divide-by-power-of-2 sequence) while the
+   p->animSpeedBonus with `/ 4096` (gcc's signed divide-by-power-of-2 sequence) while the
    shared tail uses `>> 16`. BattleDequeueMessage must be declared s32: with a u8
    return every caller gets an `andi v0,v0,0xff` retail does not have (verified:
    the callee still matches 100.00% as s32).
@@ -953,7 +959,7 @@ void func_80077A9C(BattleActor* p) {
             break;
         }
     }
-    p->unk52 = 0;
+    p->animSpeedBonus = 0;
     p->flags &= ~4;
     switch (p->state) {
     case 0:
@@ -983,7 +989,7 @@ void func_80077A9C(BattleActor* p) {
         p->angleOffset = func_8008B650(p->angleOffset, p->targetAngle, 0x100);
         break;
     case 1:
-        p->unk52 = p->distance * p->moveSpeed / 4096;
+        p->animSpeedBonus = p->distance * p->moveSpeed / 4096;
         switch (p->actionPhase) {
         case 0:
             p->modelIndex = 1;
@@ -1019,7 +1025,7 @@ void func_80077A9C(BattleActor* p) {
         p->distance = 0;
         break;
     }
-    p->stepDistance = p->distance * p->unk15F0 * p->moveSpeed >> 16;
+    p->stepDistance = p->distance * p->stepScale * p->moveSpeed >> 16;
     if (!(p->flags & 0x8000)) {
         p->stateFlags &= ~0x40;
     }
@@ -1027,7 +1033,7 @@ void func_80077A9C(BattleActor* p) {
         if (p->actionPhase == 0 && !(p->stateFlags & 0x40) && p->stepDistance >= 0x31 && (u32)(p->state - 2) >= 2) {
             if (BattleAccumulateGaugePoints(p, 0x20, 2) != 0) {
                 p->stepDistance *= 2;
-                p->unk52 *= 2;
+                p->animSpeedBonus *= 2;
             } else {
                 p->flags &= ~0x8000;
                 p->stateFlags |= 0x40;
