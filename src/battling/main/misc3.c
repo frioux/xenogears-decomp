@@ -69,7 +69,10 @@ typedef struct BattleActor {
     /* 0x0053 */ u8 unk53;
     /* 0x0054 */ s32 angle;
     /* 0x0058 */ s32 targetAngle;
-    /* 0x005C */ u8 unk5C[0x10];
+    // The actor's model part (misc4's struct ActorPart): its BattleActorSetPartTransform
+    // copies the actor's position and angle into it every frame.
+    /* 0x005C */ void* pPart;
+    /* 0x0060 */ u8 pad60[0xC];
     /* 0x006C */ Vec4 prevPosition;
     /* 0x007C */ u8 unk7C[0x4];
     /* 0x0080 */ u8* pActionEntries;
@@ -122,6 +125,8 @@ typedef struct BattleActor {
     /* 0x00F2 */ u8 unkF2[0xA];
     /* 0x00FC */ s32 angleOffset;
     /* 0x0100 */ s32 movePhase;
+    // Sixteen 0x54-byte slot records (misc2's BattleActorSlot): BattleCommitSlotStates
+    // walks all sixteen and reads the state byte at +0x44 of each.
     /* 0x0104 */ u8 unk104[0x540];
     /* 0x0644 */ s32 gaugePercent;
     /* 0x0648 */ s32 facingAngle;
@@ -165,13 +170,26 @@ typedef struct BattleActor {
     // Position of the target slot the current step walks to, copied from the
     // selected record by func_80075B50.
     /* 0x0974 */ Vec4 moveGoalPosition;
-    /* 0x0984 */ u8 unk984[0x1C];
+    /* 0x0984 */ u8 unk984[0x14];
+    // The part animation's current frame and its per-call step, handed to
+    // func_80074678 (misc4 BattleActorInitModelState).
+    /* 0x0998 */ s16 animFrame;
+    /* 0x099A */ s16 animFrameStep;
+    /* 0x099C */ u8 unk99C[0x4];
     /* 0x09A0 */ BattleMessageQueue messageQueue;
     /* 0x09C3 */ u8 actionIndex;
-    /* 0x09C4 */ u8 unk9C4[0xC24];
+    /* 0x09C4 */ u8 unk9C4[0x8];
+    // The actor's state record, the block the pState pointer at 0x15CC points at:
+    // misc4's BattleActorInitModelState sets pState to this address, misc2 writes the
+    // record's position and flags through it (its BattleActorState).
+    /* 0x09CC */ u8 unk9CC[0xC00];
+    /* 0x15CC */ void* pState;
+    /* 0x15D0 */ u8 unk15D0[0x18];
     /* 0x15E8 */ s16 unk15E8;
     /* 0x15EA */ s16 unk15EA;
-    /* 0x15EC */ u8 unk15EC[0x4];
+    // Read as two 16-bit words by misc2's BattleComputeScaledFieldDelta.
+    /* 0x15EC */ s16 unk15EC;
+    /* 0x15EE */ s16 unk15EE;
     // The actor's step scale, copied from its script's byte at +0xF: it multiplies
     // the distance into stepDistance.
     /* 0x15F0 */ s16 stepScale;
