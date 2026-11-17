@@ -395,7 +395,7 @@ void func_80094EE4(void) {
         blocked = *(u16 *)((u8 *)D_800C3E34 + 0x34) & 0x8000;
     }
     if (blocked != 0) {
-        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0;
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
         return;
     }
     command = func_80096AB8();
@@ -485,25 +485,25 @@ void func_80094EE4(void) {
     switch (command) {
     case 1:
         if (amount > 0) {
-            g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0;
+            g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
         } else {
             amount = 1;
-            g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0;
+            g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
         }
         break;
     case 2:
         amount /= 2;
-        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 5;
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 5;
         break;
     case 3:
         amount = 0;
-        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 4;
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 4;
         break;
     case 4:
-        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
         break;
     case 5:
-        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 7;
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 7;
         break;
     }
     if (D_800D2DC4 != 0) {
@@ -543,7 +543,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & 0x80) {
         v = 0;
     }
-    g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
+    g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = v;
 }
 void BattleInitActiveSlotAction(void) {
