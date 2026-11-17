@@ -527,6 +527,19 @@ extern int rand(void);
 // fields is a struct/field job in the shared header, not a C shape.
 // permuter: base=531 best=426 (PERMUTER_BETTER, chained-assignment debris only).
 // screened: Default 98.25 (best) - not a preset question.
+// round 170 re-measured the park at 98.25% (1212 bytes, retail's size) and tried two
+// more shapes, both of which keep the 98.25% or lose the tail:
+//  - a `s32 result` local for the store (`(cur) = result;`) - byte-identical output;
+//  - the whole +0x98 block spelled with byte indices (`*(s16*)&g_Scene.unk98[0x0]`)
+//    as the neighbouring misc.c does - that makes gcc materialise &g_Scene.unk98 in a
+//    register for the guard too (`lh v0,0(v1)`), so it is worse; the array-cast form
+//    above is the one to keep.
+// What is left is one hoist in two places: gcc keeps the address of a global that is
+// otherwise only addressed as %lo(sym+N) in a register and reuses it for the store
+// (g_CameraEye at offset 0, g_Scene+0x98 for the `= 0` store); that extra live address
+// then pushes the mult temporaries up one register. Splitting the two accesses of one
+// address across statements does not stop cse, and writing them as struct fields is a
+// header job (unk98 is opaque on purpose: misc.c and misc2 index it by byte).
 /*
 void func_80072D74(void) {
     s32 atStepSq;
