@@ -1063,21 +1063,13 @@ void func_8007520C(void) {
 
 extern u_char g_FieldDisableActorRender;
 extern s32 g_FieldActiveActorCount;
-extern const char D_8006FB28[];
+// .rodata: this stub owns D_8006FB28, the HDD frame profiler tag (see func_8007520C).
+const char D_8006FB28[0xC] = "CHAR      ";
 
-// PARK REPAIR (round 163): 99.60% (400 bytes, the same as the original), re-measured
-// after `GfxSetBaseMatrix` was named in config/symbol_addrs.field.txt. The body compiles
-// and every instruction matches except one register pair in the actor loop: the original
-// keeps pActor in $a1 and pActor->pActorData in $a2, gcc 2.7.2 puts pActorData in $a1.
-// That is the entire diff - 7 lines, 6 of them the two register names swapping - so it
-// is a GIV_TIE, a permuter job and not a hand job.
-// The .rodata is NOT a blocker (that claim in the previous note was wrong): gcc 2.7.2
-// emits a C definition at its own place in the source, so a
-// `const char D_8006FB28[0xC] = "CHAR      ";` written here, between the
-// FieldRenderModels wrapper and this function, lands exactly where the original has it.
-// Proven by func_8007520C, which converted that way and passes check_bin.
-// screened: Default 99.60 (best), cdk 93.87, 2.6.0 99.60 - not a preset question.
-/*
+// The per-actor animation tick is wrapped in a `do { } while (0);` on purpose: it
+// makes cc1 schedule the call as its own block, which is what keeps pActor in $a1
+// and pActor->pActorData in $a2 as the original does. Written as a plain statement
+// the body ties at 99.60% on the same 400 bytes (GIV_TIE, $a1/$a2 swapped).
 void func_800752C8(void) {
     FieldActor* pActor;
     int i;
@@ -1111,7 +1103,9 @@ void func_800752C8(void) {
         } else if (!(pActor->pActorData->flags & 0x1000000)) {
             continue;
         }
-        AnimScriptTick((SpriteData*)pActor->pSpriteData);
+        do {
+            AnimScriptTick((SpriteData*)pActor->pSpriteData);
+        } while (0);
     }
 
     func_800764B4(g_FieldCurRenderContext->ot1, g_FieldCurRenderContextIndex);
@@ -1120,8 +1114,7 @@ void func_800752C8(void) {
         func_80281B00(D_8006FB28);
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800752C8);
+
 
 void FieldAddPrimitives(u_long* ot, u_long* pPrimList, int size) {
     AddPrims(ot, pPrimList + size, pPrimList);
