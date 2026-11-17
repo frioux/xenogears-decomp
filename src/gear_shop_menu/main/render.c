@@ -467,12 +467,12 @@ void GearShopMenuBuildGearStatsGraphics(void) {
 void GearShopMenuLoadGearModelFiles(u_char gearId, u8 arg1) {
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
 
-    g_Menu->unk458[arg1]->unk0 = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId]), 0);
-    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId], g_Menu->unk458[arg1]->unk0, 0, 0x80);
+    g_Menu->pGearModelArchiveData[arg1]->unk0 = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId]), 0);
+    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId], g_Menu->pGearModelArchiveData[arg1]->unk0, 0, 0x80);
     ArchiveCdDataSync(0);
 
-    g_Menu->unk458[arg1]->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId] + 1), 0);
-    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId] + 1, g_Menu->unk458[arg1]->unk4, 0, 0x80);
+    g_Menu->pGearModelArchiveData[arg1]->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId] + 1), 0);
+    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId] + 1, g_Menu->pGearModelArchiveData[arg1]->unk4, 0, 0x80);
     ArchiveCdDataSync(0);
 
     ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0);
@@ -486,13 +486,13 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
     func_801E742C(
         modelIndex,
         0,
-        g_Menu->unk458[modelIndex]->unk0,
-        g_Menu->unk458[modelIndex]->unk4,
+        g_Menu->pGearModelArchiveData[modelIndex]->unk0,
+        g_Menu->pGearModelArchiveData[modelIndex]->unk4,
         (modelIndex * 64) + 0x200,
         0,
         0,
         (s3 & 0xFF) + 0x1C0,
-        &g_Menu->unk458[modelIndex]->position
+        &g_Menu->pGearModelArchiveData[modelIndex]->position
     );
 
     g_LibGearModels[modelIndex]->ground = g_GearShopGearModelGround[gearId];
@@ -505,8 +505,8 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
         characterId = g_GearShopGearAnimationIds[gearId];
     }
     LibGearSetModelAnimation((s3 & 0xFF), 0, characterId );
-    HeapFree(g_Menu->unk458[modelIndex]->unk4);
-    g_Menu->unk458[modelIndex]->isModelCreated = 1;
+    HeapFree(g_Menu->pGearModelArchiveData[modelIndex]->unk4);
+    g_Menu->pGearModelArchiveData[modelIndex]->isModelCreated = 1;
     GearShopMenuBuildGearStatsGraphics();
     g_Menu->pManager->isPanelActive[3] = 1;
 }
@@ -659,7 +659,7 @@ void GearShopMenuChangeCurrentGear(u_char mode) {
         }
 
         GearShopMenuUpdateAndRender();
-        g_Menu->unk458[1]->isModelCreated = 0;
+        g_Menu->pGearModelArchiveData[1]->isModelCreated = 0;
         LibGearFreeModel(1);
         GearShopMenuUpdateAndRender();
         GearShopMenuLoadGearModelFiles(g_GameState.characters[characterIndex].gearId, 1);
@@ -2517,11 +2517,11 @@ void GearShopMenuInitializeGearView(void) {
     g_Menu->gfxEnvs[0].otBuffer = g_MenuGfxEnvOtBuffer0[0];
     g_Menu->gfxEnvs[1].otBuffer = g_MenuGfxEnvOtBuffer0[1];
 
-    g_Menu->unk458[0] = HeapAlloc(sizeof(SystemMenuArchiveData), 0);
-    bzero(g_Menu->unk458[0], sizeof(SystemMenuArchiveData));
+    g_Menu->pGearModelArchiveData[0] = HeapAlloc(sizeof(SystemMenuArchiveData), 0);
+    bzero(g_Menu->pGearModelArchiveData[0], sizeof(SystemMenuArchiveData));
 
-    g_Menu->unk458[1] = HeapAlloc(sizeof(SystemMenuArchiveData), 0);
-    bzero(g_Menu->unk458[1], sizeof(SystemMenuArchiveData));
+    g_Menu->pGearModelArchiveData[1] = HeapAlloc(sizeof(SystemMenuArchiveData), 0);
+    bzero(g_Menu->pGearModelArchiveData[1], sizeof(SystemMenuArchiveData));
 
     while(g_Menu->availableCharacters[firstAvailable] == 0) {
         firstAvailable++;
@@ -2542,10 +2542,10 @@ void GearShopMenuFreeGearView(void) {
     g_Menu->pManager->isPanelActive[0] = 0;
     GearShopMenuUpdateAndRender();
     LibGearShutdown();
-    g_Menu->unk458[0]->isModelCreated = 0;
-    g_Menu->unk458[1]->isModelCreated = 0;
-    HeapFree(g_Menu->unk458[0]);
-    HeapFree(g_Menu->unk458[1]);
+    g_Menu->pGearModelArchiveData[0]->isModelCreated = 0;
+    g_Menu->pGearModelArchiveData[1]->isModelCreated = 0;
+    HeapFree(g_Menu->pGearModelArchiveData[0]);
+    HeapFree(g_Menu->pGearModelArchiveData[1]);
 }
 
 void GearShopMenuFillDressingRoomStats(MenuDressingRoom* pView, u_char gearId) {

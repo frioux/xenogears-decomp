@@ -446,7 +446,7 @@ void MenuCreateUnk430Panel(u_char arg0) {
         index = 1;
         break;
     }
-    MenuLoadStringsFromIds(8, g_Menu->unk10E0, g_MenuItemRowStringIds[index], g_Menu->pManager->shouldRenderStrings10E0);
+    MenuLoadStringsFromIds(8, g_Menu->itemRowStrings, g_MenuItemRowStringIds[index], g_Menu->pManager->shouldRenderStrings10E0);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
     func_801D3488(2, arg0);
@@ -674,7 +674,7 @@ void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     g_Menu->pCharacterSpriteRecords = HeapAlloc(0xA1C, 0);
     bzero(g_Menu->pCharacterSpriteRecords, 0xA1C);
     pManager = g_Menu->pManager;
-    MenuLoadStringsFromIds(6, g_Menu->unk14E0, g_MenuCharacterRowStringIds[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
+    MenuLoadStringsFromIds(6, g_Menu->characterRowStrings, g_MenuCharacterRowStringIds[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
@@ -723,7 +723,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     }
 
     for (i = start; i < count; i++) {
-        MenuSetRowQuadVertices(6, g_Menu->unk14E0, g_MenuCharacterRowStringIds[arg1 & 0xFF], g_MenuPanelRowXOffsets,
+        MenuSetRowQuadVertices(6, g_Menu->characterRowStrings, g_MenuCharacterRowStringIds[arg1 & 0xFF], g_MenuPanelRowXOffsets,
                       g_Menu->pManager->shouldRenderStrings14E0, (u8)i, (u8)i, 3);
     }
 

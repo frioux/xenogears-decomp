@@ -160,7 +160,7 @@ void MenuAddUnk10E0Prims(void) {
         if (g_Menu->pManager->shouldRenderStrings10E0[i]) {
             offset = i * sizeof(MenuString) + 0x10E0;
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50), (POLY_FT4*)(offset + (u32)g_Menu),
-                          g_Menu->unk10E0[i].renderContext);
+                          g_Menu->itemRowStrings[i].renderContext);
         }
     }
 }
@@ -173,7 +173,7 @@ void MenuAddUnk14E0Prims(void) {
         if (g_Menu->pManager->shouldRenderStrings14E0[i]) {
             offset = i * sizeof(MenuString) + 0x14E0;
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu + 0x50), (POLY_FT4*)(offset + (u32)g_Menu),
-                          g_Menu->unk14E0[i].renderContext);
+                          g_Menu->characterRowStrings[i].renderContext);
         }
     }
 }

@@ -814,7 +814,7 @@ typedef struct {
     /* 0x44C  */ u8 unk44C[0x4];
     /* 0x450  */ MenuShop* pShop;
     /* 0x454  */ MenuUnk8* menuUnk8;
-    /* 0x458  */ SystemMenuArchiveData *unk458[2];
+    /* 0x458  */ SystemMenuArchiveData *pGearModelArchiveData[2]; // Per gear-model slot: its two archive files, load position and isModelCreated
     /* 0x460  */ u8 unk460[0x8];
     /* 0x468  */ u8 unk468;
     /* 0x469  */ u8 unk469;
@@ -860,8 +860,8 @@ typedef struct {
     /* 0xAE0  */ MenuString subMenuChoiceStrings[6];
     /* 0xDE0  */ MenuString unkDE0[6];
     // Three arrays of MenuString-shaped sprite records (0x80 each)
-    /* 0x10E0 */ MenuString unk10E0[8];
-    /* 0x14E0 */ MenuString unk14E0[6];
+    /* 0x10E0 */ MenuString itemRowStrings[8]; // One string per inventory/item-list row, see g_MenuItemRowStringIds
+    /* 0x14E0 */ MenuString characterRowStrings[6]; // One string per character panel row, see g_MenuCharacterRowStringIds
     /* 0x17E0 */ MenuString unk17E0[2];
     /* 0x18E0 */ MenuString unk18E0[6];
     /* 0x1BE0 */ MenuString unk1BE0[4];

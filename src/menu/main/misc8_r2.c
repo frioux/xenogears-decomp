@@ -95,7 +95,7 @@ void MenuInitializeUnk42CPanel(void) {
     MenuUnk9* pMenu;
 
     MenuSetupPointerCursors(2);
-    MenuLoadStringsFromIds(8, g_Menu->unk10E0, g_MenuItemRowStringIds, g_Menu->pManager->shouldRenderStrings10E0);
+    MenuLoadStringsFromIds(8, g_Menu->itemRowStrings, g_MenuItemRowStringIds, g_Menu->pManager->shouldRenderStrings10E0);
     pMenu = HeapAlloc(0x1198, 0);
     g_Menu->pItemRows = pMenu;
     bzero(pMenu, 0x1198);
@@ -332,7 +332,7 @@ void func_801DB39C(u_char arg0) {
     pPoly = &((MenuString*)g_Menu->pItemRows)[0x22].polys[((MenuString*)g_Menu->pItemRows)[0x22].renderContext];
     MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 8; i++) {
-        pPoly = &g_Menu->unk10E0[i].polys[g_Menu->unk10E0[i].renderContext];
+        pPoly = &g_Menu->itemRowStrings[i].polys[g_Menu->itemRowStrings[i].renderContext];
         MenuSetPrimShadingMode(pPoly, arg0);
     }
 }
