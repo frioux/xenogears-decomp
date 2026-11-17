@@ -178,6 +178,13 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // `sll a1,a0,0x7`; retail's `sll a0,a0,0x7` needs gcc to hand the sum pseudo the
 // dying argument register, which no source spelling reached.
 // Preset screen: cdk 87.51, gcc-2.6.0 87.15.
+// Permuter (round 181): two BETTER candidates, both FALSE gains under objdiff.
+// 295 -> 220 (pos.z store moved up to second, plus an 0x80 temp for unk58)
+// measures 83.64%; a rerun 295 -> 275 (hoisting the model pointer load above
+// unk54 into a temp) measures 89.10%, because it makes gcc fold the lhu onto
+// that register and drop retail's separate `lw v0,64(s0)`. Slot store order is
+// source-insensitive here: z second, z third and an 0x80 local all reproduce
+// 92.64% byte for byte.
 /*
 s32 func_80080A28(s32 index) {
     u8 *p = g_WorldMapGroups;
