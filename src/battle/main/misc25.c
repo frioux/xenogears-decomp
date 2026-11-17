@@ -138,20 +138,20 @@ s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
         if ((sel & 0xFF) == 0xFF) {
             kind = BattleGetActorActionConditionMask(pActor->unk20[0]);
             if ((kind & 4) && (pActor->flags4A & 0x100)) {
-                pActor->unk2A[0] = 0x1B;
+                pActor->commands[0] = 0x1B;
             } else if ((kind & 2) && (pActor->flags4A & 0x80)) {
                 if (!(D_800CCD1E[pActor->unk20[0]].flags & 1)) {
-                    pActor->unk2A[0] = 6;
+                    pActor->commands[0] = 6;
                 }
             } else if (!(pActor->flags4A & 0x400)) {
-                pActor->unk2A[0] = 1;
+                pActor->commands[0] = 1;
             }
             if (kind & 1) {
-                pActor->unk2A[0] |= 0x80;
+                pActor->commands[0] |= 0x80;
             }
         }
-        sel = pActor->unk2A[0] & 0x7F;
-        *pOut = pActor->unk2A[0] & 0x80;
+        sel = pActor->commands[0] & 0x7F;
+        *pOut = pActor->commands[0] & 0x80;
     }
     if ((sel & 0xFF) < 0x40) {
         return ((s32 *)(u32)pActor->unk14)[(sel & 0xFF) + 1];
@@ -727,7 +727,7 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
         for (i = 0; i < 3; i++) {
             if (i != arg0) {
                 pActor = g_BattleActors[i];
-                if (pActor != NULL && (pActor->unk34 != 0 || pActor->unk38 != 0)) {
+                if (pActor != NULL && (pActor->doUpdate != 0 || pActor->unk38 != 0)) {
                     flag = 1;
                 }
             }

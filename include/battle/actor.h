@@ -31,7 +31,7 @@ typedef struct {
     /* 0x04 */ u8 doTransform;
     /* 0x05 */ u8 doRotate;
     /* 0x06 */ u8 rotDirection;
-    /* 0x07 */ u8 unk7;
+    /* 0x07 */ u8 isVisible; // the draw loop skips a part with this clear; the root and a freed part are 0
     /* 0x08 */ u16 jointIndex;
     /* 0x0A */ u16 count; // number of elements in the array, this one included
     /* 0x0C */ MATRIX localTransform;
@@ -100,10 +100,11 @@ typedef struct {
     /* 0x024 */ s16 height;
     /* 0x026 */ s16 width;
     /* 0x028 */ s16 depth;
-    /* 0x02A */ u8 unk2A[0x1];
+    /* 0x02A */ u8 commands[0x1]; // the command being run: low 7 bits index the action entry tables
     /* 0x02B */ u8 commandCount;
-    /* 0x02C */ u8 unk2C[0x8];
-    /* 0x034 */ u8 unk34;
+    /* 0x02C */ u8 unk2C[0x2];
+    /* 0x02E */ u8 commandArgs[0x6]; // the argument queued alongside commands[n]
+    /* 0x034 */ u8 doUpdate; // gates the per-frame animation update; inherited from the parent actor
     /* 0x035 */ u8 unk35;
     /* 0x036 */ u8 unk36;
     /* 0x037 */ u8 unk37;
@@ -166,7 +167,8 @@ typedef struct {
 // misc20 are named.
 typedef struct {
     /* 0x00 */ u8 unk00[0x4];
-    /* 0x04 */ u8 unk04[0xC];
+    /* 0x04 */ u8 extraWeaponIds[4]; // the gearWeapons record equipped in each weapon slot, as in GearState
+    /* 0x08 */ u8 unk08[0x8];
     /* 0x10 */ GearWeaponData weaponData[3]; // sel == 3 lands in unk28, as in retail
     /* 0x28 */ u8 unk28[0x12];
     /* 0x3A */ u16 unk3A;
@@ -189,7 +191,7 @@ typedef struct {
     /* 0xA4 */ u8 unkA4;
     /* 0xA5 */ u8 unkA5;
     /* 0xA6 */ u8 unkA6[0x10];
-    /* 0xB6 */ u8 unkB6;
+    /* 0xB6 */ u8 flags; // bit 0x80 selects the gear-side status words (unk80) over the actor's (unk88)
     /* 0xB7 */ u8 unkB7[0x15];
 } BattleSlotState; // Size: 0xCC
 
@@ -206,7 +208,7 @@ typedef struct {
     /* 0x03A */ u8 unk3A[0x12];
     /* 0x04C */ u16 hp;
     /* 0x04E */ u16 maxHp; // both scaled by 50 into state.hp / state.maxHp
-    /* 0x050 */ u16 unk50; // scaled by 10 into unk5F6C
+    /* 0x050 */ u16 unk50; // scaled by 10 into slotAmounts
     /* 0x052 */ u16 unk52;
     /* 0x054 */ u16 unk54;
     /* 0x056 */ u8 characterId; // indexes the per-character g_GameState table
@@ -284,10 +286,10 @@ typedef struct {
 // functions read are named.
 typedef struct {
     /* 0x0 */ u8 unk0[0xC];
-    /* 0xC */ u8 unkC;
+    /* 0xC */ u8 partId; // written to g_GameState.gearPartsIds for this weapon
     /* 0xD */ u8 unkD;
     /* 0xE */ u8 attack; // BattleApplyGearWeaponRecord copies it over the equipped weapon's attack
-    /* 0xF */ u8 unkF; // weapon id
+    /* 0xF */ u8 weaponId; // matched against the equipped GearWeaponData's weapon id
     /* 0x10 */ u8 unk10;
     /* 0x11 */ u8 unk11;
     /* 0x12 */ u8 unk12[0x2];
@@ -303,11 +305,11 @@ typedef struct {
     /* 0x5750 */ BattleGearWeaponRecord gearWeapons[50];
     /* 0x5B38 */ BattleGearWeaponRecord gearWeaponIds[50];
     /* 0x5F20 */ u8 unk5F20[0x4C];
-    /* 0x5F6C */ s32 unk5F6C[12];
+    /* 0x5F6C */ s32 slotAmounts[12]; // the amount the current action deals to each slot; its state code is unk5FA0
     /* 0x5F9C */ u8 unk5F9C[4];
     /* 0x5FA0 */ u8 unk5FA0[12];
-    /* 0x5FAC */ u16 unk5FAC;
-    /* 0x5FAE */ u16 unk5FAE;
+    /* 0x5FAC */ u16 activeSlotMask; // the slots the current row runs for; BattleFilterSlotMaskByGroup narrows it
+    /* 0x5FAE */ u16 slotMask; // the same mask before that filter
     /* 0x5FB0 */ u16 unk5FB0;
     /* 0x5FB2 */ u8 unk5FB2[0xA];
     /* 0x5FBC */ u8 unk5FBC;

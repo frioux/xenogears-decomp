@@ -130,7 +130,7 @@ void BattleSetActorPrimaryCommand(s32 arg0, u8 arg1) {
 
     p = g_BattleActors[arg0];
     if (p != 0) {
-        p->unk2A[0] = arg1;
+        p->commands[0] = arg1;
     }
 }
 void BattleSetBattleStateBit(u32 arg0) {
@@ -139,8 +139,8 @@ void BattleSetBattleStateBit(u32 arg0) {
 void BattleSwapActorSlots(s32 arg0, s32 arg1) {
     BattleActor *tmp;
 
-    g_BattleActors[arg0]->unk34 = 0;
-    g_BattleActors[arg1]->unk34 = 1;
+    g_BattleActors[arg0]->doUpdate = 0;
+    g_BattleActors[arg1]->doUpdate = 1;
     tmp = g_BattleActors[arg0];
     g_BattleActors[arg0] = g_BattleActors[arg1];
     g_BattleActors[arg1] = tmp;
@@ -241,8 +241,8 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                 if (pActor->commandCount < 5) {
                     pActor->commandCount = pActor->commandCount + 1;
                 }
-                pActor->unk2A[pActor->commandCount] = pSource->unk20[0];
-                pActor->unk2C[pActor->commandCount + 2] = arg3;
+                pActor->commands[pActor->commandCount] = pSource->unk20[0];
+                pActor->commandArgs[pActor->commandCount] = arg3;
             } else {
                 if (arg3 < 0x50) {
                     pActor->unk10 = ((s32 *)pSource->unk8)[arg3];
@@ -269,7 +269,7 @@ s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, 
 
     if (pActor->pMesh != 0) {
         r = 0;
-        if (pActor->unk34 != 0) {
+        if (pActor->doUpdate != 0) {
             BattleSnapActorToGround(pActor);
             if (pActor->unk37 != 0) {
                 func_8009F1C4(pActor->pSprites, pActor->scale);
@@ -294,9 +294,9 @@ void BattleSpriteUpdateWorldPosition(BattleActor *pActor) {
     pMatrix = (MATRIX *)PSX_SCRATCH;
     if (g_BattleActors[pActor->parentActorSlot] != NULL) {
         if (!(pActor->flags4A & 0x10)) {
-            pActor->unk34 = g_BattleActors[pActor->parentActorSlot]->unk34;
+            pActor->doUpdate = g_BattleActors[pActor->parentActorSlot]->doUpdate;
         }
-        if (pActor->unk34 != 0) {
+        if (pActor->doUpdate != 0) {
             if (pActor->isAttached != 0) {
                 index = pActor->parentJointIndex;
                 if (index != 0) {
@@ -473,8 +473,8 @@ void BattleFreeActorEntryAndChildren(void *pPool, s32 index, BattleSprite *pSpri
     p = (BattleSprite *)(index * sizeof(BattleSprite) + (s32)pSprites);
     q = (BattleSprite *)(index * sizeof(BattleSprite) + (s32)pOther);
     n = pSprites->count;
-    p->unk7 = 0;
-    q->unk7 = 1;
+    p->isVisible = 0;
+    q->isVisible = 1;
     BattleFreeBlock(pPool, p->p70);
     do {
         p->p70 = NULL;

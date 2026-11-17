@@ -369,11 +369,11 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (f & 0x200) {
         v = 13 * v / 10;
     }
-    if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.unkB6 & 0x80) {
+    if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & 0x80) {
         v = 0;
     }
     g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
-    g_BattleCurWorkBlock->unk5F6C[g_BattleCurSlotIndex] = v;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = v;
 }
 void BattleInitActiveSlotAction(void) {
     s32 t;

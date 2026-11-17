@@ -65,7 +65,7 @@ void BattleExecuteActionRow(void) {
     mask = 1;
     g_BattleCurSlotIndex = 0;
     do {
-        if (g_BattleCurWorkBlock->unk5FAC & mask) {
+        if (g_BattleCurWorkBlock->activeSlotMask & mask) {
             pSlot = &g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex];
             D_800C3E34 = pSlot;
             D_800D2DC8 = &pSlot->state;
@@ -114,10 +114,10 @@ void BattleSaveScriptCommandOperands(void) {
 }
 void BattleAdvanceActionRow(void) {
     if (g_BattleCurWorkBlock->rowIndex >= 0xC && g_BattleCurWorkBlock->rowIndex < 0xF &&
-        !(g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.unkB6 & 0x80)) {
+        !(g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80)) {
         g_BattleCurrentRow += 3;
     } else if (g_BattleCurWorkBlock->rowIndex < 3 &&
-               !(g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.unkB6 & 0x80)) {
+               !(g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80)) {
         g_BattleCurrentRow += 15;
     }
 }
@@ -220,7 +220,7 @@ s32 func_8009D3A0(void) {
     if (g_BattleCurrentRow->actionFlags & 0x1000) {
         return 3;
     }
-    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.unkB6 & 0x80) {
+    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
         if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x400) {
             hit += (s16)hit / 2;
         }
@@ -242,7 +242,7 @@ s32 func_8009D3A0(void) {
             hit += (s16)hit / 2;
         }
     }
-    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.unkB6 & 1) {
+    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 1) {
         if (rand() % 100 < 0x5F) {
             return 2;
         }
@@ -307,7 +307,7 @@ u16 BattleApplySlotPercentToValue(void) {
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
         }
-        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.unkB6 & 0x80) {
+        if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
             ret = ret + v;
         }
         if ((D_800D2DC8->unk80 | D_800D2DC8->unk82) & 0x20) {
@@ -353,20 +353,20 @@ void BattleSetSlotState2FromActorField4F(void) {
     u32 q = v / 10;
 
     g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
-    g_BattleCurWorkBlock->unk5F6C[g_BattleCurSlotIndex] = q;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
     u32 v = g_BattleCurrentRow->power * D_800D2DC8->maxHp;
     u32 q = v / 20;
 
     g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
-    g_BattleCurWorkBlock->unk5F6C[g_BattleCurSlotIndex] = q;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState2FromActorField5B(void) {
     s32 v = g_BattleActingSlot->unk5B * g_BattleCurrentRow->power;
 
     g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
-    g_BattleCurWorkBlock->unk5F6C[g_BattleCurSlotIndex] = v;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = v;
 }
 void BattleSetSlotFields148And10C(void) {
     D_800C3D60[0] = 4;
@@ -377,14 +377,14 @@ void BattleSetSlotState0AFromActorWord3ADiv20(void) {
     s32 q = v / 20;
 
     g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0xA;
-    g_BattleCurWorkBlock->unk5F6C[g_BattleCurSlotIndex] = q;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
     s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->power;
     s32 q = v / 20;
 
     g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0xB;
-    g_BattleCurWorkBlock->unk5F6C[g_BattleCurSlotIndex] = q;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleClearSlotConditionBits(void) {
     BattleSlotState *p = D_800D2DC8;
@@ -395,7 +395,7 @@ void BattleClearSlotConditionBits(void) {
 }
 s32 BattleGearHasWeaponId(u8 arg0) {
     BattleGearWeaponRecord *pRec = &g_BattleCurWorkBlock->gearWeaponIds[arg0];
-    u8 v = pRec->unkF;
+    u8 v = pRec->weaponId;
     u8 id = g_GameState.characters[4].gearId;
 
     if (g_GameState.gears[id].weaponData[0].unk5 == v ||
@@ -406,7 +406,7 @@ s32 BattleGearHasWeaponId(u8 arg0) {
 }
 void BattleApplyGearWeaponRecord(u8 arg0) {
     BattleGearWeaponRecord *p = &g_BattleCurWorkBlock->gearWeapons[arg0];
-    u8 v = p->unkF;
+    u8 v = p->weaponId;
     u8 id = g_GameState.characters[4].gearId;
     u8 sel;
     u8 i;
@@ -425,14 +425,14 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     g_GameState.gears[id].weaponData[sel].unk3 = p->unk10;
     g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
     g_GameState.gears[id].extraWeaponIds[sel] = arg0;
-    g_GameState.gearPartsIds[0x6C + arg0] = p->unkC;
+    g_GameState.gearPartsIds[0x6C + arg0] = p->partId;
     for (i = 0; i < 3; i++) {
         if ((g_BattleCurWorkBlock->slots + i)->characterId == 4) {
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].attack = p->attack;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk3 = p->unk10;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
-            g_BattleCurWorkBlock->slots[i].state.unk04[sel] = arg0;
+            g_BattleCurWorkBlock->slots[i].state.extraWeaponIds[sel] = arg0;
         }
     }
 }

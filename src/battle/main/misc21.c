@@ -112,7 +112,7 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
     pSprites[0].scale.vy = 0x1000;
     pSprites[0].scale.vz = 0x1000;
     pSprites[0].pParent = NULL;
-    pSprites[0].unk7 = 0;
+    pSprites[0].isVisible = 0;
     pSprites[0].jointIndex = 0xFFFF;
     pSprites[0].count = numSprites;
     pSprites[0].pModelPacketBuffer = NULL;
@@ -137,7 +137,7 @@ BattleSprite* BattleCreateModelSkeleton(BattleModelPartList* pMesh, BattleSkelet
         pSprite->count = i++;
         pSprite->doTransform = 1;
         pSprite->doRotate = 1;
-        pSprite->unk7 = 1;
+        pSprite->isVisible = 1;
         pSprite->scale.vx = 0x1000;
         pSprite->scale.vy = 0x1000;
         pSprite->scale.vz = 0x1000;

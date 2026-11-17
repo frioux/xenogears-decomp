@@ -282,9 +282,9 @@ void BattleSetSlotFlag15A1(u8 arg0) {
 
     g_BattleCurWorkBlock->rowIndex = 0;
     q = &g_BattleCurWorkBlock->slots[arg0];
-    q->state.unkB6 |= 1;
+    q->state.flags |= 1;
     p = &g_BattleCurWorkBlock->slots[arg0];
-    if ((p->state.unkB6 & 0x80) && (p->state.unk82 & 0x10)) {
+    if ((p->state.flags & 0x80) && (p->state.unk82 & 0x10)) {
         p->state.unk7C &= 0xFE4F;
         p->unk7C &= 0xEFFF;
     }
@@ -295,9 +295,9 @@ void BattleSetSlotFlag15A1(u8 arg0) {
 
 u8 BattleClearSlotFlag15A1(u8 arg0) {
     BattleTableEntry* p = &g_BattleCurWorkBlock->slots[arg0];
-    u8 flags = p->state.unkB6 & 0xFE;
+    u8 flags = p->state.flags & 0xFE;
 
-    p->state.unkB6 = flags;
+    p->state.flags = flags;
     return flags;
 }
 
@@ -306,7 +306,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     BattleTableEntry* r;
     u16 f;
 
-    if (p->state.unkB6 & 0x80) {
+    if (p->state.flags & 0x80) {
         f = p->state.unk80 & 0x2000;
     } else {
         f = p->unk88 & 0x400;
@@ -315,7 +315,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
         return;
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
-    if (r->state.unkB6 & 0x80) {
+    if (r->state.flags & 0x80) {
         s32 rowOffset = arg0 * 0x690 + 0x2228;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
@@ -353,7 +353,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         }
     }
     p = &g_BattleCurWorkBlock->slots[arg0];
-    if (p->state.unkB6 & 0x80) {
+    if (p->state.flags & 0x80) {
         f = p->state.unk80 & 0x2000;
     } else {
         f = p->unk88 & 0x400;
@@ -362,7 +362,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         return;
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
-    if (r->state.unkB6 & 0x80) {
+    if (r->state.flags & 0x80) {
         s32 rowOffset = arg0 * 0x690 + 0x2228;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
