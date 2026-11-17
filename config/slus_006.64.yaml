@@ -199,6 +199,8 @@ segments:
       - [0x3BF30, c, psyq/libapi_3]
       - [0x3BF40, c, psyq/libetc/intr]
       - [0x3C650, c, psyq/libapi_2]
+      - [0x3C6C8, asm] # func_8004BEC0's tail pad words (2 words)
+      - [0x3C6D0, c, psyq/libapi_2_b]
       - [0x3C720, c, psyq/libetc/intr_vsync]
       - [0x3C848, c, psyq/libetc/intr_dma]
       - [0x3CAF0, c, psyq/libetc/video_mode]
