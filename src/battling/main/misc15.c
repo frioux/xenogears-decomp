@@ -165,7 +165,7 @@ extern void BattleAppendListEntry(s32 handle, void* pNode);
 extern void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData);
 extern s32 rand(void);
 extern u8 g_BattleDrawBufferIndex;
-extern s32 g_BattleCurrentOrderingTable;
+extern u_long* g_BattleCurrentOrderingTable;
 extern void* g_pCurModelPacket;
 extern void* g_pCurModelVertices;
 extern void* D_80059568;
@@ -264,8 +264,10 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     s32 n;
     s32 sumA;
     s32 sumB;
-    u8* pMem;
+    VertexIndexSet* pMem;
     u8* pBuf;
+    POLY_F4* pQuad;
+    POLY_F3* pTri;
     PacketNode* pNode;
 
     pBlock->count = pData->count;
@@ -274,12 +276,12 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     pBlock->pData = pData;
     g_BattlePacketNodeCursor = pData->pNodes;
     HeapSetCurrentContentType(0x13);
-    pMem = HeapAlloc(pBlock->count * 8, 2);
+    pMem = HeapAlloc(pBlock->count * sizeof(VertexIndexSet), 2);
     i = pBlock->count;
     pBlock->pMem = pMem;
     while (--i != -1) {
-        *(u16*)(pMem + 2) = 0;
-        pMem += 8;
+        pMem->unk2 = 0;
+        pMem++;
     }
     HeapSetCurrentContentType(5);
     sumA = 0;
@@ -287,14 +289,14 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     i = pData->nodeCount;
     while (--i != -1) {
         pNode = g_BattlePacketNodeCursor;
-        g_BattlePacketNodeCursor = (u8*)pNode + sizeof(PacketNode);
+        g_BattlePacketNodeCursor = pNode->verts;
         if (pNode->flags & 8)
             sumB += pNode->count;
         else
             sumA += pNode->count;
-        g_BattlePacketNodeCursor = (u8*)g_BattlePacketNodeCursor + (pNode->count << 3);
+        g_BattlePacketNodeCursor = (VertexIndexSet*)g_BattlePacketNodeCursor + pNode->count;
     }
-    i = sumA * 0x14 + sumB * 0x18;
+    i = sumA * sizeof(POLY_F3) + sumB * sizeof(POLY_F4);
     pBuf = HeapAlloc(i * 2, 2);
     pBlock->pDelayedMem = pBuf;
     pBlock->pDelayedMemEnd = pBuf + i;
@@ -302,23 +304,25 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     g_BattlePacketNodeCursor = pData->pNodes;
     while (--j != -1) {
         pNode = g_BattlePacketNodeCursor;
-        g_BattlePacketNodeCursor = (u8*)pNode + sizeof(PacketNode);
+        g_BattlePacketNodeCursor = pNode->verts;
         if (pNode->flags & 8) {
             n = pNode->count;
             while (--n != -1) {
+                pQuad = (POLY_F4*)pBuf;
                 pBuf[3] = 5;
-                *(u32*)(pBuf + 4) = 0x28403030;
-                pBuf += 0x18;
+                *(u32*)&pQuad->r0 = 0x28403030;
+                pBuf += sizeof(POLY_F4);
             }
         } else {
             n = pNode->count;
             while (--n != -1) {
+                pTri = (POLY_F3*)pBuf;
                 pBuf[3] = 4;
-                *(u32*)(pBuf + 4) = 0x20403030;
-                pBuf += 0x14;
+                *(u32*)&pTri->r0 = 0x20403030;
+                pBuf += sizeof(POLY_F3);
             }
         }
-        g_BattlePacketNodeCursor = (u8*)g_BattlePacketNodeCursor + (pNode->count << 3);
+        g_BattlePacketNodeCursor = (VertexIndexSet*)g_BattlePacketNodeCursor + pNode->count;
     }
     func_800732AC(pBlock->pDelayedMemEnd, pBlock->pDelayedMem, i);
 }
@@ -397,7 +401,7 @@ void BattleQueueNodePrims(ObjectNode* pNode) {
         if ((*pPart->pFlags & 1) == 0) {
             pRender = pModel->pRender;
             func_8008BD70(pRender->pData, pRender->pPackets[g_BattleDrawBufferIndex],
-                          (u8*)g_BattleCurrentOrderingTable + 4, pRender->pVerts);
+                          g_BattleCurrentOrderingTable + 1, pRender->pVerts);
         }
     }
     if (pNode->pChild94 != NULL)
