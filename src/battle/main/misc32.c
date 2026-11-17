@@ -180,7 +180,6 @@ extern void func_800BD1FC(s32 slot);
 // base split over two statements, the `kind` local vs. the direct argument, both
 // store orders, and direct (u8 *) pointer arithmetic. Shapes that do force a real
 // argument copy need a second saved register (frame 0x28 instead of 0x20).
-/*
 // The battle work block as the command-row code sees it: this unit only reaches one
 // row's four 11-entry per-slot arrays.
 typedef struct {
@@ -195,15 +194,31 @@ typedef struct {
     u8 pad17F[0x1];  // 0x17F
 } BattleCommandRowTable;  // Size: 0x180
 
+// Round 185: 92.59 -> 96.55% (232 bytes = retail's size). Three edits, all found by
+// the permuter, closed the missing instruction: (1) a `u8` local for the sprite
+// color mode loaded BEFORE the D_800C3D38 store (that is what keeps the parameter
+// live past the sprite load, so the sprite gets $t0 and the jal gets its own
+// `move a0,t0` delay slot), (2) a `u16` local for the timer word, and (3) the final
+// row re-derivation split over two statements through a `u8 *`. The row base then
+// lands in $a2 and both array bases match retail exactly. Remaining: retail emits
+// `lhu` (timer) before `lbu` (mode) and gcc emits the mode load first, i.e. a
+// 2-instruction scheduler swap; everything else is byte-identical.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
+/*
 void func_800BD1FC(s32 slot) {
+    BattleCommandRowTable *new_var;
+    u8 *new_var3;
     u8 *pBase;
     BattleCommandRowTable *pRow;
+    u16 nextTimer;
+    u8 new_var2;
     void *pSprite;
     s32 kind;
 
     pBase = g_BattleStateWork;
     pRow = (BattleCommandRowTable *)(pBase + (g_BattleCommandRowIndex - 1) * 0x48);
-    if (pRow->unk150[slot] == 0xFF) {
+    new_var = pRow;
+    if (new_var->unk150[slot] == 0xFF) {
         return;
     }
     if (pRow->unk138[slot] == 0xFFFF) {
@@ -214,14 +229,17 @@ void func_800BD1FC(s32 slot) {
         return;
     }
     kind = pRow->unk150[slot];
-    D_800C3D38 = pRow->unk15C[slot];
-    g_BattleColorMode = pRow->unk174[slot];
+    nextTimer = pRow->unk15C[slot];
+    new_var2 = pRow->unk174[slot];
+    D_800C3D38 = nextTimer;
+    g_BattleColorMode = new_var2;
     BattleAttachEffectSprite(pSprite, pRow->unk138[slot], kind);
-    pRow = (BattleCommandRowTable *)(pBase + (g_BattleCommandRowIndex - 1) * 0x48);
+    new_var3 = pBase + (g_BattleCommandRowIndex - 1) * 0x48;
+    pRow = (BattleCommandRowTable *)new_var3;
     pRow->unk138[slot] = 0xFFFF;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
+
 
 void BattleUpdateCommandRows(void) {
     u8 *pSlot;
@@ -523,6 +541,12 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // from the 91.60 body: base=70 best=70, 1645 iterations, nothing. Retail's object
 // has the same instruction multiset as the 91.60 body; the only differences are
 // $a0 vs $s0 on the sw/sb and the position of the move, i.e. a local-alloc choice.
+// Round 185 re-measured: 91.60% / 100 bytes with the nextTimer local (91.40% without
+// it), so the diagnosis below stands. Dropping the local moves retail's `move a0,s0`
+// one slot later but does not change $a0-vs-$s0 on the three store bases: retail's
+// timer/flags base is the call-saved copy $s0 while gcc merges the call's argument
+// pseudo into it and stores through $a0. The instruction ORDER is already retail's.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 /*
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
@@ -535,10 +559,6 @@ void func_800BDC14(Misc32Task *pTask) {
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
 }*/
-// Round 165: re-measured at 91.60% / 100 bytes (retail's size, same instruction
-// multiset), body compiles cleanly against today's externs, so the diagnosis above
-// stands: this is the local-alloc tie it says it is.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 
 extern void func_800BDC14(Misc32Task *pTask);
 
