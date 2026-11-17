@@ -9,6 +9,8 @@ extern char D_8006FCC8[];
 extern s32 D_8009284C;
 extern u8 D_80091178[];
 extern u8 D_80091179[];
+extern s32 D_80092654;
+extern s32 D_80092658;
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -204,13 +206,77 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
+// The closest approach of the segment (x1,y1)-(x2,y2) to the circle at
+// (x3,y3) with radius r, in 12-bit fixed point: returns 1 when the segment
+// passes through the circle and stores that point in D_80092654/D_80092658.
+s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
+    VECTOR v;
+    VECTOR vSq;
+    s32 ex;
+    s32 ey;
+    s32 dist;
+    s32 nx;
+    s32 ny;
+    s32 along;
+    s32 cross;
+    s32 delta;
+    s32 hit;
+    s32 t;
+    s32 hx;
+    s32 hy;
 
-extern s32 D_80092654;
-extern s32 D_80092658;
+    v.vx = x2 - x1;
+    v.vy = y2 - y1;
+    v.vz = r;
+    ex = x3 - x1;
+    ey = y3 - y1;
+    Square0(&v, &vSq);
+    dist = SquareRoot0(vSq.vx + vSq.vy);
+    if (dist == 0) {
+        return 0;
+    }
+    nx = (v.vx << 12) / dist;
+    ny = (v.vy << 12) / dist;
+    along = ex * nx + ey * ny;
+    if (along < 0) {
+        along += 0xFFF;
+    }
+    along >>= 12;
+    cross = ey * nx - ex * ny;
+    if (cross < 0) {
+        cross += 0xFFF;
+    }
+    cross >>= 12;
+    delta = cross * cross - vSq.vz;
+    hit = delta < 0;
+    if (along < 0) {
+        hit = 0;
+    }
+    if (dist + r < along) {
+        hit = 0;
+    }
+    if (hit) {
+        if (delta < 0) {
+            delta = -delta;
+        }
+        t = along - SquareRoot0(delta);
+        hx = t * nx;
+        if (hx < 0) {
+            hx += 0xFFF;
+        }
+        D_80092654 = x1 + (hx >> 12);
+        hy = t * ny;
+        if (hy < 0) {
+            hy += 0xFFF;
+        }
+        D_80092658 = y1 + (hy >> 12);
+    }
+    return hit;
+}
+
+
 
 extern s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
-
 
 s32 func_80075A4C(BattleActor* p, s32 x, s32 z, s32 r) {
     s32 hit;
@@ -736,6 +802,34 @@ void BattleActorSetFlag80000(BattleActor* p) {
     p->flags |= 0x80000;
 }
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
+
+/* 97.90%: 430 of 430 instructions, same size (1720) and same .rodata (both jump
+   tables in case order). The whole instruction multiset matches; three residuals,
+   all of them allocation/layout, not structure:
+   - the `p->actionWaitTimer = 0xF` block of the reset path is placed after the case-1
+     guard here, and after the shared case-1/2 body (falling straight into
+     BattleResetMessageQueue, whose copy case 0 also uses) in the original. The
+     two cases' reset blocks are identical so cc1 cross-jumps them and keeps the
+     FIRST copy; retail kept the LAST one. Tried: case order 1,0,2 and 0,1,2
+     (92.52 both, 1760 bytes), case order 2,1 (97.74), `if (pEntry[0] != 0)
+     {body} else {reset}` and the body-first `if (...) {body; break;} reset`
+     (95.52 both - the cross-jump then does not happen at all), early-break
+     spelling of the case bodies (same 97.90).
+   - after BattleActorSelectActionEntry the original copies the result to $a1
+     immediately and tests p->state in $v0; gcc 2.7.2 keeps it in $v0 and copies
+     to $a1 in the bnez delay slot (so the flags load lands in $v1 and the
+     `ori 0x1000` in $a0).
+   - case 3 of the first switch: `flag = 1` gives `li $s2,1` two instructions
+     earlier than retail.
+   Structure worth keeping: the switch on BattleDequeueMessage takes 6 cases and
+   the first switch's cases must be LISTED 1, 2, 0, 3, 4, 5 (retail's body order);
+   the second switch on p->state is ascending 0-4, and its case 1 recomputes
+   p->unk52 with `/ 4096` (gcc's signed divide-by-power-of-2 sequence) while the
+   shared tail uses `>> 16`. BattleDequeueMessage must be declared s32: with a u8
+   return every caller gets an `andi v0,v0,0xff` retail does not have (verified:
+   the callee still matches 100.00% as s32).
+   Permuter: 1679 iterations from this body found nothing (base=462, best=462).
 extern s32 BattleEffectAddSlotFromVector(Vec4* pVec, s32 action);
 extern void func_8008ED6C(u8* p, s32 idx);
 extern void func_8008EBD0(u8* p, s32 idx, void* pData, s32 flags);
@@ -946,6 +1040,7 @@ void func_80077A9C(BattleActor* p) {
         p->flags &= ~0x8000;
     }
 }
+*/
 
 
 void BattleActorApplyCenterPosition(BattleActor* p) {
