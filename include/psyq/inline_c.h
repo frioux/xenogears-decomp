@@ -1559,6 +1559,12 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	: "r"( r0 )						\
 	: "memory" )
 
+/* LZCR read back into a general register: over the data bus (mfc2) $31 is the
+   leading-zero count, where cfc2 reads the FLAG register in the same slot. */
+#define gte_stlzc_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $31"					\
+	: "=r"( r0 ) )
+
 #define gte_stfc( r0 ) __asm__ volatile (			\
 	"cfc2	$12, $21;"					\
 	"cfc2	$13, $22;"					\

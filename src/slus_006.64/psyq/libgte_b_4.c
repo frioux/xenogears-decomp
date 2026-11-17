@@ -101,4 +101,12 @@ void OuterProduct0(VECTOR *v0, VECTOR *v1, VECTOR *v2) {
     gte_ldR11R22R33();
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b_4", Lzc);
+long Lzc(long data) {
+    long lzcr;
+
+    gte_ldlzc(data);
+    gte_nop();
+    gte_nop();
+    gte_stlzc_val(lzcr);
+    return lzcr;
+}
