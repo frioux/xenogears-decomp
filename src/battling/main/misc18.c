@@ -17,11 +17,14 @@ typedef union {
     /* 0x0 */ struct {
         /* 0x0 */ u32 random : 8;
         /* 0x0 */ u32 unk2C_8 : 1;
-        /* 0x0 */ u32 unk2C_9 : 1;
-        /* 0x0 */ u32 unk2C_10 : 1;
-        /* 0x0 */ u32 unk2C_11 : 1;
+        // The outcome of the rand() 0xFF roll func_8008F7B8 takes against each
+        // of the work's action chances.
+        /* 0x0 */ u32 actionChance0Roll : 1;
+        /* 0x0 */ u32 actionChance1Roll : 1;
+        /* 0x0 */ u32 actionChance2Roll : 1;
         /* 0x0 */ u32 unk2C_12 : 1;
-        /* 0x0 */ u32 unk2C_13 : 1;
+        // BattleDispatchWorkState copies this bit into the actor's flags bit 1.
+        /* 0x0 */ u32 setFlag2 : 1;
         /* 0x0 */ u32 pad2C : 18;
     } bits;
     /* 0x0 */ struct {
@@ -83,7 +86,8 @@ typedef struct {
 // touches are named; 0x1668 is the last one, so 0x166A is a lower bound on the
 // real size.
 typedef struct BattleActor {
-    /* 0x000 */ u8 unk0[0x48];
+    /* 0x000 */ Vec4 position;
+    /* 0x010 */ u8 unk10[0x38];
     /* 0x048 */ u32 distance;
     /* 0x04C */ u8 unk4C[0xC];
     /* 0x058 */ s32 unk58;
@@ -214,10 +218,10 @@ s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1) {
     }
     return ((rand() & 0xFF) < pWork->actionChance3);
 }void func_8008F7B8(BattleWork* pWork) {
-    pWork->flags.bits.unk2C_9 = (rand() & 0xFF) < pWork->actionChance0;
-    pWork->flags.bits.unk2C_10 = (rand() & 0xFF) < pWork->actionChance1;
+    pWork->flags.bits.actionChance0Roll = (rand() & 0xFF) < pWork->actionChance0;
+    pWork->flags.bits.actionChance1Roll = (rand() & 0xFF) < pWork->actionChance1;
     pWork->flags.bits.unk2C_12 = rand() & 1;
-    pWork->flags.bits.unk2C_11 = (rand() & 0xFF) < pWork->actionChance2;
+    pWork->flags.bits.actionChance2Roll = (rand() & 0xFF) < pWork->actionChance2;
     pWork->flags.bits.unk2C_8 = ((rand() & 0xFF) < pWork->actionChance0) && ((rand() % 10) < 3);
     pWork->flags.bits.random = rand();
     pWork->savedMoveCount = pWork->pOwner->moveCount;
@@ -286,11 +290,11 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
        if ((pActor->flags & 0x8000000) == 0) {
            return 0;
        }
-       if (BattleCheckPositionPastMapCenter((Vec4*)pActor) != 0) {
-           BattleSetFacingFromPosition((Vec4*)pActor, pWork);
+       if (BattleCheckPositionPastMapCenter(&pActor->position) != 0) {
+           BattleSetFacingFromPosition(&pActor->position, pWork);
            return 1;
        }
-       if (BattleCheckPositionPastMapCenter((Vec4*)pActor->pTarget) == 0) {
+       if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) == 0) {
            return 0;
        }
        v = pActor->pTarget->unk8F4;
