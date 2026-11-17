@@ -7,6 +7,7 @@
 #include "field/graphics.h"
 #include "field/particles.h"
 #include "system/archive.h"
+#include "system/controller.h"
 #include "main/game.h"
 
 // Zoom fade effect: five texture tiles, FIELD_ZOOM_FADE_TILE_WIDTH pixels
@@ -43,6 +44,19 @@
 
 // Archive entry the field sprite sheet TIM is read from
 #define FIELD_SPRITE_SHEET_ARCHIVE_INDEX 0xAA
+
+// Archive entry holding the field's screen TIM, loaded into VRAM when the
+// streamed sequence starts
+#define FIELD_SCREEN_TIM_ARCHIVE_INDEX 0xA9
+
+// Buffer StoreImage fills with the screen the streamed sequence is drawn over
+#define FIELD_SCREEN_IMAGE_BUFFER_SIZE 0x18000
+
+// Field modes the streamed sequence runs in: FIELD_MODE_PLAYBACK keeps the
+// stream frames coming, FIELD_MODE_STEP is the one that is stepped by hand
+#define FIELD_MODE_PLAIN 0
+#define FIELD_MODE_PLAYBACK 1
+#define FIELD_MODE_STEP 2
 
 //
 void FieldSetStructWords14To1C(int* pData, int a, int b, int c) {
@@ -838,7 +852,8 @@ u_int FieldImageConvert24BitColorTo15Bit(void) {
     return nLSB;
 }
 
-void FieldImageConvert24BitTo15Bit(void) {
+// nIndex is passed by every caller and ignored by the body, in the original too
+void FieldImageConvert24BitTo15Bit(int nIndex) {
     RECT rect;
     int i;
     int j;
@@ -957,17 +972,245 @@ s32 func_800A7948(void) {
     SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     g_FieldRenderContexts[1].dispEnv.isrgb24 = 1;
     g_FieldRenderContexts[0].dispEnv.isrgb24 = 1;
-    g_FieldRenderContexts[1].dispEnv.isinter = 0;
-    g_FieldRenderContexts[0].dispEnv.isinter = 0;
+    g_FieldRenderContexts[1].dispEnv.isrgb24 = 0;
+    g_FieldRenderContexts[0].dispEnv.isrgb24 = 0;
     FieldFreeTextRender();
 }
-
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A7C58);
 
 extern int ArchiveDecodeAlignedSize(int entryIndex);
 extern void ArchiveCdDataSync(int mode);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
+extern void func_8002A2D0(s32 sector);
 extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight);
+
+extern s32 g_FieldScriptCounter;
+extern s32 g_FieldStreamReadyFlag;
+extern s32 g_FieldSuppressStateChange;
+extern s32 g_FieldScreenEffectSuppressed;
+extern s32 g_FieldScriptFadeDuration;
+extern s32 g_FieldScriptFadeMode;
+extern s32 g_FieldActorModelSlotCount;
+extern u_short g_FieldButtonsPressedOnce;
+extern void* D_800ADB20;
+extern s32 D_800ADB30;
+extern s32 D_800ADB60;
+extern s32 D_800AFE84;
+extern void LibGearShutdown(void);
+extern void FieldRenderSyncAndFlush(void);
+extern void FieldParticlesFreeAll(void);
+extern void FieldInitTextRender(void);
+extern void FieldRenderFrame(void);
+extern void FieldPollControllers(void);
+extern void FieldStartScriptDataStream(void);
+extern void FieldFreeScriptDataStream(void);
+extern void FieldStopSedsPlayback(void);
+extern void SoundSetCdVolumeWithFade(s32 targetVolume, s32 fadeFrames);
+extern void func_801D43B0(void);
+extern void func_80077AB4(void);
+extern void func_80077884(void);
+extern void func_80085788(void);
+
+void func_800A7C58(void) {
+    RECT rect;
+    RenderContext* pRenderContext;
+    void* pImage;
+    void* pStreamData;
+    s16* pStreamInfo;
+    s32 nSize;
+    s32 nStreamSize;
+    s32 nSuppressStateChange;
+    int i;
+
+    g_FieldScriptCounter = 0;
+    g_FieldStreamFramePending = 0;
+    g_FieldFrameBufferIndex = 0;
+    pImage = HeapAlloc(ArchiveDecodeAlignedSize(FIELD_SCREEN_TIM_ARCHIVE_INDEX), 0);
+    ArchiveReadFileToBuffer(FIELD_SCREEN_TIM_ARCHIVE_INDEX, pImage, 0, 0x80);
+    g_FieldStreamFramePosition = 0;
+    g_FieldStreamTextSegmentActive = 0;
+    FieldWaitForArchiveAndFrameSync();
+    ArchiveSetIndex(0x18, 0);
+    func_8002A2D0(g_FieldStreamFileIndex);
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+    FieldWaitForArchiveAndFrameSync();
+
+    if (g_FieldActorModelSlotCount != 0) {
+        LibGearShutdown();
+        FieldRenderSyncAndFlush();
+        FieldRenderSync();
+        HeapFree(D_800ADB20);
+    }
+    FieldParticlesFreeAll();
+
+    if (g_FieldMode != FIELD_MODE_STEP) {
+        rect.x = SCREEN_WIDTH;
+        rect.y = 0;
+        rect.w = 0xC0;
+        rect.h = 0x100;
+        LoadImage(&rect, pImage);
+        DrawSync(0);
+        HeapFree(pImage);
+        pImage = HeapAlloc(FIELD_SCREEN_IMAGE_BUFFER_SIZE, 0);
+        StoreImage(&rect, pImage);
+    }
+
+    nSuppressStateChange = g_FieldSuppressStateChange;
+    nStreamSize = D_800ADB30;
+    if (nSuppressStateChange == 0) {
+        nSize = (nStreamSize & 0xFFFFFF) + 0xFFE2CFF8;
+        pStreamData = HeapAlloc(nSize, 1);
+        memcpy(pStreamData, pImage, ArchiveDecodeAlignedSize(FIELD_SCREEN_TIM_ARCHIVE_INDEX));
+    } else {
+        pStreamData = HeapAlloc(8, 1);
+    }
+
+    HeapFree(pImage);
+    func_80085788();
+    FieldInitTextRender();
+    g_FieldStreamFramePending = 1;
+    FieldRestoreFramebuffers();
+    FieldRenderSyncAndFlush();
+    HeapConsolidate();
+    FieldInitializeStreamPlayer();
+    FieldPlayStreamedSequence();
+    g_FieldStreamReadyFlag = 1;
+
+    do {
+        Vsync(0);
+        FieldStepStreamPlayback(3);
+    } while (g_FieldStreamFramePending != 0);
+
+    pStreamInfo = (s16*)&g_FieldStreamLoopPlayback;
+    while (1) {
+        switch (g_FieldMode) {
+            case FIELD_MODE_PLAYBACK:
+                FieldClearAndSwapOTagInternal();
+                FieldRenderFrame();
+                FieldStepStreamPlayback(6);
+                break;
+            case FIELD_MODE_PLAIN:
+                DrawSync(0);
+                Vsync(0);
+                PutDispEnv(&g_FieldCurRenderContext->dispEnv);
+                PutDrawEnv(g_FieldCurRenderContext);
+                FieldStepStreamPlayback(3);
+                DrawSync(0);
+                Vsync(0);
+                PutDispEnv(&g_FieldCurRenderContext->dispEnv);
+                PutDrawEnv(g_FieldCurRenderContext);
+                FieldStepStreamPlayback(3);
+                func_800A7948();
+                break;
+            case FIELD_MODE_STEP:
+                FieldUpdateFrame();
+                func_8007554C();
+                FieldStepStreamPlayback(9);
+                break;
+        }
+
+        if (g_FieldSystemMode == 0) {
+            if (g_FieldMode == FIELD_MODE_STEP) {
+                if (g_FieldButtonsPressedOnce & CTRL_BTN_SQUARE) {
+                    break;
+                }
+                if (g_FieldScriptCounter != 0) {
+                    break;
+                }
+            } else {
+                FieldPollControllers();
+                if (g_FieldButtonsPressedOnce & CTRL_BTN_CIRCLE) {
+                    break;
+                }
+            }
+        } else {
+            if (g_FieldStreamFlags & 0x80) {
+                FieldPollControllers();
+                if (g_FieldButtonsPressedOnce & CTRL_BTN_CIRCLE) {
+                    SoundSetCdVolumeWithFade(0, 0xA);
+                    for (i = 0; i < 5; i++) {
+                        Vsync(0);
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (g_FieldMode == FIELD_MODE_STEP && g_FieldScriptCounter != 0) {
+            break;
+        }
+        // The stream state words: g_FieldStreamTotalFrames sits six words below
+        // g_FieldStreamLoopPlayback, and the original reaches it off the same base
+        if (pStreamInfo[0] == 0 && g_FieldStreamFramePosition >= ((u16*)pStreamInfo)[-6]) {
+            break;
+        }
+    }
+
+    Vsync(0);
+    DrawSync(0);
+    func_801D43B0();
+    FieldRenderSyncAndFlush();
+    PutDispEnv(&g_FieldCurRenderContext->dispEnv);
+    PutDrawEnv(g_FieldCurRenderContext);
+    Vsync(0);
+    DrawSync(0);
+    HeapFree(pStreamData);
+    HeapConsolidate();
+    FieldSaveFramebuffers();
+    func_80077884();
+
+    rect.x = 0;
+    rect.y = g_FieldFrameBufferIndex << 8;
+    rect.w = 0x1E0;
+    rect.h = SCREEN_HEIGHT;
+    MoveImage(&rect, 0, g_FieldFrameBufferIndex << 8);
+    DrawSync(0);
+    Vsync(0);
+
+    pRenderContext = &g_FieldRenderContexts[1];
+    g_FieldCurRenderContext = pRenderContext;
+    PutDispEnv(&pRenderContext->dispEnv);
+    PutDrawEnv(g_FieldCurRenderContext);
+    if (g_FieldMode != FIELD_MODE_STEP) {
+        FieldImageConvert24BitTo15Bit(0);
+    }
+    Vsync(0);
+    g_FieldRenderContexts[0].dispEnv.isrgb24 = 0;
+    g_FieldCurRenderContext = &g_FieldRenderContexts[0];
+    PutDispEnv(&g_FieldRenderContexts[0].dispEnv);
+    PutDrawEnv(g_FieldCurRenderContext);
+    rect.x = 0;
+    rect.y = 0x100;
+    rect.w = SCREEN_WIDTH;
+    rect.h = SCREEN_HEIGHT;
+    MoveImage(&rect, 0, 0);
+    DrawSync(0);
+    Vsync(0);
+    g_FieldRenderContexts[1].dispEnv.isrgb24 = 0;
+    g_FieldCurRenderContext = pRenderContext;
+    PutDispEnv(&pRenderContext->dispEnv);
+    PutDrawEnv(g_FieldCurRenderContext);
+
+    if (D_800AFE84 != 0) {
+        g_FieldScreenEffectSuppressed = 1;
+    } else {
+        g_FieldScreenEffectSuppressed = 0;
+    }
+    func_80077AB4();
+
+    if (g_FieldMode != FIELD_MODE_STEP) {
+        ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+        HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+        D_800ADB60 = 0;
+        FieldStartScriptDataStream();
+        FieldFreeScriptDataStream();
+        g_FieldScriptFadeDuration = 0x20;
+        g_FieldScriptFadeMode = 1;
+    }
+    FieldStopSedsPlayback();
+    g_FieldStreamId = FIELD_STREAM_ID_NONE;
+    g_FieldMode = FIELD_MODE_PLAIN;
+    g_FieldStreamPlayerInitialized = -1;
+}
 
 void FieldLoadSpriteSheetTIM(void) {
     u_long* pTimData;
