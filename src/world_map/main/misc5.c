@@ -470,14 +470,11 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
 int WorldMapUpdateGroup4And5Scale(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapSceneLayer *pLayer = g_WorldMapGroups;
-    // 0x158/0x15C/0x160 are layer 4's pos, 0x1AC/0x1B0/0x1B4 layer 5's; the six
-    // pos stores stay untyped because the typed form lets gcc hoist the -0x40
-    // pair above the g_WorldMapPlayerPosition load, which retail does not
-    u8 *pWork = (u8 *)pLayer;
     u32 *pScratch = (u32 *)PSX_SCRATCH;
     // second layer's scale; retail keeps this field's address in a register,
     // which is what makes the player pointer land in $a2
     s32 *pScale2 = &pPlayer->unk54;
+    s32 px;
     s32 x;
     s32 y;
     s32 z;
@@ -488,14 +485,18 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
         pLayer[5].unk0 = 0;
         pLayer[4].unk0 = 0;
     }
-    *(s32 *)(pWork + 0x1AC) = g_WorldMapPlayerPosition >> 12;
-    *(s32 *)(pWork + 0x158) = g_WorldMapPlayerPosition >> 12;
+    px = g_WorldMapPlayerPosition >> 12;
     y = -0x40;
-    *(s32 *)(pWork + 0x1B0) = y;
-    *(s32 *)(pWork + 0x15C) = y;
+    pLayer[5].pos.y = y;
+    pLayer[4].pos.y = y;
+    // the block pins the x stores before the z pair's load, as retail has them
+    do {
+        pLayer[5].pos.x = px;
+        pLayer[4].pos.x = px;
+    } while (0);
     z = D_8009C5B4 >> 12;
-    *(s32 *)(pWork + 0x1B4) = z;
-    *(s32 *)(pWork + 0x160) = z;
+    pLayer[5].pos.z = z;
+    pLayer[4].pos.z = z;
     pPlayer->unk50 += 0x180;
     if (pPlayer->unk50 > 0x800) {
         *pScale2 += 0x180;
@@ -554,13 +555,11 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
 int WorldMapUpdateGroup6And7Scale(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapSceneLayer *pLayer = g_WorldMapGroups;
-    // 0x200/0x204/0x208 are layer 6's pos, 0x254/0x258/0x25C layer 7's; untyped
-    // for the reason given in WorldMapUpdateGroup4And5Scale
-    u8 *pWork = (u8 *)pLayer;
     u32 *pScratch = (u32 *)PSX_SCRATCH;
     // second layer's scale; retail keeps this field's address in a register,
     // which is what makes the player pointer land in $a2
     s32 *pScale2 = &pPlayer->unk54;
+    s32 px;
     s32 x;
     s32 y;
     s32 z;
@@ -571,14 +570,18 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
         pLayer[7].unk0 = 0;
         pLayer[6].unk0 = 0;
     }
-    *(s32 *)(pWork + 0x254) = g_WorldMapPlayerPosition >> 12;
-    *(s32 *)(pWork + 0x200) = g_WorldMapPlayerPosition >> 12;
+    px = g_WorldMapPlayerPosition >> 12;
     y = -0x40;
-    *(s32 *)(pWork + 0x258) = y;
-    *(s32 *)(pWork + 0x204) = y;
+    pLayer[7].pos.y = y;
+    pLayer[6].pos.y = y;
+    // the block pins the x stores before the z pair's load, as retail has them
+    do {
+        pLayer[7].pos.x = px;
+        pLayer[6].pos.x = px;
+    } while (0);
     z = D_8009C5B4 >> 12;
-    *(s32 *)(pWork + 0x25C) = z;
-    *(s32 *)(pWork + 0x208) = z;
+    pLayer[7].pos.z = z;
+    pLayer[6].pos.z = z;
     pPlayer->unk50 += 0x180;
     if (pPlayer->unk50 > 0x800) {
         *pScale2 += 0x180;
