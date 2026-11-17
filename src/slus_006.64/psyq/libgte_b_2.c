@@ -17,5 +17,7 @@ void SetFarColor(long rfc, long gfc, long bfc) {
     gte_ldfcdir(rfc << 4, gfc << 4, bfc << 4);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b_2", SetGeomOffset);
+void SetGeomOffset(long ofx, long ofy) {
+    gte_SetGeomOffset_gpr(ofx, ofy);
+}
 

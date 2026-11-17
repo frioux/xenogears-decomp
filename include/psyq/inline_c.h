@@ -364,6 +364,16 @@
 	: "r"( r0 ), "r"( r1 )					\
 	: "$12", "$13" )
 
+/* The 3.x revision shifted and stored the arguments in their own registers
+   instead of copying them through $12/$13. */
+#define gte_SetGeomOffset_gpr( r0, r1 ) __asm__ volatile (	\
+	"sll	%0, %0, 16;"					\
+	"sll	%1, %1, 16;"					\
+	"ctc2	%0, $24;"					\
+	"ctc2	%1, $25"					\
+	: "=r"( r0 ), "=r"( r1 )				\
+	: "0"( r0 ), "1"( r1 ) )
+
 #define gte_SetGeomScreen( r0 ) __asm__ volatile (		\
 	"ctc2	%0, $26"					\
 	:							\
