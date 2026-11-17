@@ -623,15 +623,6 @@ void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
     (*pp)->pSprites->pos[0] = x - dx * dist / len - rcos(angle) * rem / 4096;
     (*pp)->pSprites->pos[2] = z - dz * dist / len - rsin(angle) * rem / 4096;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
-/* 99.74% (156 bytes, identical instruction stream): only the switch's jump
-   table operand differs (the original names jtbl_800707C4). It cannot be
-   converted as-is: that table lives in the splat-owned .rodata
-   (asm/battle/data/0.rodata.s) and its entries point at this stub's local
-   labels (.L800B132C/1334/133C/1344), so `make build` fails to link with
-   "undefined reference to .L800B132C" the moment the stub becomes C.
-   The mapping is kind -> flag mask:
-   0,1 -> 1; 2,3 -> 8; 4 -> 4; 5 -> 2; else -> id & 0xFF.
 s32 func_800B12D0(s32 arg0, s32 arg1) {
     s32 result = 0;
     s32 v;
@@ -664,7 +655,6 @@ s32 func_800B12D0(s32 arg0, s32 arg1) {
     }
     return result;
 }
-*/
 extern s32 BattleGetAdjustedWaitCountdown(void);
 extern s32 ArchiveDataSync(void);
 extern void ArchiveStopTransfer(s32);
