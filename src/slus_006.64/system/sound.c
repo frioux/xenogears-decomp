@@ -389,7 +389,6 @@ void SoundDisableEvent(void) {
 SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
     SoundWDSEntry* pEntry;
     SoundWDSEntry** ppLink;
-    u8* pAdpcmData;
     int spuAddress;
 
     spuAddress = SoundSpuMemoryAllocateWDS(pWdsFile);
@@ -398,8 +397,7 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
         return NULL;
     }
 
-    pAdpcmData = (u8*)pWdsFile + pWdsFile->adpcmDataOffset;
-    SoundQueueSpuWriteCommand(spuAddress, pAdpcmData, pWdsFile->adpcmDataSize, NULL);
+    SoundQueueSpuWriteCommand(spuAddress, (u8*)pWdsFile + pWdsFile->adpcmDataOffset, pWdsFile->adpcmDataSize, NULL);
 
     pEntry = (SoundWDSEntry*)SoundHeapAllocateFromEnd(pWdsFile->headerSizeMby);
     if (pEntry == NULL) {
@@ -427,7 +425,6 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
 SoundWDSEntry* SoundLoadPartialWdsFile(SoundWDSEntry* pWdsFile, int size, int mode) {
     SoundWDSEntry* pEntry;
     SoundWDSEntry** ppLink;
-    u8* pAdpcmData;
     int spuAddress;
 
     if (SoundFindWdsEntry(pWdsFile->id) != 0) {
@@ -442,8 +439,7 @@ SoundWDSEntry* SoundLoadPartialWdsFile(SoundWDSEntry* pWdsFile, int size, int mo
     }
 
     SoundWdsSetTransferParamters(spuAddress, pWdsFile->adpcmDataSize);
-    pAdpcmData = (u8*)pWdsFile + pWdsFile->adpcmDataOffset;
-    SoundTransferWdsPart(pAdpcmData, size - pWdsFile->headerSizeMby);
+    SoundTransferWdsPart((u8*)pWdsFile + pWdsFile->adpcmDataOffset, size - pWdsFile->headerSizeMby);
 
     pEntry = (SoundWDSEntry*)SoundHeapAllocateFromEnd(pWdsFile->headerSizeMby);
     if (pEntry == NULL) {
