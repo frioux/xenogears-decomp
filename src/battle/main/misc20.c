@@ -398,11 +398,11 @@ s32 BattleGearHasWeaponId(u8 arg0) {
     u8 v = pRec->weaponId;
     u8 id = g_GameState.characters[4].gearId;
 
-    if (g_GameState.gears[id].weaponData[0].unk5 == v ||
-        g_GameState.gears[id].weaponData[1].unk5 == v) {
+    if (g_GameState.gears[id].weaponData[0].weaponId == v ||
+        g_GameState.gears[id].weaponData[1].weaponId == v) {
         return 1;
     }
-    return g_GameState.gears[id].weaponData[2].unk5 == v;
+    return g_GameState.gears[id].weaponData[2].weaponId == v;
 }
 void BattleApplyGearWeaponRecord(u8 arg0) {
     BattleGearWeaponRecord *p = &g_BattleCurWorkBlock->gearWeapons[arg0];
@@ -411,13 +411,13 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     u8 sel;
     u8 i;
 
-    if (g_GameState.gears[id].weaponData[0].unk5 == v) {
+    if (g_GameState.gears[id].weaponData[0].weaponId == v) {
         sel = 0;
     }
-    if (g_GameState.gears[id].weaponData[1].unk5 == v) {
+    if (g_GameState.gears[id].weaponData[1].weaponId == v) {
         sel = 1;
     }
-    if (g_GameState.gears[id].weaponData[2].unk5 == v) {
+    if (g_GameState.gears[id].weaponData[2].weaponId == v) {
         sel = 3;
     }
     g_GameState.gears[id].weaponData[sel].attack = p->attack;
