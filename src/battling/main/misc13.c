@@ -26,7 +26,8 @@ typedef struct Misc13Node {
     /* 0x8C */ void* pMatrices;
     /* 0x90 */ struct Misc13Node* pChildA;
     /* 0x94 */ struct Misc13Node* pChildB;
-} Misc13Node; // Size: unknown
+    /* 0x98 */ u32 pad98;
+} Misc13Node; // Size: 0x9C
 
 // The payload used by state 1: one model part and the packets allocated for it.
 typedef struct {
@@ -60,27 +61,27 @@ typedef struct {
     /* 0x02 */ s16 count;
     /* 0x04 */ void* pData;
     /* 0x08 */ Misc13Entry* pEntries;
-} Misc13EntryList; // Size: unknown
+    /* 0x0C */ s32 unk0C;
+    /* 0x10 */ s16 unk10; // 0x1000
+    /* 0x12 */ s16 unk12;
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ u16 pad16;
+    /* 0x18 */ s32 unk18;
+} Misc13EntryList; // Size: 0x1C
 
 // The 0x28C-byte container allocated by BattleCreateLightGroup: four 0x9C-byte nodes
-// carved out of the block, plus the parent node it was built for.
+// at the head of the block, plus the parent node it was built for.
 typedef struct {
     /* 0x000 */ s32 unk000;
     /* 0x004 */ Misc13Node* pNode0;
     /* 0x008 */ Misc13Node* pNode1;
     /* 0x00C */ Misc13Node* pNode2;
     /* 0x010 */ Misc13Node* pNode3;
-    /* 0x014 */ u8 unk014[0xA0];
-    /* 0x0B4 */ void* pSprite1; // pNode1->pData
-    /* 0x0B8 */ u8 unk0B8[0x98];
-    /* 0x150 */ void* pSprite2; // pNode2->pData
-    /* 0x154 */ u8 unk154[0x98];
-    /* 0x1EC */ void* pSprite3; // pNode3->pData
-    /* 0x1F0 */ u8 unk1F0[0x94];
+    /* 0x014 */ Misc13Node nodes[4];
     /* 0x284 */ Misc13Node* pParent;
-    /* 0x288 */ u8 unk288;
-    /* 0x289 */ u8 unk289;
-    /* 0x28A */ u8 unk28A;
+    /* 0x288 */ u8 r;
+    /* 0x289 */ u8 g;
+    /* 0x28A */ u8 b;
     /* 0x28B */ u8 pad28B;
 } Misc13Group; // Size: 0x28C
 
@@ -98,20 +99,6 @@ typedef struct {
     /* 0x18 */ u8 unk18[0x50];
 } Misc13Buffer; // Size: 0x68
 
-// The 0x1C-byte payload allocated by BattleCreateEntryList; Misc13EntryList is
-// the same record as the state-2 code reads it.
-typedef struct {
-    /* 0x00 */ s32 nodeCount;
-    /* 0x04 */ void* pData;
-    /* 0x08 */ Misc13Entry* pEntries;
-    /* 0x0C */ s32 unk0C;
-    /* 0x10 */ s16 unk10;
-    /* 0x12 */ s16 unk12;
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ u16 pad16;
-    /* 0x18 */ s32 unk18;
-} Misc13Scale; // Size: 0x1C
-
 // The 0x14-byte light payload allocated by BattleCreateLight: the direction
 // func_80030A30 normalizes into the light vector table, and its colour.
 typedef struct {
@@ -122,7 +109,7 @@ typedef struct {
     /* 0x0E */ s16 g;
     /* 0x10 */ s16 b;
     /* 0x12 */ u16 pad12;
-} Misc13Sprite; // Size: 0x14
+} Misc13Light; // Size: 0x14
 
 extern void HeapSetCurrentContentType(u_short contentTag);
 extern void ModelPartFreeLightData(ModelPart* pModelPart);
@@ -174,17 +161,17 @@ void BattleSetNodeLight(Misc13Node* pNode, void* pData) {
     pNode->state = 6;
 }
 
-Misc13Scale* BattleCreateEntryList(void) {
-    Misc13Scale* pSprite;
+Misc13EntryList* BattleCreateEntryList(void) {
+    Misc13EntryList* pList;
 
     HeapSetCurrentContentType(4);
-    pSprite = HeapAlloc(0x1C, 0);
-    pSprite->unk14 = 0x1000;
-    pSprite->unk12 = 0x1000;
-    pSprite->unk10 = 0x1000;
-    pSprite->pData = 0;
-    pSprite->pEntries = 0;
-    return pSprite;
+    pList = HeapAlloc(0x1C, 0);
+    pList->unk14 = 0x1000;
+    pList->unk12 = 0x1000;
+    pList->unk10 = 0x1000;
+    pList->pData = 0;
+    pList->pEntries = 0;
+    return pList;
 }
 
 void BattleFreeEntryList(Misc13EntryList* pList) {
@@ -240,6 +227,7 @@ void BattleLoadImageWithTpageClut(void* pImg) {
 }
 
 void BattleSetNodeColor(Misc13Node* pNode, s32 r, s32 g, s32 b) {
+    // the original reloads pData for each store, so the cast stays at every use
     ((Misc13ModelPart*)pNode->pData)->r = r;
     ((Misc13ModelPart*)pNode->pData)->g = g;
     ((Misc13ModelPart*)pNode->pData)->b = b;
@@ -287,22 +275,18 @@ void BattleAttachModelPart(Misc13ModelPart* pPart, ModelPart* pModelPart) {
     func_800732AC(pPart->pCurrentPacket, pPart->pPacketBuffer, pPart->pModelPart->unk20[1].modelPacketSize);
     pPart->flags |= 0x2;
 }
-Misc13Sprite* BattleCreateLight(void) {
-    Misc13Sprite* pSprite;
-    Misc13Sprite* pSprite2;
-    Misc13Node* pA;
-    Misc13Node* pB;
-    Misc13Node* pC;
+Misc13Light* BattleCreateLight(void) {
+    Misc13Light* pLight;
 
     HeapSetCurrentContentType(0xB);
-    pSprite = HeapAlloc(0x14, 0);
-    pSprite->dirZ = 0x10;
-    pSprite->dirY = 0x10;
-    pSprite->dirX = 0x10;
-    pSprite->b = 0;
-    pSprite->g = 0;
-    pSprite->r = 0;
-    return pSprite;
+    pLight = HeapAlloc(0x14, 0);
+    pLight->dirZ = 0x10;
+    pLight->dirY = 0x10;
+    pLight->dirX = 0x10;
+    pLight->b = 0;
+    pLight->g = 0;
+    pLight->r = 0;
+    return pLight;
 }
 void BattleFreeLight(void* pData) {
     HeapFree(pData);
@@ -351,18 +335,18 @@ Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     Misc13Node* pNode1;
     Misc13Node* pNode2;
     Misc13Node* pNode3;
-    Misc13Sprite* pSprite;
-    Misc13Sprite* pSprite2;
+    Misc13Light* pLight;
+    Misc13Light* pLightB;
     Misc13Node* pA;
     Misc13Node* pB;
     Misc13Node* pC;
 
     HeapSetCurrentContentType(9);
     pGroup = HeapAlloc(0x28C, 0);
-    pNode0 = (Misc13Node*)((u8*)pGroup + 0x14);
-    pNode1 = (Misc13Node*)((u8*)pGroup + 0xB0);
-    pNode2 = (Misc13Node*)((u8*)pGroup + 0x14C);
-    pNode3 = (Misc13Node*)((u8*)pGroup + 0x1E8);
+    pNode0 = &pGroup->nodes[0];
+    pNode1 = &pGroup->nodes[1];
+    pNode2 = &pGroup->nodes[2];
+    pNode3 = &pGroup->nodes[3];
     pGroup->unk000 = 0;
     pGroup->pNode0 = pNode0;
     pGroup->pNode1 = pNode1;
@@ -387,30 +371,30 @@ Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     pGroup->pNode2->positionZ = -1;
     pGroup->pNode3->positionX = 1;
     pGroup->pNode3->positionZ = -1;
-    pSprite = (Misc13Sprite*)pGroup->pNode1->pData;
-    pSprite->b = 0x800;
-    pSprite->g = 0x800;
-    pSprite->r = 0x800;
-    pSprite2 = (Misc13Sprite*)pGroup->pNode2->pData;
-    pSprite2->b = 0;
-    pSprite2->g = 0;
-    pSprite2->r = 0;
-    *(Misc13Sprite*)pGroup->pNode3->pData = *(Misc13Sprite*)pGroup->pNode2->pData;
+    pLight = (Misc13Light*)pGroup->pNode1->pData;
+    pLight->b = 0x800;
+    pLight->g = 0x800;
+    pLight->r = 0x800;
+    pLightB = (Misc13Light*)pGroup->pNode2->pData;
+    pLightB->b = 0;
+    pLightB->g = 0;
+    pLightB->r = 0;
+    *(Misc13Light*)pGroup->pNode3->pData = *(Misc13Light*)pGroup->pNode2->pData;
     pGroup->pParent = pParent;
-    pGroup->unk28A = 0;
-    pGroup->unk289 = 0;
-    pGroup->unk288 = 0;
-    pGroup->unk28A = 0x10;
-    pGroup->unk289 = 0x10;
-    pGroup->unk288 = 0x10;
+    pGroup->b = 0;
+    pGroup->g = 0;
+    pGroup->r = 0;
+    pGroup->b = 0x10;
+    pGroup->g = 0x10;
+    pGroup->r = 0x10;
     BattleSetModelLights(&pGroup->pNode1);
     return pGroup;
 }
 
 void BattleFreeLightGroup(Misc13Group* pGroup) {
-    HeapFree(pGroup->pSprite1);
-    HeapFree(pGroup->pSprite2);
-    HeapFree(pGroup->pSprite3);
+    HeapFree(pGroup->nodes[1].pData);
+    HeapFree(pGroup->nodes[2].pData);
+    HeapFree(pGroup->nodes[3].pData);
     BattleFreeNodeDelayed(pGroup->pParent);
     HeapFree(pGroup);
 }
