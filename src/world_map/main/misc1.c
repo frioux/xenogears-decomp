@@ -1125,18 +1125,18 @@ void WorldMapSetPositionFromState(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
-/* best: 94.74%, 228 bytes vs retail's 232 - the missing insn is the load-delay
-   `nop` after `lh v0,4(a2)`. Retail's found-point block is
-   `lh v0,0(a2) / sw zero,g_WorldMapPlayerPositionY / sll / sw g_WorldMapPlayerPosition / lh v0,4(a2) / nop /
-   sll / sw g_WorldMapPlayerPositionZ`, i.e. the x and z loads share $v0 and the z load is NOT
-   hoisted. gcc's sched1 hoists the independent z load above the stores whatever
-   the statement order. `nPos = p->z;` (load into the shared temp, shift at the
-   store) does produce retail's 232-byte shape but gcc then splits the two loads
-   into $v0/$v1 and moves `sw zero,g_WorldMapPlayerPositionY` after both of them (91.55%);
-   `nPos = p->x;` first is 89.48%. Rest matches retail exactly, including the
-   `g_GameState.worldMapState &= ~0x2000` base-register read-modify-write and the
-   `sll/sra` narrowed-id search loop.
-*/
+// best: 94.74%, 228 bytes vs retail's 232 - the missing insn is the load-delay
+// `nop` after `lh v0,4(a2)`. Retail's found-point block is
+// `lh v0,0(a2) / sw zero,g_WorldMapPlayerPositionY / sll / sw g_WorldMapPlayerPosition / lh v0,4(a2) / nop /
+// sll / sw g_WorldMapPlayerPositionZ`, i.e. the x and z loads share $v0 and the z load is NOT
+// hoisted. gcc's sched1 hoists the independent z load above the stores whatever
+// the statement order. `nPos = p->z;` (load into the shared temp, shift at the
+// store) does produce retail's 232-byte shape but gcc then splits the two loads
+// into $v0/$v1 and moves `sw zero,g_WorldMapPlayerPositionY` after both of them (91.55%);
+// `nPos = p->x;` first is 89.48%. Rest matches retail exactly, including the
+// `g_GameState.worldMapState &= ~0x2000` base-register read-modify-write and the
+// `sll/sra` narrowed-id search loop.
+// (kept as // lines so permute.sh can find the parked body below it)
 /*
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
