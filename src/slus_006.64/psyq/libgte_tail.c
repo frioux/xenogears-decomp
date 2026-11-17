@@ -3,36 +3,34 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-// The tail of Psy-Q's libgte: everything from MulMatrix0 on. It is its own
-// translation unit only because LoadAverageCol (the last function of
-// psyq/libgte) carries a pad word in retail -- the shipped .OBJ pads every
-// function's tail to a 16-byte multiple -- and the four bytes at 0x39A08 come
-// from the `asm` subsegment in config/slus_006.64.yaml. Nothing else separates
-// the two files; keep them one unit's worth of code.
+// The middle of the tail of Psy-Q's libgte: CompMatrix through MulMatrix. Every
+// time the shipped .OBJ's 16-byte tail padding (which retail's linker kept) puts
+// a nop after a function, that pad becomes its own `asm` subsegment in
+// config/slus_006.64.yaml and splits the run of C: 0x39A08 for LoadAverageCol
+// starts psyq/libgte_mulmatrix0, 0x39B18 starts this file at CompMatrix, 0x3A3D8
+// starts psyq/libgte_mulmatrix2 and 0x3A4E8 starts psyq/libgte_tail_b. Keep the
+// four files one unit's worth of code.
 //
 // Functions transcribed as the asm Sony wrote (the gte macros cannot express
-// these): CompMatrix, ApplyMatrixLV, PushMatrix, PopMatrix, SetMulMatrix. Points
-// a transcription must observe here: maspsx aborts on a `0x..` displacement
-// inside inline asm (`sw $8, 0x0($t7)`); write it decimal. maspsx also appends a
-// nop after every `jal` unless it has seen a `.set noreorder`, so blocks that
-// call out open with `.set\tnoreorder` and close with `.set\treorder` to leave
-// the assembler state as they found it. GAS has no `sqr`/`gpf`/`mvmva`
+// these): CompMatrix, ApplyMatrixLV, PushMatrix, PopMatrix, SetMulMatrix,
+// MulMatrix. Points a transcription must observe here: maspsx aborts on a `0x..`
+// displacement inside inline asm (`sw $8, 0x0($t7)`); write it decimal. maspsx
+// also appends a nop after every `jal` unless it has seen a `.set noreorder`, so
+// blocks that call out open with `.set\tnoreorder` and close with `.set\treorder`
+// to leave the assembler state as they found it. GAS has no `sqr`/`gpf`/`mvmva`
 // mnemonics: spell those as `.word` (gte_*_b's encodings).
 //
 // The stubs left are Sony's hand-written vector.s, and do not convert because
 // they carry nops after `.size`, which C cannot emit: the padding sits after
 // gcc's own `jr $ra`, so it can be reproduced neither by real C nor by a
-// trailing asm block (gcc appends its epilogue after every asm). A pad can be
-// carved out of the unit's range as its own `asm` subsegment instead, the way
-// 0x39A08 is: TransMatrix, ApplyMatrixSV, MulMatrix0, MulMatrix, MulMatrix2,
-// ScaleMatrixL, ScaleMatrix, ApplyRotMatrixLV.
+// trailing asm block (gcc appends its epilogue after every asm). Carve the pad
+// out as its own `asm` subsegment instead, the way the four above are: the pads
+// still waiting belong to ScaleMatrixL and ApplyRotMatrixLV here, TransMatrix,
+// ApplyMatrixSV and ScaleMatrix in psyq/libgte_tail_b.
 //
 // When the original's return value move sits in the `jr` delay slot, pin the asm
 // output to the argument register (`__asm__("$6")`) so gcc emits the copy
 // itself; pinning it to $2 lets gcc place it at entry instead.
-
-// why each of these cannot be converted: see the note at the top of the file.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", MulMatrix0);
 
 MATRIX *CompMatrix(MATRIX *m0, MATRIX *m1, MATRIX *m2) {
     register MATRIX *pRet __asm__("$2");
@@ -421,155 +419,80 @@ MATRIX *SetMulMatrix(MATRIX *m0, MATRIX *m1) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", ApplyRotMatrixLV);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", MulMatrix);
+/* The two-argument twin of MulMatrix0: the same 67 instructions with the packed
+   columns stored through m0 (a0) instead of a third pointer, and m0 returned.
+   Transcribed for the same reason as MulMatrix0. */
+MATRIX *MulMatrix(MATRIX *m0, MATRIX *m1) {
+    register MATRIX *pRet __asm__("$2");
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", MulMatrix2);
-
-VECTOR *ApplyMatrix(MATRIX *m, SVECTOR *v0, VECTOR *v1) {
-    VECTOR *pRet;
-
-    gte_SetRotMatrix(m);
-    gte_ldv0(v0);
-    gte_nop();
-    gte_mvmva_b(1, 0, 0, 3, 0);
-    __asm__ volatile ("swc2\t$25, 0( %1 );" "swc2\t$26, 4( %1 );" "swc2\t$27, 8( %1 );"
-                      "addu\t%0, %1, $zero"
-                      : "=r"(pRet)
-                      : "r"(v1)
-                      : "memory");
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lw\t$8, 0($4)\n\t"
+                      "lw\t$9, 4($4)\n\t"
+                      "lw\t$10, 8($4)\n\t"
+                      "lw\t$11, 12($4)\n\t"
+                      "lw\t$12, 16($4)\n\t"
+                      "ctc2\t$8, $0\n\t"
+                      "ctc2\t$9, $1\n\t"
+                      "ctc2\t$10, $2\n\t"
+                      "ctc2\t$11, $3\n\t"
+                      "ctc2\t$12, $4\n\t"
+                      "lhu\t$8, 0($5)\n\t"
+                      "lw\t$9, 4($5)\n\t"
+                      "lw\t$10, 12($5)\n\t"
+                      "lui\t$1, 65535\n\t"
+                      "and\t$9, $9, $1\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "lhu\t$8, 2($5)\n\t"
+                      "lw\t$9, 8($5)\n\t"
+                      "lh\t$10, 14($5)\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mfc2\t$11, $9\n\t"
+                      "mfc2\t$12, $10\n\t"
+                      "mfc2\t$13, $11\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "lhu\t$8, 4($5)\n\t"
+                      "lw\t$9, 8($5)\n\t"
+                      "lw\t$10, 16($5)\n\t"
+                      "lui\t$1, 65535\n\t"
+                      "and\t$9, $9, $1\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mfc2\t$14, $9\n\t"
+                      "mfc2\t$15, $10\n\t"
+                      "mfc2\t$24, $11\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "andi\t$11, $11, 65535\n\t"
+                      "sll\t$14, $14, 16\n\t"
+                      "or\t$14, $14, $11\n\t"
+                      "sw\t$14, 0($4)\n\t"
+                      "andi\t$13, $13, 65535\n\t"
+                      "sll\t$24, $24, 16\n\t"
+                      "or\t$24, $24, $13\n\t"
+                      "sw\t$24, 12($4)\n\t"
+                      "mfc2\t$8, $9\n\t"
+                      "mfc2\t$9, $10\n\t"
+                      "andi\t$8, $8, 65535\n\t"
+                      "sll\t$12, $12, 16\n\t"
+                      "or\t$8, $8, $12\n\t"
+                      "sw\t$8, 4($4)\n\t"
+                      "andi\t$15, $15, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "or\t$9, $9, $15\n\t"
+                      "sw\t$9, 8($4)\n\t"
+                      "swc2\t$11, 16($4)\n\t"
+                      "addu\t$2, $4, $0\n\t"
+                      ".set\treorder"
+                      : "=r"(pRet) : : "$1", "$8", "$9", "$10", "$11", "$12",
+                          "$13", "$14", "$15", "$24", "memory");
     return pRet;
 }
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", ApplyMatrixSV);
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", TransMatrix);
-/* best attempt 0.00%. The original keeps m in a0 (stores at 0x14/0x18/0x1c off
-   a0), loads v->vx/vy/vz into t0-t2 before any store, and copies a0 into v0
-   after the last store. Every C form tried (three separate temps, temps in
-   declaration order, m copied to a local pointer, `return (MATRIX *)m`) makes
-   gcc 2.7.2 coalesce the return value into v0 at entry and reuse $3-$5 as the
-   temps:
-MATRIX *TransMatrix(MATRIX *m, VECTOR *v) {
-    long t0, t1, t2;
-
-    t0 = v->vx;
-    t1 = v->vy;
-    t2 = v->vz;
-    m->t[0] = t0;
-    m->t[1] = t1;
-    m->t[2] = t2;
-    return m;
-}
-*/
-
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", ScaleMatrix);
-/* best attempt 2.37% (with `>> 12`; `/ ONE` rounds and is worse). The original
-   reads two adjacent shorts with one `lw` and merges the pair of stores into one
-   `sw` (andi 0xffff / sll 16 / or), and multiplies with `multu`; the naive
-   element-wise version gives lh/sh and `mult`:
-MATRIX *ScaleMatrix(MATRIX *m, VECTOR *v) {
-    m->m[0][0] = (m->m[0][0] * v->vx) >> 12;
-    m->m[0][1] = (m->m[0][1] * v->vy) >> 12;
-    m->m[0][2] = (m->m[0][2] * v->vz) >> 12;
-    m->m[1][0] = (m->m[1][0] * v->vx) >> 12;
-    m->m[1][1] = (m->m[1][1] * v->vy) >> 12;
-    m->m[1][2] = (m->m[1][2] * v->vz) >> 12;
-    m->m[2][0] = (m->m[2][0] * v->vx) >> 12;
-    m->m[2][1] = (m->m[2][1] * v->vy) >> 12;
-    m->m[2][2] = (m->m[2][2] * v->vz) >> 12;
-    return m;
-}
-*/
-
-
-void SetRotMatrix(MATRIX *m) {
-    gte_SetRotMatrix(m);
-}
-
-void SetLightMatrix(MATRIX *m) {
-    gte_SetLightMatrix(m);
-}
-
-void SetColorMatrix(MATRIX *m) {
-    gte_SetColorMatrix(m);
-}
-
-void SetTransMatrix(MATRIX *m) {
-    gte_SetTransMatrix(m);
-}
-/* 96.25%. The original loads into t0/t1/t2, gcc into
-   v0/v1/a1 (it prefers the lowest call-clobbered registers). Byte-for-byte
-   identical apart from those three register numbers.
-void SetTransMatrix(MATRIX *m) {
-    gte_ldtr(m->t[0], m->t[1], m->t[2]);
-}
-*/
-
-
-void SetVertex0(SVECTOR *v0) {
-    gte_ldv0(v0);
-}
-
-void SetVertex1(SVECTOR *v0) {
-    gte_ldv1(v0);
-}
-
-void SetVertex2(SVECTOR *v0) {
-    gte_ldv2(v0);
-}
-
-void SetVertexTri(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2) {
-    gte_ldv3(v0, v1, v2);
-}
-
-void SetRGBfifo(u_char *rgb0, u_char *rgb1, u_char *rgb2) {
-    gte_ldrgb3_fifo(rgb0, rgb1, rgb2);
-}
-
-void SetIR123(long ir1, long ir2, long ir3) {
-    gte_ldir123(ir1, ir2, ir3);
-}
-
-void SetIR0(long p) {
-    gte_lddp(p);
-}
-
-void SetSZfifo3(long sz1, long sz2, long sz3) {
-    gte_ldsz3(sz1, sz2, sz3);
-}
-
-void SetSZfifo4(long sz0, long sz1, long sz2, long sz3) {
-    gte_ldsz4(sz0, sz1, sz2, sz3);
-}
-
-void SetSXSYfifo(long sxy0, long sxy1, long sxy2) {
-    gte_ldsxy0(sxy0);
-    gte_ldsxy1(sxy1);
-    gte_ldsxy2(sxy2);
-}
-
-void SetRii(long r11, long r22, long r33) {
-    gte_ldr11r22r33(r11, r22, r33);
-}
-
-void SetMAC123(long mac1, long mac2, long mac3) {
-    gte_ldmac123(mac1, mac2, mac3);
-}
-
-void SetData32(long data) {
-    gte_ldlzc(data);
-}
-
-void SetDQA(long dqa) {
-    gte_lddqa(dqa);
-}
-
-void SetDQB(long dqb) {
-    gte_lddqb(dqb);
-}
-
-void ReadGeomOffset(long *pOfsX, long *pOfsY) {
-    gte_ReadGeomOffset_gpr(pOfsX, pOfsY);
-}
-

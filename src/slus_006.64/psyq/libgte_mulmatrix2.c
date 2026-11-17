@@ -1,0 +1,87 @@
+#include "common.h"
+#include "psyq/libgte.h"
+#include "psyq/gtemac.h"
+#include "psyq/inline_c.h"
+
+// MulMatrix2 (LIBGTE/MTX_04.OBJ) is its own translation unit only because the
+// shipped .OBJ pads its tail to a 16-byte multiple: the nop at 0x3A4E8 is the
+// `asm` subsegment in config/slus_006.64.yaml, so psyq/libgte_tail_b starts at
+// ApplyMatrix. Nothing else separates the three files.
+
+/* MulMatrix0's sequence with the packed columns stored through m1 (a1), which is
+   also what the function returns -- gte_MulMatrix0(m0, m1, m1) in macro terms.
+   Transcribed for the same reason as MulMatrix0. */
+MATRIX *MulMatrix2(MATRIX *m0, MATRIX *m1) {
+    register MATRIX *pRet __asm__("$2");
+
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lw\t$8, 0($4)\n\t"
+                      "lw\t$9, 4($4)\n\t"
+                      "lw\t$10, 8($4)\n\t"
+                      "lw\t$11, 12($4)\n\t"
+                      "lw\t$12, 16($4)\n\t"
+                      "ctc2\t$8, $0\n\t"
+                      "ctc2\t$9, $1\n\t"
+                      "ctc2\t$10, $2\n\t"
+                      "ctc2\t$11, $3\n\t"
+                      "ctc2\t$12, $4\n\t"
+                      "lhu\t$8, 0($5)\n\t"
+                      "lw\t$9, 4($5)\n\t"
+                      "lw\t$10, 12($5)\n\t"
+                      "lui\t$1, 65535\n\t"
+                      "and\t$9, $9, $1\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "lhu\t$8, 2($5)\n\t"
+                      "lw\t$9, 8($5)\n\t"
+                      "lh\t$10, 14($5)\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mfc2\t$11, $9\n\t"
+                      "mfc2\t$12, $10\n\t"
+                      "mfc2\t$13, $11\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "lhu\t$8, 4($5)\n\t"
+                      "lw\t$9, 8($5)\n\t"
+                      "lw\t$10, 16($5)\n\t"
+                      "lui\t$1, 65535\n\t"
+                      "and\t$9, $9, $1\n\t"
+                      "or\t$8, $8, $9\n\t"
+                      "mfc2\t$14, $9\n\t"
+                      "mfc2\t$15, $10\n\t"
+                      "mfc2\t$24, $11\n\t"
+                      "mtc2\t$8, $0\n\t"
+                      "mtc2\t$10, $1\n\t"
+                      "nop\n\t"
+                      ".word\t0x4a486012\n\t"
+                      "andi\t$11, $11, 65535\n\t"
+                      "sll\t$14, $14, 16\n\t"
+                      "or\t$14, $14, $11\n\t"
+                      "sw\t$14, 0($5)\n\t"
+                      "andi\t$13, $13, 65535\n\t"
+                      "sll\t$24, $24, 16\n\t"
+                      "or\t$24, $24, $13\n\t"
+                      "sw\t$24, 12($5)\n\t"
+                      "mfc2\t$8, $9\n\t"
+                      "mfc2\t$9, $10\n\t"
+                      "andi\t$8, $8, 65535\n\t"
+                      "sll\t$12, $12, 16\n\t"
+                      "or\t$8, $8, $12\n\t"
+                      "sw\t$8, 4($5)\n\t"
+                      "andi\t$15, $15, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "or\t$9, $9, $15\n\t"
+                      "sw\t$9, 8($5)\n\t"
+                      "swc2\t$11, 16($5)\n\t"
+                      "addu\t$2, $5, $0\n\t"
+                      ".set\treorder"
+                      : "=r"(pRet) : : "$1", "$8", "$9", "$10", "$11", "$12",
+                          "$13", "$14", "$15", "$24", "memory");
+    return pRet;
+}
