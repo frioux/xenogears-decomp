@@ -33,23 +33,23 @@ typedef struct {
     /* 0x08 */ u8 unk8[0x2];
     /* 0x0A */ s16 unkA;
     /* 0x0C */ u8 unkC[0x1C];
-    /* 0x28 */ u8 unk28[0x3]; // colors, written by BattleSetSpriteColorFromAngle
-    /* 0x2B */ u8 unk2B;
+    /* 0x28 */ u8 colors[0x3]; // written by BattleSetSpriteColorFromAngle
+    /* 0x2B */ u8 prim; // bit 0 cleared on spawn (func_800BD098), set on free
 } BattleEffectSprite; // Size: 0x2C
 
 // The color-ramp task's own data block, reached through the task entry's +0x4.
 typedef struct {
     /* 0x00 */ u8 unk0[0x38];
     /* 0x38 */ BattleEffectSprite *pSprite;
-    /* 0x3C */ s32 unk3C;
-    /* 0x40 */ s32 unk40;
-    /* 0x44 */ s32 unk44;
+    /* 0x3C */ s32 posX; // the VECTOR func_800BCEAC hands TransMatrix
+    /* 0x40 */ s32 posY;
+    /* 0x44 */ s32 posZ;
     /* 0x48 */ u8 unk48[0x6];
     /* 0x4E */ u16 unk4E;
     /* 0x50 */ u8 unk50[0x4];
     /* 0x54 */ s32 unk54;
-    /* 0x58 */ s32 unk58; // ramp angle, advanced once per step
-    /* 0x5C */ void *unk5C;
+    /* 0x58 */ s32 angle; // advanced once per step
+    /* 0x5C */ void *pPrimBuffer; // base of the prim pointer buffer, queued to free
 } BattleEffectColorRampData; // Size: 0x60
 
 typedef struct {
@@ -66,15 +66,15 @@ void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask) {
 
     pData = pTask->pData;
     pSprite = pData->pSprite;
-    timer = pData->unk58 + 1;
-    pData->unk3C = pSprite->unk2;
+    timer = pData->angle + 1;
+    pData->posX = pSprite->unk2;
     unk6 = pSprite->unk6;
-    pData->unk40 = unk6; // retail stores unk6, then overwrites it below
+    pData->posY = unk6; // retail stores unk6, then overwrites it below
     unkA = pSprite->unkA;
-    pData->unk44 = unkA;
-    pData->unk58 = timer;
+    pData->posZ = unkA;
+    pData->angle = timer;
     // kept after the timer store: retail loads 0x54 in that slot
-    pData->unk40 = unk6 - pData->unk54 - 0x20;
+    pData->posY = unk6 - pData->unk54 - 0x20;
     BattleSetSpriteColorFromAngle(pSprite, timer, unkA);
     pData->unk4E += 0x10;
 }
@@ -85,9 +85,9 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
 
     pData = pTask->pData;
     pSprite = pData->pSprite;
-    pSprite->unk2B |= 1;
+    pSprite->prim |= 1;
     func_8001F6B0(pSprite);
-    func_80025180(pData->unk5C);
+    func_80025180(pData->pPrimBuffer);
     WorkListsRemoveEntriesForData(pTask);
     TimerWorkListRemoveTask(pTask);
     HeapFree(pData);
@@ -135,10 +135,10 @@ typedef struct Misc32Task {
     /* 0x64 */ s32 unk64;
     /* 0x68 */ u8 unk68[0x10];
     /* 0x78 */ Misc32ActorSprite *pSprite; // the actor the effect is drawn for
-    /* 0x7C */ u8 unk7C; // nonzero: posX steps the other way
+    /* 0x7C */ u8 mirrored; // the actor sprite's flip bit; nonzero: posX steps the other way
     /* 0x7D */ u8 unk7D[0x3];
-    /* 0x80 */ u8 unk80[0x3]; // colors, faded by BattleStepEffectColorFade
-    /* 0x83 */ u8 unk83;
+    /* 0x80 */ u8 colors[0x3]; // faded by BattleStepEffectColorFade
+    /* 0x83 */ u8 flags; // bit 0 cleared and bit 1 set as the effect starts
     /* 0x84 */ u32 unk84;
     /* 0x88 */ s32 timer;
     /* 0x8C */ s32 partCount;
@@ -291,14 +291,14 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     pTask->scaleX = 0x2000;
     pTask->scaleY = 0x2000;
     pTask->scaleZ = 0x2000;
-    pTask->unk83 = 0x2D;
+    pTask->flags = 0x2D;
     pTask->rot.vx = 0;
     pTask->rot.vy = 0;
     pTask->rot.vz = 0;
-    pTask->unk80[0] = 0x80;
-    pTask->unk80[1] = 0x80;
-    pTask->unk80[2] = 0x80;
-    pTask->unk7C = (pSprite->flags >> 2) & 1;
+    pTask->colors[0] = 0x80;
+    pTask->colors[1] = 0x80;
+    pTask->colors[2] = 0x80;
+    pTask->mirrored = (pSprite->flags >> 2) & 1;
     pTask->partCount = 0;
     if (kind != 4) {
         func_800BE6E8(value, digits, 5, 0, 0);
@@ -309,14 +309,14 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     case 4:
         pTask->timer = 0x40;
         pTask->partCount = ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x7C, &pTask->parts[0], -0x14, -0x10);
-        pTask->unk83 = (pTask->unk83 & 0xFE) | 2;
+        pTask->flags = (pTask->flags & 0xFE) | 2;
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFade);
         break;
     case 5:
-        pTask->unk80[0] = 0x80;
-        pTask->unk80[1] = 0;
-        pTask->unk80[2] = 0;
-        pTask->unk83 = (pTask->unk83 & 0xFE);
+        pTask->colors[0] = 0x80;
+        pTask->colors[1] = 0;
+        pTask->colors[2] = 0;
+        pTask->flags = (pTask->flags & 0xFE);
         break;
     case 10:
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x7F,
@@ -325,10 +325,10 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     case 11:
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x91,
                                                         &pTask->parts[pTask->partCount], tex, 0);
-        pTask->unk80[2] = 0x80;
-        pTask->unk80[0] = 0;
-        pTask->unk80[1] = 0;
-        pTask->unk83 = (pTask->unk83 & 0xFE);
+        pTask->colors[2] = 0x80;
+        pTask->colors[0] = 0;
+        pTask->colors[1] = 0;
+        pTask->flags = (pTask->flags & 0xFE);
         break;
     case 1:
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x80,
@@ -339,16 +339,16 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
         pTask->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, 0x80,
                                                         &pTask->parts[pTask->partCount], tex, -0x10);
         tex += 0x20;
-        pTask->unk80[0] = 0x80;
-        pTask->unk80[2] = 0x80;
-        pTask->unk80[1] = 0;
-        pTask->unk83 = (pTask->unk83 & 0xFE);
+        pTask->colors[0] = 0x80;
+        pTask->colors[2] = 0x80;
+        pTask->colors[1] = 0;
+        pTask->flags = (pTask->flags & 0xFE);
         break;
     case 2:
-        pTask->unk80[0] = 0;
-        pTask->unk80[1] = 0x80;
-        pTask->unk80[2] = 0;
-        pTask->unk83 = (pTask->unk83 & 0xFE);
+        pTask->colors[0] = 0;
+        pTask->colors[1] = 0x80;
+        pTask->colors[2] = 0;
+        pTask->flags = (pTask->flags & 0xFE);
         break;
     }
     if (kind != 4) {
@@ -461,9 +461,9 @@ void BattleStepEffectColorFade(Misc32Task *pTask) {
     WorkListCallback_t pCallback;
 
     func_800BDF1C(pTask);
-    pTask->unk80[0] -= 2;
-    pTask->unk80[1] -= 2;
-    pTask->unk80[2] -= 2;
+    pTask->colors[0] -= 2;
+    pTask->colors[1] -= 2;
+    pTask->colors[2] -= 2;
     if (--pTask->timer < 0) {
         pCallback = pTask->timerEntry.onFreeCallback;
         pCallback(pTask);
@@ -485,10 +485,10 @@ void BattleStepEffectColorFadeFromBase(Misc32Task *pTask) {
     func_800BDF1C(pTask);
     // the volatile re-reads are required: without them cse forwards the previous
     // call's stored result into the next call's argument
-    pEffect->unk80[0] = SpriteColorAddClamp(pEffect->unk80[0], -8);
-    pEffect->unk80[1] = SpriteColorAddClamp(*(volatile u8 *)&pTask->unk80[0], -8);
-    pEffect->unk80[2] = SpriteColorAddClamp(*(volatile u8 *)&pEffect->unk80[0], -8);
-    if (--pTask->timer < 0 || (pTask->unk80[0] | pTask->unk80[1] | pEffect->unk80[2]) == 0) {
+    pEffect->colors[0] = SpriteColorAddClamp(pEffect->colors[0], -8);
+    pEffect->colors[1] = SpriteColorAddClamp(*(volatile u8 *)&pTask->colors[0], -8);
+    pEffect->colors[2] = SpriteColorAddClamp(*(volatile u8 *)&pEffect->colors[0], -8);
+    if (--pTask->timer < 0 || (pTask->colors[0] | pTask->colors[1] | pEffect->colors[2]) == 0) {
         pCallback = pTask->timerEntry.onFreeCallback;
         pCallback(pEffect);
     }
@@ -512,8 +512,8 @@ extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 // in do{...}while(0) (55.56), the call alone in do{...}while(0) (67.40), a `pEffect`
 // alias for the call argument (cse folds it), an alias for the stores, u8 pointer,
 // offset casts, a callback local, indexed forms, and a 3-min permuter run.
-// Round 116: moving the unk83 STORE after the call (compute the byte into a `u8
-// flags` local before it, `pTask->unk83 = flags;` after it) DOES defeat
+// Round 116: moving the flags STORE after the call (compute the byte into a `u8
+// flags` local before it, `pTask->flags = flags;` after it) DOES defeat
 // combine_regs - the parameter then stays in a saved register with a real
 // `move a0,sN` argument copy - but the flag byte then lives across the call and
 // needs a SECOND saved register (0x20 frame, 108 bytes, 70.36%). Wrapping only the
@@ -531,7 +531,7 @@ void func_800BDC14(Misc32Task *pTask) {
     nextTimer = 0x10;
     if (--pTask->timer < 0) {
         pTask->timer = nextTimer;
-        pTask->unk83 = (pTask->unk83 | 2) & 0xFE;
+        pTask->flags = (pTask->flags | 2) & 0xFE;
         TimerWorkListSetTaskCallback(pTask, BattleStepEffectColorFadeFromBase);
     }
 }*/
@@ -544,7 +544,7 @@ extern void func_800BDC14(Misc32Task *pTask);
 
 void BattleStepEffectPosition(Misc32Task *pTask) {
     func_800BDF1C(pTask);
-    if (pTask->unk7C != 0) {
+    if (pTask->mirrored != 0) {
         pTask->posX += 0xC0000;
     } else {
         pTask->posX -= 0xC0000;
