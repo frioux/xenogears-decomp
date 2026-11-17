@@ -1091,26 +1091,13 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
     return flags & 0xFFFF;
 }
 extern u8 func_80084854(u8, u8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80085084);
-extern u16 BattleSelectTargetCandidates(u16, u16, u8, u8, u8);
-extern u16 BattleGetSameRowSlotMask(void);
 extern u8 *g_BattlePulseTrianglePrims;
-/* 99.82%: instruction multiset, frame (0x38) and saved-register set are retail's;
-   the only differences are the two `addu` that form g_BattlePulseTrianglePrims + i in the tail
-   loop (retail addu v0,v0,s0 base-first, gcc 2.6.0 gives addu v0,s0,v0 whatever
-   the spelling: g_BattlePulseTrianglePrims[i + 0xE6], p = base + i then p[0xE6], and the
-   embedded *((p = base + i) + 0xE6) form all measure the same) and the jtbl
-   operand. The switch needs explicit `case 6: case 7: break;` for retail's
-   8-word table / sltiu 8 range check, and the four case 0-3 bodies must be
-   written out four times so cross-jumping merges them into retail's shared
-   tail (a1 = 0..3, then one call site).
 u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
     s32 i;
     u16 mask;
     u8 state;
     u8 last;
     u8 best;
-    u8 *p;
 
     last = 0xFE;
     BattleSelectTargetCandidates(arg0, arg0, arg1, 0, arg2);
@@ -1173,16 +1160,15 @@ u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
             last = g_BattleMenuEvent;
             for (i = 0; i < 4; i++) {
                 if (func_80084854(g_BattleTargetSlot, i) != g_BattleTargetSlot) {
-                    *((p = g_BattlePulseTrianglePrims + i) + 0xE6) = 1;
+                    *(g_BattlePulseTrianglePrims + i + 0xE6) = 1;
                 } else {
-                    *((q = g_BattlePulseTrianglePrims + i) + 0xE6) = 0;
+                    *(g_BattlePulseTrianglePrims + i + 0xE6) = 0;
                 }
             }
         }
     }
     return state - 1;
 }
-*/
 u32 BattleActorPosXGreaterThan(u8 arg0, u8 arg1) {
     return D_800C3EBE[arg0].unk0 > D_800C3EBE[arg1].unk0;
 }
