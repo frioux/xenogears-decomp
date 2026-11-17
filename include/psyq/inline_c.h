@@ -992,8 +992,8 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
  * Type 2 functions without nop
  */
 
-#define gte_rtps_b()		__asm__ volatile ( ".word 0x0000007f" )
-#define gte_rtpt_b()		__asm__ volatile ( ".word 0x000000bf" )
+#define gte_rtps_b()		__asm__ volatile ( "c2      0x180001" )
+#define gte_rtpt_b()		__asm__ volatile ( "c2      0x280030" )
 #define gte_rt_b()		__asm__ volatile ( ".word 0x4a480012" )
 #define gte_rtv0_b()		__asm__ volatile ( ".word 0x0000013f" )
 #define gte_rtv1_b()		__asm__ volatile ( ".word 0x0000017f" )
@@ -1693,6 +1693,12 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	"nop"							\
 	: "=r"( r0 ) )
 
+/* SZ3 read back into a general register: the functions that return opz read it
+   and shift it by 2, instead of storing it through a pointer. */
+#define gte_stsz3_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $19"					\
+	: "=r"( r0 ) )
+
 /* MAC1-MAC3 read back one at a time, so the source controls the order and the
    allocator sees three independent values (the shadow projection reads MAC2,
    then MAC1, and MAC3 only after its first compare). */
@@ -1762,6 +1768,19 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	:							\
 	: "r"( r0 )						\
 	: "$8", "$9", "$10", "memory" )
+
+/* The stack-passed pointers of the RotTransPers3/4 family, loaded as one group
+   the way retail does: four `lw`s into t0-t3 straight after the GTE command,
+   instead of lazily at each store. Pin the four outputs to $8-$11 in the caller
+   with register variables (see RotTransPers3); with plain "=r" outputs gcc
+   picks v0/v1/a0/a1 and every store that uses them misses. */
+#define gte_ld_arg_ptr4( r0, r1, r2, r3, q0, q1, q2, q3 ) __asm__ volatile (	\
+	"lw	%0, %4;"					\
+	"lw	%1, %5;"					\
+	"lw	%2, %6;"					\
+	"lw	%3, %7"						\
+	: "=r"( q0 ), "=r"( q1 ), "=r"( q2 ), "=r"( q3 )	\
+	: "m"( r0 ), "m"( r1 ), "m"( r2 ), "m"( r3 ) )
 
 /* Flag read and store through an output pointer that arrives on the stack: the
    3.x revision loaded the slot at the point of use, before the cfc2. %1 is the

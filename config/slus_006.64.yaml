@@ -167,6 +167,11 @@ segments:
       - [0x3A4E8, asm] # MulMatrix2's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A4EC, c, psyq/libgte_tail_b]
       - [0x3A8DC, c, psyq/libgte_b]
+      - [0x3AE4C, c, psyq/libgte_pers] # RotTransPers
+      - [0x3AE78, asm] # RotTransPers's tail pad word (Psy-Q pads a function to 16 bytes)
+      - [0x3AE7C, c, psyq/libgte_pers3] # RotTransPers3
+      - [0x3AED0, asm] # RotTransPers3's tail pad words (3 words)
+      - [0x3AEDC, c, psyq/libgte_xform] # RotTrans on
       - [0x3BCAC, asm] # Part of libetc
       - [0x3BD4C, c, psyq/libetc/vsync]
       - [0x3BF30, c, psyq/libapi_3]
