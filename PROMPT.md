@@ -255,6 +255,28 @@ function names.
   interior addresses `D_800D3420` and the C says `g_Slots[i].unk20`, which is the 99.x%
   objdiff reading "Realistic C" already describes.
 - Do not name under `psyq/` except with a real SDK name.
+- **The Psy-Q sig dump exists now, so psyq naming is a tool run, not a reading job.**
+  `~/xw/psyq-sigs/` holds `sig33|35|36|37|40|43.txt` (one line per exported SDK
+  function across six Psy-Q versions, every relocated word marked 0xDEADBEEF) and
+  `sigdump.rs`, the ~60-line psy-k bin that produced them. Run
+  `tools/scripts/psyq_names.py ~/xw/psyq-sigs/sig*.txt` and it prints, per repo
+  function, every version that matched and the name it matched. Round 205 landed 7
+  names this way (unnamed psyq C definitions 29 -> 22) and left the rest: a name is
+  only trustworthy when it is identical in every version that matched, and the
+  remaining exports are hand-patched (the libgte/libapi BIOS region, Sony's
+  `vector.s`) or version-ambiguous (`PAD_init` 3.3/3.5 vs `PAD_init2` 3.6+). The
+  three rejected and three STUB_NAME proposals are in that round's outputs.
+  To rebuild the dumps if they are lost: clone `sozud/psy-q` (3.3/3.5/3.6/3.7/4.0/4.3)
+  and `ttkb-oss/psy-k`, add `XDEF::section/offset` + `Patch::offset` accessors (the
+  fields are private), and mark patch offsets **relative to the current Code block**,
+  not the section - section-relative masks up to 93 of 97 words of `ResetGraph` and
+  makes the matcher name functions wrongly.
+- Two `name_addrs.py` bugs this exposed, both fixed in round 205: "new name already
+  used" now means another function is *defined* under it (a bare word search refused
+  every SDK name, because `include/psyq/*.h` already declares the prototype of the
+  function being named), and the owner binary is `parts[1]` (it was `parts[-3]`, which
+  is `"psyq"` for every `src/slus_006.64/psyq/*.c`, so psyq renames silently wrote no
+  `symbol_addrs` entry - the round-36 link-failure class).
 
 **Fields: `unk<offset>` -> a name.** Applied by a worker in a clone, because a field
 rename has to follow the struct's type through every user and only the compiler can

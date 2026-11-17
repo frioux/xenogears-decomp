@@ -81,8 +81,10 @@ def main():
             skipped.append((old, new, "still an INCLUDE_ASM stub somewhere"))
         elif not re.search(DEF + old + r"\s*\([^;{(]*\)\s*\{", blob, re.S):
             skipped.append((old, new, "no C definition of the old name"))
-        elif any(re.search(r"\b" + new + r"\b", t) for t in list(src.values()) + list(hdr.values())) \
-                and re.search(r"\b" + new + r"\b", blob):
+        # "already used" means another function is DEFINED under that name. A bare word
+        # search refuses every SDK name, because include/psyq/*.h already declares the
+        # prototype of the very function being named (round 205 named 6 of 7 by hand).
+        elif re.search(DEF + new + r"\s*\([^;{(]*\)\s*\{", blob, re.S):
             skipped.append((old, new, "new name already used"))
         else:
             defs = [p for p in src if re.search(DEF + old + r"\s*\([^;{(]*\)\s*\{", src[p], re.S)]
@@ -93,7 +95,9 @@ def main():
             elif not defs:
                 skipped.append((old, new, "no C definition of the old name"))
             else:
-                rename.append((old, new, defs[0].parts[-3]))
+                # parts[1] is the binary directory: parts[-3] is "psyq" for every
+                # src/slus_006.64/psyq/*.c, so psyq renames wrote no symbol_addrs entry.
+                rename.append((old, new, defs[0].parts[1]))
 
     added = {}
     for old, new, owner in rename:
