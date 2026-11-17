@@ -485,7 +485,7 @@ typedef struct {
     /* 0x0000 */ MenuString unk0[8];
     /* 0x0400 */ MenuString unk400[8];
     /* 0x0800 */ MenuString unk800;
-    /* 0x0880 */ MenuString itemNameStrings[3]; // The three lines of one item's name
+    /* 0x0880 */ MenuString slotStrings[3]; // The three strings of the equipment slot being shown
     /* 0x0A00 */ void* pStringLists[4];
     /* 0x0A10 */ u8 shouldRenderRows[8];
     /* 0x0A18 */ u8 shouldRenderStrings880[3];

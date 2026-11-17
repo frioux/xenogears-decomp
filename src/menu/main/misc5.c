@@ -373,7 +373,7 @@ void MenuAddUnk434Prims(void) {
         for (i = 0; i < 3; i++) {
             offset2 = i * sizeof(MenuString) + 0x880;
             MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->pCharacterSpriteRecords + 0x50),
-                          (POLY_FT4*)(offset2 + (u32)g_Menu->pCharacterSpriteRecords), g_Menu->pCharacterSpriteRecords->itemNameStrings[i].renderContext);
+                          (POLY_FT4*)(offset2 + (u32)g_Menu->pCharacterSpriteRecords), g_Menu->pCharacterSpriteRecords->slotStrings[i].renderContext);
         }
     }
 }
