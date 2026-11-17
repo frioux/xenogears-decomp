@@ -6,6 +6,10 @@
 // three halfwords at 0x1F8000A0 are one short vector, handed over by address.
 #define WORLD_MAP_TILE_POS ((SVECTOR *)0x1F8000A0)
 
+// sprite group this slot drives, and how long its activation lasts
+#define WORLD_MAP_SPRITE_GROUP9 9
+#define WORLD_MAP_SPRITE_GROUP9_TIMER 60
+
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ s16 command;
@@ -632,7 +636,7 @@ int WorldMapActivateSpriteGroup9Timed(int idx) {
 
     if (pPlayer->command == 1) {
         *(s16 *)(pSlotBytes + 4) = 0;
-        *(s16 *)(pSlotBytes + 0x22) = 60;
+        *(s16 *)(pSlotBytes + 0x22) = WORLD_MAP_SPRITE_GROUP9_TIMER;
         *(s32 *)(pSlotBytes + 0x28) = g_WorldMapPlayerPosition;
         *(s32 *)(pSlotBytes + 0x2C) = g_WorldMapPlayerPositionY;
         *(s32 *)(pSlotBytes + 0x30) = g_WorldMapPlayerPositionZ;
@@ -646,11 +650,12 @@ int WorldMapActivateSpriteGroup9Timed(int idx) {
         WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
         WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
         WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
-        func_80089160(9, WORLD_MAP_TILE_POS, (s32)g_WorldMapSpriteGroup9Rotation);
+        func_80089160(WORLD_MAP_SPRITE_GROUP9, WORLD_MAP_TILE_POS,
+                      (s32)g_WorldMapSpriteGroup9Rotation);
     } else {
-        pPlayer->stateTimer = 60;
+        pPlayer->stateTimer = WORLD_MAP_SPRITE_GROUP9_TIMER;
         *(WorldMapPos *)&pPlayer->x = *(WorldMapPos *)&g_WorldMapPlayerPosition;
-        WorldMapDeactivateSpriteGroup(9);
+        WorldMapDeactivateSpriteGroup(WORLD_MAP_SPRITE_GROUP9);
         nResult = 3;
     }
     return nResult;
