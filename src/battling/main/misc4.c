@@ -284,7 +284,8 @@ struct Actor {
     /* 0x0C5 */ u8 actionPhase;
     /* 0x0C6 */ u8 prevState;
     /* 0x0C7 */ u8 padC7;
-    /* 0x0C8 */ s16 unkC8;
+    // Frames left in the current step; the same field misc3 counts down per frame.
+    /* 0x0C8 */ s16 moveEndTimer;
     /* 0x0CA */ s16 moveTimer;
     /* 0x0CC */ s16 unkCC;
     /* 0x0CE */ s16 unkCE;
@@ -311,7 +312,9 @@ struct Actor {
     // Counts down after an action entry was rejected; while it runs no action is
     // entered (src/battling/main/misc3).
     /* 0x914 */ s16 actionWaitTimer;
-    /* 0x916 */ s16 unk916;
+    // Frames the current move keeps being re-entered; the round reset clears it
+    // (misc3 sets 0x28 when a move begins and decrements it per frame).
+    /* 0x916 */ s16 moveReentryTimer;
     /* 0x918 */ u8 pad918[0x14];
     // Two world points whose y words bound the actor vertically; func_80078920
     // compares them with the other actor's before pushing the two apart.
@@ -357,7 +360,9 @@ struct Actor {
     /* 0x165C */ s32 unk165C;
     /* 0x1660 */ s32 unk1660;
     /* 0x1664 */ u8 pad1664[0x4];
-    /* 0x1668 */ s16 unk1668;
+    // Moves committed for this actor; the round reset below clears it (misc18
+    // reads it as its moveCount).
+    /* 0x1668 */ s16 moveCount;
 }; // Size: unknown
 
 extern Actor g_BattleActor1;
@@ -572,8 +577,8 @@ void func_80078F00(Actor* p) {
     p->gaugeDamage = 0;
     p->actionIndex = 0;
     p->stateTimer = 0;
-    p->unk916 = 0;
-    p->unkC8 = 0;
+    p->moveReentryTimer = 0;
+    p->moveEndTimer = 0;
     p->moveTimer = 0;
     for (i = 0; i < 8; i++) {
         p->unk64C[i].inUse = 0;
@@ -615,7 +620,7 @@ void func_80078F00(Actor* p) {
     BattleActorResetUnk15D8(&p->unk15D8);
     BattleInitSemiTransQuadPacket(p);
     p->actionWaitTimer = 0;
-    p->unk1668 = 0;
+    p->moveCount = 0;
     p->stateFlags &= ~0x40;
 }
 */
