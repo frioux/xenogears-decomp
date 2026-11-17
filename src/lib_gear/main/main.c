@@ -2090,6 +2090,24 @@ int LibGearGetModelDistance(Model* pModel) {
 // def sits in the 0xFE delay slot; ours puts the equivalent copy on the 0xFD/0xFC
 // compares instead. Same instruction multiset, same size, only reg_eqv's choice of
 // which use takes a1 differs - not reachable from source without a reload.
+// objdiff 99.87%, 464 bytes = retail's size (permuter score 15; it was 215, and
+// objdiff 99.35%, while the global was still declared s16). The ONE fix the permuter
+// found is the global's type: g_LibGearCurrentModelIndex is a u16 in retail, which
+// loads it with `lhu %lo(...)(at)` here - func_801E5D44's note above (`lh`) is the
+// only contrary evidence and is a different, still-parked body.
+// WHAT IS LEFT, one reg_eqv tie: the compare chain (0xFD/0xFC/0xFA) reads the
+// sourceModelSlot value from a1 in our build and from v1 in retail, and the range
+// subtract `addiu v0,?, -1` takes the other register of the pair. Same instruction
+// multiset, same 464 bytes, the `move a1,v1` copy sits in the 0xFE bne delay slot on
+// both sides - only which of the two equivalent pseudos each use reads differs.
+// Tried on top of the u16 type (all re-parked, none better): a separate
+// `s16 slot = pModel2->sourceModelSlot` feeding the range test (98.02%, 468 bytes),
+// dropping the inRange temporary for an inline `if ((u32)(pModel->sourceModelSlot - 1) < 0x7F)`
+// (97.97%, 468 bytes), and a fresh 4-minute permuter run (1810 iters, -j 2) which
+// returned NONE (base=best=15). The earlier shapes listed above were all measured
+// with the s16 declaration, so they are worth one more pass only if the allocator
+// question is ever reopened.
+/*
 void func_801E63A8(Model* pModel) {
     Model* pModel2;
     Model* pSource;
@@ -2173,6 +2191,9 @@ void func_801E63A8(Model* pModel) {
         }
     }
 }
+*/
+INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
+
 
 // objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
 // loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
