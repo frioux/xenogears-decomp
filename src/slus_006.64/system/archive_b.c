@@ -97,50 +97,44 @@ void ArchiveNoOp(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
 
-/* 98.01%, 436 bytes (exactly retail's size). Two walls left, neither a missing
-   statement:
-   1. A four-way callee-saved register rotation: retail puts the archive index in
-      $s0, the nIndex+6 temp in $s2 and pFirst in $s3; we put the temp in $s0,
-      pFirst in $s2 and the index in $s3 - retail's exact set of registers,
-      permuted. gcc 2.7.2's global.c priority ranks the long-lived index below
-      the short-lived pointers; ten declaration/expression orders give the same
-      97.82%, as do gcc-2.6.0 and -O3.
-   2. The queue struct's first field: retail stores D_8005A1DC through the $a0
-      that also carries &D_8005A1DC into func_80029AFC (one lui/addiu pair for
-      both). Taking the address into a pointer local and storing
-      pQueue->archiveIndex through it does make gcc share the lui/addiu (that is
-      what got the body from 440 to retail's 436 bytes), but gcse/cprop then
-      folds the register back to the SYMBOL for the store, so the bytes come out
-      as `sh $s1,0($at)` instead of retail's `sh $s1,0($a0)` - a 2.7.2/2.6.0
-      codegen difference, not a source one. cdk -G0 makes it worse overall
-      (84.95%).
-   The do-while(0) around the two HeapAlloc/HeapPinBlock pairs is what took the
-   body from 97.82% to 98.01% (decomp-permuter found it, 215 -> 205 by its own
-   score): it changes gcc's statement tree enough to move the queue-index temp
-   into $s0 and give the pFirst/pSecond pair retail's registers, which fixes the
-   ENTIRE difference list down to the two walls above. A bare { } block around
-   the same three statements does NOT reproduce it (97.82%, i.e. no gain over
-   plain statements).
-   Tried since: decomp-permuter from this body (561 iterations, base=215
-   best=205) proposed a `u16 new_var = nIndex + 7; D_8005A1E4 = new_var +
-   nBaseIndex;` hoist - objdiff measured 96.84%, rejected. A local for the whole
-   `nIndex + 7 + nBaseIndex` expression: 92.65%, 424 bytes. Swapping the
-   pFirst/pSecond declarations: no change (98.01%).
+/* 98.99%, 432 bytes = retail's exact instruction count (108 insns). The queue
+   store is SOLVED: with D_8005A1DC declared as a StreamDataQueueEntry[] and the
+   first field stored through the pointer taken for the func_80029AFC call, gcc
+   shares the address and emits retail's `sh $s2,0($a0)` (a local
+   `StreamDataQueueEntry*` over three separate 8-byte symbols does not: cse folds
+   the store back to the symbol and the bytes come out `sh $sN,0($at)`; that was
+   round 194's 98.01%). Entries 1 and 2 must still be written as the absolute
+   D_8005A1E4/D_8005A1EC and the pData fields as D_8005A1E0/E8/F0, because a
+   `pQueue[1]` access renders the relocation as D_8005A1DC+0x8, which objdiff
+   never scores as retail's D_8005A1E4.
+   The do-while(0) around the two HeapAlloc/HeapPinBlock pairs is load-bearing
+   (found by the permuter in round 194): it is what puts the size temp in $s0 and
+   pFirst/pSecond in retail's registers.
+   REMAINING WALL - one allocator tie, everything else follows from it: retail
+   keeps the doubled index in $s0 (so the size temp is $s2, pFirst $s3, and the
+   second size sum is computed IN PLACE on the index: `addiu s0,s0,7; addu
+   s0,s0,s4`). We hold the index in $s3, so the temp lands in $s0, pFirst in $s2,
+   and that sum goes to $v0. Two permuter runs from this body (1547 and 1780
+   iterations) could not move it; they contributed only the `nFirstSize =
+   nBaseIndex + 7;` local (which keeps the +7 off the index and is why this body
+   is 98.99% and not 98.71%) and the `(pQueue + 0)` spelling.
 
+/*
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern int ArchiveDecodeSizeAbsolute(int entryIndex);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 
-extern u16 D_8005A1DC;
+extern StreamDataQueueEntry D_8005A1DC[];
 extern void* D_8005A1E0;
 extern u16 D_8005A1E4;
-extern void* D_8005A1E8;
 extern u16 D_8005A1EC;
+extern void* D_8005A1E8;
 extern void* D_8005A1F0;
 extern void* g_BattleStageData;
 
 int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3) {
     StreamDataQueueEntry* pQueue;
+    int nFirstSize;
     void* pFirst;
     void* pSecond;
     int nSectionIndex;
@@ -161,13 +155,14 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     } else {
         nIndex *= 2;
         do {
-            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 7 + nBaseIndex), 1);
+            nFirstSize = nBaseIndex + 7;
+            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + nFirstSize), 1);
             HeapPinBlock(pFirst);
             pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 6), 1);
         } while (0);
         HeapPinBlock(pSecond);
-        pQueue = (StreamDataQueueEntry*)&D_8005A1DC;
-        pQueue->archiveIndex = nIndex + 6;
+        pQueue = D_8005A1DC;
+        (pQueue + 0)->archiveIndex = nIndex + 6;
         D_8005A1E0 = pSecond;
         D_8005A1E4 = nIndex + 7 + nBaseIndex;
         D_8005A1E8 = pFirst;
