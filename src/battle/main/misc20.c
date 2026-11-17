@@ -437,27 +437,27 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
-// best 98.66% at retail's exact size (0xE0): the dispatch, all four arm bodies and
-// the shared decrement tail line up. Retail keeps TWO copies of the
-// "idx = g_BattleTargetSlotState->unk04[0]; break;" arm (cases 0 and 15, at .L8009E7C0 and
-// .L8009E814); gcc 2.6.0 cross-jumps them into a single block whenever both arms
-// are written the same way, and the second copy is exactly the 0x18 bytes the
-// merged version is short (200 vs 224). The volatile in case 15 is what keeps the
-// two blocks rtx-unequal; what it costs is one andi, because a volatile QI load
-// cannot fuse with its zero-extension, so the byte comes out lbu v0,0x4(v0) plus
-// andi v1,v0,0xff in the j delay slot where retail has the lbu straight into v1.
-// Without the volatile the same body reads 89.11%. Folded away or removed before
-// cross-jumping (all measured at 200 bytes): pointer, u8, s16 and u32 variants of
-// the index local, *(unk04 + 0), ((u8 *)p)[4], braces around the arm, do-while(0),
-// goto vs break, and s32/u8 temporaries between the load and the index. A
-// different source shape is needed here, not a different spelling.
+// 99.91% at retail's exact size (224 bytes): the dispatch, all four arm bodies and
+// the shared decrement tail line up, and ONE instruction is left. Retail keeps two
+// identical copies of the "idx = extraWeaponIds[0]" arm (cases 0 and 15, at
+// .L8009E7C0 and .L8009E814); plain C merges them into one block and comes out 0x18
+// bytes short (200 bytes, 89.11%). The volatile load in case 15 is the only lever
+// found that keeps the two blocks rtx-unequal, and it costs an andi: gcc cannot fuse
+// a volatile QI load with its zero-extension, so case 15 comes out
+// "lbu v0,4(v0)" plus "andi v1,v0,0xff" in the jump delay slot where retail has the
+// lbu straight into v1. Measured at 200 bytes (merged): a s32, u8, s16 and u32 index
+// local, a copy through a second local (coalesced away), *arr against arr[0], a
+// volatile global pointer, a volatile pointer to the array, arr[0] & 0xFF, braces
+// and do-while(0) around the arm; and 208 bytes with a u8 index local. That the
+// MERGE is what costs the 24 bytes is confirmed by a value difference
+// (extraWeaponIds[1] in case 15), which gives 224 bytes at 99.80%.
 /*
 void func_8009E788(void) {
     s32 idx;
 
     switch (g_BattleCurWorkBlock->rowIndex) {
     case 0:
-        idx = g_BattleTargetSlotState->unk04[0];
+        idx = g_BattleTargetSlotState->extraWeaponIds[0];
         break;
     case 3:
     case 4:
@@ -471,18 +471,18 @@ void func_8009E788(void) {
     case 12:
     case 13:
     case 14:
-        idx = g_BattleTargetSlotState->unk04[0];
+        idx = g_BattleTargetSlotState->extraWeaponIds[0];
         if (((u8 *)&g_GameState.unk22B6)[idx] != 0) {
             ((u8 *)&g_GameState.unk22B6)[idx] = ((u8 *)&g_GameState.unk22B6)[idx] + 0xFF;
         }
-        idx = g_BattleTargetSlotState->unk04[3];
+        idx = g_BattleTargetSlotState->extraWeaponIds[3];
         break;
     case 15:
-        idx = *(volatile u8 *)&g_BattleTargetSlotState->unk04[0];
+        idx = *(volatile u8 *)&g_BattleTargetSlotState->extraWeaponIds[0];
         break;
     case 2:
     case 17:
-        idx = g_BattleTargetSlotState->unk04[3];
+        idx = g_BattleTargetSlotState->extraWeaponIds[3];
         break;
     default:
         return;
