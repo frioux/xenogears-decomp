@@ -518,16 +518,26 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     return 1;
 }
 
-/* 99.91% (432 bytes, the original's size): only one instruction differs - the
-   original loads `lbu a2,1(s1)` for the `p1[1] == 0x10` test where gcc 2.7.2
-   here picks $v1; everything else, including the frame, the `move s3,v0` in the
-   second call's delay slot and the three one-word averages, matches. Earlier
-   notes claiming 428 bytes and a hoisted `addiu a3,sp,0x10` came from a body
-   that no longer compiles (its BattleTransformEntryVertex prototype conflicted
-   with the definition above); with the real prototype it is 432 bytes and the
-   tie above. Permuter: 639 iterations, base=best=10, nothing found. Also tried
-   the `s32 *pVecB` temp and both orders of the inner if. gcc 2.7.2-cdk rejects
-   the unit. */
+/* 99.91% (432 bytes, the original's size): the only difference is the register
+   the `p1[1]` test value lands in - retail `lbu a2,1(s1); li v0,0x10; bne a2,v0`,
+   ours `lbu v1,1(s1)` with the same `li v0,0x10` and the same bne. Nothing else
+   differs: frame, the `move s3,v0` in the second call's delay slot, the
+   `addiu a0,sp,0x10` in the bne slot and the three one-word averages all match,
+   and a constant local moves the value to `$v0`, which shows the allocator is
+   stepping over `$a2` on purpose (the block already put the earlier
+   `lh a2,6(s1)` argument there, and gcc 2.7.2's local_alloc will not reuse an
+   argument register that it charged to this block; retail's compiler did).
+   Tried this round, all 432 bytes and 99.91%: u8 and s32 locals (block-scope and
+   top-of-function, embedded assignment `if ((type = p1[1]) == 0x10)`); the
+   test as a one-case `switch`; swapped operands `0x10 == p1[1]`; `!(x != 0x10)`;
+   a `s32 lineType = 0x10` constant local (96.41%, 440 bytes); a volatile read
+   (97.90%, 436 bytes); a `do { ... } while (0)` around the if/else (81.74%, it
+   moves p1 to `$s0`); an empty `do { } while (0)` before the test; and the
+   BattleTransformEntryVertex arguments hoisted into s32 locals. Permuter run this
+   round from this exact body: 1726 iterations, base=best=10, nothing.
+   Next lever not tried: an edit that makes the vertex offset load reach `$a2`
+   through a copy suggestion (a source-level tie between the two uses), which is
+   where a stronger permuter mutation set or a manual RTL read would start. */
 /*
 extern s32 BattleEffectPackKey(s32, u8, s16, s32);
 extern s32 BattleEffectIsTwoVertexType(u8);
