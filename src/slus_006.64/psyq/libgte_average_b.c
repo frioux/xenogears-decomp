@@ -3,11 +3,11 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-// Psy-Q libgte from RotAverageNclip4 through RotMatrixZYX. RotAverage4 (the
+// Psy-Q libgte from RotAverageNclip4 through RotMatrixYXZ. RotAverage4 (the
 // function before it) is padded to 16 bytes in the shipped .OBJ, so the nop at
 // 0x3B038 is an `asm` subsegment in config/slus_006.64.yaml and this file starts
-// at 0x3B03C; it ends at 0x3B648, where RotMatrixZYX's own pad word is the next
-// `asm` subsegment and psyq/libgte_average_b_3 begins.
+// at 0x3B03C; it ends at 0x3B3B8, where RotMatrixYXZ's own pad word is the next
+// `asm` subsegment and psyq/libgte_average_b_2 begins.
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotAverageNclip4);
 /* best attempt 59.52% (180 bytes, the original's size: no frame, no extra insn).
@@ -92,6 +92,3 @@ MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotMatrixYXZ);
-
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotMatrixZYX);
-
