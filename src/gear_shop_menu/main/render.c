@@ -1485,6 +1485,22 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 // The known-cheating `value = equipFlags; equipFlags = value;` in the engine case does
 // unmerge 4 of those 6 insns (97.37%, 2524 bytes) but swaps what the digit loop renders
 // for engines, so it is not shippable.
+// Round 171 measured the mechanism, which is a register-allocation tie and nothing else.
+// The `addu` that forms the element address (`addu dest, index, tableBase`) appears 18
+// times in the original; retail's dest is $v0 at 16 of them, $a0 at the four ARMOR/FRAME
+// ones (sellPrice AND tail, both) and $v1 at the two ENGINE ones. Rule in retail: a site
+// whose address has one use (WEAPON/ACCESSORY tail, every gearId->gear index product) keeps
+// $v0, a site whose address feeds both `lhu price` and `lw equipFlags` does not. Ours puts
+// dest in $v0 at all 18, so the three two-use sites become RTL-identical after reload and
+// cross_jumping keeps one copy of `lw/move/j/sw` plus the frame's address `addu` (-6 insns,
+// 2508 vs 2532). Nothing else in the function differs: 110 of 112 segments are exact and
+// the only other residual is the `places[]` biv, which retail re-bases onto the spilled
+// pRect (`lw t1,0x78(sp); lw a0,0x78(sp); addiu a1,t1,16`) where ours uses `sp+48`.
+// Pre-reload the three tails are the same RTL statement-by-statement, so the difference is
+// purely which of the two dying operands the sum's destination coalesces with; that is
+// global-alloc state in a 633-insn function, i.e. not addressable from this block's C. Do
+// not re-derive: what would move it is any source change that shifts allocation for the
+// whole function, and three permuter runs over this body found nothing.
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
 /*
 s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
