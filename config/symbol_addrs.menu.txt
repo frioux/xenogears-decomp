@@ -344,3 +344,6 @@ g_MenuCharacterWideNumber2DigitsY = 0x801E9B54;
 g_MenuSlotNameTextureX = 0x801EA590;
 g_MenuSlotNameTextureY = 0x801EA5DC;
 g_MenuSubMenuChoiceTextIds = 0x801EA1F0;
+D_801E9788 = 0x801E9788;
+D_801E9794 = 0x801E9794;
+D_801E97A0 = 0x801E97A0;

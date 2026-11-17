@@ -13,9 +13,20 @@ extern s32 g_MenuInventoryRowCount;
 extern u16 g_MenuInventoryScrollStep;
 extern u8 D_801E9EA0[];
 extern u8 D_801E9785;
+extern u16 D_801E9788[][2];
+extern u16 D_801E9794[][2];
+extern u16 D_801E97A0[][2];
 extern u8 g_ShopIndex;
 
-void func_801DDF24(u_char arg0, u_char arg1, s32 arg2);
+// 0x1094-byte item panel buffer built by MenuCreateUnk430Panel
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x1084];
+    /* 0x1084 */ u8 unk1084[0x10];
+} MenuUnk430Panel; // Size: 0x1094
+
+void func_801DC3D8(u_char arg0, u_char arg1);
+void func_801DCE60(u_char arg0, u_char arg1, u_char arg2);
+void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
 void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3);
@@ -42,7 +53,7 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 u32 MenuAndBitMaskLsbFirst(u32 mask, u8 index);
 void MenuPlaySoundEffect(u_char soundEffectId);
-s32 func_801D9704(s32 slot, s32 direction, s32 unk);
+s32 func_801D9704(s32 slot, u_char direction, u_char arg2);
 void func_801DA5BC(s32 arg0);
 void func_801DA9A8(s32 arg0, s32 arg1);
 void func_801DB39C(s32 arg0);
@@ -245,7 +256,7 @@ void MenuFitInventoryWindowToItems(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+
 /* Best: 93.91%, 888 bytes (retail 896) - 222 vs 224 insns, 2 short. Everything else
    is retail's: the prologue save order, the 8 switch arms, the case listing order
    (4, 5, 1, 3, 0, 2, 9, 10 in the source, which is retail's body order - ascending
@@ -270,7 +281,11 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
    `make check` passes). So JTBL_LAYOUT is probably not the blocker here, the 2
    insns are - but that is inferred from misc10, not measured for a 44-byte table:
    converting one of these and running check_bin.sh menu settles it in a minute.
-   func_801DB920 returns u_char (retail does `andi v0,v0,0xFF` after the call). */
+   func_801DB920 returns u_char (retail does `andi v0,v0,0xFF` after the call).
+   permuter --minutes 5 -j 2 from this body: PERMUTER_BETTER 1337 -> 1257, but the
+   winner is an inline_fn helper (not portable); no lead on the two deltas. */
+
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 /*
 s32 func_801DBE54(void) {
     u8 active;
@@ -408,6 +423,7 @@ s32 func_801DBE54(void) {
 }
 */
 
+
 void MenuCreateUnk430Panel(u_char arg0) {
     s32 kind;
     s32 index = 0;
@@ -511,7 +527,127 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
    }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
+
+/* Best: 94.46%, 884 bytes - retail's exact size, 221 insns each. The whole body is
+   retail's: prologue, loop, all 8 switch arms in retail's body order (4, 5, 0, 2, 1,
+   3, 9, 10 - ascending gives ~67%), every call, store and delay slot, and the loop
+   test at the bottom. One root cause is left, and everything else in the diff is its
+   cascade: `needsOpen` (u8, retail `$s5`, ours spilled to 0x38($sp), which is why the
+   frame is 0x70 here against retail's 0x68). gcc 2.6.0 hoists the literal `1` (the
+   7th MenuCreateWindow argument, 4 uses inside the loop) into a saved register and
+   rematerialises the `4` (8th argument) in another - retail does the reverse: `4` in
+   `$s8`/fp, `1` re-loaded into `$t0` before each of the 4 calls, and `$s5` free for
+   needsOpen. Same phenomenon in func_801DBE54's matching prologue, where BOTH
+   constants do get hoisted (retail `$s7`=1, `$s8`=4): that unit has one live value
+   fewer, so the tie goes the other way. Tried: typed MenuUnk430Panel view for the
+   case-4 flag byte (fixed that addu's operand order, 94.42 -> 94.46), and moving the
+   `needsOpen = 1` init after the two prologue calls (93.31, worse). Not tried: the
+   permuter (a 5-minute run on the 93.91% func_801DBE54 body found only a bogus
+   inline_fn mutation).
+   JUMP TABLE: this stub owns jtbl_801C512C, which is at +0x30 of the unit's .rodata
+   range (config/menu.yaml [0xFC, .rodata, main/misc9]) - func_801DBE54 owns the table
+   at +0x00 and func_801E05D0 the one at +0x60, so the three must be converted IN THAT
+   ORDER or every later table shifts by 0x30. Un-park this one only after
+   func_801DBE54's switch is C. `case 4`'s flag byte is g_Menu->unk430 + 0x1084 + col
+   (the buffer is the 0x1094 bytes MenuCreateUnk430Panel allocates); the three window
+   dimensions are D_801E9788/94/A0[kind][0], u16 tables 0xC bytes apart, stride 4
+   (282/282/162, 218/218/200, 82/82/100 - one row per character slot). `kind` is the
+   s32 arg2 masked to a byte; cases 0 and 2 are disabled when it is 2. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DDF24);
+/*
+void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
+    u8 active;
+    u8 needsOpen;
+    s32 col;
+    s32 prevCol;
+    u8 slot;
+    u8 prevSlot;
+    u8 kind;
+
+    active = 1;
+    needsOpen = 1;
+    col = 0;
+    prevCol = 0xFF;
+    slot = arg0;
+    prevSlot = 0xFF;
+    kind = arg2;
+    MenuCreateUnk430Panel(kind);
+    MenuInitializeArrowCursor(0);
+    do {
+        MenuRenderFrame();
+        if (slot != prevSlot) {
+            func_801DC3D8(slot, arg2);
+            prevSlot = slot;
+            prevCol = 0xFF;
+        }
+        func_801DB0A8(col, 0, 2, 0);
+        if (col != prevCol) {
+            func_801DCE60(slot, col, arg2);
+            prevCol = col;
+        }
+        if (needsOpen) {
+            MenuCreateWindow(6, 0x10, 0xA, D_801E9788[kind][0], 0x70, 0, 1, 4, 0);
+            MenuCreateWindow(5, 0xC, 0x86, 0xAC, 0x38, 0, 1, 4, 0);
+            MenuCreateWindow(4, D_801E9794[kind][0], 0xA6, D_801E97A0[kind][0], 0x18, 0, 1, 4, 0);
+            MenuCreateWindow(3, 0xC8, 0x86, 0x50, 0x18, 0, 1, 4, 0);
+            needsOpen = 0;
+            if (arg1) {
+                MenuStartOpenAnimation();
+                func_801D29A8(0, 0);
+                MenuRenderFrame();
+            }
+            g_Menu->pManager->unk5[1] = 0;
+            g_Menu->pManager->shouldRenderWindow[1] = 0;
+        }
+        switch (g_Menu->input) {
+        case 4:
+            if (((MenuUnk430Panel*)g_Menu->unk430)->unk1084[col] & 0x80) {
+                func_801DD790(slot, col, arg2);
+                prevSlot = 0xFF;
+                prevCol = 0xFF;
+            }
+            break;
+        case 5:
+            active = 0;
+            break;
+        case 0:
+            if (kind != 2) {
+                col++;
+                if (col >= 0xC) {
+                    col = 0xB;
+                }
+            }
+            break;
+        case 2:
+            if (kind != 2) {
+                col--;
+                if (col < 0) {
+                    col = 0;
+                }
+            }
+            break;
+        case 1:
+            if (col + 2 < 0xC) {
+                col += 2;
+            }
+            break;
+        case 3:
+            if (col - 2 >= 0) {
+                col -= 2;
+            }
+            break;
+        case 9:
+            slot = func_801D9704(slot, 0, arg2);
+            break;
+        case 10:
+            slot = func_801D9704(slot, 1, arg2);
+            break;
+        }
+    } while (active);
+    MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings10E0);
+    MenuFreeArrowCursor(0);
+}
+*/
 
 s32 MenuRunUnk430Panel(u_char arg0, u_char arg1) {
     func_801DDF24(arg0, arg1, 0);
