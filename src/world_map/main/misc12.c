@@ -84,8 +84,8 @@ typedef struct {
     /* 0x6C */ u32 unk6C;
     /* 0x70 */ s32 unk70;
     /* 0x74 */ u32 unk74;
-    /* 0x78 */ u8 unk78[0x4];
-    /* 0x7C */ s32 unk7C;
+    /* 0x78 */ s32 targetAngle;
+    /* 0x7C */ s32 pathIndex;
 } WorldMapPlayer; // Size: 0x80
 
 typedef struct {
@@ -255,15 +255,15 @@ s32 func_8008E190(s32 idx) {
         break;
     case 3:
         pPlayer->state = 0x28;
-        pPlayer->unk7C = 0;
+        pPlayer->pathIndex = 0;
         break;
     case 4:
         pPlayer->state = 0x30;
-        pPlayer->unk7C = 0;
+        pPlayer->pathIndex = 0;
         break;
     case 5:
         pPlayer->state = 0x34;
-        pPlayer->unk7C = 0;
+        pPlayer->pathIndex = 0;
         break;
     }
     return nRet;
