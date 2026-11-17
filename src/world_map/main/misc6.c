@@ -985,29 +985,36 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FD30);
-/* 90.00%: every store, call and relocation is right and only 4 bytes short of
-   retail's 0x240; the deltas are the two group pointers (retail keeps
-   &g_WorldMapGroups->groups[9] in $s2 - computed in the bne delay slot - and
-   groups[10] in $s3 - computed in the beqz delay slot - and stores through
-   $s1 displacements), plus gcc hoisting the unk50/unk54 loads of the scratchpad
-   block and picking different registers than retail's all-in-$v0. Note unk54
-   and unk58 are void* in the struct: comparing them needs the (s32) casts below
-   or gcc drops the clamp (sltu) and the whole unk58 branch.
+/* 94.54% (572 bytes; retail is 576 - one instruction short). Every store, call
+   and relocation is right; the two remaining deltas are
+   (1) the unk50/unk54 clamp: retail stores the bumped value in its own
+   instruction, then compares, and fills the beqz delay slot with
+   `addiu s3,s1,0x348` (&groups[10]); ours sinks the bumped store INTO the beqz
+   delay slot because gcc already computed both group pointers up at the top
+   (ours: `addiu s2,s1,0x2F4` before the `lh`, s3 in the bne delay slot), so the
+   store has nowhere else to go - that is the missing instruction;
+   (2) the scratchpad block: retail loads unk50, stores it, then loads unk54,
+   ours loads both first (register order only).
+   permute.sh 1+3 min: base 1328 -> 803 by dropping the separate `nX` local and
+   reusing `nY` (kept below, worth 90.00 -> 94.54). Note unk54/unk58 are void*
+   in the struct: comparing them needs the (s32) casts or gcc drops the clamp
+   (sltu) and the whole unk58 branch.
+*/
+/*
 int func_8007FD30(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapGroup *pGroup9 = &pRoot->groups[9];
     WorldMapGroup *pGroup10 = &pRoot->groups[10];
-    s32 nX;
     s32 nY;
     s32 nZ;
 
     if (pActor->command == 1) {
         pActor->command = 0;
     }
-    nX = pActor->x >> 12;
-    pGroup10->x = nX;
-    pGroup9->x = nX;
+    nY = pActor->x >> 12;
+    pGroup10->x = nY;
+    pGroup9->x = nY;
     nY = pActor->y >> 12;
     pGroup10->y = nY;
     pGroup9->y = nY;
@@ -1016,9 +1023,9 @@ int func_8007FD30(int index) {
     pGroup9->z = nZ;
     pGroup10->mat = g_WorldMapIdentityMatrix;
     pGroup9->mat = pGroup10->mat;
-    nX = pActor->unk50;
-    *(s32 *)0x1F800008 = nX;
-    *(s32 *)0x1F800000 = nX;
+    nY = pActor->unk50;
+    *(s32 *)0x1F800008 = nY;
+    *(s32 *)0x1F800000 = nY;
     *(s32 *)0x1F800014 = 0x1000;
     *(s32 *)0x1F800004 = 0x1000;
     nY = (s32)pActor->unk54;
@@ -1026,9 +1033,9 @@ int func_8007FD30(int index) {
     *(s32 *)0x1F800010 = nY;
     ScaleMatrix(&pGroup9->mat, (VECTOR *)0x1F800000);
     ScaleMatrix(&pGroup10->mat, (VECTOR *)0x1F800010);
-    nX = pActor->unk50 + 0x180;
-    pActor->unk50 = nX;
-    if (nX > 0x7FFF) {
+    nY = pActor->unk50 + 0x180;
+    pActor->unk50 = nY;
+    if (nY > 0x7FFF) {
         pActor->unk50 = 0x7FFF;
     }
     nY = (s32)pActor->unk54 + 0x180;
