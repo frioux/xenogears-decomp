@@ -212,7 +212,7 @@ typedef struct {
     /* 0x60 */ u32 hp; // scaled current hp
     /* 0x64 */ u32 maxHp; // scaled max hp
     /* 0x68 */ u8 unk68[0xA];
-    /* 0x72 */ u16 unk72; // added to the action's value, scaled by (100 - penaltyPercent) / 100
+    /* 0x72 */ u16 valueBonus; // added to the action's value, scaled by (100 - penaltyPercent) / 100
     /* 0x74 */ u8 unk74[0x8];
     // The active/accessory effect word grid, at the same offsets as in GameCharacter
     // and GameGear (include/main/game.h). Battle code reads these three pairs where
@@ -228,7 +228,8 @@ typedef struct {
     /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
     /* 0x9A */ u8 unk9A[0x4];
     /* 0x9E */ u8 unk9E;
-    /* 0x9F */ u8 unk9F[0x5];
+    /* 0x9F */ s8 responsiveness; // the attacker adds half of it to its hit, the defender all of it to its evade
+    /* 0xA0 */ u8 unkA0[0x4];
     /* 0xA4 */ u8 unkA4;
     /* 0xA5 */ u8 unkA5;
     /* 0xA6 */ u8 unkA6[0x10];
