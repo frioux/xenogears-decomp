@@ -8,4 +8,9 @@
 // 0x3A8E8 in config/slus_006.64.yaml and the rest of this unit's code starts
 // psyq/libgte_b_2 at SetBackColor.
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b", ReadGeomScreen);
+long ReadGeomScreen(void) {
+    long h;
+
+    gte_stgeom_screen_val(h);
+    return h;
+}

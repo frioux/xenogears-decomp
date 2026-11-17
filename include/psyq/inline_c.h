@@ -1699,6 +1699,11 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	"mfc2	%0, $19"					\
 	: "=r"( r0 ) )
 
+/* GEOMETRY SCREEN control read back into a general register, the same way. */
+#define gte_stgeom_screen_val( r0 ) __asm__ volatile (			\
+	"cfc2	%0, $26"					\
+	: "=r"( r0 ) )
+
 /* MAC1-MAC3 read back one at a time, so the source controls the order and the
    allocator sees three independent values (the shadow projection reads MAC2,
    then MAC1, and MAC3 only after its first compare). */
