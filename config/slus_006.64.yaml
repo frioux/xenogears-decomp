@@ -177,6 +177,8 @@ segments:
       - [0x3A8DC, c, psyq/libgte_b]
       - [0x3A8E8, asm] # ReadGeomScreen's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A8EC, c, psyq/libgte_b_2] # SetBackColor on
+      - [0x3A944, asm] # SetGeomOffset's tail pad words (2 words)
+      - [0x3A94C, c, psyq/libgte_b_2_b] # SetGeomScreen on
       - [0x3A958, asm] # SetGeomScreen's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A95C, c, psyq/libgte_b_3] # LocalLight on
       - [0x3AB30, asm] # AverageSZ4's tail pad words (3 words)
