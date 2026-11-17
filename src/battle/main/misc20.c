@@ -197,10 +197,10 @@ s32 func_8009D3A0(void) {
     isGear = ((u8 *)&g_GameState.unk22B6)[g_BattleTargetSlotState->unk04[0]];
     evade = g_BattleActingSlot->evade;
     if (!isGear) {
-        evade = *(s8 *)&g_BattleTargetSlotState->unk9F[0] + evade;
+        evade = g_BattleTargetSlotState->responsiveness + evade;
     }
-    if ((s8)g_BattleCurSlotState->unk9F[0] != 0) {
-        hit = (s8)g_BattleCurSlotState->unk9F[0] / 2 + hit;
+    if (g_BattleCurSlotState->responsiveness != 0) {
+        hit = g_BattleCurSlotState->responsiveness / 2 + hit;
     }
     if (g_BattleActingSlot->characterId == 4) {
         if ((g_BattleCurrentRow->unk0C[4] & 0x80) && !isGear) {
@@ -303,7 +303,7 @@ u16 BattleApplySlotPercentToValue(void) {
 
     if (g_BattleCurrentRow->actionFlags & 0x100) {
         n = g_BattleCurSlotState->penaltyPercent;
-        v = g_BattleCurSlotState->unk72;
+        v = g_BattleCurSlotState->valueBonus;
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
         }
