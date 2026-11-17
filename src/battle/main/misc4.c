@@ -110,19 +110,19 @@ void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
         BattleQueueCommandF8(arg1);
     }
 }
-/* Best: 95.44% (400 bytes vs retail 420), and it compiles: the original declaration of
-   the extern was 3-argument, the parked body 2-argument, which is why the sweep scored it ERROR.
-   REAL PERCENTAGES: 95.44 with the g_BattleActionSlotMask declaration spelled as an ARRAY and the
-   pMask copy below (94.59 without the copy), 89.11 with the realistic scalar declaration - the
-   array spelling is what makes gcc MATERIALISE the address (lui/addiu into a saved register,
-   lhu 0(sN) at three sites) instead of folding it into each load (lui %at; lhu %lo(%at)); under
-   -G0 the scalar form already does that (94.59), so it is the -G8 small-data fold, not the source.
-   Remaining gap: with the base in a register gcc swaps the two callee-saved allocations (retail
-   s0 = arg1*8, s1 = &g_BattleActionSlotMask; ours the reverse) and merges i = 0 into the beq delay
-   slot, which is 5 instructions. Permuter run from the 94.59 body found the pMask copy (559 -> 474).
-   Tried: volatile u16 *pValue (88.87), pointer assigned at the top and just before the store
-   (identical), declaration order of the four locals (identical), no pQueue local (reloads
-   g_BattleCommandQueue in the loop).*/
+/* Best: 95.44%, 400 bytes vs retail's 412 (103 insns). The whole gap is the loop PREHEADER:
+   retail has "move t0,s1" (mask base), "move a2,v1" (queue pointer) and a separate "move a0,zero"
+   after a nop in the beq delay slot; ours cse-merges both pointers into the register that already
+   holds them and reorg steals i = 0 into the beq slot, so we are exactly 3 instructions short.
+   Both copies only appear when the value is NOT cse-equal to the pre-existing register: writing the
+   loop's mask as g_BattleActionSlotMask[0] does emit a copy (c6, 412 bytes) but it also needs a
+   second callee-saved register (frame 0x30, saves s3) - retail saves s0/s1/s2 only. Writing the loop
+   test against g_BattleCommandQueue instead of a local reloads the pointer every iteration (t1,
+   412 bytes, 91.63%). Tried and measured no better than 95.44: pMask/pValue assignment in every
+   position (93.91), for-loops with one or two induction variables (88.64/95.44), do/while wrapper
+   (95.44), n*0x48 strength-reduction forms (84.32), non-void return type (unchanged), array element
+   at each of the three mask sites (8 combinations, 86.7-95.4). Permuter: 1936 iterations, no
+   improvement from base=474. */
 /*
 void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
     BattleCommandQueue *pQueue;
@@ -152,8 +152,10 @@ void func_80078998(u8 arg0, u8 arg1, u8 arg2) {
             i += 0x48;
         }
     }
-}*/
+}
+ */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078998);
+
 
 
 
