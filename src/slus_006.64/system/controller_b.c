@@ -39,7 +39,7 @@ typedef struct {
 } TimHeader; // Size: 0x14
 
 extern void ControllerUpdateActuatorState(ControllerBState* pState);
-extern void func_80040C3C(void* pDest, int destSize, void* pSrc, int srcSize);
+extern void SendPAD(void* pDest, int destSize, void* pSrc, int srcSize);
 
 extern u_char D_800501F8;
 extern u_char D_80059370;
@@ -143,7 +143,7 @@ void ControllerResetActuators(void) {
     D_8005A1BC[0].unk6 = 0;
     D_8005A1BC[0].unk7 = 0;
     D_8005A1BC[1] = D_8005A1BC[0];
-    func_80040C3C(&D_8005A1BC[0], 4, &D_8005A1BC[1], 4);
+    SendPAD(&D_8005A1BC[0], 4, &D_8005A1BC[1], 4);
 }
 
 void ControllerUpdateActuatorState(ControllerBState* pState) {

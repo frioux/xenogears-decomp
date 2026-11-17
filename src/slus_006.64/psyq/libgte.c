@@ -201,7 +201,7 @@ void LoadAverage0(VECTOR *v0, VECTOR *v1, long p0, long p1, VECTOR *v2) {
     gte_stlvl_gpr_stack(v2);
 }
 
-void func_8004901C(SVECTOR *v0, SVECTOR *v1, long p0, long p1, SVECTOR *v2) {
+void LoadAverageShort12(SVECTOR *v0, SVECTOR *v1, long p0, long p1, SVECTOR *v2) {
     long flg;
 
     gte_ldv3_gpr(v0);
@@ -217,7 +217,7 @@ void func_8004901C(SVECTOR *v0, SVECTOR *v1, long p0, long p1, SVECTOR *v2) {
 }
 
 
-void func_800490A4(SVECTOR *v0, SVECTOR *v1, long p0, long p1, SVECTOR *v2) {
+void LoadAverageShort0(SVECTOR *v0, SVECTOR *v1, long p0, long p1, SVECTOR *v2) {
     long flg;
 
     gte_ldv3_gpr(v0);

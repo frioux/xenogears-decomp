@@ -22,7 +22,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", func_80040BA4);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_b", func_80040C20);
 
-void func_80040C3C(void) {
+void SendPAD(void) {
     _SendPAD();
 }
 

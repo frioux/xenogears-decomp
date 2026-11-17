@@ -157,7 +157,7 @@ void GameSoftReset(void) {
     SpuQuit();
     ControllerSetFrameCallback(0);
     DrawSyncCallback(0);
-    func_8004B7D0(0);
+    VSyncCallback(0);
     CdFlush();
     StopPAD();
     SwEnterCriticalSection();

@@ -24,7 +24,6 @@ extern u_char g_BuiltinArchiveHeader[];
 
 extern void ControllerUpdate(void);
 extern int ModelGetHeapStart(void);
-extern void func_8004B7D0(void*);
 extern void SoundGetPendingSpuCommandType(int);
 extern void SystemResetGlobalState(void);
 extern void func_8001BB50(void);
@@ -72,7 +71,7 @@ void MainSystemInit(void) {
     InitCARD(1);
     StartCARD();
     _bu_init();
-    func_8004B7D0(ControllerUpdate);
+    VSyncCallback(ControllerUpdate);
     HeapInit((void*)ModelGetHeapStart(), 0x801FC000);
     SpuInit();
     ArchiveInit(g_BuiltinArchiveTable, g_BuiltinArchiveHeader, g_DebugTable);

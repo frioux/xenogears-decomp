@@ -49,11 +49,11 @@ VoidCallback_t DMACallback(int dma, VoidCallback_t fn) {
     return g_pInterruptControl->setDMAIntrCallback(dma, fn);
 }
 
-void func_8004B7D0(VoidCallback_t fn) {
+void VSyncCallback(VoidCallback_t fn) {
     g_pInterruptControl->setVsyncIntrCallback(4, fn);
 }
 
-int func_8004B804(int ch, VoidCallback_t fn) {
+int VSyncCallbacks(int ch, VoidCallback_t fn) {
     return g_pInterruptControl->setVsyncIntrCallback(ch, fn);
 }
 
