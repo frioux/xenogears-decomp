@@ -2,6 +2,14 @@
 #include "main/game.h"
 #include "psyq/libgpu.h"
 
+// The queue's command key: BattleClearCommandSlots clears these bytes and
+// BattleCheckCommandKeyStatusBit compares them against a command row's.
+#define BATTLE_COMMAND_KEY_LENGTH 7
+// Command byte of a slot that holds no command: BattleClearCommandSlots and
+// BattleInitSlotRowsForActor store it, BattleCheckActorCommandAvailable refuses to
+// index through it (queued commands are 0xF4-0xFD, see battle/main/misc4.c).
+#define BATTLE_COMMAND_NONE 0xFF
+
 extern u8 *g_BattleCommandQueue;
 extern u8 *g_BattleCommandSlotRows[];
 extern u8 *g_BattleCommandStatusBytes[];
@@ -211,10 +219,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085D34);
 void BattleClearCommandSlots(void) {
     s32 i;
 
-    for (i = 0; i < 7; i++) {
+    for (i = 0; i < BATTLE_COMMAND_KEY_LENGTH; i++) {
         u8 *p = g_BattleCommandQueue + i;
 
-        p[0x2CC] = 0xFF;
+        p[0x2CC] = BATTLE_COMMAND_NONE;
     }
     g_BattleCommandQueue[0x2D6] = 0;
 }
@@ -265,7 +273,7 @@ s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
     pSlots = pQueue;
     for (; i < 13; i++) {
         pRow = g_BattleCommandSlotRows[i];
-        for (j = 0; j < 7; j++) {
+        for (j = 0; j < BATTLE_COMMAND_KEY_LENGTH; j++) {
             pKey = pSlots + j;
             if (pKey[0x2CC] != pRow[j]) {
                 matched = 0;
@@ -361,7 +369,7 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
         }
         if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].unk8,
                                g_BattleCommandStatusMasks[idx & 0xFF]) != 0) {
-            if (g_BattleCommandQueue[0x2CC] != 0xFF && D_800D2C34[0] != 4 && D_800D2C34[0] < g_BattleCommandQueue[0x2CC] + 1) {
+            if (g_BattleCommandQueue[0x2CC] != BATTLE_COMMAND_NONE && D_800D2C34[0] != 4 && D_800D2C34[0] < g_BattleCommandQueue[0x2CC] + 1) {
                 ok = 0;
             }
         } else {
@@ -425,7 +433,7 @@ void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
 
     for (i = 0; i < 0x20; i++) {
         o = i * 0x48;
-        D_800C402F[o] = 0xFF;
+        D_800C402F[o] = BATTLE_COMMAND_NONE;
         D_800C400B[o] = arg0;
         *(u16 *)(g_BattleCommandRecords + o) = BattleSlotBitMask(arg1);
     }
