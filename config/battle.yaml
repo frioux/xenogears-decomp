@@ -69,6 +69,9 @@ segments:
       - [0x9DC, .rodata, main/misc20]
       - [0xA24, .rodata, main/misc21]
       - [0xA64, .rodata, main/misc23]
+      # A 4-byte pad word closes retail's misc23 table block (a 5-case switch
+      # plus 0); it belongs to asm so the switch itself can be converted.
+      - [0xA78, rodata]
       - [0xA7C, .rodata, main/misc24]
       - [0xCAC, .rodata, main/misc25]
       - [0xCEC, .rodata, main/misc26]

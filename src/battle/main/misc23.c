@@ -36,13 +36,14 @@ extern s32 g_BattleCommandRowIndex;
 extern u8 g_BattleActorCommandIds[];
 
 // Per-unit 6-byte state records, unit id 0..3; the original spells each byte
-// as its own symbol.
+// as its own symbol (a struct folds the six loads into one base, which retail
+// does not do: it rebuilds the address of every byte from its own %hi).
 extern u8 g_BattleColorTintParams[];
 extern u8 D_800C3AAD[];
 extern u8 D_800C3AAE[];
-extern u8 D_800C3AAF[];
-extern u8 D_800C3AB0[];
-extern u8 D_800C3AB1[];
+extern s8 D_800C3AAF[];
+extern s8 D_800C3AB0[];
+extern s8 D_800C3AB1[];
 
 // Allocation block owned by the structure passed to BattleFreeModelListEntryBuffers.
 typedef struct {
@@ -450,17 +451,6 @@ void func_800A64E4(void) {
 }
 */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6884);
-/* 99.74%: the switch and every instruction match; the function is 612 bytes
-   like retail and the ONLY difference is the table operand (original names
-   jtbl_80070554, ours says .rodata). DO NOT CONVERT: the stub's .s owns the
-   unit's whole .rodata range (0xA64..0xA78 = 6 words, five case entries plus a
-   trailing 0), and a C switch emits only the five entries, so the overlay comes
-   out 4 bytes short and check_bin fails (285k bytes differ). unk3/unk4/unk5 are
-   read with `lb` (s8 * 8), unk0 is the enable flag, unk1 the blend mode and
-   unk2 the weight/32. The array spelling D_800C3AAx[index * 6] is retail's own:
-   a struct-pointer local folds the six loads into one base + displacements and
-   drops the per-field lui/addu pair.
 void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
     s32 r;
     s32 g;
@@ -468,9 +458,9 @@ void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
     s32 t;
     s32 k;
 
-    r = ((s8 *)D_800C3AAF)[index * 6] * 8;
-    g = ((s8 *)D_800C3AB0)[index * 6] * 8;
-    b = ((s8 *)D_800C3AB1)[index * 6] * 8;
+    r = D_800C3AAF[index * 6] * 8;
+    g = D_800C3AB0[index * 6] * 8;
+    b = D_800C3AB1[index * 6] * 8;
     if (g_BattleColorTintParams[index * 6] != 0) {
         switch (D_800C3AAD[index * 6]) {
         case 0:
@@ -502,12 +492,9 @@ void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
         }
     }
     k = D_800C3AAE[index * 6];
-    t = pSrc[0] - r;
-    r += t * k / 32;
-    t = pSrc[1] - g;
-    g += t * k / 32;
-    t = pSrc[2] - b;
-    b += t * k / 32;
+    r += (pSrc[0] - r) * k / 32;
+    g += (pSrc[1] - g) * k / 32;
+    b += (pSrc[2] - b) * k / 32;
     if (r >= 0x100) {
         pSrc[0] = 0xFF;
     } else if (r < 0) {
@@ -533,7 +520,7 @@ void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
     pDst[1] = pSrc[1];
     pDst[2] = pSrc[2];
 }
-*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 /* 84.16% (gcc 2.6.0 -G0 --expand-div): full structure recovered and every call,
    store and branch shape matches. What is left is loop strength reduction: the
