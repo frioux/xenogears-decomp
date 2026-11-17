@@ -273,6 +273,7 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // itself (every j+1 spelling tried is still a PLUS of the BIV and a constant).
 // Preset is right: -O3 77.96, -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0
 // -O2 -G0 (the unit's) 99.66.
+// listed above assumed that derivation was unavoidable.
 // What closed 92.4 -> 99.1 earlier, in order (all source shapes, not flags):
 //   1. FontPrintf(D_8007042C) takes ONE argument (func_80075534 calls it that way);
 //      passing pPath cost a `move a1,zero`.
@@ -288,6 +289,15 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // Frame/registers are retail's on the in-body variant (0x48, 7 saves, s1=entry,
 // s2=hexMode, s3=showName); MovieDrawBuffer and the D_80077124[] draw buffers (each
 // 0x18 bytes before its g_MovieStreamSlots[] MovieSlot) came out of this function.
+// Round 201 re-measured the in-body body: 99.66%, 1236 bytes, and the ONLY line that
+// differs in the whole 308-instruction stream is one DUPLICATE `addu s0,s1,zero`.
+// Ours has the `j = entry` copy in the 0x4-test's bnez delay slot AND at the join;
+// retail has only the delay-slot copy because retail's back edge targets .L80075FD0
+// (the WorldMapSyncGearRideActors block), so retail's `j = entry` really is OUTSIDE
+// the loop - the in-body spelling can never be byte-exact. Retail also recomputes
+// `addiu v0,s1,0x14` (entry + 0x14) on every iteration, i.e. retail derives NO givs
+// in this loop, while the outside-init body derives `s1 = j + 1`. So the one lever
+// left is suppressing combine_givs' j+1 derivation for init-outside; every loop shape
 /*
 void func_80075D8C(void) {
     s32 alignedIndex;
@@ -522,6 +532,16 @@ typedef struct {
 //  (flags if/else, inline ternary, `!= 0`) makes gcc compute `sltu v0,zero,v0` and
 //  sink the g_MovieLoopPlayback load into the argument setup, which reorders the whole
 //  13-argument block. That single argument is what holds this at 82.97%.
+//  Round 201 re-measured this body: still 82.97% at retail's exact size (1076 bytes,
+//  same frame), and the residual is pinned to that func_801D37CC argument block:
+//  retail stores the mode argument (sp+0x14) and the g_MovieLoopPlayback flag
+//  (sp+0x18) inside BOTH arms of the branch, and duplicates `a0 = index` and
+//  `t0 = &g_MovieVerticalOffset` in both arms too - i.e. the conditional was expanded
+//  into per-arm stores of its stack slot, not into a value in a register. The `? 1 : 0`
+//  spelling gives `sltu v0,zero,v0` plus one store and slides `D_801D68B4 = 0` into
+//  the argument setup. The rest of the body is retail's: the frame-stamp loop differs
+//  only in which callee-saved register each local gets, and the second `return 0` needs
+//  a `j` where retail reorgs the copy into the branch delay slot.
 /*
 s32 func_80076488(void) {
     MovieRenderLocals locals;
