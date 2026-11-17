@@ -448,9 +448,9 @@ void FieldScriptVMHandlerSetFieldEntryState(void) {
     g_pGameState->unk231E = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
     value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
     if (((u_short)value == 0xFFFF) | (value == -1)) {
-        g_pGameState->unk231C = (g_Scene.sceneAngle.vy + 0x800) & 0xFFF;
+        g_pGameState->entryAngle = (g_Scene.sceneAngle.vy + 0x800) & 0xFFF;
     } else {
-        g_pGameState->unk231C = (value + 0x800) & 0xFFF;
+        g_pGameState->entryAngle = (value + 0x800) & 0xFFF;
     }
     g_pGameState->unk2320 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     FieldScriptVMEmptyHook();

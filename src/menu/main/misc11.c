@@ -20,8 +20,8 @@ void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
     pGear->unk5C[3] = pWeapon->unk0[3];
 
     if (pGear->weaponData[0].unk4 == 100) {
-        pGear->unk86 = pGear->unk86 & 0xFFF;
-        pGear->unk86 |= pGear->weaponData[0].flags;
+        pGear->accessoryEffectFlags3 = pGear->accessoryEffectFlags3 & 0xFFF;
+        pGear->accessoryEffectFlags3 |= pGear->weaponData[0].flags;
     }
     if ((gearId == 5) || (gearId == 0xD)) {
         pWeapon = pDressingRoom->pGearWeapons;
