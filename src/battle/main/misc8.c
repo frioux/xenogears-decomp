@@ -240,19 +240,18 @@ void func_8007C840(u8 **arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007C9D4);
-// best: 98.55% (328 bytes vs retail 332 = 0x14c). The only missing instruction
-// is retail's `move s4,a1` at loop entry: retail forms the row base in
-// caller-saved a1, uses it for the zeroing store, then copies it into s4 after
-// the initial three-byte loop test; gcc 2.6 homes it in s4 from the start and
-// saves the copy. Re-measured after fixing the body to compile - the 91.53% the
-// old note here claimed came from a body reading `g_BattleSlotFlags[idx * 8] != 0`
-// against a struct array, so cc1 exited and the diff used a stale object.
-// Tried since: the row base spelled inline at both stores with pRow assigned
-// after the zeroing store - 85.42%, base materialised twice. Not yet permuted.
+// best: 98.43% (328 bytes vs retail 332 = 0x14c). The whole body is identical to
+// retail except the row base: retail forms it in caller-saved a1 (`addu a1,a1,v1`)
+// for the zeroing store and copies it into s4 (`move s4,a1`) just before the loop
+// body; gcc 2.6 homes it in s4 from the start, so the 4-byte copy is missing and
+// the function cannot link. Tried: the row base spelled inline at both stores
+// (88.37%, base materialised twice - cse does not fold across the call), inline
+// once + `pRow = ...` after the zeroing store (85.42%), an s32 row offset local
+// (89.94%). Not permuted yet.
 /*
 void func_8007C9D4(u8 **arg0, u8 arg1) {
     u8 buf[3];
-    u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 *pRow = (u16 *)g_BattleSlotRows[arg1].unk00;
 
     buf[0] = buf[1] = buf[2] = 0;
     pRow[(*arg0)[1]] = 0;
@@ -317,26 +316,29 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     }
     g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
-// best: 99.43% (212 bytes = retail's exact size; identical instruction stream
-// except one commutative addu: retail keeps the a*8 term in the destination
-// (`addu v1,v1,v0`) and the param-table base in v0, ours the reverse pair).
-// Re-measured after fixing the body to compile - the old 99.21% came from a body
-// reading `g_BattleSlotRecords[value * 0x1C]` (a struct assigned to a u8, and a
-// double-scaled index), so cc1 never built it. The tag reads are
-// `g_BattleSlotRecords[i].tag`.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
+// best: 99.43% (212 bytes = retail's exact size). Identical instruction stream
+// except one register swap: retail accumulates the a*8 term into its own register
+// (`addu v1,v1,v0`) and then loads g_BattleSlotParamTable into v0; ours puts the
+// index in v0 and the table base in v1. Hand shapes tried (all 95.75-99.43%):
+// the constant order swapped, an s32 index local (initialiser and += forms), the
+// table pointer hoisted to a local, `(op << 3) + (slotTag << 6)`, and the two tag
+// locals declared in the opposite order. Permuter (4 min, 2167 iterations) found
+// nothing: base=30 best=30. The tag reads are the typed form
+// `g_BattleSlotRecords[i].tag`. The two D_ address spellings are what the
+// link-identical forms would be (g_BattleSlotRows[row].unk00 / a 0x10 byte view).
 /*
 void func_8007CDD0(u8 **arg0, u8 arg1) {
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
     u8 value = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]);
     u8 *pRow = (u8 *)(D_800D3420 + 0x10) + arg1 * 0x40;
-    u8 a = g_BattleSlotRecords[value * 0x1C];
-    s32 slot = arg1 + 3;
-    s32 opOffset = a * 8;
+    u8 op = g_BattleSlotRecords[value].tag;
+    s32 opOffset = op * 8;
+    u8 slotTag = g_BattleSlotRecords[arg1 + 3].tag;
 
-    pRow[(*arg0)[1]] = g_BattleSlotParamTable[g_BattleSlotRecords[slot * 0x1C] * 0x40 + opOffset + 0x140];
+    pRow[(*arg0)[1]] = g_BattleSlotParamTable[opOffset + slotTag * 0x40 + 0x140];
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
 
 void BattleStoreCharSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
