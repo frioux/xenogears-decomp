@@ -214,20 +214,26 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
-/* 72.03%: RECT/bzero/GetStringEntry/SystemRenderStringEntry order, both stack
-   args and the frame all match. Same blocker as misc16's BattleDrawMenuEntryString
-   (78.72%): the original loads *(g_BattleGraphicsWork+0xA230) FIRST, keeps &g_BattlePrimStartIndex
-   in a saved reg (lw 0(s3)) and does `addiu a0,a0,0x280` before the base addu;
-   gcc loads the g_BattlePrimStartIndex index first, re-forms its address per call and sinks
-   the addiu into the jal delay slot. Improves to 74% with the index in a local.
-   Re-screened: best 84.56 under gcc-2.6.0 (71.40 under cdk). There the frame
-   is 56 vs 2.6.0's 48 - the original spills the &g_BattlePrimStartIndex index into s3,
-   2.6.0 does not re-form it - and the addiu/addu order of the +0x280/+0x2D0
-   adds is still swapped. */
+/* 89.66%: the shape, both stack args, the RECT, the two string draws and both prim
+   builds match. Residuals, all one cluster:
+   1) retail keeps &g_BattlePrimStartIndex in $s3 (lui/addiu once, `lw v0,0(s3)` per
+      call, frame 56 with the s3 save); gcc 2.6.0 folds an
+      `s32 *pPrimIndex = &g_BattlePrimStartIndex;` local back into a
+      lui/lw %hi/%lo(g_BattlePrimStartIndex) per call and the frame stays 48.
+   2) the second call's `li a2,0xC6` is one slot earlier than retail's.
+   Fixed against the older 84.56 park: `g_BattleGraphicsWork + 0xA230` was TYPED pointer
+   arithmetic - BattleGraphicsWork is 0xA2C8 bytes, so gcc folded it to the constant
+   0x67211580. The field is already named in battle_work.h, so write
+   g_BattleGraphicsWork->pPacketPrims, and fold +0x280 / +0x2D0 into the index
+   expression (`*pPrimIndex * 0x28 + 0x280`) so retail's addiu lands before the base
+   addu. 84.56 -> 89.66. Next lever: a spelling of &g_BattlePrimStartIndex that
+   survives into a callee-saved register; every one tried is folded.
+   Un-parking needs no new externs. */
 /*
 void func_8009382C(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
+    s32 *pPrimIndex;
     u16 index;
     s32 len1;
     s32 len2;
@@ -242,9 +248,10 @@ void func_8009382C(u8 arg0, u8 arg1) {
     rect.w = 0x3C;
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, pBuf);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x280),
+    pPrimIndex = &g_BattlePrimStartIndex;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (*pPrimIndex * 0x28 + 0x280)),
                   0x88, 0xB6, 0, 0, len1 & 0xFF);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x2D0),
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (*pPrimIndex * 0x28 + 0x2D0)),
                   0x88, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
