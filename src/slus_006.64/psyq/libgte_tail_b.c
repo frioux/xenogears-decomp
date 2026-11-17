@@ -25,5 +25,23 @@ VECTOR *ApplyMatrix(MATRIX *m, SVECTOR *v0, VECTOR *v1) {
     return pRet;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail_b", ApplyMatrixSV);
+SVECTOR *ApplyMatrixSV(MATRIX *m, SVECTOR *v0, SVECTOR *v1) {
+    register SVECTOR *pRet __asm__("$2");
+
+    gte_SetRotMatrix(m);
+    gte_ldv0(v0);
+    gte_nop();
+    gte_mvmva_b(1, 0, 0, 3, 0);
+    __asm__ volatile ("mfc2\t$8, $9\n\t"
+                      "mfc2\t$9, $10\n\t"
+                      "mfc2\t$10, $11\n\t"
+                      "sh\t$8, 0($6)\n\t"
+                      "sh\t$9, 2($6)\n\t"
+                      "sh\t$10, 4($6)\n\t"
+                      "addu\t$2, $6, $zero"
+                      : "=r"(pRet)
+                      : "r"(v1)
+                      : "$8", "$9", "$10", "memory");
+    return pRet;
+}
 
