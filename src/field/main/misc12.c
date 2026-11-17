@@ -26,34 +26,31 @@ extern s32 g_FieldPartyActorSlots[];
 // that follows an index through it; read the pointer through a plain lvalue instead.
 #define FIELD_ACTORS (*((FieldActor**)(void*)&g_FieldActors))
 
-/* 97.72% (1076 bytes, original 1080). Everything matches instruction for
-   instruction except the switch dispatch: gcc emits `lui v0,%hi(Ltab);
-   lw v0,off(v0)` (two insns, section-relative) where the original emits
-   `lui at,%hi(jtbl); addu at,at,v0; lw v0,%lo(jtbl)(at)`. That is why the
-   function is 4 bytes short, so the jtbl-symbol exception does not apply.
+/* 97.96% (1076 bytes, original 1080). Parked attempt. The switch dispatch is NOT
+   the residual: gcc already emits retail's three-insn form `lui at,%hi(tbl);
+   addu at,at,v0; lw v0,%lo(tbl)(at)`, differing only in the table symbol
+   (`%hi(.rodata)` vs retail's `%hi(jtbl_8006FD30)`) - the objdiff jump-table
+   exception. The residual is ONE load-delay nop in the case 2 arm, which is why
+   the body is 4 bytes short and the exception cannot apply. Retail loads the
+   g_FieldScriptVMCurActor pointer BEFORE the `addu` that forms the target actor
+   address: `lui a0,%hi(g_FieldActors); lw a0 / lui a1,%hi(g_FieldScriptVMCurActor);
+   lw a1 / addu v1,v1,a0 / lw s0,76(v1) / nop / lhu v0,30(s0) / lhu a0,30(a1) /
+   addu a0,v0,a0`. Every source spelling tried emits the cur-actor load at the
+   START of the radius statement instead (in gcc's own .s, before the target's
+   lhu), where maspsx steals it into `lw s0`'s delay slot and the nop vanishes.
+   Tried: operand order (target+cur 97.72, cur+target 97.96 - retail's lhu order
+   proves the source was target-first, so the swap is score-only), a u16 local for
+   either range, a block-scoped cur-actor pointer local, an element-pointer local,
+   a sum temp, x/z assigned first, `do/while(0)` around the arm and around the
+   radius statement; two decomp-permuter runs (977 and 3777 iterations) found
+   nothing. Everything else in the function is instruction-identical.
    What got it this far: a local pointer for the shared tail (the original keeps
-   it in call-clobbered a2 and reloads the global after FieldGetVec2Angle and in the
-   block after the arrival arm, so those statements must name
+   it in call-clobbered a2 and reloads the global after FieldGetVec2Angle and in
+   the block after the arrival arm, so those statements must name
    g_FieldScriptVMCurActor directly, not the local), plus separate block-scoped
    rotation variables per arm - a single shared `rotation` keeps the value in a1
    and forces an extra move. */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
-/* 97.72% (1076 bytes, original 1080). Parked attempt. The switch dispatch is
-   NOT the residual: gcc already emits the same three-insn form as retail,
-   `lui at,%hi(tbl); addu at,at,v0; lw v0,%lo(tbl)(at)`; ours differs only in the
-   table symbol (`%hi(.rodata)` vs retail's `%hi(jtbl_8006FD30)`), which is the
-   objdiff jump-table exception. The real residual is 4 bytes in the case 2 arm:
-   retail loads the g_FieldScriptVMCurActor pointer into its own register before
-   the `addu` that forms the target actor address, so its `lw s0,0x4C(v1)` is
-   followed by a `nop` (load delay), while ours reuses v0 for that pointer after
-   the `lw s0` and needs no nop. Attempts made: a block-scoped cur-actor pointer
-   local hoists the load to the top of the arm (before the index chain, into s1 -
-   worse); swapping the add operands does not move it. What got it this far: a
-   local pointer for the shared tail (the original keeps it in call-clobbered a2
-   and reloads the global after FieldGetVec2Angle and in the block after the arrival
-   arm, so those statements must name g_FieldScriptVMCurActor directly, not the
-   local), plus separate block-scoped rotation variables per arm - a single
-   shared `rotation` keeps the value in a1 and forces an extra move. */
 /* int func_80099AC0(int arg0) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
@@ -94,7 +91,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
             return 0;
         }
         pTargetActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
-        radius = FieldGetVec1Magnitude(pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange);
+        radius = FieldGetVec1Magnitude(g_FieldScriptVMCurActor->solidRange + pTargetActor->solidRange);
         x = CONV_TO_GTE(pTargetActor->position.vx);
         z = CONV_TO_GTE(pTargetActor->position.vz);
         if (SCRIPT_READ_U8_REL(1) == g_PlayerActorIndex) {
