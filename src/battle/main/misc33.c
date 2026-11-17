@@ -49,22 +49,22 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ BattleActorSprite *pCurSprite;
-    /* 0x08 */ void (*unk8)();
+    /* 0x08 */ void (*pUpdate)(); // the state machine's body; the frame loop calls through it
     /* 0x0C */ u8 unkC[0x10];
     /* 0x1C */ s32 stateStep;
     /* 0x20 */ u8 unk20[0x4];
     /* 0x24 */ s32 actorIndex;
     /* 0x28 */ u32 partKey;
-    /* 0x2C */ s32 unk2C;
+    /* 0x2C */ s32 pathIndex; // cursor into the target-position list at g_BattleStateWork + 0xA3C
     /* 0x30 */ s32 unk30;
-    /* 0x34 */ s32 unk34;
+    /* 0x34 */ s32 timer; // BattleIncrementStateTimer raises it, func_800B9F78 counts it down once a frame
     /* 0x38 */ u8 unk38[0xC];
     /* 0x44 */ s32 targetDistance; // measured by BattleFaceTargetAndMeasureDistance
     /* 0x48 */ u8 unk48;
-    /* 0x49 */ u8 unk49;
+    /* 0x49 */ u8 pendingStep; // stateStep copied by BattleApplyStateStep, run once and cleared
     /* 0x4A */ u8 unk4A;
     /* 0x4B */ u8 pad4B;
-    /* 0x4C */ BattleActorSprite *unk4C;
+    /* 0x4C */ BattleActorSprite *pTargetSprite; // the actor BattleActorSnapToTargetAndFace is aimed at
 } BattleMisc33State; // Size: 0x50
 
 extern BattleMisc33State *g_BattleState;
@@ -476,22 +476,22 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
    uses it, so its g_BattleState address pseudo is live across the call and lands in $s0
    (with the constant 1 in $s1 where ours uses $s0); ours keeps the address in $a1.
    A plain dead `pState = g_BattleState;` after the call is deleted by gcc, so what retail
-   actually read is still unknown.  Retail store order: unk8, g_BattleState, g_BattleCommandRowIndex,
-   unk4A, unk48, unk30, unk49, unk2C, pCurSprite, unk34 (in the call's delay slot).
+   actually read is still unknown.  Retail store order: pUpdate, g_BattleState, g_BattleCommandRowIndex,
+   unk4A, unk48, unk30, pendingStep, pathIndex, pCurSprite, timer (in the call's delay slot).
 void func_800BED4C(void) {
     BattleMisc33State *pState;
 
     pState = HeapAlloc(0x50, 0);
-    pState->unk8 = func_800B9F78;
+    pState->pUpdate = func_800B9F78;
     g_BattleState = pState;
     g_BattleCommandRowIndex = 0;
     pState->unk4A = 0;
     g_BattleState->unk48 = 1;
     g_BattleState->unk30 = 0;
-    g_BattleState->unk49 = 0;
-    g_BattleState->unk2C = 1;
+    g_BattleState->pendingStep = 0;
+    g_BattleState->pathIndex = 1;
     g_BattleState->pCurSprite = NULL;
-    g_BattleState->unk34 = 0;
+    g_BattleState->timer = 0;
     BattleSetStateStep(0);
     pState = g_BattleState;
     g_NumFlaggedTimerWorkListEntries = 0;
@@ -654,7 +654,7 @@ void BattleFreeSoundSeds(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
 /* best 79.86%: everything below is retail's instruction set except one `lw`
-   (retail re-reads g_BattleActorList for the pState->unk4C store: `lw a0,0(s2)` after
+   (retail re-reads g_BattleActorList for the pState->pTargetSprite store: `lw a0,0(s2)` after
    the two 0x74 stores, so its address lives in $s2 and the loaded head in $s0;
    ours CSEs the third read onto s0 and needs no second saved register) and the
    unkA8/flags load order.  The two `lhu` of the mask ARE two separate C
@@ -677,7 +677,7 @@ void func_800BF3E8(BattleActorSprite *p) {
     pState = g_BattleState;
     p->pTargetSprite = g_BattleActorList;
     ((BattleActorSprite *)g_BattleActorList)->pTargetSprite = p;
-    pState->unk4C = g_BattleActorList;
+    pState->pTargetSprite = g_BattleActorList;
     pState->partKey = ((pLast->flags.word & 3) << 2) | (pLast->unkA8 >> 30);
     func_800223B0(p, BattleAngleToPoint(p, p->pTargetSprite));
     if (pLast->flags.sbytes[3] != 0x15) {
