@@ -538,34 +538,12 @@ void BattleSetActionFieldFAndDispatch(BattleActor* pActor, BattleWork* pWork, u8
     pWork->difficulty = value;
     BattleDispatchWorkState(pActor);
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008F280);
-/* best: objdiff 93.31%, size exact (628 bytes) and both jump tables exact: 12
-   entries for the 2..0xD switch (default shares the decrement arm) and 14 for
-   the 0..0xD one (case 0 shares the default). From the first switch to the end
-   the instruction stream is identical; the whole remaining difference is the
-   ENTRY BLOCK order. Retail emits: sw s0 / sw ra / sw s1 / lw s1,0x15FC(s0) /
-   lbu g_BattleAiBehaviorLevel / lbu D_80092848 / ori+lui+sb g_BattlePlayer2ComControlled / beq. gcc emits:
-   sw s0 / lbu g_BattleAiBehaviorLevel / li+sb g_BattlePlayer2ComControlled / lbu D_80092848 / sw ra / sw s1 /
-   lw s1,0x15FC(s0) / beq - it sinks the pWork load below the two global reads
-   and splits them around the flag store, and it also steals the flag-test
-   body's lw v0,0xD0(s0) into the beqz delay slot where retail has a nop.
-   Tried: pWork load first, after the flag store, and as a declaration
-   initialiser; the state read in a local; both globals read into locals (gcc
-   folds a single-use local back into the branch); the compare written in both
-   operand orders; a boolean local for the compare (also folded back); s32
-   instead of void (that one does add retail's nop after the condition's lw but
-   keeps the stolen beq delay slot and does not change the percentage).
-   Permuter, 1168 iterations: one better shape (605 -> 300, objdiff 94.39%),
-   assigning pWork inside the reset block after its own uses - no source retail
-   can have written, and it trades the adjacent global loads for the pWork load
-   and its save, so it is not worth keeping.
-// The per-state action handler. A change of state (g_BattleAiBehaviorLevel) resets the work
-// slot, the actor's flags and the work flags word, then the state's handler
-// runs and most states advance the actor's approach animation at the end.
 void func_8008F280(BattleActor* pActor) {
     BattleWork* pWork;
+    BattleWork** ppWork;
 
-    pWork = pActor->pWork;
+    ppWork = &pActor->pWork;
+    pWork = *ppWork;
     g_BattlePlayer2ComControlled = 1;
     if (D_80092848 != g_BattleAiBehaviorLevel) {
         pWork->delay = 0;
@@ -573,11 +551,11 @@ void func_8008F280(BattleActor* pActor) {
         pActor->flags &= ~2;
         pActor->distance = 0;
         pActor->flags &= ~0x38;
-        pWork->unk2C.flags &= ~0x2000;
+        pWork->flags.flags &= ~0x2000;
         D_80092848 = g_BattleAiBehaviorLevel;
         pActor->unkCE = pActor->unkCC + 0x800;
     }
-    if (pWork->unk2C.flags & 0x2000) {
+    if (pWork->flags.flags & 0x2000) {
         pActor->flags |= 2;
     }
     switch (g_BattleAiBehaviorLevel) {
@@ -641,7 +619,7 @@ void func_8008F280(BattleActor* pActor) {
         break;
     }
     BattleUpdateActorApproach(pActor, pWork->targetAngle, pWork->maxDistance);
-}*/
+}
 s32 BattleCheckValueAboveScaledMax(BattleActor* pActor, s32 arg1) {
     return (pActor->gaugeMax * arg1) / 255 < pActor->gaugeValue;
 }
