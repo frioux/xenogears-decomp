@@ -290,7 +290,7 @@ typedef struct {
     /* 0x8  */ u8 shouldRenderUnk35C;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
     /* 0xA  */ u8 shouldRenderSubmenuStrings; // Gates MenuUnk5 (pSubmenuPrims) string prims
-    /* 0xB  */ u8 unkB;
+    /* 0xB  */ u8 characterWindowBuilt; // Set by MenuUpdateCharacterWindow once the window's strings are up; func_801D02D8's prims are added only while it is set, MenuClearGlyphTexture clears it
     /* 0xC  */ u8 shouldRenderStrings[0x8]; // One flag per g_Menu->optionStrings string
     /* 0x14 */ u8 shouldRenderSubMenuChoiceStrings[0x6]; // One flag per g_Menu->subMenuChoiceStrings
     /* 0x1A */ u8 shouldRenderStringsDE0[0x6];

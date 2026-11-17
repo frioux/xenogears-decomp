@@ -219,7 +219,7 @@ void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
             func_801E6668(arg0);
             ((u8*)g_Menu->pPrimBuffer)[0x2DBC] = 0;
         }
-        g_Menu->pManager->unkB = 1;
+        g_Menu->pManager->characterWindowBuilt = 1;
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);

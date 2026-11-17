@@ -569,7 +569,7 @@ void MenuFreePrimBuffer(void) {
     pMem = g_Menu->pPrimBuffer;
     HeapFree(pMem);
     pManager = g_Menu->pManager;
-    *(volatile u8*)&pManager->unkB = 0;
+    *(volatile u8*)&pManager->characterWindowBuilt = 0;
 }
 void MenuClearGlyphTexture(void) {
     RECT rect;
@@ -579,7 +579,7 @@ void MenuClearGlyphTexture(void) {
     rect.w = 0x40;
     rect.h = 0x20;
     ClearImage(&rect, 0, 0, 0);
-    *(volatile u8*)&g_Menu->pManager->unkB = 0;
+    *(volatile u8*)&g_Menu->pManager->characterWindowBuilt = 0;
 }
 void MenuCompressGlyphRows(u8* p) {
     int i;
