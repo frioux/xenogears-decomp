@@ -28,6 +28,7 @@
 #define WORLD_MAP_WORK_BUFFER_SIZE 4096
 
 // archive entries loaded before the map data itself exists
+#define WORLD_MAP_SOUND_ARCHIVE_INDEX 0x24
 #define WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX 0x25
 #define WORLD_MAP_MENU_RESOURCES_ARCHIVE_INDEX 0x26
 
@@ -390,7 +391,295 @@ void WorldMapLoadSedsBank(void) {
     ArchiveReadFileToBuffer(g_WorldMapSedsBankFileIndex, g_MenuSedsFile, 0, 0);
 }
 
+extern MATRIX g_WorldMapIdentityMatrix;
+extern MATRIX g_WorldMapModeMatrix;
+extern s32 g_WorldMapTpageAbr;
+extern s32 g_WorldMapDrawMode;
+extern s32 g_WorldMapMode4EntryTriggered;
+extern s32 g_WorldMapL2R2Pressed;
+extern s32 g_WorldMapL2R2PressedLast;
+extern s32 g_WorldMapL2R2PressEdge;
+extern s32 g_WorldMapWrapPositionsCallback;
+extern s32 D_8009C178;
+extern s32 D_8009C894;
+extern s32 g_WorldMapAreaIndex;
+extern int g_AnimScriptExtraTicks;
+extern s16 g_SoundControlFlags;
+extern u8 g_SoundBankLoadBuffer[];
+extern u8 g_FieldPlayerWalkmeshMaterial;
+extern void* g_SoundAudioManager;
+extern void* g_SoundPendingAudioManager;
+extern void* g_GameCurLoadedWDS;
+
+// The slot handlers every map installs, and the extra list a level adds (indexed by
+// g_WorldMapLevelIndex). Each table is terminated by a NULL enter handler.
+typedef s32 (*WorldMapSlotHandler)();
+
+typedef struct {
+    /* 0x0 */ WorldMapSlotHandler pEnterHandler;
+    /* 0x4 */ WorldMapSlotHandler pUpdateHandler;
+} WorldMapSlotInitEntry; // Size: 0x8
+
+extern WorldMapSlotInitEntry D_80099E8C[];
+extern WorldMapSlotInitEntry* D_8009A034[];
+
+extern void func_80071EF0(void);
+extern s32 ArchiveDataSync(void);
+extern void ArchiveCdDataSync(s32);
+extern s32 Vsync(s32);
+extern void SystemTransferPaletteToVRAM(s32, s32);
+extern void WorldMapDecompressMapTables(void);
+extern void WorldMapAllocSlotPool(void);
+extern void WorldMapComputeClipPlaneVectors(void);
+extern void SoundFreeLoadedWdsAndAudioManager(void);
+extern void SoundStopAllAudioManagers(void);
+extern void SoundDestroyAudioManager(void* pManager);
+extern void func_80073448(s32 areaIndex);
+extern void WorldMapLoadState(void);
+extern void WorldMapSyncGearRideActors(void);
+extern void WorldMapLoadTextureClut(void);
+extern void WorldMapLoadClutAndTpageIds(void);
+extern void func_800736DC(void);
+extern void func_80073E30(void);
+extern void WorldMapRelocateMapEntryOffsets(void);
+extern void GfxAllocateWorkBuffers(s32 size, s32 flags);
+extern void WorldMapAllocPrimBuffers(void);
+extern void func_800863E0(void);
+extern void WorldMapInitTileAnimEntries(void);
+extern void WorldMapInitFrameAnimEntries(void);
+extern void WorldMapSetupMapPrims(void);
+extern void WorldMapInitSpriteGroupTables(void);
+extern void* SoundLoadWdsFile(void* pBuffer, s32 arg1);
+extern void func_80097BC0(void* pPosition);
+extern void WorldMapUpdateLoadQueue(void);
+extern s32 WorldMapGetQueuedLoadCount(void);
+extern void WorldMapRefreshGrid(void* pTarget);
+extern void WorldMapWaitForQueuedLoads(void);
+extern void SoundAddSedsEntry(void* pFile);
+extern void* SoundCreateAudioManagerOnHeap(void* pFile);
+extern void SoundPlayAudioManager(void* pManager, s32 volume, s32 arg2);
+extern void SoundReloadAudioManagerSamples(void* pManager, s32 volume, s32 arg2);
+extern void func_80089160(s32 arg0, s32 arg1, s32 arg2);
+extern void func_800978FC(void);
+extern void func_8008901C(void);
+extern void func_800865A0(void);
+extern void func_80085FE0(void);
+extern void WorldMapInitRandomTimers(void);
+extern void WorldMapWrapTileVertexPositions(void);
+extern void WorldMapSetSlotEnterHandler(WorldMapSlotHandler pHandler, s32 index);
+extern void WorldMapAddSlot(WorldMapSlotHandler pEnterHandler, WorldMapSlotHandler pUpdateHandler);
+
+extern s32 WorldMapModeInitFadeRect();
+extern s32 func_8008A52C();
+extern s32 WorldMapModeInitCharacterSprite1();
+extern s32 WorldMapModeInitCharacterSprite2();
+extern s32 WorldMapModeInitPartyActor0();
+extern s32 WorldMapModeInitPartyActor1();
+extern s32 WorldMapModeInitPartyActor2();
+extern s32 func_8008E4F4();
+extern s32 WorldMapModeInitSpriteSets2And3();
+extern s32 WorldMapInitAreaNameString();
+extern s32 func_80092DF8();
+extern s32 WorldMapSetSceneSpriteSetParents();
+extern s32 func_8008868C();
+extern s32 WorldMapSetSceneLayerTPages();
+extern s32 func_80088C90();
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
+/* best: 99.81% (1892 bytes = retail's exact size, 472 insns). The whole function is
+   instruction-identical except ONE store: the two `= 1` stores (g_AnimScriptExtraTicks,
+   D_8009C178) which retail emits as `sw v1` after the five zero stores, with `li v1,1`
+   hoisted to the top of the block; ours emits the first `sw` right after the `la` of
+   WorldMapWrapTileVertexPositions. The register choice is the whole lever: as long as
+   the constant lands in $2 it collides with the callback address and gcc must emit the
+   stores before it. Source orders measured: the statement order of that 9-store block
+   moves the score 98.7-99.83 and none of 11 orders reached 100 (best 99.83 with
+   Z4,Z1,Z2,A1,Z5,TP,Z3,DM,C1). The body below is the natural order (99.81).
+   Found by the permuter: `pLoadBuffer = g_SoundBankLoadBuffer;` at the head of the
+   0-branch and using it as memcpy's dst is what fixed the sound block (memcpy was
+   otherwise keeping &g_SoundBankLoadBuffer in $s0 and taking $s1 from pBankBuffer,
+   where retail rematerialises the address into $a0); it took the function from 97.94
+   to 98.88 and is kept below. The permuter's other two edits were wrong code (a
+   pointer truncated through a `volatile unsigned short`) and were not ported.
+   A jump table (jtbl_8006FAF4, 6 words) belongs to this function: converting it is
+   still the right first step for this unit's table chain, so an un-park must land
+   check_bin.sh world_map. */
+/*
+void func_80072238(void) {
+    RECT rect;
+    void* pBankBuffer;
+    u8* pLoadBuffer;
+    WorldMapSlotInitEntry* pEntry;
+    WorldMapSlotInitEntry* pLevelEntries;
+    s32 nSlot;
+    s32 nFileIndex;
+
+    WorldMapInitGfxEnv();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, 0x2C0, 0x100);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    ArchiveCdDataSync(0);
+    func_80071EF0();
+    while (ArchiveDataSync() >= 3) {
+    }
+    WorldMapDecompressMapTables();
+    WorldMapAllocSlotPool();
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
+    g_AnimScriptExtraTicks = 1;
+    g_WorldMapTpageAbr = 2;
+    g_WorldMapDrawMode = 4;
+    g_WorldMapMode4EntryTriggered = 0;
+    g_WorldMapL2R2Pressed = 0;
+    g_WorldMapL2R2PressedLast = 0;
+    g_WorldMapL2R2PressEdge = 0;
+    g_WorldMapRotationMatrixValid = 0;
+    D_8009C178 = 1;
+    g_WorldMapWrapPositionsCallback = (s32)WorldMapWrapTileVertexPositions;
+    WorldMapComputeClipPlaneVectors();
+    if (D_8009C894 == 0) {
+        SoundFreeLoadedWdsAndAudioManager();
+    } else {
+        SoundStopAllAudioManagers();
+        SoundDestroyAudioManager(g_SoundAudioManager);
+        g_SoundAudioManager = g_SoundPendingAudioManager;
+        g_SoundPendingAudioManager = NULL;
+    }
+    if (g_GameState.worldMapMenuActive != 0) {
+        WorldMapSetPositionFromState();
+    } else if (D_8009C894 == 0) {
+        func_80073448(g_WorldMapAreaIndex);
+    } else {
+        WorldMapLoadState();
+        WorldMapSyncGearRideActors();
+    }
+    ArchiveCdDataSync(0);
+    WorldMapLoadTextureClut();
+    WorldMapLoadClutAndTpageIds();
+    WorldMapInitSpriteSets();
+    WorldMapQueueFileLoads();
+    func_800736DC();
+    func_80073E30();
+    WorldMapRelocateMapEntryOffsets();
+    GfxAllocateWorkBuffers(0x1400, 0);
+    WorldMapAllocPrimBuffers();
+    func_800863E0();
+    WorldMapInitTileAnimEntries();
+    WorldMapInitFrameAnimEntries();
+    WorldMapSetupMapPrims();
+    WorldMapInitSpriteGroupTables();
+    ArchiveCdDataSync(0);
+    if (D_8009C894 == 0) {
+        g_GameCurLoadedWDS = SoundLoadWdsFile(g_WorldMapWdsFileBuffer, 0);
+    }
+    ArchiveSetIndex(WORLD_MAP_SOUND_ARCHIVE_INDEX, 0);
+    if (D_8009C894 == 0) {
+        func_80097BC0(&g_WorldMapPlayerPosition);
+        do {
+            WorldMapUpdateLoadQueue();
+            Vsync(0);
+        } while (WorldMapGetQueuedLoadCount() >= 2);
+    } else {
+        WorldMapRefreshGrid(&g_WorldMapCameraTarget);
+        WorldMapWaitForQueuedLoads();
+    }
+    if (D_8009C894 == 0) {
+        pLoadBuffer = g_SoundBankLoadBuffer;
+        while (g_SoundControlFlags & 0x10) {
+        }
+        HeapFree(g_WorldMapWdsFileBuffer);
+        SoundAddSedsEntry(g_MenuSedsFile);
+        if (g_WorldMapMode == 7) {
+            nFileIndex = g_WorldMapMode7SoundBankFileIndex;
+            pBankBuffer = g_WorldMapMode7SoundBankBuffer;
+        } else {
+            nFileIndex = g_WorldMapSoundBankFileIndex;
+            pBankBuffer = g_WorldMapSoundBankBuffer;
+        }
+        memcpy(pLoadBuffer, pBankBuffer, ArchiveDecodeAlignedSize(nFileIndex));
+        g_SoundAudioManager = SoundCreateAudioManagerOnHeap(g_SoundBankLoadBuffer);
+        SoundPlayAudioManager(g_SoundAudioManager, 0x7F, 0);
+    } else {
+        HeapFree(g_WorldMapWdsFileBuffer);
+        SoundAddSedsEntry(g_MenuSedsFile);
+        if (g_WorldMapMode == 7) {
+            nFileIndex = g_WorldMapMode7SoundBankFileIndex;
+            pBankBuffer = g_WorldMapMode7SoundBankBuffer;
+        } else {
+            nFileIndex = g_WorldMapSoundBankFileIndex;
+            pBankBuffer = g_WorldMapSoundBankBuffer;
+        }
+        memcpy(g_SoundBankLoadBuffer, pBankBuffer, ArchiveDecodeAlignedSize(nFileIndex));
+        SoundReloadAudioManagerSamples(g_SoundAudioManager, 0x7F, 0xF0);
+    }
+    switch (D_8009C894) {
+    case 0:
+        for (nSlot = 0; D_80099E8C[nSlot].pEnterHandler != NULL; nSlot++) {
+            WorldMapAddSlot(D_80099E8C[nSlot].pEnterHandler, D_80099E8C[nSlot].pUpdateHandler);
+        }
+        pLevelEntries = D_8009A034[g_WorldMapLevelIndex];
+        if (pLevelEntries->pEnterHandler != NULL) {
+            pEntry = pLevelEntries;
+            do {
+                WorldMapAddSlot(pEntry->pEnterHandler, pEntry->pUpdateHandler);
+                pEntry++;
+            } while (pEntry->pEnterHandler != NULL);
+        }
+        break;
+    case 1:
+        WorldMapSetSlotEnterHandler(WorldMapModeInitFadeRect, 0);
+        WorldMapSetSlotEnterHandler(func_8008A52C, 1);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitCharacterSprite1, 2);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitCharacterSprite2, 3);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitPartyActor0, 4);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitPartyActor1, 5);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitPartyActor2, 6);
+        WorldMapSetSlotEnterHandler(func_8008E4F4, 7);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitSpriteSets2And3, 8);
+        WorldMapSetSlotEnterHandler(WorldMapInitAreaNameString, 0xC);
+        WorldMapSetSlotEnterHandler(func_80092DF8, 0xD);
+        WorldMapSetSlotEnterHandler(WorldMapModeInitNop, 0xE);
+        switch (g_WorldMapLevelIndex - 3) {
+        case 0:
+            WorldMapSetSlotEnterHandler(WorldMapSetSceneSpriteSetParents, 0xF);
+            WorldMapSetSlotEnterHandler(func_8008868C, 0x10);
+            break;
+        case 1:
+            WorldMapSetSlotEnterHandler(WorldMapSetSceneSpriteSetParents, 0xF);
+            WorldMapSetSlotEnterHandler(func_8008868C, 0x10);
+            WorldMapSetSlotEnterHandler(WorldMapSetSceneLayerTPages, 0x11);
+            WorldMapSetSlotEnterHandler(func_80088C90, 0x13);
+            break;
+        case 2:
+        case 3:
+        case 4:
+            WorldMapSetSlotEnterHandler(WorldMapSetSceneSpriteSetParents, 0xF);
+            WorldMapSetSlotEnterHandler(func_8008868C, 0x10);
+            // fallthrough
+        case 5:
+            WorldMapSetSlotEnterHandler(WorldMapSetSceneLayerTPages, 0x11);
+            break;
+        }
+        break;
+    }
+    g_FieldPlayerWalkmeshMaterial = 0;
+    if (g_WorldMapLevelIndex == 0) {
+        func_80089160(0xE, 0, 0);
+        g_FieldPlayerWalkmeshMaterial = 1;
+    }
+    func_800978FC();
+    func_8008901C();
+    func_800865A0();
+    func_80085FE0();
+    if (D_8009C894 == 0) {
+        WorldMapInitRandomTimers();
+    }
+    SystemTransferPaletteToVRAM(0x130, 0x1E0);
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
 /* best: 98.37%, 532 bytes (same size). Everything matches except the four
    insns of `g_NextMapFlags |= 0x8000`: retail materialises the address once
