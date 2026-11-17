@@ -551,7 +551,41 @@ void func_80078310(u8 *pTimData, u8 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078310);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80078508);
+void func_80078508(u8 *pOut) {
+    s32 i;
+    u16 emptyValue;
+    u8 *pFlags;
+    u16 *pBase;
+    u16 *pExtra;
+    u16 *pValue;
+    u16 *pValue2;
+
+    i = 0;
+    emptyValue = 0xFF;
+    pFlags = pOut;
+    pBase = D_800D2DF0;
+    pExtra = pBase + 0x16;
+    pValue = pBase;
+    pValue2 = pValue + 0xB;
+    do {
+        if (g_BattleSlotEnabledFlags[i] != 0) {
+            u16 value = func_80098AF8(i, 0);
+
+            *pValue2 = value;
+            *pValue = value;
+        } else {
+            *pValue2 = emptyValue;
+            *pValue = emptyValue;
+        }
+        g_BattleActorCountdownState[i] = 0;
+        *pExtra = 0;
+        *pFlags++ = 0;
+        pExtra++;
+        pValue++;
+        pValue2++;
+        i++;
+    } while (i < 0xB);
+}
 /* 75.45%: with a pEntry local (one load of the global shared by the two uses
    after the sb) the first store and everything from the `sh` tail on is
    byte-identical; the ONLY difference is that retail's two tile `lbu`s are
@@ -565,14 +599,26 @@ void func_800785D4(u8 color, u8 index) {
     u8 *pEntry;
 
     pEntry = g_BattleCommandQueue;
-    tile = g_BattleCommandTiles[index * 8] | (D_800D2E61[index * 8] << 8);
+    tile = *(volatile u8 *)&g_BattleCommandTiles[index * 8] |
+           (*(volatile u8 *)&D_800D2E61[index * 8] << 8);
     D_800C400B[pEntry[0x2DA] * 0x48] = color;
     pEntry = g_BattleCommandQueue;
     *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
     pEntry[0x2DA]++;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
+void func_800785D4(u8 color, u8 index) {
+    u16 tile;
+    u8 *pEntry;
+
+    pEntry = g_BattleCommandQueue;
+    tile = *(volatile u8 *)&g_BattleCommandTiles[index * 8] |
+           (*(volatile u8 *)&D_800D2E61[index * 8] << 8);
+    D_800C400B[pEntry[0x2DA] * 0x48] = color;
+    pEntry = g_BattleCommandQueue;
+    *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
+    pEntry[0x2DA]++;
+}
 
 /* 99.94%: the entire instruction stream is identical except the stack frame:
    retail allocates 0x18 and saves s0/ra at 0x10/0x14, this body allocates
