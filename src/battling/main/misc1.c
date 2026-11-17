@@ -125,9 +125,9 @@ typedef struct {
     /* 0x00C */ u8 unkC[0x40];
     /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 unk4D[0x2];
-    /* 0x04F */ u8 unk4F;
+    /* 0x04F */ u8 animSpeed;
     /* 0x050 */ u8 unk50[0x2];
-    /* 0x052 */ u8 unk52;
+    /* 0x052 */ u8 animSpeedBonus;
     /* 0x053 */ u8 unk53[0x61];
     /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 gaugePoints;
@@ -312,7 +312,7 @@ typedef struct {
     /* 0x048 */ u32 distance;
     /* 0x04C */ u8 unk4C[0xC];
     /* 0x058 */ s32 targetAngle;
-    /* 0x05C */ s32 unk5C;
+    /* 0x05C */ s32 pModelLink;
     /* 0x060 */ u8 unk60[0x6E];
     /* 0x0CE */ s16 unkCE;
     /* 0x0D0 */ u8 unkD0[0x82C];
@@ -743,9 +743,9 @@ void BattleStepDisplayState(void) {
         }
         g_BattleScreenFadeLevel -= 8;
 fade:
-        pState->unk4F = 0x10;
+        pState->animSpeed = 0x10;
         pState->modelIndex = 0xA;
-        pState->unk52 = 0;
+        pState->animSpeedBonus = 0;
         pState->gaugePoints = 0x1000;
         pState->flags |= 0x400;
         if (rand() & 1) {
@@ -812,12 +812,12 @@ extern void* g_BattleNodeTree;
 // state at g_BattleRenderToggleCount..g_BattleRenderAngleY.
 struct BattleScriptBlock {
     /* 0x00 */ u8 unk00[0x14];
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ s16 unk16;
-    /* 0x18 */ s16 unk18;
-    /* 0x1A */ s16 unk1A;
-    /* 0x1C */ s16 unk1C;
-    /* 0x1E */ u16 unk1E;
+    /* 0x14 */ s16 angleX;
+    /* 0x16 */ s16 angleYStep;
+    /* 0x18 */ s16 offsetY;
+    /* 0x1A */ s16 offsetZ;
+    /* 0x1C */ s16 modelColor;
+    /* 0x1E */ u16 angleY;
 };
 
 void BattleInitRenderScene(BattleActorView* p) {
@@ -833,7 +833,7 @@ void BattleInitRenderScene(BattleActorView* p) {
 
     func_80030988(5, 4, 0x40, 0x40);
     pAnim = BattleCreateLightGroup(BattleCreateOrderingTablePair(0x10));
-    id = p->unk5C;
+    id = p->pModelLink;
     g_BattleLightGroup = pAnim;
     g_BattleNodeTree = BattleInitObjectTree(id);
     BattleSetScreenResolution(0x280, 0xDA);
@@ -849,12 +849,12 @@ void BattleInitRenderScene(BattleActorView* p) {
         g_BattleViewOrigin = 0;
     } while (0);
     pScript = p->pScript;
-    x = pScript->unk14;
-    y = pScript->unk16;
-    z = pScript->unk18;
-    w = pScript->unk1A;
-    u = pScript->unk1C;
-    v = pScript->unk1E;
+    x = pScript->angleX;
+    y = pScript->angleYStep;
+    z = pScript->offsetY;
+    w = pScript->offsetZ;
+    u = pScript->modelColor;
+    v = pScript->angleY;
     g_BattleRenderToggleCount = 1;
     g_BattleRenderAngleX = x;
     g_BattleRenderAngleYStep = y;
