@@ -9,15 +9,21 @@ extern s16 g_BattleClutX;
 extern s16 g_BattleClutY;
 
 // A model node: a state tag plus a payload whose type depends on the state,
-// plus two child nodes of the same type.
+// the matrices it is placed with, and two child nodes of the same type.
 typedef struct Misc13Node {
     /* 0x00 */ s32 state;
     /* 0x04 */ void* pData;
-    /* 0x08 */ u8 unk08[0x2C];
+    /* 0x08 */ void (*pUpdate)(void);
+    /* 0x0C */ MATRIX localMatrix;
+    /* 0x2C */ SVECTOR sourcePos;
     /* 0x34 */ s32 positionX;
     /* 0x38 */ s32 positionY;
     /* 0x3C */ s32 positionZ;
-    /* 0x40 */ u8 unk40[0x50];
+    /* 0x40 */ u32 pad40;
+    /* 0x44 */ SVECTOR rotation;
+    /* 0x4C */ MATRIX unk4C;
+    /* 0x6C */ MATRIX worldMatrix;
+    /* 0x8C */ void* pMatrices;
     /* 0x90 */ struct Misc13Node* pChildA;
     /* 0x94 */ struct Misc13Node* pChildB;
 } Misc13Node; // Size: unknown
@@ -37,16 +43,20 @@ typedef struct {
     /* 0x1C */ s32 unk1C;
 } Misc13ModelPart; // Size: 0x20
 
-// One entry of the list owned by a state-2 payload.
+// One entry of the list owned by a state-2 payload: the animation of one part,
+// which the animation reader declares as Misc14Anim.
 typedef struct {
-    /* 0x00 */ s32 unk00;
+    /* 0x00 */ void* pConfig;
     /* 0x04 */ void* pData;
-    /* 0x08 */ u8 unk08[0xC];
+    /* 0x08 */ u8* pTracks;
+    /* 0x0C */ u32 unk0C;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ s16 position;
 } Misc13Entry; // Size: 0x14
 
 // The payload used by state 2.
 typedef struct {
-    /* 0x00 */ u16 unk00;
+    /* 0x00 */ u16 nodeCount; // nodes in the table at 0x04
     /* 0x02 */ s16 count;
     /* 0x04 */ void* pData;
     /* 0x08 */ Misc13Entry* pEntries;
@@ -91,7 +101,7 @@ typedef struct {
 // The 0x1C-byte payload allocated by BattleCreateEntryList; Misc13EntryList is
 // the same record as the state-2 code reads it.
 typedef struct {
-    /* 0x00 */ s32 unk00;
+    /* 0x00 */ s32 nodeCount;
     /* 0x04 */ void* pData;
     /* 0x08 */ Misc13Entry* pEntries;
     /* 0x0C */ s32 unk0C;
@@ -102,14 +112,15 @@ typedef struct {
     /* 0x18 */ s32 unk18;
 } Misc13Scale; // Size: 0x1C
 
-// The 0x14-byte payload allocated by BattleCreateLight.
+// The 0x14-byte light payload allocated by BattleCreateLight: the direction
+// func_80030A30 normalizes into the light vector table, and its colour.
 typedef struct {
-    /* 0x00 */ s32 unk00;
-    /* 0x04 */ s32 unk04;
-    /* 0x08 */ s32 unk08;
-    /* 0x0C */ s16 unk0C;
-    /* 0x0E */ s16 unk0E;
-    /* 0x10 */ s16 unk10;
+    /* 0x00 */ s32 dirX;
+    /* 0x04 */ s32 dirY;
+    /* 0x08 */ s32 dirZ;
+    /* 0x0C */ s16 r;
+    /* 0x0E */ s16 g;
+    /* 0x10 */ s16 b;
     /* 0x12 */ u16 pad12;
 } Misc13Sprite; // Size: 0x14
 
@@ -186,7 +197,7 @@ void BattleFreeEntryList(Misc13EntryList* pList) {
         if (g_BattleSkipEntryFree == 0) {
             i = pList->count;
             while (--i != -1) {
-                if (pList->pEntries[i].unk00 != 0) {
+                if (pList->pEntries[i].pConfig != 0) {
                     HeapFree(pList->pEntries[i].pData);
                 }
             }
@@ -285,12 +296,12 @@ Misc13Sprite* BattleCreateLight(void) {
 
     HeapSetCurrentContentType(0xB);
     pSprite = HeapAlloc(0x14, 0);
-    pSprite->unk08 = 0x10;
-    pSprite->unk04 = 0x10;
-    pSprite->unk00 = 0x10;
-    pSprite->unk10 = 0;
-    pSprite->unk0E = 0;
-    pSprite->unk0C = 0;
+    pSprite->dirZ = 0x10;
+    pSprite->dirY = 0x10;
+    pSprite->dirX = 0x10;
+    pSprite->b = 0;
+    pSprite->g = 0;
+    pSprite->r = 0;
     return pSprite;
 }
 void BattleFreeLight(void* pData) {
@@ -377,13 +388,13 @@ Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     pGroup->pNode3->positionX = 1;
     pGroup->pNode3->positionZ = -1;
     pSprite = (Misc13Sprite*)pGroup->pNode1->pData;
-    pSprite->unk10 = 0x800;
-    pSprite->unk0E = 0x800;
-    pSprite->unk0C = 0x800;
+    pSprite->b = 0x800;
+    pSprite->g = 0x800;
+    pSprite->r = 0x800;
     pSprite2 = (Misc13Sprite*)pGroup->pNode2->pData;
-    pSprite2->unk10 = 0;
-    pSprite2->unk0E = 0;
-    pSprite2->unk0C = 0;
+    pSprite2->b = 0;
+    pSprite2->g = 0;
+    pSprite2->r = 0;
     *(Misc13Sprite*)pGroup->pNode3->pData = *(Misc13Sprite*)pGroup->pNode2->pData;
     pGroup->pParent = pParent;
     pGroup->unk28A = 0;
