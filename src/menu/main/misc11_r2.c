@@ -2,6 +2,19 @@
 
 #include "system/menu.h"
 
+// Id counts of the game's inventory tables, one per table MenuFillInventoryTables
+// fills.
+#define MENU_WEAPON_ID_COUNT 72
+#define MENU_ACCESSORY_ID_COUNT 150
+#define MENU_ITEM_ID_COUNT 76
+#define MENU_GEAR_WEAPON_ID_COUNT 72
+#define MENU_GEAR_PART_ID_COUNT 105
+
+// Quantity MenuFillInventoryTables gives every filled slot.
+#define MENU_INVENTORY_FILL_QUANTITY 10
+
+// g_Menu->digits entry that holds no digit, so no prim is drawn for it.
+#define MENU_DIGIT_NONE 0xFF
 
 // The save-slot record this unit writes: a packed copy of the parts of
 // g_GameState that live in a save file.  Everything is word-aligned so the
@@ -105,7 +118,7 @@ void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
     pSlot->unk1648 = *(MenuSaveBlob0x78*)((u32*)&g_GameState + 0x1648 / 4);
     pSlot->unk16C0 = *(MenuSaveBlob0x160*)((u32*)&g_GameState + 0x16C0 / 4);
     pSlot->unk1820 = *(MenuSaveBlob0x100*)((u32*)&g_GameState + 0x1820 / 4);
-    size = 0xA38;
+    size = sizeof(MenuSaveBlob0xA38);
     memcpy((u8*)pSlot + 0x1124, (u8*)&g_GameState + 0x1920, size);
 }
 
@@ -167,25 +180,25 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
 void MenuFillInventoryTables(void) {
     u8 i;
 
-    for (i = 1; i < 0x48; i++) {
+    for (i = 1; i < MENU_WEAPON_ID_COUNT; i++) {
         g_GameState.weaponIDs[i] = i;
-        g_GameState.weaponQuantities[i] = 10;
+        g_GameState.weaponQuantities[i] = MENU_INVENTORY_FILL_QUANTITY;
     }
-    for (i = 1; i < 0x96; i++) {
+    for (i = 1; i < MENU_ACCESSORY_ID_COUNT; i++) {
         g_GameState.accessoryIDs[i] = i;
-        g_GameState.accessoryQuantities[i] = 10;
+        g_GameState.accessoryQuantities[i] = MENU_INVENTORY_FILL_QUANTITY;
     }
-    for (i = 1; i < 0x4C; i++) {
+    for (i = 1; i < MENU_ITEM_ID_COUNT; i++) {
         g_GameState.itemIDs[i + 2] = i;
-        g_GameState.itemQuantities[i + 2] = 10;
+        g_GameState.itemQuantities[i + 2] = MENU_INVENTORY_FILL_QUANTITY;
     }
-    for (i = 1; i < 0x48; i++) {
+    for (i = 1; i < MENU_GEAR_WEAPON_ID_COUNT; i++) {
         g_GameState.gearWeaponsIds[i] = i;
-        g_GameState.gearWeaponsQty[i] = 10;
+        g_GameState.gearWeaponsQty[i] = MENU_INVENTORY_FILL_QUANTITY;
     }
-    for (i = 1; i < 0x69; i++) {
+    for (i = 1; i < MENU_GEAR_PART_ID_COUNT; i++) {
         g_GameState.gearPartsIds[i] = i;
-        g_GameState.gearPartsQty[i] = 10;
+        g_GameState.gearPartsQty[i] = MENU_INVENTORY_FILL_QUANTITY;
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5178);
@@ -767,7 +780,7 @@ void MenuDrawSlotResourceSprites(u8 arg0, u8* pArg1) {
     pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C;
     pCounter[0x1308] = 0;
     for (i = 0; i < 3; i++) {
-        if (g_Menu->digits[6 + i] == 0xFF) {
+        if (g_Menu->digits[6 + i] == MENU_DIGIT_NONE) {
             continue;
         }
         primOffset = arg0 * 0x87C + 0xA98;
