@@ -46,11 +46,17 @@ typedef struct {
     /* 0x14 */ s32 actionChance1;
     /* 0x18 */ s32 actionChance2;
     /* 0x1C */ s32 actionChance3;
-    /* 0x20 */ s32 unk20;
+    // The sub-state of state 0: 0 waits out the delay and then may attack,
+    // 1 waits until the actor drops below its break threshold (func_8008FCC8).
+    /* 0x20 */ s32 phase;
     /* 0x24 */ s32 breakThreshold;
-    /* 0x28 */ s32 unk28;
+    // The 2D distance the state-2 handler waits for before it takes the action
+    // (rand() % 1536 + 0x100 at state entry, compared with D_8009284C).
+    /* 0x28 */ s32 actionDistance;
     /* 0x2C */ BattleWorkFlags flags;
-    /* 0x30 */ u16 unk30;
+    // The owner's moveCount as of the last func_8008F7B8, which the state-0
+    // handler compares with the live one.
+    /* 0x30 */ u16 savedMoveCount;
     /* 0x32 */ u16 pad32;
 } BattleWork; // Size: 0x34
 
@@ -78,7 +84,7 @@ typedef struct {
 // real size.
 typedef struct BattleActor {
     /* 0x000 */ u8 unk0[0x48];
-    /* 0x048 */ u32 unk48;
+    /* 0x048 */ u32 distance;
     /* 0x04C */ u8 unk4C[0xC];
     /* 0x058 */ s32 unk58;
     /* 0x05C */ u8 unk5C[0x24];
@@ -103,7 +109,9 @@ typedef struct BattleActor {
     /* 0x15FC */ BattleWork* pWork;
     /* 0x1600 */ BattleActionData* pActionData;
     /* 0x1604 */ u8 unk1604[0x64];
-    /* 0x1668 */ u16 unk1668;
+    // Bumped by func_80075B50 each time it starts a move for the actor; the round
+    // reset clears it.
+    /* 0x1668 */ u16 moveCount;
 } BattleActor; // Size: 0x166A
 
 extern s32 func_80073DE4(BattleActor* p, s32 arg1);
@@ -212,7 +220,7 @@ s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1) {
     pWork->flags.bits.unk2C_11 = (rand() & 0xFF) < pWork->actionChance2;
     pWork->flags.bits.unk2C_8 = ((rand() & 0xFF) < pWork->actionChance0) && ((rand() % 10) < 3);
     pWork->flags.bits.random = rand();
-    pWork->unk30 = pWork->pOwner->unk1668;
+    pWork->savedMoveCount = pWork->pOwner->moveCount;
 }
 void BattleQueueMessages4Then3(BattleActor* pActor) {
     if ((pActor->pTarget->flags & 0x60000000) == 0x20000000) {
@@ -329,7 +337,7 @@ void BattleEnterWorkState0(BattleActor* pActor) {
     BattleWork* pWork;
 
     pWork = pActor->pWork;
-    pWork->unk20 = 0;
+    pWork->phase = 0;
     pWork->state = 0;
     pWork->delay = (2 - pWork->difficulty) * 30 + 0x5A;
     func_8008F7B8(pWork);
@@ -520,7 +528,7 @@ void BattleEnterWorkState2(BattleActor* pActor, s32 arg1) {
     if (rand() % 3 == 0) {
         BattleTryQueueMessage5(pActor);
     }
-    pWork->unk28 = rand() % 1536 + 0x100;
+    pWork->actionDistance = rand() % 1536 + 0x100;
     pWork->delay = 0;
     pWork->ticks = rand() % 5 + 3;
     func_8008F7B8(pWork);
@@ -557,7 +565,7 @@ void BattleInitActorWork(BattleActor* pActor) {
     pWork->maxDistance = 0;
     pWork->state = 0;
     pWork->ticks = 0;
-    pActor->unk48 = 0;
+    pActor->distance = 0;
     thr = BattleGetActorBreakThreshold(pActor, pWork);
     /* without the block cc1 sinks this store below the difficulty load */
     do { pWork->breakThreshold = thr; } while (0);
