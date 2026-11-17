@@ -60,8 +60,9 @@ extern s32 g_MovieStreamFileIndex;
 typedef struct {
     /* 0x0 */ u16 magic;
     /* 0x2 */ u16 unk2;
-    /* 0x4 */ s32 unk4;
-    /* 0x8 */ s32 unk8;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ u16 unk6;
+    /* 0x8 */ volatile u32 frameIndex;
 } MovieFileHeader; // Size: 0xC
 
 typedef struct {
@@ -129,7 +130,205 @@ void MovieClearFrameBuffer(void) {
     DrawSync(0);
 }
 
+// func_80074BA4: parked at 96.91%, 1532 bytes (retail 1528, 382 insns - mine is ONE
+// instruction over). The body below is retail instruction-for-instruction except for
+// the four items listed here; each was measured, not guessed.
+//  1. The magic compare 0x160. Retail materialises it INSIDE each scan loop
+//     ('lhu v1,0(s1); ori v0,zero,0x160; bne v1,v0'), mine has gcc's loop.c hoist it
+//     into a callee-saved register in the loop preheader ('li s5,0x160' / 'li s6,0x160'),
+//     which costs the load-delay nop at both sites (+8 bytes). This is the size loss.
+//     Tried: the `nScan = nSize + 1; if (magic == 0x160) nScan = ...` order (which is
+//     retail's, the addiu sits in the bne delay slot) and the if/else order (which gets
+//     the placement right but adds a 'j' over the then-arm, +12). Not tried: anything
+//     that makes the constant loop-variant.
+//  2. The CD path's second found-check is missing retail's duplicated `sltu` in the bne
+//     delay slot: retail's bne targets the fallback's `beqz v0` (with the compare
+//     computed in the delay slot) and the other entry re-loads and re-computes at
+//     0x50A4; mine targets the re-load block, so no delay-slot copy (-4 bytes).
+//  3. s6/s7 are swapped: retail has nBest in s6 and nSectorSize in s7, mine the other
+//     way round. Moving nBest's declaration before/after nSectorSize did not change it.
+//  4. Retail's scan preheader loads nHeaderSkip BEFORE it forms the buffer address
+//     (`lw t0,0x20(sp); addiu v0,sp,0x18`), so reorg cannot fill the blez delay slot;
+//     mine forms the address first and it gets stolen (`addiu v0,sp,0x18` in the slot,
+//     retail has nop). Same size, different insn.
+// Also cosmetic: the CD scan loop reads the header through sp-relative offsets in retail
+// ('lhu v1,0x18(sp)') and through s1 in mine.
+// The two `MovieFileHeader` edits this needed are kept: unk4 split into u16 unk4/unk6
+// (retail reads 0x4 and 0x6 as lhu) and unk8 renamed frameIndex (compared against the
+// frame being sought); `frameIndex` is declared volatile because retail re-loads it at
+// every two-predecessor join (0x4D64, 0x4E30, 0x4FDC, 0x50A4) and a plain field is CSE'd.
+// Next lever worth a try: the permuter from this exact body.
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80074BA4);
+/*
+// Returns the stream position of frame nFrame in the file the current archive section
+// selects: 0 for the first frame, -1 when the frame is not in the file. Retail looks for
+// the frame twice - at a frame-size estimate and at a second one 8/7 of the way along -
+// then scans forward from the best candidate, so the whole search appears once for the
+// host-file (debug) path and once for the CD path.
+s32 func_80074BA4(s32 nFrame) {
+    u8 buffer[0x1000];
+    MovieFileHeader* pHeader;
+    s32 state;
+    s32 nFileIndex;
+    s32 nBest;
+    s32 nSectorSize;
+    s32 nHeaderSize;
+    s32 nHeaderSkip;
+    char* pPath;
+    s32 nHandle;
+    s32 nCount;
+    s32 nFrameSize;
+    s32 nSize;
+    s32 nScan;
+    s32 nUnk4;
+    s32 nRead;
+
+    state = g_MovieStreamArchiveSection;
+    nBest = 0;
+    if (state == 0) {
+        ArchiveSetIndex(0x18, 0);
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(2)) {
+            return;
+        }
+        nFileIndex = g_MovieStreamFileIndex + 3;
+        pPath = ArchiveGetFilePath(nFileIndex);
+        nSectorSize = 0x800;
+        nHeaderSize = 0x20;
+        nHeaderSkip = 0;
+    } else if (state == 1) {
+        ArchiveSetIndex(0x18, 1);
+        if (g_MovieStreamFileIndex >= (s16)ArchiveDecodeSizeAbsolute(1)) {
+            return;
+        }
+        nFileIndex = g_MovieStreamFileIndex + 2;
+        pPath = ArchiveGetFilePath(nFileIndex);
+        nSectorSize = 0x920;
+        nHeaderSize = 0x28;
+        nHeaderSkip = 8;
+    } else if (state == 2) {
+        return -1;
+    }
+    if (nFrame < 2) {
+        return 0;
+    }
+    if (ArchiveGetDebugTable() != 0) {
+        nHandle = PCopen(pPath, 0, 0);
+        PClseek(nHandle, 0, 2);
+        PClseek(nHandle, 0, 0);
+        PCread(nHandle, buffer, nHeaderSize);
+        pHeader = (MovieFileHeader*)(buffer + nHeaderSkip);
+        nFrameSize = pHeader->unk6;
+        nSize = (nFrame - 1) * nFrameSize - (nFrame - 1) / 4;
+        PClseek(nHandle, nSize * nSectorSize, 0);
+        nRead = PCread(nHandle, buffer, nHeaderSize);
+        if (pHeader->frameIndex == nFrame && nRead != 0) {
+            goto found_hdd;
+        }
+        if (pHeader->frameIndex < nFrame && nBest < nSize && nRead != 0) {
+            nBest = nSize;
+        }
+        nSize = (nFrame - 1) * nFrameSize - (nFrame - 1) / 4;
+        nSize += nSize / 7;
+        PClseek(nHandle, nSize * nSectorSize, 0);
+        nRead = PCread(nHandle, buffer, nHeaderSize);
+        pHeader = (MovieFileHeader*)(buffer + nHeaderSkip);
+        if (pHeader->frameIndex == nFrame && nRead != 0) {
+        found_hdd:
+            if (pHeader->unk4 != 0) {
+                nSize -= pHeader->unk4;
+                nScan = nSize - 2;
+                goto scan_hdd;
+            }
+            goto hdd_done;
+        } else {
+            if (pHeader->frameIndex < nFrame && nBest < nSize && nRead != 0) {
+                nBest = nSize;
+            }
+            nScan = (nFrameSize - 1) * (nFrame - 1);
+            if (nBest > 0) {
+                nScan = nBest;
+            }
+        }
+    scan_hdd:
+        pHeader = (MovieFileHeader*)(buffer + nHeaderSkip);
+        for (;;) {
+            nSize = nScan;
+            PClseek(nHandle, nScan * nSectorSize, 0);
+            nRead = PCread(nHandle, buffer, nHeaderSize);
+            nScan = nSize + 1;
+            if (pHeader->magic == 0x160) {
+                nScan = nSize + (pHeader->unk6 - pHeader->unk4);
+            }
+            if (pHeader->frameIndex == nFrame) {
+                break;
+            }
+            if (nRead <= 0) {
+                break;
+            }
+        }
+        if (nRead == 0) {
+            nSize = -1;
+        }
+    hdd_done:
+        PCclose(nHandle);
+        return nSize;
+    } else {
+        ArchiveReadFileFromCdSector(ArchiveDecodeSector(nFileIndex), buffer, 0x800, 0, 0);
+        ArchiveCdDataSync(0);
+        pHeader = (MovieFileHeader*)buffer;
+        nFrameSize = pHeader->unk6;
+        nCount = (ArchiveDecodeAlignedSize(nFileIndex) + nSectorSize - 1) / nSectorSize;
+        nSize = (nFrame - 1) * nFrameSize - (nFrame - 1) / 4;
+        ArchiveReadFileFromCdSector(ArchiveDecodeSector(nFileIndex) + nSize, buffer, 0x800, 0, 0);
+        ArchiveCdDataSync(0);
+        if (pHeader->frameIndex == nFrame && nSize < nCount) {
+            nUnk4 = pHeader->unk4;
+            goto found_cd;
+        }
+        if (pHeader->frameIndex < nFrame && nBest < nSize && nSize < nCount) {
+            nBest = nSize;
+        }
+        nSize = (nFrame - 1) * nFrameSize - (nFrame - 1) / 4;
+        nSize += nSize / 7;
+        ArchiveReadFileFromCdSector(ArchiveDecodeSector(nFileIndex) + nSize, buffer, 0x800, 0, 0);
+        ArchiveCdDataSync(0);
+        if (pHeader->frameIndex == nFrame && nSize < nCount) {
+            nUnk4 = pHeader->unk4;
+        found_cd:
+            if (nUnk4 != 0) {
+                nSize -= nUnk4;
+                nScan = nSize - 2;
+                goto scan_cd;
+            }
+            goto cd_done;
+        } else {
+            if (pHeader->frameIndex < nFrame && nBest < nSize && nSize < nCount) {
+                nBest = nSize;
+            }
+            nScan = (nFrameSize - 1) * (nFrame - 1);
+            if (nBest > 0) {
+                nScan = nBest;
+            }
+        }
+    scan_cd:
+        pHeader = (MovieFileHeader*)buffer;
+        do {
+            nSize = nScan;
+            ArchiveReadFileFromCdSector(ArchiveDecodeSector(nFileIndex) + nSize, buffer, 0x800, 0, 0);
+            ArchiveCdDataSync(0);
+            nScan = nSize + 1;
+            if (pHeader->magic == 0x160) {
+                nScan = nSize + (pHeader->unk6 - pHeader->unk4);
+            }
+        } while (pHeader->frameIndex != nFrame && nScan < nCount);
+    cd_done:
+        if (nScan >= nCount) {
+            nSize = -1;
+        }
+        return nSize;
+    }
+}
+*/
 
 // Non-void so the size-check early-outs leave v0 = the slt result, which is what
 // retail returns on that edge; `return result` needs a li v0,-1 and 4 extra bytes.
@@ -138,6 +337,7 @@ s32 MovieCheckStreamFileHeader(void) {
     MovieFileHeader* pHeader;
     s32 state;
     s32 nFileIndex;
+    s32 nBest;
     s32 nSectorSize;
     s32 nHeaderSize;
     s32 nHeaderSkip;
@@ -180,7 +380,7 @@ s32 MovieCheckStreamFileHeader(void) {
         PCread(nHandle, buffer, nHeaderSize);
         pHeader = (MovieFileHeader*)(buffer + nHeaderSkip);
         if (pHeader->magic == 0x160) {
-            result = pHeader->unk8;
+            result = pHeader->frameIndex;
         }
         PCclose(nHandle);
     } else {
@@ -189,7 +389,7 @@ s32 MovieCheckStreamFileHeader(void) {
         ArchiveCdDataSync(0);
         pHeader = (MovieFileHeader*)buffer;
         if (pHeader->magic == 0x160) {
-            result = pHeader->unk8;
+            result = pHeader->frameIndex;
         }
     }
     return result;
