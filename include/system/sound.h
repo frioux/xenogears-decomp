@@ -99,7 +99,8 @@ struct SoundFile_t {
     /* 0x10 */ undefined32 unk10; // smdId?
     /* 0x14 */ u_short sedId;
     /* 0x16 */ u_short sndId;
-    /* 0x18 */ undefined32 unk18;
+    /* 0x18 */ u16 volumeTableOffset; // pSoundFile + this + sound id reaches a per-effect volume byte
+    /* 0x1A */ u16 unk1A;
     /* 0x1C */ struct SoundFile_t* pNext;
     /* 0x20 */ u_short scriptOffsets[1]; // Pair of scripts for each instrument. 1 script for 1 channel.
 };
@@ -109,9 +110,9 @@ typedef struct SoundFile_t SoundFile;
 typedef struct {
     /* 0x0 */ u32 sampleOffset;
     /* 0x4 */ u16 loopOffset;
-    /* 0x6 */ u16 unk6;
+    /* 0x6 */ u16 toneTune; // copied into AudioElement::toneTune
     /* 0x8 */ u32 adsr;
-    /* 0xC */ u16 unkC;
+    /* 0xC */ u16 adsrModes; // attack/sustain/release mode, 3 bits each
     /* 0xE */ u16 unkE;
 } SoundWdsTone; // Size: 0x10
 
@@ -195,10 +196,11 @@ typedef struct {
     /* 0x6   */ s8 elementIndex;
     /* 0x7   */ s8 unk_0x07;
     /* 0x8   */ s32 soundId;
-    /* 0xC   */ s8 unk_0x0C[0x8];
+    /* 0xC   */ u32 startTick; // g_SoundTimerTickCounter at element start; voice allocation picks the lowest
+    /* 0x10  */ u32 unk_0x10; // script address, stored with unk14
     /* 0x14  */ u32 unk14;
     /* 0x18  */ u8* savedScriptIP;
-    /* 0x1C  */ s8 unk_0x1C[0x04];
+    /* 0x1C  */ s32 unk_0x1C;
     /* 0x20  */ u16 loopCount;
     /* 0x22  */ u8 unk_0x22;
     /* 0x23  */ u8 savedOctave;
@@ -263,9 +265,9 @@ typedef struct AudioManager {
     /* 0x1C */ u16 noiseClock;
     /* 0x1E */ u16 stopBar; // barCount this sequence stops at
     /* 0x20 */ s32 unk_0x20;
-    /* 0x24 */ s32 unk_0x24;
+    /* 0x24 */ s32 playTicks; // ticks driven while elements are active, the tick part of the play time
     /* 0x28 */ s32 playTime; // 1/256 s, seconds/minutes come out of it
-    /* 0x2C */ s32 unk_0x2c;
+    /* 0x2C */ s32 restoreTicks; // playTicks at which the saved backup is restored, 0 = not armed
     /* 0x30 */ s16 lowestLoopCount;
     /* 0x32 */ s16 barCount;
     /* 0x34 */ s16 beatCount;
