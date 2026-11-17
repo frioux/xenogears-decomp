@@ -4,6 +4,15 @@
 #include "system/memory.h"
 #include "psyq/memory.h"
 
+// the slot actor's fixed facing angle, as the cosine/sine pair its rotation
+// matrix (WorldMapUpdateSlotActor) is built from, in 1.12 fixed point
+#define WORLD_MAP_SLOT_FACING_COS 0xDA6
+#define WORLD_MAP_SLOT_FACING_SIN 0x85A
+
+// the map display buffer copied into VRAM when a mode initialises
+#define WORLD_MAP_SCREEN_WIDTH 320
+#define WORLD_MAP_SCREEN_HEIGHT 216
+
 typedef struct {
     /* 0x00 */ undefined32 unk00;
     /* 0x04 */ s16 command;
@@ -361,8 +370,8 @@ void func_8007D918(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
@@ -841,12 +850,12 @@ int WorldMapInitSlotActor(int index) {
         nAbr = 3;
     }
     WorldMapBuildPolyFT4Templates(pGroup, pGroup->pPrims, *(u16 *)((u8 *)pGroup->pPrimHeader + 4), nAbr);
-    pActor->dirX = -0x85A;
-    pActor->dirZ = 0xDA6;
+    pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
+    pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
     pActor->state = 0;
     pActor->dirY = 0;
     unkValue = g_WorldMapSlotScales[nType];
-    pActor->stateTimer = 0x3C;
+    pActor->stateTimer = 60;
     pActor->unk5C[0] = unkValue;
     return 1;
 }
@@ -872,9 +881,9 @@ int WorldMapUpdateSlotActor(int index) {
         pActor->state = 1;
         break;
     case 2:
-        pActor->stateTimer = 0x3C;
-        pActor->dirX = -0x85A;
-        pActor->dirZ = 0xDA6;
+        pActor->stateTimer = 60;
+        pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
+        pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
         pActor->state = (pActor->command = 0);
         pActor->dirY = 0;
         pActor->unk5C[0] = D_8009A684[index];
@@ -898,7 +907,7 @@ int WorldMapUpdateSlotActor(int index) {
     case 4:
         pActor->state = 1;
         pActor->command = 0;
-        pActor->stateTimer = 0x1E;
+        pActor->stateTimer = 30;
         break;
     }
     switch (pActor->state) {
@@ -914,7 +923,7 @@ int WorldMapUpdateSlotActor(int index) {
         pPos->vy = pActor->y >> 12;
         pPos->vz = (pActor->z - 0x6D3000) >> 12;
         pAngle->vx = (pAngle->vz = 0);
-        pAngle->vy = ratan2(0x85A, 0xDA6) & 0xFFF;
+        pAngle->vy = ratan2(WORLD_MAP_SLOT_FACING_SIN, WORLD_MAP_SLOT_FACING_COS) & 0xFFF;
         func_80089160(0x23, pPos, pAngle);
         func_80089160(0x24, pPos, pAngle);
         break;
@@ -930,15 +939,15 @@ int WorldMapUpdateSlotActor(int index) {
         MATRIX *pTmp = (MATRIX *)(pScratch + 0x110);
         VECTOR *pScale = (VECTOR *)pScratch;
 
-        ((MATRIX *)(pScratch + 0xF0))->m[0][0] = 0xDA6;
+        ((MATRIX *)(pScratch + 0xF0))->m[0][0] = WORLD_MAP_SLOT_FACING_COS;
         ((MATRIX *)(pScratch + 0xF0))->m[0][1] = 0;
-        ((MATRIX *)(pScratch + 0xF0))->m[0][2] = 0x85A;
+        ((MATRIX *)(pScratch + 0xF0))->m[0][2] = WORLD_MAP_SLOT_FACING_SIN;
         ((MATRIX *)(pScratch + 0xF0))->m[1][0] = 0;
         ((MATRIX *)(pScratch + 0xF0))->m[1][1] = -0x1000;
         ((MATRIX *)(pScratch + 0xF0))->m[1][2] = 0;
-        ((MATRIX *)(pScratch + 0xF0))->m[2][0] = -0x85A;
+        ((MATRIX *)(pScratch + 0xF0))->m[2][0] = -WORLD_MAP_SLOT_FACING_SIN;
         ((MATRIX *)(pScratch + 0xF0))->m[2][1] = 0;
-        ((MATRIX *)(pScratch + 0xF0))->m[2][2] = 0xDA6;
+        ((MATRIX *)(pScratch + 0xF0))->m[2][2] = WORLD_MAP_SLOT_FACING_COS;
         pGroup->rot.vz = (pGroup->rot.vz + 0x100) & 0xFFF;
         RotMatrixYXZ(&pGroup->rot, pTmp);
         MulMatrix0((MATRIX *)(pScratch + 0xF0), pTmp, &pGroup->mat);
@@ -1072,8 +1081,8 @@ void WorldMapInitializeModeWithActors(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, 0x2C0, 0x100);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
