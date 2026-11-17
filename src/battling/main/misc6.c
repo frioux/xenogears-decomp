@@ -442,7 +442,54 @@ void BattleSetTextCursor(s16 a, s16 b) {
     g_BattleTextCursorY = b;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E8AC);
+// 4-byte entry of the D_80091230 font table: the glyph's texel origin and the
+// cell size the glyph quad is stretched over.
+typedef struct {
+    /* 0x0 */ u8 u;
+    /* 0x1 */ u8 v;
+    /* 0x2 */ u8 w;
+    /* 0x3 */ u8 h;
+} BattleFontGlyph; // Size: 0x4
+
+extern BattleFontGlyph D_80091230[];
+
+// Maps a character of the fixed-font charset onto its glyph record: digits to
+// 0-9, letters to 10-35, and the handful of punctuation marks the battle text
+// uses onto the symbol glyphs at the end of the table. NULL for anything else.
+u8* func_8007E8AC(s32 c) {
+    if (c >= '0' && c <= '9') {
+        c = c - '0';
+    } else if (c >= 'A' && c <= 'Z') {
+        c = c - 'A' + 10;
+    } else {
+        switch (c) {
+        case '!':
+            c = 0x24;
+            break;
+        case ':':
+            c = 0x25;
+            break;
+        case '-':
+            c = 0x26;
+            break;
+        case '/':
+            c = 0x27;
+            break;
+        case '#':
+            c = 0x28;
+            break;
+        case ' ':
+            c = 0x29;
+            break;
+        case '\'':
+            c = 0x2A;
+            break;
+        default:
+            return NULL;
+        }
+    }
+    return (u8*)&D_80091230[c];
+}
 
 void BattleSetTextScale(s32 value) {
     g_BattleTextScale = value;
