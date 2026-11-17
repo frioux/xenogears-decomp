@@ -296,16 +296,16 @@ extern s32 g_BattleEffectEntryCount;
 extern s32 g_BattleEffectPosX;
 extern s32 D_80092A28;
 extern s32 D_80092A2C;
-extern u8 g_BattleBaseMatrix[];
-extern void func_8008D680(BattleEffect *, u8 *, s32);
-extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, u8 *);
+extern MATRIX g_BattleBaseMatrix;
+extern void func_8008D680(BattleEffect *, MATRIX *, s32);
+extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, MATRIX *);
 
 void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     s32 n = g_BattleEffectEntryCount;
     BattleEffect *pEffect = g_BattleEffect;
     u8 *p = (u8 *)pEffect;
 
-    /* Typed stores let gcc hoist the next global load above the previous
+    /* Typed field stores let gcc hoist the next global load above the previous
        store; the original interleaves load and store, so the position and
        rotation words go through a byte view. */
     *(s16 *)(p + 0x14) = g_BattleEffectPosX;
@@ -314,9 +314,9 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     *(s16 *)(p + 0x34) = 0;
     *(s16 *)(p + 0x36) = 0;
     *(s16 *)(p + 0x38) = 0;
-    func_8008D680(pEffect, g_BattleBaseMatrix, n);
+    func_8008D680(pEffect, &g_BattleBaseMatrix, n);
     gte_SetTransRotMatrix_gpr(p1);
-    BattleEffectUpdateEntries(pEffect, p0, (u8 *)p1);
+    BattleEffectUpdateEntries(pEffect, p0, p1);
 }
 
 extern u8 D_800910F4[];
