@@ -279,6 +279,13 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
    - the whole body reuses one scratch MATRIX for all three matrices; retail
      rematerialises `lui $s1,0x1F80` inside the loop because the prologue's copy
      died (it is reused as the globalTransform walker).
+   Round 185 (park repair, un-park + re-measure against today's headers): the body
+   still COMPILES, but it now gives 87.12% / 952 bytes, not this note's 992 - ten
+   instructions short. So the delta since round 118 is a missing statement block
+   (start of the first loop: retail loads the three scale words, stores them at
+   0x40/0x44/0x48 and does THREE mult/div matrix fills; ours diverges before the
+   loop tail), not the constant-1 allocator tie described above. Re-derive from the
+   .s before spending time on the tie.
 
 s32 func_8009F1C4(BattleSprite* pSprites, s32 scale) {
     MATRIX* pScaleMatrix;
@@ -495,6 +502,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    pFrame += 12;`) all leave pFrame in $v1 - the copy/add is folded straight into
    one `addiu v1,a1,24` before any coalescing can tie it to $a1. This is the
    permuter's job, not a spelling.
+   Round 185 (park repair): still compiles, still 97.90% / 420 bytes = retail's 420.
+   The two deltas above are the whole remainder; unchanged.
 
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
@@ -615,6 +624,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1CF4);
    permuter: 1653 iterations / 4 min, base 4756 -> 4450; the only "improvement" it found
    deletes the tag-0xFF guard (semantically wrong - do not port) plus copying `frames` into
    a temp before the pos-half unk12 store.
+   Round 185 (park repair): still compiles, 86.05% / 1136 bytes vs retail's 1144 -
+   the note is accurate as written.
 s32 func_800A1CF4(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 frames,
                   u32 absolute, u32 blockFlags, u32 tag) {
     BattleBlock* pBlock;
@@ -850,6 +861,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2434);
     and gave 0x50). Re-measured: 72.45%, 732 bytes vs retail's 720. The tag is
     still not reloaded from the caller frame per init block and pSprites is not
     kept in $s0 (retail s0=a1 pSprites, s1=a2 pData; ours s0=a2 only).
+    Round 185 (park repair): still compiles, 72.45% / 732 bytes - confirmed.
 s32 func_800A2434(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                    u32 tag) {
     BattleBlock* pBlock;
@@ -1006,6 +1018,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A2704);
     renames). Repaired; re-measured 69.38%, 1024 bytes vs retail's 968, i.e. the
     note above is still accurate - the remaining work is the pBytes-spill
     allocator tie and the out-of-line BattleAllocBlock call.
+    Round 185 (park repair): still compiles, 69.38% / 1024 bytes - confirmed.
 s32 func_800A2704(BattleBlockPool* pPool, BattleSprite* pSprites, BattleAnimData* pData, u32 flags,
                   u32 tag) {
     BattleBlock* pBlock;
