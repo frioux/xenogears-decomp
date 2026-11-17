@@ -41,7 +41,7 @@ typedef struct {
     /* 0x2D */ u8 defenseFromAccessories; // total of the three accessories' defense field
     /* 0x2E */ u8 hitPercentageFromEquipment;
     /* 0x2F */ u8 evadePercentageFromEquipment;
-    /* 0x30 */ u8 unk30;
+    /* 0x30 */ u8 accessoryEffectFlags8; // the type-8 accessory flag word, summed not OR'ed: cases 8 and 9 both accumulate into it (MenuApplyEquippedItemBonuses)
     /* 0x31 */ u8 unk31;
     /* 0x32 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, see the 0x7E block
     /* 0x34 */ u8 unk34[0x10];
@@ -90,7 +90,8 @@ typedef struct {
     /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's unk3 reads 0x64
     /* 0x90 */ u8 unk90[0x10];
     /* 0xA0 */ u_char gearId;
-    /* 0xA1 */ undefined8 field_0xA1[0x3];
+    /* 0xA1 */ u8 accessoryEffectFlags10; // the type-10 accessory flag word, summed not OR'ed, see MenuApplyEquippedItemBonuses
+    /* 0xA2 */ undefined8 unkA2[0x2];
 } GameCharacter; // size: 0xA4
 
 typedef struct {
@@ -141,7 +142,7 @@ typedef struct {
     /* 0x68 */ u16 weight;
     /* 0x6A */ u16 unk6A;
     /* 0x6C */ u16 unk6C;
-    /* 0x6E */ u16 accessoryEffectFlags4; // one bit per accessory attribute, unk88[] accumulates its magnitude per bit
+    /* 0x6E */ u16 accessoryEffectFlags4; // one bit per accessory attribute, accessoryEffectAmounts[] accumulates its magnitude per bit
     /* 0x70 */ u16 baseDefense; /* impacted by AR value of equipped armor */
     /* 0x72 */ u16 baseEtherDefense;
     /* 0x74 */ u8 attackPower;
@@ -161,7 +162,7 @@ typedef struct {
     /* 0x84 */ u8 unk84;
     /* 0x85 */ u8 unk85;
     /* 0x86 */ u16 accessoryEffectFlags3; // low 12 bits; the top nibble holds the equipped weapon's flags
-    /* 0x88 */ u8 unk88[0x10];
+    /* 0x88 */ u8 accessoryEffectAmounts[0x10]; // summed effectAmount of the accessories whose effectFlags set the matching accessoryEffectFlags4 bit
     /* 0x98 */ u8 agility;
     /* 0x99 */ u8 unk99;
     /* 0x9a */ u8 unk9A;

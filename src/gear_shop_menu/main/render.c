@@ -2681,7 +2681,7 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
 
 
     for(i = 0; i < 16; i++) {
-        pGear->unk88[i] = 0;
+        pGear->accessoryEffectAmounts[i] = 0;
     }
 
     for(i = 0; i < 4; i++) {
@@ -2726,7 +2726,7 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
                 for(i = 0; i < 16; i++) {
                     pGear->accessoryEffectFlags4 |= pAccessory->effectFlags;
                     if(pAccessory->effectFlags & (0x8000 >> i)) {
-                        pGear->unk88[i] += pAccessory->effectAmount;
+                        pGear->accessoryEffectAmounts[i] += pAccessory->effectAmount;
                     }
                 }
                 break;

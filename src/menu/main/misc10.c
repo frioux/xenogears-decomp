@@ -779,14 +779,14 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     pChar->etherDefenseFromEquipment = 0;
     pChar->hitPercentageFromEquipment = 0;
     pChar->evadePercentageFromEquipment = 0;
-    pChar->unk30 = 0;
+    pChar->accessoryEffectFlags8 = 0;
     pChar->unk31 = 0;
     pChar->accessoryEffectFlags1 = 0;
     pChar->accessoryEffectFlags2 = 0;
     pChar->accessoryEffectFlags3 = 0;
     pChar->accessoryEffectFlags4 = 0;
     pChar->accessoryEffectFlags7 = 0;
-    pChar->field_0xA1[0] = 0;
+    pChar->accessoryEffectFlags10 = 0;
 
     for (i = 0; i < 3; i++) {
         /* Retail adds the index into the base in place (addu a2,a2,v0), which
@@ -815,10 +815,10 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
             break;
         case 8:
         case 9:
-            pChar->unk30 += pAccessory->effectFlags;
+            pChar->accessoryEffectFlags8 += pAccessory->effectFlags;
             break;
         case 10:
-            pChar->field_0xA1[0] += pAccessory->effectFlags;
+            pChar->accessoryEffectFlags10 += pAccessory->effectFlags;
             break;
         }
         /* Retail keeps the byte at 0xC in one register across the eight bit
