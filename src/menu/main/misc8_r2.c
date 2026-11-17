@@ -9,7 +9,7 @@ extern u8 g_ShopIndex;
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 g_MenuItemRowStringIds[]; // String IDs of the menu strings
-extern s32 D_801EA900;
+extern s32 g_MenuCardSlotTotals;
 extern s32 D_801EA904;
 extern s32 D_801EA6FC;
 extern s32 D_801EA700;
@@ -71,7 +71,7 @@ void MenuShutdown(void) {
     g_Menu->menuUnk2->unk4F8C = 0xFF;
     g_Menu->menuUnk2->unk4F8D = 0xFF;
     D_801EA904 = 0;
-    D_801EA900 = 0;
+    g_MenuCardSlotTotals = 0;
     DrawSync(0);
     Vsync(0);
     EnterCriticalSection();

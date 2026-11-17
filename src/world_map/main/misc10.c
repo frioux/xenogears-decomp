@@ -3,10 +3,10 @@
 #include "psyq/libgte.h"
 
 extern s32 g_WorldMapLevelIndex;
-extern u16 D_8009B69C[];
-extern u16 D_8009B6B0[];
-extern void* D_8009BE1C;
-extern void* D_8009BE20;
+extern u16 g_WorldMapLevelSpriteSetIdsHeightOffset[];
+extern u16 g_WorldMapLevelSpriteSetIds[];
+extern void* g_WorldMapPrimTemplateBuffer;
+extern void* g_WorldMapPrimTemplateBufferCopy;
 extern s16 g_WorldMapSpriteSetIds[];
 
 extern void* g_WorldMapPartyActorAnimFile0;
@@ -186,7 +186,7 @@ extern s32 g_WorldMapMode;
 extern s32 g_WorldMapPlayerPosition;
 extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapPlayerRotation;
-extern WorldMapTrailEntry* D_8009BDF4;
+extern WorldMapTrailEntry* g_WorldMapTrailEntries;
 extern WorldMapPlayer* g_WorldMapSlots;
 extern WorldMapSceneLayer* g_WorldMapGroups;
 extern WorldMapVec g_WorldMapScrollTargetX;
@@ -359,7 +359,7 @@ s32 WorldMapSetActorPosFromSpriteSetWithHeightOffset(s32 arg0) {
     WorldMapSceneLayer* pLayer;
 
     pPlayer = g_WorldMapSlots + arg0;
-    pLayer = &g_WorldMapGroups[D_8009B69C[g_WorldMapLevelIndex]];
+    pLayer = &g_WorldMapGroups[g_WorldMapLevelSpriteSetIdsHeightOffset[g_WorldMapLevelIndex]];
     pPlayer->x = pLayer->pos.x << 12;
     pPlayer->y = (pLayer->pos.y << 12) + 0x40000;
     pPlayer->z = pLayer->pos.z << 12;
@@ -392,7 +392,7 @@ s32 WorldMapSetActorPosFromSpriteSet(s32 arg0) {
     WorldMapPlayer* pPlayer;
     WorldMapSceneLayer* pLayer;
 
-    pLayer = &g_WorldMapGroups[D_8009B6B0[g_WorldMapLevelIndex]];
+    pLayer = &g_WorldMapGroups[g_WorldMapLevelSpriteSetIds[g_WorldMapLevelIndex]];
     pPlayer = g_WorldMapSlots + arg0;
     pPlayer->x = pLayer->pos.x << 12;
     pPlayer->y = pLayer->pos.y << 12;
@@ -431,8 +431,8 @@ void WorldMapInitSpriteGroupTables(void) {
         pSprite->rotX = 0;
         pSprite++;
     }
-    D_8009BDF4 = HeapAlloc(0x4C00, 0);
-    pTrail = D_8009BDF4;
+    g_WorldMapTrailEntries = HeapAlloc(0x4C00, 0);
+    pTrail = g_WorldMapTrailEntries;
     for (i = 0xFF; i != -1; i--) {
         pTrail->trailFlags.status.active = 0;
         pTrail->trailFlags.status.count = 0;
@@ -441,17 +441,17 @@ void WorldMapInitSpriteGroupTables(void) {
 }
 
 void WorldMapFreeSpriteGroupTable(void) {
-    HeapFree(D_8009BDF4);
+    HeapFree(g_WorldMapTrailEntries);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008901C);
-/* 90.66%: every instruction matches except the address of D_8009BE1C, which
+/* 90.66%: every instruction matches except the address of g_WorldMapPrimTemplateBuffer, which
    retail keeps in s0 (lui/addiu once, used for the store across the second
    HeapAlloc and for the reload); gcc materialises it twice (lui $at for the
    store, then lui/lw for the reload) and reorg therefore fills the second jal's
    delay slot with li a1,1 instead of the store. An explicit
-   `void** pSlot = &D_8009BE1C` compiles to the identical bytes; so does
-   `D_8009BE1C = HeapAlloc(); pEntry = D_8009BE1C; D_8009BE20 = HeapAlloc();`
+   `void** pSlot = &g_WorldMapPrimTemplateBuffer` compiles to the identical bytes; so does
+   `g_WorldMapPrimTemplateBuffer = HeapAlloc(); pEntry = g_WorldMapPrimTemplateBuffer; g_WorldMapPrimTemplateBufferCopy = HeapAlloc();`
    (gcc then forwards the alloc result instead of reloading, 268 bytes either
    way). Only cse's choice between an address register and $at differs.
 void func_8008901C(void) {
@@ -461,9 +461,9 @@ void func_8008901C(void) {
     s32* pEnd;
     s32 i;
 
-    D_8009BE1C = HeapAlloc(0x2800, 1);
-    D_8009BE20 = HeapAlloc(0x2800, 1);
-    pEntry = (u8*)D_8009BE1C;
+    g_WorldMapPrimTemplateBuffer = HeapAlloc(0x2800, 1);
+    g_WorldMapPrimTemplateBufferCopy = HeapAlloc(0x2800, 1);
+    pEntry = (u8*)g_WorldMapPrimTemplateBuffer;
     for (i = 0xFF; i != -1; i--) {
         *(u8*)(pEntry + 3) = 9;
         *(u8*)(pEntry + 7) = 0x2C;
@@ -472,8 +472,8 @@ void func_8008901C(void) {
         *(u8*)(pEntry + 7) |= 2;
         pEntry += 0x28;
     }
-    pSrc = (s32*)D_8009BE1C;
-    pDst = (s32*)D_8009BE20;
+    pSrc = (s32*)g_WorldMapPrimTemplateBuffer;
+    pDst = (s32*)g_WorldMapPrimTemplateBufferCopy;
     pEnd = pSrc + 0xA00;
     do {
         *(Block16*)pDst = *(Block16*)pSrc;
@@ -484,8 +484,8 @@ void func_8008901C(void) {
 */
 
 void WorldMapFreePrimTemplateBuffers(void) {
-    HeapFree(D_8009BE1C);
-    HeapFree(D_8009BE20);
+    HeapFree(g_WorldMapPrimTemplateBuffer);
+    HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089160);
@@ -552,7 +552,7 @@ void WorldMapClearGroupEntryFlag(s32 arg0) {
     s32 i;
     s32 j;
 
-    pEntry = D_8009BDF4;
+    pEntry = g_WorldMapTrailEntries;
     for (i = 0xFF; i != -1; i--) {
         for (j = 0; j < 8; j++) {
             if (pEntry->spriteIndex == (arg0 << 3) + j && pEntry->trailFlags.status.active != 0) {
@@ -591,7 +591,7 @@ void func_80089580(void) {
     s32 g;
     s32 b;
 
-    pEntry = (WorldMapTrailEntry*)D_8009BDF4;
+    pEntry = (WorldMapTrailEntry*)g_WorldMapTrailEntries;
     for (i = 0xFF; i != -1; i--, pEntry++) {
         flags = pEntry->trailFlags.flags;
         if ((flags >> 16) != 0) {

@@ -66,7 +66,7 @@ extern u8 BattleSlotFlagsC000Clear(u8 arg0);
 extern u8 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 
-void func_8007C1A4(BattleSlotArgs **ppArgs, u8 row) {
+void BattlePickCharSlotWithDifferentTag(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[3];
 
     buf[0] = buf[1] = buf[2] = 0;
@@ -179,7 +179,7 @@ void BattlePickActorSlotByLowestEntryWord(BattleSlotArgs **ppArgs, u8 row) {
     pRow = g_BattleSlotRows[row].unk10;
     pRow[(*ppArgs)->slot] = result;
 }
-void func_8007C840(BattleSlotArgs **ppArgs, u8 row) {
+void BattlePickCharSlotWithSameTag(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[3];
 
     buf[0] = buf[1] = buf[2] = 0;
@@ -268,7 +268,7 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     }
     g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
-void func_8007CDD0(u8 **arg0, u8 arg1) {
+void BattleStoreSlotParamTableByte(u8 **arg0, u8 arg1) {
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
     u8 value = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]);
     u8 *pRow = (u8 *)(D_800D3420 + 0x10) + arg1 * 0x40;
@@ -311,7 +311,7 @@ void BattleStoreActorSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     }
     g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
-void func_8007D0CC(BattleSlotArgs **ppArgs, u8 row) {
+void BattleStoreCommandUseCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 i;
 
     g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = 0;

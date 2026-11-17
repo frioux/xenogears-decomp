@@ -6,12 +6,12 @@
 #include "system/controller.h"
 #include "system/menu.h"
 
-extern u16 D_801E96A8[]; // Bit masks, LSB first
-extern u16 D_801E96C8[]; // Bit masks, MSB first
-extern u32 D_801E96E8[];
-extern s32 D_801E9768[]; // Card result to error code
-extern u8 D_801E9779;
-extern s32 D_801EA900[];
+extern u16 g_MenuBitMasksLsbFirst[]; // Bit masks, LSB first
+extern u16 g_MenuBitMasksMsbFirst[]; // Bit masks, MSB first
+extern u32 g_MenuBitMasksLsbFirst32[];
+extern s32 g_MenuCardEventErrorCodes[]; // Card result to error code
+extern u8 g_MenuCardCheckInterval;
+extern s32 g_MenuCardSlotTotals[];
 extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 
 s32 MenuWaitForCardEvent(void);
@@ -373,25 +373,25 @@ void MenuPlaySoundEffect(u_char soundEffectId) {
     }
 }
 u16 MenuGetBitMaskMsbFirst(u8 index) {
-    return D_801E96C8[index];
+    return g_MenuBitMasksMsbFirst[index];
 }
 u16 MenuGetBitMaskLsbFirst(u8 index) {
-    return D_801E96A8[index];
+    return g_MenuBitMasksLsbFirst[index];
 }
 u16 MenuGetInvertedBitMaskMsbFirst(u8 index) {
-    return ~D_801E96C8[index];
+    return ~g_MenuBitMasksMsbFirst[index];
 }
 u16 MenuGetInvertedBitMaskLsbFirst(u8 index) {
-    return ~D_801E96A8[index];
+    return ~g_MenuBitMasksLsbFirst[index];
 }
 u32 MenuAndBitMaskMsbFirst(u32 mask, u8 index) {
-    return D_801E96C8[index] & mask;
+    return g_MenuBitMasksMsbFirst[index] & mask;
 }
 u32 MenuAndBitMaskLsbFirst(u32 mask, u8 index) {
-    return D_801E96A8[index] & mask;
+    return g_MenuBitMasksLsbFirst[index] & mask;
 }
 u32 MenuAndBitMaskLsbFirst32(u32 mask, u8 index) {
-    return mask & D_801E96E8[index];
+    return mask & g_MenuBitMasksLsbFirst32[index];
 }
 void MenuWaitForDiscChange(u8 index) {
     u_char flag;
@@ -453,7 +453,7 @@ s32 MenuWaitForCardEvent(void) {
 }
 s32 MenuGetCardErrorCode(long chan) {
     if (_card_info(chan)) {
-        return D_801E9768[MenuWaitForCardEvent() & 0xFF];
+        return g_MenuCardEventErrorCodes[MenuWaitForCardEvent() & 0xFF];
     }
     return -1;
 }
@@ -483,7 +483,7 @@ s32 MenuCheckCardSlot(u8 index) {
     if (cardResult == -1) {
         ((u8*)g_Menu->menuUnk2 + index)[0x4F8A] = 0;
         g_Menu->menuUnk2->cardStatus[index] = 0;
-        D_801EA900[index] = 0;
+        g_MenuCardSlotTotals[index] = 0;
         for (i = 0; i < 0x10; i++) {
             ((u8*)g_Menu->menuUnk2 + (index * 0x10 + i))[0x4FAE] = 0xFF;
             ((u8*)g_Menu->menuUnk2 + (index * 0x10 + i))[0x4F8E] = 0;
@@ -504,7 +504,7 @@ void MenuUpdateCardStatus(void) {
 
     if (g_Menu->menuUnk2->cardPollMode) {
         count = ++g_Menu->cardCheckTimer;
-        if (D_801E9779 < count) {
+        if (g_MenuCardCheckInterval < count) {
             MenuCheckCardSlot(0);
             MenuCheckCardSlot(1);
             if (g_Menu->menuUnk2->cardErrorCodes[0] == -1 && g_Menu->menuUnk2->cardErrorCodes[1] == -1) {

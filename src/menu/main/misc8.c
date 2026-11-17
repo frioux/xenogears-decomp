@@ -8,7 +8,7 @@ extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered 
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
 extern u16 g_MenuItemRowStringIds[]; // String IDs of the menu strings
-extern s32 D_801EA900;
+extern s32 g_MenuCardSlotTotals;
 extern s32 D_801EA904;
 extern s32 D_801EA6FC;
 extern s32 D_801EA700;

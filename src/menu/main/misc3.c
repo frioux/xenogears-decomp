@@ -20,7 +20,7 @@ extern int func_801C8D78(u_char);
 extern void MenuRenderFrame(void);
 extern u_char MenuLoadWindow2Text(u_char, u_char, u_char);
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
-extern s32 D_801EA900[];
+extern s32 g_MenuCardSlotTotals[];
 
 typedef struct {
     /* 0x0 */ u32 unk0;
@@ -53,7 +53,7 @@ int func_801C8D78(u_char a0) {
     s32 i;
 
     retry = 5;
-    D_801EA900[a0] = 0;
+    g_MenuCardSlotTotals[a0] = 0;
     for (i = 0; i < 0x10; i++) {
         g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + i] = 0xFF;
         D_801EA6D0[a0][i] = 0;

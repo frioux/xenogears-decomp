@@ -19,7 +19,7 @@ typedef struct {
 extern u8 D_801EA8C4[0x20];
 extern RECT D_801EA8E4;
 extern RECT D_801EA8EC;
-extern s32 D_801EA900[];
+extern s32 g_MenuCardSlotTotals[];
 extern u8 D_801EA8F5;
 extern MenuSectorHeader D_801C5294;
 extern char D_801C52A4[];
@@ -210,7 +210,7 @@ void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
-// Triage r111: BUILDS now (the externs at the top of the file: u8 D_801EA8C4[0x20], RECT D_801EA8E4, RECT D_801EA8EC, s32 D_801EA900[]). Real score of this body: 84.42%, 948 bytes.
+// Triage r111: BUILDS now (the externs at the top of the file: u8 D_801EA8C4[0x20], RECT D_801EA8E4, RECT D_801EA8EC, s32 g_MenuCardSlotTotals[]). Real score of this body: 84.42%, 948 bytes.
 /* Best: 84.42% (948 vs 904 bytes), first full shape. Decoded: a 0x20-byte CLUT
    (16 entries) is memmoved out of MenuUnk2ImageChunk.pad0[0x60] into the buffer at
    D_801EA8C4 and uploaded with LoadImage to the RECT at D_801EA8EC
@@ -220,7 +220,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
    w = 4, h = 0x10), and finally the chunk's type byte (chunks[index].pad0[2],
    values 0x11/0x12/0x13) selects six 32-bit UV words in menuUnk2->records[index]
    (those six words live inside MenuUnk2Record.unk0, hence the indexed form),
-   chunks[index].pad0[3] is added to D_801EA900[index/0x10], and
+   chunks[index].pad0[3] is added to g_MenuCardSlotTotals[index/0x10], and
    records[index].unk58 is cleared when the type was unexpected.
    What is still wrong, in retail's order of appearance:
    - retail materialises &D_801EA8E4 (offset 0) in s0, derives s7 = s0+2 and uses
@@ -238,7 +238,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E78C8);
 extern u8 D_801EA8C4[0x20];
 extern RECT D_801EA8E4;
 extern RECT D_801EA8EC;
-extern s32 D_801EA900[];
+extern s32 g_MenuCardSlotTotals[];
 
 void func_801E78C8(s32 index) {
     s32 i;
@@ -289,7 +289,7 @@ void func_801E78C8(s32 index) {
             ((s32*)g_Menu->menuUnk2->records[index].unk0)[5] = (index / 0x10) * 0x10 + 0xC0;
             break;
     }
-    D_801EA900[index / 0x10] += g_Menu->menuUnk2->chunks[index].pad0[3];
+    g_MenuCardSlotTotals[index / 0x10] += g_Menu->menuUnk2->chunks[index].pad0[3];
     if (shouldClear) {
         g_Menu->menuUnk2->records[index].unk58 = 0;
     }
