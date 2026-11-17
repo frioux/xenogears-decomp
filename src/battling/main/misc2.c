@@ -3,6 +3,17 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
+/* Entries of the effect context BattleEffectInitContext allocates. */
+#define BATTLE_EFFECT_ENTRY_COUNT 96
+/* Points above the gauge base that make one level. */
+#define BATTLE_GAUGE_POINTS_PER_LEVEL 20
+/* Denominator of a 0..255 gauge fraction. */
+#define BATTLE_GAUGE_FRACTION_SCALE 255
+/* Bit 0 of BattlePartDraw.flags: the part is drawn. */
+#define BATTLE_PART_DRAW_VISIBLE 0x1
+/* BattlePart.type of a part placed by its own matrix. */
+#define BATTLE_PART_TYPE_MATRIX 1
+
 /* Battle actor layout, recovered from the offsets this unit touches. */
 typedef struct {
     /* 0x00 */ s32 vx;
@@ -282,7 +293,7 @@ void BattleEffectInitContext(void) {
     p->r = 0x80;
     p->g = 0x80;
     p->b = 0xC0;
-    BattleEffectAllocEntries(p, 0x60);
+    BattleEffectAllocEntries(p, BATTLE_EFFECT_ENTRY_COUNT);
     p->gravity = 4;
     p->angleRange = 0x300;
     p->depthBase = 8;
@@ -411,7 +422,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 void BattleTransformEntryVertex(Actor *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
     BattlePart *pEntry = p0->pModelLink->pModel->pParts[arg1];
 
-    if (arg2 != 0 && pEntry->type == 1) {
+    if (arg2 != 0 && pEntry->type == BATTLE_PART_TYPE_MATRIX) {
         gte_SetRotMatrix_gpr(&pEntry->matrix);
         gte_ldv0(&pEntry->pDraw->pMesh->pVerts[arg2 - 1]);
         gte_mvmva(1, 0, 0, 0, 0);
@@ -502,7 +513,7 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     if (t < 0x1001) {
         return 1;
     }
-    q = (t - 0x1000) / 20;
+    q = (t - 0x1000) / BATTLE_GAUGE_POINTS_PER_LEVEL;
     if (q >= p0->gaugeValue) {
         p0->gaugePoints = t - arg1;
         p0->gaugeLevel = 0;
@@ -597,17 +608,17 @@ void BattleUpdatePartDrawFlags(Actor *p0) {
     for (i = 0; i < p0->pModelLink->pModel->count; i++) {
         BattlePart *pPart = pParts[i];
 
-        if (pPart->type == 1) {
-            pPart->pDraw->flags &= ~1;
+        if (pPart->type == BATTLE_PART_TYPE_MATRIX) {
+            pPart->pDraw->flags &= ~BATTLE_PART_DRAW_VISIBLE;
         }
     }
     for (i = 0; i < p0->visiblePartCount; i++) {
         BattlePart *pPart = pParts[p0->pVisiblePartIndices[i]];
 
-        pPart->pDraw->flags |= 1;
+        pPart->pDraw->flags |= BATTLE_PART_DRAW_VISIBLE;
     }
     if (p0->typeId == 0xD) {
-        pParts[0xD]->pDraw->flags |= 1;
+        pParts[0xD]->pDraw->flags |= BATTLE_PART_DRAW_VISIBLE;
     }
 }
 
@@ -810,12 +821,12 @@ void BattleSetResultCode(s32 arg0) {
         return;
     }
     v = p->gaugeMax;
-    a = (v * 176) / 255;
+    a = (v * 176) / BATTLE_GAUGE_FRACTION_SCALE;
     if (a < p->unk1654) {
         g_BattleResultCode = 0x83;
         return;
     }
-    b = (v * 160) / 255;
+    b = (v * 160) / BATTLE_GAUGE_FRACTION_SCALE;
     if (b < p->unk1658) {
         g_BattleResultCode = 0x84;
         return;
