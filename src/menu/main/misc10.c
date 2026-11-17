@@ -823,29 +823,29 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
         }
         /* Retail keeps the byte at 0xC in one register across the eight bit
            tests, and adds it as the left operand, so spell it that way. */
-        value = pAccessory->unkC[0];
-        if (*(s16*)&pAccessory->unkC[0] & 0x8000) {
+        value = pAccessory->effectAmount;
+        if (*(s16*)&pAccessory->effectAmount & 0x8000) {
             pChar->attackFromEquipment = value + pChar->attackFromEquipment;
         }
-        if (*(u16*)&pAccessory->unkC[0] & 0x4000) {
+        if (*(u16*)&pAccessory->effectAmount & 0x4000) {
             pChar->defenseFromEquipment = value + pChar->defenseFromEquipment;
         }
-        if (*(u16*)&pAccessory->unkC[0] & 0x2000) {
+        if (*(u16*)&pAccessory->effectAmount & 0x2000) {
             pChar->agilityFromEquipment = value + pChar->agilityFromEquipment;
         }
-        if (*(u16*)&pAccessory->unkC[0] & 0x1000) {
+        if (*(u16*)&pAccessory->effectAmount & 0x1000) {
             pChar->etherFromEquipment = value + pChar->etherFromEquipment;
         }
-        if (*(u16*)&pAccessory->unkC[0] & 0x800) {
+        if (*(u16*)&pAccessory->effectAmount & 0x800) {
             pChar->etherDefenseFromEquipment = value + pChar->etherDefenseFromEquipment;
         }
-        if (*(u16*)&pAccessory->unkC[0] & 0x400) {
+        if (*(u16*)&pAccessory->effectAmount & 0x400) {
             pChar->hitPercentageFromEquipment = value + pChar->hitPercentageFromEquipment;
         }
-        if (*(u16*)&pAccessory->unkC[0] & 0x200) {
+        if (*(u16*)&pAccessory->effectAmount & 0x200) {
             pChar->evadePercentageFromEquipment = value + pChar->evadePercentageFromEquipment;
         }
-        if (*(u16*)&pAccessory->unkC[0] & 0x100) {
+        if (*(u16*)&pAccessory->effectAmount & 0x100) {
             pChar->defenseFromAccessories = value + pChar->defenseFromAccessories;
         }
     }

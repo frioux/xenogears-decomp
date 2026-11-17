@@ -58,7 +58,7 @@ s32 MenuBeginCardOperation(void) {
     s32 result = 1;
 
     func_801D2F4C(0x20);
-    g_Menu->pManager->_pad33 = 1;
+    g_Menu->pManager->window2StringsActive = 1;
     for (; g_Menu->transitionEffectState != 0; MenuRenderFrame()) {
     }
     g_Menu->menuUnk2->unk4FE7 = 1;
@@ -82,9 +82,9 @@ s32 MenuBeginCardOperation(void) {
     MenuRenderFrame();
     if (func_801C93A8() == 0) {
         result = 0;
-        if (g_Menu->pManager->_pad33 != 0) {
+        if (g_Menu->pManager->window2StringsActive != 0) {
             MenuFreeWindow2Strings();
-            g_Menu->pManager->_pad33 = 0;
+            g_Menu->pManager->window2StringsActive = 0;
         }
     }
     return result;

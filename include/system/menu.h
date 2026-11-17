@@ -186,7 +186,8 @@ typedef struct {
     /* 0x8 */ u8 defense;
     /* 0x9 */ u8 effectType; // switch: which effect the flags below drive
     /* 0xA */ u16 effectFlags;
-    /* 0xC */ u8 unkC[2]; // 0xC is the effect magnitude, 0xD its stat bits (retail reads the pair as one halfword)
+    /* 0xC */ u8 effectAmount; // Added to every stat selected by statFlags, see MenuApplyEquippedItemBonuses
+    /* 0xD */ u8 statFlags; // One bit per stat the effect raises; retail tests both bytes as the halfword at 0xC
     /* 0xE */ u16 equipGroup; // group id
 } MenuShopAccessory; // Size: 0x10
 
@@ -279,7 +280,7 @@ typedef struct {
     /* 0x2E */ u8 shouldRenderModalStrings; // after isWindowOpening's MENU_MAX_NUM_WINDOWS flags, not 0x2B
     /* 0x2F */ u_char shouldRenderCursors;
     /* 0x30 */ u8 currentCharacterIDs[0x3];
-    /* 0x33 */ u8 _pad33;
+    /* 0x33 */ u8 window2StringsActive; // Set once MenuBeginCardOperation has window-2 text up, cleared after MenuFreeWindow2Strings
     /* 0x34 */ u8 shouldRenderStrings4E0[0x4];
     /* 0x38 */ u8 shouldRenderStrings10E0[0x8];
     /* 0x40 */ u8 shouldRenderStrings14E0[0x6];
