@@ -290,16 +290,17 @@ extern s32 g_BattleMotionSpeedScale;
 extern u8 g_BattlePlayer2Vibration;
 extern u8 g_BattlePlayer1Vibration;
 extern u32 D_80091198[];
-// One 0x14-byte record per battle slot; D_80096FBC, which the battle draw code
-// also reads, is this table's +0x4 field.
+// One 0x14-byte record per battle slot. The draw code in func_8007661C reads
+// the same record's +0xC and +0x10 words.
 typedef struct {
-    /* 0x0 */ u32 value;
-    /* 0x4 */ u8 percent;
-    /* 0x5 */ u8 unk5[0xF];
+    /* 0x00 */ u32 value;
+    /* 0x04 */ u8 percent;
+    /* 0x05 */ u8 unk5[0x7];
+    /* 0x0C */ s32 unkC;
+    /* 0x10 */ s32 unk10;
 } BattleSlotGauge; // Size: 0x14
 
 extern BattleSlotGauge D_80096FB8[];
-extern u8 D_80096FBC[];
 
 void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     u32 flags;
@@ -339,25 +340,15 @@ extern void BattleSetTextScale(s32 color);
 extern void BattleDrawTextLeft(char* pStr);
 extern s32 g_BattleMode;
 extern s32 D_8009112C;
-extern s32 D_80096FC4[];
-extern s32 D_80096FC8[];
 extern char D_8006FD04[];
 extern char D_8006FD08[];
 extern char D_8006FD10[];
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_8007661C);
-
-/* 99.91%: instruction stream and size (428 bytes) are exact; only the frame
-   differs, 0x38 vs 0x30 -- gcc reserves 8 unused bytes between buf and the saved
-   regs (vars=24 vs retail's 16; buf sits at sp+0x10 in both). Bisected: the pad
-   appears as soon as the mid-body BattleSetTextScale call is present, in either
-   shape (ternary Cond ? 0xE7 : 0x100, or if/else into an s32 local) -- both emit
-   retail's exact insns, and dropping that call alone brings vars back to 16, so
-   it looks like a reload spill slot the allocator keeps. buf sizes 0x8/0xC/0x10/
-   0x18 and both w/h declaration orders do not move it. permuter reports ZERO
-   because it does not score stack offsets.
-/*
-void func_8007661C(u8* p) {
+// The three later gauge reads reach D_80096FB8 with the record offsets folded in
+// where retail's object names D_80096FBC/FC4/FC8 -- the same three addresses, so
+// the linked bytes are identical and diff_func.sh prints MATCH at retail's 428
+// bytes; objdiff stops at 99.72% on that relocation spelling alone.
+void func_8007661C(BattleActor* p) {
     char buf[0x10];
     s32 h;
     s32 w;
@@ -365,15 +356,15 @@ void func_8007661C(u8* p) {
 
     h = 0xA;
     w = 0x14;
-    if (*(u32*)(p + 0xD0) & 0x8000000) {
+    if (p->flags & 0x8000000) {
         w = 0xB4;
     }
     if (g_BattleMode != 4) {
         h = 0xB2;
     }
     BattleSetTextCursor(w, h);
-    Sprintf(buf, D_8006FD04, D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5]);
-    if (D_80096FB8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] == D_8009112C) {
+    Sprintf(buf, D_8006FD04, D_80096FB8[((p->flags >> 27) & 1)].value);
+    if (D_80096FB8[((p->flags >> 27) & 1)].value == D_8009112C) {
         color = 0xE7;
     } else {
         color = 0x100;
@@ -382,14 +373,13 @@ void func_8007661C(u8* p) {
     BattleDrawTextLeft(buf);
     BattleSetTextScale(0x100);
     BattleSetTextCursor(w + 0x34, h);
-    Sprintf(buf, D_8006FD08, ((u8*)D_80096FBC)[((((*(u32*)(p + 0xD0)) >> 23) >> 4) & 1) * 20]);
+    Sprintf(buf, D_8006FD08, D_80096FB8[((p->flags >> 27) & 1)].percent);
     BattleDrawTextLeft(buf);
     BattleSetTextCursor(w, h + 0x14);
-    h = D_80096FC4[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4;
-    Sprintf(buf, D_8006FD10, h, D_80096FC8[((*(u32*)(p + 0xD0) >> 27) & 1) * 5] >> 4);
+    h = D_80096FB8[((p->flags >> 27) & 1)].unkC >> 4;
+    Sprintf(buf, D_8006FD10, h, D_80096FB8[((p->flags >> 27) & 1)].unk10 >> 4);
     BattleDrawTextLeft(buf);
 }
-*/
 
 /* non-void return type: as void gcc fills the beq delay slots that retail
    leaves as nop. */
