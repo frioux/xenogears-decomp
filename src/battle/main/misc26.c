@@ -313,30 +313,30 @@ s32 BattleGetActorFlag41(void) {
     return 1;
 }
 
-// best 88.68% under cdk -G0, cdk -G8 and 2.6.0: register-only differences (which
-// of the two $a0/$a1 copies feeds each load), same instruction multiset. Retail's
-// else path reads the argument from $a0, leaving the branch delay slot empty
-// where reorg fills ours.
-/*
-void func_800B3B94(u8 *pArg) {
+// One step of the image task's ease: while the timer runs, step the value from
+// its start toward its end in equal slices, and once it is spent release the
+// task if the value has reached zero.
+void func_800B3B94(BattleImageTask *pArg) {
+    BattleImageTask *pTask = pArg;
+    s32 timer;
     s32 n;
     s32 num;
-    s32 base;
+    u32 base;
     s32 delta;
 
-    if (*(s32 *)(pArg + 0x3C) != 0) {
-        n = *(s32 *)(pArg + 0x3C) - 1;
-        num = n * 0x20 / *(s32 *)(pArg + 0x38);
-        base = *(s16 *)(pArg + 0x42);
-        delta = (base - *(s16 *)(pArg + 0x40)) * num;
-        *(s32 *)(pArg + 0x3C) = n;
-        *(s16 *)(pArg + 0x46) = base - delta / 0x20;
-    } else if (*(s16 *)(pArg + 0x46) == 0) {
-        ((void (*)(u8 *))*(u32 *)(pArg + 0xC))(pArg);
+    timer = pTask->timer;
+    if (timer != 0) {
+        n = timer - 1;
+        num = n * 0x20 / pTask->length;
+        base = pTask->end;
+        delta = (base - pTask->start) * num;
+        pTask->timer = n;
+        pTask->current = base - delta / 0x20;
+    } else if (pTask->current == 0) {
+        pTask->timerEntry.onFreeCallback(pTask);
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
+
 
 void BattleFreeImageTask(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
