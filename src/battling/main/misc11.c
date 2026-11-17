@@ -51,9 +51,9 @@ extern void func_800732AC(void *, void *, s32);
 extern void func_80072D18(s32, s32, s32);
 
 typedef struct {
-    /* 0x00 */ s16 unk0;
-    /* 0x02 */ s16 unk2;
-    /* 0x04 */ s16 unk4;
+    /* 0x00 */ s16 vx;
+    /* 0x02 */ s16 vy;
+    /* 0x04 */ s16 vz;
     /* 0x06 */ u8 pad6[0x62];
 } BattlingEntry68; // Size: 0x68
 
@@ -66,18 +66,18 @@ typedef union {
 
 typedef struct {
     /* 0x00 */ u8 pad0[0x3];
-    /* 0x03 */ u8 unk3;
-    /* 0x04 */ BattlingPacketWord unk4;
+    /* 0x03 */ u8 tagLength;
+    /* 0x04 */ BattlingPacketWord color;
     /* 0x08 */ u8 pad8[0x4];
-    /* 0x0C */ u16 unkC;
-    /* 0x0E */ u16 unkE;
+    /* 0x0C */ u16 uv0;
+    /* 0x0E */ u16 clut;
     /* 0x10 */ u8 pad10[0x4];
-    /* 0x14 */ u16 unk14;
-    /* 0x16 */ u16 unk16;
+    /* 0x14 */ u16 uv1;
+    /* 0x16 */ u16 tpage;
     /* 0x18 */ u8 pad18[0x4];
-    /* 0x1C */ u16 unk1C;
+    /* 0x1C */ u16 uv2;
     /* 0x1E */ u8 pad1E[0x6];
-    /* 0x24 */ u16 unk24;
+    /* 0x24 */ u16 uv3;
     /* 0x26 */ u8 pad26[0x2];
 } BattlingPacket; // Size: 0x28
 
@@ -199,15 +199,15 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800878DC);
 void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
     BattlingPacket *p = arg0->packet;
 
-    p->unk4.word = 0x2C101010;
-    p->unk3 = 9;
-    p->unk4.bytes[3] |= 2;
-    p->unkE = g_BattleQuadClut;
-    p->unk16 = g_BattleQuadTexPage;
-    p->unkC = g_BattleQuadTexU | (g_BattleQuadTexV << 8);
-    p->unk14 = (g_BattleQuadTexU + 0x3F) | (g_BattleQuadTexV << 8);
-    p->unk1C = g_BattleQuadTexU | ((g_BattleQuadTexV + 0x3F) << 8);
-    p->unk24 = (g_BattleQuadTexU + 0x3F) | ((g_BattleQuadTexV + 0x3F) << 8);
+    p->color.word = 0x2C101010;
+    p->tagLength = 9;
+    p->color.bytes[3] |= 2;
+    p->clut = g_BattleQuadClut;
+    p->tpage = g_BattleQuadTexPage;
+    p->uv0 = g_BattleQuadTexU | (g_BattleQuadTexV << 8);
+    p->uv1 = (g_BattleQuadTexU + 0x3F) | (g_BattleQuadTexV << 8);
+    p->uv2 = g_BattleQuadTexU | ((g_BattleQuadTexV + 0x3F) << 8);
+    p->uv3 = (g_BattleQuadTexU + 0x3F) | ((g_BattleQuadTexV + 0x3F) << 8);
     arg0->packet[1] = arg0->packet[0];
 }
 
@@ -219,9 +219,9 @@ void BattleAppendEntry(s32 *arg0) {
     if (i < 0x1F) {
         BattlingEntry68 *pBase = D_8009A988;
         BattlingEntry68 *p = pBase + i;
-        p->unk0 = arg0[0];
-        p->unk2 = arg0[1];
-        p->unk4 = arg0[2];
+        p->vx = arg0[0];
+        p->vy = arg0[1];
+        p->vz = arg0[2];
         g_BattleAppendEntryCount = i + 1;
     }
 }
