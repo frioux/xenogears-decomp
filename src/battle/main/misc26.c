@@ -315,6 +315,7 @@ s32 BattleGetActorFlag41(void) {
 
 void func_800B3B94(BattleImageTask *pArg) {
     BattleImageTask *pTask = pArg;
+    void (*pOnFree)(void *);
     s32 timer;
     s32 n;
     s32 num;
@@ -327,12 +328,14 @@ void func_800B3B94(BattleImageTask *pArg) {
         num = n * 0x20 / pTask->length;
         pArg->timer = n;
         base = pTask->end;
-        delta = (base - pTask->start) * num;
+        delta = (base - pTask->start);
+        delta = delta * num;
         pTask->current = base - delta / 0x20;
     } else {
         delta = pTask->current;
         if (delta == 0) {
-            pTask->timerEntry.onFreeCallback(pTask);
+            pOnFree = pTask->timerEntry.onFreeCallback;
+            pOnFree(pTask);
         }
     }
 }
