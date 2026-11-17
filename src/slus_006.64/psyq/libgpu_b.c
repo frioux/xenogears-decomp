@@ -158,6 +158,39 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045BCC);
 
+/* best: 98.24% (68 bytes, retail's exact size). Two things had to be found: the
+   mode test must be written INVERTED (11-bit arm first) so gcc threads bnez onto
+   the 12-bit arm, and the shift must be a separate statement
+   (fld = y & mask; fld = fld << shift;) so the sll stays in place instead of on a
+   copy. The trailing dead second test is what makes reorg fill the bnez delay
+   slot with the taken arm's `andi v1,a1,0xfff` and keeps x/y live across the
+   arms; without it the same body is 87.94%. Everything then matches except one
+   allocator tie: retail holds the masked x in v0 and the lui'd 0xE5000000 in a0,
+   gcc the other way, which also swaps the operands of the two closing ors.
+   Permuter runs from 87.94 (score 350) and from 97.65 (score 30) found the two
+   shapes above and nothing for the tie; the accumulate form
+   (code |= 0xE5000000; return code | fld;) gets retail's or TREE right and is
+   the same 97.65 register tie.
+u_long func_80045BCC(int x, int y) {
+    u_long code;
+    u_long fld;
+
+    if (D_800568D0 != 1 && D_800568D0 != 2) {
+        fld = y & 0x7FF;
+        fld = fld << 11;
+        code = x & 0x7FF;
+    } else {
+        fld = y & 0xFFF;
+        fld = fld << 12;
+        code = x & 0xFFF;
+    }
+    if (D_800568D0 || y) {
+        return (code | 0xE5000000) | fld;
+    } else {
+        return (code | 0xE5000000) | fld;
+    }
+}
+*/
 /* best: 83.18% -- identical instruction multiset (68 bytes both ways); gcc always
    gives the shifted y term v0 and the masked x term v1, retail the other way
    round, in every operand order tried.
@@ -169,6 +202,30 @@ u_long func_80045BCC(int x, int y) {
 */
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045C10);
+
+/* THE SPILL PROBLEM IS SOLVED: a u_long t[4] local reproduces retail's four dead
+   stores to 0(sp)/4(sp)/8(sp)/0xC(sp) (gcc 2.x always keeps a local array in
+   memory, then CSEs the later reads back into the registers, so the stores
+   survive with no reload). Four separate scalars give 0 dead stores and a 0x0
+   frame. What is left is block order: retail puts `return 0` INLINE (bnez
+   a0,+0x10 over it, frame in the delay slot, j epilogue in the then block) and
+   the body out of line; gcc 2.7.2 at -O3 emits `beqz a0,<end>` with the return 0
+   hoisted to the bottom, so mine carries one extra j and prints the last or's
+   operands in a different order. Not tried: whether retail's -O level for this
+   object differs (0.00% objdiff on the array body is an alignment failure, not a
+   compile failure).
+u_long func_80045C10(RECT *tw) {
+    u_long t[4];
+
+    if (tw == 0)
+        return 0;
+    t[0] = (tw->x & 0xFF) >> 3;
+    t[1] = (tw->y & 0xFF) >> 3;
+    t[2] = (~(tw->w - 1) & 0xFF) >> 3;
+    t[3] = (~(tw->h - 1) & 0xFF) >> 3;
+    return 0xE2000000 | (t[1] << 15) | (t[0] << 10) | (t[3] << 5) | t[2];
+}
+*/
 
 /* this is _get_tw(). Retail: 0x10 frame, the four masked fields spilled to
    0(sp)/4(sp)/8(sp)/0xc(sp) and never reloaded, then kept live in a1/v0/a2/v1.
