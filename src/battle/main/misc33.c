@@ -78,6 +78,13 @@ typedef struct {
 } BattleActorRow; // Size: 0x48
 
 extern BattleActorRow D_800C3FB8[];
+// One 0x1C-byte row of the sensor table the battle state work block starts with; a
+// sprite's row index is its animation direction (unkA8>>30) and part key (flags&3).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x7];
+    /* 0x07 */ u8 unk7;
+    /* 0x08 */ u8 unk8[0x14];
+} BattleSpriteSensorRow; // Size: 0x1C
 extern BattleActorSprite *g_BattleActorList;
 extern u8 D_800C3780;
 extern s16 g_BattleDigitTextureIds[];
@@ -583,13 +590,6 @@ s16 BattleAngleToTarget(BattleActorSprite *p) {
     vec1.vy = c3;
     return SpriteComputeAngleFromPoints(vec1, vec0);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEFF4);
-/* best 94.02%: every instruction is right but one register tie.  Retail keeps the
-   new sprite pointer in $a2 and copies it with `move a0,a2` in the SpritePlayAnimation
-   jal delay slot; ours allocates it straight to $a0 (so the slot gets a nop) and the
-   sensor-table base lands in $a1 instead of $v1.  The sprite-table entry is the same
-   0x1C-byte stride g_BattleStateWork table that func_800BF3E8 walks, and the 4-bit key is
-   the (unkA8>>30) | ((flags.word&3)<<2) pairing seen in BattleLoadActorArchiveFile.  A permuter job.
 void func_800BEFF4(s32 actorIndex) {
     BattleActorSprite *pSprite;
     u8 *pBase;
@@ -598,16 +598,14 @@ void func_800BEFF4(s32 actorIndex) {
     pSprite = g_BattleState->pCurSprite;
     if (pSprite != NULL && g_BattleState->actorIndex != actorIndex) {
         part = pSprite->unkA8 >> 30;
-        pBase = g_BattleStateWork;
-        if (*(u8 *)(pBase + (((pSprite->flags.word & 3) << 2) | part) * 0x1C + 0x7) == 0) {
-            SpritePlayAnimation(pSprite, pSprite->animId);
+        if (((BattleSpriteSensorRow *)g_BattleStateWork)[((g_BattleState->pCurSprite->flags.word & 3) << 2) | part].unk7 == 0) {
+            SpritePlayAnimation(g_BattleState->pCurSprite, g_BattleState->pCurSprite->animId);
         }
     }
     g_BattleState->actorIndex = actorIndex;
     pBase = g_BattleStateWork;
     g_BattleState->pCurSprite = *(void **)(pBase + actorIndex * 4 + 0x8C8C);
 }
-*/
 
 void BattleSetStateStep(s32 arg0) {
     g_BattleState->stateStep = arg0;
