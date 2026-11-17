@@ -2658,7 +2658,7 @@ extern s16 D_800C3A24;
 extern s16 D_800C3A26;
 extern s16 D_800C3A28;
 extern s16 D_800C3A2A;
-extern s16 D_800C3A2C;
+extern s16 g_FieldStreamFrameBase;
 extern s16 D_800C3A2E;
 extern u16 D_800C3A30;
 extern u16 D_800C3A32;
@@ -2690,7 +2690,7 @@ void func_8008EA58(void) {
     } else {
         D_800C3A20 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
         D_800C3A2A = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xB));
-        D_800C3A2C = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xB));
+        g_FieldStreamFrameBase = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xB));
         D_800C3A2E = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
         g_FieldStreamId = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xB));
         D_800C3A32 = 0x140;
@@ -2735,7 +2735,7 @@ void func_8008EE14(void) {
 
     D_800C3A20 = FieldScriptVMGetArgument(1);
     D_800C3A2A = FieldScriptVMGetArgument(3);
-    D_800C3A2C = FieldScriptVMGetArgument(5);
+    g_FieldStreamFrameBase = FieldScriptVMGetArgument(5);
     D_800C3A2E = FieldScriptVMGetArgument(7);
     value = FieldScriptVMGetArgument(9);
     D_800C3A30 = value;

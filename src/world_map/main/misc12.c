@@ -36,8 +36,8 @@ extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapMode;
 extern s32 D_8009C5A8;
 extern s32 g_WorldMapPlayerPosition;
-extern s32 D_8009C5B0;
-extern s32 D_8009C5B4;
+extern s32 g_WorldMapPlayerPositionY;
+extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapPlayerRotation;
 extern s32 D_8009C170;
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
@@ -218,7 +218,7 @@ s32 func_8008E190(s32 idx) {
     case 5:
         pPlayer->state = 3;
         pPlayer->x = g_WorldMapPlayerPosition;
-        pPlayer->z = D_8009C5B4;
+        pPlayer->z = g_WorldMapPlayerPositionZ;
         pPlayer->y = WorldMapGetTilePlaneHeight(pPlayer->x, pPlayer->z) + 0xFFFC0000;
         pPlayer->angle = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
@@ -232,10 +232,10 @@ s32 func_8008E190(s32 idx) {
     case 7:
         pPlayer->state = 2;
         pPlayer->x = g_WorldMapPlayerPosition;
-        pPlayer->z = D_8009C5B4;
+        pPlayer->z = g_WorldMapPlayerPositionZ;
         pPlayer->angle = g_WorldMapPlayerRotation;
         pPlayer->unk74 = D_8009C170;
-        pPlayer->y = D_8009C5B0;
+        pPlayer->y = g_WorldMapPlayerPositionY;
         *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
         g_WorldMapPlayerAngle = pPlayer->angle;
         break;

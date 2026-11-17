@@ -199,7 +199,7 @@ typedef struct {
 // src/battle/main/misc18 and misc19 are named.
 typedef struct {
     /* 0x000 */ u16 flags;
-    /* 0x002 */ u8 chance; // percent, rolled against rand() % 100 by func_80097964
+    /* 0x002 */ u8 chance; // percent, rolled against rand() % 100 by BattleTryApplySlotCondition
     /* 0x003 */ u8 conditionKind; // passed as that function's kind word; its bits pick the condition word to clear
     /* 0x004 */ u8 unk04[0x34];
     /* 0x038 */ u16 unk38;

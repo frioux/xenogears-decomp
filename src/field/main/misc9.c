@@ -39,7 +39,7 @@ s32 FieldActorModelComputeCenterAndSize(FieldActorModelData* pModel) {
     return maxDelta * 2 + 1;
 }
 
-extern MATRIX D_800B00E8;
+extern MATRIX g_FieldModelScreenMatrix;
 extern s32 g_FieldScreenScrollX;
 extern s32 g_FieldScreenScrollY;
 
@@ -57,11 +57,11 @@ s32 FieldActorModelIsOnScreen(FieldActorModelData* pModel) {
     int x2;
 
     RotTrans((SVECTOR*)&pModel->centerX, &vec, &flag);
-    D_800B00E8.t[0] = vec.vx;
-    D_800B00E8.t[1] = vec.vy;
-    D_800B00E8.t[2] = vec.vz;
-    SetRotMatrix(&D_800B00E8);
-    SetTransMatrix(&D_800B00E8);
+    g_FieldModelScreenMatrix.t[0] = vec.vx;
+    g_FieldModelScreenMatrix.t[1] = vec.vy;
+    g_FieldModelScreenMatrix.t[2] = vec.vz;
+    SetRotMatrix(&g_FieldModelScreenMatrix);
+    SetTransMatrix(&g_FieldModelScreenMatrix);
 
     size = pModel->size;
     point.vx = -size;
@@ -84,10 +84,10 @@ s32 FieldActorModelIsOnScreen(FieldActorModelData* pModel) {
     return -1;
 }
 
-extern SpriteList* D_800AFC68;
+extern SpriteList* g_FieldSpriteSlots;
 
 void FieldFreeSpriteList(void) {
-    HeapFree(D_800AFC68);
+    HeapFree(g_FieldSpriteSlots);
     DrawSync(0);
 }
 
@@ -97,7 +97,7 @@ void FieldInitSpriteList(void) {
     SPRT* pSprite2;
     int i;
 
-    D_800AFC68 = HeapAlloc(0x840, 0x0);
+    g_FieldSpriteSlots = HeapAlloc(0x840, 0x0);
     
     rect.x = 0;
     rect.y = 0;
@@ -105,10 +105,10 @@ void FieldInitSpriteList(void) {
     rect.h = 0xFF;
     
     for (i = 0; i < 0x21; i++) {
-        SetDrawMode(&D_800AFC68->drModes[i][0], 0, 0, GetTPage(0, 0, 0x3C0, 0x100) & 0xFFFF, &rect);
-        SetDrawMode(&D_800AFC68->drModes[i][1], 0, 0, GetTPage(0, 0, 0x3C0, 0x140) & 0xFFFF, &rect);
-        pSprite = &D_800AFC68->sprites[i][0];
-        pSprite2 = &D_800AFC68->sprites[i][1];
+        SetDrawMode(&g_FieldSpriteSlots->drModes[i][0], 0, 0, GetTPage(0, 0, 0x3C0, 0x100) & 0xFFFF, &rect);
+        SetDrawMode(&g_FieldSpriteSlots->drModes[i][1], 0, 0, GetTPage(0, 0, 0x3C0, 0x140) & 0xFFFF, &rect);
+        pSprite = &g_FieldSpriteSlots->sprites[i][0];
+        pSprite2 = &g_FieldSpriteSlots->sprites[i][1];
         
         SetSprt(pSprite);
         setRGB0(pSprite, 0x80, 0x80, 0x80);
@@ -127,8 +127,8 @@ void FieldInitSpriteList(void) {
 
 // Set RGB of sprites
 void FieldSetSpriteColor(int index, int red, int green, int blue) {
-    setRGB0(&D_800AFC68->sprites[index][0], red, green, blue);
-    setRGB0(&D_800AFC68->sprites[index][1], red, green, blue);
+    setRGB0(&g_FieldSpriteSlots->sprites[index][0], red, green, blue);
+    setRGB0(&g_FieldSpriteSlots->sprites[index][1], red, green, blue);
 }
 
 void FieldDrawSprite(int index, int x, int y, int type) {
@@ -143,14 +143,14 @@ void FieldDrawSprite(int index, int x, int y, int type) {
             break;
     }
 
-    D_800AFC68->sprites[index][g_FieldCurRenderContextIndex].x0 = x;
-    D_800AFC68->sprites[index][g_FieldCurRenderContextIndex].y0 = y;
-    addPrim(g_FieldCurRenderContext->ot3, &D_800AFC68->sprites[index][g_FieldCurRenderContextIndex]);
-    addPrim(g_FieldCurRenderContext->ot3, &D_800AFC68->drModes[index][g_FieldCurRenderContextIndex]);
+    g_FieldSpriteSlots->sprites[index][g_FieldCurRenderContextIndex].x0 = x;
+    g_FieldSpriteSlots->sprites[index][g_FieldCurRenderContextIndex].y0 = y;
+    addPrim(g_FieldCurRenderContext->ot3, &g_FieldSpriteSlots->sprites[index][g_FieldCurRenderContextIndex]);
+    addPrim(g_FieldCurRenderContext->ot3, &g_FieldSpriteSlots->drModes[index][g_FieldCurRenderContextIndex]);
 }
 
-extern SpriteList2* D_800B1DF0;
-extern PolyList2* D_800C3A3C;
+extern SpriteList2* g_FieldScreenOverlaySprites;
+extern PolyList2* g_FieldScreenOverlayPolys;
 
 void FieldInitScreenOverlayPrims(void) {
     RECT rect;
@@ -160,8 +160,8 @@ void FieldInitScreenOverlayPrims(void) {
     SPRT* pSprite2;
     int i;
 
-    D_800C3A3C = HeapAlloc(0x2F8, 0x0);
-    D_800B1DF0 = HeapAlloc(0x400, 0x0);
+    g_FieldScreenOverlayPolys = HeapAlloc(0x2F8, 0x0);
+    g_FieldScreenOverlaySprites = HeapAlloc(0x400, 0x0);
     
     rect.x = 0;
     rect.y = 0;
@@ -169,9 +169,9 @@ void FieldInitScreenOverlayPrims(void) {
     rect.h = 0xFF;
     
     for (i = 0; i < 4; i++) {
-        SetDrawMode(&D_800B1DF0->drModes[i][0], 0, 0, GetTPage(0, 0, 0x3C0, 0x140), &rect);
-        SetDrawMode(&D_800B1DF0->drModes[i][1], 0, 0, GetTPage(0, 0, 0x3C0, 0x140), &rect);
-        pSprite = &D_800B1DF0->sprites[i][0];
+        SetDrawMode(&g_FieldScreenOverlaySprites->drModes[i][0], 0, 0, GetTPage(0, 0, 0x3C0, 0x140), &rect);
+        SetDrawMode(&g_FieldScreenOverlaySprites->drModes[i][1], 0, 0, GetTPage(0, 0, 0x3C0, 0x140), &rect);
+        pSprite = &g_FieldScreenOverlaySprites->sprites[i][0];
         pSprite2 = pSprite + 1;
         SetSprt(pSprite);
         setRGB0(pSprite, 0x80, 0x80, 0x80);
@@ -188,7 +188,7 @@ void FieldInitScreenOverlayPrims(void) {
     }
 
     for (i = 0; i < 3; i++) {
-        pPoly = &D_800C3A3C->polys[i][0];
+        pPoly = &g_FieldScreenOverlayPolys->polys[i][0];
         pPoly2 = pPoly + 1;
         SetPolyFT4(pPoly);
         setXY4(pPoly, 
@@ -197,10 +197,10 @@ void FieldInitScreenOverlayPrims(void) {
            i * 0x80, 0xDF, 
            i * 0x80 + 0x80, 0xDF
         );
-        setRECT(&D_800C3A3C->rects[i][0], 0x0, 0x0, 0xFF, 0xFF);
-        setRECT(&D_800C3A3C->rects[i][1], 0x0, 0x0, 0xFF, 0xFF);
-        SetDrawMode(&D_800C3A3C->drModes[i][0], 0, 0, GetTPage(1, 0, 0x300 + (i * 0x40), 0x100), &D_800C3A3C->rects[i][0]);
-        SetDrawMode(&D_800C3A3C->drModes[i][1], 0, 0, GetTPage(1, 0, 0x300 + (i * 0x40), 0x100), &D_800C3A3C->rects[i][1]);
+        setRECT(&g_FieldScreenOverlayPolys->rects[i][0], 0x0, 0x0, 0xFF, 0xFF);
+        setRECT(&g_FieldScreenOverlayPolys->rects[i][1], 0x0, 0x0, 0xFF, 0xFF);
+        SetDrawMode(&g_FieldScreenOverlayPolys->drModes[i][0], 0, 0, GetTPage(1, 0, 0x300 + (i * 0x40), 0x100), &g_FieldScreenOverlayPolys->rects[i][0]);
+        SetDrawMode(&g_FieldScreenOverlayPolys->drModes[i][1], 0, 0, GetTPage(1, 0, 0x300 + (i * 0x40), 0x100), &g_FieldScreenOverlayPolys->rects[i][1]);
         setRGB0(pPoly, 0x80, 0x80, 0x80);
         SetSemiTrans(pPoly, 0x1);
         setUV4(pPoly, 0x0, 0x0, 0x80, 0x0, 0x0, 0xDF, 0x80, 0xDF);
@@ -222,14 +222,14 @@ s32 FieldInventoryHasItem(int itemId) {
     return -1;
 }
 
-extern SpriteList2* D_800B1DF0;
-extern PolyList2* D_800C3A3C;
+extern SpriteList2* g_FieldScreenOverlaySprites;
+extern PolyList2* g_FieldScreenOverlayPolys;
 
-extern s32 D_800AFE78;
-extern s32 D_800AFE7C;
+extern s32 g_FieldScreenOverlayOffsetX;
+extern s32 g_FieldScreenOverlayOffsetY;
 extern s32 g_PlayerActorIndex;
-extern s32 D_800C3914;
-extern s32 D_800C3A18;
+extern s32 g_FieldScreenOverlayScaleX;
+extern s32 g_FieldScreenOverlayScaleY;
 
 void FieldDrawScreenOverlayPrims(s8 color) {
     ActorData* pActor;
@@ -238,8 +238,8 @@ void FieldDrawScreenOverlayPrims(s8 color) {
     int x;
     
     pActor = g_FieldActors[g_PlayerActorIndex].pActorData;
-    x = (CONV_TO_GTE(pActor->position.vx) * D_800C3914) >> 0x10;
-    y = -(CONV_TO_GTE(pActor->position.vz) * D_800C3A18) >> 0x10;
+    x = (CONV_TO_GTE(pActor->position.vx) * g_FieldScreenOverlayScaleX) >> 0x10;
+    y = -(CONV_TO_GTE(pActor->position.vz) * g_FieldScreenOverlayScaleY) >> 0x10;
     
     for (i = 0; i < 1; i++) {
         if (i == 0) {
@@ -247,18 +247,18 @@ void FieldDrawScreenOverlayPrims(s8 color) {
             x -= 4;
         }
         
-        D_800B1DF0->sprites[i][g_FieldCurRenderContextIndex].x0 = x + D_800AFE78;
-        D_800B1DF0->sprites[i][g_FieldCurRenderContextIndex].y0 = y + D_800AFE7C;
+        g_FieldScreenOverlaySprites->sprites[i][g_FieldCurRenderContextIndex].x0 = x + g_FieldScreenOverlayOffsetX;
+        g_FieldScreenOverlaySprites->sprites[i][g_FieldCurRenderContextIndex].y0 = y + g_FieldScreenOverlayOffsetY;
         
-        setRGB0(&D_800B1DF0->sprites[i][g_FieldCurRenderContextIndex & 1], color, color, color);
-        addPrim(g_FieldCurRenderContext->ot3, &D_800B1DF0->sprites[i][g_FieldCurRenderContextIndex]);
-        addPrim(g_FieldCurRenderContext->ot3, &D_800B1DF0->drModes[i][g_FieldCurRenderContextIndex]);
+        setRGB0(&g_FieldScreenOverlaySprites->sprites[i][g_FieldCurRenderContextIndex & 1], color, color, color);
+        addPrim(g_FieldCurRenderContext->ot3, &g_FieldScreenOverlaySprites->sprites[i][g_FieldCurRenderContextIndex]);
+        addPrim(g_FieldCurRenderContext->ot3, &g_FieldScreenOverlaySprites->drModes[i][g_FieldCurRenderContextIndex]);
     }
 
     for (i = 0; i < 3; i++) {
-        setRGB0(&D_800C3A3C->polys[i][g_FieldCurRenderContextIndex & 1], color, color, color);
-        addPrim(g_FieldCurRenderContext->ot3, &D_800C3A3C->polys[i][g_FieldCurRenderContextIndex]);
-        addPrim(g_FieldCurRenderContext->ot3, &D_800C3A3C->drModes[i][g_FieldCurRenderContextIndex]);
+        setRGB0(&g_FieldScreenOverlayPolys->polys[i][g_FieldCurRenderContextIndex & 1], color, color, color);
+        addPrim(g_FieldCurRenderContext->ot3, &g_FieldScreenOverlayPolys->polys[i][g_FieldCurRenderContextIndex]);
+        addPrim(g_FieldCurRenderContext->ot3, &g_FieldScreenOverlayPolys->drModes[i][g_FieldCurRenderContextIndex]);
     }
 }
 
@@ -396,10 +396,10 @@ void func_800ABA98(void) {
         rect.y = 0x100;
         rect.w = 0xA0;
         rect.h = 0x100;
-        D_800C3914 = pTable[index].unk4;
-        D_800C3A18 = pTable[index].unk8;
-        D_800AFE78 = pTable[index].unk14;
-        D_800AFE7C = pTable[index].unk18;
+        g_FieldScreenOverlayScaleX = pTable[index].unk4;
+        g_FieldScreenOverlayScaleY = pTable[index].unk8;
+        g_FieldScreenOverlayOffsetX = pTable[index].unk14;
+        g_FieldScreenOverlayOffsetY = pTable[index].unk18;
 
         pImage = HeapAlloc(0x14000, 0);
         StoreImage(&rect, pImage);
@@ -439,8 +439,8 @@ void func_800ABA98(void) {
         }
 
         DrawSync(0);
-        HeapFree(D_800C3A3C);
-        HeapFree(D_800B1DF0);
+        HeapFree(g_FieldScreenOverlayPolys);
+        HeapFree(g_FieldScreenOverlaySprites);
         LoadImage(&rect, pImage);
         DrawSync(0);
         HeapFree(pImage);
@@ -448,7 +448,7 @@ void func_800ABA98(void) {
 }
 */
 
-extern SpriteList3 D_800B0188;
+extern SpriteList3 g_FieldScreenStripSprites;
 
 void FieldInitScreenStripSprites(void) {
     int i;
@@ -460,16 +460,16 @@ void FieldInitScreenStripSprites(void) {
     rect.h = 0xFF;
     
     for (i = 0; i < 5; i++) {
-        SetDrawMode(&D_800B0188.drModes[i][0], 0, 0, GetTPage(1, 0, 0x280 + (i * 0x40), 0), &rect);
-        SetDrawMode(&D_800B0188.drModes[i][1], 0, 0, GetTPage(1, 0, 0x280 + (i * 0x40), 0), &rect);
-        SetSprt(&D_800B0188.sprites[i][0]);
-        setRGB0(&D_800B0188.sprites[i][0], 0x80, 0x80, 0x80);
-        setXY0(&D_800B0188.sprites[i][0], i * 0x80, 0x0);
-        setUV0(&D_800B0188.sprites[i][0], 0x0, 0x0);
-        setWH(&D_800B0188.sprites[i][0], 0x80, 0xE0);
-        SetSemiTrans(&D_800B0188.sprites[i][0], 0);
-        (&D_800B0188.sprites[i][0])->clut = GetClut(0, 0xE8);
-        D_800B0188.sprites[i][1] = D_800B0188.sprites[i][0];
+        SetDrawMode(&g_FieldScreenStripSprites.drModes[i][0], 0, 0, GetTPage(1, 0, 0x280 + (i * 0x40), 0), &rect);
+        SetDrawMode(&g_FieldScreenStripSprites.drModes[i][1], 0, 0, GetTPage(1, 0, 0x280 + (i * 0x40), 0), &rect);
+        SetSprt(&g_FieldScreenStripSprites.sprites[i][0]);
+        setRGB0(&g_FieldScreenStripSprites.sprites[i][0], 0x80, 0x80, 0x80);
+        setXY0(&g_FieldScreenStripSprites.sprites[i][0], i * 0x80, 0x0);
+        setUV0(&g_FieldScreenStripSprites.sprites[i][0], 0x0, 0x0);
+        setWH(&g_FieldScreenStripSprites.sprites[i][0], 0x80, 0xE0);
+        SetSemiTrans(&g_FieldScreenStripSprites.sprites[i][0], 0);
+        (&g_FieldScreenStripSprites.sprites[i][0])->clut = GetClut(0, 0xE8);
+        g_FieldScreenStripSprites.sprites[i][1] = g_FieldScreenStripSprites.sprites[i][0];
     }
 }
 
@@ -480,8 +480,8 @@ void FieldDrawScreenStripSprites(void) {
 
     if (g_FieldScreenStripSpritesEnabled) {
         for (i = 0; i < 5; i++) {
-            addPrim(g_FieldCurRenderContext->ot3, &D_800B0188.sprites[i][g_FieldCurRenderContextIndex]);
-            addPrim(g_FieldCurRenderContext->ot3, &D_800B0188.drModes[i][g_FieldCurRenderContextIndex]);
+            addPrim(g_FieldCurRenderContext->ot3, &g_FieldScreenStripSprites.sprites[i][g_FieldCurRenderContextIndex]);
+            addPrim(g_FieldCurRenderContext->ot3, &g_FieldScreenStripSprites.drModes[i][g_FieldCurRenderContextIndex]);
         }
     }
 }
@@ -526,7 +526,7 @@ void FieldExpandGlyphBitmap(u_char* pDst, u_short* pSrc) {
     }
 }
 
-extern s32 D_800AF780;
+extern s32 g_FieldTextRenderBytesRemaining;
 
 void* FieldDrawTextRow(void* pData, s32 x, s32 frameIndex) {
     u_char glyph[0x120];
@@ -551,7 +551,7 @@ void* FieldDrawTextRow(void* pData, s32 x, s32 frameIndex) {
     }
 
     index = 0;
-    if (D_800AF780 <= 0) {
+    if (g_FieldTextRenderBytesRemaining <= 0) {
         line = 0;
     } else {
         line = 0;
@@ -587,7 +587,7 @@ void* FieldDrawTextRow(void* pData, s32 x, s32 frameIndex) {
         DrawSync(0);
     }
 
-    D_800AF780 -= index;
+    g_FieldTextRenderBytesRemaining -= index;
     return (u_char*)pData + index;
 }
 
@@ -596,21 +596,21 @@ extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flag
 extern void ArchiveCdDataSync(int mode);
 
 extern s32 g_FieldTextRenderEnabled;
-extern void* D_800AF76C;
-extern void* D_800AF774;
-extern s32 D_800AF778;
-extern s32 D_800AF77C;
-extern s32 D_800AF784;
+extern void* g_FieldTextRenderData;
+extern void* g_FieldTextRenderCursor;
+extern s32 g_FieldTextRenderRow;
+extern s32 g_FieldTextRenderFrameCounter;
+extern s32 g_FieldFontTimBuffer;
 
 // Load the two archive files this effect needs
 void FieldLoadTextRenderFiles(void) {
     ArchiveSetIndex(4, 0);
-    D_800AF780 = ArchiveDecodeSize(0xAB);
-    D_800AF76C = HeapAlloc(ArchiveDecodeAlignedSize(0xAB), 1);
-    ArchiveReadFileToBuffer(0xAB, D_800AF76C, 0, 0x80);
+    g_FieldTextRenderBytesRemaining = ArchiveDecodeSize(0xAB);
+    g_FieldTextRenderData = HeapAlloc(ArchiveDecodeAlignedSize(0xAB), 1);
+    ArchiveReadFileToBuffer(0xAB, g_FieldTextRenderData, 0, 0x80);
     ArchiveCdDataSync(0);
-    D_800AF784 = HeapAlloc(ArchiveDecodeAlignedSize(0xAC), 1);
-    ArchiveReadFileToBuffer(0xAC, D_800AF784, 0, 0x80);
+    g_FieldFontTimBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0xAC), 1);
+    ArchiveReadFileToBuffer(0xAC, g_FieldFontTimBuffer, 0, 0x80);
     ArchiveCdDataSync(0);
 }
 
@@ -650,7 +650,7 @@ typedef struct {
 } FieldEffectPrimBlock; // Size: 0x100
 
 extern POLY_GT4 D_800AF7F0[2];
-extern s32 D_800AF770;
+extern s32 g_FieldTextRenderPrimBlocks;
 
 void func_800AC99C(void) {
     FieldEffectPrimBlock* pBlock;
@@ -662,7 +662,7 @@ void func_800AC99C(void) {
     addPrim(g_FieldCurRenderContext->ot3, &D_800AF7F0[ctx]);
     addPrim(g_FieldCurRenderContext->ot3, &D_800AF7F0[ctx - 2]);
 
-    pBlock = (FieldEffectPrimBlock*)D_800AF770;
+    pBlock = (FieldEffectPrimBlock*)g_FieldTextRenderPrimBlocks;
     for (i = 0; i < 0x1000; i += 0x100) {
         short y = (pBlock->sprites[(ctx + 1) & 1][0].y0 - 1) & 0xFF;
 
@@ -682,9 +682,9 @@ void FieldLoadFontTIMAndClearRect(void) {
     s32 empty;
     int i;
 
-    FieldLoadTIMWithClut((u_long*)D_800AF784, 0x380, 0x100, 0, 0x1FF, 0, 0);
+    FieldLoadTIMWithClut((u_long*)g_FieldFontTimBuffer, 0x380, 0x100, 0, 0x1FF, 0, 0);
     DrawSync(0);
-    HeapFree(D_800AF784);
+    HeapFree(g_FieldFontTimBuffer);
 
     pBuffer = HeapAlloc(0x200, 1);
     empty = -1;
@@ -710,18 +710,18 @@ void FieldInitTextRender(void) {
     if (g_FieldTextRenderEnabled) {
         FieldLoadTextRenderFiles();
         func_800AC3AC();
-        D_800AF77C = 0;
-        D_800AF778 = 0xF;
-        D_800AF774 = D_800AF76C;
+        g_FieldTextRenderFrameCounter = 0;
+        g_FieldTextRenderRow = 0xF;
+        g_FieldTextRenderCursor = g_FieldTextRenderData;
     }
 }
 
-extern s32 D_800AF770;
+extern s32 g_FieldTextRenderPrimBlocks;
 
 void FieldFreeTextRender(void) {
     if (g_FieldTextRenderEnabled) {
-        HeapFree(D_800AF76C);
-        HeapFree(D_800AF770);
+        HeapFree(g_FieldTextRenderData);
+        HeapFree(g_FieldTextRenderPrimBlocks);
     }
 }
 
@@ -729,11 +729,11 @@ void* FieldDrawTextRow(void* pData, s32 offset, s32 frame);
 
 void FieldUpdateTextRender(void) {
     if (g_FieldTextRenderEnabled) {
-        if ((D_800AF77C & 0xF) == 0) {
-            D_800AF774 = FieldDrawTextRow(D_800AF774, 0x300, D_800AF778 & 0xF);
-            D_800AF778++;
+        if ((g_FieldTextRenderFrameCounter & 0xF) == 0) {
+            g_FieldTextRenderCursor = FieldDrawTextRow(g_FieldTextRenderCursor, 0x300, g_FieldTextRenderRow & 0xF);
+            g_FieldTextRenderRow++;
         }
-        D_800AF77C++;
+        g_FieldTextRenderFrameCounter++;
     }
 }
 

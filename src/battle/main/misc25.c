@@ -12,7 +12,7 @@ extern s32 D_800C3BCC[];
 extern s32 D_800C3BEC;
 extern s32 D_800C3BF0;
 extern s32 g_BattleCommandRowIndex;
-extern u8 D_800C4000[];
+extern u8 g_BattleActorCommandIds[];
 extern void *g_BattleStageData;
 
 extern void HeapFree(void *pMem);
@@ -635,7 +635,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B12D0);
 s32 func_800B12D0(s32 arg0, s32 arg1) {
     s32 result = 0;
     s32 v;
-    u8 *pRow = &D_800C4000[(g_BattleCommandRowIndex - 1) * 0x48];
+    u8 *pRow = &g_BattleActorCommandIds[(g_BattleCommandRowIndex - 1) * 0x48];
     u8 kind = pRow[arg0];
 
     if (kind < 6) {

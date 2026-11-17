@@ -623,7 +623,7 @@ extern u16 D_800C3A24;
 extern u16 D_800C3A26;
 extern u16 D_800C3A28;
 extern u16 D_800C3A2A;
-extern u16 D_800C3A2C;
+extern u16 g_FieldStreamFrameBase;
 extern u16 D_800C3A2E;
 extern u16 D_800C3A3A;
 extern s16 g_FieldStreamId;
@@ -640,7 +640,7 @@ void FieldPlayStreamedSequence(void) {
         if (g_FieldStreamId != 0xFF || (g_FieldStreamFlags & 0x40)) {
             nMode = 3;
         }
-        func_801D37CC(D_800C3A20 + 2, D_800C3A2A, D_800C3A2C, D_800C3A2E, 1, nMode,
+        func_801D37CC(D_800C3A20 + 2, D_800C3A2A, g_FieldStreamFrameBase, D_800C3A2E, 1, nMode,
             D_800C3A3A, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, FieldSelectStreamRenderContext);
         ArchiveSetIndex(4, 0);
     }

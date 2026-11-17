@@ -3,7 +3,7 @@
 #include "main/game.h"
 
 extern BattleWorkBlock* g_BattleCurWorkBlock;
-extern u8 D_800C3E50;
+extern u8 g_BattleCurSlotIndex;
 extern BattleRow* g_BattleCurrentRow;
 extern u8* D_800D2DC8;
 extern u8 g_BattleSlotConditions[];
@@ -872,7 +872,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 }
 */
 // best 98.33% (was 86.33%): only the last four instructions differ, and only by
-// register: gcc puts the second D_800C3E50 load in $v0 where retail has $v1, so
+// register: gcc puts the second g_BattleCurSlotIndex load in $v0 where retail has $v1, so
 // mfhi lands in $a1 instead of $v0. Permuter score 50, stuck over 1907+1250
 // iterations, so this is an allocator tie and not a structural miss.
 // The gain came from splitting the two statements' base loads: a u8* local for
@@ -911,8 +911,8 @@ void func_8009BD94(void) {
     u8* new_var2;
 
     new_var2 = (u8*)g_BattleCurWorkBlock;
-    *(u8*)(new_var2 + D_800C3E50 + 0x5FA0) = 2;
-    new_var = D_800C3E50;
+    *(u8*)(new_var2 + g_BattleCurSlotIndex + 0x5FA0) = 2;
+    new_var = g_BattleCurSlotIndex;
     new_var = (u32)g_BattleCurWorkBlock + new_var * 4 - -0x5F6C;
     *(u32*)new_var =
         (u32)(g_BattleCurrentRow->power * *(s32*)(D_800D2DC8 + 0x64)) / 20;

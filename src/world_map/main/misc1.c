@@ -27,10 +27,10 @@ extern void* g_WorldMapDecompressedMapData;
 extern s32 g_WorldMapReloadFileIndex;
 extern s32 D_8009C17C;
 extern s32 g_WorldMapPlayerRotation;
-extern void* D_8009C59C;
+extern void* g_WorldMapTexturePackData;
 extern s32 g_WorldMapPlayerPosition;
-extern s32 D_8009C5B0;
-extern s32 D_8009C5B4;
+extern s32 g_WorldMapPlayerPositionY;
+extern s32 g_WorldMapPlayerPositionZ;
 extern s32 D_8009D3C4;
 extern s32 g_WorldMapSedsBankFileIndex;
 extern StreamDataQueueEntry g_WorldMapStreamQueue;
@@ -286,7 +286,7 @@ void func_80071EF0(void) {
     void* pBuffer;
     StreamDataQueueEntry* pQueue;
 
-    D_8009C59C = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C17C), 1);
+    g_WorldMapTexturePackData = HeapAlloc(ArchiveDecodeAlignedSize(D_8009C17C), 1);
     g_WorldMapLoadedFileData = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapReloadFileIndex), 1);
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009D3C4), 1);
     pQueue = (StreamDataQueueEntry*)&g_WorldMapStreamQueue;
@@ -297,7 +297,7 @@ void func_80071EF0(void) {
     pQueue->archiveIndex = D_8009D3C4;
     D_8009D400.archiveIndex = D_8009C17C;
     D_8009D408.archiveIndex = g_WorldMapReloadFileIndex;
-    D_8009D400.pData = D_8009C59C;
+    D_8009D400.pData = g_WorldMapTexturePackData;
     D_8009D408.pData = g_WorldMapLoadedFileData;
     func_80029AFC(pQueue, 0, 0);
 }
@@ -605,7 +605,7 @@ void WorldMapSetPositionFromState(void) {
         g_WorldMapPlayerPosition = nPos;
         g_WorldMapPlayerRotation = g_GameState.worldMapPlayerRotation;
         nPos = g_GameState.worldMapPosZ << 12;
-        D_8009C5B4 = nPos;
+        g_WorldMapPlayerPositionZ = nPos;
         break;
     case 4:
     case 5:
@@ -619,12 +619,12 @@ void WorldMapSetPositionFromState(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
 /* best: 94.74%, 228 bytes vs retail's 232 - the missing insn is the load-delay
    `nop` after `lh v0,4(a2)`. Retail's found-point block is
-   `lh v0,0(a2) / sw zero,D_8009C5B0 / sll / sw g_WorldMapPlayerPosition / lh v0,4(a2) / nop /
-   sll / sw D_8009C5B4`, i.e. the x and z loads share $v0 and the z load is NOT
+   `lh v0,0(a2) / sw zero,g_WorldMapPlayerPositionY / sll / sw g_WorldMapPlayerPosition / lh v0,4(a2) / nop /
+   sll / sw g_WorldMapPlayerPositionZ`, i.e. the x and z loads share $v0 and the z load is NOT
    hoisted. gcc's sched1 hoists the independent z load above the stores whatever
    the statement order. `nPos = p->z;` (load into the shared temp, shift at the
    store) does produce retail's 232-byte shape but gcc then splits the two loads
-   into $v0/$v1 and moves `sw zero,D_8009C5B0` after both of them (91.55%);
+   into $v0/$v1 and moves `sw zero,g_WorldMapPlayerPositionY` after both of them (91.55%);
    `nPos = p->x;` first is 89.48%. Rest matches retail exactly, including the
    `g_GameState.worldMapState &= ~0x2000` base-register read-modify-write and the
    `sll/sra` narrowed-id search loop.
@@ -642,18 +642,18 @@ void func_80073448(s32 arg0) {
         p = g_WorldMapPoints;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
-                D_8009C5B0 = 0;
+                g_WorldMapPlayerPositionY = 0;
                 nPos = p->x << 12;
                 g_WorldMapPlayerPosition = nPos;
                 nPos = p->z << 12;
-                D_8009C5B4 = nPos;
+                g_WorldMapPlayerPositionZ = nPos;
                 return;
             }
             p++;
         }
         g_WorldMapPlayerPosition = 0;
-        D_8009C5B0 = 0;
-        D_8009C5B4 = 0;
+        g_WorldMapPlayerPositionY = 0;
+        g_WorldMapPlayerPositionZ = 0;
     }
 }
 */

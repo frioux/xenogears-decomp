@@ -58,8 +58,8 @@ typedef struct {
 extern WorldMapActor *g_WorldMapSlots;
 extern WorldMapRoot *g_WorldMapGroups;
 extern u8 g_WorldMapPlayerPosition[];
-extern u32 D_8009C5B0;
-extern u32 D_8009C5B4;
+extern u32 g_WorldMapPlayerPositionY;
+extern u32 g_WorldMapPlayerPositionZ;
 extern u16 g_WorldMapScriptStateIds;
 extern u16 g_WorldMapScriptStateFrames[];
 extern u16 g_WorldMapSlotScales[];
@@ -134,7 +134,7 @@ extern void WorldMapSetPrimColors(u8 *, s32, s32, s32, s32);
 extern void WorldMapBuildPolyFT4Templates(WorldMapGroup *, u8 *, int, int);
 extern void WorldMapInitSpriteSets(void);
 extern void WorldMapLoadTextureClut(void);
-extern void func_800979C8(void);
+extern void WorldMapLoadClutAndTpageIds(void);
 extern void WorldMapQueueFileLoads(void);
 extern void func_800736DC(void);
 extern void func_800863E0(void);
@@ -387,14 +387,14 @@ void func_8007D918(void) {
     nOffset = g_WorldMapSpawnPositions[nIndex * 4] << 12;
     *pPos = nOffset;
     nOffset = D_8009A5B6[nIndex * 4] << 12;
-    D_8009C5B0 = nOffset;
+    g_WorldMapPlayerPositionY = nOffset;
     /* split only here: with an inline << 12 the scheduler steals the slot */
     nOffset = D_8009A5B8[nIndex * 4];
     nOffset <<= 12;
-    D_8009C5B4 = nOffset;
+    g_WorldMapPlayerPositionZ = nOffset;
     WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
-    func_800979C8();
+    WorldMapLoadClutAndTpageIds();
     WorldMapQueueFileLoads();
     func_800736DC();
     func_800863E0();
@@ -505,8 +505,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
         g_WorldMapRotationMatrixValid = 0;
         pActor->unk7C = 0x1000;
         unkAc = *(u32 *)g_WorldMapPlayerPosition;
-        unkB0 = D_8009C5B0;
-        unkB4 = D_8009C5B4;
+        unkB0 = g_WorldMapPlayerPositionY;
+        unkB4 = g_WorldMapPlayerPositionZ;
         g_WorldMapFadeLevel = 0x78;
         g_WorldMapCameraTarget[0] = unkAc;
         g_WorldMapScrollTargetX = unkAc;
@@ -811,8 +811,8 @@ int func_8007ECA4(int index) {
     pActor->unk50 = D_8009A674[nIndex * 4] << 12;
     pActor->unk54 = (void *)(D_8009A678[nIndex * 4] << 12);
     pActor->x = *(u32 *)g_WorldMapPlayerPosition - pActor->dirX * 13952;
-    pActor->y = D_8009C5B0;
-    pActor->z = D_8009C5B4 - pActor->dirZ * 13952;
+    pActor->y = g_WorldMapPlayerPositionY;
+    pActor->z = g_WorldMapPlayerPositionZ - pActor->dirZ * 13952;
     return 1;
 }
 */
@@ -1087,11 +1087,11 @@ void WorldMapInitializeModeWithActors(void) {
        use. Value reads are *(u32*)g_WorldMapPlayerPosition. */
     pPos = (u32 *)g_WorldMapPlayerPosition;
     *pPos = 0x4100000;
-    D_8009C5B0 = 0xFFF80000;
-    D_8009C5B4 = 0x13C0000;
+    g_WorldMapPlayerPositionY = 0xFFF80000;
+    g_WorldMapPlayerPositionZ = 0x13C0000;
     WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
-    func_800979C8();
+    WorldMapLoadClutAndTpageIds();
     func_800736DC();
     WorldMapRelocateMapEntryOffsets();
     func_800863E0();
@@ -1183,8 +1183,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
         g_WorldMapRotationMatrixValid = 0;
         pActor->unk7C = 0x1000;
         unkAc = *(u32 *)g_WorldMapPlayerPosition;
-        unkB0 = D_8009C5B0;
-        unkB4 = D_8009C5B4;
+        unkB0 = g_WorldMapPlayerPositionY;
+        unkB4 = g_WorldMapPlayerPositionZ;
         g_WorldMapFadeLevel = 0x78;
         g_WorldMapCameraTarget[0] = unkAc;
         g_WorldMapScrollTargetX = unkAc;

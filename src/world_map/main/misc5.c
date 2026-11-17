@@ -85,8 +85,8 @@ extern s32 g_WorldMapCameraTarget;
 extern s32 D_8009BE2C;
 extern s32 D_8009BE30;
 extern s32 g_WorldMapPlayerPosition;
-extern s32 D_8009C5B0;
-extern s32 D_8009C5B4;
+extern s32 g_WorldMapPlayerPositionY;
+extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapCameraHeight;
 extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
@@ -144,7 +144,7 @@ extern s32 ArchiveCdDataSync(s32 arg0);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapInitSpriteSets(void);
 extern void WorldMapLoadTextureClut(void);
-extern void func_800979C8(void);
+extern void WorldMapLoadClutAndTpageIds(void);
 extern void func_800736DC(void);
 extern void func_800863E0(void);
 extern void WorldMapInitTileAnimEntries(void);
@@ -268,8 +268,8 @@ int WorldMapInitActorScrollScale(int idx) {
     s32 c;
 
     a = g_WorldMapPlayerPosition;
-    b = D_8009C5B0;
-    c = D_8009C5B4;
+    b = g_WorldMapPlayerPositionY;
+    c = g_WorldMapPlayerPositionZ;
     g_WorldMapFadeLevel = 0x78;
     g_WorldMapCameraHeight = 0x1C0000;
     g_WorldMapCameraRot = 0x40;
@@ -362,7 +362,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
             g_WorldMapCameraRot[0].vy = 0x418;
             g_WorldMapCameraRot[0].vz = 0;
             g_WorldMapRotationMatrixValid = 0;
-            g_WorldMapCameraTarget[0].z = D_8009C5B4;
+            g_WorldMapCameraTarget[0].z = g_WorldMapPlayerPositionZ;
             break;
         case 4:
             pPlayer->unk4 = 0;
@@ -373,7 +373,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
             pPlayer->unk20 = 4;
             pPlayer->unk58 = g_WorldMapPlayerPosition + 0xC7C00;
             g_WorldMapRotationMatrixValid = 1;
-            pPlayer->unk5C = D_8009C5B4 + 0x3EC400;
+            pPlayer->unk5C = g_WorldMapPlayerPositionZ + 0x3EC400;
             break;
         case 6:
             pPlayer->unk4 = 0;
@@ -494,7 +494,7 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
         pLayer[5].pos.x = px;
         pLayer[4].pos.x = px;
     } while (0);
-    z = D_8009C5B4 >> 12;
+    z = g_WorldMapPlayerPositionZ >> 12;
     pLayer[5].pos.z = z;
     pLayer[4].pos.z = z;
     pPlayer->unk50 += 0x180;
@@ -579,7 +579,7 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
         pLayer[7].pos.x = px;
         pLayer[6].pos.x = px;
     } while (0);
-    z = D_8009C5B4 >> 12;
+    z = g_WorldMapPlayerPositionZ >> 12;
     pLayer[7].pos.z = z;
     pLayer[6].pos.z = z;
     pPlayer->unk50 += 0x180;
@@ -625,8 +625,8 @@ int WorldMapActivateSpriteGroup9Timed(int idx) {
         *(s16 *)(pPlayer + 4) = 0;
         *(s16 *)(pPlayer + 0x22) = 0x3C;
         *(s32 *)(pPlayer + 0x28) = g_WorldMapPlayerPosition;
-        *(s32 *)(pPlayer + 0x2C) = D_8009C5B0;
-        *(s32 *)(pPlayer + 0x30) = D_8009C5B4;
+        *(s32 *)(pPlayer + 0x2C) = g_WorldMapPlayerPositionY;
+        *(s32 *)(pPlayer + 0x30) = g_WorldMapPlayerPositionZ;
     }
     timer = *(u16 *)(pPlayer + 0x22);
     timer--;
@@ -802,11 +802,11 @@ void WorldMapInitializeModeWithGroupActors(void) {
     WorldMapLoadSedsBank();
     pScratch = pPos;
     *pScratch = 0xD00000;
-    D_8009C5B0 = 0xFFF60000;
-    D_8009C5B4 = 0x400000;
+    g_WorldMapPlayerPositionY = 0xFFF60000;
+    g_WorldMapPlayerPositionZ = 0x400000;
     WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
-    func_800979C8();
+    WorldMapLoadClutAndTpageIds();
     func_800736DC();
     func_800863E0();
     WorldMapInitTileAnimEntries();
@@ -884,7 +884,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
 /* 44.62%: instruction multiset and size identical (180 bytes), only gcc sched2
    order differs. Retail puts the 0x7C store right after the addu and emits the
    three D_8009C5xx loads after it, and keeps li 0xffc0 late; gcc hoists the
-   D_8009C5B0/B4 loads, sinks the 0x7C store next to the 0x58 store and hoists
+   g_WorldMapPlayerPositionY/B4 loads, sinks the 0x7C store next to the 0x58 store and hoists
    li 0xffc0 to the top. Tried: unk5C indexed vs a named unk7C field, s32
    locals for the three loads, plain globals (all three give the same 180-byte
    schedule), -O3 (41.22%). Same class as misc4 WorldMapResetActorSlotWithSound (70%) and misc6
@@ -901,8 +901,8 @@ int func_8007C724(int idx) {
     g_WorldMapRotationMatrixValid = 1;
     ((u32 *)&pPlayer->unk5C)[8] = 0x1000;
     a = g_WorldMapPlayerPosition;
-    b = D_8009C5B0;
-    c = D_8009C5B4;
+    b = g_WorldMapPlayerPositionY;
+    c = g_WorldMapPlayerPositionZ;
     g_WorldMapCameraRot = -0x40;
     g_WorldMapViewRotationY = 0;
     g_WorldMapViewRotationZ = 0;

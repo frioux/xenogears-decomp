@@ -62,8 +62,8 @@ extern s32 g_WorldMapAreaMode;
 // externs used by the parked attempts below
 extern Vec3 g_WorldMapPlayerPosition;
 extern MATRIX g_WorldMapIdentityMatrix;
-extern s32 D_8009C5B0;
-extern s32 D_8009C5B4;
+extern s32 g_WorldMapPlayerPositionY;
+extern s32 g_WorldMapPlayerPositionZ;
 extern s16 D_1F8000A0[];
 extern void func_80089160(s32, s16 *, s32);
 extern u16 g_WorldMapFadeIds[];
@@ -188,7 +188,7 @@ s32 func_80080A28(s32 index) {
     pSlot->unk54 = -0x800;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
-    pSlot->pos.z = D_8009C5B4;
+    pSlot->pos.z = g_WorldMapPlayerPositionZ;
     WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
     p += 0x54;
     WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
@@ -306,7 +306,7 @@ s32 WorldMapUpdateSlotState(s32 index) {
 }
 // Best: 76.59%, same class as before: instruction multiset and relocations are
 // identical (the three source words are the separate globals g_WorldMapPlayerPosition,
-// D_8009C5B0 and D_8009C5B4, not offsets off a Vec3 - retail names all three),
+// g_WorldMapPlayerPositionY and g_WorldMapPlayerPositionZ, not offsets off a Vec3 - retail names all three),
 // only the schedule of the `sh` pairs differs. With the two slot halfword
 // stores written first gcc emits them right after the base addu and pushes the
 // BE28/D55C pair down (this shape, 76.59%); moving them last instead reorders
@@ -326,8 +326,8 @@ s32 func_800813E8(s32 index) {
     g_WorldMapRotationMatrixValid = 0;
     pSlot->unk7C = 0x1000;
     x = g_WorldMapPlayerPosition.x;
-    y = D_8009C5B0;
-    z = D_8009C5B4;
+    y = g_WorldMapPlayerPositionY;
+    z = g_WorldMapPlayerPositionZ;
     g_WorldMapFadeLevel = 0x78;
     g_WorldMapCameraTarget = x;
     g_WorldMapScrollTargetX = x;
@@ -355,7 +355,7 @@ void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 ab
 
 // Best: 66.00%. Structure, relocations and offsets are all right (the call,
 // the three >>12 stores, the six slot stores); gcc's scheduler hoists the
-// D_8009C5B0/D_8009C5B4 loads and the g_WorldMapGroups load above the `sh 0x20`
+// g_WorldMapPlayerPositionY/g_WorldMapPlayerPositionZ loads and the g_WorldMapGroups load above the `sh 0x20`
 // store and sinks the g_WorldMapPlayerPosition load to its store, retail keeps statement
 // order. Locals x/y/z and a late pEntry assignment were no better.
 // Preset screen: cdk 50.54, gcc-2.6.0 58.56.
@@ -366,8 +366,8 @@ s32 func_800817A0(s32 index) {
 
     pSlot->unk20 = 0;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    pSlot->pos.y = D_8009C5B0 - 0x100000;
-    pSlot->pos.z = D_8009C5B4;
+    pSlot->pos.y = g_WorldMapPlayerPositionY - 0x100000;
+    pSlot->pos.z = g_WorldMapPlayerPositionZ;
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
@@ -424,7 +424,7 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
 // copy from g_WorldMapIdentityMatrix, the three scratchpad words, ScaleMatrix with the
 // 0x1F800000 scale vector, the matrix copy to +0x74, both WorldMapInitPolyFt4Prims
 // calls). The only delta is the block of pSlot stores: gcc hoists the
-// D_8009C5B0/D_8009C5B4 loads and the lui 0x1F80 to the top of the block and
+// g_WorldMapPlayerPositionY/g_WorldMapPlayerPositionZ loads and the lui 0x1F80 to the top of the block and
 // sinks the g_WorldMapPlayerPosition store below the three zero stores, while retail keeps
 // statement order and reuses $v1 for all three loads. Same blocker as
 // func_800817A0 above; pointer local, zero-store order and x/y/z order were
@@ -437,8 +437,8 @@ s32 func_800819C8(s32 index) {
 
     pSlot->unk20 = 0;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    pSlot->pos.y = D_8009C5B0;
-    pSlot->pos.z = D_8009C5B4;
+    pSlot->pos.y = g_WorldMapPlayerPositionY;
+    pSlot->pos.z = g_WorldMapPlayerPositionZ;
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
@@ -709,12 +709,12 @@ s32 func_800827EC(s32 index) {
     g_WorldMapCameraTarget = g_WorldMapPlayerPosition.x;
     g_WorldMapScrollTargetX = g_WorldMapPlayerPosition.x;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    D_8009BE2C = D_8009C5B0;
-    g_WorldMapScrollTargetY = D_8009C5B0;
-    pSlot->pos.y = D_8009C5B0;
-    D_8009BE30 = D_8009C5B4;
-    g_WorldMapScrollTargetZ = D_8009C5B4;
-    pSlot->pos.z = D_8009C5B4;
+    D_8009BE2C = g_WorldMapPlayerPositionY;
+    g_WorldMapScrollTargetY = g_WorldMapPlayerPositionY;
+    pSlot->pos.y = g_WorldMapPlayerPositionY;
+    D_8009BE30 = g_WorldMapPlayerPositionZ;
+    g_WorldMapScrollTargetZ = g_WorldMapPlayerPositionZ;
+    pSlot->pos.z = g_WorldMapPlayerPositionZ;
     pSlot->unk20 = 0;
     pSlot->unk4 = 0;
     *(s32 *)pSlot->unk5C = 0x500000;

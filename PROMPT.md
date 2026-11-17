@@ -455,12 +455,19 @@ hit it and none converted a switch. Two pre-conversion checks decide a jtbl stub
 neither is visible in objdiff, so put them in `funcs` filters rather than in a brief:
 count the stub's `.s` table words against the case count (retail pads with a trailing
 0 word - `battle/misc23` `func_800A6884` is six words for five cases, so the overlay
-loses 4 bytes and `convertible.py`'s BLOCKED is right), and compare the table's address
-with its neighbours (gcc aligns a C table to 8, retail often packs it 4-byte aligned -
-`world_map/misc12` `func_80090C68`/`90E14` reach 99.91% instruction-identical and still
-shift the overlay by 4). A stub that passes both is ordinary work; one that fails either
-is only convertible as part of a whole-family in-order conversion with the BLOCKED
-stubs around it, which is the `misc2` `.rodata` problem again.
+loses 4 bytes and `convertible.py`'s BLOCKED is right), and check the table's alignment
+**relative to the unit's `.rodata` range, not its vram address**: cc1's `.align 3` aligns
+against the section start, so a table is producible only when `(table address - unit
+.rodata start) % 8 == 0`. Round 171 screened by vram address, took `battle/misc11`'s five
+98-99.9% parks (its range starts at 0x8006FE7C, 4 mod 8, and every table sits at +0x194 +
+n*0x20, so all five are 4 mod 8 in section space), converted func_800816F8 to an
+instruction-identical 420 bytes and got `check_bin battle` MISMATCH, 343940 vs 343936: one
+pad word each, unfixable from C. `world_map/misc12`'s `func_80090C68`/`90E14` (99.91%
+instruction-identical, +4 bytes) are the same measurement made the hard way. A unit's
+tables are a chain - the first table's size sets the parity of every one after it - so
+either the whole switch family converts in address order, first table at +0 (**round
+171: `world_map/misc15`, three tables at retail's +0/+0x18/+0x48, three matches, one
+100.00% sibling`), or none of them does.
 - Run `own_rodata.py` on a unit BEFORE any of its jump-table stubs is converted; it
   finds the tables through the stubs' `.s`. For a unit split after today, run it on the
   new unit, then `make check` with no C change.

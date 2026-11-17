@@ -37,8 +37,8 @@ extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern void SoundFadeElementVolumeById(s32 arg0, s32 arg1, s32 arg2);
 
 extern u8 g_WorldMapPlayerPosition[];
-extern s32 D_8009C5B0;
-extern s32 D_8009C5B4;
+extern s32 g_WorldMapPlayerPositionY;
+extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapCameraHeight;
 extern SoundFile* g_MenuSedsFile;
 
@@ -219,8 +219,8 @@ s32 WorldMapScriptOp02StartSlot(s32 arg0, s32 arg1, s32 arg2) {
 
 s32 WorldMapScriptOp03SetPosition(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(s32*)g_WorldMapPlayerPosition = arg1 << 12;
-    D_8009C5B0 = arg2 << 12;
-    D_8009C5B4 = arg3 << 12;
+    g_WorldMapPlayerPositionY = arg2 << 12;
+    g_WorldMapPlayerPositionZ = arg3 << 12;
     return 4;
 }
 
@@ -407,7 +407,7 @@ extern s32 ArchiveCdDataSync(s32 arg0);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapLoadTextureClut(void);
 extern void WorldMapInitSpriteSets(void);
-extern void func_800979C8(void);
+extern void WorldMapLoadClutAndTpageIds(void);
 extern void func_800736DC(void);
 extern void WorldMapRelocateMapEntryOffsets(void);
 extern void func_80085FE0(void);
@@ -467,11 +467,11 @@ void WorldMapInitializeMode(void) {
     ArchiveCdDataSync(0);
     pPos = (s32*)g_WorldMapPlayerPosition;
     *pPos = 0x7702000;
-    D_8009C5B0 = 0xFFD00000;
-    D_8009C5B4 = 0x27C0000;
+    g_WorldMapPlayerPositionY = 0xFFD00000;
+    g_WorldMapPlayerPositionZ = 0x27C0000;
     WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
-    func_800979C8();
+    WorldMapLoadClutAndTpageIds();
     func_800736DC();
     WorldMapRelocateMapEntryOffsets();
     func_800863E0();
@@ -555,8 +555,8 @@ s32 func_8007756C(s32 arg0) {
     *(WorldMapPos4*)(pSlot + 0x38) = *(WorldMapPos4*)(pSlot + 0x28);
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapCameraTarget = g_WorldMapPlayerPosition;
-    D_8009BE2C = D_8009C5B0;
-    D_8009BE30 = D_8009C5B4;
+    D_8009BE2C = g_WorldMapPlayerPositionY;
+    D_8009BE30 = g_WorldMapPlayerPositionZ;
     func_80096F18(pName, &g_WorldMapCameraTarget, g_WorldMapCameraHeight);
     *(WorldMapName8*)0x1F8000A0 = *pName;
     *pName = *(WorldMapName8*)&D_8009BD48;
@@ -656,11 +656,11 @@ void WorldMapInitializeModeWithSound(void) {
     WorldMapLoadSedsBank();
     pPos = (s32*)g_WorldMapPlayerPosition;
     *pPos = 0x2000000;
-    D_8009C5B0 = 0xFFE00000;
-    D_8009C5B4 = 0x2000000;
+    g_WorldMapPlayerPositionY = 0xFFE00000;
+    g_WorldMapPlayerPositionZ = 0x2000000;
     WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
-    func_800979C8();
+    WorldMapLoadClutAndTpageIds();
     func_800736DC();
     func_800863E0();
     WorldMapInitTileAnimEntries();

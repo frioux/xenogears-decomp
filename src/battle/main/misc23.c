@@ -33,7 +33,7 @@ extern u8 D_800C3D68;
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern s32 g_BattleCommandRowIndex;
-extern u8 D_800C4000[];
+extern u8 g_BattleActorCommandIds[];
 
 // Per-unit 6-byte state records, unit id 0..3; the original spells each byte
 // as its own symbol.
@@ -1015,7 +1015,7 @@ void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
     g_FlagTimerWorkListAdds = 1;
     func_800BF85C(arg0, BattleFindFirstActorInMask());
     g_BattleCommandRowIndex = 1;
-    D_800C4000[BattleFindFirstActorInMask()] = 0;
+    g_BattleActorCommandIds[BattleFindFirstActorInMask()] = 0;
     if (g_BattleActors[arg0] != NULL) {
         BattleAppendActorCommandBytes(g_BattleActors[arg0], g_BattleActors[arg0], g_BattleBlockPool, arg2);
     }

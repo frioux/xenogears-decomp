@@ -27,7 +27,7 @@ extern void func_800AE2A4(BattleActor *pActor, u8 *arg1, u8 *arg2);
 extern BattleBlock *BattleAllocBlock(void *pPool);
 extern s32 BattleFreeBlock(void *pPool, BattleBlock *pBlock);
 
-// One 0x48-byte row of the battle command queue at D_800C4000. A row whose
+// One 0x48-byte row of the battle command queue at g_BattleActorCommandIds. A row whose
 // command byte still reads 0xF7 has not been dispatched yet; 0xFF ends the
 // queue. The same rows are reachable from the other battle units by other
 // field offsets, so only the fields read here are named.
@@ -38,7 +38,7 @@ typedef struct {
     /* 0x46 */ u16 unk46;
 } BattleCommandRow; // Size: 0x48
 
-extern BattleCommandRow D_800C4000[];
+extern BattleCommandRow g_BattleActorCommandIds[];
 
 // A queued move command: a point count at +0x12 and the point list at +0x14,
 // which BattleSetupActorMoveCommand hands to the actor. 0x18 is a lower bound
@@ -150,7 +150,7 @@ u8 BattleGetQueuedCommandCode(s32 arg0) {
     u8 v;
 
     do {
-        v = D_800C4000[arg0].unk2F;
+        v = g_BattleActorCommandIds[arg0].unk2F;
         arg0++;
     } while (v == stop);
     if (v == 0xFF) {

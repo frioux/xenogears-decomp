@@ -851,7 +851,7 @@ void FieldPlaySoundElementPair(int arg0, int arg1, int arg2, int arg3) {
     SoundPlaySoundEffectOnPairWithLevels(arg0, slot * 2, temp, (s16)arg2);
 }
 
-extern s32 D_800B21B8;
+extern s32 g_FieldSoundSlotId;
 
 void FieldSetSoundSlotElement(int arg0, int arg1) {
     int offset = arg1 & 7;
@@ -859,12 +859,12 @@ void FieldSetSoundSlotElement(int arg0, int arg1) {
     if (arg0 == 0) {
         SoundStopElementsByIndex(offset * 2);
     } else {
-        D_800B21B8 = arg0;
+        g_FieldSoundSlotId = arg0;
         FieldPlaySoundElementPair(arg0, 0x7F, 0x40, offset);
     }
 }
 
-extern u_short D_800C3A2C;
+extern u_short g_FieldStreamFrameBase;
 extern s32 g_FieldSedsEntryIndex;
 extern s32 g_FieldStreamFramePosition;
 extern s16 g_FieldStreamId;
@@ -889,7 +889,7 @@ void FieldAdvanceSedsSequence(void) {
     pDuration = &g_FieldSedsEntries[0].unk0;
     pValue = &g_FieldSedsEntries[0].unk2;
 loop:
-    if (g_FieldStreamFramePosition < pDuration[g_FieldSedsEntryIndex * 2] + D_800C3A2C) {
+    if (g_FieldStreamFramePosition < pDuration[g_FieldSedsEntryIndex * 2] + g_FieldStreamFrameBase) {
         return;
     }
     value = pValue[g_FieldSedsEntryIndex * 2];

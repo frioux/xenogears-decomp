@@ -102,7 +102,7 @@ extern void WorldMapBuildDirectionFromPositions(WorldMapPos *, WorldMapPos *, s3
 extern void WorldMapAddSlotPosition(s16, s32 *);
 extern s32 WorldMapStartSlot(s32, s32);
 extern s32 g_WorldMapPlayerPosition;
-extern s32 D_8009C5B4;
+extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapPlayerRotation;
 extern WorldMapVec g_WorldMapScrollTargetX;
 extern WorldMapTrail g_WorldMapTrail[];
@@ -147,9 +147,9 @@ int WorldMapModeInitActorSlot(int index) {
     case 2:
     case 3:
         if (g_GameState.gearRide[1] == 0) {
-            // volatile: keeps the D_8009C5B4 load below this store, as retail has it
+            // volatile: keeps the g_WorldMapPlayerPositionZ load below this store, as retail has it
             *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
-            pActor->z = D_8009C5B4;
+            pActor->z = g_WorldMapPlayerPositionZ;
             pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
             pActor->angle = g_WorldMapPlayerRotation;
         } else {
@@ -422,7 +422,7 @@ int func_8008BB40(int index) {
     case 3:
         if (g_GameState.gearRide[2] == 0) {
             pActor->unk28 = g_WorldMapPlayerPosition;
-            pActor->unk30 = D_8009C5B4;
+            pActor->unk30 = g_WorldMapPlayerPositionZ;
             pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
             pActor->unk48 = g_WorldMapPlayerRotation;
         } else {
@@ -616,7 +616,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
    What still differs is the same store-sink wall as func_8008D3F0 and func_8008DD6C
    in this unit: retail keeps the three "unk40/unk3C/unk38 = 0" stores above the
    g_WorldMapMode load, gcc sinks them below it, and inside the gearRide block retail
-   keeps "unk20 = 1" first while gcc sinks it below the two g_WorldMapPlayerPosition/D_8009C5B4
+   keeps "unk20 = 1" first while gcc sinks it below the two g_WorldMapPlayerPosition/g_WorldMapPlayerPositionZ
    global loads. Source order of the stores does not change it. Everything else
    (lh reload of unk48 for unk5C, the delay slot store, unk4A = 0xC, the tail) matches.
 s32 func_8008C530(int index) {
@@ -643,7 +643,7 @@ s32 func_8008C530(int index) {
             if (g_GameState.gearRide[0] == 1) {
                 pActor->unk20 = 1;
                 pActor->unk28 = g_WorldMapPlayerPosition;
-                pActor->unk30 = D_8009C5B4;
+                pActor->unk30 = g_WorldMapPlayerPositionZ;
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = g_WorldMapPlayerRotation;
                 g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->unk28;
@@ -737,7 +737,7 @@ int func_8008D3F0(int index) {
             if (g_GameState.gearRide[1] == 1) {
                 pActor->unk20 = 1;
                 pActor->unk28 = g_WorldMapPlayerPosition;
-                pActor->unk30 = D_8009C5B4;
+                pActor->unk30 = g_WorldMapPlayerPositionZ;
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = g_WorldMapPlayerRotation;
             }
@@ -816,7 +816,7 @@ int func_8008DD6C(int index) {
             if (g_GameState.gearRide[2] == 1) {
                 pActor->unk20 = 1;
                 pActor->unk28 = g_WorldMapPlayerPosition;
-                pActor->unk30 = D_8009C5B4;
+                pActor->unk30 = g_WorldMapPlayerPositionZ;
                 pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
                 pActor->unk48 = g_WorldMapPlayerRotation;
             }

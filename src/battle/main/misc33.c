@@ -71,7 +71,7 @@ extern BattleMisc33State *g_BattleState;
 extern s32 g_BattleCommandRowIndex;
 
 // A 0x48-byte row of the per-battle actor table that g_BattleStateWork + 0x108 starts;
-// misc25 indexes the same rows as D_800C4000[g_BattleCommandRowIndex - 1].
+// misc25 indexes the same rows as g_BattleActorCommandIds[g_BattleCommandRowIndex - 1].
 typedef struct {
     /* 0x00 */ u8 unk0[0x46];
     /* 0x46 */ u16 slotMask;
@@ -661,7 +661,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
    expressions -- one per statement, with the D_800D3634 store between them --
    and the call argument must be the later statement's load, so the argument
    expression is written last.  The table row is 0x48 bytes at g_BattleStateWork+0x108
-   (misc25 reaches the same rows as D_800C4000[g_BattleCommandRowIndex - 1]), field 0x46.
+   (misc25 reaches the same rows as g_BattleActorCommandIds[g_BattleCommandRowIndex - 1]), field 0x46.
 void func_800BF3E8(BattleActorSprite *p) {
     BattleActorSprite *pLast;
     BattleMisc33State *pState;

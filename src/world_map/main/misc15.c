@@ -52,7 +52,7 @@ extern s32 g_WorldMapGridShadePhase;
 extern u8 *g_WorldMapTilePrimBuffer;
 extern u8 *g_WorldMapTilePrimBufferCopy;
 extern s32 g_WorldMapLoadQueueHead;
-extern s32 D_8009BD2C;
+extern s32 g_WorldMapCdReadRetryTimer;
 extern s32 g_WorldMapCdReadState;
 extern void *g_WorldMapCdRequestQueue[16];
 extern void *g_WorldMapFileLoadRequestQueue[16];
@@ -71,13 +71,13 @@ extern s32 D_8009BE48;
 extern s32 D_8009CCB0;
 extern s32 g_WorldMapCdReadErrorCount;
 extern s32 g_WorldMapCdRetryCount;
-extern void func_80096A6C(s32 mode, u8 *pResult);
+extern void WorldMapCdReadCallback(s32 mode, u8 *pResult);
 extern void func_80096C0C(u_char mode, u_char *pResult);
-extern s32 D_8009BCCC;
+extern s32 g_WorldMapCdSectorBuffer;
 extern s32 D_8009BCD0;
 extern s32 D_8009BCD4;
 extern u32 ArchiveGetDebugTable(void);
-extern s32 func_800968E0(void);
+extern s32 WorldMapStepCdReadState(void);
 extern void WorldMapReadFileEntries(void *p);
 extern s32 g_WorldMapScrollX;
 extern s32 D_8009BBB8;
@@ -94,7 +94,7 @@ s32 WorldMapUpdateLoadQueue(void) {
     first = ArchiveGetDebugTable();
     second = ArchiveGetDebugTable();
     if ((first == 0) | (second == 0xFFFFFFFF)) {
-        result = func_800968E0();
+        result = WorldMapStepCdReadState();
         if (result == 0) {
             if (g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] != NULL) {
                 WorldMapStartCdRead((Misc15CdRequest *)g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead]);
@@ -109,12 +109,12 @@ s32 WorldMapUpdateLoadQueue(void) {
     }
     return result;
 }
-s32 func_800968E0(void) {
+s32 WorldMapStepCdReadState(void) {
     switch (g_WorldMapCdReadState) {
     case 0:
         return 0;
     case 4:
-        if (--D_8009BD2C == 0) {
+        if (--g_WorldMapCdReadRetryTimer == 0) {
             g_WorldMapCdReadState++;
         }
         return 1;
@@ -152,11 +152,11 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     g_WorldMapCdReadBytesLeft = p->size;
     g_WorldMapCdReadDest = p->dest;
     CdIntToPos(lba, pLoc);
-    CdSyncCallback(func_80096A6C);
+    CdSyncCallback(WorldMapCdReadCallback);
     CdControlF(CdlSetloc, (u8 *)pLoc);
 }
 
-void func_80096A6C(s32 mode, u8 *pResult) {
+void WorldMapCdReadCallback(s32 mode, u8 *pResult) {
     CdlLOC *pLoc;
 
     if (mode == 2) {
@@ -165,14 +165,14 @@ void func_80096A6C(s32 mode, u8 *pResult) {
             g_WorldMapCdReadState = 2;
             D_8009BCD4 = 0;
             D_8009BCD0 = 0;
-            D_8009BCCC = 0;
+            g_WorldMapCdSectorBuffer = 0;
             CdReadyCallback(func_80096C0C);
             CdControlF(CdlReadS, NULL);
             break;
         case 3:
             if (g_WorldMapCdCurrentSector == 0) {
                 g_WorldMapCdReadState = 4;
-                D_8009BD2C = 1;
+                g_WorldMapCdReadRetryTimer = 1;
                 CdSyncCallback(NULL);
             }
             break;
@@ -438,7 +438,7 @@ void WorldMapSetSlotWaitFrames(s32 index, u16 value) {
 
 extern void SpriteDestroy(void *p);
 
-void func_80097800(void) {
+void WorldMapUpdateSlots(void) {
     Misc15Slot *pSlot;
     s32 i;
 
@@ -525,13 +525,13 @@ extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 
-extern u8 *D_8009C59C;
+extern u8 *g_WorldMapTexturePackData;
 extern u8 g_WorldMapColorFactors[];
 extern u16 D_8009CCB4[];
-extern u16 D_8009CD54[];
-extern u16 D_8009CD5C[];
+extern u16 g_WorldMapTpageIds[];
+extern u16 g_WorldMapTpageIds2[];
 
-void func_800979C8(void) {
+void WorldMapLoadClutAndTpageIds(void) {
     RECT rect;
     u8 *pData;
     u8 *pDst;
@@ -543,11 +543,11 @@ void func_800979C8(void) {
     u16 *pClut2;
     u16 *pClut3;
 
-    pData = LZSSHeapDecompress(D_8009C59C, 1);
+    pData = LZSSHeapDecompress(g_WorldMapTexturePackData, 1);
     ModelLoadTextureBlock(pData);
     DrawSync(0);
     HeapFree(pData);
-    HeapFree(D_8009C59C);
+    HeapFree(g_WorldMapTexturePackData);
     i = 0;
     pClut = D_8009CCB4;
     pData = HeapAlloc(0x400, 1);
@@ -574,14 +574,14 @@ void func_800979C8(void) {
     x = 0x200;
     y = 0;
     i = 0;
-    pClut2 = D_8009CD54;
+    pClut2 = g_WorldMapTpageIds;
     for (; i < 4; x += 0x80, i++, pClut2++) {
         *pClut2 = GetTPage(1, 0, x, y);
     }
     x = 0x180;
     y = 0x100;
     i = 4;
-    pClut3 = D_8009CD5C;
+    pClut3 = g_WorldMapTpageIds2;
     for (; i < 7; x += 0x80, i++, pClut3++) {
         *pClut3 = GetTPage(1, 0, x, y);
     }

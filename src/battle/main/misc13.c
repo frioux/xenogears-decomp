@@ -4,7 +4,7 @@
 
 extern u8 *g_BattleCommandQueue;
 extern u8 *D_800C3160[];
-extern u8 *D_800C31AC[];
+extern u8 *g_BattleCommandStatusBytes[];
 extern volatile u8 *g_BattleDisplayState;
 extern u8 g_BattleSlotRecords[];
 extern u8 g_BattleCharSlotUsage[];
@@ -47,7 +47,7 @@ extern u8 BattleSlotBitMaskInverted(u8);
 extern s32 func_8009ADA0(u8, s32 *);
 extern void BattleClearSlotCurveEntry(void);
 extern void BattleAttachActorAnimScripts(u8, s32, s32, s32);
-extern u8 D_800C4000[];
+extern u8 g_BattleActorCommandIds[];
 extern u8 g_BattleCommandRows[];
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattlePrimStartIndex;
@@ -111,7 +111,7 @@ void BattleBeginActorStatAnimation(s32 arg0) {
             if (buf[i] != 0) {
                 g_BattleCommandQueue[0x2DA] = 0;
                 BattleClearSlotCurveEntry();
-                D_800C4000[(u8)arg0] = i + 8;
+                g_BattleActorCommandIds[(u8)arg0] = i + 8;
                 v = buf[i];
                 p = g_BattleCommandQueue;
                 *(u16 *)(g_BattleCommandRows + (u8)arg0 * 2) = v;
@@ -286,7 +286,7 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
     case 11:
         j++;
     case 12:
-        pEntry = D_800C31AC[D_800CCD36[arg1 * 0x170 + 8]];
+        pEntry = g_BattleCommandStatusBytes[D_800CCD36[arg1 * 0x170 + 8]];
         if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].unk4,
                                         pEntry[0xC - j]) != 0) {
             result = 1;

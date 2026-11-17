@@ -167,7 +167,7 @@ extern WorldMapMisc16Tex D_8009D654[];
 extern s16 D_8009D618[];
 extern u8* g_WorldMapTileCellPointers[];
 extern u16 D_8009CCB4[];
-extern u16 D_8009CD54[];
+extern u16 g_WorldMapTpageIds[];
 extern MATRIX g_WorldMapGridMatrix;
 extern MATRIX g_WorldMapViewMatrix;
 extern s32 D_8009D7DC;
@@ -175,7 +175,7 @@ extern void func_80099708(u8* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_8009932C);
 /* 63.53% first attempt. Structure read off the asm and believed right: two u16 copy
-   loops from D_8009CCB4 (0x40) and D_8009CD54 (7) into scratchpad 0x1F800288/0x1F800308,
+   loops from D_8009CCB4 (0x40) and g_WorldMapTpageIds (7) into scratchpad 0x1F800288/0x1F800308,
    the 0x20-byte MATRIX copy of g_WorldMapGridMatrix to 0x1F800350, CompMatrix/SetRotMatrix/
    SetTransMatrix on 0x1F800370, the 5x5 tile loop (row/fp, col/s4, flat k/s7 whose *8
    biv is retail's s3), the four RECT corners built at 0x1F800330/0x338 from the volatile
@@ -202,7 +202,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
         ((u16*)0x1F800288)[i] = D_8009CCB4[i];
     }
     for (i = 0; i < 7; i++) {
-        ((u16*)0x1F800308)[i] = D_8009CD54[i];
+        ((u16*)0x1F800308)[i] = g_WorldMapTpageIds[i];
     }
     *(MATRIX*)0x1F800350 = g_WorldMapGridMatrix;
     CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)0x1F800350, (MATRIX*)0x1F800370);

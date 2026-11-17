@@ -21,7 +21,7 @@ typedef struct {
 
 extern u8 g_BattleActorCharIds[];
 extern BattleSpriteWork *g_BattleDisplayState;
-extern u8 D_800C3E50;
+extern u8 g_BattleCurSlotIndex;
 extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern s32 g_BattlePrimStartIndex;
@@ -282,7 +282,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
    local for that sum; also 2.7.2-cdk -> 99.77. */
 void BattleAccumulateSlotValueByRowFlag(void) {
     u8 *pBase = (u8 *)g_BattleCurWorkBlock;
-    u8 *pOther = (u8 *)(D_800C3E50 * 4 + (u32)pBase);
+    u8 *pOther = (u8 *)(g_BattleCurSlotIndex * 4 + (u32)pBase);
     u8 *pRow;
     u8 i;
 
@@ -369,21 +369,21 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     if (f & 0x200) {
         v = 13 * v / 10;
     }
-    if (g_BattleWorkBlock[D_800C3E50].state.unkB6 & 0x80) {
+    if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.unkB6 & 0x80) {
         v = 0;
     }
-    g_BattleCurWorkBlock->unk5FA0[D_800C3E50] = 2;
-    g_BattleCurWorkBlock->unk5F6C[D_800C3E50] = v;
+    g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
+    g_BattleCurWorkBlock->unk5F6C[g_BattleCurSlotIndex] = v;
 }
 void BattleInitActiveSlotAction(void) {
     s32 t;
     BattleTableEntry *p;
     s32 v;
 
-    if (g_BattleWorkBlock[D_800C3E50].characterId == 2) {
-        BattleSetSlotEntryFieldsTo2000(D_800C3E50, 1);
+    if (g_BattleWorkBlock[g_BattleCurSlotIndex].characterId == 2) {
+        BattleSetSlotEntryFieldsTo2000(g_BattleCurSlotIndex, 1);
     }
-    t = D_800C3E50;
+    t = g_BattleCurSlotIndex;
     D_800C3E34->unk7C = 0;
     D_800C3E34->unk80 = 0;
     D_800C3E34->unk84 = 0;
@@ -392,9 +392,9 @@ void BattleInitActiveSlotAction(void) {
     g_BattleCurveTargetModes[t] = 2;
     p = D_800C3E34;
     v = p->maxHp * g_BattleCurrentRow->power;
-    if (D_800C3E50) { // empty: makes gcc share this load with the one below ($v1, not $a1)
+    if (g_BattleCurSlotIndex) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
-    t = D_800C3E50;
+    t = g_BattleCurSlotIndex;
     *(s32 *)(t * 4 + g_BattleCurveTargets) = v / 10;
     D_800D2C9E |= 1 << t;
 }

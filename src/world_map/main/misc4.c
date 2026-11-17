@@ -11,7 +11,7 @@ typedef struct {
     /* 0xC */ s32 w;
 } WorldMapPos4; // Size: 0x10
 
-// One control point of the camera path table at D_8009A3F0 (stride 8): halfword
+// One control point of the camera path table at g_WorldMapCameraPathPoints (stride 8): halfword
 // coordinates plus the -1 terminator that ends the table at +0x6.
 typedef struct {
     /* 0x0 */ u16 vx;
@@ -153,8 +153,8 @@ extern s32 g_WorldMapTpageAbr;
 extern s32 D_8009D3CC;
 extern s32 D_8009D804;
 extern s32 g_WorldMapWrapPositionsCallback;
-extern s32 D_8009C5B0;
-extern s32 D_8009C5B4;
+extern s32 g_WorldMapPlayerPositionY;
+extern s32 g_WorldMapPlayerPositionZ;
 extern void WorldMapInitGfxEnv(void);
 extern void func_80072DB4(s32, s32, s32, s32);
 extern s32 ArchiveDataSync(void);
@@ -166,7 +166,7 @@ extern void ArchiveCdDataSync(s32);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapInitSpriteSets(void);
 extern void WorldMapLoadTextureClut(void);
-extern void func_800979C8(void);
+extern void WorldMapLoadClutAndTpageIds(void);
 extern void func_800736DC(void);
 extern void func_800863E0(void);
 extern void WorldMapInitTileAnimEntries(void);
@@ -195,7 +195,7 @@ extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern s32 WorldMapInitActorSlotTimer40(s32 index);
 extern void func_80078EA4(void);
 extern void func_80079778(void);
-extern WorldMapPathPoint D_8009A3F0[];
+extern WorldMapPathPoint g_WorldMapCameraPathPoints[];
 extern MATRIX g_WorldMapViewMatrix;
 extern void WorldMapExtractRotationFromMatrix(MATRIX *, SVECTOR *);
 extern void WorldMapInterpolateQuadraticVector(s32, s16 *, s16 *, s16 *, s32 *);
@@ -307,7 +307,7 @@ s32 func_80077E68(s32 index) {
     p = g_WorldMapSlots + index;
     pScratch = (s32 *)PSX_SCRATCH;
     grid = p->unk50 >> 12;
-    pPoint = &D_8009A3F0[grid];
+    pPoint = &g_WorldMapCameraPathPoints[grid];
     p->unk54 = grid;
     if (pPoint[2].unk6 != -1) {
         pVec = (SVECTOR *)((u8 *)pScratch + 0xA0);
@@ -576,11 +576,11 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
     g_WorldMapPlayerPosition.x = 0x2000000;
-    D_8009C5B0 = -0x300000;
-    D_8009C5B4 = 0x2000000;
+    g_WorldMapPlayerPositionY = -0x300000;
+    g_WorldMapPlayerPositionZ = 0x2000000;
     WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
-    func_800979C8();
+    WorldMapLoadClutAndTpageIds();
     func_800736DC();
     func_800863E0();
     WorldMapInitTileAnimEntries();
@@ -941,11 +941,11 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
     g_WorldMapPlayerPosition.x = 0x5BED000;
-    D_8009C5B0 = -0xA0000;
-    D_8009C5B4 = 0x62A8000;
+    g_WorldMapPlayerPositionY = -0xA0000;
+    g_WorldMapPlayerPositionZ = 0x62A8000;
     WorldMapInitSpriteSets();
     WorldMapLoadTextureClut();
-    func_800979C8();
+    WorldMapLoadClutAndTpageIds();
     func_800736DC();
     func_800863E0();
     WorldMapInitTileAnimEntries();
