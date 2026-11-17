@@ -3,23 +3,32 @@
 /* The file-server entry points are `break` calls into the dev-kit debug stub:
    the stub takes its arguments in a1..a3 (a0 unused) and answers with a status
    in v0 and the result in v1, which is why each wrapper shifts its arguments
-   down one register and turns a non-zero status into -1. */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCopen);
-/* 84.38%: argument shifting matches (the moves must name $4/$5 directly, since
-   "r" operands let gcc swap name/flags), and the branch is the right way round
-   (beqz v0). Only the tail differs: the original copies the result first
-   (`addu v0,v1,zero`, sunk into the branch delay slot) and then stores -1 into
-   v0, so it needs the result variable live in v0 while gcc coalesces it with the
-   break's value register (`li v1,-1; jr ra; move v0,v1`). Every shape tried puts
-   the -1 arm in the delay slot instead: two returns, ?:, goto/join forms, a
-   separate result variable, `register ... asm("$2")` on the result, and
-   the same source under gcc 2.6.0 / -O2. */
-/* int PCopen(char *name, int flags) {
-    register int status asm("$2");
-    int value, ret;
+   down one register and turns a non-zero status into -1.
 
-    __asm__ volatile("move $6, $5\n\tmove $5, $4\n\tbreak 259"
-                     : "=r"(status), "=r"(value));
+   All four wrappers end in the same 8-word select, and all four are still
+   INCLUDE_ASM for the same reason (see the note above PCopen). */
+/* 84.38%: the argument shifting matches and the branch is the right way round
+   (`beqz v0`); only the tail differs. Retail is `beqz v0,L; addu v0,v1,zero;
+   addiu v0,zero,-1; L: jr ra; nop` - the value copy sits in the delay slot of a
+   branch on the very register it writes, which is sound only because the -1 arm
+   overwrites v0. gcc 2.7.2 will not put a clobber of a branch operand into that
+   branch's own delay slot, so it emits one of two other shapes instead:
+   `beqz v0; nop; li v1,-1; jr ra; move v0,v1` (the copy moves out to the
+   return) or `bnez v0; li v0,-1; move v0,v1; jr ra` (the constant becomes the
+   unconditional default). Both are 8 words too. About 30 hand shapes measured
+   (two returns, conditional expression, if-else both ways, goto join, switch,
+   do-while, separate result variable, every combination of hard-binding status,
+   value and ret), identical under gcc 2.6.0, 2.7.2-cdk, -O2 and -O3; permuter
+   3106 iterations from the honest body: best score 5, and the single differing
+   word is always the branch's tested register. */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libsn", PCopen);
+/* int PCopen(char *name, int flags, int perms) {
+    register int status asm("$2");
+    register int value asm("$3");
+    int ret;
+
+    __asm__ volatile("move $6, %3\n\tmove $5, %2\n\tbreak 259"
+                     : "=r"(status), "=r"(value) : "r"(name), "r"(flags));
     ret = value;
     if (status != 0)
         ret = -1;
