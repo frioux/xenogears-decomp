@@ -358,7 +358,7 @@ extern u8 g_BattleMenuEvent;
 extern u8 g_BattleCursorScrollState;
 extern s32 g_BattleCursorScrollY;
 extern u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2);
-extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
+extern void BattleInitSlotGraphics(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void func_80091064(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
 extern void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2);
@@ -407,10 +407,10 @@ u8 func_8008B478(u8 arg0) {
     g_BattleCursorScrollY = 0;
     g_BattleCursorScrollState = 0;
     g_BattleDisplayState->primListsPending = 0;
-    func_8008F8F4(0, 0x1C, 0xA0, 0xAC, 0x38, 0, 1);
-    func_8008F8F4(1, 0x20, 0x2C, 0x118, 0x70, 0, 1);
-    func_8008F8F4(2, 0xD0, 0xA4, 0x50, 0x18, 0, 1);
-    func_8008F8F4(3, 0xE6, 0xC0, 0x4C, 0x18, 0, 1);
+    BattleInitSlotGraphics(0, 0x1C, 0xA0, 0xAC, 0x38, 0, 1);
+    BattleInitSlotGraphics(1, 0x20, 0x2C, 0x118, 0x70, 0, 1);
+    BattleInitSlotGraphics(2, 0xD0, 0xA4, 0x50, 0x18, 0, 1);
+    BattleInitSlotGraphics(3, 0xE6, 0xC0, 0x4C, 0x18, 0, 1);
     func_80091064(arg0);
     BattleInitPulseTrianglePrims();
     do {
@@ -639,7 +639,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
    the whole rest is identical instruction for instruction (jump table at
    .rodata+0x18, both switches' case order 5,4,0,2,1,3 and 1,2,3,4, the 0x70
    frame, every delay slot). What is missing is a `li s0,1` for the 7th
-   argument of the two func_8008F8F4 calls: retail materialises a fresh 1 (s0)
+   argument of the two BattleInitSlotGraphics calls: retail materialises a fresh 1 (s0)
    even though `pagePending` is already 1 in s4 at that point, and gcc 2.6
    reuses s4 (`sw s4,0x18(sp)` and no li), so `sw s0,0x48(sp)` moves up by one
    slot too. Tried: moving the pagePending/page initialisation after
@@ -684,8 +684,8 @@ u8 func_8008BED8(u8 arg0) {
     g_BattleCursorScrollY = 0;
     g_BattleCursorScrollState = 0;
     g_BattleDisplayState->primListsPending = 0;
-    func_8008F8F4(0, 0x20, 0x58, 0x118, 0x78, 0, 1);
-    func_8008F8F4(1, 0x10, 0x2C, 0x128, 0x28, 0, 1);
+    BattleInitSlotGraphics(0, 0x20, 0x58, 0x118, 0x78, 0, 1);
+    BattleInitSlotGraphics(1, 0x10, 0x2C, 0x128, 0x28, 0, 1);
     BattleInitPulseTrianglePrims();
     do {
         if (pagePending != 0) {

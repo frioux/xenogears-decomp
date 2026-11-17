@@ -44,7 +44,7 @@ extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern void ResourceHelperGetTexCoords(void *, u32, s32 *, s32 *, s32 *, s32 *, s32 *, s32 *);
 extern void bzero(void *p, s32 n);
-extern void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
+extern void BattleInitSlotGraphics(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void *BattleAllocTextBuffer(s32 arg0);
 extern u8 D_800D36C0[];
 extern u8 D_800D36C8[];
@@ -466,9 +466,9 @@ void func_8007819C(void) {
     u8 *pBuf;
     s32 i;
 
-    func_8008F8F4(5, 8, 0x2A, 0x70, 0x12, 0, 0);
+    BattleInitSlotGraphics(5, 8, 0x2A, 0x70, 0x12, 0, 0);
     ((u8 *)g_BattleDisplayState)[0xB5] = 0;
-    func_8008F8F4(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
+    BattleInitSlotGraphics(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
     ((u8 *)g_BattleDisplayState)[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
         pBuf = BattleAllocTextBuffer(0x39);

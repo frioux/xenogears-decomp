@@ -187,9 +187,9 @@ u8 func_8008CFB8(u8 arg0) {
         }
     }
     g_BattleDisplayState->primListsPending = 0;
-    func_8008F8F4(0, 0x74, 0xA0, 0xAC, 0x38, 0, 1);
-    func_8008F8F4(1, 0x84, 0x4C, 0x9C, 0x50, 0, 1);
-    func_8008F8F4(2, 0x1C, 0xA0, 0x50, 0x18, 0, 1);
+    BattleInitSlotGraphics(0, 0x74, 0xA0, 0xAC, 0x38, 0, 1);
+    BattleInitSlotGraphics(1, 0x84, 0x4C, 0x9C, 0x50, 0, 1);
+    BattleInitSlotGraphics(2, 0x1C, 0xA0, 0x50, 0x18, 0, 1);
     func_800930AC(arg0, codes, damage);
     BattleInitPulseTrianglePrims();
     while (state == 2) {
@@ -347,7 +347,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
    (516 bytes), p loaded after the 0xB0 store (61.88%), u32/u8 index, s32 params
    with u16 callee coordinates (520); a 4-minute permuter run from this body
    found only a worse-sized variant (540 bytes, 73.98%). Next lever: the u16
-   narrowing that closed func_8008F8F4 below (a u16 copy of arg0 feeding a u8
+   narrowing that closed BattleInitSlotGraphics below (a u16 copy of arg0 feeding a u8
    index) - not yet tried here.
 void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     BattleSlotGraphics *p;
@@ -376,7 +376,7 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
 // Allocates a slot's draw block and rect list on first use, then either fills the
 // rect list from the four coordinates and marks the slot dirty (arg5) or hands
 // them to func_8008F6E4 and advances the frame (arg6).
-void func_8008F8F4(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8 arg5, u8 arg6) {
+void BattleInitSlotGraphics(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8 arg5, u8 arg6) {
     u8 *pFlags;
     BattleWork *pState;
     u16 slot;
