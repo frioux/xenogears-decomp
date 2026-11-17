@@ -140,7 +140,7 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     pLoc = &g_WorldMapCdReadLocation;
     /* retail keeps this dead store: the volatile store blocks gcc's elimination */
     *(u8 *volatile *)&g_WorldMapCdRequestCursor = (u8 *)p;
-    g_WorldMapCdRequestCursor = (u8 *)p + 0xC;
+    g_WorldMapCdRequestCursor = p->unkC;
     size = p->size;
     D_8009BE48 = 0;
     D_8009CCB0 = 0;
@@ -422,18 +422,22 @@ s32 WorldMapStartSlot(s32 index, s16 value) {
 }
 
 void WorldMapSetSlotState3(s32 index) {
-    *(u16 *)((u8 *)g_WorldMapSlots + (index << 7)) = 3;
+    Misc15Slot *pSlot = &g_WorldMapSlots[index];
+
+    pSlot->state = 3;
 }
 
 void WorldMapSetSlotState4(s32 index) {
-    *(u16 *)((u8 *)g_WorldMapSlots + (index << 7)) = 4;
+    Misc15Slot *pSlot = &g_WorldMapSlots[index];
+
+    pSlot->state = 4;
 }
 
 void WorldMapSetSlotWaitFrames(s32 index, u16 value) {
-    u8 *pSlot = (u8 *)g_WorldMapSlots + (index << 7);
+    Misc15Slot *pSlot = &g_WorldMapSlots[index];
 
-    *(u16 *)pSlot = 2;
-    *(u16 *)(pSlot + 2) = value;
+    pSlot->state = 2;
+    pSlot->stateTimer = value;
 }
 
 extern void SpriteDestroy(void *p);
