@@ -195,24 +195,32 @@ void func_80046EFC(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
 
-/* best 94.49% (364 bytes = retail's exact size, identical instruction multiset).
-   The two ingredients found so far: the discarded status read is a bare
-   '(void)*D_800569A4;' statement before the first printf, and the queue word
-   D_800569C4 must be declared volatile AND as an array ('extern volatile u_long
-   D_800569C4[];' read as D_800569C4[0]) - that is what materialises its address
-   with lui+addiu instead of the 2-instruction lui+lw form retail does not have.
-   Left: the register allocation of the first printf's argument setup (retail
-   keeps the D_800569A4 pointer in v1 and the dead status read in v0, gcc picks
-   a2/v1 and loads the A8 word earlier). Tried: inline vs pointer-local que,
-   (void) read before/after the que, SetIntrMask returning int vs u_short, both
-   orders of the SetIntrMask(0)/D_800569D8 pair, and two permuter runs (a 3 min
-   run found only the volatile D_800569C4 above).
+/* best 99.51% (364 bytes = retail's exact size, instruction ORDER identical -
+   only registers differ). Found so far: the discarded status read is a bare
+   "(void)*D_800569A4;" statement before the first printf, the queue word
+   D_800569C4 must be declared volatile AND as an array ("extern volatile u_long
+   D_800569C4[];" read as D_800569C4[0]) so its address materialises with
+   lui+addiu, and the queue delta and the second printf's D_800569C8 must be
+   staged through locals - that is what a permuter run turned 94.49 into 99.51.
+   Left: the port pointer D_800569A4 goes to a2 where retail has v1, so the
+   D_800569D8 word goes to v1 where retail has t0; every other instruction in
+   the function is byte-identical.
+   Tried: three permuter runs (350 -> 45, then nothing in 3801 iterations), the
+   pointer in a local, an explicit volatile cast, D_800569A4[0] vs a deref of
+   D_800569A4 for each of the two reads, arg3 staged through a local (88.41%),
+   and both declaration orders of the two locals. -
 int func_80046F30(void) {
+    u_long new_var2;
+    int new_var;
+
     if (D_800569E8 < Vsync(-1) || D_800569EC++ > 0xF0000) {
         (void)*D_800569A4;
-        printf(D_80019240, (D_800569D4 - D_800569D8) & 0x3F, *D_800569A4,
+        new_var = D_800569D4;
+        new_var = new_var - D_800569D8;
+        printf(D_80019240, new_var & 0x3F, *D_800569A4,
                *D_800569B0, *D_800569A8);
-        printf(D_80019274, D_800569C4[0], D_800569C8, D_800569CC);
+        new_var2 = D_800569C8;
+        printf(D_80019274, D_800569C4[0], new_var2, D_800569CC);
         D_800569E4 = SetIntrMask(0);
         D_800569D8 = 0;
         D_800569D4 = D_800569D8;
