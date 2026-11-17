@@ -109,14 +109,14 @@ extern WorldMapTrail g_WorldMapTrail[];
 extern u16 g_WorldMapPlayerAngle;
 extern s16 g_WorldMapTrailCursor;
 
-/* func_8008A72C, func_8008B2BC, func_8008BB40, func_8008C364, func_8008C844 and
+/* func_8008A72C, WorldMapModeInitActorSlot, func_8008BB40, func_8008C364, func_8008C844 and
    func_8008D678 each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
    every table in place - only that function's own instructions and its table
    words change (proved with check_bin.sh for WorldMapUpdateActorSlot). */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
-int func_8008B2BC(int index) {
+int WorldMapModeInitActorSlot(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 mode;
     s32 result = 1;
@@ -211,7 +211,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
    it and found PERMUTER_BETTER 410 -> 315 in 1608 iterations, but the winning edit
    is a DEAD END / wrong code: it casts the 0x100 argument to (unsigned char),
    which truncates it to 0, i.e. it buys the score by changing what the call is
-   passed (same trap as round 155's func_8008B2BC candidate). Do not port it.
+   passed (same trap as round 155's WorldMapModeInitActorSlot candidate). Do not port it.
    Hand shapes already tried and measured no better: a pSprite local used by all
    three calls (WorldMapInitActorSpriteBySlot style), the pointer built as
    (u8 *)g_WorldMapSlots + index * 0x80, a flat tail without the angle local
