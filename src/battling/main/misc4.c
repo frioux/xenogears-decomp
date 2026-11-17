@@ -16,7 +16,8 @@ extern u8 g_BattleMotionSpeedLevel;
 extern u8 g_BattleAiBehaviorLevel;
 typedef struct {
     /* 0x00 */ u8 pad00[0x2C];
-    /* 0x2C */ s16 unk2C;
+    // Tested for zero to pick the scratch slot in BattleResetScratchState.
+    /* 0x2C */ s16 flags;
 } UnkA884; // Size: unknown
 
 extern s32 g_BattleRoundOverFrames;
@@ -131,14 +132,17 @@ struct ActorScript {
     // The actor's own speed scale in 8.8, the source of the two scales at 0x15F2/0x15F4.
     /* 0xC */ u16 speedScale;
     /* 0xE */ u8 padE[0x1];
-    /* 0xF */ u8 unkF;
+    // The script's step scale, copied to the actor's 0x15F0 by func_80078F00.
+    /* 0xF */ u8 stepScale;
     /* 0x10 */ u8 pad10[0x10];
     /* 0x20 */ u16 facing;
     /* 0x22 */ u8 pad22[0x2];
-    /* 0x24 */ s16 unk24;
-    /* 0x26 */ s16 unk26;
+    // The actor's camera rig: func_8007A768 copies these into D_80092668..92674,
+    // which func_8007A958 feeds to rcos/rsin to orbit the camera around the actor.
+    /* 0x24 */ s16 cameraAngleOffset;
+    /* 0x26 */ s16 cameraYOffset;
     /* 0x28 */ s16 unk28;
-    /* 0x2A */ s16 unk2A;
+    /* 0x2A */ s16 cameraRadius;
 }; // Size: unknown
 
 typedef struct {
@@ -206,8 +210,9 @@ typedef struct {
     /* 0x4 */ u8 percent;
     /* 0x5 */ u8 pad5[0x3];
     /* 0x8 */ u32 unk8;
-    /* 0xC */ u32 unkC;
-    /* 0x10 */ u32 unk10;
+    // The two 12.4 animation frames misc3's HUD draws as FRAME:%d-%d.
+    /* 0xC */ u32 frameStart;
+    /* 0x10 */ u32 frameCurrent;
 } BattleSlotReset; // Size: 0x14
 
 extern BattleSlotReset g_BattleSlotGauges[];
@@ -232,9 +237,9 @@ struct Actor {
     /* 0x014 */ s32 vy;
     /* 0x018 */ s32 vz;
     /* 0x01C */ u8 pad1C[0x4];
-    /* 0x020 */ s32 unk20;
-    /* 0x024 */ s32 unk24;
-    /* 0x028 */ s32 unk28;
+    /* 0x020 */ s32 pushVx;
+    /* 0x024 */ s32 pushVy;
+    /* 0x028 */ s32 pushVz;
     /* 0x02C */ u8 pad2C[0x20];
     /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 pad4D;
@@ -243,7 +248,7 @@ struct Actor {
     // (func_80074BA4) recomputes it from the part's timing table, the reset sets 0x10.
     /* 0x04F */ u8 animSpeed;
     /* 0x050 */ u8 pad50[0x2];
-    /* 0x052 */ u8 unk52;
+    /* 0x052 */ u8 animSpeedBonus;
     /* 0x053 */ u8 pad53;
     // Added to the script's camera angle and fed to rcos/rsin (func_8007A958).
     /* 0x054 */ s32 angle;
@@ -272,7 +277,7 @@ struct Actor {
     /* 0x0C1 */ u8 prevGaugeWidth;
     // Frames of hit flash left, drained 0x10 at a time (src/battling/main/misc3).
     /* 0x0C2 */ u8 flashTimer;
-    /* 0x0C3 */ u8 unkC3;
+    /* 0x0C3 */ u8 actionPhaseTimer;
     /* 0x0C4 */ u8 state;
     /* 0x0C5 */ u8 actionPhase;
     /* 0x0C6 */ u8 prevState;
@@ -335,7 +340,7 @@ struct Actor {
     /* 0x15D4 */ CVECTOR effectColor;
     /* 0x15D8 */ UnkStruct1 unk15D8;
     /* 0x15E6 */ u8 pad15E6[0xA];
-    /* 0x15F0 */ s16 unk15F0;
+    /* 0x15F0 */ s16 stepScale;
     // 0x15F4 times the battle-wide g_BattleMotionSpeedScale: the scale the
     // per-frame step and part animation actually use (set by misc3
     // BattleUpdateSlotGaugeDisplay).
@@ -538,9 +543,9 @@ void func_80078F00(Actor* p) {
     p->vz = 0;
     p->vy = 0;
     p->vx = 0;
-    p->unk28 = 0;
-    p->unk24 = 0;
-    p->unk20 = 0;
+    p->pushVz = 0;
+    p->pushVy = 0;
+    p->pushVx = 0;
     pRot = pPart->pRotation;
     face = pScript->facing;
     pRot->rotation.vz = face;
@@ -583,7 +588,7 @@ void func_80078F00(Actor* p) {
     p->unkCE = p->unkCC + 0x800;
     p->stateFlags &= ~3;
     p->flags &= 0xFF7FFFFF;
-    p->unk15F0 = pScript->unkF;
+    p->stepScale = pScript->stepScale;
     p->unk15F6 = 0x100;
     p->unk15F8 = 0;
     p->unk1654 = 0;
@@ -602,8 +607,8 @@ void func_80078F00(Actor* p) {
     g_BattleSlotGauges[(p->flags >> 27) & 1].unk0 = (u32)D_8006FC74;
     g_BattleSlotGauges[(p->flags >> 27) & 1].unk8 = 0;
     g_BattleSlotGauges[(p->flags >> 27) & 1].percent = 0;
-    g_BattleSlotGauges[(p->flags >> 27) & 1].unkC = 0;
-    g_BattleSlotGauges[(p->flags >> 27) & 1].unk10 = 0;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].frameStart = 0;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].frameCurrent = 0;
     BattleInitActorWork(p);
     BattleActorResetUnk15D8(&p->unk15D8);
     BattleInitSemiTransQuadPacket(p);
@@ -835,12 +840,12 @@ void BattleActorSetModelByTimer(Actor* p) {
     g_BattleMotionSpeedScale = 0x100;
     if (g_BattleTransitionCountdown < 0x78) {
         p->animSpeed = 0x10;
-        p->unk52 = 0;
+        p->animSpeedBonus = 0;
         p->modelIndex = 0x10;
         p->flags |= 0x400;
     } else {
         p->animSpeed = 0x10;
-        p->unk52 = 0;
+        p->animSpeedBonus = 0;
         p->modelIndex = 0;
         p->flags |= 0x400;
     }
@@ -849,7 +854,7 @@ void BattleActorSetModelByTimer(Actor* p) {
 void BattleActorSetModelIndex9(Actor* p) {
     g_BattleMotionSpeedScale = 0x100;
     p->animSpeed = 0x10;
-    p->unk52 = 0;
+    p->animSpeedBonus = 0;
     p->modelIndex = 9;
     p->flags |= 0x2000400;
 }
@@ -870,10 +875,10 @@ void func_8007A768(Actor* p) {
     ActorScript* pScript = p->pScript;
     s32 r;
 
-    D_80092668 = pScript->unk24;
+    D_80092668 = pScript->cameraAngleOffset;
     D_8009266C = pScript->unk28;
-    D_80092670 = pScript->unk26;
-    D_80092674 = pScript->unk2A;
+    D_80092670 = pScript->cameraYOffset;
+    D_80092674 = pScript->cameraRadius;
     SetGeomScreen(0x200);
     r = rand();
     D_80098680 = p->y;
@@ -895,7 +900,7 @@ void BattleResetScratchState(void) {
     BattleClearTextSpriteEntries();
     BattleInitSoundSlots();
     p = (g_BattleResultSide != 0) ? D_8009790C : D_80099028;
-    if (p->unk2C != 0) {
+    if (p->flags != 0) {
         D_80091150 = 1;
         v = 0x10;
     } else {
@@ -951,7 +956,7 @@ void BattleActorInitModelState(Actor* p, u8 unk4C) {
     p->pState = (ActorSub*)((u8*)p + 0x9CC);
     p->animSpeed = 0x10;
     p->modelIndex = unk4C;
-    p->unk52 = 0;
+    p->animSpeedBonus = 0;
     g_BattleMotionSpeedScale = 0x100;
     func_80074BA4();
     func_80074678(p, p->animFrame, p->animFrameStep);
