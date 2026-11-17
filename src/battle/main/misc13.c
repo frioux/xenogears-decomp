@@ -79,6 +79,24 @@ extern u8 g_BattleLerpDone;
 extern u8 GameRandomByteRange(s32, u8);
 extern s32 BattleMaskHasSlotBit(s32, u8);
 
+/* NOT ATTEMPTED - decoded map only (no body written, nothing measured).
+   311 insns, owns the FIRST jump table of the unit (jtbl_80070250, 12 entries,
+   arms shared: 0/5/7/8 -> .L8008570C, 1/9 -> .L80085908, 4/6 -> .L80085A70,
+   2 -> .L8008583C, 3 -> .L80085954, 10 -> .L800859CC, 11 -> .L80085A18).
+   Shape: for (i = 0; i < 11; i++) over battle slots, early skip when
+   g_BattleSlotEnabledFlags[i] == 0, then a switch on
+   g_BattleActorCommandIds[arg0 * 0x48 + i] (u8, lbu, bounds sltiu 0xC, no index
+   copy so a plain switch already produces retail's operands). i*0x170 is held in
+   $s0 as a byte offset for the gp-relative per-slot tables (g_BattleSlotEntries,
+   g_BattleSlotEntriesBase, D_800CCD36, D_800CCDEC, D_800CCDF0, D_800CCE08,
+   D_800CCD38/3A, D_800CCDC4/C6); $s3 = g_BattleCommandRows + arg0*0x48 + i*2;
+   $s5 = g_BattleCommandRows - 0x130 + i*0x1C; $s4 = g_BattleCommandRows - 0x138
+   + i*0x170; $s6 = D_800CCDC4 + i*0x170. The four stores that go through
+   $s4 + 0x8F3C / +0x8E84 / +0x8E88 / +0x8F14 are absolute per-slot symbols that
+   fit neither addiu nor a plain lui pair, so gcc emitted lui 0x1 + addu + %lo
+   with a negative displacement - expect those to need the exact D_ address.
+   Loop tail: s3 += 2, s6/s4/s0 += 0x170, s2 += 1, slti 0xB, s5 += 0x1C.
+   Every case ends by storing 1 to g_BattleCommandQueue[i + 0x2EB]. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
 void BattleResetActorStatDisplay(s32 arg0) {
     s32 i = 2;
@@ -200,8 +218,7 @@ void BattleClearCommandSlots(void) {
     }
     g_BattleCommandQueue[0x2D6] = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
-/* 99.30%, 372 bytes (= retail): the instruction stream is retail's except the
+/* PARKNOTE 99.30%, 372 bytes (= retail): the instruction stream is retail's except the
    register that holds the switch index. Retail copies the row counter into a
    CALLER-SAVED temp (`addu v1,a3` in the delay slot of `bnez matched`) and uses
    that temp for both `sltiu v0,v1,13` and `sll v0,v1,2`; every plain local we
@@ -224,7 +241,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
    in the preheader. `D_800CCD36[arg1 * 0x170 + 8]` is retail's D_800CCD3E and
    folds to the same bytes.
 */
-/*
 // Walks the 13 command slots looking for the row whose 7-byte key matches the
 // queue's; the arm ladder below counts the found row DOWN from 12 into j, which
 // is why each case falls through into the next.
@@ -236,6 +252,7 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
     u8 *pQueue = g_BattleCommandQueue;
     u8 *pSlots;
     u8 *pRow;
+    u8 *pKey;
     u8 *pEntry;
 
     if (pQueue[0x2D6] == 0) {
@@ -249,18 +266,20 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
     for (; i < 13; i++) {
         pRow = D_800C3160[i];
         for (j = 0; j < 7; j++) {
-            if (pSlots[j + 0x2CC] != pRow[j]) {
+            pKey = pSlots + j;
+            if (pKey[0x2CC] != pRow[j]) {
                 matched = 0;
                 break;
             }
             matched = 1;
         }
+        j = 0;
         if (matched) {
             break;
         }
     }
-    result = i;
-    switch (result) {
+    matched = i;
+    switch (matched) {
     case 0:
         j++;
     case 1:
@@ -295,7 +314,6 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
 done:
     return result;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 /* 88.08%: instruction multiset is identical (same size, same prologue save
    order, same delay-slot placement); every difference is the s-register NUMBER
