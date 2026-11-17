@@ -577,4 +577,5 @@ g_WorldMapScriptOpHandlers = 0x8009A3C0;
 g_WorldMapSlotInitEntries = 0x80099E8C;
 g_WorldMapLevelSlotInitEntries = 0x8009A034;
 D_8009C178 = 0x8009C178;
+D_8009C588 = 0x8009C588;
 g_WorldMapInitModeIndex = 0x8009C894;
