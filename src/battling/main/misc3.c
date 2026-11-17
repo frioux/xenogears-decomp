@@ -35,7 +35,9 @@ typedef struct {
     /* 0x00 */ s16 scale;
     /* 0x02 */ u8 unk2[0x7];
     /* 0x09 */ u8 points[0xF];
-    /* 0x18 */ u8 unk18;
+    // Stored verbatim into the slot gauge's percent byte (misc2 func_800740E4),
+    // and message 3 only swaps in its model while this is non-zero.
+    /* 0x18 */ u8 percent;
 } BattleActionData; // Size: 0x19 (a lower bound)
 
 // A battle participant as this unit drives it. Only the fields this unit
@@ -1001,7 +1003,7 @@ void func_80077A9C(BattleActor* p) {
             BattleResetMessageQueue(p);
             break;
         case 3:
-            if (p->actionWaitTimer == 0 && p->pActionData->unk18 != 0 && p->typeId != 0x29) {
+            if (p->actionWaitTimer == 0 && p->pActionData->percent != 0 && p->typeId != 0x29) {
                 if (p->state & 2) {
                     p->modelIndex = 4;
                 } else {
