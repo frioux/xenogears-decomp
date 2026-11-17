@@ -383,22 +383,25 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
 }
 
 void BattleDrawTextSprites(u8 *p) {
+    Misc8Text *pText;
     u16 off;
-    u8 *pBase;
 
+    // The (x,y) and (w,h) pairs are stored whole from the packed sprite
+    // templates; reaching them by byte offset is what reproduces retail's
+    // single addiu for the indexed sprite address.
     if (g_BattleTextSpriteEntry0 != 0) {
-        pBase = (u8 *)&g_BattleCenteredTextSprites[0];
-        off = g_BattleDrawBufferIndex * 0x14;
-        *(u16 *)(pBase + off + 0x14) = D_8009553C;
-        *(u16 *)(pBase + off + 0xC) = D_8009553E;
-        AddPrim(p, pBase + (off + 4));
+        pText = &g_BattleCenteredTextSprites[0];
+        off = g_BattleDrawBufferIndex * sizeof(SPRT);
+        *(u16 *)((u8 *)pText + (off + 0x14)) = D_8009553C;
+        *(u16 *)((u8 *)pText + (off + 0xC)) = D_8009553E;
+        AddPrim(p, (u8 *)pText + (off + 4));
     }
     if (g_BattleTextSpriteEntry1 != 0) {
-        pBase = (u8 *)&D_80095540;
-        off = g_BattleDrawBufferIndex * 0x14;
-        *(u16 *)(pBase + off + 0x14) = D_8009556C;
-        *(u16 *)(pBase + off + 0xC) = D_8009556E;
-        AddPrim(p, pBase + (off + 4));
+        pText = &D_80095540;
+        off = g_BattleDrawBufferIndex * sizeof(SPRT);
+        *(u16 *)((u8 *)pText + (off + 0x14)) = D_8009556C;
+        *(u16 *)((u8 *)pText + (off + 0xC)) = D_8009556E;
+        AddPrim(p, (u8 *)pText + (off + 4));
     }
     if (g_BattleTextSpriteEntry0 | g_BattleTextSpriteEntry1) {
         AddPrim(p, &g_BattleTextSpriteTpagePrims[g_BattleDrawBufferIndex]);
