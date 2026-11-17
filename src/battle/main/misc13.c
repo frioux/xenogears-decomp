@@ -3,6 +3,8 @@
 #include "psyq/libgpu.h"
 
 extern u8 *g_BattleCommandQueue;
+extern u8 *D_800C3160[];
+extern u8 *D_800C31AC[];
 extern volatile u8 *g_BattleDisplayState;
 extern u8 g_BattleSlotRecords[];
 extern u8 g_BattleCharSlotUsage[];
@@ -199,6 +201,101 @@ void BattleClearCommandSlots(void) {
     g_BattleCommandQueue[0x2D6] = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
+/* 99.30%, 372 bytes (= retail): the instruction stream is retail's except the
+   register that holds the switch index. Retail copies the row counter into a
+   CALLER-SAVED temp (`addu v1,a3` in the delay slot of `bnez matched`) and uses
+   that temp for both `sltiu v0,v1,13` and `sll v0,v1,2`; every plain local we
+   write is copy-propagated into a3 (368 bytes, 97.74%, one instruction short --
+   that size can never link). Reusing `result` as the switch scrutinee does
+   reproduce the copy and the 372-byte size (this body) but it is NOT the real
+   source: it clobbers the return value so the default path returns i, and the
+   copy lands in s0 because result crosses the jal. `matched = i; switch
+   (matched)` puts the copy in v1 (retail's register) but gcc still folds the
+   scrutinee back to a3 and drops the inner loop's per-iteration `j = 0` reset
+   (98.92%, 372 bytes). So the open lever is one variable that is a distinct
+   pseudo at the switch (a plain copy is coalesced) and is dead across the jal;
+   a permuter run from the plain `switch (i)` body (base=326) found only the
+   `result = i` edit (best=37).
+   Also note the ladder: gcc 2.7.2 emits the 12 increment arms in source order
+   with the fall-through arm first-listed, so cases 0..11 must be listed with
+   `j++` and no break, case 12 holds the body.
+   `i = 0` is assigned before `pSlots = pQueue` (retail's order: a3=0 then
+   t1=a2); the second copy of the queue pointer is what produces `move t1,a2`
+   in the preheader. `D_800CCD36[arg1 * 0x170 + 8]` is retail's D_800CCD3E and
+   folds to the same bytes.
+*/
+/*
+// Walks the 13 command slots looking for the row whose 7-byte key matches the
+// queue's; the arm ladder below counts the found row DOWN from 12 into j, which
+// is why each case falls through into the next.
+s32 func_80085EB4(u8 arg0, u8 arg1) {
+    s32 i;
+    s32 j;
+    s32 result = 0;
+    s32 matched;
+    u8 *pQueue = g_BattleCommandQueue;
+    u8 *pSlots;
+    u8 *pRow;
+    u8 *pEntry;
+
+    if (pQueue[0x2D6] == 0) {
+        goto done;
+    }
+    if (arg0 != 4) {
+        goto done;
+    }
+    i = 0;
+    pSlots = pQueue;
+    for (; i < 13; i++) {
+        pRow = D_800C3160[i];
+        for (j = 0; j < 7; j++) {
+            if (pSlots[j + 0x2CC] != pRow[j]) {
+                matched = 0;
+                break;
+            }
+            matched = 1;
+        }
+        if (matched) {
+            break;
+        }
+    }
+    result = i;
+    switch (result) {
+    case 0:
+        j++;
+    case 1:
+        j++;
+    case 2:
+        j++;
+    case 3:
+        j++;
+    case 4:
+        j++;
+    case 5:
+        j++;
+    case 6:
+        j++;
+    case 7:
+        j++;
+    case 8:
+        j++;
+    case 9:
+        j++;
+    case 10:
+        j++;
+    case 11:
+        j++;
+    case 12:
+        pEntry = D_800C31AC[D_800CCD36[arg1 * 0x170 + 8]];
+        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].unk4,
+                                        pEntry[0xC - j]) != 0) {
+            result = 1;
+        }
+    }
+done:
+    return result;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 /* 88.08%: instruction multiset is identical (same size, same prologue save
    order, same delay-slot placement); every difference is the s-register NUMBER
