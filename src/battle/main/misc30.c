@@ -8,15 +8,15 @@ typedef struct {
     /* 0x00 */ u8 pad00[0x4];
     /* 0x04 */ SpriteData* pCurSprite;
     /* 0x08 */ u8 pad08[0x14];
-    /* 0x1C */ u8 unk1C; // state step, copied to 0x49 when the step changes
+    /* 0x1C */ u8 stateStep; // state step, copied to 0x49 when the step changes
     /* 0x1D */ u8 pad1D[0x3];
     /* 0x20 */ u32 unk20; // actor id handed to func_800BEE2C
-    /* 0x24 */ s32 unk24; // index of the acting slot's sprite in the 0x8C8C table
+    /* 0x24 */ s32 actorIndex; // index of the acting slot's sprite in the 0x8C8C table
     /* 0x28 */ u8 pad28[0xC];
-    /* 0x34 */ u32 unk34;
+    /* 0x34 */ u32 timer; // counted down once a frame by the state loop
     /* 0x38 */ u8 pad38[0x10];
     /* 0x48 */ u8 unk48;
-    /* 0x49 */ u8 unk49;
+    /* 0x49 */ u8 pendingStep; // step the state loop dispatches once, then clears
     /* 0x4A */ u8 unk4A;
     /* 0x4B */ u8 pad4B;
 } BattleState;
@@ -130,8 +130,8 @@ typedef struct {
 // The 0x1C-byte per-slot records at the head of g_BattleStateWork.
 typedef struct {
     /* 0x00 */ u8 unk0[0xE];
-    /* 0x0E */ u16 unkE;
-    /* 0x10 */ u16 unk10;
+    /* 0x0E */ u16 x; // whole x, compared with the actor's own
+    /* 0x10 */ u16 z; // whole z, compared with the actor's own
     /* 0x12 */ u8 unk12[0xA];
 } BattleActorSlot; // Size: 0x1C
 
@@ -198,7 +198,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B905C);
    destination to the AC word and swaps the loads -- 85.60%); the x/0x50 block
    is laid out retail's way (bne to the non-equal body, beq to the equal one,
    the `slt` in the beq's delay slot) only when written as
-   `if (x != pSlot->unkE || z != pSlot->unk10) { non-equal } else { equal }` --
+   `if (x != pSlot->x || z != pSlot->z) { non-equal } else { equal }` --
    the `==`/`&&` form puts the equal body first with inverted branches; and the
    z store needs an s32 local (an s16 store value makes gcc use lhu, retail lh).
    Left over, both allocator ties: retail keeps x in $a2 for the +-0x50
@@ -236,8 +236,8 @@ void func_800B905C(void) {
         index = (pTarget->flags_0xA8 >> 30) | ((pTarget->flags_0xAC.flags & 3) << 2);
         pSlot = &((BattleActorSlot*)pBase)[index];
         x = pTarget->position.parts.xWhole;
-        if (x != pSlot->unkE || pTarget->position.parts.zWhole != pSlot->unk10) {
-            if (x < pSlot->unkE) {
+        if (x != pSlot->x || pTarget->position.parts.zWhole != pSlot->z) {
+            if (x < pSlot->x) {
                 pSprite->targetPosition.x = x - 0x50;
             } else {
                 pSprite->targetPosition.x = x + 0x50;
@@ -268,7 +268,7 @@ void BattleIncrementStateTimer(void) {
     BattleState* pState = g_BattleState;
 
     if (pState != NULL) {
-        ++pState->unk34;
+        ++pState->timer;
     }
 }
 
@@ -366,7 +366,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9508);
 
 void BattleApplyStateStep(void) {
     g_BattleState->unk48 = 1;
-    g_BattleState->unk49 = g_BattleState->unk1C;
+    g_BattleState->pendingStep = g_BattleState->stateStep;
 }
 void BattleFaceActorsTowardEachOther(BattleActorSprite* p0, BattleActorSprite* p1) {
     if (p0 == p1) {
@@ -433,7 +433,7 @@ void func_800B9C78(void) {
     pBase = g_BattleStateWork;
     func_800BEFF4(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
     func_800BF3E8((BattleActorSprite*)g_BattleState->pCurSprite);
-    index = g_BattleState->unk24;
+    index = g_BattleState->actorIndex;
     offset = 0x8C8C;
     pSprite = *(BattleActorSprite**)(pBase + index * 4 + offset);
     code = pBase[g_BattleCommandRowIndex * 0x48 + 0x17F];
