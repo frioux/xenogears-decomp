@@ -177,7 +177,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
    for(;;) with continue/break (93.49), chained `ret = acc = next;` (96.95),
    `acc = next = acc | ret;` (96.02), a u8 opcode local for the loop test
    (98.92), two inline returns (93.49), and 1225 permuter iterations from this
-   body (RESULT PERMUTER_NONE). The old RODATA-BLOCKED note here was stale:
+   body (RESULT PERMUTER_NONE; re-run round 173 from this body, 995 more
+   iterations, again NONE). `ret = next;` AFTER the loop is the one shape that
+   does reproduce the temp the way retail has it, but it makes the exit a
+   separate block (j + `andi v0,v1,0xff`) and the body 692 bytes (95.81), i.e.
+   4 too many instead of 4 too few. Preset is not the problem: a --sweep puts
+   this body at 99.3 under every 2.7.2 -G4/-G8/-mcpu combination, 94.59 under
+   2.7.2-cdk -O2, and -O3 does not compile it. The old RODATA-BLOCKED note was stale:
    config/battle.yaml line 61 gives main/misc10 its own .rodata range, so the
    switch's table stays in the unit. Needs these declarations:
      s32 BattleSetTextScale(u8 **arg0, u8 arg1);
