@@ -450,14 +450,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
 void BattleNop(void) {
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097964);
-/* 95.67%, 944 bytes against retail 1016; instruction stream and both jump tables
-   (jtbl_800703C0, jtbl_800703E8) line up block for block, so the shape is right.
-   Left over: the case-0 guard masks the wrong operand (retail andi v1,s1,0xFFFD then
-   and with the 0x7E load, gcc folds the mask onto the load), D_800C3E34 lands in v1
-   where retail uses a0, and the two "sh v0,0x7A(v1)" tails of case 0 and case 5 are
-   not cross-jumped because the case 5 pointer sums index-first (addu v0,v0,v1 where
-   retail has addu v1,v1,v0). 4 minutes of permuter found nothing.
 s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
     if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80) {
         return 0;
@@ -468,14 +460,17 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
     }
 
     switch (arg1) {
-    case 0:
-        if ((arg2 & 0xFFFD) & D_800C3E34->unk7E) {
+    case 0: {
+        u16 mask = arg2 & 0xFFFD;
+
+        if (D_800C3E34->unk7E & mask) {
             return 0;
         }
         if (arg2 & 0x1000) {
             D_800C3E34->unk84 &= 0x7FFF;
         }
         break;
+    }
     case 2:
         if (D_800C3E34->unk82 & arg2) {
             return 0;
@@ -548,17 +543,20 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
     case 5:
     case 7:
     case 9: {
-        // the per-kind status words at +0x7A, indexed by the kind
-        u16 *pStatus = (u16 *)D_800C3E34 + arg1;
+        // the per-kind flag words at unk7A, indexed by the kind (5 -> unk84)
+        mem_addr base;
+        u16 *pFlags;
 
-        pStatus[0x3D] |= arg2;
+        base = (mem_addr)D_800C3E34;
+        pFlags = (u16 *)(base + (arg1 * 2));
+        pFlags[0x3D] |= arg2;
         break;
     }
     }
 
     BattleSetCommandCodeForSlotKindFlag(arg1, arg2);
     return 1;
-}*/
+}
 void BattleClearAllSlotStates(void) {
     s16 i;
 
