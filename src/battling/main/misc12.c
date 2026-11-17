@@ -53,7 +53,7 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk0[0x16];
     /* 0x16 */ u8 flags;
-    /* 0x17 */ u8 unk17;
+    /* 0x17 */ u8 depthShift;
     /* 0x18 */ DR_MODE drawAreaMode0;
     /* 0x24 */ DR_MODE drawAreaMode1;
     /* 0x30 */ DR_MODE drawOffsetMode0;
@@ -82,31 +82,24 @@ typedef struct {
     /* 0x1C */ u32 unk1C;
 } BattleEnv; // Size: 0x20
 
-// The 0x9C-byte object BattleCreateObject allocates and BattleResetObject clears.
+// The 0x9C-byte object BattleCreateObject allocates and BattleResetObject clears;
+// src/battling/main/misc14.c declares the same record as Misc14ModelNode, and the
+// links at 0x8C are the ones BattleAppendListEntry walks.
 typedef struct {
-    /* 0x00 */ u32 unk0;
-    /* 0x04 */ u32 unk4;
-    /* 0x08 */ u32 unk8;
-    /* 0x0C */ BattleBlk16 unkC;
-    /* 0x1C */ BattleBlk16 unk1C;
-    /* 0x2C */ u16 unk2C;
-    /* 0x2E */ u16 unk2E;
-    /* 0x30 */ u16 unk30;
-    /* 0x32 */ u16 unk32;
-    /* 0x34 */ u32 unk34;
-    /* 0x38 */ u32 unk38;
-    /* 0x3C */ u32 unk3C;
-    /* 0x40 */ u32 unk40;
-    /* 0x44 */ u16 unk44;
-    /* 0x46 */ u16 unk46;
-    /* 0x48 */ u16 unk48;
-    /* 0x4A */ u16 unk4A;
+    /* 0x00 */ u32 state;
+    /* 0x04 */ void* pData;
+    /* 0x08 */ void (*pUpdate)(void);
+    /* 0x0C */ BattleBlk16 unkC;      // first half of the matrix at 0x4C
+    /* 0x1C */ BattleBlk16 unk1C;     // second half
+    /* 0x2C */ SVECTOR sourcePos;
+    /* 0x34 */ VECTOR position;
+    /* 0x44 */ SVECTOR rotation;
     /* 0x4C */ BattleBlk16 unk4C;
     /* 0x5C */ BattleBlk16 unk5C;
     /* 0x6C */ BattleEnv matrix;
-    /* 0x8C */ u32 unk8C;
-    /* 0x90 */ u32 unk90;
-    /* 0x94 */ u32 unk94;
+    /* 0x8C */ BattleListNode* pList;
+    /* 0x90 */ BattleListNode* pNext;
+    /* 0x94 */ BattleListNode* pHead;
     /* 0x98 */ u32 unk98;
 } BattleMisc12Obj; // Size: 0x9C
 
@@ -635,21 +628,21 @@ void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR*
 /*@@*/
 
 BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p) {
-    p->unk0 = 0;
-    p->unk8C = 0;
-    p->unk94 = 0;
-    p->unk90 = 0;
-    p->unk8 = 0;
-    p->unk4 = 0;
-    p->unk3C = 0;
-    p->unk38 = 0;
-    p->unk34 = 0;
-    p->unk48 = 0;
-    p->unk46 = 0;
-    p->unk44 = 0;
-    p->unk30 = 0;
-    p->unk2E = 0;
-    p->unk2C = 0;
+    p->state = 0;
+    p->pList = 0;
+    p->pHead = 0;
+    p->pNext = 0;
+    p->pUpdate = 0;
+    p->pData = 0;
+    p->position.vz = 0;
+    p->position.vy = 0;
+    p->position.vx = 0;
+    p->rotation.vz = 0;
+    p->rotation.vy = 0;
+    p->rotation.vx = 0;
+    p->sourcePos.vz = 0;
+    p->sourcePos.vy = 0;
+    p->sourcePos.vx = 0;
     p->matrix = g_BattleBaseMatrix;
     p->unk4C = *(BattleBlk16*)&p->matrix;
     p->unk5C = *((BattleBlk16*)&p->matrix + 1);
