@@ -36,10 +36,10 @@ extern u_long g_DrawSyncCallbackPending;
 extern u_long g_SavedIntrMask;
 extern void (*g_DrawSyncCallbackFn)();
 
-extern u_long *D_8005A380;
-extern u_long *D_8005A384;
-extern u_long *D_8005A388;
-extern u_long D_8005A38C;
+extern u_long *g_TmdVertBase;
+extern u_long *g_TmdNormBase;
+extern u_long *g_TmdPrimBase;
+extern u_long g_TmdPrimCount;
 
 extern char D_80019240[]; // "GPU timeout:que=%d,stat=%08x,chcr=%08x,madr=%08x,"
 extern char D_80019274[]; // "func=(%08x)(%08x,%08x)\n"
@@ -282,7 +282,7 @@ TIM_IMAGE *ReadTIM(TIM_IMAGE *timimg) {
 }
 
 int OpenTMD(u_long *tmd, int obj_no) {
-    return D_8005A38C = func_80047638(tmd, obj_no, &D_8005A388, &D_8005A380, &D_8005A384);
+    return g_TmdPrimCount = func_80047638(tmd, obj_no, &g_TmdPrimBase, &g_TmdVertBase, &g_TmdNormBase);
 }
 
 /* One 8-byte vertex/normal entry of the TMD data block: x, y, z and a pad. */
@@ -313,11 +313,11 @@ TmdPrimObject *func_8004726C(TmdPrimObject *pObj) {
     TmdVector *pNorm;
     int size;
 
-    if ((size = func_800477D0(D_8005A388, pObj)) < 0)
+    if ((size = func_800477D0(g_TmdPrimBase, pObj)) < 0)
         return 0;
 
-    pVert = (TmdVector *)D_8005A380;
-    pNorm = (TmdVector *)D_8005A384;
+    pVert = (TmdVector *)g_TmdVertBase;
+    pNorm = (TmdVector *)g_TmdNormBase;
     pObj->vertBase = (u_long)pVert;
     pObj->normBase = (u_long)pNorm;
 
@@ -332,7 +332,7 @@ TmdPrimObject *func_8004726C(TmdPrimObject *pObj) {
     pObj->norms[2].z = pNorm[pObj->normIndex[2]].z;
 
     // advancing the prim pointer between the two copies is what retail does
-    D_8005A388 = (u_long *)((u_char *)D_8005A388 + size);
+    g_TmdPrimBase = (u_long *)((u_char *)g_TmdPrimBase + size);
 
     pObj->norms[3].x = pNorm[pObj->normIndex[3]].x;
     pObj->norms[3].y = pNorm[pObj->normIndex[3]].y;

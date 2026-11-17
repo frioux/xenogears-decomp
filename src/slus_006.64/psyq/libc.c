@@ -161,7 +161,7 @@ int strlen(char* pString) {
      buffer, s2 = output count, s0/s1 = length and source pointer of the item
      just converted, s5 = '-', s6 = '+', s4 = ' '. The 12 bytes at 0x210 are
      re-initialised at every % by a 12-byte copy from the all-zero global
-     D_800563F0 (file offset 0x46BF0, in 3F290.sdata.s), i.e. the source
+     g_SprintfFormatDefault (file offset 0x46BF0, in 3F290.sdata.s), i.e. the source
      assigns a template spec struct; the flags word and the byte sign slot
      overlap, so the struct layout needs settling when the body is written.
    - flag bits: 1 '-' 2 '+' 4 '#' 8 '0' 0x10 = precision came from a negative
