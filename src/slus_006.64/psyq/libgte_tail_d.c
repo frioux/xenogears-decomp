@@ -3,11 +3,13 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-// The tail of Psy-Q's libgte: TransMatrix on. It is its own translation unit
-// only because ApplyMatrixSV (the function before TransMatrix) carries a pad word
-// in retail -- the shipped .OBJ pads every function's tail to a 16-byte multiple
-// -- and the four bytes at 0x3A598 come from the `asm` subsegment in
-// config/slus_006.64.yaml. Keep it one unit's worth of code with psyq/libgte_tail.
+// TransMatrix and ScaleMatrix. It is its own translation unit only because both
+// carry tail pad words in retail -- the shipped .OBJ pads every function's tail
+// to a 16-byte multiple and the linker kept them -- and the twelve bytes at
+// 0x3A6F0 are the `asm` subsegment in config/slus_006.64.yaml; 0x3A5C0, inside
+// TransMatrix's stub, is TransMatrix's own. This file covers 0x3A59C-0x3A6F0.
+// See psyq/libgte_tail for how the pads are handled and why TransMatrix stays
+// asm.
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail_d", TransMatrix);
 /* best attempt 0.00%. The original keeps m in a0 (stores at 0x14/0x18/0x1c off
@@ -30,113 +32,92 @@ MATRIX *TransMatrix(MATRIX *m, VECTOR *v) {
 */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail_d", ScaleMatrix);
-/* best attempt 2.37% (with `>> 12`; `/ ONE` rounds and is worse). The original
-   reads two adjacent shorts with one `lw` and merges the pair of stores into one
-   `sw` (andi 0xffff / sll 16 / or), and multiplies with `multu`; the naive
-   element-wise version gives lh/sh and `mult`:
+/* Sony's vector.s. Each word of the matrix is a pair of shorts scaled by the
+   vector's components and packed back with one store (andi/sll/or), with `multu`
+   rather than `mult`, and the return copy is already made at 0x3A5F4 (hence the
+   $2 pin, which is written mid-body) -- the shape ScaleMatrixL has, and objdiff
+   scores 2.37% as nine short assignments. The last store covers m[2][2] and the
+   struct's tail padding with one word, in the `jr` delay slot, so that one is
+   left to C, where reorg fills the slot. */
 MATRIX *ScaleMatrix(MATRIX *m, VECTOR *v) {
-    m->m[0][0] = (m->m[0][0] * v->vx) >> 12;
-    m->m[0][1] = (m->m[0][1] * v->vy) >> 12;
-    m->m[0][2] = (m->m[0][2] * v->vz) >> 12;
-    m->m[1][0] = (m->m[1][0] * v->vx) >> 12;
-    m->m[1][1] = (m->m[1][1] * v->vy) >> 12;
-    m->m[1][2] = (m->m[1][2] * v->vz) >> 12;
-    m->m[2][0] = (m->m[2][0] * v->vx) >> 12;
-    m->m[2][1] = (m->m[2][1] * v->vy) >> 12;
-    m->m[2][2] = (m->m[2][2] * v->vz) >> 12;
-    return m;
+    register MATRIX *pRet __asm__("$2");
+    register long m22 __asm__("$9");
+
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lw\t$8, 0($4)\n\t"
+                      "lw\t$11, 0($5)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $11\n\t"
+                      "lw\t$12, 4($5)\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$13, 8($5)\n\t"
+                      "lw\t$8, 4($4)\n\t"
+                      "addu\t$2, $4, $0\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $12\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 0($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $13\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$8, 8($4)\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $11\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 4($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $12\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$8, 12($4)\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $13\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 8($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $11\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$8, 16($4)\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $12\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 12($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $13\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      ".set\treorder"
+                      : "=r"(pRet), "=r"(m22) : : "$8", "$10", "$11", "$12",
+                          "$13", "memory");
+    *(long *)&m->m[2][2] = m22;
+    return pRet;
 }
-*/
-
-
-void SetRotMatrix(MATRIX *m) {
-    gte_SetRotMatrix(m);
-}
-
-void SetLightMatrix(MATRIX *m) {
-    gte_SetLightMatrix(m);
-}
-
-void SetColorMatrix(MATRIX *m) {
-    gte_SetColorMatrix(m);
-}
-
-void SetTransMatrix(MATRIX *m) {
-    gte_SetTransMatrix(m);
-}
-/* 96.25%. The original loads into t0/t1/t2, gcc into
-   v0/v1/a1 (it prefers the lowest call-clobbered registers). Byte-for-byte
-   identical apart from those three register numbers.
-void SetTransMatrix(MATRIX *m) {
-    gte_ldtr(m->t[0], m->t[1], m->t[2]);
-}
-*/
-
-
-void SetVertex0(SVECTOR *v0) {
-    gte_ldv0(v0);
-}
-
-void SetVertex1(SVECTOR *v0) {
-    gte_ldv1(v0);
-}
-
-void SetVertex2(SVECTOR *v0) {
-    gte_ldv2(v0);
-}
-
-void SetVertexTri(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2) {
-    gte_ldv3(v0, v1, v2);
-}
-
-void SetRGBfifo(u_char *rgb0, u_char *rgb1, u_char *rgb2) {
-    gte_ldrgb3_fifo(rgb0, rgb1, rgb2);
-}
-
-void SetIR123(long ir1, long ir2, long ir3) {
-    gte_ldir123(ir1, ir2, ir3);
-}
-
-void SetIR0(long p) {
-    gte_lddp(p);
-}
-
-void SetSZfifo3(long sz1, long sz2, long sz3) {
-    gte_ldsz3(sz1, sz2, sz3);
-}
-
-void SetSZfifo4(long sz0, long sz1, long sz2, long sz3) {
-    gte_ldsz4(sz0, sz1, sz2, sz3);
-}
-
-void SetSXSYfifo(long sxy0, long sxy1, long sxy2) {
-    gte_ldsxy0(sxy0);
-    gte_ldsxy1(sxy1);
-    gte_ldsxy2(sxy2);
-}
-
-void SetRii(long r11, long r22, long r33) {
-    gte_ldr11r22r33(r11, r22, r33);
-}
-
-void SetMAC123(long mac1, long mac2, long mac3) {
-    gte_ldmac123(mac1, mac2, mac3);
-}
-
-void SetData32(long data) {
-    gte_ldlzc(data);
-}
-
-void SetDQA(long dqa) {
-    gte_lddqa(dqa);
-}
-
-void SetDQB(long dqb) {
-    gte_lddqb(dqb);
-}
-
-void ReadGeomOffset(long *pOfsX, long *pOfsY) {
-    gte_ReadGeomOffset_gpr(pOfsX, pOfsY);
-}
-

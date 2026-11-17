@@ -56,34 +56,21 @@ long RotAverageNclip4(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, SVECTOR *v3,
 }
 */
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", TransposeMatrix);
-// best attempt 93.75% (64 bytes, the original's size and its exact instruction
-// multiset). NOTE the original is a real Psy-Q library object: its 16 words are
-// byte-for-byte the TransposeMatrix of ~/xw/psyq-sigs/sig40.txt and sig43.txt
-// (LIBGTE/FGO_00.OBJ), so the source was C and the residual is allocation only:
-//   original: v0 = entry copy of a1 (the return value, dead until jr ra), a0 =
-//             load base, a1 = store base (still live at the end), t1/t2/t3 temps
-//   'return m0': v0 = entry copy of a0 and it takes over the load base  93.75%
-//   'return m1': v0 = entry copy of a1 but cse folds every store onto it, which
-//                frees a1 for a temp (a1/a2/v1 become the temps)      92.81%
-// i.e. retail has TWO pseudos holding m1: the return copy in v0 and the store
-// base in a1. cse always merges them (the set's destination wins), so the store
-// base follows the return register; retail's compiler did not merge, which is a
-// cse/allocator difference, not a source shape.
-// Retried: a do-while(0) around the whole store cluster (same 92.81), gcc 2.6.0 /
-// 2.7.2 / 2.7.2-cdk at -O1/-O2/-O3 - all 92.81 or 93.75. The earlier worker's
-// 4-minute permute found nothing from the 93.75 body.
-// Next lever, untested here: sis40/sig43 = Psy-Q 4.0/4.3, which is gcc 2.8.0 /
-// 2.8.1 territory (AGENTS.md: Psy-Q 4.3 -> 2.8.0). Score this body with
-// tools/scripts/try_flags.sh --gcc gcc-2.8.1-psx once that toolchain is present;
-// a 2.8 cse reordering is the only remaining explanation for the split pseudo.
-// Same registers/widths: the lh on 0x10(a0) is a short load, the sh stores
-// truncate a long temp, which is what the body below already writes.
-/*
+/* Sony's vector.c. Retail keeps two pseudos for m1: the return copy in v0,
+   made at entry and dead until the `jr`, and the store base in a1. gcc's cse
+   merges them -- whichever register the return takes over becomes the store
+   base, which scores 95.62% -- so the copy is made by the asm block instead,
+   and the three running temps are pinned to the original's t1-t3, where gcc
+   prefers v1/a2/a3. */
 MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
+    register MATRIX *pRet __asm__("$2");
+    register long a __asm__("$9");
+    register long b __asm__("$10");
+    register long c __asm__("$11");
     long *q = (long *)m1;
     short *qs = (short *)m1;
-    long a, b, c;
+
+    __asm__ volatile ("addu\t%0, $5, $0" : "=r"(pRet));
 
     a = ((long *)m0)[0];
     b = ((long *)m0)[1];
@@ -99,9 +86,8 @@ MATRIX *TransposeMatrix(MATRIX *m0, MATRIX *m1) {
     b = ((short *)m0)[8];
     qs[2] = a;
     qs[8] = b;
-    return m0;
+    return pRet;
 }
-*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotMatrixYXZ);
 

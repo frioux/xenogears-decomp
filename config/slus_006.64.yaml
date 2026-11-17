@@ -172,6 +172,8 @@ segments:
       - [0x3A4EC, c, psyq/libgte_tail_b]
       - [0x3A598, asm] # ApplyMatrixSV's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A59C, c, psyq/libgte_tail_d]
+      - [0x3A6F0, asm] # ScaleMatrix's tail pad words (3 words)
+      - [0x3A6FC, c, psyq/libgte_tail_e] # SetRotMatrix on
       - [0x3A8DC, c, psyq/libgte_b]
       - [0x3A8E8, asm] # ReadGeomScreen's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A8EC, c, psyq/libgte_b_2] # SetBackColor on
@@ -186,6 +188,8 @@ segments:
       - [0x3AEDC, c, psyq/libgte_xform] # RotTrans on
       - [0x3AF04, asm] # RotTrans's tail pad words (2 words)
       - [0x3AF0C, c, psyq/libgte_nclip] # NormalClip on
+      - [0x3AF30, asm] # NormalClip's tail pad words (3 words)
+      - [0x3AF3C, c, psyq/libgte_nclip_b] # RotTransPers4 on
       - [0x3AFB4, asm] # RotTransPers4's tail pad words (2 words)
       - [0x3AFBC, c, psyq/libgte_average] # RotAverage4 on
       - [0x3B038, asm] # RotAverage4's tail pad word (Psy-Q pads a function to 16 bytes)
