@@ -107,6 +107,7 @@ extern void* g_BattleStageData;
 int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3) {
     StreamDataQueueEntry* pQueue;
     int nFirstSize;
+    int nQueueIndex;
     void* pFirst;
     void* pSecond;
     int nSectionIndex;
@@ -132,18 +133,18 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
             *pOut3 = 0;
         }
     } else {
-        nIndex *= 2;
+        nQueueIndex = nIndex * 2;
         do {
             nFirstSize = nBaseIndex + 7;
-            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + nFirstSize), 1);
+            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + nFirstSize), 1);
             HeapPinBlock(pFirst);
-            pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 6), 1);
+            pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + 6), 1);
         } while (0);
         HeapPinBlock(pSecond);
         pQueue = D_8005A1DC;
-        (pQueue + 0)->archiveIndex = nIndex + 6;
+        (pQueue + 0)->archiveIndex = nQueueIndex + 6;
         D_8005A1E0 = pSecond;
-        D_8005A1E4 = nIndex + 7 + nBaseIndex;
+        D_8005A1E4 = nQueueIndex + 7 + nBaseIndex;
         D_8005A1E8 = pFirst;
         D_8005A1EC = 0;
         D_8005A1F0 = NULL;
