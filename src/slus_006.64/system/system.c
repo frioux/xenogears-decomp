@@ -60,25 +60,18 @@ extern u16 D_8005A0CA[];
 extern u16 D_8005A0DE[];
 
 
-// A rendered string: glyph buffer, palette and the stack of data buffers that
-// SystemRenderStringEntry walks.
+// One row of a rendered string. func_80032F54 sets the sprites up as free-size
+// textured rects (code 0x64) and the rect up for LoadImage, which uploads the
+// row's glyphs to it; func_80034888 draws one sprite per render context.
 typedef struct {
-    /* 0x0 */ u8 red;
-    /* 0x1 */ u8 green;
-    /* 0x2 */ u8 blue;
-    /* 0x3 */ undefined8 unk3;
-    /* 0x4 */ undefined8 unk4[0x10];
-} SystemStringLine; // Size: 0x14
-
-typedef struct {
-    /* 0x0  */ undefined8 unk0[0x4];
-    /* 0x4  */ SystemStringLine lines[4];
-    /* 0x54 */ undefined8 unk54[0x4];
-    /* 0x58 */ s16 unk58;
-    /* 0x5A */ undefined8 unk5A[2];
-    /* 0x5C */ u8 unk5C;
-    /* 0x5D */ undefined8 unk5D;
-    /* 0x5E */ s16 clut;                // g_SystemPalette1 or g_SystemPalette2
+    /* 0x00 */ SPRT sprt[2][2];  // [render context][first/second half: split at 0x100 VRAM units]
+    /* 0x50 */ RECT imageRect;   // VRAM rect the row's glyphs are uploaded to
+    /* 0x58 */ s16 x;
+    /* 0x5A */ u8 paletteIndex;  // picks g_SystemPalette1 or g_SystemPalette2
+    /* 0x5B */ u8 unk5B;
+    /* 0x5C */ u8 textureV;      // VRAM y of this row's glyphs
+    /* 0x5D */ u8 unk5D;
+    /* 0x5E */ s16 clut;         // g_SystemPalette1 or g_SystemPalette2
 } SystemStringChar; // Size: 0x60
 
 typedef struct SystemStringNode {
@@ -86,16 +79,19 @@ typedef struct SystemStringNode {
     /* 0x4 */ void* pData;
 } SystemStringNode; // Size: 0x8
 
+// A rendered string: glyph buffer, palette and the stack of data buffers that
+// SystemRenderStringEntry walks.
 typedef struct {
     /* 0x00 */ s16 lineWidth;
     /* 0x02 */ s16 charIndex;
     /* 0x04 */ s16 x;
     /* 0x06 */ s16 y;
-    /* 0x08 */ undefined8 unk8[4];
+    /* 0x08 */ s16 spriteWidth;  // (maxWidth | 1) * 4, the width of a row's sprites
+    /* 0x0A */ s16 maxWidth;     // lineWidth wraps here
     /* 0x0C */ s16 maxChars;
-    /* 0x0E */ s16 unkE;
+    /* 0x0E */ s16 textureY;     // VRAM y the rows' glyph strips start at
     /* 0x10 */ u16 flags;
-    /* 0x12 */ undefined8 unk12[2];
+    /* 0x12 */ s16 imageWidth;   // LoadImage RECT width of a row's glyph strip
     /* 0x14 */ s16 lineHeight;
     /* 0x16 */ s16 scrollRow;   // first row shown; charIndex - scrollRow is the row
     /* 0x18 */ s16 rowCount;    // rows started so far, taken mod maxChars + 1 for the palette
@@ -105,21 +101,22 @@ typedef struct {
     /* 0x24 */ undefined8 unk24[4];
     /* 0x28 */ SystemStringChar* pChars;
     /* 0x2C */ void* pCharBuffer;
-    /* 0x30 */ undefined8 unk30[0x38];
+    /* 0x30 */ DR_MODE drawMode[2];
+    /* 0x48 */ TILE clearTile[2];
     /* 0x68 */ u8 unk68;
     /* 0x69 */ u8 unk69;
     /* 0x6A */ u8 unk6A;
     /* 0x6B */ u8 stopCode;     // why rendering stopped: 1 end of text, 2/3 a stop code
-    /* 0x6C */ u8 unk6C;
+    /* 0x6C */ u8 waiting;      // a wait opcode ran; the next draw consumes it and stops advancing
     /* 0x6D */ undefined8 unk6D;
     /* 0x6E */ u8 lineOffset;
     /* 0x6F */ undefined8 unk6F;
-    /* 0x70 */ u32 unk70;
-    /* 0x74 */ undefined8 unk74[0xE];
+    /* 0x70 */ s32 args[4];      // values the number opcodes format into the text
+    /* 0x80 */ s16 stringRef;    // bank in the high byte, entry index in the low byte
     /* 0x82 */ s16 bufferCount;
-    /* 0x84 */ s16 unk84;
-    /* 0x86 */ s16 unk86;
-    /* 0x88 */ s16 unk88;
+    /* 0x84 */ s16 waitFrames;   // frames left to wait; 0 while running
+    /* 0x86 */ s16 charDelay;    // frames left before the next character
+    /* 0x88 */ s16 charDelayReload;
     /* 0x8A */ undefined8 unk8A[2];
     /* 0x8C */ SystemStringNode* pBufferStack;
 } SystemString; // Size: 0x90
@@ -471,15 +468,15 @@ void SystemStringClearStateFlags(SystemString* pString) {
     pString->flags &= ~0x8;
 
     if (pString->flags & 0x200) {
-        pString->unk84 = 0;
-        pString->unk6C = 0;
+        pString->waitFrames = 0;
+        pString->waiting = 0;
         pString->flags &= ~0x200;
     }
 }
 
 void SystemStringResetIfIdle(SystemString* pString) {
-    if (pString->unk84 == 0) {
-        pString->unk6C = 0;
+    if (pString->waitFrames == 0) {
+        pString->waiting = 0;
         pString->flags &= 0x2;
     }
 }
@@ -488,7 +485,7 @@ void SystemStringFreeBufferStack(SystemString* pString) {
     SystemStringNode* pNode;
     SystemStringNode* pOld;
 
-    if (pString->unk84 != 0) {
+    if (pString->waitFrames != 0) {
         return;
     }
 
@@ -505,8 +502,8 @@ void SystemStringFreeBufferStack(SystemString* pString) {
 }
 
 void SystemStringReset(SystemString* pString) {
-    pString->unk6C = 0;
-    pString->unk84 = 0;
+    pString->waiting = 0;
+    pString->waitFrames = 0;
     pString->flags &= 0x2;
     SystemStringFreeBufferStack(pString);
 }
@@ -562,18 +559,18 @@ void SystemStringSetColor(SystemString* pString, u8 red, u8 green, u8 blue) {
     for (i = 0; i < pString->maxChars; i++) {
         pChar = &pString->pChars[i];
 
-        pChar->lines[3].red = red;
-        pChar->lines[2].red = red;
-        pChar->lines[1].red = red;
-        pChar->lines[0].red = red;
-        pChar->lines[3].green = green;
-        pChar->lines[2].green = green;
-        pChar->lines[1].green = green;
-        pChar->lines[0].green = green;
-        pChar->lines[3].blue = blue;
-        pChar->lines[2].blue = blue;
-        pChar->lines[1].blue = blue;
-        pChar->lines[0].blue = blue;
+        pChar->sprt[1][1].r0 = red;
+        pChar->sprt[1][0].r0 = red;
+        pChar->sprt[0][1].r0 = red;
+        pChar->sprt[0][0].r0 = red;
+        pChar->sprt[1][1].g0 = green;
+        pChar->sprt[1][0].g0 = green;
+        pChar->sprt[0][1].g0 = green;
+        pChar->sprt[0][0].g0 = green;
+        pChar->sprt[1][1].b0 = blue;
+        pChar->sprt[1][0].b0 = blue;
+        pChar->sprt[0][1].b0 = blue;
+        pChar->sprt[0][0].b0 = blue;
     }
 }
 
