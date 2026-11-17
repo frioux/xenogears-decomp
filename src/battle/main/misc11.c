@@ -667,7 +667,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800816F8);
    moved to an 8-aligned offset: the three 0x20-byte asm tables before it
    (func_8008115C/80081318/80081504) plus func_80080160's 0x194 table put it at
    0x1F4, and the backend hardcodes the table alignment. Only convertible
-   together with a change that makes the offset 8-aligned. Best body kept. */
+   together with a change that makes the offset 8-aligned. Best body kept.
+   Re-measured: converting this one alone gives check_bin.sh battle MISMATCH
+   with build/out/battle.bin 343940 bytes against disc's 343936 - exactly the
+   one pad word - while the function is 420 bytes, retail's. The unit's .rodata
+   starts at 0x8006FE7C (file 0x38C), 4 mod 8, and retail's seven switch tables
+   sit at .rodata-relative 0x194, 0x1B4, ... 0x254, i.e. all 4 mod 8 (they are
+   8-aligned in vram, which is the alignment cc1's `.align 3` does NOT use). So
+   every one of them pads and only the 101-word table at +0 can be aligned. */
 /*
 void func_800816F8(u8 arg0) {
     u8 a;
@@ -813,7 +820,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
    but then `li a0,0x2` displaces arg0 from $s0 and an extra `move a0,s0` appears
    (344 bytes, 98.35%). A 4-minute permuter run (base 505 -> 149) proposed reusing
    the loop local for the index (`i = arg0 * 8; g_BattleSlotFlags[i] = 2;`), which
-   is the same 344-byte/no-link shape. */
+   is the same 344-byte/no-link shape. Re-measured this round, all at 340 bytes
+   except where noted: `*(g_BattleSlotFlags + arg0 * 8) = 2;` (cast form) 96.00,
+   a shared `u8 state = 2` local for both `2` stores 96.00, a pointer local for
+   the flags index 96.00, `i = 0;` before the store 96.00, the load hoisted into
+   a `charId` local 91.65 (344), the store made volatile 91.47 (344), the index
+   taken through an `s64` local 95.41 (352), and `do { } while (0)` 98.35 (344).
+   A second 3-minute permuter run from this body went 470 -> 394 and its only
+   find was the `s64` index local, i.e. nothing portable. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800826CC);
 /*
 void func_800826CC(u8 arg0) {
