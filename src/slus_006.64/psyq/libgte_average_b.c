@@ -93,39 +93,123 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotMatrixYXZ);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotMatrixZYX);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotMatrixX);
-/* best attempt 15.53%. The control flow below reproduces the original exactly
-   (abs on r, the table lookup duplicated in both branches, s/c pulled out of one
-   lw, the six 16-bit products) but gcc 2.7.2 allocates the table/dest registers
-   as v0/at/v1/a3 instead of the original's t9/t8/t1/t0 and emits `mult` where the
-   original has `multu`. Casting the products to u_int gives multu but spills 16
-   bytes of frame, and no preset in a try_flags sweep beats 18.85%.
 extern long D_800523F0[]; // one entry per 1/4096 turn, (cos << 16) | sin
 
+/* Sony's vector.s, transcribed like ScaleMatrix: gcc emits `mult` (not the
+   original's `multu`), never merges the trig lookup's sign handling, and reads
+   the table through its own registers, so a C body scores 15.53%. The original
+   masks the angle before the sign test picks the branch and negates sin in the
+   negative branch (RotMatrixY negates in the positive one), and pulls sin and
+   cos out of the single table word with sll/sra and sra. */
 MATRIX *RotMatrixX(long r, MATRIX *m) {
-    long s, c;
-    long i0, i1, i2, i3, i4, i5;
+    register MATRIX *pRet __asm__("$2");
 
-    if (r < 0) {
-        r = -r;
-        s = -(short)D_800523F0[r & 0xfff];
-        c = D_800523F0[r & 0xfff] >> 16;
-    } else {
-        s = (short)D_800523F0[r & 0xfff];
-        c = D_800523F0[r & 0xfff] >> 16;
-    }
-    i0 = m->m[1][0];
-    i1 = m->m[1][1];
-    i2 = m->m[1][2];
-    i3 = m->m[2][0];
-    i4 = m->m[2][1];
-    i5 = m->m[2][2];
-    m->m[1][0] = (i0 * c - i3 * s) >> 12;
-    m->m[1][1] = (i1 * c - i4 * s) >> 12;
-    m->m[1][2] = (i2 * c - i5 * s) >> 12;
-    m->m[2][0] = (i0 * s + i3 * c) >> 12;
-    m->m[2][1] = (i1 * s + i4 * c) >> 12;
-    m->m[2][2] = (i2 * s + i5 * c) >> 12;
-    return m;
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "addu\t$15, $4, $0\n\t"
+                      "addu\t$2, $5, $0\n\t"
+                      "bgez\t$15, .LRMXpos\n\t"
+                      "andi\t$25, $15, 4095\n\t"
+                      "negu\t$15, $15\n\t"
+                      "bgez\t$15, .LRMXneg\n\t"
+                      "andi\t$15, $15, 4095\n\t"
+                      ".LRMXneg:\n\t"
+                      "sll\t$24, $15, 2\n\t"
+                      "lui\t$25, %%hi(D_800523F0)\n\t"
+                      "addu\t$25, $25, $24\n\t"
+                      "lw\t$25, %%lo(D_800523F0)($25)\n\t"
+                      "nop\n\t"
+                      "sll\t$14, $25, 16\n\t"
+                      "sra\t$14, $14, 16\n\t"
+                      "negu\t$9, $14\n\t"
+                      "j\t.LRMXjoin\n\t"
+                      "sra\t$8, $25, 16\n\t"
+                      ".LRMXpos:\n\t"
+                      "sll\t$24, $25, 2\n\t"
+                      "lui\t$25, %%hi(D_800523F0)\n\t"
+                      "addu\t$25, $25, $24\n\t"
+                      "lw\t$25, %%lo(D_800523F0)($25)\n\t"
+                      "nop\n\t"
+                      "sll\t$24, $25, 16\n\t"
+                      "sra\t$9, $24, 16\n\t"
+                      "sra\t$8, $25, 16\n\t"
+                      ".LRMXjoin:\n\t"
+                      "lh\t$10, 6($5)\n\t"
+                      "lh\t$13, 12($5)\n\t"
+                      "multu\t$8, $10\n\t"
+                      "lh\t$11, 8($5)\n\t"
+                      "lh\t$14, 14($5)\n\t"
+                      "mflo\t$24\n\t"
+                      "lh\t$12, 10($5)\n\t"
+                      "lh\t$15, 16($5)\n\t"
+                      "multu\t$9, $13\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "mflo\t$25\n\t"
+                      "subu\t$25, $24, $25\n\t"
+                      "sra\t$24, $25, 12\n\t"
+                      "multu\t$8, $11\n\t"
+                      "sh\t$24, 6($5)\n\t"
+                      "nop\n\t"
+                      "mflo\t$24\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "multu\t$9, $14\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "mflo\t$25\n\t"
+                      "subu\t$25, $24, $25\n\t"
+                      "sra\t$24, $25, 12\n\t"
+                      "multu\t$8, $12\n\t"
+                      "sh\t$24, 8($5)\n\t"
+                      "nop\n\t"
+                      "mflo\t$24\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "multu\t$9, $15\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "mflo\t$25\n\t"
+                      "subu\t$25, $24, $25\n\t"
+                      "sra\t$24, $25, 12\n\t"
+                      "multu\t$9, $10\n\t"
+                      "sh\t$24, 10($5)\n\t"
+                      "nop\n\t"
+                      "mflo\t$24\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "multu\t$8, $13\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "mflo\t$25\n\t"
+                      "addu\t$25, $24, $25\n\t"
+                      "sra\t$24, $25, 12\n\t"
+                      "multu\t$9, $11\n\t"
+                      "sh\t$24, 12($5)\n\t"
+                      "nop\n\t"
+                      "mflo\t$24\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "multu\t$8, $14\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "mflo\t$25\n\t"
+                      "addu\t$25, $24, $25\n\t"
+                      "sra\t$24, $25, 12\n\t"
+                      "multu\t$9, $12\n\t"
+                      "sh\t$24, 14($5)\n\t"
+                      "nop\n\t"
+                      "mflo\t$24\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "multu\t$8, $15\n\t"
+                      "nop\n\t"
+                      "nop\n\t"
+                      "mflo\t$25\n\t"
+                      "addu\t$25, $24, $25\n\t"
+                      "sra\t$24, $25, 12\n\t"
+                      "sh\t$24, 16($5)\n\t"
+                      ".set\treorder"
+                      : "=r"(pRet) : : "$8", "$9", "$10", "$11", "$12", "$13",
+                          "$14", "$15", "$24", "$25", "memory");
+    return pRet;
 }
-*/
