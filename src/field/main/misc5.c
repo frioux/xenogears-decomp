@@ -3,6 +3,7 @@
 #include "field/actor.h"
 #include "system/memory.h"
 #include "psyq/libgpu.h"
+#include "field/camera.h"
 #include "field/effects.h"
 #include "field/graphics.h"
 #include "field/particles.h"
@@ -1272,7 +1273,99 @@ void FieldSetSpriteUVs(int nQuad, int x, int y) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A84C0);
+extern POLY_FT4* g_FieldSpritePolys[];
+extern s32 g_FieldSpritePrimsAllocated;
+extern long FieldGetVec2Magnitude(long, long);
+extern long ratan2(long y, long x);
+extern s32 D_800AEB60;
+extern s32 D_800AEB64;
+
+// Camera eye and at, 16.16 fixed point (the sprite colour code below reads
+// them as three longs each)
+typedef struct {
+    /* 0x0 */ s32 vx;
+    /* 0x4 */ s32 vy;
+    /* 0x8 */ s32 vz;
+} FieldCameraPosition;
+
+extern FieldCameraPosition g_CameraEye;
+extern FieldCameraPosition g_CameraAt;
+
+// Primitive count one render context's sprite poly list holds
+#define FIELD_SPRITE_POLY_COUNT 0x6D
+
+// Colour of the sprite prims, and which ordering table slot they are linked into
+#define FIELD_SPRITE_POLY_OT_INDEX 4
+
+void func_800A84C0(void) {
+    s32 nCameraAngle;
+    s32 nInterpAngle;
+    s32 nPolyCount;
+    int i;
+
+    if (g_FieldSpritePrimsAllocated == 0) {
+        return;
+    }
+    nPolyCount = FIELD_SPRITE_POLY_COUNT;
+
+    nCameraAngle = ratan2(
+                       FieldGetVec2Magnitude((g_CameraAt.vx - g_CameraEye.vx) >> 16,
+                           (g_CameraAt.vz - g_CameraEye.vz) >> 16),
+                       (g_CameraAt.vy - g_CameraEye.vy) >> 16) &
+        0xFFF;
+    nInterpAngle = g_CamInterpolation.curAngleY & 0xFFF;
+
+    for (i = 0; i < 0x10; i++) {
+        FieldSetSpriteUVs(i, (nInterpAngle >> 4) & 0xF, 0);
+        addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+            &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+    }
+    for (; i < 0x1D; i++) {
+        FieldSetSpriteUVs(i, 0, (nCameraAngle >> 4) & 0xF);
+        addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+            &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+    }
+    for (; i < 0x22; i++) {
+        FieldSetSpriteUVs(i, (nInterpAngle & 0xF) << 3, 0);
+        nInterpAngle >>= 2;
+        addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+            &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+    }
+    for (; i < 0x27; i++) {
+        FieldSetSpriteUVs(i, (nCameraAngle & 0xF) << 3, 0);
+        nCameraAngle >>= 2;
+        addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+            &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+    }
+    for (; i < 0x28; i++) {
+        if ((D_800AEB60 & 0xF) == 0) {
+            D_800AEB64++;
+        }
+        if (D_800AEB64 >= 3) {
+            D_800AEB64 = 0;
+        }
+        FieldSetSpriteUVs(i, 0, D_800AEB64 << 3);
+        addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+            &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+    }
+    for (; i < 0x2A; i++) {
+        FieldSetSpriteUVs(i, (D_800AEB60 >> 2) & 0xF, 0);
+        addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+            &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+    }
+    for (; i < 0x2B; i++) {
+        if (!(D_800AEB60 & 0x10)) {
+            addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+                &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+        }
+    }
+    for (; i < nPolyCount; i++) {
+        addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
+            &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
+    }
+    D_800AEB60++;
+}
+
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
 
