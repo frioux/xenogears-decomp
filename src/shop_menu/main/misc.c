@@ -4121,25 +4121,32 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
 }
 
 INCLUDE_ASM("asm/shop_menu/nonmatchings/main/misc", ShopMenuSellMenu);
-// 95.12%, 2028 bytes (retail 2032): ported from the 100% twin gear_shop_menu/main/render.c
-// GearShopMenuSellMenu, so the block order, the five alloca'd arrays and the switch bodies are
-// right -- only the 4-byte jtbl operand and the register allocation differ. The delta is ONE
-// allocation decision, found by reading retail's own asm: retail keeps pItemSellQtys in $s7,
-// redrawTransactionSummary in $s6, and spills itemCount to 0x90($fp) *inside* the coalesce loop
-// ("addiu t4,t4,1 / sw t4,0x90($fp) / ... / lw t4,0x90($fp)", retail 0xC05C-0xC068); this
-// version instead keeps itemCount in $s6 and spills pItemSellQtys to 0x70($fp), which shifts
-// every later stack slot by 8 (currentGold 0x88 not 0x80) and costs the 4 bytes. Frame is 0xD0.
-// Tried and did NOT change the allocation: itemCount++ vs itemCount += 1, indexed coalesce writes
-// (pItemIds[itemCount] = ...), and a 4-minute permuter run (base 3015, best 2265) whose only two
-// finds were a declaration-order swap (no objdiff change) and a semantics-changing move of
-// 'scrollOffset -= 1' out of the MENU_INPUT_DOWN guard (not portable). Note retail does NOT
-// reproduce the twin's 'itemType = 0; itemCount = itemType;' shape here: itemCount is written
-// every iteration, so the ShopMenu version increments itemCount itself.
+// 98.61%, 2024 bytes (retail 2032), frame and every stack slot identical to retail. Ported from
+// the 100% twin gear_shop_menu/main/render.c GearShopMenuSellMenu (same gcc 2.6.0 preset).
+// Two findings that got it from 95.12 to 98.61:
+// 1. The key-item test is NOT an inline 'a || b' expression: retail emits
+//    andi/sltiu/addu v1,v0/andi 0xff, which only comes from a u_char local assigned TRUE, then
+//    overwritten in an if/else. The '||' spelling compiles to srl/xori/andi (97.79%).
+// 2. The coalesce loop counter must be a separate counter copied into itemCount after the loop
+//    (the twin's itemType shape). Making itemCount itself the counter - the shape that matches
+//    retail's per-iteration store - makes gcc give itemCount $s6 and spill pItemSellQtys to
+//    0x70, shifting every later slot by 8 (95.95%).
+// The whole remaining delta is ONE allocation: retail's counter is memory-resident and synced
+// every iteration ("addiu t4,t4,1 / sw t4,0x90($fp) / lbu v0,0(a2) / lw t4,0x90($fp)", retail
+// 0xC05C); ours keeps it in $a3 and stores it once in the jal delay slot, which is what the twin
+// does and is 2 instructions short. Tried without effect: itemCount as the counter (95.95),
+// itemCount declared first / last / with an initializer, 'itemCount = itemCount + 1', volatile
+// itemCount (90.49), a separate int j counter, itemType as the only counter with no itemCount
+// local, pItemSellQtys declared before the allocas, the '&&' guard form, moving
+// 'itemCount = itemType' into the loop (98.65, register scramble). Two permuter runs (4 and 8
+// minutes from this body, base 701 -> 666) found only a declaration-order no-op and a
+// semantics-changing write to continueProcessing, so this needs a real lever, not more shapes.
 /*
 void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys, int itemType, u8 flag1, u8* pGivenItemTypes, u8 flag2) {
     u8 continueProcessing = TRUE;
     u8 redrawWindows = TRUE;
     u8 redrawTransactionSummary = TRUE;
+    u_char isSellable;
     int rowIndex = 0;
     int newRowIndex = 0xFF;
     int scrollOffset = 0;
@@ -4175,20 +4182,29 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
     }
 
     // coalesce the item quantities, dropping the empty slots
-    itemCount = 0;
+    itemType = 0;
     for (i = 0; i < listLength; i++) {
         if (pInventoryItemIds[i]) {
             if (pInventoryQtys[i]) {
-                if ((pItemTypes[i] != ITEM_TYPE_ITEM) || ((g_Menu->pDressingRoom->pItemsData[pInventoryItemIds[i]].displayFlags & 0x10) == 0)) {
-                    pItemIds[itemCount] = pInventoryItemIds[i];
-                    pItemQtys[itemCount] = pInventoryQtys[i];
-                    pItemIsOwned[itemCount] = 1;
-                    itemCount++;
+                isSellable = TRUE;
+                if (pItemTypes[i] == ITEM_TYPE_ITEM) {
+                    if (g_Menu->pDressingRoom->pItemsData[pInventoryItemIds[i]].displayFlags & 0x10) {
+                        isSellable = FALSE;
+                    } else {
+                        isSellable = TRUE;
+                    }
+                }
+                if (isSellable) {
+                    pItemIds[itemType] = pInventoryItemIds[i];
+                    pItemQtys[itemType] = pInventoryQtys[i];
+                    pItemIsOwned[itemType] = 1;
+                    itemType++;
                 }
             }
         }
     }
 
+    itemCount = itemType;
     ShopMenuInitializeArrowCursor(0);
 
     while (continueProcessing) {
@@ -4323,6 +4339,7 @@ void ShopMenuSellMenu(s32 listLength, u8* pInventoryItemIds, u8* pInventoryQtys,
     }
 }
 */
+
 
 int ShopMenuSellEquipmentMenu(void) {
     u_char itemIDs[8];
