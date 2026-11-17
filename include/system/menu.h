@@ -243,12 +243,11 @@ typedef struct {
     /* 0x4C94 */ u8 unk4C94[0x2E0];
     /* 0x4F74 */ s32 cardErrorCodes[2];
     /* 0x4F7C */ s32 selectedSlot;
-    /* 0x4F80 */ s32 unk4F80;
+    /* 0x4F80 */ s32 previousSelectedSlot; // Slot the character window was last rebuilt for, 0xFF = none
     /* 0x4F84 */ s32 slotWriteCursor; // Next free index into slotRecordIndexes
     /* 0x4F88 */ u8 cardEnumerated[2]; // One flag per memory card, set once its directory was listed
     /* 0x4F8A */ u8 cardSlotCounts[2]; // Directory entries found, one count per card
-    /* 0x4F8C */ u8 unk4F8C;
-    /* 0x4F8D */ u8 unk4F8D;
+    /* 0x4F8C */ u8 previousCardSlotCounts[2]; // cardSlotCounts[] as read last time, one per card
     /* 0x4F8E */ u8 slotHasGameSave[0x20]; // One flag per card slot, set when its record's game code matched
     /* 0x4FAE */ u8 slotRecordIndexes[0x20]; // Index into records[]/chunks[] per card slot, 0xFF = empty
     /* 0x4FCE */ u8 gameSerialCode[0xC];
@@ -294,7 +293,7 @@ typedef struct {
     /* 0x4A */ u8 shouldRenderPanel[0x4]; // One flag per 0x360/0x430/0x434/0x438 panel
     /* 0x4E */ u8 shouldRenderStrings17E0[2];
     /* 0x50 */ u8 shouldRenderArrowCursor[MENU_MAX_NUM_ARROW_CURSORS]; // Should render arrow cursor (array, size 3?)
-    /* 0x52 */ u8 unk52;
+    /* 0x52 */ u8 cellGridScrollState; // 0 off, 1 scrolling the cell grid one step per frame, 2 drawn but not advanced
     /* 0x53 */ u_char shoulderButtonUiActive;
     /* 0x54 */ u8 shouldRenderStrings18E0[0x6];
     /* 0x5A */ u8 shouldRenderShop; // Gates the shop's primitive batch
@@ -814,7 +813,7 @@ typedef struct {
     /* 0x43C  */ MenuScrollBarHandle* pScrollHandle;
     /* 0x440  */ MenuShoulderButtonUi* pShoulderButtonUi;
     /* 0x444  */ MenuArrowCursor* arrowCursors[MENU_MAX_NUM_ARROW_CURSORS];
-    /* 0x44C  */ u8 unk44C[0x4];
+    /* 0x44C  */ void* pCellGrid; // Cell grid panel block, allocated in func_801CAE08, drawn by MenuAddCellGridPrims
     /* 0x450  */ MenuShop* pShop;
     /* 0x454  */ MenuUnk8* menuUnk8;
     /* 0x458  */ SystemMenuArchiveData *pGearModelArchiveData[2]; // Per gear-model slot: its two archive files, load position and isModelCreated

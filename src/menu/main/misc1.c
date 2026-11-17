@@ -396,7 +396,7 @@ void func_801C6400(void) {
    for (i = 0; i < 2; i++) {
        g_Menu->menuUnk2->cardEnumerated[i] = 0;
        g_Menu->menuUnk2->cardSlotCounts[i] = 0;
-       ((u8*)&g_Menu->menuUnk2->unk4F8C)[i] = 0xFF;
+       ((u8*)g_Menu->menuUnk2->previousCardSlotCounts)[i] = 0xFF;
    }
    for (i = 0; i < 0x20; i++) {
        g_Menu->menuUnk2->records[i].unk58 = 0;

@@ -538,7 +538,7 @@ u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
 }
 
 void MenuResetSlotSelection(void) {
-    g_Menu->menuUnk2->unk4F80 = 0xFF;
+    g_Menu->menuUnk2->previousSelectedSlot = 0xFF;
     g_Menu->menuUnk2->selectedSlot = 0;
     if (g_Menu->menuUnk2->cardStatus[0] == 0 && g_Menu->menuUnk2->cardStatus[1] != 0) {
         g_Menu->menuUnk2->selectedSlot = 0xF;

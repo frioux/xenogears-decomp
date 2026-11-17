@@ -68,8 +68,8 @@ void MenuShutdown(void) {
     for (i = 0; i < 0x20; i++) {
         g_Menu->menuUnk2->records[i].unk58 = 0;
     }
-    g_Menu->menuUnk2->unk4F8C = 0xFF;
-    g_Menu->menuUnk2->unk4F8D = 0xFF;
+    g_Menu->menuUnk2->previousCardSlotCounts[0] = 0xFF;
+    g_Menu->menuUnk2->previousCardSlotCounts[1] = 0xFF;
     D_801EA904 = 0;
     g_MenuCardSlotTotals = 0;
     DrawSync(0);

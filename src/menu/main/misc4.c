@@ -483,30 +483,30 @@ typedef struct {
 void func_801CFF64(void) {
     s32 value;
 
-    if (((u8*)g_Menu->pManager)[0x52] == 0) {
+    if (g_Menu->pManager->cellGridScrollState == 0) {
         return;
     }
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk8 = 0x20;
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unkA = 0x61;
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unkC =
-        *(u16*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + 0x20;
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unkE = 0x61;
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk10 = 0x20;
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk12 = 0x68;
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk14 =
-        *(u16*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + 0x20;
-    ((MenuUnk44CEntry*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18))->unk16 = 0x68;
-    if (g_Menu->idleFrameCount % 6 >= 4 || ((u8*)g_Menu->pManager)[0x52] == 2) {
-        MenuRenderString(2, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x3F0), ((u8**)g_Menu->unk44C)[0][0x7B8]);
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk8 = 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkA = 0x61;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkC =
+        *(u16*)((u8*)g_Menu->pCellGrid + 0x7B0) + 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkE = 0x61;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk10 = 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk12 = 0x68;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk14 =
+        *(u16*)((u8*)g_Menu->pCellGrid + 0x7B0) + 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk16 = 0x68;
+    if (g_Menu->idleFrameCount % 6 >= 4 || g_Menu->pManager->cellGridScrollState == 2) {
+        MenuRenderString(2, (POLY_FT4*)((u8*)g_Menu->pCellGrid + 0x3F0), ((u8*)g_Menu->pCellGrid)[0x7B8]);
     }
-    MenuRenderString(0xC, (POLY_FT4*)(((u8**)g_Menu->unk44C)[0] + 0x30), ((u8**)g_Menu->unk44C)[0][0x7B8]);
+    MenuRenderString(0xC, (POLY_FT4*)((u8*)g_Menu->pCellGrid + 0x30), ((u8*)g_Menu->pCellGrid)[0x7B8]);
     AddPrim(&g_Menu->pGfxEnv->ot[4],
-            (void*)(((u8**)g_Menu->unk44C)[0] + ((u8**)g_Menu->unk44C)[0][0x7B8] * 0x18));
-    if (((u8*)g_Menu->pManager)[0x52] == 1) {
-        value = *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) + *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B4);
-        *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) = value;
+            (void*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18));
+    if (g_Menu->pManager->cellGridScrollState == 1) {
+        value = *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) + *(s32*)((u8*)g_Menu->pCellGrid + 0x7B4);
+        *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) = value;
         if (value >= 0x101) {
-            *(s32*)(((u8**)g_Menu->unk44C)[0] + 0x7B0) = 0;
+            *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) = 0;
         }
     }
 }
