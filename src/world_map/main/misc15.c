@@ -9,8 +9,8 @@ typedef struct {
     /* 0x02 */ s16 stateTimer;
     /* 0x04 */ s16 command;
     /* 0x06 */ u8 unk6[0x12];
-    /* 0x18 */ s32 pEnterHandler; // called once in state 0; its return is the next state
-    /* 0x1C */ s32 pUpdateHandler; // called every frame in state 1; NULL while the slot is free
+    /* 0x18 */ s32 (*pEnterHandler)(s32); // called once in state 0; its return is the next state
+    /* 0x1C */ s32 (*pUpdateHandler)(s32); // called every frame in state 1; NULL while the slot is free
     /* 0x20 */ u16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 unk24[0x28];
@@ -388,12 +388,12 @@ void WorldMapClearSlotPool(void) {
     }
 }
 
-void WorldMapSetSlotEnterHandler(s32 value, s32 index) {
+void WorldMapSetSlotEnterHandler(s32 (*pHandler)(s32), s32 index) {
     g_WorldMapSlots[index].state = 0;
-    g_WorldMapSlots[index].pEnterHandler = value;
+    g_WorldMapSlots[index].pEnterHandler = pHandler;
 }
 
-void WorldMapAddSlot(s32 value18, s32 value1C) {
+void WorldMapAddSlot(s32 (*pEnterHandler)(s32), s32 (*pUpdateHandler)(s32)) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
@@ -401,8 +401,8 @@ void WorldMapAddSlot(s32 value18, s32 value1C) {
             g_WorldMapSlots[i].state = 0;
             g_WorldMapSlots[i].stateTimer = 0;
             g_WorldMapSlots[i].command = 0;
-            g_WorldMapSlots[i].pEnterHandler = value18;
-            g_WorldMapSlots[i].pUpdateHandler = value1C;
+            g_WorldMapSlots[i].pEnterHandler = pEnterHandler;
+            g_WorldMapSlots[i].pUpdateHandler = pUpdateHandler;
             g_WorldMapSlots[i].unk20 = 0;
             g_WorldMapSlots[i].unk22 = 0;
             break;
@@ -448,10 +448,10 @@ void func_80097800(void) {
         }
         switch (pSlot->state) {
         case 0:
-            pSlot->state = ((s32(*)(s32))pSlot->pEnterHandler)(i);
+            pSlot->state = pSlot->pEnterHandler(i);
             break;
         case 1:
-            pSlot->state = ((s32(*)(s32))pSlot->pUpdateHandler)(i);
+            pSlot->state = pSlot->pUpdateHandler(i);
             break;
         case 2:
             if (--pSlot->stateTimer <= 0) {
