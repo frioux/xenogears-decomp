@@ -643,10 +643,16 @@ void WorldMapFlushDrawAndCache(void) {
     FlushCache();
     ExitCriticalSection();
 }
+// One of the two swap buffers at g_WorldMapGfxEnvs: the draw and disp env a frame is
+// staged through, and the two ordering table heads it fills.
+typedef struct {
+    /* 0x00 */ DRAWENV drawEnv; // Size: 0x5C
+    /* 0x5C */ DISPENV dispEnv; // Size: 0x14
+    /* 0x70 */ u_long* pOt[2];
+} WorldMapGfxEnv; // Size: 0x78
+
 extern int g_SpuChannelMask;
-extern DISPENV D_8009BC9C;
-extern DISPENV g_WorldMapFrameEnvs;
-extern DRAWENV D_8009BC40;
+extern WorldMapGfxEnv g_WorldMapGfxEnvs[2];
 extern u16 g_WorldMapPad1Released;
 extern u16 g_WorldMapPad2Released;
 extern u16 g_WorldMapPad1Pressed;
@@ -679,7 +685,7 @@ void WorldMapWaitForButtonRelease(void) {
         rect.h = 0xD8;
         MoveImage(&rect, 0, 0);
     }
-    pDispEnv = &D_8009BC9C;
+    pDispEnv = &g_WorldMapGfxEnvs[1].dispEnv;
     PutDispEnv(pDispEnv);
     PutDrawEnv((DRAWENV*)((u8*)pDispEnv - 0x5C));
     SoundMuteAllSpuChannels();
@@ -710,10 +716,8 @@ void WorldMapWaitForButtonRelease(void) {
     rect.w = 0x140;
     rect.h = 0xD8;
     MoveImage(&rect, 0, 0xD8);
-    pDispEnv = &g_WorldMapFrameEnvs;
-    PutDispEnv((DISPENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
-    pDispEnv = (DISPENV*)((u8*)pDispEnv - 0x5C);
-    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
+    PutDispEnv(&g_WorldMapGfxEnvs[g_WorldMapPrimPacketIndex].dispEnv);
+    PutDrawEnv(&g_WorldMapGfxEnvs[g_WorldMapPrimPacketIndex].drawEnv);
     g_SpuChannelMask = savedValue;
 }
 
@@ -734,7 +738,7 @@ void WorldMapWaitForControllerConnected(void) {
         rect.h = 0xD8;
         MoveImage(&rect, 0, 0);
     }
-    pDispEnv = &D_8009BC9C;
+    pDispEnv = &g_WorldMapGfxEnvs[1].dispEnv;
     PutDispEnv(pDispEnv);
     PutDrawEnv((DRAWENV*)((u8*)pDispEnv - 0x5C));
     SoundMuteAllSpuChannels();
@@ -765,10 +769,8 @@ void WorldMapWaitForControllerConnected(void) {
     rect.w = 0x140;
     rect.h = 0xD8;
     MoveImage(&rect, 0, 0xD8);
-    pDispEnv = &g_WorldMapFrameEnvs;
-    PutDispEnv((DISPENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
-    pDispEnv = (DISPENV*)((u8*)pDispEnv - 0x5C);
-    PutDrawEnv((DRAWENV*)((u8*)pDispEnv + g_WorldMapPrimPacketIndex * 0x78));
+    PutDispEnv(&g_WorldMapGfxEnvs[g_WorldMapPrimPacketIndex].dispEnv);
+    PutDrawEnv(&g_WorldMapGfxEnvs[g_WorldMapPrimPacketIndex].drawEnv);
     g_SpuChannelMask = savedValue;
 }
 void WorldMapPlayBgmFromBuffer(u8* pSrc, s32 index) {
