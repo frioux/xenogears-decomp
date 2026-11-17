@@ -191,13 +191,13 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // that register and drop retail's separate `lw v0,64(s0)`. Slot store order is
 // source-insensitive here: z second, z third and an 0x80 local all reproduce
 // 92.64% byte for byte.
-/*
 s32 func_80080A28(s32 index) {
     u8 *p = g_WorldMapGroups;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = 0xFFF80000;
+    do { } while (0);
     pSlot->unk54 = -0x800;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
@@ -207,8 +207,6 @@ s32 func_80080A28(s32 index) {
     WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
     return 3;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080AC4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
 void WorldMapExitToMap1FA(void) {
