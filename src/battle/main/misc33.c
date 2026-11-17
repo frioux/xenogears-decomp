@@ -128,13 +128,26 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x10];
     /* 0x60 */ s32 countdown;
     /* 0x64 */ s32 rotZStep;
-    /* 0x68 */ u8 colorR;
-    /* 0x69 */ u8 colorG;
-    /* 0x6A */ u8 colorB;
-    /* 0x6B */ u8 unk6B;
+    // Set up one channel at a time, but drawn as the whole prim colour word.
+    /* 0x68 */ union {
+        /* 0x68 */ u32 word;
+        /* 0x68 */ struct {
+            /* 0x68 */ u8 red;
+            /* 0x69 */ u8 green;
+            /* 0x6A */ u8 blue;
+            /* 0x6B */ u8 unk6B;
+        } channels;
+    } color;
     /* 0x6C */ s32 partCount;
     /* 0x70 */ BattleSpritePart parts[8];
 } BattleSpriteBody; // Size: 0x130
+
+// The work-list entry the frame loop passes to each callback: +4 is the data block
+// WorkListsAddTasks allocated for the task.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ BattleSpriteBody *pBody;
+} BattleSpriteBodyTask; // Size: 0x8
 
 extern BattleSpriteBody *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCallback,
                                           void *pWorkCallback, void *pOnFreeCallback);
@@ -173,11 +186,11 @@ typedef struct {
 } BattleGeomMatrix; // Size: 0x20
 
 extern BattleGeomMatrix g_BattleGeomMatrix;
-extern void func_800BD810(u8 *pEntry, u8 *pData);
+extern void func_800BD810(BattleSpritePart *pPart, u32 color);
 
-void BattleRenderSpriteBody(u8 *pTask) {
-    u8 *pData;
-    u8 *pEntry;
+void BattleRenderSpriteBody(BattleSpriteBodyTask *pTask) {
+    BattleSpriteBody *pBody;
+    BattleSpritePart *pPart;
     MATRIX mtx;
     SVECTOR padVec; // unused: reproduces retail's 0x80 frame
     SVEC vec;
@@ -188,16 +201,16 @@ void BattleRenderSpriteBody(u8 *pTask) {
     s32 i;
     s32 j;
 
-    pData = *(u8 **)(pTask + 0x4);
+    pBody = pTask->pBody;
     ReadGeomOffset(&ofx, &ofy);
     sxy.vx = (0xA0 - ofx) * 2;
     sxy.vy = (0x46 - ofy) * 2;
     sxy.vz = ReadGeomScreen();
     g_BattleGeomMatrix.geomScreen = ReadGeomScreen();
-    SpriteCopySVec(&vec, (SVEC *)(pData + 0x38));
-    scale.vx = *(s32 *)(pData + 0x40);
-    scale.vy = *(s32 *)(pData + 0x44);
-    scale.vz = *(s32 *)(pData + 0x48);
+    SpriteCopySVec(&vec, (SVEC *)&pBody->rot);
+    scale.vx = pBody->scale.vx;
+    scale.vy = pBody->scale.vy;
+    scale.vz = pBody->scale.vz;
     for (i = 0; i != 6; i++) {
         RotMatrix((SVECTOR *)&vec, &mtx);
         TransMatrix(&mtx, &sxy);
@@ -206,11 +219,11 @@ void BattleRenderSpriteBody(u8 *pTask) {
         SetRotMatrix(&mtx);
         SetTransMatrix(&mtx);
         j = 0;
-        pEntry = pData + 0x70;
-        while (j != *(s32 *)(pData + 0x6C)) {
-            func_800BD810(pEntry, *(u8 **)(pData + 0x68));
+        pPart = pBody->parts;
+        while (j != pBody->partCount) {
+            func_800BD810(pPart, pBody->color.word);
             j++;
-            pEntry += 0x18;
+            pPart++;
         }
         vec.z -= 5;
         scale.vx -= 0x330;
@@ -233,7 +246,7 @@ void BattleCreateNumberSpriteTask(s32 value) {
         pBody->rotZStep = 6;
     }
     pBody->countdown = 0x20;
-    pBody->unk6B = 0x2E;
+    pBody->color.channels.unk6B = 0x2E;
     pBody->scale.vx = 0x2000;
     pBody->scale.vy = 0x2000;
     pBody->scale.vz = 0x2000;
@@ -244,24 +257,24 @@ void BattleCreateNumberSpriteTask(s32 value) {
     pBody->rot.vz = 0;
     switch (mode) {
     case 0xB:
-        pBody->colorR = 0;
-        pBody->colorG = 0;
-        pBody->colorB = 0x80;
+        pBody->color.channels.red = 0;
+        pBody->color.channels.green = 0;
+        pBody->color.channels.blue = 0x80;
         break;
     case 3:
-        pBody->colorR = 0x80;
-        pBody->colorG = 0;
-        pBody->colorB = 0x80;
+        pBody->color.channels.red = 0x80;
+        pBody->color.channels.green = 0;
+        pBody->color.channels.blue = 0x80;
         break;
     case 2:
-        pBody->colorR = 0;
-        pBody->colorG = 0x80;
-        pBody->colorB = 0;
+        pBody->color.channels.red = 0;
+        pBody->color.channels.green = 0x80;
+        pBody->color.channels.blue = 0;
         break;
     default:
-        pBody->colorR = 0x80;
-        pBody->colorG = 0x80;
-        pBody->colorB = 0x80;
+        pBody->color.channels.red = 0x80;
+        pBody->color.channels.green = 0x80;
+        pBody->color.channels.blue = 0x80;
         break;
     }
     func_800BE6E8(value, digits, 5, 0, 0);
