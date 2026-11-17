@@ -44,7 +44,11 @@ typedef struct {
     /* 0x30 */ u8 unk30;
     /* 0x31 */ u8 unk31;
     /* 0x32 */ u16 unk32;
-    /* 0x34 */ u8 unk34[0x18];
+    /* 0x34 */ u8 unk34[0x10];
+    // Two 32-bit numbers the menu window draws wide (up to 8 digits) with
+    // MenuParseNumberToDigits.
+    /* 0x44 */ s32 unk44;
+    /* 0x48 */ s32 unk48;
     /* 0x4C */ u_short hp;
     /* 0x4E */ u_short maxHp;
     /* 0x50 */ u_short mp;
@@ -85,11 +89,11 @@ typedef struct {
 } GameCharacter; // size: 0xA4
 
 typedef struct {
-    /* 0x00 */ u16 unk0;
+    /* 0x00 */ u16 flags; // OR'ed into GameGear.unk86's top nibble once unk4 reads 100, see MenuApplyGearWeapons
     /* 0x02 */ u8 attack;
     /* 0x03 */ u8 unk3;
     /* 0x04 */ u8 unk4;
-    /* 0x05 */ u8 unk5;
+    /* 0x05 */ u8 weaponId; // the weapon this cached record holds, see BattleGearHasWeaponId
     /* 0x06 */ u16 unk6;
 } GearWeaponData;
 

@@ -10,7 +10,7 @@ void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
     pWeapon = pDressingRoom->pGearWeapons;
     pWeapon += pGear->weaponId[0];
     pGear->weaponData[0].attack = pWeapon->attack;
-    pGear->weaponData[0].unk0 = pWeapon->unk12;
+    pGear->weaponData[0].flags = pWeapon->unk12;
     pGear->weaponData[0].unk3 = pWeapon->unk10;
     pGear->weaponData[0].unk4 = pWeapon->unk11;
 
@@ -21,14 +21,14 @@ void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
 
     if (pGear->weaponData[0].unk4 == 100) {
         pGear->unk86 = pGear->unk86 & 0xFFF;
-        pGear->unk86 |= pGear->weaponData[0].unk0;
+        pGear->unk86 |= pGear->weaponData[0].flags;
     }
     if ((gearId == 5) || (gearId == 0xD)) {
         pWeapon = pDressingRoom->pGearWeapons;
         pWeapon += pGear->extraWeaponIds[0];
 
         pGear->weaponData[0].attack = pWeapon->attack;
-        pGear->weaponData[0].unk0 = pWeapon->unk12;
+        pGear->weaponData[0].flags = pWeapon->unk12;
         pGear->weaponData[0].unk3 = pWeapon->unk10;
         pGear->weaponData[0].unk4 = pWeapon->unk11;
         pGear->unk5C[1] = pWeapon->unk0[1];
@@ -36,7 +36,7 @@ void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
         pWeapon = pDressingRoom->pGearWeapons;
         pWeapon += pGear->extraWeaponIds[1];
         pGear->weaponData[1].attack = pWeapon->attack;
-        pGear->weaponData[1].unk0 = pWeapon->unk12;
+        pGear->weaponData[1].flags = pWeapon->unk12;
         pGear->weaponData[1].unk3 = pWeapon->unk10;
         pGear->weaponData[1].unk4 = pWeapon->unk11;
         pGear->unk5C[2] = pWeapon->unk0[2];
@@ -44,7 +44,7 @@ void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
         pWeapon = pDressingRoom->pGearWeapons;
         pWeapon += pGear->extraWeaponIds[3];
         pGear->weaponData[2].attack = pWeapon->attack;
-        pGear->weaponData[2].unk0 = pWeapon->unk12;
+        pGear->weaponData[2].flags = pWeapon->unk12;
         pGear->weaponData[2].unk3 = pWeapon->unk10;
         pGear->weaponData[2].unk4 = pWeapon->unk11;
         pGear->unk5C[3] = pWeapon->unk0[3];
