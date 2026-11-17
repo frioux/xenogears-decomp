@@ -97,6 +97,9 @@ typedef struct {
     /* 0x20 */ u8* pImage;
 } Misc10Block; // Size: 0x24
 
+// A battle participant as this unit drives it. Only the fields this unit
+// touches are named; the unexplored blocks are the layout src/battling/main/
+// misc4.c's Actor names (position/velocity at 0x00, part state from 0x4C).
 typedef struct {
     /* 0x000 */ u8 unk000[0x58];
     /* 0x058 */ u8* pTimData;
@@ -105,9 +108,10 @@ typedef struct {
     /* 0x064 */ u8 unk064[0x18];
     /* 0x07C */ u8* pPartTimings;
     /* 0x080 */ Misc10ActionSlot* pActions;
-    /* 0x084 */ u8 unk084[0x4C];
+    /* 0x084 */ u8* pActionEntry; // the entry the move in progress selected (src/battling/main/misc4.c)
+    /* 0x088 */ u8 unk088[0x48];
     /* 0x0D0 */ u32 flags;
-    /* 0x0D4 */ u8 unk0D4[0x4];
+    /* 0x0D4 */ u32 stateFlags; // masked and tested by the movement code (src/battling/main/misc4.c)
     /* 0x0D8 */ u8* pTarget;
     /* 0x0DC */ u8 unk0DC[0x1A8];
     /* 0x284 */ u32* pDisplayWork;
@@ -118,7 +122,9 @@ typedef struct {
     /* 0x908 */ u8 visiblePartCount;
     /* 0x909 */ u8 typeId;
     /* 0x90A */ u8 typeFlags;
-    /* 0x90B */ u8 unk90B[0x6];
+    /* 0x90B */ u8 timer; // counted down by the ground-effect pass (src/battling/main/misc4.c)
+    /* 0x90C */ u8 unk90C[0x4];
+    /* 0x910 */ u8 soundTimer; // frames left before the gauge sound repeats (src/battling/main/misc3.c)
     /* 0x911 */ u8 flaggedActionCount;
     /* 0x912 */ u8 unflaggedActionCount;
     /* 0x913 */ u8 unk913[0xCC1];
