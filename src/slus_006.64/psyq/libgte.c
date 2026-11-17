@@ -174,4 +174,80 @@ void func_80048DD8(void) {
                           "$13", "$14", "memory");
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", MatrixNormal);
+/* Sony's MatrixNormal, transcribed from MSC02.OBJ. It normalises the two rows
+   it keeps in R11R22R33 with OP (outer product) and runs the three result
+   triples through func_80048DD8, whose operands and results ride in $8-$10 with
+   $ra parked in $a3 (see psyq/libgte). The block is in noreorder mode so the
+   three `jal` delay slots come out as retail has them (nop, nop, the last
+   `addu`), and it ends before the third row's stores so gcc's own epilogue can
+   put the last one in the `jr` delay slot. The two pointers stay in $a0/$a1, so
+   the block spells them out (as VectorNormal does) and the C stores the third
+   row through `n`. */
+void MatrixNormal(MATRIX *m, MATRIX *n) {
+    register long t0 __asm__("$8");
+    register long t1 __asm__("$9");
+    register long t2 __asm__("$10");
+
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lh\t$8, 0( $4 )\n\t"
+                      "lh\t$9, 2( $4 )\n\t"
+                      "lh\t$10, 4( $4 )\n\t"
+                      "lh\t$11, 6( $4 )\n\t"
+                      "lh\t$12, 8( $4 )\n\t"
+                      "lh\t$13, 10( $4 )\n\t"
+                      "cfc2\t$2, $0\n\t"
+                      "cfc2\t$3, $2\n\t"
+                      "cfc2\t$6, $4\n\t"
+                      "ctc2\t$8, $0\n\t"
+                      "ctc2\t$9, $2\n\t"
+                      "ctc2\t$10, $4\n\t"
+                      "mtc2\t$13, $11\n\t"
+                      "mtc2\t$11, $9\n\t"
+                      "mtc2\t$12, $10\n\t"
+                      "nop\n\t"
+                      ".word\t0x4b78000c\n\t"
+                      "mfc2\t$15, $25\n\t"
+                      "mfc2\t$24, $26\n\t"
+                      "mfc2\t$25, $27\n\t"
+                      "ctc2\t$11, $0\n\t"
+                      "ctc2\t$12, $2\n\t"
+                      "ctc2\t$13, $4\n\t"
+                      "nop\n\t"
+                      ".word\t0x4b78000c\n\t"
+                      "mtc2\t$11, $0\n\t"
+                      "mtc2\t$12, $1\n\t"
+                      "mtc2\t$13, $2\n\t"
+                      "mfc2\t$8, $25\n\t"
+                      "mfc2\t$9, $26\n\t"
+                      "mfc2\t$10, $27\n\t"
+                      "ctc2\t$2, $0\n\t"
+                      "ctc2\t$3, $2\n\t"
+                      "ctc2\t$6, $4\n\t"
+                      "addu\t$7, $31, $zero\n\t"
+                      "jal\tfunc_80048DD8\n\t"
+                      "nop\n\t"
+                      "sh\t$8, 0( $5 )\n\t"
+                      "sh\t$9, 2( $5 )\n\t"
+                      "sh\t$10, 4( $5 )\n\t"
+                      "mfc2\t$8, $0\n\t"
+                      "mfc2\t$9, $1\n\t"
+                      "mfc2\t$10, $2\n\t"
+                      "jal\tfunc_80048DD8\n\t"
+                      "nop\n\t"
+                      "sh\t$8, 6( $5 )\n\t"
+                      "sh\t$9, 8( $5 )\n\t"
+                      "sh\t$10, 10( $5 )\n\t"
+                      "addu\t$8, $15, $zero\n\t"
+                      "addu\t$9, $24, $zero\n\t"
+                      "jal\tfunc_80048DD8\n\t"
+                      "addu\t$10, $25, $zero\n\t"
+                      "addu\t$31, $7, $zero\n\t"
+                      ".set\treorder"
+                      : "=r"(t0), "=r"(t1), "=r"(t2)
+                      :
+                      : "$2", "$3", "$6", "$7", "$11", "$12", "$13", "$15",
+                        "$24", "$25", "memory");
+    n->m[2][0] = t0;
+    n->m[2][1] = t1;
+    n->m[2][2] = t2;
+}
