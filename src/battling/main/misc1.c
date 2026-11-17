@@ -650,44 +650,28 @@ extern void BattleReturnToMainLoop(void);
 extern void func_8007107C(void);
 extern void func_8007099C(s32 mode);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80072170);
+/* Steps the battle display state machine for the current frame: plays the effect
+   sound, places a burst from a random source actor on the effect cells, fades the
+   screen and keeps the tutorial message text in step.
+   objdiff 99.89% at retail's 1080 bytes: the only differences are the switch's
+   table operand (jtbl_ vs .rodata) and the y/z stores naming g_BattleEffectCells+4/+8
+   where retail's object names D_800929F8/D_800929FC, which the linker resolves
+   identically. The case-1 loop needs the base as a mem_addr local (a pointer local
+   lets gcc address the cells through it and drops retail's repeated
+   'lui $at/%hi + addu $at,$at,offset' stores) and a byte offset rather than an
+   index (an indexed access gives loop.c a second induction pointer, +2 insns).
+*/
 
-/* 98.87% (1088 bytes vs retail's 1080): every statement, call, constant, case
-   order (11, 1, 2, 3, 4), jump-table entry and the shared fade: block reached
-   from case 3 (fallthrough) and case 4 (goto) is right; what is left is the
-   case-1 loop only. Retail hoists the effect-cell base out of the loop
-   ('lui s4,%hi(g_BattleEffectCells); addiu s4') and passes the element address to
-   BattleEffectAddSlotFromVector as 'addu a0,s0,s4' - base register plus the
-   i*0x10 byte offset that the x/y/z stores already need - which is why it keeps
-   SIX saved registers (frame 0x40). Every body tried here either re-forms that
-   base inside the loop (lui/addiu/addu, +2 insns) or lets loop.c turn the
-   address into its own induction pointer (separate increment in the delay
-   slot). Things that are settled and must not be re-derived: the loop bound is
-   a SIGNED compare ('slt', the bound cast); D_8009260C is read as a signed
-   halfword and both func_8008E2B8 call sites need the (s16) cast or they load
-   lhu; g_BattleSceneOriginYMirror/D_80098734 are reached as their own symbols in the fade block
-   while case 1 reads the same words off g_BattleActor1; the pCounter copy of pFrames
-   and the pVec local in front of the add-slot call are what took the previous
-   park from 97.21 to 98.87 (both found by the permuter). The 97.21% park WAS
-   retail's exact 1080 bytes (five saved registers, the call address
-   materialised with lui/addiu/addu inside the loop) - if the base hoist cannot
-   be expressed, that shape at least links.
-   A permuter run from this body found nothing better.
-   attempt:
-// Steps the battle display state machine for the current frame: plays the
-// effect sound, places a burst from a random source actor on the effect cells,
-// fades the screen and keeps the tutorial message text in step.
 void func_80072170(void) {
     BattleState* pState;
     BattleMessageWindow* pMsg;
     BattleAnchor* pAnchor;
-    VECTOR* pVec;
-    BattleEffectEmitter* pEmitter;
+    BattleEffectEmitter* pCell;
     BattleEffectOrigin* pOrigin;
     s32* pFrames;
-    s32* pCounter;
+    mem_addr base;
     long vec[3];
-    s32 i;
+    s32 offset;
     s32 frames;
     s32 count;
 
@@ -704,27 +688,26 @@ void func_80072170(void) {
         g_BattleStateStep = 1;
     case 1:
         pAnchor = &g_BattleActor1.position;
-        pEmitter = g_BattleEffectCells;
-        pFrames = &g_BattleEffectCells[0].frames;
-        i = 0;
+        base = (mem_addr)g_BattleEffectCells;
+        pFrames = (s32*)(base + 0xC);
+        offset = 0;
+        pCell = (BattleEffectEmitter*)base;
         do {
-            pCounter = pFrames;
-            frames = *pCounter - 1;
-            pEmitter->frames = frames;
+            frames = *pFrames - 1;
+            pCell->frames = frames;
             if (frames == -1) {
                 pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % g_BattleEffectPool->pPool->count];
-                g_BattleEffectCells[i].x = pOrigin->x + pAnchor->x;
-                g_BattleEffectCells[i].y = pOrigin->y + pAnchor->y;
-                g_BattleEffectCells[i].z = pOrigin->z + pAnchor->z;
-                *pCounter = rand() % 16 + 8;
+                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->x = pOrigin->x + pAnchor->x;
+                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->y = pOrigin->y + pAnchor->y;
+                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->z = pOrigin->z + pAnchor->z;
+                *pFrames = rand() % 16 + 8;
             }
-            pVec = (VECTOR*)&g_BattleEffectCells[i];
-            if (*pCounter & 1) {
-                BattleEffectAddSlotFromVector(pVec, 9);
+            if (*pFrames & 1) {
+                BattleEffectAddSlotFromVector((VECTOR*)(offset + base), 9);
             }
             pFrames += 4;
-            i++;
-            pEmitter++;
+            offset += 0x10;
+            pCell++;
         } while ((s32)pFrames < (s32)&D_80092A30);
         break;
     case 2:
@@ -776,7 +759,6 @@ fade:
     func_8007099C(g_BattleEffectPlaceMode);
     D_80098774 = 0;
 }
-*/
 
 
 
