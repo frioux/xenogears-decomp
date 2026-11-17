@@ -529,32 +529,24 @@ void func_8007E6F0(u8 **arg0, u8 arg1) {
     pRow[p[3]] = pRow[p[1]] - pRow[p[2]];
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E740);
-/* best: 98.75%. The g_BattleSlotRows base/element register mirror of the old note is
-   gone: write the slot registers INLINE as g_BattleSlotRegs[arg1].dwordRegs[...] (the
-   +0x10 array of the 0x40-stride slot table; the relocation still names
-   g_BattleSlotRows) instead of a `u32 *pRow` local off g_BattleSlotRows. That one change
-   gets retail's base v0 / element v1 (a pRow local stays 95.31 with base and
-   element mirrored, an element-pointer local 94.38, a `BattleOpRegs *pSlot`
-   local 94.56, an `s32 idx = p[1]` local 98.75 with the same residual). What is
-   left is ONE register: the product gets a fresh a2 (`mflo a2; sw a2,0(v1)`)
-   where retail reuses the element value's dead v0 (`mflo v0; sw v0,0(v1)`) -
-   the element qty dies at the mult insn, so local-alloc will not hand its
-   register to a qty born at that same insn.
-   Tried and measured: u32 and s32 element, u32 and s32 product local, product
-   local before the store, casts on either operand, `elem = (u32)elem * p[2]`
-   (98.12), `elem *= p[2]` (98.12), and permute.sh --minutes 4 -j 2
-   (PERMUTER_NONE base=10 best=10, 1383 iterations).
-   DECISIVE LEAD: a NON-VOID return type forces the product into $2, and then
-   the access form alone decides the rest. Plain assignment
-   (`return elem = p[2] * elem;`) gives retail's mult operand order and every
-   register except p, which moves to v1 (95.00). Compound assignment
-   (`return elem *= p[2];`) gives EVERY register retail has and only the mult
-   operands print swapped (`mult v0,a0` vs retail `mult a0,v0`, 98.75, same
-   under s32 and u32). So retail's body is a plain `elem = p[2] * elem` whose
-   product reuses the element value's register: the missing lever is a form
-   where the element value and the product are ONE pseudo while the multiply is
-   still written p[2] first. The same inline access form may also be worth
-   trying on the func_8007E6A0/E6F0 parks above.
+/* best: 98.75% under this unit's Default (2.7.2) preset; BYTE-EXACT under gcc 2.6.0.
+   This stub is 2.6.0 code. With the body below, gcc-2.6.0 (-O2 or -O3, -G4 or -G8)
+   compiles retail's exact instruction stream, mult a0,v0 / mflo v0 / sw v0,0(v1); the
+   only remaining objdiff miss is the typed access's relocation (g_BattleSlotRegs+0x10
+   against retail's g_BattleSlotRows - the same address). Under 2.7.2 the product gets
+   a fresh a2 (mflo a2; sw a2,0(v1)) where retail reuses the element value's dead v0,
+   and no spelling moves it: element / product / qty locals, u32 and s32, pReg pointer,
+   element-pointer and `BattleOpRegs *pSlot` locals, the inline double index, and
+   `return elem = p[2] * elem` all land at 98.75, as did a 4-minute permuter run
+   (base=10 best=10, 1383 iterations). The self-assignment form
+   (`elem = pCmd->operand2 * elem;`) does give mflo v0 with every other register right,
+   but gcc then prints the commutative mult as mult v0,a0 instead of retail's a0,v0.
+   PRESET SCREEN, do not redo: compiling the WHOLE unit under gcc-2.6.0 leaves every
+   other matched function instruction-identical (func_8007E6A0/E6F0 included) EXCEPT
+   BattleStoreCharSlotFlagMask, where 2.6.0 folds the final `(u16)acc >> 1` into
+   `andi v0,s0,0xfffe` against retail's `andi v0,s0,0xffff`. So misc9 wants a preset
+   SPLIT at BattleStoreCharSlotFlagMask (2.7.2 for the head, 2.6.0 for the
+   func_8007E6A0 - func_8007E740 run), not a unit switch.
 void func_8007E740(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
 
