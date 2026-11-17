@@ -388,7 +388,7 @@ void func_801CF37C(void) {
         if (!valid) {
             continue;
         }
-        pData = (u8*)g_Menu->unk3A8[i];
+        pData = (u8*)g_Menu->pCellPrimBlocks[i];
         *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB4) = ((u8*)g_Menu)[0x4D4];
         *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB5) = ((u8*)g_Menu)[0x4D4];
         *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB6) = ((u8*)g_Menu)[0x4D4];

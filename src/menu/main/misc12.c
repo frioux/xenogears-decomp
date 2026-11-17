@@ -104,26 +104,26 @@ void func_801E6CFC(s32 index, u8* pEntry) {
 
     MenuParseNumberToDigits(*(u16*)(pEntry + (u_char)index * 2 + 4));
     offset = (u_char)index * 0x87C;
-    ((u8*)g_Menu->unk34C + offset)[0x130A] = 0;
+    ((u8*)g_Menu->pPrimBuffer + offset)[0x130A] = 0;
     for (; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
-            ((u8*)g_Menu->unk34C + offset)[0x130A] += func_8002675C(g_Menu->resources,
+            ((u8*)g_Menu->pPrimBuffer + offset)[0x130A] += func_8002675C(g_Menu->resources,
                 g_Menu->digits[6 + i],
-                (POLY_FT4*)((u8*)g_Menu->unk34C + offset + 0xA98
-                    + (((u8*)g_Menu->unk34C + offset)[0x130A] * 0x50 + 0x500)),
+                (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + offset + 0xA98
+                    + (((u8*)g_Menu->pPrimBuffer + offset)[0x130A] * 0x50 + 0x500)),
                 g_Menu->renderContext, D_801EA02C + (u_char)index * 0x50 + i * 8, D_801EA030, 0x1000);
         }
     }
     i = 0;
     MenuParseNumberToDigits(*(u16*)(pEntry + (u_char)index * 2 + 0xA));
-    ((u8*)g_Menu->unk34C + offset)[0x130B] = 0;
+    ((u8*)g_Menu->pPrimBuffer + offset)[0x130B] = 0;
     n = 0;
     for (; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
-            ((u8*)g_Menu->unk34C + offset)[0x130B] += func_8002675C(g_Menu->resources,
+            ((u8*)g_Menu->pPrimBuffer + offset)[0x130B] += func_8002675C(g_Menu->resources,
                 g_Menu->digits[6 + i],
-                (POLY_FT4*)((u8*)g_Menu->unk34C + offset + 0xA98
-                    + (((u8*)g_Menu->unk34C + offset)[0x130B] * 0x50 + 0x5F0)),
+                (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + offset + 0xA98
+                    + (((u8*)g_Menu->pPrimBuffer + offset)[0x130B] * 0x50 + 0x5F0)),
                 g_Menu->renderContext, D_801EA034 + (u_char)index * 0x50 + n * 8, D_801EA038, 0x1000);
             n++;
         }
@@ -179,16 +179,16 @@ void MenuDrawCharacterSlots(s32 arg0) {
     func_801E61B0();
     for (; i < 3; i++) {
         if (*(pEntry + i + 0x1C) != 0xFF) {
-            *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 1;
+            *(u8*)((u8*)g_Menu->pPrimBuffer + offset + 0x1310) = 1;
             MenuDrawSlotSprite(i, pEntry);
             MenuDrawSlotResourceSprites(i, pEntry);
             func_801E6CFC(i, pEntry);
             func_801E6F5C(i, pEntry);
             MenuLoadSlotCharacterNameTexture((u_char)i, pEntry, arg0);
         } else {
-            *(u8*)((u8*)g_Menu->unk34C + offset + 0x1310) = 0;
+            *(u8*)((u8*)g_Menu->pPrimBuffer + offset + 0x1310) = 0;
         }
-        *(u8*)((u8*)g_Menu->unk34C + offset + 0x130F) = *(u8*)&g_Menu->renderContext;
+        *(u8*)((u8*)g_Menu->pPrimBuffer + offset + 0x130F) = *(u8*)&g_Menu->renderContext;
         offset += 0x87C;
     }
     func_801E68AC(pEntry);
@@ -201,10 +201,10 @@ void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
         if (arg1 != 0) {
             MenuDrawCharacterSlots(arg0);
             func_801E6668(arg0);
-            ((u8*)g_Menu->unk34C)[0x2DBC] = 1;
+            ((u8*)g_Menu->pPrimBuffer)[0x2DBC] = 1;
         } else {
             func_801E6668(arg0);
-            ((u8*)g_Menu->unk34C)[0x2DBC] = 0;
+            ((u8*)g_Menu->pPrimBuffer)[0x2DBC] = 0;
         }
         g_Menu->pManager->unkB = 1;
     }
