@@ -309,18 +309,6 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     }
     g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = count;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc8", func_8007CDD0);
-// best: 99.43% (212 bytes = retail's exact size). Identical instruction stream
-// except one register swap: retail accumulates the a*8 term into its own register
-// (`addu v1,v1,v0`) and then loads g_BattleSlotParamTable into v0; ours puts the
-// index in v0 and the table base in v1. Hand shapes tried (all 95.75-99.43%):
-// the constant order swapped, an s32 index local (initialiser and += forms), the
-// table pointer hoisted to a local, `(op << 3) + (slotTag << 6)`, and the two tag
-// locals declared in the opposite order. Permuter (4 min, 2167 iterations) found
-// nothing: base=30 best=30. The tag reads are the typed form
-// `g_BattleSlotRecords[i].tag`. The two D_ address spellings are what the
-// link-identical forms would be (g_BattleSlotRows[row].unk00 / a 0x10 byte view).
-/*
 void func_8007CDD0(u8 **arg0, u8 arg1) {
     u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
     u8 value = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]);
@@ -329,9 +317,8 @@ void func_8007CDD0(u8 **arg0, u8 arg1) {
     s32 opOffset = op * 8;
     u8 slotTag = g_BattleSlotRecords[arg1 + 3].tag;
 
-    pRow[(*arg0)[1]] = g_BattleSlotParamTable[opOffset + slotTag * 0x40 + 0x140];
+    pRow[(*arg0)[1]] = g_BattleSlotParamTable[(opOffset + (slotTag * (op = 0x40))) + 0x140];
 }
-*/
 
 void BattleStoreCharSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
     s32 count = 0;
