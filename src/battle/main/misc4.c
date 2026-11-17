@@ -198,22 +198,19 @@ void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleSlotEntries[arg0].flags &= 0x8000;
 }
 
-/* REAL PERCENTAGE 70.25% (560 bytes, retail's exact size) with the third parameter added to the
-   definition (the extern in this file takes 3 args and BattleDispatchCommandRecords passes a2, so
-   the 2-argument park never compiled - that is what the sweep reported as ERROR; the note's 70.25
-   was in fact measured on this shape). Prologue and the slot-flag scan are byte-identical,
-   including the idx copy the loop needs (u8 idx = i at the top of the body, slot = idx in the
-   break): with slot = i written directly gcc keeps the branch inverted and the loop never matches.
-   Everything from the 0xC3E3D store to the memmove differs only in instruction ORDER and CSE:
-   retail hoists (slot-3)<<6, (arg0-3)<<6 and then arg0*0x170 in that order and keeps one register
-   (v0) for all four register-file words, ours hoists arg0*0x170 first and merges the four loads
-   above the four stores. The copy is four u32 accesses off the four absolute symbols
-   g_BattleSlotRegs/04/08/0C (that is what retail's four distinct relocations are), NOT one typed
-   struct copy: *(Head*)... = *(...) gives a 4-register block move and g_BattleSlotRegs[i].unk0
-   lanes give a base register instead of retail's symbol+index $at form. Tried: u8 src/dst locals
-   (masks the result, 62.56), inline (slot-3)*0x40 at every use (68.14, 552 bytes), the four copies
-   wrapped in an empty do/while block (68.89). NOTE the four loads also want to stay interleaved with
-   their stores; ours hoists them (t0-t3 vs retail's repeated v0).*/
+/* Best: 70.25%, retail's exact 560 bytes. The prologue, the slot-bit scan and everything from the
+   memmove on match; the difference is INSTRUCTION ORDER inside the copy block, and it is a
+   SCHEDULER difference, not a CSE one. Retail keeps the four register-file copies interleaved
+   load/store with one register (v0) and emits the index chains between them
+   ((slot-3)*0x40, (arg0-3)*0x40 first, then &g_BattleWorkBlock[arg0], then &g_BattleWorkBlock[slot]
+   between the 2nd and 4th copies); our compile hoists all four `lw` above every store and puts both
+   &g_BattleWorkBlock chains at the top of the block. Retail's four copies are four DISTINCT symbol
+   relocations (g_BattleSlotRegs, D_800D3404, D_800D3408, D_800D340C, each with the same src/dst
+   index), which is four lui/addiu $at pairs - a single 0x40-byte struct with 4 u32 fields would need
+   one base and 3 fewer instructions, so the four-symbol form is the right one.
+   Measured and discarded: -O1 63.53, -O3 70.25 (same C, so not a flag/level question), u8 src/dst
+   locals 62.56, (slot-3)*0x40 inline at every use 68.14/552 bytes, the four copies in a do/while
+   block 68.89, 2-argument definition (does not compile - the extern takes 3). */
 /*
 void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
     u8 slot;
@@ -243,7 +240,8 @@ void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
     D_800C402F[g_BattleCommandQueue->count * 72] = 0xFB;
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
-}*/
+}
+ */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80078E24);
 
 void BattleApplyCommandByteVar(u8 arg0, u8 arg1, u8 arg2) {
