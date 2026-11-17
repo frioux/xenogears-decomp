@@ -167,7 +167,7 @@ void func_80096A6C(s32 mode, u8 *pResult) {
             D_8009BCD0 = 0;
             D_8009BCCC = 0;
             CdReadyCallback(func_80096C0C);
-            CdControlF(0x1B, NULL);
+            CdControlF(CdlReadS, NULL);
             break;
         case 3:
             if (g_WorldMapCdCurrentSector == 0) {
@@ -177,32 +177,32 @@ void func_80096A6C(s32 mode, u8 *pResult) {
             }
             break;
         case 10:
-            if (pResult[0] & 0x10) {
-                CdControlF(1, NULL);
+            if (pResult[0] & CdlStatShellOpen) {
+                CdControlF(CdlNop, NULL);
             } else {
-                CdControlF(0x13, NULL);
+                CdControlF(CdlGetTN, NULL);
                 g_WorldMapCdReadState = 0xB;
             }
             break;
         case 11:
             g_WorldMapCdReadState = 0xC;
-            CdControlF(9, NULL);
+            CdControlF(CdlPause, NULL);
             break;
         case 12:
             pLoc = &g_WorldMapCdReadLocation;
             g_WorldMapCdReadState = 1;
             CdIntToPos(g_WorldMapCdExpectedSector, pLoc);
-            CdControlF(2, (u8 *)pLoc);
+            CdControlF(CdlSetloc, (u8 *)pLoc);
             break;
         }
     } else {
-        if (pResult[0] & 0x10) {
+        if (pResult[0] & CdlStatShellOpen) {
             g_WorldMapCdReadState = 0xA;
             g_WorldMapCdReadErrorCount++;
-            CdControlF(1, NULL);
+            CdControlF(CdlNop, NULL);
         } else {
             g_WorldMapCdReadState = 0xB;
-            CdControlF(0x13, NULL);
+            CdControlF(CdlGetTN, NULL);
         }
     }
 }
