@@ -92,14 +92,15 @@ typedef struct BattleActor {
     /* 0x00B8 */ s16 prevGaugeValue;
     /* 0x00BA */ s16 gaugeLevel;
     /* 0x00BC */ s16 gaugeMax;
-    /* 0x00BE */ s16 unkBE;
+    /* 0x00BE */ s16 breakThresholdOffset;
     /* 0x00C0 */ u8 gaugeWidth;
     /* 0x00C1 */ u8 prevGaugeWidth;
     /* 0x00C2 */ u8 flashTimer;
     /* 0x00C3 */ u8 actionPhaseTimer;
     /* 0x00C4 */ u8 state;
     /* 0x00C5 */ u8 actionPhase;
-    /* 0x00C6 */ u8 unkC6[0x2];
+    /* 0x00C6 */ u8 prevState;
+    /* 0x00C7 */ u8 padC7;
     // Frames left in the current step: func_80075B50 sets it from the move
     // record when the step is taken, func_80077038 counts it down, and at zero
     // the move's frame count is cleared for the stop animation (0x300000).
@@ -138,7 +139,8 @@ typedef struct BattleActor {
     /* 0x090E */ u8 savedModelIndex;
     /* 0x090F */ u8 unk90F;
     /* 0x0910 */ u8 soundTimer;
-    /* 0x0911 */ u8 unk911[0x3];
+    /* 0x0911 */ u8 actionCount;
+    /* 0x0912 */ u8 pad912[0x2];
     // Counts down after an action entry was rejected; while it runs the queue is
     // flushed each frame and no action is entered.
     /* 0x0914 */ s16 actionWaitTimer;
@@ -146,8 +148,10 @@ typedef struct BattleActor {
     // advanced by the same step as stateTimer in func_80075B50, but decremented
     // per frame instead: whenever it still reads >= 0x26 (the first frames after
     // a move began) BattleUpdateActorMovement re-enters the move.
-    /* 0x0916 */ s16 unk916;
-    /* 0x0918 */ u8 unk918;
+    /* 0x0916 */ s16 moveReentryTimer;
+    // The actor's stage-light intensity, set when a step starts here and drained
+    // 0x18 a frame by misc9's light pass (BattleFadeActorLights).
+    /* 0x0918 */ u8 lightAlpha;
     /* 0x0919 */ u8 pad919[0x3];
     /* 0x091C */ Vec4 unk91C;
     // One of the two world points whose y words bound the actor; 0x93C is the
@@ -158,7 +162,9 @@ typedef struct BattleActor {
     /* 0x095C */ Vec4 prevCenterPosition;
     /* 0x096C */ u8 unk96C[0x4];
     /* 0x0970 */ s32 gaugeDrain;
-    /* 0x0974 */ Vec4 unk974;
+    // Position of the target slot the current step walks to, copied from the
+    // selected record by func_80075B50.
+    /* 0x0974 */ Vec4 moveGoalPosition;
     /* 0x0984 */ u8 unk984[0x1C];
     /* 0x09A0 */ BattleMessageQueue messageQueue;
     /* 0x09C3 */ u8 actionIndex;
@@ -401,7 +407,9 @@ extern u32 D_80091198[];
 typedef struct {
     /* 0x00 */ u32 value;
     /* 0x04 */ u8 percent;
-    /* 0x05 */ u8 unk5[0x7];
+    /* 0x05 */ u8 pad5[0x3];
+    // Last value drawn; a change restamps frameStart (misc4 names the same record).
+    /* 0x08 */ u32 prevValue;
     // 12.4 animation frames, printed as FRAME:%d-%d: the frame the value last
     // changed at, and the actor's current one (misc2 func_800740E4 writes both).
     /* 0x0C */ s32 frameStart;
@@ -553,8 +561,8 @@ s32 func_80077038(BattleActor* p) {
     } else {
         p->flags &= ~0x1000;
     }
-    if (p->unk916 != 0) {
-        p->unk916--;
+    if (p->moveReentryTimer != 0) {
+        p->moveReentryTimer--;
     }
     if (p->actionWaitTimer != 0) {
         p->actionWaitTimer--;
@@ -706,7 +714,7 @@ void BattleActorBeginMove(BattleActor* p, s32 ang, s32 shift, s32 dec) {
     p->modelIndex = 8;
     p->prevPartIndex = 0xFF;
     p->moveTimer = 0x3C;
-    p->unk916 = 0x28;
+    p->moveReentryTimer = 0x28;
     p->stateTimer = 0x28;
     p->state = 4;
     p->actionPhase = 0;
@@ -773,7 +781,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
             goto done;
         }
         mid = (p->baseVertexPos.y - p->centerPosition.y) * 2 / 3 + p->centerPosition.y;
-        if (p->unk974.y < mid) {
+        if (p->moveGoalPosition.y < mid) {
             if ((flags & 0x700000) == 0x100000) {
                 p->modelIndex = 7;
                 p->prevPartIndex = 0xFF;
@@ -795,9 +803,9 @@ short BattleUpdateActorMovement(BattleActor* p) {
             }
         }
     }
-    ang = ratan2(p->position.x - p->unk974.x, p->position.z - p->unk974.z);
+    ang = ratan2(p->position.x - p->moveGoalPosition.x, p->position.z - p->moveGoalPosition.z);
     dist = BattleVectorDistance2D(&p->position, p->pTarget);
-    if (dist < BattleVectorDistance2D(&p->unk974, p->pTarget)) {
+    if (dist < BattleVectorDistance2D(&p->moveGoalPosition, p->pTarget)) {
         ang += 0x800;
     }
     decel = 1;
@@ -815,11 +823,11 @@ short BattleUpdateActorMovement(BattleActor* p) {
         decel = 0;
         /* fallthrough */
     default:
-        if (p->unk916 >= 0x26 || p->moveFrameCount >= 4) {
+        if (p->moveReentryTimer >= 0x26 || p->moveFrameCount >= 4) {
             BattleActorBeginMove(p, ang, 0xA, 0xA0);
             mode = 0xF;
             p->stateTimer = 0;
-            p->unk916 = 0;
+            p->moveReentryTimer = 0;
         } else {
             func_80077584(p, ang, 0xA, -decel & 0x1E);
         }
