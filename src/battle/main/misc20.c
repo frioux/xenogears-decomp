@@ -57,7 +57,7 @@ void BattleExecuteActionRow(void) {
             BattleRollPercentAndSetState38();
         }
     }
-    if (g_BattleActingSlot->unk90[0x10] == 5 || g_BattleActingSlot->unk90[0x10] == 0xD) {
+    if (g_BattleActingSlot->gearId == 5 || g_BattleActingSlot->gearId == 0xD) {
         if (g_BattleCurWorkBlock->rowIndex == 1) {
             g_BattleCurrentRow->element = D_800D2D6C->weaponData[1].attack;
         }
@@ -99,7 +99,7 @@ void BattleExecuteActionRow(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
     u16 a = D_800D2D6C->unk84;
-    u16 b = g_BattleActingSlot->unk8A;
+    u16 b = g_BattleActingSlot->accessoryEffectFlags4;
     u16 c;
 
     g_BattleCurWorkBlock->unk5FBC = g_BattleCurrentRow->unk20;
@@ -181,7 +181,7 @@ s32 func_8009D3A0(void) {
     if (g_BattleCurrentRow->actionFlags & 0x1000) {
         return 3;
     }
-    if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x100) {
+    if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x100) {
         return 3;
     }
     if (D_800C3E34->unk7C & 0x2000) {
@@ -238,7 +238,7 @@ s32 func_8009D3A0(void) {
         if (D_800C3E34->unk80 & 0x1000) {
             return 1;
         }
-        if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x800) {
+        if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x800) {
             hit += (s16)hit / 2;
         }
     }
@@ -250,14 +250,14 @@ s32 func_8009D3A0(void) {
     }
     rowMod = g_BattleCurrentRow->evadeModifier;
     chance = evade + (s8)rowMod - hit;
-    if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x20) {
+    if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x20) {
         roll = rand() % 100 - chance;
         if (roll < 50) {
             return 1;
         }
         return 3;
     }
-    if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x40) {
+    if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x40) {
         roll = rand() % 100 - chance;
         if (roll < 50) {
             return 1;
@@ -333,7 +333,7 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
             break;
         }
     }
-    v = D_800D2DC8->unk86[idx + 2];
+    v = D_800D2DC8->statusPenaltyPercent[idx];
     if (v != 0) {
         if (v < 0x14) {
             arg0 = arg0 * (0x14 - v) / 20;
