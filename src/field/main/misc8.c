@@ -371,16 +371,16 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
 */
 
 // Rectangular trigger zone given as a centre and per-axis half-extents, unlike
-// the quad-corner FieldTriggerZone. Centred on 0x22 (z) / 0x2A (x).
+// the quad-corner FieldTriggerZone.
 typedef struct {
     /* 0x0  */ u8 unk0[0x18];
-    /* 0x18 */ u_short unk18;
+    /* 0x18 */ u_short halfExtentZ;
     /* 0x1A */ u16 unk1A;
-    /* 0x1C */ u_short unk1C;
+    /* 0x1C */ u_short halfExtentX;
     /* 0x1E */ u8 unk1E[0x4];
-    /* 0x22 */ s16 unk22;
+    /* 0x22 */ s16 centerZ;
     /* 0x24 */ u8 unk24[0x6];
-    /* 0x2A */ s16 unk2A;
+    /* 0x2A */ s16 centerX;
 } FieldExtentZone; // Size: 0x2C
 
 void func_80281678(FieldExtentZone* pZone);
@@ -393,10 +393,10 @@ int FieldCheckPointInExtentZone(int z, int x, FieldExtentZone* pZone, int radius
     long triggerPos4;
 
     actorPosition2D = (z << 0x10) + x;
-    triggerPos1 = ((pZone->unk22 - pZone->unk18 - radius) << 0x10) + (pZone->unk2A + pZone->unk1C + radius);
-    triggerPos2 = ((pZone->unk22 + pZone->unk18 + radius) << 0x10) + (pZone->unk2A + pZone->unk1C + radius);
-    triggerPos3 = ((pZone->unk22 + pZone->unk18 + radius) << 0x10) + (pZone->unk2A - pZone->unk1C - radius);
-    triggerPos4 = ((pZone->unk22 - pZone->unk18 - radius) << 0x10) + (pZone->unk2A - pZone->unk1C - radius);
+    triggerPos1 = ((pZone->centerZ - pZone->halfExtentZ - radius) << 0x10) + (pZone->centerX + pZone->halfExtentX + radius);
+    triggerPos2 = ((pZone->centerZ + pZone->halfExtentZ + radius) << 0x10) + (pZone->centerX + pZone->halfExtentX + radius);
+    triggerPos3 = ((pZone->centerZ + pZone->halfExtentZ + radius) << 0x10) + (pZone->centerX - pZone->halfExtentX - radius);
+    triggerPos4 = ((pZone->centerZ - pZone->halfExtentZ - radius) << 0x10) + (pZone->centerX - pZone->halfExtentX - radius);
     if (NormalClip(triggerPos1, triggerPos2, actorPosition2D) < 0) {
         return -1;
     }
@@ -872,8 +872,8 @@ extern SoundFile* g_FieldSedsFile;
 void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1);
 
 typedef struct {
-    /* 0x0 */ u_short unk0;
-    /* 0x2 */ u_short unk2;
+    /* 0x0 */ u_short frameOffset;
+    /* 0x2 */ u_short soundEffect;
 } FieldUnk800AE060; // Size: 0x4
 
 extern FieldUnk800AE060 g_FieldSedsEntries[];
@@ -886,8 +886,8 @@ void FieldAdvanceSedsSequence(void) {
     if (g_FieldStreamId == 0xFF) {
         return;
     }
-    pDuration = &g_FieldSedsEntries[0].unk0;
-    pValue = &g_FieldSedsEntries[0].unk2;
+    pDuration = &g_FieldSedsEntries[0].frameOffset;
+    pValue = &g_FieldSedsEntries[0].soundEffect;
 loop:
     if (g_FieldStreamFramePosition < pDuration[g_FieldSedsEntryIndex * 2] + g_FieldStreamFrameBase) {
         return;
@@ -908,7 +908,7 @@ void FieldStopSedsPlayback(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
 /* 93.00% (252 vs 280 bytes). The inner scan is byte-identical to retail thanks
-   to two shapes found earlier: the scan is `while (1) { if (pEntry->unk0 ==
+   to two shapes found earlier: the scan is `while (1) { if (pEntry->frameOffset ==
    0xFFFF) break; pEntry++; i++; }` (a `while (cond)` gets inverted to a
    two-ended test) and the stream id is one `s16` local (gcc does not CSE a
    global across calls, so reading it inline reloads it three times).
@@ -944,7 +944,7 @@ void func_80085788(void) {
     for (count = 0; count < streamId + 1; count++) {
         pEntry = &g_FieldSedsEntries[i];
         while (1) {
-            if (pEntry->unk0 == 0xFFFF) {
+            if (pEntry->frameOffset == 0xFFFF) {
                 break;
             }
             pEntry++;
