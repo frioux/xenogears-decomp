@@ -17,7 +17,7 @@ extern s32 D_80091C30;
 extern s32 D_80096D88;
 extern s32 D_80096D8C;
 extern s32 D_80092914;
-extern u8 *D_80092938;
+extern u8 *g_BattleRootOrderingTable;
 extern RECT *g_BattleDrawSlot;
 
 extern void func_80030A30(s32 index, void *pLight);
@@ -156,8 +156,8 @@ extern s32 g_BattleMultiplyNodeMatrices;
 // The three words the node's translation is offset by; src/battling/main/misc16.c
 // declares them the same way (one global per word, read through .vx).
 extern VECTOR g_BattleViewOrigin;
-extern VECTOR D_80096FAC;
-extern VECTOR D_80096FB0;
+extern VECTOR g_BattleViewOriginY;
+extern VECTOR g_BattleViewOriginZ;
 extern void func_80030B14(MATRIX* pMatrix);
 extern void func_800731F8(MATRIX* pMatrix, SVECTOR* pVector);
 extern void BattleProjectShadowVerts(void* pSource, u8* pVerts);
@@ -180,8 +180,8 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
         pNode->unk4C.t[1] = 0;
         pNode->unk4C.t[0] = 0;
         pNode->localMatrix.t[0] = pNode->position.vx - g_BattleViewOrigin.vx;
-        pNode->localMatrix.t[1] = pNode->position.vy - D_80096FAC.vx;
-        pNode->localMatrix.t[2] = pNode->position.vz - D_80096FB0.vx;
+        pNode->localMatrix.t[1] = pNode->position.vy - g_BattleViewOriginY.vx;
+        pNode->localMatrix.t[2] = pNode->position.vz - g_BattleViewOriginZ.vx;
         CompMatrix(&pNode->pMatrices->localMatrix, &pNode->localMatrix, &pNode->localMatrix);
         break;
     case 0:
@@ -320,7 +320,7 @@ extern void func_8004546C(DR_MODE *pDrmode, RECT *pRect);
 
 void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
     BattleSetOrderingTableTarget((s32)pWork);
-    AddPrims(D_80092938, pWork->pPrim[g_BattleDrawBufferIndex], pWork->pOt[g_BattleDrawBufferIndex]);
+    AddPrims(g_BattleRootOrderingTable, pWork->pPrim[g_BattleDrawBufferIndex], pWork->pOt[g_BattleDrawBufferIndex]);
     if ((pWork->flags & 4) == 0) {
         func_800453E8(&pWork->drawModes[0][g_BattleDrawBufferIndex], g_BattleDrawSlot);
     }
@@ -328,10 +328,10 @@ void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
         func_8004546C(&pWork->drawModes[1][g_BattleDrawBufferIndex], g_BattleDrawSlot + 1);
     }
     if (pWork->flags & 0x10) {
-        AddPrim(D_80092938, pWork->prim48[g_BattleDrawBufferIndex]);
+        AddPrim(g_BattleRootOrderingTable, pWork->prim48[g_BattleDrawBufferIndex]);
     }
-    AddPrim(D_80092938, &pWork->drawModes[1][g_BattleDrawBufferIndex]);
-    AddPrim(D_80092938, &pWork->drawModes[0][g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &pWork->drawModes[1][g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &pWork->drawModes[0][g_BattleDrawBufferIndex]);
 }
 
 typedef struct {

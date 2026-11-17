@@ -10,7 +10,7 @@ extern u8 g_BattleSpritePool[];
 extern u8 g_BattleBlockPool[];
 extern u16 g_BattleCurrentActorSlot;
 extern u16 g_BattleCommandActorMask;
-extern u8 D_800D3611;
+extern u8 g_BattleColorTintPending;
 extern u8 *g_BattleActors[];
 
 extern void BattleFreeBlockPool(u8 *);
@@ -24,12 +24,12 @@ extern void func_800BF85C(s32, s32);
 extern void func_800A3640(void *, s32, s32, s16, s32, s16, s16, s32, s32, s32, s32, s16, s16, s16, s16, s32, s32, s32, s32);
 
 extern u8 *D_800D33E4;
-extern u16 D_800D361A;
-extern u_long *D_800D3604;
-extern RECT D_800D3628;
+extern u16 g_BattleImageLoaded;
+extern u_long *g_BattleImageData;
+extern RECT g_BattleImageRect;
 extern u8 *g_BattleColorTintBase;
 extern void *g_BattleColorTintWork;
-extern u8 D_800C3D68;
+extern u8 g_BattleActorSwitchFlag;
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern s32 g_BattleCommandRowIndex;
@@ -338,7 +338,7 @@ void func_800A5EB4(void) {
 void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5) {
     if (arg0 < 4) {
         if (arg1 >= 0) {
-            D_800D3611 = 1;
+            g_BattleColorTintPending = 1;
             g_BattleColorTintParams[arg0 * 6] = 1;
             g_BattleColorBlendMode[arg0 * 6] = arg1;
             g_BattleColorBlendWeight[arg0 * 6] = arg2;
@@ -534,7 +534,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
    slti/beq tree -- an if/else chain gives sltiu), g_BattleColorTintRed/AB0/AB1 are `s8` (retail
    loads them with lb), the buffer copy is 0x88 bytes not 0x80 (retail's movstrsi
    loop of 0x80 plus a two-word tail), pData advances 4 bytes per call, the final
-   LoadImage source is D_800D3608, and &D_800D3611 lives in a pointer local so the
+   LoadImage source is D_800D3608, and &g_BattleColorTintPending lives in a pointer local so the
    memcpy argument register is reused for the "= 0" store.
    Tried for the bivs: two pointer locals (pKind/pRec -> both fold back to
    $at+s6, 83.73%), pRec[0]/pRec[-1] (84.16%, the parked form), plain symbol
@@ -556,15 +556,15 @@ void func_800A6AE8(void) {
     s32 i;
     s32 j;
 
-    pFlag = &D_800D3611;
+    pFlag = &g_BattleColorTintPending;
     if (*pFlag == 0) {
         return;
     }
-    if (D_800D361A == 0) {
+    if (g_BattleImageLoaded == 0) {
         return;
     }
     *pFlag = 0;
-    memcpy(D_800D3608, D_800D3604, D_800D2D2C * D_800C3EA8 * 2);
+    memcpy(D_800D3608, g_BattleImageData, D_800D2D2C * D_800C3EA8 * 2);
     memcpy(g_BattleColorTintWork, g_BattleColorTintBase, 0x88);
     for (i = 0; i < 4; i++) {
         u8 *pRec;
@@ -583,7 +583,7 @@ void func_800A6AE8(void) {
                           pRec[-1], pRec[0]);
             break;
         case 4:
-            func_80026F44(D_800D2D2C * D_800C3EA8, pRec[0], D_800D3608, D_800D3604);
+            func_80026F44(D_800D2D2C * D_800C3EA8, pRec[0], D_800D3608, g_BattleImageData);
             break;
         }
         pData = g_BattleColorTintWork;
@@ -616,7 +616,7 @@ void func_800A6AE8(void) {
         BattleApplyColorTint(g_BattleColorSourceA, i, pData += 4);
         BattleApplyColorTint(g_BattleColorSourceB, i, pData);
     }
-    LoadImage(&D_800D3628, D_800D3608);
+    LoadImage(&g_BattleImageRect, D_800D3608);
 }
 */
 
@@ -625,7 +625,7 @@ void BattleUploadAndFreeImageResources(void) {
     u8 *pRect;
     s32 i;
 
-    if (D_800D361A != 0) {
+    if (g_BattleImageLoaded != 0) {
         p = *(u8 **)(D_800D33E4 + 0x118);
         for (i = 0; i < *(u8 *)(D_800D33E4 + 0x10E); i++) {
             if (*(u16 *)(p + 0x1A) != 0) {
@@ -633,8 +633,8 @@ void BattleUploadAndFreeImageResources(void) {
             }
             p += 0x30;
         }
-        pRect = (u8 *)&D_800D3628;
-        LoadImage((RECT *)pRect, D_800D3604);
+        pRect = (u8 *)&g_BattleImageRect;
+        LoadImage((RECT *)pRect, g_BattleImageData);
         DrawSync(0);
         BattleFreeImageEntry(pRect - 0x28);
     }
@@ -677,7 +677,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     D_800C3E88 = 0;
     D_800C3CF0 = 0;
     g_BattleExtraMatrixFlag = 0;
-    D_800C3D68 = 0;
+    g_BattleActorSwitchFlag = 0;
     D_800C3B7C = 0;
     arg1 = *(s16 *)(g_BattleStageData + 0x348);
     g_BattleStateBit = 1;
@@ -996,7 +996,7 @@ void BattleQueueActorCommand(u16 arg0, u16 arg1, void *arg2) {
 void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
     g_BattleCurrentActorSlot = arg0;
     g_BattleCommandActorMask = arg1;
-    D_800C3D68 = 1;
+    g_BattleActorSwitchFlag = 1;
     ((u8 *)g_BattleActors[arg0])[0x35] = 1;
     g_NumFlaggedTimerWorkListEntries = 0;
     g_FlagTimerWorkListAdds = 1;

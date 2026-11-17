@@ -135,7 +135,7 @@ typedef struct {
 } BattleSprite; // Size: 0x14
 
 extern BattleSprite* g_BattleSpriteRects;
-extern void* D_80092938;
+extern void* g_BattleRootOrderingTable;
 
 // Vertex staged in the GTE scratch block. The components are subtracted as
 // unsigned halves, which is how the original loads them (lhu).
@@ -794,7 +794,7 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade) {
     *(u_short*)&pPkt->u3 = u + 0x3B | ((pSprite->texY + 0x3F) << 8);
     pPkt->clut = GetClut(pSprite->clutX, pSprite->clutY);
     pPkt->tpage = GetTPage(1, 0, pSprite->texX & 0xFF80, pSprite->texY);
-    AddPrim(D_80092938, pPkt);
+    AddPrim(g_BattleRootOrderingTable, pPkt);
 }
  */
 

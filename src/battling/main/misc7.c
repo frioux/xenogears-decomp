@@ -70,7 +70,7 @@ extern s16 D_80091726;
 extern s32 g_BattleSlot0TextColor;
 extern s32 g_BattleSlot1TextColor;
 extern s32 g_BattleSlotConfirmLatched;
-extern s32 D_80092938;
+extern s32 g_BattleRootOrderingTable;
 extern u8 g_StrVibrationOn[];
 extern u8 g_StrVibrationOff[];
 
@@ -256,7 +256,7 @@ void BattleDrawVibrationOptions(void) {
         D_80091718[0x14] |= 4;
     }
     BattleSetTextColor(0);
-    func_8007F258(D_80092938, 1);
+    func_8007F258(g_BattleRootOrderingTable, 1);
 }
 
 void BattleDrawOptionRows4To6(Misc7Struct* p) {

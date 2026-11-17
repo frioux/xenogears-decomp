@@ -76,8 +76,8 @@ extern SVECTOR* g_BattleTrailVertScratch;
 extern SVECTOR* g_BattleScratchViewOrigin;
 
 extern VECTOR g_BattleViewOrigin;
-extern VECTOR D_80096FAC;
-extern VECTOR D_80096FB0;
+extern VECTOR g_BattleViewOriginY;
+extern VECTOR g_BattleViewOriginZ;
 
 extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
@@ -452,8 +452,8 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
     g_BattleTrailVertScratch = (SVECTOR*)0x1F800000;
     g_BattleScratchViewOrigin = (SVECTOR*)0x1F800030;
     g_BattleScratchViewOrigin->vx = g_BattleViewOrigin.vx;
-    g_BattleScratchViewOrigin->vy = D_80096FAC.vx;
-    g_BattleScratchViewOrigin->vz = D_80096FB0.vx;
+    g_BattleScratchViewOrigin->vy = g_BattleViewOriginY.vx;
+    g_BattleScratchViewOrigin->vz = g_BattleViewOriginZ.vx;
     pEntry = (Misc16Entry*)pWork->pEntries;
     pCallback = (void (*)(u8*, u8*))pWork->pCallback;
     for (i = 0; i < pWork->count; i++) {

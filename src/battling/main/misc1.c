@@ -87,7 +87,7 @@ extern s32 D_80097018;
 extern s32 D_80098780;
 extern s32 D_80097064;
 extern s32 g_BattleSceneOriginYMirror;
-extern s32 D_80098734;
+extern s32 g_BattleSceneOriginZ;
 
 // One past the last of the three effect-cell frame counters.
 extern s32 g_BattleEffectCellsEnd;
@@ -197,7 +197,7 @@ void func_8007099C(s32 mode) {
         vec.vx = g_BattleActor1.position.x + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
         y = g_BattleSceneOriginYMirror - 0x20;
         vec.vy = y - D_800925F4;
-        vec.vz = D_80098734 + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
+        vec.vz = g_BattleSceneOriginZ + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
         func_800708C4(&vec, 0x46);
         offset = func_80082488(&g_BattleCameraPos, 0) - 0x40;
         offset -= D_800925F4;
@@ -616,7 +616,7 @@ void BattleInitOnce(void) {
 // The anchor's y and z words: retail's object reaches them as their own
 // symbols, not as displacements off g_BattleActor1.
 extern s32 g_BattleSceneOriginYMirror;
-extern s32 D_80098734;
+extern s32 g_BattleSceneOriginZ;
 
 // One past the last of the three effect-cell frame counters.
 extern s32 g_BattleEffectCellsEnd;
@@ -657,8 +657,8 @@ extern BattleEffectPoolRef* g_BattleEffectPool;
 
 extern s32 g_BattleStateStep;
 extern s32 g_BattleEffectPlaceMode;
-extern s32 D_80092938;
-extern u16 D_8009260C;
+extern s32 g_BattleRootOrderingTable;
+extern u16 g_BattleScreenFadeLevel;
 extern u8 g_BattleResultCode;
 extern u8* g_BattleMessageStringTable;
 extern void BattleEffectAddSlotFromVector(VECTOR* pVec, s32 action);
@@ -734,14 +734,14 @@ void BattleStepDisplayState(void) {
         break;
     case 2:
         pState->gaugeValue = 1;
-        D_8009260C = 0xFF;
+        g_BattleScreenFadeLevel = 0xFF;
         g_BattleStateStep++;
     case 3:
-        func_8008E2B8((u8*)D_80092938, (s16)D_8009260C, 0);
-        if ((s16)D_8009260C < 0) {
-            D_8009260C = 0;
+        func_8008E2B8((u8*)g_BattleRootOrderingTable, (s16)g_BattleScreenFadeLevel, 0);
+        if ((s16)g_BattleScreenFadeLevel < 0) {
+            g_BattleScreenFadeLevel = 0;
         }
-        D_8009260C -= 8;
+        g_BattleScreenFadeLevel -= 8;
 fade:
         pState->unk4F = 0x10;
         pState->modelIndex = 0xA;
@@ -753,20 +753,20 @@ fade:
             pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
             vec[0] = pOrigin->x + g_BattleActor1.position.x;
             vec[1] = pOrigin->y + g_BattleSceneOriginYMirror;
-            vec[2] = pOrigin->z + D_80098734;
+            vec[2] = pOrigin->z + g_BattleSceneOriginZ;
             BattleEffectAddSlotFromVector((VECTOR*)vec, 0xB);
             BattleEffectAddSlotFromVector((VECTOR*)vec, 8);
         }
         break;
     case 4:
-        D_8009260C += 3;
-        if ((s16)D_8009260C >= 0x100) {
-            D_8009260C = 0xFF;
+        g_BattleScreenFadeLevel += 3;
+        if ((s16)g_BattleScreenFadeLevel >= 0x100) {
+            g_BattleScreenFadeLevel = 0xFF;
             g_BattleResultCode = 0x7F;
             BattleClearScreen(0);
             BattleReturnToMainLoop();
         }
-        func_8008E2B8((u8*)D_80092938, (s16)D_8009260C, 1);
+        func_8008E2B8((u8*)g_BattleRootOrderingTable, (s16)g_BattleScreenFadeLevel, 1);
         goto fade;
     }
     func_8007107C();
@@ -794,22 +794,22 @@ extern void* BattleInitObjectTree(s32 a0);
 extern void func_80078F00(void* p);
 extern s16 g_BattleDebugFlags;
 extern void* g_BattleRenderActor;
-extern s32 D_80096FB0;
-extern s32 D_80096FAC;
+extern s32 g_BattleViewOriginZ;
+extern s32 g_BattleViewOriginY;
 extern s32 g_BattleViewOrigin;
 extern u8 g_BattleRenderToggleCount;
 extern s32 g_BattleRenderAngleX;
 extern s32 g_BattleRenderAngleYStep;
 extern s32 g_BattleRenderOffsetY;
 extern s32 g_BattleRenderOffsetZ;
-extern s32 D_8009262C;
-extern s16 D_80092632;
+extern s32 g_BattleRenderModelColor;
+extern s16 g_BattleRenderAngleY;
 extern void* g_BattleLightGroup;
 extern void* g_BattleNodeTree;
 
 // The block the actor's script pointer (+0x8FC) addresses: the five signed
 // halfwords and the unsigned one BattleInitRenderScene copies into the render
-// state at g_BattleRenderToggleCount..D_80092632.
+// state at g_BattleRenderToggleCount..g_BattleRenderAngleY.
 struct BattleScriptBlock {
     /* 0x00 */ u8 unk00[0x14];
     /* 0x14 */ s16 unk14;
@@ -844,8 +844,8 @@ void BattleInitRenderScene(BattleActorView* p) {
     // retail reads the script pointer after this cluster, not in front of it:
     // the block stops cc1 hoisting the load over the three stores.
     do {
-        D_80096FB0 = 0;
-        D_80096FAC = 0;
+        g_BattleViewOriginZ = 0;
+        g_BattleViewOriginY = 0;
         g_BattleViewOrigin = 0;
     } while (0);
     pScript = p->pScript;
@@ -860,8 +860,8 @@ void BattleInitRenderScene(BattleActorView* p) {
     g_BattleRenderAngleYStep = y;
     g_BattleRenderOffsetY = z;
     g_BattleRenderOffsetZ = w;
-    D_8009262C = u;
-    D_80092632 = v;
+    g_BattleRenderModelColor = u;
+    g_BattleRenderAngleY = v;
 }
 
 extern void func_8008BC04(void);
@@ -897,8 +897,8 @@ void BattleComposeCameraMatrix(BattleActorView* p, MATRIX* pIn, MATRIX* pOut) {
     *pOut = *pIn;
     mtx = g_BattleBaseMatrix;
     mtx.t[0] = p->unk34.vx - g_BattleViewOrigin;
-    mtx.t[1] = -D_80096FAC;
-    mtx.t[2] = p->unk34.vz - D_80096FB0;
+    mtx.t[1] = -g_BattleViewOriginY;
+    mtx.t[2] = p->unk34.vz - g_BattleViewOriginZ;
     CompMatrix(pIn, &mtx, &mtx);
     pOut->t[0] = mtx.t[0];
     pOut->t[1] = mtx.t[1];

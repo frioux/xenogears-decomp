@@ -21,7 +21,7 @@ extern u8 g_BattlePlayer1ComControlled;
 extern u8 g_BattlePlayer2ComControlled;
 extern s32 g_SpuChannelMask;
 extern s32 g_BattleMotionSpeedScale;
-extern u8* D_80092938;
+extern u8* g_BattleRootOrderingTable;
 extern u8* D_80092784;
 
 
@@ -189,9 +189,9 @@ s32 BattleQueueActorPrims(Misc10Actor* pActor) {
 void BattleDrawEffectFrame(void) {
     if (g_BattleEffectFrameTimer != 0) {
         func_8008E120();
-        func_8007F258(D_80092938, 0);
-        BattleDrawTextPrims(D_80092938);
-        func_8008E3CC(D_80092938, 0xC0, 1);
+        func_8007F258(g_BattleRootOrderingTable, 0);
+        BattleDrawTextPrims(g_BattleRootOrderingTable);
+        func_8008E3CC(g_BattleRootOrderingTable, 0xC0, 1);
         func_8008BC04();
     }
 }
@@ -210,7 +210,7 @@ void BattleUpdateEffectTimer(void) {
             g_BattleMotionSpeedScale = 0x100;
             BattleEffectFreeResources();
         } else {
-            func_8008E3CC(D_80092938, timer, 1);
+            func_8008E3CC(g_BattleRootOrderingTable, timer, 1);
         }
     } else {
         D_80092784 = 0;
@@ -649,7 +649,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 }
 */
 void BattleAddSharedPrim(void) {
-    AddPrim(D_80092938, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
+    AddPrim(g_BattleRootOrderingTable, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086E70);
