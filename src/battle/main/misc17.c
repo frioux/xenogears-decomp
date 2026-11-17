@@ -358,30 +358,13 @@ void func_80094D24(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
-/* 99.86%, 1964 bytes = retail's size: the whole body (the action-flag block tests,
-   the four +/- 1/5 and 1/10 status scalings on each side, the element/0x4000/0x1000
-   curve-target writes, func_80096494, the 5/4 vs 4/3 rate pair, the two rand rolls,
-   the five-case jump-table switch, the /3, the 9999 clamp and the slotAmounts store)
-   reproduces instruction for instruction. Two things are left, both worth 4 bytes:
-   1) retail loads amountSource with lbu and then compares it SIGNED (bltz + slti 2 +
-      beqz, two jumps to the same label, 3 insns); every unsigned spelling folds to a
-      single sltiu v0,v0,2 (-4 bytes) and every signed spelling (s8 n = field) gives
-      retail's 3-insn shape but a sign-extending lb load instead of lbu. Tried the
-      && form, nested ifs, > -1 && < 2, (s8) casts at each use and an s8 local.
-   2) the switch table is 5 words plus a trailing 0 pad word (unit .rodata 0x880..0x898);
-      C emits 20 bytes, so the pad needs the config/battle.yaml carve misc23 already has
-      ( - [0x894, rodata] ) before this can link; the supervisor approved it, but it is
-      moot until (1) closes, so the stub still owns the table.
-   Un-parking needs these externs: D_800C3E04, D_800D2DC4, func_80096AB8, func_80096FBC,
-   func_80097610, func_80096494 (u16 *, u16 *, u8 *). A const pad in this unit cannot work:
-   -G8 puts a 4-byte const in .sdata and maspsx then fails on the object.
 void func_80094EE4(void) {
     BattleTableEntry *pAtk;
     BattleTableEntry *pDef;
     u16 atkValue;
     u16 defValue;
     s8 command;
-    s8 n;
+    s32 amountSource;
     s32 rate;
     s32 amount;
     s32 mulAtk;
@@ -390,9 +373,9 @@ void func_80094EE4(void) {
 
     rate = g_BattleCurrentRow->power;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
-        blocked = *(u16 *)((u8 *)D_800C3E34 + 0x34) & 0x4000;
+        blocked = D_800C3E34->blockFlags & 0x4000;
     } else {
-        blocked = *(u16 *)((u8 *)D_800C3E34 + 0x34) & 0x8000;
+        blocked = D_800C3E34->blockFlags & 0x8000;
     }
     if (blocked != 0) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
@@ -469,9 +452,11 @@ void func_80094EE4(void) {
     } else {
         amount = mulAtk * atkValue;
     }
-    n = g_BattleCurrentRow->amountSource;
-    if (n >= 0) {
-        if (n < 2) {
+    amountSource = g_BattleCurrentRow->amountSource;
+    // Nested rather than "amountSource >= 0 && amountSource < 2": gcc folds a
+    // && range test into a single unsigned compare.
+    if (amountSource >= 0) {
+        if (amountSource < 2) {
             amount = rate * amount / 20;
         }
     }
@@ -519,8 +504,6 @@ void func_80094EE4(void) {
     }
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = amount;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
 void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     BattleTableEntry *p = g_BattleActingSlot;
     BattleRow *q = g_BattleCurrentRow;
