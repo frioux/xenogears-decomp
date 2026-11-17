@@ -37,11 +37,39 @@ extern void StopPAD2(void);
 extern int SysEnqIntRP(int prio, u_long *pEntry);
 extern int SysDeqIntRP(int prio, u_long *pEntry);
 
-/* The A0/C0 BIOS vector stubs of this unit (ChangeClearPAD, InitPAD2, StartPAD2,
-   StopPAD2, func_80040ABC, SysEnqIntRP, SysDeqIntRP) cannot be C: retail leaves
-   an instruction after .size (convertible.py: BLOCKED), and the body is
-   `jr $t2` through vector 0xB0/0xC0 with the function index in $t1, which gcc
-   never emits -- it passes argument 0 in $a0. They belong in a hasm segment. */
+/* The seven B0/C0 BIOS call gates of this unit -- ChangeClearPAD (0xB0/0x5B),
+   InitPAD2, StartPAD2, StopPAD2 (0xB0/0x12, 0x13, 0x14), func_80040ABC
+   (0xB0/0x15), SysEnqIntRP, SysDeqIntRP (0xC0/0x2, 0x3) -- are hand-written
+   assembly in Psy-Q's libapi, not compiled C: LIBAPI/A91.OBJ, A18.OBJ, A19.OBJ
+   and A20.OBJ for the PAD ones, L02.OBJ and L03.OBJ for SysEnqIntRP and
+   SysDeqIntRP. Each ships as three code words with no epilogue plus one pad nop
+   (InitPAD2: 240a00b0 01400008 24090012 00000000); retail's linker kept the pad,
+   so the pad word is an instruction after .size in the stub and
+   tools/scripts/convertible.py marks all seven BLOCKED. There is no C original to
+   recover, and no C definition reproduces the bytes:
+
+   - an inline-asm macro with the vector and index as parameters and hard-coded
+     clobbers ("$10"/"$9", no =r outputs) measures 33.33% and 20 bytes, because
+     cc1 appends its own return, jr $ra plus a nop, after every asm block;
+   - __attribute__((noreturn)) does not suppress it (cc1 still emits j $31), a
+     for(;;) after the block emits its own `$L: j $L`, and maspsx has no option
+     that drops the epilogue;
+   - gcc also never jumps through a constant vector with the function index in
+     $t1: it passes argument 0 in $a0 and calls with jal a symbol.
+
+   The honest options are these stubs, or a hasm subsegment of the same shape as
+   the twenty sibling BIOS stubs above (FlushCache .. Krom2RawAdd), whose
+   DEFINE_FN macro in psyq/libapi/bios.s writes the same .size-then-nop tail.
+   The hasm form is deliberately not taken: it would lower the stub count without
+   matching anything.
+
+   GetGp (LIBAPI/A94) is the same verdict for a different reason. Its body is
+   `jr $ra; addu $v0,$gp,$zero` and it is the symbol after ChangeClearPAD -- the
+   two words at 0x800405E4 that ChangeClearPAD's own .size used to swallow. No C
+   returns the gp value with the move in the return delay slot: gcc pins the copy
+   before the jr $ra (best attempt, `register u_long ret __asm__("$2")` plus an
+   addu into $2: objdiff 20.00%, 12 bytes, gcc emitting move v0,gp then
+   jr ra; nop), and neither maspsx nor the assembler fills that delay slot. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", ChangeClearPAD);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", GetGp);
