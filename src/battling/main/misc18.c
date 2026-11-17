@@ -90,7 +90,7 @@ typedef struct BattleActor {
     /* 0x010 */ u8 unk10[0x38];
     /* 0x048 */ u32 distance;
     /* 0x04C */ u8 unk4C[0xC];
-    /* 0x058 */ s32 unk58;
+    /* 0x058 */ s32 angle;
     /* 0x05C */ u8 unk5C[0x24];
     /* 0x080 */ BattleActionSlot* pActionSlots;
     /* 0x084 */ u8 unk84[0x30];
@@ -292,7 +292,7 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
         pWork->setFlag8000 = 1;
         pWork->maxDistance = 0xFF;
         pWork->targetAngle = 0x800;
-        pActor->unk58 = 0x800;
+        pActor->angle = 0x800;
         return 1;
     }
     if (v < 0x1001) {
@@ -301,7 +301,7 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     pActor->flags &= 0xFFFF7FFF;
     pWork->setFlag8000 = 0;
     pWork->maxDistance = 0;
-    pActor->unk58 = 0x800;
+    pActor->angle = 0x800;
     return 1;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
