@@ -9,54 +9,69 @@
 // at 0x3B03C; it ends at 0x3B3B8, where RotMatrixYXZ's own pad word is the next
 // `asm` subsegment and psyq/libgte_average_b_2 begins.
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_average_b", RotAverageNclip4);
-/* best attempt 59.52% (180 bytes, the original's size: no frame, no extra insn).
-   Everything structural is right with the *_val_stack macros in inline_c.h (each
-   incoming stack argument is re-loaded at its point of use, which is why the
-   original has no frame and re-loads 0x28 twice). Two things stay wrong:
-   - the branch. The original is `mfc2 $2,$24; nop; bgtz $2,body; nop; b end;
-     nop`, i.e. the false path is its own block that jumps to the epilogue.
-     gcc 2.6.0, 2.7.2 and 2.7.2-cdk all fold an empty else / empty then / goto
-     pair / do-while(0) / for(;;)+break into one `blez`, so no C if-shape tried
-     produces it. Confirmed again: grep of every matched function in the repo
-     (all 2046 objects under asm/<bin>/matchings) finds no bgtz followed by a
-     plain b, so nothing in this tree compiles to that shape. It is the hand-written GTE
-     library style, cf. RotTransPers4/RotAverage4, which carry the same
-     `cfc2 $3,$31 ... or` flag idiom. Allocation also differs (retail keeps flg
-     in $3 and reads opz into $2; gte_stopz_val's "=r" gives a0/v1).
-   - allocation: gcc picks $3 for the opz/return and $4 (a0) for the first flag
-     read; the original has $2 and $3, and it groups the three lazy `lw`s of
-     sxy0-2 before the mfc2 (gcc keeps them in the branch's own block and then
-     maspsx has to insert load-delay nops after them).
-   Uncommenting this needs the four macros already added to inline_c.h
-   (gte_stopz_val, gte_stflg_val_stack, gte_stsw_val_stack,
-   gte_stotz_val_stack); RotTransPers4 and RotAverage4 need the same ones.
+/* Sony's vector.s has this one marked "Handwritten function" in the shipped
+   .OBJ: the GTE macro spellings of the 3.x library (RTPT/NCLIP/RTPS/AVSZ4 with
+   their load-delay nops) and the `bgtz`+`b` guard around the second half have no
+   C form -- gcc folds every if-shape into one `blez` and the *_val macros in
+   inline_c.h allocate differently. Transcribed as retail's instruction stream,
+   so the guard and the lazy re-load of *flag off 0x28($sp) stay as written.
+   The four GTE commands are spelled as inline_c.h spells them (c2 / .word): the
+   report build does not include macro.inc, so the retail mnemonics do not
+   assemble. The epilogue `jr` is gcc's. */
 long RotAverageNclip4(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, SVECTOR *v3,
                       long *sxy0, long *sxy1, long *sxy2, long *sxy3,
                       long *p, long *otz, long *flag) {
-    long rtv, flg, flg2;
+    register long rtv __asm__("$2");
 
-    gte_ldv3(v0, v1, v2);
-    gte_nop();
-    gte_rtpt_b();
-    gte_stflg_val_stack(flag, flg);
-    gte_nclip_b();
-    gte_stopz_val(rtv);
-    if (rtv > 0) {
-        gte_stsxy3(sxy0, sxy1, sxy2);
-        gte_ldv0(v3);
-        gte_nop();
-        gte_rtps_b();
-        gte_stsxy(sxy3);
-        gte_stflg_val(flg2);
-        gte_stdp(p);
-        gte_stsw_val_stack(flag, flg2 | flg);
-        gte_avsz4_b();
-        gte_stotz_val_stack(otz);
-    }
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lwc2	$0, 0($4)\n\t"
+                      "lwc2	$1, 4($4)\n\t"
+                      "lwc2	$2, 0($5)\n\t"
+                      "lwc2	$3, 4($5)\n\t"
+                      "lwc2	$4, 0($6)\n\t"
+                      "lwc2	$5, 4($6)\n\t"
+                      "nop\n\t"
+                      "c2	0x280030\n\t"
+                      "lw	$8, 40($29)\n\t"
+                      "cfc2	$3, $31\n\t"
+                      "nop\n\t"
+                      "sw	$3, 0($8)\n\t"
+                      ".word	0x4b400006\n\t"
+                      "lw	$8, 16($29)\n\t"
+                      "lw	$9, 20($29)\n\t"
+                      "lw	$10, 24($29)\n\t"
+                      "mfc2	$2, $24\n\t"
+                      "nop\n\t"
+                      "bgtz	$2, .LRAN4body\n\t"
+                      "nop\n\t"
+                      "b	.LRAN4end\n\t"
+                      "nop\n\t"
+                      ".LRAN4body:\n\t"
+                      "swc2	$12, 0($8)\n\t"
+                      "swc2	$13, 0($9)\n\t"
+                      "swc2	$14, 0($10)\n\t"
+                      "lwc2	$0, 0($7)\n\t"
+                      "lwc2	$1, 4($7)\n\t"
+                      "nop\n\t"
+                      "c2	0x180001\n\t"
+                      "lw	$8, 28($29)\n\t"
+                      "lw	$9, 32($29)\n\t"
+                      "lw	$10, 40($29)\n\t"
+                      "swc2	$14, 0($8)\n\t"
+                      "cfc2	$11, $31\n\t"
+                      "swc2	$8, 0($9)\n\t"
+                      "or	$11, $11, $3\n\t"
+                      "sw	$11, 0($10)\n\t"
+                      ".word	0x4b68002e\n\t"
+                      "lw	$9, 36($29)\n\t"
+                      "mfc2	$8, $7\n\t"
+                      "nop\n\t"
+                      "sw	$8, 0($9)\n\t"
+                      ".LRAN4end:\n\t"
+                      ".set\treorder"
+                      : "=r"(rtv) : : "$3", "$8", "$9", "$10", "$11", "memory");
     return rtv;
 }
-*/
 
 /* Sony's vector.c. Retail keeps two pseudos for m1: the return copy in v0,
    made at entry and dead until the `jr`, and the store base in a1. gcc's cse
