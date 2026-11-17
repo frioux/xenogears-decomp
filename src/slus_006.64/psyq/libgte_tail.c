@@ -340,4 +340,94 @@ void PopMatrix(void) {
                       : : : "$1", "$4", "$8", "$9", "$10", "$14", "$15", "memory");
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_tail", ScaleMatrixL);
+/* Each of the matrix's nine shorts scaled by the vector component of its row
+   and shifted back by 12, the pairs that share a 32-bit word packed with one
+   store. objdiff 2.36% as nine short assignments: gcc 2.7.2 emits lh/sh per
+   element and `mult` (not the original's `multu`) and never merges the adjacent
+   pairs into the word stores andi/sll/or. Transcribed instead, like CompMatrix.
+   Two shapes retail has and a plain asm block cannot: the return copy is already
+   made at 0x39F74 (hence the $2 pin, which is written mid-body), and the last
+   store covers m[2][2] and the struct's tail padding with one word, in the `jr`
+   delay slot -- so that one is left to C, where reorg fills the slot. */
+MATRIX *ScaleMatrixL(MATRIX *m, VECTOR *v) {
+    register MATRIX *pRet __asm__("$2");
+    register long m22 __asm__("$9");
+
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "lw\t$8, 0($4)\n\t"
+                      "lw\t$11, 0($5)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $11\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$12, 4($5)\n\t"
+                      "lw\t$13, 8($5)\n\t"
+                      "lw\t$8, 4($4)\n\t"
+                      "addu\t$2, $4, $0\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $11\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 0($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $11\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$8, 8($4)\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $12\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 4($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $12\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$8, 12($4)\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $12\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 8($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $13\n\t"
+                      "sra\t$10, $8, 16\n\t"
+                      "lw\t$8, 16($4)\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      "andi\t$9, $9, 65535\n\t"
+                      "multu\t$10, $13\n\t"
+                      "mflo\t$10\n\t"
+                      "sra\t$10, $10, 12\n\t"
+                      "sll\t$10, $10, 16\n\t"
+                      "or\t$9, $9, $10\n\t"
+                      "sw\t$9, 12($4)\n\t"
+                      "andi\t$9, $8, 65535\n\t"
+                      "sll\t$9, $9, 16\n\t"
+                      "sra\t$9, $9, 16\n\t"
+                      "multu\t$9, $13\n\t"
+                      "mflo\t$9\n\t"
+                      "sra\t$9, $9, 12\n\t"
+                      ".set\treorder"
+                      : "=r"(pRet), "=r"(m22) : : "$8", "$10", "$11", "$12",
+                          "$13", "memory");
+    *(long *)&m->m[2][2] = m22;
+    return pRet;
+}
