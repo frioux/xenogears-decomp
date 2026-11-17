@@ -37,7 +37,7 @@ struct BattleActor;
 typedef union {
     /* 0x0 */ u32 flags;
     /* 0x0 */ struct {
-        /* 0x0 */ u32 unk2C_0 : 8;
+        /* 0x0 */ u32 random : 8;
         /* 0x0 */ u32 unk2C_8 : 1;
         /* 0x0 */ u32 unk2C_9 : 1;
         /* 0x0 */ u32 unk2C_10 : 1;
@@ -71,11 +71,11 @@ typedef struct {
     /* 0x14 */ s32 actionChance1;
     /* 0x18 */ s32 actionChance2;
     /* 0x1C */ s32 actionChance3;
-    /* 0x20 */ s32 unk20;
+    /* 0x20 */ s32 phase;
     /* 0x24 */ s32 breakThreshold;
-    /* 0x28 */ s32 unk28;
+    /* 0x28 */ s32 actionDistance;
     /* 0x2C */ BattleWorkFlags flags;
-    /* 0x30 */ u16 unk30;
+    /* 0x30 */ u16 savedMoveCount;
     /* 0x32 */ u16 pad32;
 } BattleWork; // Size: 0x34
 
@@ -106,7 +106,7 @@ typedef struct BattleActor {
     /* 0x15FC */ BattleWork* pWork;
     /* 0x1600 */ u8 unk1600[0x64];
     /* 0x1664 */ u8* pSoundTable;
-    /* 0x1668 */ u16 unk1668;
+    /* 0x1668 */ u16 moveCount;
 } BattleActor; // Size: 0x166A
 
 extern BattleSlot D_80096EA0[];
