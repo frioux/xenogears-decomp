@@ -179,7 +179,7 @@ extern void BattleUnloadActorArchive(void);
 extern void BattleLoadSoundWdsFile(void);
 extern void BattleSetAnimTaskShort(s32 arg0);
 extern void BattleLoadActorArchiveFile(BattleActorSprite* pSprite);
-extern void func_800BEFF4(s32 actorIndex);
+extern void BattleSetCurrentActorSprite(s32 actorIndex);
 extern void func_800BF3E8(BattleActorSprite* pSprite);
 extern void func_800BC460(u16 mask);
 extern void BattleLoadArchiveEntryFile(void);
@@ -229,7 +229,7 @@ void func_800B905C(void) {
     s32 z;
 
     pBase = g_BattleStateWork;
-    func_800BEFF4(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
+    BattleSetCurrentActorSprite(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
     pSprite = (BattleActorSprite*)g_BattleState->pCurSprite;
     func_800BF3E8(pSprite);
     if (pBase[0xA78] != 0) {
@@ -439,7 +439,7 @@ void func_800B9C78(void) {
     }
     BattleLoadArchiveEntryFile();
     pBase = g_BattleStateWork;
-    func_800BEFF4(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
+    BattleSetCurrentActorSprite(pBase[g_BattleCommandRowIndex * 0x48 + 0x15B]);
     func_800BF3E8((BattleActorSprite*)g_BattleState->pCurSprite);
     index = g_BattleState->actorIndex;
     offset = 0x8C8C;

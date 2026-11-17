@@ -226,7 +226,7 @@ typedef struct {
 
 extern BattleUnitState *g_BattleState;
 extern BattleActorSlot g_BattleStateWork[];
-extern void func_800BEFF4(s32 actorIndex);
+extern void BattleSetCurrentActorSprite(s32 actorIndex);
 extern void BattleActorUpdateGroundHeightAndTriangle(SpriteData *pSprite);
 
 extern u8 g_IsBattle;
@@ -349,7 +349,7 @@ void BattleActorInitSpriteFromSlot(void) {
     if (g_BattleState == NULL) {
         return;
     }
-    func_800BEFF4(g_BattleState->unk20);
+    BattleSetCurrentActorSprite(g_BattleState->unk20);
     pTable = g_BattleStateWork;
     pSprite = g_BattleState->pSprite;
     slotHigh = (u32)pSprite->flags_0xA8 >> 30;

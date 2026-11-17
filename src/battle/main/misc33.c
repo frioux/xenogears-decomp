@@ -592,7 +592,7 @@ s16 BattleAngleToTarget(BattleActorSprite *p) {
     vec1.vy = c3;
     return SpriteComputeAngleFromPoints(vec1, vec0);
 }
-void func_800BEFF4(s32 actorIndex) {
+void BattleSetCurrentActorSprite(s32 actorIndex) {
     BattleActorSprite *pSprite;
     u8 *pBase;
     u32 part;
