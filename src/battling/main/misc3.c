@@ -206,6 +206,23 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
 }
 */
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
+
+/* 95.65% (460 vs retail's 452 bytes): the instruction stream is IDENTICAL - the
+   two divides, both 0xFFF roundings, the mult/mflo order, both delta blocks, the
+   SquareRoot0 hit-point pass and the two D_80092654/58 stores all line up. The
+   only difference is register allocation: retail needs 7 saved registers
+   (s0=ex, s1=ey, s2=nx, s3=ny, s4=x1, s5=y1, s6=r) and this body needs 8
+   (along also gets s0, pushing y1 to s6, r to s7 and growing the frame 0x50 ->
+   0x58). Cause: gcc coalesces `along` with the result of `along >>= 12`, so the
+   merged pseudo crosses the hit-point SquareRoot0 call and must be call-saved;
+   retail kept the pre-shift value in $v1 (a call-clobbered temp) and only the
+   >>12 in s0, reusing ex's register after ex dies. Tried: along/cross declared
+   in both orders, both shifts written after both roundings, `- r * r` vs
+   `- vSq.vz` (vSq.vz is retail's, and is what this body uses). Permuter: 2095
+   iterations, base=454; its only better candidate (190) copies ny into a
+   temporary and then computes `hy = t * t` after that temporary has been
+   overwritten by the hit-point pass - wrong code, discarded.
 // The closest approach of the segment (x1,y1)-(x2,y2) to the circle at
 // (x3,y3) with radius r, in 12-bit fixed point: returns 1 when the segment
 // passes through the circle and stores that point in D_80092654/D_80092658.
@@ -273,7 +290,7 @@ s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     }
     return hit;
 }
-
+*/
 
 
 extern s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
