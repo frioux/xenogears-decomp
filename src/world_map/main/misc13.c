@@ -95,13 +95,6 @@ s32 WorldMapInitAreaNameString(void) {
     SystemStringResetIfIdle(pBuffer);
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092C70);
-/* best: 98.98% (352 bytes, same size). The body must be a two-case switch, not
-   an if/else chain (an if/else makes gcc emit a single bnez). The only delta
-   left is one reorg fill: the original copies the case 0 `li v0,-1` into the
-   `beq v1,v0` delay slot as well as materialising it in case 0, ours leaves a
-   nop there. Holding -1 in a local before the switch makes it worse (96.81%: the
-   constant lands in a0 and both compares change register).
 
 s32 func_80092C70(s32 index) {
     WorldMapMenuSlot* pSlot;
@@ -117,7 +110,7 @@ s32 func_80092C70(s32 index) {
         }
         break;
     case 1:
-        if (g_WorldMapAreaId == 1) {
+        if (g_WorldMapAreaId == -1) {
             SystemStringResetIfIdle(g_WorldMapAreaNameString);
             pSlot->unk20 = 0;
         } else if (g_WorldMapAreaId != pSlot->unk50) {
@@ -130,7 +123,6 @@ s32 func_80092C70(s32 index) {
     func_80034888(g_WorldMapAreaNameString, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
     return 1;
 }
-*/
 
 void WorldMapFreeAreaNameString(void) {
     SystemStringFree(&g_WorldMapAreaNameString[0]);
