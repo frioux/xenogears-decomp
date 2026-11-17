@@ -24,13 +24,17 @@ typedef struct {
     /* 0x00 */ u8 pad0[0x4];
     /* 0x04 */ s16 unk4;
     /* 0x06 */ u8 pad6[0x1A];
-    /* 0x20 */ s16 unk20;
+    /* 0x20 */ u16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 pad24[0x4];
     /* 0x28 */ s32 unk28;
     /* 0x2C */ s32 unk2C;
     /* 0x30 */ s32 unk30;
-    /* 0x34 */ u8 pad34[0x1C];
+    /* 0x34 */ s32 unk34;
+    /* 0x38 */ u8 pad38[0x4];
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ u8 pad44[0xC];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
@@ -47,10 +51,11 @@ typedef struct {
 // One entry of the g_WorldMapGroups table (stride 0x54). 0x48 and 0x4C are the source
 // and destination prim lists (g_WorldMapGroups[14]/[15] feed WorldMapSetupPrimTemplates).
 typedef struct {
-    /* 0x00 */ u32 unk0;
+    /* 0x00 */ u16 unk0;
+    /* 0x02 */ u16 pad2;
     /* 0x04 */ u32 unk4;
     /* 0x08 */ WorldMapPos4 pos;
-    /* 0x18 */ u8 unk18[0x8];
+    /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX matrix;
     /* 0x40 */ ModelPart *pModel;
     /* 0x44 */ u32 unk44;
@@ -194,7 +199,7 @@ extern s32 WorldMapInitGroup0Actor(s32);
 extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern s32 WorldMapInitActorSlotTimer40(s32 index);
 extern void func_80078EA4(void);
-extern void func_80079778(void);
+extern s32 func_80079778(s32 index);
 extern WorldMapPathPoint g_WorldMapCameraPathPoints[];
 extern MATRIX g_WorldMapViewMatrix;
 extern void WorldMapExtractRotationFromMatrix(MATRIX *, SVECTOR *);
@@ -352,11 +357,13 @@ s32 func_80077E68(s32 index) {
         func_80089160(8, pVec, 0);
         break;
     case 1:
+        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         if (p->unk50 >= 0x6000) {
             p->unk20 = p->unk20 + 1;
         }
         break;
     case 2:
+        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         p->unk58 = p->unk58 - 2;
         if (p->unk58 >= 0x19) {
             break;
@@ -365,11 +372,13 @@ s32 func_80077E68(s32 index) {
         p->unk20 = p->unk20 + 1;
         break;
     case 3:
+        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         if (p->unk50 > 0x7FFF) {
             p->unk20 = p->unk20 + 1;
         }
         break;
     case 4:
+        pEntries = (WorldMapEntry *)g_WorldMapGroups;
         p->unk58 = p->unk58 - 1;
         if (p->unk58 >= 5) {
             break;
@@ -731,6 +740,195 @@ s32 WorldMapInitActorAtScrollPositionWithSound(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
+/* 94.77%, 2292 bytes = retail's exact size, and the instruction stream is
+   identical except for which callee-saved register holds each local. The whole
+   body is decoded; do not rewrite it from the assembly.
+   Retail's allocation is $s0 = the 0xA0 scratch SVECTOR pointer (used only as the
+   func_80089160 argument; the stores themselves fold to 160/162/164($s3)), $s1 = p,
+   $s2 = g_WorldMapGroups (for the case-1/2/3 rotation tweaks at entry 0's 0x18/0x1C),
+   $s3 = the 0x1F800000 scratch base. Every attempt here gives $s0 = g_WorldMapGroups,
+   $s1 = p, $s2 = scratch, $s3 = pVec: p and s1 agree, the other three rotate by one,
+   and local declaration order does not move them (pVec/p/entries/scratch in any order
+   is byte-identical). That single rotation is the whole residual - the ~690 diff
+   lines are the s0/s1/s2/s3 names plus the v0/v1 shift it causes in the matrix
+   distribution's temporaries.
+   Things learned that a retry should keep:
+   - the scratchpad MUST be a base-pointer local (`u8 *pScratch = (u8 *)PSX_SCRATCH;`
+     with `pScratch + 0xA0` offsets). Absolute `*(s16 *)0x1F8000A0` casts make gcc emit
+     `lui $at` per store and cost 152 bytes.
+   - the matrix distribution needs its own pointer variable (`pMat`, re-assigned from
+     g_WorldMapGroups before each run) or the entries pointer stays live from the top
+     of the function into the tail and gcc keeps it in a callee-saved register where
+     retail re-derives it into $v0.
+   - `pEntries[a].matrix = pEntries[b].matrix` (4+4 word move), never
+     `pEntries[a] = *(MATRIX *)...` (3+3+2).
+   - the state machine's `p->unk20` is u16 (the four increments are lhu) but the switch
+     test is s16 (lh + sltiu) - `switch ((s16)p->unk20)`.
+   - case 4 stores 1 to unk0 of entries 13..0 in DESCENDING address order, so that is
+     the source order.
+   - constants: -0x8000 / 0x4000 / 0x100 are the per-state position deltas, -0x18000
+     the x wrap limit, 0x1580000 the z limit, 0x71 the sound id.
+   permute.sh from this body (3 min, -j4) found only a `new_var = pScratch + 0xA0`
+   split of the tail's 0xA0 stores; it was not ported (no time), run it again from here.
+/*s32 func_80079778(s32 index) {
+    SVECTOR *pVec;
+    WorldMapActor *p;
+    WorldMapEntry *pEntries;
+    WorldMapEntry *pMat;
+    u8 *pScratch;
+
+    p = g_WorldMapSlots + index;
+    pScratch = (u8 *)PSX_SCRATCH;
+    pEntries = (WorldMapEntry *)g_WorldMapGroups;
+    switch ((s16)p->unk20) {
+    case 0:
+        pVec = (SVECTOR *)(pScratch + 0xA0);
+        pVec->vx = p->unk28 >> 12;
+        pVec->vy = p->unk2C >> 12;
+        pVec->vz = p->unk30 >> 12;
+        func_80089160(11, pVec, 0);
+        p->unk2C += 0x4000;
+        p->unk30 += -0x8000;
+        D_8009BBBC[0] += -0x8000;
+        if (p->unk2C < -0x18000) {
+            break;
+        }
+        p->unk3C = -0x4000;
+        p->unk20 = p->unk20 + 1;
+        func_80089160(12, pVec, 0);
+        SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x71);
+        p->unk22 = 0x20;
+        break;
+    case 1:
+        pVec = (SVECTOR *)(pScratch + 0xA0);
+        pVec->vx = p->unk28 >> 12;
+        pVec->vy = p->unk2C >> 12;
+        pVec->vz = p->unk30 >> 12;
+        func_80089160(11, pVec, 0);
+        func_80089160(12, pVec, 0);
+        p->unk22 = p->unk22 - 1;
+        if ((s16)p->unk22 <= 0) {
+            WorldMapDeactivateSpriteGroup(0xC);
+        }
+        pEntries[0].rot.vx += 4;
+        pEntries[0].rot.vz += 2;
+        p->unk2C += p->unk3C;
+        p->unk3C += 0x100;
+        p->unk30 += -0x8000;
+        D_8009BBBC[0] += -0x8000;
+        if (p->unk2C < -0x18000) {
+            break;
+        }
+        p->unk40 = -0x8000;
+        p->unk20 = p->unk20 + 1;
+        func_80089160(12, pVec, 0);
+        SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x71);
+        break;
+    case 2:
+        pVec = (SVECTOR *)(pScratch + 0xA0);
+        pVec->vx = p->unk28 >> 12;
+        pVec->vy = p->unk2C >> 12;
+        pVec->vz = p->unk30 >> 12;
+        func_80089160(11, pVec, 0);
+        func_80089160(12, pVec, 0);
+        pEntries[0].rot.vx -= 2;
+        pEntries[0].rot.vz -= 1;
+        p->unk30 += p->unk40;
+        D_8009BBBC[0] += p->unk40;
+        p->unk40 += 0x100;
+        if (p->unk30 > 0x1580000) {
+            break;
+        }
+        p->unk22 = 8;
+        p->unk20 = p->unk20 + 1;
+        WorldMapDeactivateSpriteGroup(0xC);
+        WorldMapStartSlot(1, 1);
+        break;
+    case 3:
+        pEntries[0].rot.vx -= 2;
+        pEntries[0].rot.vz -= 1;
+        p->unk30 += p->unk40;
+        D_8009BBBC[0] += p->unk40;
+        p->unk40 += 0x100;
+        p->unk22 = p->unk22 - 1;
+        if ((s16)p->unk22 > 0) {
+            break;
+        }
+        WorldMapStartSlot(1, 1);
+        p->unk20 = p->unk20 + 1;
+        break;
+    case 4:
+        if (p->unk4 == 0) {
+            break;
+        }
+        p->unk4 = 0;
+        pEntries[13].unk0 = 1;
+        pEntries[12].unk0 = 1;
+        pEntries[11].unk0 = 1;
+        pEntries[10].unk0 = 1;
+        pEntries[9].unk0 = 1;
+        pEntries[8].unk0 = 1;
+        pEntries[7].unk0 = 1;
+        pEntries[6].unk0 = 1;
+        pEntries[5].unk0 = 1;
+        pEntries[4].unk0 = 1;
+        pEntries[3].unk0 = 1;
+        pEntries[2].unk0 = 1;
+        pEntries[1].unk0 = 1;
+        pEntries[0].unk0 = 1;
+        WorldMapDeactivateSpriteGroup(0xB);
+        break;
+    }
+    WorldMapWrapPosition(&p->unk28);
+    pMat = (WorldMapEntry *)g_WorldMapGroups;
+    pMat[0].pos.x = p->unk28 >> 12;
+    pMat[0].pos.y = p->unk2C >> 12;
+    pMat[0].pos.z = p->unk30 >> 12;
+    *(WorldMapPos4 *)&g_WorldMapCameraTarget = *(WorldMapPos4 *)&p->unk28;
+    p->unk50 = (p->unk50 + p->unk54) & 0xFFF;
+    p->unk58 = (p->unk58 + p->unk5C) & 0xFFF;
+    p->unk60 = (p->unk60 + p->unk64) & 0xFFF;
+    // do/while keeps cc1 from hoisting the clears above the angle cluster
+    do {
+        *(s16 *)(pScratch + 0x0B4) = 0;
+        *(s16 *)(pScratch + 0x0B0) = 0;
+        *(s16 *)(pScratch + 0x0AC) = 0;
+        *(s16 *)(pScratch + 0x0A8) = 0;
+        *(s16 *)(pScratch + 0x0A4) = 0;
+        *(s16 *)(pScratch + 0x0A0) = 0;
+    } while (0);
+    *(s16 *)(pScratch + 0x0A2) = p->unk50;
+    *(s16 *)(pScratch + 0x0AA) = p->unk58;
+    *(s16 *)(pScratch + 0x0BA) = 0;
+    *(s16 *)(pScratch + 0x0B2) = p->unk60;
+    *(s16 *)(pScratch + 0x0B8) = 0;
+    *(s16 *)(pScratch + 0x0BC) = p->unk60;
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0x0A0), (MATRIX *)(pScratch + 0x0F0));
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0x0A8), (MATRIX *)(pScratch + 0x110));
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0x0B0), (MATRIX *)(pScratch + 0x130));
+    RotMatrixYXZ((SVECTOR *)(pScratch + 0x0B8), (MATRIX *)(pScratch + 0x150));
+    pMat = (WorldMapEntry *)g_WorldMapGroups;
+    pMat[3].matrix = *(MATRIX *)(pScratch + 0x150);
+    pMat[2].matrix = pMat[3].matrix;
+    pMat[1].matrix = pMat[2].matrix;
+    pMat = (WorldMapEntry *)g_WorldMapGroups;
+    pMat[5].matrix = *(MATRIX *)(pScratch + 0x130);
+    pMat[4].matrix = pMat[5].matrix;
+    pMat = (WorldMapEntry *)g_WorldMapGroups;
+    pMat[12].matrix = *(MATRIX *)(pScratch + 0x0F0);
+    pMat[8].matrix = pMat[12].matrix;
+    pMat[10].matrix = pMat[8].matrix;
+    pMat[6].matrix = pMat[10].matrix;
+    pMat = (WorldMapEntry *)g_WorldMapGroups;
+    pMat[13].matrix = *(MATRIX *)(pScratch + 0x110);
+    pMat[9].matrix = pMat[13].matrix;
+    pMat[11].matrix = pMat[9].matrix;
+    pMat[7].matrix = pMat[11].matrix;
+    RotMatrixYXZ(&((WorldMapEntry *)g_WorldMapGroups)[0].rot, (MATRIX *)(pScratch + 0x0F0));
+    ((WorldMapEntry *)g_WorldMapGroups)[0].matrix = *(MATRIX *)(pScratch + 0x0F0);
+    return 1;
+}
+*/
 void WorldMapSetupPrimTemplates(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count) {
     s32 i;
 
