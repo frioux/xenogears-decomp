@@ -9,8 +9,10 @@
 #include "system/archive.h"
 #include "main/game.h"
 
-// Zoom fade effect: five 0x40-wide texture tiles, two polygons each
+// Zoom fade effect: five texture tiles, FIELD_ZOOM_FADE_TILE_WIDTH pixels
+// wide, two polygons each
 #define FIELD_ZOOM_FADE_TILE_COUNT 5
+#define FIELD_ZOOM_FADE_TILE_WIDTH 0x40
 
 #define FIELD_SCREEN_CENTER_X (SCREEN_WIDTH / 2)
 #define FIELD_SCREEN_CENTER_Y (SCREEN_HEIGHT / 2)
@@ -19,6 +21,10 @@
 // FIELD_PARTICLE_GRID_COLUMNS + j
 #define FIELD_PARTICLE_GRID_ROWS 14
 #define FIELD_PARTICLE_GRID_COLUMNS 20
+
+// How much a particle corner's fade timer drops each frame it stays inside
+// g_FieldParticleFadeDistance of the screen centre
+#define FIELD_PARTICLE_CORNER_FADE_STEP 6
 
 // STP, the semi-transparency bit of two packed 16-bit texels
 #define FIELD_TEXEL_SEMITRANS_MASK 0x80008000
@@ -34,6 +40,9 @@
 #define FIELD_TEXT_SEGMENT_START_FRAME 0x687
 #define FIELD_TEXT_SEGMENT_END_FRAME 0x18E2
 #define FIELD_STREAM_STEP_FRAMES 5
+
+// Archive entry the field sprite sheet TIM is read from
+#define FIELD_SPRITE_SHEET_ARCHIVE_INDEX 0xAA
 
 //
 void FieldSetStructWords14To1C(int* pData, int a, int b, int c) {
@@ -100,7 +109,7 @@ void FieldSetVRAMTextureSemiTrans(int x, int y, int h) {
 
     rect.x = x;
     rect.y = y;
-    rect.w = 0x40;
+    rect.w = FIELD_ZOOM_FADE_TILE_WIDTH;
     rect.h = h;
     pImageBuffer = HeapAlloc(h * 0x80, 0x1);
     StoreImage( &rect, pImageBuffer);
@@ -140,7 +149,7 @@ void FieldZoomFadeEffectLoadTextures(void) {
     nCurX = 0x2C0;
     for (i = 0; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
         FieldSetVRAMTextureSemiTrans(nCurX, 0x100, SCREEN_HEIGHT);
-        nCurX += 0x40;
+        nCurX += FIELD_ZOOM_FADE_TILE_WIDTH;
     }
 
     for (i = 0; i < 2; i++) {
@@ -354,22 +363,22 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
         pVector[3].vy = 0x38;
         pVector[3].vz = 0;
 
-        pPoly->x0 = i * 0x40;
+        pPoly->x0 = i * FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->y0 = 0;
-        pPoly->x1 = 0x40 + i * 0x40;
+        pPoly->x1 = FIELD_ZOOM_FADE_TILE_WIDTH + i * FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->y1 = 0;
-        pPoly->x2 = i * 0x40;
+        pPoly->x2 = i * FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->y2 = 0xDF;
-        pPoly->x3 = 0x40 + i * 0x40;
+        pPoly->x3 = FIELD_ZOOM_FADE_TILE_WIDTH + i * FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->y3 = 0xDF;
 
         setRECT(&g_FieldZoomFadeEffect.rects[i * 2], 0, 0, 0xFF, 0xFF);
         setRECT(&g_FieldZoomFadeEffect.rects[i * 2 + 1], 0, 0, 0xFF, 0xFF);
 
         SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2], 0, 0,
-            GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100), &g_FieldZoomFadeEffect.rects[i * 2]);
+            GetTPage(0x2, nABR, 0x2C0 + i * FIELD_ZOOM_FADE_TILE_WIDTH, 0x100), &g_FieldZoomFadeEffect.rects[i * 2]);
         SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2 + 1], 0, 0,
-            GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100), &g_FieldZoomFadeEffect.rects[i * 2 + 1]);
+            GetTPage(0x2, nABR, 0x2C0 + i * FIELD_ZOOM_FADE_TILE_WIDTH, 0x100), &g_FieldZoomFadeEffect.rects[i * 2 + 1]);
 
         pPoly->r0 = 0x80;
         pPoly->g0 = 0x80;
@@ -378,13 +387,13 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
 
         pPoly->u0 = 0;
         pPoly->v0 = 0;
-        pPoly->u1 = 0x40;
+        pPoly->u1 = FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->v1 = 0;
         pPoly->u2 = 0;
         pPoly->v2 = 0xDF;
-        pPoly->u3 = 0x40;
+        pPoly->u3 = FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->v3 = 0xDF;
-        pPoly->tpage = GetTPage(0x2, nABR, 0x2C0 + i * 0x40, 0x100);
+        pPoly->tpage = GetTPage(0x2, nABR, 0x2C0 + i * FIELD_ZOOM_FADE_TILE_WIDTH, 0x100);
         *pPolyNext = *pPoly;
     }
 }
@@ -417,7 +426,7 @@ void FieldFadeParticleCornerColor(POLY_GT4* pPoly, int nCorner, int nDistance, u
         vecA.vy = nCenterY - pPoly->y0;
         Square0(&vecA, &vecB);
         if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
-            *pTimer -= 6;
+            *pTimer -= FIELD_PARTICLE_CORNER_FADE_STEP;
             if ((s_short)*pTimer < 0) {
                 *pTimer = 0;
             }
@@ -431,7 +440,7 @@ void FieldFadeParticleCornerColor(POLY_GT4* pPoly, int nCorner, int nDistance, u
         vecA.vy = nCenterY - pPoly->y1;
         Square0(&vecA, &vecB);
         if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
-            *pTimer -= 6;
+            *pTimer -= FIELD_PARTICLE_CORNER_FADE_STEP;
             if ((s_short)*pTimer < 0) {
                 *pTimer = 0;
             }
@@ -445,7 +454,7 @@ void FieldFadeParticleCornerColor(POLY_GT4* pPoly, int nCorner, int nDistance, u
         vecA.vy = nCenterY - pPoly->y2;
         Square0(&vecA, &vecB);
         if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
-            *pTimer -= 6;
+            *pTimer -= FIELD_PARTICLE_CORNER_FADE_STEP;
             if ((s_short)*pTimer < 0) {
                 *pTimer = 0;
             }
@@ -459,7 +468,7 @@ void FieldFadeParticleCornerColor(POLY_GT4* pPoly, int nCorner, int nDistance, u
         vecA.vy = nCenterY - pPoly->y3;
         Square0(&vecA, &vecB);
         if ((SquareRoot0(vecB.vx + vecB.vy) >> 1) < nDistance) {
-            *pTimer -= 6;
+            *pTimer -= FIELD_PARTICLE_CORNER_FADE_STEP;
             if ((s_short)*pTimer < 0) {
                 *pTimer = 0;
             }
@@ -905,10 +914,10 @@ s32 func_800A7948(void) {
     ClearImage(&rect, 0, 0, 0);
     DrawSync(0);
     Vsync(0);
-    SetDefDrawEnv(&g_FieldRenderContexts[0].drawEnvs[0], 0, 0, 0x280, 0xE0);
-    SetDefDrawEnv(&g_FieldRenderContexts[1].drawEnvs[0], 0, 0x100, 0x280, 0xE0);
-    SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, 0x280, 0xE0);
-    SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, 0x280, 0xE0);
+    SetDefDrawEnv(&g_FieldRenderContexts[0].drawEnvs[0], 0, 0, 0x280, SCREEN_HEIGHT);
+    SetDefDrawEnv(&g_FieldRenderContexts[1].drawEnvs[0], 0, 0x100, 0x280, SCREEN_HEIGHT);
+    SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, 0x280, SCREEN_HEIGHT);
+    SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, 0x280, SCREEN_HEIGHT);
     g_FieldRenderContexts[1].dispEnv.isrgb24 = 0;
     g_FieldRenderContexts[0].dispEnv.isrgb24 = 0;
     PutDispEnv(&g_FieldCurRenderContext->dispEnv);
@@ -965,8 +974,8 @@ void FieldLoadSpriteSheetTIM(void) {
 
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
     ArchiveSetIndex(4, 0);
-    pTimData = HeapAlloc(ArchiveDecodeAlignedSize(0xAA), 0x1);
-    ArchiveReadFileToBuffer(0xAA, pTimData, 0, 0x80);
+    pTimData = HeapAlloc(ArchiveDecodeAlignedSize(FIELD_SPRITE_SHEET_ARCHIVE_INDEX), 0x1);
+    ArchiveReadFileToBuffer(FIELD_SPRITE_SHEET_ARCHIVE_INDEX, pTimData, 0, 0x80);
     ArchiveCdDataSync(0);
     FieldLoadTIMWithClut(pTimData, 0x380, 0x0, 0x0, 0xE8, 0x0, 0x0);
     DrawSync(0);
@@ -1223,7 +1232,7 @@ void FieldMoveStoredImageToHeap(int nHeapType) {
 
     if (g_FieldScreenImageStored == 1) {
         HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
-        pImage = HeapAlloc(0x8000, nHeapType);
+        pImage = HeapAlloc(sizeof(FieldStoredImage), nHeapType);
         *(FieldStoredImage*)pImage = *(FieldStoredImage*)g_FieldStoredImageBuffer;
         HeapFree(g_FieldStoredImageBuffer);
         g_FieldStoredImageBuffer = pImage;
@@ -1236,7 +1245,7 @@ void FieldStoreScreenImage(void) {
     if (g_FieldScreenImageStored != 1) {
         g_FieldScreenImageStored = 1;
         HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
-        g_FieldStoredImageBuffer = HeapAlloc(0x8000, 0x1);
+        g_FieldStoredImageBuffer = HeapAlloc(sizeof(FieldStoredImage), 0x1);
         setRECT(&g_FieldStoredImageDest[0], 0x3C0, 0x100, 0x40, 0x100);
         StoreImage(&g_FieldStoredImageDest[0], g_FieldStoredImageBuffer);
         DrawSync(0);
