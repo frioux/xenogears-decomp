@@ -1169,7 +1169,7 @@ extern s32 g_GameWdsFileLoadState;
 extern s32 g_GameWdsEntryFreed;
 extern s16 g_GameWdsEntryReleased;
 extern s32 g_SoundWdsEntryFile3;
-extern SoundWDSEntry* D_8006251C;
+extern SoundWDSEntry* g_FieldWdsFileEntry;
 extern void* g_FieldWdsFileBuffer; // WDS File Buffer
 
 int FieldFinishWdsFileLoad(void) {
@@ -1180,7 +1180,7 @@ int FieldFinishWdsFileLoad(void) {
     }
     
     pWdsEntry = SoundLoadWdsFile(g_FieldWdsFileBuffer, 0);
-    D_8006251C = pWdsEntry;
+    g_FieldWdsFileEntry = pWdsEntry;
     g_SoundWdsEntryFile3 = pWdsEntry;
     SoundGetPendingSpuCommandType(0x10);
     HeapFree(g_FieldWdsFileBuffer);
@@ -1204,7 +1204,7 @@ void FieldBeginWdsFileLoad(void) {
 void FieldReleaseWdsEntry(void) {
     if (g_GameWdsEntryFreed == 0) {
         g_GameWdsEntryReleased = 1;
-        SoundFreeWdsEntry(D_8006251C);
+        SoundFreeWdsEntry(g_FieldWdsFileEntry);
         g_GameWdsEntryFreed = 1;
     }
     g_GameWdsFileLoadState = 0;
