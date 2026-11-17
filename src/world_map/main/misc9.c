@@ -752,25 +752,11 @@ s32 func_80087FD0(s32 index) {
     return 1;
 }
 */
-// Best: 99.65% (284 bytes = retail size, identical instruction multiset, one
-// register pick left). The only difference: `addu` for pSlot->unk30 gets v1 as
-// the destination (retail: v0), i.e. gcc puts the else-branch value in v1 and
-// stores through it; retail has it in v0 and its unk28 temp in v1. Everything
-// else - the pCount pointer in v1, the 0xFFD80000 lui, the order of the
-// pSlot->unk30 store before the unk28 load - now matches.
-// Shape that got here (permuter runs 1-3 from 95.92%, base 410 -> 290 -> 130 ->
-// 75 -> 60 -> 25, each ported and re-diffed by objdiff): do-while(0) around
-// (*pCount)++ keeps the 0x4800000 lui from being hoisted above the 0xFFD80000
-// store; routing 0xFFD80000 through the v local (`v = 0xFFD80000; pSlot->unk2C =
-// v;`) fixes the if-branch order; `u32 posX` (not u16) fixes the else-branch
-// angleY v0/v1 swap and the addu operand order; re-reading unk28 into the dead v
-// (`v = pSlot->unk28;` after `pSlot->unk30 = v;`) moves the unk28 load above the
-// unk30 store, matching retail. Not a compiler miss (cdk/2.6.0 screened earlier).
-/*
 s32 func_80088570(s32 index) {
     WorldMapPlayer* pSlot;
     u16* pCount;
-    s32 v;
+    s32 posZ;
+    s32 posX;
 
     func_8008868C();
     pSlot = &g_WorldMapSlots[index];
@@ -784,33 +770,36 @@ s32 func_80088570(s32 index) {
         do {
             (*pCount)++;
         } while (0);
-        v = 0xFFD80000;
-        pSlot->y = v;
+        // posZ carries the y constant first: sharing one variable stops gcc
+        // hoisting the 0x4800000 lui above the y store.
+        posZ = 0xFFD80000;
+        pSlot->y = posZ;
         pSlot->x = 0;
-        v = 0x4800000;
+        posZ = 0x4800000;
     } else {
-        s32 angleY = *(s16*)&g_GameState.mapPosX;
-        u32 posX = g_GameState.mapPosXFraction;
+        s32 mapX = *(s16*)&g_GameState.mapPosX;
+        u32 fracX = g_GameState.mapPosXFraction;
 
         pSlot->y = 0xFFD80000;
-        pSlot->x = angleY * 0x1000 + posX;
+        pSlot->x = mapX * 0x1000 + fracX;
         do {
-            v = *(s16*)&g_GameState.mapPosZ * 0x1000 + g_GameState.mapPosZFraction;
+            posZ = *(s16*)&g_GameState.mapPosZ * 0x1000 + g_GameState.mapPosZFraction;
         } while (0);
     }
-    pSlot->z = v;
-    v = pSlot->x;
+    pSlot->z = posZ;
+    do {
+    } while (0); // keeps the x load below the z store
+    posX = pSlot->x;
     pSlot->dirZ = 0xB50;
     pSlot->dirX = 0xB50;
     pSlot->dirY = 0;
     pSlot->moveSpeed = 1;
-    g_GameState.mapPosXFraction = v;
+    g_GameState.mapPosXFraction = posX;
     g_GameState.mapPosX = pSlot->x >> 12;
     g_GameState.mapPosZFraction = pSlot->z;
     g_GameState.mapPosZ = pSlot->z >> 12;
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
+}
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
 // Best: 76.81%. Two-pointer walk over the interleaved s16 pairs of D_8009AFA0
