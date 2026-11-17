@@ -98,13 +98,6 @@ char* strcat(char* pDst, char* pSrc) {
 }
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libc", strcmp);
-
-/* best: 85.76% -- retail keeps *p1 at QImode in a2 (andi for the int compare) and
-   puts p2++ in the equality branch's delay slot so the mismatch path reads
-   -1(a1) and reloads both bytes; gcc loads SImode lbu and keeps *p2 in v0 for
-   the subu. Every C shape tried (u_char local, while(1)+break, do/while) moves
-   the rotation further away (76.60%, 47.76%).
 int strcmp(u_char* pString1, u_char* pString2) {
     if (pString1 == NULL || pString2 == NULL) {
         if (pString1 == pString2)
@@ -113,15 +106,14 @@ int strcmp(u_char* pString1, u_char* pString2) {
             return -1;
         return 1;
     }
-    while (*pString1 == *pString2) {
+    while (*pString1 == *pString2++) {
         if (*pString1 == 0)
             return 0;
         pString1++;
-        pString2++;
     }
-    return *pString1 - *pString2;
+    return *pString1 - pString2[-1];
 }
-*/
+
 
 void* strcpy(u_char* pDst, u_char* pSrc) {
     void* pRet;
