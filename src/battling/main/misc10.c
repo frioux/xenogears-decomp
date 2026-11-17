@@ -87,13 +87,19 @@ typedef struct {
 
 // The relocated resource block pData points at: the layout
 // BattleRelocateBlockPointers in src/battling/main/misc14.c fixes up, so each
-// pointer below is a byte offset from the block start before that call.
+// pointer below is a byte offset from the block start before that call. The
+// three pointers at 0x00-0x08 are what that file's func_8008B38C walks to
+// build the actor's nodes: the part descriptors, the model data they index and
+// the per-part animation list.
 typedef struct {
-    /* 0x00 */ u8 unk00[0x10];
+    /* 0x00 */ u8* pPartList; // count word followed by 0x10-byte part descriptors
+    /* 0x04 */ u8* pModelData; // base of the 0x38-byte model part records
+    /* 0x08 */ u8* pAnimList; // count word followed by 0x14-byte entries
+    /* 0x0C */ u8 unk0C[0x4];
     /* 0x10 */ Misc10SpriteHeader* pHeader;
     /* 0x14 */ u8* pPartTimings;
     /* 0x18 */ Misc10ActionSlot* pActions;
-    /* 0x1C */ u8 unk1C[0x4];
+    /* 0x1C */ u32 pSelf; // the block's own address, the base every pointer above is rebased against
     /* 0x20 */ u8* pImage;
 } Misc10Block; // Size: 0x24
 
