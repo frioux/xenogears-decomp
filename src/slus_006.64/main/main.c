@@ -13,7 +13,7 @@ extern unsigned int g_CurGameStateOverlayID;
 extern void* g_CurGameStateOverlayBuffer;
 extern u_short g_C1ButtonState;
 
-extern s32 D_80059560;
+extern s32 g_SoundWdsEntryFile3;
 extern s32 g_GameWdsEntrySlot3;
 extern u_char D_8004FE44;
 extern u_char D_8004FE45;
@@ -88,7 +88,7 @@ void MainSystemInit(void) {
     ArchiveReadFileToBuffer(5, pWdsFile5, 0, 0);
     ArchiveCdDataSync(0);
     SoundLoadWdsFile(pWdsFile2, 0);
-    D_80059560 = SoundLoadWdsFile(pWdsFile3, 0);
+    g_SoundWdsEntryFile3 = SoundLoadWdsFile(pWdsFile3, 0);
     SoundLoadWdsFile(pWdsFile4, 0);
     g_GameWdsEntrySlot3 = SoundLoadWdsFile(pWdsFile5, 0);
 

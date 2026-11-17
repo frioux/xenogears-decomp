@@ -1031,3 +1031,7 @@ g_FieldSoundSlotId = 0x800B21B8;
 FieldRenderGearFrame = 0x8007520C;
 FieldRenderActors = 0x800752C8;
 FieldMatrixBuildRotationFromVector = 0x800759E4;
+g_FieldSpritePolysCopy = 0x800AFC64;
+g_FieldStreamFileIndex = 0x800C3A20;
+g_FieldStreamTotalFrames = 0x800C3A2E;
+g_FieldStreamLoopPlayback = 0x800C3A3A;

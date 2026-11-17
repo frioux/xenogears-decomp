@@ -617,15 +617,15 @@ void FieldSelectStreamRenderContext(u_short arg0, int arg1, u_short arg2) {
 }
 
 extern s32 g_FieldStreamFlags;
-extern s16 D_800C3A20;
+extern s16 g_FieldStreamFileIndex;
 extern u16 D_800C3A22;
 extern u16 D_800C3A24;
 extern u16 D_800C3A26;
 extern u16 D_800C3A28;
 extern u16 D_800C3A2A;
 extern u16 g_FieldStreamFrameBase;
-extern u16 D_800C3A2E;
-extern u16 D_800C3A3A;
+extern u16 g_FieldStreamTotalFrames;
+extern u16 g_FieldStreamLoopPlayback;
 extern s16 g_FieldStreamId;
 extern void func_801D37CC(int, int, int, int, int, int, int, int, int, int, int, int, FieldRenderContextCallback);
 
@@ -640,8 +640,8 @@ void FieldPlayStreamedSequence(void) {
         if (g_FieldStreamId != 0xFF || (g_FieldStreamFlags & 0x40)) {
             nMode = 3;
         }
-        func_801D37CC(D_800C3A20 + 2, D_800C3A2A, g_FieldStreamFrameBase, D_800C3A2E, 1, nMode,
-            D_800C3A3A, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, FieldSelectStreamRenderContext);
+        func_801D37CC(g_FieldStreamFileIndex + 2, D_800C3A2A, g_FieldStreamFrameBase, g_FieldStreamTotalFrames, 1, nMode,
+            g_FieldStreamLoopPlayback, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, FieldSelectStreamRenderContext);
         ArchiveSetIndex(4, 0);
     }
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
@@ -949,14 +949,14 @@ void FieldLoadSpriteSheetTIM(void) {
 
 extern int g_FieldSpritePrimsAllocated;
 extern POLY_FT4* g_FieldSpritePolys[];
-extern void* D_800AFC64;
+extern void* g_FieldSpritePolysCopy;
 
 void FieldFreeSpritePrimitives(void) {
     if (g_FieldSpritePrimsAllocated != 0) {
         g_FieldSpritePrimsAllocated = 0;
         DrawSync(0);
         HeapFree(g_FieldSpritePolys[0]);
-        HeapFree(D_800AFC64);
+        HeapFree(g_FieldSpritePolysCopy);
     }
 }
 
@@ -1032,12 +1032,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
        D_800AEB64 = 0;
        HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
        g_FieldSpritePolys[0] = HeapAlloc(0x1108, 0);
-       D_800AFC64 = HeapAlloc(0x1108, 0);
+       g_FieldSpritePolysCopy = HeapAlloc(0x1108, 0);
 
        nABR = 0;
        for (i = 0; i < 0x6D; i++) {
            pPoly = &g_FieldSpritePolys[0][i];
-           pPolyNext = (POLY_FT4*)D_800AFC64 + i;
+           pPolyNext = (POLY_FT4*)g_FieldSpritePolysCopy + i;
            SetPolyFT4(pPoly);
 
            pPoly->r0 = 0x80;

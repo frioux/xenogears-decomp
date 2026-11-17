@@ -715,3 +715,5 @@ g_BattleRootOrderingTable = 0x80092938;
 g_BattleViewOriginY = 0x80096FAC;
 g_BattleViewOriginZ = 0x80096FB0;
 g_BattleSceneOriginZ = 0x80098734;
+g_BattleFrameWaitCount = 0x80092898;
+g_BattleDebugDrawCallback = 0x80092930;

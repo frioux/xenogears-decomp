@@ -2652,20 +2652,20 @@ void FieldScriptWaitForFlagADB7C(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-extern s16 D_800C3A20;
+extern s16 g_FieldStreamFileIndex;
 extern s16 D_800C3A22;
 extern s16 D_800C3A24;
 extern s16 D_800C3A26;
 extern s16 D_800C3A28;
 extern s16 D_800C3A2A;
 extern s16 g_FieldStreamFrameBase;
-extern s16 D_800C3A2E;
+extern s16 g_FieldStreamTotalFrames;
 extern u16 D_800C3A30;
 extern u16 D_800C3A32;
 extern u16 D_800C3A34;
 extern u16 g_FieldStreamRgb24;
 extern u16 g_FieldStreamId;
-extern u16 D_800C3A3A;
+extern u16 g_FieldStreamLoopPlayback;
 extern s32 g_FieldStreamSceneActive;
 extern s32 g_FieldMode;
 extern s32 g_FieldStreamFlags;
@@ -2674,8 +2674,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EA58);
 /*
  * func_8008EA58 74.57% (456 bytes, same instruction count as retail). Every
  * segment matches except where the store of the previous argument lands: retail
- * emits [lw actor][sh D_800C3A20][lhu 0xCC][lui/lw scriptData][addu][lbu], we
- * emit [lw actor][lui/lw scriptData][lhu 0xCC][sh D_800C3A20][addu][lbu] - the
+ * emits [lw actor][sh g_FieldStreamFileIndex][lhu 0xCC][lui/lw scriptData][addu][lbu], we
+ * emit [lw actor][lui/lw scriptData][lhu 0xCC][sh g_FieldStreamFileIndex][addu][lbu] - the
  * scheduler refuses to put the lui/sh pair before the scriptData load, so the
  * ip read takes $v1 instead of retail's $v0. Same shape as the matched
  * FieldScriptSetGameState184E, which stores through a loaded pointer
@@ -2688,10 +2688,10 @@ void func_8008EA58(void) {
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
     } else {
-        D_800C3A20 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
+        g_FieldStreamFileIndex = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0xB));
         D_800C3A2A = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0xB));
         g_FieldStreamFrameBase = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0xB));
-        D_800C3A2E = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
+        g_FieldStreamTotalFrames = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0xB));
         g_FieldStreamId = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0xB));
         D_800C3A32 = 0x140;
         g_FieldStreamFlags = 0x40;
@@ -2702,7 +2702,7 @@ void func_8008EA58(void) {
         D_800C3A24 = 0;
         D_800C3A22 = 0;
         D_800C3A28 = 0x100;
-        D_800C3A3A = 0;
+        g_FieldStreamLoopPlayback = 0;
         g_FieldMode = 0;
         g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
@@ -2733,16 +2733,16 @@ void func_8008EE14(void) {
     u16 value;
     s16 pos;
 
-    D_800C3A20 = FieldScriptVMGetArgument(1);
+    g_FieldStreamFileIndex = FieldScriptVMGetArgument(1);
     D_800C3A2A = FieldScriptVMGetArgument(3);
     g_FieldStreamFrameBase = FieldScriptVMGetArgument(5);
-    D_800C3A2E = FieldScriptVMGetArgument(7);
+    g_FieldStreamTotalFrames = FieldScriptVMGetArgument(7);
     value = FieldScriptVMGetArgument(9);
     D_800C3A30 = value;
     if (value == 0xFE) {
-        D_800C3A3A = 1;
+        g_FieldStreamLoopPlayback = 1;
     } else {
-        D_800C3A3A = 0;
+        g_FieldStreamLoopPlayback = 0;
     }
     pos = FieldScriptVMGetArgument(0xB);
     D_800C3A22 = pos;
