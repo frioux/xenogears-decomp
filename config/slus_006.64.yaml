@@ -196,6 +196,8 @@ segments:
       - [0x3B03C, c, psyq/libgte_average_b] # RotAverageNclip4 on
       - [0x3B7E4, asm] # RotMatrixX's tail pad words (2 words)
       - [0x3B7EC, c, psyq/libgte_average_c] # RotMatrixY on
+      - [0x3B984, asm] # RotMatrixY's tail pad words (2 words)
+      - [0x3B98C, c, psyq/libgte_average_d] # RotMatrixZ on
       - [0x3BCAC, asm] # Part of libetc
       - [0x3BD4C, c, psyq/libetc/vsync]
       - [0x3BF30, c, psyq/libapi_3]
