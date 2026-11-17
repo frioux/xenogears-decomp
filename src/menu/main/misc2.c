@@ -259,14 +259,14 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C81E0);
    block and fills the slot with `sw a3,0xC(v1)`; (2) in every block after the
    first, retail puts the `index*0x24` address in v1 and the `li 1`/`li 0x100`
    constant in v0, gcc swaps them. Pointer local for the first five stores plus
-   a fresh `g_Menu->unk0[...]` re-deref after it is the closest shape (plain
+   a fresh `g_Menu->windowTweens[...]` re-deref after it is the closest shape (plain
    re-deref everywhere is 80.41). Tried under 2.7.2 per the old note: field
    order 0/4/8/C, s32* base, pointer local throughout. Also 95.35-class dead
    zone, do not burn budget on it.
 void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
     u8* pEntry;
 
-    pEntry = g_Menu->unk0 + index * 0x24;
+    pEntry = g_Menu->windowTweens + index * 0x24;
     ((s32*)pEntry)[0] = arg0;
     ((s32*)pEntry)[2] = arg1;
     ((s32*)pEntry)[1] = arg2;
@@ -280,35 +280,35 @@ void func_801C81E0(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4, u8 index) {
     }
     if (arg3 < arg1) {
         arg1 = arg1 - arg3;
-        g_Menu->unk0[index * 0x24 + 0x21] = 1;
+        g_Menu->windowTweens[index * 0x24 + 0x21] = 1;
     } else {
         arg1 = arg3 - arg1;
-        g_Menu->unk0[index * 0x24 + 0x21] = 0;
+        g_Menu->windowTweens[index * 0x24 + 0x21] = 0;
     }
     if (arg2 < arg1) {
-        ((s32*)(g_Menu->unk0 + index * 0x24))[4] = (arg2 << 8) / arg1;
-        ((s32*)(g_Menu->unk0 + index * 0x24))[5] = 0x100;
+        ((s32*)(g_Menu->windowTweens + index * 0x24))[4] = (arg2 << 8) / arg1;
+        ((s32*)(g_Menu->windowTweens + index * 0x24))[5] = 0x100;
     } else {
-        ((s32*)(g_Menu->unk0 + index * 0x24))[4] = 0x100;
-        ((s32*)(g_Menu->unk0 + index * 0x24))[5] = (arg1 << 8) / arg2;
+        ((s32*)(g_Menu->windowTweens + index * 0x24))[4] = 0x100;
+        ((s32*)(g_Menu->windowTweens + index * 0x24))[5] = (arg1 << 8) / arg2;
     }
-    g_Menu->unk0[index * 0x24 + 0x22] = arg4;
-    ((s32*)(g_Menu->unk0 + index * 0x24))[6] = 0;
-    ((s32*)(g_Menu->unk0 + index * 0x24))[7] = 0;
-    g_Menu->unk0[index * 0x24 + 0x23] = 0;
+    g_Menu->windowTweens[index * 0x24 + 0x22] = arg4;
+    ((s32*)(g_Menu->windowTweens + index * 0x24))[6] = 0;
+    ((s32*)(g_Menu->windowTweens + index * 0x24))[7] = 0;
+    g_Menu->windowTweens[index * 0x24 + 0x23] = 0;
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc2", func_801C8324);
 /* Best: 77.69% (452 bytes, same instruction multiset) under XenoMenu260.
    Loop, tail compares and both step accumulators all line up; the only
    residual is the `addu` operand order on the three
-   `g_Menu->unk0 + index * 0x24` address forms in the loop: retail emits
+   `g_Menu->windowTweens + index * 0x24` address forms in the loop: retail emits
    `addu a1,a1,v0` (base first), gcc 2.6 emits `addu a1,v0,a1` (scaled index
    first). Writing the same address as an array subscript
-   (`((MenuTween*)g_Menu->unk0)[index]`, tried with a local typedef) makes
+   (`((MenuTween*)g_Menu->windowTweens)[index]`, tried with a local typedef) makes
    the pre-loop and the y-pair sites base-first too but drops the whole
    function to 70.55%. A hoisted `s32 offset = index * 0x24;` local or a
-   loop-body `u8* pBase = g_Menu->unk0;` local is 68.17% (the multiply gets
+   loop-body `u8* pBase = g_Menu->windowTweens;` local is 68.17% (the multiply gets
    hoisted and retail recomputes it per site).
 void func_801C8324(u8 index) {
     s32 i;
@@ -316,9 +316,9 @@ void func_801C8324(u8 index) {
     u8* pEntry;
     u8* pBase;
 
-    pEntry = g_Menu->unk0 + index * 0x24;
-    for (i = 0; i < g_Menu->unk0[index * 0x24 + 0x22]; i++) {
-        pBase = g_Menu->unk0;
+    pEntry = g_Menu->windowTweens + index * 0x24;
+    for (i = 0; i < g_Menu->windowTweens[index * 0x24 + 0x22]; i++) {
+        pBase = g_Menu->windowTweens;
         if (pBase[index * 0x24 + 0x20]) {
             ((s32*)(pBase + index * 0x24))[6] -= ((s32*)(pBase + index * 0x24))[4];
         } else {
@@ -330,25 +330,25 @@ void func_801C8324(u8 index) {
             ((s32*)pEntry)[7] += ((s32*)pEntry)[5];
         }
     }
-    if (((s32*)(g_Menu->unk0 + index * 0x24))[4] == 0x100) {
-        position = ((s32*)(g_Menu->unk0 + index * 0x24))[6] / 256;
-        if (g_Menu->unk0[index * 0x24 + 0x20]) {
-            if (((s32*)(g_Menu->unk0 + index * 0x24))[0] + position < ((s32*)(g_Menu->unk0 + index * 0x24))[1]) {
-                g_Menu->unk0[index * 0x24 + 0x23] = 1;
+    if (((s32*)(g_Menu->windowTweens + index * 0x24))[4] == 0x100) {
+        position = ((s32*)(g_Menu->windowTweens + index * 0x24))[6] / 256;
+        if (g_Menu->windowTweens[index * 0x24 + 0x20]) {
+            if (((s32*)(g_Menu->windowTweens + index * 0x24))[0] + position < ((s32*)(g_Menu->windowTweens + index * 0x24))[1]) {
+                g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
             }
-        } else if (((s32*)(g_Menu->unk0 + index * 0x24))[1] <
-                   ((s32*)(g_Menu->unk0 + index * 0x24))[0] + position) {
-            g_Menu->unk0[index * 0x24 + 0x23] = 1;
+        } else if (((s32*)(g_Menu->windowTweens + index * 0x24))[1] <
+                   ((s32*)(g_Menu->windowTweens + index * 0x24))[0] + position) {
+            g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
         }
     } else {
-        position = ((s32*)(g_Menu->unk0 + index * 0x24))[7] / 256;
-        if (g_Menu->unk0[index * 0x24 + 0x21]) {
-            if (((s32*)(g_Menu->unk0 + index * 0x24))[2] + position < ((s32*)(g_Menu->unk0 + index * 0x24))[3]) {
-                g_Menu->unk0[index * 0x24 + 0x23] = 1;
+        position = ((s32*)(g_Menu->windowTweens + index * 0x24))[7] / 256;
+        if (g_Menu->windowTweens[index * 0x24 + 0x21]) {
+            if (((s32*)(g_Menu->windowTweens + index * 0x24))[2] + position < ((s32*)(g_Menu->windowTweens + index * 0x24))[3]) {
+                g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
             }
-        } else if (((s32*)(g_Menu->unk0 + index * 0x24))[3] <
-                   ((s32*)(g_Menu->unk0 + index * 0x24))[2] + position) {
-            g_Menu->unk0[index * 0x24 + 0x23] = 1;
+        } else if (((s32*)(g_Menu->windowTweens + index * 0x24))[3] <
+                   ((s32*)(g_Menu->windowTweens + index * 0x24))[2] + position) {
+            g_Menu->windowTweens[index * 0x24 + 0x23] = 1;
         }
     }
 }

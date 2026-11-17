@@ -270,7 +270,7 @@ typedef struct {
     /* 0x4  */ u8 shouldRenderPointerCursor; // On the ball selection windows?
     /* 0x5  */ u8 goldDigitsActive; // Set by MenuSetGoldDigits, gates the gold digits in MenuAddGoldAndPlayTimePrims
     /* 0x6  */ u8 playTimeDigitsActive; // Set by MenuCreatePlayTimeWindow, gates the play time digits in MenuAddGoldAndPlayTimePrims
-    /* 0x7  */ u8 shouldRenderUnk358Prims; // Set by MenuSetGearWindowContents, gates the unk358 prims in MenuAddUnk358Prims
+    /* 0x7  */ u8 shouldRenderUnk358Prims; // Set by MenuSetGearWindowContents, gates the gear window prims in MenuAddUnk358Prims
     /* 0x8  */ u8 shouldRenderUnk35C;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
     /* 0xA  */ u8 shouldRenderSubmenuStrings; // Gates MenuUnk5 (pSubmenuPrims) string prims
@@ -371,7 +371,7 @@ typedef struct {
     /* 0x18 */ u8 unk18;
     /* 0x19 */ u8 unk19;
     /* 0x1A */ u8 effectAmount; // Accumulated per effectFlags bit, see GearShopMenuApplyGearAccessories
-    /* 0x1B */ u8 unk1B;
+    /* 0x1B */ u8 etherAmplification; // Added to the gear's etherAmplificationFromEquipment, see MenuApplyGearAccessories
 } GearAccessory; /* size: 0x1C */
 
 
@@ -738,7 +738,7 @@ typedef struct {
 } MenuPlayTimeDigits; // Size: 0x374
 
 typedef struct {
-    /* 0x0    */ u8 unk0[108];
+    /* 0x0    */ u8 windowTweens[108]; // 3 x 0x24 tween records, one per window, see MenuWindowTween in misc7
     /* 0x6C   */ GfxEnvironment gfxEnvs[2];
     /* 0x1D4  */ GfxEnvironment* pGfxEnv;
     /* 0x1D8  */ SVECTOR rotation;
@@ -799,7 +799,7 @@ typedef struct {
     /* 0x34C  */ void* pPrimBuffer; // Scratch prim buffer, see MenuAllocatePrimBuffer
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
     /* 0x354  */ MenuUnk5* pSubmenuPrims; // Submenu option cursor and text prims
-    /* 0x358  */ void* unk358;
+    /* 0x358  */ void* pGearWindowPrims; // Gear window prim block, see MenuGearWindowPrims in misc7
     /* 0x35C  */ MenuUnk10* unk35C;
     /* 0x360  */ void* pEquipmentPanel; // Stat values and the equipped weapon/accessory ids being edited
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];

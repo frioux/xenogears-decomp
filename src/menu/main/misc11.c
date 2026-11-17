@@ -57,7 +57,7 @@ void MenuApplyGearAccessories(MenuDressingRoom* pDressingRoom, u8 gearId) {
         pGear->weightFromEquipment += pAccessory->weight;
         pGear->unk4C += pAccessory->unk18;
         pGear->responsiveness += pAccessory->responsiveness;
-        pGear->etherAmplificationFromEquipment += pAccessory->unk1B;
+        pGear->etherAmplificationFromEquipment += pAccessory->etherAmplification;
 
         for (i = 0; i < 4; i++) {
             pGear->unk50[i] += pAccessory->unk10[i];

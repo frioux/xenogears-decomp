@@ -56,16 +56,16 @@ void MenuSetPolySemiTransGrey(P_TAG* pTag);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 
 /* 78.55% (596 bytes, same size as the original). Full decode: arg1 != 0
-   guards the whole body. ((u8*)g_Menu->unk358)[0x2AED] = 0, then two
+   guards the whole body. ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 0, then two
    windows: func_8002675C(g_Menu->resources, D_801E977C[i], 0x1E00 + i*0x50
-   + unk358, g_Menu->renderContext, 0x78 + i*0x20, 0x5A, 0x1000) and
-   MenuSetQuadVertices(0x2AA0 + i*0x20 + unk358, x, y, right - x, bottom - y) with
-   a u8* pEntry = unk358 + (renderContext + i*2)*0x28 and fields +0x1E08,
+   + pGearWindowPrims, g_Menu->renderContext, 0x78 + i*0x20, 0x5A, 0x1000) and
+   MenuSetQuadVertices(0x2AA0 + i*0x20 + pGearWindowPrims, x, y, right - x, bottom - y) with
+   a u8* pEntry = pGearWindowPrims + (renderContext + i*2)*0x28 and fields +0x1E08,
    +0x1E0A, +0x1E10, +0x1E22 (i.e. 0x1E00-relative 40-byte records).
-   Then MenuSetPolySemiTransGrey(unk358 + (renderContext + 2*(arg2 == 0))*0x28),
+   Then MenuSetPolySemiTransGrey(pGearWindowPrims + (renderContext + 2*(arg2 == 0))*0x28),
    *(u16*)(pEntry+0x1E16) |= 0x20, *(u8*)(pEntry+0x1E04/05/06) = 0x20,
-   ((u8*)unk358)[0x2AEE] = *(u8*)&g_Menu->renderContext,
-   ((u8*)unk358)[0x2AED] = 2. Post-call statements must repeat the whole
+   ((u8*)pGearWindowPrims)[0x2AEE] = *(u8*)&g_Menu->renderContext,
+   ((u8*)pGearWindowPrims)[0x2AED] = 2. Post-call statements must repeat the whole
    address expression inline (a pEntry local kept in a register gives 46.14%,
    this version 78.55%). Remaining diffs: (1) gcc's loop.c strength-reduces
    the D_801E977C[i] giv into an incrementing pointer, which costs a sixth
@@ -83,24 +83,24 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
     s32 i;
 
     if (arg1 != 0) {
-        ((u8*)g_Menu->unk358)[0x2AED] = 0;
+        ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 0;
         for (i = 0; i < 2; i++) {
             func_8002675C(g_Menu->resources, D_801E977C[i],
-                          (POLY_FT4*)((u8*)g_Menu->unk358 + 0x1E00 + i * 0x50),
+                          (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + 0x1E00 + i * 0x50),
                           g_Menu->renderContext, 0x78 + i * 0x20, 0x5A, 0x1000);
-            pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
-            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x2AA0 + i * 0x20),
+            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
+            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x2AA0 + i * 0x20),
                           *(u16*)(pEntry + 0x1E08), *(u16*)(pEntry + 0x1E0A),
                           *(u16*)(pEntry + 0x1E10) - *(u16*)(pEntry + 0x1E08),
                           *(u16*)(pEntry + 0x1E22) - *(u16*)(pEntry + 0x1E0A));
         }
-        MenuSetPolySemiTransGrey((P_TAG*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28));
-        *(u16*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E16) |= 0x20;
-        *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E04) = 0x20;
-        *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E05) = 0x20;
-        *(u8*)((u8*)g_Menu->unk358 + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E06) = 0x20;
-        ((u8*)g_Menu->unk358)[0x2AEE] = *(u8*)&g_Menu->renderContext;
-        ((u8*)g_Menu->unk358)[0x2AED] = 2;
+        MenuSetPolySemiTransGrey((P_TAG*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28));
+        *(u16*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E16) |= 0x20;
+        *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E04) = 0x20;
+        *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E05) = 0x20;
+        *(u8*)((u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + selected * 2) * 0x28 + 0x1E06) = 0x20;
+        ((u8*)g_Menu->pGearWindowPrims)[0x2AEE] = *(u8*)&g_Menu->renderContext;
+        ((u8*)g_Menu->pGearWindowPrims)[0x2AED] = 2;
     }
 }
 */

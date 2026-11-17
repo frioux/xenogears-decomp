@@ -6,7 +6,7 @@
 
 void MenuParseNumberToDigits(u32 number);
 
-// A window's tween state, one per window: &((MenuWindowTween*)g_Menu->unk0)[index].
+// A window's tween state, one per window: &((MenuWindowTween*)g_Menu->windowTweens)[index].
 typedef struct {
     /* 0x00 */ s32 unk0;
     /* 0x04 */ s32 unk4;
@@ -22,7 +22,7 @@ typedef struct {
     /* 0x23 */ u8 unk23;
 } MenuWindowTween; // Size: 0x24
 
-// The gear window's prim buffer (g_Menu->unk358): this unit only needs the copy
+// The gear window's prim buffer (g_Menu->pGearWindowPrims): this unit only needs the copy
 // of the render context at its tail.
 typedef struct {
     /* 0x0000 */ u8 unk0[0x2AE0];
@@ -533,7 +533,7 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     if (index == CHARACTER_ID_NONE) {
         return;
     }
-    pTween = &((MenuWindowTween*)(void*)g_Menu->unk0)[index];
+    pTween = &((MenuWindowTween*)(void*)g_Menu->windowTweens)[index];
     pWindow = g_Menu->characterWindows[index];
     x = pTween->unk18 / 256 + pTween->unk0;
     y = pTween->unk1C / 256 + pTween->unk8;
@@ -627,27 +627,27 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
    (4) width = 0x18 * a1 + 0x48 is assigned just before its first use (after the
    palette if/else), not at the top, and shared by MenuSetFt4QuadVertices and the last
    MenuSetQuadVertices.
-   Left: retail hoists the 0x5E store base (unk358 + renderContext * 0x28) out
+   Left: retail hoists the 0x5E store base (pGearWindowPrims + renderContext * 0x28) out
    of the *then* branch but recomputes it in the else branch; a shared pBase
    local gets 87.38%, inline in both branches 85.93%, and the remaining diffs are
    two addu operand orders and a register pick. Also tried: flipping the operand
-   order of the unk358+ctx*0x28 sums (no change at all).
+   order of the pGearWindowPrims+ctx*0x28 sums (no change at all).
    void func_801D5ED4(u_char a0, u_char a1) {
        s32 rowOffset = a1 ? 0x18 : 0;
        u8* pBase;
        u16 width;
    
-       func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)g_Menu->unk358,
+       func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)g_Menu->pGearWindowPrims,
                      g_Menu->renderContext, 0x18 - rowOffset, 0xE, 0x1000);
-       MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EA0),
-                     *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0x8),
-                     *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->unk358) + 0xA),
+       MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EA0),
+                     *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->pGearWindowPrims) + 0x8),
+                     *(u16*)((g_Menu->renderContext * 0x28 + (u8*)g_Menu->pGearWindowPrims) + 0xA),
                      0x30, 0x30);
        MenuInitializePolyFt4((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
-                                 (u8*)g_Menu->unk358));
-       *(u16*)((u8*)g_Menu->unk358 + g_Menu->renderContext * 0x28 + 0x66) =
+                                 (u8*)g_Menu->pGearWindowPrims));
+       *(u16*)((u8*)g_Menu->pGearWindowPrims + g_Menu->renderContext * 0x28 + 0x66) =
            GetTPage(0, 0, 0x180, 0);
-       pBase = (u8*)g_Menu->unk358 + g_Menu->renderContext * 0x28;
+       pBase = (u8*)g_Menu->pGearWindowPrims + g_Menu->renderContext * 0x28;
        if (a1 == 0) {
            if (g_Menu->pManager->currentCharacterIDs[a0] & 1) {
                *(u16*)(pBase + 0x5E) = g_SystemPalette2;
@@ -664,10 +664,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
        }
        width = 0x18 * a1 + 0x48;
        MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x50) +
-                                 (u8*)g_Menu->unk358),
+                                 (u8*)g_Menu->pGearWindowPrims),
                      0, 0, (g_MenuNameTextureX[3 * a1 + a0] << 2) & 0xFC,
                      g_MenuNameTextureY[(3 * a1 + a0) * 4], width, 0xD);
-       MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EC0),
+       MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EC0),
                      D_801E9D38 - rowOffset, D_801E9D3C, width, 0xD);
    }
 */
@@ -696,15 +696,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
        s32 i;
        u8* pEntry;
    
-       ((u8*)g_Menu->unk358)[0x2AEC] = 0;
+       ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] = 0;
        for (i = 0; i < 0x18; i++) {
            if (D_801EA39C[a0 * 0x18 + i] == 0xFFFF) continue;
            {
-               ((u8*)g_Menu->unk358)[0x2AEC] += func_8002675C(
+               ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] += func_8002675C(
                    g_Menu->resources,
                    D_801EA39C[a0 * 0x18 + i],
-                   (POLY_FT4*)(((u8*)g_Menu->unk358) +
-                               (((u8*)g_Menu->unk358)[0x2AEC] * 0x50 + 0xA0)),
+                   (POLY_FT4*)(((u8*)g_Menu->pGearWindowPrims) +
+                               (((u8*)g_Menu->pGearWindowPrims)[0x2AEC] * 0x50 + 0xA0)),
                    g_Menu->renderContext,
                    D_801E9B60[a0 * 0x18 + i],
                    D_801E9C20[a0 * 0x18 + i],
@@ -712,9 +712,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
            }
        }
        {
-           for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AEC]; i++) {
-               pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
-               MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x1EE0 + i * 0x20),
+           for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AEC]; i++) {
+               pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
+               MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EE0 + i * 0x20),
                              *(u16*)(pEntry + 0xA8),
                              *(u16*)(pEntry + 0xAA),
                              *(u16*)(pEntry + 0xB0) - *(u16*)(pEntry + 0xA8),
@@ -739,7 +739,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
    the two-block gear-stat renders (the sibling func_801D6194 above is the same
    shape one field over). Block A: MenuParseNumberToDigits of the word at
    g_GameState.characters[pManager->currentCharacterIDs[a0]] + 0x44
-   (weightFromEquipment|unk46), count byte g_Menu->unk358 + 0x2AE3, then an
+   (weightFromEquipment|unk46), count byte g_Menu->pGearWindowPrims + 0x2AE3, then an
    8-iteration loop over g_Menu->digits[1 + i] (!= 0xFF) calling func_8002675C
    with 0x50-byte prims at +0xCD0, x = D_801E9D10 + i * 8 - 0x18 * a1, y =
    D_801E9D14, then a count-time loop of MenuSetQuadVertices over SVECTORs at
@@ -753,7 +753,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
    func_801D6194, so the source must read the fields through two spellings that
    gcc cannot prove identical; (2) the second loop keeps the SVECTOR pointer in
    s1 and the counter in s0 in retail, the reverse here, and retail forms the
-   entry address as `addu v1,a0,v1` off unk358 where gcc uses a third register
+   entry address as `addu v1,a0,v1` off pGearWindowPrims where gcc uses a third register
    (t0). Not an allocator tie: fix (1) first, it changes the whole block.
     void func_801D7154(u_char a0, u_char a1) {
         u8* pEntry;
@@ -763,38 +763,38 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
         MenuParseNumberToDigits(
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk44);
         offset = a1 * 0x18;
-        ((u8*)g_Menu->unk358)[0x2AE3] = 0;
+        ((u8*)g_Menu->pGearWindowPrims)[0x2AE3] = 0;
         for (i = 0; i < 8; i++) {
             if (g_Menu->digits[1 + i] != 0xFF) {
-                ((u8*)g_Menu->unk358)[0x2AE3] += func_8002675C(
+                ((u8*)g_Menu->pGearWindowPrims)[0x2AE3] += func_8002675C(
                     g_Menu->resources, g_Menu->digits[1 + i],
-                    (POLY_FT4*)((u8*)g_Menu->unk358 +
-                                (((u8*)g_Menu->unk358)[0x2AE3] * 0x50 + 0xCD0)),
+                    (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                                (((u8*)g_Menu->pGearWindowPrims)[0x2AE3] * 0x50 + 0xCD0)),
                     g_Menu->renderContext, D_801E9D10 + i * 8 - offset, D_801E9D14, 0x1000);
             }
         }
-        for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE3]; i++) {
-            pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
-            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x23C0 + i * 0x20),
+        for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE3]; i++) {
+            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
+            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x23C0 + i * 0x20),
                                 *(u16*)(pEntry + 0xCD8), *(u16*)(pEntry + 0xCDA),
                                 *(u16*)(pEntry + 0xCE0) - *(u16*)(pEntry + 0xCD8),
                                 *(u16*)(pEntry + 0xCF2) - *(u16*)(pEntry + 0xCDA));
         }
         MenuParseNumberToDigits(
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk48);
-        ((u8*)g_Menu->unk358)[0x2AE4] = 0;
+        ((u8*)g_Menu->pGearWindowPrims)[0x2AE4] = 0;
         for (i = 0; i < 8; i++) {
             if (g_Menu->digits[1 + i] != 0xFF) {
-                ((u8*)g_Menu->unk358)[0x2AE4] += func_8002675C(
+                ((u8*)g_Menu->pGearWindowPrims)[0x2AE4] += func_8002675C(
                     g_Menu->resources, g_Menu->digits[1 + i],
-                    (POLY_FT4*)((u8*)g_Menu->unk358 +
-                                (((u8*)g_Menu->unk358)[0x2AE4] * 0x50 + 0xF50)),
+                    (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                                (((u8*)g_Menu->pGearWindowPrims)[0x2AE4] * 0x50 + 0xF50)),
                     g_Menu->renderContext, D_801E9D18 + i * 8 - offset, D_801E9D1C, 0x1000);
             }
         }
-        for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE4]; i++) {
-            pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
-            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + 0x24C0 + i * 0x20),
+        for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE4]; i++) {
+            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
+            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x24C0 + i * 0x20),
                                 *(u16*)(pEntry + 0xF58), *(u16*)(pEntry + 0xF5A),
                                 *(u16*)(pEntry + 0xF60) - *(u16*)(pEntry + 0xF58),
                                 *(u16*)(pEntry + 0xF72) - *(u16*)(pEntry + 0xF5A));
@@ -821,20 +821,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D74EC);
        MenuParseNumberToDigits(
            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk44);
        offset = a1 * 0x18;
-       ((u8*)g_Menu->unk358)[0x2AE5] = 0;
+       ((u8*)g_Menu->pGearWindowPrims)[0x2AE5] = 0;
        for (i = 0; i < 7; i++) {
            if (g_Menu->digits[2 + i] != 0xFF) {
-               ((u8*)g_Menu->unk358)[0x2AE5] += func_8002675C(
+               ((u8*)g_Menu->pGearWindowPrims)[0x2AE5] += func_8002675C(
                    g_Menu->resources, g_Menu->digits[2 + i],
-                   (POLY_FT4*)((u8*)g_Menu->unk358 +
-                               (((u8*)g_Menu->unk358)[0x2AE5] * 0x50 + 0x11D0)),
+                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                               (((u8*)g_Menu->pGearWindowPrims)[0x2AE5] * 0x50 + 0x11D0)),
                    g_Menu->renderContext, D_801E9D20 + i * 8 - offset, D_801E9D24, 0x1000);
            }
        }
-       for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE5]; i++) {
-           u8* pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+       for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE5]; i++) {
+           u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
 
-           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + (i * 0x20 + 0x25C0)),
+           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x25C0)),
                                *(u16*)(pEntry + 0x11D8), *(u16*)(pEntry + 0x11DA),
                                *(u16*)(pEntry + 0x11E0) - *(u16*)(pEntry + 0x11D8),
                                *(u16*)(pEntry + 0x11F2) - *(u16*)(pEntry + 0x11DA));
@@ -843,20 +843,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D74EC);
        MenuParseNumberToDigits(
            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk48);
        offset = a1 * 0x18;
-       ((u8*)g_Menu->unk358)[0x2AE6] = 0;
+       ((u8*)g_Menu->pGearWindowPrims)[0x2AE6] = 0;
        for (i = 0; i < 7; i++) {
            if (g_Menu->digits[2 + i] != 0xFF) {
-               ((u8*)g_Menu->unk358)[0x2AE6] += func_8002675C(
+               ((u8*)g_Menu->pGearWindowPrims)[0x2AE6] += func_8002675C(
                    g_Menu->resources, g_Menu->digits[2 + i],
-                   (POLY_FT4*)((u8*)g_Menu->unk358 +
-                               (((u8*)g_Menu->unk358)[0x2AE6] * 0x50 + 0x1400)),
+                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                               (((u8*)g_Menu->pGearWindowPrims)[0x2AE6] * 0x50 + 0x1400)),
                    g_Menu->renderContext, D_801E9D28 + i * 8 - offset, D_801E9D2C, 0x1000);
            }
        }
-       for (i = 0; i < ((u8*)g_Menu->unk358)[0x2AE6]; i++) {
-           u8* pEntry = (u8*)g_Menu->unk358 + (g_Menu->renderContext + i * 2) * 0x28;
+       for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE6]; i++) {
+           u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
 
-           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk358 + (i * 0x20 + 0x26A0)),
+           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x26A0)),
                                *(u16*)(pEntry + 0x1408), *(u16*)(pEntry + 0x140A),
                                *(u16*)(pEntry + 0x1410) - *(u16*)(pEntry + 0x1408),
                                *(u16*)(pEntry + 0x1422) - *(u16*)(pEntry + 0x140A));
@@ -874,5 +874,5 @@ void MenuSetGearWindowContents(u_char index, u_char characterId) {
     func_801D7884(index, characterId);
     func_801D7154(index, characterId);
     g_Menu->pManager->shouldRenderUnk358Prims = 1;
-    ((MenuGearWindowPrims*)g_Menu->unk358)->renderContext = *(u8*)&g_Menu->renderContext;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->renderContext = *(u8*)&g_Menu->renderContext;
 }

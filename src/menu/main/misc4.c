@@ -197,56 +197,56 @@ void MenuAddUnk358Prims(void) {
         // The body written twice behind an uninitialised test is what makes gcc
         // 2.7.2 keep g_Menu in $v1 here; one copy scores 99.80.
         if (pData) {
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
                           pData[0x2AEE]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
     } else {
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
                           pData[0x2AEE]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
-            pData = (u8*)g_Menu->unk358;
+            pData = (u8*)g_Menu->pGearWindowPrims;
             MenuRenderTransformedQuads(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
         }
     }

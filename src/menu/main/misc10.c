@@ -240,8 +240,8 @@ u8 MenuRunUnk438PanelLoop(u8 slot) {
 u8 MenuInitializeGearScreenBuffers(void) {
     u32 i;
 
-    g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
-    bzero(g_Menu->unk358, 0x2AF0);
+    g_Menu->pGearWindowPrims = HeapAlloc(0x2AF0, 0);
+    bzero(g_Menu->pGearWindowPrims, 0x2AF0);
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
     bzero(g_Menu->unk35C, 0x32F4);
     g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
@@ -261,7 +261,7 @@ void MenuLoadUnk18E0Strings(u8 arg0) {
     MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, D_801EA568 + arg0, (u8*)g_Menu->pManager + 0x54);
 }
 void MenuFreeGearScreenBuffers(void) {
-    HeapFree(g_Menu->unk358);
+    HeapFree(g_Menu->pGearWindowPrims);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->pEquipmentPanel);
     func_801C72BC(0x13);
@@ -421,8 +421,8 @@ u8 func_801E23CC(s32 slot) {
 } */
 void MenuInitializeCharacterScreenBuffers(void) {
     MenuLoadSubMenuChoiceStrings(1);
-    g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
-    bzero(g_Menu->unk358, 0x2AF0);
+    g_Menu->pGearWindowPrims = HeapAlloc(0x2AF0, 0);
+    bzero(g_Menu->pGearWindowPrims, 0x2AF0);
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
     bzero(g_Menu->unk35C, 0x32F4);
     g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
@@ -431,7 +431,7 @@ void MenuInitializeCharacterScreenBuffers(void) {
     func_801D3488(0, 0);
 }
 void MenuFreeCharacterScreenBuffers(void) {
-    HeapFree(g_Menu->unk358);
+    HeapFree(g_Menu->pGearWindowPrims);
     HeapFree(g_Menu->unk35C);
     HeapFree(g_Menu->pEquipmentPanel);
     func_801C72BC(0x13);
