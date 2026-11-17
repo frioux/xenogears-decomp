@@ -57,11 +57,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
 
 /* One of the battle's two frame environments: the DRAWENV a frame draws with,
-   that frame's DISPENV 0x5C bytes later, then the frame's work area. */
+   that frame's DISPENV 0x5C bytes later, then the frame's ordering table (the 0x1000
+   tags func_800B88C4 clears with ClearOTagR at DRAWENV + 0x70). */
 typedef struct {
     /* 0x0000 */ DRAWENV draw;
     /* 0x005C */ DISPENV disp;
-    /* 0x0070 */ u8 unk70[0x4000];
+    /* 0x0070 */ u8 otBuffer[0x4000];
 } BattleFrameEnv; // Size: 0x4070
 
 /* The battle work block at g_BattleStateWork seen from its frame environments on. The
@@ -104,20 +105,22 @@ void BattleWaitArchiveSync(void) {
     }
 }
 
-/* Archive entry table at D_800C35DC: u16 size at +0, s16 id at +2. */
+/* Archive entry table at D_800C35DC: the archive file index to load at +0 (it is what
+   ArchiveDecodeAlignedSize and func_80029AFC take) and the base sound id at +2. */
 typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ s16 unk2;
+    /* 0x0 */ u16 fileIndex;
+    /* 0x2 */ s16 soundId;
 } BattleArchiveEntry; // Size: 0x4
 
-/* Archive read request filled in on the stack and handed to func_80029AFC. */
+/* Archive read request filled in on the stack and handed to func_80029AFC: the archive
+   file index to load and the buffer it is decoded into, twice. */
 typedef struct {
-    /* 0x0  */ u16 unk0;
+    /* 0x0  */ u16 fileIndex1;
     /* 0x2  */ u16 pad2;
-    /* 0x4  */ void *unk4;
-    /* 0x8  */ u16 unk8;
+    /* 0x4  */ void *pBuffer1;
+    /* 0x8  */ u16 fileIndex2;
     /* 0xA  */ u16 padA;
-    /* 0xC  */ void *unkC;
+    /* 0xC  */ void *pBuffer2;
     /* 0x10 */ u16 unk10;
     /* 0x12 */ u16 pad12;
     /* 0x14 */ s32 unk14;
@@ -163,16 +166,16 @@ void func_800B838C(s32 arg0, s32 arg1) {
 
     pTable = D_800C35DC;
     pEntry = &pTable[arg0];
-    request.unk0 = pEntry->unk0;
-    pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(request.unk0), 0);
-    request.unk4 = pBuffer1;
+    request.fileIndex1 = pEntry->fileIndex;
+    pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(request.fileIndex1), 0);
+    request.pBuffer1 = pBuffer1;
     if (arg0 == 8) {
-        request.unk8 = pTable[8].unk0 + 1;
+        request.fileIndex2 = pTable[8].fileIndex + 1;
     } else {
-        request.unk8 = pEntry->unk0 + 1 + arg1;
+        request.fileIndex2 = pEntry->fileIndex + 1 + arg1;
     }
-    pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(request.unk8), 0);
-    request.unkC = pBuffer2;
+    pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(request.fileIndex2), 0);
+    request.pBuffer2 = pBuffer2;
     request.unk14 = 0;
     request.unk10 = 0;
     func_80029AFC(&request, 0, 0);
@@ -183,7 +186,7 @@ void func_800B838C(s32 arg0, s32 arg1) {
     while (SoundGetPendingSpuCommandType(0) != 0) {
         func_800BE790();
     }
-    id = pEntry->unk2 + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
+    id = pEntry->soundId + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
     SoundPlaySoundEffectOnFreePair(id);
     while (SoundGetActiveElementMask(id) != 0) {
         func_800BE790();
@@ -205,8 +208,8 @@ typedef struct {
     /* 0x07 */ u8 unk7;
     /* 0x08 */ u8 unk8;
     /* 0x09 */ u8 unk9[0x5];
-    /* 0x0E */ u16 unkE;
-    /* 0x10 */ u16 unk10;
+    /* 0x0E */ u16 x;
+    /* 0x10 */ u16 z;
     /* 0x12 */ u8 unk12[0xA];
 } BattleActorSlot; // Size: 0x1C
 
@@ -216,7 +219,7 @@ typedef struct {
     /* 0x04 */ SpriteData *pSprite;
     /* 0x08 */ u8 unk8[0x18];
     /* 0x20 */ s32 unk20;
-    /* 0x24 */ s32 unk24;
+    /* 0x24 */ s32 actorIndex;
     /* 0x28 */ u8 unk28[0x18];
     /* 0x40 */ void *unk40;
 } BattleUnitState; // Size: 0x44
@@ -354,8 +357,8 @@ void BattleActorInitSpriteFromSlot(void) {
     if (pTable[index].unk8 != 0) {
         func_800BEE2C(index, 0, 0x1F);
     } else {
-        pSprite->position.x = pTable[g_BattleState->unk24].unkE << 16;
-        pSprite->position.z = pTable[g_BattleState->unk24].unk10 << 16;
+        pSprite->position.x = pTable[g_BattleState->actorIndex].x << 16;
+        pSprite->position.z = pTable[g_BattleState->actorIndex].z << 16;
         BattleActorUpdateGroundHeightAndTriangle(pSprite);
         pSprite->position.y = pSprite->field_0x84 << 16;
         SpritePlayAnimation(pSprite, (s8)pSprite->flags_0xB0.bytes[0]);
