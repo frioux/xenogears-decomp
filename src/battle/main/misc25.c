@@ -2,6 +2,7 @@
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
 #include "battle/actor.h"
+#include "system/math.h"
 
 extern u8 g_BattleAnimCommandsSuppressed;
 extern u16 g_BattleCommandActorMask;
@@ -36,6 +37,8 @@ typedef struct BattleModelNode BattleModelNode;
 typedef struct {
     /* 0x0 */ u8 pad0[0x4];
     /* 0x4 */ BattleModelNode *pNodes;
+    /* 0x8 */ u8 pad8[0x58];
+    /* 0x60 */ s16 ground; // replaces the node offset's y when the part asks for it
 } BattleModel;
 
 struct BattleModelNode {
@@ -290,98 +293,101 @@ void BattleSetModelNodeFlagRecursive(BattleModel *pModel, BattleModelNode *pNode
         }
     }
 }
-extern u8 *func_80023FD8(s32, s32, s32, s32);
-extern void SpriteSetDirection(void *, s16);
-extern void func_800223B0(void *, s16);
-extern void SpriteSetScale(void *, s16);
-extern s32 WorkListTaskGetTaskCallback(void *);
-extern void TimerWorkListSetTaskCallback(void *, void *);
-extern void BattlePartMatrixTask();
+
+// Callback the work list runs every frame (TimerWorkListSetTaskCallback).
+typedef void (*BattleWorkCallback)(void *pTask);
 
 // Appended block of the per-part task func_80023FD8 allocates (same layout as
 // lib_gear's LibGearJointTask). Its byte offset is the s16 at +0xBE of the task,
 // which is the sprite's allocatedDataSize.
 typedef struct {
-    /* 0x0 */ u8 unk0[0x4];
-    /* 0x4 */ void *pChainCallback;
-    /* 0x8 */ s32 unk8;
-    /* 0xC */ s16 partIndex;
-    /* 0xE */ s16 unkE;
-    /* 0x10 */ u16 offset[3];
+    /* 0x0  */ u8 unk0[0x4];
+    /* 0x4  */ BattleWorkCallback pChainCallback; // the callback BattlePartMatrixTask chains to
+    /* 0x8  */ BattleModel *pModel;
+    /* 0xC  */ s16 partIndex;
+    /* 0xE  */ s16 useGroundY; // non-zero: the model's ground replaces the offset's y
+    /* 0x10 */ SVECTOR offset;
 } BattlePartNode; // Size: 0x18
 
 // Per-part data BattleCreateModelPartTask copies into the node it creates.
 typedef struct {
-    /* 0x0 */ u8 unk0[0x5];
-    /* 0x5 */ u8 partIndex;
-    /* 0x6 */ u16 offsetX;
-    /* 0x8 */ u16 offsetY;
-    /* 0xA */ u16 offsetZ;
-    /* 0xC */ u8 unkC;
-    /* 0xD */ u8 padD[0x6];
+    /* 0x0  */ u8 unk0[0x5];
+    /* 0x5  */ u8 partIndex;
+    /* 0x6  */ u16 offsetX;
+    /* 0x8  */ u16 offsetY;
+    /* 0xA  */ u16 offsetZ;
+    /* 0xC  */ u8 useGroundY;
+    /* 0xD  */ u8 padD[0x6];
     /* 0x13 */ u8 unk13; // non-zero: installs BattlePartMatrixTask as the task callback
 } BattlePartInfo; // Size: 0x14
 
 // Task func_80023FD8 allocates for one part: a SpriteData at +0x38 and, at the
 // byte offset the sprite records in its allocatedDataSize (+0xBE), the appended
-// BattlePartNode below.
+// BattlePartNode above.
 typedef struct {
     /* 0x00 */ u8 unk0[0x38];
     /* 0x38 */ SpriteData sprite;
 } BattlePartTask;
 
-void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, BattlePartInfo *pInfo,
-                               s32 arg6) {
+extern BattlePartTask *func_80023FD8(s32 animIndex, void *pAnimFile, void *pOffset, s32 nodeSize);
+extern void SpriteSetDirection(SpriteData *pSprite, s16 direction);
+extern void func_800223B0(SpriteData *pSprite, s16 direction);
+extern void SpriteSetScale(SpriteData *pSprite, s16 scale);
+extern BattleWorkCallback WorkListTaskGetTaskCallback(void *pTask);
+extern void TimerWorkListSetTaskCallback(void *pTask, BattleWorkCallback pCallback);
+extern void BattlePartMatrixTask(void *pTask);
+
+void BattleCreateModelPartTask(void *pAnimFile, s32 animIndex, void *pOffset, s16 direction, s16 scale,
+                               BattlePartInfo *pInfo, BattleModel *pModel) {
     BattlePartTask *pTask;
     SpriteData *pSprite;
     BattlePartNode *pNode;
 
-    pTask = (BattlePartTask *)func_80023FD8(arg1, arg0, arg2, 0x18);
+    pTask = func_80023FD8(animIndex, pAnimFile, pOffset, sizeof(BattlePartNode));
     pSprite = &pTask->sprite;
-    SpriteSetDirection(pSprite, arg3);
-    func_800223B0(pSprite, arg3);
-    SpriteSetScale(pSprite, arg4);
+    SpriteSetDirection(pSprite, direction);
+    func_800223B0(pSprite, direction);
+    SpriteSetScale(pSprite, scale);
     pNode = (BattlePartNode *)((u8 *)pTask + pSprite->allocatedDataSize);
-    pNode->unk8 = arg6;
+    pNode->pModel = pModel;
     pNode->partIndex = pInfo->partIndex;
     if (pInfo->unk13 != 0) {
-        pNode->pChainCallback = (void *)WorkListTaskGetTaskCallback(pTask);
+        pNode->pChainCallback = WorkListTaskGetTaskCallback(pTask);
         TimerWorkListSetTaskCallback(pTask, BattlePartMatrixTask);
-        pNode->offset[0] = pInfo->offsetX;
-        pNode->offset[1] = pInfo->offsetY;
-        pNode->offset[2] = pInfo->offsetZ;
-        pNode->unkE = pInfo->unkC;
+        pNode->offset.vx = pInfo->offsetX;
+        pNode->offset.vy = pInfo->offsetY;
+        pNode->offset.vz = pInfo->offsetZ;
+        pNode->useGroundY = pInfo->useGroundY;
     }
 }
-void BattlePartMatrixTask(u8 *p) {
-    u8 *pNode;
-    u8 *pMatrix;
-    s32 index;
-    s32 vec[3];
 
-    pNode = p + *(s16 *)(p + 0xBE);
-    index = *(s16 *)(pNode + 0xC);
+void BattlePartMatrixTask(void *pTaskRaw) {
+    BattlePartTask *pTask;
+    BattlePartNode *pNode;
+    MATRIX *pMatrix;
+    LVEC3 vec;
+
+    pTask = pTaskRaw;
+    pNode = (BattlePartNode *)((u8 *)pTask + pTask->sprite.allocatedDataSize);
     pMatrix = PSX_SCRATCH;
-    if (index != 0) {
-        u8 *pMat = *(u8 **)(*(u8 **)(pNode + 0x8) + 4);
-        s32 offset = index * 0x7C;
-        u8 *pBase = (u8 *)offset + (u32)pMat;
-        CompMatrix(pMat + 0xC, pBase + 0x2C, PSX_SCRATCH);
+    if (pNode->partIndex != 0) {
+        CompMatrix(&pNode->pModel->pNodes[0].localTransform,
+                   &pNode->pModel->pNodes[pNode->partIndex].globalTransform, pMatrix);
     } else {
-        pMatrix = *(u8 **)(*(u8 **)(pNode + 0x8) + 4) + 0xC;
+        pMatrix = &pNode->pModel->pNodes[0].localTransform;
     }
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
-    gte_ldv0(pNode + 0x10);
+    gte_ldv0(&pNode->offset);
     gte_mvmva(1, 0, 0, 0, 0);
-    gte_stlvnl(vec);
-    if (*(s16 *)(pNode + 0xE) != 0) {
-        vec[1] = *(s16 *)(*(u8 **)(pNode + 0x8) + 0x60);
+    gte_stlvnl(&vec);
+    if (pNode->useGroundY != 0) {
+        vec.y = pNode->pModel->ground;
     }
-    *(s32 *)(p + 0x38) = vec[0] << 16;
-    *(s32 *)(p + 0x3C) = vec[1] << 16;
-    *(s32 *)(p + 0x40) = vec[2] << 16;
-    ((void (*)(u8 *)) * (u32 *)(pNode + 0x4))(p);
+    pTask->sprite.position.x = CONV_FROM_GTE(vec.x);
+    pTask->sprite.position.y = CONV_FROM_GTE(vec.y);
+    pTask->sprite.position.z = CONV_FROM_GTE(vec.z);
+    pNode->pChainCallback(pTask);
 }
 
 
