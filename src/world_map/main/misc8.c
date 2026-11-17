@@ -6,6 +6,26 @@
 #include "psyq/inline_c.h"
 #include "system/model.h"
 
+// the map display buffer copied into VRAM when the scene initialises, and the
+// VRAM position it is copied to
+#define WORLD_MAP_SCREEN_WIDTH 320
+#define WORLD_MAP_SCREEN_HEIGHT 216
+#define WORLD_MAP_SCREEN_VRAM_X 0x2C0
+#define WORLD_MAP_SCREEN_VRAM_Y 0x100
+
+// the archive directory this overlay's files are read through
+#define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
+
+// one row of the sprite set parameter tables: x, y, z then the 11 actor slots
+// WorldMapUpdateSpriteSetPrims copies into the slot
+#define WORLD_MAP_SPRITE_SET_PARAM_COUNT 14
+
+// the sprite set slot's tint channels lerp by a step and bounce inside these
+// limits
+#define WORLD_MAP_TINT_RED_MIN 0x40
+#define WORLD_MAP_TINT_GREEN_MIN 0x80
+#define WORLD_MAP_TINT_CHANNEL_MAX 0xFF
+
 typedef struct {
     /* 0x00 */ u32 unk0;
     /* 0x04 */ s16 command;
@@ -283,17 +303,17 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
         pActor->unk50 += pActor->unk5C;
         pActor->green += pActor->greenStep;
         if (pActor->unk50 >= 0x100) {
-            pActor->unk50 = 0xFF;
+            pActor->unk50 = WORLD_MAP_TINT_CHANNEL_MAX;
             pActor->unk5C = -pActor->unk5C;
-        } else if (pActor->unk50 < 0x40) {
-            pActor->unk50 = 0x40;
+        } else if (pActor->unk50 < WORLD_MAP_TINT_RED_MIN) {
+            pActor->unk50 = WORLD_MAP_TINT_RED_MIN;
             pActor->unk5C = -pActor->unk5C;
         }
         if (pActor->green >= 0x100) {
-            pActor->green = 0xFF;
+            pActor->green = WORLD_MAP_TINT_CHANNEL_MAX;
             pActor->greenStep = -pActor->greenStep;
-        } else if (pActor->green < 0x80) {
-            pActor->green = 0x80;
+        } else if (pActor->green < WORLD_MAP_TINT_GREEN_MIN) {
+            pActor->green = WORLD_MAP_TINT_GREEN_MIN;
             pActor->greenStep = -pActor->greenStep;
         }
         pActor->scaleAngle = (pActor->scaleAngle + 8) & 0xFFF;
@@ -393,22 +413,22 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
         pSlots = &pActor->unk50;
         pActor->state = 1;
         pActor->command = 0;
-        pEntry->x = D_8009AABC[row * 14];
-        pEntry->y = D_8009AABC[row * 14 + 1];
-        pEntry->z = D_8009AABC[row * 14 + 2];
-        for (i = 3; i < 0xE; i++) {
-            *pSlots++ = D_8009AABC[row * 14 + i];
+        pEntry->x = D_8009AABC[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT];
+        pEntry->y = D_8009AABC[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + 1];
+        pEntry->z = D_8009AABC[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + 2];
+        for (i = 3; i < WORLD_MAP_SPRITE_SET_PARAM_COUNT; i++) {
+            *pSlots++ = D_8009AABC[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + i];
         }
         break;
     case 2:
         pSlots = &pActor->unk50;
         pActor->state = 1;
         pActor->command = 0;
-        pEntry->x = D_8009AB48[row * 14];
-        pEntry->y = D_8009AB48[row * 14 + 1];
-        pEntry->z = D_8009AB48[row * 14 + 2];
-        for (i = 3; i < 0xE; i++) {
-            *pSlots++ = D_8009AB48[row * 14 + i];
+        pEntry->x = D_8009AB48[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT];
+        pEntry->y = D_8009AB48[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + 1];
+        pEntry->z = D_8009AB48[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + 2];
+        for (i = 3; i < WORLD_MAP_SPRITE_SET_PARAM_COUNT; i++) {
+            *pSlots++ = D_8009AB48[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + i];
         }
         break;
     case 3:
@@ -419,11 +439,11 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
         pSlots = &pActor->unk50;
         pActor->state = 1;
         pActor->command = 0;
-        pEntry->x = D_8009ABD4[row * 14];
-        pEntry->y = D_8009ABD4[row * 14 + 1];
-        pEntry->z = D_8009ABD4[row * 14 + 2];
-        for (i = 3; i < 0xE; i++) {
-            *pSlots++ = D_8009ABD4[row * 14 + i];
+        pEntry->x = D_8009ABD4[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT];
+        pEntry->y = D_8009ABD4[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + 1];
+        pEntry->z = D_8009ABD4[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + 2];
+        for (i = 3; i < WORLD_MAP_SPRITE_SET_PARAM_COUNT; i++) {
+            *pSlots++ = D_8009ABD4[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT + i];
         }
         break;
     }
@@ -461,9 +481,9 @@ void WorldMapInitializeScene(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
-    MoveImage(&rect, 0x2C0, 0x100);
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
@@ -494,7 +514,7 @@ void WorldMapInitializeScene(void) {
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
-    ArchiveSetIndex(0x24, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
     func_80097BC0(pVec);
     do {
         WorldMapUpdateLoadQueue();
