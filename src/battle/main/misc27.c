@@ -134,13 +134,13 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
     pMatrix->t[2] = pSpriteData->pBase->transformMatrix.t[2];
     SetMulMatrix(pMatrix, &pSpriteData->pBase->transformMatrix);
 }
-// 90.55% under gcc 2.7.2-cdk (-G8 and -G0) and every swept -O/-G/-mcpu, 73.07 under
-// 2.6.0, so no preset fixes this: the two combined induction bases match and only the
-// register assignment differs (retail keeps pActor in $t1, the frame index in $a3).
-// Permuter (4 min, -j 2) reached base=667 -> best=562 by writing x through a fixed
-// ((s16*)pArg)[0], which is not equivalent, so nothing there is portable. The shape to
-// reproduce is retail's two bases: x through 0(t0), y/z through a base 4 bytes further
-// on (-2(a1)/0(a1)), both advanced by 8.
+// 90.55% under gcc 2.7.2-cdk -G8 and -G0 and every swept -O/-G/-mcpu, 73.07 under
+// 2.6.0 (re-screened by the -G0 park sweep): no preset fixes this. The two combined
+// induction bases match and only the register assignment differs (retail keeps pActor in
+// $t1, the frame index in $a3). Permuter (4 min, -j 2) reached base=667 -> best=562 by
+// writing x through a fixed ((s16*)pArg)[0], which is not equivalent, so nothing there is
+// portable. The shape to reproduce is retail's two bases: x through 0(t0), y/z through
+// a base 4 bytes further on (-2(a1)/0(a1)), both advanced by 8.
 /*
 void func_800B50D4(u8* pActor, u8* pArg) {
     s32 x;
