@@ -272,7 +272,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
    local, and a while loop (that one also grows a pre-test, 71.25%). The
    do/while with `n += (s32)p1` is right; the register is an allocator pick -
    $2, $3 and $7 are all free here, so gcc's first fresh pseudo is $v0, and no
-   source shape moved it to $t0. */
+   source shape moved it to $t0. Round 199: verified the pick is not the
+   allocator carrying state from the previous function (adding a dummy function
+   above leaves 98.75), and that an explicit `u32 t` temp, s32 pointers and a
+   second pointer local (`u32 *end = (u32 *)((s32)p1 + n)`, 71.25%, which puts
+   `end` in $v1) all leave the copy temp in $v0 - $v0 is this function's first
+   free register, so the pick is out of source reach. */
 /* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
@@ -546,7 +551,14 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
    round from this exact body: 1726 iterations, base=best=10, nothing.
    Next lever not tried: an edit that makes the vertex offset load reach `$a2`
    through a copy suggestion (a source-level tie between the two uses), which is
-   where a stronger permuter mutation set or a manual RTL read would start. */
+   where a stronger permuter mutation set or a manual RTL read would start.
+   Round 199 re-checked: 2.6.0 gives 99.91 and 2.7.2-cdk 94.17, so the preset is
+   not the lever; wrapping only the second BattleTransformEntryVertex call in
+   do { } while (0) leaves 99.91. The earlier 'block-scope u8/s32 local, 432
+   bytes' readings were STALE: gcc 2.7.2 rejects a declaration after a statement
+   (cc1 exit 33, 'parse error'), diff_func.sh then scores the previous variant's
+   object, so nothing changed size. Declare such locals at the top of the
+   function when retrying this class. */
 /*
 extern s32 BattleEffectPackKey(s32, u8, s16, s32);
 extern s32 BattleEffectIsTwoVertexType(u8);
