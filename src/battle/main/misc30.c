@@ -290,7 +290,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
    + slot * 0x48`, `pSlot = (u8 *)((mem_addr)g_BattleStateWork + g_BattleCommandRowIndex * 0x48)`
    (664 bytes), `pSlot +=`, `&pBase[idx]`, index-first operand order, declaration
    reorders, and three permuter runs (their closest candidates, which split
-   `D_800C3623 = 1` through a temp, measure WORSE under objdiff than this body). */
+   `D_800C3623 = 1` through a temp, measure WORSE under objdiff than this body).
+   Round 176 re-measured 96.61% and re-tried: an `s32 slot` index local (87.79%, it
+   moves the index load above the base materialisation), the index-first sum
+   `idx * 0x48 + pBase` (96.61%), declaring pBase before pSlot (96.61%) and the
+   0xF3 arm's RMW written inline again (96.40%).  The 388-byte/0xF3 arm also
+   differs in ORDER: retail's `lui a1,%hi(D_800C3608)` is hoisted to the top of the
+   arm and its `lhu` of the global precedes the slot `lhu`. */
 /*
 void func_800B9284(SpriteData* pSprite, s32 code) {
     u8 *pSlot;
@@ -910,6 +916,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800BB080);
    `s32 off = 0x8C8C` and `pEntry + off` stops gcc folding the offset into the
    symbol's %lo (D_800CCB3C) and reproduces retail's `lui/addiu base` + a
    separate reg-reg add of the constant.
+   Round 176: re-measured 72.77%, frame 0x30 against 0x28 -- gcc hoists `3` into $s4
+   and 0x8CB8 (split into 0x8000 + 0xCB8) into $s5, where retail materialises both
+   at the use site (`li v0,3` before the bne, `ori v0,zero,0x8CB8` in the jalr delay
+   slot) and hoists only 0x8C8C.  Not the preset: try_flags gives 77.23% under both
+   gcc-2.7.2-psx -G0 and gcc-2.6.0-psx -G0, and -O3 does not compile in this unit.
 void func_800BB080(s32 arg0) {
     s32 i = 0;
     u8* pEntry = g_BattleStateWork;
