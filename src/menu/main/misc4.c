@@ -32,7 +32,7 @@ s32 MenuUpdateSubMenuChoice(u_char arg0) {
     u8 choice;
 
     MenuSetupPointerCursors(0);
-    ((u8*)g_Menu->pManager)[0x2F] = 0;
+    g_Menu->pManager->shouldRenderCursors = 0;
     choice = g_Menu->subMenuChoice;
     switch (choice) {
         case 0:
@@ -131,7 +131,7 @@ void MenuRenderPointerCursors(void) {
     u32 offset;
     MenuPointerCursors* pCursors;
 
-    if (((u8*)g_Menu->pManager)[0x2F]) {
+    if (g_Menu->pManager->shouldRenderCursors) {
         for (i = 0; i < 4; i++) {
             pCursors = g_Menu->pCursors;
             if (pCursors->shouldRender[i]) {
@@ -376,9 +376,9 @@ void func_801CF37C(void) {
     if (g_Menu->unk4D8 != 2) {
         return;
     }
-    character = g_Menu->menuUnk2->unk4FAE[D_801E981C[g_Menu->menuUnk2->selectedSlot]];
+    character = g_Menu->menuUnk2->slotRecordIndexes[D_801E981C[g_Menu->menuUnk2->selectedSlot]];
     for (i = 0; i < 0x20; i++) {
-        if (character != g_Menu->menuUnk2->unk4FAE[i]) {
+        if (character != g_Menu->menuUnk2->slotRecordIndexes[i]) {
             continue;
         }
         valid = 1;
@@ -435,7 +435,7 @@ void func_801CF8D8(void) {
             pData = g_Menu->menuUnk2;
             if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {
                 func_8002675C(g_Menu->resources,
-                              (((u8*)g_Menu->pManager)[0x2F] && i == D_801E981C[pData->selectedSlot] / 16)
+                              (g_Menu->pManager->shouldRenderCursors && i == D_801E981C[pData->selectedSlot] / 16)
                                   ? 0x122
                                   : 0x115,
                               (POLY_FT4*)((u8*)pData + base), g_Menu->renderContext, x0, y, scale);

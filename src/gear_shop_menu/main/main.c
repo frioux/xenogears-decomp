@@ -1859,7 +1859,7 @@ void GearShopMenuRender(void) {
         GearShopMenuRenderSubmenuStrings();
         GearShopMenuRenderWindows();
         GearShopMenuRenderGearPanelStrings();
-        GearShopMenuRenderString(1, &g_Menu->menuUnk8->unk80, g_Menu->menuUnk8->unk1EE1);
+        GearShopMenuRenderString(1, &g_Menu->menuUnk8->unk80, g_Menu->menuUnk8->unk80RenderContext);
         GearShopMenuRenderGearModel();
     }
     GearShopMenuRenderBackgroundDim();

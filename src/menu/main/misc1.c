@@ -394,13 +394,13 @@ void func_801C6400(void) {
    MenuUnk2* pInfo;
 
    for (i = 0; i < 2; i++) {
-       g_Menu->menuUnk2->unk4F84[4 + i] = 0;
-       g_Menu->menuUnk2->unk4F84[6 + i] = 0;
+       g_Menu->menuUnk2->cardEnumerated[i] = 0;
+       g_Menu->menuUnk2->cardSlotCounts[i] = 0;
        ((u8*)&g_Menu->menuUnk2->unk4F8C)[i] = 0xFF;
    }
    for (i = 0; i < 0x20; i++) {
        g_Menu->menuUnk2->records[i].unk58 = 0;
-       g_Menu->menuUnk2->unk4FAE[i] = 0xFF;
+       g_Menu->menuUnk2->slotRecordIndexes[i] = 0xFF;
    }
    lineCount = g_GameState.fieldScriptMemory[0];
    i = 0;

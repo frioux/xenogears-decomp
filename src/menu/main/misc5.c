@@ -191,7 +191,7 @@ void MenuAddUnk1DE0Prims(void) {
     s32 i;
     MenuString* pString;
 
-    if (((u8*)g_Menu->pManager)[0x2E] == 0) {
+    if (g_Menu->pManager->shouldRenderModalStrings == 0) {
         return;
     }
     for (i = 0; i < 3; i++) {

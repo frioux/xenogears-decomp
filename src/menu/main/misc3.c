@@ -39,8 +39,8 @@ extern MenuCardPrefix D_801C50B0;
    declaration the lower stack slot: dir at sp+0x10, prefix at sp+0x38; the other
    order costs a 0x58 frame with an extra s3 save). firstfile/nextfile are the
    PSY-Q libapi calls and the compare is against &dir, not 0 -- `bne v0,v1` with
-   v1 = sp+0x10. The store at 0x4F8A is `unk4F84[6 + a0]` (a byte, not the s32
-   cursor at unk4F84[0] that func_801C90B0 uses).
+   v1 = sp+0x10. The store at 0x4F8A is `cardSlotCounts[a0]` (a byte, not the s32
+   cursor at slotWriteCursor that func_801C90B0 uses).
    Tried: prefix declared first (frame 0x58, an extra s3), both == operand orders,
    returning u_char vs int (int, matching the file's extern). */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C8D78);
@@ -55,7 +55,7 @@ int func_801C8D78(u_char a0) {
     retry = 5;
     D_801EA900[a0] = 0;
     for (i = 0; i < 0x10; i++) {
-        g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + i] = 0xFF;
+        g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + i] = 0xFF;
         D_801EA6D0[a0][i] = 0;
     }
     if (a0 == 0) {
@@ -71,7 +71,7 @@ int func_801C8D78(u_char a0) {
                 count++;
             } while (nextfile(&dir) == &dir);
         }
-        g_Menu->menuUnk2->unk4F84[6 + a0] = count;
+        g_Menu->menuUnk2->cardSlotCounts[a0] = count;
     }
     return count;
 }
@@ -81,27 +81,27 @@ int func_801C8D78(u_char a0) {
 void MenuRunCardSlotOperations(void) {
     switch (g_Menu->menuUnk2->cardPollMode) {
     case 1:
-        if (g_Menu->menuUnk2->unk4F84[4] == 0) {
+        if (g_Menu->menuUnk2->cardEnumerated[0] == 0) {
             if ((u_char)func_801C8D78(0) != 0) {
                 g_Menu->unk334 = 1;
             }
-            g_Menu->menuUnk2->unk4F84[4] = 1;
+            g_Menu->menuUnk2->cardEnumerated[0] = 1;
         }
-        if (g_Menu->menuUnk2->unk4F84[5] == 0) {
+        if (g_Menu->menuUnk2->cardEnumerated[1] == 0) {
             if ((u_char)func_801C8D78(1) != 0) {
                 g_Menu->unk334 = 1;
             }
-            g_Menu->menuUnk2->unk4F84[5] = 1;
+            g_Menu->menuUnk2->cardEnumerated[1] = 1;
         }
         break;
     case 2:
-        if (g_Menu->menuUnk2->unk4F84[4] == 0) {
+        if (g_Menu->menuUnk2->cardEnumerated[0] == 0) {
             func_801C8D78(0);
-            g_Menu->menuUnk2->unk4F84[4] = 1;
+            g_Menu->menuUnk2->cardEnumerated[0] = 1;
         }
-        if (g_Menu->menuUnk2->unk4F84[5] == 0) {
+        if (g_Menu->menuUnk2->cardEnumerated[1] == 0) {
             func_801C8D78(1);
-            g_Menu->menuUnk2->unk4F84[5] = 1;
+            g_Menu->menuUnk2->cardEnumerated[1] = 1;
         }
         break;
     }
@@ -133,8 +133,8 @@ extern void MenuWaitCardOperationFrames(u_char index);
    Learned: the 6-byte prefix copy is `memcpy(&prefix, &D_801C50A8, 6)` -- a 6-byte
    aggregate copy is impossible in C (a {u32;s16;} struct is 8 bytes and copies 8),
    and two field assignments are merged by -fcross-jumping. func_801CB304 and
-   misc4's func_801CD2AC use the same idiom. Also: unk4F84 is a s32 write cursor
-   here (lw/addiu/sw), so it is reached through a cast over the header's u8[8].
+   misc4's func_801CD2AC use the same idiom. Also: slotWriteCursor is an s32 write
+   cursor here (lw/addiu/sw), not the u8 header fields around it.
    Permuter (4 min, 1289 iterations, base=80 best=80) found nothing for the addu
    order, so the remaining two diffs are a1/v0 register swap (GIV_TIE) in the
    strcat index math and the MenuReadFileChunk argument's addu operand order. */
@@ -163,8 +163,8 @@ void func_801C90B0(u_char a0, u_char a1) {
         MenuWaitCardOperationFrames(a0);
     }
     for (i = 0; i < g_Menu->menuUnk2->chunks[a0 * 0x10 + a1].pad0[3]; i++) {
-        g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + ((s32*)g_Menu->menuUnk2->unk4F84)[0]] = a0 * 0x10 + a1;
-        ((s32*)g_Menu->menuUnk2->unk4F84)[0]++;
+        g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + g_Menu->menuUnk2->slotWriteCursor] = a0 * 0x10 + a1;
+        g_Menu->menuUnk2->slotWriteCursor++;
     }
 }
 */
@@ -172,12 +172,12 @@ void func_801C90B0(u_char a0, u_char a1) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
 
 /* Best attempt: 97.56%. Instruction multiset identical; `matched = 1` is
-   scheduled before the menuUnk2 load (original: after the unk4FAE load), which
+   scheduled before the menuUnk2 load (original: after the slotRecordIndexes load), which
    then swaps the record base and pMenu between a2/a3 and flips the `chunks[k]`
    addu operand order. Tried: matched placed before/after the pRecord
    assignment, `u_char matched` (96.15%), `u_short` shape, and hoisting the
-   unk4FAE byte into a `u8 idx` local (86.54% - the original really does reload
-   unk4FAE inside the `if`, so the index must stay inline). */
+   slotRecordIndexes byte into a `u8 idx` local (86.54% - the original really does reload
+   slotRecordIndexes inside the `if`, so the index must stay inline). */
 /*
 void func_801C9270(int a0) {
     MenuUnk2Record* pRecord;
@@ -187,10 +187,10 @@ void func_801C9270(int a0) {
     int matched;
 
     for (i = 0; i < 0x10; i++) {
-        g_Menu->menuUnk2->unk4F8E[a0 * 0x10 + i] = 0;
+        g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + i] = 0;
     }
     for (j = 0; j < 0xF; j++) {
-        pRecord = &g_Menu->menuUnk2->records[g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + j]];
+        pRecord = &g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j]];
         matched = 1;
         for (i = 0; i < 0xC; i++) {
             if (pRecord->ids[i] != g_Menu->menuUnk2->gameSerialCode[i]) {
@@ -199,8 +199,8 @@ void func_801C9270(int a0) {
             }
         }
         if (matched) {
-            g_Menu->menuUnk2->unk4F8E[a0 * 0x10 + j] = 1;
-            pChunk = &g_Menu->menuUnk2->chunks[g_Menu->menuUnk2->unk4FAE[a0 * 0x10 + j]];
+            g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + j] = 1;
+            pChunk = &g_Menu->menuUnk2->chunks[g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j]];
             D_801EA6F4 = pChunk->data;
             D_801EA6D0[a0][pChunk->index] = 1;
         }
@@ -220,10 +220,10 @@ u_char MenuIsSlotUsable(s32 a0) {
 
     switch (a0) {
     case 0:
-        if (*(s32*)&pMenu->unk4F84[4] & 0xFFFF0000) {
+        if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
             j = D_801E981C[idx];
             if (pMenu->cardStatus[j / 16] != 0) {
-                if (pMenu->unk4FAE[j] != 0xFF) {
+                if (pMenu->slotRecordIndexes[j] != 0xFF) {
                     break;
                 }
             }
@@ -231,11 +231,11 @@ u_char MenuIsSlotUsable(s32 a0) {
         result = 0;
         break;
     case 1:
-        if (*(s32*)&pMenu->unk4F84[4] & 0xFFFF0000) {
+        if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
             j = D_801E981C[idx];
             if (pMenu->cardStatus[j / 16] != 0) {
-                if (pMenu->unk4FAE[j] != 0xFF) {
-                    if (pMenu->unk4F8E[j] != 0) {
+                if (pMenu->slotRecordIndexes[j] != 0xFF) {
+                    if (pMenu->slotHasGameSave[j] != 0) {
                         break;
                     }
                 }
@@ -279,9 +279,9 @@ s32 MenuFindFirstValidSlot(s32 a0) {
         }
         switch (a0) {
         case 0:
-            if (*(s32*)&g_Menu->menuUnk2->unk4F84[4] & 0xFFFF0000) {
+            if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
                 j = D_801E981C[i];
-                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
                     result = i;
                     searching = 0;
                 }
@@ -290,10 +290,10 @@ s32 MenuFindFirstValidSlot(s32 a0) {
             }
             break;
         case 1:
-            if (*(s32*)&g_Menu->menuUnk2->unk4F84[4] & 0xFFFF0000) {
+            if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
                 j = D_801E981C[i];
-                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->unk4FAE[j] != 0xFF &&
-                    g_Menu->menuUnk2->unk4F8E[j] != 0) {
+                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF &&
+                    g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
                     result = i;
                     searching = 0;
                 }
@@ -339,7 +339,7 @@ void func_801CA1D4(s32 a0, s32 a1) {
     case 0:
         for (i = a1; i - 3 >= 0; i -= 3) {
             j = D_801E9810[i];
-            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
                 g_Menu->menuUnk2->selectedSlot = i - 3;
                 break;
             }
@@ -351,7 +351,7 @@ void func_801CA1D4(s32 a0, s32 a1) {
         if (i >= 0) {
             for (; i - 1 >= 0; i--) {
                 j = D_801E9818[i];
-                if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+                if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
                     g_Menu->menuUnk2->selectedSlot = i - 1;
                     break;
                 }
@@ -361,7 +361,7 @@ void func_801CA1D4(s32 a0, s32 a1) {
     case 1:
         for (i = a1; i - 3 >= 0; i -= 3) {
             j = D_801E9810[i];
-            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
                 g_Menu->menuUnk2->selectedSlot = i - 3;
                 break;
             }
@@ -373,7 +373,7 @@ void func_801CA1D4(s32 a0, s32 a1) {
         if (i >= 0) {
             for (; i - 1 >= 0; i--) {
                 j = D_801E9818[i];
-                if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
+                if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
                     g_Menu->menuUnk2->selectedSlot = i - 1;
                     break;
                 }
@@ -418,7 +418,7 @@ void func_801CA480(s32 a0, s32 a1) {
     case 0:
         for (i = a1; i + 1 < 0x1E; i++) {
             j = D_801E9820[i];
-            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
                 g_Menu->menuUnk2->selectedSlot = i + 1;
                 break;
             }
@@ -427,7 +427,7 @@ void func_801CA480(s32 a0, s32 a1) {
     case 1:
         for (i = a1; i + 1 < 0x1E; i++) {
             j = D_801E9820[i];
-            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
                 g_Menu->menuUnk2->selectedSlot = i + 1;
                 break;
             }
@@ -464,7 +464,7 @@ void func_801CA5F0(s32 a0, s32 a1) {
     case 0:
         for (i = a1; i - 1 >= 0; i--) {
             j = D_801E9818[i];
-            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF) {
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
                 g_Menu->menuUnk2->selectedSlot = i - 1;
                 break;
             }
@@ -473,7 +473,7 @@ void func_801CA5F0(s32 a0, s32 a1) {
     case 1:
         for (i = a1; i - 1 >= 0; i--) {
             j = D_801E9818[i];
-            if (g_Menu->menuUnk2->unk4FAE[j] != 0xFF && g_Menu->menuUnk2->unk4F8E[j] != 0) {
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
                 g_Menu->menuUnk2->selectedSlot = i - 1;
                 break;
             }

@@ -74,8 +74,8 @@ s32 MenuBeginCardOperation(void) {
     pMenu = g_Menu->menuUnk2;
     pMenu->previousCardStatus[1] = 0xFF;
     pMenu->previousCardStatus[0] = 0xFF;
-    g_Menu->menuUnk2->unk4F84[4] = 0;
-    g_Menu->menuUnk2->unk4F84[5] = 0;
+    g_Menu->menuUnk2->cardEnumerated[0] = 0;
+    g_Menu->menuUnk2->cardEnumerated[1] = 0;
     g_Menu->menuUnk2->cardPollMode = 2;
     g_Menu->cardCheckTimer = 0x3C;
     MenuRenderFrame();

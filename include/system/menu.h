@@ -241,11 +241,13 @@ typedef struct {
     /* 0x4F74 */ s32 cardErrorCodes[2];
     /* 0x4F7C */ s32 selectedSlot;
     /* 0x4F80 */ s32 unk4F80;
-    /* 0x4F84 */ u8 unk4F84[0x8];
+    /* 0x4F84 */ s32 slotWriteCursor; // Next free index into slotRecordIndexes
+    /* 0x4F88 */ u8 cardEnumerated[2]; // One flag per memory card, set once its directory was listed
+    /* 0x4F8A */ u8 cardSlotCounts[2]; // Directory entries found, one count per card
     /* 0x4F8C */ u8 unk4F8C;
     /* 0x4F8D */ u8 unk4F8D;
-    /* 0x4F8E */ u8 unk4F8E[0x20];
-    /* 0x4FAE */ u8 unk4FAE[0x20];
+    /* 0x4F8E */ u8 slotHasGameSave[0x20]; // One flag per card slot, set when its record's game code matched
+    /* 0x4FAE */ u8 slotRecordIndexes[0x20]; // Index into records[]/chunks[] per card slot, 0xFF = empty
     /* 0x4FCE */ u8 gameSerialCode[0xC];
     /* 0x4FDA */ u8 unk4FDA;
     /* 0x4FDB */ u8 unk4FDB;
@@ -275,8 +277,8 @@ typedef struct {
     /* 0x1A */ u8 shouldRenderStringsDE0[0x6];
     /* 0x20 */ u8 shouldRenderWindow[MENU_MAX_NUM_WINDOWS];
     /* 0x27 */ u8 isWindowOpening[MENU_MAX_NUM_WINDOWS]; // Open tween runs while isOpen == 0
-    /* 0x2B */ u8 shouldRenderModalStrings;
-    /* 0x2C */ u_char shouldRenderCursors;
+    /* 0x2E */ u8 shouldRenderModalStrings; // after isWindowOpening's MENU_MAX_NUM_WINDOWS flags, not 0x2B
+    /* 0x2F */ u_char shouldRenderCursors;
     /* 0x30 */ u8 currentCharacterIDs[0x3];
     /* 0x33 */ u8 _pad33;
     /* 0x34 */ u8 shouldRenderStrings4E0[0x4];
@@ -443,7 +445,7 @@ typedef struct {
     /* 0x1EDD */ u8 optionMarkerTimers[2];
     /* 0x1EDF */ u8 optionHighlightTimer;
     /* 0x1EE0 */ u8 sparkleGlyphIndex;
-    /* 0x1EE1 */ u8 unk1EE1;
+    /* 0x1EE1 */ u8 unk80RenderContext; // Render context of the unk80 prims
     /* 0x1EE2 */ s16 optionHighlightGlyphIndex;
     /* 0x1EE4 */ s16 optionMarkerGlyphIndexes[2];
     /* 0x1EE8 */ u8 gearHpStrLen;
