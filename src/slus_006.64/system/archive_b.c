@@ -96,17 +96,15 @@ void ArchiveNoOp(void) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
-/* 97.82%, 436 bytes (exactly retail's size). Two things are left, and neither is
-   a missing statement:
-   1. A four-way callee-saved register rotation: retail allocates the archive
-      index to $s0 and the three block locals to $s3/$s2/$s1, ours allocates the
-      index to $s3 and the locals to $s2/$s1/$s0 - i.e. exactly retail's
-      assignment shifted by one, with the index taking the top instead of the
-      bottom register. gcc 2.7.2's global.c priority (log2(n_refs)*n_refs /
-      live_length) ranks the long-lived index below the short-lived pointers; ten
-      declaration/expression orders give the same 97.82% (pointer decls first,
-      inline initializer, s32 instead of int, `nIndex + 6` recomputed instead of
-      a local, locals scoped to the else block), as do gcc-2.6.0 and -O3.
+
+/* 98.01%, 436 bytes (exactly retail's size). Two walls left, neither a missing
+   statement:
+   1. A four-way callee-saved register rotation: retail puts the archive index in
+      $s0, the nIndex+6 temp in $s2 and pFirst in $s3; we put the temp in $s0,
+      pFirst in $s2 and the index in $s3 - retail's exact set of registers,
+      permuted. gcc 2.7.2's global.c priority ranks the long-lived index below
+      the short-lived pointers; ten declaration/expression orders give the same
+      97.82%, as do gcc-2.6.0 and -O3.
    2. The queue struct's first field: retail stores D_8005A1DC through the $a0
       that also carries &D_8005A1DC into func_80029AFC (one lui/addiu pair for
       both). Taking the address into a pointer local and storing
@@ -116,6 +114,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
       as `sh $s1,0($at)` instead of retail's `sh $s1,0($a0)` - a 2.7.2/2.6.0
       codegen difference, not a source one. cdk -G0 makes it worse overall
       (84.95%).
+   The do-while(0) around the two HeapAlloc/HeapPinBlock pairs is what took the
+   body from 97.82% to 98.01% (decomp-permuter found it, 215 -> 205 by its own
+   score): it changes gcc's statement tree enough to move the queue-index temp
+   into $s0 and give the pFirst/pSecond pair retail's registers, which fixes the
+   ENTIRE difference list down to the two walls above. A bare { } block around
+   the same three statements does NOT reproduce it (97.82%, i.e. no gain over
+   plain statements).
+   Tried since: decomp-permuter from this body (561 iterations, base=215
+   best=205) proposed a `u16 new_var = nIndex + 7; D_8005A1E4 = new_var +
+   nBaseIndex;` hoist - objdiff measured 96.84%, rejected. A local for the whole
+   `nIndex + 7 + nBaseIndex` expression: 92.65%, 424 bytes. Swapping the
+   pFirst/pSecond declarations: no change (98.01%).
+
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern int ArchiveDecodeSizeAbsolute(int entryIndex);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
@@ -149,9 +160,11 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
         *pOut3 = 0;
     } else {
         nIndex *= 2;
-        pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 7 + nBaseIndex), 1);
-        HeapPinBlock(pFirst);
-        pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 6), 1);
+        do {
+            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 7 + nBaseIndex), 1);
+            HeapPinBlock(pFirst);
+            pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 6), 1);
+        } while (0);
         HeapPinBlock(pSecond);
         pQueue = (StreamDataQueueEntry*)&D_8005A1DC;
         pQueue->archiveIndex = nIndex + 6;
