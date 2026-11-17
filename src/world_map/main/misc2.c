@@ -25,10 +25,10 @@ typedef struct {
 } WorldMapSprite; // Size: 0x10
 
 typedef struct {
-    /* 0x0 */ u32 unk0;
+    /* 0x0 */ u32 pImageData;
     /* 0x4 */ WorldMapSprite* pSprite;
-    /* 0x8 */ s16 unk8;
-    /* 0xA */ s16 unkA;
+    /* 0x8 */ s16 frameIndex;
+    /* 0xA */ s16 frameTimer;
 } WorldMapEntry; // Size: 0xC
 
 // Header of an animation set: a count followed by one offset per entry,
@@ -54,11 +54,11 @@ typedef struct {
     /* 0x00 */ u8 pad0[0x24];
     /* 0x24 */ u16 unk24;
     /* 0x26 */ u16 unk26;
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
+    /* 0x28 */ s32 x;
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
     /* 0x34 */ u8 pad34[0x24];
-    /* 0x58 */ s32 unk58;
+    /* 0x58 */ s32 trailDelay;
     /* 0x5C */ u8 pad5C[0x24];
 } WorldMapActor; // Size: 0x80
 
@@ -176,10 +176,10 @@ void WorldMapInitTileAnimEntries(void) {
     pEntry = (WorldMapEntry*)HeapAlloc(count * sizeof(WorldMapEntry), 0);
     g_WorldMapTileAnimEntries = pEntry;
     for (i = 0; i < g_WorldMapTileAnimEntryCount; i++, pEntry++) {
-        pEntry->unk0 = (u32)g_WorldMapTileAnimSet + g_WorldMapTileAnimSet->offsets[i];
+        pEntry->pImageData = (u32)g_WorldMapTileAnimSet + g_WorldMapTileAnimSet->offsets[i];
         pEntry->pSprite = &((WorldMapSprite*)D_8009A1E8)[i];
-        pEntry->unk8 = 0;
-        pEntry->unkA = 1;
+        pEntry->frameIndex = 0;
+        pEntry->frameTimer = 1;
     }
 }
 
@@ -193,16 +193,16 @@ void WorldMapUpdateTileAnimEntries(void) {
 
     pEntry = g_WorldMapTileAnimEntries;
     for (i = 0; i < g_WorldMapTileAnimEntryCount; i++, pEntry++) {
-        pEntry->unkA--;
-        if (pEntry->unkA == 0) {
-            pEntry->unk8++;
-            pEntry->unkA = pEntry->pSprite->pFrames[pEntry->unk8].duration;
-            if (pEntry->unkA < 0) {
-                pEntry->unk8 = 0;
-                pEntry->unkA = pEntry->pSprite->pFrames[0].duration;
+        pEntry->frameTimer--;
+        if (pEntry->frameTimer == 0) {
+            pEntry->frameIndex++;
+            pEntry->frameTimer = pEntry->pSprite->pFrames[pEntry->frameIndex].duration;
+            if (pEntry->frameTimer < 0) {
+                pEntry->frameIndex = 0;
+                pEntry->frameTimer = pEntry->pSprite->pFrames[0].duration;
             }
             LoadImage(&pEntry->pSprite->rect,
-                      (u_long*)(pEntry->unk0 + (pEntry->pSprite->pFrames[pEntry->unk8].tile << 4)));
+                      (u_long*)(pEntry->pImageData + (pEntry->pSprite->pFrames[pEntry->frameIndex].tile << 4)));
         }
     }
 }
@@ -217,10 +217,10 @@ void WorldMapInitFrameAnimEntries(void) {
     pEntry = (WorldMapEntry*)HeapAlloc(count * sizeof(WorldMapEntry), 0);
     g_WorldMapFrameAnimEntries = pEntry;
     for (i = 0; i < g_WorldMapFrameAnimEntryCount; i++, pEntry++) {
-        pEntry->unk0 = (u32)g_WorldMapFrameAnimSet + g_WorldMapFrameAnimSet->offsets[i];
+        pEntry->pImageData = (u32)g_WorldMapFrameAnimSet + g_WorldMapFrameAnimSet->offsets[i];
         pEntry->pSprite = &((WorldMapSprite*)g_WorldMapFrameAnimSprites)[i];
-        pEntry->unk8 = 0;
-        pEntry->unkA = 1;
+        pEntry->frameIndex = 0;
+        pEntry->frameTimer = 1;
     }
 }
 
@@ -235,18 +235,18 @@ void WorldMapUpdateFrameAnimEntries(void) {
 
     pEntry = g_WorldMapFrameAnimEntries;
     for (i = 0; i < g_WorldMapFrameAnimEntryCount; i++, pEntry++) {
-        pEntry->unkA--;
-        if (pEntry->unkA == 0) {
-            pEntry->unk8++;
-            pEntry->unkA = pEntry->pSprite->pFrames[pEntry->unk8].duration;
-            if (pEntry->unkA < 0) {
-                pEntry->unk8 = 0;
-                pEntry->unkA = pEntry->pSprite->pFrames[0].duration;
+        pEntry->frameTimer--;
+        if (pEntry->frameTimer == 0) {
+            pEntry->frameIndex++;
+            pEntry->frameTimer = pEntry->pSprite->pFrames[pEntry->frameIndex].duration;
+            if (pEntry->frameTimer < 0) {
+                pEntry->frameIndex = 0;
+                pEntry->frameTimer = pEntry->pSprite->pFrames[0].duration;
             }
             offset = pEntry->pSprite->rect.h * pEntry->pSprite->rect.w * 2;
             LoadImage(&pEntry->pSprite->rect,
-                      (u_long*)(pEntry->unk0 +
-                                pEntry->pSprite->pFrames[pEntry->unk8].tile * offset));
+                      (u_long*)(pEntry->pImageData +
+                                pEntry->pSprite->pFrames[pEntry->frameIndex].tile * offset));
         }
     }
 }
@@ -322,26 +322,27 @@ typedef struct {
 } WorldMapShortQuad; // Size: 0x8
 
 // The world-map save slot at g_WorldMapSaveBlock: the actor block followed by the small
-// world-map globals. Each field is the save slot's copy of the global named
-// next to it; the loader reads unk22C4 and unk22E4 back as halfword blocks.
+// world-map globals. Each field is the save slot's copy of the world-map global of the
+// same name (WorldMapSaveState writes it, WorldMapLoadState restores it); the loader
+// reads cameraRot and gridOrigin back as halfword blocks.
 typedef struct {
     /* 0x0000 */ ActorBlock actors;
-    /* 0x2000 */ WorldMapQuad unk2000;
-    /* 0x2010 */ s32 unk2010; // g_WorldMapPlayerAngle
-    /* 0x2014 */ s32 unk2014; // g_WorldMapRandomTimerPeriod
-    /* 0x2018 */ s32 unk2018; // g_WorldMapRandomTimerCount
-    /* 0x201C */ s32 unk201C; // g_WorldMapRandomTimerCountdown
-    /* 0x2020 */ SlotBlock unk2020;  // g_WorldMapRandomTimers
-    /* 0x2040 */ UnkBlock unk2040;   // g_WorldMapTrail
-    /* 0x22C0 */ s32 unk22C0;        // g_WorldMapTrailCursor
-    /* 0x22C4 */ s32 unk22C4;        // g_WorldMapCameraRot
-    /* 0x22C8 */ s32 unk22C8;        // g_WorldMapViewRotationZ
-    /* 0x22CC */ s32 unk22CC;        // g_WorldMapCameraHeight
-    /* 0x22D0 */ s32 unk22D0;        // g_WorldMapFadeLevel
-    /* 0x22D4 */ WorldMapQuad unk22D4; // g_WorldMapScrollX
-    /* 0x22E4 */ s32 unk22E4;        // g_WorldMapGridOrigin
-    /* 0x22E8 */ s32 unk22E8;        // D_8009C83C
-    /* 0x22EC */ WorldMapQuad unk22EC; // g_WorldMapCameraTarget
+    /* 0x2000 */ WorldMapQuad scrollTarget;
+    /* 0x2010 */ s32 playerAngle;
+    /* 0x2014 */ s32 randomTimerPeriod;
+    /* 0x2018 */ s32 randomTimerCount;
+    /* 0x201C */ s32 randomTimerCountdown;
+    /* 0x2020 */ SlotBlock randomTimers;
+    /* 0x2040 */ UnkBlock trail;
+    /* 0x22C0 */ s32 trailCursor;
+    /* 0x22C4 */ s32 cameraRot;
+    /* 0x22C8 */ s32 viewRotationZ;
+    /* 0x22CC */ s32 cameraHeight;
+    /* 0x22D0 */ s32 fadeLevel;
+    /* 0x22D4 */ WorldMapQuad scroll;
+    /* 0x22E4 */ s32 gridOrigin;
+    /* 0x22E8 */ s32 unk22E8; // D_8009C83C
+    /* 0x22EC */ WorldMapQuad cameraTarget;
 } WorldMapSaveData; // Size: 0x22FC
 
 void WorldMapSaveState(void) {
@@ -349,28 +350,28 @@ void WorldMapSaveState(void) {
 
     pSave = (WorldMapSaveData*)g_WorldMapSaveBlock;
     pSave->actors = *(ActorBlock*)g_WorldMapSlots;
-    pSave->unk2000.w0 = g_WorldMapScrollTargetX;
-    pSave->unk2000.w1 = g_WorldMapScrollTargetY;
-    pSave->unk2000.w2 = g_WorldMapScrollTargetZ;
-    pSave->unk2010 = g_WorldMapPlayerAngle;
-    pSave->unk2014 = g_WorldMapRandomTimerPeriod;
-    pSave->unk2018 = g_WorldMapRandomTimerCount;
-    pSave->unk201C = g_WorldMapRandomTimerCountdown;
-    pSave->unk2020 = *(SlotBlock*)g_WorldMapRandomTimers;
-    pSave->unk2040 = *(UnkBlock*)g_WorldMapTrail;
-    pSave->unk22C0 = g_WorldMapTrailCursor;
-    pSave->unk22C4 = g_WorldMapCameraRot;
-    pSave->unk22C8 = g_WorldMapViewRotationZ;
-    pSave->unk22CC = g_WorldMapCameraHeight;
-    pSave->unk22D0 = g_WorldMapFadeLevel;
-    pSave->unk22E4 = g_WorldMapGridOrigin;
+    pSave->scrollTarget.w0 = g_WorldMapScrollTargetX;
+    pSave->scrollTarget.w1 = g_WorldMapScrollTargetY;
+    pSave->scrollTarget.w2 = g_WorldMapScrollTargetZ;
+    pSave->playerAngle = g_WorldMapPlayerAngle;
+    pSave->randomTimerPeriod = g_WorldMapRandomTimerPeriod;
+    pSave->randomTimerCount = g_WorldMapRandomTimerCount;
+    pSave->randomTimerCountdown = g_WorldMapRandomTimerCountdown;
+    pSave->randomTimers = *(SlotBlock*)g_WorldMapRandomTimers;
+    pSave->trail = *(UnkBlock*)g_WorldMapTrail;
+    pSave->trailCursor = g_WorldMapTrailCursor;
+    pSave->cameraRot = g_WorldMapCameraRot;
+    pSave->viewRotationZ = g_WorldMapViewRotationZ;
+    pSave->cameraHeight = g_WorldMapCameraHeight;
+    pSave->fadeLevel = g_WorldMapFadeLevel;
+    pSave->gridOrigin = g_WorldMapGridOrigin;
     pSave->unk22E8 = D_8009C83C;
-    pSave->unk22D4.w0 = g_WorldMapScrollX;
-    pSave->unk22D4.w1 = D_8009BBB8;
-    pSave->unk22D4.w2 = D_8009BBBC;
-    pSave->unk22EC.w0 = g_WorldMapCameraTarget;
-    pSave->unk22EC.w1 = D_8009BE2C;
-    pSave->unk22EC.w2 = D_8009BE30;
+    pSave->scroll.w0 = g_WorldMapScrollX;
+    pSave->scroll.w1 = D_8009BBB8;
+    pSave->scroll.w2 = D_8009BBBC;
+    pSave->cameraTarget.w0 = g_WorldMapCameraTarget;
+    pSave->cameraTarget.w1 = D_8009BE2C;
+    pSave->cameraTarget.w2 = D_8009BE30;
 }
 
 extern s32 g_WorldMapPlayerPosition;
@@ -380,21 +381,21 @@ void WorldMapLoadState(void) {
 
     pSave = (WorldMapSaveData*)g_WorldMapSaveBlock;
     *(ActorBlock*)g_WorldMapSlots = pSave->actors;
-    *(WorldMapQuad*)&g_WorldMapPlayerPosition = pSave->unk2000;
-    *(WorldMapQuad*)&g_WorldMapScrollTargetX = pSave->unk2000;
-    *(SlotBlock*)g_WorldMapRandomTimers = pSave->unk2020;
-    g_WorldMapPlayerAngle = pSave->unk2010;
-    g_WorldMapRandomTimerPeriod = pSave->unk2014;
-    g_WorldMapRandomTimerCount = pSave->unk2018;
-    g_WorldMapRandomTimerCountdown = pSave->unk201C;
-    *(UnkBlock*)g_WorldMapTrail = pSave->unk2040;
-    *(WorldMapShortQuad*)&g_WorldMapCameraRot = *(WorldMapShortQuad*)&pSave->unk22C4;
-    *(WorldMapQuad*)&g_WorldMapScrollX = pSave->unk22D4;
-    *(WorldMapShortQuad*)&g_WorldMapGridOrigin = *(WorldMapShortQuad*)&pSave->unk22E4;
-    *(WorldMapQuad*)&g_WorldMapCameraTarget = pSave->unk22EC;
-    g_WorldMapTrailCursor = pSave->unk22C0;
-    g_WorldMapCameraHeight = pSave->unk22CC;
-    g_WorldMapFadeLevel = pSave->unk22D0;
+    *(WorldMapQuad*)&g_WorldMapPlayerPosition = pSave->scrollTarget;
+    *(WorldMapQuad*)&g_WorldMapScrollTargetX = pSave->scrollTarget;
+    *(SlotBlock*)g_WorldMapRandomTimers = pSave->randomTimers;
+    g_WorldMapPlayerAngle = pSave->playerAngle;
+    g_WorldMapRandomTimerPeriod = pSave->randomTimerPeriod;
+    g_WorldMapRandomTimerCount = pSave->randomTimerCount;
+    g_WorldMapRandomTimerCountdown = pSave->randomTimerCountdown;
+    *(UnkBlock*)g_WorldMapTrail = pSave->trail;
+    *(WorldMapShortQuad*)&g_WorldMapCameraRot = *(WorldMapShortQuad*)&pSave->cameraRot;
+    *(WorldMapQuad*)&g_WorldMapScrollX = pSave->scroll;
+    *(WorldMapShortQuad*)&g_WorldMapGridOrigin = *(WorldMapShortQuad*)&pSave->gridOrigin;
+    *(WorldMapQuad*)&g_WorldMapCameraTarget = pSave->cameraTarget;
+    g_WorldMapTrailCursor = pSave->trailCursor;
+    g_WorldMapCameraHeight = pSave->cameraHeight;
+    g_WorldMapFadeLevel = pSave->fadeLevel;
 }
 
 extern s32 g_WorldMapPrimPacketIndex;
@@ -547,17 +548,17 @@ void WorldMapSyncGearRideActors(void) {
         ride = g_GameState.gearRide[i];
         if (ride != ((u8*)g_GameState.unk1838)[i * 2 + 4]) {
             if (ride == 0) {
-                pActors[i + 1].unk28 = pActors[i + 4].unk28;
-                pActors[i + 1].unk2C = pActors[i + 4].unk2C;
-                pActors[i + 1].unk30 = pActors[i + 4].unk30;
-                pActors[i + 1].unk58 = pActors[i + 4].unk58;
+                pActors[i + 1].x = pActors[i + 4].x;
+                pActors[i + 1].y = pActors[i + 4].y;
+                pActors[i + 1].z = pActors[i + 4].z;
+                pActors[i + 1].trailDelay = pActors[i + 4].trailDelay;
             } else {
                 ((s16*)((u8*)g_GameState.unk1838 + 0x122))[i * 3] = 0x400;
-                pActors[i + 4].unk28 = pActors[i + 1].unk28;
-                pActors[i + 4].unk2C = pActors[i + 1].unk2C;
-                pActors[i + 4].unk30 = pActors[i + 1].unk30;
+                pActors[i + 4].x = pActors[i + 1].x;
+                pActors[i + 4].y = pActors[i + 1].y;
+                pActors[i + 4].z = pActors[i + 1].z;
                 pActors[i + 4].unk24 = 0;
-                pActors[i + 4].unk58 = pActors[i + 1].unk58;
+                pActors[i + 4].trailDelay = pActors[i + 1].trailDelay;
             }
         }
     }
