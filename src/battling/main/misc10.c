@@ -79,7 +79,7 @@ typedef struct {
 // slot and this unit counts 14 of them.
 typedef struct {
     /* 0x00 */ u8 unk00[0x4];
-    /* 0x04 */ s16 unk04;
+    /* 0x04 */ s16 requiredProgress; // the word src/battling/main/misc6.c reads as the entry's progress gate
     /* 0x06 */ u8 unk06[0x4];
     /* 0x0A */ u8 slotFlags[0xE];
     /* 0x18 */ u8 unk18[0x8];
@@ -99,9 +99,9 @@ typedef struct {
 
 typedef struct {
     /* 0x000 */ u8 unk000[0x58];
-    /* 0x058 */ u8* unk58;
+    /* 0x058 */ u8* pTimData;
     /* 0x05C */ u8* pModelLink;
-    /* 0x060 */ u8* unk60;
+    /* 0x060 */ u8* pObject;
     /* 0x064 */ u8 unk064[0x18];
     /* 0x07C */ u8* pPartTimings;
     /* 0x080 */ Misc10ActionSlot* pActions;
@@ -117,7 +117,7 @@ typedef struct {
     /* 0x904 */ u8* pVisiblePartIndices;
     /* 0x908 */ u8 visiblePartCount;
     /* 0x909 */ u8 typeId;
-    /* 0x90A */ u8 unk90A;
+    /* 0x90A */ u8 typeFlags;
     /* 0x90B */ u8 unk90B[0x6];
     /* 0x911 */ u8 flaggedActionCount;
     /* 0x912 */ u8 unflaggedActionCount;
@@ -137,7 +137,7 @@ typedef struct {
 } Misc10Draw; // Size: unknown
 
 typedef struct {
-    /* 0x0 */ u16 unk0;
+    /* 0x0 */ u16 entryIndex;
     /* 0x2 */ u16 pad2;
     /* 0x4 */ s32 buffer;
 } Misc10Resource; // Size: 0x8
@@ -254,7 +254,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
       (middle block, before the pActionRow store) makes pNode block-local, so
       local-alloc takes s0 for it and pActor falls to s1 - the whole function
       then reads 86% with s0/s1 swapped. That trade-off is the whole gap.
-   2. pActor->unk90A |= 1; pActor->unk90A |= 2; (retail case 35/36) is cse-d
+   2. pActor->typeFlags |= 1; pActor->typeFlags |= 2; (retail case 35/36) is cse-d
       into one |= 3 by gcc; retail has two lbu/ori/sb pairs. Untried:
       bitfields, or a union member for that byte.
    3. gcc cross-jumps the three case-body sb v0,0x90A into one shared tail;
@@ -288,10 +288,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
        BattleRelocateBlockPointers(pData);
        pNode = func_8008B38C((u8*)pData);
        pObj = (u8*)BattleCreateObject();
-       pActor->unk60 = pObj;
+       pActor->pObject = pObj;
        BattleAppendListEntry(pObj, pNode);
        pActor->pActionRow = &D_80092874[pActor->typeId];
-       pActor->unk90A = 0;
+       pActor->typeFlags = 0;
        switch (pActor->typeId) {
        case 3:
        case 14:
@@ -300,7 +300,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
        case 39:
        case 41:
        case 42:
-           pActor->unk90A |= 4;
+           pActor->typeFlags |= 4;
            break;
        case 13:
            BattleClearTpageAndClut();
@@ -308,11 +308,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
            break;
        case 35:
        case 36:
-           pActor->unk90A |= 1;
-           pActor->unk90A |= 2;
+           pActor->typeFlags |= 1;
+           pActor->typeFlags |= 2;
            break;
        case 38:
-           pActor->unk90A |= 2;
+           pActor->typeFlags |= 2;
            break;
        }
        pActor->pModelLink = pNode;
@@ -419,7 +419,7 @@ void BattleFreeSlotEntry(s32 index) {
 }
 
 void BattleAllocResourceBuffer(Misc10Resource* pResource, u_int allocFlags) {
-    pResource->buffer = (s32)HeapAlloc(ArchiveDecodeAlignedSize(pResource->unk0), allocFlags);
+    pResource->buffer = (s32)HeapAlloc(ArchiveDecodeAlignedSize(pResource->entryIndex), allocFlags);
 }
 
 void BattleReturnToMainLoop(void) {
@@ -590,7 +590,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
     u16* pClut;
 
     p = D_80095698;
-    OpenTIM((u_long*)pActor->unk58);
+    OpenTIM((u_long*)pActor->pTimData);
     ReadTIM(&tim);
     pClut = (u16*)tim.caddr;
     pClut[0] = 0;
