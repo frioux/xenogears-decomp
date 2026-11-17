@@ -1,6 +1,7 @@
 #include "common.h"
 #include "main/game.h"
 #include "system/math.h"
+#include "system/archive.h"
 #include "field/main.h"
 #include "field/camera.h"
 #include "field/actor.h"
@@ -1248,7 +1249,7 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
 
     g_FieldPartyModelLoadPartyIndex = partyIndex;
     g_FieldPartyModelLoadCharacter = characterId;
-    ArchiveSetIndex(4, 0);
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     if (g_FieldEntryRoutineFinished == 0) {
         ArchiveCdDataSync(0);
     }
@@ -1259,7 +1260,7 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
         g_GamePartyMemberSkins[g_FieldPartyModelLoadPartyIndex] = characterId;
         pBuffer = HeapAlloc(size, 0);
         g_FieldPartyModelLoadBuffer = pBuffer;
-        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
+        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, CdlModeSpeed);
     } else {
         int archiveIndex;
 
@@ -1273,7 +1274,7 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
         pBuffer = HeapAlloc(size, 0);
         g_FieldPartyModelLoadBuffer = pBuffer;
         g_GamePartyMemberSkins[g_FieldPartyModelLoadPartyIndex] = characterIndex;
-        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
+        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, CdlModeSpeed);
     }
     if (g_FieldEntryRoutineFinished == 0) {
         ArchiveCdDataSync(0);
@@ -1374,8 +1375,8 @@ setIndex1C:
 readFile:
             pWdsFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_FieldWdsLoadEntryIndex), 0);
             g_FieldWdsLoadBuffer = pWdsFileBuffer;
-            ArchiveReadFileToBuffer(g_FieldWdsLoadEntryIndex, pWdsFileBuffer, 0, 0x80);
-            ArchiveSetIndex(4, 0);
+            ArchiveReadFileToBuffer(g_FieldWdsLoadEntryIndex, pWdsFileBuffer, 0, CdlModeSpeed);
+            ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
         }
     } else {
@@ -1403,13 +1404,13 @@ void FieldScriptLoadSpecialAnimArchive(void) {
             g_FieldScriptVMCurActor->unk124 = -1;
         }
         scriptArgument = FieldScriptVMGetArgument(1);
-        ArchiveSetIndex(4, 0);
+        ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
         archiveIndex = scriptArgument + 0x77A;
         bufferSize = ArchiveDecodeAlignedSize(archiveIndex) + 8;
         g_FieldScriptVMCurActor->unk124 = archiveIndex;
         pBuffer = HeapAlloc(bufferSize, 0);
         g_FieldScriptVMCurActor->unk120 = pBuffer;
-        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, 0x80);
+        ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, CdlModeSpeed);
         if (g_FieldEntryRoutineFinished == 0) {
             ArchiveCdDataSync(0);
         }
