@@ -61,14 +61,14 @@ extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern u8 *D_800C3DE8;
 extern u8 D_800CCD88[];
-extern u8 D_800C3E04;
+extern u8 g_BattleTargetSlotIndex;
 extern u8 D_800D2DC4;
 extern s32 func_80096AB8(void);
 extern u16 func_80096FBC(void);
 extern u16 func_80097610(void);
 extern void func_80096494(u16 *, u16 *, u8 *);
 
-// The largest amount the current action may deal; the tail of func_80094EE4 clamps to it.
+// The largest amount the current action may deal; the tail of BattleComputeActionAmount clamps to it.
 #define BATTLE_ACTION_AMOUNT_MAX 9999
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
@@ -365,7 +365,7 @@ void func_80094D24(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
-void func_80094EE4(void) {
+void BattleComputeActionAmount(void) {
     BattleTableEntry *pAtk;
     BattleTableEntry *pDef;
     u16 atkValue;
@@ -422,12 +422,12 @@ void func_80094EE4(void) {
             D_800C3E34->unk80 |= 0x40;
         }
         if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->accessoryEffectFlags7) & 0x4000) {
-            g_BattleCurveTargetModes[D_800C3E04] = 3;
-            *(s32 *)(D_800C3E04 * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxMp / 10) * 2;
+            g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 3;
+            *(s32 *)(g_BattleTargetSlotIndex * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxMp / 10) * 2;
         }
         if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->accessoryEffectFlags7) & 0x1000) {
-            g_BattleCurveTargetModes[D_800C3E04] = 2;
-            *(s32 *)(D_800C3E04 * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxHp / 10) * 2;
+            g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 2;
+            *(s32 *)(g_BattleTargetSlotIndex * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxHp / 10) * 2;
         }
     }
     if (g_BattleCurrentRow->element & 0x20) {

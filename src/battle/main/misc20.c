@@ -10,7 +10,7 @@ extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleSlotState *D_800D2DC8;
 extern BattleSlotState *D_800D2D6C;
 extern u8 g_BattleCurSlotIndex;
-extern u8 D_800C3E04;
+extern u8 g_BattleTargetSlotIndex;
 extern u8 D_800D2DC4;
 extern u8 *D_800C3D3C;
 extern s32 D_800C34DC[];
@@ -40,7 +40,7 @@ void BattleExecuteActionRow(void) {
     u32 actor;
     u8 one;
 
-    if (D_800C3E04 < 3) {
+    if (g_BattleTargetSlotIndex < 3) {
         g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock +
                                    (g_BattleCurWorkBlock->actorIndex * 0x690 + 0x2228) +
                                    g_BattleCurWorkBlock->rowIndex * 0x28);
@@ -48,7 +48,7 @@ void BattleExecuteActionRow(void) {
         g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock +
                                    (g_BattleCurWorkBlock->rowIndex * 0x28 + 0x35D8));
     }
-    BattleSetSlotEntryFieldsTo2000(D_800C3E04);
+    BattleSetSlotEntryFieldsTo2000(g_BattleTargetSlotIndex);
     actor = g_BattleCurWorkBlock->actorIndex;
     D_800D2DC4 = 0;
     D_800C3D3C = &g_BattleCurWorkBlock->slots[actor].state.unkA4;
