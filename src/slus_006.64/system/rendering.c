@@ -23,6 +23,203 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
 
+/* Best attempt: 78.37% (1416 bytes, the original is 1452). NOT a wall and not a
+   permuter job about register order: the remaining deficit is pure register
+   PRESSURE, and it is one callee-saved register too many for gcc to fit.
+   Facts a future attempt needs, all confirmed against the .s:
+   - This is the FRAME-BUILDING twin of SpriteApplyDirTransforms (matched, above):
+     the dir/0x80/0x40 bytecode walk is byte-identical to that function's once the
+     source is written the same way. Keep the walk shaped like that one.
+   - The frame loop is a do/while, not a for: retail's `bne s7,t0,head` with
+     `addiu s2,s2,3` (pEntry += 3) in its DELAY slot only comes out of a do/while
+     whose body ends `pFrameData++; i++; pEntry += 3;`.
+   - field_0x40's mask is ~0xFC (retail `li v1,-253`), it keeps bits 0 and 1.
+   - retail's spriteFlags is a SIGNED 32-bit local: `s32 spriteFlags` gives the
+     sra at each of the four shift sites and no re-sign-extension after
+     `spriteFlags |= *pSprite << 8`; s16 emits sll16/sra16 around every shift.
+   - the D_8004FAB8 entry is indexed as a BYTE offset: retail is
+     `sll 1 / andi 0x1C / addu`, so write `(SVEC2*)((mem_addr)D_8004FAB8 +
+     ((spriteFlags << 1) & 0x1C))`; the tidy `D_8004FAB8[(spriteFlags >> 1) & 7]`
+     gives sra/andi/sll (3 insns) or the sll16/sra17 extract form.
+   - the inline tpage packing in the last two arms is GetTPage/GetClut written out
+     by hand (the first arm really does CALL them), so keep the five ORs.
+   What is still wrong, measured: retail holds nine values in s0-s7+fp - sprite
+   data, anim package, pFrameData, pEntry, pSprite, entryFlags/spriteFlags (they
+   SHARE one register), texX, dir and i. This C needs TEN (entryFlags and
+   spriteFlags both live across the frame build), so gcc spills pFrameData to the
+   stack (and re-bases the register copy to pFrameData+2, which is why the tileX
+   store reloads the pointer) and keeps i in memory (extra lw/addiu/sw per
+   iteration at the loop end). Tried and measured, none better: an indexed
+   `pFrameData[i]` loop (the usual induction-base fix, worse), `*pEntry` instead
+   of the entryFlags local at the tail (78.02% - it does free a register but gcc
+   spends it on entryFlags anyway), the `== 1 &&` short-circuit form for the
+   flags_0xA8/pClutPair test, `(s16)(x & 0x100) >> 4` for retail's
+   andi/sll16/sra20 shape (folds to srl/andi), do/while - the current 78.37%.
+   A 4-minute permuter run found nothing portable: the three best candidates
+   either clobber the loop counter (`if ((i = spriteFlags) & 1)`, `i = 7`) - i.e.
+   wrong code - or only re-spell `count` as `flags & 0x3F` (7247 -> 7173).
+   The next lever is the one that removes a live value from the frame path: the
+   frame code only needs `spriteFlags` for bits 1-3, bit 4 and the >>1/>>9 fields,
+   so a version that re-reads `*pSprite` per use (or types the sprite header as a
+   union of bytes and a u16) may fit in nine.
+*/
+/*
+extern SVEC2 D_8004FAB8[];
+
+void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
+    u32 i;
+    SpriteFrameData* pFrameData;
+    u8* pFrames;
+    u8* pBlock;
+    u16* pOffsets;
+    u8* pEntry;
+    u8* pSprite;
+    u16* pClutPair;
+    SVEC2* pTexEntry;
+    u8 flags;
+    u8 unkFlag;
+    u8 entryFlags;
+    s32 spriteFlags;
+    u32 count;
+    s32 dir;
+    s32 clutBase;
+    s32 texX;
+    u16 texY;
+    u16 tpageMode;
+    u16 defaultMode;
+    u16 texPage;
+    u32 color;
+    s16 rotZ;
+
+    pFrames = pAnimPackage->pFrames;
+    pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
+    pSpriteData->field_0x36 = pBlock[3] * pSpriteData->scale / 0x1000;
+    pSpriteData->field_0x38 = pBlock[1] * pSpriteData->scale / 0x1000;
+    flags = *pBlock;
+    unkFlag = flags & 0x80;
+    count = flags & 0x3F;
+    pOffsets = (u16*)(pBlock + 4);
+    pEntry = pBlock + (count * 2 + 4);
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    texY = pAnimPackage->tex.y;
+    defaultMode = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
+    color = *(u32*)&pSpriteData->red;
+    dir = 4;
+    i = 0;
+
+    if (count != 0) {
+        do {
+            pFrameData->deltaHeight = 0;
+            pFrameData->deltaWidth = 0;
+            pFrameData->flags &= ~0x20;
+            while (1) {
+                entryFlags = *pEntry;
+                if (!(entryFlags & 0x80)) {
+                    break;
+                }
+                pEntry++;
+                if (entryFlags & 0x40) {
+                    dir = entryFlags & 7;
+                    if (pSpriteData->pBase->pDirTransforms == 0) {
+                        pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
+                        SpriteClearDirTransforms(pSpriteData);
+                    }
+                    if (entryFlags & 0x20) {
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationX = *pEntry++;
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationY = *pEntry++;
+                    }
+                    if (entryFlags & 0x10) {
+                        rotZ = *pEntry++ << 4;
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = rotZ;
+                    } else {
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = 0;
+                    }
+                } else {
+                    if (entryFlags & 4) {
+                        pFrameData->flags |= 0x20;
+                    }
+                    if (entryFlags & 1) {
+                        pFrameData->deltaWidth = *pEntry++;
+                    }
+                    if (entryFlags & 2) {
+                        pFrameData->deltaHeight = *pEntry++;
+                    }
+                }
+            }
+
+            pSprite = (u8*)pFrames + *pOffsets++;
+            spriteFlags = *pSprite;
+            if (spriteFlags & 1) {
+                pFrameData->flags |= 8;
+                texX = (pAnimPackage->tex.x & 0x3F) >> 1;
+            } else {
+                pFrameData->flags &= ~8;
+                texX = (pAnimPackage->tex.x & 0x3F) >> 2;
+            }
+
+            tpageMode = (*pEntry >> 4) & 3;
+            clutBase = *pEntry & 0xF;
+            pFrameData->colorAndCode = color;
+            if (tpageMode == 0) {
+                tpageMode = defaultMode;
+            }
+            if (tpageMode != 0) {
+                *(u8*)((u8*)pFrameData + 0x13) |= 2;
+                tpageMode--;
+            }
+
+            if ((spriteFlags >> 4) & 1) {
+                pSprite++;
+                spriteFlags |= *pSprite << 8;
+                pTexEntry = (SVEC2*)((mem_addr)D_8004FAB8 + ((spriteFlags << 1) & 0x1C));
+                pFrameData->texPage = GetTPage(spriteFlags & 1, (s16)tpageMode, pTexEntry->x, pTexEntry->y);
+                pFrameData->clutID = GetClut((spriteFlags >> 1) & 0xF0, ((spriteFlags >> 9) & 0xF) + 0x1CC);
+            } else {
+                if (((pSpriteData->flags_0xA8 & 1) == 1) &&
+                    (pClutPair = *(u16**)((u8*)pSpriteData->field_0x7C + 0x18)) != 0) {
+                    texX = (pClutPair[0] & 0x3F) >> 2;
+                    texY = pClutPair[1] & 0xFF;
+                    texPage = ((spriteFlags & 1) << 7) | ((tpageMode & 3) << 5);
+                    texPage |= (pClutPair[1] & 0x100) >> 4;
+                    texPage |= (pClutPair[0] & 0x3FF) >> 6;
+                    texPage |= (pClutPair[1] & 0x200) << 2;
+                    pFrameData->texPage = texPage;
+                } else {
+                    texPage = ((spriteFlags & 1) << 7) | ((tpageMode & 3) << 5);
+                    texPage |= (pAnimPackage->tex.y & 0x100) >> 4;
+                    texPage |= (pAnimPackage->tex.y & 0x200) << 2;
+                    texPage |= (((pAnimPackage->tex.x + ((spriteFlags << 5) & 0x1C0)) & 0x3FF) >> 6);
+                    pFrameData->texPage = texPage;
+                }
+                pFrameData->clutID =
+                    (pAnimPackage->clut.y << 6) | (((pAnimPackage->clut.x + clutBase * 16) >> 4) & 0x3F);
+            }
+
+            pFrameData->flags = (pFrameData->flags & ~7) | dir;
+            pFrameData->texX = texX + pSprite[1];
+            pFrameData->texY = texY + pSprite[2];
+            pFrameData->width = pSprite[3];
+            pFrameData->height = pSprite[4];
+            pFrameData->flags = (pFrameData->flags & ~0x10) | ((*pEntry >> 2) & 0x10);
+
+            if (unkFlag != 0) {
+                pFrameData->tileX = pEntry[1] | ((s8)pEntry[2] << 8);
+                pFrameData->tileY = pEntry[3] | ((s8)pEntry[4] << 8);
+                pEntry += 2;
+            } else {
+                pFrameData->tileX = (s8)pEntry[1];
+                pFrameData->tileY = (s8)pEntry[2];
+            }
+
+            pFrameData++;
+            i++;
+            pEntry += 3;
+        } while (i != count);
+    }
+    pSpriteData->field_0x40 = (pSpriteData->field_0x40 & ~0xFC) | ((i & 0x3F) << 2);
+}
+*/
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
 
 extern MATRIX g_GfxBaseMatrix;
