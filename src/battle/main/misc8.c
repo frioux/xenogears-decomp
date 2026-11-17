@@ -58,7 +58,6 @@ extern u8 D_800CCDEC[];
 extern u8 D_800C3EB7[];
 extern BattleSlotFlag g_BattleSlotFlags[];
 extern u8 D_800D3420[];
-extern u8 D_800D3430[];
 extern u8 *g_BattleSlotParamTable;
 extern u8 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
