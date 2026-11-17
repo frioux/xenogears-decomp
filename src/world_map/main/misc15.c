@@ -22,7 +22,7 @@ typedef struct {
     /* 0x0 */ s32 sector;
     /* 0x4 */ u32 size;
     /* 0x8 */ s32 dest;
-    /* 0xC */ u8 unkC[0x18];
+    /* 0xC */ u8 payload[0x18]; // CD read destination, streamed by func_80096C0C
 } Misc15CdRequest; // Size: 0x24
 
 typedef struct {
@@ -54,7 +54,7 @@ extern u8 *g_WorldMapTilePrimBufferCopy;
 extern s32 g_WorldMapLoadQueueHead;
 extern s32 g_WorldMapCdReadRetryTimer;
 extern s32 g_WorldMapCdReadState;
-extern void *g_WorldMapCdRequestQueue[16];
+extern Misc15CdRequest *g_WorldMapCdRequestQueue[16];
 extern void *g_WorldMapFileLoadRequestQueue[16];
 extern void func_800981C8(s32);
 extern void WorldMapSubmitGridImageLoads(void);
@@ -97,7 +97,7 @@ s32 WorldMapUpdateLoadQueue(void) {
         result = WorldMapStepCdReadState();
         if (result == 0) {
             if (g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] != NULL) {
-                WorldMapStartCdRead((Misc15CdRequest *)g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead]);
+                WorldMapStartCdRead(g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead]);
             }
         }
     } else {
@@ -140,7 +140,7 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     pLoc = &g_WorldMapCdReadLocation;
     /* retail keeps this dead store: the volatile store blocks gcc's elimination */
     *(u8 *volatile *)&g_WorldMapCdRequestCursor = (u8 *)p;
-    g_WorldMapCdRequestCursor = (u8 *)p + 0xC;
+    g_WorldMapCdRequestCursor = p->payload;
     size = p->size;
     D_8009BE48 = 0;
     D_8009CCB0 = 0;
@@ -422,18 +422,22 @@ s32 WorldMapStartSlot(s32 index, s16 value) {
 }
 
 void WorldMapSetSlotState3(s32 index) {
-    *(u16 *)((u8 *)g_WorldMapSlots + (index << 7)) = 3;
+    Misc15Slot *pSlot = &g_WorldMapSlots[index];
+
+    pSlot->state = 3;
 }
 
 void WorldMapSetSlotState4(s32 index) {
-    *(u16 *)((u8 *)g_WorldMapSlots + (index << 7)) = 4;
+    Misc15Slot *pSlot = &g_WorldMapSlots[index];
+
+    pSlot->state = 4;
 }
 
 void WorldMapSetSlotWaitFrames(s32 index, u16 value) {
-    u8 *pSlot = (u8 *)g_WorldMapSlots + (index << 7);
+    Misc15Slot *pSlot = &g_WorldMapSlots[index];
 
-    *(u16 *)pSlot = 2;
-    *(u16 *)(pSlot + 2) = value;
+    pSlot->state = 2;
+    pSlot->stateTimer = value;
 }
 
 extern void SpriteDestroy(void *p);
