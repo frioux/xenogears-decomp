@@ -23,6 +23,20 @@
 // the archive directory this overlay's files are read through
 #define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
 
+// the prim buffer's header; the halfword at +0x4 is the number of prims that
+// follow it in the group's pPrims block
+typedef struct {
+    /* 0x0 */ undefined32 unk00;
+    /* 0x4 */ u16 count;
+} WorldMapPrimHeader; // Size: 0x8
+
+// the scratchpad's work-vector area: a world position is written here and the
+// sprite draw call reads it back
+typedef struct {
+    /* 0x00 */ u8 unk00[0xA0];
+    /* 0xA0 */ SVECTOR position;
+} WorldMapScratchpad; // Size: 0xA8
+
 typedef struct {
     /* 0x00 */ undefined32 unk00;
     /* 0x04 */ s16 command;
@@ -58,7 +72,7 @@ typedef struct {
     /* 0x14 */ undefined32 unk14;
     /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX mat;
-    /* 0x40 */ void *pPrimHeader; // header whose +0x4 is the prim count
+    /* 0x40 */ WorldMapPrimHeader *pPrimHeader;
     /* 0x44 */ undefined32 unk44;
     /* 0x48 */ void *pPrims;
     /* 0x4C */ undefined32 pPrimsCopy;
@@ -246,20 +260,20 @@ int WorldMapUpdateGroup12Actor(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
 
     if (pActor->command == 1) {
-        SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+        WorldMapScratchpad *pScratch = PSX_SCRATCH;
 
         pActor->command = 0;
         pRoot->groups[12].unk00 = 1;
         pRoot->groups[15].unk00 = 1;
         WorldMapDeactivateSpriteGroup(0x18);
-        pScratch->vx = pActor->x >> 12;
-        pScratch->vy = pActor->y >> 12;
-        pScratch->vz = pActor->z >> 12;
-        func_80089160(0x1D, pScratch, 0);
+        pScratch->position.vx = pActor->x >> 12;
+        pScratch->position.vy = pActor->y >> 12;
+        pScratch->position.vz = pActor->z >> 12;
+        func_80089160(0x1D, &pScratch->position, 0);
         return 3;
     }
     {
-    SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+    WorldMapScratchpad *pScratch = PSX_SCRATCH;
 
     pActor->z += pActor->dirZ;
     WorldMapWrapPosition((VECTOR *)&pActor->x);
@@ -267,10 +281,10 @@ int WorldMapUpdateGroup12Actor(int index) {
     pRoot->groups[12].x = pActor->x >> 12;
     pRoot->groups[12].y = pActor->y >> 12;
     pRoot->groups[12].z = pActor->z >> 12;
-    pScratch->vx = pActor->x >> 12;
-    pScratch->vy = pActor->y >> 12;
-    pScratch->vz = pActor->z >> 12;
-    func_80089160(0x18, pScratch, 0);
+    pScratch->position.vx = pActor->x >> 12;
+    pScratch->position.vy = pActor->y >> 12;
+    pScratch->position.vz = pActor->z >> 12;
+    func_80089160(0x18, &pScratch->position, 0);
     }
     return 1;
 }
@@ -301,7 +315,7 @@ int WorldMapInitGroup13Actor(int index) {
 int WorldMapUpdateGroup13Actor(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapGroup *pGroup = &g_WorldMapGroups->groups[13];
-    SVECTOR *pScratch = (SVECTOR *)((u8 *)PSX_SCRATCH + 0xA0);
+    WorldMapScratchpad *pScratch = PSX_SCRATCH;
 
     pActor->z += pActor->dirZ;
     WorldMapWrapPosition((VECTOR *)&pActor->x);
@@ -309,10 +323,10 @@ int WorldMapUpdateGroup13Actor(int index) {
     pGroup->x = pActor->x >> 12;
     pGroup->y = pActor->y >> 12;
     pGroup->z = pActor->z >> 12;
-    pScratch->vx = pActor->x >> 12;
-    pScratch->vy = pActor->y >> 12;
-    pScratch->vz = pActor->z >> 12;
-    func_80089160(0x19, pScratch, 0);
+    pScratch->position.vx = pActor->x >> 12;
+    pScratch->position.vy = pActor->y >> 12;
+    pScratch->position.vz = pActor->z >> 12;
+    func_80089160(0x19, &pScratch->position, 0);
     return 1;
 }
 
@@ -864,7 +878,7 @@ int WorldMapInitSlotActor(int index) {
     } else {
         nAbr = 3;
     }
-    WorldMapBuildPolyFT4Templates(pGroup, pGroup->pPrims, *(u16 *)((u8 *)pGroup->pPrimHeader + 4), nAbr);
+    WorldMapBuildPolyFT4Templates(pGroup, pGroup->pPrims, pGroup->pPrimHeader->count, nAbr);
     pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
     pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
     pActor->state = 0;
