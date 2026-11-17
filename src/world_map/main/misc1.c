@@ -32,6 +32,11 @@
 #define WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX 0x25
 #define WORLD_MAP_MENU_RESOURCES_ARCHIVE_INDEX 0x26
 
+// where the tile and slot textures live in VRAM: one texture page, and the CLUT row its palettes sit in
+#define WORLD_MAP_TEXTURE_VRAM_X 0x380
+#define WORLD_MAP_TEXTURE_VRAM_Y 0x100
+#define WORLD_MAP_CLUT_VRAM_Y 0x1FE
+
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
@@ -1227,8 +1232,8 @@ void WorldMapSetupMapPrims(void) {
     u16 clut;
     s32 i;
 
-    tpage = GetTPage(0, 1, 0x380, 0x100);
-    clut = GetClut(0x110, 0x1FE);
+    tpage = GetTPage(0, 1, WORLD_MAP_TEXTURE_VRAM_X, WORLD_MAP_TEXTURE_VRAM_Y);
+    clut = GetClut(0x110, WORLD_MAP_CLUT_VRAM_Y);
     pPrim = g_WorldMapTilePrims;
     for (i = 0; i < WORLD_MAP_QUAD_COUNT; i++, pPrim++) {
         setPolyFT4(pPrim);
@@ -1573,14 +1578,15 @@ void WorldMapAllocPrimBuffers(void) {
         pPrim->v2 = 0xFF;
         pPrim->u3 = 0x8F;
         pPrim->v3 = 0xFF;
-        pPrim->clut = GetClut(0x120, 0x1FE);
-        pPrim->tpage = GetTPage(0, 0, 0x380, 0x100);
+        pPrim->clut = GetClut(0x120, WORLD_MAP_CLUT_VRAM_Y);
+        pPrim->tpage = GetTPage(0, 0, WORLD_MAP_TEXTURE_VRAM_X, WORLD_MAP_TEXTURE_VRAM_Y);
         SetSemiTrans(pPrim, 1);
         pPrim++;
     }
     pSrc = (WorldMapChunk*)g_WorldMapSlotPrims;
     pDst = (WorldMapChunk*)g_WorldMapSlotPrimsCopy;
-    pEnd = pSrc + 0x28;
+    // the copy is the whole slot prim buffer, counted in WorldMapChunks
+    pEnd = pSrc + WORLD_MAP_SLOT_COUNT * sizeof(POLY_FT4) / sizeof(WorldMapChunk);
     do {
         *pDst++ = *pSrc++;
     } while (pSrc != pEnd);
