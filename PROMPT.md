@@ -53,12 +53,21 @@ at once (the round-34 splits, the gcc 2.6.0 and cdk presets), so that is the wor
 Take the first item below that has work; 1-3 are finite queues that three tools opened
 on 2026-11-14, and each is described under its own heading further down.
 
-1. **Preset harvest, cdk with -G0** ("Presets"). The "atfree / assembler ceiling" wall
-   was a wrong preset. Five `battle` units switch with no regressions and their parked
-   bodies were written against the wrong compiler. Cheapest matches in the repo.
+1. **Fresh-stub deep round** ("Choosing what to brief", "The round loop"). One worker per
+   unit on the 350-1200 instruction stubs `fresh_stubs.py` lists, 60 minutes each. This
+   is where the matches have come from since round 216: a 480-instruction body matched,
+   and a 431+441 pair came in from one worker. Four workers a round, not eight.
+   Both preset harvests under this heading are **closed** as of round 220, do not re-run them:
+   the cdk -G0 queue (`battle/misc26/29/31` switched in round 55) is exhausted -
+   `misc27` has one park at 90.55 under both -G8 and -G0, `misc27_b` has no park at all
+   (5 stubs: 2 never written, 3 the round-148 `sw $sp` coroutine saves); and the permuter
+   queue is dry (see item 2).
 2. **Permuter harvest** ("The permuter"). A CPU-only search over every parked body runs
    in the background; when its report lists ZERO or BETTER results, an apply round ports
-   them. Start the sweep at session start if it is not running.
+   them. **The sweep is dry as of round 217, do not restart it as a match source:** its
+   8 results bought 0 matches (one ZERO was wrong code - the candidate read
+   `extraWeaponIds[3]` where retail reads `[0]` - one had already been ported, two were
+   on the never-brief list, and four improved a park without matching).
 3. **Jump-table stubs** ("Jump tables"). About 110 stubs that were excluded because a C
    `switch` broke the link are ordinary stubs now. They are larger than average, so
    brief them in the deep shape ("The round loop").
