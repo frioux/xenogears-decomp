@@ -47,7 +47,7 @@ extern void BattleClearTextSpriteEntries(void);
 extern void BattleInitTutorialMessage(void);
 extern void BattleLoadSlotEntry(s32 a0, s32 a1);
 extern void SoundStopAllElements(void);
-extern void func_8007313C(void *pDst, void *pSrc);
+extern void func_8007313C(u16 *pPixels, u16 *pEnd);
 extern void BattlePlaySoundEffectById(s32 arg);
 extern void BattleSetScreenMode(s32 mode);
 extern void BattleResetTextListState(void);
@@ -58,7 +58,7 @@ extern void BattleDrawTextRightOffset(u8 *p, s32 dy);
 extern void ControllerMergeStates(void);
 typedef struct {
     /* 0x0  */ u8 unk0[4];
-    /* 0x4  */ u32 unk4;
+    /* 0x4  */ u8 *pData;
     /* 0x8  */ u8 unk8[0xA];
     /* 0x12 */ s16 unk12;
 } BattleTextEntry; // Size: 0x14
@@ -178,6 +178,7 @@ void BattleFreeScreenBuffer(s32 a0) {
 
 void BattleRestoreScreenImage(void) {
     RECT rect;
+    u16 *pPixels;
 
     if (g_BattleScreenImageBuffer != 0) {
         DrawSync(0);
@@ -185,7 +186,10 @@ void BattleRestoreScreenImage(void) {
         rect.y = 0x100;
         rect.w = 0x140;
         rect.h = 0xDA;
-        func_8007313C(g_BattleScreenImageBuffer, (u8 *)g_BattleScreenImageBuffer + 0x21E80);
+        // The filter reads one 320-pixel row below each pixel, so it stops at
+        // the last of the 218 rows.
+        pPixels = (u16 *)g_BattleScreenImageBuffer;
+        func_8007313C(pPixels, pPixels + 217 * 320);
         LoadImage(&rect, g_BattleScreenImageBuffer);
     }
 }
@@ -380,25 +384,20 @@ void BattleSetTextSpriteEntry(s32 entry, s32 mode) {
 
 void BattleDrawTextSprites(u8 *p) {
     Misc8Text *pText;
-    u16 off;
 
-    // A text object holds one sprite per draw buffer; the indexed sprite's
-    // (x,y) and (w,h) pairs are copied from the object's own width/x. The
-    // stores go through byte offsets because a typed field store makes gcc
-    // fold the sprite's +4 into the symbol address and add an instruction.
+    // A text object holds one sprite per draw buffer; the indexed sprite is
+    // moved to the object's centred x and given its rendered width.
     if (g_BattleTextSpriteEntry0 != 0) {
         pText = &g_BattleCenteredTextSprites[0];
-        off = g_BattleDrawBufferIndex * sizeof(SPRT);
-        *(u16 *)((u8 *)pText + (off + 0x14)) = pText->width;
-        *(u16 *)((u8 *)pText + (off + 0xC)) = pText->x;
-        AddPrim(p, (u8 *)pText + (off + 4));
+        pText->sprt[g_BattleDrawBufferIndex].w = pText->width;
+        pText->sprt[g_BattleDrawBufferIndex].x0 = pText->x;
+        AddPrim(p, &pText->sprt[g_BattleDrawBufferIndex]);
     }
     if (g_BattleTextSpriteEntry1 != 0) {
         pText = &D_80095540;
-        off = g_BattleDrawBufferIndex * sizeof(SPRT);
-        *(u16 *)((u8 *)pText + (off + 0x14)) = pText->width;
-        *(u16 *)((u8 *)pText + (off + 0xC)) = pText->x;
-        AddPrim(p, (u8 *)pText + (off + 4));
+        pText->sprt[g_BattleDrawBufferIndex].w = pText->width;
+        pText->sprt[g_BattleDrawBufferIndex].x0 = pText->x;
+        AddPrim(p, &pText->sprt[g_BattleDrawBufferIndex]);
     }
     if (g_BattleTextSpriteEntry0 | g_BattleTextSpriteEntry1) {
         AddPrim(p, &g_BattleTextSpriteTpagePrims[g_BattleDrawBufferIndex]);
@@ -498,9 +497,9 @@ void BattleDrawTextList(BattleTextList *p) {
     for (i = 0; i < p->count; i++) {
         BattleSetRowTextColor(p, i);
         if (p->unk0 != 0) {
-            BattleDrawTextLeft((u8 *)p->pEntries[i].unk4);
+            BattleDrawTextLeft(p->pEntries[i].pData);
         } else {
-            BattleDrawTextRightOffset((u8 *)p->pEntries[i].unk4, p->pEntries[i].unk12);
+            BattleDrawTextRightOffset(p->pEntries[i].pData, p->pEntries[i].unk12);
         }
     }
     if (p->unkC != 0) {
