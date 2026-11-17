@@ -44,6 +44,8 @@ extern int SysDeqIntRP(int prio, u_long *pEntry);
    never emits -- it passes argument 0 in $a0. They belong in a hasm segment. */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", ChangeClearPAD);
 
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi", GetGp);
+
 long SetRCnt(long spec, short target, long mode) {
     int i = spec & 0xFFFF;
     int final_mode = 0x48;

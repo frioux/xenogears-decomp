@@ -426,6 +426,7 @@ rename = 0x800405A4;
 erase = 0x800405B4;
 Krom2RawAdd = 0x800405C4;
 ChangeClearPAD = 0x800405D4;
+GetGp = 0x800405E4;
 SetRCnt = 0x800405F4;
 GetRCnt = 0x80040690;
 StartRCnt = 0x800406C8;

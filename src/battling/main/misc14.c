@@ -21,7 +21,7 @@ extern u8 *g_BattleRootOrderingTable;
 extern RECT *g_BattleDrawSlot;
 
 extern void func_80030A30(s32 index, void *pLight);
-extern u32 func_800405E4(void);
+extern u32 GetGp(void);
 extern void func_8008BB3C(void *pCtx);
 
 typedef struct {
@@ -721,7 +721,7 @@ Misc14Work *BattleCreateWorkBlock(u32 arg0, u32 arg1, u32 arg2, s32 arg3) {
         p->regs[i] = 0;
     }
     p->stackBase = arg2;
-    p->regs[0x1C] = func_800405E4();
+    p->regs[0x1C] = GetGp();
     value = p->stackBase + arg3 * 4;
     p->regs[0x1F] = arg0;
     p->regs[4] = arg1;
