@@ -491,35 +491,25 @@ void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
     pRow[p[1]] = v;
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
-/* 99.09% - one instruction off: the original's multiply is mult v1,v0 (value first,
-   p[2] second); writing `p[2] * pRow[p[1]]` is the only shape that also gets the
-   lbu order right (lbu p[1], lbu p[2], addu row base, lbu row), but then gcc
-   emits mult v0,v1. `pRow[p[1]] * p[2]` flips the mult but also flips the loads
-   to p[1], addu, row, p[2] (71.50%). Splitting the operands into locals
-   (`u8 idx = p[1]; u8 n = p[2]; v = pRow[idx] * n;`) is also 71.50%: cse sinks
-   the p[2] load past the row addu anyway.
-   Tried: s16 v with u8 res copy (99.55%), s32 operands
-   via a cur local, u8 res = product then s16 v = res (87.95%, extension folded),
-   operand locals before/after the row pointer (71.50%).
-   Round 20: still 99.55% and also exactly 99.55% under gcc-2.7.2-cdk, so this
-   one is not the cdk-flippable tie that BattleWordRegAddImmClamp is.
-   Round 35: the last difference is only the mult operand order (mult v0,v1 vs
-   v1,v0); every other insn, including both lbu orders, is identical. gcc spells
-   'mult <first source operand>,<second>' and always defers the SECOND operand's
-   lbu to the mult point, so 'pRow[p[1]] * p[2]' buys the mult order and loses
-   the p[2] load (71.50%). The two are mutually exclusive.
-   Round 135: 99.09%, and the body below (53.44%) was stale - `D_800D3430 +
-   arg1 * 0x40` does not compile against today's externs. Taking the row pointer
-   from the declared register file (`g_BattleSlotRegs[arg1].byteRegs`) fixes both the
-   missing symbol and the two-instructions-early lui/addiu, leaving exactly one
-   instruction: the mult operand order. Permuter from that body: 1370
-   iterations, base=10 best=10, no improvement.
-   Round 164 (park repair): re-measured, 99.09% (88 bytes, the original's size);
-   the only difference is `mult v0,v1` against the original's `mult v1,v0`. Every
-   row-first spelling (element pointer, `u8 n = p[2]` between the pointer and the
-   product, `u8 cur = pRow[p[1]]`) is 71.05%: cse sinks the single-use p[2] load
-   to the multiply, so the lbu order breaks before the mult order can help. The
-   body below is the 99.09% one.
+/* 99.09% - 88 bytes, the original's size; the only difference is the mult's
+   operand order: retail has mult v1,v0 (row value first, p[2] second), this body
+   emits mult v0,v1. Every other instruction, register included, is retail's.
+   The load order (lbu p[1], lbu p[2], addu row base, lbu row) only comes out of a
+   source that names p[2] first, and gcc then puts p[2]'s register first in the
+   mult. Measured rules (round 167):
+   - With p[2] as the mult's memory operand (sunk to the mult, collapsed to a
+     single-use local) gcc does NOT swap, so the source order survives: p[2] first
+     gives mult v0,v1, row-first spellings give mult v0,v1 with row in v0 instead
+     (the row value then lands in the wrong register, and p[2]'s load moves to
+     after the row load: 71.05%).
+   - With BOTH operands in registers (a volatile read keeps p[2] out of cse) gcc
+     DOES swap, so row-first source gives mult with the row value first - but the
+     p[2] load then no longer sits after lbu p[1] where retail has it.
+   Tried round 167: the 2 x 2 of source order against memory/reg operands, u8/s16/
+   s32/u8-cast operand types, element pointer local, row value local, volatile
+   reads of p[1] and p[2] (best 98.64%: retail's exact load order and register
+   allocation, but the addu and the mult both with their operands inverted), and
+   permuter 2259 iterations, base=20 best=20. Rounds 20/35/135/164 tried the rest.
 void func_8007AA60(u8 **arg0, u8 arg1) {
     u8 *p = *arg0;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
