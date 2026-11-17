@@ -108,19 +108,20 @@ typedef struct {
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
 
-/* 82.95%: best of 6 shapes. The loop body matches instruction for
-   instruction (four reloads of the volatile counter, the two separate
-   `lbu 0(a1)` of pSrc[i], the incrementing pSrc pointer in the branch delay
-   slot) and so do the prologue and the tail. What is left is loop.c's
-   invariant hoisting: retail hoists `lw a3,g_BattleGraphicsWork` and `li t2,0xC` into
-   the preheader and leaves `li v1,0x12` in the body, while our gcc hoists
-   neither (it keeps the base load and both constants in the body, 1 insn
-   shorter) and puts the `li 0xC` in the body. Writing pSrc as a pre-loop
-   local (74.02) puts its init before the loop test, which retail has after;
-   declaring it inside the loop body (this shape) fixes the order and the
-   incrementing pointer. A `u8 *pBase = g_BattleGraphicsWork;` pre-loop local does hoist
-   the load but reorders the preheader (71.44). -O3 / -G0 / cdk change nothing
-   material. */
+/* 82.95%: best of 8 shapes, same size as retail (264 bytes). The loop body
+   matches instruction for instruction (four reloads of the volatile counter, the
+   two separate `lbu 0(a1)` of pSrc[i], the incrementing pSrc pointer and `i++` in
+   the body). What is left is loop.c's hoisting: retail puts `lui/lw g_BattleGraphicsWork`
+   and `ori t2,zero,0xC` in the PREHEADER (after the `blez`, with `i = 0` in its
+   delay slot) and keeps `ori v1,zero,0x12` in the body, while our gcc keeps the base
+   load and both constants in the body. Tried: pSrc as a pre-loop local (74.02 - its
+   init lands before the loop test, which retail has after); `u8 *pBase = g_BattleGraphicsWork;`
+   pre-loop (71.44, same reason); an `if (arg0 - 1 > 0) { pBase = ...; pSrc = ...; do {...} while (i < arg0 - 1); }`
+   guard form (69.45/78.17 with the two locals declared in either order) - that one
+   DOES hoist the base load and BOTH constants into the preheader, but it also drops
+   the phantom 8-byte frame and `i = 0` from the blez delay slot (5 insns short).
+   -O3 / -G0 / cdk change nothing material. A hoist loop.c will not do for the plain
+   `for` shape is not source-controllable so far. */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
@@ -781,7 +782,6 @@ void func_800819A4(u8 arg0) {
     BattleClearSlotFlagsIfChar4(arg0, 0);
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800819A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
