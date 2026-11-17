@@ -105,6 +105,16 @@ struct SoundFile_t {
 };
 typedef struct SoundFile_t SoundFile;
 
+// Tone table entry that follows the WDS header at offset 0x30 of a SoundWDSEntry.
+typedef struct {
+    /* 0x0 */ u32 sampleOffset;
+    /* 0x4 */ u16 loopOffset;
+    /* 0x6 */ u16 unk6;
+    /* 0x8 */ u32 adsr;
+    /* 0xC */ u16 unkC;
+    /* 0xE */ u16 unkE;
+} SoundWdsTone; // Size: 0x10
+
 struct SoundWDSEntry_t {
     /* 0x0  */ u_char _unk0[0x10];
     /* 0x10 */ u_int headerSizeMby;
@@ -117,18 +127,9 @@ struct SoundWDSEntry_t {
     /* 0x24 */ u_int unk24;
     /* 0x28 */ int spuMemoryAddress; // Optional
     /* 0x2C */ struct SoundWDSEntry_t* pNext;
+    /* 0x30 */ SoundWdsTone tones[1]; // tone table, one entry per tone in the file
 };
 typedef struct SoundWDSEntry_t SoundWDSEntry;
-
-// Tone table entry that follows the WDS header at offset 0x30 of a SoundWDSEntry.
-typedef struct {
-    /* 0x0 */ u32 sampleOffset;
-    /* 0x4 */ u16 loopOffset;
-    /* 0x6 */ u16 unk6;
-    /* 0x8 */ u32 adsr;
-    /* 0xC */ u16 unkC;
-    /* 0xE */ u16 unkE;
-} SoundWdsTone; // Size: 0x10
 
 typedef struct {
     /* 0x0 */ int currentValue; // Current interpolated value

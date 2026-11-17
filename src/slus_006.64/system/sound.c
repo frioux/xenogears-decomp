@@ -1612,8 +1612,7 @@ void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 volume, s32 fram
         cnt--;
         pWds = SoundFindWdsEntry(pElement->sndId);
         pElement->pWds = (u32)pWds;
-        // the tone table follows the WDS header
-        pTone = (SoundWdsTone*)((u8*)pWds + sizeof(SoundWDSEntry)) + pElement->toneIndex;
+        pTone = &pWds->tones[pElement->toneIndex];
         sampleStart = pTone->sampleOffset << 3;
         pElement->voice_data.startAddress = sampleStart + pWds->spuMemoryAddress;
         pElement->voice_data.loopAddress = sampleStart + (pTone->loopOffset << 3);
@@ -2351,6 +2350,7 @@ void SoundCopyPercussionTable(AudioManager* pManager, AudioManager* pSrc) {
     u32* pSlot;
     u32 cnt;
 
+    // the percussion map is the tail of the manager's heap block
     pTable = (u32*)((u8*)pManager + SoundCalculateAudioManagerSize(pSrc->elementCount));
     pManager->pPercussionData = (s32)pTable;
     // the sequence header stores the percussion table offset as a 16-bit field
@@ -4484,7 +4484,7 @@ void SoundSetFlagsOnActiveVoices(AudioManager* manager, s32 flags) {
 void SoundClearVoiceDataPointers(void) {
     s32 offset = sizeof(SoundVoiceData*) * (NUM_VOICES - 1);
     while( offset >= 0 ) {
-        *(u32*)((u8*)&g_SoundChannels + offset) = NULL;
+        *(SoundVoiceData**)((u8*)&g_SoundChannels + offset) = NULL;
         offset -= sizeof(SoundVoiceData*);
     }
 }
