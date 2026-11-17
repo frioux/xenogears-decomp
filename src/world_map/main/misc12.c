@@ -591,28 +591,31 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
-/* best: 88.22%. Retail has TWO accesses to g_WorldMapViewRotationY (sh from an lhu'd
-   g_WorldMapPlayerAngle, then `lh` re-read for unk58), so the address stays in $v1 and is
-   reused; this compile forwards the stored value across the `sw 0x50(a2)` store
-   and folds the second read away (the address then goes through $at). Tried:
-   unk50 = (s16)nAngle + unk58 = g_WorldMapViewRotationY<<12, both reads on the global
-   (89.60, the BE10 load also hoists), s16 pointer local for both accesses,
-   volatile s32 store for unk50, volatile s16 read for unk58 (85.00, lhu +
-   sll/sra pair), gcc-2.7.2-cdk (78.97). The trigger for retail's reload is
-   inside the single basic block, so it is not CSE-across-jump.
-
+/* best: 91.20%, 160-byte body at retail's size and every branch offset identical.
+   Retail keeps &g_WorldMapViewRotationY (s16) in $v1 across the `sh` store and the
+   `lh` re-read that feeds unk58 = angle << 12, and loads g_WorldMapMode only after
+   that block; this gcc rematerialises the address ($at for the store, a fresh
+   lui for the load) because it hoisted the g_WorldMapMode load into the register
+   the address would have used. The `lh` re-read itself needs a volatile store
+   (plain s16 pointer store is forwarded, 89.60); with the volatile store the
+   register tie above is all that is left. Tried: plain global store (89.60),
+   s16 pointer local + volatile cast store (91.20, kept), inline g_WorldMapMode
+   in the two compares (same), gcc-2.7.2-cdk (78.97), permuter 3 min -j2 (only
+   found a broken candidate that used pRotY uninitialised).
 s32 func_80091430(s32 idx) {
     WorldMapPlayer *pPlayer;
+    s16 *pRotY;
     s32 nMode;
     u16 nAngle;
 
     pPlayer = g_WorldMapSlots + idx;
     *(Quad *)&pPlayer->x = *(Quad *)g_WorldMapScrollTargetX;
     nAngle = g_WorldMapPlayerAngle;
+    pRotY = &g_WorldMapViewRotationY;
     g_WorldMapViewRotationZ = 0;
-    g_WorldMapViewRotationY = nAngle;
-    *(volatile s32 *)&pPlayer->unk50 = g_WorldMapViewRotationY;
-    pPlayer->unk58 = g_WorldMapViewRotationY << 12;
+    *(volatile s16 *)pRotY = nAngle;
+    pPlayer->unk50 = (s16)nAngle;
+    pPlayer->unk58 = *pRotY << 12;
     nMode = g_WorldMapMode;
     if (nMode < 8) {
         if (nMode >= 6) {
@@ -621,6 +624,7 @@ s32 func_80091430(s32 idx) {
     }
     return 1;
 }*/
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
 s32 WorldMapModeInitActorAngleSets(s32 idx) {
     WorldMapPlayer *pPlayer;
