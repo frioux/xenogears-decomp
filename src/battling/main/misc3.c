@@ -209,35 +209,45 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
 extern s32 D_80092654;
 extern s32 D_80092658;
 
+extern s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075A4C);
 
-/* 83.62%: two residuals. The original stores D_80092654/58 AFTER the four
-   arg-register loads (order: stack stores, arg loads, global stores, jal);
-   this source emits the global stores before the stack stores. And the
-   original's three `return 1` blocks are threaded into the bnez delay slots
-   while gcc leaves the third as a j + li block after the last call. Tried:
-   if/return chain, || chain (adds a saved reg), r = call(); if (r != 0)...,
-   and `? 1 : 0` for the tail.
-s32 func_80075A4C(u8* p, s32 a, s32 b, s32 c) {
-    s32 r;
+/* 97.23% (260 vs retail's 268 bytes): the four calls, the argument order, the
+   stack-argument stores, the D_80092654/58 stores (which land after the arg
+   loads, matching retail) and the frame (0x38, s0-s3) are all right. The
+   residual is the three "hit" early exits: retail has bnez + "li v0,1" in the
+   delay slot for all three, and no return block of its own. The goto form
+   threads all three branches to the shared exit but gcc then returns the raw
+   call value, so no "li v0,1" is emitted (that is the 8 missing bytes). The
+   plain if/return form does emit "li v0,1" (95.92%, retail's 268 bytes) but
+   leaves the third return block after the fourth call, where reorg fills its
+   delay slot from the following "sw" instead of duplicating the li. A
+   "return f1() || f2() || f3() || f4()" chain is 82.86% (it needs an s4
+   accumulator). A "hit = 1; goto done;" form is untried.
+short func_80075A4C(BattleActor* p, s32 x, s32 z, s32 r) {
+    s32 hit;
 
-    D_80092654 = a;
-    D_80092658 = b;
-    r = func_80075750(*(s32*)(p + 0x10), *(s32*)(p + 0x18), *(s32*)(p + 0x0), *(s32*)(p + 0x8), a, b, c);
-    if (r != 0) {
-        return 1;
+    D_80092654 = x;
+    D_80092658 = z;
+    hit = func_80075750(p->vx, p->vz, p->position.x, p->position.z, x, z, r);
+    if (hit) {
+        goto done;
     }
-    r = func_80075750(*(s32*)(p + 0x30), *(s32*)(p + 0x38), *(s32*)(p + 0x20), *(s32*)(p + 0x28), a, b, c);
-    if (r != 0) {
-        return 1;
+    hit = func_80075750(p->steerVx, p->steerVz, p->pushVx, p->pushVz, x, z, r);
+    if (hit) {
+        goto done;
     }
-    r = func_80075750(*(s32*)(p + 0x0), *(s32*)(p + 0x8), *(s32*)(p + 0x20), *(s32*)(p + 0x28), a, b, c);
-    if (r != 0) {
-        return 1;
+    hit = func_80075750(p->position.x, p->position.z, p->pushVx, p->pushVz, x, z, r);
+    if (hit) {
+        goto done;
     }
-    return func_80075750(*(s32*)(p + 0x10), *(s32*)(p + 0x18), *(s32*)(p + 0x30), *(s32*)(p + 0x38), a, b, c) ? 1 : 0;
+    hit = func_80075750(p->vx, p->vz, p->steerVx, p->steerVz, x, z, r) != 0;
+done:
+    return hit;
 }
 */
+
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
 
