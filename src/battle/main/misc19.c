@@ -774,29 +774,28 @@ void BattleSetCommandCodeForSlotKindFlag(u8 arg0, u16 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
-// PARKED (99.72%, 720 bytes = retail's exact size and instruction multiset).
-// 180 instructions against retail's 180; the ONLY difference is the destination
-// of the four `mfhi` in the mod-by-100 sequences: retail has `mfhi a0; sra a0,a0,5`
-// (the HI pseudo coalesced with the quotient pseudo), gcc 2.6.0 here emits
-// `mfhi a3; sra a0,a3,5`. Everything else matches, and two shapes are
-// load-bearing: the switch cases are listed in retail's emitted body order
-// (3,4,5,7,0/8,2/9,1/6/10 - any other order moves the blocks) and the tail is
+// PARKED (99.72% under this unit's gcc-2.7.2, 720 bytes = retail's exact size,
+// instruction multiset and 11-word switch table). The ONLY difference is the
+// destination of the four `mfhi` in the `rand() % 100` sequences: retail has
+// `mfhi a0; sra a0,a0,5`, 2.7.2 emits `mfhi a3; sra a0,a3,5`.
+// That is a cc1 division-expansion difference, not a source shape: a full preset
+// sweep (2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x 3000/r8000) keeps every
+// 2.7.2 variant at 99.72 and puts gcc 2.6.0 at 99.94, and a 4-minute permuter run
+// from this body found nothing (base=40 best=40, 1146 iterations).
+// Under gcc-2.6.0 the object is byte-exact: all 180 instructions and all 11 table
+// words equal retail's, and the residual 0.06% is only the `jtbl_800704A0` vs
+// `.rodata+0x78` spelling of the table operand (the documented JTBL case, same
+// linked bytes). So this body is a MATCH under XenoBattle260, and un-parks as soon
+// as this function's run of the unit gets the 2.6.0 preset.
+// Two shapes are load-bearing: the switch cases are listed in retail's emitted body
+// order (3,4,5,7,0/8,2/9,1/6/10 - any other order moves the blocks) and the tail is
 // `if (r >= 0x3C) pInfo[1] = mask; else pInfo[1] = 0;`, which is what lets gcc
 // tail-merge the zero store with the characterId == 8 one (the if/else written the
 // other way round is 8 bytes longer).
-// Tried: 6 declaration orders of mask/count/bit, u32 bit (716 bytes, worse), a
-// shared `s32 r = rand() % 100` local (99.50), an unused u32 local, `% 0x64`,
-// early returns instead of the if/else tail, both operand orders of
-// `(0x8000 >> bit) & mask` (the swapped one is what matches), gcc-2.7.2 -O2 and
-// -O3 (99.72 too, so not the preset) and a 4-minute permuter run (base=40
-// best=40, 1146 iterations). The `lw v0,<jtbl>` operand in the diff is the
-// usual jtbl_/.rodata difference.
-// Round 169 (re-measured): still 99.72% at 720 bytes = retail's exact size and
-// instruction multiset; the four `mfhi` dests are the whole difference. Preset
-// screen on THIS body: gcc-2.6.0 99.94% (not 100), gcc-2.7.2-cdk 90.57%, Default
-// (2.7.2) 99.72%. So the cdk split the unit wants elsewhere would lose this
-// function, and 2.6.0 does not close it either: it is the HI-pseudo/quptient-pseudo
-// coalescing tie, not a preset question.
+// Also tried, all worse: 6 declaration orders of mask/count/bit, u32 bit (716
+// bytes), a shared `s32 r = rand() % 100` local (99.50), an unused u32 local,
+// `% 0x64`, early returns instead of the if/else tail, both operand orders of
+// `(0x8000 >> bit) & mask` (the swapped one is what matches).
 /*
 void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     BattleTableEntry* p = &g_BattleWorkBlock[arg0];
