@@ -171,6 +171,7 @@ void SystemFreeData(void) {
 
 
 void SystemInitializeFont(SystemFontFileHeader* pFontFile) {
+    u8* pFontBytes;
     int dataOffset;
 
     if (pFontFile == NULL) {
@@ -181,16 +182,17 @@ void SystemInitializeFont(SystemFontFileHeader* pFontFile) {
     HeapPinBlock(pFontFile);
     g_SystemFontFile = pFontFile;
     D_8005935C = pFontFile;
-    // Read through a u16 cast rather than pFontFile->field: as field lvalues
-    // gcc hoists all six loads above the two pointer stores, and retail
-    // interleaves them (66.5% vs 100%).
-    dataOffset = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, glyphDataOffset));
-    D_8005934C = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, leadByte));
-    D_80059350 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, doubleByteGlyphOffset));
-    D_80059354 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, narrowGlyphCount));
-    D_80059358 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, narrowTrailByteCount));
-    D_80059364 = *(u16*)((u8*)pFontFile + offsetof(SystemFontFileHeader, singleByteCodeBase));
-    D_8005935C = (u8*)pFontFile + dataOffset;
+    // The header words are read through the byte cursor, not as pFontFile->field:
+    // as field lvalues gcc hoists all six loads above the two pointer stores,
+    // and retail interleaves each load with its store (66.5% vs 100%).
+    pFontBytes = (u8*)pFontFile;
+    dataOffset = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, glyphDataOffset));
+    D_8005934C = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, leadByte));
+    D_80059350 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, doubleByteGlyphOffset));
+    D_80059354 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, narrowGlyphCount));
+    D_80059358 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, narrowTrailByteCount));
+    D_80059364 = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, singleByteCodeBase));
+    D_8005935C = pFontBytes + dataOffset;
 }
 
 void SystemInitializeData(void* pSystemData) {
