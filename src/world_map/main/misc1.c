@@ -8,6 +8,29 @@
 
 #define WORLD_MAP_TILE_GROUP_COUNT 16
 
+// the grid's rotation advances by this much every frame
+#define WORLD_MAP_GRID_ANGLE_STEP 64
+
+// the GTE projection distance the map is drawn and fogged through
+#define WORLD_MAP_PROJECTION_DISTANCE 256
+
+// the two buffers every map draw/disp env covers: one screen each, one frame apart
+#define WORLD_MAP_SCREEN_WIDTH 320
+#define WORLD_MAP_SCREEN_HEIGHT 216
+
+// the four quads the frame projects out of g_WorldMapQuadVertices, and one POLY_FT4 per quad
+#define WORLD_MAP_QUAD_COUNT 4
+
+// the slot pool WorldMapAllocPrimBuffers holds, one WorldMapSlot and one POLY_FT4 each
+#define WORLD_MAP_SLOT_COUNT 16
+
+// the two per-frame map work buffers
+#define WORLD_MAP_WORK_BUFFER_SIZE 4096
+
+// archive entries loaded before the map data itself exists
+#define WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX 0x25
+#define WORLD_MAP_MENU_RESOURCES_ARCHIVE_INDEX 0x26
+
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
@@ -116,7 +139,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     pState = &g_WorldMapCameraTarget;
     func_800983A0(pState);
     func_8009932C(g_WorldMapRenderContext->pOt[0], g_WorldMapRenderContext->pOt[1], pState);
-    g_WorldMapGridAngle = g_WorldMapGridAngle + 0x40;
+    g_WorldMapGridAngle = g_WorldMapGridAngle + WORLD_MAP_GRID_ANGLE_STEP;
     func_80073B04();
     func_800737EC();
     func_80086798();
@@ -308,12 +331,12 @@ void func_80071EF0(void) {
 void WorldMapQueueTwoFileLoads(void) {
     void* pBuffer;
 
-    g_MenuResourcesFile = HeapAlloc(ArchiveDecodeAlignedSize(0x26), 1);
-    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(0x25), 1);
-    g_WorldMapStreamQueue.archiveIndex = 0x25;
+    g_MenuResourcesFile = HeapAlloc(ArchiveDecodeAlignedSize(WORLD_MAP_MENU_RESOURCES_ARCHIVE_INDEX), 1);
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX), 1);
+    g_WorldMapStreamQueue.archiveIndex = WORLD_MAP_COMPRESSED_MAP_ARCHIVE_INDEX;
     g_WorldMapCompressedMapData = pBuffer;
     g_WorldMapStreamQueue.pData = pBuffer;
-    D_8009D400.archiveIndex = 0x26;
+    D_8009D400.archiveIndex = WORLD_MAP_MENU_RESOURCES_ARCHIVE_INDEX;
     D_8009D408.archiveIndex = 0;
     D_8009D408.pData = 0;
     D_8009D400.pData = g_MenuResourcesFile;
@@ -504,13 +527,13 @@ void WorldMapInitGfxEnv(void) {
     s32 nNear;
 
     ResetGraph(1);
-    g_WorldMapProjectionDistance = 0x100;
-    SetGeomScreen(0x100);
+    g_WorldMapProjectionDistance = WORLD_MAP_PROJECTION_DISTANCE;
+    SetGeomScreen(WORLD_MAP_PROJECTION_DISTANCE);
     pEnv = g_WorldMapGfxEnvs;
-    SetDefDrawEnv(&pEnv[0].drawEnv, 0, 0, 0x140, 0xD8);
-    SetDefDrawEnv(&pEnv[1].drawEnv, 0, 0xD8, 0x140, 0xD8);
-    SetDefDispEnv(&pEnv[0].dispEnv, 0, 0xD8, 0x140, 0xD8);
-    SetDefDispEnv(&pEnv[1].dispEnv, 0, 0, 0x140, 0xD8);
+    SetDefDrawEnv(&pEnv[0].drawEnv, 0, 0, WORLD_MAP_SCREEN_WIDTH, WORLD_MAP_SCREEN_HEIGHT);
+    SetDefDrawEnv(&pEnv[1].drawEnv, 0, WORLD_MAP_SCREEN_HEIGHT, WORLD_MAP_SCREEN_WIDTH, WORLD_MAP_SCREEN_HEIGHT);
+    SetDefDispEnv(&pEnv[0].dispEnv, 0, WORLD_MAP_SCREEN_HEIGHT, WORLD_MAP_SCREEN_WIDTH, WORLD_MAP_SCREEN_HEIGHT);
+    SetDefDispEnv(&pEnv[1].dispEnv, 0, 0, WORLD_MAP_SCREEN_WIDTH, WORLD_MAP_SCREEN_HEIGHT);
     D_8009BC58 = 1;
     D_8009BBE0 = 1;
     D_8009BC56 = 1;
@@ -744,8 +767,8 @@ void WorldMapDecompressMapTables(void) {
 }
 
 void WorldMapAllocWorkBuffers(void) {
-    g_WorldMapWorkBuffer1 = HeapAlloc(0x1000, 0);
-    g_WorldMapWorkBuffer2 = HeapAlloc(0x1000, 0);
+    g_WorldMapWorkBuffer1 = HeapAlloc(WORLD_MAP_WORK_BUFFER_SIZE, 0);
+    g_WorldMapWorkBuffer2 = HeapAlloc(WORLD_MAP_WORK_BUFFER_SIZE, 0);
 }
 
 
@@ -891,7 +914,7 @@ void func_800737EC(void) {
     SetRotMatrix((MATRIX*)0x1F800008);
     SetTransMatrix((MATRIX*)0x1F800008);
     pVec = g_WorldMapQuadVertices;
-    for (i = 0; i < 4; i++, pVec += 4) {
+    for (i = 0; i < WORLD_MAP_QUAD_COUNT; i++, pVec += 4) {
         pBase = (WorldMapQuadPrim*)(g_WorldMapQuadPrims + g_WorldMapPrimPacketIndex * 0x24);
         // the sum has to stay integer arithmetic: `&pBase[i]` flips the addu operands
         pPrim = (WorldMapQuadPrim*)(i * sizeof(WorldMapQuadPrim) + (s32)pBase);
@@ -918,7 +941,7 @@ void WorldMapSetupMapPrims(void) {
     tpage = GetTPage(0, 1, 0x380, 0x100);
     clut = GetClut(0x110, 0x1FE);
     pPrim = g_WorldMapTilePrims;
-    for (i = 0; i < 4; i++, pPrim++) {
+    for (i = 0; i < WORLD_MAP_QUAD_COUNT; i++, pPrim++) {
         setPolyFT4(pPrim);
         pPrim->r0 = 0x30;
         pPrim->g0 = 0x30;
@@ -1237,18 +1260,18 @@ void WorldMapAllocPrimBuffers(void) {
     WorldMapChunk* pEnd;
     s32 i;
 
-    g_WorldMapSlotPositions = HeapAlloc(0x80, 0);
-    g_WorldMapSlotPrims = HeapAlloc(0x280, 0);
-    g_WorldMapSlotPrimsCopy = HeapAlloc(0x280, 0);
+    g_WorldMapSlotPositions = HeapAlloc(WORLD_MAP_SLOT_COUNT * sizeof(WorldMapSlot), 0);
+    g_WorldMapSlotPrims = HeapAlloc(WORLD_MAP_SLOT_COUNT * sizeof(POLY_FT4), 0);
+    g_WorldMapSlotPrimsCopy = HeapAlloc(WORLD_MAP_SLOT_COUNT * sizeof(POLY_FT4), 0);
     pSlot = (WorldMapSlot*)g_WorldMapSlotPositions;
-    for (i = 0xF; i != -1; i--) {
+    for (i = WORLD_MAP_SLOT_COUNT - 1; i != -1; i--) {
         pSlot->unk4 = 0;
         pSlot->unk2 = 0;
         pSlot->unk0 = 0;
         pSlot++;
     }
     pPrim = (POLY_FT4*)g_WorldMapSlotPrims;
-    for (i = 0xF; i != -1; i--) {
+    for (i = WORLD_MAP_SLOT_COUNT - 1; i != -1; i--) {
         setPolyFT4(pPrim);
         pPrim->r0 = 0x40;
         pPrim->g0 = 0x40;
