@@ -2107,6 +2107,11 @@ int LibGearGetModelDistance(Model* pModel) {
 // returned NONE (base=best=15). The earlier shapes listed above were all measured
 // with the s16 declaration, so they are worth one more pass only if the allocator
 // question is ever reopened.
+// Round 217: permuter-out's only edit (the u16 global) was already in this body;
+// re-measured live at 99.87%/464 bytes, and another 4-minute run (-j 2, 1616
+// iterations) returned NONE, base=best=15, as the two earlier runs did. One new
+// hand shape: swapping the 0xFD and 0xFC arms (mutually exclusive, so semantics
+// unchanged) scores 99.84% - worse - so the remaining reg_eqv tie stands.
 /*
 void func_801E63A8(Model* pModel) {
     Model* pModel2;
@@ -2190,8 +2195,7 @@ void func_801E63A8(Model* pModel) {
             pObject->targetZ = value[4];
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
 
 
