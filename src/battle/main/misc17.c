@@ -8,15 +8,15 @@
 // block but stops at 0xA8, so the 0xB0/0xB7 flag bytes are declared here.
 typedef struct {
     /* 0x000 */ u8 unk0[0x9C];
-    /* 0x09C */ u8 unk9C;
+    /* 0x09C */ u8 spriteColumnPending;
     /* 0x09D */ u8 unk9D[0x8];
-    /* 0x0A5 */ u8 unkA5;
+    /* 0x0A5 */ u8 spriteColumnPrimStart;
     /* 0x0A6 */ u8 unkA6[0xA];
     /* 0x0B0 */ u8 unkB0;
     /* 0x0B1 */ u8 unkB1[0x6];
     /* 0x0B7 */ u8 unkB7;
     /* 0x0B8 */ u8 unkB8[0x40];
-    /* 0x0F8 */ s32 unkF8;
+    /* 0x0F8 */ s32 spriteColumnPackageCount;
 } BattleSpriteWork;
 
 extern u8 g_BattleActorCharIds[];
@@ -67,15 +67,15 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     s32 i;
     s32 offset;
 
-    g_BattleDisplayState->unkF8 = 0;
+    g_BattleDisplayState->spriteColumnPackageCount = 0;
     for (i = 0; i < 8; i++) {
         offset = i * 8 + 0x38;
-        g_BattleDisplayState->unkF8 += BattleDrawSpritePackage(0x66,
-            (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->unkF8 * 80, 0x20,
+        g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(0x66,
+            (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 80, 0x20,
             (s16)(offset + arg0));
     }
-    g_BattleDisplayState->unkA5 = *(u8 *)&g_BattlePrimStartIndex;
-    g_BattleDisplayState->unk9C = 1;
+    g_BattleDisplayState->spriteColumnPrimStart = *(u8 *)&g_BattlePrimStartIndex;
+    g_BattleDisplayState->spriteColumnPending = 1;
 }
 /* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
    insn-identical; what is left is expansion order (gcc hoists `li a1,0x20` /

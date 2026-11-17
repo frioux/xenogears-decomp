@@ -113,12 +113,12 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
         (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk1E, arg1) != 0 &&
         (D_800CCD62[arg0].flags & statusMasks[arg1]) == 0) {
         BattleClearPrimFlagsThreeSlots(1);
-        g_BattleDisplayState->unkC6 = 1;
+        g_BattleDisplayState->pulseTriangleActive = 1;
         if (BattleRunTargetSlotSelection(dmg, arg0, 0) != 0) {
             D_800CCDC4[arg0].flags -= trigger;
             ret = 1;
         } else {
-            g_BattleDisplayState->unkC6 = 0;
+            g_BattleDisplayState->pulseTriangleActive = 0;
             BattleSetPrimFlagsThreeSlots(arg0);
         }
         flag = 0;
@@ -190,7 +190,7 @@ u8 func_8008CFB8(u8 arg0) {
         }
         rowOffset += 0x28;
     }
-    g_BattleDisplayState->unkCB = 0;
+    g_BattleDisplayState->primListsPending = 0;
     func_8008F8F4(0, 0x74, 0xA0, 0xAC, 0x38, 0, 1);
     func_8008F8F4(1, 0x84, 0x4C, 0x9C, 0x50, 0, 1);
     func_8008F8F4(2, 0x1C, 0xA0, 0x50, 0x18, 0, 1);
@@ -239,7 +239,7 @@ u8 func_8008CFB8(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 /* 96.12% (620 bytes against retail's 624). The address ASSOCIATION of the
    u16 |= store is the lever: written offset-chain first and gfx base last,
-   `*((i + unkA3) * 0x28 + j * 0xFA0 + gfx + 0x6432)`, gcc emits retail's
+   `*((i + primStart) * 0x28 + j * 0xFA0 + gfx + 0x6432)`, gcc emits retail's
    two-step `addu v0,v0,s1 / addu v0,a1,v0`; the base-first spelling of the old
    park let cse hoist `gfx + j*0xFA0` into one register and cost 2 instructions
    (93.85 with that body). Everything else is matched: both guards, the two SetX
@@ -248,9 +248,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
    load's beqz delay slot and reuses the chain (a0) for the following store, and
    the inner back-branch delay slot holds a nop where we steal `li a1,1`.
    The old body's byte-offset spellings are struct arithmetic against today's
-   BattleWork header and do not compile; unkD0[j], unkA3 and unkCB are its
-   fields. The count must stay a live re-read of the global in the
-   for-condition - that is what makes the original reload it at the loop tail.
+   BattleWork header and do not compile; packageCounts[j], primStart and
+   primListsPending are its fields. The count must stay a live re-read of the
+   global in the for-condition - that is what makes the original reload it at
+   the loop tail.
 void func_8008D328(void) {
     u8 found;
     s32 j;
@@ -258,25 +259,25 @@ void func_8008D328(void) {
 
     found = 0;
     for (j = 0; j < 2; j++) {
-        if (g_BattleDisplayState->unkD0[j] != 0) {
-            for (i = 0; i < g_BattleDisplayState->unkD0[j] * 2; i += 2) {
+        if (g_BattleDisplayState->packageCounts[j] != 0) {
+            for (i = 0; i < g_BattleDisplayState->packageCounts[j] * 2; i += 2) {
                 u8 c;
 
-                SetSemiTrans(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->unkA3) * 0x28, 1);
-                SetShadeTex(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->unkA3) * 0x28, 0);
-                *(u16 *)((i + g_BattleDisplayState->unkA3) * 0x28 + j * 0xFA0 + g_BattleGraphicsWork + 0x6432) |= 0x20;
-                c = *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->unkA3) * 0x28);
+                SetSemiTrans(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 1);
+                SetShadeTex(g_BattleGraphicsWork + 0x641C + j * 0xFA0 + (i + g_BattleDisplayState->primStart) * 0x28, 0);
+                *(u16 *)((i + g_BattleDisplayState->primStart) * 0x28 + j * 0xFA0 + g_BattleGraphicsWork + 0x6432) |= 0x20;
+                c = *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->primStart) * 0x28);
                 if (c != 0) {
                     found = 1;
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->unkA3) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6421 + (i + g_BattleDisplayState->unkA3) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
-                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6422 + (i + g_BattleDisplayState->unkA3) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6420 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6421 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
+                    *(u8 *)(g_BattleGraphicsWork + j * 0xFA0 + 0x6422 + (i + g_BattleDisplayState->primStart) * 0x28) = c - (*(u8 *)(g_BattleCommandQueue + 0x2E0) << 4);
                 }
             }
         }
     }
     if (found == 0) {
-        g_BattleDisplayState->unkCB = 0;
+        g_BattleDisplayState->primListsPending = 0;
     }
 }
 

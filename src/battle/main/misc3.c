@@ -391,11 +391,11 @@ void BattleInitPulseTrianglePrims(void) {
     *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) = 0xFF;
     g_BattlePulseTrianglePrims[0xE5] = 1;
     g_BattlePulseTrianglePrims[0xE4] = g_BattlePrimStartIndex;
-    g_BattleDisplayState->unkC6 = 1;
+    g_BattleDisplayState->pulseTriangleActive = 1;
 }
 
 void BattleClearFlagC6(void) {
-    g_BattleDisplayState->unkC6 = 0;
+    g_BattleDisplayState->pulseTriangleActive = 0;
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
