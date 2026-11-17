@@ -341,16 +341,11 @@ void DumpDispEnv(DISPENV *env) {
     g_GpuPrintf("isrgb24 %d\n", env->isrgb24);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", ResetGraph);
-
-/* best: 92.76% -- everything matches up to the case-5 write block: gcc hoists
-   both D_80056950/D_80056964 loads above the D_800568D1 store and materialises
-   li a1,-1 early, retail keeps them in source order (asm-level scheduling again,
-   as with MoveImage). Register allocation (s0 = pLevel, s1 = mode) is right and
-   needs pLevel assigned inside case 5 with printf taking &D_800568D0 directly.
 int ResetGraph(int mode) {
     u_char *pLevel;
     u_char nMode;
+    u_int *pWidth;
+    u_int *pHeight;
 
     switch (mode & 7) {
     case 0:
@@ -364,8 +359,8 @@ int ResetGraph(int mode) {
         nMode = func_80046C58(mode);
         *pLevel = nMode;
         D_800568D1 = 1;
-        D_800568D4 = D_80056950[nMode];
-        D_800568D6 = D_80056964[nMode];
+        D_800568D4 = *(pWidth = &D_80056950[nMode]);
+        D_800568D6 = *(pHeight = &D_80056964[nMode]);
         func_80047178(pLevel + 0x10, -1, sizeof(DRAWENV));
         func_80047178(pLevel + 0x6C, -1, sizeof(DISPENV));
         return *pLevel;
@@ -376,7 +371,6 @@ int ResetGraph(int mode) {
         break;
     }
 }
-*/
 
 int SetGraphReverse(int mode) {
     u_long nStatus;
@@ -513,13 +507,17 @@ int StoreImage(RECT *rect, u_long *p) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
 
-/* best: 95.69% -- one pair misplaced: retail loads D_800568C8 right after
-   "lw a0,0(s0)" and before "li a2,0x14", gcc emits it after "sw a0,0(a1)".
-   Writing the packet word before the D_80056984 store fixed the other four
-   slots; two permuter runs from this body found nothing (a local holding
-   &D_800568C8->unk18 only moved the loss onto the D_800568C8 load).
+/* best: 95.69% -- identical instruction multiset, one load one slot out. Retail
+   reads the vtable argument "lw a0,0x18(v1)" after the D_80056988 size store,
+   gcc emits it right after "sw a0,0(a1)". Holding the vtable in a pSys local
+   assigned after the source store puts the D_800568C8 load exactly where retail
+   has it (this body); taking &pSys->unk18 into a local instead moves the argument
+   load right but pushes the D_800568C8 load three slots down (91.84). Tried all
+   three packet store orders, src/size words in locals, a param word local, and a
+   4-minute permuter run (best candidate = the &unk18 local, 91.84 here).
 int MoveImage(RECT *rect, int x, int y) {
     u_long *pPacket;
+    GpuSysFuncs *pSys;
 
     CheckPrim(D_800191A4, (u_long*)rect);
 
@@ -528,12 +526,12 @@ int MoveImage(RECT *rect, int x, int y) {
 
     pPacket = &D_80056980;
     *pPacket = *(u_long*)&rect->x;
+    pSys = D_800568C8;
     D_80056984 = (y << 16) | (x & 0xFFFF);
     D_80056988 = *(u_long*)&rect->w;
-    return D_800568C8->unk08(D_800568C8->unk18, pPacket - 2, 0x14, 0);
+    return pSys->unk08(pSys->unk18, pPacket - 2, 0x14, 0);
 }
 */
-
 
 u_long* ClearOTag(u_long *ot, int n) {
     if (g_GraphDebugLevel >= 2)
