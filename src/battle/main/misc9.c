@@ -591,7 +591,7 @@ void func_8007E7E4(u8 **arg0) {
     } while (addr < (s32)D_800CD1B2);
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E7E4);
-void func_8007E8AC(u8 **arg0) {
+void BattleGetFontGlyph(u8 **arg0) {
     u8 *p = *arg0;
     s32 idx = p[2] * 8 + p[1] * 0x40;
 

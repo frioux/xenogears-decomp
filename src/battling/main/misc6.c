@@ -23,7 +23,7 @@ extern u8 D_800954E0[];
 extern s32 g_BattleDrawFlags;
 
 void func_8007E964(s32 c);
-u8* func_8007E8AC(s32 c);
+u8* BattleGetFontGlyph(s32 c);
 s32 BattleGetTextWidth(u8* pText);
 extern s32 g_BattleTextPrimCount;
 
@@ -442,7 +442,7 @@ void BattleSetTextCursor(s16 a, s16 b) {
     g_BattleTextCursorY = b;
 }
 
-// 4-byte entry of the D_80091230 font table: the glyph's texel origin and the
+// 4-byte entry of the g_BattleFontGlyphs font table: the glyph's texel origin and the
 // cell size the glyph quad is stretched over.
 typedef struct {
     /* 0x0 */ u8 u;
@@ -451,12 +451,12 @@ typedef struct {
     /* 0x3 */ u8 h;
 } BattleFontGlyph; // Size: 0x4
 
-extern BattleFontGlyph D_80091230[];
+extern BattleFontGlyph g_BattleFontGlyphs[];
 
 // Maps a character of the fixed-font charset onto its glyph record: digits to
 // 0-9, letters to 10-35, and the handful of punctuation marks the battle text
 // uses onto the symbol glyphs at the end of the table. NULL for anything else.
-u8* func_8007E8AC(s32 c) {
+u8* BattleGetFontGlyph(s32 c) {
     if (c >= '0' && c <= '9') {
         c = c - '0';
     } else if (c >= 'A' && c <= 'Z') {
@@ -488,7 +488,7 @@ u8* func_8007E8AC(s32 c) {
             return NULL;
         }
     }
-    return (u8*)&D_80091230[c];
+    return (u8*)&g_BattleFontGlyphs[c];
 }
 
 void BattleSetTextScale(s32 value) {
@@ -511,7 +511,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
    3. the tail wants lhu for g_BattleTextCursorX and keeps x+2 in v0; ours emits lh and
       a fresh register even with an explicit (u16) cast.
    4. no extra stack slot: the 0x20 frame with s0/s1/ra is exact.
-   Also proved here: func_8007E8AC takes an s32, not a u8 - retail does no andi
+   Also proved here: BattleGetFontGlyph takes an s32, not a u8 - retail does no andi
    on a0 in its own body or at these call sites, and BattleGetTextWidth still matches
    100.00% with the s32 prototype.
 void func_8007E964(s32 c) {
@@ -528,7 +528,7 @@ void func_8007E964(s32 c) {
     }
     pBase = (POLY_FT4*)g_BattleTextPrimBuffers[g_BattleDrawBufferIndex];
     pPkt = pBase + g_BattleTextPrimCount;
-    pGlyph = func_8007E8AC(c);
+    pGlyph = BattleGetFontGlyph(c);
     if (pGlyph == 0) {
         return;
     }
@@ -558,7 +558,7 @@ s32 BattleGetTextWidth(u8* pText) {
     s32 width = 0;
 
     while (*pText != 0) {
-        u8* pGlyph = func_8007E8AC(*pText);
+        u8* pGlyph = BattleGetFontGlyph(*pText);
 
         pText++;
         width += 2 + ((pGlyph[2] * g_BattleTextScale) >> 8);

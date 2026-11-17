@@ -670,6 +670,13 @@ over the BETTER park.
   surprising row before believing it.
 - After editing a brief:
   `node -e "new Function('args','runs',require('fs').readFileSync('tools/rounds/brief.js','utf8'))"`.
+- A worker in the MATCHING brief must carry `unit` (it becomes the run key). A field- or
+  naming-round worker (`{tree, file, bins}`) sent to `brief.js` is not validated against
+  the schema: the launch dies on the first entry with `TypeError: Cannot read properties
+  of undefined (reading 'replace')` at `KEY`, before any clone is touched (round 176,
+  nothing lost, one relaunch). One shape per launch - matching and field workers go out
+  as two workflows, and the field one gets `fg: 0` so the matching round keeps both
+  foreground lanes.
 - The workflow resource reads `args.workers` at the TOP level, so
   `subagent({workflow: "tools/rounds/brief.js", args: {workers: [...]}})` - one `args` wrapper, not
   `{args: {args: {...}}}`. The extra wrapper still detaches a run, then dies instantly with
