@@ -194,14 +194,16 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 s32 func_80080A28(s32 index) {
     u8 *p = g_WorldMapGroups;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    s32 z;
 
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = 0xFFF80000;
     do { } while (0);
+    z = g_WorldMapPlayerPositionZ;
     pSlot->unk54 = -0x800;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
-    pSlot->pos.z = g_WorldMapPlayerPositionZ;
+    pSlot->pos.z = z;
     WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
     p += 0x54;
     WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
