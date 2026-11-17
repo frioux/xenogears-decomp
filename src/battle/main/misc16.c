@@ -373,6 +373,9 @@ void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
     ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;
 }
 */
+// Allocates a slot's draw block and rect list on first use, then either fills the
+// rect list from the four coordinates and marks the slot dirty (arg5) or hands
+// them to func_8008F6E4 and advances the frame (arg6).
 void func_8008F8F4(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8 arg5, u8 arg6) {
     u8 *pFlags;
     BattleWork *pState;
@@ -382,7 +385,7 @@ void func_8008F8F4(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8 arg5, u8
     u8 *q;
 
     slot = arg0;
-    index = slot;
+    index = slot; // two steps: the u16 copy is what puts arg0 in s2, the u8 index in s1
     if (*((u8 *)g_BattleDisplayState + index + 0xB0) == 0) {
         q = BattleAllocHeapBlock(0x5A8, 0);
         g_BattleSlotGraphics[index] = q;
@@ -403,7 +406,7 @@ void func_8008F8F4(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8 arg5, u8
         ((u16 *)p)[4] = 0;
         ((u16 *)p)[5] = 0;
         *(pFlags + index + 0xBF) = 0;
-        pState = g_BattleDisplayState;
+        pState = g_BattleDisplayState; // the BattleWork temp only decides v0/v1 at the store
         pFlags = (u8 *)pState;
         *(pFlags + index + 0xB8) = 1;
     } else {
