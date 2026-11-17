@@ -194,16 +194,32 @@ typedef struct {
     u8 pad17F[0x1];  // 0x17F
 } BattleCommandRowTable;  // Size: 0x180
 
-// Round 185: 92.59 -> 96.55% (232 bytes = retail's size). Three edits, all found by
-// the permuter, closed the missing instruction: (1) a `u8` local for the sprite
-// color mode loaded BEFORE the D_800C3D38 store (that is what keeps the parameter
-// live past the sprite load, so the sprite gets $t0 and the jal gets its own
-// `move a0,t0` delay slot), (2) a `u16` local for the timer word, and (3) the final
-// row re-derivation split over two statements through a `u8 *`. The row base then
-// lands in $a2 and both array bases match retail exactly. Remaining: retail emits
-// `lhu` (timer) before `lbu` (mode) and gcc emits the mode load first, i.e. a
-// 2-instruction scheduler swap; everything else is byte-identical.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
+// Parked at 96.55%, retail's size (232 bytes): the ONLY difference is that retail
+// emits `lhu` (the 0x15C timer) before `lbu` (the 0x174 colour mode) and this body's
+// compile swaps those two independent loads. Round 185 got here from 92.59 with three
+// permuter edits, all still load-bearing: (1) a `u8` local for the sprite color mode
+// assigned before the D_800C3D38 store (that keeps the parameter live past the sprite
+// load, so the sprite gets $t0 and the jal keeps its own `move a0,t0` delay slot),
+// (2) a `u16` local for the timer word, (3) the final row re-derivation split over two
+// statements through a `u8 *`. The row base then lands in $a2 and both array bases
+// match retail exactly.
+// Round 186 proved the swap is NOT reachable from statement order: mode statement
+// before or after the timer, both in one comma statement, and a separate
+// address-of-mode pointer all compile to the identical 232-byte body. The two
+// alternative store orders break the register shape instead (mode store first:
+// 93.28%/228 bytes, timer store before the mode load: 92.76%/228 bytes). Reading the
+// timer through a `(u8 *)` pointer, reading the mode through the pRow alias, and
+// naming a separate `u8 *` base for the mode arrays (93.09%/236 bytes) do not move
+// the swap either. 232 bytes with the right instruction multiset and one permuted
+// pair reads as a scheduler tie, not a source-shape gap: a further permuter run from
+// this body (round 185 ran two, 573 -> 260 -> 60) is unlikely to break it.
+// Also owed: the body still spells the per-slot sprite table as
+// `*(void **)(pBase + slot * 4 + 0x8C8C)`; a declared struct for that table is the
+// cleanup, and it must be re-verified at 96.55% before it is kept.
+// The row is g_BattleStateWork + (g_BattleCommandRowIndex - 1) * 0x48, re-derived
+// after the call because retail reloads the global there; its four per-slot arrays
+// are the block misc12 reaches as g_BattleCommandRows[], so the view below starts at
+// g_BattleStateWork and carries the 0x138 offset the arguments need.
 /*
 void func_800BD1FC(s32 slot) {
     BattleCommandRowTable *new_var;
@@ -239,6 +255,7 @@ void func_800BD1FC(s32 slot) {
     pRow->unk138[slot] = 0xFFFF;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD1FC);
 
 
 void BattleUpdateCommandRows(void) {
