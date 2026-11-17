@@ -189,16 +189,8 @@ s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     }
     nx = (v.vx << 12) / dist;
     ny = (v.vy << 12) / dist;
-    along = ex * nx + ey * ny;
-    if (along < 0) {
-        along += 0xFFF;
-    }
-    along >>= 12;
-    cross = ey * nx - ex * ny;
-    if (cross < 0) {
-        cross += 0xFFF;
-    }
-    cross >>= 12;
+    along = (ex * nx + ey * ny) / 4096;
+    cross = (ey * nx - ex * ny) / 4096;
     if (along < 0) {
         return 0;
     }
@@ -214,15 +206,17 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075888);
    only difference is register allocation: retail needs 7 saved registers
    (s0=ex, s1=ey, s2=nx, s3=ny, s4=x1, s5=y1, s6=r) and this body needs 8
    (along also gets s0, pushing y1 to s6, r to s7 and growing the frame 0x50 ->
-   0x58). Cause: gcc coalesces `along` with the result of `along >>= 12`, so the
-   merged pseudo crosses the hit-point SquareRoot0 call and must be call-saved;
-   retail kept the pre-shift value in $v1 (a call-clobbered temp) and only the
-   >>12 in s0, reusing ex's register after ex dies. Tried: along/cross declared
-   in both orders, both shifts written after both roundings, `- r * r` vs
-   `- vSq.vz` (vSq.vz is retail's, and is what this body uses). Permuter: 2095
-   iterations, base=454; its only better candidate (190) copies ny into a
-   temporary and then computes `hy = t * t` after that temporary has been
-   overwritten by the hit-point pass - wrong code, discarded.
+   0x58). Cause: gcc coalesces `along` with the quotient, so the merged pseudo
+   crosses the hit-point SquareRoot0 call and must be call-saved; retail kept
+   the pre-divide value in $v1 (a call-clobbered temp) and only the quotient in
+   s0, reusing ex's register after ex dies.
+   Tried: along/cross declared in both orders; both roundings written after both
+   divides; the explicit `if (x < 0) x += 0xFFF; x >>= 12;` spelling instead of
+   `/ 4096` (identical code either way); `- r * r` vs `- vSq.vz` (vSq.vz is
+   retail's, and is what this body uses). Permuter: 2095 iterations, base=454;
+   its only better candidate (190) copies ny into a temporary and then computes
+   `hy = t * t` after that temporary has been overwritten by the hit-point pass
+   - wrong code, discarded.
 // The closest approach of the segment (x1,y1)-(x2,y2) to the circle at
 // (x3,y3) with radius r, in 12-bit fixed point: returns 1 when the segment
 // passes through the circle and stores that point in D_80092654/D_80092658.
@@ -239,8 +233,6 @@ s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     s32 delta;
     s32 hit;
     s32 t;
-    s32 hx;
-    s32 hy;
 
     v.vx = x2 - x1;
     v.vy = y2 - y1;
@@ -277,16 +269,8 @@ s32 func_80075888(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
             delta = -delta;
         }
         t = along - SquareRoot0(delta);
-        hx = t * nx;
-        if (hx < 0) {
-            hx += 0xFFF;
-        }
-        D_80092654 = x1 + (hx >> 12);
-        hy = t * ny;
-        if (hy < 0) {
-            hy += 0xFFF;
-        }
-        D_80092658 = y1 + (hy >> 12);
+        D_80092654 = x1 + (t * nx) / 4096;
+        D_80092658 = y1 + (t * ny) / 4096;
     }
     return hit;
 }
