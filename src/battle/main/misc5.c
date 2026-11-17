@@ -359,56 +359,56 @@ u32 BattleSlotFlagsC000Clear(u8 arg0) {
     }
     return res;
 }
-u8 BattleGridWriteOpcodeRow(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
+u8 BattleGridWriteOpcodeRow(BattleCommand **pCommand, u8 *arg1, u8 arg2, u8 arg3) {
     u8 *pRow = (u8 *)(arg3 * 8 + (mem_addr)arg1);
 
     pRow[0] = 0x80;
-    pRow[1] = (*arg0)[0];
-    pRow[2] = (*arg0)[1];
-    pRow[3] = (*arg0)[2];
-    pRow[4] = (*arg0)[3];
+    pRow[1] = (*pCommand)->opcode;
+    pRow[2] = (*pCommand)->operand1;
+    pRow[3] = (*pCommand)->operand2;
+    pRow[4] = (*pCommand)->operand3;
     arg3++;
     return arg3;
 }
-u8 BattleGridWriteByteAdvanceRow(u8 **arg0, u8 *arg1, u8 arg2) {
-    u8 *p = *arg0;
+u8 BattleGridWriteByteAdvanceRow(BattleCommand **pCommand, u8 *arg1, u8 arg2) {
+    BattleCommand *p = *pCommand;
 
-    arg1[arg2 * 8 + p[1]] = p[2];
-    if ((*arg0)[1] == 0) {
+    arg1[arg2 * 8 + p->operand1] = p->operand2;
+    if ((*pCommand)->operand1 == 0) {
         arg2++;
     }
     return arg2;
 }
-void BattleGridWriteByteReg(u8 **arg0, u8 *arg1, u8 arg2, u8 arg3) {
-    u8 *p = *arg0;
-    s32 idx = arg3 * 8 + p[1];
+void BattleGridWriteByteReg(BattleCommand **pCommand, u8 *arg1, u8 arg2, u8 arg3) {
+    BattleCommand *p = *pCommand;
+    s32 idx = arg3 * 8 + p->operand1;
     u8 *pRow = g_BattleSlotRegs[arg2].byteRegs;
 
-    arg1[idx] = pRow[p[2]];
+    arg1[idx] = pRow[p->operand2];
 }
-void BattleGridCopyRow(u8 **arg0, u8 *arg1) {
-    u8 *p;
+void BattleGridCopyRow(BattleCommand **pCommand, u8 *arg1) {
+    BattleCommand *p;
     s32 i;
 
     for (i = 0; i < 8; i++) {
-        p = *arg0;
-        arg1[p[2] * 8 + i] = arg1[p[1] * 8 + i];
+        p = *pCommand;
+        arg1[p->operand2 * 8 + i] = arg1[p->operand1 * 8 + i];
     }
 }
-void BattleByteRegSetImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegSetImm(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
-    pRow[p[1]] = p[2];
+    pRow[p->operand1] = p->operand2;
 }
-void BattleWordRegSetImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u16 val = p[2] | (p[3] << 8);
+void BattleWordRegSetImm(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
+    u16 val = p->operand2 | (p->operand3 << 8);
     mem_addr regFileBase;
 
     // separate assignment: gcc materialises the base before the value loads if it is an initializer
     regFileBase = (mem_addr)D_800D3420;
-    *((u16 *)((p[1] << 1) + (arg1 * 0x40 + regFileBase))) = val;
+    *((u16 *)((p->operand1 << 1) + (arg1 * 0x40 + regFileBase))) = val;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
 /* 53.44% - the value expression and the index come out right, but gcc forms the
@@ -416,39 +416,39 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);
    store base is 2 insns early. Tried: pRow pointer local before/after the value,
    idx local first, single-expression store (8-42%, at-register form),
    (u32*)g_BattleSlotRows + arg1*0x10 element pointer, mem_addr index-first form.
-   Round 20: with u32 val = ((p[3]<<8)+p[2])*0x10 first and a u8* row pointer
-   used as ((u32*)pRow)[p[1]] every instruction is right but the whole
+   Round 20: with u32 val = ((p->operand3<<8)+p->operand2)*0x10 first and a u8* row pointer
+   used as ((u32*)pRow)[p->operand1] every instruction is right but the whole
    lui/addiu + addu a1,a1,a0 group lands BEFORE the value loads (10.31%): gcc
    sinks the one-use value into the store, so the pointer init is expanded
    first. Same wall as the old BattleWordRegSetImm body (now matched: statement-
    assigned base mem_addr + index-first inline address); gcc-2.6.0, 2.7.2-cdk,
    -O1 and -O3 all fail on it too.
-   Round 135: the typed spelling `g_BattleSlotRegs[arg1].dwordRegs[p[1]] = val` (dword
+   Round 135: the typed spelling `g_BattleSlotRegs[arg1].dwordRegs[p->operand1] = val` (dword
    register file, g_BattleSlotRows) written as one expression is 7.50% - the address
    expansion takes over the register allocation - so the separate-locals body
    below stays the best.
-void func_8007A968(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
-    u32 val = (p[2] + (p[3] << 8)) * 0x10;
-    s32 idx = arg1 * 0x10 + p[1];
+void func_8007A968(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
+    u32 val = (p->operand2 + (p->operand3 << 8)) * 0x10;
+    s32 idx = arg1 * 0x10 + p->operand1;
 
     ((u32 *)g_BattleSlotRows)[idx] = val;
 } */
-void BattleWordTableStoreImm(u8 **arg0) {
-    u8 *p = *arg0;
+void BattleWordTableStoreImm(BattleCommand **pCommand) {
+    BattleCommand *p = *pCommand;
 
-    D_8005A3A0[p[1]] = p[2];
+    D_8005A3A0[p->operand1] = p->operand2;
 }
-void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegAddImmClamp(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
-    s32 v = pRow[p[1]] + p[2];
+    s32 v = pRow[p->operand1] + p->operand2;
     u8 res = v;
 
     if (v >= 0x100) {
         res = 0xFF;
     }
-    pRow[p[1]] = res;
+    pRow[p->operand1] = res;
 }
 
 /* 61.47% - clamp to 0xFF. Original keeps the sum in v0 and copies it to the
@@ -456,100 +456,100 @@ void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
    D_800D3430 lui/addiu after the pointer load; gcc puts the sum straight in v1
    and the base 2 insns early. Tried: if/else with a res local (47.26%,
    branchless/min form), ternary, if-without-else, separate base/idx locals.
-void BattleByteRegAddImmClamp(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegAddImmClamp(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
-    s32 v = pRow[p[1]] + p[2];
+    s32 v = pRow[p->operand1] + p->operand2;
 
     if (v >= 0x100) {
         v = 0xFF;
     }
-    pRow[p[1]] = v;
+    pRow[p->operand1] = v;
 } */
-void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
-    s32 v = pRow[p[1]] - p[2];
+    s32 v = pRow[p->operand1] - p->operand2;
     u8 res = v;
 
     if (v < 0) {
         res = 0;
     }
-    pRow[p[1]] = res;
+    pRow[p->operand1] = res;
 }
 /* 67.00% - clamp at 0. Same miss as BattleByteRegAddImmClamp: the original keeps
-   mem-p[2] in v0 and copies it into the store register v1 (move v1,v0 in the
+   mem-p->operand2 in v0 and copies it into the store register v1 (move v1,v0 in the
    bgez delay slot), and forms the D_800D3430 base after the pointer load.
    Tried: if/else with a res local (60.24%, branchless add/subu/sra/and form),
    v-first declaration orders.
-void BattleByteRegSubImmClamp(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = D_800D3430 + arg1 * 0x40;
-    s32 v = pRow[p[1]] - p[2];
+    s32 v = pRow[p->operand1] - p->operand2;
 
     if (v < 0) {
         v = 0;
     }
-    pRow[p[1]] = v;
+    pRow[p->operand1] = v;
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007AA60);
 /* 99.09% - 88 bytes, the original's size; the only difference is the mult's
-   operand order: retail has mult v1,v0 (row value first, p[2] second), this body
+   operand order: retail has mult v1,v0 (row value first, p->operand2 second), this body
    emits mult v0,v1. Every other instruction, register included, is retail's.
-   The load order (lbu p[1], lbu p[2], addu row base, lbu row) only comes out of a
-   source that names p[2] first, and gcc then puts p[2]'s register first in the
+   The load order (lbu p->operand1, lbu p->operand2, addu row base, lbu row) only comes out of a
+   source that names p->operand2 first, and gcc then puts p->operand2's register first in the
    mult. Measured rules (round 167):
-   - With p[2] as the mult's memory operand (sunk to the mult, collapsed to a
-     single-use local) gcc does NOT swap, so the source order survives: p[2] first
+   - With p->operand2 as the mult's memory operand (sunk to the mult, collapsed to a
+     single-use local) gcc does NOT swap, so the source order survives: p->operand2 first
      gives mult v0,v1, row-first spellings give mult v0,v1 with row in v0 instead
-     (the row value then lands in the wrong register, and p[2]'s load moves to
+     (the row value then lands in the wrong register, and p->operand2's load moves to
      after the row load: 71.05%).
-   - With BOTH operands in registers (a volatile read keeps p[2] out of cse) gcc
+   - With BOTH operands in registers (a volatile read keeps p->operand2 out of cse) gcc
      DOES swap, so row-first source gives mult with the row value first - but the
-     p[2] load then no longer sits after lbu p[1] where retail has it.
+     p->operand2 load then no longer sits after lbu p->operand1 where retail has it.
    Tried round 167: the 2 x 2 of source order against memory/reg operands, u8/s16/
    s32/u8-cast operand types, element pointer local, row value local, volatile
-   reads of p[1] and p[2] (best 98.64%: retail's exact load order and register
+   reads of p->operand1 and p->operand2 (best 98.64%: retail's exact load order and register
    allocation, but the addu and the mult both with their operands inverted), and
    permuter 2259 iterations, base=20 best=20. Rounds 20/35/135/164 tried the rest.
-void func_8007AA60(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void func_8007AA60(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
-    s16 v = p[2] * pRow[p[1]];
+    s16 v = p->operand2 * pRow[p->operand1];
     u8 res = v;
 
     if (v >= 0x100) {
         res = 0xFF;
     }
-    pRow[p[1]] = res;
+    pRow[p->operand1] = res;
 } */
-void BattleByteRegDivImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegDivImm(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
-    pRow[p[1]] /= p[2];
+    pRow[p->operand1] /= p->operand2;
 }
-void BattleByteRegModImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegModImm(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
-    pRow[p[1]] %= p[2];
+    pRow[p->operand1] %= p->operand2;
 }
-void BattleByteRegAndImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegAndImm(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
-    pRow[p[1]] &= p[2];
+    pRow[p->operand1] &= p->operand2;
 }
-void BattleByteRegOrImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegOrImm(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
-    pRow[p[1]] |= p[2];
+    pRow[p->operand1] |= p->operand2;
 }
-void BattleByteRegXorImm(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void BattleByteRegXorImm(BattleCommand **pCommand, u8 arg1) {
+    BattleCommand *p = *pCommand;
     u8 *pRow = g_BattleSlotRegs[arg1].byteRegs;
 
-    pRow[p[1]] ^= p[2];
+    pRow[p->operand1] ^= p->operand2;
 }
