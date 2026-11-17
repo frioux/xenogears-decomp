@@ -14,6 +14,9 @@ extern u8 D_801EA568[];
 extern u8 D_801E9808[];
 extern u8 D_801E9811;
 extern u8 D_801E9EA0[];
+extern u8 D_801EA56E[];
+extern u32 D_801E9F48[];
+extern u8 g_FieldPlayerWalkmeshMaterial;
 
 void MenuLoadStringsFromIds(u8, u8*, u8*, void*);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
@@ -34,7 +37,7 @@ void MenuFreeCharacterSpriteRecords(void);
 void MenuFreeUnk35CPanel(void);
 void MenuClearSubMenuChoiceFlags(void);
 void MenuPlaySoundEffect(u8);
-u8 func_801D9704(u8, u8, u8);
+s32 func_801D9704(s32, u8, u8);
 void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
 void func_801E8070(s32, void*, void*, void*, void*, u8, u8, u8);
@@ -49,6 +52,8 @@ void func_801E86C8(u8);
 void MenuStartOpenAnimation(void);
 void MenuResetSelectionCursorFlags(void);
 void MenuMovePointerCursor(s32, u8);
+void MenuUpdateDressingRoomTotals(u_char);
+void func_801D7CFC(s32, u8, u8);
 void MenuDrawStatTable(u8, u8, u8, u8);
 void MenuDrawGearScreen(u_char, u_char);
 void MenuSetSubMenuChoicePrims(u8);
@@ -262,6 +267,158 @@ void MenuFreeGearScreenBuffers(void) {
     func_801C72BC(0x13);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
+/* Best: 98.48% (1808 bytes, retail 1812), from a 94.95 first draft.
+   Structure is complete and the case bodies are in retail order (4, 5, 1, 3, 9, 10
+   outer, and 0, 1, 2, 3 inner). What closed most of the gap: the four
+   MenuPlaySoundEffect(4) arms are the ELSE of the "not selectable" test
+   (writing them first costs 1.5 points each — retail branches INTO the shared
+   sound block from every case, i.e. the body is the fall-through arm), and
+   shouldRenderSubmenuStrings = 0 must be written BEFORE func_801E05D0 because
+   retail has it in that call s delay slot (it then reuses the pre-call pManager
+   in $v1 instead of reloading g_Menu).
+   Left: retail keeps slot in $s2 and lastSlot in $s1, this body gets the
+   opposite pair (slot $s1), so ~40 instructions differ by one register, and the
+   case-3 sound arm is laid out inline (beqz over it) where retail has the shared
+   block, which is also where the missing 4 bytes are. Tried: the 4-minute
+   permuter (PERMUTER_BETTER 1552 -> 1353, its only finding was the case-1 arm
+   inversion, which is in this body), arm inversion on all four cases. Next: a
+   permuter run from THIS body chasing the s1/s2 tie.
+// Gear dressing room loop: same structure as func_801E2BE4 above.
+u8 func_801E23CC(s32 slot) {
+    u8 active;
+    u8 lastSlot;
+    u8 firstDraw;
+    u8 stringSet;
+
+    slot = func_801D9704(slot, 0, 1);
+    active = 1;
+    lastSlot = 0xF3;
+    firstDraw = 1;
+    g_Menu->subMenuChoice = 0;
+    g_Menu->subMenuPrevChoice = 0xFF;
+    slot = MenuInitializeGearScreenBuffers();
+    while (active != 0) {
+        MenuRenderFrame();
+        if (slot != lastSlot) {
+            lastSlot = slot;
+            MenuUpdateDressingRoomTotals(lastSlot);
+            MenuDrawGearScreen(lastSlot, 1);
+            stringSet = (g_GameState.gearRide[slot] != 0) ? 6 : 0;
+            MenuLoadUnk18E0Strings(stringSet);
+            func_801E8070(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 4, 7, 6);
+            func_801E8070(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 5, 7, 6);
+            g_Menu->unk18E0[4].hasVertices = 1;
+            g_Menu->unk18E0[5].hasVertices = 1;
+            if (firstDraw != 0) {
+                MenuStartOpenAnimation();
+                firstDraw = 0;
+                func_801D29A8(0, 0);
+                func_801E86C8(0);
+            }
+        }
+        if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
+            func_801E8070(4, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48 + stringSet, (u8*)g_Menu->pManager + 0x54, g_Menu->subMenuChoice, 7, 0);
+            MenuSetSubMenuChoicePrims(0);
+            g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
+        }
+        switch (g_Menu->input) {
+        case 4:
+            MenuResetSelectionCursorFlags();
+            MenuClearBytes(4, (u8*)g_Menu->pManager + 0x54);
+            g_Menu->pManager->unk5[2] = 0;
+            g_Menu->pManager->shouldRenderUnk35C = 0;
+            g_Menu->pManager->shouldRenderPanel[1] = 0;
+            g_Menu->pManager->shouldRenderStrings18E0[4] = 0;
+            g_Menu->pManager->shouldRenderStrings18E0[5] = 0;
+            switch (g_Menu->subMenuChoice) {
+            case 0:
+                if (g_Menu->pManager->currentCharacterIDs[slot] != 7) {
+                    g_Menu->pManager->shouldRenderSubmenuStrings = 0;
+                    func_801E05D0(slot, 0, 1);
+                    MenuFreeCharacterSpriteRecords();
+                    MenuDrawStatTable(slot, 0, 0, 1);
+                    func_801D8EA4(slot, 0, 0, 1);
+                    g_Menu->pManager->shouldRenderSubmenuStrings = 1;
+                } else {
+                    MenuPlaySoundEffect(4);
+                }
+                lastSlot = 0xFF;
+                break;
+            case 1:
+                if (g_Menu->pManager->currentCharacterIDs[slot] != 7) {
+                    func_801DDF24(slot, 0, 1);
+                    MenuFreeUnk430Panel(1);
+                } else {
+                    MenuPlaySoundEffect(4);
+                }
+                lastSlot = 0xFF;
+                break;
+            case 2:
+                if (g_Menu->pManager->currentCharacterIDs[slot] != 7) {
+                    func_801DDF24(slot, 0, 2);
+                    MenuFreeUnk430Panel(2);
+                } else {
+                    MenuPlaySoundEffect(4);
+                }
+                lastSlot = 0xFF;
+                break;
+            case 3:
+                if (g_FieldPlayerWalkmeshMaterial == 0) {
+                    if (g_GameState.gearRide[slot] != 0) {
+                        g_GameState.gearRide[slot] = 0;
+                        stringSet = 0;
+                    } else if (g_GameState.characters[g_Menu->pManager->currentCharacterIDs[slot]].gearId != 0xFF) {
+                        stringSet = 6;
+                        g_GameState.gearRide[slot] = 1;
+                    }
+                    func_801D7CFC(slot, 1, g_GameState.gearRide[slot]);
+                } else {
+                    MenuPlaySoundEffect(4);
+                }
+                lastSlot = 0xFF;
+                break;
+            }
+            g_Menu->pManager->shouldRenderStrings18E0[4] = 1;
+            g_Menu->pManager->shouldRenderStrings18E0[5] = 1;
+            MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, D_801EA568 + stringSet, (u8*)g_Menu->pManager + 0x54);
+            g_Menu->pManager->unk5[2] = 1;
+            g_Menu->pManager->shouldRenderUnk35C = 1;
+            g_Menu->pManager->shouldRenderPanel[1] = 1;
+            MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
+            g_Menu->pManager->shouldRenderPointerCursor = 1;
+            g_Menu->subMenuPrevChoice = 0xFF;
+            func_801D3488(0, 1);
+            break;
+        case 5:
+            active = 0;
+            break;
+        case 1:
+            if (g_Menu->subMenuChoice != 0) {
+                g_Menu->subMenuChoice--;
+            } else {
+                g_Menu->subMenuChoice = g_Menu->subMenuNumChoices + 0xFF;
+            }
+            break;
+        case 3:
+            if (++g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
+                g_Menu->subMenuChoice = 0;
+            }
+            break;
+        case 9:
+            slot = func_801D9704(slot, 0, 1);
+            g_Menu->subMenuPrevChoice = 0xFF;
+            break;
+        case 10:
+            slot = func_801D9704(slot, 1, 1);
+            g_Menu->subMenuPrevChoice = 0xFF;
+            break;
+        }
+    }
+    MenuClearBytes(6, (u8*)g_Menu->pManager + 0x54);
+    g_Menu->pManager->shouldRenderPointerCursor = 0;
+    g_Menu->pManager->unk3 = 0;
+    return 1;
+} */
 void MenuInitializeCharacterScreenBuffers(void) {
     MenuLoadSubMenuChoiceStrings(1);
     g_Menu->unk358 = HeapAlloc(0x2AF0, 0);
@@ -279,12 +436,13 @@ void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->unk360);
     func_801C72BC(0x13);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E2BE4);
 /* objdiff 96.76% (1188 bytes, exactly retail's size). Structure is complete: every call, both switches and all case bodies are in retail's body order (4, 5, 1, 3, 9, 10 and the nested 0, 1, 2). The one residue is the `lastSlot = slot` copy: retail emits a two-instruction u8 copy (`move v0,s1` before the MenuComputeCharacterStats jal, `move s0,v0` in its delay slot) AFTER that call, while gcc 2.6.0 here always folds it to a single `move s0,s1` and then steals it into the PREVIOUS call's delay slot, so every branch past it is 4 bytes early and one extra instruction turns up later. Tried: plain assignment, embedded assignment in the MenuDrawGearScreen argument, an extra u8 intermediate local, and a 3 min permuter run (best was a bogus case-3 mutation at 96.04). Note the MenuMovePointerCursor prototype must be (s32, u8) or every call site gains a useless andi.
+*/
 u8 func_801E2BE4(void) {
     u8 active;
     u8 lastSlot;
     u8 firstDraw;
+    u8 drawSlot;
     s32 slot;
     s32 i;
 
@@ -305,8 +463,9 @@ u8 func_801E2BE4(void) {
         MenuRenderFrame();
         if (slot != lastSlot) {
             MenuApplyEquippedItemBonuses(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[slot]);
+            drawSlot = slot;
             MenuComputeCharacterStats(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[slot]);
-            lastSlot = slot;
+            lastSlot = drawSlot;
             MenuDrawGearScreen(lastSlot, 0);
             if (firstDraw != 0) {
                 MenuStartOpenAnimation();
@@ -367,8 +526,7 @@ u8 func_801E2BE4(void) {
             }
             break;
         case 3:
-            g_Menu->subMenuChoice++;
-            if (g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
+            if (++g_Menu->subMenuChoice >= g_Menu->subMenuNumChoices) {
                 g_Menu->subMenuChoice = 0;
             }
             break;
@@ -385,7 +543,6 @@ u8 func_801E2BE4(void) {
     g_Menu->pManager->unk3 = 0;
     return 1;
 }
-*/
 
 void MenuFreeSubMenuPanels(u8 arg0) {
     switch (g_Menu->mainMenuChoice + arg0) {
