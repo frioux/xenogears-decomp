@@ -141,7 +141,8 @@ struct ActorScript {
     // which func_8007A958 feeds to rcos/rsin to orbit the camera around the actor.
     /* 0x24 */ s16 cameraAngleOffset;
     /* 0x26 */ s16 cameraYOffset;
-    /* 0x28 */ s16 unk28;
+    // The camera's look-at height: func_8007A958 subtracts it from the actor's y.
+    /* 0x28 */ s16 cameraTargetYOffset;
     /* 0x2A */ s16 cameraRadius;
 }; // Size: unknown
 
@@ -206,10 +207,11 @@ typedef struct {
 // One 0x14-byte record per battle slot, the same table src/battling/main/misc3
 // reads; the reset clears everything but the pointer and the gauge byte.
 typedef struct {
-    /* 0x0 */ u32 unk0;
+    /* 0x0 */ u32 value;
     /* 0x4 */ u8 percent;
     /* 0x5 */ u8 pad5[0x3];
-    /* 0x8 */ u32 unk8;
+    // Last frame's value; a change restamps frameStart (misc2 func_800740E4).
+    /* 0x8 */ u32 prevValue;
     // The two 12.4 animation frames misc3's HUD draws as FRAME:%d-%d.
     /* 0xC */ u32 frameStart;
     /* 0x10 */ u32 frameCurrent;
@@ -261,8 +263,8 @@ struct Actor {
     /* 0x07C */ u8 pad7C[0x8];
     /* 0x084 */ u8* pActionEntry;
     /* 0x088 */ u8 pad88[0x10];
-    /* 0x098 */ s32 unk98;
-    /* 0x09C */ s32 unk9C;
+    /* 0x098 */ s32 stepForward;
+    /* 0x09C */ s32 stepBack;
     /* 0x0A0 */ u8 padA0[0x8];
     /* 0x0A8 */ s32 unkA8;
     /* 0x0AC */ u8 padAC[0x4];
@@ -272,7 +274,7 @@ struct Actor {
     /* 0x0B8 */ s16 prevGaugeValue;
     /* 0x0BA */ s16 gaugeLevel;
     /* 0x0BC */ s16 gaugeMax;
-    /* 0x0BE */ s16 unkBE;
+    /* 0x0BE */ s16 breakThresholdOffset;
     /* 0x0C0 */ u8 gaugeWidth;
     /* 0x0C1 */ u8 prevGaugeWidth;
     // Frames of hit flash left, drained 0x10 at a time (src/battling/main/misc3).
@@ -551,13 +553,13 @@ void func_80078F00(Actor* p) {
     pRot->rotation.vz = face;
     pRot->rotation.vy = face;
     pRot->rotation.vx = face;
-    p->unk98 = 0x10;
-    p->unk9C = 0x10;
+    p->stepForward = 0x10;
+    p->stepBack = 0x10;
     p->unkA8 = 0x60;
     p->gaugeValue = 0x12C;
     p->prevGaugeValue = 0x12C;
     p->gaugeMax = 0x12C;
-    p->unkBE = 0x480;
+    p->breakThresholdOffset = 0x480;
     p->flashTimer = 0xF0;
     p->angle = 0;
     p->state = 0;
@@ -604,8 +606,8 @@ void func_80078F00(Actor* p) {
     p->stateFlags &= ~0x10;
     p->pActionEntry = D_8009264C;
     D_8009264E = 1;
-    g_BattleSlotGauges[(p->flags >> 27) & 1].unk0 = (u32)D_8006FC74;
-    g_BattleSlotGauges[(p->flags >> 27) & 1].unk8 = 0;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].value = (u32)D_8006FC74;
+    g_BattleSlotGauges[(p->flags >> 27) & 1].prevValue = 0;
     g_BattleSlotGauges[(p->flags >> 27) & 1].percent = 0;
     g_BattleSlotGauges[(p->flags >> 27) & 1].frameStart = 0;
     g_BattleSlotGauges[(p->flags >> 27) & 1].frameCurrent = 0;
@@ -876,7 +878,7 @@ void func_8007A768(Actor* p) {
     s32 r;
 
     D_80092668 = pScript->cameraAngleOffset;
-    D_8009266C = pScript->unk28;
+    D_8009266C = pScript->cameraTargetYOffset;
     D_80092670 = pScript->cameraYOffset;
     D_80092674 = pScript->cameraRadius;
     SetGeomScreen(0x200);
