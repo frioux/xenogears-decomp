@@ -475,7 +475,7 @@ void MenuFreeUnk430Panel(u_char arg0) {
     }
     func_801C72BC((kind | 0x10) & 0xFF);
     HeapFree(g_Menu->unk430);
-    g_Menu->pManager->unk5[1] = 1;
+    g_Menu->pManager->playTimeDigitsActive = 1;
     g_Menu->pManager->shouldRenderWindow[1] = 1;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
@@ -610,7 +610,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
                 func_801D29A8(0, 0);
                 MenuRenderFrame();
             }
-            g_Menu->pManager->unk5[1] = 0;
+            g_Menu->pManager->playTimeDigitsActive = 0;
             g_Menu->pManager->shouldRenderWindow[1] = 0;
         }
         switch (g_Menu->input) {
@@ -695,7 +695,7 @@ void MenuFreeCharacterSpriteRecords(void) {
 }
 
 void MenuFreeUnk35CPanel(void) {
-    g_Menu->pManager->unk5[3] = 0;
+    g_Menu->pManager->shouldRenderUnk35C = 0;
     g_Menu->pManager->shouldRenderPanel[1] = 0;
     MenuRenderFrame();
     HeapFree(g_Menu->unk35C);

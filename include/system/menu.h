@@ -263,7 +263,9 @@ typedef struct {
     /* 0x0  */ u8 shouldRenderCharacterWindows[0x3]; // One flag per g_Menu->characterWindows entry
     /* 0x3  */ u8 unk3;
     /* 0x4  */ u8 shouldRenderPointerCursor; // On the ball selection windows?
-    /* 0x5  */ u8 unk5[0x3];
+    /* 0x5  */ u8 goldDigitsActive; // Set by MenuSetGoldDigits, gates the gold digits in MenuAddGoldAndPlayTimePrims
+    /* 0x6  */ u8 playTimeDigitsActive; // Set by MenuCreatePlayTimeWindow, gates the play time digits in MenuAddGoldAndPlayTimePrims
+    /* 0x7  */ u8 shouldRenderUnk358Prims; // Set by MenuSetGearWindowContents, gates the unk358 prims in MenuAddUnk358Prims
     /* 0x8  */ u8 shouldRenderUnk35C;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
     /* 0xA  */ u8 shouldRenderSubmenuStrings; // Gates MenuUnk5 (pSubmenuPrims) string prims
@@ -376,10 +378,10 @@ typedef struct {
     /* 0x0A */ u16 unkA;
     /* 0x0C */ u16 unkC;
     /* 0x0E */ u8 attack;
-    /* 0x0F */ u8 unkF;
+    /* 0x0F */ u8 equipGroup; // A new weapon replaces the equipped one of the same group, see GearShopMenuComputeEquipStatDelta
     /* 0x10 */ u8 unk10;
     /* 0x11 */ u8 unk11;
-    /* 0x12 */ u16 unk12;
+    /* 0x12 */ u16 flags; // Copied into GearWeaponData.flags
 } GearWeapon; /* size: 0x14 */
 
 typedef struct {
@@ -599,14 +601,15 @@ typedef struct {
     u_char itemIds[MAX_GEAR_SHOP_ITEMS];
 } GearShopItemTableEntry;
 
-// Engines, frames, armors, weapons, parts.
-// Not necessarily in that order.
+// The shop's stock, one id table per gear part type: GearShopMenuLoadGearShopInventory copies
+// them into MenuShop.gearShopItemTables[0..4], and that index is the ITEM_TYPE_GEAR_* the
+// purchase code switches on.
 typedef struct {
-    /* 0x0  */ u_char unk0[MAX_GEAR_SHOP_ITEMS];
-    /* 0x14 */ u_char unk14[MAX_GEAR_SHOP_ITEMS];
-    /* 0x28 */ u_char unk28[MAX_GEAR_SHOP_ITEMS];
-    /* 0x3C */ u_char unk3C[MAX_GEAR_SHOP_ITEMS];
-    /* 0x50 */ u_char unk50[MAX_GEAR_SHOP_ITEMS];
+    /* 0x0  */ u_char frameIds[MAX_GEAR_SHOP_ITEMS];
+    /* 0x14 */ u_char armorIds[MAX_GEAR_SHOP_ITEMS];
+    /* 0x28 */ u_char engineIds[MAX_GEAR_SHOP_ITEMS];
+    /* 0x3C */ u_char weaponIds[MAX_GEAR_SHOP_ITEMS];
+    /* 0x50 */ u_char accessoryIds[MAX_GEAR_SHOP_ITEMS];
 } GearShopDefinition; // Size: 0x64
 
 // Shop data

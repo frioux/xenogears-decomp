@@ -1668,7 +1668,7 @@ void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemI
                 pWeaponList = g_Menu->pDressingRoom->pGearWeapons;
 
                 for(i = 0; i < 4; i++) {
-                    if(g_Menu->pDressingRoom->pGearWeapons[g_GameState.gears[gearId].extraWeaponIds[i]].unkF == pWeaponList[itemId].unkF) {
+                    if(g_Menu->pDressingRoom->pGearWeapons[g_GameState.gears[gearId].extraWeaponIds[i]].equipGroup == pWeaponList[itemId].equipGroup) {
                         g_GameState.gears[gearId].extraWeaponIds[i] = itemId;
                     }
                 }
@@ -2774,7 +2774,7 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
     pWeapon = dressingRoom->pGearWeapons;
     pWeapon += pGear->weaponId[0];
     pGear->weaponData[0].attack = pWeapon->attack;
-    pGear->weaponData[0].flags = pWeapon->unk12;
+    pGear->weaponData[0].flags = pWeapon->flags;
     pGear->weaponData[0].unk3 = pWeapon->unk10;
     pGear->weaponData [0].unk4 = pWeapon->unk11;
 
@@ -2792,7 +2792,7 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
         pWeapon += pGear->extraWeaponIds[0];
 
         pGear->weaponData[0].attack = pWeapon->attack;
-        pGear->weaponData[0].flags = pWeapon->unk12;
+        pGear->weaponData[0].flags = pWeapon->flags;
         pGear->weaponData[0].unk3 = pWeapon->unk10;
         pGear->weaponData[0].unk4 = pWeapon->unk11;
         pGear->unk5C[1] = pWeapon->unk0[1];
@@ -2800,7 +2800,7 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
         pWeapon = dressingRoom->pGearWeapons;
         pWeapon += pGear->extraWeaponIds[1];
         pGear->weaponData[1].attack = pWeapon->attack;
-        pGear->weaponData[1].flags = pWeapon->unk12;
+        pGear->weaponData[1].flags = pWeapon->flags;
         pGear->weaponData[1].unk3 = pWeapon->unk10;
         pGear->weaponData[1].unk4 = pWeapon->unk11;
         pGear->unk5C[2] = pWeapon->unk0[2];
@@ -2808,7 +2808,7 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
         pWeapon = dressingRoom->pGearWeapons;
         pWeapon += pGear->extraWeaponIds[3];
         pGear->weaponData[2].attack = pWeapon->attack;
-        pGear->weaponData[2].flags = pWeapon->unk12;
+        pGear->weaponData[2].flags = pWeapon->flags;
         pGear->weaponData[2].unk3 = pWeapon->unk10;
         pGear->weaponData[2].unk4 = pWeapon->unk11;
         pGear->unk5C[3] = pWeapon->unk0[3];
