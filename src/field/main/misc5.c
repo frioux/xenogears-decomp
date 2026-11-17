@@ -973,8 +973,8 @@ s32 func_800A7948(void) {
     SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     g_FieldRenderContexts[1].dispEnv.isrgb24 = 1;
     g_FieldRenderContexts[0].dispEnv.isrgb24 = 1;
-    g_FieldRenderContexts[1].dispEnv.isrgb24 = 0;
-    g_FieldRenderContexts[0].dispEnv.isrgb24 = 0;
+    g_FieldRenderContexts[1].dispEnv.isinter = 0;
+    g_FieldRenderContexts[0].dispEnv.isinter = 0;
     FieldFreeTextRender();
 }
 
