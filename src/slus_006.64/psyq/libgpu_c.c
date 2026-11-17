@@ -195,24 +195,32 @@ void func_80046EFC(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
 
-/* best 94.49% (364 bytes = retail's exact size, identical instruction multiset).
-   The two ingredients found so far: the discarded status read is a bare
-   '(void)*D_800569A4;' statement before the first printf, and the queue word
-   D_800569C4 must be declared volatile AND as an array ('extern volatile u_long
-   D_800569C4[];' read as D_800569C4[0]) - that is what materialises its address
-   with lui+addiu instead of the 2-instruction lui+lw form retail does not have.
-   Left: the register allocation of the first printf's argument setup (retail
-   keeps the D_800569A4 pointer in v1 and the dead status read in v0, gcc picks
-   a2/v1 and loads the A8 word earlier). Tried: inline vs pointer-local que,
-   (void) read before/after the que, SetIntrMask returning int vs u_short, both
-   orders of the SetIntrMask(0)/D_800569D8 pair, and two permuter runs (a 3 min
-   run found only the volatile D_800569C4 above).
+/* best 99.51% (364 bytes = retail's exact size, instruction ORDER identical -
+   only registers differ). Found so far: the discarded status read is a bare
+   "(void)*D_800569A4;" statement before the first printf, the queue word
+   D_800569C4 must be declared volatile AND as an array ("extern volatile u_long
+   D_800569C4[];" read as D_800569C4[0]) so its address materialises with
+   lui+addiu, and the queue delta and the second printf's D_800569C8 must be
+   staged through locals - that is what a permuter run turned 94.49 into 99.51.
+   Left: the port pointer D_800569A4 goes to a2 where retail has v1, so the
+   D_800569D8 word goes to v1 where retail has t0; every other instruction in
+   the function is byte-identical.
+   Tried: three permuter runs (350 -> 45, then nothing in 3801 iterations), the
+   pointer in a local, an explicit volatile cast, D_800569A4[0] vs a deref of
+   D_800569A4 for each of the two reads, arg3 staged through a local (88.41%),
+   and both declaration orders of the two locals. -
 int func_80046F30(void) {
+    u_long new_var2;
+    int new_var;
+
     if (D_800569E8 < Vsync(-1) || D_800569EC++ > 0xF0000) {
         (void)*D_800569A4;
-        printf(D_80019240, (D_800569D4 - D_800569D8) & 0x3F, *D_800569A4,
+        new_var = D_800569D4;
+        new_var = new_var - D_800569D8;
+        printf(D_80019240, new_var & 0x3F, *D_800569A4,
                *D_800569B0, *D_800569A8);
-        printf(D_80019274, D_800569C4[0], D_800569C8, D_800569CC);
+        new_var2 = D_800569C8;
+        printf(D_80019274, D_800569C4[0], new_var2, D_800569CC);
         D_800569E4 = SetIntrMask(0);
         D_800569D8 = 0;
         D_800569D4 = D_800569D8;
@@ -277,7 +285,74 @@ int OpenTMD(u_long *tmd, int obj_no) {
     return D_8005A38C = func_80047638(tmd, obj_no, &D_8005A388, &D_8005A380, &D_8005A384);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004726C);
+/* One 8-byte vertex/normal entry of the TMD data block: x, y, z and a pad. */
+typedef struct {
+    /* 0x0 */ u_short x;
+    /* 0x2 */ u_short y;
+    /* 0x4 */ u_short z;
+    /* 0x6 */ u_short pad6;
+} TmdVector; // Size: 0x8
+
+/* A mapped TMD primitive object (0x78 bytes): func_800477D0 builds the
+   header in 0x0-0x1F, and the vertices/normals named by vertIndex/normIndex
+   are copied out of the data block into verts/norms here. */
+typedef struct {
+    /* 0x00 */ u8 unk00[0x20];
+    /* 0x20 */ TmdVector verts[4];
+    /* 0x40 */ TmdVector norms[4];
+    /* 0x60 */ u_long vertBase;
+    /* 0x64 */ u_long normBase;
+    /* 0x68 */ u_short vertIndex[4];
+    /* 0x70 */ u_short normIndex[4];
+} TmdPrimObject; // Size: 0x78
+
+extern int func_800477D0(u_long *pPrim, TmdPrimObject *pObj);
+
+TmdPrimObject *func_8004726C(TmdPrimObject *pObj) {
+    TmdVector *pVert;
+    TmdVector *pNorm;
+    int size;
+
+    if ((size = func_800477D0(D_8005A388, pObj)) < 0)
+        return 0;
+
+    pVert = (TmdVector *)D_8005A380;
+    pNorm = (TmdVector *)D_8005A384;
+    pObj->vertBase = (u_long)pVert;
+    pObj->normBase = (u_long)pNorm;
+
+    pObj->norms[0].x = pNorm[pObj->normIndex[0]].x;
+    pObj->norms[0].y = pNorm[pObj->normIndex[0]].y;
+    pObj->norms[0].z = pNorm[pObj->normIndex[0]].z;
+    pObj->norms[1].x = pNorm[pObj->normIndex[1]].x;
+    pObj->norms[1].y = pNorm[pObj->normIndex[1]].y;
+    pObj->norms[1].z = pNorm[pObj->normIndex[1]].z;
+    pObj->norms[2].x = pNorm[pObj->normIndex[2]].x;
+    pObj->norms[2].y = pNorm[pObj->normIndex[2]].y;
+    pObj->norms[2].z = pNorm[pObj->normIndex[2]].z;
+
+    // advancing the prim pointer between the two copies is what retail does
+    D_8005A388 = (u_long *)((u_char *)D_8005A388 + size);
+
+    pObj->norms[3].x = pNorm[pObj->normIndex[3]].x;
+    pObj->norms[3].y = pNorm[pObj->normIndex[3]].y;
+    pObj->norms[3].z = pNorm[pObj->normIndex[3]].z;
+
+    pObj->verts[0].x = pVert[pObj->vertIndex[0]].x;
+    pObj->verts[0].y = pVert[pObj->vertIndex[0]].y;
+    pObj->verts[0].z = pVert[pObj->vertIndex[0]].z;
+    pObj->verts[1].x = pVert[pObj->vertIndex[1]].x;
+    pObj->verts[1].y = pVert[pObj->vertIndex[1]].y;
+    pObj->verts[1].z = pVert[pObj->vertIndex[1]].z;
+    pObj->verts[2].x = pVert[pObj->vertIndex[2]].x;
+    pObj->verts[2].y = pVert[pObj->vertIndex[2]].y;
+    pObj->verts[2].z = pVert[pObj->vertIndex[2]].z;
+    pObj->verts[3].x = pVert[pObj->vertIndex[3]].x;
+    pObj->verts[3].y = pVert[pObj->vertIndex[3]].y;
+    pObj->verts[3].z = pVert[pObj->vertIndex[3]].z;
+
+    return pObj;
+}
 
 int func_80047518(u_long *p, TIM_IMAGE *tim) {
     int clutSize;
