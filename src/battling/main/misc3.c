@@ -211,42 +211,31 @@ extern s32 D_80092658;
 
 extern s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075A4C);
 
-/* 97.23% (260 vs retail's 268 bytes): the four calls, the argument order, the
-   stack-argument stores, the D_80092654/58 stores (which land after the arg
-   loads, matching retail) and the frame (0x38, s0-s3) are all right. The
-   residual is the three "hit" early exits: retail has bnez + "li v0,1" in the
-   delay slot for all three, and no return block of its own. The goto form
-   threads all three branches to the shared exit but gcc then returns the raw
-   call value, so no "li v0,1" is emitted (that is the 8 missing bytes). The
-   plain if/return form does emit "li v0,1" (95.92%, retail's 268 bytes) but
-   leaves the third return block after the fourth call, where reorg fills its
-   delay slot from the following "sw" instead of duplicating the li. A
-   "return f1() || f2() || f3() || f4()" chain is 82.86% (it needs an s4
-   accumulator). A "hit = 1; goto done;" form is untried.
-short func_80075A4C(BattleActor* p, s32 x, s32 z, s32 r) {
+s32 func_80075A4C(BattleActor* p, s32 x, s32 z, s32 r) {
     s32 hit;
 
     D_80092654 = x;
     D_80092658 = z;
     hit = func_80075750(p->vx, p->vz, p->position.x, p->position.z, x, z, r);
     if (hit) {
+        hit = TRUE;
         goto done;
     }
     hit = func_80075750(p->steerVx, p->steerVz, p->pushVx, p->pushVz, x, z, r);
     if (hit) {
+        hit = TRUE;
         goto done;
     }
     hit = func_80075750(p->position.x, p->position.z, p->pushVx, p->pushVz, x, z, r);
     if (hit) {
+        hit = TRUE;
         goto done;
     }
     hit = func_80075750(p->vx, p->vz, p->steerVx, p->steerVz, x, z, r) != 0;
 done:
     return hit;
 }
-*/
 
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
@@ -747,33 +736,6 @@ void BattleActorSetFlag80000(BattleActor* p) {
     p->flags |= 0x80000;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
-
-/* 97.90%: 430 of 430 instructions, same size (1720) and same .rodata (both jump
-   tables in case order). The whole instruction multiset matches; three residuals,
-   all of them allocation/layout, not structure:
-   - the `p->actionWaitTimer = 0xF` block of the reset path is placed after the case-1
-     guard here, and after the shared case-1/2 body (falling straight into
-     BattleResetMessageQueue, whose copy case 0 also uses) in the original. The
-     two cases' reset blocks are identical so cc1 cross-jumps them and keeps the
-     FIRST copy; retail kept the LAST one. Tried: case order 1,0,2 and 0,1,2
-     (92.52 both, 1760 bytes), case order 2,1 (97.74), `if (pEntry[0] != 0)
-     {body} else {reset}` and the body-first `if (...) {body; break;} reset`
-     (95.52 both - the cross-jump then does not happen at all), early-break
-     spelling of the case bodies (same 97.90).
-   - after BattleActorSelectActionEntry the original copies the result to $a1
-     immediately and tests p->state in $v0; gcc 2.7.2 keeps it in $v0 and copies
-     to $a1 in the bnez delay slot (so the flags load lands in $v1 and the
-     `ori 0x1000` in $a0).
-   - case 3 of the first switch: `flag = 1` gives `li $s2,1` two instructions
-     earlier than retail.
-   Structure worth keeping: the switch on BattleDequeueMessage takes 6 cases and
-   the first switch's cases must be LISTED 1, 2, 0, 3, 4, 5 (retail's body order);
-   the second switch on p->state is ascending 0-4, and its case 1 recomputes
-   p->unk52 with `/ 4096` (gcc's signed divide-by-power-of-2 sequence) while the
-   shared tail uses `>> 16`. BattleDequeueMessage must be declared s32: with a u8
-   return every caller gets an `andi v0,v0,0xff` retail does not have (verified:
-   the callee still matches 100.00% as s32).
 extern s32 BattleEffectAddSlotFromVector(Vec4* pVec, s32 action);
 extern void func_8008ED6C(u8* p, s32 idx);
 extern void func_8008EBD0(u8* p, s32 idx, void* pData, s32 flags);
@@ -984,7 +946,6 @@ void func_80077A9C(BattleActor* p) {
         p->flags &= ~0x8000;
     }
 }
-*/
 
 
 void BattleActorApplyCenterPosition(BattleActor* p) {
