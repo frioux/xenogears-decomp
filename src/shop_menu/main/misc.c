@@ -2689,7 +2689,7 @@ void ShopMenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 character
 
     pCharacter = &g_GameState.characters[characterIndex];
 
-    if (pCharacter->unk56 == 4) {
+    if (pCharacter->characterId == 4) {
         pDressingRoom->statValues[0] = pCharacter->slots[0].attack + pCharacter->slots[3].attack;
     } else {
         pDressingRoom->statValues[0] = pCharacter->slots[0].attack + (pCharacter->attack + pCharacter->attackFromEquipment);

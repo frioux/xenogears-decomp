@@ -856,7 +856,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     pChar->slots[0].flags = pWeapon->slotFlags;
     pChar->slots[0].unk2 = pWeapon->unkA;
     pChar->slots[0].unk3 = pWeapon->unkB;
-    if (pChar->unk56 == 4) {
+    if (pChar->characterId == 4) {
         pWeapon = pDressingRoom->pWeaponsData;
         pWeapon += pChar->extraWeaponIds[0];
         pChar->slots[0].attack = pWeapon->attack;
@@ -879,7 +879,7 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 charIndex) {
     GameCharacter* pChar;
 
     pChar = &g_GameState.characters[charIndex];
-    if (pChar->unk56 == 4) {
+    if (pChar->characterId == 4) {
         pDressingRoom->statValues[0] = (pChar->slots[0].attack + pChar->slots[3].attack) * 6 / 10;
     } else {
         pDressingRoom->statValues[0] = pChar->attack + pChar->attackFromEquipment + pChar->slots[0].attack;
