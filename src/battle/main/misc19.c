@@ -2,6 +2,14 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
+// state.flags bit that selects the gear-side status word over the actor's
+#define BATTLE_SLOT_GEAR_STATUS_FLAG 0x80
+// hp and maxHp are percents; state.hp/state.maxHp hold them times this
+#define BATTLE_ACTOR_HP_SCALE 50
+#define BATTLE_SCALED_HP_MAX 99999
+// bit of the BattleGetActorActionConditionMask result set while hp is under an eighth of maxHp
+#define BATTLE_ACTION_CONDITION_LOW_HP 0x2
+
 extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 g_BattleCurSlotIndex;
 extern BattleRow* g_BattleCurrentRow;
@@ -284,7 +292,7 @@ void BattleSetSlotFlag15A1(u8 arg0) {
     q = &g_BattleCurWorkBlock->slots[arg0];
     q->state.flags |= 1;
     p = &g_BattleCurWorkBlock->slots[arg0];
-    if ((p->state.flags & 0x80) && (p->state.unk82 & 0x10)) {
+    if ((p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) && (p->state.unk82 & 0x10)) {
         p->state.unk7C &= 0xFE4F;
         p->activeEffectFlags1 &= 0xEFFF;
     }
@@ -306,7 +314,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     BattleTableEntry* r;
     u16 f;
 
-    if (p->state.flags & 0x80) {
+    if (p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         f = p->state.unk80 & 0x2000;
     } else {
         f = p->activeEffectFlags4 & 0x400;
@@ -315,7 +323,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
         return;
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
-    if (r->state.flags & 0x80) {
+    if (r->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         s32 rowOffset = arg0 * 0x690 + 0x2228;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
@@ -353,7 +361,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         }
     }
     p = &g_BattleCurWorkBlock->slots[arg0];
-    if (p->state.flags & 0x80) {
+    if (p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         f = p->state.unk80 & 0x2000;
     } else {
         f = p->activeEffectFlags4 & 0x400;
@@ -362,7 +370,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         return;
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
-    if (r->state.flags & 0x80) {
+    if (r->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         s32 rowOffset = arg0 * 0x690 + 0x2228;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
@@ -538,10 +546,10 @@ void BattleResetActorStats(void) {
     for (i = 1; i < 3; i++) {
         BattleTableEntry* p = (BattleTableEntry*)(i * 0x170 + (u32)g_BattleCurWorkBlock);
 
-        p->hp = 0x64;
-        p->maxHp = 0x64;
-        p->evade = 0x14;
-        p->hit = 0xF;
+        p->hp = 100;
+        p->maxHp = 100;
+        p->evade = 20;
+        p->hit = 15;
         p->unk7A = 0x1FBF;
         p->state.unkA5 = 0;
     }
@@ -551,17 +559,17 @@ void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
     BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
     BattleSlotState* pState = &p->state;
 
-    if (pArg->maxHp * 50 > 0x1869F) {
-        if (pArg->hp * 50 > 0x1869F) {
-            p->state.hp = 0x1869F;
+    if (pArg->maxHp * BATTLE_ACTOR_HP_SCALE > BATTLE_SCALED_HP_MAX) {
+        if (pArg->hp * BATTLE_ACTOR_HP_SCALE > BATTLE_SCALED_HP_MAX) {
+            p->state.hp = BATTLE_SCALED_HP_MAX;
         } else {
-            p->state.hp = pArg->hp * 50;
+            p->state.hp = pArg->hp * BATTLE_ACTOR_HP_SCALE;
         }
         // only this store goes through the state pointer ($a3 = p + 0xA4) in retail
-        pState->maxHp = 0x1869F;
+        pState->maxHp = BATTLE_SCALED_HP_MAX;
     } else {
-        p->state.hp = pArg->hp * 50;
-        p->state.maxHp = pArg->maxHp * 50;
+        p->state.hp = pArg->hp * BATTLE_ACTOR_HP_SCALE;
+        p->state.maxHp = pArg->maxHp * BATTLE_ACTOR_HP_SCALE;
     }
 }
 
@@ -929,7 +937,7 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
 
     if (pState->hp < ((u32)pState->maxHp >> 3)) {
         if (!(pEntry->unk36 & 1)) {
-            ret |= 2;
+            ret |= BATTLE_ACTION_CONDITION_LOW_HP;
         }
     }
     if (*pCondition == 4) {
