@@ -209,7 +209,10 @@ int WorldMapModeInitCharacterSprite1(int index) {
     return result;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
-/* 93.37% (248 bytes, retail 248 - same size, same multiset). Everything is
+/* 93.37% (248 bytes, retail 248 - same size, same multiset). Round 186 un-parked
+   this body and re-measured it live against the current field names: still 93.37,
+   so the number is real and the body builds; the -O2 sched2 prologue order below is
+   the only difference. Everything is
    byte-identical except three insns of the prologue: retail does the index shift
    FIRST and into v1 (sll v1,a0,7 before the 0x100 push) and stores the 0x40 stack
    argument last, right before the jal, so v0 holds that constant and the
@@ -389,69 +392,71 @@ int WorldMapUpdateActorSlot(int index) {
     }
     return result;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
-/* 87.64% (476 bytes, retail 476). The whole head, the if/else inversion (written
-   as "if (gearRide[2] == 0) { gear position } else { unk20 = 1; unk24 = 1; }",
-   which is what puts the short block out of line behind bnez like retail) and the
-   whole switch (cases 1-3 gear, 4-6 unk20 = 3, 7 unk20 = 2, 8-13 empty: the empty
-   cases are required, retail s table is 13 words = min 1 max 13) are byte-identical.
-   What is left is one scheduler/sese tie in the block that sets up unk40..unk5C:
-   retail emits lhu g_GameState+0x1824 and the g_WorldMapMode load ABOVE the unk4A/unk58
-   constant stores and re-reads unk48 with lh for unk5C (sh 0x48 then lh 0x48), while
-   gcc sinks both loads below the stores and folds the re-read into an sll/sra pair.
-   A volatile u16 store for unk48 reproduces the lh but loses the rest (84.34), and
-   reading unk48 into a volatile u32 local before the store gives 72.12. The permuter
-   from this body found nothing better (base 1255 best 668, which is 72.12 on objdiff).
-   Everything after the jr table is correct, including the shared unk20/unk24 tail and
-   the cross-jumped case 4-6 body.
+// 87.64% (476 bytes, retail 476). Round 186 un-parked this body and rebuilt it against
+// the current field names (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay,
+// state): it compiles and still measures 87.64, so the number is real, not a stale
+// object. The whole head before the tile-height call, the if/else inversion
+// ("if (gearRide[2] == 0) { gear position } else { state = 1; unk24 = 1; }", which puts
+// the short block out of line behind bnez as retail has it) and the whole switch
+// (cases 1-3 gear, 4-6 state = 3, 7 state = 2, 8-13 empty - the empty cases are
+// required, retail's table is 13 words) are byte-identical.
+// What is left is one sched2 tie in the block that sets up dirX/dirY/dirZ..drawAngle:
+// retail emits the three zero stores, the lhu of g_GameState+0x1824 (worldMapPlayerRotation)
+// and the g_WorldMapMode load ABOVE the moveSpeed/trailDelay constant stores, and
+// re-reads angle with lh for drawAngle (sh 0x48 then lh 0x48); gcc sinks those loads
+// below the stores and folds the re-read into an sll/sra pair. C store order does not
+// move it (sched2 runs post-reload). Tried and measured worse: volatile u16 store for
+// angle (reproduces the lh, loses the rest, 84.34), reading angle into a volatile u32
+// local before the store (72.12). The permuter from this body found nothing better.
+/*
 int func_8008BB40(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
     if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
-        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
-        SpritePlayAnimation(pActor->unk4C, 0);
-        SpriteSetScale(pActor->unk4C, 0x1800);
-        *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+        SpritePlayAnimation(pActor->pSprite, 0);
+        SpriteSetScale(pActor->pSprite, 0x1800);
+        pActor->pSprite->flags &= ~4;
         pActor->unk24 = 0;
     } else {
         pActor->unk24 = 1;
         result = 3;
     }
-    pActor->unk28 = g_GameState.worldMapPosX << 12;
-    pActor->unk30 = g_GameState.worldMapPosZ << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk4A = 8;
-    pActor->unk58 = 0x1E;
-    pActor->unk48 = g_GameState.worldMapPlayerRotation;
-    pActor->unk5C = pActor->unk48;
+    pActor->x = g_GameState.worldMapPosX << 12;
+    pActor->z = g_GameState.worldMapPosZ << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->moveSpeed = 8;
+    pActor->trailDelay = 0x1E;
+    pActor->angle = g_GameState.worldMapPlayerRotation;
+    pActor->drawAngle = pActor->angle;
     switch (g_WorldMapMode) {
     case 1:
     case 2:
     case 3:
         if (g_GameState.gearRide[2] == 0) {
-            pActor->unk28 = g_WorldMapPlayerPosition;
-            pActor->unk30 = g_WorldMapPlayerPositionZ;
-            pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-            pActor->unk48 = g_WorldMapPlayerRotation;
+            pActor->x = g_WorldMapPlayerPosition;
+            pActor->z = g_WorldMapPlayerPositionZ;
+            pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+            pActor->angle = g_WorldMapPlayerRotation;
         } else {
-            pActor->unk20 = 1;
+            pActor->state = 1;
             pActor->unk24 = 1;
         }
         break;
     case 4:
     case 5:
     case 6:
-        pActor->unk20 = 3;
+        pActor->state = 3;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
             g_GameState.gearRide[2] = 1;
         }
         break;
     case 7:
-        pActor->unk20 = 2;
+        pActor->state = 2;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
             g_GameState.gearRide[2] = 1;
@@ -466,8 +471,9 @@ int func_8008BB40(int index) {
         break;
     }
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
+
 int WorldMapModeInitCharacterSprite2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
@@ -482,35 +488,40 @@ int WorldMapModeInitCharacterSprite2(int index) {
     }
     return result;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
-/* 93.37% (was 83.03% before the preset change). Byte-identical apart from the same
-   three prologue insns as func_8008B54C: original shifts index into v1 before the
-   0x100 push and stores the 0x40 argument in front of the jal; gcc stores it right
-   after li 0x40 and shifts into v0. Tail is byte-identical.
+// 93.37% (248 bytes, retail 248). Round 186: re-parked with the current field names
+// (pSprite, x, y, z, state, moveSpeed, trailDelay, angle) - it now builds, and
+// re-measured live it is still 93.37, so the number is real (the old park text used
+// unk4C/unk28/... and did not compile). Byte-identical apart from the same three
+// prologue insns as func_8008B54C: retail shifts the index into v1 between the 0x120
+// and 0x1E0 argument setup and keeps 0x40 in v0 until the sw in front of the jal; gcc
+// stores 0x40 right after li 0x40 and shifts into v0 afterwards. The tail is
+// byte-identical; -O2 sched2 post-reload makes this a whole-function context effect.
+/*
 int func_8008BDD0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
-    SpritePlayAnimation(pActor->unk4C, 0);
-    SpriteSetScale(pActor->unk4C, 0x1800);
-    *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
-    pActor->unk28 = g_GameState.worldMapPosX << 12;
-    pActor->unk30 = g_GameState.worldMapPosZ << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
+    pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
+    SpritePlayAnimation(pActor->pSprite, 0);
+    SpriteSetScale(pActor->pSprite, 0x1800);
+    pActor->pSprite->flags &= ~4;
+    pActor->x = g_GameState.worldMapPosX << 12;
+    pActor->z = g_GameState.worldMapPosZ << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
     {
         u16 unk48 = g_GameState.worldMapPlayerRotation;
         pActor->unk24 = 1;
-        pActor->unk4A = 8;
-        pActor->unk20 = 2;
-        pActor->unk40 = 0;
-        pActor->unk3C = 0;
-        pActor->unk38 = 0;
-        pActor->unk58 = 0x1E;
-        pActor->unk48 = unk48;
+        pActor->moveSpeed = 8;
+        pActor->state = 2;
+        pActor->dirZ = 0;
+        pActor->dirY = 0;
+        pActor->dirX = 0;
+        pActor->trailDelay = 0x1E;
+        pActor->angle = unk48;
     }
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BDD0);
+
 int WorldMapMoveActorTowardTarget(WorldMapActor *pActor) {
     s32 dx;
     s32 dz;
@@ -612,24 +623,25 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
     pActor->pSprite->flags &= ~4;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
-/* 78.83% (432 bytes; retail is 444). Structurally right and byte-identical from the
-   WorldMapGetTilePlaneHeight jal onward, including the 32-iteration 0x14-stride copy to
-   g_WorldMapTrail and the tail. Two source facts established:
-   (1) the mode chain must be written inverted -- "if (mode >= 4) { if (mode < 8) {
-       unk20 = 2; unk24 = 1; } } else { ...gearRide... }" -- because that is the only
-       spelling that puts the gearRide block out of line behind "bnez v0, A" like
-       retail; the natural "if (mode < 4) A else if (mode < 8) B" compiles to the
-       mirror image (79.81% but with the two blocks swapped).
-   (2) the 16-byte copies are struct assignments (WorldMapVec), which is what makes
-       gcc emit the 3-load / 3-store / 1-load / 1-store block move retail has; four
-       separate field stores interleave load/store instead.
-   What still differs is the same store-sink wall as func_8008D3F0 and func_8008DD6C
-   in this unit: retail keeps the three "unk40/unk3C/unk38 = 0" stores above the
-   g_WorldMapMode load, gcc sinks them below it, and inside the gearRide block retail
-   keeps "unk20 = 1" first while gcc sinks it below the two g_WorldMapPlayerPosition/g_WorldMapPlayerPositionZ
-   global loads. Source order of the stores does not change it. Everything else
-   (lh reload of unk48 for unk5C, the delay slot store, unk4A = 0xC, the tail) matches.
+// 78.83% (428 bytes, retail 444). Round 186: re-parked with the current field names
+// (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state, and
+// WorldMapTrail.angle for offset 0x10) - it builds now and re-measures at 78.83.
+// Everything from the WorldMapGetTilePlaneHeight jal onward is byte-identical: the
+// 16-byte copies must be WorldMapVec struct assignments (which copy x,y,z AND unk34,
+// exactly retail's 4 loads/4 stores), and four separate field stores interleave
+// load/store instead. Two differences remain, both established:
+// (1) retail keeps the three zero stores (0x40/0x3C/0x38) above the g_WorldMapMode
+//     load and re-reads angle with lh for drawAngle; gcc sinks the zero stores below
+//     the mode load and folds the re-read into an sll/sra pair. C store order does not
+//     move it (sched2 is post-reload).
+// (2) block layout: retail reaches the mode<8 arm out of line (j + nop in front of
+//     "sh state / li 1 / sh unk24" at .L8008C690), gcc inlines it and puts the second
+//     store in the j delay slot, so this body is one j and three nops short.
+// The mode chain must be written inverted - "if (mode >= 4) { if (mode < 8) B } else
+// { gearRide }" - because that is what puts the gearRide block out of line behind
+// "bnez v0, A" as retail has it; the natural "if (mode < 4) A else if (mode < 8) B"
+// gives the mirror image (79.81 with the two blocks swapped, 4 bytes different).
+/*
 s32 func_8008C530(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 0);
@@ -637,44 +649,44 @@ s32 func_8008C530(int index) {
     s32 mode;
     s32 i;
 
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk48 = *(u16 *)&g_GameState.unk1826[0];
-    pActor->unk4A = 0xC;
-    pActor->unk5C = pActor->unk48;
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[0];
+    pActor->moveSpeed = 0xC;
+    pActor->drawAngle = pActor->angle;
     mode = g_WorldMapMode;
     if (mode > 0) {
         if (mode >= 4) {
             if (mode < 8) {
-                pActor->unk20 = 2;
+                pActor->state = 2;
                 pActor->unk24 = 1;
             }
         } else {
             if (g_GameState.gearRide[0] == 1) {
-                pActor->unk20 = 1;
-                pActor->unk28 = g_WorldMapPlayerPosition;
-                pActor->unk30 = g_WorldMapPlayerPositionZ;
-                pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-                pActor->unk48 = g_WorldMapPlayerRotation;
-                g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->unk28;
-                g_WorldMapPlayerAngle = pActor->unk48;
+                pActor->state = 1;
+                pActor->x = g_WorldMapPlayerPosition;
+                pActor->z = g_WorldMapPlayerPositionZ;
+                pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+                pActor->angle = g_WorldMapPlayerRotation;
+                g_WorldMapScrollTargetX = *(WorldMapVec *)&pActor->x;
+                g_WorldMapPlayerAngle = pActor->angle;
                 g_WorldMapTrailCursor = 0;
                 pTrail = g_WorldMapTrail;
                 for (i = 0; i < 0x20; i++, pTrail++) {
-                    pTrail->vec = *(WorldMapVec *)&pActor->unk28;
-                    pTrail->unk10 = pActor->unk48;
+                    pTrail->vec = *(WorldMapVec *)&pActor->x;
+                    pTrail->angle = pActor->angle;
                 }
             }
         }
     }
-    g_GameState.fieldScriptMemory[0x16] = pActor->unk28 >> 12;
-    g_GameState.fieldScriptMemory[0x17] = pActor->unk30 >> 12;
-    *(u16 *)&g_GameState.unk1826[0] = pActor->unk48;
+    g_GameState.fieldScriptMemory[0x16] = pActor->x >> 12;
+    g_GameState.fieldScriptMemory[0x17] = pActor->z >> 12;
+    *(u16 *)&g_GameState.unk1826[0] = pActor->angle;
     return result;
-}
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
 
-*/
 int WorldMapModeInitPartyActor0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 0);
@@ -710,59 +722,54 @@ int WorldMapInitPartyActorSprite0(int index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C844);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
-/* 81.33%: everything after the func_8008C364 call is correct except the store
-   order in the head: the original puts the three zero stores (0x40, 0x3C, 0x38)
-   first, then hoists the g_GameState+0x1828 load above them, and re-reads
-   unk48 with lh; gcc here sinks the zero stores below the sll/sra chain and cse
-   folds the re-read into the lhu. The mode < 4 / mode < 8 / gearRide blocks and
-   the whole tail are byte-identical. Also tried: unk5C assigned after the
-   g_WorldMapMode load (identical output), ascending zero stores.
-   Re-diffed under the current XenoWorldMap flags, still 81.33%. Two new facts:
-   the source ORDER of the zero stores makes no difference - gcc's post-reload
-   scheduler sinks all three to just before the branch and floats the sh/lh pair
-   above the g_WorldMapMode load whatever the C order is, and hoisting the mode load
-   to the top of the head only makes it worse. And storing unk48 through a
-   volatile u16 pointer reproduces the original's lh reload (instead of an
-   sll/sra pair, which makes the function 304 bytes instead of the original 300):
-   that variant scores 80.07% but has the original's exact instruction multiset,
-   with only the position of the two blocks differing, so it is the base to
-   continue from rather than the text below.
-   Round 56: re-diffed with the body below live, still 81.33%; the whole diff is
-   the positions of the three zero stores and the sh/lh pair, nothing else.
+// 81.33% (304 bytes, retail 300). Round 186: re-parked with the current field names
+// (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state) - it
+// builds now and re-measures at 81.33. Two differences, both in the head:
+// (1) retail stores the three zeros (0x40/0x3C/0x38) immediately after the
+//     func_8008C364 call and loads g_GameState+0x1828 above them; gcc sinks them below
+//     the g_WorldMapMode load whatever the C order is.
+// (2) retail RE-READS angle with lh for drawAngle (sh 0x48 then lh 0x48); gcc keeps the
+//     value in a register and emits an sll/sra pair, which is exactly the 4 extra bytes
+//     (304 vs 300). Storing angle through a volatile u16 pointer reproduces retail's lh
+//     reload and the exact 300-byte size but scores 80.07 - that variant, not this text,
+//     is the base to continue from.
+// Everything from the mode tests onward - the gearRide[1] block, the mode<8 arm and the
+// tail - is byte-identical.
+/*
 int func_8008D3F0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 1);
     s32 mode;
 
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk4A = 0xC;
-    pActor->unk58 = 0xF;
-    pActor->unk48 = *(u16 *)&g_GameState.unk1826[2];
-    pActor->unk5C = pActor->unk48;
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->moveSpeed = 0xC;
+    pActor->trailDelay = 0xF;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[2];
+    pActor->drawAngle = pActor->angle;
     mode = g_WorldMapMode;
     if (mode > 0) {
         if (mode < 4) {
             if (g_GameState.gearRide[1] == 1) {
-                pActor->unk20 = 1;
-                pActor->unk28 = g_WorldMapPlayerPosition;
-                pActor->unk30 = g_WorldMapPlayerPositionZ;
-                pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-                pActor->unk48 = g_WorldMapPlayerRotation;
+                pActor->state = 1;
+                pActor->x = g_WorldMapPlayerPosition;
+                pActor->z = g_WorldMapPlayerPositionZ;
+                pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+                pActor->angle = g_WorldMapPlayerRotation;
             }
         } else if (mode < 8) {
-            pActor->unk20 = 2;
+            pActor->state = 2;
             pActor->unk24 = 1;
         }
     }
-    g_GameState.fieldScriptMemory[0x19] = pActor->unk28 >> 12;
-    g_GameState.fieldScriptMemory[0x1A] = pActor->unk30 >> 12;
-    *(u16 *)&g_GameState.unk1826[2] = pActor->unk48;
+    g_GameState.fieldScriptMemory[0x19] = pActor->x >> 12;
+    g_GameState.fieldScriptMemory[0x1A] = pActor->z >> 12;
+    *(u16 *)&g_GameState.unk1826[2] = pActor->angle;
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D3F0);
+
 
 
 int WorldMapModeInitPartyActor1(int index) {
@@ -800,48 +807,49 @@ int WorldMapInitPartyActorSprite1(int index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008D678);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DD6C);
-/* 81.33%: structurally the same function as func_8008D3F0 (mode 2, gearRide[2],
-   g_GameState+0x182A and unk1930[0x1C]/[0x1D]); the whole branch body and the tail
-   are byte-identical. Two head differences remain: (1) the original emits the three
-   zero stores to 0x40/0x3C/0x38 immediately after the func_8008C364 call and the
-   lhu of g_GameState+0x182A right after them, while gcc sinks the zero stores below
-   the g_WorldMapMode load; (2) the original re-reads unk48 with lh and sign-extends for
-   unk5C, gcc keeps the value in a register (sll/sra pair). Also tried a u16 temp for
-   the g_GameState load: same 81.33%, and it makes the unk5C store worse.
+// 81.33% (304 bytes, retail 300). Round 186: re-parked with the current field names
+// (pSprite, x, y, z, dirX/Y/Z, angle, moveSpeed, trailDelay, drawAngle, state) - it
+// builds now and re-measures at 81.33. The same two head differences as func_8008D3F0:
+// retail stores the three zeros (0x40/0x3C/0x38) right after the func_8008C364 call and
+// loads g_GameState+0x182A above them (gcc sinks them below the g_WorldMapMode load),
+// and retail re-reads angle with lh for drawAngle where gcc keeps the register and
+// emits an sll/sra pair - exactly the 4 extra bytes (304 vs 300). The whole gearRide[2]
+// block, the mode<8 arm and the tail are byte-identical.
+/*
 int func_8008DD6C(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 2);
     s32 mode;
 
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk4A = 0xC;
-    pActor->unk58 = 0x1F;
-    pActor->unk48 = *(u16 *)&g_GameState.unk1826[4];
-    pActor->unk5C = pActor->unk48;
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->moveSpeed = 0xC;
+    pActor->trailDelay = 0x1F;
+    pActor->angle = *(u16 *)&g_GameState.unk1826[4];
+    pActor->drawAngle = pActor->angle;
     mode = g_WorldMapMode;
     if (mode > 0) {
         if (mode < 4) {
             if (g_GameState.gearRide[2] == 1) {
-                pActor->unk20 = 1;
-                pActor->unk28 = g_WorldMapPlayerPosition;
-                pActor->unk30 = g_WorldMapPlayerPositionZ;
-                pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-                pActor->unk48 = g_WorldMapPlayerRotation;
+                pActor->state = 1;
+                pActor->x = g_WorldMapPlayerPosition;
+                pActor->z = g_WorldMapPlayerPositionZ;
+                pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+                pActor->angle = g_WorldMapPlayerRotation;
             }
         } else if (mode < 8) {
-            pActor->unk20 = 2;
+            pActor->state = 2;
             pActor->unk24 = 1;
         }
     }
-    g_GameState.fieldScriptMemory[0x1C] = pActor->unk28 >> 12;
-    g_GameState.fieldScriptMemory[0x1D] = pActor->unk30 >> 12;
-    *(u16 *)&g_GameState.unk1826[4] = pActor->unk48;
+    g_GameState.fieldScriptMemory[0x1C] = pActor->x >> 12;
+    g_GameState.fieldScriptMemory[0x1D] = pActor->z >> 12;
+    *(u16 *)&g_GameState.unk1826[4] = pActor->angle;
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008DD6C);
+
 int WorldMapModeInitPartyActor2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = func_8008C364(pActor, 2);
