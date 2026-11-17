@@ -392,56 +392,56 @@ void BattleComputeActionAmount(void) {
     atkValue = func_80096FBC();
     defValue = func_80097610();
     pAtk = g_BattleActingSlot;
-    if ((pAtk->unk88 | pAtk->accessoryEffectFlags4) & 8) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 8) {
         atkValue += atkValue / 5;
     }
-    if ((pAtk->unk88 | pAtk->accessoryEffectFlags4) & 2) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 2) {
         atkValue += atkValue / 10;
     }
-    if ((pAtk->unk88 | pAtk->accessoryEffectFlags4) & 4) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 4) {
         atkValue -= atkValue / 5;
     }
-    if ((pAtk->unk88 | pAtk->accessoryEffectFlags4) & 1) {
+    if ((pAtk->activeEffectFlags4 | pAtk->accessoryEffectFlags4) & 1) {
         atkValue -= atkValue / 10;
     }
     pDef = D_800C3E34;
-    if ((pDef->unk88 | pDef->accessoryEffectFlags4) & 4) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 4) {
         defValue += defValue / 5;
     }
-    if ((pDef->unk88 | pDef->accessoryEffectFlags4) & 1) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 1) {
         defValue += defValue / 10;
     }
-    if ((pDef->unk88 | pDef->accessoryEffectFlags4) & 8) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 8) {
         defValue -= defValue / 5;
     }
-    if ((pDef->unk88 | pDef->accessoryEffectFlags4) & 2) {
+    if ((pDef->activeEffectFlags4 | pDef->accessoryEffectFlags4) & 2) {
         defValue -= defValue / 10;
     }
     if (g_BattleCurrentRow->element & 0x10) {
         if (!(D_800C3E34->accessoryEffectFlags2 & 0x40)) {
-            D_800C3E34->unk80 |= 0x40;
+            D_800C3E34->activeEffectFlags2 |= 0x40;
         }
-        if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->accessoryEffectFlags7) & 0x4000) {
+        if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 0x4000) {
             g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 3;
             *(s32 *)(g_BattleTargetSlotIndex * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxMp / 10) * 2;
         }
-        if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->accessoryEffectFlags7) & 0x1000) {
+        if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 0x1000) {
             g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 2;
             *(s32 *)(g_BattleTargetSlotIndex * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxHp / 10) * 2;
         }
     }
     if (g_BattleCurrentRow->element & 0x20) {
         if (!(D_800C3E34->accessoryEffectFlags2 & 0x80)) {
-            D_800C3E34->unk80 |= 0x80;
+            D_800C3E34->activeEffectFlags2 |= 0x80;
         }
     }
-    if (D_800C3E34->unk80 & 0x40) {
+    if (D_800C3E34->activeEffectFlags2 & 0x40) {
         defValue -= defValue >> 2;
-        D_800C3E34->unk80 &= ~0x40;
+        D_800C3E34->activeEffectFlags2 &= ~0x40;
     }
-    if (g_BattleActingSlot->unk80 & 0x80) {
+    if (g_BattleActingSlot->activeEffectFlags2 & 0x80) {
         atkValue -= atkValue >> 2;
-        g_BattleActingSlot->unk80 &= ~0x80;
+        g_BattleActingSlot->activeEffectFlags2 &= ~0x80;
     }
     if (g_BattleCurrentRow->actionFlags & 0x400) {
         rate = 0x14;
@@ -523,7 +523,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
         v *= 2;
     }
     r = D_800C3E34;
-    f = r->unk8C | r->accessoryEffectFlags7;
+    f = r->activeEffectFlags7 | r->accessoryEffectFlags7;
     if (f & 0x100) {
         v = 7 * v / 10;
     }
@@ -545,11 +545,11 @@ void BattleInitActiveSlotAction(void) {
         BattleSetSlotEntryFieldsTo2000(g_BattleCurSlotIndex, 1);
     }
     t = g_BattleCurSlotIndex;
-    D_800C3E34->unk7C = 0;
-    D_800C3E34->unk80 = 0;
-    D_800C3E34->unk84 = 0;
-    D_800C3E34->unk88 = 0;
-    D_800C3E34->unk8C = 0;
+    D_800C3E34->activeEffectFlags1 = 0;
+    D_800C3E34->activeEffectFlags2 = 0;
+    D_800C3E34->activeEffectFlags3 = 0;
+    D_800C3E34->activeEffectFlags4 = 0;
+    D_800C3E34->activeEffectFlags7 = 0;
     g_BattleCurveTargetModes[t] = 2;
     p = D_800C3E34;
     v = p->maxHp * g_BattleCurrentRow->power;
@@ -567,19 +567,19 @@ void BattleClearStatusWordsOnAction6E(void) {
         return;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x8000) {
-        D_800C3E34->unk84 = 0;
+        D_800C3E34->activeEffectFlags3 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x4000) {
         D_800C3E34->accessoryEffectFlags3 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x2000) {
-        D_800C3E34->unk88 = 0;
+        D_800C3E34->activeEffectFlags4 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x1000) {
         D_800C3E34->accessoryEffectFlags4 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x800) {
-        D_800C3E34->unk8C = 0;
+        D_800C3E34->activeEffectFlags7 = 0;
     }
     if (g_BattleCurrentRow->conditionFlags & 0x400) {
         D_800C3E34->accessoryEffectFlags7 = 0;

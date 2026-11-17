@@ -77,15 +77,16 @@ typedef struct {
     // One flag word per accessory effectType: the OR of the effectFlags of the
     // worn accessories whose effectType selects it, see
     // MenuApplyEquippedItemBonuses in src/menu/main/misc10.c. The words in
-    // between are touched by no matched code.
+    // between are touched by no matched code here; the battle copy of this
+    // record names them, see BattleTableEntry in include/battle/actor.h.
     /* 0x7E */ u16 accessoryEffectFlags1;
-    /* 0x80 */ u16 unk80;
+    /* 0x80 */ u16 activeEffectFlags2;
     /* 0x82 */ u16 accessoryEffectFlags2;
-    /* 0x84 */ u16 unk84;
+    /* 0x84 */ u16 activeEffectFlags3;
     /* 0x86 */ u16 accessoryEffectFlags3;
-    /* 0x88 */ u16 unk88;
+    /* 0x88 */ u16 activeEffectFlags4;
     /* 0x8A */ u16 accessoryEffectFlags4;
-    /* 0x8C */ u16 unk8C;
+    /* 0x8C */ u16 activeEffectFlags7;
     /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's unk3 reads 0x64
     /* 0x90 */ u8 unk90[0x10];
     /* 0xA0 */ u_char gearId;

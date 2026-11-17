@@ -127,11 +127,11 @@ void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     u16 v;
 
     if (pState->unk80 & 0x200) {
-        v = pSlot->unk84 | 0x20;
+        v = pSlot->activeEffectFlags3 | 0x20;
     } else {
-        v = pSlot->unk84 & 0xFFDF;
+        v = pSlot->activeEffectFlags3 & 0xFFDF;
     }
-    pSlot->unk84 = v;
+    pSlot->activeEffectFlags3 = v;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009CBC4);
 void BattleSetCurrentSlotState6(void) {
@@ -181,13 +181,13 @@ s32 func_8009D3A0(void) {
     if (g_BattleCurrentRow->actionFlags & 0x1000) {
         return 3;
     }
-    if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x100) {
+    if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x100) {
         return 3;
     }
-    if (D_800C3E34->unk7C & 0x2000) {
+    if (D_800C3E34->activeEffectFlags1 & 0x2000) {
         return 1;
     }
-    if (D_800C3E34->unk80 & 0x1000) {
+    if (D_800C3E34->activeEffectFlags2 & 0x1000) {
         return 1;
     }
     if (g_BattleCurrentRow->actionFlags & 0x8000) {
@@ -232,13 +232,13 @@ s32 func_8009D3A0(void) {
         }
     } else {
         evade = (s16)evade / 2;
-        if (D_800C3E34->unk7C & 0x2000) {
+        if (D_800C3E34->activeEffectFlags1 & 0x2000) {
             return 1;
         }
-        if (D_800C3E34->unk80 & 0x1000) {
+        if (D_800C3E34->activeEffectFlags2 & 0x1000) {
             return 1;
         }
-        if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x800) {
+        if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x800) {
             hit += (s16)hit / 2;
         }
     }
@@ -250,14 +250,14 @@ s32 func_8009D3A0(void) {
     }
     rowMod = g_BattleCurrentRow->evadeModifier;
     chance = evade + (s8)rowMod - hit;
-    if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x20) {
+    if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x20) {
         roll = rand() % 100 - chance;
         if (roll < 50) {
             return 1;
         }
         return 3;
     }
-    if ((D_800C3E34->unk84 | D_800C3E34->accessoryEffectFlags3) & 0x40) {
+    if ((D_800C3E34->activeEffectFlags3 | D_800C3E34->accessoryEffectFlags3) & 0x40) {
         roll = rand() % 100 - chance;
         if (roll < 50) {
             return 1;
@@ -303,7 +303,7 @@ u16 BattleApplySlotPercentToValue(void) {
 
     if (g_BattleCurrentRow->actionFlags & 0x100) {
         n = D_800D2DC8->penaltyPercent;
-        v = *(u16 *)&D_800D2DC8->unk68[0xA];
+        v = D_800D2DC8->unk72;
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
         }

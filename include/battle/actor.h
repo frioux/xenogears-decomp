@@ -179,7 +179,9 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x10];
     /* 0x60 */ u32 hp; // scaled current hp
     /* 0x64 */ u32 maxHp; // scaled max hp
-    /* 0x68 */ u8 unk68[0x14];
+    /* 0x68 */ u8 unk68[0xA];
+    /* 0x72 */ u16 unk72; // added to the action's value, scaled by (100 - penaltyPercent) / 100
+    /* 0x74 */ u8 unk74[0x8];
     /* 0x7C */ u16 unk7C;
     /* 0x7E */ u8 unk7E[0x2];
     /* 0x80 */ u16 unk80;
@@ -195,7 +197,7 @@ typedef struct {
     /* 0xA4 */ u8 unkA4;
     /* 0xA5 */ u8 unkA5;
     /* 0xA6 */ u8 unkA6[0x10];
-    /* 0xB6 */ u8 flags; // bit 0x80 selects the gear-side status words (unk80) over the actor's (unk88)
+    /* 0xB6 */ u8 flags; // bit 0x80 selects the gear-side status words (unk80) over the actor's (activeEffectFlags4)
     /* 0xB7 */ u8 conditionTimers[0x15]; // one countdown byte per armed condition flag bit; the flag clears when its timer runs out
 } BattleSlotState; // Size: 0xCC
 
@@ -226,17 +228,24 @@ typedef struct {
     /* 0x05C */ u8 unk5C[0x2];
     /* 0x05E */ u8 evade; // the defender's evasion percent
     /* 0x05F */ u8 hit; // the attacker's hit percent
-    /* 0x060 */ u8 unk60[0x1A];
+    /* 0x060 */ u8 conditionChance; // what chanceSource 0 reads: rolled against rand() % 100 in place of the row's own chance
+    /* 0x061 */ u8 unk61[0x19];
+    // The effect words run in pairs: each activeEffectFlags word holds one bit per effect the slot
+    // currently has, and the accessoryEffectFlags word right after it holds those same bits as
+    // granted permanently by a worn accessory. Battle code ORs the two (the pair answers "already
+    // has this effect"), and BattleDecrementSlotConditionTimers counts a timer in
+    // BattleSlotState.conditionTimers down only for a bit the accessory word lacks, so an effect
+    // the accessory grants never expires. BattleInitActiveSlotAction clears all five active words.
     /* 0x07A */ u16 unk7A;
-    /* 0x07C */ u16 unk7C;
+    /* 0x07C */ u16 activeEffectFlags1;
     /* 0x07E */ u16 accessoryEffectFlags1; // the accessory effect flag words of GameCharacter sit at these same offsets: a set bit makes the slot refuse the condition
-    /* 0x080 */ u16 unk80;
+    /* 0x080 */ u16 activeEffectFlags2;
     /* 0x082 */ u16 accessoryEffectFlags2;
-    /* 0x084 */ u16 unk84;
+    /* 0x084 */ u16 activeEffectFlags3;
     /* 0x086 */ u16 accessoryEffectFlags3;
-    /* 0x088 */ u16 unk88;
+    /* 0x088 */ u16 activeEffectFlags4;
     /* 0x08A */ u16 accessoryEffectFlags4;
-    /* 0x08C */ u16 unk8C;
+    /* 0x08C */ u16 activeEffectFlags7;
     /* 0x08E */ u16 accessoryEffectFlags7;
     /* 0x090 */ u8 unk90[0x10];
     /* 0x0A0 */ u8 gearId; // the gear the slot's character has equipped, as in GameCharacter
