@@ -2,6 +2,15 @@
 #include "main/game.h"
 #include "battle/actor.h"
 
+// rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
+#define BATTLE_PERCENT_ROLL_RANGE 100
+// slotStates and slotAmounts hold one entry per battle slot.
+#define BATTLE_SLOT_COUNT 12
+// g_BattleActorCharIds holds this in a slot no character occupies.
+#define BATTLE_SLOT_CHARACTER_NONE 0x7F
+// The hp stat's cap: BattleSetSlotConditionActionValue clamps maxHp to it.
+#define BATTLE_HP_MAX 9999
+
 extern u16 g_BattleSavedSlotUnk7A[];
 extern u8 g_BattleSlotUnk98Deltas[];
 extern u8 g_BattleActorCharIds[];
@@ -71,7 +80,7 @@ void BattleApplyActorConditionTimer(void) {
 void BattleRollAndClearTargetConditions(void) {
     u8 t = g_BattleCurrentRow->chance;
 
-    if (t < rand() % 100) {
+    if (t < rand() % BATTLE_PERCENT_ROLL_RANGE) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
     } else {
         if (g_BattleCurrentRow->conditionKind & 0x80) {
@@ -106,7 +115,7 @@ void BattleRollSlotConditionAction(void) {
         break;
     }
 
-    if (chance < rand() % 100) {
+    if (chance < rand() % BATTLE_PERCENT_ROLL_RANGE) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
         return;
     }
@@ -167,7 +176,7 @@ void BattleSetSlotConditionActionValue(void) {
         break;
     }
 
-    if (chance < rand() % 100) {
+    if (chance < rand() % BATTLE_PERCENT_ROLL_RANGE) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 6;
         return;
     }
@@ -213,13 +222,13 @@ void BattleSetSlotConditionActionValue(void) {
         g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
         if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & 0x80) {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = ((BattleSlotState *)g_BattleCurSlotState)->maxHp;
-            if (((BattleSlotState *)g_BattleCurSlotState)->maxHp >= 0x2710) {
-                ((BattleSlotState *)g_BattleCurSlotState)->maxHp = 0x270F;
+            if (((BattleSlotState *)g_BattleCurSlotState)->maxHp > BATTLE_HP_MAX) {
+                ((BattleSlotState *)g_BattleCurSlotState)->maxHp = BATTLE_HP_MAX;
             }
         } else {
             g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleTargetSlotEntry->maxHp;
-            if (g_BattleTargetSlotEntry->maxHp >= 0x2710) {
-                g_BattleTargetSlotEntry->maxHp = 0x270F;
+            if (g_BattleTargetSlotEntry->maxHp > BATTLE_HP_MAX) {
+                g_BattleTargetSlotEntry->maxHp = BATTLE_HP_MAX;
             }
         }
         break;
@@ -378,7 +387,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 void BattleRollPercentAndSetState38(void) {
     s32 t = g_BattleActingSlot->ether + g_BattleCurrentRow->chanceBonus;
 
-    if (rand() % 100 >= t) {
+    if (rand() % BATTLE_PERCENT_ROLL_RANGE >= t) {
         g_BattleCurWorkBlock->commandCode = 0x38;
         g_BattleAmountThirdFlag = 1;
     }
@@ -403,7 +412,7 @@ void BattleRollPercentAndSwapActiveActor(void) {
         return;
     }
     sel = g_BattleTargetSlotIndex;
-    if (sel < 3 && !(t & 0x2000)) {
+    if (sel < MAX_PARTY_MEMBERS && !(t & 0x2000)) {
         return;
     }
     if (!(pTarget->activeEffectFlags4 & 0x1000)) {
@@ -421,11 +430,11 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (pActor->state.flags & 0x80) {
         return;
     }
-    lim = 0x32;
+    lim = 50;
     if (pTarget->characterId == 0) {
-        lim = 0x3C;
+        lim = 60;
     }
-    if (lim < rand() % 100) {
+    if (lim < rand() % BATTLE_PERCENT_ROLL_RANGE) {
         return;
     }
     if (g_BattleCurrentRow->opcode == 2) {
@@ -455,7 +464,7 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
         return 0;
     }
 
-    if (chance < rand() % 100) {
+    if (chance < rand() % BATTLE_PERCENT_ROLL_RANGE) {
         return 0;
     }
 
@@ -563,7 +572,7 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
 void BattleClearAllSlotStates(void) {
     s16 i;
 
-    for (i = 0xB; i != -1; i--) {
+    for (i = BATTLE_SLOT_COUNT - 1; i != -1; i--) {
         g_BattleCurWorkBlock->slotStates[i] = 0xFF;
         g_BattleCurWorkBlock->slotAmounts[i] = 0;
     }
@@ -577,8 +586,8 @@ void BattleResetSlotConditionCounters(void) {
     u16 hp;
     u16 flag;
 
-    for (i = 0; i < 3; i++) {
-        if (g_BattleActorCharIds[i] != 0x7F) {
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_BattleActorCharIds[i] != BATTLE_SLOT_CHARACTER_NONE) {
             pSlot = &g_BattleCurWorkBlock->slots[i];
             g_BattleActingSlot = pSlot;
             hp = pSlot->unk7A;
@@ -716,7 +725,7 @@ u8 BattleTestActorSlotFlagsC002ByMode(void) {
         break;
     case 2:
         n = 0;
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
             if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 0xC002) {
                 n++;
             }
@@ -727,7 +736,7 @@ u8 BattleTestActorSlotFlagsC002ByMode(void) {
         break;
     case 3:
         n = 0;
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
             if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 0xC002) {
                 n++;
             }
