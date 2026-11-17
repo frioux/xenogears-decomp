@@ -78,7 +78,7 @@ typedef struct {
     /* 0x5A */ undefined8 unk5A[2];
     /* 0x5C */ u8 unk5C;
     /* 0x5D */ undefined8 unk5D;
-    /* 0x5E */ s16 unk5E;
+    /* 0x5E */ s16 clut;                // g_SystemPalette1 or g_SystemPalette2
 } SystemStringChar; // Size: 0x60
 
 typedef struct SystemStringNode {
@@ -97,8 +97,8 @@ typedef struct {
     /* 0x10 */ u16 flags;
     /* 0x12 */ undefined8 unk12[2];
     /* 0x14 */ s16 lineHeight;
-    /* 0x16 */ s16 unk16;
-    /* 0x18 */ s16 unk18;
+    /* 0x16 */ s16 scrollRow;   // first row shown; charIndex - scrollRow is the row
+    /* 0x18 */ s16 rowCount;    // rows started so far, taken mod maxChars + 1 for the palette
     /* 0x1A */ undefined8 unk1A[2];
     /* 0x1C */ void* pCur;
     /* 0x20 */ void* pPrev;
@@ -109,7 +109,7 @@ typedef struct {
     /* 0x68 */ u8 unk68;
     /* 0x69 */ u8 unk69;
     /* 0x6A */ u8 unk6A;
-    /* 0x6B */ u8 unk6B;
+    /* 0x6B */ u8 stopCode;     // why rendering stopped: 1 end of text, 2/3 a stop code
     /* 0x6C */ u8 unk6C;
     /* 0x6D */ undefined8 unk6D;
     /* 0x6E */ u8 lineOffset;
@@ -394,7 +394,7 @@ int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
 
 int SystemStringGetUnk6B(SystemString* pString) {
     if (pString->flags & 0x8) {
-        return pString->unk6B;
+        return pString->stopCode;
     }
 
     return 0;
@@ -546,7 +546,7 @@ int SystemStringGetColumnOffset(SystemString* pString) {
 }
 
 int SystemStringGetRowOffset(SystemString* pString) {
-    int row = pString->charIndex - pString->unk16;
+    int row = pString->charIndex - pString->scrollRow;
 
     if (row < 0) {
         row = pString->maxChars - 1;
