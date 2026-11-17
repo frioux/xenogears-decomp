@@ -105,6 +105,19 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // separate home for sum (a0). `short sum = p[0x14];` written mid-block is an
 // INVALID body on this preset: gcc 2.6.0 exits 33 (mixed declarations), diff_func
 // then prints only the objdiff line and no diff at all.
+// Round 169 (re-measured): 99.68%, 124 bytes = retail's. cdk is 95.97 here, so the
+// pending cdk split would LOSE this function; do not switch the unit for it. New
+// finding about the remaining tie: the ONE-expression form `short sum = p[0x14] +
+// q[0x5B];` does give retail's in-place two-address add (`addu v1,v1,v0`, exact
+// 124-byte multiset, 98.39%) but coalesces sum with the dying p-pointer register
+// (v1) instead of a fresh one, and moves value to a0; the two-statement form below
+// gets the loads right (p byte v0, q byte v1) and loses only sum's home. So the
+// whole remaining gap is one allocator choice: retail's p-byte load went to a
+// FRESH v0 rather than reusing the base register that dies at it. A 3-minute
+// permuter run from the one-expression body (base=50 best=10, 1404 iterations)
+// walked straight back to the two-statement body below - i.e. it agrees this is
+// the floor. Shapes measured this round: swapped add operands (no change), a `u8
+// pbyte` temp (7 registers off, 98.39), the one-expression sum (98.39).
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
@@ -778,6 +791,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BAC4);
 // -O3 (99.72 too, so not the preset) and a 4-minute permuter run (base=40
 // best=40, 1146 iterations). The `lw v0,<jtbl>` operand in the diff is the
 // usual jtbl_/.rodata difference.
+// Round 169 (re-measured): still 99.72% at 720 bytes = retail's exact size and
+// instruction multiset; the four `mfhi` dests are the whole difference. Preset
+// screen on THIS body: gcc-2.6.0 99.94% (not 100), gcc-2.7.2-cdk 90.57%, Default
+// (2.7.2) 99.72%. So the cdk split the unit wants elsewhere would lose this
+// function, and 2.6.0 does not close it either: it is the HI-pseudo/quptient-pseudo
+// coalescing tie, not a preset question.
 /*
 void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     BattleTableEntry* p = &g_BattleWorkBlock[arg0];
