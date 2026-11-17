@@ -13,6 +13,9 @@ typedef struct {
     /* 0x8 */ u8 unk8[8];
 } MenuSectorHeader; // Size: 0x10
 
+// Height of the highlight quad drawn behind a menu row
+#define MENU_ROW_QUAD_HEIGHT 13
+
 extern u8 D_801EA8C4[0x20];
 extern RECT D_801EA8E4;
 extern RECT D_801EA8EC;
@@ -396,7 +399,62 @@ void MenuClearBytes(u_char count, u_char* pBuffer) {
         } while ((s32)pBuffer < end);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8070);
+extern u32 D_801E9A00[]; // Cursor x positions
+extern s32 D_801E9A2C[]; // Cursor y positions
+extern u32 D_801E9EC4[];
+extern u32 D_801E9EE4[];
+extern u32 D_801E9EE8[];
+extern u32 D_801E9F28[];
+extern u32 D_801E9F30[];
+extern u32 D_801E9F68[];
+extern u32 D_801E9F70[];
+void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+
+void func_801E8070(s32 count, MenuString* pRows, u8* pStringIds, u32* pXOffsets, u8* pFlags, u_char row,
+    u_char col, u_char mode) {
+    s32 offset = 0;
+
+    switch (mode) {
+    case 0:
+        MenuClearBytes(count, pFlags);
+        (g_Menu->renderContext + pRows[row].polys)->x0 = D_801E9A00[col + row] + (pXOffsets[row] + 0x16);
+        (g_Menu->renderContext + pRows[row].polys)->y0 = D_801E9A2C[col + row] - 0x22;
+        (g_Menu->renderContext + pRows[row].polys)->x1 = (u16)(D_801E9A00[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
+        (g_Menu->renderContext + pRows[row].polys)->y1 = D_801E9A2C[col + row] - 0x22;
+        (g_Menu->renderContext + pRows[row].polys)->x2 = D_801E9A00[col + row] + (pXOffsets[row] + 0x16);
+        (g_Menu->renderContext + pRows[row].polys)->y2 = D_801E9A2C[col + row] - 0x15;
+        (g_Menu->renderContext + pRows[row].polys)->x3 = (u16)(D_801E9A00[col + row] + 0x16) + pXOffsets[row] + pRows[row].width;
+        (g_Menu->renderContext + pRows[row].polys)->y3 = D_801E9A2C[col + row] - 0x15;
+        break;
+    case 1:
+        MenuSetQuadVertices(pRows[row].vertices, D_801E9EC4[row], D_801E9EE4[0], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        break;
+    case 5:
+        offset = 8;
+        // fallthrough
+    case 2:
+        MenuSetQuadVertices(pRows[row].vertices, D_801E9EE8[offset + row], D_801E9F28[col], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        break;
+    case 3:
+        MenuSetQuadVertices(pRows[row].vertices, 0x18, D_801E9F30[col], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        break;
+    case 4:
+        (g_Menu->renderContext + pRows[row].polys)->x0 = 0x4C;
+        (g_Menu->renderContext + pRows[row].polys)->y0 = 0x12;
+        (g_Menu->renderContext + pRows[row].polys)->x1 = pRows->width + 0x4C;
+        (g_Menu->renderContext + pRows[row].polys)->y1 = 0x12;
+        (g_Menu->renderContext + pRows[row].polys)->x2 = 0x4C;
+        (g_Menu->renderContext + pRows[row].polys)->y2 = 0x1F;
+        (g_Menu->renderContext + pRows[row].polys)->x3 = pRows->width + 0x4C;
+        (g_Menu->renderContext + pRows[row].polys)->y3 = 0x1F;
+        break;
+    case 6:
+        MenuSetQuadVertices(pRows[row].vertices, D_801E9F68[row], D_801E9F70[row], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        break;
+    }
+    pRows[row].renderContext = g_Menu->renderContext;
+    pFlags[row] = 1;
+}
 void MenuRenderFrame(void);
 
 void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
