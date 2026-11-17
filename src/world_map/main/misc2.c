@@ -420,7 +420,7 @@ void WorldMapEnterMenuMode(void) {
     s32 i;
 
     i = 0;
-    pFlags = &g_GameState.unk1836;
+    pFlags = &g_GameState.worldMapMenuActive;
     pOut = (s16*)(pFlags + 3);
     *pFlags = 1;
     g_NextMapRotationY = (g_WorldMapViewRotationY + 0x2000) & 0x3FFF;
@@ -531,7 +531,7 @@ void WorldMapExitMenuMode(void) {
     ControllerResetState();
     mode = g_WorldMapSavedModeFlag;
     D_8009D804 = 0;
-    g_GameState.unk1836 = 0;
+    g_GameState.worldMapMenuActive = 0;
     g_FieldPlayerWalkmeshMaterial = mode;
     WorldMapSyncGearRideActors();
 }
