@@ -313,6 +313,16 @@ s32 BattleGetActorFlag41(void) {
     return 1;
 }
 
+// best 99.21% under cdk (objdiff), permuter score 30/573; was 93.55% before the
+// permuter body. Div and mult now match retail exactly; the one difference left is
+// which register keeps (end - start) * num / 0x20: retail does sra v1 into the
+// product's own register, gcc here coalesces the sra with the bgez/addu+31 temp in
+// v0, which also swaps the register the tail loads pTask->current with (retail v0,
+// here v1). Tried: the else-branch load kept in timer/n/num/base instead of delta
+// (all worse - delta is the only one that pays), delta/0x20 folded into delta and
+// into one expression with the multiply (93.5-94.6%), and two more 4-minute
+// permuter runs (PERMUTER_NONE at 30 both times).
+/*
 void func_800B3B94(BattleImageTask *pArg) {
     BattleImageTask *pTask = pArg;
     void (*pOnFree)(void *);
@@ -339,6 +349,9 @@ void func_800B3B94(BattleImageTask *pArg) {
         }
     }
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
+
 
 void BattleFreeImageTask(u8 *pEntry) {
     WorkListRemoveTask(pEntry + 0x1C);
