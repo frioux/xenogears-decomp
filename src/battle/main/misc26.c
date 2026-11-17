@@ -94,6 +94,7 @@ extern void WorkListTaskSetOnFreeCallback();
 
 extern u8 *D_800C3BEC;
 extern s32 D_800C3BF0;
+extern DR_TPAGE D_800C3BF8;
 
 u8 *BattleGetFrame(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
@@ -145,22 +146,19 @@ void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
     }
 }
 
-// best 71.75% under cdk -G0 (59.46% under 2.7.2): -G0 gives retail's absolute
-// store, but gcc re-forms &D_800C3BF8 for the second word where retail keeps one
-// base register and reads it at +4.
-/*
+// Emits the drawing-mode packet SetDrawTPage filled in at D_800C3BF8 as one more
+// entry of the ordering table, and claims the bytes it takes from the packet
+// buffer.
 void func_800B1F0C(u8 *pOt) {
     u8 *pBuf = g_GfxCurWorkBuffer;
 
-    if ((u8 *)(pBuf + 8) < g_GfxCurWorkBufferEnd) {
-        g_GfxCurWorkBuffer = pBuf + 8;
-        ((u32 *)pBuf)[0] = D_800C3BF8[0];
-        ((u32 *)pBuf)[1] = D_800C3BF8[1];
+    if ((u8 *)(pBuf + sizeof(DR_TPAGE)) < g_GfxCurWorkBufferEnd) {
+        g_GfxCurWorkBuffer = pBuf + sizeof(DR_TPAGE);
+        *(DR_TPAGE *)pBuf = D_800C3BF8;
         AddPrim(pOt, pBuf);
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F0C);
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B2AEC);
