@@ -172,17 +172,13 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
     }
 }
 
-// Best: 92.64% (two shapes tie). Instruction multiset, relocations and every
+// Earlier body (92.64%): instruction multiset, relocations and every
 // store offset match; two residues. (1) retail emits `sll a0,a0,0x7` on the
 // parameter register and `addu v0,v0,a0`, gcc allocates a fresh pseudo
 // (`sll a1,a0,0x7`). (2) retail's `move a0,s0` (the first call argument) lands
 // between the two pos stores, gcc emits it just before them; writing the slot
 // stores in retail's emission order (x, y, unk54, unk50, unk58, z) gives this
 // shape, the x/y/z-first order gives the same 92.64%.
-// The parameter shift cannot be re-created either: `index *= 0x80` followed by
-// `(u8 *)g_WorldMapSlots + index`, `index << 7`, and a u32/int local all still give
-// `sll a1,a0,0x7`; retail's `sll a0,a0,0x7` needs gcc to hand the sum pseudo the
-// dying argument register, which no source spelling reached.
 // Preset screen: cdk 87.51, gcc-2.6.0 87.15.
 // Permuter (round 181): two BETTER candidates, both FALSE gains under objdiff.
 // 295 -> 220 (pos.z store moved up to second, plus an 0x80 temp for unk58)
@@ -191,17 +187,33 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // that register and drop retail's separate `lw v0,64(s0)`. Slot store order is
 // source-insensitive here: z second, z third and an 0x80 local all reproduce
 // 92.64% byte for byte.
+// Best: 94.87%. Instruction multiset, relocations and every store offset match; the
+// one residue is where the call-argument copy lands: retail puts move a0,s0 between
+// the pos.y lui and its store (instruction 12), gcc puts it between li v1,-2048 and
+// the unk54 store, i.e. after the barrier. The parameter shift is NOT a residue any
+// more: sll a0,a0,0x7 now matches retail (older note claimed it could not be reached).
+// The empty do/while after the pos.y store is load-bearing: without it gcc sinks the
+// pos.y store below the Z load (92.64%), with it 93.33%. Hoisting the Z load into a
+// local s32 z ahead of unk54 (permuter 295 -> 120 -> 60, run 217) gives 94.87%.
+// Swept single and double barrier positions (after statement 0..5) with and without
+// the z local: 94.87% is the cap; a barrier after unk54 or later drops below 85%,
+// and an empty block or if (1) { } as the barrier gives the pre-barrier 92.64%. The
+// long long cast the permuter bundled with the z local measures 82.00% at 168 bytes
+// (false gain); a nested if (1) { } inside the do/while is neutral.
 /*
 s32 func_80080A28(s32 index) {
     u8 *p = g_WorldMapGroups;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    s32 z;
 
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = 0xFFF80000;
+    do { } while (0);
+    z = g_WorldMapPlayerPositionZ;
     pSlot->unk54 = -0x800;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
-    pSlot->pos.z = g_WorldMapPlayerPositionZ;
+    pSlot->pos.z = z;
     WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
     p += 0x54;
     WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
