@@ -4,7 +4,8 @@ extern u8 g_BattleCurveModes[];
 extern u16 g_BattleCurveValues[];
 typedef struct {
     /* 0x00 */ u16 unk0;
-    /* 0x02 */ u8 unk2[0x1A];
+    /* 0x02 */ u16 unk2;
+    /* 0x04 */ u8 unk4[0x18];
 } BattleUnk1C; // Size: 0x1C
 
 extern BattleUnk1C D_800C3EBE[];
@@ -839,12 +840,21 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
-/* 73.70%: body shape matches (do-while over g_BattleTargetCandidates..D_800C3E9B, switch on
-   arg1, squared-distance minimum); remaining diff is register allocation -
-   retail keeps 7 saved registers, this keeps 9, because gcc hoisted the
-   D_800C3EC0 base and g_BattleTargetCandidates base into saved registers that retail
-   rematerialises per use. Tried: idx local, for-loop, do-while with
-   ++p in the condition, nested if vs continue.
+/* 84.85%: 536 bytes against retail's 548 (3 instructions short). The saved-register
+   map now agrees with retail (s0 flag, s1 candidate pointer, s2 mode, s3 arg0*0x1C,
+   s4 arg0&0xFF, s5 result, s6 best) after three fixes: (a) BattleUnk1C's 0x2 field
+   typed u16 unk2 - D_800C3EC0 is D_800C3EBE+2 read as a u16 on a 0x1C stride, so
+   D_800C3EC0[i * 14] and D_800C3EBE[i].unk2 are the same access; (b) flag = 0 moved
+   ABOVE the ratan2 call (retail sets it in the beq delay slot before the call, and
+   that is what keeps it live across the call in s0); (c) best = 0xFFFFFF written
+   first and declared s32 (retail compares with slt, not sltu). What is left:
+   retail's absolute difference is the REVERSED subtraction ('subu v0,v0,a0; mult
+   v0,v0') where 'if (d < 0) d = -d;' makes gcc emit 'negu v1,v1; mult v1,v1'; the
+   loop test is 'slt' (signed) where 'p < D_800C3E9B' gives 'sltu'; and we are 3
+   instructions short (we emit an extra mflo/nop pair retail does not have). Permuter
+   job, not a hand job.
+*/
+/*
 u8 func_80084854(u8 arg0, u8 arg1) {
     u8 *p;
     u8 result;
@@ -854,17 +864,17 @@ u8 func_80084854(u8 arg0, u8 arg1) {
     s32 dx;
     s32 dy;
     s32 dist;
-    u32 best;
+    s32 best;
 
+    best = 0xFFFFFF;
     result = arg0;
     mode = arg1;
-    best = 0xFFFFFF;
     p = g_BattleTargetCandidates;
     do {
         if (*p != 0xFF && *p != arg0) {
-            angle = ratan2(D_800C3EC0[*p * 14] - D_800C3EC0[arg0 * 14],
-                           D_800C3EBE[*p].unk0 - D_800C3EBE[arg0].unk0);
             flag = 0;
+            angle = ratan2(D_800C3EBE[*p].unk2 - D_800C3EBE[arg0].unk2,
+                           D_800C3EBE[*p].unk0 - D_800C3EBE[arg0].unk0);
             switch (mode) {
             case 0:
                 if ((u16)(angle + 0x200) < 0x400) {
@@ -891,7 +901,7 @@ u8 func_80084854(u8 arg0, u8 arg1) {
                 break;
             }
             if (flag != 0) {
-                dx = D_800C3EC0[*p * 14] - D_800C3EC0[arg0 * 14];
+                dx = D_800C3EBE[*p].unk2 - D_800C3EBE[arg0].unk2;
                 if (dx < 0) {
                     dx = -dx;
                 }
@@ -909,9 +919,7 @@ u8 func_80084854(u8 arg0, u8 arg1) {
         }
     } while (++p < D_800C3E9B);
     return result;
-}
 */
-
 void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     s32 off;
     s32 found;
