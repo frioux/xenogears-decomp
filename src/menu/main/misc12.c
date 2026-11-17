@@ -16,6 +16,19 @@ typedef struct {
 // Height of the highlight quad drawn behind a menu row
 #define MENU_ROW_QUAD_HEIGHT 13
 
+// Destination coordinate of one name/slot texture upload, one 4-byte entry per
+// menu row; only the low half is read, see MenuLoadSlotCharacterNameTexture.
+typedef struct {
+    /* 0x0 */ u16 pos;
+    /* 0x2 */ u16 unk2;
+} MenuTexturePos; // Size: 0x4
+
+// Per-slot state bytes of the scratch prim buffer, past the 0x87C-byte block a
+// party slot owns: the render context its prims were built with, and whether
+// the slot has a character in it.
+#define MENU_SLOT_PRIM_CONTEXT 0x130F
+#define MENU_SLOT_PRIM_ENABLED 0x1310
+
 extern u8 D_801EA8C4[0x20];
 extern RECT D_801EA8E4;
 extern RECT D_801EA8EC;
@@ -55,11 +68,11 @@ void func_801E733C(void);
 
 extern s32 g_MenuSubMenuChoiceIds[];
 extern s32 g_MenuSubMenuChoiceTextIds[];
-extern u8 g_MenuNameTextureX[];
-extern u8 g_MenuNameTextureY[];
+extern MenuTexturePos g_MenuNameTextureX[];
+extern MenuTexturePos g_MenuNameTextureY[];
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
-extern u8 g_MenuSlotNameTextureX[];
-extern u8 g_MenuSlotNameTextureY[];
+extern MenuTexturePos g_MenuSlotNameTextureX[];
+extern MenuTexturePos g_MenuSlotNameTextureY[];
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
 extern void MenuMovePointerCursor(s32 arg0, s32 arg1);
@@ -161,8 +174,8 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
     pBuf = HeapAlloc(0x3F6, 0);
     bzero(pBuf, 0x3F6);
     SystemRenderStringEntry(text, pBuf, 0x24, 0);
-    rect.x = *(u16*)(g_MenuSlotNameTextureX + (u_char)index * 4) + 0x180;
-    rect.y = *(u16*)(g_MenuSlotNameTextureY + (u_char)index * 4);
+    rect.x = g_MenuSlotNameTextureX[(u_char)index].pos + 0x180;
+    rect.y = g_MenuSlotNameTextureY[(u_char)index].pos;
     rect.w = 0x28;
     rect.h = 0xD;
     LoadImage(&rect, (u_long*)pBuf);
@@ -179,16 +192,16 @@ void MenuDrawCharacterSlots(s32 arg0) {
     func_801E61B0();
     for (; i < 3; i++) {
         if (*(pEntry + i + 0x1C) != 0xFF) {
-            *(u8*)((u8*)g_Menu->pPrimBuffer + offset + 0x1310) = 1;
+            ((u8*)g_Menu->pPrimBuffer + offset)[MENU_SLOT_PRIM_ENABLED] = 1;
             MenuDrawSlotSprite(i, pEntry);
             MenuDrawSlotResourceSprites(i, pEntry);
             func_801E6CFC(i, pEntry);
             func_801E6F5C(i, pEntry);
             MenuLoadSlotCharacterNameTexture((u_char)i, pEntry, arg0);
         } else {
-            *(u8*)((u8*)g_Menu->pPrimBuffer + offset + 0x1310) = 0;
+            ((u8*)g_Menu->pPrimBuffer + offset)[MENU_SLOT_PRIM_ENABLED] = 0;
         }
-        *(u8*)((u8*)g_Menu->pPrimBuffer + offset + 0x130F) = *(u8*)&g_Menu->renderContext;
+        ((u8*)g_Menu->pPrimBuffer + offset)[MENU_SLOT_PRIM_CONTEXT] = (u_char)g_Menu->renderContext;
         offset += 0x87C;
     }
     func_801E68AC(pEntry);
@@ -670,8 +683,8 @@ void MenuLoadCharacterNameTexture(s32 arg0, s32 arg1) {
         SystemRenderStringEntry((u8*)&g_GameState + offset, pBuf, 0x24, 0);
         SystemRenderStringEntry((u8*)&g_GameState + offset + 0x14, pBuf, 0x24, 1);
     }
-    rect.x = *(u16*)(g_MenuNameTextureX + ((arg1 * 2) & 0x1FC)) + 0x180;
-    rect.y = *(u16*)(g_MenuNameTextureY + ((arg1 * 2) & 0x1FC));
+    rect.x = g_MenuNameTextureX[((arg1 * 2) & 0x1FC) / sizeof(MenuTexturePos)].pos + 0x180;
+    rect.y = g_MenuNameTextureY[((arg1 * 2) & 0x1FC) / sizeof(MenuTexturePos)].pos;
     rect.w = 0x28;
     rect.h = 0xD;
     LoadImage(&rect, (u_long*)pBuf);
