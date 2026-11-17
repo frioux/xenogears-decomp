@@ -109,26 +109,26 @@ void func_8007C1A4(u8 **arg0, u8 arg1) {
     } while (0);
 }
 */
-void BattlePickActorSlotWithDifferentTag(u8 **arg0, u8 arg1) {
+void BattlePickActorSlotWithDifferentTag(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[8];
     s32 i = 3;
     s32 count = 0;
-    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 *pField = g_BattleSlotRows[row].unk10;
 
-    pField[(*arg0)[1]] = 0;
+    pField[(*ppArgs)->slot] = 0;
     for (; i < 0xB; i++) {
         u8 idx = i;
 
-        if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0
-            && g_BattleSlotRecords[arg1 + 3].tag != g_BattleSlotRecords[i].tag
+        if (BattleSlotFlagsC002ClearRecordIdle(idx, (*ppArgs)->tag) != 0
+            && g_BattleSlotRecords[row + 3].tag != g_BattleSlotRecords[i].tag
             && g_BattleSlotFlags[i].inUse == 0) {
             buf[count++] = idx;
         }
     }
     if (count != 0) {
         u16 result = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-        s32 index = (*arg0)[1];
-        u16 *pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+        s32 index = (*ppArgs)->slot;
+        u16 *pRow = g_BattleSlotRows[row].unk10;
 
         pRow[index] = result;
     }
@@ -239,23 +239,23 @@ void func_8007C840(u8 **arg0, u8 arg1) {
     } while (0);
 }
 */
-void BattlePickCharSlotByFlagRetry(u8 **arg0, u8 arg1) {
+void BattlePickCharSlotByFlagRetry(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[3];
-    u16 *pRow = g_BattleSlotRows[arg1].unk10;
+    u16 *pRow = g_BattleSlotRows[row].unk10;
 
     buf[0] = buf[1] = buf[2] = 0;
-    pRow[(*arg0)[1]] = 0;
+    pRow[(*ppArgs)->slot] = 0;
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
         u8 tried = buf[idx];
         /* a second live copy: retail keeps the row pointer in a callee-saved reg
            across the calls and re-copies it here, so one variable does not link */
-        u16 *pLoopRow = g_BattleSlotRows[arg1].unk10;
+        u16 *pLoopRow = g_BattleSlotRows[row].unk10;
 
         if (tried == 0) {
-            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*arg0)[2]) != 0 && g_BattleSlotFlags[idx].inUse != 0) {
-                pLoopRow[(*arg0)[1]] = BattleSlotBitMask(idx);
+            if (BattleSlotFlagsC002ClearRecordIdle(idx, (*ppArgs)->tag) != 0 && g_BattleSlotFlags[idx].inUse != 0) {
+                pLoopRow[(*ppArgs)->slot] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
@@ -438,24 +438,24 @@ void BattlePickActorSlotWithFlag80(BattleSlotArgs **ppArgs, u8 row) {
         pRow[index] = result;
     }
 }
-void BattlePickCharSlotByEntryFlags(u8 **arg0, u8 arg1) {
+void BattlePickCharSlotByEntryFlags(BattleSlotArgs **ppArgs, u8 row) {
     u8 buf[3];
-    u16 *pRow = g_BattleSlotRows[arg1].unk10;
+    u16 *pRow = g_BattleSlotRows[row].unk10;
 
     buf[0] = buf[1] = buf[2] = 0;
-    pRow[(*arg0)[1]] = 0;
+    pRow[(*ppArgs)->slot] = 0;
     while ((buf[0] & buf[1] & buf[2]) == 0) {
         s32 slot = GameRandomByteRange(0, 2);
         u8 idx = slot;
         u8 tried = buf[idx];
         /* second live copy of the row pointer, as in BattlePickCharSlotByFlagRetry */
-        u16 *pLoopRow = g_BattleSlotRows[arg1].unk10;
+        u16 *pLoopRow = g_BattleSlotRows[row].unk10;
         u32 flags;
 
         if (tried == 0) {
             flags = g_BattleSlotEntriesBase[idx].flags;
             if ((flags & 0x8000) && (flags & 0x4002) == 0) {
-                pLoopRow[(*arg0)[1]] = BattleSlotBitMask(idx);
+                pLoopRow[(*ppArgs)->slot] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
