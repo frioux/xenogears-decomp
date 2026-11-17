@@ -216,7 +216,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B54C);
    (u8 *)g_WorldMapSlots + index * 0x80, a flat tail without the angle local
    (83.05), cdk (83.19). WorldMapInitPartyActorSprite0 (matched) has this exact
    call shape and does reproduce retail's prologue, so the trigger is this
-   function's tail, not the call. */
+   function's tail, not the call.
 int func_8008B54C(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u16 angle;
