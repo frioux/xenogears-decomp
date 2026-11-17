@@ -100,8 +100,15 @@ typedef struct BattleActor {
     /* 0x00C4 */ u8 state;
     /* 0x00C5 */ u8 actionPhase;
     /* 0x00C6 */ u8 unkC6[0x2];
-    /* 0x00C8 */ s16 unkC8;
+    // Frames left in the current step: func_80075B50 sets it from the move
+    // record when the step is taken, func_80077038 counts it down, and at zero
+    // the move's frame count is cleared for the stop animation (0x300000).
+    /* 0x00C8 */ s16 moveEndTimer;
     /* 0x00CA */ s16 moveTimer;
+    // A 12-bit angle pair: 0xCE is always derived from 0xCC (its negated value
+    // when the camera spin direction flips, itself otherwise, or 0xCC + 0x800 in
+    // misc4's round reset, which sets 0xCC to -0x400/0x400 for the two sides) and
+    // func_80076884 adds 0xCE to the facings it computes.
     /* 0x00CC */ u16 unkCC;
     /* 0x00CE */ s16 unkCE;
     /* 0x00D0 */ u32 flags;
@@ -123,7 +130,9 @@ typedef struct BattleActor {
     // actor queue message 5, bit 2 quadruples the gauge drain.
     /* 0x090A */ u8 typeFlags;
     /* 0x090B */ u8 unk90B;
-    /* 0x090C */ s16 unk90C;
+    // The angle held while actionPhase 2 plays: func_80078194 latches the facing
+    // target here when the phase starts and copies it into `angle` every frame.
+    /* 0x090C */ s16 actionAngle;
     // The model index in effect the last time it was recorded; the model's own
     // animation decides when the actor may start moving.
     /* 0x090E */ u8 savedModelIndex;
@@ -133,6 +142,10 @@ typedef struct BattleActor {
     // Counts down after an action entry was rejected; while it runs the queue is
     // flushed each frame and no action is entered.
     /* 0x0914 */ s16 actionWaitTimer;
+    // Set to 0x28 with stateTimer when a move begins (BattleActorBeginMove) and
+    // advanced by the same step as stateTimer in func_80075B50, but decremented
+    // per frame instead: whenever it still reads >= 0x26 (the first frames after
+    // a move began) BattleUpdateActorMovement re-enters the move.
     /* 0x0916 */ s16 unk916;
     /* 0x0918 */ u8 unk918;
     /* 0x0919 */ u8 pad919[0x3];
@@ -160,10 +173,20 @@ typedef struct BattleActor {
     /* 0x15F4 */ s16 moveSpeedBase;
     /* 0x15F6 */ u8 unk15F6[0xA];
     /* 0x1600 */ BattleActionData* pActionData;
-    /* 0x1604 */ u8 unk1604[0x58];
+    /* 0x1604 */ u8 unk1604[0x50];
+    // Gauge damage taken in each of two categories, compared with fractions of
+    // gaugeMax to pick the battle result code (misc2 BattleAccumulateGaugePoints,
+    // BattleSetResultCode).
+    /* 0x1654 */ s32 unk1654;
+    /* 0x1658 */ s32 unk1658;
+    // Counters the input handler bumps as it queues messages: 0x1660 for each
+    // message 1 or 2, 0x165C for each message 3. No reader in this overlay.
     /* 0x165C */ s32 unk165C;
     /* 0x1660 */ s32 unk1660;
-    /* 0x1664 */ u8 unk1664[0x6];
+    // The sound table BattleSetActorSoundTable picks by typeId; misc17 indexes it
+    // with a byte index.
+    /* 0x1664 */ u8* pSoundTable;
+    /* 0x1668 */ u16 unk1668;
 } BattleActor; // Size: 0x166A
 
 s32 BattleActorDeltaUnk15E8(BattleActor* p0, BattleActor* p1) {
@@ -536,8 +559,8 @@ s32 func_80077038(BattleActor* p) {
     if (p->actionWaitTimer != 0) {
         p->actionWaitTimer--;
     }
-    if (p->unkC8 != 0) {
-        p->unkC8--;
+    if (p->moveEndTimer != 0) {
+        p->moveEndTimer--;
     } else {
         p->moveFrameCount = 0;
         p->flags = (p->flags & 0xFF8FFFFF) | 0x300000;
@@ -1148,10 +1171,10 @@ void func_80078194(BattleActor* p) {
     }
     if (p->actionPhase == 2) {
         if ((p->flags & 1) || (p->state & 2)) {
-            p->unk90C = target;
+            p->actionAngle = target;
         }
         p->flags = (p->flags | 0x100) & 0xFFF7FFFF;
-        p->angle = p->unk90C;
+        p->angle = p->actionAngle;
     } else {
         p->flags &= ~0x100;
     }
