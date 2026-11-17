@@ -74,7 +74,10 @@ typedef struct BattleActor {
     /* 0x005C */ void* pPart;
     /* 0x0060 */ u8 pad60[0xC];
     /* 0x006C */ Vec4 prevPosition;
-    /* 0x007C */ u8 unk7C[0x4];
+    // The part timing table indexed by partIndex: a frame limit and a per-frame
+    // step per part (misc2's BattlePartTiming), copied from the resource block by
+    // misc10's actor init.
+    /* 0x007C */ void* pPartTimings;
     /* 0x0080 */ u8* pActionEntries;
     /* 0x0084 */ u8* pActionEntry;
     // Ramped 0..0x100 deflection of one input direction each: func_80076884
@@ -135,7 +138,9 @@ typedef struct BattleActor {
     // One bit per actor type (see src/battling/main/misc4.c): bit 1 makes the
     // actor queue message 5, bit 2 quadruples the gauge drain.
     /* 0x090A */ u8 typeFlags;
-    /* 0x090B */ u8 unk90B;
+    // Set to 0xF while the flags word's 0x60000000 bits read 3 and counted down
+    // by misc4's func_8007920C, which spawns the ground effect while it runs.
+    /* 0x090B */ u8 timer;
     // The angle held while actionPhase 2 plays: func_80078194 latches the facing
     // target here when the phase starts and copies it into `angle` every frame.
     /* 0x090C */ s16 actionAngle;
@@ -163,9 +168,14 @@ typedef struct BattleActor {
     // other (src/battling/main/misc4.c names the pair).
     /* 0x092C */ Vec4 baseVertexPos;
     /* 0x093C */ Vec4 centerPosition;
-    /* 0x094C */ u8 unk94C[0x10];
+    // The midpoint of the two bound points above, word for word (misc4's
+    // func_8007920C computes it on the way to prevCenterPosition).
+    /* 0x094C */ Vec4 midPosition;
     /* 0x095C */ Vec4 prevCenterPosition;
-    /* 0x096C */ u8 unk96C[0x4];
+    // The y of the vertex each bound point came from, last frame (misc4's
+    // func_8007920C compares them with a 6-unit tolerance).
+    /* 0x096C */ s16 prevVertex1Y;
+    /* 0x096E */ s16 prevVertex0Y;
     /* 0x0970 */ s32 gaugeDrain;
     // Position of the target slot the current step walks to, copied from the
     // selected record by func_80075B50.
@@ -175,7 +185,10 @@ typedef struct BattleActor {
     // func_80074678 (misc4 BattleActorInitModelState).
     /* 0x0998 */ s16 animFrame;
     /* 0x099A */ s16 animFrameStep;
-    /* 0x099C */ u8 unk99C[0x4];
+    // The part animation's frame limit for this part and its 12.4 frame
+    // accumulator (misc2's func_80074BA4, which sets both).
+    /* 0x099C */ s16 frameLimit;
+    /* 0x099E */ s16 frameAccum;
     /* 0x09A0 */ BattleMessageQueue messageQueue;
     /* 0x09C3 */ u8 actionIndex;
     /* 0x09C4 */ u8 unk9C4[0x8];
@@ -210,7 +223,9 @@ typedef struct BattleActor {
     // The sound table BattleSetActorSoundTable picks by typeId; misc17 indexes it
     // with a byte index.
     /* 0x1664 */ u8* pSoundTable;
-    /* 0x1668 */ u16 unk1668;
+    // Bumped by func_80075B50 every time it commits a move for the actor; the
+    // round reset clears it (misc18 reads it as its moveCount).
+    /* 0x1668 */ u16 moveCount;
 } BattleActor; // Size: 0x166A
 
 s32 BattleActorDeltaUnk15E8(BattleActor* p0, BattleActor* p1) {
