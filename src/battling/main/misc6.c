@@ -74,19 +74,19 @@ typedef struct {
     /* 0x2 */ u16 y;
     /* 0x4 */ u16 z;
     /* 0x6 */ s16 life; // 0 marks an unused entry; counts down every frame
-    /* 0x8 */ s8 unk8;
-    /* 0x9 */ s8 unk9;
-    /* 0xA */ u16 unkA;
+    /* 0x8 */ s8 vx; // per-frame step added to x
+    /* 0x9 */ s8 vz; // per-frame step added to z
+    /* 0xA */ u16 vy; // added to y every frame and itself gains 2: gravity
 } BattleSpriteSlot; // Size: 0xC
 
 // 0xA-byte entry of the table func_8007D6B8 (main/misc5) allocates at g_BattleSpriteEntries.
 typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ u16 unk2;
-    /* 0x4 */ u16 unk4;
-    /* 0x6 */ s8 unk6;
-    /* 0x7 */ s8 unk7;
-    /* 0x8 */ u16 unk8;
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 z;
+    /* 0x6 */ s8 life; // 0 marks a free entry
+    /* 0x7 */ s8 vy; // added to y every frame: gravity
+    /* 0x8 */ u16 groundY; // the y the entry falls back to
 } BattleSpriteEntry; // Size: 0xA
 
 extern BattleSpriteSlot* g_BattleSpriteSlots;
@@ -291,10 +291,10 @@ void BattleClearSpriteTables(void) {
     D_8009791B = 0;
     D_80099037 = 0;
     for (i = 0; i < 0xFF; i++) {
-        g_BattleSpriteEntries[i].unk6 = 0;
-        g_BattleSpriteEntries[i].unk4 = 0;
-        g_BattleSpriteEntries[i].unk2 = 0;
-        g_BattleSpriteEntries[i].unk0 = 0;
+        g_BattleSpriteEntries[i].life = 0;
+        g_BattleSpriteEntries[i].z = 0;
+        g_BattleSpriteEntries[i].y = 0;
+        g_BattleSpriteEntries[i].x = 0;
     }
 }
 
