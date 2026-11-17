@@ -367,34 +367,27 @@ extern void func_80091EC4(s32 arg0);
 extern void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
-/* Best: 98.42% (1176 bytes vs the original's 1164). Written from scratch this
-   round; everything matches instruction for instruction EXCEPT two shapes:
-   1. the fall-through state body (case 4 of the switch on g_BattleCursorScrollState). Retail
-      keeps the compare's `(j - 1) * 16` value in $v0 across the `j--` and reuses
-      it for the shared `sw $v0, g_BattleCursorScrollY` at .L8008B878; gcc 2.6 rematerialises
-      it in that one path (`andi v0,(u8)j; sll v0,v0,4`), which is the 2 extra
-      instructions and the 12-byte oversize. Cases 1..3 of the same switch reuse
-      the value fine (they reach the store through a `j`), so it is the
-      fall-through that makes gcc remat -- a `s32 scrollY` local for the body
-      made it worse (1192). Tried: `g_BattleCursorScrollY = (j - 1) * 16` before the
-      decrement (sw then precedes the addiu, 1192), a scrollY local (1192),
-      `(j - 1 + 1) * 16` (1176, same).
-   2. the i/j register tie: retail keeps i in $s2 and j in $s3, gcc gives i $s3.
-      Everything else (s4=result, s5=arg0, s8=prevI, s6=prevJ, s7=prevY, s0=1,
-      s1=0x18, the 0x50 frame, both switches' case order 5,4,0,2,1,3 and 1,2,3,4,
-      the andi placement, all delay slots) is identical. Permuter run from this
-      body found nothing (base=439 best=439, 898 iters).
-   Lessons already applied here: case bodies must be listed in TEXT order
-   (5,4,0,2,1,3 -- gcc 2.6 emits them in source order, confirmed against
-   BattleSelectTargetSlotLoop); each guard is written `if (x == N) { state }
-   else { index }` so gcc branches on the false arm; `s32 iv = i` is required to
-   get retail's `andi a1,(u8)i` before `andi v0,a1,1`, and the coordinates need
-   the two-term spelling `(iv & 1) * 128 + (iv & 1) * 4 + 0x2A` for retail's
-   128+4 shift pair; the state bodies need `j` changed before `i`. */
+/* Best: 98.42% (1176 vs the original's 1168; the switch table is at .rodata+0 so
+   this function's table is the unit's first). Two shapes left:
+   1. the fall-through state arm (case 4 of the switch on g_BattleCursorScrollState):
+      retail keeps the compare's `(j - 1) * 16` in $v0 across the `j--` and stores it
+      through the shared tail at .L8008B878; gcc 2.6 rematerialises it there
+      (`andi v0,(u8)j; sll v0,v0,4`, +2 insns). Cases 1..3 reuse v0 fine. Tried this
+      round: an s32 nextY local holding the compare value (1192, both the initializer
+      and the assignment form), the store before the `j--` (1192),
+      `g_BattleCursorScrollY = (j - 1) * 16` with j-- after (1192), `(j - 1 + 1) * 16`
+      (1176, in the body below).
+   2. the i/j tie: retail keeps i in $s2 and j in $s3, gcc gives i $s3 (the prologue's
+      two sw/move save pairs swap order with it). Swapping the declarations of i and j
+      does not move it.
+   Permuter: 1487 iterations, base=439, and the only lower candidates (384, 419) got
+   their score by substituting prevI for j, which is wrong code. No usable lead.
+   Everything else is identical: both switches' case order (5,4,0,2,1,3 and 1,2,3,4),
+   the 0x50 frame, the andi placement, every delay slot, the jump table. */
 /*
 u8 func_8008B478(u8 arg0) {
-    u8 j;
     u8 i;
+    u8 j;
     u8 result;
     u8 prevI;
     u8 prevJ;
@@ -636,7 +629,173 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     }
     return result;
 }
+extern void func_8008FE18(u8 arg0, u8 arg1, u8 arg2);
+extern void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2);
+extern void func_8009023C(s32 arg0);
+extern void func_8009093C(s32 arg0);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008BED8);
+/* Best: 99.42% (1156 bytes vs the original's 1160). ONE instruction short and
+   the whole rest is identical instruction for instruction (jump table at
+   .rodata+0x18, both switches' case order 5,4,0,2,1,3 and 1,2,3,4, the 0x70
+   frame, every delay slot). What is missing is a `li s0,1` for the 7th
+   argument of the two func_8008F8F4 calls: retail materialises a fresh 1 (s0)
+   even though `pagePending` is already 1 in s4 at that point, and gcc 2.6
+   reuses s4 (`sw s4,0x18(sp)` and no li), so `sw s0,0x48(sp)` moves up by one
+   slot too. Tried: moving the pagePending/page initialisation after
+   BattleInitPulseTrianglePrims -- that DOES give the fresh li, but the
+   sw/li save pair for s4/s5 then moves from the top of the frame (positions
+   12-15) to just before the calls, which costs 4 mismatched instructions
+   (97.17%); an s32 local for the 7th argument, and a `u8 sel` vs s32 sel
+   (the u8 local is what gives retail's andi on the call result).
+   Permuter: 439 iterations, base=178 best=178.
+   The state arms are stores-before-increments: writing
+   `g_BattleCursorScrollY = (j + 1) * 13; j++; i--;` is what reproduces
+   retail's per-arm `andi v1,(u8)j; addiu v1,v1,1` plus the -1 shared by
+   states 2 and 4 (writing `j++; ... scrollY = j * 13;` gives the
+   rematerialised `andi v1,(u8)j` at the shared tail and is 5 insns short). */
+/*
+u8 func_8008BED8(u8 arg0) {
+    u8 i;
+    u8 j;
+    u8 prevI;
+    u8 prevJ;
+    s32 prevY;
+    u8 result;
+    s32 pagePending;
+    s32 page;
+    u8 redraw;
+    s32 primIndex;
+    u8 primCount;
+    u32 iv;
+    u8 sel;
+
+    i = 0;
+    j = 0;
+    prevI = 0xFF;
+    prevJ = 0xFF;
+    prevY = 0xFFFF;
+    result = 2;
+    pagePending = 1;
+    page = 0;
+    redraw = 1;
+    primIndex = 4;
+    primCount = 0;
+    g_BattleCursorScrollY = 0;
+    g_BattleCursorScrollState = 0;
+    g_BattleDisplayState->unkCB = 0;
+    func_8008F8F4(0, 0x20, 0x58, 0x118, 0x78, 0, 1);
+    func_8008F8F4(1, 0x10, 0x2C, 0x128, 0x28, 0, 1);
+    BattleInitPulseTrianglePrims();
+    do {
+        if (pagePending != 0) {
+            func_8008FE18(arg0, pagePending - 1, redraw);
+            page = pagePending - 1;
+            pagePending = 0;
+            redraw = 0;
+        }
+        if (i != prevI || j != prevJ) {
+            BattleDrawMenuCell(i, j, page);
+            prevI = i;
+            prevJ = j;
+        }
+        if (g_BattleCursorScrollY != prevY) {
+            func_8009023C(g_BattleCursorScrollY / 13 * 2);
+            func_8009093C(g_BattleCursorScrollY);
+            prevY = g_BattleCursorScrollY;
+        }
+        iv = i;
+        BattleStepAnimatedCursorPrim((iv & 1) * 128 | ((iv & 1) * 2 + 0x2A), (iv >> 1) * 13 + 0x63,
+                                     &primIndex, &primCount);
+        BattleUpdateFrame();
+        switch (g_BattleMenuEvent) {
+        case 5:
+            result = 0;
+            break;
+        case 4:
+            sel = BattleActivateTwoSlotCommand(arg0, i, j, page);
+            switch (sel) {
+            case 1:
+                g_BattleCommandQueue->unk2E6 = g_BattleCommandGridIds[j * 2 + i];
+                D_800D3670 = i;
+                g_BattleCommandCellRow = j;
+                result = 1;
+                break;
+            case 2:
+                pagePending = 2;
+                break;
+            }
+            break;
+        case 0:
+            if (j * 2 + i != 0x2F) {
+                if (i + 1 == 0x10) {
+                    g_BattleCursorScrollState = 1;
+                } else {
+                    i++;
+                }
+            }
+            break;
+        case 2:
+            if (j * 2 + i > 0) {
+                if (i == 0 && j != 0) {
+                    g_BattleCursorScrollState = 2;
+                } else {
+                    i--;
+                }
+            }
+            break;
+        case 1:
+            if (j * 2 + i < 0x2E) {
+                if (i + 2 >= 0x10) {
+                    g_BattleCursorScrollState = 3;
+                } else {
+                    i += 2;
+                }
+            }
+            break;
+        case 3:
+            if (j * 2 + i >= 2) {
+                if (i < 2 && j != 0) {
+                    g_BattleCursorScrollState = 4;
+                } else {
+                    i -= 2;
+                }
+            }
+            break;
+        }
+        switch (g_BattleCursorScrollState) {
+        case 1:
+            g_BattleCursorScrollY = (j + 1) * 13;
+            j++;
+            i--;
+            g_BattleCursorScrollState = 0;
+            break;
+        case 2:
+            g_BattleCursorScrollY = (j - 1) * 13;
+            j--;
+            i++;
+            g_BattleCursorScrollState = 0;
+            break;
+        case 3:
+            g_BattleCursorScrollY = (j + 1) * 13;
+            j++;
+            g_BattleCursorScrollState = 0;
+            break;
+        case 4:
+            g_BattleCursorScrollY = (j - 1) * 13;
+            j--;
+            g_BattleCursorScrollState = 0;
+            break;
+        }
+    } while (result == 2);
+    BattleClearPrimFlagsTwoSlots(result);
+    BattleFreePacketPrimitives();
+    BattleClearFlagC6();
+    BattleFreeSlotBuffers(0);
+    BattleFreeSlotBuffers(1);
+    return result;
+}
+*/
 void BattleFreeSlotPrims(u8 arg0) {
     g_BattleDisplayState->unk9C = g_BattleDisplayState->unk9D = g_BattleDisplayState->unk9E = 0;
     g_BattleDisplayState->unkB7 = 0;
