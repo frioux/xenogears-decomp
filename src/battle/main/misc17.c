@@ -61,6 +61,15 @@ extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern u8 *D_800C3DE8;
 extern u8 D_800CCD88[];
+extern u8 D_800C3E04;
+extern u8 D_800D2DC4;
+extern s32 func_80096AB8(void);
+extern u16 func_80096FBC(void);
+extern u16 func_80097610(void);
+extern void func_80096494(u16 *, u16 *, u8 *);
+
+// The largest amount the current action may deal; the tail of func_80094EE4 clamps to it.
+#define BATTLE_ACTION_AMOUNT_MAX 9999
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
 void BattleBuildSpriteColumn8(s32 arg0) {
@@ -349,6 +358,168 @@ void func_80094D24(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
+/* 99.86%, 1964 bytes = retail's size: the whole body (the action-flag block tests,
+   the four +/- 1/5 and 1/10 status scalings on each side, the element/0x4000/0x1000
+   curve-target writes, func_80096494, the 5/4 vs 4/3 rate pair, the two rand rolls,
+   the five-case jump-table switch, the /3, the 9999 clamp and the slotAmounts store)
+   reproduces instruction for instruction. Two things are left, both worth 4 bytes:
+   1) retail loads amountSource with lbu and then compares it SIGNED (bltz + slti 2 +
+      beqz, two jumps to the same label, 3 insns); every unsigned spelling folds to a
+      single sltiu v0,v0,2 (-4 bytes) and every signed spelling (s8 n = field) gives
+      retail's 3-insn shape but a sign-extending lb load instead of lbu. Tried the
+      && form, nested ifs, > -1 && < 2, (s8) casts at each use and an s8 local.
+   2) the switch table is 5 words plus a trailing 0 pad word (unit .rodata 0x880..0x898);
+      C emits 20 bytes, so the pad needs the config/battle.yaml carve misc23 already has
+      ( - [0x894, rodata] ) before this can link; the supervisor approved it, but it is
+      moot until (1) closes, so the stub still owns the table.
+   Un-parking needs these externs: D_800C3E04, D_800D2DC4, func_80096AB8, func_80096FBC,
+   func_80097610, func_80096494 (u16 *, u16 *, u8 *). A const pad in this unit cannot work:
+   -G8 puts a 4-byte const in .sdata and maspsx then fails on the object.
+void func_80094EE4(void) {
+    BattleTableEntry *pAtk;
+    BattleTableEntry *pDef;
+    u16 atkValue;
+    u16 defValue;
+    s8 command;
+    s8 n;
+    s32 rate;
+    s32 amount;
+    s32 mulAtk;
+    s32 mulDef;
+    u32 blocked;
+
+    rate = g_BattleCurrentRow->power;
+    if (g_BattleCurrentRow->actionFlags & 0x100) {
+        blocked = *(u16 *)((u8 *)D_800C3E34 + 0x34) & 0x4000;
+    } else {
+        blocked = *(u16 *)((u8 *)D_800C3E34 + 0x34) & 0x8000;
+    }
+    if (blocked != 0) {
+        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0;
+        return;
+    }
+    command = func_80096AB8();
+    atkValue = func_80096FBC();
+    defValue = func_80097610();
+    pAtk = g_BattleActingSlot;
+    if ((pAtk->unk88 | pAtk->unk8A) & 8) {
+        atkValue += atkValue / 5;
+    }
+    if ((pAtk->unk88 | pAtk->unk8A) & 2) {
+        atkValue += atkValue / 10;
+    }
+    if ((pAtk->unk88 | pAtk->unk8A) & 4) {
+        atkValue -= atkValue / 5;
+    }
+    if ((pAtk->unk88 | pAtk->unk8A) & 1) {
+        atkValue -= atkValue / 10;
+    }
+    pDef = D_800C3E34;
+    if ((pDef->unk88 | pDef->unk8A) & 4) {
+        defValue += defValue / 5;
+    }
+    if ((pDef->unk88 | pDef->unk8A) & 1) {
+        defValue += defValue / 10;
+    }
+    if ((pDef->unk88 | pDef->unk8A) & 8) {
+        defValue -= defValue / 5;
+    }
+    if ((pDef->unk88 | pDef->unk8A) & 2) {
+        defValue -= defValue / 10;
+    }
+    if (g_BattleCurrentRow->element & 0x10) {
+        if (!(D_800C3E34->unk82 & 0x40)) {
+            D_800C3E34->unk80 |= 0x40;
+        }
+        if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->unk8E) & 0x4000) {
+            g_BattleCurveTargetModes[D_800C3E04] = 3;
+            *(s32 *)(D_800C3E04 * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->unk52 / 10) * 2;
+        }
+        if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->unk8E) & 0x1000) {
+            g_BattleCurveTargetModes[D_800C3E04] = 2;
+            *(s32 *)(D_800C3E04 * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxHp / 10) * 2;
+        }
+    }
+    if (g_BattleCurrentRow->element & 0x20) {
+        if (!(D_800C3E34->unk82 & 0x80)) {
+            D_800C3E34->unk80 |= 0x80;
+        }
+    }
+    if (D_800C3E34->unk80 & 0x40) {
+        defValue -= defValue >> 2;
+        D_800C3E34->unk80 &= ~0x40;
+    }
+    if (g_BattleActingSlot->unk80 & 0x80) {
+        atkValue -= atkValue >> 2;
+        g_BattleActingSlot->unk80 &= ~0x80;
+    }
+    if (g_BattleCurrentRow->actionFlags & 0x400) {
+        rate = 0x14;
+    }
+    func_80096494(&atkValue, &defValue, &command);
+    if (g_BattleCurrentRow->actionFlags & 0x100) {
+        mulAtk = 5;
+        mulDef = 4;
+    } else {
+        mulAtk = 4;
+        mulDef = 3;
+    }
+    if (defValue != 0) {
+        amount = mulAtk * atkValue - mulDef * defValue;
+    } else {
+        amount = mulAtk * atkValue;
+    }
+    n = g_BattleCurrentRow->amountSource;
+    if (n >= 0) {
+        if (n < 2) {
+            amount = rate * amount / 20;
+        }
+    }
+    if (amount <= 0) {
+        amount = 0;
+    } else if (amount < 10) {
+        amount += rand() % 2;
+    } else {
+        amount += rand() % (amount / 10 + 2);
+    }
+    switch (command) {
+    case 1:
+        if (amount > 0) {
+            g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0;
+        } else {
+            amount = 1;
+            g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 0;
+        }
+        break;
+    case 2:
+        amount /= 2;
+        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 5;
+        break;
+    case 3:
+        amount = 0;
+        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 4;
+        break;
+    case 4:
+        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
+        break;
+    case 5:
+        g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 7;
+        break;
+    }
+    if (D_800D2DC4 != 0) {
+        if ((g_BattleCurrentRow->actionFlags & 0x100) && amount != 0) {
+            amount /= 3;
+        }
+    }
+    if (amount > BATTLE_ACTION_AMOUNT_MAX) {
+        amount = BATTLE_ACTION_AMOUNT_MAX;
+    }
+    if (amount < 0) {
+        amount = 0;
+    }
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = amount;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094EE4);
 void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     BattleTableEntry *p = g_BattleActingSlot;
