@@ -542,6 +542,8 @@ void func_8008F280(BattleActor* pActor) {
     BattleWork* pWork;
     BattleWork** ppWork;
 
+    // The extra indirection is load-bearing: gcc sinks a plain `pActor->pWork`
+    // load below the flag store, retail loads it right after the prologue.
     ppWork = &pActor->pWork;
     pWork = *ppWork;
     g_BattlePlayer2ComControlled = 1;
