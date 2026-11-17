@@ -135,7 +135,7 @@ typedef struct {
             /* 0x68 */ u8 red;
             /* 0x69 */ u8 green;
             /* 0x6A */ u8 blue;
-            /* 0x6B */ u8 unk6B;
+            /* 0x6B */ u8 code; // the packet's POLY_FT4 code; 0x2E is a textured quad with setSemiTrans
         } channels;
     } color;
     /* 0x6C */ s32 partCount;
@@ -246,7 +246,7 @@ void BattleCreateNumberSpriteTask(s32 value) {
         pBody->rotZStep = 6;
     }
     pBody->countdown = 0x20;
-    pBody->color.channels.unk6B = 0x2E;
+    pBody->color.channels.code = 0x2E;
     pBody->scale.vx = 0x2000;
     pBody->scale.vy = 0x2000;
     pBody->scale.vz = 0x2000;
