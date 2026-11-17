@@ -135,6 +135,14 @@ typedef struct {
     /* 0x12 */ u8 unk12[0xA];
 } BattleActorSlot; // Size: 0x1C
 
+// One pointer of the per-slot table at g_BattleStateWork + 0x8CB8: an object
+// whose +0xC entry retail calls with the object itself while the slot is being
+// released, right before the work lists drop the same pointer.
+typedef struct BattleSlotResource {
+    /* 0x00 */ u8 unk0[0xC];
+    /* 0x0C */ void (*pOnFree)(struct BattleSlotResource* pSelf);
+} BattleSlotResource; // Size: 0x10
+
 extern BattleSlotRecord* g_BattleActors[];
 
 extern void SpriteSetScale(BattleActorSprite* pSprite, s16 scale);
@@ -728,17 +736,17 @@ void BattleSpriteProjectToScreen(s32 index, s16* p0, s16* p1, s16* p2, s16* p3, 
     s32 vx;
     s32 vy;
     s32 vz;
-    SpriteData* pSprite;
+    BattleActorSprite* pSprite;
     SVECTOR vec;
     u16 sxy[2];
     s32 flag;
 
-    pSprite = *(SpriteData**)(pBase + index * 4 + 0x8C8C);
-    vx = *(s16*)((u8*)pSprite + 0x2);
+    pSprite = *(BattleActorSprite**)(pBase + index * 4 + 0x8C8C);
+    vx = pSprite->position.parts.xWhole;
     vec.vx = vx;
-    vy = *(s16*)((u8*)pSprite + 0x6);
+    vy = pSprite->position.parts.yWhole;
     vec.vy = vy;
-    vz = *(s16*)((u8*)pSprite + 0xA);
+    vz = pSprite->position.parts.zWhole;
     vec.vz = vz;
     PushMatrix();
     SetRotMatrix(&g_BattleViewMatrix);
@@ -755,27 +763,29 @@ void BattleReleaseActorSlot(s32 index) {
     u8* pBase = g_BattleStateWork;
     u8* pBlock;
     u8* pTail;
-    SpriteData* pSprite;
-    void* pPayload;
+    BattleSlotResource* pResource;
+    void** ppBuffer;
+    void* pBuffer;
     u32* pSlot;
     u32* pSlot2;
 
     pSlot = (u32*)(pBase + index * 4 + 0x8CB8);
-    pSprite = *(SpriteData**)pSlot;
-    if (pSprite == NULL) {
+    pResource = *(BattleSlotResource**)pSlot;
+    if (pResource == NULL) {
         return;
     }
-    func_800BFC80(pSprite, 0, 2);
+    func_800BFC80(pResource, 0, 2);
     if (index < 3) {
         pBlock = pBase + index * 0xC + 0x8000;
-        pPayload = *(void**)(pBlock + 0xD24);
-        if (pPayload != NULL) {
-            HeapFree(pPayload);
+        ppBuffer = (void**)(pBlock + 0xD24);
+        pBuffer = *ppBuffer;
+        if (pBuffer != NULL) {
+            HeapFree(pBuffer);
         }
-        *(u32*)(pBlock + 0xD24) = 0;
+        *ppBuffer = NULL;
     }
-    (*(void (**)(SpriteData*))((u8*)pSprite + 0xC))(pSprite);
-    WorkListsRemoveEntriesForData(pSprite);
+    pResource->pOnFree(pResource);
+    WorkListsRemoveEntriesForData(pResource);
     pTail = g_BattleStateWork;
     pSlot = (u32*)(pTail + index * 4 + 0x8C8C);
     *pSlot = 0;
