@@ -549,16 +549,17 @@ void WorldMapInitGfxEnv(void) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072DB4);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073300);
-/* best: 92.05%, 144 bytes vs retail's 152. The JTBL layout is NOT a blocker (a
-   previous note was wrong): retail's table starts 8-aligned at .rodata+0x18, so
-   the trailing 0x00000000 word in jtbl_8006FB0C is the .align 3 pad before the
-   next table, and a 5-entry C table at that offset reproduces the bytes exactly.
-   The single blocker is that gcc folds `case 3:` and `case 4:` (both `nMode = 7`)
-   into ONE block (144 bytes instead of 152). Tried with no change: both arms
-   spelled separately, the arm bodies in reverse order, one arm wrapped in
-   do{...}while(0), one arm in a bare { } block. Secondary: the value pseudo lands
-   in $a1 where retail uses $v0, so the else chain emits `beq $3,$0` + `li a1,1`
-   in the delay slot instead of retail's `bnez $3` + `addiu v0,2`.
+/* best: 93.68%, 144 bytes vs retail's 152. The table is not the blocker (retail's
+   is 5 entries at .rodata+0x18 with one pad word before the next object), and the
+   else path is settled: `nMode = 2; if (!(gearRide[0] | gearRide[1] | gearRide[2])) nMode = 1;`
+   gives retail's `bnez` with `li v0,2` in the slot; the ternary and
+   `if / else if / else` forms give a `beqz` with `li v0,1` instead.
+   Two residuals: (1) the missing 8 bytes are retail's TWO separate `nMode = 7`
+   arms (cases 3 and 4); gcc merges the two identical blocks at every spelling
+   tried - separate arms, `case 3: case 4:`, a temp copy, a double assignment,
+   reordered case labels, `default` between them. Cross-jumping runs after cse, so
+   any source difference that cse folds away is merged again.
+   (2) the value pseudo is $a1 here and $v0 in retail.
 */
 /*
 void func_80073300(void) {
@@ -583,10 +584,11 @@ void func_80073300(void) {
         default:
             return;
         }
-    } else if (g_GameState.gearRide[0] | g_GameState.gearRide[1] | g_GameState.gearRide[2]) {
-        nMode = 2;
     } else {
-        nMode = 1;
+        nMode = 2;
+        if (!(g_GameState.gearRide[0] | g_GameState.gearRide[1] | g_GameState.gearRide[2])) {
+            nMode = 1;
+        }
     }
     g_WorldMapMode = nMode;
 }
