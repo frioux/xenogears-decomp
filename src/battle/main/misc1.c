@@ -215,7 +215,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
    entry) and gcc in $v0 (reused by the later lhu). Both pseudos have one use
    and no live range overlap, so this is an allocator tie; the and-operand
    register pair is identical. Tried: compound &&, !(), nested ifs, volatile on
-   the flag, an int local for the flag.
+   the flag, an int local for the flag, and the permuter (2081 iterations, base 20
+   best 20) - it is an allocator tie, not a source shape.
 void func_80071964(void) {
     u8 *pEntry;
     s32 i;
@@ -288,7 +289,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
    loop (loop.c invariant) and then schedules the g_BattleDisplayState store before the sh,
    costing a callee-saved reg and a 40-byte frame vs the original 32; the original
    re-materialises `li v0,1` inside the block. Tried: plain g_BattleDisplayState[i + 0x7C]
-   (index-first addu), (g_BattleDisplayState + i)[0x7C] (base-first addu, now identical),
+   (index-first addu), ((u8 *)g_BattleDisplayState + i)[0x7C] (base-first addu, now
+   identical - the cast is needed since g_BattleDisplayState became a typed pointer),
    store order before/after *pDst = *pSrc (no effect), pFlag pointer local.
    The pointer pair pDst = g_BattleSlotCountdownTimers, pSrc = pDst - 0xB reproduces the original
    addiu s2,s1,-0x16 exactly. */
@@ -310,7 +312,7 @@ void func_80072270(void) {
             if (BattleMaskHasSlotBit(D_800D2C9E, i) != 0) {
                 g_BattleActorCountdownState[i] = 0;
                 *pDst = *pSrc;
-                (g_BattleDisplayState + i)[0x7C] = 1;
+                ((u8 *)g_BattleDisplayState + i)[0x7C] = 1;
             }
             pDst++;
             pSrc++;
