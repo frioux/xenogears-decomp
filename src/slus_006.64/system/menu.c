@@ -331,4 +331,7 @@ void MenuMain() {
     g_MenuDebugEnabled = 1;
 }
 
+// Not a function: the last 368 bytes of this unit's range (0xCF6C-0xD0DC) are
+// data that splat kept in .text, with no call site anywhere in the binary. No C
+// definition can emit bytes there, so this stays asm. See reports/TRACKER.md.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/menu", func_8001C76C);
