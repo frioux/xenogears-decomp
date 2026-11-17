@@ -162,10 +162,16 @@ segments:
       - [0x39A0C, c, psyq/libgte_mulmatrix0]
       - [0x39B18, asm] # MulMatrix0's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x39B1C, c, psyq/libgte_tail]
+      - [0x3A070, asm] # ScaleMatrixL's tail pad words (Psy-Q pads a function to 16 bytes)
+      - [0x3A07C, c, psyq/libgte_tail_c]
+      - [0x3A2C4, asm] # ApplyRotMatrixLV's tail pad words (Psy-Q pads a function to 16 bytes)
+      - [0x3A2CC, c, psyq/libgte_mulmatrix]
       - [0x3A3D8, asm] # MulMatrix's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A3DC, c, psyq/libgte_mulmatrix2]
       - [0x3A4E8, asm] # MulMatrix2's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A4EC, c, psyq/libgte_tail_b]
+      - [0x3A598, asm] # ApplyMatrixSV's tail pad word (Psy-Q pads a function to 16 bytes)
+      - [0x3A59C, c, psyq/libgte_tail_d]
       - [0x3A8DC, c, psyq/libgte_b]
       - [0x3AE4C, c, psyq/libgte_pers] # RotTransPers
       - [0x3AE78, asm] # RotTransPers's tail pad word (Psy-Q pads a function to 16 bytes)
