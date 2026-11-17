@@ -144,13 +144,13 @@ void MenuRenderPointerCursors(void) {
 void MenuAddGoldAndPlayTimePrims(void) {
     u32 offset;
 
-    if (((u8*)g_Menu->pManager)[0x5]) {
+    if (g_Menu->pManager->goldDigitsActive) {
         MenuRenderString(*(s32*)((u8*)g_Menu->pGoldWindow + 0x320), (POLY_FT4*)g_Menu->pGoldWindow,
                       ((u8*)g_Menu->pGoldWindow)[0x324]);
         offset = ((u8*)g_Menu->pGoldWindow)[0x324] * sizeof(POLY_FT4) + 0x2D0;
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pGoldWindow));
     }
-    if (((u8*)g_Menu->pManager)[0x6]) {
+    if (g_Menu->pManager->playTimeDigitsActive) {
         MenuRenderString(7, (POLY_FT4*)g_Menu->pPlayTimeDigits, ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
         MenuRenderString(4, (POLY_FT4*)((u8*)g_Menu->pPlayTimeDigits + 0x230), ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
     }
@@ -193,7 +193,7 @@ void func_801CE540(void) {
 void MenuAddUnk358Prims(void) {
     u8* pData;
 
-    if (((u8*)g_Menu->pManager)[0x7]) {
+    if (g_Menu->pManager->shouldRenderUnk358Prims) {
         // The body written twice behind an uninitialised test is what makes gcc
         // 2.7.2 keep g_Menu in $v1 here; one copy scores 99.80.
         if (pData) {

@@ -240,10 +240,10 @@ void MenuCreatePlayTimeWindow(void) {
     MenuCreateWindow(1, 0xCC, 0xC6, 0x50, 0x10, 0, 0, 4, 0);
     MenuSetPlayTimeDigitPrims(0xD0, 0xCA);
     // volatile keeps reorg from sinking this store past the epilogue restores
-    *(volatile u8*)&g_Menu->pManager->unk5[1] = 1;
+    *(volatile u8*)&g_Menu->pManager->playTimeDigitsActive = 1;
 }
 void MenuUpdatePlayTimeDigits(void) {
-    if (g_Menu->pManager->unk5[1] != 0) {
+    if (g_Menu->pManager->playTimeDigitsActive != 0) {
         MenuSetPlayTimeDigitPrims(0xD0, 0xCA);
     }
 }

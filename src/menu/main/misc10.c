@@ -82,7 +82,7 @@ void MenuInitializeUnk438Panel(void) {
     MenuLoadStringsFromIds(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
     MenuSetRowQuadVertices(2, (u8*)g_Menu + 0x17E0, D_801EA564, D_801E9EA0, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
     MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
-    g_Menu->pManager->unk5[1] = 0;
+    g_Menu->pManager->playTimeDigitsActive = 0;
     g_Menu->pManager->shouldRenderWindow[1] = 0;
     pManager = g_Menu->pManager;
     i = 0;
@@ -325,7 +325,7 @@ u8 func_801E23CC(s32 slot) {
         case 4:
             MenuResetSelectionCursorFlags();
             MenuClearBytes(4, (u8*)g_Menu->pManager + 0x54);
-            g_Menu->pManager->unk5[2] = 0;
+            g_Menu->pManager->shouldRenderUnk358Prims = 0;
             g_Menu->pManager->shouldRenderUnk35C = 0;
             g_Menu->pManager->shouldRenderPanel[1] = 0;
             g_Menu->pManager->shouldRenderStrings18E0[4] = 0;
@@ -381,7 +381,7 @@ u8 func_801E23CC(s32 slot) {
             g_Menu->pManager->shouldRenderStrings18E0[4] = 1;
             g_Menu->pManager->shouldRenderStrings18E0[5] = 1;
             MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, D_801EA568 + stringSet, (u8*)g_Menu->pManager + 0x54);
-            g_Menu->pManager->unk5[2] = 1;
+            g_Menu->pManager->shouldRenderUnk358Prims = 1;
             g_Menu->pManager->shouldRenderUnk35C = 1;
             g_Menu->pManager->shouldRenderPanel[1] = 1;
             MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
@@ -483,7 +483,7 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
         case 4:
             MenuResetSelectionCursorFlags();
             MenuClearSubMenuChoiceFlags();
-            g_Menu->pManager->unk5[2] = 0;
+            g_Menu->pManager->shouldRenderUnk358Prims = 0;
             g_Menu->pManager->shouldRenderUnk35C = 0;
             g_Menu->pManager->shouldRenderPanel[1] = 0;
             switch (g_Menu->subMenuChoice) {
@@ -507,7 +507,7 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
                 break;
             }
             MenuLoadSubMenuChoiceStrings(1);
-            g_Menu->pManager->unk5[2] = 1;
+            g_Menu->pManager->shouldRenderUnk358Prims = 1;
             g_Menu->pManager->shouldRenderUnk35C = 1;
             g_Menu->pManager->shouldRenderPanel[1] = 1;
             MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
@@ -555,7 +555,7 @@ void MenuFreeSubMenuPanels(u8 arg0) {
         MenuShutdown();
         break;
     case 2:
-        g_Menu->pManager->unk5[2] = 0;
+        g_Menu->pManager->shouldRenderUnk358Prims = 0;
         g_Menu->pManager->shouldRenderUnk35C = 0;
         g_Menu->pManager->shouldRenderPanel[1] = 0;
         MenuFreeGearScreenBuffers();
@@ -571,7 +571,7 @@ void MenuFreeSubMenuPanels(u8 arg0) {
         MenuFreeUnk35CPanel();
         break;
     case 6:
-        g_Menu->pManager->unk5[2] = 0;
+        g_Menu->pManager->shouldRenderUnk358Prims = 0;
         g_Menu->pManager->shouldRenderUnk35C = 0;
         g_Menu->pManager->shouldRenderPanel[1] = 0;
         MenuClearSubMenuChoiceFlags();

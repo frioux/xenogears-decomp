@@ -601,7 +601,7 @@ void GearShopMenuLoadGearShopInventory(void) {
 
     g_GearShopInventoryCounts[0] = 0;
     for(i = 0; i < 20; i++) {
-        g_Menu->pShop->gearShopItemTables[0].itemIds[i] = pShopDef->unk14[i];
+        g_Menu->pShop->gearShopItemTables[0].itemIds[i] = pShopDef->armorIds[i];
         if(g_Menu->pShop->gearShopItemTables[0].itemIds[i] != 0) {
             g_GearShopInventoryCounts[0]++;
         }
@@ -609,7 +609,7 @@ void GearShopMenuLoadGearShopInventory(void) {
     i = 0;
     g_GearShopInventoryCounts[1] = 0;
     for(; i < 20; i++) {
-        g_Menu->pShop->gearShopItemTables[1].itemIds[i] = pShopDef->unk0[i];
+        g_Menu->pShop->gearShopItemTables[1].itemIds[i] = pShopDef->frameIds[i];
         if(g_Menu->pShop->gearShopItemTables[1].itemIds[i] != 0) {
             g_GearShopInventoryCounts[1]++;
         }
@@ -618,7 +618,7 @@ void GearShopMenuLoadGearShopInventory(void) {
     i = 0;
     g_GearShopInventoryCounts[2] = 0;
     for(; i < 20; i++) {
-        g_Menu->pShop->gearShopItemTables[2].itemIds[i] = pShopDef->unk28[i];
+        g_Menu->pShop->gearShopItemTables[2].itemIds[i] = pShopDef->engineIds[i];
         if(g_Menu->pShop->gearShopItemTables[2].itemIds[i] != 0) {
             g_GearShopInventoryCounts[2]++;
         }
@@ -627,7 +627,7 @@ void GearShopMenuLoadGearShopInventory(void) {
     i = 0;
     g_GearShopInventoryCounts[3] = 0;
     for(; i < 20; i++) {
-        g_Menu->pShop->gearShopItemTables[3].itemIds[i] = pShopDef->unk50[i];
+        g_Menu->pShop->gearShopItemTables[3].itemIds[i] = pShopDef->accessoryIds[i];
         if(g_Menu->pShop->gearShopItemTables[3].itemIds[i] != 0) {
             g_GearShopInventoryCounts[3]++;
         }
@@ -636,7 +636,7 @@ void GearShopMenuLoadGearShopInventory(void) {
     i = 0;
     g_GearShopInventoryCounts[4] = 0;
     for(; i < 20; i++) {
-        g_Menu->pShop->gearShopItemTables[4].itemIds[i] = pShopDef->unk3C[i];
+        g_Menu->pShop->gearShopItemTables[4].itemIds[i] = pShopDef->weaponIds[i];
         if(g_Menu->pShop->gearShopItemTables[4].itemIds[i] != 0) {
             g_GearShopInventoryCounts[4]++;
         }

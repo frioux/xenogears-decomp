@@ -581,7 +581,7 @@ void MenuSetGoldDigits(s32 x, s32 y) {
     func_8002675C(g_Menu->resources, 0x10,
                   &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrim,
                   g_Menu->renderContext, x + 0x50, y, 0x1000);
-    g_Menu->pManager->unk5[0] = 1;
+    g_Menu->pManager->goldDigitsActive = 1;
     ((MenuGoldWindow*)g_Menu->pGoldWindow)->renderContext = *(u8*)&g_Menu->renderContext;
 }
 void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
@@ -873,6 +873,6 @@ void MenuSetGearWindowContents(u_char index, u_char characterId) {
     func_801D74EC(index, characterId);
     func_801D7884(index, characterId);
     func_801D7154(index, characterId);
-    g_Menu->pManager->unk5[2] = 1;
+    g_Menu->pManager->shouldRenderUnk358Prims = 1;
     ((MenuGearWindowPrims*)g_Menu->unk358)->renderContext = *(u8*)&g_Menu->renderContext;
 }

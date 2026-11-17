@@ -284,8 +284,8 @@ void MenuFinalizeMenuData(void) {
         case 0:
             MenuResetSelectionCursorFlags();
             func_801D29A8(0, 0);
-            g_Menu->pManager->unk5[1] = 0;
-            g_Menu->pManager->unk5[0] = 0;
+            g_Menu->pManager->playTimeDigitsActive = 0;
+            g_Menu->pManager->goldDigitsActive = 0;
             if (g_ShopIndex == 0) {
                 g_MenuSavedMainMenuChoice = g_Menu->mainMenuChoice;
             }
