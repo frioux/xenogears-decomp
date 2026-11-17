@@ -124,8 +124,8 @@ typedef struct {
     /* 0x02E */ u8 commandArgs[0x6]; // the argument queued alongside commands[n]
     /* 0x034 */ u8 doUpdate; // gates the per-frame animation update; inherited from the parent actor
     /* 0x035 */ u8 unk35;
-    /* 0x036 */ u8 unk36;
-    /* 0x037 */ u8 unk37;
+    /* 0x036 */ u8 skipGroundSnap; // non-zero: BattleSnapActorToGround leaves the sprite's y alone
+    /* 0x037 */ u8 useScaledMatrices; // non-zero: the step runs func_8009F1C4, which folds each part's scale into its parent matrix (libgear's Model.useScaledMatrices)
     /* 0x038 */ u8 isBusy; // keeps BattleWaitAndFreeActorBuffers and BattleWaitForOtherActorAnimations waiting while it is set
     /* 0x039 */ u8 unk39;
     /* 0x03A */ s16 unk3A;
@@ -198,12 +198,15 @@ typedef struct {
     /* 0x68 */ u8 unk68[0xA];
     /* 0x72 */ u16 unk72; // added to the action's value, scaled by (100 - penaltyPercent) / 100
     /* 0x74 */ u8 unk74[0x8];
-    /* 0x7C */ u16 unk7C;
-    /* 0x7E */ u8 unk7E[0x2];
-    /* 0x80 */ u16 unk80;
-    /* 0x82 */ u16 unk82;
-    /* 0x84 */ u16 unk84;
-    /* 0x86 */ u8 unk86[0x2];
+    // The active/accessory effect word grid, at the same offsets as in GameCharacter
+    // and GameGear (include/main/game.h). Battle code reads these three pairs where
+    // the actor record's activeEffectFlags4 and activeEffectFlags7 are tested.
+    /* 0x7C */ u16 activeEffectFlags1;
+    /* 0x7E */ u16 accessoryEffectFlags1;
+    /* 0x80 */ u16 activeEffectFlags2;
+    /* 0x82 */ u16 accessoryEffectFlags2;
+    /* 0x84 */ u16 activeEffectFlags3;
+    /* 0x86 */ u16 accessoryEffectFlags3;
     /* 0x88 */ u8 statusPenaltyPercent[0x10]; // percent taken off an action, one entry per status bit, indexed by the highest set bit of BattleRow.statusMask
     /* 0x98 */ u8 unk98; // BattleResetSlotConditionCounters keeps it within 0x10
     /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
@@ -213,7 +216,7 @@ typedef struct {
     /* 0xA4 */ u8 unkA4;
     /* 0xA5 */ u8 unkA5;
     /* 0xA6 */ u8 unkA6[0x10];
-    /* 0xB6 */ u8 flags; // bit 0x80 selects the gear-side status words (unk80) over the actor's (activeEffectFlags4)
+    /* 0xB6 */ u8 flags; // bit 0x80 selects the gear-side status words (activeEffectFlags2) over the actor's (activeEffectFlags4)
     /* 0xB7 */ u8 conditionTimers[0x15]; // one countdown byte per armed condition flag bit; the flag clears when its timer runs out
 } BattleSlotState; // Size: 0xCC
 

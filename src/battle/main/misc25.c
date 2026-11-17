@@ -455,7 +455,7 @@ void BattleSnapActorToGround(BattleActor *pActor) {
     }
     BattleProjectPointOntoIndexedTriangle(vec, pActor->groundTriangleIndex, unk10);
     pActor->groundY = vec[1];
-    if (pActor->unk36 == 0) {
+    if (pActor->skipGroundSnap == 0) {
         pActor->pSprites->pos[1] = vec[1];
     }
 }

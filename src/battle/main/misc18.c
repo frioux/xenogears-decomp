@@ -279,7 +279,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     if (bitDef == 0) {
         pair = g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7;
     } else {
-        pair = *(u16 *)((u8 *)g_BattleTargetSlotState + 0x84) | *(u16 *)((u8 *)g_BattleTargetSlotState + 0x86);
+        pair = g_BattleTargetSlotState->activeEffectFlags3 | g_BattleTargetSlotState->accessoryEffectFlags3;
     }
     pair >>= 12;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
@@ -311,7 +311,8 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
         hitB = (m >> 1) & 1;
     } else {
         hitB = 0;
-        m = *(u16 *)(g_BattleCurSlotState + 0x84) | *(u16 *)(g_BattleCurSlotState + 0x86);
+        m = ((BattleSlotState *)g_BattleCurSlotState)->activeEffectFlags3 |
+            ((BattleSlotState *)g_BattleCurSlotState)->accessoryEffectFlags3;
         elem2 = (m & 0xF00) >> 8;
         if (m & 2) {
             hitB = 1;

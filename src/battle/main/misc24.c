@@ -276,7 +276,7 @@ s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, 
         r = 0;
         if (pActor->doUpdate != 0) {
             BattleSnapActorToGround(pActor);
-            if (pActor->unk37 != 0) {
+            if (pActor->useScaledMatrices != 0) {
                 func_8009F1C4(pActor->pSprites, pActor->scale);
             } else {
                 BattleUpdateSpriteTransforms(pActor->pSprites, pActor->scale);

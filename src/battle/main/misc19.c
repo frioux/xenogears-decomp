@@ -293,8 +293,8 @@ void BattleSetSlotFlag15A1(u8 arg0) {
     q = &g_BattleCurWorkBlock->slots[arg0];
     q->state.flags |= 1;
     p = &g_BattleCurWorkBlock->slots[arg0];
-    if ((p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) && (p->state.unk82 & 0x10)) {
-        p->state.unk7C &= 0xFE4F;
+    if ((p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) && (p->state.accessoryEffectFlags2 & 0x10)) {
+        p->state.activeEffectFlags1 &= 0xFE4F;
         p->activeEffectFlags1 &= 0xEFFF;
     }
     if (D_800D2C34 == 4) {
@@ -316,7 +316,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     u16 f;
 
     if (p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
-        f = p->state.unk80 & 0x2000;
+        f = p->state.activeEffectFlags2 & 0x2000;
     } else {
         f = p->activeEffectFlags4 & 0x400;
     }
@@ -363,7 +363,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     }
     p = &g_BattleCurWorkBlock->slots[arg0];
     if (p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
-        f = p->state.unk80 & 0x2000;
+        f = p->state.activeEffectFlags2 & 0x2000;
     } else {
         f = p->activeEffectFlags4 & 0x400;
     }
@@ -382,7 +382,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         pRow[26].flags = 0x2000;
         pRow[27].flags = 0x2000;
         pRow[28].flags = 0x2000;
-        r->state.unk80 &= 0xDFFF;
+        r->state.activeEffectFlags2 &= 0xDFFF;
     } else {
         s32 rowOffset = arg0 * 0x5F0 + 0x1058;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
@@ -933,7 +933,7 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
     BattleTableEntry* pEntry = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleWorkBlock);
     BattleSlotState* pState = (BattleSlotState*)(arg0 * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
     u8* pCondition = (u8*)g_BattleWorkBlock + 0x148 + arg0 * 0x170;
-    s32 flag = pState->unk7C & 0x400;
+    s32 flag = pState->activeEffectFlags1 & 0x400;
     u8 ret = flag != 0;
 
     if (pState->hp < ((u32)pState->maxHp >> 3)) {
