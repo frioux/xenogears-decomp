@@ -11,6 +11,15 @@ typedef struct {
     /* 0xC */ s32 w;
 } WorldMapPos4; // Size: 0x10
 
+// One control point of the camera path table at D_8009A3F0 (stride 8): halfword
+// coordinates plus the -1 terminator that ends the table at +0x6.
+typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 vy;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ s16 unk6;
+} WorldMapPathPoint; // Size: 0x8
+
 typedef struct {
     /* 0x00 */ u8 pad0[0x4];
     /* 0x04 */ s16 unk4;
@@ -114,7 +123,7 @@ extern s16 g_NextMapId;
 extern s16 g_NextMapRotationY;
 extern s16 g_NextMapFlags;
 extern s32 D_8009BBC4;
-extern s32 g_WorldMapPathFrame;
+extern s16 g_WorldMapPathFrame;
 extern s32 g_WorldMapScrollX;
 extern s16 g_WorldMapSlotUpdateFlags;
 extern s32 g_WorldMapCameraTarget;
@@ -122,8 +131,8 @@ extern s32 D_8009BBBC[];
 extern WorldMapRenderContext *g_WorldMapRenderContext;
 extern s32 g_WorldMapGridAngle;
 extern WorldMapPos4 g_WorldMapPlayerPosition;
-extern void WorldMapBuildRotationMatrix(s32 *p);
-extern void func_80097244(s32 *p);
+extern void WorldMapBuildRotationMatrix(void *p);
+extern void func_80097244(void *p);
 extern void func_80089748(void);
 extern void func_80089C78(void);
 extern void func_800848F4(void);
@@ -186,6 +195,26 @@ extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern s32 WorldMapInitActorSlotTimer40(s32 index);
 extern void func_80078EA4(void);
 extern void func_80079778(void);
+extern WorldMapPathPoint D_8009A3F0[];
+extern MATRIX g_WorldMapViewMatrix;
+extern void WorldMapExtractRotationFromMatrix(MATRIX *, SVECTOR *);
+extern void WorldMapInterpolateQuadraticVector(s32, s16 *, s16 *, s16 *, s32 *);
+extern void WorldMapStartSlot(s32, s32);
+extern void SoundFadeElementVolumeById(s32, s32, s32);
+extern void SoundSetElementVolumeById(s32, s32);
+extern s32 func_80094154(s32 *, s32 *);
+extern s16 D_8009BD42;
+extern s16 D_8009BD44;
+extern s16 D_8009BD48;
+extern s16 D_8009BD4A;
+extern s16 D_8009BD4C;
+extern s32 D_8009BD50;
+extern s32 D_8009BD54;
+extern s32 D_8009BD58;
+extern s32 D_8009BE2C;
+extern s32 D_8009BE30;
+extern s32 D_8009D554;
+extern s32 g_WorldMapAreaMode;
 extern s32 func_8007A1B4(s32);
 extern s32 func_8007A430(s32);
 extern s32 WorldMapInitActorAtScrollPositionWithSound(s32);
@@ -248,6 +277,141 @@ s32 WorldMapResetActorSlotWithSound(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80077E68);
+/* 94.17%, 1060 bytes = retail's exact size. Structure is fully decoded and every
+   relocation matches; what is left is scheduler/allocator order in three places:
+   (1) the entry puts the table base in $v1 and stores p->unk54 before the sll, retail
+   keeps the base in $a0 and stores it between the sll and the addu; (2) case 0 keeps
+   the p->unk20 increment after the g_WorldMapCameraTarget load where retail has it
+   before, and the 0x1F8000A2 store lands after the shift, retail puts it between the
+   two global loads; (3) the tail pairs the two sll/sw of each position quad, ours
+   interleaves load/sll/sw per field. Three permuter runs from this body: PERMUTER_BETTER
+   1950->1395->1319->920, and only two edits survived objdiff (the 'mode' copy before the
+   switch and routing the third position quad's store through a temp, which measured
+   worse here: 93.74). The copy block's 6+3 store order is retail's as written (x and z
+   of each control point first, then the three y halfwords); the natural x,y,z order is
+   91.53%. Note g_WorldMapPathFrame/D_8009BD42/D_8009BD44 are the SVECTOR at 0x8009BD40
+   and D_8009BD48/4A/4C the one at 0x8009BD48; D_8009BD50/54/58 are the three words of
+   the vector at 0x8009BD50. WorldMapInterpolateQuadraticVector takes the s32* out as
+   its last (stack) argument, as misc5's caller does.
+*/
+/*
+s32 func_80077E68(s32 index) {
+    WorldMapActor *p;
+    WorldMapPathPoint *pPoint;
+    SVECTOR *pVec;
+    s32 *pScratch;
+    s32 grid;
+    u16 mode;
+    s32 dist;
+
+    p = g_WorldMapSlots + index;
+    pScratch = (s32 *)PSX_SCRATCH;
+    grid = p->unk50 >> 12;
+    pPoint = &D_8009A3F0[grid];
+    p->unk54 = grid;
+    if (pPoint[2].unk6 != -1) {
+        pVec = (SVECTOR *)((u8 *)pScratch + 0xA0);
+        pVec[0].vx = pPoint[0].vx;
+        pVec[0].vz = pPoint[0].vz;
+        pVec[1].vx = pPoint[1].vx;
+        pVec[1].vz = pPoint[1].vz;
+        pVec[2].vx = pPoint[2].vx;
+        pVec[2].vz = pPoint[2].vz;
+        pVec[0].vy = pPoint[0].vy;
+        pVec[1].vy = pPoint[1].vy;
+        pVec[2].vy = pPoint[2].vy;
+        WorldMapInterpolateQuadraticVector(p->unk50 & 0xFFF, (s16 *)pVec, (s16 *)&pVec[1],
+                                           (s16 *)&pVec[2], pScratch);
+        // the interpolated position becomes the path frame's vx/vy/vz (16.16 -> 12.4)
+        D_8009BD4C = 0;
+        D_8009BD48 = 0;
+        D_8009BD58 = 0;
+        D_8009BD50 = 0;
+        D_8009BD54 = -0x1000;
+        ((SVECTOR *)&g_WorldMapPathFrame)->vx = pScratch[0] >> 16;
+        D_8009BD44 = -(pScratch[2] >> 16);
+        D_8009BD42 = pScratch[1] >> 16;
+        ((SVECTOR *)&D_8009BD48)->vy = D_8009BE2C >> 12;
+    }
+    func_80097244(&g_WorldMapPathFrame);
+    WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, &g_WorldMapCameraRot);
+    mode = p->unk20;
+    switch (p->unk20) {
+    case 0:
+        p->unk58 = p->unk58 + 5;
+        p->unk22 = p->unk22 - 1;
+        if ((s16)p->unk22 >= 0) {
+            break;
+        }
+        p->unk58 = 0x80;
+        p->unk20 = mode + 1;
+        pVec = (SVECTOR *)((u8 *)pScratch + 0xA0);
+        pVec->vy = -0x20D;
+        pVec->vx = (g_WorldMapCameraTarget >> 12) + 0x32;
+        pVec->vz = (D_8009BE30 >> 12) - 0x70;
+        func_80089160(8, pVec, 0);
+        break;
+    case 1:
+        if (p->unk50 >= 0x6000) {
+            p->unk20 = p->unk20 + 1;
+        }
+        break;
+    case 2:
+        p->unk58 = p->unk58 - 2;
+        if (p->unk58 >= 0x19) {
+            break;
+        }
+        p->unk58 = 0x18;
+        p->unk20 = p->unk20 + 1;
+        break;
+    case 3:
+        if (p->unk50 > 0x7FFF) {
+            p->unk20 = p->unk20 + 1;
+        }
+        break;
+    case 4:
+        p->unk58 = p->unk58 - 1;
+        if (p->unk58 >= 5) {
+            break;
+        }
+        p->unk58 = 4;
+        p->unk20 = p->unk20 + 1;
+        break;
+    case 5:
+        if (p->unk50 > 0x83FF) {
+            SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0xA4, 0, 0x100);
+            WorldMapStartSlot(0, 0xD);
+            g_WorldMapTpageAbr = 2;
+            D_8009D3CC = 4;
+            p->unk22 = 0x50;
+            p->unk58 = 0;
+            p->unk20 = p->unk20 + 1;
+        }
+        break;
+    case 6:
+        p->unk22 = p->unk22 - 1;
+        if ((s16)p->unk22 > 0) {
+            break;
+        }
+        D_8009D554 = 0;
+        g_WorldMapAreaMode = 0;
+        break;
+    }
+    p->unk50 = p->unk50 + p->unk58;
+    if ((s16)p->unk20 < 6) {
+        pScratch[0] = D_8009BD48 << 12;
+        pScratch[1] = D_8009BD4A << 12;
+        pScratch[2] = D_8009BD4C << 12;
+        pScratch[4] = g_WorldMapPathFrame << 12;
+        pScratch[5] = D_8009BD42 << 12;
+        pScratch[6] = D_8009BD44 << 12;
+        dist = func_80094154(pScratch, pScratch + 4) >> 3;
+        pScratch[8] = dist;
+        SoundSetElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0xA4, 0x87 - dist);
+    }
+    return 1;
+}
+*/
 s32 WorldMapInitActorAtScrollPosition(s32 index) {
     WorldMapActor *p;
     s32 *pSlot;
