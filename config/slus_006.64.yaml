@@ -172,6 +172,8 @@ segments:
       - [0x3AE7C, c, psyq/libgte_pers3] # RotTransPers3
       - [0x3AED0, asm] # RotTransPers3's tail pad words (3 words)
       - [0x3AEDC, c, psyq/libgte_xform] # RotTrans on
+      - [0x3AF04, asm] # RotTrans's tail pad words (2 words)
+      - [0x3AF0C, c, psyq/libgte_nclip] # NormalClip on
       - [0x3AFB4, asm] # RotTransPers4's tail pad words (2 words)
       - [0x3AFBC, c, psyq/libgte_average] # RotAverage4 on
       - [0x3BCAC, asm] # Part of libetc
