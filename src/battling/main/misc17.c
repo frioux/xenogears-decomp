@@ -7,7 +7,7 @@ extern s32 D_8009283C;
 extern s32 D_80092840;
 extern s32 D_80092844;
 extern s32 D_8009284C;
-extern u8 D_80092848;
+extern u8 g_BattleAiAppliedBehaviorLevel;
 extern u8 g_BattleDrawBufferIndex;
 extern u8 D_80096DE0[];
 extern u8 D_80096E00[];
@@ -538,7 +538,7 @@ void BattleSetActionFieldFAndDispatch(BattleActor* pActor, BattleWork* pWork, u8
     pWork->difficulty = value;
     BattleDispatchWorkState(pActor);
 }
-void func_8008F280(BattleActor* pActor) {
+void BattleRunActorStateHandler(BattleActor* pActor) {
     BattleWork* pWork;
     BattleWork** ppWork;
 
@@ -547,14 +547,14 @@ void func_8008F280(BattleActor* pActor) {
     ppWork = &pActor->pWork;
     pWork = *ppWork;
     g_BattlePlayer2ComControlled = 1;
-    if (D_80092848 != g_BattleAiBehaviorLevel) {
+    if (g_BattleAiAppliedBehaviorLevel != g_BattleAiBehaviorLevel) {
         pWork->delay = 0;
         pWork->maxDistance = 0;
         pActor->flags &= ~2;
         pActor->distance = 0;
         pActor->flags &= ~0x38;
         pWork->flags.flags &= ~0x2000;
-        D_80092848 = g_BattleAiBehaviorLevel;
+        g_BattleAiAppliedBehaviorLevel = g_BattleAiBehaviorLevel;
         pActor->unkCE = pActor->unkCC + 0x800;
     }
     if (pWork->flags.flags & 0x2000) {

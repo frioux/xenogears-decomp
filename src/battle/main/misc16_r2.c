@@ -58,7 +58,7 @@ extern u8 D_800CCDC4[];
 extern u8 D_800CCD62[];
 extern u8 g_BattleActorCharIds[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
-extern u8 func_80085084(u16, u8, s32);
+extern u8 BattleRunTargetSlotSelection(u16, u8, s32);
 extern void BattleClearPrimFlagsThreeSlots(u8);
 extern void BattleSetPrimFlagsThreeSlots(u8);
 extern void BattlePlaySoundIfEnabled(u8);

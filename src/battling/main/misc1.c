@@ -90,7 +90,7 @@ extern s32 g_BattleSceneOriginYMirror;
 extern s32 D_80098734;
 
 // One past the last of the three effect-cell frame counters.
-extern s32 D_80092A30;
+extern s32 g_BattleEffectCellsEnd;
 extern void func_80070808(VECTOR* pVec, s32 step);
 extern void func_800708C4(VECTOR* pVec, s32 step);
 extern void func_80083738(VECTOR* pA, VECTOR* pB);
@@ -619,9 +619,9 @@ extern s32 g_BattleSceneOriginYMirror;
 extern s32 D_80098734;
 
 // One past the last of the three effect-cell frame counters.
-extern s32 D_80092A30;
+extern s32 g_BattleEffectCellsEnd;
 
-// One of the effect cells func_80072170 steps: the 16.16 origin a burst is
+// One of the effect cells BattleStepDisplayState steps: the 16.16 origin a burst is
 // placed at (a source actor's origin plus the battle state's anchor) and the
 // frames left before the next burst.
 typedef struct {
@@ -684,7 +684,7 @@ extern void func_8007099C(s32 mode);
    index (an indexed access gives loop.c a second induction pointer, +2 insns).
 */
 
-void func_80072170(void) {
+void BattleStepDisplayState(void) {
     BattleState* pState;
     BattleMessageWindow* pMsg;
     BattleAnchor* pAnchor;
@@ -730,7 +730,7 @@ void func_80072170(void) {
             pFrames += 4;
             offset += 0x10;
             pCell++;
-        } while ((s32)pFrames < (s32)&D_80092A30);
+        } while ((s32)pFrames < (s32)&g_BattleEffectCellsEnd);
         break;
     case 2:
         pState->gaugeValue = 1;

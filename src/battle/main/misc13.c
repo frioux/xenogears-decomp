@@ -3,7 +3,7 @@
 #include "psyq/libgpu.h"
 
 extern u8 *g_BattleCommandQueue;
-extern u8 *D_800C3160[];
+extern u8 *g_BattleCommandSlotRows[];
 extern u8 *g_BattleCommandStatusBytes[];
 extern volatile u8 *g_BattleDisplayState;
 extern u8 g_BattleSlotRecords[];
@@ -244,7 +244,7 @@ void BattleClearCommandSlots(void) {
 // Walks the 13 command slots looking for the row whose 7-byte key matches the
 // queue's; the arm ladder below counts the found row DOWN from 12 into j, which
 // is why each case falls through into the next.
-s32 func_80085EB4(u8 arg0, u8 arg1) {
+s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
     s32 i;
     s32 j;
     s32 result = 0;
@@ -264,7 +264,7 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
     i = 0;
     pSlots = pQueue;
     for (; i < 13; i++) {
-        pRow = D_800C3160[i];
+        pRow = g_BattleCommandSlotRows[i];
         for (j = 0; j < 7; j++) {
             pKey = pSlots + j;
             if (pKey[0x2CC] != pRow[j]) {

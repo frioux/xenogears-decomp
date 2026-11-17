@@ -296,7 +296,7 @@ extern void func_800223B0(void *, s16);
 extern void SpriteSetScale(void *, s16);
 extern s32 WorkListTaskGetTaskCallback(void *);
 extern void TimerWorkListSetTaskCallback(void *, void *);
-extern void func_800AFC68();
+extern void BattlePartMatrixTask();
 
 // Appended block of the per-part task func_80023FD8 allocates (same layout as
 // lib_gear's LibGearJointTask). Its byte offset is the s16 at +0xBE of the task,
@@ -319,7 +319,7 @@ typedef struct {
     /* 0xA */ u16 offsetZ;
     /* 0xC */ u8 unkC;
     /* 0xD */ u8 padD[0x6];
-    /* 0x13 */ u8 unk13; // non-zero: installs func_800AFC68 as the task callback
+    /* 0x13 */ u8 unk13; // non-zero: installs BattlePartMatrixTask as the task callback
 } BattlePartInfo; // Size: 0x14
 
 // Task func_80023FD8 allocates for one part: a SpriteData at +0x38 and, at the
@@ -346,14 +346,14 @@ void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4,
     pNode->partIndex = pInfo->partIndex;
     if (pInfo->unk13 != 0) {
         pNode->pChainCallback = (void *)WorkListTaskGetTaskCallback(pTask);
-        TimerWorkListSetTaskCallback(pTask, func_800AFC68);
+        TimerWorkListSetTaskCallback(pTask, BattlePartMatrixTask);
         pNode->offset[0] = pInfo->offsetX;
         pNode->offset[1] = pInfo->offsetY;
         pNode->offset[2] = pInfo->offsetZ;
         pNode->unkE = pInfo->unkC;
     }
 }
-void func_800AFC68(u8 *p) {
+void BattlePartMatrixTask(u8 *p) {
     u8 *pNode;
     u8 *pMatrix;
     s32 index;
@@ -615,7 +615,7 @@ void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
     (*pp)->pSprites->pos[0] = x - dx * dist / len - rcos(angle) * rem / 4096;
     (*pp)->pSprites->pos[2] = z - dz * dist / len - rsin(angle) * rem / 4096;
 }
-s32 func_800B12D0(s32 arg0, s32 arg1) {
+s32 BattleTestActorCommandMask(s32 arg0, s32 arg1) {
     s32 result = 0;
     s32 v;
     u8 *pRow = &g_BattleActorCommandIds[(g_BattleCommandRowIndex - 1) * 0x48];

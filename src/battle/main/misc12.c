@@ -1100,7 +1100,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
 }
 extern u8 func_80084854(u8, u8);
 extern u8 *g_BattlePulseTrianglePrims;
-u8 func_80085084(u16 arg0, u8 arg1, u8 arg2) {
+u8 BattleRunTargetSlotSelection(u16 arg0, u8 arg1, u8 arg2) {
     s32 i;
     u16 mask;
     u8 state;

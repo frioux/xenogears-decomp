@@ -39,11 +39,11 @@ extern u8 g_BattleActorCommandIds[];
 // as its own symbol (a struct folds the six loads into one base, which retail
 // does not do: it rebuilds the address of every byte from its own %hi).
 extern u8 g_BattleColorTintParams[];
-extern u8 D_800C3AAD[];
-extern u8 D_800C3AAE[];
-extern s8 D_800C3AAF[];
-extern s8 D_800C3AB0[];
-extern s8 D_800C3AB1[];
+extern u8 g_BattleColorBlendMode[];
+extern u8 g_BattleColorBlendWeight[];
+extern s8 g_BattleColorTintRed[];
+extern s8 g_BattleColorTintGreen[];
+extern s8 g_BattleColorTintBlue[];
 
 // Allocation block owned by the structure passed to BattleFreeModelListEntryBuffers.
 typedef struct {
@@ -340,11 +340,11 @@ void BattleSetActorRectParams(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4, 
         if (arg1 >= 0) {
             D_800D3611 = 1;
             g_BattleColorTintParams[arg0 * 6] = 1;
-            D_800C3AAD[arg0 * 6] = arg1;
-            D_800C3AAE[arg0 * 6] = arg2;
-            D_800C3AAF[arg0 * 6] = arg3;
-            D_800C3AB0[arg0 * 6] = arg4;
-            D_800C3AB1[arg0 * 6] = arg5;
+            g_BattleColorBlendMode[arg0 * 6] = arg1;
+            g_BattleColorBlendWeight[arg0 * 6] = arg2;
+            g_BattleColorTintRed[arg0 * 6] = arg3;
+            g_BattleColorTintGreen[arg0 * 6] = arg4;
+            g_BattleColorTintBlue[arg0 * 6] = arg5;
         } else {
             g_BattleColorTintParams[arg0 * 6] = 0;
         }
@@ -451,18 +451,18 @@ void func_800A64E4(void) {
 }
 */
 
-void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
+void BattleApplyColorTint(u8 *pDst, s32 index, u8 *pSrc) {
     s32 r;
     s32 g;
     s32 b;
     s32 t;
     s32 k;
 
-    r = D_800C3AAF[index * 6] * 8;
-    g = D_800C3AB0[index * 6] * 8;
-    b = D_800C3AB1[index * 6] * 8;
+    r = g_BattleColorTintRed[index * 6] * 8;
+    g = g_BattleColorTintGreen[index * 6] * 8;
+    b = g_BattleColorTintBlue[index * 6] * 8;
     if (g_BattleColorTintParams[index * 6] != 0) {
-        switch (D_800C3AAD[index * 6]) {
+        switch (g_BattleColorBlendMode[index * 6]) {
         case 0:
             r += pSrc[0];
             g += pSrc[1];
@@ -491,7 +491,7 @@ void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
             break;
         }
     }
-    k = D_800C3AAE[index * 6];
+    k = g_BattleColorBlendWeight[index * 6];
     r += (pSrc[0] - r) * k / 32;
     g += (pSrc[1] - g) * k / 32;
     b += (pSrc[2] - b) * k / 32;
@@ -524,29 +524,29 @@ void func_800A6884(u8 *pDst, s32 index, u8 *pSrc) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
 /* 84.16% (gcc 2.6.0 -G0 --expand-div): full structure recovered and every call,
    store and branch shape matches. What is left is loop strength reduction: the
-   original keeps D_800C3AAE[i*6] in $s7 and derives $s8 = $s7 - 1 for
-   D_800C3AAD[i*6] (combine_givs on two separate symbol bivs), while gcc 2.6 here
+   original keeps g_BattleColorBlendWeight[i*6] in $s7 and derives $s8 = $s7 - 1 for
+   g_BattleColorBlendMode[i*6] (combine_givs on two separate symbol bivs), while gcc 2.6 here
    derives every per-unit field from the single i*6 offset biv ($at + %lo), and
    spends a saved register on a D_800C3D50 base instead, so the frame is 0x48 vs
    retail 0x50 and the $s5/$s6 numbering shifts.
    Fixed vs the first attempt (81.99 -> 84.16): the AAD dispatch is a `switch` with
    case 0..3 and case 4 (that is what emits retail's bltz range check plus the
-   slti/beq tree -- an if/else chain gives sltiu), D_800C3AAF/AB0/AB1 are `s8` (retail
+   slti/beq tree -- an if/else chain gives sltiu), g_BattleColorTintRed/AB0/AB1 are `s8` (retail
    loads them with lb), the buffer copy is 0x88 bytes not 0x80 (retail's movstrsi
    loop of 0x80 plus a two-word tail), pData advances 4 bytes per call, the final
    LoadImage source is D_800D3608, and &D_800D3611 lives in a pointer local so the
    memcpy argument register is reused for the "= 0" store.
    Tried for the bivs: two pointer locals (pKind/pRec -> both fold back to
    $at+s6, 83.73%), pRec[0]/pRec[-1] (84.16%, the parked form), plain symbol
-   accesses (82.84%). Also note func_800A6884 is re-declared here as
-   (mem_addr, s32, u8 *) and D_800C3AAD/AAE are u8 while AAF..AB1 are s8.
+   accesses (82.84%). Also note BattleApplyColorTint is re-declared here as
+   (mem_addr, s32, u8 *) and g_BattleColorBlendMode/AAE are u8 while AAF..AB1 are s8.
 /*
 extern void *D_800C3EA0;
 extern void *D_800C3D50[];
 extern s16 D_800D2D2C;
 extern s16 D_800C3EA8;
 extern void *D_800D3608;
-extern void func_800A6884(mem_addr, s32, u8 *);
+extern void BattleApplyColorTint(mem_addr, s32, u8 *);
 extern void func_80025D4C(s32, void *, void *, void *, s32, s32, s32, s32, s32);
 extern void func_80026F44(s32, s32, void *, void *);
 
@@ -569,7 +569,7 @@ void func_800A6AE8(void) {
     for (i = 0; i < 4; i++) {
         u8 *pRec;
 
-        pRec = &D_800C3AAE[i * 6];
+        pRec = &g_BattleColorBlendWeight[i * 6];
         if (g_BattleColorTintParams[i * 6] == 0) {
             continue;
         }
@@ -579,7 +579,7 @@ void func_800A6AE8(void) {
         case 2:
         case 3:
             func_80025D4C(D_800D2D2C * D_800C3EA8, D_800D3608, D_800D3608, D_800D3608,
-                          D_800C3AAF[i * 6], D_800C3AB0[i * 6], D_800C3AB1[i * 6],
+                          g_BattleColorTintRed[i * 6], g_BattleColorTintGreen[i * 6], g_BattleColorTintBlue[i * 6],
                           pRec[-1], pRec[0]);
             break;
         case 4:
@@ -589,32 +589,32 @@ void func_800A6AE8(void) {
         pData = g_BattleColorTintWork;
         for (j = 0; j < 4; j++) {
             if (D_800C3EA0 != NULL) {
-                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 4, i, pData += 4);
-                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0xC, i, pData += 4);
-                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x14, i, pData += 4);
-                func_800A6884((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x1C, i, pData += 4);
-                func_800A6884((mem_addr)D_800C3EA0 + 0x16DC + j * 0x18 + 4, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 4, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0xC, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x14, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x1C, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x16DC + j * 0x18 + 4, i, pData += 4);
             } else {
                 pData += 0x14;
             }
             if (D_800C3D50[0] != NULL) {
-                func_800A6884((mem_addr)D_800C3D50[0] + 0x280 + j * 0x18 + 4, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x280 + j * 0x18 + 4, i, pData += 4);
             } else {
                 pData += 4;
             }
         }
         for (j = 0; j < 2; j++) {
             if (D_800C3D50[0] != NULL) {
-                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 4, i, pData += 4);
-                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0xC, i, pData += 4);
-                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x14, i, pData += 4);
-                func_800A6884((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x1C, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 4, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0xC, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x14, i, pData += 4);
+                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x1C, i, pData += 4);
             } else {
                 pData += 0x10;
             }
         }
-        func_800A6884(g_BattleColorSourceA, i, pData += 4);
-        func_800A6884(g_BattleColorSourceB, i, pData);
+        BattleApplyColorTint(g_BattleColorSourceA, i, pData += 4);
+        BattleApplyColorTint(g_BattleColorSourceB, i, pData);
     }
     LoadImage(&D_800D3628, D_800D3608);
 }

@@ -73,7 +73,7 @@ extern BattleCommandEntry g_BattleCommandEntries[];
 extern u8 g_BattleCommandGridAltUses[];
 extern u8 g_BattleCommandGridAltIds[];
 extern u8 g_BattleCommandRecords[];
-extern u8 func_80085084(u16 arg0, u8 arg1, s32 arg2);
+extern u8 BattleRunTargetSlotSelection(u16 arg0, u8 arg1, s32 arg2);
 extern s32 BattleIsCharacterInParty(s32 arg0);
 extern s32 BattleMaskHasStatusBit(s32 mask, u8 idx);
 extern void func_8009A854(u8 arg0);
@@ -339,7 +339,7 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     if (*(u16 *)(D_800CCD38 + arg0 * 0x170) >= count && inParty != 0) {
         BattleClearPrimFlagsFourSlots(1);
         g_BattleDisplayState->unkC6 = 1;
-        if (func_80085084(entry, arg0, 0) != 0) {
+        if (BattleRunTargetSlotSelection(entry, arg0, 0) != 0) {
             *(u16 *)(D_800CCD38 + arg0 * 0x170) -= count;
             result = 1;
         } else {
@@ -616,7 +616,7 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
         if (arg3 == 0) {
             BattleClearPrimFlagsTwoSlots(1);
             g_BattleDisplayState->unkC6 = 1;
-            if (func_80085084(entry, arg0, 0) != 0) {
+            if (BattleRunTargetSlotSelection(entry, arg0, 0) != 0) {
                 result = 1;
             } else {
                 g_BattleDisplayState->unkC6 = 0;

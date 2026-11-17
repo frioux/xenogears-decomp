@@ -75,7 +75,7 @@ extern BattleTableEntry D_800CCD62[];
 extern BattleTableEntry D_800CCDC4[];
 extern u8 g_BattleActorCharIds[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
-extern u8 func_80085084(u16, u8, s32);
+extern u8 BattleRunTargetSlotSelection(u16, u8, s32);
 extern void BattleClearPrimFlagsThreeSlots(u8);
 extern void BattleSetPrimFlagsThreeSlots(u8);
 extern void BattlePlaySoundIfEnabled(u8);
@@ -114,7 +114,7 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
         (D_800CCD62[arg0].flags & statusMasks[arg1]) == 0) {
         BattleClearPrimFlagsThreeSlots(1);
         g_BattleDisplayState->unkC6 = 1;
-        if (func_80085084(dmg, arg0, 0) != 0) {
+        if (BattleRunTargetSlotSelection(dmg, arg0, 0) != 0) {
             D_800CCDC4[arg0].flags -= trigger;
             ret = 1;
         } else {
