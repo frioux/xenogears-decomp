@@ -6,6 +6,8 @@
 #include "system/archive.h"
 #include "system/memory.h"
 
+#define WORLD_MAP_TILE_GROUP_COUNT 16
+
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
@@ -674,15 +676,19 @@ typedef struct {
     /* 0x20 */ s32 tileAnimOffset;
     /* 0x24 */ s32 frameAnimOffset;
     /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 tileGroupOffsets[0x10];
+    /* 0x2C */ s32 tileGroupOffsets[WORLD_MAP_TILE_GROUP_COUNT];
 } WorldMapMapDataHeader; // Size: 0x6C
 
 // Head of the point table block: the offsets of the point array and of the four rect offsets
-// that follow, relative to the block itself.
-typedef struct {
-    /* 0x0 */ s32 pointOffset;
-    /* 0x4 */ s32 rectOffset;
-} WorldMapPointTableHeader; // Size: 0x8
+// that follow, relative to the block itself. The block's own sub-blocks are reached by adding
+// those offsets to its first byte, so the head is also viewable as that byte array.
+typedef union {
+    struct {
+        /* 0x0 */ s32 pointOffset;
+        /* 0x4 */ s32 rectOffset;
+    } offsets;
+    /* 0x0 */ u8 block[1];
+} WorldMapPointTableBlock; // Size: 0x8
 
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern s32 g_WorldMapModelData;
@@ -700,18 +706,18 @@ void WorldMapDecompressMapTables(void) {
     u8* pBase;
     u8* pMapBase;
     WorldMapMapDataHeader* pHeader;
-    WorldMapPointTableHeader* pTable;
+    WorldMapPointTableBlock* pTable;
     s32* pRect;
     s32 i;
 
     // One variable holds the compressed block and then the point table inside the decompressed
     // one: retail's codegen keeps both in the same callee-saved register.
-    pTable = (WorldMapPointTableHeader*)g_WorldMapDecompressedMapData;
+    pTable = (WorldMapPointTableBlock*)g_WorldMapDecompressedMapData;
     g_WorldMapDecompressedMapData = LZSSHeapDecompress(pTable, 0);
     HeapFree(pTable);
     pBase = (u8*)g_WorldMapDecompressedMapData;
     pHeader = (WorldMapMapDataHeader*)pBase;
-    pTable = (WorldMapPointTableHeader*)(pBase + pHeader->pointTableOffset);
+    pTable = (WorldMapPointTableBlock*)(pBase + pHeader->pointTableOffset);
     g_WorldMapModelData = (s32)(pBase + pHeader->modelOffset);
     g_WorldMapModelRelocs = (s32)(pBase + pHeader->modelRelocOffset);
     g_WorldMapSpriteSetTable = (s32)(pBase + pHeader->spriteSetOffset);
@@ -722,17 +728,19 @@ void WorldMapDecompressMapTables(void) {
     g_WorldMapStringTable = (s32)(pMapBase + pHeader->stringTableOffset);
     g_WorldMapTileAnimSet = (s32)(pMapBase + pHeader->tileAnimOffset);
     g_WorldMapFrameAnimSet = (s32)(pMapBase + pHeader->frameAnimOffset);
-    for (i = 0; i < 0x10; i++) {
+    for (i = 0; i < WORLD_MAP_TILE_GROUP_COUNT; i++) {
         g_WorldMapTileGroupData[i] = (s32)(pMapBase + pHeader->tileGroupOffsets[i]);
     }
     // The sub-block offsets are relative to the point table itself, not to the block.
-    g_WorldMapPoints = (WorldMapPoint*)((u8*)pTable + pTable->pointOffset);
-    pRect = (s32*)((u8*)pTable + pTable->rectOffset);
+    g_WorldMapPoints = (WorldMapPoint*)(pTable->block + pTable->offsets.pointOffset);
+    pRect = (s32*)(pTable->block + pTable->offsets.rectOffset);
     g_WorldMapRects = pRect;
-    pRect[0] = (s32)((u8*)pTable + pRect[0]);
-    g_WorldMapRects[1] = (s32)((u8*)pTable + pRect[1]);
-    g_WorldMapRects[2] = (s32)((u8*)pTable + pRect[2]);
-    g_WorldMapRects[3] = (s32)((u8*)pTable + pRect[3]);
+    // the rects are relocated in place; retail reads through the local and reloads the global
+    // once after the first store, so only that store goes through pRect
+    pRect[0] = (s32)(pTable->block + pRect[0]);
+    g_WorldMapRects[1] = (s32)(pTable->block + pRect[1]);
+    g_WorldMapRects[2] = (s32)(pTable->block + pRect[2]);
+    g_WorldMapRects[3] = (s32)(pTable->block + pRect[3]);
 }
 
 void WorldMapAllocWorkBuffers(void) {
@@ -846,6 +854,16 @@ extern u8 g_WorldMapQuadPrims[];
 extern s32 g_WorldMapPrimPacketIndex;
 extern s32 g_GfxOTDepthShift;
 
+// Scratchpad area the frame projection works in: GTE's input rotation at 0x00 and, at 0x48,
+// the word and flag RotTransPers4 writes for the fourth vertex. The two matrix work areas at
+// 0x08/0x28 are addressed by their own literals in retail, so they stay an unnamed span.
+typedef struct {
+    /* 0x00 */ SVECTOR viewRotation;
+    /* 0x08 */ u8 unk8[0x40];
+    /* 0x48 */ long interpolated;
+    /* 0x4C */ long flag;
+} WorldMapProjectionScratch; // Size: 0x50, a view of the 0x1F800000 scratchpad
+
 extern long RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* p0, long* p1,
                           long* p2, long* p3, long* xy0, long* xy1);
 extern MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m);
@@ -854,18 +872,18 @@ extern void SetRotMatrix(MATRIX* m);
 extern void SetTransMatrix(MATRIX* m);
 
 void func_800737EC(void) {
-    SVECTOR* pRot;
+    WorldMapProjectionScratch* pScratch;
     SVECTOR* pVec;
     WorldMapQuadPrim* pBase;
     WorldMapQuadPrim* pPrim;
     s32 i;
     s32 nOtz;
 
-    pRot = (SVECTOR*)0x1F800000;
+    pScratch = (WorldMapProjectionScratch*)0x1F800000;
     *(u16*)0x1F800004 = 0;
-    pRot->vx = 0;
+    pScratch->viewRotation.vx = 0;
     *(u16*)0x1F800002 = g_WorldMapViewRotationY;
-    RotMatrixYXZ(pRot, (MATRIX*)0x1F800028);
+    RotMatrixYXZ(&pScratch->viewRotation, (MATRIX*)0x1F800028);
     *(s32*)0x1F800044 = 0;
     *(s32*)0x1F800040 = 0;
     *(s32*)0x1F80003C = 0;
@@ -880,8 +898,8 @@ void func_800737EC(void) {
         nOtz = RotTransPers4(pVec, pVec + 1, pVec + 2, pVec + 3,
                              (long*)&pPrim->xy0, (long*)&pPrim->xy1,
                              (long*)&pPrim->xy2, (long*)&pPrim->xy3,
-                             (long*)((u8*)pRot + 0x48), (long*)((u8*)pRot + 0x4C));
-        if (*(s32*)((u8*)pRot + 0x4C) >= 0) {
+                             &pScratch->interpolated, &pScratch->flag);
+        if (pScratch->flag >= 0) {
             addPrim((P_TAG*)((u32*)g_WorldMapRenderContext->pOt[0] + (nOtz >> g_GfxOTDepthShift)), (P_TAG*)pPrim);
         }
     }
