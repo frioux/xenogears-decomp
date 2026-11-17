@@ -1054,8 +1054,8 @@ func_80036718 = 0x80036718;
 
 // psyq/libgpu_b
 GetODE = 0x8004537C;
-func_800453AC = 0x800453AC;
-func_800453E8 = 0x800453E8;
+SetTexWindow = 0x800453AC;
+SetDrawArea = 0x800453E8;
 func_8004546C = 0x8004546C;
 SetPriority = 0x800454B0;
 func_80045534 = 0x80045534;

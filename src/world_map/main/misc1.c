@@ -1256,12 +1256,12 @@ void WorldMapSetupMapPrims(void) {
     tw.y = 0;
     tw.w = 0x80;
     tw.h = 0;
-    func_800453AC(&g_WorldMapTileDrawModes[0], &tw);
+    SetTexWindow(&g_WorldMapTileDrawModes[0], &tw);
     tw.x = 0;
     tw.y = 0;
     tw.w = 0;
     tw.h = 0;
-    func_800453AC(&g_WorldMapTileDrawModes[1], &tw);
+    SetTexWindow(&g_WorldMapTileDrawModes[1], &tw);
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073B04);
 

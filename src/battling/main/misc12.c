@@ -143,7 +143,6 @@ extern u8** g_BattleEntries;
 extern BattleEntry g_BattleDrawBuffers[];
 
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
-extern void func_800453E8(void* pDrmode, void* pRect);
 extern void func_8004546C(void* pDrmode, void* pRect);
 extern void func_80045534(DR_MODE* pDrmode, RECT* pRect);
 
@@ -535,8 +534,8 @@ void BattleInitDrawEnvs(s32 w, s32 h) {
     D_8009A0EC = tpage;
     func_80045534((DR_MODE*)(pBase + 6), (RECT*)(pBase - 0x16));
     func_80045534((DR_MODE*)(pBase + 0xFE), (RECT*)(pBase + 0xE2));
-    func_800453E8((DR_MODE*)(pBase + 0xBA), (RECT*)(pBase - 0x16));
-    func_800453E8((DR_MODE*)(pBase + 0x1B2), (RECT*)(pBase + 0xE2));
+    SetDrawArea((DR_MODE*)(pBase + 0xBA), (RECT*)(pBase - 0x16));
+    SetDrawArea((DR_MODE*)(pBase + 0x1B2), (RECT*)(pBase + 0xE2));
     func_8004546C((DR_MODE*)(pBase + 0xC6), (RECT*)(pBase - 0xE));
     func_8004546C((DR_MODE*)(pBase + 0x1BE), (RECT*)(pBase + 0xEA));
 }
@@ -565,9 +564,9 @@ void BattleInitSpritePrims(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
     rect.y = y;
     rect.w = w;
     rect.h = h;
-    func_800453E8(&p->drawAreaMode0, &rect);
+    SetDrawArea(&p->drawAreaMode0, &rect);
     rect.y = y + v;
-    func_800453E8(&p->drawAreaMode1, &rect);
+    SetDrawArea(&p->drawAreaMode1, &rect);
     rect2.x = x;
     rect2.y = y;
     func_8004546C(&p->drawOffsetMode0, &rect2);

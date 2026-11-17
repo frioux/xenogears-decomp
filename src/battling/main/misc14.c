@@ -315,14 +315,13 @@ void BattleCompactOrderingTable(s32 arg0) {
     } while (i >= 4);
 }
 
-extern void func_800453E8(DR_MODE *pDrmode, RECT *pRect);
 extern void func_8004546C(DR_MODE *pDrmode, RECT *pRect);
 
 void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
     BattleSetOrderingTableTarget((s32)pWork);
     AddPrims(g_BattleRootOrderingTable, pWork->pPrim[g_BattleDrawBufferIndex], pWork->pOt[g_BattleDrawBufferIndex]);
     if ((pWork->flags & 4) == 0) {
-        func_800453E8(&pWork->drawModes[0][g_BattleDrawBufferIndex], g_BattleDrawSlot);
+        SetDrawArea(&pWork->drawModes[0][g_BattleDrawBufferIndex], g_BattleDrawSlot);
     }
     if ((pWork->flags & 8) == 0) {
         func_8004546C(&pWork->drawModes[1][g_BattleDrawBufferIndex], g_BattleDrawSlot + 1);

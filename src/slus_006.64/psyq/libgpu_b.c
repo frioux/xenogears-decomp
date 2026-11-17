@@ -52,13 +52,13 @@ int GetODE(void) {
     return D_800568C8->unk38() >> 31;
 }
 
-void func_800453AC(DR_MODE *p, RECT *tw) {
+void SetTexWindow(DR_TWIN *p, RECT *tw) {
     setlen(p, 2);
     *(u_long*)&p->code[0] = func_80045C10(tw);
     *(u_long*)&p->code[1] = 0;
 }
 
-void func_800453E8(DR_MODE *p, RECT *pt) {
+void SetDrawArea(DR_AREA *p, RECT *pt) {
     setlen(p, 2);
     *(u_long*)&p->code[0] = func_80045A34(pt->x, pt->y);
     *(u_long*)&p->code[1] = func_80045B00((s16)(pt->x + pt->w - 1), (s16)(pt->y + pt->h - 1));
