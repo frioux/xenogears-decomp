@@ -881,40 +881,30 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
     }
 }
 */
-// best 98.33% (was 86.33%): only the last four instructions differ, and only by
-// register: gcc puts the second g_BattleCurSlotIndex load in $v0 where retail has $v1, so
-// mfhi lands in $a1 instead of $v0. Permuter score 50, stuck over 1907+1250
-// iterations, so this is an allocator tie and not a structural miss.
-// The gain came from splitting the two statements' base loads: a u8* local for
-// the first store, and a plain expression for the second so (u32)g_BattleCurWorkBlock is
-// loaded again; the int idx local stops the second lbu being CSE'd into the
-// first, which is what lets the base reload schedule after multu.
-// Also tried, all 98.33 or worse: index-first addu operand order (97.33), two
-// separate locals for idx and address, declaration order swapped, u8* address
-// local, u32 quotient local stored separately, 20u divisor, dropping the idx
-// temp, u32* destination pointer local (70.17, CSEs the base).
-// PARKED (98.33%). Body COMPILES again (park triage, round 111): the park spelled
-// g_BattleCurrentRow[0x11] from a time when the symbol was a u8*; it is a BattleRow*
-// now, so the same byte is g_BattleCurrentRow->power (identical code). Only the last
-// four instructions differ, and only by register - see the note above.
-// PRESET_260: 100.00% under gcc-2.6.0 (tools/scripts/try_flags.sh), 98.33% under
-// the unit's 2.7.2 (and under 2.7.2-cdk). The last four instructions differ:
-// retail reloads the second base into $v0/$v1 and then mfhi's into $v0 with the
-// srl in place, so the mfhi result is coalesced with its consumer; 2.7.2 copies
-// it to $a1 and shifts into $v0. That is the same mfhi-coalescing difference
-// func_8009A9D0 has, i.e. a smulsi3_highpart md difference between the two cc1s,
-// not a source shape. See func_8009A9D0's note for the whole-unit screen.
-// The gain to 98.33 came from splitting the two statements' base loads: a u8*
-// local for the first store, and a plain expression for the second so
-// (u32)g_BattleCurWorkBlock is loaded again; the int idx local stops the second lbu being
-// CSE'd into the first, which is what lets the base reload schedule after multu.
-// Also tried, all 98.33 or worse: index-first addu operand order (97.33), two
-// separate locals for idx and address, declaration order swapped, u8* address
-// local, u32 quotient local stored separately, 20u divisor, dropping the idx
-// temp, u32* destination pointer local (70.17, CSEs the base). Permuter score 50,
-// stuck over 1907+1250 iterations.
-// PARKED (98.33%). Body compiles; g_BattleCurrentRow is a BattleRow* so the old
-// g_BattleCurrentRow[0x11] spelling is now ->power (identical code).
+// best 98.33% (120 bytes = retail's size). Layout: g_BattleCurWorkBlock->slotStates
+// [g_BattleCurSlotIndex] = 2, then slotAmounts[g_BattleCurSlotIndex] = the row's
+// power * the slot state's maxHp / 20. Only the tail differs, and only by register:
+// retail loads the second g_BattleCurSlotIndex into $v1 and the block base into $v0,
+// then does the index-first addu and mfhi/srl IN PLACE in $v0; 2.7.2 always loads
+// the index into $v0 and the base into $v1 and leaves mfhi in $a1 with the shift in
+// $v1. PRESET_260: 100.00% under gcc-2.6.0 (same md difference as func_8009A9D0);
+// the unit cannot move - see that function's note for the screen.
+// Round 195 type-width sweep, all 97.33% / 120 bytes with the identical tail: the
+// typed form g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] (97.33, its
+// addu is index-first like retail's, so it differs in more registers than this
+// body), idx as s32 / u32 / u16 / u8 local, maxHp spelled
+// ((BattleSlotState*)g_BattleCurSlotState)->maxHp or *(s32*)(...+0x64), and the
+// destination as *(s32*)((u8*)block + 0x5F6C + idx * 4). Worse: a pointer local for
+// slotAmounts (81.47, 112 bytes, CSEs the base into a saved reg), the amount in a
+// u32/s32 local (43.33 - it moves the divide above the sb). The index always lands
+// in $v0, so the register roles are not source-controllable on 2.7.2.
+// The 98.33 came from splitting the two statements' base loads (a u8* local for the
+// first store, a plain expression for the second) and the int idx local that stops
+// the second lbu being CSE'd into the first. Permuter score 50 over 1907+1250
+// iterations. Also tried: two separate locals for idx and address, declaration
+// order swapped, u8* address local, u32 quotient local, 20u divisor, u32*
+// destination pointer local (70.17).
+// PARKED (98.33%).
 /*
 void func_8009BD94(void) {
     int new_var;
