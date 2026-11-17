@@ -505,23 +505,23 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
         }
     }
     MenuParseNumberToDigits(g_GameState.characters[characterId].unk63);
-    pWindow->unk1272PrimCount = 0;
+    pWindow->unk63DigitsPrimCount = 0;
     for (i = 0; i < 3; i++) {
         if (g_Menu->digits[6 + i] != 0xFF) {
-            pWindow->unk1272PrimCount += func_8002675C(
+            pWindow->unk63DigitsPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
-                &pWindow->unk0A00[pWindow->unk1272PrimCount * 2],
+                &pWindow->polysUnk63Digits[pWindow->unk63DigitsPrimCount * 2],
                 g_Menu->renderContext, x + g_MenuCharacterUnk63DigitsX + i * 8, y + g_MenuCharacterUnk63DigitsY,
                 0x1000);
         }
     }
-    for (i = 0; i < pWindow->unk1272PrimCount; i++) {
-        SetShadeTex(&pWindow->unk0A00[i * 2 + g_Menu->renderContext], 0);
+    for (i = 0; i < pWindow->unk63DigitsPrimCount; i++) {
+        SetShadeTex(&pWindow->polysUnk63Digits[i * 2 + g_Menu->renderContext], 0);
         // The element pointer must be formed before the base is added here; the
-        // indexed spelling (.unk0A00[i * 2 + ctx].r0) commutes retail's addu.
-        (pWindow->unk0A00 + (i * 2 + g_Menu->renderContext))->r0 = 0;
-        (pWindow->unk0A00 + (i * 2 + g_Menu->renderContext))->g0 = 0x80;
-        (pWindow->unk0A00 + (i * 2 + g_Menu->renderContext))->b0 = 0;
+        // indexed spelling (.polysUnk63Digits[i * 2 + ctx].r0) commutes retail's addu.
+        (pWindow->polysUnk63Digits + (i * 2 + g_Menu->renderContext))->r0 = 0;
+        (pWindow->polysUnk63Digits + (i * 2 + g_Menu->renderContext))->g0 = 0x80;
+        (pWindow->polysUnk63Digits + (i * 2 + g_Menu->renderContext))->b0 = 0;
     }
 }
 void MenuSetCharacterWindowContents(u_char index, u_char characterId) {

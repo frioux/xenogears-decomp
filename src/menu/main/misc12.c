@@ -370,10 +370,10 @@ void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s3
     for (i = 0; i < count; i += 2) {
         index = i;
         pStringList[index].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, pStringIdList[index]),
-            g_Menu->unk4E0[0].pVramBuffer, 0x18, 0);
+            g_Menu->titleStrings[0].pVramBuffer, 0x18, 0);
         pRect = &pStringList[index].vramDest;
         pStringList[index + 1].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, pStringIdList[index + 1]),
-            g_Menu->unk4E0[0].pVramBuffer, 0x18, 1);
+            g_Menu->titleStrings[0].pVramBuffer, 0x18, 1);
         pStringList[index].vramDest.x = ((index / 2) & 1) * 0x20 + 0x140;
         pStringList[index].vramDest.y = ((index + yOffset) / 4) * 0xD;
         pStringList[index].vramDest.w = 0x1C;
@@ -381,7 +381,7 @@ void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s3
         pStringList[index + 1].vramDest = pStringList[index].vramDest;
         func_801E7C50(&pStringList[index], index, yOffset, 0);
         func_801E7C50(&pStringList[index + 1], index + 1, yOffset, 0);
-        LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
+        LoadImage(pRect, g_Menu->titleStrings[0].pVramBuffer);
         DrawSync(0);
     }
 }

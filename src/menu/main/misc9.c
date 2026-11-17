@@ -104,7 +104,7 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
     u8* pItemId;
     u8 quantity;
 
-    slot = g_Menu->unk4DA[2];
+    slot = g_Menu->characterSlot;
     D_801E9785 = 0;
     pItem = &g_Menu->pDressingRoom->pItemsData[g_GameState.itemIDs[arg0 * 2 + arg1]];
     result = 0;

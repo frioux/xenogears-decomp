@@ -120,7 +120,7 @@ void MenuAddUnk4E0Prims(void) {
         if (g_Menu->pManager->shouldRenderStrings4E0[i]) {
             offset = i * sizeof(MenuString) + 0x4E0;
             AddPrim(&g_Menu->pGfxEnv->ot[4],
-                    (void*)(offset + (u32)g_Menu + g_Menu->unk4E0[i].renderContext * 40));
+                    (void*)(offset + (u32)g_Menu + g_Menu->titleStrings[i].renderContext * 40));
         }
     }
 }

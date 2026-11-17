@@ -448,11 +448,11 @@ void ShopMenuRenderStringsToVram(MenuString* pStringList, u8* pStringIdList, s32
     for (i = 0; i < count; i += 2) {
         pStringList[i].width = SystemRenderStringEntry(
             GetStringEntry(g_Menu->pStringBank, pStringIdList[i]),
-            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 0
+            (u32*) g_Menu->titleStrings[0].pVramBuffer, 0x18, 0
         );
         pStringList[i + 1].width = SystemRenderStringEntry(
             GetStringEntry(g_Menu->pStringBank, pStringIdList[i + 1]),
-            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 1
+            (u32*) g_Menu->titleStrings[0].pVramBuffer, 0x18, 1
         );
 
         pString = &pStringList[i];
@@ -468,7 +468,7 @@ void ShopMenuRenderStringsToVram(MenuString* pStringList, u8* pStringIdList, s32
         ShopMenuSetStringPrimitives(&pStringList[i], i, yOffset, 0);
         ShopMenuSetStringPrimitives(&pStringList[i + 1], i + 1, yOffset, 0);
 
-        LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
+        LoadImage(pRect, g_Menu->titleStrings[0].pVramBuffer);
         DrawSync(0);
     }
 }
@@ -492,8 +492,8 @@ void ShopMenuLoadWhiteVramRow(void) {
 
 void func_801C5EE8(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
-    g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    ShopMenuRenderStringsToVram(g_Menu->unk4E0, g_ShopMenuStringIds, 0, 4);
+    g_Menu->titleStrings[0].pVramBuffer = HeapAlloc(0x38E, 0);
+    ShopMenuRenderStringsToVram(g_Menu->titleStrings, g_ShopMenuStringIds, 0, 4);
     ShopMenuLoadWhiteVramRow();
 }
 
@@ -1711,7 +1711,7 @@ void ShopMenuAddUnk4E0Prims(void) {
         if (g_Menu->pManager->shouldRenderStrings4E0[i]) {
             AddPrim(
                 &g_Menu->pGfxEnv->ot[4],
-                &g_Menu->unk4E0[i].polys[g_Menu->unk4E0[i].renderContext]
+                &g_Menu->titleStrings[i].polys[g_Menu->titleStrings[i].renderContext]
             );
         }
     }
@@ -2311,7 +2311,7 @@ void ShopMenuFree(void) {
     ShopMenuShopManager(MENU_DATA_FREE);
     HeapFree(g_Menu->resources);
     HeapFree(g_Menu->pStringBank);
-    HeapFree(g_Menu->unk4E0[0].pVramBuffer);
+    HeapFree(g_Menu->titleStrings[0].pVramBuffer);
     if (g_MenuDebugEnabled) {
         SoundStopElementsForSoundFile(g_Menu->pSoundFile);
         ShopMenuUpdateAndRender();

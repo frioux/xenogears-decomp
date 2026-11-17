@@ -366,7 +366,7 @@ typedef struct {
     /* 0x16 */ u16 effectFlags;
     /* 0x18 */ u8 unk18;
     /* 0x19 */ u8 unk19;
-    /* 0x1A */ u8 unk1A;
+    /* 0x1A */ u8 effectAmount; // Accumulated per effectFlags bit, see GearShopMenuApplyGearAccessories
     /* 0x1B */ u8 unk1B;
 } GearAccessory; /* size: 0x1C */
 
@@ -394,7 +394,8 @@ typedef struct {
     /* 0x14 */ GearAccessory *pGearAccessories;
     /* 0x18 */ GearWeapon *pGearWeapons;
     /* 0x1C */ MenuShopItem* pItemsData;
-    /* 0x20 */ u8 unk20[0x7C];
+    /* 0x20 */ void* pCharacterSlots[MAX_GAME_CHARACTERS]; // Pointer per character id to its 0x28-stride equipment slot records
+    /* 0x4C */ void* pGearBlocks[MAX_GAME_GEARS]; // Pointer per gear id, see MenuSetGearHpScaled
     /* 0x9C */ int hp; // hp
     /* 0xA0 */ int maxHp; // maxHp
     /* 0xA4 */ u16 totalDefense; // totalDefense
@@ -528,7 +529,7 @@ typedef struct {
     /* 0x00A0 */ POLY_FT4 polysIcons[0x28];
     /* 0x06E0 */ u8 unk6E0[0x230];
     /* 0x0910 */ POLY_FT4 polysLevel[6];
-    /* 0x0A00 */ POLY_FT4 unk0A00[6];
+    /* 0x0A00 */ POLY_FT4 polysUnk63Digits[6]; // Digits of GameCharacter.unk63, see MenuSetCharacterLevelDigits
     /* 0x0AF0 */ POLY_FT4 polysHp[6];
     /* 0x0BE0 */ POLY_FT4 polysMaxHp[6];
     /* 0x0CD0 */ POLY_FT4 polysMp[4];
@@ -537,7 +538,7 @@ typedef struct {
     /* 0x1040 */ POLY_FT4 polysWideNumber2[14];
     /* 0x1270 */ u_char renderContext;
     /* 0x1271 */ u_char levelPrimCount;
-    /* 0x1272 */ u_char unk1272PrimCount;
+    /* 0x1272 */ u_char unk63DigitsPrimCount;
     /* 0x1273 */ u_char hpPrimCount;
     /* 0x1274 */ u_char maxHpPrimCount;
     /* 0x1275 */ u_char mpPrimCount;
@@ -850,8 +851,10 @@ typedef struct {
     /* 0x4D4  */ s32 characterCellShade; // Written to every colour channel of the character cell prims
     /* 0x4D8  */ u8 unk4D8;
     /* 0x4D9  */ u8 characterCellShadeReversing;
-    /* 0x4DA  */ u8 unk4DA[0x6];
-    /* 0x4E0  */ MenuString unk4E0[4];
+    /* 0x4DA  */ u8 unk4DA[0x2];
+    /* 0x4DC  */ u_char characterSlot; // Party slot the dressing room / item cursor sits on
+    /* 0x4DD  */ u8 unk4DD[0x3];
+    /* 0x4E0  */ MenuString titleStrings[4]; // The current menu screen's titles, uploaded with its title string ids
     /* 0x6E0  */ MenuString optionStrings[8]; // Option strings of the current screen
     /* 0xAE0  */ MenuString subMenuChoiceStrings[6];
     /* 0xDE0  */ MenuString unkDE0[6];

@@ -449,7 +449,7 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
     active = 1;
     lastSlot = 0xF3;
     firstDraw = 1;
-    slot = g_Menu->unk4DA[2];
+    slot = g_Menu->characterSlot;
     g_Menu->subMenuChoice = 2;
     g_Menu->subMenuPrevChoice = 0xFF;
     MenuInitializeCharacterScreenBuffers();
@@ -748,7 +748,7 @@ void MenuApplyDressingRoomSlotHpBonus(MenuDressingRoom* pDressingRoom, u8 charIn
     pTarget = &g_GameState.characters[targetIndex];
     pGear = &g_GameState.gears[g_GameState.characters[charIndex].gearId];
     if (isGear == 0) {
-        pSlots = ((u8**)pDressingRoom->unk20)[charIndex];
+        pSlots = pDressingRoom->pCharacterSlots[charIndex];
         pSlots = &pSlots[slotIndex * 0x28];
         value = pChar->ether * pSlots[0x11];
         pTarget->hp = pTarget->hp + value;

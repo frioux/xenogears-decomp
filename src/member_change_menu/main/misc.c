@@ -316,11 +316,11 @@ void MemberChangeMenuRenderMenuStringsToVram(MenuString* pStringList, u_char* pS
     for (i = 0; i < count; i += 2) {
         pStringList[i].width = SystemRenderStringEntry(
             GetStringEntry(g_Menu->pStringBank, pStringIdList[i]),
-            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 0
+            (u32*) g_Menu->titleStrings[0].pVramBuffer, 0x18, 0
         );
         pStringList[i + 1].width = SystemRenderStringEntry(
             GetStringEntry(g_Menu->pStringBank, pStringIdList[i + 1]),
-            (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 1
+            (u32*) g_Menu->titleStrings[0].pVramBuffer, 0x18, 1
         );
 
         pString = &pStringList[i];
@@ -336,15 +336,15 @@ void MemberChangeMenuRenderMenuStringsToVram(MenuString* pStringList, u_char* pS
         MemberChangeMenuInitializeMenuStringPolys(&pStringList[i], i, arg2, 0);
         MemberChangeMenuInitializeMenuStringPolys(&pStringList[i + 1], i + 1, arg2, 0);
 
-        LoadImage(pRect, g_Menu->unk4E0[0].pVramBuffer);
+        LoadImage(pRect, g_Menu->titleStrings[0].pVramBuffer);
         DrawSync(0);
     }
 }
 
 void MemberChangeMenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
-    g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    MemberChangeMenuRenderMenuStringsToVram(&g_Menu->unk4E0[0], g_MemberChangeMenuStringIds, 0, 4);
+    g_Menu->titleStrings[0].pVramBuffer = HeapAlloc(0x38E, 0);
+    MemberChangeMenuRenderMenuStringsToVram(&g_Menu->titleStrings[0], g_MemberChangeMenuStringIds, 0, 4);
     MemberChangeMenuFillVramRectWhite();
 }
 
@@ -937,7 +937,7 @@ void MemberChangeMenuRenderStrings4E0(void) {
 
     for (i = 0; i < 4; i++) {
         if (g_Menu->pManager->shouldRenderStrings4E0[i]) {
-            AddPrim(&g_Menu->pGfxEnv->ot[4],  &g_Menu->unk4E0[i].polys[g_Menu->unk4E0[i].renderContext]);
+            AddPrim(&g_Menu->pGfxEnv->ot[4],  &g_Menu->titleStrings[i].polys[g_Menu->titleStrings[i].renderContext]);
         }
     }
 }
@@ -1608,7 +1608,7 @@ void MemberChangeMenuFree(void) {
 
     HeapFree(g_Menu->resources);
     HeapFree(g_Menu->pStringBank);
-    HeapFree(g_Menu->unk4E0[0].pVramBuffer);
+    HeapFree(g_Menu->titleStrings[0].pVramBuffer);
     if (g_MenuDebugEnabled != 0) {
         SoundStopElementsForSoundFile(g_Menu->pSoundFile);
         SoundRemoveSedsEntry(g_Menu->pSoundFile);

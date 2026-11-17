@@ -309,7 +309,7 @@ void MenuFinalizeMenuData(void) {
     HeapFree(g_Menu->pCursors);
     HeapFree(g_Menu->resources);
     HeapFree(g_Menu->pStringBank);
-    HeapFree(g_Menu->unk4E0[0].pVramBuffer);
+    HeapFree(g_Menu->titleStrings[0].pVramBuffer);
     if (g_MenuDebugEnabled) {
         SoundStopElementsForSoundFile(g_Menu->pSoundFile);
         MenuRenderFrame();
@@ -470,8 +470,8 @@ void MenuFillVramRectWhite(void) {
 
 void MenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
-    g_Menu->unk4E0[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    MenuUploadStringTextures(g_Menu->unk4E0, g_MenuMainTitleStringIds, 0, 4);
+    g_Menu->titleStrings[0].pVramBuffer = HeapAlloc(0x38E, 0);
+    MenuUploadStringTextures(g_Menu->titleStrings, g_MenuMainTitleStringIds, 0, 4);
     MenuFillVramRectWhite();
 }
 void MenuInitializeWindowBorders(void) {

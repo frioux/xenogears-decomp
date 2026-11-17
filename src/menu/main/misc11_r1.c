@@ -22,7 +22,7 @@ void MenuSetGearHpScaled(MenuDressingRoom* pDressingRoom, u8 gearId) {
     u16 value;
 
     hp = g_GameState.gears[gearId].maxHp / 10 * 2 / 9;
-    p = *(u32*)((u8*)pDressingRoom + 0x4C + gearId * 4);
+    p = (u32)pDressingRoom->pGearBlocks[gearId];
     p = p + 0x5C8;
     *(volatile u16*)(p + 0x24) = hp;
     value = *(volatile u16*)(p + 0x24) / 10;
