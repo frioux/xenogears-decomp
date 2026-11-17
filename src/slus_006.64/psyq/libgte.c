@@ -20,8 +20,9 @@
 //   - nops after `.size`, which C cannot emit: the padding sits after gcc's own
 //     `jr $ra`, so it can be reproduced neither by real C nor by a trailing asm
 //     block (gcc appends its epilogue after every asm): MatrixNormal, InitGeom,
-//     SquareRoot0, LoadAverageCol. psyq/libgte_tail owns the rest of the unit's
-//     pad-carrying stubs.
+//     SquareRoot0. A pad can instead be carved out of the unit's range as its own
+//     `asm` subsegment, the way 0x39A08 is for LoadAverageCol; psyq/libgte_tail's
+//     header lists the stubs still waiting on that.
 //   - dead code: InvSquareRoot's `andi $t0,$v0,1` (never read), and handwritten
 //     `nop`s in the `beq`/`bltz` delay slots where reorder mode puts the next
 //     instruction
@@ -277,4 +278,30 @@ void LoadAverageByte(u_char *v0, u_char *v1, long p0, long p1, u_char *v2) {
     gte_stbv_gpr_stack(v2);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte", LoadAverageCol);
+/* The 3-channel twin of LoadAverageByte, transcribed the same way. The nop the
+   shipped object pads this function's tail with is the `asm` subsegment at
+   0x39A08 in config/slus_006.64.yaml, not something this C can carry. */
+void LoadAverageCol(u_char *v0, u_char *v1, long p0, long p1, u_char *v2) {
+    long flg;
+
+    __asm__ volatile ( "lbu\t$8, 0( %0 );" "lbu\t$9, 1( %0 );" "lbu\t$10, 2( %0 );"
+                       "mtc2\t%1, $8;" "mtc2\t$8, $9;" "mtc2\t$9, $10;"
+                       "mtc2\t$10, $11"
+                       : : "r"(v0), "r"(p0) : "$8", "$9", "$10" );
+    gte_nop();
+    gte_gpf0_b();
+    __asm__ volatile ( "lbu\t$8, 0( %0 );" "lbu\t$9, 1( %0 );" "lbu\t$10, 2( %0 )"
+                       : : "r"(v1) : "$8", "$9", "$10" );
+    gte_stflg_val_gpr(flg);
+    gte_lddp(p1);
+    __asm__ volatile ( "mtc2\t$8, $9;" "mtc2\t$9, $10;" "mtc2\t$10, $11;"
+                       "addiu\t$11, $0, 12"
+                       : : : "$8", "$9", "$10", "$11" );
+    gte_gpl0_b();
+    __asm__ volatile ( "lw\t$13, %0;" "mfc2\t$8, $25;" "mfc2\t$9, $26;"
+                       "mfc2\t$10, $27;" "srav\t$8, $8, $11;"
+                       "srav\t$9, $9, $11;" "srav\t$10, $10, $11;"
+                       "sb\t$8, 0( $13 );" "sb\t$9, 1( $13 );"
+                       "sb\t$10, 2( $13 )"
+                       : : "m"(v2) : "$8", "$9", "$10", "$11", "$13", "memory" );
+}
