@@ -845,22 +845,6 @@ int WorldMapInitSlotActor(int index) {
     return 1;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007F968);
-// 99.81% (permuter 15, from 235): every instruction now agrees with retail EXCEPT
-// the 8 bytes of stack frame - retail is 0x30 with ra/s0-s4 at 0x2C..0x18, so
-// vars=8 (args=16, regs=24); mine is 0x28 and stores NO locals at all, so the
-// eight bytes are a slot gcc allocated and then optimized away. Both disassemble
-// to the same 804 bytes of code, so no C edit that changes an instruction can
-// close it. What the permuter/objdiff last bought: inlining the pScratch+0xF0
-// cast instead of a pRot local, chained stores (state = (command = 0),
-// pAngle->vx = (pAngle->vz = 0)), (y >> 6) >> 6, and an empty 'if (1) {}'
-// after case 4. Remaining objdiff 'diffs' are reloc-only and link identically:
-// jtbl_800701CC vs .rodata, and addiu s1,s0,s4,%lo(D_1F8000A0/0xA8/0x110)
-// where retail names the scratchpad symbols and this unit has none - giving them
-// real names in symbol_addrs.world_map.txt plus 'extern' use here should let
-// those three show as matched too. Do not re-park below 99.81 without checking
-// the frame size first.
-/*
 int func_8007F968(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapActor *pRefActor = &g_WorldMapSlots[3];
@@ -868,6 +852,7 @@ int func_8007F968(int index) {
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s16 nState;
     s32 nScale;
+    SVECTOR vec; // unused: retail reserves 8 bytes of locals, gcc drops the slot without it
 
     // the object reads the state word unsigned here; the field stays s16 for
     // the group actors' switches on the same offset
@@ -908,8 +893,6 @@ int func_8007F968(int index) {
         pActor->state = 1;
         pActor->command = 0;
         pActor->stateTimer = 0x1E;
-        if (1) {
-        }
         break;
     }
     switch (pActor->state) {
@@ -969,8 +952,6 @@ int func_8007F968(int index) {
     }
     return 1;
 }
-*/
-
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 /* 93.41% (164 bytes = retail's 41 insns). Instruction multiset identical; the
    only deltas are (1) retail's `li v0,3` (the return value) sits BEFORE the
