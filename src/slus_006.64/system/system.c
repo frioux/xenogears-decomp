@@ -3,6 +3,27 @@
 #include "system/memory.h"
 #include "system/archive.h"
 
+// SystemString.flags bits
+#define SYSTEM_STRING_FLAG_STOPPED 0x8       // rendering stopped, stopCode says why
+#define SYSTEM_STRING_FLAG_DATA_OVERRIDE 0x80 // pCur is an override of pPrev
+#define SYSTEM_STRING_FLAG_WAITING 0x200     // a wait opcode is running
+
+// lineOffset value that means no offset
+#define SYSTEM_STRING_LINE_OFFSET_NONE 0xFF
+
+// Glyph code table (system data bank 0x1B) and the codes it holds
+#define SYSTEM_GLYPH_CODE_COUNT 324
+#define SYSTEM_GLYPH_CODE_END 0xFFFF
+#define SYSTEM_GLYPH_CODE_NOT_FOUND 0x8000
+
+// Width, in VRAM units, one glyph advances the line
+#define SYSTEM_GLYPH_WIDTH_NARROW 2
+#define SYSTEM_GLYPH_WIDTH_WIDE 3
+
+// The two codes after the ten digits of a number glyph set
+#define SYSTEM_NUMBER_GLYPH_MINUS 10
+#define SYSTEM_NUMBER_GLYPH_PLUS 11
+
 extern void* g_SystemDataFile;
 extern void* g_SystemFontFile;
 extern SystemDataEntries* g_SystemDataEntries;
@@ -312,7 +333,7 @@ void SystemDecodeGlyphCodes(u16* pInput) {
     u8* pOutput = g_SystemGlyphDecodeBuffer;
     u8* pPos;
 
-    while (*pInput != 0xFFFF) {
+    while (*pInput != SYSTEM_GLYPH_CODE_END) {
         pPos = (u8*)((*pInput) * 2) + (int)pEntry;
         pInput++;
 
@@ -353,13 +374,13 @@ int SystemFindGlyphCode(u8 firstByte, u8 secondByte) {
     s16 i;
     u8* pGlyph = g_SystemDataEntries->entries[0x1B];
 
-    for (i = 0; i < 0x144; i++) {
+    for (i = 0; i < SYSTEM_GLYPH_CODE_COUNT; i++) {
         if (pGlyph[i * 2] == firstByte && pGlyph[i * 2 + 1] == secondByte) {
             return i;
         }
     }
 
-    return 0x8000;
+    return SYSTEM_GLYPH_CODE_NOT_FOUND;
 }
 
 int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
@@ -379,7 +400,7 @@ int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
         glyph = SystemFindGlyphCode(arg0, arg1);
         *pOutput++ = glyph;
 
-        if ((u16)glyph == 0x8000) {
+        if ((u16)glyph == SYSTEM_GLYPH_CODE_NOT_FOUND) {
             return -1;
         }
 
@@ -390,7 +411,7 @@ int SystemEncodeGlyphCodes(u8* pInput, u16* pOutput) {
 }
 
 int SystemStringGetUnk6B(SystemString* pString) {
-    if (pString->flags & 0x8) {
+    if (pString->flags & SYSTEM_STRING_FLAG_STOPPED) {
         return pString->stopCode;
     }
 
@@ -411,10 +432,10 @@ void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
 
     if (sign != 0) {
         if (v >= 0) {
-            sign = 11;
+            sign = SYSTEM_NUMBER_GLYPH_PLUS;
         } else {
             v = -v;
-            sign = 10;
+            sign = SYSTEM_NUMBER_GLYPH_MINUS;
         }
     }
 
@@ -426,7 +447,7 @@ void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
 
     pEnd = D_8005A0DE;
     pScan = pEnd - 11;
-    pEnd[0] = 0xFFFF;
+    pEnd[0] = SYSTEM_GLYPH_CODE_END;
     pEnd[-11] = glyphOffset;
 
     /* pEnd keeps the scan start so the end is re-formed as pEnd + 10 inside
@@ -459,18 +480,18 @@ void SystemStringSetCurrentData(SystemString* pString, void* pData) {
 
     pString->pCur = pData;
     pString->pPrev = pOld;
-    pString->flags |= 0x80;
+    pString->flags |= SYSTEM_STRING_FLAG_DATA_OVERRIDE;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80033DF0);
 
 void SystemStringClearStateFlags(SystemString* pString) {
-    pString->flags &= ~0x8;
+    pString->flags &= ~SYSTEM_STRING_FLAG_STOPPED;
 
-    if (pString->flags & 0x200) {
+    if (pString->flags & SYSTEM_STRING_FLAG_WAITING) {
         pString->waitFrames = 0;
         pString->waiting = 0;
-        pString->flags &= ~0x200;
+        pString->flags &= ~SYSTEM_STRING_FLAG_WAITING;
     }
 }
 
@@ -520,7 +541,7 @@ int SystemStringPushBuffer(SystemString* pString, void* pData) {
 
     pString->bufferCount++;
     HeapSetCurrentContentType(HEAP_CONTENT_MES_CUE);
-    pNode = HeapAlloc(0x8, 0x2);
+    pNode = HeapAlloc(sizeof(SystemStringNode), 0x2);
     pNode->pData = pData;
     pNode->pNext = NULL;
 
@@ -579,7 +600,7 @@ void SystemStringSetLineOffset(SystemString* pString, u8 value) {
 }
 
 void SystemStringClearLineOffset(SystemString* pString) {
-    pString->lineOffset = 0xFF;
+    pString->lineOffset = SYSTEM_STRING_LINE_OFFSET_NONE;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
@@ -621,19 +642,19 @@ int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
 int SystemGetGlyphWidth(u16 first, u16 second) {
     if (first == 0) {
         if (second - g_SystemFontSingleByteCodeBase < g_SystemFontNarrowGlyphCount) {
-            return 2;
+            return SYSTEM_GLYPH_WIDTH_NARROW;
         }
 
-        return 3;
+        return SYSTEM_GLYPH_WIDTH_WIDE;
     }
 
     if (first == g_SystemFontLeadByte) {
         if (second < g_SystemFontNarrowTrailByteCount) {
-            return 2;
+            return SYSTEM_GLYPH_WIDTH_NARROW;
         }
     }
 
-    return 3;
+    return SYSTEM_GLYPH_WIDTH_WIDE;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034FFC);
