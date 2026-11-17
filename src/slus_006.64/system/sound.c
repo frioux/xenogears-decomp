@@ -4084,32 +4084,18 @@ u8* SoundScriptAddElementPan(u8* pScript, AudioManager* pAudioManager, AudioElem
     return pScript + 1;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DEE4);
-/*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 76.59 / 76.59 / 76.59 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (76.59%, 80 bytes vs the original's 88): the shape is now exact - the raw
-pan load, then pScript[1], then pScript[0], the shift pair as its own statement,
-the u16 frames used as the branch test (andi), delta = target - current first in the
-body (so reorg can fill the frames branch's delay slot), and the store order
-0x92/0x98/0x04/0x90. What is left is one load placement: gcc sinks `lb target` past
-the andi (emitting it right before the branch) and then allocates delta in a1 with the
-divisor in a3, where the original keeps target in v1, the promoted divisor in a0 and
-the quotient back in a0 (which is also why the original starts with `move a1,a0`).
-Tried: target/frames in both declaration orders, s8/s32 target, delta computed before
-the if (73.86% - correct load order, but the subu then precedes the andi), raw volume
-with the shift at the point of use (52.73%), inline expression form. Declaring current
-before the two byte loads puts the shifts before them (76.59% again).
 u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 volume = pAudioElements->pan;
-    u16 frames = pScript[0];
     s32 target = (s8)pScript[1];
+    u16 frames = pScript[0];
     s32 current = (s8)(volume >> 8);
     s32 delta;
     s32 step;
+    s32 panDistance;
 
+    panDistance = target - current;
     if (frames) {
-        delta = target - current;
+        delta = panDistance;
         if (delta != 0) {
             delta <<= 8;
             step = delta / frames;
@@ -4122,7 +4108,6 @@ u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
     return pScript + 2;
 }
-*/
 
 u8* SoundScriptSetEnvelope2Rate(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 divisor = (u8)(*pScript + 1);
