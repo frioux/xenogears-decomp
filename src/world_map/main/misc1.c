@@ -601,7 +601,7 @@ void WorldMapSetPositionFromState(void) {
     s32 nPos;
 
     nMode = g_WorldMapMode;
-    g_GameState.unk1836 = 0;
+    g_GameState.worldMapMenuActive = 0;
     switch (nMode) {
     case 1:
     case 2:

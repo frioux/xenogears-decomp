@@ -224,7 +224,10 @@ typedef struct {
     /* 0x1830 */ s16 scriptPosZ;
     /* 0x1832 */ u16 scriptAngle;
     /* 0x1834 */ u16 worldMapState;
-    /* 0x1836 */ u16 unk1836;
+    // Set while the world-map menu holds the map's state (WorldMapEnterMenuMode
+    // saves gearRide here and sets 1, WorldMapExitMenuMode and
+    // WorldMapSetPositionFromState clear it).
+    /* 0x1836 */ u16 worldMapMenuActive;
     /* 0x1838 */ undefined8 unk1838[0x16];
     /* 0x184E */ undefined16 unk184E;
     /* 0x1850 */ undefined16 unk1850;
