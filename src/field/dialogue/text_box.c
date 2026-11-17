@@ -210,6 +210,22 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C154);
    field/main/main.c FieldLoadUITextures at 87.32%, so it is a known wall in
    this repo - the rest of the function is ready to un-park if it is solved.
    Not a preset problem: gcc-2.7.2-cdk scores 65.16 on this function.
+   Round 202 re-measured the wall and ruled out: the symbolic array form
+   (D_800AEAE4[i].field, no pointer local) 77.27% / 1000 bytes, because gcc then
+   reaches the table through a lui $at + addu $at,at,index pair per use instead
+   of a base register; an unbounded extern array plus &D_800AEAE4[0] (same
+   81.50%); a mem_addr base and the (u8*)pRects + i * 0x10 + K cast spelling
+   (both the same 81.50%); the source-level walker for all eight fields 79.08% /
+   956 bytes (spills to s8); walker for .x with the rest indexed 79.79% / 956;
+   pRects assigned from &D_800AEAE4[0] inside the loop 82.47% / 928 bytes (the
+   constant 2 stops being hoisted, but it is still a single walker). Presets on
+   this body: -O3 81.5, -O1 62.2, gcc-2.6.0 82.47 (its matched neighbours drop
+   to 98.93 and 78.82, so it cannot be a unit switch), cdk 69.0.
+   Mechanism: retail keeps the table base in a loop register s1 AND a walker
+   s4 = s1 for the offset-0 field, and gives every offset-2/4/6/8/A/C/E field
+   its own addu reg,s1,s0; this gcc always combines those givs into the walker,
+   which also frees the register it then spends hoisting the constant 2. Same
+   wall as field/main/main.c FieldLoadUITextures (87.32%).
 s32 func_8009C154(s32 faceId) {
     FieldPortraitTIMRect* pRects;
     u_long* pTimData;
