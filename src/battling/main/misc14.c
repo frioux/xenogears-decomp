@@ -90,20 +90,6 @@ void BattleSetColorIfChanged(u8 *pSrc) {
     }
 }
 
-void BattleSetEntryColor(u8 *pActor) {
-    s32 index = g_BattleDrawBufferIndex;
-    u8 *pModel = *(u8 **)(pActor + 4);
-    u8 *pData = *(u8 **)(pModel + 0xC);
-    s32 count = *(s16 *)(pData + 2);
-    Misc14Entry *pEntry = *(Misc14Entry **)(pData + index * 4 + 0x10);
-    u32 value = D_80092818[index];
-
-    while (--count != -1) {
-        pEntry->unk4 = value;
-        pEntry++;
-    }
-}
-
 // The block a node composes its placement into, named by the node's 0x8C
 // pointer: the matrix the node builds at 0x4C and the two it is multiplied
 // into, 0x6C first.
@@ -133,22 +119,37 @@ typedef struct Misc14ModelNode {
     /* 0x94 */ struct Misc14ModelNode* pChildB;
 } Misc14ModelNode; // Size: 0x9C
 
-// The state-5 payload as this function reads it (the layout
-// src/battling/main/misc15.c calls a ModelBlock): a type word and the record
-// the shadow pass is run from, whose vertex area is at +0x8 and whose source
-// data is at +0xC.
+// The record a state-5 payload points at (the layout src/battling/main/misc15.c
+// calls a ModelBlock): the vertex area and source data the shadow pass runs
+// from, and the colour entries of every model part, one list per draw buffer.
 typedef struct {
-    /* 0x00 */ u8 pad00[0x8];
+    /* 0x00 */ undefined16 unk0;
+    /* 0x02 */ s16 entryCount; // entries in each of the lists at 0x10
+    /* 0x04 */ u8 pad04[0x4];
     /* 0x08 */ u8* pVerts;
     /* 0x0C */ void* pData;
-} Misc14ShadowRecord; // Size: 0x10
+    /* 0x10 */ Misc14Entry* pEntries[2]; // colour entries, one list per draw buffer
+} Misc14ModelRecord; // Size: 0x18
 
 typedef struct {
     /* 0x00 */ s32 type;
     /* 0x04 */ Misc14ModelMatrices* pMatrices;
     /* 0x08 */ u32 pad08;
-    /* 0x0C */ Misc14ShadowRecord* pShadow;
+    /* 0x0C */ Misc14ModelRecord* pRecord;
 } Misc14State5Data; // Size: 0x10
+
+void BattleSetEntryColor(Misc14ModelNode *pNode) {
+    s32 index = g_BattleDrawBufferIndex;
+    Misc14ModelRecord *pRecord = ((Misc14State5Data *)pNode->pData)->pRecord;
+    s32 count = pRecord->entryCount;
+    Misc14Entry *pEntry = pRecord->pEntries[index];
+    u32 value = D_80092818[index];
+
+    while (--count != -1) {
+        pEntry->unk4 = value;
+        pEntry++;
+    }
+}
 
 extern s32 g_BattleMultiplyNodeMatrices;
 // The three words the node's translation is offset by; src/battling/main/misc16.c
@@ -205,10 +206,10 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
             pNode->localMatrix = ((Misc14State5Data*)pNode->pData)->pMatrices->unk4C;
             gte_SetRotMatrix_gpr(&pNode->localMatrix);
             if (D_80092914 != 0) {
-                BattleSetEntryColor((u8*)pNode);
+                BattleSetEntryColor(pNode);
             }
-            BattleProjectShadowVerts(((Misc14State5Data*)pNode->pData)->pShadow->pData,
-                                     ((Misc14State5Data*)pNode->pData)->pShadow->pVerts);
+            BattleProjectShadowVerts(((Misc14State5Data*)pNode->pData)->pRecord->pData,
+                                     ((Misc14State5Data*)pNode->pData)->pRecord->pVerts);
         }
         break;
     }
@@ -258,6 +259,14 @@ void BattleCaptureTimerCount(void) {
     D_80092820 = GetRCnt(0xF2000001);
 }
 
+// The word an ordered prim starts with, as this walk reads it: the low 24 bits
+// are the address of the next prim and byte 3 is the prim's code, zero on the
+// terminator the walk stops at.
+typedef struct {
+    /* 0x0 */ u8 unk0[3];
+    /* 0x3 */ u8 code;
+} Misc14PrimCode; // Size: 0x4
+
 void BattleCompactOrderingTable(s32 arg0) {
     Misc14DisplayWork *pWork = (Misc14DisplayWork *)D_80091C30;
     s32 timeout;
@@ -291,14 +300,14 @@ void BattleCompactOrderingTable(s32 arg0) {
         }
         pPrim = (u32 *)pWork->pOt[g_BattleDrawBufferIndex][i];
         pNext = (u32 *)((*pPrim & 0xFFFFFF) + 0x80000000);
-        if (*(u8 *)((u8 *)pNext + 3) == 0) {
+        if (((Misc14PrimCode *)pNext)->code == 0) {
             do {
                 if (i < 5) {
                     break;
                 }
                 pNext = (u32 *)((*pNext & 0xFFFFFF) + 0x80000000);
                 i--;
-            } while (*(u8 *)((u8 *)pNext + 3) == 0);
+            } while (((Misc14PrimCode *)pNext)->code == 0);
             *pPrim = (*pPrim & 0xFF000000) | ((u32)pNext & 0xFFFFFF);
         }
         i--;
@@ -378,18 +387,52 @@ void BattleLoadRelocatedArchiveEntry(s32 entryIndex) {
     BattleRelocateBlockPointers(pBuffer);
 }
 
-void BattleResetPartAnim(u8 *pActor) {
-    Misc14Entry *pEntry = *(Misc14Entry **)(pActor + 8);
+// The animation a part plays (the record src/battling/main/misc15.c drives with
+// func_8008B730): the per-part channel config, the entry list and the tracks.
+typedef struct {
+    /* 0x0 */ s16 length;
+    /* 0x2 */ s16 unk2;
+    /* 0x4 */ s16 entryCount;
+    /* 0x6 */ s16 trackCount;
+} Misc14AnimCfg; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ u16 *pValue;
+    /* 0x4 */ u16 target;
+    /* 0x6 */ s16 isAngle;
+} Misc14AnimEntry; // Size: 0x8
+
+typedef struct {
+    /* 0x00 */ u8 *pScriptStart;
+    /* 0x04 */ u8 *pScript;
+    /* 0x08 */ u16 *pValue;
+    /* 0x0C */ u16 wait;
+    /* 0x0E */ u16 value;
+    /* 0x10 */ u16 step;
+    /* 0x12 */ s16 isAngle;
+} Misc14AnimTrack; // Size: 0x14
+
+typedef struct {
+    /* 0x00 */ Misc14AnimCfg *pConfig;
+    /* 0x04 */ Misc14AnimEntry *pEntries;
+    /* 0x08 */ Misc14AnimTrack *pTracks;
+    /* 0x0C */ u32 unkC;
+    /* 0x10 */ u16 unk10;
+    /* 0x12 */ s16 position;
+} Misc14Anim; // Size: 0x14
+
+void BattleResetPartAnim(Misc14Anim *pAnim) {
+    Misc14AnimTrack *pTrack = pAnim->pTracks;
     s32 i;
 
-    *(s16 *)(pActor + 0x10) = 0;
-    *(s16 *)(pActor + 0x12) = 0;
-    for (i = 0; i < *(s16 *)(*(u8 **)pActor + 6); i++) {
-        pEntry->unkC = 0;
-        pEntry->unkE = 0;
-        pEntry->unk4 = pEntry->unk0;
-        pEntry->unk10 = 0;
-        pEntry++;
+    pAnim->unk10 = 0;
+    pAnim->position = 0;
+    for (i = 0; i < pAnim->pConfig->trackCount; i++) {
+        pTrack->wait = 0;
+        pTrack->value = 0;
+        pTrack->pScript = pTrack->pScriptStart;
+        pTrack->step = 0;
+        pTrack++;
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
@@ -482,38 +525,6 @@ void *func_8008B38C(u8 *pArg) {
     return pNode;
 }
 */
-
-typedef struct {
-    /* 0x0 */ s16 length;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 entryCount;
-    /* 0x6 */ s16 trackCount;
-} Misc14AnimCfg; // Size: 0x8
-
-typedef struct {
-    /* 0x0 */ u16 *pValue;
-    /* 0x4 */ u16 target;
-    /* 0x6 */ s16 isAngle;
-} Misc14AnimEntry; // Size: 0x8
-
-typedef struct {
-    /* 0x00 */ u32 pScriptStart;
-    /* 0x04 */ u8 *pScript;
-    /* 0x08 */ u16 *pValue;
-    /* 0x0C */ u16 wait;
-    /* 0x0E */ u16 value;
-    /* 0x10 */ u16 step;
-    /* 0x12 */ s16 isAngle;
-} Misc14AnimTrack; // Size: 0x14
-
-typedef struct {
-    /* 0x00 */ Misc14AnimCfg *pConfig;
-    /* 0x04 */ Misc14AnimEntry *pEntries;
-    /* 0x08 */ Misc14AnimTrack *pTracks;
-    /* 0x0C */ u32 unkC;
-    /* 0x10 */ u16 unk10;
-    /* 0x12 */ s16 position;
-} Misc14Anim; // Size: 0x14
 
 extern s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2);
 
