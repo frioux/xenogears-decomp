@@ -50,6 +50,28 @@ extern u8 g_GfxSpritesUseBaseMatrix;
    usual subobject advice: the original keeps the transformMatrix address in s0
    and stores at +0x14, this C keeps pBase and stores at +0x20.
 
+   Round 170: the wall is now diagnosed exactly. Retail's two-insn lui/addiu of
+   g_GfxBaseMatrix sits MID-block (right after the /0x1000 math) and the value
+   is then held in a callee-saved register (s1), with the call argument copied
+   out of it (addu a0,s1,zero). gcc only keeps a symbol-address pseudo in a
+   register when its birth is in a different basic block from its uses (i.e.
+   declared at the top), and that makes it the longest-lived pseudo, so it
+   sorts last and gets s3. Placing the birth anywhere inside the uses' block
+   (even at exactly retail's source position, before the position loads) makes
+   cse fold the pseudo back into the constant at every use: 86.02%, 332 bytes,
+   four lui/addiu pairs, shrunken frame. gcse does not hoist it back either
+   (writing ApplyMatrix(&g_GfxBaseMatrix, ...) plus g_GfxBaseMatrix.t[k] gives
+   the same 86.02%). Other 336-byte shapes exist but rotate registers instead:
+   `xOffset = (s8)offsetX << n` as one expression 89.13%, pMatrix computed
+   before the call 88.15%, `do { } while (0);` after the declaration moves the
+   whole prologue below the g_IsBattle load 81.98%, a pBase local live across
+   the call 79.11%/344 bytes. A second 4-minute permuter run (1669 iterations,
+   base 930, best 690) again only found candidates that pass an uninitialised
+   pMatrix to ApplyMatrix, i.e. wrong code.
+*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
+
+/* Best attempt at the C above (90.89%):
 void func_8001E148(SpriteData* pSpriteData) {
     MATRIX* pMat = &g_GfxBaseMatrix;
     SVECTOR position;
@@ -86,8 +108,10 @@ void func_8001E148(SpriteData* pSpriteData) {
     pMatrix->t[2] = pMat->t[2] + vec.vz;
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
+}
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E148);
+
+
 
 void SpriteDrawFrame(SpriteData* pSpriteData, void* pArg) {
     func_8001E148(pSpriteData);
