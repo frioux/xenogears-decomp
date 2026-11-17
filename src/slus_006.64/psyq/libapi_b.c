@@ -59,4 +59,8 @@ converted:
 - _remove_ChgclrPAD additionally has a pad `nop` after `.size`, and func_80040C20
   owns the 12 data bytes D_80040C30, so tools/scripts/convertible.py marks both
   BLOCKED.
+- func_80040C20 is not a function at all: its symbol is one word (`and
+  $v0,$v0,$s5`, the first word of the patch blob), then three pad words, then the
+  D_80040C30 data it owns. The shortest C definition is two words, so no C body
+  can size this region; it stays asm.
 */
