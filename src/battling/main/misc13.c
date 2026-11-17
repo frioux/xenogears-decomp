@@ -337,7 +337,7 @@ Misc13Buffer* BattleCreateOrderingTablePair(u16 count) {
     return pBuffer;
 }
 
-void func_8008A3A0(void) {
+void BattlingNoOp(void) {
 }
 
 void BattleFreeNodeDelayed(Misc13Node* pNode) {

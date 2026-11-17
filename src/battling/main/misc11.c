@@ -4,9 +4,9 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-extern u8 D_8006F978[];
-extern u8 *D_800927CC;
-extern u8 *D_800927D0;
+extern u8 g_BattleSlotBits[];
+extern u8 *g_BattleSpanTableMax;
+extern u8 *g_BattleSpanTableMin;
 extern u8 g_BattleDrawBufferIndex;
 extern VECTOR g_BattleViewOrigin;
 extern void func_800316C0(void *pOt, void *pPrim);
@@ -18,10 +18,10 @@ typedef struct {
     /* 0x32 */ u8 pad32[0x2];
 } BattlingSlot; // Size: 0x34
 
-extern BattlingSlot D_80095938[];
+extern BattlingSlot g_BattleLineSlots[];
 
 // The count word of a line slot, addressed through its own symbol: splat puts
-// D_80095968 0x30 bytes past D_80095938, i.e. at slot 0's count, and the
+// D_80095968 0x30 bytes past g_BattleLineSlots, i.e. at slot 0's count, and the
 // original object reaches it with that symbol rather than off the slot base.
 typedef struct {
     /* 0x00 */ s16 count;
@@ -37,13 +37,13 @@ typedef struct {
     /* 0x000 */ u32 unk0[0xC4];
 } BattlingWork; // Size: 0x310
 
-extern BattlingWork D_8009A2F8[2];
+extern BattlingWork g_BattleDrawEnvPair[2];
 
-extern s32 D_800928F8;
+extern s32 g_BattleAppendEntryCount;
 extern u32 g_NearColor;
 extern u8 D_80091834[];
 extern u8 D_800918B4[];
-extern u8 D_80091934[];
+extern u8 g_BattleSpanRenderParams[];
 extern u8 *D_80092854;
 extern u8 *D_80092858;
 extern long MathGetLargestVectorComponent(long, long, long);
@@ -86,24 +86,24 @@ typedef struct {
     /* 0x1604 */ BattlingPacket packet[2];
 } BattlingPacketOwner; // Size: 0x1654
 
-extern u16 D_800927D4;
-extern u16 D_800927D8;
-extern u8 D_800927DC;
-extern u8 D_800927E0;
+extern u16 g_BattleQuadTexPage;
+extern u16 g_BattleQuadClut;
+extern u8 g_BattleQuadTexU;
+extern u8 g_BattleQuadTexV;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
 
 void BattleInitDrawEnvPair(void) {
-    func_80085EC8(D_8009A2F8);
-    D_8009A2F8[1] = D_8009A2F8[0];
+    func_80085EC8(g_BattleDrawEnvPair);
+    g_BattleDrawEnvPair[1] = g_BattleDrawEnvPair[0];
 }
 
 void BattleClearSpanTables(void) {
     s32 i;
 
     for (i = 0; i < 0x80; i++) {
-        D_800927CC[i] = 0;
-        D_800927D0[i] = 0xFF;
+        g_BattleSpanTableMax[i] = 0;
+        g_BattleSpanTableMin[i] = 0xFF;
     }
 }
 
@@ -114,7 +114,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087698);
    in the branch delay slot, gcc emits addu before the slt and a nop in the
    slot. Tried: for-increment order i++,cur += step and cur += step,i++;
    t declared before v. Semantics: interpolate a shaded span into the two
-   buffers D_800927D0 / D_800927CC, clamped by the tables D_80091834 /
+   buffers g_BattleSpanTableMin / g_BattleSpanTableMax, clamped by the tables D_80091834 /
    D_800918B4+1.
 void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     s32 cur = arg0 << 8;
@@ -145,7 +145,7 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
             return;
         }
         v = cur >> 8;
-        p = D_800927D0 + i;
+        p = g_BattleSpanTableMin + i;
         if (v < *p) {
             t = D_80091834[i];
             if (v < t) {
@@ -153,7 +153,7 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
             }
             *p = v;
         }
-        p = D_800927CC + i;
+        p = g_BattleSpanTableMax + i;
         if (*p < v) {
             t = D_800918B4[i] + 1;
             if (t < v) {
@@ -168,7 +168,7 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
 void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     g_NearColor = (g_NearColor & 0xFFFFFF) | 0x24000000;
     gte_ldrgb(&g_NearColor);
-    func_800732AC((void *)0x1F800120, D_80091934, 0x30);
+    func_800732AC((void *)0x1F800120, g_BattleSpanRenderParams, 0x30);
     func_80072D18(arg0, arg1, arg2);
 }
 
@@ -181,8 +181,8 @@ void func_80087830(void) {
     s32 i;
     u8 *p;
 
-    D_800927CC = (u8 *)0x1F800000;
-    D_800927D0 = (u8 *)0x1F800080;
+    g_BattleSpanTableMax = (u8 *)0x1F800000;
+    g_BattleSpanTableMin = (u8 *)0x1F800080;
     D_80092854 = HeapAlloc(0xE100, 0);
     D_80092858 = HeapAlloc(0xE100, 0);
     p = D_80092854 + 7;
@@ -202,19 +202,19 @@ void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
     p->unk4.word = 0x2C101010;
     p->unk3 = 9;
     p->unk4.bytes[3] |= 2;
-    p->unkE = D_800927D8;
-    p->unk16 = D_800927D4;
-    p->unkC = D_800927DC | (D_800927E0 << 8);
-    p->unk14 = (D_800927DC + 0x3F) | (D_800927E0 << 8);
-    p->unk1C = D_800927DC | ((D_800927E0 + 0x3F) << 8);
-    p->unk24 = (D_800927DC + 0x3F) | ((D_800927E0 + 0x3F) << 8);
+    p->unkE = g_BattleQuadClut;
+    p->unk16 = g_BattleQuadTexPage;
+    p->unkC = g_BattleQuadTexU | (g_BattleQuadTexV << 8);
+    p->unk14 = (g_BattleQuadTexU + 0x3F) | (g_BattleQuadTexV << 8);
+    p->unk1C = g_BattleQuadTexU | ((g_BattleQuadTexV + 0x3F) << 8);
+    p->unk24 = (g_BattleQuadTexU + 0x3F) | ((g_BattleQuadTexV + 0x3F) << 8);
     arg0->packet[1] = arg0->packet[0];
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
 
 void BattleAppendEntry(s32 *arg0) {
-    s32 i = D_800928F8;
+    s32 i = g_BattleAppendEntryCount;
 
     if (i < 0x1F) {
         BattlingEntry68 *pBase = D_8009A988;
@@ -222,7 +222,7 @@ void BattleAppendEntry(s32 *arg0) {
         p->unk0 = arg0[0];
         p->unk2 = arg0[1];
         p->unk4 = arg0[2];
-        D_800928F8 = i + 1;
+        g_BattleAppendEntryCount = i + 1;
     }
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
@@ -231,7 +231,7 @@ void *BattleAllocLineSlot(s32 *arg0, s32 *arg1, s32 arg2) {
     s32 i;
 
     for (i = 0; i < 0x64; i++) {
-        BattlingSlot *p = &D_80095938[i];
+        BattlingSlot *p = &g_BattleLineSlots[i];
 
         if (p->count == 0) {
             p->count = 1;
@@ -275,7 +275,7 @@ void BattleDrawLineSlots(void *arg0) {
 
     for (i = 0; i < 0x64; i++) {
         if (D_80095968[i].count != 0) {
-            BattlingSlot *pSlot = &D_80095938[i];
+            BattlingSlot *pSlot = &g_BattleLineSlots[i];
 
             pSlot->count--;
             pos[0] = pSlot->pos[0];
@@ -401,19 +401,19 @@ void BattleSetSlotBit(s32 arg0) {
     s32 bit = 1;
 
     bit <<= arg0 & 7;
-    D_8006F978[arg0 >> 3] |= bit;
+    g_BattleSlotBits[arg0 >> 3] |= bit;
 }
 
 s32 BattleTestSlotBit(s32 arg0) {
     s32 bit = 1;
 
     bit <<= arg0 & 7;
-    return D_8006F978[arg0 >> 3] & bit;
+    return g_BattleSlotBits[arg0 >> 3] & bit;
 }
 
 void BattleClearSlotBit(s32 arg0) {
     s32 mask = 1;
 
     mask <<= arg0 & 7;
-    D_8006F978[arg0 >> 3] &= ~mask;
+    g_BattleSlotBits[arg0 >> 3] &= ~mask;
 }

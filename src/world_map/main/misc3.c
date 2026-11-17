@@ -90,7 +90,7 @@ extern void WorldMapFreeSlotPool(void);
 extern void HeapFree(void* pMem);
 
 typedef s32 (*WorldMapScriptHandler)(WorldMapScriptSlot* pSlot, s32 arg1, s16 arg2, s16 arg3);
-extern WorldMapScriptHandler D_8009A3C0[];
+extern WorldMapScriptHandler g_WorldMapScriptOpHandlers[];
 
 // World map player (stride 0x80), the scroll and height fields
 // func_80076DA4, func_80076FA8 and WorldMapApproachHeight touch. Same layout
@@ -189,7 +189,7 @@ s32 WorldMapRunSlotScript(s32 index) {
     do {
         pCmd = pSlot->pc += n;
         cmd = *(s32*)pCmd;
-        n = D_8009A3C0[cmd & 0xFFFF](pSlot, cmd >> 16, pCmd[2], pCmd[3]);
+        n = g_WorldMapScriptOpHandlers[cmd & 0xFFFF](pSlot, cmd >> 16, pCmd[2], pCmd[3]);
     } while (n != 0);
     return 1;
 }
