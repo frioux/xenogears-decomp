@@ -100,11 +100,12 @@ typedef struct {
     /* 0x3E */ u16 scaleStepY;
     /* 0x40 */ u32 color;
     /* 0x44 */ WorldMapColorStep colorStep;
-    /* 0x48 */ undefined32 unk48;
+    /* 0x48 */ u16 tpage; // ABR field taken from the sprite's flags, copied into the prim's tpage
+    /* 0x4A */ undefined16 pad4A;
 } WorldMapTrailEntry; // Size: 0x4C
 
 typedef struct {
-    /* 0x00 */ undefined32 unk00;
+    /* 0x00 */ undefined32 lifeTimerInit; // what lifeTimer is armed with when the slot is claimed
     /* 0x04 */ u32 lifeTimer;
     /* 0x08 */ s16 maxCount;
     /* 0x0A */ u16 count;
@@ -115,21 +116,20 @@ typedef struct {
     /* 0x14 */ u16 x;
     /* 0x16 */ u16 y;
     /* 0x18 */ u16 z;
-    /* 0x1A */ undefined8 unk1A[0x2];
+    /* 0x1A */ undefined16 pad1A;
     /* 0x1C */ u16 rotX;
     /* 0x1E */ u16 rotY;
     /* 0x20 */ u16 rotZ;
-    /* 0x22 */ undefined8 unk22[0xA];
-    /* 0x2C */ u32 unk2C;
-    /* 0x30 */ u16 unk30;
-    /* 0x32 */ undefined16 unk32;
+    /* 0x22 */ undefined16 pad22;
+    /* 0x24 */ SVECTOR trailStart; // local point a trail is emitted from; rotated by rot, added to x/y/z
+    /* 0x2C */ SVECTOR trailEnd; // local point a trail heads for; (trailEnd - trailStart) is its direction
     /* 0x34 */ s32 speed;
     /* 0x38 */ u16 accelX;
     /* 0x3A */ u16 accelY;
     /* 0x3C */ u16 accelZ;
     /* 0x3E */ undefined16 unk3E;
-    /* 0x40 */ u16 unk40;
-    /* 0x42 */ u16 unk42;
+    /* 0x40 */ u16 trailStartSpread; // random spread of trailStart; flags & 0x4 uses it unrandomized
+    /* 0x42 */ u16 trailEndSpread; // random spread of trailEnd; flags & 0x8 uses it unrandomized
     /* 0x44 */ u32 scale;
     /* 0x48 */ u32 scaleStep;
     /* 0x4C */ u8 color[0x3];
