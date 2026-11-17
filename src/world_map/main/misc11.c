@@ -90,8 +90,8 @@ extern s16 D_8009B18C[];
 extern s16 D_8009B194[];
 extern s16 D_8009B19C[];
 extern s16 D_8009B1A4[];
-extern void *D_8009BDF8[];
-extern void *D_8009CD38;
+extern void *g_WorldMapActorAnimFiles[];
+extern void *g_WorldMapCharacterAnimFiles;
 extern void *D_8009CD3C;
 extern void WorldMapWrapDeltaScaled(WorldMapPos *);
 extern s32 SquareRoot0(s32);
@@ -133,7 +133,7 @@ int WorldMapModeInitActorSlot(int index) {
     s32 result = 1;
 
     if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
-        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+        pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapCharacterAnimFiles, 0x110, 0x1E0, 0x150, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
         SpriteSetScale(pActor->pSprite, 0x1800);
         pActor->pSprite->flags &= ~4;
@@ -199,7 +199,7 @@ int WorldMapModeInitCharacterSprite1(int index) {
     s32 result = 1;
 
     if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
-        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+        pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapCharacterAnimFiles, 0x110, 0x1E0, 0x150, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
         SpriteSetScale(pActor->pSprite, 0x1800);
         pActor->pSprite->flags &= ~4;
@@ -233,7 +233,7 @@ int func_8008B54C(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u16 angle;
 
-    pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+    pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapCharacterAnimFiles, 0x110, 0x1E0, 0x150, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
     pActor->pSprite->flags &= ~4;
@@ -600,7 +600,7 @@ void WorldMapUpdateSpriteGroupFromActor(s32 arg0, WorldMapActor *pActor, WorldMa
 void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
     WorldMapSprite *pSprite;
 
-    pSprite = SpriteAllocFromAnimFile(D_8009BDF8[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
+    pSprite = SpriteAllocFromAnimFile(g_WorldMapActorAnimFiles[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
                             D_8009B1A4[index], 0x40);
     pActor->pSprite = pSprite;
     if (g_GameState.gearRide[index] == 1) {
@@ -694,7 +694,7 @@ int WorldMapModeInitPartyActor0(int index) {
 int WorldMapInitPartyActorSprite0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    pActor->pSprite = SpriteAllocFromAnimFile(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
+    pActor->pSprite = SpriteAllocFromAnimFile(g_WorldMapActorAnimFiles[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x2000);
     pActor->pSprite->flags &= ~4;

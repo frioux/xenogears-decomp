@@ -223,7 +223,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
 */
 /*
 extern void* g_WorldMapPartyActorAnimFile0[3];
-extern void* D_8009BDF8[3];
+extern void* g_WorldMapActorAnimFiles[3];
 extern s32 D_8009C170;
 
 void func_80071CDC(void) {
@@ -239,12 +239,12 @@ void func_80071CDC(void) {
             g_WorldMapPartyActorAnimFile0[i] = HeapAlloc(ArchiveDecodeAlignedSize(nCharacterId + 2), 0);
             nGearId = g_GameState.characters[nCharacterId].gearId;
             if (nGearId != GEAR_ID_NONE) {
-                D_8009BDF8[i] = HeapAlloc(ArchiveDecodeAlignedSize(nGearId + 0x13), 0);
+                g_WorldMapActorAnimFiles[i] = HeapAlloc(ArchiveDecodeAlignedSize(nGearId + 0x13), 0);
             } else {
-                D_8009BDF8[i] = 0;
+                g_WorldMapActorAnimFiles[i] = 0;
             }
         } else {
-            D_8009BDF8[i] = 0;
+            g_WorldMapActorAnimFiles[i] = 0;
             g_WorldMapPartyActorAnimFile0[i] = 0;
         }
     }
@@ -261,7 +261,7 @@ void func_80071CDC(void) {
             nGearId = g_GameState.characters[nCharacterId].gearId;
             if (nGearId != GEAR_ID_NONE) {
                 pQueue[nCount].archiveIndex = nGearId + 0x13;
-                pQueue[nCount].pData = D_8009BDF8[i];
+                pQueue[nCount].pData = g_WorldMapActorAnimFiles[i];
                 nCount++;
             }
         }
@@ -390,7 +390,7 @@ extern void* g_WorldMapTilePrimBufferCopy;
 extern u16 g_NextMapFlags;
 extern s32 g_WorldMapAreaMode;
 extern void* g_WorldMapPartyActorAnimFile0[3];
-extern void* D_8009BDF8[3];
+extern void* g_WorldMapActorAnimFiles[3];
 
 extern void SoundSetAudioManagerVolumeWithFade(void* p, s32 arg1, s32 arg2);
 extern void SoundStopAllElements(void);
@@ -456,8 +456,8 @@ void func_8007299C(void) {
         if (g_WorldMapPartyActorAnimFile0[i] != NULL) {
             HeapFree(g_WorldMapPartyActorAnimFile0[i]);
         }
-        if (D_8009BDF8[i] != NULL) {
-            HeapFree(D_8009BDF8[i]);
+        if (g_WorldMapActorAnimFiles[i] != NULL) {
+            HeapFree(g_WorldMapActorAnimFiles[i]);
         }
     }
     WorldMapFreeSlotPool();
