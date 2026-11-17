@@ -8,6 +8,11 @@
 // POLY_G3 at +0x0 and the fade ramp and flags that follow them at +0xE0.
 #define BATTLE_PULSE_TRIANGLE_POOL_SIZE 0xEC
 
+// tpage's semi-transparency rate field, the `abr` arg of GetTPage (bits 5-6): the
+// add and subtract modes the BlendAdd and BlendSub setters below turn on in it.
+#define BATTLE_PRIM_TPAGE_BLEND_ADD 0x20
+#define BATTLE_PRIM_TPAGE_BLEND_SUB 0x40
+
 extern u8 *g_BattlePulseTrianglePrims;
 extern u8 g_BattlePrimStartIndex;
 extern u8 g_BattleActorCharIds[];
@@ -69,9 +74,9 @@ void BattleSetPrimGrey80BlendModeFromGlobal(POLY_FT4 *p) {
     p->g0 = 0x80;
     p->b0 = 0x80;
     if (g_SystemSemiTransMode != 0) {
-        p->tpage |= 0x40;
+        p->tpage |= BATTLE_PRIM_TPAGE_BLEND_SUB;
     } else {
-        p->tpage &= ~0x40;
+        p->tpage &= ~BATTLE_PRIM_TPAGE_BLEND_SUB;
     }
 }
 void BattleSetPrimGrey80BlendAdd(POLY_FT4 *p) {
@@ -79,7 +84,7 @@ void BattleSetPrimGrey80BlendAdd(POLY_FT4 *p) {
     p->r0 = 0x80;
     p->g0 = 0x80;
     p->b0 = 0x80;
-    p->tpage |= 0x20;
+    p->tpage |= BATTLE_PRIM_TPAGE_BLEND_ADD;
 }
 
 void BattleSetPrimGrey40BlendAdd(POLY_FT4 *p) {
@@ -87,7 +92,7 @@ void BattleSetPrimGrey40BlendAdd(POLY_FT4 *p) {
     p->r0 = 0x40;
     p->g0 = 0x40;
     p->b0 = 0x40;
-    p->tpage |= 0x20;
+    p->tpage |= BATTLE_PRIM_TPAGE_BLEND_ADD;
 }
 
 void BattleSetPrimGrey80BlendSub(POLY_FT4 *p) {
@@ -95,7 +100,7 @@ void BattleSetPrimGrey80BlendSub(POLY_FT4 *p) {
     p->r0 = 0x80;
     p->g0 = 0x80;
     p->b0 = 0x80;
-    p->tpage |= 0x40;
+    p->tpage |= BATTLE_PRIM_TPAGE_BLEND_SUB;
 }
 
 void BattleSetPrimGrey40BlendSub(POLY_FT4 *p) {
@@ -103,7 +108,7 @@ void BattleSetPrimGrey40BlendSub(POLY_FT4 *p) {
     p->r0 = 0x40;
     p->g0 = 0x40;
     p->b0 = 0x40;
-    p->tpage |= 0x40;
+    p->tpage |= BATTLE_PRIM_TPAGE_BLEND_SUB;
 }
 
 void BattleSetPolyFT4RectH13(POLY_FT4 *p, s16 x, s16 y, u8 u, u8 v, u8 dx) {
