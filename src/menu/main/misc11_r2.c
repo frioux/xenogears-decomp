@@ -125,7 +125,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E4D10);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
-void func_801E433C(MenuDressingRoom*, u8);
+void MenuApplyGearAccessories(MenuDressingRoom*, u8);
 
 void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
     GameGear* pGear;
@@ -149,7 +149,7 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
         MenuApplyGearFrame(pDressingRoom, i);
         MenuApplyGearArmor(pDressingRoom, i);
         MenuApplyGearEngine(pDressingRoom, i);
-        func_801E433C(pDressingRoom, i);
+        MenuApplyGearAccessories(pDressingRoom, i);
         pGear->fuel = pSaveGear->fuel;
         pGear->hp = pSaveGear->hp;
         pGear->unk99 = pSaveGear->unk38;

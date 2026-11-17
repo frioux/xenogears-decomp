@@ -298,8 +298,13 @@ build_variables = {
 # are straight uncomments once the preset is on.
 # menu/main/misc12 joined in session 7: all 11 matched functions stay 100.0 under 2.6.0
 # and func_801E71B4 is 100.0 only there (97.81 under 2.7.2).
+# menu/main/misc11 joined in round 189: its single stub func_801E433C is 100.0 only
+# under 2.6.0 (99.96 objdiff, the switch-table operand), because retail's case 6-8
+# tests are three unmerged andi/beqz pairs where 2.7.2 folds them into one
+# (x & 0x1800) == 0x1800 test - a compiler difference, not a source one. The unit's
+# only already-matched function (MenuApplyGearWeapons) stays 100.0 under 2.6.0.
 paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main/misc10.", "menu/main/misc12.", "menu/main/misc2.",
-    "menu/main/misc11_r1.", "menu/main/misc1.",
+    "menu/main/misc11_r1.", "menu/main/misc1.", "menu/main/misc11.",
 ]
 
 # battle/main/misc27 is function-mixed and cannot be a single-preset unit: its

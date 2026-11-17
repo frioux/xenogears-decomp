@@ -1036,3 +1036,4 @@ g_BattleAmountThirdFlag = 0x800D2DC4;
 g_BattleCurSlotState = 0x800D2DC8;
 g_BattleFrameDrawSuppressed = 0x800C492A;
 g_BattleRenderString = 0x800D2DAC;
+g_BattleCommandCellColumn = 0x800D3670;

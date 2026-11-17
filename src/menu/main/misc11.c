@@ -5,13 +5,7 @@
 extern u8 D_801E9808[];
 extern u8 MenuGetGearWeightClassExcess(u8 gearId);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11", func_801E433C);
-/* 100.00% under gcc-2.6.0-psx (objdiff 99.96, the switch table operand only) and
-   95.20% under this unit's Default preset, whose gcc merges the case 6-8 bit tests
-   into one (x & 0x1800) == 0x1800 test that retail does not emit. The unit belongs
-   in XenoMenu260 (its only other C function, MenuApplyGearWeapons, is 100.0 under
-   both); this body is a straight uncomment once the preset is switched.
-void func_801E433C(MenuDressingRoom* pDressingRoom, u8 gearId) {
+void MenuApplyGearAccessories(MenuDressingRoom* pDressingRoom, u8 gearId) {
     GameGear* pGear;
     GearAccessory* pAccessory;
     u8 accessoryInd;
@@ -123,7 +117,6 @@ void func_801E433C(MenuDressingRoom* pDressingRoom, u8 gearId) {
         *pFlags2 &= 0x7FFF;
     }
 }
-*/
 void MenuApplyGearWeapons(MenuDressingRoom* pDressingRoom, u8 gearId) {
     GameGear* pGear = &g_GameState.gears[gearId];
     GearWeapon* pWeapon;

@@ -28,18 +28,18 @@ extern u8* g_BattleAiBehaviorNames[];
 extern u8 g_BattleFrameRateTable[];
 extern u8 g_StrEmpty[];
 extern char g_StrFpsFormat[];
-extern s32 D_8009274C;
-extern s32 D_80092750;
+extern s32 g_BattleButtonStatePressedOnce;
+extern s32 g_BattleButtonStateReleased;
 extern u8* g_BattleSpriteRects;
 extern s32 g_BattleCursorIndex0;
 extern s32 g_BattleCursorIndex1;
 extern s32 g_BattleSlotConfirmFlags;
 extern s32 g_BattlePrevCursorIndex0;
 extern s32 g_BattlePrevCursorIndex1;
-extern s32 D_80091364;
+extern s32 g_BattleCurrentTextPadIndex;
 extern s32 g_BattleEntryCount;
 extern s32 g_BattleMode;
-extern s32 D_80092748;
+extern s32 g_BattleButtonState;
 extern s32** g_BattleEntries;
 extern u8 g_StrIntFormat[];
 extern u8 g_StrNumberPlaceholder[];
@@ -300,9 +300,9 @@ s32 WorldMapInitializeModeWithActors(s32 value, s32 max, s32 flags) {
     }
     pad = 0;
     if (flags & 2) {
-        status = D_8009274C;
+        status = g_BattleButtonStatePressedOnce;
     } else {
-        status = D_80092750;
+        status = g_BattleButtonStateReleased;
     }
     if (status & 0x2000) {
         value += delta;
@@ -382,7 +382,7 @@ void BattleMoveComBehaviorCursor(void) {
 void BattleHandleSelectionInputPad0(void) {
     s32 same;
 
-    if (D_80091364 == 0) {
+    if (g_BattleCurrentTextPadIndex == 0) {
         if (g_C1ButtonStateReleased & 0x40) {
             g_BattleSlotConfirmFlags &= -2;
             BattleFreeSlotEntry(0);
@@ -393,8 +393,8 @@ void BattleHandleSelectionInputPad0(void) {
         same = (g_BattleCursorIndex0 == g_BattleCursorIndex1);
         do {
             g_BattleCursorIndex0 = WorldMapInitializeModeWithActors(g_BattleCursorIndex0, g_BattleEntryCount - 1, 3);
-        } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (D_80092748 & 1) == 0 && !same);
-        if (D_80091364 == 0) {
+        } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (g_BattleButtonState & 1) == 0 && !same);
+        if (g_BattleCurrentTextPadIndex == 0) {
             if (g_C1ButtonStateReleased & 0x20) {
                 g_BattleSlotConfirmFlags |= 1;
                 BattlePlaySoundEffectById(0x21);
@@ -407,7 +407,7 @@ void BattleHandleSelectionInputPad0(void) {
 void BattleHandleSelectionInputPad1(void) {
     s32 same;
 
-    if (D_80092750 & 0x40) {
+    if (g_BattleButtonStateReleased & 0x40) {
         if (g_BattleMode == 2) {
             g_BattleSlotConfirmFlags &= -3;
         } else {
@@ -421,8 +421,8 @@ void BattleHandleSelectionInputPad1(void) {
         same = (g_BattleCursorIndex0 == g_BattleCursorIndex1);
         do {
             g_BattleCursorIndex1 = WorldMapInitializeModeWithActors(g_BattleCursorIndex1, g_BattleEntryCount - 1, 3);
-        } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (D_80092748 & 1) == 0 && !same);
-        if (D_80092750 & 0x20) {
+        } while (g_BattleCursorIndex0 == g_BattleCursorIndex1 && (g_BattleButtonState & 1) == 0 && !same);
+        if (g_BattleButtonStateReleased & 0x20) {
             g_BattleSlotConfirmFlags |= 2;
             BattlePlaySoundEffectById(0x21);
             BattleLoadSlotEntry(1, *g_BattleEntries[g_BattleCursorIndex1]);

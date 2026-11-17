@@ -101,7 +101,7 @@ extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern u8 D_800C4928;
 extern u8 g_BattleSlotCurveRunning;
 extern u8 g_BattleCommandCellRow;
-extern u8 D_800D3670;
+extern u8 g_BattleCommandCellColumn;
 
 // Partial view of the battle command cell state based at g_BattleCommandCellFlags: the command flags
 // word, the per-cell use counters (D_800D2CB0) and the per-cell command ids
@@ -547,9 +547,9 @@ void BattleActivateSelectedCommand(u8 arg0) {
     pCell = &g_BattleCommandCellFlags;
     if ((pCell->flags & 0x8000) == 0) {
         pUses = pCell->uses;
-        if (--pUses[g_BattleCommandCellRow * 2 + D_800D3670] == 0) {
+        if (--pUses[g_BattleCommandCellRow * 2 + g_BattleCommandCellColumn] == 0) {
             pIds = pCell->ids;
-            pIds[g_BattleCommandCellRow * 2 + D_800D3670] = 0;
+            pIds[g_BattleCommandCellRow * 2 + g_BattleCommandCellColumn] = 0;
         }
     }
     g_BattleSlotCurveRunning = 1;
@@ -717,7 +717,7 @@ u8 func_8008BED8(u8 arg0) {
             switch (sel) {
             case 1:
                 g_BattleCommandQueue->unk2E6 = g_BattleCommandGridIds[j * 2 + i];
-                D_800D3670 = i;
+                g_BattleCommandCellColumn = i;
                 g_BattleCommandCellRow = j;
                 result = 1;
                 break;
