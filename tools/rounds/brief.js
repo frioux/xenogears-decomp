@@ -42,6 +42,7 @@ JOB CONTROL: you are killed at ${w.minutes || 30} minutes. Run \`git add -A && g
 
 Compiler preset for this unit: ${w.preset}${w.presetNote ? " - " + w.presetNote : ""}.
 \`tools/scripts/try_flags.sh ${w.unit} <Func> [--gcc gcc-2.7.2-cdk-psx] [--opt -O3] [--gp -G0]\` scores one function under a different preset in about a second, if you suspect the preset is wrong. Do not change gears.toml; report what you find instead.
+- A BODY THAT IS CLOSE BUT FAILS ON A BRANCH SHAPE IS A PRESET QUESTION, not a source one (round 189). If retail has UNMERGED tests where your compile has one merged test - e.g. retail\'s three \`andi 0x1000 / beqz / andi 0x800 / beqz / ori 0x400\` against your single \`(x & 0x1800) == 0x1800\` - then gcc 2.6.0 is the candidate: \`tools/scripts/try_flags.sh ${w.unit} --all --gcc gcc-2.6.0-psx </dev/null\`. That is exactly how menu/main/misc11\'s func_801E433C turned out to be 95.20 under Default and 100.00 under 2.6.0, which bought a whole unit for one screening compile. Report PRESET_260 <unit> <Func> <pct 2.6.0> <pct unit flags> plus the score of every already-matched function in the unit (they must all stay 100.0 for a unit switch). Run the same screen with \`--gcc gcc-2.7.2-cdk-psx\` when the failing shape is a jal-slot instruction.
 
 ASSIGNED FUNCTIONS, smallest first:
 ${w.funcs}
