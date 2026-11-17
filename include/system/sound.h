@@ -194,7 +194,7 @@ typedef struct {
     /* 0x4   */ u16 rampFlags; // one bit per running ramp
     /* 0x6   */ s8 elementIndex;
     /* 0x7   */ s8 unk_0x07;
-    /* 0x8   */ s32 unk_0x8;
+    /* 0x8   */ s32 soundId;
     /* 0xC   */ s8 unk_0x0C[0x8];
     /* 0x14  */ u32 unk14;
     /* 0x18  */ u8* savedScriptIP;
@@ -206,7 +206,7 @@ typedef struct {
     /* 0x25  */ u8 sndId;
     /* 0x26  */ u8 toneIndex;
     /* 0x27  */ u8 voice_number;
-    /* 0x28  */ u8 unk_0x28; // instrument number?
+    /* 0x28  */ u8 releaseRate;
     /* 0x29  */ s8 unk29;
     /* 0x2A  */ s16 unk2A;
     /* 0x2C  */ u32 pWds; // SoundWDSEntry*
@@ -218,23 +218,23 @@ typedef struct {
     /* 0x62  */ u16 unk_0x62;
     /* 0x64  */ u8 unk_0x64[0x02];
     /* 0x66  */ u16 octave;
-    /* 0x68  */ u32 unk68; // Final note to play?
-    /* 0x6C  */ s16 unk_0x6C;
+    /* 0x68  */ u32 note; // 16.16, ramped by noteStep
+    /* 0x6C  */ s16 toneTune;
     /* 0x6E  */ s16 detune;
-    /* 0x70  */ u16 unk_0x70;
+    /* 0x70  */ u16 slideFrames;
     /* 0x72  */ u16 loopIndex;
     /* 0x74  */ u16 pan;
     /* 0x76  */ s16 volume;
-    /* 0x78  */ u32 unk_0x78;
+    /* 0x78  */ u32 elementVolume; // 16.16
     /* 0x7C  */ AudioElementRamp ramp;
     /* 0x84  */ s32 noteStep;
-    /* 0x88  */ s32 unk_0x88;
+    /* 0x88  */ s32 elementVolumeStep;
     /* 0x8C  */ u16 volumeStep;
     /* 0x8E  */ u16 volumeTarget;
     /* 0x90  */ u16 panStep;
     /* 0x92  */ u16 panTarget;
     /* 0x94  */ u16 noteFrames;
-    /* 0x96  */ u16 unk_0x96;
+    /* 0x96  */ u16 elementVolumeFrames;
     /* 0x98  */ u16 panFrames;
     /* 0x9A  */ u16 volumeFrames;
     /* 0x9C  */ AudioLoop loops[NUM_SOUND_LOOPS];
@@ -261,12 +261,12 @@ typedef struct AudioManager {
     /* 0x1A */ u8 unk_0x1a;
     /* 0x1B */ u8 unk_0x1b;
     /* 0x1C */ u16 noiseClock;
-    /* 0x1E */ u8 unk_0x1e[2];
+    /* 0x1E */ u16 stopBar; // barCount this sequence stops at
     /* 0x20 */ s32 unk_0x20;
     /* 0x24 */ s32 unk_0x24;
-    /* 0x28 */ s32 unk_0x28;                  
+    /* 0x28 */ s32 playTime; // 1/256 s, seconds/minutes come out of it
     /* 0x2C */ s32 unk_0x2c;
-    /* 0x30 */ s16 unk_0x30;
+    /* 0x30 */ s16 lowestLoopCount;
     /* 0x32 */ s16 barCount;
     /* 0x34 */ s16 beatCount;
     /* 0x36 */ u16 tickCount;
@@ -288,10 +288,10 @@ typedef struct AudioManager {
     /* 0x5C */ s32 tempoStep;
     /* 0x60 */ u16 tempoFrames;
     /* 0x62 */ u16 tempoTarget;
-    /* 0x64 */ AudioInterpolator unk_Interpolator_0x64;
-    /* 0x70 */ AudioInterpolator unk_Interpolator_0x70;
-    /* 0x7C */ AudioInterpolator unk_Interpolator_0x7c;
-    /* 0x88 */ AudioInterpolator unk_Interpolator_0x88;
+    /* 0x64 */ AudioInterpolator tempoScaleInterpolator; // scales tempo into tickRate
+    /* 0x70 */ AudioInterpolator volumeInterpolator;
+    /* 0x7C */ AudioInterpolator noteInterpolator;
+    /* 0x88 */ AudioInterpolator panInterpolator;
     /* 0x94 */ AudioElement elements[24];
 } AudioManager;
 
