@@ -9,6 +9,32 @@
 #include "system/archive.h"
 #include "main/game.h"
 
+// Zoom fade effect: five 0x40-wide texture tiles, two polygons each
+#define FIELD_ZOOM_FADE_TILE_COUNT 5
+
+#define FIELD_SCREEN_CENTER_X (SCREEN_WIDTH / 2)
+#define FIELD_SCREEN_CENTER_Y (SCREEN_HEIGHT / 2)
+
+// Particle primitive grid, one 16x16 tile per entry, indexed i *
+// FIELD_PARTICLE_GRID_COLUMNS + j
+#define FIELD_PARTICLE_GRID_ROWS 14
+#define FIELD_PARTICLE_GRID_COLUMNS 20
+
+// STP, the semi-transparency bit of two packed 16-bit texels
+#define FIELD_TEXEL_SEMITRANS_MASK 0x80008000
+
+// Saved copy of one 0x140 x 0x80 16-bit screen image
+#define FIELD_SAVED_FRAMEBUFFER_SIZE 0x14000
+
+// g_FieldStreamId value when the field is not playing a streamed sequence
+#define FIELD_STREAM_ID_NONE 0xFF
+
+// Stream frames the text segment is shown on, and how far one text frame
+// advances the stream
+#define FIELD_TEXT_SEGMENT_START_FRAME 0x687
+#define FIELD_TEXT_SEGMENT_END_FRAME 0x18E2
+#define FIELD_STREAM_STEP_FRAMES 5
+
 //
 void FieldSetStructWords14To1C(int* pData, int a, int b, int c) {
     pData[5] = a;
@@ -30,7 +56,7 @@ void FieldZoomFadeEffectSetPolygonColor(int color) {
     POLY_FT4* pPoly;
     int nOffset;
     
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
         nOffset = i * 2;
         (g_FieldZoomFadeEffect.polygons + nOffset + ((g_FieldCurRenderContextIndex + 1) & 1))->r0 = color;
         (g_FieldZoomFadeEffect.polygons + nOffset + ((g_FieldCurRenderContextIndex + 1) & 1))->g0 = color;
@@ -83,14 +109,14 @@ void FieldSetVRAMTextureSemiTrans(int x, int y, int h) {
     pWorkBuffer = pImageBuffer;
     nSize = h * (0x80 / sizeof(u_long));
     for (i = 0; i < nSize; i += 8) {
-        pWorkBuffer[0] |= 0x80008000;
-        pWorkBuffer[1] |= 0x80008000;
-        pWorkBuffer[2] |= 0x80008000;
-        pWorkBuffer[3] |= 0x80008000;
-        pWorkBuffer[4] |= 0x80008000;
-        pWorkBuffer[5] |= 0x80008000;
-        pWorkBuffer[6] |= 0x80008000;
-        pWorkBuffer[7] |= 0x80008000; 
+        pWorkBuffer[0] |= FIELD_TEXEL_SEMITRANS_MASK;
+        pWorkBuffer[1] |= FIELD_TEXEL_SEMITRANS_MASK;
+        pWorkBuffer[2] |= FIELD_TEXEL_SEMITRANS_MASK;
+        pWorkBuffer[3] |= FIELD_TEXEL_SEMITRANS_MASK;
+        pWorkBuffer[4] |= FIELD_TEXEL_SEMITRANS_MASK;
+        pWorkBuffer[5] |= FIELD_TEXEL_SEMITRANS_MASK;
+        pWorkBuffer[6] |= FIELD_TEXEL_SEMITRANS_MASK;
+        pWorkBuffer[7] |= FIELD_TEXEL_SEMITRANS_MASK; 
         pWorkBuffer += 8;
     }
     
@@ -112,8 +138,8 @@ void FieldZoomFadeEffectLoadTextures(void) {
     }
 
     nCurX = 0x2C0;
-    for (i = 0; i < 5; i++) {
-        FieldSetVRAMTextureSemiTrans(nCurX, 0x100, 0xE0);
+    for (i = 0; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
+        FieldSetVRAMTextureSemiTrans(nCurX, 0x100, SCREEN_HEIGHT);
         nCurX += 0x40;
     }
 
@@ -280,7 +306,7 @@ void FieldZoomFadeEffectUpdate(void) {
     SetRotMatrix(&matrix);
     SetTransMatrix(&matrix);
 
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
         nOffset = i * 2;
         if (g_FieldZoomFadeScale != 0x1000) {
             RotAverage4(&g_FieldZoomFadeEffect.vectors[i * 4], &g_FieldZoomFadeEffect.vectors[i * 4 + 1],
@@ -309,7 +335,7 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
     D_800B00BA = 0;
     D_800B00BC = 0;
 
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
         pPoly = &g_FieldZoomFadeEffect.polygons[i * 2];
         pPolyNext = &g_FieldZoomFadeEffect.polygons[i * 2 + 1];
         pVector = &g_FieldZoomFadeEffect.vectors[i * 4];
@@ -381,8 +407,8 @@ void FieldFadeParticleCornerColor(POLY_GT4* pPoly, int nCorner, int nDistance, u
     int nCenterX;
     int nCenterY;
 
-    nCenterX = 0xA0;
-    nCenterY = 0x70;
+    nCenterX = FIELD_SCREEN_CENTER_X;
+    nCenterY = FIELD_SCREEN_CENTER_Y;
     vecA.vz = 0;
 
     switch (nCorner) {
@@ -464,15 +490,15 @@ void FieldAddParticlePrims(void) {
     int i;
     int j;
 
-    for (i = 0; i < 0xE; i++) {
-        for (j = 0; j < 0x14; j++) {
-            pPoly = (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j);
-            FieldFadeParticleCornerColor(pPoly, 0, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk71C0 + (i * 0x14 + j));
-            FieldFadeParticleCornerColor(pPoly, 1, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk73F0 + (i * 0x14 + j));
-            FieldFadeParticleCornerColor(pPoly, 2, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7620 + (i * 0x14 + j));
-            FieldFadeParticleCornerColor(pPoly, 3, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7850 + (i * 0x14 + j));
+    for (i = 0; i < FIELD_PARTICLE_GRID_ROWS; i++) {
+        for (j = 0; j < FIELD_PARTICLE_GRID_COLUMNS; j++) {
+            pPoly = (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * FIELD_PARTICLE_GRID_COLUMNS + j);
+            FieldFadeParticleCornerColor(pPoly, 0, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk71C0 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+            FieldFadeParticleCornerColor(pPoly, 1, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk73F0 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+            FieldFadeParticleCornerColor(pPoly, 2, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7620 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+            FieldFadeParticleCornerColor(pPoly, 3, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7850 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
             addPrim(&g_FieldCurRenderContext->ot3[0],
-                (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * 0x14 + j));
+                (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
         }
     }
     addPrim(&g_FieldCurRenderContext->ot3[0],
@@ -637,7 +663,7 @@ void FieldPlayStreamedSequence(void) {
     if (g_FieldStreamPlayerInitialized == 0) {
         ArchiveSetIndex(0x18, 1);
         nMode = 1;
-        if (g_FieldStreamId != 0xFF || (g_FieldStreamFlags & 0x40)) {
+        if (g_FieldStreamId != FIELD_STREAM_ID_NONE || (g_FieldStreamFlags & 0x40)) {
             nMode = 3;
         }
         func_801D37CC(g_FieldStreamFileIndex + 2, D_800C3A2A, g_FieldStreamFrameBase, g_FieldStreamTotalFrames, 1, nMode,
@@ -689,13 +715,13 @@ void FieldRestoreFramebuffers(void) {
     } else {
         rect.x = 0x200;
         rect.y = 0;
-        rect.w = 0x140;
+        rect.w = SCREEN_WIDTH;
         rect.h = 0x80;
         LoadImage(&rect, g_FieldSavedFramebuffers[0]);
         DrawSync(0);
         rect.x = 0x200;
         rect.y = 0x80;
-        rect.w = 0x140;
+        rect.w = SCREEN_WIDTH;
         rect.h = 0x80;
         LoadImage(&rect, D_8005A41C);
         DrawSync(0);
@@ -722,14 +748,14 @@ void FieldSaveFramebuffers(void) {
     void* pBuffer;
 
     if (g_FieldMode == 2) {
-        g_FieldSavedFramebuffers[0] = HeapAlloc(0x14000, 0);
-        D_8005A41C = HeapAlloc(0x14000, 0);
+        g_FieldSavedFramebuffers[0] = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
+        D_8005A41C = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
         HeapPinBlock(g_FieldSavedFramebuffers[0]);
         HeapPinBlock(D_8005A41C);
         ArchiveSetIndex(4, 0);
 
         entryIndex = 0;
-        for (i = 1; i < 3; i++) {
+        for (i = 1; i < MAX_PARTY_MEMBERS; i++) {
             if (g_GamePartyMemberSkins[i] == CHARACTER_ID_NONE) {
                 continue;
             }
@@ -745,28 +771,28 @@ void FieldSaveFramebuffers(void) {
         func_80029AFC(queue, 0, 0);
         ArchiveCdDataSync(0);
 
-        for (i = 1; i < 3; i++) {
+        for (i = 1; i < MAX_PARTY_MEMBERS; i++) {
             if (g_GamePartyMembers[i] != CHARACTER_ID_NONE) {
                 LZSSDecompress(g_FieldCompressedPartyStreamData[i - 1], g_FieldSavedFramebuffers[i - 1]);
                 HeapFree(g_FieldCompressedPartyStreamData[i - 1]);
             }
         }
     } else {
-        g_FieldSavedFramebuffers[0] = HeapAlloc(0x14000, 0);
-        D_8005A41C = HeapAlloc(0x14000, 0);
+        g_FieldSavedFramebuffers[0] = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
+        D_8005A41C = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
         HeapPinBlock(g_FieldSavedFramebuffers[0]);
         HeapPinBlock(D_8005A41C);
 
         rect.x = 0x200;
         rect.y = 0;
-        rect.w = 0x140;
+        rect.w = SCREEN_WIDTH;
         rect.h = 0x80;
         StoreImage(&rect, g_FieldSavedFramebuffers[0]);
         DrawSync(0);
 
         rect.x = 0x200;
         rect.y = 0x80;
-        rect.w = 0x140;
+        rect.w = SCREEN_WIDTH;
         rect.h = 0x80;
         StoreImage(&rect, D_8005A41C);
         DrawSync(0);
@@ -818,7 +844,7 @@ void FieldImageConvert24BitTo15Bit(void) {
         rect.x = i * 0x60;
         rect.y = 0;
         rect.w = 0x60;
-        rect.h = 0xE0;
+        rect.h = SCREEN_HEIGHT;
         StoreImage(&rect, pImage24Bit);
         DrawSync(0);
         g_Field24BitImageData = pImage24Bit;
@@ -840,7 +866,7 @@ void FieldImageConvert24BitTo15Bit(void) {
         rect.x = i << 6;
         rect.y = 0x100;
         rect.w = 0x40;
-        rect.h = 0xE0;
+        rect.h = SCREEN_HEIGHT;
         LoadImage(&rect, pImage15Bit);
         DrawSync(0);
     }
@@ -863,10 +889,10 @@ s32 func_800A7948(void) {
     if (!g_FieldTextRenderEnabled) {
         return;
     }
-    if (g_FieldStreamFramePosition < 0x687) {
+    if (g_FieldStreamFramePosition < FIELD_TEXT_SEGMENT_START_FRAME) {
         return;
     }
-    if (g_FieldStreamFramePosition >= 0x18E2) {
+    if (g_FieldStreamFramePosition >= FIELD_TEXT_SEGMENT_END_FRAME) {
         return;
     }
 
@@ -896,7 +922,7 @@ s32 func_800A7948(void) {
     Vsync(0);
     DrawSync(0);
 
-    while (g_FieldStreamFramePosition < 0x18E2) {
+    while (g_FieldStreamFramePosition < FIELD_TEXT_SEGMENT_END_FRAME) {
         GameCheckAndHandleSoftReset();
         FieldClearAndSwapOTagInternal();
         if (g_FieldStreamFramePosition < 0x18DE) {
@@ -909,17 +935,17 @@ s32 func_800A7948(void) {
         PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
         DrawOTag(g_FieldCurRenderContext->ot3 + 7);
         FieldUpdateTextRender();
-        FieldStepStreamPlayback(5);
+        FieldStepStreamPlayback(FIELD_STREAM_STEP_FRAMES);
     }
 
     g_FieldStreamTextSegmentActive = 0;
     D_801E89E0 = 1;
     DrawSync(0);
     Vsync(0);
-    SetDefDrawEnv(&g_FieldRenderContexts[0].drawEnvs[0], 0, 0, 0x140, 0xE0);
-    SetDefDrawEnv(&g_FieldRenderContexts[1].drawEnvs[0], 0, 0x100, 0x140, 0xE0);
-    SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, 0x140, 0xE0);
-    SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, 0x140, 0xE0);
+    SetDefDrawEnv(&g_FieldRenderContexts[0].drawEnvs[0], 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDrawEnv(&g_FieldRenderContexts[1].drawEnvs[0], 0, 0x100, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDispEnv(&g_FieldRenderContexts[0].dispEnv, 0, 0x100, SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetDefDispEnv(&g_FieldRenderContexts[1].dispEnv, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     g_FieldRenderContexts[1].dispEnv.isrgb24 = 1;
     g_FieldRenderContexts[0].dispEnv.isrgb24 = 1;
     g_FieldRenderContexts[1].dispEnv.isinter = 0;
