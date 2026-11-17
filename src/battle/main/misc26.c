@@ -144,7 +144,304 @@ void BattleAdvancePrimitiveCursor(void) {
 }
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1720);
+// One 4-byte entry of a saved model primitive's trailing data: the per-vertex
+// texture coordinate and its clut on a textured record, or a vertex colour.
+typedef union {
+    struct {
+        /* 0x0 */ u8 u;
+        /* 0x1 */ u8 v;
+        /* 0x2 */ u16 clut;
+    } tex;
+    struct {
+        /* 0x0 */ u8 r;
+        /* 0x1 */ u8 g;
+        /* 0x2 */ u8 b;
+        /* 0x3 */ u8 code;
+    } color;
+} BattlePrimEntry; // Size: 0x4
+
+// A saved primitive of a battle model frame (pFrame->primsOffset, walked by
+// BattleGetPrimitiveBufferSize): the length of the GPU packet it becomes, the
+// length of the record itself, its code byte, then the entries and finally the
+// u16 part indices func_800B1F6C transforms. A textured record lists one entry
+// per vertex before the colour entries, and drops the colours (into a flat
+// 0x80) when bit 0 of flags is clear.
+typedef struct {
+    /* 0x00 */ u8 outLen; // packet length in words, minus one
+    /* 0x01 */ u8 len; // record length in words, minus one
+    /* 0x02 */ u8 flags; // bit 0: the record carries per-vertex colours
+    /* 0x03 */ u8 code;
+    /* 0x04 */ BattlePrimEntry entries[8]; // texture entries, then colour entries
+    /* 0x24 */ u16 index[4]; // part indices func_800B1F6C transforms
+} BattleModelPrim; // Size: 0x2C
+
+// Expands a model frame's saved primitives into the GPU packets the frame is
+// drawn from: the packet code and semi-transparency mode are applied here and
+// func_800B1F6C fills in the transformed vertices. abr is the semi-transparency
+// mode the texture pages are stamped with, zero meaning none.
+void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
+    BattleModelPrim *pSrc;
+    s32 count;
+    s32 abr;
+    s32 i;
+    s32 kind;
+
+    pSrc = (BattleModelPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
+    count = pFrame->primCount;
+    if (mode != 0) {
+        abr = (mode - 1) & 3;
+        abr <<= 5;
+    }
+    for (i = 0; i != count; i++) {
+        setlen(pDst, pSrc->outLen);
+        setcode(pDst, pSrc->code);
+        SetShadeTex(pDst, shadeTex);
+        if (mode != 0) {
+            SetSemiTrans(pDst, mode != 0);
+        }
+        kind = pSrc->code & 0x1C;
+        kind |= ((pSrc->flags ^ 1) & 1) << 8;
+        switch (kind) {
+        case 0x010:
+        case 0x110: {
+            POLY_G3 *pPoly = (POLY_G3 *)pDst;
+
+            pPoly->r0 = pSrc->entries[0].color.r;
+            pPoly->g0 = pSrc->entries[0].color.g;
+            pPoly->b0 = pSrc->entries[0].color.b;
+            pPoly->r1 = pSrc->entries[1].color.r;
+            pPoly->g1 = pSrc->entries[1].color.g;
+            pPoly->b1 = pSrc->entries[1].color.b;
+            pPoly->r2 = pSrc->entries[2].color.r;
+            pPoly->g2 = pSrc->entries[2].color.g;
+            pPoly->b2 = pSrc->entries[2].color.b;
+            break;
+        }
+        case 0x018:
+        case 0x118: {
+            POLY_G4 *pPoly = (POLY_G4 *)pDst;
+
+            pPoly->r0 = pSrc->entries[0].color.r;
+            pPoly->g0 = pSrc->entries[0].color.g;
+            pPoly->b0 = pSrc->entries[0].color.b;
+            pPoly->r1 = pSrc->entries[1].color.r;
+            pPoly->g1 = pSrc->entries[1].color.g;
+            pPoly->b1 = pSrc->entries[1].color.b;
+            pPoly->r2 = pSrc->entries[2].color.r;
+            pPoly->g2 = pSrc->entries[2].color.g;
+            pPoly->b2 = pSrc->entries[2].color.b;
+            pPoly->r3 = pSrc->entries[3].color.r;
+            pPoly->g3 = pSrc->entries[3].color.g;
+            pPoly->b3 = pSrc->entries[3].color.b;
+            break;
+        }
+        case 0x000:
+        case 0x008:
+        case 0x100:
+        case 0x108: {
+            POLY_F3 *pPoly = (POLY_F3 *)pDst;
+
+            pPoly->r0 = pSrc->entries[0].color.r;
+            pPoly->g0 = pSrc->entries[0].color.g;
+            pPoly->b0 = pSrc->entries[0].color.b;
+            break;
+        }
+        case 0x104: {
+            POLY_FT3 *pPoly = (POLY_FT3 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = 0x80;
+            pPoly->g0 = 0x80;
+            pPoly->b0 = 0x80;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            break;
+        }
+        case 0x004: {
+            POLY_FT3 *pPoly = (POLY_FT3 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = pSrc->entries[3].color.r;
+            pPoly->g0 = pSrc->entries[3].color.g;
+            pPoly->b0 = pSrc->entries[3].color.b;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            break;
+        }
+        case 0x114: {
+            POLY_GT3 *pPoly = (POLY_GT3 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = 0x80;
+            pPoly->g0 = 0x80;
+            pPoly->b0 = 0x80;
+            pPoly->r1 = 0x80;
+            pPoly->g1 = 0x80;
+            pPoly->b1 = 0x80;
+            pPoly->r2 = 0x80;
+            pPoly->g2 = 0x80;
+            pPoly->b2 = 0x80;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            break;
+        }
+        case 0x014: {
+            POLY_GT3 *pPoly = (POLY_GT3 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = pSrc->entries[3].color.r;
+            pPoly->g0 = pSrc->entries[3].color.g;
+            pPoly->b0 = pSrc->entries[3].color.b;
+            pPoly->r1 = pSrc->entries[4].color.r;
+            pPoly->g1 = pSrc->entries[4].color.g;
+            pPoly->b1 = pSrc->entries[4].color.b;
+            pPoly->r2 = pSrc->entries[5].color.r;
+            pPoly->g2 = pSrc->entries[5].color.g;
+            pPoly->b2 = pSrc->entries[5].color.b;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            break;
+        }
+        case 0x10C: {
+            POLY_FT4 *pPoly = (POLY_FT4 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = 0x80;
+            pPoly->g0 = 0x80;
+            pPoly->b0 = 0x80;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            pPoly->u3 = pSrc->entries[3].tex.u;
+            pPoly->v3 = pSrc->entries[3].tex.v;
+            break;
+        }
+        case 0x00C: {
+            POLY_FT4 *pPoly = (POLY_FT4 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = pSrc->entries[4].color.r;
+            pPoly->g0 = pSrc->entries[4].color.g;
+            pPoly->b0 = pSrc->entries[4].color.b;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            pPoly->u3 = pSrc->entries[3].tex.u;
+            pPoly->v3 = pSrc->entries[3].tex.v;
+            break;
+        }
+        case 0x11C: {
+            POLY_GT4 *pPoly = (POLY_GT4 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = 0x80;
+            pPoly->g0 = 0x80;
+            pPoly->b0 = 0x80;
+            pPoly->r1 = 0x80;
+            pPoly->g1 = 0x80;
+            pPoly->b1 = 0x80;
+            pPoly->r2 = 0x80;
+            pPoly->g2 = 0x80;
+            pPoly->b2 = 0x80;
+            pPoly->r3 = 0x80;
+            pPoly->g3 = 0x80;
+            pPoly->b3 = 0x80;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            pPoly->u3 = pSrc->entries[3].tex.u;
+            pPoly->v3 = pSrc->entries[3].tex.v;
+            break;
+        }
+        case 0x01C: {
+            POLY_GT4 *pPoly = (POLY_GT4 *)pDst;
+
+            if (mode != 0) {
+                pSrc->entries[1].tex.clut = (pSrc->entries[1].tex.clut & 0xFF9F) | abr;
+            }
+            pPoly->r0 = pSrc->entries[4].color.r;
+            pPoly->g0 = pSrc->entries[4].color.g;
+            pPoly->b0 = pSrc->entries[4].color.b;
+            pPoly->r1 = pSrc->entries[5].color.r;
+            pPoly->g1 = pSrc->entries[5].color.g;
+            pPoly->b1 = pSrc->entries[5].color.b;
+            pPoly->r2 = pSrc->entries[6].color.r;
+            pPoly->g2 = pSrc->entries[6].color.g;
+            pPoly->b2 = pSrc->entries[6].color.b;
+            pPoly->r3 = pSrc->entries[7].color.r;
+            pPoly->g3 = pSrc->entries[7].color.g;
+            pPoly->b3 = pSrc->entries[7].color.b;
+            pPoly->tpage = pSrc->entries[1].tex.clut;
+            pPoly->clut = pSrc->entries[0].tex.clut;
+            pPoly->u0 = pSrc->entries[0].tex.u;
+            pPoly->v0 = pSrc->entries[0].tex.v;
+            pPoly->u1 = pSrc->entries[1].tex.u;
+            pPoly->v1 = pSrc->entries[1].tex.v;
+            pPoly->u2 = pSrc->entries[2].tex.u;
+            pPoly->v2 = pSrc->entries[2].tex.v;
+            pPoly->u3 = pSrc->entries[3].tex.u;
+            pPoly->v3 = pSrc->entries[3].tex.v;
+            break;
+        }
+        }
+        pDst += (pSrc->outLen + 1) * 4;
+        pSrc = (BattleModelPrim *)((u8 *)pSrc + (pSrc->len + 1) * 4);
+    }
+}
+
 void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
     SVECTOR *pPart;
     s32 n;
