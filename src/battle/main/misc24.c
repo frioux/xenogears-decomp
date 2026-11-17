@@ -241,7 +241,7 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                 if (pActor->commandCount < 5) {
                     pActor->commandCount = pActor->commandCount + 1;
                 }
-                pActor->commands[pActor->commandCount] = pSource->unk20[0];
+                pActor->commands[pActor->commandCount] = pSource->actorSlot;
                 pActor->commandArgs[pActor->commandCount] = arg3;
             } else {
                 if (arg3 < 0x50) {
@@ -277,7 +277,7 @@ s32 BattleStepActorAnimation(BattleActor *pActor, u8 *arg1, s32 arg2, u8 *arg3, 
                 BattleUpdateSpriteTransforms(pActor->pSprites, pActor->scale);
             }
             for (i = 0; i < arg2; i++) {
-                r |= func_800A0838(arg1, pActor->pSprites, pActor->unk3C, pActor->scale);
+                r |= func_800A0838(arg1, pActor->pSprites, pActor->blockTag, pActor->scale);
                 func_800AE2A4(pActor, arg1, arg3);
             }
         }

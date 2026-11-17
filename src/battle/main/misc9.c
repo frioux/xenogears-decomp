@@ -320,8 +320,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
 void BattleSetSlotRecordByteAndRelease(BattleCommand **ppCmd, s32 arg1) {
     s32 idx = (arg1 & 0xFF) + 3;
 
-    g_BattleSlotRecords[idx].flags = (*ppCmd)->unk1;
-    if ((*ppCmd)->unk1 & 0x80) {
+    g_BattleSlotRecords[idx].flags = (*ppCmd)->operand1;
+    if ((*ppCmd)->operand1 & 0x80) {
         func_80087EDC((u8)(arg1 + 3), (u8)(arg1 + 3));
     } else {
         BattleReleaseCharSlot((u8)(arg1 + 3));
@@ -331,7 +331,7 @@ void BattleWordRegSetSlotBitMask(BattleCommand **ppCmd, s32 arg1) {
     u16 value = BattleSlotBitMask((arg1 + 3) & 0xFF);
     u16 *pRegs = g_BattleSlotRegs[arg1 & 0xFF].wordRegs;
 
-    pRegs[(*ppCmd)->unk1] = value;
+    pRegs[(*ppCmd)->operand1] = value;
 }
 void BattleStoreCharSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     s32 acc = 0;
@@ -341,7 +341,7 @@ void BattleStoreCharSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
     // the slot table is walked downwards from its third record
     for (i = 2; i >= 0; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
-            switch ((*ppCmd)->unk2) {
+            switch ((*ppCmd)->operand2) {
             case 1:
                 if (g_BattleSlotFlags[i].inUse != 0) {
                     acc |= 1;
@@ -360,7 +360,7 @@ void BattleStoreCharSlotFlagMask(BattleCommand **ppCmd, u8 arg1) {
         acc <<= 1;
     }
     pRegs = g_BattleSlotRegs[arg1].wordRegs;
-    pRegs[(*ppCmd)->unk1] = (u16)acc >> 1;
+    pRegs[(*ppCmd)->operand1] = (u16)acc >> 1;
 }
 /* best: 95.31%. Same family as BattleStoreCharSlotFlagMask (walk the slot table downwards,
    `(i - 0xA) * 8` keeps D_800D32F1 as the base symbol). Only difference: the
@@ -564,10 +564,10 @@ void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
     u32 *pRegs = g_BattleSlotRegs[arg1].dwordRegs;
     BattleCommand *pCmd = *ppCmd;
 
-    pRegs[pCmd->unk1] /= pCmd->unk2;
+    pRegs[pCmd->operand1] /= pCmd->operand2;
 }
 void BattleWriteWorkBufferWord(BattleCommand **ppCmd) {
-    *(u16 *)(g_BattlePrimPool + (*ppCmd)->unk1 * 2 + 0x394) = (*ppCmd)->unk2;
+    *(u16 *)(g_BattlePrimPool + (*ppCmd)->operand1 * 2 + 0x394) = (*ppCmd)->operand2;
 }
 /* best: 96.50%. Structure found: do-while with the pointer compared as a SIGNED
    int (a u16* compare gives sltu, the original has slt), and the flag tested as
@@ -600,7 +600,7 @@ void BattleGetFontGlyph(u8 **arg0) {
 void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
     u16 *pRegs = g_BattleSlotRegs[arg1].wordRegs;
 
-    g_BattlePendingCharIndex = BattleFindFirstFlagTableMatch(pRegs[(*ppCmd)->unk1]) + 1;
+    g_BattlePendingCharIndex = BattleFindFirstFlagTableMatch(pRegs[(*ppCmd)->operand1]) + 1;
 }
 void BattleResetDisplayValues(void) {
     u8 buf[0x10];
@@ -610,7 +610,7 @@ void BattleResetDisplayValues(void) {
 s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
     u8 *pRegs = g_BattleSlotRegs[arg1].byteRegs;
 
-    return pRegs[(*ppCmd)->unk1] == (*ppCmd)->unk2;
+    return pRegs[(*ppCmd)->operand1] == (*ppCmd)->operand2;
 }
 s32 BattleWordRegEqImm(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
@@ -622,5 +622,5 @@ s32 BattleWordRegEqImm(u8 **arg0, s32 arg1) {
 s32 BattleByteRegLeImm(BattleCommand **ppCmd, u8 arg1) {
     u8 *pRegs = g_BattleSlotRegs[arg1].byteRegs;
 
-    return (*ppCmd)->unk2 >= pRegs[(*ppCmd)->unk1];
+    return (*ppCmd)->operand2 >= pRegs[(*ppCmd)->operand1];
 }
