@@ -2672,12 +2672,12 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
     pGear->defenseFromEquipment = 0;
     pGear->etherDefenseFromEquipment = 0;
     pGear->weightFromEquipment = 0;
-    pGear->unk48 = 0;
+    pGear->accessoryEffectFlags9 = 0;
     pGear->unk4C = 0;
     pGear->responsiveness = 0;
     pGear->unk4E = 0;
-    pGear->unk4F = 0;
-    pGear->unk6E = 0;
+    pGear->accessoryEffectFlags5 = 0;
+    pGear->accessoryEffectFlags4 = 0;
 
 
     for(i = 0; i < 16; i++) {
@@ -2693,9 +2693,9 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
     }
 
     pGear->etherAmplificationFromEquipment = 0;
-    pGear->unk7E = 0;
-    pGear->unk82 = 0;
-    pGear->unk86 &= 0xF000;
+    pGear->accessoryEffectFlags1 = 0;
+    pGear->accessoryEffectFlags2 = 0;
+    pGear->accessoryEffectFlags3 &= 0xF000;
     *pFlags1 &= 0xDB7F;
 
     for(accessoryInd = 0; accessoryInd < 3; accessoryInd++) {
@@ -2714,24 +2714,24 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
 
         switch(pAccessory->effectType) {
             case 1:
-                pGear->unk7E |= pAccessory->effectFlags;
+                pGear->accessoryEffectFlags1 |= pAccessory->effectFlags;
                 break;
             case 2:
-                pGear->unk82 |= pAccessory->effectFlags;
+                pGear->accessoryEffectFlags2 |= pAccessory->effectFlags;
                 break;
             case 3:
-                pGear->unk86 |= pAccessory->effectFlags;
+                pGear->accessoryEffectFlags3 |= pAccessory->effectFlags;
                 break;
             case 4:
                 for(i = 0; i < 16; i++) {
-                    pGear->unk6E |= pAccessory->effectFlags;
+                    pGear->accessoryEffectFlags4 |= pAccessory->effectFlags;
                     if(pAccessory->effectFlags & (0x8000 >> i)) {
                         pGear->unk88[i] += pAccessory->unk1A;
                     }
                 }
                 break;
             case 5:
-                pGear->unk4F += pAccessory->effectFlags;
+                pGear->accessoryEffectFlags5 += pAccessory->effectFlags;
                 break;
             case 6:
                 if( (*pFlags1 & 0x1000) && (*pFlags1 & 0x800) )
@@ -2747,7 +2747,7 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
                 }
                 break;
             case 9:
-                pGear->unk48 |= pAccessory->effectFlags;
+                pGear->accessoryEffectFlags9 |= pAccessory->effectFlags;
             case 10:
                 pGear->unk55[1] += (u8) pAccessory->effectFlags;
                 break;
@@ -2758,7 +2758,7 @@ void GearShopMenuApplyGearAccessories(MenuDressingRoom* dressingRoom, u8 gearId)
     }
 
     pGear->weightPenalty = GearShopMenuComputeEquipWeightPenalty(gearId);
-    if (pGear->unk4F) {
+    if (pGear->accessoryEffectFlags5) {
         *pFlags2 |= 0x8000;
     }
     else if (gearId == g_GameState.characters[g_GearShopGearPilotIds[gearId]].gearId) {
@@ -2784,8 +2784,8 @@ void GearShopMenuApplyGearWeapons(MenuDressingRoom* dressingRoom, u8 gearId) {
     pGear->unk5C[3] = pWeapon->unk0[3];
 
     if (pGear->weaponData[0].unk4 == 100) {
-        pGear->unk86 = pGear->unk86 & 0xFFF;
-        pGear->unk86 |= pGear->weaponData[0].flags;
+        pGear->accessoryEffectFlags3 = pGear->accessoryEffectFlags3 & 0xFFF;
+        pGear->accessoryEffectFlags3 |= pGear->weaponData[0].flags;
     }
     if ((gearId == 5) || (gearId == 0xD)) {
         pWeapon = dressingRoom->pGearWeapons;

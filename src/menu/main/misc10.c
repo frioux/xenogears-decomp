@@ -771,7 +771,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
 
     pChar = &g_GameState.characters[charIndex];
     pChar->defenseFromAccessories = 0;
-    pChar->unk32 = 0;
+    pChar->accessoryEffectFlags5 = 0;
     pChar->attackFromEquipment = 0;
     pChar->defenseFromEquipment = 0;
     pChar->agilityFromEquipment = 0;
@@ -781,11 +781,11 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     pChar->evadePercentageFromEquipment = 0;
     pChar->unk30 = 0;
     pChar->unk31 = 0;
-    pChar->unk7E = 0;
-    pChar->unk82 = 0;
-    pChar->unk86 = 0;
-    pChar->unk8A = 0;
-    pChar->unk8E = 0;
+    pChar->accessoryEffectFlags1 = 0;
+    pChar->accessoryEffectFlags2 = 0;
+    pChar->accessoryEffectFlags3 = 0;
+    pChar->accessoryEffectFlags4 = 0;
+    pChar->accessoryEffectFlags7 = 0;
     pChar->field_0xA1[0] = 0;
 
     for (i = 0; i < 3; i++) {
@@ -796,22 +796,22 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
         pChar->defenseFromAccessories += pAccessory->defense;
         switch (pAccessory->effectType) {
         case 1:
-            pChar->unk7E |= pAccessory->effectFlags;
+            pChar->accessoryEffectFlags1 |= pAccessory->effectFlags;
             break;
         case 2:
-            pChar->unk82 |= pAccessory->effectFlags;
+            pChar->accessoryEffectFlags2 |= pAccessory->effectFlags;
             break;
         case 3:
-            pChar->unk86 |= pAccessory->effectFlags;
+            pChar->accessoryEffectFlags3 |= pAccessory->effectFlags;
             break;
         case 4:
-            pChar->unk8A |= pAccessory->effectFlags;
+            pChar->accessoryEffectFlags4 |= pAccessory->effectFlags;
             break;
         case 7:
-            pChar->unk8E |= pAccessory->effectFlags;
+            pChar->accessoryEffectFlags7 |= pAccessory->effectFlags;
             break;
         case 5:
-            pChar->unk32 |= pAccessory->effectFlags;
+            pChar->accessoryEffectFlags5 |= pAccessory->effectFlags;
             break;
         case 8:
         case 9:
@@ -871,7 +871,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
         pChar->slots[3].unk3 = pWeapon->unkB;
     }
     if (pChar->slots[0].unk3 == 0x64) {
-        pChar->unk8E |= pChar->slots[0].flags;
+        pChar->accessoryEffectFlags7 |= pChar->slots[0].flags;
     }
 }
 

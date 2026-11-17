@@ -21,7 +21,7 @@
 // MenuApplyEquippedItemBonuses, and, in g_GameState.characters[4], the id of the
 // character in that battle party slot at +0x6 (see BattleIsCharacterInParty).
 typedef struct {
-    /* 0x0 */ u16 flags; // OR'ed into unk8E while unk3 reads 0x64 (fully charged)
+    /* 0x0 */ u16 flags; // OR'ed into GameCharacter.accessoryEffectFlags7 while unk3 reads 0x64 (fully charged)
     /* 0x2 */ u8 unk2;
     /* 0x3 */ u8 unk3;
     /* 0x4 */ u8 attack;
@@ -43,7 +43,7 @@ typedef struct {
     /* 0x2F */ u8 evadePercentageFromEquipment;
     /* 0x30 */ u8 unk30;
     /* 0x31 */ u8 unk31;
-    /* 0x32 */ u16 unk32;
+    /* 0x32 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, see the 0x7E block
     /* 0x34 */ u8 unk34[0x10];
     // Two 32-bit numbers the menu window draws wide (up to 8 digits) with
     // MenuParseNumberToDigits.
@@ -74,22 +74,26 @@ typedef struct {
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;
     /* 0x79 */ u8 unk79[0x5];
-    /* 0x7E */ u16 unk7E; // accessory flag word, OR'ed from the slot[0] flags
+    // One flag word per accessory effectType: the OR of the effectFlags of the
+    // worn accessories whose effectType selects it, see
+    // MenuApplyEquippedItemBonuses in src/menu/main/misc10.c. The words in
+    // between are touched by no matched code.
+    /* 0x7E */ u16 accessoryEffectFlags1;
     /* 0x80 */ u16 unk80;
-    /* 0x82 */ u16 unk82;
+    /* 0x82 */ u16 accessoryEffectFlags2;
     /* 0x84 */ u16 unk84;
-    /* 0x86 */ u16 unk86;
+    /* 0x86 */ u16 accessoryEffectFlags3;
     /* 0x88 */ u16 unk88;
-    /* 0x8A */ u16 unk8A;
+    /* 0x8A */ u16 accessoryEffectFlags4;
     /* 0x8C */ u16 unk8C;
-    /* 0x8E */ u16 unk8E;
+    /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's unk3 reads 0x64
     /* 0x90 */ u8 unk90[0x10];
     /* 0xA0 */ u_char gearId;
     /* 0xA1 */ undefined8 field_0xA1[0x3];
 } GameCharacter; // size: 0xA4
 
 typedef struct {
-    /* 0x00 */ u16 flags; // OR'ed into GameGear.unk86's top nibble once unk4 reads 100, see MenuApplyGearWeapons
+    /* 0x00 */ u16 flags; // OR'ed into GameGear.accessoryEffectFlags3's top nibble once unk4 reads 100, see MenuApplyGearWeapons
     /* 0x02 */ u8 attack;
     /* 0x03 */ u8 unk3;
     /* 0x04 */ u8 unk4;
@@ -118,13 +122,13 @@ typedef struct {
     /* 0x42 */ u16 etherDefenseFromEquipment;
     /* 0x44 */ u16 weightFromEquipment;
     /* 0x46 */ u16 unk46;
-    /* 0x48 */ u16 unk48;
+    /* 0x48 */ u16 accessoryEffectFlags9; // the type-9 accessory flag word, see GearShopMenuRecalculateGearStats
     /* 0x4A */ u8 weightPenalty; // subtracted from agility, see GearShopMenuComputeEquipWeightPenalty
     /* 0x4B */ u8 unk4B;
     /* 0x4C */ u8 unk4C;
     /* 0x4D */ u8 responsiveness;
     /* 0x4E */ u8 unk4E;
-    /* 0x4F */ u8 unk4F;
+    /* 0x4F */ u8 accessoryEffectFlags5; // summed, not OR'ed; nonzero sets the pilot's statusFlags bit 0x8000
     /* 0x50 */ u8 unk50[4];
     /* 0x54 */ u8 etherAmplificationFromEquipment; // added to etherAmplification for the total shown
     /* 0x55 */ u8 unk55[3];
@@ -136,7 +140,7 @@ typedef struct {
     /* 0x68 */ u16 weight;
     /* 0x6A */ u16 unk6A;
     /* 0x6C */ u16 unk6C;
-    /* 0x6E */ u16 unk6E;
+    /* 0x6E */ u16 accessoryEffectFlags4; // one bit per accessory attribute, unk88[] accumulates its magnitude per bit
     /* 0x70 */ u16 baseDefense; /* impacted by AR value of equipped armor */
     /* 0x72 */ u16 baseEtherDefense;
     /* 0x74 */ u8 attackPower;
@@ -149,13 +153,13 @@ typedef struct {
     /* 0x7B */ u8 unk7B;
     /* 0x7C */ u8 unk7C;
     /* 0x7D */ u8 unk7D;
-    /* 0x7E */ u16 unk7E;
+    /* 0x7E */ u16 accessoryEffectFlags1; // the type-1 accessory flag word, see GearShopMenuRecalculateGearStats
     /* 0x80 */ u8 unk80;
     /* 0x81 */ u8 unk81;
-    /* 0x82 */ u16 unk82;
+    /* 0x82 */ u16 accessoryEffectFlags2;
     /* 0x84 */ u8 unk84;
     /* 0x85 */ u8 unk85;
-    /* 0x86 */ u16 unk86;
+    /* 0x86 */ u16 accessoryEffectFlags3; // low 12 bits; the top nibble holds the equipped weapon's flags
     /* 0x88 */ u8 unk88[0x10];
     /* 0x98 */ u8 agility;
     /* 0x99 */ u8 unk99;
@@ -254,7 +258,10 @@ typedef struct {
     /* 0x22B6 */ undefined16 unk22B6;
     /* 0x22B8 */ undefined8 unk22B8[0x62];
     /* 0x231A */ u16 mapNum;
-    /* 0x231C */ u16 unk231C;
+    // The 12-bit angle a pending field entry uses, set with mapNum by
+    // FieldScriptVMHandlerSetFieldEntryState: an 8-step direction << 9, or the
+    // current sceneAngle turned 180 degrees when the script passes -1.
+    /* 0x231C */ u16 entryAngle;
     /* 0x231E */ undefined16 unk231E;
     /* 0x2320 */ u16 unk2320;
     /* 0x2322 */ u16 wdsBankIndex;
