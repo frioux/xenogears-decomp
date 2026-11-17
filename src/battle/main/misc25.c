@@ -353,15 +353,6 @@ void BattleCreateModelPartTask(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4,
         pNode->unkE = pInfo->unkC;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800AFC68);
-/* 91.71%: structure, the GTE block (gte_ldv0/gte_mvmva/gte_stlvnl are an exact
-   match) and the callback tail are right; the only difference is which temp
-   register holds pMat: original `lw $v0,4($v0)` in $v0 + offset in $a1, ours
-   the other way round. Tried: offset as a local before the call, pMat local.
-extern void CompMatrix(void *, void *, void *);
-extern void SetRotMatrix(void *);
-extern void SetTransMatrix(void *);
-
 void func_800AFC68(u8 *p) {
     u8 *pNode;
     u8 *pMatrix;
@@ -372,9 +363,10 @@ void func_800AFC68(u8 *p) {
     index = *(s16 *)(pNode + 0xC);
     pMatrix = PSX_SCRATCH;
     if (index != 0) {
-        s32 offset = index * 0x7C;
         u8 *pMat = *(u8 **)(*(u8 **)(pNode + 0x8) + 4);
-        CompMatrix(pMat + 0xC, pMat + offset + 0x2C, PSX_SCRATCH);
+        s32 offset = index * 0x7C;
+        u8 *pBase = (u8 *)offset + (u32)pMat;
+        CompMatrix(pMat + 0xC, pBase + 0x2C, PSX_SCRATCH);
     } else {
         pMatrix = *(u8 **)(*(u8 **)(pNode + 0x8) + 4) + 0xC;
     }
@@ -391,7 +383,7 @@ void func_800AFC68(u8 *p) {
     *(s32 *)(p + 0x40) = vec[2] << 16;
     ((void (*)(u8 *)) * (u32 *)(pNode + 0x4))(p);
 }
-*/
+
 
 void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char flags, s16 x, s16 y, s16 z) {
     BattleModelNode *pChild;
