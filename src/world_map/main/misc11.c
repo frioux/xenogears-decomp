@@ -1,6 +1,17 @@
 #include "common.h"
 #include "main/game.h"
 
+// World map view of the sprite object SpriteAllocFromAnimFile returns (SpriteData in
+// include/field/actor.h). Only the two fields this unit touches are named: it clears
+// bit 2 of the 0x3C flag word as a whole word, which that header's bitfields cannot
+// express, and compares the current animation id, byte 3 of the header's 0xAC word.
+typedef struct {
+    /* 0x00 */ undefined32 unk00[15]; // 0x00..0x3B
+    /* 0x3C */ u32 flags;
+    /* 0x40 */ undefined8 unk40[0x6F]; // 0x40..0xAE
+    /* 0xAF */ s8 animId;
+} WorldMapSprite; // Size: 0xB0
+
 typedef struct {
     /* 0x00 */ undefined32 unk00;
     /* 0x04 */ s16 command;
@@ -20,7 +31,7 @@ typedef struct {
     /* 0x44 */ undefined32 unk44;
     /* 0x48 */ s16 angle;
     /* 0x4A */ s16 moveSpeed;
-    /* 0x4C */ void *pSprite;
+    /* 0x4C */ WorldMapSprite *pSprite;
     /* 0x50 */ s32 targetX;
     /* 0x54 */ void *targetZ;
     /* 0x58 */ s32 trailDelay;
@@ -92,7 +103,7 @@ extern s16 WorldMapGetTileHalfIndex(void *);
 extern s32 WorldMapGetTilePlaneHeight(s32, s32);
 extern void *D_8009BDFC[];
 extern void *D_8009BE00[];
-extern void *SpriteAllocFromAnimFile(void *, s16, s16, s16, s16, s16);
+extern WorldMapSprite *SpriteAllocFromAnimFile(void *, s16, s16, s16, s16, s16);
 extern void SpritePlayAnimation(void *, s32);
 extern void SpriteSetScale(void *, s16);
 extern void WorldMapWrapPosition(void *);
@@ -121,11 +132,11 @@ int WorldMapModeInitActorSlot(int index) {
     s32 mode;
     s32 result = 1;
 
-    if (g_GameState.partyMembers[1] != 0xFF) {
+    if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
         pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
         SpriteSetScale(pActor->pSprite, 0x1800);
-        *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+        pActor->pSprite->flags &= ~4;
         pActor->unk24 = 0;
     } else {
         pActor->unk24 = 1;
@@ -162,14 +173,14 @@ int WorldMapModeInitActorSlot(int index) {
     case 6:
         pActor->state = 3;
         pActor->unk24 = 1;
-        if (g_GameState.partyMembers[1] != 0xFF) {
+        if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
             g_GameState.gearRide[1] = 1;
         }
         break;
     case 7:
         pActor->state = 2;
         pActor->unk24 = 1;
-        if (g_GameState.partyMembers[1] != 0xFF) {
+        if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
             g_GameState.gearRide[1] = 1;
         }
         break;
@@ -187,11 +198,11 @@ int WorldMapModeInitCharacterSprite1(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
 
-    if (g_GameState.partyMembers[1] != 0xFF) {
+    if (g_GameState.partyMembers[1] != CHARACTER_ID_NONE) {
         pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
         SpriteSetScale(pActor->pSprite, 0x1800);
-        *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+        pActor->pSprite->flags &= ~4;
     } else {
         result = 3;
     }
@@ -225,7 +236,7 @@ int func_8008B54C(int index) {
     pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
-    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->pSprite->flags &= ~4;
     pActor->x = g_GameState.worldMapPosX << 12;
     pActor->z = g_GameState.worldMapPosZ << 12;
     pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
@@ -275,12 +286,12 @@ int WorldMapUpdateActorSlot(int index) {
             pTrail = &g_WorldMapTrail[(g_WorldMapTrailCursor - pActor->trailDelay) & 0x1F];
             if ((pActor->x == pTrail->vec.x) & (pActor->y == pTrail->vec.y) &
                 (pActor->z == pTrail->vec.z)) {
-                if (((s8 *)pActor->pSprite)[0xAF] != 0) {
+                if (pActor->pSprite->animId != 0) {
                     SpritePlayAnimation(pActor->pSprite, 0);
                     WorldMapDeactivateSpriteGroup(index + 0x2E);
                 }
             } else {
-                if (((s8 *)pActor->pSprite)[0xAF] != 1) {
+                if (pActor->pSprite->animId != 1) {
                     SpritePlayAnimation(pActor->pSprite, 1);
                 }
                 WorldMapUpdateSpriteGroupFromActor(index + 0x2E, pActor, (WorldMapScreenPos *)pScratch);
@@ -396,7 +407,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008BB40);
 int func_8008BB40(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
-    if (g_GameState.partyMembers[2] != 0xFF) {
+    if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
         pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
         SpritePlayAnimation(pActor->unk4C, 0);
         SpriteSetScale(pActor->unk4C, 0x1800);
@@ -435,14 +446,14 @@ int func_8008BB40(int index) {
     case 6:
         pActor->unk20 = 3;
         pActor->unk24 = 1;
-        if (g_GameState.partyMembers[2] != 0xFF) {
+        if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
             g_GameState.gearRide[2] = 1;
         }
         break;
     case 7:
         pActor->unk20 = 2;
         pActor->unk24 = 1;
-        if (g_GameState.partyMembers[2] != 0xFF) {
+        if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
             g_GameState.gearRide[2] = 1;
         }
         break;
@@ -461,11 +472,11 @@ int WorldMapModeInitCharacterSprite2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
 
-    if (g_GameState.partyMembers[2] != 0xFF) {
+    if (g_GameState.partyMembers[2] != CHARACTER_ID_NONE) {
         pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD3C, 0x120, 0x1E0, 0x160, 0x100, 0x40);
         SpritePlayAnimation(pActor->pSprite, 0);
         SpriteSetScale(pActor->pSprite, 0x1800);
-        *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+        pActor->pSprite->flags &= ~4;
     } else {
         result = 3;
     }
@@ -587,7 +598,7 @@ void WorldMapUpdateSpriteGroupFromActor(s32 arg0, WorldMapActor *pActor, WorldMa
     }
 }
 void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
-    void *pSprite;
+    WorldMapSprite *pSprite;
 
     pSprite = SpriteAllocFromAnimFile(D_8009BDF8[index], D_8009B18C[index], D_8009B194[index], D_8009B19C[index],
                             D_8009B1A4[index], 0x40);
@@ -598,7 +609,7 @@ void WorldMapInitActorSpriteBySlot(WorldMapActor *pActor, int index) {
         SpritePlayAnimation(pSprite, 3);
     }
     SpriteSetScale(pActor->pSprite, 0x2000);
-    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->pSprite->flags &= ~4;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C364);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008C530);
@@ -686,7 +697,7 @@ int WorldMapInitPartyActorSprite0(int index) {
     pActor->pSprite = SpriteAllocFromAnimFile(D_8009BDF8[0], 0x100, 0x1FD, 0x140, 0x140, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x2000);
-    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->pSprite->flags &= ~4;
     pActor->x = g_GameState.fieldScriptMemory[0x16] << 12;
     pActor->z = g_GameState.fieldScriptMemory[0x17] << 12;
     pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
@@ -776,7 +787,7 @@ int WorldMapInitPartyActorSprite1(int index) {
     pActor->pSprite = SpriteAllocFromAnimFile(D_8009BDFC[0], 0x100, 0x1FC, 0x160, 0x140, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x2000);
-    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->pSprite->flags &= ~4;
     pActor->x = g_GameState.fieldScriptMemory[0x19] << 12;
     pActor->z = g_GameState.fieldScriptMemory[0x1A] << 12;
     pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
@@ -852,7 +863,7 @@ int WorldMapInitPartyActorSprite2(int index) {
     pActor->pSprite = SpriteAllocFromAnimFile(D_8009BE00[0], 0x100, 0x1FB, 0x280, 0x100, 0x40);
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x2000);
-    *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
+    pActor->pSprite->flags &= ~4;
     pActor->x = g_GameState.fieldScriptMemory[0x1C] << 12;
     pActor->z = g_GameState.fieldScriptMemory[0x1D] << 12;
     pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
