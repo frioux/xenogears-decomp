@@ -1,4 +1,5 @@
 #include "common.h"
+#include "battle/battle_work.h"
 
 // The sound played when the battle menu refuses an input (battle/main/misc11 and
 // misc16 call it with the same id; kept here because this unit does not include actor.h).
@@ -85,7 +86,11 @@ extern BattleUnk170 D_800CCE08[];
 extern BattleSlotBaseEntry g_BattleSlotEntriesBase[];
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x24];
+    /* 0x00 */ u8 unk0[0x1C];
+    /* 0x1C */ u16 unk1C;
+    /* 0x1E */ u16 unk1E;
+    /* 0x20 */ u16 unk20;
+    /* 0x22 */ u8 unk22[0x2];
     /* 0x24 */ u16 unk24;
     /* 0x26 */ u16 unk26;
     /* 0x28 */ u16 unk28;
@@ -104,12 +109,24 @@ typedef struct {
 // 0x2F8-byte block of actor slots plus the slot menu state that follows them.
 typedef struct {
     /* 0x000 */ BattleActorSlot slot[0xB];
-    /* 0x2C0 */ u8 unk2C0[0x13];
+    /* 0x2C0 */ u8 unk2C0[0xC];
+    /* 0x2CC */ u8 unk2CC;
+    /* 0x2CD */ u8 unk2CD[0x6];
     /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
-    /* 0x2D4 */ u8 unk2D4[0x9];
+    /* 0x2D4 */ u8 unk2D4[0x2];
+    /* 0x2D6 */ u8 unk2D6;
+    /* 0x2D7 */ u8 unk2D7[0x5];
+    /* 0x2DC */ u8 unk2DC;
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
-    /* 0x2DF */ u8 unk2DF[0x9];
+    /* 0x2DF */ u8 unk2DF;
+    /* 0x2E0 */ u8 unk2E0;
+    /* 0x2E1 */ u8 unk2E1; // set while the confirm handler is still running
+    /* 0x2E2 */ u8 unk2E2;
+    /* 0x2E3 */ u8 unk2E3;
+    /* 0x2E4 */ u8 unk2E4;
+    /* 0x2E5 */ u8 unk2E5[0x2];
+    /* 0x2E7 */ u8 unk2E7;
     /* 0x2E8 */ u8 targetSlot; // the slot being selected, the menu's copy of slot[].targetSlot
     /* 0x2E9 */ u8 unk2E9;
     /* 0x2EA */ u8 unk2EA;
@@ -652,7 +669,215 @@ void BattleAdvanceSlotMenuStateText(u8 arg0) {
         break;
     }
 }
+extern BattleWork *g_BattleDisplayState;
+extern u8 g_BattleTaskListBusy;
+extern u16 g_BattleSlotFlag8000Mask;
+extern u8 D_800D2C34;
+// The per-command cost/limit table read by the confirm handler: one u16 row per
+// character, three rows of the table before the scalar at D_800D2C34.
+extern u16 D_800D2C0A[];
+extern void BattleInitTargetSlotFlags(u8);
+extern void BattleQueueCommandFE(u8);
+extern void BattleActorInitSpriteFromSlot(void);
+extern void BattleClearFlagC6(void);
+extern void BattleClearSlotFlagsIfChar4(u8, u8);
+extern void BattlePlaySoundWithBaseId(u8);
+extern int func_80086F98(u8, u8);
+extern u32 BattleCheckActorCommandAvailable(u8, u8);
+extern void BattleAppendCommandRecord(u8);
+extern void func_80087AF0(u8, u8);
+extern void func_800898F0(u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
+/* 87.92% (1696 bytes against retail's 1708: 3 instructions short). The whole event
+   dispatch, the two switches, the cost table and the command queue tail are in place
+   and the instruction stream agrees with retail except for delay slots and these
+   known gaps:
+   (a) retail has 59 nops where our reorg fills the slot (e.g. `j .L80083B34` with a
+       nop, and `beq v1,v0,.L80083FCC` / nop / slti). Declaring the function u32 instead
+       of void bought 4 bytes of that back and is kept in the parked body; the rest did
+       not move with any return type tried.
+   (b) the case-4/6/7 fall-through chain that builds the command index (case 4 runs three
+       `index++`, case 7 two, case 6 one) is emitted one instruction longer here because
+       reorg steals D08's increment into the case-4 `beq` delay slot, which then splits
+       the chain retail shares. Source shape matches retail's block order otherwise.
+   (c) the two D_800D2C34-based table reads need the base register retail uses, so the
+       body spells them `((u16 *)(pMode - 0x15))[0xC + index]` with pMode = &D_800D2C34;
+       the plain `D_800D2C0A[...]` form makes gcc fold the constant into the symbol
+       (%hi(D_800D2C22) through $at) and cannot link. That spelling is ROUGH - the
+       original almost certainly indexed one table.
+   Table facts for the next round: D_800D2C0A is a u16 table; the three reads are
+   [index], [0xC + index] and [3*unk2CC + 3 + index], so the last two are one row-major
+   table indexed 3*character + 3 + command and the D_800D2C34==4 case is that row with
+   character 3. s2 (the command index + 1) is built by the case 4/7/6 fall-through.
+*/
+/*
+// The unused return type is load-bearing: with `void` gcc reorg fills delay
+// slots retail leaves as nop, which costs 4 bytes per slot.
+u32 func_80083948(u8 arg0) {
+    u8 ok;
+    u8 first;
+    s32 index;
+    s32 remain;
+    u16 counter;
+
+    counter = g_BattleSlotEntries[arg0].counter;
+    g_BattleSoundEnabled = 0;
+    if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 != 0) {
+        return;
+    }
+    ok = 0;
+    index = 0;
+    BattleInitTargetSlotFlags(arg0);
+    switch (g_BattleMenuEvent) {
+    case 5:
+        first = 1;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 != 0 && D_800D2C34 != 4) {
+            BattleQueueCommandFE(arg0);
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+            first = 0;
+        }
+        if (first != 0) {
+            g_BattleDisplayState->spriteWorkListsPending = 0;
+            BattleActorInitSpriteFromSlot();
+            g_BattleSoundEnabled = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x10;
+            BattleClearFlagC6();
+            if (D_800D2C34 != 4) {
+                BattleClearSlotFlagsIfChar4(arg0, 1);
+            } else {
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = 0;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2D6 = 0;
+            }
+        }
+        break;
+    case 4:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk20 != 0) {
+            g_BattleMenuEvent = 5;
+            BattlePlaySoundWithBaseId(BATTLE_SOUND_MENU_DENIED);
+        }
+        break;
+    case 7:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk1E != 0) {
+            g_BattleMenuEvent = 5;
+            BattlePlaySoundWithBaseId(BATTLE_SOUND_MENU_DENIED);
+        }
+        break;
+    case 6:
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk1C != 0) {
+            g_BattleMenuEvent = 5;
+            BattlePlaySoundWithBaseId(BATTLE_SOUND_MENU_DENIED);
+        }
+        break;
+    }
+    if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E9 == 0) {
+        switch (g_BattleMenuEvent) {
+        case 0:
+            ((BattleActorSlots *)g_BattleCommandQueue)->targetSlot = func_80084854(((BattleActorSlots *)g_BattleCommandQueue)->targetSlot, 0);
+            BattlePlaySoundWithBaseId(0x4C);
+            break;
+        case 1:
+            ((BattleActorSlots *)g_BattleCommandQueue)->targetSlot = func_80084854(((BattleActorSlots *)g_BattleCommandQueue)->targetSlot, 1);
+            BattlePlaySoundWithBaseId(0x4C);
+            break;
+        case 2:
+            ((BattleActorSlots *)g_BattleCommandQueue)->targetSlot = func_80084854(((BattleActorSlots *)g_BattleCommandQueue)->targetSlot, 2);
+            BattlePlaySoundWithBaseId(0x4C);
+            break;
+        case 3:
+            ((BattleActorSlots *)g_BattleCommandQueue)->targetSlot = func_80084854(((BattleActorSlots *)g_BattleCommandQueue)->targetSlot, 3);
+            BattlePlaySoundWithBaseId(0x4C);
+            break;
+        }
+    }
+    g_BattleDisplayState->unk0[0x7C + arg0] = 1;
+    if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 != 0) {
+        if (D_800D2C34 != 4
+            && (D_800D2C34 == 0 || D_800D2C34 - 1 < ((BattleActorSlots *)g_BattleCommandQueue)->unk2CC)) {
+            BattleQueueCommandFE(arg0);
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+            return;
+        }
+        if (BattleMaskHasSlotBit(g_BattleSlotFlag8000Mask,
+                                 ((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].targetSlot) != 0) {
+            BattleQueueCommandFE(arg0);
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+            return;
+        }
+    }
+    switch (g_BattleMenuEvent) {
+    case 4:
+        index++;
+    case 7:
+        index++;
+    case 6:
+        index++;
+        if (D_800D2C34 == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
+            func_80086F98(0xFF, arg0);
+            break;
+        }
+        if ((u8)BattleCheckActorCommandAvailable(index - 1, arg0) == 0) {
+            break;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2D6 == 0) {
+            remain = counter - D_800D2C0A[index];
+        } else {
+            u8 *pMode;
+
+            pMode = &D_800D2C34;
+            if (*pMode == 4) {
+                remain = counter - ((u16 *)(pMode - 0x15))[0xC + index];
+            } else {
+                remain = counter - ((u16 *)(pMode - 0x12))[
+                                     3 * ((BattleActorSlots *)g_BattleCommandQueue)->unk2CC + index];
+            }
+        }
+        if (remain >= 0) {
+            ok = 1;
+        }
+        if (ok != 0) {
+            BattlePlaySoundWithBaseId(0x4D);
+            g_BattleTaskListBusy = 1;
+            BattleAppendCommandRecord(arg0);
+            if (((BattleActorSlots *)g_BattleCommandQueue)->unk2D6 != 0) {
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4 + 1;
+            }
+            if (g_BattleDisplayState->primListsPending != 0) {
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x65;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E2 = BATTLE_SLOT_NONE;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E0 = 1;
+            } else {
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x19;
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E2 = 0x19;
+            }
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4 =
+                (u8)func_80086F98(index - 1, arg0) == 0;
+            func_80087AF0(arg0, index);
+            g_BattleSlotEntries[arg0].counter =
+                g_BattleSlotEntries[arg0].counter - D_800D2C0A[((BattleActorSlots *)g_BattleCommandQueue)->unk2DC];
+            func_800898F0(arg0);
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
+        } else {
+            g_BattleSoundEnabled = 1;
+            BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
+            g_BattleSoundEnabled = 0;
+        }
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E4 != 0) {
+            BattleQueueCommandFE(arg0);
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+        }
+        break;
+    case 5:
+        break;
+    default:
+        if (D_800D2C34 == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
+            func_80086F98(0xFF, arg0);
+        }
+        break;
+    }
+}
+*/
 u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     u8 ret;
 
