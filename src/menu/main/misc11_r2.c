@@ -22,13 +22,13 @@ typedef struct {
     /* 0x00 */ MenuSaveGearHead20 head;
     /* 0x20 */ MenuSaveGearHead08 headTail;
     /* 0x28 */ u32 unk28;
-    /* 0x2C */ u32 unk2C;
+    /* 0x2C */ u32 hp;
     /* 0x30 */ u32 unk30;
-    /* 0x34 */ u16 unk34;
+    /* 0x34 */ u16 fuel;
     /* 0x36 */ u16 unk36;
     /* 0x38 */ u8 unk38;
-    /* 0x39 */ u8 unk39;
-    /* 0x3A */ u8 unk3A;
+    /* 0x39 */ u8 attackPower;
+    /* 0x3A */ u8 baseWeightClass;
     /* 0x3B */ u8 unk3B;
 } MenuSaveGear; // Size: 0x3C
 
@@ -59,7 +59,7 @@ typedef struct {
 // Cell position in the menu glyph atlas: 21 cells per row, the row's y in
 // D_801E99E8.
 typedef struct {
-    /* 0x0 */ u16 unk0;
+    /* 0x0 */ u16 coord;
     /* 0x2 */ u16 unk2;
 } MenuGlyphCellPos; // Size: 0x4
 
@@ -94,11 +94,11 @@ void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
         pSaveGear->head = *(MenuSaveGearHead20*)pGear;
         pSaveGear->headTail = *(MenuSaveGearHead08*)((u32*)pGear + 8);
         pSaveGear->unk28 = *(u32*)pGear->unk5C;
-        pSaveGear->unk34 = pGear->fuel;
-        pSaveGear->unk2C = pGear->hp;
+        pSaveGear->fuel = pGear->fuel;
+        pSaveGear->hp = pGear->hp;
         pSaveGear->unk38 = pGear->unk99;
-        pSaveGear->unk39 = pGear->attackPower;
-        pSaveGear->unk3A = pGear->baseWeightClass;
+        pSaveGear->attackPower = pGear->attackPower;
+        pSaveGear->baseWeightClass = pGear->baseWeightClass;
     }
     pSlot->namesA = *(MenuSaveNamesA*)((u32*)&g_GameState);
     pSlot->namesB = *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4);
@@ -150,11 +150,11 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
         MenuApplyGearArmor(pDressingRoom, i);
         MenuApplyGearEngine(pDressingRoom, i);
         func_801E433C(pDressingRoom, i);
-        pGear->fuel = pSaveGear->unk34;
-        pGear->hp = pSaveGear->unk2C;
+        pGear->fuel = pSaveGear->fuel;
+        pGear->hp = pSaveGear->hp;
         pGear->unk99 = pSaveGear->unk38;
-        pGear->attackPower = pSaveGear->unk39;
-        pGear->baseWeightClass = pSaveGear->unk3A;
+        pGear->attackPower = pSaveGear->attackPower;
+        pGear->baseWeightClass = pSaveGear->baseWeightClass;
     }
     *(MenuSaveNamesA*)((u32*)&g_GameState) = pSlot->namesA;
     *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4) = pSlot->namesB;
@@ -459,17 +459,17 @@ void func_801E5B88(void) {
             row = i / 0x15;
             col = i - row * 0x15;
             ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->x0 =
-                pCellX[col].unk0 + row * 8;
-            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y0 = pCellY[row].unk0;
+                pCellX[col].coord + row * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y0 = pCellY[row].coord;
             ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->x1 =
-                pCellX[col].unk0 + row * 8 + 0xC;
-            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y1 = pCellY[row].unk0;
+                pCellX[col].coord + row * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y1 = pCellY[row].coord;
             ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->x2 =
-                pCellX[col].unk0 + row * 8;
-            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y2 = pCellY[row].unk0 + 0x10;
+                pCellX[col].coord + row * 8;
+            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y2 = pCellY[row].coord + 0x10;
             ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->x3 =
-                pCellX[col].unk0 + row * 8 + 0xC;
-            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y3 = pCellY[row].unk0 + 0x10;
+                pCellX[col].coord + row * 8 + 0xC;
+            ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->y3 = pCellY[row].coord + 0x10;
             ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->u0 = (i % 0x10) * 0x10;
             ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->v0 = (i / 0x10) * 0x10 - 0x20;
             ((POLY_FT4*)(offset + (u32)g_Menu->pPrimBuffer))->u1 = (i % 0x10) * 0x10 + 0xC;
