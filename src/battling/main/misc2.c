@@ -334,36 +334,6 @@ extern u8 D_800910F4[];
 extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
 extern void func_8008EBD0(u8 *, s32, void *, s32);
 
-/* 98.97%: the loop's induction shape. The original keeps BOTH a walking
-   pointer ($a2 = p2 + i*0x44, tested as `lbu v0,0x67C(a2)`) and the byte offset
-   ($t0, used as `addiu v0,t0,0x64C; addu s0,s3,v0`); gcc folds the two into one
-   register, and which one survives depends on the source shape: `p2 + 0x67C +
-   i * 0x44` with `pSlot = p2 + 0x64C + i * 0x44` keeps the walking pointer for
-   the test but turns pSlot into a sll/addu multiply chain (89.52%), and a single
-   `off` variable feeding both gives the addiu back but recomputes the test
-   address as `addu v0,off,p2; lbu v0,1660(v0)` (98.09%). A separate walking
-   pFlags with off += 0x44 drops off entirely (98.09 with the pointer in $a0).
-   Everything else - the frame (the unused s32 pad[2] at sp+0x30), both VECTOR
-   locals at sp+0x10/sp+0x20, the 0x10-byte copies and all four calls - matches
-   instruction for instruction.
-   The walking pointer does reach retail's $a2 (no copy) once the dead `off` temp
-   gets reused inside the p1 branch for vy (score 261 -> 169). This round a
-   permuter run wrapped the three vDiff.vx/off/vDiff.vy assignments of that branch
-   in `do { } while (0)`: 98.79 -> 98.97%, still 540 bytes. It changes the load
-   order there (gcc emits `lw v1,4(a1)` before `lw v0,4(s2)`, retail the other
-   way) yet scores higher, so it stays; a bare nested block or the plain sequence
-   does not reproduce it. 1116 further permuter iterations from this body (score
-   144) found nothing.
-   What is left is the fold only: retail keeps off in $t0 and i in $a0 with a
-   redundant `addu v1,t0,zero` in the beqz delay slot feeding `addiu t0,v1,0x44`
-   in the bnez one, so gcc's one-register version is 4 bytes short. Tried by
-   hand: off incremented before pFlags (97.34), off in the for-increment list
-   (98.97), p2 + 0x67C + off as the only index (95.95), a `cur` copy of off
-   inside the loop (98.97), a while loop (97.54), pSlot computed after the loop
-   behind a found flag (93.05, but 544 bytes: the size is right, the register
-   roles are not), an else around the increments (98.97), `off = off + 0x44`
-   (98.97), off bumped at the top of the body (93.05), routing vz through the
-   temp (97.32), hoisting `i = 0` out of the for-init (97.35)./*
 void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5) {
     VECTOR vDiff;
     VECTOR vNormal;
@@ -372,18 +342,12 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     u8 *pSlot;
     u8 *pEntry;
     s32 i;
-    s32 off;
-    u8 *pFlags;
 
-    off = 0;
-    pFlags = p2;
     for (i = 0; i < 9; i++) {
-        if (*(u8 *)(pFlags + 0x67C) == 0) {
-            pSlot = p2 + 0x64C + off;
+        if (*(u8 *)(p2 + i * 0x44 + 0x67C) == 0) {
+            pSlot = p2 + 0x64C + i * 0x44;
             break;
         }
-        pFlags += 0x44;
-        off += 0x44;
     }
     if (i == 8) {
         return;
@@ -394,7 +358,8 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     vNormal.vz = *(s32 *)(pSrc + 0x8) - p0->vz;
     pEntry = D_800910F4 + arg3 * 8;
     if (p1 != NULL) {
-        do { vDiff.vx = p0->vx - p1->vx; off = p1->vy; vDiff.vy = p0->vy - off; } while (0);
+        vDiff.vx = p0->vx - p1->vx;
+        vDiff.vy = p0->vy - p1->vy;
         vDiff.vz = p0->vz - p1->vz;
     } else {
         vDiff = vNormal;
@@ -415,8 +380,6 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     *(VECTOR *)(pSlot + 0x10) = *(VECTOR *)pSlot;
     *(u8 *)(pSlot + 0x30) = 1;
 }
-*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073424);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
 void BattleTransformEntryVertex(Actor *p0, s32 arg1, s32 arg2, VECTOR *pOut) {
