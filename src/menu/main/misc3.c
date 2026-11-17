@@ -24,9 +24,10 @@ extern u_char MenuLoadWindow2Text(u_char, u_char, u_char);
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 g_MenuCardSlotTotals[];
 
+// The memory card directory prefix a slot's filename is appended to: D_801C50A8
+// reads "bu00:", D_801C50B0 "bu10:".
 typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ u16 unk4;
+    /* 0x0 */ u8 pathPrefix[6];
 } MenuCardPrefix; // Size: 0x6
 
 extern MenuCardPrefix D_801C50A8;
@@ -659,7 +660,7 @@ typedef struct {
     /* 0x1C */ u8 characterIds[3];
     /* 0x1F */ u8 unk1F;
     /* 0x20 */ u8 unk20[3];
-    /* 0x23 */ u8 unk23;
+    /* 0x23 */ u8 index; // The chunk index this save is stored at on the card, as in MenuUnk2ImageChunk.index
 } MenuSaveSlotHeader; // Size: 0x24
 
 extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
@@ -696,7 +697,7 @@ extern void MenuSaveSlotWriteGameState(MenuSaveSlotHeader* pSlot);
    Permuter not run for the last 2 instructions (ran out of round time). */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBA4C);
 /*
-void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 unk23) {
+void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 index) {
     u8 inBuf[0x14];
     u8 outBuf[0x14];
     u8* pText;
@@ -722,7 +723,7 @@ void func_801CBA4C(MenuSaveSlotHeader* pSlot, s32 unused, u8 unk23) {
     }
     pText = (u8*)g_GameState.strings;
     pSlot->unk1F = 0;
-    pSlot->unk23 = unk23;
+    pSlot->index = index;
     pSlot->spuChannelMask = g_SpuChannelMask;
     for (i = 0; i < 0x1F; i++) {
         for (j = 0; j < 0x14; j++) {
