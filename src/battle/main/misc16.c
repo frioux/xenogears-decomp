@@ -21,7 +21,7 @@ extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
 extern u8 *g_BattleGraphicsWork;
 extern u8 *g_BattleCommandQueue;
-extern s32 g_BattlePrimStartIndex;
+extern volatile s32 g_BattlePrimStartIndex;
 extern BattleWork *g_BattleDisplayState;
 extern BattleSlotGraphics *g_BattleSlotGraphics[];
 extern u8 *g_BattleSlotRects[];
@@ -51,7 +51,7 @@ extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern u8 g_BattleCommandGridAltIds[];
 extern void *BattleAllocHeapBlock(s32, s32);
 extern void BattleInitSlotPrims(s32);
-extern void func_8008F6E4(u8, s32, s32, s32, s32);
+extern void func_8008F6E4(s32, u16, u16, u16, u16);
 extern void BattleDrawSpriteQuad(u8, s32, s32, s32, u16);
 extern void func_8008DE04(u8, s32, s32, s32);
 extern void func_8008E430(u8, s32, s32, s32, u16);
@@ -325,63 +325,65 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008DE04);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008EA70);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F0A8);
+// Fills both greyscale quads' corners at the slot's current prim index, draws the
+// slot's four sprite packages and records the prim index they were built at. The
+// callees take u16 coordinates, so each argument is truncated once here.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F6E4);
-/* 22.33% (816 bytes against retail's 528) with today's headers and externs: the
-   57.38 this park used to claim is stale, measured when g_BattleDisplayState was
-   a u8* - `g_BattleDisplayState[arg0 + 0xB0]` is a struct assignment now.
-   What retail's .s shows, none of it in the body below:
-   - the slot pointer g_BattleSlotGraphics[arg0] is loaded ONCE into a saved
-     register (s2) and all eight prim stores PLUS the trailing `sb 0x5A4(s2)`
-     go through it; re-indexing the global per store is what blows the body up;
-   - g_BattlePrimStartIndex is re-read from the global before EVERY store
-     (`lw` + sll/addu/sll for i*0x24), so the index must not be hoisted;
-   - the four callee externs want u16 parameters: retail masks a1/a2/a3 with
-     0xFFFF at each call site, and masks arg0 once at entry (so its first
-     parameter is wider than u8, i.e. `s32 arg0` with a `u8 index` local).
-   Next attempt: pointer local + u16 prototypes, `sh` stores through it.
-void func_8008F6E4(u8 arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
-    u8 *p;
+/* 69.38% (532 bytes against retail's 528) with today's headers. Everything but
+   one register tie is in the body below; what retail's .s shows:
+   - the coordinates are u16: gcc masks each of x/y/w/h once with 0xFFFF (they go
+     to the callees' s32 parameters) and reuses the masked registers for all five
+     calls. Declaring them s32 loses all four masks (508 bytes, 70.05%).
+   - g_BattlePrimStartIndex must be volatile: retail re-reads it with a fresh
+     lui/lw for EVERY one of the eight sh stores (see the declaration above).
+   - the slot pointer g_BattleSlotGraphics[index] is loaded once into a saved
+     register (s2) and all eight prim stores go through it; the eight stores are
+     p->prims[index].x0/y0/x1/y1/x2/y2/x3/y3 with the sums (x+w, y+h) left inline
+     so gcc CSEs each into one register.
+   - the trailing byte store reads the index back with lbu, hence the u8 cast.
+   Left: retail keeps index in s3, x s1, y s0, w s5, h s4, p s2; we get index s1,
+   p s0, x s3, y s4, w s5, h s6 and copy a3 to a temp for w where retail masks w
+   in place (one extra move). Hand shapes tried: sums as right/bottom locals
+   (516 bytes), p loaded after the 0xB0 store (61.88%), u32/u8 index, s32 params
+   with u16 callee coordinates (520); a 4-minute permuter run from this body
+   found only a worse-sized variant (540 bytes, 73.98%). Next lever: the u16
+   narrowing that closed func_8008F8F4 below (a u16 copy of arg0 feeding a u8
+   index) - not yet tried here.
+void func_8008F6E4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4) {
+    BattleSlotGraphics *p;
+    u8 index;
 
-    ((u8 *)g_BattleDisplayState)[arg0 + 0xB0] = 0;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3C8) = arg1;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3CA) = arg2;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3D0) = arg1 + arg3;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3D2) = arg2;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3D8) = arg1;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3DA) = arg2 + arg4;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3E0) = arg1 + arg3;
-    *(u16 *)(g_BattleSlotGraphics[arg0] + g_BattlePrimStartIndex * 0x24 + 0x3E2) = arg2 + arg4;
-    BattleDrawSpriteQuad(arg0, arg1, arg2, arg3, arg4);
-    func_8008DE04(arg0, arg1, arg2, arg3);
-    func_8008E430(arg0, arg1, arg2, arg3, arg4);
-    func_8008EA70(arg0, arg1, arg2, arg4);
-    func_8008F0A8(arg0, arg1, arg2, arg3, arg4);
-    *(u8 *)(g_BattleSlotGraphics[arg0] + 0x5A4) = *(u8 *)&g_BattlePrimStartIndex;
-    ((u8 *)g_BattleDisplayState)[arg0 + 0xB0] = 1;
+    index = arg0;
+    p = g_BattleSlotGraphics[index];
+    ((u8 *)g_BattleDisplayState)[index + 0xB0] = 0;
+    p->prims[g_BattlePrimStartIndex].x0 = arg1;
+    p->prims[g_BattlePrimStartIndex].y0 = arg2;
+    p->prims[g_BattlePrimStartIndex].x1 = arg1 + arg3;
+    p->prims[g_BattlePrimStartIndex].y1 = arg2;
+    p->prims[g_BattlePrimStartIndex].x2 = arg1;
+    p->prims[g_BattlePrimStartIndex].y2 = arg2 + arg4;
+    p->prims[g_BattlePrimStartIndex].x3 = arg1 + arg3;
+    p->prims[g_BattlePrimStartIndex].y3 = arg2 + arg4;
+    BattleDrawSpriteQuad(index, arg1, arg2, arg3, arg4);
+    func_8008DE04(index, arg1, arg2, arg3);
+    func_8008E430(index, arg1, arg2, arg3, arg4);
+    func_8008EA70(index, arg1, arg2, arg4);
+    func_8008F0A8(index, arg1, arg2, arg3, arg4);
+    p->unk5A4[0] = *(u8 *)&g_BattlePrimStartIndex;
+    ((u8 *)g_BattleDisplayState)[index + 0xB0] = 1;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008F8F4);
-/* 96.33% (364 bytes = retail's size): the whole body matches; only the prologue
-   save/copy order differs (gcc gives s4 to arg5 and s5 to arg1 and copies arg0
-   last; the original has s4=arg1, s5=arg5 and copies arg0 first). Tried:
-   separate pointer temps per block, a pFlags temp for g_BattleDisplayState (that
-   load has to sit before the sh stores or gcc moves it after them),
-   `*(base + index + K)` instead of `base[index + K]`, inverted if/else, two
-   declaration orders, a live u16 copy of arg1 (does not raise its allocno
-   priority) and two permuter runs. Pure allocno tie, no bytes to win.
-   The three BattleWork byte accesses (+0xB0/+0xB8/+0xBF) go through
-   `(u8 *)g_BattleDisplayState` because 0xB0..0xC5 is the header's unkA9 span:
-   the old `g_BattleDisplayState + index + 0xB0` spelling is struct arithmetic
-   against today's header and no longer compiles.
-
-void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6) {
+void func_8008F8F4(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8 arg5, u8 arg6) {
     u8 *pFlags;
+    BattleWork *pState;
+    u16 slot;
     u8 index;
     u8 *p;
     u8 *q;
 
-    index = arg0;
-    if (((u8 *)g_BattleDisplayState)[index + 0xB0] == 0) {
+    slot = arg0;
+    index = slot;
+    if (*((u8 *)g_BattleDisplayState + index + 0xB0) == 0) {
         q = BattleAllocHeapBlock(0x5A8, 0);
         g_BattleSlotGraphics[index] = q;
         bzero(q, 0x5A8);
@@ -401,7 +403,8 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
         ((u16 *)p)[4] = 0;
         ((u16 *)p)[5] = 0;
         *(pFlags + index + 0xBF) = 0;
-        pFlags = (u8 *)g_BattleDisplayState;
+        pState = g_BattleDisplayState;
+        pFlags = (u8 *)pState;
         *(pFlags + index + 0xB8) = 1;
     } else {
         func_8008F6E4(index, arg1, arg2, arg3, arg4);
@@ -410,4 +413,3 @@ void func_8008F8F4(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8
         }
     }
 }
-*/
