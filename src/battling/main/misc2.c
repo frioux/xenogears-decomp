@@ -117,7 +117,27 @@ typedef struct {
     /* 0x1 */ u8 animSpeed;
 } BattlePartTiming; // Size: 0x2
 
+/* One of the 0x44-byte effect slots the actor owns at +0x64C; src/battling/
+   main/misc4.c clears the same records (in-use byte and unk40). */
 typedef struct {
+    /* 0x00 */ VECTOR unk00;
+    /* 0x10 */ VECTOR unk10;
+    /* 0x20 */ SVECTOR unk20;
+    /* 0x28 */ SVECTOR unk28;
+    /* 0x30 */ u8 active;
+    /* 0x31 */ u8 scale;
+    /* 0x32 */ u8 unk32;
+    /* 0x33 */ u8 unk33;
+    /* 0x34 */ u8 pad34[0x4];
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s16 unk3C;
+    /* 0x3E */ s16 unk3E;
+    /* 0x40 */ s16 unk40;
+    /* 0x42 */ u8 pad42[0x2];
+} BattleEffectSlot; // Size: 0x44
+
+typedef struct Actor Actor;
+struct Actor {
     /* 0x000 */ s32 x;
     /* 0x004 */ s32 y;
     /* 0x008 */ s32 z;
@@ -145,11 +165,13 @@ typedef struct {
     /* 0x0BE */ u8 padBE[0x12];
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 padD4[0x4];
-    /* 0x0D8 */ u8 *pTarget;
+    /* 0x0D8 */ Actor *pTarget;
     /* 0x0DC */ u8 padDC[0x28];
     /* 0x104 */ BattleActorSlot slots[16];
     /* 0x644 */ u32 gaugePercent;
-    /* 0x648 */ u8 pad648[0x2BC];
+    /* 0x648 */ u8 pad648[0x4];
+    /* 0x64C */ BattleEffectSlot effectSlots[8];
+    /* 0x86C */ u8 pad86C[0x98];
     /* 0x904 */ u8 *pVisiblePartIndices;
     /* 0x908 */ u8 visiblePartCount;
     /* 0x909 */ u8 typeId;
@@ -172,7 +194,7 @@ typedef struct {
     /* 0x15F4 */ u8 pad15F4[0x60];
     /* 0x1654 */ s32 unk1654;
     /* 0x1658 */ s32 unk1658;
-} Actor; // Size: unknown
+}; // Size: unknown
 
 /* The 0x60-entry effect context allocated by BattleEffectInitContext. The
    same record src/battling/main/misc16.c declares as Misc16Work. */
@@ -319,9 +341,9 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     BattleEffect *pEffect = g_BattleEffect;
     u8 *p = (u8 *)pEffect;
 
-    /* Typed field stores let gcc hoist the next global load above the previous
-       store; the original interleaves load and store, so the position and
-       rotation words go through a byte view. */
+    /* The stores must go through a byte view: with typed field stores
+       (pEffect->x = ...) gcc loads all three globals before storing any of
+       them (63.89%), retail interleaves load and store. */
     *(s16 *)(p + 0x14) = g_BattleEffectPosX;
     *(s16 *)(p + 0x16) = D_80092A28;
     *(s16 *)(p + 0x18) = D_80092A2C;
@@ -344,50 +366,34 @@ typedef struct {
     /* 0x7 */ u8 pad7;
 } BattleEffectTemplate; // Size: 0x8
 
-/* One entry of the effect context's slot array at +0x64C; stride 0x44. */
-typedef struct {
-    /* 0x00 */ VECTOR unk00;
-    /* 0x10 */ VECTOR unk10;
-    /* 0x20 */ SVECTOR unk20;
-    /* 0x28 */ SVECTOR unk28;
-    /* 0x30 */ u8 active;
-    /* 0x31 */ u8 scale;
-    /* 0x32 */ u8 unk32;
-    /* 0x33 */ u8 unk33;
-    /* 0x34 */ u8 pad34[0x4];
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ s16 unk3C;
-    /* 0x3E */ s16 unk3E;
-    /* 0x40 */ s16 unk40;
-    /* 0x42 */ u8 pad42[0x2];
-} BattleEffectSlot; // Size: 0x44
-
 extern BattleEffectTemplate g_BattleEffectTemplateTable[];
 extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
 extern void func_8008EBD0(u8 *, s32, void *, s32);
 
-void BattleSpawnEffectSlot(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5) {
+void BattleSpawnEffectSlot(VECTOR *p0, VECTOR *p1, Actor *p2, s32 arg3, s32 arg4, s32 arg5) {
     VECTOR vDiff;
     VECTOR vNormal;
     s32 pad[2];
     BattleEffectTemplate *pEntry;
     BattleEffectSlot *pSlot;
-    VECTOR *pSrc;
+    Actor *pTarget;
     s32 i;
 
+    /* Retail scans nine slots although the actor holds eight, and rejects a
+       find at the last index rather than an exhausted scan. */
     for (i = 0; i < 9; i++) {
-        if (*(u8 *)(p2 + i * sizeof(BattleEffectSlot) + 0x67C) == 0) {
-            pSlot = (BattleEffectSlot *)(p2 + 0x64C + i * sizeof(BattleEffectSlot));
+        if (p2->effectSlots[i].active == 0) {
+            pSlot = &p2->effectSlots[i];
             break;
         }
     }
     if (i == 8) {
         return;
     }
-    pSrc = *(VECTOR **)(p2 + 0xD8);
-    vNormal.vx = pSrc->vx - p0->vx;
-    vNormal.vy = pSrc->vy - p0->vy - 0x90;
-    vNormal.vz = pSrc->vz - p0->vz;
+    pTarget = p2->pTarget;
+    vNormal.vx = pTarget->x - p0->vx;
+    vNormal.vy = pTarget->y - p0->vy - 0x90;
+    vNormal.vz = pTarget->z - p0->vz;
     pEntry = &g_BattleEffectTemplateTable[arg3];
     if (p1 != NULL) {
         vDiff.vx = p0->vx - p1->vx;
@@ -799,21 +805,21 @@ extern Actor g_BattleActor1;
 extern s32 D_80099D8C;
 extern s32 D_80099D88;
 extern u8 g_BattleResultCode;
-extern s32 BattleCheckValueAboveScaledMax(u8 *, s32);
+extern s32 BattleCheckValueAboveScaledMax(Actor *, s32);
 
 void BattleSetResultCode(s32 arg0) {
     Actor *p = &g_BattleActor1;
-    u8 *pDst;
+    Actor *pDst;
     s16 v;
     s32 a;
     s32 b;
 
     if (arg0 != 0) {
-        if (BattleCheckValueAboveScaledMax((u8 *)p, 0xE0) != 0) {
+        if (BattleCheckValueAboveScaledMax(p, 0xE0) != 0) {
             g_BattleResultCode = 2;
             return;
         }
-        if (BattleCheckValueAboveScaledMax((u8 *)p, 0x10) != 0) {
+        if (BattleCheckValueAboveScaledMax(p, 0x10) != 0) {
             g_BattleResultCode = 1;
             return;
         }
