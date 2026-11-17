@@ -108,5 +108,11 @@ long AverageSZ3(void) {
     return otz;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b_3", AverageSZ4);
+long AverageSZ4(void) {
+    long otz;
+
+    gte_avsz4_b();
+    gte_stotz_val(otz);
+    return otz;
+}
 
