@@ -461,13 +461,13 @@ void BattleSnapActorToGround(BattleActor *pActor) {
 }
 
 void BattleFreeActorBuffer(BattleActor *pActor) {
-    if (pActor->unkC != 0) {
+    if (pActor->pBuffer != 0) {
         if (pActor->hasSedsEntry != 0) {
             SoundRemoveSedsEntry(((s32 *)pActor->unkB4)[2]);
             pActor->hasSedsEntry = 0;
         }
-        HeapFree((void *)pActor->unkC);
-        pActor->unkC = 0;
+        HeapFree((void *)pActor->pBuffer);
+        pActor->pBuffer = 0;
         pActor->unk18 = 0;
     }
 }
@@ -670,10 +670,10 @@ void BattleWaitAndFreeActorBuffers(void) {
         flagA = 0;
         for (i = 0; i < 11; i++) {
             if (pBase[i] != NULL) {
-                if (pBase[i]->unk38 != 0) {
+                if (pBase[i]->isBusy != 0) {
                     flagA = 1;
                 }
-                if (pBase[i]->unkC != 0) {
+                if (pBase[i]->pBuffer != 0) {
                     flagB = 1;
                 }
             }
@@ -697,7 +697,7 @@ void BattleWaitAndFreeActorBuffers(void) {
         if (ArchiveDataSync() == 0) {
             for (i = 0, pp = ppBase; i < 11; i++) {
                 pEntry = *pp++;
-                if (pEntry != NULL && pEntry->unkC != 0) {
+                if (pEntry != NULL && pEntry->pBuffer != 0) {
                     BattleFreeActorBuffer(pEntry);
                 }
             }
@@ -727,7 +727,7 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
         for (i = 0; i < 3; i++) {
             if (i != arg0) {
                 pActor = g_BattleActors[i];
-                if (pActor != NULL && (pActor->doUpdate != 0 || pActor->unk38 != 0)) {
+                if (pActor != NULL && (pActor->doUpdate != 0 || pActor->isBusy != 0)) {
                     flag = 1;
                 }
             }

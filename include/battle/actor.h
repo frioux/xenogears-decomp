@@ -89,7 +89,7 @@ typedef struct {
     /* 0x000 */ void* pMesh; // the actor's mesh; BattleFreeModelMesh frees it
     /* 0x004 */ BattleSprite* pSprites;
     /* 0x008 */ s32 unk8;
-    /* 0x00C */ s32 unkC;
+    /* 0x00C */ s32 pBuffer; // the block BattleFreeActorBuffer HeapFree()s; its +4 holds a pointer into the action-value table
     /* 0x010 */ s32 unk10;
     /* 0x014 */ s32 unk14;
     /* 0x018 */ s32 unk18;
@@ -108,7 +108,7 @@ typedef struct {
     /* 0x035 */ u8 unk35;
     /* 0x036 */ u8 unk36;
     /* 0x037 */ u8 unk37;
-    /* 0x038 */ u8 unk38;
+    /* 0x038 */ u8 isBusy; // keeps BattleWaitAndFreeActorBuffers and BattleWaitForOtherActorAnimations waiting while it is set
     /* 0x039 */ u8 unk39;
     /* 0x03A */ s16 unk3A;
     /* 0x03C */ u16 unk3C;
@@ -184,7 +184,7 @@ typedef struct {
     /* 0x82 */ u16 unk82;
     /* 0x84 */ u16 unk84;
     /* 0x86 */ u8 unk86[0x13];
-    /* 0x99 */ u8 unk99;
+    /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
     /* 0x9A */ u8 unk9A[0x4];
     /* 0x9E */ u8 unk9E;
     /* 0x9F */ u8 unk9F[0x5];
@@ -192,7 +192,7 @@ typedef struct {
     /* 0xA5 */ u8 unkA5;
     /* 0xA6 */ u8 unkA6[0x10];
     /* 0xB6 */ u8 flags; // bit 0x80 selects the gear-side status words (unk80) over the actor's (unk88)
-    /* 0xB7 */ u8 unkB7[0x15];
+    /* 0xB7 */ u8 conditionTimers[0x15]; // one countdown byte per armed condition flag bit; the flag clears when its timer runs out
 } BattleSlotState; // Size: 0xCC
 
 // One slot of the per-battle-slot table family (stride 0x170). Three of them
@@ -203,17 +203,19 @@ typedef struct {
     /* 0x000 */ u16 flags;
     /* 0x002 */ u8 chance; // percent, rolled against rand() % 100 by BattleTryApplySlotCondition
     /* 0x003 */ u8 conditionKind; // passed as that function's kind word; its bits pick the condition word to clear
-    /* 0x004 */ u8 unk04[0x34];
+    /* 0x004 */ u8 unk04[0x2E];
+    /* 0x032 */ u16 unk32; // flag word: bit 0x40 doubles the condition timer, the 0x400/0x200 pair picks a drop rate
+    /* 0x034 */ u8 unk34[0x4];
     /* 0x038 */ u16 unk38;
     /* 0x03A */ u8 unk3A[0x12];
     /* 0x04C */ u16 hp;
     /* 0x04E */ u16 maxHp; // both scaled by 50 into state.hp / state.maxHp
-    /* 0x050 */ u16 unk50; // scaled by 10 into slotAmounts
-    /* 0x052 */ u16 unk52;
+    /* 0x050 */ u16 mp; // the same current/max pair as hp/maxHp: scaled by 10 into slotAmounts
+    /* 0x052 */ u16 maxMp; // drawn as a gauge target like maxHp; the growth copy caps mp and maxMp at 99
     /* 0x054 */ u16 unk54;
     /* 0x056 */ u8 characterId; // indexes the per-character g_GameState table
-    /* 0x057 */ u8 unk57[0x4];
-    /* 0x05B */ u8 unk5B;
+    /* 0x057 */ u8 unk57[0x4]; // +1/+2/+3 mirror GameCharacter's attack/defense/agility; nothing reads them yet
+    /* 0x05B */ u8 ether; // the ether action's amount is ether * row->power
     /* 0x05C */ u8 unk5C[0x2];
     /* 0x05E */ u8 evade; // the defender's evasion percent
     /* 0x05F */ u8 hit; // the attacker's hit percent
@@ -262,7 +264,7 @@ typedef struct {
     /* 0x11 */ u8 power; // multiplies the target's stat to give the action's amount
     /* 0x12 */ u8 unk12[0x2];
     /* 0x14 */ u8 chanceBonus; // added to the acting slot's percent before the rand() % 100 roll
-    /* 0x15 */ u8 unk15;
+    /* 0x15 */ u8 evadeModifier; // read as s8, added to the defender's evade in the hit-chance roll
     /* 0x16 */ u8 opcode; // selects the handler from the D_800C34DC table
     /* 0x17 */ u8 unk17;
     /* 0x18 */ u8 chanceSource; // which field the condition chance is read from

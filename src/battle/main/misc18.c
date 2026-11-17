@@ -119,10 +119,10 @@ void BattleRollSlotConditionAction(void) {
         hp = D_800C3E34->maxHp;
         break;
     case 2:
-        hp = g_BattleActingSlot->unk52;
+        hp = g_BattleActingSlot->maxMp;
         break;
     case 3:
-        hp = D_800C3E34->unk52;
+        hp = D_800C3E34->maxMp;
         break;
     }
 
@@ -201,7 +201,7 @@ void BattleSetSlotConditionActionValue(void) {
         }
         break;
     case 3:
-        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = D_800C3E34->unk50 * 10;
+        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = D_800C3E34->mp * 10;
         break;
     case 4:
         g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = 1;
@@ -376,7 +376,7 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
 }
 */
 void BattleRollPercentAndSetState38(void) {
-    s32 t = g_BattleActingSlot->unk5B + g_BattleCurrentRow->chanceBonus;
+    s32 t = g_BattleActingSlot->ether + g_BattleCurrentRow->chanceBonus;
 
     if (rand() % 100 >= t) {
         g_BattleCurWorkBlock->commandCode = 0x38;
@@ -824,7 +824,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
         }
         break;
     }
-    if (((u16 *)&pEntry->unk04[0x2E])[0] & 0x40) {
+    if (pEntry->unk32 & 0x40) {
         switch (kind) {
         case 5:
         case 7:
@@ -838,7 +838,7 @@ void BattleSetSlotConditionTimer(u8 slot, u8 kind, u16 flag, s32 count) {
 }
 // Rolls one slot's condition timers down and returns the mask of the conditions
 // that expired this frame. Each armed flag word (0x7C..0x8E) owns one timer byte
-// at entry+0x15C, i.e. state.unkB7[1], and the 0x84/0x88 tests are a pair: the
+// at entry+0x15C, i.e. state.conditionTimers[1], and the 0x84/0x88 tests are a pair: the
 // low halfword's flag armed with the high halfword's copy of it clear. The timer
 // and state pointers are formed off the symbol base, not off pEntry: the original
 // keeps that second base in a register of its own.

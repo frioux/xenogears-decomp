@@ -248,7 +248,7 @@ s32 func_8009D3A0(void) {
         }
         return 1;
     }
-    rowMod = g_BattleCurrentRow->unk15;
+    rowMod = g_BattleCurrentRow->evadeModifier;
     chance = evade + (s8)rowMod - hit;
     if ((D_800C3E34->unk84 | D_800C3E34->unk86) & 0x20) {
         roll = rand() % 100 - chance;
@@ -302,7 +302,7 @@ u16 BattleApplySlotPercentToValue(void) {
     u8 n;
 
     if (g_BattleCurrentRow->actionFlags & 0x100) {
-        n = D_800D2DC8->unk99;
+        n = D_800D2DC8->penaltyPercent;
         v = *(u16 *)&D_800D2DC8->unk68[0xA];
         if (n != 0 && v != 0) {
             v = v * (100 - n) / 100;
@@ -314,7 +314,7 @@ u16 BattleApplySlotPercentToValue(void) {
             ret = ret + (ret >> 1);
         }
     } else {
-        n = D_800D2DC8->unk99;
+        n = D_800D2DC8->penaltyPercent;
         if (n != 0) {
             ret = ret * (100 - n) / 100;
         }
@@ -345,7 +345,7 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
 void BattleClearActorPercent99(void) {
-    D_800D2DC8->unk99 = 0;
+    D_800D2DC8->penaltyPercent = 0;
 }
 void BattleSetSlotState2FromActorField4F(void) {
     BattleSlotState *p = D_800D2DC8;
@@ -363,14 +363,14 @@ void BattleSetSlotState2FromScriptField11Div20(void) {
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState2FromActorField5B(void) {
-    s32 v = g_BattleActingSlot->unk5B * g_BattleCurrentRow->power;
+    s32 v = g_BattleActingSlot->ether * g_BattleCurrentRow->power;
 
     g_BattleCurWorkBlock->unk5FA0[g_BattleCurSlotIndex] = 2;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = v;
 }
 void BattleSetSlotFields148And10C(void) {
     D_800C3D60[0] = 4;
-    g_BattleWorkBlock[g_BattleCurSlotIndex].state.unkB7[7] = 3;
+    g_BattleWorkBlock[g_BattleCurSlotIndex].state.conditionTimers[7] = 3;
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
     s32 v = D_800D2DC8->unk3A * g_BattleCurrentRow->power;

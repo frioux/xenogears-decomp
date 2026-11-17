@@ -939,6 +939,6 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
 }
 void BattleSetSlotFields148And162(u8 arg0) {
     g_BattleWorkBlock[arg0].state.unkA4 = 4;
-    g_BattleWorkBlock[arg0].state.unkB7[7] = 3;
+    g_BattleWorkBlock[arg0].state.conditionTimers[7] = 3;
     g_GameState.unk16BC[0].unk1E |= 0x4000;
 }

@@ -247,7 +247,7 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                 if (arg3 < 0x50) {
                     pActor->unk10 = ((s32 *)pSource->unk8)[arg3];
                 } else {
-                    pGroupTable = *(s32 **)((u8 *)pSource->unkC + 4);
+                    pGroupTable = *(s32 **)((u8 *)pSource->pBuffer + 4);
                     pActor->unk10 = pGroupTable[arg3 - 0x4E];
                 }
                 n = g_BattleCommandActorMask;

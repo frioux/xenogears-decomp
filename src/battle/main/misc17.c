@@ -433,7 +433,7 @@ void func_80094EE4(void) {
         }
         if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->unk8E) & 0x4000) {
             g_BattleCurveTargetModes[D_800C3E04] = 3;
-            *(s32 *)(D_800C3E04 * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->unk52 / 10) * 2;
+            *(s32 *)(D_800C3E04 * 4 + g_BattleCurveTargets) = (u16)(g_BattleActingSlot->maxMp / 10) * 2;
         }
         if ((g_BattleActingSlot->unk8C | g_BattleActingSlot->unk8E) & 0x1000) {
             g_BattleCurveTargetModes[D_800C3E04] = 2;
@@ -528,7 +528,7 @@ void BattleSetSlotState2FromActorField5BWithModifiers(void) {
     s16 v;
     u16 f;
 
-    v = p->unk5B * q->power;
+    v = p->ether * q->power;
     if (p->unk8A & 0x2000) {
         v *= 2;
     }
