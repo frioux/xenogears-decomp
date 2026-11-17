@@ -108,7 +108,7 @@ void BattleSaveScriptCommandOperands(void) {
     g_BattleCurWorkBlock->unk5FBF = g_BattleCurrentRow->unk23;
     g_BattleCurWorkBlock->unk5FC0 = g_BattleCurWorkBlock->rowIndex;
     c = (a | b) >> 12;
-    if ((g_BattleCurWorkBlock->element & 0x3F) == 0) {
+    if ((g_BattleCurWorkBlock->element & BATTLE_ELEMENT_MASK) == 0) {
         g_BattleCurWorkBlock->element |= c;
     }
 }

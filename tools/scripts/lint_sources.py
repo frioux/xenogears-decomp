@@ -16,6 +16,16 @@ Three checks, all of which have cost real time in this repo:
 3. A stub swallowed by a comment that does close, just too late: a parked body
    above it missing its `*/` eats the next `INCLUDE_ASM` line, and the only
    symptom is `ld: undefined reference to func_X` from an asm data table.
+4. A function defined in C whose name has no `symbol_addrs` entry in its own
+   binary. Splat then names that function `func_<addr>`, so objdiff pairs the asm
+   with nothing and the C with nothing: the function is matched and invisible
+   (`FieldRunStreamedSequence`, `ArchiveCdSeekOrPause`, `ShopMenuSetPoly-
+   GradientColor`, three rounds of `name_addrs.py` renames lost this way).
+5. The same name or vram in an overlay's `symbol_addrs` file and in
+   `symbol_addrs.slus_006.64.txt`, which every overlay yaml loads: splat aborts
+   that binary with "Duplicate symbol detected", gears ignores the exit code,
+   and the build dies with `ld: cannot open linker script file linker/<bin>.ld`
+   - an error that names neither the symbol nor the file.
 
 Exit status is 1 if anything is found, so it can gate a commit.
 """
@@ -31,6 +41,11 @@ DEF_RE = re.compile(
     re.M,
 )
 STUB_RE = re.compile(r'INCLUDE_ASM\(\s*"[^"]+"\s*,\s*(\w+)\s*\)')
+# A definition that is not `static`: only those need a symbol_addrs entry (a static
+# helper has no symbol in retail, so splat never names it).
+EXTERN_DEF_RE = re.compile(
+    r"^(?!static)[A-Za-z_][A-Za-z0-9_ \*]*?\b(\w+)\s*\([^;{(]*\)\s*\{", re.M)
+ENTRY_RE = re.compile(r"(?m)^(\w+)\s*=\s*(0x[0-9A-Fa-f]+);")
 
 
 def strip_comments(text):
@@ -78,6 +93,9 @@ def comment_blocks(text, min_size=0):
 def main():
     quiet = "-q" in sys.argv
     problems = 0
+    sym = {p.name[len("symbol_addrs."):-len(".txt")]:
+           ENTRY_RE.findall(p.read_text())
+           for p in (ROOT / "config").glob("symbol_addrs.*.txt")}
     for src in sorted((ROOT / "src").rglob("*.c")):
         text = src.read_text(errors="replace")
         code, unterminated = strip_comments(text)
@@ -110,6 +128,31 @@ def main():
         # a `*/` sitting where no comment was open shows up as an unbalanced count
         if not quiet and code.count("/*") != code.count("*/"):
             pass
+        # 4. a named C definition with no entry in its own binary's symbol file
+        binary = src.relative_to(ROOT / "src").parts[0]
+        known = {n for n, _ in sym.get(binary, [])}
+        for name in sorted(set(EXTERN_DEF_RE.findall(code))):
+            if name.startswith("func_") or name in known:
+                continue
+            problems += 1
+            print(f"{rel}: {name} is defined in C but has no entry in "
+                  f"config/symbol_addrs.{binary}.txt (splat will keep the asm's "
+                  f"func_<addr> and objdiff will not pair them)")
+    # 5. a symbol_addrs entry that duplicates one the same yaml also loads
+    slus = sym.get("slus_006.64", [])
+    names = {n for n, _ in slus}
+    addrs = {a.lower() for _, a in slus}
+    for p in sorted((ROOT / "config").glob("*.yaml")):
+        b = p.stem
+        if b == "slus_006.64" or not (ROOT / "config" / f"symbol_addrs.{b}.txt").is_file():
+            continue
+        for n, a in sym.get(b, []):
+            if n in names or a.lower() in addrs:
+                problems += 1
+                print(f"config/symbol_addrs.{b}.txt: {n} = {a} is also in "
+                      f"symbol_addrs.slus_006.64.txt, which this overlay's yaml "
+                      f"loads (splat stops with 'Duplicate symbol detected' and "
+                      f"the build fails on a missing linker/{b}.ld)")
     if problems:
         print(f"-- {problems} problem(s)")
         return 1

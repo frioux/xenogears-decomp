@@ -13,6 +13,11 @@
 // Shared by the battle units that read the structures below.
 // slotStates and slotAmounts hold one entry per battle slot.
 #define BATTLE_SLOT_COUNT 12
+// The element bits of an element byte (the row's, the work block's copy of it, and the
+// slot's): bit 0x40 above them raises the affinity multiplier from 15 to 18.
+#define BATTLE_ELEMENT_MASK 0x3F
+// The slotStates byte that means no state at all: what BattleClearAllSlotStates fills.
+#define BATTLE_SLOT_STATE_CLEARED 0xFF
 // g_BattleActorCharIds holds this in a slot no character occupies.
 #define BATTLE_SLOT_CHARACTER_NONE 0x7F
 // The hp stat's cap: BattleSetSlotConditionActionValue clamps maxHp to it.

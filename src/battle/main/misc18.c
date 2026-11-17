@@ -8,12 +8,6 @@
 // The timer index the flag-to-timer mapping leaves when a condition flag owns no timer.
 #define BATTLE_CONDITION_TIMER_INDEX_NONE 0xF
 
-// The element bits of an element byte (BattleTableEntry.element, the work block's copy of
-// it, the row's element): bit 0x40 above them raises the affinity multiplier from 15 to 18.
-#define BATTLE_ELEMENT_MASK 0x3F
-// The slotStates byte that means no state at all: what BattleClearAllSlotStates fills.
-#define BATTLE_SLOT_STATE_CLEARED 0xFF
-
 extern u16 g_BattleSavedSlotUnk7A[];
 extern u8 g_BattleSlotUnk98Deltas[];
 extern u8 g_BattleActorCharIds[];

@@ -981,7 +981,7 @@ s32 func_800A7948(void) {
 extern int ArchiveDecodeAlignedSize(int entryIndex);
 extern void ArchiveCdDataSync(int mode);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
-extern void func_8002A2D0(s32 sector);
+extern void ArchiveCdSeekOrPause(s32 sector);
 extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight);
 
 extern s32 g_FieldScriptCounter;
@@ -1031,7 +1031,7 @@ void FieldRunStreamedSequence(void) {
     g_FieldStreamTextSegmentActive = 0;
     FieldWaitForArchiveAndFrameSync();
     ArchiveSetIndex(0x18, 0);
-    func_8002A2D0(g_FieldStreamFileIndex);
+    ArchiveCdSeekOrPause(g_FieldStreamFileIndex);
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     FieldWaitForArchiveAndFrameSync();
 

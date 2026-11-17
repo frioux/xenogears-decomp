@@ -1645,3 +1645,6 @@ g_TmdVertBase = 0x8005A380;
 g_TmdNormBase = 0x8005A384;
 g_TmdPrimBase = 0x8005A388;
 g_TmdPrimCount = 0x8005A38C;
+GfxSetBaseMatrix = 0x80024FF4;
+ArchiveCdSeekOrPause = 0x8002A2D0;
+ArchiveStreamAllocQueueData = 0x8002A57C;

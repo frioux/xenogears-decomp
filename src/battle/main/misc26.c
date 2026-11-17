@@ -192,7 +192,7 @@ typedef struct {
 // drawn from: the packet code and semi-transparency mode are applied here and
 // func_800B1F6C fills in the transformed vertices. abr is the semi-transparency
 // mode the texture pages are stamped with, zero meaning none.
-void func_800B1720(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
+void BattleExpandModelPrims(BattleModelFrame *pFrame, u8 *pDst, s32 mode, u8 shadeTex) {
     BattleModelPrim *pSrc;
     s32 count;
     s32 abr;
@@ -625,7 +625,7 @@ s32 BattleGetActorFlag41(void) {
     return 1;
 }
 
-void func_800B3B94(BattleImageTask *pArg) {
+void BattleStepImageTaskValue(BattleImageTask *pArg) {
     BattleImageTask *pTask = pArg;
     void (*pOnFree)(void *);
     s32 timer;

@@ -36,7 +36,15 @@ def symbol_files():
 
 
 def entries(text):
-    return re.findall(r"(?m)^(\w+) = (0x[0-9A-Fa-f]+);", text)
+    # `\s*=\s*`: 84 of the 5,968 entries are column-aligned (`Name     = 0x...`),
+    # and a single-space regex cannot see them, so the address-duplicate and
+    # clash guards below went blind on exactly the hand-edited files.
+    return re.findall(r"(?m)^(\w+)\s*=\s*(0x[0-9A-Fa-f]+);", text)
+
+
+def entry_line(name, addr):
+    """Match an existing entry line however it is spaced."""
+    return r"(?m)^" + re.escape(name) + r"\s*=\s*" + re.escape(addr) + r";"
 
 
 def loaded_by(binary):
@@ -52,6 +60,17 @@ def loaded_by(binary):
             for p in re.findall(r"symbol_addrs\.\S+?\.txt", m.group(1))}
 
 
+def bin_of(path):
+    """The binary a source file belongs to: the component after `src/`.
+
+    ROOT is absolute, so `parts[1]` is the OS user directory (`Users`), never a
+    binary name. That is what made this tool rename the C and add NO entry for
+    three rounds (218-221: `func_800A7C58`, `func_8008861C`), so splat kept the
+    old spelling in every stub that called the function and the link failed.
+    """
+    return path.relative_to(ROOT / "src").parts[0]
+
+
 def main():
     argv = sys.argv[1:]
     dry = "-n" in argv
@@ -65,7 +84,7 @@ def main():
     hdr = {p: p.read_text() for p in (ROOT / "include").rglob("*.h")}
     files = symbol_files()
     addrs = {b: entries(p.read_text()) for b, p in files.items()}
-    src_bins = {b: "".join(t for p, t in src.items() if p.parts[-3:][0] == b)
+    src_bins = {b: "".join(t for p, t in src.items() if bin_of(p) == b)
                 for b in files}
     asm_bins = {b: "".join(p.read_text() for p in (ROOT / "asm" / b).rglob("*.s"))
                 for b in files if (ROOT / "asm" / b).is_dir()}
@@ -95,15 +114,14 @@ def main():
             elif not defs:
                 skipped.append((old, new, "no C definition of the old name"))
             else:
-                # parts[1] is the binary directory: parts[-3] is "psyq" for every
-                # src/slus_006.64/psyq/*.c, so psyq renames wrote no symbol_addrs entry.
-                rename.append((old, new, defs[0].parts[1]))
+                # the binary directory is the first component under src/ (bin_of)
+                rename.append((old, new, bin_of(defs[0])))
 
     added = {}
     for old, new, owner in rename:
         for b, p in files.items():
             text = p.read_text()
-            if re.search(r"(?m)^" + new + r" = ", text):
+            if re.search(r"(?m)^" + new + r"\s*=", text):
                 continue
             if not re.search(r"\b" + new + r"\b", src_bins.get(b, "") + asm_bins.get(b, "")) \
                     and b != owner:
@@ -112,6 +130,11 @@ def main():
             if (new, "0x" + old[5:]) in clash or any(a == "0x" + old[5:] for _, a in clash):
                 continue
             if any(a == "0x" + old[5:] for _, a in addrs[b]):
+                # The address already has an entry in this file. If it is still the
+                # placeholder, renaming the ENTRY is what moves splat off the old
+                # spelling; a different name means a real twin, so leave it alone.
+                if re.search(entry_line(old, "0x" + old[5:]), text):
+                    added.setdefault(p, []).append(f"{old} = 0x{old[5:]};|{new} = 0x{old[5:]};")
                 continue
             addrs[b].append((new, "0x" + old[5:]))
             added.setdefault(p, []).append(f"{new} = 0x{old[5:]};")
@@ -127,7 +150,14 @@ def main():
         for p, t in list(src.items()) + list(hdr.items()):
             p.write_text(t)
         for p, lines in added.items():
-            p.write_text(p.read_text().rstrip("\n") + "\n" + "\n".join(lines) + "\n")
+            t = p.read_text().rstrip("\n")
+            for line in lines:
+                if "|" in line:
+                    was, now = line.split("|")
+                    t = re.sub(entry_line(was.split(" = ")[0], was.split(" = ")[1].rstrip(";")), now, t)
+                else:
+                    t += "\n" + line
+            p.write_text(t + "\n" if not t.endswith("\n") else t)
 
     print(f"renamed {len(rename)} pairs, added {sum(len(v) for v in added.values())} "
           f"symbol_addrs entries in {len(added)} files{' (dry run)' if dry else ''}")

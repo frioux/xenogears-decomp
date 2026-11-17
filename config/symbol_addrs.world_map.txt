@@ -389,7 +389,6 @@ g_WorldMapColorFactors = 0x8009BB48;
 D_8009B564 = 0x8009B564;
 LibGearRenderFrame = 0x801E7D14;
 func_800223B0 = 0x800223B0;
-GfxSetBaseMatrix = 0x80024FF4;
 g_WorldMapPrimPacketIndex = 0x8009D7F0;
 g_WorldMapCameraRot = 0x8009BD38;
 g_WorldMapCameraTarget = 0x8009BE28;
