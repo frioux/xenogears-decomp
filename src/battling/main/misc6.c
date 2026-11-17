@@ -630,25 +630,29 @@ void BattleSetTextColor(s32 arg) {
 
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
-/* best 72.66%: the original loads g_SpuChannelMask TWICE into two registers (v1 for
-   0xF0, a0 for 0xF4) and subtracts with li 0xFF + subu; gcc CSEs the two
-   identical loads of the one extern and then strength-reduces 0xFF - (x * 20)
-   to nor, since only the stored byte matters. The original subu means its two
-   MEMs were two different symbols that both resolve to 0x80059488 (aliases),
-   and splat can only name one of them, so the second name cannot be spelled
-   without a hand-edited linker/undefined_syms_auto.battling.txt (generated).
-   A `*(volatile s32*)&g_SpuChannelMask` second read does produce two lw, but the
-   volatile one cannot be hoisted to the block head and the nor is still there:
-   72.03%, no better.
+/* best 76.72%. The original loads g_SpuChannelMask TWICE (lw v1 and lw a0, both
+   %hi/%lo of the one symbol, both above the first store) and computes
+   0xFF - x*20 with li 0xFF + subu; one shared subtrahend local ("white") does
+   stop gcc's strength reduction to nor, which is what the 72.66% body below
+   suffered from. The two loads cannot be spelled: gcc CSEs two identical reads
+   of one extern in a basic block, so the original had TWO source names for
+   0x80059488 (aliases in two headers), and this repo has no second name for it
+   (config/symbol_addrs.slus_006.64.txt has one, and splat would see a duplicate
+   address). A volatile second read gives two lw but cannot be hoisted to the
+   block head (72.03%). Everything else - frame, the three 0xFF materialisations,
+   the store order Blue/Red/Green, the sll/addu/sll by 20 - follows from the
+   subtrahend local and is exact once the second load exists.
 void func_8007EE68(s32 arg) {
+    s32 white = 0xFF;
+
     if (arg != 0) {
         g_BattleTextBlue = 0xFF;
-        g_BattleTextRed = 0xFF - g_SpuChannelMask * 20;
-        g_BattleTextGreen = 0xFF - g_SpuChannelMask * 20;
+        g_BattleTextRed = white - g_SpuChannelMask * 20;
+        g_BattleTextGreen = white - g_SpuChannelMask * 20;
     } else {
-        g_BattleTextRed = 0xFF;
-        g_BattleTextGreen = 0xFF;
-        g_BattleTextBlue = 0xFF;
+        g_BattleTextRed = white;
+        g_BattleTextGreen = white;
+        g_BattleTextBlue = white;
     }
 }
  */
