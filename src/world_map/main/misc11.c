@@ -147,6 +147,7 @@ int func_8008B2BC(int index) {
     case 2:
     case 3:
         if (g_GameState.gearRide[1] == 0) {
+            // volatile: keeps the D_8009C5B4 load below this store, as retail has it
             *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
             pActor->z = D_8009C5B4;
             pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
