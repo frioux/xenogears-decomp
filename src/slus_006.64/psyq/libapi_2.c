@@ -12,4 +12,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_2", setjmp);
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_2", longjmp);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libapi_2", func_8004BEC0);
+// longjmp's own `jr $ra` tail -- longjmp's .size stops before it -- which is the
+// only definition that reproduces the two instructions. Its 8 bytes of tail
+// alignment padding are an `asm` subsegment in config/slus_006.64.yaml.
+void func_8004BEC0(void) {
+}
