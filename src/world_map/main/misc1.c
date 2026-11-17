@@ -1175,7 +1175,7 @@ void func_800740B8(void) {
     pTile = &D_8009C898[g_WorldMapPrimPacketIndex * 0x20];
     // the three tiles the map script marks are replaced by script-set positions
     pPoint18 = (u16*)&g_GameState.scriptPosX;
-    pPoint19 = &g_GameState.unk184E;
+    pPoint19 = &g_GameState.mapPosX;
     pPoint1A = (u16*)&g_GameState.unk1838[0xC];
     pPos = D_8009B6F4;
     pDrawPage = &D_8009C5A0;

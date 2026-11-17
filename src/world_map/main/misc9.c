@@ -789,13 +789,13 @@ s32 func_80088570(s32 index) {
         pSlot->x = 0;
         v = 0x4800000;
     } else {
-        s32 angleY = *(s16*)&g_GameState.unk184E;
+        s32 angleY = *(s16*)&g_GameState.mapPosX;
         u32 posX = ((u16*)g_GameState.unk1838)[0xA];
 
         pSlot->y = 0xFFD80000;
         pSlot->x = angleY * 0x1000 + posX;
         do {
-            v = *(s16*)&g_GameState.unk1852 * 0x1000 + g_GameState.unk1850;
+            v = *(s16*)&g_GameState.mapPosZ * 0x1000 + g_GameState.mapPosZFraction;
         } while (0);
     }
     pSlot->z = v;
@@ -805,9 +805,9 @@ s32 func_80088570(s32 index) {
     pSlot->dirY = 0;
     pSlot->moveSpeed = 1;
     ((u16*)g_GameState.unk1838)[0xA] = v;
-    g_GameState.unk184E = pSlot->x >> 12;
-    g_GameState.unk1850 = pSlot->z;
-    g_GameState.unk1852 = pSlot->z >> 12;
+    g_GameState.mapPosX = pSlot->x >> 12;
+    g_GameState.mapPosZFraction = pSlot->z;
+    g_GameState.mapPosZ = pSlot->z >> 12;
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088570);
