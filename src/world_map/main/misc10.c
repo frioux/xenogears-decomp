@@ -43,10 +43,10 @@ typedef struct {
     /* 0x48 */ s16 angle;
     /* 0x4A */ s16 moveSpeed;
     /* 0x4C */ void* pSprite;
-    /* 0x50 */ s32 unk50;
-    /* 0x54 */ void* unk54;
+    /* 0x50 */ s32 targetX;
+    /* 0x54 */ void* targetZ;
     /* 0x58 */ s32 trailDelay;
-    /* 0x5C */ s32 unk5C;
+    /* 0x5C */ s32 drawAngle;
     /* 0x60 */ undefined32 unk60[8]; // 0x60..0x7F
 } WorldMapActor; // Size: 0x80
 
@@ -105,20 +105,20 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ undefined32 unk00;
-    /* 0x04 */ u32 unk04;
+    /* 0x04 */ u32 lifeTimer;
     /* 0x08 */ s16 maxCount;
     /* 0x0A */ u16 count;
-    /* 0x0C */ s16 unk0C;
-    /* 0x0E */ s16 unk0E;
+    /* 0x0C */ s16 trailCount;
+    /* 0x0E */ s16 trailActive;
     /* 0x10 */ u16 interval;
     /* 0x12 */ u16 timer;
     /* 0x14 */ u16 x;
     /* 0x16 */ u16 y;
     /* 0x18 */ u16 z;
     /* 0x1A */ undefined8 unk1A[0x2];
-    /* 0x1C */ u16 unk1C;
-    /* 0x1E */ u16 unk1E;
-    /* 0x20 */ u16 unk20;
+    /* 0x1C */ u16 rotX;
+    /* 0x1E */ u16 rotY;
+    /* 0x20 */ u16 rotZ;
     /* 0x22 */ undefined8 unk22[0xA];
     /* 0x2C */ u32 unk2C;
     /* 0x30 */ u16 unk30;
@@ -160,10 +160,10 @@ typedef struct {
     /* 0x40 */ u32 dirZ;
     /* 0x44 */ u8 pad44[0x4];
     /* 0x48 */ s16 angle;
-    /* 0x4A */ s16 unk4A;
+    /* 0x4A */ s16 moveSpeed;
     /* 0x4C */ void* pSprite;
-    /* 0x50 */ s32 unk50;
-    /* 0x54 */ s32 unk54;
+    /* 0x50 */ s32 targetX;
+    /* 0x54 */ s32 targetZ;
     /* 0x58 */ u32 trailDelay;
     /* 0x5C */ u8 unk5C[0x24];
 } WorldMapPlayer; // Size: 0x80
@@ -420,15 +420,15 @@ void WorldMapInitSpriteGroupTables(void) {
 
     pSprite = g_WorldMapSpriteGroups->sprites;
     for (i = 0x1FF; i != -1; i--) {
-        pSprite->unk04 = 0;
+        pSprite->lifeTimer = 0;
         pSprite->count = 0;
         pSprite->timer = 0;
         pSprite->z = 0;
         pSprite->y = 0;
         pSprite->x = 0;
-        pSprite->unk20 = 0;
-        pSprite->unk1E = 0;
-        pSprite->unk1C = 0;
+        pSprite->rotZ = 0;
+        pSprite->rotY = 0;
+        pSprite->rotX = 0;
         pSprite++;
     }
     D_8009BDF4 = HeapAlloc(0x4C00, 0);
@@ -654,7 +654,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
    nothing (base 535, best 535).
    Two VOLATILE casts below are load-bearing, not debris:
    (1) the s16 store of `angle` is what makes gcc re-read it with `lh` for
-   unk5C (retail does sh 0x48, lh 0x48, sw 0x5C); without it gcc folds the
+   drawAngle (retail does sh 0x48, lh 0x48, sw 0x5C); without it gcc folds the
    re-read into sll/sra and the function comes out 4 bytes long.
    (2) the s32 store of x in the case 1-3 body stops gcc sinking that store
    below the g_WorldMapPlayerPositionZ load, giving retail's lw/nop/sw order.
@@ -683,7 +683,7 @@ s32 func_8008A2C8(s32 index) {
     pActor->dirX = 0;
     pActor->moveSpeed = 8;
     *(volatile s16*)&pActor->angle = angle;
-    pActor->unk5C = pActor->angle;
+    pActor->drawAngle = pActor->angle;
     switch (mode) {
     case 1:
     case 2:
