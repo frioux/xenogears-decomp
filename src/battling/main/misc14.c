@@ -119,30 +119,31 @@ typedef struct Misc14ModelNode {
     /* 0x94 */ struct Misc14ModelNode* pChildB;
 } Misc14ModelNode; // Size: 0x9C
 
-// The record a state-5 payload points at (the layout src/battling/main/misc15.c
-// calls a ModelBlock): the vertex area and source data the shadow pass runs
-// from, and the colour entries of every model part, one list per draw buffer.
+// The render record a state-5 payload points at (the record
+// src/battling/main/misc15.c declares as RenderRecord): the vertex area and
+// source data the shadow pass runs from, then one buffer of 0x14-byte entries
+// per draw buffer, whose word at +0x4 carries the colour they are drawn with.
 typedef struct {
     /* 0x00 */ undefined16 unk0;
-    /* 0x02 */ s16 entryCount; // entries in each of the lists at 0x10
+    /* 0x02 */ s16 entryCount; // entries in each of the buffers at 0x10
     /* 0x04 */ u8 pad04[0x4];
     /* 0x08 */ u8* pVerts;
     /* 0x0C */ void* pData;
-    /* 0x10 */ Misc14Entry* pEntries[2]; // colour entries, one list per draw buffer
-} Misc14ModelRecord; // Size: 0x18
+    /* 0x10 */ Misc14Entry* pEntries[2]; // one entry buffer per draw buffer
+} Misc14RenderRecord; // Size: 0x18
 
 typedef struct {
     /* 0x00 */ s32 type;
     /* 0x04 */ Misc14ModelMatrices* pMatrices;
     /* 0x08 */ u32 pad08;
-    /* 0x0C */ Misc14ModelRecord* pRecord;
+    /* 0x0C */ Misc14RenderRecord* pRender;
 } Misc14State5Data; // Size: 0x10
 
 void BattleSetEntryColor(Misc14ModelNode *pNode) {
     s32 index = g_BattleDrawBufferIndex;
-    Misc14ModelRecord *pRecord = ((Misc14State5Data *)pNode->pData)->pRecord;
-    s32 count = pRecord->entryCount;
-    Misc14Entry *pEntry = pRecord->pEntries[index];
+    Misc14RenderRecord *pRender = ((Misc14State5Data *)pNode->pData)->pRender;
+    s32 count = pRender->entryCount;
+    Misc14Entry *pEntry = pRender->pEntries[index];
     u32 value = D_80092818[index];
 
     while (--count != -1) {
@@ -208,8 +209,8 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
             if (D_80092914 != 0) {
                 BattleSetEntryColor(pNode);
             }
-            BattleProjectShadowVerts(((Misc14State5Data*)pNode->pData)->pRecord->pData,
-                                     ((Misc14State5Data*)pNode->pData)->pRecord->pVerts);
+            BattleProjectShadowVerts(((Misc14State5Data*)pNode->pData)->pRender->pData,
+                                     ((Misc14State5Data*)pNode->pData)->pRender->pVerts);
         }
         break;
     }
