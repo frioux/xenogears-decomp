@@ -110,9 +110,6 @@ typedef struct {
     /* 0x0 */ u32 w[4];
 } Quad; // Size: 0x10
 
-typedef struct {
-    /* 0x00 */ u32 w[9];
-} WorldMapG4; // Size: 0x24, two POLY_G4-shaped primitives are not it
 
 void WorldMapGetGameStatePosition(s32 *pOut) {
     pOut[0] = g_GameState.scriptPosX << 12;
@@ -949,7 +946,7 @@ s32 WorldMapModeUpdateValue50(s32 idx) {
 // The original touches every field of the two primitives at 0x8009CE6C, so
 // splat gave each field its own address symbol; naming them here keeps the
 // %lo relocations identical to the original object.
-extern WorldMapG4 g_WorldMapFadePrims;
+extern POLY_G4 g_WorldMapFadePrims[];
 extern u8 D_8009CE6F;
 extern u8 D_8009CE70;
 extern u8 D_8009CE71;
@@ -985,14 +982,14 @@ extern s32 g_WorldMapTpageAbr;
 
 s32 WorldMapModeInitFadeRect(s32 idx) {
     WorldMapPlayer *pPlayer;
-    WorldMapG4 *pG4;
+    POLY_G4 *pG4;
     u_short nTpage;
 
     pPlayer = g_WorldMapSlots + idx;
     pPlayer->unk50 = 0xF8;
     nTpage = GetTPage(0, g_WorldMapTpageAbr, 0x380, 0x100);
     SetDrawTPage(&g_WorldMapFadeTpage, 1, 0, nTpage);
-    pG4 = &g_WorldMapFadePrims;
+    pG4 = g_WorldMapFadePrims;
     // the original re-reads unk50 for all twelve colour bytes; volatile stops
     // gcc folding them into one load.
     D_8009CE6F = 8;
@@ -1029,4 +1026,143 @@ s32 WorldMapModeInitFadeRect(s32 idx) {
     D_8009CEB2 = 0xD8;
     return 1;
 }
+// The frame render context g_WorldMapRenderContext points at (partial view: the head of
+// the ordering table the fade primitives are linked into).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderContext; // partial view
+
+extern WorldMapRenderContext *g_WorldMapRenderContext;
+extern s32 g_WorldMapPrimPacketIndex;
+extern s32 g_WorldMapDrawMode;
+extern s32 D_8009C178;
+
+#define WORLD_MAP_FADE_RECT_TPAGE_X 0x380
+#define WORLD_MAP_FADE_RECT_TPAGE_Y 0x100
+#define WORLD_MAP_FADE_LEVEL_MAX 0xFF
+
+// Fades the two fade-rectangle primitives in or out by one draw-mode step per frame:
+// command 0xC fades the level down and 0xD fades it up, and the return value drops to 3
+// once the fade has finished.  The primitives are re-linked into the ordering table
+// every frame because the level is a Gouraud colour.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800925A0);
+/* best: 92.73%, 320 bytes = retail's exact size, frame reproduced.
+   Reproduced exactly: the command dispatch (CASE ORDER IS THE LEVER - the switch lists
+   0xD before 0xC, which is what makes gcc 2.7.2 emit the 0xD arm first and test 0xC with
+   a forward beq as retail does; an if/else chain and the ascending case order both come
+   out with the two arms swapped), the twelve Gouraud colour stores (each one re-reads
+   pPlayer->unk50, so each right-hand side has to be a volatile read - a plain read folds
+   to a single load), the two addPrim pairs, both fade-step clamps, and the shared
+   fade-done tail (reached with a goto, which reproduces retail's out-of-line D_8009C178
+   store block; duplicating that store inside both arms makes gcc emit it twice).
+   FRAME: retail's frame is 0xE0 and only ra/s0/s1 are saved, so 0xC0 of stack is
+   reserved and no instruction touches it; the unusedFrame local below is what reproduces
+   it (0xC8 gives 0xE8, nothing gives 0x20). It is worth 0.02% in objdiff and is still
+   required for check_bin.
+   LEFT, all register allocation and no structural difference: the two addPrim mask
+   constants land in a1/a2 instead of retail's a2/a3; g_WorldMapRenderContext is kept in
+   t0 instead of a1; &g_WorldMapFadeTpage is reached through the %hi/%lo macro form for
+   its first store where retail keeps the address in a0 (gcc folds a constant address,
+   and a pointer local does not stop it); the prim base lui/addiu is scheduled after the
+   index loads where retail does it before them; and the tail's move v0,s1 is stolen into
+   the stateTimer lhu delay slot where retail leaves a nop (retail loads the timer into
+   v0, which blocks that slot). A 4-minute permuter run from this body found only
+   candidates that make the colour stores share one temp instead of reloading - wrong
+   code, not ported.
+   The colour stores name g_WorldMapFadePrims+4/+5/+6/+0xC.. where splat named
+   D_8009CE70..D_8009CE8A; the linked bytes are identical.
+s32 func_800925A0(s32 idx) {
+    // retail's frame is 0xE0 with only ra/s0/s1 saved: it reserves 0xC0 of stack that no
+    // instruction touches, which only an unused local reproduces.
+    u8 unusedFrame[0xC0];
+    WorldMapPlayer *pPlayer;
+    WorldMapRenderContext *pCtx;
+    POLY_G4 *pPrim;
+    DR_TPAGE *pTpage;
+    u_short nTpage;
+    s32 nRet;
+
+    pPlayer = g_WorldMapSlots + idx;
+    nRet = 1;
+    switch (pPlayer->command) {
+    case 0xD:
+        pPlayer->command = 0;
+        pPlayer->state = 1;
+        D_8009C178 = 1;
+        nTpage = GetTPage(0, g_WorldMapTpageAbr, WORLD_MAP_FADE_RECT_TPAGE_X, WORLD_MAP_FADE_RECT_TPAGE_Y);
+        SetDrawTPage(&g_WorldMapFadeTpage, 1, 0, nTpage);
+        break;
+    case 0xC:
+        pPlayer->command = 0;
+        pPlayer->state = 0;
+        D_8009C178 = 1;
+        nTpage = GetTPage(0, g_WorldMapTpageAbr, WORLD_MAP_FADE_RECT_TPAGE_X, WORLD_MAP_FADE_RECT_TPAGE_Y);
+        SetDrawTPage(&g_WorldMapFadeTpage, 1, 0, nTpage);
+        break;
+    }
+    switch (pPlayer->state) {
+    case 0:
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r0 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g0 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b0 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r1 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g1 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b1 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r2 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g2 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b2 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r3 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g3 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b3 = *(volatile s32 *)&pPlayer->unk50;
+        pCtx = g_WorldMapRenderContext;
+        pPrim = &g_WorldMapFadePrims[g_WorldMapPrimPacketIndex];
+        pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
+        *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+        pTpage = &g_WorldMapFadeTpage;
+        pTpage->tag = (pTpage->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
+        *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pTpage & 0xFFFFFF);
+        pPlayer->unk50 -= g_WorldMapDrawMode;
+        if (pPlayer->unk50 < 0) {
+            nRet = 3;
+            pPlayer->unk50 = 0;
+            goto fadeDone;
+        }
+        break;
+    case 1:
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r0 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g0 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b0 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r1 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g1 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b1 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r2 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g2 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b2 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].r3 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].g3 = *(volatile s32 *)&pPlayer->unk50;
+        g_WorldMapFadePrims[g_WorldMapPrimPacketIndex].b3 = *(volatile s32 *)&pPlayer->unk50;
+        pCtx = g_WorldMapRenderContext;
+        pPrim = &g_WorldMapFadePrims[g_WorldMapPrimPacketIndex];
+        pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
+        *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+        pTpage = &g_WorldMapFadeTpage;
+        pTpage->tag = (pTpage->tag & 0xFF000000) | (*(u32 *)pCtx->pOt[0] & 0xFFFFFF);
+        *(u32 *)pCtx->pOt[0] = (*(u32 *)pCtx->pOt[0] & 0xFF000000) | ((u32)pTpage & 0xFFFFFF);
+        pPlayer->unk50 += g_WorldMapDrawMode;
+        if (pPlayer->unk50 >= WORLD_MAP_FADE_LEVEL_MAX) {
+            pPlayer->unk50 = WORLD_MAP_FADE_LEVEL_MAX;
+            goto fadeDone;
+        }
+        break;
+    default:
+        return nRet;
+    }
+    goto updateTimer;
+fadeDone:
+    D_8009C178 = 0;
+updateTimer:
+    pPlayer->stateTimer++;
+    return nRet;
+}
+*/
