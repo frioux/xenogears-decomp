@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libgpu.h"
 #include "battle/actor.h"
 
 extern u8 *g_BattleDisplayState;
@@ -7,14 +8,22 @@ extern u8 D_800D3420[];
 extern u8 g_BattleSlotRows[];
 extern u8 g_BattleSlotEnabledFlags[];
 
-// One 0x60-byte entry of the screen slot table at D_800D3718; only the slot's
-// enable flag, set throughout by BattleSet/ClearSlotFlagB4 and cleared for every
-// slot by src/battle/main/misc1.c's BattleClearAllSlotFlagB4, is touched here.
-// src/battle/main/misc3.c reaches the same table by byte offset.
+// One 0x60-byte entry of the screen slot table at D_800D3718: the VRAM rect the
+// slot's text texture is loaded into, the buffer that texture is rendered into,
+// the slot's enable flag and the width the rendered string came out at. Only the
+// enable flag, set by BattleSet/ClearSlotFlagB4 and cleared for every slot by
+// src/battle/main/misc1.c's BattleClearAllSlotFlagB4, is touched here; the other
+// three are written by misc1.c's func_80071B94 and misc3.c's func_80078658, which
+// reach them through the D_800D3718 (+0x0), D_800D3720 (+0x8) and D_800D3726
+// (+0xE) symbols. The 0x50 bytes after them are the slot's poly primitives.
 typedef struct {
-    /* 0x00 */ u8 unk0[0xD];
+    /* 0x00 */ RECT rect; // the VRAM rect the slot's text texture is loaded into
+    /* 0x08 */ u_long *pBuf; // the slot's text buffer, rendered into then loaded through rect
+    /* 0x0C */ u8 unkC;
     /* 0x0D */ u8 enabled;
-    /* 0x0E */ u8 unkE[0x52];
+    /* 0x0E */ u8 textWidth; // what SystemRenderStringEntry returns for the slot's string
+    /* 0x0F */ u8 padF;
+    /* 0x10 */ u8 unk10[0x50];
 } BattleScreenSlot; // Size: 0x60
 
 // One 0x170-byte entry of the slot table at g_BattleSlotEntries: the two flag words the
