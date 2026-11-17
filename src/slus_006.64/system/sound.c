@@ -2134,7 +2134,7 @@ void SoundGetAudioManagerPlayTime(AudioManager* pManager, u16* pOut) {
     u32 field = total / 240;
     u32 index = field / 60;
 
-    *(u32*)pOut = pManager->unk_0x24;
+    *(u32*)pOut = pManager->playTicks;
     pOut[2] = total - field * 240;
     pOut[3] = field - index * 60;
     pOut[4] = index;
@@ -2237,7 +2237,7 @@ void SoundSaveAudioManagerBackup(AudioManager* pManager) {
     SoundHeapSetBlockMemory(pCopy, pManager, size);
     pCopy->next = NULL;
     pCopy->pBackup = NULL;
-    pManager->unk_0x2c = 0;
+    pManager->restoreTicks = 0;
     EnableEvent(g_unk_SoundEvent);
 }
 
@@ -2247,9 +2247,9 @@ void SoundRestoreAudioManagerBackup(AudioManager* pManager) {
     if (pManager->pBackup != NULL && (pManager->flags & 0x10)) {
         DisableEvent(g_unk_SoundEvent);
         SoundReleaseAllVoices(pManager);
-        savedValue = pManager->unk_0x24;
+        savedValue = pManager->playTicks;
         SoundCopyAudioManagerData(pManager, pManager->pBackup);
-        pManager->unk_0x2c = savedValue;
+        pManager->restoreTicks = savedValue;
         SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
         SoundSetElementsStatusFlag1(pManager);
         EnableEvent(g_unk_SoundEvent);
@@ -2464,7 +2464,7 @@ void SoundInitializeAudioManager(AudioManager* manager) {
     manager->tempo = 0x00660000;
     manager->tickRate = 0x6600;
     manager->playTime = 0;
-    manager->unk_0x24 = 0;
+    manager->playTicks = 0;
     manager->unk_0x20 = 0;
     manager->activeElementMask = 0;
     manager->noteInterpolator.currentValue = 0;
@@ -2536,7 +2536,7 @@ void func_8003B424(AudioManager* pManager) {
             pElement->volume = 0x6000;
             pElement->elementVolume = 0x7F000000;
             pElement->savedScriptIP = NULL;
-            *(s32*)pElement->unk_0x1C = 0;
+            pElement->unk_0x1C = 0;
             pElement->loopCount = 0;
             pElement->unk_0x22 = 0;
             pElement->fermataDuration = 0;
@@ -2552,7 +2552,7 @@ void func_8003B424(AudioManager* pManager) {
             ((u16*)pElement->voice_data.unkC)[1] = 0;
             pElement->activeEnvelopeMask = 0;
             value = (u32)pSeqData + *pScriptOffset;
-            *(u32*)&pElement->unk_0x0C[4] = value;
+            pElement->unk_0x10 = value;
             pElement->unk14 = value;
 
             for (j = NUM_VOICE_ENVELOPES - 1; j >= 0; j--) {
@@ -2638,7 +2638,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
         } while (0);
     }
 
-    volume = (s16)volume * *(u8*)((u8*)pSoundFile - (-((u16*)&pSoundFile->unk18)[0]) + (soundId & 0xFFFF));
+    volume = (s16)volume * *(u8*)((u8*)pSoundFile - (-pSoundFile->volumeTableOffset) + (soundId & 0xFFFF));
     volume >>= 7;
     if ((volume >> 15) & 1) {
         volume = 0x7FFF;
@@ -2653,7 +2653,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     do {
         pElement->soundId = soundId;
-        *(s32*)pElement->unk_0x0C = g_SoundTimerTickCounter;
+        pElement->startTick = g_SoundTimerTickCounter;
         pElement->unk_0x07 = elementFlags;
 
         if (*pScriptOffset != 0) {
@@ -2670,7 +2670,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
             pElement->unk_0x62 = 0xF;
             pElement->loopIndex = 0xFFFF;
             pElement->savedScriptIP = NULL;
-            *(s32*)pElement->unk_0x1C = 0;
+            pElement->unk_0x1C = 0;
             pElement->loopCount = 0;
             pElement->unk_0x22 = 0;
             pElement->fermataDuration = 0;
@@ -2687,7 +2687,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
             ((u16*)pElement->voice_data.unkC)[1] = 0;
             pElement->activeEnvelopeMask = 0;
             pElement->pan = pan;
-            *(u32*)&pElement->unk_0x0C[4] = value;
+            pElement->unk_0x10 = value;
             pElement->unk14 = value;
 
             for (i = NUM_VOICE_ENVELOPES - 1; i >= 0; i--) {
@@ -3014,7 +3014,7 @@ s32 SoundTimerInterruptHandler(void) {
             continue;
         }
 
-        if (pManager->unk_0x2c != 0 && (u32)pManager->unk_0x24 >= (u32)pManager->unk_0x2c) {
+        if (pManager->restoreTicks != 0 && (u32)pManager->playTicks >= (u32)pManager->restoreTicks) {
             SoundRestoreAudioManagerBackup(pManager);
         }
 
@@ -3061,7 +3061,7 @@ s32 SoundTimerInterruptHandler(void) {
                 }
 
                 if (cdVolume = pManager->activeElementMask != 0) {
-                    pManager->unk_0x24++;
+                    pManager->playTicks++;
                     if (pManager->volumeInterpolator.currentValue == 0) {
                         SoundStopAudioManager(pManager);
                         pManager->flags |= 0x100;
@@ -4423,7 +4423,7 @@ void func_8003E5BC(s16 value, AudioElement* pElement) {
     pElement->voice_data.startAddress = pWds->spuMemoryAddress + offset;
     pElement->voice_data.loopAddress = offset + pTone->loopOffset * 8;
 
-    unkC = pTone->unkC;
+    unkC = pTone->adsrModes;
     pElement->voice_data.attackMode = unkC & 0x7;
     pElement->voice_data.sustainMode = (unkC >> 4) & 0x7;
     pElement->voice_data.releaseMode = (unkC >> 8) & 0x7;
@@ -4437,7 +4437,7 @@ void func_8003E5BC(s16 value, AudioElement* pElement) {
     pElement->voice_data.releaseRate = pElement->releaseRate;
 
     pElement->active_flag |= 0x8000;
-    pElement->toneTune = pTone->unk6;
+    pElement->toneTune = pTone->toneTune;
 }
 */
 
