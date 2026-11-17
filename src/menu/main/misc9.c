@@ -657,8 +657,8 @@ s32 MenuRunUnk430Panel(u_char arg0, u_char arg1) {
 void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     MenuManager* pManager;
 
-    g_Menu->unk434 = HeapAlloc(0xA1C, 0);
-    bzero(g_Menu->unk434, 0xA1C);
+    g_Menu->pCharacterSpriteRecords = HeapAlloc(0xA1C, 0);
+    bzero(g_Menu->pCharacterSpriteRecords, 0xA1C);
     pManager = g_Menu->pManager;
     MenuLoadStringsFromIds(6, g_Menu->unk14E0, D_801EA558[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
     func_801C72BC(7);
@@ -676,7 +676,7 @@ void MenuFreeCharacterSpriteRecords(void) {
     MenuRenderFrame();
     MenuClearBytes(6, &g_Menu->pManager->shouldRenderStrings10E0[8]);
     func_801C72BC(0x17);
-    HeapFree(g_Menu->unk434);
+    HeapFree(g_Menu->pCharacterSpriteRecords);
     MenuFreeScrollHandle();
 }
 
@@ -685,7 +685,7 @@ void MenuFreeUnk35CPanel(void) {
     g_Menu->pManager->shouldRenderPanel[1] = 0;
     MenuRenderFrame();
     HeapFree(g_Menu->unk35C);
-    HeapFree(g_Menu->unk360);
+    HeapFree(g_Menu->pEquipmentPanel);
 }
 
 void MenuCreateListWindow(u_char arg0, u_char arg1) {
@@ -751,7 +751,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
       `bnez v0,<scan>` + `j <return>`.
    5. Panel address: retail has base-first `addu v0,v0,a0`; every spelling
       tried here gives index-first `addu a0,a0,v0`. The embedded-assignment
-      lever (a pointer local assigned `(u8*)g_Menu->unk360 + arg1`, used once
+      lever (a pointer local assigned `(u8*)g_Menu->pEquipmentPanel + arg1`, used once
       with [0x2A1]) was tried this round and dropped the score to 73.17%,
       so it is the wrong lever here.
    The `lbu` reload of the slot item in the clamp (retail re-reads it, so the
@@ -801,7 +801,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
                characterId = g_Menu->pManager->currentCharacterIDs[arg0];
                pSlot = &g_GameState.characters[characterId].extraWeaponIds[arg1];
                slotItem = *pSlot;
-               newItem = ((u8*)g_Menu->unk360)[0x2A1 + arg1];
+               newItem = ((u8*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
                if (slotItem != 0) {
                    if (((u8*)&g_GameState)[0x2286 + *pSlot] < MAX_INVENTORY_WEAPONS) {
                        newItem = 0;
@@ -816,7 +816,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
                gearId = g_GameState.characters[characterId].gearId;
                pSlot = &g_GameState.gears[gearId].extraWeaponIds[arg1];
                slotItem = *pSlot;
-               newItem = ((u8*)g_Menu->unk360)[0x2A1 + arg1];
+               newItem = ((u8*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
                if (slotItem != 0) {
                    if (((u8*)&g_GameState)[0x22B6 + *pSlot] < MAX_INVENTORY_WEAPONS) {
                        newItem = 0;
@@ -831,7 +831,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
            if (arg1 == 0) {
                characterId = g_Menu->pManager->currentCharacterIDs[arg0];
                slotItem = g_GameState.characters[characterId].weaponId[0];
-               newItem = ((u8*)g_Menu->unk360)[0x29C];
+               newItem = ((u8*)g_Menu->pEquipmentPanel)[0x29C];
                if (slotItem == 0) {
                    g_GameState.characters[characterId].weaponId[0] = newItem;
                    updated = 0;
@@ -844,14 +844,14 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
                pQuantities = g_GameState.accessoryQuantities;
                count = MAX_INVENTORY_ACCESSORIES;
                slotItem = g_GameState.characters[characterId].accessorySlots[arg1 - 1];
-               newItem = ((u8*)g_Menu->unk360 + (arg1 - 1))[0x2A6];
+               newItem = ((u8*)g_Menu->pEquipmentPanel + (arg1 - 1))[0x2A6];
            }
        } else {
            if (arg1 == 0) {
                characterId = g_Menu->pManager->currentCharacterIDs[arg0];
                gearId = g_GameState.characters[characterId].gearId;
                slotItem = g_GameState.gears[gearId].weaponId[0];
-               newItem = ((u8*)g_Menu->unk360)[0x29C];
+               newItem = ((u8*)g_Menu->pEquipmentPanel)[0x29C];
                if (slotItem == 0) {
                    g_GameState.gears[gearId].weaponId[0] = newItem;
                    updated = 0;
@@ -865,7 +865,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
                count = MAX_INVENTORY_ACCESSORIES;
                gearId = g_GameState.characters[characterId].gearId;
                slotItem = g_GameState.gears[gearId].accessorySlots[arg1 - 1];
-               newItem = ((u8*)g_Menu->unk360 + (arg1 - 1))[0x2A6];
+               newItem = ((u8*)g_Menu->pEquipmentPanel + (arg1 - 1))[0x2A6];
            }
        }
 
@@ -912,25 +912,25 @@ void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     s32 i;
 
     for (i = 0; i < 9; i++) {
-        ((u16*)((u8*)g_Menu->unk360 + 0x280))[i] = g_Menu->pDressingRoom->statValues[i];
+        ((u16*)((u8*)g_Menu->pEquipmentPanel + 0x280))[i] = g_Menu->pDressingRoom->statValues[i];
     }
 
     if (arg1 == 0) {
         for (i = 0; i < 5; i++) {
-            ((u8*)g_Menu->unk360 + i)[0x29C] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[0x29C] =
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i];
-            ((u8*)g_Menu->unk360 + i)[0x2A1] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1] =
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[i];
-            ((u8*)g_Menu->unk360 + i)[0x2A6] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6] =
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i];
         }
     } else {
         for (i = 0; i < 4; i++) {
-            ((u8*)g_Menu->unk360 + i)[0x29C] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[0x29C] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i];
-            ((u8*)g_Menu->unk360 + i)[0x2A1] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds[i];
-            ((u8*)g_Menu->unk360 + i)[0x2A6] =
+            ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i];
         }
     }
@@ -942,24 +942,24 @@ void MenuCopyEquipmentFromPanel(u_char arg0, u_char arg1) {
     if (arg1 == 0) {
         for (i = 0; i < 5; i++) {
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i] =
-                ((u8*)g_Menu->unk360 + i)[0x29C];
+                ((u8*)g_Menu->pEquipmentPanel + i)[0x29C];
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[i] =
-                ((u8*)g_Menu->unk360 + i)[0x2A1];
+                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1];
         }
         for (i = 0; i < 3; i++) {
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i] =
-                ((u8*)g_Menu->unk360 + i)[0x2A6];
+                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6];
         }
     } else {
         for (i = 0; i < 4; i++) {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i] =
-                ((u8*)g_Menu->unk360 + i)[0x29C];
+                ((u8*)g_Menu->pEquipmentPanel + i)[0x29C];
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds[i] =
-                ((u8*)g_Menu->unk360 + i)[0x2A1];
+                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1];
         }
         for (i = 0; i < 3; i++) {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i] =
-                ((u8*)g_Menu->unk360 + i)[0x2A6];
+                ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6];
         }
     }
 }
@@ -1039,7 +1039,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
         slot += arg4 * 2;
         switch (slot) {
         case 0:
-            pStrings = g_Menu->unk434->pStringLists[0];
+            pStrings = g_Menu->pCharacterSpriteRecords->pStringLists[0];
             if (arg5 != 0) {
                 if (arg3 == 0) {
                     itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].weaponId[0];
@@ -1049,13 +1049,13 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             }
             break;
         case 1:
-            pStrings = g_Menu->unk434->pStringLists[1];
+            pStrings = g_Menu->pCharacterSpriteRecords->pStringLists[1];
             if (arg5 != 0) {
                 itemId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].accessorySlots[arg0 - 1];
             }
             break;
         case 2:
-            pStrings = g_Menu->unk434->pStringLists[2];
+            pStrings = g_Menu->pCharacterSpriteRecords->pStringLists[2];
             if (arg5 != 0) {
                 if (arg3 == 0) {
                     itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
@@ -1067,7 +1067,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             }
             break;
         case 3:
-            pStrings = g_Menu->unk434->pStringLists[3];
+            pStrings = g_Menu->pCharacterSpriteRecords->pStringLists[3];
             if (arg5 != 0) {
                 itemId = g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg6]].gearId]
                     .accessorySlots[arg0 - 1];
@@ -1078,7 +1078,7 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             pBuf = HeapAlloc(0x3F6, 0);
             bzero(pBuf, 0x3F6);
             for (i = 0; i < 3; i++) {
-                g_Menu->unk434->unk880[i].width = SystemRenderStringEntry(GetStringEntry(pStrings, itemId * 3 + i),
+                g_Menu->pCharacterSpriteRecords->unk880[i].width = SystemRenderStringEntry(GetStringEntry(pStrings, itemId * 3 + i),
                     pBuf, 0x24, 0);
                 rect.x = 0x180 + ((i + 8) & 1) * 0x18;
                 rect.y = 0x80 + ((i + 8) / 2) * 0xD;
@@ -1086,17 +1086,17 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
                 rect.h = 0xD;
                 LoadImage(&rect, (u_long*)pBuf);
                 DrawSync(0);
-                func_801E7C50(&g_Menu->unk434->unk880[i], i + 8, 0x80, 0x81);
-                MenuSetQuadVertices(g_Menu->unk434->unk880[i].vertices, 0x10, i * 0x10 + 0x96,
-                    g_Menu->unk434->unk880[i].width, 0xD);
-                g_Menu->unk434->unk880[i].renderContext = g_Menu->renderContext;
+                func_801E7C50(&g_Menu->pCharacterSpriteRecords->unk880[i], i + 8, 0x80, 0x81);
+                MenuSetQuadVertices(g_Menu->pCharacterSpriteRecords->unk880[i].vertices, 0x10, i * 0x10 + 0x96,
+                    g_Menu->pCharacterSpriteRecords->unk880[i].width, 0xD);
+                g_Menu->pCharacterSpriteRecords->unk880[i].renderContext = g_Menu->renderContext;
             }
-            g_Menu->unk434->shouldRenderStrings880[0] = 1;
+            g_Menu->pCharacterSpriteRecords->shouldRenderStrings880[0] = 1;
             HeapFree(pBuf);
             return;
         }
     }
-    g_Menu->unk434->shouldRenderStrings880[0] = 0;
+    g_Menu->pCharacterSpriteRecords->shouldRenderStrings880[0] = 0;
 }
 void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     u_char* pIds;

@@ -119,11 +119,11 @@ void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext) {
 void MenuRenderSelectionCursor(void) {
     u32 offset;
 
-    offset = g_Menu->unk348->drawModeRenderContext * sizeof(DR_MODE) + 0x128;
-    AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk348));
+    offset = g_Menu->pCursorPrims->drawModeRenderContext * sizeof(DR_MODE) + 0x128;
+    AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pCursorPrims));
     if (g_Menu->pManager->shouldRenderPointerCursor) {
-        offset = g_Menu->unk348->cursorRenderContext * sizeof(POLY_FT4);
-        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk348));
+        offset = g_Menu->pCursorPrims->cursorRenderContext * sizeof(POLY_FT4);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pCursorPrims));
     }
 }
 void MenuRenderPointerCursors(void) {
@@ -145,14 +145,14 @@ void MenuAddGoldAndPlayTimePrims(void) {
     u32 offset;
 
     if (((u8*)g_Menu->pManager)[0x5]) {
-        MenuRenderString(*(s32*)((u8*)g_Menu->unk340 + 0x320), (POLY_FT4*)g_Menu->unk340,
-                      ((u8*)g_Menu->unk340)[0x324]);
-        offset = ((u8*)g_Menu->unk340)[0x324] * sizeof(POLY_FT4) + 0x2D0;
-        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->unk340));
+        MenuRenderString(*(s32*)((u8*)g_Menu->pGoldWindow + 0x320), (POLY_FT4*)g_Menu->pGoldWindow,
+                      ((u8*)g_Menu->pGoldWindow)[0x324]);
+        offset = ((u8*)g_Menu->pGoldWindow)[0x324] * sizeof(POLY_FT4) + 0x2D0;
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pGoldWindow));
     }
     if (((u8*)g_Menu->pManager)[0x6]) {
-        MenuRenderString(7, (POLY_FT4*)g_Menu->unk344, ((u8*)g_Menu->unk344)[0x370]);
-        MenuRenderString(4, (POLY_FT4*)((u8*)g_Menu->unk344 + 0x230), ((u8*)g_Menu->unk344)[0x370]);
+        MenuRenderString(7, (POLY_FT4*)g_Menu->pPlayTimeDigits, ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
+        MenuRenderString(4, (POLY_FT4*)((u8*)g_Menu->pPlayTimeDigits + 0x230), ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CE540);
@@ -175,8 +175,8 @@ void func_801CE540(void) {
     u8* pData;
 
     for (i = 0; i < 3; i++) {
-        pData = (u8*)g_Menu->unk39C[i];
-        if (g_Menu->pManager->unk0[i]) {
+        pData = (u8*)g_Menu->characterWindows[i];
+        if (g_Menu->pManager->shouldRenderCharacterWindows[i]) {
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(pData + pData[0x1270] * sizeof(POLY_FT4)));
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[pData[0x1270] * sizeof(POLY_FT4) + 0x50]);
             MenuRenderString(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
@@ -338,7 +338,7 @@ void MenuAddUnk360Prims(void) {
 
     if (g_Menu->pManager->shouldRenderPanel[1]) {
         for (i = 0; i < 5; i++) {
-            pData = (u8*)g_Menu->unk360;
+            pData = (u8*)g_Menu->pEquipmentPanel;
             pFlag = pData + i;
             if (pFlag[0x294]) {
                 pRow = (u8*)(i * 0x80 + (u32)pData);
@@ -350,8 +350,8 @@ void MenuAddUnk360Prims(void) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CEC40);
 void MenuAddUnk5StringPrims(void) {
     if (g_Menu->pManager->shouldRenderSubmenuStrings) {
-        MenuRenderString(g_Menu->unk354->polys500PrimCount, g_Menu->unk354->polys500, g_Menu->unk354->polys500RenderCtx);
-        MenuRenderString(g_Menu->unk354->polys0PrimCount, g_Menu->unk354->polys0, g_Menu->unk354->polys0RenderCtx);
+        MenuRenderString(g_Menu->pSubmenuPrims->polys500PrimCount, g_Menu->pSubmenuPrims->polys500, g_Menu->pSubmenuPrims->polys500RenderCtx);
+        MenuRenderString(g_Menu->pSubmenuPrims->polys0PrimCount, g_Menu->pSubmenuPrims->polys0, g_Menu->pSubmenuPrims->polys0RenderCtx);
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF37C);

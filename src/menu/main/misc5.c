@@ -241,8 +241,8 @@ void MenuAddSpriteGroupPrims(void) {
 }
 
 void MenuAddDimEffectPrims(void) {
-    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->polysDimEffect[g_Menu->renderContext]);
-    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->pCursorPrims->polysDimEffect[g_Menu->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->pCursorPrims->drawModeDimEffect[g_Menu->renderContext]);
 }
 void MenuAddCharacterPrims(MenuCharacter* pCharacter, s32 flag) {
     if (pCharacter->shouldRender == 0) {
@@ -294,24 +294,24 @@ void MenuAddUnk42CPrims(void) {
         return;
     }
     for (i = 0; i < 16; i++) {
-        if (g_Menu->unk42C->shouldRenderRows[i]) {
+        if (g_Menu->pItemRows->shouldRenderRows[i]) {
             offset = i * sizeof(MenuString);
-            MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu->unk42C + 0x50),
-                          (POLY_FT4*)(offset + (u32)g_Menu->unk42C),
-                          ((u8*)(offset + (u32)g_Menu->unk42C))[0x7D]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu->pItemRows + 0x50),
+                          (POLY_FT4*)(offset + (u32)g_Menu->pItemRows),
+                          ((u8*)(offset + (u32)g_Menu->pItemRows))[0x7D]);
             offset2 = i * sizeof(MenuString) + 0x800;
-            MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk42C + 0x50),
-                          (POLY_FT4*)(offset2 + (u32)g_Menu->unk42C),
-                          ((u8*)((u32)g_Menu->unk42C + offset))[0x87D]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->pItemRows + 0x50),
+                          (POLY_FT4*)(offset2 + (u32)g_Menu->pItemRows),
+                          ((u8*)((u32)g_Menu->pItemRows + offset))[0x87D]);
         }
     }
-    if (g_Menu->unk42C->shouldRenderPrimGroup) {
-        MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->unk42C + 0x1050), (POLY_FT4*)((u32)g_Menu->unk42C + 0x1000),
-                      ((u8*)g_Menu->unk42C)[0x107D]);
-        MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->unk42C + 0x10D0), (POLY_FT4*)((u32)g_Menu->unk42C + 0x1080),
-                      ((u8*)g_Menu->unk42C)[0x10FD]);
-        MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->unk42C + 0x1150), (POLY_FT4*)((u32)g_Menu->unk42C + 0x1100),
-                      ((u8*)g_Menu->unk42C)[0x117D]);
+    if (g_Menu->pItemRows->shouldRenderPrimGroup) {
+        MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->pItemRows + 0x1050), (POLY_FT4*)((u32)g_Menu->pItemRows + 0x1000),
+                      ((u8*)g_Menu->pItemRows)[0x107D]);
+        MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->pItemRows + 0x10D0), (POLY_FT4*)((u32)g_Menu->pItemRows + 0x1080),
+                      ((u8*)g_Menu->pItemRows)[0x10FD]);
+        MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->pItemRows + 0x1150), (POLY_FT4*)((u32)g_Menu->pItemRows + 0x1100),
+                      ((u8*)g_Menu->pItemRows)[0x117D]);
     }
 }
 void MenuAddUnk430Prims(void) {
@@ -357,23 +357,23 @@ void MenuAddUnk434Prims(void) {
         return;
     }
     for (i = 0, offset2 = 0x400; i < 8; i++, offset2 += sizeof(MenuString)) {
-        if (g_Menu->unk434->shouldRenderRows[i]) {
+        if (g_Menu->pCharacterSpriteRecords->shouldRenderRows[i]) {
             offset = i * sizeof(MenuString);
-            MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu->unk434 + 0x50),
-                          (POLY_FT4*)(offset + (u32)g_Menu->unk434),
-                          ((u8*)(offset + (u32)g_Menu->unk434))[0x7D]);
-            MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk434 + 0x50),
-                          (POLY_FT4*)(offset2 + (u32)g_Menu->unk434),
-                          ((u8*)((u32)g_Menu->unk434 + offset))[0x47D]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(offset + (u32)g_Menu->pCharacterSpriteRecords + 0x50),
+                          (POLY_FT4*)(offset + (u32)g_Menu->pCharacterSpriteRecords),
+                          ((u8*)(offset + (u32)g_Menu->pCharacterSpriteRecords))[0x7D]);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->pCharacterSpriteRecords + 0x50),
+                          (POLY_FT4*)(offset2 + (u32)g_Menu->pCharacterSpriteRecords),
+                          ((u8*)((u32)g_Menu->pCharacterSpriteRecords + offset))[0x47D]);
         }
     }
-    MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->unk434 + 0x850), (POLY_FT4*)((u32)g_Menu->unk434 + 0x800),
-                  ((u8*)g_Menu->unk434)[0x87D]);
-    if (g_Menu->unk434->shouldRenderStrings880[0]) {
+    MenuRenderTransformedQuads(1, (SVECTOR*)((u32)g_Menu->pCharacterSpriteRecords + 0x850), (POLY_FT4*)((u32)g_Menu->pCharacterSpriteRecords + 0x800),
+                  ((u8*)g_Menu->pCharacterSpriteRecords)[0x87D]);
+    if (g_Menu->pCharacterSpriteRecords->shouldRenderStrings880[0]) {
         for (i = 0; i < 3; i++) {
             offset2 = i * sizeof(MenuString) + 0x880;
-            MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->unk434 + 0x50),
-                          (POLY_FT4*)(offset2 + (u32)g_Menu->unk434), g_Menu->unk434->unk880[i].renderContext);
+            MenuRenderTransformedQuads(1, (SVECTOR*)(offset2 + (u32)g_Menu->pCharacterSpriteRecords + 0x50),
+                          (POLY_FT4*)(offset2 + (u32)g_Menu->pCharacterSpriteRecords), g_Menu->pCharacterSpriteRecords->unk880[i].renderContext);
         }
     }
 }

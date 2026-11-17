@@ -368,7 +368,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
    defines it as `short`): with `short` the caller gets sll/sra 0x10 instead of
    retail's `andi 0xFFFF`.
    void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3) {
-       u8* pWindow = (u8*)g_Menu->unk39C[a0];
+       u8* pWindow = (u8*)g_Menu->characterWindows[a0];
        u8* pBase;
    
        func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)pWindow,
@@ -387,7 +387,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
    }
 */
 void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
-    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
+    MenuCharacterWindow* pWindow = g_Menu->characterWindows[index];
     s32 i;
 
     pWindow->iconsPrimCount = 0;
@@ -405,7 +405,7 @@ void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
     }
 }
 void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
-    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
+    MenuCharacterWindow* pWindow = g_Menu->characterWindows[index];
     s32 i;
     s32 n;
 
@@ -438,7 +438,7 @@ void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
     }
 }
 void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
-    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
+    MenuCharacterWindow* pWindow = g_Menu->characterWindows[index];
     s32 i;
     s32 n;
 
@@ -471,7 +471,7 @@ void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
     }
 }
 void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s32 y) {
-    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
+    MenuCharacterWindow* pWindow = g_Menu->characterWindows[index];
     s32 i;
 
     MenuParseNumberToDigits(((MenuCharacterWideNumbers*)(void*)&g_GameState.characters[characterId])->unk44);
@@ -498,7 +498,7 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
     }
 }
 void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y) {
-    MenuCharacterWindow* pWindow = g_Menu->unk39C[index];
+    MenuCharacterWindow* pWindow = g_Menu->characterWindows[index];
     s32 i;
 
     MenuParseNumberToDigits(g_GameState.characters[characterId].level);
@@ -542,7 +542,7 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
         return;
     }
     pTween = &((MenuWindowTween*)(void*)g_Menu->unk0)[index];
-    pWindow = g_Menu->unk39C[index];
+    pWindow = g_Menu->characterWindows[index];
     x = pTween->unk18 / 256 + pTween->unk0;
     y = pTween->unk1C / 256 + pTween->unk8;
     func_801D4F2C(index, characterId, x, y);
@@ -551,10 +551,10 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     MenuSetCharacterMpDigits(index, characterId, x, y);
     MenuSetCharacterWideNumberDigits(index, characterId, x, y);
     MenuSetCharacterLevelDigits(index, characterId, x, y);
-    g_Menu->pManager->unk0[index] = 1;
+    g_Menu->pManager->shouldRenderCharacterWindows[index] = 1;
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
 }
-// Gold window prims (g_Menu->unk340): the nine digit quads, the 'G' glyph quad
+// Gold window prims (g_Menu->pGoldWindow): the nine digit quads, the 'G' glyph quad
 // and the digit count the quads are packed from.
 typedef struct {
     /* 0x000 */ POLY_FT4 digitPrims[18]; // two per digit, one per render context
@@ -569,28 +569,28 @@ void MenuSetGoldDigits(s32 x, s32 y) {
     s32 digitX;
 
     MenuParseNumberToDigits(g_GameState.gold);
-    ((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount = 0;
+    ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount = 0;
     for (i = 0, digitX = x; i < 9; ) {
         u8 digit = g_Menu->digits[i++];
 
         if (digit != 0xFF) {
             // The prim address is summed in integer space: a pointer sum here
             // gives gcc the commuted `addu a2,t0,a2` retail does not have.
-            ((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount =
+            ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount =
                 func_8002675C(g_Menu->resources, digit,
-                              (POLY_FT4*)(((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount *
+                              (POLY_FT4*)(((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount *
                                               (2 * sizeof(POLY_FT4)) +
-                                          (u32)((MenuGoldWindow*)g_Menu->unk340)->digitPrims),
+                                          (u32)((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrims),
                               g_Menu->renderContext, digitX, y, 0x1000) +
-                ((MenuGoldWindow*)g_Menu->unk340)->digitPrimCount;
+                ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount;
         }
         digitX += 8;
     }
     func_8002675C(g_Menu->resources, 0x10,
-                  &((MenuGoldWindow*)g_Menu->unk340)->glyphPrim,
+                  &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrim,
                   g_Menu->renderContext, x + 0x50, y, 0x1000);
     g_Menu->pManager->unk5[0] = 1;
-    ((MenuGoldWindow*)g_Menu->unk340)->renderContext = *(u8*)&g_Menu->renderContext;
+    ((MenuGoldWindow*)g_Menu->pGoldWindow)->renderContext = *(u8*)&g_Menu->renderContext;
 }
 void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     s32 i;
@@ -600,24 +600,24 @@ void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     // not have (MenuSetGoldDigits above has the same constraint).
     for (i = 0; i < 3; i++) {
         func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
-                      (POLY_FT4*)(i * sizeof(g_Menu->unk344->polys[0]) + (s32)g_Menu->unk344->polys),
+                      (POLY_FT4*)(i * sizeof(g_Menu->pPlayTimeDigits->polys[0]) + (s32)g_Menu->pPlayTimeDigits->polys),
                       g_Menu->renderContext, x + i * 8, y, 0x1000);
     }
     for (i = 3; i < 5; i++) {
         func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
-                      (POLY_FT4*)(i * sizeof(g_Menu->unk344->polys[0]) + (s32)g_Menu->unk344->polys),
+                      (POLY_FT4*)(i * sizeof(g_Menu->pPlayTimeDigits->polys[0]) + (s32)g_Menu->pPlayTimeDigits->polys),
                       g_Menu->renderContext, x + i * 8 + 8, y, 0x1000);
     }
     for (i = 5; i < 7; i++) {
         func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
-                      (POLY_FT4*)(i * sizeof(g_Menu->unk344->polys[0]) + (s32)g_Menu->unk344->polys),
+                      (POLY_FT4*)(i * sizeof(g_Menu->pPlayTimeDigits->polys[0]) + (s32)g_Menu->pPlayTimeDigits->polys),
                       g_Menu->renderContext, x + i * 8 + 0x10, y, 0x1000);
     }
-    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->unk344->polys[7],
+    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->pPlayTimeDigits->polys[7],
                   g_Menu->renderContext, x + 0x18, y, 0x1000);
-    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->unk344->polys[9],
+    func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->pPlayTimeDigits->polys[9],
                   g_Menu->renderContext, x + 0x30, y, 0x1000);
-    g_Menu->unk344->renderContext = *(u8*)&g_Menu->renderContext;
+    g_Menu->pPlayTimeDigits->renderContext = *(u8*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
 /* Best: 87.38%, frame 0x38 as retail. Decode is complete (this is the sibling of

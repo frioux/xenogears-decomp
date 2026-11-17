@@ -369,10 +369,10 @@ void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s3
 
     for (i = 0; i < count; i += 2) {
         index = i;
-        pStringList[index].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[index]),
+        pStringList[index].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, pStringIdList[index]),
             g_Menu->unk4E0[0].pVramBuffer, 0x18, 0);
         pRect = &pStringList[index].vramDest;
-        pStringList[index + 1].width = SystemRenderStringEntry(GetStringEntry(g_Menu->unk2E0, pStringIdList[index + 1]),
+        pStringList[index + 1].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, pStringIdList[index + 1]),
             g_Menu->unk4E0[0].pVramBuffer, 0x18, 1);
         pStringList[index].vramDest.x = ((index / 2) & 1) * 0x20 + 0x140;
         pStringList[index].vramDest.y = ((index + yOffset) / 4) * 0xD;
@@ -561,41 +561,41 @@ void func_801E86C8(u_char selected) {
     s32* pText;
 
     allValid = 1;
-    g_Menu->unk354->polys0PrimCount = 0;
-    g_Menu->unk354->polys500PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys0PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys500PrimCount = 0;
     g_Menu->pManager->shouldRenderSubmenuStrings = 1;
     pText = g_MenuSubMenuChoiceIds + 1;
     for (n = 1; n < 5; n++) {
-        g_Menu->unk354->polys0PrimCount = 0;
+        g_Menu->pSubmenuPrims->polys0PrimCount = 0;
         g_Menu->subMenuNumChoices = 0;
         for (i = 0; i < n; i++) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                g_Menu->unk354->polys0PrimCount = func_8002675C(g_Menu->resources,
+                g_Menu->pSubmenuPrims->polys0PrimCount = func_8002675C(g_Menu->resources,
                     g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(g_Menu->unk354->polys0PrimCount * 0x50 + (s32)g_Menu->unk354),
-                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys0PrimCount;
+                    (POLY_FT4*)(g_Menu->pSubmenuPrims->polys0PrimCount * 0x50 + (s32)g_Menu->pSubmenuPrims),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys0PrimCount;
                 g_Menu->subMenuNumChoices++;
             } else {
                 allValid = 0;
             }
         }
-        g_Menu->unk354->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
+        g_Menu->pSubmenuPrims->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
                 MenuRenderFrame();
             }
         }
-        g_Menu->unk354->polys500PrimCount = 0;
+        g_Menu->pSubmenuPrims->polys500PrimCount = 0;
         for (i = 0; i < n; i++) {
             if (g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] != 0xFFFF) {
-                off = g_Menu->unk354->polys500PrimCount * 0x50 + 0x500;
-                g_Menu->unk354->polys500PrimCount = func_8002675C(g_Menu->resources,
+                off = g_Menu->pSubmenuPrims->polys500PrimCount * 0x50 + 0x500;
+                g_Menu->pSubmenuPrims->polys500PrimCount = func_8002675C(g_Menu->resources,
                     pText[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-                    (POLY_FT4*)(off + (s32)g_Menu->unk354),
-                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys500PrimCount;
+                    (POLY_FT4*)(off + (s32)g_Menu->pSubmenuPrims),
+                    g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys500PrimCount;
             }
         }
-        g_Menu->unk354->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
+        g_Menu->pSubmenuPrims->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
         if (allValid) {
             for (i = 0; i < 2; i++) {
                 MenuRenderFrame();
@@ -636,25 +636,25 @@ void MenuSetSubMenuChoicePrims(u_char selected) {
     u32 index;
     u32 off;
 
-    g_Menu->unk354->polys0PrimCount = 0;
-    g_Menu->unk354->polys500PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys0PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys500PrimCount = 0;
     for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
         if (i == g_Menu->subMenuChoice) {
             index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
         } else {
             index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
         }
-        g_Menu->unk354->polys0PrimCount = func_8002675C(g_Menu->resources, index,
-            (POLY_FT4*)(g_Menu->unk354->polys0PrimCount * 0x50 + (s32)g_Menu->unk354),
-            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys0PrimCount;
-        off = g_Menu->unk354->polys500PrimCount * 0x50 + 0x500;
-        g_Menu->unk354->polys500PrimCount = func_8002675C(g_Menu->resources,
+        g_Menu->pSubmenuPrims->polys0PrimCount = func_8002675C(g_Menu->resources, index,
+            (POLY_FT4*)(g_Menu->pSubmenuPrims->polys0PrimCount * 0x50 + (s32)g_Menu->pSubmenuPrims),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys0PrimCount;
+        off = g_Menu->pSubmenuPrims->polys500PrimCount * 0x50 + 0x500;
+        g_Menu->pSubmenuPrims->polys500PrimCount = func_8002675C(g_Menu->resources,
             g_MenuSubMenuChoiceTextIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2],
-            (POLY_FT4*)(off + (s32)g_Menu->unk354),
-            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->unk354->polys500PrimCount;
+            (POLY_FT4*)(off + (s32)g_Menu->pSubmenuPrims),
+            g_Menu->renderContext, 0xA0, 0x96, 0x1000) + g_Menu->pSubmenuPrims->polys500PrimCount;
     }
-    g_Menu->unk354->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
-    g_Menu->unk354->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
+    g_Menu->pSubmenuPrims->polys0RenderCtx = *(u8*)&g_Menu->renderContext;
+    g_Menu->pSubmenuPrims->polys500RenderCtx = *(u8*)&g_Menu->renderContext;
     MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
     g_Menu->pManager->shouldRenderPointerCursor = 1;
 }

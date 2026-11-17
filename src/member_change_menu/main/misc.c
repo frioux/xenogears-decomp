@@ -98,11 +98,11 @@ void MemberChangeMenuSetSelectionMenu(u_char bIsInitialization) {
 
 void MemberChangeMenuUnk354Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk354 = HeapAlloc(sizeof(MenuUnk5), 0);
-        bzero(g_Menu->unk354, sizeof(MenuUnk5));
+        g_Menu->pSubmenuPrims = HeapAlloc(sizeof(MenuUnk5), 0);
+        bzero(g_Menu->pSubmenuPrims, sizeof(MenuUnk5));
         return;
     }
-    HeapFree(g_Menu->unk354);
+    HeapFree(g_Menu->pSubmenuPrims);
 }
 
 void MemberChangeMenuDressingRoomManager(u_char isInitialization) {
@@ -116,11 +116,11 @@ void MemberChangeMenuDressingRoomManager(u_char isInitialization) {
 
 void MemberChangeMenuUnk348Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk348 = HeapAlloc(sizeof(MenuUnk1), 0);
-        bzero(g_Menu->unk348, sizeof(MenuUnk1));
+        g_Menu->pCursorPrims = HeapAlloc(sizeof(MenuUnk1), 0);
+        bzero(g_Menu->pCursorPrims, sizeof(MenuUnk1));
         return;
     }
-    HeapFree(g_Menu->unk348);
+    HeapFree(g_Menu->pCursorPrims);
 }
 
 // Initialize or free character data used by the menu
@@ -178,7 +178,7 @@ void MemberChangeMenuLoadResources(void) {
     // Table for where to find textures (UVs, sizes etc.) for the TIMs loaded above
     g_Menu->resources = LZSSHeapDecompress(pResources[3], 0);
 
-    g_Menu->unk2E0 = LZSSHeapDecompress(pResources[4], 0);
+    g_Menu->pStringBank = LZSSHeapDecompress(pResources[4], 0);
 
     if (g_MenuDebugEnabled) {
         ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0x2);
@@ -188,7 +188,7 @@ void MemberChangeMenuLoadResources(void) {
         ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0x0);
         SoundAddSedsEntry(g_MenuSedsFile);
     }
-    g_Menu->unk2E4 = g_MenuSedsFile;
+    g_Menu->pSoundFile = g_MenuSedsFile;
 
     HeapFree(pResources);
 }
@@ -315,11 +315,11 @@ void MemberChangeMenuRenderMenuStringsToVram(MenuString* pStringList, u_char* pS
 
     for (i = 0; i < count; i += 2) {
         pStringList[i].width = SystemRenderStringEntry(
-            GetStringEntry(g_Menu->unk2E0, pStringIdList[i]),
+            GetStringEntry(g_Menu->pStringBank, pStringIdList[i]),
             (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 0
         );
         pStringList[i + 1].width = SystemRenderStringEntry(
-            GetStringEntry(g_Menu->unk2E0, pStringIdList[i + 1]),
+            GetStringEntry(g_Menu->pStringBank, pStringIdList[i + 1]),
             (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 1
         );
 
@@ -408,28 +408,28 @@ void MemberChangeMenuInitializeBackground(void) {
 
     for (i = 0; i < 2; i++) {
         // Unknown effect, seems to be unused
-        MemberChangeMenuSetPolyGradientColor(&g_Menu->unk348->polyG4s[i], 128, 128, 0);
-        SetSemiTrans(&g_Menu->unk348->polyG4s[i], 1);
+        MemberChangeMenuSetPolyGradientColor(&g_Menu->pCursorPrims->polyG4s[i], 128, 128, 0);
+        SetSemiTrans(&g_Menu->pCursorPrims->polyG4s[i], 1);
 
-        SetLineF3(&g_Menu->unk348->lines1[i]);
-        setRGB0(&g_Menu->unk348->lines1[i], 0, 64, 0);
+        SetLineF3(&g_Menu->pCursorPrims->lines1[i]);
+        setRGB0(&g_Menu->pCursorPrims->lines1[i], 0, 64, 0);
 
-        SetLineF3(&g_Menu->unk348->lines2[i]);
-        setRGB0(&g_Menu->unk348->lines2[i], 0, 64, 0);
+        SetLineF3(&g_Menu->pCursorPrims->lines2[i]);
+        setRGB0(&g_Menu->pCursorPrims->lines2[i], 0, 64, 0);
 
         // Background dimming screen
-        SetPolyF4(&g_Menu->unk348->polysDimEffect[i]);
-        setXY4(&g_Menu->unk348->polysDimEffect[i],
+        SetPolyF4(&g_Menu->pCursorPrims->polysDimEffect[i]);
+        setXY4(&g_Menu->pCursorPrims->polysDimEffect[i],
             0,   0,
             320, 0,
             0,   224,
             320, 224
         );
-        setRGB0(&g_Menu->unk348->polysDimEffect[i], 128, 128, 128);
-        SetSemiTrans(&g_Menu->unk348->polysDimEffect[i], 1);
+        setRGB0(&g_Menu->pCursorPrims->polysDimEffect[i], 128, 128, 128);
+        SetSemiTrans(&g_Menu->pCursorPrims->polysDimEffect[i], 1);
 
-        SetDrawMode(&g_Menu->unk348->drModes1[i], 0, 0, GetTPage(0, 0, 0x140, 128), &rect);
-        SetDrawMode(&g_Menu->unk348->drawModeDimEffect[i], 0, 0, GetTPage(0, 2, 0x180, 0), &rect);
+        SetDrawMode(&g_Menu->pCursorPrims->drModes1[i], 0, 0, GetTPage(0, 0, 0x140, 128), &rect);
+        SetDrawMode(&g_Menu->pCursorPrims->drawModeDimEffect[i], 0, 0, GetTPage(0, 2, 0x180, 0), &rect);
     }
 }
 
@@ -947,7 +947,7 @@ void MemberChangeMenuRenderStrings6E0(void) {
 
     for (i = 0; i < 8; i++) {
         if (g_Menu->pManager->shouldRenderStrings[i]) {
-            AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->unk6E0[i].polys[g_Menu->unk6E0[i].renderContext]);
+            AddPrim(&g_Menu->pGfxEnv->ot[4], &g_Menu->optionStrings[i].polys[g_Menu->optionStrings[i].renderContext]);
         }
     }
 }
@@ -989,8 +989,8 @@ void MemberChangeMenuRenderStringsAE0(void) {
 
 // Draw the black dimming effect
 void MemberChangeMenuRenderBackgroundDim(void) {
-    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->polysDimEffect[g_Menu->renderContext]);
-    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->pCursorPrims->polysDimEffect[g_Menu->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->pCursorPrims->drawModeDimEffect[g_Menu->renderContext]);
 }
 
 void MemberChangeMenuRenderCharacter(MenuCharacter* pCharacter, u_char isBenched) {
@@ -1411,7 +1411,7 @@ void MemberChangeMenuRender(void) {
 }
 
 void MemberChangeMenuPlaySoundEffect(u_char soundEffectId) {
-    SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 16) | soundEffectId);
+    SoundPlaySoundEffectOnLastPair((g_Menu->pSoundFile->sedId << 16) | soundEffectId);
 }
 
 void MemberChangeMenuPollInput(void) {
@@ -1607,12 +1607,12 @@ void MemberChangeMenuFree(void) {
     MemberChangeMenuUnk348Manager(MENU_DATA_FREE);
 
     HeapFree(g_Menu->resources);
-    HeapFree(g_Menu->unk2E0);
+    HeapFree(g_Menu->pStringBank);
     HeapFree(g_Menu->unk4E0[0].pVramBuffer);
     if (g_MenuDebugEnabled != 0) {
-        SoundStopElementsForSoundFile(g_Menu->unk2E4);
-        SoundRemoveSedsEntry(g_Menu->unk2E4);
-        HeapFree(g_Menu->unk2E4);
+        SoundStopElementsForSoundFile(g_Menu->pSoundFile);
+        SoundRemoveSedsEntry(g_Menu->pSoundFile);
+        HeapFree(g_Menu->pSoundFile);
     }
     MemberChangeMenuSetCharacters(MENU_DATA_FREE);
     HeapFree(g_Menu);
@@ -2213,7 +2213,7 @@ void MemberChangeMenuMain(void) {
     g_Menu->pSelectionMenu->vramRect.y = 0x100;
     g_Menu->pSelectionMenu->vramRect.w = 0x140;
     g_Menu->pSelectionMenu->vramRect.h = 0xE0;
-    g_Menu->unk348->shadeWidth = 0x40;
+    g_Menu->pCursorPrims->shadeWidth = 0x40;
     MemberChangeMenuInitialize();
     MemberChangeMenuResetRenderContext();
     MemberChangeMenuInitializeMenuStrings();

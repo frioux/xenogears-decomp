@@ -104,28 +104,28 @@ void MenuStartCloseAnimation(void) {
     MenuPlaySoundEffect(0x5C);
 }
 void MenuMovePointerCursor(s32 slot, u8 doInit) {
-    func_8002675C(g_Menu->resources, 0x108, g_Menu->unk348->polysPointerCursor, g_Menu->renderContext, g_MenuCursorXPositions[slot], g_MenuCursorYPositions[slot], 0x1000);
-    g_Menu->unk348->cursorRenderContext = (u8)g_Menu->renderContext;
+    func_8002675C(g_Menu->resources, 0x108, g_Menu->pCursorPrims->polysPointerCursor, g_Menu->renderContext, g_MenuCursorXPositions[slot], g_MenuCursorYPositions[slot], 0x1000);
+    g_Menu->pCursorPrims->cursorRenderContext = (u8)g_Menu->renderContext;
 
     if (doInit) {
         // Shaded rectangle of shadeWidth width with green lines around it
-        setXY4(&g_Menu->unk348->polyG4s[g_Menu->renderContext],
+        setXY4(&g_Menu->pCursorPrims->polyG4s[g_Menu->renderContext],
                g_MenuCursorXPositions[slot] + 0x14, g_MenuCursorYPositions[slot] - 0x24,
-               g_MenuCursorXPositions[slot] + (g_Menu->unk348->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x24,
+               g_MenuCursorXPositions[slot] + (g_Menu->pCursorPrims->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x24,
                g_MenuCursorXPositions[slot] + 0x14, g_MenuCursorYPositions[slot] - 0x14,
-               g_MenuCursorXPositions[slot] + (g_Menu->unk348->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x14);
+               g_MenuCursorXPositions[slot] + (g_Menu->pCursorPrims->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x14);
 
-        setXY3(&g_Menu->unk348->lines1[g_Menu->renderContext],
+        setXY3(&g_Menu->pCursorPrims->lines1[g_Menu->renderContext],
                g_MenuCursorXPositions[slot] + 0x14, g_MenuCursorYPositions[slot] - 0x24,
-               g_MenuCursorXPositions[slot] + (g_Menu->unk348->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x24,
-               g_MenuCursorXPositions[slot] + (g_Menu->unk348->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x14);
+               g_MenuCursorXPositions[slot] + (g_Menu->pCursorPrims->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x24,
+               g_MenuCursorXPositions[slot] + (g_Menu->pCursorPrims->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x14);
 
-        setXY3(&g_Menu->unk348->lines2[g_Menu->renderContext],
+        setXY3(&g_Menu->pCursorPrims->lines2[g_Menu->renderContext],
                g_MenuCursorXPositions[slot] + 0x14, g_MenuCursorYPositions[slot] - 0x24,
                g_MenuCursorXPositions[slot] + 0x14, g_MenuCursorYPositions[slot] - 0x14,
-               g_MenuCursorXPositions[slot] + (g_Menu->unk348->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x14);
+               g_MenuCursorXPositions[slot] + (g_Menu->pCursorPrims->shadeWidth + 0x14), g_MenuCursorYPositions[slot] - 0x14);
 
-        g_Menu->unk348->drawModeRenderContext = (u8)g_Menu->renderContext;
+        g_Menu->pCursorPrims->drawModeRenderContext = (u8)g_Menu->renderContext;
         g_Menu->pManager->unk3 = 1;
     }
 }

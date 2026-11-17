@@ -61,8 +61,8 @@ void MenuSetSubMenuChoicePrims(u8);
 int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1) {
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
     bzero(g_Menu->unk35C, 0x32F4);
-    g_Menu->unk360 = HeapAlloc(0x2AC, 0);
-    bzero(g_Menu->unk360, 0x2AC);
+    g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
+    bzero(g_Menu->pEquipmentPanel, 0x2AC);
     func_801C72BC(3);
     func_801E05D0(arg0, arg1, 0);
     func_801C72BC(0x13);
@@ -244,8 +244,8 @@ u8 MenuInitializeGearScreenBuffers(void) {
     bzero(g_Menu->unk358, 0x2AF0);
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
     bzero(g_Menu->unk35C, 0x32F4);
-    g_Menu->unk360 = HeapAlloc(0x2AC, 0);
-    bzero(g_Menu->unk360, 0x2AC);
+    g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
+    bzero(g_Menu->pEquipmentPanel, 0x2AC);
     func_801C72BC(3);
     i = 0;
     while (1) {
@@ -263,7 +263,7 @@ void MenuLoadUnk18E0Strings(u8 arg0) {
 void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->unk358);
     HeapFree(g_Menu->unk35C);
-    HeapFree(g_Menu->unk360);
+    HeapFree(g_Menu->pEquipmentPanel);
     func_801C72BC(0x13);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
@@ -425,15 +425,15 @@ void MenuInitializeCharacterScreenBuffers(void) {
     bzero(g_Menu->unk358, 0x2AF0);
     g_Menu->unk35C = HeapAlloc(0x32F4, 0);
     bzero(g_Menu->unk35C, 0x32F4);
-    g_Menu->unk360 = HeapAlloc(0x2AC, 0);
-    bzero(g_Menu->unk360, 0x2AC);
+    g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
+    bzero(g_Menu->pEquipmentPanel, 0x2AC);
     func_801C72BC(3);
     func_801D3488(0, 0);
 }
 void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->unk358);
     HeapFree(g_Menu->unk35C);
-    HeapFree(g_Menu->unk360);
+    HeapFree(g_Menu->pEquipmentPanel);
     func_801C72BC(0x13);
 }
 /* objdiff 96.76% (1188 bytes, exactly retail's size). Structure is complete: every call, both switches and all case bodies are in retail's body order (4, 5, 1, 3, 9, 10 and the nested 0, 1, 2). The one residue is the `lastSlot = slot` copy: retail emits a two-instruction u8 copy (`move v0,s1` before the MenuComputeCharacterStats jal, `move s0,v0` in its delay slot) AFTER that call, while gcc 2.6.0 here always folds it to a single `move s0,s1` and then steals it into the PREVIOUS call's delay slot, so every branch past it is 4 bytes early and one extra instruction turns up later. Tried: plain assignment, embedded assignment in the MenuDrawGearScreen argument, an extra u8 intermediate local, and a 3 min permuter run (best was a bogus case-3 mutation at 96.04). Note the MenuMovePointerCursor prototype must be (s32, u8) or every call site gains a useless andi.
