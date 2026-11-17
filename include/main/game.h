@@ -193,12 +193,12 @@ typedef struct {
     /* 0xA0 */ int unkA0;
 } GameGear; // size: 0xA4
 
+// g_GameState.strings: the 0x14 bytes SystemRenderStringEntry renders for one
+// name. No code here reads a field of its own: the whole entry is passed as
+// text, and SystemEncodeGlyphCodes rewrites it in place into u16 glyph codes
+// (see the parked func_801CBA4C in src/menu/main/misc3.c).
 typedef struct {
-    /* 0x00 */ int unk0;
-    /* 0x04 */ int unk4;
-    /* 0x08 */ int unk8;
-    /* 0x0C */ int unkC;
-    /* 0x10 */ int unk10;
+    /* 0x00 */ u32 text[5];
 } StringEntry; /* size: 0x14 */
 
 typedef struct {
@@ -267,6 +267,10 @@ typedef struct {
     /* 0x184E */ undefined16 mapPosX;
     /* 0x1850 */ undefined16 mapPosZFraction;
     /* 0x1852 */ undefined16 mapPosZ;
+    // Counted once by func_80088570 (world map party init) when it places the
+    // player from mapPosX/mapPosZ; zero tells it to start at its own default
+    // tile instead. FieldScriptSetGameState184E clears it when a script sets a
+    // new position, and raises the flag below.
     /* 0x1854 */ undefined16 unk1854;
     /* 0x1856 */ undefined16 unk1856;
     /* 0x1858 */ undefined8 unk1858[0xCC];
