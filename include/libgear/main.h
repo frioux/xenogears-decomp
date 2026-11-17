@@ -138,12 +138,12 @@ typedef struct _Temp8 {
     /* 0x12 */ s16 unk12;
     /* 0x14 */ u16 unk14;
     /* 0x16 */ u16 unk16;
-    /* 0x18 */ u16 unk18;
+    /* 0x18 */ u16 prevFrame; // the interpolated frame last applied; the same value again skips the upload
     /* 0x1A */ u16 isLoaded; // buffers below are held; cleared by LibGearFlushTexture
     /* 0x1C */ void* pRows; // region rows of 3 pixels, indexed by rect.y + row
     /* 0x20 */ s16 unk20;
     /* 0x22 */ s16 unk22;
-    /* 0x24 */ s16 (*unk24)(u_short frame, s16 x, s16 y);
+    /* 0x24 */ s16 (*pInterpolate)(u_short frame, s16 x, s16 y); // maps the frame counter to the blend value
     /* 0x28 */ RECT rect;
 } Temp8; // Size: 0x30
 
@@ -208,14 +208,14 @@ typedef struct {
     /* 0x24  */ s16 height;
     /* 0x26  */ s16 width;
     /* 0x28  */ s16 depth;
-    /* 0x2A  */ u8 unk2A[0x1]; // first entry of the 5-byte queue Model::unk2C continues
+    /* 0x2A  */ u8 commands[0x1]; // the queued command: low 7 bits index the entry tables, bit 7 is a flag
     /* 0x2B  */ u8 commandCount; // appended model/animation changes, capped at 5
-    /* 0x2C  */ u8 unk2C[0x2];
+    /* 0x2C  */ u8 unk2C[0x2]; // the rest of the 5-byte queue commands starts
     /* 0x2E  */ u8 commandArgs[0x6]; // the argument queued alongside the command's model slot
     /* 0x34  */ u8 doUpdate; // gates the per-frame animation update; inherited from the parent model
     /* 0x35  */ u8 unk35;
-    /* 0x36  */ u8 unk36;
-    /* 0x37  */ u8 unk37;
+    /* 0x36  */ u8 skipGroundSnap; // non-zero: LibGearApplyGroundHeight leaves the root joint's y alone
+    /* 0x37  */ u8 useScaledMatrices; // non-zero: the step uses LibGearComputeScaledJointMatrices
     /* 0x38  */ u8 unk38;
     /* 0x39  */ u8 unk39;
     /* 0x3A  */ s16 unk3A;
@@ -229,7 +229,7 @@ typedef struct {
     /* 0x50  */ u32 unk50;
     /* 0x54  */ u32 unk54;
     /* 0x58  */ s16 unk58;
-    /* 0x5A  */ s16 unk5A;
+    /* 0x5A  */ s16 sourceJointIndex; // joint of the model unk58 selects, whose transform places this one
     /* 0x5C  */ u8 parentModelSlot; // g_LibGearModels slot whose transform this one inherits; 0xFF = none
     /* 0x5D  */ u8 isAttached;
     /* 0x5E  */ s16 parentJointIndex;
@@ -249,8 +249,8 @@ typedef struct {
     /* 0x8E  */ s16 unk8E;
     /* 0x90  */ s16 unk90; // x offset; negative = no offset
     /* 0x92  */ u16 unk92; // y offset
-    /* 0x94  */ u16 unk94; // blend x offset
-    /* 0x96  */ u16 unk96; // blend y offset
+    /* 0x94  */ u16 blendOffsetX; // added to the blend target's x
+    /* 0x96  */ u16 blendOffsetY; // and to its y
     /* 0x98  */ s16 frame; // frame of the animation script; -1 = stopped
     /* 0x9A  */ s16 frameCount; // frame the script restarts at; -1 = never
     /* 0x9C  */ s16 commandIndex; // commands of the current frame already run
@@ -259,8 +259,8 @@ typedef struct {
     /* 0xA4  */ u8* pScriptStart; // where pScriptCursor restarts each loop
     /* 0xA8  */ void* pModelFile;
     /* 0xAC  */ void* unkAC;
-    /* 0xB0  */ void* unkB0;
-    /* 0xB4  */ void* unkB4;
+    /* 0xB0  */ void* pSoundBank1; // the record whose +8 is the SEDS entry of battle sound bank 1
+    /* 0xB4  */ void* pSoundBank2; // and bank 2
     /* 0xB8  */ POLY_FT4 polys[2];
     /* 0x108 */ u8 unk108[0x2];
     /* 0x10A */ u16 modelBitMask;
@@ -285,7 +285,7 @@ typedef struct {
     /* 0x0  */ u16 unk0;
     /* 0x2  */ u16 endFrame; // frame the keyframes run to
     /* 0x4  */ u16 flags; // bit 0 skips the rotation channel, bit 1 the translation channel
-    /* 0x6  */ u16 unk6;
+    /* 0x6  */ u16 type; // 0: the keyframes below are interpolated; otherwise they are applied as they are
     /* 0x8  */ u16 unk8;
     /* 0xA  */ u16 unkA;
     /* 0xC  */ u16 numRotFrames; // rotation keyframes that follow the header

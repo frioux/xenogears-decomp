@@ -421,9 +421,9 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 // objdiff 95.98%. Loop body and register anchors match the original
 // instruction for instruction (a0 is the skeleton+4 cursor, a0 += 0x7C per
 // joint, rotation compared with lh, translation with lw). Two prologue
-// differences remain, both allocation: the original loads pBlock->unk6 first
+// differences remain, both allocation: the original loads pBlock->type first
 // into t0 and keeps pKeyframe in a1 (the in-place `addiu a1,a1,0x18` reorg
-// pulls into the bnez delay slot), where gcc 2.6 loads unk6 last (v0) and
+// pulls into the bnez delay slot), where gcc 2.6 loads type last (v0) and
 // copies pBlock to a2 for pKeyframe; and the back edge loses the original's
 // dead `andi v0,count` delay slot insn. Load order 0x6,0xC,0xE,0x4 (fixed by
 // declaring numTransFrames before flags) still allocates flags to a1 and
@@ -434,7 +434,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     u16 rotFrame = 0;
     u16 transFrame = 0;
-    s16 blockType = pBlock->unk6;
+    s16 blockType = pBlock->type;
     u16 numRotFrames = pBlock->numRotFrames;
     u16 numTransFrames = pBlock->numTransFrames;
     u16 flags = pBlock->flags;
@@ -601,7 +601,7 @@ int LibGearFreeJointObject(Temp4* pUnk, s8* arg1) {
 //   * the original spills `count` to 0x10(sp) and holds 0xFF in s7; here `count`
 //     wins s7 and the `type` parameter is copied to 0x10(sp) instead, so the
 //     pObject->type test compares against a register loaded inside the loop.
-//   * the original reads pBlock->unk6 with `lhu` (unsigned); u16, s16 and a u16
+//   * the original reads pBlock->type with `lhu` (unsigned); u16, s16 and a u16
 //     cast on the s16 header field all still emit `lh`.
 // Also tried: `pJoint = pSkeleton` as a declaration initialiser (68.76%), using
 // pSkeleton as the joint cursor instead of a separate pJoint (68.76%), no
@@ -622,7 +622,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     ModelJoint* pJoint;
     int i;
 
-    if (pBlock->unk6 != 0) {
+    if (pBlock->type != 0) {
         LibGearReleaseSkeletonObjects(pList, pSkeleton);
         func_801DEF10(pSkeleton, pBlock);
         return 1;
@@ -761,7 +761,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     ModelJoint* pJoint;
     s32 i;
 
-    if (pBlock->unk6 != 0) {
+    if (pBlock->type != 0) {
         LibGearReleaseSkeletonObjects(pList, pSkeleton);
         func_801DEF10(pSkeleton, pBlock);
         return 1;
@@ -1157,8 +1157,8 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 
 // objdiff 88.98%, 1048 bytes against retail's 1028. The whole structure is
-// reproduced: the unk14/unk16 frame advance with the unk24 callback, the
-// flush-on-negative path, the unk18 latch, the four-way unk10 dispatch (0,1,4,5
+// reproduced: the unk14/unk16 frame advance with the pInterpolate callback, the
+// flush-on-negative path, the prevFrame latch, the four-way unk10 dispatch (0,1,4,5
 // as a compare tree - matches a switch), the shared LoadImage tail of cases 0/1,
 // the clipped copy rectangle (retail really does keep it in two RECT locals -
 // that is what makes the sh/lh off sp 0x18..0x26 and the oversized 0x78 frame
@@ -1176,20 +1176,20 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 //    same base-first `addu v1,t3,dstX<<1` however it is spelled. The pointer
 //    form also has to be a per-term scaled sum plus the row product last, so
 //    the u32 locals below are what reproduces retail's five addu sites.
-// WHAT IS LEFT: the unk18 early-exit costs 3 instructions more than retail's
+// WHAT IS LEFT: the prevFrame early-exit costs 3 instructions more than retail's
 // single `beq s1,v0,.epilogue` (ours: `bne` + `j` + `addu v0,s1,zero`), and
 // retail's tail return truncates the raw callback result (`sll v0,s2,16` /
 // `sra`) at four exits while its negative exit is a plain `addu v0,s1,zero` -
 // so the returned expression at those sites is NOT the s16 local. Retail also
-// sign-extends the callback result explicitly, i.e. Temp8::unk24 returns
+// sign-extends the callback result explicitly, i.e. Temp8::pInterpolate returns
 // something wider than the s16 the header declares. Register allocation after
 // that (t1/t2 vs retail's t2/t3) is what is left of the loops.
 // Tried: `base + row*w + dstX + x` (row first, 85.01), the col-pointer +
 // `pDst[(dstY+y)*w]` pointer/subscript forms (85.5-87.9), s16 loop counters
-// (much worse - the counters must be int), a nested `if (frame != unk18)`
+// (much worse - the counters must be int), a nested `if (frame != prevFrame)`
 // single-exit body (85.5).
 // A 3-minute permuter run on the previous body (676 iterations, base 2411)
-// reached 2131 only by deleting the `return frame` of the unk18 early-exit,
+// reached 2131 only by deleting the `return frame` of the prevFrame early-exit,
 // which is not a fix.
 // Round 165 (park repair): this body did NOT compile against the current headers
 // -- it compared pSource->unk10, renamed to mode -- so its recorded 88.98% came
@@ -1217,16 +1217,16 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
     }
 
     pTexture->unk14 += pTexture->unk16 * (frameStep + 1);
-    frame = pTexture->unk24(pTexture->unk14, pTexture->unk20, pTexture->unk22);
+    frame = pTexture->pInterpolate(pTexture->unk14, pTexture->unk20, pTexture->unk22);
     if (frame < 0) {
         LibGearFlushTexture(pTexture);
         return frame;
     }
 
-    if (frame == pTexture->unk18) {
+    if (frame == pTexture->prevFrame) {
         return frame;
     }
-    pTexture->unk18 = frame;
+    pTexture->prevFrame = frame;
 
     switch (pTexture->mode) {
         case 0:
@@ -1467,7 +1467,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->commandCount = 0;
     pModel->unk58 = 0;
     pModel->unk35 = 0;
-    pModel->unk37 = 0;
+    pModel->useScaledMatrices = 0;
     pModel->unk38 = 0;
     pModel->unk3A = negOne;
     pModel->unk70[0] = 0;
@@ -1486,7 +1486,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->posY = 0;
     pModel->posZ = 0;
     pModel->unk8E = one;
-    pModel->unk36 = 0;
+    pModel->skipGroundSnap = 0;
     pModel->unk1E = negOne;
 }
 */
@@ -1497,7 +1497,7 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
                 pModel->commandCount++;
             }
 
-            pModel->unk2A[pModel->commandCount] = pSource->modelSlot;
+            pModel->commands[pModel->commandCount] = pSource->modelSlot;
             pModel->commandArgs[pModel->commandCount] = arg3;
         } else {
             if (arg3 < 0x50) {
@@ -1528,7 +1528,7 @@ s32 LibGearStepModelAnimation(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 
         if (pModel->doUpdate) {
             LibGearApplyGroundHeight(pModel);
 
-            if (pModel->unk37) {
+            if (pModel->useScaledMatrices) {
                 LibGearComputeScaledJointMatrices(pModel->pSkeleton, pModel->scale);
             } else {
                 LibGearComputeJointMatrices(pModel->pSkeleton, pModel->scale);
@@ -1738,9 +1738,9 @@ s32 func_801E5CD8(Model* pModel, s32 type) {
         if (type != 2) {
             return 2;
         }
-        pTexture = ((Temp8*)pModel->unkB4)->pUnk8;
+        pTexture = ((Temp8*)pModel->pSoundBank2)->pUnk8;
     } else {
-        return ((Temp8*)((Temp8*)pModel->unkB0)->pUnk8)->unk14 << 16;
+        return ((Temp8*)((Temp8*)pModel->pSoundBank1)->pUnk8)->unk14 << 16;
     }
 
     return pTexture->unk14 << 16;
@@ -1943,11 +1943,11 @@ PLACEHOLDER
                         w = pCmd->payload.blend.w;
                         if (pCmd->flags & 0x80) {
                             if (pModel->unk90 >= 0) {
-                                x += pModel->unk94;
-                                y += pModel->unk96;
+                                x += pModel->blendOffsetX;
+                                y += pModel->blendOffsetY;
                                 if ((pCmd->unk12 >> 4) == 1) {
-                                    z += pModel->unk94;
-                                    w += pModel->unk96;
+                                    z += pModel->blendOffsetX;
+                                    w += pModel->blendOffsetY;
                                 }
                             }
                         }
@@ -1992,7 +1992,7 @@ int LibGearGetModelDistance(Model* pModel) {
     return SquareRoot0(dx * dx + dy * dy + dz * dz);
 }
 
-// 95.39% with the header's Model::unk5A now s16 (it scored 93.15% while unk5A was
+// 95.39% with the header's Model::sourceJointIndex now s16 (it scored 93.15% while it was
 // u8[2], which made the attempt below test the field's address instead of loading
 // it). What already reproduces exactly: the reload of
 // unk58 after the bit-scan loop, the sequential (not else-if) test chain on
@@ -2093,7 +2093,7 @@ void func_801E63A8(Model* pModel) {
         return;
     }
 
-    jointIndex = pModel->unk5A;
+    jointIndex = pModel->sourceJointIndex;
     pMatrix = (MATRIX*)0x1F800000;
 
     if (jointIndex != 0) {
@@ -2278,7 +2278,7 @@ void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
 
     *pFlags = 0;
     if (index >= 0xFE) {
-        u8 entry = pModel->unk2A[0];
+        u8 entry = pModel->commands[0];
 
         index = entry & 0x7F;
         *pFlags = entry & 0x80;
@@ -2605,7 +2605,7 @@ void LibGearApplyGroundHeight(Model* pModel) {
     SVECTOR offset;
 
     offset.vy = pModel->ground;
-    if (pModel->unk36 == 0) {
+    if (pModel->skipGroundSnap == 0) {
         pModel->pSkeleton->translation.y = offset.vy;
     }
 }
@@ -2737,7 +2737,7 @@ void LibGearFreeModel(s32 modelIndex) {
     }
 
     if (g_LibGearModels[modelIndex]->hasSedsEntry != 0) {
-        SoundRemoveSedsEntry(((Temp8*)g_LibGearModels[modelIndex]->unkB0)->pUnk8);
+        SoundRemoveSedsEntry(((Temp8*)g_LibGearModels[modelIndex]->pSoundBank1)->pUnk8);
     }
 
     if (g_LibGearModels[modelIndex]->unkAC != NULL) {
