@@ -19,5 +19,7 @@ void SetFarColor(long rfc, long gfc, long bfc) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b_2", SetGeomOffset);
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_b_2", SetGeomScreen);
+void SetGeomScreen(long h) {
+    gte_SetGeomScreen(h);
+}
 
