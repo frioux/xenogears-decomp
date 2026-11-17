@@ -695,7 +695,11 @@ over the BETTER park.
   of undefined (reading 'replace')` at `KEY`, before any clone is touched (round 176,
   nothing lost, one relaunch). One shape per launch - matching and field workers go out
   as two workflows, and the field one gets `fg: 0` so the matching round keeps both
-  foreground lanes.
+  foreground lanes. **The bad entry need not be the first one:** when it is a later
+  entry, the earlier children start for a second and are then killed with the workflow
+  (`Workflow stopped before async child completed`), and their clones come back
+  untouched (`main..HEAD` empty) - so relaunch those workers too, not just the missing
+  shape (round 183: a port worker mixed into a naming launch).
 - The workflow resource reads `args.workers` at the TOP level, so
   `subagent({workflow: "tools/rounds/brief.js", args: {workers: [...]}})` - one `args` wrapper, not
   `{args: {args: {...}}}`. The extra wrapper still detaches a run, then dies instantly with
