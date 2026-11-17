@@ -165,7 +165,7 @@ Misc13EntryList* BattleCreateEntryList(void) {
     Misc13EntryList* pList;
 
     HeapSetCurrentContentType(4);
-    pList = HeapAlloc(0x1C, 0);
+    pList = HeapAlloc(sizeof(Misc13EntryList), 0);
     pList->unk14 = 0x1000;
     pList->unk12 = 0x1000;
     pList->unk10 = 0x1000;
@@ -209,7 +209,7 @@ Misc13ModelPart* BattleInitModelPart(Misc13ModelPart* pPart) {
 
 Misc13ModelPart* BattleCreateModelPart(void) {
     HeapSetCurrentContentType(1);
-    return BattleInitModelPart(HeapAlloc(0x20, 0));
+    return BattleInitModelPart(HeapAlloc(sizeof(Misc13ModelPart), 0));
 }
 
 void BattleFreeModelPart(Misc13ModelPart* pPart) {
@@ -279,7 +279,7 @@ Misc13Light* BattleCreateLight(void) {
     Misc13Light* pLight;
 
     HeapSetCurrentContentType(0xB);
-    pLight = HeapAlloc(0x14, 0);
+    pLight = HeapAlloc(sizeof(Misc13Light), 0);
     pLight->dirZ = 0x10;
     pLight->dirY = 0x10;
     pLight->dirX = 0x10;
@@ -297,9 +297,9 @@ Misc13Buffer* BattleCreateOrderingTablePair(u16 count) {
     s32 i;
 
     HeapSetCurrentContentType(0xC);
-    pBuffer = HeapAlloc(0x68, 0);
+    pBuffer = HeapAlloc(sizeof(Misc13Buffer), 0);
     HeapSetCurrentContentType(0xC);
-    pBuffer->pArrayA = HeapAlloc(count * 8, 0);
+    pBuffer->pArrayA = HeapAlloc(count * 2 * sizeof(u32), 0);
     pBuffer->pArrayB = pBuffer->pArrayA + count;
     pBuffer->flags = 1;
     pBuffer->depthShift = 0xE;
@@ -342,7 +342,7 @@ Misc13Group* BattleCreateLightGroup(Misc13Node* pParent) {
     Misc13Node* pC;
 
     HeapSetCurrentContentType(9);
-    pGroup = HeapAlloc(0x28C, 0);
+    pGroup = HeapAlloc(sizeof(Misc13Group), 0);
     pNode0 = &pGroup->nodes[0];
     pNode1 = &pGroup->nodes[1];
     pNode2 = &pGroup->nodes[2];
