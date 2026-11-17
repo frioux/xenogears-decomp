@@ -78,11 +78,90 @@ extern u16 D_800CCD68[];
 extern u16 D_800CCD6C[];
 extern u16 D_800CCD6E[];
 extern u8 D_800CCE44[];
+extern u8 D_800CCE08[];
 extern u16 D_800D2E1C[];
 extern u8 g_BattleValueDigitSpriteIds[];
 extern u8 D_800D32A0[];
 extern BattleTableEntry D_800CCDC4[]; // per-slot table family, stride 0x170
 extern void BattleParseNumberToDigits(s32);
+
+// The battle teardown reads the sub-system globals below; none of them has a
+// header of its own.
+extern s32 *g_SoundAudioManager;
+extern s32 *g_SoundSedsBank;
+extern s32 *g_SoundStreamReserveStart;
+extern s32 *g_SoundStreamReserveBlock;
+extern s32 *g_SystemStreamedFileData;
+extern u8 *g_BattlePrimPool;
+extern u8 g_SoundBankLoadBuffer[];
+extern u8 g_GameResumeScene;
+extern u8 g_GameSelectedSkinIndex;
+extern u8 g_GameSelectedSkinLoadPending;
+extern u8 g_GameDiscChangeRequest;
+extern u8 g_SoundEffectBankIndex;
+extern u8 g_BattleActorCharIds[];
+extern u16 g_BattleStateFlags;
+extern u8 g_BattleLastMenuEvent;
+extern u8 g_BattleSoundEnabled;
+extern u8 g_BattleDisplayMode;
+extern s32 *g_BattleSlotParamTable;
+extern s32 *g_BattleStateWork;
+extern u8 D_80059180;
+extern u8 D_8005959C;
+extern u8 D_800C3D44;
+extern u8 D_800C3D5C;
+extern s32 D_800C3DEC;
+extern u8 D_800C3E28;
+extern u8 D_800CCC58;
+extern s32 D_800D2D3C;
+extern u8 D_800D2D50;
+extern s32 D_800D2F60;
+extern u8 D_800D2FC4;
+extern u8 D_8006F9DC[];
+extern u8 D_8006F9DD;
+extern u8 D_800658DC[];
+
+// What the battle reset copies a character's two limit words into: one 4-byte
+// pair per party slot.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+} BattleSlotLimits; // Size: 0x4
+
+// Unsigned view of one UnkGearState record (0x20 bytes, the per-character table
+// at g_GameState+0x16BC): the reset copies the unk4/unk6 word pair out with lhu,
+// where the header types them s16 for the command-mask tests.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ u16 unk4;
+    /* 0x06 */ u16 unk6;
+    /* 0x08 */ u8 unk8[0x18];
+} BattleCharLimitRecord; // Size: 0x20
+
+extern BattleSlotLimits D_800C3E0C[3];
+
+extern void *bzero(u8 *, s32);
+extern void *memmove(u8 *, u8 *, s32);
+extern void ArchiveSetIndex(s32, s32);
+extern void ArchiveCdDataSync(s32);
+extern void HeapFree(void *);
+extern void func_801E0A34(void);
+extern void func_800B8098(s32);
+extern void func_800B81BC(s32);
+extern void func_800B39C0(s32, u8, u8, u8, u8);
+extern s32 *SoundCreateAndPlayAudioManager(u8 *, s32, s32);
+extern void func_80077990(void);
+extern void BattleBeginAnimTask(u16);
+extern void func_8007819C(void);
+extern void SoundStopElementsForSoundFile(s32 *);
+extern void SoundRemoveSedsEntry(s32 *);
+extern void BattleResetSlotConditionCounters(void);
+extern void func_800C0F70(void);
+extern void BattleUnloadActorArchive(void);
+extern void func_800B853C(s32);
+extern void func_801E252C(void);
+extern void func_800723E0(void);
+extern void func_8007252C(void);
 
 void BattleLoadOverlay(void) {
     s32 first;
@@ -119,6 +198,228 @@ void BattleFadeOutAudioIfOverlayIdle(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80070F40);
+/* 96.03% under 2.6.0 (1952 bytes against retail's 1944). Everything up to and
+   including the mode selection is instruction-identical, including the frame
+   (s0-s3), the s3/s2 assignment, the if/else-if chain that leaves mode unset on
+   the overlay-enabled/D_800C3D5C==0 path (retail really does that; adding a
+   `mode = 2` default moves the li and breaks the chain) and the switch tree with
+   its unmerged case bodies. Three remaining shapes:
+   1. the per-slot limit copy hoists `&g_GameState+0x16C0` into a register
+      (`lui a1; addiu a1,5824` + `addiu a3,a1,2` before the loop, then
+      `addu v0,v0,a1; lhu v0,4(v0)`) where retail re-forms
+      `lui $at,%hi(g_GameState); addu at,at,v0; lhu v0,5824(at)` per access.
+      gcc's cse shares the invariant address between the two loads; retail's two
+      loads carry different %lo addends (0x16C0/0x16C2) so they never CSE.
+      Tried: the direct s16 member access (gives lh, retail has lhu), a view
+      struct, `*(u16 *)&...unk4`, the char-pointer arithmetic form, an explicit
+      u16* record local, and an unbounded vs [3] declaration of
+      g_BattleActorCharIds (the [3] one costs the `addiu a2,v1,3` loop bound, so
+      the empty [] stays).
+   2. the 0x80 arm's `*pFlags = 1` re-forms `lui at,%hi(D_800C48EA)` where retail
+      reuses the a0 that holds &D_800C48EA (pFlags is already the one local used
+      for the chain reads and for the case-body read/clear).
+   3. the 0x3B4 loop folds 0x3B4 into the prim-pool biv (`addiu a0,v0,948`, then
+      `sh v0,0(a0)`) where retail keeps `sh v0,948(a1)` on a biv that only
+      advances by 2. The two slot-table reads do come out right (symbol base,
+      `lui $at; addu at,at,offset`, and the byte offset advancing by 0x170)
+      because the offset is a running variable and not `i * 0x170`.
+   The two `mode` assignments and `g_GameDiscChangeRequest = mode` (not `= 3`)
+   are load-bearing.
+// Battle teardown / scene-exit driver: releases the battle work blocks and the
+// sound banks, then switches on the request flags in D_800C48EA to pick which
+// scene the game returns to (g_GameDiscChangeRequest / g_BattleDisplayMode).
+void func_80070F40(void) {
+    s32 block1;
+    s32 block2;
+    s32 nextMode;
+    s32 *pAudioManager;
+    s32 display;
+    u16 animFlags;
+    u16 value;
+    u8 *pFlags;
+    u8 *pSlotFlags;
+    u8 mode;
+    u8 savedFlags;
+    s32 offset;
+    s32 i;
+
+    nextMode = 1;
+    g_BattleGraphicsWork = (u8 *)BattleAllocHeapBlock(0xA2B4, 0);
+    g_BattleDisplayState = (BattleDigitState *)BattleAllocHeapBlock(0x10C, 0);
+    g_BattleCommandQueue = (u8 *)BattleAllocHeapBlock(0x2F8, 0);
+    bzero(g_BattleGraphicsWork, 0xA2B4);
+    bzero((u8 *)g_BattleDisplayState, 0x10C);
+    bzero(g_BattleCommandQueue, 0x2F8);
+
+    pAudioManager = g_SoundAudioManager;
+    D_8005959C = 0;
+    g_BattleLastMenuEvent = 0xFF;
+    D_800C3E28 = 0xFF;
+    g_BattleSoundEnabled = 0;
+    g_BattleAudioManager = pAudioManager;
+
+    if (g_GameResumeScene != 0) {
+        g_GameSelectedSkinIndex = g_GameResumeScene - 1;
+        if (D_80059180 != 0) {
+            D_80059180 = 0;
+            SoundSetAudioManagerVolumeWithFade(pAudioManager, 0x7F, 0x3C);
+        }
+        if (g_GameSelectedSkinLoadPending == 0) {
+            g_GameResumeScene = 0;
+        }
+    }
+    if (g_GameSelectedSkinLoadPending != 0) {
+        ArchiveSetIndex(0x10, 2);
+        block1 = BattleAllocHeapBlock(4, 1);
+        block2 = BattleAllocHeapBlock(block1 + 0x7FE20000, 1);
+        ArchiveReadFileToBuffer(1, (void *)0x801E0000, 0, 0x80);
+        ArchiveCdDataSync(0);
+        HeapFree((void *)block1);
+        HeapFree((void *)block2);
+        if (g_GameResumeScene == 0) {
+            func_801E0A34();
+        } else {
+            g_GameSelectedSkinIndex = g_GameResumeScene - 1;
+            g_GameResumeScene = 0;
+        }
+    }
+
+    if (g_DebuggerState[0] != -1) {
+        ArchiveSetIndex(0x10, 2);
+        ArchiveReadFileToBuffer(6, (void *)0x80280000, 0, 0x80);
+        ArchiveCdDataSync(0);
+    }
+    memmove(D_8006F9DC, D_800658DC + g_GameSelectedSkinIndex * 0x20, 0x20);
+    func_800B8098(g_SoundEffectBankIndex);
+    func_8007252C();
+    display = D_800C3DEC;
+    g_BattleDisplayMode = 2;
+    func_800B81BC(display);
+    func_800B39C0(0, 2, 0xFF, 0xFF, 0xFF);
+    if (g_BattleOverlayEnabled == 0) {
+        func_800B39C0(0x14, 2, 0, 0, 0);
+    }
+    if (g_GameSelectedSkinLoadPending != 0) {
+        g_BattleAudioManager = SoundCreateAndPlayAudioManager(g_SoundBankLoadBuffer, 0x7F, 0);
+    }
+    g_BattleSlotParamTable = g_SystemStreamedFileData;
+    g_BattleStateWork = g_SystemStreamedFileData;
+    func_80077990();
+    animFlags = g_BattleStateFlags;
+    D_800D3298 = 1;
+    BattleBeginAnimTask(animFlags);
+    BattleUpdateFrame();
+    func_8007819C();
+    while (D_800CCC58 == 0) {
+        BattleUpdateFrame();
+    }
+
+    HeapFree(g_SoundSedsBank);
+    if (g_SoundEffectBankIndex != 4) {
+        SoundStopElementsForSoundFile(g_SoundSedsBank);
+    }
+    SoundRemoveSedsEntry(g_SoundSedsBank);
+    HeapFree(g_SoundStreamReserveStart);
+    HeapFree(g_SoundStreamReserveBlock);
+    BattleLoadOverlay();
+    BattleSetOverlayArg(1);
+    if (D_800D2FC4 == 0) {
+        g_BattleDisplayMode = 1;
+    }
+    BattleResetSlotConditionCounters();
+
+    for (i = 0; i < 3; i++) {
+        if (g_BattleActorCharIds[i] != 0x7F) {
+            // unk4/unk6 are read unsigned here (retail's lhu); the header types
+            // the pair s16 for the command-mask tests that read them as signed.
+            D_800C3E0C[i].unk0 = ((BattleCharLimitRecord *)g_GameState.unk16BC)[g_BattleActorCharIds[i]].unk4;
+            D_800C3E0C[i].unk2 = ((BattleCharLimitRecord *)g_GameState.unk16BC)[g_BattleActorCharIds[i]].unk6;
+        }
+    }
+
+    while (D_800C48EA == 0 && D_800D2FC4 == 0) {
+        if (D_800CCC58 != 0) {
+            func_800723E0();
+        }
+        BattleUpdateFrame();
+    }
+
+    pFlags = &D_800C48EA;
+    if ((*pFlags & 0xC0) == 0) {
+        mode = 0;
+    } else if ((*pFlags & 0x40) != 0) {
+        mode = 1;
+    } else if (g_BattleOverlayEnabled == 0) {
+        mode = 2;
+    } else if (D_800C3D5C != 0) {
+        mode = 3;
+        g_GameDiscChangeRequest = mode;
+        *pFlags = 1;
+    }
+
+    switch (mode) {
+    case 0:
+        g_GameDiscChangeRequest = 0;
+        nextMode = 0;
+        // fall through
+    case 3:
+        if (g_BattleOverlayEnabled != 0) {
+            *(u16 *)((u8 *)g_BattlePrimPool + 0x394) = 0xFF;
+            if (D_800C3D44 != 0 || D_800D2FC4 == 0) {
+                *(u8 *)((u8 *)g_BattlePrimPool + 0x800) = 0;
+                pSlotFlags = g_BattlePrimPool;
+                savedFlags = *pFlags;
+                offset = 0;
+                *pFlags = 0;
+                for (i = 0; i < 3; i++) {
+                    value = *(u16 *)((u8 *)g_BattleSlotEntries + offset) & 0x8000;
+                    *(u16 *)(pSlotFlags + 0x3B4) = value;
+                    value |= *(u16 *)((u8 *)D_800CCE08 + offset) & 0x8000;
+                    *(u16 *)(pSlotFlags + 0x3B4) = value;
+                    pSlotFlags += 2;
+                    offset += 0x170;
+                }
+                func_800C0F70();
+                BattleSetOverlayArg(1);
+                D_800C48EA = savedFlags;
+            }
+        }
+        break;
+    case 1:
+        g_GameDiscChangeRequest = 2;
+        nextMode = 2;
+        break;
+    case 2:
+        g_GameDiscChangeRequest = 1;
+        nextMode = 1;
+        break;
+    }
+
+    BattleUnloadActorArchive();
+    if (D_800D2D50 != 0) {
+        nextMode = 1;
+    }
+    ArchiveSetIndex(0x10, 0);
+    block1 = BattleAllocHeapBlock(4, 1);
+    D_800D2D3C = block1;
+    block2 = BattleAllocHeapBlock(block1 + 0x7FE22000, 1);
+    D_800D2F60 = block2;
+    ArchiveReadFileToBuffer(4, (void *)0x801DE000, 0, 0x80);
+    func_800B853C(nextMode);
+    while (D_800CCC58 != 0) {
+        BattleUpdateFrame();
+    }
+    if (g_BattleOverlayEnabled == 0) {
+        if ((D_800C48EA & 0x40) == 0 && (D_8006F9DD & 8) == 0) {
+            func_800B39C0(0x40, 2, 0x40, 0x40, 0x40);
+        }
+    }
+    BattleFadeOutAudioIfOverlayIdle();
+    func_801E252C();
+    HeapFree((void *)D_800D2D3C);
+    HeapFree((void *)D_800D2F60);
+}
+*/
 
 s32 BattleUpdateFrame(void) {
     if (g_DebuggerState[0] != -1) {
