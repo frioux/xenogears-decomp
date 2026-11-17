@@ -22,9 +22,9 @@ typedef struct {
 extern u8 D_8005959C;
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattleDisplayMode;
-extern u8 D_800C492A;
+extern u8 g_BattleFrameDrawSuppressed;
 extern u8 *g_BattleCurOT;
-extern s32 D_800D2DAC;
+extern s32 g_BattleRenderString;
 extern BattlePrimPool *g_BattlePrimPool;
 extern s32 g_BattlePrimStartIndex;
 extern void *g_BattleSpriteArchive;
@@ -318,7 +318,7 @@ void BattleAddPrimAndRenderObject(void) {
     }
 
     if (g_BattleDisplayState->objectRenderPending != 0) {
-        func_80034888(D_800D2DAC, g_BattleCurOT + 4, g_BattlePrimStartIndex);
+        func_80034888(g_BattleRenderString, g_BattleCurOT + 4, g_BattlePrimStartIndex);
     }
 }
 
@@ -361,7 +361,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075168);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
 void BattleDrawFrameScreenMode1(void) {
-    if (D_800C492A == 0) {
+    if (g_BattleFrameDrawSuppressed == 0) {
         func_8008FAD8();
         func_800742A0();
         func_80075938();

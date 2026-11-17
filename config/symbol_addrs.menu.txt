@@ -356,3 +356,6 @@ g_MenuRowQuadMode2Ys = 0x801E9F28;
 g_MenuRowQuadMode3Ys = 0x801E9F30;
 g_MenuRowQuadMode6Xs = 0x801E9F68;
 g_MenuRowQuadMode6Ys = 0x801E9F70;
+g_MenuPanelRowXOffsets = 0x801E9EA0;
+g_MenuItemRowStringIds = 0x801EA548;
+g_MenuCharacterRowStringIds = 0x801EA558;

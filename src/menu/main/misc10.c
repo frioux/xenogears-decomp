@@ -13,7 +13,7 @@ extern u8 D_801EA564[];
 extern u8 D_801EA568[];
 extern u8 D_801E9808[];
 extern u8 D_801E9811;
-extern u8 D_801E9EA0[];
+extern u8 g_MenuPanelRowXOffsets[];
 extern u8 D_801EA56E[];
 extern u32 D_801E9F48[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
@@ -80,7 +80,7 @@ void MenuInitializeUnk438Panel(void) {
     bzero(g_Menu->unk438, 0x25C0);
     func_801C72BC(4);
     MenuLoadStringsFromIds(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
-    MenuSetRowQuadVertices(2, (u8*)g_Menu + 0x17E0, D_801EA564, D_801E9EA0, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
+    MenuSetRowQuadVertices(2, (u8*)g_Menu + 0x17E0, D_801EA564, g_MenuPanelRowXOffsets, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
     MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
     g_Menu->pManager->playTimeDigitsActive = 0;
     g_Menu->pManager->shouldRenderWindow[1] = 0;

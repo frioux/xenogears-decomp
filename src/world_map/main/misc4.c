@@ -124,7 +124,7 @@ extern s32 g_WorldMapDecompressedMapData;
 extern s16 g_NextMapId;
 extern s16 g_NextMapRotationY;
 extern s16 g_NextMapFlags;
-extern s32 D_8009BBC4;
+extern s32 g_WorldMapExitFlag;
 extern s16 g_WorldMapPathFrame;
 extern s32 g_WorldMapScrollX;
 extern s16 g_WorldMapSlotUpdateFlags;
@@ -150,10 +150,10 @@ extern void func_80086798(void);
 extern void WorldMapDeactivateSpriteGroup(s32 arg0);
 extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 extern MATRIX g_WorldMapIdentityMatrix;
-extern MATRIX D_8009BE4C;
+extern MATRIX g_WorldMapModeMatrix;
 extern s32 g_WorldMapTpageAbr;
-extern s32 D_8009D3CC;
-extern s32 D_8009D804;
+extern s32 g_WorldMapDrawMode;
+extern s32 g_WorldMapMode4EntryTriggered;
 extern s32 g_WorldMapWrapPositionsCallback;
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
@@ -256,7 +256,7 @@ void WorldMapExitToMap10E(void) {
     v = *(u16 *)&g_WorldMapViewRotationY;
     g_NextMapId = 0x10E;
     g_NextMapFlags = 0;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = v;
 }
 s32 WorldMapResetActorSlotWithSound(s32 index) {
@@ -388,7 +388,7 @@ s32 func_80077E68(s32 index) {
             SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0xA4, 0, 0x100);
             WorldMapStartSlot(0, 0xD);
             g_WorldMapTpageAbr = 2;
-            D_8009D3CC = 4;
+            g_WorldMapDrawMode = 4;
             p->stateTimer = 0x50;
             p->unk58 = 0;
             p->state = p->state + 1;
@@ -572,10 +572,10 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
     g_WorldMapTpageAbr = 2;
-    D_8009D3CC = 0x10;
-    D_8009D804 = 0;
+    g_WorldMapDrawMode = 0x10;
+    g_WorldMapMode4EntryTriggered = 0;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapWrapPositionsCallback = (s32)WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
@@ -637,7 +637,7 @@ void WorldMapExitToMap110(void) {
     v = *(u16 *)&g_WorldMapViewRotationY;
     g_NextMapId = 0x110;
     g_NextMapFlags = 0;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = v;
 }
 
@@ -1126,10 +1126,10 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
     g_WorldMapTpageAbr = 2;
-    D_8009D3CC = 0x10;
-    D_8009D804 = 0;
+    g_WorldMapDrawMode = 0x10;
+    g_WorldMapMode4EntryTriggered = 0;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapWrapPositionsCallback = (s32)WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
@@ -1191,7 +1191,7 @@ void WorldMapExitToMap11A(void) {
     v = *(u16 *)&g_WorldMapViewRotationY;
     g_NextMapId = 0x11A;
     g_NextMapFlags = 0;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = v;
 }
 s32 WorldMapStartActorScript(s32 index) {

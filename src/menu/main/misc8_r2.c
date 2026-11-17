@@ -8,7 +8,7 @@ extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered 
 extern u8 g_ShopIndex;
 extern u16 D_801EA53C[]; // String IDs of the menu strings
 extern u16 D_801EA542[]; // String IDs of the menu strings
-extern u16 D_801EA548[]; // String IDs of the menu strings
+extern u16 g_MenuItemRowStringIds[]; // String IDs of the menu strings
 extern s32 D_801EA900;
 extern s32 D_801EA904;
 extern s32 D_801EA6FC;
@@ -95,7 +95,7 @@ void MenuInitializeUnk42CPanel(void) {
     MenuUnk9* pMenu;
 
     MenuSetupPointerCursors(2);
-    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548, g_Menu->pManager->shouldRenderStrings10E0);
+    MenuLoadStringsFromIds(8, g_Menu->unk10E0, g_MenuItemRowStringIds, g_Menu->pManager->shouldRenderStrings10E0);
     pMenu = HeapAlloc(0x1198, 0);
     g_Menu->pItemRows = pMenu;
     bzero(pMenu, 0x1198);

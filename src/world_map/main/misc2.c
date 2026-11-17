@@ -88,7 +88,7 @@ extern u8* g_WorldMapRenderContext;
 extern u_long* g_WorldMapSavedVramTexture;
 extern u_long* g_WorldMapSavedVramStrip;
 extern s32 g_WorldMapSavedModeFlag;
-extern s32 D_8009D804;
+extern s32 g_WorldMapMode4EntryTriggered;
 extern u_char g_FieldPlayerWalkmeshMaterial;
 
 extern u32 g_WorldMapSaveBlock[];
@@ -531,7 +531,7 @@ void WorldMapExitMenuMode(void) {
     Vsync(0);
     ControllerResetState();
     mode = g_WorldMapSavedModeFlag;
-    D_8009D804 = 0;
+    g_WorldMapMode4EntryTriggered = 0;
     g_GameState.worldMapMenuActive = 0;
     g_FieldPlayerWalkmeshMaterial = mode;
     WorldMapSyncGearRideActors();

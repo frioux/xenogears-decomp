@@ -17,7 +17,7 @@ extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void WorldMapWrapPosition(void *p);
 extern u16 g_WorldMapPad1Released;
 extern s16 g_WorldMapMode4AreaId;
-extern s32 D_8009D804;
+extern s32 g_WorldMapMode4EntryTriggered;
 extern u8 *WorldMapGetTileEntry(s32 x, s32 z);
 extern u8 g_WorldMapZoneId;
 extern s16 g_WorldMapAreaId;
@@ -522,7 +522,7 @@ s32 func_80090C68(WorldMapPlayer *pPlayer) {
     }
     if (g_WorldMapPad1Released & 0x10) {
         if ((g_WorldMapMode4AreaId == -1) && (g_WorldMapAreaId == g_WorldMapMode4AreaId)) {
-            D_8009D804 = 1;
+            g_WorldMapMode4EntryTriggered = 1;
         }
     }
     WorldMapUpdateL2R2PressEdge();
@@ -583,7 +583,7 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
     }
     if (g_WorldMapPad1Released & 0x10) {
         if ((g_WorldMapMode4AreaId == -1) && (g_WorldMapAreaId == g_WorldMapMode4AreaId)) {
-            D_8009D804 = 1;
+            g_WorldMapMode4EntryTriggered = 1;
         }
     }
     return 0;

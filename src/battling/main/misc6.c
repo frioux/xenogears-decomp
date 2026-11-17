@@ -174,7 +174,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
    embedded-assignment lever below came from), flat on a second run.
    Levers this body already carries, each of which moved it: gte_stsxy3(&q[0].xy,
    &q[1].xy, &q[2].xy) as ONE macro call, which is what materialises retail's three
-   addiu before the swc2s; D_800926CC as its own pointer-array symbol instead of
+   addiu before the swc2s; g_BattleSpritePrimBuffers as its own pointer-array symbol instead of
    ((u8**)&g_BattleSpriteSlots)[1 + page] (that also fixes the relocation name); the
    0x1F800000 scratch as one struct whose otz at 0xB0 is read through the base while
    the SDK read-back writes the fixed slot 0x1F8000B0 through a local pointer - that
@@ -202,7 +202,7 @@ typedef struct {
     // 0xA s16 unkA;
 } BattleParticle; // Size: 0xC
 
-extern BattleParticleQuad* D_800926CC[];
+extern BattleParticleQuad* g_BattleSpritePrimBuffers[];
 
 // Projects the live particles three at a time with RTPT and links one screen
 // prim per particle into the OT by its projected Z.
@@ -227,7 +227,7 @@ void func_8007E020(u32* pOt) {
     dy = pScratch->viewY;
     dz = pScratch->viewZ;
     pParticle = (BattleParticle*)g_BattleSpriteSlots;
-    pQuad = (BattleParticleQuad*)D_800926CC[g_BattleDrawBufferIndex];
+    pQuad = (BattleParticleQuad*)g_BattleSpritePrimBuffers[g_BattleDrawBufferIndex];
     stage = 0;
     for (i = 0; i < 0x218; i++, pParticle++) {
         if (pParticle->unk6 == 0) {

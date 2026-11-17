@@ -563,3 +563,7 @@ g_WorldMapCdSectorBuffer = 0x8009BCCC;
 g_WorldMapPartyActorAnimFile0 = 0x8009CD34;
 g_WorldMapActorAnimFiles = 0x8009BDF8;
 g_WorldMapCharacterAnimFiles = 0x8009CD38;
+g_WorldMapExitFlag = 0x8009BBC4;
+g_WorldMapModeMatrix = 0x8009BE4C;
+g_WorldMapDrawMode = 0x8009D3CC;
+g_WorldMapMode4EntryTriggered = 0x8009D804;

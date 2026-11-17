@@ -40,7 +40,7 @@ typedef struct {
     /* 0x26 */ u16 pad26;
 } SlotMotion; // Size: 0x28
 
-// One entry of the effect action table D_80092A74: the two per-frame texture
+// One entry of the effect action table g_BattleEffectActions: the two per-frame texture
 // offset tables, the texel size of the quad and the CLUT/tpage it draws with.
 typedef struct {
     /* 0x0 */ u8 *pFrameU;
@@ -110,12 +110,12 @@ typedef struct {
     /* 0x8 */ u16 groundY; // the y the entry falls back to: it dies once y >= groundY
 } BattleSpriteEntry; // Size: 0xA
 
-extern BattleSlot D_80092AD8[];
-extern BattleAction D_80092A74[];
-extern Color4 D_800926B8;
+extern BattleSlot g_BattleEffectSlots[];
+extern BattleAction g_BattleEffectActions[];
+extern Color4 g_BattleEffectColor;
 extern u8 D_800926B9;
 extern u8 D_800926BA;
-extern u32 D_800926A4;
+extern u32 g_BattleEffectSpawnTick;
 extern u32 g_BattleLineQuadQueueCount;
 extern u32 g_BattleLineQuadDrawCount;
 extern u16 D_800926A8[];
@@ -146,7 +146,7 @@ typedef struct {
     /* 0xA */ u16 vy; // added to y every frame and itself gains 2: gravity
 } BattleSpriteSlot; // Size: 0xC
 
-// 0x10-byte primitive template BattleInitSpriteBuffers allocates at D_800926CC/D_800926D0:
+// 0x10-byte primitive template BattleInitSpriteBuffers allocates at g_BattleSpritePrimBuffers/D_800926D0:
 // a 0x60 tile prim, whose tag word is the OT link plus the prim's length.
 typedef struct {
     /* 0x0 */ u8 unk0[3];
@@ -161,7 +161,7 @@ extern u8 *g_BattleSpriteEntries;
 extern u8 *D_800926C0;
 extern u8 *D_800926C4;
 extern u8 *g_BattleSpriteSlots;
-extern u8 *D_800926CC;
+extern u8 *g_BattleSpritePrimBuffers;
 extern u8 *D_800926D0;
 extern u8 *g_BattleGridCells;
 extern u8 g_BattleDrawBufferIndex;
@@ -226,7 +226,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B270);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007B388);
 
 void BattleEffectUpdateSlots(void) {
-    BattleSlot *p = D_80092AD8;
+    BattleSlot *p = g_BattleEffectSlots;
     s32 i;
     u32 n;
     u32 v;
@@ -244,15 +244,15 @@ void BattleEffectUpdateSlots(void) {
             }
         }
     }
-    n = D_800926A4;
+    n = g_BattleEffectSpawnTick;
     v = g_BattleLineQuadQueueCount;
     g_BattleLineQuadQueueCount = 0;
-    D_800926A4 = n + 1;
+    g_BattleEffectSpawnTick = n + 1;
     g_BattleLineQuadDrawCount = v;
 }
 
 void BattleEffectClearSlots(void) {
-    u8 *p = (u8 *)D_80092AD8;
+    u8 *p = (u8 *)g_BattleEffectSlots;
     s32 i = 0x3B;
 
     do {
@@ -345,7 +345,7 @@ void func_8007BBA0(MATRIX *pMatrix, MATRIX *pRotMatrix, u32 *pOt) {
 
     gte_SetRotTransMatrix_gpr(pMatrix);
 
-    pSlot = D_80092AD8;
+    pSlot = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pSlot++) {
         if (pSlot->active == 0) {
             continue;
@@ -426,11 +426,11 @@ void func_8007BBA0(MATRIX *pMatrix, MATRIX *pRotMatrix, u32 *pOt) {
 */
 
 void BattleEffectSetColor(Color4 *pColor) {
-    D_800926B8 = *pColor;
+    g_BattleEffectColor = *pColor;
 }
 
 void BattleEffectAddSlot(SVector *pVec, s32 action) {
-    BattleSlot *pSlot = D_80092AD8;
+    BattleSlot *pSlot = g_BattleEffectSlots;
     BattleAction *pAction;
     SlotMotion *pMotion;
     s32 i;
@@ -444,7 +444,7 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
         return;
     }
     pSlot->active = 1;
-    pAction = &D_80092A74[action];
+    pAction = &g_BattleEffectActions[action];
     pSlot->type = 0;
     pSlot->frame = 0;
     pSlot->unk60 = (u32)pAction;
@@ -458,7 +458,7 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
     pMotion->tpage = pAction->tpage;
     if (action == 2) {
         pMotion->code &= 0xFE;
-        pMotion->r = D_800926B8.r;
+        pMotion->r = g_BattleEffectColor.r;
         pMotion->g = D_800926B9;
         pMotion->b = D_800926BA;
     } else {
@@ -475,7 +475,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
 /* Best attempt: objdiff 85.17%, same size as retail (548 bytes) and the same
    instruction multiset; the remaining 15% is gcc putting the D_80092698 /
    arg0*4 scaling, the t2/t1/t3 motion-copy address setup and the
-   g_BattleDrawFlags / D_800926A4 / 0x70 / 0x72 pair a few slots away from retail.
+   g_BattleDrawFlags / g_BattleEffectSpawnTick / 0x70 / 0x72 pair a few slots away from retail.
    Store order matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70,
    0x58, 0x74), so it is scheduler/allocator, not source order. Same
    85.17 under -O3 and -G0, and 80.59 under gcc-2.7.2-cdk. */
@@ -489,7 +489,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     s32 v;
     s32 i;
 
-    pEntry = D_80092AD8;
+    pEntry = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0) {
             if (pEntry->key == arg2) {
@@ -500,7 +500,7 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
         }
     }
 
-    pSlot = D_80092AD8;
+    pSlot = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pSlot++) {
         if (pSlot->active == 0) {
             break;
@@ -536,12 +536,12 @@ void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     pSlot->drawFlags = g_BattleDrawFlags;
     pSlot->key = arg2;
     pSlot->unk6C = 0;
-    pSlot->unk70 = D_800926A4;
+    pSlot->unk70 = g_BattleEffectSpawnTick;
     pSlot->z = pVec->vz;
     pSlot->halfWidth = D_80091228[arg3];
 
-    id = D_800926A4 - 1;
-    pEntry = D_80092AD8;
+    id = g_BattleEffectSpawnTick - 1;
+    pEntry = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0 && pEntry->key == arg2 && pEntry != pSlot && pEntry->type == 1 && pEntry->unk70 == id) {
             pSlot->unk6C = (u32)pEntry;
@@ -559,7 +559,7 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
 /* Best attempt: objdiff 85.67%. Everything matches except the scheduling of the
    0x64/0x66/0x68 stores against the u/v byte-pair writes: retail fills their
    load-delay slots with the t1 = slot + 0x28 / t2 = slot + 0x20 / a2 = slot
-   address setup of the SlotMotion copy and hoists the pVec and D_800926A4 loads,
+   address setup of the SlotMotion copy and hoists the pVec and g_BattleEffectSpawnTick loads,
    gcc leaves nop there and keeps each load next to its store. Tried: the u/v
    pair in ascending order, unk68 stored with vy instead of after unk6A, the
    u/v block before the unk64/68 stores, and slot->unk0 in place of a pMotion
@@ -567,8 +567,8 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
    search loop are byte-identical. */
 /*
 void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
-    BattleSlot *pSlot = D_80092AD8;
-    BattleSlot *pEntry = D_80092AD8;
+    BattleSlot *pSlot = g_BattleEffectSlots;
+    BattleSlot *pEntry = g_BattleEffectSlots;
     SlotMotion *pMotion;
     u16 id;
     s32 u;
@@ -585,7 +585,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
         }
     }
 
-    pSlot = D_80092AD8;
+    pSlot = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pSlot++) {
         if (pSlot->active == 0) {
             break;
@@ -621,15 +621,15 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
 
     pSlot->unk70 = arg3;
     pSlot->unk60 = 0;
-    pSlot->unk6A = D_800926A4;
+    pSlot->unk6A = g_BattleEffectSpawnTick;
     pSlot->unk68 = pVec->vz;
     pMotion->tpage = D_80092694;
     pMotion->code &= 0xFE;
     pMotion->clut = D_800926A0;
     pSlot->packets[1] = *pMotion;
 
-    id = D_800926A4 - 1;
-    pEntry = D_80092AD8;
+    id = g_BattleEffectSpawnTick - 1;
+    pEntry = g_BattleEffectSlots;
     for (i = 0; i < 0x3C; i++, pEntry++) {
         if (pEntry->active != 0 && pEntry->unk70 == arg3 && pEntry != pSlot && pEntry->type == 2 && pEntry->unk6A == id) {
             pSlot->unk60 = (u32)pEntry;
@@ -841,7 +841,7 @@ void BattleInitSpriteBuffers(void) {
 
     g_BattleSpriteSlots = HeapAlloc(0x1950, 0);
     pTemplateBuf = HeapAlloc(0x21C0, 0);
-    D_800926CC = pTemplateBuf;
+    g_BattleSpritePrimBuffers = pTemplateBuf;
     D_800926D0 = HeapAlloc(0x21C0, 0);
     pSlot = (BattleSpriteSlot *)g_BattleSpriteSlots;
     pTemplate = (BattlePrimTemplate16 *)pTemplateBuf;
@@ -858,7 +858,7 @@ void BattleInitSpriteBuffers(void) {
         pSlot->vy = 0;
         pSlot->vx = 0;
     }
-    func_800732AC(D_800926D0, D_800926CC, 0x21C0);
+    func_800732AC(D_800926D0, g_BattleSpritePrimBuffers, 0x21C0);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);

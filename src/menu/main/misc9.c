@@ -5,13 +5,13 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
-extern u8 D_801EA548[][8]; // 8 u8 string IDs per panel
-extern u8 D_801EA558[][6]; // 6 u8 string IDs per panel
+extern u8 g_MenuItemRowStringIds[][8]; // 8 u8 string IDs per panel
+extern u8 g_MenuCharacterRowStringIds[][6]; // 6 u8 string IDs per panel
 extern u16 g_MenuInventoryWindowHeight;
 extern u8 g_DressingRoomItemIds[];
 extern s32 g_MenuInventoryRowCount;
 extern u16 g_MenuInventoryScrollStep;
-extern u8 D_801E9EA0[];
+extern u8 g_MenuPanelRowXOffsets[];
 extern u8 D_801E9785;
 extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
@@ -446,7 +446,7 @@ void MenuCreateUnk430Panel(u_char arg0) {
         index = 1;
         break;
     }
-    MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548[index], g_Menu->pManager->shouldRenderStrings10E0);
+    MenuLoadStringsFromIds(8, g_Menu->unk10E0, g_MenuItemRowStringIds[index], g_Menu->pManager->shouldRenderStrings10E0);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
     func_801D3488(2, arg0);
@@ -674,7 +674,7 @@ void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     g_Menu->pCharacterSpriteRecords = HeapAlloc(0xA1C, 0);
     bzero(g_Menu->pCharacterSpriteRecords, 0xA1C);
     pManager = g_Menu->pManager;
-    MenuLoadStringsFromIds(6, g_Menu->unk14E0, D_801EA558[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
+    MenuLoadStringsFromIds(6, g_Menu->unk14E0, g_MenuCharacterRowStringIds[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
@@ -723,7 +723,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     }
 
     for (i = start; i < count; i++) {
-        MenuSetRowQuadVertices(6, g_Menu->unk14E0, D_801EA558[arg1 & 0xFF], D_801E9EA0,
+        MenuSetRowQuadVertices(6, g_Menu->unk14E0, g_MenuCharacterRowStringIds[arg1 & 0xFF], g_MenuPanelRowXOffsets,
                       g_Menu->pManager->shouldRenderStrings14E0, (u8)i, (u8)i, 3);
     }
 

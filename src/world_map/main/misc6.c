@@ -106,7 +106,7 @@ extern u16 g_WorldMapViewRotationY[];
 extern u16 g_NextMapId;
 extern u16 g_NextMapRotationY;
 extern u16 g_NextMapFlags;
-extern u32 D_8009BBC4;
+extern u32 g_WorldMapExitFlag;
 extern u16 g_WorldMapAreaExitModes[];
 extern void WorldMapInitGfxEnv(void);
 extern void WorldMapDeactivateSpriteGroup(s32);
@@ -115,10 +115,10 @@ extern int ArchiveDataSync(void);
 extern void WorldMapDecompressMapData(void);
 extern void WorldMapAllocSlotPool(void);
 extern MATRIX g_WorldMapIdentityMatrix;
-extern MATRIX D_8009BE4C;
+extern MATRIX g_WorldMapModeMatrix;
 extern s32 g_WorldMapTpageAbr;
-extern s32 D_8009D3CC;
-extern s32 D_8009D804;
+extern s32 g_WorldMapDrawMode;
+extern s32 g_WorldMapMode4EntryTriggered;
 extern void WorldMapWrapTileVertexPositions(void);
 extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapComputeClipPlaneVectors(void);
@@ -370,10 +370,10 @@ void func_8007D918(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
     g_WorldMapTpageAbr = 2;
-    D_8009D3CC = 0x10;
-    D_8009D804 = 0;
+    g_WorldMapDrawMode = 0x10;
+    g_WorldMapMode4EntryTriggered = 0;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
@@ -460,7 +460,7 @@ void WorldMapExitToMap1A1(void) {
     nIndex = g_WorldMapAreaIndex;
     g_NextMapId = 0x1A1;
     unkValue = g_WorldMapAreaExitModes[nIndex];
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = g_WorldMapViewRotationY[0];
     g_NextMapFlags = unkValue;
 }
@@ -1081,10 +1081,10 @@ void WorldMapInitializeModeWithActors(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
     g_WorldMapTpageAbr = 2;
-    D_8009D3CC = 0x10;
-    D_8009D804 = 0;
+    g_WorldMapDrawMode = 0x10;
+    g_WorldMapMode4EntryTriggered = 0;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
@@ -1151,7 +1151,7 @@ void WorldMapExitToMap84(void) {
     unkValue = g_WorldMapViewRotationY[0];
     g_NextMapId = 0x84;
     g_NextMapFlags = 2;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = unkValue;
 }
 

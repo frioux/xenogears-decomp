@@ -105,7 +105,7 @@ extern s32 g_WorldMapDecompressedMapData;
 extern s16 g_NextMapId;
 extern s16 g_NextMapRotationY;
 extern s16 g_NextMapFlags;
-extern s32 D_8009BBC4;
+extern s32 g_WorldMapExitFlag;
 extern void WorldMapSetSpriteSetParent(int, int);
 extern void HeapFree(void *pMem);
 extern void SoundStopAllElements(void);
@@ -130,12 +130,12 @@ extern void SoundPlaySoundEffectOnFreePair(s32);
 extern void SoundSendCommandConstant(s32);
 extern s16 g_WorldMapSpriteGroup9Rotation[];
 extern MATRIX g_WorldMapIdentityMatrix;
-extern MATRIX D_8009BE4C;
+extern MATRIX g_WorldMapModeMatrix;
 extern s32 g_WorldMapTpageAbr;
-extern s32 D_8009D3CC;
+extern s32 g_WorldMapDrawMode;
 extern s32 D_8009D554;
 extern s32 g_WorldMapAreaMode;
-extern s32 D_8009D804;
+extern s32 g_WorldMapMode4EntryTriggered;
 extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapInitGfxEnv(void);
@@ -253,7 +253,7 @@ s32 WorldMapUpdateActorState(s32 idx) {
         break;
     case 10:
         WorldMapStartSlot(0, 0xD);
-        D_8009D3CC = 4;
+        g_WorldMapDrawMode = 4;
         pPlayer->state = 1;
         break;
     case 11:
@@ -795,10 +795,10 @@ void WorldMapInitializeModeWithGroupActors(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
     g_WorldMapTpageAbr = 2;
-    D_8009D3CC = 0x10;
-    D_8009D804 = 0;
+    g_WorldMapDrawMode = 0x10;
+    g_WorldMapMode4EntryTriggered = 0;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
@@ -866,7 +866,7 @@ void WorldMapExitToMap111(void) {
     v = g_WorldMapViewRotationY;
     g_NextMapId = 0x111;
     g_NextMapFlags = 2;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = v;
 }
 

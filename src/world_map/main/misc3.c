@@ -24,7 +24,7 @@ typedef struct {
 extern s32 D_8009D554;
 extern s32 g_WorldMapAreaMode;
 extern s32 g_WorldMapTpageAbr;
-extern s32 D_8009D3CC;
+extern s32 g_WorldMapDrawMode;
 
 extern void WorldMapDeactivateSpriteGroup(s32 arg0);
 extern void WorldMapClearGroupEntryFlag(s32 arg0);
@@ -59,7 +59,7 @@ extern s16 g_WorldMapViewRotationY;
 extern s16 g_NextMapId;
 extern s16 g_NextMapRotationY;
 extern s16 g_NextMapFlags;
-extern s32 D_8009BBC4;
+extern s32 g_WorldMapExitFlag;
 
 extern void func_8009932C(u_long* pOt0, u_long* pOt1, s32* pState);
 
@@ -263,7 +263,7 @@ s32 WorldMapScriptOp10FadeSound(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
 
 s32 WorldMapScriptOp11SetDrawMode(s32 arg0, s32 arg1, s32 arg2) {
     g_WorldMapTpageAbr = arg1;
-    D_8009D3CC = arg2;
+    g_WorldMapDrawMode = arg2;
     return 4;
 }
 
@@ -392,8 +392,8 @@ s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2) {
     return arg0;
 }
 extern MATRIX g_WorldMapIdentityMatrix;
-extern MATRIX D_8009BE4C;
-extern s32 D_8009D804;
+extern MATRIX g_WorldMapModeMatrix;
+extern s32 g_WorldMapMode4EntryTriggered;
 extern void (*g_WorldMapWrapPositionsCallback)(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapInitGfxEnv(void);
@@ -457,10 +457,10 @@ void WorldMapInitializeMode(void) {
     }
     WorldMapDecompressMapTables();
     WorldMapAllocSlotPool();
-    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
     g_WorldMapTpageAbr = 2;
-    D_8009D3CC = 4;
-    D_8009D804 = 0;
+    g_WorldMapDrawMode = 4;
+    g_WorldMapMode4EntryTriggered = 0;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
@@ -518,7 +518,7 @@ s32 WorldMapExitMode(void) {
     v = *(u16*)&g_WorldMapViewRotationY;
     g_NextMapId = 0x11;
     g_NextMapFlags = 7;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = v;
     return 1;
 }
@@ -645,10 +645,10 @@ void WorldMapInitializeModeWithSound(void) {
     }
     WorldMapDecompressMapData();
     WorldMapAllocSlotPool();
-    D_8009BE4C = g_WorldMapIdentityMatrix;
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
     g_WorldMapTpageAbr = 1;
-    D_8009D3CC = 4;
-    D_8009D804 = 0;
+    g_WorldMapDrawMode = 4;
+    g_WorldMapMode4EntryTriggered = 0;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapWrapPositionsCallback = WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();

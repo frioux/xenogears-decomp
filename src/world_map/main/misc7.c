@@ -56,7 +56,7 @@ extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
 extern s32 *g_SoundAudioManager;
 extern s32 g_WorldMapTpageAbr;
-extern s32 D_8009D3CC;
+extern s32 g_WorldMapDrawMode;
 extern s32 D_8009D554;
 extern s32 g_WorldMapAreaMode;
 // externs used by the parked attempts below
@@ -85,7 +85,7 @@ extern SoundFile *g_MenuSedsFile;
 extern s16 g_NextMapId;
 extern s16 g_NextMapRotationY;
 extern s16 g_NextMapFlags;
-extern s32 D_8009BBC4;
+extern s32 g_WorldMapExitFlag;
 extern s32 g_WorldMapWorkBuffer1;
 extern s32 g_WorldMapWorkBuffer2;
 extern s32 g_WorldMapTilePrimBuffer;
@@ -228,7 +228,7 @@ void WorldMapExitToMap1FA(void) {
     v = *(u16 *)&g_WorldMapViewRotationY;
     g_NextMapId = 0x1FA;
     g_NextMapFlags = 0;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = v;
 }
 // The empty do/while is load-bearing: without it gcc hoists the g_WorldMapFadeIds load
@@ -297,7 +297,7 @@ s32 WorldMapUpdateSlotState(s32 index) {
         SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
         WorldMapStartSlot(0, 0xD);
         g_WorldMapTpageAbr = 2;
-        D_8009D3CC = 4;
+        g_WorldMapDrawMode = 4;
         pSlot->unk20 = 1;
         break;
     case 0x40:
@@ -675,7 +675,7 @@ s32 WorldMapExitToMap269(void) {
     v = *(u16 *)&g_WorldMapViewRotationY;
     g_NextMapId = 0x269;
     g_NextMapFlags = 2;
-    D_8009BBC4 = 1;
+    g_WorldMapExitFlag = 1;
     g_NextMapRotationY = v;
     return 1;
 }
