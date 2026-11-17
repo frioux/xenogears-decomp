@@ -451,6 +451,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
 // and do-while(0) around the arm; and 208 bytes with a u8 index local. That the
 // MERGE is what costs the 24 bytes is confirmed by a value difference
 // (extraWeaponIds[1] in case 15), which gives 224 bytes at 99.80%.
+// Re-measured with diff_func.sh on this body: 98.66% at 224 bytes, the two
+// instructions being lbu v0,4 + andi v1,v0,0xff where retail has lbu v1,4 + nop.
+// tools/scripts/permute.sh (base=205) reported a ZERO candidate that appends
+// "idx = extraWeaponIds[3]" after the volatile load. Do NOT port it: that leaves
+// the volatile value dead, so case 15 falls into the extraWeaponIds[3] block and
+// reads 0x7 instead of 0x4 (wrong code), and objdiff reads only 99.73% - the case
+// 15 block only looks aligned while one nop is still missing. Also re-tested here: the
+// pointer-cast spelling *(u8 *)arr and a u8 shadow local are rtx-identical to
+// case 0, so gcc 2.6.0 cross-jumps and the function is back to 200 bytes. Only a
+// volatile load keeps the duplicate block, so this is a structural wall.
 /*
 void func_8009E788(void) {
     s32 idx;
