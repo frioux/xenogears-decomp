@@ -200,8 +200,7 @@ void BattleClearCommandSlots(void) {
     }
     g_BattleCommandQueue[0x2D6] = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
-/* 99.30%, 372 bytes (= retail): the instruction stream is retail's except the
+/* PARKNOTE 99.30%, 372 bytes (= retail): the instruction stream is retail's except the
    register that holds the switch index. Retail copies the row counter into a
    CALLER-SAVED temp (`addu v1,a3` in the delay slot of `bnez matched`) and uses
    that temp for both `sltiu v0,v1,13` and `sll v0,v1,2`; every plain local we
@@ -224,7 +223,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085EB4);
    in the preheader. `D_800CCD36[arg1 * 0x170 + 8]` is retail's D_800CCD3E and
    folds to the same bytes.
 */
-/*
 // Walks the 13 command slots looking for the row whose 7-byte key matches the
 // queue's; the arm ladder below counts the found row DOWN from 12 into j, which
 // is why each case falls through into the next.
@@ -236,6 +234,7 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
     u8 *pQueue = g_BattleCommandQueue;
     u8 *pSlots;
     u8 *pRow;
+    u8 *pKey;
     u8 *pEntry;
 
     if (pQueue[0x2D6] == 0) {
@@ -249,18 +248,20 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
     for (; i < 13; i++) {
         pRow = D_800C3160[i];
         for (j = 0; j < 7; j++) {
-            if (pSlots[j + 0x2CC] != pRow[j]) {
+            pKey = pSlots + j;
+            if (pKey[0x2CC] != pRow[j]) {
                 matched = 0;
                 break;
             }
             matched = 1;
         }
+        j = 0;
         if (matched) {
             break;
         }
     }
-    result = i;
-    switch (result) {
+    matched = i;
+    switch (matched) {
     case 0:
         j++;
     case 1:
@@ -295,7 +296,6 @@ s32 func_80085EB4(u8 arg0, u8 arg1) {
 done:
     return result;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
 /* 88.08%: instruction multiset is identical (same size, same prologue save
    order, same delay-slot placement); every difference is the s-register NUMBER
