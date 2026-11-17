@@ -247,6 +247,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075750);
    swaps the $v1/$t0 temps and drops to 85.13%), ex/ey declared after the other
    locals. Allocation order follows the RTL definition order, so the pair cannot
    be flipped without also flipping the emitted order.
+   Round 203: `r * r` in the final expression is REQUIRED - spelling it as
+   `vSq.vz` (Square0's z output, which is the same value) drops to 85.13% and
+   308 bytes (retail is 320, `r * r` is 320). Also measured 2.6.0 / cdk / -O3:
+   see the note on func_80077A9C; Default is this unit's preset.
 s32 func_80075750(s32 x1, s32 y1, s32 x2, s32 y2, s32 x3, s32 y3, s32 r) {
     VECTOR v;
     VECTOR vSq;
@@ -916,6 +920,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
    return every caller gets an `andi v0,v0,0xff` retail does not have (verified:
    the callee still matches 100.00% as s32).
    Permuter: 1679 iterations from this body found nothing (base=462, best=462).
+   Round 203 preset screen of this body (tools/scripts/try_flags.sh): 2.6.0 94.41,
+   2.7.2-cdk 94.51, -O3 85.76, Default (2.7.2 -O2 -G8) 97.90 - the preset is right.
+   Re-un-parked and re-measured in round 203: still 97.90%, 1720 bytes, so the
+   three residuals above are current, not stale.
 extern s32 BattleEffectAddSlotFromVector(Vec4* pVec, s32 action);
 extern void func_8008ED6C(u8* p, s32 idx);
 extern void func_8008EBD0(u8* p, s32 idx, void* pData, s32 flags);
