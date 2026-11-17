@@ -158,6 +158,8 @@ segments:
       - [0x35B7C, c, psyq/libgpu_b]
       - [0x36E8C, c, psyq/libgpu_c]
       - [0x393C4, c, psyq/libgte]
+      - [0x39778, asm] # MatrixNormal's tail pad word (Psy-Q pads a function to 16 bytes)
+      - [0x3977C, c, psyq/libgte_loadaverage]
       - [0x39A08, asm] # LoadAverageCol's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x39A0C, c, psyq/libgte_mulmatrix0]
       - [0x39B18, asm] # MulMatrix0's tail pad word (Psy-Q pads a function to 16 bytes)
