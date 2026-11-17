@@ -1,7 +1,9 @@
 #include "common.h"
 #include "psyq/libgte.h"
 
-extern long D_800523F0[]; // one entry per 1/4096 turn, (cos << 16) | sin
+extern long D_800523F0[]; // one entry per 1/4096 turn: cos in the low
+                          // half (rcos), sin in the high half (rsin)
+extern long D_800523F2[];
 
 /* Sony's vector.s, transcribed like RotMatrixX/Y/Z (psyq/libgte_average_*):
    gcc emits `mult` where the original has `multu` and reads the trig table
@@ -108,25 +110,36 @@ MATRIX *RotMatrix(SVECTOR *r, MATRIX *m) {
     return m;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_c", rcos);
-/* best attempt 98.57%. One instruction differs: the original shifts the masked
-   angle into a fresh register (sll t0,a0,2) while gcc 2.7.2 always folds it
-   (sll a0,a0,2), i.e. it treats the andi result as dead. Eight spellings of the
-   index (<<2, *4, u_int temp, [][2] subscript, pointer local, a % 0x1000,
-   a &= 0xfff statement) all produce the in-place form, at -O2/-O3 alike.
-   D_800523F2 is the auto-generated undefined symbol at D_800523F0 + 2, the sin
-   half of each entry.
-extern long D_800523F0[];
-extern long D_800523F2[];
-
+/* Sony's vector.s, transcribed like RotMatrix above: the C form
+   `return *(short*)((char*)D_800523F0 + (a & 0xFFF) * 4);` compiles to the same
+   six instructions but shifts in place (sll a0,a0,2) where the original shifts
+   the masked angle into t0, and no C spelling makes gcc keep the andi result
+   alive. rcos takes the low half of the entry, rsin the high half. */
 int rcos(int a) {
-    return *(short*)((char*)D_800523F0 + (a & 0xFFF) * 4);
-}
-*/
+    register int ret __asm__("$2");
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgte_c", rsin);
-/* best attempt 98.57%, same one-instruction difference as rcos.
-int rsin(int a) {
-    return *(short*)((char*)D_800523F2 + (a & 0xFFF) * 4);
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "andi\t$4, $4, 0xFFF\n\t"
+                      "sll\t$8, $4, 2\n\t"
+                      "lui\t$1, %%hi(D_800523F0)\n\t"
+                      "addu\t$1, $1, $8\n\t"
+                      "lh\t$2, %%lo(D_800523F0)($1)\n\t"
+                      ".set\treorder"
+                      : "=r"(ret) : : "$1", "$4", "$8", "memory");
+    return ret;
 }
-*/
+
+/* rsin: the same lookup at D_800523F0 + 2. */
+int rsin(int a) {
+    register int ret __asm__("$2");
+
+    __asm__ volatile (".set\tnoreorder\n\t"
+                      "andi\t$4, $4, 0xFFF\n\t"
+                      "sll\t$8, $4, 2\n\t"
+                      "lui\t$1, %%hi(D_800523F2)\n\t"
+                      "addu\t$1, $1, $8\n\t"
+                      "lh\t$2, %%lo(D_800523F2)($1)\n\t"
+                      ".set\treorder"
+                      : "=r"(ret) : : "$1", "$4", "$8", "memory");
+    return ret;
+}
