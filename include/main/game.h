@@ -54,7 +54,10 @@ typedef struct {
     /* 0x50 */ u_short mp;
     /* 0x52 */ u_short maxMp;
     /* 0x54 */ u8 unk54[2];
-    /* 0x56 */ u8 unk56;
+    // The same character id the battle copy of this record keeps at this offset
+    // (BattleTableEntry.characterId); 4 is the character with two weapon slots,
+    // see MenuApplyEquippedItemBonuses.
+    /* 0x56 */ u8 characterId;
     /* 0x57 */ u8 unk57;
     /* 0x58 */ u_char attack;
     /* 0x59 */ u_char defense;
@@ -73,7 +76,9 @@ typedef struct {
     /* 0x74 */ undefined8 accessorySlots[0x3];
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;
-    /* 0x79 */ u8 unk79[0x5];
+    /* 0x79 */ u8 unk79;
+    /* 0x7A */ u16 unk7A;
+    /* 0x7C */ u16 activeEffectFlags1; // starts the active/accessory word grid below, as in GameGear and BattleTableEntry
     // One flag word per accessory effectType: the OR of the effectFlags of the
     // worn accessories whose effectType selects it, see
     // MenuApplyEquippedItemBonuses in src/menu/main/misc10.c. The words in
@@ -229,10 +234,16 @@ typedef struct {
     // saves gearRide here and sets 1, WorldMapExitMenuMode and
     // WorldMapSetPositionFromState clear it).
     /* 0x1836 */ u16 worldMapMenuActive;
-    /* 0x1838 */ undefined8 unk1838[0x16];
+    // The world-map state a party slot writes before the map's script runs:
+    // the party's gearRide[3] bytes at +0x4/+0x6/+0x8 (compared back by
+    // WorldMapSyncGearRideActors), the tile the player actor stood on at
+    // +0xC/+0xE and its waypoint index at +0x10 (func_80088570). All are
+    // reached through casts, so the span stays as it is.
+    /* 0x1838 */ undefined8 unk1838[0x14];
     // World-map position the field scripts set, split as map units << 12 |
-    // fraction: x = mapPosX << 12 | the u16 at 0x184C, z = mapPosZ << 12 |
+    // fraction: x = mapPosX << 12 | mapPosXFraction, z = mapPosZ << 12 |
     // mapPosZFraction (FieldScriptSetGameState184E writes the map-unit halves).
+    /* 0x184C */ u16 mapPosXFraction;
     /* 0x184E */ undefined16 mapPosX;
     /* 0x1850 */ undefined16 mapPosZFraction;
     /* 0x1852 */ undefined16 mapPosZ;

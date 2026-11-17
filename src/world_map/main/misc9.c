@@ -790,7 +790,7 @@ s32 func_80088570(s32 index) {
         v = 0x4800000;
     } else {
         s32 angleY = *(s16*)&g_GameState.mapPosX;
-        u32 posX = ((u16*)g_GameState.unk1838)[0xA];
+        u32 posX = g_GameState.mapPosXFraction;
 
         pSlot->y = 0xFFD80000;
         pSlot->x = angleY * 0x1000 + posX;
@@ -804,7 +804,7 @@ s32 func_80088570(s32 index) {
     pSlot->dirX = 0xB50;
     pSlot->dirY = 0;
     pSlot->moveSpeed = 1;
-    ((u16*)g_GameState.unk1838)[0xA] = v;
+    g_GameState.mapPosXFraction = v;
     g_GameState.mapPosX = pSlot->x >> 12;
     g_GameState.mapPosZFraction = pSlot->z;
     g_GameState.mapPosZ = pSlot->z >> 12;
