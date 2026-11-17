@@ -68,7 +68,7 @@ extern WorldMapSceneLayer *g_WorldMapGroups;
 extern u16 g_WorldMapSlotStateIds[];
 extern u16 g_WorldMapSlotStateFrames[];
 extern WorldMapTrackPoint D_8009A490[];
-extern u16 g_WorldMapActorParamStateIds;
+extern u16 g_WorldMapActorParamStateIds[];
 extern u16 g_WorldMapActorParamStateFrames[];
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
@@ -877,13 +877,116 @@ int WorldMapInitActorParamsFromTable(int idx) {
     pPlayer += idx;
     pCount = &pPlayer->unk50;
     *pCount = 0;
-    pPlayer->state = g_WorldMapActorParamStateIds;
+    pPlayer->state = g_WorldMapActorParamStateIds[0];
     pPlayer->stateTimer = g_WorldMapActorParamStateFrames[*pCount];
     *pCount = *pCount + 1;
     return 1;
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
+/* 98.13%, 876 bytes = retail's exact size and 219 instructions; the whole body is
+   decoded and only ONE pair of instructions is swapped, in case 0x10: retail schedules
+   `ori a1,a2,0xA0` + `sh zero,0xA2(a2)` BEFORE the two global loads, our compile puts
+   them after the loads and before the two sra. Nothing else differs (four hand shapes:
+   the three store orders, loading the two shifts into locals, and a `u8*`/`s16*` scratch
+   local; permute.sh 4 min / 2179 iterations found nothing, base=120 best=120).
+   Structural facts that are settled and must be kept:
+   - the switch is over 0..0x40 and MUST have a `case 0: break;`, or gcc range-folds it
+     to `addiu -1 / sltiu` and the table shifts by one word.
+   - state is s16 (lh + sltiu), stateTimer u16 (`(s16)--stateTimer < 0` gives
+     lhu/addiu -1/sh/sll 16/bgez, exactly as WorldMapUpdateActorState case 1); the three
+     loads of unk50 are retail's, not CSE failures.
+   - the scratchpad base is `u16 *pScratchPos = (u16 *)0x1F800000;` at the top of the
+     function with 0x50/0x51/0x52 indexes: that is what puts `lui a2,0x1F800000` in the
+     beqz delay slot, forms the argument as `ori a1,a2,0xA0` and keeps the stores at
+     0xA0/0xA2/0xA4(a2). A local declared inside the case gives lui $at per store.
+   Do NOT convert this stub before the rodata question below is settled, even at 100%:
+   jtbl_8006FC50 sits at unit rodata offset 0x8C (4 mod 8), and cc1 emits `.align 3`
+   before a jump table, so the table lands at 0x90 and the unit's four zero bytes at
+   0x190 move to 0x8C - the overlay shifts by 4 bytes inside misc5's own rodata range
+   and check_bin fails. See the report for the align analysis (retail's tables in this
+   unit are not all 8-aligned, so the pad at 0x190 is either a 4-byte datum no C switch
+   emits or a pad this compiler cannot place).
+*/
+/*s32 func_8007C3B8(s32 idx) {
+    WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
+    u16 *pScratchPos = (u16 *)0x1F800000;
+
+    switch (pPlayer->state) {
+    case 0:
+        break;
+    case 1:
+        if ((s16)--pPlayer->stateTimer < 0) {
+            pPlayer->state = g_WorldMapActorParamStateIds[pPlayer->unk50];
+            pPlayer->stateTimer = g_WorldMapActorParamStateFrames[pPlayer->unk50];
+            pPlayer->unk50++;
+        }
+        break;
+    case 2:
+        WorldMapStartSlot(2, 1);
+        pPlayer->state = 1;
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0xD);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0xE);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0xF);
+        break;
+    case 0x10:
+        pScratchPos[0x51] = 0;
+        pScratchPos[0x50] = g_WorldMapCameraTarget >> 12;
+        pScratchPos[0x52] = D_8009BE30 >> 12;
+        func_80089160(0x14, (void *)&pScratchPos[0x50], 0);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x10);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x11);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x12);
+        pPlayer->state = 1;
+        break;
+    case 0x11:
+        WorldMapStartSlot(2, 2);
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapTpageAbr = 1;
+        pPlayer->state = 1;
+        g_WorldMapDrawMode = 0x40;
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x13);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x14);
+        SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x15);
+        break;
+    case 0x12:
+        WorldMapStartSlot(2, 3);
+        WorldMapStartSlot(3, 1);
+        WorldMapStartSlot(4, 1);
+        WorldMapStartSlot(5, 1);
+        WorldMapStartSlot(6, 1);
+        WorldMapStartSlot(7, 1);
+        WorldMapStartSlot(0, 0xC);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 1;
+        pPlayer->state = 1;
+        break;
+    case 0x13:
+        WorldMapStartSlot(2, 4);
+        WorldMapStartSlot(9, 1);
+        pPlayer->state = 1;
+        break;
+    case 0x14:
+        WorldMapStartSlot(2, 6);
+        WorldMapStartSlot(3, 2);
+        WorldMapStartSlot(9, 2);
+        pPlayer->state = 1;
+        break;
+    case 0x16:
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapTpageAbr = 2;
+        g_WorldMapDrawMode = 4;
+        pPlayer->state = 1;
+        break;
+    case 0x40:
+        g_WorldMapLoopActive = 0;
+        g_WorldMapAreaMode = 0;
+        pPlayer->state = 1;
+        break;
+    }
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C724);
 /* 44.62%: instruction multiset and size identical (180 bytes), only gcc sched2
    order differs. Retail puts the 0x7C store right after the addu and emits the
@@ -948,6 +1051,8 @@ int WorldMapUpdateGroup4Actor(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     WorldMapSceneLayer *pBlock = (WorldMapSceneLayer *)&((u8 *)g_WorldMapGroups)[0x150];
     u16 *pScratchPos = (u16 *)0x1F800000;
+    s32 scratchX;
+    s32 scratchZ;
     s16 mode;
 
     mode = pPlayer->command;
