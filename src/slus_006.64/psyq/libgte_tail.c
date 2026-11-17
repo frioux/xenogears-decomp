@@ -3,29 +3,30 @@
 #include "psyq/gtemac.h"
 #include "psyq/inline_c.h"
 
-// The tail of Psy-Q's libgte: everything from MulMatrix0 on. It is its own
-// translation unit only because LoadAverageCol (the last function of
-// psyq/libgte) carries a pad word in retail -- the shipped .OBJ pads every
-// function's tail to a 16-byte multiple -- and the four bytes at 0x39A08 come
-// from the `asm` subsegment in config/slus_006.64.yaml. Nothing else separates
-// the two files; keep them one unit's worth of code.
+// The middle of the tail of Psy-Q's libgte: CompMatrix through MulMatrix. Every
+// time the shipped .OBJ's 16-byte tail padding (which retail's linker kept) puts
+// a nop after a function, that pad becomes its own `asm` subsegment in
+// config/slus_006.64.yaml and splits the run of C: 0x39A08 for LoadAverageCol
+// starts psyq/libgte_mulmatrix0, 0x39B18 starts this file at CompMatrix, 0x3A3D8
+// starts psyq/libgte_mulmatrix2 and 0x3A4E8 starts psyq/libgte_tail_b. Keep the
+// four files one unit's worth of code.
 //
 // Functions transcribed as the asm Sony wrote (the gte macros cannot express
-// these): CompMatrix, ApplyMatrixLV, PushMatrix, PopMatrix, SetMulMatrix. Points
-// a transcription must observe here: maspsx aborts on a `0x..` displacement
-// inside inline asm (`sw $8, 0x0($t7)`); write it decimal. maspsx also appends a
-// nop after every `jal` unless it has seen a `.set noreorder`, so blocks that
-// call out open with `.set\tnoreorder` and close with `.set\treorder` to leave
-// the assembler state as they found it. GAS has no `sqr`/`gpf`/`mvmva`
+// these): CompMatrix, ApplyMatrixLV, PushMatrix, PopMatrix, SetMulMatrix,
+// MulMatrix. Points a transcription must observe here: maspsx aborts on a `0x..`
+// displacement inside inline asm (`sw $8, 0x0($t7)`); write it decimal. maspsx
+// also appends a nop after every `jal` unless it has seen a `.set noreorder`, so
+// blocks that call out open with `.set\tnoreorder` and close with `.set\treorder`
+// to leave the assembler state as they found it. GAS has no `sqr`/`gpf`/`mvmva`
 // mnemonics: spell those as `.word` (gte_*_b's encodings).
 //
 // The stubs left are Sony's hand-written vector.s, and do not convert because
 // they carry nops after `.size`, which C cannot emit: the padding sits after
 // gcc's own `jr $ra`, so it can be reproduced neither by real C nor by a
-// trailing asm block (gcc appends its epilogue after every asm). A pad can be
-// carved out of the unit's range as its own `asm` subsegment instead, the way
-// 0x39A08 is: TransMatrix, ApplyMatrixSV, MulMatrix0, MulMatrix, MulMatrix2,
-// ScaleMatrixL, ScaleMatrix, ApplyRotMatrixLV.
+// trailing asm block (gcc appends its epilogue after every asm). Carve the pad
+// out as its own `asm` subsegment instead, the way the four above are: the pads
+// still waiting belong to ScaleMatrixL and ApplyRotMatrixLV here, TransMatrix,
+// ApplyMatrixSV and ScaleMatrix in psyq/libgte_tail_b.
 //
 // When the original's return value move sits in the `jr` delay slot, pin the asm
 // output to the argument register (`__asm__("$6")`) so gcc emits the copy
