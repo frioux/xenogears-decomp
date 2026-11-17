@@ -735,6 +735,8 @@ void WorldMapDecompressMapTables(void) {
     g_WorldMapPoints = (WorldMapPoint*)(pTable->block + pTable->offsets.pointOffset);
     pRect = (s32*)(pTable->block + pTable->offsets.rectOffset);
     g_WorldMapRects = pRect;
+    // the rects are relocated in place; retail reads through the local and reloads the global
+    // once after the first store, so only that store goes through pRect
     pRect[0] = (s32)(pTable->block + pRect[0]);
     g_WorldMapRects[1] = (s32)(pTable->block + pRect[1]);
     g_WorldMapRects[2] = (s32)(pTable->block + pRect[2]);
