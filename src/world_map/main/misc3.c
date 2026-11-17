@@ -267,18 +267,11 @@ s32 WorldMapScriptOp11SetDrawMode(s32 arg0, s32 arg1, s32 arg2) {
     return 4;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076DA4);
-/* Best attempt: 96.52% (420 bytes, same size). The compare block, the three
-   abs-step blocks and the frame are byte-identical. Only the last three
-   halfword stores differ: the original emits them fully sequentially (lw 0x38,
-   nop, sra, sh g_WorldMapCameraRot; lw 0x3C, nop, sra, sh g_WorldMapViewRotationY; lw 0x40, nop, sra,
-   sh g_WorldMapViewRotationZ) while gcc hoists one load one slot early. gcc emits the three
-   stores in source order 1,3,2, so writing them 0x38/0x40/0x3C (below) is what
-   reproduces the original's 38/3A/3C order. Also tried: natural order (stores
-   come out 38/3C/3A), s32 locals, s16 locals, the interleaved per-value form,
-   and volatile globals (94.68%: fixes the store order, the hoist stays).
-   Shortcut: one scheduler slot; do not retry these shapes.
 void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
+    s16 rotX;
+    s16 rotY;
+    s16 rotZ;
+
     if ((pPlayer->unk38 != pPlayer->unk50) | (pPlayer->unk3C != pPlayer->unk54) |
         (pPlayer->unk40 != pPlayer->unk58)) {
         pDelta->x = pPlayer->unk50 - pPlayer->unk38;
@@ -305,10 +298,13 @@ void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
         }
     }
     g_WorldMapCameraRot = pPlayer->unk38 >> 12;
+    // shortcut: the do/while block isolates this store so cc1 schedules it as a
+    // unit; without it gcc hoists the next load one slot early and is 3 insns short
+    do { g_WorldMapViewRotationY = pPlayer->unk3C >> 12; } while (0);
     g_WorldMapViewRotationZ = pPlayer->unk40 >> 12;
-    g_WorldMapViewRotationY = pPlayer->unk3C >> 12;
+
 }
-*/
+
 
 void WorldMapApproachHeight(WorldMapPlayer* pPlayer) {
     s32 cur = pPlayer->unk5C;
