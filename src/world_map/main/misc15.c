@@ -5,12 +5,12 @@
 #include "psyq/libgpu.h"
 
 typedef struct {
-    /* 0x00 */ u16 state;
-    /* 0x02 */ u16 stateTimer;
+    /* 0x00 */ s16 state;
+    /* 0x02 */ s16 stateTimer;
     /* 0x04 */ s16 command;
     /* 0x06 */ u8 unk6[0x12];
-    /* 0x18 */ s32 pEnterHandler; // called once in state 0; its return is the next state
-    /* 0x1C */ s32 pUpdateHandler; // called every frame in state 1; NULL while the slot is free
+    /* 0x18 */ s32 (*pEnterHandler)(s32); // called once in state 0; its return is the next state
+    /* 0x1C */ s32 (*pUpdateHandler)(s32); // called every frame in state 1; NULL while the slot is free
     /* 0x20 */ u16 unk20;
     /* 0x22 */ u16 unk22;
     /* 0x24 */ u8 unk24[0x28];
@@ -71,7 +71,11 @@ extern s32 D_8009BE48;
 extern s32 D_8009CCB0;
 extern s32 g_WorldMapCdReadErrorCount;
 extern s32 g_WorldMapCdRetryCount;
-extern void func_80096A6C(void);
+extern void func_80096A6C(s32 mode, u8 *pResult);
+extern void func_80096C0C(u_char mode, u_char *pResult);
+extern s32 D_8009BCCC;
+extern s32 D_8009BCD0;
+extern s32 D_8009BCD4;
 extern u32 ArchiveGetDebugTable(void);
 extern s32 func_800968E0(void);
 extern void WorldMapReadFileEntries(void *p);
@@ -105,36 +109,27 @@ s32 WorldMapUpdateLoadQueue(void) {
     }
     return result;
 }
-// Best: 99.79% -- blocked, not a match problem: this switch's table is
-// jtbl_80070CA0 in asm/world_map/data/0.rodata.s, whose entries are
-// .word .L80096910/.L80096918/.L80096950/.L80096958. Converting the function
-// deletes those local labels from the asm and the overlay stops linking
-// (undefined reference to .L80096910 at .rodata+0x11b0). The table would have
-// to move to C with the function, and a C definition cannot name code labels.
-/*
 s32 func_800968E0(void) {
     switch (g_WorldMapCdReadState) {
     case 0:
         return 0;
-    case 1:
-    case 2:
-    case 3:
-        return 1;
     case 4:
         if (--D_8009BD2C == 0) {
             g_WorldMapCdReadState++;
         }
         return 1;
+    case 1:
+    case 2:
+    case 3:
+        return 1;
     case 5:
         g_WorldMapCdReadState = 0;
-        g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] = 0;
+        g_WorldMapCdRequestQueue[g_WorldMapLoadQueueHead] = NULL;
         g_WorldMapLoadQueueHead = (g_WorldMapLoadQueueHead + 1) & 0xF;
         return 2;
     }
     return 3;
 }
- */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800968E0);
 void WorldMapStartCdRead(Misc15CdRequest *p) {
     CdlLOC *pLoc;
     s32 lba;
@@ -161,7 +156,56 @@ void WorldMapStartCdRead(Misc15CdRequest *p) {
     CdControlF(CdlSetloc, (u8 *)pLoc);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096A6C);
+void func_80096A6C(s32 mode, u8 *pResult) {
+    CdlLOC *pLoc;
+
+    if (mode == 2) {
+        switch (g_WorldMapCdReadState) {
+        case 1:
+            g_WorldMapCdReadState = 2;
+            D_8009BCD4 = 0;
+            D_8009BCD0 = 0;
+            D_8009BCCC = 0;
+            CdReadyCallback(func_80096C0C);
+            CdControlF(CdlReadS, NULL);
+            break;
+        case 3:
+            if (g_WorldMapCdCurrentSector == 0) {
+                g_WorldMapCdReadState = 4;
+                D_8009BD2C = 1;
+                CdSyncCallback(NULL);
+            }
+            break;
+        case 10:
+            if (pResult[0] & CdlStatShellOpen) {
+                CdControlF(CdlNop, NULL);
+            } else {
+                CdControlF(CdlGetTN, NULL);
+                g_WorldMapCdReadState = 0xB;
+            }
+            break;
+        case 11:
+            g_WorldMapCdReadState = 0xC;
+            CdControlF(CdlPause, NULL);
+            break;
+        case 12:
+            pLoc = &g_WorldMapCdReadLocation;
+            g_WorldMapCdReadState = 1;
+            CdIntToPos(g_WorldMapCdExpectedSector, pLoc);
+            CdControlF(CdlSetloc, (u8 *)pLoc);
+            break;
+        }
+    } else {
+        if (pResult[0] & CdlStatShellOpen) {
+            g_WorldMapCdReadState = 0xA;
+            g_WorldMapCdReadErrorCount++;
+            CdControlF(CdlNop, NULL);
+        } else {
+            g_WorldMapCdReadState = 0xB;
+            CdControlF(CdlGetTN, NULL);
+        }
+    }
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
 // Best: 59.80%. The structure is decoded and every call/argument is right (the
@@ -344,12 +388,12 @@ void WorldMapClearSlotPool(void) {
     }
 }
 
-void WorldMapSetSlotEnterHandler(s32 value, s32 index) {
+void WorldMapSetSlotEnterHandler(s32 (*pHandler)(s32), s32 index) {
     g_WorldMapSlots[index].state = 0;
-    g_WorldMapSlots[index].pEnterHandler = value;
+    g_WorldMapSlots[index].pEnterHandler = pHandler;
 }
 
-void WorldMapAddSlot(s32 value18, s32 value1C) {
+void WorldMapAddSlot(s32 (*pEnterHandler)(s32), s32 (*pUpdateHandler)(s32)) {
     s32 i;
 
     for (i = 0; i < 0x40; i++) {
@@ -357,8 +401,8 @@ void WorldMapAddSlot(s32 value18, s32 value1C) {
             g_WorldMapSlots[i].state = 0;
             g_WorldMapSlots[i].stateTimer = 0;
             g_WorldMapSlots[i].command = 0;
-            g_WorldMapSlots[i].pEnterHandler = value18;
-            g_WorldMapSlots[i].pUpdateHandler = value1C;
+            g_WorldMapSlots[i].pEnterHandler = pEnterHandler;
+            g_WorldMapSlots[i].pUpdateHandler = pUpdateHandler;
             g_WorldMapSlots[i].unk20 = 0;
             g_WorldMapSlots[i].unk22 = 0;
             break;
@@ -392,7 +436,39 @@ void WorldMapSetSlotWaitFrames(s32 index, u16 value) {
     *(u16 *)(pSlot + 2) = value;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097800);
+extern void SpriteDestroy(void *p);
+
+void func_80097800(void) {
+    Misc15Slot *pSlot;
+    s32 i;
+
+    for (i = 0, pSlot = g_WorldMapSlots; i < 0x40; i++, pSlot++) {
+        if (pSlot->pUpdateHandler == 0) {
+            continue;
+        }
+        switch (pSlot->state) {
+        case 0:
+            pSlot->state = pSlot->pEnterHandler(i);
+            break;
+        case 1:
+            pSlot->state = pSlot->pUpdateHandler(i);
+            break;
+        case 2:
+            if (--pSlot->stateTimer <= 0) {
+                pSlot->state = 1;
+            }
+            break;
+        case 3:
+            break;
+        case 4:
+            if (pSlot->pSprite != 0) {
+                SpriteDestroy((void *)pSlot->pSprite);
+            }
+            break;
+        }
+    }
+}
+
 // try_flags: --gp -G0 gives 88.53 but drops the matched WorldMapRefreshGrid to
 // 97.21 and WorldMapStartCdRead to 91.63, so the unit preset is right; gcc 2.6.0
 // gives 79.25 with the parked shape.
@@ -445,17 +521,6 @@ void func_800978FC(void) {
     } while (pSrc != pEnd);
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800979C8);
-// Best: 96.83%. Instruction-identical except the prologue: retail emits the
-// `sw s2,0x20(sp)` + `move s2,zero` (i = 0 from the declaration) AFTER the
-// LZSSHeapDecompress argument setup (lui/lw a0, li a1) and before `sw ra`; we
-// emit that pair first, at the very top of the entry block. Same 2-insn class
-// as the parked WorldMapLoadTextureClut in world_map/main/misc8 (98.71%), not a register
-// numbering problem. What DID close this from 92.13%: three separate pointer
-// locals (pClut for loop 1, pClut2 for loop 2, pClut3 for loop 3 - one shared
-// pClut put i in s3 and the pointer in s2, the reverse of retail), assigning
-// `i = 0`/`i = 4` before the `pClut2/pClut3 = ...` address formation, and
-// `for (; i < N; x += 0x80, i++, pClut++)` so x += 0x80 precedes i++.
 extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
@@ -466,13 +531,12 @@ extern u16 D_8009CCB4[];
 extern u16 D_8009CD54[];
 extern u16 D_8009CD5C[];
 
-/*
 void func_800979C8(void) {
     RECT rect;
     u8 *pData;
     u8 *pDst;
     u8 *pFactors;
-    s32 i = 0;
+    s32 i;
     s32 x;
     s32 y;
     u16 *pClut;
@@ -484,6 +548,7 @@ void func_800979C8(void) {
     DrawSync(0);
     HeapFree(pData);
     HeapFree(D_8009C59C);
+    i = 0;
     pClut = D_8009CCB4;
     pData = HeapAlloc(0x400, 1);
     pDst = HeapAlloc(0x8000, 1);
@@ -524,7 +589,6 @@ void func_800979C8(void) {
     HeapFree(pData);
 }
 
-*/
 
 // Best: 63.31%. Same instruction multiset, different order: cc1 2.7.2's sched2
 // hoists the C618/C838/C83C stores above the two loads and splits the mask into
