@@ -450,29 +450,29 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
 void BattleNop(void) {
 }
-s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
+s8 func_80097964(u8 chance, u8 kind, u16 flags) {
     if (g_BattleCurWorkBlock->slots[D_800C3E50].state.unkB6 & 0x80) {
         return 0;
     }
 
-    if (arg0 < rand() % 100) {
+    if (chance < rand() % 100) {
         return 0;
     }
 
-    switch (arg1) {
+    switch (kind) {
     case 0: {
-        u16 mask = arg2 & 0xFFFD;
+        u16 mask = flags & 0xFFFD;
 
         if (D_800C3E34->unk7E & mask) {
             return 0;
         }
-        if (arg2 & 0x1000) {
+        if (flags & 0x1000) {
             D_800C3E34->unk84 &= 0x7FFF;
         }
         break;
     }
     case 2:
-        if (D_800C3E34->unk82 & arg2) {
+        if (D_800C3E34->unk82 & flags) {
             return 0;
         }
         break;
@@ -480,7 +480,7 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
         if ((D_800C3E34->unk7C | D_800C3E34->unk7E) & 1) {
             return 0;
         }
-        if (arg2 & 0x8000) {
+        if (flags & 0x8000) {
             D_800C3E34->unk7C &= 0xEFFF;
         }
         break;
@@ -488,14 +488,14 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
         if ((D_800C3E34->unk80 | D_800C3E34->unk82) & 1) {
             return 0;
         }
-        if (arg2 & 0xA) {
+        if (flags & 0xA) {
             if (D_800C3E34->unk88 & 0x5) {
                 D_800C3E34->unk88 &= 0xFFFA;
                 return 1;
             }
             break;
         }
-        if (arg2 & 0x5) {
+        if (flags & 0x5) {
             if (D_800C3E34->unk88 & 0xA) {
                 D_800C3E34->unk88 &= 0xFFF5;
                 return 1;
@@ -504,14 +504,14 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
         }
         // falls into case 9 when the flags request neither of the 0x8A pair
     case 9:
-        if (arg2 & 0xF000) {
+        if (flags & 0xF000) {
             if (D_800C3E34->unk8E & 0xF000) {
                 g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
             }
             D_800C3E34->unk8C &= 0xFFF;
         }
-        if (arg2 & 0xF00) {
+        if (flags & 0xF00) {
             if (D_800C3E34->unk8E & 0xF00) {
                 g_BattleCurWorkBlock->commandCode = 0x39;
                 return 0;
@@ -521,12 +521,12 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
         break;
     }
 
-    switch (arg1) {
+    switch (kind) {
     case 0:
-        D_800C3E34->unk7C = (arg2 | D_800C3E34->unk7C) & 0xFFFD;
-        if (arg2 & 0x2) {
+        D_800C3E34->unk7C = (flags | D_800C3E34->unk7C) & 0xFFFD;
+        if (flags & 0x2) {
             if (BattleTestActorSlotFlagsC002ByMode()) {
-                D_800C3E34->unk7C |= arg2;
+                D_800C3E34->unk7C |= flags;
                 g_BattleCurWorkBlock->commandCode = 0x31;
                 D_800C3E34->unk7A = 0xFFEF;
             } else {
@@ -535,26 +535,29 @@ s8 func_80097964(u8 arg0, u8 arg1, u16 arg2) {
         }
         break;
     case 2:
-        D_800C3E34->unk80 |= arg2;
-        if (arg2 & 0x800) {
+        D_800C3E34->unk80 |= flags;
+        if (flags & 0x800) {
             D_800C3E34->unk7A |= 0x20;
         }
         break;
     case 5:
     case 7:
     case 9: {
-        // the per-kind flag words at unk7A, indexed by the kind (5 -> unk84)
+        // The per-kind condition words are the u16 run at unk7A, so unk7A[kind]
+        // is unk84 for kind 5 and unk88 for kind 7. The two halves of the sum
+        // must be spelled base-first, or gcc puts the address in the index
+        // register and the shared store below cannot be cross-jumped.
         mem_addr base;
         u16 *pFlags;
 
         base = (mem_addr)D_800C3E34;
-        pFlags = (u16 *)(base + (arg1 * 2));
-        pFlags[0x3D] |= arg2;
+        pFlags = (u16 *)(base + (kind * 2));
+        pFlags[0x3D] |= flags;
         break;
     }
     }
 
-    BattleSetCommandCodeForSlotKindFlag(arg1, arg2);
+    BattleSetCommandCodeForSlotKindFlag(kind, flags);
     return 1;
 }
 void BattleClearAllSlotStates(void) {
