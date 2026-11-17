@@ -244,7 +244,7 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
     }
     return count;
 }INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F1C4);
-/* 91.58% (992 bytes vs retail's 992; identical instruction multiset except the
+/* (992 bytes vs retail's 992; identical instruction multiset except the
    constant-1 pseudo). The structural read below is CONFIRMED - every call, branch
    and store matches retail; what is left is ONE allocator tie and the register
    permutation it drags along:
@@ -286,6 +286,24 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
    0x40/0x44/0x48 and does THREE mult/div matrix fills; ours diverges before the
    loop tail), not the constant-1 allocator tie described above. Re-derive from the
    .s before spending time on the tie.
+   Round 195 (type-width sweep, un-parked and re-measured: still 87.12% / 952 bytes
+   vs retail's 992 = 248 insns vs our 238). CONFIRMED it is a missing statement
+   block, not a width: retail's pParent block materialises the flag constant 1 with
+   a FRESH `ori a3,zero,1` at each of FOUR sites (before each `bne`, and again in
+   the delay slot before each `sb`), all in the CALLER-saved $a3, while our compile
+   CSEs all four into ONE pseudo and parks it in the CALLEE-saved $s7 - which costs
+   the s8 save/restore pair (retail frames 9 callee-saved regs, we use 8) and two
+   instructions at each of the two parent tests. Retail also re-materialises
+   `lui s1,0x1F80` (scale-matrix base) INSIDE the loop where ours keeps it. Widths
+   checked and all already retail's: count `lhu 0xA`, rotDirection `lbu 0x6`,
+   scale `lh 0x4C/0x4E/0x50` in the pre-loop but `lhu 0x20/0x22/0x24` in the loop
+   (two different access spellings of the same field), pParent `lw 0`,
+   parent->doRotate/doTransform `lbu 5/4`, rot `lh 0x54`, pos `lw 0x5C/0x60/0x64`,
+   matrix base is PSX_SCRATCH itself with m[2][2] at +0x10 (round 118 was right).
+   Everything else in the two loops is instruction-for-instruction retail's; what is
+   left is one constant-1 CSE plus the allocator permutation it drags. Not in scope
+   for a width sweep - needs a shape that keeps four independent constant-1 pseudos.
+   Parked body compiles (lint clean) at 87.12%.
 
 s32 func_8009F1C4(BattleSprite* pSprites, s32 scale) {
     MATRIX* pScaleMatrix;
@@ -446,7 +464,7 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
-/* 97.90% (420 vs 421 bytes in the body; the loop-head `nop` vs retail's dead
+/*
    `andi` is the only non-multiset insn). The remaining delta is register
    identity: pFrame sits in $v1 where retail coalesces it into $a1 (the pData
    parameter register, `addiu a1,a1,0x18` in the bnez delay slot), which drags
@@ -504,6 +522,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
    permuter's job, not a spelling.
    Round 185 (park repair): still compiles, still 97.90% / 420 bytes = retail's 420.
    The two deltas above are the whole remainder; unchanged.
+   Round 195 (type-width sweep, per the round-194 rule): every local whose width
+   feeds a load/store was re-measured against retail's own load widths -
+   s16 v0/v1/v2 -> 73.31% / 476 bytes (they MUST be s32: the pos half stores `sw`),
+   u32 numA/numB -> 95.90% / 412 (retail's `andi 0xffff / sltu` needs u16),
+   u16 unk06 -> 95.88% / 420 (retail loads it `lh`, so s16),
+   s32 countA/countB -> 96.76% / 420 (retail loads them `lhu`).
+   All four are worse than the 97.90% body, so the widths are already retail's and
+   the remainder is the allocno tie + the dead andi alone - not a width question.
+   Third permuter run deliberately skipped: two runs (555/555 and 360/360 base==best)
+   already plateaued on this exact body.
 
 void func_800A1B50(BattleSprite* pSprites, BattleAnimData* pData) {
     s16* pFrame;
