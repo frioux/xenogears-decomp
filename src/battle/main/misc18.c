@@ -82,7 +82,7 @@ void BattleRollAndClearTargetConditions(void) {
         }
         if (g_BattleCurrentRow->conditionKind & 0x40) {
             g_BattleTargetSlotEntry->activeEffectFlags2 = 0;
-            g_BattleTargetSlotEntry->unk7A &= 0xFFDF;
+            g_BattleTargetSlotEntry->conditionFlags &= 0xFFDF;
         }
         if (g_BattleCurrentRow->conditionKind & 0x20) {
             g_BattleTargetSlotEntry->activeEffectFlags3 = 0;
@@ -532,7 +532,7 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
             if (BattleTestActorSlotFlagsC002ByMode()) {
                 g_BattleTargetSlotEntry->activeEffectFlags1 |= flags;
                 g_BattleCurWorkBlock->commandCode = 0x31;
-                g_BattleTargetSlotEntry->unk7A = 0xFFEF;
+                g_BattleTargetSlotEntry->conditionFlags = 0xFFEF;
             } else {
                 g_BattleCurWorkBlock->commandCode = 0x32;
             }
@@ -541,14 +541,15 @@ s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
     case 2:
         g_BattleTargetSlotEntry->activeEffectFlags2 |= flags;
         if (flags & 0x800) {
-            g_BattleTargetSlotEntry->unk7A |= 0x20;
+            g_BattleTargetSlotEntry->conditionFlags |= 0x20;
         }
         break;
     case 5:
     case 7:
     case 9: {
-        // The per-kind condition words are the u16 run at unk7A, so unk7A[kind]
-        // is activeEffectFlags3 for kind 5 and activeEffectFlags4 for kind 7. The two halves of the sum
+        // The per-kind condition words are the u16 run at conditionFlags, so
+        // conditionFlags[kind] is activeEffectFlags3 for kind 5 and activeEffectFlags4 for kind 7.
+        // The two halves of the sum
         // must be spelled base-first, or gcc puts the address in the index
         // register and the shared store below cannot be cross-jumped.
         mem_addr base;
@@ -585,7 +586,7 @@ void BattleResetSlotConditionCounters(void) {
         if (g_BattleActorCharIds[i] != BATTLE_SLOT_CHARACTER_NONE) {
             pSlot = &g_BattleCurWorkBlock->slots[i];
             g_BattleActingSlot = pSlot;
-            hp = pSlot->unk7A;
+            hp = pSlot->conditionFlags;
             g_BattleTargetSlotState = &pSlot->state;
             g_BattleSavedSlotUnk7A[i] = hp;
             for (j = 0; j < 4; j++) {
@@ -876,7 +877,7 @@ u16 BattleDecrementSlotConditionTimers(u8 slot) {
         if (pCnt[3] == 0) {
             ret |= 0x1000;
             pEntry->activeEffectFlags2 &= 0xF7FF;
-            pEntry->unk7A &= 0xFFDF;
+            pEntry->conditionFlags &= 0xFFDF;
         }
     }
     if ((pEntry->activeEffectFlags3 & 0x8000) && !(pEntry->accessoryEffectFlags3 & 0x8000)) {

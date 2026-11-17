@@ -391,7 +391,7 @@ void BattleClearSlotConditionBits(void) {
     BattleTableEntry *q = g_BattleTargetSlotEntry;
 
     p->activeEffectFlags1 &= 0xF80B;
-    q->unk7A &= 0xFFDF;
+    q->conditionFlags &= 0xFFDF;
 }
 s32 BattleGearHasWeaponId(u8 arg0) {
     BattleGearWeaponRecord *pRec = &g_BattleCurWorkBlock->gearWeaponIds[arg0];

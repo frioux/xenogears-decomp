@@ -268,7 +268,7 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     tbl[3] = D_800C323A;
     if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags,
                            arg1)) {
-        if ((g_BattleWorkBlock[arg0].unk7A & tbl[arg1]) == 0) {
+        if ((g_BattleWorkBlock[arg0].conditionFlags & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);
             func_8009382C(arg0, arg1);
             g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex;
@@ -300,11 +300,10 @@ void BattleAccumulateSlotValueByRowFlag(void) {
         if (pWork->slotStates[slot] != 0) {
             continue;
         }
-        // unk5F20 still covers the two per-party-slot dword accumulators opaquely (+0x34 and +0x40).
         if (pWork->slots[slot].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
-            ((s32 *)(pWork->unk5F20 + 0x40))[slot] += pWork->slotAmounts[g_BattleCurSlotIndex];
+            pWork->gearAmounts[slot] += pWork->slotAmounts[g_BattleCurSlotIndex];
         } else {
-            ((s32 *)(pWork->unk5F20 + 0x34))[slot] += pWork->slotAmounts[g_BattleCurSlotIndex];
+            pWork->characterAmounts[slot] += pWork->slotAmounts[g_BattleCurSlotIndex];
         }
     }
 }

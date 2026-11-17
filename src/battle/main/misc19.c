@@ -551,7 +551,7 @@ void BattleResetActorStats(void) {
         p->maxHp = 100;
         p->evade = 20;
         p->hit = 15;
-        p->unk7A = 0x1FBF;
+        p->conditionFlags = 0x1FBF;
         p->state.unkA5 = 0;
     }
 }

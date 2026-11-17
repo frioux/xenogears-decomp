@@ -255,7 +255,7 @@ typedef struct {
     // has this effect"), and BattleDecrementSlotConditionTimers counts a timer in
     // BattleSlotState.conditionTimers down only for a bit the accessory word lacks, so an effect
     // the accessory grants never expires. BattleInitActiveSlotAction clears all five active words.
-    /* 0x07A */ u16 unk7A;
+    /* 0x07A */ u16 conditionFlags; // one bit per condition, initialised to 0x1FBF at reset; a cleared bit makes the slot's status draw (BattleDrawCharStatusIfMaskUnset)
     /* 0x07C */ u16 activeEffectFlags1;
     /* 0x07E */ u16 accessoryEffectFlags1; // the accessory effect flag words of GameCharacter sit at these same offsets: a set bit makes the slot refuse the condition
     /* 0x080 */ u16 activeEffectFlags2;
@@ -343,7 +343,9 @@ typedef struct {
     /* 0x0450 */ u8 unk450[0x5300];
     /* 0x5750 */ BattleGearWeaponRecord gearWeapons[50];
     /* 0x5B38 */ BattleGearWeaponRecord gearWeaponIds[50];
-    /* 0x5F20 */ u8 unk5F20[0x4C];
+    /* 0x5F20 */ u8 unk5F20[0x34];
+    /* 0x5F54 */ s32 characterAmounts[3]; // per-party-slot running total of slotAmounts for the slots whose state.flags lacks BATTLE_SLOT_GEAR_STATUS_FLAG
+    /* 0x5F60 */ s32 gearAmounts[3]; // and for the slots that have it
     /* 0x5F6C */ s32 slotAmounts[BATTLE_SLOT_COUNT]; // the amount the current action deals to each slot; its state code is slotStates
     /* 0x5F9C */ u8 unk5F9C[4];
     /* 0x5FA0 */ u8 slotStates[BATTLE_SLOT_COUNT]; // the state each slot's action reached; 0xFF = cleared
