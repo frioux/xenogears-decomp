@@ -1157,7 +1157,7 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
 
 // objdiff 88.98%, 1048 bytes against retail's 1028. The whole structure is
-// reproduced: the unk14/unk16 frame advance with the pInterpolate callback, the
+// reproduced: the unk14/angleStep advance with the pInterpolate callback, the
 // flush-on-negative path, the prevFrame latch, the four-way unk10 dispatch (0,1,4,5
 // as a compare tree - matches a switch), the shared LoadImage tail of cases 0/1,
 // the clipped copy rectangle (retail really does keep it in two RECT locals -
@@ -1216,8 +1216,8 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
         return -1;
     }
 
-    pTexture->unk14 += pTexture->unk16 * (frameStep + 1);
-    frame = pTexture->pInterpolate(pTexture->unk14, pTexture->unk20, pTexture->unk22);
+    pTexture->unk14 += pTexture->angleStep * (frameStep + 1);
+    frame = pTexture->pInterpolate(pTexture->unk14, pTexture->divisor, pTexture->offset);
     if (frame < 0) {
         LibGearFlushTexture(pTexture);
         return frame;
@@ -1230,13 +1230,13 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
 
     switch (pTexture->mode) {
         case 0:
-            func_80026F44(pTexture->unk12, frame, pTexture->pUnkC, pTexture->pUnk4);
+            func_80026F44(pTexture->pixelCount, frame, pTexture->pUnkC, pTexture->pUnk4);
             if (pTexture->pSource == NULL) {
                 LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
             }
             break;
         case 1:
-            func_80026FE8(pTexture->unk12, frame, pTexture->pUnkC, pTexture->pUnk8, pTexture->pUnk4);
+            func_80026FE8(pTexture->pixelCount, frame, pTexture->pUnkC, pTexture->pUnk8, pTexture->pUnk4);
             if (pTexture->pSource == NULL) {
                 LoadImage(&pTexture->rect, (u_long*)pTexture->pUnkC);
             }
@@ -1465,7 +1465,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->pEntryTableLow = (Temp7**)arg3;
     pModel->pEntryTableHigh = NULL;
     pModel->commandCount = 0;
-    pModel->unk58 = 0;
+    pModel->sourceModelSlot = 0;
     pModel->unk35 = 0;
     pModel->useScaledMatrices = 0;
     pModel->unk38 = 0;
@@ -1995,7 +1995,7 @@ int LibGearGetModelDistance(Model* pModel) {
 // 95.39% with the header's Model::sourceJointIndex now s16 (it scored 93.15% while it was
 // u8[2], which made the attempt below test the field's address instead of loading
 // it). What already reproduces exactly: the reload of
-// unk58 after the bit-scan loop, the sequential (not else-if) test chain on
+// sourceModelSlot after the bit-scan loop, the sequential (not else-if) test chain on
 // 0xFE/0xFD/0xFC/0xFA, the CompMatrix / SetRotMatrix / gte_ldv0 + gte_mvmva body
 // and the 0x88 tail, including the 0x38 frame (which needs a 24-byte GTE result
 // buffer, hence value[12], not value[6]).
@@ -2003,14 +2003,14 @@ int LibGearGetModelDistance(Model* pModel) {
 // registers -- `move a1,v1` early, then `addiu v0,a1,-1` for the range test and
 // `addiu a0,v1,-1` for the stored index -- so its two operands are distinct
 // pseudos. Every single-local spelling tried (s16/s32/u32 local, repeated
-// `pModel->unk58` reads, a separate `rawType` copy) makes gcc 2.6 CSE them into
+// `pModel->sourceModelSlot` reads, a separate `rawType` copy) makes gcc 2.6 CSE them into
 // one addiu, which costs one instruction and shifts every later label.
 // Screened: 93.15 attempt above; 95.39 best (2.6.0), 92.13 under 2.7.2-cdk - not a preset problem.
 // Round 62: 99.18% (464 bytes, the original's size). The last instruction is
 // `addiu a0,v1,-1` in the original where this compiles to `move a0,v1`: gcc CSEs
-// the `unk58 - 1` of the range test into the stored index. What got the body from
+// the `sourceModelSlot - 1` of the range test into the stored index. What got the body from
 // 95.39 to 99.18 is the `pModel2` copy of the pointer in the 0xFD arm, which makes
-// the unk58 copy land in the register retail uses (retail `lh v1` + `move a1,v1`,
+// the sourceModelSlot copy land in the register retail uses (retail `lh v1` + `move a1,v1`,
 // here `lh a1` + `move v1,a1`); it is an allocator workaround, not plausible
 // source, and it is the only remaining delta besides that one addiu. Two permuter
 // runs (790 + 30 iterations, base 231) found nothing past it, and screening the
@@ -2019,7 +2019,7 @@ int LibGearGetModelDistance(Model* pModel) {
 // 99.18 (the test's subtract and the store's are still the same pseudo).
 // Round 76: 99.87%, same 464 bytes, instruction multiset identical to retail.
 // The permuter put the range test through a boolean temporary (`inRange`) and
-// that removed the CSE'd `unk58 - 1`; a second block around the 0xFA store
+// that removed the CSE'd `sourceModelSlot - 1`; a second block around the 0xFA store
 // (which jump-optimisation deletes again, but only after cse has seen it) is
 // what moves the four type tests onto the load register. Left in the diff: the
 // 0xFD and 0xFC tests read `a1` here and `v1` in retail, and the range subtract
@@ -2030,11 +2030,11 @@ int LibGearGetModelDistance(Model* pModel) {
 // Round 110 (near-miss park round): three more shapes measured, all re-park at
 // 99.87%/464 bytes. (1) `pModel2 = pModel;` moved above the 0xFE test drops the
 // a1 copy and the body shrinks to 460 bytes/98.58%, so the copy is born from the
-// pModel2->unk58 read in the 0xFD arm and that read must stay first. (2) reading
+// pModel2->sourceModelSlot read in the 0xFD arm and that read must stay first. (2) reading
 // the range test through pModel2 (either with the FD arm on pModel or with the
 // pointer kept only for `pModel2->modelSlot`) makes cse emit a SECOND `lh v1,88(s0)`
 // -> 468 bytes: gcc only folds the pModel2 read into the pModel load when it is
-// the first post-loop read. (3) an `s16 type = pModel->unk58;` local, in place of
+// the first post-loop read. (3) an `s16 type = pModel->sourceModelSlot;` local, in place of
 // the pModel2 read, is cse'd away entirely (no copy, 460 bytes). A fourth
 // permuter run (854 iters, -j 2) from this body found nothing (base=best=15).
 // Conclusion: retail's `a1` is used exactly once, by the range subtract, and its
@@ -2054,7 +2054,7 @@ void func_801E63A8(Model* pModel) {
     Temp3* pObject;
 
     index = 0;
-    if (pModel->unk58 == 0xFF) {
+    if (pModel->sourceModelSlot == 0xFF) {
         for (index = 0; index < 8; index++) {
             if ((pModel->modelBitMask >> index) & 0x1) {
                 break;
@@ -2062,26 +2062,26 @@ void func_801E63A8(Model* pModel) {
         }
     }
 
-    if (pModel->unk58 == 0xFE) {
+    if (pModel->sourceModelSlot == 0xFE) {
         index = g_LibGearCurrentModelIndex;
     }
     pModel2 = pModel;
-    if (pModel2->unk58 == 0xFD) {
+    if (pModel2->sourceModelSlot == 0xFD) {
         index = pModel2->modelSlot;
     }
-    if (pModel->unk58 == 0xFC) {
+    if (pModel->sourceModelSlot == 0xFC) {
         index = pModel->unk21;
     }
-    if (pModel->unk58 == 0xFA) {
+    if (pModel->sourceModelSlot == 0xFA) {
         if (pModel2) {
             index = 0xA;
         } else {
             index = 0xA;
         }
     }
-    inRange = ((u32)(pModel->unk58 - 1)) < 0x7F;
+    inRange = ((u32)(pModel->sourceModelSlot - 1)) < 0x7F;
     if (inRange) {
-        index = pModel->unk58 - 1;
+        index = pModel->sourceModelSlot - 1;
     }
 
     pSource = g_LibGearModels[index];
