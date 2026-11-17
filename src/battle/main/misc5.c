@@ -102,10 +102,12 @@ typedef struct {
 } BattleSlotVarEntry; // Size: 0x170
 
 // One 0x1C-byte entry of the slot record table at D_800C3E9C; only the byte at
-// 0x1B (the entry's high-bit flag) is read here.
+// 0x1B (the entry's high-bit flag) is read here. D_800C3E9C sits 0x18 before the
+// table's tag records at 0x800C3EB4, so this byte is the same one
+// src/battle/main/misc8.c and misc9.c name BattleSlotRecord.flags (record +3).
 typedef struct {
     /* 0x00 */ u8 unk0[0x1B];
-    /* 0x1B */ u8 unk1B;
+    /* 0x1B */ u8 flags;
 } BattleSlotRecord; // Size: 0x1C
 
 extern BattleScreenSlot D_800D3718[];
@@ -315,7 +317,7 @@ u16 BattleSlotWordVarGetSet(u8 slot, u8 reg, u16 value, u8 get) {
 u32 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1) {
     u8 res = 0;
 
-    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
+    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3E9C[arg0].flags == 0) {
         do {
             if ((g_BattleSlotEntries[arg0].flags & 0xC002) == 0) {
                 res = 1;
@@ -352,7 +354,7 @@ u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
 u32 BattleSlotFlagsC000Clear(u8 arg0) {
     u8 res = 0;
 
-    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3E9C[arg0].unk1B == 0) {
+    if (g_BattleSlotEnabledFlags[arg0] != 0 && D_800C3E9C[arg0].flags == 0) {
         res = (g_BattleSlotEntries[arg0].flags & 0xC000) == 0;
     }
     return res;
