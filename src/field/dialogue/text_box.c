@@ -148,8 +148,159 @@ void FieldScriptVMHandlerOpenTextBoxMode3(void) {
     func_8009C5A8(g_FieldCurActorIndex, 3);
 }
 
+int FieldTextBoxCheckPortraitIdAvailable(int targetId);
+extern s32 ArchiveCdDataSync(s32 arg0);
+extern u32 ArchiveDecodeAlignedSize(u32 entryIndex);
+extern void func_80029AFC(void* pRequest, s32 arg1, s32 arg2);
+extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY,
+                                 short clutWidth, short clutHeight);
+
+// The text box can keep three face textures loaded at a time.
+typedef struct {
+    /* 0x0 */ s16 portraitId;
+    /* 0x2 */ s16 state; // 0 = free, 1 = loading, 2 = loaded
+    /* 0x4 */ s16 hasSecondTexture;
+} FieldPortraitSlot; // Size: 0x6
+
+// Where the two TIMs of a portrait go in VRAM; the rectangles are handed
+// straight to FieldLoadTIMWithClut as x/y/clutX/clutY.
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 clutX;
+    /* 0x6 */ s16 clutY;
+    /* 0x8 */ s16 secondX;
+    /* 0xA */ s16 secondY;
+    /* 0xC */ s16 secondClutX;
+    /* 0xE */ s16 secondClutY;
+} FieldPortraitTIMRect; // Size: 0x10
+
+// One archive read; the array of these handed to func_80029AFC ends with a zero entry.
+typedef struct {
+    /* 0x0 */ u16 size;
+    /* 0x2 */ u16 pad2;
+    /* 0x4 */ void* pBuffer;
+} FieldArchiveRequest; // Size: 0x8
+
+extern FieldPortraitSlot D_800B06A4[3];
+extern FieldPortraitTIMRect D_800AEAE4[3];
+extern FieldArchiveRequest D_800B00C8[];
+extern u8 D_800AE1E0[]; // the two archive entry indices of each portrait face
+extern u_long* D_800ADB10;
+extern u_long* D_800ADB14;
+extern s32 D_800ADB0C; // which portrait slot the next allocation starts from
+
 // https://decomp.me/scratch/tL6mE
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C154);
+/* 81.50% (940 of 960 bytes; the structure is complete and in address order,
+   every call, branch and store is in the right place, and the only missing
+   instructions are the ADDRESS ADDS of the two FieldLoadTIMWithClut calls:
+   retail builds `base + i * 0x10` from the table pointer THREE times for the
+   first call (addu v0,s1,s0 / addu v1,s1,s0 / addu t0,s1,s0, loaded at 2/4/6)
+   and four times for the second, plus one walking pointer (s4 = s1, advanced
+   by 0x10) for the first argument of each call, where this body gets ONE addu
+   and reads all four fields off it. `D_800AEAE4[i].x` (a symbolic base) instead
+   gives four `lui $at` macro pairs, i.e. four extra instructions, so the
+   pointer-local form is the closer of the two. Tried: struct array indexed,
+   pointer local indexed (this one), pointer walker for the first field plus
+   indexed for the rest (79.83%, 956 bytes - right size, worse allocation: gcc
+   ran out of s0-s7 and used s8), and the embedded-assignment form
+   (pRect = &pRects[i])->field three times (CSEd back to one addu). gcc 2.7.2
+   CSEs the sum here; retail did not. This is the same shape that holds
+   field/main/main.c FieldLoadUITextures at 87.32%, so it is a known wall in
+   this repo - the rest of the function is ready to un-park if it is solved.
+   Not a preset problem: gcc-2.7.2-cdk scores 65.16 on this function.
+s32 func_8009C154(s32 faceId) {
+    FieldPortraitTIMRect* pRects;
+    u_long* pTimData;
+    void* pBuffer;
+    u8* pEntries;
+    s32 entryIndex;
+    s32 requestIndex;
+    int found;
+    int i;
+
+    pRects = D_800AEAE4;
+    for (i = 0; i < 3; i++) {
+        if (D_800B06A4[i].state == 1) {
+            if (ArchiveCdDataSync(1) != 0) {
+                return -1;
+            }
+
+            D_800B06A4[i].state = 2;
+            FieldLoadTIMWithClut(D_800ADB10, pRects[i].x, pRects[i].y, pRects[i].clutX,
+                pRects[i].clutY, 0x100, 1);
+            if (D_800B06A4[i].hasSecondTexture == 0) {
+                pTimData = D_800ADB10;
+            } else {
+                pTimData = D_800ADB14;
+            }
+            FieldLoadTIMWithClut(pTimData, pRects[i].secondX, pRects[i].secondY,
+                pRects[i].secondClutX, pRects[i].secondClutY, 0x100, 1);
+            return -1;
+        } else if (D_800B06A4[i].state == 2) {
+            HeapFree(D_800ADB10);
+            D_800B06A4[i].state = 0;
+            if (D_800B06A4[i].hasSecondTexture == 1) {
+                HeapFree(D_800ADB14);
+            }
+            return -1;
+        }
+    }
+
+    for (i = 0; i < 3; i++) {
+        if (D_800B06A4[i].portraitId == faceId) {
+            g_FieldScriptVMCurActor->flags12C_0x2 = i;
+            return 0;
+        }
+    }
+
+    found = 0;
+    for (i = 0; i < 3; i++) {
+        D_800ADB0C++;
+        if (D_800ADB0C >= 3) {
+            D_800ADB0C = 0;
+        }
+        if (FieldTextBoxCheckPortraitIdAvailable(D_800B06A4[D_800ADB0C].portraitId) == 0) {
+            found++;
+            break;
+        }
+    }
+
+    if (found == 0) {
+        return -1;
+    }
+
+    g_FieldScriptVMCurActor->flags12C_0x2 = D_800ADB0C;
+    ArchiveSetIndex(4, 0);
+    pEntries = &D_800AE1E0[faceId * 2];
+    D_800B06A4[D_800ADB0C].portraitId = faceId;
+    D_800B06A4[D_800ADB0C].state = 1;
+    D_800B06A4[D_800ADB0C].hasSecondTexture = 0;
+
+    entryIndex = pEntries[0] + 0x46;
+    D_800B00C8[0].size = entryIndex;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 0);
+    D_800ADB10 = pBuffer;
+    D_800B00C8[0].pBuffer = pBuffer;
+
+    requestIndex = 1;
+    if (pEntries[1] != pEntries[0]) {
+        entryIndex = pEntries[1] + 0x46;
+        D_800B06A4[D_800ADB0C].hasSecondTexture = 1;
+        D_800B00C8[1].size = entryIndex;
+        pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 0);
+        D_800ADB14 = pBuffer;
+        D_800B00C8[1].pBuffer = pBuffer;
+        requestIndex = 2;
+    }
+
+    D_800B00C8[requestIndex].size = 0;
+    D_800B00C8[requestIndex].pBuffer = NULL;
+    func_80029AFC(D_800B00C8, 0, 0);
+    return -1;
+}
+*/
 
 // Check if there is a portrait w/ targetId that's free to use?
 int FieldTextBoxCheckPortraitIdAvailable(int targetId) {
