@@ -98,7 +98,7 @@ void BattleExecuteActionRow(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009C4B4);
 void BattleSaveScriptCommandOperands(void) {
-    u16 a = g_BattleTargetSlotState->unk84;
+    u16 a = g_BattleTargetSlotState->activeEffectFlags3;
     u16 b = g_BattleActingSlot->accessoryEffectFlags4;
     u16 c;
 
@@ -126,7 +126,7 @@ void BattleSetSlotBit20FromStatusBit200(u8 arg0) {
     BattleTableEntry *pSlot = &g_BattleWorkBlock[arg0];
     u16 v;
 
-    if (pState->unk80 & 0x200) {
+    if (pState->activeEffectFlags2 & 0x200) {
         v = pSlot->activeEffectFlags3 | 0x20;
     } else {
         v = pSlot->activeEffectFlags3 & 0xFFDF;
@@ -282,7 +282,7 @@ u16 BattleScaleValueByMultiplierByte(void) {
     u32 b;
     s32 n;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
-        f = g_BattleTargetSlotState->unk7C;
+        f = g_BattleTargetSlotState->activeEffectFlags1;
         b = g_BattleTargetSlotState->unk9E;
         if ((f & 0x100) || b == 0) {
             n = 4;
@@ -290,7 +290,7 @@ u16 BattleScaleValueByMultiplierByte(void) {
             n = b;
         }
         ret = n * ret / 4;
-        if ((g_BattleTargetSlotState->unk80 | g_BattleTargetSlotState->unk82) & 0x40) {
+        if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 0x40) {
             ret = ret + ((ret & 0xFFFF) >> 1);
         }
     }
@@ -310,7 +310,7 @@ u16 BattleApplySlotPercentToValue(void) {
         if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
             ret = ret + v;
         }
-        if ((g_BattleCurSlotState->unk80 | g_BattleCurSlotState->unk82) & 0x20) {
+        if ((g_BattleCurSlotState->activeEffectFlags2 | g_BattleCurSlotState->accessoryEffectFlags2) & 0x20) {
             ret = ret + (ret >> 1);
         }
     } else {
@@ -390,7 +390,7 @@ void BattleClearSlotConditionBits(void) {
     BattleSlotState *p = g_BattleCurSlotState;
     BattleTableEntry *q = g_BattleTargetSlotEntry;
 
-    p->unk7C &= 0xF80B;
+    p->activeEffectFlags1 &= 0xF80B;
     q->unk7A &= 0xFFDF;
 }
 s32 BattleGearHasWeaponId(u8 arg0) {
