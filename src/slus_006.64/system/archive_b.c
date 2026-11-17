@@ -96,8 +96,6 @@ void func_800379C8(char* pFormat) {
 void ArchiveNoOp(void) {
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
-
 /* 98.99%, 432 bytes = retail's exact instruction count (108 insns). The queue
    store is SOLVED: with D_8005A1DC declared as a StreamDataQueueEntry[] and the
    first field stored through the pointer taken for the func_80029AFC call, gcc
@@ -125,26 +123,39 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
    nFirstSize local is what fixes the association; retail's temp still lives in
    $a0 only (dead after the call), so it was never a saved local there.
 
-/*
-extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
-extern int ArchiveDecodeSizeAbsolute(int entryIndex);
-extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
+   ROUND 217 UPDATE - 99.68%, still 432 bytes / 108 insns, one allocator tie
+   left. Two things moved it. (1) `if (pFirst)` duplicating the -1 arm (a
+   permuter find, score 105 -> 85) takes the index out of retail's $s0, so the
+   doubled index now lives in a real local `nQueueIndex = nIndex * 2;` and lands
+   in $s0 like retail and both size temps follow: nFirstSize in $a0 (dead),
+   nQueueIndex+6 in $s0+6. (2) The wall is now ONLY pSecond vs the second size
+   temp: retail puts the size temp in $s2 and pSecond in $s1 (`move s1,v0` after
+   the second HeapAlloc), we have them the other way round; the store order,
+   the `addiu s0,s0,7 / addu s0,s0,s4` reuse of the index register and every
+   other instruction already match. Permuter runs from 99.19 (1580 iters,
+   base=85) and 99.68 (1567 iters, base=35) both returned NONE; hand variants
+   also tried without moving it: an explicit `nSecondSize` local, a second
+   do/while(0) around the trailing HeapPinBlock, and declaring nEntryIndex
+   unsigned. Unparking drops the externs above the body - re-add them at file
+   scope.
 
+/*
 extern StreamDataQueueEntry D_8005A1DC[];
 extern void* D_8005A1E0;
 extern u16 D_8005A1E4;
-extern u16 D_8005A1EC;
 extern void* D_8005A1E8;
+extern u16 D_8005A1EC;
 extern void* D_8005A1F0;
 extern void* g_BattleStageData;
 
 int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3) {
     StreamDataQueueEntry* pQueue;
     int nFirstSize;
+    int nQueueIndex;
     void* pFirst;
     void* pSecond;
     int nSectionIndex;
-    int nEntryIndex;
+    unsigned int nEntryIndex;
     int nResult;
     short nCount;
 
@@ -154,23 +165,30 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
     nCount = ArchiveDecodeSizeAbsolute(5);
     if (nIndex >= nCount / 2) {
-        nResult = -1;
-        *pOut1 = 0;
-        *pOut2 = 0;
-        *pOut3 = 0;
+        if (pFirst) {
+            nResult = -1;
+            *pOut1 = 0;
+            *pOut2 = 0;
+            *pOut3 = 0;
+        } else {
+            nResult = -1;
+            *pOut1 = 0;
+            *pOut2 = 0;
+            *pOut3 = 0;
+        }
     } else {
-        nIndex *= 2;
+        nQueueIndex = nIndex * 2;
         do {
             nFirstSize = nBaseIndex + 7;
-            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + nFirstSize), 1);
+            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + nFirstSize), 1);
             HeapPinBlock(pFirst);
-            pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nIndex + 6), 1);
+            pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + 6), 1);
         } while (0);
         HeapPinBlock(pSecond);
         pQueue = D_8005A1DC;
-        (pQueue + 0)->archiveIndex = nIndex + 6;
+        (pQueue + 0)->archiveIndex = nQueueIndex + 6;
         D_8005A1E0 = pSecond;
-        D_8005A1E4 = nIndex + 7 + nBaseIndex;
+        D_8005A1E4 = nQueueIndex + 7 + nBaseIndex;
         D_8005A1E8 = pFirst;
         D_8005A1EC = 0;
         D_8005A1F0 = NULL;
@@ -184,3 +202,4 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     return nResult;
 }
 */
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
