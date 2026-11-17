@@ -205,7 +205,7 @@ typedef struct {
     /* 0x24  */ s16 height;
     /* 0x26  */ s16 width;
     /* 0x28  */ s16 depth;
-    /* 0x2A  */ u8 unk2A;
+    /* 0x2A  */ u8 unk2A[0x1]; // first entry of the 5-byte queue Model::unk2C continues
     /* 0x2B  */ u8 commandCount; // appended model/animation changes, capped at 5
     /* 0x2C  */ u8 unk2C[0x8];
     /* 0x34  */ u8 unk34;
