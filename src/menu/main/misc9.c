@@ -283,7 +283,11 @@ void MenuFitInventoryWindowToItems(void) {
    converting one of these and running check_bin.sh menu settles it in a minute.
    func_801DB920 returns u_char (retail does `andi v0,v0,0xFF` after the call).
    permuter --minutes 5 -j 2 from this body: PERMUTER_BETTER 1337 -> 1257, but the
-   winner is an inline_fn helper (not portable); no lead on the two deltas. */
+   winner is an inline_fn helper (not portable); no lead on the two deltas.
+   Round 176: re-measured 93.91%, 888 bytes against retail 896 (222 vs 224 insns),
+   no source change closes either delta; both are gcc emitting the shorter encoding
+   (the dispatch `beqz` duplicates the loop test's andi in retail, and retail keeps
+   two `selectedSlot = 0xFF` store sites where gcc 2.6.0 cross-jumps them into one). */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 /*
@@ -541,9 +545,19 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    constants do get hoisted (retail `$s7`=1, `$s8`=4): that unit has one live value
    fewer, so the tie goes the other way. Tried: typed MenuUnk430Panel view for the
    case-4 flag byte (fixed that addu's operand order, 94.42 -> 94.46), and moving the
-   `needsOpen = 1` init after the two prologue calls (93.31, worse). Not tried: the
-   permuter (a 5-minute run on the 93.91% func_801DBE54 body found only a bogus
-   inline_fn mutation).
+   `needsOpen = 1` init after the two prologue calls (93.31, worse).
+   Round 176: permute.sh --minutes 4 -j 2 from this body: PERMUTER_BETTER 4368 ->
+   375, but the winner assigns `needsOpen = D_801E97A0[kind][0]` before the window-4
+   call - WRONG CODE (it changes the argument AND kills needsOpen's live range), so
+   not portable. Also measured: moving `active = 1` after `kind = arg2` (retail's
+   prologue order) 93.81; `needsOpen = 1` first 94.46 (identical body); a preheader
+   `s32 mode = 4;` passed as the a7 argument 94.81 but 888 bytes, 4 over retail; a
+   `u_char border = 1;` passed as a6 94.46, identical. The root cause is unchanged
+   and is the allocator's, not the source's: ours hoists BOTH the a6=1 and the a7=4
+   into $s8/$s7, retail rematerialises the 1 per call (`li $t0,1`) and keeps 4 in
+   $fp, which is what leaves $s5 free for needsOpen. Every spelling of the a6
+   argument folds to one (const_int 1) pseudo with four refs, so no source shape
+   changes which constant wins the register.
    JUMP TABLE: this stub owns jtbl_801C512C, which is at +0x30 of the unit's .rodata
    range (config/menu.yaml [0xFC, .rodata, main/misc9]) - func_801DBE54 owns the table
    at +0x00 and func_801E05D0 the one at +0x60, so the three must be converted IN THAT
