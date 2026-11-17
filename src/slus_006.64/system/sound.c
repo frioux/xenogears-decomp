@@ -4305,39 +4305,37 @@ u8* SoundScriptNop5(u8* pScript, AudioManager* pAudioManager, AudioElement* pAud
     return pScript;
 }
 
-// Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 94.84 / 94.84 / 94.84 - not
-// a compiler-only match; the current preset is the best of the three.
-// Attempt (94.84%, same size): the s-register assignment is RIGHT (pScript s1,
-// pAudioElements s2, envelope s0, index s3) because pScript is incremented inside the
-// body (`pScript += 1;` + `return pScript;`) instead of `return pScript + 1;`. Only
-// delta left is the allocator coalescing the increment into the function-value register:
-// gcc emits `addiu v0,s1,1` and then runs the flags/activeEnvelopeMask read-modify-write through
-// v1/a0, where the original increments in place (`addiu s1,s1,1`), uses v0 only for the
-// flags temp, and copies the result at the end (`move v0,s1`). Moving the increment
-// before/after the flags store and the activeEnvelopeMask store does not change it; `return
-// ++pScript` and a separate pNext local both make the coalescing worse.
-// Round 157: 95.31% (was 94.84), from the permuter sweep (165 -> 150): `flags |= new_var;` with
-// `new_var = 0x1` and the mask shift in a `u_short new_var2` split out before the store. A second
-// permuter run from this body found nothing (150 -> 150); the increment is still coalesced into v0
-// instead of `addiu s1,s1,1` + a closing `move v0,s1` - the wall described below, now
-// one instruction with both temps in v1/a0. Structurally stuck: stop permuting.
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
 /*
+Round 190 attempt: 95.31% (124 bytes, the original's size). The prologue, the
+s-register assignment (pScript s1, pAudioElements s2, envelope s0, index s3) and the
+statement order now all match. Two levers got there: the do-while wrapping the two
+closing statements (it looks gratuitous and is not - it is what fixes the
+s-registers; the old 94.84% note already had it as `pScript += 1; return pScript;`),
+and the u16 mask local instead of the shift inline (94.84 -> 95.31).
+What is left is one coalescing: gcc computes the increment into the return register
+(`addiu v0,s1,1`) and never writes s1, which then pushes the post-call temps into
+v1/a0, where retail increments in place (`addiu s1,s1,1`), keeps v0 for the flags
+temp and the mask base and closes with `move v0,s1`. Tried: return pScript + 1,
+pScript += 1 with return pScript, ++pScript, pNext = pScript + 1 returned, the
+increment moved before and after the mask store, and permute.sh twice from this body
+(best 150, reached only with new_var/new_var2 debris). Structurally stuck: stop
+permuting.
 u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    u8 index = pScript[0];
-    unsigned short new_var2;
-    int new_var;
+    u8 index = *pScript;
     AudioEnvelope* pEnvelope = &pAudioElements->envelopes[index];
+    u16 mask;
 
     SoundResetEnvelope(pEnvelope);
-    new_var = 0x1;
-    new_var2 = 1 << index;
-    pEnvelope->flags |= new_var;
-    pScript += 1;
-    pAudioElements->activeEnvelopeMask |= new_var2;
-    return pScript;
-}*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E360);
-
+    pEnvelope->flags |= 0x1;
+    do {
+        mask = 1 << index;
+        pAudioElements->activeEnvelopeMask |= mask;
+        pScript += 1;
+        return pScript;
+    } while (0);
+}
+*/
 
 void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
