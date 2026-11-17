@@ -1769,6 +1769,19 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	: "r"( r0 )						\
 	: "$8", "$9", "$10", "memory" )
 
+/* The stack-passed pointers of the RotTransPers3/4 family, loaded as one group
+   the way retail does: four `lw`s into t0-t3 straight after the GTE command,
+   instead of lazily at each store. Pin the four outputs to $8-$11 in the caller
+   with register variables (see RotTransPers3); with plain "=r" outputs gcc
+   picks v0/v1/a0/a1 and every store that uses them misses. */
+#define gte_ld_arg_ptr4( r0, r1, r2, r3, q0, q1, q2, q3 ) __asm__ volatile (	\
+	"lw	%0, %4;"					\
+	"lw	%1, %5;"					\
+	"lw	%2, %6;"					\
+	"lw	%3, %7"						\
+	: "=r"( q0 ), "=r"( q1 ), "=r"( q2 ), "=r"( q3 )	\
+	: "m"( r0 ), "m"( r1 ), "m"( r2 ), "m"( r3 ) )
+
 /* Flag read and store through an output pointer that arrives on the stack: the
    3.x revision loaded the slot at the point of use, before the cfc2. %1 is the
    incoming slot, %0 the flag value. */
