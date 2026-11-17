@@ -92,6 +92,9 @@ extern WorkListEntry *TimerWorkListAllocateTask();
 extern void TimerWorkListSetTaskCallback();
 extern void WorkListTaskSetOnFreeCallback();
 
+extern u8 *D_800C3BEC;
+extern s32 D_800C3BF0;
+
 u8 *BattleGetFrame(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
 }
@@ -113,18 +116,15 @@ s32 BattleGetPrimitiveBufferSize(BattleModelFrame *pFrame) {
     return total;
 }
 
-// best 62.50% under cdk -G0 (16.67% under 2.7.2 and 2.6.0): same instruction
-// multiset, but gcc loads the counter global first where retail loads the
-// pointer global first, into the register it reuses for the final store.
-/*
+// Advances the primitive cursor by one packet and counts the packet emitted.
 void func_800B16F0(void) {
     u8 *pCmd = D_800C3BEC;
+    u8 size = pCmd[1];
 
     D_800C3BF0 += 1;
-    D_800C3BEC = pCmd + (pCmd[1] + 1) * 4;
+    D_800C3BEC = pCmd + (size + 1) * 4;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B16F0);
+
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1720);
 void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
