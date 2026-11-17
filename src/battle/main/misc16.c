@@ -128,31 +128,31 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     }
     return ret;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
-/* 98.49% and retail's 880 bytes exactly (220 insns). Writing the three inits in
-   retail's order (cursor = 0; lastCursor = 0xFF; state = 2) reproduces retail's
-   prologue positions, and two differences are left:
-   1. s3 and s4 are swapped between `cursor` and the masked copy of arg0 (the
-      andi of the parameter). Retail: cursor = s3, masked arg0 = s4. With
-      `state = 2` first instead, this tie comes out retail's way but then the
-      `sw s7 / li s7,2` pair is emitted at the top of the prologue (98.03%).
-   2. `li s5,0x5C8` (rowOffset = 0x25 * 0x28) is emitted 7 insns earlier than
-      retail's. Retail has [i = 0][andi + 0x170 chain][li s5][codes ptr], so its
-      0x170 computation looks like a source statement rather than a hoisted loop
-      invariant; a `s32 slotOffset = arg0 * 0x170;` statement does put it in
-      retail's place and fixes the s3/s4 tie as a side effect, but the extra
-      local costs a stack slot: 892 bytes.
-   Everything else is instruction-identical: the 4-entry code/damage fill, the
-   status-mask row table read (D_800CCD62[slot].flags, D_800CCD88[slot * 0x170],
-   D_800CEF10 + rowOffset + slot * 0x690 + 0x24), the three func_8008F8F4 call
-   sites, func_800930AC(codes, damage), the menu-event switch (source case order
-   5,4,1,3 reproduces retail's case-body layout) and the five teardown calls.
-   Tried on top of this body: u8/s16/s32 `limit`, u8/s32 `state`, s32
-   `cursorTimer`, 6 declaration orders (limit/state/cursor placed first, timer
-   and lastCursor swapped), the for-init comma assignment for rowOffset, a
-   rowBase local for the row address, and the while-form second loop above. None
-   of them move the s3/s4 tie without changing the frame. Plus the two permuter
-   runs from round 167 on the state-first body.
+/* 99.13% at retail's 880 bytes, up from 98.49% in round 167. Two
+   differences left, both register and constant ties:
+   1. s2 and s3 are swapped between `cursor` and the codes pointer: retail has
+      cursor = s3, codes = s2. Everything else matches (s4 masked arg0, s5 row
+      offset, s6 arg0 * 0x170, s1 damage pointer, s7 the constant 2).
+   2. Retail runs its row offset from 0x5C8 with the base materialised as
+      D_800CEF34; we strength-reduce i * 0x28 from 0 and fold 0x5C8 + 0x24 into
+      the base (D_800CF4FC), so the preheader has `move s5,zero` where retail
+      has `li s5,0x5c8`, and the addu operands come out swapped.
+   The damage read must stay `(0x25 + i) * 0x28` inline in the address. An
+   explicit rowOffset local (for-init or statement before the loop, with or
+   without a rowBase) puts `li s5,0x5c8` at the top of the preheader instead,
+   before the arg0 * 0x170 chain, for 98.49-98.54%; a statement form that also
+   changes the base fold gets 97.13% / 876 bytes. `limit` must stay: writing 4
+   in both places drops to 98.38%.
+   Permuter: base 180 to 170 from a do-while(0) around the
+   BattleStepAnimatedCursorPrim call. That wrapper alone is worth the +0.05% (a
+   plain block is not, and the empty `if (1)` block it also found does nothing);
+   a second 1262-iteration run found no further improvement. The 99.13% body was
+   found by hand afterwards, not by the permuter.
+   Tried earlier (round 167): u8/s16/s32 limit, u8/s32 state, s32 cursorTimer,
+   6 declaration orders, for-init comma assignment, rowBase local, while-form
+   second loop, and `s32 slotOffset = arg0 * 0x170` (fixes the chain position
+   but costs a stack slot, 892 bytes).
+*/
 /*
 u8 func_8008CFB8(u8 arg0) {
     u8 codes[4];
@@ -164,8 +164,6 @@ u8 func_8008CFB8(u8 arg0) {
     u8 limit;
     u8 state;
     s32 cursor;
-    s32 rowOffset;
-    s32 rowBase;
     s32 i;
 
     cursor = 0;
@@ -181,14 +179,12 @@ u8 func_8008CFB8(u8 arg0) {
         codes[i] = 0xFF;
         damage[i] = 0;
     }
-    for (i = 0, rowOffset = 0x25 * 0x28; i < (limit = 4); i++) {
+    for (i = 0; i < (limit = 4); i++) {
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, i) != 0 &&
             (D_800CCD62[arg0].flags & statusMasks[i]) == 0) {
             codes[i] = D_800CCD88[arg0 * 0x170] * 4 + i;
-            rowBase = rowOffset + arg0 * 0x690;
-            damage[i] = *(u16 *)(D_800CEF10 + rowBase + 0x24);
+            damage[i] = *(u16 *)(D_800CEF10 + arg0 * 0x690 + (0x25 + i) * 0x28 + 0x24);
         }
-        rowOffset += 0x28;
     }
     g_BattleDisplayState->primListsPending = 0;
     func_8008F8F4(0, 0x74, 0xA0, 0xAC, 0x38, 0, 1);
@@ -201,7 +197,7 @@ u8 func_8008CFB8(u8 arg0) {
             BattleDrawCharStatusIfMaskUnset(arg0, cursor);
             lastCursor = cursor;
         }
-        BattleStepAnimatedCursorPrim(0x8C, cursor * 0x10 + 0x58, &cursorFrame, &cursorTimer);
+        do { BattleStepAnimatedCursorPrim(0x8C, cursor * 0x10 + 0x58, &cursorFrame, &cursorTimer); } while (0);
         BattleUpdateFrame();
         switch (g_BattleMenuEvent) {
         case 5:
@@ -236,6 +232,7 @@ u8 func_8008CFB8(u8 arg0) {
     return state;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008CFB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D328);
 /* 96.12% (620 bytes against retail's 624). The address ASSOCIATION of the
    u16 |= store is the lever: written offset-chain first and gfx base last,
