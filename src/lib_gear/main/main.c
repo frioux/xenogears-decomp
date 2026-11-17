@@ -102,9 +102,9 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
     pSkeleton[0].translation.x = 0;
     pSkeleton[0].translation.y = 0;
     pSkeleton[0].translation.z = 0;
-    pSkeleton[0].unk70 = 0;
-    pSkeleton[0].unk74 = 0;
-    pSkeleton[0].unk78 = 0;
+    pSkeleton[0].pRotationObject = 0;
+    pSkeleton[0].pTranslationObject = 0;
+    pSkeleton[0].pScaleObject = 0;
   
     while (jointIndex < pModel->numParts || jointIndex == 0xFFFF) {
         if (parentIndex == 0xFFFF) {
@@ -151,9 +151,9 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
         pCurJoint->translation.x = 0;
         pCurJoint->translation.y = 0;
         pCurJoint->translation.z = 0;
-        pCurJoint->unk70 = 0;
-        pCurJoint->unk74 = 0;
-        pCurJoint->unk78 = 0;
+        pCurJoint->pRotationObject = 0;
+        pCurJoint->pTranslationObject = 0;
+        pCurJoint->pScaleObject = 0;
         
         pCurJoint++;
         pCurJointEntry++;
@@ -435,8 +435,8 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
     u16 rotFrame = 0;
     u16 transFrame = 0;
     s16 blockType = pBlock->unk6;
-    u16 numRotFrames = pBlock->unkC;
-    u16 numTransFrames = pBlock->unkE;
+    u16 numRotFrames = pBlock->numRotFrames;
+    u16 numTransFrames = pBlock->numTransFrames;
     u16 flags = pBlock->flags;
     s16* pKeyframe = (s16*)(pBlock + 1);
     u16 count;
@@ -460,7 +460,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
             z = *pKeyframe++;
             rotFrame++;
             if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
-                if (pJoint->unk70 == 0 || ((Temp3*)pJoint->unk70)->type != 0xFF) {
+                if (pJoint->pRotationObject == 0 || ((Temp3*)pJoint->pRotationObject)->type != 0xFF) {
                     pJoint->rotation.vx = x;
                     pJoint->rotation.vy = y;
                     pJoint->rotation.vz = z;
@@ -476,7 +476,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
             z = *pKeyframe++;
             transFrame++;
             if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
-                if (pJoint->unk74 == 0 || ((Temp3*)pJoint->unk74)->type != 0xFF) {
+                if (pJoint->pTranslationObject == 0 || ((Temp3*)pJoint->pTranslationObject)->type != 0xFF) {
                     pJoint->translation.x = x;
                     pJoint->translation.y = y;
                     pJoint->translation.z = z;
@@ -495,19 +495,19 @@ void LibGearReleaseJointObjects(Temp4* pList, ModelJoint* pSkeleton, s32 index, 
     if (index < pSkeleton->numChildren) {
         pSkeleton += index;
 
-        if (pSkeleton->unk70 != NULL && (flags & 0x1)) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
-            pSkeleton->unk70 = 0;
+        if (pSkeleton->pRotationObject != NULL && (flags & 0x1)) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
+            pSkeleton->pRotationObject = 0;
         }
 
-        if (pSkeleton->unk74 != NULL && (flags & 0x2)) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
-            pSkeleton->unk74 = 0;
+        if (pSkeleton->pTranslationObject != NULL && (flags & 0x2)) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
+            pSkeleton->pTranslationObject = 0;
         }
 
-        if (pSkeleton->unk78 != NULL && (flags & 0x4)) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
-            pSkeleton->unk78 = 0;
+        if (pSkeleton->pScaleObject != NULL && (flags & 0x4)) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
+            pSkeleton->pScaleObject = 0;
         }
     }
 }
@@ -628,10 +628,10 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         return 1;
     }
 
-    numRotFrames = pBlock->unkC;
+    numRotFrames = pBlock->numRotFrames;
     numChildren = pSkeleton->numChildren;
     count = numChildren;
-    numTransFrames = pBlock->unkE;
+    numTransFrames = pBlock->numTransFrames;
     blockFlags = pBlock->flags;
     flag1 = flags & 0x1;
 
@@ -639,7 +639,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         count = numRotFrames + 1;
     }
 
-    frame = pBlock->unk2;
+    frame = pBlock->endFrame;
     if (!flag1) {
         frame--;
     }
@@ -656,7 +656,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     pJoint = pSkeleton;
     for (i = 0; i < count; i++) {
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->unk70;
+            pObject = (Temp3*)pJoint->pRotationObject;
             if (pObject == NULL) {
                 pObject = LibGearAllocJointObject(pList);
             } else if (pObject->type == 0xFF) {
@@ -667,16 +667,16 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->unk1 = flag1;
                 pObject->type = type;
                 pObject->opcode = ((u8*)pKeyframe)[4];
-                pObject->unk10 = 0;
+                pObject->curFrame = 0;
                 pObject->endFrame = frame;
-                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
-                pJoint->unk70 = (u32)pObject;
+                *(u32*)&pObject->startX = *(u32*)&pObject->startZ = (u32)(pVertexData + pKeyframe[0]);
+                pJoint->pRotationObject = (u32)pObject;
             }
         } else {
-            pObject = (Temp3*)pJoint->unk70;
+            pObject = (Temp3*)pJoint->pRotationObject;
             if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
                 LibGearFreeJointObject(pList, (s8*)pObject);
-                pJoint->unk70 = 0;
+                pJoint->pRotationObject = 0;
             }
         }
     next1:
@@ -684,7 +684,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         pKeyframe++;
 
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->unk74;
+            pObject = (Temp3*)pJoint->pTranslationObject;
             if (pObject == NULL) {
                 pObject = LibGearAllocJointObject(pList);
             } else if (pObject->type == 0xFF) {
@@ -695,16 +695,16 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->unk1 = flag1;
                 pObject->type = type;
                 pObject->opcode = ((u8*)pKeyframe)[4];
-                pObject->unk10 = 0;
+                pObject->curFrame = 0;
                 pObject->endFrame = frame;
-                *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
-                pJoint->unk74 = (u32)pObject;
+                *(u32*)&pObject->startX = *(u32*)&pObject->startZ = (u32)(pVertexData + pKeyframe[0]);
+                pJoint->pTranslationObject = (u32)pObject;
             }
         } else {
-            pObject = (Temp3*)pJoint->unk74;
+            pObject = (Temp3*)pJoint->pTranslationObject;
             if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
                 LibGearFreeJointObject(pList, (s8*)pObject);
-                pJoint->unk74 = 0;
+                pJoint->pTranslationObject = 0;
             }
         }
     next2:
@@ -768,16 +768,16 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     }
 
     flag1 = flags & 0x1;
-    numRotFrames = pBlock->unkC;
+    numRotFrames = pBlock->numRotFrames;
     rotFrame = 0;
     count = pSkeleton->numChildren;
     if (numRotFrames + 1 < count) {
         count = numRotFrames + 1;
     }
-    numTransFrames = pBlock->unkE;
+    numTransFrames = pBlock->numTransFrames;
     transFrame = 0;
 
-    frame = pBlock->unk2;
+    frame = pBlock->endFrame;
     if (flag1 == 0) {
         frame--;
     }
@@ -796,7 +796,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     pJoint = pSkeleton;
     for (i = 0; i < count; i++) {
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->unk70;
+            pObject = (Temp3*)pJoint->pRotationObject;
             if (pObject != NULL) {
                 if (pObject->type == 0xFF) {
                     goto skipRot;
@@ -819,12 +819,12 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->unk1 = flag1;
                 pObject->type = type;
                 pObject->opcode = ((u8*)&pKeyframe[2])[0];
-                pObject->unk10 = 0;
+                pObject->curFrame = 0;
                 pObject->endFrame = frame;
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
-                *(u32*)&pObject->unk4 = pVertex;
-                *(u32*)&pObject->unk8 = pVertex;
-                pJoint->unk70 = (u32)pObject;
+                *(u32*)&pObject->startX = pVertex;
+                *(u32*)&pObject->startZ = pVertex;
+                pJoint->pRotationObject = (u32)pObject;
             }
         } else {
         skipRot:
@@ -837,7 +837,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         pKeyframe++;
 
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->unk74;
+            pObject = (Temp3*)pJoint->pTranslationObject;
             if (pObject != NULL) {
                 if (pObject->type == 0xFF) {
                     goto skipTrans;
@@ -859,12 +859,12 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->unk1 = flag1;
                 pObject->type = type;
                 pObject->opcode = ((u8*)&pKeyframe[2])[1];
-                pObject->unk10 = 0;
+                pObject->curFrame = 0;
                 pObject->endFrame = frame;
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
-                *(u32*)&pObject->unk4 = pVertex;
-                *(u32*)&pObject->unk8 = pVertex;
-                pJoint->unk74 = (u32)pObject;
+                *(u32*)&pObject->startX = pVertex;
+                *(u32*)&pObject->startZ = pVertex;
+                pJoint->pTranslationObject = (u32)pObject;
             }
         } else {
         skipTrans:
@@ -888,19 +888,19 @@ void LibGearReleaseSkeletonObjects(Temp4* pList, ModelJoint* pSkeleton) {
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
-        if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
-            pSkeleton->unk70 = 0;
+        if (pSkeleton->pRotationObject != 0 && ((Temp3*)pSkeleton->pRotationObject)->type != 0xFF) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
+            pSkeleton->pRotationObject = 0;
         }
 
-        if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
-            pSkeleton->unk74 = 0;
+        if (pSkeleton->pTranslationObject != 0 && ((Temp3*)pSkeleton->pTranslationObject)->type != 0xFF) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
+            pSkeleton->pTranslationObject = 0;
         }
 
-        if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
-            pSkeleton->unk78 = 0;
+        if (pSkeleton->pScaleObject != 0 && ((Temp3*)pSkeleton->pScaleObject)->type != 0xFF) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
+            pSkeleton->pScaleObject = 0;
         }
 
         pSkeleton++;
@@ -912,19 +912,19 @@ void LibGearReleaseSkeletonObjectsByType(Temp4* pList, ModelJoint* pSkeleton, u8
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
-        if (pSkeleton->unk70 != 0 && ((Temp3*)pSkeleton->unk70)->type == type) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk70);
-            pSkeleton->unk70 = 0;
+        if (pSkeleton->pRotationObject != 0 && ((Temp3*)pSkeleton->pRotationObject)->type == type) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
+            pSkeleton->pRotationObject = 0;
         }
 
-        if (pSkeleton->unk74 != 0 && ((Temp3*)pSkeleton->unk74)->type == type) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk74);
-            pSkeleton->unk74 = 0;
+        if (pSkeleton->pTranslationObject != 0 && ((Temp3*)pSkeleton->pTranslationObject)->type == type) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
+            pSkeleton->pTranslationObject = 0;
         }
 
-        if (pSkeleton->unk78 != 0 && ((Temp3*)pSkeleton->unk78)->type == type) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->unk78);
-            pSkeleton->unk78 = 0;
+        if (pSkeleton->pScaleObject != 0 && ((Temp3*)pSkeleton->pScaleObject)->type == type) {
+            LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
+            pSkeleton->pScaleObject = 0;
         }
 
         pSkeleton++;
@@ -1045,7 +1045,7 @@ void LibGearRenderVertices(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg
         pVertex->polys[renderCtx].g0 = pVertex->green >> 6;
         pVertex->polys[renderCtx].b0 = pVertex->blue >> 6;
         
-        if (pVertex->unkE == 0) {
+        if (pVertex->is3D == 0) {
             setXY4(
                 &pVertex->polys[renderCtx],
                 pVertex->x0, pVertex->y0,
@@ -1295,7 +1295,7 @@ s16 func_801E1258(Temp8* pTexture, s32 frameStep) {
             for (y = 0; y < dstRect.h; y++) {
                 for (x = 0; x < dstRect.w; x++) {
                     pDst = pDstBase + dstRect.x + x;
-                    pSrc = (u16*)pTexture->pUnk1C + 3 * (srcRect.y + y) + (srcRect.x + x);
+                    pSrc = (u16*)pTexture->pRows + 3 * (srcRect.y + y) + (srcRect.x + x);
                     pDst[(dstRect.y + y) * pSource->rect.w] = *pSrc;
                 }
             }
@@ -1338,7 +1338,7 @@ void LibGearFadeTexturePixels(Temp8* pTexture, s16 scale) {
 
     for (y = 0; y < pTexture->rect.h; y++) {
         for (x = 0; x < pTexture->rect.w; x++) {
-            pDst = (s16*)pTexture->pUnk1C + 3 * (pTexture->rect.y + y);
+            pDst = (s16*)pTexture->pRows + 3 * (pTexture->rect.y + y);
             pDst[pTexture->rect.x + x] = (*pSrc * scale) / 0x20;
             pSrc++;
         }
@@ -1354,7 +1354,7 @@ void LibGearBlendTexturePixels(Temp8* pTexture, s16 scale) {
 
     for (y = 0; y < pTexture->rect.h; y++) {
         for (x = 0; x < pTexture->rect.w; x++) {
-            pDst = (s16*)pTexture->pUnk1C + 3 * (pTexture->rect.y + y);
+            pDst = (s16*)pTexture->pRows + 3 * (pTexture->rect.y + y);
             pDst[pTexture->rect.x + x] = *pDelta + (*pSrc - *pDelta) * scale / 0x20;
             pSrc++;
             pDelta++;
@@ -1456,14 +1456,14 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 one = 1;
 
     pModel->frame = negOne;
-    pModel->unk3C = 0xFFFF;
+    pModel->objectType = 0xFFFF;
     pModel->parentModelSlot = 0xFF;
     pModel->unk39 = 0x6B;
-    pModel->unk8 = arg2;
+    pModel->pAnimTable = arg2;
     pModel->unkC = 0;
-    pModel->unk10 = 0;
-    pModel->unk14 = (Temp7**)arg3;
-    pModel->unk18 = NULL;
+    pModel->animValue = 0;
+    pModel->pEntryTableLow = (Temp7**)arg3;
+    pModel->pEntryTableHigh = NULL;
     pModel->commandCount = 0;
     pModel->unk58 = 0;
     pModel->unk35 = 0;
@@ -1498,12 +1498,12 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
             }
 
             pModel->unk2A[pModel->commandCount] = pSource->modelSlot;
-            pModel->unk2C[pModel->commandCount + 2] = arg3;
+            pModel->commandArgs[pModel->commandCount] = arg3;
         } else {
             if (arg3 < 0x50) {
-                pModel->unk10 = ((u32*)pSource->unk8)[arg3];
+                pModel->animValue = ((u32*)pSource->pAnimTable)[arg3];
             } else {
-                pModel->unk10 = ((u32*)((Temp8*)pSource->unkC)->pUnk4)[arg3 - 0x4E];
+                pModel->animValue = ((u32*)((Temp8*)pSource->unkC)->pUnk4)[arg3 - 0x4E];
             }
 
             pModel->unk42 = 0;
@@ -1525,7 +1525,7 @@ s32 LibGearStepModelAnimation(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 
     if (pModel->pMesh != NULL) {
         result = 0;
 
-        if (pModel->unk34) {
+        if (pModel->doUpdate) {
             LibGearApplyGroundHeight(pModel);
 
             if (pModel->unk37) {
@@ -1535,7 +1535,7 @@ s32 LibGearStepModelAnimation(Model* pModel, s32 arg1, s32 count, s32 arg3, s32 
             }
 
             for (i = 0; i < count; i++) {
-                result |= func_801DDBF8(arg1, pModel->pSkeleton, pModel->unk3C, pModel->scale);
+                result |= func_801DDBF8(arg1, pModel->pSkeleton, pModel->objectType, pModel->scale);
                 func_801E5D44(pModel, arg1, arg3);
             }
         }
@@ -1552,10 +1552,10 @@ void LibGearUpdateModelAttachment(Model* pModel) {
 
     if (g_LibGearModels[pModel->parentModelSlot] != NULL) {
         if (!(pModel->flags & 0x10)) {
-            pModel->unk34 = g_LibGearModels[pModel->parentModelSlot]->unk34;
+            pModel->doUpdate = g_LibGearModels[pModel->parentModelSlot]->doUpdate;
         }
 
-        if (pModel->unk34 == 0) {
+        if (pModel->doUpdate == 0) {
             return;
         }
 
@@ -1617,10 +1617,10 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
         return;
     }
 
-    if (pJoint->unk70 == NULL) {
+    if (pJoint->pRotationObject == NULL) {
         pObject = LibGearAllocJointObject(pList);
     } else {
-        pObject = (Temp3*)pJoint->unk70;
+        pObject = (Temp3*)pJoint->pRotationObject;
     }
 
     if (pObject != NULL) {
@@ -1629,31 +1629,31 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
         pObject->opcode = 3;
         pObject->type = 0xFE;
 
-        pObject->unk4 = pJoint->rotation.vx;
-        pObject->unk6 = pJoint->rotation.vy;
-        pObject->unk8 = pJoint->rotation.vz;
+        pObject->startX = pJoint->rotation.vx;
+        pObject->startY = pJoint->rotation.vy;
+        pObject->startZ = pJoint->rotation.vz;
 
         x = (x - pJoint->rotation.vx) & 0xFFF;
         if (x >= 0x800) {
             x -= 0x1000;
         }
-        pObject->unkA = x;
+        pObject->targetX = x;
 
         y = (y - pJoint->rotation.vy) & 0xFFF;
         if (y >= 0x800) {
             y -= 0x1000;
         }
-        pObject->unkC = y;
+        pObject->targetY = y;
 
         z = (z - pJoint->rotation.vz) & 0xFFF;
         if (z >= 0x800) {
             z -= 0x1000;
         }
-        pObject->unkE = z;
+        pObject->targetZ = z;
 
-        pObject->unk10 = 0;
+        pObject->curFrame = 0;
         pObject->endFrame = numFrames;
-        pJoint->unk70 = (u32)pObject;
+        pJoint->pRotationObject = (u32)pObject;
     }
 }
 
@@ -1663,10 +1663,10 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
     int dy;
     int dz;
 
-    if (pJoint->unk70 == NULL) {
+    if (pJoint->pRotationObject == NULL) {
         pObject = LibGearAllocJointObject(pList);
     } else {
-        pObject = (Temp3*)pJoint->unk70;
+        pObject = (Temp3*)pJoint->pRotationObject;
     }
 
     if (pObject != NULL) {
@@ -1679,16 +1679,16 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
         dy = y - pJoint->translation.y;
         dz = z - pJoint->translation.z;
 
-        pObject->unk4 = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
-        pObject->unk6 = arg3;
-        pObject->unk8 = arg4;
-        pObject->unkA = x;
-        pObject->unkC = y;
-        pObject->unkE = z;
-        pObject->unk10 = 0;
+        pObject->startX = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
+        pObject->startY = arg3;
+        pObject->startZ = arg4;
+        pObject->targetX = x;
+        pObject->targetY = y;
+        pObject->targetZ = z;
+        pObject->curFrame = 0;
         pObject->endFrame = arg5;
 
-        pJoint->unk70 = (u32)pObject;
+        pJoint->pRotationObject = (u32)pObject;
     }
 }
 
@@ -2109,7 +2109,7 @@ void func_801E63A8(Model* pModel) {
     SetRotMatrix(pMatrix);
     SetTransMatrix(pMatrix);
 
-    gte_ldv0((SVECTOR*)&pModel->unk62[2]);
+    gte_ldv0((SVECTOR*)&pModel->localX);
     gte_mvmva(1, 0, 0, 0, 0);
     gte_stlvnl(value);
 
@@ -2117,12 +2117,12 @@ void func_801E63A8(Model* pModel) {
     pModel->posY = value[2];
     pModel->posZ = value[4];
 
-    pObject = (Temp3*)pModel->pSkeleton->unk70;
+    pObject = (Temp3*)pModel->pSkeleton->pRotationObject;
     if (pObject != NULL) {
         if ((u32)(pObject->opcode - 7) < 2) {
-            pObject->unkA = value[0];
-            pObject->unkC = value[2];
-            pObject->unkE = value[4];
+            pObject->targetX = value[0];
+            pObject->targetY = value[2];
+            pObject->targetZ = value[4];
         }
     }
 }
@@ -2174,12 +2174,12 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
     pJoint->unk7 = 0;
     pTarget->unk7 = 1;
 
-    LibGearFreeJointObject(pList, (s8*)pJoint->unk70);
-    pJoint->unk70 = 0;
-    LibGearFreeJointObject(pList, (s8*)pJoint->unk74);
-    pJoint->unk74 = 0;
-    LibGearFreeJointObject(pList, (s8*)pJoint->unk78);
-    pJoint->unk78 = 0;
+    LibGearFreeJointObject(pList, (s8*)pJoint->pRotationObject);
+    pJoint->pRotationObject = 0;
+    LibGearFreeJointObject(pList, (s8*)pJoint->pTranslationObject);
+    pJoint->pTranslationObject = 0;
+    LibGearFreeJointObject(pList, (s8*)pJoint->pScaleObject);
+    pJoint->pScaleObject = 0;
 
     for (i = 1; i < numChildren; i++) {
         pChild++;
@@ -2285,9 +2285,9 @@ void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
     }
 
     if (index >= 0x40) {
-        pResult = pModel->unk18[index - 0x3F];
+        pResult = pModel->pEntryTableHigh[index - 0x3F];
     } else {
-        pResult = pModel->unk14[index + 1];
+        pResult = pModel->pEntryTableLow[index + 1];
     }
 
     return pResult;
@@ -2325,11 +2325,11 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
     s32 i;
 
     if (channel == 0) {
-        pObject = (Temp3*)pJoint->unk70;
+        pObject = (Temp3*)pJoint->pRotationObject;
     } else if (channel == 1) {
-        pObject = (Temp3*)pJoint->unk74;
+        pObject = (Temp3*)pJoint->pTranslationObject;
     } else {
-        pObject = (Temp3*)pJoint->unk78;
+        pObject = (Temp3*)pJoint->pScaleObject;
     }
 
     if (pObject == NULL) {
@@ -2384,44 +2384,44 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
         offBaseZ = 0;
     }
 
-    pObject->unk4 = posX + baseX;
-    pObject->unk6 = posY + baseY;
-    pObject->unk8 = posZ + baseZ;
+    pObject->startX = posX + baseX;
+    pObject->startY = posY + baseY;
+    pObject->startZ = posZ + baseZ;
 
     if (arg4 == 0) {
-        pObject->unkA = offX + offBaseX - pObject->unk4;
-        pObject->unkC = offY + offBaseY - pObject->unk6;
-        pObject->unkE = offZ + offBaseZ - pObject->unk8;
+        pObject->targetX = offX + offBaseX - pObject->startX;
+        pObject->targetY = offY + offBaseY - pObject->startY;
+        pObject->targetZ = offZ + offBaseZ - pObject->startZ;
     } else {
-        pObject->unkA = offX + offBaseX;
-        pObject->unkC = offY + offBaseY;
-        pObject->unkE = offZ + offBaseZ;
+        pObject->targetX = offX + offBaseX;
+        pObject->targetY = offY + offBaseY;
+        pObject->targetZ = offZ + offBaseZ;
     }
 
-    pObject->unk10 = 0;
+    pObject->curFrame = 0;
     pObject->endFrame = arg13;
 
     if (channel == 0) {
         if (arg4 < 2) {
-            pJoint->rotation.vx = pObject->unk4;
-            pJoint->rotation.vy = pObject->unk6;
-            pJoint->rotation.vz = pObject->unk8;
+            pJoint->rotation.vx = pObject->startX;
+            pJoint->rotation.vy = pObject->startY;
+            pJoint->rotation.vz = pObject->startZ;
         }
-        pJoint->unk70 = (u32)pObject;
+        pJoint->pRotationObject = (u32)pObject;
     } else if (channel == 1) {
         if (arg4 < 2) {
-            pJoint->translation.x = pObject->unk4;
-            pJoint->translation.y = pObject->unk6;
-            pJoint->translation.z = pObject->unk8;
+            pJoint->translation.x = pObject->startX;
+            pJoint->translation.y = pObject->startY;
+            pJoint->translation.z = pObject->startZ;
         }
-        pJoint->unk74 = (u32)pObject;
+        pJoint->pTranslationObject = (u32)pObject;
     } else {
         if (arg4 < 2) {
-            pJoint->scale.vx = pObject->unk4;
-            pJoint->scale.vy = pObject->unk6;
-            pJoint->scale.vz = pObject->unk8;
+            pJoint->scale.vx = pObject->startX;
+            pJoint->scale.vy = pObject->startY;
+            pJoint->scale.vz = pObject->startZ;
         }
-        pJoint->unk78 = (u32)pObject;
+        pJoint->pScaleObject = (u32)pObject;
     }
 
     if (flags & 0x80) {
@@ -2736,7 +2736,7 @@ void LibGearFreeModel(s32 modelIndex) {
         LibGearFreeModelMesh(g_LibGearModels[modelIndex]->pMesh, 1);
     }
 
-    if (g_LibGearModels[modelIndex]->unk62[0] != 0) {
+    if (g_LibGearModels[modelIndex]->hasSedsEntry != 0) {
         SoundRemoveSedsEntry(((Temp8*)g_LibGearModels[modelIndex]->unkB0)->pUnk8);
     }
 
