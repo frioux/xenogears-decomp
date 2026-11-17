@@ -1099,7 +1099,9 @@ int WorldMapInitGroup10Actor(int idx) {
 }
 
 int WorldMapUpdateGroup10Actor(int idx) {
-    // byte view of the player slot, for the reason given in WorldMapUpdateGroup9Actor
+    // byte view of the player slot, for the reason given in WorldMapUpdateGroup9Actor;
+    // a typed pointer gives 82.99% (340 bytes against retail's 348): gcc hoists the
+    // third position load and the call's constants above the scratchpad stores
     u8 *pPlayer = (u8 *)g_WorldMapSlots + (idx << 7);
     WorldMapSceneLayer *pLayer = g_WorldMapGroups;
 
