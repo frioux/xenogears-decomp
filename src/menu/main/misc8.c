@@ -246,7 +246,7 @@ void MenuDrawStatTable(s32 arg0, u_char arg1, s32 arg2, s32 arg3) {
     func_801D7F50(width, height, value);
     func_801D8644(arg0, width, height, arg2, value);
     g_Menu->pManager->shouldRenderUnk35C = 1;
-    g_Menu->unk35C->unk32F1 = *(u_char*)&g_Menu->renderContext;
+    g_Menu->unk35C->renderContext = *(u_char*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
 /* 84.26%. Same instruction multiset; gcc lays the `arg2` if/else out the

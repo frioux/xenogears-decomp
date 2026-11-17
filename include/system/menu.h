@@ -466,12 +466,14 @@ typedef struct {
 
 typedef struct {
     /* 0x0000 */ u8 unk0[0x32F1];
-    /* 0x32F1 */ u8 unk32F1; // Copy of SystemMenu::renderContext
+    /* 0x32F1 */ u8 renderContext; // Copy of SystemMenu::renderContext
 } MenuUnk10; // Size: 0x32F2
 
 // Second selection-menu-like object (0x1198 bytes, freed on menu exit)
 typedef struct {
-    /* 0x0000 */ u8 unk0[0x1180];
+    /* 0x0000 */ MenuString itemNameStrings[0x10]; // Item name of each inventory row, left column
+    /* 0x0800 */ MenuString itemQuantityStrings[0x10]; // Two-digit quantity of each inventory row, right column
+    /* 0x1000 */ MenuString primGroupStrings[0x3]; // The three strings gated by shouldRenderPrimGroup
     /* 0x1180 */ void* pVramBuffer;
     /* 0x1184 */ u8 shouldRenderRows[0x10];
     /* 0x1194 */ u8 shouldRenderPrimGroup;
@@ -483,7 +485,7 @@ typedef struct {
     /* 0x0000 */ MenuString unk0[8];
     /* 0x0400 */ MenuString unk400[8];
     /* 0x0800 */ MenuString unk800;
-    /* 0x0880 */ MenuString unk880[3];
+    /* 0x0880 */ MenuString itemNameStrings[3]; // The three lines of one item's name
     /* 0x0A00 */ void* pStringLists[4];
     /* 0x0A10 */ u8 shouldRenderRows[8];
     /* 0x0A18 */ u8 shouldRenderStrings880[3];
@@ -660,7 +662,7 @@ typedef struct {
     /* 0x46A7 */ u8 shouldRenderItemDesc;
     /* 0x46A8 */ u8 equipMarkRenderCtx;
     /* 0x46A9 */ u8 equipMarkPrimCount;
-    /* 0x56AA */ u_char explanationsRenderCtx;
+    /* 0x46AA */ u_char explanationsRenderCtx;
     /* 0x46AB */ u_char explanationsLen;
     /* 0x46AC */ u_char goldBeforeRenderCtx;
     /* 0x46AD */ u_char goldBeforeStrLen;
