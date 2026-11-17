@@ -489,7 +489,225 @@ void BattleSetVertexYForFlipped(s32 flag, u16* pDst, s32 value) {
     }
 }
 
+// Packet word store, as include/system/font.h's setXY0Fast / setUV0Fast family.
+#define Misc10SetXY0(p, _x0, _y0) *(s32*)&(p)->x0 = (_x0) | ((_y0) << 0x10)
+#define Misc10SetXY1(p, _x1, _y1) *(s32*)&(p)->x1 = (_x1) | ((_y1) << 0x10)
+#define Misc10SetXY2(p, _x2, _y2) *(s32*)&(p)->x2 = (_x2) | ((_y2) << 0x10)
+#define Misc10SetXY3(p, _x3, _y3) *(s32*)&(p)->x3 = (_x3) | ((_y3) << 0x10)
+#define Misc10SetUV0(p, _u0, _v0) *(u16*)&(p)->u0 = (_u0) | ((_v0) << 0x8)
+#define Misc10SetRGBC(p, _r0, _g0, _b0, _code) \
+    *(s32*)&(p)->r0 = (_r0) | ((_g0) << 0x8) | ((_b0) << 0x10) | ((_code) << 0x18)
+
+// The two 0x310-byte gauge draw environments that src/battling/main/misc11.c's
+// BattleInitDrawEnvPair fills through func_80085EC8 and then swaps between. Every
+// entry is a GPU packet template: the DMA word count in tag byte 3, the colour and
+// primitive code word, then the vertex pairs the offset table D_800917F4 fills in.
+typedef struct {
+    /* 0x00 */ u8 pad00[0x3];
+    /* 0x03 */ u8 len;
+    /* 0x04 */ u8 r0, g0, b0, code;
+    /* 0x08 */ u16 x0, y0;
+    /* 0x0C */ u16 x1, y1;
+    /* 0x10 */ u16 x2, y2;
+    /* 0x14 */ u16 x3, y3;
+} Misc10Quad; // Size: 0x18
+
+// A gauge segment: the same packet with three vertex pairs.
+typedef struct {
+    /* 0x00 */ u8 pad00[0x3];
+    /* 0x03 */ u8 len;
+    /* 0x04 */ u8 r0, g0, b0, code;
+    /* 0x08 */ u16 x0, y0;
+    /* 0x0C */ u16 x1, y1;
+    /* 0x10 */ u16 x2, y2;
+} Misc10Triangle; // Size: 0x14
+
+// A background quad followed by the far corner pair the init code stamps.
+typedef struct {
+    /* 0x00 */ Misc10Quad quad;
+    /* 0x18 */ u32 unk18;
+} Misc10BackgroundQuad; // Size: 0x1C
+
+typedef struct {
+    /* 0x000 */ DR_TPAGE tpage[2];
+    /* 0x010 */ Misc10BackgroundQuad background[4];
+    /* 0x080 */ Misc10Quad barPrim[6];
+    /* 0x110 */ DR_TPAGE barTpage;
+    /* 0x118 */ Misc10Quad barFront[6];
+    /* 0x1A8 */ Misc10Quad barBack[6];
+    /* 0x238 */ Misc10Triangle gauge[3];
+    /* 0x274 */ Misc10Triangle gaugeMirror[3];
+    /* 0x2B0 */ Misc10Quad meter[4];
+} Misc10GaugeEnv; // Size: 0x310
+
+// The vertex offsets the packets above are filled from: eight halfword pairs.
+extern u16 D_800917F4[];
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80085EC8);
+
+/* 95.39%, retail's exact 1516 bytes, 6 shapes. Everything in the body is
+   instruction-for-instruction retail except register naming: the D_800917F4
+   offset bases get s1/s2/s3 where retail has s3/s1/s2 (+0xC is the first
+   defined and retail gives it s3), the meter[2]/meter[3] constant block is
+   hoisted in retail's order but into different registers, and the gauge loop
+   hoists the src.x0 load above src.y0/y1 where retail leaves it third. The
+   loop shape that got the exact size was gauge[3] + gaugeMirror[3] (one biv,
+   offsets 576/636 off pEnv); gauge[6] with gauge[i+3] makes a second giv
+   (+4 bytes) and a walking pointer re-bases onto pEnv+0x284 (+0 bytes).
+void func_80085EC8(Misc10GaugeEnv* pEnv) {
+    s32 i;
+
+    SetDrawTPage(&pEnv->tpage[0], 0, 1, (u16)GetTPage(0, 2, 0, 0));
+    SetDrawTPage(&pEnv->tpage[1], 0, 0, (u16)GetTPage(0, 1, 0, 0));
+
+    pEnv->background[0].quad.len = 6;
+    Misc10SetRGBC(&pEnv->background[0].quad, 0, 0, 0, 0x4C);
+    pEnv->background[0].unk18 = 0x55555555;
+    pEnv->background[1].quad.len = 6;
+    Misc10SetRGBC(&pEnv->background[1].quad, 0, 0, 0, 0x4C);
+    pEnv->background[1].unk18 = 0x55555555;
+    pEnv->background[2].quad.len = 6;
+    Misc10SetRGBC(&pEnv->background[2].quad, 0, 0, 0, 0x4C);
+    pEnv->background[2].unk18 = 0x55555555;
+    pEnv->background[3].quad.len = 6;
+    Misc10SetRGBC(&pEnv->background[3].quad, 0, 0, 0, 0x4C);
+    pEnv->background[3].unk18 = 0x55555555;
+
+    BattleCopyVertexOffsetAdd(&D_800917F4[0], &pEnv->background[0].quad.x0);
+    BattleCopyVertexOffsetAdd(&D_800917F4[2], &pEnv->background[0].quad.x1);
+    BattleCopyVertexOffsetAdd(&D_800917F4[4], &pEnv->background[0].quad.x2);
+    BattleCopyVertexOffsetAdd(&D_800917F4[6], &pEnv->background[0].quad.x3);
+    BattleCopyVertexOffsetAdd(&D_800917F4[6], &pEnv->background[1].quad.x0);
+    BattleCopyVertexOffsetAdd(&D_800917F4[8], &pEnv->background[1].quad.x1);
+    BattleCopyVertexOffsetAdd(&D_800917F4[0xA], &pEnv->background[1].quad.x2);
+    BattleCopyVertexOffsetAdd(&D_800917F4[0], &pEnv->background[1].quad.x3);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0], &pEnv->background[2].quad.x0);
+    BattleCopyVertexOffsetFlip(&D_800917F4[2], &pEnv->background[2].quad.x1);
+    BattleCopyVertexOffsetFlip(&D_800917F4[4], &pEnv->background[2].quad.x2);
+    BattleCopyVertexOffsetFlip(&D_800917F4[6], &pEnv->background[2].quad.x3);
+    BattleCopyVertexOffsetFlip(&D_800917F4[6], &pEnv->background[3].quad.x0);
+    BattleCopyVertexOffsetFlip(&D_800917F4[8], &pEnv->background[3].quad.x1);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0xA], &pEnv->background[3].quad.x2);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0], &pEnv->background[3].quad.x3);
+
+    MargePrim(&pEnv->background[0], &pEnv->background[1]);
+    MargePrim(&pEnv->background[2], &pEnv->background[3]);
+
+    pEnv->background[0].quad.x0 = 0x1D;
+    pEnv->background[2].quad.x0 = 0x121;
+
+    pEnv->barPrim[0].len = 5;
+    Misc10SetRGBC(&pEnv->barPrim[0], 0xFF, 0, 0, 0x28);
+    pEnv->barPrim[1].len = 5;
+    Misc10SetRGBC(&pEnv->barPrim[1], 0xFF, 0, 0, 0x28);
+    pEnv->barPrim[2].len = 5;
+    Misc10SetRGBC(&pEnv->barPrim[2], 0xFF, 0, 0, 0x28);
+    pEnv->barPrim[3].len = 5;
+    Misc10SetRGBC(&pEnv->barPrim[3], 0xFF, 0, 0, 0x28);
+    pEnv->barPrim[4].len = 5;
+    Misc10SetRGBC(&pEnv->barPrim[4], 0xFF, 0, 0, 0x28);
+    pEnv->barPrim[5].len = 5;
+    Misc10SetRGBC(&pEnv->barPrim[5], 0xFF, 0, 0, 0x28);
+
+    BattleCopyVertexOffsetAdd(&D_800917F4[0], &pEnv->barPrim[0].x0);
+    BattleCopyVertexOffsetAdd(&D_800917F4[6], &pEnv->barPrim[0].x1);
+    BattleCopyVertexOffsetAdd(&D_800917F4[0xA], &pEnv->barPrim[0].x2);
+    BattleCopyVertexOffsetAdd(&D_800917F4[8], &pEnv->barPrim[0].x3);
+    BattleCopyVertexOffsetAdd(&D_800917F4[0xE], &pEnv->barPrim[1].x0);
+    BattleCopyVertexOffsetAdd(&D_800917F4[0xC], &pEnv->barPrim[1].x1);
+    BattleCopyVertexOffsetAdd(&D_800917F4[8], &pEnv->barPrim[1].x2);
+    BattleCopyVertexOffsetAdd(&D_800917F4[6], &pEnv->barPrim[1].x3);
+    BattleCopyVertexOffsetAdd(&D_800917F4[0xC], &pEnv->barPrim[2].x0);
+    BattleCopyVertexOffsetAdd(&D_800917F4[2], &pEnv->barPrim[2].x1);
+    BattleCopyVertexOffsetAdd(&D_800917F4[6], &pEnv->barPrim[2].x2);
+    BattleCopyVertexOffsetAdd(&D_800917F4[4], &pEnv->barPrim[2].x3);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0], &pEnv->barPrim[3].x0);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0xE], &pEnv->barPrim[3].x1);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0xA], &pEnv->barPrim[3].x2);
+    BattleCopyVertexOffsetFlip(&D_800917F4[8], &pEnv->barPrim[3].x3);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0xE], &pEnv->barPrim[4].x0);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0xC], &pEnv->barPrim[4].x1);
+    BattleCopyVertexOffsetFlip(&D_800917F4[8], &pEnv->barPrim[4].x2);
+    BattleCopyVertexOffsetFlip(&D_800917F4[6], &pEnv->barPrim[4].x3);
+    BattleCopyVertexOffsetFlip(&D_800917F4[0xC], &pEnv->barPrim[5].x0);
+    BattleCopyVertexOffsetFlip(&D_800917F4[2], &pEnv->barPrim[5].x1);
+    BattleCopyVertexOffsetFlip(&D_800917F4[6], &pEnv->barPrim[5].x2);
+    BattleCopyVertexOffsetFlip(&D_800917F4[4], &pEnv->barPrim[5].x3);
+
+    SetDrawTPage(&pEnv->barTpage, 0, 1, (u16)GetTPage(0, 1, 0, 0));
+    func_800732AC(&pEnv->barFront[0], &pEnv->barPrim[0], 0x90);
+    func_800732AC(&pEnv->barBack[0], &pEnv->barPrim[0], 0x90);
+
+    for (i = 0; i < 6; i++) {
+        pEnv->barFront[i].len = 5;
+        Misc10SetRGBC(&pEnv->barFront[i], 0x60, 0x60, 0x80, 0x28);
+    }
+    for (i = 0; i < 6; i++) {
+        pEnv->barBack[i].len = 5;
+        Misc10SetRGBC(&pEnv->barBack[i], 0xFF, 0, 0, 0x28);
+    }
+
+    Misc10SetXY0(&pEnv->gauge[0], 0x14, 0x20);
+    Misc10SetXY1(&pEnv->gauge[0], 0x1C, 0x20);
+    Misc10SetXY2(&pEnv->gauge[0], 0x1C, 0x28);
+    Misc10SetXY0(&pEnv->gauge[1], 0x13, 0x20);
+    Misc10SetXY1(&pEnv->gauge[1], 0x13, 0x29);
+    Misc10SetXY2(&pEnv->gauge[1], 0x1B, 0x29);
+    Misc10SetXY0(&pEnv->gauge[2], 0x13, 0x32);
+    Misc10SetXY1(&pEnv->gauge[2], 0x13, 0x2A);
+    Misc10SetXY2(&pEnv->gauge[2], 0x1B, 0x2A);
+
+    // Six iterations: retail's own loop writes three mirrored segments past the
+    // end of the array, into the empty meter slots below it.
+    for (i = 0; i < 6; i++) {
+        pEnv->gaugeMirror[i].x0 = 0x140 - pEnv->gauge[i].x0;
+        pEnv->gaugeMirror[i].y0 = pEnv->gauge[i].y0;
+        pEnv->gauge[i].len = 4;
+        Misc10SetRGBC(&pEnv->gauge[i], 0, 0xFF, 0, 0x20);
+        pEnv->gaugeMirror[i].len = 4;
+        Misc10SetRGBC(&pEnv->gaugeMirror[i], 0, 0xFF, 0, 0x20);
+        pEnv->gaugeMirror[i].y1 = pEnv->gauge[i].y1;
+        pEnv->gaugeMirror[i].y2 = pEnv->gauge[i].y2;
+        pEnv->gaugeMirror[i].x1 = 0x140 - pEnv->gauge[i].x1;
+        pEnv->gaugeMirror[i].x2 = 0x140 - pEnv->gauge[i].x2;
+    }
+
+    Misc10SetRGBC(&pEnv->meter[0], 0, 0, 0, 0x28);
+    Misc10SetRGBC(&pEnv->meter[1], 0, 0, 0, 0x28);
+    pEnv->meter[0].x1 = 0x63;
+    pEnv->meter[0].x3 = 0x5E;
+    pEnv->meter[0].y1 = 9;
+    pEnv->meter[0].y0 = 9;
+    pEnv->meter[0].y3 = 0x14;
+    pEnv->meter[0].y2 = 0x14;
+    pEnv->meter[1].x2 = 0x122;
+    pEnv->meter[1].x0 = 0x122;
+    pEnv->meter[1].x1 = 0xE3;
+    pEnv->meter[1].x3 = 0xDE;
+    pEnv->meter[1].y1 = 0x13;
+    pEnv->meter[1].y0 = 0x13;
+    pEnv->gaugeMirror[1].y0--;
+    pEnv->meter[0].x2 = 0x1E;
+    pEnv->meter[0].x0 = 0x1E;
+    pEnv->meter[1].y3 = 0x1E;
+    pEnv->meter[1].y2 = 0x1E;
+    pEnv->gaugeMirror[1].x2--;
+    pEnv->meter[0].len = 5;
+    pEnv->meter[1].len = 5;
+    pEnv->meter[2].len = 5;
+    Misc10SetRGBC(&pEnv->meter[2], 0xFF, 0, 0, 0x28);
+    Misc10SetXY0(&pEnv->meter[2], 6, 0x32);
+    Misc10SetXY1(&pEnv->meter[2], 0xA, 0x36);
+    Misc10SetXY2(&pEnv->meter[2], 6, 0x4C);
+    Misc10SetXY3(&pEnv->meter[2], 0xA, 0x48);
+    pEnv->meter[3].len = 5;
+    Misc10SetRGBC(&pEnv->meter[3], 0xFF, 0, 0, 0x28);
+    Misc10SetXY0(&pEnv->meter[3], 0x13A, 0x32);
+    Misc10SetXY1(&pEnv->meter[3], 0x136, 0x36);
+    Misc10SetXY2(&pEnv->meter[3], 0x13A, 0x4C);
+    Misc10SetXY3(&pEnv->meter[3], 0x136, 0x48);
+}
+*/
 
 void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly, s32 mode) {
     s32 scale;
@@ -564,13 +782,6 @@ extern DR_TPAGE D_80095918[4];
 extern u8 D_80091814[];
 extern u8 D_80092860;
 extern u8 D_80092864;
-
-// Packet word store, as include/system/font.h's setXY0Fast / setUV0Fast family.
-#define Misc10SetXY0(p, _x0, _y0) *(s32*)&(p)->x0 = (_x0) | ((_y0) << 0x10)
-#define Misc10SetXY1(p, _x1, _y1) *(s32*)&(p)->x1 = (_x1) | ((_y1) << 0x10)
-#define Misc10SetUV0(p, _u0, _v0) *(u16*)&(p)->u0 = (_u0) | ((_v0) << 0x8)
-#define Misc10SetRGBC(p, _r0, _g0, _b0, _code) \
-    *(s32*)&(p)->r0 = (_r0) | ((_g0) << 0x8) | ((_b0) << 0x10) | ((_code) << 0x18)
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
 
