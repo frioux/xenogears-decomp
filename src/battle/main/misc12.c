@@ -339,9 +339,7 @@ extern u8 func_8008B478(u8);
 extern void func_8008ADD0(u8);
 void BattleAdvanceSlotMenuStateAE(u8 arg0) {
     u8 a;
-    u8 *p;
-    u8 *q;
-    int off;
+
     a = arg0;
     switch (g_BattleMenuEvent) {
     case 4:
@@ -351,35 +349,29 @@ void BattleAdvanceSlotMenuStateAE(u8 arg0) {
         if (func_8008B478(a) != 0) {
             func_8008ADD0(a);
         } else {
-            g_BattleCommandQueue[0x2DD] = 0x13;
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x13;
         }
         break;
     case 0:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x2E) == 0) {
-            p[0x2DD] = 0x10;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x10;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 1:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x34) == 0) {
-            p[0x2DD] = 0x11;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk34 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x11;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
         break;
     case 2:
-        g_BattleCommandQueue[0x2DD] = 0x12;
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x12;
         break;
     case 3:
-        p = g_BattleCommandQueue;
-        off = a * 0x40;
-        if (*(u16 *)(p + off + 0x24) == 0) {
-            p[0x2DD] = 0x18;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk24 == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x18;
             break;
         }
         BattlePlaySoundIfEnabled(0x4F);
@@ -654,8 +646,8 @@ u8 BattlePairTargetable(u8 arg0, u8 arg1) {
     if (g_BattleSlotEnabledFlags[arg1] != 0) {
         if (D_800C3EB7[arg1][0] == 0) {
             if (g_BattleSlotFlags[arg1 * 8] == 0) {
-                if (*(u8 *)(g_BattleSlotParamTable + (g_BattleSlotRecords[arg0][0] * 0x40 +
-                                          g_BattleSlotRecords[arg1][0] * 8) + 0x140) == 0) {
+                if (*(g_BattleSlotParamTable + (g_BattleSlotRecords[arg0][0] * 0x40 +
+                                               g_BattleSlotRecords[arg1][0] * 8) + 0x140) == 0) {
                     ret = (g_BattleSlotEntries[arg1].flags & 0xC001) == 0;
                 }
             } else if ((D_800CCE08[arg1].flags & 0xC001) == 0) {
