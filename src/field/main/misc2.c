@@ -62,7 +62,7 @@ void FieldComputeSceneMatrices(void) {
 // s1` says the base is a constant there, so this is not the runtime-base case.
 // Not a preset question either (try_flags on the 85.50% form): -O3 85.25, -G4
 // 85.25, gcc-2.6.0 84.62, gcc-2.7.2-cdk 85.25 - so the unit cannot be switched to
-// cdk on this function's account. Same wall as func_8007254C and func_8007520C
+// cdk on this function's account. Same wall as func_8007254C and FieldRenderGearFrame
 // below: every one of this unit's convertible stubs is parked on it.
 // screened: Default 85.50 (best), cdk 85.50, 2.6.0 84.62 - not the preset; still the $s1 rematerialisation wall.
 
@@ -780,7 +780,7 @@ extern const char D_8006FB04[];
 // 0x48. Unparking it needs no other edit.
 // Beyond the register wall below, two things block it:
 //  - it owns D_8006FB04, the FIRST string of the unit .rodata, so the whole
-//    FB04..FB80 region has to move to C with it (see the note above func_800752C8);
+//    FB04..FB80 region has to move to C with it (see the note above FieldRenderActors);
 //  - its body switches $sp into the scratchpad around three calls (STACK_SWITCH): the
 //    three `asm volatile` sequences below are the only way to emit that, and inline
 //    asm is not allowed in game code, so this stub cannot become C at all.
@@ -1057,7 +1057,7 @@ const char D_8006FB1C[0xC] = "GEAR      ";
 
 // The second argument is the s32* base of the global 0x48 bytes below
 // g_FieldActorModelSlotCount, which has no symbol of its own yet.
-void func_8007520C(void) {
+void FieldRenderGearFrame(void) {
     s32* pGear;
 
     if (g_FieldDisableGearRender == 0) {
@@ -1076,14 +1076,14 @@ void func_8007520C(void) {
 
 extern u_char g_FieldDisableActorRender;
 extern s32 g_FieldActiveActorCount;
-// .rodata: this stub owns D_8006FB28, the HDD frame profiler tag (see func_8007520C).
+// .rodata: this stub owns D_8006FB28, the HDD frame profiler tag (see FieldRenderGearFrame).
 const char D_8006FB28[0xC] = "CHAR      ";
 
 // The per-actor animation tick is wrapped in a `do { } while (0);` on purpose: it
 // makes cc1 schedule the call as its own block, which is what keeps pActor in $a1
 // and pActor->pActorData in $a2 as the original does. Written as a plain statement
 // the body ties at 99.60% on the same 400 bytes (GIV_TIE, $a1/$a2 swapped).
-void func_800752C8(void) {
+void FieldRenderActors(void) {
     FieldActor* pActor;
     int i;
 
@@ -1200,7 +1200,7 @@ const VECTOR g_FieldFrameReferenceAxis = { 0, 0, 0x1000, 0 };
 // Builds the rotation of pMat as a frame orthonormal to pVec: the normal of the
 // cross product of the reference axis with pVec, pVec itself, then their cross
 // product.
-void func_800759E4(MATRIX* pMat, VECTOR* pVec) {
+void FieldMatrixBuildRotationFromVector(MATRIX* pMat, VECTOR* pVec) {
     VECTOR axis;
     VECTOR normal;
     VECTOR cross;

@@ -172,7 +172,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 //     base as one constant (`lui %hi(g_FieldActorModelSlotCount); addiu -0x88`) and re-forms a second
 //     lui/%lo pair for the count instead; gcc's fold_rtx always folds the +0x88 back to
 //     the bare symbol, so the two accesses are never expressed off one register. Same
-//     wall as func_8007520C (misc2) and func_800A0EE8 (misc6), just in the other
+//     wall as FieldRenderGearFrame (misc2) and func_800A0EE8 (misc6), just in the other
 //     direction. Pointer locals (pCount/pTable, and `(s32*)((u8*)pTable + 0x88)`) give
 //     90.56% but 580 bytes.
 //  2. the `g_FieldSuppressStateChange` size select: the original hoists `lw $v1,%lo(D_800ADB30)` above
@@ -244,7 +244,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077AB4);
 // 64.39%: the C below is structurally right (count guard, then HeapChangeCurrentUser(8, NULL))
 // but the original materialises &g_FieldActorModelSlotCount into $s0 ONCE and reaches the loop vectors and
 // g_FieldMotionSlotSteps with `addiu` off it, while gcc rematerialises a %hi/%lo pair for every one of
-// those addresses. Same root cause as func_8007520C (misc2) and func_800A0EE8 (misc6).
+// those addresses. Same root cause as FieldRenderGearFrame (misc2) and func_800A0EE8 (misc6).
 // The loop itself is: 8 max entries of three zeroed SVECTOR vertices (8 bytes apart) plus a
 // per-entry s32 result; the third and eighth arguments are a `0xFC` byte counter (offsets
 // into g_FieldEffects) and `0xFC0000 + i * 0x10000` read as `>> 16`.

@@ -1028,3 +1028,6 @@ g_FieldFontTimBuffer = 0x800AF784;
 g_FieldTextRenderPrimBlocks = 0x800AF770;
 g_FieldStreamFrameBase = 0x800C3A2C;
 g_FieldSoundSlotId = 0x800B21B8;
+FieldRenderGearFrame = 0x8007520C;
+FieldRenderActors = 0x800752C8;
+FieldMatrixBuildRotationFromVector = 0x800759E4;

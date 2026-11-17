@@ -96,7 +96,7 @@ s32 WorldMapInitAreaNameString(void) {
     return 1;
 }
 
-s32 func_80092C70(s32 index) {
+s32 WorldMapUpdateAreaNameString(s32 index) {
     WorldMapMenuSlot* pSlot;
 
     pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * 0x80);
