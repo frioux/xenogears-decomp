@@ -101,17 +101,17 @@ typedef struct {
 
 // 0x10-byte vertex built in g_WorldMapTileVertexBuffer
 typedef struct {
-    /* 0x0 */ s32 unk0;
-    /* 0x4 */ s32 unk4;
-    /* 0x8 */ s32 unk8;
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
     /* 0xC */ s32 unkC;
 } WorldMapTileVertex; // Size: 0x10
 
 // 0x8-byte path entry built in g_WorldMapTileVertexSteps
 typedef struct {
-    /* 0x0 */ s16 unk0;
+    /* 0x0 */ s16 x;
     /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
+    /* 0x4 */ s16 z;
     /* 0x6 */ s16 pad6;
 } WorldMapPathEntry; // Size: 0x8
 
@@ -302,10 +302,10 @@ void func_800863E0(void) {
             xoff = x << 11;
             yoff = y << 11;
             for (i = 0; i < 5; i++) {
-                pVertex->unk0 = (D_8009AF30[i].unk0 + xoff) << 12;
-                pVertex->unk8 = (D_8009AF38[i].unk0 + yoff) << 12;
+                pVertex->x = (D_8009AF30[i].unk0 + xoff) << 12;
+                pVertex->z = (D_8009AF38[i].unk0 + yoff) << 12;
                 value = -(rand() >> 10);
-                pVertex->unk4 = ((value << 3) - 0x200) << 12;
+                pVertex->y = ((value << 3) - 0x200) << 12;
                 pVertex++;
             }
         }
@@ -313,8 +313,8 @@ void func_800863E0(void) {
     pPath = (WorldMapPathEntry*)g_WorldMapTileVertexSteps;
     for (i = 0; i < 0x50; i++) {
         value = (rand() & 3) + 1;
-        pPath->unk0 = value * 3547;
-        pPath->unk4 = -(value << 11);
+        pPath->x = value * 3547;
+        pPath->z = -(value << 11);
         pPath->unk2 = rand() & 1;
         pPath++;
     }
@@ -363,8 +363,8 @@ void WorldMapWrapTileVertexPositions(void) {
     s32 i;
 
     for (i = 0; i < 0x50; i++) {
-        s32 x = pDst[i].unk0 + pSrc[i].unk0;
-        s32 y = pDst[i].unk8 + pSrc[i].unk4;
+        s32 x = pDst[i].x + pSrc[i].x;
+        s32 y = pDst[i].z + pSrc[i].z;
 
         if (x > 0x1FFFFFF) {
             x -= 0x2000000;
@@ -378,8 +378,8 @@ void WorldMapWrapTileVertexPositions(void) {
         if (y < 0) {
             y += 0x2000000;
         }
-        pDst[i].unk0 = x;
-        pDst[i].unk8 = y;
+        pDst[i].x = x;
+        pDst[i].z = y;
     }
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80086798);
@@ -600,13 +600,13 @@ s32 func_80087C6C(s32 index) {
         WorldMapWrapDeltaScaled(pPos);
         VectorNormal((VECTOR*)pPos, (VECTOR*)pPos);
         for (i = 0; i < 0x100; i += 8) {
-            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->unk0 = pPos->x;
-            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->unk4 = pPos->z;
+            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->x = pPos->x;
+            ((WorldMapPathEntry*)((u8*)D_8009CD68 + i))->z = pPos->z;
         }
         pSlot->unk58 = 1;
         pSlot->unk54 = 0;
-        pSlot->dirX = D_8009CD68[1].unk0;
-        pSlot->dirZ = D_8009CD68[pSlot->unk58].unk4;
+        pSlot->dirX = D_8009CD68[1].x;
+        pSlot->dirZ = D_8009CD68[pSlot->unk58].z;
         pSlot->dirY = 0;
     }
     return 1;
@@ -696,16 +696,16 @@ s32 func_80087FD0(s32 index) {
         pSlot->dirX = ((pPos->x + pSlot->dirX * 63) << 6) >> 12;
         pSlot->dirZ = ((pPos->z + pSlot->dirZ * 63) << 6) >> 12;
         VectorNormal((VECTOR*)&pSlot->dirX, (VECTOR*)&pSlot->dirX);
-        D_8009CD68[pSlot->unk54].unk0 = pSlot->dirX;
-        D_8009CD68[pSlot->unk54].unk4 = pSlot->dirZ;
+        D_8009CD68[pSlot->unk54].x = pSlot->dirX;
+        D_8009CD68[pSlot->unk54].z = pSlot->dirZ;
         pSlot->unk54 = (pSlot->unk54 + 1) & 0x1F;
         pPos->x = pSlot->dirX;
         pPos->y = pSlot->dirY;
         pPos->z = -pSlot->dirZ;
         WorldMapBuildBasisMatrix((VECTOR*)pPos, (VECTOR*)0x1F800010, (MATRIX*)0x1F8000F0);
         pLayer->mat = *(MATRIX*)0x1F8000F0;
-        pSlot->x += D_8009CD68[pSlot->unk58].unk0 * ((s16)pSlot->moveSpeed >> 12);
-        pSlot->z += D_8009CD68[pSlot->unk58].unk4 * ((s16)pSlot->moveSpeed >> 12);
+        pSlot->x += D_8009CD68[pSlot->unk58].x * ((s16)pSlot->moveSpeed >> 12);
+        pSlot->z += D_8009CD68[pSlot->unk58].z * ((s16)pSlot->moveSpeed >> 12);
         pSlot->unk58 = (pSlot->unk58 + 1) & 0x1F;
         WorldMapWrapPosition(pSlotPos);
         pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
