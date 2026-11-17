@@ -267,31 +267,38 @@ void MenuFreeGearScreenBuffers(void) {
     func_801C72BC(0x13);
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E23CC);
-/* Best: 98.48% (1808 bytes, retail 1812), from a 94.95 first draft.
-   Structure is complete and the case bodies are in retail order (4, 5, 1, 3, 9, 10
-   outer, and 0, 1, 2, 3 inner). What closed most of the gap: the four
-   MenuPlaySoundEffect(4) arms are the ELSE of the "not selectable" test
-   (writing them first costs 1.5 points each — retail branches INTO the shared
-   sound block from every case, i.e. the body is the fall-through arm), and
-   shouldRenderSubmenuStrings = 0 must be written BEFORE func_801E05D0 because
-   retail has it in that call s delay slot (it then reuses the pre-call pManager
-   in $v1 instead of reloading g_Menu).
-   Left: retail keeps slot in $s2 and lastSlot in $s1, this body gets the
-   opposite pair (slot $s1), so ~40 instructions differ by one register, and the
-   case-3 sound arm is laid out inline (beqz over it) where retail has the shared
-   block, which is also where the missing 4 bytes are. Tried: the 4-minute
-   permuter (PERMUTER_BETTER 1552 -> 1353, its only finding was the case-1 arm
-   inversion, which is in this body), arm inversion on all four cases. Next: a
-   permuter run from THIS body chasing the s1/s2 tie.
-// Gear dressing room loop: same structure as MenuRunCharacterDressingRoomLoop above.
-u8 func_801E23CC(s32 slot) {
+/* Best: 99.66% (1812 bytes, retail 1812 - EXACT size, and the instruction
+   multiset is identical). The ONLY difference is that retail keeps slot in $s2
+   and lastSlot in $s1 while gcc 2.6.0 here swaps the pair: retail $s1 is used 11
+   times and $s2 22 times, this body gets exactly the mirror (s1 22 / s2 11), so
+   it is a pure allocation-order tie and nothing else.
+   What got here from the previous 98.48% park, and is worth keeping:
+   - The function takes NO parameters. Its only caller (misc1 801C53D0) does
+     'jal func_801E23CC' with a nop delay slot and no $a0 setup, so slot is a
+     LOCAL, and retail reads it uninitialised at the entry call
+     ('addu $a0,$s2,$zero' before anything writes $s2). Declaring it
+     'u8 f(void) { ... s32 slot; ... }' reproduces retail's prologue and the
+     missing 4 bytes ('move a0,s2') exactly - with it as a parameter the body is
+     1808 bytes and the prologue is short one instruction.
+   - 'active = 1;' comes BEFORE the entry call in the source (retail:
+     'ori $s6,$zero,0x1' then 'addu $a0,$s2,$zero'), which fixes the prologue save
+     order and took the body from 98.69 to 99.66.
+   - MenuInitializeGearScreenBuffers returns u8 (its andi is retail's
+     'andi $s2,$v0,0xFF'); slot itself must stay s32 or cases 9/10 gain an andi.
+   Tried and no effect: every local declaration order (slot first / second /
+   last, lastSlot first), slot or lastSlot given the other width, and two permuter
+   runs (4 min from the 98.48 body: PERMUTER_NONE 543; 3 min from THIS body:
+   PERMUTER_NONE 145). Converting the switch also owns jtbl_801C518C (the first
+   table in the unit, jtbl_align says OK), so this is not a JTBL_LAYOUT case.
+u8 func_801E23CC(void) {
     u8 active;
     u8 lastSlot;
     u8 firstDraw;
     u8 stringSet;
+    s32 slot;
 
-    slot = func_801D9704(slot, 0, 1);
     active = 1;
+    slot = func_801D9704(slot, 0, 1);
     lastSlot = 0xF3;
     firstDraw = 1;
     g_Menu->subMenuChoice = 0;
@@ -418,7 +425,8 @@ u8 func_801E23CC(s32 slot) {
     g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
     return 1;
-} */
+}
+*/
 void MenuInitializeCharacterScreenBuffers(void) {
     MenuLoadSubMenuChoiceStrings(1);
     g_Menu->pGearWindowPrims = HeapAlloc(0x2AF0, 0);
