@@ -200,9 +200,10 @@ void SystemInitializeFont(SystemFontFileHeader* pFontFile) {
     HeapPinBlock(pFontFile);
     g_SystemFontFile = pFontFile;
     g_SystemFontGlyphData = pFontFile;
-    // The header words are read through the byte cursor, not as pFontFile->field:
-    // as field lvalues gcc hoists all six loads above the two pointer stores,
-    // and retail interleaves each load with its store (66.5% vs 100%).
+    // The header words are read through a byte cursor, not as pFontFile->field:
+    // as field lvalues gcc hoists all six loads above the two pointer stores and
+    // retail interleaves each load with its store (66.5% vs 100%). Six u16
+    // locals and a do/while block around them only reach 72.9%.
     pFontBytes = (u8*)pFontFile;
     dataOffset = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, glyphDataOffset));
     g_SystemFontLeadByte = *(u16*)(pFontBytes + offsetof(SystemFontFileHeader, leadByte));
