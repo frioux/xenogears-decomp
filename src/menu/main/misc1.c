@@ -88,7 +88,7 @@ void MenuNormalMenuMain(void) {
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             MenuSetSelectionMenuPrims(7, g_Menu->mainMenuChoice, (s32*)g_MenuMainSelectionResourceIds);
-            MenuSetRowQuadVertices(8, g_Menu->unk6E0, g_MenuMainRowStringIds, g_MenuMainRowXOffsets,
+            MenuSetRowQuadVertices(8, g_Menu->optionStrings, g_MenuMainRowStringIds, g_MenuMainRowXOffsets,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
@@ -137,7 +137,7 @@ void MenuLoadGameMain(void) {
                 g_Menu->pSelectionMenu->isDisabled = 1;
                 MenuResetSelectionCursorFlags();
                 MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
-                g_Menu->unk348->shadeWidth = 0x40;
+                g_Menu->pCursorPrims->shadeWidth = 0x40;
                 shouldContinue = func_801C531C(7);
                 g_MenuSoftResetEnabled = 0;
                 g_Menu->idleFrameCount = 0;
@@ -159,7 +159,7 @@ void MenuLoadGameMain(void) {
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             MenuSetSelectionMenuPrims(3, g_Menu->mainMenuChoice, (s32*)g_MenuLoadGameSelectionResourceIds);
-            MenuSetRowQuadVertices(8, g_Menu->unk6E0, g_MenuLoadGameRowStringIds, g_MenuLoadGameRowXOffsets,
+            MenuSetRowQuadVertices(8, g_Menu->optionStrings, g_MenuLoadGameRowStringIds, g_MenuLoadGameRowXOffsets,
                 (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
@@ -200,11 +200,11 @@ void MenuSelectionMenuManager(u_char isInitialization) {
 
 void MenuMenuUnk5Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk354 = HeapAlloc(sizeof(MenuUnk5), 0);
-        bzero(g_Menu->unk354, sizeof(MenuUnk5));
+        g_Menu->pSubmenuPrims = HeapAlloc(sizeof(MenuUnk5), 0);
+        bzero(g_Menu->pSubmenuPrims, sizeof(MenuUnk5));
         return;
     }
-    HeapFree(g_Menu->unk354);
+    HeapFree(g_Menu->pSubmenuPrims);
 }
 
 void MenuDressingRoomManager(u_char isInitialization) {
@@ -218,29 +218,29 @@ void MenuDressingRoomManager(u_char isInitialization) {
 
 void MenuUnk340Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk340 = HeapAlloc(0x328, 0);
-        bzero(g_Menu->unk340, 0x328);
+        g_Menu->pGoldWindow = HeapAlloc(0x328, 0);
+        bzero(g_Menu->pGoldWindow, 0x328);
         return;
     }
-    HeapFree(g_Menu->unk340);
+    HeapFree(g_Menu->pGoldWindow);
 }
 
 void MenuUnk344Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk344 = HeapAlloc(0x374, 0);
-        bzero(g_Menu->unk344, 0x374);
+        g_Menu->pPlayTimeDigits = HeapAlloc(0x374, 0);
+        bzero(g_Menu->pPlayTimeDigits, 0x374);
         return;
     }
-    HeapFree(g_Menu->unk344);
+    HeapFree(g_Menu->pPlayTimeDigits);
 }
 
 void MenuMenuUnk1Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk348 = HeapAlloc(sizeof(MenuUnk1), 0);
-        bzero(g_Menu->unk348, sizeof(MenuUnk1));
+        g_Menu->pCursorPrims = HeapAlloc(sizeof(MenuUnk1), 0);
+        bzero(g_Menu->pCursorPrims, sizeof(MenuUnk1));
         return;
     }
-    HeapFree(g_Menu->unk348);
+    HeapFree(g_Menu->pCursorPrims);
 }
 
 void MenuUnk39CManager(u_char isInitialization) {
@@ -248,13 +248,13 @@ void MenuUnk39CManager(u_char isInitialization) {
 
     if (isInitialization) {
         for (i = 0; i < 3; i++) {
-            g_Menu->unk39C[i] = HeapAlloc(0x127C, 0);
-            bzero(g_Menu->unk39C[i], 0x127C);
+            g_Menu->characterWindows[i] = HeapAlloc(0x127C, 0);
+            bzero(g_Menu->characterWindows[i], 0x127C);
         }
         return;
     }
     for (i = 0; i < 3; i++) {
-        HeapFree(g_Menu->unk39C[i]);
+        HeapFree(g_Menu->characterWindows[i]);
     }
 }
 
@@ -308,14 +308,14 @@ void MenuFinalizeMenuData(void) {
     MenuMenuUnk1Manager(MENU_DATA_FREE);
     HeapFree(g_Menu->pCursors);
     HeapFree(g_Menu->resources);
-    HeapFree(g_Menu->unk2E0);
+    HeapFree(g_Menu->pStringBank);
     HeapFree(g_Menu->unk4E0[0].pVramBuffer);
     if (g_MenuDebugEnabled) {
-        SoundStopElementsForSoundFile(g_Menu->unk2E4);
+        SoundStopElementsForSoundFile(g_Menu->pSoundFile);
         MenuRenderFrame();
-        SoundRemoveSedsEntry(g_Menu->unk2E4);
+        SoundRemoveSedsEntry(g_Menu->pSoundFile);
         MenuRenderFrame();
-        HeapFree(g_Menu->unk2E4);
+        HeapFree(g_Menu->pSoundFile);
     }
     switch (g_MenuOverlayIndex) {
         case 0:

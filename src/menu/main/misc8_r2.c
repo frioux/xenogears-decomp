@@ -97,7 +97,7 @@ void MenuInitializeUnk42CPanel(void) {
     MenuSetupPointerCursors(2);
     MenuLoadStringsFromIds(8, g_Menu->unk10E0, D_801EA548, g_Menu->pManager->shouldRenderStrings10E0);
     pMenu = HeapAlloc(0x1198, 0);
-    g_Menu->unk42C = pMenu;
+    g_Menu->pItemRows = pMenu;
     bzero(pMenu, 0x1198);
     func_801C72BC(0);
 }
@@ -108,8 +108,8 @@ void MenuFreeUnk42CPanel(void) {
     MenuFreeWindow(4);
     g_Menu->pManager->shouldRenderUnk42C = 0;
     func_801C72BC(0x10);
-    HeapFree(g_Menu->unk42C->pVramBuffer);
-    HeapFree(g_Menu->unk42C);
+    HeapFree(g_Menu->pItemRows->pVramBuffer);
+    HeapFree(g_Menu->pItemRows);
     HeapFree(g_Menu->pDressingRoom->pItemsData);
 }
 
@@ -161,13 +161,13 @@ void func_801DA5BC(s32 arg0) {
             if (g_GameState.itemQuantities[arg0 * 2 + i] >= 0x64) {
                 g_GameState.itemQuantities[arg0 * 2 + i] = 0x63;
             }
-            ((MenuString*)g_Menu->unk42C)[i].width =
+            ((MenuString*)g_Menu->pItemRows)[i].width =
                 SystemRenderStringEntry(GetItemName(g_GameState.itemIDs[arg0 * 2 + i]), pWorkspace, 0x24, 0);
             tens = g_GameState.itemQuantities[arg0 * 2 + i] / 10;
             digitCodes[0] = tens != 0 ? tens + 0x10 : 0xC3;
             digitCodes[2] = g_GameState.itemQuantities[arg0 * 2 + i] % 10 + 0x10;
             SystemDecodeGlyphCodesN((u16*)digitCodes, text, 2);
-            ((MenuString*)g_Menu->unk42C)[i + 0x10].width =
+            ((MenuString*)g_Menu->pItemRows)[i + 0x10].width =
                 SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
             rect.x = 0x180 + (i & 1) * 0x18;
             rect.y = 0x80 + (i / 2) * FONT_LETTER_HEIGHT;
@@ -181,21 +181,21 @@ void func_801DA5BC(s32 arg0) {
             } else {
                 itemFlags &= 0x80;
             }
-            func_801E7C50(&((MenuString*)g_Menu->unk42C)[i], i, 0x80, itemFlags | 1);
-            func_801E7C50(&((MenuString*)g_Menu->unk42C)[i + 0x10], i, 0x80, itemFlags | 2);
+            func_801E7C50(&((MenuString*)g_Menu->pItemRows)[i], i, 0x80, itemFlags | 1);
+            func_801E7C50(&((MenuString*)g_Menu->pItemRows)[i + 0x10], i, 0x80, itemFlags | 2);
             x = (i % 2) * 0x88;
-            MenuSetQuadVertices(((MenuString*)g_Menu->unk42C)[i].vertices, (x + 0x28) & 0xFFF8,
-                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->unk42C)[i].width,
+            MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i].vertices, (x + 0x28) & 0xFFF8,
+                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i].width,
                                 FONT_LETTER_HEIGHT);
-            MenuSetQuadVertices(((MenuString*)g_Menu->unk42C)[i + 0x10].vertices, (x + 0x90) & 0xFFF8,
-                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->unk42C)[i + 0x10].width,
+            MenuSetQuadVertices(((MenuString*)g_Menu->pItemRows)[i + 0x10].vertices, (x + 0x90) & 0xFFF8,
+                                (i / 2) * 0x10 + 0xE, ((MenuString*)g_Menu->pItemRows)[i + 0x10].width,
                                 FONT_LETTER_HEIGHT);
-            ((MenuString*)g_Menu->unk42C)[i].renderContext = *(u8*)&g_Menu->renderContext;
-            ((MenuString*)g_Menu->unk42C)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
-            g_Menu->unk42C->shouldRenderRows[i] = 1;
+            ((MenuString*)g_Menu->pItemRows)[i].renderContext = *(u8*)&g_Menu->renderContext;
+            ((MenuString*)g_Menu->pItemRows)[i + 0x10].renderContext = *(u8*)&g_Menu->renderContext;
+            g_Menu->pItemRows->shouldRenderRows[i] = 1;
             continue;
         }
-        g_Menu->unk42C->shouldRenderRows[i] = 0;
+        g_Menu->pItemRows->shouldRenderRows[i] = 0;
     }
     HeapFree(pWorkspace);
     g_Menu->pManager->shouldRenderUnk42C = 1;
@@ -313,11 +313,11 @@ void func_801DB39C(u_char arg0) {
     pPoly = &g_Menu->pScrollHandle->polys[g_Menu->pScrollHandle->renderContext];
     MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 0x10; i++) {
-        pPoly = &((MenuString*)g_Menu->unk42C)[i].polys[((MenuString*)g_Menu->unk42C)[i].renderContext];
+        pPoly = &((MenuString*)g_Menu->pItemRows)[i].polys[((MenuString*)g_Menu->pItemRows)[i].renderContext];
         if (pPoly->r0 != 0x20) {
             MenuSetPrimShadingMode(pPoly, arg0);
-            pPoly = &((MenuString*)g_Menu->unk42C)[i + 0x10]
-                         .polys[((MenuString*)g_Menu->unk42C)[i + 0x10].renderContext];
+            pPoly = &((MenuString*)g_Menu->pItemRows)[i + 0x10]
+                         .polys[((MenuString*)g_Menu->pItemRows)[i + 0x10].renderContext];
             MenuSetPrimShadingMode(pPoly, arg0);
         }
     }
@@ -325,11 +325,11 @@ void func_801DB39C(u_char arg0) {
         pPoly = &g_Menu->arrowCursors[i]->polys[g_Menu->arrowCursors[i]->renderContext];
         MenuSetPrimShadingMode(pPoly, arg0);
     }
-    pPoly = &((MenuString*)g_Menu->unk42C)[0x20].polys[((MenuString*)g_Menu->unk42C)[0x20].renderContext];
+    pPoly = &((MenuString*)g_Menu->pItemRows)[0x20].polys[((MenuString*)g_Menu->pItemRows)[0x20].renderContext];
     MenuSetPrimShadingMode(pPoly, arg0);
-    pPoly = &((MenuString*)g_Menu->unk42C)[0x21].polys[((MenuString*)g_Menu->unk42C)[0x21].renderContext];
+    pPoly = &((MenuString*)g_Menu->pItemRows)[0x21].polys[((MenuString*)g_Menu->pItemRows)[0x21].renderContext];
     MenuSetPrimShadingMode(pPoly, arg0);
-    pPoly = &((MenuString*)g_Menu->unk42C)[0x22].polys[((MenuString*)g_Menu->unk42C)[0x22].renderContext];
+    pPoly = &((MenuString*)g_Menu->pItemRows)[0x22].polys[((MenuString*)g_Menu->pItemRows)[0x22].renderContext];
     MenuSetPrimShadingMode(pPoly, arg0);
     for (i = 0; i < 8; i++) {
         pPoly = &g_Menu->unk10E0[i].polys[g_Menu->unk10E0[i].renderContext];

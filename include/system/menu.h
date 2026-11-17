@@ -260,15 +260,15 @@ typedef struct {
 } MenuUnk2; // Size: 0x5034
 
 typedef struct {
-    /* 0x0  */ u8 unk0[0x3];
+    /* 0x0  */ u8 shouldRenderCharacterWindows[0x3]; // One flag per g_Menu->characterWindows entry
     /* 0x3  */ u8 unk3;
     /* 0x4  */ u8 shouldRenderPointerCursor; // On the ball selection windows?
     /* 0x5  */ u8 unk5[0x3];
     /* 0x8  */ u8 shouldRenderUnk35C;
     /* 0x9  */ u8 shouldRenderSelectionMenu;
-    /* 0xA  */ u8 shouldRenderSubmenuStrings; // Gates MenuUnk5 (unk354) string prims
+    /* 0xA  */ u8 shouldRenderSubmenuStrings; // Gates MenuUnk5 (pSubmenuPrims) string prims
     /* 0xB  */ u8 unkB;
-    /* 0xC  */ u8 shouldRenderStrings[0x8]; // One flag per g_Menu->unk6E0 string
+    /* 0xC  */ u8 shouldRenderStrings[0x8]; // One flag per g_Menu->optionStrings string
     /* 0x14 */ u8 shouldRenderSubMenuChoiceStrings[0x6]; // One flag per g_Menu->subMenuChoiceStrings
     /* 0x1A */ u8 shouldRenderStringsDE0[0x6];
     /* 0x20 */ u8 shouldRenderWindow[MENU_MAX_NUM_WINDOWS];
@@ -767,8 +767,8 @@ typedef struct {
     /* 0x2CA  */ s16 unk2CA[6];
     /* 0x2D8  */ u32 idleFrameCount;
     /* 0x2DC  */ MenuResourceDirectory *resources;
-    /* 0x2E0  */ void* unk2E0; // Pointer to resources (bin 3)
-    /* 0x2E4  */ SoundFile* unk2E4; // Pointer to SEDS file
+    /* 0x2E0  */ void* pStringBank; // Decompressed string bank, indexes through GetStringEntry
+    /* 0x2E4  */ SoundFile* pSoundFile; // Pointer to SEDS file
     /* 0x2E8  */ undefined32 unk2E8;
     /* 0x2EC  */ s32 playTimeDigitIds[7]; // Texture ids of the play time digits
     /* 0x308  */ int renderContext;
@@ -792,23 +792,23 @@ typedef struct {
     /* 0x33A  */ u_char subMenuNumChoices;
     /* 0x33B  */ u8 unk33B;
     /* 0x33C */ MenuManager* pManager;
-    /* 0x340  */ void* unk340;
-    /* 0x344  */ MenuPlayTimeDigits* unk344;
-    /* 0x348  */ MenuUnk1* unk348;
+    /* 0x340  */ void* pGoldWindow; // Gold-window prim block, see MenuGoldWindow in misc7
+    /* 0x344  */ MenuPlayTimeDigits* pPlayTimeDigits;
+    /* 0x348  */ MenuUnk1* pCursorPrims; // Selection cursor prims and the shading behind them
     /* 0x34C  */ void* unk34C;
     /* 0x350  */ MenuSelectionMenu* pSelectionMenu;
-    /* 0x354  */ MenuUnk5* unk354;
+    /* 0x354  */ MenuUnk5* pSubmenuPrims; // Submenu option cursor and text prims
     /* 0x358  */ void* unk358;
     /* 0x35C  */ MenuUnk10* unk35C;
-    /* 0x360  */ void* unk360;
+    /* 0x360  */ void* pEquipmentPanel; // Stat values and the equipped weapon/accessory ids being edited
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];
     /* 0x380  */ MenuWindowParameters* windowParameters[MENU_MAX_NUM_WINDOWS];
-    /* 0x39C  */ MenuCharacterWindow* unk39C[3];
+    /* 0x39C  */ MenuCharacterWindow* characterWindows[3];
     /* 0x3A8  */ void* unk3A8[32];
     /* 0x428  */ MenuPointerCursors* pCursors;
-    /* 0x42C  */ MenuUnk9* unk42C;
+    /* 0x42C  */ MenuUnk9* pItemRows; // Item name and quantity rows
     /* 0x430  */ void* unk430;
-    /* 0x434  */ MenuCharacterSpriteRecords* unk434;
+    /* 0x434  */ MenuCharacterSpriteRecords* pCharacterSpriteRecords;
     /* 0x438  */ void* unk438;
     /* 0x43C  */ MenuScrollBarHandle* pScrollHandle;
     /* 0x440  */ MenuShoulderButtonUi* pShoulderButtonUi;
@@ -856,7 +856,7 @@ typedef struct {
     /* 0x4D9  */ u8 characterCellShadeReversing;
     /* 0x4DA  */ u8 unk4DA[0x6];
     /* 0x4E0  */ MenuString unk4E0[4];
-    /* 0x6E0  */ MenuString unk6E0[8];
+    /* 0x6E0  */ MenuString optionStrings[8]; // Option strings of the current screen
     /* 0xAE0  */ MenuString subMenuChoiceStrings[6];
     /* 0xDE0  */ MenuString unkDE0[6];
     // Three arrays of MenuString-shaped sprite records (0x80 each)

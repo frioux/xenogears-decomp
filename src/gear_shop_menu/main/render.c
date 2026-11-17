@@ -1415,7 +1415,7 @@ void GearShopMenuSellModeMenuHandleSelectedOption(u_char offset) {
     g_Menu->pManager->shouldRenderSubmenuStrings = 1;
     g_Menu->pManager->shouldRenderPointerCursor = 1;
     g_Menu->pManager->unk3 = 1;
-    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
+    GearShopMenuRenderMenuStringsToVram(4, g_Menu->optionStrings, &g_GearShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
 }
 
 void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
@@ -2143,8 +2143,8 @@ s32 GearShopMenuPurchaseDialog(u8 arg0, u8 disableQuantitySelection) {
                 GearShopMenuInitializeWindow(3, 0x20, 0xE, 0xFCU, 0x14U, 0U, 1, 4, 0);
                 GearShopMenuInitializeWindow(5, unkWindowX, 0x7A, unkWindowWidth, 0x24, FALSE, 1, 4, FALSE);
                 temp = g_GearShopPurchaseTotalStringIds;
-                GearShopMenuRenderMenuStringsToVram(2, g_Menu->unk6E0, (s8* ) temp, (s8* ) g_Menu->pManager->shouldRenderStrings);
-                GearShopMenuSetMenuStringPosition(2, g_Menu->unk6E0, (s32) temp, g_GearShopMenuStringPadding, g_Menu->pManager->shouldRenderStrings, disableQuantitySelection, 0, 1);
+                GearShopMenuRenderMenuStringsToVram(2, g_Menu->optionStrings, (s8* ) temp, (s8* ) g_Menu->pManager->shouldRenderStrings);
+                GearShopMenuSetMenuStringPosition(2, g_Menu->optionStrings, (s32) temp, g_GearShopMenuStringPadding, g_Menu->pManager->shouldRenderStrings, disableQuantitySelection, 0, 1);
                 if (disableQuantitySelection) {
                     GearShopMenuBuildGearPartNameGraphics(g_Menu->subMenuChoice + (arg0 * 3));
                 }
@@ -2407,12 +2407,12 @@ s32 GearShopMenuShopModeSubmenu(void) {
                 }
             }
             if (redrawWindows) {
-                GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopSubmenuStringIds[var_s0], (s8* ) g_Menu->pManager->shouldRenderStrings);
+                GearShopMenuRenderMenuStringsToVram(4, g_Menu->optionStrings, &g_GearShopSubmenuStringIds[var_s0], (s8* ) g_Menu->pManager->shouldRenderStrings);
                 GearShopMenuInitializeSubmenu(0);
                 redrawWindows = FALSE;
             }
             if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-                GearShopMenuSetMenuStringPosition(4, g_Menu->unk6E0, (s32) &g_GearShopSubmenuStringIds[var_s0], &g_GearShopMenuStringPadding[var_s0], g_Menu->pManager->shouldRenderStrings, g_Menu->subMenuChoice, 4, 0);
+                GearShopMenuSetMenuStringPosition(4, g_Menu->optionStrings, (s32) &g_GearShopSubmenuStringIds[var_s0], &g_GearShopMenuStringPadding[var_s0], g_Menu->pManager->shouldRenderStrings, g_Menu->subMenuChoice, 4, 0);
                 GearShopMenuUpdateSubmenuTextures(0);
                 g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
             }
@@ -2449,7 +2449,7 @@ s32 GearShopMenuShopModeSubmenu(void) {
                     g_Menu->pManager->shouldRenderPointerCursor = 1;
                     g_Menu->pManager->unk3 = 1;
                     g_Menu->pManager->shouldRenderSubmenuStrings = 1;
-                    GearShopMenuRenderMenuStringsToVram(4, g_Menu->unk6E0, &g_GearShopSubmenuStringIds[var_s0], (s8* ) g_Menu->pManager->shouldRenderStrings);
+                    GearShopMenuRenderMenuStringsToVram(4, g_Menu->optionStrings, &g_GearShopSubmenuStringIds[var_s0], (s8* ) g_Menu->pManager->shouldRenderStrings);
                     g_Menu->subMenuPrevChoice = 0xFF;
                 case MENU_INPUT_LEFT:                             /* switch 1 */
                 case 6:                             /* switch 1 */

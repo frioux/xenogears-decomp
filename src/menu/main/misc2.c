@@ -57,7 +57,7 @@ void MenuSetupScreen(void) {
     g_Menu->pSelectionMenu->vramRect.y = 0x100;
     g_Menu->pSelectionMenu->vramRect.w = 0x140;
     g_Menu->pSelectionMenu->vramRect.h = 0xE0;
-    g_Menu->unk348->shadeWidth = 0x40;
+    g_Menu->pCursorPrims->shadeWidth = 0x40;
     func_801C6AA0();
     MenuResetRenderContext();
     MenuInitializeMenuStrings();
@@ -65,7 +65,7 @@ void MenuSetupScreen(void) {
     MenuInitializeWindowBorders();
     switch (g_MenuOverlayIndex) {
     case 2:
-        g_Menu->unk348->shadeWidth = 0x4C;
+        g_Menu->pCursorPrims->shadeWidth = 0x4C;
         /* fallthrough */
     case 0:
     case 6:
@@ -369,7 +369,7 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 }
 void MenuPlaySoundEffect(u_char soundEffectId) {
     if (g_Menu->soundEffectsEnabled) {
-        SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 16) | soundEffectId);
+        SoundPlaySoundEffectOnLastPair((g_Menu->pSoundFile->sedId << 16) | soundEffectId);
     }
 }
 u16 MenuGetBitMaskMsbFirst(u8 index) {

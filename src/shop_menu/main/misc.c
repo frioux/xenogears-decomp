@@ -200,11 +200,11 @@ void ShopMenuSelectionMenuManager(u_char isInitialization) {
 
 void ShopMenuUnk354Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk354 = HeapAlloc(sizeof(MenuUnk5), 0);
-        bzero(g_Menu->unk354, sizeof(MenuUnk5));
+        g_Menu->pSubmenuPrims = HeapAlloc(sizeof(MenuUnk5), 0);
+        bzero(g_Menu->pSubmenuPrims, sizeof(MenuUnk5));
         return;
     }
-    HeapFree(g_Menu->unk354);
+    HeapFree(g_Menu->pSubmenuPrims);
 }
 
 void ShopMenuDressingRoomManager(u_char isInitialization) {
@@ -218,11 +218,11 @@ void ShopMenuDressingRoomManager(u_char isInitialization) {
 
 void ShopMenuUnk348Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->unk348 = HeapAlloc(sizeof(MenuUnk1), 0);
-        bzero(g_Menu->unk348, sizeof(MenuUnk1));
+        g_Menu->pCursorPrims = HeapAlloc(sizeof(MenuUnk1), 0);
+        bzero(g_Menu->pCursorPrims, sizeof(MenuUnk1));
         return;
     }
-    HeapFree(g_Menu->unk348);
+    HeapFree(g_Menu->pCursorPrims);
 }
 
 void ShopMenuUnk1E20Manager(u_char isInitialization) {
@@ -283,7 +283,7 @@ void ShopMenuLoadResources(void) {
     ModelLoadTextureBlock(pData);
     HeapFree(pData);
     g_Menu->resources = LZSSHeapDecompress((void *)pFileHandle[3], 0);
-    g_Menu->unk2E0 = LZSSHeapDecompress((void *)pFileHandle[4], 0);
+    g_Menu->pStringBank = LZSSHeapDecompress((void *)pFileHandle[4], 0);
 
     ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_1,
                                &metadata[FIELD_TEX_COUNT(0)],
@@ -334,7 +334,7 @@ void ShopMenuLoadResources(void) {
         ArchiveSetIndex(0x10, 0);
         SoundAddSedsEntry(g_MenuSedsFile);
     }
-    g_Menu->unk2E4 = g_MenuSedsFile;
+    g_Menu->pSoundFile = g_MenuSedsFile;
     g_Menu->pShopEntries = LZSSHeapDecompress((void *)pFileHandle[7], 0);
     HeapFree(pFileHandle);
 }
@@ -447,11 +447,11 @@ void ShopMenuRenderStringsToVram(MenuString* pStringList, u8* pStringIdList, s32
 
     for (i = 0; i < count; i += 2) {
         pStringList[i].width = SystemRenderStringEntry(
-            GetStringEntry(g_Menu->unk2E0, pStringIdList[i]),
+            GetStringEntry(g_Menu->pStringBank, pStringIdList[i]),
             (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 0
         );
         pStringList[i + 1].width = SystemRenderStringEntry(
-            GetStringEntry(g_Menu->unk2E0, pStringIdList[i + 1]),
+            GetStringEntry(g_Menu->pStringBank, pStringIdList[i + 1]),
             (u32*) g_Menu->unk4E0[0].pVramBuffer, 0x18, 1
         );
 
@@ -533,39 +533,39 @@ void ShopMenuInitializeWindowBorders(void) {
 void ShopMenuMovePointerCursor(int index, u_char arg1) {
     func_8002675C(
         g_Menu->resources, MENU_TEX_POINTER_CURSOR,
-        &g_Menu->unk348->polysPointerCursor, g_Menu->renderContext,
+        &g_Menu->pCursorPrims->polysPointerCursor, g_Menu->renderContext,
         g_ShopPointerCursorX[index], g_ShopPointerCursorY[index],
         0x1000
     );
-    g_Menu->unk348->cursorRenderContext = g_Menu->renderContext;
+    g_Menu->pCursorPrims->cursorRenderContext = g_Menu->renderContext;
 
     if (arg1) {
         // A yellow -> black shaded rectangle of shadeWidth width,
         // with green lines around it. Seems to be cursor-related,
         // as the pointer cursor is set to same position
         setXY4(
-            &g_Menu->unk348->polyG4s[g_Menu->renderContext],
+            &g_Menu->pCursorPrims->polyG4s[g_Menu->renderContext],
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 36,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 36,
+            g_ShopPointerCursorX[index] + (g_Menu->pCursorPrims->shadeWidth + 20), g_ShopPointerCursorY[index] - 36,
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 20,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
+            g_ShopPointerCursorX[index] + (g_Menu->pCursorPrims->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
         );
 
         setXY3(
-            &g_Menu->unk348->lines1[g_Menu->renderContext],
+            &g_Menu->pCursorPrims->lines1[g_Menu->renderContext],
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 36,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 36,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
+            g_ShopPointerCursorX[index] + (g_Menu->pCursorPrims->shadeWidth + 20), g_ShopPointerCursorY[index] - 36,
+            g_ShopPointerCursorX[index] + (g_Menu->pCursorPrims->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
         );
 
         setXY3(
-            &g_Menu->unk348->lines2[g_Menu->renderContext],
+            &g_Menu->pCursorPrims->lines2[g_Menu->renderContext],
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 36,
             g_ShopPointerCursorX[index] + 20, g_ShopPointerCursorY[index] - 20,
-            g_ShopPointerCursorX[index] + (g_Menu->unk348->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
+            g_ShopPointerCursorX[index] + (g_Menu->pCursorPrims->shadeWidth + 20), g_ShopPointerCursorY[index] - 20
         );
 
-        g_Menu->unk348->drawModeRenderContext = g_Menu->renderContext;
+        g_Menu->pCursorPrims->drawModeRenderContext = g_Menu->renderContext;
         g_Menu->pManager->unk3 = 1;
     }
 }
@@ -597,29 +597,29 @@ void ShopMenuInitializeBackgrounds(void) {
 
     for (i = 0; i < 2; i++) {
         // Yellow -> Black gradient
-        ShopMenuSetPolyG4Gradient(&g_Menu->unk348->polyG4s[i], 128, 128, 0);
-        SetSemiTrans(&g_Menu->unk348->polyG4s[i], 1);
+        ShopMenuSetPolyG4Gradient(&g_Menu->pCursorPrims->polyG4s[i], 128, 128, 0);
+        SetSemiTrans(&g_Menu->pCursorPrims->polyG4s[i], 1);
 
         // Green lines
-        SetLineF3(&g_Menu->unk348->lines1[i]);
-        setRGB0(&g_Menu->unk348->lines1[i], 0, 64, 0);
+        SetLineF3(&g_Menu->pCursorPrims->lines1[i]);
+        setRGB0(&g_Menu->pCursorPrims->lines1[i], 0, 64, 0);
 
-        SetLineF3(&g_Menu->unk348->lines2[i]);
-        setRGB0(&g_Menu->unk348->lines2[i], 0, 64, 0);
+        SetLineF3(&g_Menu->pCursorPrims->lines2[i]);
+        setRGB0(&g_Menu->pCursorPrims->lines2[i], 0, 64, 0);
 
         // Backgrounds dimming screen
-        SetPolyF4(&g_Menu->unk348->polysDimEffect[i]);
-        setXY4(&g_Menu->unk348->polysDimEffect[i],
+        SetPolyF4(&g_Menu->pCursorPrims->polysDimEffect[i]);
+        setXY4(&g_Menu->pCursorPrims->polysDimEffect[i],
             0,   0,
             320, 0,
             0,   224,
             320, 224
         );
-        setRGB0(&g_Menu->unk348->polysDimEffect[i], 128, 128, 128);
-        SetSemiTrans(&g_Menu->unk348->polysDimEffect[i], 1);
+        setRGB0(&g_Menu->pCursorPrims->polysDimEffect[i], 128, 128, 128);
+        SetSemiTrans(&g_Menu->pCursorPrims->polysDimEffect[i], 1);
 
-        SetDrawMode(&g_Menu->unk348->drModes1[i], 0, 0, GetTPage(0, 0, 0x140, 128), &rect);
-        SetDrawMode(&g_Menu->unk348->drawModeDimEffect[i], 0, 0, GetTPage(0, 2, 0x180, 0), &rect);
+        SetDrawMode(&g_Menu->pCursorPrims->drModes1[i], 0, 0, GetTPage(0, 0, 0x140, 128), &rect);
+        SetDrawMode(&g_Menu->pCursorPrims->drawModeDimEffect[i], 0, 0, GetTPage(0, 2, 0x180, 0), &rect);
     }
 }
 
@@ -1340,13 +1340,13 @@ void ShopMenuRenderScrollBarHandle(void) {
 void ShopMenuAddPointerCursorPrims(void) {
     AddPrim(
         &g_Menu->pGfxEnv->ot[4],
-        &g_Menu->unk348->drModes1[g_Menu->unk348->drawModeRenderContext]
+        &g_Menu->pCursorPrims->drModes1[g_Menu->pCursorPrims->drawModeRenderContext]
     );
 
     if (g_Menu->pManager->shouldRenderPointerCursor) {
         AddPrim(
             &g_Menu->pGfxEnv->ot[4],
-            &g_Menu->unk348->polysPointerCursor[g_Menu->unk348->cursorRenderContext]
+            &g_Menu->pCursorPrims->polysPointerCursor[g_Menu->pCursorPrims->cursorRenderContext]
         );
     }
 }
@@ -1724,7 +1724,7 @@ void ShopMenuAddUnk6E0Prims(void) {
         if (g_Menu->pManager->shouldRenderStrings[i]) {
             AddPrim(
                 &g_Menu->pGfxEnv->ot[4],
-                &g_Menu->unk6E0[i].polys[g_Menu->unk6E0[i].renderContext]
+                &g_Menu->optionStrings[i].polys[g_Menu->optionStrings[i].renderContext]
             );
         }
     }
@@ -1805,8 +1805,8 @@ void ShopMenuAddUnk1DE0Prims(void) {
 
 // Draw the black dimming effect
 void ShopMenuRenderBackgroundDim(void) {
-    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->polysDimEffect[g_Menu->renderContext]);
-    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->unk348->drawModeDimEffect[g_Menu->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->pCursorPrims->polysDimEffect[g_Menu->renderContext]);
+    AddPrim(&g_Menu->pGfxEnv->ot[8], &g_Menu->pCursorPrims->drawModeDimEffect[g_Menu->renderContext]);
 }
 
 void ShopMenuAddStringGroupPrims(void) {
@@ -1866,8 +1866,8 @@ void ShopMenuRenderSelectionMenu(void) {
 
 void ShopMenuAddUnk354Prims(void) {
     if (g_Menu->pManager->shouldRenderSubmenuStrings) {
-        ShopMenuRenderString(g_Menu->unk354->polys500PrimCount, g_Menu->unk354->polys500, g_Menu->unk354->polys500RenderCtx);
-        ShopMenuRenderString(g_Menu->unk354->polys0PrimCount, g_Menu->unk354->polys0, g_Menu->unk354->polys0RenderCtx);
+        ShopMenuRenderString(g_Menu->pSubmenuPrims->polys500PrimCount, g_Menu->pSubmenuPrims->polys500, g_Menu->pSubmenuPrims->polys500RenderCtx);
+        ShopMenuRenderString(g_Menu->pSubmenuPrims->polys0PrimCount, g_Menu->pSubmenuPrims->polys0, g_Menu->pSubmenuPrims->polys0RenderCtx);
     }
 }
 
@@ -1903,7 +1903,7 @@ void ShopMenuRender(void) {
 
 void ShopMenuPlaySoundEffect(u_char soundEffectId) {
     if (g_Menu->soundEffectsEnabled) {
-        SoundPlaySoundEffectOnLastPair((g_Menu->unk2E4->sedId << 16) | soundEffectId);
+        SoundPlaySoundEffectOnLastPair((g_Menu->pSoundFile->sedId << 16) | soundEffectId);
     }
 }
 
@@ -2174,7 +2174,7 @@ void ShopMenuConfirmationWindowInitialize(u_char stringIndex) {
     for (i = 0; i < 3; i++) {
         pString = g_Menu->modalStrings[i];
         pString->width = SystemRenderStringEntry(
-            GetStringEntry(g_Menu->unk2E0, stringIndex + i),
+            GetStringEntry(g_Menu->pStringBank, stringIndex + i),
             pString->pVramBuffer, 0x36, i % 2
         );
         ShopMenuSetStringPrimitives(pString, i, 0, 0);
@@ -2310,14 +2310,14 @@ void ShopMenuFree(void) {
     ShopMenuLoadShopItemsData(0x10);
     ShopMenuShopManager(MENU_DATA_FREE);
     HeapFree(g_Menu->resources);
-    HeapFree(g_Menu->unk2E0);
+    HeapFree(g_Menu->pStringBank);
     HeapFree(g_Menu->unk4E0[0].pVramBuffer);
     if (g_MenuDebugEnabled) {
-        SoundStopElementsForSoundFile(g_Menu->unk2E4);
+        SoundStopElementsForSoundFile(g_Menu->pSoundFile);
         ShopMenuUpdateAndRender();
-        SoundRemoveSedsEntry(g_Menu->unk2E4);
+        SoundRemoveSedsEntry(g_Menu->pSoundFile);
         ShopMenuUpdateAndRender();
-        HeapFree(g_Menu->unk2E4);
+        HeapFree(g_Menu->pSoundFile);
     }
     HeapFree(g_Menu->pShopEntries);
     ShopMenuUnk1E20Manager(MENU_DATA_FREE);
@@ -2423,21 +2423,21 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
 
     g_Menu->pSelectionMenu->isDisabled = 0;
     g_Menu->pSelectionMenu->isDisabledRendered = 0;
-    g_Menu->unk354->polys0PrimCount = 0;
-    g_Menu->unk354->polys500PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys0PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys500PrimCount = 0;
     g_Menu->pManager->shouldRenderSubmenuStrings = 1;
 
     isValid = TRUE;
     for (i = 1; i < 5; i++) {
-        g_Menu->unk354->polys0PrimCount = 0;
+        g_Menu->pSubmenuPrims->polys0PrimCount = 0;
         g_Menu->subMenuNumChoices = 0;
 
         for (j = 0; j < i; j++) {
             if (g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2] != 0xFFFF) {
-                g_Menu->unk354->polys0PrimCount += func_8002675C(
+                g_Menu->pSubmenuPrims->polys0PrimCount += func_8002675C(
                     g_Menu->resources,
                     g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2],
-                    &g_Menu->unk354->polys0[g_Menu->unk354->polys0PrimCount * 2],
+                    &g_Menu->pSubmenuPrims->polys0[g_Menu->pSubmenuPrims->polys0PrimCount * 2],
                     g_Menu->renderContext,
                     0xA0, 0x96,
                     0x1000
@@ -2448,7 +2448,7 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
             }
         }
 
-        g_Menu->unk354->polys0RenderCtx = g_Menu->renderContext;
+        g_Menu->pSubmenuPrims->polys0RenderCtx = g_Menu->renderContext;
 
         if (isValid) {
             for (j = 0; j < 2; j++) {
@@ -2456,14 +2456,14 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
             }
         }
 
-        g_Menu->unk354->polys500PrimCount = 0;
+        g_Menu->pSubmenuPrims->polys500PrimCount = 0;
 
         for (j = 0; j < i; j++) {
             if (g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2] != 0xFFFF) {
-                g_Menu->unk354->polys500PrimCount += func_8002675C(
+                g_Menu->pSubmenuPrims->polys500PrimCount += func_8002675C(
                     g_Menu->resources,
                     g_ShopSubmenuTextureIds[(arg0 + g_Menu->mainMenuChoice) * 8 + j * 2 + 1],
-                    &g_Menu->unk354->polys500[g_Menu->unk354->polys500PrimCount * 2],
+                    &g_Menu->pSubmenuPrims->polys500[g_Menu->pSubmenuPrims->polys500PrimCount * 2],
                     g_Menu->renderContext,
                     0xA0, 0x96,
                     0x1000
@@ -2471,7 +2471,7 @@ void ShopMenuInitializeSubmenu(u_char arg0) {
             }
         }
 
-        g_Menu->unk354->polys500RenderCtx = g_Menu->renderContext;
+        g_Menu->pSubmenuPrims->polys500RenderCtx = g_Menu->renderContext;
 
         if (isValid) {
             for (j = 0; j < 2; j++) {
@@ -2526,8 +2526,8 @@ void ShopMenuUpdateSubmenuTextures(u_char menuOffset) {
     int i;
     int textureID;
 
-    g_Menu->unk354->polys0PrimCount = 0;
-    g_Menu->unk354->polys500PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys0PrimCount = 0;
+    g_Menu->pSubmenuPrims->polys500PrimCount = 0;
 
     for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
         // The active option uses a different cursor texture
@@ -2537,25 +2537,25 @@ void ShopMenuUpdateSubmenuTextures(u_char menuOffset) {
             textureID = g_ShopSubmenuTextureIds[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2];
         }
 
-        g_Menu->unk354->polys0PrimCount += func_8002675C(
+        g_Menu->pSubmenuPrims->polys0PrimCount += func_8002675C(
             g_Menu->resources, textureID,
-            &g_Menu->unk354->polys0[g_Menu->unk354->polys0PrimCount * 2],
+            &g_Menu->pSubmenuPrims->polys0[g_Menu->pSubmenuPrims->polys0PrimCount * 2],
             g_Menu->renderContext,
             160, 150,
             0x1000
         );
 
-        g_Menu->unk354->polys500PrimCount += func_8002675C(
+        g_Menu->pSubmenuPrims->polys500PrimCount += func_8002675C(
             g_Menu->resources, g_ShopSubmenuTextTextureIds[(menuOffset + g_Menu->mainMenuChoice) * 8 + i * 2],
-            &g_Menu->unk354->polys500[g_Menu->unk354->polys500PrimCount * 2],
+            &g_Menu->pSubmenuPrims->polys500[g_Menu->pSubmenuPrims->polys500PrimCount * 2],
             g_Menu->renderContext,
             160, 150,
             0x1000
         );
     }
 
-    g_Menu->unk354->polys0RenderCtx = g_Menu->renderContext;
-    g_Menu->unk354->polys500RenderCtx = g_Menu->renderContext;
+    g_Menu->pSubmenuPrims->polys0RenderCtx = g_Menu->renderContext;
+    g_Menu->pSubmenuPrims->polys500RenderCtx = g_Menu->renderContext;
 
     ShopMenuMovePointerCursor(g_Menu->subMenuChoice + 3, 1);
 
@@ -2583,7 +2583,7 @@ u_char ShopMenuShopModeMenuHandleSelectedOption() {
 
     if (result) {
         ShopMenuStartCloseMenuTransition();
-        ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
+        ShopMenuSetStringListVisible(1, 4, g_Menu->optionStrings, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
     }
 
     ShopMenuClearBuyMenuGraphics();
@@ -2609,7 +2609,7 @@ void ShopMenuShopModeMenuMain(void) {
 
     ShopMenuInitializeShopModeSelectionMenu(4, &g_ShopModeSelectionTextureIds);
 
-    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
+    ShopMenuSetStringListVisible(1, 4, g_Menu->optionStrings, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
 
     while (isRunning) {
         ShopMenuUpdateAndRender();
@@ -2622,10 +2622,10 @@ void ShopMenuShopModeMenuMain(void) {
                 g_Menu->pSelectionMenu->isDisabled = TRUE;
 
                 ShopMenuHidePointerCursor();
-                ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
-                g_Menu->unk348->shadeWidth = 0x4C;
+                ShopMenuSetStringListVisible(0, 4, g_Menu->optionStrings, &g_ShopModeMenuStringIds, g_Menu->pManager->shouldRenderStrings);
+                g_Menu->pCursorPrims->shadeWidth = 0x4C;
                 isRunning = ShopMenuShopModeMenuHandleSelectedOption();
-                g_Menu->unk348->shadeWidth = 0x40;
+                g_Menu->pCursorPrims->shadeWidth = 0x40;
                 break;
 
             case MENU_INPUT_BACK:
@@ -2650,7 +2650,7 @@ void ShopMenuShopModeMenuMain(void) {
         // Update the selected option to the active one if we need to
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
             ShopMenuUpdateShopModeSelectionMenu(3, g_Menu->mainMenuChoice, &g_ShopModeSelectionTextureIds);
-            ShopMenuPositionSelectedString(4, g_Menu->unk6E0, &g_ShopModeMenuStringIds, &g_ShopModeMenuStringOffsets,
+            ShopMenuPositionSelectedString(4, g_Menu->optionStrings, &g_ShopModeMenuStringIds, &g_ShopModeMenuStringOffsets,
                 g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0
             );
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
@@ -2671,7 +2671,7 @@ void ShopMenuMain(void) {
     g_Menu->pSelectionMenu->vramRect.y = 0x100;
     g_Menu->pSelectionMenu->vramRect.w = 0x140;
     g_Menu->pSelectionMenu->vramRect.h = 0xE0;
-    g_Menu->unk348->shadeWidth = 0x40;
+    g_Menu->pCursorPrims->shadeWidth = 0x40;
     ShopMenuInitialize();
     ShopMenuResetRenderContext();
     func_801C5EE8();
@@ -3669,8 +3669,8 @@ u_char ShopMenuBuyMenu(void) {
         ShopMenuUpdateArrowCursor(curChoice, scrollOffset, 0, 0);
 
         if (shouldInitialize) {
-            ShopMenuSetStringListVisible(1, 2, g_Menu->unk6E0, &g_ShopBuyMenuStringIds, g_Menu->pManager->shouldRenderStrings);
-            ShopMenuPositionSelectedString(2, g_Menu->unk6E0, &g_ShopBuyMenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->shouldRenderStrings, 0, 0, 1);
+            ShopMenuSetStringListVisible(1, 2, g_Menu->optionStrings, &g_ShopBuyMenuStringIds, g_Menu->pManager->shouldRenderStrings);
+            ShopMenuPositionSelectedString(2, g_Menu->optionStrings, &g_ShopBuyMenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->shouldRenderStrings, 0, 0, 1);
             g_Menu->pManager->shouldRenderStrings[0] = FALSE;
             ShopMenuInitializeWindow(2, 0xC, 0x2A, 0xC4, 0x74, 0, 1, 4, 1);
             ShopMenuInitializeWindow(3, 0x20, 0xE, 0xFC, 0x14, 0, 1, 4, 0);
@@ -4504,7 +4504,7 @@ void ShopMenuSellModeMenuHandleSelectedOption(void) {
     g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
     g_Menu->pManager->shouldRenderSubmenuStrings = 0;
-    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
+    ShopMenuSetStringListVisible(0, 4, g_Menu->optionStrings, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
 
     var_a0 = 1;
     switch (g_Menu->subMenuChoice) {
@@ -4529,7 +4529,7 @@ void ShopMenuSellModeMenuHandleSelectedOption(void) {
     g_Menu->pManager->shouldRenderSubmenuStrings = 1;
     g_Menu->pManager->shouldRenderPointerCursor = 1;
     g_Menu->pManager->unk3 = 1;
-    ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
+    ShopMenuSetStringListVisible(1, 4, g_Menu->optionStrings, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
 }
 
 // Items / Weapons / Accessories / Equipment
@@ -4546,14 +4546,14 @@ int ShopMenuSellModeMenu() {
         ShopMenuUpdateAndRender();
 
         if (shouldInitialize) {
-            ShopMenuSetStringListVisible(1, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
+            ShopMenuSetStringListVisible(1, 4, g_Menu->optionStrings, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
             ShopMenuStartOpenMenuTransition();
             ShopMenuInitializeSubmenu(0);
             shouldInitialize = FALSE;
         }
 
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            ShopMenuPositionSelectedString(4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->shouldRenderStrings, g_Menu->subMenuChoice, 3, 0);
+            ShopMenuPositionSelectedString(4, g_Menu->optionStrings, &g_ShopSubmenuStringIds, &g_ShopSubmenuStringOffsets, g_Menu->pManager->shouldRenderStrings, g_Menu->subMenuChoice, 3, 0);
             ShopMenuUpdateSubmenuTextures(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }
@@ -4587,7 +4587,7 @@ int ShopMenuSellModeMenu() {
 
     g_Menu->pManager->shouldRenderPointerCursor = 0;
     g_Menu->pManager->unk3 = 0;
-    ShopMenuSetStringListVisible(0, 4, g_Menu->unk6E0, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
+    ShopMenuSetStringListVisible(0, 4, g_Menu->optionStrings, &g_ShopSubmenuStringIds, g_Menu->pManager->shouldRenderStrings);
     return TRUE;
 }
 
