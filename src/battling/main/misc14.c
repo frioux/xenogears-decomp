@@ -26,7 +26,7 @@ extern void func_8008BB3C(void *pCtx);
 
 typedef struct {
     /* 0x00 */ u32 unk0;
-    /* 0x04 */ u32 unk4;
+    /* 0x04 */ u32 color; // the draw-buffer colour word BattleSetEntryColor copies into every entry
     /* 0x08 */ u8 unk8[4];
     /* 0x0C */ s16 unkC;
     /* 0x0E */ s16 unkE;
@@ -91,13 +91,13 @@ void BattleSetColorIfChanged(u8 *pSrc) {
 }
 
 // The block a node composes its placement into, named by the node's 0x8C
-// pointer: the matrix the node builds at 0x4C and the two it is multiplied
-// into, 0x6C first.
+// pointer: the rotation matrix the node builds at 0x4C and the two it is
+// multiplied into, 0x6C first.
 typedef struct {
     /* 0x00 */ u8 pad00[0x0C];
     /* 0x0C */ MATRIX localMatrix;
     /* 0x2C */ u8 pad2C[0x20];
-    /* 0x4C */ MATRIX unk4C;
+    /* 0x4C */ MATRIX rotMatrix;
     /* 0x6C */ MATRIX worldMatrix;
 } Misc14ModelMatrices; // Size: 0x8C
 
@@ -112,7 +112,7 @@ typedef struct Misc14ModelNode {
     /* 0x2C */ SVECTOR sourcePos;
     /* 0x34 */ VECTOR position;
     /* 0x44 */ SVECTOR rotation;
-    /* 0x4C */ MATRIX unk4C;
+    /* 0x4C */ MATRIX rotMatrix;
     /* 0x6C */ MATRIX worldMatrix;
     /* 0x8C */ Misc14ModelMatrices* pMatrices;
     /* 0x90 */ struct Misc14ModelNode* pChildA;
@@ -147,7 +147,7 @@ void BattleSetEntryColor(Misc14ModelNode *pNode) {
     u32 value = D_80092818[index];
 
     while (--count != -1) {
-        pEntry->unk4 = value;
+        pEntry->color = value;
         pEntry++;
     }
 }
@@ -175,10 +175,10 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
             pNode->worldMatrix = pNode->localMatrix;
         }
         func_800731F8(&pNode->localMatrix, (SVECTOR*)((u8*)pNode->pData + 0x10));
-        pNode->unk4C = pNode->localMatrix;
-        pNode->unk4C.t[2] = 0;
-        pNode->unk4C.t[1] = 0;
-        pNode->unk4C.t[0] = 0;
+        pNode->rotMatrix = pNode->localMatrix;
+        pNode->rotMatrix.t[2] = 0;
+        pNode->rotMatrix.t[1] = 0;
+        pNode->rotMatrix.t[0] = 0;
         pNode->localMatrix.t[0] = pNode->position.vx - g_BattleViewOrigin.vx;
         pNode->localMatrix.t[1] = pNode->position.vy - g_BattleViewOriginY.vx;
         pNode->localMatrix.t[2] = pNode->position.vz - g_BattleViewOriginZ.vx;
@@ -193,7 +193,7 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
             RotMatrix(&pNode->rotation, &pNode->localMatrix);
             TransMatrix(&pNode->localMatrix, &pNode->position);
             MulMatrix0(&pNode->pMatrices->worldMatrix, &pNode->localMatrix, &pNode->worldMatrix);
-            CompMatrix(&pNode->pMatrices->unk4C, &pNode->localMatrix, &pNode->unk4C);
+            CompMatrix(&pNode->pMatrices->rotMatrix, &pNode->localMatrix, &pNode->rotMatrix);
             CompMatrix(&pNode->pMatrices->localMatrix, &pNode->localMatrix, &pNode->localMatrix);
         }
         if (pNode->state == 1 && (*(u32*)pNode->pData & 1) == 0) {
@@ -204,7 +204,7 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
         break;
     case 5:
         if (((Misc14State5Data*)pNode->pData)->type == 1) {
-            pNode->localMatrix = ((Misc14State5Data*)pNode->pData)->pMatrices->unk4C;
+            pNode->localMatrix = ((Misc14State5Data*)pNode->pData)->pMatrices->rotMatrix;
             gte_SetRotMatrix_gpr(&pNode->localMatrix);
             if (D_80092914 != 0) {
                 BattleSetEntryColor(pNode);
@@ -335,8 +335,8 @@ void BattleAttachActorPrims(Misc14DisplayWork *pWork) {
 }
 
 typedef struct {
-    /* 0x00 */ u32 unk0;
-    /* 0x04 */ u32 unk4;
+    /* 0x00 */ u32 pPartList;  // count word followed by the 0x10-byte part descriptors
+    /* 0x04 */ u32 pModelData; // base of the 0x38-byte model part records the descriptors index
     /* 0x08 */ u32 pPointerList;
     /* 0x0C */ u32 pImage;
     /* 0x10 */ u32 unk10;
@@ -355,8 +355,8 @@ Misc14Reloc *BattleRelocateBlockPointers(Misc14Reloc *pData) {
     u32 i;
 
     pData->pSelf = (u32)pData;
-    pData->unk0 += delta;
-    pData->unk4 += delta;
+    pData->pPartList += delta;
+    pData->pModelData += delta;
     pData->unk10 += delta;
     pData->unk14 += delta;
     pData->unk18 += delta;
@@ -748,7 +748,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
 /*
 void func_8008BB00(Misc14Entry *pDst) {
     pDst->unk0 = D_80096D88;
-    pDst->unk4 = D_80096D8C;
+    pDst->color = D_80096D8C;
 }
 */
 
@@ -766,7 +766,7 @@ void func_8008BB1C(Misc14Entry *pSrc) {
 
     value = pSrc->unk0;
     D_80096D88 = value;
-    value = pSrc->unk4;
+    value = pSrc->color;
     D_80096D8C = value;
 }
 */
