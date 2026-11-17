@@ -20,6 +20,17 @@
 #define BATTLE_SCALED_HP_MAX 99999
 // Bit of the BattleGetActorActionConditionMask result set while hp is under an eighth of maxHp.
 #define BATTLE_ACTION_CONDITION_LOW_HP 0x2
+// hp and maxHp are percents, so this is a stat at full; BattleResetActorStats
+// starts both there.
+#define BATTLE_STAT_PERCENT_MAX 100
+// conditionFlags as BattleResetActorStats sets it: the conditions a slot starts
+// with (bits 6 and 13-15 clear).
+#define BATTLE_CONDITION_FLAGS_RESET 0x1FBF
+// The one effect bit BattleSetSlotEntryFieldsTo1/To2000 act on, in whichever word a
+// slot carries it: the gear side's activeEffectFlags2 (state.flags bit 0x80 set) or
+// the actor's activeEffectFlags4.
+#define BATTLE_GEAR_EFFECT_FLAG 0x2000
+#define BATTLE_ACTOR_EFFECT_FLAG 0x400
 
 // A queued movement/rotation command, allocated by BattleAllocBlock and linked
 // into the owning sprite's p70 slot.

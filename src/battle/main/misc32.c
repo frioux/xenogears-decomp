@@ -162,7 +162,7 @@ extern void BattleStepEffectPosition(Misc32Task *pTask);
 extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
 
 extern void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind);
-extern void func_800BD1FC(s32 slot);
+extern void BattleAttachCommandRowEffect(s32 slot);
 
 // Parked at 92.59%, one instruction SHORT (228 bytes vs retail's 232), so it cannot
 // link: retail loads the slot's sprite into $t0 and copies it into $a0 in the jal's
@@ -204,7 +204,7 @@ typedef struct {
 // the s32 timer local next to the u8 colour-mode local fixes which of the two loads
 // retail schedules first, and the re-derivation goes through the u8 * because a single
 // cast expression costs the jal its `move a0,t0` delay slot.
-void func_800BD1FC(s32 slot) {
+void BattleAttachCommandRowEffect(s32 slot) {
     u8 *pBase;
     BattleCommandRowTable *pRow;
     s32 nextTimer;
@@ -259,9 +259,9 @@ void BattleUpdateCommandRows(void) {
             // opt merges them, which is what keeps the g_BattleCommandRowIndex address from
             // being hoisted out of the loop.
             if (flag) {
-                func_800BD1FC(i);
+                BattleAttachCommandRowEffect(i);
             } else {
-                func_800BD1FC(i);
+                BattleAttachCommandRowEffect(i);
             }
         }
         pSlot += 4;
