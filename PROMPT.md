@@ -609,7 +609,12 @@ and you decide.
   2.7.2) have been swept at unit and park level. Do not run a repo-wide sweep again. After a round,
   `tools/rounds/park_sweep.py <unit>...` on the units that gained parks is enough.
 - Every matched function stays 100.0 under the variant and a park reaches 100.0:
-  switch the unit. Some break: split it with `tools/scripts/split_unit.py` (AGENTS.md,
+  switch the unit. **A screen at 99.5-99.9 on every function is NOT enough** - those
+  percentages fold relocations, so a unit can look instruction-identical under the new
+  compiler and still fail `make check` on the linked bytes (round 200: `battle/main/misc9`
+  screened clean under 2.6.0 as an instruction-stream diff and broke `battle.bin`; the
+  switch was reverted). Run `make check` as part of the switch, and if it fails, revert
+  and treat the unit as a per-range split case instead. Some break: split it with `tools/scripts/split_unit.py` (AGENTS.md,
   "A unit carries ONE preset"). A unit with `.rodata`/`.data`/`.bss` subsegments in
   `config/<bin>.yaml` cannot be split (`field/main/misc`, `system/sound`). The one
   measured candidate left, `battle/misc19`, costs five files for two functions.
