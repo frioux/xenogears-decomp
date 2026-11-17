@@ -330,7 +330,36 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     BattleEffectUpdateEntries(pEffect, p0, p1);
 }
 
-extern u8 D_800910F4[];
+/* Draw parameters for one effect type, indexed by the caller's type id. */
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 unk3;
+    /* 0x4 */ u8 unk4;
+    /* 0x5 */ u8 unk5;
+    /* 0x6 */ u8 unk6;
+    /* 0x7 */ u8 pad7;
+} BattleEffectTemplate; // Size: 0x8
+
+/* One entry of the effect context's slot array at +0x64C; stride 0x44. */
+typedef struct {
+    /* 0x00 */ VECTOR unk00;
+    /* 0x10 */ VECTOR unk10;
+    /* 0x20 */ SVECTOR unk20;
+    /* 0x28 */ SVECTOR unk28;
+    /* 0x30 */ u8 active;
+    /* 0x31 */ u8 scale;
+    /* 0x32 */ u8 unk32;
+    /* 0x33 */ u8 unk33;
+    /* 0x34 */ u8 pad34[0x4];
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s16 unk3C;
+    /* 0x3E */ s16 unk3E;
+    /* 0x40 */ s16 unk40;
+    /* 0x42 */ u8 pad42[0x2];
+} BattleEffectSlot; // Size: 0x44
+
+extern BattleEffectTemplate D_800910F4[];
 extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
 extern void func_8008EBD0(u8 *, s32, void *, s32);
 
@@ -338,25 +367,25 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     VECTOR vDiff;
     VECTOR vNormal;
     s32 pad[2];
-    u8 *pSrc;
-    u8 *pSlot;
-    u8 *pEntry;
+    BattleEffectTemplate *pEntry;
+    BattleEffectSlot *pSlot;
+    VECTOR *pSrc;
     s32 i;
 
     for (i = 0; i < 9; i++) {
-        if (*(u8 *)(p2 + i * 0x44 + 0x67C) == 0) {
-            pSlot = p2 + 0x64C + i * 0x44;
+        if (*(u8 *)(p2 + i * sizeof(BattleEffectSlot) + 0x67C) == 0) {
+            pSlot = (BattleEffectSlot *)(p2 + 0x64C + i * sizeof(BattleEffectSlot));
             break;
         }
     }
     if (i == 8) {
         return;
     }
-    pSrc = *(u8 **)(p2 + 0xD8);
-    vNormal.vx = *(s32 *)(pSrc + 0x0) - p0->vx;
-    vNormal.vy = *(s32 *)(pSrc + 0x4) - p0->vy - 0x90;
-    vNormal.vz = *(s32 *)(pSrc + 0x8) - p0->vz;
-    pEntry = D_800910F4 + arg3 * 8;
+    pSrc = *(VECTOR **)(p2 + 0xD8);
+    vNormal.vx = pSrc->vx - p0->vx;
+    vNormal.vy = pSrc->vy - p0->vy - 0x90;
+    vNormal.vz = pSrc->vz - p0->vz;
+    pEntry = &D_800910F4[arg3];
     if (p1 != NULL) {
         vDiff.vx = p0->vx - p1->vx;
         vDiff.vy = p0->vy - p1->vy;
@@ -364,21 +393,21 @@ void func_80073424(VECTOR *p0, VECTOR *p1, u8 *p2, s32 arg3, s32 arg4, s32 arg5)
     } else {
         vDiff = vNormal;
     }
-    BattleNormalizeVectorToShort(&vDiff, (SVECTOR *)(pSlot + 0x28));
-    *(s16 *)(pSlot + 0x3E) = *(u16 *)(pEntry + 0x0);
-    *(u8 *)(pSlot + 0x31) = *(u8 *)(pEntry + 0x4);
-    *(s16 *)(pSlot + 0x40) = *(u8 *)(pEntry + 0x3);
-    *(u8 *)(pSlot + 0x32) = *(u8 *)(pEntry + 0x2);
-    *(u8 *)(pSlot + 0x33) = *(u8 *)(pEntry + 0x5);
-    *(s32 *)(pSlot + 0x38) = arg5;
-    *(s16 *)(pSlot + 0x3C) = arg4;
-    if (*(u8 *)(pEntry + 0x6) != 0) {
-        func_8008EBD0(p2, *(u8 *)(pEntry + 0x6), pSlot, 2);
+    BattleNormalizeVectorToShort(&vDiff, &pSlot->unk28);
+    pSlot->unk3E = pEntry->unk0;
+    pSlot->scale = pEntry->unk4;
+    pSlot->unk40 = pEntry->unk3;
+    pSlot->unk32 = pEntry->unk2;
+    pSlot->unk33 = pEntry->unk5;
+    pSlot->unk38 = arg5;
+    pSlot->unk3C = arg4;
+    if (pEntry->unk6 != 0) {
+        func_8008EBD0(p2, pEntry->unk6, pSlot, 2);
     }
-    BattleScaleSVectorGpf12((SVECTOR *)(pSlot + 0x28), (SVECTOR *)(pSlot + 0x20), *(u8 *)(pSlot + 0x31));
-    *(VECTOR *)pSlot = *p0;
-    *(VECTOR *)(pSlot + 0x10) = *(VECTOR *)pSlot;
-    *(u8 *)(pSlot + 0x30) = 1;
+    BattleScaleSVectorGpf12(&pSlot->unk28, &pSlot->unk20, pSlot->scale);
+    pSlot->unk00 = *p0;
+    pSlot->unk10 = pSlot->unk00;
+    pSlot->active = 1;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
 
