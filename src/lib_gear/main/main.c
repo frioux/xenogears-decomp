@@ -67,7 +67,7 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c);
 extern Temp8* g_BattleSoundBankMain;
 extern u32 g_LibGearDirectKeyframes;
 extern u16 g_LibGearModelBitMask;
-extern s16 g_LibGearCurrentModelIndex;
+extern u16 g_LibGearCurrentModelIndex;
 extern s32 g_LibGearPendingFrameCount;
 extern s16 g_LibGearSwingAngle;
 extern s16 g_LibGearSwingScale;
@@ -2090,8 +2090,6 @@ int LibGearGetModelDistance(Model* pModel) {
 // def sits in the 0xFE delay slot; ours puts the equivalent copy on the 0xFD/0xFC
 // compares instead. Same instruction multiset, same size, only reg_eqv's choice of
 // which use takes a1 differs - not reachable from source without a reload.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
-/*
 void func_801E63A8(Model* pModel) {
     Model* pModel2;
     Model* pSource;
@@ -2175,8 +2173,6 @@ void func_801E63A8(Model* pModel) {
         }
     }
 }
-*/
-
 
 // objdiff 98.63%: byte-identical except that gcc 2.6 puts pJoint in s1 and the
 // loop counter i in s0; the original has pJoint in s0, i in s1 (the other five
