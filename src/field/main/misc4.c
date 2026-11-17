@@ -1359,22 +1359,6 @@ int func_8007BAC0(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, int angle) 
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
-
-int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
-    int value = *pCur;
-
-    if (n < 0) {
-        *pCur = value;
-        *pNext = value;
-        return value;
-    }
-    *pCur = value;
-    value += n;
-    *pNext = value;
-    return value;
-}
-
 typedef struct {
     /* 0x0 */ s16 v0;
     /* 0x2 */ s16 v1;
@@ -1397,6 +1381,209 @@ extern u_int* g_FieldWalkmeshMaterialFlags;
 extern FieldWalkmeshTriangleRecord* g_FieldWalkmeshTriangles[];
 extern FieldWalkmeshVertexRecord* D_800AFB34[];
 extern u_char D_800B21CC;
+
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
+/* Best attempt: 83.66% (1916 bytes, the original's exact size). The body at
+   retail's size and every block is in retail's order (the eight-arm switch, the
+   flag tests, the 0x400000 height probe and the crossed-edge copy / second
+   switch). What is left is ordering and allocation, all of it measured:
+   1. prologue: retail loads pVec->vx/pVec->vz/pPos->vx/pPos->vz once, forms
+      nRef from those registers (`addu s8,v1,a0` right after the sra of the z
+      sum) and reloads pVec->vz/pPos->vz only for the pOut->vz store; gcc
+      splits the loads into two clusters and forms nRef after the second.
+   2. `(pPos->vx >> 16) << 16` is narrowed by gcc to `lh 2(pPos); sll 16` where
+      retail does `sra/sll` on the full word (nPos, 0x48(sp)).
+   3. nSavedTri stays in a register here: the frame is 0x88 against retail's
+      0x90, and retail keeps nSavedTri 0x38, nPos 0x48, nStop 0x58, i 0x50
+      while this body keeps nPos 0x38, nStop 0x48, i 0x50. Forcing the spill
+      would fix every saved-register offset in the function.
+   4. case 6 written as `if (NormalClip(...) >= 0) {n2; nClip=4} else {n1;
+      nClip=2}` (this body) matches retail's bgez; the swapped form scores
+      84.01% but is 1912 bytes, so the 4-byte-short position is the one inside
+      that arm.
+   5. i = 0xFF in case 0 is retail's "triangle found" sentinel: the loop tail
+      tests `i == 0x20` for "exhausted", and the exit tests nTri == -1 || i ==
+      0x20.
+   Six of the seven arguments are known from the call sites; pOut is arg 5
+   (0xA0(sp)), nMode arg 6 (0xA4(sp), 0x80 and -1 are the two values tested) and
+   pFlags arg 7 (0xA8(sp)), which is where `*pFlags = nFlags` stores. */
+/*
+// Drops pOut onto the walkmesh under the actor: walks the triangle graph from
+// the actor's current triangle toward pOut's x/z, then fills pPoints with the
+// two vertices of the edge it crossed when no triangle is found. -1 on failure.
+int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoints, SVECTOR* pOut, int nMode, s32* pFlags) {
+    FieldWalkmeshTriangleRecord* pTri;
+    FieldWalkmeshVertexRecord* pVerts;
+    VECTOR normal;
+    s32 nRef;
+    s32 nPos;
+    s32 nFlagMask;
+    s32 nClip;
+    u_int nFlags;
+    s32 nStop;
+    s32 nTri;
+    s32 vA;
+    s32 vB;
+    s32 vC;
+    s32 nSavedTri;
+    s32 i;
+
+    nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
+    pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
+    pVerts = D_800AFB34[pActor->walkmeshId];
+    if (nTri == -1) {
+        return -1;
+    }
+
+    pOut->vx = (pPos->vx + pVec->vx) >> 16;
+    nRef = (pOut->vx << 16) + ((pPos->vz + pVec->vz) >> 16);
+    nFlagMask = 0;
+    pOut->vy = 0;
+    pOut->vz = (pPos->vz + pVec->vz) >> 16;
+    nPos = ((pPos->vx >> 16) << 16) + (pPos->vz >> 16);
+    if (!((pActor->flags >> (pActor->walkmeshId + 3)) & 1)) {
+        nFlagMask = -(D_800B21CC < 1);
+    }
+
+    nFlags = g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & nFlagMask;
+    nStop = 0;
+    if ((nFlags & 0x400000) || nMode == 0x80) {
+        nStop = 1;
+    }
+
+    for (i = 0; i < 0x20; i++) {
+        nSavedTri = nTri;
+        vA = (pVerts[pTri[nTri].v0].vx << 16) + pVerts[pTri[nTri].v0].vz;
+        vB = (pVerts[pTri[nTri].v1].vx << 16) + pVerts[pTri[nTri].v1].vz;
+        vC = (pVerts[pTri[nTri].v2].vx << 16) + pVerts[pTri[nTri].v2].vz;
+
+        nClip = NormalClip(vA, vB, nRef) < 0;
+        if (NormalClip(vB, vC, nRef) < 0) {
+            nClip |= 2;
+        }
+        if (NormalClip(vC, vA, nRef) < 0) {
+            nClip |= 4;
+        }
+
+        switch (nClip) {
+        case 0:
+            i = 0xFF;
+            break;
+        case 1:
+            nTri = pTri[nTri].n0;
+            break;
+        case 2:
+            nTri = pTri[nTri].n1;
+            break;
+        case 3:
+            if (NormalClip(vB, nRef, nPos) < 0) {
+                nTri = pTri[nTri].n0;
+                nClip = 1;
+            } else {
+                nTri = pTri[nTri].n1;
+                nClip = 2;
+            }
+            break;
+        case 4:
+            nTri = pTri[nTri].n2;
+            break;
+        case 5:
+            if (NormalClip(vA, nRef, nPos) < 0) {
+                nTri = pTri[nTri].n2;
+                nClip = 4;
+            } else {
+                nTri = pTri[nTri].n0;
+                nClip = 1;
+            }
+            break;
+        case 6:
+            if (NormalClip(vC, nRef, nPos) >= 0) {
+                nTri = pTri[nTri].n2;
+                nClip = 4;
+            } else {
+                nTri = pTri[nTri].n1;
+                nClip = 2;
+            }
+            break;
+        case 7:
+            nTri = -1;
+            break;
+        }
+
+        nFlags = g_FieldWalkmeshMaterialFlags[pTri[nTri].material] & nFlagMask;
+        *pFlags = nFlags;
+        if ((((pActor->scriptFlags.flags >> 8) & 7) & (nFlags >> 5)) != 0) {
+            nTri = -1;
+            break;
+        }
+        if ((nFlags & 0x800000) && pActor->walkmeshId == 0) {
+            nTri = -1;
+            break;
+        }
+        if (nFlags & 0x400000) {
+            if (!nStop) {
+                FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], pOut, &normal);
+                if (pOut->vy < ((s16*)&pPos->vy)[1]) {
+                    nTri = -1;
+                    break;
+                }
+            }
+        }
+        if (nTri == -1) {
+            break;
+        }
+    }
+
+    if (nTri == -1 || i == 0x20) {
+        switch (nClip) {
+        case 1:
+            pPoints[0].vx = pVerts[pTri[nSavedTri].v0].vx;
+            pPoints[0].vy = pVerts[pTri[nSavedTri].v0].vy;
+            pPoints[0].vz = pVerts[pTri[nSavedTri].v0].vz;
+            pPoints[1].vx = pVerts[pTri[nSavedTri].v1].vx;
+            pPoints[1].vy = pVerts[pTri[nSavedTri].v1].vy;
+            pPoints[1].vz = pVerts[pTri[nSavedTri].v1].vz;
+            break;
+        case 2:
+            pPoints[0].vx = pVerts[pTri[nSavedTri].v1].vx;
+            pPoints[0].vy = pVerts[pTri[nSavedTri].v1].vy;
+            pPoints[0].vz = pVerts[pTri[nSavedTri].v1].vz;
+            pPoints[1].vx = pVerts[pTri[nSavedTri].v2].vx;
+            pPoints[1].vy = pVerts[pTri[nSavedTri].v2].vy;
+            pPoints[1].vz = pVerts[pTri[nSavedTri].v2].vz;
+            break;
+        case 4:
+            pPoints[0].vx = pVerts[pTri[nSavedTri].v2].vx;
+            pPoints[0].vy = pVerts[pTri[nSavedTri].v2].vy;
+            pPoints[0].vz = pVerts[pTri[nSavedTri].v2].vz;
+            pPoints[1].vx = pVerts[pTri[nSavedTri].v0].vx;
+            pPoints[1].vy = pVerts[pTri[nSavedTri].v0].vy;
+            pPoints[1].vz = pVerts[pTri[nSavedTri].v0].vz;
+            break;
+        }
+        return -1;
+    }
+
+    if (nMode != -1) {
+        FieldGetTrianglePlaneHeight(&pVerts[pTri[nTri].v0], &pVerts[pTri[nTri].v1], &pVerts[pTri[nTri].v2], pOut, &normal);
+    }
+    return 0;
+}
+*/
+
+int FieldSetRangeByDelta(int* pCur, int* pNext, int n) {
+    int value = *pCur;
+
+    if (n < 0) {
+        *pCur = value;
+        *pNext = value;
+        return value;
+    }
+    *pCur = value;
+    value += n;
+    *pNext = value;
+    return value;
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007C694);
 /* Best attempt: 92.29% (1696 bytes; the original is 1704, so two instructions
