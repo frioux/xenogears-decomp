@@ -158,6 +158,8 @@ segments:
       - [0x35B7C, c, psyq/libgpu_b]
       - [0x36E8C, c, psyq/libgpu_c]
       - [0x393C4, c, psyq/libgte]
+      - [0x39778, asm] # MatrixNormal's tail pad word (Psy-Q pads a function to 16 bytes)
+      - [0x3977C, c, psyq/libgte_loadaverage]
       - [0x39A08, asm] # LoadAverageCol's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x39A0C, c, psyq/libgte_mulmatrix0]
       - [0x39B18, asm] # MulMatrix0's tail pad word (Psy-Q pads a function to 16 bytes)
@@ -177,10 +179,14 @@ segments:
       - [0x3A8DC, c, psyq/libgte_b]
       - [0x3A8E8, asm] # ReadGeomScreen's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A8EC, c, psyq/libgte_b_2] # SetBackColor on
+      - [0x3A944, asm] # SetGeomOffset's tail pad words (2 words)
+      - [0x3A94C, c, psyq/libgte_b_2_b] # SetGeomScreen on
       - [0x3A958, asm] # SetGeomScreen's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A95C, c, psyq/libgte_b_3] # LocalLight on
       - [0x3AB30, asm] # AverageSZ4's tail pad words (3 words)
       - [0x3AB3C, c, psyq/libgte_b_4] # LightColor on
+      - [0x3AD48, asm] # Lzc's tail pad word (Psy-Q pads a function to 16 bytes)
+      - [0x3AD4C, c, psyq/libgte_b_4_b] # RotTransSV on
       - [0x3AE4C, c, psyq/libgte_pers] # RotTransPers
       - [0x3AE78, asm] # RotTransPers's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3AE7C, c, psyq/libgte_pers3] # RotTransPers3

@@ -364,6 +364,16 @@
 	: "r"( r0 ), "r"( r1 )					\
 	: "$12", "$13" )
 
+/* The 3.x revision shifted and stored the arguments in their own registers
+   instead of copying them through $12/$13. */
+#define gte_SetGeomOffset_gpr( r0, r1 ) __asm__ volatile (	\
+	"sll	%0, %0, 16;"					\
+	"sll	%1, %1, 16;"					\
+	"ctc2	%0, $24;"					\
+	"ctc2	%1, $25"					\
+	: "=r"( r0 ), "=r"( r1 )				\
+	: "0"( r0 ), "1"( r1 ) )
+
 #define gte_SetGeomScreen( r0 ) __asm__ volatile (		\
 	"ctc2	%0, $26"					\
 	:							\
@@ -1548,6 +1558,12 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 	:							\
 	: "r"( r0 )						\
 	: "memory" )
+
+/* LZCR read back into a general register: over the data bus (mfc2) $31 is the
+   leading-zero count, where cfc2 reads the FLAG register in the same slot. */
+#define gte_stlzc_val( r0 ) __asm__ volatile (			\
+	"mfc2	%0, $31"					\
+	: "=r"( r0 ) )
 
 #define gte_stfc( r0 ) __asm__ volatile (			\
 	"cfc2	$12, $21;"					\
