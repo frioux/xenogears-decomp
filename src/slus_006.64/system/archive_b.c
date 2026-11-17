@@ -118,7 +118,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_800379D8);
    and that sum goes to $v0. Two permuter runs from this body (1547 and 1780
    iterations) could not move it; they contributed only the `nFirstSize =
    nBaseIndex + 7;` local (which keeps the +7 off the index and is why this body
-   is 98.99% and not 98.71%) and the `(pQueue + 0)` spelling.
+   is 98.99% and not 98.71%) and the `(pQueue + 0)` spelling. Do NOT inline the
+   first size as `ArchiveDecodeAlignedSize(nIndex + nBaseIndex + 7)`: that
+   associates (nIndex + nBaseIndex) + 7 and gives `addu a0,s3,s4` / `addiu
+   a0,a0,7` where retail has `addiu a0,s4,7` / `addu a0,s0,a0` (95.29%). The
+   nFirstSize local is what fixes the association; retail's temp still lives in
+   $a0 only (dead after the call), so it was never a saved local there.
 
 /*
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
