@@ -5,6 +5,22 @@
 #include "field/actor.h"
 #include "main/game.h"
 
+// Shared by the battle units that read the structures below.
+// slotStates and slotAmounts hold one entry per battle slot.
+#define BATTLE_SLOT_COUNT 12
+// g_BattleActorCharIds holds this in a slot no character occupies.
+#define BATTLE_SLOT_CHARACTER_NONE 0x7F
+// The hp stat's cap: BattleSetSlotConditionActionValue clamps maxHp to it.
+#define BATTLE_HP_MAX 9999
+// state.flags bit that selects the gear-side status word over the actor's.
+#define BATTLE_SLOT_GEAR_STATUS_FLAG 0x80
+// hp and maxHp are percents; state.hp/state.maxHp hold them times this.
+#define BATTLE_ACTOR_HP_SCALE 50
+// BattleSlotState.hp and .maxHp are clamped to it once the scaled stat overflows.
+#define BATTLE_SCALED_HP_MAX 99999
+// Bit of the BattleGetActorActionConditionMask result set while hp is under an eighth of maxHp.
+#define BATTLE_ACTION_CONDITION_LOW_HP 0x2
+
 // A queued movement/rotation command, allocated by BattleAllocBlock and linked
 // into the owning sprite's p70 slot.
 typedef struct {
@@ -218,7 +234,7 @@ typedef struct {
     /* 0x038 */ u16 element; // the slot's own element mask in the low 6 bits, as the row's element: bit 0x40 raises the affinity multiplier from 15 to 18
     /* 0x03A */ u8 unk3A[0x12];
     /* 0x04C */ u16 hp;
-    /* 0x04E */ u16 maxHp; // both scaled by 50 into state.hp / state.maxHp
+    /* 0x04E */ u16 maxHp; // both scaled by BATTLE_ACTOR_HP_SCALE into state.hp / state.maxHp
     /* 0x050 */ u16 mp; // the same current/max pair as hp/maxHp: scaled by 10 into slotAmounts
     /* 0x052 */ u16 maxMp; // drawn as a gauge target like maxHp; the growth copy caps mp and maxMp at 99
     /* 0x054 */ u16 unk54;
@@ -325,9 +341,9 @@ typedef struct {
     /* 0x5750 */ BattleGearWeaponRecord gearWeapons[50];
     /* 0x5B38 */ BattleGearWeaponRecord gearWeaponIds[50];
     /* 0x5F20 */ u8 unk5F20[0x4C];
-    /* 0x5F6C */ s32 slotAmounts[12]; // the amount the current action deals to each slot; its state code is slotStates
+    /* 0x5F6C */ s32 slotAmounts[BATTLE_SLOT_COUNT]; // the amount the current action deals to each slot; its state code is slotStates
     /* 0x5F9C */ u8 unk5F9C[4];
-    /* 0x5FA0 */ u8 slotStates[12]; // the state each slot's action reached; 0xFF = cleared
+    /* 0x5FA0 */ u8 slotStates[BATTLE_SLOT_COUNT]; // the state each slot's action reached; 0xFF = cleared
     /* 0x5FAC */ u16 activeSlotMask; // the slots the current row runs for; BattleFilterSlotMaskByGroup narrows it
     /* 0x5FAE */ u16 slotMask; // the same mask before that filter
     /* 0x5FB0 */ u16 unk5FB0;

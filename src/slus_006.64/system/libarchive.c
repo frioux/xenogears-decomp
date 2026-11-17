@@ -10,7 +10,7 @@ extern s32 g_ArchiveCurFileSector;
 
 extern s32 g_ArchiveStreamQueue;
 extern s32 g_ArchiveStreamQueueIndex;
-extern u16 D_8004FE24;
+extern u16 g_ArchiveStreamReadSectionId;
 extern u32 g_ArchiveCurEntryIndex;
 extern void GfxDrawArchiveReadRetry(int, int, int, int);
 extern int ArchiveDecodeSizeAligned(int entryIndex);
@@ -501,7 +501,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *     }
  *
  *     for (i = 0; i < nSections; i++, pHeader++) {
- *         if (pHeader->state == 3 && pHeader->id == D_8004FE24) {
+ *         if (pHeader->state == 3 && pHeader->id == g_ArchiveStreamReadSectionId) {
  *             break;
  *         }
  *     }
@@ -510,7 +510,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *         return NULL;
  *     }
  *
- *     D_8004FE24 += 1;
+ *     g_ArchiveStreamReadSectionId += 1;
  *     return pData + i * CD_SECTOR_SIZE;
  * }
  */

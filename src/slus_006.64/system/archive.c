@@ -15,13 +15,13 @@ extern s8* g_ArchiveStreamWritePointer;
 extern StreamDataQueueEntry* g_ArchiveStreamQueue;
 extern s32 g_ArchiveStreamQueueCount;
 extern s32 g_ArchiveStreamQueueIndex;
-extern s16 D_8004FE24;
+extern s16 g_ArchiveStreamReadSectionId;
 extern u16 g_ArchiveStreamNextSectionId;
 extern u16 g_ArchiveStreamCurSectionId;
 extern void* g_ArchiveCurStreamFile; // Current stream file struct
 extern s32 D_80059F00;
 extern u32 g_ArchiveCurEntryIndex;
-extern s16 D_80059F60;
+extern s16 g_ArchiveDebugStreamSectionCount;
 extern s32 g_ArchiveReadRetryCount;
 extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
@@ -94,7 +94,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
             g_ArchiveStreamSectionCount = nStreamSectors;
             g_ArchiveStreamNextSectionId = 0;
             g_ArchiveStreamCurSectionId = 0;
-            D_8004FE24 = 0;
+            g_ArchiveStreamReadSectionId = 0;
             ArchiveClearStreamFileSections();
             
             if (g_ArchiveDebugTable) {
@@ -130,10 +130,10 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
             g_ArchiveStreamWritePointer = g_ArchiveCurStreamFile + (nStreamSectors2 * sizeof(ArchiveStreamFileSectionHeader)) + STREAM_FILE_HEADER_SIZE;
             g_ArchiveStreamSections = g_ArchiveCurStreamFile + 4;
             g_ArchiveStreamSectionCount = nStreamSectors2;
-            D_80059F60 = 0;
+            g_ArchiveDebugStreamSectionCount = 0;
             g_ArchiveStreamNextSectionId = 0;
             g_ArchiveStreamCurSectionId = 0;
-            D_8004FE24 = 0;
+            g_ArchiveStreamReadSectionId = 0;
             ArchiveClearStreamFileSections();
             
             pCdMode = &D_80059F1B;

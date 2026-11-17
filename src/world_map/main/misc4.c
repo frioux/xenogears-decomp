@@ -215,7 +215,7 @@ extern s32 D_8009BD54;
 extern s32 D_8009BD58;
 extern s32 D_8009BE2C;
 extern s32 D_8009BE30;
-extern s32 D_8009D554;
+extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern s32 func_8007A1B4(s32);
 extern s32 func_8007A430(s32);
@@ -399,7 +399,7 @@ s32 func_80077E68(s32 index) {
         if ((s16)p->stateTimer > 0) {
             break;
         }
-        D_8009D554 = 0;
+        g_WorldMapLoopActive = 0;
         g_WorldMapAreaMode = 0;
         break;
     }

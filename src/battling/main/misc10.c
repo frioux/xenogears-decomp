@@ -22,7 +22,7 @@ extern u8 g_BattlePlayer2ComControlled;
 extern s32 g_SpuChannelMask;
 extern s32 g_BattleMotionSpeedScale;
 extern u8* g_BattleRootOrderingTable;
-extern u8* D_80092784;
+extern u8* g_BattleEffectImageActive;
 
 
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
@@ -217,7 +217,7 @@ void BattleUpdateEffectTimer(void) {
         g_BattleEffectFrameTimer = timer;
         if (timer <= 0) {
             g_BattleEffectFrameTimer = 0;
-            D_80092784 = 0;
+            g_BattleEffectImageActive = 0;
             SoundSetAudioManagerMasterVolumeWithFade(g_BattlingAudioManager, 0x100, 0);
             g_BattleMotionSpeedScale = 0x100;
             BattleEffectFreeResources();
@@ -225,7 +225,7 @@ void BattleUpdateEffectTimer(void) {
             func_8008E3CC(g_BattleRootOrderingTable, timer, 1);
         }
     } else {
-        D_80092784 = 0;
+        g_BattleEffectImageActive = 0;
     }
 }
 
@@ -385,7 +385,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
 */
 
 void BattleUpdateEffectImage(void) {
-    if (D_80092784 != NULL && (g_SpuChannelMask & 0x1)) {
+    if (g_BattleEffectImageActive != NULL && (g_SpuChannelMask & 0x1)) {
         func_8008E120();
     }
 }

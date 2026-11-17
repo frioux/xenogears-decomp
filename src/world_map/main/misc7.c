@@ -57,7 +57,7 @@ extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2
 extern s32 *g_SoundAudioManager;
 extern s32 g_WorldMapTpageAbr;
 extern s32 g_WorldMapDrawMode;
-extern s32 D_8009D554;
+extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 // externs used by the parked attempts below
 extern Vec3 g_WorldMapPlayerPosition;
@@ -301,7 +301,7 @@ s32 WorldMapUpdateSlotState(s32 index) {
         pSlot->unk20 = 1;
         break;
     case 0x40:
-        D_8009D554 = 0;
+        g_WorldMapLoopActive = 0;
         g_WorldMapAreaMode = 0;
         pSlot->unk20 = 0;
         break;

@@ -2,13 +2,6 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
-// state.flags bit that selects the gear-side status word over the actor's
-#define BATTLE_SLOT_GEAR_STATUS_FLAG 0x80
-// hp and maxHp are percents; state.hp/state.maxHp hold them times this
-#define BATTLE_ACTOR_HP_SCALE 50
-#define BATTLE_SCALED_HP_MAX 99999
-// bit of the BattleGetActorActionConditionMask result set while hp is under an eighth of maxHp
-#define BATTLE_ACTION_CONDITION_LOW_HP 0x2
 
 extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 g_BattleCurSlotIndex;

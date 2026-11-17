@@ -572,3 +572,4 @@ g_WorldMapLevelSpriteSetIds = 0x8009B6B0;
 g_WorldMapTrailEntries = 0x8009BDF4;
 g_WorldMapPrimTemplateBuffer = 0x8009BE1C;
 g_WorldMapPrimTemplateBufferCopy = 0x8009BE20;
+g_WorldMapLoopActive = 0x8009D554;

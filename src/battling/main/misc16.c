@@ -62,15 +62,15 @@ struct Misc16Work {
     /* 0x76 */ u8 b;
 }; // Size: 0x77 (known extent)
 
-extern s32 D_80092834;
-extern s32 D_80092838;
-extern s32 D_8009283C;
-extern s32 D_80092840;
-extern s32 D_80092844;
+extern s32 g_BattleEffectWork;
+extern s32 g_BattleEffectSpawnTimer;
+extern s32 g_BattleEffectGrid;
+extern s32 g_BattleEffectGridNext;
+extern s32 g_BattleEffectImage;
 
 extern u8 g_BattleDrawBufferIndex;
 
-extern u16 D_80091CE0[];
+extern u16 g_BattleEffectClut[];
 
 extern SVECTOR* g_BattleTrailVertScratch;
 extern SVECTOR* g_BattleScratchViewOrigin;
@@ -518,10 +518,10 @@ void BattleEffectCreateWork(void) {
     pWork->depthBase = initValue;
     pWork->unk68 = 0;
     pWork->entryLife = 0x20;
-    D_80092834 = (s32)pWork;
+    g_BattleEffectWork = (s32)pWork;
 }
 void BattleEffectSetSpawnTimer(s32 arg0) {
-    D_80092838 = arg0;
+    g_BattleEffectSpawnTimer = arg0;
 }
 
 void BattleEffectUpdate(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
@@ -529,8 +529,8 @@ void BattleEffectUpdate(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
     MATRIX matWork;
     Misc16Work* pWork;
 
-    pWork = (Misc16Work*)D_80092834;
-    if (D_80092838 >= 0x10) {
+    pWork = (Misc16Work*)g_BattleEffectWork;
+    if (g_BattleEffectSpawnTimer >= 0x10) {
         BattleEffectCopyObjectMatrix((Misc16Object*)pArg1, 0x27, &matWork);
         MatrixNormal(&matWork, &matZero);
         matZero.t[2] = 0;
@@ -545,8 +545,8 @@ void BattleEffectUpdate(u8* pArg0, u8* pArg1, MATRIX* pMat, Misc16Vec* pVec) {
         pWork->rotX = 0;
         pWork->rotY = 0;
         pWork->rotZ = 0x800;
-        func_8008D680(pWork, &matZero, D_80092838 >> 4);
-        D_80092838 -= 4;
+        func_8008D680(pWork, &matZero, g_BattleEffectSpawnTimer >> 4);
+        g_BattleEffectSpawnTimer -= 4;
     }
     gte_SetTransRotMatrix_gpr(pMat);
     BattleEffectUpdateEntries(pWork, pArg0, pMat);
@@ -576,9 +576,9 @@ void BattleEffectRotateVectorByDepth(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DE54);
 
 void BattleEffectClearResourcePointers(void) {
-    D_80092844 = 0;
-    D_8009283C = 0;
-    D_80092840 = 0;
+    g_BattleEffectImage = 0;
+    g_BattleEffectGrid = 0;
+    g_BattleEffectGridNext = 0;
 }
 
 void BattleEffectInitResources(void) {
@@ -587,13 +587,13 @@ void BattleEffectInitResources(void) {
     s16* pFirst;
     s16* pSecond;
 
-    if (D_80092844 == 0) {
-        D_80092844 = (s32)HeapAlloc(0x1500, 1);
-        D_8009283C = (s32)HeapAlloc(0x2BC0, 1);
-        D_80092840 = (s32)HeapAlloc(0x2BC0, 1);
+    if (g_BattleEffectImage == 0) {
+        g_BattleEffectImage = (s32)HeapAlloc(0x1500, 1);
+        g_BattleEffectGrid = (s32)HeapAlloc(0x2BC0, 1);
+        g_BattleEffectGridNext = (s32)HeapAlloc(0x2BC0, 1);
     }
-    pFirst = (s16*)(D_8009283C + 0x2AE0);
-    pSecond = (s16*)(D_80092840 + 0x2AE0);
+    pFirst = (s16*)(g_BattleEffectGrid + 0x2AE0);
+    pSecond = (s16*)(g_BattleEffectGridNext + 0x2AE0);
     for (i = 0x1570; i != -1; i--) {
         *pSecond = 0;
         *pFirst = 0;
@@ -601,25 +601,25 @@ void BattleEffectInitResources(void) {
         pSecond--;
     }
     for (i = 0; i < 0x1500; i++) {
-        ((u8*)D_80092844)[i] = 0;
+        ((u8*)g_BattleEffectImage)[i] = 0;
     }
     for (i = 0; i < 0x100; i++) {
-        D_80091CE0[i] |= 0x8000;
+        g_BattleEffectClut[i] |= 0x8000;
     }
     rect.x = 0;
     rect.y = 0x1FD;
     rect.w = 0xFF;
     rect.h = 1;
-    LoadImage(&rect, (u_long*)D_80091CE0);
+    LoadImage(&rect, (u_long*)g_BattleEffectClut);
 }
 void BattleEffectFreeResources(void) {
-    if (D_80092844 != 0) {
-        HeapDelayedFree((u8*)D_80092844, 2);
-        HeapDelayedFree((u8*)D_8009283C, 2);
-        HeapDelayedFree((u8*)D_80092840, 2);
-        D_80092844 = 0;
-        D_8009283C = 0;
-        D_80092840 = 0;
+    if (g_BattleEffectImage != 0) {
+        HeapDelayedFree((u8*)g_BattleEffectImage, 2);
+        HeapDelayedFree((u8*)g_BattleEffectGrid, 2);
+        HeapDelayedFree((u8*)g_BattleEffectGridNext, 2);
+        g_BattleEffectImage = 0;
+        g_BattleEffectGrid = 0;
+        g_BattleEffectGridNext = 0;
     }
 }
 void BattleEffectCopyBuffers(void) {
@@ -629,9 +629,9 @@ void BattleEffectCopyBuffers(void) {
     s32 value;
     s32 i;
 
-    pByteDst = (u8*)D_80092844;
-    pWordDst = (s32*)D_8009283C;
-    pSrc = (s32*)D_80092840;
+    pByteDst = (u8*)g_BattleEffectImage;
+    pWordDst = (s32*)g_BattleEffectGrid;
+    pSrc = (s32*)g_BattleEffectGridNext;
     for (i = 0xA7F; i != -1; i--) {
         value = *pSrc++;
         *pWordDst++ = value;

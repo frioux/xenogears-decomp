@@ -1631,3 +1631,5 @@ g_SystemFontGlyphData = 0x8005935C;
 g_SystemFontSingleByteCodeBase = 0x80059364;
 g_SystemNumberGlyphBuffer = 0x8005A0CA;
 g_SystemGlyphDecodeBuffer = 0x8005A0E4;
+g_ArchiveStreamReadSectionId = 0x8004FE24;
+g_ArchiveDebugStreamSectionCount = 0x80059F60;

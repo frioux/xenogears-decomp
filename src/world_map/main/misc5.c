@@ -133,7 +133,7 @@ extern MATRIX g_WorldMapIdentityMatrix;
 extern MATRIX g_WorldMapModeMatrix;
 extern s32 g_WorldMapTpageAbr;
 extern s32 g_WorldMapDrawMode;
-extern s32 D_8009D554;
+extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern s32 g_WorldMapMode4EntryTriggered;
 extern void (*g_WorldMapWrapPositionsCallback)(void);
@@ -257,7 +257,7 @@ s32 WorldMapUpdateActorState(s32 idx) {
         pPlayer->state = 1;
         break;
     case 11:
-        D_8009D554 = 0;
+        g_WorldMapLoopActive = 0;
         g_WorldMapAreaMode = 0;
         pPlayer->state = 1;
         break;

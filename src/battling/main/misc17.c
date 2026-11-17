@@ -3,9 +3,9 @@
 
 // volatile: retail schedules this load after the argument setup, not before it.
 extern volatile s32 g_SpuChannelMask;
-extern s32 D_8009283C;
-extern s32 D_80092840;
-extern s32 D_80092844;
+extern s32 g_BattleEffectGrid;
+extern s32 g_BattleEffectGridNext;
+extern s32 g_BattleEffectImage;
 extern s32 D_8009284C;
 extern u8 g_BattleAiAppliedBehaviorLevel;
 extern u8 g_BattleDrawBufferIndex;
@@ -163,10 +163,10 @@ void func_8008E120(void) {
     s32 x;
     s32 y;
 
-    if (D_80092844 == 0) {
+    if (g_BattleEffectImage == 0) {
         return;
     }
-    pGridB = (s16*)D_80092840;
+    pGridB = (s16*)g_BattleEffectGridNext;
     value = 0;
     pRow = pGridB + 0x1490;
     for (i = 0; i < 0x70; i++) {
@@ -182,7 +182,7 @@ void func_8008E120(void) {
         pRow[0] = value;
         pRow++;
     }
-    pGridA = (s16*)D_8009283C;
+    pGridA = (s16*)g_BattleEffectGrid;
     pUpBase = pGridA - 0x70;
     pMidRBase = pGridA + 1;
     pMidLBase = pGridA - 1;

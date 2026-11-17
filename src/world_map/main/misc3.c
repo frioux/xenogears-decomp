@@ -21,7 +21,7 @@ typedef struct {
     /* 0x70 */ u_long* pOt[2];
 } WorldMapRenderContext; // partial view
 
-extern s32 D_8009D554;
+extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern s32 g_WorldMapTpageAbr;
 extern s32 g_WorldMapDrawMode;
@@ -195,7 +195,7 @@ s32 WorldMapRunSlotScript(s32 index) {
 }
 
 s32 WorldMapScriptOp00End(void) {
-    D_8009D554 = 0;
+    g_WorldMapLoopActive = 0;
     g_WorldMapAreaMode = 0;
     return 0;
 }
@@ -692,7 +692,7 @@ s32 func_800776E0(s32 arg0) {
     s32 nPos;
 
     if (g_WorldMapPad1Released & 0x40) {
-        D_8009D554 = 0;
+        g_WorldMapLoopActive = 0;
         g_WorldMapAreaMode = 0;
     }
     if (g_WorldMapPad1Held & 0x1000) {

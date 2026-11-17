@@ -4,12 +4,6 @@
 
 // rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
 #define BATTLE_PERCENT_ROLL_RANGE 100
-// slotStates and slotAmounts hold one entry per battle slot.
-#define BATTLE_SLOT_COUNT 12
-// g_BattleActorCharIds holds this in a slot no character occupies.
-#define BATTLE_SLOT_CHARACTER_NONE 0x7F
-// The hp stat's cap: BattleSetSlotConditionActionValue clamps maxHp to it.
-#define BATTLE_HP_MAX 9999
 
 extern u16 g_BattleSavedSlotUnk7A[];
 extern u8 g_BattleSlotUnk98Deltas[];
