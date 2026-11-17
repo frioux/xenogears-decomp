@@ -73,6 +73,8 @@ for running splat and the scripts on the host; the container has its own.
 | `tools/scripts/permute.sh <unit> <Func> [--minutes N] [-j N]` | run [decomp-permuter](https://github.com/simonlindholm/decomp-permuter) on one function, parked or live: thousands of small random edits to the C, each compiled with the unit's compiler and scored against the original (0 = identical). For a body that is structurally right and a register or delay slot off. Prints `RESULT PERMUTER_ZERO\|BETTER\|NONE` and the best candidate's diff; port the change by hand and confirm with `diff_func.sh`. Fetches the permuter into `tools/decomp-permuter` (gitignored) on first use; needs report mode. `--minutes 0` only scores the body. |
 | `tools/rounds/permute_sweep.py` | the same over every parked body, closest first, in its own clone (`~/xw/r-permute`); results in `~/xw/permuter-results.tsv`, `--report` lists them, `tools/rounds/permute-brief.js` is the worker brief that ports them. |
 | `tools/scripts/own_rodata.py <bin>/<unit>` | give an overlay unit its own switch jump tables so a C `switch` links (section "Switch jump tables in overlays"). |
+| `tools/scripts/ghidra_info.py <Func\|addr>` | whole-program facts from a headless Ghidra pass: inferred prototype, callers across all eleven binaries with the constants they pass, callees, globals, strings, and the struct offsets reached through each parameter or global. `--struct <global>` / `--struct-of <Func> paramN` aggregate offsets over every function touching that base; `--leaves [--bin B]` lists unmatched functions leaf-first; `--c` appends Ghidra's C (reading aid only). Reads `~/xw/ghidra-out` (`GHIDRA_OUT`), keyed by address, and re-resolves names from the current `symbol_addrs`, so it survives renames. |
+| `tools/ghidra/run.sh [bin ...]` | regenerate that database (~80 s for all eleven; needs Ghidra, `brew install ghidra`, and `build/out/*.elf` from a matching build). Only needed after a splat boundary change or a new overlay, not after renames. |
 | `make shell` | bash inside the build container with the repo mounted |
 | `make extract DISC=...` | pull binaries out of a disc image |
 
@@ -115,7 +117,12 @@ The assembly is `asm/<bin>/nonmatchings/<unit>/<Func>.s` after any build. Also
 read: the surrounding C in the unit (types already recovered, helpers already
 matched), `config/symbol_addrs.<bin>.txt` for every symbol the function touches,
 and the headers under `include/` for the structs involved. Callers and callees
-tell you parameter types; search for the function name across `src/`.
+tell you parameter types; search for the function name across `src/`, and run
+`python3 tools/scripts/ghidra_info.py <Func>` for the ones that are still assembly:
+it gives the argument count, the constants each caller passes, and the struct
+offsets the function touches. Known limits: BIOS/syscall stubs report wrong
+argument counts, accesses through a pointer held in a local show as `other`, and
+calls from the main exe into an overlay or between overlays are not recorded.
 
 ### 3.3 Write the C
 

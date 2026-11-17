@@ -13,8 +13,9 @@ YOU OWN THE STRUCT DECLARATIONS IN ${w.file}${w.structs ? " (only these structs:
 
 THE JOB: a field declared \`unk<offset>\` (\`/* 0x4 */ u8 unk4[0x18];\`, \`s16 unk3D;\`) tells the reader nothing. Where the code shows what a field holds, give it the name a programmer would have typed.
 1. Read the declarations, then every use of each unk field: grep -rnE '(\\.|->)unk4\\b' src include, keeping only the lines where the object really is this struct (several structs have an unk4).
-2. Decide from the uses: what is stored in it, what it is compared with, which NAMED function it is passed to and as which argument, which table it indexes, what a loop does with it.
-3. Rename it in the declaration and at every use, keeping the offset comment, the type and the size exactly as they are.
+2. \`python3 tools/scripts/ghidra_info.py --struct <global of this struct type>\` (or \`--struct-of <Func> param0\` for a function that takes one) lists every offset the whole program reads or writes through that base, with widths and the functions that do it, including functions that are still assembly. Use it to find uses the C does not show yet.
+3. Decide from the uses: what is stored in it, what it is compared with, which NAMED function it is passed to and as which argument, which table it indexes, what a loop does with it.
+4. Rename it in the declaration and at every use, keeping the offset comment, the type and the size exactly as they are.
 ${w.hints ? "\nEARLIER WORKERS PROPOSED THESE. Each is a lead to check against the uses, not an instruction:\n" + w.hints + "\n" : ""}
 RULES
 - lowerCamelCase, in the style of the fields of this struct and its neighbours that already have names (\`pc\`, \`digits\`, \`x\`); a pointer field is prefixed p (\`pNext\`).

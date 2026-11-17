@@ -521,6 +521,11 @@ by stub count, 10 to 16 with the method below).
 1. Rank units by **instructions per fresh stub**, smallest first:
    `python3 tools/scripts/select_target.py --json` (ignore its `attempt` flag). Stubs
    under ~120 instructions are where the matches are.
+   `python3 tools/scripts/ghidra_info.py --leaves --bin <bin>` orders the same stubs
+   leaf-first (those whose callees are all matched already), and workers have
+   `ghidra_info.py <Func>` for prototypes, caller constants and struct offsets. The
+   database is `~/xw/ghidra-out`; regenerate it with `tools/ghidra/run.sh` from a tree
+   in matching mode only after a new overlay is carved or function boundaries move.
    **A stub is fresh only if no percentage sits within ~60 lines above its `INCLUDE_ASM`
    AND the function's own name does not appear in those 60 lines.** A park note belongs to
    the stub *above* the parked body, so it sits as far above as the note is long plus the
