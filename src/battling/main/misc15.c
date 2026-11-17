@@ -8,7 +8,7 @@
 typedef struct WorkBlock WorkBlock;
 struct WorkBlock {
     /* 0x0 */ s16 count;
-    /* 0x2 */ u16 unk2;
+    /* 0x2 */ u16 polyCount;
     /* 0x4 */ u32 unk4;
     /* 0x8 */ void* pMem;
     /* 0xC */ void* pData;
@@ -24,13 +24,14 @@ typedef struct HeapNode {
     /* 0xC */ WorkBlock* pBlock;
 } HeapNode; // Size: 0x10
 
-// One 8-byte vertex run of a packet node: three vertex indices into the
-// model's vertex array (func_8008C4B0/620 scale each by 8) and padding.
+// One 8-byte vertex run of a packet node: four vertex indices into the model's
+// vertex array (func_8008C4B0/620 scale each by 8). The triangle path reads
+// v0..v2, the quad path all four.
 typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ u16 unk2;
-    /* 0x4 */ u16 unk4;
-    /* 0x6 */ u16 pad6;
+    /* 0x0 */ u16 v0;
+    /* 0x2 */ u16 v1;
+    /* 0x4 */ u16 v2;
+    /* 0x6 */ u16 v3;
 } VertexIndexSet; // Size: 0x8
 
 // One entry of the packet list at g_BattlePacketNodeCursor: a flag byte and a count, then
@@ -47,7 +48,7 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u8 unk0[0x2];
     /* 0x02 */ u16 count;
-    /* 0x04 */ u16 unk4;
+    /* 0x04 */ u16 polyCount;
     /* 0x06 */ u16 nodeCount;
     /* 0x08 */ u32 unk8;
     /* 0x0C */ u8 unkC[0x4];
@@ -240,7 +241,7 @@ void func_8008BD70(WorkData* pData, void* pPacket, void* pUnk, void* pVertices) 
 
     i = pData->nodeCount - 1;
     g_BattlePacketNodeCursor = pData->pNodes;
-    D_800595C0 += pData->unk4;
+    D_800595C0 += pData->polyCount;
     g_pCurModelPacket = pPacket;
     D_80059568 = pUnk;
     g_pCurModelVertices = pVertices;
@@ -271,7 +272,7 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     PacketNode* pNode;
 
     pBlock->count = pData->count;
-    pBlock->unk2 = pData->unk4;
+    pBlock->polyCount = pData->polyCount;
     pBlock->unk4 = pData->unk8;
     pBlock->pData = pData;
     g_BattlePacketNodeCursor = pData->pNodes;
@@ -280,7 +281,7 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
     i = pBlock->count;
     pBlock->pMem = pMem;
     while (--i != -1) {
-        pMem->unk2 = 0;
+        pMem->v1 = 0;
         pMem++;
     }
     HeapSetCurrentContentType(5);
