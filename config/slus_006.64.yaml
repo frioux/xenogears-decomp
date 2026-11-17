@@ -200,6 +200,8 @@ segments:
       - [0x3AFBC, c, psyq/libgte_average] # RotAverage4 on
       - [0x3B038, asm] # RotAverage4's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3B03C, c, psyq/libgte_average_b] # RotAverageNclip4 on
+      - [0x3B648, asm] # RotMatrixZYX's tail pad word (Psy-Q pads a function to 16 bytes)
+      - [0x3B64C, c, psyq/libgte_average_b_3] # RotMatrixX on
       - [0x3B7E4, asm] # RotMatrixX's tail pad words (2 words)
       - [0x3B7EC, c, psyq/libgte_average_c] # RotMatrixY on
       - [0x3B984, asm] # RotMatrixY's tail pad words (2 words)
