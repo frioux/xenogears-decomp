@@ -357,10 +357,8 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     BattleTableEntry* r;
     u16 f;
 
-    if (arg1 != 0) {
-        if (!(g_BattleCurrentRow->actionFlags & 0x100)) {
-            return;
-        }
+    if (arg1 != 0 && !(g_BattleCurrentRow->actionFlags & 0x100)) {
+        return;
     }
     p = &g_BattleCurWorkBlock->slots[arg0];
     if (p->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
@@ -920,10 +918,14 @@ void func_8009BD94(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
+// The state base (+0xA4) and the condition byte inside it (+0xA4 again) are formed
+// from the slot table base before the slot stride is added, as retail does; the
+// typed `&g_BattleWorkBlock[arg0].state` / `.state.unkA4` spellings derive the
+// second one from the first and lose two registers (94.69%).
 u8 BattleGetActorActionConditionMask(u8 arg0) {
-    BattleTableEntry* pEntry = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleWorkBlock);
-    BattleSlotState* pState = (BattleSlotState*)(arg0 * 0x170 + 0xA4 + (u32)g_BattleWorkBlock);
-    u8* pCondition = (u8*)g_BattleWorkBlock + 0x148 + arg0 * 0x170;
+    BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
+    BattleSlotState* pState = (BattleSlotState*)((u8*)&g_BattleWorkBlock[arg0] + 0xA4);
+    u8* pCondition = (u8*)&g_BattleWorkBlock[arg0] + 0x148;
     s32 flag = pState->activeEffectFlags1 & 0x400;
     u8 ret = flag != 0;
 
