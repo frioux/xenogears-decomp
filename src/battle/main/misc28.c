@@ -53,12 +53,26 @@ typedef struct {
     /* 0x4 */ BattleEffectTable *pTable;
 } BattleEffectTask; // Size: 0x8
 
+// What SpriteData.field_0x6C points at: first the sprite's timer entry, then at
+// 0x1C the entry the per-frame draw pass hangs its callback on.
+typedef struct {
+    /* 0x00 */ u8 timerEntry[0x1C];
+    /* 0x1C */ u8 drawEntry[0x1C];
+} BattleSpriteTask; // Size: 0x38
+
+// A view of g_BattleStateWork that reaches the per-slot sprite pointer table at
+// 0x8C8C; each entry is the slot's sprite, the one SpritePlayAnimation runs on.
+typedef struct {
+    /* 0x0000 */ u8 unk0000[0x8C8C];
+    /* 0x8C8C */ SpriteData *sprites[BATTLE_SLOT_COUNT];
+} BattleSpriteSlotTable;
+
 extern void WorkListSetTaskCallback(void *pEntry, void *pCallback);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void HeapFree(void *pMem);
 extern void func_80025180(void *pArg);
-extern void SpritePlayAnimation(s32 arg0, s32 arg1);
+extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
 extern void func_800B7160(void);
 extern u_long *g_GfxCurOT;
 extern u_long *g_BattleSavedGfxOT;
@@ -90,8 +104,11 @@ void BattleScriptLoadDataAtWordOffset(s32 arg0, u8 *p) {
     pad[2] = 0;
     func_8002DDE4(pData, 0, 0, 0);
 }
-void BattleSetTaskCallback(u8 *p) {
-    WorkListSetTaskCallback((u8 *)*(u32 *)(p + 0x6C) + 0x1C, SpriteDrawModelPartsInBaseMatrix);
+void BattleSetTaskCallback(SpriteData *pSprite) {
+    BattleSpriteTask *pTask;
+
+    pTask = pSprite->field_0x6C;
+    WorkListSetTaskCallback(&pTask->drawEntry, SpriteDrawModelPartsInBaseMatrix);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6464);
 /* best 59.79% (s32 b0/b1 locals below) / 58.00% (inline p[0], p[1]).
@@ -120,13 +137,10 @@ void func_800B6464(u8 *pActor, u8 *p) {
 }
 */
 void BattleScriptPlaySpriteAnimation(s32 arg0, u8 *p) {
-    u8 *pEntry;
-    s32 off;
-    mem_addr base;
+    BattleSpriteSlotTable *pState;
 
-    pEntry = (u8 *)((base = (mem_addr)g_BattleStateWork) + (p[1] << 2));
-    off = 0x8C8C;
-    SpritePlayAnimation(*(u32 *)(pEntry + off), p[0]);
+    pState = (BattleSpriteSlotTable *)g_BattleStateWork;
+    SpritePlayAnimation(pState->sprites[p[1]], p[0]);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
 /* best 91.71%: the array form gets the lhu read-back and the two-word
@@ -299,7 +313,7 @@ void BattleClearRecordTable8(SpriteData *pSprite) {
     pSprite->pBase->offsetX = 0;
     pSprite->pBase->offsetY = 0;
 }
-void BattleActorRotateVectorZ(u8 *pActor, s8 *p) {
+void BattleActorRotateVectorZ(BattleSpriteState *pSprite, s8 *p) {
     SVECTOR rotation;
     MATRIX mtx;
     VECTOR vec;
@@ -310,10 +324,10 @@ void BattleActorRotateVectorZ(u8 *pActor, s8 *p) {
     z = p[0] << 4;
     SpriteSetSVec(&rotation, zero, zero, z);
     RotMatrix(&rotation, &mtx);
-    ApplyMatrixLV(&mtx, (VECTOR *)(pActor + 0xC), &vec);
-    *(s32 *)(pActor + 0xC) = vec.vx;
-    *(s32 *)(pActor + 0x10) = vec.vy;
-    *(s32 *)(pActor + 0x14) = vec.vz;
+    ApplyMatrixLV(&mtx, (VECTOR *)&pSprite->step, &vec);
+    pSprite->step.x = vec.vx;
+    pSprite->step.y = vec.vy;
+    pSprite->step.z = vec.vz;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
 /* best 85.91% (540 vs 536 bytes).  Recovered shape: the work item's data pointer
