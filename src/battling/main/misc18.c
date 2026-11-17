@@ -269,54 +269,42 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     pWork->maxDistance = 0xFF;
     return 0;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
-/* 89.78%: instruction multiset and byte count are retail's exactly; the only
-   difference is basic-block layout. Retail cross-jumps the first two `return 0`
-   blocks into one block placed inline after the second test (its second test
-   branches POSITIVELY to the body, so the return-0 block is the fall-through);
-   ours merges the first and third return-0 instead and leaves it at the end.
-   Tried: the park below, one combined `||` condition (identical), the third
-   check returning its call result (`v = call; if (v == 0) return v;` - gcc
-   still constant-folds it into the same block), and the repo's shared-exit
-   goto form (84.93%, all the returns become gotos to one label). gcc-2.7.2-cdk
-   is worse (88.88), so it is not the preset. The block-ordering lever is not
-   source-controllable from here.
+/* 89.78%, re-measured 166: the body BUILDS (the permuter sweep's ERROR row was spurious) and the old number is real. Two differences: retail keeps one 'j epilogue; v0=0' trampoline right after the flags test, with the flags test a POSITIVE bnez into the body and the trampoline as its fall-through; ours is 4 bytes longer (272 vs 268) because the 'v < 0x1001' branch delay slot gets a li v0,1 where retail reuses the slti result and fills the slot with the lui 0xFFFF7FFF. Tried: flat four-return form, nested positive form (same 89.78), combined or-condition, shared-exit goto (84.93), the call result returned directly, gcc-2.7.2-cdk (88.88), and a 3-minute permuter run (PERMUTER_BETTER 823->643 was only a split 0x800 temp, which measured 88.28 by hand). gcc 2.7.2 puts the shared return-0 block at the function end in every spelling; block placement here is not source-controllable.
 s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
-       s32 v;
-  
-       if (g_BattleFacingUpdateEnabled == 0) {
-           return 0;
-       }
-       if ((pActor->flags & 0x8000000) == 0) {
-           return 0;
-       }
-       if (BattleCheckPositionPastMapCenter(&pActor->position) != 0) {
-           BattleSetFacingFromPosition(&pActor->position, pWork);
-           return 1;
-       }
-       if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) == 0) {
-           return 0;
-       }
-       v = pActor->pTarget->unk8F4;
-       if (v < 0x800) {
-           pActor->flags |= 0x8000;
-           pWork->setFlag8000 = 1;
-           pWork->maxDistance = 0xFF;
-           pWork->targetAngle = 0x800;
-           pActor->unk58 = 0x800;
-           return 1;
-       }
-       if (v < 0x1001) {
-           return 1;
-       }
-       pActor->flags &= 0xFFFF7FFF;
-       pWork->setFlag8000 = 0;
-       pWork->maxDistance = 0;
-       pActor->unk58 = 0x800;
-       return 1;
-   }
+    s32 v;
 
-*/
+    if (g_BattleFacingUpdateEnabled == 0) {
+        return 0;
+    }
+    if ((pActor->flags & 0x8000000) == 0) {
+        return 0;
+    }
+    if (BattleCheckPositionPastMapCenter(&pActor->position) != 0) {
+        BattleSetFacingFromPosition(&pActor->position, pWork);
+        return 1;
+    }
+    if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) == 0) {
+        return 0;
+    }
+    v = pActor->pTarget->unk8F4;
+    if (v < 0x800) {
+        pActor->flags |= 0x8000;
+        pWork->setFlag8000 = 1;
+        pWork->maxDistance = 0xFF;
+        pWork->targetAngle = 0x800;
+        pActor->unk58 = 0x800;
+        return 1;
+    }
+    if (v < 0x1001) {
+        return 1;
+    }
+    pActor->flags &= 0xFFFF7FFF;
+    pWork->setFlag8000 = 0;
+    pWork->maxDistance = 0;
+    pActor->unk58 = 0x800;
+    return 1;
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FACC);
 void BattleSetActorFlag2AndClearQueue(BattleActor* pActor, BattleWork* pWork) {
     u8 v;
 
