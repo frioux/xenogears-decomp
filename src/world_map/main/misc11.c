@@ -116,95 +116,57 @@ extern s16 g_WorldMapTrailCursor;
    every table in place - only that function's own instructions and its table
    words change (proved with check_bin.sh for WorldMapUpdateActorSlot). */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008B2BC);
-/* 97.39% (472 bytes, retail 476 - one instruction short). The head block is now
-   byte-identical, including the unk48 sh/lh re-read that every earlier attempt
-   folded into an sll/sra: it needs the assignments in RETAIL'S order, not the order
-   the old parked body had -
-     unk40/unk3C/unk38 = 0; unk48 = g_GameState.worldMapPlayerRotation; mode = g_WorldMapMode;
-     unk4A = 8; unk58 = 0xF; unk5C = pActor->unk48;
-   (mode LAST of the two loads, and unk5C written as a re-read of the FIELD, which
-   is what makes gcc emit sh 0x48 / lh 0x48 instead of sh 0x48 / sll+sra). The
-   switch table is 14 words (13 cases, table at an 8-aligned unit offset, the pad
-   comes from the next dlabel's .align 3, so a C switch keeps the layout).
-   The remaining diff is ONE instruction, in the case 1-3 gear arm: retail is
-     lw v0,g_WorldMapPlayerPosition; nop; sw v0,0x28(s0); lui a1,D_8009C5B4; lw a1,...
-   and gcc emits
-     lw v0,g_WorldMapPlayerPosition; lui a1,D_8009C5B4; lw a1,...; sw v0,0x28(s0)
-   i.e. it hoists the second global load above the first store, so gas fills the
-   load-delay slot with lui a1 instead of emitting retail's nop and the function is
-   4 bytes short. Tried: the old parked source order (87.47), gearRide[2] variants,
-   a u16 local for the angle, volatile unk48, do/while (0) around the stores (all
-   worse or unchanged). NOTE the gear flag is g_GameState+0x22B2 = gearRide[1],
-   NOT gearRide[2]: the old body read the wrong byte of gearRide and only reached
-   87.47.
-   Round 57: decomp-permuter best was BETTER 163 -> 123 under objdiff 98.91% (480
-   bytes) by hoisting a new_var = pActor->unk30 before the switch and passing THAT
-   as the call's second argument. It scores higher but is a DEAD END: pActor->unk30
-   is overwritten with D_8009C5B4 on the line before the call, and retail's own asm
-   proves the argument is the stored value (lui a1,%hi(D_8009C5B4); lw a1; lw a0,
-   0x28(s0); jal; sw a1,0x30(s0) in the delay slot), so the candidate passes the
-   stale pre-arm height - wrong code, not a closer match. A fresh 4-minute permuter
-   run from the 98.91 body also found nothing (base=123 best=123), and these shapes
-   all came out worse or unchanged: the D load before the pos store via a temp
-   (97.39), a pos temp feeding the call (96.34), the store after the call (94.43).
-   So the last instruction really is the scheduler: retail leaves a nop in the load
-   delay of lw v0 and materialises lui a1 after the store, this gcc always fills
-   that slot with lui a1. An untried lead is a different preset for this unit
-   (try_flags.sh world_map/main/misc11 func_8008B2BC --gcc <candidate> --all):
-   same source and compiler cannot differ from retail, so the arm's scheduling
-   points at the compiler, not the C.
 int func_8008B2BC(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 mode;
     s32 result = 1;
 
     if (g_GameState.partyMembers[1] != 0xFF) {
-        pActor->unk4C = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
-        SpritePlayAnimation(pActor->unk4C, 0);
-        SpriteSetScale(pActor->unk4C, 0x1800);
-        *(u32 *)((u8 *)pActor->unk4C + 0x3C) &= ~4;
+        pActor->pSprite = SpriteAllocFromAnimFile(D_8009CD38, 0x110, 0x1E0, 0x150, 0x100, 0x40);
+        SpritePlayAnimation(pActor->pSprite, 0);
+        SpriteSetScale(pActor->pSprite, 0x1800);
+        *(u32 *)((u8 *)pActor->pSprite + 0x3C) &= ~4;
         pActor->unk24 = 0;
     } else {
         pActor->unk24 = 1;
         result = 3;
     }
-    pActor->unk28 = g_GameState.worldMapPosX << 12;
-    pActor->unk30 = g_GameState.worldMapPosZ << 12;
-    pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-    pActor->unk40 = 0;
-    pActor->unk3C = 0;
-    pActor->unk38 = 0;
-    pActor->unk48 = g_GameState.worldMapPlayerRotation;
+    pActor->x = g_GameState.worldMapPosX << 12;
+    pActor->z = g_GameState.worldMapPosZ << 12;
+    pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+    pActor->dirZ = 0;
+    pActor->dirY = 0;
+    pActor->dirX = 0;
+    pActor->angle = g_GameState.worldMapPlayerRotation;
     mode = g_WorldMapMode;
-    pActor->unk4A = 8;
-    pActor->unk58 = 0xF;
-    pActor->unk5C = pActor->unk48;
+    pActor->moveSpeed = 8;
+    pActor->trailDelay = 0xF;
+    pActor->drawAngle = pActor->angle;
     switch (mode) {
     case 1:
     case 2:
     case 3:
         if (g_GameState.gearRide[1] == 0) {
-            pActor->unk28 = g_WorldMapPlayerPosition;
-            pActor->unk30 = D_8009C5B4;
-            pActor->unk2C = WorldMapGetTilePlaneHeight(pActor->unk28, pActor->unk30);
-            pActor->unk48 = g_WorldMapPlayerRotation;
+            *(volatile s32 *)&pActor->x = g_WorldMapPlayerPosition;
+            pActor->z = D_8009C5B4;
+            pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
+            pActor->angle = g_WorldMapPlayerRotation;
         } else {
-            pActor->unk20 = 1;
+            pActor->state = 1;
             pActor->unk24 = 1;
         }
         break;
     case 4:
     case 5:
     case 6:
-        pActor->unk20 = 3;
+        pActor->state = 3;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[1] != 0xFF) {
             g_GameState.gearRide[1] = 1;
         }
         break;
     case 7:
-        pActor->unk20 = 2;
+        pActor->state = 2;
         pActor->unk24 = 1;
         if (g_GameState.partyMembers[1] != 0xFF) {
             g_GameState.gearRide[1] = 1;
@@ -220,7 +182,6 @@ int func_8008B2BC(int index) {
     }
     return result;
 }
-*/
 int WorldMapModeInitCharacterSprite1(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 result = 1;
