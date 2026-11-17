@@ -17,8 +17,8 @@ typedef union {
     struct {
         /* 0x0 */ u8 unk44;
         /* 0x1 */ u8 state;
-        /* 0x2 */ u8 unk46;
-        /* 0x3 */ u8 unk47;
+        /* 0x2 */ u8 actionId;
+        /* 0x3 */ u8 gaugePercent;
     } byte;
 } BattleSlotFlags; // Size: 0x4
 
@@ -28,7 +28,7 @@ typedef struct {
     /* 0x20 */ BattleQuad endPos;
     /* 0x30 */ BattleQuad prevEndPos;
     /* 0x40 */ u8 unk40[0x3];
-    /* 0x43 */ u8 unk43;
+    /* 0x43 */ u8 partIndex;
     /* 0x44 */ BattleSlotFlags unk44;
     /* 0x48 */ u8 pad48[0x8];
     /* 0x50 */ s32 pActionEntry;
@@ -116,7 +116,7 @@ typedef struct {
     /* 0x04E */ u8 prevPartIndex;
     /* 0x04F */ u8 animSpeed;
     /* 0x050 */ s16 lastFrame;
-    /* 0x052 */ u8 unk52;
+    /* 0x052 */ u8 animSpeedBonus;
     /* 0x053 */ u8 pad53;
     /* 0x054 */ s32 angle;
     /* 0x058 */ u8 pad58[0x4];
@@ -126,7 +126,7 @@ typedef struct {
     /* 0x080 */ u8 pad80[0x4];
     /* 0x084 */ s32 pActionEntry;
     /* 0x088 */ u8 pad88[0x2C];
-    /* 0x0B4 */ s16 unkB4;
+    /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ u16 gaugePoints;
     /* 0x0B8 */ u8 padB8[0x2];
     /* 0x0BA */ s16 gaugeLevel;
@@ -143,7 +143,7 @@ typedef struct {
     /* 0x908 */ u8 visiblePartCount;
     /* 0x909 */ u8 typeId;
     /* 0x90A */ u8 pad90A[0x4];
-    /* 0x90E */ u8 unk90E;
+    /* 0x90E */ u8 savedModelIndex;
     /* 0x90F */ u8 pad90F[0x89];
     /* 0x998 */ s16 animFrame;
     /* 0x99A */ s16 frameDelta;
@@ -157,15 +157,16 @@ typedef struct {
     /* 0x15EC */ s16 unk15EC;
     /* 0x15EE */ s16 unk15EE;
     /* 0x15F0 */ u8 pad15F0[0x2];
-    /* 0x15F2 */ s16 unk15F2;
+    /* 0x15F2 */ s16 speedScale;
     /* 0x15F4 */ u8 pad15F4[0x60];
     /* 0x1654 */ s32 unk1654;
     /* 0x1658 */ s32 unk1658;
 } Actor; // Size: unknown
 
-/* The 0x60-entry effect context allocated by BattleEffectInitContext. */
+/* The 0x60-entry effect context allocated by BattleEffectInitContext. The
+   same record src/battling/main/misc16.c declares as Misc16Work. */
 typedef struct {
-    /* 0x00 */ s16 unk0;
+    /* 0x00 */ s16 gravity;
     /* 0x02 */ u8 pad02[0x12];
     /* 0x14 */ s16 x;
     /* 0x16 */ s16 y;
@@ -175,13 +176,13 @@ typedef struct {
     /* 0x36 */ s16 rotY;
     /* 0x38 */ s16 rotZ;
     /* 0x3A */ u8 pad3A[0xA];
-    /* 0x44 */ s16 unk44;
+    /* 0x44 */ s16 angleRange;
     /* 0x46 */ s16 unk46;
-    /* 0x48 */ s16 unk48;
-    /* 0x4A */ s16 unk4A;
+    /* 0x48 */ s16 depthBase;
+    /* 0x4A */ s16 depthRange;
     /* 0x4C */ u8 pad4C[0x1C];
     /* 0x68 */ s16 unk68;
-    /* 0x6A */ s16 unk6A;
+    /* 0x6A */ s16 entryLife;
     /* 0x6C */ u8 pad6C[0x8];
     /* 0x74 */ u8 r;
     /* 0x75 */ u8 g;
@@ -282,12 +283,12 @@ void BattleEffectInitContext(void) {
     p->g = 0x80;
     p->b = 0xC0;
     BattleEffectAllocEntries(p, 0x60);
-    p->unk0 = 4;
-    p->unk44 = 0x300;
-    p->unk48 = 8;
-    p->unk4A = 0x20;
+    p->gravity = 4;
+    p->angleRange = 0x300;
+    p->depthBase = 8;
+    p->depthRange = 0x20;
     p->unk68 = 0;
-    p->unk6A = 0x20;
+    p->entryLife = 0x20;
     g_BattleEffect = p;
 }
 
@@ -453,12 +454,12 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
     flags = p4->unk44.flags;
     flags &= ~2;
     flags |= arg2 << 1;
-    p4->unk43 = arg5;
+    p4->partIndex = arg5;
     p4->unk44.flags = flags;
     p4->unk44.byte.state = 2;
-    p4->unk44.byte.unk47 = p6->gaugePercent;
+    p4->unk44.byte.gaugePercent = p6->gaugePercent;
     p4->pActionEntry = p6->pActionEntry;
-    p4->unk44.byte.unk46 = p3[1];
+    p4->unk44.byte.actionId = p3[1];
     g_BattleSlotStoreCount++;
 }
 
@@ -502,7 +503,7 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
         return 1;
     }
     q = (t - 0x1000) / 20;
-    if (q >= p0->unkB4) {
+    if (q >= p0->gaugeValue) {
         p0->gaugePoints = t - arg1;
         p0->gaugeLevel = 0;
         if (BattleGetScreenMode() != 4) {
@@ -649,7 +650,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
    be kept: `part = p0->partIndex;` + `(u8)part != p0->prevPartIndex` reproduces the original's
    redundant `andi a0,a1,0xff` and, with `&D_80091130[part]` as the first
    statement of the if-body, its second `sll/addu s4` (gcc CSEs the two identical
-   `&D_80091130[p0->partIndex]` forms away); `old + (p0->animSpeed + p0->unk52)` gives the
+   `&D_80091130[p0->partIndex]` forms away); `old + (p0->animSpeed + p0->animSpeedBonus)` gives the
    original's operand order; the read-modify-writes must be written on the FIELD
    (`p0->flags = (p0->flags & ~0x800) | ((ret & 1) << 11)`) so gcc tests the
    stored register and stores before the branch; `p0->animFrame = pAnim->frame;`
@@ -687,7 +688,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
             p0->frameLimit = 1;
             p0->flags &= ~0x02000000;
         }
-        p0->animSpeed = (p0->pPartTimings[p0->partIndex].animSpeed * p0->unk15F2) / 256;
+        p0->animSpeed = (p0->pPartTimings[p0->partIndex].animSpeed * p0->speedScale) / 256;
         pAnim = &p0->pModelLink->pModel->pAnims[p0->partIndex];
         BattleUpdatePartDrawFlags(p0);
         BattleResetPartAnim(pAnim);
@@ -696,14 +697,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
         p0->flags &= ~0x10000000;
         pState->flags |= 0x1000;
         if (pMode->mode == 2) {
-            p0->unk90E = p0->partIndex;
+            p0->savedModelIndex = p0->partIndex;
         } else {
-            p0->unk90E = 0;
+            p0->savedModelIndex = 0;
         }
     }
     i = 0;
     old = p0->frameAccum;
-    p0->frameAccum = old + (p0->animSpeed + p0->unk52);
+    p0->frameAccum = old + (p0->animSpeed + p0->animSpeedBonus);
     delta = ((p0->frameAccum << 16) >> 20) - ((old << 16) >> 20);
     p0->animFrame = pAnim->frame;
     p0->frameDelta = delta;
