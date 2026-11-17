@@ -9,7 +9,7 @@ typedef struct WorkBlock WorkBlock;
 struct WorkBlock {
     /* 0x0 */ s16 count;
     /* 0x2 */ u16 polyCount;
-    /* 0x4 */ u32 unk4;
+    /* 0x4 */ u32 pVertices;
     /* 0x8 */ void* pMem;
     /* 0xC */ void* pData;
     /* 0x10 */ void* pDelayedMem;
@@ -50,7 +50,7 @@ typedef struct {
     /* 0x02 */ u16 count;
     /* 0x04 */ u16 polyCount;
     /* 0x06 */ u16 nodeCount;
-    /* 0x08 */ u32 unk8;
+    /* 0x08 */ u32 pVertices;
     /* 0x0C */ u8 unkC[0x4];
     /* 0x10 */ PacketNode* pNodes;
 } WorkData; // Size: 0x14
@@ -273,7 +273,7 @@ void BattleInitWorkBlock(WorkBlock* pBlock, WorkData* pData) {
 
     pBlock->count = pData->count;
     pBlock->polyCount = pData->polyCount;
-    pBlock->unk4 = pData->unk8;
+    pBlock->pVertices = pData->pVertices;
     pBlock->pData = pData;
     g_BattlePacketNodeCursor = pData->pNodes;
     HeapSetCurrentContentType(0x13);
