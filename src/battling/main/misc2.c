@@ -272,7 +272,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
    local, and a while loop (that one also grows a pre-test, 71.25%). The
    do/while with `n += (s32)p1` is right; the register is an allocator pick -
    $2, $3 and $7 are all free here, so gcc's first fresh pseudo is $v0, and no
-   source shape moved it to $t0. */
+   source shape moved it to $t0. Round 199: verified the pick is not the
+   allocator carrying state from the previous function (adding a dummy function
+   above leaves 98.75), and that an explicit `u32 t` temp, s32 pointers and a
+   second pointer local (`u32 *end = (u32 *)((s32)p1 + n)`, 71.25%, which puts
+   `end` in $v1) all leave the copy temp in $v0 - $v0 is this function's first
+   free register, so the pick is out of source reach. */
 /* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
@@ -476,7 +481,13 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    session as `arg1 = *(s16 *)(p0 + 0xB6) + arg1` in place and with a `hw`
    local (both 97.78%, operands come out swapped as well); 2.6.0 gives 97.22
    and 2.7.2-cdk 97.78, so the preset is not the lever. Retested this session:
-   2.7.2-cdk -O2 98.06, -O3 98.06, -G0 98.06, cdk -O3 compile-failed. */
+   2.7.2-cdk -O2 98.06, -O3 98.06, -G0 98.06, cdk -O3 compile-failed. Round 199:
+   retail's allocation is OURS ONE REGISTER HIGHER - retail `lh v1,0xB6` + sum
+   in `$a1` (the parameter's own register, freed by the add) against ours
+   `lh v0` + sum in `$v1` - and `arg1 += hw;` / `arg1 += *(s16 *)(p0 + 0xB6);`
+   do NOT coalesce the sum into that `$a1` (both `addu v1,a1,v0`, 97.78), so the
+   in-place spelling is not the lever either. A single shared exit (`result`
+   variable) is worse: it grows the frame to 76 bytes and 84.17%. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
     s32 t = *(s16 *)(p0 + 0xB6) + arg1;
 
@@ -546,7 +557,14 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
    round from this exact body: 1726 iterations, base=best=10, nothing.
    Next lever not tried: an edit that makes the vertex offset load reach `$a2`
    through a copy suggestion (a source-level tie between the two uses), which is
-   where a stronger permuter mutation set or a manual RTL read would start. */
+   where a stronger permuter mutation set or a manual RTL read would start.
+   Round 199 re-checked: 2.6.0 gives 99.91 and 2.7.2-cdk 94.17, so the preset is
+   not the lever; wrapping only the second BattleTransformEntryVertex call in
+   do { } while (0) leaves 99.91. The earlier 'block-scope u8/s32 local, 432
+   bytes' readings were STALE: gcc 2.7.2 rejects a declaration after a statement
+   (cc1 exit 33, 'parse error'), diff_func.sh then scores the previous variant's
+   object, so nothing changed size. Declare such locals at the top of the
+   function when retrying this class. */
 /*
 extern s32 BattleEffectPackKey(s32, u8, s16, s32);
 extern s32 BattleEffectIsTwoVertexType(u8);
