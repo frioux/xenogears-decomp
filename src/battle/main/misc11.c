@@ -749,40 +749,38 @@ void BattleInitTargetSlotFlags(s32 arg0) {
         func_80093B08(arg0);
     }
 }
-/* 92.34%: `BattleSlotBitMask` returns u16, so a separate `orBits = f(a); orBits |=
-   f(b);` masks both results; writing the two calls as one `|` expression inside
-   the BattleBeginAnimTask call lets gcc fold them into the single `or` + final `andi
-   0xffff` the original has. What is left: the original loads g_BattleCommandQueue once and
-   shares the base between the `[0x2DA]` read and the `+arg0*0x40` pointer for
-   the BattleSlotBitMask argument (we reload it), and the two `addu base,base,idx`
-   come out with the index register as destination instead of the base
-   (allocator tie, both values dead after). */
-/*
 void func_800819A4(u8 arg0) {
-    s32 orBits;
+    u16 orBits;
+    s32 idx;
 
     if (g_BattleCommandQueue[0x2E9] != 0) {
         return;
     }
     g_BattleCommandQueue[0x2E9] = 1;
     func_800BCD98(0);
-    *(u8 *)((u32)g_BattleCommandQueue + arg0 * 0x40 + 0x3C) = g_BattleCommandQueue[0x2E8];
+    idx = arg0 * 0x40;
+    *(g_BattleCommandQueue + idx + 0x3C) = g_BattleCommandQueue[0x2E8];
     BattleFreeStringTableAE();
     BattleFreeStringTable96();
     BattleClearFlagC6();
-    orBits = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue[arg0 * 0x40 + 0x3C]);
+    orBits = BattleSlotBitMask(arg0) | BattleSlotBitMask(*(g_BattleCommandQueue + idx + 0x3C));
     BattleBeginAnimTask(orBits);
     if (g_BattleActorCharIds[arg0] != 4) {
+        u8 *pTarget;
+        u8 *pCmd;
+        u16 mask;
         D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
         D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFD;
+        pTarget = g_BattleCommandQueue + idx;
         *(u16 *)(D_800C4022 + g_BattleCommandQueue[0x2DA] * 0x48) = 0;
-        *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue[0x2DA] * 0x48) =
-            BattleSlotBitMask(g_BattleCommandQueue[arg0 * 0x40 + 0x3C]);
-        g_BattleCommandQueue[0x2DA]++;
+        mask = BattleSlotBitMask(pTarget[0x3C]);
+        pCmd = g_BattleCommandQueue;
+        *(u16 *)(g_BattleCommandRecords + pCmd[0x2DA] * 0x48) = mask;
+        pCmd[0x2DA]++;
     }
     BattleClearSlotFlagsIfChar4(arg0, 0);
 }
-*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800819A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
