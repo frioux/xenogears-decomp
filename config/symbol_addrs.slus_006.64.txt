@@ -1620,3 +1620,6 @@ g_SpriteVramSlotXOffset = 0x80059196;
 g_GfxLoadImageRect = 0x800592F0;
 g_GfxLoadImageData = 0x800592F4;
 g_SoundWdsEntryFile3 = 0x80059560;
+g_GameStagedFileSyncCount = 0x8004F310;
+g_BattleAnimPositionGroupA = 0x8006F99C;
+g_BattleAnimPositionGroupB = 0x8006F9AC;

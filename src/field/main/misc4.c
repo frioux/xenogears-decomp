@@ -116,7 +116,7 @@ void FieldOrVramStripPixels(void) {
 
 extern u_char g_GameDiscChangeRequest;
 extern u_char D_8005942C;
-extern s32 D_8004F310;
+extern s32 g_GameStagedFileSyncCount;
 extern s32 g_GamePartySkinsInitialized;
 extern SoundWDSEntry* g_GameCurLoadedWDS;
 
@@ -282,7 +282,7 @@ void func_80078D44(void) {
             g_WorldMapAudioManagerLoaded = 0;
         }
         func_800A24C4();
-        D_8004F310 = 0;
+        g_GameStagedFileSyncCount = 0;
         g_GamePartySkinsInitialized = 0;
         FieldRenderSync();
         ControllerResetState();
@@ -520,7 +520,7 @@ void FieldAdvanceGameState(int state) {
         break;
     }
     case 3:
-        D_8004F310 = 0;
+        g_GameStagedFileSyncCount = 0;
         g_GamePartySkinsInitialized = 0;
         if (g_FieldSuppressStateChange != 0) {
             return;

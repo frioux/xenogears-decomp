@@ -2,7 +2,7 @@
 #include "field/actor.h"
 #include "psyq/libgpu.h"
 
-extern s32 D_800C367C;
+extern s32 g_BattlePendingAnimState;
 extern s16 D_800C3740;
 extern u8 g_BattleAnimCommandsSuppressed;
 
@@ -25,17 +25,17 @@ extern u8 *TimerWorkListAllocateTask(void *pData, s32 dataSize);
 extern u8 g_FlagTimerWorkListAdds;
 extern u8 g_TaskHeapAllocFlags;
 extern s32 g_BattlePendingActorTaskCount;
-extern u8 D_800C3CB8;
+extern u8 g_BattleAnimTaskAllocCount;
 extern u32 D_800C3674;
 extern s32 D_800C3678;
-extern u8 D_800C3CC4;
+extern u8 g_BattleActiveAnimTaskCount;
 extern s32 D_800C3CBC;
-extern u8 *D_800C3748;
-extern u8 *D_800C3680;
-extern u8 *D_800C3684;
-extern u16 D_800C3CCC[];
+extern u8 *g_BattleSpriteColorTask;
+extern u8 *g_BattleAnimOwnerTaskGroupA;
+extern u8 *g_BattleAnimOwnerTaskGroupB;
+extern u16 g_BattleAnimSavedGroupStates[];
 extern u16 D_800C3CD4[];
-extern u16 D_800D30A0[];
+extern u16 g_BattleAnimGroupStates[];
 extern u16 D_800D30A8[];
 extern void WorkListsRemoveEntriesForData(u8 *pTask);
 extern void AnimScriptTick(SpriteData *pSprite);
@@ -43,8 +43,8 @@ extern void SpriteApplyMovementStep(SpriteData *pSprite);
 extern void WorkListTaskSetOnFreeCallback(void *pEntry, void *pCallback);
 extern u16 D_800C3CDC;
 extern u16 D_80059454;
-extern IVEC3 D_8006F99C;
-extern IVEC3 D_8006F9AC;
+extern IVEC3 g_BattleAnimPositionGroupA;
+extern IVEC3 g_BattleAnimPositionGroupB;
 extern void func_800BC460(s32 arg0);
 
 // best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(g_BattleViewMatrix)
@@ -97,7 +97,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB540);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB620);
 void BattleAnimTaskAllocArchiveEntry(u8 *pEntry) {
     func_800A9540(*(s32 *)(pEntry + 0x1C));
-    D_800C3CB8++;
+    g_BattleAnimTaskAllocCount++;
     TimerWorkListSetTaskCallback(pEntry, func_800BB620);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB6E0);
@@ -125,7 +125,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB760);
 void BattleResetAnimState(void) {
     D_800C3674 = 0x200;
     D_800C3678 = -1;
-    D_800C3CC4 = 0;
+    g_BattleActiveAnimTaskCount = 0;
     D_800C3CBC = 1;
     func_800BC2F0(0);
 }
@@ -167,16 +167,16 @@ void BattleFreeAnimTask(u8 *pEntry) {
 
     pSprite = *(SpriteData **)(pEntry + 4);
     if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
-        if (D_800C3680 == pEntry) {
-            D_800C3680 = NULL;
+        if (g_BattleAnimOwnerTaskGroupA == pEntry) {
+            g_BattleAnimOwnerTaskGroupA = NULL;
             if (g_BattleAnimCommandsSuppressed == 0) {
-                D_800D30A0[0] = D_800C3CCC[0];
-                D_800D30A0[1] = D_800C3CCC[1];
-                D_800D30A0[2] = D_800C3CCC[2];
+                g_BattleAnimGroupStates[0] = g_BattleAnimSavedGroupStates[0];
+                g_BattleAnimGroupStates[1] = g_BattleAnimSavedGroupStates[1];
+                g_BattleAnimGroupStates[2] = g_BattleAnimSavedGroupStates[2];
             }
         }
-    } else if (D_800C3684 == pEntry) {
-        D_800C3684 = NULL;
+    } else if (g_BattleAnimOwnerTaskGroupB == pEntry) {
+        g_BattleAnimOwnerTaskGroupB = NULL;
         if (g_BattleAnimCommandsSuppressed == 0) {
             D_800D30A8[0] = D_800C3CD4[0];
             D_800D30A8[1] = D_800C3CD4[1];
@@ -189,9 +189,9 @@ void BattleFreeAnimTask(u8 *pEntry) {
     TimerWorkListRemoveTask(pEntry);
     WorkListRemoveTask(pEntry + 0x1C);
     HeapFree(pEntry);
-    D_800C3CC4--;
-    if (D_800C3CC4 == 0) {
-        func_800BC2F0(D_800C367C);
+    g_BattleActiveAnimTaskCount--;
+    if (g_BattleActiveAnimTaskCount == 0) {
+        func_800BC2F0(g_BattlePendingAnimState);
     }
 }
 void BattleAnimTaskTick(u8 *pEntry) {
@@ -201,13 +201,13 @@ void BattleAnimTaskTick(u8 *pEntry) {
     AnimScriptTick(pSprite);
     SpriteApplyMovementStep(pSprite);
     if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
-        D_8006F99C.x = pSprite->position.x;
-        D_8006F99C.y = pSprite->position.y;
-        D_8006F99C.z = pSprite->position.z;
+        g_BattleAnimPositionGroupA.x = pSprite->position.x;
+        g_BattleAnimPositionGroupA.y = pSprite->position.y;
+        g_BattleAnimPositionGroupA.z = pSprite->position.z;
     } else {
-        D_8006F9AC.x = pSprite->position.x;
-        D_8006F9AC.y = pSprite->position.y;
-        D_8006F9AC.z = pSprite->position.z;
+        g_BattleAnimPositionGroupB.x = pSprite->position.x;
+        g_BattleAnimPositionGroupB.y = pSprite->position.y;
+        g_BattleAnimPositionGroupB.z = pSprite->position.z;
     }
     if (pSprite->pSpriteBytecode == NULL) {
         (*((void (**)(u8 *))(pEntry + 0xC)))(pEntry);
@@ -219,13 +219,13 @@ void BattleAnimTaskTick(u8 *pEntry) {
     AnimScriptTick(pSprite);
     SpriteApplyMovementStep(pSprite);
     if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
-        D_8006F99C.x = pSprite->position.x;
-        D_8006F99C.y = pSprite->position.y;
-        D_8006F99C.z = pSprite->position.z;
+        g_BattleAnimPositionGroupA.x = pSprite->position.x;
+        g_BattleAnimPositionGroupA.y = pSprite->position.y;
+        g_BattleAnimPositionGroupA.z = pSprite->position.z;
     } else {
-        D_8006F9AC.x = pSprite->position.x;
-        D_8006F9AC.y = pSprite->position.y;
-        D_8006F9AC.z = pSprite->position.z;
+        g_BattleAnimPositionGroupB.x = pSprite->position.x;
+        g_BattleAnimPositionGroupB.y = pSprite->position.y;
+        g_BattleAnimPositionGroupB.z = pSprite->position.z;
     }
     if (pSprite->pSpriteBytecode == NULL) {
         (*((void (**)(u8 *))(pEntry + 0xC)))(pEntry);
@@ -237,39 +237,39 @@ void BattleInitAnimTask(u8 *pEntry) {
 
     pSprite = (SpriteData *)(pEntry + 0x38);
     if ((pSprite->field_0x40 >> 13 & 0xF) == 0xA) {
-        pOwner = D_800C3680;
+        pOwner = g_BattleAnimOwnerTaskGroupA;
         if (pOwner != NULL) {
             if (*(u16 *)(pOwner + 0x6C) != 1 && (u16)pSprite->curSpriteFrame == 1) {
                 ((void (*)(u8 *)) * (void **)(pOwner + 0xC))(pOwner);
-                D_800C3680 = pEntry;
+                g_BattleAnimOwnerTaskGroupA = pEntry;
             } else {
                 pSprite->animScriptWaitTimer = 0;
                 pSprite->pSpriteBytecode = NULL;
             }
         } else {
-            D_800C3680 = pEntry;
-            D_800C3CCC[0] = D_800D30A0[0];
-            D_800C3CCC[1] = D_800D30A0[1];
-            D_800C3CCC[2] = D_800D30A0[2];
+            g_BattleAnimOwnerTaskGroupA = pEntry;
+            g_BattleAnimSavedGroupStates[0] = g_BattleAnimGroupStates[0];
+            g_BattleAnimSavedGroupStates[1] = g_BattleAnimGroupStates[1];
+            g_BattleAnimSavedGroupStates[2] = g_BattleAnimGroupStates[2];
         }
     } else {
-        pOwner = D_800C3684;
+        pOwner = g_BattleAnimOwnerTaskGroupB;
         if (pOwner != NULL) {
             if (*(u16 *)(pOwner + 0x6C) != 1 && (u16)pSprite->curSpriteFrame == 1) {
                 ((void (*)(u8 *)) * (void **)(pOwner + 0xC))(pOwner);
-                D_800C3684 = pEntry;
+                g_BattleAnimOwnerTaskGroupB = pEntry;
             } else {
                 pSprite->animScriptWaitTimer = 0;
                 pSprite->pSpriteBytecode = NULL;
             }
         } else {
-            D_800C3684 = pEntry;
+            g_BattleAnimOwnerTaskGroupB = pEntry;
             D_800C3CD4[0] = D_800D30A8[0];
             D_800C3CD4[1] = D_800D30A8[1];
             D_800C3CD4[2] = D_800D30A8[2];
         }
     }
-    D_800C3CC4++;
+    g_BattleActiveAnimTaskCount++;
     if (((u32)pSprite->flags_0xAC.flags >> 2) & 1) {
         pSprite->direction = 0x800;
     } else {
@@ -281,7 +281,7 @@ void BattleInitAnimTask(u8 *pEntry) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC2F0);
 void BattleSetAnimTaskDoneState(s32 value) {
-    D_800C367C = value;
+    g_BattlePendingAnimState = value;
 }
 void BattleBeginAnimTask(u8 *pEntry) {
     if (g_BattleAnimCommandsSuppressed == 0) {
@@ -325,7 +325,7 @@ void BattleSetSpriteColorFromAngle(u8 *pEntry, s32 angle) {
 void BattleFreeSpriteColorTask(void) {
     u8 *pEntry;
 
-    pEntry = D_800C3748;
+    pEntry = g_BattleSpriteColorTask;
     if (pEntry != NULL) {
         u8 *pFlags;
 
@@ -333,7 +333,7 @@ void BattleFreeSpriteColorTask(void) {
         pFlags[0x2B] |= 1;
         TimerWorkListRemoveTask(pEntry);
         HeapFree(pEntry);
-        D_800C3748 = NULL;
+        g_BattleSpriteColorTask = NULL;
     }
 }
 

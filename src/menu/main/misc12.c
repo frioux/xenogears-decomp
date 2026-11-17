@@ -401,13 +401,13 @@ void MenuClearBytes(u_char count, u_char* pBuffer) {
 }
 extern u32 g_MenuCursorXPositions[]; // Cursor x positions
 extern s32 g_MenuCursorYPositions[]; // Cursor y positions
-extern u32 D_801E9EC4[];
-extern u32 D_801E9EE4[];
-extern u32 D_801E9EE8[];
-extern u32 D_801E9F28[];
-extern u32 D_801E9F30[];
-extern u32 D_801E9F68[];
-extern u32 D_801E9F70[];
+extern u32 g_MenuRowQuadMode1Xs[];
+extern u32 g_MenuRowQuadMode1Y[];
+extern u32 g_MenuRowQuadMode2Xs[];
+extern u32 g_MenuRowQuadMode2Ys[];
+extern u32 g_MenuRowQuadMode3Ys[];
+extern u32 g_MenuRowQuadMode6Xs[];
+extern u32 g_MenuRowQuadMode6Ys[];
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 
 void MenuSetRowQuadVertices(s32 count, MenuString* pRows, u8* pStringIds, u32* pXOffsets, u8* pFlags, u_char row,
@@ -427,16 +427,16 @@ void MenuSetRowQuadVertices(s32 count, MenuString* pRows, u8* pStringIds, u32* p
         (g_Menu->renderContext + pRows[row].polys)->y3 = g_MenuCursorYPositions[col + row] - 0x15;
         break;
     case 1:
-        MenuSetQuadVertices(pRows[row].vertices, D_801E9EC4[row], D_801E9EE4[0], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        MenuSetQuadVertices(pRows[row].vertices, g_MenuRowQuadMode1Xs[row], g_MenuRowQuadMode1Y[0], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
         break;
     case 5:
         offset = 8;
         // fallthrough
     case 2:
-        MenuSetQuadVertices(pRows[row].vertices, D_801E9EE8[offset + row], D_801E9F28[col], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        MenuSetQuadVertices(pRows[row].vertices, g_MenuRowQuadMode2Xs[offset + row], g_MenuRowQuadMode2Ys[col], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
         break;
     case 3:
-        MenuSetQuadVertices(pRows[row].vertices, 0x18, D_801E9F30[col], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        MenuSetQuadVertices(pRows[row].vertices, 0x18, g_MenuRowQuadMode3Ys[col], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
         break;
     case 4:
         (g_Menu->renderContext + pRows[row].polys)->x0 = 0x4C;
@@ -449,7 +449,7 @@ void MenuSetRowQuadVertices(s32 count, MenuString* pRows, u8* pStringIds, u32* p
         (g_Menu->renderContext + pRows[row].polys)->y3 = 0x1F;
         break;
     case 6:
-        MenuSetQuadVertices(pRows[row].vertices, D_801E9F68[row], D_801E9F70[row], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
+        MenuSetQuadVertices(pRows[row].vertices, g_MenuRowQuadMode6Xs[row], g_MenuRowQuadMode6Ys[row], pRows[row].width, MENU_ROW_QUAD_HEIGHT);
         break;
     }
     pRows[row].renderContext = g_Menu->renderContext;

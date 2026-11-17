@@ -167,7 +167,7 @@ extern s32 g_GameRequestedWdsBankIndex;
 extern s32 g_SoundPendingAudioManager;
 extern s32 g_FieldScreenSetupDone;
 extern s32 D_8004F314;
-extern s32 D_8004F310;
+extern s32 g_GameStagedFileSyncCount;
 extern s32 g_FieldSuppressStateChange;
 extern s32 g_GameAudioManagerRunning;
 extern s32 g_GameHasLoadedWDS;
@@ -204,7 +204,7 @@ void SystemResetGlobalState(void) {
     g_GamePartyQueuedSkinKind = 0;
     g_GamePartyUsesGearSkins = 0;
     D_8004F314 = 0;
-    D_8004F310 = 0;
+    g_GameStagedFileSyncCount = 0;
     g_GamePartySkinsInitialized = 0;
     g_FieldSuppressStateChange = 0;
     g_GameAudioManagerRunning = 0;

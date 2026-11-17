@@ -792,8 +792,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024730);
    `lw %lo/%lo+4/%lo+8; sw` with `addiu $v0,$v0,%lo` in the delay slot.
 extern void BattleInitAnimTask(AnimTask* pAnimTask);
 extern void SpriteSetTaskHandler(WorkListEntry* pTask, s32 animType);
-extern IVEC3 D_8006F99C;
-extern IVEC3 D_8006F9AC;
+extern IVEC3 g_BattleAnimPositionGroupA;
+extern IVEC3 g_BattleAnimPositionGroupB;
 
 void func_80024730(AnimTask* pAnimTask) {
     SpriteData* pSpriteData = &pAnimTask->spriteData;
@@ -807,24 +807,24 @@ void func_80024730(AnimTask* pAnimTask) {
         animType = (animType - 2) & 0xF;
         pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
         BattleInitAnimTask(pAnimTask);
-        pSpriteData->position = D_8006F99C;
+        pSpriteData->position = g_BattleAnimPositionGroupA;
         break;
     case 10:
         BattleInitAnimTask(pAnimTask);
         pSpriteData->curSpriteFrame = 0;
-        pSpriteData->position = D_8006F99C;
+        pSpriteData->position = g_BattleAnimPositionGroupA;
         break;
     case 13:
         pSpriteData->curSpriteFrame = 1;
         animType = (animType - 2) & 0xF;
         pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
         BattleInitAnimTask(pAnimTask);
-        pSpriteData->position = D_8006F99C;
+        pSpriteData->position = g_BattleAnimPositionGroupA;
         break;
     case 11:
         BattleInitAnimTask(pAnimTask);
         pSpriteData->curSpriteFrame = 0;
-        pSpriteData->position = D_8006F9AC;
+        pSpriteData->position = g_BattleAnimPositionGroupB;
         break;
     case 7:
         TimerWorkListSetTaskCallback(pAnimTask, &AnimTaskCountedTimerTick);

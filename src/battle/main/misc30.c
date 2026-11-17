@@ -31,7 +31,7 @@ extern u16 D_800C3DF0;
 extern u8 D_800C3623;
 
 // The per-slot vectors retail copies from 0x800D30A0 to 0x800D3354.
-extern u16 D_800D30A0[];
+extern u16 g_BattleAnimGroupStates[];
 extern u16 D_800D3354[];
 extern u16 D_800D335C[];
 extern s32 g_GfxOTDepthShift;
@@ -251,12 +251,12 @@ void func_800B905C(void) {
         pSprite->targetPosition.y = 0;
         pSprite->targetPosition.z = z;
         func_800BC460(mask);
-        D_800D3354[0] = D_800D30A0[0];
-        D_800D3354[1] = D_800D30A0[1];
-        D_800D3354[2] = D_800D30A0[2];
-        D_800D335C[0] = D_800D30A0[4];
-        D_800D335C[1] = D_800D30A0[5];
-        D_800D335C[2] = D_800D30A0[6];
+        D_800D3354[0] = g_BattleAnimGroupStates[0];
+        D_800D3354[1] = g_BattleAnimGroupStates[1];
+        D_800D3354[2] = g_BattleAnimGroupStates[2];
+        D_800D335C[0] = g_BattleAnimGroupStates[4];
+        D_800D335C[1] = g_BattleAnimGroupStates[5];
+        D_800D335C[2] = g_BattleAnimGroupStates[6];
         BattleFaceActorsTowardEachOther(pSprite, pTarget);
     }
     BattleLoadArchiveEntryFile();
