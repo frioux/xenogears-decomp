@@ -313,29 +313,36 @@ s32 BattleGetActorFlag41(void) {
     return 1;
 }
 
-// One step of the image task's ease: while the timer runs, step the value from
-// its start toward its end in equal slices, and once it is spent release the
-// task if the value has reached zero.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3B94);
+// best 93.55% under cdk -G0 (88.68% without the `pTask = pArg` copy the pointer
+// alias buys). Same instruction multiset and the same instruction order; only the
+// v0/v1 pair holding num and the (end - start) delta is swapped: retail keeps the
+// divisor in v1 and the quotient in v0, this body the other way round. Three
+// permuter runs from this body (4 min each) reached 105/573 and only by adding
+// dead-variable hacks. Tried: `s32/u32/s16 base`, the timer kept in a local, the
+// timer store moved earlier, a second variable holding num, `unsigned base`.
+/*
 void func_800B3B94(BattleImageTask *pArg) {
     BattleImageTask *pTask = pArg;
     s32 timer;
     s32 n;
     s32 num;
-    u32 base;
+    s32 base;
     s32 delta;
 
     timer = pTask->timer;
     if (timer != 0) {
         n = timer - 1;
         num = n * 0x20 / pTask->length;
+        pArg->timer = n;
         base = pTask->end;
         delta = (base - pTask->start) * num;
-        pTask->timer = n;
         pTask->current = base - delta / 0x20;
     } else if (pTask->current == 0) {
         pTask->timerEntry.onFreeCallback(pTask);
     }
 }
+*/
 
 
 void BattleFreeImageTask(u8 *pEntry) {
