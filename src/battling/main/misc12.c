@@ -19,17 +19,24 @@ typedef struct {
     /* 0x4 */ void* pData;
 } BattleMisc12Owner; // Size: 0x8
 
-// Slot table entry, 0xF8 bytes, indexed by slot number. It starts with the draw
-// environment BattleInitDrawEnvs fills with SetDefDrawEnv. At +0x74 it carries
-// the semi-transparent 16x16 sprite prim BattleInitSlotDrawEntry initialises: tag
-// with length 3 and code 0x7D (what setSprt16 does, plus the semi-transparency
-// bit), x0/y0, then the u0/v0 halfword and the clut.
+// Slot table entry, 0xF8 bytes, indexed by slot number: the draw environment
+// BattleInitDrawEnvs fills with SetDefDrawEnv, the display environment
+// func_80089330 fills with SetDefDispEnv (a copy of it goes to PutDispEnv), and
+// the one-word root ordering table g_BattleRootOrderingTable points at. At +0x74
+// it carries the semi-transparent 16x16 sprite prim BattleInitSlotDrawEntry
+// initialises: tag with length 3 and code 0x7D (what setSprt16 does, plus the
+// semi-transparency bit), x0/y0, then the u0/v0 halfword and the clut. The same
+// prim is BattleTexBlock D_8009A14C in src/battling/main/misc1.c, which names
+// the colour bytes r0/g0/b0.
 typedef struct {
     /* 0x00 */ DRAWENV drawEnv;
-    /* 0x5C */ u8 unk5C[0x18];
+    /* 0x5C */ DISPENV dispEnv;
+    /* 0x70 */ u_long ot;
     /* 0x74 */ u8 tagAddr[3];
     /* 0x77 */ u8 len;
-    /* 0x78 */ u8 unk78[3];
+    /* 0x78 */ u8 r0;
+    /* 0x79 */ u8 g0;
+    /* 0x7A */ u8 b0;
     /* 0x7B */ u8 code;
     /* 0x7C */ u16 x0;
     /* 0x7E */ u16 y0;
