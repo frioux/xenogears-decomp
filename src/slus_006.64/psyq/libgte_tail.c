@@ -27,7 +27,7 @@
 // sits after gcc's own `jr $ra`, so it can be reproduced neither by real C nor by
 // a trailing asm block (gcc appends its epilogue after every asm). Carve the pad
 // out as its own `asm` subsegment instead, the way the seven above are: the two
-// left belong to TransMatrix and ScaleMatrix in psyq/libgte_tail_d.
+// left belongs to TransMatrix in psyq/libgte_tail_d.
 //
 // When the original's return value move sits in the `jr` delay slot, pin the asm
 // output to the argument register (`__asm__("$6")`) so gcc emits the copy

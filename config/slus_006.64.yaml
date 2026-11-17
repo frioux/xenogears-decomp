@@ -172,6 +172,8 @@ segments:
       - [0x3A4EC, c, psyq/libgte_tail_b]
       - [0x3A598, asm] # ApplyMatrixSV's tail pad word (Psy-Q pads a function to 16 bytes)
       - [0x3A59C, c, psyq/libgte_tail_d]
+      - [0x3A6F0, asm] # ScaleMatrix's tail pad words (3 words)
+      - [0x3A6FC, c, psyq/libgte_tail_e] # SetRotMatrix on
       - [0x3A8DC, c, psyq/libgte_b]
       - [0x3AE4C, c, psyq/libgte_pers] # RotTransPers
       - [0x3AE78, asm] # RotTransPers's tail pad word (Psy-Q pads a function to 16 bytes)
