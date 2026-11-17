@@ -198,6 +198,8 @@ segments:
       - [0x3B7EC, c, psyq/libgte_average_c] # RotMatrixY on
       - [0x3B984, asm] # RotMatrixY's tail pad words (2 words)
       - [0x3B98C, c, psyq/libgte_average_d] # RotMatrixZ on
+      - [0x3BB24, asm] # RotMatrixZ's tail pad words (2 words)
+      - [0x3BB2C, c, psyq/libgte_average_e] # ratan2 on
       - [0x3BCAC, asm] # Part of libetc
       - [0x3BD4C, c, psyq/libetc/vsync]
       - [0x3BF30, c, psyq/libapi_3]
