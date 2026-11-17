@@ -440,31 +440,30 @@ void func_800780A8(u8 *pInfo, s32 arg) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
-/* 94.68%: structure, every call and every field offset is right, and both
-   objects are the same size; only the three addresses that sit 0x60 above
-   D_800D36C0 / D_800D3720 / D_800D3718 differ. Retail keeps ONE bare offset
-   register (0x60 + 0xC0k) shared by all three uses - two `lui $at,%hi(sym);
-   addu $at,$at,s3; sw %lo(sym)($at)` stores and one `addu v0,s3,s5` for the
-   RECT copy destination - so a gcc that wanted that shape would need the
-   0x60 in the register, not in a displacement. With i * 0x60 + 0x60 inline
-   gcc turns the D_800D36C0 store into an absolute pointer giv (s3 =
-   D_800D36C0 + 0x60, incremented) and folds the other two as displacements.
-   Tried: explicit offset/offset2 locals incremented in the loop (89.73 - it
-   does keep the $at shape for both stores, but the RECT destination then
-   becomes a third pointer giv, 7 saved regs vs retail's 6); offset2 =
-   offset + 0x60 inside the loop (90.42); u8 *pBase local as the base
-   (89.68); (s32) cast sum, index-first (89.73); RECT destination as
-   ((u8 *)pRect) + 0x60 (90.54).
-   Parked body (94.68):
+/* 94.68% (372 bytes = retail's size; only address shape differs): retail keeps
+   ONE bare offset register (0x60 + 0xC0k, `li s3,0x60` incremented in the loop)
+   shared by all three uses - two `lui $at,%hi(sym); addu $at,$at,s3; sw
+   %lo(sym)($at)` stores and one `addu v0,s3,s5` for the RECT copy destination -
+   plus a SECOND offset register (s0 = 0xC0k, `addu a0,s0,a0` for the first
+   func_800780A8 base) and a third giv for base+0x10+offset (s4). With the
+   symbol+0x60 folded into the address (this body) gcc instead makes s3 a
+   pointer giv onto D_800D3720. Tried this round: explicit `offset` local
+   incremented in the loop (88.25, 356 bytes - one giv short, the copy
+   destination becomes base+0x60+offset); `offset` + `offset2 = offset + 0x60`
+   (94.45, 368 bytes - the s3 and s0 shape is right but base+0x10+offset is
+   computed inline instead of kept as a giv); the same plus a `pPrims` pointer
+   for the second call (87.98, 380 bytes - a 7th register, s6). The two offset
+   givs and the base+0x10 giv coexist only with six registers, which none of
+   these spellings reach. Parked body (94.68):
 void func_8007819C(void) {
     RECT *pRect;
     u8 *pBuf;
     s32 i;
 
     func_8008F8F4(5, 8, 0x2A, 0x70, 0x12, 0, 0);
-    g_BattleDisplayState[0xB5] = 0;
+    ((u8 *)g_BattleDisplayState)[0xB5] = 0;
     func_8008F8F4(4, 0x20, 0xC8, 0xF4, 0x12, 0, 0);
-    g_BattleDisplayState[0xB4] = 0;
+    ((u8 *)g_BattleDisplayState)[0xB4] = 0;
     for (i = 0; i < 8; i += 2) {
         pBuf = BattleAllocTextBuffer(0x39);
         *(u8 **)(D_800D36C0 + i * 0x60 + 0x60) = pBuf;
@@ -592,33 +591,26 @@ void func_80078508(u8 *pOut) {
    scheduled BEFORE the sb while gcc puts them after it. Source order does not
    matter (tile first / tile last / an s32 offset local all compile identically),
    so it is gcc's scheduler placement. Also tried: no pEntry (three loads of the
-   global, 48.18), inline tile.
+   global, 48.18), inline tile; this round: `do { } while (0)` around the color
+   store (17.12), a volatile color store (57.27), volatile tile loads (62.42),
+   tile computed before the pEntry load and after the color store (both 75.45,
+   identical output). The 4-minute permuter run found nothing better than 585
+   against this body. Retail's order is loads-then-sb, i.e. loads HOISTED above
+   an independent store; gcc 2.7.2 sinks them here.
    Parked body (75.45):
 void func_800785D4(u8 color, u8 index) {
     u16 tile;
     u8 *pEntry;
 
     pEntry = g_BattleCommandQueue;
-    tile = *(volatile u8 *)&g_BattleCommandTiles[index * 8] |
-           (*(volatile u8 *)&D_800D2E61[index * 8] << 8);
+    tile = g_BattleCommandTiles[index * 8] | (D_800D2E61[index * 8] << 8);
     D_800C400B[pEntry[0x2DA] * 0x48] = color;
     pEntry = g_BattleCommandQueue;
     *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
     pEntry[0x2DA]++;
 }
 */
-void func_800785D4(u8 color, u8 index) {
-    u16 tile;
-    u8 *pEntry;
-
-    pEntry = g_BattleCommandQueue;
-    tile = *(volatile u8 *)&g_BattleCommandTiles[index * 8] |
-           (*(volatile u8 *)&D_800D2E61[index * 8] << 8);
-    D_800C400B[pEntry[0x2DA] * 0x48] = color;
-    pEntry = g_BattleCommandQueue;
-    *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = tile;
-    pEntry[0x2DA]++;
-}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 
 /* 99.94%: the entire instruction stream is identical except the stack frame:
    retail allocates 0x18 and saves s0/ra at 0x10/0x14, this body allocates
