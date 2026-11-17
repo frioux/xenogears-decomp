@@ -373,7 +373,7 @@ void func_801CF37C(void) {
     long interpolated;
     long flag;
 
-    if (g_Menu->unk4D8 != 2) {
+    if (g_Menu->cardSlotState != 2) {
         return;
     }
     character = g_Menu->menuUnk2->slotRecordIndexes[D_801E981C[g_Menu->menuUnk2->selectedSlot]];
@@ -406,7 +406,7 @@ void func_801CF37C(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF5E4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4", func_801CF8D8);
-/* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->unk4D8)`
+/* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->cardSlotState)`
    (retail loads it before the frame adjust for the guard's lbu 0x4D8); the
    old park was missing that test, which is 52 bytes of the gap. Everything else
    is retail structure: 5 loop-invariant constants (x0 0x1E, x1 0x1B, y 0x36,
@@ -430,7 +430,7 @@ void func_801CF8D8(void) {
     s32 i;
     s32 j;
 
-    if (g_Menu->unk4D8) {
+    if (g_Menu->cardSlotState) {
         for (i = 0; i < 2; i++) {
             pData = g_Menu->menuUnk2;
             if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {

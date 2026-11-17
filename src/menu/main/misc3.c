@@ -251,7 +251,7 @@ u_char MenuIsSlotUsable(s32 a0) {
         break;
     }
     if (result != 0) {
-        g_Menu->unk4D8 = 2;
+        g_Menu->cardSlotState = 2;
     }
     /* keeping `idx` live here is what makes the allocator put the result flag in a2 */
     if (idx) {
@@ -310,7 +310,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
             break;
         }
     }
-    g_Menu->unk4D8 = 2;
+    g_Menu->cardSlotState = 2;
     return result;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
