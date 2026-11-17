@@ -1121,7 +1121,7 @@ s32 LibGearInitializeColorEntry(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, 
     }
 }
 
-void LibGearClearColorEntry(short* pValue) {
+void LibGearClearColorEntry(short* pValue, s32 arg1) {
     *pValue = -1;
 }
 
@@ -1747,8 +1747,239 @@ s32 func_801E5CD8(Model* pModel, s32 type) {
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
 
+// One command of the per-frame animation script that Model::unkA0 walks. The
+// frame index at 0x0 is compared against Model::unk98, the id at 0x2 selects the
+// handler and also decides the command's length (0x14, 0x12, 0x1C, 0xA, 8, 6, 4).
+typedef struct {
+    /* 0x0  */ s16 frame;
+    /* 0x2  */ u8 type;
+    /* 0x3  */ u8 index;
+    /* 0x4  */ u8 unk4;
+    /* 0x5  */ u8 unk5;
+    /* 0x6  */ u8 flags;
+    union {
+        // id 2: three byte scale factors and the joint's target position
+        struct {
+            /* 0x7  */ u8 unk7;
+            /* 0x8  */ u8 unk8;
+            /* 0x9  */ u8 unk9;
+            /* 0xA  */ u16 unkA;
+            /* 0xC  */ u16 unkC;
+            /* 0xE  */ u16 unkE;
+            /* 0x10 */ u16 unk10;
+        } joint;
+        // id 9: 16-bit component targets for the texture blend
+        struct {
+            /* 0x7  */ u8 unk7;
+            /* 0x8  */ u16 x;
+            /* 0xA  */ u16 y;
+            /* 0xC  */ u16 z;
+            /* 0xE  */ u16 w;
+            /* 0x10 */ u16 unk10;
+        } blend;
+    } payload; // 0x7
+    /* 0x12 */ u8 unk12;
+    /* 0x13 */ u8 unk13;
+    /* 0x14 */ u8 unk14;
+    /* 0x15 */ u8 unk15;
+    /* 0x16 */ s16 unk16;
+    /* 0x18 */ s16 unk18;
+    /* 0x1A */ s16 unk1A;
+} ModelScriptCommand; // Size: 0x1C
+
+void func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 flags, u16 arg3, s16* pColorMatrix, s16 x, s16 y,
+                   s16 arg7, s16 z, s16 w, u16 unk10, s16 arg11, s16 arg12, u32 unk13, u32 unk14, s16 unk16,
+                   s16 unk18, s16 unk1A, s16 (*pInterpolate)(s16, s16, s16));
+
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
+
+// objdiff 88.82%, body complete (1488 bytes against retail's 1512). Every case
+// of the 9-entry jump table is decoded and the shape is retail's: the
+// `while (unk9C < unk9E)` loop with its duplicated exit test, `break` on
+// `unk98 != cmd->frame`, one `unkA0 += K` per arm (gcc merges the stores),
+// case 2's 7 recomputed `g_LibGearModelOffsets[cmd->index]` sites, case 8's
+// 8-model loop with both LibGearSetModelAnimation calls, case 9's if/else with
+// the big arm inline, and the frame advance with the shared exit.
+// ALREADY SOLVED (do not re-derive):
+// - the 0x88 frame and the `lhu 0x50(sp)` that retail reads before ever writing
+//   it: both come from ONE 16-byte uninitialized local (unkFlag[8] in the parked
+//   body). Retail has 16 bytes of local area at 0x50..0x5C and 0x50 is the only
+//   reference, so shorten it and the frame drops to 0x80 and nothing matches.
+// - case 2 and case 9 do NOT share a payload view: id 2 reads 0x7/0x8/0x9 as
+//   bytes and 0xA..0x10 as u16, id 9 reads 0x8..0x10 as five u16 - hence the
+//   union in ModelScriptCommand. A single flat field list gives `lbu` where
+//   retail has `lhu`.
+// - g_LibGearCurrentModelIndex is loaded with `lh` (signed) here while the
+//   header types it u16, hence the *(s16*)* read.
+// - LibGearClearColorEntry really takes a second argument: retail copies a2
+//   into a1 before the jal, so the definition below now takes (short*, s32).
+// WHAT IS LEFT (all register/scheduling, in case 8 and case 9):
+// - case 8: retail loads cmd->unk5 (`lbu a3,5(cmd)`) BEFORE the NULL test and
+//   compares it with `blez`; ours loads it after and uses `beqz`. Retail also
+//   keeps `andi a1,<i>,0xFFFF` for the index argument where ours passes a bare
+//   `move` (the explicit (u16)i cast did not bring it back).
+// - case 9: retail's stack-argument stores go 0x20,0x24,0x28 (z,w,unk10) and
+//   only then 0x10,0x14,0x18,0x1C; ours stores in argument order, and retail
+//   loads all five u16 payload words back to back where ours interleaves the
+//   flags test.
+// - position of the merged `unkA0 += 6` block: retail puts it after case 9 (all
+//   four users jump to it), ours keeps it inline in case 3/4 and jumps to the
+//   +=0x1C arm instead, so the branch polarities of cases 3/4 and 9 are mirrored.
+//   That is the biggest single diff and it may be a layout consequence of the
+//   above. Best hand percentage 88.82%; no permuter run yet.
+/*
+PLACEHOLDER
+    Temp8* pSource;
+    s16* pColorMatrix;
+    s16 (*pInterpolate)(s16, s16, s16);
+    u16 x;
+    u16 y;
+    u16 z;
+    u16 w;
+    u16 modelBit;
+    volatile u16 unkFlag[8]; // retail reads the first word of this slot inside case 8 before writing it
+    u16 currentModelIndex;
+    u16 modelBitMask;
+    s32 i;
+
+    if (pModel->unk98 < 0) {
+        return;
+    }
+
+    while (pModel->unk9C < pModel->unk9E) {
+        pCmd = (ModelScriptCommand*)pModel->unkA0;
+        if (pModel->unk98 != pCmd->frame) {
+            break;
+        }
+
+        switch (pCmd->type) {
+            case 1:
+                pModel->unkA0 += 0x14;
+                break;
+            case 2:
+                if (pCmd->unk4 != 0) {
+                    if (pCmd->index < 2) {
+                        s16 modelIndex;
+
+                        if (pCmd->unk5 != 0) {
+                            modelIndex = -1;
+                        } else {
+                            modelIndex = pModel->unk20;
+                        }
+                        g_LibGearModelOffsets[pCmd->index].modelIndex = modelIndex;
+                        g_LibGearModelOffsets[pCmd->index].jointIndex = pCmd->flags;
+                        D_801E8644[pCmd->index + 1] = pCmd->payload.joint.unk7 * 16;
+                        D_801E8644[pCmd->index + 4] = pCmd->payload.joint.unk8 * 16;
+                        D_801E8644[pCmd->index + 7] = pCmd->payload.joint.unk9 * 16;
+                        g_LibGearModelOffsets[pCmd->index].x1 = pCmd->payload.joint.unkA;
+                        g_LibGearModelOffsets[pCmd->index].y1 = pCmd->payload.joint.unkC;
+                        g_LibGearModelOffsets[pCmd->index].z1 = pCmd->payload.joint.unkE;
+                        g_LibGearModelOffsets[pCmd->index].inUse = pCmd->payload.joint.unk10;
+                    }
+                    pModel->unkA0 += 0x12;
+                } else {
+                    g_LibGearModelOffsets[pCmd->index].inUse = 0;
+                    pModel->unkA0 += 6;
+                }
+                break;
+            case 3:
+            case 4:
+                LibGearClearColorEntry((short*)&pModel->pColorEntries[pCmd->index], arg2);
+                if (pCmd->unk4 != 0) {
+                    pModel->unkA0 += 0x1C;
+                } else {
+                    pModel->unkA0 += 6;
+                }
+                break;
+            case 5:
+                pModel->unkA0 += 8;
+                break;
+            case 6:
+                pModel->unkA0 += 4;
+                break;
+            case 7:
+                pModel->pSkeleton[pCmd->unk4].unk7 = pCmd->unk5 & 1;
+                pModel->unkA0 += 6;
+                break;
+            case 8: {
+                s16 flag;
+                u16 savedIndex;
+
+                flag = unkFlag[0];
+                currentModelIndex = *(s16*)&g_LibGearCurrentModelIndex; // header types this u16; retail loads it signed
+                modelBitMask = g_LibGearModelBitMask;
+                savedIndex = currentModelIndex;
+                modelBit = 1 << currentModelIndex;
+                for (i = 0; i < 8; i++) {
+                    if (((pModel->modelBitMask >> i) & 1) && g_LibGearModels[i] != NULL && pCmd->unk5 != 0) {
+                        if (flag != 0) {
+                            LibGearSetModelAnimationFrom(pModel, (u16)i, (u16)modelBit, pCmd->unk5);
+                        } else {
+                            LibGearSetModelAnimation((u16)i, (u16)modelBit, pCmd->unk5);
+                        }
+                    }
+                }
+                g_LibGearCurrentModelIndex = savedIndex;
+                g_LibGearModelBitMask = modelBitMask;
+                pModel->unkA0 += 0xA;
+                break;
+            }
+            case 9:
+                if (pCmd->unk4 != 0) {
+                    if (pCmd->index < pModel->numTextures) {
+                        pSource = NULL;
+                        if (pCmd->unk5 != 0xFF && pCmd->unk5 < pModel->numTextures) {
+                            pSource = &pModel->pTextures[pCmd->unk5];
+                        }
+                        pColorMatrix = NULL;
+                        if ((pCmd->flags & 0x7F) >= 4) {
+                            pColorMatrix = D_801E8644;
+                        }
+                        pInterpolate = LibGearGetInterpolationFunc(pCmd->payload.blend.unk7);
+                        x = pCmd->payload.blend.x;
+                        y = pCmd->payload.blend.y;
+                        z = pCmd->payload.blend.z;
+                        w = pCmd->payload.blend.w;
+                        if (pCmd->flags & 0x80) {
+                            if (*(s16*)pModel->unk90 >= 0) {
+                                x += ((u16*)pModel->unk90)[2];
+                                y += ((u16*)pModel->unk90)[3];
+                                if ((pCmd->unk12 >> 4) == 1) {
+                                    z += ((u16*)pModel->unk90)[2];
+                                    w += ((u16*)pModel->unk90)[3];
+                                }
+                            }
+                        }
+                        func_801E0A00(&pModel->pTextures[pCmd->index], pSource, pCmd->flags & 0x7F,
+                                      pCmd->unk12 | 0x700, pColorMatrix, x, y, 0, z, w, pCmd->payload.blend.unk10, x, y,
+                                      pCmd->unk13, pCmd->unk14, pCmd->unk16, pCmd->unk18, pCmd->unk1A,
+                                      pInterpolate);
+                    }
+                    pModel->unkA0 += 0x1C;
+                } else {
+                    LibGearFlushTexture(&pModel->pTextures[pCmd->index]);
+                    pModel->unkA0 += 6;
+                }
+                break;
+        }
+
+        pModel->unk9C++;
+    }
+
+    pModel->unk98++;
+    if (pModel->unk9A < 0) {
+        return;
+    }
+    if (pModel->unk98 < pModel->unk9A) {
+        return;
+    }
+
+    pModel->unk98 = 0;
+    pModel->unk9C = 0;
+    pModel->unkA0 = pModel->unkA4;
+}
+*/
 void LibGearStopAnimationScript(Model* pModel) {
     pModel->unk98 = -1;
 }
