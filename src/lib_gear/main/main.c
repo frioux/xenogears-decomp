@@ -7,6 +7,55 @@
 #include "libgear/main.h"
 #include "system/animation.h"
 
+// Animation ids below LIBGEAR_ANIM_ID_HIGH_BASE are in Model::pEntryTableLow
+// (indexed id + 1), and from it up in pEntryTableHigh (indexed id - 0x3F)
+#define LIBGEAR_ANIM_ID_HIGH_BASE 0x40
+#define LIBGEAR_ANIM_ID_HIGH_INDEX_OFFSET (LIBGEAR_ANIM_ID_HIGH_BASE - 1)
+
+// From this id up the model's queued command names the animation
+#define LIBGEAR_ANIM_ID_QUEUED_BASE 0xFE
+
+// A byte of Model::commands: low 7 bits index the entry tables, bit 7 is a flag
+#define LIBGEAR_MODEL_COMMAND_ID_MASK 0x7F
+#define LIBGEAR_MODEL_COMMAND_FLAG 0x80
+
+// Appended model/animation changes the queue holds
+#define LIBGEAR_MODEL_COMMAND_QUEUE_MAX 5
+
+// Model::flags bits
+#define LIBGEAR_MODEL_FLAG_USE_WIDTH 0x8 // the width runs along the joint's x, else the depth along z
+#define LIBGEAR_MODEL_FLAG_OWN_UPDATE 0x10 // keep doUpdate instead of inheriting the parent's
+
+// ModelJointEntry index sentinels
+#define LIBGEAR_JOINT_INDEX_NONE 0xFFFF // the joint has no model part
+#define LIBGEAR_PARENT_INDEX_NONE 0xFFFF // the joint is the root
+
+// LibGearReleaseJointObjects flags: which queued object to release
+#define LIBGEAR_JOINT_RELEASE_ROTATION 0x1
+#define LIBGEAR_JOINT_RELEASE_TRANSLATION 0x2
+#define LIBGEAR_JOINT_RELEASE_SCALE 0x4
+
+// LibGearSetJointTransform / LibGearSetJointFlag flags
+#define LIBGEAR_JOINT_FLAG_ADD 0x20 // add to the joint's value instead of setting it
+#define LIBGEAR_JOINT_FLAG_RECURSE 0x80 // apply to the joint's children too
+
+// Interpolation curves LibGearGetInterpolationFunc picks by type; 0 (the default) is the sine
+#define LIBGEAR_INTERPOLATE_RISE 1
+#define LIBGEAR_INTERPOLATE_FALL 2
+#define LIBGEAR_INTERPOLATE_FALL_CLAMPED 3
+
+// Frames UnkInner1::numFrames holds at most
+#define LIBGEAR_COLOR_ENTRY_FRAME_MAX 7
+
+// Vertex entries LibGearInitialize creates the shared vertex buffer with
+#define LIBGEAR_VERTEX_BUFFER_CAPACITY 16
+
+// Degrees g_LibGearSwingAngle advances per stepped frame
+#define LIBGEAR_SWING_ANGLE_STEP 56
+
+// Value g_LibGearPendingFrameCount is clamped to
+#define LIBGEAR_PENDING_FRAME_MAX 6
+
 extern s32 g_GfxOTDepthShift;
 
 // Interpolation helpers; LibGearGetInterpolationFunc picks one for a type
@@ -59,7 +108,7 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
     pCurJointEntry = pJointEntries;
     jointIndex = pCurJointEntry->jointIndex;
     numJoints = 0;
-    while (jointIndex < pModel->numParts || jointIndex == 0xFFFF) {
+    while (jointIndex < pModel->numParts || jointIndex == LIBGEAR_JOINT_INDEX_NONE) {
         pCurJointEntry++;
         jointIndex = pCurJointEntry->jointIndex;
         numJoints++;
@@ -92,7 +141,7 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
     pSkeleton[0].scale.vz = 0x1000;
     pSkeleton[0].pParent = NULL;
     pSkeleton[0].unk7 = 0;
-    pSkeleton[0].jointIndex = 0xFFFF;
+    pSkeleton[0].jointIndex = LIBGEAR_JOINT_INDEX_NONE;
     pSkeleton[0].numChildren = numJoints;
     pSkeleton[0].pModelPacketBuffer = NULL;
     pSkeleton[0].pCurModelPacket = NULL;
@@ -106,8 +155,8 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
     pSkeleton[0].pTranslationObject = 0;
     pSkeleton[0].pScaleObject = 0;
   
-    while (jointIndex < pModel->numParts || jointIndex == 0xFFFF) {
-        if (parentIndex == 0xFFFF) {
+    while (jointIndex < pModel->numParts || jointIndex == LIBGEAR_JOINT_INDEX_NONE) {
+        if (parentIndex == LIBGEAR_PARENT_INDEX_NONE) {
             pCurJoint->pParent = NULL;
         } else {
             pCurJoint->pParent = &pSkeleton[parentIndex] + 1;
@@ -124,7 +173,7 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
         pCurJoint->scale.pad = 0;
         pCurJoint->jointIndex = jointIndex;
     
-        if (jointIndex != 0xFFFF) {
+        if (jointIndex != LIBGEAR_JOINT_INDEX_NONE) {
             // Allocate model packets
             ModelAllocatePackets(pModel->pParts[jointIndex], &pCurJoint->pModelPacketBuffer, &pCurJoint->pCurModelPacket);
             if (pCurJoint->pModelPacketBuffer == NULL) {
@@ -358,7 +407,7 @@ void LibGearRenderModel(ModelMesh* pMesh, ModelJoint* pSkeleton, MATRIX* pLightM
     pSkeleton++;
 
     for (i = 1; i < numChildren; i++) {
-        if (pSkeleton->jointIndex != 0xFFFF) {
+        if (pSkeleton->jointIndex != LIBGEAR_JOINT_INDEX_NONE) {
             ModelPart* pPart;
             void* pPacket;
 
@@ -495,17 +544,17 @@ void LibGearReleaseJointObjects(Temp4* pList, ModelJoint* pSkeleton, s32 index, 
     if (index < pSkeleton->numChildren) {
         pSkeleton += index;
 
-        if (pSkeleton->pRotationObject != NULL && (flags & 0x1)) {
+        if (pSkeleton->pRotationObject != NULL && (flags & LIBGEAR_JOINT_RELEASE_ROTATION)) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
             pSkeleton->pRotationObject = 0;
         }
 
-        if (pSkeleton->pTranslationObject != NULL && (flags & 0x2)) {
+        if (pSkeleton->pTranslationObject != NULL && (flags & LIBGEAR_JOINT_RELEASE_TRANSLATION)) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
             pSkeleton->pTranslationObject = 0;
         }
 
-        if (pSkeleton->pScaleObject != NULL && (flags & 0x4)) {
+        if (pSkeleton->pScaleObject != NULL && (flags & LIBGEAR_JOINT_RELEASE_SCALE)) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
             pSkeleton->pScaleObject = 0;
         }
@@ -1101,10 +1150,10 @@ s32 LibGearInitializeColorEntry(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, 
         pEntry->unk16 = arg16;
         pEntry->unk18 = arg17;
         pEntry->unk5C = 0;
-        if (numFrames < 7) {
+        if (numFrames < LIBGEAR_COLOR_ENTRY_FRAME_MAX) {
             pEntry->numFrames = numFrames;
         } else {
-            pEntry->numFrames = 7;
+            pEntry->numFrames = LIBGEAR_COLOR_ENTRY_FRAME_MAX;
         }
 
         pEntry->red = arg6 << 6;
@@ -1418,11 +1467,11 @@ void LibGearFreeModelEntry(Temp9* pEntry) {
 
 s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
     switch (type) {
-        case 1:
+        case LIBGEAR_INTERPOLATE_RISE:
             return LibGearInterpolateRise;
-        case 2:
+        case LIBGEAR_INTERPOLATE_FALL:
             return LibGearInterpolateFall;
-        case 3:
+        case LIBGEAR_INTERPOLATE_FALL_CLAMPED:
             return LibGearInterpolateFallClamped;
         default:
             return LibGearInterpolateSine;
@@ -1493,7 +1542,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
 void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
     if ((pModel != NULL) && (pSource != NULL)) {
         if (pModel->commandCount != 0) {
-            if (pModel->commandCount < 5) {
+            if (pModel->commandCount < LIBGEAR_MODEL_COMMAND_QUEUE_MAX) {
                 pModel->commandCount++;
             }
 
@@ -1551,7 +1600,7 @@ void LibGearUpdateModelAttachment(Model* pModel) {
     SVECTOR vec;
 
     if (g_LibGearModels[pModel->parentModelSlot] != NULL) {
-        if (!(pModel->flags & 0x10)) {
+        if (!(pModel->flags & LIBGEAR_MODEL_FLAG_OWN_UPDATE)) {
             pModel->doUpdate = g_LibGearModels[pModel->parentModelSlot]->doUpdate;
         }
 
@@ -2277,15 +2326,15 @@ void* LibGearGetAnimationEntry(Model* pModel, u8 index, s32* pFlags) {
     void* pResult;
 
     *pFlags = 0;
-    if (index >= 0xFE) {
+    if (index >= LIBGEAR_ANIM_ID_QUEUED_BASE) {
         u8 entry = pModel->commands[0];
 
-        index = entry & 0x7F;
-        *pFlags = entry & 0x80;
+        index = entry & LIBGEAR_MODEL_COMMAND_ID_MASK;
+        *pFlags = entry & LIBGEAR_MODEL_COMMAND_FLAG;
     }
 
-    if (index >= 0x40) {
-        pResult = pModel->pEntryTableHigh[index - 0x3F];
+    if (index >= LIBGEAR_ANIM_ID_HIGH_BASE) {
+        pResult = pModel->pEntryTableHigh[index - LIBGEAR_ANIM_ID_HIGH_INDEX_OFFSET];
     } else {
         pResult = pModel->pEntryTableLow[index + 1];
     }
@@ -2445,7 +2494,7 @@ void LibGearSetJointFlag(Model* pModel, ModelJoint* pJoint, s32 flags) {
 
     pJoint->unk7 = flags & 0x1;
 
-    if (flags & 0x80) {
+    if (flags & LIBGEAR_JOINT_FLAG_RECURSE) {
         pChild = pModel->pSkeleton;
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
             pChild++;
@@ -2493,7 +2542,7 @@ void LibGearCreateJointTask(void* pAnimFile, s32 animIndex, s32 arg2, s16 direct
     SpriteData* pSpriteData;
     LibGearJointTask* pJointTask;
 
-    pTask = func_80023FD8(animIndex, pAnimFile, arg2, 0x18);
+    pTask = func_80023FD8(animIndex, pAnimFile, arg2, sizeof(LibGearJointTask));
     pSpriteData = &pTask->spriteData;
     SpriteSetDirection(pSpriteData, direction);
     func_800223B0(pSpriteData, direction);
@@ -2555,7 +2604,7 @@ void LibGearSetJointTransform(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x
     int i;
 
     if ((flags & 0x7) == 0) {
-        if (flags & 0x20) {
+        if (flags & LIBGEAR_JOINT_FLAG_ADD) {
             pJoint->rotation.vx += x;
             pJoint->rotation.vy += y;
             pJoint->rotation.vz += z;
@@ -2565,7 +2614,7 @@ void LibGearSetJointTransform(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x
             pJoint->rotation.vz = z;
         }
     } else if ((flags & 0x7) == 1) {
-        if (flags & 0x20) {
+        if (flags & LIBGEAR_JOINT_FLAG_ADD) {
             pJoint->translation.x += x;
             pJoint->translation.y += y;
             pJoint->translation.z += z;
@@ -2575,7 +2624,7 @@ void LibGearSetJointTransform(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x
             pJoint->translation.z = z;
         }
     } else {
-        if (flags & 0x20) {
+        if (flags & LIBGEAR_JOINT_FLAG_ADD) {
             pJoint->scale.vx += x;
             pJoint->scale.vy += y;
             pJoint->scale.vz += z;
@@ -2589,7 +2638,7 @@ void LibGearSetJointTransform(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x
     pJoint->doTransform = TRUE;
     pJoint->doRotate = TRUE;
 
-    if (flags & 0x80) {
+    if (flags & LIBGEAR_JOINT_FLAG_RECURSE) {
         pChild = pModel->pSkeleton;
         for (i = 1; i < pModel->pSkeleton->numChildren; i++) {
             pChild++;
@@ -2643,7 +2692,7 @@ void LibGearInitialize(int capacity) {
     g_LibGearSwingAngle = 0;
     
     LibGearInitializeJointObjectPool(&g_LibGearJointObjectPool, capacity);
-    LibGearInitializeVertexBuffer(&g_LibGearVertexBuffer, 0x10);
+    LibGearInitializeVertexBuffer(&g_LibGearVertexBuffer, LIBGEAR_VERTEX_BUFFER_CAPACITY);
 
     for (i = 0; i < MAX_MODELS; i++) {
         g_LibGearModels[i] = NULL;
@@ -2668,8 +2717,8 @@ void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4)
 
     count = 0;
     g_LibGearPendingFrameCount += arg4 + 1;
-    if (g_LibGearPendingFrameCount >= 7) {
-        g_LibGearPendingFrameCount = 6;
+    if (g_LibGearPendingFrameCount >= LIBGEAR_PENDING_FRAME_MAX + 1) {
+        g_LibGearPendingFrameCount = LIBGEAR_PENDING_FRAME_MAX;
     }
 
     while (g_LibGearPendingFrameCount >= 2) {
@@ -2677,7 +2726,7 @@ void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4)
         count++;
     }
 
-    angle = g_LibGearSwingAngle + count * 56;
+    angle = g_LibGearSwingAngle + count * LIBGEAR_SWING_ANGLE_STEP;
     g_LibGearSwingAngle = angle;
     g_LibGearSwingScale = (rsin((s16)angle) + 0x1000) / 800 + 4;
 
@@ -2744,7 +2793,7 @@ void LibGearFreeModel(s32 modelIndex) {
         HeapFree(g_LibGearModels[modelIndex]->unkAC);
     }
 
-    if ((u32)(modelIndex - 8) >= 2) {
+    if ((u32)(modelIndex - MAX_MODEL_MESHES) >= 2) {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
             Temp4* pPool = &g_LibGearJointObjectPool;
 
@@ -2827,7 +2876,7 @@ int LibGearGetModelWidth(int modelIndex) {
     int result = 0;
 
     if (g_LibGearModels[modelIndex] != NULL) {
-        if (g_LibGearModels[modelIndex]->flags & 0x8) {
+        if (g_LibGearModels[modelIndex]->flags & LIBGEAR_MODEL_FLAG_USE_WIDTH) {
             jointScale = g_LibGearModels[modelIndex]->pSkeleton->scale.vx;
             factor = g_LibGearModels[modelIndex]->width;
         } else {
