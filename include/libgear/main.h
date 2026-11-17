@@ -29,9 +29,12 @@ struct _ModelJoint {
     
     /* 0x68 */ void* pModelPacketBuffer;
     /* 0x6c */ void* pCurModelPacket;
-    /* 0x70 */ u32 unk70;
-    /* 0x74 */ u32 unk74;
-    /* 0x78 */ u32 unk78;
+
+    // Queued joint objects (LibGearAllocJointObject) that interpolate this
+    // joint, one per transform channel; 0 = none queued
+    /* 0x70 */ u32 pRotationObject;
+    /* 0x74 */ u32 pTranslationObject;
+    /* 0x78 */ u32 pScaleObject;
 }; // Size: 0x7C
 
 // Joint entry
@@ -52,7 +55,7 @@ typedef struct {
     /* 0x8  */ u_short x1;
     /* 0xA  */ u_short y1;
     /* 0xC  */ u_short z1;
-    /* 0xE  */ short unkE;
+    /* 0xE  */ short is3D; // 0: x0..x3/y0..y3 are screen coordinates, otherwise 3D points to project
     
     /* 0x10 */ u_short x2;
     /* 0x12 */ u_short y2;
@@ -85,13 +88,13 @@ typedef struct {
     /* 0x1  */ u8 unk1;
     /* 0x2  */ u8 opcode; // command code plus 3 (plus 7 for a move); the joint update dispatches on it & 0xF
     /* 0x3  */ u8 type;
-    /* 0x4  */ s16 unk4;
-    /* 0x6  */ s16 unk6;
-    /* 0x8  */ s16 unk8;
-    /* 0xA  */ s16 unkA;
-    /* 0xC  */ s16 unkC;
-    /* 0xE  */ s16 unkE;
-    /* 0x10 */ s16 unk10;
+    /* 0x4  */ s16 startX; // the component's value when the interpolation was queued
+    /* 0x6  */ s16 startY;
+    /* 0x8  */ s16 startZ;
+    /* 0xA  */ s16 targetX; // where the interpolation ends, or the per-step delta
+    /* 0xC  */ s16 targetY;
+    /* 0xE  */ s16 targetZ;
+    /* 0x10 */ s16 curFrame; // counted up to endFrame by the joint update
     /* 0x12 */ s16 endFrame; // frame the interpolation runs to
 } Temp3; // Size: 0x14
 
@@ -137,7 +140,7 @@ typedef struct _Temp8 {
     /* 0x16 */ u16 unk16;
     /* 0x18 */ u16 unk18;
     /* 0x1A */ u16 isLoaded; // buffers below are held; cleared by LibGearFlushTexture
-    /* 0x1C */ void* pUnk1C;
+    /* 0x1C */ void* pRows; // region rows of 3 pixels, indexed by rect.y + row
     /* 0x20 */ s16 unk20;
     /* 0x22 */ s16 unk22;
     /* 0x24 */ s16 (*unk24)(u_short frame, s16 x, s16 y);
@@ -191,11 +194,11 @@ typedef struct {
 typedef struct {
     /* 0x0   */ ModelMesh* pMesh;
     /* 0x4   */ ModelJoint* pSkeleton; // Array of joints
-    /* 0x8   */ u32 unk8;
+    /* 0x8   */ u32 pAnimTable; // address of the entry table a queued animation id indexes
     /* 0xC   */ u32 unkC;
-    /* 0x10  */ u32 unk10;
-    /* 0x14  */ Temp7** unk14;
-    /* 0x18  */ Temp7** unk18;
+    /* 0x10  */ u32 animValue; // the table entry that id selects
+    /* 0x14  */ Temp7** pEntryTableLow; // entries for animation ids below 0x40 (indexed id + 1)
+    /* 0x18  */ Temp7** pEntryTableHigh; // and from 0x40 up (indexed id - 0x3F)
     /* 0x1C  */ s16 scale;
     /* 0x1E  */ s16 unk1E;
     /* 0x20  */ u8 modelSlot; // this model's index in g_LibGearModels
@@ -207,15 +210,16 @@ typedef struct {
     /* 0x28  */ s16 depth;
     /* 0x2A  */ u8 unk2A[0x1]; // first entry of the 5-byte queue Model::unk2C continues
     /* 0x2B  */ u8 commandCount; // appended model/animation changes, capped at 5
-    /* 0x2C  */ u8 unk2C[0x8];
-    /* 0x34  */ u8 unk34;
+    /* 0x2C  */ u8 unk2C[0x2];
+    /* 0x2E  */ u8 commandArgs[0x6]; // the argument queued alongside the command's model slot
+    /* 0x34  */ u8 doUpdate; // gates the per-frame animation update; inherited from the parent model
     /* 0x35  */ u8 unk35;
     /* 0x36  */ u8 unk36;
     /* 0x37  */ u8 unk37;
     /* 0x38  */ u8 unk38;
     /* 0x39  */ u8 unk39;
     /* 0x3A  */ s16 unk3A;
-    /* 0x3C  */ u16 unk3C;
+    /* 0x3C  */ u16 objectType; // joint objects whose type matches it set a bit of the step result
     /* 0x3E  */ u16 unk3E;
     /* 0x40  */ s16 unk40;
     /* 0x42  */ s16 unk42;
@@ -230,7 +234,11 @@ typedef struct {
     /* 0x5D  */ u8 isAttached;
     /* 0x5E  */ s16 parentJointIndex;
     /* 0x60  */ s16 ground; // seems to be some kind of offset? maybe "below this point model will clip through the ground"?
-    /* 0x62  */ u8 unk62[0x8];
+    /* 0x62  */ u8 hasSedsEntry; // a SEDS entry is open for this model; LibGearFreeModel removes it
+    /* 0x63  */ u8 pad63[0x1];
+    /* 0x64  */ u16 localX; // the parent-relative position the parent matrix rotates into posX/posY/posZ
+    /* 0x66  */ u16 localY;
+    /* 0x68  */ u16 localZ;
     /* 0x6A  */ u16 attachOffsetX;
     /* 0x6C  */ u16 attachOffsetY;
     /* 0x6E  */ u16 attachOffsetZ;
@@ -275,13 +283,13 @@ typedef struct {
 // followed by per-frame (rotation, translation) s16 triples.
 typedef struct {
     /* 0x0  */ u16 unk0;
-    /* 0x2  */ u16 unk2;
+    /* 0x2  */ u16 endFrame; // frame the keyframes run to
     /* 0x4  */ u16 flags; // bit 0 skips the rotation channel, bit 1 the translation channel
     /* 0x6  */ u16 unk6;
     /* 0x8  */ u16 unk8;
     /* 0xA  */ u16 unkA;
-    /* 0xC  */ u16 unkC;
-    /* 0xE  */ u16 unkE;
+    /* 0xC  */ u16 numRotFrames; // rotation keyframes that follow the header
+    /* 0xE  */ u16 numTransFrames; // translation keyframes that follow them
     /* 0x10 */ u16 unk10;
     /* 0x12 */ u16 unk12;
     /* 0x14 */ u16 unk14;
