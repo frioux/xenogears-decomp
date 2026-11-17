@@ -279,6 +279,17 @@ check that.
   round whose other workers are all on other binaries. Two field workers whose headers
   share a user merge cleanly unless they touched the same line; a CONFLICT clone is
   re-briefed next round.
+- **A `.c` that declares no structs of its own is not a field worker.** Round 179 gave
+  one `src/menu/main/misc1.c`, which only allocates header types, so it worked
+  `include/system/menu.h` - the same header the round's header worker was renaming -
+  and the merge hit three CONFLICTs. Check the declaring file first (`grep -c '"i.e. typedef struct"'`)
+  and if it has none, brief it with `bins` on a header no other worker has.
+- Four passes over the three big headers (`actor.h`, `menu.h`, `game.h`) took `unk`
+  1966 -> 1692 in one session, so this is the paying queue when matching stalls. The
+  evidence that works: a field named from a change in TWO independent compilations of one
+  layout (GameCharacter vs GameGear's accessory switch, actor.h vs libgear's model),
+  from a load/store WIDTH in a stub's asm (which forces a SPLIT), and from a matched
+  function in ANOTHER file reading the same offset.
 - `FIELD_UNKNOWN` is a fine outcome and is not re-briefed until new matched functions
   use the struct.
 
@@ -544,7 +555,11 @@ by stub count, 10 to 16 with the method below).
 3. Put what the tracker says about the unit (one or two lines) in `extra`. **No raw
    backtick in `extra`** — `brief.js` is a template literal.
 4. Finished, never brief: `slus_006.64/system/model`, `psyq/{libgte,libgte_b,libapi,
-   libapi_2,libapi_3,libcard,libcard_b}`.
+   libapi_2,libapi_3,libcard,libcard_b}`, and `slus_006.64/system/menu`
+   `func_8001C76C`, which is not a function: 92 `.word` lines with no `jr $ra`, the last
+   368 bytes of the unit's `c` range, unreferenced, and the linker puts that unit's
+   `.text` immediately before the next unit's so it can never be C (round 176 proved it;
+   `fresh_stubs.py` lists it because `convertible.py` counts words).
 5. Two consecutive rounds of ~0 in a unit: stop briefing it and say why in the tracker.
 
 ## Presets (settled; do not re-screen)
@@ -666,6 +681,10 @@ over the BETTER park.
   Adopting such a round is just: check that, then merge as usual.
 - pi-subagents "needs attention / no activity for 300s" notices are noise. A real
   failure reads `error:Subagent timed out`.
+- A `fg: 0` round never drains its `queue`: entries only start on a free FOREGROUND
+  lane, so a queued worker in an all-background round does not run at all (round 176,
+  the third field worker never started). Put those workers in `workers`, or leave `fg`
+  at its default.
 - `try_flags.sh` and `park_sweep.py` return `compile-failed` under load; re-run a
   surprising row before believing it.
 - After editing a brief:
