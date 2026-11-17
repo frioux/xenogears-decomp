@@ -1,12 +1,15 @@
 #include "common.h"
 #include "main/game.h"
+#include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
+#define BATTLE_CURSOR_STEP_FRAMES 3
+#define BATTLE_CURSOR_FRAME_MAX 4
 extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
-extern u8 *g_BattleGraphicsWork;
+extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern s32 g_BattlePrimStartIndex;
-extern u8 *g_BattleDisplayState;
+extern BattleWork *g_BattleDisplayState;
 extern u8 *g_BattleSlotGraphics[];
 extern u8 *g_BattleSlotRects[];
 extern u16 g_SystemPalette1;
@@ -74,6 +77,20 @@ typedef struct {
     /* 0xC */ u8 slot;
     /* 0xD */ u8 padD;
 } BattleSlotRect; // Size: 0xE
+
+// The menu drawer's state bytes at the tail of the packet prim pool
+// (BattleGraphicsWork.pPacketPrims: 0x668 bytes of POLY_FT4 pairs, then these).
+// battle_work.h keeps the pool a u8* because other units append prims to it at
+// byte offsets, so the view is cast on at each fetch.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x66A];
+    /* 0x66A */ u8 primStart; // prim index the menu cell prims were built at
+    /* 0x66B */ u8 primsPending; // set once the cell prims are in the pool
+    /* 0x66C */ u8 unk66C;
+    /* 0x66D */ u8 labelDrawn; // set by the cell that drew its label string
+    /* 0x66E */ u8 unk66E;
+    /* 0x66F */ u8 unk66F;
+} BattleMenuPrims; // Size: 0x670
 
 
 
@@ -330,7 +347,7 @@ void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
     rect.w = 0x3C;
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, pBuf);
-    pBase = *(u8 **)(g_BattleGraphicsWork + 0xA230);
+    pBase = g_BattleGraphicsWork->pPacketPrims;
     palIndex = g_BattlePrimStartIndex;
     ofs = palIndex * 0x28 + 0x280;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x30, 0x42, 0, 0, len & 0xFF);
@@ -340,25 +357,21 @@ void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
 
 void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
     u8 flag;
-    u8 *p;
 
     if (arg2 == 0) {
         flag = g_BattleCommandGridIds[arg1 * 2 + arg0];
     } else {
         flag = g_BattleCommandGridAltIds[arg1 * 2 + arg0];
     }
-    *(u8 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + 0x66D) = 0;
+    ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->labelDrawn = 0;
     func_80090310(arg0, arg1);
     if (flag != 0 && arg2 == 0) {
         BattleDrawMenuEntryString(arg0, arg1);
         func_800904A0(arg0, arg1);
-        p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-        p[0x66D] = 1;
+        ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->labelDrawn = 1;
     }
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    p[0x66A] = *(u8 *)&g_BattlePrimStartIndex;
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    p[0x66B] = 1;
+    ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primStart = *(u8 *)&g_BattlePrimStartIndex;
+    ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primsPending = 1;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009093C);
 /* 36.86%: first attempt. The shape is right -- the slti 0x68 / -0x68 /
@@ -395,18 +408,18 @@ void func_8009093C(s32 arg0) {
 }
 */
 void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
-    u8 *p;
-
-    if (++*pCount >= 3) {
+    if (++*pCount >= BATTLE_CURSOR_STEP_FRAMES) {
         if (--*pIndex < 0) {
-            *pIndex = 4;
+            *pIndex = BATTLE_CURSOR_FRAME_MAX;
         }
         *pCount = 0;
     }
-    *(s32 *)(g_BattleDisplayState + 0x100) = BattleDrawSpritePackage(*pIndex + 0xE0, g_BattleGraphicsWork + 0x27C8, arg0, arg1);
-    p = g_BattleDisplayState;
-    p[0xA7] = *(u8 *)&g_BattlePrimStartIndex;
-    *(volatile u8 *)(g_BattleDisplayState + 0x9E) = 1;
+    // The typed field (cursorPackageCount) makes cc1 hoist the prim-index load
+    // above this store, which costs retail's load-delay nop (180 bytes -> 172).
+    *(s32 *)((u8 *)g_BattleDisplayState + 0x100) =
+        BattleDrawSpritePackage(*pIndex + 0xE0, (u8 *)g_BattleGraphicsWork + 0x27C8, arg0, arg1);
+    g_BattleDisplayState->cursorPrimStart = *(u8 *)&g_BattlePrimStartIndex;
+    *(volatile u8 *)&g_BattleDisplayState->cursorPending = 1;
 }
 /* 72.46%: the four draw blocks have the right shape (divide-by-10 magic, the
    u16 truncations, the (idx*0x28 + K) + base order, and the literal 8 for arg6
