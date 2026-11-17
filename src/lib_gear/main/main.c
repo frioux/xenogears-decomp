@@ -18,7 +18,7 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c);
 extern Temp8* g_BattleSoundBankMain;
 extern u32 g_LibGearDirectKeyframes;
 extern u16 g_LibGearModelBitMask;
-extern u16 g_LibGearCurrentModelIndex;
+extern s16 g_LibGearCurrentModelIndex;
 extern s32 g_LibGearPendingFrameCount;
 extern s16 g_LibGearSwingAngle;
 extern s16 g_LibGearSwingScale;
@@ -666,7 +666,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->inUse = 1;
                 pObject->unk1 = flag1;
                 pObject->type = type;
-                pObject->unk2 = ((u8*)pKeyframe)[4];
+                pObject->opcode = ((u8*)pKeyframe)[4];
                 pObject->unk10 = 0;
                 pObject->endFrame = frame;
                 *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
@@ -694,7 +694,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->inUse = 1;
                 pObject->unk1 = flag1;
                 pObject->type = type;
-                pObject->unk2 = ((u8*)pKeyframe)[4];
+                pObject->opcode = ((u8*)pKeyframe)[4];
                 pObject->unk10 = 0;
                 pObject->endFrame = frame;
                 *(u32*)&pObject->unk4 = *(u32*)&pObject->unk8 = (u32)(pVertexData + pKeyframe[0]);
@@ -722,7 +722,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF7F4);
 // instructions is reproduced in order -- the two 6-byte-stride channels, the
 // 0xFFFF merge into the else arm (the unk3==0xFF goto lands on the same code),
 // the blockFlags&1 / i!=0 / rotFrame<numRotFrames guards, the pObject fill order
-// (unk0,unk1,unk3,unk2,unk10,unk12,unk4,unk8 with one pVertex temp so the two
+// (unk0,unk1,type,opcode,unk10,endFrame,unk4,unk8 with one pVertex temp so the two
 // stores keep retail's order), the 6-byte pKeyframe stride and the joint+0x74
 // base. What is left is ONE allocator decision that cascades:
 //   retail: s0=pData s1=pJoint s2=pKeyframe s3=i s4=transFrame s5=rotFrame
@@ -818,7 +818,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->inUse = 1;
                 pObject->unk1 = flag1;
                 pObject->type = type;
-                pObject->unk2 = ((u8*)&pKeyframe[2])[0];
+                pObject->opcode = ((u8*)&pKeyframe[2])[0];
                 pObject->unk10 = 0;
                 pObject->endFrame = frame;
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
@@ -858,7 +858,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->inUse = 1;
                 pObject->unk1 = flag1;
                 pObject->type = type;
-                pObject->unk2 = ((u8*)&pKeyframe[2])[1];
+                pObject->opcode = ((u8*)&pKeyframe[2])[1];
                 pObject->unk10 = 0;
                 pObject->endFrame = frame;
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
@@ -1433,12 +1433,12 @@ s16 (*LibGearGetInterpolationFunc(s32 type))(s16, s16, s16) {
 // Both `li v0,1` (for unk70[15], insn 7) and the whole body match, so the locals
 // negOne = -1 and one = 1 are confirmed. The only delta is scheduling: the
 // original keeps `li v1,-1` at insn 0 and its first user `sh v1,0x98` at insn 14.
-// With `pModel->unk98 = negOne;` first the li sits at 0 but the store is deferred
+// With `pModel->frame = negOne;` first the li sits at 0 but the store is deferred
 // to 8; with the store in its logical place (after unk2B) the store lands at 14
 // but the li is hoisted to 6 (74.36%). Declaration order of the two locals, a
 // mid-block `s32 one = 1;` and bare/s16/u32 -1 forms all stay at 74.36%.
 // Round 14: the two remaining deltas are the -1 constant's slot and the 0x98
-// store's slot, and they are coupled by sched2: with `unk98 = negOne` as the
+// store's slot, and they are coupled by sched2: with `frame = negOne` as the
 // first statement the addiu lands at slot 0 (correct) but the store at 8 (target
 // 14); with it as the 10th statement the store lands at 14 (correct) but the
 // addiu at 5; 6th statement gives (5, 9). Store order = source order in every
@@ -1455,7 +1455,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     s16 negOne = -1;
     s16 one = 1;
 
-    pModel->unk98 = negOne;
+    pModel->frame = negOne;
     pModel->unk3C = 0xFFFF;
     pModel->parentModelSlot = 0xFF;
     pModel->unk39 = 0x6B;
@@ -1497,7 +1497,7 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
                 pModel->commandCount++;
             }
 
-            pModel->unk2A[pModel->commandCount] = pSource->unk20;
+            pModel->unk2A[pModel->commandCount] = pSource->modelSlot;
             pModel->unk2C[pModel->commandCount + 2] = arg3;
         } else {
             if (arg3 < 0x50) {
@@ -1626,7 +1626,7 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
     if (pObject != NULL) {
         pObject->inUse = 1;
         pObject->unk1 = 0;
-        pObject->unk2 = 3;
+        pObject->opcode = 3;
         pObject->type = 0xFE;
 
         pObject->unk4 = pJoint->rotation.vx;
@@ -1672,7 +1672,7 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
     if (pObject != NULL) {
         pObject->inUse = 1;
         pObject->unk1 = 0;
-        pObject->unk2 = arg2 + 7;
+        pObject->opcode = arg2 + 7;
         pObject->type = 0xFE;
 
         dx = x - pJoint->translation.x;
@@ -1693,19 +1693,19 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
 }
 
 void LibGearPlayAnimationScript(Model* pModel, Temp7* pEntry, s32 arg2) {
-    if (pEntry->unk12 != 0) {
-        pModel->unk98 = 0;
+    if (pEntry->numCommands != 0) {
+        pModel->frame = 0;
         if (arg2 != 0) {
-            pModel->unk9A = pEntry->unk2;
+            pModel->frameCount = pEntry->frameCount;
         } else {
-            pModel->unk9A = -1;
+            pModel->frameCount = -1;
         }
-        pModel->unk9C = 0;
-        pModel->unk9E = pEntry->unk12;
-        pModel->unkA0 = (u8*)pEntry + pEntry->dataOffset;
-        pModel->unkA4 = pModel->unkA0;
+        pModel->commandIndex = 0;
+        pModel->numCommands = pEntry->numCommands;
+        pModel->pScriptCursor = (u8*)pEntry + pEntry->dataOffset;
+        pModel->pScriptStart = pModel->pScriptCursor;
     } else {
-        pModel->unk98 = -1;
+        pModel->frame = -1;
     }
 }
 
@@ -1748,8 +1748,8 @@ s32 func_801E5CD8(Model* pModel, s32 type) {
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5CD8);
 
-// One command of the per-frame animation script that Model::unkA0 walks. The
-// frame index at 0x0 is compared against Model::unk98, the id at 0x2 selects the
+// One command of the per-frame animation script that Model::pScriptCursor walks.
+// The frame index at 0x0 is compared against Model::frame, the id at 0x2 selects the
 // handler and also decides the command's length (0x14, 0x12, 0x1C, 0xA, 8, 6, 4).
 typedef struct {
     /* 0x0  */ s16 frame;
@@ -1797,8 +1797,8 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 
 // objdiff 88.82%, body complete (1488 bytes against retail's 1512). Every case
 // of the 9-entry jump table is decoded and the shape is retail's: the
-// `while (unk9C < unk9E)` loop with its duplicated exit test, `break` on
-// `unk98 != cmd->frame`, one `unkA0 += K` per arm (gcc merges the stores),
+// `while (commandIndex < numCommands)` loop with its duplicated exit test, `break` on
+// `frame != cmd->frame`, one `pScriptCursor += K` per arm (gcc merges the stores),
 // case 2's 7 recomputed `g_LibGearModelOffsets[cmd->index]` sites, case 8's
 // 8-model loop with both LibGearSetModelAnimation calls, case 9's if/else with
 // the big arm inline, and the frame advance with the shared exit.
@@ -1811,8 +1811,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 //   bytes and 0xA..0x10 as u16, id 9 reads 0x8..0x10 as five u16 - hence the
 //   union in ModelScriptCommand. A single flat field list gives `lbu` where
 //   retail has `lhu`.
-// - g_LibGearCurrentModelIndex is loaded with `lh` (signed) here while the
-//   header types it u16, hence the *(s16*)* read.
+// - g_LibGearCurrentModelIndex is an s16: retail loads it with `lh`.
 // - LibGearClearColorEntry really takes a second argument: retail copies a2
 //   into a1 before the jal, so the definition below now takes (short*, s32).
 // WHAT IS LEFT (all register/scheduling, in case 8 and case 9):
@@ -1824,7 +1823,7 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E5D44);
 //   only then 0x10,0x14,0x18,0x1C; ours stores in argument order, and retail
 //   loads all five u16 payload words back to back where ours interleaves the
 //   flags test.
-// - position of the merged `unkA0 += 6` block: retail puts it after case 9 (all
+// - position of the merged `pScriptCursor += 6` block: retail puts it after case 9 (all
 //   four users jump to it), ours keeps it inline in case 3/4 and jumps to the
 //   +=0x1C arm instead, so the branch polarities of cases 3/4 and 9 are mirrored.
 //   That is the biggest single diff and it may be a layout consequence of the
@@ -1844,19 +1843,19 @@ PLACEHOLDER
     u16 modelBitMask;
     s32 i;
 
-    if (pModel->unk98 < 0) {
+    if (pModel->frame < 0) {
         return;
     }
 
-    while (pModel->unk9C < pModel->unk9E) {
-        pCmd = (ModelScriptCommand*)pModel->unkA0;
-        if (pModel->unk98 != pCmd->frame) {
+    while (pModel->commandIndex < pModel->numCommands) {
+        pCmd = (ModelScriptCommand*)pModel->pScriptCursor;
+        if (pModel->frame != pCmd->frame) {
             break;
         }
 
         switch (pCmd->type) {
             case 1:
-                pModel->unkA0 += 0x14;
+                pModel->pScriptCursor += 0x14;
                 break;
             case 2:
                 if (pCmd->unk4 != 0) {
@@ -1866,7 +1865,7 @@ PLACEHOLDER
                         if (pCmd->unk5 != 0) {
                             modelIndex = -1;
                         } else {
-                            modelIndex = pModel->unk20;
+                            modelIndex = pModel->modelSlot;
                         }
                         g_LibGearModelOffsets[pCmd->index].modelIndex = modelIndex;
                         g_LibGearModelOffsets[pCmd->index].jointIndex = pCmd->flags;
@@ -1878,37 +1877,37 @@ PLACEHOLDER
                         g_LibGearModelOffsets[pCmd->index].z1 = pCmd->payload.joint.unkE;
                         g_LibGearModelOffsets[pCmd->index].inUse = pCmd->payload.joint.unk10;
                     }
-                    pModel->unkA0 += 0x12;
+                    pModel->pScriptCursor += 0x12;
                 } else {
                     g_LibGearModelOffsets[pCmd->index].inUse = 0;
-                    pModel->unkA0 += 6;
+                    pModel->pScriptCursor += 6;
                 }
                 break;
             case 3:
             case 4:
                 LibGearClearColorEntry((short*)&pModel->pColorEntries[pCmd->index], arg2);
                 if (pCmd->unk4 != 0) {
-                    pModel->unkA0 += 0x1C;
+                    pModel->pScriptCursor += 0x1C;
                 } else {
-                    pModel->unkA0 += 6;
+                    pModel->pScriptCursor += 6;
                 }
                 break;
             case 5:
-                pModel->unkA0 += 8;
+                pModel->pScriptCursor += 8;
                 break;
             case 6:
-                pModel->unkA0 += 4;
+                pModel->pScriptCursor += 4;
                 break;
             case 7:
                 pModel->pSkeleton[pCmd->unk4].unk7 = pCmd->unk5 & 1;
-                pModel->unkA0 += 6;
+                pModel->pScriptCursor += 6;
                 break;
             case 8: {
                 s16 flag;
                 u16 savedIndex;
 
                 flag = unkFlag[0];
-                currentModelIndex = *(s16*)&g_LibGearCurrentModelIndex; // header types this u16; retail loads it signed
+                currentModelIndex = g_LibGearCurrentModelIndex;
                 modelBitMask = g_LibGearModelBitMask;
                 savedIndex = currentModelIndex;
                 modelBit = 1 << currentModelIndex;
@@ -1923,7 +1922,7 @@ PLACEHOLDER
                 }
                 g_LibGearCurrentModelIndex = savedIndex;
                 g_LibGearModelBitMask = modelBitMask;
-                pModel->unkA0 += 0xA;
+                pModel->pScriptCursor += 0xA;
                 break;
             }
             case 9:
@@ -1943,12 +1942,12 @@ PLACEHOLDER
                         z = pCmd->payload.blend.z;
                         w = pCmd->payload.blend.w;
                         if (pCmd->flags & 0x80) {
-                            if (*(s16*)pModel->unk90 >= 0) {
-                                x += ((u16*)pModel->unk90)[2];
-                                y += ((u16*)pModel->unk90)[3];
+                            if (pModel->unk90 >= 0) {
+                                x += pModel->unk94;
+                                y += pModel->unk96;
                                 if ((pCmd->unk12 >> 4) == 1) {
-                                    z += ((u16*)pModel->unk90)[2];
-                                    w += ((u16*)pModel->unk90)[3];
+                                    z += pModel->unk94;
+                                    w += pModel->unk96;
                                 }
                             }
                         }
@@ -1957,32 +1956,32 @@ PLACEHOLDER
                                       pCmd->unk13, pCmd->unk14, pCmd->unk16, pCmd->unk18, pCmd->unk1A,
                                       pInterpolate);
                     }
-                    pModel->unkA0 += 0x1C;
+                    pModel->pScriptCursor += 0x1C;
                 } else {
                     LibGearFlushTexture(&pModel->pTextures[pCmd->index]);
-                    pModel->unkA0 += 6;
+                    pModel->pScriptCursor += 6;
                 }
                 break;
         }
 
-        pModel->unk9C++;
+        pModel->commandIndex++;
     }
 
-    pModel->unk98++;
-    if (pModel->unk9A < 0) {
+    pModel->frame++;
+    if (pModel->frameCount < 0) {
         return;
     }
-    if (pModel->unk98 < pModel->unk9A) {
+    if (pModel->frame < pModel->frameCount) {
         return;
     }
 
-    pModel->unk98 = 0;
-    pModel->unk9C = 0;
-    pModel->unkA0 = pModel->unkA4;
+    pModel->frame = 0;
+    pModel->commandIndex = 0;
+    pModel->pScriptCursor = pModel->pScriptStart;
 }
 */
 void LibGearStopAnimationScript(Model* pModel) {
-    pModel->unk98 = -1;
+    pModel->frame = -1;
 }
 
 int LibGearGetModelDistance(Model* pModel) {
@@ -2015,7 +2014,7 @@ int LibGearGetModelDistance(Model* pModel) {
 // here `lh a1` + `move v1,a1`); it is an allocator workaround, not plausible
 // source, and it is the only remaining delta besides that one addiu. Two permuter
 // runs (790 + 30 iterations, base 231) found nothing past it, and screening the
-// FD arm against a cast or against `pModel->unk20` directly brings it back to
+// FD arm against a cast or against `pModel->modelSlot` directly brings it back to
 // 95.39. Making the store read through pModel2 instead of pModel is the same
 // 99.18 (the test's subtract and the store's are still the same pseudo).
 // Round 76: 99.87%, same 464 bytes, instruction multiset identical to retail.
@@ -2033,7 +2032,7 @@ int LibGearGetModelDistance(Model* pModel) {
 // a1 copy and the body shrinks to 460 bytes/98.58%, so the copy is born from the
 // pModel2->unk58 read in the 0xFD arm and that read must stay first. (2) reading
 // the range test through pModel2 (either with the FD arm on pModel or with the
-// pointer kept only for `pModel2->unk20`) makes cse emit a SECOND `lh v1,88(s0)`
+// pointer kept only for `pModel2->modelSlot`) makes cse emit a SECOND `lh v1,88(s0)`
 // -> 468 bytes: gcc only folds the pModel2 read into the pModel load when it is
 // the first post-loop read. (3) an `s16 type = pModel->unk58;` local, in place of
 // the pModel2 read, is cse'd away entirely (no copy, 460 bytes). A fourth
@@ -2068,7 +2067,7 @@ void func_801E63A8(Model* pModel) {
     }
     pModel2 = pModel;
     if (pModel2->unk58 == 0xFD) {
-        index = pModel2->unk20;
+        index = pModel2->modelSlot;
     }
     if (pModel->unk58 == 0xFC) {
         index = pModel->unk21;
@@ -2090,7 +2089,7 @@ void func_801E63A8(Model* pModel) {
         return;
     }
 
-    if (index == pModel->unk20) {
+    if (index == pModel->modelSlot) {
         return;
     }
 
@@ -2120,7 +2119,7 @@ void func_801E63A8(Model* pModel) {
 
     pObject = (Temp3*)pModel->pSkeleton->unk70;
     if (pObject != NULL) {
-        if ((u32)(pObject->unk2 - 7) < 2) {
+        if ((u32)(pObject->opcode - 7) < 2) {
             pObject->unkA = value[0];
             pObject->unkC = value[2];
             pObject->unkE = value[4];
@@ -2258,15 +2257,15 @@ void func_801E6830(Model* pModel, int type, s16* pMask) {
     } else if (index == 0xFE) {
         index = *(u8*)&g_LibGearCurrentModelIndex;
     } else if (index == 0xFD || index == 0xF9) {
-        index = pModel->unk20;
+        index = pModel->modelSlot;
     } else if (index == 0xFC) {
         index = pModel->unk21;
     } else if (index == 0xFA) {
         index = 0xA;
     } else if (index == 0xF8) {
-        index = pModel->unk20 * 2 + 8;
+        index = pModel->modelSlot * 2 + 8;
     } else if (index == 0xF7) {
-        index = pModel->unk20 * 2 + 9;
+        index = pModel->modelSlot * 2 + 9;
     }
 
     *pMask = 1 << index;
@@ -2342,7 +2341,7 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
 
     pObject->inUse = 1;
     pObject->unk1 = arg6;
-    pObject->unk2 = arg4 + 3;
+    pObject->opcode = arg4 + 3;
     pObject->type = arg5;
 
     if (flags & 0x20) {
@@ -2724,7 +2723,7 @@ void LibGearShutdown(void) {
 }
 
 // Frees every resource a model owns and clears its slot. The texture and list
-// entries are arrays of unk10E / unk10D structs, not byte blobs.
+// entries are arrays of Temp8 / Temp9 structs, not byte blobs.
 void LibGearFreeModel(s32 modelIndex) {
     s32 i;
 
@@ -2776,11 +2775,11 @@ void LibGearFreeModel(s32 modelIndex) {
         HeapFree(g_LibGearModels[modelIndex]->pTextures);
     }
 
-    if (g_LibGearModels[modelIndex]->unk10D != 0) {
-        for (i = 0; i < g_LibGearModels[modelIndex]->unk10D; i++) {
-            LibGearFreeModelEntry(&g_LibGearModels[modelIndex]->unk114[i]);
+    if (g_LibGearModels[modelIndex]->numModelListEntries != 0) {
+        for (i = 0; i < g_LibGearModels[modelIndex]->numModelListEntries; i++) {
+            LibGearFreeModelEntry(&g_LibGearModels[modelIndex]->pModelListEntries[i]);
         }
-        HeapFree(g_LibGearModels[modelIndex]->unk114);
+        HeapFree(g_LibGearModels[modelIndex]->pModelListEntries);
     }
 
     HeapFree(g_LibGearModels[modelIndex]);

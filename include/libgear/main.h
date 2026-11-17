@@ -83,7 +83,7 @@ typedef struct {
 typedef struct {
     /* 0x0  */ u8 inUse;
     /* 0x1  */ u8 unk1;
-    /* 0x2  */ u8 unk2;
+    /* 0x2  */ u8 opcode; // command code plus 3 (plus 7 for a move); the joint update dispatches on it & 0xF
     /* 0x3  */ u8 type;
     /* 0x4  */ s16 unk4;
     /* 0x6  */ s16 unk6;
@@ -182,9 +182,9 @@ typedef struct {
 // Entry of a per-model pointer list (Model::unk14 / Model::unk18)
 typedef struct {
     /* 0x0  */ u8 unk0[0x2];
-    /* 0x2  */ u16 unk2;
+    /* 0x2  */ u16 frameCount; // frames the script runs before it restarts
     /* 0x4  */ u8 unk4[0xE];
-    /* 0x12 */ u16 unk12;
+    /* 0x12 */ u16 numCommands; // commands the script holds
     /* 0x14 */ u32 dataOffset; // offset from the start of this entry
 } Temp7; // Size: 0x18
 
@@ -198,7 +198,7 @@ typedef struct {
     /* 0x18  */ Temp7** unk18;
     /* 0x1C  */ s16 scale;
     /* 0x1E  */ s16 unk1E;
-    /* 0x20  */ u8 unk20;
+    /* 0x20  */ u8 modelSlot; // this model's index in g_LibGearModels
     /* 0x21  */ u8 unk21;
     /* 0x22  */ u8 unk22[0x1];
     /* 0x23  */ u8 unk23;
@@ -239,13 +239,16 @@ typedef struct {
     /* 0x8A  */ s16 posY;
     /* 0x8C  */ s16 posZ;
     /* 0x8E  */ s16 unk8E;
-    /* 0x90  */ u8 unk90[0x8];
-    /* 0x98  */ s16 unk98;
-    /* 0x9A  */ s16 unk9A;
-    /* 0x9C  */ s16 unk9C;
-    /* 0x9E  */ s16 unk9E;
-    /* 0xA0  */ u8* unkA0;
-    /* 0xA4  */ u8* unkA4;
+    /* 0x90  */ s16 unk90; // x offset; negative = no offset
+    /* 0x92  */ u16 unk92; // y offset
+    /* 0x94  */ u16 unk94; // blend x offset
+    /* 0x96  */ u16 unk96; // blend y offset
+    /* 0x98  */ s16 frame; // frame of the animation script; -1 = stopped
+    /* 0x9A  */ s16 frameCount; // frame the script restarts at; -1 = never
+    /* 0x9C  */ s16 commandIndex; // commands of the current frame already run
+    /* 0x9E  */ s16 numCommands; // commands the script holds
+    /* 0xA0  */ u8* pScriptCursor; // the command being run
+    /* 0xA4  */ u8* pScriptStart; // where pScriptCursor restarts each loop
     /* 0xA8  */ void* pModelFile;
     /* 0xAC  */ void* unkAC;
     /* 0xB0  */ void* unkB0;
@@ -254,11 +257,11 @@ typedef struct {
     /* 0x108 */ u8 unk108[0x2];
     /* 0x10A */ u16 modelBitMask;
     /* 0x10C */ u8 numColorEntries;
-    /* 0x10D */ u8 unk10D;
+    /* 0x10D */ u8 numModelListEntries;
     /* 0x10E */ u8 numTextures;
     /* 0x10F */ u8 unk10F;
     /* 0x110 */ UnkInner1* pColorEntries; // 0x70 sized array, numColorEntries entries
-    /* 0x114 */ Temp9* unk114; // unk10D entries
+    /* 0x114 */ Temp9* pModelListEntries; // numModelListEntries entries
     /* 0x118 */ Temp8* pTextures; // numTextures entries
     /* 0x11C */ s32 prevPosX; // root joint translation before the step
     /* 0x120 */ s32 prevPosY;
