@@ -87,16 +87,13 @@ typedef struct {
     /* 0xC */ u32 unkC;
 } BattleBlk16; // Size: 0x10
 
-// 0x20-byte template copied wholesale into the two env globals below.
+// 0x20-byte matrix template copied wholesale into the two env globals below: the
+// MATRIX layout src/battling/main/misc1.c and misc2.c declare at the same
+// addresses and read .t[0..2] of (the two pad bytes step t to a word boundary).
 typedef struct {
-    /* 0x00 */ u32 unk0;
-    /* 0x04 */ u32 unk4;
-    /* 0x08 */ u32 unk8;
-    /* 0x0C */ u32 unkC;
-    /* 0x10 */ u32 unk10;
-    /* 0x14 */ u32 unk14;
-    /* 0x18 */ u32 unk18;
-    /* 0x1C */ u32 unk1C;
+    /* 0x00 */ s16 m[3][3];
+    /* 0x12 */ u16 pad12;
+    /* 0x14 */ s32 t[3];
 } BattleEnv; // Size: 0x20
 
 // The 0x9C-byte object BattleCreateObject allocates and BattleResetObject clears;
@@ -106,13 +103,13 @@ typedef struct {
     /* 0x00 */ u32 state;
     /* 0x04 */ void* pData;
     /* 0x08 */ void (*pUpdate)(void);
-    /* 0x0C */ BattleBlk16 unkC;      // first half of the matrix at 0x4C
-    /* 0x1C */ BattleBlk16 unk1C;     // second half
+    /* 0x0C */ BattleBlk16 localMatrixLo; // first half of the local matrix
+    /* 0x1C */ BattleBlk16 localMatrixHi; // second half
     /* 0x2C */ SVECTOR sourcePos;
     /* 0x34 */ VECTOR position;
     /* 0x44 */ SVECTOR rotation;
-    /* 0x4C */ BattleBlk16 unk4C;
-    /* 0x5C */ BattleBlk16 unk5C;
+    /* 0x4C */ BattleBlk16 rotMatrixLo; // first half of the rotation matrix
+    /* 0x5C */ BattleBlk16 rotMatrixHi; // second half
     /* 0x6C */ BattleEnv matrix;
     /* 0x8C */ BattleListNode* pList;
     /* 0x90 */ BattleListNode* pNext;
@@ -442,7 +439,7 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
     scaleH = (h << 12) / 240 * h / w;
     g_BattleBaseMatrixCopy = g_BattleBaseMatrix;
     g_BattleScaleMatrix = g_BattleBaseMatrix;
-    ((s16*)&g_BattleScaleMatrix)[0] = scaleW;
+    g_BattleScaleMatrix.m[0][0] = scaleW;
     D_80096FE8 = scaleH;
 }
 
@@ -660,10 +657,10 @@ BattleMisc12Obj* BattleResetObject(BattleMisc12Obj* p) {
     p->sourcePos.vy = 0;
     p->sourcePos.vx = 0;
     p->matrix = g_BattleBaseMatrix;
-    p->unk4C = *(BattleBlk16*)&p->matrix;
-    p->unk5C = *((BattleBlk16*)&p->matrix + 1);
-    p->unkC = p->unk4C;
-    p->unk1C = p->unk5C;
+    p->rotMatrixLo = *(BattleBlk16*)&p->matrix;
+    p->rotMatrixHi = *((BattleBlk16*)&p->matrix + 1);
+    p->localMatrixLo = p->rotMatrixLo;
+    p->localMatrixHi = p->rotMatrixHi;
     return p;
 }
 
