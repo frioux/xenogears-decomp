@@ -768,7 +768,7 @@ s32 func_800852C4(void) {
     s32 state;
     s32 idleTimer;
     s32 idleCount;
-    s32 count;
+    u8 count;
 
     g_BattleDebugFlags = 0;
     g_BattleControlFlags |= BATTLE_CONTROL_FLAG_USER;
