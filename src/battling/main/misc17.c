@@ -416,7 +416,10 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
    Permuter from the 99.43 body: 1404 iterations, no gain (base 25, best 25). Also tried: reading D_80091EE0[]
    directly for both (78.93%), pTable assigned before the byte load (92.50%) or right after `i = v << 1` (no
    change), an initializer on the pointer (92.50%), a u32 index (no change), pad declared last (no change),
-   -G0 and gcc-2.7.2-cdk (76.41%).
+   -G0 and gcc-2.7.2-cdk (76.41%). Later round: an element pointer `pElem = (pTable + i) + 1` read twice with
+   a non-void return gives retail's base-first `addu` at the same 176 bytes / 99.43; the two remaining diffs are
+   the s1/s2 rotation of base and index and retail's `nop` in the second `beqz` delay slot, and neither moved
+   under object-typed locals, declaration order, a do/while block or a duplicated table load.
 /*
 int func_8008ED6C(u8* p, s32 idx) {
     s32 pad[2];
