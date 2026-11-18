@@ -42,7 +42,125 @@ void BattleCalcLookAtRotation(SVECTOR *pFrom, SVECTOR *pTo, u16 *pRot) {
     pRot[2] = ratan2(diff.vy, len);
     pRot[0] = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C08CC);
+typedef void (*BattleVectorCallback)(VECTOR *pFrom, VECTOR *pTo);
+
+extern void func_800C0D18(s32 group, s32 angle, SVECTOR *pPos, VECTOR *pOut);
+extern s32 D_800D2FCC;
+
+// Emits the trail segments for a direction-transform task: for each of the five
+// rotation groups it averages the four source positions under the group's eight
+// rotation matrices and hands the result to pCallback together with the previous
+// one. partCount below 5 pads the source array up to five entries first.
+void func_800C08CC(s32 partCount, SVECTOR *pVectors, BattleVectorCallback pCallback) {
+    VECTOR vecA;
+    VECTOR vecB;
+    SVECTOR vecC; // unused: reproduces retail's 0x60 frame
+    s32 i;
+    s32 n;
+
+    D_800D2FCC = 0;
+    if (partCount < 5) {
+        if (partCount < 3) {
+            if (partCount < 2) {
+                return;
+            }
+            vecA.vx = pVectors[0].vx;
+            vecA.vy = pVectors[0].vy;
+            vecA.vz = pVectors[0].vz;
+            vecB.vx = pVectors[1].vx;
+            vecB.vy = pVectors[1].vy;
+            vecB.vz = pVectors[1].vz;
+            pCallback(&vecA, &vecB);
+            return;
+        }
+        switch (partCount) {
+        case 3:
+            pVectors[3].vx = pVectors[2].vx;
+            pVectors[3].vy = pVectors[2].vy;
+            pVectors[3].vz = pVectors[2].vz;
+            pVectors[4].vx = pVectors[2].vx;
+            pVectors[4].vy = pVectors[2].vy;
+            pVectors[4].vz = pVectors[2].vz;
+            break;
+        case 4:
+            pVectors[4].vx = pVectors[3].vx;
+            pVectors[4].vy = pVectors[3].vy;
+            pVectors[4].vz = pVectors[3].vz;
+            break;
+        }
+        partCount = 5;
+    }
+    func_800C0D18(0, 0, pVectors, &vecA);
+    n = 0;
+    for (i = 1; i != 8; i++) {
+        if (i & 1) {
+            func_800C0D18(0, i, &pVectors[n], &vecB);
+            pCallback(&vecA, &vecB);
+        } else {
+            func_800C0D18(0, i, &pVectors[n], &vecA);
+            pCallback(&vecB, &vecA);
+        }
+    }
+    if (partCount >= 6) {
+        n = 1;
+        func_800C0D18(1, 0, &pVectors[n], &vecA);
+        pCallback(&vecB, &vecA);
+        for (i = 1; i != 8; i++) {
+            if (i & 1) {
+                func_800C0D18(1, i, &pVectors[n], &vecB);
+                pCallback(&vecA, &vecB);
+            } else {
+                func_800C0D18(1, i, &pVectors[n], &vecA);
+                pCallback(&vecB, &vecA);
+            }
+        }
+    }
+    for (n = 2; n < partCount - 5; n++) {
+        func_800C0D18(2, 0, &pVectors[n], &vecA);
+        pCallback(&vecB, &vecA);
+        for (i = 1; i != 8; i++) {
+            if (i & 1) {
+                func_800C0D18(2, i, &pVectors[n], &vecB);
+                pCallback(&vecA, &vecB);
+            } else {
+                func_800C0D18(2, i, &pVectors[n], &vecA);
+                pCallback(&vecB, &vecA);
+            }
+        }
+    }
+    if (partCount >= 7) {
+        n = partCount - 5;
+        func_800C0D18(3, 0, &pVectors[n], &vecA);
+        pCallback(&vecB, &vecA);
+        for (i = 1; i != 8; i++) {
+            if (i & 1) {
+                func_800C0D18(3, i, &pVectors[n], &vecB);
+                pCallback(&vecA, &vecB);
+            } else {
+                func_800C0D18(3, i, &pVectors[n], &vecA);
+                pCallback(&vecB, &vecA);
+            }
+        }
+    }
+    n = partCount - 4;
+    func_800C0D18(4, 0, &pVectors[n], &vecA);
+    pCallback(&vecB, &vecA);
+    for (i = 1; i != 8; i++) {
+        if (i & 1) {
+            func_800C0D18(4, i, &pVectors[n], &vecB);
+            pCallback(&vecA, &vecB);
+        } else {
+            func_800C0D18(4, i, &pVectors[n], &vecA);
+            pCallback(&vecB, &vecA);
+        }
+    }
+    if (partCount >= 5) {
+        vecA.vx = pVectors[partCount - 1].vx;
+        vecA.vy = pVectors[partCount - 1].vy;
+        vecA.vz = pVectors[partCount - 1].vz;
+        pCallback(&vecB, &vecA);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0D18);
 
 void BattleFreeWdsEntry(void) {
