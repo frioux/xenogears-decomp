@@ -42,7 +42,125 @@ void BattleCalcLookAtRotation(SVECTOR *pFrom, SVECTOR *pTo, u16 *pRot) {
     pRot[2] = ratan2(diff.vy, len);
     pRot[0] = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C08CC);
+typedef void (*BattleVectorCallback)(VECTOR *pFrom, VECTOR *pTo);
+
+extern void func_800C0D18(s32 group, s32 angle, SVECTOR *pPos, VECTOR *pOut);
+extern s32 D_800D2FCC;
+
+// Emits the trail segments for a direction-transform task: for each of the five
+// rotation groups it averages the four source positions under the group's eight
+// rotation matrices and hands the result to pCallback together with the previous
+// one. partCount below 5 pads the source array up to five entries first.
+void func_800C08CC(s32 partCount, SVECTOR *pVectors, BattleVectorCallback pCallback) {
+    VECTOR vecA;
+    VECTOR vecB;
+    SVECTOR vecC; // unused: reproduces retail's 0x60 frame
+    s32 i;
+    s32 n;
+
+    D_800D2FCC = 0;
+    if (partCount < 5) {
+        if (partCount < 3) {
+            if (partCount < 2) {
+                return;
+            }
+            vecA.vx = pVectors[0].vx;
+            vecA.vy = pVectors[0].vy;
+            vecA.vz = pVectors[0].vz;
+            vecB.vx = pVectors[1].vx;
+            vecB.vy = pVectors[1].vy;
+            vecB.vz = pVectors[1].vz;
+            pCallback(&vecA, &vecB);
+            return;
+        }
+        switch (partCount) {
+        case 3:
+            pVectors[3].vx = pVectors[2].vx;
+            pVectors[3].vy = pVectors[2].vy;
+            pVectors[3].vz = pVectors[2].vz;
+            pVectors[4].vx = pVectors[2].vx;
+            pVectors[4].vy = pVectors[2].vy;
+            pVectors[4].vz = pVectors[2].vz;
+            break;
+        case 4:
+            pVectors[4].vx = pVectors[3].vx;
+            pVectors[4].vy = pVectors[3].vy;
+            pVectors[4].vz = pVectors[3].vz;
+            break;
+        }
+        partCount = 5;
+    }
+    func_800C0D18(0, 0, pVectors, &vecA);
+    n = 0;
+    for (i = 1; i != 8; i++) {
+        if (i & 1) {
+            func_800C0D18(0, i, &pVectors[n], &vecB);
+            pCallback(&vecA, &vecB);
+        } else {
+            func_800C0D18(0, i, &pVectors[n], &vecA);
+            pCallback(&vecB, &vecA);
+        }
+    }
+    if (partCount >= 6) {
+        n = 1;
+        func_800C0D18(1, 0, &pVectors[n], &vecA);
+        pCallback(&vecB, &vecA);
+        for (i = 1; i != 8; i++) {
+            if (i & 1) {
+                func_800C0D18(1, i, &pVectors[n], &vecB);
+                pCallback(&vecA, &vecB);
+            } else {
+                func_800C0D18(1, i, &pVectors[n], &vecA);
+                pCallback(&vecB, &vecA);
+            }
+        }
+    }
+    for (n = 2; n < partCount - 5; n++) {
+        func_800C0D18(2, 0, &pVectors[n], &vecA);
+        pCallback(&vecB, &vecA);
+        for (i = 1; i != 8; i++) {
+            if (i & 1) {
+                func_800C0D18(2, i, &pVectors[n], &vecB);
+                pCallback(&vecA, &vecB);
+            } else {
+                func_800C0D18(2, i, &pVectors[n], &vecA);
+                pCallback(&vecB, &vecA);
+            }
+        }
+    }
+    if (partCount >= 7) {
+        n = partCount - 5;
+        func_800C0D18(3, 0, &pVectors[n], &vecA);
+        pCallback(&vecB, &vecA);
+        for (i = 1; i != 8; i++) {
+            if (i & 1) {
+                func_800C0D18(3, i, &pVectors[n], &vecB);
+                pCallback(&vecA, &vecB);
+            } else {
+                func_800C0D18(3, i, &pVectors[n], &vecA);
+                pCallback(&vecB, &vecA);
+            }
+        }
+    }
+    n = partCount - 4;
+    func_800C0D18(4, 0, &pVectors[n], &vecA);
+    pCallback(&vecB, &vecA);
+    for (i = 1; i != 8; i++) {
+        if (i & 1) {
+            func_800C0D18(4, i, &pVectors[n], &vecB);
+            pCallback(&vecA, &vecB);
+        } else {
+            func_800C0D18(4, i, &pVectors[n], &vecA);
+            pCallback(&vecB, &vecA);
+        }
+    }
+    if (partCount >= 5) {
+        vecA.vx = pVectors[partCount - 1].vx;
+        vecA.vy = pVectors[partCount - 1].vy;
+        vecA.vz = pVectors[partCount - 1].vz;
+        pCallback(&vecB, &vecA);
+    }
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0D18);
 
 void BattleFreeWdsEntry(void) {
@@ -55,17 +173,17 @@ void BattleFreeWdsEntry(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
 // 96.88% (400 bytes against retail's 404). The loop, the switch arm order (seds
 // listed first is what puts the seds body inline and the WDS arm out of line, as
-// retail has it) and the frame are exact; retail's preheader holds
-// lui $s7,%hi(g_BattleWdsEntry), li $s6,-1 and a dead lui $s5,0xFFFF0000, and the
-// store becomes sw $v0,%lo(g_BattleWdsEntry)($s7). Ours re-forms the address inline
-// (lui $v1,%hi / sw $v0,%lo($v1)) - the missing 4 bytes. Making g_BattleWdsEntry a
-// pointer-deref store instead gives lui+addiu and an 0x88 frame (worse); the dead
-// pDebugState assignment below (unreachable after the seds arm's break; gcc still
-// hoists its address) is what reproduces the frame, the saved-register set and the
-// dead 0xFFFF0000 preheader constant, so it is load-bearing - do not delete it
-// without re-measuring. Two 5-minute permuter runs both plateaued at a block
-// duplication of the default arm (score 321 against 592), which is what pointed at
-// the pointer-local read of g_DebugTable in the first place.
+// retail has it) and the frame are exact. The one residual: retail hoists ONLY the
+// high half of the WDS entry address into $s7 in the loop preheader and keeps the
+// store's %lo displacement (lui $s7,%hi / sw $v0,%lo($s7)), while we re-form the
+// pair inside the loop body (lui $v1,%hi / sw $v0,%lo($v1)) - 4 bytes. Measured
+// dead ends: a pointer local for the entry (lui+addiu, 408 bytes), reading
+// g_DebugTable directly instead of through pDebugState (392, loses a saved
+// register), a volatile read of it, and a 4-minute permuter run (2122 iterations,
+// base=321 best=321). The dead pDebugState assignment below (unreachable after the
+// seds arm's break; gcc still hoists its address into $s7) is what reproduces the
+// frame, the saved-register set and the dead 0xFFFF0000 preheader constant, so it
+// is load-bearing - do not delete it without re-measuring.
 /*
 // Feeds one battle actor archive buffer to the sound player: every SEDS chunk is
 // added, every WDS chunk is (re)loaded after freeing the loaded one, and every
@@ -97,7 +215,6 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
             g_BattleActorArchiveReady = 0;
             g_BattleWdsEntry = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
             while (SoundGetPendingSpuCommandType(0) != 0) {
-                // Debugging
                 if (*pDebugState != -1) {
                     asm("break 0x400");
                 }
