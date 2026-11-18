@@ -2,6 +2,14 @@
 #include "system/memory.h"
 #include "psyq/libgte.h"
 #include "field/actor.h"
+#include "psyq/libetc.h"
+
+// The number sprite BattleCreateNumberSpriteTask builds: how many frames it lives.
+#define BATTLE_NUMBER_SPRITE_LIFETIME 32
+// Per-frame step SpriteColorAddClamp is handed while a sprite fades out.
+#define BATTLE_SPRITE_FADE_COLOR_STEP (-4)
+// One bit per actor slot in the slot mask, matching the 11-entry per-slot tables.
+#define BATTLE_ACTOR_SLOT_COUNT 11
 
 // One battle sprite: the transform steps at 0x40..0x48 that BattleStepActorFadeOut
 // advances, the clip colour at 0x68..0x6A, the model parts at 0x74/0x7C and the
@@ -184,9 +192,9 @@ void BattleStepActorFadeOut(BattleActorSprite *p) {
     p->scaleX += 0x330;
     p->scaleY += 0x330;
     p->scaleZ += 0x330;
-    p->colorR = SpriteColorAddClamp(p->colorR, -4);
-    p->colorG = SpriteColorAddClamp(p->colorG, -4);
-    p->colorB = SpriteColorAddClamp(p->colorB, -4);
+    p->colorR = SpriteColorAddClamp(p->colorR, BATTLE_SPRITE_FADE_COLOR_STEP);
+    p->colorG = SpriteColorAddClamp(p->colorG, BATTLE_SPRITE_FADE_COLOR_STEP);
+    p->colorB = SpriteColorAddClamp(p->colorB, BATTLE_SPRITE_FADE_COLOR_STEP);
     if (--p->countdown == 0) {
         p->pCallback(p);
     }
@@ -253,13 +261,13 @@ void BattleCreateNumberSpriteTask(s32 value) {
     s32 step;
     s32 tex;
 
-    pBody = WorkListsAddTasks(0x130, NULL, BattleStepActorFadeOut, BattleRenderSpriteBody, NULL);
+    pBody = WorkListsAddTasks(sizeof(BattleSpriteBody), NULL, BattleStepActorFadeOut, BattleRenderSpriteBody, NULL);
     step = ((rand() & 3) - 2) * 8;
     pBody->rotZStep = -step;
     if (pBody->rotZStep == 0) {
         pBody->rotZStep = 6;
     }
-    pBody->countdown = 0x20;
+    pBody->countdown = BATTLE_NUMBER_SPRITE_LIFETIME;
     pBody->color.channels.code = 0x2E;
     pBody->scale.vx = 0x2000;
     pBody->scale.vy = 0x2000;
@@ -291,7 +299,7 @@ void BattleCreateNumberSpriteTask(s32 value) {
         pBody->color.channels.blue = 0x80;
         break;
     }
-    func_800BE6E8(value, digits, 5, 0, 0);
+    func_800BE6E8(value, digits, sizeof(digits) - 1, 0, 0);
     tex = g_BattleDigitTextureIds[digits[0]];
     pBody->partCount = 0;
     i = 0;
@@ -452,7 +460,7 @@ void BattlePollPadAndSkipWaitOnStart(void) {
     BattleUpdatePadState();
     pStateBase = g_BattleStateWork;
     pState = (BattlePadState *)(pStateBase + 0x8000);
-    if (pState->cur[0] & 0x100) {
+    if (pState->cur[0] & PADselect) {
         Vsync(8);
         g_BattleWaitFrameCountdown = 0;
     }
@@ -559,7 +567,7 @@ s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2) {
         }
         i++;
         mask >>= 1;
-    } while (i != 0xB);
+    } while (i != BATTLE_ACTOR_SLOT_COUNT);
     pOut[count] = NULL;
     return count;
 }
