@@ -33,7 +33,7 @@ struct _BattleMisc22Spr {
     /* 0x00 */ u_short x0;
     /* 0x02 */ u_short y0;
     /* 0x04 */ u_short z0;
-    /* 0x06 */ u16 unk6;
+    /* 0x06 */ u16 pad6;
     /* 0x08 */ u_short x1;
     /* 0x0A */ u_short y1;
     /* 0x0C */ u_short z1;
@@ -93,21 +93,21 @@ typedef struct {
 } BattleMisc22Entry; // Size: 0xE
 
 typedef struct {
-    /* 0x00 */ s16 unk0;
-    /* 0x02 */ u8 unk2;
-    /* 0x03 */ u8 unk3;
+    /* 0x00 */ s16 spriteIndex; // negative = idle record; indexes the sprite the start/end are transformed by
+    /* 0x02 */ u8 project3D; // nonzero = the endpoints are projected to 3D, 0 = they are screen coordinates
+    /* 0x03 */ u8 semiTrans; // second argument of BattleAllocSpriteSlot
     /* 0x04 */ void *pPool; // the battle sprite pool the caller passes
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ s16 unkC;
-    /* 0x0E */ s16 unkE;
-    /* 0x10 */ s16 unk10;
+    /* 0x08 */ s32 pSlot; // the slot BattleAllocSpriteSlot handed out; 0 until the first step
+    /* 0x0C */ s16 startVx; // the endpoints the interpolation walks between
+    /* 0x0E */ s16 startVy;
+    /* 0x10 */ s16 startVz;
     /* 0x12 */ s16 pad12;
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ s16 unk16;
-    /* 0x18 */ s16 unk18;
+    /* 0x14 */ s16 endVx;
+    /* 0x16 */ s16 endVy;
+    /* 0x18 */ s16 endVz;
     /* 0x1A */ u8 pad1A[0x42];
-    /* 0x5C */ s16 unk5C;
-    /* 0x5E */ s16 unk5E;
+    /* 0x5C */ s16 slot; // which of the eight step slots this record is on
+    /* 0x5E */ s16 step;
     /* 0x60 */ s16 count; // steps the interpolation runs, capped at 7
     /* 0x62 */ u16 divisor; // count the start-to-end distance is divided into per step
     /* 0x64 */ s16 startX; // start of the interpolation, 8-bit coordinate << 6
@@ -225,18 +225,18 @@ s32 BattleSetupPositionTween(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 ar
                   u16 divisor, u8 a, u8 b, u8 c, u8 d, u8 e, u8 f,
                   u16 w0, u16 w1, u16 w2, u16 w3, u16 w4, u16 w5, u16 b3) {
     if (pCmd != 0) {
-        pCmd->unk3 = b3;
-        pCmd->unk5E = -1;
-        pCmd->unk0 = arg2;
-        pCmd->unk2 = arg3;
+        pCmd->semiTrans = b3;
+        pCmd->step = -1;
+        pCmd->spriteIndex = arg2;
+        pCmd->project3D = arg3;
         pCmd->pPool = pData;
-        pCmd->unkC = w0;
-        pCmd->unkE = w1;
-        pCmd->unk10 = w2;
-        pCmd->unk14 = w3;
-        pCmd->unk16 = w4;
-        pCmd->unk18 = w5;
-        pCmd->unk5C = 0;
+        pCmd->startVx = w0;
+        pCmd->startVy = w1;
+        pCmd->startVz = w2;
+        pCmd->endVx = w3;
+        pCmd->endVy = w4;
+        pCmd->endVz = w5;
+        pCmd->slot = 0;
         if (count < BATTLE_TWEEN_STEP_MAX) {
             pCmd->count = count;
         } else {
@@ -250,7 +250,7 @@ s32 BattleSetupPositionTween(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 ar
         *(volatile s16 *)&pCmd->startZ = c * 64;
         pCmd->deltaZ = (pCmd->startZ - f * 64) / (s16)divisor;
         pCmd->divisor = divisor;
-        pCmd->unk8 = 0;
+        pCmd->pSlot = 0;
         return 0;
     }
 }
