@@ -97,18 +97,18 @@ extern WorldMapScriptHandler g_WorldMapScriptOpHandlers[];
 // as misc12.c's local WorldMapPlayer.
 typedef struct {
     /* 0x00 */ u8 unk0[0x28];
-    /* 0x28 */ s32 unk28;
-    /* 0x2C */ s32 unk2C;
-    /* 0x30 */ s32 unk30;
-    /* 0x34 */ s32 unk34;
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ s32 unk3C;
-    /* 0x40 */ s32 unk40;
+    /* 0x28 */ s32 x; // world scroll position
+    /* 0x2C */ s32 y;
+    /* 0x30 */ s32 z;
+    /* 0x34 */ s32 w; // fourth word of the x/y/z quad, copied whole with it
+    /* 0x38 */ s32 rotX; // 12.12 fixed point: >> 12 is the angle in 0..0xFFF
+    /* 0x3C */ s32 rotY;
+    /* 0x40 */ s32 rotZ;
     /* 0x44 */ u8 unk44[0xC];
-    /* 0x50 */ s32 unk50;
-    /* 0x54 */ s32 unk54;
-    /* 0x58 */ s32 unk58;
-    /* 0x5C */ s32 unk5C;
+    /* 0x50 */ s32 targetRotX; // where rotX/Y/Z interpolate to
+    /* 0x54 */ s32 targetRotY;
+    /* 0x58 */ s32 targetRotZ;
+    /* 0x5C */ s32 cameraHeight; // g_WorldMapCameraHeight interpolates to this
 } WorldMapPlayer; // Size: 0x60
 
 // Four-word position record; misc12.c copies the same bytes through a Quad.
@@ -272,42 +272,42 @@ void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
     s16 rotY;
     s16 rotZ;
 
-    if ((pPlayer->unk38 != pPlayer->unk50) | (pPlayer->unk3C != pPlayer->unk54) |
-        (pPlayer->unk40 != pPlayer->unk58)) {
-        pDelta->x = pPlayer->unk50 - pPlayer->unk38;
-        pDelta->y = pPlayer->unk54 - pPlayer->unk3C;
-        pDelta->z = pPlayer->unk58 - pPlayer->unk40;
+    if ((pPlayer->rotX != pPlayer->targetRotX) | (pPlayer->rotY != pPlayer->targetRotY) |
+        (pPlayer->rotZ != pPlayer->targetRotZ)) {
+        pDelta->x = pPlayer->targetRotX - pPlayer->rotX;
+        pDelta->y = pPlayer->targetRotY - pPlayer->rotY;
+        pDelta->z = pPlayer->targetRotZ - pPlayer->rotZ;
         WorldMapWrapDelta(pDelta);
         pDelta->stepX = pDelta->x >> 3;
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;
         if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x40) {
-            pPlayer->unk38 = pPlayer->unk50;
+            pPlayer->rotX = pPlayer->targetRotX;
         } else {
-            pPlayer->unk38 += pDelta->stepX;
+            pPlayer->rotX += pDelta->stepX;
         }
         if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x40) {
-            pPlayer->unk3C = pPlayer->unk54;
+            pPlayer->rotY = pPlayer->targetRotY;
         } else {
-            pPlayer->unk3C += pDelta->stepY;
+            pPlayer->rotY += pDelta->stepY;
         }
         if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x40) {
-            pPlayer->unk40 = pPlayer->unk58;
+            pPlayer->rotZ = pPlayer->targetRotZ;
         } else {
-            pPlayer->unk40 += pDelta->stepZ;
+            pPlayer->rotZ += pDelta->stepZ;
         }
     }
-    g_WorldMapCameraRot = pPlayer->unk38 >> 12;
+    g_WorldMapCameraRot = pPlayer->rotX >> 12;
     // shortcut: the do/while block isolates this store so cc1 schedules it as a
     // unit; without it gcc hoists the next load one slot early and is 3 insns short
-    do { g_WorldMapViewRotationY = pPlayer->unk3C >> 12; } while (0);
-    g_WorldMapViewRotationZ = pPlayer->unk40 >> 12;
+    do { g_WorldMapViewRotationY = pPlayer->rotY >> 12; } while (0);
+    g_WorldMapViewRotationZ = pPlayer->rotZ >> 12;
 
 }
 
 
 void WorldMapApproachHeight(WorldMapPlayer* pPlayer) {
-    s32 cur = pPlayer->unk5C;
+    s32 cur = pPlayer->cameraHeight;
     s32 idx;
 
     if (cur != g_WorldMapCameraHeight) {
@@ -328,36 +328,36 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
    g_WorldMapScrollTargetZ plus the player fields, so everything after shifts by two
    instructions. The four-word copy at the end is WorldMapPos4.
 void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
-    if ((pPlayer->unk28 != g_WorldMapScrollTargetX) | (pPlayer->unk2C != g_WorldMapScrollTargetY) |
-        (pPlayer->unk30 != g_WorldMapScrollTargetZ)) {
-        pDelta->x = g_WorldMapScrollTargetX - pPlayer->unk28;
-        pDelta->y = g_WorldMapScrollTargetY - pPlayer->unk2C;
-        pDelta->z = g_WorldMapScrollTargetZ - pPlayer->unk30;
+    if ((pPlayer->x != g_WorldMapScrollTargetX) | (pPlayer->y != g_WorldMapScrollTargetY) |
+        (pPlayer->z != g_WorldMapScrollTargetZ)) {
+        pDelta->x = g_WorldMapScrollTargetX - pPlayer->x;
+        pDelta->y = g_WorldMapScrollTargetY - pPlayer->y;
+        pDelta->z = g_WorldMapScrollTargetZ - pPlayer->z;
         WorldMapWrapDelta(pDelta);
         pDelta->stepX = pDelta->x >> 3;
         pDelta->stepY = pDelta->y >> 3;
         pDelta->stepZ = pDelta->z >> 3;
         if ((pDelta->stepX < 0 ? -pDelta->stepX : pDelta->stepX) < 0x200) {
             g_WorldMapScrollX += pDelta->x;
-            pPlayer->unk28 = g_WorldMapScrollTargetX;
+            pPlayer->x = g_WorldMapScrollTargetX;
         } else {
             g_WorldMapScrollX += pDelta->stepX;
-            pPlayer->unk28 += pDelta->stepX;
+            pPlayer->x += pDelta->stepX;
         }
         if ((pDelta->stepY < 0 ? -pDelta->stepY : pDelta->stepY) < 0x200) {
-            pPlayer->unk2C = g_WorldMapScrollTargetY;
+            pPlayer->y = g_WorldMapScrollTargetY;
         } else {
-            pPlayer->unk2C += pDelta->stepY;
+            pPlayer->y += pDelta->stepY;
         }
         if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x200) {
             D_8009BBBC += pDelta->z;
-            pPlayer->unk30 = g_WorldMapScrollTargetZ;
+            pPlayer->z = g_WorldMapScrollTargetZ;
         } else {
             D_8009BBBC += pDelta->stepZ;
-            pPlayer->unk30 += pDelta->stepZ;
+            pPlayer->z += pDelta->stepZ;
         }
     }
-    *(WorldMapPos4*)&g_WorldMapCameraTarget = *(WorldMapPos4*)&pPlayer->unk28;
+    *(WorldMapPos4*)&g_WorldMapCameraTarget = *(WorldMapPos4*)&pPlayer->x;
 }
 */
 
