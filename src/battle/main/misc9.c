@@ -13,12 +13,13 @@ typedef struct {
     /* 0x30 */ u8 byteRegs[0x10];
 } BattleOpRegs; // Size: 0x40
 
-// One of the 0x1C-byte per-slot tag records at g_BattleSlotRecords: tag at +0, flag byte
-// at +3 (the byte BattleSetSlotRecordByteAndRelease writes), the slot's position at
-// +0xA (D_800C3EBE is this +0xA, as in src/battle/main/misc8.c).
+// One of the 0x1C-byte per-slot tag records at g_BattleSlotRecords: tag at +0, the slot's
+// character at +2, flag byte at +3 (the byte BattleSetSlotRecordByteAndRelease writes), the
+// slot's position at +0xA (D_800C3EBE is this +0xA, as in src/battle/main/misc8.c).
 typedef struct {
     /* 0x0 */ u8 tag;
-    /* 0x1 */ u8 unk1[2];
+    /* 0x1 */ u8 unk1;
+    /* 0x2 */ u8 charId; // BATTLE_SLOT_CHARACTER_NONE (0x7F) when no character holds the slot
     /* 0x3 */ u8 flags;
     /* 0x4 */ u8 unk4[6];
     /* 0xA */ u16 x;
