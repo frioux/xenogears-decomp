@@ -117,23 +117,21 @@ typedef struct {
 } MenuSaveSlot; // Size: 0x1B5C
 
 void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
+    MenuSaveCharacter* pSaveCharacter;
     GameGear* pGear;
     MenuSaveGear* pSaveGear;
     u8 i;
-    s32 offset;
     u32 size;
 
     for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
-        offset = i * sizeof(MenuSaveCharacter) + 0x290;
-        *(MenuSaveCharacter*)((mem_addr)pSlot + offset) =
-            *(MenuSaveCharacter*)&g_GameState.characters[i];
+        pSaveCharacter = &pSlot->characters[i];
+        *pSaveCharacter = *(MenuSaveCharacter*)&g_GameState.characters[i];
     }
     for (i = 0; i < MAX_GAME_GEARS; i++) {
-        s32 gearOffset = i * sizeof(MenuSaveGear) + 0x99C;
-        pSaveGear = (MenuSaveGear*)((mem_addr)pSlot + gearOffset);
+        pSaveGear = &pSlot->gears[i];
         pGear = &g_GameState.gears[i];
         pSaveGear->head = *(MenuSaveGearHead20*)pGear;
-        pSaveGear->headTail = *(MenuSaveGearHead08*)((u32*)pGear + 8);
+        pSaveGear->headTail = *(MenuSaveGearHead08*)&pGear->weaponData[2];
         pSaveGear->unk28 = *(u32*)pGear->unk5C;
         pSaveGear->fuel = pGear->fuel;
         pSaveGear->hp = pGear->hp;
@@ -141,13 +139,14 @@ void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
         pSaveGear->attackPower = pGear->attackPower;
         pSaveGear->baseWeightClass = pGear->baseWeightClass;
     }
-    pSlot->namesA = *(MenuSaveNamesA*)((u32*)&g_GameState);
-    pSlot->namesB = *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4);
-    pSlot->unk1648 = *(MenuSaveBlob0x78*)((u32*)&g_GameState + 0x1648 / 4);
-    pSlot->unk16C0 = *(MenuSaveBlob0x160*)((u32*)&g_GameState + 0x16C0 / 4);
-    pSlot->unk1820 = *(MenuSaveBlob0x100*)((u32*)&g_GameState + 0x1820 / 4);
-    size = sizeof(MenuSaveBlob0xA38);
-    memcpy((u8*)pSlot + 0x1124, (u8*)&g_GameState + 0x1920, size);
+    pSlot->namesA = *(MenuSaveNamesA*)g_GameState.strings;
+    pSlot->namesB =
+        *(MenuSaveNamesB*)&g_GameState.strings[sizeof(MenuSaveNamesA) / sizeof(StringEntry)];
+    pSlot->unk1648 = *(MenuSaveBlob0x78*)((u8*)&g_GameState + 0x1648);
+    pSlot->unk16C0 = *(MenuSaveBlob0x160*)((u8*)&g_GameState + 0x16C0);
+    pSlot->unk1820 = *(MenuSaveBlob0x100*)((u8*)&g_GameState + 0x1820);
+    size = sizeof(pSlot->unk1920);
+    memcpy(&pSlot->unk1920, (u8*)&g_GameState + 0x1920, size);
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E4D10);
