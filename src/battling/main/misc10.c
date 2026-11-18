@@ -899,8 +899,8 @@ reinit:
         BattleInitTutorialMessage();
         break;
     }
-    state = 1;
     BattleLoadSlotEntry(0, D_80092798);
+    state = 1;
     BattleLoadSlotEntry(1, D_8009279C);
     g_BattleStateAdvanceRequested = 0;
     g_BattleFrameWaitCount = 2;
@@ -989,13 +989,13 @@ done:
 
 newRound:
     BattleResetForNextRound();
-    pMatchCount = &g_BattleMatchCount;
     g_BattleActor1.position.x = 0x3E80;
     g_BattleSceneOriginYMirror = 0;
     g_BattleSceneOriginZ = 0x3F80;
     g_BattleActor0.position.x = 0x4080;
     g_BattleSceneOriginY = 0;
     D_80097018 = 0x3F80;
+    pMatchCount = &g_BattleMatchCount;
     for (;;) {
         FontSetColor(0, 0xFF, 0);
         g_BattleFrameWaitCount = 2;
