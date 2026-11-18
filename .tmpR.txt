@@ -1,0 +1,1062 @@
+addiu	sp,sp,-272
+sw	s8,264(sp)
+move	s8,a0
+lui	t1,0x1f80
+ori	t1,t1,0x20
+sw	t1,160(sp)
+lui	t1,0x1f80
+ori	t1,t1,0x40
+sw	ra,268(sp)
+sw	s7,260(sp)
+sw	s6,256(sp)
+sw	s5,252(sp)
+sw	s4,248(sp)
+sw	s3,244(sp)
+sw	s2,240(sp)
+sw	s1,236(sp)
+sw	s0,232(sp)
+sw	a1,104(sp)
+sw	a2,112(sp)
+sw	a3,120(sp)
+sw	t1,168(sp)
+lbu	v0,52(s8)
+nop
+beqz	v0,1860 <func_8009F844+0xfb0>
+lui	s7,0x1f80
+lw	t1,0(s8)
+nop
+sw	t1,136(sp)
+lhu	t1,28(s8)
+move	s6,zero
+sh	t1,152(sp)
+lw	t1,4(s8)
+lui	s4,0x0
+R_MIPS_HI16	g_BattlePartSlots
+addiu	s4,s4,6
+R_MIPS_LO16	g_BattlePartSlots
+sw	t1,144(sp)
+lhu	t1,152(sp)
+move	s5,zero
+sw	t1,176(sp)
+lw	t1,144(sp)
+lw	s3,112(sp)
+lhu	t1,10(t1)
+nop
+sw	t1,128(sp)
+lh	v0,0(s4)
+nop
+beqz	v0,b9c <func_8009F844+0x2ec>
+nop
+lw	t1,144(sp)
+nop
+lh	v0,78(t1)
+lw	t1,176(sp)
+nop
+mult	t1,v0
+mflo	v0
+lh	v1,36(s8)
+sra	v0,v0,0xc
+mult	v1,v0
+lw	t1,144(sp)
+lui	at,0x0
+R_MIPS_HI16	g_BattlePartSlots
+addu	at,at,s5
+lhu	s1,0(at)
+R_MIPS_LO16	g_BattlePartSlots
+lhu	v0,92(t1)
+nop
+subu	s1,s1,v0
+mflo	v1
+sll	s1,s1,0x10
+sra	s1,s1,0x10
+mult	s1,s1
+lw	v0,96(t1)
+lui	at,0x0
+R_MIPS_HI16	g_BattlePartSlots
+addu	at,at,s5
+lhu	s0,2(at)
+R_MIPS_LO16	g_BattlePartSlots
+subu	v0,v0,v1
+sra	v0,v0,0xd
+subu	s0,s0,v0
+mflo	v1
+sll	s0,s0,0x10
+sra	s0,s0,0x10
+mult	s0,s0
+lui	at,0x0
+R_MIPS_HI16	g_BattlePartSlots
+addu	at,at,s5
+lhu	s2,4(at)
+R_MIPS_LO16	g_BattlePartSlots
+lhu	v0,100(t1)
+nop
+subu	s2,s2,v0
+mflo	v0
+sll	s2,s2,0x10
+sra	s2,s2,0x10
+mult	s2,s2
+addu	v1,v1,v0
+mflo	a0
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SquareRoot0
+addu	a0,v1,a0
+addiu	v0,v0,1
+sll	s1,s1,0xc
+div	zero,s1,v0
+bnez	v0,a3c <func_8009F844+0x18c>
+nop
+break	0x7
+li	at,-1
+bne	v0,at,a54 <func_8009F844+0x1a4>
+lui	at,0x8000
+bne	s1,at,a54 <func_8009F844+0x1a4>
+nop
+break	0x6
+mflo	s1
+lh	v1,0(s4)
+nop
+mult	s1,v1
+mflo	a0
+addu	v1,v1,v0
+nop
+div	zero,a0,v1
+bnez	v1,a80 <func_8009F844+0x1d0>
+nop
+break	0x7
+li	at,-1
+bne	v1,at,a98 <func_8009F844+0x1e8>
+lui	at,0x8000
+bne	a0,at,a98 <func_8009F844+0x1e8>
+nop
+break	0x6
+mflo	a0
+sll	s0,s0,0xc
+nop
+div	zero,s0,v0
+bnez	v0,ab4 <func_8009F844+0x204>
+nop
+break	0x7
+li	at,-1
+bne	v0,at,acc <func_8009F844+0x21c>
+lui	at,0x8000
+bne	s0,at,acc <func_8009F844+0x21c>
+nop
+break	0x6
+mflo	s0
+sh	a0,6(s3)
+lh	v1,0(s4)
+nop
+mult	s0,v1
+mflo	a0
+addu	v1,v1,v0
+nop
+div	zero,a0,v1
+bnez	v1,afc <func_8009F844+0x24c>
+nop
+break	0x7
+li	at,-1
+bne	v1,at,b14 <func_8009F844+0x264>
+lui	at,0x8000
+bne	a0,at,b14 <func_8009F844+0x264>
+nop
+break	0x6
+mflo	a0
+sll	s2,s2,0xc
+nop
+div	zero,s2,v0
+bnez	v0,b30 <func_8009F844+0x280>
+nop
+break	0x7
+li	at,-1
+bne	v0,at,b48 <func_8009F844+0x298>
+lui	at,0x8000
+bne	s2,at,b48 <func_8009F844+0x298>
+nop
+break	0x6
+mflo	s2
+sh	a0,8(s3)
+lh	a0,0(s4)
+nop
+mult	s2,a0
+mflo	v1
+addu	a0,a0,v0
+nop
+div	zero,v1,a0
+bnez	a0,b78 <func_8009F844+0x2c8>
+nop
+break	0x7
+li	at,-1
+bne	a0,at,b90 <func_8009F844+0x2e0>
+lui	at,0x8000
+bne	v1,at,b90 <func_8009F844+0x2e0>
+nop
+break	0x6
+mflo	v1
+j	ba8 <func_8009F844+0x2f8>
+R_MIPS_26	.text
+sh	v1,10(s3)
+sh	zero,6(s3)
+sh	zero,8(s3)
+sh	zero,10(s3)
+addiu	s3,s3,6
+addiu	s4,s4,20
+addiu	s6,s6,1
+slti	v0,s6,2
+bnez	v0,95c <func_8009F844+0xac>
+addiu	s5,s5,20
+lw	a0,104(sp)
+lw	t1,144(sp)
+lw	a2,168(sp)
+addiu	s0,t1,12
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+move	a1,s0
+lhu	v0,74(s8)
+nop
+andi	v0,v0,0x1
+bnez	v0,f60 <func_8009F844+0x6b0>
+nop
+lui	v0,0x0
+R_MIPS_HI16	g_BattleExtraMatrixFlag
+lbu	v0,0(v0)
+R_MIPS_LO16	g_BattleExtraMatrixFlag
+nop
+beqz	v0,f60 <func_8009F844+0x6b0>
+move	a0,s0
+lw	t1,144(sp)
+move	a2,s7
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+addiu	a1,t1,168
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetRotMatrix
+move	a0,s7
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetTransMatrix
+move	a0,s7
+li	v0,0x1000
+addiu	s0,sp,32
+sh	zero,32(sp)
+sh	zero,34(sp)
+sh	v0,36(sp)
+lwc2	$0,0(s0)
+lwc2	$1,4(s0)
+...
+c2	0x480012
+addiu	v0,sp,48
+swc2	$25,0(v0)
+swc2	$26,4(v0)
+swc2	$27,8(v0)
+sh	zero,32(sp)
+sh	zero,34(sp)
+sh	zero,36(sp)
+lwc2	$0,0(s0)
+lwc2	$1,4(s0)
+...
+c2	0x480012
+addiu	v0,sp,64
+swc2	$25,0(v0)
+swc2	$26,4(v0)
+swc2	$27,8(v0)
+lw	v1,56(sp)
+lw	a0,72(sp)
+lw	v0,48(sp)
+lw	a1,64(sp)
+subu	a0,v1,a0
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	ratan2
+subu	a1,v0,a1
+move	a0,s0
+lw	a1,160(sp)
+negu	v0,v0
+sh	v0,34(sp)
+sh	zero,32(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	RotMatrix
+sh	zero,36(sp)
+lhu	v0,64(sp)
+lw	a1,160(sp)
+lw	a0,104(sp)
+lw	v1,72(sp)
+sh	v0,16(a1)
+sw	v1,24(a1)
+lh	v0,96(s8)
+lw	a2,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+sw	v0,20(a2)
+lw	t1,144(sp)
+lh	v1,96(s8)
+lw	v0,96(t1)
+nop
+subu	v0,v1,v0
+lh	v1,28(s8)
+bgez	v0,d0c <func_8009F844+0x45c>
+nop
+addiu	v0,v0,3
+sra	v0,v0,0x2
+subu	v0,v1,v0
+bgez	v0,d20 <func_8009F844+0x470>
+move	a1,s7
+move	v0,zero
+lw	a0,160(sp)
+sh	v0,0(s7)
+sh	zero,2(s7)
+sh	zero,4(s7)
+sh	zero,6(s7)
+sh	v0,8(s7)
+sh	zero,10(s7)
+sh	zero,12(s7)
+sh	zero,14(s7)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	MulMatrix
+sh	v0,16(s7)
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetRotMatrix
+nop
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetTransMatrix
+nop
+sh	zero,34(sp)
+lhu	v0,38(s8)
+lw	t1,296(sp)
+sh	v0,32(sp)
+lhu	v0,40(s8)
+nop
+sh	v0,36(sp)
+sll	v0,t1,0x2
+addu	v0,v0,t1
+sll	v0,v0,0x3
+addiu	v0,v0,184
+addu	t0,s8,v0
+lwc2	$0,0(s0)
+lwc2	$1,4(s0)
+...
+c2	0x180001
+addiu	v0,t0,8
+swc2	$14,0(v0)
+addiu	v0,sp,96
+mfc2	t4,$19
+nop
+sra	t4,t4,0x2
+sw	t4,0(v0)
+lhu	v0,38(s8)
+nop
+negu	v0,v0
+sh	v0,32(sp)
+lwc2	$0,0(s0)
+lwc2	$1,4(s0)
+...
+c2	0x180001
+addiu	v0,t0,16
+swc2	$14,0(v0)
+addiu	a0,sp,100
+mfc2	t4,$19
+nop
+sra	t4,t4,0x2
+sw	t4,0(a0)
+lw	v1,100(sp)
+lw	v0,96(sp)
+nop
+slt	v0,v1,v0
+beqz	v0,e20 <func_8009F844+0x570>
+nop
+sw	v1,96(sp)
+lhu	v0,38(s8)
+nop
+sh	v0,32(sp)
+lhu	v0,40(s8)
+nop
+negu	v0,v0
+sh	v0,36(sp)
+lwc2	$0,0(s0)
+lwc2	$1,4(s0)
+...
+c2	0x180001
+addiu	v0,t0,24
+swc2	$14,0(v0)
+mfc2	t4,$19
+nop
+sra	t4,t4,0x2
+sw	t4,0(a0)
+lw	v1,100(sp)
+lw	v0,96(sp)
+nop
+slt	v0,v1,v0
+beqz	v0,e84 <func_8009F844+0x5d4>
+nop
+sw	v1,96(sp)
+lhu	v0,38(s8)
+nop
+negu	v0,v0
+sh	v0,32(sp)
+lwc2	$0,0(s0)
+lwc2	$1,4(s0)
+...
+c2	0x180001
+addiu	v0,t0,32
+swc2	$14,0(v0)
+mfc2	t4,$19
+nop
+sra	t4,t4,0x2
+sw	t4,0(a0)
+lw	v1,100(sp)
+lw	v0,96(sp)
+nop
+slt	v0,v1,v0
+beqz	v0,edc <func_8009F844+0x62c>
+lui	a2,0xff
+sw	v1,96(sp)
+ori	a2,a2,0xffff
+lui	a3,0xff00
+lw	a0,96(sp)
+lui	v0,0x0
+R_MIPS_HI16	g_GfxOTDepthShift
+lw	v0,0(v0)
+R_MIPS_LO16	g_GfxOTDepthShift
+lw	t1,292(sp)
+lw	v1,0(t0)
+srav	a0,a0,v0
+sll	a1,a0,0x2
+addu	a1,a1,t1
+lw	v0,0(a1)
+and	v1,v1,a3
+and	v0,v0,a2
+or	v1,v1,v0
+sw	v1,0(t0)
+lw	v0,0(a1)
+and	a2,t0,a2
+sw	a0,96(sp)
+slti	a0,a0,729
+and	v0,v0,a3
+or	v0,v0,a2
+bnez	a0,f40 <func_8009F844+0x690>
+sw	v0,0(a1)
+li	v0,0x2d8
+sw	v0,96(sp)
+lw	v1,96(sp)
+nop
+bgez	v1,f54 <func_8009F844+0x6a4>
+li	v0,0x6b
+addiu	v1,v1,7
+sra	v1,v1,0x3
+subu	v0,v0,v1
+sb	v0,57(s8)
+lw	a0,112(sp)
+lw	t1,144(sp)
+lw	a2,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	MulMatrix0
+addiu	a1,t1,44
+li	s6,0x1
+lw	t1,128(sp)
+lw	s1,144(sp)
+sltu	v0,s6,t1
+beqz	v0,10b8 <func_8009F844+0x808>
+nop
+addiu	s2,s1,8
+addiu	s2,s2,124
+lhu	v1,0(s2)
+li	v0,0xffff
+beq	v1,v0,10a0 <func_8009F844+0x7f0>
+addiu	s1,s1,124
+lbu	v0,-1(s2)
+nop
+beqz	v0,10a0 <func_8009F844+0x7f0>
+addiu	s0,s1,44
+move	a1,s0
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	MulMatrix0
+move	a2,s7
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetLightMatrix
+move	a0,s7
+move	a1,s0
+lw	a0,168(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+move	a2,s7
+lh	v0,74(s2)
+nop
+blez	v0,1058 <func_8009F844+0x7a8>
+nop
+sh	zero,4(s7)
+sh	zero,6(s7)
+sh	zero,10(s7)
+sh	zero,12(s7)
+lhu	v0,28(s8)
+nop
+sh	v0,0(s7)
+lhu	v0,28(s8)
+nop
+sh	v0,16(s7)
+lh	v1,74(s2)
+li	v0,0x1
+bne	v1,v0,1048 <func_8009F844+0x798>
+nop
+lw	t1,168(sp)
+nop
+lhu	v0,2(t1)
+lhu	v1,8(t1)
+lhu	a0,14(t1)
+sh	v0,2(s7)
+sh	v1,8(s7)
+j	1058 <func_8009F844+0x7a8>
+R_MIPS_26	.text
+sh	a0,14(s7)
+sh	zero,2(s7)
+lhu	v0,28(s8)
+sh	zero,14(s7)
+sh	v0,8(s7)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetRotMatrix
+move	a0,s7
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetTransMatrix
+move	a0,s7
+lw	a2,292(sp)
+lw	t1,296(sp)
+lw	a3,120(sp)
+sll	v0,t1,0x2
+addu	v0,v0,s1
+lw	a1,104(v0)
+lw	t1,136(sp)
+lhu	v0,0(s2)
+lw	v1,0(t1)
+sll	v0,v0,0x2
+addu	v0,v0,v1
+lw	a0,0(v0)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	ModelRenderPacket
+nop
+lw	t1,128(sp)
+addiu	s6,s6,1
+sltu	v0,s6,t1
+bnez	v0,f94 <func_8009F844+0x6e4>
+addiu	s2,s2,124
+addiu	s2,s2,-124
+lbu	v0,269(s8)
+lw	s3,276(s8)
+blez	v0,1340 <func_8009F844+0xa90>
+move	s6,zero
+addiu	s4,sp,80
+addiu	s2,s3,10
+lh	v0,0(s3)
+nop
+bltz	v0,1324 <func_8009F844+0xa74>
+nop
+lw	t1,144(sp)
+nop
+lh	a0,86(t1)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	rsin
+addiu	a0,a0,1024
+lui	v1,0x0
+R_MIPS_HI16	D_800D39E8
+lh	v1,0(v1)
+R_MIPS_LO16	D_800D39E8
+nop
+negu	v1,v1
+mult	v0,v1
+mflo	v0
+bgez	v0,1118 <func_8009F844+0x868>
+nop
+addiu	v0,v0,4095
+lw	t1,144(sp)
+sra	v0,v0,0xc
+sh	v0,40(sp)
+lh	a0,86(t1)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	rcos
+addiu	a0,a0,1024
+lui	v1,0x0
+R_MIPS_HI16	D_800D39E8
+lh	v1,0(v1)
+R_MIPS_LO16	D_800D39E8
+nop
+mult	v0,v1
+mflo	v0
+bgez	v0,1150 <func_8009F844+0x8a0>
+nop
+addiu	v0,v0,4095
+sra	v0,v0,0xc
+sh	v0,44(sp)
+lhu	v0,62(s8)
+lw	t1,144(sp)
+lw	a2,160(sp)
+sh	v0,42(sp)
+lh	v0,0(s3)
+addiu	a0,t1,12
+sll	a1,v0,0x5
+subu	a1,a1,v0
+sll	a1,a1,0x2
+addu	a1,t1,a1
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+addiu	a1,a1,44
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetRotMatrix
+move	s1,zero
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetTransMatrix
+nop
+lh	v0,-6(s2)
+nop
+blez	v0,1244 <func_8009F844+0x994>
+nop
+lw	v1,10(s2)
+sll	v0,s1,0x3
+addu	v0,v0,v1
+lwc2	$0,0(v0)
+lwc2	$1,4(v0)
+...
+c2	0x480012
+swc2	$25,0(s4)
+swc2	$26,4(s4)
+swc2	$27,8(s4)
+lw	v0,18(s2)
+sll	v1,s1,0x2
+addu	v0,v1,v0
+lw	a0,0(v0)
+lhu	v0,80(sp)
+nop
+sh	v0,4(a0)
+lw	v0,18(s2)
+nop
+addu	v0,v1,v0
+lw	a0,0(v0)
+lhu	v0,82(sp)
+nop
+sh	v0,6(a0)
+lw	v0,18(s2)
+nop
+addu	v1,v1,v0
+lw	v1,0(v1)
+lhu	v0,84(sp)
+nop
+sh	v0,8(v1)
+lh	v0,-6(s2)
+addiu	s1,s1,1
+slt	v0,s1,v0
+bnez	v0,11b0 <func_8009F844+0x900>
+nop
+lh	v0,0(s2)
+nop
+blez	v0,12f8 <func_8009F844+0xa48>
+move	s1,zero
+sll	s0,s1,0x4
+lw	t1,144(sp)
+lw	v0,14(s2)
+lw	a2,160(sp)
+addu	s0,s0,v0
+lh	v0,6(s0)
+addiu	a0,t1,12
+sll	a1,v0,0x5
+subu	a1,a1,v0
+sll	a1,a1,0x2
+addu	a1,t1,a1
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+addiu	a1,a1,44
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetRotMatrix
+addiu	s1,s1,1
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetTransMatrix
+nop
+lwc2	$0,0(s0)
+lwc2	$1,4(s0)
+...
+c2	0x480012
+swc2	$25,0(s4)
+swc2	$26,4(s4)
+swc2	$27,8(s4)
+lhu	v0,80(sp)
+nop
+sh	v0,8(s0)
+lhu	v0,82(sp)
+nop
+sh	v0,10(s0)
+lhu	v0,84(sp)
+nop
+sh	v0,12(s0)
+lh	v0,0(s2)
+nop
+slt	v0,s1,v0
+bnez	v0,1258 <func_8009F844+0x9a8>
+sll	s0,s1,0x4
+lw	t1,296(sp)
+lw	a2,104(sp)
+lw	a3,292(sp)
+sw	t1,16(sp)
+lhu	t1,152(sp)
+move	a0,s3
+sw	t1,20(sp)
+lh	v0,96(s8)
+addiu	a1,sp,40
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	func_800A7948
+sw	v0,24(sp)
+addiu	s6,s6,1
+addiu	s2,s2,36
+lbu	v0,269(s8)
+nop
+slt	v0,s6,v0
+bnez	v0,10d0 <func_8009F844+0x820>
+addiu	s3,s3,36
+lbu	v0,270(s8)
+lw	s1,280(s8)
+blez	v0,1374 <func_8009F844+0xac4>
+move	s6,zero
+lw	a1,288(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	func_800A3E98
+move	a0,s1
+addiu	s6,s6,1
+lbu	v0,270(s8)
+nop
+slt	v0,s6,v0
+bnez	v0,1350 <func_8009F844+0xaa0>
+addiu	s1,s1,124
+lbu	v0,268(s8)
+lw	s2,272(s8)
+blez	v0,1860 <func_8009F844+0xfb0>
+move	s6,zero
+li	s5,0x1
+addiu	s0,s2,92
+lh	v0,0(s2)
+nop
+bltz	v0,1844 <func_8009F844+0xf94>
+nop
+lh	s1,0(s0)
+lbu	v1,-90(s0)
+addiu	a3,s1,-1
+andi	v0,a3,0x7
+bnez	v1,148c <func_8009F844+0xbdc>
+sh	v0,0(s0)
+lw	a0,168(sp)
+lh	v0,0(s2)
+lw	a2,160(sp)
+lw	t1,144(sp)
+sll	a1,v0,0x5
+subu	a1,a1,v0
+sll	a1,a1,0x2
+addu	a1,t1,a1
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+addiu	a1,a1,44
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetRotMatrix
+nop
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetTransMatrix
+nop
+addiu	v0,s2,12
+lwc2	$0,0(v0)
+lwc2	$1,4(v0)
+...
+c2	0x180001
+sll	v1,s1,0x2
+addiu	v0,v1,28
+addu	v0,s2,v0
+swc2	$14,0(v0)
+addiu	v0,s2,20
+lwc2	$0,0(v0)
+lwc2	$1,4(v0)
+...
+c2	0x180001
+addiu	v1,v1,60
+addu	v1,s2,v1
+swc2	$14,0(v1)
+lhu	v0,2(s0)
+nop
+addiu	v0,v0,1
+sh	v0,2(s0)
+sll	v0,v0,0x10
+sra	v1,v0,0x10
+beqz	v1,1474 <func_8009F844+0xbc4>
+nop
+lh	v0,4(s0)
+nop
+slt	v0,v0,v1
+bnez	v0,16d4 <func_8009F844+0xe24>
+nop
+lw	v0,-84(s0)
+nop
+beqz	v0,16d4 <func_8009F844+0xe24>
+nop
+j	17cc <func_8009F844+0xf1c>
+R_MIPS_26	.text
+nop
+andi	s4,a3,0x1
+sll	v1,s4,0x4
+lw	t1,144(sp)
+lh	v0,0(s2)
+lw	a2,160(sp)
+addiu	a0,t1,12
+sll	a1,v0,0x5
+subu	a1,a1,v0
+sll	a1,a1,0x2
+addu	a1,t1,a1
+addiu	a1,a1,44
+addiu	v0,v1,28
+addu	s1,s2,v0
+addiu	v1,v1,60
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	CompMatrix
+addu	s3,s2,v1
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetRotMatrix
+nop
+lw	a0,160(sp)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	SetTransMatrix
+nop
+addiu	v0,s2,12
+lwc2	$0,0(v0)
+lwc2	$1,4(v0)
+...
+c2	0x480012
+swc2	$25,0(s1)
+swc2	$26,4(s1)
+swc2	$27,8(s1)
+addiu	v0,s2,20
+lwc2	$0,0(v0)
+lwc2	$1,4(v0)
+...
+c2	0x480012
+swc2	$25,0(s3)
+swc2	$26,4(s3)
+swc2	$27,8(s3)
+lhu	v0,2(s0)
+nop
+addiu	v0,v0,1
+sh	v0,2(s0)
+sll	v0,v0,0x10
+sra	v1,v0,0x10
+beqz	v1,1560 <func_8009F844+0xcb0>
+nop
+lh	v0,4(s0)
+nop
+slt	v0,v0,v1
+bnez	v0,1570 <func_8009F844+0xcc0>
+nop
+lw	v0,-84(s0)
+nop
+beqz	v0,1674 <func_8009F844+0xdc4>
+nop
+lw	a0,-88(s0)
+lbu	a1,-89(s0)
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	BattleAllocSpriteSlot
+sh	s5,2(s0)
+sw	v0,-84(s0)
+sh	s5,14(v0)
+lw	v0,-84(s0)
+nop
+sh	zero,22(v0)
+lw	v1,-84(s0)
+lhu	v0,6(s0)
+nop
+sh	v0,30(v1)
+lw	v1,-84(s0)
+lhu	v0,8(s0)
+nop
+sh	v0,32(v1)
+lw	v1,-84(s0)
+lhu	v0,10(s0)
+nop
+sh	v0,34(v1)
+lw	v1,-84(s0)
+lhu	v0,12(s0)
+nop
+sh	v0,36(v1)
+lw	v1,-84(s0)
+lhu	v0,14(s0)
+nop
+sh	v0,38(v1)
+lw	v1,-84(s0)
+lhu	v0,16(s0)
+nop
+sh	v0,40(v1)
+lw	v1,-84(s0)
+lhu	v0,18(s0)
+nop
+sh	v0,42(v1)
+subu	v1,s5,s4
+sll	v1,v1,0x4
+addiu	a0,v1,28
+addu	a0,s2,a0
+lw	a1,-84(s0)
+lhu	v0,0(a0)
+nop
+sh	v0,0(a1)
+lw	a1,-84(s0)
+lhu	v0,4(a0)
+addiu	v1,v1,60
+sh	v0,2(a1)
+lw	a1,-84(s0)
+lhu	v0,8(a0)
+addu	v1,s2,v1
+sh	v0,4(a1)
+lw	a0,-84(s0)
+lhu	v0,0(v1)
+nop
+sh	v0,16(a0)
+lw	a0,-84(s0)
+lhu	v0,4(v1)
+nop
+sh	v0,18(a0)
+lw	a0,-84(s0)
+lhu	v0,8(v1)
+nop
+sh	v0,20(a0)
+lw	v1,-84(s0)
+lhu	v0,0(s1)
+nop
+sh	v0,8(v1)
+lw	v1,-84(s0)
+lhu	v0,4(s1)
+nop
+sh	v0,10(v1)
+lw	v1,-84(s0)
+lhu	v0,8(s1)
+nop
+sh	v0,12(v1)
+lw	v1,-84(s0)
+lhu	v0,0(s3)
+nop
+sh	v0,24(v1)
+lw	v1,-84(s0)
+lhu	v0,4(s3)
+nop
+sh	v0,26(v1)
+lw	v1,-84(s0)
+lhu	v0,8(s3)
+j	1844 <func_8009F844+0xf94>
+R_MIPS_26	.text
+sh	v0,28(v1)
+lw	a0,-88(s0)
+lbu	a1,-89(s0)
+li	v0,0x1
+jal	0 <BattleInitializeMesh>
+R_MIPS_26	BattleAllocSpriteSlot
+sh	v0,2(s0)
+sw	v0,-84(s0)
+sh	zero,14(v0)
+lw	v0,-84(s0)
+nop
+sh	zero,22(v0)
+lw	v1,-84(s0)
+lhu	v0,6(s0)
+nop
+sh	v0,30(v1)
+lw	v1,-84(s0)
+lhu	v0,8(s0)
+nop
+sh	v0,32(v1)
+lw	v1,-84(s0)
+lhu	v0,10(s0)
+nop
+sh	v0,34(v1)
+lw	v1,-84(s0)
+lhu	v0,12(s0)
+nop
+sh	v0,36(v1)
+lw	v1,-84(s0)
+lhu	v0,14(s0)
+nop
+sh	v0,38(v1)
+lw	v1,-84(s0)
+lhu	v0,16(s0)
+nop
+sh	v0,40(v1)
+lw	v1,-84(s0)
+lhu	v0,18(s0)
+nop
+sh	v0,42(v1)
+lh	v0,0(s0)
+lh	v1,2(s0)
+lw	a0,-84(s0)
+addu	v0,v0,v1
+andi	s1,v0,0x7
+sll	v1,s1,0x2
+addu	v1,s2,v1
+lhu	v0,28(v1)
+nop
+sh	v0,0(a0)
+lhu	v0,30(v1)
+addiu	v1,s1,8
+sll	v1,v1,0x2
+lw	a0,-84(s0)
+addu	v1,s2,v1
+sh	v0,2(a0)
+lw	a0,-84(s0)
+lhu	v0,28(v1)
+nop
+sh	v0,16(a0)
+lw	a0,-84(s0)
+lhu	v0,30(v1)
+nop
+sh	v0,18(a0)
+lh	v0,0(s0)
+lw	v1,-84(s0)
+sll	v0,v0,0x2
+addu	v0,s2,v0
+lhu	v0,28(v0)
+nop
+sh	v0,8(v1)
+lh	v0,0(s0)
+lw	v1,-84(s0)
+sll	v0,v0,0x2
+addu	v0,s2,v0
+lhu	v0,30(v0)
+nop
+sh	v0,10(v1)
+lh	v0,0(s0)
+lw	v1,-84(s0)
+addiu	v0,v0,8
+sll	v0,v0,0x2
+addu	v0,s2,v0
+lhu	v0,28(v0)
+nop
+sh	v0,24(v1)
+lh	v0,0(s0)
+lw	v1,-84(s0)
+addiu	v0,v0,8
+sll	v0,v0,0x2
+addu	v0,s2,v0
+lhu	v0,30(v0)
+nop
+sh	v0,26(v1)
+addiu	s6,s6,1
+addiu	s0,s0,112
+lbu	v0,268(s8)
+nop
+slt	v0,s6,v0
+bnez	v0,138c <func_8009F844+0xadc>
+addiu	s2,s2,112
+lw	ra,268(sp)
+lw	s8,264(sp)
+lw	s7,260(sp)
+lw	s6,256(sp)
+lw	s5,252(sp)
+lw	s4,248(sp)
+lw	s3,244(sp)
+lw	s2,240(sp)
+lw	s1,236(sp)
+lw	s0,232(sp)
+addiu	sp,sp,272
+jr	ra
+nop
+
