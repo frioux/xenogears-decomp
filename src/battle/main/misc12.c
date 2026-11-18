@@ -819,7 +819,7 @@ u32 func_80083948(u8 arg0) {
             break;
         }
     }
-    g_BattleDisplayState->unk0[0x7C + arg0] = 1;
+    g_BattleDisplayState->slotMarks[arg0] = 1;
     if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 != 0) {
         if (g_BattleCommandCharIndex != 4
             && (g_BattleCommandCharIndex == 0 || g_BattleCommandCharIndex - 1 < ((BattleActorSlots *)g_BattleCommandQueue)->commandKey[0])) {

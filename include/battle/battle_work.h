@@ -8,9 +8,13 @@
 // unit that shows what they hold (misc1, misc2, misc3, misc12, misc16); other units
 // reach past 0x104, so 0x108 is a lower bound on the real size.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x7C];
+    /* 0x000 */ u8 unk0[0x30];
+    /* 0x030 */ u32 sourceWordOffset; // word offset into the sub-image source BattleUploadImageFrame loads, 4 words per upload
+    /* 0x034 */ u8 unk34[0x48];
     /* 0x07C */ u8 slotMarks[3]; // per slot: raised when an action is queued for that slot
-    /* 0x07F */ u8 unk7F[0x1A];
+    /* 0x07F */ u8 unk7F[0x17];
+    /* 0x096 */ u8 stringTableLoaded; // set while D_800C3DE8 holds the archive entry 3 string table
+    /* 0x097 */ u8 unk97[0x2];
     /* 0x099 */ u8 valueSpritePrimStart[3]; // prim index each slot's value digits were built at
     /* 0x09C */ u8 spriteColumnPending; // set when the 0xBA8 list has prims to add
     /* 0x09D */ u8 menuColumnPending; // set when the 0x1E68 list has prims to add
@@ -25,12 +29,22 @@ typedef struct {
     /* 0x0A6 */ u8 menuColumnPrimStart;
     /* 0x0A7 */ u8 cursorPrimStart;
     /* 0x0A8 */ u8 spriteWorkListsPending; // set when g_BattleSpriteColumnWork's lists have prims
-    /* 0x0A9 */ u8 unkA9[0x1D];
+    /* 0x0A9 */ u8 moveSteps; // position interpolation steps accumulated, 6 per frame
+    /* 0x0AA */ u8 frameCount; // incremented every update; the sub-image upload runs on odd values
+    /* 0x0AB */ u8 sizeSteps; // size increment steps accumulated, 1 per frame
+    /* 0x0AC */ u8 unkAC;
+    /* 0x0AD */ u8 actorDrawActive; // cleared when the acting slot's draw state is reset
+    /* 0x0AE */ u8 slotStringTableLoaded; // set while D_800D367C holds the slot's archive string table
+    /* 0x0AF */ u8 unkAF;
+    /* 0x0B0 */ u8 unkB0[0x4];
+    /* 0x0B4 */ u8 unkB4[0x3];
+    /* 0x0B7 */ u8 primState; // which prim set is up: the *PrimFlags*Slots setters store 0-3, 0 for none
+    /* 0x0B8 */ u8 unkB8[0xE];
     /* 0x0C6 */ u8 pulseTriangleActive; // BattleUpdateRotationBuffer returns unless set
     /* 0x0C7 */ u8 unkC7;
     /* 0x0C8 */ u8 packagePending; // set when a package of BattlePrimPool is to be added
     /* 0x0C9 */ u8 objectRenderPending;
-    /* 0x0CA */ u8 unkCA;
+    /* 0x0CA */ u8 slotTimersActive; // set to tick the g_BattlePrimPool timers down
     /* 0x0CB */ u8 primListsPending; // set when the 0x641C lists have prims to add
     /* 0x0CC */ u8 unkCC[0x4];
     /* 0x0D0 */ s32 packageCounts[2]; // packages appended to each 0x641C list
@@ -58,7 +72,14 @@ typedef struct {
 // src/battle/main/misc3 touches are named; other units reach past 0xA2C8, so
 // that is a lower bound on the real size.
 typedef struct {
-    /* 0x0000 */ u8 unk0[0xA230];
+    /* 0x0000 */ u8 unk0[0x6410];
+    /* 0x6410 */ s32 scrollOffset; // sub-image scroll BattleUpdateImageUpload steps by 4 between 0x7C and 0x81
+    /* 0x6414 */ u8 unk6414;
+    /* 0x6415 */ u8 scrollActive; // while set, scrollOffset steps every update
+    /* 0x6416 */ u8 scrollDir; // 0 counts scrollOffset up to 0x81, 1 counts down
+    /* 0x6417 */ u8 unk6417[0x2539];
+    /* 0x8950 */ RECT uploadRect[4]; // VRAM destinations of the four sub-image uploads
+    /* 0x8970 */ u8 unk8970[0x18C0];
     /* 0xA230 */ u8* pPacketPrims; // 0x670-byte pool of POLY_FT4 pairs
 // Byte size of the packet prim pool pPacketPrims points at (0x670).
 #define BATTLE_PACKET_PRIM_POOL_SIZE 0x670
@@ -69,7 +90,7 @@ typedef struct {
 // The per-slot draw block (g_BattleSlotGraphics[slot]): the tile primitives
 // BattleInitTilePrims fills, the two greyscale quads and their draw modes.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x140];
+    /* 0x000 */ u8 primBuffer[0x140]; // raw POLY_FT4 pool the slot's 0x50-byte sprite packages are built in
     /* 0x140 */ POLY_FT4 tilePrims[4][4];
     /* 0x3C0 */ POLY_G4 prims[2];
     /* 0x408 */ DR_MODE drawModes[2];
@@ -81,7 +102,8 @@ typedef struct {
 // Prim pool for the sprite package drawn by BattleAddPrimAndRenderObject
 // (g_BattlePrimPool): prims holds the two POLY_FT4 primIndex selects between.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x7A4];
+    /* 0x000 */ u8 unk0[0x394];
+    /* 0x394 */ u16 workWords[0x208]; // the battle VM's word array, indexed by the script's operand
     /* 0x7A4 */ POLY_FT4 prims[2];
     /* 0x7F4 */ u8 primIndex;
 } BattlePrimPool; // Size: 0x7F5
