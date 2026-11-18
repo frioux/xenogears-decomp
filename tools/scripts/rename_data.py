@@ -51,7 +51,7 @@ def main():
     dry = "-n" in argv
     if "-f" not in argv:
         sys.exit(__doc__)
-    pairs = re.findall(r"(?m)^DATA\s+(\w+)\s+(\w+)\s+-",
+    pairs = re.findall(r"(?m)^DATA\s+(\w+)\s+(\w+)\s+[-\u2014]",
                        Path(argv[argv.index("-f") + 1]).read_text())
     if not pairs:
         sys.exit("no 'DATA D_<addr> g_Name - evidence' lines in the file")

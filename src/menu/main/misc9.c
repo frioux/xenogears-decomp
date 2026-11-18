@@ -17,7 +17,7 @@ extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
 extern u16 D_801E97A0[][2];
 extern u8 g_ShopIndex;
-extern u16 D_801E9DBC[][2];
+extern u16 g_MenuEquipmentSlotRowY[][2];
 
 // 0x1094-byte item panel buffer built by MenuCreateUnk430Panel
 typedef struct {
@@ -1220,7 +1220,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
    masks both sides of every `!= prevChar` and does `andi ...s6,0xff` at the
    calls); `scrollY = 100 * row / count; scrollY = scrollY / 2;` as two
    statements (one expression puts the div result in v0, retail uses a1); the
-   y-row table read via `(pSlotY = &D_801E9DBC[...][0])[0]` inside the setXYWH
+   y-row table read via `(pSlotY = &g_MenuEquipmentSlotRowY[...][0])[0]` inside the setXYWH
    argument (a separate statement hoists the index math into the two load-delay
    slots and costs two more nops; 4 lhu of it, so the address - not the value -
    is what retail CSEs into $s0), and that row index in its own `s32 slotRow`
@@ -1236,7 +1236,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
    Semantics: the character/gear equipment panel - arg2 != 0 is the gear panel,
    arg1 asks for the open animation, and group (toggled by LEFT/RIGHT on
    character id 4 and by a successful equip) selects the weapon vs accessory page
-   whose four row y's are D_801E9DBC[group][slot]. Slot 0 is the weapon, 1..3 the
+   whose four row y's are g_MenuEquipmentSlotRowY[group][slot]. Slot 0 is the weapon, 1..3 the
    accessories; for gears (arg2 != 0) with group != 0 slots 1 and 2 are skipped. */
 /*
 void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
@@ -1329,13 +1329,13 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
             MenuRenderEquipmentSlotStrings(slot, col, row, group, kind, 1, arg0);
             slotRow = group * 4 + slot;
             (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x0 = 0x8C,
-            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y0 = (pSlotY = &D_801E9DBC[group * 4 + slot][0])[0],
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y0 = (pSlotY = &g_MenuEquipmentSlotRowY[group * 4 + slot][0])[0],
             (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x1 = 0x8C + 0x10,
-            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y1 = (pSlotY = &D_801E9DBC[slotRow][0])[0],
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y1 = (pSlotY = &g_MenuEquipmentSlotRowY[slotRow][0])[0],
             (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x2 = 0x8C,
-            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y2 = (pSlotY = &D_801E9DBC[slotRow][0])[0] + 0x10,
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y2 = (pSlotY = &g_MenuEquipmentSlotRowY[slotRow][0])[0] + 0x10,
             (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x3 = 0x8C + 0x10,
-            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y3 = (pSlotY = &D_801E9DBC[group * 4 + slot][0])[0] + 0x10;
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y3 = (pSlotY = &g_MenuEquipmentSlotRowY[group * 4 + slot][0])[0] + 0x10;
             prevSlot = slot;
             prevChar = arg0;
         }

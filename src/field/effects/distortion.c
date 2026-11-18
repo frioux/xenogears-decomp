@@ -20,7 +20,7 @@ typedef struct {
     /* 0x4 */ u_char unk4[0xBC];
 } DistortionPacket; // Size: 0xC0
 
-extern DistortionPacket D_800B1E18[2];
+extern DistortionPacket g_FieldOtagPacket[2];
 
 void FieldDistortionSetTarget(int t1, int t2, int t3, int t4, int t5, int t6, int duration);
 
@@ -315,6 +315,6 @@ void FieldDistortionDraw(void) {
     for (i = 0; i < 15; i++) {
         addPrim(&g_FieldCurRenderContext->ot1[1], &DISTORTION_MOVE_BUFFER()[i + 1]);
     }
-    addPrim(&g_FieldCurRenderContext->ot1[1], &D_800B1E18[g_FieldCurRenderContextIndex]);
+    addPrim(&g_FieldCurRenderContext->ot1[1], &g_FieldOtagPacket[g_FieldCurRenderContextIndex]);
 }
 */

@@ -30,8 +30,8 @@ extern u_char D_80076FCE[];
 extern u_char g_MovieGlowTargetColours[];
 extern u_char D_80076FDD[];
 extern u_char D_80076FDE[];
-extern s32 D_80076FAC[];
-extern s32 D_80076FBC[];
+extern s32 g_MovieDarkFadeSteps[];
+extern s32 g_MovieDarkFadeDurations[];
 typedef struct {
     /* 0x0 */ u_char r;
     /* 0x1 */ u_char g;
@@ -39,8 +39,8 @@ typedef struct {
     /* 0x3 */ u_char pad3;
 } MovieColour; // Size: 0x4
 
-extern MovieColour D_80076F8C[];
-extern MovieColour D_80076F9C[];
+extern MovieColour g_MovieDarkColours[];
+extern MovieColour g_MovieDarkTargetColours[];
 extern s32 g_MovieGlowFadeSteps[];
 extern s32 g_MovieGlowFadeDurations[];
 
@@ -594,7 +594,7 @@ extern s32 g_MovieStreamMode;
 extern s32 g_MovieRandomMode;
 extern s32 g_MoviePadButtons;
 extern s32 g_MoviePrevPadButtons;
-extern u8 D_80076F7C[];
+extern u8 g_MovieStreamReleaseData[];
 extern s32 g_MovieStreamReleaseSection;
 extern u32* func_80028B14(void);
 extern s32 func_80028F30(u8* pArg0, s32* pArg1);
@@ -660,7 +660,7 @@ void MovieUpdateStream(void) {
         }
     }
     if (g_MovieStreamMode == 2) {
-        if (func_80028F30(D_80076F7C, &g_MovieStreamReleaseSection) == 0) {
+        if (func_80028F30(g_MovieStreamReleaseData, &g_MovieStreamReleaseSection) == 0) {
             ArchiveReleaseStreamSection(g_MovieStreamReleaseSection);
         }
     }
@@ -737,7 +737,7 @@ void MovieReadPcFile(char* pName, char* pBuffer, int len) {
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072A08);
 
-void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+void MovieInitDarkPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 j;
     s32 brightness;
@@ -745,17 +745,17 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     brightness = 8;
 
     for (i = 0; i < 4; i++) {
-        D_80076F8C[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
-        D_80076F8C[i].g = brightness;
-        D_80076F8C[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
-        D_80076F9C[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
-        D_80076F9C[i].g = brightness;
-        D_80076F9C[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
+        g_MovieDarkColours[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
+        g_MovieDarkColours[i].g = brightness;
+        g_MovieDarkColours[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
+        g_MovieDarkTargetColours[i].r = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
+        g_MovieDarkTargetColours[i].g = brightness;
+        g_MovieDarkTargetColours[i].b = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
     }
 
     for (j = 0; j < 4; j++) {
-        D_80076FAC[j] = 0;
-        D_80076FBC[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+        g_MovieDarkFadeSteps[j] = 0;
+        g_MovieDarkFadeDurations[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
     }
 
     SetPolyG4(pPoly0);
@@ -768,7 +768,7 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 // PARKED at 98.67% under the unit's gcc 2.6.0 preset: retail's EXACT size (912
 // bytes) and instruction multiset. The only difference is the POSITION of two
 // prologue pairs: retail forms pColR/pTargetR AFTER the loop's steps-array
-// pointer (`lui s3 / addiu s3, D_80076FAC`) and gcc here forms them before it.
+// pointer (`lui s3 / addiu s3, g_MovieDarkFadeSteps`) and gcc here forms them before it.
 // Everything else, including `i = 0` placed first (which retail also has, and
 // which is what made its twin MovieUpdateGlowPoly match), is identical.
 // Load-bearing, measured: the three `*(volatile u_char*)pColR` reads of the sums
@@ -779,10 +779,10 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 // MEASURED (round 236, un-parked unchanged): 98.67%, 912 bytes, retail's exact
 // multiset; the diff is the two `sw s7 / addiu s7,s5,-2` and `sw s6 / addiu s6,s4,-2`
 // pairs, which retail places AFTER the loop's steps-pointer `lui s3 / addiu s3,
-// D_80076FAC` and gcc places after the fourth colour pointer: the steps def is the
+// g_MovieDarkFadeSteps` and gcc places after the fourth colour pointer: the steps def is the
 // compiler's strength-reduced biv and gcc inserts it at the END of the preheader.
 // Re-measured negatives: `if (i == 0) { pColR = ...; pTargetR = ...; }` 98.67% (no
-// change - block notes do not move the insertion point); `s32* pStep = D_80076FAC;`
+// change - block notes do not move the insertion point); `s32* pStep = g_MovieDarkFadeSteps;`
 // with `pStep[i]` 91.72% / 932 bytes (the pointer takes s5 and pColB moves to s3, so
 // every prologue row shifts); `s32* pStep` with `*pStep` + `pStep++` 93.34% / 880
 // bytes (both arrays become pointer bivs and `i` moves to s1). The biv is not
@@ -808,8 +808,8 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     u_char* pTargetB;
 
     i = 0;
-    pColB = &D_80076F8C[0].b;
-    pTargetB = &D_80076F9C[0].b;
+    pColB = &g_MovieDarkColours[0].b;
+    pTargetB = &g_MovieDarkTargetColours[0].b;
     pColG = pColB - 1;
     pTargetG = pTargetB - 1;
     pColR = pColB - 2;
@@ -818,9 +818,9 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 
     for (; i < 4; i++) {
-        if (++D_80076FAC[i] > D_80076FBC[i]) {
-            D_80076FAC[i] = 0;
-            D_80076FBC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+        if (++g_MovieDarkFadeSteps[i] > g_MovieDarkFadeDurations[i]) {
+            g_MovieDarkFadeSteps[i] = 0;
+            g_MovieDarkFadeDurations[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
             *pColR = *pTargetR;
             *pColG = *pTargetG;
             *pColB = *pTargetB;
@@ -829,9 +829,9 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
             *pTargetB = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
         }
 
-        dr = (*pTargetR - *pColR) * D_80076FAC[i] / D_80076FBC[i];
-        dg = (*pTargetG - *pColG) * D_80076FAC[i] / D_80076FBC[i];
-        db = (*pTargetB - *pColB) * D_80076FAC[i] / D_80076FBC[i];
+        dr = (*pTargetR - *pColR) * g_MovieDarkFadeSteps[i] / g_MovieDarkFadeDurations[i];
+        dg = (*pTargetG - *pColG) * g_MovieDarkFadeSteps[i] / g_MovieDarkFadeDurations[i];
+        db = (*pTargetB - *pColB) * g_MovieDarkFadeSteps[i] / g_MovieDarkFadeDurations[i];
         r = *(volatile u_char*)pColR + dr;
         g = *(volatile u_char*)pColG + dg;
         b = *(volatile u_char*)pColB + db;
@@ -987,7 +987,7 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800737EC);
 extern int ControllerGetButtonState(int controllerIndex);
 extern s32 g_MovieCursorIndex;
 extern s32 g_MovieHeapDebugEnabled;
-extern s32 D_800773B0;
+extern s32 g_MoviePadToggleFlag;
 extern s32 g_MoviePadRepeatCount;
 extern s32 g_MoviePadRepeatDelay;
 
@@ -1034,7 +1034,7 @@ s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut) {
         *pOut = 4;
     }
     if ((g_MoviePrevPadButtons & 0x100) == 0 && (g_MoviePadButtons & 0x100) != 0) {
-        D_800773B0 = 1 - D_800773B0;
+        g_MoviePadToggleFlag = 1 - g_MoviePadToggleFlag;
     }
     if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0) {
         g_MovieHeapDebugEnabled = 1 - g_MovieHeapDebugEnabled;

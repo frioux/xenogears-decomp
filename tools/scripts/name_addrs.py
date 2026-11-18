@@ -78,7 +78,7 @@ def main():
         print(__doc__, file=sys.stderr)
         return 2
     names = Path(argv[argv.index("-f") + 1]).read_text()
-    pairs = re.findall(r"(?m)^NAME\s+(\w+)\s+(\w+)\s+-", names)
+    pairs = re.findall(r"(?m)^NAME\s+(\w+)\s+(\w+)\s+[-\u2014]", names)
 
     src = {p: p.read_text() for p in (ROOT / "src").rglob("*.c")}
     hdr = {p: p.read_text() for p in (ROOT / "include").rglob("*.h")}

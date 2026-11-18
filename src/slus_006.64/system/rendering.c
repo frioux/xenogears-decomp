@@ -37,9 +37,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
    - retail's spriteFlags is a SIGNED 32-bit local: `s32 spriteFlags` gives the
      sra at each of the four shift sites and no re-sign-extension after
      `spriteFlags |= *pSprite << 8`; s16 emits sll16/sra16 around every shift.
-   - the D_8004FAB8 entry is indexed as a BYTE offset: retail is
-     `sll 1 / andi 0x1C / addu`, so write `(SVEC2*)((mem_addr)D_8004FAB8 +
-     ((spriteFlags << 1) & 0x1C))`; the tidy `D_8004FAB8[(spriteFlags >> 1) & 7]`
+   - the g_SpriteVramSlotPair entry is indexed as a BYTE offset: retail is
+     `sll 1 / andi 0x1C / addu`, so write `(SVEC2*)((mem_addr)g_SpriteVramSlotPair +
+     ((spriteFlags << 1) & 0x1C))`; the tidy `g_SpriteVramSlotPair[(spriteFlags >> 1) & 7]`
      gives sra/andi/sll (3 insns) or the sll16/sra17 extract form.
    - the inline tpage packing in the last two arms is GetTPage/GetClut written out
      by hand (the first arm really does CALL them), so keep the five ORs.
@@ -64,7 +64,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
    union of bytes and a u16) may fit in nine.
 */
 /*
-extern SVEC2 D_8004FAB8[];
+extern SVEC2 g_SpriteVramSlotPair[];
 
 void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u32 i;
@@ -171,7 +171,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
             if ((spriteFlags >> 4) & 1) {
                 pSprite++;
                 spriteFlags |= *pSprite << 8;
-                pTexEntry = (SVEC2*)((mem_addr)D_8004FAB8 + ((spriteFlags << 1) & 0x1C));
+                pTexEntry = (SVEC2*)((mem_addr)g_SpriteVramSlotPair + ((spriteFlags << 1) & 0x1C));
                 pFrameData->texPage = GetTPage(spriteFlags & 1, (s16)tpageMode, pTexEntry->x, pTexEntry->y);
                 pFrameData->clutID = GetClut((spriteFlags >> 1) & 0xF0, ((spriteFlags >> 9) & 0xF) + 0x1CC);
             } else {

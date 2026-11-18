@@ -1055,3 +1055,4 @@ g_FieldStreamImageX1 = 0x800C3A22;
 g_FieldStreamImageY1 = 0x800C3A24;
 g_FieldStreamImageX2 = 0x800C3A26;
 g_FieldStreamImageY2 = 0x800C3A28;
+g_FieldOtagPacket = 0x800B1E18;
