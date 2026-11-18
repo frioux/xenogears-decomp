@@ -106,12 +106,12 @@ typedef struct {
     /* 0x8 */ s32 z;
 } Misc16Vec; // Size: 0xC
 
-void BattleEffectInitEntry(u8* pArg0, u8* pArg1) {
+void BattleEffectInitEntry(u8* pArg0, Misc16Work* pWork) {
     pArg0[0x13] = 2;
     pArg0[0x17] = 0x6A;
-    pArg0[0x14] = pArg1[0x74];
-    pArg0[0x15] = pArg1[0x75];
-    pArg0[0x16] = pArg1[0x76];
+    pArg0[0x14] = pWork->r;
+    pArg0[0x15] = pWork->g;
+    pArg0[0x16] = pWork->b;
     *(Misc16Vec*)(pArg0 + 0x1C) = *(Misc16Vec*)(pArg0 + 0x10);
 }
 void BattleEffectAddEntryPrim(u8* pArg0, u8* pArg1) {
@@ -246,7 +246,8 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
 }
 */
 /* Header every battle-effect entry starts with. An entry is pWork->entrySize bytes
-   long (the kind table's size), so the table is walked byte-wise; the first
+   long (the kind table's size), so the walk keeps a byte cursor and casts; indexing
+   it (pEntries + i * entrySize) makes gcc emit a mult loop (36%).  The first
    eight bytes are also the SVECTOR the particle code transforms. */
 typedef struct {
     /* 0x00 */ s16 x;
@@ -259,18 +260,18 @@ typedef struct {
 } Misc16Entry; // Size: 0xE (known extent)
 
 void BattleEffectClearEntrySlots(Misc16Work* pWork) {
+    u8* pEntry;
     s32 i;
-    Misc16Entry* pEntry;
 
-    pEntry = (Misc16Entry*)pWork->pEntries;
+    pEntry = pWork->pEntries;
     for (i = 0; i < pWork->count; i++) {
-        pEntry->life = 0;
-        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->entrySize);
+        ((Misc16Entry*)pEntry)->life = 0;
+        pEntry += pWork->entrySize;
     }
 }
 
 void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
-    Misc16Entry* pEntry;
+    u8* pEntry;
     void (*pInitEntry)(u8*, Misc16Work*);
     s32 i;
 
@@ -279,12 +280,12 @@ void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
     }
     pWork->count = count;
     HeapSetCurrentContentType(0x14);
-    pEntry = (Misc16Entry*)(pWork->pEntries = HeapAlloc(pWork->entrySize * pWork->count, 0));
+    pEntry = (pWork->pEntries = HeapAlloc(pWork->entrySize * pWork->count, 0));
     pInitEntry = pWork->pInitEntry;
     for (i = 0; i < pWork->count; i++) {
-        pInitEntry((u8*)pEntry, pWork);
-        pEntry->life = 0;
-        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->entrySize);
+        pInitEntry(pEntry, pWork);
+        ((Misc16Entry*)pEntry)->life = 0;
+        pEntry += pWork->entrySize;
     }
 }
 /* func_8008D680(pWork, pMat, count): mat = *pMat; pWork->centerX/centerY/centerZ +=
@@ -446,6 +447,7 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
     u8 pad[0x28]; // unused; reproduces the original's 0x28 bytes behind the frame
     s32 i;
     s32 value;
+    u8* pCursor;
     Misc16Entry* pEntry;
     void (*pCallback)(u8*, u8*);
 
@@ -454,9 +456,10 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
     g_BattleScratchViewOrigin->vx = g_BattleViewOrigin.vx;
     g_BattleScratchViewOrigin->vy = g_BattleViewOriginY.vx;
     g_BattleScratchViewOrigin->vz = g_BattleViewOriginZ.vx;
-    pEntry = (Misc16Entry*)pWork->pEntries;
+    pCursor = pWork->pEntries;
     pCallback = (void (*)(u8*, u8*))pWork->pCallback;
     for (i = 0; i < pWork->count; i++) {
+        pEntry = (Misc16Entry*)pCursor;
         if (pEntry->life != 0) {
             pEntry->life = pEntry->life - 1;
             pEntry->vy += pWork->gravity;
@@ -474,9 +477,9 @@ void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat) {
                     pEntry->life = 0;
                 }
             }
-            pCallback((u8*)pEntry, pArg1);
+            pCallback(pCursor, pArg1);
         }
-        pEntry = (Misc16Entry*)((u8*)pEntry + pWork->entrySize);
+        pCursor += pWork->entrySize;
     }
     (void)pad;
 }
