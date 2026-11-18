@@ -2,6 +2,7 @@
 #include "main/game.h"
 #include "system/math.h"
 #include "system/archive.h"
+#include "system/sound.h"
 #include "field/main.h"
 #include "field/camera.h"
 #include "field/actor.h"
@@ -21,12 +22,27 @@
 // Field archive entry a party member's skin file sits at, above its skin id.
 #define FIELD_PARTY_SKIN_ARCHIVE_OFFSET 5
 
+// Field archive entry an actor's special animation file sits at, above its animation id.
+#define FIELD_SPECIAL_ANIM_ARCHIVE_OFFSET 0x77A
+
+// The archive directories a script's WDS sound bank is read from: the field's own, and
+// the second one a bank argument's high bit selects (battle reads its sound archive
+// through that same directory).
+#define FIELD_WDS_ARCHIVE_DIR 0x1C
+#define FIELD_ALT_WDS_ARCHIVE_DIR 0x2C
+
+// That high bit of a WDS bank argument; the bits below it are the bank index.
+#define FIELD_WDS_BANK_ALT_ARCHIVE_MASK 0x80
+
 // Gear skins sit this far above the character skin ids in the skin id space
 // g_GamePartyMemberSkins holds.
 #define FIELD_GEAR_SKIN_ID_OFFSET 0x10
 
 // Written to the slot a script asked for when the actor is in no party slot.
 #define FIELD_PARTY_SLOT_NONE 0xFF
+
+// FieldActorsWithinDistance reports false once its two actors' 2D distance reaches this.
+#define FIELD_ACTOR_DISTANCE_THRESHOLD 0x10
 
 // The particle bank's range mode, in ParticleBank::flags bits 6-7 (see
 // PARTICLE_FLAG_RANGE_MODE): a script argument of 1 sprays in a circle, 2 along a line.
@@ -44,12 +60,12 @@ extern s32 g_FieldPartyActorSlots[MAX_PARTY_MEMBERS];
 void FieldSetScreenDimensions(void) {
     g_FieldRenderContexts[0].dispEnv.screen.x = 0;
     g_FieldRenderContexts[0].dispEnv.screen.y = 10;
-    g_FieldRenderContexts[0].dispEnv.screen.w = 0x100;
-    g_FieldRenderContexts[0].dispEnv.screen.h = 0xd8;
+    g_FieldRenderContexts[0].dispEnv.screen.w = 256;
+    g_FieldRenderContexts[0].dispEnv.screen.h = 216;
     g_FieldRenderContexts[1].dispEnv.screen.x = 0;
     g_FieldRenderContexts[1].dispEnv.screen.y = 10;
-    g_FieldRenderContexts[1].dispEnv.screen.w = 0x100;
-    g_FieldRenderContexts[1].dispEnv.screen.h = 0xd8;
+    g_FieldRenderContexts[1].dispEnv.screen.w = 256;
+    g_FieldRenderContexts[1].dispEnv.screen.h = 216;
 }
 
 extern u8 g_FieldPauseDisabled[]; // Is pause disabled?
@@ -69,7 +85,7 @@ void FieldScriptSetScreenMode(void) {
             rect.x = 0;
             rect.y = 0;
             rect.h = 0x200;
-            ClearImage(&rect, 0x0, 0x0, 0x0);
+            ClearImage(&rect, 0, 0, 0);
             DrawSync(0);
             Vsync(0);
             SetDefDrawEnv(g_FieldRenderContexts[0].drawEnvs, 0, 0, 0x280, SCREEN_HEIGHT);
@@ -79,10 +95,10 @@ void FieldScriptSetScreenMode(void) {
             FieldSetScreenDimensions();
             break;
         case 1:
-            g_FieldScreenStripSpritesEnabled = 0x1;
+            g_FieldScreenStripSpritesEnabled = 1;
             break;
         case 2:
-            g_FieldScreenStripSpritesEnabled = 0x0;
+            g_FieldScreenStripSpritesEnabled = 0;
             break;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -1339,7 +1355,7 @@ void FieldScriptLoadWdsSoundFile(void) {
     if (FieldArchiveTryDataSync() == 0) {
         if (SCRIPT_READ_U8_REL(1) == 1) {
             g_GameWdsEntries[g_FieldWdsLoadSlotIndex] = SoundLoadWdsFile(g_FieldWdsLoadBuffer, 0);
-            SoundGetPendingSpuCommandType(0x10);
+            SoundGetPendingSpuCommandType(SOUND_CTL_FLAG_TRANSFER_BUSY);
             HeapFree(g_FieldWdsLoadBuffer);
             if (g_FieldWdsLoadSlotIndex == 3) {
                 g_GameWdsEntrySlot3 = D_80062524;
@@ -1353,15 +1369,15 @@ void FieldScriptLoadWdsSoundFile(void) {
             SoundFreeWdsEntry(pWdsEntry);
             flags = FieldScriptVMGetArgument(4);
             g_FieldWdsLoadEntryIndex = flags;
-            if (!(flags & 0x80)) {
+            if (!(flags & FIELD_WDS_BANK_ALT_ARCHIVE_MASK)) {
 setIndex1C:
-                ArchiveSetIndex(0x1C, 0);
+                ArchiveSetIndex(FIELD_WDS_ARCHIVE_DIR, 0);
                 g_FieldWdsLoadEntryIndex += 2;
                 goto readFile;
             }
             if (g_FieldSuppressStateChange != 1) {
                 g_FieldWdsLoadEntryIndex = (flags & 0x7F) + 0x1F;
-                ArchiveSetIndex(0x2C, 1);
+                ArchiveSetIndex(FIELD_ALT_WDS_ARCHIVE_DIR, 1);
                 goto readFile;
             }
             g_FieldWdsLoadEntryIndex = 4;
@@ -1399,7 +1415,7 @@ void FieldScriptLoadSpecialAnimArchive(void) {
         }
         scriptArgument = FieldScriptVMGetArgument(1);
         ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
-        archiveIndex = scriptArgument + 0x77A;
+        archiveIndex = scriptArgument + FIELD_SPECIAL_ANIM_ARCHIVE_OFFSET;
         bufferSize = ArchiveDecodeAlignedSize(archiveIndex) + 8;
         g_FieldScriptVMCurActor->unk124 = archiveIndex;
         pBuffer = HeapAlloc(bufferSize, 0);
@@ -2118,7 +2134,7 @@ int FieldActorsWithinDistance(int dstActorId, int srcActorId) {
         actors[dstActorId].transformMatrix.t[0] - actors[srcActorId].transformMatrix.t[0],
         actors[dstActorId].transformMatrix.t[2] - actors[srcActorId].transformMatrix.t[2]
     );
-    return -(distance >= 0x10);
+    return -(distance >= FIELD_ACTOR_DISTANCE_THRESHOLD);
 }
 
 // Copies one field between two actors, at a constant offset that the callers
