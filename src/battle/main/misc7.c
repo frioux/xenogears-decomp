@@ -4,9 +4,13 @@
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
 // the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, D_800D3420,
-// D_800D3430 and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F.
+// D_800D3430 and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F, and the two
+// cursors at +0x00/+0x08 are those include/battle/actor.h's BattleSlotRegs names.
 typedef struct {
-    /* 0x00 */ u8 unk00[0x10];
+    /* 0x00 */ u8 *pScriptCursor;
+    /* 0x04 */ u8 unk04[0x4];
+    /* 0x08 */ u8 *pScanCursor;
+    /* 0x0C */ u8 unk0C[0x4];
     /* 0x10 */ u32 dwordRegs[4];
     /* 0x20 */ u16 wordRegs[8];
     /* 0x30 */ u8 byteRegs[0x10];
@@ -34,12 +38,16 @@ extern u8 D_800CCE3D[];
 extern u8 D_800CCE3E[];
 
 // One slot of the per-slot operator argument block at D_800CCDE8 (stride
-// 0x170, the same family as the BattleTableEntry rows). The writers below put
-// one argument word into it as a dword, as a word, and as its two bytes, hence
-// the byte-by-byte fields; the parked func_8007B6C0/func_8007B7B0 read the
-// dwords at +0x4 and +0x8.
+// 0x170): g_BattleWorkBlock + 0x100, i.e. the BattleTableEntry rows seen from
+// BattleSlotState +0x5C. +0x04 and +0x08 are the state's scaled hp and maxHp,
+// which the parked func_8007B6C0 reads and func_8007B7B0 writes. The writers
+// below put one argument word into it as a dword, as a word, and as its two
+// bytes, hence the byte-by-byte fields.
 typedef struct {
-    /* 0x00 */ u8 unk00[0x4C];
+    /* 0x00 */ u8 unk00[0x4];
+    /* 0x04 */ u32 hp; // BattleSlotState.hp: func_8007B6C0 copies it into a dword register
+    /* 0x08 */ u32 maxHp; // BattleSlotState.maxHp: func_8007B7B0 stores into it when operand2 is 0
+    /* 0x0C */ u8 unk0C[0x40];
     /* 0x4C */ u32 unk4C;
     /* 0x50 */ u8 unk50;
     /* 0x51 */ u8 unk51;
