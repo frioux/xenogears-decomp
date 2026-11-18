@@ -91,14 +91,17 @@ typedef struct {
 // 0x2F8-byte block of actor slots plus the slot menu state that follows them.
 typedef struct {
     /* 0x000 */ BattleActorSlot slot[0xB];
-    /* 0x2C0 */ u8 unk2C0[0xC];
+    /* 0x2C0 */ u8 unk2C0[0x4];
+    /* 0x2C4 */ u8 queuedActionIds[0x7]; // 0xFF for no entry; func_8008C4A8 passes each to BattleBeginActorAction
+    /* 0x2CB */ u8 unk2CB;
     /* 0x2CC */ u8 commandKey[7];
     /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
-    /* 0x2D4 */ u8 unk2D4[0x2];
+    /* 0x2D4 */ u8 gaugeValue; // the reading the menu spends, the second index of the D_800C31D4[max * 8 + value] pair
+    /* 0x2D5 */ u8 gaugeMax; // its value at menu entry, the first index of that pair and the row func_8007FBE0 draws
     /* 0x2D6 */ u8 commandKeyLength; // commandKey bytes filled, 0 for no command
     /* 0x2D7 */ u8 unk2D7[0x3];
     /* 0x2DA */ u8 count; // queued commands, the row the command tables are indexed by
-    /* 0x2DB */ u8 unk2DB;
+    /* 0x2DB */ u8 commandFinished; // 0 while a queued command runs, 1 once it has; BattleWaitWhileStateIs8 and func_80079778 spin on it
     /* 0x2DC */ u8 unk2DC;
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
@@ -113,7 +116,7 @@ typedef struct {
     /* 0x2E7 */ u8 unk2E7;
     /* 0x2E8 */ u8 targetSlot; // the slot being selected, the menu's copy of slot[].targetSlot
     /* 0x2E9 */ u8 commandAppended; // set once BattleAppendCommandRecord has run; both append paths return at once
-    /* 0x2EA */ u8 unk2EA;
+    /* 0x2EA */ u8 menuRunning; // 1 while a slot menu run is in progress; cleared together with eventHandled
     /* 0x2EB */ u8 charRedrawFlags[0xB];
     /* 0x2F6 */ u8 repeatPending; // the last event was this one, so take it as a repeat
     /* 0x2F7 */ u8 unk2F7;
@@ -614,7 +617,7 @@ void func_80081504(u8 arg0) {
     case 6:
     case 7:
         BattleSetSlotFlag15A1(arg0);
-        ((BattleActorSlots *)g_BattleCommandQueue)->unk2EA = 0;
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuRunning = 0;
         ((BattleActorSlots *)g_BattleCommandQueue)->eventHandled = 1;
         break;
     case 0:
