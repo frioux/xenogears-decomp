@@ -506,47 +506,17 @@ void BattleEmitDrawTPage(u8 *pOt) {
 }
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
-
-// Parked at 85.07% (3164 bytes against retail's 2944). The structure is right:
-// both switches, all sixteen vertex arms, the depth pipeline and the loop tail
-// line up instruction for instruction. What is left is register allocation --
-// retail holds 0xFFFFFF and 0xFF000000 in s4/s8 across the whole loop, this
-// compile rematerialises 0xFF000000 in each of the eight link tails, so the
-// tails cannot merge (retail ends up with two copies, entered by j) and the
-// function comes out 55 instructions long; pV0..pV3 land in s6/s5/s4/s8 against
-// retail's s0/s6/s5/s7 and the record pointer in s2 against s1. Everything
-// tried: a shared pOtEntry pointer per arm, declaring the masks as locals, and
-// giving the packet cursor its own local (that one is kept, it is what retail
-// has). Not tried: the permuter -- a 765-instruction body, and the gap is not a
-// statement-order tie.
-//
-// For whoever picks this up:
-// - the two table addresses must be written index first,
-//   '(SVECTOR *)((index << 3) + (u32)pPart)'; '&pPart[index]' reverses the addu
-//   operand order in every arm.
-// - the four 3-vertex arms each own their own flag for gte_stflg (slots
-//   0x30/0x3C/0x40/0x44); the 4-vertex arms share zSum and nclipFlag, 0x48/0x4C.
-// - otz (0x38) is both the gte_stotz destination and the ordering-table index
-//   and is address-taken, so every read after a write comes back off the stack.
-// - case label order in the source is the address order of the bodies: first
-//   switch 0, 0x10, 0x18, 0x08, 0x04, 0x14, 0x0C, 0x1C, 0x100, 0x110, 0x108,
-//   0x104, 0x114, 0x10C, 0x118/0x11C; second switch 0, 0x10, 0x04, 0x14, 0x08,
-//   0x18, 0x0C, 0x1C. The record's index[] offsets are not evenly spaced: the
-//   kinds whose colours come from the normals read a normal index beside the
-//   part indices (0x110 reads 4/7/9, 0x114 computes 4/6/8 and draws 5/7/9).
-/*
-// A model record as the 3D path reads it: the packet and record lengths, the
-// code byte, then the part indices its vertices are built from. A record that
+// A model record as the 3D path reads it: the same header as BattleModelPrim,
+// then every u16 from 0x08 on as one flat index array, because a record that
 // carries no per-vertex colours lists a normal index beside the part indices it
 // takes its colours from, so the offsets one kind reads are not evenly spaced.
 typedef struct {
-    // 0x00 u8 outLen; // packet length in words, minus one
-    // 0x01 u8 len; // record length in words, minus one
-    // 0x02 u8 flags; // bit 0: the record carries per-vertex colours
-    // 0x03 u8 code;
-    // 0x04 u32 unk4; // the colour entries the 2D path reads
-    // 0x08 u16 index[18];
+    /* 0x00 */ u8 outLen; // packet length in words, minus one
+    /* 0x01 */ u8 len; // record length in words, minus one
+    /* 0x02 */ u8 flags; // bit 0: the record carries per-vertex colours
+    /* 0x03 */ u8 code;
+    /* 0x04 */ u32 unk4; // the colour entries the 2D path reads
+    /* 0x08 */ u16 index[18];
 } BattleModelMeshPrim; // Size: 0x2C
 
 extern s32 g_GfxOTDepthShift;
@@ -562,12 +532,39 @@ extern s32 g_GfxOTDepthShift;
     (*(u_long *)(pPrim) = (*(u_long *)(pPrim) & 0xFF000000) | (*(u_long *)(pEntry) & 0xFFFFFF), \
      *(u_long *)(pEntry) = (*(u_long *)(pEntry) & 0xFF000000) | ((u_long)(pPrim) & 0xFFFFFF))
 
-// Transforms the parts the records of a model frame name and links one POLY_*
-// per record into the ordering table: three vertices through RTPT or four
-// through RotAverageNclip4, in whichever layout the record's code byte selects.
-// A record that carries no colours takes them from the frame's normal table.
-// depthBias shifts every primitive's ordering-table depth; shadeMode, when set,
-// stamps the texture pages and emits the drawing mode packet after each one.
+// Parked at 89.78% (3028 bytes against retail's 2944: 757 instructions to 736).
+// The structure is retail's: both switches in retail's body order, all sixteen
+// vertex arms, the depth pipeline, the shared link tails and the loop tail are
+// the same instructions in the same order; what differs is the extra lui in each
+// arm, the register each live value lands in, and one merged tail too many.
+// Measured this round:
+// - The masks. Retail holds 0xFFFFFF in s4 and 0xFF000000 in $fp across the loop
+//   (lui+ori and lui in the preheader, no rematerialisation anywhere). This
+//   compile holds 0xFFFFFF (s7, it costs two instructions to remat) but
+//   rematerialises the top mask in every arm: seven extra lui. Naming both as
+//   u_long locals measures identically (same 3028 bytes, 88.39%), so the source
+//   lever for holding a one-instruction constant is still unknown.
+// - One link tail too many. Retail has two copies of the eleven-instruction tail:
+//   copy A carries the shadeMode test and the one jal BattleEmitDrawTPage in the
+//   function and is shared by all four UNTEXTURED kinds, copy B has no emit and
+//   serves the four textured ones. This compile splits the untextured kinds into
+//   a 3-vertex group and a 4-vertex group, each with its own emit (two jal).
+//   Only the untextured kinds emit at all: the textured arms never reach the
+//   shadeMode test. That alone took the body from 3164 to 3028 bytes.
+// - pRec and pPacket are swapped: retail moves a1 into s1 at entry, copies s1
+//   into s2 for pPacket after the SetDrawTPage call and reuses s1 for pRec; this
+//   compile coalesces pPacket with pDst and puts pRec in s2.
+// - The OT address: here addu a0,t1,v0 (base first, from pOtEntry = &pOT[otz]),
+//   retail addu a0,v0,t1. Writing (u_long *)((otz << 2) + (u32)pOT) measures
+//   89.79% (same bytes), so the addu order is not the blocker.
+// Tried and rejected: locals for both masks; the index-first OT address; -O3
+// (88.69%, so the unit's -O2 is right); a shared pOtEntry per arm (already the
+// shape). The vertex-table addresses must stay index first,
+// (SVECTOR *)((index << 3) + (u32)pPart), or every arm reverses its addu.
+// The typedef, the extern, the two defines and the macro above this park are
+// deliberately outside it: park.py unpark lifts only the function, so they have
+// to be live for the next unpark to compile at all.
+/*
 void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s32 depthBias,
                    s32 shadeMode) {
     BattleModelMeshPrim *pRec;
@@ -805,9 +802,6 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
                 gte_stsxy3((long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x2);
                 pOtEntry = &pOT[otz];
                 BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
-                if (shadeMode != 0) {
-                    BattleEmitDrawTPage((u8 *)pOtEntry);
-                }
             }
             break;
         }
@@ -835,9 +829,6 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
                 gte_stsxy3((long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x2);
                 pOtEntry = &pOT[otz];
                 BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
-                if (shadeMode != 0) {
-                    BattleEmitDrawTPage((u8 *)pOtEntry);
-                }
             }
             break;
         }
@@ -910,9 +901,6 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
             if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
                 pOtEntry = &pOT[otz];
                 BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
-                if (shadeMode != 0) {
-                    BattleEmitDrawTPage((u8 *)pOtEntry);
-                }
             }
             break;
         }
@@ -935,9 +923,6 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
             if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
                 pOtEntry = &pOT[otz];
                 BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
-                if (shadeMode != 0) {
-                    BattleEmitDrawTPage((u8 *)pOtEntry);
-                }
             }
             break;
         }
@@ -945,48 +930,8 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
         pPacket += (pRec->outLen + 1) * 4;
         pRec = (BattleModelMeshPrim *)((u8 *)pRec + (pRec->len + 1) * 4);
     }
-}
-
-// Decoded from the .s (not written): 765 insns, 23 GTE case bodies and its own
-// 29-word jtbl. Scratch notes, cheapest first:
-//
-// Prototype is the one temp2.c already declares: '(void *pFrame, u8 *pPacket, u_long *pOT, int
-//   flags, s32 depthBias, s32 shadeMode)' → a0–a3 + two stack args; 'depthBias' at 0x98 (callers
-//   pass 0xFEC), 'shadeMode' at 0x9C (callers pass 'flags>>5'); a3 is never read. Frame 0x88,
-//   eight callee-saved + '$fp' (0xFFFFFF / 0xFF000000 masks).
-// Frame fields read by this function: 0x0 SVECTOR part table (index>>'*8'), 0x8 normal table
-//   (the 'NormalColor'/'NormalColor3' base — this is 'BattleModelFrame.unk8''s first word,
-//   evidence it is a normals offset), 0x10 prim records, 0x14 record count.
-// 'shadeMode != 0' → 'SetDrawTPage(&g_BattleDrawTPage, 0, 0, ((shadeMode-1)&3)<<5)' at entry and
-//   a 'BattleEmitDrawTPage(&pOT[otIndex])' after each packet link; the OT link is written as two
-//   mask assignments ('*pPacket = (*pPacket&0xFF000000)|(*ot&0xFFFFFF); *ot =
-//   (*ot&0xFF000000)|((u32)pPacket&0xFFFFFF);') — the second read of '*ot' is a real reload.
-// Per record: 'kind = (code & 0x1C) | ((flags^1)&1)<<8' → first switch (15 cases, comparison
-//   tree, exactly BattleExpandModelPrims' 'kind' values) picks 3 or 4 vertex pointers out of
-//   'rec->index[]' (u16 at 0x8; index groups 0x8/0xA/0xC, 0x14–0x1A, 0x18–0x1E, 0x24–0x2A, …).
-//   The 0x100-bit kinds call 'NormalColor(&normals[index[0]], &pPacket->rgb0)' — 0x114 calls
-//   'NormalColor3(..., &pPacket+4, +0x10, +0x1C)' — saving/restoring the packet code byte ('lbu/sb
-//   0x7($s2)') around the call.
-// Second switch on 'code & 0x1C' ('jtbl_800707DC', 29 words, indexed by the raw masked value,
-//   live entries 0,4,8,0xC,0x10,0x14,0x18,0x1C): 3-vertex cases inline
-//   'gte_ldv3'/'gte_rtpt'/'gte_stflg_val'/'gte_nclip' (bail on flag bit 0x4000)/'gte_stopz'
-//   (saves MAC0 *before* AVSZ3 overwrites it, then reloads it and bails on '<=
-//   0')/'gte_avsz3'/'gte_stotz' → 'otIndex = (OTZ >> g_GfxOTDepthShift) + depthBias', clamp min
-//   5, bail at 0x1000, then 'swc2 $12/$13/$14' into the packet's x/y words; 4-vertex cases call
-//   'RotAverageNclip4(v0..v3, (long*)(pPacket+8…), &p, &otz, &flag)' and test flag bit 0x8000. The
-//   different cases use four different sxy spacings (8/0xC/0x10, 8/0x10/0x18, 8/0x14/0x20, and
-//   the 4-vertex 8/0xC/0x10/0x14 and 8/0x10/0x18/0x20 variants), so check
-//   'include/psyq/libgpu.h''s POLY_* offsets per case before writing them.
-// Loop tail: 'pPacket += (outLen+1)*4; pRec += (len+1)*4;' with the record counter living in a
-//   *stack slot* (0x58) and '&otz' cached in another (0x5C) — i.e. an address-taken local, not a
-//   register.
-// What I changed: two comment lines above the two 'INCLUDE_ASM' stubs recording the stack-switch
-//   evidence (convention-precedent: 'rendering_pause_text.c:23', 'field/misc2.c:1190'). No code
-//   change; the unit still has its 3 stubs.
-// Skipped/not checked: 'func_800B1F6C' was never compiled, so there is no percentage for it; and
-//   I did not re-derive the POLY_* per-case offsets, which is the first thing its writer needs.
-//   The tree is left in matching mode by 'check_bin.sh', as the brief allows at end of batch.
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 
 // Applies the model's tint to the colour bytes of every packet a frame expands
 // to, one channel sum per vertex, and mirrors them into the packet copy the
