@@ -37,6 +37,12 @@
 #define BATTLE_GAUGE_BAR_SEGMENT1_END 56
 #define BATTLE_GAUGE_BAR_SEGMENT2_END 72
 
+// How far, in bar pixels, the far x of a filled segment sits behind the fill
+// value: the first segment's by 4 (the second segment's far x starts from the
+// same offset), the third segment's (barPrim[2] at pBase+0x30) by 8.
+#define BATTLE_GAUGE_BAR_SEGMENT1_TAPER 4
+#define BATTLE_GAUGE_BAR_SEGMENT3_TAPER 8
+
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
 extern s16 g_BattleEffectFrameTimer;
@@ -1576,11 +1582,11 @@ void BattleQueueGaugeBarPrims(u8* pOt, u8* pBase, s32 value, s32 flag) {
 
     if (value >= BATTLE_GAUGE_BAR_SEGMENT1_END) {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), BATTLE_GAUGE_BAR_SEGMENT1_END);
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), 0x34);
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), BATTLE_GAUGE_BAR_SEGMENT1_END - BATTLE_GAUGE_BAR_SEGMENT1_TAPER);
         AddPrim(pOt, pBase);
     } else {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), value);
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), value - 4);
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), value - BATTLE_GAUGE_BAR_SEGMENT1_TAPER);
         AddPrim(pOt, pBase);
         return;
     }
@@ -1592,14 +1598,14 @@ void BattleQueueGaugeBarPrims(u8* pOt, u8* pBase, s32 value, s32 flag) {
     } else {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
         pTaper = (u16*)(pBase + 0x2C);
-        edge = value - 4;
+        edge = value - BATTLE_GAUGE_BAR_SEGMENT1_TAPER;
         BattleSetVertexXForFlipped(flag, pTaper, edge - (value - BATTLE_GAUGE_BAR_SEGMENT1_END) / 4);
         BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), (value - BATTLE_GAUGE_BAR_SEGMENT1_END) / 2 + 8);
         AddPrim(pOt, pBase + 0x18);
         return;
     }
     BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x3C), value);
-    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - 8);
+    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - BATTLE_GAUGE_BAR_SEGMENT3_TAPER);
     AddPrim(pOt, pBase + 0x30);
 }
 
