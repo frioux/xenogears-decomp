@@ -147,12 +147,40 @@ typedef struct _Temp8 {
     /* 0x28 */ RECT rect;
 } Temp8; // Size: 0x30
 
+// Point record a Temp9::pPoints entry addresses (stride 0x18); the model-list loop
+// of LibGearRenderFrame writes the projected x/y/z into it and func_801E22F8 walks
+// the entries as the trail each section leaves behind.
+typedef struct {
+    /* 0x0  */ s16 unk0;
+    /* 0x2  */ s16 unk2;
+    /* 0x4  */ u16 x;
+    /* 0x6  */ u16 y;
+    /* 0x8  */ u16 z;
+    /* 0xA  */ u16 unkA[7];
+} Temp9Point; // Size: 0x18
+
+// One projected section of a model-list entry (stride 0x10): the source SVECTOR,
+// whose pad slot holds the joint the section rides, then the projected x/y/z.
+typedef struct {
+    /* 0x0 */ SVECTOR vector;
+    /* 0x8 */ u16 x;
+    /* 0xA */ u16 y;
+    /* 0xC */ u16 z;
+    /* 0xE */ u16 unkE;
+} Temp9Section; // Size: 0x10
+
 // Per-model list entry, Model::unk114 entries
 typedef struct {
-    /* 0x0  */ u8 unk0[0x14];
-    /* 0x14 */ void* unk14;
-    /* 0x18 */ void* unk18;
-    /* 0x1C */ void** unk1C;
+    /* 0x0  */ s16 jointIndex; // negative: the entry is free
+    /* 0x2  */ s16 unk2;
+    /* 0x4  */ s16 numVectors; // SVECTORs pVectors holds
+    /* 0x6  */ s16 unk6; // counts func_801E22F8's loops run to
+    /* 0x8  */ s16 unk8;
+    /* 0xA  */ s16 numSections; // sections pSections holds
+    /* 0xC  */ s16 unkC[4];
+    /* 0x14 */ SVECTOR* pVectors;
+    /* 0x18 */ Temp9Section* pSections;
+    /* 0x1C */ Temp9Point** pPoints;
     /* 0x20 */ void* unk20;
 } Temp9; // Size: 0x24
 
