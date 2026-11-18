@@ -532,52 +532,39 @@ extern s32 g_GfxOTDepthShift;
     (*(u_long *)(pPrim) = (*(u_long *)(pPrim) & 0xFF000000) | (*(u_long *)(pEntry) & 0xFFFFFF), \
      *(u_long *)(pEntry) = (*(u_long *)(pEntry) & 0xFF000000) | ((u_long)(pPrim) & 0xFFFFFF))
 
-// Parked at 89.78% (3028 bytes against retail's 2944: 757 instructions to 736).
-// The structure is retail's: both switches in retail's body order, all sixteen
-// vertex arms, the depth pipeline, the shared link tails and the loop tail are
-// the same instructions in the same order. Two items are left, and this round
-// proved they are ONE item.
-// - THE MASK IS THE ROOT CAUSE, AND IT IS MEASURED. Retail holds 0xFFFFFF in s4
-//   and 0xFF000000 in $fp across the loop (lui+ori and lui in the preheader, no
-//   rematerialisation anywhere). This compile holds 0xFFFFFF (s7) but remats the
-//   top mask with one lui in every link copy, and THAT is why the four untextured
-//   tails come out as two and the four textured ones as two instead of retail's
-//   one each: the two copies differ only in which of $8/$9 carries the li and
-//   which carries pOT ("li $8,-16777216 / lw $9,144(sp)" against the reverse),
-//   so jump.c cannot make them rtx-identical and no further merge happens.
-//   PROOF, one edit away: make the top mask a SHARED pseudo and everything else
-//   falls into place - replace 0xFF000000 in BattleLinkMeshPrim with (*pTagMask)
-//   and declare, before the `if (shadeMode != 0)`:
-//       u_long tagMaskStore = 0xFF000000;
-//       volatile u_long *pTagMask = &tagMaskStore;
-//   That measures 2996 bytes / 93.39% with ONE jal BattleEmitDrawTPage in the
-//   function and retail's two link tails (one with the emit, one without). It is
-//   not the answer because the volatile forces an 8-byte stack slot: .frame grows
-//   to 144 and every sp offset shifts (retail's 0x88 frame has all twelve var
-//   slots used: 0x30/0x34/0x38/0x3C flags and clipTest, 0x40/0x44 the other two
-//   gte_stflg destinations, 0x48/0x4C zSum and nclipFlag, 0x50 pNormals, 0x54
-//   count, 0x58 i, 0x5C &otz), so there is no room for a mask slot.
-//   What is needed: a source lever that makes gcc hoist a ONE-instruction
-//   constant into a callee-saved register without going through memory. gcc's cse
-//   substitutes a constant back into each use when it costs one instruction to
-//   rematerialise (0xFF000000, a single lui) but keeps a register for a
-//   two-instruction one (0xFFFFFF, lui+ori, which is exactly the asymmetry
-//   observed here), so `u_long mask = 0xFF000000;` is folded away (88.39%,
-//   measured last round) and `& ~addrMask` is folded too (86.49%, 3028 bytes,
-//   seven li, measured this round).
-// - pRec and pPacket are swapped: retail moves a1 into s1 at entry, copies s1
-//   into s2 for pPacket after the SetDrawTPage call and reuses s1 for pRec; this
-//   compile coalesces pPacket with pDst and puts pRec in s2. pFrame also keeps a
-//   callee-saved register (s0) that retail hands to the 0xFFFFFF mask once
-//   pFrame dies in the preheader.
-// - The OT address: here addu a0,t1,v0 (base first, from pOtEntry = &pOT[otz]),
-//   retail addu a0,v0,t1. Writing (u_long *)((otz << 2) + (u32)pOT) measures
-//   89.79% (same bytes), so the addu order is not the blocker.
-// Tried and rejected: locals for both masks (88.39%); the index-first OT address;
-// -O3 (88.69%, so the unit's -O2 is right); a shared pOtEntry per arm (already the
-// shape); the decomp-permuter (4 min, RESULT PERMUTER_BETTER 8293 -> 5913, and the
-// candidate is WRONG CODE: it swaps the vertex-table base pPart for pV2 in seven
-// arms, so it buys score by changing which array is indexed - do not port it).
+// Parked at 96.80% (2940 bytes against retail's 2944: ONE instruction short).
+// Everything but one copy is retail's: both switches in retail's body order, all
+// sixteen vertex arms, the depth pipeline, retail's TWO link tails, one
+// BattleEmitDrawTPage call, the 0x88 frame with all twelve var slots, and both
+// tags in registers the way retail has them.
+// - THE MASK HOIST IS A REGISTER QUESTION, AND THE REGISTER COMES FROM THE CODE
+//   BYTE. Retail holds 0xFFFFFF in s4 and 0xFF000000 in $fp, both loaded once in
+//   the preheader. With the saved packet code byte in its own u8 (the previous
+//   park) there are TEN loop values for NINE callee-saved registers ($16-$23 and
+//   $fp); gcc then rematerialises the one-instruction 0xFF000000 at each of the
+//   eight link tails (seven li) and the tails cannot merge. Measured: freeing one
+//   register by hand (pV3 = pV2) does NOT hoist it, seven li and 86.71%, so it is
+//   not a cse cost rule either; freeing TWO (pV2 = pV1 as well) hoists both, one
+//   jal and retail's two tails. Retail itself shows where the tenth value goes:
+//   its code byte lives in s0, which is pV0's register - the two live ranges do
+//   not overlap, so the original compiler overlapped them. Expressing that in
+//   source is the four-arm edit below (pV0 carries the code byte across the
+//   NormalColor call); it is a register-allocation hint, not a style choice, and
+//   deleting it drops the function to 89.78%.
+// - THE LAST 4 BYTES ARE ONE COALESCED COPY. Retail's preheader starts with
+//   addu s2,s1,zero, i.e. pPacket = pDst, and reuses s1 for pRec; ours coalesces
+//   pPacket into pDst and has no copy, which is the whole shortfall and the
+//   reason the register file is cyclically shifted: ours pPacket=s0, pRec=s1,
+//   pPart=s2, 0xFFFFFF=s3, pV0/code=s4; retail pV0=s0, pRec=s1, pPacket=s2,
+//   pPart=s3, 0xFFFFFF=s4, with pV1/pV2/pV3 in s5/s6/s7 and 0xFF000000 in $fp in
+//   both. Fold the names in and every other instruction of the 736 is identical.
+//   Tried to force the copy back: declaration order of the locals; the copy
+//   before the SetDrawTPage branch, after it, and first/last among the field
+//   loads; a do while (0) wrapper around it (96.42, still no copy); an integer
+//   cast round trip; a pointer cast. gcc deletes it because pDst dies at it.
+// - Also measured dead: -O3 (82.77 on this body), the unit's gcc-2.7.2-psx
+//   (87.49), -G8 and gcc 2.6.0 (both reject the body), the decomp-permuter at
+//   96.80 for four minutes (RESULT PERMUTER_NONE, its score 3130 = base).
 // The vertex-table addresses must stay index first,
 // (SVECTOR *)((index << 3) + (u32)pPart), or every arm reverses its addu.
 // The typedef, the extern, the two defines and the macro above this park are
@@ -610,11 +597,11 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
     if (shadeMode != 0) {
         SetDrawTPage(&g_BattleDrawTPage, 0, 0, ((shadeMode - 1) & 3) << 5);
     }
+    pPacket = pDst;
     pRec = (BattleModelMeshPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
     pPart = (SVECTOR *)((u32)pFrame->partsOffset + (u32)pFrame);
-    pNormals = (SVECTOR *)((u32)pFrame->normalsOffset + (u32)pFrame);
     count = pFrame->primCount;
-    pPacket = pDst;
+    pNormals = (SVECTOR *)((u32)pFrame->normalsOffset + (u32)pFrame);
     for (i = 0; i != count; i++) {
         kind = pRec->code & BATTLE_PRIM_KIND_MASK;
         kind |= ((pRec->flags ^ 1) & 1) << 8; // no colours: they come from the normals
@@ -672,10 +659,10 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
             break;
         }
         case BATTLE_PRIM_UNLIT: {
-            u8 primCode = ((P_TAG *)pPacket)->code;
+            pV0 = (SVECTOR *)(u32)((P_TAG *)pPacket)->code;
 
             NormalColor((SVECTOR *)((pRec->index[0] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4));
-            ((P_TAG *)pPacket)->code = primCode;
+            ((P_TAG *)pPacket)->code = (u8)(u32)pV0;
             pV0 = (SVECTOR *)((pRec->index[1] << 3) + (u32)pPart);
             pV1 = (SVECTOR *)((pRec->index[2] << 3) + (u32)pPart);
             pV2 = (SVECTOR *)((pRec->index[3] << 3) + (u32)pPart);
@@ -688,10 +675,10 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
             break;
         }
         case BATTLE_PRIM_UNLIT | BATTLE_PRIM_QUAD: {
-            u8 primCode = ((P_TAG *)pPacket)->code;
+            pV0 = (SVECTOR *)(u32)((P_TAG *)pPacket)->code;
 
             NormalColor((SVECTOR *)((pRec->index[0] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4));
-            ((P_TAG *)pPacket)->code = primCode;
+            ((P_TAG *)pPacket)->code = (u8)(u32)pV0;
             pV0 = (SVECTOR *)((pRec->index[1] << 3) + (u32)pPart);
             pV1 = (SVECTOR *)((pRec->index[2] << 3) + (u32)pPart);
             pV2 = (SVECTOR *)((pRec->index[3] << 3) + (u32)pPart);
@@ -699,22 +686,22 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
             break;
         }
         case BATTLE_PRIM_UNLIT | BATTLE_PRIM_TEXTURED: {
-            u8 primCode = ((P_TAG *)pPacket)->code;
+            pV0 = (SVECTOR *)(u32)((P_TAG *)pPacket)->code;
 
             NormalColor((SVECTOR *)((pRec->index[4] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4));
-            ((P_TAG *)pPacket)->code = primCode;
+            ((P_TAG *)pPacket)->code = (u8)(u32)pV0;
             pV0 = (SVECTOR *)((pRec->index[5] << 3) + (u32)pPart);
             pV1 = (SVECTOR *)((pRec->index[6] << 3) + (u32)pPart);
             pV2 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
             break;
         }
         case BATTLE_PRIM_UNLIT | BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD: {
-            u8 primCode = ((P_TAG *)pPacket)->code;
+            pV0 = (SVECTOR *)(u32)((P_TAG *)pPacket)->code;
 
             NormalColor3((SVECTOR *)((pRec->index[4] << 3) + (u32)pNormals), (SVECTOR *)((pRec->index[6] << 3) + (u32)pNormals),
                          (SVECTOR *)((pRec->index[8] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4), (CVECTOR *)(pPacket + 0x10),
                          (CVECTOR *)(pPacket + 0x1C));
-            ((P_TAG *)pPacket)->code = primCode;
+            ((P_TAG *)pPacket)->code = (u8)(u32)pV0;
             pV0 = (SVECTOR *)((pRec->index[5] << 3) + (u32)pPart);
             pV1 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
             pV2 = (SVECTOR *)((pRec->index[9] << 3) + (u32)pPart);
@@ -949,8 +936,7 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
         pPacket += (pRec->outLen + 1) * 4;
         pRec = (BattleModelMeshPrim *)((u8 *)pRec + (pRec->len + 1) * 4);
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 
 // Applies the model's tint to the colour bytes of every packet a frame expands
