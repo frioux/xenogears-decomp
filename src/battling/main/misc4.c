@@ -184,12 +184,12 @@ typedef struct {
 } ActorModelRecord; // Size: 0x54
 
 // One of the eight 0x44-byte slot records at 0x64C (src/battling/main/misc2
-// walks the same array); the reset clears its in-use byte and its timer.
+// walks the same array); the reset clears its in-use byte and its life.
 typedef struct {
     /* 0x00 */ u8 pad00[0x30];
     /* 0x30 */ u8 inUse;
     /* 0x31 */ u8 pad31[0xF];
-    /* 0x40 */ s16 unk40;
+    /* 0x40 */ s16 life;
     /* 0x42 */ u8 pad42[0x2];
 } ActorSlotRecord; // Size: 0x44
 
@@ -287,8 +287,12 @@ struct Actor {
     // Frames left in the current step; the same field misc3 counts down per frame.
     /* 0x0C8 */ s16 moveEndTimer;
     /* 0x0CA */ s16 moveTimer;
-    /* 0x0CC */ s16 unkCC;
-    /* 0x0CE */ s16 unkCE;
+    // The actor's 12-bit base facing for its side: the round reset sets 0x400 for
+    // one combatant and -0x400 for the other (misc3's sideBaseAngle).
+    /* 0x0CC */ s16 sideBaseAngle;
+    // Offset added to every facing this actor computes; derived from sideBaseAngle
+    // by func_80076884 and set to sideBaseAngle + 0x800 by the reset below.
+    /* 0x0CE */ s16 facingOffset;
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u32 stateFlags;
     /* 0x0D8 */ u8 padD8[0x10];
@@ -297,7 +301,7 @@ struct Actor {
     /* 0x0F4 */ s32 unkF4;
     /* 0x0F8 */ ActorModelRecord unkF8[16];
     /* 0x638 */ u8 pad638[0x14];
-    /* 0x64C */ ActorSlotRecord unk64C[8];
+    /* 0x64C */ ActorSlotRecord effectSlots[8];
     /* 0x86C */ u8 pad86C[0x90];
     /* 0x8FC */ ActorScript* pScript;
     /* 0x900 */ u8 pad900[0xA];
@@ -355,10 +359,15 @@ struct Actor {
     /* 0x15F6 */ s16 unk15F6;
     /* 0x15F8 */ s16 unk15F8;
     /* 0x15FA */ u8 pad15FA[0x5A];
-    /* 0x1654 */ s32 unk1654;
-    /* 0x1658 */ s32 unk1658;
-    /* 0x165C */ s32 unk165C;
-    /* 0x1660 */ s32 unk1660;
+    // Gauge levels this actor accumulated in each of the two categories; the
+    // battle result code compares them with fractions of gaugeMax
+    // (misc2 BattleAccumulateGaugePoints, BattleSetResultCode).
+    /* 0x1654 */ s32 gaugeLevelsMode1;
+    /* 0x1658 */ s32 gaugeLevelsMode2;
+    // Counters func_80076884 bumps as it queues messages: message12Count for each
+    // message 1 or 2, message3Count for each message 3.
+    /* 0x165C */ s32 message3Count;
+    /* 0x1660 */ s32 message12Count;
     /* 0x1664 */ u8 pad1664[0x4];
     // Moves committed for this actor; the round reset below clears it (misc18
     // reads it as its moveCount).
@@ -581,8 +590,8 @@ void func_80078F00(Actor* p) {
     p->moveEndTimer = 0;
     p->moveTimer = 0;
     for (i = 0; i < 8; i++) {
-        p->unk64C[i].inUse = 0;
-        p->unk64C[i].unk40 = 0;
+        p->effectSlots[i].inUse = 0;
+        p->effectSlots[i].life = 0;
     }
     for (i = 0xF; i >= 0; i--) {
         p->unkF8[i].unk51 = 0;
@@ -592,16 +601,16 @@ void func_80078F00(Actor* p) {
     p->prevPartIndex = 0xFF;
     p->stateFlags &= ~0xC;
     p->flags = (p->flags & ~0x1000) | 0x2000000 | 0x20000;
-    p->unkCE = p->unkCC + 0x800;
+    p->facingOffset = p->sideBaseAngle + 0x800;
     p->stateFlags &= ~3;
     p->flags &= 0xFF7FFFFF;
     p->stepScale = pScript->stepScale;
     p->unk15F6 = 0x100;
     p->unk15F8 = 0;
-    p->unk1654 = 0;
-    p->unk1658 = 0;
-    p->unk165C = 0;
-    p->unk1660 = 0;
+    p->gaugeLevelsMode1 = 0;
+    p->gaugeLevelsMode2 = 0;
+    p->message3Count = 0;
+    p->message12Count = 0;
     p->timer = 0;
     p->flags &= ~4;
     p->flags &= ~2;
@@ -756,8 +765,8 @@ void BattleResetState(void) {
 
 // char return (value unused): retail's `beqz` delay slot holds a nop, and a void
 // return lets gcc reorg steal the first insn of the if-body into it.
-char BattleResetForNextRound(void) {    g_BattleActor1.unkCC = 0x400;
-    g_BattleActor0.unkCC = -0x400;
+char BattleResetForNextRound(void) {    g_BattleActor1.sideBaseAngle = 0x400;
+    g_BattleActor0.sideBaseAngle = -0x400;
     func_80078F00(&g_BattleActor1);
     func_80078F00(&g_BattleActor0);
     BattleEffectClearEntrySlots(g_BattleEffect);
