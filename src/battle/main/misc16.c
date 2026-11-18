@@ -12,10 +12,13 @@
 // corner of the quad, each drawn with its own code.
 #define BATTLE_SPRITE_PACKAGE_COUNT 4
 
-// One actor's block of the per-actor action-row table g_BattleActionRows: 42 BattleRow
-// rows (0x28 each, actor.h), of which this unit reads +0x24 and +0 of the rows at
-// +0x25. The offset stays an integer: a BattleRow index makes gcc form the actor
-// term (arg0 * 0x690) before the row term, and retail forms the row term first.
+// One actor's block of the per-actor action-row table g_BattleActionRows: 42 rows per
+// actor (BattleRow, 0x28 bytes, actor.h), of which this unit reads +0x0 and +0x24 of
+// the four rows at +0x25. The offset stays an integer: indexing a BattleRow array
+// makes gcc form the actor term (arg0 * 0x690) before the row term and reach both
+// fields off one base register (464 bytes, 86.94%), where retail forms the row term
+// first and re-forms the symbol for each read.
+#define BATTLE_ACTION_ROW_STRIDE 0x690
 extern u8 g_BattleActionRows[];
 
 // One sprite package of the per-slot draw block: the two POLY_FT4
@@ -25,6 +28,20 @@ typedef struct {
     /* 0x00 */ POLY_FT4 prims[2];
 } BattleSpritePackage; // Size: 0x50
 
+// One slot's rect record (g_BattleSlotRects[slot]): the coordinates the draw block
+// expands from and the size the expand animation grows to (battle/misc16_r2 reads
+// the same record through the same array).
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 targetW;
+    /* 0x6 */ u16 targetH;
+    /* 0x8 */ u16 w;
+    /* 0xA */ u16 h;
+    /* 0xC */ u8 slot;
+    /* 0xD */ u8 padD;
+} BattleSlotRect; // Size: 0xE
+
 extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
 extern u8 *g_BattleGraphicsWork;
@@ -32,7 +49,7 @@ extern u8 *g_BattleCommandQueue;
 extern volatile s32 g_BattlePrimStartIndex;
 extern BattleWork *g_BattleDisplayState;
 extern BattleSlotGraphics *g_BattleSlotGraphics[];
-extern u8 *g_BattleSlotRects[];
+extern BattleSlotRect *g_BattleSlotRects[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 extern u8 D_800CCD38[];
@@ -113,10 +130,10 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     statusMasks[3] = D_800C323A;
     ret = 0;
     flag = 1;
-    idx = (arg1 + 0x25) * 0x28 + arg0 * 0x690;
-    trigger = *(u16 *)(g_BattleActionRows + idx + 0x24);
+    idx = (arg1 + 0x25) * sizeof(BattleRow) + arg0 * BATTLE_ACTION_ROW_STRIDE;
+    trigger = *(u16 *)(g_BattleActionRows + idx + 0x24); // the action row's +0x24 word
     cur = D_800CCDC4[arg0].flags;
-    dmg = *(u16 *)(g_BattleActionRows + idx);
+    dmg = *(u16 *)(g_BattleActionRows + idx); // the action row's +0x0 word
     if (cur >= trigger &&
         (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, arg1) != 0 &&
         (g_BattleSlotStatusRows[arg0].flags & statusMasks[arg1]) == 0) {
@@ -389,8 +406,8 @@ void BattleInitSlotGraphics(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8
     BattleWork *pState;
     u16 slot;
     u8 index;
-    u8 *p;
-    u8 *q;
+    BattleSlotRect *pRect;
+    void *q;
 
     slot = arg0;
     index = slot; // two steps: the u16 copy is what puts arg0 in s2, the u8 index in s1
@@ -398,21 +415,21 @@ void BattleInitSlotGraphics(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8
         q = BattleAllocHeapBlock(sizeof(BattleSlotGraphics), 0);
         g_BattleSlotGraphics[index] = q;
         bzero(q, sizeof(BattleSlotGraphics));
-        q = BattleAllocHeapBlock(0xE, 0);
+        q = BattleAllocHeapBlock(sizeof(BattleSlotRect), 0);
         g_BattleSlotRects[index] = q;
-        bzero(q, 0xE);
+        bzero(q, sizeof(BattleSlotRect));
         BattleInitSlotPrims(index);
     }
     if (arg5 != 0) {
-        p = g_BattleSlotRects[index];
-        p[0xC] = arg0;
+        pRect = g_BattleSlotRects[index];
+        pRect->slot = arg0;
         pFlags = (u8 *)g_BattleDisplayState;
-        ((u16 *)p)[0] = arg1;
-        ((u16 *)p)[1] = arg2;
-        ((u16 *)p)[2] = arg3;
-        ((u16 *)p)[3] = arg4;
-        ((u16 *)p)[4] = 0;
-        ((u16 *)p)[5] = 0;
+        pRect->x = arg1;
+        pRect->y = arg2;
+        pRect->targetW = arg3;
+        pRect->targetH = arg4;
+        pRect->w = 0;
+        pRect->h = 0;
         *(pFlags + index + 0xBF) = 0;
         pState = g_BattleDisplayState; // the BattleWork temp only decides v0/v1 at the store
         pFlags = (u8 *)pState;
