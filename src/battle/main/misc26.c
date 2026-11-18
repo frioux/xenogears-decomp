@@ -93,6 +93,13 @@ extern BattleScreenFadeTask *g_BattleScreenFadeTask;
 extern BattleScaleTask *g_BattleScaleTask;
 extern u8 g_BattleScreenFadeOwnBuffer;
 extern u32 g_BattleImageTask;
+// the two statically allocated fades: one the overlay owns, one shared
+extern BattleScreenFadeTask D_800C3C00;
+extern BattleScreenFadeTask D_800C3C50;
+extern BattleScreenFadeTask *D_800C3554; // the owned one, once it is set up
+extern u8 D_800D3638; // set while a fade is already being driven outside the battle
+extern u8 g_FlagTimerWorkListAdds;
+extern s32 g_NumFlaggedTimerWorkListEntries;
 
 extern u8 *g_GfxCurWorkBuffer;
 extern u8 *g_GfxCurWorkBufferEnd;
@@ -100,10 +107,13 @@ extern u_long *g_GfxCurOT;
 
 extern BattleScaleTask *BattleGetScaleTask();
 extern void func_800B3358(BattleScaleTask *pTask);
-extern void func_800B39C0(s32, s32, u8, u8, u8);
+extern void func_800B39C0(s32 frames, s32 abr, u8 r, u8 g, u8 b);
 extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
+extern void WorkListAddTask(WorkListEntry *pData, WorkListEntry *pEntry);
+extern void TimerWorkListAddTask(WorkListEntry *pData, WorkListEntry *pEntry);
+extern void WorkListSetTaskCallback(WorkListEntry *pTask, void *pCallback);
 extern void BattleUploadAndFreeImageResources(void);
 extern WorkListEntry *TimerWorkListAllocateTask();
 extern void TimerWorkListSetTaskCallback();
@@ -873,7 +883,65 @@ void BattleStartScreenFadeOwnBuffer(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
     g_BattleScreenFadeOwnBuffer = 0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B39C0);
+// Starts a screen fade: on the first call the work-list task is set up and the
+// fade runs from black, on a later one it restarts from the colour the last fade
+// ended at. The task's length is twice the frame count the caller asks for,
+// because the step counts it down twice per frame. Nothing happens while another
+// subsystem is already driving a fade.
+void func_800B39C0(s32 frames, s32 abr, u8 r, u8 g, u8 b) {
+    BattleScreenFadeTask *pTask;
+    WorkListEntry *pDraw;
+
+    if (D_800D3638 != 0) {
+        return;
+    }
+    frames *= 2;
+    if (g_BattleScreenFadeOwnBuffer != 0) {
+        if (g_BattleScreenFadeTask == NULL) {
+            pTask = &D_800C3C00;
+            D_800C3554 = pTask;
+            goto created;
+        }
+        pTask = D_800C3554;
+        goto restart;
+    } else if (g_BattleScreenFadeTask == NULL) {
+        pTask = &D_800C3C50;
+        g_BattleScreenFadeTask = pTask;
+    } else {
+        pTask = g_BattleScreenFadeTask;
+        goto restart;
+    }
+created:
+    TimerWorkListAddTask(NULL, (WorkListEntry *)pTask);
+    pDraw = (WorkListEntry *)((u8 *)pTask + 0x1C);
+    WorkListAddTask((WorkListEntry *)pTask, pDraw);
+    pTask->timerEntry.unk14 &= 0x7FFFFFFF; // clears the flagged bit the work list just set
+    if (g_FlagTimerWorkListAdds != 0) {
+        g_NumFlaggedTimerWorkListEntries--;
+    }
+    TimerWorkListSetTaskCallback(pTask, BattleStepScreenFade);
+    WorkListSetTaskCallback(pDraw, BattleDrawScreenFade);
+    WorkListTaskSetOnFreeCallback(pTask, BattleFreeScreenFadeTask);
+    pTask->timerEntry.unk4 = pTask;
+    pTask->drawEntry.unk4 = pTask;
+    pTask->unk40 = 0;
+    pTask->startR = 0;
+    pTask->startG = 0;
+    pTask->startB = 0;
+    goto setTarget;
+restart:
+    pTask->startR = pTask->curR;
+    pTask->startG = pTask->curG;
+    pTask->startB = pTask->curB;
+setTarget:
+    pTask->abr = abr;
+    pTask->targetR = r;
+    pTask->targetG = g;
+    pTask->targetB = b;
+    pTask->length = frames;
+    pTask->timer = frames;
+    BattleStepScreenFade(pTask);
+}
 
 s32 BattleGetActorFlag41(void) {
     if (g_BattleScreenFadeTask != NULL) {
