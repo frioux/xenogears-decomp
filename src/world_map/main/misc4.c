@@ -196,6 +196,8 @@ extern s32 WorldMapInitGroup0Actor(s32);
 extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern s32 WorldMapInitActorSlotTimer40(s32 index);
 extern void func_80078EA4(void);
+extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern int rand(void);
 extern s32 func_80079778(s32 index);
 extern WorldMapPathPoint g_WorldMapCameraPathPoints[];
 extern MATRIX g_WorldMapViewMatrix;
@@ -205,10 +207,12 @@ extern void WorldMapStartSlot(s32, s32);
 extern void SoundFadeElementVolumeById(s32, s32, s32);
 extern void SoundSetElementVolumeById(s32, s32);
 extern s32 func_80094154(s32 *, s32 *);
-extern s16 D_8009BD42;
+// The four camera jitter halfwords the path-frame update accumulates: retail sums them
+// as unsigned halfwords (lhu), so they are u16 here.
+extern u16 D_8009BD42;
 extern s16 D_8009BD44;
-extern s16 D_8009BD48;
-extern s16 D_8009BD4A;
+extern u16 D_8009BD48;
+extern u16 D_8009BD4A;
 extern s16 D_8009BD4C;
 extern s32 D_8009BD50;
 extern s32 D_8009BD54;
@@ -668,6 +672,194 @@ s32 WorldMapInitActorSlotTimer40(s32 index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
+/* 84.53%, 1580 bytes; retail is 1588. The instruction multiset is retail's exactly
+   EXCEPT for one missing `lui %hi / addiu %lo` pair, and the callee-saved numbering is
+   rotated. Full decode; do not rewrite it from the assembly.
+   - switch ((s16)p->state) has 19 entries (cases 0-7, 16, 17, 18; 8-15 default). The
+     table's trailing 0 word at 0xBC is the .align 3 pad before jtbl_8006FBB0, so the C
+     switch reproduces the whole misc4 rodata range: jtbl_8006FB40 (0x50, func_80077E68,
+     still asm) then this table at 0x70, then the pad, then 0xB0.
+   - the tail calls func_80096F18 when `p->state != 4 && p->state != 5` (sltiu on state-4).
+   - the shake halfwords at 0x1F8000A0/0xA2 are each READ TWICE in one basic block, so
+     they must be volatile: `*(volatile u16 *)(pScratch + 0xA0)`; without volatile cse
+     collapses the second load. The scratch base must be a `u8 *` local (absolute
+     `*(s16 *)0x1F8000A0` casts give lui $at per access, and a base+0xA0 pointer local
+     loses retail's `0xA0($s3)`).
+   - the four increments are NOT one vector: retail reaches 0x8009BD40 through a register
+     (retail's $s0, `lhu 0(v0)` / `sh 0(v0)`) but 0x8009BD42, 0x8009BD48 and 0x8009BD4A
+     through their own %hi/%lo each time. Writing them as `pFrame->vy` instead makes gcc
+     emit `2(s0)` and loses 4 lui (1596 bytes). They are summed as unsigned halfwords,
+     hence the u16 declarations above.
+   - case 16 needs a LOCAL copy of p->command: the three calls may store it, so a plain
+     `p->command` reloads with a second `lh` (retail loads once and stores that register
+     to g_WorldMapTpageAbr).
+   THE RESIDUAL: retail materialises &g_WorldMapPathFrame INSIDE each of case 4 and case 5
+   and keeps it in $s0 across the calls (`addu a0,s0,zero` for the argument, `lhu 0(s0)` /
+   `sh 0(s0)` after two rand() calls). The body below assigns the pointer once in the
+   entry block; gcc keeps it in a register but materialises it once, so cases 4 and 5 lose
+   one lui/addiu between them (-8 bytes; everything else is byte-count identical).
+   Assigning the pointer inside each case - retail's shape - makes cse fold the address
+   into every use (`lhu $2,g_WorldMapPathFrame` + `sh $2,g_WorldMapPathFrame` through $at,
+   and `la a0` for the argument): 83.30%, 1596 bytes, 3 callee-saved registers instead of
+   4. Measured and did NOT stop the fold: `(u16 *)(mem_addr)&sym`, `s16 *pFrame` with
+   `*(u16 *)pFrame`, `volatile` on the pointer and on the pointee, `do { } while (0)`
+   around the assignment, a block-scoped declaration, reassigning both at the top and in
+   the cases, and `s16 state = p->state` before the switch.
+   Register numbering is also rotated and could not be moved: retail $s0 = &pathFrame,
+   $s1 = 0x2AAAAAAB (the `% 12` magic), $s2 = p, $s3 = 0x1F800000; this body gets
+   $s0 = the magic, $s1 = p, $s2 = the scratch base, $s3 = &pathFrame, and the prologue
+   save order differs (retail ra,s3,s2,s1,s0).
+   permute.sh from the body below (4 min, -j2): PERMUTER_BETTER base=8359 best=4145, but
+   the best candidate is wrong code (it replaces the stateTimer test with a stale variable
+   assigned before `case 4:`), so nothing was ported.
+*/
+/*
+s32 func_80078EA4(s32 index) {
+    WorldMapActor *p;
+    u16 *pFrame;
+    u8 *pScratch;
+    s16 command;
+
+    p = g_WorldMapSlots + index;
+    pScratch = (u8 *)PSX_SCRATCH;
+    pFrame = (u16 *)&g_WorldMapPathFrame;
+    switch ((s16)p->state) {
+    case 0:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0x20;
+        p->state = p->state + 1;
+        WorldMapStartSlot(5, 1);
+        SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x62);
+        SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x63);
+        break;
+    case 1:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0x20;
+        p->state = p->state + 1;
+        WorldMapStartSlot(3, 1);
+        break;
+    case 2:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0x30;
+        p->state = p->state + 1;
+        WorldMapStartSlot(4, 1);
+        WorldMapStartSlot(2, 1);
+        WorldMapStartSlot(6, 1);
+        break;
+    case 3:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0x28;
+        p->state = p->state + 1;
+        break;
+    case 4:
+        func_80096F18((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        p->stateTimer = p->stateTimer - 1;
+        *(volatile u16 *)(pScratch + 0xA0) = rand() % 12 - 6;
+        *pFrame += *(volatile u16 *)(pScratch + 0xA0);
+        D_8009BD48 += *(volatile u16 *)(pScratch + 0xA0);
+        *(volatile u16 *)(pScratch + 0xA2) = rand() % 12 - 6;
+        D_8009BD42 += *(volatile u16 *)(pScratch + 0xA2);
+        D_8009BD4A += *(volatile u16 *)(pScratch + 0xA2);
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0x78;
+        p->state = p->state + 1;
+        SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x79);
+        SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x62, 0, 0x100);
+        SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x63, 0, 0x100);
+        break;
+    case 5:
+        func_80096F18((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        p->stateTimer = p->stateTimer - 1;
+        *(volatile u16 *)(pScratch + 0xA0) = rand() % 4 - 2;
+        *(volatile u16 *)(pScratch + 0xA2) = rand() % 4 - 2;
+        *pFrame += *(volatile u16 *)(pScratch + 0xA0);
+        D_8009BD42 += *(volatile u16 *)(pScratch + 0xA2);
+        D_8009BD48 += *(volatile u16 *)(pScratch + 0xA0);
+        D_8009BD4A += *(volatile u16 *)(pScratch + 0xA2);
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0x5A;
+        p->state = p->state + 1;
+        break;
+    case 6:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0x50;
+        p->state = p->state + 1;
+        WorldMapStartSlot(0, 0xD);
+        SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x79, 0, 0x100);
+        g_WorldMapTpageAbr = 2;
+        g_WorldMapDrawMode = 4;
+        break;
+    case 7:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        p->stateTimer = 0;
+        g_WorldMapLoopActive = 0;
+        g_WorldMapAreaMode = 0;
+        break;
+    case 16:
+        command = p->command;
+        if (command != 1) {
+            break;
+        }
+        SoundFadeElementVolumeById((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x36, 0, 8);
+        WorldMapStartSlot(0, 0xD);
+        g_WorldMapDrawMode = 0x20;
+        g_WorldMapTpageAbr = command;
+        p->stateTimer = 8;
+        p->command = 0;
+        p->state = p->state + 1;
+        break;
+    case 17:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        g_WorldMapCameraHeight = 0x960000;
+        g_WorldMapCameraRot = -0x30;
+        g_WorldMapViewRotationY = 0x40;
+        g_WorldMapViewRotationZ = 0;
+        p->stateTimer = 0x10;
+        p->state = p->state + 1;
+        break;
+    case 18:
+        p->stateTimer = p->stateTimer - 1;
+        if ((s16)p->stateTimer > 0) {
+            break;
+        }
+        WorldMapStartSlot(0, 0xC);
+        g_WorldMapTpageAbr = 1;
+        g_WorldMapDrawMode = 0x80;
+        p->state = 0;
+        p->stateTimer = 1;
+        break;
+    }
+    if (p->state != 4 && p->state != 5) {
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+    }
+    return 1;
+}*/
+
 s32 WorldMapInitActorRotationMatrix(s32 index) {
     WorldMapActor *p;
     WorldMapState *s;
