@@ -96,6 +96,7 @@ segments:
       - [0xB934, c, main/misc7]
       - [0xC6B4, c, main/misc8]
       - [0xDDD0, c, main/misc9]
+      - [0xE844, c, main/misc9_260]
       - [0xEF18, c, main/misc10]
       - [0x100F0, c, main/misc11]
       - [0x12D30, c, main/misc12]
