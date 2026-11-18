@@ -7,11 +7,60 @@ void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
 extern s32 D_801E981C[];
+extern s32 D_801EA4DC[];
+extern s32 g_MenuNameTextureX[];
+extern u8 g_MenuNameTextureY[];
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
+void MenuInitializePolyFt4(POLY_FT4* pPoly);
+void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CD81C);
+// Character info window: the LV/HP/MP label glyphs and the small portrait, then
+// the prim that holds them. arg5 picks the glyph/UV row, the prim width and the
+// palette source (the character's own parity or its gear's).
+void func_801CD81C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
+    POLY_FT4* pPoly;
+    s32* pPositionsX = (s32*)arg3;
+    s32 i;
+    u_short width;
+    s32 textureX;
+
+    pCharacter->descriptionStringsLength = 0;
+    for (i = 0; i < 9; i++) {
+        if (D_801EA4DC[arg5 * 9 + i] != 0xFFFF) {
+            pCharacter->descriptionStringsLength += func_8002675C(
+                g_Menu->resources, D_801EA4DC[arg5 * 9 + i],
+                &pCharacter->polysDescriptionStrings[pCharacter->descriptionStringsLength * 2],
+                g_Menu->renderContext,
+                pPositionsX[i],
+                localIndex * 0x38 + ((s32*)arg4)[i],
+                0x1000);
+        }
+    }
+    func_8002675C(g_Menu->resources, localIndex + 0x14B, pCharacter->polysPortraitSmall,
+                  g_Menu->renderContext, pPositionsX[9], localIndex * 0x38 + ((s32*)arg4)[9], 0x1000);
+    MenuInitializePolyFt4(&pCharacter->polys4B0[g_Menu->renderContext]);
+    pCharacter->polys4B0[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
+    if (arg5 == 0) {
+        pCharacter->polys4B0[g_Menu->renderContext].clut = characterIndex % 2 ? g_SystemPalette2 : g_SystemPalette1;
+    } else {
+        pCharacter->polys4B0[g_Menu->renderContext].clut =
+            g_GameState.characters[characterIndex].gearId & 1 ? g_SystemPalette1 : g_SystemPalette2;
+    }
+    width = arg5 * 24 + 0x48;
+    textureX = g_MenuNameTextureX[arg5 * 3 + localIndex];
+    pPoly = &pCharacter->polys4B0[g_Menu->renderContext];
+    MenuSetFt4QuadVertices(pPoly,
+                           pPositionsX[16], ((s32*)arg4)[16] + localIndex * 0x38,
+                           (textureX << 2) & 0xFC,
+                           g_MenuNameTextureY[(arg5 * 3 + localIndex) * 4],
+                           width, 0xD);
+}
 void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
     s32* pPositionsY = (s32*)arg4;
     s32 i;
+    u_short width;
+    s32 textureX;
     u_char digit;
 
     MenuParseNumberToDigits(g_GameState.characters[characterIndex].level);
