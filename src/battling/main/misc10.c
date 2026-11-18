@@ -54,17 +54,45 @@ extern s32 BattleCheckActorBelowBreakThreshold(s32 arg0, s32 arg1);
 void BattleAddSharedPrim(void);
 
 // The header at the start of the block pData->pHeader points at, once
-// BattleRelocateBlockPointers has fixed up its +0x30 offset.
+// BattleRelocateBlockPointers has fixed up its +0x30 offset. It is the block the
+// actor's script pointer (+0x8FC) addresses, so the fields the units that read
+// the script name carry their names: src/battling/main/misc4.c's ActorScript (the
+// part indices, the two scales, the facing) and misc1.c's BattleScriptBlock (the
+// render pair).
 typedef struct {
-    /* 0x00 */ u8 unk00[0xE];
+    /* 0x00 */ u8 basePartIndex;
+    /* 0x01 */ u8 partIndex0;
+    /* 0x02 */ u8 partIndex1;
+    /* 0x03 */ u8 radius;
+    /* 0x04 */ s16 vertexIndex0;
+    /* 0x06 */ s16 vertexIndex1;
+    /* 0x08 */ s16 baseVertexIndex;
+    /* 0x0A */ u8 pad0A[0x2];
+    /* 0x0C */ u16 speedScale; // 8.8 speed, copied into the actor's moveSpeed/moveSpeedBase
     /* 0x0E */ u8 visiblePartCount;
-    /* 0x0F */ u8 unk0F;
+    /* 0x0F */ u8 stepScale; // copied into the actor's stepScale by misc4's func_80078F00
     /* 0x10 */ u8 effectColorR;
     /* 0x11 */ u8 effectColorG;
     /* 0x12 */ u8 effectColorB;
-    /* 0x13 */ u8 unk13[0x1D];
+    /* 0x13 */ u8 pad13;
+    /* 0x14 */ s16 angleX;
+    /* 0x16 */ s16 angleYStep;
+    /* 0x18 */ s16 offsetY;
+    /* 0x1A */ s16 offsetZ;
+    /* 0x1C */ s16 modelColor;
+    /* 0x1E */ u16 angleY;
+    /* 0x20 */ u16 facing;
+    /* 0x22 */ u8 pad22[0x2];
+    // The actor's camera rig (misc4's func_8007A768 copies these into the
+    // g_BattleRender* globals func_8007A958 feeds to rcos/rsin).
+    /* 0x24 */ s16 cameraAngleOffset;
+    /* 0x26 */ s16 cameraYOffset;
+    /* 0x28 */ s16 cameraTargetYOffset;
+    /* 0x2A */ s16 cameraRadius;
+    /* 0x2C */ u8 pad2C[0x4];
     /* 0x30 */ s32 visiblePartIndicesOffset; // byte offset of the sprite table from the block start
 } Misc10SpriteHeader; // Size: 0x34
+STATIC_ASSERT_SIZEOF(Misc10SpriteHeader, 0x34);
 
 // One 4-byte action slot of the block's +0x18 array; only the flag byte is read.
 typedef struct {
@@ -103,25 +131,111 @@ typedef struct {
     /* 0x20 */ u8* pImage;
 } Misc10Block; // Size: 0x24
 
-// A battle participant as this unit drives it. Only the fields this unit
-// touches are named; the unexplored blocks are the layout src/battling/main/
-// misc4.c's Actor names (position/velocity at 0x00, part state from 0x4C).
+// A 32-bit component vector; the actor's position blocks are this wide.
 typedef struct {
-    /* 0x000 */ u8 unk000[0x58];
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} Vec4; // Size: 0x10
+STATIC_ASSERT_SIZEOF(Vec4, 0x10);
+
+// One of the actor's eight 0x44-byte effect slots; the layout and the names are
+// src/battling/main/misc2.c's, the unit that drives its fields.
+typedef struct {
+    /* 0x00 */ VECTOR pos;
+    /* 0x10 */ VECTOR prevPos;
+    /* 0x20 */ SVECTOR velocity;
+    /* 0x28 */ SVECTOR direction;
+    /* 0x30 */ u8 active;
+    /* 0x31 */ u8 scale;
+    /* 0x32 */ u8 drawKind;
+    /* 0x33 */ u8 mode;
+    /* 0x34 */ u8 pad34[0x4];
+    /* 0x38 */ s32 key;
+    /* 0x3C */ s16 percent;
+    /* 0x3E */ s16 dirWeight;
+    /* 0x40 */ s16 life;
+    /* 0x42 */ u8 pad42[0x2];
+} BattleEffectSlot; // Size: 0x44
+STATIC_ASSERT_SIZEOF(BattleEffectSlot, 0x44);
+
+// A battle participant as this unit drives it. The offsets are the full actor
+// src/battling/main/misc4.c's Actor, misc2.c's Actor and misc3.c's BattleActor
+// declare, and the fields below carry their names.
+typedef struct {
+    /* 0x000 */ Vec4 position;
+    /* 0x010 */ s32 vx;
+    /* 0x014 */ s32 vy;
+    /* 0x018 */ s32 vz;
+    /* 0x01C */ u8 pad1C[0x4];
+    /* 0x020 */ s32 pushVx;
+    /* 0x024 */ s32 pushVy;
+    /* 0x028 */ s32 pushVz;
+    /* 0x02C */ u8 pad2C[0x4];
+    /* 0x030 */ s32 steerVx;
+    /* 0x034 */ s32 steerVy;
+    /* 0x038 */ s32 steerVz;
+    /* 0x03C */ u8 pad3C[0x4];
+    /* 0x040 */ s32 stepDistance;
+    /* 0x044 */ s32 steerSpeed;
+    /* 0x048 */ s32 distance;
+    /* 0x04C */ u8 modelIndex;
+    /* 0x04D */ u8 pad4D;
+    /* 0x04E */ u8 prevPartIndex;
+    /* 0x04F */ u8 animSpeed;
+    /* 0x050 */ s16 lastFrame;
+    /* 0x052 */ u8 animSpeedBonus;
+    /* 0x053 */ u8 pad53;
+    /* 0x054 */ s32 angle; // the actor's facing, added to the script's camera angle before rcos/rsin (misc4)
     /* 0x058 */ u8* pTimData;
     /* 0x05C */ u8* pModelLink;
     /* 0x060 */ u8* pObject;
-    /* 0x064 */ u8 unk064[0x18];
+    /* 0x064 */ u8 pad64[0x8];
+    /* 0x06C */ Vec4 prevPosition; // the position x,y,z,pad copied here before the frame's movement
     /* 0x07C */ u8* pPartTimings;
     /* 0x080 */ Misc10ActionSlot* pActions;
     /* 0x084 */ u8* pActionEntry; // the entry the move in progress selected (src/battling/main/misc4.c)
-    /* 0x088 */ u8 unk088[0x48];
+    // Ramped 0..0x100 deflection of one input direction each: misc3's func_80076884
+    // charges the direction the input selects and decays the other three.
+    /* 0x088 */ s32 inputLeft;
+    /* 0x08C */ s32 inputUp;
+    /* 0x090 */ s32 inputRight;
+    /* 0x094 */ s32 inputDown;
+    /* 0x098 */ s32 inputRampStep;
+    /* 0x09C */ s32 inputDecayStep;
+    /* 0x0A0 */ u8 padA0[0x8];
+    /* 0x0A8 */ s32 unkA8;
+    /* 0x0AC */ u8 padAC[0x4];
+    /* 0x0B0 */ s32 floorY;
+    /* 0x0B4 */ s16 gaugeValue;
+    /* 0x0B6 */ s16 gaugePoints;
+    /* 0x0B8 */ s16 prevGaugeValue;
+    /* 0x0BA */ s16 gaugeLevel;
+    /* 0x0BC */ s16 gaugeMax;
+    /* 0x0BE */ s16 breakThresholdOffset;
+    /* 0x0C0 */ u8 gaugeWidth;
+    /* 0x0C1 */ u8 prevGaugeWidth;
+    /* 0x0C2 */ u8 flashTimer;
+    /* 0x0C3 */ u8 actionPhaseTimer;
+    /* 0x0C4 */ u8 state;
+    /* 0x0C5 */ u8 actionPhase;
+    /* 0x0C6 */ u8 prevState;
+    /* 0x0C7 */ u8 padC7;
+    /* 0x0C8 */ s16 moveEndTimer;
+    /* 0x0CA */ s16 moveTimer;
+    /* 0x0CC */ u16 sideBaseAngle;
+    /* 0x0CE */ s16 facingOffset;
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u32 stateFlags; // masked and tested by the movement code (src/battling/main/misc4.c)
     /* 0x0D8 */ u8* pTarget;
     /* 0x0DC */ u8 unk0DC[0x1A8];
     /* 0x284 */ u32* pDisplayWork;
-    /* 0x288 */ u8 unk288[0x674];
+    /* 0x288 */ u8 pad288[0x3BC];
+    /* 0x644 */ s32 gaugePercent;
+    /* 0x648 */ s32 facingAngle;
+    /* 0x64C */ BattleEffectSlot effectSlots[8];
+    /* 0x86C */ u8 pad86C[0x90];
     /* 0x8FC */ u8* pScript;
     /* 0x900 */ u8* pModelScriptOffsets; // one s16 script offset per model index
     /* 0x904 */ u8* pVisiblePartIndices;
@@ -135,13 +249,29 @@ typedef struct {
     /* 0x910 */ u8 soundTimer; // frames left before the gauge sound repeats (src/battling/main/misc3.c)
     /* 0x911 */ u8 flaggedActionCount;
     /* 0x912 */ u8 unflaggedActionCount;
+    // 0x914..0x15D0 hold the action timers, the four bound/mid points, the part
+    // animation state, the message queue and the 0xC00 state record misc3's
+    // BattleActor names; this unit's own code stops at 0x912.
     /* 0x913 */ u8 unk913[0xCC1];
     /* 0x15D4 */ u8 effectColorR;
     /* 0x15D5 */ u8 effectColorG;
     /* 0x15D6 */ u8 effectColorB;
-    /* 0x15D7 */ u8 unk15D7[0x29];
+    /* 0x15D7 */ u8 pad15D7;
+    /* 0x15D8 */ u8 pad15D8[0x10];
+    /* 0x15E8 */ s16 unk15E8;
+    /* 0x15EA */ s16 unk15EA;
+    /* 0x15EC */ s16 unk15EC; // read as two 16-bit words by misc2's BattleComputeScaledFieldDelta
+    /* 0x15EE */ s16 unk15EE;
+    /* 0x15F0 */ s16 stepScale; // from the script header's stepScale; multiplies the distance into stepDistance
+    /* 0x15F2 */ s16 moveSpeed;
+    /* 0x15F4 */ s16 moveSpeedBase;
+    /* 0x15F6 */ s16 unk15F6; // the round reset sets 0x100 here and 0 at the next word (misc4)
+    /* 0x15F8 */ s16 unk15F8;
+    /* 0x15FA */ u8 pad15FA[0x2];
+    /* 0x15FC */ void* pWork; // the per-slot work record the state handlers run on (misc17/misc18's pWork)
     /* 0x1600 */ Misc10ActionRow* pActionRow;
 } Misc10Actor; // Size: 0x1604
+STATIC_ASSERT_SIZEOF(Misc10Actor, 0x1604);
 
 typedef struct {
     /* 0x00 */ u8 unk00[0x44];
