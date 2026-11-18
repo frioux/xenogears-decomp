@@ -45,25 +45,27 @@ extern s8 g_BattleColorTintRed[];
 extern s8 g_BattleColorTintGreen[];
 extern s8 g_BattleColorTintBlue[];
 
-// Allocation block owned by the structure passed to BattleFreeModelListEntryBuffers.
+// Allocation block owned by the structure passed to BattleFreeModelListEntryBuffers:
+// one 0x24-byte record of BattleActor.pModelListEntries, the same record misc21.c
+// declares as BattleModelListEntry.
 typedef struct {
     /* 0x0  */ u8 unk0[0x14];
-    /* 0x14 */ void *unk14;
-    /* 0x18 */ void *unk18;
-    /* 0x1C */ void *unk1C;
+    /* 0x14 */ void *pPoints; // 8 bytes (three s16) per point
+    /* 0x18 */ void *pRecords; // 0x10 bytes per record
+    /* 0x1C */ void *pPackets; // one packet pointer per point
     /* 0x20 */ void *unk20;
 } Misc23Block;
 
 // 0xE-byte node of the tree rooted at g_BattleTriangles, indexed by g_BattleTriangleCount.
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ s16 unk8;
-    /* 0xA */ s16 unkA;
+    /* 0x0 */ s16 vertexIndex0; // the triangle's three vertices, indexes into g_BattleTriangleVertices
+    /* 0x2 */ s16 vertexIndex1;
+    /* 0x4 */ s16 vertexIndex2;
+    /* 0x6 */ s16 childIndex0; // the three child nodes, searched in this order
+    /* 0x8 */ s16 childIndex1;
+    /* 0xA */ s16 childIndex2;
     /* 0xC */ u8 unkC;
-    /* 0xD */ u8 unkD;
+    /* 0xD */ u8 visitStamp; // set to g_BattleTriangleVisitStamp once the node was tested
 } Misc23TreeEntry; // Size: 0xE
 
 extern s32 D_800C3E88;
@@ -115,7 +117,7 @@ s32 BattleFindGroundTriangle(s32 arg0, s32 arg1, s32 arg2) {
     }
     g_BattleTriangleVisitStamp = 1;
     for (i = 0; i < g_BattleTriangleCount; i++) {
-        ((Misc23TreeEntry *)(i * 14 + g_BattleTriangles))->unkD = 0;
+        ((Misc23TreeEntry *)(i * 14 + g_BattleTriangles))->visitStamp = 0;
     }
     return result;
 }
@@ -181,11 +183,11 @@ s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
     if (index < 0) {
         return -1;
     }
-    if (((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD != g_BattleTriangleVisitStamp) {
-        ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkD = g_BattleTriangleVisitStamp;
-        result = BattleTestPointInTriangle((void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk0 * 8 + g_BattleTriangleVertices),
-                               (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk2 * 8 + g_BattleTriangleVertices),
-                               (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk4 * 8 + g_BattleTriangleVertices), arg0);
+    if (((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->visitStamp != g_BattleTriangleVisitStamp) {
+        ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->visitStamp = g_BattleTriangleVisitStamp;
+        result = BattleTestPointInTriangle((void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->vertexIndex0 * 8 + g_BattleTriangleVertices),
+                               (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->vertexIndex1 * 8 + g_BattleTriangleVertices),
+                               (void *)(((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->vertexIndex2 * 8 + g_BattleTriangleVertices), arg0);
         if (result == -1) {
             return index;
         }
@@ -193,15 +195,15 @@ s32 BattleSearchTriangleTree(s32 arg0, s32 index, s32 depth) {
     if (depth <= 0) {
         return -1;
     }
-    result = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk6, depth - 1);
+    result = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->childIndex0, depth - 1);
     if (result >= 0) {
         return result;
     }
-    res2 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unk8, depth - 1);
+    res2 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->childIndex1, depth - 1);
     if (res2 >= 0) {
         return res2;
     }
-    res3 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->unkA, depth - 1);
+    res3 = BattleSearchTriangleTree(arg0, ((Misc23TreeEntry *)(index * 14 + g_BattleTriangles))->childIndex2, depth - 1);
     if (res3 < 0) {
         res3 = -1;
     }
@@ -646,15 +648,15 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7064);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A7948);
 
 void BattleFreeModelListEntryBuffers(Misc23Block *pBlock) {
-    if (pBlock->unk14 != NULL) {
-        HeapFree(pBlock->unk14);
-        HeapFree(*(void **)pBlock->unk1C);
-        HeapFree(pBlock->unk1C);
+    if (pBlock->pPoints != NULL) {
+        HeapFree(pBlock->pPoints);
+        HeapFree(*(void **)pBlock->pPackets);
+        HeapFree(pBlock->pPackets);
         HeapFree(pBlock->unk20);
-        if (pBlock->unk18 != NULL) {
-            HeapFree(pBlock->unk18);
+        if (pBlock->pRecords != NULL) {
+            HeapFree(pBlock->pRecords);
         }
-        pBlock->unk14 = NULL;
+        pBlock->pPoints = NULL;
     }
 }
 
@@ -699,18 +701,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
-// The 0x18-byte variant stops after unk14; the 0x20-byte one adds a second
-// {u16, s32} pair at 0x18.
+// A list of {archive file index, buffer that file is decoded into} pairs: the
+// file index at 0x0/0x8/0x10/0x18 is the argument ArchiveDecodeAlignedSize and
+// func_80029AFC take, so the list is terminated by a zero pair. The 0x18-byte
+// variant stops after the third pair, the 0x20-byte one adds a fourth.
 typedef struct {
-    /* 0x0  */ u16 unk0;
+    /* 0x0  */ u16 fileIndex1;
     /* 0x2  */ u16 pad2;
-    /* 0x4  */ void *unk4;
-    /* 0x8  */ u16 unk8;
+    /* 0x4  */ void *pBuffer1;
+    /* 0x8  */ u16 fileIndex2;
     /* 0xA  */ u16 padA;
-    /* 0xC  */ void *unkC;
-    /* 0x10 */ u16 unk10;
+    /* 0xC  */ void *pBuffer2;
+    /* 0x10 */ u16 fileIndex3;
     /* 0x12 */ u16 pad12;
-    /* 0x14 */ s32 unk14;
+    /* 0x14 */ s32 pBuffer3;
     /* 0x18 */ u16 unk18;
     /* 0x1A */ u16 pad1A;
     /* 0x1C */ s32 unk1C;
@@ -740,7 +744,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
    in its delay slot - so port only the nameLen split and re-run the permuter
    from there, up to three times while the score falls).
    Remaining differences: (a) the original has an extra "move s3,s2" (a second
-   register holding pEntry, used for the unk0/unk4 stores while s2 keeps the
+   register holding pEntry, used for the fileIndex1/pBuffer1 stores while s2 keeps the
    later ones) - a pHead = (u8 *)pEntry alias is CSE'd back into pEntry, so gcc
    2.6 will not produce the copy; (b) that costs $s3 to pTail and pushes count
    into $s4 (mine has count in $s3, pTail in $v1); (c) my index gets a "move"
@@ -770,16 +774,16 @@ void func_800A9540(s32 arg0) {
     g_BattleArchiveEntry = pEntry;
     base = pTable[index - 1];
     nameLen = base + 1;
-    pEntry->unk0 = nameLen;
-    pEntry->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+    pEntry->fileIndex1 = nameLen;
+    pEntry->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
     nameLen = base + 2;
-    pEntry->unk8 = nameLen;
-    pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
-    pTail = &pEntry->unk10;
+    pEntry->fileIndex2 = nameLen;
+    pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
+    pTail = &pEntry->fileIndex3;
     if (count != 0) {
         nameLen = nameLen + count;
-        pEntry->unk10 = nameLen;
-        pEntry->unk14 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+        pEntry->fileIndex3 = nameLen;
+        pEntry->pBuffer3 = (s32)HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
         pTail = &pEntry->unk18;
     }
     pTail[0] = 0;
@@ -802,23 +806,23 @@ void BattleAllocateArchiveFilePair(s32 arg0) {
     arg0 *= 2;
     entryIndex = arg0 + 1;
     ArchiveGetFilePath(entryIndex);
-    pEntry->unk0 = entryIndex;
-    pEntry->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
+    pEntry->fileIndex1 = entryIndex;
+    pEntry->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
     entryIndex = arg0 + 2;
-    pEntry->unk8 = entryIndex;
-    pEntry->unkC = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
-    pEntry->unk10 = 0;
-    pEntry->unk14 = 0;
+    pEntry->fileIndex2 = entryIndex;
+    pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
+    pEntry->fileIndex3 = 0;
+    pEntry->pBuffer3 = 0;
     func_80029AFC(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
-// Payload reached through Misc23ArchiveEntry::unk14: a count-prefixed list of
-// 16-bit entries plus the pixel block bounded by unk8..unkC.
+// Payload reached through Misc23ArchiveEntry::pBuffer3: a count-prefixed list of
+// 16-bit entries plus the block bounded by pBlockStart..pBlockEnd.
 typedef struct {
-    /* 0x0 */ s32 unk0;
-    /* 0x4 */ u8 *unk4;
-    /* 0x8 */ u8 *unk8;
-    /* 0xC */ u8 *unkC;
+    /* 0x0 */ s32 pointerCount; // relative pointers ResolveArchiveEntryPointers fixes up
+    /* 0x4 */ u8 *pEntries; // s16 count, two unused bytes, then count 8-byte entries
+    /* 0x8 */ u8 *pBlockStart;
+    /* 0xC */ u8 *pBlockEnd; // pBlockEnd - pBlockStart is the block's size
 } Misc23ArchiveData;
 
 extern void ResolveArchiveEntryPointers(u32 *);
@@ -850,25 +854,25 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     s32 size;
     s32 flags;
 
-    func_800A8BF0(arg0, 0, g_BattleArchiveEntry->unkC, g_BattleArchiveEntry->unk4, arg1, arg2, arg3, arg4, 0);
+    func_800A8BF0(arg0, 0, g_BattleArchiveEntry->pBuffer2, g_BattleArchiveEntry->pBuffer1, arg1, arg2, arg3, arg4, 0);
     g_BattleActors[arg0][0x38] = 1;
     g_BattleActors[arg0][0x22] = 1;
-    if (g_BattleArchiveEntry->unk14 != 0) {
-        pData = (Misc23ArchiveData *)g_BattleArchiveEntry->unk14;
+    if (g_BattleArchiveEntry->pBuffer3 != 0) {
+        pData = (Misc23ArchiveData *)g_BattleArchiveEntry->pBuffer3;
         ResolveArchiveEntryPointers((u32 *)pData);
-        pSrc = pData->unk4;
+        pSrc = pData->pEntries;
         count = *(s16 *)pSrc;
         if (count != 0) {
             pSrc += 4;
-            size = pData->unkC - pData->unk8;
+            size = pData->pBlockEnd - pData->pBlockStart;
             pBuf = HeapAlloc(size, 0);
-            memcpy(pBuf, pData->unk8, size);
+            memcpy(pBuf, pData->pBlockStart, size);
             for (i = 0; i < count; i++) {
                 flags = (i != 0) ? 7 : 2;
                 if (i == count - 1) {
                     flags -= 2;
                 }
-                func_800A8BF0((arg0 << 1) + (i + 0xD), flags, pBuf, pData->unkC, arg1, arg2, arg3, arg4, 0);
+                func_800A8BF0((arg0 << 1) + (i + 0xD), flags, pBuf, pData->pBlockEnd, arg1, arg2, arg3, arg4, 0);
                 *(u16 *)(g_BattleActors[(arg0 << 1) + (i + 0xD)] + 0x5E) = *(u16 *)pSrc;
                 g_BattleActors[(arg0 << 1) + (i + 0xD)][0x5C] = arg0;
                 g_BattleActors[(arg0 << 1) + (i + 0xD)][0x5D] = 2;
@@ -881,13 +885,13 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
                 pSrc += 2;
             }
         } else {
-            func_8002DDE4(pData->unk8, 1, arg1, arg2, 1, arg3, arg4);
+            func_8002DDE4(pData->pBlockStart, 1, arg1, arg2, 1, arg3, arg4);
         }
-        HeapFree((void *)g_BattleArchiveEntry->unk14);
+        HeapFree((void *)g_BattleArchiveEntry->pBuffer3);
     }
     HeapFree(g_BattleArchiveEntry);
     DrawSync(0);
-    HeapFree(g_BattleArchiveEntry->unk4);
+    HeapFree(g_BattleArchiveEntry->pBuffer1);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
