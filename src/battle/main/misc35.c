@@ -172,19 +172,26 @@ void BattleFreeWdsEntry(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
-// 96.88% (400 bytes against retail's 404). The loop, the switch arm order (seds
-// listed first is what puts the seds body inline and the WDS arm out of line, as
-// retail has it) and the frame are exact. The one residual: retail hoists ONLY the
-// high half of the WDS entry address into $s7 in the loop preheader and keeps the
-// store's %lo displacement (lui $s7,%hi / sw $v0,%lo($s7)), while we re-form the
-// pair inside the loop body (lui $v1,%hi / sw $v0,%lo($v1)) - 4 bytes. Measured
-// dead ends: a pointer local for the entry (lui+addiu, 408 bytes), reading
-// g_DebugTable directly instead of through pDebugState (392, loses a saved
-// register), a volatile read of it, and a 4-minute permuter run (2122 iterations,
-// base=321 best=321). The dead pDebugState assignment below (unreachable after the
-// seds arm's break; gcc still hoists its address into $s7) is what reproduces the
-// frame, the saved-register set and the dead 0xFFFF0000 preheader constant, so it
-// is load-bearing - do not delete it without re-measuring.
+// 94.06% (392 bytes against retail's 404) with the honest debug read. Only three
+// instructions are missing: retail saves/restores $s7 (+8 bytes) and has a dead
+// `lui $s5,0xFFFF0000` in the loop preheader (+4), both because it hoists
+// `lui $s7,%hi(g_BattleWdsEntry)` into the preheader and stores through it
+// (`sw $v0,%lo(g_BattleWdsEntry)($s7)`), where we re-form the pair inline; our
+// compile hoists `%hi(g_DebugTable)` into a saved register instead. The loop, the
+// switch arm order (seds listed first puts the seds body inline and the WDS arm out
+// of line, as retail has it), the frame and the saved set are otherwise exact.
+// The one shape found that hoists the WDS %hi is a SECOND reference to
+// g_BattleWdsEntry inside the loop - appending `g_BattleWdsEntry = g_BattleWdsEntry;`
+// after the wait loop gives 93.76% / 408 with both %hi halves in saved registers
+// ($s4 WDS, $s7 debug), so retail's second reference must have been cse'd away; a
+// single-use invariant %hi has savings 0 and loop.c leaves it block-local. Measured
+// dead ends: gcc 2.6.0 87.90, plain 2.7.2 87.95, -O3 91.39, a volatile or
+// cast-address read of g_DebugTable (392), an if/else or `continue` guard
+// (94.06/392), a do/while wait loop (84.90/384), a pointer to the global taken
+// before the loop (400, %hi stays in $v0), and a local copy of the
+// SoundLoadWdsFile result (392). Retail's `break 0x400` debug break inside the wait
+// loop has no C spelling (AGENTS.md forbids inline asm), so this body cannot go live
+// as it stands; the honest 94.06/392 is what the rest of it reproduces.
 /*
 // Feeds one battle actor archive buffer to the sound player: every SEDS chunk is
 // added, every WDS chunk is (re)loaded after freeing the loaded one, and every
@@ -193,7 +200,6 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
     SoundFile *pSeds;
     SoundFile *pChunk;
     s32 *pEntry;
-    s32 *pDebugState;
     SVEC2 tex;
     SVEC2 clut;
     s32 i;
@@ -209,15 +215,15 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
             pSeds = pChunk;
             SoundAddSedsEntry(pSeds);
             break;
-            pDebugState = &g_DebugTable;
         case FILE_SIGNATURE('w', 'd', 's', ' '):
             BattleFreeWdsEntry();
             g_BattleSoundArchiveLoaded = 0;
             g_BattleActorArchiveReady = 0;
             g_BattleWdsEntry = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
             while (SoundGetPendingSpuCommandType(0) != 0) {
-                if (*pDebugState != -1) {
-                    asm("break 0x400");
+                if (g_DebugTable != -1) {
+                    // retail's `break 0x400` here has no C spelling: this park
+                    // cannot be un-parked until someone finds one.
                 }
             }
             if (i == 1) {
