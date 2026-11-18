@@ -3,6 +3,13 @@
 #include "main/game.h"
 #include "system/menu.h"
 
+#define MENU_LABEL_GLYPH_COUNT 9 // glyph ids per character label row (arg5 picks the row)
+#define MENU_LABEL_GLYPH_NONE 0xFFFF // g_MenuCharacterLabelGlyphIds entry with no glyph
+#define MENU_CHARACTER_WINDOW_COUNT 3 // one window per party character: menu.h's characterWindows[3]
+#define MENU_EQUIPMENT_PANEL_ROW_COUNT 5 // rows of the equipment panel (g_Menu->pEquipmentPanel)
+#define MENU_CHARACTER_CELL_TIMER_FRAMES 15 // characterCellTimer wraps at this frame count
+#define MENU_CHARACTER_CELL_FRAME_COUNT 6 // frames in one character cell animation cycle
+
 void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
@@ -26,10 +33,10 @@ void MenuBuildCharacterLabelsAndPortrait(MenuCharacter* pCharacter, u_char chara
     s32 textureX;
 
     pCharacter->descriptionStringsLength = 0;
-    for (i = 0; i < 9; i++) {
-        if (g_MenuCharacterLabelGlyphIds[arg5 * 9 + i] != 0xFFFF) {
+    for (i = 0; i < MENU_LABEL_GLYPH_COUNT; i++) {
+        if (g_MenuCharacterLabelGlyphIds[arg5 * MENU_LABEL_GLYPH_COUNT + i] != MENU_LABEL_GLYPH_NONE) {
             pCharacter->descriptionStringsLength += func_8002675C(
-                g_Menu->resources, g_MenuCharacterLabelGlyphIds[arg5 * 9 + i],
+                g_Menu->resources, g_MenuCharacterLabelGlyphIds[arg5 * MENU_LABEL_GLYPH_COUNT + i],
                 &pCharacter->polysDescriptionStrings[pCharacter->descriptionStringsLength * 2],
                 g_Menu->renderContext,
                 pPositionsX[i],
@@ -54,7 +61,7 @@ void MenuBuildCharacterLabelsAndPortrait(MenuCharacter* pCharacter, u_char chara
                            pPositionsX[16], ((s32*)arg4)[16] + localIndex * 0x38,
                            (textureX << 2) & 0xFC,
                            g_MenuNameTextureY[(arg5 * 3 + localIndex) * 4],
-                           width, 0xD);
+                           width, FONT_LETTER_HEIGHT);
 }
 void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
     s32* pPositionsY = (s32*)arg4;
@@ -65,14 +72,14 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
 
     MenuParseNumberToDigits(g_GameState.characters[characterIndex].level);
     pCharacter->levelStringLength = 0;
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MENU_LEVEL_DIGIT_COUNT; i++) {
         digit = g_Menu->digits[i + 6];
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             pCharacter->levelStringLength += func_8002675C(
                 g_Menu->resources, digit,
                 &pCharacter->polysLevelString[pCharacter->levelStringLength * 2],
                 g_Menu->renderContext,
-                i * 8 + ((s32*)arg3)[10],
+                i * MENU_DIGIT_SPACING + ((s32*)arg3)[10],
                 localIndex * 0x38 + pPositionsY[10],
                 0x1000);
         }
@@ -168,7 +175,7 @@ void MenuAddCharacterWindowPrims(void) {
     s32 i;
     MenuCharacterWindow* pWindow;
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MENU_CHARACTER_WINDOW_COUNT; i++) {
         pWindow = g_Menu->characterWindows[i];
         if (g_Menu->pManager->shouldRenderCharacterWindows[i]) {
             AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&((u8*)pWindow)[pWindow->renderContext * sizeof(POLY_FT4)]);
@@ -334,9 +341,9 @@ typedef struct {
     /* 0x70 */ u8 unk70[0x10];
 } MenuEquipmentPanelRow; // Size: 0x80
 typedef struct {
-    /* 0x000 */ MenuEquipmentPanelRow rows[5];
+    /* 0x000 */ MenuEquipmentPanelRow rows[MENU_EQUIPMENT_PANEL_ROW_COUNT];
     /* 0x280 */ u8 unk280[0x14];
-    /* 0x294 */ u8 shouldRenderRows[5];
+    /* 0x294 */ u8 shouldRenderRows[MENU_EQUIPMENT_PANEL_ROW_COUNT];
     /* 0x299 */ u_char renderContext;
     /* 0x29A */ u8 unk29A[0x12];
 } MenuEquipmentPanel; // Size: 0x2AC
@@ -346,7 +353,7 @@ void MenuAddUnk360Prims(void) {
     MenuEquipmentPanelRow* pRow;
 
     if (g_Menu->pManager->shouldRenderPanel[1]) {
-        for (i = 0; i < 5; i++) {
+        for (i = 0; i < MENU_EQUIPMENT_PANEL_ROW_COUNT; i++) {
             pPanel = (MenuEquipmentPanel*)g_Menu->pEquipmentPanel;
             if (pPanel->shouldRenderRows[i]) {
                 // The row address has to be summed in integer space: a pointer sum gives
@@ -511,7 +518,7 @@ void MenuScrollCellGridRow(void) {
         MenuRenderString(2, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs2[0],
                          ((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext);
     }
-    MenuRenderString(0xC, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs12[0],
+    MenuRenderString(12, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs12[0],
                      ((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext);
     AddPrim(&g_Menu->pGfxEnv->ot[4],
             (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads));
@@ -530,9 +537,9 @@ void MenuAddCellGridPrims(void) {
     func_801CFB48();
     func_801CF8D8();
     MenuScrollCellGridRow();
-    if (++g_Menu->characterCellTimer == 0xF) {
+    if (++g_Menu->characterCellTimer == MENU_CHARACTER_CELL_TIMER_FRAMES) {
         g_Menu->characterCellTimer = 0;
-        if (++g_Menu->characterCellFrame == 6) {
+        if (++g_Menu->characterCellFrame == MENU_CHARACTER_CELL_FRAME_COUNT) {
             g_Menu->characterCellFrame = 0;
         }
     }
