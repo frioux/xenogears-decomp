@@ -377,3 +377,4 @@ g_GearPilotIds = 0x801E9808;
 g_MenuEquipmentSlotRowY = 0x801E9DBC;
 g_MenuUnk17E0StringIds = 0x801EA564;
 g_MenuUnk18E0StringIdSets = 0x801EA568;
+g_MenuGlyphSjisTable = 0x801EA5D0;

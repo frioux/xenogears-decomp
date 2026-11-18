@@ -438,7 +438,7 @@ void MenuCreateCellPrimBlocks(void) {
         MenuInitializeCellLinePrims(i);
     }
 }
-extern u16 D_801EA5D0[];
+extern u16 g_MenuGlyphSjisTable[];
 extern u32 g_MenuSlotSpriteX[];
 extern u32 g_MenuSlotSpriteY[];
 extern u8 g_MenuGlyphIsDoubleByte;
@@ -638,8 +638,8 @@ s32 MenuGetGlyphKromAddress(u8* p) {
     g_MenuGlyphIsDoubleByte = 1;
     if (hi < 0x80) {
         if (hi >= 0x20) {
-            lo = *(u8*)&D_801EA5D0[hi];
-            hi = D_801EA5D0[hi] >> 8;
+            lo = *(u8*)&g_MenuGlyphSjisTable[hi];
+            hi = g_MenuGlyphSjisTable[hi] >> 8;
             g_MenuGlyphIsDoubleByte = 0;
         } else {
             hi = 0x81;

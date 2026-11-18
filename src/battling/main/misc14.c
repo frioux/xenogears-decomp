@@ -7,16 +7,16 @@
 
 // .bss/.sdata of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
-extern u32 D_80092818[];
-extern s32 D_80092810;
-extern s32 D_80092820;
+extern u32 g_BattleDrawBufferColor[];
+extern s32 g_BattleBackColorEnabled;
+extern s32 g_BattleTimerStartCount;
 extern u32 g_BattleCurrentOrderingTable;
 extern s32 g_GfxOTDepthShift;
-extern s32 D_80050104;
-extern s32 D_80091C30;
+extern s32 g_ModelRenderTestFlags;
+extern s32 g_BattlePendingDisplayWork;
 extern s32 D_80096D88;
 extern s32 D_80096D8C;
-extern s32 D_80092914;
+extern s32 g_BattleEntryColorChanged;
 extern u8 *g_BattleRootOrderingTable;
 extern RECT *g_BattleDrawSlot;
 
@@ -35,11 +35,11 @@ typedef struct {
 } Misc14Entry; // Size: 0x14
 
 void BattleEnableBackColor(void) {
-    D_80092810 = 1;
+    g_BattleBackColorEnabled = 1;
 }
 
 void BattleDisableBackColor(void) {
-    D_80092810 = 0;
+    g_BattleBackColorEnabled = 0;
 }
 
 extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOT, s32 flags);
@@ -61,8 +61,8 @@ typedef struct {
 } Misc14ModelPart; // Size: 0x20
 
 void BattleRenderActorModel(Misc14ModelPart *pPart) {
-    D_80050104 = 0;
-    if (D_80092810 != 0) {
+    g_ModelRenderTestFlags = 0;
+    if (g_BattleBackColorEnabled != 0) {
         if (pPart->flags & 0x10) {
             gte_SetBackColor(pPart->r, pPart->g, pPart->b);
         } else {
@@ -79,12 +79,12 @@ typedef struct {
 } Misc14Quad; // Size: 0x4
 
 void BattleSetColorIfChanged(u8 *pSrc) {
-    u8 *pDst = (u8 *)&D_80092818[g_BattleDrawBufferIndex];
+    u8 *pDst = (u8 *)&g_BattleDrawBufferColor[g_BattleDrawBufferIndex];
 
     if (pSrc[0] == pDst[0] && pSrc[1] == pDst[1] && pSrc[2] == pDst[2]) {
-        D_80092914 = 0;
+        g_BattleEntryColorChanged = 0;
     } else {
-        D_80092914 = 1;
+        g_BattleEntryColorChanged = 1;
         *(Misc14Quad *)pDst = *(Misc14Quad *)pSrc;
         pDst[3] = 0x20;
     }
@@ -144,7 +144,7 @@ void BattleSetEntryColor(Misc14ModelNode *pNode) {
     Misc14RenderRecord *pRender = ((Misc14State5Data *)pNode->pData)->pRender;
     s32 count = pRender->entryCount;
     Misc14Entry *pEntry = pRender->pEntries[index];
-    u32 value = D_80092818[index];
+    u32 value = g_BattleDrawBufferColor[index];
 
     while (--count != -1) {
         pEntry->color = value;
@@ -206,7 +206,7 @@ void BattleUpdateNodeTree(Misc14ModelNode* pNode) {
         if (((Misc14State5Data*)pNode->pData)->type == 1) {
             pNode->localMatrix = ((Misc14State5Data*)pNode->pData)->pMatrices->rotMatrix;
             gte_SetRotMatrix_gpr(&pNode->localMatrix);
-            if (D_80092914 != 0) {
+            if (g_BattleEntryColorChanged != 0) {
                 BattleSetEntryColor(pNode);
             }
             BattleProjectShadowVerts(((Misc14State5Data*)pNode->pData)->pRender->pData,
@@ -242,7 +242,7 @@ typedef struct {
     /* 0x48 */ u8 prim48[2][0x10];
 } Misc14DisplayWork; // Size: 0x68
 
-extern s32 D_80091C30;
+extern s32 g_BattlePendingDisplayWork;
 
 void BattleClearOrderingTable(Misc14DisplayWork *pWork) {
     s32 n = pWork->count;
@@ -253,11 +253,11 @@ void BattleClearOrderingTable(Misc14DisplayWork *pWork) {
 }
 
 void BattleSetOrderingTableTarget(s32 arg0) {
-    D_80091C30 = arg0;
+    g_BattlePendingDisplayWork = arg0;
 }
 
 void BattleCaptureTimerCount(void) {
-    D_80092820 = GetRCnt(0xF2000001);
+    g_BattleTimerStartCount = GetRCnt(0xF2000001);
 }
 
 // The word an ordered prim starts with, as this walk reads it: the low 24 bits
@@ -269,7 +269,7 @@ typedef struct {
 } Misc14PrimCode; // Size: 0x4
 
 void BattleCompactOrderingTable(s32 arg0) {
-    Misc14DisplayWork *pWork = (Misc14DisplayWork *)D_80091C30;
+    Misc14DisplayWork *pWork = (Misc14DisplayWork *)g_BattlePendingDisplayWork;
     s32 timeout;
     s32 start;
     s32 diff;
@@ -280,8 +280,8 @@ void BattleCompactOrderingTable(s32 arg0) {
     if (pWork == NULL) {
         return;
     }
-    start = D_80092820;
-    D_80091C30 = 0;
+    start = g_BattleTimerStartCount;
+    g_BattlePendingDisplayWork = 0;
     if (arg0 != 0) {
         timeout = ((arg0 << 4) - arg0) << 4;
     } else {

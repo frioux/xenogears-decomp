@@ -1659,3 +1659,4 @@ g_GpuSavedIntrMask = 0x800569E4;
 g_GpuTimeoutCount = 0x800569EC;
 g_GpuTimeoutDeadline = 0x800569E8;
 g_SpriteVramSlotPair = 0x8004FAB8;
+g_ModelRenderTestFlags = 0x80050104;

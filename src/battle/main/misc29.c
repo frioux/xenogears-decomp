@@ -233,7 +233,7 @@ extern void BattleActorUpdateGroundHeightAndTriangle(SpriteData *pSprite);
 extern u8 g_IsBattle;
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_GfxWorkListCapacity;
-extern s32 D_80050104;
+extern s32 g_ModelRenderTestFlags;
 extern void BattleResetStateGlobals(void);
 extern void BattleResetTimerTaskGlobals(void);
 extern void WorkListsReset(void);
@@ -255,7 +255,7 @@ void BattleInitStateWorkBuffers(void) {
     BattleClearActorMask();
     BattleClearFlagD2FDC();
     BattleEmptyHook();
-    D_80050104 = 0;
+    g_ModelRenderTestFlags = 0;
 }
 
 // Best 75.16%: the body is right apart from the loop's slot pointer, which gcc
