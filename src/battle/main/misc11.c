@@ -19,7 +19,7 @@ extern u8 D_800C400B[];
 extern u8 D_800C402F[];
 extern u8 g_BattleSoundEnabled;
 extern u8 g_BattleSlotFlags[];
-extern BattleTargetOrder D_800D2DD7;
+extern BattleTargetOrder g_BattleTargetScan;
 extern u8 D_800C204C;
 extern u8 D_800C3202[];
 extern u8 *g_BattleGraphicsWork;
@@ -284,24 +284,24 @@ void BattleResetActorDrawState(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
     s32 best = 0xFF;
-    s32 i = D_800D2DD7.cursor;
+    s32 i = g_BattleTargetScan.cursor;
     s32 sel;
     s32 idx;
     // g_BattleSlotCountdownTimers is 0x2F bytes past the ring; retail forms the
     // table off the ring base (addiu t3,v0,0x2F), so naming the symbol costs 4 bytes.
-    s16 *pTimers = (s16 *)((u8 *)&D_800D2DD7 + 0x2F);
+    s16 *pTimers = (s16 *)((u8 *)&g_BattleTargetScan + 0x2F);
 
     do {
-        idx = D_800D2DD7.order[i];
+        idx = g_BattleTargetScan.order[i];
         i++;
         if (pTimers[idx] < best && idx != arg0) {
             sel = idx;
             best = *(u8 *)&pTimers[idx];
         }
-        if (i == sizeof(D_800D2DD7.order)) {
+        if (i == sizeof(g_BattleTargetScan.order)) {
             i = 0;
         }
-    } while (i != D_800D2DD7.cursor);
+    } while (i != g_BattleTargetScan.cursor);
     return sel;
 }
 

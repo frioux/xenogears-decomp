@@ -46,7 +46,7 @@ extern u8 *GetStringEntry(u8 *);
 extern u8 g_BattleMenuEvent;
 extern u8 g_BattleActorCountdownState[];
 extern u8 g_BattlePendingCharIndex;
-extern u8 D_800D2DD7[];
+extern u8 g_BattleTargetScan[];
 extern u8 D_800D2DD8[];
 extern u8 D_800D2DE3[];
 extern u16 D_800D2E04[];
@@ -674,7 +674,7 @@ void func_800723E0(void) {
     }
 
     g_BattleCommandQueue[0x2D3] = 0;
-    pCurrent = D_800D2DD7;
+    pCurrent = g_BattleTargetScan;
     for (i = *pCurrent; g_BattleActorCountdownState[D_800D2DD8[i]] != 1; i++) {
         if (i == 0xB) {
             i = 0;
