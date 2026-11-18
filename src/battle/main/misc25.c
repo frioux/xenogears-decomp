@@ -46,7 +46,13 @@ extern BattleActor *g_BattleActors[];
 extern void func_800A9FF0(s32);
 extern void BattleAppendActorCommandBytes(void *, void *, void *, void *);
 extern void func_800BE790(void);
-extern s32 func_800B0D70(s16 *, u16 *);
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ u16 z;
+} BattleQueryPoint; // Size: 0x6
+
+extern s32 func_800B0D70(u16 *, BattleQueryPoint *);
 extern s16 func_800B0B14(s32 index);
 
 typedef struct BattleModelNode BattleModelNode;
@@ -805,7 +811,68 @@ s16 func_800B0B14(s32 index) {
     return vec[1];
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
+extern s32 BattleGetActorHeight(s32 index);
+extern s32 BattleGetActorRadius(s32 index);
+
+s32 func_800B0D70(u16 *pPos, BattleQueryPoint *pOut) {
+    s32 i;
+    u16 radius;
+    s16 bestSlot;
+    u16 bestRadius;
+    u16 bestX;
+    u16 bestZ;
+    s32 x;
+    s32 px;
+    s32 pz;
+    s32 z;
+    s16 dx;
+    s16 dz;
+    s32 refY;
+    s32 len;
+    BattleActor **ppActor;
+    BattleActor **pBase;
+
+    bestSlot = -1;
+    for (i = 0; i < 11; i++) {
+        radius = BattleGetActorRadius(i) + 0x80;
+        pBase = g_BattleActors;
+        ppActor = &pBase[i];
+        if (*ppActor == NULL) {
+            continue;
+        }
+        if ((*ppActor)->doUpdate == 0) {
+            continue;
+        }
+        refY = pOut->y;
+        if ((*ppActor)->pSprites->pos[1] - BattleGetActorHeight(i) >= refY) {
+            continue;
+        }
+        if (bestSlot >= 0 && (s16)radius <= (s16)bestRadius) {
+            continue;
+        }
+        px = (s16)pPos[0];
+        pz = (s16)pPos[2];
+        x = ((u16 *)(*ppActor)->pSprites->pos)[0] - px / 6;
+        z = ((u16 *)(*ppActor)->pSprites->pos)[4] - pz / 6;
+        dx = pOut->x - x;
+        dz = pOut->z - z;
+        len = SquareRoot0(dx * dx + dz * dz) + 1;
+        if (len >= (s16)radius) {
+            continue;
+        }
+        bestSlot = i;
+        bestRadius = radius;
+        bestX = x + dx * (s16)radius / len;
+        bestZ = z + dz * (s16)radius / len;
+    }
+    if (bestSlot >= 0) {
+        pOut->x = bestX;
+        pOut->z = bestZ;
+        return bestSlot + 1;
+    } else {
+        return 0;
+    }
+}
 s32 BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     s16 vec[3];
     s32 len;
