@@ -22,7 +22,10 @@ typedef union {
         /* 0x0 */ u32 actionChance0Roll : 1;
         /* 0x0 */ u32 actionChance1Roll : 1;
         /* 0x0 */ u32 actionChance2Roll : 1;
-        /* 0x0 */ u32 unk2C_12 : 1;
+        // The rand() & 1 coin flip func_8008F7B8 takes: func_8008FCC8 sends the
+        // actor into state 1 (approach and queue messages) when it reads set and
+        // into state 2 when it reads clear.
+        /* 0x0 */ u32 attackRoll : 1;
         // BattleDispatchWorkState copies this bit into the actor's flags bit 1.
         /* 0x0 */ u32 setFlag2 : 1;
         /* 0x0 */ u32 pad2C : 18;
@@ -106,8 +109,13 @@ typedef struct BattleActor {
     /* 0x0D4 */ u8 unkD4[0x4];
     /* 0x0D8 */ struct BattleActor* pTarget;
     /* 0x0DC */ u8 unkDC[0x818];
-    /* 0x8F4 */ u32 unk8F4;
-    /* 0x8F8 */ u8 unk8F8[0x19];
+    // The distance from the actor to the nearest active effect slot and that slot,
+    // recorded every frame by func_80073644 (0x10000 when none is active); the
+    // state handlers here read the target's distance to tell whether it stands in
+    // an effect.
+    /* 0x8F4 */ u32 nearestEffectDistance;
+    /* 0x8F8 */ void* pNearestEffect;
+    /* 0x8FC */ u8 unk8FC[0x15];
     /* 0x911 */ u8 actionCount;
     /* 0x912 */ u8 unk912[0xCEA];
     /* 0x15FC */ BattleWork* pWork;
@@ -220,7 +228,7 @@ s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1) {
 }void func_8008F7B8(BattleWork* pWork) {
     pWork->flags.bits.actionChance0Roll = (rand() & 0xFF) < pWork->actionChance0;
     pWork->flags.bits.actionChance1Roll = (rand() & 0xFF) < pWork->actionChance1;
-    pWork->flags.bits.unk2C_12 = rand() & 1;
+    pWork->flags.bits.attackRoll = rand() & 1;
     pWork->flags.bits.actionChance2Roll = (rand() & 0xFF) < pWork->actionChance2;
     pWork->flags.bits.unk2C_8 = ((rand() & 0xFF) < pWork->actionChance0) && ((rand() % 10) < 3);
     pWork->flags.bits.random = rand();
@@ -286,7 +294,7 @@ s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) == 0) {
         return 0;
     }
-    v = pActor->pTarget->unk8F4;
+    v = pActor->pTarget->nearestEffectDistance;
     if (v < 0x800) {
         pActor->flags |= 0x8000;
         pWork->setFlag8000 = 1;
@@ -453,7 +461,7 @@ void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
     if (pActor->actionPhase != 2 && pActor->pTarget->actionPhase == 2) {
         BattleSetActorFlag2AndClearQueue(pActor, pWork);
     }
-    if (pActor->pTarget->unk8F4 - 0x201 < 0x3FF && pWork->difficulty != 0) {
+    if (pActor->pTarget->nearestEffectDistance - 0x201 < 0x3FF && pWork->difficulty != 0) {
         BattleSetActorFlag2AndClearQueue(pActor, pWork);
     }
     if (--pWork->delay > 0) {
