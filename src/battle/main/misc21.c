@@ -461,7 +461,50 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
         }
     }
 }
+/* func_8009F844: 1021 insns / 0xFF4 bytes, never attempted, no body written yet.
+   Structural read from the .s (round 233), so the next worker does not redo it:
+   - Frame 0x110, and it is a LEAF-arg-shape function: a0-a3 plus THREE stack
+     words at sp+0x120 / 0x124 / 0x128. a0 ($fp) is a BattleActor and every
+     field it touches is already named in include/battle/actor.h (pMesh 0x0,
+     pSprites 0x4, scale 0x1C, height 0x24, width 0x26, depth 0x28, doUpdate
+     0x34, unk39 0x39 - written here as 0x6B minus depth/8 -, unk3E 0x3E,
+     flags4A 0x4A bit 0, numEntries 0x10C, numModelListEntries 0x10D,
+     numTextures 0x10E, pEntries 0x110, pModelListEntries 0x114, pTextures
+     0x118), so no view struct is needed. Globals: g_BattlePartSlots (u16[]),
+     D_800D3306 / D_800D3308 / D_800D330A (s16 per slot), g_BattleExtraMatrixFlag,
+     g_GfxOTDepthShift (srav), D_800D39E8 (rsin/rcos scale).
+   - Only SIX loops in 1000 instructions (everything else is straight line):
+     2 iterations stride 0x14 (slot scale vector: SquareRoot0 + three divides,
+     which --expand-div turns into the break 6 / break 7 pairs; result written
+     as three s16), 0x7C stride over actor->pSprites (0x80(sp) is its +0xA
+     count), 0x24 stride over pModelListEntries (rsin/rcos + CompMatrix, then
+     two inner loops: a vector array at +0xA stride 8 whose MAC1..3 land in a
+     packet's vertex coords, and +0xE stride-0x10 records), 0x30 stride over
+     pTextures calling func_800A3E98(record, stack+0x120), 0x70 stride over
+     pEntries (BattleActorEntry) with two RTPS + BattleAllocSpriteSlot.
+   - Inline GTE, so include/psyq/inline_c.h is required: MVMVA(1,0,0,0,0) +
+     swc2 $25/$26/$27 (MAC1..3 -> VECTOR, i.e. gte_mvl/mvmva + stlvnl),
+     RTPS six times with swc2 $14 (SXY2) either to a scratchpad warp slot or a
+     packet, and mfc2 $19 (SZ3) >> 2 for the depth that feeds g_GfxOTDepthShift.
+     0x1F800000 is the matrix scratchpad (s7), 0x1F800020/0x1F800040 the two
+     saved copies at 0xA8(sp)/0xB0(sp).
+   - Callees, 36 calls / 14 distinct: CompMatrix x8, SetTransMatrix x7,
+     SetRotMatrix x7, MulMatrix0 x2, BattleAllocSpriteSlot x2, and SquareRoot0,
+     SetLightMatrix, RotMatrix, MulMatrix, ratan2, rsin, rcos, ModelRenderPacket,
+     func_800A3E98, func_800A7948 (7 args: the last three are pushed at
+     0x10/0x14/0x18(sp)). Tail is jr $31 / nop, so the return type is void.
+   Budget: this is a 3-4 hour transcription with a diff loop, not a batch item. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
+/* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
+   ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
+   state machine over the actor's queued blocks (include/battle/actor.h names
+   BattleActor.blockTag 0x3C as "func_800A0838 compares it with each queued
+   block's tag and sets that block's result bits"). It OWNS both of this unit's
+   .rodata tables, which start at the unit's rodata offset 0xA24:
+   jtbl_80070514 (9 case words + a trailing zero word, which is the .align 3 pad
+   of the NEXT table, so it is reproducible) and jtbl_8007053C at +0x28 (6
+   words). Convert it as C with real switch statements and judge with
+   check_bin.sh battle, not diff_func. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
 /*
