@@ -18,6 +18,19 @@
 // Font glyph code of '0'; a digit n is glyph code MENU_GLYPH_DIGIT_0 + n
 #define MENU_GLYPH_DIGIT_0 0x10
 
+// Stat label glyphs drawn across the HP, fuel and weight rows of the gear panel
+#define MENU_GEAR_STAT_LABEL_GLYPH_COUNT 14
+
+// Sparkle glyphs drawn in the row of sparkles behind the gear panel
+#define MENU_SPARKLE_GLYPH_COUNT 3
+
+// Weapon ids below this equip into weapon slot 0, the rest into an extra weapon slot
+#define MENU_GEAR_EXTRA_WEAPON_ID_MIN 50
+
+// Fuel is tuned in units of 100 fuel points, each costing 10 GP
+#define MENU_FUEL_UNIT_AMOUNT 100
+#define MENU_FUEL_UNIT_PRICE 10
+
 // MenuUnk8.optionMarkerStates values
 #define MENU_MARKER_STATE_IDLE 0
 #define MENU_MARKER_STATE_HIGHLIGHTING 1
@@ -178,7 +191,7 @@ void GearShopMenuRenderGearPanelStrings(void) {
     }
     if (g_Menu->pManager->isPanelActive[3] != 0) {
         GearShopMenuRenderString(1U, g_Menu->menuUnk8->unk0.polys, g_Menu->renderContext);
-        GearShopMenuRenderString(0xEU, g_Menu->menuUnk8->polys12A0, g_Menu->menuUnk8->gearStatStringsRenderContext);
+        GearShopMenuRenderString(MENU_GEAR_STAT_LABEL_GLYPH_COUNT, g_Menu->menuUnk8->polys12A0, g_Menu->menuUnk8->gearStatStringsRenderContext);
         GearShopMenuRenderString(g_Menu->menuUnk8->gearHpStrLen, g_Menu->menuUnk8->polys1700, g_Menu->menuUnk8->gearStatStringsRenderContext);
         GearShopMenuRenderString(g_Menu->menuUnk8->gearMaxHpStrLen, g_Menu->menuUnk8->polys1890, g_Menu->menuUnk8->gearStatStringsRenderContext);
         GearShopMenuRenderString(g_Menu->menuUnk8->gearFuelStrLen, g_Menu->menuUnk8->polys1A20, g_Menu->menuUnk8->gearStatStringsRenderContext);
@@ -223,7 +236,7 @@ void GearShopMenuAnimateOptionMarkers(void) {
 
             g_Menu->menuUnk8->optionMarkerPrimCounts[i] = 0;
             for(k = 0; k < 4; k++) {
-                if (g_GearShopOptionMarkerGlyphs[(i * 0x14) + ((g_Menu->menuUnk8->optionMarkerGlyphIndexes[i] << 2) + k)] != 0xFFFF) {
+                if (g_GearShopOptionMarkerGlyphs[(i * 0x14) + ((g_Menu->menuUnk8->optionMarkerGlyphIndexes[i] << 2) + k)] != MENU_RESOURCE_NONE) {
                     g_Menu->menuUnk8->optionMarkerPrimCounts[i] += func_8002675C(
                         g_Menu->resources,
                         g_GearShopOptionMarkerGlyphs[(i * 0x14) + ((g_Menu->menuUnk8->optionMarkerGlyphIndexes[i] << 2) + k)],
@@ -349,7 +362,7 @@ void GearShopMenuAnimatePanelSparkles(void) {
                 g_Menu->menuUnk8->sparkleY = t2;
             }
 
-            for(i = 0; i < 3; i++) {
+            for(i = 0; i < MENU_SPARKLE_GLYPH_COUNT; i++) {
                 g_Menu->menuUnk8->sparklePrimCount = func_8002675C(
                     g_Menu->resources,
                     g_Menu->menuUnk8->sparkleGlyphIndex + MENU_TEX_SPARKLE_GLYPH_0,
@@ -383,7 +396,7 @@ void GearShopMenuLoadGearNameTexture(u_char stringIndex) {
     g_GearShopGearNameBuffer = HeapAlloc(0x3F6, 0x0);
     bzero(g_GearShopGearNameBuffer, 0x3F6);
     SystemRenderStringEntry(&g_GameState.strings[stringIndex], g_GearShopGearNameBuffer, 0x24, 0);
-    setRECT(&rect, 0x180, 0x48, 0x28, 0xD);
+    setRECT(&rect, 0x180, 0x48, 0x28, FONT_LETTER_HEIGHT);
     LoadImage(&rect, (u32* ) g_GearShopGearNameBuffer);
     DrawSync(0);
     HeapFree(g_GearShopGearNameBuffer);
@@ -397,7 +410,7 @@ void GearShopMenuLoadGearNameTexture(u_char stringIndex) {
 void GearShopMenuBuildGearStatsGraphics(void) {
     int i, j;
 
-    for (j = 0; j < 0xE; j++) {
+    for (j = 0; j < MENU_GEAR_STAT_LABEL_GLYPH_COUNT; j++) {
         func_8002675C(
             g_Menu->resources,
             g_GearShopGearStatLabelGlyphs[j], // Resource ID
@@ -956,7 +969,7 @@ s32 GearShopMenuBuildEquippedCharacterMask(u8 itemId, u8 itemType) {
                         break;
                     case ITEM_TYPE_GEAR_WEAPON:
                         for(j = 0; j < 4; j++) {
-                            if (itemId < 0x32) {
+                            if (itemId < MENU_GEAR_EXTRA_WEAPON_ID_MIN) {
                                 if(g_GameState.gears[g_GameState.characters[i].gearId].weaponId[j] == itemId) {
                                     found = TRUE;
                                     break;
@@ -1018,7 +1031,7 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
 
     temp_v0 = HeapAlloc(0x618U, 0U);
     bzero(temp_v0, 0x618);
-    bzero(sp28, 0xE);
+    bzero(sp28, sizeof(sp28));
     if (itemType != ITEM_TYPE_GEAR_ACCESSORY) {
         if (itemType == ITEM_TYPE_GEAR_WEAPON) {
             g_Menu->pShop->strItemDesc.width = SystemRenderStringEntry(GetGearWeaponName(arg0), temp_v0, 0x39U, 0U);
@@ -1049,16 +1062,16 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
     sp28[8] = (price % 10) + MENU_GLYPH_DIGIT_0;
     SystemDecodeGlyphCodesN((u16* ) &sp28, sp38, 5);
     g_Menu->pShop->str44B0.width = SystemRenderStringEntry(&sp38, temp_v0, 0x39U, 1U);
-    setRECT((RECT*)&sp20, 0x140, 0x4E, 0x3C, 0xD);
+    setRECT((RECT*)&sp20, 0x140, 0x4E, 0x3C, FONT_LETTER_HEIGHT);
     LoadImage((RECT*)&sp20, (u32* ) temp_v0);
     DrawSync(0);
     GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->strItemDesc, 0, 0, 0U);
     GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->str44B0, 0, 0, 0U);
     g_Menu->pShop->str44B0.polys[g_Menu->renderContext].clut = g_SystemPalette2;
-    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0U, 0x4EU, g_Menu->pShop->strItemDesc.width, 0xD);
-    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->str44B0.polys[g_Menu->renderContext], 0x98, 0x12, 0U, 0x4EU, g_Menu->pShop->str44B0.width, 0xD);
-    GearShopMenuSetVertices(g_Menu->pShop->strItemDesc.vertices, 0x2C, 0x12, g_Menu->pShop->strItemDesc.width, 0xD);
-    GearShopMenuSetVertices(g_Menu->pShop->str44B0.vertices, 0x98, 0x12, g_Menu->pShop->str44B0.width, 0xD);
+    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0U, 0x4EU, g_Menu->pShop->strItemDesc.width, FONT_LETTER_HEIGHT);
+    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->str44B0.polys[g_Menu->renderContext], 0x98, 0x12, 0U, 0x4EU, g_Menu->pShop->str44B0.width, FONT_LETTER_HEIGHT);
+    GearShopMenuSetVertices(g_Menu->pShop->strItemDesc.vertices, 0x2C, 0x12, g_Menu->pShop->strItemDesc.width, FONT_LETTER_HEIGHT);
+    GearShopMenuSetVertices(g_Menu->pShop->str44B0.vertices, 0x98, 0x12, g_Menu->pShop->str44B0.width, FONT_LETTER_HEIGHT);
     g_Menu->pShop->strItemDesc.renderContext = g_Menu->renderContext;
     g_Menu->pShop->str44B0.renderContext = g_Menu->renderContext;
     HeapFree(temp_v0);
@@ -1117,7 +1130,7 @@ void GearShopMenuRenderSellItemRows(s32 scrollOffset, u8* pItemIds, u8* pItemTyp
 
     for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
         pRect = &sp20;
-        bzero(digitGlyphs, 0xE);
+        bzero(digitGlyphs, sizeof(digitGlyphs));
         g_Menu->pShop->inventoryPrimCounts[i] = 0;
         polyColor = 0x1000;
         if (pItemIds[scrollOffset + i]) {
@@ -1456,17 +1469,17 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
     pWorkspace = HeapAlloc(0x3F6, 0);
 
     switch (itemType) {
-        case 0:
+        case ITEM_TYPE_GEAR_ARMOR:
             itemId = g_GameState.gears[g_gearShopCurrentGearId].armorId;
             pNames = g_Menu->pShop->pGearArmorNames;
             g_Menu->pShop->str4530.width = SystemRenderStringEntry(GetStringEntry(pNames, itemId), pWorkspace, 0x24, 0);
             break;
-        case 1:
+        case ITEM_TYPE_GEAR_FRAME:
             itemId = g_GameState.gears[g_gearShopCurrentGearId].frameId;
             pNames = g_Menu->pShop->pGearFrameNames;
             g_Menu->pShop->str4530.width = SystemRenderStringEntry(GetStringEntry(pNames, itemId), pWorkspace, 0x24, 0);
             break;
-        case 2:
+        case ITEM_TYPE_GEAR_ENGINE:
             itemId = g_GameState.gears[g_gearShopCurrentGearId].engineId;
             pNames = g_Menu->pShop->pGearEngineNames;
             g_Menu->pShop->str4530.width = SystemRenderStringEntry(GetStringEntry(pNames, itemId), pWorkspace, 0x24, 0);
@@ -1690,7 +1703,7 @@ void GearShopMenuComputeEquipStatDelta(s32* pDelta, s8* pIsImprovement, u8 itemI
         case ITEM_TYPE_GEAR_WEAPON:
             // This **may** be a check to see if the weapon belongs to Billy or not,
             // since Billy uses guns w/ ammo which needs special handling? This should be double checked though.
-            if (itemId < 0x32) {
+            if (itemId < MENU_GEAR_EXTRA_WEAPON_ID_MIN) {
                 g_GameState.gears[gearId].weaponId[0] = itemId;
             } else {
                 pWeaponList = g_Menu->pDressingRoom->pGearWeapons;
@@ -1883,12 +1896,12 @@ s32 GearShopMenuBuildPurchaseItemDetails(s32 rowIndex, s32 scrollOffset, u8 *unu
     }
 
     totalPrice = GearShopMenuBuildEquippedCharacterMask(itemId, itemType);
-    setRECT(&rect, 0x140, 0x4E, 0x3C, 0xD);
+    setRECT(&rect, 0x140, 0x4E, 0x3C, FONT_LETTER_HEIGHT);
     LoadImage(&rect, (u32 *)pStringBuffer);
     DrawSync(0);
     GearShopMenuInitializeMenuStringPolys(&g_Menu->pShop->strItemDesc, 0, 0, 0U);
-    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0, 0x4E, (s32) g_Menu->pShop->strItemDesc.width, 0xD);
-    GearShopMenuSetVertices(g_Menu->pShop->strItemDesc.vertices, 0x2C, 0x12, g_Menu->pShop->strItemDesc.width, 0xD);
+    GearShopMenuSetPolyFT4Quad(&g_Menu->pShop->strItemDesc.polys[g_Menu->renderContext], 0x2C, 0x12, 0, 0x4E, (s32) g_Menu->pShop->strItemDesc.width, FONT_LETTER_HEIGHT);
+    GearShopMenuSetVertices(g_Menu->pShop->strItemDesc.vertices, 0x2C, 0x12, g_Menu->pShop->strItemDesc.width, FONT_LETTER_HEIGHT);
 
     g_Menu->pShop->strItemDesc.renderContext = g_Menu->renderContext;
     HeapFree(pStringBuffer);
@@ -2051,19 +2064,19 @@ u8 GearShopMenuIsGearItemUpgrade(s32 itemId) {
     u8 result = TRUE;
 
     switch(itemType) {
-        case 0:
+        case ITEM_TYPE_GEAR_ARMOR:
             equipped = g_GameState.gears[g_gearShopCurrentGearId].armorId;
             if(equipped >= g_Menu->shopItemIDs[itemId]) {
                 result = FALSE;
             }
             break;
-        case 1:
+        case ITEM_TYPE_GEAR_FRAME:
             equipped = g_GameState.gears[g_gearShopCurrentGearId].frameId;
             if(equipped >= g_Menu->shopItemIDs[itemId]) {
                 result = FALSE;
             }
             break;
-        case 2:
+        case ITEM_TYPE_GEAR_ENGINE:
             equipped = g_GameState.gears[g_gearShopCurrentGearId].engineId;
             if(equipped >= g_Menu->shopItemIDs[itemId]) {
                 result = FALSE;
@@ -2337,12 +2350,12 @@ void GearShopMenuTuneUpFuel(void) {
         }
     }
 
-    fuelUnits = (g_GameState.gears[g_gearShopCurrentGearId].maxFuel - g_GameState.gears[g_gearShopCurrentGearId].fuel) / 100;
+    fuelUnits = (g_GameState.gears[g_gearShopCurrentGearId].maxFuel - g_GameState.gears[g_gearShopCurrentGearId].fuel) / MENU_FUEL_UNIT_AMOUNT;
     if(fuelUnits == 0) {
         fuelUnits = 1;
     }
 
-    var_s0 = fuelUnits * 10;
+    var_s0 = fuelUnits * MENU_FUEL_UNIT_PRICE;
 
     GearShopMenuInitializeWindow(5, 0xA2, 0xA6, 0x60, 0x14, 0, 1, 4, 0);
     GearShopMenuBuildGoldGraphics(g_GameState.gold);
@@ -2361,9 +2374,9 @@ void GearShopMenuTuneUpFuel(void) {
                             var_s4 = TRUE;
                         }
 
-                        var_s0 = g_GameState.gold / 10;
-                        g_GameState.gears[g_gearShopCurrentGearId].fuel += ((var_s0) * 100);
-                        g_GameState.gold %= 10;
+                        var_s0 = g_GameState.gold / MENU_FUEL_UNIT_PRICE;
+                        g_GameState.gears[g_gearShopCurrentGearId].fuel += ((var_s0) * MENU_FUEL_UNIT_AMOUNT);
+                        g_GameState.gold %= MENU_FUEL_UNIT_PRICE;
                         temp_v1 = g_GameState.gears[g_gearShopCurrentGearId].maxFuel;
                         if (temp_v1 < g_GameState.gears[g_gearShopCurrentGearId].fuel) {
                             g_GameState.gears[g_gearShopCurrentGearId].fuel = temp_v1;
@@ -2423,7 +2436,7 @@ s32 GearShopMenuShopModeSubmenu(void) {
     g_Menu->subMenuChoice = 0;
     g_Menu->subMenuPrevChoice = 0xFF;
     if (g_Menu->mainMenuChoice == 3) {
-        g_Menu->subMenuChoice = 3;
+        g_Menu->subMenuChoice = MENU_CHOICE_FUEL;
         var_s0 = 4;
     }
 
@@ -2456,7 +2469,7 @@ s32 GearShopMenuShopModeSubmenu(void) {
                     g_Menu->pManager->shouldRenderSubmenuStrings = 0;
                     g_Menu->pManager->isPanelActive[3] = 0;
                     GearShopMenuClearStringRenderFlags(4, (s8* ) g_Menu->pManager->shouldRenderStrings);
-                    GearShopMenuPlaySoundEffect(2);
+                    GearShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                     GearShopMenuOpenGearPanel();
                     g_Menu->pManager->shoulderButtonUiActive = 0;
                     switch (g_Menu->mainMenuChoice) {              /* switch 2; irregular */
