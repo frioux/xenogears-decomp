@@ -362,38 +362,41 @@ void BattlePlaySoundEffectByIdx(BattleActor* pActor, s32 idx, u8* pData, s32 fla
                       (idx & 0x7F) | ((pActor->flags >> 20) & 0x80));
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008EBD0);
-/* best: objdiff 89.69% - size, frame (0x30, `s32 pad[2]` supplies retail's extra 8 bytes), branch layout and the
-   whole instruction multiset match. Only difference: register numbering. Retail puts the table base in s0 and the
-   byte index in s1 and the params in s2/s3/s4 (p/flags/pData); gcc gives p s0, i s1, flags s2, pData s3, base s4,
-   so all five saves and the four-arg call's moves come out rotated. `u32 b` (not u8) is needed or gcc adds an
-   `andi v1,v0,0xff` after each lbu. Also tried: gcc-2.6.0 (89.7), statement order, one table read only.
-void func_8008EBD0(u8* p, s32 idx, u8* pData, s32 flags) {
-    s32 pad[2];
-    u8* pTable;
+void func_8008EBD0(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
     s32 i;
-    u32 b;
+    s32 pad[2]; // unused: retail's frame is 0x30
+    u8* pTable;
 
     if (idx == 0) {
-        idx = rand() % 3 + 1;
+        idx = rand() % 6 + 1;
     }
-    b = *(u8*)(*(u32*)(p + 0x1664) + idx);
-    if (b == 0xFF) {
+    idx = pActor->pSoundTable[idx];
+    i = idx << 1;
+    if (idx == 0xFF) {
         return;
     }
-    i = b << 1;
-    b = D_80091EE0[i];
-    pTable = D_80091EE0;
-    if (b != 0) {
-        BattleAcquireSoundSlot((u8*)(b | 0x60000), flags, pData,
-                      ((*(u32*)(p + 0xD0) >> 20) & 0x80) | (b & 0x7F));
-    }
-    b = pTable[i + 1];
-    if (b != 0) {
-        BattleAcquireSoundSlot((u8*)(b | 0x60000), flags, pData,
-                      ((*(u32*)(p + 0xD0) >> 20) & 0x80) | (b & 0x7F));
-    }
-}*/
+    // Load-bearing shapes: the duplicated read keeps the base in $s0 with the table
+    // index in $s1, `*(pTable + i + 1)` gives retail's base-first `addu`, and the
+    // do/while block schedules the tail as one unit. All three are worth 0.1-0.4%.
+    do {
+        if (idx) {
+            idx = D_80091EE0[i];
+            pTable = D_80091EE0;
+        } else {
+            idx = D_80091EE0[i];
+            pTable = D_80091EE0;
+        }
+        if (idx != 0) {
+            BattleAcquireSoundSlot((u8*)(idx | 0x60000), flags, pData,
+                          (idx & 0x7F) | ((pActor->flags >> 20) & 0x80));
+        }
+        idx = *(pTable + i + 1);
+        if (idx != 0) {
+            BattleAcquireSoundSlot((u8*)(idx | 0x60000), flags, pData,
+                          (idx & 0x7F) | ((pActor->flags >> 20) & 0x80));
+        }
+    } while (0);
+}
 void BattleStopSoundSlotsByFlags(u8 kind) {
     BattleSlot* pSlot;
     s32 i;
@@ -413,7 +416,10 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
    Permuter from the 99.43 body: 1404 iterations, no gain (base 25, best 25). Also tried: reading D_80091EE0[]
    directly for both (78.93%), pTable assigned before the byte load (92.50%) or right after `i = v << 1` (no
    change), an initializer on the pointer (92.50%), a u32 index (no change), pad declared last (no change),
-   -G0 and gcc-2.7.2-cdk (76.41%).
+   -G0 and gcc-2.7.2-cdk (76.41%). Later round: an element pointer `pElem = (pTable + i) + 1` read twice with
+   a non-void return gives retail's base-first `addu` at the same 176 bytes / 99.43; the two remaining diffs are
+   the s1/s2 rotation of base and index and retail's `nop` in the second `beqz` delay slot, and neither moved
+   under object-typed locals, declaration order, a do/while block or a duplicated table load.
 /*
 int func_8008ED6C(u8* p, s32 idx) {
     s32 pad[2];
