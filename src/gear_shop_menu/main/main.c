@@ -9,7 +9,14 @@
 
 #include "gear_shop/gear_shop.h"
 
-
+// Options of the Tune up / Buy / Sell / Exit menu, i.e. the range mainMenuChoice runs over
+#define MENU_GEAR_SHOP_MAIN_MENU_COUNT 4
+// mainMenuPrevChoice while no option has been selected yet
+#define MENU_CHOICE_NONE 0xFF
+// Pixels a window grows by per frame while its opening tween runs
+#define MENU_WINDOW_OPEN_STEP 0x20
+// Frames a modal dialog that is not a yes/no prompt waits for a keypress (1 second)
+#define MENU_MODAL_TIMEOUT_FRAMES 60
 
 /*
  * TODO: probably should be in a header for main program stuff since this is not coming from the overlay
@@ -93,10 +100,10 @@ void GearShopMenuParseNumberToString(u_int amount) {
 
     for(i = 1; i < MENU_MAX_DIGITS; i++) {
         if(g_Menu->digits[i] == 0) {
-            g_Menu->digits[i-1] = -1;
+            g_Menu->digits[i-1] = MENU_DIGIT_NONE;
         } else {
             if(g_Menu->digits[i-1] == 0) {
-                g_Menu->digits[i-1] = -1;
+                g_Menu->digits[i-1] = MENU_DIGIT_NONE;
             }
             break;
         }
@@ -215,10 +222,10 @@ void GearShopMenuLoadResources(void) {
     g_Menu->menuUnk2->saveFileMagic[1] = 0x43;
     g_Menu->menuUnk2->saveIconDisplayFlag = 0x11;
     g_Menu->menuUnk2->saveBlockCount = 1;
-    bzero(g_Menu->menuUnk2->saveTitle, 0x5C);
+    bzero(g_Menu->menuUnk2->saveTitle, sizeof(g_Menu->menuUnk2->saveTitle));
 
-    memmove(g_Menu->menuUnk2->saveIconPalette, (u8* ) g_Menu->menuUnk2->tim.caddr, 0x20);
-    memmove(g_Menu->menuUnk2->saveIconImage, (u8* ) g_Menu->menuUnk2->tim.paddr, 0x80);
+    memmove(g_Menu->menuUnk2->saveIconPalette, (u8* ) g_Menu->menuUnk2->tim.caddr, sizeof(g_Menu->menuUnk2->saveIconPalette));
+    memmove(g_Menu->menuUnk2->saveIconImage, (u8* ) g_Menu->menuUnk2->tim.paddr, sizeof(g_Menu->menuUnk2->saveIconImage));
     HeapFree(pData);
     pData = LZSSHeapDecompress((void *)pFileHandle[2], 1);
     ModelLoadTextureBlock(pData);
@@ -251,7 +258,7 @@ void GearShopMenuLoadResources(void) {
     metadata[FIELD_TPAGE_X(1)] += 0xC;
     pData = LZSSHeapDecompress((void *)pFileHandle[5], 1);
 
-    for(i = 0; i < 3; i++) {
+    for(i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if(g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
             OpenTIM((void *)&pData[(g_Menu->pManager->currentCharacterIDs[i] * 0xB20)]);
             ReadTIM(&tim);
@@ -286,8 +293,8 @@ void GearShopMenuFilterPartyMembers(void) {
     int flags;
 
     g_Menu->mainMenuChoice = 4;
-    g_Menu->mainMenuPrevChoice = 0xFF;
-    g_Menu->cardCheckTimer = 0x3C;
+    g_Menu->mainMenuPrevChoice = MENU_CHOICE_NONE;
+    g_Menu->cardCheckTimer = 60;
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
@@ -295,7 +302,7 @@ void GearShopMenuFilterPartyMembers(void) {
 
     // Filter availableCharacters by if gearId != 0xff
     for(i = 0; i < 16; i++) {
-        if( GearShopMenuIsCharacterFlagSet(flags, i) > 0 && g_GameState.characters[i].gearId != 0xFF ) {
+        if( GearShopMenuIsCharacterFlagSet(flags, i) > 0 && g_GameState.characters[i].gearId != GEAR_ID_NONE ) {
             g_Menu->availableCharacters[i] = TRUE;
         } else {
             g_Menu->availableCharacters[i] = FALSE;
@@ -304,10 +311,10 @@ void GearShopMenuFilterPartyMembers(void) {
 
     // Filter by current party
     for(i = 0; i < MAX_PARTY_MEMBERS; i++) {
-        if( g_GameState.partyMembers[i] != 0xFF && g_Menu->availableCharacters[g_GameState.partyMembers[i]]) {
+        if( g_GameState.partyMembers[i] != CHARACTER_ID_NONE && g_Menu->availableCharacters[g_GameState.partyMembers[i]]) {
             g_Menu->pManager->currentCharacterIDs[i] = g_GameState.partyMembers[i];
         } else {
-            g_Menu->pManager->currentCharacterIDs[i] = 0xFF;
+            g_Menu->pManager->currentCharacterIDs[i] = CHARACTER_ID_NONE;
         }
     }
 
@@ -600,7 +607,7 @@ void GearShopMenuLoadGearShopInventory(void) {
     pShopDef = &g_Menu->pGearShopEntries[g_ShopIndex];
 
     g_GearShopInventoryCounts[0] = 0;
-    for(i = 0; i < 20; i++) {
+    for(i = 0; i < MAX_GEAR_SHOP_ITEMS; i++) {
         g_Menu->pShop->gearShopItemTables[0].itemIds[i] = pShopDef->armorIds[i];
         if(g_Menu->pShop->gearShopItemTables[0].itemIds[i] != 0) {
             g_GearShopInventoryCounts[0]++;
@@ -608,7 +615,7 @@ void GearShopMenuLoadGearShopInventory(void) {
     }
     i = 0;
     g_GearShopInventoryCounts[1] = 0;
-    for(; i < 20; i++) {
+    for(; i < MAX_GEAR_SHOP_ITEMS; i++) {
         g_Menu->pShop->gearShopItemTables[1].itemIds[i] = pShopDef->frameIds[i];
         if(g_Menu->pShop->gearShopItemTables[1].itemIds[i] != 0) {
             g_GearShopInventoryCounts[1]++;
@@ -617,7 +624,7 @@ void GearShopMenuLoadGearShopInventory(void) {
 
     i = 0;
     g_GearShopInventoryCounts[2] = 0;
-    for(; i < 20; i++) {
+    for(; i < MAX_GEAR_SHOP_ITEMS; i++) {
         g_Menu->pShop->gearShopItemTables[2].itemIds[i] = pShopDef->engineIds[i];
         if(g_Menu->pShop->gearShopItemTables[2].itemIds[i] != 0) {
             g_GearShopInventoryCounts[2]++;
@@ -626,7 +633,7 @@ void GearShopMenuLoadGearShopInventory(void) {
 
     i = 0;
     g_GearShopInventoryCounts[3] = 0;
-    for(; i < 20; i++) {
+    for(; i < MAX_GEAR_SHOP_ITEMS; i++) {
         g_Menu->pShop->gearShopItemTables[3].itemIds[i] = pShopDef->accessoryIds[i];
         if(g_Menu->pShop->gearShopItemTables[3].itemIds[i] != 0) {
             g_GearShopInventoryCounts[3]++;
@@ -635,7 +642,7 @@ void GearShopMenuLoadGearShopInventory(void) {
 
     i = 0;
     g_GearShopInventoryCounts[4] = 0;
-    for(; i < 20; i++) {
+    for(; i < MAX_GEAR_SHOP_ITEMS; i++) {
         g_Menu->pShop->gearShopItemTables[4].itemIds[i] = pShopDef->weaponIds[i];
         if(g_Menu->pShop->gearShopItemTables[4].itemIds[i] != 0) {
             g_GearShopInventoryCounts[4]++;
@@ -945,22 +952,22 @@ void GearShopMenuInitializeWindowBorderCorners(u_char windowIndex, u_short x, u_
 
     GearShopMenuSetVertices(
         &pWindow->vertsWindowBorderCorners[0], 
-        x - 8, y +  8, 16, -16
+        x - MENU_WINDOW_BORDER_SIZE, y +  MENU_WINDOW_BORDER_SIZE, MENU_WINDOW_BORDER_SIZE * 2, -(MENU_WINDOW_BORDER_SIZE * 2)
     );
     GearShopMenuSetVertices(
         &pWindow->vertsWindowBorderCorners[4], 
-        x + width + 8, y + 8, -16, -16
+        x + width + MENU_WINDOW_BORDER_SIZE, y + MENU_WINDOW_BORDER_SIZE, -(MENU_WINDOW_BORDER_SIZE * 2), -(MENU_WINDOW_BORDER_SIZE * 2)
     );
     GearShopMenuSetVertices(
         &pWindow->vertsWindowBorderCorners[8], 
-        x - 8, (y + height) - 8, 16, 16
+        x - MENU_WINDOW_BORDER_SIZE, (y + height) - MENU_WINDOW_BORDER_SIZE, MENU_WINDOW_BORDER_SIZE * 2, MENU_WINDOW_BORDER_SIZE * 2
     );
     GearShopMenuSetVertices(
         &pWindow->vertsWindowBorderCorners[0xC], 
-        x + width + 8, (y + height) - 8, -16, 16
+        x + width + MENU_WINDOW_BORDER_SIZE, (y + height) - MENU_WINDOW_BORDER_SIZE, -(MENU_WINDOW_BORDER_SIZE * 2), MENU_WINDOW_BORDER_SIZE * 2
     );
 
-    for(i = 0; i < 4; i++) {
+    for(i = 0; i < MENU_WINDOW_BORDER_CORNER_COUNT; i++) {
         GearShopMenuSetWindowBorderPrimitive(&pWindow->polysWindowBorderCorners[(i*2) + g_Menu->renderContext]);
     }
 }
@@ -1034,23 +1041,23 @@ void GearShopMenuSetWindowBorderBottom(u_char windowIndex, u_short x, u_short y,
         15, 148
     );
 
-    innerWidth = width - 16;
+    innerWidth = width - (MENU_WINDOW_BORDER_SIZE * 2);
     width = innerWidth / 2;
-    height = y + height - 8;
+    height = y + height - MENU_WINDOW_BORDER_SIZE;
 
     GearShopMenuSetVertices(
         pWindow->vertsWindowBorderBottom1,
-        x + 8,
+        x + MENU_WINDOW_BORDER_SIZE,
         height,
         width,
-        16
+        MENU_WINDOW_BORDER_SIZE * 2
     );
     GearShopMenuSetVertices(
         pWindow->vertsWindowBorderBottom2,
-        x + 8 + width,
+        x + MENU_WINDOW_BORDER_SIZE + width,
         height,
         width,
-        16
+        MENU_WINDOW_BORDER_SIZE * 2
     );
 
     for (i = 0; i < 2; i++) {
@@ -1082,21 +1089,21 @@ void GearShopMenuSetWindowBorderLeft(u_char windowIndex, u_short x, u_short y, u
         32, 139
     );
 
-    innerHeight = height - 16;
+    innerHeight = height - (MENU_WINDOW_BORDER_SIZE * 2);
     halfInnerHeight = innerHeight / 2;
 
     GearShopMenuSetVertices(
         pWindow->vertsWindowBorderLeft1,
-        x - 8,
-        y + 8,
-        16,
+        x - MENU_WINDOW_BORDER_SIZE,
+        y + MENU_WINDOW_BORDER_SIZE,
+        MENU_WINDOW_BORDER_SIZE * 2,
         halfInnerHeight
     );
     GearShopMenuSetVertices(
         pWindow->vertsWindowBorderLeft2,
-        x - 8,
-        y + 8 + halfInnerHeight,
-        16,
+        x - MENU_WINDOW_BORDER_SIZE,
+        y + MENU_WINDOW_BORDER_SIZE + halfInnerHeight,
+        MENU_WINDOW_BORDER_SIZE * 2,
         halfInnerHeight
     );
 
@@ -1129,22 +1136,22 @@ void GearShopMenuSetWindowBorderRight(u_char windowIndex, u_short x, u_short y, 
         32, 147
     );
 
-    width = x + width - 8;
-    innerHeight = height - 16;
+    width = x + width - MENU_WINDOW_BORDER_SIZE;
+    innerHeight = height - (MENU_WINDOW_BORDER_SIZE * 2);
     halfInnerHeight = innerHeight / 2;
 
     GearShopMenuSetVertices(
         pWindow->vertsWindowBorderRight1,
         width,
-        y + 8,
-        16,
+        y + MENU_WINDOW_BORDER_SIZE,
+        MENU_WINDOW_BORDER_SIZE * 2,
         halfInnerHeight
     );
     GearShopMenuSetVertices(
         pWindow->vertsWindowBorderRight2,
         width,
-        y + 8 + halfInnerHeight,
-        16,
+        y + MENU_WINDOW_BORDER_SIZE + halfInnerHeight,
+        MENU_WINDOW_BORDER_SIZE * 2,
         halfInnerHeight
     );
 
@@ -1224,18 +1231,18 @@ void GearShopMenuUpdateWindows(void) {
         windowParams = g_Menu->windowParameters[i];
         if ((g_Menu->pManager->isWindowOpening[i]) && (windowParams->isOpen == 0)) {
             clipCount = 0;
-            if ((windowParams->curWidth + 0x20) >= (s32) windowParams->width) {
+            if ((windowParams->curWidth + MENU_WINDOW_OPEN_STEP) >= (s32) windowParams->width) {
                 clippedWidth = windowParams->width;
                 clipCount = 1;
             } else {
-                clippedWidth = windowParams->curWidth + 0x20;
+                clippedWidth = windowParams->curWidth + MENU_WINDOW_OPEN_STEP;
             }
             windowParams->curWidth = clippedWidth;
-            if ((windowParams->curHeight + 0x20) >= (s32) windowParams->height) {
+            if ((windowParams->curHeight + MENU_WINDOW_OPEN_STEP) >= (s32) windowParams->height) {
                 clippedHeight = windowParams->height;
                 clipCount += 1;
             } else {
-                clippedHeight = windowParams->curHeight + 0x20;
+                clippedHeight = windowParams->curHeight + MENU_WINDOW_OPEN_STEP;
             }
             windowParams->curHeight = clippedHeight;
             if (clipCount == 2) {
@@ -1525,7 +1532,7 @@ void GearShopMenuRenderWindowBorderCorners(s32 arg0) {
 
     window = g_Menu->windows[arg0];
 
-    for(i = 0; i < 4; i++) {
+    for(i = 0; i < MENU_WINDOW_BORDER_CORNER_COUNT; i++) {
         RotTransPers4(
             &window->vertsWindowBorderCorners[(i*4)],
             &window->vertsWindowBorderCorners[(i*4)+1],
@@ -2199,8 +2206,8 @@ void GearShopMenuRenderDebugValues(void) {
             // Parse value to string and create primitives for it
             GearShopMenuParseNumberToString(curValue);
            //;
-            for (j = 0; j < 9; j++) {
-                if (g_Menu->digits[j] != 0xFF) {
+            for (j = 0; j < MENU_MAX_DIGITS; j++) {
+                if (g_Menu->digits[j] != MENU_DIGIT_NONE) {
                     g_GearShopDebugPrimCount += func_8002675C(
                         g_Menu->resources,
                         g_Menu->digits[j],
@@ -2391,7 +2398,7 @@ u_char GearShopMenuConfirmationWindowGetChoice(u_char isConfirmationPrompt, u8 i
 
     isRunning = TRUE;
     choice = MENU_CHOICE_NO;
-    curTimer = 60;
+    curTimer = MENU_MODAL_TIMEOUT_FRAMES;
 
     while (isRunning) {
         if (!isConfirmationPrompt) {
@@ -2410,7 +2417,7 @@ u_char GearShopMenuConfirmationWindowGetChoice(u_char isConfirmationPrompt, u8 i
         GearShopMenuUpdateAndRender();
         switch (g_Menu->input) {
             case MENU_INPUT_CONFIRM:
-                GearShopMenuPlaySoundEffect(2);
+                GearShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                 isRunning = FALSE;
                 break;
             case MENU_INPUT_BACK:
@@ -2783,7 +2790,7 @@ u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
     // intentionally using selection w/o intialization
     if (selection) {
         GearShopMenuNoOp2();
-        GearShopMenuRenderMenuStringsToVram(4, g_Menu->optionStrings, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->shouldRenderStrings);
+        GearShopMenuRenderMenuStringsToVram(MENU_GEAR_SHOP_MAIN_MENU_COUNT, g_Menu->optionStrings, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->shouldRenderStrings);
     }
 
     // Render selection menu as active agian
@@ -2792,7 +2799,7 @@ u_char GearShopMenuShopModeMenuHandleSelectedOption(void) {
 
     g_Menu->pManager->shouldRenderPointerCursor = TRUE;
     g_Menu->pManager->unk3 = TRUE;
-    g_Menu->mainMenuPrevChoice = 0xFF;
+    g_Menu->mainMenuPrevChoice = MENU_CHOICE_NONE;
     g_Menu->pManager->shouldRenderSubmenuStrings = FALSE;
     
     return isRunning;
@@ -2810,7 +2817,7 @@ void GearShopMenuShopModeMain(void) {
     g_Menu->mainMenuChoice = 2; // Start cursor at "Buy" option
     GearShopMenuInitializeShopModeSelectionMenu(5, &g_GearShopMainMenuTextureIds);
 
-    GearShopMenuRenderMenuStringsToVram(4, g_Menu->optionStrings, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->shouldRenderStrings);
+    GearShopMenuRenderMenuStringsToVram(MENU_GEAR_SHOP_MAIN_MENU_COUNT, g_Menu->optionStrings, &g_GearShopMainMenuStringIds[0], g_Menu->pManager->shouldRenderStrings);
 
     if (g_gearShopAvailableCharacterCount >= 2) {
         g_Menu->pManager->shoulderButtonUiActive = TRUE;
@@ -2820,12 +2827,12 @@ void GearShopMenuShopModeMain(void) {
         GearShopMenuUpdateAndRender();
         switch (g_Menu->input) {
             case MENU_INPUT_CONFIRM:
-                GearShopMenuPlaySoundEffect(2);
+                GearShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                 
                 g_Menu->pSelectionMenu->isDisabled = TRUE;
                 
                 GearShopMenuResetSelectionCursor();
-                GearShopMenuClearStringRenderFlags(4, g_Menu->pManager->shouldRenderStrings);
+                GearShopMenuClearStringRenderFlags(MENU_GEAR_SHOP_MAIN_MENU_COUNT, g_Menu->pManager->shouldRenderStrings);
                 g_Menu->pCursorPrims->shadeWidth = 0x4C;
                 isRunning = GearShopMenuShopModeMenuHandleSelectedOption();
                 g_Menu->pCursorPrims->shadeWidth = 0x40;
@@ -2839,12 +2846,12 @@ void GearShopMenuShopModeMain(void) {
                 if (g_Menu->mainMenuChoice) {
                     g_Menu->mainMenuChoice--;
                 } else {
-                    g_Menu->mainMenuChoice = 3;
+                    g_Menu->mainMenuChoice = MENU_GEAR_SHOP_MAIN_MENU_COUNT - 1;
                 }
                 break;
                 
             case MENU_INPUT_UP:
-                if (++g_Menu->mainMenuChoice >= 4) {
+                if (++g_Menu->mainMenuChoice >= MENU_GEAR_SHOP_MAIN_MENU_COUNT) {
                     g_Menu->mainMenuChoice = 0;
                 }
                 break;
@@ -2859,8 +2866,8 @@ void GearShopMenuShopModeMain(void) {
         }
         
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            GearShopMenuUpdateSelectionMenuTextures(4, g_Menu->mainMenuChoice, &g_GearShopMainMenuTextureIds);
-            GearShopMenuSetMenuStringPosition(4, g_Menu->optionStrings, &g_GearShopMainMenuStringIds[0], &g_GearShopMainMenuStringOffsets, g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0);
+            GearShopMenuUpdateSelectionMenuTextures(MENU_GEAR_SHOP_MAIN_MENU_COUNT, g_Menu->mainMenuChoice, &g_GearShopMainMenuTextureIds);
+            GearShopMenuSetMenuStringPosition(MENU_GEAR_SHOP_MAIN_MENU_COUNT, g_Menu->optionStrings, &g_GearShopMainMenuStringIds[0], &g_GearShopMainMenuStringOffsets, g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
     }
