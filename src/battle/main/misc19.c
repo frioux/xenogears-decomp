@@ -21,7 +21,7 @@ extern u8* g_BattleCurSlotState;
 extern u8 g_BattleSlotConditions[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleCommandCharIndex;
-extern u8* g_BattleActingSlot;
+extern BattleTableEntry* g_BattleActingSlot;
 extern u8 D_800CCD68[];
 
 extern int rand(void);
@@ -325,6 +325,13 @@ u8 BattleClearSlotFlag15A1(u8 arg0) {
 // address has to stay an integer sum added to the block base, because gcc emits
 // `addu d,base,offset` for `block->table[arg0]` where retail has `addu d,offset,base`
 // (measured 99.71% / 99.77% with the tables declared on the struct).
+// Re-checked with a .c-local view struct (2D BattleRow arrays at +0x1058/+0x2228):
+// inline per-store indexing, a block pointer local in the arm and at the top of the
+// function, a sizeof-scaled byte offset off the typed member, `[0][0]` addressing and
+// a row-array typedef all land on 99.71/99.77 at retail's size, and a 4-minute
+// permuter run (2294 iterations, base=20 best=20) found nothing. Also measured, both
+// worse: sharing the two `slots[arg0]` pointers p and r (98.68), and a block pointer
+// live across the function (90.81 in To2000). So the cast sum stays.
 void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     BattleTableEntry* p = &g_BattleCurWorkBlock->slots[arg0];
     BattleTableEntry* r;
@@ -519,13 +526,13 @@ void BattleDecrementGearPartUse(void) {
     case 1:
     case 2:
     case 3:
-        idx = g_BattleActingSlot[0x6F];
+        idx = g_BattleActingSlot->extraWeaponIds[0];
         break;
     case 4:
     case 5:
         return;
     case 6:
-        idx = g_BattleActingSlot[0x72];
+        idx = g_BattleActingSlot->extraWeaponIds[3];
         break;
     case 7:
     case 8:
@@ -540,11 +547,11 @@ void BattleDecrementGearPartUse(void) {
     case 17:
     case 18:
     case 19:
-        idx = g_BattleActingSlot[0x6F];
+        idx = g_BattleActingSlot->extraWeaponIds[0];
         if (g_GameState.gearPartsIds[0x6C + idx]) {
             g_GameState.gearPartsIds[0x6C + idx] = g_GameState.gearPartsIds[0x6C + idx] + 0xFF;
         }
-        idx = g_BattleActingSlot[0x72];
+        idx = g_BattleActingSlot->extraWeaponIds[3];
         break;
     default:
         return;
@@ -664,7 +671,7 @@ void func_8009B46C(u16* arg0) {
         if (count != 0) {
             *arg0 = *arg0 + count * (*arg0 >> 1);
         }
-        f = *(u16*)(g_BattleActingSlot + 0x32);
+        f = g_BattleActingSlot->accessoryEffectFlags5;
         drop = (f & 0x400) ? 4 : 3;
         if (f & 0x200) {
             limit = 0x3C;
