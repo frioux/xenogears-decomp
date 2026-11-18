@@ -55,7 +55,7 @@ typedef struct {
     /* 0x80 */ u16 uv;
     /* 0x82 */ u16 clut;
     /* 0x84 */ u8 unk84[0x4C];
-    /* 0xD0 */ DR_MODE drawAreaMode;   // draw area, from drawEnv.clip
+    /* 0xD0 */ DR_AREA drawAreaMode;   // draw area, from drawEnv.clip
     /* 0xDC */ DR_MODE drawOffsetMode; // draw offset, from drawEnv.ofs
     /* 0xE8 */ BattleTilePacket tile;  // the tile func_80089330 sets to the screen size
 } BattleEntry; // Size: 0xF8
@@ -141,16 +141,7 @@ extern BattleEntry g_BattleDrawBuffers[];
 
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_8004546C(void* pDrmode, void* pRect);
-extern void func_80045534(DR_MODE* pDrmode, RECT* pRect);
-
-extern u8 D_8009A0EE;
-extern u8 D_8009A0EF;
-extern u8 D_8009A0F0;
-extern u16 D_8009A0EC;
-extern u16 D_8009A1E4;
-extern u8 D_8009A1E6;
-extern u8 D_8009A1E7;
-extern u8 D_8009A1E8;
+extern void func_80045534(void* pDrmode, RECT* pRect);
 
 extern u8 D_8009A134[];
 extern u16 D_8009A13C;
@@ -503,38 +494,35 @@ void func_80089330(s32 w, s32 h) {
 }
 */
 void BattleInitDrawEnvs(s32 w, s32 h) {
-    DRAWENV* pEnv;
-    u8* pBase;
+    u8* pDtd;
     u16 tpage;
 
     SetGeomOffset(w / 2, h / 2);
     SetGeomScreen(0x180);
     ModelSetScreenSize(w, h);
     if (h >= 0x101) {
-        pEnv = (DRAWENV*)g_BattleDrawBuffers;
-        SetDefDrawEnv(pEnv, 0, 0, w, h);
-        SetDefDrawEnv((DRAWENV*)((u8*)pEnv + 0xF8), 0, 0, w, h);
-        D_8009A1E7 = 0;
-        D_8009A0EF = 0;
+        SetDefDrawEnv(&g_BattleDrawBuffers[0].drawEnv, 0, 0, w, h);
+        SetDefDrawEnv(&g_BattleDrawBuffers[1].drawEnv, 0, 0, w, h);
+        g_BattleDrawBuffers[1].drawEnv.dfe = 0;
+        g_BattleDrawBuffers[0].drawEnv.dfe = 0;
     } else {
-        pEnv = (DRAWENV*)g_BattleDrawBuffers;
-        SetDefDrawEnv(pEnv, 0, 0, w, h);
-        SetDefDrawEnv((DRAWENV*)((u8*)pEnv + 0xF8), 0, 0x100, w, h);
+        SetDefDrawEnv(&g_BattleDrawBuffers[0].drawEnv, 0, 0, w, h);
+        SetDefDrawEnv(&g_BattleDrawBuffers[1].drawEnv, 0, 0x100, w, h);
     }
-    pBase = &D_8009A0EE;
-    D_8009A1E6 = 1;
-    *pBase = 1;
-    D_8009A1E8 = 0;
-    D_8009A0F0 = 0;
+    pDtd = &g_BattleDrawBuffers[0].drawEnv.dtd;
+    g_BattleDrawBuffers[1].drawEnv.dtd = 1;
+    *pDtd = 1;
+    g_BattleDrawBuffers[1].drawEnv.isbg = 0;
+    g_BattleDrawBuffers[0].drawEnv.isbg = 0;
     tpage = GetTPage(0, 2, 0x280, 0);
-    D_8009A1E4 = tpage;
-    D_8009A0EC = tpage;
-    func_80045534((DR_MODE*)(pBase + 6), (RECT*)(pBase - 0x16));
-    func_80045534((DR_MODE*)(pBase + 0xFE), (RECT*)(pBase + 0xE2));
-    SetDrawArea((DR_MODE*)(pBase + 0xBA), (RECT*)(pBase - 0x16));
-    SetDrawArea((DR_MODE*)(pBase + 0x1B2), (RECT*)(pBase + 0xE2));
-    func_8004546C((DR_MODE*)(pBase + 0xC6), (RECT*)(pBase - 0xE));
-    func_8004546C((DR_MODE*)(pBase + 0x1BE), (RECT*)(pBase + 0xEA));
+    g_BattleDrawBuffers[1].drawEnv.tpage = tpage;
+    g_BattleDrawBuffers[0].drawEnv.tpage = tpage;
+    func_80045534(&g_BattleDrawBuffers[0].drawEnv.dr_env, &g_BattleDrawBuffers[0].drawEnv.clip);
+    func_80045534(&g_BattleDrawBuffers[1].drawEnv.dr_env, &g_BattleDrawBuffers[1].drawEnv.clip);
+    SetDrawArea(&g_BattleDrawBuffers[0].drawAreaMode, &g_BattleDrawBuffers[0].drawEnv.clip);
+    SetDrawArea(&g_BattleDrawBuffers[1].drawAreaMode, &g_BattleDrawBuffers[1].drawEnv.clip);
+    func_8004546C(&g_BattleDrawBuffers[0].drawOffsetMode, (RECT*)&g_BattleDrawBuffers[0].drawEnv.ofs);
+    func_8004546C(&g_BattleDrawBuffers[1].drawOffsetMode, (RECT*)&g_BattleDrawBuffers[1].drawEnv.ofs);
 }
 
 void BattleSetViewport(s32 a0, s32 a1) {
