@@ -338,9 +338,9 @@ typedef struct {
     /* 0x04 */ u32 pModelData; // base of the 0x38-byte model part records the descriptors index
     /* 0x08 */ u32 pPointerList;
     /* 0x0C */ u32 pImage;
-    /* 0x10 */ u32 unk10;
-    /* 0x14 */ u32 unk14;
-    /* 0x18 */ u32 unk18;
+    /* 0x10 */ u32 pScript;      // installed as the actor's pScript (func_80084C88)
+    /* 0x14 */ u32 pPartTimings; // installed as the actor's pPartTimings
+    /* 0x18 */ u32 pActions;     // installed as the actor's pActions
     /* 0x1C */ u32 pSelf;
     /* 0x20 */ u32 unk20;
     /* 0x24 */ u32 unk24;
@@ -356,9 +356,9 @@ Misc14Reloc *BattleRelocateBlockPointers(Misc14Reloc *pData) {
     pData->pSelf = (u32)pData;
     pData->pPartList += delta;
     pData->pModelData += delta;
-    pData->unk10 += delta;
-    pData->unk14 += delta;
-    pData->unk18 += delta;
+    pData->pScript += delta;
+    pData->pPartTimings += delta;
+    pData->pActions += delta;
     pData->unk20 += delta;
     pData->unk24 += delta;
     if (pData->pImage != 0) {
