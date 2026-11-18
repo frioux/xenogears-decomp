@@ -21,7 +21,7 @@ typedef struct Misc13Node {
     /* 0x3C */ s32 positionZ;
     /* 0x40 */ u32 pad40;
     /* 0x44 */ SVECTOR rotation;
-    /* 0x4C */ MATRIX unk4C;
+    /* 0x4C */ MATRIX rotMatrix;
     /* 0x6C */ MATRIX worldMatrix;
     /* 0x8C */ void* pMatrices;
     /* 0x90 */ struct Misc13Node* pChildA;
@@ -62,9 +62,9 @@ typedef struct {
     /* 0x04 */ void* pData;
     /* 0x08 */ Misc13Entry* pEntries;
     /* 0x0C */ s32 unk0C;
-    /* 0x10 */ s16 unk10; // 0x1000
-    /* 0x12 */ s16 unk12;
-    /* 0x14 */ s16 unk14;
+    /* 0x10 */ s16 scaleX; // 0x1000
+    /* 0x12 */ s16 scaleY;
+    /* 0x14 */ s16 scaleZ;
     /* 0x16 */ u16 pad16;
     /* 0x18 */ s32 unk18;
 } Misc13EntryList; // Size: 0x1C
@@ -166,9 +166,9 @@ Misc13EntryList* BattleCreateEntryList(void) {
 
     HeapSetCurrentContentType(4);
     pList = HeapAlloc(sizeof(Misc13EntryList), 0);
-    pList->unk14 = 0x1000;
-    pList->unk12 = 0x1000;
-    pList->unk10 = 0x1000;
+    pList->scaleZ = 0x1000;
+    pList->scaleY = 0x1000;
+    pList->scaleX = 0x1000;
     pList->pData = 0;
     pList->pEntries = 0;
     return pList;
