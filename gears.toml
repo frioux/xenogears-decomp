@@ -248,7 +248,14 @@ paths = [
     "battle/main/misc6_r2.",
     "battle/main/misc8.",
     "battle/main/misc17.",
-    "battle/main/misc16."
+    "battle/main/misc16.",
+    # battle/main/misc9 is a mixed unit (round 261): its tail from func_8007E334 on
+    # compiles byte-identically under 2.6.0 and 2.7.2 EXCEPT the head's
+    # BattleStoreCharSlotFlagMask, which needs 2.7.2 (2.6.0 folds the final
+    # `(u16)acc >> 1` into `andi v0,s0,0xfffe`). The tail was split into its own TU
+    # at 0xE844 because func_8007E740's product (mult a0,v0 / mflo v0) is retail's
+    # instruction stream only under 2.6.0.
+    "battle/main/misc9_260."
 ]
 
 # battle/main/misc21 is a gcc-2.6.0 unit AND a div-expansion unit, proven the way
