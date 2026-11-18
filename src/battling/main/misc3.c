@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "psyq/libgpu.h"
 #include "system/memory.h"
 
 extern void func_800379C8(char*, ...);
@@ -39,6 +40,25 @@ typedef struct {
     // and message 3 only swaps in its model while this is non-zero.
     /* 0x18 */ u8 percent;
 } BattleActionData; // Size: 0x19 (a lower bound)
+
+// One of the actor's eight 0x44-byte effect slots; the layout and the names are
+// misc2's, the unit that uses its fields.
+typedef struct {
+    /* 0x00 */ VECTOR pos;
+    /* 0x10 */ VECTOR prevPos;
+    /* 0x20 */ SVECTOR velocity;
+    /* 0x28 */ SVECTOR direction;
+    /* 0x30 */ u8 active;
+    /* 0x31 */ u8 scale;
+    /* 0x32 */ u8 drawKind;
+    /* 0x33 */ u8 mode;
+    /* 0x34 */ u8 pad34[0x4];
+    /* 0x38 */ s32 key;
+    /* 0x3C */ s16 percent;
+    /* 0x3E */ s16 dirWeight;
+    /* 0x40 */ s16 life;
+    /* 0x42 */ u8 pad42[0x2];
+} BattleEffectSlot; // Size: 0x44
 
 // A battle participant as this unit drives it. Only the fields this unit
 // touches are named; 0x166A is a lower bound on the real size (other battle
@@ -136,7 +156,17 @@ typedef struct BattleActor {
     /* 0x0104 */ u8 slots[0x540];
     /* 0x0644 */ s32 gaugePercent;
     /* 0x0648 */ s32 facingAngle;
-    /* 0x064C */ u8 unk64C[0x2BD];
+    /* 0x064C */ BattleEffectSlot effectSlots[8];
+    /* 0x086C */ u8 unk86C[0x90];
+    // The model script block func_80084C88 stores the resource record's +0x10 here:
+    // its scale word (+0xC), step scale byte (+0xF) and a word at +0x20 are read.
+    /* 0x08FC */ void* pScript;
+    // The same block at +0x34; written by func_80084C88, read nowhere.
+    /* 0x0900 */ void* unk900;
+    // The part indices BattleUpdatePartDrawFlags walks, one byte each (misc2);
+    // func_80084C88 points it into the script block and copies its count from +0xE.
+    /* 0x0904 */ u8* pVisiblePartIndices;
+    /* 0x0908 */ u8 visiblePartCount;
     /* 0x0909 */ u8 typeId;
     // One bit per actor type (see src/battling/main/misc4.c): bit 1 makes the
     // actor queue message 5, bit 2 quadruples the gauge drain.
@@ -200,7 +230,13 @@ typedef struct BattleActor {
     // record's position and flags through it (its BattleActorState).
     /* 0x09CC */ u8 stateRecord[0xC00];
     /* 0x15CC */ void* pState;
-    /* 0x15D0 */ u8 unk15D0[0x18];
+    // The animation record misc2's BattleActorAnimData names: func_8007A344 swaps its
+    // flags word (+6) and its two frame bytes (+9, +0xA) every frame.
+    /* 0x15D0 */ void* pAnimData;
+    // The effect tint, copied from the script block's +0x10..+0x12 by func_80084C88
+    // (misc4 hands it to BattleEffectSetColor).
+    /* 0x15D4 */ CVECTOR effectColor;
+    /* 0x15D8 */ u8 unk15D8[0x10];
     /* 0x15E8 */ s16 unk15E8;
     /* 0x15EA */ s16 unk15EA;
     // Read as two 16-bit words by misc2's BattleComputeScaledFieldDelta.
@@ -211,14 +247,21 @@ typedef struct BattleActor {
     /* 0x15F0 */ s16 stepScale;
     /* 0x15F2 */ s16 moveSpeed;
     /* 0x15F4 */ s16 moveSpeedBase;
-    /* 0x15F6 */ u8 unk15F6[0xA];
+    // The round reset sets 0x100 here and 0 at the next word (misc4).
+    /* 0x15F6 */ s16 unk15F6;
+    /* 0x15F8 */ s16 unk15F8;
+    /* 0x15FA */ u8 pad15FA[0x2];
+    // The per-slot work record the state handlers run on (misc17's and misc18's pWork).
+    /* 0x15FC */ void* pWork;
     /* 0x1600 */ BattleActionData* pActionData;
-    /* 0x1604 */ u8 unk1604[0x50];
-    // Gauge damage taken in each of two categories, compared with fractions of
-    // gaugeMax to pick the battle result code (misc2 BattleAccumulateGaugePoints,
-    // BattleSetResultCode).
-    /* 0x1654 */ s32 unk1654;
-    /* 0x1658 */ s32 unk1658;
+    // The two 0x28-byte semi-transparent flat-textured quad packets
+    // BattleInitSemiTransQuadPacket fills, the second a copy of the first.
+    /* 0x1604 */ POLY_FT4 quadPackets[2];
+    // The gauge levels this actor gained in each of two categories:
+    // BattleAccumulateGaugePoints adds the levels it gains to the one its mode
+    // argument selects (1 or 2).
+    /* 0x1654 */ s32 gaugeLevelsMode1;
+    /* 0x1658 */ s32 gaugeLevelsMode2;
     // Counters the input handler bumps as it queues messages: message12Count for
     // each message 1 or 2, message3Count for each message 3. No reader in this
     // overlay.
