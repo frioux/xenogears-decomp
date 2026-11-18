@@ -346,11 +346,11 @@ extern u16 g_MenuCellPrimXs[];
 extern u16 g_MenuCellPrimYs[];
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
-/* Park: 100.00% under gcc 2.6.0 with the Default flag set - 576 bytes, the whole
-   function identical word for word.  Under the unit's own 2.7.2 preset the same
+/* Park: 100.00% under gcc 2.6.0 with the Default flag set - 572 bytes (0x23C),
+   the whole function identical word for word.  Under the unit's own 2.7.2 preset the same
    body is 90.78: loop.c moves the POLY_F4 colour 0x80 out of the loop into a
    free call-saved register ($s8), which also swaps the $s6/$s7 assignment of
-   `offset`/`i` and costs the extra save/restore (580 vs 576 bytes).  Measured on
+   `offset`/`i` and costs the extra save/restore (580 vs 572 bytes).  Measured on
    the loop dump: the constant is a 1-insn movable with 3 uses and life 3, and
    loop.c's desirability test threshold * savings * lifetime >= insn_count is
    28 * 1 * 3 = 84 against insn_count 83, so it moves whatever the C says (a
@@ -392,12 +392,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
            MenuInitializePolyFt4((POLY_FT4*)(pBase + i * 0x28));
            ((POLY_FT4*)(pBase + i * 0x28))->x0 = pX[0];
            ((POLY_FT4*)(pBase + i * 0x28))->y0 = pY[0];
-           ((POLY_FT4*)(pBase + i * 0x28))->x1 = pX[0] + 0x10;
+           ((POLY_FT4*)(pBase + i * 0x28))->x1 = pX[0] + MENU_CELL_SIZE;
            ((POLY_FT4*)(pBase + i * 0x28))->y1 = pY[0];
            ((POLY_FT4*)(pBase + i * 0x28))->x2 = pX[0];
-           ((POLY_FT4*)(pBase + i * 0x28))->y2 = pY[0] + 0x10;
-           ((POLY_FT4*)(pBase + i * 0x28))->x3 = pX[0] + 0x10;
-           ((POLY_FT4*)(pBase + i * 0x28))->y3 = pY[0] + 0x10;
+           ((POLY_FT4*)(pBase + i * 0x28))->y2 = pY[0] + MENU_CELL_SIZE;
+           ((POLY_FT4*)(pBase + i * 0x28))->x3 = pX[0] + MENU_CELL_SIZE;
+           ((POLY_FT4*)(pBase + i * 0x28))->y3 = pY[0] + MENU_CELL_SIZE;
            ((POLY_FT4*)(pBase + i * 0x28))->tpage = GetTPage(0, 0, 0x140, 0x80);
            SetPolyF4((POLY_F4*)(pBase + offset));
            ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->r0 = 0x80;
@@ -406,14 +406,14 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
            SetSemiTrans((POLY_F4*)(pBase + offset), 1);
            ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x0 = pX[0];
            ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y0 = pY[0];
-           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x1 = pX[0] + 0x10;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x1 = pX[0] + MENU_CELL_SIZE;
            ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y1 = pY[0];
            ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x2 = pX[0];
-           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y2 = pY[0] + 0x10;
-           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x3 = pX[0] + 0x10;
-           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y3 = pY[0] + 0x10;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y2 = pY[0] + MENU_CELL_SIZE;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->x3 = pX[0] + MENU_CELL_SIZE;
+           ((POLY_F4*)(pBase + i * 0x18 + 0xB0))->y3 = pY[0] + MENU_CELL_SIZE;
            offset += 0x18;
-           MenuSetQuadVertices((SVECTOR*)(pBase + 0xE0), pX[0], pY[0], 0x10, 0x10);
+           MenuSetQuadVertices((SVECTOR*)(pBase + 0xE0), pX[0], pY[0], MENU_CELL_SIZE, MENU_CELL_SIZE);
        }
        rect.y = 0;
        rect.x = 0;
