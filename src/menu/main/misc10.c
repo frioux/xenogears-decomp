@@ -18,7 +18,7 @@ extern u8 D_801EA56E[];
 extern u32 g_MenuGearStringIdTable[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
 
-void MenuLoadStringsFromIds(u8, u8*, u8*, void*);
+void MenuLoadStringsFromIds(u8, void*, u8*, void*);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
@@ -79,8 +79,8 @@ void MenuInitializeUnk438Panel(void) {
     g_Menu->unk438 = HeapAlloc(0x25C0, 0);
     bzero(g_Menu->unk438, 0x25C0);
     func_801C72BC(4);
-    MenuLoadStringsFromIds(2, (u8*)g_Menu + 0x17E0, g_MenuUnk17E0StringIds, (u8*)g_Menu->pManager + 0x4E);
-    MenuSetRowQuadVertices(2, (u8*)g_Menu + 0x17E0, g_MenuUnk17E0StringIds, g_MenuPanelRowXOffsets, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
+    MenuLoadStringsFromIds(2, g_Menu->unk17E0, g_MenuUnk17E0StringIds, g_Menu->pManager->shouldRenderStrings17E0);
+    MenuSetRowQuadVertices(2, g_Menu->unk17E0, g_MenuUnk17E0StringIds, g_MenuPanelRowXOffsets, g_Menu->pManager->shouldRenderStrings17E0, 0, 0, 4);
     MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
     g_Menu->pManager->playTimeDigitsActive = 0;
     g_Menu->pManager->shouldRenderWindow[1] = 0;
@@ -258,7 +258,7 @@ u8 MenuInitializeGearScreenBuffers(void) {
     return i;
 }
 void MenuLoadUnk18E0Strings(u8 arg0) {
-    MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, g_MenuUnk18E0StringIdSets + arg0, (u8*)g_Menu->pManager + 0x54);
+    MenuLoadStringsFromIds(6, g_Menu->unk18E0, g_MenuUnk18E0StringIdSets + arg0, g_Menu->pManager->shouldRenderStrings18E0);
 }
 void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->pGearWindowPrims);
