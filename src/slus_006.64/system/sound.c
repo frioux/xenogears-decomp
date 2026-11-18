@@ -1837,12 +1837,12 @@ void SoundStopElementsForSoundFile(SoundFile* pSoundFile) {
     AudioManager* pManager = g_SoundEffectAudioManager;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = g_SoundEffectElementCount;
-    s16 sedId = *(s16*)&pSoundFile->sedId;
+    s16 sedId = pSoundFile->sedId;
 
     do {
         if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             // soundId holds two 16-bit ids; the second one is the owning file's sedId
-            if (((s16*)&pElement->soundId)[1] == sedId) {
+            if ((pElement->soundId >> 16) == sedId) {
                 pElement->active_flag = 0;
                 pManager->activeElementMask &= ~(1 << (u8)pElement->elementIndex);
                 SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
@@ -3480,7 +3480,7 @@ u8* SoundScriptStopElementsById(u8* pScript, AudioManager* pAudioManager, AudioE
 
 u8* SoundScriptJumpToInstrumentScript(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     SoundFile* pSoundFile = g_SoundSedsLinkedList;
-    s16 sedId = ((s16*)&pAudioElements->soundId)[1];
+    s16 sedId = pAudioElements->soundId >> 16;
     s16 instrument = pScript[0] | (pScript[1] << 8);
     u8 channel = pScript[2];
 
