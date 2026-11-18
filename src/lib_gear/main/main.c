@@ -987,7 +987,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
             z = *pKeyframe++;
             rotFrame++;
             if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
-                if (pJoint->pRotationObject == 0 || ((Temp3*)pJoint->pRotationObject)->type != 0xFF) {
+                if (pJoint->pRotationObject == 0 || pJoint->pRotationObject->type != 0xFF) {
                     pJoint->rotation.vx = x;
                     pJoint->rotation.vy = y;
                     pJoint->rotation.vz = z;
@@ -1003,7 +1003,7 @@ void func_801DEF10(ModelJoint* pSkeleton, KeyframeBlock* pBlock) {
             z = *pKeyframe++;
             transFrame++;
             if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
-                if (pJoint->pTranslationObject == 0 || ((Temp3*)pJoint->pTranslationObject)->type != 0xFF) {
+                if (pJoint->pTranslationObject == 0 || pJoint->pTranslationObject->type != 0xFF) {
                     pJoint->translation.x = x;
                     pJoint->translation.y = y;
                     pJoint->translation.z = z;
@@ -1183,7 +1183,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     pJoint = pSkeleton;
     for (i = 0; i < count; i++) {
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->pRotationObject;
+            pObject = pJoint->pRotationObject;
             if (pObject == NULL) {
                 pObject = LibGearAllocJointObject(pList);
             } else if (pObject->type == 0xFF) {
@@ -1197,10 +1197,10 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->curFrame = 0;
                 pObject->endFrame = frame;
                 *(u32*)&pObject->startX = *(u32*)&pObject->startZ = (u32)(pVertexData + pKeyframe[0]);
-                pJoint->pRotationObject = (u32)pObject;
+                pJoint->pRotationObject = pObject;
             }
         } else {
-            pObject = (Temp3*)pJoint->pRotationObject;
+            pObject = pJoint->pRotationObject;
             if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
                 LibGearFreeJointObject(pList, (s8*)pObject);
                 pJoint->pRotationObject = 0;
@@ -1211,7 +1211,7 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         pKeyframe++;
 
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->pTranslationObject;
+            pObject = pJoint->pTranslationObject;
             if (pObject == NULL) {
                 pObject = LibGearAllocJointObject(pList);
             } else if (pObject->type == 0xFF) {
@@ -1225,10 +1225,10 @@ s32 func_801DF7F4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pObject->curFrame = 0;
                 pObject->endFrame = frame;
                 *(u32*)&pObject->startX = *(u32*)&pObject->startZ = (u32)(pVertexData + pKeyframe[0]);
-                pJoint->pTranslationObject = (u32)pObject;
+                pJoint->pTranslationObject = pObject;
             }
         } else {
-            pObject = (Temp3*)pJoint->pTranslationObject;
+            pObject = pJoint->pTranslationObject;
             if (pObject != NULL && i != 0 && pObject->type != 0xFF) {
                 LibGearFreeJointObject(pList, (s8*)pObject);
                 pJoint->pTranslationObject = 0;
@@ -1323,7 +1323,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
     pJoint = pSkeleton;
     for (i = 0; i < count; i++) {
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->pRotationObject;
+            pObject = pJoint->pRotationObject;
             if (pObject != NULL) {
                 if (pObject->type == 0xFF) {
                     goto skipRot;
@@ -1351,7 +1351,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
                 *(u32*)&pObject->startX = pVertex;
                 *(u32*)&pObject->startZ = pVertex;
-                pJoint->pRotationObject = (u32)pObject;
+                pJoint->pRotationObject = pObject;
             }
         } else {
         skipRot:
@@ -1364,7 +1364,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
         pKeyframe++;
 
         if (pKeyframe[0] != 0xFFFF) {
-            pObject = (Temp3*)pJoint->pTranslationObject;
+            pObject = pJoint->pTranslationObject;
             if (pObject != NULL) {
                 if (pObject->type == 0xFF) {
                     goto skipTrans;
@@ -1391,7 +1391,7 @@ s32 func_801DFAC4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s3
                 pVertex = (u32)(pVertexBase + pKeyframe[0]);
                 *(u32*)&pObject->startX = pVertex;
                 *(u32*)&pObject->startZ = pVertex;
-                pJoint->pTranslationObject = (u32)pObject;
+                pJoint->pTranslationObject = pObject;
             }
         } else {
         skipTrans:
@@ -1415,17 +1415,17 @@ void LibGearReleaseSkeletonObjects(Temp4* pList, ModelJoint* pSkeleton) {
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
-        if (pSkeleton->pRotationObject != 0 && ((Temp3*)pSkeleton->pRotationObject)->type != 0xFF) {
+        if (pSkeleton->pRotationObject != 0 && pSkeleton->pRotationObject->type != 0xFF) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
             pSkeleton->pRotationObject = 0;
         }
 
-        if (pSkeleton->pTranslationObject != 0 && ((Temp3*)pSkeleton->pTranslationObject)->type != 0xFF) {
+        if (pSkeleton->pTranslationObject != 0 && pSkeleton->pTranslationObject->type != 0xFF) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
             pSkeleton->pTranslationObject = 0;
         }
 
-        if (pSkeleton->pScaleObject != 0 && ((Temp3*)pSkeleton->pScaleObject)->type != 0xFF) {
+        if (pSkeleton->pScaleObject != 0 && pSkeleton->pScaleObject->type != 0xFF) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
             pSkeleton->pScaleObject = 0;
         }
@@ -1439,17 +1439,17 @@ void LibGearReleaseSkeletonObjectsByType(Temp4* pList, ModelJoint* pSkeleton, u8
     u16 numChildren = pSkeleton->numChildren;
 
     for (i = 0; i < numChildren; i++) {
-        if (pSkeleton->pRotationObject != 0 && ((Temp3*)pSkeleton->pRotationObject)->type == type) {
+        if (pSkeleton->pRotationObject != 0 && pSkeleton->pRotationObject->type == type) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
             pSkeleton->pRotationObject = 0;
         }
 
-        if (pSkeleton->pTranslationObject != 0 && ((Temp3*)pSkeleton->pTranslationObject)->type == type) {
+        if (pSkeleton->pTranslationObject != 0 && pSkeleton->pTranslationObject->type == type) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
             pSkeleton->pTranslationObject = 0;
         }
 
-        if (pSkeleton->pScaleObject != 0 && ((Temp3*)pSkeleton->pScaleObject)->type == type) {
+        if (pSkeleton->pScaleObject != 0 && pSkeleton->pScaleObject->type == type) {
             LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
             pSkeleton->pScaleObject = 0;
         }
@@ -2147,7 +2147,7 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
     if (pJoint->pRotationObject == NULL) {
         pObject = LibGearAllocJointObject(pList);
     } else {
-        pObject = (Temp3*)pJoint->pRotationObject;
+        pObject = pJoint->pRotationObject;
     }
 
     if (pObject != NULL) {
@@ -2180,7 +2180,7 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
 
         pObject->curFrame = 0;
         pObject->endFrame = numFrames;
-        pJoint->pRotationObject = (u32)pObject;
+        pJoint->pRotationObject = pObject;
     }
 }
 
@@ -2193,7 +2193,7 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
     if (pJoint->pRotationObject == NULL) {
         pObject = LibGearAllocJointObject(pList);
     } else {
-        pObject = (Temp3*)pJoint->pRotationObject;
+        pObject = pJoint->pRotationObject;
     }
 
     if (pObject != NULL) {
@@ -2215,7 +2215,7 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
         pObject->curFrame = 0;
         pObject->endFrame = arg5;
 
-        pJoint->pRotationObject = (u32)pObject;
+        pJoint->pRotationObject = pObject;
     }
 }
 
@@ -2672,7 +2672,7 @@ void func_801E63A8(Model* pModel) {
     pModel->posY = value[2];
     pModel->posZ = value[4];
 
-    pObject = (Temp3*)pModel->pSkeleton->pRotationObject;
+    pObject = pModel->pSkeleton->pRotationObject;
     if (pObject != NULL) {
         if ((u32)(pObject->opcode - 7) < 2) {
             pObject->targetX = value[0];
@@ -2880,11 +2880,11 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
     s32 i;
 
     if (channel == 0) {
-        pObject = (Temp3*)pJoint->pRotationObject;
+        pObject = pJoint->pRotationObject;
     } else if (channel == 1) {
-        pObject = (Temp3*)pJoint->pTranslationObject;
+        pObject = pJoint->pTranslationObject;
     } else {
-        pObject = (Temp3*)pJoint->pScaleObject;
+        pObject = pJoint->pScaleObject;
     }
 
     if (pObject == NULL) {
@@ -2962,21 +2962,21 @@ void func_801E6974(Model* pModel, Temp4* pList, ModelJoint* pJoint, s32 flags,
             pJoint->rotation.vy = pObject->startY;
             pJoint->rotation.vz = pObject->startZ;
         }
-        pJoint->pRotationObject = (u32)pObject;
+        pJoint->pRotationObject = pObject;
     } else if (channel == 1) {
         if (arg4 < 2) {
             pJoint->translation.x = pObject->startX;
             pJoint->translation.y = pObject->startY;
             pJoint->translation.z = pObject->startZ;
         }
-        pJoint->pTranslationObject = (u32)pObject;
+        pJoint->pTranslationObject = pObject;
     } else {
         if (arg4 < 2) {
             pJoint->scale.vx = pObject->startX;
             pJoint->scale.vy = pObject->startY;
             pJoint->scale.vz = pObject->startZ;
         }
-        pJoint->pScaleObject = (u32)pObject;
+        pJoint->pScaleObject = pObject;
     }
 
     if (flags & 0x80) {

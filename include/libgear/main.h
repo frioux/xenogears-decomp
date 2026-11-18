@@ -6,6 +6,10 @@
 #include "system/math.h"
 #include "system/model.h"
 
+// Queued joint object (LibGearAllocJointObject); defined with the pool below
+struct _Temp3;
+typedef struct _Temp3 Temp3;
+
 struct _ModelJoint;
 typedef struct _ModelJoint ModelJoint;
 struct _ModelJoint {
@@ -31,10 +35,10 @@ struct _ModelJoint {
     /* 0x6c */ void* pCurModelPacket;
 
     // Queued joint objects (LibGearAllocJointObject) that interpolate this
-    // joint, one per transform channel; 0 = none queued
-    /* 0x70 */ u32 pRotationObject;
-    /* 0x74 */ u32 pTranslationObject;
-    /* 0x78 */ u32 pScaleObject;
+    // joint, one per transform channel; NULL = none queued
+    /* 0x70 */ Temp3* pRotationObject;
+    /* 0x74 */ Temp3* pTranslationObject;
+    /* 0x78 */ Temp3* pScaleObject;
 }; // Size: 0x7C
 
 // Joint entry
@@ -83,7 +87,7 @@ typedef struct {
 } VertexBuffer;
 
 /* Unknown list */
-typedef struct {
+struct _Temp3 {
     /* 0x0  */ u8 inUse;
     /* 0x1  */ u8 unk1;
     /* 0x2  */ u8 opcode; // command code plus 3 (plus 7 for a move); the joint update dispatches on it & 0xF
@@ -96,7 +100,7 @@ typedef struct {
     /* 0xE  */ s16 targetZ;
     /* 0x10 */ s16 curFrame; // counted up to endFrame by the joint update
     /* 0x12 */ s16 endFrame; // frame the interpolation runs to
-} Temp3; // Size: 0x14
+}; // Size: 0x14
 
 typedef struct {
     /* 0x0 */ Temp3* pObjects;
