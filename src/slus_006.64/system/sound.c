@@ -17,17 +17,58 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 #define SOUND_PAN_MAX                       0x7F00
 #define SOUND_FILE_VERSION                  0x101   // .sed file format version SoundValidateFile expects
 #define SOUND_ERR_HEAP_ALLOC_FAILED         0x1E    // SoundHandleError id for a failed sound-heap allocation
+// SoundHandleError ids, each one naming the failure its call site has just detected
+#define SOUND_ERR_INVALID_MANAGER            0x5     // no usable AudioManager: NULL argument or not in g_SoundAudioManagerListHead
+#define SOUND_ERR_INVALID_SEQ_HEADER         0xA     // SoundUnkDebug0 rejected pManager->pSeqHeader
+#define SOUND_ERR_SEDS_NOT_FOUND             0x10    // the SoundFile is not in g_SoundSedsLinkedList
+#define SOUND_ERR_WDS_NOT_FOUND              0x11    // the SoundWDSEntry is not in g_SoundWdsLinkedList
+#define SOUND_ERR_WDS_ALREADY_LOADED         0x16    // SoundFindWdsEntry already finds this WDS id
+#define SOUND_ERR_SPU_MEMORY_ALLOC_FAILED    0x1F    // SoundSpuMemoryAllocateWDS returned 0
+#define SOUND_ERR_REVERB_ALLOC_FAILED        0x20    // the reverb work area block could not be allocated
+#define SOUND_ERR_ALREADY_INITIALIZED        0x28    // bit 15 is already set, as the 0xB801 SoundInitialize writes leaves it
+#define SOUND_ERR_NOT_INITIALIZED            0x29    // g_SoundControlFlags is 0, so there is nothing to shut down
 #define SOUND_REVERB_MEMORY_NONE            (-1)    // g_SoundReverbMemoryHandle before the work area is allocated
+#define SOUND_REVERB_TYPE_NONE              0xFF    // g_SoundReverbType before any reverb type is set
+#define SOUND_REVERB_TYPE_NO_CHANGE         (-2)    // SoundSetReverbModeWithAllocation leaves the SPU alone
 // SoundSetAudioManagerBackupState modes
 #define SOUND_MANAGER_BACKUP_DISCARD        0
 #define SOUND_MANAGER_BACKUP_SAVE           1
 #define SOUND_MANAGER_BACKUP_RESTORE        2
+// g_SoundControlFlags bits (the handler bit 2 is SOUND_CTL_FLAG_IRQ_HANDLER in sound.h)
+#define SOUND_CTL_FLAG_EVENT_ENABLED        (1 << 0)  // g_unk_SoundEvent is enabled
+#define SOUND_CTL_FLAG_TRANSFER_BUSY        (1 << 4)  // an SPU transfer command is in flight
+#define SOUND_CTL_FLAG_REVERB_TRANSFER      (1 << 5)  // the reverb work area upload is in progress
+#define SOUND_CTL_FLAG_MUTED                (1 << 6)  // every voice silenced, the timer handler does nothing
+#define SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED (1 << 11) // gate the SoundPlaySoundEffect* family tests
+#define SOUND_CTL_FLAG_REVERB_ENABLED       (1 << 12) // managers apply their reverb settings to the SPU
 // AudioManager.flags bits (bit 15 is what SoundAudioManagerIsActive reports)
 #define SOUND_MANAGER_FLAG_IN_PLACE         (1 << 14) // manager lives in caller-provided memory, do not free it
 #define SOUND_MANAGER_FLAG_PLAYING          (1 << 15)
+#define SOUND_MANAGER_FLAG_SEQUENCE_LOADED  (1 << 0)  // pSeqHeader has been read into the manager's fields
+#define SOUND_MANAGER_FLAG_BACKUP_SAVED     (1 << 4)  // pBackup holds a snapshot of the manager
+#define SOUND_MANAGER_FLAG_STOP_PENDING     (1 << 5)  // stop at stopBar, the elements are not mixed meanwhile
+#define SOUND_MANAGER_FLAG_NEEDS_ACTIVATION (1 << 8)  // playback resumes once a non-zero volume arrives
 // SoundTransferCommand.commandType, the rest of the family is SOUND_SPU_COMMAND_WRITE/READ in sound.h
 #define SOUND_SPU_COMMAND_READ_DECODED_ALL      0x3
 #define SOUND_SPU_COMMAND_READ_DECODED_CDONLY   0x4
+// AudioElement.active_flag bits (the percussion, hold, rest and instrument bits are SOUND_CHANNEL_* in sound.h)
+#define SOUND_CHANNEL_ACTIVE                0x1     // element is playing and gets stepped
+#define SOUND_CHANNEL_MUTED                 0x20    // silenced by SoundMuteElementsByFlags
+// SoundVoiceData.flags: one bit per SPU voice register group the element scripts rewrite
+#define SOUND_VOICE_FLAG_VOLUME             0x1
+#define SOUND_VOICE_FLAG_PITCH              0x4
+#define SOUND_VOICE_FLAG_ATTACK             0x10
+#define SOUND_VOICE_FLAG_DECAY              0x20
+#define SOUND_VOICE_FLAG_SUSTAIN            0x40
+#define SOUND_VOICE_FLAG_RELEASE            0x80
+#define SOUND_VOICE_FLAG_SUSTAIN_LEVEL      0x100
+// AudioEnvelope.flags bits
+#define SOUND_ENVELOPE_FLAG_ENABLED         0x1
+#define SOUND_ENVELOPE_FLAG_HALF_RATE       0x4     // the reloaded count doubles, the envelope steps every other tick
+#define SOUND_ENVELOPE_FLAG_DESCENDING      0x8     // the step handlers negate delta while this is set
+#define SOUND_EFFECT_ELEMENT_COUNT          16      // elements of the sound-effect manager SoundInitialize creates
+#define SOUND_PERCUSSION_TABLE_SIZE         0x180   // tail added to a manager's allocation when it carries a percussion map
+#define SOUND_TICKS_PER_WHOLE_NOTE          192     // a beat divisor of 4 splits this into 48 ticks per beat
 
 //----------------------------------------------------------------------------------------------------------------------
 // SPU DECLARATIONS
@@ -285,7 +326,7 @@ void SoundSetReverbModeWithAllocation(s32 reverbType, s32 reverbDepth, s32 rever
 
 void SoundInitialize(s32 flags) {
     if (g_SoundControlFlags < 0) {
-        SoundHandleError(0x28);
+        SoundHandleError(SOUND_ERR_ALREADY_INITIALIZED);
         return;
     }
 
@@ -328,12 +369,12 @@ void SoundInitialize(s32 flags) {
         SoundSetupCdMix(0x80);
     }
 
-    g_SoundEffectAudioManager = SoundCreateAudioManagerForElementCount(0x10);
+    g_SoundEffectAudioManager = SoundCreateAudioManagerForElementCount(SOUND_EFFECT_ELEMENT_COUNT);
     g_SoundSoundEffectChannelCount = 8;
     g_SoundReverbMemoryHandle = SOUND_REVERB_MEMORY_NONE;
     g_SoundUploadDestBuffer = 0;
-    g_SoundReverbType = 0xFF;
-    SoundSetReverbModeWithAllocation(4, 0, 0, 0);
+    g_SoundReverbType = SOUND_REVERB_TYPE_NONE;
+    SoundSetReverbModeWithAllocation(SPU_REV_MODE_STUDIO_C, 0, 0, 0);
     SpuSetReverb(1);
     g_SoundSpuErrorId = 0;
 }
@@ -342,7 +383,7 @@ void SoundReset(void) {
     int i;
 
     if (g_SoundControlFlags == 0x0) {
-        SoundHandleError(0x29);
+        SoundHandleError(SOUND_ERR_NOT_INITIALIZED);
         return;
     }
     
@@ -375,14 +416,14 @@ void SoundEnableAllSpuChannels(void) {
         pChannel++;
     } while (i < NUM_VOICES);
 
-    g_SoundControlFlags &= ~0x40;
+    g_SoundControlFlags &= ~SOUND_CTL_FLAG_MUTED;
 }
 
 void SoundMuteAllSpuChannels(void) {
     SPU_VOICE_REG* pVoice = g_pSoundSpuRegisters->_rxx.voice;
     s32 i;
 
-    g_SoundControlFlags |= 0x40;
+    g_SoundControlFlags |= SOUND_CTL_FLAG_MUTED;
     for (i = 0; i < NUM_VOICES; pVoice++, i++) {
         pVoice->volume.left = 0;
         pVoice->volume.right = 0;
@@ -393,16 +434,16 @@ void SoundMuteAllSpuChannels(void) {
 }
 
 void SoundEnableEvent(void) {
-    if (!(g_SoundControlFlags & 1)) {
-        g_SoundControlFlags |= 1;
+    if (!(g_SoundControlFlags & SOUND_CTL_FLAG_EVENT_ENABLED)) {
+        g_SoundControlFlags |= SOUND_CTL_FLAG_EVENT_ENABLED;
         EnableEvent(g_unk_SoundEvent);
     }
 }
 
 void SoundDisableEvent(void) {
-    if (g_SoundControlFlags & 1) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_EVENT_ENABLED) {
         DisableEvent(g_unk_SoundEvent);
-        g_SoundControlFlags &= ~1;
+        g_SoundControlFlags &= ~SOUND_CTL_FLAG_EVENT_ENABLED;
     }
 }
 
@@ -415,7 +456,7 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
 
     spuAddress = SoundSpuMemoryAllocateWDS(pWdsFile);
     if (spuAddress == 0) {
-        SoundHandleError(0x1F);
+        SoundHandleError(SOUND_ERR_SPU_MEMORY_ALLOC_FAILED);
         return NULL;
     }
 
@@ -450,13 +491,13 @@ SoundWDSEntry* SoundLoadPartialWdsFile(SoundWDSEntry* pWdsFile, int size, int mo
     int spuAddress;
 
     if (SoundFindWdsEntry(pWdsFile->id) != 0) {
-        SoundHandleError(0x16);
+        SoundHandleError(SOUND_ERR_WDS_ALREADY_LOADED);
         return NULL;
     }
 
     spuAddress = SoundSpuMemoryAllocateWDS(pWdsFile, mode);
     if (spuAddress == 0) {
-        SoundHandleError(0x1F);
+        SoundHandleError(SOUND_ERR_SPU_MEMORY_ALLOC_FAILED);
         return NULL;
     }
 
@@ -541,7 +582,7 @@ void SoundFreeWdsEntry(SoundWDSEntry* pTargetEntry) {
     }
 
     if (pCurrent == NULL) {
-        SoundHandleError(0x11U);
+        SoundHandleError(SOUND_ERR_WDS_NOT_FOUND);
         return;
     }
 
@@ -617,7 +658,7 @@ void SoundRemoveSedsEntry(SoundFile* pSoundFile) {
     }
 
     if (pCurrent == NULL) {
-        SoundHandleError(0x10);
+        SoundHandleError(SOUND_ERR_SEDS_NOT_FOUND);
         return;
     }
 
@@ -793,9 +834,9 @@ void SoundSetupCdMix(s32 vol) {
 void SoundSetReverbEnabled(s32 arg0) {
 
     if (arg0 != 0) {
-        g_SoundControlFlags |= (1 << 12);
+        g_SoundControlFlags |= SOUND_CTL_FLAG_REVERB_ENABLED;
     } else {
-        g_SoundControlFlags &= ~(1 << 12);
+        g_SoundControlFlags &= ~SOUND_CTL_FLAG_REVERB_ENABLED;
     }
 }
 
@@ -820,7 +861,7 @@ void SoundSetReverbModeWithAllocation(s32 reverbType, s32 reverbDepth, s32 rever
 
     bAllocated = false;
 
-    if (reverbType == -2) {
+    if (reverbType == SOUND_REVERB_TYPE_NO_CHANGE) {
         return;
     }
 
@@ -847,7 +888,7 @@ void SoundSetReverbModeWithAllocation(s32 reverbType, s32 reverbDepth, s32 rever
         g_SoundReverbMemoryHandle = memoryHandle;
 
         if (memoryHandle == 0) {
-            SoundHandleError(0x20);
+            SoundHandleError(SOUND_ERR_REVERB_ALLOC_FAILED);
             reverbType = 0;
             reverbFeedback = 0;
             reverbDelay = 0;
@@ -890,7 +931,7 @@ void SoundInitiateReverbWorkAreaTransfer(s32 addr, s32 size) {
             SoundHandleError(SOUND_ERR_HEAP_ALLOC_FAILED);
         }
     }
-    g_SoundControlFlags |= (1 << 5);
+    g_SoundControlFlags |= SOUND_CTL_FLAG_REVERB_TRANSFER;
     SoundExecuteReverbWorkAreaTransfer();
 }
 
@@ -910,7 +951,7 @@ void SoundExecuteReverbWorkAreaTransfer(void) {
         SpuSetReverbModeDelayTime(g_SoundReverbDelay);
         SpuSetReverbModeFeedback(g_SoundReverbFeedback);
 
-        g_SoundControlFlags &= ~(1 << 5);
+        g_SoundControlFlags &= ~SOUND_CTL_FLAG_REVERB_TRANSFER;
 
     } else {
         chunkSize = (bytesRemaining <= 0x840) ? bytesRemaining : 0x800;
@@ -1515,7 +1556,7 @@ AudioManager* SoundCreateAudioManagerOnHeap(AudioManager* pManager) {
 
     size = SoundCalculateAudioManagerSize(pManager->elementCount);
     if (pManager->percussionCount != 0) {
-        size += 0x180;
+        size += SOUND_PERCUSSION_TABLE_SIZE;
     }
 
     pNew = SoundHeapAllocate(size);
@@ -1548,7 +1589,7 @@ AudioManager* SoundCreateAudioManagerInPlace(AudioManager* pManager, AudioManage
 
     size = SoundCalculateAudioManagerSize(pManager->elementCount);
     if (pManager->percussionCount != 0) {
-        size += 0x180;
+        size += SOUND_PERCUSSION_TABLE_SIZE;
     }
     SoundHeapClearBlockMemory(pNew, size);
 
@@ -1571,12 +1612,12 @@ void SoundDestroyAudioManager(AudioManager* pManager) {
     }
 
     if ((s16)SoundUnkDebug0(pManager->pSeqHeader) != 0) {
-        SoundHandleError(0xA);
+        SoundHandleError(SOUND_ERR_INVALID_SEQ_HEADER);
         return;
     }
 
     if (SoundRemoveAudioManagerFromList(pManager) != 0) {
-        SoundHandleError(0x5);
+        SoundHandleError(SOUND_ERR_INVALID_MANAGER);
         return;
     }
 
@@ -1591,14 +1632,14 @@ void SoundPlayAudioManager(AudioManager* pManager, s32 volume, s32 frames) {
     s16 status;
 
     if (pManager == NULL) {
-        SoundHandleError(0x5);
+        SoundHandleError(SOUND_ERR_INVALID_MANAGER);
         return;
     }
 
     pManager->flags &= ~SOUND_MANAGER_FLAG_PLAYING;
     status = (s16)SoundUnkDebug0(pManager->pSeqHeader);
     if (status != 0) {
-        SoundHandleError(0xA);
+        SoundHandleError(SOUND_ERR_INVALID_SEQ_HEADER);
         return;
     }
 
@@ -1624,7 +1665,7 @@ void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 volume, s32 fram
     s32 cnt;
 
     if (pManager == NULL) {
-        SoundHandleError(0x5);
+        SoundHandleError(SOUND_ERR_INVALID_MANAGER);
         return;
     }
 
@@ -1643,14 +1684,14 @@ void SoundReloadAudioManagerSamples(AudioManager* pManager, s32 volume, s32 fram
     } while (cnt);
 
     pManager->volumeInterpolator.currentValue = 0;
-    pManager->flags |= 0x100;
+    pManager->flags |= SOUND_MANAGER_FLAG_NEEDS_ACTIVATION;
     SoundSetAudioManagerVolumeWithFade(pManager, volume, frames);
 }
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundStopAudioManager(AudioManager* manager) {
     if (manager == NULL) {
-        SoundHandleError(5);
+        SoundHandleError(SOUND_ERR_INVALID_MANAGER);
         return;
     }
     manager->flags &= ~SOUND_MANAGER_FLAG_PLAYING;
@@ -1660,7 +1701,7 @@ void SoundStopAudioManager(AudioManager* manager) {
 //----------------------------------------------------------------------------------------------------------------------
 void SoundFadeOutAudioManager(AudioManager* manager, s32 arg1) {
     if (manager == NULL) {
-        SoundHandleError(5);
+        SoundHandleError(SOUND_ERR_INVALID_MANAGER);
         return;
     }
     SoundSetAudioManagerVolumeWithFade(manager, 0, arg1);
@@ -1688,10 +1729,10 @@ void SoundNop(void) {}
 //----------------------------------------------------------------------------------------------------------------------
 void SoundSetControlFlag800(s32 bIn) {
     if (bIn != 0) {
-        g_SoundControlFlags |= (1 << 11);
+        g_SoundControlFlags |= SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED;
     } else {
         SoundStopAllElements();
-        g_SoundControlFlags &= ~(1 << 11);
+        g_SoundControlFlags &= ~SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED;
     }
 }
 
@@ -1710,7 +1751,7 @@ s32 SoundSetSoundEffectChannelCount(s32 count) {
 }
 
 void SoundPlaySoundEffectOnLastPair(s32 arg0) {
-    if (g_SoundControlFlags & 0x800) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         s32 value = g_SoundEffectElementCount;
 
         value -= 2;
@@ -1722,7 +1763,7 @@ void SoundPlaySoundEffectOnLastPair(s32 arg0) {
 //----------------------------------------------------------------------------------------------------------------------
 // Wowoweewa flag central
 void SoundSendCommandConstant(s32 arg0) {
-    if (g_SoundControlFlags & (1 << 11)) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         g_SoundEffectElementPairCount = 2;
         func_8003B644((1 << 2) | (1 << 3) | (1 << 13) | (1 << 14), arg0, (1 << 13) | ( 1 << 14), (1 << 14));
     }
@@ -1730,7 +1771,7 @@ void SoundSendCommandConstant(s32 arg0) {
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundPlaySoundEffectOnFreePair(s32 arg0) {
-    if (g_SoundControlFlags & 0x800) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         s32 value = func_8003A65C(arg0, 2);
 
         g_SoundEffectElementPairCount = 2;
@@ -1740,7 +1781,7 @@ void SoundPlaySoundEffectOnFreePair(s32 arg0) {
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1) {
-    if (g_SoundControlFlags & (1 << 11)) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         g_SoundEffectElementPairCount = 2;
         func_8003B644(
             ((arg1 & 0xFE) ^ (1 << 3)) | (1 << 13), // wtf is this... we really need to figure out some of these macros
@@ -1753,7 +1794,7 @@ void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1) {
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
-    if (g_SoundControlFlags & 0x800) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         s32 value = func_8003A65C(arg0, 2);
 
         g_SoundEffectElementPairCount = 2;
@@ -1762,7 +1803,7 @@ void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
 }
 
 void SoundPlaySoundEffectOnPairWithLevels(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
-    if (g_SoundControlFlags & 0x800) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         g_SoundEffectElementPairCount = 2;
         func_8003B644(((arg1 & 0xFE) ^ 0x8) | 0x2000, arg0, (s16)(arg2 << 8), (s16)(arg3 << 8));
     }
@@ -1775,7 +1816,7 @@ void SoundStopAllElements(void) {
 
     DisableEvent(g_unk_SoundEvent);
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             pElement->active_flag = 0;
             SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
         }
@@ -1793,7 +1834,7 @@ void SoundStopElementsForSoundFile(SoundFile* pSoundFile) {
     s16 sedId = *(s16*)&pSoundFile->sedId;
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             // soundId holds two 16-bit ids; the second one is the owning file's sedId
             if (((s16*)&pElement->soundId)[1] == sedId) {
                 pElement->active_flag = 0;
@@ -1812,7 +1853,7 @@ void SoundStopElementsById(s32 sedId) {
     u32 cnt = g_SoundEffectElementCount;
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             if (pElement->soundId == sedId) {
                 pElement->active_flag = 0;
                 pManager->activeElementMask &= ~(1 << (u8)pElement->elementIndex);
@@ -1836,7 +1877,7 @@ void SoundStopElementsByIndex(s32 elementIndex) {
     pElement = &pManager->elements[elementIndex];
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             pElement->active_flag = 0;
             pManager->activeElementMask &= ~(1 << (u8)pElement->elementIndex);
             SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
@@ -1856,7 +1897,7 @@ void SoundSetElementVolumeById(s32 id, s32 value) {
     u32 cnt = g_SoundEffectElementCount;
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             if (pElement->soundId == id) {
                 pElement->volume = value << 8;
                 pElement->status_flags = SOUND_STATUS_VOLUME_CHANGE;
@@ -1877,7 +1918,7 @@ void SoundSetElementVolumeByIndex(s32 elementIndex, s32 value) {
     pElement = &g_SoundEffectAudioManager->elements[elementIndex];
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             pElement->volume = value << 8;
             pElement->status_flags = SOUND_STATUS_VOLUME_CHANGE;
         }
@@ -1894,7 +1935,7 @@ void SoundFadeElementVolumeById(s32 id, s32 value, s32 frames) {
     s32 delta;
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             if (pElement->soundId == id) {
                 delta = volume - pElement->volume;
                 if (delta) {
@@ -1926,7 +1967,7 @@ void SoundFadeElementVolumeByIndex(s32 elementIndex, s32 value, s32 frames) {
     pElement = &g_SoundEffectAudioManager->elements[elementIndex];
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             delta = volume - pElement->volume;
             if (delta) {
                 if (frames == 0) {
@@ -1949,7 +1990,7 @@ void SoundSetElementPanById(s32 id, s32 value) {
     u32 cnt = g_SoundEffectElementCount;
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             if (pElement->soundId == id) {
                 pElement->pan = value << 8;
                 pElement->status_flags = SOUND_STATUS_VOLUME_CHANGE;
@@ -1972,7 +2013,7 @@ void SoundSetElementPanByIndex(s32 elementIndex, s32 value) {
     pElement = &g_SoundEffectAudioManager->elements[elementIndex];
 
     do {
-        if (pElement->active_flag & 0x1) {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
             pElement->pan = volume;
             pElement->status_flags = SOUND_STATUS_VOLUME_CHANGE;
         }
@@ -1989,7 +2030,7 @@ s32 SoundGetActiveElementMask(s32 id) {
 
     if (id == -1) {
         do {
-            if (pElement->active_flag & 0x1) {
+            if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
                 result |= bit;
             }
             pElement++;
@@ -1997,7 +2038,7 @@ s32 SoundGetActiveElementMask(s32 id) {
         } while (--count);
     } else {
         do {
-            if ((pElement->active_flag & 0x1) && pElement->soundId == id) {
+            if ((pElement->active_flag & SOUND_CHANNEL_ACTIVE) && pElement->soundId == id) {
                 result |= bit;
             }
             pElement++;
@@ -2056,7 +2097,7 @@ void SoundSetAudioManagerVolumeWithFade(AudioManager* pManager, s32 volume, s32 
         pManager->volumeInterpolator.stepIncrement = (delta / frames) << 8;
     }
 
-    if ((pManager->flags & 0x100) && volume != 0) {
+    if ((pManager->flags & SOUND_MANAGER_FLAG_NEEDS_ACTIVATION) && volume != 0) {
         SoundActivateAudioManager(pManager);
     }
 }
@@ -2100,13 +2141,13 @@ void SoundFadeAudioManagerInterpolator88(AudioManager* pManager, s16 volume, s32
 void SoundActivateAudioManager(AudioManager* pManager) {
     DisableEvent(g_unk_SoundEvent);
 
-    if (g_SoundControlFlags & 0x1000) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_REVERB_ENABLED) {
         SoundSetReverbModeWithAllocation(pManager->reverbType, pManager->reverbDepth, pManager->reverbDelay, pManager->reverbFeedback);
     }
 
     SoundSetFlagsOnActiveVoices(pManager, 0xFFFF);
     SoundSetElementsStatusFlag1(pManager);
-    pManager->flags = (pManager->flags & ~0x100) | SOUND_MANAGER_FLAG_PLAYING;
+    pManager->flags = (pManager->flags & ~SOUND_MANAGER_FLAG_NEEDS_ACTIVATION) | SOUND_MANAGER_FLAG_PLAYING;
     EnableEvent(g_unk_SoundEvent);
 }
 
@@ -2125,15 +2166,15 @@ void SoundMuteElementsByFlags(AudioManager* pManager, u32 flags) {
     do {
         if (pElement->active_flag != 0) {
             if (flags & 1) {
-                if (!(pElement->active_flag & 0x20)) {
-                    pElement->active_flag |= 0x20;
+                if (!(pElement->active_flag & SOUND_CHANNEL_MUTED)) {
+                    pElement->active_flag |= SOUND_CHANNEL_MUTED;
                     if (pManager->flags & SOUND_MANAGER_FLAG_PLAYING) {
                         SoundStopVoiceOnChannel(&pElement->voice_data, pElement->voice_number);
                     }
                 }
             } else {
-                if (pElement->active_flag & 0x20) {
-                    pElement->active_flag &= ~0x20;
+                if (pElement->active_flag & SOUND_CHANNEL_MUTED) {
+                    pElement->active_flag &= ~SOUND_CHANNEL_MUTED;
                     if ((*(u32*)&pElement->active_flag & 0x110) == 0x100) {
                         if (pManager->flags & SOUND_MANAGER_FLAG_PLAYING) {
                             SoundAssignVoiceToChannelAndPlay(&pElement->voice_data, pElement->voice_number);
@@ -2234,8 +2275,8 @@ void SoundSetAudioManagerBackupState(AudioManager* pManager, s32 mode) {
 }
 
 void SoundDiscardAudioManagerBackup(AudioManager* pManager) {
-    if (pManager->flags & 0x10) {
-        pManager->flags &= ~0x10;
+    if (pManager->flags & SOUND_MANAGER_FLAG_BACKUP_SAVED) {
+        pManager->flags &= ~SOUND_MANAGER_FLAG_BACKUP_SAVED;
         SoundFreeAudioManagerBackups(pManager);
     }
 }
@@ -2254,7 +2295,7 @@ void SoundSaveAudioManagerBackup(AudioManager* pManager) {
         return;
     }
 
-    pManager->flags |= 0x10;
+    pManager->flags |= SOUND_MANAGER_FLAG_BACKUP_SAVED;
     pManager->pBackup = pCopy;
     SoundHeapSetBlockMemory(pCopy, pManager, size);
     pCopy->next = NULL;
@@ -2266,7 +2307,7 @@ void SoundSaveAudioManagerBackup(AudioManager* pManager) {
 void SoundRestoreAudioManagerBackup(AudioManager* pManager) {
     s32 savedValue;
 
-    if (pManager->pBackup != NULL && (pManager->flags & 0x10)) {
+    if (pManager->pBackup != NULL && (pManager->flags & SOUND_MANAGER_FLAG_BACKUP_SAVED)) {
         DisableEvent(g_unk_SoundEvent);
         SoundReleaseAllVoices(pManager);
         savedValue = pManager->playTicks;
@@ -2282,7 +2323,7 @@ void SoundSetAudioManagerMaxVolume(AudioManager* pManager, u16 volume) {
     s32 newVolume = 0x7F00;
     u_long event = g_unk_SoundEvent;
 
-    pManager->flags |= 0x20;
+    pManager->flags |= SOUND_MANAGER_FLAG_STOP_PENDING;
     pManager->stopBar = volume;
     DisableEvent(event);
     SoundReleaseAllVoices(pManager);
@@ -2324,7 +2365,7 @@ void SoundSetElementsStatusFlag1(AudioManager* manager) {
         // What's going on here? Are the first two fields just a u32?
         if ((*(u32*)pElement & 0x101) == 0x101) {
             // I'm beginning to think that this isn't just a flag for activity considering this mask
-            if ((pElement->active_flag & 0x30) == 0) {
+            if ((pElement->active_flag & (SOUND_CHANNEL_PERCUSSION_ACTIVE | SOUND_CHANNEL_MUTED)) == 0) {
                 pElement->status_flags |= 0x1;
             }
         }
@@ -2440,11 +2481,11 @@ void SoundLoadAudioManagerSequenceHeader(AudioManager* pManager) {
 
     status = (s16)SoundUnkDebug0(pManager->pSeqHeader);
     if (status != 0) {
-        SoundHandleError(0xA);
+        SoundHandleError(SOUND_ERR_INVALID_SEQ_HEADER);
         return;
     }
 
-    pManager->flags |= 0x1;
+    pManager->flags |= SOUND_MANAGER_FLAG_SEQUENCE_LOADED;
     pManager->unk_0x12 = pSeq->unk10;
     pManager->elementCount = pSeq->elementCount;
     pManager->sndId = pSeq->unk16;
@@ -2454,7 +2495,7 @@ void SoundLoadAudioManagerSequenceHeader(AudioManager* pManager) {
     pManager->reverbDelay = pSeq->unk1C;
     pManager->reverbFeedback = pSeq->unk1D;
 
-    if (g_SoundControlFlags & 0x1000) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_REVERB_ENABLED) {
         SoundSetReverbModeWithAllocation((s8)pManager->reverbType, pManager->reverbDepth, pManager->reverbDelay, pManager->reverbFeedback);
     }
 
@@ -2804,7 +2845,7 @@ s32 SoundRemoveAudioManagerFromList(AudioManager* manager) {
     // Handle cleanup if needed (playing flag set)
     if (manager->flags & SOUND_MANAGER_FLAG_PLAYING) {
         if (manager == NULL) {
-            SoundHandleError(5);  // Invalid cleanup state
+            SoundHandleError(SOUND_ERR_INVALID_MANAGER);  // Invalid cleanup state
         } else {
             // Clear cleanup flag and release resources
             manager->flags &= ~SOUND_MANAGER_FLAG_PLAYING;
@@ -2848,16 +2889,16 @@ void SoundOnTransferCallback(void) {
     SoundCommandCallback_t pCallback;
 
     pCallback = (&g_SoundTransferQueue[g_SoundTransferQueueReadIndex])->pCallbackFn;
-    g_SoundControlFlags |= 4;
+    g_SoundControlFlags |= SOUND_CTL_FLAG_IRQ_HANDLER;
     if (pCallback) {
         pCallback();
     }
     
-    g_SoundControlFlags &= 0xFFEF;
+    g_SoundControlFlags &= ~SOUND_CTL_FLAG_TRANSFER_BUSY;
     if (g_SoundTransferQueueReadIndex != g_SoundTransferQueueWriteIndex) {
         SoundProcessTransferCommand();
     }
-    g_SoundControlFlags &= 0xFFFB;
+    g_SoundControlFlags &= ~SOUND_CTL_FLAG_IRQ_HANDLER;
 }
 
 void SoundQueueSpuWriteCommand(u32 transferAddress, void* pData, u_long dataSize, SoundCommandCallback_t pCallback) {
@@ -2884,7 +2925,7 @@ void SoundQueueTransferCommand(u32 transferAddress, void* pData, u_long dataSize
     unsigned short nNextIndex;
 
     nControlFlags = g_SoundControlFlags;
-    if (!(nControlFlags & 4)) {
+    if (!(nControlFlags & SOUND_CTL_FLAG_IRQ_HANDLER)) {
         while (SoundTransferQueueSync());
         EnterCriticalSection();
     }
@@ -2904,11 +2945,11 @@ void SoundQueueTransferCommand(u32 transferAddress, void* pData, u_long dataSize
     pCmd->dataSize = dataSize;
     pCmd->pCallbackFn = pCallback;
     
-    if (!(g_SoundControlFlags & 0x10)) {
+    if (!(g_SoundControlFlags & SOUND_CTL_FLAG_TRANSFER_BUSY)) {
         SoundProcessTransferCommand();
     }
     
-    if (!(nControlFlags & 4)) {
+    if (!(nControlFlags & SOUND_CTL_FLAG_IRQ_HANDLER)) {
         ExitCriticalSection();
     }
 }
@@ -2926,12 +2967,12 @@ void SoundNop4(void) {}
 // Waits for the transfer queue to finish (arg & 0x10) and returns the mode of the
 // command at the read index, or 0 when the queue is idle.
 s32 SoundGetPendingSpuCommandType(u32 flags) {
-    if (flags & 0x10) {
-        while (*(volatile u16*)&g_SoundControlFlags & 0x10) {
+    if (flags & SOUND_CTL_FLAG_TRANSFER_BUSY) {
+        while (*(volatile u16*)&g_SoundControlFlags & SOUND_CTL_FLAG_TRANSFER_BUSY) {
         }
     }
 
-    if (!(g_SoundControlFlags & 0x10)) {
+    if (!(g_SoundControlFlags & SOUND_CTL_FLAG_TRANSFER_BUSY)) {
         return 0;
     }
 
@@ -2950,7 +2991,7 @@ void SoundProcessTransferCommand(void) {
     }
     g_SoundTransferQueueReadIndex = nNextIndex;
     
-    g_SoundControlFlags |= 0x10;
+    g_SoundControlFlags |= SOUND_CTL_FLAG_TRANSFER_BUSY;
 
     // TODO: pCmd = &g_SoundTransferQueue[nNextIndex]; doesn't match, but there should be a cleaner line here
     pCmd = nNextIndex * sizeof(SoundTransferCommand) + (u32)g_SoundTransferQueue;
@@ -3005,7 +3046,7 @@ s32 SoundTimerInterruptHandler(void) {
     AudioElement* pElements;
     u8 count;
 
-    if (g_SoundControlFlags & 0x40) {
+    if (g_SoundControlFlags & SOUND_CTL_FLAG_MUTED) {
         return 0;
     }
 
@@ -3092,16 +3133,16 @@ s32 SoundTimerInterruptHandler(void) {
                     pManager->playTicks++;
                     if (pManager->volumeInterpolator.currentValue == 0) {
                         SoundStopAudioManager(pManager);
-                        pManager->flags |= 0x100;
+                        pManager->flags |= SOUND_MANAGER_FLAG_NEEDS_ACTIVATION;
                     }
 
                     if ((u16)pManager->barCount == pManager->stopBar) {
-                        pManager->flags &= ~0x20;
+                        pManager->flags &= ~SOUND_MANAGER_FLAG_STOP_PENDING;
                         SoundSetAudioManagerMasterVolumeWithFade(pManager, 0, 0);
                         pManager->stopBar = 0;
                     }
                 } else {
-                    pManager->flags &= 0x7FFF;
+                    pManager->flags &= ~SOUND_MANAGER_FLAG_PLAYING;
                     break;
                 }
             } while (pManager->tickAccumulator < 0);
@@ -3351,7 +3392,7 @@ u8* SoundScriptLowerOctave(u8* pScript, AudioManager* pAudioManager, AudioElemen
 // Time signature handler?
 u8* SoundScriptSetTimeSignature(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 divisor = pScript[1];
-    u16 step = 192 / divisor;
+    u16 step = SOUND_TICKS_PER_WHOLE_NOTE / divisor;
     u16 value = *pScript;
 
     pAudioManager->ticksPerBeat = step;
@@ -3681,34 +3722,36 @@ u8* SoundScriptSetAdsrModes(u8* pScript, AudioManager* pAudioManager, AudioEleme
     pAudioElements->voice_data.attackMode = pScript[0];
     pAudioElements->voice_data.sustainMode = pScript[1];
     pAudioElements->voice_data.releaseMode = pScript[2];
-    pAudioElements->voice_data.flags |= 0x1F0;
+    pAudioElements->voice_data.flags |=
+        SOUND_VOICE_FLAG_ATTACK | SOUND_VOICE_FLAG_DECAY | SOUND_VOICE_FLAG_SUSTAIN |
+        SOUND_VOICE_FLAG_RELEASE | SOUND_VOICE_FLAG_SUSTAIN_LEVEL;
     return pScript + 3;
 }
 
 u8* SoundScriptSetAttackTime(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 attackTime = *pScript;
-    pAudioElements->voice_data.flags |= 0x10;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_ATTACK;
     pAudioElements->voice_data.attackRate = attackTime;
     return pScript + 1;
 }
 
 u8* SoundScriptSetDecayTime(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 decayTime = *pScript;
-    pAudioElements->voice_data.flags |= 0x20;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_DECAY;
     pAudioElements->voice_data.adsrDR = decayTime;
     return pScript + 1;
 }
 
 u8* SoundScriptSetSustain(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 temp = *pScript;
-    pAudioElements->voice_data.flags |= 0x40;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_SUSTAIN;
     pAudioElements->voice_data.sustainRate = temp;
     return pScript + 1;
 }
 
 u8* SoundScriptSetRelease(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 temp = *pScript;
-    pAudioElements->voice_data.flags |= 0x80;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_RELEASE;
     pAudioElements->releaseRate = temp;
     pAudioElements->voice_data.releaseRate = temp;
     return pScript + 1;
@@ -3716,7 +3759,7 @@ u8* SoundScriptSetRelease(u8* pScript, AudioManager* pAudioManager, AudioElement
 
 u8* SoundScriptSetSustainLevel(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 temp = *pScript;
-    pAudioElements->voice_data.flags |= 0x100;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_SUSTAIN_LEVEL;
     pAudioElements->voice_data.adsrSR = temp;
     return pScript + 1;
 }
@@ -3725,27 +3768,27 @@ u8* SoundScriptSetSustainLevel(u8* pScript, AudioManager* pAudioManager, AudioEl
 u8* SoundScriptSetAdsrDRAndSR(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->voice_data.adsrDR = *pScript;
     pAudioElements->voice_data.adsrSR = *(pScript + 1);
-    pAudioElements->voice_data.flags |= 0x120;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_DECAY | SOUND_VOICE_FLAG_SUSTAIN_LEVEL;
     return pScript + 2;
 }
 
 u8* SoundScriptSetAttackMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 attackMode = *pScript;
-    pAudioElements->voice_data.flags |= 0x10;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_ATTACK;
     pAudioElements->voice_data.attackMode = attackMode;
     return pScript + 1;
 }
 
 u8* SoundScriptSetSustainMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 sustainMode = *pScript;
-    pAudioElements->voice_data.flags |= 0x40;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_SUSTAIN;
     pAudioElements->voice_data.sustainMode = sustainMode;
     return pScript + 1;
 }
 
 u8* SoundScriptSetReleaseMode(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 releaseMode = *pScript;
-    pAudioElements->voice_data.flags |= 0x80;
+    pAudioElements->voice_data.flags |= SOUND_VOICE_FLAG_RELEASE;
     pAudioElements->voice_data.releaseMode = releaseMode;
     return pScript + 1;
 }
@@ -3903,13 +3946,13 @@ u8* SoundScriptSetEnvelope0Rate(u8* pScript, AudioManager* pAudioManager, AudioE
 
 u8* SoundScriptSetUnkCEAndF6(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask |= 0x1;
-    pAudioElements->envelopes[0].flags |= 0x1;
+    pAudioElements->envelopes[0].flags |= SOUND_ENVELOPE_FLAG_ENABLED;
     return pScript;
 }
 
 u8* SoundScriptClearUnkCEAndF6(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask &= ~0x1;
-    pAudioElements->envelopes[0].flags &= ~0x1;
+    pAudioElements->envelopes[0].flags &= ~SOUND_ENVELOPE_FLAG_ENABLED;
     return pScript;
 }
 
@@ -4066,13 +4109,13 @@ u8* SoundScriptSetEnvelope1Rate(u8* pScript, AudioManager* pAudioManager, AudioE
 
 u8* SoundScriptSetUnkCEAndUnk116(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask |= 0x2;
-    pAudioElements->envelopes[1].flags |= 0x1;
+    pAudioElements->envelopes[1].flags |= SOUND_ENVELOPE_FLAG_ENABLED;
     return pScript;
 }
 
 u8* SoundScriptClearUnkCEAndUnk116(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask &= ~0x2;
-    pAudioElements->envelopes[1].flags &= ~0x1;
+    pAudioElements->envelopes[1].flags &= ~SOUND_ENVELOPE_FLAG_ENABLED;
     return pScript;
 }
 
@@ -4197,13 +4240,13 @@ u8* func_8003E04C(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 u8* SoundScriptSetUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask |= 0x4;
-    pAudioElements->envelopes[2].flags |= 0x1;
+    pAudioElements->envelopes[2].flags |= SOUND_ENVELOPE_FLAG_ENABLED;
     return pScript;
 }
 
 u8* SoundScriptClearUnkCEAndUnk136(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     pAudioElements->activeEnvelopeMask &= ~0x4;
-    pAudioElements->envelopes[2].flags &= ~0x1;
+    pAudioElements->envelopes[2].flags &= ~SOUND_ENVELOPE_FLAG_ENABLED;
     return pScript;
 }
 
@@ -4346,7 +4389,7 @@ u8* func_8003E360(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
     pEnvelope->count = 1;
     pEnvelope->value = 0;
-    pEnvelope->flags &= ~0xC;
+    pEnvelope->flags &= ~(SOUND_ENVELOPE_FLAG_HALF_RATE | SOUND_ENVELOPE_FLAG_DESCENDING);
     pEnvelope->delayCount = pEnvelope->delayReload;
     pEnvelope->rampLevel = pEnvelope->rampStep;
 }
@@ -4354,7 +4397,7 @@ void SoundResetEnvelope(AudioEnvelope* pEnvelope) {
 u8* SoundScriptDisableEnvelope(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     u8 index = *pScript;
 
-    pAudioElements->envelopes[index].flags &= ~0x1;
+    pAudioElements->envelopes[index].flags &= ~SOUND_ENVELOPE_FLAG_ENABLED;
     pAudioElements->activeEnvelopeMask &= ~(1 << index);
     return pScript + 1;
 }
@@ -4732,7 +4775,7 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
     s32 left;
     s32 right;
 
-    if (pManager->flags & 0x20) {
+    if (pManager->flags & SOUND_MANAGER_FLAG_STOP_PENDING) {
         return;
     }
 
@@ -4779,7 +4822,7 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
 
                 pElement->voice_data.volume.left = left;
                 pElement->voice_data.volume.right = right;
-                pElement->voice_data.flags |= 0x1;
+                pElement->voice_data.flags |= SOUND_VOICE_FLAG_VOLUME;
             }
 
             if (statusFlags & SOUND_STATUS_PLAYING_NTOE) {
@@ -4787,11 +4830,11 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
                     ((s16*)&pManager->noteInterpolator)[1];
 
                 pElement->voice_data.pitch = SoundGetTonePitch((s16)note) & 0x3FFF;
-                pElement->voice_data.flags |= 0x4;
+                pElement->voice_data.flags |= SOUND_VOICE_FLAG_PITCH;
             }
 
             if (statusFlags & 0x1) {
-                if ((pElement->active_flag & 0x20) == 0) {
+                if ((pElement->active_flag & SOUND_CHANNEL_MUTED) == 0) {
                     SoundAssignVoiceToChannelAndPlay(&pElement->voice_data, pElement->voice_number);
                 }
             }
@@ -4879,7 +4922,7 @@ void SoundStepElementEnvelopes(AudioManager* pAudioManager, AudioElement* pEleme
                 pEnvelope = pElement->envelopes;
                 statusFlags = pElement->status_flags;
                 for (; i != 0; i--) {
-                    if ((pEnvelope->flags & 0x1) != 0) {
+                    if ((pEnvelope->flags & SOUND_ENVELOPE_FLAG_ENABLED) != 0) {
                         if (pEnvelope->delayCount != 0) {
                             pEnvelope->delayCount--;
                         } else {
@@ -4915,7 +4958,7 @@ void SoundStepElementEnvelopes(AudioManager* pAudioManager, AudioElement* pEleme
 }
 
 void SoundClearEnvelopeFlags(AudioEnvelope* pEnvelope) {
-    pEnvelope->flags &= ~0x1;
+    pEnvelope->flags &= ~SOUND_ENVELOPE_FLAG_ENABLED;
 }
 
 s32 SoundEnvelopeStepPulse(AudioEnvelope* pEnvelope) {
@@ -4932,11 +4975,11 @@ s32 SoundEnvelopeStepSquare(AudioEnvelope* pEnvelope) {
         s32 delta = pEnvelope->delta;
 
         pEnvelope->count = pEnvelope->reload;
-        if (pEnvelope->flags & 0x8) {
+        if (pEnvelope->flags & SOUND_ENVELOPE_FLAG_DESCENDING) {
             delta = -delta;
         }
         pEnvelope->value = delta;
-        pEnvelope->flags ^= 0x8;
+        pEnvelope->flags ^= SOUND_ENVELOPE_FLAG_DESCENDING;
     }
 
     return pEnvelope->value;
@@ -4947,11 +4990,11 @@ s32 SoundEnvelopeStepTriangle(AudioEnvelope* pEnvelope) {
         s32 delta = pEnvelope->delta;
 
         pEnvelope->count = pEnvelope->reload;
-        if (pEnvelope->flags & 0x8) {
+        if (pEnvelope->flags & SOUND_ENVELOPE_FLAG_DESCENDING) {
             delta = -delta;
         }
         pEnvelope->stepDelta = delta;
-        pEnvelope->flags ^= 0x8;
+        pEnvelope->flags ^= SOUND_ENVELOPE_FLAG_DESCENDING;
     }
 
     pEnvelope->value += pEnvelope->stepDelta;
@@ -4967,15 +5010,15 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope) {
         s32 delta;
 
         count = pEnvelope->reload;
-        if (flags & 0x4) {
+        if (flags & SOUND_ENVELOPE_FLAG_HALF_RATE) {
             count <<= 1;
         }
         delta = pEnvelope->delta;
         pEnvelope->stepDelta = delta;
-        if (flags & 0x8) {
+        if (flags & SOUND_ENVELOPE_FLAG_DESCENDING) {
             pEnvelope->stepDelta = -delta;
         }
-        flags = (flags | 0x4) ^ 0x8;
+        flags = (flags | SOUND_ENVELOPE_FLAG_HALF_RATE) ^ SOUND_ENVELOPE_FLAG_DESCENDING;
         pEnvelope->flags = flags;
     }
 
@@ -5170,7 +5213,7 @@ void SoundHandleError(s16 errorId) {
         SoundSpuMemoryFreeBlock(0x10000);
         SoundLoadWdsFile(g_SoundErrorWdsFile, NULL);
         SoundAddSedsEntry((SoundFile*)g_SoundErrorSedsFile);
-        SoundGetPendingSpuCommandType(0x10);
+        SoundGetPendingSpuCommandType(SOUND_CTL_FLAG_TRANSFER_BUSY);
         SoundPlaySoundEffectOnFreePair(((u32)D_80050924 << 16) | 1);
     }
 }
