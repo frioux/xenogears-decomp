@@ -748,3 +748,6 @@ g_BattleGaugeFill0 = 0x800987EC;
 g_BattleGaugeFill1 = 0x800970D0;
 g_BattleGaugeBarPacket1 = 0x800958C8;
 g_BattleSpanBuffer = 0x80092858;
+g_BattleFogColors = 0x80095584;
+g_BattleCameraPosY = 0x80098720;
+g_BattleCameraPosZ = 0x80098724;

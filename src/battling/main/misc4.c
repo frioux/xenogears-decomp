@@ -41,8 +41,8 @@ extern s32 D_80097080;
 extern s32 D_80098680;
 extern s32 D_80098684;
 extern s32 g_BattleCameraPos;
-extern s32 D_80098720;
-extern s32 D_80098724;
+extern s32 g_BattleCameraPosY;
+extern s32 g_BattleCameraPosZ;
 extern u8 g_BattleStateSlotIndex;
 extern s32 g_BattleSavedPositions;
 extern s32 D_80092A38;
@@ -883,7 +883,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
    the global store (gcc will not CSE a load through the parameter across a store
    to a global) and reassociates '(x - 0x400) - D_80092670' into 'x - (D_80092670 + 0x400)'.
    A 's32 y = p->y' local removes the reload and keeps the subtraction grouped
-   ('t = y - 0x400; D_80098720 = t - D_80092670;' gives retail's store order and
+   ('t = y - 0x400; g_BattleCameraPosY = t - D_80092670;' gives retail's store order and
    addu $v0,$v0,-0x400) but reaches only 92.31%: gcc then also keeps 0x400 out of
    the addu and the register tie moves. Holding y and t in separate locals that
    let gcc see both uses at once drops to 84.83%.
@@ -899,10 +899,10 @@ void func_8007A768(Actor* p) {
     r = rand();
     D_80098680 = p->y;
     g_BattleCameraTarget = p->x;
-    D_80098720 = p->y - 0x400 - D_80092670;
+    g_BattleCameraPosY = p->y - 0x400 - D_80092670;
     D_80098684 = p->z;
     g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * D_80092674) >> 12);
-    D_80098724 = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
+    g_BattleCameraPosZ = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
 }
 */
 

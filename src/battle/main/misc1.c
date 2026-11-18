@@ -81,7 +81,7 @@ extern u8 D_800CCE44[];
 extern u8 D_800CCE08[];
 extern u16 D_800D2E1C[];
 extern u8 g_BattleValueDigitSpriteIds[];
-extern u8 D_800D32A0[];
+extern u8 g_BattleSlotDisplayValue[];
 extern BattleTableEntry D_800CCDC4[]; // per-slot table family, stride 0x170
 extern void BattleParseNumberToDigits(s32);
 
@@ -768,7 +768,7 @@ void BattleRenderActorValueDigits(s32 slot) {
     pSlotGraphics = pSlotGraphics + off;
     // 0x853D is the slot's (0x1E4 stride) status byte in the graphics work block.
     if (pSlotGraphics[0x853D] == 1) {
-        amount = D_800D32A0[slot * 8];
+        amount = g_BattleSlotDisplayValue[slot * 8];
     } else {
         amount = D_800CCDC4[slot].flags;
     }

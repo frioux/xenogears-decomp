@@ -16,8 +16,8 @@ typedef struct {
 extern SVECTOR g_BattlePlaneNormal;
 extern s32 g_BattleCameraPos;
 extern s32 g_BattleCameraTarget;
-extern s32 D_80098720;
-extern s32 D_80098724;
+extern s32 g_BattleCameraPosY;
+extern s32 g_BattleCameraPosZ;
 extern s32 g_BattleCameraOrbitRadius;
 extern s32 g_BattleCameraYOffset;
 extern u8 g_BattleCameraLerpFrames;
@@ -353,7 +353,7 @@ extern u8 g_BattleStageLightTable[];
 extern s32 g_BattleBackColorA;
 extern s32 g_BattleBackColorG;
 extern s32 g_BattleBackColorB;
-extern u8 D_80095584;
+extern u8 g_BattleFogColors;
 extern u8 D_80095585;
 extern u8 D_80095586;
 extern u16 D_8009558C;
@@ -406,7 +406,7 @@ void BattleSetStageFogColors(void) {
     D_80095585 = nearG;
     D_800955A9 = nearG;
     nearRG = nearR | (nearG << 8);
-    D_80095584 = nearR;
+    g_BattleFogColors = nearR;
     D_800955A8 = nearR;
     farRG = farR | (farG << 8);
     D_80095586 = nearB;
@@ -513,8 +513,8 @@ void BattleRandomizeCameraPosition(void) {
     scale = (rand() & 0x1FFF) + 0x800;
     ang = rand() % 0x600 + 0x500;
     g_BattleCameraPos = ((rcos(ang) * scale) >> 12) + 0x4000;
-    D_80098724 = ((rsin(ang) * scale) >> 12) + 0x4000;
-    D_80098720 = -((rand() & 0x7FF) + 0x400);
+    g_BattleCameraPosZ = ((rsin(ang) * scale) >> 12) + 0x4000;
+    g_BattleCameraPosY = -((rand() & 0x7FF) + 0x400);
     g_BattleCameraOrbitRadius = 0x100;
     g_BattleCameraYOffset = 0x40;
     g_BattleCameraLerpFrames = 0x40;
@@ -651,8 +651,8 @@ void BattleFadeActorLights(PolyTable* pTable, Battler9* pActor, s32 idx) {
     pOwner->pLight->dirY = pActor->y;
     pOwner->pLight->dirZ = pActor->z;
     pOwner->pLight->dirX -= g_BattleCameraPos;
-    pOwner->pLight->dirY -= D_80098720;
-    pOwner->pLight->dirZ -= D_80098724;
+    pOwner->pLight->dirY -= g_BattleCameraPosY;
+    pOwner->pLight->dirZ -= g_BattleCameraPosZ;
     func_80030A30(2, pOwner->pLight);
 }
 

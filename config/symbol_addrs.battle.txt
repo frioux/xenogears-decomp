@@ -1053,3 +1053,4 @@ g_BattleCommandCost = 0x800D2C0A;
 g_BattleCommandCellUses = 0x800D2CB0;
 g_BattleActionRows = 0x800CEF10;
 g_BattleSlotStatusRows = 0x800CCD62;
+g_BattleSlotDisplayValue = 0x800D32A0;

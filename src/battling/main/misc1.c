@@ -62,8 +62,8 @@ void func_80070808(s32* p, s32 step) {
 */
 
 extern VECTOR g_BattleCameraPos;
-extern s32 D_80098720;
-extern s32 D_80098724;
+extern s32 g_BattleCameraPosY;
+extern s32 g_BattleCameraPosZ;
 extern void BattleMovePointInsideRadius(s32* pA, s32* pB, s32 limit);
 
 /* 74.00%: same missing shape as func_80070808, the original keeps &g_BattleCameraPos in
@@ -78,12 +78,12 @@ void func_800708C4(s32* p, s32 step) {
     s32 values[3];
 
     values[0] = BattleRoundDivAwayFromZero(p[0], g_BattleCameraPos, step);
-    values[1] = BattleRoundDivAwayFromZero(p[1], D_80098720, step);
-    values[2] = BattleRoundDivAwayFromZero(p[2], D_80098724, step);
+    values[1] = BattleRoundDivAwayFromZero(p[1], g_BattleCameraPosY, step);
+    values[2] = BattleRoundDivAwayFromZero(p[2], g_BattleCameraPosZ, step);
     BattleMovePointInsideRadius(&g_BattleCameraPos, values, 0x3D00);
     g_BattleCameraPos += values[0];
-    D_80098720 += values[1];
-    D_80098724 += values[2];
+    g_BattleCameraPosY += values[1];
+    g_BattleCameraPosZ += values[2];
 }
 */
 
@@ -197,8 +197,8 @@ void BattlePlaceEffectByMode(s32 mode) {
         delta = func_80082488(&g_BattleCameraPos, 0) - 0x40;
         offset = delta;
         offset -= g_BattleEffectPlaceYOffset;
-        if (offset < D_80098720) {
-            D_80098720 = offset;
+        if (offset < g_BattleCameraPosY) {
+            g_BattleCameraPosY = offset;
         }
         break;
     case 5:
@@ -207,8 +207,8 @@ void BattlePlaceEffectByMode(s32 mode) {
         D_80098680 = g_BattleSceneOriginY - 0xC0;
         D_80098684 = D_80097018;
         g_BattleCameraPos.vx = *pTargetX + ((rcos(D_80097064 + 0x900) * 0xE0) >> 12);
-        D_80098720 = g_BattleSceneOriginY - 0xD0;
-        D_80098724 = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
+        g_BattleCameraPosY = g_BattleSceneOriginY - 0xD0;
+        g_BattleCameraPosZ = D_80098684 + ((rsin(D_80097064 + 0x900) * 0xE0) >> 12);
         break;
     }
 }
@@ -535,7 +535,7 @@ extern void SoundStopAudioManager(s32 arg);
 extern void SoundStopAllElements(void);
 extern void func_80071DA4(u8* p);
 
-/* 91.77%: case 3 is the only difference. retail materialises &D_80098720 into
+/* 91.77%: case 3 is the only difference. retail materialises &g_BattleCameraPosY into
    $v1 and stores through it twice (lui v1/%hi; addiu v1/%lo; sw v0,0(v1));
    ours keeps both stores as direct absolute references, which maspsx expands to
    lui $at/%hi; sw %lo($at), and drops the load for the compare (the value is
@@ -565,9 +565,9 @@ void func_80071F8C(s32 mode) {
         func_80071DA4((u8*)&g_BattleActor0);
         break;
     case 3:
-        D_80098720 = -D_8009284C;
-        if (D_80098720 < -0x600) {
-            D_80098720 = -0x600;
+        g_BattleCameraPosY = -D_8009284C;
+        if (g_BattleCameraPosY < -0x600) {
+            g_BattleCameraPosY = -0x600;
         }
         break;
     }
