@@ -259,7 +259,8 @@ void func_800B6004(WorkListEntry* pWork) {
     otz = RotTransPers(&vec, (s32*)&pLine->x0, &p, &p) >> g_GfxOTDepthShift;
     pSpriteData->field_0x2e = otz;
     // Retail refills the same vertex from the sprite before overwriting it with
-    // the linked sprite's, dead stores included.
+    // the linked sprite's, dead stores included. The first read keeps its own
+    // local because retail still holds the projected depth in $v0 there.
     ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
     vec.vx = ofs;
     coord = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
