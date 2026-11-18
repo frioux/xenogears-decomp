@@ -163,7 +163,7 @@ extern MenuGlyphCellPos D_801E99E8[2];
 // Byte-identical to retail under gcc 2.6.0 (708 bytes): only 2.6.0's local-alloc
 // coalesces the multiply-high temp with the quotient pseudo, so the mfhi lands in
 // $a1 as retail has it instead of $t0.
-void func_801E5B88(void) {
+void MenuInitializeGlyphQuadPrims(void) {
     MenuGlyphCellPos* pCellX;
     MenuGlyphCellPos* pCellY;
     s32 offsetTmp;
@@ -287,7 +287,7 @@ void MenuAllocatePrimBuffer(void) {
     pMem = HeapAlloc(MENU_PRIM_BUFFER_SIZE, 0);
     g_Menu->pPrimBuffer = pMem;
     bzero(pMem, MENU_PRIM_BUFFER_SIZE);
-    func_801E5B88();
+    MenuInitializeGlyphQuadPrims();
     func_801E5E4C();
 }
 void MenuFreePrimBuffer(void) {

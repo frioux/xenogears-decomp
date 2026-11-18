@@ -78,3 +78,4 @@ g_LibGearCurrentModelIndex = 0x801E86B0;
 LibGearComputeScaledJointMatrices = 0x801DC848;
 g_LibGearMeshSlot = 0x801E8634;
 g_LibGearModelFile = 0x801E8638;
+LibGearTransferJointRenderFlags = 0x801E6668;

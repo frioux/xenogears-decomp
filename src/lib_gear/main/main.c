@@ -2834,7 +2834,7 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
 */
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E6578);
 
-void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
+void LibGearTransferJointRenderFlags(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
     int i;
     u_short numChildren = pSkeleton->numChildren;
 

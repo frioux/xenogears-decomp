@@ -22,7 +22,7 @@ typedef struct {
 // g_BattlePrimPool points at (misc1.c writes word 0 of it).
 #define BATTLE_WORK_BUFFER_OFFSET 0x394
 
-// The tail half of this unit is gcc 2.6.0 code: func_8007E740's product is
+// The tail half of this unit is gcc 2.6.0 code: BattleDwordRegMulImm's product is
 // byte-identical under it and not under 2.7.2 (see the note on that function).
 extern u8 g_BattleSlotRecords[];
 extern u32 D_800D2C60[];
@@ -221,7 +221,7 @@ void func_8007E6F0(u8 **arg0, u8 arg1) {
  */
 // The product is 2.6.0's: retail reuses the element value's dead $v0 for the
 // mflo (mult a0,v0 / mflo v0 / sw v0,0(v1)); gcc 2.7.2 gives it a fresh $a2.
-void func_8007E740(BattleCommand **ppCmd, u8 arg1) {
+void BattleDwordRegMulImm(BattleCommand **ppCmd, u8 arg1) {
     BattleCommand *pCmd = *ppCmd;
     u32 *pRow = g_BattleSlotRows[arg1];
 

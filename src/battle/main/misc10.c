@@ -277,7 +277,7 @@ extern void func_8007E438(u8 **ppCommand, u8 slot);
 extern void func_8007E554(u8 **ppCommand, u8 slot);
 extern void func_8007E6A0(u8 **ppCommand, u8 slot);
 extern void func_8007E6F0(u8 **ppCommand, u8 slot);
-extern void func_8007E740(u8 **ppCommand, u8 slot);
+extern void BattleDwordRegMulImm(u8 **ppCommand, u8 slot);
 extern void BattleSetStatusBitAllSlots(u8 **ppCommand, u8 slot);
 
 extern void BattleScriptCursorSkipWord(u8 **ppCommand);
@@ -608,7 +608,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         func_8007E6F0(ppCommand, slot);
         break;
     case 0x6C:
-        func_8007E740(ppCommand, slot);
+        BattleDwordRegMulImm(ppCommand, slot);
         break;
     case 0x6D:
         BattleDwordRegDivImm(ppCommand, slot);
