@@ -4,6 +4,15 @@
 #include "battle/actor.h"
 #include "system/math.h"
 
+// Bits of a model-part transform command's flags byte: bits 0-2 pick the component,
+// 0x20/0x40 add the node's current component to the start/target, 0x80 recurses.
+#define BATTLE_NODE_COMPONENT_MASK 7
+#define BATTLE_NODE_OFFSET_ADD_CURRENT 0x20
+#define BATTLE_NODE_OFFSET_ADD_TARGET 0x40
+#define BATTLE_NODE_RECURSIVE 0x80
+// g_BattleBlockSlots holds the blocks BattleAllocBlock hands out, one per battle slot.
+#define BATTLE_BLOCK_SLOT_COUNT 9
+
 extern u8 D_800C3B84;
 extern u8 D_800C3B88;
 extern u8 D_800C3B8C;
@@ -174,7 +183,7 @@ s32 BattleGetActorActionEntry(BattleActor *pActor, u32 id, s32 *pOut) {
             kind = BattleGetActorActionConditionMask(pActor->actorSlot);
             if ((kind & 4) && (pActor->flags4A & 0x100)) {
                 pActor->commands[0] = 0x1B;
-            } else if ((kind & 2) && (pActor->flags4A & 0x80)) {
+            } else if ((kind & BATTLE_ACTION_CONDITION_LOW_HP) && (pActor->flags4A & 0x80)) {
                 if (!(D_800CCD1E[pActor->actorSlot].flags & 1)) {
                     pActor->commands[0] = 6;
                 }
@@ -211,7 +220,7 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
     u16 dstZ;
     s32 i;
 
-    mode = flags & 7;
+    mode = flags & BATTLE_NODE_COMPONENT_MASK;
     if (mode == 0) {
         pBlock = pNode->p70;
     } else if (mode == 1) {
@@ -227,7 +236,7 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
         pBlock->flags = unk1;
         pBlock->opcode = command + 3;
         pBlock->tag = unk3;
-        if (flags & 0x20) {
+        if (flags & BATTLE_NODE_OFFSET_ADD_CURRENT) {
             if (mode == 0) {
                 addX = pNode->rot[0];
                 addY = pNode->rot[1];
@@ -246,7 +255,7 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
             addY = 0;
             addZ = 0;
         }
-        if (flags & 0x40) {
+        if (flags & BATTLE_NODE_OFFSET_ADD_TARGET) {
             if (mode == 0) {
                 dstX = pNode->rot[0];
                 dstY = pNode->rot[1];
@@ -302,7 +311,7 @@ void BattleModelQueueTransformCommand(BattleModel *pModel, u8 *pPool, BattleMode
             pNode->p78 = pBlock;
         }
     }
-    if (flags & 0x80) {
+    if (flags & BATTLE_NODE_RECURSIVE) {
         pChild = pModel->pNodes;
         for (i = 1; i < pModel->pNodes->unkA; i++) {
             pChild++;
@@ -318,7 +327,7 @@ void BattleSetModelNodeFlagRecursive(BattleModel *pModel, BattleModelNode *pNode
     s32 i;
 
     pNode->unk7 = flags & 1;
-    if (flags & 0x80) {
+    if (flags & BATTLE_NODE_RECURSIVE) {
         pChild = pModel->pNodes;
         for (i = 1; i < pModel->pNodes->unkA; i++) {
             pChild++;
@@ -431,9 +440,9 @@ void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char fla
     s32 mode;
     s32 i;
 
-    mode = flags & 7;
+    mode = flags & BATTLE_NODE_COMPONENT_MASK;
     if (mode == 0) {
-        if (flags & 0x20) {
+        if (flags & BATTLE_NODE_OFFSET_ADD_CURRENT) {
             pNode->rot[0] += x;
             pNode->rot[1] += y;
             pNode->rot[2] += z;
@@ -443,7 +452,7 @@ void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char fla
             pNode->rot[2] = z;
         }
     } else if (mode == 1) {
-        if (flags & 0x20) {
+        if (flags & BATTLE_NODE_OFFSET_ADD_CURRENT) {
             pNode->pos[0] += x;
             pNode->pos[1] += y;
             pNode->pos[2] += z;
@@ -452,7 +461,7 @@ void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char fla
             pNode->pos[1] = y;
             pNode->pos[2] = z;
         }
-    } else if (flags & 0x20) {
+    } else if (flags & BATTLE_NODE_OFFSET_ADD_CURRENT) {
         pNode->scale[0] += x;
         pNode->scale[1] += y;
         pNode->scale[2] += z;
@@ -463,7 +472,7 @@ void BattleApplyNodeOffset(BattleModel *pModel, BattleModelNode *pNode, char fla
     }
     pNode->unk4 = 1;
     pNode->unk5 = 1;
-    if (flags & 0x80) {
+    if (flags & BATTLE_NODE_RECURSIVE) {
         pChild = pModel->pNodes;
         for (i = 1; i < pModel->pNodes->unkA; i++) {
             pChild++;
@@ -508,7 +517,7 @@ void BattleFreeActorBuffer(BattleActor *pActor) {
 }
 
 void BattleClearBlockSlots(void) {
-    s32 i = 8;
+    s32 i = BATTLE_BLOCK_SLOT_COUNT - 1;
     s32 *p = D_800C3BCC;
 
     for (; i >= 0; i--) {
@@ -519,7 +528,7 @@ void BattleClearBlockSlots(void) {
 void BattleReleaseBlockSlots(s32 arg0) {
     s32 i;
 
-    for (i = 0; i < 9; i++) {
+    for (i = 0; i < BATTLE_BLOCK_SLOT_COUNT; i++) {
         if (g_BattleBlockSlots[i] != NULL) {
             BattleFreeBlock(arg0, g_BattleBlockSlots[i]);
         }
@@ -965,7 +974,7 @@ void BattleWaitAndFreeActorBuffers(void) {
 
     for (;;) {
         flagA = 0;
-        for (i = 0; i < 11; i++) {
+        for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
             if (pBase[i] != NULL) {
                 if (pBase[i]->isBusy != 0) {
                     flagA = 1;
@@ -992,7 +1001,7 @@ void BattleWaitAndFreeActorBuffers(void) {
     ppBase = g_BattleActors;
     while (flagA != 0) {
         if (ArchiveDataSync() == 0) {
-            for (i = 0, pp = ppBase; i < 11; i++) {
+            for (i = 0, pp = ppBase; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
                 pEntry = *pp++;
                 if (pEntry != NULL && pEntry->pBuffer != 0) {
                     BattleFreeActorBuffer(pEntry);
