@@ -3,6 +3,14 @@
 
 #define BATTLE_SPU_ADDR_BASE 0x60000
 #define BATTLE_SOUND_ID_NONE 0xFF
+// The battle sound slots g_BattleSoundSlots holds, one element pair apiece.
+#define BATTLE_SOUND_SLOT_COUNT 4
+// What a slot's frame timer saturates at: BattleIncrementSoundSlotTimers stops it here.
+#define BATTLE_SOUND_SLOT_TIMER_MAX 0xFFFF
+// Half turn of the 12-bit angle space the actor's facing offset starts at.
+#define BATTLE_ANGLE_HALF_TURN 0x800
+// Denominator of a 0..255 gauge fraction (src/battling/main/misc2.c's BATTLE_GAUGE_FRACTION_SCALE).
+#define BATTLE_GAUGE_FRACTION_SCALE 255
 
 // volatile: retail schedules this load after the argument setup, not before it.
 extern volatile s32 g_SpuChannelMask;
@@ -259,7 +267,7 @@ void BattleInitSoundSlots(void) {
     timer = 0x300;
     SoundStopAllElements();
     pSlot = g_BattleSoundSlots;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < BATTLE_SOUND_SLOT_COUNT; i++) {
         pSlot[i].elementMask = timer;
         timer <<= 2;
         pSlot[i].active = 0;
@@ -268,16 +276,16 @@ void BattleInitSoundSlots(void) {
     }
 }
 void BattleIncrementSoundSlotTimers(void) {
-    if (g_BattleSoundSlots[0].timer != 0xFFFF) {
+    if (g_BattleSoundSlots[0].timer != BATTLE_SOUND_SLOT_TIMER_MAX) {
         g_BattleSoundSlots[0].timer++;
     }
-    if (D_80096EC8 != 0xFFFF) {
+    if (D_80096EC8 != BATTLE_SOUND_SLOT_TIMER_MAX) {
         D_80096EC8++;
     }
-    if (D_80096EEC != 0xFFFF) {
+    if (D_80096EEC != BATTLE_SOUND_SLOT_TIMER_MAX) {
         D_80096EEC++;
     }
-    if (D_80096F10 != 0xFFFF) {
+    if (D_80096F10 != BATTLE_SOUND_SLOT_TIMER_MAX) {
         D_80096F10++;
     }
 }
@@ -314,7 +322,7 @@ void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
     best = 0;
     pSel = D_80096F0C;
     pSlot = &D_80096F0C[-3];
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < BATTLE_SOUND_SLOT_COUNT; i++) {
         pSlot = &D_80096F0C[i - 3];
         if (pSlot->active == 0 || (idx == 0 && pSlot->soundId == 0)) {
             do { pSel = pSlot; } while (0); // the block keeps the copy out of the beq delay slot
@@ -347,7 +355,7 @@ void BattleReleaseFinishedSoundSlots(void) {
     s32 i;
 
     pSlot = g_BattleSoundSlots;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < BATTLE_SOUND_SLOT_COUNT; i++) {
         if ((SoundGetActiveElementMask(pSlot[i].spuAddr) & pSlot[i].elementMask) == 0) {
             pSlot[i].active = 0;
         }
@@ -405,7 +413,7 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
     s32 i;
 
     pSlot = g_BattleSoundSlots;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < BATTLE_SOUND_SLOT_COUNT; i++) {
         if (pSlot[i].active != 0 && pSlot[i].flags == kind) {
             SoundStopElementsByIndex(pSlot[i].elementIndex);
             pSlot[i].active = 0;
@@ -565,7 +573,7 @@ void BattleRunActorStateHandler(BattleActor* pActor) {
         pActor->flags &= ~0x38;
         pWork->flags.flags &= ~0x2000;
         g_BattleAiAppliedBehaviorLevel = g_BattleAiBehaviorLevel;
-        pActor->facingOffset = pActor->sideBaseAngle + 0x800;
+        pActor->facingOffset = pActor->sideBaseAngle + BATTLE_ANGLE_HALF_TURN;
     }
     if (pWork->flags.flags & 0x2000) {
         pActor->flags |= 2;
@@ -633,5 +641,5 @@ void BattleRunActorStateHandler(BattleActor* pActor) {
     BattleUpdateActorApproach(pActor, pWork->targetAngle, pWork->maxDistance);
 }
 s32 BattleCheckValueAboveScaledMax(BattleActor* pActor, s32 arg1) {
-    return (pActor->gaugeMax * arg1) / 255 < pActor->gaugeValue;
+    return (pActor->gaugeMax * arg1) / BATTLE_GAUGE_FRACTION_SCALE < pActor->gaugeValue;
 }
