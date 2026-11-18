@@ -323,81 +323,67 @@ s32 MenuGetGlyphKromAddress(u8* p) {
     }
     return Krom2RawAdd((hi << 8) | lo);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E6668);
-/* Best: 98.90% (584 bytes, same size as retail).  Decoded shape: index selects a
-   0x200-byte MenuUnk2ImageChunk; the 0x40-entry byte table at chunk+4 is walked one
-   entry per glyph (two bytes when MenuGetGlyphKromAddress sets g_MenuGlyphIsDoubleByte), each entry is
-   unpacked to 0x100 bits, MenuCompressGlyphRows compresses a row, and the bits are OR ed into
-   a 0x1000-byte 4bpp texture at (i/16)*0x400 + (i%16)*4 + row*0x40 + col/4 before
-   LoadImage of the 0x140,0xE0 RECT.  Everything matches except ONE insn: retail
-   keeps addiu a0,sp,16 (the RECT address) in BOTH branch delay slots that reach the
-   epilogue and has none at the head of the epilogue block; gcc keeps it in the
-   epilogue block and fills only the loop-top beqz slot.  Tried: RECT declared
-   before/after the loops, one shared col variable for the bit loops and the repack
-   column (that fixed a v1/a0 register swap and took it from 98.34 to 98.90), the
-   s32-address form (adds a move a0,v1), LoadImage args reordered.
-   void func_801E6668(s32 index) {
-       u8* pGlyphBits;
-       u8* pBits;
-       u8* pTexture;
-       u8* pSrc;
-       u16* pGlyph;
-       RECT rect;
-       s32 i;
-       s32 count;
-       s32 row;
-       s32 col;
+void func_801E6668(s32 index) {
+    u8* pGlyphBits;
+    u8* pBits;
+    u8* pTexture;
+    u8* pSrc;
+    u16* pGlyph;
+    RECT rect;
+    s32 i;
+    s32 count;
+    s32 row;
+    s32 col;
 
-       pBits = HeapAlloc(0x100, 1);
-       pTexture = HeapAlloc(0x1000, 1);
-       bzero(pTexture, 0x1000);
-       count = 0;
-       pSrc = &g_Menu->menuUnk2->chunks[index].pad0[4];
-       for (i = 0; i < 0x20; i++) {
-           if (*pSrc == 0) {
-               break;
-           }
-           pGlyphBits = pBits;
-           pGlyph = (u16*)MenuGetGlyphKromAddress(pSrc);
-           if (pGlyph != (u16*)-1) {
-               for (row = 0; row < 0x10; row++) {
-                   for (col = 7; col >= 0; col--) {
-                       *pGlyphBits++ = (*pGlyph >> col) & 1;
-                   }
-                   for (col = 0xF; col >= 8; col--) {
-                       *pGlyphBits++ = (*pGlyph >> col) & 1;
-                   }
-                   pGlyph++;
-               }
-               MenuCompressGlyphRows(pBits);
-               for (row = 0; row < 0x10; row++) {
-                   for (col = 0; col < 0xC; col++) {
-                       ((u16*)pTexture)[row * 0x40 + col / 4 + (i % 0x10) * 4 +
-                                         (i / 0x10) * 0x400] |=
-                           pBits[row * 0x10 + col] << ((col % 4) * 4);
-                   }
-               }
-           }
-           pSrc++;
-           count++;
-           if (g_MenuGlyphIsDoubleByte != 0) {
-               pSrc++;
-               count++;
-           }
-           if (count >= 0x40) {
-               break;
-           }
-       }
-       rect.x = 0x140;
-       rect.y = 0xE0;
-       rect.w = 0x40;
-       rect.h = 0x20;
-       LoadImage(&rect, (u_long*)pTexture);
-       DrawSync(0);
-       HeapFree(pBits);
-       HeapFree(pTexture);
-   }
-*/
+    pBits = HeapAlloc(0x100, 1);
+    pTexture = HeapAlloc(0x1000, 1);
+    bzero(pTexture, 0x1000);
+    count = 0;
+    pSrc = &g_Menu->menuUnk2->chunks[index].pad0[4];
+    for (i = 0; i < 0x20; i++) {
+        if (*pSrc == 0) {
+            break;
+        }
+        pGlyphBits = pBits;
+        pGlyph = (u16*)MenuGetGlyphKromAddress(pSrc);
+        if (pGlyph != (u16*)-1) {
+            for (row = 0; row < 0x10; row++) {
+                for (col = 7; col >= 0; col--) {
+                    *pGlyphBits++ = (*pGlyph >> col) & 1;
+                }
+                for (col = 0xF; col >= 8; col--) {
+                    *pGlyphBits++ = (*pGlyph >> col) & 1;
+                }
+                pGlyph++;
+            }
+            MenuCompressGlyphRows(pBits);
+            for (row = 0; row < 0x10; row++) {
+                for (col = 0; col < 0xC; col++) {
+                    ((u16*)pTexture)[row * 0x40 + col / 4 + (i % 0x10) * 4 +
+                                      (i / 0x10) * 0x400] |=
+                        pBits[row * 0x10 + col] << ((col % 4) * 4);
+                }
+            }
+        }
+        pSrc++;
+        count++;
+        if (g_MenuGlyphIsDoubleByte != 0) {
+            pSrc++;
+            count++;
+        }
+        if (count >= 0x40) {
+            break;
+        }
+    }
+    rect.x = 0x140;
+    rect.y = 0xE0;
+    rect.w = 0x40;
+    rect.h = 0x20;
+    LoadImage(&rect, (u_long*)pTexture);
+    DrawSync(0);
+    HeapFree(pBits);
+    HeapFree(pTexture);
+}
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetPlayTimeDigits(u32 value);
 
