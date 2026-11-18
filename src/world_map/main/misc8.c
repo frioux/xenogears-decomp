@@ -192,7 +192,7 @@ extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
 extern s16 g_WorldMapCameraRot;
-extern s16 g_WorldMapViewRotationY;
+extern u16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
 extern s32 g_WorldMapRotationMatrixValid;
 extern s32 g_WorldMapCameraHeight;
@@ -544,7 +544,7 @@ s32 WorldMapShutdownScene(void) {
     HeapFree(g_WorldMapTilePrimBufferCopy);
     HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
-    v = *(u16 *)&g_WorldMapViewRotationY;
+    v = g_WorldMapViewRotationY;
     g_NextMapId = 0x269;
     g_NextMapFlags = 4;
     g_WorldMapExitFlag = 1;
@@ -563,6 +563,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
 // typed-struct form re-measures 30.52% today (unchanged); a `volatile s16` on
 // the two externs brings both `lh` back but compiles to lhu+sll+sra and 252
 // bytes. Nothing tried keeps the two `lh` AND 244 bytes.
+// NOTE (rewrite round): this file now declares g_WorldMapViewRotationY u16,
+// because WorldMapShutdownScene reads it as an unsigned halfword; the reads in
+// the body below therefore build an lhu, so retail's `lh` + `sll 12` pair needs
+// a signed view of the global before this park can come back to 84.75%.
 // Round 111 triage: this body did NOT compile - it was defined void while the
 // unit's own extern at the top of the file says s32 (retail returns 1), so every
 // attempt to unpark it died before it produced bytes. With the s32 return below
