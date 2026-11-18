@@ -15,7 +15,6 @@
 // The archive directory an actor's entry is loaded from below, the value
 // src/battling/main/misc12.c's BattleInitGraphics selects too;
 // include/system/archive.h's ARCHIVE_DIR_* list stops at 0x2C.
-#define BATTLE_ARCHIVE_DIRECTORY_INDEX 0x30
 
 // Quarter and three-quarter turn of the 12-bit angle rcos/rsin work in, the space
 // src/battling/main/misc4.c and misc3.c name (BATTLE_ANGLE_QUARTER_TURN,
@@ -593,9 +592,9 @@ void BattleLoadSlotEntry(s32 index, s32 value) {
         HeapFree(g_BattleSlotEntryBuffers[index]);
         g_BattleSlotEntryBuffers[index] = NULL;
     }
-    ArchiveSetIndex(BATTLE_ARCHIVE_DIRECTORY_INDEX, 1);
+    ArchiveSetIndex(ARCHIVE_DIR_BATTLE_ENTRIES, 1);
     g_BattleSlotEntryBuffers[index] = BattleLoadArchiveEntry(value + 2);
-    ArchiveSetIndex(BATTLE_ARCHIVE_DIRECTORY_INDEX, 0);
+    ArchiveSetIndex(ARCHIVE_DIR_BATTLE_ENTRIES, 0);
 }
 
 void BattleFreeSlotEntry(s32 index) {

@@ -372,7 +372,7 @@ void BattleInitGraphics(void) {
     DrawSyncCallback((void (*)())((u8*)func_80088BFC + 4));
     InitGeom();
     HeapChangeCurrentUser(6, (char**)g_BattleHeapContentTypes);
-    ArchiveSetIndex(0x30, 0);
+    ArchiveSetIndex(ARCHIVE_DIR_BATTLE_ENTRIES, 0);
     FontLoadFont(4, 2, 0x138, 0xDA, 0x14, 1, 0x3C0, 0x1F0, 0x3C0, 0x1EF, 0);
     BattleInitSlotDrawEntry(0);
     BattleInitSlotDrawEntry(1);
