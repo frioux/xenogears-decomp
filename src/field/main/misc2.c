@@ -4,6 +4,7 @@
 #include "field/camera.h"
 #include "system/math.h"
 #include "system/controller.h"
+#include "system/memory.h"
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
@@ -1264,7 +1265,174 @@ u_int FieldSetActorFlag10000(SpriteData* pSpriteData) {
     return pActorData->flags;
 }
 
+// Per-sprite-id placement table, stride 8; misc3's FieldLoad walks the same array
+// to upload the clut of each entry (offset 0x4/0x6).
+typedef struct {
+    /* 0x0 */ u16 texX;
+    /* 0x2 */ u16 texY;
+    /* 0x4 */ u16 clut;
+    /* 0x6 */ s16 clutLoaded;
+} FieldSpritePlacement; // Size: 0x8
+
+extern FieldSpritePlacement D_800B1F78[];
+extern s32 g_GamePartySkinsInitialized;
+extern s32 D_800AFC74;
+extern SpriteData* SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
+extern SpriteData* SpriteAllocFromAnimFileWithClut(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
+                                                   s32 arg6);
+extern void SpriteSetCoordShift(SpriteData* pSpriteData, s32 shift);
+extern void SpriteSetCallback(SpriteData* pSpriteData, u_int (*pCallback)(SpriteData*));
+extern void SpriteReallocFramesData(SpriteData* pSpriteData, s32 size);
+extern void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, s32* pOutY, s32* pOutZ);
+
+// 73.94% (1728 bytes against the original's 1776; frame 0x58 both). The whole shape is
+// transcribed and every store, call and branch is in the original's order; what is left:
+//  - 12 instructions short, and the original has 63 `nop`s against our 41: several load
+//    delays are filled differently, which is the allocator scheduling, not a missing
+//    statement (offsets, widths and call arguments were checked one by one).
+//  - one callee-saved register: the original keeps s0..s8+fp live (s3=actorIndex,
+//    s0=param6, s8=param7), ours stops at s7, so every register from the second
+//    parameter on is one lower.
+//  - the D_800B1F78 table loads come out swapped: the original reads `texY` (0x7A)
+//    first through its own %hi(D_800B1F7A) macro, gcc CSEs the base and loads offset 0
+//    first however the two statements are ordered (tried both).
+//  Findings worth keeping: FieldActor+0x40..0x48 is childMatrix.t[0..2] (NOT a `move`
+//  vector - ActorData has one at the same offset); ActorData::position is a VECTOR of
+//  longs and the code reads its 16.16 integer part through `((s16*)&position)[1]` /
+//  [3] / [5]; D_800AFC74 is its own global (zeroed by func_800A28D4), not part of
+//  g_FieldStoredImageBuffer; the double `step.y = 0` store at 0x10 IS in the original
+//  (0x10, 0xC, 0x10, 0x14), duplicated here on purpose.
+//  The sprite model path itself: modelKind 0 builds from the D_800B1F78 placement table,
+//  1/2 from the fixed 0x280/0x2A0 layouts, and the tail copies the actor's transform
+//  into both matrices and back into the sprite.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80076AC0);
+/*
+// Loads a sprite model for an actor: replaces the actor's SpriteData with one built
+// from pAnimFile, then points the actor's transform and position at the new sprite.
+// modelKind 0 keeps the actor's own frame size, 1 and 2 are the two model layouts.
+void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind, s32 clutIndex, s32 spriteVariant,
+                   s32 skipAnimTick) {
+    FieldActor* pActor;
+    ActorData* pActorData;
+    SpriteData* pSpriteData;
+    u16 texX;
+    u16 texY;
+    s32 frameWidth;
+    s32 frameHeight;
+    s32 frameDepth;
+
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+
+    g_FieldActors[actorIndex].pActorData->spriteId = spriteId;
+    g_FieldActors[actorIndex].pActorData->unk126 = spriteVariant;
+
+    pActorData = g_FieldActors[actorIndex].pActorData;
+    pActorData->flags134 = (pActorData->flags134 & ~0xF) | (clutIndex & 0xF);
+
+    pActorData = g_FieldActors[actorIndex].pActorData;
+    pActorData->flags130 = (pActorData->flags130 & 0xCFFFFFFF) | ((modelKind & 3) << 28);
+
+    pActorData = g_FieldActors[actorIndex].pActorData;
+    pActorData->flags134 = (pActorData->flags134 & ~0x10) | ((skipAnimTick & 1) << 4);
+
+    if (modelKind == 0) {
+        texY = D_800B1F78[spriteId].texY;
+        texX = D_800B1F78[spriteId].texX;
+        if (clutIndex == 0) {
+            if (g_FieldActors[actorIndex].unk5A & 1) {
+                SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
+            }
+            pSpriteData = SpriteAllocFromAnimFile(pAnimFile, 0x100, (s16)(spriteId + 0x1E0), texX, texY, 0x40);
+        } else {
+            if (g_FieldActors[actorIndex].unk5A & 1) {
+                SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
+            }
+            pSpriteData = SpriteAllocFromAnimFileWithClut(pAnimFile, clutIndex * 0x10 + 0x100, (s16)(spriteId + 0x1E0),
+                                                          texX, texY, 0x40, clutIndex);
+        }
+        g_FieldActors[actorIndex].pSpriteData = pSpriteData;
+    } else {
+        if (g_FieldActors[actorIndex].unk5A & 1) {
+            SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
+        }
+        if (modelKind == 1) {
+            pSpriteData = SpriteAllocFromAnimFile(pAnimFile, 0x100, (s16)(spriteId + 0xE0), 0x280,
+                                                  (s16)(spriteId * 0x40 + 0x100), 8);
+        } else {
+            pSpriteData = SpriteAllocFromAnimFile(pAnimFile, 0x100, (s16)(spriteId + 0xE3), 0x2A0,
+                                                  (s16)(spriteId * 0x40 + 0x100), 8);
+        }
+        SpriteReallocFramesData(pSpriteData, 0x20);
+        g_FieldActors[actorIndex].pSpriteData = pSpriteData;
+    }
+
+    g_FieldActors[actorIndex].unk5A |= 1;
+    func_8001F5BC(pSpriteData, 0, &frameWidth, &frameHeight, &frameDepth);
+    SpriteSetCoordShift(pSpriteData, 3);
+
+    pSpriteData->scale = 0xC00;
+    pSpriteData->field_0x82 = 0x2000;
+
+    if (g_GamePartySkinsInitialized == 0) {
+        pSpriteData->position.x = g_FieldActors[actorIndex].pActorData->position.vx;
+        pSpriteData->position.y = g_FieldActors[actorIndex].pActorData->position.vy;
+        pSpriteData->position.z = g_FieldActors[actorIndex].pActorData->position.vz;
+        pSpriteData->step.y = 0;
+        pSpriteData->step.x = 0;
+        pSpriteData->step.y = 0;
+        pSpriteData->step.z = 0;
+        pSpriteData->gravity = 0x10000;
+        pSpriteData->field_0x84 = g_FieldActors[actorIndex].transformMatrix.t[1];
+        if (modelKind == 0) {
+            pActorData = g_FieldActors[actorIndex].pActorData;
+            pActorData->height = frameHeight * 2;
+        } else {
+            pActorData = g_FieldActors[actorIndex].pActorData;
+            pActorData->height = 0x40;
+        }
+    }
+
+    if (g_FieldFogEnabled != 0) {
+        pSpriteData->field_0x40 |= 0x40000;
+    }
+
+    SpritePlayAnimation(pSpriteData, 0);
+    SpriteSetDirection(pSpriteData, 0);
+    HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
+
+    ((SpriteDataI3*)pSpriteData->field_0x7C)->entityId = actorIndex;
+    SpriteSetCallback(pSpriteData, FieldSetActorFlag10000);
+
+    if (skipAnimTick == 0) {
+        AnimScriptTick(pSpriteData);
+        TimerWorkListUpdate();
+        if (((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC == 0xFF) {
+            pActorData = g_FieldActors[actorIndex].pActorData;
+            pActorData->unkAnimationId = 0xFF;
+            pActorData->flags |= 0x1000000;
+            pSpriteData->position.x = g_FieldActors[actorIndex].pActorData->position.vx;
+            pSpriteData->position.y = g_FieldActors[actorIndex].pActorData->position.vy;
+            pSpriteData->position.z = g_FieldActors[actorIndex].pActorData->position.vz;
+        }
+    }
+
+    pActor = &g_FieldActors[actorIndex];
+    pActor->transformMatrix.t[0] = ((s16*)&pActor->pActorData->position)[1];
+    pActor->childMatrix.t[0] = ((s16*)&pActor->pActorData->position)[1];
+    pActor = &g_FieldActors[actorIndex];
+    pActor->transformMatrix.t[1] = ((s16*)&pActor->pActorData->position)[3];
+    pActor->childMatrix.t[1] = ((s16*)&pActor->pActorData->position)[3];
+    pActor = &g_FieldActors[actorIndex];
+    pActor->transformMatrix.t[2] = ((s16*)&pActor->pActorData->position)[5];
+    pActor->childMatrix.t[2] = ((s16*)&pActor->pActorData->position)[5];
+    pSpriteData->field_0x84 = g_FieldActors[actorIndex].transformMatrix.t[1];
+    pSpriteData->position.x = g_FieldActors[actorIndex].pActorData->position.vx;
+    pSpriteData->position.y = g_FieldActors[actorIndex].pActorData->position.vy;
+    pSpriteData->position.z = g_FieldActors[actorIndex].pActorData->position.vz;
+
+    D_800AFC74++;
+}
+*/
 
 void FieldSetHalfwordFlag8000(u_int* pPrim, int size) {
     int i = size / 2;
