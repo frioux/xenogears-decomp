@@ -9,6 +9,7 @@
 #include "psyq/libgte.h"
 #include "field/actor.h"
 #include "main/game.h"
+#include "libgear/main.h"
 
 // Shared by the battle units that read the structures below.
 // slotStates and slotAmounts hold one entry per battle slot.
@@ -211,7 +212,7 @@ typedef struct {
     /* 0x10F */ u8 unk10F;
     /* 0x110 */ mem_addr pEntries; // numEntries BattleActorEntry records
     /* 0x114 */ mem_addr pModelListEntries; // freed one by one with BattleFreeModelListEntryBuffers
-    /* 0x118 */ mem_addr pTextures; // freed one by one with BattleFreeImageEntry
+    /* 0x118 */ Temp8* pTextures; // the libgear texture-upload records of the model: freed one by one with BattleFreeImageEntry
     /* 0x11C */ u8 unk11C[0x84];
 } BattleActor; // Size: 0x1A0
 
@@ -251,7 +252,7 @@ typedef struct {
     /* 0x98 */ u8 unk98; // BattleResetSlotConditionCounters keeps it within 0x10
     /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
     /* 0x9A */ u8 unk9A[0x4];
-    /* 0x9E */ u8 unk9E;
+    /* 0x9E */ u8 amountMultiplier; // quarter units the action's value is multiplied by, 4 = unchanged; BattleScaleValueByMultiplierByte uses 4 in place of a clear byte or an armed activeEffectFlags1 bit 0x100
     /* 0x9F */ s8 responsiveness; // the attacker adds half of it to its hit, the defender all of it to its evade
     /* 0xA0 */ u8 unkA0[0x4];
     /* 0xA4 */ u8 unkA4;
@@ -289,7 +290,14 @@ typedef struct {
     /* 0x05E */ u8 evade; // the defender's evasion percent
     /* 0x05F */ u8 hit; // the attacker's hit percent
     /* 0x060 */ u8 conditionChance; // what chanceSource 0 reads: rolled against rand() % 100 in place of the row's own chance
-    /* 0x061 */ u8 unk61[0x19];
+    /* 0x061 */ u8 pad61;
+    // The points the slot has to spend on an action: BattleTryUseSlotCommand needs this word to reach the action
+    // row's commandPointCost before that row's action runs and then subtracts the cost, and
+    // BattleRenderActorValueDigits draws it as the slot's number.
+    /* 0x062 */ u16 commandPoints;
+    /* 0x064 */ u8 pad64[0xB];
+    /* 0x06F */ u8 extraWeaponIds[5]; // the gearWeapons record index of each extra weapon slot, as in GameCharacter: BattleDecrementGearPartUse spends the gear part count of [0] and [3]
+    /* 0x074 */ u8 pad74[0x6]; // GameCharacter's accessorySlots[3] and the bytes after them
     // The effect words run in pairs: each activeEffectFlags word holds one bit per effect the slot
     // currently has, and the accessoryEffectFlags word right after it holds those same bits as
     // granted permanently by a worn accessory. Battle code ORs the two (the pair answers "already
@@ -356,7 +364,8 @@ typedef struct {
     /* 0x21 */ u8 unk21;
     /* 0x22 */ u8 element; // attack element, low 6 bits; copied from the equipped weapon
     /* 0x23 */ u8 unk23;
-    /* 0x24 */ u8 unk24[0x3];
+    /* 0x24 */ u16 commandPointCost; // the slot's commandPoints must reach it before the row's action runs; BattleTryUseSlotCommand then subtracts it
+    /* 0x26 */ u8 pad26;
     /* 0x27 */ s8 unk27;
 } BattleRow; // Size: 0x28
 

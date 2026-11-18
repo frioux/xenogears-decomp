@@ -630,7 +630,7 @@ void BattleUploadAndFreeImageResources(void) {
     s32 i;
 
     if (g_BattleImageLoaded != 0) {
-        pRecord = (Temp8 *)g_BattleActors[31]->pTextures;
+        pRecord = g_BattleActors[31]->pTextures;
         for (i = 0; i < g_BattleActors[31]->numTextures; i++) {
             if (pRecord->isLoaded != 0) {
                 pRecord->pSource = NULL;

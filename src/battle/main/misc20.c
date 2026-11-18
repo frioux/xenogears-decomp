@@ -283,7 +283,7 @@ u16 BattleScaleValueByMultiplierByte(void) {
     s32 n;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
         f = g_BattleTargetSlotState->activeEffectFlags1;
-        b = g_BattleTargetSlotState->unk9E;
+        b = g_BattleTargetSlotState->amountMultiplier;
         if ((f & 0x100) || b == 0) {
             n = 4;
         } else {
