@@ -58,14 +58,14 @@ extern BattleUnk48 g_BattleCommandRows[];
 typedef struct {
     /* 0x000 */ u16 flags;
     /* 0x002 */ u8 pad2[0x6];
-    /* 0x008 */ u16 unk8;
+    /* 0x008 */ u16 activeEffectFlags3; // the entry's word at +0x84: this view starts 0x7C into it (actor.h BattleTableEntry)
     /* 0x00A */ u8 padA[0x56];
     /* 0x060 */ u16 counter; // steps by g_BattleSlotCounterStep up to counterLimit
     /* 0x062 */ u16 counterLimit;
     /* 0x064 */ u8 pad64[0x40];
     /* 0x0A4 */ u16 stateFlags; // the +0xA4 state block's copy, tested like flags
     /* 0x0A6 */ u8 padA6[0x2];
-    /* 0x0A8 */ u16 unkA8;
+    /* 0x0A8 */ u16 stateActiveEffectFlags2; // the +0xA4 state block's activeEffectFlags2 (entry +0x124): its 0x8000 bit moves with activeEffectFlags3's
     /* 0x0AA */ u8 padAA[0xC6];
 } BattleUnk170; // Size: 0x170
 
@@ -110,15 +110,16 @@ typedef struct {
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
     /* 0x2DF */ u8 unk2DF;
-    /* 0x2E0 */ u8 unk2E0;
-    /* 0x2E1 */ u8 unk2E1; // set while the confirm handler is still running
-    /* 0x2E2 */ u8 unk2E2;
+    /* 0x2E0 */ u8 colorShift; // subtracted from each colour byte of the slot's prims after << 4
+    /* 0x2E1 */ u8 commandQueued; // set when a handler queued its command, so its next call returns at once
+    /* 0x2E2 */ u8 lastMenuState; // the menuState the current frame was built for; the dispatcher rebuilds when it differs
     /* 0x2E3 */ u8 unk2E3;
     /* 0x2E4 */ u8 unk2E4;
-    /* 0x2E5 */ u8 unk2E5[0x2];
+    /* 0x2E5 */ u8 unk2E5;
+    /* 0x2E6 */ u8 commandId; // the picked command: indexes the 0x10-byte g_BattleCommandEntries rows and is BattleBeginAction's third argument
     /* 0x2E7 */ u8 unk2E7;
     /* 0x2E8 */ u8 targetSlot; // the slot being selected, the menu's copy of slot[].targetSlot
-    /* 0x2E9 */ u8 unk2E9;
+    /* 0x2E9 */ u8 commandAppended; // set once BattleAppendCommandRecord has run; both append paths return at once
     /* 0x2EA */ u8 unk2EA;
     /* 0x2EB */ u8 charRedrawFlags[0xB];
     /* 0x2F6 */ u8 repeatPending; // the last event was this one, so take it as a repeat
@@ -408,14 +409,14 @@ void BattleAdvanceSlotMenuStateSlotFlags(u8 arg0) {
     case 4:
     case 6:
     case 7:
-        if ((g_BattleSlotEntries[a].unkA8 & 0x8000) != 0) {
-            g_BattleSlotEntries[a].unkA8 &= 0x7FFF;
-            g_BattleSlotEntries[a].unk8 &= 0x7FFF;
+        if ((g_BattleSlotEntries[a].stateActiveEffectFlags2 & 0x8000) != 0) {
+            g_BattleSlotEntries[a].stateActiveEffectFlags2 &= 0x7FFF;
+            g_BattleSlotEntries[a].activeEffectFlags3 &= 0x7FFF;
         } else {
             g_BattleSlotEntries[a].stateFlags &= 0xFFDF;
             g_BattleSlotEntries[a].flags &= 0xEFFF;
-            g_BattleSlotEntries[a].unkA8 |= 0x8000;
-            g_BattleSlotEntries[a].unk8 |= 0x8000;
+            g_BattleSlotEntries[a].stateActiveEffectFlags2 |= 0x8000;
+            g_BattleSlotEntries[a].activeEffectFlags3 |= 0x8000;
         }
         ((BattleActorSlots *)g_BattleCommandQueue)->eventHandled = 1;
         break;
@@ -712,7 +713,7 @@ u32 func_80083948(u8 arg0) {
 
     counter = g_BattleSlotEntries[arg0].counter;
     g_BattleSoundEnabled = 0;
-    if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 != 0) {
+    if (((BattleActorSlots *)g_BattleCommandQueue)->commandQueued != 0) {
         return;
     }
     ok = 0;
@@ -723,7 +724,7 @@ u32 func_80083948(u8 arg0) {
         first = 1;
         if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 != 0 && D_800D2C34 != 4) {
             BattleQueueCommandFE(arg0);
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
             first = 0;
         }
         if (first != 0) {
@@ -759,7 +760,7 @@ u32 func_80083948(u8 arg0) {
         }
         break;
     }
-    if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E9 == 0) {
+    if (((BattleActorSlots *)g_BattleCommandQueue)->commandAppended == 0) {
         switch (g_BattleMenuEvent) {
         case 0:
             ((BattleActorSlots *)g_BattleCommandQueue)->targetSlot = func_80084854(((BattleActorSlots *)g_BattleCommandQueue)->targetSlot, 0);
@@ -784,13 +785,13 @@ u32 func_80083948(u8 arg0) {
         if (D_800D2C34 != 4
             && (D_800D2C34 == 0 || D_800D2C34 - 1 < ((BattleActorSlots *)g_BattleCommandQueue)->commandKey[0])) {
             BattleQueueCommandFE(arg0);
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
             return;
         }
         if (BattleMaskHasSlotBit(g_BattleSlotFlag8000Mask,
                                  ((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].targetSlot) != 0) {
             BattleQueueCommandFE(arg0);
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
             return;
         }
     }
@@ -834,11 +835,11 @@ u32 func_80083948(u8 arg0) {
             }
             if (g_BattleDisplayState->primListsPending != 0) {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x65;
-                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E2 = BATTLE_SLOT_NONE;
-                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E0 = 1;
+                ((BattleActorSlots *)g_BattleCommandQueue)->lastMenuState = BATTLE_SLOT_NONE;
+                ((BattleActorSlots *)g_BattleCommandQueue)->colorShift = 1;
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x19;
-                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E2 = 0x19;
+                ((BattleActorSlots *)g_BattleCommandQueue)->lastMenuState = 0x19;
             }
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4 =
                 (u8)func_80086F98(index - 1, arg0) == 0;
@@ -854,7 +855,7 @@ u32 func_80083948(u8 arg0) {
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E4 != 0) {
             BattleQueueCommandFE(arg0);
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E1 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
         }
         break;
     case 5:
