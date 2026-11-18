@@ -53,6 +53,22 @@ at once (the round-34 splits, the gcc 2.6.0 and cdk presets), so that is the wor
 Take the first item below that has work; 1-3 are finite queues that three tools opened
 on 2026-11-14, and each is described under its own heading further down.
 
+**Measured at round 235 (2026-11-18): items 1, 2 and 3 are all empty and item 5 has
+stopped yielding.** `fresh_stubs.py` lists **3 stubs in 3 units**, and they are the
+700-1200-instruction bodies: round 234 spent three 150-minute lanes transcribing exactly
+three of that size and got **61.32 / 85.07 / 86.47% parks**, not matches - so a body that
+size is a multi-round job, not a brief. The jump-table queue is empty (rounds 203 and 231
+proved the layout walls). Park briefs have landed under 3 matches in three consecutive
+rounds (226, 230, 231) and PROMPT's own stop rule then applies, so parks are permuter
+work only. **Until a fresh queue opens, run quality rounds only** - fields, then globals,
+then named constants (in that order, because a constant's meaning comes from the named
+things around it) - and say so in the tracker row. The backlog, in the order that pays:
+`unk<offset>` renames, `D_<addr>` renames from fresh `name-brief.js` reads (the union pass
+is drained, round 233 measured 4 names from 3900 proposals), and the constants left in
+matched C. The one matching queue that still exists is a **park with a named cause and a
+near-exact size** (99%+, instruction multiset identical): that is worth one worker when
+a tracker row records the specific construct, and nothing else is.
+
 1. **Fresh-stub deep round** ("Choosing what to brief", "The round loop"). One worker per
    unit on the 350-1200 instruction stubs `fresh_stubs.py` lists, 60 minutes each. This
    is where the matches have come from since round 216: a 480-instruction body matched,
