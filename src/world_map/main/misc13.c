@@ -41,7 +41,7 @@ extern u8 g_WorldMapMode4AreaNameString[];
 extern u8 g_WorldMapTileKindTable[];
 extern s32 D_8009B264[];
 extern s32 D_8009B26C[];
-extern u8* g_WorldMapTileCellPointers[];
+extern WorldMapTileCell* g_WorldMapTileCellPointers[];
 extern s32 g_WorldMapTileShapeHalfAxis[];
 extern s32 D_8009B36C[];
 extern s32 g_WorldMapTileShapeHalfOrigin[];
@@ -354,7 +354,7 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
         z -= 0x400;
     }
     sub = (z >> 4) / 8 * 9 + (x >> 4) / 8;
-    return g_WorldMapTileCellPointers[idx] + zone * 81 * 4 + sub * 4;
+    return g_WorldMapTileCellPointers[idx]->zones + zone * (81 * 4) + sub * 4;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
 s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
@@ -387,7 +387,7 @@ s32 WorldMapGetTileValue(WorldMapPos* p) {
     s16* pValue;
 
     idx = ((p->z >> 20) / 8) * g_WorldMapTileColumns + (p->x >> 20) / 8;
-    pCell = (WorldMapTileCell*)g_WorldMapTileCellPointers[idx];
+    pCell = g_WorldMapTileCellPointers[idx];
     sub = (((p->z & 0x7FF000) >> 19) << 4) | ((p->x & 0x7FF000) >> 19);
     pValue = pCell->values;
     return pValue[sub];
