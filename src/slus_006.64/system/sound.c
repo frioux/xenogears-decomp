@@ -2212,7 +2212,7 @@ void SoundGetAudioManagerPlayTime(AudioManager* pManager, u16* pOut) {
 u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
     AudioElement* pElement = pManager->elements;
     u16 count = pManager->elementCount;
-    u16* pResult = (u16*)&pManager->lowestLoopCount;
+    u16* pResult = &pManager->lowestLoopCount;
     u16 best = SOUND_LOOP_COUNT_NONE;
 
     do {
@@ -4791,7 +4791,7 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
             statusFlags = pElement->status_flags;
 
             if (statusFlags & SOUND_STATUS_VOLUME_CHANGE) {
-                currentVolume = ((s16*)&pElement->elementVolume)[1];
+                currentVolume = (s16)(pElement->elementVolume >> 16);
                 scale = currentVolume - ((currentVolume * pElement->volumeOffset) >> 15);
                 if (scale > SOUND_VOLUME_MAX) {
                     scale = SOUND_VOLUME_MAX;
@@ -4800,10 +4800,10 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
                     scale = 0;
                 }
                 scale = (pElement->volume * scale) >> 15;
-                scale = (((s16*)&pManager->volumeInterpolator)[1] * scale) >> 16;
+                scale = ((pManager->volumeInterpolator.currentValue >> 16) * scale) >> 16;
 
                 pan = (s16)pElement->pan + pElement->panOffset +
-                    ((s16*)&pManager->panInterpolator)[1];
+                    (pManager->panInterpolator.currentValue >> 16);
                 if (pan > SOUND_PAN_MAX) {
                     pan = SOUND_PAN_MAX;
                 }
@@ -4832,8 +4832,8 @@ void SoundApplyElementStatusFlags(AudioManager* pManager, AudioElement* pElement
             }
 
             if (statusFlags & SOUND_STATUS_PLAYING_NTOE) {
-                s32 note = ((s16*)&pElement->note)[1] + pElement->noteOffset +
-                    ((s16*)&pManager->noteInterpolator)[1];
+                s32 note = (s16)(pElement->note >> 16) + pElement->noteOffset +
+                    (pManager->noteInterpolator.currentValue >> 16);
 
                 pElement->voice_data.pitch = SoundGetTonePitch((s16)note) & 0x3FFF;
                 pElement->voice_data.flags |= SOUND_VOICE_FLAG_PITCH;
@@ -4933,9 +4933,9 @@ void SoundStepElementEnvelopes(AudioManager* pAudioManager, AudioElement* pEleme
                             pEnvelope->delayCount--;
                         } else {
                             value = ((s32 (*)(AudioEnvelope*))pEnvelope->pStepHandler)(pEnvelope);
-                            if (*(s16*)&pEnvelope->rampLevel < 0x400) {
-                                value = (value >> 10) * *(s16*)&pEnvelope->rampLevel;
-                                *(s16*)&pEnvelope->rampLevel += pEnvelope->rampStep;
+                            if ((s16)pEnvelope->rampLevel < 0x400) {
+                                value = (value >> 10) * (s16)pEnvelope->rampLevel;
+                                pEnvelope->rampLevel += pEnvelope->rampStep;
                             }
                             value >>= 16;
                             switch (pEnvelope->target) {
