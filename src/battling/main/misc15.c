@@ -38,7 +38,7 @@ typedef struct {
 // count 8-byte vertex runs immediately after this 4-byte header.
 typedef struct {
     /* 0x0 */ u8 flags;
-    /* 0x1 */ u8 unk1;
+    /* 0x1 */ u8 pad1; // alignment before the count halfword; no reader touches it
     /* 0x2 */ s16 count;
     /* 0x4 */ VertexIndexSet verts[0];
 } PacketNode; // Size: 0x4
