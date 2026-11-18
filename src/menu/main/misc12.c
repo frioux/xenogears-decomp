@@ -16,6 +16,13 @@ typedef struct {
 // Height of the highlight quad drawn behind a menu row
 #define MENU_ROW_QUAD_HEIGHT 13
 
+// Distance between one party slot's prims and the next in g_Menu->pPrimBuffer
+#define MENU_SLOT_PRIM_STRIDE 0x87C
+// Resource id offset to the selected (filled) variant of a menu row's cursor
+#define MENU_SELECTED_RESOURCE_OFFSET 0xD
+// Scratch buffer one rendered character name image is built in before LoadImage
+#define MENU_STRING_IMAGE_BUFFER_SIZE 0x3F6
+
 // Destination coordinate of one name/slot texture upload, one 4-byte entry per
 // menu row; only the low half is read, see MenuLoadSlotCharacterNameTexture.
 typedef struct {
@@ -156,7 +163,7 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
 
     i = 0;
     pEntry += (u_char)index;
-    pTable = (u8*)(arg2 * 0x200 + (s32)g_Menu->menuUnk2) + 0xC94;
+    pTable = (u8*)(arg2 * MENU_IMAGE_CHUNK_SIZE + (s32)g_Menu->menuUnk2) + 0xC94;
     pValue = pairs + 1;
     pKey = pairs;
     for (; i < 0x14; i += 2) {
@@ -171,13 +178,13 @@ void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
         pKey += 2;
     }
     SystemDecodeGlyphCodesN((u16*)pairs, text, i / 2);
-    pBuf = HeapAlloc(0x3F6, 0);
-    bzero(pBuf, 0x3F6);
+    pBuf = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
+    bzero(pBuf, MENU_STRING_IMAGE_BUFFER_SIZE);
     SystemRenderStringEntry(text, pBuf, 0x24, 0);
     rect.x = g_MenuSlotNameTextureX[(u_char)index].pos + 0x180;
     rect.y = g_MenuSlotNameTextureY[(u_char)index].pos;
     rect.w = 0x28;
-    rect.h = 0xD;
+    rect.h = FONT_LETTER_HEIGHT;
     LoadImage(&rect, (u_long*)pBuf);
     DrawSync(0);
     HeapFree(pBuf);
@@ -188,10 +195,10 @@ void MenuDrawCharacterSlots(s32 arg0) {
     u32 offset = 0;
     u8* pEntry;
 
-    pEntry = (u8*)g_Menu->menuUnk2 + arg0 * 0x200 + 0xC94;
+    pEntry = (u8*)g_Menu->menuUnk2 + arg0 * MENU_IMAGE_CHUNK_SIZE + 0xC94;
     func_801E61B0();
-    for (; i < 3; i++) {
-        if (*(pEntry + i + 0x1C) != 0xFF) {
+    for (; i < MAX_PARTY_MEMBERS; i++) {
+        if (*(pEntry + i + 0x1C) != CHARACTER_ID_NONE) {
             ((u8*)g_Menu->pPrimBuffer + offset)[MENU_SLOT_PRIM_ENABLED] = 1;
             MenuDrawSlotSprite(i, pEntry);
             MenuDrawSlotResourceSprites(i, pEntry);
@@ -202,7 +209,7 @@ void MenuDrawCharacterSlots(s32 arg0) {
             ((u8*)g_Menu->pPrimBuffer + offset)[MENU_SLOT_PRIM_ENABLED] = 0;
         }
         ((u8*)g_Menu->pPrimBuffer + offset)[MENU_SLOT_PRIM_CONTEXT] = (u_char)g_Menu->renderContext;
-        offset += 0x87C;
+        offset += MENU_SLOT_PRIM_STRIDE;
     }
     func_801E68AC(pEntry);
     func_801E733C();
@@ -388,9 +395,9 @@ void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s3
         pStringList[index + 1].width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, pStringIdList[index + 1]),
             g_Menu->titleStrings[0].pVramBuffer, 0x18, 1);
         pStringList[index].vramDest.x = ((index / 2) & 1) * 0x20 + 0x140;
-        pStringList[index].vramDest.y = ((index + yOffset) / 4) * 0xD;
+        pStringList[index].vramDest.y = ((index + yOffset) / 4) * FONT_LETTER_HEIGHT;
         pStringList[index].vramDest.w = 0x1C;
-        pStringList[index].vramDest.h = 0xD;
+        pStringList[index].vramDest.h = FONT_LETTER_HEIGHT;
         pStringList[index + 1].vramDest = pStringList[index].vramDest;
         func_801E7C50(&pStringList[index], index, yOffset, 0);
         func_801E7C50(&pStringList[index + 1], index + 1, yOffset, 0);
@@ -626,7 +633,7 @@ void MenuSetSelectionMenuPrims(u_char count, u_char selected, s32* pEntries) {
     g_Menu->pSelectionMenu->numTexts = 0;
     for (i = 0; i < count; i++) {
         if (i == selected) {
-            index = pEntries[i * 2] + 0xD;
+            index = pEntries[i * 2] + MENU_SELECTED_RESOURCE_OFFSET;
         } else {
             index = pEntries[i * 2];
         }
@@ -653,7 +660,7 @@ void MenuSetSubMenuChoicePrims(u_char selected) {
     g_Menu->pSubmenuPrims->polys500PrimCount = 0;
     for (i = 0; i < g_Menu->subMenuNumChoices; i++) {
         if (i == g_Menu->subMenuChoice) {
-            index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + 0xD;
+            index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2] + MENU_SELECTED_RESOURCE_OFFSET;
         } else {
             index = g_MenuSubMenuChoiceIds[(selected + g_Menu->mainMenuChoice) * 8 + i * 2];
         }
@@ -676,9 +683,9 @@ void MenuLoadCharacterNameTexture(s32 arg0, s32 arg1) {
     u8* pBuf;
     s32 offset;
 
-    pBuf = HeapAlloc(0x3F6, 0);
-    bzero(pBuf, 0x3F6);
-    if ((u_char)arg0 != 0xFF) {
+    pBuf = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
+    bzero(pBuf, MENU_STRING_IMAGE_BUFFER_SIZE);
+    if ((u_char)arg0 != CHARACTER_ID_NONE) {
         offset = ((u_char)arg0 >> 1) * 0x28;
         SystemRenderStringEntry((u8*)&g_GameState + offset, pBuf, 0x24, 0);
         SystemRenderStringEntry((u8*)&g_GameState + offset + 0x14, pBuf, 0x24, 1);
@@ -686,7 +693,7 @@ void MenuLoadCharacterNameTexture(s32 arg0, s32 arg1) {
     rect.x = g_MenuNameTextureX[((arg1 * 2) & 0x1FC) / sizeof(MenuTexturePos)].pos + 0x180;
     rect.y = g_MenuNameTextureY[((arg1 * 2) & 0x1FC) / sizeof(MenuTexturePos)].pos;
     rect.w = 0x28;
-    rect.h = 0xD;
+    rect.h = FONT_LETTER_HEIGHT;
     LoadImage(&rect, (u_long*)pBuf);
     DrawSync(0);
     HeapFree(pBuf);
@@ -806,7 +813,7 @@ void MenuPauseCdDrive(void) {
         Vsync(3);
         for (;;) {
             Vsync(3);
-            if (CdControlB(8, 0, &g_MenuCdStatus) != 0) {
+            if (CdControlB(CdlStop, 0, &g_MenuCdStatus) != 0) {
                 break;
             }
         }
