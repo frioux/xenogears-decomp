@@ -643,19 +643,23 @@ int WorldMapInitReturnThree(void) {
 
 int WorldMapActivateSpriteGroup9Timed(int idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
-    // char view of the slot for the five stores below: written as members, gcc
-    // hoists the three global loads above the sh pair and the block loses retail's
-    // interleaved load/store (324 bytes against retail's 336)
-    u8 *pSlotBytes = (u8 *)pPlayer;
+    s32 position;
     s16 timer;
     int nResult = 1;
 
     if (pPlayer->command == 1) {
-        *(s16 *)(pSlotBytes + 4) = 0;
-        *(s16 *)(pSlotBytes + 0x22) = WORLD_MAP_SPRITE_GROUP9_TIMER;
-        *(s32 *)(pSlotBytes + 0x28) = g_WorldMapPlayerPosition;
-        *(s32 *)(pSlotBytes + 0x2C) = g_WorldMapPlayerPositionY;
-        *(s32 *)(pSlotBytes + 0x30) = g_WorldMapPlayerPositionZ;
+        // the block keeps the pair ahead of the position loads; as plain statements
+        // reorg sinks both sh into the following lw delay slots (332 bytes)
+        do {
+            pPlayer->command = 0;
+            pPlayer->stateTimer = WORLD_MAP_SPRITE_GROUP9_TIMER;
+        } while (0);
+        position = g_WorldMapPlayerPosition;
+        pPlayer->x = position;
+        position = g_WorldMapPlayerPositionY;
+        pPlayer->y = position;
+        position = g_WorldMapPlayerPositionZ;
+        pPlayer->z = position;
     }
     timer = pPlayer->stateTimer;
     timer--;
