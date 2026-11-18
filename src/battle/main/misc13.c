@@ -32,13 +32,40 @@ extern u16 g_BattleActionStateFlags;
 extern u16 g_BattleActionParam;
 extern u8 g_BattleActionActorSlot;
 extern u8 g_BattleActionSlotIndex;
-extern u8 D_800C400B[];
-extern u8 D_800C402F[];
-extern u8 g_BattleCommandRecords[];
-extern u8 g_BattleSlotEntriesBase[];
+// One 0x48-byte row of the command record table at g_BattleCommandRecords: the
+// queueing actor's slot at +0xD, the row's slot mask at +0 and the command byte at
+// +0x31 (BATTLE_COMMAND_NONE while the row is empty).
+typedef struct {
+    /* 0x00 */ u16 slotMask;
+    /* 0x02 */ u8 unk2[0xB];
+    /* 0x0D */ u8 actorSlot;
+    /* 0x0E */ u8 unkE[0x23];
+    /* 0x31 */ u8 command;
+    /* 0x32 */ u8 unk32[0x16];
+} BattleCommandRecord; // Size: 0x48
+
+// The active/accessory pair of effect flag words: one row of the five the slot
+// entry carries, each active word at +0 and the accessory-granted copy of the same
+// bits at +0x2 (include/battle/actor.h, BattleTableEntry's activeEffectFlags).
+typedef struct {
+    /* 0x0 */ u16 active;
+    /* 0x2 */ u16 accessory;
+} BattleSlotEffectFlags; // Size: 0x4
+
+// The 0x170-byte battle slot entry as the stat display reads it: the hp pair at +0
+// and the five active-effect words from +0x30. The rest of the entry is
+// BattleSlotEntry in src/battle/main/misc8.c.
+typedef struct {
+    /* 0x000 */ u16 hp;
+    /* 0x002 */ u16 maxHp;
+    /* 0x004 */ u8 unk4[0x2C];
+    /* 0x030 */ BattleSlotEffectFlags activeEffects[5];
+    /* 0x044 */ u8 unk44[0x12C];
+} BattleSlotStatEntry; // Size: 0x170
+
+extern BattleCommandRecord g_BattleCommandRecords[];
+extern BattleSlotStatEntry g_BattleSlotEntriesBase[];
 extern u8 D_800CCD36[];
-extern u8 D_800CCD68[];
-extern u8 D_800CCD74[];
 extern u8 g_BattleSoundEnabled;
 extern u8 g_BattleSlotDisplayInitialized;
 extern u8 g_BattleSlotFlags[];
@@ -65,7 +92,7 @@ extern s32 func_8009ADA0(u8, s32 *);
 extern void BattleClearSlotCurveEntry(void);
 extern void BattleAttachActorAnimScripts(u8, s32, s32, s32);
 extern u8 g_BattleActorCommandIds[];
-extern u8 g_BattleCommandRows[];
+extern u16 g_BattleCommandRows[];
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattlePrimStartIndex;
 extern u8 *g_BattleSpriteColumnWork;
@@ -117,21 +144,21 @@ extern s32 BattleMaskHasSlotBit(s32, u8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80085618);
 void BattleResetActorStatDisplay(s32 arg0) {
     s32 i = 2;
-    s16 *p;
+    BattleSlotEffectFlags *pFlags;
 
-    *(u16 *)(g_BattleSlotEntriesBase + (u8)arg0 * 0x170) = *(u16 *)(D_800CCD36 + (u8)arg0 * 0x170);
+    g_BattleSlotEntriesBase[(u8)arg0].hp = g_BattleSlotEntriesBase[(u8)arg0].maxHp;
 
-    p = (s16 *)(D_800CCD68 + (u8)arg0 * 0x170);
+    pFlags = &g_BattleSlotEntriesBase[(u8)arg0].activeEffects[1];
     for (; i >= 0; i -= 2) {
-        *p = 0;
-        p -= 2;
+        pFlags->active = 0;
+        pFlags--;
     }
 
     i = 4;
-    p = (s16 *)(D_800CCD74 + (u8)arg0 * 0x170);
+    pFlags = &g_BattleSlotEntriesBase[(u8)arg0].activeEffects[4];
     for (; i >= 0; i -= 2) {
-        *p = 0;
-        p -= 2;
+        pFlags->active = 0;
+        pFlags--;
     }
 }
 void BattleBeginActorStatAnimation(s32 arg0) {
@@ -149,7 +176,7 @@ void BattleBeginActorStatAnimation(s32 arg0) {
                 g_BattleActorCommandIds[(u8)arg0] = i + 8;
                 v = buf[i];
                 p = g_BattleCommandQueue;
-                *(u16 *)(g_BattleCommandRows + (u8)arg0 * 2) = v;
+                g_BattleCommandRows[(u8)arg0] = v;
                 func_80085618(p[0x2DA]);
             }
         }
@@ -438,13 +465,11 @@ s32 func_800877E0(s32 arg0, s32 arg1) {
 */
 void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
     s32 i;
-    s32 o;
 
     for (i = 0; i < BATTLE_COMMAND_RECORD_COUNT; i++) {
-        o = i * 0x48;
-        D_800C402F[o] = BATTLE_COMMAND_NONE;
-        D_800C400B[o] = arg0;
-        *(u16 *)(g_BattleCommandRecords + o) = BattleSlotBitMask(arg1);
+        g_BattleCommandRecords[i].command = BATTLE_COMMAND_NONE;
+        g_BattleCommandRecords[i].actorSlot = arg0;
+        g_BattleCommandRecords[i].slotMask = BattleSlotBitMask(arg1);
     }
 }
 void BattleSetupActorSlotDisplay(u8 arg0) {
