@@ -294,7 +294,22 @@ void MenuFitInventoryWindowToItems(void) {
    Round 176: re-measured 93.91%, 888 bytes against retail 896 (222 vs 224 insns),
    no source change closes either delta; both are gcc emitting the shorter encoding
    (the dispatch `beqz` duplicates the loop test's andi in retail, and retail keeps
-   two `selectedSlot = 0xFF` store sites where gcc 2.6.0 cross-jumps them into one). */
+   two `selectedSlot = 0xFF` store sites where gcc 2.6.0 cross-jumps them into one).
+   Round 231: still 93.91% / 888. Tried, no change: `default: continue;`, `while
+   (active != 0)`, chained `prevRow = prevCol = 0xFF;`, moving the
+   func_801DB0A8(selectedSlot, row, 1, 1) call after the switch (89.26), moving
+   `selectedSlot = 0xFF` INTO the func_801DB920 if-body (92.48), and writing that
+   store both inside the body and after it (93.91 - gcc CSEs the pair). The delay
+   slot andi is reorg duplicating the shared loop-test block, so no statement adds
+   it, and the 1 extra instruction is not reachable from the source. Preset is
+   right: 2.7.2 gives 93.66, cdk 84.82, -O3 65.55.
+   FAMILY LAYOUT, measured this round: a C jump table is 0x2C bytes with `.align 3`,
+   so converted tables land at range +0x00/+0x30/+0x60 and the LAST one ends at
+   +0x8C - 4 bytes short of the 0x90 range, because the trailing pad word exists
+   only in the asm stub (jtbl_801C515C carries a 12th zero word). So the family
+   can NOT be converted whole: convert THIS function and func_801DDF24 (C tables
+   at +0x00 and +0x30) and leave func_801E05D0 as INCLUDE_ASM at +0x60, which is
+   exact. */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
 /*
@@ -565,11 +580,21 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    $fp, which is what leaves $s5 free for needsOpen. Every spelling of the a6
    argument folds to one (const_int 1) pseudo with four refs, so no source shape
    changes which constant wins the register.
+   Round 231, register map read off the diff (retail frame 0x68, ours 0x70): retail's
+   nine callee-saved values are s0=kind, s1=col, s2=slot, s3=arg2, s4=prevCol,
+   s5=needsOpen, s6=prevSlot, s7=kind*4, fp=4, and it spills `kind` to 0x38($sp)
+   while rematerialising the a6=1 into $t0 before each of the four calls. Ours hoists
+   that 1 into $s8 (the extra save, hence 0x70) and spills needsOpen to the same
+   0x38($sp) slot. So the tie is exactly `const 1` vs `needsOpen` for the ninth
+   register, and declaration order does not move it: needsOpen first, active last,
+   slot first and kind first all measure 94.45-94.46.
    JUMP TABLE: this stub owns jtbl_801C512C, which is at +0x30 of the unit's .rodata
    range (config/menu.yaml [0xFC, .rodata, main/misc9]) - func_801DBE54 owns the table
    at +0x00 and func_801E05D0 the one at +0x60, so the three must be converted IN THAT
    ORDER or every later table shifts by 0x30. Un-park this one only after
-   func_801DBE54's switch is C. `case 4`'s flag byte is g_Menu->unk430 + 0x1084 + col
+   func_801DBE54's switch is C. Correction (round 231, see that park note): the
+   third table must STAY asm, so this stub plus func_801DBE54 is the shippable
+   pair - all three as C is 4 bytes short of the range. `case 4`'s flag byte is g_Menu->unk430 + 0x1084 + col
    (the buffer is the 0x1094 bytes MenuCreateUnk430Panel allocates); the three window
    dimensions are D_801E9788/94/A0[kind][0], u16 tables 0xC bytes apart, stride 4
    (282/282/162, 218/218/200, 82/82/100 - one row per character slot). `kind` is the
