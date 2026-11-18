@@ -32,7 +32,7 @@ typedef struct {
     /* 0x7C */ s32 *pArchiveEntryIndex; // the entry id BattleLoadActorArchiveFile loads
     /* 0x80 */ u8 unk80[0x20];
     /* 0xA0 */ u16 targetX; // the point BattleAngleToTarget measures from x/y
-    /* 0xA2 */ u8 unkA2[0x2];
+    /* 0xA2 */ u16 targetHeight; // the target's vertical: func_800BF0C4 zeroes it for a ground target, so the 2D angle ignores it
     /* 0xA4 */ u16 targetY;
     /* 0xA6 */ u8 unkA6[0x2];
     /* 0xA8 */ u32 unkA8;
@@ -84,7 +84,10 @@ extern BattleActorRow D_800C3FB8[];
 typedef struct {
     /* 0x00 */ u8 unk0[0x7];
     /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, clear means idle
-    /* 0x08 */ u8 unk8[0x14];
+    /* 0x08 */ u8 unk8[0x6];
+    /* 0x0E */ u16 x; // whole x the slot's sprite takes its 16.16 position from (misc29 BattleActorInitSpriteFromSlot)
+    /* 0x10 */ u16 z;
+    /* 0x12 */ u8 unk12[0xA];
 } BattleSpriteSensorRow; // Size: 0x1C
 extern BattleActorSprite *g_BattleActorList;
 extern u8 D_800C3780;
