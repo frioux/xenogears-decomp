@@ -1049,29 +1049,21 @@ void func_80086E70(u8* pOt, u8* pBase, s32 value, s32 flag) {
     AddPrim(pOt, pBase + 0x30);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086FF8);
-
-/* 84.25% - the two value branches each re-materialise `li 0x28000000` (gcc
-   rematerialises the constant per branch); the original hoists one lui into
-   the beqz delay slot and keeps `ori v1,v1,imm` in each arm, plus the 1 return
-   in v0 (ours puts value in a0 and 5 in v1). Tried: full constants in each
-   arm, `value = 0x28000000 | (c ? 0xFFFF : 0xFF)`, the ternary inside the
-   store, `value |= c ? 0xFFFF : 0xFF`, u32 value, `0x28 << 24`, inverted
-   condition - all 82-84%, and -G0 / 2.6.0 score the same.
 s32 func_80086FF8(s32 arg0, u8* pOut) {
     s32 value;
+    s32* pColor;
 
     if (BattleCheckActorBelowBreakThreshold(arg0, 0) != 0) {
         return 0;
     }
-    value = 0x28000000;
     if (BattleCheckActorBelowBreakThreshold(arg0, 1) != 0) {
-        value |= 0xFFFF;
+        value = 0x2800FFFF;
+        pOut[3] = 5;
     } else {
-        value |= 0xFF;
+        value = 0x280000FF;
+        pOut[3] = 5;
     }
-    pOut[3] = 5;
-    *(s32*)(pOut + 4) = value;
+    pColor = (s32*)(pOut + 4);
+    *pColor = value;
     return 1;
 }
-*/
