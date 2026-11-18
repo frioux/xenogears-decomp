@@ -46,7 +46,13 @@ extern BattleActor *g_BattleActors[];
 extern void func_800A9FF0(s32);
 extern void BattleAppendActorCommandBytes(void *, void *, void *, void *);
 extern void func_800BE790(void);
-extern s32 func_800B0D70(s16 *, u16 *);
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ u16 z;
+} BattleQueryPoint; // Size: 0x6
+
+extern s32 func_800B0D70(u16 *, BattleQueryPoint *);
 extern s16 func_800B0B14(s32 index);
 
 typedef struct BattleModelNode BattleModelNode;
@@ -547,23 +553,21 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
-/* 96.31% (2124 bytes vs retail's 2120): the whole body is in place - the two
+/* 97.17% (2124 bytes vs retail's 2120): the whole body is in place - the two
    follow-actors modes, the slot 7 / slot 8 orbit terms, the two interpolation
    styles (absolute and per-frame step), the block-free bookkeeping and the
    nine-entry output switch (the jump table's 4-byte zero word at 0xCD0 is the
-   assembler's .align before BattleTestActorCommandMask's table). One
-   instruction too many and a register shift are left: retail's y computation
-   reaches v1 in BOTH arms of the actor/table if-else so one `addu s2,v1,zero`
-   serves both, where ours gives the if-arm's temp v0 and copies twice; retail
-   also keeps pBlock in s5 (x,y,z in s1..s3) where ours has it in s1, and its
-   `slti fp,7` test branches on the slot<7 arm (bnez) where ours branches on the
-   curFrame-1 arm (beqz). Tried: y through a u16 local before/after the pos
-   loads (both arms, either arm), z = z + (...) vs +=, a pTween second block
-   pointer (retail really does keep two identical block pointers in s5/s6, and
-   adding it is worth +4%: 89.19 -> 93.85), outX/outY/outZ as separate results
-   (+3.7%), declaration order, and two 4-5 minute permuter runs (the second
-   found only the if-inversion below). Percentages moved 87.55 -> 93.85 -> 96.31
-   as those were found, so this is an allocator tie, not a structure gap.
+   assembler's .align before BattleTestActorCommandMask's table). One instruction
+   too many and a register shift are left: retail's y computation reaches v1 in
+   BOTH arms of the actor/table if-else so one addu s2,v1,zero serves both, where
+   ours gives the if-arm's temp v0 and copies twice; retail also keeps pBlock in
+   s5 (x,y,z in s1..s3) where ours has it in s1. The free/finished branch is
+   written INVERTED (if (!(slot < 7)) { curFrame = endFrame - 1 } else { free }),
+   which the permuter found and is worth 96.31 -> 97.17. Tried: y through a u16
+   local before/after the pos loads (both arms, either arm), z = z + (...) vs +=,
+   a pTween second block pointer (retail keeps two identical block pointers in
+   s5/s6; +4%: 89.19 -> 93.85), outX/outY/outZ as separate results (+3.7%),
+   declaration order, and four permuter runs (8 min on the 96.31% body: no zero).
 // Runs every queued movement command for arg1 frames. A block interpolates its
 // sprite position from its start to its target, then publishes the result: slots
 // 0..6 into their own word, 7 and 8 into the two slot vectors. A block whose tag
@@ -696,14 +700,14 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
             }
             pBlock->curFrame = (u16)pBlock->curFrame + 1;
             if ((s16)pBlock->curFrame >= pBlock->endFrame) {
-                if (slot < 7) {
+                if (!(slot < 7)) {
+                    pBlock->curFrame = pBlock->endFrame - 1;
+                } else {
                     if (pBlock->tag == D_800C3B84) {
                         D_800C3B88 |= 2;
                     }
                     BattleFreeBlock(arg0, (u8 *)pBlock);
                     g_BattleBlockSlots[slot] = NULL;
-                } else {
-                    pBlock->curFrame = pBlock->endFrame - 1;
                 }
             } else {
                 if (pBlock->tag == D_800C3B84) {
@@ -762,29 +766,37 @@ extern u16 D_800C3544;
 extern s16 D_800C3546;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
-/* 74.97% (588 bytes vs 584): the control flow - the two-condition test, the
-   BattleFindGroundTriangle/BattleFindTriangleContainingPoint retry, the D_800C3546/D_800C3542/D_800C3544
-   bookkeeping - is in place; what is left is the head: retail loads
-   D_800D335C and D_800D335E first, then reads g_BattleSlotVectors/3356/3358 through one
-   base pointer s5 (= &g_BattleSlotVectors) both for the deltas and for the vec sums, and
-   it ranks dx in s1 / dy in s2 where ours swaps them. Tried: dy-first vs dx-first,
-   s16 vec[3] vs vec[4], direct globals vs one base pointer local.
+/* 92.60% (600 bytes vs retail's 588). Only the base pointer is left: retail keeps
+   &g_BattleSlotVectors in s5 (lui/addiu once in the prologue) and reads 0(s5) for
+   D_800D3354 and 2(s5) for D_800D3356, where gcc 2.6.0 folds the constant address
+   into each load (lui+lhu twice) - which is also why retail saves s0..s6+ra and we
+   save five registers. Everything else is retail's: s16 dx/dz (the permuter found
+   s32 -> s16, 84.30 -> 92.60), dy as the signed /4, the vec store order
+   vec[0],vec[2],vec[1], the result>=0 tail and the D_800C3542/3544/3546 warm-start
+   bookkeeping. Tried: pointer local (plain, s16*), mem_addr assignment, an array
+   declaration of the same address (gets a register but scores 82.25%), inlining
+   (&g_BattleSlotVectors)[0..1] (identical code), a do/while(0) around the
+   D_800C3546 store, vec[4] vs vec[3], and both tail spellings. A second permuter
+   run only "won" by dropping the pointer's initialisation, i.e. by reading an
+   uninitialised variable - not portable.
 s16 func_800B0B14(s32 index) {
     u8 work[0x10];
-    s16 vec[4];
-    s32 dx;
+    s16 vec[3];
+    s16 result;
+    s16 dx;
     s32 dy;
-    s32 dz;
+    s16 dz;
+    u16 *pVectors;
     s32 len;
-    s32 result;
 
-    dy = (D_800D335E - D_800D3356) / 4;
-    dx = (s16)(D_800D335C - g_BattleSlotVectors);
-    dz = (s16)(D_800D3360 - D_800D3358);
+    pVectors = &g_BattleSlotVectors;
+    dx = D_800D335C - pVectors[0];
+    dy = ((s16)D_800D335E - (s16)pVectors[1]) / 4;
+    dz = D_800D3360 - D_800D3358;
     len = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
-    vec[0] = g_BattleSlotVectors + (dx << 9) / len;
-    vec[1] = D_800D3356 + (dy << 9) / len;
+    vec[0] = pVectors[0] + (dx << 9) / len;
     vec[2] = D_800D3358 + (dz << 9) / len;
+    vec[1] = pVectors[1] + (dy << 9) / len;
     result = -1;
     if (BattleIsPointWithinBounds(vec) != 0 && index != D_800C3546) {
         D_800C3546 = index;
@@ -796,16 +808,78 @@ s16 func_800B0B14(s32 index) {
             D_800C3542 = result;
         }
     }
-    if (result < 0) {
-        vec[1] = D_800C3544;
-    } else {
+    if (result >= 0) {
         BattleProjectPointOntoIndexedTriangle(vec, D_800C3542, work);
         D_800C3544 = vec[1];
+    } else {
+        vec[1] = D_800C3544;
     }
     return vec[1];
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
+
+extern s32 BattleGetActorHeight(s32 index);
+extern s32 BattleGetActorRadius(s32 index);
+
+s32 func_800B0D70(u16 *pPos, BattleQueryPoint *pOut) {
+    s32 i;
+    u16 radius;
+    s16 bestSlot;
+    u16 bestRadius;
+    u16 bestX;
+    u16 bestZ;
+    s32 x;
+    s32 px;
+    s32 pz;
+    s32 z;
+    s16 dx;
+    s16 dz;
+    s32 refY;
+    s32 len;
+    BattleActor **ppActor;
+    BattleActor **pBase;
+
+    bestSlot = -1;
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
+        radius = BattleGetActorRadius(i) + 0x80;
+        pBase = g_BattleActors;
+        ppActor = &pBase[i];
+        if (*ppActor == NULL) {
+            continue;
+        }
+        if ((*ppActor)->doUpdate == 0) {
+            continue;
+        }
+        refY = pOut->y;
+        if ((*ppActor)->pSprites->pos[1] - BattleGetActorHeight(i) >= refY) {
+            continue;
+        }
+        if (bestSlot >= 0 && (s16)radius <= (s16)bestRadius) {
+            continue;
+        }
+        px = (s16)pPos[0];
+        pz = (s16)pPos[2];
+        x = ((u16 *)(*ppActor)->pSprites->pos)[0] - px / 6;
+        z = ((u16 *)(*ppActor)->pSprites->pos)[4] - pz / 6;
+        dx = pOut->x - x;
+        dz = pOut->z - z;
+        len = SquareRoot0(dx * dx + dz * dz) + 1;
+        if (len >= (s16)radius) {
+            continue;
+        }
+        bestSlot = i;
+        bestRadius = radius;
+        bestX = x + dx * (s16)radius / len;
+        bestZ = z + dz * (s16)radius / len;
+    }
+    if (bestSlot >= 0) {
+        pOut->x = bestX;
+        pOut->z = bestZ;
+        return bestSlot + 1;
+    } else {
+        return 0;
+    }
+}
 s32 BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     s16 vec[3];
     s32 len;
