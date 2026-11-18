@@ -59,6 +59,14 @@ typedef struct {
     /* 0x15D6 */ u8 effectColorB;
 } BattlerData;
 
+// The per-frame display work an actor group owns (the pointer it carries at
+// +0x284): a double-buffered ordering table, one per draw buffer. misc14.c
+// declares the whole block; this unit only reaches the two table pointers.
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ u_long* pOt[2];
+} Misc9DisplayWork; // Size: 0xC
+
 typedef struct {
     /* 0x000 */ s32 x;
     /* 0x004 */ s32 y;
@@ -66,7 +74,9 @@ typedef struct {
     /* 0x00C */ u8 pad0C[0xC8];
     /* 0x0D4 */ u32 stateFlags;
     /* 0x0D8 */ BattlerData* pTarget;
-    /* 0x0DC */ u8 padDC[0x83C];
+    /* 0x0DC */ u8 padDC[0x1A8];
+    /* 0x284 */ Misc9DisplayWork* pDisplayWork;
+    /* 0x288 */ u8 pad288[0x690];
     /* 0x918 */ u8 lightAlpha;
 } Battler9;
 
@@ -85,7 +95,7 @@ extern void func_8007AC3C(void);
 extern void BattleInitRenderScene(s16* p);
 extern void BattleSetScreenTileBlack(void);
 extern void BattleDrawTextPrims(void* p);
-extern void BattleAttachActorPrims(u8* p);
+extern void BattleAttachActorPrims(void* p);
 extern void BattleAddSharedPrim(void);
 extern void func_80087698(s32 x0, s32 y0, s32 x1, s32 y1);
 
@@ -280,19 +290,29 @@ s32 func_80082488(VECTOR* pPos, s32 fixHeights) {
                           g_BattlePlaneNormal.vy;
 }
 */
-s16 BattleGetGridValueAtPosition(u8* p) {
+// A battle-grid position in half-word form, as the cell lookups read it: the
+// high byte of each component is the cell index (BattleGetGridCellAtPosition
+// shifts a 32-bit position the same way).
+typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ u16 unk6;
+} BattleGridPosition; // Size: 0x8
+
+s16 BattleGetGridValueAtPosition(BattleGridPosition* p) {
     s32 tmp[12];
     s32 a;
     s32 b;
-    s32 lo;
-    s32 hi;
+    s32 col;
+    s32 row;
 
-    a = *(u16*)p << 16;
-    b = *(u16*)(p + 4) << 16;
-    lo = a >> 24;
-    hi = (b >> 24) << 7;
+    a = p->vx << 16;
+    b = p->vz << 16;
+    col = a >> 24;
+    row = (b >> 24) << 7;
 
-    return *(s16*)&g_BattleGridCells[hi + lo];
+    return *(s16*)&g_BattleGridCells[row + col];
 }
 
 u32 BattleGetGridCellAtPosition(s32* p) {
@@ -660,19 +680,17 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800840CC);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_800846A0);
 
-s32 BattleClearAndQueueActorPrims(u8* p) {
-    u8* p2;
-    void* p3;
+s32 BattleClearAndQueueActorPrims(Battler9* p) {
+    Misc9DisplayWork* pWork;
 
-    p2 = *(u8**)(p + 0x284);
-    BattleClearOrderingTable(p2);
-    p3 = *(void**)(p2 + g_BattleDrawBufferIndex * 4 + 4);
-    BattleDrawTextPrims(p3 + 4);
-    BattleAttachActorPrims(p2);
+    pWork = p->pDisplayWork;
+    BattleClearOrderingTable(pWork);
+    BattleDrawTextPrims((u8*)pWork->pOt[g_BattleDrawBufferIndex] + 4);
+    BattleAttachActorPrims(pWork);
     BattleAddSharedPrim();
     return 0;
 }
 
-s32 func_80084A40(u8* p) {
-    return BattleClearOrderingTable(*(s32*)(p + 0x284));
+s32 func_80084A40(Battler9* p) {
+    return BattleClearOrderingTable(p->pDisplayWork);
 }
