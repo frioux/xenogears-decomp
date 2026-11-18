@@ -537,7 +537,14 @@ instruction-identical, +4 bytes) are the same measurement made the hard way. A u
 tables are a chain - the first table's size sets the parity of every one after it - so
 either the whole switch family converts in address order, first table at +0 (**round
 171: `world_map/misc15`, three tables at retail's +0/+0x18/+0x48, three matches, one
-100.00% sibling`), or none of them does.
+100.00% sibling`), or none of them does. **Check the table SIZES against retail's before
+promising a family round:** cc1 emits a table as 0x2C bytes (11 words plus its `.align 3`),
+so a chain of retail's 0x30-byte tables (12 words, the 12th a zero pad) can never be
+reproduced from C in any order. Round 231 spent a 90-minute worker proving it on
+`menu/main/misc9`'s 0x801C50FC/0x801C512C/0x801C515C chain: three converted tables land at
++0x00/+0x30/+0x60 and end at +0x8C, four bytes short of the 0x90 range, because only the
+asm stub carries the 12th zero word - and the two sibling bodies parked at 93.91% and
+94.46% anyway, so that unit is a dead end, not a queue entry.
 - Run `own_rodata.py` on a unit BEFORE any of its jump-table stubs is converted; it
   finds the tables through the stubs' `.s`. For a unit split after today, run it on the
   new unit, then `make check` with no C change.
