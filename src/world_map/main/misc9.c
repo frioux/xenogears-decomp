@@ -4,6 +4,15 @@
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 
+// Entries of the prim-block table g_WorldMapPrimBlocks points at
+#define WORLD_MAP_PRIM_BLOCK_COUNT 256
+// CLUT ids the tile palette is built from, one GetClut per entry
+#define WORLD_MAP_CLUT_ID_COUNT 16
+// Tile vertices in g_WorldMapTileVertexBuffer, one path entry each
+#define WORLD_MAP_TILE_VERTEX_COUNT 80
+// Bit 1 of a primitive code byte: the primitive is drawn semi-transparent
+#define WORLD_MAP_PRIM_CODE_SEMI_TRANS 0x2
+
 extern s32 g_WorldMapLevelIndex;
 extern u16 g_WorldMapLevelGroupIds[];
 extern u_char* g_WorldMapPrimBlocks;
@@ -152,12 +161,12 @@ void WorldMapRelocateMapEntryOffsets(void) {
 
     base = (s32)g_WorldMapPrimBlocks;
     pEntry = (WorldMapTableEntry*)g_WorldMapPrimBlocks;
-    for (i = 0; i < 0x100; i++, pEntry++) {
+    for (i = 0; i < WORLD_MAP_PRIM_BLOCK_COUNT; i++, pEntry++) {
         if (pEntry->offset != 0) {
             pEntry->offset += base;
         }
     }
-    for (i = 0; i < 0x10; i++) {
+    for (i = 0; i < WORLD_MAP_CLUT_ID_COUNT; i++) {
         g_WorldMapClutIds[i] = GetClut(0xF0, i + 0x1F0);
     }
 }
@@ -368,7 +377,7 @@ void WorldMapWrapTileVertexPositions(void) {
     WorldMapPathEntry* pSrc = (WorldMapPathEntry*)g_WorldMapTileVertexSteps;
     s32 i;
 
-    for (i = 0; i < 0x50; i++) {
+    for (i = 0; i < WORLD_MAP_TILE_VERTEX_COUNT; i++) {
         s32 x = pDst[i].x + pSrc[i].x;
         s32 y = pDst[i].z + pSrc[i].z;
 
@@ -403,7 +412,7 @@ s32 WorldMapUpdateSlotRotationMatrices(s32 index) {
     WorldMapSceneLayer* pLayers;
     u16 angle;
 
-    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
+    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & WORLD_MAP_ANGLE_MASK;
     pLayers = g_WorldMapGroups;
     pVec1->vx = 0;
     pVec0->vx = 0;
@@ -436,7 +445,7 @@ s32 WorldMapUpdateSceneLayerRotationMatrices(s32 index) {
     u16 angle;
     long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
 
-    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
+    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & WORLD_MAP_ANGLE_MASK;
     pLayer1 = &pLayers[index1];
     pVec1->vx = 0;
     pVec0->vx = 0;
@@ -461,11 +470,11 @@ void WorldMapSetSlotTPages(WorldMapSceneLayer* pLayer, u8* pSrc, s32 count, s32 
         pPrim = (POLY_FT4*)pSrc;
         do {
             pPrim->tpage = GetTPage(0, tpageAbr, 0x1A0, 0xA0);
-            pPrim->code |= 2;
+            pPrim->code |= WORLD_MAP_PRIM_CODE_SEMI_TRANS;
             pPrim++;
         } while (++i < rows);
     }
-    memcpy(pLayer->pPrimsCopy, pLayer->pPrims, rows * 0x28);
+    memcpy(pLayer->pPrimsCopy, pLayer->pPrims, rows * sizeof(POLY_FT4));
 }
 s32 BattleInitSlotRowsForActor(s32 index) {
     WorldMapPlayer* pSlot = &g_WorldMapSlots[index];
@@ -502,7 +511,7 @@ s32 WorldMapSetSceneLayerRotMatrices(s32 index) {
     u16 angle;
     long tmp[2]; // unused: reproduces retail's 0x20-byte stack frame
 
-    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
+    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & WORLD_MAP_ANGLE_MASK;
     pVec1->vz = 0;
     pVec0->vz = 0;
     pVec1->vx = 0;
