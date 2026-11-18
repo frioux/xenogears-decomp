@@ -37,6 +37,22 @@
 #define MENU_SELL_EQUIPMENT_CONFIRM 0x1
 #define MENU_SELL_EQUIPMENT_CONTINUE 0x2
 
+// Limits ShopMenuComputeCharacterStats puts on the dressing room's stat values: a stat
+// is drawn in at most three digits, a percentage stat in two.
+#define MENU_STAT_THREE_DIGIT_MAX 999
+#define MENU_STAT_PERCENT_MAX 99
+
+// Options of the buy / sell / exit menu
+#define MENU_SHOP_MODE_COUNT 3
+
+// Weapon ids from this one up are the extra guns GameCharacter.extraWeaponIds holds
+#define MENU_EXTRA_WEAPON_ID_START 50
+
+// Item slots of each type in a shop's entry block, so the type of slot i is
+// i / SHOP_ITEMS_PER_TYPE
+#define SHOP_ITEM_TYPE_COUNT 3
+#define SHOP_ITEMS_PER_TYPE 30
+
 // Debug-related?
 extern s32* g_DebuggerState;
 
@@ -163,11 +179,11 @@ void ShopMenuParseNumberToString(u_int number) {
     for (i = 1; i < MENU_MAX_DIGITS; i++) {
         if (g_Menu->digits[i]) {
             if (g_Menu->digits[i - 1] == 0) {
-                g_Menu->digits[i - 1] = 0xFF;
+                g_Menu->digits[i - 1] = MENU_DIGIT_NONE;
             }
             break;
         }
-        g_Menu->digits[i - 1] = 0xFF;
+        g_Menu->digits[i - 1] = MENU_DIGIT_NONE;
     }
 }
 
@@ -346,7 +362,7 @@ void ShopMenuInitialize(void) {
 
     g_Menu->mainMenuChoice = 4;
     g_Menu->mainMenuPrevChoice = 0xFF;
-    g_Menu->cardCheckTimer = 0x3C;
+    g_Menu->cardCheckTimer = 60;
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
@@ -678,12 +694,11 @@ void ShopMenuInitializeShopData(void) {
         g_Menu->shopItemTypes[i] = 0;
     }
 
-    // 0x5A ??? Arrays being set are 0x30 sized
     // NOTE: Potentially danger if there's more than 0x30 valid items in the shop item data
-    for (i = 0; i < 0x5A; i++) {
+    for (i = 0; i < SHOP_ITEM_TYPE_COUNT * SHOP_ITEMS_PER_TYPE; i++) {
         if (pShopItemData[i]) {
             g_Menu->shopItemIDs[j] = pShopItemData[i];
-            g_Menu->shopItemTypes[j] = i / 30;
+            g_Menu->shopItemTypes[j] = i / SHOP_ITEMS_PER_TYPE;
             j++;
         }
     }
@@ -1975,11 +1990,11 @@ void ShopMenuPollInput(void) {
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_L1) {
-                input = 10;
+                input = MENU_INPUT_PREV;
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_R1) {
-                input = 9;
+                input = MENU_INPUT_NEXT;
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_START) {
@@ -2244,7 +2259,7 @@ u_char ShopMenuConfirmationWindowGetChoice(u_char mode) {
         ShopMenuUpdateAndRender();
         switch (g_Menu->input) {
             case MENU_INPUT_CONFIRM:
-                ShopMenuPlaySoundEffect(2);
+                ShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                 isRunning = FALSE;
                 break;
             case MENU_INPUT_BACK:
@@ -2306,7 +2321,7 @@ void ShopMenuFree(void) {
     ShopMenuUnk354Manager(MENU_DATA_FREE);
     ShopMenuDressingRoomManager(MENU_DATA_FREE);
     ShopMenuUnk348Manager(MENU_DATA_FREE);
-    ShopMenuLoadShopItemsData(0x10);
+    ShopMenuLoadShopItemsData(SHOP_DATA_FREE);
     ShopMenuShopManager(MENU_DATA_FREE);
     HeapFree(g_Menu->resources);
     HeapFree(g_Menu->pStringBank);
@@ -2604,7 +2619,7 @@ void ShopMenuShopModeMenuMain(void) {
     u_char isRunning;
 
     isRunning = TRUE;
-    g_Menu->mainMenuChoice = 2;
+    g_Menu->mainMenuChoice = MENU_CHOICE_BUY;
 
     ShopMenuInitializeShopModeSelectionMenu(4, &g_ShopModeSelectionTextureIds);
 
@@ -2615,7 +2630,7 @@ void ShopMenuShopModeMenuMain(void) {
 
         switch (g_Menu->input) {
             case MENU_INPUT_CONFIRM:
-                ShopMenuPlaySoundEffect(2);
+                ShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
 
                 // Render the selection menu as disabled
                 g_Menu->pSelectionMenu->isDisabled = TRUE;
@@ -2635,12 +2650,12 @@ void ShopMenuShopModeMenuMain(void) {
                 if (g_Menu->mainMenuChoice) {
                     g_Menu->mainMenuChoice--;
                 } else {
-                    g_Menu->mainMenuChoice = 2;
+                    g_Menu->mainMenuChoice = MENU_CHOICE_BUY;
                 }
                 break;
 
             case MENU_INPUT_UP:
-                if (++g_Menu->mainMenuChoice >= 3) {
+                if (++g_Menu->mainMenuChoice >= MENU_SHOP_MODE_COUNT) {
                     g_Menu->mainMenuChoice = 0;
                 }
                 break;
@@ -2648,7 +2663,7 @@ void ShopMenuShopModeMenuMain(void) {
 
         // Update the selected option to the active one if we need to
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            ShopMenuUpdateShopModeSelectionMenu(3, g_Menu->mainMenuChoice, &g_ShopModeSelectionTextureIds);
+            ShopMenuUpdateShopModeSelectionMenu(MENU_SHOP_MODE_COUNT, g_Menu->mainMenuChoice, &g_ShopModeSelectionTextureIds);
             ShopMenuPositionSelectedString(4, g_Menu->optionStrings, &g_ShopModeMenuStringIds, &g_ShopModeMenuStringOffsets,
                 g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0
             );
@@ -2698,37 +2713,37 @@ void ShopMenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 character
     pDressingRoom->statValues[2] = pCharacter->defenseFromAccessories + (pCharacter->defense + pCharacter->defenseFromEquipment);
     pDressingRoom->statValues[3] = pCharacter->evadePercentage + pCharacter->evadePercentageFromEquipment;
     pDressingRoom->statValues[4] = pCharacter->ether + pCharacter->etherFromEquipment;
-    pDressingRoom->statValues[5] = 0x63;
+    pDressingRoom->statValues[5] = MENU_STAT_PERCENT_MAX;
     pDressingRoom->statValues[6] = pCharacter->etherDefense + pCharacter->etherDefenseFromEquipment;
     pDressingRoom->statValues[7] = 0xA;
     pDressingRoom->statValues[8] = pCharacter->agility + pCharacter->agilityFromEquipment;
 
-    if (pDressingRoom->statValues[0] >= 1000) {
-        pDressingRoom->statValues[0] = 999;
+    if (pDressingRoom->statValues[0] >= MENU_STAT_THREE_DIGIT_MAX + 1) {
+        pDressingRoom->statValues[0] = MENU_STAT_THREE_DIGIT_MAX;
     }
-    if (pDressingRoom->statValues[1] >= 100) {
-        pDressingRoom->statValues[1] = 99;
+    if (pDressingRoom->statValues[1] >= MENU_STAT_PERCENT_MAX + 1) {
+        pDressingRoom->statValues[1] = MENU_STAT_PERCENT_MAX;
     }
-    if (pDressingRoom->statValues[2] >= 1000) {
-        pDressingRoom->statValues[2] = 999;
+    if (pDressingRoom->statValues[2] >= MENU_STAT_THREE_DIGIT_MAX + 1) {
+        pDressingRoom->statValues[2] = MENU_STAT_THREE_DIGIT_MAX;
     }
-    if (pDressingRoom->statValues[3] >= 100) {
-        pDressingRoom->statValues[3] = 99;
+    if (pDressingRoom->statValues[3] >= MENU_STAT_PERCENT_MAX + 1) {
+        pDressingRoom->statValues[3] = MENU_STAT_PERCENT_MAX;
     }
-    if (pDressingRoom->statValues[4] >= 1000) {
-        pDressingRoom->statValues[4] = 999;
+    if (pDressingRoom->statValues[4] >= MENU_STAT_THREE_DIGIT_MAX + 1) {
+        pDressingRoom->statValues[4] = MENU_STAT_THREE_DIGIT_MAX;
     }
-    if (pDressingRoom->statValues[5] >= 100) {
-        pDressingRoom->statValues[5] = 99;
+    if (pDressingRoom->statValues[5] >= MENU_STAT_PERCENT_MAX + 1) {
+        pDressingRoom->statValues[5] = MENU_STAT_PERCENT_MAX;
     }
-    if (pDressingRoom->statValues[6] >= 1000) {
-        pDressingRoom->statValues[6] = 999;
+    if (pDressingRoom->statValues[6] >= MENU_STAT_THREE_DIGIT_MAX + 1) {
+        pDressingRoom->statValues[6] = MENU_STAT_THREE_DIGIT_MAX;
     }
-    if (pDressingRoom->statValues[7] >= 100) {
-        pDressingRoom->statValues[7] = 99;
+    if (pDressingRoom->statValues[7] >= MENU_STAT_PERCENT_MAX + 1) {
+        pDressingRoom->statValues[7] = MENU_STAT_PERCENT_MAX;
     }
-    if (pDressingRoom->statValues[8] >= 100) {
-        pDressingRoom->statValues[8] = 99;
+    if (pDressingRoom->statValues[8] >= MENU_STAT_PERCENT_MAX + 1) {
+        pDressingRoom->statValues[8] = MENU_STAT_PERCENT_MAX;
     }
 }
 
@@ -2747,7 +2762,7 @@ void ShopMenuAddShopPrims(void) {
         ShopMenuRenderString(g_Menu->pShop->explanationsLen, g_Menu->pShop->polysExplanations, g_Menu->pShop->explanationsRenderCtx);
         ShopMenuRenderString(g_Menu->pShop->equipMarkPrimCount, g_Menu->pShop->polys2D0, g_Menu->pShop->equipMarkRenderCtx);
         ShopMenuRenderString(g_Menu->pShop->numPortraits, g_Menu->pShop->polysCharacterPortraits, g_Menu->pShop->portraitsRenderCtx);
-        for (i = 0; i < 8; i++) {
+        for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
             if (g_Menu->pShop->shouldRenderItemRows[i]) {
                 ShopMenuRenderPolygons(1, g_Menu->pShop->strItemNames[i].vertices, g_Menu->pShop->strItemNames[i].polys, g_Menu->pShop->strItemNames[i].renderContext);
                 ShopMenuRenderPolygons(1, g_Menu->pShop->strItemQuantities[i].vertices, g_Menu->pShop->strItemQuantities[i].polys, g_Menu->pShop->strItemQuantities[i].renderContext);
@@ -2773,7 +2788,7 @@ void ShopMenuAddShopPrims(void) {
             ShopMenuRenderString(g_Menu->pShop->goldAfterStrLen, g_Menu->pShop->polysGoldAfter, g_Menu->pShop->goldAfterRenderCtx);
         }
 
-        for (i = 0; i < 8; i++) {
+        for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
             ShopMenuRenderString(g_Menu->pShop->inventoryPrimCounts[i], g_Menu->pShop->polysShopInventory[i * 4], g_Menu->pShop->inventoryRenderCtxs[i]);
         }
 
@@ -2878,12 +2893,12 @@ void ShopMenuUpdateGoldGraphics(u_int goldBefore, u_int totalPrice, u_int goldAf
     g_Menu->pShop->goldBeforeStrLen = 0;
     for (i = 0; i < MENU_MAX_DIGITS; i++) {
         digit = g_Menu->digits[i];
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             g_Menu->pShop->goldBeforeStrLen += func_8002675C(
                 g_Menu->resources, digit,
                 &g_Menu->pShop->polysGoldBefore[g_Menu->pShop->goldBeforeStrLen * 2],
                 g_Menu->renderContext,
-                (i * 8) + g_GoldAmountTextX, g_GoldAmountTextY,
+                (i * MENU_DIGIT_SPACING) + g_GoldAmountTextX, g_GoldAmountTextY,
                 0x1000
             );
         }
@@ -2894,12 +2909,12 @@ void ShopMenuUpdateGoldGraphics(u_int goldBefore, u_int totalPrice, u_int goldAf
     g_Menu->pShop->totalPriceStrLen = 0;
     for (i = 0; i < MENU_MAX_DIGITS; i++) {
         digit = g_Menu->digits[i];
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             g_Menu->pShop->totalPriceStrLen += func_8002675C(
                 g_Menu->resources, digit,
                 &g_Menu->pShop->polysTotalPrice[g_Menu->pShop->totalPriceStrLen * 2],
                 g_Menu->renderContext,
-                (i * 8) + g_TotalPriceTextX, g_TotalPriceTextY,
+                (i * MENU_DIGIT_SPACING) + g_TotalPriceTextX, g_TotalPriceTextY,
                 0x1000
             );
         }
@@ -2910,12 +2925,12 @@ void ShopMenuUpdateGoldGraphics(u_int goldBefore, u_int totalPrice, u_int goldAf
     g_Menu->pShop->goldAfterStrLen = 0;
     for (i = 0; i < MENU_MAX_DIGITS; i++) {
         digit = g_Menu->digits[i];
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             g_Menu->pShop->goldAfterStrLen += func_8002675C(
                 g_Menu->resources, digit,
                 &g_Menu->pShop->polysGoldAfter[g_Menu->pShop->goldAfterStrLen * 2],
                 g_Menu->renderContext,
-                (i * 8) + g_NewGoldAmountTextX, g_NewGoldAmountTextY,
+                (i * MENU_DIGIT_SPACING) + g_NewGoldAmountTextX, g_NewGoldAmountTextY,
                 0x1000
             );
         }
@@ -2942,7 +2957,7 @@ u_short ShopMenuGetCharacterEquippedItemFlags(u_char itemID, u_char itemType) {
                     switch (itemType) {
                         case ITEM_TYPE_WEAPON:
                             for (j = 0; j < 5; j++) {
-                                if (itemID < 50) {
+                                if (itemID < MENU_EXTRA_WEAPON_ID_START) {
                                     if (g_GameState.characters[i].weaponId[j] == itemID) {
                                         isItemEquipped = TRUE;
                                         break;
@@ -3596,12 +3611,12 @@ void ShopMenuSetFinalPriceGraphics(unsigned int number) {
     g_Menu->pShop->finalPriceStrLen = 0;
     for (i = 0; i < MENU_MAX_DIGITS; i++) {
         digit = g_Menu->digits[i];
-        if (digit != 0xFF) {
+        if (digit != MENU_DIGIT_NONE) {
             g_Menu->pShop->finalPriceStrLen += func_8002675C(
                 g_Menu->resources, digit,
                 &g_Menu->pShop->polysFinalPrice[g_Menu->pShop->finalPriceStrLen * 2],
                 g_Menu->renderContext,
-                107 + i * 8, 84,
+                107 + i * MENU_DIGIT_SPACING, 84,
                 0x1000
             );
         }
@@ -3692,7 +3707,7 @@ u_char ShopMenuBuyMenu(void) {
         switch (g_Menu->input) {
             case MENU_INPUT_CONFIRM:
                 if (totalPrice != 0) {
-                    ShopMenuPlaySoundEffect(2);
+                    ShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                     g_Menu->pManager->shouldRenderShop = FALSE;
                     g_Menu->pManager->shouldRenderWindow[2] = FALSE;
                     g_Menu->pManager->shouldRenderWindow[3] = FALSE;
@@ -3718,7 +3733,7 @@ u_char ShopMenuBuyMenu(void) {
                     }
                     ShopMenuFreePointerCursors();
                 } else {
-                    ShopMenuPlaySoundEffect(4);
+                    ShopMenuPlaySoundEffect(MENU_SOUND_ERROR);
                 }
                 break;
 
@@ -3779,7 +3794,7 @@ u_char ShopMenuBuyMenu(void) {
             // Increase item quantity
             case MENU_INPUT_RIGHT:
                 if (sp28[curChoice] != 0) {
-                    if (g_Menu->pShop->curItemQuantities[scrollOffset + curChoice] + 1 + g_SelectedItemQuantityHeld < 100) {
+                    if (g_Menu->pShop->curItemQuantities[scrollOffset + curChoice] + 1 + g_SelectedItemQuantityHeld < MAX_ITEM_QUANTITY + 1) {
                         g_Menu->pShop->curItemQuantities[scrollOffset + curChoice] += 1;
                         totalPrice += itemPrice;
                         newGoldAmount -= itemPrice;
@@ -4093,7 +4108,7 @@ void ShopMenuHandleSoldItems(u_int newGoldAmount, u_char* pItemIds, u_char* pIte
             if (itemID && pItemSellQtys[i]) {
                 switch (pItemTypes[i]) {
                     case ITEM_TYPE_WEAPON:
-                        if (itemID < 50) {
+                        if (itemID < MENU_EXTRA_WEAPON_ID_START) {
                             g_GameState.characters[characterIndex].weaponId[0] = 0;
                         } else {
                             for (j = 0; j < 4; j++) {
@@ -4367,7 +4382,7 @@ int ShopMenuSellEquipmentMenu(void) {
                 break;
 
             case MENU_INPUT_CONFIRM:
-                ShopMenuPlaySoundEffect(2);
+                ShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                 shouldExit = MENU_SELL_EQUIPMENT_CONFIRM;
                 break;
 
@@ -4481,7 +4496,7 @@ void ShopMenuClearShopGraphics(u_char arg0, u_char arg1) {
         g_Menu->pShop->polys3020PrimCounts[i] = 0;
     }
 
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
         g_Menu->pShop->shouldRenderItemRows[i] = 0;
         g_Menu->pShop->inventoryPrimCounts[i] = 0;
     }
@@ -4559,7 +4574,7 @@ int ShopMenuSellModeMenu() {
 
         switch (g_Menu->input) {
             case MENU_INPUT_CONFIRM:
-                ShopMenuPlaySoundEffect(2);
+                ShopMenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                 ShopMenuSellModeMenuHandleSelectedOption();
                 g_Menu->subMenuPrevChoice = 0xFF;
                 break;
