@@ -193,21 +193,21 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
 // 0x10-byte 2D primitive the particle renderer links three at a time; only the
 // tag word and the projected XY at 0x8 are written here.
 typedef struct {
-    // 0x0 u32 tag;
-    // 0x4 u32 unk4;
-    // 0x8 u32 xy;
-    // 0xC u32 unkC;
+    u32 tag; // 0x0
+    u32 unk4; // 0x4
+    u32 xy; // 0x8
+    u32 unkC; // 0xC
 } BattleParticleQuad; // Size: 0x10
 
 // 0xC-byte entry of the particle table g_BattleSpriteSlots points at.
 typedef struct {
-    // 0x0 s16 unk0;
-    // 0x2 s16 unk2;
-    // 0x4 s16 unk4;
-    // 0x6 s16 unk6; // 0 marks a free entry
-    // 0x8 s8 unk8;
-    // 0x9 s8 unk9;
-    // 0xA s16 unkA;
+    s16 unk0; // 0x0
+    s16 unk2; // 0x2
+    s16 unk4; // 0x4
+    s16 unk6; // 0x6: 0 marks a free entry
+    s8 unk8; // 0x8
+    s8 unk9; // 0x9
+    s16 unkA; // 0xA
 } BattleParticle; // Size: 0xC
 
 extern BattleParticleQuad* g_BattleSpritePrimBuffers[];
@@ -504,24 +504,33 @@ void BattleSetTextScale(s32 value) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E964);
-/* best 84.08%. Body shape is right: the 0x28-byte POLY_FT4 glyph quad, the
-   UV slot widths (u1 = u0 + (glyph[2]|3), v2/v3 = v1 + glyph[3] + 1), the
-   colour word and the x advance all reproduce. Four residual differences, all
-   in gcc's hands:
-   1. prologue: retail loads g_BattleTextPrimCount into v1 BEFORE addiu sp and multiplies
-      the packet index with v0; ours loads it into a0, multiplies into v1 and
-      therefore needs an extra `move a0,s1` before the jal (c must survive the
-      call in s1 either way). Tried: an s32 i local, g_BattleTextPrimCount read twice, a
-      pBase local, (POLY_FT4*)g_BattleTextPrimBuffers[idx] + i and + i*0x28 - all identical
-      or worse.
-   2. the lbu of glyph[2] is hoisted above the first sw in retail and not here
-      (retail also keeps (glyph[2]|3) in s1 across the stores).
-   3. the tail wants lhu for g_BattleTextCursorX and keeps x+2 in v0; ours emits lh and
-      a fresh register even with an explicit (u16) cast.
-   4. no extra stack slot: the 0x20 frame with s0/s1/ra is exact.
-   Also proved here: BattleGetFontGlyph takes an s32, not a u8 - retail does no andi
-   on a0 in its own body or at these call sites, and BattleGetTextWidth still matches
-   100.00% with the s32 prototype.
+/* BEST 84.08% per the round that parked it; the body below re-measures 81.04%
+   (508 bytes against retail's 520) because it is one variant of it. Everything
+   in the body is the right shape - the 0x28-byte POLY_FT4 glyph quad, the UV
+   widths (u1 = u0 + (glyph[2] | 3), v2/v3 = v1 + glyph[3] + 1), the code/len
+   byte 9, the colour word, the x advance.
+   THE ONE THING THAT DECIDES ALMOST EVERY REGISTER HERE is which register
+   g_BattleTextPrimCount lands in. Retail keeps it in v1 and reads it before
+   the frame setup (lui v1 / lw v1 ABOVE addiu sp), so a0 still holds the
+   parameter c at the glyph call and needs no copy; s1 (c, dead after the
+   c != 0x28 test) is then free for (glyph[2] | 3), pGlyph stays in a3, mflo in
+   t0. Ours puts the count in a0, so c has to travel s1 -> a0 with an extra
+   'move a0,s1' before the jal and every other register shifts
+   (pGlyph t0, width a3, mflo t1) - that single tie is worth the 12 missing
+   bytes and about 15 instructions. Tried and measured, all 81.04%: no count
+   local (two reads of the global), an explicit s32 count assignment, the count
+   as a declaration INITIALIZER, count declared first vs last, pPkt spelled as
+   pBase + count / (u8 *)pBase + count * 0x28 / &g_BattleTextPrimBuffers[idx][count]
+   (one statement), and pPkt computed AFTER the glyph call (that one changes the
+   register class instead: the count becomes callee-saved s0, 520 bytes at
+   78.75%). Hoisting g_BattleTextTpage/g_BattleTextClut into u16 locals to
+   reproduce retail's early lhu pair: 78.65%, 524 bytes.
+   Still line for line: retail loads tpage/clut (lhu a1/lhu a2) BEFORE the four
+   coordinate stores and stores them at 0x16/0xE afterwards, and its tail wants
+   lhu for g_BattleTextCursorX (ours lh even with an explicit (u16) cast).
+   Also proved here: BattleGetFontGlyph takes an s32, not a u8 - retail does no
+   andi on a0 in its own body or at these call sites, and BattleGetTextWidth
+   still matches 100.00% with the s32 prototype.
 void func_8007E964(s32 c) {
     POLY_FT4* pPkt;
     POLY_FT4* pBase;
@@ -672,18 +681,23 @@ void func_8007EE68(s32 arg) {
  */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
-/* best 90.45%: every instruction and relocation matches except which of the two
-   loop induction pointers gets a0 and which gets a1 (the original keeps the
-   0x20-byte table pointer in a1 and the 0xC-byte record pointer in a0) and, as
-   a consequence, where the HeapAlloc result is copied into a3 in the loop
-   preheader. Frame (0x20, ra at 0x18), the s0/s1 split, the
-   g_GameState+0x1930 lhu, the filter compare and the g_BattleEntryCount
-   read-modify-write are exact. Tried: index and pointer forms for both
-   induction variables and every mixture, i*3 over an s32 array, a nested if
-   with continue, split increment, six declaration orders, and -G0 / -O3 /
-   gcc 2.6.0 / gcc 2.7.2-cdk (90.45 or worse under all). What is left is a
-   global.c allocator tie-break between two allocnos with identical ref counts
-   and live ranges.
+/* best 90.45% (204 bytes). Everything matches - frame 0x20 with s0/s1/ra, the
+   lhu of g_GameState.fieldScriptMemory[0], the HeapAlloc(0xC4,1) call with its
+   ori in the jal slot, the two globals' stores, the lh 4(...) of the 0x20-byte
+   filter entry and the slt/bnez against the limit, the
+   g_BattleEntryCount read-modify-write with sw / addiu / sll / addu, the
+   slti 0x31 loop bound and the BattleAppendExtraQueueEntry call - except WHICH
+   of the two induction pointers gets a0 and which gets a1: retail keeps the
+   0x20-byte filter-table pointer (D_80092874) in a1 and the 0xC-byte record
+   pointer (D_80091964) in a0, ours swaps them. Tried: the indexed form with
+   D_80092874[i].requiredProgress and &D_80091964[i] (90.45), explicit
+   pEntry/pRecord pointer locals with pEntry++ / pRecord += 3 (89.86), both
+   declaration orders and both assignment orders of those locals (identical
+   either way - gcc resolves the tie itself), and (per an earlier session)
+   i*3 over an s32 array, a nested if with continue, split increments, six
+   declaration orders, -G0 / -O3 / gcc 2.6.0 / gcc 2.7.2-cdk (90.45 or worse
+   under all). The remaining 'move a3,v0' also sits one block later than
+   retail's (it copies the HeapAlloc result right after the call).
 void func_8007EEE8(s32 arg) {
     s32 i;
     s32 limit;
