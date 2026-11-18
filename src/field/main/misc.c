@@ -14,6 +14,25 @@
 // a script may ask FieldRandomizeSkinSlots for.
 #define FIELD_RANDOM_SKIN_SLOT_COUNT 32
 
+// g_GameSceneMapNum's top two bits: the map runs with the party in its gears, so a
+// party member's gear skin is loaded instead of its character skin.
+#define FIELD_MAP_GEAR_SKINS_MASK 0xC000
+
+// Field archive entry a party member's skin file sits at, above its skin id.
+#define FIELD_PARTY_SKIN_ARCHIVE_OFFSET 5
+
+// Gear skins sit this far above the character skin ids in the skin id space
+// g_GamePartyMemberSkins holds.
+#define FIELD_GEAR_SKIN_ID_OFFSET 0x10
+
+// Written to the slot a script asked for when the actor is in no party slot.
+#define FIELD_PARTY_SLOT_NONE 0xFF
+
+// The particle bank's range mode, in ParticleBank::flags bits 6-7 (see
+// PARTICLE_FLAG_RANGE_MODE): a script argument of 1 sprays in a circle, 2 along a line.
+#define FIELD_PARTICLE_BANK_RANGE_MODE_CIRCLE 0x80
+#define FIELD_PARTICLE_BANK_RANGE_MODE_LINE 0x40
+
 void FieldScriptMemoryWriteU16(int, int);
 
 extern int rcos(int);
@@ -757,10 +776,10 @@ void FieldScriptSetParticleBankFlag(void) {
 
     switch (FieldScriptVMGetArgument(1)) {
         case 1:
-            flags = 0x80;
+            flags = FIELD_PARTICLE_BANK_RANGE_MODE_CIRCLE;
             break;
         case 2:
-            flags = 0x40;
+            flags = FIELD_PARTICLE_BANK_RANGE_MODE_LINE;
             break;
     }
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].flags |= flags;
@@ -897,7 +916,7 @@ void FieldScriptWritePartySlotOfActor(void) {
             return;
         }
     }
-    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, 0xFF);
+    FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, FIELD_PARTY_SLOT_NONE);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -1226,8 +1245,8 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
     if (g_FieldEntryRoutineFinished == 0) {
         ArchiveCdDataSync(0);
     }
-    if ((g_GameSceneMapNum & 0xC000) == 0) {
-        int archiveIndex = characterId + 5;
+    if ((g_GameSceneMapNum & FIELD_MAP_GEAR_SKINS_MASK) == 0) {
+        int archiveIndex = characterId + FIELD_PARTY_SKIN_ARCHIVE_OFFSET;
 
         size = ArchiveDecodeAlignedSize(archiveIndex);
         g_GamePartyMemberSkins[g_FieldPartyModelLoadPartyIndex] = characterId;
@@ -1241,8 +1260,8 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
         if (characterIndex == GEAR_ID_NONE) {
             characterIndex = 0;
         }
-        characterIndex += 0x10;
-        archiveIndex = characterIndex + 5;
+        characterIndex += FIELD_GEAR_SKIN_ID_OFFSET;
+        archiveIndex = characterIndex + FIELD_PARTY_SKIN_ARCHIVE_OFFSET;
         size = ArchiveDecodeAlignedSize(archiveIndex);
         pBuffer = HeapAlloc(size, 0);
         g_FieldPartyModelLoadBuffer = pBuffer;
