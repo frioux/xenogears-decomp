@@ -2590,6 +2590,13 @@ int LibGearGetModelDistance(Model* pModel) {
 // iterations) returned NONE, base=best=15, as the two earlier runs did. One new
 // hand shape: swapping the 0xFD and 0xFC arms (mutually exclusive, so semantics
 // unchanged) scores 99.84% - worse - so the remaining reg_eqv tie stands.
+// Round 245: permuter-out handed this park back again (its diff is the u16 global,
+// already here); re-measured live at 99.87%/464 bytes, and two more 4-minute runs
+// (-j 2, 1711 and 688 iterations) both returned NONE, base=best=15 - five such runs
+// now. One new hand shape: a long-lived `s16 slot = pModel->sourceModelSlot` set
+// just before the 0xFD arm and read only by the range test is simply cse'd into
+// the same pseudo, leaving the identical three-line residual. Measured dry; do not
+// re-open unless the allocator question is.
 /*
 void func_801E63A8(Model* pModel) {
     Model* pModel2;
