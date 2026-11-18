@@ -210,7 +210,14 @@ of a match, and it is cheap.
   above. A naming worker yields ~10 names on a well-picked file and 0
   on a dud, so budget for a few dozen, not a few hundred; a worker given a file whose
   `D_` globals its live C never touches comes back empty.
-- **Feed the tools the union of every NAME line ever reported.** Both tools self-skip
+- **Feed the tools the union of every NAME line ever reported.** Extract it with a pattern that
+  matches `NAME func_<8 hex> <Name>` ANYWHERE in the line, not `^NAME `: the worker reports write
+  `- \`NAME func_X NewName\` - evidence` about as often as a bare line, and an anchored grep
+  silently drops those (round 225: it missed all three of round 224's matches). One rejected
+  proposal is permanent: `func_8004546C` -> `SetDrawOffset` collides with `include/psyq/libgpu.h`'s
+  `SetDrawOffset(DR_OFFSET*, u_short*)` (the body takes `DR_MODE*`, `RECT*`) and fails
+  `libgpu_b.c` with `conflicting types` - filter it out of the union before applying it.
+ Both tools self-skip
   (already applied, name taken, still a stub, address twin), so `grep -h '^NAME func_'`
   over every `*_worker_output.md` in `~/.pi/agent/sessions/<project>/subagent-artifacts/`
   is safe, and it collects the proposals earlier rounds never landed: round 49 applied 177
