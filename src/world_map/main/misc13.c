@@ -4,6 +4,14 @@
 // game.h); duplicated here so the name is used, not the literal.
 #define WORLD_MAP_AREA_NONE (-1)
 
+// An angle is a 4096-step turn counter, and every sum of angles is wrapped back
+// into it. Owned by include/main/game.h (identical value); this unit does not
+// include it.
+#define WORLD_MAP_ANGLE_MASK 0xFFF
+// The quarter turn WorldMapBuildDirectionFromPositions adds to ratan2's result
+// (which is measured from +x) before rcos/rsin take it.
+#define WORLD_MAP_ANGLE_QUARTER_TURN 0x400
+
 
 // One 16-byte row of the world map tile-kind table. The kinds are read as s16
 // pairs over the byte row; a s16 member makes gcc re-form the base address.
@@ -23,6 +31,9 @@ typedef struct {
 #define WORLD_MAP_TILE_ZONE_COUNT 4
 #define WORLD_MAP_TILE_ZONE_CELLS 81
 #define WORLD_MAP_TILE_CELL_RECORD_SIZE 4
+// The shape field of a tile cell value: the low nibble WorldMapGetTileShape
+// returns, which WorldMapGetTileHalfIndex indexes the per-shape tables with.
+#define WORLD_MAP_TILE_SHAPE_MASK 0xF
 
 // World map tile cell: the zone grids (0x510 bytes, where WorldMapGetTileValue
 // reads its values at) followed by the 16x16 sub-cell values.
@@ -417,7 +428,7 @@ s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
     s32 sum;
 
     n = WorldMapGetTileValue(p);
-    k = (n & 0xF) * 4;
+    k = (n & WORLD_MAP_TILE_SHAPE_MASK) * 4;
     dx = (u16)(p->x / 8) - g_WorldMapTileShapeHalfOrigin[k];
     dz = (u16)(p->z / 8) - g_WorldMapTileShapeHalfOriginZ[k];
     sum = (dx * g_WorldMapTileShapeHalfAxis[k] >> 12) + (dz * g_WorldMapTileShapeHalfAxisZ[k] >> 12);
@@ -428,7 +439,7 @@ s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
 }
 
 s32 WorldMapGetTileShape(WorldMapPos* p) {
-    return WorldMapGetTileValue(p) & 0xF;
+    return WorldMapGetTileValue(p) & WORLD_MAP_TILE_SHAPE_MASK;
 }
 
 s32 WorldMapGetTileAttrBits10To15(WorldMapPos* p) {
@@ -502,7 +513,7 @@ void WorldMapBuildDirectionFromPositions(WorldMapPos* p0, WorldMapPos* p1, s32* 
 
     dx = p1->x - p0->x;
     dz = p1->z - p0->z;
-    *pAngle = (ratan2(dz, dx) + 0x400) & 0xFFF;
+    *pAngle = (ratan2(dz, dx) + WORLD_MAP_ANGLE_QUARTER_TURN) & WORLD_MAP_ANGLE_MASK;
     pVector[0] = rcos(*pAngle);
     pVector[2] = -rsin(*pAngle);
 }
