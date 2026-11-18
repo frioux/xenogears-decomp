@@ -48,7 +48,7 @@ typedef struct {
     /* 0x3C */ s32 posX; // the VECTOR func_800BCEAC hands TransMatrix
     /* 0x40 */ s32 posY;
     /* 0x44 */ s32 posZ;
-    /* 0x48 */ u8 unk48[0x4];
+    /* 0x48 */ u8 pad48[0x4]; // the unused 4th word of the VECTOR posX..posZ
     /* 0x4C */ u16 rotX; // the SVECTOR func_800BCEAC hands RotMatrix
     /* 0x4E */ u16 rotY; // advanced 0x10 per step
     /* 0x50 */ u16 rotZ;
@@ -115,9 +115,19 @@ typedef struct {
 } Misc32ActorSprite; // Size: 0xB0
 
 // One 0x18-byte sprite-list entry ResourceHelperGetSpriteList fills in (misc33
-// declares the same record as BattleSpritePart).
+// declares the same record as BattleSpritePart). func_800BD810 projects the four
+// corners (x,y) + (width,height) and copies the two ids into the primitive.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x18];
+    /* 0x00 */ u16 x;
+    /* 0x02 */ u16 y;
+    /* 0x04 */ u8 u;
+    /* 0x05 */ u8 v;
+    /* 0x06 */ u8 width;
+    /* 0x07 */ u8 height;
+    /* 0x08 */ u8 unk8[0x2];
+    /* 0x0A */ u16 texPage; // the word func_800BD810 copies into the primitive's +0x16
+    /* 0x0C */ u16 clutID; // and the one it copies into +0x0E
+    /* 0x0E */ u8 unkE[0xA];
 } Misc32SpritePart; // Size: 0x18
 
 // The effect task WorkListsAddTasks allocates for BattleAttachEffectSprite (0x1B0 bytes): the
@@ -134,11 +144,11 @@ typedef struct Misc32Task {
     /* 0x48 */ s32 posX;
     /* 0x4C */ s32 posY;
     /* 0x50 */ s32 posZ;
-    /* 0x54 */ s32 unk54;
+    /* 0x54 */ s32 pad54; // the unused 4th word of the VECTOR posX..posZ
     /* 0x58 */ s32 scaleX;
     /* 0x5C */ s32 scaleY;
     /* 0x60 */ s32 scaleZ;
-    /* 0x64 */ s32 unk64;
+    /* 0x64 */ s32 pad64; // the unused 4th word of the VECTOR scaleX..scaleZ
     /* 0x68 */ u8 unk68[0x10];
     /* 0x78 */ Misc32ActorSprite *pSprite; // the actor the effect is drawn for
     /* 0x7C */ u8 mirrored; // the actor sprite's flip bit; nonzero: posX steps the other way
