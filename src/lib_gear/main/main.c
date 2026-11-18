@@ -2728,7 +2728,285 @@ void LibGearInitialize(int capacity) {
     }
 }
 
+// Parked at 83.19% (objdiff: 2332 bytes against retail 2280). The frame is 200
+// against retail 208; pArchive takes s1 where retail has s4; the four offset
+// parameters are kept in registers instead of being reloaded from their
+// 0x68/0x70/0x78/0x80 slots; the prim/texture/material loops were not diffed.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E742C);
+/*
+// A gear model's resource record: a 0x14 byte header that describes the model,
+// followed by numModelListEntries 0x24 byte material records.
+typedef struct {
+    u16 unk0; // 0x00
+    u16 height; // 0x02
+    u16 width; // 0x04
+    u16 depth; // 0x06
+    u16 scale; // 0x08
+    u8 command; // 0x0A
+    u8 unkB; // 0x0B
+    u16 flags; // 0x0C
+    u8 numColorEntries; // 0x0E
+    u8 unkF; // 0x0F
+    u8 numTextures; // 0x10
+    u8 unk11; // 0x11
+    u8 numModelListEntries; // 0x12
+    u8 unk13; // 0x13
+} ModelResource; // Size: 0x14
+
+// The animation tables and the sound bank record a gear model is built against
+typedef struct {
+    u32 unk0; // 0x0
+    u32* pAnimTables; // pAnimTables[1] is the entry table, pAnimTables[2] the first wad // 0x4
+    Temp8* pSoundBank; // 0x8
+} ModelSource; // Size: 0xC
+
+// The archive entry a gear model is built from
+typedef struct {
+    u32 unk0; // 0x0
+    void* pMeshSource; // 0x4
+    ModelFileHeader* pModelFile; // 0x8
+    ModelJointEntry* pJointEntries; // 0xC
+    u32* pWadTable; // pWadTable[i + 2] is the vertex wad of material i // 0x10
+} ModelArchive; // Size: 0x14
+
+void LibGearAllocateColorEntries(Model* pModel);
+void func_8002DDE4(void* pMeshSource, s16 a1, s16 a2, s16 a3, s16 a4, s16 a5, s16 a6);
+void func_80030988(s16 a0, s16 a1, s32 a2, s32 a3);
+void func_801E1A14(Temp9* pEntry, void* pWad, s16 a2, s16 a3, s16 a4, s16 a5, s16 a6, s16 a7, s16 a8, s16 a9, s16 a10, s16 a11, s16 a12, s16 a13, u8 a14, u8 a15, u8 a16, u8 a17, u8 a18, u8 a19);
+void ResolveArchiveEntryPointers(void* pTable);
+s32 SoundFindSedsEntry(void* pEntry, s16 bank);
+void SoundAddSedsEntry(void* pEntry);
+
+// The heap copy of the model file being created, and the mesh slot it takes
+extern ModelFileHeader* D_801E8638;
+extern s32 D_801E8634;
+
+// Builds a gear model from its archive entry into g_LibGearModels[modelIndex].
+// offsetX..offsetW shift the material records' texture coordinates, and
+// pPosition, when given, places the root joint.
+void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive* pArchive, u16 offsetX, u16 offsetY, u16 offsetZ, u16 offsetW, SVECTOR* pPosition) {
+    Model* pModel;
+    ModelResource* pResource;
+    ModelFileHeader* pModelFile;
+    Temp8* pSoundBank;
+    u32* pAnimTables;
+    void* pMeshSource;
+    u8* pDataStart;
+    ModelJointEntry* pJointEntries;
+    u32* pWadTable;
+    u16* pCur;
+    s32 size;
+    s32 i;
+    s32 j;
+    s32 count;
+    s32 isFlat;
+    u16 resourceFlags;
+
+    HeapChangeCurrentUser(HEAP_USER_MASA, HEAP_CONTENT_NULL);
+
+    if (modelIndex >= MAX_MODELS || g_LibGearModels[modelIndex] != NULL) {
+        return;
+    }
+
+    pModel = HeapAlloc(sizeof(Model), 0x0);
+
+    if (!(flags & 1)) {
+        ResolveArchiveEntryPointers(pArchive);
+        ResolveArchiveEntryPointers(pArchive->pWadTable);
+    }
+
+    pModel->hasSedsEntry = 0;
+    pModel->pad63[0] = 0;
+
+    if (!(flags & 4)) {
+        ResolveArchiveEntryPointers(pSource);
+        ResolveArchiveEntryPointers(pSource->pSoundBank);
+        pAnimTables = pSource->pAnimTables;
+        ResolveArchiveEntryPointers(pAnimTables);
+        ResolveArchiveEntryPointers((void*)pAnimTables[1]);
+        pSoundBank = pSource->pSoundBank;
+        if (pSoundBank->pUnkC != pSoundBank->pUnk8) {
+            if (SoundFindSedsEntry(pSoundBank->pUnk8, 0) == 0) {
+                SoundAddSedsEntry(pSoundBank->pUnk8);
+                pModel->hasSedsEntry = 1;
+            }
+        }
+    }
+
+    pWadTable = pArchive->pWadTable;
+    pResource = (ModelResource*)pWadTable[1];
+    pMeshSource = pArchive->pMeshSource;
+    pDataStart = (u8*)pArchive->pModelFile;
+    pJointEntries = pArchive->pJointEntries;
+    size = (u8*)pJointEntries - pDataStart;
+    g_LibGearModels[modelIndex] = pModel;
+
+    pModel->height = pResource->height;
+    pModel->width = pResource->width;
+    pModel->depth = pResource->depth;
+    pModel->commands[0] = pResource->command;
+    resourceFlags = pResource->flags;
+    pModel->flags = resourceFlags;
+    if (resourceFlags & 0x200) {
+        func_80030988(2, 2, 0x40, 0x40);
+    }
+
+    if (!(flags & 1)) {
+        isFlat = 0;
+        if (!(flags & 0x40)) {
+            isFlat = (pModel->flags & 0x4) == 0;
+        }
+        func_8002DDE4(pMeshSource, (s16)isFlat, (s16)offsetX, (s16)offsetY, (s16)isFlat, (s16)offsetZ, (s16)offsetW);
+
+        pModelFile = HeapAlloc(size, 1);
+        D_801E8638 = pModelFile;
+        memcpy(pModelFile, pDataStart, size);
+
+        D_801E8634 = 0;
+        while (D_801E8634 < MAX_MODEL_MESHES) {
+            if (g_LibGearMeshes[D_801E8634].pParts == NULL) {
+                break;
+            }
+            D_801E8634++;
+        }
+
+        LibGearInitializeMesh(D_801E8638, &g_LibGearMeshes[D_801E8634]);
+    }
+
+    pModel->pMesh = &g_LibGearMeshes[D_801E8634];
+
+    if (flags & 0x40) {
+        pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 0, 0, 0, 0, 0, 0);
+    } else if (pModel->flags & 0x4) {
+        pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 2, 0, 0, 0, 0, 0);
+    } else {
+        pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 2, 1, (s16)offsetX, (s16)offsetY, (s16)offsetZ, (s16)offsetW);
+    }
+
+    if (pPosition != NULL) {
+        pModel->pSkeleton->translation.x = pPosition->vx;
+        pModel->pSkeleton->translation.y = pPosition->vy;
+        pModel->pSkeleton->translation.z = pPosition->vz;
+    }
+
+    if (flags & 1) {
+        pModel->unk90 = -1;
+    } else {
+        pModel->unk90 = offsetX;
+        pModel->unk92 = offsetY;
+        pModel->blendOffsetX = offsetZ;
+        pModel->blendOffsetY = offsetW;
+    }
+
+    if (!(flags & 4) && !(flags & 0x80)) {
+        pModel->unkAC = pSource;
+    } else {
+        pModel->unkAC = NULL;
+    }
+
+    for (i = 0; i < 2; i++) {
+        SetPolyFT4(&pModel->polys[i]);
+        SetSemiTrans(&pModel->polys[i], 1);
+
+        pModel->polys[i].r0 = 0x40;
+        pModel->polys[i].g0 = 0x40;
+        pModel->polys[i].b0 = 0x40;
+        pModel->polys[i].clut = GetClut(0x100, 0xF3);
+        pModel->polys[i].tpage = GetTPage(0, 2, 0x280, 0x100);
+
+        setUV4(
+            &pModel->polys[i],
+            0x0, 0xE0,
+            0xF, 0xE0,
+            0x0, 0xEF,
+            0xF, 0xEF
+        );
+    }
+
+    pModel->scale = pResource->scale;
+    pModel->numColorEntries = pResource->numColorEntries;
+    LibGearAllocateColorEntries(pModel);
+    pModel->numTextures = pResource->numTextures;
+
+    if (pModel->numTextures != 0) {
+        pModel->pTextures = HeapAlloc(pModel->numTextures * sizeof(Temp8), 0x0);
+        for (i = 0; i < pModel->numTextures; i++) {
+            pModel->pTextures[i].isLoaded = 0;
+            pModel->pTextures[i].pUnk4 = NULL;
+            pModel->pTextures[i].pUnk8 = NULL;
+            pModel->pTextures[i].pUnkC = NULL;
+        }
+    }
+
+    pModel->numModelListEntries = pResource->numModelListEntries;
+    pCur = (u16*)(pResource + 1);
+
+    if (pModel->numModelListEntries != 0) {
+        pModel->pModelListEntries = HeapAlloc(pModel->numModelListEntries * sizeof(Temp9), 0x0);
+
+        for (i = 0; i < pModel->numModelListEntries; i++) {
+            count = (s16)pCur[0x11];
+            *(u16*)pModel->pModelListEntries[i].unk0 = *pCur++;
+
+            func_801E1A14(
+                &pModel->pModelListEntries[i],
+                (void*)pWadTable[i + 2],
+                *(s16*)pCur++,
+                *(s16*)pCur++,
+                *(s16*)pCur++,
+                *(s16*)pCur++,
+                *(s16*)pCur++,
+                count,
+                (s16)(offsetX + *pCur++),
+                (s16)(offsetY + *pCur++),
+                *(s16*)pCur++,
+                *(s16*)pCur++,
+                (s16)(offsetZ + *pCur++),
+                (s16)offsetY,
+                *(u8*)pCur++,
+                *(u8*)pCur++,
+                *(u8*)pCur++,
+                *(u8*)pCur++,
+                *(u8*)pCur++,
+                *(u8*)pCur++
+            );
+            pCur++;
+
+            for (j = 0; j < count; j++) {
+                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x6) = *pCur++;
+                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0xE) = *pCur++;
+                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x0) = *pCur++;
+                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x2) = *pCur++;
+                *(u16*)((u8*)pModel->pModelListEntries[i].unk18 + j * 0x10 + 0x4) = *pCur++;
+            }
+        }
+    }
+
+    pModel->unk22[0] = 0;
+    pModel->doUpdate = 1;
+    pModel->modelSlot = modelIndex;
+
+    if (!(flags & 0x40)) {
+        pModel->pSoundBank1 = pSource->pSoundBank;
+        func_801E3534(pModel, (s32)&g_LibGearJointObjectPool, (u32)&pSource->pAnimTables[2], pSource->pAnimTables[1]);
+        LibGearSetAnimation(pModel, pModel, (s32)&g_LibGearJointObjectPool, 0);
+    }
+
+    if (flags & 2) {
+        pModel->pModelFile = NULL;
+    } else {
+        ModelFileTrimHeapBlock(D_801E8638);
+        ModelUnresolvePointers(D_801E8638);
+        size = (s32)HeapGetNextBlockHeader((HeapBlock*)D_801E8638);
+        pModelFile = HeapAlloc(size, 0x0);
+        memcpy(pModelFile, D_801E8638, size);
+        HeapFree(D_801E8638);
+        LibGearFreeModelMesh(pModel->pMesh, 0);
+        LibGearInitializeMesh(pModelFile, pModel->pMesh);
+        pModel->pModelFile = pModelFile;
+    }
+}
+*/
 
 void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4) {
     int i;
