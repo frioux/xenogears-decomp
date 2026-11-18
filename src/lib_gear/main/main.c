@@ -15,6 +15,11 @@
 // From this id up the model's queued command names the animation
 #define LIBGEAR_ANIM_ID_QUEUED_BASE 0xFE
 
+// Animation ids below this one index Model::pAnimTable directly; from it up they come from
+// the secondary wad, at index id - LIBGEAR_ANIM_WAD_INDEX_OFFSET
+#define LIBGEAR_ANIM_ID_WAD_BASE 0x50
+#define LIBGEAR_ANIM_WAD_INDEX_OFFSET 0x4E
+
 // A byte of Model::commands: low 7 bits index the entry tables, bit 7 is a flag
 #define LIBGEAR_MODEL_COMMAND_ID_MASK 0x7F
 #define LIBGEAR_MODEL_COMMAND_FLAG 0x80
@@ -30,6 +35,9 @@
 #define LIBGEAR_JOINT_INDEX_NONE 0xFFFF // the joint has no model part
 #define LIBGEAR_PARENT_INDEX_NONE 0xFFFF // the joint is the root
 
+// Model::parentModelSlot value meaning the model inherits no parent transform
+#define LIBGEAR_MODEL_SLOT_NONE 0xFF
+
 // LibGearReleaseJointObjects flags: which queued object to release
 #define LIBGEAR_JOINT_RELEASE_ROTATION 0x1
 #define LIBGEAR_JOINT_RELEASE_TRANSLATION 0x2
@@ -39,10 +47,18 @@
 #define LIBGEAR_JOINT_FLAG_ADD 0x20 // add to the joint's value instead of setting it
 #define LIBGEAR_JOINT_FLAG_RECURSE 0x80 // apply to the joint's children too
 
+// Which of the joint's vectors LibGearSetJointTransform drives; anything else is the scale
+#define LIBGEAR_JOINT_CHANNEL_MASK 0x7
+#define LIBGEAR_JOINT_CHANNEL_ROTATION 0
+#define LIBGEAR_JOINT_CHANNEL_TRANSLATION 1
+
 // Interpolation curves LibGearGetInterpolationFunc picks by type; 0 (the default) is the sine
 #define LIBGEAR_INTERPOLATE_RISE 1
 #define LIBGEAR_INTERPOLATE_FALL 2
 #define LIBGEAR_INTERPOLATE_FALL_CLAMPED 3
+
+// Top of the frame range LibGearInterpolateRise and LibGearInterpolateFallClamped work in
+#define LIBGEAR_INTERPOLATE_FRAME_MAX 32
 
 // Frames UnkInner1::numFrames holds at most
 #define LIBGEAR_COLOR_ENTRY_FRAME_MAX 7
@@ -1690,7 +1706,7 @@ s16 LibGearInterpolateSine(s16 angle, s16 divisor, s16 offset) {
 s16 LibGearInterpolateRise(s16 a, s16 b, s16 c) {
     s16 result = c + a / b;
 
-    if (result > 0x20) {
+    if (result > LIBGEAR_INTERPOLATE_FRAME_MAX) {
         return -1;
     } else {
         return result;
@@ -1702,7 +1718,7 @@ s16 LibGearInterpolateFall(s16 a, s16 b, s16 c) {
 }
 
 s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
-    s16 result = 0x20 - a / b;
+    s16 result = LIBGEAR_INTERPOLATE_FRAME_MAX - a / b;
 
     if (result < c) {
         result = c;
@@ -2057,10 +2073,10 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
             pModel->commands[pModel->commandCount] = pSource->modelSlot;
             pModel->commandArgs[pModel->commandCount] = arg3;
         } else {
-            if (arg3 < 0x50) {
+            if (arg3 < LIBGEAR_ANIM_ID_WAD_BASE) {
                 pModel->animValue = ((u32*)pSource->pAnimTable)[arg3];
             } else {
-                pModel->animValue = ((u32*)((Temp8*)pSource->unkC)->pUnk4)[arg3 - 0x4E];
+                pModel->animValue = ((u32*)((Temp8*)pSource->unkC)->pUnk4)[arg3 - LIBGEAR_ANIM_WAD_INDEX_OFFSET];
             }
 
             pModel->unk42 = 0;
@@ -2153,7 +2169,7 @@ void LibGearUpdateModelAttachment(Model* pModel) {
         gte_stlvnl(&pModel->pSkeleton[0].localTransform.t[0]);
         gte_stlvnl(&pModel->pSkeleton[0].translation.x);
     } else {
-        pModel->parentModelSlot = 0xFF;
+        pModel->parentModelSlot = LIBGEAR_MODEL_SLOT_NONE;
     }
 }
 
@@ -3139,7 +3155,7 @@ void LibGearSetJointTransform(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x
     ModelJoint* pChild;
     int i;
 
-    if ((flags & 0x7) == 0) {
+    if ((flags & LIBGEAR_JOINT_CHANNEL_MASK) == LIBGEAR_JOINT_CHANNEL_ROTATION) {
         if (flags & LIBGEAR_JOINT_FLAG_ADD) {
             pJoint->rotation.vx += x;
             pJoint->rotation.vy += y;
@@ -3149,7 +3165,7 @@ void LibGearSetJointTransform(Model* pModel, ModelJoint* pJoint, u8 flags, s16 x
             pJoint->rotation.vy = y;
             pJoint->rotation.vz = z;
         }
-    } else if ((flags & 0x7) == 1) {
+    } else if ((flags & LIBGEAR_JOINT_CHANNEL_MASK) == LIBGEAR_JOINT_CHANNEL_TRANSLATION) {
         if (flags & LIBGEAR_JOINT_FLAG_ADD) {
             pJoint->translation.x += x;
             pJoint->translation.y += y;
@@ -3554,7 +3570,7 @@ void LibGearRenderFrame(MATRIX* pMatrix, s32 arg1, s32* pOT, s32 arg3, s32 arg4)
     }
 
     for (i = 0; i < MAX_MODELS; i++) {
-        if (g_LibGearModels[i] != NULL && g_LibGearModels[i]->parentModelSlot < 0xFF) {
+        if (g_LibGearModels[i] != NULL && g_LibGearModels[i]->parentModelSlot < LIBGEAR_MODEL_SLOT_NONE) {
             LibGearUpdateModelAttachment(g_LibGearModels[i]);
         }
     }
