@@ -22,6 +22,11 @@
 #define MENU_GLYPH_TEXTURE_WIDTH 64
 #define MENU_GLYPH_TEXTURE_HEIGHT 32
 
+// One glyph's bitmap, the shape MenuCompressGlyphRows walks: 16 rows of 16
+// one-byte pixels, each row compressed in place into its first 12 bytes.
+#define MENU_GLYPH_ROW_COUNT 16
+#define MENU_GLYPH_ROW_BYTES 16
+
 // Digits MenuDrawSlotResourceSprites draws of each of the two slot stats it
 // formats: MenuParseNumberToDigits leaves the value in the tail of
 // g_Menu->digits, any leading digit marked MENU_DIGIT_NONE.
@@ -624,19 +629,19 @@ void MenuClearGlyphTexture(void) {
 void MenuCompressGlyphRows(u8* p) {
     int i;
 
-    for (i = 0; i < 0x10; i++) {
-        p[i * 0x10 + 0x0] = p[i * 0x10 + 0x0];
-        p[i * 0x10 + 0x1] = p[i * 0x10 + 0x1] | p[i * 0x10 + 0x2];
-        p[i * 0x10 + 0x2] = p[i * 0x10 + 0x3];
-        p[i * 0x10 + 0x3] = p[i * 0x10 + 0x4];
-        p[i * 0x10 + 0x4] = p[i * 0x10 + 0x5] | p[i * 0x10 + 0x6];
-        p[i * 0x10 + 0x5] = p[i * 0x10 + 0x7];
-        p[i * 0x10 + 0x6] = p[i * 0x10 + 0x8];
-        p[i * 0x10 + 0x7] = p[i * 0x10 + 0x9] | p[i * 0x10 + 0xA];
-        p[i * 0x10 + 0x8] = p[i * 0x10 + 0xB];
-        p[i * 0x10 + 0x9] = p[i * 0x10 + 0xC];
-        p[i * 0x10 + 0xA] = p[i * 0x10 + 0xD] | p[i * 0x10 + 0xE];
-        p[i * 0x10 + 0xB] = p[i * 0x10 + 0xF];
+    for (i = 0; i < MENU_GLYPH_ROW_COUNT; i++) {
+        p[i * MENU_GLYPH_ROW_BYTES + 0x0] = p[i * MENU_GLYPH_ROW_BYTES + 0x0];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x1] = p[i * MENU_GLYPH_ROW_BYTES + 0x1] | p[i * MENU_GLYPH_ROW_BYTES + 0x2];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x2] = p[i * MENU_GLYPH_ROW_BYTES + 0x3];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x3] = p[i * MENU_GLYPH_ROW_BYTES + 0x4];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x4] = p[i * MENU_GLYPH_ROW_BYTES + 0x5] | p[i * MENU_GLYPH_ROW_BYTES + 0x6];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x5] = p[i * MENU_GLYPH_ROW_BYTES + 0x7];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x6] = p[i * MENU_GLYPH_ROW_BYTES + 0x8];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x7] = p[i * MENU_GLYPH_ROW_BYTES + 0x9] | p[i * MENU_GLYPH_ROW_BYTES + 0xA];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x8] = p[i * MENU_GLYPH_ROW_BYTES + 0xB];
+        p[i * MENU_GLYPH_ROW_BYTES + 0x9] = p[i * MENU_GLYPH_ROW_BYTES + 0xC];
+        p[i * MENU_GLYPH_ROW_BYTES + 0xA] = p[i * MENU_GLYPH_ROW_BYTES + 0xD] | p[i * MENU_GLYPH_ROW_BYTES + 0xE];
+        p[i * MENU_GLYPH_ROW_BYTES + 0xB] = p[i * MENU_GLYPH_ROW_BYTES + 0xF];
     }
 }
 s32 MenuGetGlyphKromAddress(u8* p) {
