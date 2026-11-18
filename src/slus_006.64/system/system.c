@@ -247,8 +247,17 @@ void SystemTransferPaletteToVRAM(short xDest, short yDest) {
     g_SystemPalette2 = GetClut(xDest + SYSTEM_PALETTE_CLUT_COLOR_COUNT, yDest);
 }
 
+// A string bank: two header words, then one u16 offset per entry, each
+// relative to the start of the bank. The entry itself is the string.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 offsets[1];
+} SystemStringBank; // Size: 0x6
+
 void* GetStringEntry(void* stringData, u32 entry) {
-    return stringData + ((u16 *)stringData)[entry+2];
+    SystemStringBank* pBank = stringData;
+    return (u8*)pBank + pBank->offsets[entry];
 }
 
 // One dialog's window size
