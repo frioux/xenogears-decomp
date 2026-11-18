@@ -848,7 +848,7 @@ void func_8001F6B0(SpriteData* pSpriteData) {
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001F6B0);
 
 void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
-    u8* pFrames;
+    u16* pFrameOffsets;
     u8* pBlock;
     u8* pEntry;
     u8 flags;
@@ -859,8 +859,8 @@ void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPack
     s32 dir;
     s32 i;
 
-    pFrames = pAnimPackage->pFrames;
-    pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
+    pFrameOffsets = pAnimPackage->pFrames;
+    pBlock = (u8*)(pFrameOffsets[index] + (mem_addr)pFrameOffsets);
     flags = *pBlock;
     i = 0;
     unkFlag = flags & 0x80;
@@ -878,14 +878,14 @@ void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPack
                         SpriteClearDirTransforms(pSpriteData);
                     }
                     if (entryFlags & 0x20) {
-                        *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + dir * 8) = *pEntry++;
-                        *(u8*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 1)) = *pEntry++;
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationX = *pEntry++;
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationY = *pEntry++;
                     }
                     if (entryFlags & 0x10) {
                         rotZ = *pEntry++ << 4;
-                        *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = rotZ;
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = rotZ;
                     } else {
-                        *(s16*)((mem_addr)pSpriteData->pBase->pDirTransforms + (dir * 8 + 6)) = 0;
+                        (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->rotationZ = 0;
                     }
                 } else {
                     if (entryFlags & 1) {
