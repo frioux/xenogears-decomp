@@ -19,6 +19,17 @@
 // Number of steps a stepping actor rotation takes; curDoorStep counts them
 #define FIELD_DOOR_STEP_COUNT 31
 
+// Angle each of those steps moves the actor's Y rotation by
+#define FIELD_DOOR_STEP_ANGLE 0x20
+
+// g_FieldImageRects/g_FieldImageDestX/g_FieldImageDestY hold this many entries
+#define FIELD_IMAGE_SLOT_COUNT 32
+
+// FieldScene.unk48 bits: SetSceneEncounterFlag sets the first,
+// SetRandomEncounterFlags sets both
+#define FIELD_SCENE_ENCOUNTER_FLAG 0x8000
+#define FIELD_SCENE_RANDOM_ENCOUNTER_FLAGS 0xC000
+
 // StepActorMoveOn/Off read a direction angle (0..0xFFF) here; these two step
 // along Y instead, decreasing / increasing it
 #define FIELD_MOVE_DIRECTION_Y_DECREASE 0x1000
@@ -84,16 +95,17 @@ void FieldScriptVMHandlerSetClearColor(void) {
 void FieldScriptVMHandlerEmpty(void) {
 }
 
-extern RECT g_FieldImageRects[32];
+// g_FieldImageDrawIndex wraps within this many queued image rects
+extern RECT g_FieldImageRects[FIELD_IMAGE_SLOT_COUNT];
 extern s16 D_800AF5EA[]; // Part of g_FieldImageRects[]: the y of each RECT
 extern s16 D_800AF5EC[]; // Part of g_FieldImageRects[]: the w of each RECT
 extern s16 D_800AF5EE[]; // Part of g_FieldImageRects[]: the h of each RECT
-extern s16 g_FieldImageDestX[32];
-extern s16 g_FieldImageDestY[32];
+extern s16 g_FieldImageDestX[FIELD_IMAGE_SLOT_COUNT];
+extern s16 g_FieldImageDestY[FIELD_IMAGE_SLOT_COUNT];
 extern u_short g_FieldImageDrawIndex;
 
 void FieldMoveOrClearImageRect(int x, int y, int w, int h, int texX, int texY, int clear) {
-    int index = g_FieldImageDrawIndex & 0x1F;
+    int index = g_FieldImageDrawIndex & (FIELD_IMAGE_SLOT_COUNT - 1);
 
     g_FieldImageRects[index].x = x;
     D_800AF5EA[index * 4] = y;
@@ -694,7 +706,7 @@ void FieldScriptVMClearSceneEncounterFlag(void) {
 }
 
 void FieldScriptVMSetSceneEncounterFlag(void) {
-    g_Scene.unk48 |= 0x8000;
+    g_Scene.unk48 |= FIELD_SCENE_ENCOUNTER_FLAG;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
@@ -710,7 +722,7 @@ void FieldScriptVMSetRandomEncounterFlags(void) {
     g_FieldControl.isRandomEncountersEnabled = -1;
     g_FieldRandomEncounterFlag[0] = 1;
     g_FieldCompassDisabled[0] = 1;
-    g_Scene.unk48 |= 0xC000;
+    g_Scene.unk48 |= FIELD_SCENE_RANDOM_ENCOUNTER_FLAGS;
     if ((g_FieldMapChangeGate == 0) || (g_FieldEntryStateGate == 0)) {
         g_FieldScriptVMStopFlag = 1; // Stop script VM execution?
         g_FieldScriptVMCurActor->scriptInstructionPointer--;
@@ -811,9 +823,9 @@ void FieldScriptVMHandlerStepActorRotationOn(void) {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < FIELD_DOOR_STEP_COUNT) {
                 if (SCRIPT_READ_U8_REL(1) == 0) {
-                    g_FieldActors[g_FieldCurActorIndex].rotation.y += 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y += FIELD_DOOR_STEP_ANGLE;
                 } else {
-                    g_FieldActors[g_FieldCurActorIndex].rotation.y -= 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y -= FIELD_DOOR_STEP_ANGLE;
                 }
             } else {
                 g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x13 = 0x1;
@@ -839,9 +851,9 @@ void FieldScriptVMHandlerStepActorRotationOff(void) {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < FIELD_DOOR_STEP_COUNT) {
                 if (SCRIPT_READ_U8_REL(1) == 0) {
-                    g_FieldActors[g_FieldCurActorIndex].rotation.y -= 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y -= FIELD_DOOR_STEP_ANGLE;
                 } else {
-                    g_FieldActors[g_FieldCurActorIndex].rotation.y += 0x20;
+                    g_FieldActors[g_FieldCurActorIndex].rotation.y += FIELD_DOOR_STEP_ANGLE;
                 }
             } else {
                 g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x13 = 0;
