@@ -900,14 +900,14 @@ void func_800739C0(void) {
                 updateAngle = 0x200;
                 if (pActorData->scriptFlags.flags & 0x1800) {
                     updateAngle = (pActorData->flags & 0x2000) ? g_FieldActorUpdateAngle
-                                                              : pActorData->unk11E;
+                                                              : pActorData->updateAngle;
                     targetAngle = pActorData->rotation.vy;
                 } else {
                     targetAngle = (((pActorData->curWalkmeshTriMaterial >> 11) - 2) & 7) << 9;
                 }
             } else {
                 updateAngle = (pActorData->flags & 0x2000) ? g_FieldActorUpdateAngle
-                                                           : pActorData->unk11E;
+                                                           : pActorData->updateAngle;
                 targetAngle = pActorData->rotation.vy;
             }
             pActorData->rotation.vz = FieldMathUpdateAngle(pActorData->rotation.vz,
@@ -1339,12 +1339,12 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
         texY = D_800B1F78[spriteId].texY;
         texX = D_800B1F78[spriteId].texX;
         if (clutIndex == 0) {
-            if (g_FieldActors[actorIndex].unk5A & 1) {
+            if (g_FieldActors[actorIndex].spriteFlags & 1) {
                 SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
             }
             pSpriteData = SpriteAllocFromAnimFile(pAnimFile, 0x100, (s16)(spriteId + 0x1E0), texX, texY, 0x40);
         } else {
-            if (g_FieldActors[actorIndex].unk5A & 1) {
+            if (g_FieldActors[actorIndex].spriteFlags & 1) {
                 SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
             }
             pSpriteData = SpriteAllocFromAnimFileWithClut(pAnimFile, clutIndex * 0x10 + 0x100, (s16)(spriteId + 0x1E0),
@@ -1352,7 +1352,7 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
         }
         g_FieldActors[actorIndex].pSpriteData = pSpriteData;
     } else {
-        if (g_FieldActors[actorIndex].unk5A & 1) {
+        if (g_FieldActors[actorIndex].spriteFlags & 1) {
             SpriteDestroy(g_FieldActors[actorIndex].pSpriteData);
         }
         if (modelKind == 1) {
@@ -1366,7 +1366,7 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
         g_FieldActors[actorIndex].pSpriteData = pSpriteData;
     }
 
-    g_FieldActors[actorIndex].unk5A |= 1;
+    g_FieldActors[actorIndex].spriteFlags |= 1;
     func_8001F5BC(pSpriteData, 0, &frameWidth, &frameHeight, &frameDepth);
     SpriteSetCoordShift(pSpriteData, 3);
 

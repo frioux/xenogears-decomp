@@ -434,7 +434,7 @@ void func_8008004C(u_long* pOt, int ctx) {
                 }
                 if (g_FieldP1ButtonsReleased & CTRL_BTN_CIRCLE) {
                     g_FieldTextBoxes[i].cursor.visibility = -1;
-                    g_FieldActors[g_FieldTextBoxes[i].ownerActorID].pActorData->unk81 =
+                    g_FieldActors[g_FieldTextBoxes[i].ownerActorID].pActorData->dialogCursorPosition =
                         (u_char)g_FieldTextBoxes[i].cursor.curPosition +
                         (u_char)g_FieldTextBoxes[i].cursor.startPosition;
                     SystemStringClearStateFlags(pString);
@@ -460,7 +460,7 @@ void func_8008004C(u_long* pOt, int ctx) {
                     if (g_FieldTextBoxes[i].windowOpenTimer == 0) {
                         if ((g_FieldP1ButtonsReleased & CTRL_BTN_CIRCLE) && g_FieldTextBoxes[i].order == 0) {
                             g_FieldTextBoxes[i].cursor.visibility = -1;
-                            g_FieldActors[g_FieldTextBoxes[i].ownerActorID].pActorData->unk81 =
+                            g_FieldActors[g_FieldTextBoxes[i].ownerActorID].pActorData->dialogCursorPosition =
                                 (u_char)g_FieldTextBoxes[i].cursor.curPosition +
                                 (u_char)g_FieldTextBoxes[i].cursor.startPosition;
                             SystemStringClearStateFlags((FieldTextBoxString*)g_FieldTextBoxes[i]._pad);

@@ -263,28 +263,28 @@ typedef struct {
     /* 0x30 */ VECTOR moveModified; // Step / delta?
     /* 0x40 */ VECTOR move;
     /* 0x50 */ VECTOR curTriNormal; // Surface normal
-    /* 0x60 */ SVECTOR unk60;
+    /* 0x60 */ SVECTOR positionOffset; // Added to position to build a target point
     /* 0x68 */ SVEC prevPosition;
-    /* 0x6E  */ u_short unk6E;
-    /* 0x70  */ u_short unk70;
+    /* 0x6E  */ u_short stuckFrameCount; // Frames run without moving; gives up at 0x41
+    /* 0x70  */ u_short hideModeParam; // Argument of the set-hide-mode script instruction
     /* 0x72  */ u_short curYPos;
     /* 0x74  */ u_char canInteract;
     /* 0x75  */ u_char parentActorId;
     /* 0x76  */ u_short moveSpeed;
     /* 0x78  */ short scriptPointersStack[SCRIPT_MAX_STACK_SIZE];
     /* 0x80  */ u_char faceId;
-    /* 0x81  */ u_char unk81;
+    /* 0x81  */ u_char dialogCursorPosition; // Column chosen in the text box, 0xFF = none
     /* 0x82  */ u_char dialogWidth;
     /* 0x83  */ u_char dialogHeight;
     /* 0x84  */ u_int dialogFlags;
     /* 0x88  */ short dialogPixelWidth;
     /* 0x8A  */ short dialogPixelHeight;
-    /* 0x90  */ ActorScriptSlot scripts[ACTOR_MAX_NUM_SCRIPTS];
+    /* 0x8C  */ ActorScriptSlot scripts[ACTOR_MAX_NUM_SCRIPTS];
     /* 0xCC  */ u_short scriptInstructionPointer;
     /* 0xCE  */ u_char curScriptIndex;
-    /* 0xCF  */ u_char unkCF; // Unknown event slot id
-    /* 0xD0  */ VECTOR unkD0;
-    /* 0xE0  */ short unkE0;
+    /* 0xCF  */ u_char waitScriptIndex; // Slot of the script this actor started and waits for
+    /* 0xD0  */ VECTOR moveStep;
+    /* 0xE0  */ short moveFrameTotal;
     /* 0xE2  */ u_char curDoorStep;
     /* 0xE3  */ u_char unkE3; // timer?
     /* 0xE4  */ short characterId;
@@ -293,29 +293,29 @@ typedef struct {
     /* 0xEA  */ short unkAnimationId;
     /* 0xEC  */ short unkEC;
     /* 0xEE  */ short unkEE;
-    /* 0xF0  */ int unkF0;
+    /* 0xF0  */ int fallSpeed; // 16.16, accumulated by gravity and clamped to the material's limit
     /* 0xF4  */ u_short scaleX;
     /* 0xF6  */ u_short scaleY;
     /* 0xF8  */ u_short scaleZ;
     /* 0xFA  */ short unkFA;
-    /* 0xFC  */ u_char unkFC;
-    /* 0xFD  */ u_char unkFD;
-    /* 0xFE  */ u_char unkFE;
-    /* 0xFF  */ u_char unkFF;
-    /* 0x100 */ u_char unk100;
-    /* 0x101 */ u_char unk101;
-    /* 0x102 */ short unk102;
+    /* 0xFC  */ u_char red;
+    /* 0xFD  */ u_char green;
+    /* 0xFE  */ u_char blue;
+    /* 0xFF  */ u_char red2;
+    /* 0x100 */ u_char green2;
+    /* 0x101 */ u_char blue2;
+    /* 0x102 */ short frameCounter;
     /* 0x104 */ ActorRotation rotation; // 0xFFF mask: rotation
-    /* 0x10A */ u_short unk10A;
-    /* 0x10C */ u_char unk10C;
-    /* 0x10D */ u_char unk10D;
-    /* 0x110 */ void* unk110;
-    /* 0x114 */ void* unk114;
-    /* 0x118 */ void* unk118;
-    /* 0x11C */ short unk11C;
-    /* 0x11E */ short unk11E;
-    /* 0x120 */ void* unk120; // Special animation file?
-    /* 0x124 */ short unk124; // Archive index of special anim file?
+    /* 0x10A */ u_short soundId;
+    /* 0x10C */ u_char soundVolume;
+    /* 0x10D */ u_char soundState; // 0xFF = no proximity sound for this actor
+    /* 0x110 */ void* pTargetTrack; // FieldActorTargetTrack, 0xC bytes on the heap
+    /* 0x114 */ void* pScriptArgs; // FieldScriptArgs, 0x10 bytes on the heap
+    /* 0x118 */ void* pScriptWorkWords; // One u_int work word per model script
+    /* 0x11C */ short lockedRotationY; // rotation.vy frozen when movement is disabled
+    /* 0x11E */ short updateAngle; // Per-frame angle step of FieldMathUpdateAngle
+    /* 0x120 */ void* pSpecialAnimFile;
+    /* 0x124 */ short specialAnimArchiveIndex; // -1 when no special anim file is loaded
     /* 0x126 */ u_char unk126;
     /* 0x127 */ u_char spriteId;
     /* 0x128 */ short modelAnimation;
@@ -349,7 +349,7 @@ typedef struct {
     /* 0x50 */ SVEC rotation;
     /* 0x56 */ short flags;
     /* 0x58 */ short status;
-    /* 0x5A */ u_short unk5A;
+    /* 0x5A */ u_short spriteFlags; // Bit 0: a sprite model is attached and must be destroyed first
 } FieldActor;
 
 // Model space bounding box the actor's model data keeps a pointer to

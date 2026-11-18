@@ -19,16 +19,16 @@ void FieldFreeActorData(int actorIndex) {
     if (actorIndex < g_FieldActiveActorCount) {
         pActor = g_FieldActors[actorIndex].pActorData;
         if (pActor->flags134 & 0x80) {
-            HeapFree(pActor->unk110);
+            HeapFree(pActor->pTargetTrack);
         }
         if (pActor->flags12C_0xD) {
-            HeapFree(pActor->unk114);
+            HeapFree(pActor->pScriptArgs);
         }
         if (g_FieldActors[actorIndex].status & 0x2000) {
-            HeapFree(pActor->unk118);
+            HeapFree(pActor->pScriptWorkWords);
         }
-        if (pActor->unk124 != -1) {
-            HeapFree(pActor->unk120);
+        if (pActor->specialAnimArchiveIndex != -1) {
+            HeapFree(pActor->pSpecialAnimFile);
         }
         HeapFree(pActor);
         HeapFree(g_FieldActors[actorIndex].pShadow);
@@ -76,7 +76,7 @@ extern s32 g_FieldModelScriptWordIndex;
 u_int FieldPopActorScriptWorkWord(void) {
     ActorData* pActor = g_FieldActors[g_FieldModelScriptActorIndex].pActorData;
 
-    return ((u_int*)pActor->unk118)[g_FieldModelScriptWordIndex++];
+    return ((u_int*)pActor->pScriptWorkWords)[g_FieldModelScriptWordIndex++];
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
@@ -116,17 +116,17 @@ void func_80080F44(int actorIndex) {
         for (i = 0; i < numWords; i++) {
             *pData++ = 0;
         }
-        g_FieldActors[actorIndex].unk5A = 0;
+        g_FieldActors[actorIndex].spriteFlags = 0;
         do {
             pActor = g_FieldActors[actorIndex].pActorData;
             pFieldActor = &g_FieldActors[actorIndex];
             if (pFieldActor->status & 0x2000) {
                 pModelData = pFieldActor->pModelData;
-                pActor->unk118 = HeapAlloc(0x80, 0);
+                pActor->pScriptWorkWords = HeapAlloc(0x80, 0);
                 if (pModelData->pScripts != NULL) {
                     for (i = 0; i < pModelData->pScripts->numScripts; i++) {
                         pModelData->pScripts->pScripts[i].pCallback = FieldPopActorScriptWorkWord;
-                        ((u_int*)pActor->unk118)[i] = 0;
+                        ((u_int*)pActor->pScriptWorkWords)[i] = 0;
                     }
                 }
             }
@@ -439,7 +439,7 @@ int FieldCheckActorInZone2D(IVEC3* pOffset, ActorData* pActor) {
         return 0;
     }
     actorPosition2D = (CONV_TO_GTE(pActor->position.vx + pOffset->x) << 0x10) + CONV_TO_GTE(pActor->position.vz + pOffset->z);
-    pZone = pActor->unk114;
+    pZone = pActor->pScriptArgs;
     triggerPos1 = (pZone->z0 << 0x10) + pZone->x0;
     triggerPos2 = (pZone->z1 << 0x10) + pZone->x1;
     triggerPos3 = (pZone->z2 << 0x10) + pZone->x2;
@@ -483,7 +483,7 @@ typedef struct {
     /* 0x1C */ s32 gravity;
 } SpritePhysicsView; // Size: 0x20
 
-// pActor->unk110: 0xC bytes holding the copy of the tracked actor's rotation
+// pActor->pTargetTrack: 0xC bytes holding the copy of the tracked actor's rotation
 // the deltas below are taken against, then the last measured distance.
 typedef struct {
     /* 0x0 */ u_short rotationX;
@@ -502,7 +502,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80082620);
      func_8008110C passes &g_FieldActors[i] and its 0x4C field). arg1 is used
      for exactly one load, pSpriteData.
    - The 0x74 field is re-read from memory at every one of its six uses, and the
-     three delta blocks each re-read it and pActor->unk110; only the
+     three delta blocks each re-read it and pActor->pTargetTrack; only the
      g_FieldActors pointer is loaded once for those three, so the source read
      that global into a local (pTracked) for the deltas and spelled it out again
      for the target positions, which is what retail does (a1 kept across the
@@ -562,7 +562,7 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             pActor->move.vz += moveVec.z;
         }
     } else {
-        s32 height = pActor->unkF0;
+        s32 height = pActor->fallSpeed;
 
         if (triMaterial & 0x420000) {
             normal.vx = -(pActor->curTriNormal.vx * pActor->curTriNormal.vy) >> 15;
@@ -593,12 +593,12 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             if (triMaterial & 0x400000) {
                 limit = 0x18;
             }
-            if (limit <= (pActor->unkF0 >> 16)) {
-                pActor->unkF0 = limit << 16;
+            if (limit <= (pActor->fallSpeed >> 16)) {
+                pActor->fallSpeed = limit << 16;
             } else {
-                pActor->unkF0 += pSprite->gravity;
+                pActor->fallSpeed += pSprite->gravity;
             }
-            pSprite->unk10 = pActor->unkF0 >> 1;
+            pSprite->unk10 = pActor->fallSpeed >> 1;
         }
         if (triMaterial & 0x400000) {
             pActor->move.vx += stepX;
@@ -621,18 +621,18 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     if (pActor->canInteract != 0xFF) {
         if ((g_FieldActors[pActor->canInteract].pActorData->flags & 0xC0) == 0xC0) {
             if (!(pActor->flags134 & 0x80)) {
-                pActor->unk110 = HeapAlloc(0xC, 0);
+                pActor->pTargetTrack = HeapAlloc(0xC, 0);
                 pActor->flags134 |= 0x80;
             }
             pTracked = g_FieldActors;
             delta.vx = pTracked[pActor->canInteract].rotation.x -
-                ((FieldActorTargetTrack*)pActor->unk110)->rotationX;
+                ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationX;
             dyAngle = pTracked[pActor->canInteract].rotation.y -
-                ((FieldActorTargetTrack*)pActor->unk110)->rotationY;
+                ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY;
             delta.vy = dyAngle;
             delta.vz = pTracked[pActor->canInteract].rotation.z -
-                ((FieldActorTargetTrack*)pActor->unk110)->rotationZ;
-            ((FieldActorTargetTrack*)pActor->unk110)->rotationY =
+                ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationZ;
+            ((FieldActorTargetTrack*)pActor->pTargetTrack)->rotationY =
                 pTracked[pActor->canInteract].rotation.y;
             pTarget = g_FieldActors[pActor->canInteract].pActorData;
             posX = pActor->position.vx;
@@ -640,10 +640,10 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
             targetPosX = pTarget->position.vx;
             targetPosZ = pTarget->position.vz;
             if (!(((u_short*)&pActor->rotation.vx)[0] & 0x8000)) {
-                ((FieldActorTargetTrack*)pActor->unk110)->distance =
+                ((FieldActorTargetTrack*)pActor->pTargetTrack)->distance =
                     FieldGetActorDistance2D(actorIndex, pActor->canInteract);
             }
-            distance = ((FieldActorTargetTrack*)pActor->unk110)->distance;
+            distance = ((FieldActorTargetTrack*)pActor->pTargetTrack)->distance;
             angle = (s16)ratan2(targetPosZ - posZ, targetPosX - posX) - dyAngle - 0x800;
             pActor->move.vx += targetPosX + ((rsin(angle) * distance) << 4) - posX;
             pActor->move.vz += targetPosZ + ((rcos(angle) * distance) << 4) - posZ;
@@ -1442,7 +1442,7 @@ void func_80086590(VECTOR* pPosition) {
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         ActorData* pActor = g_FieldActors[i].pActorData;
 
-        if (pActor->unk10D != 0xFF) {
+        if (pActor->soundState != 0xFF) {
             pActorPos = (s16*)&pActor->position;
             distance = FieldGetVec3Magnitude(
                 pPos[1] - pActorPos[1],
@@ -1456,14 +1456,14 @@ void func_80086590(VECTOR* pPosition) {
             if (distance < slots.distance[slot]) {
                 slots.actorIndex[slot] = i;
                 slots.distance[slot] = distance;
-                slots.unk10[slot] = g_FieldActors[i].pActorData->unk10A;
-                slots.unk20[slot] = g_FieldActors[i].pActorData->unk10C;
+                slots.unk10[slot] = g_FieldActors[i].pActorData->soundId;
+                slots.unk20[slot] = g_FieldActors[i].pActorData->soundVolume;
                 slots.delta[slot][0] = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1];
                 slots.delta[slot][1] = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3];
                 slots.delta[slot][2] = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5];
             }
         } else {
-            pActor->unk10D = 0xFF;
+            pActor->soundState = 0xFF;
         }
     }
 

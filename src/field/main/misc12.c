@@ -82,8 +82,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
 
     switch (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17) {
     case 1:
-        x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->unkD0.vx;
-        z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->unkD0.vz;
+        x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->moveStep.vx;
+        z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->moveStep.vz;
         break;
 
     case 2:
@@ -101,8 +101,8 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
 
     case 3:
         angle = FieldScriptVMGetArgument(1) & 0xFFF;
-        x = g_FieldScriptVMCurActor->unkD0.vx + ((rsin(angle) * 0x1000) >> 12);
-        z = g_FieldScriptVMCurActor->unkD0.vz + (-(rcos(angle) * 0x1000) >> 12);
+        x = g_FieldScriptVMCurActor->moveStep.vx + ((rsin(angle) * 0x1000) >> 12);
+        z = g_FieldScriptVMCurActor->moveStep.vz + (-(rcos(angle) * 0x1000) >> 12);
         break;
 
     case 0:
@@ -127,7 +127,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc12", func_80099AC0);
             if (!(pTailActor->scriptFlags.flags & 0x8000)) {
                 angle = (u_short)pTailActor->rotation.vy | 0x8000;
             } else {
-                angle = (u_short)pTailActor->unk11C | 0x8000;
+                angle = (u_short)pTailActor->lockedRotationY | 0x8000;
             }
             pTailActor->rotation.vx = angle;
             pTailActor->rotation.vy = angle;
@@ -602,14 +602,14 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
         if (pActor->prevPosition.x == CONV_TO_GTE(pActor->position.vx)
             && pActor->prevPosition.y == CONV_TO_GTE(pActor->position.vy)
             && pActor->prevPosition.z == CONV_TO_GTE(pActor->position.vz)) {
-            pActor->unk6E++;
+            pActor->stuckFrameCount++;
         } else {
-            pActor->unk6E = 0;
+            pActor->stuckFrameCount = 0;
         }
         rotation = FieldGetVec2Angle(&delta);
         pActor->rotation.vx = rotation;
         pActor->rotation.vy = rotation;
-        if ((short)pActor->unk6E < 0x41 && D_800B2348.value == 0) {
+        if ((short)pActor->stuckFrameCount < 0x41 && D_800B2348.value == 0) {
             return -1;
         }
         pCurActor = g_FieldScriptVMCurActor;
@@ -621,7 +621,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
         g_FieldCurActorIndex = prevActorIndex;
     }
     if (pActor->scriptFlags.flags & 0x8000) {
-        rotation = pActor->unk11C | 0x8000;
+        rotation = pActor->lockedRotationY | 0x8000;
     } else if (direction == 0xFF) {
         rotation = pActor->rotation.vy | 0x8000;
     } else {
@@ -631,7 +631,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
     pActor->rotation.vy = rotation;
     pActor->position.vx = x << 16;
     pActor->position.vz = z << 16;
-    pActor->unk6E = 0;
+    pActor->stuckFrameCount = 0;
     pActor->scriptFlags.flags &= ~0x02200800;
     return 0;
 } */

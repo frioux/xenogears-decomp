@@ -177,7 +177,7 @@ void FieldScriptVMHandlerSetActorDataWord(void) {
     }
 
     if (g_FieldActors[g_FieldCurActorIndex].status & 0x2000) {
-        ((u_int*)g_FieldScriptVMCurActor->unk118)[index] = value;
+        ((u_int*)g_FieldScriptVMCurActor->pScriptWorkWords)[index] = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
@@ -377,8 +377,8 @@ extern int rcos(int);
 extern int rsin(int);
 
 void FieldScriptVMHandlerSetDirectionFromRotation(void) {
-    g_FieldScriptVMCurActor->unk60.vx = ((u_int)rsin(g_FieldScriptVMCurFieldActor->rotation.y) * 9) >> 10;
-    g_FieldScriptVMCurActor->unk60.vz = -(rcos(g_FieldScriptVMCurFieldActor->rotation.y) * 36) >> 12;
+    g_FieldScriptVMCurActor->positionOffset.vx = ((u_int)rsin(g_FieldScriptVMCurFieldActor->rotation.y) * 9) >> 10;
+    g_FieldScriptVMCurActor->positionOffset.vz = -(rcos(g_FieldScriptVMCurFieldActor->rotation.y) * 36) >> 12;
     g_FieldScriptVMCurActor->flags |= 0x800;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
@@ -881,28 +881,28 @@ void FieldScriptVMHandlerStepActorMoveOn() {
             g_FieldScriptVMCurActor->flags12C_0x5 = 0x1;
             g_FieldScriptVMCurActor->curDoorStep = 0;
             FieldSetSoundSlotElement(8, 3);
-            g_FieldScriptVMCurActor->unkD0.vx = g_FieldScriptVMCurActor->position.vx;
-            g_FieldScriptVMCurActor->unkD0.vy = g_FieldScriptVMCurActor->position.vy;
-            g_FieldScriptVMCurActor->unkD0.vz = g_FieldScriptVMCurActor->position.vz;
+            g_FieldScriptVMCurActor->moveStep.vx = g_FieldScriptVMCurActor->position.vx;
+            g_FieldScriptVMCurActor->moveStep.vy = g_FieldScriptVMCurActor->position.vy;
+            g_FieldScriptVMCurActor->moveStep.vz = g_FieldScriptVMCurActor->position.vz;
         } else {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < FieldScriptVMGetArgument(3)) {
                 switch (FieldScriptVMGetArgument(5)) { 
                     case FIELD_MOVE_DIRECTION_Y_DECREASE:
-                        g_FieldScriptVMCurActor->unkD0.vy -= FieldScriptVMGetArgument(1) * 0x10;
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurActor->moveStep.vy -= FieldScriptVMGetArgument(1) * 0x10;
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vz);
                         break;
                     case FIELD_MOVE_DIRECTION_Y_INCREASE:
-                        g_FieldScriptVMCurActor->unkD0.vy += FieldScriptVMGetArgument(1) * 0x10;
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurActor->moveStep.vy += FieldScriptVMGetArgument(1) * 0x10;
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vz);
                         break;
                     default:
                         delta = PSX_DEGREES(90);
                         angle = g_FieldScriptVMCurFieldActor->rotation.y + FieldScriptVMGetArgument(5) - delta;
-                        g_FieldScriptVMCurActor->unkD0.vx += rsin(angle) * FieldScriptVMGetArgument(1);
-                        g_FieldScriptVMCurActor->unkD0.vz -= rcos(angle) * FieldScriptVMGetArgument(1);
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vx);
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurActor->moveStep.vx += rsin(angle) * FieldScriptVMGetArgument(1);
+                        g_FieldScriptVMCurActor->moveStep.vz -= rcos(angle) * FieldScriptVMGetArgument(1);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vx);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vz);
                         break;
                 }
             } else {
@@ -933,20 +933,20 @@ void FieldScriptVMHandlerStepActorMoveOff(void) {
             if (g_FieldScriptVMCurActor->curDoorStep < FieldScriptVMGetArgument(3)) {
                 switch (FieldScriptVMGetArgument(5)) {
                     case FIELD_MOVE_DIRECTION_Y_DECREASE:
-                        g_FieldScriptVMCurActor->unkD0.vy -= FieldScriptVMGetArgument(1) * 0x10;
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurActor->moveStep.vy -= FieldScriptVMGetArgument(1) * 0x10;
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vz);
                         break;
                     case FIELD_MOVE_DIRECTION_Y_INCREASE:
-                        g_FieldScriptVMCurActor->unkD0.vy += FieldScriptVMGetArgument(1) * 0x10;
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurActor->moveStep.vy += FieldScriptVMGetArgument(1) * 0x10;
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vz);
                         break;
                     default:
                         delta = PSX_DEGREES(90);
                         angle = g_FieldScriptVMCurFieldActor->rotation.y + FieldScriptVMGetArgument(5) - delta;
-                        g_FieldScriptVMCurActor->unkD0.vx -= rsin(angle) * FieldScriptVMGetArgument(1);
-                        g_FieldScriptVMCurActor->unkD0.vz += rcos(angle) * FieldScriptVMGetArgument(1);
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vx);
-                        g_FieldScriptVMCurFieldActor->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
+                        g_FieldScriptVMCurActor->moveStep.vx -= rsin(angle) * FieldScriptVMGetArgument(1);
+                        g_FieldScriptVMCurActor->moveStep.vz += rcos(angle) * FieldScriptVMGetArgument(1);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[0] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vx);
+                        g_FieldScriptVMCurFieldActor->transformMatrix.t[2] = CONV_TO_GTE(g_FieldScriptVMCurActor->moveStep.vz);
                         break;
                 }
             } else {
@@ -988,19 +988,19 @@ void FieldScriptVMHandlerStopWalking(void) {
 
 void FieldScriptVMHandlerSetActorHideMode1(void) {
     g_FieldScriptVMCurActor->flags12C_0 = 0x1;
-    g_FieldScriptVMCurActor->unk70 = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->hideModeParam = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
 void FieldScriptVMHandlerSetActorHideMode2(void) {
     g_FieldScriptVMCurActor->flags12C_0 = 0x2;
-    g_FieldScriptVMCurActor->unk70 = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->hideModeParam = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
 void FieldScriptVMHandlerSetActorHideMode3(void) {
     g_FieldScriptVMCurActor->flags12C_0 = 0x3;
-    g_FieldScriptVMCurActor->unk70 = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->hideModeParam = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 

@@ -82,7 +82,7 @@ void FieldScriptVMHandlerResetScriptSlots(void) {
     }
 
     g_FieldScriptVMCurActor->curScriptIndex = 0;
-    g_FieldScriptVMCurActor->unkCF = 0;
+    g_FieldScriptVMCurActor->waitScriptIndex = 0;
     g_FieldScriptVMCurActor->dialogFlags = 0;
     g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->flags12C_0x6 = 0;
@@ -516,11 +516,11 @@ void FieldLoadActorAnimationFiles(void) {
         for (i = 0; i < g_FieldActiveActorCount; i++) {
             ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0x0);
             pActor = g_FieldActors[i].pActorData;
-            if (pActor->unk124 != -1) {
+            if (pActor->specialAnimArchiveIndex != -1) {
                 g_FieldScriptVMCurActor = pActor;
-                pData = HeapAlloc(ArchiveDecodeAlignedSize(pActor->unk124, pActor) + 8, 0x0);
-                g_FieldScriptVMCurActor->unk120 = pData;
-                ArchiveReadFileToBuffer(g_FieldScriptVMCurActor->unk124, pData, 0, CdlModeSpeed); // Read from disc into buffer
+                pData = HeapAlloc(ArchiveDecodeAlignedSize(pActor->specialAnimArchiveIndex, pActor) + 8, 0x0);
+                g_FieldScriptVMCurActor->pSpecialAnimFile = pData;
+                ArchiveReadFileToBuffer(g_FieldScriptVMCurActor->specialAnimArchiveIndex, pData, 0, CdlModeSpeed); // Read from disc into buffer
                 ArchiveCdDataSync(0);
             }
         }
@@ -529,8 +529,8 @@ void FieldLoadActorAnimationFiles(void) {
         for (i = 0; i < g_FieldActiveActorCount; i++) {
             pFieldActors = g_FieldActors;
             pActor = pFieldActors[i].pActorData;
-            if (pActor->unk124 != -1) {
-                SpriteSetSpecialAnimFile(pFieldActors[i].pSpriteData, pActor->unk120);
+            if (pActor->specialAnimArchiveIndex != -1) {
+                SpriteSetSpecialAnimFile(pFieldActors[i].pSpriteData, pActor->pSpecialAnimFile);
             }
         }
         
@@ -759,7 +759,7 @@ void func_800A3C8C(void) {
         pActorData = g_FieldActors[i].pActorData;
         pCursor = D_800AFC50;
         D_800AFC50 = pCursor + 0xC;
-        if (pActorData->unk124 != -1 && pActorData->unkAnimationId != 0xFF) {
+        if (pActorData->specialAnimArchiveIndex != -1 && pActorData->unkAnimationId != 0xFF) {
             *(u_short*)(pCursor + 0x20) = pActorData->unkAnimationId;
         }
 
