@@ -58,15 +58,18 @@ extern s32 func_80091FF8(s32 nLimit, s16 *pIn, s16 *pOfs);
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ s16 command;
-    /* 0x06 */ u8 unk6[0x1A];
+    /* 0x06 */ s16 targetSlot; // the slot index WorldMapStartSlot is called for
+    /* 0x08 */ u8 pad8[0x10];
+    /* 0x18 */ s32 (*pEnterHandler)(s32); // run once when the slot machine enters it; returns the next state
+    /* 0x1C */ s32 (*pUpdateHandler)(s32); // run every frame; NULL while the slot is free
     /* 0x20 */ s16 state;
     /* 0x22 */ s16 stateTimer;
-    /* 0x24 */ u16 unk24;
+    /* 0x24 */ u16 hidden; // nonzero: the slot contributes no trail point
     /* 0x26 */ u8 unk26[0x2];
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
-    /* 0x34 */ s32 unk34;
+    /* 0x34 */ s32 w; // fourth word of the x/y/z vector, copied whole with it
     /* 0x38 */ u32 dirX;
     /* 0x3C */ u32 dirY;
     /* 0x40 */ u32 dirZ;
@@ -89,12 +92,13 @@ typedef struct {
 } WorldMapPlayer; // Size: 0x80
 
 typedef struct {
-    /* 0x00 */ u16 unk0;
+    /* 0x00 */ u16 hidden; // nonzero hides the entry: modes 4/5 set entries 1-3, modes 6/7 clear them
     /* 0x02 */ u8 unk2[0x6];
     /* 0x08 */ s32 pos[4];
-    /* 0x18 */ u8 unk18[0x4];
+    /* 0x18 */ u16 rotX;
+    /* 0x1A */ u16 rotY;
     /* 0x1C */ u16 rotZ;
-    /* 0x1E */ u8 unk1E[0x2];
+    /* 0x1E */ u8 pad1E[0x2];
     /* 0x20 */ MATRIX matrix;
     /* 0x40 */ u8 unk40[0x14];
 } WorldMapRot; // Size: 0x54
@@ -190,7 +194,7 @@ s32 func_8008E190(s32 idx) {
 
     pPlayer = g_WorldMapSlots + idx;
     WorldMapGetGameStatePosition(&pPlayer->x);
-    pPlayer->unk24 = 0;
+    pPlayer->hidden = 0;
     nRet = 1;
     nAngle = g_GameState.scriptAngle;
     pPlayer->dirZ = 0;
@@ -236,9 +240,9 @@ s32 func_8008E190(s32 idx) {
         pPlayer->unk74 = D_8009C170;
         *(Quad *)g_WorldMapScrollTargetX = *(Quad *)&pPlayer->x;
         nAngle = pPlayer->angle;
-        g_WorldMapGroups->entry[3].unk0 = 1;
-        g_WorldMapGroups->entry[2].unk0 = 1;
-        g_WorldMapGroups->entry[1].unk0 = 1;
+        g_WorldMapGroups->entry[3].hidden = 1;
+        g_WorldMapGroups->entry[2].hidden = 1;
+        g_WorldMapGroups->entry[1].hidden = 1;
         g_WorldMapPlayerAngle = nAngle;
         break;
     case 7:
@@ -253,7 +257,7 @@ s32 func_8008E190(s32 idx) {
         break;
     }
     *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
-    g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
+    g_WorldMapGroups->entry[0].hidden = pPlayer->hidden;
     *(volatile s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
     *(volatile s16 *)(pScratch + 0xA4) = g_WorldMapViewRotationZ;
     *(volatile s16 *)(pScratch + 0xA2) = pPlayer->angle;
@@ -303,7 +307,7 @@ s32 func_8008E4F4(s32 idx) {
 
     pPlayer = g_WorldMapSlots + idx;
     *(Quad *)g_WorldMapGroups->entry[0].pos = *(Quad *)&pPlayer->x;
-    g_WorldMapGroups->entry[0].unk0 = pPlayer->unk24;
+    g_WorldMapGroups->entry[0].hidden = pPlayer->hidden;
     nRet = 1;
     pScratch = (u8 *)0x1F800000;
     if ((g_GameState.worldMapState & 0x1FFF) == 0) {
@@ -320,15 +324,15 @@ s32 func_8008E4F4(s32 idx) {
         break;
     case 4:
     case 5:
-        g_WorldMapGroups->entry[3].unk0 = 1;
-        g_WorldMapGroups->entry[2].unk0 = 1;
-        g_WorldMapGroups->entry[1].unk0 = 1;
+        g_WorldMapGroups->entry[3].hidden = 1;
+        g_WorldMapGroups->entry[2].hidden = 1;
+        g_WorldMapGroups->entry[1].hidden = 1;
         break;
     case 6:
     case 7:
-        g_WorldMapGroups->entry[3].unk0 = 0;
-        g_WorldMapGroups->entry[2].unk0 = 0;
-        g_WorldMapGroups->entry[1].unk0 = 0;
+        g_WorldMapGroups->entry[3].hidden = 0;
+        g_WorldMapGroups->entry[2].hidden = 0;
+        g_WorldMapGroups->entry[1].hidden = 0;
         break;
     }
     *(s16 *)(pScratch + 0xA0) = -(pPlayer->unk70 >> 12);
@@ -353,7 +357,7 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     pPlayer->dirZ = 0;
     pPlayer->dirY = 0;
     pPlayer->dirX = 0;
-    pPlayer->unk24 = 0;
+    pPlayer->hidden = 0;
     pPlayer->unk60 = 0;
     pPlayer->pCameraPathAngles = 0;
     pPlayer->unk6C = 0;
