@@ -20,7 +20,7 @@ typedef struct {
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
-    /* 0x34 */ u8 unk34[0x4];
+    /* 0x34 */ s32 w; // fourth word of the x/y/z vector, copied whole with it
     /* 0x38 */ u32 dirX;
     /* 0x3C */ u32 dirY;
     /* 0x40 */ u32 dirZ; // added to z every update
@@ -58,17 +58,17 @@ typedef struct {
 
 // 0x54-byte scene-layer entry. g_WorldMapGroups is an array of them: the group 4..11
 // layers sit at indexes 4..11 (file offsets 0x150..0x39C), layer 0 at offset 0.
-typedef struct {
-    /* 0x00 */ s16 unk0;
+typedef struct WorldMapSceneLayer {
+    /* 0x00 */ s16 hidden; // nonzero: the sprite-set draw pass skips the entry
     /* 0x02 */ u8 unk2[0x6];
     /* 0x08 */ WorldMapPos pos;
     /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX mat;
-    /* 0x40 */ u8 *unk40; // header whose +0x4 is the prim count
+    /* 0x40 */ u8 *pPrimHeader; // header whose +0x4 is the prim count
     /* 0x44 */ u8 unk44[0x4];
     /* 0x48 */ u8 *pPrims; // prim list drawn for the layer
     /* 0x4C */ u8 *pPrimsCopy; // the layer's copy of pPrims
-    /* 0x50 */ u8 unk50[0x4];
+    /* 0x50 */ struct WorldMapSceneLayer *pParent; // layer WorldMapSetSpriteSetParent hangs this set off
 } WorldMapSceneLayer; // Size: 0x54
 
 extern WorldMapPlayer *g_WorldMapSlots;
@@ -460,7 +460,7 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
 
     for (i = 0; i < 2; i++) {
         WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->pPrims,
-                                   ((u16 *)pLayer->unk40)[2]);
+                                   ((u16 *)pLayer->pPrimHeader)[2]);
         pLayer++;
         pBlock++;
     }
@@ -474,8 +474,8 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
     pBlock->mat = *(MATRIX *)&pScratch[0x3C];
     pBlock[1].mat = *(MATRIX *)&pScratch[0x3C];
-    pBlock[1].unk0 = 1;
-    pBlock->unk0 = 1;
+    pBlock[1].hidden = 1;
+    pBlock->hidden = 1;
     return 3;
 }
 
@@ -494,8 +494,8 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
 
     if (pPlayer->command != 0) {
         pPlayer->command = 0;
-        pLayer[5].unk0 = 0;
-        pLayer[4].unk0 = 0;
+        pLayer[5].hidden = 0;
+        pLayer[4].hidden = 0;
     }
     px = g_WorldMapPlayerPosition >> 12;
     y = -0x40;
@@ -545,7 +545,7 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
 
     for (i = 0; i < 2; i++) {
         WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->pPrims,
-                                   ((u16 *)pLayer->unk40)[2]);
+                                   ((u16 *)pLayer->pPrimHeader)[2]);
         pLayer++;
         pBlock++;
     }
@@ -559,8 +559,8 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
     ScaleMatrix((MATRIX *)&pScratch[0x3C], (VECTOR *)pScratch);
     pBlock->mat = *(MATRIX *)&pScratch[0x3C];
     pBlock[1].mat = *(MATRIX *)&pScratch[0x3C];
-    pBlock[1].unk0 = 1;
-    pBlock->unk0 = 1;
+    pBlock[1].hidden = 1;
+    pBlock->hidden = 1;
     return 3;
 }
 
@@ -579,8 +579,8 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
 
     if (pPlayer->command != 0) {
         pPlayer->command = 0;
-        pLayer[7].unk0 = 0;
-        pLayer[6].unk0 = 0;
+        pLayer[7].hidden = 0;
+        pLayer[6].hidden = 0;
     }
     px = g_WorldMapPlayerPosition >> 12;
     y = -0x40;
@@ -1045,7 +1045,7 @@ int WorldMapInitGroup4Actor(int idx) {
     WorldMapSetSpriteSetParent(4, 1);
     WorldMapSetSpriteSetParent(4, 3);
     pLayer = &g_WorldMapGroups[4];
-    pLayer->unk0 = 0;
+    pLayer->hidden = 0;
     pLayer->rot.vx = pLayer->rot.vy = pLayer->rot.vz = 0;
     RotMatrixYXZ(&pLayer->rot, &pLayer->mat);
     pPlayer = g_WorldMapSlots + idx;
@@ -1101,7 +1101,7 @@ int WorldMapInitGroup5Actor(int idx) {
 
     WorldMapSetSpriteSetParent(5, 6);
     pLayer = &g_WorldMapGroups[5];
-    pLayer->unk0 = 0;
+    pLayer->hidden = 0;
     pLayer->rot.vx = pLayer->rot.vy = pLayer->rot.vz = 0;
     RotMatrixYXZ(&pLayer->rot, &pLayer->mat);
     pPlayer = g_WorldMapSlots + idx;
@@ -1158,7 +1158,7 @@ int WorldMapInitGroup9Actor(int idx) {
     WorldMapSetSpriteSetParent(9, 7);
     WorldMapSetSpriteSetParent(9, 8);
     pLayer = &g_WorldMapGroups[9];
-    pLayer->unk0 = 0;
+    pLayer->hidden = 0;
     pLayer->rot.vx = pLayer->rot.vy = pLayer->rot.vz = 0;
     RotMatrixYXZ(&pLayer->rot, &pLayer->mat);
     pPlayer = g_WorldMapSlots + idx;
@@ -1176,9 +1176,9 @@ int WorldMapUpdateGroup9Actor(int idx) {
 
     if (pPlayer->command == 1) {
         pPlayer->command = 0;
-        pLayer[9].unk0 = 1;
-        pLayer[7].unk0 = 1;
-        pLayer[8].unk0 = 1;
+        pLayer[9].hidden = 1;
+        pLayer[7].hidden = 1;
+        pLayer[8].hidden = 1;
         WorldMapDeactivateSpriteGroup(0x16);
         return 3;
     }
@@ -1201,7 +1201,7 @@ int WorldMapInitGroup10Actor(int idx) {
 
     WorldMapSetSpriteSetParent(0xA, 0xB);
     pLayer = &g_WorldMapGroups[10];
-    pLayer->unk0 = 0;
+    pLayer->hidden = 0;
     pLayer->rot.vx = pLayer->rot.vy = pLayer->rot.vz = 0;
     RotMatrixYXZ(&pLayer->rot, &pLayer->mat);
     pPlayer = g_WorldMapSlots + idx;
@@ -1220,8 +1220,8 @@ int WorldMapUpdateGroup10Actor(int idx) {
 
     if (pPlayer->command == 1) {
         pPlayer->command = 0;
-        pLayer[10].unk0 = 1;
-        pLayer[11].unk0 = 1;
+        pLayer[10].hidden = 1;
+        pLayer[11].hidden = 1;
         WorldMapDeactivateSpriteGroup(0x17);
         WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
         WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
