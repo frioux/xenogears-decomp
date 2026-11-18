@@ -2152,7 +2152,7 @@ static inline void CopySpriteFieldS32(int dstId, int srcId, u32 byteOffset) {
 
 // Retail copies this field with `lhu`/`sh`, so it reads unsigned even though
 // SpriteData::field_0x84 is declared s16.
-static inline void CopySpriteSizeWord(int dstId, int srcId) {
+static inline void CopySpriteField0x84(int dstId, int srcId) {
     FieldActor* actors = g_FieldActors;
     SpriteData* dst = actors[dstId].pSpriteData;
     SpriteData* src = actors[srcId].pSpriteData;
@@ -2191,7 +2191,7 @@ void FieldActorCopyPlacement(int dstActorId, int srcActorId) {
     dstActor->curYPos = srcActor->curYPos;
     dstActor->curWalkmeshTriMaterial = srcActor->curWalkmeshTriMaterial;
 
-    CopySpriteSizeWord(dstActorId, srcActorId);
+    CopySpriteField0x84(dstActorId, srcActorId);
     CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.x));
     CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.y));
     CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.z));
