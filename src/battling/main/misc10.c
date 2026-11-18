@@ -1016,43 +1016,38 @@ void BattleAddSharedPrim(void) {
     AddPrim(g_BattleRootOrderingTable, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086E70);
-
-/* 80.41% - content matches, layout does not: retail puts the value<0x38 block
-   between the first prim and the inner if (as the else of an outer if whose
-   else exits), ours puts it last. Also retail computes the tapered x3 as
-   `addiu v0,s3,-4 ; subu a2,v0,q` where ours folds to `value - (q + 4)`.
-   Tried: if (value >= 0x38) {..} else {small} (80.41%, this one), early
-   `return` in the small block (56.79%, +s5, 0x30 frame), `return` in the else
-   (72.36%), a `quarter` local for the division (no change).
 void func_80086E70(u8* pOt, u8* pBase, s32 value, s32 flag) {
+    u16* pTaper;
+    s32 edge;
+
     if (value >= 0x38) {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), 0x38);
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), 0x34);
         AddPrim(pOt, pBase);
-        if (value >= 0x48) {
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), 0x48);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C), 0x40);
-            BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), 0x10);
-            AddPrim(pOt, pBase + 0x18);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x3C), value);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - 8);
-            AddPrim(pOt, pBase + 0x30);
-        } else {
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C),
-                                       (value - 4) - (value - 0x38) / 4);
-            BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E),
-                                       (value - 0x38) / 2 + 8);
-            AddPrim(pOt, pBase + 0x18);
-        }
     } else {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), value);
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), value - 4);
         AddPrim(pOt, pBase);
+        return;
     }
+    if (value >= 0x48) {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), 0x48);
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C), 0x40);
+        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), 0x10);
+        AddPrim(pOt, pBase + 0x18);
+    } else {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
+        pTaper = (u16*)(pBase + 0x2C);
+        edge = value - 4;
+        BattleSetVertexXForFlipped(flag, pTaper, edge - (value - 0x38) / 4);
+        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), (value - 0x38) / 2 + 8);
+        AddPrim(pOt, pBase + 0x18);
+        return;
+    }
+    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x3C), value);
+    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - 8);
+    AddPrim(pOt, pBase + 0x30);
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086FF8);
 
