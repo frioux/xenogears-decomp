@@ -82,8 +82,8 @@ typedef struct {
 
 
 // Split out of main/misc27 (see config/battle.yaml): compiled with gcc 2.7.2-cdk.
-BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteData, s32 arg1,
-                                                              s32 arg2) {
+BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteData, s32 minDistance,
+                                                              void* pSpriteBytecode) {
     BattleDistanceWaitTask* pTask;
 
     pTask = (BattleDistanceWaitTask*)TimerWorkListAllocateTask(
@@ -91,8 +91,8 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
     TimerWorkListSetTaskCallback(pTask, BattleUpdateDistanceWaitTask);
     pTask->pSpriteData = pSpriteData;
     pTask->distance = BattleSpriteDistanceToTarget(pSpriteData);
-    pTask->minDistance = arg1;
-    pTask->pSpriteBytecode = (void*)arg2;
+    pTask->minDistance = minDistance;
+    pTask->pSpriteBytecode = pSpriteBytecode;
     pTask->animId = (s8)pSpriteData->flags_0xAC.bytes[3];
     pSpriteData->flags_0xAC.flags |= 0x20;
     return pTask;
