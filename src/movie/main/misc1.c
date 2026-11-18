@@ -46,6 +46,296 @@ extern s32 g_MovieGlowFadeDurations[];
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 
+// Best attempt (98.33%, 2292 bytes against retail's 2276): retail's instruction
+// multiset plus exactly four, all register-allocation fallout. gcc keeps the 0xF0
+// stack argument of the SetDef*Env calls in s3 across the whole loop where retail
+// re-materialises it into s0 in the teardown, that costs the sixth callee-saved
+// register (s5), and it hoists the first 7-iteration loop's `i = 0` instead of
+// leaving it in the test's delay slot. Call order, the ten-argument FontPrintf, the
+// expanded /3600 and /60 divisions, the buffer swap and the whole teardown match.
+// Two spellings are load-bearing: the teardown's RECT stores must go through the
+// absolute D_80077124[n] indices (a pointer local makes them base-relative where
+// retail uses %lo symbols) while the SetDef*Env calls must go through a pointer
+// local (pBase, a second variable holding the same address, or gcc re-materialises
+// the base). Not run through the permuter yet: that is the next step.
+/*
+// The debug screen's two double-buffered draw environments. Each one starts 0x18
+// bytes before the matching MovieSlot entry (g_MovieStreamSlots); the polygon
+// primitives are linked into the first words of the ordering table.
+typedef struct {
+    // 0x0 DRAWENV drawEnv;
+    // 0x5C DISPENV dispEnv;
+    // 0x70 u_long ot[0x20];
+    // 0xF0 POLY_G4 polyG4[2];
+} MovieDrawBuffer; // Size: 0x138
+
+typedef struct {
+    // 0x0 u16 unk0;
+    // 0x2 u16 unk2;
+    // 0x4 u32 unk4;
+} MovieStreamEntry; // Size: 0x8
+
+// Retail copies this three-byte record to the stack once per iteration and never
+// reads it back; the copy is part of the original source.
+typedef struct {
+    // 0x0 s8 unk0;
+    // 0x1 s8 unk1;
+    // 0x2 s8 unk2;
+} MovieDebugMode; // Size: 0x3
+
+extern MovieDrawBuffer D_80077124[];
+extern MovieDrawBuffer* D_80077120;
+extern s32 D_8007744C;
+extern MovieDebugMode D_8006FAF4;
+extern s32 D_80076E64;
+extern s32 D_80076E68;
+extern s32 D_80076E6C;
+extern s32 D_80076E70;
+extern s32 D_80076E74;
+extern s32 D_80076E78;
+extern s32 D_80076E80;
+extern s32 D_80076E88;
+extern s32 D_80076E8C;
+extern u32* D_80076E98;
+extern s32 D_80076EA8;
+extern s32 D_8005A49C;
+extern s32 D_8004FDEC;
+extern u_int g_ArchiveReadRetryCount;
+extern u_int g_ArchiveCdDriveState;
+extern s32 g_ArchiveFilePositionErrorCount;
+extern s32 g_ArchiveStreamPositionErrors;
+extern u32 g_ArchiveCdReadStartCount;
+extern u32 g_ArchiveCdReadCompleteCount;
+extern u32 g_ArchiveCdReadStatusErrorCount;
+extern u32 g_ArchiveCdDataSectorCompleteCount;
+extern u32 g_ArchiveCdDataSectorErrorCount;
+extern s32 g_ArchiveCdReadRetryExhaustedCount;
+extern u32 g_ArchiveCdHaltCompleteCount;
+extern u32 g_ArchiveCdHaltErrorCount;
+extern u16 g_ArchiveStreamNextSectionId;
+extern u16 g_ArchiveStreamCurSectionId;
+extern void ArchiveChangeStreamingFile(s32 mode);
+extern void ArchiveCdDataSync(s32 mode);
+extern s32 ArchiveSetIndex(s32 directoryIndex, s32 entryIndex);
+extern s32 ArchiveDataSync(void);
+extern s32 ArchiveGetCurFileSize(void);
+extern void HeapFree(void* pMem);
+extern void FontPrintf(char* pFormat, ...);
+extern void FontDrawLetters(void* pOt);
+extern void HeapDebugDump(u_int mode, u_int startBlockIdx, int endBlockIdx, u_int flags);
+extern void MovieClearFrameBuffer(void);
+
+// .rodata
+extern char D_8006FAF8[];
+extern char D_8006FB08[];
+extern char D_8006FB18[];
+extern char D_8006FB44[];
+extern char D_8006FB50[];
+extern char D_8006FB5C[];
+extern char D_8006FB68[];
+extern char D_8006FBA8[];
+extern char D_8006FBE4[];
+extern char D_8006FC14[];
+extern char D_8006FC40[];
+extern char D_8006FC64[];
+extern char D_8006FC6C[];
+extern char D_8006FC70[];
+extern char D_8006FC8C[];
+extern char D_8006FC98[];
+extern char D_8006FCA4[];
+extern char D_8006FCAC[];
+extern char D_8006FCB4[];
+extern char D_8006FCD8[];
+
+// .bss
+extern s32 g_MovieStreamCommand;
+extern s32 g_MovieStreamCommandBefore;
+extern s32 g_MovieStreamCommandNow;
+extern MovieStreamEntry* g_MovieStreamSections;
+extern u32* g_MovieStreamWritePtr;
+extern s32 g_MovieStreamBytesLeft;
+extern u32* g_MovieStreamBlock;
+extern s32 g_MovieStreamCancelCount;
+extern s32 g_MovieStreamMode;
+extern s32 g_MovieRandomMode;
+extern s32 g_MoviePadButtons;
+extern s32 g_MoviePrevPadButtons;
+extern s32 g_MovieCursorIndex;
+extern s32 g_MovieHeapDebugEnabled;
+
+// One frame of the debug HUD: draw the stream/pad state, then tear the whole
+// screen down again when circle plus L are held.
+void func_800704E8(void) {
+    MovieDebugMode mode;
+    MovieDrawBuffer* pWork;
+    MovieDrawBuffer* pBase;
+    u32* pCounters;
+    u32* pCounter;
+    s32 i;
+    s32 action;
+    s32 fileSize;
+    s32 playTime;
+    s32 hours;
+    s32 minutes;
+    s32 seconds;
+    s32 cursor;
+
+    mode = D_8006FAF4;
+    ArchiveChangeStreamingFile(0);
+    MovieClearFrameBuffer();
+    g_MovieReadBuffer = NULL;
+    g_MovieStreamMode = 1;
+    for (i = 0xF; i >= 0; i--) {
+        g_MovieStreamReadCount[i] = 0;
+    }
+
+    pWork = &D_80077124[0];
+    SetDefDrawEnv(&pWork->drawEnv, 0, 0, 0x280, 0xF0);
+    SetDefDispEnv(&pWork->dispEnv, 0, 0xF0, 0x280, 0xF0);
+    SetDefDrawEnv(&pWork[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
+    SetDefDispEnv(&pWork[1].dispEnv, 0, 0, 0x280, 0xF0);
+    pWork->drawEnv.isbg = 1;
+    pWork[1].drawEnv.isbg = 1;
+    ArchiveSetIndex(0xC, 3);
+
+    pBase = pWork;
+    pCounters = g_MovieStreamReadCount;
+    while (1) {
+        pWork = &D_80077124[0];
+        if (D_80077120 == pWork) {
+            pWork = &D_80077124[1];
+        }
+        D_80077120 = pWork;
+        D_8007744C = 1 - D_8007744C;
+        ClearOTagR(pWork->ot, 0x20);
+        func_800712C4();
+        MovieUpdatePadCursor(0, 0, &action);
+        MovieUpdateStream();
+
+        if (g_MovieRandomMode != 0) {
+            FontPrintf(D_8006FAF8);
+        }
+        if (g_MovieStreamMode == 0) {
+            FontPrintf(D_8006FB08);
+        }
+        FontPrintf(D_8006FB18, g_MovieStreamCommand, g_MovieStreamReadErrors, g_MovieVsyncCount,
+                   g_ArchiveReadRetryCount, g_ArchiveCdDriveState);
+        switch (D_80076E64) {
+        case 0:
+            FontPrintf(D_8006FB44);
+            break;
+        case 1:
+            FontPrintf(D_8006FB50);
+            break;
+        case 2:
+            FontPrintf(D_8006FB5C);
+            break;
+        }
+        FontPrintf(D_8006FB68, g_ArchiveCdReadStartCount, g_ArchiveCdReadCompleteCount,
+                   g_ArchiveCdReadStatusErrorCount, g_ArchiveCdDataSectorCompleteCount,
+                   g_ArchiveCdDataSectorErrorCount, D_8005A49C, g_ArchiveCdReadRetryExhaustedCount,
+                   g_ArchiveCdHaltCompleteCount, g_ArchiveCdHaltErrorCount);
+        fileSize = ArchiveDataSync();
+        FontPrintf(D_8006FBA8, fileSize, ArchiveGetCurFileSize(), g_ArchiveFilePositionErrorCount,
+                   g_ArchiveStreamPositionErrors, D_8004FDEC, g_ArchiveStreamNextSectionId,
+                   g_ArchiveStreamCurSectionId);
+        FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
+        FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);
+
+        if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
+            FontPrintf(D_8006FC40, D_80076E98, g_MovieStreamBlock, g_MovieStreamWritePtr,
+                       g_MovieStreamBytesLeft);
+            for (i = 0; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i]);
+            }
+            FontPrintf(D_8006FC6C);
+            for (i = 0; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i + 7]);
+            }
+            FontPrintf(D_8006FC6C);
+            for (i = 0; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i + 14]);
+            }
+            FontPrintf(D_8006FC6C);
+            for (i = 0; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i + 21]);
+            }
+            FontPrintf(D_8006FC6C);
+            if (g_MovieStreamSections != NULL) {
+                FontPrintf(D_8006FC70, g_MovieStreamSections[0].unk4, g_MovieStreamSections[1].unk4,
+                           g_MovieStreamSections[2].unk4, g_MovieStreamSections[3].unk4);
+            }
+        }
+
+        D_80076EA8 = 0;
+        FontPrintf(D_8006FC8C, g_MovieStreamCancelCount);
+        for (i = 0, pCounter = pCounters; i < 0xD; i++) {
+            FontPrintf(D_8006FC98, i, *pCounter);
+            D_80076EA8 += *pCounter;
+            if (g_MovieStreamCommandNow == i) {
+                FontPrintf(D_8006FCA4);
+            }
+            if (g_MovieStreamCommandBefore == i) {
+                FontPrintf(D_8006FCAC);
+            }
+            FontPrintf(D_8006FC6C);
+            pCounter++;
+        }
+
+        playTime = g_MoviePlayTimeSeconds;
+        hours = playTime / 3600;
+        minutes = playTime / 60 - hours * 60;
+        seconds = playTime % 60;
+        FontPrintf(D_8006FCB4, D_80076EA8, hours, minutes, seconds);
+        FontPrintf(D_8006FCD8);
+        if (g_MovieHeapDebugEnabled > 0) {
+            HeapDebugDump(1, 0, 6, 0x808D);
+        }
+
+        FontDrawLetters(D_80077120->ot);
+        func_80072F98((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[0], 8, 0xC, 0x270, 0xD8);
+        func_800734B8((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[1], 7, 0xB, 0x272, 0xDA);
+        DrawSync(0);
+        Vsync(0);
+        PutDrawEnv(&D_80077120->drawEnv);
+        PutDispEnv(&D_80077120->dispEnv);
+        DrawOTag(&D_80077120->ot[0x1F]);
+        cursor = g_MovieCursorIndex;
+        if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 &&
+            g_MovieStreamCommand == 0) {
+            g_MovieHeapDebugEnabled = 0;
+            ArchiveStopTransfer(0);
+            ArchiveCdDataSync(0);
+            if (g_MovieReadBuffer != NULL) {
+                HeapFree(g_MovieReadBuffer);
+            }
+            g_MovieReadBuffer = NULL;
+            if (D_80076E98 != NULL) {
+                HeapFree(D_80076E98);
+            }
+            D_80076E98 = NULL;
+            MovieClearFrameBuffer();
+            SetDefDrawEnv(&pBase->drawEnv, 0, 0, 0x140, 0xF0);
+            SetDefDispEnv(&pBase->dispEnv, 0, 0xF0, 0x140, 0xF0);
+            SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, 0xF0);
+            SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, 0xF0);
+            D_80077124[0].dispEnv.screen.x = 0;
+            D_80077124[0].dispEnv.screen.y = 0xA;
+            D_80077124[0].dispEnv.screen.w = 0x100;
+            D_80077124[0].dispEnv.screen.h = 0xD8;
+            D_80077124[1].dispEnv.screen.x = 0;
+            D_80077124[1].dispEnv.screen.y = 0xA;
+            D_80077124[1].dispEnv.screen.w = 0x100;
+            D_80077124[1].dispEnv.screen.h = 0xD8;
+            D_80077124[0].drawEnv.isbg = 1;
+            D_80077124[1].drawEnv.isbg = 1;
+            break;
+        }
+        g_MovieCursorIndex = cursor;
+    }
+}
+*/
+
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
