@@ -164,7 +164,7 @@ typedef struct {
 } WorldMapSpriteSetTable; // Size: 0x2
 
 extern u8 D_8009AC60[];
-extern u8 g_WorldMapPlayerPosition[];
+extern s32 g_WorldMapPlayerPosition[]; // x then the two words below it; the y/z names are separate symbols
 extern ModelFileHeader *g_WorldMapModelData;
 extern WorldMapSpriteSetTable *g_WorldMapSpriteSetTable;
 extern s32 *g_WorldMapModelRelocs;
@@ -182,7 +182,7 @@ extern void WorldMapUpdateLoadQueue(void);
 extern void func_80097BC0(void *p);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern s16 func_80084DB8(void *pArg, s16 arg1);
-extern void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3);
+extern void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, POLY_FT3 *pPrim, s32 count, s32 abr);
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapCameraTarget;
@@ -366,30 +366,24 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
 }
 */
 
-void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count, s32 arg3) {
+void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, POLY_FT3 *pPrim, s32 count, s32 abr) {
     s32 i;
 
-    for (i = count - 1; i != -1; i--) {
-        pDst[3] = 7;
-        pDst[7] = 0x24;
-        *(u16 *)(pDst + 0x16) = GetTPage(0, arg3, 0x2C0, 0x100);
-        pDst[4] = 0;
-        pDst[5] = 0;
-        pDst[6] = 0;
-        pDst[7] |= 2;
-        pDst += 0x20;
+    for (i = count - 1; i != -1; i--, pPrim++) {
+        setPolyFT3(pPrim);
+        pPrim->tpage = GetTPage(0, abr, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
+        setRGB0(pPrim, 0, 0, 0);
+        setSemiTrans(pPrim, 1);
     }
-    memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count << 5);
+    memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT3));
 }
 
-void WorldMapSetSpritePrimColor(u8 *pData, s32 count, s32 r, s32 g, s32 b) {
+void WorldMapSetSpritePrimColor(POLY_FT3 *pPrim, s32 count, s32 r, s32 g, s32 b) {
     s32 i;
 
     for (i = count - 1; i != -1; i--) {
-        pData[4] = r;
-        pData[5] = g;
-        pData[6] = b;
-        pData += 0x20;
+        setRGB0(pPrim, r, g, b);
+        pPrim++;
     }
 }
 
@@ -499,7 +493,7 @@ void WorldMapInitializeScene(void) {
     WorldMapComputeClipPlaneVectors();
     ArchiveCdDataSync(0);
     WorldMapLoadSedsBank();
-    pVec = (s32 *)g_WorldMapPlayerPosition;
+    pVec = g_WorldMapPlayerPosition;
     *pVec = 0x1800000;
     g_WorldMapPlayerPositionY = 0xFFF00000;
     g_WorldMapPlayerPositionZ = 0x1A00000;
@@ -609,7 +603,7 @@ s32 func_8008390C(s32 arg0) {
     s32 v;
 
     *(s32 *)(p + 0x7C) = 0x1000;
-    v = *(s32 *)g_WorldMapPlayerPosition;
+    v = g_WorldMapPlayerPosition[0];
     g_WorldMapCameraTarget = v;
     g_WorldMapScrollTargetX = v;
     pActor->x = v;
