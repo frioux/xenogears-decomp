@@ -12,6 +12,18 @@
 // header.
 #define BATTLE_ACTOR_SLOT_COUNT 11
 
+// One entry per battle slot, the twelfth included: the length of the candidate list
+// g_BattleTargetCandidates and of the buffers BattleBuildTargetCandidateListByRow
+// fills. Same value as include/battle/actor.h's BATTLE_SLOT_COUNT.
+#define BATTLE_SLOT_COUNT 12
+
+// The two slot groups the target search walks: the party's slots 0-2 and the other
+// actors' slots 3-10, entered from whichever group the acting slot is not in. Same
+// values as include/battle/actor.h's slot groups (BATTLE_PARTY_SLOT_MASK is those
+// 3 bits).
+#define BATTLE_PARTY_SLOT_COUNT 3
+#define BATTLE_PARTY_SLOT_MASK 0x7
+
 // The slot id that means "no slot": an empty candidate list entry, a slot that
 // targets nothing.
 #define BATTLE_SLOT_NONE 0xFF
@@ -21,6 +33,16 @@
 // Slot flags bits that make a slot untargetable: BattlePairTargetable and
 // BattleActorTargetableWithOverride call it targetable only while they are clear.
 #define BATTLE_SLOT_FLAGS_UNTARGETABLE 0xC001
+
+// The target-selection flags word BattleSelectTargetCandidates is given: where the
+// target may come from, and how many slots it may hold.
+#define BATTLE_TARGET_FLAGS_OTHER_SLOTS 0x1000 // the other actors' slots only
+#define BATTLE_TARGET_FLAGS_BOTH_GROUPS 0x2000 // no group narrowing
+#define BATTLE_TARGET_FLAGS_GIVEN_SLOT 0x4000 // arg2's slot and nothing else
+#define BATTLE_TARGET_FLAGS_SINGLE_TARGET 0x8000 // one slot out of the eligible ones
+// The directions a slot menu moves in: func_80084854's mode, one pulse-triangle
+// indicator byte per direction in BattleRunTargetSlotSelection.
+#define BATTLE_TARGET_DIRECTION_COUNT 4
 
 extern u8 g_BattleCurveModes[];
 extern u16 g_BattleCurveValues[];
@@ -928,18 +950,18 @@ u8 BattleBuildTargetCandidateListByRow(u8 arg0) {
     s32 n;
     s32 count;
     u8 tmp;
-    u8 list[12];
-    u8 sameRow[12];
+    u8 list[BATTLE_SLOT_COUNT];
+    u8 sameRow[BATTLE_SLOT_COUNT];
     u8 *p;
 
     g_BattleTargetCandidateCount = 0;
-    for (i = 0; i < 12; i++) {
+    for (i = 0; i < BATTLE_SLOT_COUNT; i++) {
         list[i] = BATTLE_SLOT_NONE;
         g_BattleTargetCandidates[i] = BATTLE_SLOT_NONE;
         sameRow[i] = 0;
     }
-    if (arg0 < 3) {
-        i = 3;
+    if (arg0 < BATTLE_PARTY_SLOT_COUNT) {
+        i = BATTLE_PARTY_SLOT_COUNT;
         count = 0;
         p = list;
         for (; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
@@ -954,7 +976,7 @@ u8 BattleBuildTargetCandidateListByRow(u8 arg0) {
         i = 0;
         count = 0;
         p = list;
-        for (; i < 3; i++) {
+        for (; i < BATTLE_PARTY_SLOT_COUNT; i++) {
             if (BattlePairTargetable(arg0, i) != 0) {
                 *p = i;
                 p++;
@@ -1011,30 +1033,30 @@ u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     u8 val;
 
     val = BATTLE_SLOT_NONE;
-    i = 0xB;
+    i = BATTLE_SLOT_COUNT - 1;
     p = D_800C3E9B;
     for (; i >= 0; i--) {
         *p-- = val;
     }
     switch (arg0) {
     case 0:
-        start1 = 3;
+        start1 = BATTLE_PARTY_SLOT_COUNT;
         count1 = 8;
         break;
     case 1:
         start1 = 0;
-        count1 = 3;
+        count1 = BATTLE_PARTY_SLOT_COUNT;
         break;
     case 2:
         if (arg2 == 0) {
-            start1 = 3;
+            start1 = BATTLE_PARTY_SLOT_COUNT;
             count1 = 8;
             start2 = 0;
-            count2 = 3;
+            count2 = BATTLE_PARTY_SLOT_COUNT;
         } else {
             start1 = 0;
-            count1 = 3;
-            start2 = 3;
+            count1 = BATTLE_PARTY_SLOT_COUNT;
+            start2 = BATTLE_PARTY_SLOT_COUNT;
             count2 = 8;
         }
         break;
@@ -1072,7 +1094,7 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
 
     k = 8;
     val = BATTLE_SLOT_NONE;
-    i = 11;
+    i = BATTLE_SLOT_COUNT - 1;
     p = D_800C3E9B;
     for (; i >= 0; i--) {
         *p-- = val;
@@ -1080,7 +1102,7 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
     n = 0;
     g_BattleTargetCandidateCount = 0;
     g_BattleTargetSlotMask = 0;
-    for (i = 3; --k >= 0; i++) {
+    for (i = BATTLE_PARTY_SLOT_COUNT; --k >= 0; i++) {
         j = i;
         if (BattlePairTargetable(arg0, j) != 0) {
             g_BattleTargetCandidates[n] = j;
@@ -1288,19 +1310,19 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
         flags = 0x2001;
         break;
     }
-    if ((flags & 0x8000) != 0) {
+    if ((flags & BATTLE_TARGET_FLAGS_SINGLE_TARGET) != 0) {
         hi = 1;
     }
-    if ((flags & 0x1000) != 0) {
+    if ((flags & BATTLE_TARGET_FLAGS_OTHER_SLOTS) != 0) {
         first = 0;
         grp = 0;
         mask = 0xFFF8;
     } else {
         first = 1;
         grp = 1;
-        mask = 7;
+        mask = BATTLE_PARTY_SLOT_MASK;
     }
-    if ((flags & 0x2000) != 0) {
+    if ((flags & BATTLE_TARGET_FLAGS_BOTH_GROUPS) != 0) {
         grp = 2;
         mask = 0xFFFF;
     }
@@ -1310,7 +1332,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
         g_BattleTargetSlot = BattleBuildTargetCandidateListByGroup(grp, hi, first);
     }
     g_BattleTargetSlotMask &= mask;
-    if ((flags & 0x8000) != 0) {
+    if ((flags & BATTLE_TARGET_FLAGS_SINGLE_TARGET) != 0) {
         n = 0;
         g_BattleTargetSlot = BATTLE_SLOT_NONE;
         for (i = 0, off = 0, off8 = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++, off8 += 8) {
@@ -1339,7 +1361,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
             g_BattleTargetCandidates[n] = BATTLE_SLOT_NONE;
             n++;
         }
-    } else if ((flags & 0x4000) != 0) {
+    } else if ((flags & BATTLE_TARGET_FLAGS_GIVEN_SLOT) != 0) {
         g_BattleTargetSlot = arg2;
         g_BattleTargetSlotMask = BattleSlotBitMask(arg2);
         val = BATTLE_SLOT_NONE;
@@ -1419,7 +1441,7 @@ u8 BattleRunTargetSlotSelection(u16 arg0, u8 arg1, u8 arg2) {
         }
         if (g_BattleMenuEvent != last) {
             last = g_BattleMenuEvent;
-            for (i = 0; i < 4; i++) {
+            for (i = 0; i < BATTLE_TARGET_DIRECTION_COUNT; i++) {
                 if (func_80084854(g_BattleTargetSlot, i) != g_BattleTargetSlot) {
                     *(g_BattlePulseTrianglePrims + i + 0xE6) = 1;
                 } else {
