@@ -1051,3 +1051,7 @@ g_FieldParticleTargetActor = 0x800ADB40;
 g_FieldRotationVectorPair = 0x800B21A0;
 g_FieldParticleBankParam72 = 0x800B237C;
 g_FieldParticleBankParam74 = 0x800B2380;
+g_FieldStreamImageX1 = 0x800C3A22;
+g_FieldStreamImageY1 = 0x800C3A24;
+g_FieldStreamImageX2 = 0x800C3A26;
+g_FieldStreamImageY2 = 0x800C3A28;

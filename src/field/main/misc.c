@@ -2632,10 +2632,10 @@ void FieldScriptWaitForFlagADB7C(void) {
 }
 
 extern s16 g_FieldStreamFileIndex;
-extern s16 D_800C3A22;
-extern s16 D_800C3A24;
-extern s16 D_800C3A26;
-extern s16 D_800C3A28;
+extern s16 g_FieldStreamImageX1;
+extern s16 g_FieldStreamImageY1;
+extern s16 g_FieldStreamImageX2;
+extern s16 g_FieldStreamImageY2;
 extern s16 D_800C3A2A;
 extern s16 g_FieldStreamFrameBase;
 extern s16 g_FieldStreamTotalFrames;
@@ -2677,10 +2677,10 @@ void func_8008EA58(void) {
         g_FieldStreamRgb24 = 1;
         D_800C3A30 &= 0xF;
         D_800C3A34 = 0x100;
-        D_800C3A26 = 0;
-        D_800C3A24 = 0;
-        D_800C3A22 = 0;
-        D_800C3A28 = 0x100;
+        g_FieldStreamImageX2 = 0;
+        g_FieldStreamImageY1 = 0;
+        g_FieldStreamImageX1 = 0;
+        g_FieldStreamImageY2 = 0x100;
         g_FieldStreamLoopPlayback = 0;
         g_FieldMode = 0;
         g_FieldStreamSceneActive = 1;
@@ -2724,11 +2724,11 @@ void func_8008EE14(void) {
         g_FieldStreamLoopPlayback = 0;
     }
     pos = FieldScriptVMGetArgument(0xB);
-    D_800C3A22 = pos;
-    D_800C3A26 = pos;
+    g_FieldStreamImageX1 = pos;
+    g_FieldStreamImageX2 = pos;
     pos = FieldScriptVMGetArgument(0xD);
-    D_800C3A24 = pos;
-    D_800C3A28 = pos;
+    g_FieldStreamImageY1 = pos;
+    g_FieldStreamImageY2 = pos;
     D_800C3A32 = FieldScriptVMGetArgument(0xF);
     D_800C3A34 = FieldScriptVMGetArgument(0x11);
     g_FieldStreamFlags = value & 0x40;

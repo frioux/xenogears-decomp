@@ -685,10 +685,10 @@ void FieldSelectStreamRenderContext(u_short arg0, int arg1, u_short arg2) {
 
 extern s32 g_FieldStreamFlags;
 extern s16 g_FieldStreamFileIndex;
-extern u16 D_800C3A22;
-extern u16 D_800C3A24;
-extern u16 D_800C3A26;
-extern u16 D_800C3A28;
+extern u16 g_FieldStreamImageX1;
+extern u16 g_FieldStreamImageY1;
+extern u16 g_FieldStreamImageX2;
+extern u16 g_FieldStreamImageY2;
 extern u16 D_800C3A2A;
 extern u16 g_FieldStreamFrameBase;
 extern u16 g_FieldStreamTotalFrames;
@@ -708,7 +708,7 @@ void FieldPlayStreamedSequence(void) {
             nMode = 3;
         }
         func_801D37CC(g_FieldStreamFileIndex + 2, D_800C3A2A, g_FieldStreamFrameBase, g_FieldStreamTotalFrames, 1, nMode,
-            g_FieldStreamLoopPlayback, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, FieldSelectStreamRenderContext);
+            g_FieldStreamLoopPlayback, g_FieldStreamImageX1, g_FieldStreamImageY1, g_FieldStreamImageX2, g_FieldStreamImageY2, 0xE0, FieldSelectStreamRenderContext);
         ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     }
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
