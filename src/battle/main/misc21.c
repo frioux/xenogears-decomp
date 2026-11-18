@@ -768,7 +768,55 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    item above), sprite body -3, model-list +1 and +2, texture loop +7,
    tween 2D arm -6 and 3D arm +2, second allocate loop +2. */
 
+/* Round 268: 83.41% / 4048 -> 83.78% / 4040 (retail 4084, so 11 insns short).
+   TWO REAL DEFECTS found by reading retail's instruction stream against the
+   body, both fixed, both keep the size:
+     P13 the two GTE MAC1..3 copies read the wrong halves. Retail loads
+         `lhu 0x50/0x54/0x58(sp)` - stride 4, i.e. the LOW half of each of the
+         three s32 words - where the body said `((u16*)macPoint)[0..2]`
+         (stride 2: x-low, x-high, y-low, so y and z were garbage). Now
+         [0], [2], [4] in both model-list loops, at the same size; the packet
+         loop and the record loop both read retail's exact displacements.
+     P14 the record loop was INDEXED (`pPoint = &pModelList->pRecords[j]`),
+         which re-derives `sll s0,s1,0x4` + `addu` from a `lw v0,14(s2)` reload
+         every iteration. Retail walks a POINTER (`lw s2,14(s3)` in the
+         preheader, `addiu s0,s2,12` for the +0xC rebased biv, stores at
+         -4/-2/0, `addiu s2,s2,16` in the tail). Writing
+         `pPoint = pModelList->pRecords; for (...; j++, pPoint++)` reproduces
+         retail exactly and dropped 2 instructions: 83.42% -> 83.78% / 4040 B.
+   Also corrected: the round-267 segment table's "texture loop +7" is MIS-NAMED.
+   The func_800A3E98 texture loop is already instruction-identical to retail
+   (check it directly: `lw a1,0x120(sp)` / `jal` / `move a0,sN` / `addiu
+   sN,sN,0x30`); the -7 is the model-list RECORD loop, which P14 closed. The
+   segment table in that older note cannot be reproduced from diff_func's own
+   alignment either (its deltas do not sum to the size difference), so measure
+   segments by reading the two streams, not by trusting those counts.
+   Measured REGRESSIONS this round, do not retry:
+   - `slot` as u16 (retail's decrement reads `lhu 0x54`): 82.60% / 4052 B. The
+     field is s16 - retail's u16 read there is one site only, and making the
+     field u16 turns the index loads (`lh 0x54`) into `lhu` too.
+   - Prologue root/walker copy: swapping the pSprite/pSprites DECLARATION slots
+     so the sprite-loop walker takes 0x90 (retail's slot) and assigning
+     `pSprite = pActor->pSprites` at the top: 82.29% / 4076 B. Retail really
+     does frame BOTH (0x90 walker bumped in memory, 0x98 root copy stored in the
+     prologue) but gcc here only spills the root.
+   - Dropping the `k` local so the 2D arm reloads `pTween->slot` at both
+     gte_stsxy2 sites: 82.70% / 4060 B.
+   - Moving the tween done block from `offsets[pTween->slot]` to `offsets[k]`:
+     83.80% / 4008 B - the PERCENTAGE RISES while the body gets 19 insns short.
+     Judge this unit by `(bytes, segment deltas)`, never by the % alone.
+   VERIFIED, so the next lane does not re-derive it: retail's sprite loop loads
+   the walker from 0x90(sp) at EVERY use and re-forms `addiu s1,t2,8`; our body
+   gives the same +8 biv but keeps the walker in a register (`lw s1,144(sp)`,
+   `addiu s1,s1,124`) - that whole +5 in the segment is retail's extra spill,
+   not a source shape. The tween loop's base is the remaining named item
+   (retail +0x08 = &pTween->pSlot, ours +0x5C = &pTween->slot): gcc picks that
+   biv from the reference distribution, and three source shapes failed to move
+   it, so it is not a spelling problem. */
 
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
+/*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
@@ -1075,6 +1123,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         pTween->pSlot->y3 = pTween->offsets[pTween->slot + 8].vy;
     }
 }
+*/
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
