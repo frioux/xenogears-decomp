@@ -8,9 +8,9 @@
 // What a slot's frame timer saturates at: BattleIncrementSoundSlotTimers stops it here.
 #define BATTLE_SOUND_SLOT_TIMER_MAX 0xFFFF
 // Half turn of the 12-bit angle space the actor's facing offset starts at.
-#define BATTLE_ANGLE_HALF_TURN 0x800
+#define BATTLE_ANGLE_HALF_TURN 0x800 // same define as battle/misc3.c and battle/misc4.c; battle actor.h is not includable here
 // Denominator of a 0..255 gauge fraction (src/battling/main/misc2.c's BATTLE_GAUGE_FRACTION_SCALE).
-#define BATTLE_GAUGE_FRACTION_SCALE 255
+#define BATTLE_GAUGE_FRACTION_SCALE 255 // same define as battle/misc2.c; battle actor.h is not includable here
 
 // volatile: retail schedules this load after the argument setup, not before it.
 extern volatile s32 g_SpuChannelMask;
