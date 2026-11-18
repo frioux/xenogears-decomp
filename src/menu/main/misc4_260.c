@@ -233,7 +233,8 @@ void MenuAddUnk358Prims(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CE860);
-/* 88.90% (804 vs 792 bytes): every expression and call is right; the only
+/* 88.90% (804 vs 792 bytes) under the Default preset: every expression and call
+   is right; the only
    delta is that loop.c strength-reduces `i * 0x20` and `i * 0x80` here, so gcc
    allocates two extra induction registers ($s4/$s5: +0x20 and +0x80 at the
    latch) and computes the verts base as addiu(pData,K) + biv instead of
