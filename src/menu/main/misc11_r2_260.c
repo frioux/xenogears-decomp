@@ -24,6 +24,15 @@
 #define MENU_GLYPH_ROW_COUNT 16
 #define MENU_GLYPH_ROW_BYTES 16
 
+// Length of a row after MenuCompressGlyphRows, and the most glyphs one chunk's
+// glyph-code table holds.
+#define MENU_GLYPH_COMPRESSED_ROW_BYTES 12
+#define MENU_GLYPH_MAX_COUNT 64
+
+// Bytes in the 4bpp glyph texture that is rasterised a glyph at a time and
+// uploaded to the rect above.
+#define MENU_GLYPH_TEXTURE_SIZE 0x1000
+
 // Cell position in the menu glyph atlas: 21 cells per row, the row's y in
 // D_801E99E8.
 typedef struct {
@@ -207,51 +216,66 @@ extern u16 g_SystemPalette1;
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
-/* Best: 85.05% (656 vs 660 bytes).  Confirmed shape: outer loop is TWO
-   counters in one for ("j = 0, offset = 0; offset < 0x1974; j++, offset +=
-   0x87C") which is what makes retail test the 0x87C-scaled IV (s2) and keep
-   four separate givs s2/s3/s4/s5 = offset, j*0x50, 0xA98+offset, j*4 with no
-   register for j itself.  `primOffset` must be a real s32 local, otherwise
-   gcc folds 0xA98 into 0x50 (0xAE8) at the prim address and into 0x820 at the
-   two func_801E92{7C,0C} calls; and the prim pointer has to be a u8* local or
-   the same fold moves 0x820 onto it.  *(u16*)D_801E9F98 / *(u16*)D_801E9FBC
-   are needed to get retail's lhu (a plain D_801E9F98[0] gives lw).
-   Left, four instructions: (1) retail's primOffset lands in $s4 and j*0x50 in
-   $s3, ours swaps them; (2) retail emits "addiu s5,s5,4" (j++) right after
-   the g_MenuSlotNameTextureY load and ours after the call; (3) the MenuSetFt4QuadVertices argument
-   setup order differs (retail forms the 0x820 sum after loading base/ctx);
-   (4) retail reads the byte it stores to 0x130E/0x1311 with "lbu 776(v1)",
-   ours with "lw" - (u_char), (u8) and (s8) casts on g_Menu->renderContext all
-   leave the lw.  Same allocator-tie class as MenuInitializeCellQuadPrims/func_801E68AC.
+/* Best: 89.50% (668 vs 672 bytes, one instruction short) under gcc 2.6.0.
+   Structure is confirmed against the asm and every call/branch is right: the
+   outer loop is THREE accumulators in one for (offset += 0x87C tested against
+   0x1974, primOffset += 0x87C from 0xA98, j++), which is what gives retail the
+   four givs s2 = offset, s3 = j*0x50, s4 = 0xA98+offset, s5 = j*4 with no
+   register for j.  The inner 9-iteration loop bumps the byte counter at
+   [offset+0x1312] with func_8002675C's return value, then the block stores
+   renderContext to 0x130E, builds the context's POLY_FT4 with
+   MenuInitializePolyFt4 and MenuSetFt4QuadVertices, and stores renderContext to
+   0x1311.  D_801E9F98/D_801E9FBC are the untyped x/y tables (0x801E9F98 is
+   g_MenuRowQuadMode6Xs+0x30, so the indexes are past that symbol's data - do
+   not type them against it).
+   Left, all order/allocator ties measured one change at a time:
+   (1) retail's resource-prim address is spelled from offset
+   ("addiu v0,s2,0xA98; addu v0,v0,t1") and keeps 0x50 on the count term
+   ("addiu a2,a2,0x50"), ours folds 0xA98+0x50 into one addiu (that is the
+   missing instruction).  Using primOffset there instead removes the fold but
+   emits "addu t0,sX,t0; addiu t0,t0,0x50", and moving the count term to the
+   left of the sum does not help either (89.40).
+   (2) the s4/s5 roles are swapped (ours: s4 = j*4, s5 = primOffset; retail:
+   s4 = primOffset, s5 = j*4), and the prologue init order differs; reversing
+   primOffset/offset in the for-init does not move it.
+   (3) retail reads g_MenuSlotNameTextureX[j] with "lw" then "sll/andi 0xfc",
+   ours with "lbu" - the u_char parameter narrowing wins over every declared
+   element type tried (u32, s32) and over the explicit (u_char) cast.
+   (4) 2.7.2 is not an option for this unit (loop.c, see MenuInitializeCellQuadPrims).
+   Permuter: two 3-minute runs moved the base score for the prim-offset cast
+   (that is where 87.15 -> 89.50 came from) but its second find (a
+   "new_var = g_MenuSlotNameTextureX[j] << 2" embedded assignment) is 88.86
+   under objdiff.
+   The body below is the 89.50% one.
    void func_801E61B0(void) {
        s32 i;
        s32 j;
        s32 offset;
        s32 primOffset;
-       u8* pPrim;
 
-       for (j = 0, offset = 0; offset < 0x1974; j++, offset += 0x87C) {
-           primOffset = offset + 0xA98;
+       for (j = 0, offset = 0, primOffset = 0xA98; offset < 0x1974;
+            j++, offset += 0x87C, primOffset += 0x87C) {
            ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] = 0;
            for (i = 0; i < 9; i++) {
                if (D_801EA494[i] != 0xFFFF) {
                    ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] += func_8002675C(
                        g_Menu->resources, D_801EA494[i],
-                       (POLY_FT4*)(primOffset + (u32)g_Menu->pPrimBuffer +
+                       (POLY_FT4*)(offset + 0xA98 + (u32)g_Menu->pPrimBuffer +
                                    (((u8*)g_Menu->pPrimBuffer + offset)[0x1312] * 0x50 + 0x50)),
                        g_Menu->renderContext, j * 0x50 + D_801E9F98[i], D_801E9FBC[i], 0x1000);
                }
            }
            ((u8*)g_Menu->pPrimBuffer + offset)[0x130E] = (u_char)g_Menu->renderContext;
-           pPrim = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
-           MenuInitializePolyFt4((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)));
+           MenuInitializePolyFt4((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x820) +
+                                             (primOffset + (u32)g_Menu->pPrimBuffer)));
            *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12CE) =
                GetTPage(0, 0, 0x180, 0);
            *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12C6) =
                g_SystemPalette1;
-           MenuSetFt4QuadVertices((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)),
+           MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x820) +
+                                              (primOffset + g_Menu->pPrimBuffer)),
                          *(u16*)D_801E9F98 + j * 0x50, *(u16*)D_801E9FBC + 7,
-                         (u_char)(g_MenuSlotNameTextureX[j] << 2), g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
+                         g_MenuSlotNameTextureX[j] << 2, g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
            ((u8*)g_Menu->pPrimBuffer + offset)[0x1311] = (u_char)g_Menu->renderContext;
        }
    }
@@ -323,142 +347,103 @@ s32 MenuGetGlyphKromAddress(u8* p) {
     }
     return Krom2RawAdd((hi << 8) | lo);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E6668);
-/* Best: 98.90% (584 bytes, same size as retail).  Decoded shape: index selects a
-   0x200-byte MenuUnk2ImageChunk; the 0x40-entry byte table at chunk+4 is walked one
-   entry per glyph (two bytes when MenuGetGlyphKromAddress sets g_MenuGlyphIsDoubleByte), each entry is
-   unpacked to 0x100 bits, MenuCompressGlyphRows compresses a row, and the bits are OR ed into
-   a 0x1000-byte 4bpp texture at (i/16)*0x400 + (i%16)*4 + row*0x40 + col/4 before
-   LoadImage of the 0x140,0xE0 RECT.  Everything matches except ONE insn: retail
-   keeps addiu a0,sp,16 (the RECT address) in BOTH branch delay slots that reach the
-   epilogue and has none at the head of the epilogue block; gcc keeps it in the
-   epilogue block and fills only the loop-top beqz slot.  Tried: RECT declared
-   before/after the loops, one shared col variable for the bit loops and the repack
-   column (that fixed a v1/a0 register swap and took it from 98.34 to 98.90), the
-   s32-address form (adds a move a0,v1), LoadImage args reordered.
-   void func_801E6668(s32 index) {
-       u8* pGlyphBits;
-       u8* pBits;
-       u8* pTexture;
-       u8* pSrc;
-       u16* pGlyph;
-       RECT rect;
-       s32 i;
-       s32 count;
-       s32 row;
-       s32 col;
+void func_801E6668(s32 index) {
+    u8* pGlyphBits;
+    u8* pBits;
+    u16* pTexture;
+    u8* pSrc;
+    u16* pGlyph;
+    s32 kromAddress;
+    RECT rect;
+    s32 i;
+    s32 count;
+    s32 row;
+    s32 col;
 
-       pBits = HeapAlloc(0x100, 1);
-       pTexture = HeapAlloc(0x1000, 1);
-       bzero(pTexture, 0x1000);
-       count = 0;
-       pSrc = &g_Menu->menuUnk2->chunks[index].pad0[4];
-       for (i = 0; i < 0x20; i++) {
-           if (*pSrc == 0) {
-               break;
-           }
-           pGlyphBits = pBits;
-           pGlyph = (u16*)MenuGetGlyphKromAddress(pSrc);
-           if (pGlyph != (u16*)-1) {
-               for (row = 0; row < 0x10; row++) {
-                   for (col = 7; col >= 0; col--) {
-                       *pGlyphBits++ = (*pGlyph >> col) & 1;
-                   }
-                   for (col = 0xF; col >= 8; col--) {
-                       *pGlyphBits++ = (*pGlyph >> col) & 1;
-                   }
-                   pGlyph++;
-               }
-               MenuCompressGlyphRows(pBits);
-               for (row = 0; row < 0x10; row++) {
-                   for (col = 0; col < 0xC; col++) {
-                       ((u16*)pTexture)[row * 0x40 + col / 4 + (i % 0x10) * 4 +
-                                         (i / 0x10) * 0x400] |=
-                           pBits[row * 0x10 + col] << ((col % 4) * 4);
-                   }
-               }
-           }
-           pSrc++;
-           count++;
-           if (g_MenuGlyphIsDoubleByte != 0) {
-               pSrc++;
-               count++;
-           }
-           if (count >= 0x40) {
-               break;
-           }
-       }
-       rect.x = 0x140;
-       rect.y = 0xE0;
-       rect.w = 0x40;
-       rect.h = 0x20;
-       LoadImage(&rect, (u_long*)pTexture);
-       DrawSync(0);
-       HeapFree(pBits);
-       HeapFree(pTexture);
-   }
-*/
+    pBits = HeapAlloc(MENU_GLYPH_ROW_COUNT * MENU_GLYPH_ROW_BYTES, 1);
+    pTexture = HeapAlloc(MENU_GLYPH_TEXTURE_SIZE, 1);
+    bzero(pTexture, MENU_GLYPH_TEXTURE_SIZE);
+    count = 0;
+    pSrc = &g_Menu->menuUnk2->chunks[index].pad0[4];
+    for (i = 0; i < 0x20; i++) {
+        if (*pSrc == 0) {
+            break;
+        }
+        pGlyphBits = pBits;
+        kromAddress = MenuGetGlyphKromAddress(pSrc);
+        if (kromAddress != -1) {
+            pGlyph = (u16*)kromAddress;
+            for (row = 0; row < MENU_GLYPH_ROW_COUNT; row++) {
+                for (col = 7; col >= 0; col--) {
+                    *pGlyphBits++ = (*pGlyph >> col) & 1;
+                }
+                for (col = 0xF; col >= 8; col--) {
+                    *pGlyphBits++ = (*pGlyph >> col) & 1;
+                }
+                pGlyph++;
+            }
+            MenuCompressGlyphRows(pBits);
+            for (row = 0; row < MENU_GLYPH_ROW_COUNT; row++) {
+                for (col = 0; col < MENU_GLYPH_COMPRESSED_ROW_BYTES; col++) {
+                    pTexture[row * 0x40 + col / 4 + (i % 0x10) * 4 +
+                             (i / 0x10) * 0x400] |=
+                        pBits[row * MENU_GLYPH_ROW_BYTES + col] << ((col % 4) * 4);
+                }
+            }
+        }
+        pSrc++;
+        count++;
+        if (g_MenuGlyphIsDoubleByte != 0) {
+            pSrc++;
+            count++;
+        }
+        if (count >= MENU_GLYPH_MAX_COUNT) {
+            break;
+        }
+    }
+    rect.x = MENU_GLYPH_TEXTURE_X;
+    rect.y = MENU_GLYPH_TEXTURE_Y;
+    rect.w = MENU_GLYPH_TEXTURE_WIDTH;
+    rect.h = MENU_GLYPH_TEXTURE_HEIGHT;
+    LoadImage(&rect, (u_long*)pTexture);
+    DrawSync(0);
+    HeapFree(pBits);
+    HeapFree(pTexture);
+}
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetPlayTimeDigits(u32 value);
 
 extern s32 D_801E9FE0[];
 extern s32 D_801E9FE4[];
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E68AC);
-/* Best: 98.29% under gcc 2.6.0 (Default flags), 91.23% under the unit's own
-   2.7.2 preset.  The whole gap is gcc 2.7.2's loop.c: it hoists the loop's y
-   constant 0x7A out into a free call-saved register ($s6, adding its
-   save/restore and shifting the frame), where retail re-materialises it with
-   "li v0,0x7A" every iteration; that also flips the addu operand order of the
-   loop's prim pointer (retail "addu a2,s0,a2").  2.6.0 keeps the li inside the
-   loop, exactly as retail does, and the two functions are the same wall as
-   MenuInitializeCellQuadPrims above.  Under 2.6.0 what is left is four instructions of the
-   first digit block: the dividend of number / 10 lands in t0 where retail uses
-   v1, retail's "li s0,0x6E" fills the load-delay slot after the g_Menu load
-   where this body emits it one slot later, and the dividend's sra follows one
-   instruction later.  Everything else, including the second digit block and
-   both magic-number divides, is identical.
-   Structure confirmed: x/y tables D_801E9FE0[0],
-   D_801E9FE4[0] then D_801E9FE0[i+2] in a 7-iteration loop, prim pointers
-   0x240C/0x24AC/0x254C+i*0x50 off g_Menu->pPrimBuffer, then 0x2C7C, 0x2CCC,
-   0x2D1C=(number/10), 0x2D6C=(number%10) with number = pArg[0x23]+1.
-   Tried: an explicit u32 offset accumulator (loop addu becomes
-   "addu a2,s0,a2" but gcc spills s7 and the frame grows to 0x48, 87.42%).
-   void func_801E68AC(u8* pArg) {
-       s32 number;
-       s32 i;
+void func_801E68AC(u8* pArg) {
+    s32 i;
 
-       func_8002675C(g_Menu->resources, 0xEE,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x240C),
-                     g_Menu->renderContext, D_801E9FE0[0], 0x7A, 0x1000);
-       func_8002675C(g_Menu->resources, 0xEE,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x24AC),
-                     g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
-       MenuSetPlayTimeDigits(*(u32*)pArg);
-       for (i = 0; i < 7; i++) {
-           func_8002675C(g_Menu->resources, ((u32*)g_Menu->playTimeDigitIds)[i],
-                         (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x254C + i * 0x50),
-                         g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A,
-                         0x1000);
-       }
-       func_8002675C(g_Menu->resources, 0x17,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2C7C),
-                     g_Menu->renderContext, 0x8, 0x66, 0x1000);
-       func_8002675C(g_Menu->resources, 0x32,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2CCC),
-                     g_Menu->renderContext, 0x10, 0x66, 0x1000);
-       number = pArg[0x23];
-       number++;
-       func_8002675C(g_Menu->resources, number / 10,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D1C),
-                     g_Menu->renderContext, 0x10, 0x6E, 0x1000);
-       number = pArg[0x23];
-       number++;
-       func_8002675C(g_Menu->resources, number % 10,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D6C),
-                     g_Menu->renderContext, 0x18, 0x6E, 0x1000);
-   }
-*/
+    func_8002675C(g_Menu->resources, 0xEE,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x240C),
+                  g_Menu->renderContext, D_801E9FE0[0], 0x7A, 0x1000);
+    func_8002675C(g_Menu->resources, 0xEE,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x24AC),
+                  g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
+    MenuSetPlayTimeDigits(*(u32*)pArg);
+    for (i = 0; i < (s32)ARRAY_COUNT(g_Menu->playTimeDigitIds); i++) {
+        func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
+                      (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x254C + i * 0x50),
+                      g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A, 0x1000);
+    }
+    func_8002675C(g_Menu->resources, 0x17,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2C7C),
+                  g_Menu->renderContext, 0x8, 0x66, 0x1000);
+    func_8002675C(g_Menu->resources, 0x32,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2CCC),
+                  g_Menu->renderContext, 0x10, 0x66, 0x1000);
+    func_8002675C(g_Menu->resources, (pArg[0x23] + 1) / 10,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D1C),
+                  g_Menu->renderContext, 0x10, 0x6E, 0x1000);
+    func_8002675C(g_Menu->resources, (pArg[0x23] + 1) % 10,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D6C),
+                  g_Menu->renderContext, 0x18, 0x6E, 0x1000);
+}
 
 extern u32 g_MenuSlotSpriteX[];
 extern u32 g_MenuSlotSpriteY[];
