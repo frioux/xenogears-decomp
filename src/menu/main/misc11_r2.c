@@ -796,7 +796,7 @@ void MenuDrawSlotSprite(u8 arg0, u8* pArg1) {
     u8* pPrims;
     u32 offset;
 
-    offset = 0xA98 + arg0 * 0x87C;
+    offset = 0xA98 + arg0 * MENU_SLOT_PRIM_STRIDE;
     pPrims = (u8*)(offset + (u32)g_Menu->pPrimBuffer);
     func_8002675C(g_Menu->resources, (pArg1 + arg0)[0x1C] + MENU_TEX_CHARACTER_PORTRAITS_SMALL, pPrims,
                   g_Menu->renderContext, g_MenuSlotSpriteX[arg0], g_MenuSlotSpriteY[arg0], 0x1000);
@@ -818,21 +818,21 @@ void MenuDrawSlotResourceSprites(u8 arg0, u8* pArg1) {
     int i;
 
     MenuParseNumberToDigits((pArg1 + arg0)[0x16]);
-    pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C;
+    pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * MENU_SLOT_PRIM_STRIDE;
     pCounter[0x1308] = 0;
     for (i = 0; i < MENU_SLOT_STAT_DIGIT_COUNT; i++) {
         if (g_Menu->digits[MENU_SLOT_STAT_DIGIT_START + i] == MENU_DIGIT_NONE) {
             continue;
         }
-        primOffset = arg0 * 0x87C + 0xA98;
+        primOffset = arg0 * MENU_SLOT_PRIM_STRIDE + 0xA98;
         pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
         *((pSlot = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C) + 0x1308) += func_8002675C(
             g_Menu->resources, g_Menu->digits[MENU_SLOT_STAT_DIGIT_START + i],
-            (POLY_FT4*)(pPrims + (*((pCount = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C) + 0x1308) * 0x50 + 0x320)),
+            (POLY_FT4*)(pPrims + (*((pCount = (u8*)g_Menu->pPrimBuffer + arg0 * MENU_SLOT_PRIM_STRIDE) + 0x1308) * 0x50 + 0x320)),
             g_Menu->renderContext, arg0 * 0x50 + g_MenuSlotDigitX + i * MENU_DIGIT_SPACING,
             g_MenuSlotDigitY, 0x1000);
     }
     MenuParseNumberToDigits((pArg1 + arg0)[0x19]);
-    pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C;
+    pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * MENU_SLOT_PRIM_STRIDE;
     pCounter[0x1309] = 0;
 }

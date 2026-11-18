@@ -27,7 +27,10 @@ extern void ArchiveCdDataSync(int mode);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void ChangeGameState(unsigned int state);
 
-// Menu overlay entry points, loaded at 0x801C5000
+// Menu overlay entry points, loaded at 0x801C5000. func_801C62A8 is MenuOverlayMain in the
+// overlay (symbol_addrs.menu.txt); the spelling stays func_ here because this binary's own
+// disassembly names the call target from ITS symbol_addrs, which cannot also carry an overlay
+// address (the menu config loads both files, so a second entry for 0x801C62A8 duplicates).
 extern void func_801C62A8(void);
 extern void func_801CB0A8(void);
 extern void func_801CBDBC(void);

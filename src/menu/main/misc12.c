@@ -17,11 +17,9 @@ typedef struct {
 #define MENU_ROW_QUAD_HEIGHT 13
 
 // Distance between one party slot's prims and the next in g_Menu->pPrimBuffer
-#define MENU_SLOT_PRIM_STRIDE 0x87C
 // Resource id offset to the selected (filled) variant of a menu row's cursor
 #define MENU_SELECTED_RESOURCE_OFFSET 0xD
 // Scratch buffer one rendered character name image is built in before LoadImage
-#define MENU_STRING_IMAGE_BUFFER_SIZE 0x3F6
 
 // Destination coordinate of one name/slot texture upload, one 4-byte entry per
 // menu row; only the low half is read, see MenuLoadSlotCharacterNameTexture.

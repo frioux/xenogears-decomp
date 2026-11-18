@@ -20,7 +20,6 @@
 // Entries of MenuDressingRoom.statValues.
 #define MENU_STAT_VALUE_COUNT 9
 // Scratch buffer one rendered item name image is built in before LoadImage.
-#define MENU_STRING_IMAGE_BUFFER_SIZE 0x3F6
 // func_801C72BC's resource table: entry kind + 0x10 unloads what entry kind loaded.
 #define MENU_PANEL_FREE_OFFSET 0x10
 

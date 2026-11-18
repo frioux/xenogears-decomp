@@ -1534,8 +1534,8 @@ void MemberChangeMenuLoadCharacterNameTexture(u_char characterIndex, u_char texI
     u_char* pBuffer;
     u_char uvIndex;
 
-    pBuffer = HeapAlloc(0x3F6, 0);
-    bzero(pBuffer, 0x3F6);
+    pBuffer = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
+    bzero(pBuffer, MENU_STRING_IMAGE_BUFFER_SIZE);
     uvIndex = characterIndex / 2;
     SystemRenderStringEntry(&g_GameState.strings[uvIndex * 2], pBuffer, 0x24, 0);
     SystemRenderStringEntry(&g_GameState.strings[uvIndex * 2 + 1], pBuffer, 0x24, 1);

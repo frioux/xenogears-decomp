@@ -20,6 +20,10 @@
 #define MENU_CARD_SLOT_STATE_READY 2 // g_Menu->cardSlotState once the slot list is built
 // One card slot's save chunk, the size of MenuUnk2ImageChunk
 #define MENU_IMAGE_CHUNK_SIZE 0x200
+// Scratch buffer one rendered string image is built in before LoadImage
+#define MENU_STRING_IMAGE_BUFFER_SIZE 0x3F6
+// Bytes one party slot's prim context occupies in g_Menu->pPrimBuffer
+#define MENU_SLOT_PRIM_STRIDE 0x87C
 
 #include "psyq/libgpu.h"
 #include "system/menu_resources.h"
@@ -800,7 +804,7 @@ typedef struct {
     /* 0x328  */ u8 unk328;
     /* 0x329  */ u_char transitionEffectState;
     /* 0x32A  */ u8 soundEffectsEnabled; // Sound effects enabled?
-    /* 0x32B  */ u8 availableCharacterCount; // Party slots holding an available character, built in func_801C6AA0
+    /* 0x32B  */ u8 availableCharacterCount; // Party slots holding an available character, built in MenuBuildAvailableCharacters
     /* 0x32C  */ MenuUnk2* menuUnk2;
     /* 0x330  */ MenuDressingRoom* pDressingRoom;
     /* 0x334  */ u8 unk334;
@@ -810,7 +814,7 @@ typedef struct {
     /* 0x338  */ u_char subMenuChoice;
     /* 0x339  */ u_char subMenuPrevChoice;
     /* 0x33A  */ u_char subMenuNumChoices;
-    /* 0x33B  */ u8 gearCharacterCount; // Party slots whose character has a gear, built in func_801C6AA0
+    /* 0x33B  */ u8 gearCharacterCount; // Party slots whose character has a gear, built in MenuBuildAvailableCharacters
     /* 0x33C */ MenuManager* pManager;
     /* 0x340  */ void* pGoldWindow; // Gold-window prim block, see MenuGoldWindow in misc7
     /* 0x344  */ MenuPlayTimeDigits* pPlayTimeDigits;

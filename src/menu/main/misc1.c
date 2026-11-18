@@ -335,7 +335,7 @@ void MenuFinalizeMenuData(void) {
     }
     HeapFree(g_Menu);
 }
-void func_801C62A8(void) {
+void MenuOverlayMain(void) {
     MenuInitializeMenuData();
     MenuSetupScreen();
     g_Menu->shouldDrawMenu = TRUE;
@@ -437,7 +437,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
 u_short MenuAndBitMaskLsbFirst(u_short mask, u_char index);
 void func_801C65F4(void);
 
-void func_801C6AA0(void) {
+void MenuBuildAvailableCharacters(void) {
     u32 mask;
     s32 i;
     s32 characterId;

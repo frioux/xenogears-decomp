@@ -393,8 +393,8 @@ void GearShopMenuUpdateGearPanelAnimations(void) {
 void GearShopMenuLoadGearNameTexture(u_char stringIndex) {
     RECT rect;
 
-    g_GearShopGearNameBuffer = HeapAlloc(0x3F6, 0x0);
-    bzero(g_GearShopGearNameBuffer, 0x3F6);
+    g_GearShopGearNameBuffer = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0x0);
+    bzero(g_GearShopGearNameBuffer, MENU_STRING_IMAGE_BUFFER_SIZE);
     SystemRenderStringEntry(&g_GameState.strings[stringIndex], g_GearShopGearNameBuffer, 0x24, 0);
     setRECT(&rect, 0x180, 0x48, 0x28, FONT_LETTER_HEIGHT);
     LoadImage(&rect, (u32* ) g_GearShopGearNameBuffer);
@@ -1126,7 +1126,7 @@ void GearShopMenuRenderSellItemRows(s32 scrollOffset, u8* pItemIds, u8* pItemTyp
     places[3] = 1000;
     places[4] = 10000;
 
-    pWorkspace = HeapAlloc(0x3F6, 0);
+    pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
 
     for (i = 0; i < SHOP_MAX_ITEMS_IN_VIEW; i++) {
         pRect = &sp20;
@@ -1466,7 +1466,7 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
     u8 itemId;
     void* pNames;
 
-    pWorkspace = HeapAlloc(0x3F6, 0);
+    pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
 
     switch (itemType) {
         case ITEM_TYPE_GEAR_ARMOR:
@@ -1573,7 +1573,7 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     places[3] = 1000;
     places[4] = 10000;
 
-    pWorkspace = HeapAlloc(0x3F6, 0);
+    pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
     pRect = &rect;
 
     for (i = 0; i < 8; i++) {
@@ -1817,7 +1817,7 @@ void GearShopMenuBuildItemQuantityHeld(u8 itemType, u8 itemId) {
     if (isValid) {
         g_gearShopCurrentItemQuantityHeld = qtyHeld = GearShopMenuLookupItemQuantity(pIdList, pQtyList, listSize, itemId);
 
-        pWorkspace = HeapAlloc(0x3F6U, 0U);
+        pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0U);
         digitBuffer[1] = 0;
         digitBuffer[3] = 0;
         digitBuffer[0] = ((qtyHeld / 10) == 0) ? 0xC3 : (qtyHeld / 10) + MENU_GLYPH_DIGIT_0;

@@ -55,7 +55,7 @@ s32 MenuFreeWindow2Strings(void);
 void MenuPauseCdDrive(void);
 s32 func_801E93A0(s32 arg0);
 void func_801C6400(void);
-void func_801C6AA0(void);
+void MenuBuildAvailableCharacters(void);
 void MenuResetRenderContext(void);
 void MenuResetAnimationCounters(void);
 void MenuInitializeMenuStrings(void);
@@ -68,7 +68,7 @@ void MenuSetupScreen(void) {
     g_Menu->pSelectionMenu->vramRect.w = MENU_SCREEN_WIDTH;
     g_Menu->pSelectionMenu->vramRect.h = MENU_SCREEN_HEIGHT;
     g_Menu->pCursorPrims->shadeWidth = 0x40;
-    func_801C6AA0();
+    MenuBuildAvailableCharacters();
     MenuResetRenderContext();
     MenuInitializeMenuStrings();
     func_801C6F70();
