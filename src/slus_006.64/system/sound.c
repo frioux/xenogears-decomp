@@ -2419,6 +2419,14 @@ typedef struct {
     /* 0x1 */ u8 value[4];
 } SoundPercussionEntry; // Size: 0x5
 
+// One 4-byte slot of the percussion table the manager's heap block ends with.
+typedef struct {
+    /* 0x0 */ u8 instrument;
+    /* 0x1 */ u8 tune;
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 pan;
+} SoundPercussionTone; // Size: 0x4
+
 void SoundCopyPercussionTable(AudioManager* pManager, AudioManager* pSrc) {
     u32* pTable;
     u32* pSlot;
@@ -3303,18 +3311,18 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 
 void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
-    u8* pPercussionData;
+    SoundPercussionTone* pTone;
     s32 note;
     u16 statusFlags;
 
-    pPercussionData = (u8*)pAudioManager->pPercussionData + (percussionIndex * 4);
+    pTone = (SoundPercussionTone*)((percussionIndex * 4) + pAudioManager->pPercussionData);
 
-    func_8003E5BC(pPercussionData[0], pElement);
+    func_8003E5BC(pTone->instrument, pElement);
 
-    note = (pPercussionData[1] << 8) + pElement->detune + pElement->toneTune;
+    note = (pTone->tune << 8) + pElement->detune + pElement->toneTune;
     pElement->note = note << 16;
     statusFlags = pElement->status_flags;
-    pElement->pan = pPercussionData[3] << 8;
+    pElement->pan = pTone->pan << 8;
     pElement->status_flags = statusFlags | SOUND_STATUS_VOLUME_CHANGE;
 }
 
@@ -4545,6 +4553,7 @@ void SoundSetFlagsOnActiveVoices(AudioManager* manager, s32 flags) {
 
 //----------------------------------------------------------------------------------------------------------------------
 void SoundClearVoiceDataPointers(void) {
+    // a byte offset, not an index: an indexed loop makes gcc keep the table base in a register
     s32 offset = sizeof(SoundVoiceData*) * (NUM_VOICES - 1);
     while( offset >= 0 ) {
         *(SoundVoiceData**)((u8*)&g_SoundChannels + offset) = NULL;
