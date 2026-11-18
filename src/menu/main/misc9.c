@@ -5,6 +5,25 @@
 #include "system/memory.h"
 #include "system/menu.h"
 
+// One page of the inventory window: 8 row panels of MENU_INVENTORY_ROW_ITEM_COUNT items each.
+#define MENU_INVENTORY_ROW_ITEM_COUNT 2
+#define MENU_INVENTORY_PAGE_ITEM_COUNT 16
+// String IDs per row panel of the item list and of the character list.
+#define MENU_ITEM_ROW_STRING_COUNT 8
+#define MENU_CHARACTER_ROW_STRING_COUNT 6
+// An item name is three strings: GetStringEntry(pStrings, itemId * 3 + i).
+#define MENU_ITEM_NAME_LINE_COUNT 3
+// Weapon and accessory slots copied in and out of the equipment panel.
+#define MENU_CHARACTER_WEAPON_SLOT_COUNT 5
+#define MENU_GEAR_WEAPON_SLOT_COUNT 4
+#define MENU_ACCESSORY_SLOT_COUNT 3
+// Entries of MenuDressingRoom.statValues.
+#define MENU_STAT_VALUE_COUNT 9
+// Scratch buffer one rendered item name image is built in before LoadImage.
+#define MENU_STRING_IMAGE_BUFFER_SIZE 0x3F6
+// func_801C72BC's resource table: entry kind + 0x10 unloads what entry kind loaded.
+#define MENU_PANEL_FREE_OFFSET 0x10
+
 extern u8 g_MenuItemRowStringIds[][8]; // 8 u8 string IDs per panel
 extern u8 g_MenuCharacterRowStringIds[][6]; // 6 u8 string IDs per panel
 extern u16 g_MenuInventoryWindowHeight;
@@ -239,7 +258,7 @@ void MenuFitInventoryWindowToItems(void) {
 
     index = 0;
     count = 0;
-    while (count < 0x96) {
+    while (count < MAX_INVENTORY_ITEMS) {
         if (g_GameState.itemIDs[index] != 0) {
             last = index;
         }
@@ -249,12 +268,12 @@ void MenuFitInventoryWindowToItems(void) {
         } while (0);
     }
 
-    if (last < 0x10) {
+    if (last < MENU_INVENTORY_PAGE_ITEM_COUNT) {
         g_MenuInventoryWindowHeight = 0x74;
         g_MenuInventoryRowCount = 0;
         g_MenuInventoryScrollStep = 0;
     } else {
-        s32 n = (last - 0x10) / 2 + 1;
+        s32 n = (last - MENU_INVENTORY_PAGE_ITEM_COUNT) / MENU_INVENTORY_ROW_ITEM_COUNT + 1;
         s32 q = 0x1068 / n;
 
         g_MenuInventoryWindowHeight = 0x4A;
@@ -454,8 +473,8 @@ void MenuCreateUnk430Panel(u_char arg0) {
     s32 kind;
     s32 index = 0;
 
-    g_Menu->unk430 = HeapAlloc(0x1094, 0);
-    bzero(g_Menu->unk430, 0x1094);
+    g_Menu->unk430 = HeapAlloc(sizeof(MenuUnk430Panel), 0);
+    bzero(g_Menu->unk430, sizeof(MenuUnk430Panel));
     switch (arg0) {
     case 0:
         kind = 2;
@@ -468,7 +487,7 @@ void MenuCreateUnk430Panel(u_char arg0) {
         index = 1;
         break;
     }
-    MenuLoadStringsFromIds(8, g_Menu->itemRowStrings, g_MenuItemRowStringIds[index], g_Menu->pManager->shouldRenderStrings10E0);
+    MenuLoadStringsFromIds(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuItemRowStringIds[index], g_Menu->pManager->shouldRenderStrings10E0);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
     func_801D3488(2, arg0);
@@ -495,7 +514,7 @@ void MenuFreeUnk430Panel(u_char arg0) {
         kind = 6;
         break;
     }
-    func_801C72BC((kind | 0x10) & 0xFF);
+    func_801C72BC((kind | MENU_PANEL_FREE_OFFSET) & 0xFF);
     HeapFree(g_Menu->unk430);
     g_Menu->pManager->playTimeDigitsActive = 1;
     g_Menu->pManager->shouldRenderWindow[1] = 1;
@@ -703,10 +722,10 @@ s32 MenuRunUnk430Panel(u_char arg0, u_char arg1) {
 void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     MenuManager* pManager;
 
-    g_Menu->pCharacterSpriteRecords = HeapAlloc(0xA1C, 0);
-    bzero(g_Menu->pCharacterSpriteRecords, 0xA1C);
+    g_Menu->pCharacterSpriteRecords = HeapAlloc(sizeof(MenuCharacterSpriteRecords), 0);
+    bzero(g_Menu->pCharacterSpriteRecords, sizeof(MenuCharacterSpriteRecords));
     pManager = g_Menu->pManager;
-    MenuLoadStringsFromIds(6, g_Menu->characterRowStrings, g_MenuCharacterRowStringIds[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
+    MenuLoadStringsFromIds(MENU_CHARACTER_ROW_STRING_COUNT, g_Menu->characterRowStrings, g_MenuCharacterRowStringIds[arg0 & 0xFF], pManager->shouldRenderStrings14E0);
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
@@ -720,8 +739,8 @@ void MenuFreeCharacterSpriteRecords(void) {
     MenuFreeWindow(4);
     MenuFreeWindow(5);
     MenuRenderFrame();
-    MenuClearBytes(6, &g_Menu->pManager->shouldRenderStrings10E0[8]);
-    func_801C72BC(0x17);
+    MenuClearBytes(MENU_CHARACTER_ROW_STRING_COUNT, &g_Menu->pManager->shouldRenderStrings10E0[8]);
+    func_801C72BC(7 | MENU_PANEL_FREE_OFFSET);
     HeapFree(g_Menu->pCharacterSpriteRecords);
     MenuFreeScrollHandle();
 }
@@ -740,13 +759,13 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     s32 count;
     s32 label;
 
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < MENU_CHARACTER_ROW_STRING_COUNT; i++) {
         g_Menu->pManager->shouldRenderStrings14E0[i] = 0;
     }
 
     if (arg0 != 0) {
         start = 2;
-        count = 6;
+        count = MENU_CHARACTER_ROW_STRING_COUNT;
         label = 0x72;
     } else {
         start = 0;
@@ -755,7 +774,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
     }
 
     for (i = start; i < count; i++) {
-        MenuSetRowQuadVertices(6, g_Menu->characterRowStrings, g_MenuCharacterRowStringIds[arg1 & 0xFF], g_MenuPanelRowXOffsets,
+        MenuSetRowQuadVertices(MENU_CHARACTER_ROW_STRING_COUNT, g_Menu->characterRowStrings, g_MenuCharacterRowStringIds[arg1 & 0xFF], g_MenuPanelRowXOffsets,
                       g_Menu->pManager->shouldRenderStrings14E0, (u8)i, (u8)i, 3);
     }
 
@@ -957,12 +976,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
 void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
     s32 i;
 
-    for (i = 0; i < 9; i++) {
+    for (i = 0; i < MENU_STAT_VALUE_COUNT; i++) {
         ((u16*)((u8*)g_Menu->pEquipmentPanel + 0x280))[i] = g_Menu->pDressingRoom->statValues[i];
     }
 
     if (arg1 == 0) {
-        for (i = 0; i < 5; i++) {
+        for (i = 0; i < MENU_CHARACTER_WEAPON_SLOT_COUNT; i++) {
             ((u8*)g_Menu->pEquipmentPanel + i)[0x29C] =
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i];
             ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1] =
@@ -971,7 +990,7 @@ void MenuCopyEquipmentToPanel(u_char arg0, u_char arg1) {
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i];
         }
     } else {
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < MENU_GEAR_WEAPON_SLOT_COUNT; i++) {
             ((u8*)g_Menu->pEquipmentPanel + i)[0x29C] =
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i];
             ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1] =
@@ -986,24 +1005,24 @@ void MenuCopyEquipmentFromPanel(u_char arg0, u_char arg1) {
     s32 i;
 
     if (arg1 == 0) {
-        for (i = 0; i < 5; i++) {
+        for (i = 0; i < MENU_CHARACTER_WEAPON_SLOT_COUNT; i++) {
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].weaponId[i] =
                 ((u8*)g_Menu->pEquipmentPanel + i)[0x29C];
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].extraWeaponIds[i] =
                 ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1];
         }
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < MENU_ACCESSORY_SLOT_COUNT; i++) {
             g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[i] =
                 ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6];
         }
     } else {
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < MENU_GEAR_WEAPON_SLOT_COUNT; i++) {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].weaponId[i] =
                 ((u8*)g_Menu->pEquipmentPanel + i)[0x29C];
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].extraWeaponIds[i] =
                 ((u8*)g_Menu->pEquipmentPanel + i)[0x2A1];
         }
-        for (i = 0; i < 3; i++) {
+        for (i = 0; i < MENU_ACCESSORY_SLOT_COUNT; i++) {
             g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId].accessorySlots[i] =
                 ((u8*)g_Menu->pEquipmentPanel + i)[0x2A6];
         }
@@ -1019,7 +1038,7 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
                 if (arg1 < 0) {
                     return;
                 }
-                if (arg1 > 3) {
+                if (arg1 > MENU_ACCESSORY_SLOT_COUNT) {
                     return;
                 }
                 g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].accessorySlots[arg1 - 1] =
@@ -1038,7 +1057,7 @@ void MenuSetEquipmentSlotValue(u_char arg0, s32 arg1, s32 arg2, s32 arg3, u_char
                 if (arg1 < 0) {
                     return;
                 }
-                if (arg1 > 3) {
+                if (arg1 > MENU_ACCESSORY_SLOT_COUNT) {
                     return;
                 }
                 g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
@@ -1121,20 +1140,20 @@ void MenuRenderEquipmentSlotStrings(s32 arg0, s32 arg1, s32 arg2, u_char arg3, u
             break;
         }
         if (itemId != 0) {
-            pBuf = HeapAlloc(0x3F6, 0);
-            bzero(pBuf, 0x3F6);
-            for (i = 0; i < 3; i++) {
-                g_Menu->pCharacterSpriteRecords->slotStrings[i].width = SystemRenderStringEntry(GetStringEntry(pStrings, itemId * 3 + i),
+            pBuf = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0);
+            bzero(pBuf, MENU_STRING_IMAGE_BUFFER_SIZE);
+            for (i = 0; i < MENU_ITEM_NAME_LINE_COUNT; i++) {
+                g_Menu->pCharacterSpriteRecords->slotStrings[i].width = SystemRenderStringEntry(GetStringEntry(pStrings, itemId * MENU_ITEM_NAME_LINE_COUNT + i),
                     pBuf, 0x24, 0);
                 rect.x = 0x180 + ((i + 8) & 1) * 0x18;
-                rect.y = 0x80 + ((i + 8) / 2) * 0xD;
+                rect.y = 0x80 + ((i + 8) / 2) * FONT_LETTER_HEIGHT;
                 rect.w = 0x28;
-                rect.h = 0xD;
+                rect.h = FONT_LETTER_HEIGHT;
                 LoadImage(&rect, (u_long*)pBuf);
                 DrawSync(0);
                 func_801E7C50(&g_Menu->pCharacterSpriteRecords->slotStrings[i], i + 8, 0x80, 0x81);
                 MenuSetQuadVertices(g_Menu->pCharacterSpriteRecords->slotStrings[i].vertices, 0x10, i * 0x10 + 0x96,
-                    g_Menu->pCharacterSpriteRecords->slotStrings[i].width, 0xD);
+                    g_Menu->pCharacterSpriteRecords->slotStrings[i].width, FONT_LETTER_HEIGHT);
                 g_Menu->pCharacterSpriteRecords->slotStrings[i].renderContext = g_Menu->renderContext;
             }
             g_Menu->pCharacterSpriteRecords->shouldRenderStrings880[0] = 1;
