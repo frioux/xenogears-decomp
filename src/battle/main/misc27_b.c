@@ -220,18 +220,14 @@ void BattleStartSpriteMotionTask(SpriteData* pSpriteData) {
 // through; the other choice is the shared g_GfxBaseMatrix.
 extern MATRIX g_BattleSpriteOwnMatrix;
 
-// Best attempt: 99.82%, 456 bytes (retail's exact size), 113 of 114 instructions.
-// The only difference is the %hi scratch register of the two symbol addresses in
-// the matrix selection: retail is "lui s0,%hi(sym) / j / addiu s0,s0,%lo(sym)",
-// this body gives "lui v0,%hi(sym) / j / addiu s0,v0,%lo(sym)" - reload put the
-// HIGH pseudo in a scratch register instead of tying it to the destination.
-// Measured and rejected: ternary vs if/else vs default+override (same shape),
-// four local declaration orders, "register" on the pointers, -O3, and this unit's
-// own functions at gcc-2.7.2-psx / 2.6.0-psx (86.80 / 86.62). Two 4-minute
-// permuter runs from different bodies (base score 20 and 135) found nothing.
 // The pBuf variable is load-bearing: it must stay live past the pLine assignment,
 // otherwise gcc merges the two and the "move s2,a1" that fills the flag test's
 // delay slot disappears (452 bytes, 98.86%).
+// The calls are spelled out in both arms on purpose: cross-jumping already merges
+// the identical tails into retail's single jal pair, and taking the address at the
+// call site (no matrix pointer variable) is what makes cc1 tie %hi and %lo into the
+// same register. Selecting the matrix into a variable first gives
+// "lui v0,%hi(sym) / addiu s0,v0,%lo(sym)" instead of retail's "lui s0 / addiu s0,s0".
 void func_800B5DF4(WorkListEntry* pWork) {
     s32 ofs;
     s32 flag;
