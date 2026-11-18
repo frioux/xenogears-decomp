@@ -553,23 +553,21 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
-/* 96.31% (2124 bytes vs retail's 2120): the whole body is in place - the two
+/* 97.17% (2124 bytes vs retail's 2120): the whole body is in place - the two
    follow-actors modes, the slot 7 / slot 8 orbit terms, the two interpolation
    styles (absolute and per-frame step), the block-free bookkeeping and the
    nine-entry output switch (the jump table's 4-byte zero word at 0xCD0 is the
-   assembler's .align before BattleTestActorCommandMask's table). One
-   instruction too many and a register shift are left: retail's y computation
-   reaches v1 in BOTH arms of the actor/table if-else so one `addu s2,v1,zero`
-   serves both, where ours gives the if-arm's temp v0 and copies twice; retail
-   also keeps pBlock in s5 (x,y,z in s1..s3) where ours has it in s1, and its
-   `slti fp,7` test branches on the slot<7 arm (bnez) where ours branches on the
-   curFrame-1 arm (beqz). Tried: y through a u16 local before/after the pos
-   loads (both arms, either arm), z = z + (...) vs +=, a pTween second block
-   pointer (retail really does keep two identical block pointers in s5/s6, and
-   adding it is worth +4%: 89.19 -> 93.85), outX/outY/outZ as separate results
-   (+3.7%), declaration order, and two 4-5 minute permuter runs (the second
-   found only the if-inversion below). Percentages moved 87.55 -> 93.85 -> 96.31
-   as those were found, so this is an allocator tie, not a structure gap.
+   assembler's .align before BattleTestActorCommandMask's table). One instruction
+   too many and a register shift are left: retail's y computation reaches v1 in
+   BOTH arms of the actor/table if-else so one addu s2,v1,zero serves both, where
+   ours gives the if-arm's temp v0 and copies twice; retail also keeps pBlock in
+   s5 (x,y,z in s1..s3) where ours has it in s1. The free/finished branch is
+   written INVERTED (if (!(slot < 7)) { curFrame = endFrame - 1 } else { free }),
+   which the permuter found and is worth 96.31 -> 97.17. Tried: y through a u16
+   local before/after the pos loads (both arms, either arm), z = z + (...) vs +=,
+   a pTween second block pointer (retail keeps two identical block pointers in
+   s5/s6; +4%: 89.19 -> 93.85), outX/outY/outZ as separate results (+3.7%),
+   declaration order, and four permuter runs (8 min on the 96.31% body: no zero).
 // Runs every queued movement command for arg1 frames. A block interpolates its
 // sprite position from its start to its target, then publishes the result: slots
 // 0..6 into their own word, 7 and 8 into the two slot vectors. A block whose tag
@@ -702,14 +700,14 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
             }
             pBlock->curFrame = (u16)pBlock->curFrame + 1;
             if ((s16)pBlock->curFrame >= pBlock->endFrame) {
-                if (slot < 7) {
+                if (!(slot < 7)) {
+                    pBlock->curFrame = pBlock->endFrame - 1;
+                } else {
                     if (pBlock->tag == D_800C3B84) {
                         D_800C3B88 |= 2;
                     }
                     BattleFreeBlock(arg0, (u8 *)pBlock);
                     g_BattleBlockSlots[slot] = NULL;
-                } else {
-                    pBlock->curFrame = pBlock->endFrame - 1;
                 }
             } else {
                 if (pBlock->tag == D_800C3B84) {
@@ -768,30 +766,33 @@ extern u16 D_800C3544;
 extern s16 D_800C3546;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
-/* 84.30% (592 bytes vs retail's 588). Structure and store order are retail's
-   (vec[0], vec[2], vec[1], the result<0 tail, the -1/warm-start bookkeeping).
-   Residuals: retail keeps &g_BattleSlotVectors in s5 across the whole body and
-   reads 0(s5)/0x2(s5), where gcc 2.6.0 rematerialises the constant address at
-   every use (lui+lhu each time); that is also the missing saved register (retail
-   saves s0..s6+ra, we save five). Tried: a plain pointer local, a mem_addr
-   assignment, and an array declaration of the same address (the last one gets a
-   register but costs 8 more bytes and scores 82.25%). Tried also: vec[4] vs
-   vec[3], the tail as result<0/else and as result>=0/else (the latter is this
-   one), and loading the two pPos vectors before or after the three deltas.
+/* 92.60% (600 bytes vs retail's 588). Only the base pointer is left: retail keeps
+   &g_BattleSlotVectors in s5 (lui/addiu once in the prologue) and reads 0(s5) for
+   D_800D3354 and 2(s5) for D_800D3356, where gcc 2.6.0 folds the constant address
+   into each load (lui+lhu twice) - which is also why retail saves s0..s6+ra and we
+   save five registers. Everything else is retail's: s16 dx/dz (the permuter found
+   s32 -> s16, 84.30 -> 92.60), dy as the signed /4, the vec store order
+   vec[0],vec[2],vec[1], the result>=0 tail and the D_800C3542/3544/3546 warm-start
+   bookkeeping. Tried: pointer local (plain, s16*), mem_addr assignment, an array
+   declaration of the same address (gets a register but scores 82.25%), inlining
+   (&g_BattleSlotVectors)[0..1] (identical code), a do/while(0) around the
+   D_800C3546 store, vec[4] vs vec[3], and both tail spellings. A second permuter
+   run only "won" by dropping the pointer's initialisation, i.e. by reading an
+   uninitialised variable - not portable.
 s16 func_800B0B14(s32 index) {
     u8 work[0x10];
     s16 vec[3];
     s16 result;
-    u16 *pVectors;
-    s32 dx;
+    s16 dx;
     s32 dy;
-    s32 dz;
+    s16 dz;
+    u16 *pVectors;
     s32 len;
 
     pVectors = &g_BattleSlotVectors;
-    dx = (s16)(D_800D335C - pVectors[0]);
+    dx = D_800D335C - pVectors[0];
     dy = ((s16)D_800D335E - (s16)pVectors[1]) / 4;
-    dz = (s16)(D_800D3360 - D_800D3358);
+    dz = D_800D3360 - D_800D3358;
     len = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
     vec[0] = pVectors[0] + (dx << 9) / len;
     vec[2] = D_800D3358 + (dz << 9) / len;
@@ -839,7 +840,7 @@ s32 func_800B0D70(u16 *pPos, BattleQueryPoint *pOut) {
     BattleActor **pBase;
 
     bestSlot = -1;
-    for (i = 0; i < 11; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         radius = BattleGetActorRadius(i) + 0x80;
         pBase = g_BattleActors;
         ppActor = &pBase[i];
