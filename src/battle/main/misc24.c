@@ -515,7 +515,13 @@ void BattleFreeActorEntryAndChildren(void *pPool, s32 index, BattleSprite *pSpri
    statements so the count is read as *(u16*)(arg0+0xA) AFTER arg0 += 7, i.e.
    from +0x11 instead of +0xA. It scores 90.43% because it emits the same
    instruction count, but it is semantically wrong; a second 4-minute round
-   from that body found nothing better (60 -> 60). Do not use it. *//*
+   from that body found nothing better (60 -> 60), and a third re-found exactly
+   that candidate (60). Do not use it.
+   Also measured: a non-void return type (s32, no return statement) changes
+   nothing, so the stolen slot is not the return-type lever here; `u8 on = 1;`
+   as the store value moves the li to the ENTRY block above the lhu and the
+   steal then hits li a3 instead (80 bytes, same 85.71); wrapping `arg0 += 7`
+   in `do { } while (0);` is flattened and also lands the addiu above the lhu. *//*
 void func_800AF270(u8 *arg0, u8 *arg1) {
     s32 n;
     s32 i;
