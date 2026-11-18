@@ -5,6 +5,13 @@
 // misc16 call it with the same id; kept here because this unit does not include actor.h).
 #define BATTLE_SOUND_MENU_DENIED 0x4F
 
+// The battle actor slots: the slot[] and charRedrawFlags[] arrays of
+// BattleActorSlots and every loop that walks the per-slot g_BattleCurve* tables or
+// g_BattleSlotEntries. Same value as include/battle/actor.h's
+// BATTLE_ACTOR_SLOT_COUNT; duplicated here because this unit does not include that
+// header.
+#define BATTLE_ACTOR_SLOT_COUNT 11
+
 // The slot id that means "no slot": an empty candidate list entry, a slot that
 // targets nothing.
 #define BATTLE_SLOT_NONE 0xFF
@@ -97,7 +104,7 @@ typedef struct {
 
 // 0x2F8-byte block of actor slots plus the slot menu state that follows them.
 typedef struct {
-    /* 0x000 */ BattleActorSlot slot[0xB];
+    /* 0x000 */ BattleActorSlot slot[BATTLE_ACTOR_SLOT_COUNT];
     /* 0x2C0 */ u8 unk2C0[0xC];
     /* 0x2CC */ u8 commandKey[7]; // matched against the 13 7-byte rows BattleCheckCommandKeyStatusBit walks
     /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
@@ -121,7 +128,7 @@ typedef struct {
     /* 0x2E8 */ u8 targetSlot; // the slot being selected, the menu's copy of slot[].targetSlot
     /* 0x2E9 */ u8 commandAppended; // set once BattleAppendCommandRecord has run; both append paths return at once
     /* 0x2EA */ u8 unk2EA;
-    /* 0x2EB */ u8 charRedrawFlags[0xB];
+    /* 0x2EB */ u8 charRedrawFlags[BATTLE_ACTOR_SLOT_COUNT];
     /* 0x2F6 */ u8 repeatPending; // the last event was this one, so take it as a repeat
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
@@ -931,7 +938,7 @@ u8 BattleBuildTargetCandidateListByRow(u8 arg0) {
         i = 3;
         count = 0;
         p = list;
-        for (; i < 0xB; i++) {
+        for (; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
             if (BattlePairTargetable(arg0, i) != 0) {
                 *p = i;
                 p++;
@@ -1239,7 +1246,7 @@ u16 BattleGetSameRowSlotMask(void) {
     u16 ret;
 
     ret = 0;
-    for (i = 0; i < 0xB; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, i) != 0) {
             if (g_BattleSlotRecords[g_BattleTargetSlot][0] == g_BattleSlotRecords[i][0]) {
                 ret |= BattleSlotBitMask(i);
@@ -1302,7 +1309,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
     if ((flags & 0x8000) != 0) {
         n = 0;
         g_BattleTargetSlot = BATTLE_SLOT_NONE;
-        for (i = 0, off = 0, off8 = 0; i < 0xB; i++, off8 += 8) {
+        for (i = 0, off = 0, off8 = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++, off8 += 8) {
             if (BattleMaskHasSlotBit(g_BattleTargetSlotMask, i) != 0) {
                 if (g_BattleSlotFlags[off8] == 0) {
                     if ((*(u16 *)((u8 *)g_BattleSlotEntries + off) & 0x8000) != 0) {
@@ -1324,7 +1331,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
             }
             off += 0x170;
         }
-        while (n < 0xB) {
+        while (n < BATTLE_ACTOR_SLOT_COUNT) {
             g_BattleTargetCandidates[n] = BATTLE_SLOT_NONE;
             n++;
         }
@@ -1425,7 +1432,7 @@ u32 BattleActorPosXGreaterThan(u8 arg0, u8 arg1) {
 void BattleClearSlotCurveState(void) {
     s32 i;
 
-    for (i = 0; i < 11; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         g_BattleCurveModes[i] = BATTLE_CURVE_MODE_NONE;
         g_BattleCurveValues[i] = 0;
     }
@@ -1433,7 +1440,7 @@ void BattleClearSlotCurveState(void) {
 void BattleClearSlotCurveEntry(void) {
     s32 i;
 
-    for (i = 0; i < 0xB; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveTargets[i] = 0;
         g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveTargetModes[i] = BATTLE_CURVE_MODE_NONE;
         g_BattleCommandRows[g_BattleCommandQueue[0x2DA]].curveValues[i] = 0;
@@ -1447,7 +1454,7 @@ extern u16 g_BattleCurveValues[];
 void BattleApplySlotCurve(u8 arg0) {
     s32 i;
 
-    for (i = 0; i < 0xB; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         g_BattleCommandRows[arg0].curveTargets[i] = g_BattleCurveTargets[i][0];
         g_BattleCommandRows[arg0].curveTargetModes[i] = g_BattleCurveTargetModes[i];
         switch (g_BattleCurveTargetModes[i]) {
