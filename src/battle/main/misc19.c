@@ -20,7 +20,7 @@ extern BattleRow* g_BattleCurrentRow;
 extern u8* g_BattleCurSlotState;
 extern u8 g_BattleSlotConditions[];
 extern BattleTableEntry g_BattleWorkBlock[];
-extern u8 D_800D2C34;
+extern u8 g_BattleCommandCharIndex;
 extern u8* g_BattleActingSlot;
 extern u8 D_800CCD68[];
 
@@ -308,7 +308,7 @@ void BattleSetSlotFlag15A1(u8 arg0) {
         p->state.activeEffectFlags1 &= 0xFE4F;
         p->activeEffectFlags1 &= 0xEFFF;
     }
-    if (D_800D2C34 == 4) {
+    if (g_BattleCommandCharIndex == 4) {
         g_BattleCurWorkBlock->commandCode = 0x3D;
     }
 }

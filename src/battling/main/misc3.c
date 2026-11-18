@@ -16,11 +16,11 @@
 #define BATTLE_ACTOR_VY_MIN (-0x82)
 
 extern void func_800379C8(char*, ...);
-extern char D_8006FCC0[];
-extern char D_8006FCC4[];
-extern char D_8006FCC8[];
+extern char g_StrMessageQueueHeader[];
+extern char g_StrMessageQueueValueFormat[];
+extern char g_StrMessageQueueFooter[];
 extern s32 g_BattleActorDistance2D;
-extern u8 D_80091178[];
+extern u8 g_BattleActionEntryIndices[];
 extern u8 D_80091179[];
 extern s32 g_BattleHitPointX;
 extern s32 g_BattleHitPointZ;
@@ -487,11 +487,11 @@ void BattlePrintMessageQueue(BattleActor* p) {
     s32 idx;
 
     idx = p->messageQueue.readIdx;
-    func_800379C8(D_8006FCC0);
+    func_800379C8(g_StrMessageQueueHeader);
     for (i = 0; i < p->messageQueue.count; i++) {
-        func_800379C8(D_8006FCC4, p->messageQueue.buf[(idx++) & (sizeof(p->messageQueue.buf) - 1)]);
+        func_800379C8(g_StrMessageQueueValueFormat, p->messageQueue.buf[(idx++) & (sizeof(p->messageQueue.buf) - 1)]);
     }
-    func_800379C8(D_8006FCC8);
+    func_800379C8(g_StrMessageQueueFooter);
 }
 
 extern s32 BattleGetScreenMode(void);
@@ -499,7 +499,7 @@ extern void BattleSetTextCursor(s32 a0, s32 a1);
 extern s32 g_BattleMotionSpeedScale;
 extern u8 g_BattlePlayer2Vibration;
 extern u8 g_BattlePlayer1Vibration;
-extern u32 D_80091198[];
+extern u32 g_BattleActionGaugeValues[];
 // One 0x14-byte record per battle slot. The draw code in BattleDrawFrameHud reads
 // the same record's +0xC and +0x10 words.
 typedef struct {
@@ -544,7 +544,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
         BattleSetTextCursor(0xF0, 0x28);
     }
     if (p->actionIndex != 0) {
-        g_BattleSlotGauges[((p->flags >> 27) & 1)].value = D_80091198[p->actionIndex];
+        g_BattleSlotGauges[((p->flags >> 27) & 1)].value = g_BattleActionGaugeValues[p->actionIndex];
         pActionData = p->pActionData;
         g_BattleSlotGauges[((p->flags >> 27) & 1)].percent = (pActionData->points[p->actionIndex] * pActionData->scale) / BATTLE_PERCENT_SCALE;
     }
@@ -553,10 +553,10 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
 extern void BattleSetTextScale(s32 color);
 extern void BattleDrawTextLeft(char* pStr);
 extern s32 g_BattleMode;
-extern s32 D_8009112C;
-extern char D_8006FD04[];
-extern char D_8006FD08[];
-extern char D_8006FD10[];
+extern s32 g_BattleGaugeHighlightValue;
+extern char g_StrGaugeValueFormat[];
+extern char g_StrGaugePercentFormat[];
+extern char g_StrGaugeFrameFormat[];
 
 // The three later gauge reads reach g_BattleSlotGauges with the record offsets folded in
 // where retail's object names D_80096FBC/FC4/FC8 -- the same three addresses, so
@@ -577,8 +577,8 @@ void BattleDrawFrameHud(BattleActor* p) {
         h = 0xB2;
     }
     BattleSetTextCursor(w, h);
-    Sprintf(buf, D_8006FD04, g_BattleSlotGauges[((p->flags >> 27) & 1)].value);
-    if (g_BattleSlotGauges[((p->flags >> 27) & 1)].value == D_8009112C) {
+    Sprintf(buf, g_StrGaugeValueFormat, g_BattleSlotGauges[((p->flags >> 27) & 1)].value);
+    if (g_BattleSlotGauges[((p->flags >> 27) & 1)].value == g_BattleGaugeHighlightValue) {
         color = 0xE7;
     } else {
         color = 0x100;
@@ -587,11 +587,11 @@ void BattleDrawFrameHud(BattleActor* p) {
     BattleDrawTextLeft(buf);
     BattleSetTextScale(0x100);
     BattleSetTextCursor(w + 0x34, h);
-    Sprintf(buf, D_8006FD08, g_BattleSlotGauges[((p->flags >> 27) & 1)].percent);
+    Sprintf(buf, g_StrGaugePercentFormat, g_BattleSlotGauges[((p->flags >> 27) & 1)].percent);
     BattleDrawTextLeft(buf);
     BattleSetTextCursor(w, h + 0x14);
     h = g_BattleSlotGauges[((p->flags >> 27) & 1)].frameStart >> 4;
-    Sprintf(buf, D_8006FD10, h, g_BattleSlotGauges[((p->flags >> 27) & 1)].frameCurrent >> 4);
+    Sprintf(buf, g_StrGaugeFrameFormat, h, g_BattleSlotGauges[((p->flags >> 27) & 1)].frameCurrent >> 4);
     BattleDrawTextLeft(buf);
 }
 
@@ -940,7 +940,7 @@ u8* BattleActorSelectActionEntry(BattleActor* p, s32 flag) {
 
     idx = p->actionIndex * 2;
     if (flag != 0) {
-        p->actionIndex = D_80091178[idx];
+        p->actionIndex = g_BattleActionEntryIndices[idx];
     } else {
         p->actionIndex = D_80091179[idx];
     }

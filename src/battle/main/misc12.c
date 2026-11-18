@@ -670,9 +670,9 @@ void BattleAdvanceSlotMenuStateText(u8 arg0) {
 extern BattleWork *g_BattleDisplayState;
 extern u8 g_BattleTaskListBusy;
 extern u16 g_BattleSlotFlag8000Mask;
-extern u8 D_800D2C34;
+extern u8 g_BattleCommandCharIndex;
 // The per-command cost/limit table read by the confirm handler: one u16 row per
-// character, three rows of the table before the scalar at D_800D2C34.
+// character, three rows of the table before the scalar at g_BattleCommandCharIndex.
 extern u16 g_BattleCommandCost[];
 extern void BattleInitTargetSlotFlags(u8);
 extern void BattleQueueCommandFE(u8);
@@ -698,14 +698,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
        `index++`, case 7 two, case 6 one) is emitted one instruction longer here because
        reorg steals D08's increment into the case-4 `beq` delay slot, which then splits
        the chain retail shares. Source shape matches retail's block order otherwise.
-   (c) the two D_800D2C34-based table reads need the base register retail uses, so the
-       body spells them `((u16 *)(pMode - 0x15))[0xC + index]` with pMode = &D_800D2C34;
+   (c) the two g_BattleCommandCharIndex-based table reads need the base register retail uses, so the
+       body spells them `((u16 *)(pMode - 0x15))[0xC + index]` with pMode = &g_BattleCommandCharIndex;
        the plain `g_BattleCommandCost[...]` form makes gcc fold the constant into the symbol
        (%hi(D_800D2C22) through $at) and cannot link. That spelling is ROUGH - the
        original almost certainly indexed one table.
    Table facts for the next round: g_BattleCommandCost is a u16 table; the three reads are
    [index], [0xC + index] and [3*commandKey[0] + 3 + index], so the last two are one row-major
-   table indexed 3*character + 3 + command and the D_800D2C34==4 case is that row with
+   table indexed 3*character + 3 + command and the g_BattleCommandCharIndex==4 case is that row with
    character 3. s2 (the command index + 1) is built by the case 4/7/6 fall-through.
 */
 /*
@@ -729,7 +729,7 @@ u32 func_80083948(u8 arg0) {
     switch (g_BattleMenuEvent) {
     case 5:
         first = 1;
-        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 != 0 && D_800D2C34 != 4) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 != 0 && g_BattleCommandCharIndex != 4) {
             BattleQueueCommandFE(arg0);
             ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
             first = 0;
@@ -740,7 +740,7 @@ u32 func_80083948(u8 arg0) {
             g_BattleSoundEnabled = 1;
             ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0x10;
             BattleClearFlagC6();
-            if (D_800D2C34 != 4) {
+            if (g_BattleCommandCharIndex != 4) {
                 BattleClearSlotFlagsIfChar4(arg0, 1);
             } else {
                 ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = 0;
@@ -789,8 +789,8 @@ u32 func_80083948(u8 arg0) {
     }
     g_BattleDisplayState->unk0[0x7C + arg0] = 1;
     if (((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 != 0) {
-        if (D_800D2C34 != 4
-            && (D_800D2C34 == 0 || D_800D2C34 - 1 < ((BattleActorSlots *)g_BattleCommandQueue)->commandKey[0])) {
+        if (g_BattleCommandCharIndex != 4
+            && (g_BattleCommandCharIndex == 0 || g_BattleCommandCharIndex - 1 < ((BattleActorSlots *)g_BattleCommandQueue)->commandKey[0])) {
             BattleQueueCommandFE(arg0);
             ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
             return;
@@ -809,7 +809,7 @@ u32 func_80083948(u8 arg0) {
         index++;
     case 6:
         index++;
-        if (D_800D2C34 == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
+        if (g_BattleCommandCharIndex == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
             func_80086F98(0xFF, arg0);
             break;
@@ -822,7 +822,7 @@ u32 func_80083948(u8 arg0) {
         } else {
             u8 *pMode;
 
-            pMode = &D_800D2C34;
+            pMode = &g_BattleCommandCharIndex;
             if (*pMode == 4) {
                 remain = counter - ((u16 *)(pMode - 0x15))[0xC + index];
             } else {
@@ -868,7 +868,7 @@ u32 func_80083948(u8 arg0) {
     case 5:
         break;
     default:
-        if (D_800D2C34 == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
+        if (g_BattleCommandCharIndex == 4 && ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 == 0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
             func_80086F98(0xFF, arg0);
         }

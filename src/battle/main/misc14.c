@@ -106,7 +106,7 @@ extern void SoundEnableAllSpuChannels(void);
 extern u8 D_800C3CF8[];
 extern u8 D_800C3CFB[];
 extern u8 D_800CCC58;
-extern u8 D_800D2C34;
+extern u8 g_BattleCommandCharIndex;
 extern u8 D_800D2C35;
 extern u8 g_BattleCursorScrollState;
 extern s32 g_BattleCursorScrollY;
@@ -249,7 +249,7 @@ void BattleBuildGrey80BlendSpriteColumnPair(void) {
     u8 slotB;
     s32 i;
 
-    v = D_800D2C34;
+    v = g_BattleCommandCharIndex;
     slotA = v - 0x5D;
     slotB = v - 0x25;
     g_BattleSpriteColumnWork[0x5D77] = BattleDrawSpritePackage(slotA, (s32)(g_BattleSpriteColumnWork + 0x3E80), 0xA0, 0x64);
@@ -292,7 +292,7 @@ void BattleBuildGrey80BlendSpriteColumn6(void) {
     s32 off2;
 
     columnBase = 0x4FB0;
-    if (D_800D2C34 < 4) {
+    if (g_BattleCommandCharIndex < 4) {
         BattleParseNumberToDigits(D_800D2C3A);
         i = 0;
         n = 0;

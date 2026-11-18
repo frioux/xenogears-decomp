@@ -77,7 +77,7 @@ extern void func_80076D58(u8 *, u8, u8);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *, s16, s16, u8, u8, u8);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
-extern u8 D_800D2C34[];
+extern u8 g_BattleCommandCharIndex[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_BattleCommandStatusMasks[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
@@ -373,12 +373,12 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
 
     idx = arg0 + (g_BattleCommandQueue[0x2CC] + 1) * 3;
     if (g_BattleCommandQueue[0x2D6] != 0) {
-        if (D_800D2C34[0] == 4) {
+        if (g_BattleCommandCharIndex[0] == 4) {
             idx = arg0 + 0xC;
         }
         if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].unk8,
                                g_BattleCommandStatusMasks[idx & 0xFF]) != 0) {
-            if (g_BattleCommandQueue[0x2CC] != BATTLE_COMMAND_NONE && D_800D2C34[0] != 4 && D_800D2C34[0] < g_BattleCommandQueue[0x2CC] + 1) {
+            if (g_BattleCommandQueue[0x2CC] != BATTLE_COMMAND_NONE && g_BattleCommandCharIndex[0] != 4 && g_BattleCommandCharIndex[0] < g_BattleCommandQueue[0x2CC] + 1) {
                 ok = 0;
             }
         } else {

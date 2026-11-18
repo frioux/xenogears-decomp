@@ -149,7 +149,7 @@ typedef struct {
     /* 0xA */ u16 vy; // added to y every frame and itself gains 2: gravity
 } BattleSpriteSlot; // Size: 0xC
 
-// 0x10-byte primitive template BattleInitSpriteBuffers allocates at g_BattleSpritePrimBuffers/D_800926D0:
+// 0x10-byte primitive template BattleInitSpriteBuffers allocates at g_BattleSpritePrimBuffers/g_BattleSpritePrimBufferCopy:
 // a 0x60 tile prim, whose tag word is the OT link plus the prim's length.
 typedef struct {
     /* 0x0 */ u8 unk0[3];
@@ -166,7 +166,7 @@ extern u8 *D_800926C0;
 extern u8 *D_800926C4;
 extern u8 *g_BattleSpriteSlots;
 extern u8 *g_BattleSpritePrimBuffers;
-extern u8 *D_800926D0;
+extern u8 *g_BattleSpritePrimBufferCopy;
 extern u8 *g_BattleGridCells;
 extern u8 g_BattleDrawBufferIndex;
 
@@ -846,7 +846,7 @@ void BattleInitSpriteBuffers(void) {
     g_BattleSpriteSlots = HeapAlloc(0x1950, 0);
     pTemplateBuf = HeapAlloc(0x21C0, 0);
     g_BattleSpritePrimBuffers = pTemplateBuf;
-    D_800926D0 = HeapAlloc(0x21C0, 0);
+    g_BattleSpritePrimBufferCopy = HeapAlloc(0x21C0, 0);
     pSlot = (BattleSpriteSlot *)g_BattleSpriteSlots;
     pTemplate = (BattlePrimTemplate16 *)pTemplateBuf;
     for (i = 0; i < 0x21C; i++, pSlot++, pTemplate++) {
@@ -862,7 +862,7 @@ void BattleInitSpriteBuffers(void) {
         pSlot->vy = 0;
         pSlot->vx = 0;
     }
-    func_800732AC(D_800926D0, g_BattleSpritePrimBuffers, 0x21C0);
+    func_800732AC(g_BattleSpritePrimBufferCopy, g_BattleSpritePrimBuffers, 0x21C0);
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);

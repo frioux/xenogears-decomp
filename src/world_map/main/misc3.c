@@ -93,7 +93,7 @@ typedef s32 (*WorldMapScriptHandler)(WorldMapScriptSlot* pSlot, s32 arg1, s16 ar
 extern WorldMapScriptHandler g_WorldMapScriptOpHandlers[];
 
 // World map player (stride 0x80), the scroll and height fields
-// func_80076DA4, func_80076FA8 and WorldMapApproachHeight touch. Same layout
+// WorldMapApproachViewRotation, func_80076FA8 and WorldMapApproachHeight touch. Same layout
 // as misc12.c's local WorldMapPlayer.
 typedef struct {
     /* 0x00 */ u8 unk0[0x28];
@@ -267,7 +267,7 @@ s32 WorldMapScriptOp11SetDrawMode(s32 arg0, s32 arg1, s32 arg2) {
     return 4;
 }
 
-void func_80076DA4(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
+void WorldMapApproachViewRotation(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
     s16 rotX;
     s16 rotY;
     s16 rotZ;
@@ -320,7 +320,7 @@ void WorldMapApproachHeight(WorldMapPlayer* pPlayer) {
     }
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_80076FA8);
-/* Best attempt: 75.16%. Same skeleton as func_80076DA4 (compare the three
+/* Best attempt: 75.16%. Same skeleton as WorldMapApproachViewRotation (compare the three
    player fields against the g_WorldMapScrollTargetX/560/564 goal, wrap the delta through
    WorldMapWrapDelta, 1/8 step, |step| < 0x200 snaps to the goal). Remaining diff:
    inside the if-block gcc cse reuses the g_WorldMapScrollTargetX/560/564 values it loaded

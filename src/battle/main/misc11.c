@@ -29,7 +29,7 @@ extern void ArchiveReadFileToBuffer(s32 index, void *pBuffer, u32 arg2, u32 flag
 extern void HeapFree(void *pMem);
 extern void bzero(void *p, s32 n);
 extern u8 *g_BattlePulseTrianglePrims;
-extern u8 D_800D2C34;
+extern u8 g_BattleCommandCharIndex;
 extern u8 func_80084854(u8 arg0, u8 arg1);
 extern void func_80093B08(u8 arg0);
 extern u16 BattleSlotBitMask(u8 arg0);
@@ -764,7 +764,7 @@ void BattleInitTargetSlotFlags(s32 arg0) {
         }
         i++;
     } while (i < 4);
-    if (D_800D2C34 != 4) {
+    if (g_BattleCommandCharIndex != 4) {
         func_80093B08(arg0);
     }
 }
