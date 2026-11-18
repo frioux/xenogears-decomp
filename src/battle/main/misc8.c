@@ -50,7 +50,7 @@ extern BattleSlotRecord g_BattleSlotRecords[];
 extern s16 g_BattleSlotCountdownTimers[];
 extern s16 D_800D2E0C[];
 extern u8 g_BattleRowStatValues[];
-extern u8 D_800D2CB0[];
+extern u8 g_BattleCommandCellUses[];
 extern u8 g_BattleCommandGridIds[];
 extern u8 g_BattleSlotEnabledFlags[];
 extern u8 D_800CCD3E[];
@@ -317,7 +317,7 @@ void BattleStoreCommandUseCount(BattleSlotArgs **ppArgs, u8 row) {
     g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = 0;
     for (i = 0; i < 0x30; i++) {
         if (g_BattleCommandGridIds[i] == (*ppArgs)->tag) {
-            g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = D_800D2CB0[i];
+            g_BattleSlotRows[row].unk20[(*ppArgs)->slot] = g_BattleCommandCellUses[i];
             break;
         }
     }

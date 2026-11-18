@@ -166,7 +166,7 @@ void AnimTaskCountedTimerTick(void) {
     func_80022DF4();
 }
 
-extern void func_80025180(void* pData);
+extern void GfxQueueSpriteTileData(void* pData);
 extern void WorkListsRemoveEntriesForData(WorkListEntry* pTask);
 extern void TimerWorkListClearDataField70(WorkListEntry* pTask);
 
@@ -176,7 +176,7 @@ void AnimTaskFree(AnimTask* pAnimTask) {
 
     if (pSpriteData->pBase) {
         if (pSpriteData->pBase->pFramesData) {
-            func_80025180(pSpriteData->pBase->pFramesData);
+            GfxQueueSpriteTileData(pSpriteData->pBase->pFramesData);
         }
     }
     if ((pSpriteData->field_0x3C_0 & 3) == 1) {

@@ -61,7 +61,7 @@ extern s32 g_BattleCursor0Step;
 extern s32 g_BattleCursor0Offset;
 extern s32 g_BattleCursor1Step;
 extern s32 g_BattleCursor1Offset;
-extern u8 D_800916D8[];
+extern u8 g_BattleOptionTextList[];
 extern u8* D_800916DC;
 extern s16 D_800916EA;
 extern u8 D_80091714[];
@@ -217,7 +217,7 @@ void BattleDrawVibrationOptions(void) {
     s32 flag;
 
     BattleSetTextCursor(0xA0, 0x8C);
-    pPad = (Misc7Struct*)D_800916D8;
+    pPad = (Misc7Struct*)g_BattleOptionTextList;
     flag = !(g_BattleSlotConfirmFlags & 1);
     if (flag && D_800916EA == 0) {
         g_BattleSlot0TextColor = 1;

@@ -4133,7 +4133,7 @@ u8* SoundScriptAddElementPan(u8* pScript, AudioManager* pAudioManager, AudioElem
     return pScript + 1;
 }
 
-u8* func_8003DEE4(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+u8* SoundScriptStartPanRamp(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
     s32 volume = pAudioElements->pan;
     s32 target = (s8)pScript[1];
     u16 frames = pScript[0];

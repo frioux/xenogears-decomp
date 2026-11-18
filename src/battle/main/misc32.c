@@ -3,7 +3,7 @@
 #include "system/animation.h"
 
 extern void func_8001F6B0(void *pObj);
-extern void func_80025180(void *pData);
+extern void GfxQueueSpriteTileData(void *pData);
 extern void WorkListsRemoveEntriesForData(void *pTask);
 extern void TimerWorkListRemoveTask(void *pTask);
 // left unprototyped: the ramp passes a third argument the callee (misc31) does not read
@@ -87,7 +87,7 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
     pSprite = pData->pSprite;
     pSprite->prim |= 1;
     func_8001F6B0(pSprite);
-    func_80025180(pData->pPrimBuffer);
+    GfxQueueSpriteTileData(pData->pPrimBuffer);
     WorkListsRemoveEntriesForData(pTask);
     TimerWorkListRemoveTask(pTask);
     HeapFree(pData);

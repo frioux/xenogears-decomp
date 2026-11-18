@@ -41,7 +41,7 @@ extern u8 g_BattleSlotRows[];
 extern u8 D_800D3420[];
 extern u8 D_800D3430[];
 extern u8 D_800C3EB7[];
-extern u8 D_800CCD62[];
+extern u8 g_BattleSlotStatusRows[];
 extern u8 D_800CD1B2[];
 extern u8 D_800D32B1[];
 extern u8 D_800D32F1[];
@@ -581,7 +581,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E7E4);
    frame grows to 0x28, 92.00%. So the hoist is cse's, not register pressure.
 void func_8007E7E4(u8 **arg0) {
     s32 flag = (*arg0)[2] != 0;
-    s32 addr = (s32)D_800CCD62;
+    s32 addr = (s32)g_BattleSlotStatusRows;
 
     do {
         if ((u8)flag) {

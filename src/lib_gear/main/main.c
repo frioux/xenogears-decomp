@@ -2778,8 +2778,8 @@ s32 SoundFindSedsEntry(void* pEntry, s16 bank);
 void SoundAddSedsEntry(void* pEntry);
 
 // The heap copy of the model file being created, and the mesh slot it takes
-extern ModelFileHeader* D_801E8638;
-extern s32 D_801E8634;
+extern ModelFileHeader* g_LibGearModelFile;
+extern s32 g_LibGearMeshSlot;
 
 // Builds a gear model from its archive entry into g_LibGearModels[modelIndex].
 // offsetX..offsetW shift the material records' texture coordinates, and
@@ -2859,21 +2859,21 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
         func_8002DDE4(pMeshSource, (s16)isFlat, (s16)offsetX, (s16)offsetY, (s16)isFlat, (s16)offsetZ, (s16)offsetW);
 
         pModelFile = HeapAlloc(size, 1);
-        D_801E8638 = pModelFile;
+        g_LibGearModelFile = pModelFile;
         memcpy(pModelFile, pDataStart, size);
 
-        D_801E8634 = 0;
-        while (D_801E8634 < MAX_MODEL_MESHES) {
-            if (g_LibGearMeshes[D_801E8634].pParts == NULL) {
+        g_LibGearMeshSlot = 0;
+        while (g_LibGearMeshSlot < MAX_MODEL_MESHES) {
+            if (g_LibGearMeshes[g_LibGearMeshSlot].pParts == NULL) {
                 break;
             }
-            D_801E8634++;
+            g_LibGearMeshSlot++;
         }
 
-        LibGearInitializeMesh(D_801E8638, &g_LibGearMeshes[D_801E8634]);
+        LibGearInitializeMesh(g_LibGearModelFile, &g_LibGearMeshes[g_LibGearMeshSlot]);
     }
 
-    pModel->pMesh = &g_LibGearMeshes[D_801E8634];
+    pModel->pMesh = &g_LibGearMeshes[g_LibGearMeshSlot];
 
     if (flags & 0x40) {
         pModel->pSkeleton = LibGearInitializeSkeleton(pModel->pMesh, pJointEntries, 0, 0, 0, 0, 0, 0);
@@ -2995,12 +2995,12 @@ void func_801E742C(s32 modelIndex, u16 flags, ModelSource* pSource, ModelArchive
     if (flags & 2) {
         pModel->pModelFile = NULL;
     } else {
-        ModelFileTrimHeapBlock(D_801E8638);
-        ModelUnresolvePointers(D_801E8638);
-        size = (s32)HeapGetNextBlockHeader((HeapBlock*)D_801E8638);
+        ModelFileTrimHeapBlock(g_LibGearModelFile);
+        ModelUnresolvePointers(g_LibGearModelFile);
+        size = (s32)HeapGetNextBlockHeader((HeapBlock*)g_LibGearModelFile);
         pModelFile = HeapAlloc(size, 0x0);
-        memcpy(pModelFile, D_801E8638, size);
-        HeapFree(D_801E8638);
+        memcpy(pModelFile, g_LibGearModelFile, size);
+        HeapFree(g_LibGearModelFile);
         LibGearFreeModelMesh(pModel->pMesh, 0);
         LibGearInitializeMesh(pModelFile, pModel->pMesh);
         pModel->pModelFile = pModelFile;

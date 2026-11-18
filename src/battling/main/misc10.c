@@ -782,7 +782,7 @@ void BattleBuildFlippedTexturedQuad(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPo
 extern POLY_FT4 D_80095698[16];
 extern DR_TPAGE D_80095918[4];
 extern u8 D_80091814[];
-extern u8 D_80092860;
+extern u8 g_BattleBarTexV;
 extern u8 D_80092864;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
@@ -804,7 +804,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
    ABSOLUTE (lui $at,%hi/%lo), and its copies do not re-materialise the base per
    copy; (2) retail's frame is 0x50 with s3-s0 saved (pActor in s3), ours 0x48
    with s2-s0, i.e. we are one callee-saved register short; (3) the two
-   D_80092860/D_80092864 lbu's sit earlier in retail than the stores.
+   g_BattleBarTexV/D_80092864 lbu's sit earlier in retail than the stores.
    Tried: all-array-symbol accesses (55.28%, copies also go absolute), all
    pointer-local accesses (64.58%, scalar stores then go base-relative).
    The form below is the mixed one.
@@ -856,7 +856,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800868E0);
     setlen(&D_80095698[8], 4);
     D_80095698[8].code = 0x65;
     Misc10SetUV0(&D_80095698[8], 0x80, 0);
-    D_80092860 = D_80095698[12].v0;
+    g_BattleBarTexV = D_80095698[12].v0;
     D_80092864 = D_80095698[14].v0;
     D_80095698[13].clut = D_80095698[0].clut;
     D_80095698[12].clut = D_80095698[0].clut;

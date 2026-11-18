@@ -126,7 +126,7 @@ extern s32 g_GameLoadedWdsBankIndex;
 extern s32 g_GameReusePendingAudioManager;
 extern s32 g_SoundPendingAudioManager;
 extern s32 D_800AFD04;
-extern s32 D_800ADB60;
+extern s32 g_FieldScriptDataStreamActive;
 extern s32 D_800ADC14;
 extern s32 g_FieldZoomFadeScale;
 extern s32 g_FieldActorModelSlotCount;
@@ -170,7 +170,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
    1. Retail keeps nFade in $s0 and the loop counter in $s1; all our shapes give
       nFade $s1 and i $s0, because gcc CSEs the -0x40000 decrement into a saved
       register ($s0) here, while retail rematerialises it (lui $v0,0xfffc;
-      addu $s0,$s0,$v0) inside the D_800ADB60 loop and only parks it in a saved
+      addu $s0,$s0,$v0) inside the g_FieldScriptDataStreamActive loop and only parks it in a saved
       register ($s1, then $s3) for the later loops. Declaration orders tried:
       rect/i/nFadeStep/nFade, nFade first, nFadeStep first; all four give the
       same allocation.
@@ -237,7 +237,7 @@ void func_80078D44(void) {
             nFadeStep = 0;
         }
         nFade = 0x800000;
-        if (D_800ADB60 == 1) {
+        if (g_FieldScriptDataStreamActive == 1) {
             do {
                 FieldClearAndSwapOTag();
                 FieldZoomFadeEffectUpdate();
@@ -256,7 +256,7 @@ void func_80078D44(void) {
             } while (ArchiveDataSync() != 0);
             DrawSync(0);
             HeapFree((void*)D_800ADC14);
-            D_800ADB60 = 0;
+            g_FieldScriptDataStreamActive = 0;
             FieldOrVramStripPixels();
         }
         if (D_8005942C == 1) {
@@ -981,7 +981,7 @@ typedef struct {
 } FieldWalkmeshVert; // Size: 0x8
 
 extern FieldWalkmeshTriIdx* g_FieldWalkmeshTriangles[];
-extern FieldWalkmeshVert* D_800AFB34[];
+extern FieldWalkmeshVert* g_FieldWalkmeshVertices[];
 extern s32 D_800AFB44[];
 
 // Index of the walkmesh triangle that contains pRef's x/z, 0 when none does
@@ -1007,7 +1007,7 @@ int func_8007B1C4(int x, int z, int nWalkmesh, SVECTOR* pOut, VECTOR* pNormal) {
     nRef = (x << 16) + z;
     pTri = g_FieldWalkmeshTriangles[nWalkmesh];
     nCount = D_800AFB44[nWalkmesh];
-    pVerts = D_800AFB34[nWalkmesh];
+    pVerts = g_FieldWalkmeshVertices[nWalkmesh];
     pComp = (u_short*)pVerts;
 
     for (i = 0; i < nCount; i++) {
@@ -1379,7 +1379,7 @@ typedef struct {
 
 extern u_int* g_FieldWalkmeshMaterialFlags;
 extern FieldWalkmeshTriangleRecord* g_FieldWalkmeshTriangles[];
-extern FieldWalkmeshVertexRecord* D_800AFB34[];
+extern FieldWalkmeshVertexRecord* g_FieldWalkmeshVertices[];
 extern u_char D_800B21CC;
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007BEF4);
@@ -1430,7 +1430,7 @@ int func_8007BEF4(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
 
     nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
     pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
-    pVerts = D_800AFB34[pActor->walkmeshId];
+    pVerts = g_FieldWalkmeshVertices[pActor->walkmeshId];
     if (nTri == -1) {
         return -1;
     }
@@ -1639,7 +1639,7 @@ int func_8007C694(VECTOR* pVec, VECTOR* pPos, ActorData* pActor, SVECTOR* pPoint
 
     nTri = pActor->walkmeshTriIds[pActor->walkmeshId];
     pTri = g_FieldWalkmeshTriangles[pActor->walkmeshId];
-    pVerts = D_800AFB34[pActor->walkmeshId];
+    pVerts = g_FieldWalkmeshVertices[pActor->walkmeshId];
     if (nTri == -1) {
         return -1;
     }

@@ -21,11 +21,11 @@ typedef struct {
     /* 0x3C */ int (*unk3C)(int mode);
 } GpuSysFuncs; // Size: 0x40
 
-extern GpuSysFuncs *D_800568C8;
-extern u_char D_800568D0;
+extern GpuSysFuncs *g_GpuSysFuncs;
+extern u_char g_GraphType;
 extern s16 D_800568D4;
 extern s16 D_800568D6;
-extern u_char D_800568D3;
+extern u_char g_GraphReverse;
 
 extern volatile u_long *D_800569A0; // GPU status register
 extern volatile u_long *D_800569A4; // GPU data register (GP0)
@@ -49,7 +49,7 @@ extern u_long func_80045BCC(int x, int y);
 extern u_long func_80045C10(RECT *tw);
 
 int GetODE(void) {
-    return D_800568C8->unk38() >> 31;
+    return g_GpuSysFuncs->unk38() >> 31;
 }
 
 void SetTexWindow(DR_TWIN *p, RECT *tw) {
@@ -91,7 +91,7 @@ u_long DrawMode(int dfe, int dtd, u_short tpage) {
     u_long tp;
 
     /* retail keeps the 320-wide test and the tpage word in one register: reuse tp */
-    tp = D_800568D0 == 1 || D_800568D0 == 2;
+    tp = g_GraphType == 1 || g_GraphType == 2;
     if (tp) {
         mode = 0xE1000000;
         if (dtd)
@@ -136,7 +136,7 @@ u_long func_80045A34(int x, int y) {
 
     xi = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
     yi = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
-    if (D_800568D0 != 1 && D_800568D0 != 2) {
+    if (g_GraphType != 1 && g_GraphType != 2) {
         fld = yi & 0x3FF;
         fld = fld << 10;
         code = xi & 0x3FF;
@@ -154,7 +154,7 @@ u_long func_80045A34(int x, int y) {
 u_long func_80045B00(int x, int y) {
     x = ((s16)x < 0) ? 0 : (((s16)x > D_800568D4 - 1) ? D_800568D4 - 1 : x);
     y = ((s16)y < 0) ? 0 : (((s16)y > D_800568D6 - 1) ? D_800568D6 - 1 : y);
-    if (D_800568D0 == 1 || D_800568D0 == 2)
+    if (g_GraphType == 1 || g_GraphType == 2)
         return 0xE4000000 | (x & 0xFFF) | ((y & 0xFFF) << 12);
     return 0xE4000000 | (x & 0x3FF) | ((y & 0x3FF) << 10);
 }
@@ -182,7 +182,7 @@ u_long func_80045BCC(int x, int y) {
     u_long fld;
     u_long ret;
 
-    if (D_800568D0 != 1 && D_800568D0 != 2) {
+    if (g_GraphType != 1 && g_GraphType != 2) {
         fld = y & 0x7FF;
         fld = fld << 11;
         code = x & 0x7FF;
@@ -191,7 +191,7 @@ u_long func_80045BCC(int x, int y) {
         fld = fld << 12;
         code = x & 0xFFF;
     }
-    if (D_800568D0 || y) {
+    if (g_GraphType || y) {
         ret = code | 0xE5000000;
         return fld | ret;
     } else {
@@ -236,12 +236,12 @@ u_long func_80045C10(RECT *tw) {
    case 1's tail); gcc keeps p in $a1 and emits every arm separately. A shared
    `offs` local with one trailing return scores worse (53.43%).
 u_long func_80045C94(RECT *p) {
-    if (D_800568D0 == 1) {
-        if (D_800568D3)
+    if (g_GraphType == 1) {
+        if (g_GraphReverse)
             return 0x400 - p->w - p->x;
         return p->x;
-    } else if (D_800568D0 == 2) {
-        if (D_800568D3)
+    } else if (g_GraphType == 2) {
+        if (g_GraphReverse)
             return 0x400 - p->w / 2 - p->x;
         return p->x / 2;
     }

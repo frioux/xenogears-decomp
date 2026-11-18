@@ -3,8 +3,8 @@
 
 extern u_long *g_GpuCurTIMHandle;
 
-extern volatile long D_800569E8;
-extern volatile long D_800569EC;
+extern volatile long g_GpuTimeoutDeadline;
+extern volatile long g_GpuTimeoutCount;
 
 extern volatile u_long *D_800569A0;
 extern volatile u_long *D_800569A4;
@@ -16,9 +16,9 @@ extern volatile u_long D_800569C4[];
 extern u_long D_800569C8;
 extern u_long D_800569CC;
 
-extern volatile u_long D_800569D4;
-extern volatile u_long D_800569D8;
-extern u_long D_800569E4;
+extern volatile u_long g_GpuQueueTail;
+extern volatile u_long g_GpuQueueHead;
+extern u_long g_GpuSavedIntrMask;
 
 extern int func_8004696C(void);
 extern int func_8004709C(u_long mode);
@@ -72,7 +72,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_8004696C);
    makes gcc place the &D_800569C4 pointer in s0 after the guard). Two diffs are
    left. (1) The three word stores after the call: retail interleaves
    load-index / scale / load / store for each of D_800569C4, C8, CC, gcc hoists
-   all three volatile loads of D_800569D8 above the first store. (2) The call
+   all three volatile loads of g_GpuQueueHead above the first store. (2) The call
    sets its first argument from a2 instead of a1. Tried: the queue as one
    0x60-stride struct (wrong offsets), separate statements, storing C4 last, and
    a plain while loop instead of if+do/while (that loses the s0 pointer and
@@ -86,10 +86,10 @@ int func_8004696C(void) {
 
     g_SavedIntrMask = SetIntrMask(0);
 
-    if (D_800569D4 != D_800569D8 && !(*D_800569B0 & 0x1000000)) {
+    if (g_GpuQueueTail != g_GpuQueueHead && !(*D_800569B0 & 0x1000000)) {
         pQue = &D_800569C4;
         do {
-            if (((D_800569D8 + 1) & 0x3F) == D_800569D4) {
+            if (((g_GpuQueueHead + 1) & 0x3F) == g_GpuQueueTail) {
                 if (!g_DrawSyncCallbackFn)
                     DMACallback(2, 0);
             }
@@ -97,17 +97,17 @@ int func_8004696C(void) {
             while (!(*D_800569A4 & 0x4000000))
                 ;
 
-            D_8006BE34[D_800569D8][0](D_8006BE38[D_800569D8][0], D_8006BE3C[D_800569D8][0]);
-            *pQue = (u_long)D_8006BE34[D_800569D8][0];
-            D_800569C8 = (u_long)D_8006BE38[D_800569D8][0];
-            D_800569CC = (u_long)D_8006BE3C[D_800569D8][0];
-            D_800569D8 = (D_800569D8 + 1) & 0x3F;
-        } while (D_800569D4 != D_800569D8 && !(*D_800569B0 & 0x1000000));
+            D_8006BE34[g_GpuQueueHead][0](D_8006BE38[g_GpuQueueHead][0], D_8006BE3C[g_GpuQueueHead][0]);
+            *pQue = (u_long)D_8006BE34[g_GpuQueueHead][0];
+            D_800569C8 = (u_long)D_8006BE38[g_GpuQueueHead][0];
+            D_800569CC = (u_long)D_8006BE3C[g_GpuQueueHead][0];
+            g_GpuQueueHead = (g_GpuQueueHead + 1) & 0x3F;
+        } while (g_GpuQueueTail != g_GpuQueueHead && !(*D_800569B0 & 0x1000000));
     }
 
     SetIntrMask(g_SavedIntrMask);
 
-    if (D_800569D4 == D_800569D8 && !(*D_800569B0 & 0x1000000)) {
+    if (g_GpuQueueTail == g_GpuQueueHead && !(*D_800569B0 & 0x1000000)) {
         pPending = &g_DrawSyncCallbackPending;
         if (*pPending && g_DrawSyncCallbackFn) {
             *pPending = 0;
@@ -115,15 +115,15 @@ int func_8004696C(void) {
         }
     }
 
-    return (D_800569D4 - D_800569D8) & 0x3F;
+    return (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;
 } */
 
 int func_80046C58(u_long mode) {
     u_char v;
 
-    D_800569E4 = SetIntrMask(0);
-    D_800569D8 = 0;
-    D_800569D4 = D_800569D8;
+    g_GpuSavedIntrMask = SetIntrMask(0);
+    g_GpuQueueHead = 0;
+    g_GpuQueueTail = g_GpuQueueHead;
 
     v = mode & 7;
     switch (v) {
@@ -144,7 +144,7 @@ int func_80046C58(u_long mode) {
         break;
     }
 
-    SetIntrMask(D_800569E4);
+    SetIntrMask(g_GpuSavedIntrMask);
 
     if ((mode & 7) == 0)
         return func_8004709C(mode);
@@ -159,7 +159,7 @@ int func_80046DB4(int mode) {
     if (mode == 0) {
         func_80046EFC();
 
-        while (D_800569D4 != D_800569D8) {
+        while (g_GpuQueueTail != g_GpuQueueHead) {
             func_8004696C();
             if (func_80046F30() != 0)
                 return -1;
@@ -173,7 +173,7 @@ int func_80046DB4(int mode) {
         return 0;
     }
 
-    n = (D_800569D4 - D_800569D8) & 0x3F;
+    n = (g_GpuQueueTail - g_GpuQueueHead) & 0x3F;
     if (n != 0)
         func_8004696C();
 
@@ -189,8 +189,8 @@ int func_80046DB4(int mode) {
 
 
 void func_80046EFC(void) {
-    D_800569E8 = Vsync(-1) + 0xF0;
-    D_800569EC = 0;
+    g_GpuTimeoutDeadline = Vsync(-1) + 0xF0;
+    g_GpuTimeoutCount = 0;
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
@@ -203,7 +203,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_c", func_80046F30);
    lui+addiu, and the queue delta and the second printf's D_800569C8 must be
    staged through locals - that is what a permuter run turned 94.49 into 99.51.
    Left: the port pointer D_800569A4 goes to a2 where retail has v1, so the
-   D_800569D8 word goes to v1 where retail has t0; every other instruction in
+   g_GpuQueueHead word goes to v1 where retail has t0; every other instruction in
    the function is byte-identical.
    Tried: three permuter runs (350 -> 45, then nothing in 3801 iterations), the
    pointer in a local, an explicit volatile cast, D_800569A4[0] vs a deref of
@@ -213,22 +213,22 @@ int func_80046F30(void) {
     u_long new_var2;
     int new_var;
 
-    if (D_800569E8 < Vsync(-1) || D_800569EC++ > 0xF0000) {
+    if (g_GpuTimeoutDeadline < Vsync(-1) || g_GpuTimeoutCount++ > 0xF0000) {
         (void)*D_800569A4;
-        new_var = D_800569D4;
-        new_var = new_var - D_800569D8;
+        new_var = g_GpuQueueTail;
+        new_var = new_var - g_GpuQueueHead;
         printf(D_80019240, new_var & 0x3F, *D_800569A4,
                *D_800569B0, *D_800569A8);
         new_var2 = D_800569C8;
         printf(D_80019274, D_800569C4[0], new_var2, D_800569CC);
-        D_800569E4 = SetIntrMask(0);
-        D_800569D8 = 0;
-        D_800569D4 = D_800569D8;
+        g_GpuSavedIntrMask = SetIntrMask(0);
+        g_GpuQueueHead = 0;
+        g_GpuQueueTail = g_GpuQueueHead;
         *D_800569B0 = 0x401;
         *D_800569C0 |= 0x800;
         *D_800569A4 = 0x2000000;
         *D_800569A4 = 0x1000000;
-        SetIntrMask(D_800569E4);
+        SetIntrMask(g_GpuSavedIntrMask);
         return -1;
     }
 

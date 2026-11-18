@@ -85,7 +85,7 @@ extern u8 g_BattleTargetSlot;
 extern u8 D_800CDD40[];
 extern u8 D_800CCD38[];
 extern u8 g_BattleActorCharIds[];
-extern u8 D_800CEF10[];
+extern u8 g_BattleActionRows[];
 extern void BattleClearSlotCurveEntry(void);
 extern void func_80079840(u8 arg0, u8 arg1);
 extern void BattleQueueCommandFE(u8 arg0);
@@ -104,7 +104,7 @@ extern u8 g_BattleCommandCellRow;
 extern u8 g_BattleCommandCellColumn;
 
 // Partial view of the battle command cell state based at g_BattleCommandCellFlags: the command flags
-// word, the per-cell use counters (D_800D2CB0) and the per-cell command ids
+// word, the per-cell use counters (g_BattleCommandCellUses) and the per-cell command ids
 // (D_800D2CE0, which the rest of the code reaches as g_BattleCommandGridIds), the last
 // two indexed by the cursor cell.
 typedef struct {
@@ -233,7 +233,7 @@ void func_8008ADD0(u8 arg0) {
     } else {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2E6 + 0x16;
         off = (g_BattleCommandQueue->unk2E6 + 0x15) * 40 + arg0 * 1680;
-        sel = *(u16 *)(D_800CEF10 + off) & 7;
+        sel = *(u16 *)(g_BattleActionRows + off) & 7;
     }
     if (sel != 0) {
         mask = g_BattleTargetSlotMask;
@@ -330,8 +330,8 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
         inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk6, arg1 + arg2 * 2) != 0;
     } else {
         off = (arg2 * 2 + arg1 + 0x15) * 40 + arg0 * 1680;
-        entry = *(u16 *)(D_800CEF10 + off);
-        count = *(u8 *)(D_800CEF10 + off + 0x13);
+        entry = *(u16 *)(g_BattleActionRows + off);
+        count = *(u8 *)(g_BattleActionRows + off + 0x13);
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unkA, arg1 + arg2 * 2) != 0) {
             inParty = 1;
         }

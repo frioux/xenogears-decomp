@@ -155,8 +155,8 @@ typedef struct {
 
 extern StreamDataQueueEntry D_800B2394[];
 extern s32 g_FieldActorModelSlotCount;
-extern void* D_800ADB20;
-extern s32 D_800ADB30;
+extern void* g_FieldArchiveQueueBuffer;
+extern s32 g_FieldStreamDataSize;
 extern s32 g_FieldSuppressStateChange;
 extern void FieldWaitForArchiveSync(void);
 extern void FieldMoveStoredImageToHeap(int nHeapType);
@@ -175,7 +175,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 //     wall as FieldRenderGearFrame (misc2) and func_800A0EE8 (misc6), just in the other
 //     direction. Pointer locals (pCount/pTable, and `(s32*)((u8*)pTable + 0x88)`) give
 //     90.56% but 580 bytes.
-//  2. the `g_FieldSuppressStateChange` size select: the original hoists `lw $v1,%lo(D_800ADB30)` above
+//  2. the `g_FieldSuppressStateChange` size select: the original hoists `lw $v1,%lo(g_FieldStreamDataSize)` above
 //     the branch and keeps the constant path as the fall-through with a `j` at the end;
 //     both `if (x == 0) const else call` and a pre-computed `nSize` give the same size
 //     but reorder the block.
@@ -196,11 +196,11 @@ void func_80077884(void) {
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     FieldMoveStoredImageToHeap(0);
 
-    nSize = (D_800ADB30 & 0xFFFFFF) + 0xFFE23FF8;
+    nSize = (g_FieldStreamDataSize & 0xFFFFFF) + 0xFFE23FF8;
     if (g_FieldSuppressStateChange != 0) {
         nSize = ArchiveDecodeAlignedSize(0x6B9);
     }
-    D_800ADB20 = HeapAlloc(nSize, 1);
+    g_FieldArchiveQueueBuffer = HeapAlloc(nSize, 1);
     FieldMoveStoredImageToHeap(1);
 
     pSoundList = (FieldSoundList*)((u8*)&g_FieldActorModelSlotCount - 0x88);
@@ -220,7 +220,7 @@ void func_80077884(void) {
     }
 
     D_800B2394[i * 2].archiveIndex = 0x6B9;
-    D_800B2394[i * 2].pData = D_800ADB20;
+    D_800B2394[i * 2].pData = g_FieldArchiveQueueBuffer;
     D_800B2394[i * 2 + 1].archiveIndex = 0;
     D_800B2394[i * 2 + 1].pData = NULL;
 

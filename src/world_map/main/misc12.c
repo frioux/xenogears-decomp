@@ -1036,7 +1036,7 @@ typedef struct {
 extern WorldMapRenderContext *g_WorldMapRenderContext;
 extern s32 g_WorldMapPrimPacketIndex;
 extern s32 g_WorldMapDrawMode;
-extern s32 D_8009C178;
+extern s32 g_WorldMapFadeActive;
 
 #define WORLD_MAP_FADE_RECT_TPAGE_X 0x380
 #define WORLD_MAP_FADE_RECT_TPAGE_Y 0x100
@@ -1054,7 +1054,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800925A0);
    out with the two arms swapped), the twelve Gouraud colour stores (each one re-reads
    pPlayer->unk50, so each right-hand side has to be a volatile read - a plain read folds
    to a single load), the two addPrim pairs, both fade-step clamps, and the shared
-   fade-done tail (reached with a goto, which reproduces retail's out-of-line D_8009C178
+   fade-done tail (reached with a goto, which reproduces retail's out-of-line g_WorldMapFadeActive
    store block; duplicating that store inside both arms makes gcc emit it twice).
    FRAME: retail's frame is 0xE0 and only ra/s0/s1 are saved, so 0xC0 of stack is
    reserved and no instruction touches it; the unusedFrame local below is what reproduces
@@ -1089,14 +1089,14 @@ s32 func_800925A0(s32 idx) {
     case 0xD:
         pPlayer->command = 0;
         pPlayer->state = 1;
-        D_8009C178 = 1;
+        g_WorldMapFadeActive = 1;
         nTpage = GetTPage(0, g_WorldMapTpageAbr, WORLD_MAP_FADE_RECT_TPAGE_X, WORLD_MAP_FADE_RECT_TPAGE_Y);
         SetDrawTPage(&g_WorldMapFadeTpage, 1, 0, nTpage);
         break;
     case 0xC:
         pPlayer->command = 0;
         pPlayer->state = 0;
-        D_8009C178 = 1;
+        g_WorldMapFadeActive = 1;
         nTpage = GetTPage(0, g_WorldMapTpageAbr, WORLD_MAP_FADE_RECT_TPAGE_X, WORLD_MAP_FADE_RECT_TPAGE_Y);
         SetDrawTPage(&g_WorldMapFadeTpage, 1, 0, nTpage);
         break;
@@ -1160,7 +1160,7 @@ s32 func_800925A0(s32 idx) {
     }
     goto updateTimer;
 fadeDone:
-    D_8009C178 = 0;
+    g_WorldMapFadeActive = 0;
 updateTimer:
     pPlayer->stateTimer++;
     return nRet;

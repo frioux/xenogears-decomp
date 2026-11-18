@@ -2,7 +2,7 @@
 
 #include "system/menu.h"
 
-extern u8 D_801E9808[];
+extern u8 g_GearPilotIds[];
 extern u8 MenuGetGearWeightClassExcess(u8 gearId);
 
 void MenuApplyGearAccessories(MenuDressingRoom* pDressingRoom, u8 gearId) {
@@ -15,7 +15,7 @@ void MenuApplyGearAccessories(MenuDressingRoom* pDressingRoom, u8 gearId) {
     u16* pFlags2;
 
     pGear = &g_GameState.gears[gearId];
-    characterId = D_801E9808[gearId];
+    characterId = g_GearPilotIds[gearId];
 
     pFlags1 = &g_GameState.unk16BC[characterId].unk8;
     pFlags2 = &g_GameState.unk16BC[characterId].statusFlags;
@@ -113,7 +113,7 @@ void MenuApplyGearAccessories(MenuDressingRoom* pDressingRoom, u8 gearId) {
     pGear->weightPenalty = MenuGetGearWeightClassExcess(gearId);
     if (pGear->accessoryEffectFlags5) {
         *pFlags2 |= 0x8000;
-    } else if (gearId == g_GameState.characters[D_801E9808[gearId]].gearId) {
+    } else if (gearId == g_GameState.characters[g_GearPilotIds[gearId]].gearId) {
         *pFlags2 &= 0x7FFF;
     }
 }

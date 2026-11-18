@@ -109,7 +109,7 @@ extern u16 g_WorldMapPad2Held;
 extern u_char g_WorldMapCdSyncResult;
 extern u8 g_WorldMapMode4AreaRect[];
 extern s32 g_WorldMapL2R2PressEdge;
-extern s32 D_8009C178;
+extern s32 g_WorldMapFadeActive;
 extern s32 g_WorldMapMode4EntryTriggered;
 extern s32 g_WorldMapExpiredTimerCount;
 extern s32 g_WorldMapMode;
@@ -188,7 +188,7 @@ void WorldMapMainLoop(void) {
         GameCheckAndHandleSoftReset();
         PutDispEnv(&g_WorldMapRenderContext->dispEnv);
         PutDrawEnv(&g_WorldMapRenderContext->drawEnv);
-        if (g_FieldPlayerWalkmeshMaterial == 0 && g_WorldMapL2R2PressEdge != 0 && D_8009C178 == 0
+        if (g_FieldPlayerWalkmeshMaterial == 0 && g_WorldMapL2R2PressEdge != 0 && g_WorldMapFadeActive == 0
             && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == -1
             && g_WorldMapMode4AreaId == g_WorldMapAreaId && g_WorldMapLoopActive != 0
             && g_WorldMapExpiredTimerCount == 0) {
@@ -220,15 +220,15 @@ void WorldMapMainLoop(void) {
         } else {
             g_WorldMapL2R2PressEdge = 0;
         }
-        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapLoopActive != 0
+        if (g_WorldMapFadeActive == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapLoopActive != 0
             && g_WorldMapExpiredTimerCount == 0 && (g_WorldMapPad1Released & CTRL_BTN_START) != 0) {
             WorldMapWaitForButtonRelease();
         }
-        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapLoopActive != 0
+        if (g_WorldMapFadeActive == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapLoopActive != 0
             && g_WorldMapExpiredTimerCount == 0 && ControllerGetType(0) == 0) {
             WorldMapWaitForControllerConnected();
         }
-        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == -1
+        if (g_WorldMapFadeActive == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == -1
             && g_WorldMapMode4AreaId == g_WorldMapAreaId && g_WorldMapLoopActive != 0
             && g_WorldMapExpiredTimerCount != 0
             && func_80075E7C(&g_WorldMapScrollTargetX, g_GameState.fieldScriptMemory[0]) == 1) {
@@ -245,7 +245,7 @@ void WorldMapMainLoop(void) {
         if ((g_WorldMapPad1Released & CTRL_BTN_SELECT) != 0) {
             g_GameState.unk1842 ^= 1;
         }
-        if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered != 0 && g_WorldMapLoopActive != 0) {
+        if (g_WorldMapFadeActive == 0 && g_WorldMapMode4EntryTriggered != 0 && g_WorldMapLoopActive != 0) {
             if (g_WorldMapMode > 0) {
                 if (g_WorldMapMode < 4) {
                     WorldMapEnterMenuMode();
@@ -601,7 +601,7 @@ extern s32 g_WorldMapL2R2Pressed;
 extern s32 g_WorldMapL2R2PressedLast;
 extern s32 g_WorldMapL2R2PressEdge;
 extern s32 g_WorldMapWrapPositionsCallback;
-extern s32 D_8009C178;
+extern s32 g_WorldMapFadeActive;
 extern s32 g_WorldMapInitModeIndex;
 extern s32 g_WorldMapAreaIndex;
 extern int g_AnimScriptExtraTicks;
@@ -688,7 +688,7 @@ extern s32 func_80088C90();
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80072238);
 /* best: 99.81% (1892 bytes = retail's exact size, 472 insns). The whole function is
    instruction-identical except ONE store: the two `= 1` stores (g_AnimScriptExtraTicks,
-   D_8009C178) which retail emits as `sw v1` after the five zero stores, with `li v1,1`
+   g_WorldMapFadeActive) which retail emits as `sw v1` after the five zero stores, with `li v1,1`
    hoisted to the top of the block; ours emits the first `sw` right after the `la` of
    WorldMapWrapTileVertexPositions. The register choice is the whole lever: as long as
    the constant lands in $2 it collides with the callback address and gcc must emit the
@@ -737,7 +737,7 @@ void func_80072238(void) {
     g_WorldMapL2R2PressedLast = 0;
     g_WorldMapL2R2PressEdge = 0;
     g_WorldMapRotationMatrixValid = 0;
-    D_8009C178 = 1;
+    g_WorldMapFadeActive = 1;
     g_WorldMapWrapPositionsCallback = (s32)WorldMapWrapTileVertexPositions;
     WorldMapComputeClipPlaneVectors();
     if (g_WorldMapInitModeIndex == 0) {

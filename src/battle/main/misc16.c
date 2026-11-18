@@ -4,11 +4,11 @@
 #include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
-// One actor's block of the per-actor action-row table D_800CEF10: 42 BattleRow
+// One actor's block of the per-actor action-row table g_BattleActionRows: 42 BattleRow
 // rows (0x28 each, actor.h), of which this unit reads +0x24 and +0 of the rows at
 // +0x25. The offset stays an integer: a BattleRow index makes gcc form the actor
 // term (arg0 * 0x690) before the row term, and retail forms the row term first.
-extern u8 D_800CEF10[];
+extern u8 g_BattleActionRows[];
 
 // One sprite package of the per-slot draw block: the two POLY_FT4
 // BattleDrawSpritePackage writes, i.e. the 0x50-byte stride the block's package
@@ -68,10 +68,10 @@ extern u16 D_800C324E;
 extern u16 D_800C3250;
 extern u16 D_800C3252;
 extern u16 D_800C323A;
-// D_800CCD62 and D_800CCDC4 are two bases of the same per-slot table (stride
-// 0x170, actor.h's BattleTableEntry): the status mask sits at +0 of the D_800CCD62
+// g_BattleSlotStatusRows and D_800CCDC4 are two bases of the same per-slot table (stride
+// 0x170, actor.h's BattleTableEntry): the status mask sits at +0 of the g_BattleSlotStatusRows
 // base and the slot's counter at +0 of the D_800CCDC4 base, 0x62 bytes later.
-extern BattleTableEntry D_800CCD62[];
+extern BattleTableEntry g_BattleSlotStatusRows[];
 extern BattleTableEntry D_800CCDC4[];
 extern u8 g_BattleActorCharIds[];
 extern s32 BattleMaskHasStatusBit(s32, u8);
@@ -106,12 +106,12 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     ret = 0;
     flag = 1;
     idx = (arg1 + 0x25) * 0x28 + arg0 * 0x690;
-    trigger = *(u16 *)(D_800CEF10 + idx + 0x24);
+    trigger = *(u16 *)(g_BattleActionRows + idx + 0x24);
     cur = D_800CCDC4[arg0].flags;
-    dmg = *(u16 *)(D_800CEF10 + idx);
+    dmg = *(u16 *)(g_BattleActionRows + idx);
     if (cur >= trigger &&
         (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, arg1) != 0 &&
-        (D_800CCD62[arg0].flags & statusMasks[arg1]) == 0) {
+        (g_BattleSlotStatusRows[arg0].flags & statusMasks[arg1]) == 0) {
         BattleClearPrimFlagsThreeSlots(1);
         g_BattleDisplayState->pulseTriangleActive = 1;
         if (BattleRunTargetSlotSelection(dmg, arg0, 0) != 0) {
@@ -181,9 +181,9 @@ u8 func_8008CFB8(u8 arg0) {
     }
     for (i = 0; i < (limit = 4); i++) {
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, i) != 0 &&
-            (D_800CCD62[arg0].flags & statusMasks[i]) == 0) {
+            (g_BattleSlotStatusRows[arg0].flags & statusMasks[i]) == 0) {
             codes[i] = D_800CCD88[arg0 * 0x170] * 4 + i;
-            damage[i] = *(u16 *)(D_800CEF10 + arg0 * 0x690 + (0x25 + i) * 0x28 + 0x24);
+            damage[i] = *(u16 *)(g_BattleActionRows + arg0 * 0x690 + (0x25 + i) * 0x28 + 0x24);
         }
     }
     g_BattleDisplayState->primListsPending = 0;

@@ -96,7 +96,7 @@ extern u32 g_WorldMapPlayerPositionZ;
 extern u16 g_WorldMapScriptStateIds;
 extern u16 g_WorldMapScriptStateFrames[];
 extern u16 g_WorldMapSlotScales[];
-extern u16 D_8009A684[];
+extern u16 g_WorldMapGroupInitialScale[];
 extern WorldMapPath g_WorldMapActorScripts[];
 extern u8 D_8009A660[];
 extern u32 g_WorldMapFadeLevel;
@@ -915,7 +915,7 @@ int WorldMapUpdateSlotActor(int index) {
         pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
         pActor->state = (pActor->command = 0);
         pActor->dirY = 0;
-        pActor->unk5C[0] = D_8009A684[index];
+        pActor->unk5C[0] = g_WorldMapGroupInitialScale[index];
         pGroup->unk00 = 0;
         pGroup->rot.vx = pGroup->rot.vy = pGroup->rot.vz = 0;
         RotMatrixYXZ(&pGroup->rot, &pGroup->mat);
@@ -926,7 +926,7 @@ int WorldMapUpdateSlotActor(int index) {
         pActor->stateTimer = 4;
         pActor->state = 1;
         pActor->command = 0;
-        pActor->unk5C[0] = D_8009A684[index];
+        pActor->unk5C[0] = g_WorldMapGroupInitialScale[index];
         pGroup->unk00 = 0;
         pGroup->rot.vx = pGroup->rot.vy = pGroup->rot.vz = 0;
         RotMatrixYXZ(&pGroup->rot, &pGroup->mat);

@@ -11,11 +11,11 @@
 
 extern u8 D_801EA564[];
 extern u8 D_801EA568[];
-extern u8 D_801E9808[];
+extern u8 g_GearPilotIds[];
 extern u8 D_801E9811;
 extern u8 g_MenuPanelRowXOffsets[];
 extern u8 D_801EA56E[];
-extern u32 D_801E9F48[];
+extern u32 g_MenuGearStringIdTable[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
 
 void MenuLoadStringsFromIds(u8, u8*, u8*, void*);
@@ -312,8 +312,8 @@ u8 func_801E23CC(void) {
             MenuDrawGearScreen(lastSlot, 1);
             stringSet = (g_GameState.gearRide[slot] != 0) ? 6 : 0;
             MenuLoadUnk18E0Strings(stringSet);
-            MenuSetRowQuadVertices(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 4, 7, 6);
-            MenuSetRowQuadVertices(6, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48, (u8*)g_Menu->pManager + 0x54, 5, 7, 6);
+            MenuSetRowQuadVertices(6, (u8*)g_Menu + 0x18E0, D_801EA56E, g_MenuGearStringIdTable, (u8*)g_Menu->pManager + 0x54, 4, 7, 6);
+            MenuSetRowQuadVertices(6, (u8*)g_Menu + 0x18E0, D_801EA56E, g_MenuGearStringIdTable, (u8*)g_Menu->pManager + 0x54, 5, 7, 6);
             g_Menu->unk18E0[4].hasVertices = 1;
             g_Menu->unk18E0[5].hasVertices = 1;
             if (firstDraw != 0) {
@@ -324,7 +324,7 @@ u8 func_801E23CC(void) {
             }
         }
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            MenuSetRowQuadVertices(4, (u8*)g_Menu + 0x18E0, D_801EA56E, D_801E9F48 + stringSet, (u8*)g_Menu->pManager + 0x54, g_Menu->subMenuChoice, 7, 0);
+            MenuSetRowQuadVertices(4, (u8*)g_Menu + 0x18E0, D_801EA56E, g_MenuGearStringIdTable + stringSet, (u8*)g_Menu->pManager + 0x54, g_Menu->subMenuChoice, 7, 0);
             MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;
         }
@@ -939,7 +939,7 @@ void MenuFillDressingRoomGearStats(MenuDressingRoom* pDressingRoom, u8 gearIndex
         g_GameState.gears[7].agility = g_GameState.characters[7].agility + g_GameState.characters[7].agilityFromEquipment;
     }
     pGear = &g_GameState.gears[gearIndex];
-    pilotId = D_801E9808[gearIndex];
+    pilotId = g_GearPilotIds[gearIndex];
     pDressingRoom->hp = pGear->hp;
     pDressingRoom->maxHp = pGear->maxHp;
     pDressingRoom->totalDefense = pGear->baseDefense + pGear->defenseFromEquipment;

@@ -160,7 +160,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 // `lh -0x4` count loop match byte for byte.
 /*
 extern s32 g_FieldActorModelSlotCount;
-extern void* D_800ADB20;
+extern void* g_FieldArchiveQueueBuffer;
 extern s32 D_800ADBF0;
 extern s32 D_800AFB18;
 extern s32 D_800AFB14;
@@ -251,7 +251,7 @@ void FieldFree(void) {
     g_FieldLineScrolls.numLineScrolls = 0;
     if (*pCount != 0) {
         LibGearShutdown();
-        HeapFree(D_800ADB20);
+        HeapFree(g_FieldArchiveQueueBuffer);
         FieldRenderSyncAndFlush();
     }
     *pCount = 0;
@@ -291,7 +291,7 @@ void FieldLoadTIMWithClut(u_long *pTimData, short x, short y, short clutX, short
     }
 }
 
-extern s32 D_800ADB60; // Field script data stream allocated?
+extern s32 g_FieldScriptDataStreamActive; // Field script data stream allocated?
 extern int* D_800ADC14; // Field script data stream
 extern s32 g_GameSceneMapNum;
 
@@ -303,8 +303,8 @@ extern void FieldOrVramStripPixels(void);
 void FieldStartScriptDataStream(void) {
     int* pStreamFile;
 
-    if (!D_800ADB60) {
-        D_800ADB60 = 1;
+    if (!g_FieldScriptDataStreamActive) {
+        g_FieldScriptDataStreamActive = 1;
         pStreamFile = ArchiveAllocStreamFile(4, 1);
         D_800ADC14 = pStreamFile;
         func_80029EB0(((g_GameSceneMapNum & 0xFFF) * 2) + 0xB9, pStreamFile, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -312,11 +312,11 @@ void FieldStartScriptDataStream(void) {
 }
 
 void FieldFreeScriptDataStream(void) {
-    if (D_800ADB60 == 1) {
+    if (g_FieldScriptDataStreamActive == 1) {
         ArchiveCdDataSync(0);
         DrawSync(0);
         HeapFree(D_800ADC14);
-        D_800ADB60 = 0;
+        g_FieldScriptDataStreamActive = 0;
     }
 
     FieldOrVramStripPixels();

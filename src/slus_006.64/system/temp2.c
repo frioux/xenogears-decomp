@@ -137,7 +137,7 @@ void GfxSetRenderContext(int context) {
     g_GfxSpriteTileLists[context] = NULL;
 }
 // GfxQueueSpriteTileData
-void func_80025180(void* pData) {
+void GfxQueueSpriteTileData(void* pData) {
     LinkedListEntry* pNewEntry;
 
     pNewEntry = g_GfxCurWorkBuffer;

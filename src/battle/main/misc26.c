@@ -51,7 +51,7 @@ typedef struct {
 
 // The screen fade drawn over the battle: a timer entry (0x00) that steps the
 // colour and a draw entry (0x1C) that emits the quad, then the two ends of the
-// fade and the colour it is at on this frame. D_800C3C00 and D_800C3C50 are the
+// fade and the colour it is at on this frame. g_BattleOwnedScreenFadeTask and g_BattleStaticScreenFadeTask are the
 // two static ones, which is where the size comes from.
 typedef struct {
     /* 0x00 */ WorkListEntry timerEntry;
@@ -94,15 +94,15 @@ extern BattleScaleTask *g_BattleScaleTask;
 extern u8 g_BattleScreenFadeOwnBuffer;
 extern u32 g_BattleImageTask;
 // the two statically allocated fades: one the overlay owns, one shared
-extern BattleScreenFadeTask D_800C3C00;
-extern BattleScreenFadeTask D_800C3C50;
-extern BattleScreenFadeTask *D_800C3554; // the owned one, once it is set up
+extern BattleScreenFadeTask g_BattleOwnedScreenFadeTask;
+extern BattleScreenFadeTask g_BattleStaticScreenFadeTask;
+extern BattleScreenFadeTask *g_BattleOwnedScreenFade; // the owned one, once it is set up
 // the scale the frame being drawn is drawn at, mirrored to the other field of
 // the interlaced pair on every other frame
 extern s16 D_800C354C;
 extern s16 D_800C354E;
 extern s16 D_800C3550;
-extern u8 D_800D3638; // set while a fade is already being driven outside the battle
+extern u8 g_BattleScreenFadeBlocked; // set while a fade is already being driven outside the battle
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 
@@ -111,8 +111,8 @@ extern u8 *g_GfxCurWorkBufferEnd;
 extern u_long *g_GfxCurOT;
 
 extern BattleScaleTask *BattleGetScaleTask();
-extern void func_800B3358(BattleScaleTask *pTask);
-extern void func_800B39C0(s32 frames, s32 abr, u8 r, u8 g, u8 b);
+extern void BattleStepScaleTask(BattleScaleTask *pTask);
+extern void BattleStartScreenFade(s32 frames, s32 abr, u8 r, u8 g, u8 b);
 extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
@@ -124,9 +124,9 @@ extern WorkListEntry *TimerWorkListAllocateTask();
 extern void TimerWorkListSetTaskCallback();
 extern void WorkListTaskSetOnFreeCallback();
 
-extern u8 *D_800C3BEC;
-extern s32 D_800C3BF0;
-extern DR_TPAGE D_800C3BF8;
+extern u8 *g_BattlePrimCursor;
+extern s32 g_BattlePrimCount;
+extern DR_TPAGE g_BattleDrawTPage;
 extern s32 SpriteColorAddClamp(s32 color, s32 value);
 
 u8 *BattleGetFrame(u8 *pBase, s32 n) {
@@ -152,11 +152,11 @@ s32 BattleGetPrimitiveBufferSize(BattleModelFrame *pFrame) {
 
 // Advances the primitive cursor by one packet and counts the packet emitted.
 void BattleAdvancePrimitiveCursor(void) {
-    u8 *pCmd = D_800C3BEC;
+    u8 *pCmd = g_BattlePrimCursor;
     u8 size = pCmd[1];
 
-    D_800C3BF0 += 1;
-    D_800C3BEC = pCmd + (size + 1) * 4;
+    g_BattlePrimCount += 1;
+    g_BattlePrimCursor = pCmd + (size + 1) * 4;
 }
 
 
@@ -491,7 +491,7 @@ void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
     }
 }
 
-// Emits the drawing-mode packet SetDrawTPage filled in at D_800C3BF8 as one more
+// Emits the drawing-mode packet SetDrawTPage filled in at g_BattleDrawTPage as one more
 // entry of the ordering table, and claims the bytes it takes from the packet
 // buffer.
 void BattleEmitDrawTPage(u8 *pOt) {
@@ -499,7 +499,7 @@ void BattleEmitDrawTPage(u8 *pOt) {
 
     if ((u8 *)(pBuf + sizeof(DR_TPAGE)) < g_GfxCurWorkBufferEnd) {
         g_GfxCurWorkBuffer = pBuf + sizeof(DR_TPAGE);
-        *(DR_TPAGE *)pBuf = D_800C3BF8;
+        *(DR_TPAGE *)pBuf = g_BattleDrawTPage;
         AddPrim(pOt, pBuf);
     }
 }
@@ -511,7 +511,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 // to, one channel sum per vertex, and mirrors them into the packet copy the
 // second render context draws from. Only the colours are written here: the
 // vertex and texture coordinates come from the passes that call func_800B1F6C.
-void func_800B2AEC(BattleModelFrame *pFrame, u8 *pDst, u8 *pDstCopy, s32 addR, s32 addG, s32 addB) {
+void BattleShadeModelPrims(BattleModelFrame *pFrame, u8 *pDst, u8 *pDstCopy, s32 addR, s32 addG, s32 addB) {
     BattleModelPrim *pSrc;
     s32 count;
     s32 i;
@@ -775,7 +775,7 @@ void BattleNoOp3(void) {
 // out of the countdown left; once it is spent settle on the target. The scale is
 // then published, negated on every other frame for the interlaced draw, and the
 // task releases itself once it has settled at a zero scale with nothing left.
-void func_800B3358(BattleScaleTask *pTask) {
+void BattleStepScaleTask(BattleScaleTask *pTask) {
     s32 step[3];
 
     if (pTask->framesLeft == 0) {
@@ -833,7 +833,7 @@ BattleScaleTask *BattleGetScaleTask(void) {
     if (g_BattleScaleTask == NULL) {
         pTask = (BattleScaleTask *)TimerWorkListAllocateTask(NULL,
                     sizeof(BattleScaleTask) - sizeof(WorkListEntry));
-        TimerWorkListSetTaskCallback(pTask, func_800B3358);
+        TimerWorkListSetTaskCallback(pTask, BattleStepScaleTask);
         WorkListTaskSetOnFreeCallback(pTask, BattleFreeScaleTask);
         pTask->start.vx = 0;
         pTask->start.vy = 0;
@@ -856,7 +856,7 @@ void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
     pTask->target.vz = pTarget->vz;
     pTask->framesLeft = frames * 2;
     pTask->halfLength = frames * 2;
-    func_800B3358(pTask);
+    BattleStepScaleTask(pTask);
 }
 
 // One step of the fade: while the timer runs, move the colour from the start
@@ -931,7 +931,7 @@ void BattleDrawScreenFade(WorkListEntry *pEntry) {
 
 void BattleStartScreenFadeOwnBuffer(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
     g_BattleScreenFadeOwnBuffer = 1;
-    func_800B39C0(a0, a1, a2, a3, a4);
+    BattleStartScreenFade(a0, a1, a2, a3, a4);
     g_BattleScreenFadeOwnBuffer = 0;
 }
 
@@ -940,24 +940,24 @@ void BattleStartScreenFadeOwnBuffer(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
 // ended at. The task's length is twice the frame count the caller asks for,
 // because the step counts it down twice per frame. Nothing happens while another
 // subsystem is already driving a fade.
-void func_800B39C0(s32 frames, s32 abr, u8 r, u8 g, u8 b) {
+void BattleStartScreenFade(s32 frames, s32 abr, u8 r, u8 g, u8 b) {
     BattleScreenFadeTask *pTask;
     WorkListEntry *pDraw;
 
-    if (D_800D3638 != 0) {
+    if (g_BattleScreenFadeBlocked != 0) {
         return;
     }
     frames *= 2;
     if (g_BattleScreenFadeOwnBuffer != 0) {
         if (g_BattleScreenFadeTask == NULL) {
-            pTask = &D_800C3C00;
-            D_800C3554 = pTask;
+            pTask = &g_BattleOwnedScreenFadeTask;
+            g_BattleOwnedScreenFade = pTask;
             goto created;
         }
-        pTask = D_800C3554;
+        pTask = g_BattleOwnedScreenFade;
         goto restart;
     } else if (g_BattleScreenFadeTask == NULL) {
-        pTask = &D_800C3C50;
+        pTask = &g_BattleStaticScreenFadeTask;
         g_BattleScreenFadeTask = pTask;
     } else {
         pTask = g_BattleScreenFadeTask;

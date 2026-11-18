@@ -665,7 +665,7 @@ extern u16 g_BattleSlotFlag8000Mask;
 extern u8 D_800D2C34;
 // The per-command cost/limit table read by the confirm handler: one u16 row per
 // character, three rows of the table before the scalar at D_800D2C34.
-extern u16 D_800D2C0A[];
+extern u16 g_BattleCommandCost[];
 extern void BattleInitTargetSlotFlags(u8);
 extern void BattleQueueCommandFE(u8);
 extern void BattleActorInitSpriteFromSlot(void);
@@ -692,10 +692,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80083948);
        the chain retail shares. Source shape matches retail's block order otherwise.
    (c) the two D_800D2C34-based table reads need the base register retail uses, so the
        body spells them `((u16 *)(pMode - 0x15))[0xC + index]` with pMode = &D_800D2C34;
-       the plain `D_800D2C0A[...]` form makes gcc fold the constant into the symbol
+       the plain `g_BattleCommandCost[...]` form makes gcc fold the constant into the symbol
        (%hi(D_800D2C22) through $at) and cannot link. That spelling is ROUGH - the
        original almost certainly indexed one table.
-   Table facts for the next round: D_800D2C0A is a u16 table; the three reads are
+   Table facts for the next round: g_BattleCommandCost is a u16 table; the three reads are
    [index], [0xC + index] and [3*commandKey[0] + 3 + index], so the last two are one row-major
    table indexed 3*character + 3 + command and the D_800D2C34==4 case is that row with
    character 3. s2 (the command index + 1) is built by the case 4/7/6 fall-through.
@@ -810,7 +810,7 @@ u32 func_80083948(u8 arg0) {
             break;
         }
         if (((BattleActorSlots *)g_BattleCommandQueue)->commandKeyLength == 0) {
-            remain = counter - D_800D2C0A[index];
+            remain = counter - g_BattleCommandCost[index];
         } else {
             u8 *pMode;
 
@@ -844,7 +844,7 @@ u32 func_80083948(u8 arg0) {
                 (u8)func_80086F98(index - 1, arg0) == 0;
             func_80087AF0(arg0, index);
             g_BattleSlotEntries[arg0].counter =
-                g_BattleSlotEntries[arg0].counter - D_800D2C0A[((BattleActorSlots *)g_BattleCommandQueue)->unk2DC];
+                g_BattleSlotEntries[arg0].counter - g_BattleCommandCost[((BattleActorSlots *)g_BattleCommandQueue)->unk2DC];
             func_800898F0(arg0);
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
         } else {

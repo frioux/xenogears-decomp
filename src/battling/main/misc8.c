@@ -92,8 +92,8 @@ typedef struct {
 } BattleTextList; // Size: 0x3C
 
 extern BattleTextList g_BattleTextLists[8];
-extern BattleTextList D_80091660[];
-extern BattleTextList D_800916D8[];
+extern BattleTextList g_BattleDefaultTextList[];
+extern BattleTextList g_BattleOptionTextList[];
 extern BattleTextList D_80091714[];
 extern BattleTextList *g_BattleCurrentTextList;
 extern BattleTextList *g_BattlePrevTextList;
@@ -143,7 +143,7 @@ void BattleSetCurrentTextList(s32 a0) {
 }
 
 s32 BattleIsDefaultTextList(void) {
-    return g_BattleCurrentTextList == D_80091660;
+    return g_BattleCurrentTextList == g_BattleDefaultTextList;
 }
 
 void BattleInitTextWindow(void) {
@@ -489,7 +489,7 @@ void BattleDrawTextList(BattleTextList *p) {
         return;
     }
     g_BattleCurrentTextList = p;
-    if (p == D_800916D8) {
+    if (p == g_BattleOptionTextList) {
         return;
     }
     if (p->unk0 != 0) {
@@ -529,7 +529,7 @@ void BattleDrawTextList(BattleTextList *p) {
         return;
     }
     g_BattleCurrentTextList = (s32 *)p;
-    if ((s32 *)p == (s32 *)D_800916D8) {
+    if ((s32 *)p == (s32 *)g_BattleOptionTextList) {
         return;
     }
     if (p->unk0 != 0) {
@@ -582,7 +582,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
    arms land in $v1 where retail has $v0.
    Also tried: s32 v local for each ternary (same), g_BattleSlotConfirmLatched stored after the
    two ternaries (91.44), a plain s32* pointer local for the second read (cse'd),
-   &g_BattleTextLists[5]/[6] vs D_800916D8 + 0x3C (both 740 in the base body),
+   &g_BattleTextLists[5]/[6] vs g_BattleOptionTextList + 0x3C (both 740 in the base body),
    gcc-2.7.2-cdk (83.90), -O3 (identical), a 4-minute permuter run from the
    base body (nothing usable) and a 4-minute run from this 98.01% body (best
    359 vs base 376, and every candidate reassigned `flags` between the two
@@ -593,7 +593,7 @@ void func_80081A44(void) {
         switch (g_BattleSlotConfirmFlags) {
         case 0:
             g_BattleSlotConfirmLatched = 0;
-            func_8008162C(D_800916D8, 0);
+            func_8008162C(g_BattleOptionTextList, 0);
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
@@ -626,7 +626,7 @@ void func_80081A44(void) {
         switch (g_BattleSlotConfirmFlags) {
         case 0:
             g_BattleSlotConfirmLatched = 0;
-            func_8008162C(D_800916D8, 0);
+            func_8008162C(g_BattleOptionTextList, 0);
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
@@ -643,7 +643,7 @@ void func_80081A44(void) {
         switch (g_BattleSlotConfirmFlags) {
         case 0:
             g_BattleSlotConfirmLatched = 0;
-            func_8008162C(D_800916D8, 0);
+            func_8008162C(g_BattleOptionTextList, 0);
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
@@ -659,7 +659,7 @@ void func_80081A44(void) {
     case 5:
         switch (g_BattleSlotConfirmFlags) {
         case 0:
-            func_8008162C(D_800916D8, 0);
+            func_8008162C(g_BattleOptionTextList, 0);
             break;
         case 1:
             if (g_BattleCursorIndex1 == 3) {
@@ -696,7 +696,7 @@ void BattleUpdateTextWindow(void) {
     }
     ControllerMergeStates();
     p = g_BattleCurrentTextList;
-    if (p == D_800916D8) {
+    if (p == g_BattleOptionTextList) {
         func_80081A44();
     } else {
         if (p != 0) {

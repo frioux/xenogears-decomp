@@ -1009,10 +1009,10 @@ extern s32 g_FieldScriptFadeDuration;
 extern s32 g_FieldScriptFadeMode;
 extern s32 g_FieldActorModelSlotCount;
 extern u_short g_FieldButtonsPressedOnce;
-extern void* D_800ADB20;
-extern s32 D_800ADB30;
-extern s32 D_800ADB60;
-extern s32 D_800AFE84;
+extern void* g_FieldArchiveQueueBuffer;
+extern s32 g_FieldStreamDataSize;
+extern s32 g_FieldScriptDataStreamActive;
+extern s32 g_FieldScriptSuppressScreenEffect;
 extern void LibGearShutdown(void);
 extern void FieldRenderSyncAndFlush(void);
 extern void FieldParticlesFreeAll(void);
@@ -1056,7 +1056,7 @@ void FieldRunStreamedSequence(void) {
         LibGearShutdown();
         FieldRenderSyncAndFlush();
         FieldRenderSync();
-        HeapFree(D_800ADB20);
+        HeapFree(g_FieldArchiveQueueBuffer);
     }
     FieldParticlesFreeAll();
 
@@ -1073,7 +1073,7 @@ void FieldRunStreamedSequence(void) {
     }
 
     nSuppressStateChange = g_FieldSuppressStateChange;
-    nStreamSize = D_800ADB30;
+    nStreamSize = g_FieldStreamDataSize;
     if (nSuppressStateChange == 0) {
         nSize = (nStreamSize & 0xFFFFFF) + 0xFFE2CFF8;
         pStreamData = HeapAlloc(nSize, 1);
@@ -1208,7 +1208,7 @@ void FieldRunStreamedSequence(void) {
     PutDispEnv(&pRenderContext->dispEnv);
     PutDrawEnv(g_FieldCurRenderContext);
 
-    if (D_800AFE84 != 0) {
+    if (g_FieldScriptSuppressScreenEffect != 0) {
         g_FieldScreenEffectSuppressed = 1;
     } else {
         g_FieldScreenEffectSuppressed = 0;
@@ -1218,7 +1218,7 @@ void FieldRunStreamedSequence(void) {
     if (g_FieldMode != FIELD_MODE_STEP) {
         ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
         HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
-        D_800ADB60 = 0;
+        g_FieldScriptDataStreamActive = 0;
         FieldStartScriptDataStream();
         FieldFreeScriptDataStream();
         g_FieldScriptFadeDuration = 32;
@@ -1294,8 +1294,8 @@ extern POLY_FT4* g_FieldSpritePolys[];
 extern s32 g_FieldSpritePrimsAllocated;
 extern long FieldGetVec2Magnitude(long, long);
 extern long ratan2(long y, long x);
-extern s32 D_800AEB60;
-extern s32 D_800AEB64;
+extern s32 g_FieldSpriteAnimFrame;
+extern s32 g_FieldSpritePaletteRow;
 
 // Camera eye and at, 16.16 fixed point (the sprite colour code below reads
 // them as three longs each)
@@ -1355,23 +1355,23 @@ void FieldUpdateSpriteSheetPrims(void) {
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
     for (; i < 0x28; i++) {
-        if ((D_800AEB60 & 0xF) == 0) {
-            D_800AEB64++;
+        if ((g_FieldSpriteAnimFrame & 0xF) == 0) {
+            g_FieldSpritePaletteRow++;
         }
-        if (D_800AEB64 >= 3) {
-            D_800AEB64 = 0;
+        if (g_FieldSpritePaletteRow >= 3) {
+            g_FieldSpritePaletteRow = 0;
         }
-        FieldSetSpriteUVs(i, 0, D_800AEB64 << 3);
+        FieldSetSpriteUVs(i, 0, g_FieldSpritePaletteRow << 3);
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
     for (; i < 0x2A; i++) {
-        FieldSetSpriteUVs(i, (D_800AEB60 >> 2) & 0xF, 0);
+        FieldSetSpriteUVs(i, (g_FieldSpriteAnimFrame >> 2) & 0xF, 0);
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
     for (; i < 0x2B; i++) {
-        if (!(D_800AEB60 & 0x10)) {
+        if (!(g_FieldSpriteAnimFrame & 0x10)) {
             addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
                 &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
         }
@@ -1380,7 +1380,7 @@ void FieldUpdateSpriteSheetPrims(void) {
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
-    D_800AEB60++;
+    g_FieldSpriteAnimFrame++;
 }
 
 
@@ -1401,7 +1401,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
    source does. Tried: pointer locals, splitting nAttr into a local, use of
    g_FieldSpriteSheetQuads as the record base, -O3/gcc-2.6.0.
    extern u_short D_800AEF16[];
-   extern int D_800AEB64;
+   extern int g_FieldSpritePaletteRow;
 
    void func_800A8BA4(void) {
        POLY_FT4* pPoly;
@@ -1417,7 +1417,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A8BA4);
        int nABR;
 
        FieldLoadSpriteSheetTIM();
-       D_800AEB64 = 0;
+       g_FieldSpritePaletteRow = 0;
        HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
        g_FieldSpritePolys[0] = HeapAlloc(0x1108, 0);
        g_FieldSpritePolysCopy = HeapAlloc(0x1108, 0);

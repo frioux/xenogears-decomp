@@ -372,3 +372,5 @@ g_MenuSlotSpriteY = 0x801EA010;
 g_MenuSlotDigitX = 0x801EA01C;
 g_MenuSlotDigitY = 0x801EA020;
 g_MenuGlyphIsDoubleByte = 0x801EA8C0;
+g_MenuGearStringIdTable = 0x801E9F48;
+g_GearPilotIds = 0x801E9808;

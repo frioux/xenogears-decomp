@@ -55,7 +55,7 @@ extern u8 D_80091834[];
 extern u8 D_800918B4[];
 extern u8 g_BattleSpanRenderParams[];
 extern u8 *D_80092854;
-extern u8 *D_80092858;
+extern u8 *g_BattleSpanBuffer;
 extern long MathGetLargestVectorComponent(long, long, long);
 extern void func_800732AC(void *, void *, s32);
 extern void func_80072D18(s32, s32, s32);
@@ -107,11 +107,11 @@ extern s32 g_SpuChannelMask;
 // The bar primitives the gauge draws into, and the two texture rows the gauge
 // quads sample from.
 extern POLY_FT4 D_80095698[16];
-extern POLY_FT4 D_800958C8[];
+extern POLY_FT4 g_BattleGaugeBarPacket1[];
 extern DR_TPAGE D_80095918[4];
-extern u8 D_80092860;
-extern u8 D_800987EC;
-extern u8 D_800970D0;
+extern u8 g_BattleBarTexV;
+extern u8 g_BattleGaugeFill0;
+extern u8 g_BattleGaugeFill1;
 
 // The gauge state of one battle side: where the bar sits (10.6 fixed point), how
 // far it is filled and how faded it is.
@@ -147,9 +147,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
    better (second run PERMUTER_NONE, base=90 best=90). Not a preset question:
    gcc-2.7.2-cdk scores 95.46 on this body.
    The 0x310 layout below is confirmed by func_80085EC8, which initialises the
-   same block, and by misc10's parked func_800868E0. D_80092860 (a byte at
+   same block, and by misc10's parked func_800868E0. g_BattleBarTexV (a byte at
    g_BattleScreenWidth + 4) is not in any symbol file yet, so the body needs
-   'D_80092860 = 0x80092860;' in config/symbol_addrs.battling.txt to link.
+   'g_BattleBarTexV = 0x80092860;' in config/symbol_addrs.battling.txt to link.
 void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     BattlingGaugeEnv *pEnv;
     POLY_FT4 *pPacket;
@@ -206,20 +206,20 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     AddPrim(g_BattleRootOrderingTable, &pEnv->background[0]);
     AddPrim(g_BattleRootOrderingTable, &pEnv->background[2]);
 
-    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[0], D_800987EC, 0);
-    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[3], D_800970D0, 1);
+    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[0], g_BattleGaugeFill0, 0);
+    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[3], g_BattleGaugeFill1, 1);
 
     i = ((s16)arg0->position) >> 6;
     pPacket = &D_80095698[g_BattleDrawBufferIndex + 12];
     pPacket->r0 = (i >= 0x39) ? (g_SpuChannelMask << 3) : 0xFF;
     pPacket->y0 = pPacket->y1 = 0x60 - i;
-    pPacket->v0 = pPacket->v1 = D_80092860 - (i - 0x40);
+    pPacket->v0 = pPacket->v1 = g_BattleBarTexV - (i - 0x40);
 
     i = ((s16)arg1->position) >> 6;
-    pPacket = D_800958C8 + g_BattleDrawBufferIndex;
+    pPacket = g_BattleGaugeBarPacket1 + g_BattleDrawBufferIndex;
     pPacket->r0 = (i >= 0x39) ? (g_SpuChannelMask << 3) : 0xFF;
     pPacket->y0 = pPacket->y1 = 0x60 - i;
-    pPacket->v0 = pPacket->v1 = D_80092860 - (i - 0x40);
+    pPacket->v0 = pPacket->v1 = g_BattleBarTexV - (i - 0x40);
 
     if (arg0->fade != 0) {
         fade = 0x100 - arg0->fade;
@@ -349,14 +349,14 @@ void func_80087830(void) {
     g_BattleSpanTableMax = (u8 *)0x1F800000;
     g_BattleSpanTableMin = (u8 *)0x1F800080;
     D_80092854 = HeapAlloc(0xE100, 0);
-    D_80092858 = HeapAlloc(0xE100, 0);
+    g_BattleSpanBuffer = HeapAlloc(0xE100, 0);
     p = D_80092854 + 7;
     for (i = 0; i < 0x708; i++) {
         p[-4] = 7;
         p[0] = 0x24;
         p += 0x20;
     }
-    func_800732AC(D_80092858, D_80092854, 0xE100);
+    func_800732AC(g_BattleSpanBuffer, D_80092854, 0xE100);
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800878DC);

@@ -71,7 +71,7 @@ extern void WorkListSetTaskCallback(void *pEntry, void *pCallback);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
 extern void HeapFree(void *pMem);
-extern void func_80025180(void *pArg);
+extern void GfxQueueSpriteTileData(void *pArg);
 extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
 extern void func_800B7160(void);
 extern u_long *g_GfxCurOT;
@@ -412,7 +412,7 @@ void BattleDrawSyncAndFree(void *p) {
 void BattleDestroyWorkTask(u8 *p) {
     WorkListRemoveTask(p + 0x1C);
     TimerWorkListRemoveTask(p);
-    func_80025180(p);
+    GfxQueueSpriteTileData(p);
 }
 void BattleCreateWorkTask(void) {
     func_800B7424(WorkListsAddTasks(0x10F7C, 0, func_800B6F0C, BattleStoreGfxOrderingTable, BattleDestroyWorkTask));

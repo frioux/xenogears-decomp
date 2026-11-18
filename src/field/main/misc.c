@@ -959,10 +959,10 @@ void FieldScriptSetByte21D2(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern s32 D_800AFE84;
+extern s32 g_FieldScriptSuppressScreenEffect;
 
 void FieldScriptSetByteAFE84(void) {
-    D_800AFE84 = SCRIPT_READ_U8_REL(1);
+    g_FieldScriptSuppressScreenEffect = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 

@@ -148,7 +148,7 @@ extern void HeapFree(void *);
 extern void func_801E0A34(void);
 extern void func_800B8098(s32);
 extern void func_800B81BC(s32);
-extern void func_800B39C0(s32, u8, u8, u8, u8);
+extern void BattleStartScreenFade(s32, u8, u8, u8, u8);
 extern s32 *SoundCreateAndPlayAudioManager(u8 *, s32, s32);
 extern void func_80077990(void);
 extern void BattleBeginAnimTask(u16);
@@ -295,9 +295,9 @@ void func_80070F40(void) {
     display = D_800C3DEC;
     g_BattleDisplayMode = 2;
     func_800B81BC(display);
-    func_800B39C0(0, 2, 0xFF, 0xFF, 0xFF);
+    BattleStartScreenFade(0, 2, 0xFF, 0xFF, 0xFF);
     if (g_BattleOverlayEnabled == 0) {
-        func_800B39C0(0x14, 2, 0, 0, 0);
+        BattleStartScreenFade(0x14, 2, 0, 0, 0);
     }
     if (g_GameSelectedSkinLoadPending != 0) {
         g_BattleAudioManager = SoundCreateAndPlayAudioManager(g_SoundBankLoadBuffer, 0x7F, 0);
@@ -411,7 +411,7 @@ void func_80070F40(void) {
     }
     if (g_BattleOverlayEnabled == 0) {
         if ((D_800C48EA & 0x40) == 0 && (D_8006F9DD & 8) == 0) {
-            func_800B39C0(0x40, 2, 0x40, 0x40, 0x40);
+            BattleStartScreenFade(0x40, 2, 0x40, 0x40, 0x40);
         }
     }
     BattleFadeOutAudioIfOverlayIdle();

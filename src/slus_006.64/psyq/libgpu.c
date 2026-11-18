@@ -53,10 +53,10 @@ extern char D_800191F4[]; // "PutDrawEnv(%08x)...\n"
 extern char D_80019228[]; // "PutDispEnv(%08x)...\n"
 extern char D_8001920C[]; // "DrawOTagEnv(%08x,%08x)...\n"
 
-extern GpuSysFuncs *D_800568C8;
-extern u_char D_800568D0;
+extern GpuSysFuncs *g_GpuSysFuncs;
+extern u_char g_GraphType;
 extern u_char D_800568D1;
-extern u_char D_800568D3;
+extern u_char g_GraphReverse;
 extern char D_8005698C;
 
 extern short D_800568D4;
@@ -68,7 +68,7 @@ extern u_long D_80056980;
 extern u_long D_80056984;
 extern u_long D_80056988;
 
-extern GpuSysFuncs D_80056888; // the driver table D_800568C8 points at
+extern GpuSysFuncs g_GpuSysFuncsTable; // the driver table g_GpuSysFuncs points at
 extern u_int D_80056950[];     // draw-mode table: clip width/height per mode
 extern u_int D_80056964[];     // draw-mode table: VRAM height per mode
 
@@ -352,12 +352,12 @@ int ResetGraph(int mode) {
     switch (mode & 7) {
     case 0:
     case 3:
-        printf(D_8001908C, &D_80056888, &D_800568D0);
+        printf(D_8001908C, &g_GpuSysFuncsTable, &g_GraphType);
     case 5:
-        pLevel = &D_800568D0;
+        pLevel = &g_GraphType;
         func_80047178(pLevel, 0, 0x80);
         ResetCallback();
-        GPU_cw((u_long)D_800568C8 & 0xFFFFFF);
+        GPU_cw((u_long)g_GpuSysFuncs & 0xFFFFFF);
         nMode = func_80046C58(mode);
         *pLevel = nMode;
         D_800568D1 = 1;
@@ -369,32 +369,32 @@ int ResetGraph(int mode) {
     default:
         if (g_GraphDebugLevel >= 2)
             g_GpuPrintf(D_800190AC, mode);
-        D_800568C8->unk34(1);
+        g_GpuSysFuncs->unk34(1);
         break;
     }
 }
 
 int SetGraphReverse(int mode) {
     u_long nStatus;
-    u_char *pReverse = &D_800568D3;
+    u_char *pReverse = &g_GraphReverse;
     int nPrev = *pReverse;
 
     if (g_GraphDebugLevel >= 2)
         g_GpuPrintf(D_800190C0, mode);
 
     *pReverse = mode;
-    nStatus = D_800568C8->unk28(8);
+    nStatus = g_GpuSysFuncs->unk28(8);
     if (*pReverse)
         nStatus |= 0x8000080;
     else
         nStatus |= 0x8000000;
-    D_800568C8->unk10(nStatus);
+    g_GpuSysFuncs->unk10(nStatus);
 
-    if (D_800568D0 == 2) {
-        GpuSysFuncs *pSys = D_800568C8;
+    if (g_GraphType == 2) {
+        GpuSysFuncs *pSys = g_GpuSysFuncs;
         u_long nMode = 0x20000504;
 
-        if (D_800568D3)
+        if (g_GraphReverse)
             nMode = 0x20000501;
         pSys->unk10(nMode);
     }
@@ -408,7 +408,7 @@ int SetGraphDebug(int level) {
 
     *pLevel = level;
     if (nLevel)
-        g_GpuPrintf(&D_800190D8, nLevel, D_800568D0, D_800568D3);
+        g_GpuPrintf(&D_800190D8, nLevel, g_GraphType, g_GraphReverse);
     return nPrev;
 }
 
@@ -420,7 +420,7 @@ int SetGraphQue(int que) {
         g_GpuPrintf(&D_80019104, que);
 
     if (que != *pQue) {
-        D_800568C8->unk34(1);
+        g_GpuSysFuncs->unk34(1);
         *pQue = que;
         DMACallback(2, 0);
     }
@@ -428,7 +428,7 @@ int SetGraphQue(int que) {
 }
 
 int GetGraphType(void) {
-    return D_800568D0;
+    return g_GraphType;
 }
 
 int GetGraphDebug(void) {
@@ -457,14 +457,14 @@ void SetDispMask(int mask) {
     if (mask == 0)
         func_80047178(pLevel + 0x6A, -1, sizeof(DISPENV));
 
-    D_800568C8->unk10(mask ? 0x03000000 : 0x03000001);
+    g_GpuSysFuncs->unk10(mask ? 0x03000000 : 0x03000001);
 }
 
 int DrawSync(int mode) {
     if (g_GraphDebugLevel >= 2)
         g_GpuPrintf(&D_80019148, mode);
 
-    return D_800568C8->unk3C(mode);
+    return g_GpuSysFuncs->unk3C(mode);
 }
 
 int CheckPrim(char *name, u_long *pRect) {
@@ -488,23 +488,23 @@ int CheckPrim(char *name, u_long *pRect) {
 
 int ClearImage(RECT *rect, u_char r, u_char g, u_char b) {
     CheckPrim(D_80019180, (u_long*)rect);
-    return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, (b << 16) | (g << 8) | r);
+    return g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk0C, rect, 8, (b << 16) | (g << 8) | r);
 }
 
 
 int ClearImage2(RECT *rect, u_char r, u_char g, u_char b) {
     CheckPrim(D_80019180, (u_long*)rect);
-    return D_800568C8->unk08(D_800568C8->unk0C, rect, 8, 0x80000000 | (b << 16) | (g << 8) | r);
+    return g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk0C, rect, 8, 0x80000000 | (b << 16) | (g << 8) | r);
 }
 
 int LoadImage(RECT *rect, u_long *p) {
     CheckPrim(D_8001918C, (u_long*)rect);
-    return D_800568C8->unk08(D_800568C8->unk20, rect, 8, (u_long)p);
+    return g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk20, rect, 8, (u_long)p);
 }
 
 int StoreImage(RECT *rect, u_long *p) {
     CheckPrim(D_80019198, (u_long*)rect);
-    return D_800568C8->unk08(D_800568C8->unk1C, rect, 8, (u_long)p);
+    return g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk1C, rect, 8, (u_long)p);
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
@@ -512,9 +512,9 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", MoveImage);
 /* best: 95.69% -- identical instruction multiset, one load one slot out. Retail
    reads the vtable argument "lw a0,0x18(v1)" after the D_80056988 size store,
    gcc emits it right after "sw a0,0(a1)". Holding the vtable in a pSys local
-   assigned after the source store puts the D_800568C8 load exactly where retail
+   assigned after the source store puts the g_GpuSysFuncs load exactly where retail
    has it (this body); taking &pSys->unk18 into a local instead moves the argument
-   load right but pushes the D_800568C8 load three slots down (91.84). Tried all
+   load right but pushes the g_GpuSysFuncs load three slots down (91.84). Tried all
    three packet store orders, src/size words in locals, a param word local, and a
    4-minute permuter run (best candidate = the &unk18 local, 91.84 here).
 int MoveImage(RECT *rect, int x, int y) {
@@ -528,7 +528,7 @@ int MoveImage(RECT *rect, int x, int y) {
 
     pPacket = &D_80056980;
     *pPacket = *(u_long*)&rect->x;
-    pSys = D_800568C8;
+    pSys = g_GpuSysFuncs;
     D_80056984 = (y << 16) | (x & 0xFFFF);
     D_80056988 = *(u_long*)&rect->w;
     return pSys->unk08(pSys->unk18, pPacket - 2, 0x14, 0);
@@ -555,7 +555,7 @@ u_long* ClearOTagR(u_long *ot, int n) {
     if (g_GraphDebugLevel >= 2)
         g_GpuPrintf(D_800191C8, ot, n);
 
-    D_800568C8->unk2C(ot, n);
+    g_GpuSysFuncs->unk2C(ot, n);
     *(u_long*)ot = (u_long)&D_8005698C & 0xFFFFFF;
     return ot;
 }
@@ -563,15 +563,15 @@ u_long* ClearOTagR(u_long *ot, int n) {
 void DrawPrim(void *p) {
     u_char len = *(u_char*)((u_char*)p + 3);
 
-    D_800568C8->unk3C(0);
-    D_800568C8->unk14((u_char*)p + 4, len);
+    g_GpuSysFuncs->unk3C(0);
+    g_GpuSysFuncs->unk14((u_char*)p + 4, len);
 }
 
 void DrawOTag(u_long *p) {
     if (g_GraphDebugLevel >= 2)
         g_GpuPrintf(D_800191E0, p);
 
-    D_800568C8->unk08(D_800568C8->unk18, p, 0, 0);
+    g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk18, p, 0, 0);
 }
 
 DRAWENV* PutDrawEnv(DRAWENV *env) {
@@ -582,7 +582,7 @@ DRAWENV* PutDrawEnv(DRAWENV *env) {
 
     func_8004574C(&env->dr_env, env);
     env->dr_env.tag |= 0xFFFFFF;
-    D_800568C8->unk08(D_800568C8->unk18, &env->dr_env, sizeof(DR_ENV), 0);
+    g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk18, &env->dr_env, sizeof(DR_ENV), 0);
     // 0xE past the debug level is g_GpuDrawEnv; the original reaches it from here
     *(DRAWENV*)(pLevel + 0xE) = *env;
     return env;
@@ -596,7 +596,7 @@ void DrawOTagEnv(u_long *ot, DRAWENV *env) {
 
     func_8004574C(&env->dr_env, env);
     env->dr_env.tag = (env->dr_env.tag & 0xFF000000) | ((u_long)ot & 0xFFFFFF);
-    D_800568C8->unk08(D_800568C8->unk18, &env->dr_env, sizeof(DR_ENV), 0);
+    g_GpuSysFuncs->unk08(g_GpuSysFuncs->unk18, &env->dr_env, sizeof(DR_ENV), 0);
     // 0xE past the debug level is g_GpuDrawEnv; the original reaches it from here
     *(DRAWENV*)(pLevel + 0xE) = *env;
 }
@@ -642,11 +642,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDispEnv);
        if (g_GraphDebugLevel >= 2)
            g_GpuPrintf(D_80019228, env);
 
-       if (D_800568D0 == 1 || D_800568D0 == 2)
+       if (g_GraphType == 1 || g_GraphType == 2)
            nCmd = 0x05000000 | ((env->disp.y & 0xFFF) << 12) | (func_80045C94(&env->disp) & 0xFFF);
        else
            nCmd = 0x05000000 | ((env->disp.y & 0x3FF) << 10) | (env->disp.x & 0x3FF);
-       D_800568C8->unk10(nCmd);
+       g_GpuSysFuncs->unk10(nCmd);
 
        if (g_GpuDispEnv.screen.x != env->screen.x ||
            g_GpuDispEnv.screen.y != env->screen.y ||
@@ -661,8 +661,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDispEnv);
            x1 = (x1 < x0 + 0x50) ? (x0 + 0x50) : ((x1 >= 0xCDB) ? 0xCDA : x1);
            y0 = (y0 < 0x10) ? 0x10 : (env->pad0 ? (y0 >= 0x137) : (y0 >= 0x101)) ? (env->pad0 ? 0x136 : 0x100) : y0;
            y1 = (y1 < y0 + 2) ? (y0 + 2) : (env->pad0 ? (y1 >= 0x139) : (y1 >= 0x103)) ? (env->pad0 ? 0x138 : 0x102) : y1;
-           D_800568C8->unk10(0x06000000 | ((x1 & 0xFFF) << 12) | (x0 & 0xFFF));
-           D_800568C8->unk10(0x07000000 | ((y1 & 0x3FF) << 10) | (y0 & 0x3FF));
+           g_GpuSysFuncs->unk10(0x06000000 | ((x1 & 0xFFF) << 12) | (x0 & 0xFFF));
+           g_GpuSysFuncs->unk10(0x07000000 | ((y1 & 0x3FF) << 10) | (y0 & 0x3FF));
        }
 
        if (*(u_long*)&g_GpuDispEnv.isinter != *(u_long*)&env->isinter ||
@@ -674,7 +674,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDispEnv);
                hw |= 0x10;
            if (env->isinter)
                hw |= 0x20;
-           if (D_800568D3)
+           if (g_GraphReverse)
                hw |= 0x80;
            if (env->disp.w < 0x119)
                ;
@@ -690,7 +690,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu", PutDispEnv);
                ;
            else
                hw |= 0x24;
-           D_800568C8->unk10(hw);
+           g_GpuSysFuncs->unk10(hw);
        }
 
        memcpy(&g_GpuDispEnv, env, sizeof(DISPENV));
