@@ -665,14 +665,14 @@ extern ParticleBankHandle g_FieldScriptParticleBank;
 //   local 80.18%/80 bytes against retail's 88. Retail's own .x store two
 //   instructions later IS the folded `%hi/%lo(banks + 0x30)` form, so the
 //   asymmetry is retail's, not a compromise here.
-// The offsets are written as sizeof/offsetof because the u32 sum they feed has
-// to stay an integer expression - a `u8*` base measured 92.73%/92 bytes.
+// The offsets are written as sizeof/offsetof because the mem_addr sum they feed
+// has to stay an integer expression - a `u8*` base measured 92.73%/92 bytes.
 void FieldClearParticleBankDirections(void) {
     int i;
 
     for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
         int bankIndex = g_FieldScriptParticleBank.bankIndex;
-        u32 banks = (u32)g_FieldDefaultParticleBanks;
+        mem_addr banks = (mem_addr)g_FieldDefaultParticleBanks;
 
         *(s16*)((bankIndex * sizeof(ParticleBank) + i * sizeof(ParticleBankAngleOffset)) + banks
                 + offsetof(ParticleBank, directions[0].z)) = 0;
@@ -2135,33 +2135,34 @@ int FieldActorsWithinDistance(int dstActorId, int srcActorId) {
     return -(distance >= FIELD_ACTOR_DISTANCE_THRESHOLD);
 }
 
-// Copies one field between two actors, at a constant offset that the callers
-// spell with offsetof. It re-reads g_FieldActors itself rather than taking the
-// array: that global is volatile, retail re-reads its base once per copy, and
-// the one read has to serve both operands. The byte offset is load-bearing too:
-// typed field pointers do re-read the base once per copy, but gcc then keeps the
-// `index * sizeof(FieldActor)` multiplies in registers where retail re-derives
-// them, so the copies come out short (84.64%/476 bytes for all seven, 89.19%/480
-// for the three matrix words alone, and 58.79%/344 for the seven written out as
-// plain typed assignments, against 100.00%/496). The 0x84 copy reads u16
-// on purpose - retail loads it with `lhu`, not `lh`.
-static inline void CopySpriteFieldS32(int dstId, int srcId, int offset) {
+// Each of these re-reads the volatile g_FieldActors itself rather than taking
+// the array: retail re-reads that base once per copied field, and the one read
+// has to serve both operands. Typed field accesses instead let gcc keep the
+// `index * sizeof(FieldActor)` multiplies in registers, so the copies come out
+// short (61.37%/352 bytes for all seven written inline, 58.79%/344 for them as
+// plain typed assignments, 91.33%/488 for the three MATRIX words as
+// `transformMatrix.t[axis]`), against 100.00%/496 - hence a byte offset as the
+// field selector.
+static inline void CopySpriteFieldS32(int dstId, int srcId, u32 byteOffset) {
     FieldActor* actors = g_FieldActors;
     SpriteData* dst = actors[dstId].pSpriteData;
     SpriteData* src = actors[srcId].pSpriteData;
-    *(s32*)((u8*)dst + offset) = *(s32*)((u8*)src + offset);
+    *(s32*)((u8*)dst + byteOffset) = *(s32*)((u8*)src + byteOffset);
 }
 
-static inline void CopySpriteFieldU16(int dstId, int srcId, int offset) {
+// Retail copies this field with `lhu`/`sh`, so it reads unsigned even though
+// SpriteData::field_0x84 is declared s16.
+static inline void CopySpriteField0x84(int dstId, int srcId) {
     FieldActor* actors = g_FieldActors;
     SpriteData* dst = actors[dstId].pSpriteData;
     SpriteData* src = actors[srcId].pSpriteData;
-    *(u16*)((u8*)dst + offset) = *(u16*)((u8*)src + offset);
+
+    *(u16*)&dst->field_0x84 = *(u16*)&src->field_0x84;
 }
 
-static inline void CopyActorFieldS32(int dstId, int srcId, int offset) {
+static inline void CopyActorFieldS32(int dstId, int srcId, u32 byteOffset) {
     FieldActor* actors = g_FieldActors;
-    *(s32*)((u8*)&actors[dstId] + offset) = *(s32*)((u8*)&actors[srcId] + offset);
+    *(s32*)((u8*)&actors[dstId] + byteOffset) = *(s32*)((u8*)&actors[srcId] + byteOffset);
 }
 
 void FieldActorCopyPlacement(int dstActorId, int srcActorId) {
@@ -2190,7 +2191,7 @@ void FieldActorCopyPlacement(int dstActorId, int srcActorId) {
     dstActor->curYPos = srcActor->curYPos;
     dstActor->curWalkmeshTriMaterial = srcActor->curWalkmeshTriMaterial;
 
-    CopySpriteFieldU16(dstActorId, srcActorId, offsetof(SpriteData, field_0x84));
+    CopySpriteField0x84(dstActorId, srcActorId);
     CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.x));
     CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.y));
     CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.z));
