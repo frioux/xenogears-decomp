@@ -1169,40 +1169,50 @@ void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
-/* Best: 98.42%, 2468 bytes (retail 2472), 617 vs 618 insns - 4 bytes short, so
+/* Best: 98.56%, 2468 bytes (retail 2472), 617 vs 618 insns - 4 bytes short, so
    PARKED. Everything in the body below is retail's: the prologue save order, all
    three redraw guards, both switches with retail's case-body order (outer: 5, 4,
    0/2, 1, 3, 9, 10; inner: 5, 4, 1, 3), the eight setXYWH stores with their
-   reloaded `g_Menu->pCursors`, and every call argument. The single missing
-   instruction is one load-delay `nop` in the inner switch's shared tail
-   (retail has `lui v0,g_Menu / lw v0,0(v0) / nop / lw v0,0x33C(v0)` after the
-   `pCursors->shouldRender[0] = 1` store); ours schedules the `li` for
-   `closeList` and the `cursorVisible = 0` store into that gap instead, so gas
-   has no hazard to pad. MEASURED LEVERS: `closeList = 1;` + a separate
-   `g_Menu->pCursors->shouldRender[0] = 1;` gives the right statement order but
-   gcc cse's the two constants into one register (2 insns short, 98.02%);
-   `closeList = g_Menu->pCursors->shouldRender[0] = 1;` (the embedded form, from
-   permute.sh) forces the separate `li` and is what the body below uses. Also
-   needed and already in: prevChar is u_char and group is u_char (retail masks
-   both sides of every `!= prevChar` and does `andi ...s6,0xff` at the calls);
-   `scrollY = 100 * row / count; scrollY = scrollY / 2;` as two statements (one
-   expression puts the div result in v0, retail uses a1); the y-row table read
-   via `(pSlotY = &D_801E9DBC[group * 4 + slot][0])[0]` inside the setXYWH
+   reloaded `g_Menu->pCursors`, and every call argument.
+   THE ONE MISSING INSTRUCTION IS A GAS LOAD-DELAY `nop`, and it is a scheduler
+   tie, not a structure error: in the inner switch's shared tail retail keeps
+   `lui v0,g_Menu / lw v0,0(v0) / nop / lw v0,0x33C(v0)` (a load-use hole gas
+   pads) and has its `li s0,0x1` for `closeList` ten insns EARLIER, right after
+   the `MenuCopyEquipmentFrom/ToPanel` call; our compile sinks that `li` into the
+   hole, so gas has nothing to pad and the function is one insn short.
+   MEASURED SPELLINGS of the closeList/shouldRender pair: `closeList = 1;` then a
+   separate `g_Menu->pCursors->shouldRender[0] = 1;` (either statement order)
+   cse's the two constants into one, so the store becomes `sb s0,0x140` and the
+   body is 615 insns (2460 bytes, 98.22%); the order `shouldRender[0] = 1;` then
+   `closeList = 1;` (what the body below uses) keeps retail's TWO `li 1` - `li
+   t0` for the store, `li s0` for closeList - but still sinks the `li s0`
+   (617/2468); the embedded form `closeList = g_Menu->pCursors->shouldRender[0]
+   = 1;` gives the same shape as that, and `store = closeList = 1` or a
+   `do { } while (0);` around the pair are worse (615/2460). An 8-minute
+   permute.sh run on the 98.42% body (2205 iterations) found only the slotRow
+   change below, so this tie is not reachable by random statement reordering.
+   Also needed and already in: prevChar is u_char and group is u_char (retail
+   masks both sides of every `!= prevChar` and does `andi ...s6,0xff` at the
+   calls); `scrollY = 100 * row / count; scrollY = scrollY / 2;` as two
+   statements (one expression puts the div result in v0, retail uses a1); the
+   y-row table read via `(pSlotY = &D_801E9DBC[...][0])[0]` inside the setXYWH
    argument (a separate statement hoists the index math into the two load-delay
    slots and costs two more nops; 4 lhu of it, so the address - not the value -
-   is what retail CSEs into $s0). Remaining cosmetic delta: that block's
-   table address is in v0/v1 and the prim address in v1/v0, swapped.
-   JUMP TABLE: this stub owns jtbl_801C515C at +0x60 of the unit's .rodata range
-   (0xFC..0x18C, three 0x30-byte tables: func_801DBE54's at +0x00,
-   func_801DDF24's at +0x30, this one last). A C switch emits 44 bytes with no
-   trailing pad word, so converting this one alone moves the table to +0x00 and
-   shortens .rodata by 4: the three must be converted in address order, first to
-   last, or check_bin fails on rodata layout. Semantics: the character/gear
-   equipment panel - arg2 != 0 is the gear panel, arg1 asks for the open
-   animation, and group (toggled by LEFT/RIGHT on character id 4 and by a
-   successful equip) selects the weapon vs accessory page whose four row y's are
-   D_801E9DBC[group][slot]. Slot 0 is the weapon, 1..3 the accessories; for gears
-   (arg2 != 0) with group != 0 slots 1 and 2 are skipped. */
+   is what retail CSEs into $s0), and that row index in its own `s32 slotRow`
+   local at the 2nd and 3rd y store, which is what closed the old v0/v1-vs-v1/v0
+   swap of the table and prim addresses (98.42 -> 98.56; found by permute.sh).
+   JUMP TABLE, AND WHY THIS CANNOT SHIP ALONE EVEN AT 100%: this stub owns
+   jtbl_801C515C at +0x60 of the unit's .rodata range (0xFC..0x18C, three
+   0x30-byte tables: func_801DBE54's at +0x00, func_801DDF24's at +0x30, this one
+   last; 11 cases = 44 bytes plus 4 of pad each). C .rodata lands before asm
+   .rodata in the same object, so converting this function while the other two
+   are still stubs moves its table to +0x00. Convert the three IN ADDRESS ORDER,
+   first to last, and judge with `tools/scripts/check_bin.sh menu`.
+   Semantics: the character/gear equipment panel - arg2 != 0 is the gear panel,
+   arg1 asks for the open animation, and group (toggled by LEFT/RIGHT on
+   character id 4 and by a successful equip) selects the weapon vs accessory page
+   whose four row y's are D_801E9DBC[group][slot]. Slot 0 is the weapon, 1..3 the
+   accessories; for gears (arg2 != 0) with group != 0 slots 1 and 2 are skipped. */
 /*
 void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
     u8 active;
@@ -1227,6 +1237,7 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
     s32 scrollY;
     s32 scrollHeight;
     u16* pSlotY;
+    s32 slotRow;
 
     active = 1;
     needsOpen = 1;
@@ -1291,8 +1302,15 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
         }
         if (slot != prevSlot || arg0 != prevChar) {
             MenuRenderEquipmentSlotStrings(slot, col, row, group, kind, 1, arg0);
-            setXYWH(&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]], 0x8C,
-                    (pSlotY = &D_801E9DBC[group * 4 + slot][0])[0], 0x10, 0x10);
+            slotRow = group * 4 + slot;
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x0 = 0x8C,
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y0 = (pSlotY = &D_801E9DBC[group * 4 + slot][0])[0],
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x1 = 0x8C + 0x10,
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y1 = (pSlotY = &D_801E9DBC[slotRow][0])[0],
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x2 = 0x8C,
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y2 = (pSlotY = &D_801E9DBC[slotRow][0])[0] + 0x10,
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->x3 = 0x8C + 0x10,
+            (&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]])->y3 = (pSlotY = &D_801E9DBC[group * 4 + slot][0])[0] + 0x10;
             prevSlot = slot;
             prevChar = arg0;
         }
@@ -1382,7 +1400,8 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
             case MENU_INPUT_BACK:
                 MenuCopyEquipmentFromPanel(arg0, arg2);
                 cursorVisible = 0;
-                closeList = g_Menu->pCursors->shouldRender[0] = 1;
+                g_Menu->pCursors->shouldRender[0] = 1;
+                closeList = 1;
                 func_801DB0A8(0, row, 3, 0);
                 col = 0;
                 prevChar = 0xFF;
@@ -1399,7 +1418,8 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
                 }
                 MenuCopyEquipmentToPanel(arg0, kind);
                 cursorVisible = 0;
-                closeList = g_Menu->pCursors->shouldRender[0] = 1;
+                g_Menu->pCursors->shouldRender[0] = 1;
+                closeList = 1;
                 func_801DB0A8(0, row, 3, 0);
                 col = 0;
                 g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
