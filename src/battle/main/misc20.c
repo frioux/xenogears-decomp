@@ -2,6 +2,10 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
+// The status penalty percent that takes an action's whole value: an entry at or above
+// it zeroes the value, and one below it scales the value by what is left.
+#define BATTLE_STATUS_PENALTY_PERCENT_MAX 20
+
 extern u8 *D_800C3D60;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleActingSlot;
@@ -27,7 +31,7 @@ void BattleSetActorMaskForSlotRecord3(void) {
                        register outside the loop */
     u16 *p = &g_BattleActionSlotMask;
 
-    for (; i < 3; i++) {
+    for (; i < MAX_PARTY_MEMBERS; i++) {
         if (g_BattleWorkBlock[i].characterId == target) {
             *p = 1 << i;
         }
@@ -40,7 +44,7 @@ void BattleExecuteActionRow(void) {
     u32 actor;
     u8 one;
 
-    if (g_BattleTargetSlotIndex < 3) {
+    if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS) {
         g_BattleCurrentRow = (BattleRow *)((u8 *)g_BattleCurWorkBlock +
                                    (g_BattleCurWorkBlock->actorIndex * 0x690 + 0x2228) +
                                    g_BattleCurWorkBlock->rowIndex * 0x28);
@@ -90,7 +94,7 @@ void BattleExecuteActionRow(void) {
         }
         g_BattleCurSlotIndex++;
         mask <<= 1;
-    } while (g_BattleCurSlotIndex < 0xB);
+    } while (g_BattleCurSlotIndex < BATTLE_ACTOR_SLOT_COUNT);
     if (g_BattleActingSlot->characterId == 4) {
         func_8009E788();
     }
@@ -335,8 +339,8 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
     }
     v = g_BattleCurSlotState->statusPenaltyPercent[idx];
     if (v != 0) {
-        if (v < 0x14) {
-            arg0 = arg0 * (0x14 - v) / 20;
+        if (v < BATTLE_STATUS_PENALTY_PERCENT_MAX) {
+            arg0 = arg0 * (BATTLE_STATUS_PENALTY_PERCENT_MAX - v) / BATTLE_STATUS_PENALTY_PERCENT_MAX;
         } else {
             arg0 = 0;
         }
@@ -426,7 +430,7 @@ void BattleApplyGearWeaponRecord(u8 arg0) {
     g_GameState.gears[id].weaponData[sel].unk4 = p->unk11;
     g_GameState.gears[id].extraWeaponIds[sel] = arg0;
     g_GameState.gearPartsIds[0x6C + arg0] = p->partId;
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if ((g_BattleCurWorkBlock->slots + i)->characterId == 4) {
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].attack = p->attack;
             g_BattleCurWorkBlock->slots[i].state.weaponData[sel].unk4 = p->unk11;
