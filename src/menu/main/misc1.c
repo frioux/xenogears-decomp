@@ -335,25 +335,12 @@ void MenuFinalizeMenuData(void) {
     }
     HeapFree(g_Menu);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
-
-/* Best: 92.33% - only the placement of the two MenuWaitForDiscChange call blocks differs: the
-   original lays the outer test's then-block out of line (beqz $v0 -> call block) and
-   falls through to the second test, then to a "j end".  Tried: else-if, `!=`/else
-   (87.67%), 2-way switch with default (92.33%), early break + separate if (92.33%),
-   nested if (92.33%), 2-way switch (92.33%), switch on g_GameDiscChangeRequest (92.33%), two
-   independent ifs (90.47%, 340 bytes), case order 2 before 0 (86.98%), gcc-2.6.0 (92.33%).
-   Instruction multiset is identical; this is a bb-reorder tie-break: retail keeps both
-   compare insns adjacent at the top and puts both call blocks after a `j end`.
 void func_801C62A8(void) {
-    u8 menuIndex;
-
     MenuInitializeMenuData();
     MenuSetupScreen();
-    g_Menu->shouldDrawMenu = 1;
-    g_Menu->soundEffectsEnabled = 1;
-    menuIndex = g_MenuOverlayIndex;
-    switch (menuIndex) {
+    g_Menu->shouldDrawMenu = TRUE;
+    g_Menu->soundEffectsEnabled = TRUE;
+    switch (g_MenuOverlayIndex) {
         case 0:
             func_801D2D38();
             MenuNormalMenuMain();
@@ -364,10 +351,13 @@ void func_801C62A8(void) {
             g_Menu->pManager->shouldRenderSelectionMenu = 0;
             g_Menu->pManager->shouldRenderPointerCursor = 0;
             g_Menu->pManager->unk3 = 0;
-            if (g_GameDiscChangeRequest == 0) {
-                MenuWaitForDiscChange(0);
-            } else if (g_GameDiscChangeRequest == menuIndex) {
-                MenuWaitForDiscChange(((u8*)g_GameState.fieldScriptMemory)[0xA4]);
+            switch (g_GameDiscChangeRequest) {
+                case 0:
+                    MenuWaitForDiscChange(0);
+                    break;
+                case 2:
+                    MenuWaitForDiscChange(((u8*)g_GameState.fieldScriptMemory)[0xA4]);
+                    break;
             }
             break;
         case 6:
@@ -376,7 +366,6 @@ void func_801C62A8(void) {
     }
     MenuFinalizeMenuData();
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
 
 /* Best: 90.45% (480 bytes, same size).  Remaining: gcc rotates the saved registers
