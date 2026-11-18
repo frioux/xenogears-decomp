@@ -534,9 +534,10 @@ extern s32 g_GfxOTDepthShift;
 
 // Parked at 89.78% (3028 bytes against retail's 2944: 757 instructions to 736).
 // The structure is retail's: both switches in retail's body order, all sixteen
-// vertex arms, the depth pipeline, the shared link tails and the loop tail align
-// instruction for instruction; one 3-vertex arm diffs clean apart from the extra
-// lui listed below. What is left, measured this round:
+// vertex arms, the depth pipeline, the shared link tails and the loop tail are
+// the same instructions in the same order; what differs is the extra lui in each
+// arm, the register each live value lands in, and one merged tail too many.
+// Measured this round:
 // - The masks. Retail holds 0xFFFFFF in s4 and 0xFF000000 in $fp across the loop
 //   (lui+ori and lui in the preheader, no rematerialisation anywhere). This
 //   compile holds 0xFFFFFF (s7, it costs two instructions to remat) but
