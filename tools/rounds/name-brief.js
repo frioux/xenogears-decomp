@@ -13,6 +13,7 @@ HOW
 4. For each D_<addr> global the file's live C uses (not one that only a parked body or a stub mentions), look at every use in this file and, with one grep, its users elsewhere (grep -rnw 'D_800XXXXX' src include | head): what is stored in it, what indexes it, which named functions read and write it, and for initialised data what the contents are.
 
 RULES
+- **Before naming a function, confirm it has a C DEFINITION in this repo, not just calls.** A jal in a matched .s, or an extern plus a call site, is not a definition: the body may still be an asm blob or a same-address twin in another overlay. grep the signature (func_800XXXXX() and look for the opening brace) and if there is no definition write NAME_UNKNOWN and say where the body really is - the rename tool skips those and the proposal is wasted.
 - PascalCase with the area prefix the already-named functions of this file and its directory use.
 - Name what the code demonstrably DOES (BattleClearActorSlots, MenuDrawGoldDigits, WorldMapSetCameraTarget), not a guess at what the game uses it for. A dull true name beats a vivid wrong one.
 - If the purpose is opaque, name the mechanism (MenuCopyRect16, BattleSetActorFlag40) rather than leaving func_.
