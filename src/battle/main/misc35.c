@@ -390,6 +390,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
     s16 pointB[2];
     SpriteData *pTarget;
     u8 *pBuffer;
+    u8 *pWork;
     s32 size;
     u32 flags;
     u32 mask;
@@ -554,7 +555,9 @@ void func_800C11CC(SpriteData *pSpriteData) {
             break;
         case 0x9E:
             pSpriteData->animScriptWaitTimer = 1;
-            if ((*(u16 *)(g_BattleStateWork + 0x8000 + 0xC58) & 0x100) == 0) {
+            pWork = (u8 *)g_BattleStateWork;
+            pWork += 0x8000;
+            if ((*(u16 *)(pWork + 0xC58) & 0x100) == 0) {
                 return;
             }
             break;
