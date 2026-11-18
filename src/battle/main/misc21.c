@@ -812,7 +812,28 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    not a source shape. The tween loop's base is the remaining named item
    (retail +0x08 = &pTween->pSlot, ours +0x5C = &pTween->slot): gcc picks that
    biv from the reference distribution, and three source shapes failed to move
-   it, so it is not a spelling problem. */
+   it, so it is not a spelling problem.
+
+   Round 269 (the +5 IS a source shape after all - this note's VERIFIED paragraph
+   above is wrong about it): retail's walker spill is produced by the ORDER of the
+   two source statements, not by the allocator. Retail's slots are 0x90 = the
+   MUTATED walker and 0x98 = the untouched root, and the copy between them is in
+   the PROLOGUE (`lw t2,0x90(sp); sw t2,0x98(sp)`, right before the
+   `count = pSprites->count` load), while every use before the sprite loop reads
+   0x90 and every use after it reads 0x98. Writing it that way - declare the
+   walker FIRST, `pSprite = pSprites;` in the prologue after `scale = scale16`,
+   and let the sprite loop bump `pSprite` - reproduces retail's in-memory walker
+   exactly: the preheader `lw/addiu 0x7C/sw` RMW, the `addiu s1,t2,8` biv, and
+   the per-iteration reloads. That is 4 of the missing instructions (sprite-loop
+   segment -5 -> -1) and the preheader slots become retail's (0x90 walker,
+   0x98 root), but it costs 8 bytes of frame: 0x110 -> 0x118, so every sp
+   displacement above 0xB8 and the three incoming-arg offsets
+   (0x128/0x12C/0x130 vs retail's 0x120/0x124/0x128) shift. The extra 8 bytes are
+   NOT a ninth variable (all eight slots 0x80..0xB8 and their roles come out
+   retail's) and not the texture loop's walker (giving it its own local keeps
+   0x118), so the next lane should hunt that 8-byte local first - closing the
+   frame is worth 5 instructions and is the biggest single item left.
+   Until then the 0x110-frame body below (11 insns short) is the better base. */
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
