@@ -3,6 +3,14 @@
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 
+// Denominator of a 0..100 percent (misc2's BATTLE_GAUGE_FRACTION_SCALE is the 0..255 one).
+#define BATTLE_PERCENT_SCALE 100
+// flags bit 27: the actor is on the second player's side, so it drives gauge record 1,
+// g_BattlePlayer2Vibration and the right-hand HUD column.
+#define BATTLE_ACTOR_FLAG_PLAYER2 0x8000000
+// What prevPartIndex holds when the next model has to restart the part animation.
+#define BATTLE_PART_INDEX_NONE 0xFF
+
 extern void func_800379C8(char*, ...);
 extern char D_8006FCC0[];
 extern char D_8006FCC4[];
@@ -442,10 +450,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80075B50);
 void BattleQueueMessage(BattleActor* p, u8 value) {
     u8 idx;
 
-    if (p->messageQueue.count < 0x20) {
+    if (p->messageQueue.count < sizeof(p->messageQueue.buf)) {
         idx = p->messageQueue.writeIdx;
         p->messageQueue.writeIdx = idx + 1;
-        p->messageQueue.buf[idx & 0x1F] = value;
+        p->messageQueue.buf[idx & (sizeof(p->messageQueue.buf) - 1)] = value;
         p->messageQueue.count++;
     }
 }
@@ -458,7 +466,7 @@ s32 BattleDequeueMessage(BattleActor* p) {
         return 0;
     }
     idx = p->messageQueue.readIdx++;
-    value = p->messageQueue.buf[idx & 0x1F];
+    value = p->messageQueue.buf[idx & (sizeof(p->messageQueue.buf) - 1)];
     p->messageQueue.count--;
     return value;
 }
@@ -477,7 +485,7 @@ void BattlePrintMessageQueue(BattleActor* p) {
     idx = p->messageQueue.readIdx;
     func_800379C8(D_8006FCC0);
     for (i = 0; i < p->messageQueue.count; i++) {
-        func_800379C8(D_8006FCC4, p->messageQueue.buf[(idx++) & 0x1F]);
+        func_800379C8(D_8006FCC4, p->messageQueue.buf[(idx++) & (sizeof(p->messageQueue.buf) - 1)]);
     }
     func_800379C8(D_8006FCC8);
 }
@@ -517,7 +525,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
         flags &= ~2;
         p->flags = flags;
     }
-    // the do-block keeps the 0x8000000 test out of the mult shadow
+    // the do-block keeps the BATTLE_ACTOR_FLAG_PLAYER2 test out of the mult shadow
     do {
         prod = p->moveSpeedBase * g_BattleMotionSpeedScale;
         flags = p->flags;
@@ -525,7 +533,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
         p->flags = flags;
         p->moveSpeed = prod >> 8;
     } while (0);
-    flags &= 0x8000000;
+    flags &= BATTLE_ACTOR_FLAG_PLAYER2;
     if (!flags) {
         BattleSetTextCursor(0x28, 0x28);
     } else {
@@ -534,7 +542,7 @@ void BattleUpdateSlotGaugeDisplay(BattleActor* p) {
     if (p->actionIndex != 0) {
         g_BattleSlotGauges[((p->flags >> 27) & 1)].value = D_80091198[p->actionIndex];
         pActionData = p->pActionData;
-        g_BattleSlotGauges[((p->flags >> 27) & 1)].percent = (pActionData->points[p->actionIndex] * pActionData->scale) / 100;
+        g_BattleSlotGauges[((p->flags >> 27) & 1)].percent = (pActionData->points[p->actionIndex] * pActionData->scale) / BATTLE_PERCENT_SCALE;
     }
 }
 
@@ -558,7 +566,7 @@ void BattleDrawFrameHud(BattleActor* p) {
 
     h = 0xA;
     w = 0x14;
-    if (p->flags & 0x8000000) {
+    if (p->flags & BATTLE_ACTOR_FLAG_PLAYER2) {
         w = 0xB4;
     }
     if (g_BattleMode != 4) {
@@ -798,7 +806,7 @@ s32 dec;
 void BattleActorBeginMove(BattleActor* p, s32 ang, s32 shift, s32 dec) {
     p->flags |= 0x1000;
     p->modelIndex = 8;
-    p->prevPartIndex = 0xFF;
+    p->prevPartIndex = BATTLE_PART_INDEX_NONE;
     p->moveTimer = 0x3C;
     p->moveReentryTimer = 0x28;
     p->stateTimer = 0x28;
@@ -818,7 +826,7 @@ s32 BattleUpdateControllerActuator(BattleActor* p, s32 mode) {
         return;
     }
     flags = p->flags;
-    if (flags & 0x8000000) {
+    if (flags & BATTLE_ACTOR_FLAG_PLAYER2) {
         if (g_BattleMode != 2 && g_BattleMode != 4) {
             return;
         }
@@ -856,7 +864,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
     if (p->moveTimer != 0) {
         if (p->modelIndex == 9) {
             p->modelIndex = 0xC;
-            p->prevPartIndex = 0xFF;
+            p->prevPartIndex = BATTLE_PART_INDEX_NONE;
             p->flags |= 0x1000;
             goto done;
         }
@@ -870,21 +878,21 @@ short BattleUpdateActorMovement(BattleActor* p) {
         if (p->moveGoalPosition.y < mid) {
             if ((flags & 0x700000) == 0x100000) {
                 p->modelIndex = 7;
-                p->prevPartIndex = 0xFF;
+                p->prevPartIndex = BATTLE_PART_INDEX_NONE;
                 p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
             } else {
                 p->modelIndex = 6;
-                p->prevPartIndex = 0xFF;
+                p->prevPartIndex = BATTLE_PART_INDEX_NONE;
                 p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x100000;
             }
         } else {
             if ((flags & 0x700000) == 0x200000) {
                 p->modelIndex = 7;
-                p->prevPartIndex = 0xFF;
+                p->prevPartIndex = BATTLE_PART_INDEX_NONE;
                 p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
             } else {
                 p->modelIndex = 5;
-                p->prevPartIndex = 0xFF;
+                p->prevPartIndex = BATTLE_PART_INDEX_NONE;
                 p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x200000;
             }
         }
@@ -898,7 +906,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
     switch ((p->movePhase - 1) & 7) {
     case 2:
         p->modelIndex = 6;
-        p->prevPartIndex = 0xFF;
+        p->prevPartIndex = BATTLE_PART_INDEX_NONE;
         p->flags |= 0x1000;
         func_80077584(p, ang, 0xC, 0x64);
         break;
