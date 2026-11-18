@@ -860,6 +860,7 @@ void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPack
     s32 i;
 
     pFrameOffsets = pAnimPackage->pFrames;
+    // mem_addr arithmetic: the plain pointer form reassigns the base register (99.85%)
     pBlock = (u8*)(pFrameOffsets[index] + (mem_addr)pFrameOffsets);
     flags = *pBlock;
     i = 0;
@@ -877,6 +878,7 @@ void SpriteApplyDirTransforms(SpriteData* pSpriteData, s32 index, SpriteAnimPack
                         pSpriteData->pBase->pDirTransforms = HeapAlloc(sizeof(SpriteDirectionTransforms), 0);
                         SpriteClearDirTransforms(pSpriteData);
                     }
+                    // (dir + arr) keeps retail's offset-first addu; dirTransforms[dir] reverses it
                     if (entryFlags & 0x20) {
                         (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationX = *pEntry++;
                         (dir + pSpriteData->pBase->pDirTransforms->dirTransforms)->translationY = *pEntry++;
