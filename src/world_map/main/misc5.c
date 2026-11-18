@@ -10,6 +10,22 @@
 #define WORLD_MAP_SPRITE_GROUP9 9
 #define WORLD_MAP_SPRITE_GROUP9_TIMER 60
 
+// the map display buffer copied into VRAM when a mode initialises, and the VRAM
+// position it is copied to
+#define WORLD_MAP_SCREEN_WIDTH 320
+#define WORLD_MAP_SCREEN_HEIGHT 216
+#define WORLD_MAP_SCREEN_VRAM_X 0x2C0
+#define WORLD_MAP_SCREEN_VRAM_Y 0x100
+
+// the archive directory this overlay's files are read through
+#define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
+
+// the two scene layers each group actor pair scales (4/5 and 6/7)
+#define WORLD_MAP_GROUP_LAYER_COUNT 2
+
+// the 12-bit fixed-point scale both layer updaters clamp to
+#define WORLD_MAP_SCALE_MAX 0x7F00
+
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ s16 command;
@@ -458,7 +474,7 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
     s32 scale;
     s32 i;
 
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < WORLD_MAP_GROUP_LAYER_COUNT; i++) {
         WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->pPrims,
                                    ((u16 *)pLayer->pPrimHeader)[2]);
         pLayer++;
@@ -513,11 +529,11 @@ int WorldMapUpdateGroup4And5Scale(int idx) {
     if (pPlayer->unk50 > 0x800) {
         *pScale2 += 0x180;
     }
-    if (pPlayer->unk50 > 0x7F00) {
-        pPlayer->unk50 = 0x7F00;
+    if (pPlayer->unk50 > WORLD_MAP_SCALE_MAX) {
+        pPlayer->unk50 = WORLD_MAP_SCALE_MAX;
     }
-    if (*pScale2 > 0x7F00) {
-        *pScale2 = 0x7F00;
+    if (*pScale2 > WORLD_MAP_SCALE_MAX) {
+        *pScale2 = WORLD_MAP_SCALE_MAX;
     }
     *(MATRIX *)&pScratch[0x3C] = g_WorldMapIdentityMatrix;
     *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
@@ -543,7 +559,7 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
     s32 scale;
     s32 i;
 
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < WORLD_MAP_GROUP_LAYER_COUNT; i++) {
         WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->pPrims,
                                    ((u16 *)pLayer->pPrimHeader)[2]);
         pLayer++;
@@ -598,11 +614,11 @@ int WorldMapUpdateGroup6And7Scale(int idx) {
     if (pPlayer->unk50 > 0x800) {
         *pScale2 += 0x180;
     }
-    if (pPlayer->unk50 > 0x7F00) {
-        pPlayer->unk50 = 0x7F00;
+    if (pPlayer->unk50 > WORLD_MAP_SCALE_MAX) {
+        pPlayer->unk50 = WORLD_MAP_SCALE_MAX;
     }
-    if (*pScale2 > 0x7F00) {
-        *pScale2 = 0x7F00;
+    if (*pScale2 > WORLD_MAP_SCALE_MAX) {
+        *pScale2 = WORLD_MAP_SCALE_MAX;
     }
     *(MATRIX *)&pScratch[0x3C] = g_WorldMapIdentityMatrix;
     *(MATRIX *)&pScratch[0x44] = *(MATRIX *)&pScratch[0x3C];
@@ -796,9 +812,9 @@ void WorldMapInitializeModeWithGroupActors(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
-    MoveImage(&rect, 0x2C0, 0x100);
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
@@ -829,7 +845,7 @@ void WorldMapInitializeModeWithGroupActors(void) {
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
-    ArchiveSetIndex(0x24, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
     func_80097BC0(pPos);
     do {
         WorldMapUpdateLoadQueue();
