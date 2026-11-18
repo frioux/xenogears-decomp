@@ -876,7 +876,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
 /* extern s32 g_BattleTransitionFrames;
 extern u8 g_BattleFacingUpdateEnabled;
 extern u8 g_BattleReinitFlag;
-extern u8 D_80091145;
+extern u8 g_BattleReinitValue;
 extern s32 g_BattleRoundOver;
 extern s32 g_BattleRoundOverFrames;
 extern s32 g_BattleResultSide;
@@ -928,7 +928,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
         if (g_BattleFacingUpdateEnabled != 0 && !BattleCheckPositionPastMapCenter(p0) &&
             !BattleCheckPositionPastMapCenter(p1)) {
             g_BattleReinitFlag = 1;
-            D_80091145 = 0xA;
+            g_BattleReinitValue = 0xA;
             BattleInitOnce();
         }
     }
