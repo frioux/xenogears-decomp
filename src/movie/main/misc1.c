@@ -44,43 +44,28 @@ extern MovieColour D_80076F9C[];
 extern s32 g_MovieGlowFadeSteps[];
 extern s32 g_MovieGlowFadeDurations[];
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
-
-// Best attempt (98.33%, 2292 bytes against retail's 2276): retail's instruction
-// multiset plus exactly four, all register-allocation fallout. gcc keeps the 0xF0
-// stack argument of the SetDef*Env calls in s3 across the whole loop where retail
-// re-materialises it into s0 in the teardown, that costs the sixth callee-saved
-// register (s5), and it hoists the first 7-iteration loop's `i = 0` instead of
-// leaving it in the test's delay slot. Call order, the ten-argument FontPrintf, the
-// expanded /3600 and /60 divisions, the buffer swap and the whole teardown match.
-// Two spellings are load-bearing: the teardown's RECT stores must go through the
-// absolute D_80077124[n] indices (a pointer local makes them base-relative where
-// retail uses %lo symbols) while the SetDef*Env calls must go through a pointer
-// local (pBase, a second variable holding the same address, or gcc re-materialises
-// the base). Not run through the permuter yet: that is the next step.
-/*
 // The debug screen's two double-buffered draw environments. Each one starts 0x18
 // bytes before the matching MovieSlot entry (g_MovieStreamSlots); the polygon
 // primitives are linked into the first words of the ordering table.
 typedef struct {
-    // 0x0 DRAWENV drawEnv;
-    // 0x5C DISPENV dispEnv;
-    // 0x70 u_long ot[0x20];
-    // 0xF0 POLY_G4 polyG4[2];
+    /* 0x0 */ DRAWENV drawEnv;
+    /* 0x5C */ DISPENV dispEnv;
+    /* 0x70 */ u_long ot[0x20];
+    /* 0xF0 */ POLY_G4 polyG4[2];
 } MovieDrawBuffer; // Size: 0x138
 
 typedef struct {
-    // 0x0 u16 unk0;
-    // 0x2 u16 unk2;
-    // 0x4 u32 unk4;
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u32 unk4;
 } MovieStreamEntry; // Size: 0x8
 
 // Retail copies this three-byte record to the stack once per iteration and never
 // reads it back; the copy is part of the original source.
 typedef struct {
-    // 0x0 s8 unk0;
-    // 0x1 s8 unk1;
-    // 0x2 s8 unk2;
+    /* 0x0 */ s8 unk0;
+    /* 0x1 */ s8 unk1;
+    /* 0x2 */ s8 unk2;
 } MovieDebugMode; // Size: 0x3
 
 extern MovieDrawBuffer D_80077124[];
@@ -163,8 +148,36 @@ extern s32 g_MoviePrevPadButtons;
 extern s32 g_MovieCursorIndex;
 extern s32 g_MovieHeapDebugEnabled;
 
-// One frame of the debug HUD: draw the stream/pad state, then tear the whole
-// screen down again when circle plus L are held.
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
+
+// Best attempt (99.05%): retail's EXACT size (2276 bytes) and its exact register
+// set -- ra,s0-s4, with s0 the loop counter i and the teardown's 0xF0, s1 the
+// D_80077124 base, s2 pBase, s3 the constant 1, s4 the counter pointer. What is
+// left is the FRAME: retail's is 0x70 with the mode copy at 0x30 and &action at
+// 0x50, ours is 0x50 with those at 0x28 and 0x30, i.e. retail's locals area is
+// 0x30 bytes against our 0x10 -- an 8-byte local created before the `mode` copy
+// and a 24-byte one created between it and the MovieUpdatePadCursor call, both of
+// which no C in this body accounts for. Two scheduling swaps remain inside the
+// same size (retail's `li s3,1` before `addu s2,s1,zero`; one lui/addiu pair of
+// the D_8006FC40 call) and the expanded /3600 division's mfhi lands in t1 instead
+// of a2.
+// Four spellings are load-bearing and each was measured: the teardown's RECT
+// stores through absolute D_80077124[n] indices (a pointer local makes them
+// base-relative), the SetDef*Env calls through pBase (a second variable holding
+// the same address, or gcc re-materialises the base), `i = 0;` BEFORE the
+// MovieStreamCommand test with the first 7-iteration loop written `for (; i < 7;
+// i++)` (that is what keeps the move in the branch delay slot, -4 bytes and the
+// whole function's size), and the teardown passing `i = 0xF0` / `i` (that is what
+// stops gcc hoisting a sixth loop-invariant copy of 0xF0 into a callee-saved
+// register, +3 instructions when written as plain 0xF0 literals; the value is
+// dead there, the teardown breaks out of the loop).
+// Earlier measurements: plain 0xF0 literals 98.33 (2292 bytes), a screenHeight
+// local shared by both groups 98.36 (2288, and it costs s0 as a seventh saved
+// register), teardown-only screenHeight 98.33. gcc 2.6.0 scores the literal body
+// 98.62 with the identical three extra instructions, so this is not a preset
+// question; 2.7.2-cdk drops to 82.75. A 7-minute permuter run on the 98.33 body
+// found the `i = 0xF0` spelling and nothing else.
+/*
 void func_800704E8(void) {
     MovieDebugMode mode;
     MovieDrawBuffer* pWork;
@@ -242,10 +255,11 @@ void func_800704E8(void) {
         FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
         FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);
 
+        i = 0;
         if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
             FontPrintf(D_8006FC40, D_80076E98, g_MovieStreamBlock, g_MovieStreamWritePtr,
                        g_MovieStreamBytesLeft);
-            for (i = 0; i < 7; i++) {
+            for (; i < 7; i++) {
                 FontPrintf(D_8006FC64, D_80076E98[i]);
             }
             FontPrintf(D_8006FC6C);
@@ -317,8 +331,8 @@ void func_800704E8(void) {
             MovieClearFrameBuffer();
             SetDefDrawEnv(&pBase->drawEnv, 0, 0, 0x140, 0xF0);
             SetDefDispEnv(&pBase->dispEnv, 0, 0xF0, 0x140, 0xF0);
-            SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, 0xF0);
-            SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, 0xF0);
+            SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, i = 0xF0);
+            SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, i);
             D_80077124[0].dispEnv.screen.x = 0;
             D_80077124[0].dispEnv.screen.y = 0xA;
             D_80077124[0].dispEnv.screen.w = 0x100;
@@ -335,12 +349,6 @@ void func_800704E8(void) {
     }
 }
 */
-
-typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ u16 unk2;
-    /* 0x4 */ u32 unk4;
-} MovieStreamEntry; // Size: 0x8
 
 extern s32 g_MovieStreamCommand;
 extern MovieStreamEntry* g_MovieStreamSections;
