@@ -115,7 +115,7 @@ s32 BattleResolveTargetSlot(BattleActor *pActor, u32 id, u16 *pOut) {
     } else if ((id & 0xFF) == 0xFD || (id & 0xFF) == 0xF9) {
         id = pActor->actorSlot;
     } else if ((id & 0xFF) == 0xFC) {
-        id = pActor->unk21;
+        id = pActor->linkedActorSlot;
     } else if ((id & 0xFF) == 0xFA) {
         id = 0x1F;
     } else if ((id & 0xFF) == 0xF8) {
