@@ -1305,7 +1305,7 @@ extern s32 g_FieldSpecialAnimLoadPending;
 void FieldScriptLoadSpecialAnimFile(void) {
     if (FieldArchiveTryDataSync() == 0) {
         g_FieldSpecialAnimLoadPending = 0;
-        SpriteSetSpecialAnimFile(g_FieldActors[g_FieldCurActorIndex].pSpriteData, g_FieldScriptVMCurActor->unk120);
+        SpriteSetSpecialAnimFile(g_FieldActors[g_FieldCurActorIndex].pSpriteData, g_FieldScriptVMCurActor->pSpecialAnimFile);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
     } else {
         g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
@@ -1314,9 +1314,9 @@ void FieldScriptLoadSpecialAnimFile(void) {
 }
 
 void FieldScriptFreeSpecialAnimFile(void) {
-    if (g_FieldScriptVMCurActor->unk124 != -1) {
-        HeapFree(g_FieldScriptVMCurActor->unk120);
-        g_FieldScriptVMCurActor->unk124 = -1;
+    if (g_FieldScriptVMCurActor->specialAnimArchiveIndex != -1) {
+        HeapFree(g_FieldScriptVMCurActor->pSpecialAnimFile);
+        g_FieldScriptVMCurActor->specialAnimArchiveIndex = -1;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
     g_FieldScriptVMStopFlag = 1;
@@ -1407,17 +1407,17 @@ void FieldScriptLoadSpecialAnimArchive(void) {
             g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
             return;
         }
-        if (g_FieldScriptVMCurActor->unk124 != -1) {
-            HeapFree(g_FieldScriptVMCurActor->unk120);
-            g_FieldScriptVMCurActor->unk124 = -1;
+        if (g_FieldScriptVMCurActor->specialAnimArchiveIndex != -1) {
+            HeapFree(g_FieldScriptVMCurActor->pSpecialAnimFile);
+            g_FieldScriptVMCurActor->specialAnimArchiveIndex = -1;
         }
         scriptArgument = FieldScriptVMGetArgument(1);
         ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
         archiveIndex = scriptArgument + FIELD_SPECIAL_ANIM_ARCHIVE_OFFSET;
         bufferSize = ArchiveDecodeAlignedSize(archiveIndex) + 8;
-        g_FieldScriptVMCurActor->unk124 = archiveIndex;
+        g_FieldScriptVMCurActor->specialAnimArchiveIndex = archiveIndex;
         pBuffer = HeapAlloc(bufferSize, 0);
-        g_FieldScriptVMCurActor->unk120 = pBuffer;
+        g_FieldScriptVMCurActor->pSpecialAnimFile = pBuffer;
         ArchiveReadFileToBuffer(archiveIndex, pBuffer, 0, CdlModeSpeed);
         if (g_FieldEntryRoutineFinished == 0) {
             ArchiveCdDataSync(0);
@@ -1493,7 +1493,7 @@ void FieldScriptSetGearModelAnimation(void) {
 }
 
 void FieldScriptSetByte11E(void) {
-    g_FieldScriptVMCurActor->unk11E = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->updateAngle = FieldScriptVMGetArgument(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
@@ -1893,7 +1893,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
 
 void FieldScriptFreeActorFile(void) {
     if (g_FieldScriptVMCurActor->flags12C_0xD) {
-        HeapFree(g_FieldScriptVMCurActor->unk114);
+        HeapFree(g_FieldScriptVMCurActor->pScriptArgs);
         g_FieldScriptVMCurActor->flags12C_0xD = 0;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
@@ -1987,24 +1987,24 @@ void FieldScriptSetAudioMuteFlags(void) {
 extern void FieldReleaseActorSoundSlot(s32);
 
 void FieldScriptSetActorSoundParams0(void) {
-    g_FieldScriptVMCurActor->unk10A = FieldScriptVMGetArgument(1);
-    g_FieldScriptVMCurActor->unk10D = 0;
-    g_FieldScriptVMCurActor->unk10C = FieldScriptVMGetArgument(3);
+    g_FieldScriptVMCurActor->soundId = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->soundState = 0;
+    g_FieldScriptVMCurActor->soundVolume = FieldScriptVMGetArgument(3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     FieldReleaseActorSoundSlot(g_FieldCurActorIndex);
-    if (g_FieldScriptVMCurActor->unk10A == 0) {
-        g_FieldScriptVMCurActor->unk10D = 0xFF;
+    if (g_FieldScriptVMCurActor->soundId == 0) {
+        g_FieldScriptVMCurActor->soundState = 0xFF;
     }
 }
 
 void FieldScriptSetActorSoundParams80(void) {
-    g_FieldScriptVMCurActor->unk10A = FieldScriptVMGetArgument(1);
-    g_FieldScriptVMCurActor->unk10D = 0x80;
-    g_FieldScriptVMCurActor->unk10C = FieldScriptVMGetArgument(3);
+    g_FieldScriptVMCurActor->soundId = FieldScriptVMGetArgument(1);
+    g_FieldScriptVMCurActor->soundState = 0x80;
+    g_FieldScriptVMCurActor->soundVolume = FieldScriptVMGetArgument(3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     FieldReleaseActorSoundSlot(g_FieldCurActorIndex);
-    if (g_FieldScriptVMCurActor->unk10A == 0) {
-        g_FieldScriptVMCurActor->unk10D = 0xFF;
+    if (g_FieldScriptVMCurActor->soundId == 0) {
+        g_FieldScriptVMCurActor->soundState = 0xFF;
     }
 }
 
@@ -2650,7 +2650,7 @@ void FieldScriptSetActorMovementFlag(void) {
             break;
         case 1:
             g_FieldScriptVMCurActor->scriptFlags.flags |= 0x8000;
-            g_FieldScriptVMCurActor->unk11C = *(u_short*)&g_FieldScriptVMCurActor->rotation.vy;
+            g_FieldScriptVMCurActor->lockedRotationY = *(u_short*)&g_FieldScriptVMCurActor->rotation.vy;
             break;
         case 2:
             g_FieldScriptVMCurActor->flags |= 0x80000;
@@ -2820,14 +2820,14 @@ void FieldScriptSetActorColors(void) {
     if (actorIndex != ACTOR_ID_INVALID) {
         pActorData = g_FieldActors[actorIndex].pActorData;
         if (SCRIPT_READ_U8_REL(1) & 1) {
-            pActorData->unkFC = FieldScriptVMGetArgument(3);
-            pActorData->unkFD = FieldScriptVMGetArgument(5);
-            pActorData->unkFE = FieldScriptVMGetArgument(7);
+            pActorData->red = FieldScriptVMGetArgument(3);
+            pActorData->green = FieldScriptVMGetArgument(5);
+            pActorData->blue = FieldScriptVMGetArgument(7);
         }
         if (SCRIPT_READ_U8_REL(1) & 2) {
-            pActorData->unkFF = FieldScriptVMGetArgument(3);
-            pActorData->unk100 = FieldScriptVMGetArgument(5);
-            pActorData->unk101 = FieldScriptVMGetArgument(7);
+            pActorData->red2 = FieldScriptVMGetArgument(3);
+            pActorData->green2 = FieldScriptVMGetArgument(5);
+            pActorData->blue2 = FieldScriptVMGetArgument(7);
         }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
@@ -2835,14 +2835,14 @@ void FieldScriptSetActorColors(void) {
 
 void FieldScriptSetCurrentActorColors(void) {
     if (SCRIPT_READ_U8_REL(1) & 1) {
-        g_FieldScriptVMCurActor->unkFC = FieldScriptVMGetArgument(2);
-        g_FieldScriptVMCurActor->unkFD = FieldScriptVMGetArgument(4);
-        g_FieldScriptVMCurActor->unkFE = FieldScriptVMGetArgument(6);
+        g_FieldScriptVMCurActor->red = FieldScriptVMGetArgument(2);
+        g_FieldScriptVMCurActor->green = FieldScriptVMGetArgument(4);
+        g_FieldScriptVMCurActor->blue = FieldScriptVMGetArgument(6);
     }
     if (SCRIPT_READ_U8_REL(1) & 2) {
-        g_FieldScriptVMCurActor->unkFF = FieldScriptVMGetArgument(2);
-        g_FieldScriptVMCurActor->unk100 = FieldScriptVMGetArgument(4);
-        g_FieldScriptVMCurActor->unk101 = FieldScriptVMGetArgument(6);
+        g_FieldScriptVMCurActor->red2 = FieldScriptVMGetArgument(2);
+        g_FieldScriptVMCurActor->green2 = FieldScriptVMGetArgument(4);
+        g_FieldScriptVMCurActor->blue2 = FieldScriptVMGetArgument(6);
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
 }

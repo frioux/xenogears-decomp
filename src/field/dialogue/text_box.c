@@ -18,7 +18,7 @@ void FieldScriptVMHandlerWaitForTextBoxClose(void) {
     // Check if there's no visible textbox owned by current actor
     if (FieldTextBoxFindCurrentActorTextBox(&nTextBoxIndex) == -1) {
         g_FieldScriptMaxInstructionCount += 8;
-        FieldScriptMemoryWriteU16(0x14, g_FieldScriptVMCurActor->unk81);
+        FieldScriptMemoryWriteU16(0x14, g_FieldScriptVMCurActor->dialogCursorPosition);
         g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
         return;
     }
@@ -66,7 +66,7 @@ void FieldScriptVMHandlerSetTextBoxCursorColumns(void) {
         if (SystemStringGetUnk6B(TEXT_BOX_STRING(index)) == 1 ||
             (TEXT_BOX_STRING(index)->unk84 != 0 && TEXT_BOX_STRING(index)->unk6C != 0)) {
             g_FieldTextBoxes[index].cursor.visibility = 0;
-            g_FieldScriptVMCurActor->unk81 = 0xFF;
+            g_FieldScriptVMCurActor->dialogCursorPosition = 0xFF;
             columns = SCRIPT_READ_U8_REL(1);
             g_FieldTextBoxes[index].cursor.startPosition = columns >> 4;
             g_FieldTextBoxes[index].cursor.maxPosition = (SCRIPT_READ_U8_REL(1) & 0xF) - (columns >> 4) + 1;

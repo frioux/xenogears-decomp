@@ -366,16 +366,16 @@ void func_8009E574(s32 nX, s32 nY) {
     pActor->moveModified.vx = 0;
     pActor->moveModified.vy = 0;
     pActor->moveModified.vz = 0;
-    pActor->unkD0.vx = 0;
-    pActor->unkD0.vy = 0;
-    pActor->unkD0.vz = 0;
-    pActor->unk60.vy = 0;
-    pActor->unk60.vx = 0;
-    pActor->unk60.vz = 0;
+    pActor->moveStep.vx = 0;
+    pActor->moveStep.vy = 0;
+    pActor->moveStep.vz = 0;
+    pActor->positionOffset.vy = 0;
+    pActor->positionOffset.vx = 0;
+    pActor->positionOffset.vz = 0;
     pSprite->step.x = 0;
     pSprite->step.y = 0;
     pSprite->step.z = 0;
-    pActor->unkF0 = 0;
+    pActor->fallSpeed = 0;
     pActor->unkEC = 0;
     pActor->curYPos = ((s16*)&pActor->position)[3];
     pActor->scriptFlags.flags = (pActor->scriptFlags.flags & ~0x40000) | 0x400000;
@@ -424,17 +424,17 @@ void FieldScriptVMHandlerSetActorCollisionSize(void) {
 
 void FieldScriptVMHandlerSnapshotIndirectArguments(void) {
     if (!g_FieldScriptVMCurActor->flags12C_0xD) {
-        g_FieldScriptVMCurActor->unk114 = HeapAlloc(0x10, 0x0);
+        g_FieldScriptVMCurActor->pScriptArgs = HeapAlloc(0x10, 0x0);
     }
     g_FieldScriptVMCurActor->flags12C_0xD = 1;
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg1 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg2 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg3 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg4 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg5 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg6 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg7 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg8 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg1 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg2 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg3 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg4 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg5 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg6 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg7 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->pScriptArgs)->arg8 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
@@ -463,7 +463,7 @@ void FieldScriptVMHandlerStartActorScript(void) {
         if (pActor->flags & 0x100000) {
             curScriptId = g_FieldScriptVMCurActor->curScriptIndex;
             g_FieldScriptVMCurActor->scripts[curScriptId].state = SCRIPT_STATE_IDLE;
-            pActor->scripts[g_FieldScriptVMCurActor->unkCF].isInUse = 0;
+            pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].isInUse = 0;
         } else if (FieldActorGetScriptStatus(pActor, SCRIPT_READ_U8_REL(2) & 0x1F) != ACTOR_SCRIPT_EXISTS) {
             for (i = 0; i < ACTOR_MAX_NUM_SCRIPTS; i++) {
                 if (pActor->scripts[i].flags_0x12 != 0xF || pActor->scripts[i].isInUse) {
@@ -496,7 +496,7 @@ void FieldScriptVMHandlerStartActorScriptAndWait(void) {
     pActor = g_FieldActors[actorIndex].pActorData;
     if (pActor->flags & 0x100000) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state = SCRIPT_STATE_IDLE;
-        pActor->scripts[g_FieldScriptVMCurActor->unkCF].isInUse = 0;
+        pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].isInUse = 0;
     } else {
         switch (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state) {
         case 0:
@@ -510,18 +510,18 @@ void FieldScriptVMHandlerStartActorScriptAndWait(void) {
                 }
                 pActor->scripts[i].currentIP = FieldScriptGetBytecodeOffset(actorIndex, SCRIPT_READ_U8_REL(2) & 0x1F);
                 pActor->scripts[i].flags_0x12 = SCRIPT_READ_U8_REL(2) >> 5;
-                pActor->scripts[g_FieldScriptVMCurActor->unkCF].isInUse = 1;
+                pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].isInUse = 1;
                 pActor->scripts[i].scriptId = SCRIPT_READ_U8_REL(2) & 0x1F;
-                g_FieldScriptVMCurActor->unkCF = i;
+                g_FieldScriptVMCurActor->waitScriptIndex = i;
                 g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state = 1;
                 break;
             }
             return;
         case 1:
-            if ((pActor->curScriptIndex == g_FieldScriptVMCurActor->unkCF) || pActor->scripts[g_FieldScriptVMCurActor->unkCF].flags_0x12 == 0xF) {
+            if ((pActor->curScriptIndex == g_FieldScriptVMCurActor->waitScriptIndex) || pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].flags_0x12 == 0xF) {
                 g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
                 g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state = SCRIPT_STATE_IDLE;
-                pActor->scripts[g_FieldScriptVMCurActor->unkCF].isInUse = 0;
+                pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].isInUse = 0;
             } else {
                 g_FieldScriptVMStopFlag = g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state;
             }
@@ -548,7 +548,7 @@ void FieldScriptVMHandlerStartActorScriptAndWait2(void) {
     pActor = g_FieldActors[actorIndex].pActorData;
     if (pActor->flags & 0x100000) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state = SCRIPT_STATE_IDLE;
-        pActor->scripts[g_FieldScriptVMCurActor->unkCF].isInUse = 0;
+        pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].isInUse = 0;
     } else {
         switch (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state) {
         case 0:
@@ -563,24 +563,24 @@ void FieldScriptVMHandlerStartActorScriptAndWait2(void) {
                 }
                 pActor->scripts[i].currentIP = FieldScriptGetBytecodeOffset(actorIndex, SCRIPT_READ_U8_REL(2) & 0x1F);
                 pActor->scripts[i].flags_0x12 = SCRIPT_READ_U8_REL(2) >> 5;
-                pActor->scripts[g_FieldScriptVMCurActor->unkCF].isInUse = 1;
-                g_FieldScriptVMCurActor->unkCF = i;
+                pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].isInUse = 1;
+                g_FieldScriptVMCurActor->waitScriptIndex = i;
                 g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state = 1;
                 pActor->scripts[i].scriptId = SCRIPT_READ_U8_REL(2) & 0x1F;
                 return;
             }
             break;
         case 1:
-            if ((pActor->curScriptIndex == g_FieldScriptVMCurActor->unkCF) || pActor->scripts[g_FieldScriptVMCurActor->unkCF].flags_0x12 == 0xF) {
+            if ((pActor->curScriptIndex == g_FieldScriptVMCurActor->waitScriptIndex) || pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].flags_0x12 == 0xF) {
                 g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state = 2;
                 return;
             }
             g_FieldScriptVMStopFlag = 1;
             break;
         case 2:
-            if (pActor->scripts[g_FieldScriptVMCurActor->unkCF].flags_0x12 == 0xF) {
+            if (pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].flags_0x12 == 0xF) {
                 g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].state = SCRIPT_STATE_IDLE;
-                pActor->scripts[g_FieldScriptVMCurActor->unkCF].isInUse = 0;
+                pActor->scripts[g_FieldScriptVMCurActor->waitScriptIndex].isInUse = 0;
                 g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
                 return;
             }
@@ -598,8 +598,8 @@ void FieldScriptVMHandlerRandomizeActorXRotation(void) {
     int nRotation;
     
     nRotation = g_FieldScriptVMCurActor->rotation.vy;
-    g_FieldScriptVMCurActor->unk102++;
-    if (!(g_FieldScriptVMCurActor->unk102 & 0xF)) {
+    g_FieldScriptVMCurActor->frameCounter++;
+    if (!(g_FieldScriptVMCurActor->frameCounter & 0xF)) {
         if (!(rand() & 0x1)) {
             nRotation = PSX_ANGLE(g_FieldScriptVMCurActor->rotation.vy + PSX_DEGREES(45));
         } else {
@@ -619,8 +619,8 @@ void FieldScriptVMHandlerRandomizeActorXRotation2(void) {
     int delta;
 
     nRotation = g_FieldScriptVMCurActor->rotation.vy;
-    g_FieldScriptVMCurActor->unk102++;
-    if (!(g_FieldScriptVMCurActor->unk102 & 0xF)) {
+    g_FieldScriptVMCurActor->frameCounter++;
+    if (!(g_FieldScriptVMCurActor->frameCounter & 0xF)) {
         nRand = rand();
         if (nRand & 0x30) {
             nSpecialRotation = g_FieldScriptVMCurActor->rotation.vy | ~0x7FFF;
