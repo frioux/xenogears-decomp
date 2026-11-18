@@ -314,16 +314,20 @@ void func_801E78C8(s32 index) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7C50);
-// Triage r111: BUILDS, real score 72.41%, 528 bytes. No new declarations were needed beyond MenuString/POLY_FT4.
-/* Best: 72.41% under gcc-2.6.0 (62.66% under 2.7.2). Shape recovered from the asm:
-   row = index / 2 and column = index & 1 are separate locals (retail keeps row in
-   s4 and reuses it for the flags != 0 branch's row * 0xD), u = (row & 1) * 0x80 is
-   loop-invariant and rides in s3, the else branch computes column * 0x60 as a
-   fresh temp (v1, not the u variable), color = 0 is reset at the top of each
-   iteration and the yOffset parameter is spilled to 16(sp) by retail. What is
-   still wrong is the allocator: retail puts pStringList in s2, index in s8,
-   flags in s7 and spills yOffset, my compile keeps yOffset in s8 and gives
-   pStringList s3, plus the branch-1 u1/u2 store order and one extra saved reg.
+/* Best: 75.81% (528 bytes = retail's size). Structure is right: i = 0 before
+   row/column, a for loop with an empty init, pPoly strength-reduced to a cursor that
+   walks +0x28 in the loop-back delay slot; both branches' store orders are retail's.
+   What is left is two ties. (1) retail copies index to fp and flags to s7, this body
+   swaps them (index s7, flags s8); (2) retail computes (flags & 0x7F) + 0xFF inside the
+   else branch as andi/addiu 255 and stores it in the GetTPage delay slot, while this body
+   hoists it to a stack slot as andi/addiu -1 (an extra sw/lw keep or drop).
+   Round 269 (measured, all at 528 bytes unless noted): the original for (i = 0; ...) form
+   with pPoly = &pStringList->polys[i] is 72.41%; a while loop with pPoly++ and i++ at the
+   latch is 64.20% / 544 bytes; reusing the v local for the palette value gives retail's
+   in-loop andi/addiu 255 but loses the row*13 chain, 74.32% / 520 bytes; a dedicated
+   s32 pal local assigned in both branches also kills the hoist but reuses the yOffset slot
+   for row*13, 78.72% / 520 bytes (2 instructions short, so not linkable).
+
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
     POLY_FT4* pPoly;
     u8 color;
@@ -333,10 +337,11 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
     s32 v;
     s32 i;
 
+    i = 0;
     row = index / 2;
     column = index & 1;
     u = (row & 1) * 0x80;
-    for (i = 0; i < 2; i++) {
+    for (; i < 2; i++) {
         color = 0;
         pPoly = &pStringList->polys[i];
         MenuInitializePolyFt4(pPoly);
@@ -379,7 +384,6 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
     pStringList->hasVertices = 0;
 }
 */
-
 void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count) {
     RECT* pRect;
     s32 i;
@@ -569,7 +573,16 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    without displacing it into the save region.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
-/* Best: 99.79% (688 bytes, exact instruction multiset; only the two table bases' direction differs).
+/* Best: 99.79% (688 bytes = retail's size, exact instruction multiset; only which of
+   g_MenuSubMenuChoiceIds / g_MenuSubMenuChoiceIds+4 the lui/addiu anchors differs:
+   retail has la s4 = symbol then addiu s5,s4,4, this body has la s5 = symbol+4 then
+   addiu s4,s5,-4, in identical instruction slots.
+   Round 269 (measured, new spellings only): casting the symbol through u32 before the +4
+   still folds the +4 into the lui/addiu addend (99.79, same direction); deriving the second
+   base from a live base pointer local DOES give retail's direction and slot pair
+   (la s4 = symbol, addiu s5,s4,4) but sched2 then reorders the whole entry block, 88.09;
+   the inline ((s32*)((u8*)pCursor + 4))[off] form folds the +4 into the load displacement,
+   672 bytes, 87.90. So the direction and the slots are both reachable, not together.
 
 void func_801E86C8(u_char selected) {
     s32 i;
