@@ -1,10 +1,11 @@
 #include "common.h"
 #include "main/game.h"
 
-// Argument block the slot-picking functions are handed: at +1 the slot to store
-// into the actor's row, at +2 the tag to match.
+// The battle script command these functions are handed (the pointer
+// BattleExecScriptOpcode switched on): the opcode at +0, then the slot to store
+// into the actor's row at +1 and the tag to match at +2.
 typedef struct {
-    /* 0x0 */ u8 unk0;
+    /* 0x0 */ u8 opcode;
     /* 0x1 */ u8 slot;
     /* 0x2 */ u8 tag;
 } BattleSlotArgs; // Size: 0x3
@@ -21,16 +22,25 @@ typedef struct {
 
 // One of the 0x170-byte battle slot entries, seen from g_BattleSlotEntriesBase (the
 // entry 0x4C in): the character record's hp at +0 and the state block's scaled hp at
-// +0xB8 are the two words the slot pickers minimise.
+// +0xB8 are the two words the slot pickers minimise. The same bytes are
+// BattleTableEntry and its BattleSlotState (at +0x58 here) in include/battle/actor.h,
+// whose base is g_BattleWorkBlock; the spans left unk below are its unk57/unk61/unk90.
 typedef struct {
     /* 0x000 */ u16 hp;
-    /* 0x002 */ u8 unk002[8];
+    /* 0x002 */ u16 maxHp; // BattleResetActorStatDisplay copies it over hp
+    /* 0x004 */ u16 mp;
+    /* 0x006 */ u16 maxMp;
+    /* 0x008 */ u8 unk8[2];
     /* 0x00A */ u8 tag;
-    /* 0x00B */ u8 unk00B[0x25];
+    /* 0x00B */ u8 unkB[0x23];
+    /* 0x02E */ u16 conditionFlags; // g_BattleSlotStatusRows is this word's own base
     /* 0x030 */ u16 flags;
-    /* 0x032 */ u8 unk032[0x86];
+    /* 0x032 */ u8 unk32[0x22];
+    /* 0x054 */ u8 gearId; // the gear the slot's character has equipped
+    /* 0x055 */ u8 unk55[0x63];
     /* 0x0B8 */ u32 scaledHp;
-    /* 0x0BC */ u8 unk0BC[0xB4];
+    /* 0x0BC */ u32 scaledMaxHp; // written with scaledHp by func_8007B7B0, the pair func_80072F38 takes ratios of
+    /* 0x0C0 */ u8 unkC0[0xB0];
 } BattleSlotEntry; // Size: 0x170
 
 // Per-slot "can be picked" flag the slot-picking loops gate on, one 8-byte
@@ -40,12 +50,16 @@ typedef struct {
     /* 0x1 */ u8 unk1[7];
 } BattleSlotFlag; // Size: 0x8
 
-// Per-slot tag record: tag at +0, flag byte at +3.
+// Per-slot tag record: tag at +0, flag byte at +3, the slot's position at +0xA
+// (D_800C3EBE is this +0xA, declared as the x/y row misc12.c reads).
 typedef struct {
     /* 0x0 */ u8 tag;
     /* 0x1 */ u8 unk1[2];
     /* 0x3 */ u8 flags;
-    /* 0x4 */ u8 unk4[0x18];
+    /* 0x4 */ u8 unk4[6];
+    /* 0xA */ u16 x;
+    /* 0xC */ u16 y;
+    /* 0xE */ u8 unkE[0xE];
 } BattleSlotRecord; // Size: 0x1C
 
 extern BattleSlotRow g_BattleSlotRows[];
