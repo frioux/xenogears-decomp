@@ -39,7 +39,6 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 // g_SoundControlFlags bits (the handler bit 2 is SOUND_CTL_FLAG_IRQ_HANDLER in sound.h)
 #define SOUND_CTL_FLAG_EVENT_ENABLED        (1 << 0)  // g_unk_SoundEvent is enabled
 #define SOUND_CTL_FLAG_SKIP_DUPLICATE_CHECK (1 << 7)  // SoundAddSedsEntry adds files whose sedId is already in the list
-#define SOUND_CTL_FLAG_TRANSFER_BUSY        (1 << 4)  // an SPU transfer command is in flight
 #define SOUND_CTL_FLAG_REVERB_TRANSFER      (1 << 5)  // the reverb work area upload is in progress
 #define SOUND_CTL_FLAG_MUTED                (1 << 6)  // every voice silenced, the timer handler does nothing
 #define SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED (1 << 11) // gate the SoundPlaySoundEffect* family tests

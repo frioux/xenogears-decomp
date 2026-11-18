@@ -33,6 +33,8 @@ typedef struct {
 } SoundVoiceData;
 
 #define SOUND_CTL_FLAG_IRQ_HANDLER (1 << 2)
+// An SPU transfer command is in flight: the transfer busy-wait loop tests it.
+#define SOUND_CTL_FLAG_TRANSFER_BUSY (1 << 4)
 
 #define SOUND_STATUS_OK 0x0
 #define SOUND_ERR_INVALID_SIGNATURE 0x1

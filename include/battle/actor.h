@@ -16,6 +16,14 @@
 // The actor slots the u16 slot mask walks one bit apiece (BattleCollectMaskedSlotActors;
 // the per-slot byte tables in misc12/misc32 hold this many entries).
 #define BATTLE_ACTOR_SLOT_COUNT 11
+// activeSlotMask holds one bit per actor slot, low bit first: the low MAX_PARTY_MEMBERS bits are
+// the party slots and the bits above them up to bit 10 are the other actors. A row runs for one
+// group only, so BattleFilterSlotMaskByGroup narrows the mask within whichever group it touches.
+#define BATTLE_PARTY_SLOT_MASK 0x7
+#define BATTLE_OTHER_SLOT_MASK 0x7F8
+// The condition timer BattleApplyScriptConditionTimer arms instead of the row's power when the
+// row's actionFlags has 0x4000, and the one BattleApplyActorConditionTimer always arms.
+#define BATTLE_CONDITION_TIMER_FIXED_COUNT 5
 // The element bits of an element byte (the row's, the work block's copy of it, and the
 // slot's): bit 0x40 above them raises the affinity multiplier from 15 to 18.
 #define BATTLE_ELEMENT_MASK 0x3F

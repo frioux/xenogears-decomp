@@ -84,6 +84,16 @@ a tracker row records the specific construct, and nothing else is.
    8 results bought 0 matches (one ZERO was wrong code - the candidate read
    `extraWeaponIds[3]` where retail reads `[0]` - one had already been ported, two were
    on the never-brief list, and four improved a park without matching).
+   **Round 245 closed this queue by measurement - do not run another port round.**
+   `--report` listed 1 ZERO and 6 BETTER on still-parked bodies, and they are stale or
+   wrong code: the ZERO appends a dead `idx = extraWeaponIds[3]` that threads case 15's arm
+   into case 3..14's block (99.73%, re-parked at 98.66% with the wall named - the duplicate
+   arm needs a zero-cost rtx difference), `lib_gear/main/main`'s "best" was already the
+   tree's parked body so five permute runs returned NONE at the same score, and
+   `system/archive_b`'s BETTER is an allocator tie that improved the park to 99.91% and
+   then returned NONE from the better body. A parked body is a rewrite note now, not a
+   round: the only park work left is one whose residual is 2-3 instructions of a reg_eqv
+   tie, which no source spelling reaches.
 3. **Jump-table stubs** ("Jump tables"). About 110 stubs that were excluded because a C
    `switch` broke the link are ordinary stubs now. They are larger than average, so
    brief them in the deep shape ("The round loop").
@@ -234,6 +244,12 @@ of a match, and it is cheap.
   above. A naming worker yields ~10 names on a well-picked file and 0
   on a dud, so budget for a few dozen, not a few hundred; a worker given a file whose
   `D_` globals its live C never touches comes back empty.
+  **A name-brief worker must confirm the function has a C definition, not just calls.**
+  Round 245's two workers both proposed names for addresses whose only occurrence in
+  `src/` is an `extern` plus a call site - the definition sits in an unconverted `asm`
+  blob (`world_map/main/misc1` is still one) or is a same-address function in another
+  overlay - and `rename_sym.py` skipped both as "still an INCLUDE_ASM stub". Put it in
+  the brief: a `jal` in a matched `.s` is not a definition; look for the `{`.
 - **Feed the tools the union of every NAME line ever reported.** Extract it with a pattern that
   matches `NAME func_<8 hex> <Name>` ANYWHERE in the line, not `^NAME `: the worker reports write
   `- \`NAME func_X NewName\` - evidence` about as often as a bare line, and an anchored grep
