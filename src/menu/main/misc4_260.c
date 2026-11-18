@@ -336,9 +336,12 @@ void MenuAddUnk5StringPrims(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
-/* 98.89%: everything matches except where gcc puts `valid = 1` relative to the
-   `character == 0xFF` compare (retail emits it before the compare and lets reorg
-   duplicate the `andi` into the delay slot; gcc puts it in that slot instead).
+/* 98.89% (608 vs 612 bytes) under BOTH presets: everything matches except one
+   delay slot.  Retail fills the `character != slotRecordIndexes[i]` branch slot
+   with `li v1,0x1` (valid = 1) and leaves a dead `andi v0,v1,0xff` in the
+   `character != 0xFF` slot; gcc puts `li v0,0xFF` in the first slot and `li
+   v1,0x1` in the second, so the body is one dead u8 truncation short.  That
+   means retail's `valid` was truncated once more than `if (!valid)` needs.
    Notes: D_801E981C is the overlay dlabel table in asm/menu/data/246A4.data.s so
    it only needs an extern declaration.  The three colour bytes read the low byte
    at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
@@ -384,7 +387,6 @@ void func_801CF37C(void) {
     }
 }
 */
-
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF5E4);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
 /* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->cardSlotState)`
@@ -442,7 +444,6 @@ void func_801CF8D8(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CFB48);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CFF64);
 typedef struct {
     /* 0x00 */ u8 unk0[0x8];
     /* 0x08 */ s16 unk8;
@@ -454,13 +455,8 @@ typedef struct {
     /* 0x14 */ s16 unk14;
     /* 0x16 */ s16 unk16;
 } MenuUnk44CEntry; // Size: 0x18
-/* 97.97%: identical instruction multiset; the only deltas are the div-by-6
-   magic.  Retail materialises the constant's lui one instruction early (inside
-   the last store's address computation) and so keeps 0x68 in $a2, putting
-   unk2D8 in $a0 and the magic in $a1; gcc materialises lui+ori both after the
-   store, so 0x68 takes $a1 and the div lands in $v1/$v0/$t0.
-   The condition must be written `rem >= 4` (sltiu+beqz), not `< 4`.
-
+// The `rem >= 4` form is required (sltiu+beqz), not `rem < 4`.  97.97% under the
+// Default preset: identical instruction multiset, only the div-by-6 magic moves.
 void func_801CFF64(void) {
     s32 value;
 
@@ -491,7 +487,6 @@ void func_801CFF64(void) {
         }
     }
 }
-*/
 void MenuAddCellGridPrims(void) {
     func_801CF37C();
     func_801CF5E4(0, 0, 0x10);
