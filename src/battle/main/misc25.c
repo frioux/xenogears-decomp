@@ -52,7 +52,7 @@ typedef struct {
     /* 0x4 */ u16 z;
 } BattleQueryPoint; // Size: 0x6
 
-extern s32 func_800B0D70(u16 *, BattleQueryPoint *);
+extern s32 BattleFindNearestActorForPoint(u16 *, BattleQueryPoint *);
 extern s16 func_800B0B14(s32 index);
 
 typedef struct BattleModelNode BattleModelNode;
@@ -821,7 +821,7 @@ s16 func_800B0B14(s32 index) {
 extern s32 BattleGetActorHeight(s32 index);
 extern s32 BattleGetActorRadius(s32 index);
 
-s32 func_800B0D70(u16 *pPos, BattleQueryPoint *pOut) {
+s32 BattleFindNearestActorForPoint(u16 *pPos, BattleQueryPoint *pOut) {
     s32 i;
     u16 radius;
     s16 bestSlot;
@@ -889,7 +889,7 @@ s32 BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     len = SquareRoot0(vec[0] * vec[0] + vec[2] * vec[2]) + 1;
     vec[0] = (vec[0] << 9) / len;
     vec[2] = (vec[2] << 9) / len;
-    return func_800B0D70(vec, pB);
+    return BattleFindNearestActorForPoint(vec, pB);
 }
 void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
     BattleActor **pBase = g_BattleActors;

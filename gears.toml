@@ -182,8 +182,7 @@ build_variables = {
 }
 paths = [
     "battle/main/misc21.",
-    "battling/main/misc15.",
-    "movie/main/misc1."
+    "battling/main/misc15."
 ]
 
 # world_map is addiu-dominant AND expands div: both flags, not either.
@@ -267,11 +266,17 @@ build_variables = {
 # misc23 and misc25 are also 2.6.0 units that still need --expand-div (all 7 and 10
 # matched functions stay 100.0 under 2.6.0, and their four parked bodies are 100.0 only
 # there); they moved here from XenoBattleDiv.
+# movie/main/misc1 moved here from XenoBattleDiv in round 232: all EIGHT already-matched
+# C functions stay 100.00 under 2.6.0 (screened with try_flags.sh --all), and both of its
+# 99% parks become instruction-identical there because 2.6.0 writes a magic division's
+# high half straight into the target register where 2.7.2 needs an extra move:
+# func_800704E8 (569 insns, 99.02% -> identical) and func_80072D84 (133 insns).
 paths = [
     "battle/main/misc21.",
     "battle/main/misc25.",
     "battle/main/misc22.",
-    "battle/main/misc24."
+    "battle/main/misc24.",
+    "movie/main/misc1."
 ]
 
 # menu/main/misc9 is a gcc-2.6.0 unit, proven the way section 5 asks for:
