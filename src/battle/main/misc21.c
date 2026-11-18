@@ -3,6 +3,7 @@
 #include "system/model.h"
 #include "libgear/main.h"
 #include "battle/actor.h"
+#include "psyq/inline_c.h"
 
 typedef struct {
     /* 0x0 */ u8* pBlocks;
@@ -637,6 +638,37 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    BattleModelListPoint, BattleWarpQuad) - BattleSpriteTween is the same record
    as misc22.c's BattleMisc22Cmd and BattleSpriteSlot the same as its
    BattleMisc22Spr, both with more fields named here. */
+/* Round 263: 61.32 -> 73.90%, and the body is now EXACTLY retail's structure
+   and only 8 instructions / 32 bytes short of retail's 4084. Phase table, so
+   the next lane starts from the last measured point:
+     P0  round-234 park as it stood                          61.32%  3968 B
+     P1  #include "psyq/inline_c.h" (it was missing! the whole
+         body compiled as calls to gte_ldv0/gte_rtps/... )   68.70%  4028 B
+     P2  slot-scale loop: index g_BattlePartSlots[i] and
+         ((s16*)pViewMatrix)[i*3+3..5] instead of a pPart /
+         pSlotScale pointer local                            70.25%  4108 B
+     P3  allocate arms: pTween->step = 1 BEFORE the
+         BattleAllocSpriteSlot call (retail keeps that sh in the
+         jal delay slot and needs no pSlot reload), and
+         "other = 1 - side" instead of re-reading slot & 1    71.51%  4084 B
+     P4  shade matrix written as the DIAGONAL (m[0][0], [1][1],
+         [2][2] = shade)                                     71.53%  4084 B
+     P5  sprite matrix: retail writes the four off-diagonal
+         zeros 4,6,10,12, then 0 and 16 = scale, then an
+         if/else on scale.pad for column 1 (m[0][1]/m[1][1]/
+         m[2][1]); the ==1 arm copies 2/8/14 from pTransMatrix   71.29%  4104 B
+     P6  and use pActor->scale (retail RELOADS it three times,
+         so there is no scale local on that path)              73.90%  4052 B
+   What is left is 8 instructions and register assignment: retail keeps a0 in
+   $fp (frame 0x110, 10 saves, a1..a3 spilled to 0x68/0x70/0x78) while this
+   body spills a0 to 0x68 instead and frames 0x108. Retail also reads
+   pActor->scale with lhu (unsigned) where actor.h says s16, so any new use
+   of that field on this path must be spelled through a u16 view.
+   The tween loop's remaining tell: retail bases its whole 2D-allocate block on
+   &pTween->slot (s1 = pTween + 0x5C) and reaches pPool/semiTrans/pSlot as
+   -88/-89/-84(s1), i.e. the source held the SLOT field's address. */
+
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 /*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
@@ -657,7 +689,6 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     s32 macStart[4];
     s32 macEnd[4];
     s32 macPoint[4];
-    s16* pSlotScale;
     s32 depth;
     s32 sz;
     s32 scale;
@@ -671,25 +702,27 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         return;
     }
     pMesh = pActor->pMesh;
-    pSlotScale = (s16*)pViewMatrix + 3;
     pSprites = pActor->pSprites;
     scale = pActor->scale;
     count = pSprites->count;
     for (i = 0; i < 2; i++) {
-        pPart = &g_BattlePartSlots[i];
-        if (pPart->inUse != 0) {
-            s16 dx = pPart->x - ((u16*)&pSprites->pos[0])[0];
-            s16 dy = pPart->y - ((pSprites->pos[1] - pActor->height * (scale * ((u16*)&pSprites->scale.vy)[0] >> 12)) >> 13);
-            s16 dz = pPart->z - ((u16*)&pSprites->pos[0])[4];
+        if (g_BattlePartSlots[i].inUse != 0) {
+            s16 dx = g_BattlePartSlots[i].x - ((u16*)&pSprites->pos[0])[0];
+            s16 dy = g_BattlePartSlots[i].y -
+                     ((pSprites->pos[1] - pActor->height * (scale * ((u16*)&pSprites->scale.vy)[0] >> 12)) >> 13);
+            s16 dz = g_BattlePartSlots[i].z - ((u16*)&pSprites->pos[0])[4];
             s32 denominator = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
 
-            pSlotScale[i * 3 + 0] = (dx << 12) / denominator * pPart->inUse / (pPart->inUse + denominator);
-            pSlotScale[i * 3 + 1] = (dy << 12) / denominator * pPart->inUse / (pPart->inUse + denominator);
-            pSlotScale[i * 3 + 2] = (dz << 12) / denominator * pPart->inUse / (pPart->inUse + denominator);
+            ((s16*)pViewMatrix)[i * 3 + 3] =
+                (dx << 12) / denominator * g_BattlePartSlots[i].inUse / (g_BattlePartSlots[i].inUse + denominator);
+            ((s16*)pViewMatrix)[i * 3 + 4] =
+                (dy << 12) / denominator * g_BattlePartSlots[i].inUse / (g_BattlePartSlots[i].inUse + denominator);
+            ((s16*)pViewMatrix)[i * 3 + 5] =
+                (dz << 12) / denominator * g_BattlePartSlots[i].inUse / (g_BattlePartSlots[i].inUse + denominator);
         } else {
-            pSlotScale[i * 3 + 0] = 0;
-            pSlotScale[i * 3 + 1] = 0;
-            pSlotScale[i * 3 + 2] = 0;
+            ((s16*)pViewMatrix)[i * 3 + 3] = 0;
+            ((s16*)pViewMatrix)[i * 3 + 4] = 0;
+            ((s16*)pViewMatrix)[i * 3 + 5] = 0;
         }
     }
     CompMatrix(pLightMatrix, &pSprites->localTransform, pTransMatrix);
@@ -724,12 +757,12 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         pMatrix->m[0][0] = shade;
         pMatrix->m[0][1] = 0;
         pMatrix->m[0][2] = 0;
-        pMatrix->m[1][0] = shade;
-        pMatrix->m[1][1] = 0;
+        pMatrix->m[1][0] = 0;
+        pMatrix->m[1][1] = shade;
         pMatrix->m[1][2] = 0;
-        pMatrix->m[2][0] = shade;
+        pMatrix->m[2][0] = 0;
         pMatrix->m[2][1] = 0;
-        pMatrix->m[2][2] = 0;
+        pMatrix->m[2][2] = shade;
         MulMatrix(pRotMatrix, pMatrix);
         SetRotMatrix(pRotMatrix);
         SetTransMatrix(pRotMatrix);
@@ -782,17 +815,20 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             SetLightMatrix(pMatrix);
             CompMatrix(pTransMatrix, &pSprite->globalTransform, pMatrix);
             if (pSprite->scale.pad > 0) {
-                pMatrix->m[0][0] = scale;
-                pMatrix->m[0][1] = 0;
                 pMatrix->m[0][2] = 0;
                 pMatrix->m[1][0] = 0;
-                pMatrix->m[1][1] = 0;
                 pMatrix->m[1][2] = 0;
-                pMatrix->m[2][0] = scale;
+                pMatrix->m[2][0] = 0;
+                pMatrix->m[0][0] = pActor->scale;
+                pMatrix->m[2][2] = pActor->scale;
                 if (pSprite->scale.pad == 1) {
                     pMatrix->m[0][1] = pTransMatrix->m[0][1];
-                    pMatrix->m[1][0] = pTransMatrix->m[1][0];
                     pMatrix->m[1][1] = pTransMatrix->m[1][1];
+                    pMatrix->m[2][1] = pTransMatrix->m[2][1];
+                } else {
+                    pMatrix->m[0][1] = 0;
+                    pMatrix->m[1][1] = pActor->scale;
+                    pMatrix->m[2][1] = 0;
                 }
             }
             SetRotMatrix(pMatrix);
@@ -882,8 +918,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
                 goto done3D;
             }
         allocate3D:
-            pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
             pTween->step = 1;
+            pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
             pTween->pSlot->is3D = 1;
             pTween->pSlot->age = 0;
             pTween->pSlot->lifetime = pTween->lifetime;
@@ -894,7 +930,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->greenDelta = pTween->greenDelta;
             pTween->pSlot->blueDelta = pTween->blueDelta;
             {
-                s32 other = 1 - (pTween->slot & 1);
+                s32 other = 1 - side;
                 s32* pFrom = (s32*)((u8*)pTween + 0x1C + other * 0x10);
                 s32* pTo = (s32*)((u8*)pTween + 0x3C + other * 0x10);
 
@@ -916,8 +952,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         goto done;
     allocate:
-        pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
         pTween->step = 1;
+        pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
         pTween->pSlot->is3D = 0;
         pTween->pSlot->age = 0;
         pTween->pSlot->lifetime = pTween->lifetime;
@@ -940,6 +976,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     }
 }
 */
+
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
