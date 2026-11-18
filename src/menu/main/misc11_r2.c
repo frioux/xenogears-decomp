@@ -26,6 +26,11 @@
 // formats: MenuParseNumberToDigits leaves the value in the tail of
 // g_Menu->digits, any leading digit marked MENU_DIGIT_NONE.
 #define MENU_SLOT_STAT_DIGIT_COUNT 3
+// Where those digits start in g_Menu->digits.
+#define MENU_SLOT_STAT_DIGIT_START (MENU_MAX_DIGITS - MENU_SLOT_STAT_DIGIT_COUNT)
+
+// Pixels between one digit's quad and the next, in a menu digit row.
+#define MENU_DIGIT_SPACING 8
 
 
 // The save-slot record this unit writes: a packed copy of the parts of
@@ -599,7 +604,7 @@ void MenuFreePrimBuffer(void) {
     pMem = g_Menu->pPrimBuffer;
     HeapFree(pMem);
     pManager = g_Menu->pManager;
-    *(volatile u8*)&pManager->characterWindowBuilt = 0;
+    *(volatile u8*)&pManager->characterWindowBuilt = FALSE;
 }
 void MenuClearGlyphTexture(void) {
     RECT rect;
@@ -609,7 +614,7 @@ void MenuClearGlyphTexture(void) {
     rect.w = MENU_GLYPH_TEXTURE_WIDTH;
     rect.h = MENU_GLYPH_TEXTURE_HEIGHT;
     ClearImage(&rect, 0, 0, 0);
-    *(volatile u8*)&g_Menu->pManager->characterWindowBuilt = 0;
+    *(volatile u8*)&g_Menu->pManager->characterWindowBuilt = FALSE;
 }
 void MenuCompressGlyphRows(u8* p) {
     int i;
@@ -635,16 +640,16 @@ s32 MenuGetGlyphKromAddress(u8* p) {
 
     hi = p[0];
     lo = p[1];
-    g_MenuGlyphIsDoubleByte = 1;
+    g_MenuGlyphIsDoubleByte = TRUE;
     if (hi < 0x80) {
         if (hi >= 0x20) {
             lo = *(u8*)&g_MenuGlyphSjisTable[hi];
             hi = g_MenuGlyphSjisTable[hi] >> 8;
-            g_MenuGlyphIsDoubleByte = 0;
+            g_MenuGlyphIsDoubleByte = FALSE;
         } else {
             hi = 0x81;
             lo = 0x40;
-            g_MenuGlyphIsDoubleByte = 0;
+            g_MenuGlyphIsDoubleByte = FALSE;
         }
     }
     return Krom2RawAdd((hi << 8) | lo);
@@ -806,15 +811,15 @@ void MenuDrawSlotResourceSprites(u8 arg0, u8* pArg1) {
     pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C;
     pCounter[0x1308] = 0;
     for (i = 0; i < MENU_SLOT_STAT_DIGIT_COUNT; i++) {
-        if (g_Menu->digits[6 + i] == MENU_DIGIT_NONE) {
+        if (g_Menu->digits[MENU_SLOT_STAT_DIGIT_START + i] == MENU_DIGIT_NONE) {
             continue;
         }
         primOffset = arg0 * 0x87C + 0xA98;
         pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
         *((pSlot = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C) + 0x1308) += func_8002675C(
-            g_Menu->resources, g_Menu->digits[6 + i],
+            g_Menu->resources, g_Menu->digits[MENU_SLOT_STAT_DIGIT_START + i],
             (POLY_FT4*)(pPrims + (*((pCount = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C) + 0x1308) * 0x50 + 0x320)),
-            g_Menu->renderContext, arg0 * 0x50 + g_MenuSlotDigitX + i * 8,
+            g_Menu->renderContext, arg0 * 0x50 + g_MenuSlotDigitX + i * MENU_DIGIT_SPACING,
             g_MenuSlotDigitY, 0x1000);
     }
     MenuParseNumberToDigits((pArg1 + arg0)[0x19]);
