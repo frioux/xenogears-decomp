@@ -7,7 +7,7 @@ void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
 extern s32 D_801E981C[];
-extern s32 D_801EA4DC[];
+extern s32 g_MenuCharacterLabelGlyphIds[];
 extern s32 g_MenuNameTextureX[];
 extern u8 g_MenuNameTextureY[];
 extern u16 g_SystemPalette1;
@@ -18,7 +18,7 @@ void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_c
 // Character info window: the LV/HP/MP label glyphs and the small portrait, then
 // the prim that holds them. arg5 picks the glyph/UV row, the prim width and the
 // palette source (the character's own parity or its gear's).
-void func_801CD81C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
+void MenuBuildCharacterLabelsAndPortrait(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
     POLY_FT4* pPoly;
     s32* pPositionsX = (s32*)arg3;
     s32 i;
@@ -27,9 +27,9 @@ void func_801CD81C(MenuCharacter* pCharacter, u_char characterIndex, u_char loca
 
     pCharacter->descriptionStringsLength = 0;
     for (i = 0; i < 9; i++) {
-        if (D_801EA4DC[arg5 * 9 + i] != 0xFFFF) {
+        if (g_MenuCharacterLabelGlyphIds[arg5 * 9 + i] != 0xFFFF) {
             pCharacter->descriptionStringsLength += func_8002675C(
-                g_Menu->resources, D_801EA4DC[arg5 * 9 + i],
+                g_Menu->resources, g_MenuCharacterLabelGlyphIds[arg5 * 9 + i],
                 &pCharacter->polysDescriptionStrings[pCharacter->descriptionStringsLength * 2],
                 g_Menu->renderContext,
                 pPositionsX[i],
@@ -83,7 +83,7 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
 void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
-    func_801CD81C(pCharacter, arg1, arg2, arg3, arg4, arg5);
+    MenuBuildCharacterLabelsAndPortrait(pCharacter, arg1, arg2, arg3, arg4, arg5);
     MenuBuildCharacterLevelDigits(pCharacter, arg1, arg2, arg3, arg4);
     func_801CDC6C(pCharacter, arg1, arg2, arg3, arg4, arg5);
     pCharacter->shouldRender = 1;
@@ -152,7 +152,7 @@ void MenuAddGoldAndPlayTimePrims(void) {
 // function only matches on this preset (97.78 under Default).  The AddPrim
 // addresses must stay written as &pData[a*b + K]: the plain `pData + a*b + K`
 // form reassociates and loses the +0x50 addiu order.
-void func_801CE540(void) {
+void MenuAddCharacterWindowPrims(void) {
     s32 i;
     u8* pData;
 
@@ -458,7 +458,7 @@ typedef struct {
 } MenuUnk44CEntry; // Size: 0x18
 // The `rem >= 4` form is required (sltiu+beqz), not `rem < 4`.  97.97% under the
 // Default preset: identical instruction multiset, only the div-by-6 magic moves.
-void func_801CFF64(void) {
+void MenuScrollCellGridRow(void) {
     s32 value;
 
     if (g_Menu->pManager->cellGridScrollState == 0) {
@@ -494,7 +494,7 @@ void MenuAddCellGridPrims(void) {
     func_801CF5E4(0x10, 0x10, 0x20);
     func_801CFB48();
     func_801CF8D8();
-    func_801CFF64();
+    MenuScrollCellGridRow();
     if (++g_Menu->characterCellTimer == 0xF) {
         g_Menu->characterCellTimer = 0;
         if (++g_Menu->characterCellFrame == 6) {
