@@ -30,12 +30,12 @@ typedef struct {
     /* 0x08 */ undefined32 unk08[6]; // 0x08..0x1F
     /* 0x20 */ u16 state;
     /* 0x22 */ u16 stateTimer;
-    /* 0x24 */ s16 unk24;
+    /* 0x24 */ s16 hidden; // nonzero: the slot update and draw loops skip this actor
     /* 0x26 */ undefined16 unk26;
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
-    /* 0x34 */ undefined32 unk34;
+    /* 0x34 */ s32 w; // fourth word of the x/y/z vector, copied whole into a WorldMapVec
     /* 0x38 */ s32 dirX;
     /* 0x3C */ u32 dirY;
     /* 0x40 */ s32 dirZ;
@@ -150,11 +150,12 @@ typedef struct {
     /* 0x08 */ undefined8 unk08[0x18]; // 0x08..0x1F
     /* 0x20 */ s16 state;
     /* 0x22 */ u16 stateTimer;
-    /* 0x24 */ u8 unk24[0x4];
+    /* 0x24 */ s16 hidden; // nonzero: the slot update and draw loops skip this actor
+    /* 0x26 */ u16 pad26;
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
-    /* 0x34 */ u8 unk34[0x4];
+    /* 0x34 */ s32 w; // fourth word of the x/y/z vector, copied whole into a WorldMapVec
     /* 0x38 */ u32 dirX;
     /* 0x3C */ u32 dirY;
     /* 0x40 */ u32 dirZ;
@@ -168,9 +169,11 @@ typedef struct {
     /* 0x5C */ u8 unk5C[0x24];
 } WorldMapPlayer; // Size: 0x80
 
-typedef struct {
-    /* 0x00 */ s16 unk0;
-    /* 0x02 */ u8 unk2[0x6];
+typedef struct WorldMapSceneLayer {
+    /* 0x00 */ s16 hidden; // nonzero: the generic sprite-set render skips this entry
+    /* 0x02 */ s16 partIndex; // index into the model's parts
+    /* 0x04 */ u16 flags;
+    /* 0x06 */ u16 pad6;
     /* 0x08 */ WorldMapVec pos;
     /* 0x18 */ SVECTOR rot;
     /* 0x20 */ MATRIX mat;
@@ -178,7 +181,7 @@ typedef struct {
     /* 0x44 */ u8 unk44[0x4];
     /* 0x48 */ u8* pPrims;
     /* 0x4C */ u8* pPrimsCopy;
-    /* 0x50 */ u8 unk50[0x4];
+    /* 0x50 */ struct WorldMapSceneLayer* pParent;
 } WorldMapSceneLayer; // Size: 0x54
 
 extern WorldMapSpriteGroup* g_WorldMapSpriteGroups;
@@ -246,7 +249,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80088C90);
    gcc load HImode (lhu) and sign-extend with sll/sra (52.71%), which also costs a
    register and the frame. 0x16A4 is g_WorldMapGroups[0x45] (69 * 0x54), i.e. the
    sprite set WorldMapSetSpriteSetParent parents, so the flag store is
-   g_WorldMapGroups[0x45].unk0 -- the typed form compiles to retail's
+   g_WorldMapGroups[0x45].hidden -- the typed form compiles to retail's
    `sh v0,0x16A4(a1)`. Only difference left: retail loads *pIds twice after the
    guard (a second `lh v0,0(a0)` that feeds the first body iteration, 112 vs 108
    bytes) and has g_WorldMapGroups loaded before g_WorldMapSpriteSetIds; mine reuses the
@@ -256,10 +259,10 @@ s32 func_80088C90(void) {
     s16* pIds;
     s32 id;
 
-    g_WorldMapGroups[0x45].unk0 = 1;
+    g_WorldMapGroups[0x45].hidden = 1;
     pIds = g_WorldMapSpriteSetIds;
     while ((id = *pIds) != -1) {
-        g_WorldMapGroups[id].unk0 = 1;
+        g_WorldMapGroups[id].hidden = 1;
         pIds++;
     }
     return 3;
@@ -672,7 +675,7 @@ s32 func_8008A2C8(s32 index) {
     SpritePlayAnimation(pActor->pSprite, 0);
     SpriteSetScale(pActor->pSprite, 0x1800);
     *(u32*)((u8*)pActor->pSprite + 0x3C) &= ~4;
-    pActor->unk24 = 0;
+    pActor->hidden = 0;
     pActor->x = g_GameState.fieldScriptMemory[0] << 12;
     pActor->z = g_GameState.fieldScriptMemory[1] << 12;
     pActor->y = WorldMapGetTilePlaneHeight(pActor->x, pActor->z);
@@ -697,21 +700,21 @@ s32 func_8008A2C8(s32 index) {
             g_WorldMapPlayerAngle = pActor->angle;
         } else {
             pActor->state = 1;
-            pActor->unk24 = 1;
+            pActor->hidden = 1;
         }
         break;
     case 4:
     case 5:
     case 6:
         pActor->state = 3;
-        pActor->unk24 = 1;
+        pActor->hidden = 1;
         if (g_GameState.partyMembers[0] != 0xFF) {
             g_GameState.gearRide[0] = 1;
         }
         break;
     case 7:
         pActor->state = 2;
-        pActor->unk24 = 1;
+        pActor->hidden = 1;
         if (g_GameState.partyMembers[0] != 0xFF) {
             g_GameState.gearRide[0] = 1;
         }
@@ -784,7 +787,7 @@ s32 func_8008A5B8(s32 arg0) {
     {
         u16 nAngle = g_GameState.worldMapPlayerRotation;
 
-        pActor->unk24 = 1;
+        pActor->hidden = 1;
         pActor->moveSpeed = 8;
         pActor->dirZ = 0;
         pActor->dirY = 0;
