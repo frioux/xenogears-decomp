@@ -528,6 +528,14 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
 done:
     return result;
 }
+// The three typed spellings of this body's accesses were measured and all lose: reading the two
+// slot-entry flag words as g_BattleSlotEntries[idx].flags / D_800CCD1C[idx].flags drops the loop's
+// 0x170-byte induction variable and rearranges the saved registers (88.24%, 496 bytes, retail 500);
+// typing only the first of them is worse (87.59%, 512 bytes); and taking the cursor from
+// g_BattleSlotRegs[i].unk0C keeps the byte stream but emits %hi(g_BattleSlotRegs) + a 12 displacement
+// where retail folds the +0xC into the symbol (99.92%, same 500 bytes, links identical). The byte
+// offset is what retail's induction variables carry, so it stays in the source. The +0xC cursor
+// wants a named BattleSlotRegs field before it can be spelled without a cast.
 void BattleRunActiveSlotScripts(void) {
     s32 i;
     s32 off;
