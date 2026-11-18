@@ -217,7 +217,7 @@ void BattleSetColorSources(s32 arg0, s32 arg1) {
     g_BattleColorSourceB = (u8 *)arg1;
 }
 
-extern u8 D_800D3600[];
+extern u8 g_BattleImage[];
 extern s32 D_800D360C;
 extern s16 D_800D2D2C;
 extern s16 D_800D2D30;
@@ -246,7 +246,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A5EB4);
    and it needs its own local (retail keeps it in $v0, the other three loops use
    $a3); with i * 6 gcc keeps a counter and an offset register and the window is
    five instructions wrong. The func_800A3640 call takes 19 parameters - a0 is
-   &D_800D3600, a1 0, a2 1, a3 0x601 and the fifteen stack words 0x10..0x48 are
+   &g_BattleImage, a1 0, a2 1, a3 0x601 and the fifteen stack words 0x10..0x48 are
    0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C,
    D_800C3EA8, 0, 0, 0, 0 (the s16 ones are passed as promoted shorts, which is
    why each is one sign-extended word in its own slot) - and with that prototype in
@@ -266,11 +266,11 @@ void func_800A5EB4(void) {
     pEntry = *(u8 **)(D_800D33E4 + 0x118);
     for (i = 0; i < *(u8 *)(D_800D33E4 + 0x10E); i++) {
         if (*(u16 *)(pEntry + 0x1A) != 0) {
-            *(void **)pEntry = D_800D3600;
+            *(void **)pEntry = g_BattleImage;
         }
         pEntry += 0x30;
     }
-    func_800A3640(D_800D3600, 0, 1, 0x601, 0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C, D_800C3EA8, 0, 0, 0, 0);
+    func_800A3640(g_BattleImage, 0, 1, 0x601, 0, D_800D2D30, D_800D2D34, 0, 0, 0, 0, D_800D2D30, D_800D2D34, D_800D2D2C, D_800C3EA8, 0, 0, 0, 0);
     D_800D360C = 0;
     g_BattleColorTintBase = HeapAlloc(0x88, 1);
     g_BattleColorTintWork = HeapAlloc(0x88, 1);

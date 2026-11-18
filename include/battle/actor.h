@@ -245,6 +245,9 @@ typedef struct {
     /* 0x84 */ u16 activeEffectFlags3;
     /* 0x86 */ u16 accessoryEffectFlags3;
     /* 0x88 */ u8 statusPenaltyPercent[0x10]; // percent taken off an action, one entry per status bit, indexed by the highest set bit of BattleRow.statusMask
+// The status penalty percent that takes an action's whole value: an entry at or above it
+// zeroes the value, and one below it scales the value by what is left.
+#define BATTLE_STATUS_PENALTY_PERCENT_MAX 20
     /* 0x98 */ u8 unk98; // BattleResetSlotConditionCounters keeps it within 0x10
     /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
     /* 0x9A */ u8 unk9A[0x4];

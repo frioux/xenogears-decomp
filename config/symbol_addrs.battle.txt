@@ -1061,3 +1061,4 @@ g_BattlePartPrimBuffers = 0x800C3D50;
 g_BattleSpriteRenderData = 0x800C3EA0;
 g_BattleCommandCharIndex = 0x800D2C34;
 g_BattleCellActionRows = 0x800CDD40;
+g_BattleImage = 0x800D3600;

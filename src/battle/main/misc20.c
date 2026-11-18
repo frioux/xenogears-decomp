@@ -2,10 +2,6 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
-// The status penalty percent that takes an action's whole value: an entry at or above
-// it zeroes the value, and one below it scales the value by what is left.
-#define BATTLE_STATUS_PENALTY_PERCENT_MAX 20
-
 extern u8 *D_800C3D60;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleActingSlot;
