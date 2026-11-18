@@ -2982,7 +2982,7 @@ s32 SoundGetPendingSpuCommandType(u32 flags) {
         return 0;
     }
 
-    return *(s16*)&g_SoundTransferQueue[g_SoundTransferQueueReadIndex];
+    return (s16)g_SoundTransferQueue[g_SoundTransferQueueReadIndex].commandType;
 }
 
 //----------------------------------------------------------------------------------------------------------------------
