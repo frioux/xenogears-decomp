@@ -131,7 +131,7 @@ typedef struct {
 } BattleArchiveRequest; // Size: 0x20
 
 extern BattleArchiveEntry D_800C35DC[];
-extern void func_800C0F70(void);
+extern void BattleFreeWdsEntry(void);
 extern void func_80029AFC(void *pRequest, s32 arg1, s32 arg2);
 extern void SoundAddSedsEntry(void *pEntry);
 extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
@@ -161,7 +161,7 @@ void func_800B838C(s32 arg0, s32 arg1) {
     void *pWds;
     s32 id;
 
-    func_800C0F70();
+    BattleFreeWdsEntry();
     BattleWaitArchiveSync();
     ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
 

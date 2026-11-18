@@ -156,7 +156,7 @@ extern void func_8007819C(void);
 extern void SoundStopElementsForSoundFile(s32 *);
 extern void SoundRemoveSedsEntry(s32 *);
 extern void BattleResetSlotConditionCounters(void);
-extern void func_800C0F70(void);
+extern void BattleFreeWdsEntry(void);
 extern void BattleUnloadActorArchive(void);
 extern void func_800B853C(s32);
 extern void func_801E252C(void);
@@ -379,7 +379,7 @@ void func_80070F40(void) {
                     pSlotFlags += 2;
                     offset += 0x170;
                 }
-                func_800C0F70();
+                BattleFreeWdsEntry();
                 BattleSetOverlayArg(1);
                 D_800C48EA = savedFlags;
             }

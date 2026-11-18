@@ -755,7 +755,14 @@ and you decide.
     externs that conflict once un-parked (dedupe them).
   - **Already on cdk -G0, parks mis-diagnosed:** `misc28`, `misc30`, `misc32`, `misc33`,
     `misc34`. Their "ATFREE" stubs are ordinary stubs; `fresh_stubs.py` lists them.
-  - **Mixed:** `misc35` (its one matched function regresses): a `split_unit.py` case.
+  - **`misc35` SWITCHED whole in round 270: the "one matched function regresses" verdict
+    was objdiff folding relocations.** Under cdk -G0 all live functions are 100.00 *and*
+    `make check` is green (all eleven outputs byte-identical), so no split was needed -
+    re-screen a recorded "mixed" unit with `make check`, not with `try_flags --all`, before
+    spending a split on it. Its `func_800C0F70` park (67.93%, note said "ATFREE wall") then
+    scored **100.00 under the unit's own preset** in `park_sweep.py` and un-parked as
+    `BattleFreeWdsEntry`; the unit also holds **four never-written stubs** (109-302 lines of
+    asm), so a preset verdict that is wrong leaves both a free park and a fresh queue behind.
   - **Not cdk -G0** (matched functions break): `battle/misc25`, `system/animation_scripts`,
     `controller_b`, `rendering`, `temp1`, `temp2`. Their few atfree hits need another
     explanation; leave them.

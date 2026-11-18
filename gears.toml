@@ -148,8 +148,7 @@ build_variables = {
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
 paths = [
-    "battle/main/misc27_psx.",
-    "battle/main/misc35."
+    "battle/main/misc27_psx."
 ]
 
 # battling/main/misc12 is a -G0 unit, proven the way section 5 asks for:
@@ -362,7 +361,7 @@ build_variables = {
     gp_flag = "-G0",
     maspsx_flags = "--dont-expand-li --use-comm-section --run-assembler"
 }
-paths = [ "battle/main/misc32.", "battle/main/misc28.", "battle/main/misc30.", "battle/main/misc33.", "battle/main/misc34.", "battle/main/misc26.", "battle/main/misc31.", "battle/main/misc29." ]
+paths = [ "battle/main/misc32.", "battle/main/misc28.", "battle/main/misc30.", "battle/main/misc33.", "battle/main/misc34.", "battle/main/misc26.", "battle/main/misc31.", "battle/main/misc29.", "battle/main/misc35." ]
 
 [[build_preset]]
 name = "XenoFieldNoGp"

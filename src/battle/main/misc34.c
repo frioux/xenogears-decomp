@@ -47,7 +47,7 @@ extern u8 g_BattleActorArchiveReady;
 extern u16 D_800D3634;
 extern void BattleFreeActorArchiveAndSoundSeds(void);
 extern void func_800BB760(s32 index);
-extern void func_800C0F70(void);
+extern void BattleFreeWdsEntry(void);
 extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
 extern s16 SoundGetPendingSpuCommandType(s32 arg0);
 
@@ -307,7 +307,7 @@ void BattleLoadSoundWdsFile(void) {
     ArchiveReadFileToBuffer(5, pWds, 0, 0x80);
     BattleWaitArchiveSync();
     if (SoundFindWdsEntry(pWds->id) == NULL) {
-        func_800C0F70();
+        BattleFreeWdsEntry();
         g_BattleWdsEntry = SoundLoadWdsFile(pWds, 0);
         while (SoundGetPendingSpuCommandType(0) != 0) {
             func_800BE790();
