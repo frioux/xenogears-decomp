@@ -113,7 +113,8 @@ typedef struct {
 } BattleArchiveEntry; // Size: 0x4
 
 /* Archive read request filled in on the stack and handed to func_80029AFC: the archive
-   file index to load and the buffer it is decoded into, twice. */
+   file index to load and the buffer it is decoded into, twice, then the third entry
+   zeroed because func_80029AFC walks 8-byte entries until one's fileIndex is 0. */
 typedef struct {
     /* 0x0  */ u16 fileIndex1;
     /* 0x2  */ u16 pad2;
@@ -121,9 +122,9 @@ typedef struct {
     /* 0x8  */ u16 fileIndex2;
     /* 0xA  */ u16 padA;
     /* 0xC  */ void *pBuffer2;
-    /* 0x10 */ u16 unk10;
+    /* 0x10 */ u16 fileIndex3; // zero: ends the entry list func_80029AFC walks
     /* 0x12 */ u16 pad12;
-    /* 0x14 */ s32 unk14;
+    /* 0x14 */ s32 buffer3;
     /* 0x18 */ u16 unk18;
     /* 0x1A */ u16 pad1A;
     /* 0x1C */ s32 unk1C;
@@ -176,8 +177,8 @@ void func_800B838C(s32 arg0, s32 arg1) {
     }
     pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(request.fileIndex2), 0);
     request.pBuffer2 = pBuffer2;
-    request.unk14 = 0;
-    request.unk10 = 0;
+    request.buffer3 = 0;
+    request.fileIndex3 = 0;
     func_80029AFC(&request, 0, 0);
 
     BattleWaitArchiveSync();
@@ -205,8 +206,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8774);
 typedef struct {
     /* 0x00 */ u8 unk0[0x6];
     /* 0x06 */ u8 unk6;
-    /* 0x07 */ u8 unk7;
-    /* 0x08 */ u8 unk8;
+    /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, 0 means idle
+    /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0
     /* 0x09 */ u8 unk9[0x5];
     /* 0x0E */ u16 x;
     /* 0x10 */ u16 z;
@@ -218,10 +219,10 @@ typedef struct {
     /* 0x00 */ u8 unk0[0x4];
     /* 0x04 */ SpriteData *pSprite;
     /* 0x08 */ u8 unk8[0x18];
-    /* 0x20 */ s32 unk20;
+    /* 0x20 */ s32 initialActorIndex; // the actor index the init hands to BattleSetCurrentActorSprite
     /* 0x24 */ s32 actorIndex;
     /* 0x28 */ u8 unk28[0x18];
-    /* 0x40 */ void *unk40;
+    /* 0x40 */ void *unk40; // an index, not a pointer: func_800B8EBC passes it to BattleLoadActorSlotAnimation
 } BattleUnitState; // Size: 0x44
 
 extern BattleUnitState *g_BattleState;
@@ -279,7 +280,7 @@ void func_800B88C4(void) {
     D_800C3D58 = 0;
     pSlot = (BattleActorSlot *)((u8 *)g_BattleStateWork + 0x54);
     for (i = 3; i != 0xB; i++) {
-        if (pSlot->unk6 < 0x11 && pSlot->unk8 != 0) {
+        if (pSlot->unk6 < 0x11 && pSlot->inUse != 0) {
             D_800C3D58++;
         }
         pSlot++;
@@ -349,12 +350,12 @@ void BattleActorInitSpriteFromSlot(void) {
     if (g_BattleState == NULL) {
         return;
     }
-    BattleSetCurrentActorSprite(g_BattleState->unk20);
+    BattleSetCurrentActorSprite(g_BattleState->initialActorIndex);
     pTable = g_BattleStateWork;
     pSprite = g_BattleState->pSprite;
     slotHigh = (u32)pSprite->flags_0xA8 >> 30;
     index = ((pSprite->flags_0xAC.flags & 3) << 2) | slotHigh;
-    if (pTable[index].unk8 != 0) {
+    if (pTable[index].inUse != 0) {
         func_800BEE2C(index, 0, 0x1F);
     } else {
         pSprite->position.x = pTable[g_BattleState->actorIndex].x << 16;
