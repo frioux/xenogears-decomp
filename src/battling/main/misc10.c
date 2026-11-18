@@ -95,7 +95,7 @@ typedef struct {
     /* 0x00 */ u8* pPartList; // count word followed by 0x10-byte part descriptors
     /* 0x04 */ u8* pModelData; // base of the 0x38-byte model part records
     /* 0x08 */ u8* pAnimList; // count word followed by 0x14-byte entries
-    /* 0x0C */ u8 unk0C[0x4];
+    /* 0x0C */ u8* pTimImage; // TIM uploaded with the battle-wide tpage/clut (misc14's BattleRelocateBlockPointers)
     /* 0x10 */ Misc10SpriteHeader* pHeader;
     /* 0x14 */ u8* pPartTimings;
     /* 0x18 */ Misc10ActionSlot* pActions;
@@ -123,13 +123,15 @@ typedef struct {
     /* 0x284 */ u32* pDisplayWork;
     /* 0x288 */ u8 unk288[0x674];
     /* 0x8FC */ u8* pScript;
-    /* 0x900 */ u8* unk900;
+    /* 0x900 */ u8* pModelScriptOffsets; // one s16 script offset per model index
     /* 0x904 */ u8* pVisiblePartIndices;
     /* 0x908 */ u8 visiblePartCount;
     /* 0x909 */ u8 typeId;
     /* 0x90A */ u8 typeFlags;
     /* 0x90B */ u8 timer; // counted down by the ground-effect pass (src/battling/main/misc4.c)
-    /* 0x90C */ u8 unk90C[0x4];
+    /* 0x90C */ s16 actionAngle; // latched when actionPhase 2 starts, copied into `angle` each frame (misc3's func_80078194)
+    /* 0x90E */ u8 savedModelIndex;
+    /* 0x90F */ u8 unk90F;
     /* 0x910 */ u8 soundTimer; // frames left before the gauge sound repeats (src/battling/main/misc3.c)
     /* 0x911 */ u8 flaggedActionCount;
     /* 0x912 */ u8 unflaggedActionCount;
@@ -332,7 +334,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
        pHeader = pData->pHeader;
        pActor->pScript = (u8*)pHeader;
        pActor->pPartTimings = pData->pPartTimings;
-       pActor->unk900 = (u8*)pHeader + 0x34;
+       pActor->pModelScriptOffsets = (u8*)pHeader + 0x34;
        pActor->pActions = pData->pActions;
        pActor->pVisiblePartIndices = (u8*)pHeader + pHeader->visiblePartIndicesOffset;
        pActor->visiblePartCount = pHeader->visiblePartCount;
