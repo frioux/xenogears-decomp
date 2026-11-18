@@ -173,6 +173,17 @@ of a match, and it is cheap.
   is a *different* function in another overlay (2+ `.c` files define it) and never writes an
   entry into a file its yaml already loads ("Duplicate symbol detected" from
   splat stops the whole build), so ~4-8 names a round stay `func_`; leave them.
+  **That tool had three bugs, fixed in round 221 after they cost three rounds:** its owner
+  binary came from `parts[1]` of an ABSOLUTE path (always `Users`), so `b == owner` was
+  never true and it added NO entry for any rename; its entry regex required a single
+  space, so the 84 column-aligned entries were invisible to its duplicate guards; and an
+  existing `func_<addr> = 0x<addr>;` line blocked the new name instead of being
+  rewritten. `tools/scripts/lint_sources.py` now also fails on a non-static C definition
+  with no entry in its own binary's file, and on an entry that duplicates one
+  `symbol_addrs.slus_006.64.txt` already has - **that second one makes splat abort ONE
+  binary ("Duplicate symbol detected"), gears ignores the exit code, and the build dies
+  with `ld: cannot open linker script file linker/<bin>.ld`**, naming neither the symbol
+  nor the file. Four matched-but-invisible functions were repaired this way.
 - **The names file must keep the three-column form**, `NAME func_ADDR NewName - evidence`. A file
   stripped to two columns still renames (rename_sym.py parses it) but makes `name_addrs.py` a silent
   no-op, so every function whose address has no `symbol_addrs` entry - all of `member_change_menu` -
