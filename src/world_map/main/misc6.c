@@ -64,15 +64,16 @@ typedef struct {
     /* 0x44 */ undefined32 unk44;
     /* 0x48 */ undefined32 unk48;
     /* 0x4C */ undefined32 unk4C;
-    /* 0x50 */ int unk50;
-    /* 0x54 */ void *unk54;
-    /* 0x58 */ void *unk58;
-    /* 0x5C */ s32 unk5C[8]; // 0x5C..0x7B
+    /* 0x50 */ int stateIndex; // into the per-state tables; other map modes reuse these four words
+    /* 0x54 */ void *pStateIds;
+    /* 0x58 */ void *pStateFrames;
+    /* 0x5C */ s32 scale;
+    /* 0x60 */ s32 unk60[7]; // 0x60..0x7B
     /* 0x7C */ s32 unk7C;
 } WorldMapActor; // Size: 0x80
 
 typedef struct {
-    /* 0x00 */ s16 unk00;
+    /* 0x00 */ s16 hidden; // nonzero: the group draw pass skips this group
     /* 0x02 */ s16 unk02;
     /* 0x04 */ undefined16 unk04[2]; // 0x04..0x07
     /* 0x08 */ s32 x;
@@ -251,7 +252,7 @@ int WorldMapInitGroup12Actor(int index) {
     pGroup = &g_WorldMapGroups->groups[12];
     pRot = &pGroup->rot;
     pMatrix = &pGroup->mat;
-    pGroup->unk00 = 0;
+    pGroup->hidden = 0;
     pRot->vx = pRot->vy = pRot->vz = 0;
     RotMatrixYXZ(pRot, pMatrix);
     pActor = &g_WorldMapSlots[index];
@@ -272,8 +273,8 @@ int WorldMapUpdateGroup12Actor(int index) {
         WorldMapScratchpad *pScratch = PSX_SCRATCH;
 
         pActor->command = 0;
-        pRoot->groups[12].unk00 = 1;
-        pRoot->groups[15].unk00 = 1;
+        pRoot->groups[12].hidden = 1;
+        pRoot->groups[15].hidden = 1;
         WorldMapDeactivateSpriteGroup(0x18);
         pScratch->position.vx = pActor->x >> 12;
         pScratch->position.vy = pActor->y >> 12;
@@ -308,7 +309,7 @@ int WorldMapInitGroup13Actor(int index) {
     pGroup = &g_WorldMapGroups->groups[13];
     pRot = &pGroup->rot;
     pMatrix = &pGroup->mat;
-    pGroup->unk00 = 0;
+    pGroup->hidden = 0;
     pRot->vx = pRot->vy = pRot->vz = 0;
     RotMatrixYXZ(pRot, pMatrix);
     pActor = &g_WorldMapSlots[index];
@@ -348,7 +349,7 @@ int WorldMapInitGroup16Actor(int index) {
     pGroup = &g_WorldMapGroups->groups[16];
     pRot = &pGroup->rot;
     pMatrix = &pGroup->mat;
-    pGroup->unk00 = 1;
+    pGroup->hidden = 1;
     pRot->vx = pRot->vy = pRot->vz = 0;
     RotMatrixYXZ(pRot, pMatrix);
     pActor = &g_WorldMapSlots[index];
@@ -370,7 +371,7 @@ int WorldMapUpdateGroup16Actor(int index) {
     case 1:
         // volatile: keeps the g_WorldMapCameraTarget load below these two stores, as retail has it
         *(volatile s16 *)&pActor->command = 0;
-        *(volatile s16 *)&pGroup->unk00 = 0;
+        *(volatile s16 *)&pGroup->hidden = 0;
         pActor->x = g_WorldMapCameraTarget[0];
         pActor->z = D_8009BE30 + 0x400000;
         break;
@@ -511,14 +512,14 @@ int WorldMapSetActorScriptTables(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     RECT rect;
 
-    pActor->unk54 = g_WorldMapActorScripts[g_WorldMapAreaIndex].pStateIds;
+    pActor->pStateIds = g_WorldMapActorScripts[g_WorldMapAreaIndex].pStateIds;
     /* the original object relocates the second word of the pair against its own
        symbol D_8009A660 (= g_WorldMapActorScripts + 4) */
-    pActor->unk58 = *(u16 **)&D_8009A660[g_WorldMapAreaIndex * sizeof(WorldMapPath)];
-    pActor->unk50 = 0;
-    pActor->state = *(u16 *)pActor->unk54;
-    pActor->stateTimer = ((u16 *)pActor->unk58)[pActor->unk50];
-    pActor->unk50++;
+    pActor->pStateFrames = *(u16 **)&D_8009A660[g_WorldMapAreaIndex * sizeof(WorldMapPath)];
+    pActor->stateIndex = 0;
+    pActor->state = *(u16 *)pActor->pStateIds;
+    pActor->stateTimer = ((u16 *)pActor->pStateFrames)[pActor->stateIndex];
+    pActor->stateIndex++;
     return 1;
 }
 
@@ -894,7 +895,7 @@ int WorldMapInitSlotActor(int index) {
     pActor->dirY = 0;
     unkValue = g_WorldMapSlotScales[nType];
     pActor->stateTimer = 60;
-    pActor->unk5C[0] = unkValue;
+    pActor->scale = unkValue;
     return 1;
 }
 
@@ -924,8 +925,8 @@ int WorldMapUpdateSlotActor(int index) {
         pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
         pActor->state = (pActor->command = 0);
         pActor->dirY = 0;
-        pActor->unk5C[0] = g_WorldMapGroupInitialScale[index];
-        pGroup->unk00 = 0;
+        pActor->scale = g_WorldMapGroupInitialScale[index];
+        pGroup->hidden = 0;
         pGroup->rot.vx = pGroup->rot.vy = pGroup->rot.vz = 0;
         RotMatrixYXZ(&pGroup->rot, &pGroup->mat);
         WorldMapDeactivateSpriteGroup(0x23);
@@ -935,8 +936,8 @@ int WorldMapUpdateSlotActor(int index) {
         pActor->stateTimer = 4;
         pActor->state = 1;
         pActor->command = 0;
-        pActor->unk5C[0] = g_WorldMapGroupInitialScale[index];
-        pGroup->unk00 = 0;
+        pActor->scale = g_WorldMapGroupInitialScale[index];
+        pGroup->hidden = 0;
         pGroup->rot.vx = pGroup->rot.vy = pGroup->rot.vz = 0;
         RotMatrixYXZ(&pGroup->rot, &pGroup->mat);
         WorldMapDeactivateSpriteGroup(0x23);
@@ -969,7 +970,7 @@ int WorldMapUpdateSlotActor(int index) {
     case 1:
         if ((s16)--pActor->stateTimer < 0) {
             pActor->stateTimer = 0;
-            pActor->unk5C[0] -= 0x80;
+            pActor->scale -= 0x80;
         }
         break;
     }
@@ -992,15 +993,15 @@ int WorldMapUpdateSlotActor(int index) {
         pGroup->x = pActor->x >> 12;
         pGroup->y = (pActor->y >> 6) >> 6;
         pGroup->z = pActor->z >> 12;
-        nScale = pActor->unk5C[0];
+        nScale = pActor->scale;
         pScale->vz = 0x2000;
         pScale->vy = nScale;
         pScale->vx = nScale;
         ScaleMatrix(&pGroup->mat, pScale);
     }
-    if (pActor->unk5C[0] < 0) {
-        pActor->unk5C[0] = 0;
-        pGroup->unk00 = 1;
+    if (pActor->scale < 0) {
+        pActor->scale = 0;
+        pGroup->hidden = 1;
         return 3;
     }
     return 1;
@@ -1201,9 +1202,9 @@ void WorldMapExitToMap84(void) {
 int WorldMapInitActorScript(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
 
-    pActor->unk50 = 0;
+    pActor->stateIndex = 0;
     pActor->state = g_WorldMapScriptStateIds;
-    pActor->stateTimer = g_WorldMapScriptStateFrames[pActor->unk50];
+    pActor->stateTimer = g_WorldMapScriptStateFrames[pActor->stateIndex];
     return 1;
 }
 
