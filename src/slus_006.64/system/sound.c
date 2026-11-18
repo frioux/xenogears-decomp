@@ -20,11 +20,13 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 // SoundHandleError ids, each one naming the failure its call site has just detected
 #define SOUND_ERR_INVALID_MANAGER            0x5     // no usable AudioManager: NULL argument or not in g_SoundAudioManagerListHead
 #define SOUND_ERR_INVALID_SEQ_HEADER         0xA     // SoundUnkDebug0 rejected pManager->pSeqHeader
+#define SOUND_ERR_INVALID_SEDS               0xB     // SoundValidateFile rejected the file SoundRemoveSedsEntry is removing
 #define SOUND_ERR_SEDS_NOT_FOUND             0x10    // the SoundFile is not in g_SoundSedsLinkedList
 #define SOUND_ERR_WDS_NOT_FOUND              0x11    // the SoundWDSEntry is not in g_SoundWdsLinkedList
 #define SOUND_ERR_WDS_ALREADY_LOADED         0x16    // SoundFindWdsEntry already finds this WDS id
 #define SOUND_ERR_SPU_MEMORY_ALLOC_FAILED    0x1F    // SoundSpuMemoryAllocateWDS returned 0
 #define SOUND_ERR_REVERB_ALLOC_FAILED        0x20    // the reverb work area block could not be allocated
+#define SOUND_ERR_SPU_MEMORY_FREE_FAILED     0x24    // SoundSpuMemoryFreeBlock did not return the address it was handed
 #define SOUND_ERR_ALREADY_INITIALIZED        0x28    // bit 15 is already set, as the 0xB801 SoundInitialize writes leaves it
 #define SOUND_ERR_NOT_INITIALIZED            0x29    // g_SoundControlFlags is 0, so there is nothing to shut down
 #define SOUND_REVERB_MEMORY_NONE            (-1)    // g_SoundReverbMemoryHandle before the work area is allocated
@@ -36,11 +38,13 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 #define SOUND_MANAGER_BACKUP_RESTORE        2
 // g_SoundControlFlags bits (the handler bit 2 is SOUND_CTL_FLAG_IRQ_HANDLER in sound.h)
 #define SOUND_CTL_FLAG_EVENT_ENABLED        (1 << 0)  // g_unk_SoundEvent is enabled
+#define SOUND_CTL_FLAG_SKIP_DUPLICATE_CHECK (1 << 7)  // SoundAddSedsEntry adds files whose sedId is already in the list
 #define SOUND_CTL_FLAG_TRANSFER_BUSY        (1 << 4)  // an SPU transfer command is in flight
 #define SOUND_CTL_FLAG_REVERB_TRANSFER      (1 << 5)  // the reverb work area upload is in progress
 #define SOUND_CTL_FLAG_MUTED                (1 << 6)  // every voice silenced, the timer handler does nothing
 #define SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED (1 << 11) // gate the SoundPlaySoundEffect* family tests
 #define SOUND_CTL_FLAG_REVERB_ENABLED       (1 << 12) // managers apply their reverb settings to the SPU
+#define SOUND_CTL_MASK_VOLUME_MODE          ((1 << 8) | (1 << 9) | (1 << 10)) // SoundGetVolumeMode decodes it and reports 0 while it is clear
 // AudioManager.flags bits (bit 15 is what SoundAudioManagerIsActive reports)
 #define SOUND_MANAGER_FLAG_IN_PLACE         (1 << 14) // manager lives in caller-provided memory, do not free it
 #define SOUND_MANAGER_FLAG_PLAYING          (1 << 15)
@@ -62,13 +66,16 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 #define SOUND_VOICE_FLAG_SUSTAIN            0x40
 #define SOUND_VOICE_FLAG_RELEASE            0x80
 #define SOUND_VOICE_FLAG_SUSTAIN_LEVEL      0x100
+#define SOUND_VOICE_FLAG_ALL                (SOUND_VOICE_FLAG_VOLUME | SOUND_VOICE_FLAG_PITCH | SOUND_VOICE_FLAG_ATTACK | SOUND_VOICE_FLAG_DECAY | SOUND_VOICE_FLAG_SUSTAIN | SOUND_VOICE_FLAG_RELEASE | SOUND_VOICE_FLAG_SUSTAIN_LEVEL)
 // AudioEnvelope.flags bits
 #define SOUND_ENVELOPE_FLAG_ENABLED         0x1
 #define SOUND_ENVELOPE_FLAG_HALF_RATE       0x4     // the reloaded count doubles, the envelope steps every other tick
 #define SOUND_ENVELOPE_FLAG_DESCENDING      0x8     // the step handlers negate delta while this is set
 #define SOUND_EFFECT_ELEMENT_COUNT          16      // elements of the sound-effect manager SoundInitialize creates
+#define SOUND_EFFECT_ELEMENT_PAIR_COUNT     2       // elements one sound-effect pair spans, what g_SoundEffectElementPairCount reports
 #define SOUND_PERCUSSION_TABLE_SIZE         0x180   // tail added to a manager's allocation when it carries a percussion map
 #define SOUND_TICKS_PER_WHOLE_NOTE          192     // a beat divisor of 4 splits this into 48 ticks per beat
+#define SOUND_LOOP_COUNT_NONE               0xFFFF  // "no active element seen": any real loopCount compares lower
 
 //----------------------------------------------------------------------------------------------------------------------
 // SPU DECLARATIONS
@@ -410,7 +417,7 @@ void SoundEnableAllSpuChannels(void) {
 
     do {
         if (*pChannel) {
-            (*pChannel)->flags |= 0x1F5;
+            (*pChannel)->flags |= SOUND_VOICE_FLAG_ALL;
         }
         i++;
         pChannel++;
@@ -594,7 +601,7 @@ void SoundFreeWdsEntry(SoundWDSEntry* pTargetEntry) {
     EnableEvent(g_unk_SoundEvent);
     
     if (pTargetEntry->spuMemoryAddress != SoundSpuMemoryFreeBlock(pTargetEntry->spuMemoryAddress)) {
-        SoundHandleError(0x24U);
+        SoundHandleError(SOUND_ERR_SPU_MEMORY_FREE_FAILED);
     }
     
     SoundHeapFree(pTargetEntry);
@@ -619,7 +626,7 @@ void SoundAddSedsEntry(SoundFile* pSoundFile) {
     SoundFile* pSoundFileToVerify = pSoundFile;
 
     // Ensure that an entry with the same SED ID does not exists in the linked list already
-    if (!(g_SoundControlFlags & 0x80)) {
+    if (!(g_SoundControlFlags & SOUND_CTL_FLAG_SKIP_DUPLICATE_CHECK)) {
         for (pEntry = g_SoundSedsLinkedList; pEntry != NULL; pEntry = pEntry->pNext) {
             if (pSoundFile->sedId == pEntry->sedId) {
                 SoundHandleError(SOUND_ERR_ENTRY_ALREADY_EXISTS);
@@ -674,7 +681,7 @@ void SoundRemoveSedsEntry(SoundFile* pSoundFile) {
 
     nSedsStatus = SoundValidateFile(pSoundFile, FILE_SIGNATURE('s', 'e', 'd', 's'), SOUND_FILE_VERSION);
     if (nSedsStatus != SOUND_STATUS_OK) {
-        SoundHandleError(0xB);
+        SoundHandleError(SOUND_ERR_INVALID_SEDS);
         return;
     }
 
@@ -797,7 +804,7 @@ void func_800386C4(s32 mode) {
 s32 SoundGetVolumeMode(void) {
     s32 out;
 
-    if (g_SoundControlFlags & ((1 << 8) | (1 << 9) | (1 << 10))) {
+    if (g_SoundControlFlags & SOUND_CTL_MASK_VOLUME_MODE) {
         out = 1;
         if (g_SoundControlFlags & ((1 << 9) | (1 << 10))) {
             out = 2;
@@ -815,7 +822,7 @@ void SoundSetupCdMix(s32 vol) {
 
     g_SoundVolumeController.cdMixVolume = vol;
 
-    if (g_SoundControlFlags & 0x700) {
+    if (g_SoundControlFlags & SOUND_CTL_MASK_VOLUME_MODE) {
         pan = vol;
         vol = 0;
     } else {
@@ -1755,7 +1762,7 @@ void SoundPlaySoundEffectOnLastPair(s32 arg0) {
         s32 value = g_SoundEffectElementCount;
 
         value -= 2;
-        g_SoundEffectElementPairCount = 2;
+        g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644((s16)(value | (s16)0x8000), arg0, 0x6000, 0x4000);
     }
 }
@@ -1764,7 +1771,7 @@ void SoundPlaySoundEffectOnLastPair(s32 arg0) {
 // Wowoweewa flag central
 void SoundSendCommandConstant(s32 arg0) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
-        g_SoundEffectElementPairCount = 2;
+        g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644((1 << 2) | (1 << 3) | (1 << 13) | (1 << 14), arg0, (1 << 13) | ( 1 << 14), (1 << 14));
     }
 }
@@ -1774,7 +1781,7 @@ void SoundPlaySoundEffectOnFreePair(s32 arg0) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         s32 value = func_8003A65C(arg0, 2);
 
-        g_SoundEffectElementPairCount = 2;
+        g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644((s16)(value | 0x2000), arg0, 0x6000, 0x4000);
     }
 }
@@ -1782,7 +1789,7 @@ void SoundPlaySoundEffectOnFreePair(s32 arg0) {
 //----------------------------------------------------------------------------------------------------------------------
 void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
-        g_SoundEffectElementPairCount = 2;
+        g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644(
             ((arg1 & 0xFE) ^ (1 << 3)) | (1 << 13), // wtf is this... we really need to figure out some of these macros
             arg0,
@@ -1797,14 +1804,14 @@ void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
         s32 value = func_8003A65C(arg0, 2);
 
-        g_SoundEffectElementPairCount = 2;
+        g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644((s16)(value | 0x2000), arg0, (s16)(arg1 << 8), (s16)(arg2 << 8));
     }
 }
 
 void SoundPlaySoundEffectOnPairWithLevels(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
-        g_SoundEffectElementPairCount = 2;
+        g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644(((arg1 & 0xFE) ^ 0x8) | 0x2000, arg0, (s16)(arg2 << 8), (s16)(arg3 << 8));
     }
 }
@@ -2175,7 +2182,7 @@ void SoundMuteElementsByFlags(AudioManager* pManager, u32 flags) {
             } else {
                 if (pElement->active_flag & SOUND_CHANNEL_MUTED) {
                     pElement->active_flag &= ~SOUND_CHANNEL_MUTED;
-                    if ((*(u32*)&pElement->active_flag & 0x110) == 0x100) {
+                    if ((*(u32*)&pElement->active_flag & (SOUND_CHANNEL_PERCUSSION_ACTIVE | SOUND_CHANNEL_HOLD_NOTE)) == SOUND_CHANNEL_HOLD_NOTE) {
                         if (pManager->flags & SOUND_MANAGER_FLAG_PLAYING) {
                             SoundAssignVoiceToChannelAndPlay(&pElement->voice_data, pElement->voice_number);
                         }
@@ -2207,7 +2214,7 @@ u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
     AudioElement* pElement = pManager->elements;
     u16 count = pManager->elementCount;
     u16* pResult = (u16*)&pManager->lowestLoopCount;
-    u16 best = 0xFFFF;
+    u16 best = SOUND_LOOP_COUNT_NONE;
 
     do {
         if (pElement->active_flag != 0 && pElement->loopCount < best) {
@@ -2216,7 +2223,7 @@ u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
         pElement++;
     } while (--count);
 
-    if (best == 0xFFFF) {
+    if (best == SOUND_LOOP_COUNT_NONE) {
         best = 0;
     }
     *pResult = best;
@@ -2363,7 +2370,7 @@ void SoundSetElementsStatusFlag1(AudioManager* manager) {
 
     do {
         // What's going on here? Are the first two fields just a u32?
-        if ((*(u32*)pElement & 0x101) == 0x101) {
+        if ((*(u32*)pElement & (SOUND_CHANNEL_ACTIVE | SOUND_CHANNEL_HOLD_NOTE)) == (SOUND_CHANNEL_ACTIVE | SOUND_CHANNEL_HOLD_NOTE)) {
             // I'm beginning to think that this isn't just a flag for activity considering this mask
             if ((pElement->active_flag & (SOUND_CHANNEL_PERCUSSION_ACTIVE | SOUND_CHANNEL_MUTED)) == 0) {
                 pElement->status_flags |= 0x1;
