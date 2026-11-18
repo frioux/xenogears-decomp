@@ -659,11 +659,18 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
          m[2][1]); the ==1 arm copies 2/8/14 from pTransMatrix   71.29%  4104 B
      P6  and use pActor->scale (retail RELOADS it three times,
          so there is no scale local on that path)              73.90%  4052 B
-   What is left is 8 instructions and register assignment: retail keeps a0 in
-   $fp (frame 0x110, 10 saves, a1..a3 spilled to 0x68/0x70/0x78) while this
-   body spills a0 to 0x68 instead and frames 0x108. Retail also reads
-   pActor->scale with lhu (unsigned) where actor.h says s16, so any new use
-   of that field on this path must be spelled through a u16 view.
+   What is left is 8 instructions (32 bytes) and register assignment. Measured
+   against retail: the CALL SET is already identical (8 CompMatrix, 7
+   SetTransMatrix, 7 SetRotMatrix, 2 MulMatrix0, 2 BattleAllocSpriteSlot, 15
+   more of one each), the prologue shape is retail's (move s8,a0, then
+   ra/s7..s0 saves, a1..a3 spilled to 0x68/0x70/0x78), and the frame is 0x108
+   against retail's 0x110: retail has TWO more 4-byte var slots (its locals
+   run to 0xB8, this body's to 0xA8). An unused local does not buy them back
+   (measured: gcc drops it, frame stays 0x108), so the 8 bytes are a real
+   local this body is missing - most likely the s32 copy of pActor->scale that
+   retail spills to 0xB8 in its own prologue. Retail also reads pActor->scale
+   with lhu (unsigned) where actor.h says s16, so a new use of that field on
+   this path must be spelled through a u16 view.
    The tween loop's remaining tell: retail bases its whole 2D-allocate block on
    &pTween->slot (s1 = pTween + 0x5C) and reaches pPool/semiTrans/pSlot as
    -88/-89/-84(s1), i.e. the source held the SLOT field's address. */
@@ -976,7 +983,6 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     }
 }
 */
-
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
