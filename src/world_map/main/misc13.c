@@ -5,6 +5,14 @@
 #define WORLD_MAP_AREA_NONE (-1)
 
 
+// World map tile cell. Four 9x9 zone grids of 4-byte records (4 * 81 * 4 = the
+// 0x510 byte offset WorldMapGetTileValue reads its values at) followed by the
+// 16x16 sub-cell values.
+typedef struct {
+    /* 0x000 */ u8 zones[4 * 81 * 4];
+    /* 0x510 */ s16 values[16 * 16];
+} WorldMapTileCell; // Size: 0x710
+
 // 12.4 fixed point world map position; only x (0x0) and z (0x8) are read here.
 typedef struct {
     /* 0x0 */ s32 x;
@@ -33,7 +41,7 @@ extern u8 g_WorldMapMode4AreaNameString[];
 extern u8 g_WorldMapTileKindTable[];
 extern s32 D_8009B264[];
 extern s32 D_8009B26C[];
-extern s32 g_WorldMapTileCellPointers[];
+extern u8* g_WorldMapTileCellPointers[];
 extern s32 g_WorldMapTileShapeHalfAxis[];
 extern s32 D_8009B36C[];
 extern s32 g_WorldMapTileShapeHalfOrigin[];
@@ -346,7 +354,7 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
         z -= 0x400;
     }
     sub = (z >> 4) / 8 * 9 + (x >> 4) / 8;
-    return (u8*)g_WorldMapTileCellPointers[idx] + zone * 81 * 4 + sub * 4;
+    return g_WorldMapTileCellPointers[idx] + zone * 81 * 4 + sub * 4;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
 s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
@@ -374,15 +382,15 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
 s32 WorldMapGetTileValue(WorldMapPos* p) {
     s16 idx;
-    s16 baseOffset;
     s32 sub;
-    s32 pBase;
+    WorldMapTileCell* pCell;
+    s16* pValue;
 
     idx = ((p->z >> 20) / 8) * g_WorldMapTileColumns + (p->x >> 20) / 8;
-    pBase = g_WorldMapTileCellPointers[idx];
-    baseOffset = 0x510; // a constant local keeps the load at 0x510(v1), not a widened add
+    pCell = (WorldMapTileCell*)g_WorldMapTileCellPointers[idx];
     sub = (((p->z & 0x7FF000) >> 19) << 4) | ((p->x & 0x7FF000) >> 19);
-    return ((s16*)((u8*)pBase + baseOffset))[sub];
+    pValue = pCell->values;
+    return pValue[sub];
 }
 
 s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
