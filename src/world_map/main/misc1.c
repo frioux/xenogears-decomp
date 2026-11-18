@@ -49,7 +49,6 @@
 #define WORLD_MAP_LOAD_QUEUE_PENDING 3
 
 // g_WorldMapAreaId while no map area is loaded
-#define WORLD_MAP_AREA_NONE (-1)
 
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);

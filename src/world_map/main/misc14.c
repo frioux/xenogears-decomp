@@ -1,4 +1,9 @@
 #include "common.h"
+
+// Same sentinel as include/main/game.h's WORLD_MAP_AREA_NONE (this unit does not include
+// game.h); duplicated here so the name is used, not the literal.
+#define WORLD_MAP_AREA_NONE (-1)
+
 #include "system/memory.h"
 #include "psyq/libgte.h"
 
@@ -76,11 +81,11 @@ s32 WorldMapSelectAreaAtPosition(SVec* p, s32 index) {
             (z <= pRect->top + pRect->height)) {
             if (pRect->mode == 4) {
                 g_WorldMapAreaRect = (void*)-1;
-                g_WorldMapAreaId = -1;
+                g_WorldMapAreaId = WORLD_MAP_AREA_NONE;
                 g_WorldMapMode4AreaId = pRect->value;
             } else {
                 g_WorldMapAreaRect = pRect;
-                g_WorldMapMode4AreaId = -1;
+                g_WorldMapMode4AreaId = WORLD_MAP_AREA_NONE;
                 g_WorldMapAreaId = pRect->value;
             }
             return 1;
@@ -88,8 +93,8 @@ s32 WorldMapSelectAreaAtPosition(SVec* p, s32 index) {
         pRect++;
     }
     g_WorldMapAreaRect = (void*)-1;
-    g_WorldMapAreaId = -1;
-    g_WorldMapMode4AreaId = -1;
+    g_WorldMapAreaId = WORLD_MAP_AREA_NONE;
+    g_WorldMapMode4AreaId = WORLD_MAP_AREA_NONE;
     return 0;
 }
 

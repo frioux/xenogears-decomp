@@ -1,5 +1,10 @@
 #include "common.h"
 
+// Same sentinel as include/main/game.h's WORLD_MAP_AREA_NONE (this unit does not include
+// game.h); duplicated here so the name is used, not the literal.
+#define WORLD_MAP_AREA_NONE (-1)
+
+
 // 12.4 fixed point world map position; only x (0x0) and z (0x8) are read here.
 typedef struct {
     /* 0x0 */ s32 x;
@@ -88,7 +93,7 @@ s32 WorldMapInitAreaNameString(void) {
     u8* pBuffer;
 
     pBuffer = g_WorldMapAreaNameString;
-    g_WorldMapAreaId = -1;
+    g_WorldMapAreaId = WORLD_MAP_AREA_NONE;
     func_80032F54(pBuffer, 0x3C0, 0x180, 0xA0, 0x78, 0x20, 1);
     D_8009D500 = 8;
     g_WorldMapAreaNamePanelFlags |= 2;
@@ -102,7 +107,7 @@ s32 WorldMapUpdateAreaNameString(s32 index) {
     pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * 0x80);
     switch (pSlot->unk20) {
     case 0:
-        if (g_WorldMapAreaId != -1) {
+        if (g_WorldMapAreaId != WORLD_MAP_AREA_NONE) {
             SystemStringResetIfIdle(g_WorldMapAreaNameString);
             SystemStringPushBuffer(g_WorldMapAreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
             pSlot->unk20 = 1;
@@ -110,7 +115,7 @@ s32 WorldMapUpdateAreaNameString(s32 index) {
         }
         break;
     case 1:
-        if (g_WorldMapAreaId == -1) {
+        if (g_WorldMapAreaId == WORLD_MAP_AREA_NONE) {
             SystemStringResetIfIdle(g_WorldMapAreaNameString);
             pSlot->unk20 = 0;
         } else if (g_WorldMapAreaId != pSlot->unk50) {
@@ -137,7 +142,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
 s32 func_80092DF8(void) {
     u16 flags;
 
-    g_WorldMapMode4AreaId = -1;
+    g_WorldMapMode4AreaId = WORLD_MAP_AREA_NONE;
     func_80032F54(g_WorldMapMode4AreaNameString, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
     flags = g_WorldMapAreaNamePanelFlags;
     D_8009BDCC = 8;

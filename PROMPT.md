@@ -375,7 +375,11 @@ stays a literal.
 - **Hoisting is yours.** A `CONST_SHARED` line, or the same `CONST` reported from two
   files, means the `#define` belongs in the header beside the struct or table it
   describes. Move it there with **no clones out**, delete the per-file copies, and let
-  `make check` prove it.
+  `make check` prove it. When a user file does not include that header, do NOT add the
+  include (several units are written with their own `extern`s and typedefs instead, and
+  the header collides - `world_map/main/misc13.c` and `misc14.c` are): keep an identical
+  local `#define` in each with a one-line comment saying which header owns it. A benign
+  redefinition of the same value is legal if a file later does include both.
 - Pick files the way names are picked: ones whose functions are matched *and named*,
   because a constant's meaning comes from the named things around it. This lists
   candidates (about 4,400 lines when this was written; it also counts parked bodies,

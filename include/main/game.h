@@ -15,6 +15,9 @@
 #define MAX_PARTY_MEMBERS 3
 #define MAX_BENCHED_PARTY_MEMBERS 6
 #define CHARACTER_ID_NONE 0xFF
+// g_WorldMapAreaId / g_WorldMapMode4AreaId when no area is loaded: both are cleared
+// to it before a map's tables are read, and the mode-4 exit guards test it.
+#define WORLD_MAP_AREA_NONE (-1)
 #define GEAR_ID_NONE 0xFF
 
 #define MAX_ITEM_QUANTITY 99
