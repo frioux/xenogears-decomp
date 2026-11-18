@@ -51,6 +51,14 @@ typedef struct {
     /* 0x14 */ u32 pointListOffset; // byte offset of the point list from the record start
 } BattleMoveCommand; // Size: 0x18
 
+// The block pActor->pBuffer points at: its +4 word is where the action-value
+// table continues for the command ids that do not fit +0x8's table, i.e. a
+// pointer into the middle of the same table (id 0x4E is its first entry).
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ s32 *pTailTable;
+} BattleActorBuffer; // Size: 0x8
+
 // One 0x70-byte entry of the per-actor entry array BattleAllocActorEntryArray
 // allocates; only the sprite index and the word at +8 are initialised here.
 typedef struct {
@@ -250,9 +258,9 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                 pActor->commandArgs[pActor->commandCount] = arg3;
             } else {
                 if (arg3 < 0x50) {
-                    pActor->actionValue = ((s32 *)pSource->pActionTable)[arg3];
+                    pActor->actionValue = ((s32 *)(u32)pSource->pActionTable)[arg3];
                 } else {
-                    pGroupTable = *(s32 **)((u8 *)pSource->pBuffer + 4);
+                    pGroupTable = ((BattleActorBuffer *)(u32)pSource->pBuffer)->pTailTable;
                     pActor->actionValue = pGroupTable[arg3 - 0x4E];
                 }
                 n = g_BattleCommandActorMask;
@@ -417,8 +425,6 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
     }
 }
 void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pCommand, s32 arg2) {
-    u8 *p;
-
     if (pCommand->pointCount != 0) {
         pActor->stepIndex = 0;
         if (arg2 != 0) {
@@ -428,9 +434,8 @@ void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pComman
         }
         pActor->pointIndex = 0;
         pActor->pointCount = pCommand->pointCount;
-        p = (u8 *)pCommand + pCommand->pointListOffset;
-        pActor->pPointCursor = (mem_addr)p;
-        pActor->pPointList = (mem_addr)p;
+        pActor->pPointCursor = (mem_addr)pCommand + pCommand->pointListOffset;
+        pActor->pPointList = pActor->pPointCursor;
     } else {
         pActor->stepIndex = -1;
     }
