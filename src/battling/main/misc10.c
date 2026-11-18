@@ -12,6 +12,22 @@
 // g_BattleControlFlags bit 0: set while the player, not the COM, drives both sides.
 #define BATTLE_CONTROL_FLAG_USER 0x1
 
+// The archive directory an actor's entry is loaded from below, the value
+// src/battling/main/misc12.c's BattleInitGraphics selects too;
+// include/system/archive.h's ARCHIVE_DIR_* list stops at 0x2C.
+#define BATTLE_ARCHIVE_DIRECTORY_INDEX 0x30
+
+// Quarter and three-quarter turn of the 12-bit angle rcos/rsin work in, the space
+// src/battling/main/misc4.c and misc3.c name (BATTLE_ANGLE_QUARTER_TURN,
+// BATTLE_ANGLE_HALF_TURN).
+#define BATTLE_ANGLE_QUARTER_TURN 0x400
+#define BATTLE_ANGLE_THREE_QUARTER_TURN 0xC00
+
+// The fill lengths, in bar pixels, at which the gauge bar's first segment
+// (barPrim[0]) and its tapered second segment (barPrim[1] at pBase+0x18) are full.
+#define BATTLE_GAUGE_BAR_SEGMENT1_END 56
+#define BATTLE_GAUGE_BAR_SEGMENT2_END 72
+
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
 extern s16 g_BattleEffectFrameTimer;
@@ -404,9 +420,9 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     BattleSetNodeModelPart(pDraw, pBuf);
     BattleAttachModelPart(pBuf, g_BattleRotatedPartModel);
     BattleAppendListEntry(pPartList, pDraw);
-    pDraw->rotY = 0xC00;
+    pDraw->rotY = BATTLE_ANGLE_THREE_QUARTER_TURN;
     pDraw->rotX = 0;
-    pDraw->rotZ = 0x400;
+    pDraw->rotZ = BATTLE_ANGLE_QUARTER_TURN;
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
@@ -577,9 +593,9 @@ void BattleLoadSlotEntry(s32 index, s32 value) {
         HeapFree(g_BattleSlotEntryBuffers[index]);
         g_BattleSlotEntryBuffers[index] = NULL;
     }
-    ArchiveSetIndex(0x30, 1);
+    ArchiveSetIndex(BATTLE_ARCHIVE_DIRECTORY_INDEX, 1);
     g_BattleSlotEntryBuffers[index] = BattleLoadArchiveEntry(value + 2);
-    ArchiveSetIndex(0x30, 0);
+    ArchiveSetIndex(BATTLE_ARCHIVE_DIRECTORY_INDEX, 0);
 }
 
 void BattleFreeSlotEntry(s32 index) {
@@ -1041,8 +1057,8 @@ void BattleQueueGaugeBarPrims(u8* pOt, u8* pBase, s32 value, s32 flag) {
     u16* pTaper;
     s32 edge;
 
-    if (value >= 0x38) {
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), 0x38);
+    if (value >= BATTLE_GAUGE_BAR_SEGMENT1_END) {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), BATTLE_GAUGE_BAR_SEGMENT1_END);
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), 0x34);
         AddPrim(pOt, pBase);
     } else {
@@ -1051,8 +1067,8 @@ void BattleQueueGaugeBarPrims(u8* pOt, u8* pBase, s32 value, s32 flag) {
         AddPrim(pOt, pBase);
         return;
     }
-    if (value >= 0x48) {
-        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), 0x48);
+    if (value >= BATTLE_GAUGE_BAR_SEGMENT2_END) {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), BATTLE_GAUGE_BAR_SEGMENT2_END);
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C), 0x40);
         BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), 0x10);
         AddPrim(pOt, pBase + 0x18);
@@ -1060,8 +1076,8 @@ void BattleQueueGaugeBarPrims(u8* pOt, u8* pBase, s32 value, s32 flag) {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
         pTaper = (u16*)(pBase + 0x2C);
         edge = value - 4;
-        BattleSetVertexXForFlipped(flag, pTaper, edge - (value - 0x38) / 4);
-        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), (value - 0x38) / 2 + 8);
+        BattleSetVertexXForFlipped(flag, pTaper, edge - (value - BATTLE_GAUGE_BAR_SEGMENT1_END) / 4);
+        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), (value - BATTLE_GAUGE_BAR_SEGMENT1_END) / 2 + 8);
         AddPrim(pOt, pBase + 0x18);
         return;
     }
