@@ -1050,5 +1050,10 @@ void BattleApplyImageTaskTint(WorkListEntry *pEntry) {
 }
 
 
+// Switches the stack into its HeapAlloc block around func_800A5EB4 (sw $sp,0($t0),
+// then sp = the block; the old sp read back with lw $sp,0($sp)); no C statement
+// emits it.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3CD4);
+// Same alternate-stack idiom: HeapAlloc 0x1000, sp moved to the block at +0xEFC,
+// the three MoveImage calls made on it, then sp read back out of the block.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3E04);
