@@ -6,6 +6,16 @@
 #include "system/controller.h"
 #include "system/menu.h"
 
+// Size of the selection menu's framebuffer rect; MenuRenderFrame copies it to the other
+// display buffer one MENU_SCREEN_HEIGHT further down in VRAM.
+#define MENU_SCREEN_WIDTH 320
+#define MENU_SCREEN_HEIGHT 224
+// MenuUnk2 records[]/chunks[] and the card slot arrays hold this many entries per memory
+// card, so a card's entries start at index * MENU_CARD_RECORD_COUNT.
+#define MENU_CARD_RECORD_COUNT 16
+// Frames a card operation is given to settle, counted in frames or in vsyncs.
+#define MENU_CARD_OPERATION_WAIT_FRAMES 59
+
 extern u16 g_MenuBitMasksLsbFirst[]; // Bit masks, LSB first
 extern u16 g_MenuBitMasksMsbFirst[]; // Bit masks, MSB first
 extern u32 g_MenuBitMasksLsbFirst32[];
@@ -55,8 +65,8 @@ void func_801C6F70(void);
 void MenuSetupScreen(void) {
     g_Menu->pSelectionMenu->vramRect.x = 0x2C0;
     g_Menu->pSelectionMenu->vramRect.y = 0x100;
-    g_Menu->pSelectionMenu->vramRect.w = 0x140;
-    g_Menu->pSelectionMenu->vramRect.h = 0xE0;
+    g_Menu->pSelectionMenu->vramRect.w = MENU_SCREEN_WIDTH;
+    g_Menu->pSelectionMenu->vramRect.h = MENU_SCREEN_HEIGHT;
     g_Menu->pCursorPrims->shadeWidth = 0x40;
     func_801C6AA0();
     MenuResetRenderContext();
@@ -108,7 +118,7 @@ void MenuRenderFrame(void) {
     Vsync(0);
     PutDrawEnv(&g_Menu->pGfxEnv->drawEnv);
     PutDispEnv(&g_Menu->pGfxEnv->dispEnv);
-    MoveImage(&g_Menu->pSelectionMenu->vramRect, 0, renderContext * 0xE0);
+    MoveImage(&g_Menu->pSelectionMenu->vramRect, 0, renderContext * MENU_SCREEN_HEIGHT);
     DrawOTag(&g_Menu->pGfxEnv->ot[0xF]);
     MenuUpdateCardStatus();
     MenuRunCardSlotOperations();
@@ -145,32 +155,32 @@ void MenuPollInput(void) {
     } else {
         while (ControllerPopState()) {
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_RIGHT) {
-                input = 0;
+                input = MENU_INPUT_RIGHT;
                 MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) {
-                input = 1;
+                input = MENU_INPUT_DOWN;
                 MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_LEFT) {
-                input = 2;
+                input = MENU_INPUT_LEFT;
                 MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_UP) {
-                input = 3;
+                input = MENU_INPUT_UP;
                 MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
-                input = 4;
-                MenuPlaySoundEffect(2);
+                input = MENU_INPUT_CONFIRM;
+                MenuPlaySoundEffect(MENU_SOUND_CONFIRM);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_CROSS) {
-                input = 5;
+                input = MENU_INPUT_BACK;
                 MenuPlaySoundEffect(3);
                 break;
             }
@@ -183,12 +193,12 @@ void MenuPollInput(void) {
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_L1) {
-                input = 10;
+                input = MENU_INPUT_PREV;
                 MenuPlaySoundEffect(1);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_R1) {
-                input = 9;
+                input = MENU_INPUT_NEXT;
                 MenuPlaySoundEffect(1);
                 break;
             }
@@ -220,20 +230,20 @@ void MenuParseNumberToDigits(u32 number) {
     u32 divisor;
 
     divisor = 100000000;
-    for (i = 0; i < 9; i++) {
+    for (i = 0; i < MENU_MAX_DIGITS; i++) {
         g_Menu->digits[i] = number / divisor;
         number %= divisor;
         divisor /= 10;
     }
 
-    for (i = 1; i < 9; i++) {
+    for (i = 1; i < MENU_MAX_DIGITS; i++) {
         if (g_Menu->digits[i]) {
             if (g_Menu->digits[i - 1] == 0) {
-                g_Menu->digits[i - 1] = 0xFF;
+                g_Menu->digits[i - 1] = MENU_DIGIT_NONE;
             }
             break;
         }
-        g_Menu->digits[i - 1] = 0xFF;
+        g_Menu->digits[i - 1] = MENU_DIGIT_NONE;
     }
 }
 void MenuSetPolyG4Gradient(POLY_G4* pPoly, u_char r, u_char g, u_char b) {
@@ -412,7 +422,7 @@ void MenuWaitForDiscChange(u8 index) {
             if (func_801E93A0(index + 1)) {
                 MenuFreeWindow2Strings();
                 func_801D2F4C(0x89);
-                for (counter = 0x1D; counter != 0; counter--) {
+                for (counter = 29; counter != 0; counter--) {
                     MenuRenderFrame();
                 }
                 MenuFreeWindow2Strings();
@@ -484,10 +494,10 @@ s32 MenuCheckCardSlot(u8 index) {
         ((u8*)g_Menu->menuUnk2 + index)[0x4F8A] = 0;
         g_Menu->menuUnk2->cardStatus[index] = 0;
         g_MenuCardSlotTotals[index] = 0;
-        for (i = 0; i < 0x10; i++) {
-            ((u8*)g_Menu->menuUnk2 + (index * 0x10 + i))[0x4FAE] = 0xFF;
-            ((u8*)g_Menu->menuUnk2 + (index * 0x10 + i))[0x4F8E] = 0;
-            g_Menu->menuUnk2->records[index * 0x10 + i].unk58 = 0;
+        for (i = 0; i < MENU_CARD_RECORD_COUNT; i++) {
+            ((u8*)g_Menu->menuUnk2 + (index * MENU_CARD_RECORD_COUNT + i))[0x4FAE] = MENU_SLOT_NONE;
+            ((u8*)g_Menu->menuUnk2 + (index * MENU_CARD_RECORD_COUNT + i))[0x4F8E] = 0;
+            g_Menu->menuUnk2->records[index * MENU_CARD_RECORD_COUNT + i].unk58 = 0;
         }
     }
     if (cardResult == -2) {
@@ -519,7 +529,7 @@ void MenuWaitCardOperationFrames(u8 index) {
 
     if (g_Menu->menuUnk2->cardErrorCodes[index] != -2) {
         g_Menu->menuUnk2->cardPollMode = 2;
-        for (i = 0x3B; i != 0; i--) {
+        for (i = MENU_CARD_OPERATION_WAIT_FRAMES; i != 0; i--) {
             MenuRenderFrame();
         }
         g_Menu->menuUnk2->cardPollMode = 0;
@@ -529,7 +539,7 @@ void MenuWaitCardOperationVsyncs(u8 index) {
     s32 i;
 
     if (g_Menu->menuUnk2->cardErrorCodes[index] != -2) {
-        for (i = 0x3B; i != 0; i--) {
+        for (i = MENU_CARD_OPERATION_WAIT_FRAMES; i != 0; i--) {
             Vsync(0);
         }
     }
