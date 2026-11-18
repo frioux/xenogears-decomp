@@ -60,7 +60,9 @@ typedef struct {
     /* 0x32 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, see the 0x7E block
     /* 0x34 */ u8 unk34[0x10];
     // Two 32-bit numbers the menu window draws wide (up to 8 digits) with
-    // MenuParseNumberToDigits.
+    // MenuParseNumberToDigits, in both the character and the gear window. BattleInitActiveSlotActions
+    // (func_80098D2C) is the only function in the program that writes them: one case of its jump table
+    // stores 1 into both.
     /* 0x44 */ s32 unk44;
     /* 0x48 */ s32 unk48;
     /* 0x4C */ u_short hp;
@@ -78,12 +80,12 @@ typedef struct {
     /* 0x5A */ u_char agility;
     /* 0x5B */ u_char ether;
     /* 0x5C */ u_char etherDefense;
-    /* 0x5D */ undefined8 field_0x5D;
+    /* 0x5D */ undefined8 unk5D;
     /* 0x5E */ u_char hitPercentage;
     /* 0x5F */ u_char evadePercentage;
-    /* 0x60 */ undefined16 field_0x60;
+    /* 0x60 */ undefined16 unk60;
     /* 0x62 */ u_char level;
-    /* 0x63 */ undefined8 unk63; // drawn as a 3-digit number beside the level digits, see MenuSetCharacterLevelDigits; nothing matched writes it
+    /* 0x63 */ undefined8 unk63; // drawn as a 3-digit number beside the level digits into the same g_Menu->digits[6..8] slots (green in the member change menu), see MenuSetCharacterLevelDigits; nothing in the program writes it
     /* 0x64 */ undefined8 unk64[0x6];
     /* 0x6A */ undefined8 weaponId[0x5];
     /* 0x6F */ undefined8 extraWeaponIds[0x5]; // Billy's four guns are summed, so all four slots are weapons
@@ -110,7 +112,7 @@ typedef struct {
     /* 0x8A */ u16 accessoryEffectFlags4;
     /* 0x8C */ u16 activeEffectFlags7;
     /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's unk3 reads 0x64
-    /* 0x90 */ u8 unk90[0x10]; // a u16[8] (7 entries read) the dressing room weighs against a per-character table to make a percentage, see the parked func_801E1418 in menu/main/misc10
+    /* 0x90 */ u8 unk90[0x10]; // a u16[8] (7 entries read) the dressing room weighs against a per-character table to make a percentage, see the parked func_801E1418 in menu/main/misc10; BattleInitActiveSlotActions adds 10 to each of the first seven at battle init
     /* 0xA0 */ u_char gearId;
     /* 0xA1 */ u8 accessoryEffectFlags10; // the type-10 accessory flag word, summed not OR'ed, see MenuApplyEquippedItemBonuses
     /* 0xA2 */ undefined8 unkA2[0x2];
@@ -264,7 +266,7 @@ typedef struct {
     // and WorldMapInitializePlayerSlot reads back when the map is entered again.
     /* 0x1838 */ u16 pad1838[2];
     /* 0x183C */ u16 savedGearRide[MAX_PARTY_MEMBERS]; // g_GameState.gearRide[] saved while a mode-4 map runs, compared back by WorldMapSyncGearRideActors
-    /* 0x1842 */ u16 unk1842; // toggled by a SELECT press; while 0, WorldMapMainLoop calls func_800740B8
+    /* 0x1842 */ u16 unk1842; // toggled by a SELECT press; while 0, WorldMapMainLoop calls func_800740B8, which draws the map's tile layer
     /* 0x1844 */ u16 playerMapPosX; // the player actor's WorldMapPlayer.x in map units, saved across a map change
     /* 0x1846 */ u16 playerMapPosZ;
     /* 0x1848 */ u16 playerTileIndex; // WorldMapPlayer.unk50, the index into the tile coordinate tables, saved with them
@@ -284,6 +286,8 @@ typedef struct {
     /* 0x1856 */ undefined16 unk1856;
     /* 0x1858 */ undefined8 unk1858[0xCC];
     /* 0x1924 */ u_int gold;
+    // Nothing reads these eight bytes. The one access to them in the C, `*(s16*)&g_pGameState->unk1928[0xA]`
+    // (field/main/misc11.c), indexes past the end of it and is really fieldScriptMemory[1].
     /* 0x1928 */ undefined8 unk1928[0x8];
     /* 0x1930 */ u16 fieldScriptMemory[0x200]; // saved copy of g_FieldScriptMemory, see FieldScriptSyncMemoryWithGameState
     /* 0x1D30 */ undefined16 characterFlags;
@@ -303,9 +307,15 @@ typedef struct {
     /* 0x2120 */ undefined8 gearWeaponsIds[0x64];
     /* 0x2184 */ undefined8 gearPartsQty[0x96];
     /* 0x221A */ undefined8 gearPartsIds[0x96];
+    // WorldMapUpdateActorSlot indexes `((u8*)&g_GameState.unk22B0)[index]` for index 0..2, a 3-byte
+    // per-actor array over 0x22B0..0x22B2, so it overlaps gearRide[0..2] one byte off; nothing else
+    // in the program touches this byte.
     /* 0x22B0 */ undefined8 unk22B0;
     /* 0x22B1 */ undefined8 gearRide[MAX_PARTY_MEMBERS];
     /* 0x22B4 */ undefined8 unk22B4[0x2];
+    // The word at 0x22B6 is also the base of the 0x64-byte per-gear-weapon array the battle's gear-part
+    // countdown indexes (`((u8*)&g_GameState.unk22B6)[weaponId]`, src/battle/main/misc20.c), and
+    // `((u16*)&g_GameState.unk22B6)[0x31]` is the party bitmask at 0x2318 (FieldScriptSetCharacterBit2318).
     /* 0x22B6 */ undefined16 unk22B6;
     /* 0x22B8 */ undefined8 unk22B8[0x62];
     /* 0x231A */ u16 mapNum;
