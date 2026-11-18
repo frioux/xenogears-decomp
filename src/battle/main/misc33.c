@@ -52,13 +52,14 @@ typedef struct {
     /* 0x08 */ void (*pUpdate)(); // the state machine's body; the frame loop calls through it
     /* 0x0C */ u8 unkC[0x10];
     /* 0x1C */ s32 stateStep;
-    /* 0x20 */ u8 unk20[0x4];
+    /* 0x20 */ s32 initialActorIndex; // saved at battle start; the init hands it to BattleSetCurrentActorSprite again
     /* 0x24 */ s32 actorIndex;
     /* 0x28 */ u32 partKey;
     /* 0x2C */ s32 pathIndex; // cursor into the target-position list at g_BattleStateWork + 0xA3C
     /* 0x30 */ s32 unk30;
     /* 0x34 */ s32 timer; // BattleIncrementStateTimer raises it, func_800B9F78 counts it down once a frame
-    /* 0x38 */ u8 unk38[0xC];
+    /* 0x38 */ u8 unk38[0x8];
+    /* 0x40 */ s32 savedActorSlot; // the slot BattleLoadActorSlotAnimation reloads when the battle ends
     /* 0x44 */ s32 targetDistance; // measured by BattleFaceTargetAndMeasureDistance
     /* 0x48 */ u8 actionDone; // set when the current step's action has finished; state 4 waits on it
     /* 0x49 */ u8 pendingStep; // stateStep copied by BattleApplyStateStep, run once and cleared
@@ -121,7 +122,10 @@ typedef struct {
     /* 0x05 */ u8 v;
     /* 0x06 */ u8 width;
     /* 0x07 */ u8 height;
-    /* 0x08 */ u8 unk8[0x10];
+    /* 0x08 */ u8 unk8[0x2];
+    /* 0x0A */ u16 texPage; // the texture page func_800BD810 copies into the primitive's tpage
+    /* 0x0C */ u16 clutID; // and the clut id it copies into the primitive's clut
+    /* 0x0E */ u8 unkE[0xA];
 } BattleSpritePart; // Size: 0x18
 
 // What WorkListsAddTasks allocates for the fade-out task (0x130 bytes) and what
@@ -420,7 +424,7 @@ typedef struct {
     /* 0x00 */ u16 cur;
     /* 0x02 */ u16 pressed;
     /* 0x04 */ u16 released;
-    /* 0x06 */ u16 unk6;
+    /* 0x06 */ u16 vsyncCount; // D_800D30E4, the vsync counter func_800BE790 records
 } BattlePadFrame; // Size: 0x8
 
 typedef struct {
@@ -482,7 +486,7 @@ void BattleUpdatePadState(void) {
     pState->history[0].cur = pState->cur[0];
     pState->history[0].pressed = pState->pressed[0];
     pState->history[0].released = pState->released[0];
-    pState->history[0].unk6 = D_800D30E4;
+    pState->history[0].vsyncCount = D_800D30E4;
 }
 
 void BattleResetStateGlobals(void) {
