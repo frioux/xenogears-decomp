@@ -28,8 +28,6 @@
 // The archive directories a script's WDS sound bank is read from: the field's own, and
 // the second one a bank argument's high bit selects (battle reads its sound archive
 // through that same directory).
-#define FIELD_WDS_ARCHIVE_DIR 0x1C
-#define FIELD_ALT_WDS_ARCHIVE_DIR 0x2C
 
 // That high bit of a WDS bank argument; the bits below it are the bank index.
 #define FIELD_WDS_BANK_ALT_ARCHIVE_MASK 0x80
@@ -1371,13 +1369,13 @@ void FieldScriptLoadWdsSoundFile(void) {
             g_FieldWdsLoadEntryIndex = flags;
             if (!(flags & FIELD_WDS_BANK_ALT_ARCHIVE_MASK)) {
 setIndex1C:
-                ArchiveSetIndex(FIELD_WDS_ARCHIVE_DIR, 0);
+                ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
                 g_FieldWdsLoadEntryIndex += 2;
                 goto readFile;
             }
             if (g_FieldSuppressStateChange != 1) {
                 g_FieldWdsLoadEntryIndex = (flags & 0x7F) + 0x1F;
-                ArchiveSetIndex(FIELD_ALT_WDS_ARCHIVE_DIR, 1);
+                ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
                 goto readFile;
             }
             g_FieldWdsLoadEntryIndex = 4;

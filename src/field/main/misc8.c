@@ -932,7 +932,7 @@ void func_80085788(void) {
         return;
     }
     SoundStopAllElements();
-    ArchiveSetIndex(0x1C, 0);
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
     pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(streamId + 0x115), 1);
     g_FieldSedsFile = pSoundFile;
     ArchiveReadFileToBuffer(streamId + 0x115, pSoundFile, 0, 0x80);
@@ -1045,7 +1045,7 @@ void FieldStartWdsBankLoad(int arg0) {
         g_GameWdsBankLoadState = 0;
         return;
     }
-    ArchiveSetIndex(0x1C, 0);
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
     if (D_800ADFCD[arg0 * 2] == 1) {
         FieldReleaseWdsEntry();
     }
@@ -1122,7 +1122,7 @@ int FieldUpdateWdsAndAudioLoad(s32 arg0) {
     }
     if (g_FieldWdsBankLoadQueued == 1) {
         if (g_GameLoadedWdsBankIndex != arg0) {
-            ArchiveSetIndex(0x1C, 0);
+            ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
             ArchiveReadFileToBuffer(arg0 * 2 + 0x14, g_SoundBankLoadBuffer, 0, 0x80);
             g_GameWdsBankHeaderReadPending = 1;
             ArchiveSetIndex(4, 0);
@@ -1193,7 +1193,7 @@ int FieldFinishWdsFileLoad(void) {
 void FieldBeginWdsFileLoad(void) {
     void* pWdsFileBuffer;
 
-    ArchiveSetIndex(0x1C, 0x0);
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
     pWdsFileBuffer = HeapAlloc(ArchiveDecodeAlignedSize(3), 1);
     g_FieldWdsFileBuffer = pWdsFileBuffer;
     ArchiveReadFileToBuffer(3, pWdsFileBuffer, 0, CdlModeSpeed);

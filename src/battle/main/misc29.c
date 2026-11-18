@@ -163,7 +163,7 @@ void func_800B838C(s32 arg0, s32 arg1) {
 
     func_800C0F70();
     BattleWaitArchiveSync();
-    ArchiveSetIndex(0x2C, 1);
+    ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
 
     pTable = D_800C35DC;
     pEntry = &pTable[arg0];
