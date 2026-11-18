@@ -27,10 +27,18 @@
 #define FIELD_SCREEN_CENTER_X (SCREEN_WIDTH / 2)
 #define FIELD_SCREEN_CENTER_Y (SCREEN_HEIGHT / 2)
 
+// Angles are a 4096-step turn counter; every sum of angles is wrapped back
+// into it
+#define FIELD_ANGLE_MASK 0xFFF
+
 // Particle primitive grid, one 16x16 tile per entry, indexed i *
 // FIELD_PARTICLE_GRID_COLUMNS + j
 #define FIELD_PARTICLE_GRID_ROWS 14
 #define FIELD_PARTICLE_GRID_COLUMNS 20
+
+// Bytes from the first primitive of one render context's copy of the grid to
+// the first primitive of the next copy
+#define FIELD_PARTICLE_POLY_COPY_SIZE (FIELD_PARTICLE_GRID_ROWS * FIELD_PARTICLE_GRID_COLUMNS * sizeof(POLY_GT4))
 
 // How much a particle corner's fade timer drops each frame it stays inside
 // g_FieldParticleFadeDistance of the screen centre
@@ -416,9 +424,9 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
         pPoly->x1 = FIELD_ZOOM_FADE_TILE_WIDTH + i * FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->y1 = 0;
         pPoly->x2 = i * FIELD_ZOOM_FADE_TILE_WIDTH;
-        pPoly->y2 = 0xDF;
+        pPoly->y2 = SCREEN_HEIGHT - 1;
         pPoly->x3 = FIELD_ZOOM_FADE_TILE_WIDTH + i * FIELD_ZOOM_FADE_TILE_WIDTH;
-        pPoly->y3 = 0xDF;
+        pPoly->y3 = SCREEN_HEIGHT - 1;
 
         setRECT(&g_FieldZoomFadeEffect.rects[i * 2], 0, 0, 0xFF, 0xFF);
         setRECT(&g_FieldZoomFadeEffect.rects[i * 2 + 1], 0, 0, 0xFF, 0xFF);
@@ -438,9 +446,9 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
         pPoly->u1 = FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->v1 = 0;
         pPoly->u2 = 0;
-        pPoly->v2 = 0xDF;
+        pPoly->v2 = SCREEN_HEIGHT - 1;
         pPoly->u3 = FIELD_ZOOM_FADE_TILE_WIDTH;
-        pPoly->v3 = 0xDF;
+        pPoly->v3 = SCREEN_HEIGHT - 1;
         pPoly->tpage = GetTPage(0x2, nABR, FIELD_SCREEN_VRAM_X + i * FIELD_ZOOM_FADE_TILE_WIDTH, FIELD_SCREEN_VRAM_Y);
         *pPolyNext = *pPoly;
     }
@@ -549,13 +557,13 @@ void FieldAddParticlePrims(void) {
 
     for (i = 0; i < FIELD_PARTICLE_GRID_ROWS; i++) {
         for (j = 0; j < FIELD_PARTICLE_GRID_COLUMNS; j++) {
-            pPoly = (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * FIELD_PARTICLE_GRID_COLUMNS + j);
+            pPoly = (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * FIELD_PARTICLE_POLY_COPY_SIZE) + (i * FIELD_PARTICLE_GRID_COLUMNS + j);
             FieldFadeParticleCornerColor(pPoly, 0, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk71C0 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
             FieldFadeParticleCornerColor(pPoly, 1, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk73F0 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
             FieldFadeParticleCornerColor(pPoly, 2, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7620 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
             FieldFadeParticleCornerColor(pPoly, 3, g_FieldParticleFadeDistance, ((FieldParticlePrimitiveSet*)g_FieldParticlePrimitives)->unk7850 + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
             addPrim(&g_FieldCurRenderContext->ot3[0],
-                (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * 0x38E0) + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
+                (POLY_GT4*)((u_char*)g_FieldParticlePrimitives + g_FieldCurRenderContextIndex * FIELD_PARTICLE_POLY_COPY_SIZE) + (i * FIELD_PARTICLE_GRID_COLUMNS + j));
         }
     }
     addPrim(&g_FieldCurRenderContext->ot3[0],
@@ -724,7 +732,7 @@ void FieldPlayStreamedSequence(void) {
             nMode = 3;
         }
         func_801D37CC(g_FieldStreamFileIndex + 2, D_800C3A2A, g_FieldStreamFrameBase, g_FieldStreamTotalFrames, 1, nMode,
-            g_FieldStreamLoopPlayback, g_FieldStreamImageX1, g_FieldStreamImageY1, g_FieldStreamImageX2, g_FieldStreamImageY2, 0xE0, FieldSelectStreamRenderContext);
+            g_FieldStreamLoopPlayback, g_FieldStreamImageX1, g_FieldStreamImageY1, g_FieldStreamImageX2, g_FieldStreamImageY2, SCREEN_HEIGHT, FieldSelectStreamRenderContext);
         ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     }
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
@@ -1345,32 +1353,32 @@ void FieldUpdateSpriteSheetPrims(void) {
                        FieldGetVec2Magnitude((g_CameraAt.vx - g_CameraEye.vx) >> 16,
                            (g_CameraAt.vz - g_CameraEye.vz) >> 16),
                        (g_CameraAt.vy - g_CameraEye.vy) >> 16) &
-        0xFFF;
-    nInterpAngle = g_CamInterpolation.curAngleY & 0xFFF;
+        FIELD_ANGLE_MASK;
+    nInterpAngle = g_CamInterpolation.curAngleY & FIELD_ANGLE_MASK;
 
-    for (i = 0; i < 0x10; i++) {
+    for (i = 0; i < 16; i++) {
         FieldSetSpriteUVs(i, (nInterpAngle >> 4) & 0xF, 0);
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
-    for (; i < 0x1D; i++) {
+    for (; i < 29; i++) {
         FieldSetSpriteUVs(i, 0, (nCameraAngle >> 4) & 0xF);
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
-    for (; i < 0x22; i++) {
+    for (; i < 34; i++) {
         FieldSetSpriteUVs(i, (nInterpAngle & 0xF) << 3, 0);
         nInterpAngle >>= 2;
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
-    for (; i < 0x27; i++) {
+    for (; i < 39; i++) {
         FieldSetSpriteUVs(i, (nCameraAngle & 0xF) << 3, 0);
         nCameraAngle >>= 2;
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
-    for (; i < 0x28; i++) {
+    for (; i < 40; i++) {
         if ((g_FieldSpriteAnimFrame & 0xF) == 0) {
             g_FieldSpritePaletteRow++;
         }
@@ -1381,12 +1389,12 @@ void FieldUpdateSpriteSheetPrims(void) {
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
-    for (; i < 0x2A; i++) {
+    for (; i < 42; i++) {
         FieldSetSpriteUVs(i, (g_FieldSpriteAnimFrame >> 2) & 0xF, 0);
         addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
             &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
     }
-    for (; i < 0x2B; i++) {
+    for (; i < 43; i++) {
         if (!(g_FieldSpriteAnimFrame & 0x10)) {
             addPrim(&g_FieldCurRenderContext->ot3[FIELD_SPRITE_POLY_OT_INDEX],
                 &g_FieldSpritePolys[g_FieldCurRenderContextIndex][i]);
