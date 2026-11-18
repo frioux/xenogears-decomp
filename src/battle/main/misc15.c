@@ -82,7 +82,7 @@ extern u16 g_BattleActionParam;
 extern u8 g_BattleSlotFlags[];
 extern u16 g_BattleTargetSlotMask;
 extern u8 g_BattleTargetSlot;
-extern u8 D_800CDD40[];
+extern u8 g_BattleCellActionRows[];
 extern u8 D_800CCD38[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_BattleActionRows[];
@@ -229,7 +229,7 @@ void func_8008ADD0(u8 arg0) {
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x17;
         off = (g_BattleCommandQueue->commandId + 0x16) * 40 + arg0 * 1520;
-        sel = *(u16 *)(D_800CDD40 + off) & 7;
+        sel = *(u16 *)(g_BattleCellActionRows + off) & 7;
     } else {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x16;
         off = (g_BattleCommandQueue->commandId + 0x15) * 40 + arg0 * 1680;
@@ -325,8 +325,8 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     inParty = 0;
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         off = (arg2 * 2 + arg1 + 0x16) * 40 + arg0 * 1520;
-        entry = *(u16 *)(D_800CDD40 + off);
-        count = *(u8 *)(D_800CDD40 + off + 0x13);
+        entry = *(u16 *)(g_BattleCellActionRows + off);
+        count = *(u8 *)(g_BattleCellActionRows + off + 0x13);
         inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk6, arg1 + arg2 * 2) != 0;
     } else {
         off = (arg2 * 2 + arg1 + 0x15) * 40 + arg0 * 1680;
