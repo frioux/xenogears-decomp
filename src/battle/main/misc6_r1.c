@@ -1,35 +1,33 @@
 #include "common.h"
 
-extern u8 D_800D3420[];
-extern u8 D_800D3430[];
+// One slot of the per-slot operator register block at g_BattleSlotRegs, seen from
+// its word registers (+0x20 there, stride 0x40): the command's first operand byte
+// picks the register and its two-byte immediate is the value applied to it.
+// Declared from this bank because the original addresses 0x800D3420 itself;
+// writing g_BattleSlotRegs[index].wordRegs moves the +0x20 into the load and
+// loses the match.
+typedef struct {
+    /* 0x00 */ u16 wordRegs[8];
+    /* 0x10 */ u8 unk10[0x30]; // the slot's byte registers, then the next slot's head
+} BattleSlotWordRegs; // Size: 0x40
 
-// 100.0% under gcc 2.7.2-cdk, 97.x under this unit's 2.7.2: the whole run of
-// three functions (AD6C, ADB0, ADF4) wants a cdk TU. Splitting it needs
-// tools/scripts/split_unit.py, whose chunking still cuts park blocks - finish that
-// first (see reports/TRACKER.md, session 7).
+extern BattleSlotWordRegs D_800D3420[];
+
 void BattleWordRegAndImm(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pWordRegs = D_800D3420[index].wordRegs;
     u8 *pArgs = *p;
 
-    pField[pArgs[1]] &= pArgs[2] + (pArgs[3] << 8);
+    pWordRegs[pArgs[1]] &= pArgs[2] + (pArgs[3] << 8);
 }
-// 100.0% under gcc 2.7.2-cdk, 97.x under this unit's 2.7.2: the whole run of
-// three functions (AD6C, ADB0, ADF4) wants a cdk TU. Splitting it needs
-// tools/scripts/split_unit.py, whose chunking still cuts park blocks - finish that
-// first (see reports/TRACKER.md, session 7).
 void BattleWordRegOrImm(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pWordRegs = D_800D3420[index].wordRegs;
     u8 *pArgs = *p;
 
-    pField[pArgs[1]] |= pArgs[2] + (pArgs[3] << 8);
+    pWordRegs[pArgs[1]] |= pArgs[2] + (pArgs[3] << 8);
 }
-// 100.0% under gcc 2.7.2-cdk, 97.x under this unit's 2.7.2: the whole run of
-// three functions (AD6C, ADB0, ADF4) wants a cdk TU. Splitting it needs
-// tools/scripts/split_unit.py, whose chunking still cuts park blocks - finish that
-// first (see reports/TRACKER.md, session 7).
 void BattleWordRegXorImm(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pWordRegs = D_800D3420[index].wordRegs;
     u8 *pArgs = *p;
 
-    pField[pArgs[1]] ^= pArgs[2] + (pArgs[3] << 8);
+    pWordRegs[pArgs[1]] ^= pArgs[2] + (pArgs[3] << 8);
 }
