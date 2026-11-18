@@ -119,10 +119,12 @@ extern s32 func_80082488(VECTOR* pVec, s32 mode);
 // The battling overlay's battle state (g_BattleActor1): the anchor position every
 // effect vector is placed against, the model index and gauge words at +0x4C..+0xB6
 // (the same record src/battling/main/misc3 and misc4 name), and the frame flags
-// the effect cells below are switched on through.
+// the effect cells below are switched on through. Its position is a VECTOR, not
+// the 0xC-byte BattleAnchor: three sites copy 16 bytes out of it, and the
+// g_BattleActor0 it is copied against is a VECTOR.
 typedef struct {
-    /* 0x000 */ BattleAnchor position;
-    /* 0x00C */ u8 unkC[0x40];
+    /* 0x000 */ VECTOR position;
+    /* 0x010 */ u8 unk10[0x3C];
     /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 unk4D[0x2];
     /* 0x04F */ u8 animSpeed;
@@ -159,10 +161,10 @@ void BattlePlaceEffectByMode(s32 mode) {
 
     switch (mode) {
     case 0:
-        func_80083738((VECTOR*)&g_BattleActor1, &g_BattleActor0);
+        func_80083738(&g_BattleActor1.position, &g_BattleActor0);
         break;
     case 1:
-        vec = *(VECTOR*)&g_BattleActor1;
+        vec = g_BattleActor1.position;
         goto place_message;
     case 2:
         vec = g_BattleActor0;
@@ -189,7 +191,7 @@ void BattlePlaceEffectByMode(s32 mode) {
         pVec = &vec;
         vec.vy += g_BattleEffectPlaceYOffset;
         func_80070808(pVec, 0x10);
-        vec.vx = g_BattleActor1.position.x + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
+        vec.vx = g_BattleActor1.position.vx + ((rcos(D_80098780 + 0xA80) * 0xD0) >> 12);
         y = g_BattleSceneOriginYMirror - 0x20;
         vec.vy = y - g_BattleEffectPlaceYOffset;
         vec.vz = g_BattleSceneOriginZ + ((rsin(D_80098780 + 0xA80) * 0xD0) >> 12);
@@ -224,7 +226,7 @@ void BattleRecenterViewPositions(s32 mode) {
     VECTOR camera;
     VECTOR offset;
 
-    anchor = *(VECTOR*)&g_BattleActor1;
+    anchor = g_BattleActor1.position;
     actor = g_BattleActor0;
     camera = g_BattleCameraPos;
     offset = anchor;
@@ -277,7 +279,7 @@ void BattleRecenterViewPositions(s32 mode) {
     anchor.vy = 0;
     actor.vy = 0;
     camera.vy = -0x300;
-    *(VECTOR*)&g_BattleActor1 = anchor;
+    g_BattleActor1.position = anchor;
     g_BattleActor0 = actor;
     g_BattleCameraPos = camera;
     BattleClearSpriteTables();
@@ -686,12 +688,15 @@ extern void BattlePlaceEffectByMode(s32 mode);
    lets gcc address the cells through it and drops retail's repeated
    'lui $at/%hi + addu $at,$at,offset' stores) and a byte offset rather than an
    index (an indexed access gives loop.c a second induction pointer, +2 insns).
+   The three placement stores keep their casts for the same reason: one
+   BattleEffectEmitter element pointer for the cluster measures 95.96% at 1060
+   bytes, 20 short, because retail re-forms the address from the symbol per store.
 */
 
 void BattleStepDisplayState(void) {
     BattleState* pState;
     BattleMessageWindow* pMsg;
-    BattleAnchor* pAnchor;
+    VECTOR* pAnchor;
     BattleEffectEmitter* pCell;
     BattleEffectOrigin* pOrigin;
     s32* pFrames;
@@ -723,9 +728,9 @@ void BattleStepDisplayState(void) {
             pCell->frames = frames;
             if (frames == -1) {
                 pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % g_BattleEffectPool->pPool->count];
-                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->x = pOrigin->x + pAnchor->x;
-                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->y = pOrigin->y + pAnchor->y;
-                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->z = pOrigin->z + pAnchor->z;
+                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->x = pOrigin->x + pAnchor->vx;
+                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->y = pOrigin->y + pAnchor->vy;
+                ((BattleEffectEmitter*)((u8*)g_BattleEffectCells + offset))->z = pOrigin->z + pAnchor->vz;
                 *pFrames = rand() % 16 + 8;
             }
             if (*pFrames & 1) {
@@ -755,7 +760,7 @@ fade:
         if (rand() & 1) {
             count = g_BattleEffectPool->pPool->count;
             pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
-            vec[0] = pOrigin->x + g_BattleActor1.position.x;
+            vec[0] = pOrigin->x + g_BattleActor1.position.vx;
             vec[1] = pOrigin->y + g_BattleSceneOriginYMirror;
             vec[2] = pOrigin->z + g_BattleSceneOriginZ;
             BattleEffectAddSlotFromVector((VECTOR*)vec, 0xB);
