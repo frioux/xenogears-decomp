@@ -33,6 +33,16 @@
 #define FIELD_MOVE_DIRECTION_Y_DECREASE 0x1000
 #define FIELD_MOVE_DIRECTION_Y_INCREASE 0x1001
 
+// Half of the field angle turn, so adding it points the opposite way
+#define FIELD_ANGLE_HALF_TURN 0x800
+
+// HandlerChangeMap's map argument when the script does not change the map
+#define FIELD_MAP_NUM_NONE 0x7FFF
+
+// HandlerSetFieldEntryState's facing argument when the script gives none, so the
+// entry angle follows the scene angle
+#define FIELD_ENTRY_ANGLE_NONE 0xFFFF
+
 // An inventory itemId carries the kind of table it indexes in its high byte
 #define FIELD_INVENTORY_KIND_ITEM 0
 #define FIELD_INVENTORY_KIND_WEAPON 1
@@ -196,9 +206,9 @@ void GfxLineScrollUpdate(LineScroll*);
 typedef struct {
     /* 0x0   */ s16 numLineScrolls;
     /* 0x2   */ s16 unk2;
-    /* 0x4   */ LineScroll* pLineScrolls[32];
-    /* 0x84  */ u8* pDatas[32];
-    /* 0x104 */ s16 lengths[32];
+    /* 0x4   */ LineScroll* pLineScrolls[FIELD_LINE_SCROLL_MAX];
+    /* 0x84  */ u8* pDatas[FIELD_LINE_SCROLL_MAX];
+    /* 0x104 */ s16 lengths[FIELD_LINE_SCROLL_MAX];
 } LineScrollTable; // Size: 0x144
 
 extern LineScrollTable g_FieldLineScrolls;
@@ -225,7 +235,7 @@ void FieldScriptVMHandlerWriteLineScrollByte(void) {
     value = FieldScriptVMGetInstructionArgument(5) & 0xFFFF;
 
     if (offset < D_800AFFAC[index]) {
-        ((u_char**)D_800AFFAC)[index - 0x20][offset] = value;
+        ((u_char**)D_800AFFAC)[index - FIELD_LINE_SCROLL_MAX][offset] = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
@@ -478,10 +488,10 @@ void FieldScriptVMHandlerSetFieldEntryState(void) {
     g_pGameState->mapNum = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(9));
     g_pGameState->unk231E = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(9));
     value = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(9));
-    if (((u_short)value == 0xFFFF) | (value == -1)) {
-        g_pGameState->entryAngle = (g_Scene.sceneAngle.vy + 0x800) & 0xFFF;
+    if (((u_short)value == FIELD_ENTRY_ANGLE_NONE) | (value == -1)) {
+        g_pGameState->entryAngle = (g_Scene.sceneAngle.vy + FIELD_ANGLE_HALF_TURN) & FIELD_ANGLE_MASK;
     } else {
-        g_pGameState->entryAngle = (value + 0x800) & 0xFFF;
+        g_pGameState->entryAngle = (value + FIELD_ANGLE_HALF_TURN) & FIELD_ANGLE_MASK;
     }
     g_pGameState->unk2320 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(9));
     FieldScriptVMEmptyHook();
@@ -559,7 +569,7 @@ void FieldScriptVMHandlerChangeMap(void) {
     g_FieldMapChangeRequestGate = 0;
     g_FieldTransitionBusyFlag = 1;
     mapNum = FieldScriptVMGetArgument(5);
-    if (mapNum != 0x7FFF) {
+    if (mapNum != FIELD_MAP_NUM_NONE) {
         int value = FieldScriptVMGetArgument(7);
 
         FieldScriptVMSaveSceneState();
