@@ -23,6 +23,9 @@
 // 3 bits).
 #define BATTLE_PARTY_SLOT_COUNT 3
 #define BATTLE_PARTY_SLOT_MASK 0x7
+// The other group's slots, BATTLE_PARTY_SLOT_COUNT through BATTLE_ACTOR_SLOT_COUNT - 1:
+// the count each target search walks once the party group is done.
+#define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - BATTLE_PARTY_SLOT_COUNT)
 
 // The slot id that means "no slot": an empty candidate list entry, a slot that
 // targets nothing.
@@ -43,6 +46,9 @@
 // The directions a slot menu moves in: func_80084854's mode, one pulse-triangle
 // indicator byte per direction in BattleRunTargetSlotSelection.
 #define BATTLE_TARGET_DIRECTION_COUNT 4
+// No event at all: the value g_BattleMenuEvent never holds. BattleRunTargetSlotSelection
+// starts its "the event changed" check from it so the first frame draws the indicators.
+#define BATTLE_MENU_EVENT_NONE 0xFE
 
 extern u8 g_BattleCurveModes[];
 extern u16 g_BattleCurveValues[];
@@ -1041,7 +1047,7 @@ u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     switch (arg0) {
     case 0:
         start1 = BATTLE_PARTY_SLOT_COUNT;
-        count1 = 8;
+        count1 = BATTLE_OTHER_SLOT_COUNT;
         break;
     case 1:
         start1 = 0;
@@ -1050,14 +1056,14 @@ u8 BattleBuildTargetCandidateListByGroup(u8 arg0, u8 arg1, u8 arg2) {
     case 2:
         if (arg2 == 0) {
             start1 = BATTLE_PARTY_SLOT_COUNT;
-            count1 = 8;
+            count1 = BATTLE_OTHER_SLOT_COUNT;
             start2 = 0;
             count2 = BATTLE_PARTY_SLOT_COUNT;
         } else {
             start1 = 0;
             count1 = BATTLE_PARTY_SLOT_COUNT;
             start2 = BATTLE_PARTY_SLOT_COUNT;
-            count2 = 8;
+            count2 = BATTLE_OTHER_SLOT_COUNT;
         }
         break;
     }
@@ -1092,7 +1098,7 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
     u8 *p;
     u8 val;
 
-    k = 8;
+    k = BATTLE_OTHER_SLOT_COUNT;
     val = BATTLE_SLOT_NONE;
     i = BATTLE_SLOT_COUNT - 1;
     p = D_800C3E9B;
@@ -1304,7 +1310,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
         flags = arg1;
         break;
     case 1:
-        flags = 0x3000;
+        flags = BATTLE_TARGET_FLAGS_OTHER_SLOTS | BATTLE_TARGET_FLAGS_BOTH_GROUPS;
         break;
     case 2:
         flags = 0x2001;
@@ -1355,7 +1361,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
                     }
                 }
             }
-            off += 0x170;
+            off += sizeof(BattleUnk170);
         }
         while (n < BATTLE_ACTOR_SLOT_COUNT) {
             g_BattleTargetCandidates[n] = BATTLE_SLOT_NONE;
@@ -1365,7 +1371,7 @@ u16 BattleSelectTargetCandidates(u16 flags, u16 arg1, u8 arg2, u8 arg3, u8 arg4)
         g_BattleTargetSlot = arg2;
         g_BattleTargetSlotMask = BattleSlotBitMask(arg2);
         val = BATTLE_SLOT_NONE;
-        n = 10;
+        n = BATTLE_ACTOR_SLOT_COUNT - 1;
         p = D_800C3E9A;
         for (; n >= 0; n--) {
             *p-- = val;
@@ -1382,7 +1388,7 @@ u8 BattleRunTargetSlotSelection(u16 arg0, u8 arg1, u8 arg2) {
     u8 last;
     u8 best;
 
-    last = 0xFE;
+    last = BATTLE_MENU_EVENT_NONE;
     BattleSelectTargetCandidates(arg0, arg0, arg1, 0, arg2);
     mask = g_BattleTargetSlotMask;
     state = g_BattleTargetSlot == BATTLE_SLOT_NONE;
