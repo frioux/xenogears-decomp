@@ -16,6 +16,14 @@
 #define FIELD_ZOOM_FADE_TILE_COUNT 5
 #define FIELD_ZOOM_FADE_TILE_WIDTH 0x40
 
+// Bytes one FIELD_ZOOM_FADE_TILE_WIDTH wide scanline of 16-bit texels occupies
+#define FIELD_ZOOM_FADE_TILE_STRIDE 0x80
+
+// Where the field's off-screen screen image sits in VRAM; the zoom fade tiles
+// are stored inside it
+#define FIELD_SCREEN_VRAM_X 0x2C0
+#define FIELD_SCREEN_VRAM_Y 0x100
+
 #define FIELD_SCREEN_CENTER_X (SCREEN_WIDTH / 2)
 #define FIELD_SCREEN_CENTER_Y (SCREEN_HEIGHT / 2)
 
@@ -34,12 +42,18 @@
 // Saved copy of one 0x140 x 0x80 16-bit screen image
 #define FIELD_SAVED_FRAMEBUFFER_SIZE 0x14000
 
+// The snapshot covers the VRAM area at FIELD_SAVED_FRAMEBUFFER_VRAM_X in two
+// FIELD_SAVED_FRAMEBUFFER_HEIGHT tall halves, one per saved buffer
+#define FIELD_SAVED_FRAMEBUFFER_VRAM_X 0x200
+#define FIELD_SAVED_FRAMEBUFFER_HEIGHT 0x80
+
 // g_FieldStreamId value when the field is not playing a streamed sequence
 #define FIELD_STREAM_ID_NONE 0xFF
 
-// Stream frames the text segment is shown on, and how far one text frame
-// advances the stream
+// Stream frames the text segment is shown on, the frame it stops drawing text
+// at, and how far one text frame advances the stream
 #define FIELD_TEXT_SEGMENT_START_FRAME 0x687
+#define FIELD_TEXT_SEGMENT_DRAW_END_FRAME 0x18DE
 #define FIELD_TEXT_SEGMENT_END_FRAME 0x18E2
 #define FIELD_STREAM_STEP_FRAMES 5
 
@@ -49,6 +63,9 @@
 // Archive entry holding the field's screen TIM, loaded into VRAM when the
 // streamed sequence starts
 #define FIELD_SCREEN_TIM_ARCHIVE_INDEX 0xA9
+
+// Archive entry a party member's stream data sits at, above its skin id
+#define FIELD_PARTY_STREAM_ARCHIVE_OFFSET 5
 
 // Buffer StoreImage fills with the screen the streamed sequence is drawn over
 #define FIELD_SCREEN_IMAGE_BUFFER_SIZE 0x18000
@@ -126,12 +143,12 @@ void FieldSetVRAMTextureSemiTrans(int x, int y, int h) {
     rect.y = y;
     rect.w = FIELD_ZOOM_FADE_TILE_WIDTH;
     rect.h = h;
-    pImageBuffer = HeapAlloc(h * 0x80, 0x1);
+    pImageBuffer = HeapAlloc(h * FIELD_ZOOM_FADE_TILE_STRIDE, 0x1);
     StoreImage( &rect, pImageBuffer);
     DrawSync(0);
     
     pWorkBuffer = pImageBuffer;
-    nSize = h * (0x80 / sizeof(u_long));
+    nSize = h * (FIELD_ZOOM_FADE_TILE_STRIDE / sizeof(u_long));
     for (i = 0; i < nSize; i += 8) {
         pWorkBuffer[0] |= FIELD_TEXEL_SEMITRANS_MASK;
         pWorkBuffer[1] |= FIELD_TEXEL_SEMITRANS_MASK;
@@ -161,9 +178,9 @@ void FieldZoomFadeEffectLoadTextures(void) {
         FieldDisplay();
     }
 
-    nCurX = 0x2C0;
+    nCurX = FIELD_SCREEN_VRAM_X;
     for (i = 0; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
-        FieldSetVRAMTextureSemiTrans(nCurX, 0x100, SCREEN_HEIGHT);
+        FieldSetVRAMTextureSemiTrans(nCurX, FIELD_SCREEN_VRAM_Y, SCREEN_HEIGHT);
         nCurX += FIELD_ZOOM_FADE_TILE_WIDTH;
     }
 
@@ -391,9 +408,9 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
         setRECT(&g_FieldZoomFadeEffect.rects[i * 2 + 1], 0, 0, 0xFF, 0xFF);
 
         SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2], 0, 0,
-            GetTPage(0x2, nABR, 0x2C0 + i * FIELD_ZOOM_FADE_TILE_WIDTH, 0x100), &g_FieldZoomFadeEffect.rects[i * 2]);
+            GetTPage(0x2, nABR, FIELD_SCREEN_VRAM_X + i * FIELD_ZOOM_FADE_TILE_WIDTH, FIELD_SCREEN_VRAM_Y), &g_FieldZoomFadeEffect.rects[i * 2]);
         SetDrawMode(&g_FieldZoomFadeEffect.drawModes[i * 2 + 1], 0, 0,
-            GetTPage(0x2, nABR, 0x2C0 + i * FIELD_ZOOM_FADE_TILE_WIDTH, 0x100), &g_FieldZoomFadeEffect.rects[i * 2 + 1]);
+            GetTPage(0x2, nABR, FIELD_SCREEN_VRAM_X + i * FIELD_ZOOM_FADE_TILE_WIDTH, FIELD_SCREEN_VRAM_Y), &g_FieldZoomFadeEffect.rects[i * 2 + 1]);
 
         pPoly->r0 = 0x80;
         pPoly->g0 = 0x80;
@@ -408,7 +425,7 @@ void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR) {
         pPoly->v2 = 0xDF;
         pPoly->u3 = FIELD_ZOOM_FADE_TILE_WIDTH;
         pPoly->v3 = 0xDF;
-        pPoly->tpage = GetTPage(0x2, nABR, 0x2C0 + i * FIELD_ZOOM_FADE_TILE_WIDTH, 0x100);
+        pPoly->tpage = GetTPage(0x2, nABR, FIELD_SCREEN_VRAM_X + i * FIELD_ZOOM_FADE_TILE_WIDTH, FIELD_SCREEN_VRAM_Y);
         *pPolyNext = *pPoly;
     }
 }
@@ -630,12 +647,12 @@ extern void func_801D3538(int, int, int, int, int, int, int);
 
 void FieldInitializeStreamPlayer(void) {
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
-    if (g_FieldMode == 2) {
+    if (g_FieldMode == FIELD_MODE_STEP) {
         D_801D68B4 = 1;
     } else {
         D_801D68B4 = 0;
     }
-    func_801D3538(0x140, 0xE0, 0x80, 0x10, 0x20, 0x800, g_FieldStreamRgb24);
+    func_801D3538(SCREEN_WIDTH, SCREEN_HEIGHT, 0x80, 0x10, 0x20, 0x800, g_FieldStreamRgb24);
     g_FieldStreamPlayerInitialized = 0;
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 }
@@ -656,7 +673,7 @@ void FieldSelectStreamRenderContext(u_short arg0, int arg1, u_short arg2) {
         g_FieldFrameBufferIndex = 0;
     }
 
-    if (g_FieldMode == 0 && g_FieldStreamTextSegmentActive == 0) {
+    if (g_FieldMode == FIELD_MODE_PLAIN && g_FieldStreamTextSegmentActive == 0) {
         DrawSync(0);
         g_FieldCurRenderContext = &g_FieldRenderContexts[g_FieldFrameBufferIndex];
         // Read as signed here, unsigned in FieldInitializeStreamPlayer, matching the original loads
@@ -685,14 +702,14 @@ void FieldPlayStreamedSequence(void) {
     g_FieldStreamFramePosition = 0;
     HeapChangeCurrentUser(HEAP_USER_MASA, NULL);
     if (g_FieldStreamPlayerInitialized == 0) {
-        ArchiveSetIndex(0x18, 1);
+        ArchiveSetIndex(ARCHIVE_DIR_MOVIES, 1);
         nMode = 1;
         if (g_FieldStreamId != FIELD_STREAM_ID_NONE || (g_FieldStreamFlags & 0x40)) {
             nMode = 3;
         }
         func_801D37CC(g_FieldStreamFileIndex + 2, D_800C3A2A, g_FieldStreamFrameBase, g_FieldStreamTotalFrames, 1, nMode,
             g_FieldStreamLoopPlayback, D_800C3A22, D_800C3A24, D_800C3A26, D_800C3A28, 0xE0, FieldSelectStreamRenderContext);
-        ArchiveSetIndex(4, 0);
+        ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     }
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 }
@@ -731,22 +748,22 @@ extern void* D_8005A41C;
 void FieldRestoreFramebuffers(void) {
     RECT rect;
 
-    if (g_FieldMode == 2) {
+    if (g_FieldMode == FIELD_MODE_STEP) {
         HeapUnpinBlock(g_FieldSavedFramebuffers[0]);
         HeapUnpinBlock(D_8005A41C);
         HeapFree(g_FieldSavedFramebuffers[0]);
         HeapFree(D_8005A41C);
     } else {
-        rect.x = 0x200;
+        rect.x = FIELD_SAVED_FRAMEBUFFER_VRAM_X;
         rect.y = 0;
         rect.w = SCREEN_WIDTH;
-        rect.h = 0x80;
+        rect.h = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         LoadImage(&rect, g_FieldSavedFramebuffers[0]);
         DrawSync(0);
-        rect.x = 0x200;
-        rect.y = 0x80;
+        rect.x = FIELD_SAVED_FRAMEBUFFER_VRAM_X;
+        rect.y = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         rect.w = SCREEN_WIDTH;
-        rect.h = 0x80;
+        rect.h = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         LoadImage(&rect, D_8005A41C);
         DrawSync(0);
         HeapUnpinBlock(g_FieldSavedFramebuffers[0]);
@@ -771,20 +788,20 @@ void FieldSaveFramebuffers(void) {
     StreamDataQueueEntry queue[MAX_PARTY_MEMBERS + 1];
     void* pBuffer;
 
-    if (g_FieldMode == 2) {
+    if (g_FieldMode == FIELD_MODE_STEP) {
         g_FieldSavedFramebuffers[0] = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
         D_8005A41C = HeapAlloc(FIELD_SAVED_FRAMEBUFFER_SIZE, 0);
         HeapPinBlock(g_FieldSavedFramebuffers[0]);
         HeapPinBlock(D_8005A41C);
-        ArchiveSetIndex(4, 0);
+        ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
 
         entryIndex = 0;
         for (i = 1; i < MAX_PARTY_MEMBERS; i++) {
             if (g_GamePartyMemberSkins[i] == CHARACTER_ID_NONE) {
                 continue;
             }
-            queue[entryIndex].archiveIndex = g_GamePartyMemberSkins[i] + 5;
-            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_GamePartyMemberSkins[i] + 5), 1);
+            queue[entryIndex].archiveIndex = g_GamePartyMemberSkins[i] + FIELD_PARTY_STREAM_ARCHIVE_OFFSET;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_GamePartyMemberSkins[i] + FIELD_PARTY_STREAM_ARCHIVE_OFFSET), 1);
             g_PartyStreamDataPointers[i] = pBuffer;
             queue[entryIndex].pData = pBuffer;
             entryIndex++;
@@ -807,17 +824,17 @@ void FieldSaveFramebuffers(void) {
         HeapPinBlock(g_FieldSavedFramebuffers[0]);
         HeapPinBlock(D_8005A41C);
 
-        rect.x = 0x200;
+        rect.x = FIELD_SAVED_FRAMEBUFFER_VRAM_X;
         rect.y = 0;
         rect.w = SCREEN_WIDTH;
-        rect.h = 0x80;
+        rect.h = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         StoreImage(&rect, g_FieldSavedFramebuffers[0]);
         DrawSync(0);
 
-        rect.x = 0x200;
-        rect.y = 0x80;
+        rect.x = FIELD_SAVED_FRAMEBUFFER_VRAM_X;
+        rect.y = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         rect.w = SCREEN_WIDTH;
-        rect.h = 0x80;
+        rect.h = FIELD_SAVED_FRAMEBUFFER_HEIGHT;
         StoreImage(&rect, D_8005A41C);
         DrawSync(0);
     }
@@ -950,7 +967,7 @@ s32 func_800A7948(void) {
     while (g_FieldStreamFramePosition < FIELD_TEXT_SEGMENT_END_FRAME) {
         GameCheckAndHandleSoftReset();
         FieldClearAndSwapOTagInternal();
-        if (g_FieldStreamFramePosition < 0x18DE) {
+        if (g_FieldStreamFramePosition < FIELD_TEXT_SEGMENT_DRAW_END_FRAME) {
             func_800AC99C();
         }
         DrawSync(0);
@@ -1030,7 +1047,7 @@ void FieldRunStreamedSequence(void) {
     g_FieldStreamFramePosition = 0;
     g_FieldStreamTextSegmentActive = 0;
     FieldWaitForArchiveAndFrameSync();
-    ArchiveSetIndex(0x18, 0);
+    ArchiveSetIndex(ARCHIVE_DIR_MOVIES, 0);
     ArchiveCdSeekOrPause(g_FieldStreamFileIndex);
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     FieldWaitForArchiveAndFrameSync();
@@ -1127,7 +1144,7 @@ void FieldRunStreamedSequence(void) {
             if (g_FieldStreamFlags & 0x80) {
                 FieldPollControllers();
                 if (g_FieldButtonsPressedOnce & CTRL_BTN_CIRCLE) {
-                    SoundSetCdVolumeWithFade(0, 0xA);
+                    SoundSetCdVolumeWithFade(0, 10);
                     for (i = 0; i < 5; i++) {
                         Vsync(0);
                     }
@@ -1204,7 +1221,7 @@ void FieldRunStreamedSequence(void) {
         D_800ADB60 = 0;
         FieldStartScriptDataStream();
         FieldFreeScriptDataStream();
-        g_FieldScriptFadeDuration = 0x20;
+        g_FieldScriptFadeDuration = 32;
         g_FieldScriptFadeMode = 1;
     }
     FieldStopSedsPlayback();
@@ -1217,7 +1234,7 @@ void FieldLoadSpriteSheetTIM(void) {
     u_long* pTimData;
 
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
-    ArchiveSetIndex(4, 0);
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
     pTimData = HeapAlloc(ArchiveDecodeAlignedSize(FIELD_SPRITE_SHEET_ARCHIVE_INDEX), 0x1);
     ArchiveReadFileToBuffer(FIELD_SPRITE_SHEET_ARCHIVE_INDEX, pTimData, 0, 0x80);
     ArchiveCdDataSync(0);
