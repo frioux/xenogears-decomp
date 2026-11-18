@@ -11,19 +11,30 @@ typedef struct {
     /* 0x30 */ u8 byteRegs[0x10];
 } BattleOpRegs; // Size: 0x40
 
+// The three register banks of BattleOpRegs are symbols of their own, one
+// 0x40-byte row per slot: g_BattleSlotRows is its +0x10 array, g_BattleSlotWordRegs
+// its +0x20 array and D_800D3430 its +0x30 array.
+#define BATTLE_SLOT_REG_ROW_BYTES sizeof(BattleOpRegs)
+#define BATTLE_SLOT_REG_ROW_WORDS (BATTLE_SLOT_REG_ROW_BYTES / sizeof(u32))
+#define BATTLE_SLOT_REG_ROW_HALFWORDS (BATTLE_SLOT_REG_ROW_BYTES / sizeof(u16))
+
+// The word array BattleWriteWorkBufferWord addresses inside the block
+// g_BattlePrimPool points at (misc1.c writes word 0 of it).
+#define BATTLE_WORK_BUFFER_OFFSET 0x394
+
 // The tail half of this unit is gcc 2.6.0 code: func_8007E740's product is
 // byte-identical under it and not under 2.7.2 (see the note on that function).
-extern BattleOpRegs g_BattleSlotRegs[];
 extern u8 g_BattleSlotRecords[];
 extern u32 D_800D2C60[];
 extern u8 g_BattleRowStatValues[];
 extern u8 g_BattlePendingCharIndex;
 extern u8 *g_BattlePrimPool;
 extern u8 *g_BattleSlotParamTable;
-extern u8 g_BattleSlotRows[];
-extern u8 g_BattleSlotWordRegs[];
+extern u32 g_BattleSlotRows[][BATTLE_SLOT_REG_ROW_WORDS];
+extern u16 g_BattleSlotWordRegs[][BATTLE_SLOT_REG_ROW_HALFWORDS];
 extern u8 D_800D32F1[];
-extern u8 g_BattleSlotStatusRows[];
+extern u8 D_800D3430[][BATTLE_SLOT_REG_ROW_BYTES];
+extern BattleTableEntry g_BattleSlotStatusRows[];
 extern u8 D_800CD1B2[];
 extern u8 BattleSlotFlagsC000Clear(u8 arg0);
 extern u16 BattleStatusBitMask(u8 arg0);
@@ -210,43 +221,46 @@ void func_8007E6F0(u8 **arg0, u8 arg1) {
  */
 // The product is 2.6.0's: retail reuses the element value's dead $v0 for the
 // mflo (mult a0,v0 / mflo v0 / sw v0,0(v1)); gcc 2.7.2 gives it a fresh $a2.
-void func_8007E740(u8 **arg0, u8 arg1) {
-    u8 *p = *arg0;
+void func_8007E740(BattleCommand **ppCmd, u8 arg1) {
+    BattleCommand *pCmd = *ppCmd;
+    u32 *pRow = g_BattleSlotRows[arg1];
 
-    g_BattleSlotRegs[arg1].dwordRegs[p[1]] = p[2] * g_BattleSlotRegs[arg1].dwordRegs[p[1]];
+    pRow[pCmd->operand1] = pCmd->operand2 * pRow[pCmd->operand1];
 }
 void BattleDwordRegDivImm(BattleCommand **ppCmd, u8 arg1) {
-    u32 *pRegs = g_BattleSlotRegs[arg1].dwordRegs;
     BattleCommand *pCmd = *ppCmd;
+    u32 *pRow = g_BattleSlotRows[arg1];
 
-    pRegs[pCmd->operand1] /= pCmd->operand2;
+    pRow[pCmd->operand1] /= pCmd->operand2;
 }
 void BattleWriteWorkBufferWord(BattleCommand **ppCmd) {
-    *(u16 *)(g_BattlePrimPool + (*ppCmd)->operand1 * 2 + 0x394) = (*ppCmd)->operand2;
+    BattleCommand *pCmd = *ppCmd;
+
+    ((u16 *)(g_BattlePrimPool + BATTLE_WORK_BUFFER_OFFSET))[pCmd->operand1] = pCmd->operand2;
 }
-void func_8007E7E4(u8 **arg0) {
-    u8 flag = (*arg0)[2] != 0;
-    s32 addr = (s32)g_BattleSlotStatusRows;
+void func_8007E7E4(BattleCommand **ppCmd) {
+    u8 flag = (*ppCmd)->operand2 != 0;
+    BattleTableEntry *pRow = g_BattleSlotStatusRows;
 
     do {
         if (flag) {
-            *(u16 *)addr |= BattleStatusBitMask((u8)((*arg0)[1] + 7));
+            pRow->flags |= BattleStatusBitMask((u8)((*ppCmd)->operand1 + 7));
         } else {
-            *(u16 *)addr &= ~BattleStatusBitMask((u8)((*arg0)[1] + 7));
+            pRow->flags &= ~BattleStatusBitMask((u8)((*ppCmd)->operand1 + 7));
         }
-        addr += 0x170;
-    } while (addr < (s32)D_800CD1B2);
+        pRow++;
+    } while ((s32)pRow < (s32)D_800CD1B2); // the symbol one past the last row
 }
-void BattleGetFontGlyph(u8 **arg0) {
-    u8 *p = *arg0;
-    s32 idx = p[2] * 8 + p[1] * 0x40;
+void BattleGetFontGlyph(BattleCommand **ppCmd) {
+    BattleCommand *pCmd = *ppCmd;
+    s32 idx = pCmd->operand2 * 8 + pCmd->operand1 * 0x40;
 
-    g_BattleSlotParamTable[(u32)(idx + 0x140)] = p[3];
+    g_BattleSlotParamTable[(u32)(idx + 0x140)] = pCmd->operand3;
 }
 void BattleSetPendingCharIndex(BattleCommand **ppCmd, u8 arg1) {
-    u16 *pRegs = g_BattleSlotRegs[arg1].wordRegs;
+    u16 *pRow = g_BattleSlotWordRegs[arg1];
 
-    g_BattlePendingCharIndex = BattleFindFirstFlagTableMatch(pRegs[(*ppCmd)->operand1]) + 1;
+    g_BattlePendingCharIndex = BattleFindFirstFlagTableMatch(pRow[(*ppCmd)->operand1]) + 1;
 }
 void BattleResetDisplayValues(void) {
     u8 buf[0x10];
@@ -254,19 +268,19 @@ void BattleResetDisplayValues(void) {
     BattleResetSlotDisplayValues(buf);
 }
 s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
-    u8 *pRegs = g_BattleSlotRegs[arg1].byteRegs;
+    u8 *pRow = D_800D3430[arg1];
 
-    return pRegs[(*ppCmd)->operand1] == (*ppCmd)->operand2;
+    return pRow[(*ppCmd)->operand1] == (*ppCmd)->operand2;
 }
-s32 BattleWordRegEqImm(u8 **arg0, s32 arg1) {
-    u8 *p = *arg0;
-    s32 value = p[2] | (p[3] << 8);
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
+s32 BattleWordRegEqImm(BattleCommand **ppCmd, s32 arg1) {
+    BattleCommand *pCmd = *ppCmd;
+    s32 value = pCmd->operand2 | (pCmd->operand3 << 8);
+    u16 *pRow = g_BattleSlotWordRegs[arg1 & 0xFF];
 
-    return pField[p[1]] == value;
+    return pRow[pCmd->operand1] == value;
 }
 s32 BattleByteRegLeImm(BattleCommand **ppCmd, u8 arg1) {
-    u8 *pRegs = g_BattleSlotRegs[arg1].byteRegs;
+    u8 *pRow = D_800D3430[arg1];
 
-    return (*ppCmd)->operand2 >= pRegs[(*ppCmd)->operand1];
+    return (*ppCmd)->operand2 >= pRow[(*ppCmd)->operand1];
 }
