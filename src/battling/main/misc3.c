@@ -10,6 +10,10 @@
 #define BATTLE_ACTOR_FLAG_PLAYER2 0x8000000
 // What prevPartIndex holds when the next model has to restart the part animation.
 #define BATTLE_PART_INDEX_NONE 0xFF
+// Half a turn of the 12-bit angle rcos/rsin/ratan2 work in.
+#define BATTLE_ANGLE_HALF_TURN 0x800
+// The lowest vy a step may reach: func_80077584 clamps the fall to it.
+#define BATTLE_ACTOR_VY_MIN (-0x82)
 
 extern void func_800379C8(char*, ...);
 extern char D_8006FCC0[];
@@ -798,8 +802,8 @@ s32 dec;
     if (p->vy >= -0x8B) {
         p->vy -= dec;
     }
-    if (p->vy < -0x82) {
-        p->vy = -0x82;
+    if (p->vy < BATTLE_ACTOR_VY_MIN) {
+        p->vy = BATTLE_ACTOR_VY_MIN;
     }
 }
 
@@ -900,7 +904,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
     ang = ratan2(p->position.x - p->moveGoalPosition.x, p->position.z - p->moveGoalPosition.z);
     dist = BattleVectorDistance2D(&p->position, p->pTarget);
     if (dist < BattleVectorDistance2D(&p->moveGoalPosition, p->pTarget)) {
-        ang += 0x800;
+        ang += BATTLE_ANGLE_HALF_TURN;
     }
     decel = 1;
     switch ((p->movePhase - 1) & 7) {
