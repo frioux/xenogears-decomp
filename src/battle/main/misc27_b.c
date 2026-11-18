@@ -218,7 +218,7 @@ void BattleStartSpriteMotionTask(SpriteData* pSpriteData) {
 }
 // The identity matrix a sprite carrying its own transform set draws its line
 // through; the other choice is the shared g_GfxBaseMatrix.
-extern MATRIX D_800C3574;
+extern MATRIX g_BattleSpriteOwnMatrix;
 
 // Best attempt: 99.82%, 456 bytes (retail's exact size), 113 of 114 instructions.
 // The only difference is the %hi scratch register of the two symbol addresses in
@@ -264,7 +264,7 @@ void func_800B5DF4(WorkListEntry* pWork) {
     vec.vz = ofs;
     g_GfxCurWorkBuffer = pBuf + 0x10;
     if (pSpriteData->field_0x3C_2 & 1) {
-        pMatrix = &D_800C3574;
+        pMatrix = &g_BattleSpriteOwnMatrix;
     } else {
         pMatrix = &g_GfxBaseMatrix;
     }

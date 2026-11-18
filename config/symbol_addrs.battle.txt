@@ -1065,3 +1065,4 @@ g_BattleImage = 0x800D3600;
 g_BattleTargetScan = 0x800D2DD7;
 g_BattleSlotWordRegs = 0x800D3420;
 g_BattleSlotByteRegs = 0x800D3430;
+g_BattleSpriteOwnMatrix = 0x800C3574;
