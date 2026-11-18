@@ -33,7 +33,9 @@ typedef struct {
 // the same grid's accessoryEffectFlags1/activeEffectFlags2/accessoryEffectFlags2.
 typedef struct {
     /* 0x000 */ u16 flags; // tested against 0xC000 and 0xC002
-    /* 0x002 */ u8 unk2[0x6];
+    /* 0x002 */ u16 accessoryEffectFlags1;
+    /* 0x004 */ u16 activeEffectFlags2;
+    /* 0x006 */ u16 accessoryEffectFlags2;
     /* 0x008 */ u16 activeEffectFlags3; // tested against 0x20
     /* 0x00A */ u8 unkA[0x166];
 } BattleSlotFlagEntry; // Size: 0x170
@@ -43,20 +45,26 @@ typedef struct {
 // index by register number: 24 byte variables and 24 word variables. Each
 // register number is a distinct field of the entry; include/battle/actor.h's
 // BattleTableEntry keeps these offsets inside its opaque arrays, and only the
-// registers these two accessors reach are split out here.
+// registers these two accessors reach are split out here, plus the few entries
+// BattleTableEntry names that fall between them.
 typedef struct {
-    /* 0x000 */ u8 unk000[0x4];
+    /* 0x000 */ u16 flags; // as BattleTableEntry.flags
+    /* 0x002 */ u8 chance; // as BattleTableEntry.chance
+    /* 0x003 */ u8 conditionKind; // as BattleTableEntry.conditionKind
     /* 0x004 */ u8 byteVar0;
     /* 0x005 */ u8 unk005[0x28];
     /* 0x02D */ u8 byteVar7;
-    /* 0x02E */ u8 unk02E[0x6];
+    /* 0x02E */ u8 unk02E[0x4];
+    /* 0x032 */ u16 accessoryEffectFlags5; // as BattleTableEntry.accessoryEffectFlags5
     /* 0x034 */ u16 wordVar21;
     /* 0x036 */ u16 wordVar22;
     /* 0x038 */ u16 wordVar23;
     /* 0x03A */ u8 unk03A[0x12];
     /* 0x04C */ u16 hp; // word variable 1
     /* 0x04E */ u16 maxHp; // word variable 0
-    /* 0x050 */ u8 unk050[0x6];
+    /* 0x050 */ u16 mp; // as BattleTableEntry.mp, neither word register
+    /* 0x052 */ u16 maxMp; // as BattleTableEntry.maxMp
+    /* 0x054 */ u8 unk054[0x2];
     /* 0x056 */ u8 byteVar1;
     /* 0x057 */ u8 unk057;
     /* 0x058 */ u8 byteVar4;
@@ -74,7 +82,8 @@ typedef struct {
     /* 0x065 */ u8 byteVar16;
     /* 0x066 */ u8 byteVar17;
     /* 0x067 */ u8 byteVar18;
-    /* 0x068 */ u8 unk068[0x14];
+    /* 0x068 */ u8 unk068[0x12];
+    /* 0x07A */ u16 conditionFlags; // as BattleTableEntry.conditionFlags
     /* 0x07C */ u16 wordVar2;
     /* 0x07E */ u16 wordVar3;
     /* 0x080 */ u16 wordVar4;
@@ -85,7 +94,9 @@ typedef struct {
     /* 0x08A */ u16 wordVar9;
     /* 0x08C */ u16 wordVar10;
     /* 0x08E */ u16 wordVar11;
-    /* 0x090 */ u8 unk090[0x26];
+    /* 0x090 */ u8 unk090[0x10];
+    /* 0x0A0 */ u8 gearId; // as BattleTableEntry.gearId
+    /* 0x0A1 */ u8 unk0A1[0x15];
     /* 0x0B6 */ u8 byteVar20;
     /* 0x0B7 */ u8 unk0B7[0x29];
     /* 0x0E0 */ u8 byteVar2;
@@ -103,13 +114,15 @@ typedef struct {
     /* 0x126 */ u16 wordVar18;
     /* 0x128 */ u16 wordVar19;
     /* 0x12A */ u16 wordVar20;
-    /* 0x12C */ u8 unk12C[0x10];
+    /* 0x12C */ u8 statusPenaltyPercent[0x10]; // as BattleSlotState.statusPenaltyPercent
     /* 0x13C */ u8 byteVar19;
-    /* 0x13D */ u8 unk13D[0x3];
+    /* 0x13D */ u8 penaltyPercent; // as BattleSlotState.penaltyPercent
+    /* 0x13E */ u8 unk13E[0x2];
     /* 0x140 */ u8 byteVar21;
     /* 0x141 */ u8 byteVar22;
     /* 0x142 */ u8 byteVar23;
-    /* 0x143 */ u8 unk143[0x2D];
+    /* 0x143 */ s8 responsiveness; // as BattleSlotState.responsiveness
+    /* 0x144 */ u8 unk144[0x2C];
 } BattleSlotVarEntry; // Size: 0x170
 
 // One 0x1C-byte entry of the slot record table at D_800C3E9C; only the byte at
@@ -117,7 +130,9 @@ typedef struct {
 // table's tag records at 0x800C3EB4, so this byte is the same one
 // src/battle/main/misc8.c and misc9.c name BattleSlotRecord.flags (record +3).
 typedef struct {
-    /* 0x00 */ u8 unk0[0x1B];
+    /* 0x00 */ u8 unk0[0x18]; // the previous record's tail: this base is 0x18 before the tag
+    /* 0x18 */ u8 tag; // the same record tag misc8.c and misc9.c read as BattleSlotRecord.tag
+    /* 0x19 */ u8 unk19[0x2];
     /* 0x1B */ u8 flags;
 } BattleSlotRecord; // Size: 0x1C
 
