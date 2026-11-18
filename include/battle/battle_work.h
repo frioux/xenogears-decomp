@@ -4,11 +4,14 @@
 #include "psyq/libgpu.h"
 
 // Per-frame battle display state (g_BattleDisplayState): the flags and atlas indices the
-// battle draw units read while building the ordering table. Only the fields
-// src/battle/main/misc2 touches are named; other units reach past 0x104, so
-// 0x108 is a lower bound on the real size.
+// battle draw units read while building the ordering table. Fields are named from the
+// unit that shows what they hold (misc1, misc2, misc3, misc12, misc16); other units
+// reach past 0x104, so 0x108 is a lower bound on the real size.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x9C];
+    /* 0x000 */ u8 unk0[0x7C];
+    /* 0x07C */ u8 slotMarks[3]; // per slot: raised when an action is queued for that slot
+    /* 0x07F */ u8 unk7F[0x1A];
+    /* 0x099 */ u8 valueSpritePrimStart[3]; // prim index each slot's value digits were built at
     /* 0x09C */ u8 spriteColumnPending; // set when the 0xBA8 list has prims to add
     /* 0x09D */ u8 menuColumnPending; // set when the 0x1E68 list has prims to add
     /* 0x09E */ u8 cursorPending; // set when the 0x27C8 list has prims to add
@@ -31,7 +34,9 @@ typedef struct {
     /* 0x0CB */ u8 primListsPending; // set when the 0x641C lists have prims to add
     /* 0x0CC */ u8 unkCC[0x4];
     /* 0x0D0 */ s32 packageCounts[2]; // packages appended to each 0x641C list
-    /* 0x0D8 */ u8 unkD8[0x20];
+    /* 0x0D8 */ u8 unkD8[0x8];
+    /* 0x0E0 */ s32 statSpriteCount[3]; // packages BattleRenderActorStatDigits appended for the slot
+    /* 0x0EC */ s32 valueSpriteCount[3]; // packages BattleRenderActorValueDigits appended for the slot
     /* 0x0F8 */ s32 spriteColumnPackageCount;
     /* 0x0FC */ s32 menuColumnPackageCount;
     /* 0x100 */ s32 cursorPackageCount;
