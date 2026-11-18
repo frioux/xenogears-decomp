@@ -159,7 +159,484 @@ s32 BattleActorSlotHasFlag80(u8 arg0) {
 
     return D_800C3EB7[idx * 0x1C] >> 7;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007EF6C);
+// The per-opcode handlers func_8007EF6C dispatches to. They live in misc4..misc9.c
+// and in the still-unmatched stubs of this overlay; the grid-write ones take the
+// byte grid pArgs (0x100 bytes of 8-byte rows) as their second argument.
+extern u8 g_BattleCommandArgs[];
+
+
+extern void BattleByteRegAddClamp(u8 **ppCommand, u8 slot);
+extern void BattleByteRegAddImmClamp(u8 **ppCommand, u8 slot);
+extern void BattleByteRegAnd(u8 **ppCommand, u8 slot);
+extern void BattleByteRegAndImm(u8 **ppCommand, u8 slot);
+extern void BattleByteRegDiv(u8 **ppCommand, u8 slot);
+extern void BattleByteRegDivImm(u8 **ppCommand, u8 slot);
+extern void BattleByteRegMod(u8 **ppCommand, u8 slot);
+extern void BattleByteRegModImm(u8 **ppCommand, u8 slot);
+extern void BattleByteRegMulClamp(u8 **ppCommand, u8 slot);
+extern void BattleByteRegOr(u8 **ppCommand, u8 slot);
+extern void BattleByteRegOrImm(u8 **ppCommand, u8 slot);
+extern void BattleByteRegSetImm(u8 **ppCommand, u8 slot);
+extern void BattleByteRegSetMatched(u8 **ppCommand, u8 slot);
+extern void BattleByteRegSetRandom(u8 **ppCommand, u8 slot);
+extern void BattleByteRegSetReg(u8 **ppCommand, u8 slot);
+extern void BattleByteRegSubClamp(u8 **ppCommand, u8 slot);
+extern void BattleByteRegSubImmClamp(u8 **ppCommand, u8 slot);
+extern void BattleByteRegXor(u8 **ppCommand, u8 slot);
+extern void BattleByteRegXorImm(u8 **ppCommand, u8 slot);
+extern void BattleClearByteRegs(u8 slot);
+extern void BattleClearSlotDwordAndSetStat4(u8 slot);
+extern void BattleClearWordRegs(u8 slot);
+extern void BattleDwordRegDivImm(u8 **ppCommand, u8 slot);
+extern void BattleGetFontGlyph(u8 **ppCommand);
+extern void BattleGridCopyRow(u8 **ppCommand, u8 *pArgs);
+extern s32 BattleGridWriteByteAdvanceRow(u8 **ppCommand, u8 *pArgs, u8 row);
+extern void BattleGridWriteByteReg(u8 **ppCommand, u8 *pArgs, u8 slot, u8 row);
+extern s32 BattleGridWriteOpcodeRow(u8 **ppCommand, u8 *pArgs, u8 slot, u8 row);
+extern void BattlePickActorSlotByLowestEntryWord(u8 **ppCommand, u8 slot);
+extern void BattlePickActorSlotByLowestEntryWordInUse(u8 **ppCommand, u8 slot);
+extern void BattlePickActorSlotByLowestSlotWord(u8 **ppCommand, u8 slot);
+extern void BattlePickActorSlotWithDifferentTag(u8 **ppCommand, u8 slot);
+extern void BattlePickActorSlotWithFlag80(u8 **ppCommand, u8 slot);
+extern void BattlePickCharSlotByEntryFlags(u8 **ppCommand, u8 slot);
+extern void BattlePickCharSlotByFlagRetry(u8 **ppCommand, u8 slot);
+extern void BattlePickCharSlotByLowestEntryDwordInUse(u8 **ppCommand, u8 slot);
+extern void BattlePickCharSlotByLowestEntryWord(u8 **ppCommand, u8 slot);
+extern void BattlePickCharSlotByLowestSlotWord(u8 **ppCommand, u8 slot);
+extern void BattlePickCharSlotWithDifferentTag(u8 **ppCommand, u8 slot);
+extern void BattlePickCharSlotWithSameTag(u8 **ppCommand, u8 slot);
+extern void BattlePickSlotByActorTag(u8 **ppCommand, u8 slot);
+extern void BattlePickSlotByFlagTable(u8 **ppCommand, u8 slot);
+extern void BattleResetDisplayValues();
+extern void BattleSetPendingCharIndex(u8 **ppCommand, u8 slot);
+extern void BattleSetSlotRecordByteAndRelease(u8 **ppCommand, u8 slot);
+extern void BattleSlotSetByteField(u8 **ppCommand, u8 slot);
+extern void BattleSlotSetWordField(u8 **ppCommand, u8 slot);
+extern void BattleSlotStoreDwordFromWordReg(u8 **ppCommand, u8 slot);
+extern void BattleSlotStoreWord0(u8 **ppCommand, u8 slot);
+extern void BattleSlotStoreWord7A(u8 **ppCommand, u8 slot);
+extern void BattleSlotStoreWordHighBytes(u8 **ppCommand, u8 slot);
+extern void BattleSlotStoreWordLowBytes(u8 **ppCommand, u8 slot);
+extern void BattleStoreActorSlotFlagsC000ClearCount(u8 **ppCommand, u8 slot);
+extern void BattleStoreActorSlotMatchedTagCount(u8 **ppCommand, u8 slot);
+extern void BattleStoreActorSlotTagCount(u8 **ppCommand, u8 slot);
+extern void BattleStoreCharSlotFlagMask(u8 **ppCommand, u8 slot);
+extern void BattleStoreCharSlotFlagsC000ClearCount(u8 **ppCommand, u8 slot);
+extern void BattleStoreCharSlotMatchedTagCount(u8 **ppCommand, u8 slot);
+extern void BattleStoreCharSlotTagCount(u8 **ppCommand, u8 slot);
+extern void BattleStoreCommandUseCount(u8 **ppCommand, u8 slot);
+extern void BattleStoreGoldWord32(u8 **ppCommand, u8 slot);
+extern void BattleStoreSlotParamTableByte(u8 **ppCommand, u8 slot);
+extern void BattleStoreStatWord32(u8 **ppCommand, u8 slot);
+extern void BattleWordRegAddClamp(u8 **ppCommand, u8 slot);
+extern void BattleWordRegAddImmClamp(u8 **ppCommand, u8 slot);
+extern void BattleWordRegAnd(u8 **ppCommand, u8 slot);
+extern void BattleWordRegAndImm(u8 **ppCommand, u8 slot);
+extern void BattleWordRegCopyFromMatchedSlot(u8 **ppCommand, u8 slot);
+extern s32 BattleWordRegCopyToMatchedSlot(u8 **ppCommand, u8 slot, u8 row);
+extern void BattleWordRegDiv(u8 **ppCommand, u8 slot);
+extern void BattleWordRegMod(u8 **ppCommand, u8 slot);
+extern void BattleWordRegMulClamp(u8 **ppCommand, u8 slot);
+extern void BattleWordRegOr(u8 **ppCommand, u8 slot);
+extern void BattleWordRegOrImm(u8 **ppCommand, u8 slot);
+extern void BattleWordRegSetImm(u8 **ppCommand, u8 slot);
+extern void BattleWordRegSetRandomRange(u8 **ppCommand, u8 slot);
+extern void BattleWordRegSetReg(u8 **ppCommand, u8 slot);
+extern void BattleWordRegSetSlotBitMask(u8 **ppCommand, u8 slot);
+extern void BattleWordRegSubClamp(u8 **ppCommand, u8 slot);
+extern void BattleWordRegXor(u8 **ppCommand, u8 slot);
+extern void BattleWordRegXorImm(u8 **ppCommand, u8 slot);
+extern void BattleWordTableStoreImm(u8 **ppCommand);
+extern void BattleWordTableStoreReg(u8 **ppCommand, u8 slot);
+extern void BattleWriteRowFieldBytes(u8 **ppCommand, u8 *pArgs, u8 slot, u8 row);
+extern void BattleWriteWorkBufferWord(u8 **ppCommand);
+extern void func_8007A968(u8 **ppCommand, u8 slot);
+extern void func_8007AA60(u8 **ppCommand, u8 slot);
+extern void func_8007AC30(u8 **ppCommand, u8 slot);
+extern void func_8007AC80(u8 **ppCommand, u8 slot);
+extern void func_8007ACDC(u8 **ppCommand, u8 slot);
+extern void func_8007AD24(u8 **ppCommand, u8 slot);
+extern s32 func_8007B4B8(u8 **ppCommand, u8 slot, u8 row);
+extern void func_8007B6C0(u8 **ppCommand, u8 slot);
+extern s32 func_8007B7B0(u8 **ppCommand, u8 slot, u8 row);
+extern void func_8007B8D4(u8 **ppCommand, u8 slot);
+extern void func_8007B9C8(u8 **ppCommand, u8 slot);
+extern void func_8007BA04(u8 **ppCommand, u8 slot);
+extern void func_8007BC40(u8 **ppCommand, u8 *pArgs, u8 row);
+extern void func_8007BD5C(u8 **ppCommand, u8 slot);
+extern void func_8007BEA8(u8 **ppCommand, u8 slot);
+extern void func_8007C040(u8 **ppCommand, u8 slot);
+extern void func_8007D8C0(u8 **ppCommand, u8 slot);
+extern void func_8007DA1C(u8 **ppCommand, u8 slot);
+extern void func_8007DB78(u8 **ppCommand, u8 slot);
+extern void func_8007DCF8(u8 **ppCommand, u8 slot);
+extern void func_8007DE78(u8 **ppCommand, u8 slot);
+extern void func_8007DFD4(u8 **ppCommand, u8 slot);
+extern void func_8007E334(u8 **ppCommand, u8 slot);
+extern void func_8007E438(u8 **ppCommand, u8 slot);
+extern void func_8007E554(u8 **ppCommand, u8 slot);
+extern void func_8007E6A0(u8 **ppCommand, u8 slot);
+extern void func_8007E6F0(u8 **ppCommand, u8 slot);
+extern void func_8007E740(u8 **ppCommand, u8 slot);
+extern void func_8007E7E4(u8 **ppCommand, u8 slot);
+
+extern void BattleScriptCursorSkipWord(u8 **ppCommand);
+
+s32 func_8007EF6C(u8 **ppCommand, u8 slot, s32 row) {
+    u8 *pCommand = *ppCommand;
+    u8 *pArgs = g_BattleCommandArgs;
+
+    switch (pCommand[0]) {
+    case 0x01:
+        row = BattleGridWriteByteAdvanceRow(ppCommand, pArgs, row);
+        break;
+    case 0x02:
+        BattleGridWriteByteReg(ppCommand, pArgs, slot, row);
+        break;
+    case 0x03:
+        BattleGridCopyRow(ppCommand, pArgs);
+        break;
+    case 0x04:
+        BattleByteRegSetImm(ppCommand, slot);
+        break;
+    case 0x05:
+        BattleWordRegSetImm(ppCommand, slot);
+        break;
+    case 0x06:
+        func_8007A968(ppCommand, slot);
+        break;
+    case 0x07:
+        BattleWordTableStoreImm(ppCommand);
+        break;
+    case 0x08:
+        BattleByteRegAddImmClamp(ppCommand, slot);
+        break;
+    case 0x09:
+        BattleByteRegSubImmClamp(ppCommand, slot);
+        break;
+    case 0x0A:
+        func_8007AA60(ppCommand, slot);
+        break;
+    case 0x0B:
+        BattleByteRegDivImm(ppCommand, slot);
+        break;
+    case 0x0C:
+        BattleByteRegModImm(ppCommand, slot);
+        break;
+    case 0x0D:
+        BattleByteRegAndImm(ppCommand, slot);
+        break;
+    case 0x0E:
+        BattleByteRegOrImm(ppCommand, slot);
+        break;
+    case 0x0F:
+        BattleByteRegXorImm(ppCommand, slot);
+        break;
+    case 0x10:
+        BattleWordRegAddImmClamp(ppCommand, slot);
+        break;
+    case 0x11:
+        func_8007AC30(ppCommand, slot);
+        break;
+    case 0x12:
+        func_8007AC80(ppCommand, slot);
+        break;
+    case 0x13:
+        func_8007ACDC(ppCommand, slot);
+        break;
+    case 0x14:
+        func_8007AD24(ppCommand, slot);
+        break;
+    case 0x15:
+        BattleWordRegAndImm(ppCommand, slot);
+        break;
+    case 0x16:
+        BattleWordRegOrImm(ppCommand, slot);
+        break;
+    case 0x17:
+        BattleWordRegXorImm(ppCommand, slot);
+        break;
+    case 0x18:
+        BattleByteRegAddClamp(ppCommand, slot);
+        break;
+    case 0x19:
+        BattleByteRegSubClamp(ppCommand, slot);
+        break;
+    case 0x1A:
+        BattleByteRegMulClamp(ppCommand, slot);
+        break;
+    case 0x1B:
+        BattleByteRegDiv(ppCommand, slot);
+        break;
+    case 0x1C:
+        BattleByteRegMod(ppCommand, slot);
+        break;
+    case 0x1D:
+        BattleByteRegAnd(ppCommand, slot);
+        break;
+    case 0x1E:
+        BattleByteRegOr(ppCommand, slot);
+        break;
+    case 0x1F:
+        BattleByteRegXor(ppCommand, slot);
+        break;
+    case 0x20:
+        BattleWordRegAddClamp(ppCommand, slot);
+        break;
+    case 0x21:
+        BattleWordRegSubClamp(ppCommand, slot);
+        break;
+    case 0x22:
+        BattleWordRegMulClamp(ppCommand, slot);
+        break;
+    case 0x23:
+        BattleWordRegDiv(ppCommand, slot);
+        break;
+    case 0x24:
+        BattleWordRegMod(ppCommand, slot);
+        break;
+    case 0x25:
+        BattleWordRegAnd(ppCommand, slot);
+        break;
+    case 0x26:
+        BattleWordRegOr(ppCommand, slot);
+        break;
+    case 0x27:
+        BattleWordRegXor(ppCommand, slot);
+        break;
+    case 0x28:
+        BattleSlotSetByteField(ppCommand, slot);
+        break;
+    case 0x29:
+        BattleSlotSetWordField(ppCommand, slot);
+        break;
+    case 0x2A:
+        BattleByteRegSetMatched(ppCommand, slot);
+        break;
+    case 0x2B:
+        row = func_8007B4B8(ppCommand, slot, row);
+        break;
+    case 0x2C:
+        BattleWordRegCopyFromMatchedSlot(ppCommand, slot);
+        break;
+    case 0x2D:
+        row = BattleWordRegCopyToMatchedSlot(ppCommand, slot, row);
+        break;
+    case 0x2E:
+        func_8007B6C0(ppCommand, slot);
+        break;
+    case 0x2F:
+        row = func_8007B7B0(ppCommand, slot, row);
+        break;
+    case 0x30:
+        func_8007B8D4(ppCommand, slot);
+        break;
+    case 0x31:
+        BattleWordTableStoreReg(ppCommand, slot);
+        break;
+    case 0x32:
+        BattleByteRegSetReg(ppCommand, slot);
+        break;
+    case 0x33:
+        BattleWordRegSetReg(ppCommand, slot);
+        break;
+    case 0x34:
+        func_8007B9C8(ppCommand, slot);
+        break;
+    case 0x35:
+        func_8007BA04(ppCommand, slot);
+        break;
+    case 0x36:
+        BattleSlotStoreDwordFromWordReg(ppCommand, slot);
+        break;
+    case 0x37:
+        BattleClearByteRegs(slot);
+        break;
+    case 0x38:
+        BattleClearWordRegs(slot);
+        break;
+    case 0x39:
+        BattleSlotStoreWord0(ppCommand, slot);
+        break;
+    case 0x3A:
+        BattleSlotStoreWord7A(ppCommand, slot);
+        break;
+    case 0x3B:
+        BattleSlotStoreWordHighBytes(ppCommand, slot);
+        break;
+    case 0x3C:
+        BattleSlotStoreWordLowBytes(ppCommand, slot);
+        break;
+    case 0x3D:
+        func_8007BC40(ppCommand, pArgs, row);
+        break;
+    case 0x3E:
+        BattleByteRegSetRandom(ppCommand, slot);
+        break;
+    case 0x3F:
+        BattleWordRegSetRandomRange(ppCommand, slot);
+        break;
+    case 0x40:
+        func_8007BD5C(ppCommand, slot);
+        break;
+    case 0x41:
+        func_8007BEA8(ppCommand, slot);
+        break;
+    case 0x42:
+        func_8007C040(ppCommand, slot);
+        break;
+    case 0x43:
+        BattlePickCharSlotWithDifferentTag(ppCommand, slot);
+        break;
+    case 0x44:
+        BattlePickActorSlotWithDifferentTag(ppCommand, slot);
+        break;
+    case 0x45:
+        BattlePickCharSlotByLowestSlotWord(ppCommand, slot);
+        break;
+    case 0x46:
+        BattlePickActorSlotByLowestSlotWord(ppCommand, slot);
+        break;
+    case 0x47:
+        BattlePickCharSlotByLowestEntryWord(ppCommand, slot);
+        break;
+    case 0x48:
+        BattlePickActorSlotByLowestEntryWord(ppCommand, slot);
+        break;
+    case 0x49:
+        BattlePickCharSlotWithSameTag(ppCommand, slot);
+        break;
+    case 0x4A:
+        BattlePickCharSlotByFlagRetry(ppCommand, slot);
+        break;
+    case 0x4B:
+        BattlePickSlotByFlagTable(ppCommand, slot);
+        break;
+    case 0x4C:
+        BattleStoreCharSlotTagCount(ppCommand, slot);
+        break;
+    case 0x4D:
+        BattleStoreActorSlotTagCount(ppCommand, slot);
+        break;
+    case 0x4E:
+        BattleStoreSlotParamTableByte(ppCommand, slot);
+        break;
+    case 0x4F:
+        BattleStoreCharSlotMatchedTagCount(ppCommand, slot);
+        break;
+    case 0x50:
+        BattleStoreActorSlotMatchedTagCount(ppCommand, slot);
+        break;
+    case 0x51:
+        BattleStoreCommandUseCount(ppCommand, slot);
+        break;
+    case 0x52:
+        BattleWriteRowFieldBytes(ppCommand, pArgs, slot, row);
+        break;
+    case 0x53:
+        BattleStoreGoldWord32(ppCommand, slot);
+        break;
+    case 0x54:
+        BattlePickSlotByActorTag(ppCommand, slot);
+        break;
+    case 0x55:
+        BattleStoreStatWord32(ppCommand, slot);
+        break;
+    case 0x56:
+        BattlePickActorSlotWithFlag80(ppCommand, slot);
+        break;
+    case 0x57:
+        BattlePickCharSlotByEntryFlags(ppCommand, slot);
+        break;
+    case 0x58:
+        BattleStoreCharSlotFlagsC000ClearCount(ppCommand, slot);
+        break;
+    case 0x59:
+        BattleStoreActorSlotFlagsC000ClearCount(ppCommand, slot);
+        break;
+    case 0x5A:
+        BattlePickCharSlotByLowestEntryDwordInUse(ppCommand, slot);
+        break;
+    case 0x5B:
+        BattlePickActorSlotByLowestEntryWordInUse(ppCommand, slot);
+        break;
+    case 0x5C:
+        func_8007D8C0(ppCommand, slot);
+        break;
+    case 0x5D:
+        func_8007DA1C(ppCommand, slot);
+        break;
+    case 0x5E:
+        func_8007DB78(ppCommand, slot);
+        break;
+    case 0x5F:
+        func_8007DCF8(ppCommand, slot);
+        break;
+    case 0x60:
+        func_8007DE78(ppCommand, slot);
+        break;
+    case 0x61:
+        func_8007DFD4(ppCommand, slot);
+        break;
+    case 0x62: // no handler: opcode 0x62 only marks the script (BattleScriptScanForOpcode62)
+        break;
+    case 0x63:
+        BattleSetSlotRecordByteAndRelease(ppCommand, slot);
+        break;
+    case 0x64:
+        BattleWordRegSetSlotBitMask(ppCommand, slot);
+        break;
+    case 0x65:
+        BattleStoreCharSlotFlagMask(ppCommand, slot);
+        break;
+    case 0x66:
+        func_8007E334(ppCommand, slot);
+        break;
+    case 0x67:
+        func_8007E438(ppCommand, slot);
+        break;
+    case 0x68:
+        func_8007E554(ppCommand, slot);
+        break;
+    case 0x69:
+        BattleClearSlotDwordAndSetStat4(slot);
+        break;
+    case 0x6A:
+        func_8007E6A0(ppCommand, slot);
+        break;
+    case 0x6B:
+        func_8007E6F0(ppCommand, slot);
+        break;
+    case 0x6C:
+        func_8007E740(ppCommand, slot);
+        break;
+    case 0x6D:
+        BattleDwordRegDivImm(ppCommand, slot);
+        break;
+    case 0x70:
+        BattleWriteWorkBufferWord(ppCommand);
+        break;
+    case 0x71:
+        func_8007E7E4(ppCommand, slot);
+        break;
+    case 0x72:
+        BattleGetFontGlyph(ppCommand);
+        break;
+    case 0x73:
+        BattleSetPendingCharIndex(ppCommand, slot);
+        break;
+    case 0x74:
+        BattleResetDisplayValues();
+        break;
+    default:
+        row = BattleGridWriteOpcodeRow(ppCommand, pArgs, slot, row);
+        break;
+    }
+
+    BattleScriptCursorSkipWord(ppCommand);
+    return row & 0xFF;
+}
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc10", func_8007F8C0);
 /* Best: 99.30%. The switch and the loop are right; one copy is missing (684
    bytes against the original's 688). Retail's loop tail is
