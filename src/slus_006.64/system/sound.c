@@ -2423,13 +2423,16 @@ void SoundCopyPercussionTable(AudioManager* pManager, AudioManager* pSrc) {
     u32* pTable;
     u32* pSlot;
     SoundPercussionEntry* pEntry;
+    u16 mapOffset;
     u32 cnt;
 
     // the percussion map is the tail of the manager's heap block
     pTable = (u32*)((u8*)pManager + SoundCalculateAudioManagerSize(pSrc->elementCount));
     pManager->pPercussionData = (s32)pTable;
-    // the sequence header stores the percussion map offset as a 16-bit field
-    pEntry = (SoundPercussionEntry*)((u8*)pSrc + (u16)pSrc->unk_0x20);
+    // only the low 16 bits of unk_0x20 are the map's byte offset; the same field is a
+    // 32-bit tick counter in SoundTimerInterruptHandler, so the width lives in this local
+    mapOffset = pSrc->unk_0x20;
+    pEntry = (SoundPercussionEntry*)((u8*)pSrc + mapOffset);
     cnt = pSrc->percussionCount;
 
     do {
