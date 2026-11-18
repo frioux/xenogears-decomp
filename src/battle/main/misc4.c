@@ -549,8 +549,8 @@ void BattleRunActiveSlotScripts(void) {
     i = 0;
     stopOp = 0xFD;
     endOp = 0xFF;
-    for (idx = 3, off = 0x450, off2 = 0, index = 0; i < 8;
-         idx++, off += 0x170, off2 += 0x40, index += 4, i++) {
+    for (idx = 3, off = 3 * sizeof(BattleTableEntry), off2 = 0, index = 0; i < 8;
+         idx++, off += sizeof(BattleTableEntry), off2 += sizeof(BattleSlotRegs), index += 4, i++) {
         if (D_800C3D1A[index] == 0) {
             continue;
         }
