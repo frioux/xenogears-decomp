@@ -162,26 +162,34 @@ typedef struct {
 } BattleGteScratch; // Size: 0xB4
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
-/* best 96.29%. Same size and instruction multiset as retail (556 bytes, 139 insns:
-   the three RTPT stages, the 0x30-byte triple-prim block, the OT link and the
-   unk2/unkA tail are instruction-identical up to register names). What is left is
-   the entry block's register assignment: retail copies pOt into t6 first, then
-   materialises &vec (t4), the 0x1F8000B0 read-back slot (t3), 0xFFFFFF, 0x3000000
-   and the 0x1F800000 base (t1), and keeps i in t5; ours copies pOt into t5,
-   materialises the read-back slot (t6) first and keeps i in t4. One 'or' also writes
-   v0 where retail writes a0 - writing 'link |= 0x03000000;' before the store may fix
-   that one. Permuter: 1390 -> 395 in one 3-minute run (that is where the
-   embedded-assignment lever below came from), flat on a second run.
-   Levers this body already carries, each of which moved it: gte_stsxy3(&q[0].xy,
-   &q[1].xy, &q[2].xy) as ONE macro call, which is what materialises retail's three
-   addiu before the swc2s; g_BattleSpritePrimBuffers as its own pointer-array symbol instead of
-   ((u8**)&g_BattleSpriteSlots)[1 + page] (that also fixes the relocation name); the
-   0x1F800000 scratch as one struct whose otz at 0xB0 is read through the base while
-   the SDK read-back writes the fixed slot 0x1F8000B0 through a local pointer - that
-   split is what produces retail's 'lw v0,176(t1)' beside 'swc2 $17,0(t3)'; s16
-   coordinates (a truncating add gives retail's lhu/lhu, the clamp's lh/slti needs the
-   signed field); and 'for (i = 0; i < 0x218; i++, pParticle++)' rather than an
-   increment inside the body, which is what puts both giv increments in the loop tail.
+/* best 99.78% (556 bytes = retail's exact size). Three quarters of the entry
+   block's register assignment was an ORDER tie that the shape of the ONE
+   pointer local decides: the arg != 0 arm reads the GTE SZ read-back slot
+   0x1F8000B0 through a local pointer that is ASSIGNED INSIDE THE LOOP (just
+   before gte_ldv2), not in the prologue. Loop-invariant hoisting then emits
+   the two hoisted constant pairs in the loop body's use order - &vec
+   (0x1F800010) first into t4, then the 0x1F8000B0 slot into t3 - which is
+   retail's `lui t4,0x1F80 / ori t4,t4,0x10` immediately followed by `lui t3`
+   for the slot, and that in turn fixes pOt = t6, i = t5, the dx/dy/dz trio in
+   s0/t9/t8, stage = t0 and pParticle/pQuad in a3/a2. Assigning the same
+   pointer in the prologue instead puts its pair FIRST and rotates every t
+   register (t6 slot, t5 pOt, t4 i, t3 &vec) = 96.29%. Writing the 0x1F8000B0
+   literal inline at each gte_stsz call is worse again (95.55%): an asm
+   operand is rematerialised per use, so it loses the single hoisted pair.
+   Also measured: a pVec local for &pScratch->vec in the prologue 95.63%; moving
+   the slot assignment after the pQuad assignment 96.29% (no change); a dead
+   'u32 masked' local is LOAD-BEARING (removing it re-allocates the loop and
+   costs 12 bytes / 93.19%), so keep both it and its odd 'addr = masked = ...'.
+   WHAT IS LEFT, 6 instructions in three identical groups: retail reuses the
+   link register for the tag word (`or a0,a0,t7` + `sw a0,0(v1)`), ours
+   allocates a fresh destination (`or v0,a0,t7` + `sw v0,0(v1)`); everything
+   else in the loop, including the three addiu + swc2 $12/$13/$14 group, the
+   sra/sll/addu OT link, the and with 0xFFFFFF and the unk2/unkA/gravity tail,
+   is instruction-identical. 'link |= 0x03000000;' produces retail's exact
+   `or a0,a0,t7`/`sw a0,0(v1)` pair but then needs an extra callee-saved
+   register and grows to 568 bytes / 93.51%. Permuter: 4 min, 1740 iterations,
+   base 30 best 30 - no lead. Swapping the | operands or aliasing through a
+   tag local changes nothing.
 // 0x10-byte 2D primitive the particle renderer links three at a time; only the
 // tag word and the projected XY at 0x8 are written here.
 typedef struct {
@@ -209,12 +217,12 @@ extern BattleParticleQuad* g_BattleSpritePrimBuffers[];
 void func_8007E020(u32* pOt) {
     BattleGteScratch* pScratch;
     BattleParticleQuad* pQuad;
-    BattleParticle* pParticle;
     s32* pOtz;
-    u32 masked;
+    BattleParticle* pParticle;
     u32* pLink;
     u32 link;
     u32 addr;
+    u32 masked;
     s32 dx;
     s32 dy;
     s32 dz;
@@ -222,7 +230,6 @@ void func_8007E020(u32* pOt) {
     s32 i;
 
     pScratch = (BattleGteScratch*)0x1F800000;
-    pOtz = (s32*)0x1F8000B0;
     dx = pScratch->viewX;
     dy = pScratch->viewY;
     dz = pScratch->viewZ;
@@ -245,6 +252,7 @@ void func_8007E020(u32* pOt) {
             gte_ldv1(&pScratch->vec);
             stage = 2;
         } else {
+            pOtz = (s32*)0x1F8000B0;
             gte_ldv2(&pScratch->vec);
             gte_rtpt();
             stage = 0;
@@ -277,8 +285,8 @@ void func_8007E020(u32* pOt) {
         pParticle->unk6--;
     }
 }
- */
 
+ */
 void BattleClearSpriteTables(void) {
     s32 i;
 
@@ -630,18 +638,24 @@ void BattleSetTextColor(s32 arg) {
 
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EE68);
-/* best 76.72%. The original loads g_SpuChannelMask TWICE (lw v1 and lw a0, both
-   %hi/%lo of the one symbol, both above the first store) and computes
-   0xFF - x*20 with li 0xFF + subu; one shared subtrahend local ("white") does
-   stop gcc's strength reduction to nor, which is what the 72.66% body below
-   suffered from. The two loads cannot be spelled: gcc CSEs two identical reads
-   of one extern in a basic block, so the original had TWO source names for
-   0x80059488 (aliases in two headers), and this repo has no second name for it
-   (config/symbol_addrs.slus_006.64.txt has one, and splat would see a duplicate
-   address). A volatile second read gives two lw but cannot be hoisted to the
-   block head (72.03%). Everything else - frame, the three 0xFF materialisations,
-   the store order Blue/Red/Green, the sll/addu/sll by 20 - follows from the
-   subtrahend local and is exact once the second load exists.
+/* best 87.66% (124 bytes vs retail 128); the clean body below is 76.72%.
+   Retail reads g_SpuChannelMask TWICE, in two ADJACENT lw at the top of the
+   arg != 0 arm, before any store, and keeps the two values in v1 (red) and a0
+   (green) so both are live at once. Reads 1 and 2 cannot both be plain: gcc
+   CSEs any two identical reads of one extern in a block, whatever the cast
+   (tested *(s32 *)((u8 *)&g) and a struct-field view at offset 0 - both fold
+   to the same MEM and merge). A volatile second read gives the two lw
+   (87.66%, 124 bytes) but gcc then places the SECOND read immediately before
+   its use (after sb g_BattleTextBlue and the red sll/addu/sll), not at the
+   top - same with both reads volatile and with the volatile one first, so it
+   is not a volatility effect: the second read is moved to its use either way.
+   With one load the store order Blue/Red/Green, the sll/addu/sll by 20, the
+   li 0xFF + subu and the two-branch frame are otherwise exact, except that
+   retail materialises 0xFF three times in the then arm (v0 for Blue, v1 for
+   the subtrahend) where one load merges them into one register; a narrow
+   ('u8 white') constant local does not separate them (83.59%, 120 bytes).
+   Conclusion: the original had TWO source names for 0x80059488, which
+   config/symbol_addrs cannot express (one address, one name).
 void func_8007EE68(s32 arg) {
     s32 white = 0xFF;
 
