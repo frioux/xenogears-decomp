@@ -2745,7 +2745,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
         if (*pScriptOffset != 0) {
             pManager->activeElementMask |= 1 << (u8)pElement->elementIndex;
             pElement->active_flag = 0x409;
-            if (((u16*)&pSoundFile->unk10)[0] & 0x1) {
+            if (pSoundFile->flags & 0x1) {
                 pElement->active_flag = 0x40B;
             }
 

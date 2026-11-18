@@ -98,7 +98,8 @@ struct SoundFile_t {
     /* 0x8  */ undefined32 fileSize;
     /* 0xC  */ undefined16 version;
     /* 0xE  */ undefined16 unkE;
-    /* 0x10 */ undefined32 unk10; // smdId?
+    /* 0x10 */ u16 flags; // bit 0 sets SOUND_CHANNEL_* bit 1 on every element the file starts
+    /* 0x12 */ u16 unk12;
     /* 0x14 */ u_short sedId;
     /* 0x16 */ u_short sndId;
     /* 0x18 */ u16 volumeTableOffset; // pSoundFile + this + sound id reaches a per-effect volume byte
