@@ -5,7 +5,6 @@
 
 #define MENU_LABEL_GLYPH_COUNT 9 // glyph ids per character label row (arg5 picks the row)
 #define MENU_LABEL_GLYPH_NONE 0xFFFF // g_MenuCharacterLabelGlyphIds entry with no glyph
-#define MENU_CHARACTER_WINDOW_COUNT 3 // one window per party character: menu.h's characterWindows[3]
 #define MENU_EQUIPMENT_PANEL_ROW_COUNT 5 // rows of the equipment panel (g_Menu->pEquipmentPanel)
 #define MENU_CHARACTER_CELL_TIMER_FRAMES 15 // characterCellTimer wraps at this frame count
 #define MENU_CHARACTER_CELL_FRAME_COUNT 6 // frames in one character cell animation cycle

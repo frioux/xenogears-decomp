@@ -71,6 +71,7 @@
 #define MENU_CLOSE_ANIMATION_START 0x4
 
 #define MENU_MAX_NUM_WINDOWS 0x7
+#define MENU_CHARACTER_WINDOW_COUNT 3 // one window per party character
 #define MENU_MAX_NUM_CURSORS 0x4
 #define MENU_MAX_NUM_ARROW_CURSORS 0x2
 #define MENU_WINDOW_BORDER_SIZE 0x8
@@ -288,7 +289,7 @@ typedef struct {
 } MenuUnk2; // Size: 0x5034
 
 typedef struct {
-    /* 0x0  */ u8 shouldRenderCharacterWindows[0x3]; // One flag per g_Menu->characterWindows entry
+    /* 0x0  */ u8 shouldRenderCharacterWindows[MENU_CHARACTER_WINDOW_COUNT]; // One flag per g_Menu->characterWindows entry
     /* 0x3  */ u8 unk3;
     /* 0x4  */ u8 shouldRenderPointerCursor; // On the ball selection windows?
     /* 0x5  */ u8 goldDigitsActive; // Set by MenuSetGoldDigits, gates the gold digits in MenuAddGoldAndPlayTimePrims
@@ -827,7 +828,7 @@ typedef struct {
     /* 0x360  */ void* pEquipmentPanel; // Stat values and the equipped weapon/accessory ids being edited
     /* 0x364  */ MenuWindow* windows[MENU_MAX_NUM_WINDOWS];
     /* 0x380  */ MenuWindowParameters* windowParameters[MENU_MAX_NUM_WINDOWS];
-    /* 0x39C  */ MenuCharacterWindow* characterWindows[3];
+    /* 0x39C  */ MenuCharacterWindow* characterWindows[MENU_CHARACTER_WINDOW_COUNT];
     /* 0x3A8  */ void* pCellPrimBlocks[32]; // One prim block per character cell, see MenuCreateCellPrimBlocks
     /* 0x428  */ MenuPointerCursors* pCursors;
     /* 0x42C  */ MenuUnk9* pItemRows; // Item name and quantity rows
