@@ -1018,7 +1018,7 @@ void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
         FieldActorApplyPositionTransform();
         g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
         g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
-        ((u_short*)&g_FieldActors[g_FieldCurActorIndex].status)[0] &= 0xFFDF;
+        g_FieldActors[g_FieldCurActorIndex].status &= 0xFFDF;
     } else {
         func_80076AC0(g_FieldCurActorIndex, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
         g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x0 = 1;
@@ -1135,7 +1135,7 @@ void FieldScriptVMHandlerIncrementCounter(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-extern void* g_FieldActorModelPointers[];
+extern u8* g_FieldActorModelPointers[];
 extern void LibGearFreeModel(int modelIndex);
 
 void FieldScriptVMHandlerReleaseActorModel(void) {
@@ -1148,7 +1148,7 @@ void FieldScriptVMHandlerReleaseActorModel(void) {
     pActor->flags &= ~0x2000;
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
-            ((u8*)g_FieldActorModelPointers[nModelIndex])[0x34] = 0;
+            g_FieldActorModelPointers[nModelIndex][0x34] = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
         case 1:
