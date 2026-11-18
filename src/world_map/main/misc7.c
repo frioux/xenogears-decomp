@@ -27,26 +27,34 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ s16 unk4;
-    /* 0x06 */ u8 unk6[0x1A];
-    /* 0x20 */ s16 unk20;
-    /* 0x22 */ u16 unk22;
-    /* 0x24 */ u8 unk24[0x4];
+    /* 0x04 */ s16 command;
+    /* 0x06 */ s16 targetSlot;
+    /* 0x08 */ u8 unk8[0x18];
+    /* 0x20 */ s16 state;
+    /* 0x22 */ u16 stateTimer;
+    /* 0x24 */ s16 hidden;
+    /* 0x26 */ u8 pad26[0x2];
     /* 0x28 */ Vec3 pos;
-    /* 0x34 */ u8 unk34[0x1C];
+    /* 0x34 */ u8 unk34[0x4];
+    /* 0x38 */ s32 unk38;
+    /* 0x3C */ s32 unk3C;
+    /* 0x40 */ s32 unk40;
+    /* 0x44 */ u8 unk44[0xC];
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
-    /* 0x5C */ u8 unk5C[0x20];
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ u8 unk60[0x1C];
     /* 0x7C */ s32 unk7C;
 } WorldMapSlot; // Size: 0x80
 
 typedef struct {
     /* 0x00 */ u8 unk0[0x8];
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ s32 unkC;
-    /* 0x10 */ s32 unk10;
-    /* 0x14 */ u8 unk14[0x2C];
+    /* 0x08 */ s32 x;
+    /* 0x0C */ s32 y;
+    /* 0x10 */ s32 z;
+    /* 0x14 */ u8 unk14[0xC];
+    /* 0x20 */ MATRIX matrix;
     /* 0x40 */ ModelPart *pModel;
     /* 0x44 */ u32 unk44;
     /* 0x48 */ void *pPackets[2]; // prim lists, [0] source and [1] destination; g_WorldMapPrimPacketIndex picks one
@@ -137,17 +145,17 @@ s32 WorldMapInitSlotAtScrollPosition(s32 index) {
 // 84.76, so the preset is not the problem. Residues: gcc sinks `sh zero,0x4(base)`
 // below the pos.x/pos.z loads and hoists the pos.z load where retail keeps
 // statement order, and the slot base lands in $a3 instead of $a2. Addressing the
-// slot as g_WorldMapSlots[index] per statement scores 81.95; moving the unk4 store to
+// slot as g_WorldMapSlots[index] per statement scores 81.95; moving the command store to
 // either end of the three stays at 84.76.
 /*
 s32 func_80080944(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 v;
 
-    if (pSlot->unk4 != 1) {
+    if (pSlot->command != 1) {
         return 1;
     }
-    pSlot->unk4 = 0;
+    pSlot->command = 0;
     v = pSlot->pos.x >> 12;
     *(s16 *)0x1F8000A0 = v;
     v = pSlot->pos.y >> 12;
@@ -255,73 +263,73 @@ s32 WorldMapBeginSlotAnimFrame(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     do { } while (0);
     pSlot->unk50 = 0;
-    pSlot->unk20 = g_WorldMapFadeIds[0];
-    pSlot->unk22 = g_WorldMapFadeFrameCounts[pSlot->unk50];
+    pSlot->state = g_WorldMapFadeIds[0];
+    pSlot->stateTimer = g_WorldMapFadeFrameCounts[pSlot->unk50];
     pSlot->unk50 = pSlot->unk50 + 1;
     return 1;
 }
 s32 WorldMapUpdateSlotState(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
-    switch (pSlot->unk20) {
+    switch (pSlot->state) {
     case 1:
-        pSlot->unk22 = pSlot->unk22 - 1;
-        if ((s16)pSlot->unk22 < 0) {
-            pSlot->unk20 = g_WorldMapFadeIds[pSlot->unk50];
-            pSlot->unk22 = g_WorldMapFadeFrameCounts[pSlot->unk50];
+        pSlot->stateTimer = pSlot->stateTimer - 1;
+        if ((s16)pSlot->stateTimer < 0) {
+            pSlot->state = g_WorldMapFadeIds[pSlot->unk50];
+            pSlot->stateTimer = g_WorldMapFadeFrameCounts[pSlot->unk50];
             pSlot->unk50 = pSlot->unk50 + 1;
         }
         break;
     case 2:
         WorldMapStartSlot(6, 1);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 3:
         WorldMapStartSlot(6, 0);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 4:
         WorldMapStartSlot(6, 2);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 5:
         WorldMapStartSlot(6, 3);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 6:
         WorldMapStartSlot(6, 4);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 7:
         WorldMapStartSlot(6, 5);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 8:
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x2E);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x2F);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x30);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 0x10:
         WorldMapStartSlot(3, 1);
         WorldMapStartSlot(4, 1);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 0x11:
         WorldMapStartSlot(3, 2);
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 0x3F:
         SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
         WorldMapStartSlot(0, 0xD);
         g_WorldMapTpageAbr = 2;
         g_WorldMapDrawMode = 4;
-        pSlot->unk20 = 1;
+        pSlot->state = 1;
         break;
     case 0x40:
         g_WorldMapLoopActive = 0;
         g_WorldMapAreaMode = 0;
-        pSlot->unk20 = 0;
+        pSlot->state = 0;
         break;
     case 0:
     default:
@@ -346,8 +354,8 @@ s32 func_800813E8(s32 index) {
     s32 y;
     s32 z;
 
-    pSlot->unk4 = 1;
-    pSlot->unk20 = 0;
+    pSlot->command = 1;
+    pSlot->state = 0;
     g_WorldMapRotationMatrixValid = 0;
     pSlot->unk7C = 0x1000;
     x = g_WorldMapPlayerPosition.x;
@@ -387,7 +395,7 @@ s32 func_800817A0(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     WorldMapEntry *pEntry = &g_WorldMapGroups[2];
 
-    pSlot->unk20 = 0;
+    pSlot->state = 0;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = g_WorldMapPlayerPositionY - 0x100000;
     pSlot->pos.z = g_WorldMapPlayerPositionZ;
@@ -395,9 +403,9 @@ s32 func_800817A0(s32 index) {
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
     WorldMapInitPolyFt4Prims(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 1);
-    pEntry->unk8 = pSlot->pos.x >> 12;
-    pEntry->unkC = pSlot->pos.y >> 12;
-    pEntry->unk10 = pSlot->pos.z >> 12;
+    pEntry->x = pSlot->pos.x >> 12;
+    pEntry->y = pSlot->pos.y >> 12;
+    pEntry->z = pSlot->pos.z >> 12;
     return 1;
 }
 */
@@ -408,14 +416,14 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
     POLY_FT4 *pPrim;
     s32 i;
 
-    switch (pSlot->unk4) {
+    switch (pSlot->command) {
     case 1:
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 1;
+        pSlot->command = 0;
+        pSlot->state = 1;
         break;
     case 2:
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 0;
+        pSlot->command = 0;
+        pSlot->state = 0;
         pPrim = pEntry->pPackets[g_WorldMapPrimPacketIndex];
         for (i = 0; i < pEntry->pModel->polyCount; i++, pPrim++) {
             pPrim->code &= ~2;
@@ -425,8 +433,8 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
         }
         break;
     }
-    if (pSlot->unk20 != 0) {
-        if (pSlot->unk20 == 1) {
+    if (pSlot->state != 0) {
+        if (pSlot->state == 1) {
             pSlot->unk50 += 1;
             pSlot->unk54 += 1;
             pSlot->unk58 += 1;
@@ -434,7 +442,7 @@ s32 WorldMapUpdateSlotColorFade(s32 index) {
                 pSlot->unk58 = 0xFF;
                 pSlot->unk54 = 0xFF;
                 pSlot->unk50 = 0xFF;
-                pSlot->unk20 = 0;
+                pSlot->state = 0;
             }
         }
     }
@@ -458,7 +466,7 @@ s32 func_800819C8(s32 index) {
     u8 *pEntry = (u8 *)g_WorldMapGroups;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
-    pSlot->unk20 = 0;
+    pSlot->state = 0;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = g_WorldMapPlayerPositionY;
     pSlot->pos.z = g_WorldMapPlayerPositionZ;
@@ -483,18 +491,18 @@ s32 WorldMapUpdateSlotColorFadeFast(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     WorldMapEntry *pEntry = &g_WorldMapGroups[0];
 
-    if (pSlot->unk4 == 1) {
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 1;
+    if (pSlot->command == 1) {
+        pSlot->command = 0;
+        pSlot->state = 1;
     }
-    if (pSlot->unk20 != 0) {
-        if (pSlot->unk20 == 1) {
+    if (pSlot->state != 0) {
+        if (pSlot->state == 1) {
             pSlot->unk50 += 4;
             pSlot->unk54 += 2;
             pSlot->unk58 += 1;
             if (pSlot->unk50 >= 0xFC) {
                 pSlot->unk50 = 0xFC;
-                pSlot->unk20 = 0;
+                pSlot->state = 0;
             }
         }
     }
@@ -552,7 +560,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 s32 WorldMapResetSlotColorFade(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
 
-    pSlot->unk20 = 0;
+    pSlot->state = 0;
     pSlot->unk50 = 1;
     return 1;
 }
@@ -565,30 +573,30 @@ s32 WorldMapFillFadeTable(s32 index) {
     s16 level;
     s16 request;
 
-    request = pSlot->unk4 - 1;
+    request = pSlot->command - 1;
     switch (request) {
     case 0:
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 1;
+        pSlot->command = 0;
+        pSlot->state = 1;
         break;
     case 1:
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 2;
+        pSlot->command = 0;
+        pSlot->state = 2;
         break;
     case 2:
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 3;
+        pSlot->command = 0;
+        pSlot->state = 3;
         break;
     case 3:
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 4;
+        pSlot->command = 0;
+        pSlot->state = 4;
         break;
     case 4:
-        pSlot->unk4 = 0;
-        pSlot->unk20 = 5;
+        pSlot->command = 0;
+        pSlot->state = 5;
         break;
     }
-    switch (pSlot->unk20) {
+    switch (pSlot->state) {
     case 0:
         break;
     case 1:
@@ -739,23 +747,23 @@ s32 func_800827EC(s32 index) {
     g_WorldMapCameraTargetZ = g_WorldMapPlayerPositionZ;
     g_WorldMapScrollTargetZ = g_WorldMapPlayerPositionZ;
     pSlot->pos.z = g_WorldMapPlayerPositionZ;
-    pSlot->unk20 = 0;
-    pSlot->unk4 = 0;
-    *(s32 *)pSlot->unk5C = 0x500000;
+    pSlot->state = 0;
+    pSlot->command = 0;
+    pSlot->unk5C = 0x500000;
     g_WorldMapCameraRot = -0x220;
     g_WorldMapViewRotationY = 0;
     g_WorldMapViewRotationZ = 0;
     pSlot->unk50 = 0xFFDE0000;
-    ((s32 *)pSlot->unk34)[1] = 0xFFDE0000;
+    pSlot->unk38 = 0xFFDE0000;
     a = g_WorldMapViewRotationY;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapCameraHeight = 0x500000;
     pSlot->unk54 = a << 12;
-    ((s32 *)pSlot->unk34)[2] = a << 12;
+    pSlot->unk3C = a << 12;
     b = g_WorldMapViewRotationZ;
     g_WorldMapFadeLevel = 0x78;
     pSlot->unk58 = b << 12;
-    ((s32 *)pSlot->unk34)[3] = b << 12;
+    pSlot->unk40 = b << 12;
     return 1;
 }
 */
