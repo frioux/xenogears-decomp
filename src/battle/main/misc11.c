@@ -2,6 +2,12 @@
 #include "main/game.h"
 #include "psyq/libgpu.h"
 
+// Candidate scan order for target selection.
+typedef struct {
+    /* 0x0 */ u8 cursor;     // next entry of order[] to consider
+    /* 0x1 */ u8 order[0xB]; // slot ids, in candidate order
+} BattleTargetOrder; // Size: 0xC
+
 extern u8 *g_BattleCommandQueue;
 
 extern u8 *D_800C3DE8;
@@ -13,8 +19,7 @@ extern u8 D_800C400B[];
 extern u8 D_800C402F[];
 extern u8 g_BattleSoundEnabled;
 extern u8 g_BattleSlotFlags[];
-extern u8 D_800D2DD7[];
-extern u8 D_800D2DD8[];
+extern BattleTargetOrder D_800D2DD7;
 extern u8 D_800C204C;
 extern u8 D_800C3202[];
 extern u8 *g_BattleGraphicsWork;
@@ -279,22 +284,24 @@ void BattleResetActorDrawState(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
     s32 best = 0xFF;
-    s32 i = D_800D2DD7[0];
+    s32 i = D_800D2DD7.cursor;
     s32 sel;
     s32 idx;
-    s16 *pSlots = (s16 *)(D_800D2DD7 + 0x2F);
+    // g_BattleSlotCountdownTimers is 0x2F bytes past the ring; retail forms the
+    // table off the ring base (addiu t3,v0,0x2F), so naming the symbol costs 4 bytes.
+    s16 *pTimers = (s16 *)((u8 *)&D_800D2DD7 + 0x2F);
 
     do {
-        idx = D_800D2DD8[i];
+        idx = D_800D2DD7.order[i];
         i++;
-        if (*(pSlots + idx) < best && idx != arg0) {
+        if (pTimers[idx] < best && idx != arg0) {
             sel = idx;
-            best = *(u8 *)(pSlots + idx);
+            best = *(u8 *)&pTimers[idx];
         }
-        if (i == 0xB) {
+        if (i == sizeof(D_800D2DD7.order)) {
             i = 0;
         }
-    } while (i != D_800D2DD7[0]);
+    } while (i != D_800D2DD7.cursor);
     return sel;
 }
 
