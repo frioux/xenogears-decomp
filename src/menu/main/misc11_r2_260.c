@@ -24,6 +24,15 @@
 #define MENU_GLYPH_ROW_COUNT 16
 #define MENU_GLYPH_ROW_BYTES 16
 
+// Length of a row after MenuCompressGlyphRows, and the most glyphs one chunk's
+// glyph-code table holds.
+#define MENU_GLYPH_COMPRESSED_ROW_BYTES 12
+#define MENU_GLYPH_MAX_COUNT 64
+
+// Bytes in the 4bpp glyph texture that is rasterised a glyph at a time and
+// uploaded to the rect above.
+#define MENU_GLYPH_TEXTURE_SIZE 0x1000
+
 // Cell position in the menu glyph atlas: 21 cells per row, the row's y in
 // D_801E99E8.
 typedef struct {
@@ -326,18 +335,19 @@ s32 MenuGetGlyphKromAddress(u8* p) {
 void func_801E6668(s32 index) {
     u8* pGlyphBits;
     u8* pBits;
-    u8* pTexture;
+    u16* pTexture;
     u8* pSrc;
     u16* pGlyph;
+    s32 kromAddress;
     RECT rect;
     s32 i;
     s32 count;
     s32 row;
     s32 col;
 
-    pBits = HeapAlloc(0x100, 1);
-    pTexture = HeapAlloc(0x1000, 1);
-    bzero(pTexture, 0x1000);
+    pBits = HeapAlloc(MENU_GLYPH_ROW_COUNT * MENU_GLYPH_ROW_BYTES, 1);
+    pTexture = HeapAlloc(MENU_GLYPH_TEXTURE_SIZE, 1);
+    bzero(pTexture, MENU_GLYPH_TEXTURE_SIZE);
     count = 0;
     pSrc = &g_Menu->menuUnk2->chunks[index].pad0[4];
     for (i = 0; i < 0x20; i++) {
@@ -345,9 +355,10 @@ void func_801E6668(s32 index) {
             break;
         }
         pGlyphBits = pBits;
-        pGlyph = (u16*)MenuGetGlyphKromAddress(pSrc);
-        if (pGlyph != (u16*)-1) {
-            for (row = 0; row < 0x10; row++) {
+        kromAddress = MenuGetGlyphKromAddress(pSrc);
+        if (kromAddress != -1) {
+            pGlyph = (u16*)kromAddress;
+            for (row = 0; row < MENU_GLYPH_ROW_COUNT; row++) {
                 for (col = 7; col >= 0; col--) {
                     *pGlyphBits++ = (*pGlyph >> col) & 1;
                 }
@@ -357,11 +368,11 @@ void func_801E6668(s32 index) {
                 pGlyph++;
             }
             MenuCompressGlyphRows(pBits);
-            for (row = 0; row < 0x10; row++) {
-                for (col = 0; col < 0xC; col++) {
-                    ((u16*)pTexture)[row * 0x40 + col / 4 + (i % 0x10) * 4 +
-                                      (i / 0x10) * 0x400] |=
-                        pBits[row * 0x10 + col] << ((col % 4) * 4);
+            for (row = 0; row < MENU_GLYPH_ROW_COUNT; row++) {
+                for (col = 0; col < MENU_GLYPH_COMPRESSED_ROW_BYTES; col++) {
+                    pTexture[row * 0x40 + col / 4 + (i % 0x10) * 4 +
+                             (i / 0x10) * 0x400] |=
+                        pBits[row * MENU_GLYPH_ROW_BYTES + col] << ((col % 4) * 4);
                 }
             }
         }
@@ -371,14 +382,14 @@ void func_801E6668(s32 index) {
             pSrc++;
             count++;
         }
-        if (count >= 0x40) {
+        if (count >= MENU_GLYPH_MAX_COUNT) {
             break;
         }
     }
-    rect.x = 0x140;
-    rect.y = 0xE0;
-    rect.w = 0x40;
-    rect.h = 0x20;
+    rect.x = MENU_GLYPH_TEXTURE_X;
+    rect.y = MENU_GLYPH_TEXTURE_Y;
+    rect.w = MENU_GLYPH_TEXTURE_WIDTH;
+    rect.h = MENU_GLYPH_TEXTURE_HEIGHT;
     LoadImage(&rect, (u_long*)pTexture);
     DrawSync(0);
     HeapFree(pBits);
