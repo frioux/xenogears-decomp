@@ -304,7 +304,437 @@ void WorldMapAlignPerpendicularToReference(void* pOut, SVec* pDir, SVec* pResult
     }
     pResult->y = 0;
 }
+// A step leaves the triangle it started in through one of the triangle's three
+// edges, so the mesh carries a neighbour index per edge: -1 where the triangle
+// has no neighbour on that side.
+typedef struct {
+    /* 0x0 */ s16 vert[3];
+    /* 0x6 */ s16 next[3];
+    /* 0xC */ u16 kind;
+} WorldMapStepTriangle; // Size: 0xE
+
+typedef struct {
+    /* 0x0 */ u8 unk0[8];
+    /* 0x8 */ WorldMapStepTriangle tris[1];
+} WorldMapStepMesh; // Size: 0x16
+
+// One entry of the g_WorldMapGroups sprite-set table (stride 0x54); only the
+// mesh of the set is read here.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x44];
+    /* 0x44 */ WorldMapStepMesh* pMesh;
+    /* 0x48 */ u8 unk48[0xC];
+} WorldMapStepSpriteSet; // Size: 0x54
+
+// The walk keeps its working vectors in the scratchpad: one candidate direction
+// per mesh edge, the position the step is resolved at, and the normal and the
+// interpolated plane height of the triangle it is standing in.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x30];
+    /* 0x30 */ SVec4 dir[3]; // 0x30, 0x40, 0x50
+    /* 0x60 */ SVec probe;
+    /* 0x6C */ u32 pad6C;
+    /* 0x70 */ SVec normalA;
+    /* 0x7C */ u32 pad7C;
+    /* 0x80 */ SVec normalB;
+} WorldMapStepScratch; // Size: 0x8C
+
+#define WORLD_MAP_STEP_SCRATCH ((WorldMapStepScratch*)0x1F800000)
+
+// How a step is resolved: against the terrain only, by searching the sprite
+// sets under the new position, or by walking the mesh of the sprite set the
+// step is already standing in (2 and 3 share the walk).
+#define WORLD_MAP_STEP_TERRAIN 0
+#define WORLD_MAP_STEP_SEARCH 1
+#define WORLD_MAP_STEP_WALK_EDGE 2
+#define WORLD_MAP_STEP_WALK 3
+
+#define WORLD_MAP_STEP_NONE (-1)
+
+// A triangle the step crosses into is adopted when the plane of its normal is
+// within this many units of the height the step is being resolved at.
+#define WORLD_MAP_STEP_HEIGHT_TOLERANCE 11
+
+// func_80085760's clip code: inside the triangle, past edge 0/1/2, past the
+// corner between two of them, or outside the mesh altogether.
+#define WORLD_MAP_CLIP_INSIDE 0
+#define WORLD_MAP_CLIP_EDGE01 3
+#define WORLD_MAP_CLIP_EDGE02 5
+#define WORLD_MAP_CLIP_EDGE12 6
+
+extern WorldMapStepSpriteSet* g_WorldMapGroups;
+extern s32 D_8009C840;   // sprite set the step is being resolved in, -1 when none
+extern s32 D_8009C16C;   // current triangle of that set
+extern s16 D_8009D718[]; // candidate triangles: a triangle index and its kind per pair
+extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
+extern s32 WorldMapFindSpriteSet(void* pPos, s16* pSet);
+extern s32 func_80085760(SVec* pPos, SVec* pRef, s32 setIndex, s32 triIndex);
+extern s32 WorldMapCheckTriangleEdgeSide(SVec* pPos, s32 yOffset, u16 setIndex, u16 triIndex);
+
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
+/* best: 60.05% (mine 2280 bytes vs retail's 2240, so 40 bytes / 10 insns long).
+   Structure is mapped and the body compiles; what is left is the frame and the
+   register allocation:
+     - retail's frame is 0xB8 and it spills BOTH pBase (a0 -> 0x20(sp)) and
+       scale (a3 -> 0x28(sp)) and reloads them at every use (`lw t1,0x20(sp)`);
+       mine is 0xA8 and keeps pBase in a saved register, so the s-registers
+       retail gives to i/found/triIndex go elsewhere.
+     - retail keeps the scratchpad base 0x1F800000 in $fp (`lui $fp,(0x1F800080
+       >> 16)`, parked in the first GetTilePlaneHeight jal delay slot) and
+       reaches 0x30/0x40/0x50/0x60/0x70/0x80 as fp+offset; the early stores to
+       0x60/0x64/0x68 use fresh `lui $at` instead.  With literal addresses gcc
+       folds the whole 0x1F800060 into one saved register (the failure the
+       func_80095CD4 note below describes); the WORLD_MAP_STEP_SCRATCH struct
+       spelling below is 0.2% better.  Retail MIXES two spellings: the case-1
+       ProjectTriangleNormal call uses the symbols (`addiu a0,fp,%lo(D_1F800060)`,
+       `%lo(D_1F800070)`, `%lo(D_1F800080)`), while case 0's call and the three
+       WorldMapAlignDirectionToReference calls use raw fp+0x30/0x40/0x50/0x60/
+       0x70/0x80 offsets with no relocation.  Note the func_80095CD4 park below
+       claims the symbolic spelling "emits %hi/%lo relocations retail does not
+       have" -- for func_80095414 retail does have them, so try the symbols here.
+   Facts worth keeping:
+     - D_8009C840 is the sprite set the step is resolved in (-1 = none) and
+       D_8009C16C its current triangle; both are s32 globals (lw/sw) holding
+       16-bit values, read lhu for the triangle index and sign extended by the
+       stores.  WORLD_MAP_STEP_NONE names the -1 of both.
+     - ONE s16 local is both the address-taken output of WorldMapFindSpriteSet
+       and the spilled set index (slot 0x18): it is `lh` where it is used
+       plainly and `lhu` where cast to u16 for a u16 parameter, which is how a
+       single variable explains both loads.
+     - mesh triangle stride 0xE: vert[3] at 0x0, the three edge neighbours at
+       0x6/0x8/0xA (-1 = none), a u16 at 0xC compared against 0 and 1.
+       Neighbour[0] pairs with 0x1F800030, [1] with 0x40, [2] with 0x50.
+     - func_80085760's clip code: 0 inside, 1/2/4 past an edge, 3/5/6 past a
+       corner, >= 8 out of range.  mask = which of the two neighbours exist,
+       kindMask = which of them have the 0xC word == 0.
+     - the walk is `do { ... } while (again)` with `again = 1` before it, and the
+       "give up and resolve against the terrain" block (ret = WorldMapResolve-
+       StepAgainstTerrain(...); D_8009C16C = -1; D_8009C840 = -1; again = 0;) is
+       reached from the -1 arms of cases 1/2/4 and the mask==0 arms of 3/5/6 and
+       is ONE shared block in retail.  A `goto` behind a `continue` gives that
+       shape; six duplicated copies would rely on -fcross-jumping to merge.
+     - outer case body source order is 0, 1, 2, 4, 3, 5, 6 (retail's body
+       address order).  Cases 2 and 3 of the outer switch share the walk, so
+       the `mode` variable is 1 (no current set) or 3 (walk) and the cases 0/2
+       are unreachable today but present (the 4-way case tree proves 4 labels).
+*/
+/*
+s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
+    WorldMapStepMesh* pMesh;
+    WorldMapStepTriangle* pTri;
+    s32 mode;
+    s32 ret;
+    s32 again;
+    s32 count;
+    s32 found;
+    s32 i;
+    s32 mask;
+    s32 kindMask;
+    s32 state;
+    s32 heightDelta;
+    s16 setIndex;
+    s16 next;
+    s16 next2;
+    u16 triIndex;
+
+    WORLD_MAP_STEP_SCRATCH->probe.x = pBase->x + ((pDelta->x * scale) >> 12);
+    WORLD_MAP_STEP_SCRATCH->probe.z = pBase->z + ((pDelta->z * scale) >> 12);
+    WorldMapWrapPosition(&WORLD_MAP_STEP_SCRATCH->probe);
+    WORLD_MAP_STEP_SCRATCH->probe.y =
+        WorldMapGetTilePlaneHeight(WORLD_MAP_STEP_SCRATCH->probe.x, WORLD_MAP_STEP_SCRATCH->probe.z) - 0x4000;
+
+    pOut->x = pBase->x + ((pDelta->x * scale) >> 12);
+    pOut->z = pBase->z + ((pDelta->z * scale) >> 12);
+    WorldMapWrapPosition(pOut);
+    pOut->y = WorldMapGetTilePlaneHeight(pOut->x, pOut->z) - 0x4000;
+
+    ret = 0;
+    if (D_8009C840 == WORLD_MAP_STEP_NONE) {
+        mode = WORLD_MAP_STEP_SEARCH;
+    } else {
+        mode = WORLD_MAP_STEP_WALK;
+    }
+    switch (mode) {
+    case WORLD_MAP_STEP_TERRAIN:
+        ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+        D_8009C16C = WORLD_MAP_STEP_NONE;
+        D_8009C840 = WORLD_MAP_STEP_NONE;
+        return ret;
+    case WORLD_MAP_STEP_SEARCH:
+        count = WorldMapFindSpriteSet((void*)0x1F800060, &setIndex);
+        if (count == 0) {
+            return WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+        }
+        found = 0;
+        for (i = 0; i < count; i += 2) {
+            if (WorldMapCheckTriangleEdgeSide(&WORLD_MAP_STEP_SCRATCH->probe, 0x70, (u16)setIndex,
+                                             (u16)D_8009D718[i]) == 0) {
+                D_8009D718[i] = WORLD_MAP_STEP_NONE;
+                found += 2;
+            }
+        }
+        if (found == count) {
+            return WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+        }
+        ret = 0;
+        for (i = 0; i < count; i += 2) {
+            next = D_8009D718[i];
+            if (next == WORLD_MAP_STEP_NONE) {
+                continue;
+            }
+            if (D_8009D718[i + 1] == 1) {
+                continue;
+            }
+            WorldMapProjectTriangleNormal(&WORLD_MAP_STEP_SCRATCH->probe, &WORLD_MAP_STEP_SCRATCH->normalA,
+                                          &WORLD_MAP_STEP_SCRATCH->normalB, (u16)setIndex, (u16)next);
+            heightDelta = WORLD_MAP_STEP_SCRATCH->normalA.y - (pBase->y >> 12);
+            if (heightDelta < 0) {
+                heightDelta = -heightDelta;
+            }
+            if (heightDelta < WORLD_MAP_STEP_HEIGHT_TOLERANCE) {
+                pOut->y = WORLD_MAP_STEP_SCRATCH->normalA.y << 12;
+                D_8009C840 = setIndex;
+                D_8009C16C = next;
+                ret = 1;
+                break;
+            }
+        }
+        if (ret != 0) {
+            return ret;
+        }
+        WorldMapAlignPerpendicularToReference(&WORLD_MAP_STEP_SCRATCH->normalB, pDelta, pOut);
+        return ret;
+    case WORLD_MAP_STEP_WALK_EDGE:
+    case WORLD_MAP_STEP_WALK:
+        setIndex = D_8009C840;
+        triIndex = D_8009C16C;
+        pMesh = g_WorldMapGroups[setIndex].pMesh;
+        pTri = pMesh->tris;
+        again = 1;
+        do {
+            state = func_80085760(pBase, &WORLD_MAP_STEP_SCRATCH->probe, setIndex, (s16)triIndex);
+            switch (state) {
+            case WORLD_MAP_CLIP_INSIDE:
+                ret = 1;
+                again = 0;
+                WorldMapProjectTriangleNormal(&WORLD_MAP_STEP_SCRATCH->probe, &WORLD_MAP_STEP_SCRATCH->normalA,
+                                              &WORLD_MAP_STEP_SCRATCH->normalB, (u16)setIndex, triIndex);
+                D_8009C16C = (s16)triIndex;
+                pOut->y = WORLD_MAP_STEP_SCRATCH->normalA.y << 12;
+                D_8009C840 = setIndex;
+                break;
+            case 1:
+                next = pTri[(s16)triIndex].next[0];
+                if (next == WORLD_MAP_STEP_NONE) goto resolve;
+                if (pTri[next].kind != 1) {
+                    break;
+                }
+                triIndex = next;
+                ret = 0;
+                again = 0;
+                WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[0]);
+                break;
+            case 2:
+                next = pTri[(s16)triIndex].next[1];
+                if (next == WORLD_MAP_STEP_NONE) goto resolve;
+                if (pTri[next].kind != 1) {
+                    break;
+                }
+                triIndex = next;
+                ret = 0;
+                again = 0;
+                WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[1]);
+                break;
+            case 4:
+                next = pTri[(s16)triIndex].next[2];
+                if (next == WORLD_MAP_STEP_NONE) goto resolve;
+                triIndex = next;
+                if (pTri[next].kind != 1) {
+                    break;
+                }
+                ret = 0;
+                again = 0;
+                WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[2]);
+                break;
+            case WORLD_MAP_CLIP_EDGE01:
+                next = pTri[(s16)triIndex].next[0];
+                next2 = pTri[(s16)triIndex].next[1];
+                mask = (next != WORLD_MAP_STEP_NONE);
+                if (next2 != WORLD_MAP_STEP_NONE) {
+                    mask |= 2;
+                }
+                switch (mask) {
+                case 2:
+                    if (pTri[next2].kind != 1) {
+                        break;
+                    }
+                    triIndex = next2;
+                    ret = 0;
+                    again = 0;
+                    WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[1]);
+                    break;
+                case 1:
+                    if (pTri[next].kind != 1) {
+                        break;
+                    }
+                    triIndex = next;
+                    ret = 0;
+                    again = 0;
+                    WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[0]);
+                    break;
+                case 3:
+                    kindMask = (pTri[next].kind == 0);
+                    if (pTri[next2].kind == 0) {
+                        kindMask |= 2;
+                    }
+                    switch (kindMask) {
+                    case 0:
+                        pOut->z = 0;
+                        pOut->y = 0;
+                        pOut->x = 0;
+                        ret = 0;
+                        again = 0;
+                        break;
+                    case 1:
+                        triIndex = pTri[(s16)triIndex].next[0];
+                        break;
+                    case 2:
+                        triIndex = next2;
+                        break;
+                    case 3:
+                        triIndex = pTri[(s16)triIndex].next[1];
+                        break;
+                    }
+                    break;
+                default:
+                    goto resolve;
+                }
+                break;
+            case WORLD_MAP_CLIP_EDGE02:
+                next = pTri[(s16)triIndex].next[0];
+                next2 = pTri[(s16)triIndex].next[2];
+                mask = (next != WORLD_MAP_STEP_NONE);
+                if (next2 != WORLD_MAP_STEP_NONE) {
+                    mask |= 2;
+                }
+                switch (mask) {
+                case 2:
+                    triIndex = next2;
+                    if (pTri[next2].kind != 1) {
+                        break;
+                    }
+                    ret = 0;
+                    again = 0;
+                    WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[2]);
+                    break;
+                case 1:
+                    if (pTri[next].kind != 1) {
+                        break;
+                    }
+                    triIndex = next;
+                    ret = 0;
+                    again = 0;
+                    WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[0]);
+                    break;
+                case 3:
+                    kindMask = (pTri[next].kind == 0);
+                    if (pTri[next2].kind == 0) {
+                        kindMask |= 2;
+                    }
+                    switch (kindMask) {
+                    case 0:
+                        pOut->z = 0;
+                        pOut->y = 0;
+                        pOut->x = 0;
+                        ret = 0;
+                        again = 0;
+                        break;
+                    case 1:
+                        triIndex = pTri[(s16)triIndex].next[0];
+                        break;
+                    case 2:
+                        triIndex = next2;
+                        break;
+                    case 3:
+                        triIndex = pTri[(s16)triIndex].next[1];
+                        break;
+                    }
+                    break;
+                default:
+                    goto resolve;
+                }
+                break;
+            case WORLD_MAP_CLIP_EDGE12:
+                next = pTri[(s16)triIndex].next[1];
+                next2 = pTri[(s16)triIndex].next[2];
+                mask = (next != WORLD_MAP_STEP_NONE);
+                if (next2 != WORLD_MAP_STEP_NONE) {
+                    mask |= 2;
+                }
+                switch (mask) {
+                case 2:
+                    triIndex = next2;
+                    if (pTri[next2].kind != 1) {
+                        break;
+                    }
+                    ret = 0;
+                    again = 0;
+                    WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[2]);
+                    break;
+                case 1:
+                    if (pTri[next].kind != 1) {
+                        break;
+                    }
+                    triIndex = next;
+                    ret = 0;
+                    again = 0;
+                    WorldMapAlignDirectionToReference(pDelta, pOut, &WORLD_MAP_STEP_SCRATCH->dir[1]);
+                    break;
+                case 3:
+                    kindMask = (pTri[next].kind == 0);
+                    if (pTri[next2].kind == 0) {
+                        kindMask |= 2;
+                    }
+                    switch (kindMask) {
+                    case 0:
+                        pOut->z = 0;
+                        pOut->y = 0;
+                        pOut->x = 0;
+                        ret = 0;
+                        again = 0;
+                        break;
+                    case 1:
+                        triIndex = pTri[(s16)triIndex].next[1];
+                        break;
+                    case 2:
+                        triIndex = next2;
+                        break;
+                    case 3:
+                        triIndex = pTri[(s16)triIndex].next[1];
+                        break;
+                    }
+                    break;
+                default:
+                    goto resolve;
+                }
+                break;
+            }
+            continue;
+        resolve:
+            ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+            D_8009C16C = WORLD_MAP_STEP_NONE;
+            D_8009C840 = WORLD_MAP_STEP_NONE;
+            again = 0;
+        } while (again);
+        break;
+    }
+    return ret;
+}
+*/
+
+extern void WorldMapProjectTriangleNormal(SVec* pPos, SVec* pOut, SVec* pNormal, u16 setIndex,
+                                          u16 triIndex);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
 /* best: 87.03% (688 bytes vs 704). The whole body matches except the probe
    scratchpad at 0x1F800060/64/68: retail re-materialises each constant address
