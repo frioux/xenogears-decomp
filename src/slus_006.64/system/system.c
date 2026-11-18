@@ -247,24 +247,42 @@ void SystemTransferPaletteToVRAM(short xDest, short yDest) {
     g_SystemPalette2 = GetClut(xDest + SYSTEM_PALETTE_CLUT_COLOR_COUNT, yDest);
 }
 
+// A string bank: two header words, then one u16 offset per entry, each
+// relative to the start of the bank. The entry itself is the string.
+typedef struct {
+    /* 0x0 */ u16 unk0;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 offsets[1];
+} SystemStringBank; // Size: 0x6
+
 void* GetStringEntry(void* stringData, u32 entry) {
-    return stringData + ((u16 *)stringData)[entry+2];
+    SystemStringBank* pBank = stringData;
+    return (u8*)pBank + pBank->offsets[entry];
 }
 
-// TODO: Cleanup code
-// Dialog data format:
-// 0x0: Offset to dimension data
-// 0x2: ?
-// 0x4: ?
-// 0x6: u16 dimensions[dialog_count]
-u8 DialogGetWidth(u16* pDialogData, int dialogIndex) {
-    u8* pDialog = (pDialogData + 3) + *pDialogData + dialogIndex;
-    return pDialog[0];
+// One dialog's window size
+typedef struct {
+    /* 0x0 */ u8 width;
+    /* 0x1 */ u8 height;
+} DialogDimensions; // Size: 0x2
+
+// Dialog data: a header, then (dimensionOffset entries past it) one
+// DialogDimensions per dialog, in dialog order.
+typedef struct {
+    /* 0x0 */ u16 dimensionOffset;
+    /* 0x2 */ u16 unk2;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ DialogDimensions dimensions[1];
+} DialogDataHeader; // Size: 0x8
+
+u8 DialogGetWidth(DialogDataHeader* pDialogData, int dialogIndex) {
+    DialogDimensions* pDimensions = &pDialogData->dimensions[pDialogData->dimensionOffset] + dialogIndex;
+    return pDimensions->width;
 }
 
-u8 DialogGetHeight(u16* pDialogData, int dialogIndex) {
-    u8* pDialog = (pDialogData + 3) + *pDialogData + dialogIndex;
-    return pDialog[1];
+u8 DialogGetHeight(DialogDataHeader* pDialogData, int dialogIndex) {
+    DialogDimensions* pDimensions = &pDialogData->dimensions[pDialogData->dimensionOffset] + dialogIndex;
+    return pDimensions->height;
 }
 
 void* GetStringEntryFromBank(int groupIndex, int entryId) {
