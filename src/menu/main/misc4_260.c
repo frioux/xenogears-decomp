@@ -87,7 +87,7 @@ void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2
     MenuBuildCharacterLevelDigits(pCharacter, arg1, arg2, arg3, arg4);
     func_801CDC6C(pCharacter, arg1, arg2, arg3, arg4, arg5);
     pCharacter->shouldRender = 1;
-    pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
+    pCharacter->renderContext = *(u8*)&g_Menu->renderContext;
 }
 void MenuRenderTransformedQuads(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
     s32 i;
@@ -109,14 +109,14 @@ void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext) {
         AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[2 * i + renderContext]);
     }
 }
+// The prim is reached index-first (`ctx + array`): the `array[ctx]` spelling gives
+// gcc the commuted addu retail does not have.
 void MenuRenderSelectionCursor(void) {
-    u32 offset;
-
-    offset = g_Menu->pCursorPrims->drawModeRenderContext * sizeof(DR_MODE) + 0x128;
-    AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pCursorPrims));
+    AddPrim(&g_Menu->pGfxEnv->ot[4],
+            g_Menu->pCursorPrims->drawModeRenderContext + g_Menu->pCursorPrims->drModes1);
     if (g_Menu->pManager->shouldRenderPointerCursor) {
-        offset = g_Menu->pCursorPrims->cursorRenderContext * sizeof(POLY_FT4);
-        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pCursorPrims));
+        AddPrim(&g_Menu->pGfxEnv->ot[4],
+                g_Menu->pCursorPrims->cursorRenderContext + g_Menu->pCursorPrims->polysPointerCursor);
     }
 }
 void MenuRenderPointerCursors(void) {
@@ -128,46 +128,59 @@ void MenuRenderPointerCursors(void) {
         for (i = 0; i < 4; i++) {
             pCursors = g_Menu->pCursors;
             if (pCursors->shouldRender[i]) {
+                // The prim address is summed in integer space, then added to the block:
+                // a pointer sum here gives gcc the commuted `addu a1,a2,a1` retail does
+                // not have (99.74).
                 offset = (2 * i + pCursors->renderContexts[i]) * sizeof(POLY_FT4);
                 AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)pCursors));
             }
         }
     }
 }
+// Gold window prim block (g_Menu->pGoldWindow), the same layout misc7's
+// MenuSetGoldDigits builds: the nine digit quads, the 'G' glyph quad per render
+// context, then the digit count the quads were packed from.
+typedef struct {
+    /* 0x000 */ POLY_FT4 digitPrims[18]; // Two per digit, one per render context
+    /* 0x2D0 */ POLY_FT4 glyphPrims[2];  // One per render context
+    /* 0x320 */ s32 digitPrimCount;
+    /* 0x324 */ u_char renderContext;
+} MenuGoldWindow; // Size: 0x328
 void MenuAddGoldAndPlayTimePrims(void) {
-    u32 offset;
-
     if (g_Menu->pManager->goldDigitsActive) {
-        MenuRenderString(*(s32*)((u8*)g_Menu->pGoldWindow + 0x320), (POLY_FT4*)g_Menu->pGoldWindow,
-                      ((u8*)g_Menu->pGoldWindow)[0x324]);
-        offset = ((u8*)g_Menu->pGoldWindow)[0x324] * sizeof(POLY_FT4) + 0x2D0;
-        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pGoldWindow));
+        MenuRenderString(((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount,
+                         ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrims,
+                         ((MenuGoldWindow*)g_Menu->pGoldWindow)->renderContext);
+        AddPrim(&g_Menu->pGfxEnv->ot[4],
+                &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrims[((MenuGoldWindow*)g_Menu->pGoldWindow)->renderContext]);
     }
     if (g_Menu->pManager->playTimeDigitsActive) {
-        MenuRenderString(7, (POLY_FT4*)g_Menu->pPlayTimeDigits, ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
-        MenuRenderString(4, (POLY_FT4*)((u8*)g_Menu->pPlayTimeDigits + 0x230), ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
+        MenuRenderString(7, g_Menu->pPlayTimeDigits->polys[0], g_Menu->pPlayTimeDigits->renderContext);
+        MenuRenderString(4, g_Menu->pPlayTimeDigits->polys[7], g_Menu->pPlayTimeDigits->renderContext);
     }
 }
 // 2.6.0 is what puts the loop increment in retail's `beqz` delay slot, so this
-// function only matches on this preset (97.78 under Default).  The AddPrim
-// addresses must stay written as &pData[a*b + K]: the plain `pData + a*b + K`
-// form reassociates and loses the +0x50 addiu order.
+// function only matches on this preset (97.78 under Default).  The two AddPrim
+// addresses reach the still opaque four prim table at offset 0 (`unk0` in the
+// header) through a byte pointer, and must keep the `&pData[ctx * size + K]`
+// subscript spelling: the pointer-sum form loses retail's addiu 0x50 order.
 void MenuAddCharacterWindowPrims(void) {
     s32 i;
-    u8* pData;
+    MenuCharacterWindow* pWindow;
 
     for (i = 0; i < 3; i++) {
-        pData = (u8*)g_Menu->characterWindows[i];
+        pWindow = g_Menu->characterWindows[i];
         if (g_Menu->pManager->shouldRenderCharacterWindows[i]) {
-            AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(pData + pData[0x1270] * sizeof(POLY_FT4)));
-            AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[pData[0x1270] * sizeof(POLY_FT4) + 0x50]);
-            MenuRenderString(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
-            MenuRenderString(pData[0x1273], (POLY_FT4*)(pData + 0xAF0), pData[0x1270]);
-            MenuRenderString(pData[0x1274], (POLY_FT4*)(pData + 0xBE0), pData[0x1270]);
-            MenuRenderString(pData[0x1275], (POLY_FT4*)(pData + 0xCD0), pData[0x1270]);
-            MenuRenderString(pData[0x1276], (POLY_FT4*)(pData + 0xD70), pData[0x1270]);
-            MenuRenderString(pData[0x1277], (POLY_FT4*)(pData + 0xE10), pData[0x1270]);
-            MenuRenderString(pData[0x1271], (POLY_FT4*)(pData + 0x910), pData[0x1270]);
+            AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&((u8*)pWindow)[pWindow->renderContext * sizeof(POLY_FT4)]);
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (void*)&((u8*)pWindow)[pWindow->renderContext * sizeof(POLY_FT4) + 0x50]);
+            MenuRenderString(pWindow->iconsPrimCount, pWindow->polysIcons, pWindow->renderContext);
+            MenuRenderString(pWindow->hpPrimCount, pWindow->polysHp, pWindow->renderContext);
+            MenuRenderString(pWindow->maxHpPrimCount, pWindow->polysMaxHp, pWindow->renderContext);
+            MenuRenderString(pWindow->mpPrimCount, pWindow->polysMp, pWindow->renderContext);
+            MenuRenderString(pWindow->maxMpPrimCount, pWindow->polysMaxMp, pWindow->renderContext);
+            MenuRenderString(pWindow->wideNumberPrimCount, pWindow->polysWideNumber, pWindow->renderContext);
+            MenuRenderString(pWindow->levelPrimCount, pWindow->polysLevel, pWindow->renderContext);
         }
     }
 }
@@ -312,19 +325,34 @@ void MenuAddUnk35CPrims(void) {
         func_801CE860();
     }
 }
+// Equipment panel block (g_Menu->pEquipmentPanel, 0x2AC bytes, allocated in misc10):
+// five rows of a quad prim per render context plus its four source vertices, then one
+// visibility flag per row.
+typedef struct {
+    /* 0x00 */ POLY_FT4 prims[2]; // One per render context
+    /* 0x50 */ SVECTOR verts[4];
+    /* 0x70 */ u8 unk70[0x10];
+} MenuEquipmentPanelRow; // Size: 0x80
+typedef struct {
+    /* 0x000 */ MenuEquipmentPanelRow rows[5];
+    /* 0x280 */ u8 unk280[0x14];
+    /* 0x294 */ u8 shouldRenderRows[5];
+    /* 0x299 */ u_char renderContext;
+    /* 0x29A */ u8 unk29A[0x12];
+} MenuEquipmentPanel; // Size: 0x2AC
 void MenuAddUnk360Prims(void) {
     s32 i;
-    u8* pData;
-    u8* pFlag;
-    u8* pRow;
+    MenuEquipmentPanel* pPanel;
+    MenuEquipmentPanelRow* pRow;
 
     if (g_Menu->pManager->shouldRenderPanel[1]) {
         for (i = 0; i < 5; i++) {
-            pData = (u8*)g_Menu->pEquipmentPanel;
-            pFlag = pData + i;
-            if (pFlag[0x294]) {
-                pRow = (u8*)(i * 0x80 + (u32)pData);
-                MenuRenderTransformedQuads(1, (SVECTOR*)(pRow + 0x50), (POLY_FT4*)pRow, pData[0x299]);
+            pPanel = (MenuEquipmentPanel*)g_Menu->pEquipmentPanel;
+            if (pPanel->shouldRenderRows[i]) {
+                // The row address has to be summed in integer space: a pointer sum gives
+                // gcc the commuted `addu a2,v1,a2` retail does not have (99.71).
+                pRow = (MenuEquipmentPanelRow*)(i * sizeof(MenuEquipmentPanelRow) + (u32)pPanel);
+                MenuRenderTransformedQuads(1, pRow->verts, pRow->prims, pPanel->renderContext);
             }
         }
     }
@@ -445,46 +473,53 @@ void func_801CF8D8(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CFB48);
+// Cell grid panel block (g_Menu->pCellGrid), allocated in func_801CAE08: the quad
+// MenuScrollCellGridRow fills, one per render context, the two strings below it and
+// the scroll that drives the quad's width.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x8];
-    /* 0x08 */ s16 unk8;
-    /* 0x0A */ s16 unkA;
-    /* 0x0C */ s16 unkC;
-    /* 0x0E */ s16 unkE;
-    /* 0x10 */ s16 unk10;
-    /* 0x12 */ s16 unk12;
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ s16 unk16;
-} MenuUnk44CEntry; // Size: 0x18
-// The `rem >= 4` form is required (sltiu+beqz), not `rem < 4`.  97.97% under the
-// Default preset: identical instruction multiset, only the div-by-6 magic moves.
+    /* 0x000 */ POLY_F4 quads[2];          // The row quad, one per render context
+    /* 0x030 */ POLY_FT4 glyphs12[12][2];  // A twelve glyph string, one prim per render context
+    /* 0x3F0 */ POLY_FT4 glyphs2[2][2];    // A two glyph string
+    /* 0x490 */ u8 unk490[0x320];
+    /* 0x7B0 */ s32 scrollX;               // Grows by scrollStep per scroll frame, wraps past 0x100
+    /* 0x7B4 */ s32 scrollStep;
+    /* 0x7B8 */ u_char renderContext;       // Picks this frame's prim out of every pair above
+    /* 0x7B9 */ u8 unk7B9[7];
+} MenuCellGridPanel; // Size: 0x7C0
+// pCellGrid is a void*, so every access reloads and re-casts it: a pointer local
+// lets gcc hoist the load out of the eight quad stores below.  The quad has to be
+// reached index-first (`ctx + pGrid->quads`): `pGrid->quads[ctx]` gives gcc the
+// commuted `addu a0,a0,v0` retail does not have (98.48).
+// The `rem >= 4` form is required (sltiu+beqz), not `rem < 4`.
 void MenuScrollCellGridRow(void) {
     s32 value;
 
     if (g_Menu->pManager->cellGridScrollState == 0) {
         return;
     }
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk8 = 0x20;
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkA = 0x61;
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkC =
-        *(u16*)((u8*)g_Menu->pCellGrid + 0x7B0) + 0x20;
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkE = 0x61;
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk10 = 0x20;
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk12 = 0x68;
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk14 =
-        *(u16*)((u8*)g_Menu->pCellGrid + 0x7B0) + 0x20;
-    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk16 = 0x68;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->x0 = 0x20;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->y0 = 0x61;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->x1 =
+        ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollX + 0x20;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->y1 = 0x61;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->x2 = 0x20;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->y2 = 0x68;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->x3 =
+        ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollX + 0x20;
+    (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->y3 = 0x68;
     if (g_Menu->idleFrameCount % 6 >= 4 || g_Menu->pManager->cellGridScrollState == 2) {
-        MenuRenderString(2, (POLY_FT4*)((u8*)g_Menu->pCellGrid + 0x3F0), ((u8*)g_Menu->pCellGrid)[0x7B8]);
+        MenuRenderString(2, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs2[0],
+                         ((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext);
     }
-    MenuRenderString(0xC, (POLY_FT4*)((u8*)g_Menu->pCellGrid + 0x30), ((u8*)g_Menu->pCellGrid)[0x7B8]);
+    MenuRenderString(0xC, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs12[0],
+                     ((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext);
     AddPrim(&g_Menu->pGfxEnv->ot[4],
-            (void*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18));
+            (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads));
     if (g_Menu->pManager->cellGridScrollState == 1) {
-        value = *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) + *(s32*)((u8*)g_Menu->pCellGrid + 0x7B4);
-        *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) = value;
+        value = ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollX + ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollStep;
+        ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollX = value;
         if (value >= 0x101) {
-            *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) = 0;
+            ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollX = 0;
         }
     }
 }
@@ -519,12 +554,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801D02D8);
 void MenuRenderQuad(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex) {
     long interpolated;
     long flag;
-    u32 offset;
 
     RotTransPers4(&pVertices[0], &pVertices[1], &pVertices[2], &pVertices[3],
                   (long*)&pPolys[polyIndex].x0, (long*)&pPolys[polyIndex].x1,
                   (long*)&pPolys[polyIndex].x2, (long*)&pPolys[polyIndex].x3,
                   &interpolated, &flag);
-    offset = otIndex * sizeof(u32) + 0x70;
-    AddPrim((void*)(offset + (u32)g_Menu->pGfxEnv), &pPolys[polyIndex]);
+    AddPrim(&g_Menu->pGfxEnv->ot[otIndex], &pPolys[polyIndex]);
 }
