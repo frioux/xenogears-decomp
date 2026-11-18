@@ -2,6 +2,9 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
+// The evade and hit percents BattleResetActorStats puts a slot's stats back to.
+#define BATTLE_STAT_EVADE_RESET 20
+#define BATTLE_STAT_HIT_RESET 15
 
 
 extern BattleWorkBlock* g_BattleCurWorkBlock;
@@ -543,13 +546,13 @@ void BattleDecrementGearPartUse(void) {
 void BattleResetActorStats(void) {
     u8 i;
 
-    for (i = 1; i < 3; i++) {
+    for (i = 1; i < MAX_PARTY_MEMBERS; i++) {
         BattleTableEntry* p = (BattleTableEntry*)(i * 0x170 + (u32)g_BattleCurWorkBlock);
 
         p->hp = BATTLE_STAT_PERCENT_MAX;
         p->maxHp = BATTLE_STAT_PERCENT_MAX;
-        p->evade = 20;
-        p->hit = 15;
+        p->evade = BATTLE_STAT_EVADE_RESET;
+        p->hit = BATTLE_STAT_HIT_RESET;
         p->conditionFlags = BATTLE_CONDITION_FLAGS_RESET;
         p->state.unkA5 = 0;
     }
