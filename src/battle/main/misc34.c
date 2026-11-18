@@ -29,8 +29,8 @@ extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 typedef struct {
     /* 0x00 */ u8 unk0[0x6];
     /* 0x06 */ u8 unk6;
-    /* 0x07 */ u8 unk7;
-    /* 0x08 */ u8 unk8;
+    /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, 0 means idle
+    /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0
     /* 0x09 */ u8 unk9[0x5];
     /* 0x0E */ u16 unkE;
     /* 0x10 */ u16 unk10;
@@ -279,7 +279,7 @@ void BattleReleaseAllActorSlots(void) {
     low = (pSprite->flags_0xAC.flags & 3) << 2;
     mode = low | high;
     for (i = 0; i != 3; i++) {
-        if (g_BattleStateWork[i].unk8 != 0) {
+        if (g_BattleStateWork[i].inUse != 0) {
             if (g_BattleActorSlotMode != 2 || i != mode) {
                 if (g_BattleStateWork[i].unk6 < 0x11) {
                     func_800BB760(i);
@@ -378,7 +378,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 // pExpectedAnimIds pointer local, `s32 spritesOff = 0x8C8C` local (60.65%), both
 // orders of the two pointer inits, u8* vs BattleActorSlot* slot pointer, declaration
 // orders, and a 4-minute permuter run (base=1405 best=800, and its two best edits read
-// new_var->unk8 from a pointer that never advances - wrong code, not portable).
+// new_var->inUse from a pointer that never advances - wrong code, not portable).
 // The outer loop must stay a loop (a `goto rescan` puts the jtbl address in the wrong
 // block: retail forms it in the prologue, g_BattleConditionAnimIds inside the loop).
 /*
@@ -399,7 +399,7 @@ void func_800C0564(void) {
         do {
             pSprite = *(SpriteData **)(pSpriteSlot + 0x8C8C);
             if (pSprite != NULL) {
-                if (pSlot->unk8 != 0) {
+                if (pSlot->inUse != 0) {
                     if (pSprite->pSpriteBytecode != NULL) {
                         needsWait = 1;
                     }
@@ -417,7 +417,7 @@ void func_800C0564(void) {
                     case 24:
                         break;
                     default:
-                        if (pSlot->unk7 == 0 &&
+                        if (pSlot->flags == 0 &&
                             (s8)pSprite->flags_0xAC.bytes[3] !=
                                 g_BattleConditionAnimIds[BattleGetActorConditionCode(i)] &&
                             (s8)pSprite->flags_0xAC.bytes[3] != (s8)pSprite->flags_0xB0.bytes[0]) {
