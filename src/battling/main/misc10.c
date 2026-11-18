@@ -682,10 +682,12 @@ typedef struct {
     /* 0x10 */ u16 x2, y2;
 } Misc10Triangle; // Size: 0x14
 
-// A background quad followed by the far corner pair the init code stamps.
+// A background quad followed by the dummy word setLineF4 stamps: the init code
+// gives each one len 6 and code 0x4C (a four-point line), then MargePrim joins
+// them in pairs.
 typedef struct {
     /* 0x00 */ Misc10Quad quad;
-    /* 0x18 */ u32 unk18;
+    /* 0x18 */ u32 pad;
 } Misc10BackgroundQuad; // Size: 0x1C
 
 typedef struct {
@@ -722,16 +724,16 @@ void func_80085EC8(Misc10GaugeEnv* pEnv) {
 
     pEnv->background[0].quad.len = 6;
     Misc10SetRGBC(&pEnv->background[0].quad, 0, 0, 0, 0x4C);
-    pEnv->background[0].unk18 = 0x55555555;
+    pEnv->background[0].pad = 0x55555555;
     pEnv->background[1].quad.len = 6;
     Misc10SetRGBC(&pEnv->background[1].quad, 0, 0, 0, 0x4C);
-    pEnv->background[1].unk18 = 0x55555555;
+    pEnv->background[1].pad = 0x55555555;
     pEnv->background[2].quad.len = 6;
     Misc10SetRGBC(&pEnv->background[2].quad, 0, 0, 0, 0x4C);
-    pEnv->background[2].unk18 = 0x55555555;
+    pEnv->background[2].pad = 0x55555555;
     pEnv->background[3].quad.len = 6;
     Misc10SetRGBC(&pEnv->background[3].quad, 0, 0, 0, 0x4C);
-    pEnv->background[3].unk18 = 0x55555555;
+    pEnv->background[3].pad = 0x55555555;
 
     BattleCopyVertexOffsetAdd(&D_800917F4[0], &pEnv->background[0].quad.x0);
     BattleCopyVertexOffsetAdd(&D_800917F4[2], &pEnv->background[0].quad.x1);
