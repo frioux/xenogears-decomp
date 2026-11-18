@@ -113,11 +113,14 @@ typedef struct {
 
 // One 0x20-byte entry of the D_80092874 table (the same table src/battling/
 // main/misc6.c calls BattleFilterEntry); +0xA holds one flag byte per action
-// slot and this unit counts 14 of them.
+// slot and this unit counts 14 of them. The actor's pActionRow (+0x1600) is
+// &D_80092874[typeId] (retail asm, func_80084C88), so the fields misc2/misc3/
+// misc18 read through their own pActionData at that same offset are this one.
 typedef struct {
-    /* 0x00 */ u8 unk00[0x4];
+    /* 0x00 */ s16 scale; // the multiplier misc3's BattleUpdateSlotGaugeDisplay applies to an action's points byte
+    /* 0x02 */ u8 unk02[0x2];
     /* 0x04 */ s16 requiredProgress; // the word src/battling/main/misc6.c reads as the entry's progress gate
-    /* 0x06 */ u8 unk06[0x4];
+    /* 0x06 */ u8 actionChances[0x4]; // one probability byte per action, copied out by misc18's BattleLoadWorkActionChances
     /* 0x0A */ u8 slotFlags[0xE];
     /* 0x18 */ u8 unk18[0x8];
 } Misc10ActionRow; // Size: 0x20
