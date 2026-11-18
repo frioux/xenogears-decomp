@@ -309,7 +309,9 @@ typedef struct {
     /* 0x058 */ s32 targetAngle;
     /* 0x05C */ s32 pModelLink;
     /* 0x060 */ u8 unk60[0x6E];
-    /* 0x0CE */ s16 unkCE;
+    // Offset added to every facing this actor computes; zeroed when
+    // BattleSetFacingAngleFromVector rebuilds one.
+    /* 0x0CE */ s16 facingOffset;
     /* 0x0D0 */ u8 unkD0[0x82C];
     /* 0x8FC */ BattleScriptBlock* pScript;
 } BattleActorView; // Size: unknown
@@ -328,7 +330,7 @@ s32 BattleSetFacingAngleFromVector(BattleActorView* p) {
         p->targetAngle = 0xC00 - g_BattleFacingAngle;
     }
     p->distance = 0xFF;
-    p->unkCE = 0;
+    p->facingOffset = 0;
     return 0;
 }
 
@@ -342,7 +344,11 @@ extern DR_TPAGE g_BattleTpagePrims[];
 // The packet BattleQueueSpriteAndTpagePrims fills and queues: its primitive tag
 // sits at +0x74, the word the battle stores alongside it at +0x7C.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x74];
+    // The two RECTs src/battling/main/misc14.c hands to SetDrawArea and func_8004546C
+    // as &g_BattleDrawSlot[0] and [1].
+    /* 0x00 */ RECT drawArea;
+    /* 0x08 */ RECT drawOffset;
+    /* 0x10 */ u8 unk10[0x64];
     /* 0x74 */ u_long tag;
     /* 0x78 */ u8 unk78[0x4];
     /* 0x7C */ s32 xy;
