@@ -847,10 +847,12 @@ over the BETTER park.
   Adopting such a round is just: check that, then merge as usual.
 - pi-subagents "needs attention / no activity for 300s" notices are noise. A real
   failure reads `error:Subagent timed out`.
-- **Fifteen orphaned clones can break `clone.sh merge`.** "WOULD_OVERWRITE src/x.c" does
-  not mean the worker's work is lost: its commit is on its branch, so `git checkout --
-  <the listed paths>` in the main tree, `tools/rounds/clone.sh merge <tag>` again, and it
-  lands.
+- **A merge line can read `UNCOMMITTED <tag> (not merged): M a.c M b.c` and then
+  `merged <tag>`.** Both lines are about the same clone: the script commits the stragglers
+  and merges anyway, so the merge did happen - judge it by the `merged` line and by
+  `git log <base>..HEAD`, not by the first one. The files it names are usually a rename
+  the main tree had left uncommitted (round 247), which is why they are identical on both
+  sides and merge cleanly.
 - **`git add -A <path>` stages only that path.** Round 247 committed its tracker row that
   way and the rename it described stayed dirty in the tree, was copied into all eight of
   the next round's clones, and only surfaced when a worker reported "my clone arrived
