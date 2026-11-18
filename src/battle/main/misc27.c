@@ -53,12 +53,12 @@ struct BattleDirectionTask {
     /* 0x1C */ WorkListEntry workTask;
     /* 0x38 */ SpriteData* pSpriteData;
     /* 0x3C */ u32 curSpriteFrame;
-    /* 0x40 */ s32 unk40;
-    /* 0x44 */ u32 unk44;
-    /* 0x48 */ s32 unk48;
+    /* 0x40 */ s32 animId;
+    /* 0x44 */ u32 semiTrans;
+    /* 0x48 */ s32 radius;
     /* 0x4C */ u8* pArgs;
-    /* 0x50 */ SVECTOR unk50[5];
-    /* 0x78 */ SVECTOR unk78[5];
+    /* 0x50 */ SVECTOR targetPos[5];
+    /* 0x78 */ SVECTOR curPos[5];
     /* 0xA0 */ u8 unkA0[0x18];
 }; // Size: 0xB8
 
@@ -185,7 +185,7 @@ void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
 
     pTask = pWork->pTask;
     func_8001E148(pTask->pSpriteData);
-    func_800C08CC(5, pTask->unk78, func_800B51B0);
+    func_800C08CC(5, pTask->curPos, func_800B51B0);
 }
 
 void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
@@ -196,16 +196,16 @@ void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {
     pTask->pSpriteData = pSpriteData;
     // Read as unsigned: curSpriteFrame is s16 in the struct but -1 is a valid frame
     pTask->curSpriteFrame = *(u16*)&pSpriteData->curSpriteFrame;
-    pTask->unk40 = *(s8*)((u8*)pSpriteData + 0xAF);
+    pTask->animId = *(s8*)((u8*)pSpriteData + 0xAF);
     pTask->pArgs = pArgs;
-    pTask->unk44 = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
+    pTask->semiTrans = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
     if (pArgs[0] == 0) {
-        pTask->unk48 = 4;
+        pTask->radius = 4;
     } else {
-        pTask->unk48 = pArgs[0];
+        pTask->radius = pArgs[0];
     }
-    func_800B50D4(pSpriteData, pTask->unk78);
-    func_800B50D4(pSpriteData, pTask->unk50);
+    func_800B50D4(pSpriteData, pTask->curPos);
+    func_800B50D4(pSpriteData, pTask->targetPos);
 }
 long BattleSpriteDistanceToTarget(BattleSpriteState* pSprite) {
     VECTOR v;
