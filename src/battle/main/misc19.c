@@ -2,6 +2,13 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
+// The battle work block's per-actor action-row tables: 0x26 rows of 0x28 bytes per
+// actor at +0x1058 and 0x2A rows per actor at +0x2228, three actors each.
+#define BATTLE_ACTOR_ROW_TABLE 0x1058
+#define BATTLE_ACTOR_ROW_STRIDE 0x5F0
+#define BATTLE_GEAR_ROW_TABLE 0x2228
+#define BATTLE_GEAR_ROW_STRIDE 0x690
+
 // The evade and hit percents BattleResetActorStats puts a slot's stats back to.
 #define BATTLE_STAT_EVADE_RESET 20
 #define BATTLE_STAT_HIT_RESET 15
@@ -314,6 +321,10 @@ u8 BattleClearSlotFlag15A1(u8 arg0) {
     return flags;
 }
 
+// The row walks below cannot use a typed table view of g_BattleCurWorkBlock: the
+// address has to stay an integer sum added to the block base, because gcc emits
+// `addu d,base,offset` for `block->table[arg0]` where retail has `addu d,offset,base`
+// (measured 99.71% / 99.77% with the tables declared on the struct).
 void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     BattleTableEntry* p = &g_BattleCurWorkBlock->slots[arg0];
     BattleTableEntry* r;
@@ -329,7 +340,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
-        s32 rowOffset = arg0 * 0x690 + 0x2228;
+        s32 rowOffset = arg0 * BATTLE_GEAR_ROW_STRIDE + BATTLE_GEAR_ROW_TABLE;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[21].flags = 1;
@@ -340,7 +351,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
         pRow[27].flags = 1;
         pRow[28].flags = 1;
     } else {
-        s32 rowOffset = arg0 * 0x5F0 + 0x1058;
+        s32 rowOffset = arg0 * BATTLE_ACTOR_ROW_STRIDE + BATTLE_ACTOR_ROW_TABLE;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[22].flags = 1;
@@ -374,7 +385,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     }
     r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
-        s32 rowOffset = arg0 * 0x690 + 0x2228;
+        s32 rowOffset = arg0 * BATTLE_GEAR_ROW_STRIDE + BATTLE_GEAR_ROW_TABLE;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[21].flags = 0x2000;
@@ -386,7 +397,7 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
         pRow[28].flags = 0x2000;
         r->state.activeEffectFlags2 &= ~BATTLE_GEAR_EFFECT_FLAG;
     } else {
-        s32 rowOffset = arg0 * 0x5F0 + 0x1058;
+        s32 rowOffset = arg0 * BATTLE_ACTOR_ROW_STRIDE + BATTLE_ACTOR_ROW_TABLE;
         BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[22].flags = 0x2000;
