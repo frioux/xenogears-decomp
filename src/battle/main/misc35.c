@@ -346,49 +346,63 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
-// 62.23% (3720 bytes against retail's 3708, frame 0x90 against retail's 0x88). The
-// whole arm set is transcribed against the jump table's 124 case values, both tables
-// land at the right offsets and every call site matches. What is left:
-//  - the mask 0xCFFFFFFF that the two mode arms and opcode 0x8F clear is hoisted by
-//    gcc into a saved register (or spilled) once for the whole loop; retail forms it
-//    inline in each of the three arms. Measured: a bitfield view of flags_0xA8 (this
-//    compiler packs the fields from the low bit up) still hoists it, and it spills.
-//  - retail reads curSpriteFrame with lhu in the two frame-step arms (a u16 callee
-//    parameter), ours with lh.
-//  - the block at 0x12A0 (frames = (code & 0xF) + 1) is shared by the three frame
-//    arms and reached by a j in retail; ours calls func_8001D2B0 inline in each arm.
-//  - the switch's arm layout is close but not identical past the first few arms.
+// 64.83% (3700 bytes against retail's 3708; frame and every stack slot exact). The
+// arm set is transcribed against the jump table's 124 case values, both tables land
+// at the right offsets and every call site matches. What is left is one register:
+// we save s0-s8 + ra, retail saves s0-s6 + ra, and the whole allocation rotates
+// because of the extra pair.
+//  - the extra saved register is a loop-hoisted invariant: retail forms
+//    &g_BattleAnimPositionGroupB and &g_BattleAnimPositionGroupA inline in the arm
+//    that uses them (lui a0 / lw %lo(a0) / addiu a0,a0,%lo), while our build keeps
+//    one of them in $s8 for the whole loop, because the 0x9A and 0x9C arms each
+//    carry their own copy of the position-update tail (four formations, so loop.c
+//    hoists). Retail has ONE formation per group: its two arms merge their tails at
+//    the RotMatrix call (0x9A jumps to 0x800C15A4, 0x9C falls into it). Measured
+//    dead: writing that merge as a goto (rotate:) with a SVECTOR *pRotation local
+//    gives 63.51% at 3680 bytes and still 9 saved registers, so the merge alone
+//    does not move the allocator.
+//  - the mask 0xCFFFFFFF is now formed inline in each of the three arms (lui $s0
+//    three times, retail uses a1/s0/v0) once every use is its own assignment
+//    (mask = BATTLE_ANIM_MODE_HIGH_MASK; before each AND). That was 63.67 -> 64.83
+//    together with the next two items.
+//  - the local stack layout is now retail's exactly: vec 0x18, mtx 0x20, out 0x40,
+//    pointA 0x50, pointB 0x58. gcc 2.7.2 assigns stack slots in DECLARATION order
+//    and rounds an s16[2] array up to 8 bytes, so the declaration order is vec,
+//    mtx, out, pointA, pointB - not the order the arms use them. Retail's saved
+//    registers start at 0x68 where ours start at 0x60: retail has 8 more bytes of
+//    locals (i.e. 8 saved words vs our 10), so an 8-byte dead local reproduces the
+//    frame the moment the saved set loses its extra pair.
+//  - curSpriteFrame is read unsigned: (u16)pSpriteData->curSpriteFrame gives
+//    retail's lhu in both frame-step arms (misc31 uses the same cast).
+//  - open: retail cross-jumps the two func_8001D2B0 call tails (j .L800C1298, then
+//    a jal with a nop delay slot and the +-1 addiu before it); ours keeps the call
+//    inline in each arm with the addiu in the jal's delay slot, and the arm layout
+//    past the first few still differs.
 /*
-// Runs a battle sprite's animation bytecode until it waits or finishes: the
-// opcodes below 0x80 wait a number of frames (0x10-0x3F also step the frame
-// counter up or down), and the ones from 0x80 up are the individual commands the
-// jump table at .rodata+0 lists. Each iteration advances pSpriteBytecode by the
-// length table's entry for the opcode, except for the opcodes that jump.
 void func_800C11CC(SpriteData *pSpriteData) {
     u8 *pArgs;
     u8 code;
-    BattleSpriteState *pSprite;
     s32 frames;
     s32 count;
     s32 offset;
-    s16 pointA[2];
-    s16 pointB[2];
-    SpriteData *pTarget;
     SVECTOR vec;
     MATRIX mtx;
     VECTOR out;
+    s16 pointA[2];
+    s16 pointB[2];
+    SpriteData *pTarget;
     u8 *pBuffer;
     s32 size;
     u32 flags;
+    u32 mask;
 
-    pSprite = (BattleSpriteState *)pSpriteData;
     while (pSpriteData->animScriptWaitTimer == 0) {
         code = *(u8 *)pSpriteData->pSpriteBytecode;
         pArgs = (u8 *)pSpriteData->pSpriteBytecode + 1;
         if (code < 0x80) {
             pSpriteData->pSpriteBytecode = pArgs;
             if (code < 0x10) {
-                func_8001D2B0(pSpriteData, pSpriteData->curSpriteFrame + 1);
+                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame + 1);
                 frames = (code & 0xF) + 1;
             } else if (code < 0x20) {
                 pSpriteData->flags_0xA8 =
@@ -399,7 +413,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 SpriteSetFrameFromAnimIndex(pSpriteData);
                 frames = (code & 0xF) + 1;
             } else if (code < 0x30) {
-                func_8001D2B0(pSpriteData, pSpriteData->curSpriteFrame - 1);
+                func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
             }
             if (code < 0x40) {
                 frames = (code & 0xF) + 1;
@@ -461,9 +475,9 @@ void func_800C11CC(SpriteData *pSpriteData) {
             } else {
                 pBuffer = (u8 *)&D_800D335C;
             }
-            ((s16 *)pBuffer)[0] = pSprite->position.xWhole;
-            ((s16 *)pBuffer)[1] = pSprite->position.yWhole;
-            ((s16 *)pBuffer)[2] = pSprite->position.zWhole;
+            ((s16 *)pBuffer)[0] = ((BattleSpriteState *)pSpriteData)->position.xWhole;
+            ((s16 *)pBuffer)[1] = ((BattleSpriteState *)pSpriteData)->position.yWhole;
+            ((s16 *)pBuffer)[2] = ((BattleSpriteState *)pSpriteData)->position.zWhole;
             break;
         case 0x99:
             pSpriteData->pBase->rotation.x = D_800D30B0.x;
@@ -514,20 +528,20 @@ void func_800C11CC(SpriteData *pSpriteData) {
             if ((((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) == 0) {
                 offset = -offset;
             }
-            pSprite->targetPosition.x = ((BattleSpriteState *)pTarget)->position.xWhole + offset;
-            pSprite->targetPosition.y = 0;
-            pSprite->targetPosition.z = ((BattleSpriteState *)pTarget)->position.zWhole;
+            ((BattleSpriteState *)pSpriteData)->targetPosition.x = ((BattleSpriteState *)pTarget)->position.xWhole + offset;
+            ((BattleSpriteState *)pSpriteData)->targetPosition.y = 0;
+            ((BattleSpriteState *)pSpriteData)->targetPosition.z = ((BattleSpriteState *)pTarget)->position.zWhole;
             BattleActorUpdateFallMotion(pSpriteData);
             break;
         case 0x97:
             pTarget = pSpriteData->pTargetEntitySprite;
-            if (pSprite->position.yWhole < pSpriteData->field_0x84) {
+            if (((BattleSpriteState *)pSpriteData)->position.yWhole < pSpriteData->field_0x84) {
                 pSpriteData->animScriptWaitTimer = 1;
                 return;
             }
             SpriteSetMoveSpeed(pSpriteData, 0);
-            pointA[0] = pSprite->position.xWhole;
-            pointA[1] = pSprite->position.zWhole;
+            pointA[0] = ((BattleSpriteState *)pSpriteData)->position.xWhole;
+            pointA[1] = ((BattleSpriteState *)pSpriteData)->position.zWhole;
             pointB[0] = ((BattleSpriteState *)pTarget)->position.xWhole;
             pointB[1] = ((BattleSpriteState *)pTarget)->position.zWhole;
             SpriteSetDirection(pSpriteData, SCRIPT_ANGLE(pointA, pointB));
@@ -568,7 +582,8 @@ void func_800C11CC(SpriteData *pSpriteData) {
         case 0x8F:
             D_800C3624 = 1;
             pSpriteData->pSpriteBytecode = NULL;
-            pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+            mask = BATTLE_ANIM_MODE_HIGH_MASK;
+            pSpriteData->flags_0xA8 &= mask;
             return;
         case 0xF8:
             pTarget = pSpriteData->pTargetEntitySprite;
@@ -635,7 +650,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
             if (pSpriteData->field_0x3A != 0) {
                 BattleModelScaleParts(BattleGetFrame(pArgs + offset, 0), 3);
             }
-            BattleExpandModelPrims(BattleGetFrame(pArgs + offset, 0), pBuffer, pSprite->flags >> 29,
+            BattleExpandModelPrims(BattleGetFrame(pArgs + offset, 0), pBuffer, ((BattleSpriteState *)pSpriteData)->flags >> 29,
                                    pSpriteData->prim & 1);
             memcpy(pBuffer + size, pBuffer, size);
             pSpriteData->pBase->pFramesData = pBuffer;
@@ -654,7 +669,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 frames = 1;
             }
             offset = count & 0x1FF;
-            if ((pSprite->flags & 3) != 1) {
+            if ((((BattleSpriteState *)pSpriteData)->flags & 3) != 1) {
                 pSpriteData->curSpriteFrame = offset;
             } else {
                 if (count < 0) {
@@ -664,13 +679,13 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 }
                 pSpriteData->flags_0xAC.flags =
                     (pSpriteData->flags_0xAC.flags & ~8) | ((count >> 6) & 8);
-                pSprite->flags =
-                    (pSprite->flags & ~8) |
+                ((BattleSpriteState *)pSpriteData)->flags =
+                    (((BattleSpriteState *)pSpriteData)->flags & ~8) |
                     ((((pSpriteData->flags_0xAC.flags >> 3) & 1) ^ ((pSpriteData->flags_0xAC.flags >> 2) & 1)) << 3);
                 if ((count >> 10) & 1) {
-                    pSprite->flags |= 0x10;
+                    ((BattleSpriteState *)pSpriteData)->flags |= 0x10;
                 } else {
-                    pSprite->flags &= ~0x10;
+                    ((BattleSpriteState *)pSpriteData)->flags &= ~0x10;
                 }
                 func_8001D2B0(pSpriteData, offset);
             }
@@ -702,19 +717,20 @@ void func_800C11CC(SpriteData *pSpriteData) {
             }
             continue;
         case 0x86:
-            if (pSprite->step.y < 0) {
+            if (((BattleSpriteState *)pSpriteData)->step.y < 0) {
                 pSpriteData->animScriptWaitTimer = 1;
                 return;
             }
             break;
         case 0x87:
-            if (pSprite->position.yWhole < pSpriteData->field_0x84) {
+            if (((BattleSpriteState *)pSpriteData)->position.yWhole < pSpriteData->field_0x84) {
                 pSpriteData->animScriptWaitTimer = 1;
                 return;
             }
             break;
         case 0x80:
-            pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+            mask = BATTLE_ANIM_MODE_HIGH_MASK;
+            pSpriteData->flags_0xA8 &= mask;
             if (pSpriteData->field_0x68 != NULL) {
                 ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
                 return;
@@ -722,7 +738,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
             if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
                 SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
             }
-            pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+            pSpriteData->flags_0xA8 &= mask;
             return;
         case 0x98:
             if (pSpriteData->field_0x70 == NULL) {
@@ -737,18 +753,19 @@ void func_800C11CC(SpriteData *pSpriteData) {
             }
             return;
         case 0x82:
-            count = pSprite->step.y;
+            count = ((BattleSpriteState *)pSpriteData)->step.y;
             if (pSpriteData->field_0x68 != NULL) {
                 ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
             }
             SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
-            pSprite->step.y = count;
+            ((BattleSpriteState *)pSpriteData)->step.y = count;
             pSpriteData->animScriptWaitTimer = 0;
             func_800C11CC(pSpriteData);
             return;
         case 0x81:
             if ((s8)pSpriteData->flags_0xAC.bytes[3] == BATTLE_ANIM_ID_DEFAULT) {
-                pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+                mask = BATTLE_ANIM_MODE_HIGH_MASK;
+                pSpriteData->flags_0xA8 &= mask;
                 if (pSpriteData->field_0x68 != NULL) {
                     ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
                     return;
@@ -756,15 +773,15 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
                     SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
                 }
-                pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+                pSpriteData->flags_0xA8 &= mask;
                 return;
             }
             pSpriteData->animScriptWaitTimer = 0;
             if (pSpriteData->field_0x68 != NULL) {
                 ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
             }
-            pSpriteData->flags_0xA8 =
-                (pSpriteData->flags_0xA8 & BATTLE_ANIM_MODE_HIGH_MASK) | BATTLE_ANIM_MODE_HIGH_SET;
+            mask = BATTLE_ANIM_MODE_HIGH_MASK;
+            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & mask) | BATTLE_ANIM_MODE_HIGH_SET;
             return;
         case 0xE4:
             count = AnimScriptStackPopU8(pSpriteData);
