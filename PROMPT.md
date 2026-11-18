@@ -204,7 +204,15 @@ of a match, and it is cheap.
   stripped to two columns still renames (rename_sym.py parses it) but makes `name_addrs.py` a silent
   no-op, so every function whose address has no `symbol_addrs` entry - all of `member_change_menu` -
   stays `func_` with no error. Round 41 lost nothing only because it noticed the "renamed 0 pairs"
-  line; keep the evidence text in the file you feed both tools.
+  line; keep the evidence text in the file you feed both tools. **Worker reports most often write the
+  separator as an EM DASH** (`NAME func_X Name — evidence`), which `name_addrs.py` and
+  `rename_data.py` silently skipped until round 237 made both regexes accept `[-—]`; if a round
+  reports 0 added entries while the reports are full of NAME lines, check the separator.
+- **A proposed name that is a MACRO in a Psy-Q header is a compile error, not a rename.**
+  `func_80045C10` -> `_get_tw` expands the function's own definition into `parse error before '*'`
+  (`include/psyq/libgpu.h` defines `_get_tw(tw)` for `SetDrawOffset`). Permanently rejected, like
+  `func_8004546C` -> `SetDrawOffset`. grep every proposed name in `include/psyq/` before landing a
+  batch of psyq names.
 - **Backlog: use `tools/scripts/unnamed_c.py`** - it counts a `func_` as a definition
   only when a depth-0 signature is followed by `{` before any `;`, so prototypes, call
   sites and parked bodies do not count. On 2026-11-16 that is **49 in 23 files**, 29 of
