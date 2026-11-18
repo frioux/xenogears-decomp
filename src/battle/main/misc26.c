@@ -28,13 +28,13 @@ typedef struct {
     /* 0x18 */ u32 flags; // 0x8000: part scales already applied
 } BattleModelFrame; // Size: 0x1C
 
-// A three-component scale as the timed scale task keeps it; unsigned because the
-// task only halves and subtracts, and the ease ends at zero.
+// A three-component scale as the timed scale task keeps it: signed, because the
+// scale it eases to can be negative and the step subtracts one from the other.
 typedef struct {
-    /* 0x0 */ u16 vx;
-    /* 0x2 */ u16 vy;
-    /* 0x4 */ u16 vz;
-    /* 0x6 */ u16 pad6;
+    /* 0x0 */ s16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ s16 vz;
+    /* 0x6 */ s16 pad6;
 } BattleScaleVector; // Size: 0x8
 
 // The scale-easing timer task: a timer work-list entry, then the scale it eases
@@ -93,6 +93,18 @@ extern BattleScreenFadeTask *g_BattleScreenFadeTask;
 extern BattleScaleTask *g_BattleScaleTask;
 extern u8 g_BattleScreenFadeOwnBuffer;
 extern u32 g_BattleImageTask;
+// the two statically allocated fades: one the overlay owns, one shared
+extern BattleScreenFadeTask D_800C3C00;
+extern BattleScreenFadeTask D_800C3C50;
+extern BattleScreenFadeTask *D_800C3554; // the owned one, once it is set up
+// the scale the frame being drawn is drawn at, mirrored to the other field of
+// the interlaced pair on every other frame
+extern s16 D_800C354C;
+extern s16 D_800C354E;
+extern s16 D_800C3550;
+extern u8 D_800D3638; // set while a fade is already being driven outside the battle
+extern u8 g_FlagTimerWorkListAdds;
+extern s32 g_NumFlaggedTimerWorkListEntries;
 
 extern u8 *g_GfxCurWorkBuffer;
 extern u8 *g_GfxCurWorkBufferEnd;
@@ -100,10 +112,13 @@ extern u_long *g_GfxCurOT;
 
 extern BattleScaleTask *BattleGetScaleTask();
 extern void func_800B3358(BattleScaleTask *pTask);
-extern void func_800B39C0(s32, s32, u8, u8, u8);
+extern void func_800B39C0(s32 frames, s32 abr, u8 r, u8 g, u8 b);
 extern void BattleSetActorRectParams(s32, s32, s32, s32, s32, s32);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
+extern void WorkListAddTask(WorkListEntry *pData, WorkListEntry *pEntry);
+extern void TimerWorkListAddTask(WorkListEntry *pData, WorkListEntry *pEntry);
+extern void WorkListSetTaskCallback(WorkListEntry *pTask, void *pCallback);
 extern void BattleUploadAndFreeImageResources(void);
 extern WorkListEntry *TimerWorkListAllocateTask();
 extern void TimerWorkListSetTaskCallback();
@@ -112,6 +127,7 @@ extern void WorkListTaskSetOnFreeCallback();
 extern u8 *D_800C3BEC;
 extern s32 D_800C3BF0;
 extern DR_TPAGE D_800C3BF8;
+extern s32 SpriteColorAddClamp(s32 color, s32 value);
 
 u8 *BattleGetFrame(u8 *pBase, s32 n) {
     return &pBase[n * 0x1C + 0xC];
@@ -490,7 +506,263 @@ void BattleEmitDrawTPage(u8 *pOt) {
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B2AEC);
+
+// Applies the model's tint to the colour bytes of every packet a frame expands
+// to, one channel sum per vertex, and mirrors them into the packet copy the
+// second render context draws from. Only the colours are written here: the
+// vertex and texture coordinates come from the passes that call func_800B1F6C.
+void func_800B2AEC(BattleModelFrame *pFrame, u8 *pDst, u8 *pDstCopy, s32 addR, s32 addG, s32 addB) {
+    BattleModelPrim *pSrc;
+    s32 count;
+    s32 i;
+    s32 kind;
+
+    pSrc = (BattleModelPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
+    count = pFrame->primCount;
+    for (i = 0; i != count; i++) {
+        kind = pSrc->code & BATTLE_PRIM_KIND_MASK;
+        kind |= ((pSrc->flags ^ 1) & 1) << 8; // no colours: the unlit kind
+        switch (kind) {
+        case 0: {
+            POLY_F3 *pPoly = (POLY_F3 *)pDst;
+            POLY_F3 *pCopy = (POLY_F3 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[0].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[0].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[0].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            break;
+        }
+        case BATTLE_PRIM_GOURAUD: {
+            POLY_G3 *pPoly = (POLY_G3 *)pDst;
+            POLY_G3 *pCopy = (POLY_G3 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[0].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[0].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[0].color.b, addB);
+            pPoly->r1 = SpriteColorAddClamp(pSrc->entries[1].color.r, addR);
+            pPoly->g1 = SpriteColorAddClamp(pSrc->entries[1].color.g, addG);
+            pPoly->b1 = SpriteColorAddClamp(pSrc->entries[1].color.b, addB);
+            pPoly->r2 = SpriteColorAddClamp(pSrc->entries[2].color.r, addR);
+            pPoly->g2 = SpriteColorAddClamp(pSrc->entries[2].color.g, addG);
+            pPoly->b2 = SpriteColorAddClamp(pSrc->entries[2].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            pCopy->r1 = pPoly->r1;
+            pCopy->g1 = pPoly->g1;
+            pCopy->b1 = pPoly->b1;
+            pCopy->r2 = pPoly->r2;
+            pCopy->g2 = pPoly->g2;
+            pCopy->b2 = pPoly->b2;
+            break;
+        }
+        case BATTLE_PRIM_GOURAUD | BATTLE_PRIM_QUAD: {
+            POLY_G4 *pPoly = (POLY_G4 *)pDst;
+            POLY_G4 *pCopy = (POLY_G4 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[0].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[0].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[0].color.b, addB);
+            pPoly->r1 = SpriteColorAddClamp(pSrc->entries[1].color.r, addR);
+            pPoly->g1 = SpriteColorAddClamp(pSrc->entries[1].color.g, addG);
+            pPoly->b1 = SpriteColorAddClamp(pSrc->entries[1].color.b, addB);
+            pPoly->r2 = SpriteColorAddClamp(pSrc->entries[2].color.r, addR);
+            pPoly->g2 = SpriteColorAddClamp(pSrc->entries[2].color.g, addG);
+            pPoly->b2 = SpriteColorAddClamp(pSrc->entries[2].color.b, addB);
+            pPoly->r3 = SpriteColorAddClamp(pSrc->entries[3].color.r, addR);
+            pPoly->g3 = SpriteColorAddClamp(pSrc->entries[3].color.g, addG);
+            pPoly->b3 = SpriteColorAddClamp(pSrc->entries[3].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            pCopy->r1 = pPoly->r1;
+            pCopy->g1 = pPoly->g1;
+            pCopy->b1 = pPoly->b1;
+            pCopy->r2 = pPoly->r2;
+            pCopy->g2 = pPoly->g2;
+            pCopy->b2 = pPoly->b2;
+            pCopy->r3 = pPoly->r3;
+            pCopy->g3 = pPoly->g3;
+            pCopy->b3 = pPoly->b3;
+            break;
+        }
+        case BATTLE_PRIM_QUAD: {
+            POLY_F4 *pPoly = (POLY_F4 *)pDst;
+            POLY_F4 *pCopy = (POLY_F4 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[0].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[0].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[0].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_UNLIT: {
+            POLY_FT3 *pPoly = (POLY_FT3 *)pDst;
+            POLY_FT3 *pCopy = (POLY_FT3 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED: {
+            POLY_FT3 *pPoly = (POLY_FT3 *)pDst;
+            POLY_FT3 *pCopy = (POLY_FT3 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[3].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[3].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[3].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD | BATTLE_PRIM_UNLIT: {
+            POLY_GT3 *pPoly = (POLY_GT3 *)pDst;
+            POLY_GT3 *pCopy = (POLY_GT3 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pPoly->r1 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g1 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b1 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pPoly->r2 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g2 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b2 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            pCopy->r1 = pPoly->r1;
+            pCopy->g1 = pPoly->g1;
+            pCopy->b1 = pPoly->b1;
+            pCopy->r2 = pPoly->r2;
+            pCopy->g2 = pPoly->g2;
+            pCopy->b2 = pPoly->b2;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD: {
+            POLY_GT3 *pPoly = (POLY_GT3 *)pDst;
+            POLY_GT3 *pCopy = (POLY_GT3 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[3].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[3].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[3].color.b, addB);
+            pPoly->r1 = SpriteColorAddClamp(pSrc->entries[4].color.r, addR);
+            pPoly->g1 = SpriteColorAddClamp(pSrc->entries[4].color.g, addG);
+            pPoly->b1 = SpriteColorAddClamp(pSrc->entries[4].color.b, addB);
+            pPoly->r2 = SpriteColorAddClamp(pSrc->entries[5].color.r, addR);
+            pPoly->g2 = SpriteColorAddClamp(pSrc->entries[5].color.g, addG);
+            pPoly->b2 = SpriteColorAddClamp(pSrc->entries[5].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            pCopy->r1 = pPoly->r1;
+            pCopy->g1 = pPoly->g1;
+            pCopy->b1 = pPoly->b1;
+            pCopy->r2 = pPoly->r2;
+            pCopy->g2 = pPoly->g2;
+            pCopy->b2 = pPoly->b2;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD | BATTLE_PRIM_UNLIT: {
+            POLY_FT4 *pPoly = (POLY_FT4 *)pDst;
+            POLY_FT4 *pCopy = (POLY_FT4 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD: {
+            POLY_FT4 *pPoly = (POLY_FT4 *)pDst;
+            POLY_FT4 *pCopy = (POLY_FT4 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[4].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[4].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[4].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD | BATTLE_PRIM_GOURAUD | BATTLE_PRIM_UNLIT: {
+            POLY_GT4 *pPoly = (POLY_GT4 *)pDst;
+            POLY_GT4 *pCopy = (POLY_GT4 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b0 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pPoly->r1 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g1 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b1 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pPoly->r2 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g2 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b2 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pPoly->r3 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addR);
+            pPoly->g3 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addG);
+            pPoly->b3 = SpriteColorAddClamp(BATTLE_PRIM_UNLIT_RGB, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            pCopy->r1 = pPoly->r1;
+            pCopy->g1 = pPoly->g1;
+            pCopy->b1 = pPoly->b1;
+            pCopy->r2 = pPoly->r2;
+            pCopy->g2 = pPoly->g2;
+            pCopy->b2 = pPoly->b2;
+            pCopy->r3 = pPoly->r3;
+            pCopy->g3 = pPoly->g3;
+            pCopy->b3 = pPoly->b3;
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD | BATTLE_PRIM_GOURAUD: {
+            POLY_GT4 *pPoly = (POLY_GT4 *)pDst;
+            POLY_GT4 *pCopy = (POLY_GT4 *)pDstCopy;
+
+            pPoly->r0 = SpriteColorAddClamp(pSrc->entries[4].color.r, addR);
+            pPoly->g0 = SpriteColorAddClamp(pSrc->entries[4].color.g, addG);
+            pPoly->b0 = SpriteColorAddClamp(pSrc->entries[4].color.b, addB);
+            pPoly->r1 = SpriteColorAddClamp(pSrc->entries[5].color.r, addR);
+            pPoly->g1 = SpriteColorAddClamp(pSrc->entries[5].color.g, addG);
+            pPoly->b1 = SpriteColorAddClamp(pSrc->entries[5].color.b, addB);
+            pPoly->r2 = SpriteColorAddClamp(pSrc->entries[6].color.r, addR);
+            pPoly->g2 = SpriteColorAddClamp(pSrc->entries[6].color.g, addG);
+            pPoly->b2 = SpriteColorAddClamp(pSrc->entries[6].color.b, addB);
+            pPoly->r3 = SpriteColorAddClamp(pSrc->entries[7].color.r, addR);
+            pPoly->g3 = SpriteColorAddClamp(pSrc->entries[7].color.g, addG);
+            pPoly->b3 = SpriteColorAddClamp(pSrc->entries[7].color.b, addB);
+            pCopy->r0 = pPoly->r0;
+            pCopy->g0 = pPoly->g0;
+            pCopy->b0 = pPoly->b0;
+            pCopy->r1 = pPoly->r1;
+            pCopy->g1 = pPoly->g1;
+            pCopy->b1 = pPoly->b1;
+            pCopy->r2 = pPoly->r2;
+            pCopy->g2 = pPoly->g2;
+            pCopy->b2 = pPoly->b2;
+            pCopy->r3 = pPoly->r3;
+            pCopy->g3 = pPoly->g3;
+            pCopy->b3 = pPoly->b3;
+            break;
+        }
+        }
+        pDst += (pSrc->outLen + 1) * 4;
+        pDstCopy += (pSrc->outLen + 1) * 4;
+        pSrc = (BattleModelPrim *)((u8 *)pSrc + (pSrc->len + 1) * 4);
+    }
+}
 
 void BattleNoOp2(void) {
 }
@@ -498,7 +770,54 @@ void BattleNoOp2(void) {
 void BattleNoOp3(void) {
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3358);
+// One step of the scale ease: while the countdown runs, move the scale from
+// where it started toward the target by an equal slice a frame, taking the slice
+// out of the countdown left; once it is spent settle on the target. The scale is
+// then published, negated on every other frame for the interlaced draw, and the
+// task releases itself once it has settled at a zero scale with nothing left.
+void func_800B3358(BattleScaleTask *pTask) {
+    s32 step[3];
+
+    if (pTask->framesLeft == 0) {
+        pTask->current.vx = pTask->target.vx;
+        pTask->current.vy = pTask->target.vy;
+        pTask->current.vz = pTask->target.vz;
+    } else {
+        pTask->framesLeft--;
+        step[0] = pTask->target.vx - pTask->start.vx;
+        step[1] = pTask->target.vy - pTask->start.vy;
+        step[2] = pTask->target.vz - pTask->start.vz;
+        gte_lddp(pTask->framesLeft >> 1);
+        gte_ldlvl(step);
+        gte_gpf0();
+        gte_stlvl(step);
+        step[0] = step[0] / (pTask->halfLength >> 1);
+        step[1] = step[1] / (pTask->halfLength >> 1);
+        step[2] = step[2] / (pTask->halfLength >> 1);
+        pTask->current.vx = pTask->target.vx - step[0];
+        pTask->current.vy = pTask->target.vy - step[1];
+        pTask->current.vz = pTask->target.vz - step[2];
+    }
+    pTask->frame++;
+    if (pTask->frame & 2) {
+        D_800C354C = -pTask->current.vx;
+    } else {
+        D_800C354C = pTask->current.vx;
+    }
+    if (pTask->frame & 2) {
+        D_800C354E = -pTask->current.vy;
+    } else {
+        D_800C354E = pTask->current.vy;
+    }
+    if (pTask->frame & 2) {
+        D_800C3550 = -pTask->current.vz;
+    } else {
+        D_800C3550 = pTask->current.vz;
+    }
+    if (pTask->current.vx == 0 && pTask->current.vy == 0 && pTask->current.vz == 0 && pTask->framesLeft == 0) {
+        pTask->entry.onFreeCallback(pTask);
+    }
+}
 
 void BattleFreeScaleTask(void *pEntry) {
     TimerWorkListRemoveTask(pEntry);
@@ -616,7 +935,65 @@ void BattleStartScreenFadeOwnBuffer(s32 a0, s32 a1, u8 a2, u8 a3, u8 a4) {
     g_BattleScreenFadeOwnBuffer = 0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B39C0);
+// Starts a screen fade: on the first call the work-list task is set up and the
+// fade runs from black, on a later one it restarts from the colour the last fade
+// ended at. The task's length is twice the frame count the caller asks for,
+// because the step counts it down twice per frame. Nothing happens while another
+// subsystem is already driving a fade.
+void func_800B39C0(s32 frames, s32 abr, u8 r, u8 g, u8 b) {
+    BattleScreenFadeTask *pTask;
+    WorkListEntry *pDraw;
+
+    if (D_800D3638 != 0) {
+        return;
+    }
+    frames *= 2;
+    if (g_BattleScreenFadeOwnBuffer != 0) {
+        if (g_BattleScreenFadeTask == NULL) {
+            pTask = &D_800C3C00;
+            D_800C3554 = pTask;
+            goto created;
+        }
+        pTask = D_800C3554;
+        goto restart;
+    } else if (g_BattleScreenFadeTask == NULL) {
+        pTask = &D_800C3C50;
+        g_BattleScreenFadeTask = pTask;
+    } else {
+        pTask = g_BattleScreenFadeTask;
+        goto restart;
+    }
+created:
+    TimerWorkListAddTask(NULL, &pTask->timerEntry);
+    pDraw = &pTask->drawEntry;
+    WorkListAddTask(&pTask->timerEntry, pDraw);
+    pTask->timerEntry.unk14 &= 0x7FFFFFFF; // clears the flagged bit the work list just set
+    if (g_FlagTimerWorkListAdds != 0) {
+        g_NumFlaggedTimerWorkListEntries--;
+    }
+    TimerWorkListSetTaskCallback(pTask, BattleStepScreenFade);
+    WorkListSetTaskCallback(pDraw, BattleDrawScreenFade);
+    WorkListTaskSetOnFreeCallback(pTask, BattleFreeScreenFadeTask);
+    pTask->timerEntry.unk4 = pTask;
+    pTask->drawEntry.unk4 = pTask;
+    pTask->unk40 = 0;
+    pTask->startR = 0;
+    pTask->startG = 0;
+    pTask->startB = 0;
+    goto setTarget;
+restart:
+    pTask->startR = pTask->curR;
+    pTask->startG = pTask->curG;
+    pTask->startB = pTask->curB;
+setTarget:
+    pTask->abr = abr;
+    pTask->targetR = r;
+    pTask->targetG = g;
+    pTask->targetB = b;
+    pTask->length = frames;
+    pTask->timer = frames;
+    BattleStepScreenFade(pTask);
+}
 
 s32 BattleGetActorFlag41(void) {
     if (g_BattleScreenFadeTask != NULL) {

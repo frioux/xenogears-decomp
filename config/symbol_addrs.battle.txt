@@ -1039,3 +1039,6 @@ g_BattleRenderString = 0x800D2DAC;
 g_BattleCommandCellColumn = 0x800D3670;
 g_BattleLastMenuEvent = 0x800C3E29;
 g_BattleEffectTimer = 0x800C3D38;
+D_800C354C = 0x800C354C;
+D_800C3550 = 0x800C3550;
+D_800C3554 = 0x800C3554;
