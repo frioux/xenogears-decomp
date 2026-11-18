@@ -24,30 +24,36 @@ void BattleClearActorMask(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
-// The sprite record a color-ramp task animates.
+// The sprite record a color-ramp task animates. x/y/z are the integer halves of
+// SpriteData's 16.16 IVEC3 position: this unit reads only those, with `lh`, so the low
+// half of each is an untouched pad here.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x2];
-    /* 0x02 */ s16 unk2;
-    /* 0x04 */ u8 unk4[0x2];
-    /* 0x06 */ s16 unk6;
-    /* 0x08 */ u8 unk8[0x2];
-    /* 0x0A */ s16 unkA;
+    /* 0x00 */ u8 pad0[0x2];
+    /* 0x02 */ s16 x;
+    /* 0x04 */ u8 pad4[0x2];
+    /* 0x06 */ s16 y;
+    /* 0x08 */ u8 pad8[0x2];
+    /* 0x0A */ s16 z;
     /* 0x0C */ u8 unkC[0x1C];
     /* 0x28 */ u8 colors[0x3]; // written by BattleSetSpriteColorFromAngle
     /* 0x2B */ u8 prim; // bit 0 cleared on spawn (func_800BD098), set on free
 } BattleEffectSprite; // Size: 0x2C
 
-// The color-ramp task's own data block, reached through the task entry's +0x4.
+// The color-ramp task's own data block, reached through the task entry's +0x4: the two
+// work-list entries WorkListsAddTasks fills in, then the task's own fields.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x38];
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry workEntry;
     /* 0x38 */ BattleEffectSprite *pSprite;
     /* 0x3C */ s32 posX; // the VECTOR func_800BCEAC hands TransMatrix
     /* 0x40 */ s32 posY;
     /* 0x44 */ s32 posZ;
-    /* 0x48 */ u8 unk48[0x6];
-    /* 0x4E */ u16 unk4E;
-    /* 0x50 */ u8 unk50[0x4];
-    /* 0x54 */ s32 unk54;
+    /* 0x48 */ u8 unk48[0x4];
+    /* 0x4C */ u16 rotX; // the SVECTOR func_800BCEAC hands RotMatrix
+    /* 0x4E */ u16 rotY; // advanced 0x10 per step
+    /* 0x50 */ u16 rotZ;
+    /* 0x52 */ u16 pad52;
+    /* 0x54 */ s32 yOffset; // the sprite's 0x36 word, subtracted from posY
     /* 0x58 */ s32 angle; // advanced once per step
     /* 0x5C */ void *pPrimBuffer; // base of the prim pointer buffer, queued to free
 } BattleEffectColorRampData; // Size: 0x60
@@ -61,22 +67,22 @@ void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask) {
     BattleEffectColorRampData *pData;
     BattleEffectSprite *pSprite;
     s32 timer;
-    s16 unk6;
-    s16 unkA;
+    s16 y;
+    s16 z;
 
     pData = pTask->pData;
     pSprite = pData->pSprite;
     timer = pData->angle + 1;
-    pData->posX = pSprite->unk2;
-    unk6 = pSprite->unk6;
-    pData->posY = unk6; // retail stores unk6, then overwrites it below
-    unkA = pSprite->unkA;
-    pData->posZ = unkA;
+    pData->posX = pSprite->x;
+    y = pSprite->y;
+    pData->posY = y; // retail stores y, then overwrites it below
+    z = pSprite->z;
+    pData->posZ = z;
     pData->angle = timer;
     // kept after the timer store: retail loads 0x54 in that slot
-    pData->posY = unk6 - pData->unk54 - 0x20;
-    BattleSetSpriteColorFromAngle(pSprite, timer, unkA);
-    pData->unk4E += 0x10;
+    pData->posY = y - pData->yOffset - 0x20;
+    BattleSetSpriteColorFromAngle(pSprite, timer, z);
+    pData->rotY += 0x10;
 }
 
 void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
@@ -183,15 +189,15 @@ extern void BattleAttachCommandRowEffect(s32 slot);
 // The battle work block as the command-row code sees it: this unit only reaches one
 // row's four 11-entry per-slot arrays.
 typedef struct {
-    u8 unk0[0x138];  // 0x000
-    u16 unk138[11];  // 0x138 command values, one per slot
-    u8 pad14E[0x2];  // 0x14E
-    u8 unk150[11];   // 0x150 command kinds
-    u8 pad15B[0x1];  // 0x15B
-    u16 unk15C[11];  // 0x15C timers
-    u8 pad172[0x2];  // 0x172
-    u8 unk174[11];   // 0x174 sprite color modes
-    u8 pad17F[0x1];  // 0x17F
+    u8 unk0[0x138];        // 0x000
+    u16 commandValues[11]; // 0x138 the value the slot's effect sprite draws
+    u8 pad14E[0x2];        // 0x14E
+    u8 commandKinds[11];   // 0x150 the effect kind; 0xFF: the slot has no command
+    u8 pad15B[0x1];        // 0x15B
+    u16 timers[11];        // 0x15C published as g_BattleEffectTimer
+    u8 pad172[0x2];        // 0x172
+    u8 colorModes[11];     // 0x174 published as g_BattleColorMode
+    u8 pad17F[0x1];        // 0x17F
 } BattleCommandRowTable;  // Size: 0x180
 
 // Skips a slot whose row has no command, no command value or no sprite, and hands the
@@ -215,25 +221,25 @@ void BattleAttachCommandRowEffect(s32 slot) {
 
     pBase = g_BattleStateWork;
     pRow = (BattleCommandRowTable *)(pBase + (g_BattleCommandRowIndex - 1) * 0x48);
-    if (pRow->unk150[slot] == 0xFF) {
+    if (pRow->commandKinds[slot] == 0xFF) {
         return;
     }
-    if (pRow->unk138[slot] == 0xFFFF) {
+    if (pRow->commandValues[slot] == 0xFFFF) {
         return;
     }
     pSprite = *(void **)(pBase + slot * 4 + 0x8C8C);
     if (pSprite == NULL) {
         return;
     }
-    kind = pRow->unk150[slot];
-    nextTimer = pRow->unk15C[slot];
-    colorMode = pRow->unk174[slot];
+    kind = pRow->commandKinds[slot];
+    nextTimer = pRow->timers[slot];
+    colorMode = pRow->colorModes[slot];
     g_BattleEffectTimer = nextTimer;
     g_BattleColorMode = colorMode;
-    BattleAttachEffectSprite(pSprite, pRow->unk138[slot], kind);
+    BattleAttachEffectSprite(pSprite, pRow->commandValues[slot], kind);
     pRowAddr = pBase + (g_BattleCommandRowIndex - 1) * 0x48;
     pRow = (BattleCommandRowTable *)pRowAddr;
-    pRow->unk138[slot] = 0xFFFF;
+    pRow->commandValues[slot] = 0xFFFF;
 }
 
 void BattleUpdateCommandRows(void) {
