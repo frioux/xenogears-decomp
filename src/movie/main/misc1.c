@@ -196,6 +196,20 @@ extern s32 g_MovieHeapDebugEnabled;
 // spelling, so the body stays parked. First lever to try: give the format string
 // a local ('char* pFormat = D_8006FC40;') so gcc hoists the address before the
 // other three loads.
+// MEASURED (round 236, un-parked unchanged): 99.04%, 2276 bytes, and the diff is
+// exactly two placement rows, no instruction multiset change. (1) The D_8006FC40
+// `la a0`: gcc emits it AFTER the a1..a3 global loads (its normal arg-setup order
+// for every other FontPrintf in this function); retail emits it FIRST in the
+// .L800708B4 block. Writing it as `char* pFormat = D_8006FC40;` as the block's first
+// statement compiles to the IDENTICAL object - gcc folds the single-use constant
+// address straight back into the argument, so the local never exists as a def.
+// (2) The hoisted constant `li s3,1` (used by `1 - g_MovieDebugBufferParity`, the
+// switch's case 1 and the two `isbg = 1` teardown stores) sits AFTER
+// `pCounters = g_MovieStreamReadCount; pBase = pWork;` in the preheader where retail
+// has it first, i.e. gcc's loop-movable insertion point moved, which no source
+// spelling of those two assignments controls. Preset re-screened under
+// gcc-2.7.2-cdk-psx: 82.76; every already-matched function of the unit is 100.00
+// under the unit preset and 62.96-97.24 under cdk, so 2.6.0 stands.
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 
 /* 99.04%, 2276 bytes (retail's exact size); see the note above for the last diff
@@ -762,6 +776,19 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 // divisions (three lbu); the plain `*pColR` form lets gcc CSE the byte and lands
 // at 84 bytes short. An explicit `s32* pStep` local (to get the steps pointer
 // formed earlier) changes the durations access and lands at 880 bytes / 93.25%.
+// MEASURED (round 236, un-parked unchanged): 98.67%, 912 bytes, retail's exact
+// multiset; the diff is the two `sw s7 / addiu s7,s5,-2` and `sw s6 / addiu s6,s4,-2`
+// pairs, which retail places AFTER the loop's steps-pointer `lui s3 / addiu s3,
+// D_80076FAC` and gcc places after the fourth colour pointer: the steps def is the
+// compiler's strength-reduced biv and gcc inserts it at the END of the preheader.
+// Re-measured negatives: `if (i == 0) { pColR = ...; pTargetR = ...; }` 98.67% (no
+// change - block notes do not move the insertion point); `s32* pStep = D_80076FAC;`
+// with `pStep[i]` 91.72% / 932 bytes (the pointer takes s5 and pColB moves to s3, so
+// every prologue row shifts); `s32* pStep` with `*pStep` + `pStep++` 93.34% / 880
+// bytes (both arrays become pointer bivs and `i` moves to s1). The biv is not
+// reachable from the source, so retail's order would need those two defs to be
+// loop-hoisted movables, i.e. the assignments to live INSIDE the loop - which no
+// plausible source does. Preset screen: unit preset 98.67, cdk 89.61.
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
 /* 98.67%, 912 bytes, retail's exact size
