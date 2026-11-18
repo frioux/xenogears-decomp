@@ -5,7 +5,7 @@
 // head array of the block g_BattleCommandQueue points at.
 typedef struct {
     /* 0x00 */ u8 unk0[0x3C];
-    /* 0x3C */ u8 unk3C; // actor slot this entry stands for
+    /* 0x3C */ u8 targetSlot; // the actor slot this entry targets
     /* 0x3D */ u8 pad3D[3];
 } BattleCommandSlot; // Size: 0x40
 
@@ -18,10 +18,10 @@ typedef struct {
     /* 0x2C4 */ u8 unk2C4[8];
     /* 0x2CC */ u8 unk2CC[0xE];
     /* 0x2DA */ u8 count; // queued commands
-    /* 0x2DB */ u8 unk2DB;
+    /* 0x2DB */ u8 commandFinished; // cleared while a queued command runs, set once it has finished
     /* 0x2DC */ u8 unk2DC;
     /* 0x2DD */ u8 unk2DD[9];
-    /* 0x2E6 */ u8 unk2E6;
+    /* 0x2E6 */ u8 commandId; // the picked command: indexes the 0x10-byte g_BattleCommandEntries rows
 } BattleCommandQueue; // Size: 0x2E7
 
 // Partial view of the per-frame battle display state (g_BattleDisplayState); the shared
@@ -35,9 +35,9 @@ typedef struct {
     /* 0x09E */ u8 cursorPending;
     /* 0x09F */ u8 unk9F[0x10];
     /* 0x0AF */ u8 unkAF;
-    /* 0x0B0 */ u8 unkB0[4]; // prim flags the *PrimFlags*Slots pairs below raise
+    /* 0x0B0 */ u8 primFlags[4]; // per slot: prim flags the *PrimFlags*Slots pairs below raise
     /* 0x0B4 */ u8 unkB4[3];
-    /* 0x0B7 */ u8 unkB7;
+    /* 0x0B7 */ u8 primState; // which prim set is up; func_800745EC switches five ways on it, 0 for none
     /* 0x0B8 */ u8 unkB8[0xE];
     /* 0x0C6 */ u8 pulseTriangleActive;
     /* 0x0C7 */ u8 unkC7[4];
@@ -65,7 +65,7 @@ extern u8 D_800C402F[];
 extern u8 D_800CCD1C[];
 extern u8 g_BattleCommandGridIds[];
 typedef struct {
-    /* 0x0 */ u16 unk0;
+    /* 0x0 */ u16 flags; // & 7 picks the target mode, 0xF and 0x1000/0x4000 pick the drawn icon
     /* 0x2 */ u8 pad2[0xE];
 } BattleCommandEntry; // Size: 0x10
 
@@ -227,12 +227,12 @@ void func_8008ADD0(u8 arg0) {
     }
     new_var = &g_BattleActionSlotMask;
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
-        g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2E6 + 0x17;
-        off = (g_BattleCommandQueue->unk2E6 + 0x16) * 40 + arg0 * 1520;
+        g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x17;
+        off = (g_BattleCommandQueue->commandId + 0x16) * 40 + arg0 * 1520;
         sel = *(u16 *)(D_800CDD40 + off) & 7;
     } else {
-        g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2E6 + 0x16;
-        off = (g_BattleCommandQueue->unk2E6 + 0x15) * 40 + arg0 * 1680;
+        g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x16;
+        off = (g_BattleCommandQueue->commandId + 0x15) * 40 + arg0 * 1680;
         sel = *(u16 *)(g_BattleActionRows + off) & 7;
     }
     if (sel != 0) {
@@ -247,7 +247,7 @@ void func_8008ADD0(u8 arg0) {
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
     mask = BattleSlotBitMask(arg0);
     BattleBeginAnimTask(*pMask | mask);
-    func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].unk3C, BattleFindMinValueOtherSlot(arg0));
+    func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
     D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleActionParam;
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = *pMask;
@@ -258,7 +258,7 @@ void func_8008ADD0(u8 arg0) {
     }
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     BattleQueueCommandFE(arg0);
-    while (g_BattleCommandQueue->unk2DB == 0) {
+    while (g_BattleCommandQueue->commandFinished == 0) {
         BattleUpdateFrame();
     }
 }
@@ -266,8 +266,8 @@ void func_8008ADD0(u8 arg0) {
 
 void BattleClearPrimFlagsFourSlots(u8 arg0) {
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
-    g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = g_BattleDisplayState->unkB0[3] = 0;
-    g_BattleDisplayState->unkB7 = 0;
+    g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = g_BattleDisplayState->primFlags[2] = g_BattleDisplayState->primFlags[3] = 0;
+    g_BattleDisplayState->primState = 0;
     if (arg0 == 0) {
         g_BattleDisplayState->primListsPending = 1;
     }
@@ -276,11 +276,11 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
     u16 value;
 
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
-    g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = g_BattleDisplayState->unkB0[3] = 1;
-    g_BattleDisplayState->unkB7 = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
+    g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = g_BattleDisplayState->primFlags[2] = g_BattleDisplayState->primFlags[3] = 1;
+    g_BattleDisplayState->primState = 1;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C));
+    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
 /* Best: 89.19% (584 bytes vs the original's 596). Same calls, same branch tree,
@@ -434,7 +434,7 @@ u8 func_8008B478(u8 arg0) {
         case 4:
             if (func_8008B224(arg0, i, j) != 0) {
                 result = 1;
-                g_BattleCommandQueue->unk2E6 = i + j * 2;
+                g_BattleCommandQueue->commandId = i + j * 2;
             }
             break;
         case 0:
@@ -534,8 +534,8 @@ void BattleActivateSelectedCommand(u8 arg0) {
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         D_800C402F[off] = value;
     }
-    func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].unk3C, BattleFindMinValueOtherSlot(arg0));
-    sel = g_BattleCommandEntries[g_BattleCommandQueue->unk2E6].unk0 & 7;
+    func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
+    sel = g_BattleCommandEntries[g_BattleCommandQueue->commandId].flags & 7;
     if (sel != 0) {
         mask = g_BattleTargetSlotMask;
     } else {
@@ -543,7 +543,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     }
     BattleQueueCommandF3WithSlotMask(mask, arg0);
     BattleClearSlotCurveEntry();
-    BattleBeginAction(arg0, mask, g_BattleCommandQueue->unk2E6);
+    BattleBeginAction(arg0, mask, g_BattleCommandQueue->commandId);
     pCell = &g_BattleCommandCellFlags;
     if ((pCell->flags & 0x8000) == 0) {
         pUses = pCell->uses;
@@ -566,7 +566,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     }
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
     BattleQueueCommandFE(arg0);
-    while (g_BattleCommandQueue->unk2DB == 0) {
+    while (g_BattleCommandQueue->commandFinished == 0) {
         BattleUpdateFrame();
     }
     for (i = 0; i < 3; i++) {
@@ -577,8 +577,8 @@ void BattleActivateSelectedCommand(u8 arg0) {
 }
 void BattleClearPrimFlagsTwoSlots(u8 arg0) {
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
-    g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 0;
-    g_BattleDisplayState->unkB7 = 0;
+    g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = 0;
+    g_BattleDisplayState->primState = 0;
     if (arg0 == 0) {
         g_BattleDisplayState->primListsPending = 1;
     }
@@ -587,11 +587,11 @@ void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     u16 value;
 
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
-    g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 1;
-    g_BattleDisplayState->unkB7 = 2;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
+    g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = 1;
+    g_BattleDisplayState->primState = 2;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C));
+    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     u8 value;
@@ -599,7 +599,7 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     s32 result;
 
     result = 0;
-    entry = g_BattleCommandEntries[g_BattleCommandGridIds[arg2 * 2 + arg1]].unk0;
+    entry = g_BattleCommandEntries[g_BattleCommandGridIds[arg2 * 2 + arg1]].flags;
     if (arg3 == 0) {
         value = g_BattleCommandGridIds[arg2 * 2 + arg1];
     } else {
@@ -716,7 +716,7 @@ u8 func_8008BED8(u8 arg0) {
             sel = BattleActivateTwoSlotCommand(arg0, i, j, page);
             switch (sel) {
             case 1:
-                g_BattleCommandQueue->unk2E6 = g_BattleCommandGridIds[j * 2 + i];
+                g_BattleCommandQueue->commandId = g_BattleCommandGridIds[j * 2 + i];
                 g_BattleCommandCellColumn = i;
                 g_BattleCommandCellRow = j;
                 result = 1;
@@ -798,7 +798,7 @@ u8 func_8008BED8(u8 arg0) {
 */
 void BattleFreeSlotPrims(u8 arg0) {
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
-    g_BattleDisplayState->unkB7 = 0;
+    g_BattleDisplayState->primState = 0;
     if (arg0 != 0) {
         g_BattleDisplayState->pulseTriangleActive = 0;
         BattleFreeSlotBuffers(0);
@@ -807,18 +807,18 @@ void BattleFreeSlotPrims(u8 arg0) {
         BattleFreePacketPrimitives();
         BattleClearFlagC6();
     } else {
-        g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 0;
+        g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = 0;
     }
 }
 void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
     u16 value;
 
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
-    g_BattleDisplayState->unkB7 = 3;
-    g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = 1;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
+    g_BattleDisplayState->primState = 3;
+    g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = 1;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C));
+    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 /* Best: 88.52% (932 bytes vs the original's 884). Same calls, same branch tree,
@@ -847,7 +847,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
    `slti/bnez` for-loop tail. `make check` was NOT run on the parked body.
    Round 124: g_BattleCommandQueue and g_BattleDisplayState are typed now (BattleCommandQueue /
    BattleDisplayState at the top of this file), so the body below compiles as
-   written; the typed slot spelling `g_BattleCommandQueue->slots[arg0].unk3C` is proven
+   written; the typed slot spelling `g_BattleCommandQueue->slots[arg0].targetSlot` is proven
    byte-exact by the four *PrimFlags*Slots setters that use it.
    NEXT: permute this body. */
 /*
@@ -867,20 +867,20 @@ s32 func_8008C4A8(u8 arg0) {
         BattleFreeSlotPrims(1);
         g_BattleSoundEnabled = 0;
         func_800BCD98(0);
-        g_BattleCommandQueue->slots[arg0].unk3C = g_BattleTargetSlot;
-        func_800877E0(arg0, g_BattleCommandQueue->slots[arg0].unk3C);
+        g_BattleCommandQueue->slots[arg0].targetSlot = g_BattleTargetSlot;
+        func_800877E0(arg0, g_BattleCommandQueue->slots[arg0].targetSlot);
         D_800C4928 = result;
         BattleSetupActorSlotDisplay(arg0);
-        if ((*(u16 *)(D_800CCD1C + g_BattleCommandQueue->slots[arg0].unk3C * 0x170) & 0x800) != 0) {
+        if ((*(u16 *)(D_800CCD1C + g_BattleCommandQueue->slots[arg0].targetSlot * 0x170) & 0x800) != 0) {
             D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
             D_800C402F[g_BattleCommandQueue->count * 72] = 0xF3;
-            D_800C4022[g_BattleCommandQueue->count * 36] = BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
+            D_800C4022[g_BattleCommandQueue->count * 36] = BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
             g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
         }
         for (i = 0; i < 7; i++) {
             if (g_BattleCommandQueue->unk2C4[i] != 0xFF) {
                 g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->unk2C4[i] + 8;
-                BattleBeginActorAction(arg0, BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C), g_BattleCommandQueue->unk2DC - 1);
+                BattleBeginActorAction(arg0, BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot), g_BattleCommandQueue->unk2DC - 1);
                 BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
                 D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleCommandQueue->unk2DC - 1;
                 D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
@@ -889,8 +889,8 @@ s32 func_8008C4A8(u8 arg0) {
             }
         }
         BattleQueueCommandFE(arg0);
-        func_80087EDC(arg0, g_BattleCommandQueue->slots[arg0].unk3C);
-        while (g_BattleCommandQueue->unk2DB == 0) {
+        func_80087EDC(arg0, g_BattleCommandQueue->slots[arg0].targetSlot);
+        while (g_BattleCommandQueue->commandFinished == 0) {
             BattleUpdateFrame();
         }
     }
@@ -900,8 +900,8 @@ s32 func_8008C4A8(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C81C);
 void BattleClearPrimFlagsThreeSlots(u8 arg0) {
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 0;
-    g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = 0;
-    g_BattleDisplayState->unkB7 = 0;
+    g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = g_BattleDisplayState->primFlags[2] = 0;
+    g_BattleDisplayState->primState = 0;
     if (arg0 == 0) {
         g_BattleDisplayState->primListsPending = 1;
     }
@@ -910,10 +910,10 @@ void BattleSetPrimFlagsThreeSlots(u8 arg0) {
     u16 value;
 
     g_BattleDisplayState->spriteColumnPending = g_BattleDisplayState->menuColumnPending = g_BattleDisplayState->cursorPending = 1;
-    g_BattleDisplayState->unkB0[0] = g_BattleDisplayState->unkB0[1] = g_BattleDisplayState->unkB0[2] = 1;
-    g_BattleDisplayState->unkB7 = 4;
-    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C);
+    g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = g_BattleDisplayState->primFlags[2] = 1;
+    g_BattleDisplayState->primState = 4;
+    value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].unk3C));
+    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 
