@@ -10,8 +10,16 @@
 #define WORLD_MAP_SLOT_FACING_SIN 0x85A
 
 // the slot's group turns by this much every frame, in 1.12 fixed point
-// (a sixteenth of a turn, re-wrapped with & 0xFFF in WorldMapUpdateSlotActor)
+// (a sixteenth of a turn, re-wrapped with WORLD_MAP_ANGLE_MASK in
+// WorldMapUpdateSlotActor)
 #define WORLD_MAP_SLOT_ANGLE_STEP 256
+
+// an angle is a 4096-step turn counter; sums of angles are wrapped back into it
+#define WORLD_MAP_ANGLE_MASK 0xFFF
+
+// a slot's type is its actor index minus the group actors ahead of it in the
+// slot table (WorldMapInitSlotActor, and the group the slot drives)
+#define WORLD_MAP_SLOT_ACTOR_INDEX_BASE 4
 
 // the map display buffer copied into VRAM when a mode initialises, and the
 // VRAM position it is copied to
@@ -867,9 +875,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
 // addressing). Do not re-try -G0 here.
 
 int WorldMapInitSlotActor(int index) {
-    int nType = index - 4;
+    int nType = index - WORLD_MAP_SLOT_ACTOR_INDEX_BASE;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    WorldMapGroup *pGroup = &g_WorldMapGroups->groups[nType + 4];
+    WorldMapGroup *pGroup = &g_WorldMapGroups->groups[nType + WORLD_MAP_SLOT_ACTOR_INDEX_BASE];
     u16 unkValue;
     int nAbr;
 
@@ -952,7 +960,7 @@ int WorldMapUpdateSlotActor(int index) {
         pPos->vy = pActor->y >> 12;
         pPos->vz = (pActor->z - 0x6D3000) >> 12;
         pAngle->vx = (pAngle->vz = 0);
-        pAngle->vy = ratan2(WORLD_MAP_SLOT_FACING_SIN, WORLD_MAP_SLOT_FACING_COS) & 0xFFF;
+        pAngle->vy = ratan2(WORLD_MAP_SLOT_FACING_SIN, WORLD_MAP_SLOT_FACING_COS) & WORLD_MAP_ANGLE_MASK;
         func_80089160(0x23, pPos, pAngle);
         func_80089160(0x24, pPos, pAngle);
         break;
@@ -977,7 +985,7 @@ int WorldMapUpdateSlotActor(int index) {
         ((MATRIX *)(pScratch + 0xF0))->m[2][0] = -WORLD_MAP_SLOT_FACING_SIN;
         ((MATRIX *)(pScratch + 0xF0))->m[2][1] = 0;
         ((MATRIX *)(pScratch + 0xF0))->m[2][2] = WORLD_MAP_SLOT_FACING_COS;
-        pGroup->rot.vz = (pGroup->rot.vz + WORLD_MAP_SLOT_ANGLE_STEP) & 0xFFF;
+        pGroup->rot.vz = (pGroup->rot.vz + WORLD_MAP_SLOT_ANGLE_STEP) & WORLD_MAP_ANGLE_MASK;
         RotMatrixYXZ(&pGroup->rot, pTmp);
         MulMatrix0((MATRIX *)(pScratch + 0xF0), pTmp, &pGroup->mat);
         pGroup->x = pActor->x >> 12;
