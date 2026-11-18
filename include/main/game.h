@@ -18,6 +18,8 @@
 // g_WorldMapAreaId / g_WorldMapMode4AreaId when no area is loaded: both are cleared
 // to it before a map's tables are read, and the mode-4 exit guards test it.
 #define WORLD_MAP_AREA_NONE (-1)
+// an angle is a 4096-step turn counter; every sum of angles is wrapped back into it
+#define WORLD_MAP_ANGLE_MASK 0xFFF
 #define GEAR_ID_NONE 0xFF
 
 #define MAX_ITEM_QUANTITY 99

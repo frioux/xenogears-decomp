@@ -1,6 +1,6 @@
 #include "common.h"
 
-// The tail of the unit after func_8004BEC0's two pad words at 0x3C6C8 (an `asm`
+// The tail of the unit after CLIPEvbf's two pad words at 0x3C6C8 (an `asm`
 // subsegment in config/slus_006.64.yaml), so this file covers 0x3C6D0-0x3C720.
 // See psyq/libapi_2.
 

@@ -647,8 +647,8 @@ void FieldClearParticleBankDirections(void) {
 
 extern s32 g_FieldParticleBankTargetActor;
 extern s32 g_FieldParticleBankModeBits;
-extern s32 D_800B237C;
-extern s32 D_800B2380;
+extern s32 g_FieldParticleBankParam72;
+extern s32 g_FieldParticleBankParam74;
 extern void FieldInitializeDefaultParticleBanks(int);
 
 void FieldScriptInitializeParticleSystem(void) {
@@ -659,8 +659,8 @@ void FieldScriptInitializeParticleSystem(void) {
     }
     g_FieldParticleBankTargetActor = FieldScriptVMGetArgument(1);
     g_FieldParticleBankModeBits = FieldScriptVMGetArgument(3);
-    D_800B237C = FieldScriptVMGetArgument(5);
-    ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(7);
+    g_FieldParticleBankParam72 = FieldScriptVMGetArgument(5);
+    ((FieldScriptGlobalS32*)&g_FieldParticleBankParam74)->value = FieldScriptVMGetArgument(7);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     FieldInitializeDefaultParticleBanks(actorIndex);
     switch (g_FieldParticleBankModeBits) {
@@ -688,10 +688,10 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
     }
     g_FieldParticleBankTargetActor = actorIndex;
     g_FieldParticleBankModeBits = FieldScriptVMGetArgument(2);
-    D_800B237C = FieldScriptVMGetArgument(4);
+    g_FieldParticleBankParam72 = FieldScriptVMGetArgument(4);
     // Store through FieldScriptGlobalS32: a bare s32 store lets gcc hoist the
     // instruction pointer load above it (see the note above FieldScriptGlobalS32).
-    ((FieldScriptGlobalS32*)&D_800B2380)->value = FieldScriptVMGetArgument(6);
+    ((FieldScriptGlobalS32*)&g_FieldParticleBankParam74)->value = FieldScriptVMGetArgument(6);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
     FieldInitializeDefaultParticleBanks(actorIndex);
     switch (g_FieldParticleBankModeBits) {
@@ -747,7 +747,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
 
 // Start of particle handlers
-extern s32 D_800ADB40;
+extern s32 g_FieldParticleTargetActor;
 extern s32 g_FieldScriptRoutineRunning;
 
 extern s32 g_FieldScriptMaxInstructionCount;
@@ -801,7 +801,7 @@ void FieldScriptInitializeParticleBank(void) {
     g_FieldScriptParticleBank.bankIndex = FieldScriptVMGetArgument(1);
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].speedMultiplier = 1;
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].targetActorID = g_FieldParticleBankTargetActor;
-    D_800ADB40 = g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].targetActorID;
+    g_FieldParticleTargetActor = g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].targetActorID;
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk0 = 0;
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].rotAngle = 0;
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].max = FieldScriptVMGetArgument(3);
@@ -844,8 +844,8 @@ void FieldScriptSetParticleBankParameters(void) {
     flags = FieldScriptVMGetArgument(7);
     flags_2 = (FieldScriptVMGetArgument(9) * 2);
     g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].flags = flags | flags_2 | g_FieldParticleBankModeBits;
-    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk72 = D_800B237C;
-    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk74 = D_800B2380;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk72 = g_FieldParticleBankParam72;
+    g_FieldDefaultParticleBanks[g_FieldScriptParticleBank.bankIndex].unk74 = g_FieldParticleBankParam74;
     g_FieldScriptMaxInstructionCount += 4;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0xB;
 }
@@ -2015,7 +2015,7 @@ void FieldScriptSetActorFaceId(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
-extern FieldScriptGlobalS16 D_800B21A0;
+extern FieldScriptGlobalS16 g_FieldRotationVectorPair;
 extern FieldScriptGlobalS16 D_800B21A2;
 extern FieldScriptGlobalS16 D_800B21A4;
 extern FieldScriptGlobalS16 D_800B21A6;
@@ -2023,7 +2023,7 @@ extern FieldScriptGlobalS16 D_800B21A8;
 extern FieldScriptGlobalS16 D_800B21AA;
 
 void FieldScriptSetRotationVectorPair(void) {
-    D_800B21A0.value = FieldScriptVMGetInstructionArgument(1);
+    g_FieldRotationVectorPair.value = FieldScriptVMGetInstructionArgument(1);
     D_800B21A4.value = FieldScriptVMGetInstructionArgument(3);
     D_800B21A2.value = FieldScriptVMGetInstructionArgument(5);
     D_800B21A6.value = FieldScriptVMGetInstructionArgument(7);

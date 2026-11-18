@@ -125,8 +125,8 @@ typedef struct {
     /* 0x0F2 */ s16 segments;
 } BattlingGaugeState; // Size: 0xF4
 
-extern s32 func_80086FF8(BattlingGaugeState *pState, POLY_F4 *pPrim);
-extern void func_80086E70(u8 *pOt, void *pBase, s32 value, s32 flag);
+extern s32 BattleSetGaugeBarPrimColor(BattlingGaugeState *pState, POLY_F4 *pPrim);
+extern void BattleQueueGaugeBarPrims(u8 *pOt, void *pBase, s32 value, s32 flag);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087068);
 /* Best 99.75%, at retail's exact size (1412 bytes). Everything matches but one
@@ -184,10 +184,10 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
         AddPrim(g_BattleRootOrderingTable, &pEnv->gauge[5]);
     }
 
-    if (func_80086FF8(arg0, &pEnv->meter[2]) != 0) {
+    if (BattleSetGaugeBarPrimColor(arg0, &pEnv->meter[2]) != 0) {
         AddPrim(g_BattleRootOrderingTable, &pEnv->meter[2]);
     }
-    if (func_80086FF8(arg1, &pEnv->meter[3]) != 0) {
+    if (BattleSetGaugeBarPrimColor(arg1, &pEnv->meter[3]) != 0) {
         AddPrim(g_BattleRootOrderingTable, &pEnv->meter[3]);
     }
 
@@ -206,8 +206,8 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
     AddPrim(g_BattleRootOrderingTable, &pEnv->background[0]);
     AddPrim(g_BattleRootOrderingTable, &pEnv->background[2]);
 
-    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[0], g_BattleGaugeFill0, 0);
-    func_80086E70(g_BattleRootOrderingTable, &pEnv->barPrim[3], g_BattleGaugeFill1, 1);
+    BattleQueueGaugeBarPrims(g_BattleRootOrderingTable, &pEnv->barPrim[0], g_BattleGaugeFill0, 0);
+    BattleQueueGaugeBarPrims(g_BattleRootOrderingTable, &pEnv->barPrim[3], g_BattleGaugeFill1, 1);
 
     i = ((s16)arg0->position) >> 6;
     pPacket = &D_80095698[g_BattleDrawBufferIndex + 12];
@@ -233,7 +233,7 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
             pEnv->barBack[i].b0 = half;
             pEnv->barBack[i].r0 = bright + (scaledFade >> 8);
         }
-        func_80086E70(g_BattleRootOrderingTable, &pEnv->barBack[0], arg0->barLength, 0);
+        BattleQueueGaugeBarPrims(g_BattleRootOrderingTable, &pEnv->barBack[0], arg0->barLength, 0);
     }
 
     if (arg1->fade != 0) {
@@ -248,7 +248,7 @@ void func_80087068(BattlingGaugeState *arg0, BattlingGaugeState *arg1) {
             pEnv->barBack[i].b0 = half;
             pEnv->barBack[i].r0 = bright + (scaledFade >> 8);
         }
-        func_80086E70(g_BattleRootOrderingTable, &pEnv->barBack[3], arg1->barLength, 1);
+        BattleQueueGaugeBarPrims(g_BattleRootOrderingTable, &pEnv->barBack[3], arg1->barLength, 1);
     }
 
     for (i = 0; i < 6; i++) {

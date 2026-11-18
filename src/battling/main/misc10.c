@@ -1016,7 +1016,7 @@ void BattleAddSharedPrim(void) {
     AddPrim(g_BattleRootOrderingTable, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
 }
 
-void func_80086E70(u8* pOt, u8* pBase, s32 value, s32 flag) {
+void BattleQueueGaugeBarPrims(u8* pOt, u8* pBase, s32 value, s32 flag) {
     u16* pTaper;
     s32 edge;
 
@@ -1049,7 +1049,7 @@ void func_80086E70(u8* pOt, u8* pBase, s32 value, s32 flag) {
     AddPrim(pOt, pBase + 0x30);
 }
 
-s32 func_80086FF8(s32 arg0, u8* pOut) {
+s32 BattleSetGaugeBarPrimColor(s32 arg0, u8* pOut) {
     s32 value;
     s32* pColor;
 

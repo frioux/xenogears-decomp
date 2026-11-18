@@ -581,3 +581,5 @@ g_WorldMapInitModeIndex = 0x8009C894;
 g_WorldMapPad2Held = 0x8009CD50;
 g_WorldMapMode4AreaRect = 0x8009B6E4;
 g_WorldMapGroupInitialScale = 0x8009A684;
+g_WorldMapExtraFileIndex = 0x8009BCC8;
+g_WorldMapExtraFileBuffer = 0x8009C614;

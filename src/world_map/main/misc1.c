@@ -376,7 +376,7 @@ extern s32 g_WorldMapWdsFileIndex;
 extern s32 g_WorldMapSoundBankFileIndex;
 extern s32 g_WorldMapMode7SoundBankFileIndex;
 extern s32 g_WorldMapGridImageFileIndex;
-extern s32 D_8009BCC8;
+extern s32 g_WorldMapExtraFileIndex;
 extern s32 g_WorldMapTileRows;
 extern s32 g_WorldMapTileColumns;
 extern s32 D_8009BD08;
@@ -434,7 +434,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     g_WorldMapSoundBankFileIndex = pEntry->unk0 + 5;
     g_WorldMapSedsBankFileIndex = pEntry->unk0 + 6;
     g_WorldMapMode7SoundBankFileIndex = pEntry->unk0 + 7;
-    D_8009BCC8 = pEntry->unk0 + 8;
+    g_WorldMapExtraFileIndex = pEntry->unk0 + 8;
     g_WorldMapGridImageFileIndex = pEntry->unk0 + 9;
     D_8009BD08 = pEntry->unk0 + 0xA;
     g_WorldMapTileColumns = pEntry->unk2;
@@ -559,11 +559,11 @@ extern s32 g_WorldMapAudioManagerLoaded;
 extern s32 g_WorldMapWdsFileIndex;
 extern s32 g_WorldMapSoundBankFileIndex;
 extern s32 g_WorldMapMode7SoundBankFileIndex;
-extern s32 D_8009BCC8;
+extern s32 g_WorldMapExtraFileIndex;
 extern void* g_WorldMapWdsFileBuffer;
 extern void* g_WorldMapSoundBankBuffer;
 extern void* g_WorldMapMode7SoundBankBuffer;
-extern void* D_8009C614;
+extern void* g_WorldMapExtraFileBuffer;
 
 void WorldMapQueueFileLoads(void) {
     void* pBuffer;
@@ -585,9 +585,9 @@ void WorldMapQueueFileLoads(void) {
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapMode7SoundBankFileIndex), 0);
     g_WorldMapMode7SoundBankBuffer = pBuffer;
     D_8009D410.pData = pBuffer;
-    D_8009D418.archiveIndex = D_8009BCC8;
-    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_8009BCC8), 0);
-    D_8009C614 = pBuffer;
+    D_8009D418.archiveIndex = g_WorldMapExtraFileIndex;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(g_WorldMapExtraFileIndex), 0);
+    g_WorldMapExtraFileBuffer = pBuffer;
     D_8009D418.pData = pBuffer;
     D_8009D420.archiveIndex = 0;
     D_8009D420.pData = 0;

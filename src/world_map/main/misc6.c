@@ -14,7 +14,8 @@
 // WorldMapUpdateSlotActor)
 #define WORLD_MAP_SLOT_ANGLE_STEP 256
 
-// an angle is a 4096-step turn counter; sums of angles are wrapped back into it
+// an angle is a 4096-step turn counter; sums of angles are wrapped back into it.
+// Owned by include/main/game.h (identical value); this unit does not include it.
 #define WORLD_MAP_ANGLE_MASK 0xFFF
 
 // a slot's type is its actor index minus the group actors ahead of it in the

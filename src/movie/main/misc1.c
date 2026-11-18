@@ -68,9 +68,9 @@ typedef struct {
     /* 0x2 */ s8 unk2;
 } MovieDebugMode; // Size: 0x3
 
-extern MovieDrawBuffer D_80077124[];
-extern MovieDrawBuffer* D_80077120;
-extern s32 D_8007744C;
+extern MovieDrawBuffer g_MovieDebugDrawBuffers[];
+extern MovieDrawBuffer* g_MovieDebugDrawBuffer;
+extern s32 g_MovieDebugBufferParity;
 extern MovieDebugMode D_8006FAF4;
 extern s32 D_80076E64;
 extern s32 D_80076E68;
@@ -81,8 +81,8 @@ extern s32 D_80076E78;
 extern s32 D_80076E80;
 extern s32 D_80076E88;
 extern s32 D_80076E8C;
-extern u32* D_80076E98;
-extern s32 D_80076EA8;
+extern u32* g_MovieDebugCounters;
+extern s32 g_MovieDebugCounterTotal;
 extern s32 D_8005A49C;
 extern s32 D_8004FDEC;
 extern u_int g_ArchiveReadRetryCount;
@@ -164,14 +164,14 @@ extern s32 g_MovieHeapDebugEnabled;
 //   of 0x30. Anything else of 28 bytes or more (u32[7]) rounds the slot up to 32
 //   and the frame becomes 0x78. No instruction references either slot in retail
 //   either, so they are dead locals in the original source, not missing code.
-// - The loop head uses its OWN variable (pNext). Writing `pWork = &D_80077124[0]`
+// - The loop head uses its OWN variable (pNext). Writing `pWork = &g_MovieDebugDrawBuffers[0]`
 //   there lets gcc CSE it with the preheader's base in s1, and the loop then
 //   clobbers s1 (lui s1 / addiu s1 / bne v0,s1 ...) where retail re-forms the
 //   address into v1: 6 instructions differ. A separate variable gives retail's
 //   exact `lui v1` form.
 // - `pCounters` is assigned BEFORE `pBase` (retail's s4 copy precedes its s2
 //   copy); the reverse source order swaps those two instructions.
-// - The teardown's RECT stores go through absolute D_80077124[n] indices (a
+// - The teardown's RECT stores go through absolute g_MovieDebugDrawBuffers[n] indices (a
 //   pointer local makes them base-relative), the SetDef*Env calls go through
 //   pBase (a second variable holding the same address re-materialises it), `i = 0;`
 //   comes BEFORE the MovieStreamCommand test with the first 7-iteration loop
@@ -188,7 +188,7 @@ extern s32 g_MovieHeapDebugEnabled;
 // RE-MEASURED under the unit's gcc 2.6.0 preset: 99.04%, retail's exact 2276 bytes.
 // The /3600 magic division now lands in a2 as retail has it, and the only rows
 // objdump shows are two relocation spellings that link to the same address
-// (g_MovieStreamReadCount+0x3C vs retail's D_80076F78, and D_80077124+0x18 vs
+// (g_MovieStreamReadCount+0x3C vs retail's D_80076F78, and g_MovieDebugDrawBuffers+0x18 vs
 // retail's g_MovieStreamSlots). BUT tools/scripts/check_bin.sh still reports the
 // overlay MISMATCH: the stream-status FontPrintf below loads its D_8006FC40 format
 // string into a0 LAST, where retail loads it BEFORE the g_MovieStreamBlock /
@@ -226,7 +226,7 @@ void func_800704E8(void) {
         g_MovieStreamReadCount[i] = 0;
     }
 
-    pWork = &D_80077124[0];
+    pWork = &g_MovieDebugDrawBuffers[0];
     SetDefDrawEnv(&pWork->drawEnv, 0, 0, 0x280, 0xF0);
     SetDefDispEnv(&pWork->dispEnv, 0, 0xF0, 0x280, 0xF0);
     SetDefDrawEnv(&pWork[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
@@ -238,12 +238,12 @@ void func_800704E8(void) {
     pCounters = g_MovieStreamReadCount;
     pBase = pWork;
     while (1) {
-        pNext = &D_80077124[0];
-        if (D_80077120 == pNext) {
-            pNext = &D_80077124[1];
+        pNext = &g_MovieDebugDrawBuffers[0];
+        if (g_MovieDebugDrawBuffer == pNext) {
+            pNext = &g_MovieDebugDrawBuffers[1];
         }
-        D_80077120 = pNext;
-        D_8007744C = 1 - D_8007744C;
+        g_MovieDebugDrawBuffer = pNext;
+        g_MovieDebugBufferParity = 1 - g_MovieDebugBufferParity;
         ClearOTagR(pNext->ot, 0x20);
         func_800712C4();
         MovieUpdatePadCursor(0, 0, &action);
@@ -281,22 +281,22 @@ void func_800704E8(void) {
 
         i = 0;
         if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
-            FontPrintf(D_8006FC40, D_80076E98, g_MovieStreamBlock, g_MovieStreamWritePtr,
+            FontPrintf(D_8006FC40, g_MovieDebugCounters, g_MovieStreamBlock, g_MovieStreamWritePtr,
                        g_MovieStreamBytesLeft);
             for (; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i]);
             }
             FontPrintf(D_8006FC6C);
             for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i + 7]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 7]);
             }
             FontPrintf(D_8006FC6C);
             for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i + 14]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 14]);
             }
             FontPrintf(D_8006FC6C);
             for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i + 21]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 21]);
             }
             FontPrintf(D_8006FC6C);
             if (g_MovieStreamSections != NULL) {
@@ -305,11 +305,11 @@ void func_800704E8(void) {
             }
         }
 
-        D_80076EA8 = 0;
+        g_MovieDebugCounterTotal = 0;
         FontPrintf(D_8006FC8C, g_MovieStreamCancelCount);
         for (i = 0, pCounter = pCounters; i < 0xD; i++) {
             FontPrintf(D_8006FC98, i, *pCounter);
-            D_80076EA8 += *pCounter;
+            g_MovieDebugCounterTotal += *pCounter;
             if (g_MovieStreamCommandNow == i) {
                 FontPrintf(D_8006FCA4);
             }
@@ -324,20 +324,20 @@ void func_800704E8(void) {
         hours = playTime / 3600;
         minutes = playTime / 60 - hours * 60;
         seconds = playTime % 60;
-        FontPrintf(D_8006FCB4, D_80076EA8, hours, minutes, seconds);
+        FontPrintf(D_8006FCB4, g_MovieDebugCounterTotal, hours, minutes, seconds);
         FontPrintf(D_8006FCD8);
         if (g_MovieHeapDebugEnabled > 0) {
             HeapDebugDump(1, 0, 6, 0x808D);
         }
 
-        FontDrawLetters(D_80077120->ot);
-        func_80072F98((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[0], 8, 0xC, 0x270, 0xD8);
-        func_800734B8((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[1], 7, 0xB, 0x272, 0xDA);
+        FontDrawLetters(g_MovieDebugDrawBuffer->ot);
+        func_80072F98((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[0], 8, 0xC, 0x270, 0xD8);
+        MovieUpdateGlowPoly((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[1], 7, 0xB, 0x272, 0xDA);
         DrawSync(0);
         Vsync(0);
-        PutDrawEnv(&D_80077120->drawEnv);
-        PutDispEnv(&D_80077120->dispEnv);
-        DrawOTag(&D_80077120->ot[0x1F]);
+        PutDrawEnv(&g_MovieDebugDrawBuffer->drawEnv);
+        PutDispEnv(&g_MovieDebugDrawBuffer->dispEnv);
+        DrawOTag(&g_MovieDebugDrawBuffer->ot[0x1F]);
         cursor = g_MovieCursorIndex;
         if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 &&
             g_MovieStreamCommand == 0) {
@@ -348,25 +348,25 @@ void func_800704E8(void) {
                 HeapFree(g_MovieReadBuffer);
             }
             g_MovieReadBuffer = NULL;
-            if (D_80076E98 != NULL) {
-                HeapFree(D_80076E98);
+            if (g_MovieDebugCounters != NULL) {
+                HeapFree(g_MovieDebugCounters);
             }
-            D_80076E98 = NULL;
+            g_MovieDebugCounters = NULL;
             MovieClearFrameBuffer();
             SetDefDrawEnv(&pBase->drawEnv, 0, 0, 0x140, 0xF0);
             SetDefDispEnv(&pBase->dispEnv, 0, 0xF0, 0x140, 0xF0);
             SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, i = 0xF0);
             SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, i);
-            D_80077124[0].dispEnv.screen.x = 0;
-            D_80077124[0].dispEnv.screen.y = 0xA;
-            D_80077124[0].dispEnv.screen.w = 0x100;
-            D_80077124[0].dispEnv.screen.h = 0xD8;
-            D_80077124[1].dispEnv.screen.x = 0;
-            D_80077124[1].dispEnv.screen.y = 0xA;
-            D_80077124[1].dispEnv.screen.w = 0x100;
-            D_80077124[1].dispEnv.screen.h = 0xD8;
-            D_80077124[0].drawEnv.isbg = 1;
-            D_80077124[1].drawEnv.isbg = 1;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.x = 0;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.y = 0xA;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.w = 0x100;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.h = 0xD8;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.x = 0;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.y = 0xA;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.w = 0x100;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.h = 0xD8;
+            g_MovieDebugDrawBuffers[0].drawEnv.isbg = 1;
+            g_MovieDebugDrawBuffers[1].drawEnv.isbg = 1;
             break;
         }
         g_MovieCursorIndex = cursor;
@@ -380,7 +380,7 @@ void func_800704E8(void) {
 // next insn is `addu a2,t1,t0` against retail's `addu a2,a2,t0`). Everything else the
 // diff prints is relocation spelling only: the zero loop's `addiu v1,v1,60` over
 // g_MovieStreamReadCount (= 0x80076F3C + 0x3C = retail's D_80076F78) and the first
-// `drawEnv.isbg = 1` (D_80077124 + 0x18 = retail's g_MovieStreamSlots).
+// `drawEnv.isbg = 1` (g_MovieDebugDrawBuffers + 0x18 = retail's g_MovieStreamSlots).
 // PRESET_260: gcc 2.6.0 gets this right. Compiled with gcc-2.6.0-psx the whole body
 // comes out instruction-identical to retail (`mfhi a2` / `addu a2,a2,t0`), and
 // tools/scripts/try_flags.sh movie/main/misc1 --all --gcc gcc-2.6.0-psx scores
@@ -421,7 +421,7 @@ void func_800704E8(void) {
         g_MovieStreamReadCount[i] = 0;
     }
 
-    pWork = &D_80077124[0];
+    pWork = &g_MovieDebugDrawBuffers[0];
     SetDefDrawEnv(&pWork->drawEnv, 0, 0, 0x280, 0xF0);
     SetDefDispEnv(&pWork->dispEnv, 0, 0xF0, 0x280, 0xF0);
     SetDefDrawEnv(&pWork[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
@@ -433,12 +433,12 @@ void func_800704E8(void) {
     pCounters = g_MovieStreamReadCount;
     pBase = pWork;
     while (1) {
-        pNext = &D_80077124[0];
-        if (D_80077120 == pNext) {
-            pNext = &D_80077124[1];
+        pNext = &g_MovieDebugDrawBuffers[0];
+        if (g_MovieDebugDrawBuffer == pNext) {
+            pNext = &g_MovieDebugDrawBuffers[1];
         }
-        D_80077120 = pNext;
-        D_8007744C = 1 - D_8007744C;
+        g_MovieDebugDrawBuffer = pNext;
+        g_MovieDebugBufferParity = 1 - g_MovieDebugBufferParity;
         ClearOTagR(pNext->ot, 0x20);
         func_800712C4();
         MovieUpdatePadCursor(0, 0, &action);
@@ -476,22 +476,22 @@ void func_800704E8(void) {
 
         i = 0;
         if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
-            FontPrintf(D_8006FC40, D_80076E98, g_MovieStreamBlock, g_MovieStreamWritePtr,
+            FontPrintf(D_8006FC40, g_MovieDebugCounters, g_MovieStreamBlock, g_MovieStreamWritePtr,
                        g_MovieStreamBytesLeft);
             for (; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i]);
             }
             FontPrintf(D_8006FC6C);
             for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i + 7]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 7]);
             }
             FontPrintf(D_8006FC6C);
             for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i + 14]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 14]);
             }
             FontPrintf(D_8006FC6C);
             for (i = 0; i < 7; i++) {
-                FontPrintf(D_8006FC64, D_80076E98[i + 21]);
+                FontPrintf(D_8006FC64, g_MovieDebugCounters[i + 21]);
             }
             FontPrintf(D_8006FC6C);
             if (g_MovieStreamSections != NULL) {
@@ -500,11 +500,11 @@ void func_800704E8(void) {
             }
         }
 
-        D_80076EA8 = 0;
+        g_MovieDebugCounterTotal = 0;
         FontPrintf(D_8006FC8C, g_MovieStreamCancelCount);
         for (i = 0, pCounter = pCounters; i < 0xD; i++) {
             FontPrintf(D_8006FC98, i, *pCounter);
-            D_80076EA8 += *pCounter;
+            g_MovieDebugCounterTotal += *pCounter;
             if (g_MovieStreamCommandNow == i) {
                 FontPrintf(D_8006FCA4);
             }
@@ -519,20 +519,20 @@ void func_800704E8(void) {
         hours = playTime / 3600;
         minutes = playTime / 60 - hours * 60;
         seconds = playTime % 60;
-        FontPrintf(D_8006FCB4, D_80076EA8, hours, minutes, seconds);
+        FontPrintf(D_8006FCB4, g_MovieDebugCounterTotal, hours, minutes, seconds);
         FontPrintf(D_8006FCD8);
         if (g_MovieHeapDebugEnabled > 0) {
             HeapDebugDump(1, 0, 6, 0x808D);
         }
 
-        FontDrawLetters(D_80077120->ot);
-        func_80072F98((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[0], 8, 0xC, 0x270, 0xD8);
-        func_800734B8((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[1], 7, 0xB, 0x272, 0xDA);
+        FontDrawLetters(g_MovieDebugDrawBuffer->ot);
+        func_80072F98((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[0], 8, 0xC, 0x270, 0xD8);
+        MovieUpdateGlowPoly((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[1], 7, 0xB, 0x272, 0xDA);
         DrawSync(0);
         Vsync(0);
-        PutDrawEnv(&D_80077120->drawEnv);
-        PutDispEnv(&D_80077120->dispEnv);
-        DrawOTag(&D_80077120->ot[0x1F]);
+        PutDrawEnv(&g_MovieDebugDrawBuffer->drawEnv);
+        PutDispEnv(&g_MovieDebugDrawBuffer->dispEnv);
+        DrawOTag(&g_MovieDebugDrawBuffer->ot[0x1F]);
         cursor = g_MovieCursorIndex;
         if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 &&
             g_MovieStreamCommand == 0) {
@@ -543,25 +543,25 @@ void func_800704E8(void) {
                 HeapFree(g_MovieReadBuffer);
             }
             g_MovieReadBuffer = NULL;
-            if (D_80076E98 != NULL) {
-                HeapFree(D_80076E98);
+            if (g_MovieDebugCounters != NULL) {
+                HeapFree(g_MovieDebugCounters);
             }
-            D_80076E98 = NULL;
+            g_MovieDebugCounters = NULL;
             MovieClearFrameBuffer();
             SetDefDrawEnv(&pBase->drawEnv, 0, 0, 0x140, 0xF0);
             SetDefDispEnv(&pBase->dispEnv, 0, 0xF0, 0x140, 0xF0);
             SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, i = 0xF0);
             SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, i);
-            D_80077124[0].dispEnv.screen.x = 0;
-            D_80077124[0].dispEnv.screen.y = 0xA;
-            D_80077124[0].dispEnv.screen.w = 0x100;
-            D_80077124[0].dispEnv.screen.h = 0xD8;
-            D_80077124[1].dispEnv.screen.x = 0;
-            D_80077124[1].dispEnv.screen.y = 0xA;
-            D_80077124[1].dispEnv.screen.w = 0x100;
-            D_80077124[1].dispEnv.screen.h = 0xD8;
-            D_80077124[0].drawEnv.isbg = 1;
-            D_80077124[1].drawEnv.isbg = 1;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.x = 0;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.y = 0xA;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.w = 0x100;
+            g_MovieDebugDrawBuffers[0].dispEnv.screen.h = 0xD8;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.x = 0;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.y = 0xA;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.w = 0x100;
+            g_MovieDebugDrawBuffers[1].dispEnv.screen.h = 0xD8;
+            g_MovieDebugDrawBuffers[0].drawEnv.isbg = 1;
+            g_MovieDebugDrawBuffers[1].drawEnv.isbg = 1;
             break;
         }
         g_MovieCursorIndex = cursor;
@@ -756,7 +756,7 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 // prologue pairs: retail forms pColR/pTargetR AFTER the loop's steps-array
 // pointer (`lui s3 / addiu s3, D_80076FAC`) and gcc here forms them before it.
 // Everything else, including `i = 0` placed first (which retail also has, and
-// which is what made its twin func_800734B8 match), is identical.
+// which is what made its twin MovieUpdateGlowPoly match), is identical.
 // Load-bearing, measured: the three `*(volatile u_char*)pColR` reads of the sums
 // are what reproduce retail's RE-READ of the current colour after the three
 // divisions (three lbu); the plain `*pColR` form lets gcc CSE the byte and lands
@@ -876,7 +876,7 @@ void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s3
 }
 
 
-void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+void MovieUpdateGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 r;
     s32 g;

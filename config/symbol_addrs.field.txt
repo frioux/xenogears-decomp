@@ -1047,3 +1047,7 @@ g_FieldScriptDataStreamActive = 0x800ADB60;
 g_FieldScriptSuppressScreenEffect = 0x800AFE84;
 g_FieldSpriteAnimFrame = 0x800AEB60;
 g_FieldSpritePaletteRow = 0x800AEB64;
+g_FieldParticleTargetActor = 0x800ADB40;
+g_FieldRotationVectorPair = 0x800B21A0;
+g_FieldParticleBankParam72 = 0x800B237C;
+g_FieldParticleBankParam74 = 0x800B2380;

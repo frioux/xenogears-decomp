@@ -101,7 +101,7 @@ extern void FontPrintf(char*, ...);
 extern void FontDrawLetters(void* pOt);
 extern void HeapDebugDump(u_int mode, u_int startBlockIdx, int endBlockIdx, u_int flags);
 extern void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
-extern void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
+extern void MovieUpdateGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
 
 // The two double-buffered draw environments the debug menu alternates between;
 // each one starts 0x18 bytes before the matching MovieSlot entry (g_MovieStreamSlots).
@@ -112,9 +112,9 @@ typedef struct {
     /* 0xF0 */ POLY_G4 polyG4[2];
 } MovieDrawBuffer; // Size: 0x138
 
-extern MovieDrawBuffer D_80077124[];
-extern MovieDrawBuffer* D_80077120;
-extern s32 D_8007744C;
+extern MovieDrawBuffer g_MovieDebugDrawBuffers[];
+extern MovieDrawBuffer* g_MovieDebugDrawBuffer;
+extern s32 g_MovieDebugBufferParity;
 extern s32 g_MovieHeapDebugEnabled;
 extern s32 g_MoviePadButtons;
 extern s32 g_MoviePrevPadButtons;
@@ -486,7 +486,7 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 //      directly and copies it in the `beqz` delay slot, where retail tests the copy
 //      and keeps a nop in the slot (worth 99.14 -> 99.66 with the in-body init).
 // Frame/registers are retail's on the in-body variant (0x48, 7 saves, s1=entry,
-// s2=hexMode, s3=showName); MovieDrawBuffer and the D_80077124[] draw buffers (each
+// s2=hexMode, s3=showName); MovieDrawBuffer and the g_MovieDebugDrawBuffers[] draw buffers (each
 // 0x18 bytes before its g_MovieStreamSlots[] MovieSlot) came out of this function.
 // Round 201 re-measured the in-body body: 99.66%, 1236 bytes, and the ONLY line that
 // differs in the whole 308-instruction stream is one DUPLICATE `addu s0,s1,zero`.
@@ -521,12 +521,12 @@ void func_80075D8C(void) {
     showName = 0;
     do {
         count = 0x1249;
-        pBuffer = &D_80077124[0];
-        if (D_80077120 == pBuffer) {
-            pBuffer = &D_80077124[1];
+        pBuffer = &g_MovieDebugDrawBuffers[0];
+        if (g_MovieDebugDrawBuffer == pBuffer) {
+            pBuffer = &g_MovieDebugDrawBuffers[1];
         }
-        D_80077120 = pBuffer;
-        D_8007744C = 1 - D_8007744C;
+        g_MovieDebugDrawBuffer = pBuffer;
+        g_MovieDebugBufferParity = 1 - g_MovieDebugBufferParity;
         ClearOTagR(pBuffer->ot, 0x20);
         FontPrintf(D_80070450);
         FontPrintf(hexMode ? D_80070464 : D_8007046C);
@@ -607,14 +607,14 @@ void func_80075D8C(void) {
         if (g_MovieHeapDebugEnabled > 0) {
             HeapDebugDump(1, 0, 6, 0x808D);
         }
-        FontDrawLetters(D_80077120->ot);
-        func_80072F98((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[0], 8, 0x14, 0x130, 0xC0);
-        func_800734B8((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[1], 7, 0x13, 0x132, 0xC2);
+        FontDrawLetters(g_MovieDebugDrawBuffer->ot);
+        func_80072F98((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[0], 8, 0x14, 0x130, 0xC0);
+        MovieUpdateGlowPoly((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[1], 7, 0x13, 0x132, 0xC2);
         DrawSync(0);
         Vsync(0);
-        PutDrawEnv(&D_80077120->drawEnv);
-        PutDispEnv(&D_80077120->dispEnv);
-        DrawOTag(&D_80077120->ot[0x1F]);
+        PutDrawEnv(&g_MovieDebugDrawBuffer->drawEnv);
+        PutDispEnv(&g_MovieDebugDrawBuffer->dispEnv);
+        DrawOTag(&g_MovieDebugDrawBuffer->ot[0x1F]);
     } while (action != 2);
     ArchiveSetIndex(alignedIndex, remainder);
 }
@@ -792,9 +792,9 @@ s32 func_80076488(void) {
         *(u16*)&D_80077398, mode, g_MovieLoopPlayback ? 1 : 0, 0, *(u16*)&g_MovieVerticalOffset, 0,
         *(u16*)&g_MovieVerticalOffset + 0xF0, *(s16*)&D_800773A0, MovieRequestFrame);
     nRate = 0x1E;
-    PutDrawEnv(&D_80077124[g_MovieDrawBufferIndex].drawEnv);
-    pDrawBuffer = D_80077124;
-    PutDispEnv(&D_80077124[g_MovieDrawBufferIndex].dispEnv);
+    PutDrawEnv(&g_MovieDebugDrawBuffers[g_MovieDrawBufferIndex].drawEnv);
+    pDrawBuffer = g_MovieDebugDrawBuffers;
+    PutDispEnv(&g_MovieDebugDrawBuffers[g_MovieDrawBufferIndex].dispEnv);
     SetDispMask(1);
     for (;;) {
         if (D_80077020 == 0) {
@@ -820,7 +820,7 @@ s32 func_80076488(void) {
         MovieFadeAudioOnPadPress();
         GameCheckAndHandleSoftReset();
         Vsync(0);
-        PutDispEnv(&D_80077124[g_MoviePrevDrawBufferIndex].dispEnv);
+        PutDispEnv(&g_MovieDebugDrawBuffers[g_MoviePrevDrawBufferIndex].dispEnv);
         g_MoviePrevDrawBufferIndex = g_MovieDrawBufferIndex;
         if (g_MovieStopCountdown == 1) {
             break;
@@ -842,7 +842,7 @@ s32 func_80076488(void) {
     MoveImage(&locals.moveRect, 0, 0);
     DrawSync(0);
     Vsync(0);
-    PutDispEnv(&D_80077124[1].dispEnv);
+    PutDispEnv(&g_MovieDebugDrawBuffers[1].dispEnv);
     return 0;
 }
 */
