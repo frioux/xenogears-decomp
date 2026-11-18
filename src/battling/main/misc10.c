@@ -52,11 +52,11 @@ extern void func_80088A40(void);
 extern void ChangeGameState(s32 state);
 extern void Vsync(s32 mode);
 extern void MainLoop(s32 arg);
-extern s32 BattleCreateObject(void);
-extern s32 BattleCreateModelPart(void);
+extern void* BattleCreateObject(void);
+extern void* BattleCreateModelPart(void);
 extern void BattleSetNodeModelPart(void* pA, void* pB);
 extern void BattleAttachModelPart(void* pA, void* pB);
-extern void BattleAppendListEntry(s32 handle, void* pB);
+extern void BattleAppendListEntry(void* pList, void* pNode);
 extern void* BattleLoadArchiveEntry(s32 arg);
 extern void BattleAttachActorPrims(void* pData);
 extern s32 BattleCheckActorBelowBreakThreshold(s32 arg0, s32 arg1);
@@ -172,6 +172,25 @@ typedef struct {
 } BattleEffectSlot; // Size: 0x44
 STATIC_ASSERT_SIZEOF(BattleEffectSlot, 0x44);
 
+// The model chain the actor's +0x5C pointer heads. That node's +0x4 is the
+// model record (src/battling/main/misc2.c reads the same field as the model),
+// the record's own +0x4 leads to the part data, and the part data's +0x30 is the
+// list of part nodes a created draw object joins.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x30];
+    /* 0x30 */ void* pPartList;
+} Misc10PartData; // Size: 0x34
+
+typedef struct {
+    /* 0x0 */ u32 unk00;
+    /* 0x4 */ Misc10PartData* unk04;
+} Misc10ModelRecord; // Size: 0x8
+
+typedef struct {
+    /* 0x0 */ u32 unk00;
+    /* 0x4 */ Misc10ModelRecord* pModel;
+} Misc10ModelNode; // Size: 0x8
+
 // A battle participant as this unit drives it. The offsets are the full actor
 // src/battling/main/misc4.c's Actor, misc2.c's Actor and misc3.c's BattleActor
 // declare, and the fields below carry their names.
@@ -201,7 +220,7 @@ typedef struct {
     /* 0x053 */ u8 pad53;
     /* 0x054 */ s32 angle; // the actor's facing, added to the script's camera angle before rcos/rsin (misc4)
     /* 0x058 */ u8* pTimData;
-    /* 0x05C */ u8* pModelLink;
+    /* 0x05C */ Misc10ModelNode* pModelLink;
     /* 0x060 */ u8* pObject;
     /* 0x064 */ u8 pad64[0x8];
     /* 0x06C */ Vec4 prevPosition; // the position x,y,z,pad copied here before the frame's movement
@@ -249,7 +268,7 @@ typedef struct {
     /* 0x64C */ BattleEffectSlot effectSlots[8];
     /* 0x86C */ u8 pad86C[0x90];
     /* 0x8FC */ u8* pScript;
-    /* 0x900 */ u8* pModelScriptOffsets; // one s16 script offset per model index
+    /* 0x900 */ s16* pModelScriptOffsets; // one script offset per model index, the table right after the header
     /* 0x904 */ u8* pVisiblePartIndices;
     /* 0x908 */ u8 visiblePartCount;
     /* 0x909 */ u8 typeId;
@@ -374,20 +393,16 @@ void BattleUpdateEffectTimer(void) {
 }
 
 void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
-    u8* pScript;
-    s32 arg0;
+    void* pPartList;
     Misc10Draw* pDraw;
     u8* pBuf;
 
-    pScript = *(u8**)((u8*)pActor + 0x5C);
-    pScript = *(u8**)(pScript + 4);
-    pScript = *(u8**)(pScript + 4);
-    arg0 = *(s32*)(pScript + 0x30);
-    pDraw = (Misc10Draw*)BattleCreateObject();
-    pBuf = (u8*)BattleCreateModelPart();
+    pPartList = pActor->pModelLink->pModel->unk04->pPartList;
+    pDraw = BattleCreateObject();
+    pBuf = BattleCreateModelPart();
     BattleSetNodeModelPart(pDraw, pBuf);
     BattleAttachModelPart(pBuf, g_BattleRotatedPartModel);
-    BattleAppendListEntry(arg0, pDraw);
+    BattleAppendListEntry(pPartList, pDraw);
     pDraw->rotY = 0xC00;
     pDraw->rotX = 0;
     pDraw->rotZ = 0x400;
@@ -476,9 +491,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
        pHeader = pData->pHeader;
        pActor->pScript = (u8*)pHeader;
        pActor->pPartTimings = pData->pPartTimings;
-       pActor->pModelScriptOffsets = (u8*)pHeader + 0x34;
+       pActor->pModelScriptOffsets = (s16*)&pHeader[1];
        pActor->pActions = pData->pActions;
-       pActor->pVisiblePartIndices = (u8*)pHeader + pHeader->visiblePartIndicesOffset;
+       pActor->pVisiblePartIndices = pActor->pScript + pHeader->visiblePartIndicesOffset;
        pActor->visiblePartCount = pHeader->visiblePartCount;
        pActor->effectColorR = pHeader->effectColorR;
        pActor->effectColorG = pHeader->effectColorG;
