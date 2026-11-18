@@ -663,8 +663,8 @@ extern BattleEffectPoolRef* g_BattleEffectPool;
 
 extern s32 g_BattleStateStep;
 extern s32 g_BattleEffectPlaceMode;
-extern s32 g_BattleRootOrderingTable;
-extern u16 g_BattleScreenFadeLevel;
+extern u8* g_BattleRootOrderingTable;
+extern s16 g_BattleScreenFadeLevel;
 extern u8 g_BattleResultCode;
 extern u8* g_BattleMessageStringTable;
 extern void BattleEffectAddSlotFromVector(VECTOR* pVec, s32 action);
@@ -688,9 +688,9 @@ extern void BattlePlaceEffectByMode(s32 mode);
    lets gcc address the cells through it and drops retail's repeated
    'lui $at/%hi + addu $at,$at,offset' stores) and a byte offset rather than an
    index (an indexed access gives loop.c a second induction pointer, +2 insns).
-   The three placement stores keep their casts for the same reason: one
-   BattleEffectEmitter element pointer for the cluster measures 95.96% at 1060
-   bytes, 20 short, because retail re-forms the address from the symbol per store.
+   The three placement stores keep their casts for the same reason: retail
+   re-forms the address from the symbol for each of them, and spelling them
+   'pCell->x' measures 94.71% at 1068 bytes, 12 short.
 */
 
 void BattleStepDisplayState(void) {
@@ -701,7 +701,7 @@ void BattleStepDisplayState(void) {
     BattleEffectOrigin* pOrigin;
     s32* pFrames;
     mem_addr base;
-    long vec[3];
+    VECTOR vec;
     s32 offset;
     s32 frames;
     s32 count;
@@ -720,9 +720,9 @@ void BattleStepDisplayState(void) {
     case 1:
         pAnchor = &g_BattleActor1.position;
         base = (mem_addr)g_BattleEffectCells;
-        pFrames = (s32*)(base + 0xC);
+        pFrames = &g_BattleEffectCells[0].frames;
         offset = 0;
-        pCell = (BattleEffectEmitter*)base;
+        pCell = g_BattleEffectCells;
         do {
             frames = *pFrames - 1;
             pCell->frames = frames;
@@ -746,8 +746,8 @@ void BattleStepDisplayState(void) {
         g_BattleScreenFadeLevel = 0xFF;
         g_BattleStateStep++;
     case 3:
-        func_8008E2B8((u8*)g_BattleRootOrderingTable, (s16)g_BattleScreenFadeLevel, 0);
-        if ((s16)g_BattleScreenFadeLevel < 0) {
+        func_8008E2B8(g_BattleRootOrderingTable, g_BattleScreenFadeLevel, 0);
+        if (g_BattleScreenFadeLevel < 0) {
             g_BattleScreenFadeLevel = 0;
         }
         g_BattleScreenFadeLevel -= 8;
@@ -760,22 +760,22 @@ fade:
         if (rand() & 1) {
             count = g_BattleEffectPool->pPool->count;
             pOrigin = g_BattleEffectPool->pPool->pOrigins[rand() % count];
-            vec[0] = pOrigin->x + g_BattleActor1.position.vx;
-            vec[1] = pOrigin->y + g_BattleSceneOriginYMirror;
-            vec[2] = pOrigin->z + g_BattleSceneOriginZ;
-            BattleEffectAddSlotFromVector((VECTOR*)vec, 0xB);
-            BattleEffectAddSlotFromVector((VECTOR*)vec, 8);
+            vec.vx = pOrigin->x + g_BattleActor1.position.vx;
+            vec.vy = pOrigin->y + g_BattleSceneOriginYMirror;
+            vec.vz = pOrigin->z + g_BattleSceneOriginZ;
+            BattleEffectAddSlotFromVector(&vec, 0xB);
+            BattleEffectAddSlotFromVector(&vec, 8);
         }
         break;
     case 4:
         g_BattleScreenFadeLevel += 3;
-        if ((s16)g_BattleScreenFadeLevel >= 0x100) {
+        if (g_BattleScreenFadeLevel >= 0x100) {
             g_BattleScreenFadeLevel = 0xFF;
             g_BattleResultCode = 0x7F;
             BattleClearScreen(0);
             BattleReturnToMainLoop();
         }
-        func_8008E2B8((u8*)g_BattleRootOrderingTable, (s16)g_BattleScreenFadeLevel, 1);
+        func_8008E2B8(g_BattleRootOrderingTable, g_BattleScreenFadeLevel, 1);
         goto fade;
     }
     func_8007107C();
