@@ -4,6 +4,23 @@
 #include "battle/actor.h"
 #include "system/math.h"
 
+extern u8 D_800C3B84;
+extern u8 D_800C3B88;
+extern u8 D_800C3B8C;
+extern s16 D_800C3B90;
+extern s16 D_800C3B94;
+extern s16 D_800C3B98;
+extern u16 D_800C3B9C;
+extern s16 D_800C3BA0;
+extern s16 D_800C3BA4;
+extern u16 D_800C3BA8;
+extern u16 g_BattleSlotVectors;
+extern s16 D_800D3356;
+extern u16 D_800D3358;
+extern u16 D_800D335C;
+extern s16 D_800D335E;
+extern u16 D_800D3360;
+
 extern u8 g_BattleAnimCommandsSuppressed;
 extern u16 g_BattleCommandActorMask;
 extern u8 g_BattleCurrentActorSlot;
@@ -29,7 +46,8 @@ extern BattleActor *g_BattleActors[];
 extern void func_800A9FF0(s32);
 extern void BattleAppendActorCommandBytes(void *, void *, void *, void *);
 extern void func_800BE790(void);
-extern void func_800B0D70(s16 *, u16 *);
+extern s32 func_800B0D70(s16 *, u16 *);
+extern s16 func_800B0B14(s32 index);
 
 typedef struct BattleModelNode BattleModelNode;
 
@@ -61,6 +79,17 @@ struct BattleModelNode {
     /* 0x74 */ BattleBlock *p74;
     /* 0x78 */ BattleBlock *p78;
 }; // Size: 0x7C
+
+// One 0x1C-byte row of the per-slot position table at D_800C3EBE: x at +0, z at
+// +2 and the height y at +4 (misc12.c reads the first two of a row as a 2D pair).
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 z;
+    /* 0x4 */ u16 y;
+    /* 0x6 */ u8 unk6[0x16];
+} BattleSlotPosition; // Size: 0x1C
+
+extern BattleSlotPosition D_800C3EBE[];
 
 // Current frame published to the rest of the battle code.
 typedef struct {
@@ -518,7 +547,207 @@ void BattleSetBlockSlotCommand(u8 *pPool, s32 index, u8 unk2, u8 unk3, s16 x, s1
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B026C);
+/* 96.31% (2124 bytes vs retail's 2120): the whole body is in place - the two
+   follow-actors modes, the slot 7 / slot 8 orbit terms, the two interpolation
+   styles (absolute and per-frame step), the block-free bookkeeping and the
+   nine-entry output switch (the jump table's 4-byte zero word at 0xCD0 is the
+   assembler's .align before BattleTestActorCommandMask's table). One
+   instruction too many and a register shift are left: retail's y computation
+   reaches v1 in BOTH arms of the actor/table if-else so one `addu s2,v1,zero`
+   serves both, where ours gives the if-arm's temp v0 and copies twice; retail
+   also keeps pBlock in s5 (x,y,z in s1..s3) where ours has it in s1, and its
+   `slti fp,7` test branches on the slot<7 arm (bnez) where ours branches on the
+   curFrame-1 arm (beqz). Tried: y through a u16 local before/after the pos
+   loads (both arms, either arm), z = z + (...) vs +=, a pTween second block
+   pointer (retail really does keep two identical block pointers in s5/s6, and
+   adding it is worth +4%: 89.19 -> 93.85), outX/outY/outZ as separate results
+   (+3.7%), declaration order, and two 4-5 minute permuter runs (the second
+   found only the if-inversion below). Percentages moved 87.55 -> 93.85 -> 96.31
+   as those were found, so this is an allocator tie, not a structure gap.
+// Runs every queued movement command for arg1 frames. A block interpolates its
+// sprite position from its start to its target, then publishes the result: slots
+// 0..6 into their own word, 7 and 8 into the two slot vectors. A block whose tag
+// is D_800C3B84 reports to D_800C3B88 - bit 1 while it still runs, bit 2 once it
+// has finished and been freed.
+void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+    u16 vec[3];
+    s32 i;
+    u16 x;
+    u16 y;
+    u16 z;
+    u16 outX;
+    u16 outY;
+    u16 outZ;
+    u8 kind;
+    s32 slot;
+    s32 frame;
+    s32 stepX;
+    s32 stepY;
+    s32 stepZ;
+    s16 rateX;
+    s16 rateY;
+    s16 rateZ;
+    s32 orbitY;
+    s32 orbitR;
+    s32 height;
+    BattleBlock *pBlock;
+    BattleBlock *pTween;
+    BattleActor *pActor;
+    BattleSprite *pSprite;
 
+    D_800C3B88 = 0;
+    for (i = 0; i < arg1; i++) {
+        for (slot = 0; slot < 9; slot++) {
+            pBlock = g_BattleBlockSlots[slot];
+            if (pBlock == NULL) {
+                continue;
+            }
+            kind = pBlock->opcode;
+            pTween = pBlock;
+            if ((kind & 0xF) < 2) {
+                // These two commands aim between two actors: targetX and targetZ
+                // name them, targetY is a height taken off the result.
+                pActor = g_BattleActors[pBlock->targetX];
+                if (pActor != NULL) {
+                    pSprite = pActor->pSprites;
+                    x = (u16)pSprite->pos[0];
+                    y = (u16)pSprite->pos[1] - (u16)pBlock->targetY;
+                    z = (u16)pSprite->pos[2];
+                } else {
+                    x = D_800C3EBE[pBlock->targetX].x;
+                    y = D_800C3EBE[pBlock->targetX].y - (u16)pBlock->targetY;
+                    z = D_800C3EBE[pBlock->targetX].z;
+                }
+                if (pBlock->targetZ >= 0) {
+                    pActor = g_BattleActors[pBlock->targetZ];
+                    if (pActor != NULL) {
+                        pSprite = pActor->pSprites;
+                        x = ((s16)x + pSprite->pos[0]) / 2;
+                        y = ((s16)y + pSprite->pos[1] - pBlock->targetY) / 2;
+                        z = ((s16)z + pSprite->pos[2]) / 2;
+                    } else {
+                        x = ((s16)x + D_800C3EBE[pBlock->targetZ].x) / 2;
+                        y = ((s16)y + D_800C3EBE[pBlock->targetZ].y - pBlock->targetY) / 2;
+                        z = ((s16)z + D_800C3EBE[pBlock->targetZ].z) / 2;
+                    }
+                }
+            } else {
+                x = pBlock->targetX;
+                y = pBlock->targetY;
+                z = pBlock->targetZ;
+            }
+            if (slot == 7) {
+                y -= D_800C3BA8;
+                x += (-D_800C3BA4 * rcos(D_800C3BA0)) / 4096;
+                z += (-D_800C3BA4 * rsin(D_800C3BA0)) / 4096;
+            }
+            if (slot == 8) {
+                orbitY = (D_800C3B98 * rcos(D_800C3B94)) / 4096;
+                orbitR = -((D_800C3B98 * rsin(D_800C3B94)) / 4096);
+                x += (orbitR * rcos(D_800C3B90)) / 4096;
+                y += -orbitY - D_800C3B9C;
+                z = z + ((orbitR * rsin(D_800C3B90)) / 4096);
+                vec[0] = x;
+                vec[1] = y;
+                vec[2] = z;
+                if (BattleSteerActorsTowardPoint(&D_800D335C, vec) != 0) {
+                    x = vec[0];
+                    z = vec[2];
+                }
+                height = func_800B0B14(arg3);
+                if ((s16)height < (s16)y) {
+                    y = height;
+                }
+            }
+            if (D_800C3B8C != 0 && slot >= 7) {
+                pTween->startX = x;
+                pTween->startY = y;
+                pTween->startZ = z;
+            }
+            switch (kind & 1) {
+            case 0:
+                frame = (s16)((u16)pBlock->curFrame + 1);
+                stepX = ((s16)x - pTween->startX) * frame / pBlock->endFrame;
+                stepY = ((s16)y - pTween->startY) * frame / pBlock->endFrame;
+                stepZ = ((s16)z - pTween->startZ) * frame / pBlock->endFrame;
+                outX = pTween->startX + stepX;
+                outY = pTween->startY + stepY;
+                outZ = pTween->startZ + stepZ;
+                break;
+            case 1:
+                rateX = ((s16)x - pTween->startX) / pBlock->endFrame;
+                rateY = ((s16)y - pTween->startY) / pBlock->endFrame;
+                rateZ = ((s16)z - pTween->startZ) / pBlock->endFrame;
+                outX = pTween->startX;
+                outY = pTween->startY;
+                outZ = pTween->startZ;
+                if (!(rateX != 0 || rateY != 0 || rateZ != 0)) {
+                    pBlock->curFrame = pBlock->endFrame;
+                } else {
+                    outX += rateX;
+                    outY += rateY;
+                    outZ += rateZ;
+                    pBlock->curFrame = 0;
+                }
+                pTween->startX = outX;
+                pTween->startY = outY;
+                pTween->startZ = outZ;
+                break;
+            }
+            pBlock->curFrame = (u16)pBlock->curFrame + 1;
+            if ((s16)pBlock->curFrame >= pBlock->endFrame) {
+                if (slot < 7) {
+                    if (pBlock->tag == D_800C3B84) {
+                        D_800C3B88 |= 2;
+                    }
+                    BattleFreeBlock(arg0, (u8 *)pBlock);
+                    g_BattleBlockSlots[slot] = NULL;
+                } else {
+                    pBlock->curFrame = pBlock->endFrame - 1;
+                }
+            } else {
+                if (pBlock->tag == D_800C3B84) {
+                    D_800C3B88 |= 1;
+                }
+            }
+            switch (slot) {
+            case 0:
+                D_800C3B90 = outX;
+                break;
+            case 1:
+                D_800C3BA0 = outX;
+                break;
+            case 2:
+                D_800C3B94 = outX;
+                break;
+            case 3:
+                D_800C3B98 = outX;
+                break;
+            case 4:
+                D_800C3BA4 = outX;
+                break;
+            case 5:
+                D_800C3BA8 = outX;
+                break;
+            case 6:
+                D_800C3B9C = outX;
+                break;
+            case 7:
+                D_800D335C = outX;
+                D_800D335E = outY;
+                D_800D3360 = outZ;
+                break;
+            case 8:
+                g_BattleSlotVectors = outX;
+                D_800D3356 = outY;
+                D_800D3358 = outZ;
+                break;
+            }
+        }
+    }
+    D_800C3B8C = 0;
+}
+*/
 s32 BattleIsPointWithinBounds(s16 *pPos) {
     BattleStreamData *pData = g_BattleStageData;
 
@@ -528,12 +757,6 @@ s32 BattleIsPointWithinBounds(s16 *pPos) {
     }
     return 0;
 }
-extern u16 g_BattleSlotVectors;
-extern s16 D_800D3356;
-extern u16 D_800D3358;
-extern u16 D_800D335C;
-extern s16 D_800D335E;
-extern u16 D_800D3360;
 extern s16 D_800C3542;
 extern u16 D_800C3544;
 extern s16 D_800C3546;
@@ -583,7 +806,7 @@ s16 func_800B0B14(s32 index) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0D70);
-void BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
+s32 BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     s16 vec[3];
     s32 len;
 
@@ -592,7 +815,7 @@ void BattleSteerActorsTowardPoint(u16 *pA, u16 *pB) {
     len = SquareRoot0(vec[0] * vec[0] + vec[2] * vec[2]) + 1;
     vec[0] = (vec[0] << 9) / len;
     vec[2] = (vec[2] << 9) / len;
-    func_800B0D70(vec, pB);
+    return func_800B0D70(vec, pB);
 }
 void BattlePushActorOutOfCircle(s32 index, s32 x, s32 z, s32 dist) {
     BattleActor **pBase = g_BattleActors;
