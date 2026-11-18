@@ -429,7 +429,7 @@ extern void BattleSetScreenResolution(s32 width, s32 height);
 extern void BattleClearLineSlots(void);
 extern void func_80030988(s16 a0, s16 a1, s32 a2, s32 a3);
 extern void ControllerSetFrameCallback(void (*pCallback)(void));
-extern void FontLoadClut(short xDest, short yDest);
+extern void FontLoadClut(short xDest, u_short yDest);
 extern void SystemTransferPaletteToVRAM(short xDest, short yDest);
 extern void BattleInitTextLists(void);
 extern void BattleInitOptionDefaults(void);
@@ -758,80 +758,60 @@ s32 BattleCheckModeOver(void) {
     return result;
 }
 
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
 
-/* 85.76% objdiff, 2896 bytes against retail 2928 (741 instructions). This is the
-   battle scene's init and main loop: it allocates the grid and the ordering
+/*
+   88.42% objdiff, 2912 bytes against retail 2928 (four instructions short). This is
+   the battle scene's init and main loop: it allocates the grid and the ordering
    table, loads the archive entries, then runs the frame loop whose switch on
-   g_BattleSavedScreenMode is the jtbl_80070260 table this stub owns. The body
-   below is a full transcription, and the instruction stream is very close: the
-   prologue, the five BattleAllocResourceBuffer calls, the two archive decompress
-   blocks, the reinit block, the D_8005061D mode switch and the whole frame-loop
-   head are instruction-identical apart from register choice and one jump-table
-   operand. What is left, per phase (instructions, retail vs this body):
+   g_BattleSavedScreenMode is the jtbl_80070260 table this stub owns. The body below
+   is a complete transcription.
 
-     phase                                  retail   ours
-     init + resource alloc + audio           123*     125
-     LZSSDecompress block (g_BattleGridCells)    9         9
-     first LZSSHeapDecompress block             21        21
-     reinit block (.L800855D8)                  30        30
-     state init (.L8008564C)                    21        21
-     D_8005061D mode switch + slot load        106       106
-     main while loop (idle timer + dispatch)    99        97
-     done block + two func_80084C88 calls       62        64
-     BattleResetForNextRound + actor origins    36        34
-     frame loop head (.L80085B48)               44        42
-     the 9-case switch on g_BattleSavedScreenMode 157     142
-     frame loop tail + screenRelease block      33        33
-                                              ----      ----
-                                              741       724
+   SOLVED: the frame and the register count are retail's now (0x28, five saved
+   registers s0-s4 in retail's exact slots). The one live value that had to go was
+   in the done block: `pActor1 = &g_BattleActor1;' and `pActor0 = &g_BattleActor0;'
+   there made gcc hoist both la's to the head of the block, so they overlapped
+   pBuf's live range and the function needed a sixth saved register (s5, frame
+   0x30, every s-number one off). Passing &g_BattleActor1 / &g_BattleActor0
+   directly to the two func_80084C88 calls and the &g_BattleActor1.effectColorR /
+   &g_BattleActor0.effectColorR pair to func_8007B270 fixed the frame in one edit
+   (2896 -> 2912). The actors are still assigned at newRound for the frame loop.
+   Retail does the same: its case 1 and case 5 bodies pass pActor1/pActor0 (the
+   live s1/s0) while cases 4 and 8 write &g_BattleActor1 / &g_BattleActor0 out in
+   full, so the switch arms below spell those two cases with the globals, which is
+   worth 4 instructions. FontLoadClut's second parameter is u_short, not short:
+   retail passes 0x8000 as ori, a short declaration gives addiu -0x8000.
 
-   * retail's 138 includes the 15-instruction screenRelease block, which retail
-   places at 0x8008548C (between the audio-manager if and .L800854D4); this body
-   puts it at the end, so it lands in the tail instead. That is the whole reason
-   the first and last rows are 15 apart; excluding it, the init phase is 2 short.
+   RESIDUAL, in order of size:
+   1. newRound's three pointer assignments are the missing four instructions.
+   Retail forms them `lui v0,%hi(sym) / addiu v0,v0,%lo / addu s1,v0,zero' for
+   g_BattleActor1 and g_BattleActor0 (a copy through v0) and only the
+   g_BattleMatchCount one as the plain two-instruction la into s3; this body gets
+   the plain form for all three, and gcc also emits matchCount first. Casts,
+   declaration order and a separate local were measured, no change.
+   2. The screenRelease block (15 instructions, `g_C1ButtonStateReleased = 0;' ...
+   `goto reinit') sits at the very end of this body; retail places it at
+   0x8008548C, between the audio-manager if's then-block jump and its ELSE block.
+   Both paths jump over it, so no source statement order reproduces it: the label
+   position it needs is one gcc does not emit for an if/else.
+   3. Two block-placement differences of the same family (2 instructions each):
+   retail emits `beqz $s0,A / beq $s0,1,B / j merge' for the state == 0 /
+   state == 1 test where this body emits an inverted bne pair with both bodies
+   inline, and retail's D_8005061D switch arms (beq a0,s3 / slti / beqz) are all
+   out of line behind a j where ours fall through into case 0's body. Nesting the
+   if as `if (state != 0) { if (state == 1) ... } else ...' was measured: 82.91%.
+   4. Allocator tie, no bytes: retail has pScene in s2 and the ~1 mask / state
+   constant / &g_BattleMatchCount chain in s3; this body has them the other way
+   round. Declaration order, pScene's type and the seds/pBuf statement order were
+   measured, no change.
+   5. Init order: retail stores g_BattleEffectImageActive = NULL before the
+   li a0,0x7FFF for FontLoadClut (ours hoists the li), and loads
+   D_800917C0[0].buffer into s0, the register pRes just freed, where this body
+   keeps it in s1, the register the done block's pBuf also uses. One pseudo with
+   two defs in different blocks: retail behaves as if the two pBuf uses were
+   separate locals.
 
-   1. THE REGISTER COUNT. This body saves six callee-saved registers (s0-s5,
-   frame 0x30) where retail saves five (s0-s4, frame 0x28, and retail's frame
-   leaves 0x10 bytes of its local area unwritten). So one local here has a live
-   range retail's source did not have, and every s-register number differs
-   because of it. Retail's allocation, which is a clean disjoint-range chain:
-   s2 = the scene object for the whole function; s0 = pRes, then the decompressed
-   buffer, then &g_BattleActor0; s1 = the idle timer, then &g_BattleActor1 (their
-   ranges are disjoint, the timer dies at the `done' block); s3 = the &~1 button
-   mask, then &g_BattleMatchCount; s4 = the idle counter. Once the extra live
-   value is gone the frame, the save order and all of these should fall into
-   retail's slots.
-   2. THE SWITCH (157 vs 142 instructions) is the biggest single gap and has not
-   been analysed case by case. Retail's 15 extra instructions are in the arms,
-   not in the dispatch: the dispatch, the sltiu bound check, the .rodata jtbl and
-   the `li a0,0x9E` in every break's delay slot all reproduce exactly (the
-   jtbl_80070260-vs-.rodata operand is expected in a unit that owns its tables).
-   Note retail's case bodies are physically ordered 1, 6, 7, 4, 8, 0, 5, 3, 2,
-   which is the order they are listed in here, and that case 1 jumps into the
-   middle of case 8 (a shared `commonDraw' label), case 7 jumps to case 3's body
-   and case 2 jumps there too - those three gotos are real, they are not
-   cross-jumping the compiler did: no plain `break' can produce them.
-   3. Two gcc-2.7.2 block-placement differences: this body hoists `move a0` for
-   the first call of a case above the `jr v0' dispatch (retail sets it at the
-   start of the arm), and it forms &g_BattleActor1 / &g_BattleActor0 at the top
-   of the `done' block instead of immediately before each func_80084C88 call as
-   retail does. Both are 1-2 instructions and neither has been tried.
-   4. The five resource words at D_800917C0 are read as an array here. Retail
-   takes the address of the D_800917DC word into a register and loads through it
-   twice (LZSSDecompress, then HeapFree) while it forms D_800917D4 and D_800917E4
-   as direct lui + lw pairs - a source pointer local for the first one only. That
-   is why pRes is spelled D_800917C0[k] from the reads on: keeping pRes live past
-   func_80029AFC is what forced the sixth saved register in the first place.
-   The reading of D_8005061D: retail's compare tree is `beq 1 / slti 2 / beq 0'
-   and its arms store s0, which holds 2 there and is overwritten with 1 in the
-   case-0 path - that is the `state' local, whose values are 0 (title), 1
-   (running), 2 (neither) and 10 (exit).
-   The idle timer is 0x4650 frames (BATTLE_IDLE_TIMEOUT) reset on any button
-   outside bit 0, and 0x78 frames (BATTLE_IDLE_HOLD_COUNT) of C1 held on the
-   default text list zero it immediately, which is what hands both sides to the
-   COM.
-   void func_800852C4(void) {
    s32 func_800852C4(void) {
        Misc10ArchiveHeader* pArchive;
        Misc10Actor* pActor1;
@@ -1032,13 +1012,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        HeapFree(D_800927B8);
        D_800927B8 = pBuf;
        BattleDrawEffectFrame();
-       pActor1 = &g_BattleActor1;
-       func_80084C88(pActor1, g_BattleSlotEntryBuffers[0], 0);
+       func_80084C88(&g_BattleActor1, g_BattleSlotEntryBuffers[0], 0);
        BattleDrawEffectFrame();
-       pActor0 = &g_BattleActor0;
-       func_80084C88(pActor0, D_800927B8, 1);
+       func_80084C88(&g_BattleActor0, D_800927B8, 1);
        BattleDrawEffectFrame();
-       func_8007B270(&pActor1->effectColorR, &pActor0->effectColorR);
+       func_8007B270(&g_BattleActor1.effectColorR, &g_BattleActor0.effectColorR);
        BattleSetScreenTileGrey();
        if (g_BattleEffectFrameTimer != 0) {
            g_BattleEffectImageActive = (u8*)1;
@@ -1088,7 +1066,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
                break;
            case 4:
                SetGeomScreen(0x800);
-               func_8007A344(pActor1, pActor0);
+               func_8007A344(&g_BattleActor1, &g_BattleActor0);
                if (g_BattleScreenMode != 8) {
                    func_80083310(1);
                    D_800928B0 = 1;
@@ -1096,7 +1074,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
                goto commonDraw;
            case 8:
                SetGeomScreen(0x200);
-               func_8007AE10(pActor1, pActor0);
+               func_8007AE10(&g_BattleActor1, &g_BattleActor0);
            commonDraw:
                func_800840CC(pScene);
                break;
@@ -1157,7 +1135,81 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        func_8008BC04();
        goto reinit;
    }
-   }
+*/
+
+/*
+
+/* 85.76% objdiff, 2896 bytes against retail 2928 (741 instructions). This is the
+   battle scene's init and main loop: it allocates the grid and the ordering
+   table, loads the archive entries, then runs the frame loop whose switch on
+   g_BattleSavedScreenMode is the jtbl_80070260 table this stub owns. The body
+   below is a full transcription, and the instruction stream is very close: the
+   prologue, the five BattleAllocResourceBuffer calls, the two archive decompress
+   blocks, the reinit block, the D_8005061D mode switch and the whole frame-loop
+   head are instruction-identical apart from register choice and one jump-table
+   operand. What is left, per phase (instructions, retail vs this body):
+
+     phase                                  retail   ours
+     init + resource alloc + audio           123*     125
+     LZSSDecompress block (g_BattleGridCells)    9         9
+     first LZSSHeapDecompress block             21        21
+     reinit block (.L800855D8)                  30        30
+     state init (.L8008564C)                    21        21
+     D_8005061D mode switch + slot load        106       106
+     main while loop (idle timer + dispatch)    99        97
+     done block + two func_80084C88 calls       62        64
+     BattleResetForNextRound + actor origins    36        34
+     frame loop head (.L80085B48)               44        42
+     the 9-case switch on g_BattleSavedScreenMode 157     142
+     frame loop tail + screenRelease block      33        33
+                                              ----      ----
+                                              741       724
+
+   * retail's 138 includes the 15-instruction screenRelease block, which retail
+   places at 0x8008548C (between the audio-manager if and .L800854D4); this body
+   puts it at the end, so it lands in the tail instead. That is the whole reason
+   the first and last rows are 15 apart; excluding it, the init phase is 2 short.
+
+   1. THE REGISTER COUNT. This body saves six callee-saved registers (s0-s5,
+   frame 0x30) where retail saves five (s0-s4, frame 0x28, and retail's frame
+   leaves 0x10 bytes of its local area unwritten). So one local here has a live
+   range retail's source did not have, and every s-register number differs
+   because of it. Retail's allocation, which is a clean disjoint-range chain:
+   s2 = the scene object for the whole function; s0 = pRes, then the decompressed
+   buffer, then &g_BattleActor0; s1 = the idle timer, then &g_BattleActor1 (their
+   ranges are disjoint, the timer dies at the `done' block); s3 = the &~1 button
+   mask, then &g_BattleMatchCount; s4 = the idle counter. Once the extra live
+   value is gone the frame, the save order and all of these should fall into
+   retail's slots.
+   2. THE SWITCH (157 vs 142 instructions) is the biggest single gap and has not
+   been analysed case by case. Retail's 15 extra instructions are in the arms,
+   not in the dispatch: the dispatch, the sltiu bound check, the .rodata jtbl and
+   the `li a0,0x9E` in every break's delay slot all reproduce exactly (the
+   jtbl_80070260-vs-.rodata operand is expected in a unit that owns its tables).
+   Note retail's case bodies are physically ordered 1, 6, 7, 4, 8, 0, 5, 3, 2,
+   which is the order they are listed in here, and that case 1 jumps into the
+   middle of case 8 (a shared `commonDraw' label), case 7 jumps to case 3's body
+   and case 2 jumps there too - those three gotos are real, they are not
+   cross-jumping the compiler did: no plain `break' can produce them.
+   3. Two gcc-2.7.2 block-placement differences: this body hoists `move a0` for
+   the first call of a case above the `jr v0' dispatch (retail sets it at the
+   start of the arm), and it forms &g_BattleActor1 / &g_BattleActor0 at the top
+   of the `done' block instead of immediately before each func_80084C88 call as
+   retail does. Both are 1-2 instructions and neither has been tried.
+   4. The five resource words at D_800917C0 are read as an array here. Retail
+   takes the address of the D_800917DC word into a register and loads through it
+   twice (LZSSDecompress, then HeapFree) while it forms D_800917D4 and D_800917E4
+   as direct lui + lw pairs - a source pointer local for the first one only. That
+   is why pRes is spelled D_800917C0[k] from the reads on: keeping pRes live past
+   func_80029AFC is what forced the sixth saved register in the first place.
+   The reading of D_8005061D: retail's compare tree is `beq 1 / slti 2 / beq 0'
+   and its arms store s0, which holds 2 there and is overwritten with 1 in the
+   case-0 path - that is the `state' local, whose values are 0 (title), 1
+   (running), 2 (neither) and 10 (exit).
+   The idle timer is 0x4650 frames (BATTLE_IDLE_TIMEOUT) reset on any button
+   outside bit 0, and 0x78 frames (BATTLE_IDLE_HOLD_COUNT) of C1 held on the
+   default text list zero it immediately, which is what hands both sides to the
+   COM.
 */
 
 void BattleCopyVertexOffsetAdd(u16* pSrc, u16* pDst) {
