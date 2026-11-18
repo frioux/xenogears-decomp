@@ -11,6 +11,7 @@
 
 #define FIELD_OT_MAX_SIZE 4096
 #define FIELD_ANGLE_MASK 0xFFF // a field angle is a 4096-step turn
+#define FIELD_ANGLE_HALF_TURN 0x800 // opposite facing in the same 4096-step turn
 
 // FieldScene.unk48 flags
 #define FIELD_SCENE_INTERPOLATING_SCREEN_Z 0x10

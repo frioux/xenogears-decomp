@@ -34,7 +34,6 @@
 #define FIELD_MOVE_DIRECTION_Y_INCREASE 0x1001
 
 // Half of the field angle turn, so adding it points the opposite way
-#define FIELD_ANGLE_HALF_TURN 0x800
 
 // HandlerChangeMap's map argument when the script does not change the map
 #define FIELD_MAP_NUM_NONE 0x7FFF
