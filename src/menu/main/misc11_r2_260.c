@@ -41,7 +41,7 @@ extern u16 g_MenuCellPrimYs[];
 // loop.c moves the POLY_F4 colour 0x80 out of the loop whatever the C says
 // (threshold * savings * lifetime 28*1*3 = 84 >= the loop's 83 instructions), which
 // also costs the extra $s8 save and 8 bytes, so this run of the file is 2.6.0.
-void func_801E56E8(s32 index) {
+void MenuInitializeCellQuadPrims(s32 index) {
     u8* pBase;
     u16* pX;
     u16* pY;
@@ -134,7 +134,7 @@ void MenuCreateCellPrimBlocks(void) {
         pMem = HeapAlloc(MENU_CELL_PRIM_BLOCK_SIZE, 0);
         g_Menu->pCellPrimBlocks[i] = pMem;
         bzero(pMem, MENU_CELL_PRIM_BLOCK_SIZE);
-        func_801E56E8(i);
+        MenuInitializeCellQuadPrims(i);
         MenuInitializeCellLinePrims(i);
     }
 }
@@ -222,7 +222,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
    setup order differs (retail forms the 0x820 sum after loading base/ctx);
    (4) retail reads the byte it stores to 0x130E/0x1311 with "lbu 776(v1)",
    ours with "lw" - (u_char), (u8) and (s8) casts on g_Menu->renderContext all
-   leave the lw.  Same allocator-tie class as func_801E56E8/func_801E68AC.
+   leave the lw.  Same allocator-tie class as MenuInitializeCellQuadPrims/func_801E68AC.
    void func_801E61B0(void) {
        s32 i;
        s32 j;
@@ -412,7 +412,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E68AC);
    "li v0,0x7A" every iteration; that also flips the addu operand order of the
    loop's prim pointer (retail "addu a2,s0,a2").  2.6.0 keeps the li inside the
    loop, exactly as retail does, and the two functions are the same wall as
-   func_801E56E8 above.  Under 2.6.0 what is left is four instructions of the
+   MenuInitializeCellQuadPrims above.  Under 2.6.0 what is left is four instructions of the
    first digit block: the dividend of number / 10 lands in t0 where retail uses
    v1, retail's "li s0,0x6E" fills the load-delay slot after the g_Menu load
    where this body emits it one slot later, and the dividend's sra follows one
