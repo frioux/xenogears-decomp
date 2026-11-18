@@ -1,0 +1,485 @@
+#include "common.h"
+
+#include "main/game.h"
+#include "system/menu.h"
+
+void MenuParseNumberToDigits(u32 number);
+s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
+
+extern s32 D_801E981C[];
+
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CD81C);
+void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4) {
+    s32* pPositionsY = (s32*)arg4;
+    s32 i;
+    u_char digit;
+
+    MenuParseNumberToDigits(g_GameState.characters[characterIndex].level);
+    pCharacter->levelStringLength = 0;
+    for (i = 0; i < 3; i++) {
+        digit = g_Menu->digits[i + 6];
+        if (digit != 0xFF) {
+            pCharacter->levelStringLength += func_8002675C(
+                g_Menu->resources, digit,
+                &pCharacter->polysLevelString[pCharacter->levelStringLength * 2],
+                g_Menu->renderContext,
+                i * 8 + ((s32*)arg3)[10],
+                localIndex * 0x38 + pPositionsY[10],
+                0x1000);
+        }
+    }
+    MenuParseNumberToDigits(g_GameState.characters[characterIndex].unk63);
+    pCharacter->polys5F0PrimCount = 0;
+}
+
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
+void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
+    func_801CD81C(pCharacter, arg1, arg2, arg3, arg4, arg5);
+    MenuBuildCharacterLevelDigits(pCharacter, arg1, arg2, arg3, arg4);
+    func_801CDC6C(pCharacter, arg1, arg2, arg3, arg4, arg5);
+    pCharacter->shouldRender = 1;
+    pCharacter->renderContext = ((u_char*)g_Menu)[0x308];
+}
+void MenuRenderTransformedQuads(s32 count, SVECTOR* pVertices, POLY_FT4* pPolys, s32 renderContext) {
+    s32 i;
+    long interpolated;
+    long flag;
+
+    for (i = 0; i < count; i++) {
+        RotTransPers4(&pVertices[4 * i], &pVertices[4 * i + 1], &pVertices[4 * i + 2],
+                      &pVertices[4 * i + 3], (long*)&pPolys[2 * i + renderContext].x0,
+                      (long*)&pPolys[2 * i + renderContext].x1, (long*)&pPolys[2 * i + renderContext].x2,
+                      (long*)&pPolys[2 * i + renderContext].x3, &interpolated, &flag);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[2 * i + renderContext]);
+    }
+}
+void MenuRenderString(int length, POLY_FT4* pPolys, int renderContext) {
+    s32 i;
+
+    for (i = 0; i < length; i++) {
+        AddPrim(&g_Menu->pGfxEnv->ot[4], &pPolys[2 * i + renderContext]);
+    }
+}
+void MenuRenderSelectionCursor(void) {
+    u32 offset;
+
+    offset = g_Menu->pCursorPrims->drawModeRenderContext * sizeof(DR_MODE) + 0x128;
+    AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pCursorPrims));
+    if (g_Menu->pManager->shouldRenderPointerCursor) {
+        offset = g_Menu->pCursorPrims->cursorRenderContext * sizeof(POLY_FT4);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pCursorPrims));
+    }
+}
+void MenuRenderPointerCursors(void) {
+    s32 i;
+    u32 offset;
+    MenuPointerCursors* pCursors;
+
+    if (g_Menu->pManager->shouldRenderCursors) {
+        for (i = 0; i < 4; i++) {
+            pCursors = g_Menu->pCursors;
+            if (pCursors->shouldRender[i]) {
+                offset = (2 * i + pCursors->renderContexts[i]) * sizeof(POLY_FT4);
+                AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)pCursors));
+            }
+        }
+    }
+}
+void MenuAddGoldAndPlayTimePrims(void) {
+    u32 offset;
+
+    if (g_Menu->pManager->goldDigitsActive) {
+        MenuRenderString(*(s32*)((u8*)g_Menu->pGoldWindow + 0x320), (POLY_FT4*)g_Menu->pGoldWindow,
+                      ((u8*)g_Menu->pGoldWindow)[0x324]);
+        offset = ((u8*)g_Menu->pGoldWindow)[0x324] * sizeof(POLY_FT4) + 0x2D0;
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(offset + (u32)g_Menu->pGoldWindow));
+    }
+    if (g_Menu->pManager->playTimeDigitsActive) {
+        MenuRenderString(7, (POLY_FT4*)g_Menu->pPlayTimeDigits, ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
+        MenuRenderString(4, (POLY_FT4*)((u8*)g_Menu->pPlayTimeDigits + 0x230), ((u8*)g_Menu->pPlayTimeDigits)[0x370]);
+    }
+}
+// 2.6.0 is what puts the loop increment in retail's `beqz` delay slot, so this
+// function only matches on this preset (97.78 under Default).  The AddPrim
+// addresses must stay written as &pData[a*b + K]: the plain `pData + a*b + K`
+// form reassociates and loses the +0x50 addiu order.
+void func_801CE540(void) {
+    s32 i;
+    u8* pData;
+
+    for (i = 0; i < 3; i++) {
+        pData = (u8*)g_Menu->characterWindows[i];
+        if (g_Menu->pManager->shouldRenderCharacterWindows[i]) {
+            AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)(pData + pData[0x1270] * sizeof(POLY_FT4)));
+            AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[pData[0x1270] * sizeof(POLY_FT4) + 0x50]);
+            MenuRenderString(pData[0x1279], (POLY_FT4*)(pData + 0xA0), pData[0x1270]);
+            MenuRenderString(pData[0x1273], (POLY_FT4*)(pData + 0xAF0), pData[0x1270]);
+            MenuRenderString(pData[0x1274], (POLY_FT4*)(pData + 0xBE0), pData[0x1270]);
+            MenuRenderString(pData[0x1275], (POLY_FT4*)(pData + 0xCD0), pData[0x1270]);
+            MenuRenderString(pData[0x1276], (POLY_FT4*)(pData + 0xD70), pData[0x1270]);
+            MenuRenderString(pData[0x1277], (POLY_FT4*)(pData + 0xE10), pData[0x1270]);
+            MenuRenderString(pData[0x1271], (POLY_FT4*)(pData + 0x910), pData[0x1270]);
+        }
+    }
+}
+void MenuAddUnk358Prims(void) {
+    u8* pData;
+
+    if (g_Menu->pManager->shouldRenderUnk358Prims) {
+        // The body written twice behind an uninitialised test is what makes gcc
+        // 2.7.2 keep g_Menu in $v1 here; one copy scores 99.80.
+        if (pData) {
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
+                          pData[0x2AEE]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+    } else {
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EA0), (POLY_FT4*)pData, pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(1, (SVECTOR*)(pData + 0x1EC0), (POLY_FT4*)(pData + 0x50), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AED], (SVECTOR*)(pData + 0x2AA0), (POLY_FT4*)(pData + 0x1E00),
+                          pData[0x2AEE]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AEC], (SVECTOR*)(pData + 0x1EE0), (POLY_FT4*)(pData + 0xA0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE7], (SVECTOR*)(pData + 0x2780), (POLY_FT4*)(pData + 0x1630), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE8], (SVECTOR*)(pData + 0x2820), (POLY_FT4*)(pData + 0x17C0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE9], (SVECTOR*)(pData + 0x28C0), (POLY_FT4*)(pData + 0x1950), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AEA], (SVECTOR*)(pData + 0x2960), (POLY_FT4*)(pData + 0x1AE0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE1], (SVECTOR*)(pData + 0x2300), (POLY_FT4*)(pData + 0xAF0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE3], (SVECTOR*)(pData + 0x23C0), (POLY_FT4*)(pData + 0xCD0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AE5], (SVECTOR*)(pData + 0x25C0), (POLY_FT4*)(pData + 0x11D0), pData[0x2AE0]);
+            pData = (u8*)g_Menu->pGearWindowPrims;
+            MenuRenderTransformedQuads(pData[0x2AEB], (SVECTOR*)(pData + 0x2A00), (POLY_FT4*)(pData + 0x1C70), pData[0x2AE0]);
+        }
+    }
+}
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CE860);
+/* 88.90% (804 vs 792 bytes): every expression and call is right; the only
+   delta is that loop.c strength-reduces `i * 0x20` and `i * 0x80` here, so gcc
+   allocates two extra induction registers ($s4/$s5: +0x20 and +0x80 at the
+   latch) and computes the verts base as addiu(pData,K) + biv instead of
+   retail's `sll; addiu; addu`.  Retail has no mult-giv registers at all - it
+   re-emits `sll $a0,$s0,5` in both blocks - so its givs must have kept a
+   non-zero add_val (0x31E0 vs 0x3100) and each stayed below the benefit
+   threshold.  Tried: the base as a local pointer, `(pData + i)[K]` for the
+   byte indexes (that fixed the addu operand order), a shared `rowOfs = i*0x20`
+   local, and -O1 (55.6, so not a preset problem).  Same 88.90 in all shapes.
+void func_801CE860(void) {
+    s32 i;
+    s32 offset0 = 0;
+    s32 offset1 = 0x2030;
+    s32 offset2 = 0x2228;
+    long interpolated;
+    long flag;
+    SVECTOR* pVerts;
+    s32 rowOfs;
+
+    for (i = 0; i < 7; i++) {
+        rowOfs = i * 0x20;
+        if ((((u8*)g_Menu->unk35C) + i)[0x32EA]) {
+            if (((u8*)g_Menu->unk35C)[0x32F2]) {
+                pVerts = (SVECTOR*)((rowOfs + 0x31E0) + (u32)g_Menu->unk35C);
+                RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3],
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 8),
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 0x10),
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 0x18),
+                              (long*)(offset2 + (u32)g_Menu->unk35C +
+                                      (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36 + 0x20),
+                              &interpolated, &flag);
+                AddPrim(&g_Menu->pGfxEnv->ot[4],
+                        (void*)(offset2 + (u32)g_Menu->unk35C +
+                                (((u8*)g_Menu->unk35C) + i)[0x32E3] * 36));
+                MenuRenderTransformedQuads((((u8*)g_Menu->unk35C) + i)[0x32CE],
+                              (SVECTOR*)((rowOfs * 4 + 0x2D80) + (u32)g_Menu->unk35C),
+                              (POLY_FT4*)((offset0 + 0x1770) + (u32)g_Menu->unk35C),
+                              (((u8*)g_Menu->unk35C) + i)[0x32D5]);
+            }
+            pVerts = (SVECTOR*)((rowOfs + 0x3100) + (u32)g_Menu->unk35C);
+            RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3],
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 8),
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 0x10),
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 0x18),
+                          (long*)(offset1 + (u32)g_Menu->unk35C +
+                                  (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36 + 0x20),
+                          &interpolated, &flag);
+            AddPrim(&g_Menu->pGfxEnv->ot[4],
+                    (void*)(offset1 + (u32)g_Menu->unk35C +
+                            (((u8*)g_Menu->unk35C) + i)[0x32DC] * 36));
+            MenuRenderTransformedQuads((((u8*)g_Menu->unk35C) + i)[0x32C0],
+                          (SVECTOR*)((rowOfs * 4 + 0x2A00) + (u32)g_Menu->unk35C),
+                          (POLY_FT4*)((offset0 + 0xEB0) + (u32)g_Menu->unk35C),
+                          (((u8*)g_Menu->unk35C) + i)[0x32C7]);
+        }
+        offset0 += 0x140;
+        offset1 += 0x48;
+        offset2 += 0x48;
+    }
+}
+*/
+
+void MenuAddUnk35CPrims(void) {
+    u8* pData;
+
+    if (g_Menu->pManager->shouldRenderUnk35C) {
+        pData = (u8*)g_Menu->unk35C;
+        MenuRenderTransformedQuads(pData[0x32F3], (SVECTOR*)(pData + 0x2420), (POLY_FT4*)pData, pData[0x32F1]);
+        func_801CE860();
+    }
+}
+void MenuAddUnk360Prims(void) {
+    s32 i;
+    u8* pData;
+    u8* pFlag;
+    u8* pRow;
+
+    if (g_Menu->pManager->shouldRenderPanel[1]) {
+        for (i = 0; i < 5; i++) {
+            pData = (u8*)g_Menu->pEquipmentPanel;
+            pFlag = pData + i;
+            if (pFlag[0x294]) {
+                pRow = (u8*)(i * 0x80 + (u32)pData);
+                MenuRenderTransformedQuads(1, (SVECTOR*)(pRow + 0x50), (POLY_FT4*)pRow, pData[0x299]);
+            }
+        }
+    }
+}
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CEC40);
+void MenuAddUnk5StringPrims(void) {
+    if (g_Menu->pManager->shouldRenderSubmenuStrings) {
+        MenuRenderString(g_Menu->pSubmenuPrims->polys500PrimCount, g_Menu->pSubmenuPrims->polys500, g_Menu->pSubmenuPrims->polys500RenderCtx);
+        MenuRenderString(g_Menu->pSubmenuPrims->polys0PrimCount, g_Menu->pSubmenuPrims->polys0, g_Menu->pSubmenuPrims->polys0RenderCtx);
+    }
+}
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
+/* 98.89%: everything matches except where gcc puts `valid = 1` relative to the
+   `character == 0xFF` compare (retail emits it before the compare and lets reorg
+   duplicate the `andi` into the delay slot; gcc puts it in that slot instead).
+   Notes: D_801E981C is the overlay dlabel table in asm/menu/data/246A4.data.s so
+   it only needs an extern declaration.  The three colour bytes read the low byte
+   at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
+   written as &pData[ctx * N + K] (array subscript): that is what makes the addiu
+   land before the addu.  Also tried: else-branch assignment to valid (96%), the
+   || form valid = character != 0xFF || ... (worse), a u32 offset local hoisted
+   above each AddPrim (95.10%), and offset + pData operand order (96.78%).
+void func_801CF37C(void) {
+    s32 i;
+    u8 character;
+    u8 valid;
+    u8* pData;
+    long interpolated;
+    long flag;
+
+    if (g_Menu->cardSlotState != 2) {
+        return;
+    }
+    character = g_Menu->menuUnk2->slotRecordIndexes[D_801E981C[g_Menu->menuUnk2->selectedSlot]];
+    for (i = 0; i < 0x20; i++) {
+        if (character != g_Menu->menuUnk2->slotRecordIndexes[i]) {
+            continue;
+        }
+        valid = 1;
+        if (character == 0xFF) {
+            valid = i == D_801E981C[g_Menu->menuUnk2->selectedSlot];
+        }
+        if (!valid) {
+            continue;
+        }
+        pData = (u8*)g_Menu->pCellPrimBlocks[i];
+        *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB4) = ((u8*)g_Menu)[0x4D4];
+        *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB5) = ((u8*)g_Menu)[0x4D4];
+        *(u8*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB6) = ((u8*)g_Menu)[0x4D4];
+        RotTransPers4((SVECTOR*)(pData + 0xE0), (SVECTOR*)(pData + 0xE8), (SVECTOR*)(pData + 0xF0),
+                      (SVECTOR*)(pData + 0xF8),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xB8),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xBC),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xC0),
+                      (long*)(g_Menu->renderContext * 0x18 + (u32)pData + 0xC4), &interpolated, &flag);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 0x18 + 0xB0]);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 12 + 0x140]);
+    }
+}
+*/
+
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF5E4);
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
+/* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->cardSlotState)`
+   (retail loads it before the frame adjust for the guard's lbu 0x4D8); the
+   old park was missing that test, which is 52 bytes of the gap. Everything else
+   is retail structure: 5 loop-invariant constants (x0 0x1E, x1 0x1B, y 0x36,
+   scale 0x1000, base 0x4D94), rendered[2] zeroed on the stack, two func_8002675C
+   calls and the AddPrim pair. Still open: the register assignment of those
+   constants, and the first call's index argument, which retail builds as a u8
+   flag - `li v1,1` before the `unk2F` test, cleared when i ==
+   D_801E981C[selectedSlot] / 16, then `andi v0,v1,0xFF` + `beqz` choosing
+   0x122/0x115 - so it was a named local (`u8 useAlt = 1; if (...) useAlt = 0;`)
+   and not the single ternary expression written here. Retail also recomputes
+   `j*2` (sll at the loop latch) and copies base into s2 for the loop.
+void func_801CF8D8(void) {
+    s32 x0 = 0x1E;
+    s32 x1 = 0x1B;
+    s32 y = 0x36;
+    s32 scale = 0x1000;
+    s32 base = 0x4D94;
+    u8 rendered[2] = { 0, 0 };
+    MenuUnk2* pData;
+    s32 count;
+    s32 i;
+    s32 j;
+
+    if (g_Menu->cardSlotState) {
+        for (i = 0; i < 2; i++) {
+            pData = g_Menu->menuUnk2;
+            if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {
+                func_8002675C(g_Menu->resources,
+                              (g_Menu->pManager->shouldRenderCursors && i == D_801E981C[pData->selectedSlot] / 16)
+                                  ? 0x122
+                                  : 0x115,
+                              (POLY_FT4*)((u8*)pData + base), g_Menu->renderContext, x0, y, scale);
+                count = func_8002675C(g_Menu->resources, i + 0x162, (POLY_FT4*)((u8*)pData + base + 0x50),
+                                      g_Menu->renderContext, x1, y, scale);
+                rendered[i] = 1;
+            }
+            if (rendered[i]) {
+                for (j = 0; j < count; j++) {
+                    AddPrim(&g_Menu->pGfxEnv->ot[4],
+                            (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
+                                    ((2 * j + g_Menu->renderContext) * sizeof(POLY_FT4) + 0x50)));
+                }
+                AddPrim(&g_Menu->pGfxEnv->ot[4],
+                        (void*)((u32)((u8*)g_Menu->menuUnk2 + base) +
+                                g_Menu->renderContext * sizeof(POLY_FT4)));
+            }
+            base += 0xF0;
+            x0 += 0x90;
+            x1 += 0x90;
+        }
+    }
+}
+*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CFB48);
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CFF64);
+typedef struct {
+    /* 0x00 */ u8 unk0[0x8];
+    /* 0x08 */ s16 unk8;
+    /* 0x0A */ s16 unkA;
+    /* 0x0C */ s16 unkC;
+    /* 0x0E */ s16 unkE;
+    /* 0x10 */ s16 unk10;
+    /* 0x12 */ s16 unk12;
+    /* 0x14 */ s16 unk14;
+    /* 0x16 */ s16 unk16;
+} MenuUnk44CEntry; // Size: 0x18
+/* 97.97%: identical instruction multiset; the only deltas are the div-by-6
+   magic.  Retail materialises the constant's lui one instruction early (inside
+   the last store's address computation) and so keeps 0x68 in $a2, putting
+   unk2D8 in $a0 and the magic in $a1; gcc materialises lui+ori both after the
+   store, so 0x68 takes $a1 and the div lands in $v1/$v0/$t0.
+   The condition must be written `rem >= 4` (sltiu+beqz), not `< 4`.
+
+void func_801CFF64(void) {
+    s32 value;
+
+    if (g_Menu->pManager->cellGridScrollState == 0) {
+        return;
+    }
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk8 = 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkA = 0x61;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkC =
+        *(u16*)((u8*)g_Menu->pCellGrid + 0x7B0) + 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unkE = 0x61;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk10 = 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk12 = 0x68;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk14 =
+        *(u16*)((u8*)g_Menu->pCellGrid + 0x7B0) + 0x20;
+    ((MenuUnk44CEntry*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18))->unk16 = 0x68;
+    if (g_Menu->idleFrameCount % 6 >= 4 || g_Menu->pManager->cellGridScrollState == 2) {
+        MenuRenderString(2, (POLY_FT4*)((u8*)g_Menu->pCellGrid + 0x3F0), ((u8*)g_Menu->pCellGrid)[0x7B8]);
+    }
+    MenuRenderString(0xC, (POLY_FT4*)((u8*)g_Menu->pCellGrid + 0x30), ((u8*)g_Menu->pCellGrid)[0x7B8]);
+    AddPrim(&g_Menu->pGfxEnv->ot[4],
+            (void*)((u8*)g_Menu->pCellGrid + ((u8*)g_Menu->pCellGrid)[0x7B8] * 0x18));
+    if (g_Menu->pManager->cellGridScrollState == 1) {
+        value = *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) + *(s32*)((u8*)g_Menu->pCellGrid + 0x7B4);
+        *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) = value;
+        if (value >= 0x101) {
+            *(s32*)((u8*)g_Menu->pCellGrid + 0x7B0) = 0;
+        }
+    }
+}
+*/
+void MenuAddCellGridPrims(void) {
+    func_801CF37C();
+    func_801CF5E4(0, 0, 0x10);
+    func_801CF5E4(0x10, 0x10, 0x20);
+    func_801CFB48();
+    func_801CF8D8();
+    func_801CFF64();
+    if (++g_Menu->characterCellTimer == 0xF) {
+        g_Menu->characterCellTimer = 0;
+        if (++g_Menu->characterCellFrame == 6) {
+            g_Menu->characterCellFrame = 0;
+        }
+    }
+    if (!g_Menu->characterCellShadeReversing) {
+        g_Menu->characterCellShade += 4;
+        if (g_Menu->characterCellShade >= 0x81) {
+            g_Menu->characterCellShadeReversing = 1;
+            g_Menu->characterCellShade = 0x7C;
+        }
+    } else {
+        g_Menu->characterCellShade -= 4;
+        if (g_Menu->characterCellShade < 0) {
+            g_Menu->characterCellShadeReversing = 0;
+            g_Menu->characterCellShade = 4;
+        }
+    }
+}
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801D02D8);
+void MenuRenderQuad(SVECTOR* pVertices, POLY_FT4* pPolys, s32 polyIndex, s32 otIndex) {
+    long interpolated;
+    long flag;
+    u32 offset;
+
+    RotTransPers4(&pVertices[0], &pVertices[1], &pVertices[2], &pVertices[3],
+                  (long*)&pPolys[polyIndex].x0, (long*)&pPolys[polyIndex].x1,
+                  (long*)&pPolys[polyIndex].x2, (long*)&pPolys[polyIndex].x3,
+                  &interpolated, &flag);
+    offset = otIndex * sizeof(u32) + 0x70;
+    AddPrim((void*)(offset + (u32)g_Menu->pGfxEnv), &pPolys[polyIndex]);
+}
