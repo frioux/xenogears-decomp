@@ -411,7 +411,7 @@ void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->hpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysHp[pWindow->hpPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterHpDigitsX + i * 8,
+                g_Menu->renderContext, x + g_MenuCharacterHpDigitsX + i * MENU_DIGIT_SPACING,
                 y + g_MenuCharacterHpDigitsY, 0x1000);
         }
     }
@@ -426,7 +426,7 @@ void MenuSetCharacterHpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->maxHpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
                 &pWindow->polysMaxHp[pWindow->maxHpPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterMaxHpDigitsX + n * 8,
+                g_Menu->renderContext, x + g_MenuCharacterMaxHpDigitsX + n * MENU_DIGIT_SPACING,
                 y + g_MenuCharacterMaxHpDigitsY, 0x1000);
             n++;
         }
@@ -444,7 +444,7 @@ void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->mpPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[7 + i],
                 &pWindow->polysMp[pWindow->mpPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterMpDigitsX + i * 8,
+                g_Menu->renderContext, x + g_MenuCharacterMpDigitsX + i * MENU_DIGIT_SPACING,
                 y + g_MenuCharacterMpDigitsY, 0x1000);
         }
     }
@@ -459,7 +459,7 @@ void MenuSetCharacterMpDigits(u_char index, u_char characterId, s32 x, s32 y) {
             pWindow->maxMpPrimCount += func_8002675C(
                 g_Menu->resources, digit,
                 &pWindow->polysMaxMp[pWindow->maxMpPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterMaxMpDigitsX + n * 8,
+                g_Menu->renderContext, x + g_MenuCharacterMaxMpDigitsX + n * MENU_DIGIT_SPACING,
                 y + g_MenuCharacterMaxMpDigitsY, 0x1000);
             n++;
         }
@@ -476,7 +476,7 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
             pWindow->wideNumberPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
                 &pWindow->polysWideNumber[pWindow->wideNumberPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterWideNumberDigitsX + i * 8,
+                g_Menu->renderContext, x + g_MenuCharacterWideNumberDigitsX + i * MENU_DIGIT_SPACING,
                 y + g_MenuCharacterWideNumberDigitsY, 0x1000);
         }
     }
@@ -487,7 +487,7 @@ void MenuSetCharacterWideNumberDigits(u_char index, u_char characterId, s32 x, s
             pWindow->wideNumber2PrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[2 + i],
                 &pWindow->polysWideNumber2[pWindow->wideNumber2PrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterWideNumber2DigitsX + i * 8,
+                g_Menu->renderContext, x + g_MenuCharacterWideNumber2DigitsX + i * MENU_DIGIT_SPACING,
                 y + g_MenuCharacterWideNumber2DigitsY, 0x1000);
         }
     }
@@ -503,7 +503,7 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
             pWindow->levelPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysLevel[pWindow->levelPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterNumberOrigins + i * 8, y + g_MenuCharacterLevelDigitsY,
+                g_Menu->renderContext, x + g_MenuCharacterNumberOrigins + i * MENU_DIGIT_SPACING, y + g_MenuCharacterLevelDigitsY,
                 0x1000);
         }
     }
@@ -514,7 +514,7 @@ void MenuSetCharacterLevelDigits(u_char index, u_char characterId, s32 x, s32 y)
             pWindow->unk63DigitsPrimCount += func_8002675C(
                 g_Menu->resources, g_Menu->digits[6 + i],
                 &pWindow->polysUnk63Digits[pWindow->unk63DigitsPrimCount * 2],
-                g_Menu->renderContext, x + g_MenuCharacterUnk63DigitsX + i * 8, y + g_MenuCharacterUnk63DigitsY,
+                g_Menu->renderContext, x + g_MenuCharacterUnk63DigitsX + i * MENU_DIGIT_SPACING, y + g_MenuCharacterUnk63DigitsY,
                 0x1000);
         }
     }
@@ -578,7 +578,7 @@ void MenuSetGoldDigits(s32 x, s32 y) {
                               g_Menu->renderContext, digitX, y, 0x1000) +
                 ((MenuGoldWindow*)g_Menu->pGoldWindow)->digitPrimCount;
         }
-        digitX += 8;
+        digitX += MENU_DIGIT_SPACING;
     }
     func_8002675C(g_Menu->resources, 0x10,
                   &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrims[0],
@@ -595,22 +595,22 @@ void MenuSetPlayTimeDigitPrims(s32 x, s32 y) {
     for (i = 0; i < 3; i++) {
         func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)(i * sizeof(g_Menu->pPlayTimeDigits->polys[0]) + (s32)g_Menu->pPlayTimeDigits->polys),
-                      g_Menu->renderContext, x + i * 8, y, 0x1000);
+                      g_Menu->renderContext, x + i * MENU_DIGIT_SPACING, y, 0x1000);
     }
     for (i = 3; i < 5; i++) {
         func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)(i * sizeof(g_Menu->pPlayTimeDigits->polys[0]) + (s32)g_Menu->pPlayTimeDigits->polys),
-                      g_Menu->renderContext, x + i * 8 + 8, y, 0x1000);
+                      g_Menu->renderContext, x + i * MENU_DIGIT_SPACING + MENU_DIGIT_SPACING, y, 0x1000);
     }
     for (i = 5; i < 7; i++) {
         func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)(i * sizeof(g_Menu->pPlayTimeDigits->polys[0]) + (s32)g_Menu->pPlayTimeDigits->polys),
-                      g_Menu->renderContext, x + i * 8 + 0x10, y, 0x1000);
+                      g_Menu->renderContext, x + i * MENU_DIGIT_SPACING + MENU_DIGIT_SPACING * 2, y, 0x1000);
     }
     func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->pPlayTimeDigits->polys[7],
-                  g_Menu->renderContext, x + 0x18, y, 0x1000);
+                  g_Menu->renderContext, x + MENU_DIGIT_SPACING * 3, y, 0x1000);
     func_8002675C(g_Menu->resources, MENU_TEX_PLAY_TIME_COLON, &g_Menu->pPlayTimeDigits->polys[9],
-                  g_Menu->renderContext, x + 0x30, y, 0x1000);
+                  g_Menu->renderContext, x + MENU_DIGIT_SPACING * 6, y, 0x1000);
     g_Menu->pPlayTimeDigits->renderContext = *(u8*)&g_Menu->renderContext;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D5ED4);
