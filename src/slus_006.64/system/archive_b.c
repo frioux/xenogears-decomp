@@ -96,50 +96,6 @@ void func_800379C8(char* pFormat) {
 void ArchiveNoOp(void) {
 }
 
-/* 98.99%, 432 bytes = retail's exact instruction count (108 insns). The queue
-   store is SOLVED: with D_8005A1DC declared as a StreamDataQueueEntry[] and the
-   first field stored through the pointer taken for the func_80029AFC call, gcc
-   shares the address and emits retail's `sh $s2,0($a0)` (a local
-   `StreamDataQueueEntry*` over three separate 8-byte symbols does not: cse folds
-   the store back to the symbol and the bytes come out `sh $sN,0($at)`; that was
-   round 194's 98.01%). Entries 1 and 2 must still be written as the absolute
-   D_8005A1E4/D_8005A1EC and the pData fields as D_8005A1E0/E8/F0, because a
-   `pQueue[1]` access renders the relocation as D_8005A1DC+0x8, which objdiff
-   never scores as retail's D_8005A1E4.
-   The do-while(0) around the two HeapAlloc/HeapPinBlock pairs is load-bearing
-   (found by the permuter in round 194): it is what puts the size temp in $s0 and
-   pFirst/pSecond in retail's registers.
-   REMAINING WALL - one allocator tie, everything else follows from it: retail
-   keeps the doubled index in $s0 (so the size temp is $s2, pFirst $s3, and the
-   second size sum is computed IN PLACE on the index: `addiu s0,s0,7; addu
-   s0,s0,s4`). We hold the index in $s3, so the temp lands in $s0, pFirst in $s2,
-   and that sum goes to $v0. Two permuter runs from this body (1547 and 1780
-   iterations) could not move it; they contributed only the `nFirstSize =
-   nBaseIndex + 7;` local (which keeps the +7 off the index and is why this body
-   is 98.99% and not 98.71%) and the `(pQueue + 0)` spelling. Do NOT inline the
-   first size as `ArchiveDecodeAlignedSize(nIndex + nBaseIndex + 7)`: that
-   associates (nIndex + nBaseIndex) + 7 and gives `addu a0,s3,s4` / `addiu
-   a0,a0,7` where retail has `addiu a0,s4,7` / `addu a0,s0,a0` (95.29%). The
-   nFirstSize local is what fixes the association; retail's temp still lives in
-   $a0 only (dead after the call), so it was never a saved local there.
-
-   ROUND 217 UPDATE - 99.68%, still 432 bytes / 108 insns, one allocator tie
-   left. Two things moved it. (1) `if (pFirst)` duplicating the -1 arm (a
-   permuter find, score 105 -> 85) takes the index out of retail's $s0, so the
-   doubled index now lives in a real local `nQueueIndex = nIndex * 2;` and lands
-   in $s0 like retail and both size temps follow: nFirstSize in $a0 (dead),
-   nQueueIndex+6 in $s0+6. (2) The wall is now ONLY pSecond vs the second size
-   temp: retail puts the size temp in $s2 and pSecond in $s1 (`move s1,v0` after
-   the second HeapAlloc), we have them the other way round; the store order,
-   the `addiu s0,s0,7 / addu s0,s0,s4` reuse of the index register and every
-   other instruction already match. Permuter runs from 99.19 (1580 iters,
-   base=85) and 99.68 (1567 iters, base=35) both returned NONE; hand variants
-   also tried without moving it: an explicit `nSecondSize` local, a second
-   do/while(0) around the trailing HeapPinBlock, and declaring nEntryIndex
-   unsigned. Unparking drops the externs above the body - re-add them at file
-   scope.
-
-/*
 extern StreamDataQueueEntry D_8005A1DC[];
 extern void* D_8005A1E0;
 extern u16 D_8005A1E4;
@@ -148,9 +104,50 @@ extern u16 D_8005A1EC;
 extern void* D_8005A1F0;
 extern void* g_BattleStageData;
 
+/* 99.91%, 432 bytes = retail's exact instruction count (108 insns). TWO
+   instructions left, one allocator tie.
+   ROUND 245 UPDATE - the permuter's find for this round (score 35 -> 10) is
+   sharing the size local between the two HeapAllocs: `nSize = nQueueIndex + 6;`
+   instead of computing the second size inline. That moves pSecond into retail's
+   $s1, so everything except the FIRST size temp now matches: retail has
+   `addiu $a0,$s4,7` / `addu $a0,$s0,$a0` (a temp that dies in the call), we get
+   `addiu $s2,$s4,7` / `addu $a0,$s0,$s2`, because the shared local is live
+   across the first HeapAlloc and therefore holds a saved register.
+   The mirror variant - a separate `nSecondSize = nQueueIndex + 6;` feeding the
+   second HeapAlloc and the archiveIndex store, first size kept as its own local
+   - puts the first temp back in $a0 and leaves one tie at 99.68: the second size
+   temp takes $s1 and pSecond $s2, the reverse of retail. Declaration order
+   (before or after pSecond) does not move it. The permuter returned NONE from
+   both bodies (1000 iterations from this one, 1567 from the 99.68 one), so this
+   is an allocator tie, not a structural difference.
+   Inlining the first size as `ArchiveDecodeAlignedSize((nBaseIndex + 7) +
+   nQueueIndex)` drops the whole body to 93.88 (different frame), so the size
+   local stays.
+   OLDER NOTES (still valid):
+   The queue store is SOLVED: with D_8005A1DC declared as a StreamDataQueueEntry[]
+   and the first field stored through the pointer taken for the func_80029AFC
+   call, gcc shares the address and emits retail's `sh $s2,0($a0)` (a local
+   `StreamDataQueueEntry*` over three separate 8-byte symbols does not: cse folds
+   the store back to the symbol and the bytes come out `sh $sN,0($at)`; that was
+   round 194's 98.01%). Entries 1 and 2 must still be written as the absolute
+   D_8005A1E4/D_8005A1EC and the pData fields as D_8005A1E0/E8/F0, because a
+   `pQueue[1]` access renders the relocation as D_8005A1DC+0x8, which objdiff
+   never scores as retail's D_8005A1E4.
+   The do-while(0) around the two HeapAlloc/HeapPinBlock pairs is load-bearing
+   (found by the permuter in round 194): it is what puts the size temp in $s0 and
+   pFirst/pSecond in retail's registers. `if (pFirst)` duplicating the -1 arm (a
+   permuter find, score 105 -> 85) takes the index out of retail's $s0, so the
+   doubled index lives in a real local `nQueueIndex = nIndex * 2;`. Do NOT inline
+   the first size as `ArchiveDecodeAlignedSize(nIndex + nBaseIndex + 7)`: that
+   associates (nIndex + nBaseIndex) + 7 and gives `addu a0,s3,s4` / `addiu
+   a0,a0,7` where retail has `addiu a0,s4,7` / `addu a0,s0,a0` (95.29%).
+   Hand variants already tried without moving the last tie: an explicit
+   nSecondSize local, a second do/while(0) around the trailing HeapPinBlock, and
+   declaring nEntryIndex unsigned. The externs above the body stay at file scope
+   so un-parking does not have to re-add them./*
 int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3) {
     StreamDataQueueEntry* pQueue;
-    int nFirstSize;
+    int nSize;
     int nQueueIndex;
     void* pFirst;
     void* pSecond;
@@ -179,10 +176,11 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
     } else {
         nQueueIndex = nIndex * 2;
         do {
-            nFirstSize = nBaseIndex + 7;
-            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + nFirstSize), 1);
+            nSize = nBaseIndex + 7;
+            pFirst = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + nSize), 1);
             HeapPinBlock(pFirst);
-            pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nQueueIndex + 6), 1);
+            nSize = nQueueIndex + 6;
+            pSecond = HeapAlloc(ArchiveDecodeAlignedSize(nSize), 1);
         } while (0);
         HeapPinBlock(pSecond);
         pQueue = D_8005A1DC;
