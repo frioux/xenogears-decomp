@@ -878,6 +878,15 @@ reinit:
     D_8009279C = D_8005061F;
     g_BattlePlayer1ComControlled = 0;
     switch (D_8005061D) {
+    case 0:
+        g_BattlePlayer2ComControlled = 1;
+        BattleSetScreenMode(1);
+        g_BattleMode = 1;
+        BattleLoadSelectionTextures(D_80092798, D_8009279C);
+        if (D_8009279C == 5) {
+            g_BattleStageLightIndex = 1;
+        }
+        break;
     case 1:
         g_BattlePlayer2ComControlled = 1;
         BattleSetScreenMode(1);
@@ -888,15 +897,6 @@ reinit:
         BattleSetScreenMode(7);
         g_BattleMode = 5;
         BattleInitTutorialMessage();
-        break;
-    case 0:
-        g_BattlePlayer2ComControlled = 1;
-        BattleSetScreenMode(1);
-        g_BattleMode = 1;
-        BattleLoadSelectionTextures(D_80092798, D_8009279C);
-        if (D_8009279C == 5) {
-            g_BattleStageLightIndex = 1;
-        }
         break;
     }
     state = 1;
