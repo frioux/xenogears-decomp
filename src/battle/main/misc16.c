@@ -4,6 +4,14 @@
 #include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
+// The sound the battle menu plays when it refuses an input: the branch that found
+// nothing to act on. battle/main/misc12 names the same id for the same call.
+#define BATTLE_SOUND_MENU_DENIED 0x4F
+
+// The sprite packages BattleDrawSpriteQuad appends to a slot's draw block, one per
+// corner of the quad, each drawn with its own code.
+#define BATTLE_SPRITE_PACKAGE_COUNT 4
+
 // One actor's block of the per-actor action-row table g_BattleActionRows: 42 BattleRow
 // rows (0x28 each, actor.h), of which this unit reads +0x24 and +0 of the rows at
 // +0x25. The offset stays an integer: a BattleRow index makes gcc form the actor
@@ -124,7 +132,7 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
         flag = 0;
     }
     if (flag != 0) {
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
     }
     return ret;
 }
@@ -286,7 +294,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
 // The prim view is formed inside the loop on purpose: hoisting it above the four
 // package calls gives it a second register to keep alive across them.
 void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
-    u8 codes[4];
+    u8 codes[BATTLE_SPRITE_PACKAGE_COUNT];
     BattleSlotGraphics *p;
     BattleSpritePackage *pPackage;
     POLY_FT4 *pPrims;
@@ -315,7 +323,7 @@ void BattleDrawSpriteQuad(u8 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4) {
     dy = (s16)(dy + arg4 - 8);
     p->packageCount = BattleDrawSpritePackage(codes[2], (s32)&pPackage[p->packageCount], (s16)arg1, dy) + p->packageCount;
     p->packageCount = BattleDrawSpritePackage(codes[3], (s32)&pPackage[p->packageCount], dx, dy) + p->packageCount;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < BATTLE_SPRITE_PACKAGE_COUNT; i++) {
         pPrims = (POLY_FT4 *)p;
         BattleSetPrimGrey80BlendModeFromGlobal(&pPrims[i * 2 + g_BattlePrimStartIndex]);
     }
@@ -387,9 +395,9 @@ void BattleInitSlotGraphics(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u16 arg4, u8
     slot = arg0;
     index = slot; // two steps: the u16 copy is what puts arg0 in s2, the u8 index in s1
     if (*((u8 *)g_BattleDisplayState + index + 0xB0) == 0) {
-        q = BattleAllocHeapBlock(0x5A8, 0);
+        q = BattleAllocHeapBlock(sizeof(BattleSlotGraphics), 0);
         g_BattleSlotGraphics[index] = q;
-        bzero(q, 0x5A8);
+        bzero(q, sizeof(BattleSlotGraphics));
         q = BattleAllocHeapBlock(0xE, 0);
         g_BattleSlotRects[index] = q;
         bzero(q, 0xE);
