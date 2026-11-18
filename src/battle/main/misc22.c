@@ -61,16 +61,25 @@ typedef struct {
     /* 0x0 */ s16 pixels[3];
 } BattleMisc22ImageRow; // Size: 0x6
 
+// The texture animation record the script commands of func_800AE2A4 fill in through
+// func_800A3640: the region's pixel buffers, the fade mode and the angle that walks the
+// blend value. Every entry allocated keeps its own copies, all pixelCount pixels wide.
 typedef struct {
-    /* 0x0 */ u8 pad0[0x4];
-    /* 0x4 */ u16 *unk4;
-    /* 0x8 */ u8 *unk8;
-    /* 0xC */ u8 *unkC;
-    /* 0x10 */ u8 mode; // below 4 the region at unk4 is uploaded back to VRAM when freed
-    /* 0x11 */ u8 pad11[0x9];
-    /* 0x1A */ u16 isLoaded; // nonzero while unk4/unk8/unkC are held
+    /* 0x0 */ void *pSource; // the record this one was set up from; when set, the upload is left to it
+    /* 0x4 */ u16 *pPixels; // the region's own pixels, uploaded back to VRAM when the record is freed
+    /* 0x8 */ u8 *pStartPixels; // the colours a fade or blend starts from
+    /* 0xC */ u8 *pResultPixels; // where a fade or blend writes; modes 0 and 1 upload this
+    /* 0x10 */ u8 mode; // below 4 the region at pPixels is uploaded back to VRAM when freed
+    /* 0x11 */ u8 unk11;
+    /* 0x12 */ s16 pixelCount; // rect28.w * rect28.h: the count the pixel helpers loop over
+    /* 0x14 */ u16 angle; // advanced by angleStep per step, first argument of pInterpolate
+    /* 0x16 */ u16 angleStep;
+    /* 0x18 */ u16 prevFrame; // the value pInterpolate last returned; the same value again skips the work
+    /* 0x1A */ u16 isLoaded; // nonzero while pPixels/pStartPixels/pResultPixels are held
     /* 0x1C */ BattleMisc22ImageRow *pRows; // region rows, indexed by rect28.y + row
-    /* 0x20 */ u8 pad20[0x8];
+    /* 0x20 */ s16 divisor; // second argument of pInterpolate
+    /* 0x22 */ s16 offset; // third argument of pInterpolate
+    /* 0x24 */ s16 (*pInterpolate)(u16 angle, s16 divisor, s16 offset); // one of the BattleOffsetBy* helpers
     /* 0x28 */ BattleMisc22Rect rect28;
 } BattleMisc22Image; // Size: 0x30
 
@@ -87,7 +96,7 @@ typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ u8 unk2;
     /* 0x03 */ u8 unk3;
-    /* 0x04 */ void *unk4;
+    /* 0x04 */ void *pPool; // the battle sprite pool the caller passes
     /* 0x08 */ s32 unk8;
     /* 0x0C */ s16 unkC;
     /* 0x0E */ s16 unkE;
@@ -220,7 +229,7 @@ s32 BattleSetupPositionTween(BattleMisc22Cmd *pCmd, void *pData, s16 arg2, u8 ar
         pCmd->unk5E = -1;
         pCmd->unk0 = arg2;
         pCmd->unk2 = arg3;
-        pCmd->unk4 = pData;
+        pCmd->pPool = pData;
         pCmd->unkC = w0;
         pCmd->unkE = w1;
         pCmd->unk10 = w2;
@@ -285,20 +294,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
 void BattleFreeImageEntry(BattleMisc22Image *pArg) {
     if (pArg->isLoaded != 0) {
-        if (pArg->unk4 != 0) {
+        if (pArg->pPixels != 0) {
             if (pArg->mode < 4) {
-                LoadImage(&pArg->rect28, pArg->unk4);
+                LoadImage(&pArg->rect28, pArg->pPixels);
             }
-            HeapFree(pArg->unk4);
-            pArg->unk4 = 0;
+            HeapFree(pArg->pPixels);
+            pArg->pPixels = 0;
         }
-        if (pArg->unk8 != 0) {
-            HeapFree(pArg->unk8);
-            pArg->unk8 = 0;
+        if (pArg->pStartPixels != 0) {
+            HeapFree(pArg->pStartPixels);
+            pArg->pStartPixels = 0;
         }
-        if (pArg->unkC != 0) {
-            HeapFree(pArg->unkC);
-            pArg->unkC = 0;
+        if (pArg->pResultPixels != 0) {
+            HeapFree(pArg->pResultPixels);
+            pArg->pResultPixels = 0;
         }
         pArg->isLoaded = 0;
     }
@@ -306,7 +315,7 @@ void BattleFreeImageEntry(BattleMisc22Image *pArg) {
 void BattleScaleImageRegion(BattleMisc22Image *pArg, s16 scale) {
     s32 i;
     s32 j;
-    u16 *pSrc = pArg->unk4;
+    u16 *pSrc = pArg->pPixels;
 
     for (i = 0; i < pArg->rect28.h; i++) {
         for (j = 0; j < pArg->rect28.w; j++) {
@@ -320,8 +329,8 @@ void BattleScaleImageRegion(BattleMisc22Image *pArg, s16 scale) {
 void BattleBlendImageRegion(BattleMisc22Image *pArg, s16 scale) {
     s32 i;
     s32 j;
-    u16 *pSrc1 = pArg->unk4;
-    u16 *pSrc2 = pArg->unk8;
+    u16 *pSrc1 = pArg->pPixels;
+    u16 *pSrc2 = pArg->pStartPixels;
 
     for (i = 0; i < pArg->rect28.h; i++) {
         for (j = 0; j < pArg->rect28.w; j++) {
@@ -420,7 +429,7 @@ void BattleFreeSceneResources(void) {
 }
 typedef struct {
     /* 0x00 */ u8 unk00[0x7];
-    /* 0x07 */ u8 unk7; // nonzero = the part is drawn
+    /* 0x07 */ u8 isVisible; // nonzero = the part is drawn
     /* 0x08 */ u16 jointIndex; // indexes the mesh's pParts; 0xFFFF = no part
     /* 0x0A */ u16 count;
     /* 0x0C */ MATRIX localTransform;
@@ -479,7 +488,7 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
     numChildren = pSkeleton->count - 1;
     pSkeleton++;
     for (i = 0; i < numChildren; i++, pSkeleton++) {
-        if (pSkeleton->jointIndex != 0xFFFF && pSkeleton->unk7 != 0) {
+        if (pSkeleton->jointIndex != 0xFFFF && pSkeleton->isVisible != 0) {
             CompMatrix(pMatrix, &pSkeleton->globalTransform, pMat);
             if ((u16)(pSkeleton->state + 0xFFFF) < 2) {
                 pMat->m[0][0] = 0x1000;
