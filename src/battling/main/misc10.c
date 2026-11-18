@@ -3,6 +3,15 @@
 #include "system/memory.h"
 #include "system/archive.h"
 
+// The pixel depth of the TIM a battle quad samples: GetTPage's tp argument, which
+// also says how many texels one halfword of the image holds.
+#define BATTLE_TEX_DEPTH_4BIT 0
+#define BATTLE_TEX_DEPTH_8BIT 1
+#define BATTLE_TEX_DEPTH_16BIT 2
+
+// g_BattleControlFlags bit 0: set while the player, not the COM, drives both sides.
+#define BATTLE_CONTROL_FLAG_USER 0x1
+
 // .sdata/.bss of the overlay (supplied by splat's asm segments)
 extern u8 g_BattleDrawBufferIndex;
 extern s16 g_BattleEffectFrameTimer;
@@ -523,7 +532,7 @@ void BattleUpdateEffectImage(void) {
 }
 
 void BattleSetBothSidesCom(void) {
-    g_BattleControlFlags &= 0xFE;
+    g_BattleControlFlags &= ~BATTLE_CONTROL_FLAG_USER;
     BattleClearScreen(0);
     BattleSetScreenMode(5);
     g_BattlePlayer2ComControlled = 1;
@@ -536,7 +545,7 @@ void BattleSetBothSidesUser(void) {
 
     g_BattlePlayer2ComControlled = 0;
     g_BattlePlayer1ComControlled = 0;
-    g_BattleControlFlags = flags | 0x1;
+    g_BattleControlFlags = flags | BATTLE_CONTROL_FLAG_USER;
 }
 
 void BattleLoadSlotEntry(s32 index, s32 value) {
@@ -846,13 +855,13 @@ void FieldSoundResetActorEffects(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPoly,
     s32 right;
 
     switch (mode) {
-    case 0:
+    case BATTLE_TEX_DEPTH_4BIT:
         scale = 4;
         break;
-    case 1:
+    case BATTLE_TEX_DEPTH_8BIT:
         scale = 2;
         break;
-    case 2:
+    case BATTLE_TEX_DEPTH_16BIT:
         scale = 1;
         break;
     }
@@ -883,13 +892,13 @@ void BattleBuildFlippedTexturedQuad(Misc10TagSrc* p, s32 x, s32 y, POLY_FT4* pPo
     s32 scale;
 
     switch (mode) {
-    case 0:
+    case BATTLE_TEX_DEPTH_4BIT:
         scale = 4;
         break;
-    case 1:
+    case BATTLE_TEX_DEPTH_8BIT:
         scale = 2;
         break;
-    case 2:
+    case BATTLE_TEX_DEPTH_16BIT:
         scale = 1;
         break;
     }
