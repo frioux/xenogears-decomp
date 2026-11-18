@@ -87,6 +87,13 @@ typedef struct WorldMapSceneLayer {
     /* 0x50 */ struct WorldMapSceneLayer *pParent; // layer WorldMapSetSpriteSetParent hangs this set off
 } WorldMapSceneLayer; // Size: 0x54
 
+// the prim template header a layer's pPrimHeader points at: +0x4 is how many
+// prims WorldMapSetupPrimTemplates copies out of the layer's pPrims
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ u16 primCount;
+} WorldMapPrimHeader; // Size: unknown, only +0x4 is read
+
 extern WorldMapPlayer *g_WorldMapSlots;
 extern WorldMapSceneLayer *g_WorldMapGroups;
 extern u16 g_WorldMapSlotStateIds[];
@@ -476,7 +483,7 @@ int WorldMapSetupGroup4And5ScaledPrims(int idx) {
 
     for (i = 0; i < WORLD_MAP_GROUP_LAYER_COUNT; i++) {
         WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->pPrims,
-                                   ((u16 *)pLayer->pPrimHeader)[2]);
+                                   ((WorldMapPrimHeader *)pLayer->pPrimHeader)->primCount);
         pLayer++;
         pBlock++;
     }
@@ -561,7 +568,7 @@ int WorldMapSetupGroup6And7ScaledPrims(int idx) {
 
     for (i = 0; i < WORLD_MAP_GROUP_LAYER_COUNT; i++) {
         WorldMapSetupPrimTemplates(pBlock, (s32)pLayer->pPrims,
-                                   ((u16 *)pLayer->pPrimHeader)[2]);
+                                   ((WorldMapPrimHeader *)pLayer->pPrimHeader)->primCount);
         pLayer++;
         pBlock++;
     }
