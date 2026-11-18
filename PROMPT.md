@@ -826,8 +826,13 @@ over the BETTER park.
   working tree files would be overwritten" (round 47: five of twelve merges, until
   `tools/pi/` was committed). Commit them or remove them before `new`.
 - Workers hit the 30-minute kill constantly. Fine if they committed; `merge` refuses
-  uncommitted work. A lost body is still in `worker_transcript.jsonl` under
-  `subagent-artifacts/`.
+  uncommitted work and **discards it (`git checkout -- .`)**, so a worker that un-parks,
+  measures and re-parks must COMMIT the re-park: round 268's `battling/misc10` came back
+  with the live 99.19% body (which fails `make check`) and the park note existed only in
+  `worker_transcript.jsonl`, recoverable because a worker parks by writing the file from
+  a `python3 - <<PYEOF` heredoc whose whole text is in that transcript's `argsPayload`.
+  A park note must also not end in its own `*/` if the script appends the body and
+  another `*/` - `lint_sources.py` reports "both INCLUDE_ASM'd and defined".
 - **Every child fails to start with `Background children require the host npm package`** and a
   list of `@earendil-works/*` specifiers pointing at `/opt/homebrew/lib/node_modules/...`: pi
   moved to a managed install (`~/.pi/agent/install/releases/<ver>`, what `~/.pi/agent/bin/pi`
