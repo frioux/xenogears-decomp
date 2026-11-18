@@ -269,8 +269,7 @@ typedef struct {
     /* 0x4F8C */ u8 previousCardSlotCounts[2]; // cardSlotCounts[] as read last time, one per card
     /* 0x4F8E */ u8 slotHasGameSave[0x20]; // One flag per card slot, set when its record's game code matched
     /* 0x4FAE */ u8 slotRecordIndexes[0x20]; // Index into records[]/chunks[] per card slot, 0xFF = empty
-    /* 0x4FCE */ u8 gameSerialCode[0xC];
-    /* 0x4FDA */ u8 unk4FDA;
+    /* 0x4FCE */ u8 gameSerialCode[0xD]; // 12-character game code and its terminator, both copied from the record's ids[]
     /* 0x4FDB */ u8 unk4FDB;
     /* 0x4FDC */ u8 unk4FDC[0x8];
     /* 0x4FE4 */ u8 cardStatus[2];
@@ -742,8 +741,8 @@ typedef struct {
 } MenuArrowCursor; // Size: 0x78
 
 typedef struct {
-    /* 0x00 */ u8 *unk0; // data read from CD
-    /* 0x04 */ u8 *unk4;
+    /* 0x00 */ u8 *pModelSource; // Archive entry loaded next to pModelArchive, handed to func_801E742C as its ModelSource
+    /* 0x04 */ u8 *pModelArchive; // Archive entry loaded next to pModelSource, handed to func_801E742C as its ModelArchive
     /* 0x08 */ SVECTOR position; // Becomes the gear model skeleton's translation when the model is created
     /* 0x10 */ u16 unk10;
     /* 0x12 */ s8 isModelCreated; // Set by GearShopMenuCreateGearModel, cleared before LibGearFreeModel

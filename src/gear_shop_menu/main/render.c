@@ -508,12 +508,12 @@ void GearShopMenuBuildGearStatsGraphics(void) {
 void GearShopMenuLoadGearModelFiles(u_char gearId, u8 arg1) {
     ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
 
-    g_Menu->pGearModelArchiveData[arg1]->unk0 = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId]), 0);
-    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId], g_Menu->pGearModelArchiveData[arg1]->unk0, 0, 0x80);
+    g_Menu->pGearModelArchiveData[arg1]->pModelSource = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId]), 0);
+    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId], g_Menu->pGearModelArchiveData[arg1]->pModelSource, 0, 0x80);
     ArchiveCdDataSync(0);
 
-    g_Menu->pGearModelArchiveData[arg1]->unk4 = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId] + 1), 0);
-    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId] + 1, g_Menu->pGearModelArchiveData[arg1]->unk4, 0, 0x80);
+    g_Menu->pGearModelArchiveData[arg1]->pModelArchive = HeapAlloc(ArchiveDecodeAlignedSize(g_GearShopGearModelFileIds[gearId] + 1), 0);
+    ArchiveReadFileToBuffer(g_GearShopGearModelFileIds[gearId] + 1, g_Menu->pGearModelArchiveData[arg1]->pModelArchive, 0, 0x80);
     ArchiveCdDataSync(0);
 
     ArchiveSetIndex(ARCHIVE_DIR_MENUS, 0);
@@ -527,8 +527,8 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
     func_801E742C(
         modelIndex,
         0,
-        g_Menu->pGearModelArchiveData[modelIndex]->unk0,
-        g_Menu->pGearModelArchiveData[modelIndex]->unk4,
+        g_Menu->pGearModelArchiveData[modelIndex]->pModelSource,
+        g_Menu->pGearModelArchiveData[modelIndex]->pModelArchive,
         (modelIndex * 64) + 0x200,
         0,
         0,
@@ -546,7 +546,7 @@ void GearShopMenuCreateGearModel(u8 modelIndex, u8 gearId) {
         characterId = g_GearShopGearAnimationIds[gearId];
     }
     LibGearSetModelAnimation((s3 & 0xFF), 0, characterId );
-    HeapFree(g_Menu->pGearModelArchiveData[modelIndex]->unk4);
+    HeapFree(g_Menu->pGearModelArchiveData[modelIndex]->pModelArchive);
     g_Menu->pGearModelArchiveData[modelIndex]->isModelCreated = 1;
     GearShopMenuBuildGearStatsGraphics();
     g_Menu->pManager->isPanelActive[3] = 1;
