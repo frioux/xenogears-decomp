@@ -67,14 +67,30 @@
 // Archive entry a party member's stream data sits at, above its skin id
 #define FIELD_PARTY_STREAM_ARCHIVE_OFFSET 5
 
-// Buffer StoreImage fills with the screen the streamed sequence is drawn over
+// Buffer StoreImage fills with the screen the streamed sequence is drawn over,
+// FIELD_SCREEN_IMAGE_WIDTH x FIELD_SCREEN_IMAGE_HEIGHT 16-bit texels
 #define FIELD_SCREEN_IMAGE_BUFFER_SIZE 0x18000
+#define FIELD_SCREEN_IMAGE_WIDTH 0xC0
+#define FIELD_SCREEN_IMAGE_HEIGHT 0x100
 
 // Field modes the streamed sequence runs in: FIELD_MODE_PLAYBACK keeps the
 // stream frames coming, FIELD_MODE_STEP is the one that is stepped by hand
 #define FIELD_MODE_PLAIN 0
 #define FIELD_MODE_PLAYBACK 1
 #define FIELD_MODE_STEP 2
+
+// The 24-bit to 15-bit screen conversion reads the framebuffer in
+// FIELD_IMAGE_STRIP_COUNT strips of FIELD_IMAGE_STRIP_WIDTH 16-bit words each,
+// into a FIELD_IMAGE_24BIT_STRIP_SIZE byte buffer, and writes each strip back as
+// FIELD_IMAGE_STRIP_WORDS packed u_longs
+#define FIELD_IMAGE_STRIP_COUNT 5
+#define FIELD_IMAGE_STRIP_WIDTH 0x60
+#define FIELD_IMAGE_24BIT_STRIP_SIZE 0xA800
+#define FIELD_IMAGE_15BIT_STRIP_SIZE 0x7000
+#define FIELD_IMAGE_STRIP_WORDS 0x1C00
+
+// Palette rows the sprite prims cycle their source V through
+#define FIELD_SPRITE_PALETTE_ROW_COUNT 3
 
 //
 void FieldSetStructWords14To1C(int* pData, int a, int b, int c) {
@@ -879,13 +895,13 @@ void FieldImageConvert24BitTo15Bit(int nIndex) {
     u_long* pImage15Bit;
     u_long n15BitPixels;
 
-    pImage24Bit = HeapAlloc(0xA800, 0x0);
-    pImage15Bit = HeapAlloc(0x7000, 0x0);
+    pImage24Bit = HeapAlloc(FIELD_IMAGE_24BIT_STRIP_SIZE, 0x0);
+    pImage15Bit = HeapAlloc(FIELD_IMAGE_15BIT_STRIP_SIZE, 0x0);
     
-    for (i = 0; i < 5; i++) {
-        rect.x = i * 0x60;
+    for (i = 0; i < FIELD_IMAGE_STRIP_COUNT; i++) {
+        rect.x = i * FIELD_IMAGE_STRIP_WIDTH;
         rect.y = 0;
-        rect.w = 0x60;
+        rect.w = FIELD_IMAGE_STRIP_WIDTH;
         rect.h = SCREEN_HEIGHT;
         StoreImage(&rect, pImage24Bit);
         DrawSync(0);
@@ -893,7 +909,7 @@ void FieldImageConvert24BitTo15Bit(int nIndex) {
         g_Field15BitImageData = pImage15Bit;
         g_FieldPixelIndex = 0;
         
-        for (j = 0; j < 0x1C00; j++) {
+        for (j = 0; j < FIELD_IMAGE_STRIP_WORDS; j++) {
             // 15 Bit: RGBRGB
             n15BitPixels = FieldImageConvert24BitColorTo15Bit();
             n15BitPixels |= FieldImageConvert24BitColorTo15Bit() << 0x5;
@@ -1063,8 +1079,8 @@ void FieldRunStreamedSequence(void) {
     if (g_FieldMode != FIELD_MODE_STEP) {
         rect.x = SCREEN_WIDTH;
         rect.y = 0;
-        rect.w = 0xC0;
-        rect.h = 0x100;
+        rect.w = FIELD_SCREEN_IMAGE_WIDTH;
+        rect.h = FIELD_SCREEN_IMAGE_HEIGHT;
         LoadImage(&rect, pImage);
         DrawSync(0);
         HeapFree(pImage);
@@ -1358,7 +1374,7 @@ void FieldUpdateSpriteSheetPrims(void) {
         if ((g_FieldSpriteAnimFrame & 0xF) == 0) {
             g_FieldSpritePaletteRow++;
         }
-        if (g_FieldSpritePaletteRow >= 3) {
+        if (g_FieldSpritePaletteRow >= FIELD_SPRITE_PALETTE_ROW_COUNT) {
             g_FieldSpritePaletteRow = 0;
         }
         FieldSetSpriteUVs(i, 0, g_FieldSpritePaletteRow << 3);
