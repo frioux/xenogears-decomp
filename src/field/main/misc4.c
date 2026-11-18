@@ -26,7 +26,6 @@
 #define FIELD_TEXTURE_UV_COUNT 0x100
 
 // Angles are a 4096-step turn counter; every sum of angles is wrapped back into it
-#define FIELD_ANGLE_MASK 0xFFF
 
 // Byte 1 of a controller buffer holds the device type
 #define FIELD_PAD_TYPE_MOUSE 0x12

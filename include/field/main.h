@@ -10,6 +10,7 @@
 #define SCREEN_HEIGHT 224U
 
 #define FIELD_OT_MAX_SIZE 4096
+#define FIELD_ANGLE_MASK 0xFFF // a field angle is a 4096-step turn
 
 // FieldScene.unk48 flags
 #define FIELD_SCENE_INTERPOLATING_SCREEN_Z 0x10

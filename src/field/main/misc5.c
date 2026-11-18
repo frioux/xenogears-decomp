@@ -29,7 +29,6 @@
 
 // Angles are a 4096-step turn counter; every sum of angles is wrapped back
 // into it
-#define FIELD_ANGLE_MASK 0xFFF
 
 // Particle primitive grid, one 16x16 tile per entry, indexed i *
 // FIELD_PARTICLE_GRID_COLUMNS + j
