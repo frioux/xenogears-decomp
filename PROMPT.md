@@ -69,6 +69,44 @@ matched C. The one matching queue that still exists is a **park with a named cau
 near-exact size** (99%+, instruction multiset identical): that is worth one worker when
 a tracker row records the specific construct, and nothing else is.
 
+**Measured at round 253 (2026-11-18, seven consecutive rounds 245-252): every queue is
+now at its floor, including the quality ones.** `fresh_stubs.py` lists **2 stubs** (one is
+the known non-function `system/menu func_8001C76C`), 944 stubs remain and all of them are
+bodies above ~150 instructions. The five numbers moved by 245-252 without a single match:
+stubs 944 -> 944, `D_` 1298 -> 1286, `unk` 1212 -> 1212, live raw 124 -> 82 in 40 files,
+unnamed C definitions 42 (29 of them `psyq/`, whose sig dump is drained), +40 constants.
+What that cost and what it bought, so the next session does not repeat it:
+
+- **Fields still pay, but only through a header pass with accumulated evidence.** The
+  biggest single round was `include/battle/actor.h` (round 251): `BattleTableEntry.unk61`
+  split into `commandPoints` + `extraWeaponIds[5]`, `BattleRow.unk24` -> `commandPointCost`,
+  `BattleSlotState.unk9E` -> `amountMultiplier`, and `BattleActor.pTextures` retyped
+  `mem_addr` -> `Temp8*`, because the evidence had piled up in *other* units' matched
+  code. A unit-level field round now returns 1-3 names and a FIELD_UNKNOWN list; the
+  remaining `unk` are dominated by fields no live code reads (eight `BattleActor` fields
+  have no reader in any unit that includes actor.h).
+- **Globals: the queue is empty.** Three `name-brief.js` rounds on files ranked by `D_`
+  in live C returned 3 usable names total; everything else was `DATA_INTERIOR` (a field of
+  a table a rewrite must type) or `DATA_UNKNOWN`. Also: rank by the `D_` count in
+  *stripped* source, not by a raw grep (round 246 sent two files whose symbols were all
+  park-only and got zero back).
+- **Constants: near floor.** Late rounds return 1-2 new names plus 8-12 *existing* ones
+  reused at many sites - that reuse is the value now, and the honest empty lists (12-20
+  value classes refused with a reason each) are the signal.
+- **Raw lines: floor, and the tool over-reports.** `raw_lines.py` counts `(u8*)p + off`
+  cursor arithmetic, which is the correct spelling for a variable-length record walk
+  (`battle/misc26`'s typed walk measures 99.62%, so the byte cursor IS retail's source).
+  About a third of the remaining 82 lines are exactly that. A much lower number needs the
+  tool refined, not more workers.
+- **The one lever left is matching, and the giant stubs are now the only place it exists.**
+  Round 252 gave the data point: 120 minutes on `battle/misc26` `func_800B1F6C` (765
+  insns) moved its park **85.07 -> 89.78%** (3164 -> 3028 bytes) by finding that the park
+  was *wrong C* - `BattleEmitDrawTPage` is called once in retail, only from the four
+  untextured arms, and the park called it in all eight. The residual is now named and
+  allocator-level (seven rematerialised `0xFF000000`, one extra merged link tail, swapped
+  `pRec`/`pPacket`). A body that size is a phased multi-lane job: park per phase with the
+  phase's measured number, never leave a half-transcribed body un-parked.
+
 1. **Fresh-stub deep round** ("Choosing what to brief", "The round loop"). One worker per
    unit on the 350-1200 instruction stubs `fresh_stubs.py` lists, 60 minutes each. This
    is where the matches have come from since round 216: a 480-instruction body matched,
@@ -809,6 +847,19 @@ over the BETTER park.
   Adopting such a round is just: check that, then merge as usual.
 - pi-subagents "needs attention / no activity for 300s" notices are noise. A real
   failure reads `error:Subagent timed out`.
+- **Fifteen orphaned clones can break `clone.sh merge`.** "WOULD_OVERWRITE src/x.c" does
+  not mean the worker's work is lost: its commit is on its branch, so `git checkout --
+  <the listed paths>` in the main tree, `tools/rounds/clone.sh merge <tag>` again, and it
+  lands.
+- **`git add -A <path>` stages only that path.** Round 247 committed its tracker row that
+  way and the rename it described stayed dirty in the tree, was copied into all eight of
+  the next round's clones, and only surfaced when a worker reported "my clone arrived
+  with uncommitted changes". After `make check`, `git add -A` the whole tree (or
+  `git commit -a`) and read the full `git status --porcelain` after the push.
+- **Give the two foreground lanes to the longest jobs.** A 120-minute deep worker that
+  runs on a foreground lane finishes while the background lanes are still compiling;
+  the sequential port/rewrite rounds this session all finished inside their own budget
+  once the load came off 6 cores.
 - A `fg: 0` round never drains its `queue`: entries only start on a free FOREGROUND
   lane, so a queued worker in an all-background round does not run at all (round 176,
   the third field worker never started). Put those workers in `workers`, or leave `fg`
