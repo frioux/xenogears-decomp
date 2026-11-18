@@ -1082,8 +1082,18 @@ void FieldActorApplyPositionTransform(void) {
     pActor->curYPos = curY;
 }
 
+// Sprite data blob: one header word, then a table of sprite offsets relative to
+// the blob itself.
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ s32 offsets[1];
+} FieldSpriteDataBlob;
+
 void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void) {
-    func_80076AC0(g_FieldCurActorIndex, 0, (void*)((*(s32*)(g_FieldSpriteData + 4)) + (s32)g_FieldSpriteData), 0, 0, 0x80, 1);
+    FieldSpriteDataBlob* pSpriteData;
+
+    pSpriteData = g_FieldSpriteData;
+    func_80076AC0(g_FieldCurActorIndex, 0, (void*)(pSpriteData->offsets[0] + (s32)pSpriteData), 0, 0, 0x80, 1);
     FieldActorApplyPositionTransform();
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x8 = 0x1;
     g_FieldScriptVMCurActor->flags |= 0x800;
@@ -1194,12 +1204,14 @@ void FieldScriptVMHandlerSetActorModelFromSpriteIndexWithFlags(void) {
     int arg;
     int arg3;
     FieldActor* pFieldActor;
+    FieldSpriteDataBlob* pSpriteData;
     void* pSprite;
 
     pFieldActor = &g_FieldActors[g_FieldCurActorIndex];
     pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
     arg = FieldScriptVMGetArgument(1);
-    pSprite = (void*)((*(s32*)(g_FieldSpriteData + arg * 4 + 4)) + (s32)g_FieldSpriteData);
+    pSpriteData = g_FieldSpriteData;
+    pSprite = (void*)(pSpriteData->offsets[arg] + (s32)pSpriteData);
     arg3 = FieldScriptVMGetArgument(3);
     func_80076AC0(g_FieldCurActorIndex, arg, pSprite, 0, arg3, arg | 0x80, 1);
     FieldActorApplyPositionTransform();
@@ -1213,11 +1225,13 @@ void FieldScriptVMHandlerSetActorModelFromSpriteIndexWithFlags(void) {
 void FieldScriptVMHandlerSetActorModelFromSpriteIndex(void) {
     int arg;
     FieldActor* pFieldActor;
+    FieldSpriteDataBlob* pSpriteData;
 
     pFieldActor = &g_FieldActors[g_FieldCurActorIndex];
     pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
     arg = FieldScriptVMGetArgument(1);
-    func_80076AC0(g_FieldCurActorIndex, arg, (void*)((*(s32*)(g_FieldSpriteData + arg * 4 + 4)) + (s32)g_FieldSpriteData), 0, 0, arg | 0x80, 0);
+    pSpriteData = g_FieldSpriteData;
+    func_80076AC0(g_FieldCurActorIndex, arg, (void*)(pSpriteData->offsets[arg] + (s32)pSpriteData), 0, 0, arg | 0x80, 0);
     FieldActorApplyPositionTransform();
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
     g_FieldScriptVMCurActor->scriptFlags.flags |= 0x100;
