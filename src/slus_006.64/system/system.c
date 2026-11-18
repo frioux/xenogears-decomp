@@ -20,9 +20,22 @@
 #define SYSTEM_GLYPH_WIDTH_NARROW 2
 #define SYSTEM_GLYPH_WIDTH_WIDE 3
 
-// The two codes after the ten digits of a number glyph set
+// The digits of a number glyph set, then the two codes after them
+#define SYSTEM_NUMBER_GLYPH_DIGIT_COUNT 10
 #define SYSTEM_NUMBER_GLYPH_MINUS 10
 #define SYSTEM_NUMBER_GLYPH_PLUS 11
+
+// System data banks (g_SystemDataEntries->entries) the named getters index
+#define SYSTEM_STRING_BANK_ACCESSORY 0x11
+#define SYSTEM_STRING_BANK_ITEM 0x16
+#define SYSTEM_STRING_BANK_WEAPON 0x17
+#define SYSTEM_STRING_BANK_GLYPH 0x1B
+#define SYSTEM_STRING_BANK_GEAR_ACCESSORY 0x32
+#define SYSTEM_STRING_BANK_GEAR_WEAPON 51
+
+// Palette in g_SystemPaletteData: this many colors in one row, in two CLUTs
+#define SYSTEM_PALETTE_COLOR_COUNT 32
+#define SYSTEM_PALETTE_CLUT_COLOR_COUNT 16
 
 extern void* g_SystemDataFile;
 extern void* g_SystemFontFile;
@@ -234,10 +247,10 @@ void SystemInitialize(void* pSystemFont, void* pSystemData) {
 
 void SystemTransferPaletteToVRAM(short xDest, short yDest) {
     RECT dest;
-    setRECT(&dest, xDest, yDest, 32, 1);
+    setRECT(&dest, xDest, yDest, SYSTEM_PALETTE_COLOR_COUNT, 1);
     LoadImage(&dest, &g_SystemPaletteData);
     g_SystemPalette1 = GetClut(xDest, yDest);
-    g_SystemPalette2 = GetClut(xDest + 16, yDest);
+    g_SystemPalette2 = GetClut(xDest + SYSTEM_PALETTE_CLUT_COLOR_COUNT, yDest);
 }
 
 void* GetStringEntry(void* stringData, u32 entry) {
@@ -269,15 +282,15 @@ void* GetStringEntryFromBank10(int entryId) {
 }
 
 void* GetAccessoryName(int entryId) {
-    return GetStringEntry(g_SystemDataEntries->entries[0x11], entryId);
+    return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_ACCESSORY], entryId);
 }
 
 void* GetItemName(int entryId) {
-    return GetStringEntry(g_SystemDataEntries->entries[0x16], entryId);
+    return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_ITEM], entryId);
 }
 
 void* GetWeaponName(int entryId) {
-    return GetStringEntry(g_SystemDataEntries->entries[0x17], entryId);
+    return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_WEAPON], entryId);
 }
 
 void* GetStringEntryFromBank18(int entryId) {
@@ -305,7 +318,7 @@ void* GetStringEntryFromBank15(int entryId) {
 }
 
 void* GetStringEntryFromBank1B(int entryId) {
-    return GetStringEntry(g_SystemDataEntries->entries[0x1B], entryId);
+    return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH], entryId);
 }
 
 void* GetStringEntryFromBank1C(int groupIndex, int entryId) {
@@ -317,12 +330,12 @@ void* GetStringEntryFromBank30(int entryId) {
 }
 
 void* GetGearAccessoryName(int entryId) {
-    return GetStringEntry(g_SystemDataEntries->entries[0x32], entryId);
+    return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GEAR_ACCESSORY], entryId);
 }
 
 // TODO: determine what strings are in bank 51 and give this function a better name
 void *GetGearWeaponName(s32 entryId) {
-    return GetStringEntry(g_SystemDataEntries->entries[51], entryId);
+    return GetStringEntry(g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GEAR_WEAPON], entryId);
 }
 
 void* GetStringEntryFromBank34(int entryId) {
@@ -330,7 +343,7 @@ void* GetStringEntryFromBank34(int entryId) {
 }
 
 void SystemDecodeGlyphCodes(u16* pInput) {
-    u8* pEntry = g_SystemDataEntries->entries[0x1B];
+    u8* pEntry = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
     u8* pOutput = g_SystemGlyphDecodeBuffer;
     u8* pPos;
 
@@ -351,7 +364,7 @@ void SystemDecodeGlyphCodes(u16* pInput) {
 
 void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count) {
     int i;
-    u8 *pEntry = g_SystemDataEntries->entries[0x1B];
+    u8 *pEntry = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
     u8 *pPos;
 
     for(i = count-1; i != -1; i--) {
@@ -373,7 +386,7 @@ void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count) {
 
 int SystemFindGlyphCode(u8 firstByte, u8 secondByte) {
     s16 i;
-    u8* pGlyph = g_SystemDataEntries->entries[0x1B];
+    u8* pGlyph = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
 
     for (i = 0; i < SYSTEM_GLYPH_CODE_COUNT; i++) {
         if (pGlyph[i * 2] == firstByte && pGlyph[i * 2 + 1] == secondByte) {
@@ -440,7 +453,7 @@ void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
         }
     }
 
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < SYSTEM_NUMBER_GLYPH_DIGIT_COUNT; i++) {
         pDigit[i] = v / divisor + glyphOffset;
         v %= divisor;
         divisor /= 10;
