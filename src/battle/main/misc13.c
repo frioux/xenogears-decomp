@@ -9,6 +9,15 @@
 // BattleInitSlotRowsForActor store it, BattleCheckActorCommandAvailable refuses to
 // index through it (queued commands are 0xF4-0xFD, see battle/main/misc4.c).
 #define BATTLE_COMMAND_NONE 0xFF
+// The command slot rows BattleCheckCommandKeyStatusBit walks (g_BattleCommandSlotRows):
+// one per key a queued command can match, the found-row ladder below counting down
+// from the last of them.
+#define BATTLE_COMMAND_SLOT_COUNT 13
+// The rows of the 0x48-byte command record table BattleInitSlotRowsForActor clears.
+#define BATTLE_COMMAND_RECORD_COUNT 32
+// The most steps a linear move takes in one frame: BattleSetupLinearMove rolls
+// g_BattleLerpStepsPerFrame from 1 to it.
+#define BATTLE_LERP_STEPS_PER_FRAME_MAX 8
 
 extern u8 *g_BattleCommandQueue;
 extern u8 *g_BattleCommandSlotRows[];
@@ -271,7 +280,7 @@ s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
     }
     i = 0;
     pSlots = pQueue;
-    for (; i < 13; i++) {
+    for (; i < BATTLE_COMMAND_SLOT_COUNT; i++) {
         pRow = g_BattleCommandSlotRows[i];
         for (j = 0; j < BATTLE_COMMAND_KEY_LENGTH; j++) {
             pKey = pSlots + j;
@@ -431,7 +440,7 @@ void BattleInitSlotRowsForActor(s32 arg0, s32 arg1) {
     s32 i;
     s32 o;
 
-    for (i = 0; i < 0x20; i++) {
+    for (i = 0; i < BATTLE_COMMAND_RECORD_COUNT; i++) {
         o = i * 0x48;
         D_800C402F[o] = BATTLE_COMMAND_NONE;
         D_800C400B[o] = arg0;
@@ -603,7 +612,7 @@ void func_80088490(u8 arg0) {
 }
 */
 u8 BattleIsCharSlot18InUse(u8 arg0) {
-    return g_BattleCharSlotUsage[(g_BattleSlotRecords[arg0 * 28] + 0x18) << 2];
+    return g_BattleCharSlotUsage[(g_BattleSlotRecords[arg0 * 0x1C] + 0x18) << 2];
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_8008860C);
 /* 97.74%: instruction count and size are exact (624 bytes); the remaining
@@ -677,6 +686,6 @@ void BattleSetupLinearMove(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     }
     g_BattleLerpFracX = 0;
     g_BattleLerpFracY = 0;
-    g_BattleLerpStepsPerFrame = GameRandomByteRange(1, 8);
+    g_BattleLerpStepsPerFrame = GameRandomByteRange(1, BATTLE_LERP_STEPS_PER_FRAME_MAX);
     g_BattleLerpDone = 0;
 }
