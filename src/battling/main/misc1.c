@@ -529,7 +529,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071AD0);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071DA4);
 
-extern s32 D_8009284C;
+extern s32 g_BattleActorDistance2D;
 extern s32 g_BattlingAudioManager;
 extern void SoundStopAudioManager(s32 arg);
 extern void SoundStopAllElements(void);
@@ -565,7 +565,7 @@ void func_80071F8C(s32 mode) {
         func_80071DA4((u8*)&g_BattleActor0);
         break;
     case 3:
-        g_BattleCameraPosY = -D_8009284C;
+        g_BattleCameraPosY = -g_BattleActorDistance2D;
         if (g_BattleCameraPosY < -0x600) {
             g_BattleCameraPosY = -0x600;
         }

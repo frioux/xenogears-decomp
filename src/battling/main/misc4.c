@@ -26,14 +26,14 @@ extern s32 D_8009266C;
 extern s32 D_80092670;
 extern s32 D_80092674;
 extern s32 g_BattleTransitionCountdown;
-extern s32 D_8009284C;
+extern s32 g_BattleActorDistance2D;
 extern s32 g_BattleResultSide;
 extern s32 g_BattleCameraTarget;
 extern u8* g_BattleEffect;
 extern UnkA884* D_8009790C;
 extern UnkA884* D_80099028;
-extern u8 D_80091150;
-extern u8 D_80091151;
+extern u8 g_BattleScratchVariantTag;
+extern u8 g_BattleScratchVariantValue;
 extern s32 g_BattleSceneOriginYMirror;
 extern s32 g_BattleSceneOriginY;
 extern s32 D_8009879C;
@@ -64,7 +64,7 @@ extern u8 g_BattleCameraSpinDirection;
 extern u8 g_BattleStageLightIndex;
 extern u8 g_BattleInputEnabled;
 extern u8 D_800928F0;
-extern u8 D_80091144;
+extern u8 g_BattleReinitFlag;
 extern u8 D_80091145;
 extern u8 g_BattleFrameSkipCountdown;
 extern u8 g_BattleTransitionFlag;
@@ -422,7 +422,7 @@ s32 func_80078920(Actor* p, Actor* q) {
     s32 lenQ;
     s32 lenSum;
 
-    if (D_8009284C >= 0x301) {
+    if (g_BattleActorDistance2D >= 0x301) {
         return;
     }
     if ((p->edgeMidPos.y < q->baseVertexPos.y && q->edgeMidPos.y < p->edgeMidPos.y) ||
@@ -788,7 +788,7 @@ char BattleResetForNextRound(void) {    g_BattleActor1.sideBaseAngle = 0x400;
     BattleClearInitFlag();
     g_BattleInputEnabled = 0;
     D_800928F0 = 0;
-    D_80091144 = 0;
+    g_BattleReinitFlag = 0;
     D_80091145 = 0;
     g_BattleFrameSkipCountdown = 0;
     g_BattleRoundNumber++;
@@ -917,13 +917,13 @@ void BattleResetScratchState(void) {
     BattleInitSoundSlots();
     p = (g_BattleResultSide != 0) ? D_8009790C : D_80099028;
     if (p->flags != 0) {
-        D_80091150 = 1;
+        g_BattleScratchVariantTag = 1;
         v = 0x10;
     } else {
-        D_80091150 = 2;
+        g_BattleScratchVariantTag = 2;
         v = -1;
     }
-    D_80091151 = v;
+    g_BattleScratchVariantValue = v;
     g_BattleSceneOriginYMirror = 0x100;
     g_BattleSceneOriginY = 0x100;
     D_8009879C = 0x100;

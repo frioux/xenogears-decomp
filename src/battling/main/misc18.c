@@ -54,7 +54,7 @@ typedef struct {
     /* 0x20 */ s32 phase;
     /* 0x24 */ s32 breakThreshold;
     // The 2D distance the state-2 handler waits for before it takes the action
-    // (rand() % 1536 + 0x100 at state entry, compared with D_8009284C).
+    // (rand() % 1536 + 0x100 at state entry, compared with g_BattleActorDistance2D).
     /* 0x28 */ s32 actionDistance;
     /* 0x2C */ BattleWorkFlags flags;
     // The owner's moveCount as of the last func_8008F7B8, which the state-0
@@ -125,7 +125,7 @@ extern u8 g_BattleOptionOn;
 extern u32 BattleGetGridCellAtPosition(Vec4* p);
 extern void func_8008F7B8(BattleWork* pWork);
 extern s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1);
-extern s32 D_8009284C;
+extern s32 g_BattleActorDistance2D;
 extern s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork);
 extern s32 BattleQueueActionMessages(BattleActor* pActor, BattleWork* pWork);
 extern void BattleResetMessageQueue(BattleActor* p);
@@ -208,7 +208,7 @@ s32 BattleRollActorFlag8000(BattleActor* pActor, s32 arg1) {
     pWork = pActor->pWork;
     if (arg1 != 0) {
         if ((rand() & 0xFF) < pWork->actionChance0) {
-            if (D_8009284C < 0x600) {
+            if (g_BattleActorDistance2D < 0x600) {
                 return 0;
             }
         }
@@ -432,7 +432,7 @@ s32 BattleDecideActorAction(BattleActor* pActor, BattleWork* pWork) {
             BattleQueueMessages4Then3(pActor);
             return 0;
         }
-        if (D_8009284C < 0x1001) {
+        if (g_BattleActorDistance2D < 0x1001) {
             BattleQueueActionMessages(pActor, pWork);
             return 0;
         }
@@ -459,7 +459,7 @@ void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
     if (--pWork->delay > 0) {
         return;
     }
-    if (D_8009284C >= 0x301) {
+    if (g_BattleActorDistance2D >= 0x301) {
         switch (rand() % 10) {
         case 0:
             if ((rand() & 0xFF) < pWork->actionChance1) {

@@ -77,8 +77,8 @@ extern u16 g_WorldMapFadeFrameCounts[];
 extern s32 g_WorldMapRotationMatrixValid;
 extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapCameraTarget;
-extern s32 D_8009BE2C;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
@@ -356,9 +356,9 @@ s32 func_800813E8(s32 index) {
     g_WorldMapFadeLevel = 0x78;
     g_WorldMapCameraTarget = x;
     g_WorldMapScrollTargetX = x;
-    D_8009BE2C = y;
+    g_WorldMapCameraTargetY = y;
     g_WorldMapScrollTargetY = y;
-    D_8009BE30 = z;
+    g_WorldMapCameraTargetZ = z;
     g_WorldMapScrollTargetZ = z;
     return 1;
 }
@@ -733,10 +733,10 @@ s32 func_800827EC(s32 index) {
     g_WorldMapCameraTarget = g_WorldMapPlayerPosition.x;
     g_WorldMapScrollTargetX = g_WorldMapPlayerPosition.x;
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    D_8009BE2C = g_WorldMapPlayerPositionY;
+    g_WorldMapCameraTargetY = g_WorldMapPlayerPositionY;
     g_WorldMapScrollTargetY = g_WorldMapPlayerPositionY;
     pSlot->pos.y = g_WorldMapPlayerPositionY;
-    D_8009BE30 = g_WorldMapPlayerPositionZ;
+    g_WorldMapCameraTargetZ = g_WorldMapPlayerPositionZ;
     g_WorldMapScrollTargetZ = g_WorldMapPlayerPositionZ;
     pSlot->pos.z = g_WorldMapPlayerPositionZ;
     pSlot->unk20 = 0;

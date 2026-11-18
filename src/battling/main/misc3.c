@@ -15,7 +15,7 @@ extern void func_800379C8(char*, ...);
 extern char D_8006FCC0[];
 extern char D_8006FCC4[];
 extern char D_8006FCC8[];
-extern s32 D_8009284C;
+extern s32 g_BattleActorDistance2D;
 extern u8 D_80091178[];
 extern u8 D_80091179[];
 extern s32 g_BattleHitPointX;
@@ -596,7 +596,7 @@ void BattleDrawFrameHud(BattleActor* p) {
 short BattleTryQueueMessage5(BattleActor* p) {
     u32 flags;
 
-    if (D_8009284C >= 0x201) {
+    if (g_BattleActorDistance2D >= 0x201) {
         return;
     }
     if (p->actionPhase == 4) {
@@ -1251,7 +1251,7 @@ void func_80078194(BattleActor* p) {
             g_BattleCameraLerpFrames = 4;
         }
     } else if (p->state == 1) {
-        if (D_8009284C >= 0x101) {
+        if (g_BattleActorDistance2D >= 0x101) {
             if (p->angleOffset != 0) {
                 p->facingAngle = target;
             } else {

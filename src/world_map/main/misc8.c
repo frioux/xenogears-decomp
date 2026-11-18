@@ -186,8 +186,8 @@ extern void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, u8 *pDst, s32 count,
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapCameraTarget;
-extern s32 D_8009BE2C;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
@@ -274,7 +274,7 @@ extern void WorldMapWrapDeltaScaled(WorldMapPos *pDelta);
 extern void ModelRenderPacket(ModelPart *pPart, void *pPacket, u_long *pOt, s32 mode);
 extern s16 D_8009AD2C[];
 extern s32 g_WorldMapCameraTarget;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 D_80050104;
 extern s32 D_800595C0;
 extern s32 g_BattleEmittedPacketCount;
@@ -614,11 +614,11 @@ s32 func_8008390C(s32 arg0) {
     g_WorldMapScrollTargetX = v;
     pActor->x = v;
     v = g_WorldMapPlayerPositionY;
-    D_8009BE2C = v;
+    g_WorldMapCameraTargetY = v;
     g_WorldMapScrollTargetY = v;
     pActor->y = v;
     v = g_WorldMapPlayerPositionZ;
-    D_8009BE30 = v;
+    g_WorldMapCameraTargetZ = v;
     g_WorldMapScrollTargetZ = v;
     pActor->z = v;
     pActor->state = 0;
@@ -810,7 +810,7 @@ void func_800848F4(void) {
     pRot->vy = 0;
     pRot->vx = 0;
     camX = g_WorldMapCameraTarget >> 12;
-    camZ = D_8009BE30 >> 12;
+    camZ = g_WorldMapCameraTargetZ >> 12;
     for (i = 0; i < D_8009D7E0; i++) {
         if (g_WorldMapGroups[i].unk0 != 0) {
             continue;
@@ -883,7 +883,7 @@ void func_800848F4(void) {
 //         mtc2 $0 + lwc2 $1 8(...) and MVMVA 1,0,0,0,0 with swc2 $25/$26/$27 into
 //         0x1F800104..10C; }  -- the tail call is WorldMapWrapDeltaScaled.
 //   then: 0x1F800000 = 0x1F800104 - (g_WorldMapCameraTarget >> 12),
-//         0x1F800008 = -0x1F80010C - (D_8009BE30 >> 12);
+//         0x1F800008 = -0x1F80010C - (g_WorldMapCameraTargetZ >> 12);
 //         ScaleMatrix(0x1F8000F0, 0x1F800010); CompMatrix(&g_WorldMapViewMatrix,
 //         0x1F8000F0, 0x1F800110); SetRotMatrix/SetTransMatrix(0x1F800110);
 //         RTPS on 0x1F8000A0, flag to 0x1F800020 (bltz skips), SZ3 to 0x1F800028

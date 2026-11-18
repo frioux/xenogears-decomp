@@ -866,7 +866,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
 /* 92.66% (1352 bytes, the original's size): the whole body is right - every
    call, every global store and the tail match instruction for instruction. What
    is left: (a) the two loads of p0/p1's x/z for ratan2 come out one instruction
-   later than retail's (retail hoists them above the D_8009284C store, gcc
+   later than retail's (retail hoists them above the g_BattleActorDistance2D store, gcc
    stores first), (b) the g_BattlePromptTimer cascade's three BattleGetScreenMode blocks
    are ordered/scheduled differently, and (c) the `mode = 4 / if (== 2) mode = 2`
    pair: retail has the 4 in the bne's delay slot. Written from the assembly in
@@ -875,7 +875,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
    believed correct. */
 /* extern s32 g_BattleTransitionFrames;
 extern u8 g_BattleFacingUpdateEnabled;
-extern u8 D_80091144;
+extern u8 g_BattleReinitFlag;
 extern u8 D_80091145;
 extern s32 g_BattleRoundOver;
 extern s32 g_BattleRoundOverFrames;
@@ -890,7 +890,7 @@ extern s32 g_BattlePromptTimer;
 extern u8 g_BattleOptionOn;
 extern s32 g_BattleRoundNumber;
 extern s32 D_80092850;
-extern s32 D_8009284C;
+extern s32 g_BattleActorDistance2D;
 extern s32 g_BattleFacingAngle;
 extern u8 D_8006FC30[];
 extern u8 D_8006FC34[];
@@ -927,7 +927,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
     if (!BattleCheckValueAboveScaledMax(p0, 0x60) || !BattleCheckValueAboveScaledMax(p1, 0x60)) {
         if (g_BattleFacingUpdateEnabled != 0 && !BattleCheckPositionPastMapCenter(p0) &&
             !BattleCheckPositionPastMapCenter(p1)) {
-            D_80091144 = 1;
+            g_BattleReinitFlag = 1;
             D_80091145 = 0xA;
             BattleInitOnce();
         }
@@ -1026,7 +1026,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
         g_BattlePromptTimer--;
     }
     D_80092850 = BattleVectorDistance(p0, p1);
-    D_8009284C = BattleVectorDistance2D(p0, p1);
+    g_BattleActorDistance2D = BattleVectorDistance2D(p0, p1);
     g_BattleFacingAngle = ratan2(*(s32 *)(p0 + 0x0) - *(s32 *)(p1 + 0x0), *(s32 *)(p0 + 0x8) - *(s32 *)(p1 + 0x8));
 } */
 

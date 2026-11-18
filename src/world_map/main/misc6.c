@@ -111,8 +111,8 @@ extern WorldMapPath g_WorldMapActorScripts[];
 extern u8 D_8009A660[];
 extern u32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapCameraTarget[];
-extern s32 D_8009BE2C;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollX[];
 extern s32 D_8009BBBC;
 extern u32 g_WorldMapRotationMatrixValid;
@@ -373,7 +373,7 @@ int WorldMapUpdateGroup16Actor(int index) {
         *(volatile s16 *)&pActor->command = 0;
         *(volatile s16 *)&pGroup->hidden = 0;
         pActor->x = g_WorldMapCameraTarget[0];
-        pActor->z = D_8009BE30 + 0x400000;
+        pActor->z = g_WorldMapCameraTargetZ + 0x400000;
         break;
     case 2:
         pActor->command = 0;
@@ -559,9 +559,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
         g_WorldMapFadeLevel = 0x78;
         g_WorldMapCameraTarget[0] = unkAc;
         g_WorldMapScrollTargetX = unkAc;
-        D_8009BE2C = unkB0;
+        g_WorldMapCameraTargetY = unkB0;
         g_WorldMapScrollTargetY = unkB0;
-        D_8009BE30 = unkB4;
+        g_WorldMapCameraTargetZ = unkB4;
         g_WorldMapScrollTargetZ = unkB4;
         pActor->state = 0;
         pActor->unk50 = 0;
@@ -600,7 +600,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
    BD3A/BD3C tail. Moving `pActor->command = 0;` earlier/later in the case body
    is the lever to try - the `do { } while (0);` grouping that closed the
    scheduled-stores family in this file is the obvious next try. (2) In case 1's
-   clamp branch retail stores D_8009BE30 before `sh v0,0x20(s0)`, ours the other
+   clamp branch retail stores g_WorldMapCameraTargetZ before `sh v0,0x20(s0)`, ours the other
    way round. (3) case 3's second test is `bnez` to the else with
    `lui a1,0xFFFB3C00` in the delay slot, ours is `beqz` with the lui before the
    branch. (4) case 4 and case 25 order the unk5C[0]/unk60 load against the lhu
@@ -691,10 +691,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         break;
     case 1:
         g_WorldMapCameraTarget[0] += 0xFFFBD300;
-        D_8009BE30 += 0x6D300;
-        if (g_WorldMapCameraTarget[0] <= 0x1F9DFFF && D_8009BE30 > 0x5998000) {
+        g_WorldMapCameraTargetZ += 0x6D300;
+        if (g_WorldMapCameraTarget[0] <= 0x1F9DFFF && g_WorldMapCameraTargetZ > 0x5998000) {
             g_WorldMapCameraTarget[0] = 0x1F9E000;
-            D_8009BE30 = 0x5998000;
+            g_WorldMapCameraTargetZ = 0x5998000;
             pActor->state = 2;
             pActor->unk7C = 0x10000;
         } else {
@@ -718,11 +718,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         break;
     case 3:
         g_WorldMapCameraTarget[0] += 0xFFFB3C00;
-        D_8009BE2C += 0xFF80;
-        D_8009BE30 += 0xFFF9AA80;
-        if (g_WorldMapCameraTarget[0] <= 0x1497FFF && D_8009BE30 > 0x4AF1FFF) {
+        g_WorldMapCameraTargetY += 0xFF80;
+        g_WorldMapCameraTargetZ += 0xFFF9AA80;
+        if (g_WorldMapCameraTarget[0] <= 0x1497FFF && g_WorldMapCameraTargetZ > 0x4AF1FFF) {
             g_WorldMapCameraTarget[0] = 0x1498000;
-            D_8009BE30 = 0x4AF2000;
+            g_WorldMapCameraTargetZ = 0x4AF2000;
             pActor->state = 4;
             pActor->unk5C[0] = 0x20000;
         } else {
@@ -751,10 +751,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         break;
     case 16:
         g_WorldMapCameraTarget[0] += 0xFFFBD300;
-        D_8009BE30 += 0x6D300;
-        if (g_WorldMapCameraTarget[0] <= 0x2151FFF && D_8009BE30 > 0x5AA3000) {
+        g_WorldMapCameraTargetZ += 0x6D300;
+        if (g_WorldMapCameraTarget[0] <= 0x2151FFF && g_WorldMapCameraTargetZ > 0x5AA3000) {
             g_WorldMapCameraTarget[0] = 0x2152000;
-            D_8009BE30 = 0x5AA3000;
+            g_WorldMapCameraTargetZ = 0x5AA3000;
             pActor->state = 0x11;
             pActor->unk7C = 0x8000;
         } else {
@@ -778,10 +778,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         break;
     case 24:
         g_WorldMapCameraTarget[0] += 0xFFFBD300;
-        D_8009BE30 += 0x6D300;
-        if (g_WorldMapCameraTarget[0] <= 0x2151FFF && D_8009BE30 > 0x5AA3000) {
+        g_WorldMapCameraTargetZ += 0x6D300;
+        if (g_WorldMapCameraTarget[0] <= 0x2151FFF && g_WorldMapCameraTargetZ > 0x5AA3000) {
             g_WorldMapCameraTarget[0] = 0x2152000;
-            D_8009BE30 = 0x5AA3000;
+            g_WorldMapCameraTargetZ = 0x5AA3000;
             pActor->state = 0x19;
             pActor->unk5C[1] = 0x10000;
         } else {
@@ -1247,9 +1247,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
         g_WorldMapFadeLevel = 0x78;
         g_WorldMapCameraTarget[0] = unkAc;
         g_WorldMapScrollTargetX = unkAc;
-        D_8009BE2C = unkB0;
+        g_WorldMapCameraTargetY = unkB0;
         g_WorldMapScrollTargetY = unkB0;
-        D_8009BE30 = unkB4;
+        g_WorldMapCameraTargetZ = unkB4;
         g_WorldMapScrollTargetZ = unkB4;
         pActor->command = 1;
         pActor->state = 0;

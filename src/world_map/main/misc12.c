@@ -8,7 +8,7 @@ extern void WorldMapSetSpriteSetParent(int, int);
 extern s16 g_WorldMapPathFrame;
 extern s16 D_8009BD44;
 extern s32 g_WorldMapCameraTarget;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 g_WorldMapPathPointHeights[];
@@ -50,7 +50,7 @@ extern s16 g_WorldMapCameraPathAnglesModes1To5[];
 extern s16 g_WorldMapCameraPathAnglesMode7[];
 extern s16 g_WorldMapCameraPathHeightsModes1To5[];
 extern s16 g_WorldMapCameraPathHeightsMode7[];
-extern s32 D_8009BE2C;
+extern s32 g_WorldMapCameraTargetY;
 extern SVECTOR D_8009BD48;
 extern s32 g_WorldMapRotationMatrixValid;
 extern s32 func_80091FF8(s32 nLimit, s16 *pIn, s16 *pOfs);
@@ -800,7 +800,7 @@ s32 func_80091C18(s32 idx) {
     case 2:
         D_8009BD48.vx = 0;
         D_8009BD48.vz = 0;
-        D_8009BD48.vy = D_8009BE2C >> 12;
+        D_8009BD48.vy = g_WorldMapCameraTargetY >> 12;
         break;
     case 3:
         pRot = &g_WorldMapCameraRot;
@@ -856,7 +856,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
         *(u16 *)(pScratch + 0xA8) = *pIn;
         func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)&D_1F8000A8);
         nX = (g_WorldMapCameraTarget + ((g_WorldMapPathFrame - 0x180) << 12)) & 0xFFF80000;
-        nY = (D_8009BE30 - ((D_8009BD44 + 0x180) << 12)) & 0xFFF80000;
+        nY = (g_WorldMapCameraTargetZ - ((D_8009BD44 + 0x180) << 12)) & 0xFFF80000;
         *(s32 *)(pScratch + 8) = nY;
         for (j = 0; j < 6; j++) {
             *(s32 *)pScratch = nX;

@@ -94,8 +94,8 @@ extern void func_80097244(s32 *pPos);
 extern int rand(void);
 extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapCameraTarget;
-extern s32 D_8009BE2C;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapPlayerPosition;
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
@@ -290,9 +290,9 @@ int WorldMapInitActorScrollScale(int idx) {
     pPlayer = g_WorldMapSlots + idx;
     g_WorldMapCameraTarget = a;
     g_WorldMapScrollTargetX = a;
-    D_8009BE2C = b;
+    g_WorldMapCameraTargetY = b;
     g_WorldMapScrollTargetY = b;
-    D_8009BE30 = c;
+    g_WorldMapCameraTargetZ = c;
     g_WorldMapScrollTargetZ = c;
     // volatile store pins the sw after the six copies, as retail has it
     *(volatile s32 *)&pPlayer->unk50 = 0x1000;
@@ -311,7 +311,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007ADD4);
    99.85 (MATCH, identical bytes: only reloc addends move), so only do it with
    this body in place.
    SOLVED (was 81.35%): the three read-modify-write globals retail addresses
-   through a HELD register - case 4 D_8009BE30 in $a2, case 5 g_WorldMapViewRotationY in $a3,
+   through a HELD register - case 4 g_WorldMapCameraTargetZ in $a2, case 5 g_WorldMapViewRotationY in $a3,
    tail g_WorldMapPathFrame in $t1 - are UNBOUNDED ARRAY declarations. That is what makes
    gcc keep the base in a general register instead of the `sw $r,sym` macro form
    that maspsx expands through $at. And only the FIRST RMW of a basic block does
@@ -942,7 +942,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
     case 0x10:
         pScratchPos[0x51] = 0;
         pScratchPos[0x50] = g_WorldMapCameraTarget >> 12;
-        pScratchPos[0x52] = D_8009BE30 >> 12;
+        pScratchPos[0x52] = g_WorldMapCameraTargetZ >> 12;
         func_80089160(0x14, (void *)&pScratchPos[0x50], 0);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x10);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x11);
@@ -1025,9 +1025,9 @@ int func_8007C724(int idx) {
     g_WorldMapViewRotationZ = 0;
     g_WorldMapCameraTarget = a;
     g_WorldMapScrollTargetX = a;
-    D_8009BE2C = b;
+    g_WorldMapCameraTargetY = b;
     g_WorldMapScrollTargetY = b;
-    D_8009BE30 = c;
+    g_WorldMapCameraTargetZ = c;
     g_WorldMapScrollTargetZ = c;
     pPlayer->unk58 = 0x40;
     pPlayer->unk50 = 0;

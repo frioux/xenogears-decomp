@@ -100,8 +100,8 @@ extern s32 g_WorldMapCameraRot;
 extern s32 g_WorldMapViewRotationZ;
 extern s32 g_WorldMapFadeLevel;
 extern s32 g_WorldMapCameraTarget;
-extern s32 D_8009BE2C;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapGridOrigin;
 extern s32 D_8009C83C;
 extern s16 g_WorldMapTrailCursor;
@@ -370,8 +370,8 @@ void WorldMapSaveState(void) {
     pSave->scroll.w1 = D_8009BBB8;
     pSave->scroll.w2 = D_8009BBBC;
     pSave->cameraTarget.w0 = g_WorldMapCameraTarget;
-    pSave->cameraTarget.w1 = D_8009BE2C;
-    pSave->cameraTarget.w2 = D_8009BE30;
+    pSave->cameraTarget.w1 = g_WorldMapCameraTargetY;
+    pSave->cameraTarget.w2 = g_WorldMapCameraTargetZ;
 }
 
 extern s32 g_WorldMapPlayerPosition;

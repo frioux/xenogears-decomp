@@ -6,7 +6,7 @@ extern volatile s32 g_SpuChannelMask;
 extern s32 g_BattleEffectGrid;
 extern s32 g_BattleEffectGridNext;
 extern s32 g_BattleEffectImage;
-extern s32 D_8009284C;
+extern s32 g_BattleActorDistance2D;
 extern u8 g_BattleAiAppliedBehaviorLevel;
 extern u8 g_BattleDrawBufferIndex;
 extern u8 D_80096DE0[];
@@ -109,7 +109,7 @@ typedef struct BattleActor {
     /* 0x1668 */ u16 moveCount;
 } BattleActor; // Size: 0x166A
 
-extern BattleSlot D_80096EA0[];
+extern BattleSlot g_BattleSoundSlots[];
 extern BattleSlot D_80096F0C[];
 
 extern u16 D_80096EA4;
@@ -118,11 +118,11 @@ extern u16 D_80096EEC;
 extern u16 D_80096F10;
 
 extern u8 D_80091EE0[];
-extern u8 D_80091F60[];
-extern u8 D_80091F70[];
-extern u8 D_80091F80[];
-extern u8 D_80091F90[];
-extern u8 D_80091FA0[];
+extern u8 g_BattleSoundTableType1D[];
+extern u8 g_BattleSoundTableType24[];
+extern u8 g_BattleSoundTableType1B[];
+extern u8 g_BattleSoundTableDefault[];
+extern u8 g_BattleSoundTableType9[];
 
 extern void BattleQueueMessage(BattleActor*, s32);
 extern void BattleTryQueueMessage5(BattleActor*, BattleWork*);
@@ -230,7 +230,7 @@ void func_8008E2B8(u8* p0, s32 color, s32 flag) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
-/* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (D_80096EA0[i].unkC) loses the strength reduction entirely (45%).
+/* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (g_BattleSoundSlots[i].unkC) loses the strength reduction entirely (45%).
 void BattleInitSoundSlots(void) {
     BattleSlot* pSlot;
     s32 timer;
@@ -238,7 +238,7 @@ void BattleInitSoundSlots(void) {
 
     timer = 0x300;
     SoundStopAllElements();
-    pSlot = D_80096EA0;
+    pSlot = g_BattleSoundSlots;
     for (i = 0; i < 4; i++) {
         pSlot->elementMask = timer;
         timer <<= 2;
@@ -255,7 +255,7 @@ void BattleInitSoundSlots(void) {
 
     timer = 0x300;
     SoundStopAllElements();
-    pSlot = D_80096EA0;
+    pSlot = g_BattleSoundSlots;
     for (i = 0; i < 4; i++) {
         pSlot[i].elementMask = timer;
         timer <<= 2;
@@ -265,8 +265,8 @@ void BattleInitSoundSlots(void) {
     }
 }
 void BattleIncrementSoundSlotTimers(void) {
-    if (D_80096EA0[0].timer != 0xFFFF) {
-        D_80096EA0[0].timer++;
+    if (g_BattleSoundSlots[0].timer != 0xFFFF) {
+        g_BattleSoundSlots[0].timer++;
     }
     if (D_80096EC8 != 0xFFFF) {
         D_80096EC8++;
@@ -283,19 +283,19 @@ u8* BattleSetActorSoundTable(BattleActor* pActor) {
 
     switch (pActor->typeId) {
     case 9:
-        pTable = D_80091FA0;
+        pTable = g_BattleSoundTableType9;
         break;
     case 0x1D:
-        pTable = D_80091F60;
+        pTable = g_BattleSoundTableType1D;
         break;
     case 0x1B:
-        pTable = D_80091F80;
+        pTable = g_BattleSoundTableType1B;
         break;
     case 0x24:
-        pTable = D_80091F70;
+        pTable = g_BattleSoundTableType24;
         break;
     default:
-        pTable = D_80091F90;
+        pTable = g_BattleSoundTableDefault;
         break;
     }
     pActor->pSoundTable = pTable;
@@ -343,7 +343,7 @@ void BattleReleaseFinishedSoundSlots(void) {
     BattleSlot* pSlot;
     s32 i;
 
-    pSlot = D_80096EA0;
+    pSlot = g_BattleSoundSlots;
     for (i = 0; i < 4; i++) {
         if ((SoundGetActiveElementMask(pSlot[i].spuAddr) & pSlot[i].elementMask) == 0) {
             pSlot[i].active = 0;
@@ -398,7 +398,7 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
     BattleSlot* pSlot;
     s32 i;
 
-    pSlot = D_80096EA0;
+    pSlot = g_BattleSoundSlots;
     for (i = 0; i < 4; i++) {
         if (pSlot[i].active != 0 && pSlot[i].flags == kind) {
             SoundStopElementsByIndex(pSlot[i].elementIndex);
@@ -504,7 +504,7 @@ void BattleQueueMessage4AndDelay60(BattleActor* pActor, BattleWork* pWork) {
 void BattleSetRandomFacingAround800(BattleActor* pActor, BattleWork* pWork) {
     u16 timer;
 
-    if (D_8009284C >= 0x801) {
+    if (g_BattleActorDistance2D >= 0x801) {
         pWork->delay = 1;
         pWork->maxDistance = 0;
         return;
@@ -521,7 +521,7 @@ void BattleSetRandomFacingAround800(BattleActor* pActor, BattleWork* pWork) {
 void BattleSetRandomFacingAround0(BattleActor* pActor, BattleWork* pWork) {
     u16 timer;
 
-    if (D_8009284C < 0x100) {
+    if (g_BattleActorDistance2D < 0x100) {
         pWork->delay = 1;
         pWork->maxDistance = 0;
         return;

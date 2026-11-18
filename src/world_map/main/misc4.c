@@ -217,8 +217,8 @@ extern s16 D_8009BD4C;
 extern s32 D_8009BD50;
 extern s32 D_8009BD54;
 extern s32 D_8009BD58;
-extern s32 D_8009BE2C;
-extern s32 D_8009BE30;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern s32 func_8007A1B4(s32);
@@ -337,7 +337,7 @@ s32 func_80077E68(s32 index) {
         ((SVECTOR *)&g_WorldMapPathFrame)->vx = pScratch[0] >> 16;
         D_8009BD44 = -(pScratch[2] >> 16);
         D_8009BD42 = pScratch[1] >> 16;
-        ((SVECTOR *)&D_8009BD48)->vy = D_8009BE2C >> 12;
+        ((SVECTOR *)&D_8009BD48)->vy = g_WorldMapCameraTargetY >> 12;
     }
     func_80097244(&g_WorldMapPathFrame);
     WorldMapExtractRotationFromMatrix(&g_WorldMapViewMatrix, &g_WorldMapCameraRot);
@@ -354,7 +354,7 @@ s32 func_80077E68(s32 index) {
         pVec = (SVECTOR *)((u8 *)pScratch + 0xA0);
         pVec->vy = -0x20D;
         pVec->vx = (g_WorldMapCameraTarget >> 12) + 0x32;
-        pVec->vz = (D_8009BE30 >> 12) - 0x70;
+        pVec->vz = (g_WorldMapCameraTargetZ >> 12) - 0x70;
         func_80089160(8, pVec, 0);
         break;
     case 1:
