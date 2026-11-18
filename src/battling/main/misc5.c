@@ -51,7 +51,7 @@ typedef struct {
     /* 0x0B */ u8 sizeIndex; // 0..2: which of three pre-rotated corner sizes the quad uses
     /* 0x0C */ s16 clut;
     /* 0x0E */ u16 tpage;
-    /* 0x10 */ u16 unk10;
+    /* 0x10 */ u16 yAccel; // added to the type-0 slot's vy every frame, then to its y
     /* 0x12 */ u16 unk12;
 } BattleAction; // Size: 0x14
 
@@ -73,8 +73,10 @@ typedef struct {
     /* 0x58 */ u16 z;
     // 0x5A..0x78 is reused per `type`, which is why most of it stays unk: type 0
     // keeps its BattleAction at 0x60, type 1 a partner pointer at 0x6C with the
-    // creation tick at 0x70, type 2 the second end of its beam at 0x64/0x66/0x68
-    // and the key at 0x70. Only fields that mean one thing to every writer are named.
+    // creation tick at 0x70 and the projected screen points at 0x60..0x6A (the
+    // four corners at 0x60..0x66, the far end at 0x68/0x6A), type 2 the second end
+    // of its beam at 0x64/0x66/0x68 and the key at 0x70. Only fields that mean one
+    // thing to every writer are named.
     /* 0x5A */ u16 unk5A;
     /* 0x5C */ u16 unk5C;
     /* 0x5E */ u16 unk5E;
@@ -96,7 +98,8 @@ typedef struct {
     /* 0x0 */ u8 unk0[3];
     /* 0x3 */ u8 len;
     /* 0x4 */ u32 colorCode; // r0,g0,b0,code: retail stores the literal as one word
-    /* 0x8 */ u8 unk8[4];
+    /* 0x8 */ s16 x; // projected screen position, written when the prim is queued
+    /* 0xA */ s16 y;
 } BattlePrimTemplate; // Size: 0xC
 
 // 0xA-byte entry table func_8007D6B8 allocates at g_BattleSpriteEntries: where
@@ -152,7 +155,8 @@ typedef struct {
     /* 0x0 */ u8 unk0[3];
     /* 0x3 */ u8 len;
     /* 0x4 */ u32 colorCode; // r0,g0,b0,code: retail stores the literal as one word
-    /* 0x8 */ u8 unk8[4];
+    /* 0x8 */ s16 x; // projected screen position, written when the prim is queued
+    /* 0xA */ s16 y;
     /* 0xC */ u16 w;
     /* 0xE */ u16 h;
 } BattlePrimTemplate16; // Size: 0x10
@@ -449,7 +453,7 @@ void BattleEffectAddSlot(SVector *pVec, s32 action) {
     pSlot->frame = 0;
     pSlot->unk60 = (u32)pAction;
     pSlot->frameCount = pAction->frameCount;
-    pSlot->unk64 = pAction->unk10;
+    pSlot->unk64 = pAction->yAccel;
     pSlot->vy = 0;
     pSlot->x = pVec->vx;
     pSlot->y = pVec->vy;
