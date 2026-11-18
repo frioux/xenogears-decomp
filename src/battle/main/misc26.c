@@ -28,13 +28,13 @@ typedef struct {
     /* 0x18 */ u32 flags; // 0x8000: part scales already applied
 } BattleModelFrame; // Size: 0x1C
 
-// A three-component scale as the timed scale task keeps it; unsigned because the
-// task only halves and subtracts, and the ease ends at zero.
+// A three-component scale as the timed scale task keeps it: signed, because the
+// scale it eases to can be negative and the step subtracts one from the other.
 typedef struct {
-    /* 0x0 */ u16 vx;
-    /* 0x2 */ u16 vy;
-    /* 0x4 */ u16 vz;
-    /* 0x6 */ u16 pad6;
+    /* 0x0 */ s16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ s16 vz;
+    /* 0x6 */ s16 pad6;
 } BattleScaleVector; // Size: 0x8
 
 // The scale-easing timer task: a timer work-list entry, then the scale it eases
@@ -97,6 +97,11 @@ extern u32 g_BattleImageTask;
 extern BattleScreenFadeTask D_800C3C00;
 extern BattleScreenFadeTask D_800C3C50;
 extern BattleScreenFadeTask *D_800C3554; // the owned one, once it is set up
+// the scale the frame being drawn is drawn at, mirrored to the other field of
+// the interlaced pair on every other frame
+extern s16 D_800C354C;
+extern s16 D_800C354E;
+extern s16 D_800C3550;
 extern u8 D_800D3638; // set while a fade is already being driven outside the battle
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
@@ -765,7 +770,54 @@ void BattleNoOp2(void) {
 void BattleNoOp3(void) {
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B3358);
+// One step of the scale ease: while the countdown runs, move the scale from
+// where it started toward the target by an equal slice a frame, taking the slice
+// out of the countdown left; once it is spent settle on the target. The scale is
+// then published, negated on every other frame for the interlaced draw, and the
+// task releases itself once it has settled at a zero scale with nothing left.
+void func_800B3358(BattleScaleTask *pTask) {
+    s32 step[3];
+
+    if (pTask->framesLeft == 0) {
+        pTask->current.vx = pTask->target.vx;
+        pTask->current.vy = pTask->target.vy;
+        pTask->current.vz = pTask->target.vz;
+    } else {
+        pTask->framesLeft--;
+        step[0] = pTask->target.vx - pTask->start.vx;
+        step[1] = pTask->target.vy - pTask->start.vy;
+        step[2] = pTask->target.vz - pTask->start.vz;
+        gte_lddp(pTask->framesLeft >> 1);
+        gte_ldlvl(step);
+        gte_gpf0();
+        gte_stlvl(step);
+        step[0] = step[0] / (pTask->halfLength >> 1);
+        step[1] = step[1] / (pTask->halfLength >> 1);
+        step[2] = step[2] / (pTask->halfLength >> 1);
+        pTask->current.vx = pTask->target.vx - step[0];
+        pTask->current.vy = pTask->target.vy - step[1];
+        pTask->current.vz = pTask->target.vz - step[2];
+    }
+    pTask->frame++;
+    if (pTask->frame & 2) {
+        D_800C354C = -pTask->current.vx;
+    } else {
+        D_800C354C = pTask->current.vx;
+    }
+    if (pTask->frame & 2) {
+        D_800C354E = -pTask->current.vy;
+    } else {
+        D_800C354E = pTask->current.vy;
+    }
+    if (pTask->frame & 2) {
+        D_800C3550 = -pTask->current.vz;
+    } else {
+        D_800C3550 = pTask->current.vz;
+    }
+    if (pTask->current.vx == 0 && pTask->current.vy == 0 && pTask->current.vz == 0 && pTask->framesLeft == 0) {
+        pTask->entry.onFreeCallback(pTask);
+    }
+}
 
 void BattleFreeScaleTask(void *pEntry) {
     TimerWorkListRemoveTask(pEntry);
