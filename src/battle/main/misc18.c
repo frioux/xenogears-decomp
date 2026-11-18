@@ -8,6 +8,11 @@
 // The timer index the flag-to-timer mapping leaves when a condition flag owns no timer.
 #define BATTLE_CONDITION_TIMER_INDEX_NONE 0xF
 
+// The percent chance BattleRollPercentAndSwapActiveActor takes to swap the acting and the target
+// slot; a target whose characterId is 0 is rolled against the higher one.
+#define BATTLE_SWAP_CHANCE_PERCENT 50
+#define BATTLE_SWAP_CHANCE_PERCENT_CHARACTER_0 60
+
 extern u16 g_BattleSavedSlotUnk7A[];
 extern u8 g_BattleSlotUnk98Deltas[];
 extern u8 g_BattleActorCharIds[];
@@ -428,9 +433,9 @@ void BattleRollPercentAndSwapActiveActor(void) {
     if (pActor->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         return;
     }
-    lim = 50;
+    lim = BATTLE_SWAP_CHANCE_PERCENT;
     if (pTarget->characterId == 0) {
-        lim = 60;
+        lim = BATTLE_SWAP_CHANCE_PERCENT_CHARACTER_0;
     }
     if (lim < rand() % BATTLE_PERCENT_ROLL_RANGE) {
         return;
@@ -916,7 +921,7 @@ void BattleInitActiveSlotActions(u8 sel) {
     BattleClearAllSlotStates();
 
     mask = 1;
-    for (i = 0; i < 11; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (g_BattleCurWorkBlock->activeSlotMask & mask) {
             func_80098D2C(i, sel);
         }
