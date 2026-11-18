@@ -643,7 +643,7 @@ int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
 
     func_80033DF0(&D_80059FD8);
 
-    return *(s16*)((u8*)D_8005A000 + 0x58) * 4;
+    return ((SystemStringChar*)D_8005A000)->x * 4;
 }
 */
 
