@@ -11,6 +11,40 @@
 #include "psyq/libcd.h"
 #include "psyq/inline_c.h"
 
+// FieldOrVramStripPixels converts one strip of 16-bit VRAM pixels, read two at a
+// time through a u_int word
+#define FIELD_SCREEN_STRIP_WIDTH 0x100
+#define FIELD_SCREEN_STRIP_HEIGHT 0x20
+#define FIELD_SCREEN_STRIP_WORD_COUNT (FIELD_SCREEN_STRIP_WIDTH * FIELD_SCREEN_STRIP_HEIGHT / 2)
+#define FIELD_SCREEN_STRIP_SIZE (FIELD_SCREEN_STRIP_WORD_COUNT * 4)
+
+// Number of switchable draw/display environments in g_FieldRenderContexts
+#define FIELD_RENDER_CONTEXT_COUNT 2
+
+// Texture UVs are byte-sized: FieldClampPolyFT4UVs pins each of them below
+// FIELD_TEXTURE_UV_COUNT
+#define FIELD_TEXTURE_UV_MAX 0xFF
+#define FIELD_TEXTURE_UV_COUNT 0x100
+
+// Angles are a 4096-step turn counter; every sum of angles is wrapped back into it
+#define FIELD_ANGLE_MASK 0xFFF
+
+// Byte 1 of a controller buffer holds the device type
+#define FIELD_PAD_TYPE_MOUSE 0x12
+
+// The scratchpad is 1 KB at the top of RAM. FieldAllocScratchpad addresses it in words
+#define FIELD_SCRATCHPAD_BASE 0x1F800000
+
+// g_FieldPlayerWalkmeshMaterialOverride value that leaves the computed material alone
+#define FIELD_WALKMESH_MATERIAL_OVERRIDE_NONE 0xFF
+
+// FieldInitShadowQuad spreads its four vertices this far from the actor's origin
+#define FIELD_SHADOW_QUAD_HALF_SIZE 24
+
+// FieldInitTableQuad reads textures from six parallel short tables: the four
+// GetTPage parameters then the two GetClut ones
+#define FIELD_TABLE_QUAD_TEX_PARAM_COUNT 6
+
 extern int FieldUpdateWdsAndAudioLoad(s32 arg0);
 extern s32 g_GameWdsBankLoadState;
 extern s32 g_GameRequestedWdsBankIndex;
@@ -90,16 +124,16 @@ void FieldOrVramStripPixels(void) {
     if (D_800B2344 != 0) {
         g_FieldRenderContexts[0].drawEnvs[0].dtd = 0;
         g_FieldRenderContexts[1].drawEnvs[0].dtd = 0;
-        pImage = HeapAlloc(0x4000, 0x0);
+        pImage = HeapAlloc(FIELD_SCREEN_STRIP_SIZE, 0x0);
         rect.y = 0x1E0;
-        rect.w = 0x100;
+        rect.w = FIELD_SCREEN_STRIP_WIDTH;
         rect.x = 0;
-        rect.h = 0x20;
+        rect.h = FIELD_SCREEN_STRIP_HEIGHT;
         StoreImage(&rect, pImage);
         DrawSync(0);
 
         // Process image before storing it back in VRAM
-        for (i = 0; i < 0x1000; i++) {
+        for (i = 0; i < FIELD_SCREEN_STRIP_WORD_COUNT; i++) {
             if (pImage[i] & 0xFFFF) {
                 pImage[i] |= 0xC63;
             }
@@ -538,7 +572,7 @@ void FieldAdvanceGameState(int state) {
 void FieldNoOp2(void) {}
 
 void FieldSwapRenderContext(void) {
-    g_FieldCurRenderContextIndex = (g_FieldCurRenderContextIndex + 1) % 2;
+    g_FieldCurRenderContextIndex = (g_FieldCurRenderContextIndex + 1) % FIELD_RENDER_CONTEXT_COUNT;
     g_FieldCurRenderContext = &g_FieldRenderContexts[g_FieldCurRenderContextIndex];
     PutDispEnv(&g_FieldCurRenderContext->dispEnv);
     PutDrawEnv(&g_FieldCurRenderContext->drawEnvs[0]);
@@ -572,7 +606,7 @@ void FieldUpdatePlayerWalkmeshMaterial(void) {
     } else {
         g_FieldPlayerWalkmeshMaterial = 1;
     }
-    if (g_FieldPlayerWalkmeshMaterialOverride != 0xFF) {
+    if (g_FieldPlayerWalkmeshMaterialOverride != FIELD_WALKMESH_MATERIAL_OVERRIDE_NONE) {
         g_FieldPlayerWalkmeshMaterial = g_FieldPlayerWalkmeshMaterialOverride;
     }
 }
@@ -610,14 +644,14 @@ void FieldClampPolyFT4UVs(POLY_FT4* poly, short u0, short v0, short u1, short v1
     if (v2 < 0) v2 = 0;
     if (v3 < 0) v3 = 0;
     
-    if (u0 >= 0x100) u0 = 0xFF;
-    if (u1 >= 0x100) u1 = 0xFF;
-    if (u2 >= 0x100) u2 = 0xFF;
-    if (u3 >= 0x100) u3 = 0xFF;
-    if (v0 >= 0x100) v0 = 0xFF;
-    if (v1 >= 0x100) v1 = 0xFF;
-    if (v2 >= 0x100) v2 = 0xFF;
-    if (v3 >= 0x100) v3 = 0xFF;
+    if (u0 >= FIELD_TEXTURE_UV_COUNT) u0 = FIELD_TEXTURE_UV_MAX;
+    if (u1 >= FIELD_TEXTURE_UV_COUNT) u1 = FIELD_TEXTURE_UV_MAX;
+    if (u2 >= FIELD_TEXTURE_UV_COUNT) u2 = FIELD_TEXTURE_UV_MAX;
+    if (u3 >= FIELD_TEXTURE_UV_COUNT) u3 = FIELD_TEXTURE_UV_MAX;
+    if (v0 >= FIELD_TEXTURE_UV_COUNT) v0 = FIELD_TEXTURE_UV_MAX;
+    if (v1 >= FIELD_TEXTURE_UV_COUNT) v1 = FIELD_TEXTURE_UV_MAX;
+    if (v2 >= FIELD_TEXTURE_UV_COUNT) v2 = FIELD_TEXTURE_UV_MAX;
+    if (v3 >= FIELD_TEXTURE_UV_COUNT) v3 = FIELD_TEXTURE_UV_MAX;
 
     poly->u0 = u0;
     poly->v0 = v0;
@@ -705,7 +739,7 @@ void FieldInitTableQuad(Quad* pPart, int x, int y, int tex) {
     pNextPoly = &pPart->polys[1]; 
     SetPolyFT4(&pPart->polys[0]);
     
-    nIndexTex = tex * 0x6,
+    nIndexTex = tex * FIELD_TABLE_QUAD_TEX_PARAM_COUNT,
 
     // Set Position 0, 1, 2, and 3
     pPart->vertices[0].vx = g_FieldTableQuadVertexXs[x].x;
@@ -754,21 +788,21 @@ void FieldInitShadowQuad(Quad* pQuad) {
     pPoly2 = &pQuad->polys[1];
     
     SetPolyFT4(pPoly);
-    pQuad->vertices[3].vx = -0x18;
-    pQuad->vertices[3].vz = -0x18;
+    pQuad->vertices[3].vx = -FIELD_SHADOW_QUAD_HALF_SIZE;
+    pQuad->vertices[3].vz = -FIELD_SHADOW_QUAD_HALF_SIZE;
     pQuad->vertices[3].vy = 0;
 
-    pQuad->vertices[2].vx = 0x18;
+    pQuad->vertices[2].vx = FIELD_SHADOW_QUAD_HALF_SIZE;
     pQuad->vertices[2].vy = 0;
-    pQuad->vertices[2].vz = -0x18;
+    pQuad->vertices[2].vz = -FIELD_SHADOW_QUAD_HALF_SIZE;
 
-    pQuad->vertices[1].vx = -0x18;
+    pQuad->vertices[1].vx = -FIELD_SHADOW_QUAD_HALF_SIZE;
     pQuad->vertices[1].vy = 0;
-    pQuad->vertices[1].vz = 0x18;
+    pQuad->vertices[1].vz = FIELD_SHADOW_QUAD_HALF_SIZE;
 
-    pQuad->vertices[0].vx = 0x18;
+    pQuad->vertices[0].vx = FIELD_SHADOW_QUAD_HALF_SIZE;
     pQuad->vertices[0].vy = 0;
-    pQuad->vertices[0].vz = 0x18;
+    pQuad->vertices[0].vz = FIELD_SHADOW_QUAD_HALF_SIZE;
 
     setRGB0(&pQuad->polys[0], 0x80, 0x80, 0x80);
     pQuad->polys[0].tpage = GetTPage(0, 2, 0x280, 0x1E0);
@@ -902,14 +936,14 @@ int FieldGetMouseState(int controllerIndex, int* pOut) {
     pOut[3] = ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
     pOut[4] = pPad[controllerIndex][5];
     if (!((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0]
-        && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
+        && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == FIELD_PAD_TYPE_MOUSE) {
         pOut[2] = ~pPad[controllerIndex][3] & 0xC;
     }
 }
 
 void FieldUpdateMousePosition(int controllerIndex) {
     if (((s8**)&g_pFieldControllerBuffer1)[controllerIndex][0] == 0
-        && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == 0x12) {
+        && ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][1] == FIELD_PAD_TYPE_MOUSE) {
         g_FieldMousePositionsX[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][4];
         g_FieldMousePositionsY[controllerIndex] += ((s8**)&g_pFieldControllerBuffer1)[controllerIndex][5];
         if (g_FieldMousePositionsX[controllerIndex] > g_FieldMouseLimitMaxX) {
@@ -1101,7 +1135,7 @@ int FieldGetTriangleWindingSign(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* 
 extern s16 g_FieldPolarVectorScale;
 
 void FieldGetVec2FromPolar(IVEC3* pVec, int scale, int angle) {
-    int nAngle = angle & 0xFFF;
+    int nAngle = angle & FIELD_ANGLE_MASK;
     int nScale = (scale << 4) * g_FieldPolarVectorScale >> 12;
     int nScaled;
 
@@ -1114,7 +1148,7 @@ void FieldGetVec2FromPolar(IVEC3* pVec, int scale, int angle) {
 }
 
 int FieldGetVec2Angle(IVEC3* pVec) {
-    return -ratan2(pVec->z, pVec->x) & 0xFFF;
+    return -ratan2(pVec->z, pVec->x) & FIELD_ANGLE_MASK;
 }
 
 long FieldGetVec2Magnitude(long, long);
@@ -1770,7 +1804,7 @@ int FieldAllocScratchpad(int size) {
     int offset = g_FieldScratchpadOffset;
 
     g_FieldScratchpadOffset = offset + size;
-    return 0x1F800000 + offset * 4;
+    return FIELD_SCRATCHPAD_BASE + offset * 4;
 }
 
 void FieldFreeScratchpad(int size) {
