@@ -79,32 +79,43 @@ extern u8 func_8008BED8(u8 arg0);
 extern void BattleActivateSelectedCommand(u8 arg0);
 
 typedef struct {
-    /* 0x00 */ u8 unk0[0x24];
-    /* 0x24 */ u16 unk24;
-    /* 0x26 */ u16 unk26;
-    /* 0x28 */ u16 unk28;
-    /* 0x2A */ u16 unk2A;
-    /* 0x2C */ u16 unk2C;
-    /* 0x2E */ u16 unk2E;
-    /* 0x30 */ u16 unk30;
-    /* 0x32 */ u16 unk32;
-    /* 0x34 */ u16 unk34;
-    /* 0x36 */ u16 unk36;
-    /* 0x38 */ u8 unk38[0x4];
-    /* 0x3C */ u8 unk3C;
+    /* 0x00 */ u8 unk0[0x10];
+    /* 0x10 */ u8 statDigits[3][4];
+    // One word per command: the character's command bit for it, so nonzero means
+    // the slot may use it. The menu handlers test one word per menu event.
+    /* 0x1C */ u16 commandFlags[16];
+    /* 0x3C */ u8 targetSlot; // the slot this one targets, 0xFF for none
     /* 0x3D */ u8 unk3D[0x3];
 } BattleActorSlot; // Size: 0x40
 
 // 0x2F8-byte block of actor slots plus the slot menu state that follows them.
 typedef struct {
     /* 0x000 */ BattleActorSlot slot[0xB];
-    /* 0x2C0 */ u8 unk2C0[0x1D];
-    /* 0x2DD */ u8 unk2DD;
-    /* 0x2DE */ u8 unk2DE;
-    /* 0x2DF */ u8 unk2DF[0xB];
+    /* 0x2C0 */ u8 unk2C0[0xC];
+    /* 0x2CC */ u8 commandKey[7];
+    /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
+    /* 0x2D4 */ u8 unk2D4[0x2];
+    /* 0x2D6 */ u8 commandKeyLength; // commandKey bytes filled, 0 for no command
+    /* 0x2D7 */ u8 unk2D7[0x3];
+    /* 0x2DA */ u8 count; // queued commands, the row the command tables are indexed by
+    /* 0x2DB */ u8 unk2DB;
+    /* 0x2DC */ u8 unk2DC;
+    /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
+    /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
+    /* 0x2DF */ u8 unk2DF;
+    /* 0x2E0 */ u8 colorShift; // subtracted from each colour byte of the slot's prims after << 4
+    /* 0x2E1 */ u8 commandQueued; // set when a handler queued its command, so its next call returns at once
+    /* 0x2E2 */ u8 lastMenuState; // the menuState the current frame was built for
+    /* 0x2E3 */ u8 unk2E3;
+    /* 0x2E4 */ u8 unk2E4;
+    /* 0x2E5 */ u8 unk2E5;
+    /* 0x2E6 */ u8 commandId; // the picked command, indexes the 0x10-byte command entry rows
+    /* 0x2E7 */ u8 unk2E7;
+    /* 0x2E8 */ u8 targetSlot; // the slot being selected, the menu's copy of slot[].targetSlot
+    /* 0x2E9 */ u8 commandAppended; // set once BattleAppendCommandRecord has run; both append paths return at once
     /* 0x2EA */ u8 unk2EA;
-    /* 0x2EB */ u8 unk2EB[0xB];
-    /* 0x2F6 */ u8 unk2F6;
+    /* 0x2EB */ u8 charRedrawFlags[0xB];
+    /* 0x2F6 */ u8 repeatPending; // the last event was this one, so take it as a repeat
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
 
@@ -521,7 +532,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081318);
    The rest of the body is instruction-identical; what is left is (a) gcc
    cross-jumps the three `sb v0,0x2DD(v1)` case tails into one shared block that
    retail keeps inline, which also flips case 0's and case 1's branch arms, and
-   (b) the two `unk2F6 = 1; BattlePlaySoundIfEnabled(0x4F);` sites lose retail's
+   (b) the two `repeatPending = 1; BattlePlaySoundIfEnabled(0x4F);` sites lose retail's
    early `li a0,0x4F` to the jal delay slot. Writing the plain stores through a
    local `BattleActorSlots *p` (as the func_800816F8 park does) is worse here:
    81.27% / 440 bytes. */
@@ -537,51 +548,51 @@ void func_80081318(u8 arg0) {
         if (func_8008BED8(a) != 0) {
             BattleActivateSelectedCommand(a);
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 2;
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
         }
         break;
     case 0:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2E == 0) {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 1;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[9] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && g_BattleLastMenuEvent == 0) {
-            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk26 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[5] != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 7;
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
             BattlePlaySoundIfEnabled(0x4F);
         }
         break;
     case 2:
-        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 3;
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 3;
         break;
     case 3:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk30 == 0) {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 4;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[10] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && g_BattleLastMenuEvent == 3) {
-            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk2A != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[7] != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0xA;
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             }
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
             BattlePlaySoundIfEnabled(0x4F);
         }
         break;
     case 1:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].unk32 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[a].commandFlags[11] != 0) {
             BattlePlaySoundIfEnabled(0x4F);
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 8;
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 8;
         }
         break;
     }
@@ -604,54 +615,54 @@ void func_80081504(u8 arg0) {
     case 7:
         BattleSetSlotFlag15A1(arg0);
         ((BattleActorSlots *)g_BattleCommandQueue)->unk2EA = 0;
-        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DE = 1;
+        ((BattleActorSlots *)g_BattleCommandQueue)->eventHandled = 1;
         break;
     case 0:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk2E == 0) {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 1;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[9] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && g_BattleLastMenuEvent == 0) {
-            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk26 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 0) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[5] != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 7;
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 7;
             }
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
             BattlePlaySoundIfEnabled(0x4F);
         }
         break;
     case 1:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk32 != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[11] != 0) {
             BattlePlaySoundIfEnabled(0x4F);
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 2;
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 2;
         }
         break;
     case 3:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk30 == 0) {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 4;
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[10] == 0) {
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 4;
             break;
         }
-        if (((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 != 0 && g_BattleLastMenuEvent == 3) {
-            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk2A != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->repeatPending != 0 && g_BattleLastMenuEvent == 3) {
+            if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[7] != 0) {
                 BattlePlaySoundIfEnabled(0x4F);
             } else {
-                ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 0xA;
+                ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 0xA;
             }
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 0;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 0;
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2F6 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->repeatPending = 1;
             BattlePlaySoundIfEnabled(0x4F);
         }
         break;
     case 2:
-        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].unk2C != 0) {
+        if (((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].commandFlags[8] != 0) {
             BattlePlaySoundIfEnabled(0x4F);
         } else {
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2DD = 9;
+            ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 9;
         }
         break;
     }
