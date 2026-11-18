@@ -562,9 +562,9 @@ extern s32 g_GfxOTDepthShift;
 //   substitutes a constant back into each use when it costs one instruction to
 //   rematerialise (0xFF000000, a single lui) but keeps a register for a
 //   two-instruction one (0xFFFFFF, lui+ori, which is exactly the asymmetry
-//   observed here), so `u_long mask = 0xFF000000;` is folded away (88.39%) and
-//   `& ~addrMask` is folded too (86.49%, 3028 bytes, seven li). Both were
-//   measured this round.
+//   observed here), so `u_long mask = 0xFF000000;` is folded away (88.39%,
+//   measured last round) and `& ~addrMask` is folded too (86.49%, 3028 bytes,
+//   seven li, measured this round).
 // - pRec and pPacket are swapped: retail moves a1 into s1 at entry, copies s1
 //   into s2 for pPacket after the SetDrawTPage call and reuses s1 for pRec; this
 //   compile coalesces pPacket with pDst and puts pRec in s2. pFrame also keeps a
