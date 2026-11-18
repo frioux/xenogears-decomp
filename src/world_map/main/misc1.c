@@ -41,6 +41,16 @@
 #define WORLD_MAP_TEXTURE_VRAM_Y 0x100
 #define WORLD_MAP_CLUT_VRAM_Y 0x1FE
 
+// the CLUT column of the tile prims' palettes and of the slot prims' palettes
+#define WORLD_MAP_TILE_CLUT_VRAM_X 0x110
+#define WORLD_MAP_SLOT_CLUT_VRAM_X 0x120
+
+// WorldMapUpdateLoadQueue's "a load is still in flight, nothing to use yet" result
+#define WORLD_MAP_LOAD_QUEUE_PENDING 3
+
+// g_WorldMapAreaId while no map area is loaded
+#define WORLD_MAP_AREA_NONE (-1)
+
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
@@ -168,8 +178,8 @@ void WorldMapMainLoop(void) {
             g_WorldMapPad1Pressed |= g_C1ButtonStatePressedOnce;
             g_WorldMapPad2Pressed |= g_C2ButtonStatePressedOnce;
         }
-        // 3 is the queue's "nothing to do yet" result: hold the frame until a load lands
-        while (WorldMapUpdateLoadQueue() == 3) {
+        // hold the frame until a load lands
+        while (WorldMapUpdateLoadQueue() == WORLD_MAP_LOAD_QUEUE_PENDING) {
             Vsync(0);
         }
         CdSync(1, &g_WorldMapCdSyncResult);
@@ -189,7 +199,7 @@ void WorldMapMainLoop(void) {
         PutDispEnv(&g_WorldMapRenderContext->dispEnv);
         PutDrawEnv(&g_WorldMapRenderContext->drawEnv);
         if (g_FieldPlayerWalkmeshMaterial == 0 && g_WorldMapL2R2PressEdge != 0 && g_WorldMapFadeActive == 0
-            && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == -1
+            && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == WORLD_MAP_AREA_NONE
             && g_WorldMapMode4AreaId == g_WorldMapAreaId && g_WorldMapLoopActive != 0
             && g_WorldMapExpiredTimerCount == 0) {
             // L2+R2 leaves mode 4's map for the free-roaming map, but only from inside a
@@ -228,7 +238,8 @@ void WorldMapMainLoop(void) {
             && g_WorldMapExpiredTimerCount == 0 && ControllerGetType(0) == 0) {
             WorldMapWaitForControllerConnected();
         }
-        if (g_WorldMapFadeActive == 0 && g_WorldMapMode4EntryTriggered == 0 && g_WorldMapAreaId == -1
+        if (g_WorldMapFadeActive == 0 && g_WorldMapMode4EntryTriggered == 0
+            && g_WorldMapAreaId == WORLD_MAP_AREA_NONE
             && g_WorldMapMode4AreaId == g_WorldMapAreaId && g_WorldMapLoopActive != 0
             && g_WorldMapExpiredTimerCount != 0
             && func_80075E7C(&g_WorldMapScrollTargetX, g_GameState.fieldScriptMemory[0]) == 1) {
@@ -1420,7 +1431,7 @@ void WorldMapSetupMapPrims(void) {
     s32 i;
 
     tpage = GetTPage(0, 1, WORLD_MAP_TEXTURE_VRAM_X, WORLD_MAP_TEXTURE_VRAM_Y);
-    clut = GetClut(0x110, WORLD_MAP_CLUT_VRAM_Y);
+    clut = GetClut(WORLD_MAP_TILE_CLUT_VRAM_X, WORLD_MAP_CLUT_VRAM_Y);
     pPrim = g_WorldMapTilePrims;
     for (i = 0; i < WORLD_MAP_QUAD_COUNT; i++, pPrim++) {
         setPolyFT4(pPrim);
@@ -1765,7 +1776,7 @@ void WorldMapAllocPrimBuffers(void) {
         pPrim->v2 = 0xFF;
         pPrim->u3 = 0x8F;
         pPrim->v3 = 0xFF;
-        pPrim->clut = GetClut(0x120, WORLD_MAP_CLUT_VRAM_Y);
+        pPrim->clut = GetClut(WORLD_MAP_SLOT_CLUT_VRAM_X, WORLD_MAP_CLUT_VRAM_Y);
         pPrim->tpage = GetTPage(0, 0, WORLD_MAP_TEXTURE_VRAM_X, WORLD_MAP_TEXTURE_VRAM_Y);
         SetSemiTrans(pPrim, 1);
         pPrim++;
