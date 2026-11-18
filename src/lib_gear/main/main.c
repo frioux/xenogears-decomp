@@ -465,6 +465,80 @@ void LibGearFreeModelMesh(ModelMesh* pMesh, s32 shouldFreeLightData) {
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
+// Decoded from the .s, verified against the near-twin function LibGearRenderModel
+// in this file (its joint loop is already matched - start from it):
+//
+// PARK_NOTE 1 — signature (7 params, frame 0xE0, no gp use): 'void func_801DCEC8(Model* pModel,
+// MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s16 frameStep, u_long* pOt, s32
+// packetIndex)'.
+// PARK_NOTE 2 — early exit: 'if (pModel->doUpdate == 0) return;' ('lbu 0x34' / beqz to the
+// epilogue at 0x1BC4).
+// PARK_NOTE 3 — scratch matrices: 0x1F800000, 0x1F800020, 0x1F800040 are MATRIX* bases (use the
+// existing 'PSX_SCRATCH' idiom as 'LibGearRenderModel' at main.c:390 does), plus a fourth
+// scratch whose base register is the literal constant 0x1F80000E, used for SetLightMatrix and
+// CompMatrix output inside the joint loop — that odd base is retail's, not a typo.
+// PARK_NOTE 4 — phase 1 (0xEC8-0x1310), root/packet setup, no known C yet:
+// CompMatrix(pLightMatrix, &pSkeleton->localTransform, scratch40); if '!(pModel->flags & 1)'
+// then CompMatrix(&pSkeleton->localTransform, &pSkeleton[1].globalTransform, scratch00) +
+// SetRotMatrix/SetTransMatrix(scratch00), then a GTE projection block: two MVMVA with swc2
+// $25-$27 stores (the 3.x macro family, 'gte_stlvnl'), 'ratan2' of the projected deltas, 'neg'
+// into an SVECTOR at sp+0x20, 'RotMatrix(&svec, scratch20)', writes to 0x1F800034/38/3C,
+// 'CompMatrix(pLightMatrix, &pSkeleton->globalTransform, scratch20)', then a signed divide-by-4
+// clamp: 'v = pModel->scale - ((pModel->ground - pSkeleton->translation.y) / 4); if (v < 0) v =
+// 0;' stored as the diagonal of a scratch matrix, then 'MulMatrix(scratch20, scratch00)',
+// SetRotMatrix/SetTransMatrix(scratch20).
+// PARK_NOTE 5 — phase 1b (0x1110-0x1310), bounding-box corners + OT link: four 'RTPS' calls load
+// SVECTORs at sp+0x20 built from 'pModel->width'/'pModel->depth' (offsets 0x26/0x28,
+// sign-flipped per corner), store SXY2 with 'swc2 $14' into 'pModel->polys[packetIndex]' at
+// +8/+0x10/+0x18/+0x20, read SZ3 with 'mfc2 $19' + 'sra 2' (⇒ the 'gte_stsz3_val'-style
+// read-back) and keep the max in a stack local at 0x48(sp). Then the OT link: 'word = (prim.tag
+// & 0xFF000000) | (otEntry & 0x00FFFFFF)' and the mirror poke on the OT slot, 'if (otz >= 0x2D8)
+// otz = 0x2D8;', and 'pModel->unk39 = 0x6B - (otz / 8)' (0x2D8, 0x6B and the '+7' before 'sra 3'
+// are all visible here — a constant round will want names).
+// PARK_NOTE 6 — phase 2 (0x1314): 'MulMatrix0(pViewMatrix, &pSkeleton->globalTransform,
+// scratch20);' then the joint loop 'for (i = 1; i < pSkeleton->numChildren; i++)' with 'if
+// (pJoint->jointIndex != 0xFFFF)': MulMatrix0(scratch20, &pJoint->globalTransform,
+// lightScratch); SetLightMatrix(lightScratch); CompMatrix(scratch ?, &pJoint->globalTransform,
+// lightScratch); 'if (pJoint->rotation.w? (lh 0x4A) > 0)' writes the light colour halfwords at
+// 0x1F800002/8/E from scratch+2/+8/+0xE else zeros, then SetRotMatrix/SetTransMatrix and
+// 'ModelRenderPacket(pMesh->pParts[pJoint->jointIndex],
+// ((void**)&pJoint->pModelPacketBuffer)[packetIndex], pOt, renderMode)'. **This loop is the
+// near-twin of the already-matched 'LibGearRenderModel' (main.c:390) — start the body from that
+// function.**
+// PARK_NOTE 7 — phase 3 (0x1450-0x16B4), model-list loop: 'for (i = 0; i <
+// pModel->numModelListEntries; i++)' over 'Temp9 pModel->pModelListEntries' (stride 0x24),
+// skipped when 'entry->unk0 < 0'. Per entry: an SVECTOR at sp+0x60 = '{
+// (s16)((-g_LibGearSwingScale * rsin(*(s16*)(entry+0x56) + 0x400)) >> 12), pModel->unk3E,
+// (s16)((g_LibGearSwingScale * rcos(...)) >> 12) }' (note the '+0xFFF' before 'sra 12'
+// signed-divide fixup); 'CompMatrix(&pSkeleton->localTransform,
+// &pSkeleton[entry->unk0].globalTransform, lightScratch)'; MVMVA+swc2 $25-$27 into a stack
+// SVECTOR at 0x50(sp); a loop 'for (j = 0; j < entry->unk0x0E? count; j++)' writing three 'lhu'
+// from the projected vector into each of 'entry->pUnk1C[j]''s +4/+6/+8 (two offsets must come
+// from the Temp9 view, which is still opaque at 0x0-0x13 and 0x14-0x20); a second loop over
+// 'entry->unk0E' writing the projected xyz into 'entry'+0xC+16*j; then 'func_801E22F8(entry,
+// &svec60, pLightMatrix, pOt, frameStep, packetIndex, pModel->ground)'.
+// PARK_NOTE 8 — phase 4 (0x16B8): 'for (i = 0; i < pModel->numTextures; i++)
+// func_801E1258(&pModel->pTextures[i], frameStep);' (stride 0x30).
+// PARK_NOTE 9 — phase 5 (0x16EC-0x1BC0), colour-entry loop over 'UnkInner1
+// pModel->pColorEntries' (stride 0x70), skipped when 'entry->unk0 < 0': 'entry->unk54 =
+// (entry->unk54 - 1) & 7;' then 'if (entry->unk56 == 0)' the one-quad path ('RTPS' on
+// 'entry+0xC', 'swc2 $14' to 'entry + 0x1C + 4*entry->unk54' then 'entry+0x14' → '+0x3C +
+// 4*unk54', 'LibGearAllocVertex(g_LibGearVertexBufferPtr, entry->unk... / * lbu at -0x5(s1) *
+// /)', 'vertex->unkE = 0', lifetime/colour stores from entry 0x5A..0x66, then the 4 corners from
+// 'entry[0x1C + 4*((unk54+unk56)&7)]' etc.) else the two-quad path with 'MVMVA'+'swc2 $25-$27'
+// into two vertices selected by 'unk54 & 1' and 'LibGearAllocVertex'. The 'lbu -0x5($s1)' / 'lw
+// -0x4($s1)' reads are 'entry->unk?' fields just before +0x70 — the loop pointer is already
+// advanced, so those are 'pColorEntries[i].…' at 0x6B/0x6C of the previous-entry layout; that is
+// where the 0x70 stride must be nailed down.
+// PARK_NOTE 10 — globals used: 'g_GfxOTDepthShift' (s32, OT index) and 'g_LibGearSwingScale'
+// (s16, swing amplitude); scratchpad bases 0x1F800000/0x20/0x40/0x0E. 'Model', 'Temp8', 'Temp9',
+// 'UnkInner1', 'Vertex', 'VertexBuffer' all already exist in 'include/libgear/main.h' and look
+// sufficient — no header change expected.
+//
+// Least certain: the Temp9 (0x24 stride) and UnkInner1 (0x70 stride) views in
+// PARK 7 and 9 are inferred from advanced-pointer reads; nail them from the first
+// compiled body. No header change is expected.
+
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 
 // objdiff 95.98%. Loop body and register anchors match the original

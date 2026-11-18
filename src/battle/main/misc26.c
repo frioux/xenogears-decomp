@@ -507,6 +507,46 @@ void BattleEmitDrawTPage(u8 *pOt) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 
+// Decoded from the .s (not written): 765 insns, 23 GTE case bodies and its own
+// 29-word jtbl. Scratch notes, cheapest first:
+//
+// Prototype is the one temp2.c already declares: '(void *pFrame, u8 *pDst, u_long *pOT, int
+//   flags, s32 depthBias, s32 shadeMode)' → a0–a3 + two stack args; 'depthBias' at 0x98 (callers
+//   pass 0xFEC), 'shadeMode' at 0x9C (callers pass 'flags>>5'); a3 is never read. Frame 0x88,
+//   eight callee-saved + '$fp' (0xFFFFFF / 0xFF000000 masks).
+// Frame fields read by this function: 0x0 SVECTOR part table (index>>'*8'), 0x8 normal table
+//   (the 'NormalColor'/'NormalColor3' base — this is 'BattleModelFrame.unk8''s first word,
+//   evidence it is a normals offset), 0x10 prim records, 0x14 record count.
+// 'shadeMode != 0' → 'SetDrawTPage(&g_BattleDrawTPage, 0, 0, ((shadeMode-1)&3)<<5)' at entry and
+//   a 'BattleEmitDrawTPage(&pOT[otIndex])' after each packet link; the OT link is written as two
+//   mask assignments ('*pDst = (*pDst&0xFF000000)|(*ot&0xFFFFFF); *ot =
+//   (*ot&0xFF000000)|((u32)pDst&0xFFFFFF);') — the second read of '*ot' is a real reload.
+// Per record: 'kind = (code & 0x1C) | ((flags^1)&1)<<8' → first switch (15 cases, comparison
+//   tree, exactly BattleExpandModelPrims' 'kind' values) picks 3 or 4 vertex pointers out of
+//   'rec->index[]' (u16 at 0x8; index groups 0x8/0xA/0xC, 0x14–0x1A, 0x18–0x1E, 0x24–0x2A, …).
+//   The 0x100-bit kinds call 'NormalColor(&normals[index[0]], &pDst->rgb0)' — 0x114 calls
+//   'NormalColor3(..., &pDst+4, +0x10, +0x1C)' — saving/restoring the packet code byte ('lbu/sb
+//   0x7($s2)') around the call.
+// Second switch on 'code & 0x1C' ('jtbl_800707DC', 29 words, indexed by the raw masked value,
+//   live entries 0,4,8,0xC,0x10,0x14,0x18,0x1C): 3-vertex cases inline
+//   'gte_ldv3'/'gte_rtpt'/'gte_stflg_val'/'gte_nclip' (bail on flag bit 0x4000)/'gte_stopz'
+//   (saves MAC0 *before* AVSZ3 overwrites it, then reloads it and bails on '<=
+//   0')/'gte_avsz3'/'gte_stotz' → 'otIndex = (OTZ >> g_GfxOTDepthShift) + depthBias', clamp min
+//   5, bail at 0x1000, then 'swc2 $12/$13/$14' into the packet's x/y words; 4-vertex cases call
+//   'RotAverageNclip4(v0..v3, (long*)(pDst+8…), &p, &otz, &flag)' and test flag bit 0x8000. The
+//   different cases use four different sxy spacings (8/0xC/0x10, 8/0x10/0x18, 8/0x14/0x20, and
+//   the 4-vertex 8/0xC/0x10/0x14 and 8/0x10/0x18/0x20 variants), so check
+//   'include/psyq/libgpu.h''s POLY_* offsets per case before writing them.
+// Loop tail: 'pDst += (outLen+1)*4; pRec += (len+1)*4;' with the record counter living in a
+//   *stack slot* (0x58) and '&otz' cached in another (0x5C) — i.e. an address-taken local, not a
+//   register.
+// What I changed: two comment lines above the two 'INCLUDE_ASM' stubs recording the stack-switch
+//   evidence (convention-precedent: 'rendering_pause_text.c:23', 'field/misc2.c:1190'). No code
+//   change; the unit still has its 3 stubs.
+// Skipped/not checked: 'func_800B1F6C' was never compiled, so there is no percentage for it; and
+//   I did not re-derive the POLY_* per-case offsets, which is the first thing its writer needs.
+//   The tree is left in matching mode by 'check_bin.sh', as the brief allows at end of batch.
+
 // Applies the model's tint to the colour bytes of every packet a frame expands
 // to, one channel sum per vertex, and mirrors them into the packet copy the
 // second render context draws from. Only the colours are written here: the
