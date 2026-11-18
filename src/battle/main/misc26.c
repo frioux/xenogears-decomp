@@ -22,7 +22,8 @@ typedef struct WorkListEntry {
 typedef struct {
     /* 0x00 */ s32 partsOffset; // byte offset of the part array, from here
     /* 0x04 */ s32 partCount;
-    /* 0x08 */ u8 unk8[0x8]; // a second (offset, count) pair this unit never reads
+    /* 0x08 */ s32 normalsOffset; // byte offset of the part normal table, from here
+    /* 0x0C */ u32 unkC;
     /* 0x10 */ s32 primsOffset; // byte offset of the primitive packet array
     /* 0x14 */ s32 primCount;
     /* 0x18 */ u32 flags; // 0x8000: part scales already applied
@@ -507,10 +508,449 @@ void BattleEmitDrawTPage(u8 *pOt) {
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 
+// Parked at 85.07% (3164 bytes against retail's 2944). The structure is right:
+// both switches, all sixteen vertex arms, the depth pipeline and the loop tail
+// line up instruction for instruction. What is left is register allocation --
+// retail holds 0xFFFFFF and 0xFF000000 in s4/s8 across the whole loop, this
+// compile rematerialises 0xFF000000 in each of the eight link tails, so the
+// tails cannot merge (retail ends up with two copies, entered by j) and the
+// function comes out 55 instructions long; pV0..pV3 land in s6/s5/s4/s8 against
+// retail's s0/s6/s5/s7 and the record pointer in s2 against s1. Everything
+// tried: a shared pOtEntry pointer per arm, declaring the masks as locals, and
+// giving the packet cursor its own local (that one is kept, it is what retail
+// has). Not tried: the permuter -- a 765-instruction body, and the gap is not a
+// statement-order tie.
+//
+// For whoever picks this up:
+// - the two table addresses must be written index first,
+//   '(SVECTOR *)((index << 3) + (u32)pPart)'; '&pPart[index]' reverses the addu
+//   operand order in every arm.
+// - the four 3-vertex arms each own their own flag for gte_stflg (slots
+//   0x30/0x3C/0x40/0x44); the 4-vertex arms share zSum and nclipFlag, 0x48/0x4C.
+// - otz (0x38) is both the gte_stotz destination and the ordering-table index
+//   and is address-taken, so every read after a write comes back off the stack.
+// - case label order in the source is the address order of the bodies: first
+//   switch 0, 0x10, 0x18, 0x08, 0x04, 0x14, 0x0C, 0x1C, 0x100, 0x110, 0x108,
+//   0x104, 0x114, 0x10C, 0x118/0x11C; second switch 0, 0x10, 0x04, 0x14, 0x08,
+//   0x18, 0x0C, 0x1C. The record's index[] offsets are not evenly spaced: the
+//   kinds whose colours come from the normals read a normal index beside the
+//   part indices (0x110 reads 4/7/9, 0x114 computes 4/6/8 and draws 5/7/9).
+/*
+// A model record as the 3D path reads it: the packet and record lengths, the
+// code byte, then the part indices its vertices are built from. A record that
+// carries no per-vertex colours lists a normal index beside the part indices it
+// takes its colours from, so the offsets one kind reads are not evenly spaced.
+typedef struct {
+    // 0x00 u8 outLen; // packet length in words, minus one
+    // 0x01 u8 len; // record length in words, minus one
+    // 0x02 u8 flags; // bit 0: the record carries per-vertex colours
+    // 0x03 u8 code;
+    // 0x04 u32 unk4; // the colour entries the 2D path reads
+    // 0x08 u16 index[18];
+} BattleModelMeshPrim; // Size: 0x2C
+
+extern s32 g_GfxOTDepthShift;
+
+// A transformed primitive is linked at the GTE's screen Z scaled the way the
+// ordering table is, biased by the caller, and never into the nearest entries.
+#define BATTLE_MESH_OT_DEPTH_MIN 5
+#define BATTLE_MESH_OT_DEPTH_MAX 0x1000
+
+// Links a transformed packet into an ordering-table entry, keeping the top byte
+// (length and code) of both tag words.
+#define BattleLinkMeshPrim(pEntry, pPrim)                                                      \
+    (*(u_long *)(pPrim) = (*(u_long *)(pPrim) & 0xFF000000) | (*(u_long *)(pEntry) & 0xFFFFFF), \
+     *(u_long *)(pEntry) = (*(u_long *)(pEntry) & 0xFF000000) | ((u_long)(pPrim) & 0xFFFFFF))
+
+// Transforms the parts the records of a model frame name and links one POLY_*
+// per record into the ordering table: three vertices through RTPT or four
+// through RotAverageNclip4, in whichever layout the record's code byte selects.
+// A record that carries no colours takes them from the frame's normal table.
+// depthBias shifts every primitive's ordering-table depth; shadeMode, when set,
+// stamps the texture pages and emits the drawing mode packet after each one.
+void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s32 depthBias,
+                   s32 shadeMode) {
+    BattleModelMeshPrim *pRec;
+    SVECTOR *pPart;
+    SVECTOR *pNormals;
+    SVECTOR *pV0;
+    SVECTOR *pV1;
+    SVECTOR *pV2;
+    SVECTOR *pV3;
+    s32 flagF3;
+    s32 clipTest;
+    s32 otz;
+    s32 flagG3;
+    s32 flagFT3;
+    s32 flagGT3;
+    s32 zSum;
+    s32 nclipFlag;
+    s32 count;
+    s32 i;
+    s32 kind;
+    u8 *pPacket;
+    u_long *pOtEntry;
+
+    if (shadeMode != 0) {
+        SetDrawTPage(&g_BattleDrawTPage, 0, 0, ((shadeMode - 1) & 3) << 5);
+    }
+    pRec = (BattleModelMeshPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
+    pPart = (SVECTOR *)((u32)pFrame->partsOffset + (u32)pFrame);
+    pNormals = (SVECTOR *)((u32)pFrame->normalsOffset + (u32)pFrame);
+    count = pFrame->primCount;
+    pPacket = pDst;
+    for (i = 0; i != count; i++) {
+        kind = pRec->code & BATTLE_PRIM_KIND_MASK;
+        kind |= ((pRec->flags ^ 1) & 1) << 8; // no colours: they come from the normals
+        switch (kind) {
+        case 0: {
+            pV0 = (SVECTOR *)((pRec->index[0] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[1] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[2] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_GOURAUD: {
+            pV0 = (SVECTOR *)((pRec->index[4] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[5] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[6] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_GOURAUD | BATTLE_PRIM_QUAD: {
+            pV0 = (SVECTOR *)((pRec->index[6] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[8] << 3) + (u32)pPart);
+            pV3 = (SVECTOR *)((pRec->index[9] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_QUAD: {
+            pV0 = (SVECTOR *)((pRec->index[0] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[1] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[2] << 3) + (u32)pPart);
+            pV3 = (SVECTOR *)((pRec->index[3] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED: {
+            pV0 = (SVECTOR *)((pRec->index[6] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[8] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD: {
+            pV0 = (SVECTOR *)((pRec->index[10] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[11] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[12] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD: {
+            pV0 = (SVECTOR *)((pRec->index[8] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[9] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[10] << 3) + (u32)pPart);
+            pV3 = (SVECTOR *)((pRec->index[11] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD | BATTLE_PRIM_QUAD: {
+            pV0 = (SVECTOR *)((pRec->index[14] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[15] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[16] << 3) + (u32)pPart);
+            pV3 = (SVECTOR *)((pRec->index[17] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_UNLIT: {
+            u8 primCode = ((P_TAG *)pPacket)->code;
+
+            NormalColor((SVECTOR *)((pRec->index[0] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4));
+            ((P_TAG *)pPacket)->code = primCode;
+            pV0 = (SVECTOR *)((pRec->index[1] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[2] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[3] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_UNLIT | BATTLE_PRIM_GOURAUD: {
+            pV0 = (SVECTOR *)((pRec->index[4] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[9] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_UNLIT | BATTLE_PRIM_QUAD: {
+            u8 primCode = ((P_TAG *)pPacket)->code;
+
+            NormalColor((SVECTOR *)((pRec->index[0] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4));
+            ((P_TAG *)pPacket)->code = primCode;
+            pV0 = (SVECTOR *)((pRec->index[1] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[2] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[3] << 3) + (u32)pPart);
+            pV3 = (SVECTOR *)((pRec->index[4] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_UNLIT | BATTLE_PRIM_TEXTURED: {
+            u8 primCode = ((P_TAG *)pPacket)->code;
+
+            NormalColor((SVECTOR *)((pRec->index[4] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4));
+            ((P_TAG *)pPacket)->code = primCode;
+            pV0 = (SVECTOR *)((pRec->index[5] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[6] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_UNLIT | BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD: {
+            u8 primCode = ((P_TAG *)pPacket)->code;
+
+            NormalColor3((SVECTOR *)((pRec->index[4] << 3) + (u32)pNormals), (SVECTOR *)((pRec->index[6] << 3) + (u32)pNormals),
+                         (SVECTOR *)((pRec->index[8] << 3) + (u32)pNormals), (CVECTOR *)(pPacket + 4), (CVECTOR *)(pPacket + 0x10),
+                         (CVECTOR *)(pPacket + 0x1C));
+            ((P_TAG *)pPacket)->code = primCode;
+            pV0 = (SVECTOR *)((pRec->index[5] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[9] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_UNLIT | BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD: {
+            pV0 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[8] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[9] << 3) + (u32)pPart);
+            pV3 = (SVECTOR *)((pRec->index[10] << 3) + (u32)pPart);
+            break;
+        }
+        case BATTLE_PRIM_UNLIT | BATTLE_PRIM_GOURAUD | BATTLE_PRIM_QUAD:
+        case BATTLE_PRIM_UNLIT | BATTLE_PRIM_GOURAUD | BATTLE_PRIM_QUAD | BATTLE_PRIM_TEXTURED: {
+            pV0 = (SVECTOR *)((pRec->index[7] << 3) + (u32)pPart);
+            pV1 = (SVECTOR *)((pRec->index[9] << 3) + (u32)pPart);
+            pV2 = (SVECTOR *)((pRec->index[11] << 3) + (u32)pPart);
+            pV3 = (SVECTOR *)((pRec->index[13] << 3) + (u32)pPart);
+            break;
+        }
+        }
+        switch (pRec->code & BATTLE_PRIM_KIND_MASK) {
+        case 0: {
+            POLY_F3 *pPoly = (POLY_F3 *)pPacket;
+
+            gte_ldv3(pV0, pV1, pV2);
+            gte_rtpt();
+            gte_stflg(&flagF3);
+            gte_nclip();
+            if (flagF3 & 0x4000) {
+                break;
+            }
+            gte_stopz(&clipTest);
+            gte_avsz3();
+            if (clipTest <= 0) {
+                break;
+            }
+            gte_stotz(&otz);
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                gte_stsxy3((long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x2);
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        case BATTLE_PRIM_GOURAUD: {
+            POLY_G3 *pPoly = (POLY_G3 *)pPacket;
+
+            gte_ldv3(pV0, pV1, pV2);
+            gte_rtpt();
+            gte_stflg(&flagG3);
+            gte_nclip();
+            if (flagG3 & 0x4000) {
+                break;
+            }
+            gte_stopz(&clipTest);
+            gte_avsz3();
+            if (clipTest <= 0) {
+                break;
+            }
+            gte_stotz(&otz);
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                gte_stsxy3((long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x2);
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED: {
+            POLY_FT3 *pPoly = (POLY_FT3 *)pPacket;
+
+            gte_ldv3(pV0, pV1, pV2);
+            gte_rtpt();
+            gte_stflg(&flagFT3);
+            gte_nclip();
+            if (flagFT3 & 0x4000) {
+                break;
+            }
+            gte_stopz(&clipTest);
+            gte_avsz3();
+            if (clipTest <= 0) {
+                break;
+            }
+            gte_stotz(&otz);
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                gte_stsxy3((long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x2);
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_GOURAUD: {
+            POLY_GT3 *pPoly = (POLY_GT3 *)pPacket;
+
+            gte_ldv3(pV0, pV1, pV2);
+            gte_rtpt();
+            gte_stflg(&flagGT3);
+            gte_nclip();
+            if (flagGT3 & 0x4000) {
+                break;
+            }
+            gte_stopz(&clipTest);
+            gte_avsz3();
+            if (clipTest <= 0) {
+                break;
+            }
+            gte_stotz(&otz);
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                gte_stsxy3((long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x2);
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        case BATTLE_PRIM_QUAD: {
+            POLY_F4 *pPoly = (POLY_F4 *)pPacket;
+
+            clipTest = RotAverageNclip4(pV0, pV1, pV2, pV3, (long *)&pPoly->x0, (long *)&pPoly->x1,
+                                        (long *)&pPoly->x2, (long *)&pPoly->x3, (long *)&zSum,
+                                        (long *)&otz, (long *)&nclipFlag);
+            if (clipTest <= 0) {
+                break;
+            }
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (nclipFlag & 0x8000) {
+                break;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        case BATTLE_PRIM_QUAD | BATTLE_PRIM_GOURAUD: {
+            POLY_G4 *pPoly = (POLY_G4 *)pPacket;
+
+            clipTest = RotAverageNclip4(pV0, pV1, pV2, pV3, (long *)&pPoly->x0, (long *)&pPoly->x1,
+                                        (long *)&pPoly->x2, (long *)&pPoly->x3, (long *)&zSum,
+                                        (long *)&otz, (long *)&nclipFlag);
+            if (clipTest <= 0) {
+                break;
+            }
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (nclipFlag & 0x8000) {
+                break;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD: {
+            POLY_FT4 *pPoly = (POLY_FT4 *)pPacket;
+
+            clipTest = RotAverageNclip4(pV0, pV1, pV2, pV3, (long *)&pPoly->x0, (long *)&pPoly->x1,
+                                        (long *)&pPoly->x2, (long *)&pPoly->x3, (long *)&zSum,
+                                        (long *)&otz, (long *)&nclipFlag);
+            if (clipTest <= 0) {
+                break;
+            }
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (nclipFlag & 0x8000) {
+                break;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        case BATTLE_PRIM_TEXTURED | BATTLE_PRIM_QUAD | BATTLE_PRIM_GOURAUD: {
+            POLY_GT4 *pPoly = (POLY_GT4 *)pPacket;
+
+            clipTest = RotAverageNclip4(pV0, pV1, pV2, pV3, (long *)&pPoly->x0, (long *)&pPoly->x1,
+                                        (long *)&pPoly->x2, (long *)&pPoly->x3, (long *)&zSum,
+                                        (long *)&otz, (long *)&nclipFlag);
+            if (clipTest <= 0) {
+                break;
+            }
+            otz = (otz >> g_GfxOTDepthShift) + depthBias;
+            if (otz < BATTLE_MESH_OT_DEPTH_MIN) {
+                otz = BATTLE_MESH_OT_DEPTH_MIN;
+            }
+            if (nclipFlag & 0x8000) {
+                break;
+            }
+            if (otz < BATTLE_MESH_OT_DEPTH_MAX) {
+                pOtEntry = &pOT[otz];
+                BattleLinkMeshPrim(pOtEntry, (u_long *)pPacket);
+                if (shadeMode != 0) {
+                    BattleEmitDrawTPage((u8 *)pOtEntry);
+                }
+            }
+            break;
+        }
+        }
+        pPacket += (pRec->outLen + 1) * 4;
+        pRec = (BattleModelMeshPrim *)((u8 *)pRec + (pRec->len + 1) * 4);
+    }
+}
+
 // Decoded from the .s (not written): 765 insns, 23 GTE case bodies and its own
 // 29-word jtbl. Scratch notes, cheapest first:
 //
-// Prototype is the one temp2.c already declares: '(void *pFrame, u8 *pDst, u_long *pOT, int
+// Prototype is the one temp2.c already declares: '(void *pFrame, u8 *pPacket, u_long *pOT, int
 //   flags, s32 depthBias, s32 shadeMode)' → a0–a3 + two stack args; 'depthBias' at 0x98 (callers
 //   pass 0xFEC), 'shadeMode' at 0x9C (callers pass 'flags>>5'); a3 is never read. Frame 0x88,
 //   eight callee-saved + '$fp' (0xFFFFFF / 0xFF000000 masks).
@@ -519,13 +959,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 //   evidence it is a normals offset), 0x10 prim records, 0x14 record count.
 // 'shadeMode != 0' → 'SetDrawTPage(&g_BattleDrawTPage, 0, 0, ((shadeMode-1)&3)<<5)' at entry and
 //   a 'BattleEmitDrawTPage(&pOT[otIndex])' after each packet link; the OT link is written as two
-//   mask assignments ('*pDst = (*pDst&0xFF000000)|(*ot&0xFFFFFF); *ot =
-//   (*ot&0xFF000000)|((u32)pDst&0xFFFFFF);') — the second read of '*ot' is a real reload.
+//   mask assignments ('*pPacket = (*pPacket&0xFF000000)|(*ot&0xFFFFFF); *ot =
+//   (*ot&0xFF000000)|((u32)pPacket&0xFFFFFF);') — the second read of '*ot' is a real reload.
 // Per record: 'kind = (code & 0x1C) | ((flags^1)&1)<<8' → first switch (15 cases, comparison
 //   tree, exactly BattleExpandModelPrims' 'kind' values) picks 3 or 4 vertex pointers out of
 //   'rec->index[]' (u16 at 0x8; index groups 0x8/0xA/0xC, 0x14–0x1A, 0x18–0x1E, 0x24–0x2A, …).
-//   The 0x100-bit kinds call 'NormalColor(&normals[index[0]], &pDst->rgb0)' — 0x114 calls
-//   'NormalColor3(..., &pDst+4, +0x10, +0x1C)' — saving/restoring the packet code byte ('lbu/sb
+//   The 0x100-bit kinds call 'NormalColor(&normals[index[0]], &pPacket->rgb0)' — 0x114 calls
+//   'NormalColor3(..., &pPacket+4, +0x10, +0x1C)' — saving/restoring the packet code byte ('lbu/sb
 //   0x7($s2)') around the call.
 // Second switch on 'code & 0x1C' ('jtbl_800707DC', 29 words, indexed by the raw masked value,
 //   live entries 0,4,8,0xC,0x10,0x14,0x18,0x1C): 3-vertex cases inline
@@ -533,11 +973,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 //   (saves MAC0 *before* AVSZ3 overwrites it, then reloads it and bails on '<=
 //   0')/'gte_avsz3'/'gte_stotz' → 'otIndex = (OTZ >> g_GfxOTDepthShift) + depthBias', clamp min
 //   5, bail at 0x1000, then 'swc2 $12/$13/$14' into the packet's x/y words; 4-vertex cases call
-//   'RotAverageNclip4(v0..v3, (long*)(pDst+8…), &p, &otz, &flag)' and test flag bit 0x8000. The
+//   'RotAverageNclip4(v0..v3, (long*)(pPacket+8…), &p, &otz, &flag)' and test flag bit 0x8000. The
 //   different cases use four different sxy spacings (8/0xC/0x10, 8/0x10/0x18, 8/0x14/0x20, and
 //   the 4-vertex 8/0xC/0x10/0x14 and 8/0x10/0x18/0x20 variants), so check
 //   'include/psyq/libgpu.h''s POLY_* offsets per case before writing them.
-// Loop tail: 'pDst += (outLen+1)*4; pRec += (len+1)*4;' with the record counter living in a
+// Loop tail: 'pPacket += (outLen+1)*4; pRec += (len+1)*4;' with the record counter living in a
 //   *stack slot* (0x58) and '&otz' cached in another (0x5C) — i.e. an address-taken local, not a
 //   register.
 // What I changed: two comment lines above the two 'INCLUDE_ASM' stubs recording the stack-switch
@@ -546,6 +986,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 // Skipped/not checked: 'func_800B1F6C' was never compiled, so there is no percentage for it; and
 //   I did not re-derive the POLY_* per-case offsets, which is the first thing its writer needs.
 //   The tree is left in matching mode by 'check_bin.sh', as the brief allows at end of batch.
+*/
 
 // Applies the model's tint to the colour bytes of every packet a frame expands
 // to, one channel sum per vertex, and mirrors them into the packet copy the
