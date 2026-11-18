@@ -11,8 +11,8 @@ typedef struct {
     /* 0x06 */ u8 unk6[0x12];
     /* 0x18 */ s32 (*pEnterHandler)(s32); // called once in state 0; its return is the next state
     /* 0x1C */ s32 (*pUpdateHandler)(s32); // called every frame in state 1; NULL while the slot is free
-    /* 0x20 */ u16 unk20;
-    /* 0x22 */ u16 unk22;
+    /* 0x20 */ u16 handlerState; // the state machine of the pEnter/pUpdate handler pair; the map modes declare these two words as their own state/stateTimer
+    /* 0x22 */ u16 handlerStateTimer;
     /* 0x24 */ u8 unk24[0x28];
     /* 0x4C */ s32 pSprite;
     /* 0x50 */ u8 unk50[0x30];
@@ -29,17 +29,19 @@ typedef struct {
     /* 0x0 */ u32 unk0[4];
 } Misc15Block16; // Size: 0x10
 
+// g_WorldMapPathFrame: the path position, the point the camera looks at (only
+// targetY is ever written, targetX/targetZ stay 0) and the frame's up axis.
 typedef struct {
     /* 0x0 */ s16 x;
     /* 0x2 */ s16 y;
     /* 0x4 */ s16 z;
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ s16 unk8;
-    /* 0xA */ u16 unkA;
-    /* 0xC */ s16 unkC;
-    /* 0xE */ s16 unkE;
-    /* 0x10 */ MATRIX unk10;
-} Misc15Xform; // Size: 0x30
+    /* 0x6 */ s16 pad6;
+    /* 0x8 */ s16 targetX;
+    /* 0xA */ s16 targetY;
+    /* 0xC */ s16 targetZ;
+    /* 0xE */ s16 padE;
+    /* 0x10 */ VECTOR upAxis; // (0,-0x1000,0) rotated by the frame's pitch/roll
+} Misc15Frame; // Size: 0x20
 
 
 extern Misc15Slot *g_WorldMapSlots;
@@ -217,10 +219,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
 // reaches 0xA2/0xA4 with a fresh lui $at plus maspsx's low-half offset fold
 // (sh $v0,0xA2($at)) -- a 4-byte size difference and a different allocation.
 /*
-void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
-    pOut->unk8 = 0;
-    pOut->unkA = *(s32 *)(pSrc + 4) >> 12;
-    pOut->unkC = 0;
+void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
+    pOut->targetX = 0;
+    pOut->targetY = *(s32 *)(pSrc + 4) >> 12;
+    pOut->targetZ = 0;
     *(u16 *)0x1F8000A0 = *(u16 *)(pAngles + 0);
     *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
     *(u16 *)0x1F8000A4 = 0;
@@ -230,7 +232,7 @@ void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     *(s32 *)0x1F800008 = -(height >> 12);
     ApplyMatrixLV((MATRIX *)0x1F8000F0, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
     pOut->x = *(s32 *)0x1F800010;
-    pOut->y = pOut->unkA + *(s32 *)0x1F800014;
+    pOut->y = pOut->targetY + *(s32 *)0x1F800014;
     pOut->z = *(s32 *)0x1F800018;
     *(u16 *)0x1F8000A0 = 0;
     *(u16 *)0x1F8000A2 = *(u16 *)(pAngles + 2);
@@ -239,7 +241,7 @@ void func_80096F18(Misc15Xform *pOut, u8 *pSrc, s32 height, u8 *pAngles) {
     *(u16 *)0x1F8000A0 = 0;
     *(u16 *)0x1F8000A2 = -0x1000;
     *(u16 *)0x1F8000A4 = 0;
-    ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, (VECTOR *)((u8 *)pOut + 0x10));
+    ApplyMatrix((MATRIX *)0x1F8000F0, (SVECTOR *)0x1F8000A0, &pOut->upAxis);
 }
 */
 typedef struct {
@@ -265,17 +267,7 @@ void WorldMapExtractRotationFromMatrix(MATRIX *pMtx, Misc15Rot *pRot) {
     MulMatrix0((MATRIX *)0x1F800130, (MATRIX *)0x1F800110, (MATRIX *)0x1F8000F0);
     pRot->rotZ = -ratan2(*(s16 *)0x1F8000F6, *(s16 *)0x1F8000F8);
 }
-typedef struct {
-    /* 0x0 */ s16 x;
-    /* 0x2 */ s16 y;
-    /* 0x4 */ s16 z;
-    /* 0x6 */ s16 unk6;
-    /* 0x8 */ s16 unk8;
-    /* 0xA */ s16 unkA;
-    /* 0xC */ s16 unkC;
-    /* 0xE */ s16 unkE;
-    /* 0x10 */ VECTOR unk10;
-} Misc15Frame; // Size: 0x1C
+
 
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
@@ -313,11 +305,11 @@ void func_80097244(Misc15Frame *p) {
     s32 m7;
     s32 m8;
 
-    ((VECTOR *)0x1F800000)->vx = p->unk8 - p->x;
-    ((VECTOR *)0x1F800000)->vy = p->unkA - p->y;
-    ((VECTOR *)0x1F800000)->vz = p->unkC - p->z;
+    ((VECTOR *)0x1F800000)->vx = p->targetX - p->x;
+    ((VECTOR *)0x1F800000)->vy = p->targetY - p->y;
+    ((VECTOR *)0x1F800000)->vz = p->targetZ - p->z;
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800030);
-    OuterProduct12((VECTOR *)0x1F800030, &p->unk10, (VECTOR *)0x1F800000);
+    OuterProduct12((VECTOR *)0x1F800030, &p->upAxis, (VECTOR *)0x1F800000);
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
     OuterProduct12((VECTOR *)0x1F800030, (VECTOR *)0x1F800010, (VECTOR *)0x1F800000);
     VectorNormal((VECTOR *)0x1F800000, (VECTOR *)0x1F800020);
@@ -403,8 +395,8 @@ void WorldMapAddSlot(s32 (*pEnterHandler)(s32), s32 (*pUpdateHandler)(s32)) {
             g_WorldMapSlots[i].command = 0;
             g_WorldMapSlots[i].pEnterHandler = pEnterHandler;
             g_WorldMapSlots[i].pUpdateHandler = pUpdateHandler;
-            g_WorldMapSlots[i].unk20 = 0;
-            g_WorldMapSlots[i].unk22 = 0;
+            g_WorldMapSlots[i].handlerState = 0;
+            g_WorldMapSlots[i].handlerStateTimer = 0;
             break;
         }
     }
