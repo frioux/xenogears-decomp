@@ -29,7 +29,7 @@ extern void func_8009BE0C(void);
 extern void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg);
 
 s32 BattleGetActorConditionCode(u8 arg0) {
-    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
+    BattleTableEntry* p = (BattleTableEntry*)(arg0 * sizeof(BattleTableEntry) + (u32)g_BattleCurWorkBlock);
     u16 f7C = p->activeEffectFlags1;
     u16 f80;
 
@@ -64,7 +64,7 @@ s32 BattleGetActorConditionCode(u8 arg0) {
     return p->hp < (p->maxHp >> 3) ? 5 : 0;
 }
 u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
-    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
+    BattleTableEntry* p = (BattleTableEntry*)(arg0 * sizeof(BattleTableEntry) + (u32)g_BattleCurWorkBlock);
     u16 f7C = p->activeEffectFlags1;
     u16 ret = 0;
     u16 f;
@@ -558,7 +558,7 @@ void BattleResetActorStats(void) {
     u8 i;
 
     for (i = 1; i < MAX_PARTY_MEMBERS; i++) {
-        BattleTableEntry* p = (BattleTableEntry*)(i * 0x170 + (u32)g_BattleCurWorkBlock);
+        BattleTableEntry* p = (BattleTableEntry*)(i * sizeof(BattleTableEntry) + (u32)g_BattleCurWorkBlock);
 
         p->hp = BATTLE_STAT_PERCENT_MAX;
         p->maxHp = BATTLE_STAT_PERCENT_MAX;
@@ -570,7 +570,7 @@ void BattleResetActorStats(void) {
 }
 
 void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
-    BattleTableEntry* p = (BattleTableEntry*)(arg0 * 0x170 + (u32)g_BattleCurWorkBlock);
+    BattleTableEntry* p = (BattleTableEntry*)(arg0 * sizeof(BattleTableEntry) + (u32)g_BattleCurWorkBlock);
     BattleSlotState* pState = &p->state;
 
     if (pArg->maxHp * BATTLE_ACTOR_HP_SCALE > BATTLE_SCALED_HP_MAX) {
