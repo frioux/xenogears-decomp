@@ -72,7 +72,7 @@ extern s32 g_LibGearPendingFrameCount;
 extern s16 g_LibGearSwingAngle;
 extern s16 g_LibGearSwingScale;
 
-void func_801DCEC8(Model* pModel, MATRIX* pMatrix, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
+void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex);
 void func_80026F44(s32 count, s32 level, void* pDst, void* pSrc);
 void func_80026FE8(s32 count, s32 level, void* pDst, void* pSrc, void* pSrc2);
 void LibGearUpdateModelAttachment(Model* pModel);
@@ -463,7 +463,394 @@ void LibGearFreeModelMesh(ModelMesh* pMesh, s32 shouldFreeLightData) {
     }
 }
 
+// Model::pColorEntries entry (0x70 stride). UnkInner1 in libgear/main.h covers
+// only the tail of the record, so this file carries its own view of the head:
+// the joint it follows, the vertex it drives and the projected coordinates the
+// previous frame left behind.
+typedef struct {
+    /* 0x00 */ s16 jointIndex; // joint whose transform projects the two sources; negative = free
+    /* 0x02 */ u8 is3D; // non-zero: the sources are projected in 3D and pass through the GTE
+    /* 0x03 */ u8 isSemiTrans; // handed to LibGearAllocVertex
+    /* 0x04 */ VertexBuffer* pVertexBuffer; // buffer the vertex is allocated from
+    /* 0x08 */ Vertex* pVertex; // the vertex this entry drives; 0 = none allocated yet
+    /* 0x0C */ SVECTOR sourceA;
+    /* 0x14 */ SVECTOR sourceB;
+    /* 0x1C */ u16 screenA[16]; // projected coordinates, two 0x10 byte slots of 4 quads
+    /* 0x3C */ u16 screenB[16];
+    /* 0x5C */ s16 slot; // the quad the next projection writes; counts down and wraps at 8
+    /* 0x5E */ u16 age; // frames drawn; 0 after the wrap retires the entry
+    /* 0x60 */ s16 numFrames; // age the entry is driven to before the vertex is recycled
+    /* 0x62 */ u16 lifetime; // copied into the vertex below
+    /* 0x64 */ u16 red;
+    /* 0x66 */ u16 green;
+    /* 0x68 */ u16 blue;
+    /* 0x6A */ u16 redDelta;
+    /* 0x6C */ u16 greenDelta;
+    /* 0x6E */ u16 blueDelta;
+} ColorSlot; // Size: 0x70
+
+extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
+extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s16 scale, s16 ground);
+
+// PARK: the whole body was written and measured at objdiff 86.47% (3264 bytes against
+// retail's 3376, i.e. 28 instructions still missing) with gcc 2.6.0 + --expand-div.
+// Every phase below is transcribed and the call/branch structure matches; the open
+// deltas are allocation, in this order of size:
+//  - the two-quad tail of phase 5 (retail keeps (1-fp)<<4 in one temp and derives both
+//    slot bases from it; ours re-forms each slot base), ~19 instructions;
+//  - the SZ3 read-back: retail's object has 'mfc2 $19 / nop / sra / sw' (a stack
+//    spill of the depth), ours keeps it in a register and drops the nop, so the
+//    gte_stsz3_val macro in inline_c.h has no nop revision (4 instructions);
+//  - the bounding-box corner block: retail materialises &pModel->polys[packetIndex]
+//    lazily after the RTPS and keeps 0x28*packetIndex in a3 for the OT poke;
+//  - register identity: retail holds pModel in $s5, pMesh in $fp and pViewScratch
+//    (0x1F800020) in $s6; ours spills pViewScratch/pLightScratch to the frame, which
+//    is what makes ~300 of the 840 lines differ while objdiff still reads 86%.
+// A 4 minute permute run (1260 iterations) took its own metric from 11678 to 10583 by
+// splitting the shifted otz into its own local - that edit is in the body below.
+// Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
+
+/*
+void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex) {
+    MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
+    MATRIX* pViewScratch = &pScratch[1];
+    MATRIX* pLightScratch = &pScratch[2];
+    ModelMesh* pMesh;
+    ModelJoint* pSkeleton;
+    ModelJoint* pJoint;
+    Temp9* pListEntry;
+    Temp8* pTexture;
+    ColorSlot* pEntry;
+    u8* pSection;
+    u8* pQuadA;
+    u8* pQuadB;
+    POLY_FT4* pPoly;
+    SVECTOR svec;
+    SVECTOR swingVec;
+    s32 vec[3];
+    s32 trans[3];
+    u_short proj[6];
+    s16 modelScale;
+    s32 depth;
+    s32 otz;
+    u_int numChildren;
+    u_int jointIndex;
+    s32 slot;
+    s32 i;
+    s32 j;
+
+    if (pModel->doUpdate == 0) {
+        return;
+    }
+
+    pMesh = pModel->pMesh;
+    pSkeleton = pModel->pSkeleton;
+    modelScale = pModel->scale;
+    numChildren = pSkeleton->numChildren;
+
+    CompMatrix(pLightMatrix, &pSkeleton->localTransform, pLightScratch);
+
+    if ((pModel->flags & 1) == 0) {
+        CompMatrix(&pSkeleton->localTransform, &pSkeleton[1].globalTransform, pScratch);
+        SetRotMatrix(pScratch);
+        SetTransMatrix(pScratch);
+
+        svec.vx = 0;
+        svec.vy = 0;
+        svec.vz = 0x1000;
+        gte_ldv0(&svec);
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(vec);
+
+        svec.vx = 0;
+        svec.vy = 0;
+        svec.vz = 0;
+        gte_ldv0(&svec);
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(trans);
+
+        svec.vy = -ratan2(vec[2] - trans[2], vec[0] - trans[0]);
+        svec.vx = 0;
+        svec.vz = 0;
+        RotMatrix(&svec, pViewScratch);
+
+        pViewScratch->t[0] = trans[0];
+        pViewScratch->t[2] = trans[2];
+        pViewScratch->t[1] = pModel->ground;
+
+        CompMatrix(pLightMatrix, &pSkeleton->globalTransform, pViewScratch);
+
+        depth = pModel->scale - (pModel->ground - pSkeleton->translation.y) / 4;
+        if (depth < 0) {
+            depth = 0;
+        }
+
+        pScratch->m[0][0] = depth;
+        pScratch->m[0][1] = 0;
+        pScratch->m[0][2] = 0;
+        pScratch->m[1][0] = 0;
+        pScratch->m[1][1] = depth;
+        pScratch->m[1][2] = 0;
+        pScratch->m[2][0] = 0;
+        pScratch->m[2][1] = 0;
+        pScratch->m[2][2] = depth;
+
+        MulMatrix(pViewScratch, pScratch);
+        SetRotMatrix(pViewScratch);
+        SetTransMatrix(pViewScratch);
+
+        pPoly = &pModel->polys[packetIndex];
+
+        svec.vx = pModel->width;
+        svec.vy = 0;
+        svec.vz = pModel->depth;
+        gte_ldv0(&svec);
+        gte_rtps();
+        gte_stsxy2((u_long*)&pPoly->x0);
+        gte_stsz3_val(depth);
+        depth >>= 2;
+
+        svec.vx = -pModel->width;
+        gte_ldv0(&svec);
+        gte_rtps();
+        gte_stsxy2((u_long*)&pPoly->x1);
+        gte_stsz3_val(slot);
+        slot >>= 2;
+        if (slot < depth) {
+            depth = slot;
+        }
+
+        svec.vx = pModel->width;
+        svec.vz = -pModel->depth;
+        gte_ldv0(&svec);
+        gte_rtps();
+        gte_stsxy2((u_long*)&pPoly->x2);
+        gte_stsz3_val(slot);
+        slot >>= 2;
+        if (slot < depth) {
+            depth = slot;
+        }
+
+        svec.vx = -pModel->width;
+        gte_ldv0(&svec);
+        gte_rtps();
+        gte_stsxy2((u_long*)&pPoly->x3);
+        gte_stsz3_val(slot);
+        slot >>= 2;
+        if (slot < depth) {
+            depth = slot;
+        }
+
+        otz = depth >> g_GfxOTDepthShift;
+        pPoly->tag = (pPoly->tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
+        pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
+        if (otz >= 0x2D9) {
+            otz = 0x2D8;
+        }
+        pModel->unk39 = 0x6B - otz / 8;
+    }
+
+    MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
+
+    pJoint = pSkeleton + 1;
+    for (jointIndex = 1; jointIndex < numChildren; jointIndex++) {
+        if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->unk7 != 0) {
+            MulMatrix0(pViewScratch, &pJoint->globalTransform, pScratch);
+            SetLightMatrix(pScratch);
+            CompMatrix(pLightScratch, &pJoint->globalTransform, pScratch);
+
+            if (pJoint->scale.pad > 0) {
+                pScratch->m[0][0] = pModel->scale;
+                pScratch->m[0][2] = 0;
+                pScratch->m[1][0] = 0;
+                pScratch->m[1][2] = 0;
+                pScratch->m[2][0] = 0;
+                pScratch->m[2][2] = pModel->scale;
+
+                if (pJoint->scale.pad == 1) {
+                    pScratch->m[0][1] = pLightScratch->m[0][1];
+                    pScratch->m[1][1] = pLightScratch->m[1][1];
+                    pScratch->m[2][1] = pLightScratch->m[2][1];
+                } else {
+                    pScratch->m[0][1] = 0;
+                    pScratch->m[2][1] = 0;
+                    pScratch->m[1][1] = pModel->scale;
+                }
+            }
+
+            SetRotMatrix(pScratch);
+            SetTransMatrix(pScratch);
+
+            ModelRenderPacket(
+                pMesh->pParts[pJoint->jointIndex],
+                ((void**)&pJoint->pModelPacketBuffer)[packetIndex],
+                pOt,
+                renderMode
+            );
+        }
+        pJoint++;
+    }
+
+    pListEntry = pModel->pModelListEntries;
+    for (i = 0; i < pModel->numModelListEntries; i++, pListEntry++) {
+        if (*(s16*)pListEntry->unk0 < 0) {
+            continue;
+        }
+
+        swingVec.vx = -g_LibGearSwingScale * rsin(pSkeleton->rotation.vy + 0x400) / 0x1000;
+        swingVec.vz = g_LibGearSwingScale * rcos(pSkeleton->rotation.vy + 0x400) / 0x1000;
+        swingVec.vy = pModel->unk3E;
+
+        CompMatrix(&pSkeleton->localTransform, &pSkeleton[*(s16*)pListEntry->unk0].globalTransform, pScratch);
+        SetRotMatrix(pScratch);
+        SetTransMatrix(pScratch);
+
+        for (j = 0; j < *(s16*)(pListEntry->unk0 + 4); j++) {
+            gte_ldv0(&((SVECTOR*)pListEntry->unk14)[j]);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(proj);
+
+            *(u16*)((u8*)pListEntry->unk1C[j] + 4) = proj[0];
+            *(u16*)((u8*)pListEntry->unk1C[j] + 6) = proj[2];
+            *(u16*)((u8*)pListEntry->unk1C[j] + 8) = proj[4];
+        }
+
+        pSection = (u8*)pListEntry->unk18;
+        for (j = 0; j < *(s16*)(pListEntry->unk0 + 0xA); j++) {
+            CompMatrix(&pSkeleton->localTransform, &pSkeleton[*(s16*)(pSection + 6)].globalTransform, pScratch);
+            SetRotMatrix(pScratch);
+            SetTransMatrix(pScratch);
+
+            gte_ldv0((SVECTOR*)pSection);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(proj);
+
+            *(u16*)(pSection + 8) = proj[0];
+            *(u16*)(pSection + 0xA) = proj[2];
+            *(u16*)(pSection + 0xC) = proj[4];
+            pSection += 0x10;
+        }
+
+        func_801E22F8(pListEntry, &swingVec, pLightMatrix, pOt, packetIndex, modelScale, pModel->ground);
+    }
+
+    pTexture = pModel->pTextures;
+    for (i = 0; i < pModel->numTextures; i++, pTexture++) {
+        func_801E1258(pTexture, frameStep);
+    }
+
+    pEntry = (ColorSlot*)pModel->pColorEntries;
+    for (i = 0; i < pModel->numColorEntries; i++) {
+        if (pEntry->jointIndex < 0) {
+            pEntry++;
+            continue;
+        }
+
+        pEntry->slot = (pEntry->slot - 1) & 7;
+
+        if (pEntry->is3D == 0) {
+            CompMatrix(pLightScratch, &pSkeleton[pEntry->jointIndex].globalTransform, pScratch);
+            SetRotMatrix(pScratch);
+            SetTransMatrix(pScratch);
+
+            gte_ldv0(&pEntry->sourceA);
+            gte_rtps();
+            gte_stsxy2((u_long*)&pEntry->screenA[2 * pEntry->slot]);
+
+            gte_ldv0(&pEntry->sourceB);
+            gte_rtps();
+            gte_stsxy2((u_long*)&pEntry->screenB[2 * pEntry->slot]);
+
+            pEntry->age++;
+            if ((s16)pEntry->age == 0) {
+                continue;
+            }
+
+            if (pEntry->numFrames < (s16)pEntry->age || pEntry->pVertex == NULL) {
+                pEntry->age = 1;
+                pEntry->pVertex = LibGearAllocVertex(pEntry->pVertexBuffer, pEntry->isSemiTrans);
+                pEntry->pVertex->is3D = 0;
+                pEntry->pVertex->age = 0;
+                pEntry->pVertex->lifetime = pEntry->lifetime;
+                pEntry->pVertex->red = pEntry->red;
+                pEntry->pVertex->green = pEntry->green;
+                pEntry->pVertex->blue = pEntry->blue;
+                pEntry->pVertex->redDelta = pEntry->redDelta;
+                pEntry->pVertex->greenDelta = pEntry->greenDelta;
+                pEntry->pVertex->blueDelta = pEntry->blueDelta;
+
+                slot = (pEntry->slot + pEntry->age) & 7;
+                pEntry->pVertex->x0 = pEntry->screenA[2 * slot];
+                pEntry->pVertex->y0 = pEntry->screenA[2 * slot + 1];
+                pEntry->pVertex->x2 = pEntry->screenB[2 * slot];
+                pEntry->pVertex->y2 = pEntry->screenB[2 * slot + 1];
+            }
+
+            slot = pEntry->slot;
+            pEntry->pVertex->x1 = pEntry->screenA[2 * slot];
+            pEntry->pVertex->y1 = pEntry->screenA[2 * slot + 1];
+            pEntry->pVertex->x3 = pEntry->screenB[2 * slot];
+            pEntry->pVertex->y3 = pEntry->screenB[2 * slot + 1];
+        } else {
+            CompMatrix(&pSkeleton->localTransform, &pSkeleton[pEntry->jointIndex].globalTransform, pScratch);
+            SetRotMatrix(pScratch);
+            SetTransMatrix(pScratch);
+
+            slot = pEntry->slot & 1;
+            pQuadA = (u8*)pEntry + 0x1C + 0x10 * slot;
+            pQuadB = (u8*)pEntry + 0x3C + 0x10 * slot;
+
+            gte_ldv0(&pEntry->sourceA);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(pQuadA);
+
+            gte_ldv0(&pEntry->sourceB);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(pQuadB);
+
+            pEntry->age++;
+            if ((s16)pEntry->age == 0) {
+                continue;
+            }
+
+            if (pEntry->numFrames < (s16)pEntry->age || pEntry->pVertex == NULL) {
+                pEntry->age = 1;
+                pEntry->pVertex = LibGearAllocVertex(pEntry->pVertexBuffer, pEntry->isSemiTrans);
+                pEntry->pVertex->is3D = 1;
+                pEntry->pVertex->age = 0;
+                pEntry->pVertex->lifetime = pEntry->lifetime;
+                pEntry->pVertex->red = pEntry->red;
+                pEntry->pVertex->green = pEntry->green;
+                pEntry->pVertex->blue = pEntry->blue;
+                pEntry->pVertex->redDelta = pEntry->redDelta;
+                pEntry->pVertex->greenDelta = pEntry->greenDelta;
+                pEntry->pVertex->blueDelta = pEntry->blueDelta;
+
+                pSection = (u8*)pEntry + 0x1C + 0x10 * (1 - slot);
+                pEntry->pVertex->x0 = *(u16*)(pSection + 0);
+                pEntry->pVertex->y0 = *(u16*)(pSection + 4);
+                pEntry->pVertex->z0 = *(u16*)(pSection + 8);
+
+                pSection = (u8*)pEntry + 0x3C + 0x10 * (1 - slot);
+                pEntry->pVertex->x2 = *(u16*)(pSection + 0);
+                pEntry->pVertex->y2 = *(u16*)(pSection + 4);
+                pEntry->pVertex->z2 = *(u16*)(pSection + 8);
+            }
+
+            pEntry->pVertex->x1 = *(u16*)(pQuadA + 0);
+            pEntry->pVertex->y1 = *(u16*)(pQuadA + 4);
+            pEntry->pVertex->z1 = *(u16*)(pQuadA + 8);
+            pEntry->pVertex->x3 = *(u16*)(pQuadB + 0);
+            pEntry->pVertex->y3 = *(u16*)(pQuadB + 4);
+            pEntry->pVertex->z3 = *(u16*)(pQuadB + 8);
+        }
+
+        pEntry++;
+    }
+}
+*/
+
 
 // Decoded from the .s, verified against the near-twin function LibGearRenderModel
 // in this file (its joint loop is already matched - start from it):
@@ -535,9 +922,26 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 // 'UnkInner1', 'Vertex', 'VertexBuffer' all already exist in 'include/libgear/main.h' and look
 // sufficient — no header change expected.
 //
-// Least certain: the Temp9 (0x24 stride) and UnkInner1 (0x70 stride) views in
-// PARK 7 and 9 are inferred from advanced-pointer reads; nail them from the first
-// compiled body. No header change is expected.
+// CORRECTIONS after writing the body (the full body is parked below, 86.47%):
+// - PARK_NOTE 3 is wrong about the fourth base: $s7 is loaded with a bare
+//   'lui $s7,0x1F80' and no 'ori', so it is 0x1F800000 (PSX_SCRATCH), not 0x1F80000E.
+//   splat prints (0x1F80000E>>16) only because some symbol access used that hi part.
+//   The 'light colour' halfwords at 0x1F800000/2/8/E are plain fields of the scratch
+//   MATRIX (m[0][0], m[0][1], m[1][1], m[2][1]), and the joint loop's
+//   SetLightMatrix/SetRotMatrix/SetTransMatrix all take PSX_SCRATCH.
+// - PARK_NOTE 9's offsets are all 8 too low: the phase-5 cursor is entry+8, so the
+//   quad counter is entry+0x5C, the age 0x5E, the frame cap 0x60, and the seven u16
+//   copied into the Vertex (0x1E..0x2A: lifetime, rgb, rgb deltas) are 0x62..0x6E.
+//   The entry head (not covered by UnkInner1, so this file declares a local view
+//   'ColorSlot'): 0x0 s16 joint index (-1 = free), 0x2 u8 3D flag, 0x3 u8 semi-trans,
+//   0x4 VertexBuffer*, 0x8 Vertex*, 0xC/0x14 SVECTORs projected with the joint matrix,
+//   0x1C and 0x3C two banks of 16 u16 = two 0x10-byte slots of four SXY quads each.
+// - Temp9 (0x24 stride) is nailed down: +0x0 s16 (negative = free), +0x4 s16 vector
+//   count for the SVECTOR array at +0x14, +0xA s16 record count for the stride-0x10
+//   records at +0x18 (SVECTOR at +0, s16 joint index at +6, u16 x/y/z at +8/+A/+C).
+// - Phase 4's callee takes frameStep in $a1 and func_801E22F8 takes
+//   (entry, &swingVec, pLightMatrix, pOt, packetIndex, scale, ground) - the last three
+//   are pushed at 0x10/0x14/0x18(sp).
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DDBF8);
 
