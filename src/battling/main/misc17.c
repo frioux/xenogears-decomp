@@ -97,8 +97,8 @@ typedef struct BattleActor {
     /* 0x0BC */ s16 gaugeMax;
     /* 0x0BE */ s16 unkBE;
     /* 0x0C0 */ u8 unkC0[0xC];
-    /* 0x0CC */ u16 unkCC;
-    /* 0x0CE */ s16 unkCE;
+    /* 0x0CC */ u16 sideBaseAngle;
+    /* 0x0CE */ s16 facingOffset;
     /* 0x0D0 */ u32 flags;
     /* 0x0D4 */ u8 unkD4[0x835];
     /* 0x909 */ u8 typeId;
@@ -464,7 +464,7 @@ void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
         }
     }
     pActor->angle = func_8008B650(pActor->angle, arg1, 0x40);
-    pActor->unkCE = 0;
+    pActor->facingOffset = 0;
 }
 void BattleCheckStateAndSetDelay60(BattleActor* pActor, BattleWork* pWork) {
     BattleTryQueueMessage5(pActor, pWork);
@@ -556,7 +556,7 @@ void BattleRunActorStateHandler(BattleActor* pActor) {
         pActor->flags &= ~0x38;
         pWork->flags.flags &= ~0x2000;
         g_BattleAiAppliedBehaviorLevel = g_BattleAiBehaviorLevel;
-        pActor->unkCE = pActor->unkCC + 0x800;
+        pActor->facingOffset = pActor->sideBaseAngle + 0x800;
     }
     if (pWork->flags.flags & 0x2000) {
         pActor->flags |= 2;
