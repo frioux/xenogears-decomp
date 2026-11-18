@@ -284,14 +284,14 @@ void FieldScriptVMHandlerMoveActorToIndirectPosition(void) {
 
 
 typedef struct {
-    /* 0x0 */ u16 f0;
-    /* 0x2 */ u16 f1;
-    /* 0x4 */ u16 f2;
-    /* 0x6 */ u16 f3;
-    /* 0x8 */ u16 f4;
-    /* 0xA */ u16 f5;
-    /* 0xC */ u16 f6;
-    /* 0xE */ u16 f7;
+    /* 0x0 */ u16 arg1;
+    /* 0x2 */ u16 arg2;
+    /* 0x4 */ u16 arg3;
+    /* 0x6 */ u16 arg4;
+    /* 0x8 */ u16 arg5;
+    /* 0xA */ u16 arg6;
+    /* 0xC */ u16 arg7;
+    /* 0xE */ u16 arg8;
 } FieldScriptArgs; // Size: 0x10
 
 // 79.89% (684 vs 632 bytes). Structure is right - frame (0xA0, seven saves),
@@ -427,14 +427,14 @@ void FieldScriptVMHandlerSnapshotIndirectArguments(void) {
         g_FieldScriptVMCurActor->unk114 = HeapAlloc(0x10, 0x0);
     }
     g_FieldScriptVMCurActor->flags12C_0xD = 1;
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f0 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f1 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f2 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f3 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f4 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f5 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f6 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
-    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->f7 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg1 = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg2 = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg3 = FieldScriptArgument3(5, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg4 = FieldScriptArgument4(7, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg5 = FieldScriptArgument5(9, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg6 = FieldScriptArgument6(0xB, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg7 = FieldScriptArgument7(0xD, SCRIPT_READ_U8_REL(0x11));
+    ((FieldScriptArgs*)g_FieldScriptVMCurActor->unk114)->arg8 = FieldScriptArgument8(0xF, SCRIPT_READ_U8_REL(0x11));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 0x12;
 }
 
