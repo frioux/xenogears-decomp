@@ -1016,67 +1016,54 @@ void BattleAddSharedPrim(void) {
     AddPrim(g_BattleRootOrderingTable, &g_BattleSharedPrimBuffer[g_BattleDrawBufferIndex]);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086E70);
-
-/* 80.41% - content matches, layout does not: retail puts the value<0x38 block
-   between the first prim and the inner if (as the else of an outer if whose
-   else exits), ours puts it last. Also retail computes the tapered x3 as
-   `addiu v0,s3,-4 ; subu a2,v0,q` where ours folds to `value - (q + 4)`.
-   Tried: if (value >= 0x38) {..} else {small} (80.41%, this one), early
-   `return` in the small block (56.79%, +s5, 0x30 frame), `return` in the else
-   (72.36%), a `quarter` local for the division (no change).
 void func_80086E70(u8* pOt, u8* pBase, s32 value, s32 flag) {
+    u16* pTaper;
+    s32 edge;
+
     if (value >= 0x38) {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), 0x38);
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), 0x34);
         AddPrim(pOt, pBase);
-        if (value >= 0x48) {
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), 0x48);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C), 0x40);
-            BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), 0x10);
-            AddPrim(pOt, pBase + 0x18);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x3C), value);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - 8);
-            AddPrim(pOt, pBase + 0x30);
-        } else {
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
-            BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C),
-                                       (value - 4) - (value - 0x38) / 4);
-            BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E),
-                                       (value - 0x38) / 2 + 8);
-            AddPrim(pOt, pBase + 0x18);
-        }
     } else {
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0xC), value);
         BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x14), value - 4);
         AddPrim(pOt, pBase);
+        return;
     }
+    if (value >= 0x48) {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), 0x48);
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x2C), 0x40);
+        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), 0x10);
+        AddPrim(pOt, pBase + 0x18);
+    } else {
+        BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x24), value);
+        pTaper = (u16*)(pBase + 0x2C);
+        edge = value - 4;
+        BattleSetVertexXForFlipped(flag, pTaper, edge - (value - 0x38) / 4);
+        BattleSetVertexYForFlipped(flag, (u16*)(pBase + 0x2E), (value - 0x38) / 2 + 8);
+        AddPrim(pOt, pBase + 0x18);
+        return;
+    }
+    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x3C), value);
+    BattleSetVertexXForFlipped(flag, (u16*)(pBase + 0x44), value - 8);
+    AddPrim(pOt, pBase + 0x30);
 }
-*/
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80086FF8);
-
-/* 84.25% - the two value branches each re-materialise `li 0x28000000` (gcc
-   rematerialises the constant per branch); the original hoists one lui into
-   the beqz delay slot and keeps `ori v1,v1,imm` in each arm, plus the 1 return
-   in v0 (ours puts value in a0 and 5 in v1). Tried: full constants in each
-   arm, `value = 0x28000000 | (c ? 0xFFFF : 0xFF)`, the ternary inside the
-   store, `value |= c ? 0xFFFF : 0xFF`, u32 value, `0x28 << 24`, inverted
-   condition - all 82-84%, and -G0 / 2.6.0 score the same.
 s32 func_80086FF8(s32 arg0, u8* pOut) {
     s32 value;
+    s32* pColor;
 
     if (BattleCheckActorBelowBreakThreshold(arg0, 0) != 0) {
         return 0;
     }
-    value = 0x28000000;
     if (BattleCheckActorBelowBreakThreshold(arg0, 1) != 0) {
-        value |= 0xFFFF;
+        value = 0x2800FFFF;
+        pOut[3] = 5;
     } else {
-        value |= 0xFF;
+        value = 0x280000FF;
+        pOut[3] = 5;
     }
-    pOut[3] = 5;
-    *(s32*)(pOut + 4) = value;
+    pColor = (s32*)(pOut + 4);
+    *pColor = value;
     return 1;
 }
-*/
