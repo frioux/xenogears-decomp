@@ -48,11 +48,15 @@ typedef struct {
 typedef struct {
     /* 0x00 */ MenuSaveGearHead20 head;
     /* 0x20 */ MenuSaveGearHead08 headTail;
+    // GameGear.unk5C: the four bytes of the equipped weapon's record head, see
+    // MenuApplyGearWeapons. Nothing names those bytes, so neither end can be named.
     /* 0x28 */ u32 unk28;
     /* 0x2C */ u32 hp;
+    // unk30, unk36 and unk3B are written by neither copy direction.
     /* 0x30 */ u32 unk30;
     /* 0x34 */ u16 fuel;
     /* 0x36 */ u16 unk36;
+    // GameGear.unk99, which no matched code writes or reads.
     /* 0x38 */ u8 unk38;
     /* 0x39 */ u8 attackPower;
     /* 0x3A */ u8 baseWeightClass;
@@ -99,8 +103,11 @@ typedef struct {
     /* 0x0010 */ u8 mp[MAX_PARTY_MEMBERS];
     /* 0x0013 */ u8 maxMp[MAX_PARTY_MEMBERS];
     /* 0x0016 */ u8 level[MAX_PARTY_MEMBERS];
+    // GameCharacter.unk63 of the slot's character: a 3-digit number the menus draw
+    // beside the level (MenuDrawSlotResourceSprites, MenuSetCharacterLevelDigits).
     /* 0x0019 */ u8 unk19[MAX_PARTY_MEMBERS];
     /* 0x001C */ u8 characterIds[MAX_PARTY_MEMBERS];
+    // The slot builder clears unk1F; unk20 is read and written by nothing.
     /* 0x001F */ u8 unk1F;
     /* 0x0020 */ u8 unk20[3];
     /* 0x0023 */ u8 index; // card chunk index, as in MenuUnk2ImageChunk.index
@@ -109,7 +116,9 @@ typedef struct {
     /* 0x0290 */ MenuSaveCharacter characters[MAX_GAME_CHARACTERS];
     /* 0x099C */ MenuSaveGear gears[MAX_GAME_GEARS];
     // The four blobs below are copied verbatim from g_GameState at the offset their
-    // name gives, which is not their offset in this record.
+    // name gives, which is not their offset in this record.  0x1820 is the world map
+    // state and 0x1920 the gold/party/inventory block (see include/main/game.h);
+    // 0x1648 and 0x16C0 cut across GameState regions nothing here names yet.
     /* 0x0E4C */ MenuSaveBlob0x78 unk1648;
     /* 0x0EC4 */ MenuSaveBlob0x160 unk16C0;
     /* 0x1024 */ MenuSaveBlob0x100 unk1820;
