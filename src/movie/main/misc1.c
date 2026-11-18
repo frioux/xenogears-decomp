@@ -736,7 +736,84 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     SetSemiTrans(pPoly1, 0);
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 }
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
+void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 r;
+    s32 g;
+    s32 b;
+    s32 dr;
+    s32 dg;
+    s32 db;
+    u_char* pColR;
+    u_char* pColG;
+    u_char* pColB;
+    u_char* pTargetR;
+    u_char* pTargetG;
+    u_char* pTargetB;
+
+    pColB = &D_80076F8C[0].b;
+    pTargetB = &D_80076F9C[0].b;
+    pColG = pColB - 1;
+    pTargetG = pTargetB - 1;
+    pColR = pColB - 2;
+    pTargetR = pTargetB - 2;
+
+    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
+
+    for (i = 0; i < 4; i++) {
+        if (++D_80076FAC[i] > D_80076FBC[i]) {
+            D_80076FAC[i] = 0;
+            D_80076FBC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+            *pColR = *pTargetR;
+            *pColG = *pTargetG;
+            *pColB = *pTargetB;
+            *pTargetR = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
+            *pTargetG = 8;
+            *pTargetB = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
+        }
+
+        dr = (*pTargetR - *pColR) * D_80076FAC[i] / D_80076FBC[i];
+        dg = (*pTargetG - *pColG) * D_80076FAC[i] / D_80076FBC[i];
+        db = (*pTargetB - *pColB) * D_80076FAC[i] / D_80076FBC[i];
+        r = *(volatile u_char*)pColR + dr;
+        g = *(volatile u_char*)pColG + dg;
+        b = *(volatile u_char*)pColB + db;
+
+        switch (i) {
+        case 0:
+            pPoly1->r0 = r;
+            pPoly1->g0 = g;
+            pPoly1->b0 = b;
+            break;
+        case 1:
+            pPoly1->r1 = r;
+            pPoly1->g1 = g;
+            pPoly1->b1 = b;
+            break;
+        case 2:
+            pPoly1->r2 = r;
+            pPoly1->g2 = g;
+            pPoly1->b2 = b;
+            break;
+        case 3:
+            pPoly1->r3 = r;
+            pPoly1->g3 = g;
+            pPoly1->b3 = b;
+            break;
+        }
+
+        pColB += 4;
+        pTargetB += 4;
+        pColG += 4;
+        pTargetG += 4;
+        pColR += 4;
+        pTargetR += 4;
+    }
+
+    pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
+    pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
+}
+
 
 void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
@@ -783,6 +860,7 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     u_char* pTargetG;
     u_char* pTargetB;
 
+    i = 0;
     pColB = D_80076FCE;
     pTargetB = D_80076FDE;
     pColG = pColB - 1;
@@ -792,7 +870,7 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 
-    for (i = 0; i < 4; i++) {
+    for (; i < 4; i++) {
         if (++g_MovieGlowFadeSteps[i] > g_MovieGlowFadeDurations[i]) {
             g_MovieGlowFadeSteps[i] = 0;
             g_MovieGlowFadeDurations[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
@@ -807,9 +885,9 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
         dr = (*pTargetR - *pColR) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
         dg = (*pTargetG - *pColG) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
         db = (*pTargetB - *pColB) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
-        r = *pColR + dr;
-        g = *pColG + dg;
-        b = *pColB + db;
+        r = *(volatile u_char*)pColR + dr;
+        g = *(volatile u_char*)pColG + dg;
+        b = *(volatile u_char*)pColB + db;
 
         switch (i) {
         case 0:
