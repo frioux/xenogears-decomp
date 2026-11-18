@@ -114,12 +114,13 @@ typedef struct BattleActor {
     // the move's frame count is cleared for the stop animation (0x300000).
     /* 0x00C8 */ s16 moveEndTimer;
     /* 0x00CA */ s16 moveTimer;
-    // A 12-bit angle pair: 0xCE is always derived from 0xCC (its negated value
-    // when the camera spin direction flips, itself otherwise, or 0xCC + 0x800 in
-    // misc4's round reset, which sets 0xCC to -0x400/0x400 for the two sides) and
-    // func_80076884 adds 0xCE to the facings it computes.
-    /* 0x00CC */ u16 unkCC;
-    /* 0x00CE */ s16 unkCE;
+    // A 12-bit angle pair: facingOffset is always derived from sideBaseAngle (its
+    // negated value when the camera spin direction flips, itself otherwise, or
+    // sideBaseAngle + 0x800 in misc4's round reset, which sets sideBaseAngle to
+    // -0x400/0x400 for the two sides) and func_80076884 adds facingOffset to the
+    // facings it computes.
+    /* 0x00CC */ u16 sideBaseAngle;
+    /* 0x00CE */ s16 facingOffset;
     /* 0x00D0 */ u32 flags;
     /* 0x00D4 */ u32 stateFlags;
     /* 0x00D8 */ struct BattleActor* pTarget;
@@ -132,7 +133,7 @@ typedef struct BattleActor {
     /* 0x0100 */ s32 movePhase;
     // Sixteen 0x54-byte slot records (misc2's BattleActorSlot): BattleCommitSlotStates
     // walks all sixteen and reads the state byte at +0x44 of each.
-    /* 0x0104 */ u8 unk104[0x540];
+    /* 0x0104 */ u8 slots[0x540];
     /* 0x0644 */ s32 gaugePercent;
     /* 0x0648 */ s32 facingAngle;
     /* 0x064C */ u8 unk64C[0x2BD];
@@ -197,7 +198,7 @@ typedef struct BattleActor {
     // The actor's state record, the block the pState pointer at 0x15CC points at:
     // misc4's BattleActorInitModelState sets pState to this address, misc2 writes the
     // record's position and flags through it (its BattleActorState).
-    /* 0x09CC */ u8 unk9CC[0xC00];
+    /* 0x09CC */ u8 stateRecord[0xC00];
     /* 0x15CC */ void* pState;
     /* 0x15D0 */ u8 unk15D0[0x18];
     /* 0x15E8 */ s16 unk15E8;
@@ -218,10 +219,11 @@ typedef struct BattleActor {
     // BattleSetResultCode).
     /* 0x1654 */ s32 unk1654;
     /* 0x1658 */ s32 unk1658;
-    // Counters the input handler bumps as it queues messages: 0x1660 for each
-    // message 1 or 2, 0x165C for each message 3. No reader in this overlay.
-    /* 0x165C */ s32 unk165C;
-    /* 0x1660 */ s32 unk1660;
+    // Counters the input handler bumps as it queues messages: message12Count for
+    // each message 1 or 2, message3Count for each message 3. No reader in this
+    // overlay.
+    /* 0x165C */ s32 message3Count;
+    /* 0x1660 */ s32 message12Count;
     // The sound table BattleSetActorSoundTable picks by typeId; misc17 indexes it
     // with a byte index.
     /* 0x1664 */ u8* pSoundTable;
