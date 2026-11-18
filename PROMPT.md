@@ -127,6 +127,10 @@ One worker = one clone = **one `.c` file**.
     tools/scripts/rename_data.py -f <names file> # see "Names for data and fields"
     make check
     git commit, git push, one row in reports/TRACKER.md
+    # `git add -A <path>` stages only that path: after the renames, `git add -A` the
+    # whole tree (or `git commit -a`) or the rename lands without its code. Round 247
+    # committed only the tracker that way and the rename sat dirty in the tree, which
+    # `git status | head -1` hides - check the full `git status --porcelain` after push.
     rm -rf ~/xw/r-<tags>                         # fresh `new` clones next round
 
 **Two worker shapes.** The default is the 30-minute worker with a list of small stubs.
