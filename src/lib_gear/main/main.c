@@ -508,7 +508,48 @@ typedef struct {
 extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
 extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s32 scale, s16 ground);
 
-// PARK, round 254: the body below now measures objdiff 87.92%, 3352 bytes against
+// PARK, round 265: objdiff 87.94%, 3352 bytes against retail's 3376. The round-264 note
+// below is partly fiction - THE BODY IT MEASURED DID NOT COMPILE. gte_stlvnl takes the
+// destination ADDRESS ("r"), so `gte_stlvnl(vec)` on a `VECTOR` local is "inconsistent
+// operand constraints in an `asm'" at all four sites (cc1 exit 33); diff_func.sh then
+// silently scored the previous object. The body parked now compiles: `&vec`, `&trans`,
+// `&proj`.
+// CLOSED THIS ROUND (measured, one change at a time):
+//  - the frame: the round-264 note claimed gcc "assigns swingVec's slot second whatever
+//    its position in the declaration list". False. Declared FIRST it takes 0x20 and pushes
+//    svec/vec/trans/depthBuf/proj up by 8; declared LAST (after `VECTOR proj`) our frame is
+//    retail's exactly - svec 0x20, vec 0x28, trans 0x38, depthBuf 0x48, proj 0x50,
+//    swingVec 0x60, a1 0x68, a3 0x70 - and every stack immediate in phases 1a/1b now
+//    agrees with retail. 87.89 -> 87.94%.
+// REGISTER CENSUS (this round's assignment, and the answer to "is it over-allocation?"):
+//  - NO. Retail saves s0-s7 + $30 + ra in a 0xE0 frame; we save the same ten words in the
+//    same 0xE0 frame. The register *sets* agree value for value; only the numbers are
+//    permuted: retail pModel $s5, 0x1F800020 $s6, 0x1F800000 $s7, pMesh $30, numChildren
+//    $s3, jointIndex $s4, joint cursor $s2; ours pModel $s6, 0x1F800020 $s5, 0x1F800000
+//    $s8, pMesh $s7, numChildren $s4, jointIndex $s3, cursor $s2. That permutation alone is
+//    most of the missing 12%.
+//  - declaring pSkeleton/pMesh in either order, and assigning them in either order, changes
+//    nothing (measured). The preset is right: 2.6.0-O2-G8 87.94 vs gcc-2.7.2 85.50; -O3 and
+//    -G0 variants do not compile this body.
+//  - the one real allocation difference: pSkeleton. Both spill it (retail to 0x78, we to
+//    0x80), but retail keeps a copy in $s2 from the entry to the joint-loop preheader - its
+//    `addiu s2,s2,0x7C` reuses that register - and reloads the spill 6 times; we reload 12.
+//    That also reorders the spill slots: retail pSkeleton 0x78 / modelScale 0x80 /
+//    pLightScratch 0x88, ours pLightScratch 0x78 / pSkeleton 0x80 / modelScale 0x88.
+//  - the six missing instructions: retail's corner read-back is `addiu a0,sp,N / mfc2 t4,$19
+//    / nop / sra t4,t4,2 / sw t4,0(a0)` (the shift happens in the REGISTER and the address
+//    is CSE'd across corners 2-4), i.e. 4 after the address. Ours `gte_stsz3_val(depthBuf[1]);
+//    depthBuf[1] >>= 2;` stores, reloads, shifts, stores = 6. The right shape is a scalar
+//    (`gte_stsz3_val(sz3); depthBuf[1] = sz3 >> 2;`) but gcc 2.6 then spills the asm output
+//    into depthBuf's own slot (`mfc2 t0 / sw t0,72(sp) / lw v0,72(sp) / sra / sw`) - 87.32%,
+//    3316 bytes, with a fresh `s32 sz3` and again with the existing `depth` local. Four of
+//    the six are the `nop` after each `mfc2 $19`: include/psyq/inline_c.h's gte_stsz3_val
+//    carries none (gte_stopz_val does) and adding one would move the already matched
+//    libgte_pers/libgte_pers3/libgte_nclip_b, so it needs a second, nop-bearing SZ3 macro.
+// Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
+//
+// --- round 254 note, kept for the phase transcriptions ---
+// PARK, round 254 (revised 264, superseded where the round-265 note disagrees): 87.92%,
 // retail's 3376 (six instructions short: the four `mfc2 $19` nops plus two). All four
 // phases are transcribed and the call/branch sequence matches retail's instruction for
 // instruction; what is left is a frame-layout and allocation delta, listed below in the
@@ -562,8 +603,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
     MATRIX* pViewScratch = &pScratch[1];
     MATRIX* pLightScratch = &pScratch[2];
-    ModelMesh* pMesh;
     ModelJoint* pSkeleton;
+    ModelMesh* pMesh;
     ModelJoint* pJoint;
     Temp9* pListEntry;
     Temp8* pTexture;
@@ -572,12 +613,12 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     u8* pQuadA;
     u8* pQuadB;
     POLY_FT4* pPoly;
-    SVECTOR swingVec;
     SVECTOR svec;
     VECTOR vec;
     VECTOR trans;
     s32 depthBuf[2]; // [0] shallowest corner depth, [1] the corner just projected
     VECTOR proj;
+    SVECTOR swingVec;
     u16 modelScale;
     s32 depth;
     u_int numChildren;
@@ -590,8 +631,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         return;
     }
 
-    pMesh = pModel->pMesh;
     pSkeleton = pModel->pSkeleton;
+    pMesh = pModel->pMesh;
     modelScale = pModel->scale;
     numChildren = pSkeleton->numChildren;
 
@@ -607,14 +648,14 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         svec.vz = 0x1000;
         gte_ldv0(&svec);
         gte_mvmva(1, 0, 0, 0, 0);
-        gte_stlvnl(vec);
+        gte_stlvnl(&vec);
 
         svec.vx = 0;
         svec.vy = 0;
         svec.vz = 0;
         gte_ldv0(&svec);
         gte_mvmva(1, 0, 0, 0, 0);
-        gte_stlvnl(trans);
+        gte_stlvnl(&trans);
 
         svec.vy = -ratan2(vec.vz - trans.vz, vec.vx - trans.vx);
         svec.vx = 0;
@@ -755,7 +796,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         for (j = 0; j < pListEntry->numVectors; j++) {
             gte_ldv0(&pListEntry->pVectors[j]);
             gte_mvmva(1, 0, 0, 0, 0);
-            gte_stlvnl(proj);
+            gte_stlvnl(&proj);
 
             pListEntry->pPoints[j]->x = proj.vx;
             pListEntry->pPoints[j]->y = proj.vy;
@@ -770,7 +811,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
             gte_ldv0(&pSection->vector);
             gte_mvmva(1, 0, 0, 0, 0);
-            gte_stlvnl(proj);
+            gte_stlvnl(&proj);
 
             pSection->x = proj.vx;
             pSection->y = proj.vy;
