@@ -17,6 +17,7 @@ extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
 extern u16 D_801E97A0[][2];
 extern u8 g_ShopIndex;
+extern u16 D_801E9DBC[][2];
 
 // 0x1094-byte item panel buffer built by MenuCreateUnk430Panel
 typedef struct {
@@ -63,6 +64,12 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void func_801D8EA4(u8 arg0, u8 arg1, u8 arg2, u8 arg3);
+int func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
+u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3);
+void MenuDrawStatTable(u8 arg0, u8 arg1, u8 arg2, u8 arg3);
+void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 characterId);
+void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
 /* Best: 96.76, 1064 bytes (retail 1068). Structure matches retail everywhere
@@ -1162,3 +1169,271 @@ void MenuReturnWeaponToInventory(u_char arg0, u_char arg1) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
+/* Best: 98.42%, 2468 bytes (retail 2472), 617 vs 618 insns - 4 bytes short, so
+   PARKED. Everything in the body below is retail's: the prologue save order, all
+   three redraw guards, both switches with retail's case-body order (outer: 5, 4,
+   0/2, 1, 3, 9, 10; inner: 5, 4, 1, 3), the eight setXYWH stores with their
+   reloaded `g_Menu->pCursors`, and every call argument. The single missing
+   instruction is one load-delay `nop` in the inner switch's shared tail
+   (retail has `lui v0,g_Menu / lw v0,0(v0) / nop / lw v0,0x33C(v0)` after the
+   `pCursors->shouldRender[0] = 1` store); ours schedules the `li` for
+   `closeList` and the `cursorVisible = 0` store into that gap instead, so gas
+   has no hazard to pad. MEASURED LEVERS: `closeList = 1;` + a separate
+   `g_Menu->pCursors->shouldRender[0] = 1;` gives the right statement order but
+   gcc cse's the two constants into one register (2 insns short, 98.02%);
+   `closeList = g_Menu->pCursors->shouldRender[0] = 1;` (the embedded form, from
+   permute.sh) forces the separate `li` and is what the body below uses. Also
+   needed and already in: prevChar is u_char and group is u_char (retail masks
+   both sides of every `!= prevChar` and does `andi ...s6,0xff` at the calls);
+   `scrollY = 100 * row / count; scrollY = scrollY / 2;` as two statements (one
+   expression puts the div result in v0, retail uses a1); the y-row table read
+   via `(pSlotY = &D_801E9DBC[group * 4 + slot][0])[0]` inside the setXYWH
+   argument (a separate statement hoists the index math into the two load-delay
+   slots and costs two more nops; 4 lhu of it, so the address - not the value -
+   is what retail CSEs into $s0). Remaining cosmetic delta: that block's
+   table address is in v0/v1 and the prim address in v1/v0, swapped.
+   JUMP TABLE: this stub owns jtbl_801C515C at +0x60 of the unit's .rodata range
+   (0xFC..0x18C, three 0x30-byte tables: func_801DBE54's at +0x00,
+   func_801DDF24's at +0x30, this one last). A C switch emits 44 bytes with no
+   trailing pad word, so converting this one alone moves the table to +0x00 and
+   shortens .rodata by 4: the three must be converted in address order, first to
+   last, or check_bin fails on rodata layout. Semantics: the character/gear
+   equipment panel - arg2 != 0 is the gear panel, arg1 asks for the open
+   animation, and group (toggled by LEFT/RIGHT on character id 4 and by a
+   successful equip) selects the weapon vs accessory page whose four row y's are
+   D_801E9DBC[group][slot]. Slot 0 is the weapon, 1..3 the accessories; for gears
+   (arg2 != 0) with group != 0 slots 1 and 2 are skipped. */
+/*
+void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
+    u8 active;
+    u8 needsOpen;
+    u8 needsWindow;
+    u8 needsPanel;
+    u8 cursorVisible;
+    u8 reopenList;
+    u8 listOpen;
+    u8 closeList;
+    u8 kind;
+    u8 equipResult;
+    s32 slot;
+    s32 col;
+    s32 row;
+    u_char group;
+    u_char prevChar;
+    s32 prevSlot;
+    s32 prevCol;
+    s32 prevRow;
+    s32 count;
+    s32 scrollY;
+    s32 scrollHeight;
+    u16* pSlotY;
+
+    active = 1;
+    needsOpen = 1;
+    group = 0;
+    prevChar = 0xFF;
+    slot = 0;
+    needsWindow = 1;
+    col = 0;
+    prevSlot = 0xFF;
+    prevCol = 0xFF;
+    row = 0;
+    prevRow = 0xFF;
+    needsPanel = 0;
+    cursorVisible = 0;
+    reopenList = 0;
+    listOpen = 0;
+    kind = arg2;
+
+    g_Menu->pManager->shouldRenderUnk358Prims = 0;
+    MenuInitializeCharacterSpriteRecords(arg2);
+    MenuCopyEquipmentToPanel(arg0, kind);
+
+    while (active) {
+        MenuRenderFrame();
+        if (needsOpen || arg0 != prevChar) {
+            func_801D8EA4(arg0, group + 1, listOpen, kind);
+            MenuCreateListWindow(group, kind);
+            needsOpen = 0;
+        }
+        if (row != prevRow || arg0 != prevChar) {
+            count = func_801DE5CC(arg0, row, slot, group, kind);
+            if (count != 0) {
+                scrollY = 100 * row / count;
+                scrollY = scrollY / 2;
+                scrollHeight = 0x32;
+            } else {
+                scrollY = 0;
+                scrollHeight = 0x64;
+            }
+            MenuCreateScrollHandle(0x94, scrollY + 0x12, scrollHeight);
+        }
+        if (cursorVisible) {
+            func_801DB0A8(col, row, 3, 0);
+        } else {
+            g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
+        }
+        if (col != prevCol || arg0 != prevChar || row != prevRow) {
+            if (needsPanel) {
+                MenuSetEquipmentSlotValue(arg0, slot, col, row, group, kind);
+            }
+            needsPanel = 1;
+            if (kind == 0) {
+                MenuApplyEquippedItemBonuses(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[arg0]);
+                MenuComputeCharacterStats(g_Menu->pDressingRoom, g_Menu->pManager->currentCharacterIDs[arg0]);
+            } else {
+                MenuUpdateDressingRoomTotals(arg0);
+            }
+            MenuRenderEquipmentSlotStrings(slot, col, row, group, kind, 0, arg0);
+            MenuDrawStatTable(arg0, 1, listOpen, kind);
+            prevCol = col;
+            prevRow = row;
+        }
+        if (slot != prevSlot || arg0 != prevChar) {
+            MenuRenderEquipmentSlotStrings(slot, col, row, group, kind, 1, arg0);
+            setXYWH(&g_Menu->pCursors->polysCursor[g_Menu->pCursors->renderContexts[0]], 0x8C,
+                    (pSlotY = &D_801E9DBC[group * 4 + slot][0])[0], 0x10, 0x10);
+            prevSlot = slot;
+            prevChar = arg0;
+        }
+        if (needsWindow) {
+            MenuCreateWindow(2, 0x94, 0xA, 0x94, 0x74, 0, 1, 4, 1);
+            MenuCreateWindow(3, 0x6C, 0x87, 0xC4, 0x48, 0, 1, 4, 0);
+            MenuCreateWindow(5, 8, 0x8E, 0x60, 0x40, 0, 1, 4, 0);
+            if (arg1) {
+                MenuStartOpenAnimation();
+                func_801D29A8(0, 0);
+                while (g_Menu->transitionEffectState) {
+                    MenuRenderFrame();
+                }
+            }
+            do {
+                g_Menu->pCursors->shouldRender[0] = 1;
+                g_Menu->pManager->playTimeDigitsActive = 0;
+            } while (0);
+            needsWindow = 0;
+            g_Menu->pManager->shouldRenderWindow[1] = 0;
+        }
+        g_Menu->pManager->shouldRenderCursors = 1;
+        if (reopenList) {
+            reopenList = 0;
+            g_Menu->input = MENU_INPUT_CONFIRM;
+        }
+        if (listOpen == 0) {
+            switch (g_Menu->input) {
+            case MENU_INPUT_BACK:
+                active = 0;
+                break;
+            case MENU_INPUT_CONFIRM:
+                MenuCopyEquipmentToPanel(arg0, arg2);
+                row = 0;
+                listOpen = 1;
+                prevRow = 0xFF;
+                prevCol = 0xFF;
+                g_Menu->pCursors->shouldRender[0] = 0;
+                needsOpen = 1;
+                cursorVisible = 1;
+                col = 0;
+                g_Menu->pManager->shouldRenderArrowCursor[0] = 1;
+                break;
+            case MENU_INPUT_RIGHT:
+            case MENU_INPUT_LEFT:
+                if (g_Menu->pManager->currentCharacterIDs[arg0] == 4) {
+                    group ^= 1;
+                    prevSlot = 0xFF;
+                    needsOpen = 1;
+                    slot = 0;
+                }
+                break;
+            case MENU_INPUT_DOWN:
+                if (++slot >= 4) {
+                    slot = 0;
+                }
+                if (group != 0 && kind != 0 && (u32)(slot - 1) < 2) {
+                    slot = 3;
+                }
+                break;
+            case MENU_INPUT_UP:
+                if (--slot < 0) {
+                    slot = 3;
+                }
+                if (0 != group && kind != 0 && (u32)(slot - 1) < 2) {
+                    slot = 0;
+                }
+                break;
+            case MENU_INPUT_NEXT:
+                if (func_801D9704(arg0, 0, kind) != arg0) {
+                    arg0 = func_801D9704(arg0, 0, kind);
+                    group = 0;
+                    needsPanel = 0;
+                }
+                break;
+            case MENU_INPUT_PREV:
+                if (func_801D9704(arg0, 1, kind) != arg0) {
+                    arg0 = func_801D9704(arg0, 1, kind);
+                    group = 0;
+                    needsPanel = 0;
+                }
+                break;
+            }
+        } else {
+            closeList = 0;
+            switch (g_Menu->input) {
+            case MENU_INPUT_BACK:
+                MenuCopyEquipmentFromPanel(arg0, arg2);
+                cursorVisible = 0;
+                closeList = g_Menu->pCursors->shouldRender[0] = 1;
+                func_801DB0A8(0, row, 3, 0);
+                col = 0;
+                prevChar = 0xFF;
+                g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
+                break;
+            case MENU_INPUT_CONFIRM:
+                equipResult = func_801DF0D4(arg0, slot, group, kind);
+                prevChar = 0xFF;
+                if (equipResult != 0) {
+                    group ^= 1;
+                    needsOpen = 1;
+                    reopenList = 1;
+                    MenuReturnWeaponToInventory(arg0, kind);
+                }
+                MenuCopyEquipmentToPanel(arg0, kind);
+                cursorVisible = 0;
+                closeList = g_Menu->pCursors->shouldRender[0] = 1;
+                func_801DB0A8(0, row, 3, 0);
+                col = 0;
+                g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
+                break;
+            case MENU_INPUT_DOWN:
+                if (++col >= 8) {
+                    col = 7;
+                    row++;
+                    if (row > count) {
+                        row = count;
+                    }
+                }
+                break;
+            case MENU_INPUT_UP:
+                if (--col < 0) {
+                    col = 0;
+                    if (--row < 0) {
+                        row = 0;
+                    }
+                }
+                break;
+            }
+            if (closeList) {
+                col = 0;
+                row = 0;
+                listOpen = 0;
+                prevCol = 0xFF;
+                needsOpen = 1;
+                needsPanel = 0;
+                ((u8*)g_Menu->unk35C)[0x32F2] = 0;
+            }
+        }
+    }
+    MenuHidePointerCursors();
+    MenuFreeArrowCursor(0);
+}
+*/
