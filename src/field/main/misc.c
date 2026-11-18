@@ -647,11 +647,12 @@ extern ParticleBankHandle g_FieldScriptParticleBank;
 // - the .z store is a flat byte-offset store: with a typed `directions[i].z`
 //   gcc folds the 0x30 field offset into the base register
 //   (`%lo(banks + 0x30)` + `sh 0x2`) instead of retail's `%lo(banks)` +
-//   `sh 0x32`, and 99.50% is the ceiling of every typed form tried. Retail's
-//   own .x store two instructions later IS the folded `%hi/%lo(banks + 0x30)`
-//   form, so the asymmetry is retail's, not a compromise here.
-// 0x78 = sizeof(ParticleBank), 4 = sizeof(ParticleBankAngleOffset),
-// 0x32 = byte offset of directions[0].z.
+//   `sh 0x32`; the typed form measures 66.82%/84 bytes and an element pointer
+//   local 80.18%/80 bytes against retail's 88. Retail's own .x store two
+//   instructions later IS the folded `%hi/%lo(banks + 0x30)` form, so the
+//   asymmetry is retail's, not a compromise here.
+// The offsets are written as sizeof/offsetof because the u32 sum they feed has
+// to stay an integer expression - a `u8*` base measured 92.73%/92 bytes.
 void FieldClearParticleBankDirections(void) {
     int i;
 
@@ -659,7 +660,8 @@ void FieldClearParticleBankDirections(void) {
         int bankIndex = g_FieldScriptParticleBank.bankIndex;
         u32 banks = (u32)g_FieldDefaultParticleBanks;
 
-        *(s16 *)((bankIndex * 0x78 + i * 4) + banks + 0x32) = 0;
+        *(s16*)((bankIndex * sizeof(ParticleBank) + i * sizeof(ParticleBankAngleOffset)) + banks
+                + offsetof(ParticleBank, directions[0].z)) = 0;
         g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
     }
 }
@@ -2120,27 +2122,31 @@ int FieldActorsWithinDistance(int dstActorId, int srcActorId) {
 }
 
 // Copies one field between two actors, at a constant offset that the callers
-// spell with offsetof. It takes the actor array rather than the two pointers
-// because g_FieldActors is volatile: retail re-reads that base once per copy and
+// spell with offsetof. It re-reads g_FieldActors itself rather than taking the
+// array: that global is volatile, retail re-reads its base once per copy, and
 // the one read has to serve both operands. The byte offset is load-bearing too:
 // typed field pointers do re-read the base once per copy, but gcc then keeps the
 // `index * sizeof(FieldActor)` multiplies in registers where retail re-derives
 // them, so the copies come out short (84.64%/476 bytes for all seven, 89.19%/480
-// for the three matrix words alone, against 100.00%/496). The 0x84 copy reads u16
+// for the three matrix words alone, and 58.79%/344 for the seven written out as
+// plain typed assignments, against 100.00%/496). The 0x84 copy reads u16
 // on purpose - retail loads it with `lhu`, not `lh`.
-static inline void CopySpriteFieldS32(FieldActor* actors, int dstId, int srcId, int offset) {
+static inline void CopySpriteFieldS32(int dstId, int srcId, int offset) {
+    FieldActor* actors = g_FieldActors;
     SpriteData* dst = actors[dstId].pSpriteData;
     SpriteData* src = actors[srcId].pSpriteData;
     *(s32*)((u8*)dst + offset) = *(s32*)((u8*)src + offset);
 }
 
-static inline void CopySpriteFieldU16(FieldActor* actors, int dstId, int srcId, int offset) {
+static inline void CopySpriteFieldU16(int dstId, int srcId, int offset) {
+    FieldActor* actors = g_FieldActors;
     SpriteData* dst = actors[dstId].pSpriteData;
     SpriteData* src = actors[srcId].pSpriteData;
     *(u16*)((u8*)dst + offset) = *(u16*)((u8*)src + offset);
 }
 
-static inline void CopyActorFieldS32(FieldActor* actors, int dstId, int srcId, int offset) {
+static inline void CopyActorFieldS32(int dstId, int srcId, int offset) {
+    FieldActor* actors = g_FieldActors;
     *(s32*)((u8*)&actors[dstId] + offset) = *(s32*)((u8*)&actors[srcId] + offset);
 }
 
@@ -2170,14 +2176,14 @@ void FieldActorCopyPlacement(int dstActorId, int srcActorId) {
     dstActor->curYPos = srcActor->curYPos;
     dstActor->curWalkmeshTriMaterial = srcActor->curWalkmeshTriMaterial;
 
-    CopySpriteFieldU16(g_FieldActors, dstActorId, srcActorId, offsetof(SpriteData, field_0x84));
-    CopySpriteFieldS32(g_FieldActors, dstActorId, srcActorId, offsetof(SpriteData, position.x));
-    CopySpriteFieldS32(g_FieldActors, dstActorId, srcActorId, offsetof(SpriteData, position.y));
-    CopySpriteFieldS32(g_FieldActors, dstActorId, srcActorId, offsetof(SpriteData, position.z));
+    CopySpriteFieldU16(dstActorId, srcActorId, offsetof(SpriteData, field_0x84));
+    CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.x));
+    CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.y));
+    CopySpriteFieldS32(dstActorId, srcActorId, offsetof(SpriteData, position.z));
 
-    CopyActorFieldS32(g_FieldActors, dstActorId, srcActorId, offsetof(FieldActor, transformMatrix.t[0]));
-    CopyActorFieldS32(g_FieldActors, dstActorId, srcActorId, offsetof(FieldActor, transformMatrix.t[1]));
-    CopyActorFieldS32(g_FieldActors, dstActorId, srcActorId, offsetof(FieldActor, transformMatrix.t[2]));
+    CopyActorFieldS32(dstActorId, srcActorId, offsetof(FieldActor, transformMatrix.t[0]));
+    CopyActorFieldS32(dstActorId, srcActorId, offsetof(FieldActor, transformMatrix.t[1]));
+    CopyActorFieldS32(dstActorId, srcActorId, offsetof(FieldActor, transformMatrix.t[2]));
 }
 
 extern u8 g_FieldPartySlotMask;
