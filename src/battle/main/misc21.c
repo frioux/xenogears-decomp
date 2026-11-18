@@ -36,6 +36,111 @@ typedef struct {
     /* 0x10 */ u8 unk10[0x8];
 } BattleAnimData; // Size: 0x18
 
+// One entry of the battle part-slot table (stride 0x14): the position the
+// battle scene lays a part out at, and the divisor its scale is spread over.
+typedef struct {
+    /* 0x00 */ u16 x;
+    /* 0x02 */ u16 y;
+    /* 0x04 */ u16 z;
+    /* 0x06 */ s16 inUse;
+    /* 0x08 */ u8 unk08[0xC];
+} BattlePartSlot; // Size: 0x14
+
+// One 0x7C slot of the sprite vertices BattleAllocSpriteSlot hands out: four
+// corner coordinates, the interpolation step and the two primitives.
+typedef struct {
+    /* 0x00 */ u16 x0;
+    /* 0x02 */ u16 y0;
+    /* 0x04 */ u16 z0;
+    /* 0x06 */ u16 pad06;
+    /* 0x08 */ u16 x1;
+    /* 0x0A */ u16 y1;
+    /* 0x0C */ u16 z1;
+    /* 0x0E */ s16 is3D; // 0 = the four corners are screen coordinates, 1 = they were projected
+    /* 0x10 */ u16 x2;
+    /* 0x12 */ u16 y2;
+    /* 0x14 */ u16 z2;
+    /* 0x16 */ s16 age; // the step the slot is at; 0 = just allocated
+    /* 0x18 */ u16 x3;
+    /* 0x1A */ u16 y3;
+    /* 0x1C */ u16 z3;
+    /* 0x1E */ s16 lifetime;
+    /* 0x20 */ u16 red;
+    /* 0x22 */ u16 green;
+    /* 0x24 */ u16 blue;
+    /* 0x26 */ s16 redDelta;
+    /* 0x28 */ s16 greenDelta;
+    /* 0x2A */ s16 blueDelta;
+    /* 0x2C */ POLY_FT4 polys[2];
+} BattleSpriteSlot; // Size: 0x7C
+
+// One queued sprite tween, stride 0x70 of BattleActor.pEntries: the two model
+// positions to interpolate between (start/end), the per-step coordinate history
+// the projection writes, and the colour ramp.
+typedef struct {
+    /* 0x00 */ s16 spriteIndex; // index into pActor->pSprites; negative = idle record
+    /* 0x02 */ u8 project3D; // non-zero = start/end are projected to 3D, otherwise to screen
+    /* 0x03 */ u8 semiTrans;
+    /* 0x04 */ void* pSpritePool; // passed to BattleAllocSpriteSlot
+    /* 0x08 */ BattleSpriteSlot* pSlot; // the slot BattleAllocSpriteSlot handed out
+    /* 0x0C */ SVECTOR start;
+    /* 0x14 */ SVECTOR end;
+    /* 0x1C */ DVECTOR offsets[16]; // the start projection of each step, then the end ones
+    /* 0x5C */ s16 slot; // which of the eight step slots this record is on
+    /* 0x5E */ s16 step; // advanced per frame, runs to stepCount
+    /* 0x60 */ s16 stepCount;
+    /* 0x62 */ u16 lifetime;
+    /* 0x64 */ u16 red;
+    /* 0x66 */ u16 green;
+    /* 0x68 */ u16 blue;
+    /* 0x6A */ s16 redDelta;
+    /* 0x6C */ s16 greenDelta;
+    /* 0x6E */ s16 blueDelta;
+} BattleSpriteTween; // Size: 0x70
+
+// One 0x10-byte point of a model list entry: the source position and where its
+// projection lands in the packet beside it.
+typedef struct {
+    /* 0x0 */ u16 vx;
+    /* 0x2 */ u16 vy;
+    /* 0x4 */ u16 vz;
+    /* 0x6 */ s16 spriteIndex; // which sprite's matrix projects this point
+    /* 0x8 */ u16 x;
+    /* 0xA */ u16 y;
+    /* 0xC */ u16 z;
+    /* 0xE */ u16 pad0E;
+} BattleModelListPoint; // Size: 0x10
+
+// One 0x24-byte entry of BattleActor.pModelListEntries.
+typedef struct {
+    /* 0x00 */ s16 spriteIndex; // negative = idle entry
+    /* 0x02 */ u8 unk02[0x2];
+    /* 0x04 */ s16 pointCount;
+    /* 0x06 */ u8 unk06[0x4];
+    /* 0x0A */ s16 recordCount;
+    /* 0x0C */ u8 unk0C[0x2];
+    /* 0x0E */ u8 unk0E[0x2];
+    /* 0x10 */ u8 unk10[0x4];
+    /* 0x14 */ SVECTOR* pPoints;
+    /* 0x18 */ BattleModelListPoint* pRecords;
+    /* 0x1C */ void** pPackets;
+    /* 0x20 */ u8 unk20[0x4];
+} BattleModelListEntry; // Size: 0x24
+
+// The 0x28-byte screen quad of BattleActor.unkB8: the tag, then four corners.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 unk4;
+    /* 0x6 */ u16 unk6;
+} BattleWarpCorner; // Size: 0x8
+
+typedef struct {
+    /* 0x00 */ u32 tag;
+    /* 0x04 */ u32 code;
+    /* 0x08 */ BattleWarpCorner corner[4];
+} BattleWarpQuad; // Size: 0x28
+
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern u_int HeapFree(void* pMem);
 extern void HeapChangeCurrentUser(u_int userTag, char** pContentTypes);
@@ -49,6 +154,14 @@ extern void ModelAllocatePackets(ModelPart* pPart, void** ppPacket, void** ppPac
 extern void ModelInitializePacket(ModelPart* pPart, void* pPacket, s32 packetIndex);
 extern void ModelPacketSetBaseTexPage(s16 x, s16 y);
 extern void ModelPacketSetBaseClut(s16 x, s16 y);
+extern void func_800A3E98(void* pRecord, s32 arg1);
+extern void func_800A7948(void* pEntry, SVECTOR* pVec, MATRIX* pMatrix, u_long* pOt, s32 arg4, s32 arg5,
+                          s32 arg6);
+extern s32 BattleAllocSpriteSlot(void* pPool, s16 arg1);
+extern BattlePartSlot g_BattlePartSlots[];
+extern u8 g_BattleExtraMatrixFlag;
+extern s32 g_GfxOTDepthShift;
+extern s16 D_800D39E8;
 
 BattleModelPartList* BattleInitializeMesh(u8* pModel, BattleModelPartList* pList) {
     u32 count;
@@ -494,7 +607,339 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
      func_800A3E98, func_800A7948 (7 args: the last three are pushed at
      0x10/0x14/0x18(sp)). Tail is jr $31 / nop, so the return type is void.
    Budget: this is a 3-4 hour transcription with a diff loop, not a batch item. */
+/* Round 234: first full transcription, 61.32% / 3968 bytes vs retail's 4084.
+   The structure below is phase-for-phase retail's (the six loops, the GTE
+   blocks, the addPrim tail); the 116-byte gap is in the straight-line data
+   writes, and these are the leads, cheapest first:
+   - Both scratchpad "matrix" fills write NINE s16 at offsets
+     0/2/4/6/8/A/C/E/10 of PSX_SCRATCH (and of PSX_SCRATCH+0x20 for the
+     RotMatrix/m[2][2] block), i.e. the pads of a MATRIX are stored too, with
+     the value at 0, 4 and 8. That is not a MATRIX row/column pattern and the
+     natural m[i][j] spelling (9 stores at 0/2/4/8/A/C/10/12/14) is what the
+     parked body has: it is THREE 8-byte groups, so the original struct is
+     probably an SVECTOR[3] (sv vx,vy,vz and pad both written) or the source
+     wrote through a s16*. Nail this first, it is 2-4 stores per site.
+   - pRotMatrix->m[2][2] = macEnd[0], ->t[1] = macEnd[2], ->t[0] = groundY
+     (offsets 0x14/0x1C/0x18) are retail's and are kept literally.
+   - The 3rd argument (a2) is 0x800CCB94, the caller's param1: it is used BOTH
+     as the phase-1 destination (12 bytes at a2+6..a2+0x11, two groups of three
+     s16) and as MulMatrix0's first matrix. The parked body spells the
+     destination (s16*)pViewMatrix + 3, which is the one really raw site.
+   - Widths retail reads narrower than include/battle/actor.h declares:
+     pActor->scale lhu 0x1C (header s16), pSprites->scale.vy lhu 0x4E and
+     pSprites->pos[0]/pos[2] lhu 0x5C/0x64 (header s32 pos[3], s16 scale).
+     Addressed with ((u16*)&field)[n] casts in the body; a FIELD round should
+     decide whether actor.h wants a second u16 view.
+   - The frame is 0x110 in retail and 0x108 here: retail keeps a0 in $fp and
+     frames 10 callee-saved registers, this body 9.
+   Loops and their structs are decoded and declared at the top of this file
+   (BattlePartSlot, BattleSpriteSlot, BattleSpriteTween, BattleModelListEntry,
+   BattleModelListPoint, BattleWarpQuad) - BattleSpriteTween is the same record
+   as misc22.c's BattleMisc22Cmd and BattleSpriteSlot the same as its
+   BattleMisc22Spr, both with more fields named here. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
+/*
+void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
+                   s32 texParam, u_long* pOt, s32 quadIndex) {
+    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
+    MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
+    BattleModelPartList* pMesh;
+    BattleModelListEntry* pModelList;
+    BattleModelListPoint* pPoint;
+    BattleSpriteTween* pTween;
+    BattleWarpQuad* pQuad;
+    BattleSprite* pSprites;
+    BattleSprite* pSprite;
+    BattlePartSlot* pPart;
+    SVECTOR vec;
+    SVECTOR tweenVec;
+    s32 macStart[4];
+    s32 macEnd[4];
+    s32 macPoint[4];
+    s16* pSlotScale;
+    s32 depth;
+    s32 sz;
+    s32 scale;
+    s32 shade;
+    u32 count;
+    s32 i;
+    s32 j;
+    s32 k;
+
+    if (pActor->doUpdate == 0) {
+        return;
+    }
+    pMesh = pActor->pMesh;
+    pSlotScale = (s16*)pViewMatrix + 3;
+    pSprites = pActor->pSprites;
+    scale = pActor->scale;
+    count = pSprites->count;
+    for (i = 0; i < 2; i++) {
+        pPart = &g_BattlePartSlots[i];
+        if (pPart->inUse != 0) {
+            s16 dx = pPart->x - ((u16*)&pSprites->pos[0])[0];
+            s16 dy = pPart->y - ((pSprites->pos[1] - pActor->height * (scale * ((u16*)&pSprites->scale.vy)[0] >> 12)) >> 13);
+            s16 dz = pPart->z - ((u16*)&pSprites->pos[0])[4];
+            s32 denominator = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
+
+            pSlotScale[i * 3 + 0] = (dx << 12) / denominator * pPart->inUse / (pPart->inUse + denominator);
+            pSlotScale[i * 3 + 1] = (dy << 12) / denominator * pPart->inUse / (pPart->inUse + denominator);
+            pSlotScale[i * 3 + 2] = (dz << 12) / denominator * pPart->inUse / (pPart->inUse + denominator);
+        } else {
+            pSlotScale[i * 3 + 0] = 0;
+            pSlotScale[i * 3 + 1] = 0;
+            pSlotScale[i * 3 + 2] = 0;
+        }
+    }
+    CompMatrix(pLightMatrix, &pSprites->localTransform, pTransMatrix);
+    if ((pActor->flags4A & 1) == 0 && g_BattleExtraMatrixFlag != 0) {
+        CompMatrix(&pSprites->localTransform, &pSprites[1].globalTransform, pMatrix);
+        SetRotMatrix(pMatrix);
+        SetTransMatrix(pMatrix);
+        vec.vx = 0;
+        vec.vy = 0;
+        vec.vz = 0x1000;
+        gte_ldv0(&vec);
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(macStart);
+        vec.vx = 0;
+        vec.vy = 0;
+        vec.vz = 0;
+        gte_ldv0(&vec);
+        gte_mvmva(1, 0, 0, 0, 0);
+        gte_stlvnl(macEnd);
+        vec.vy = -ratan2(macStart[2] - macEnd[2], macStart[0] - macEnd[0]);
+        vec.vx = 0;
+        vec.vz = 0;
+        RotMatrix(&vec, pRotMatrix);
+        pRotMatrix->m[2][2] = macEnd[0];
+        pRotMatrix->t[1] = macEnd[2];
+        pRotMatrix->t[0] = pActor->groundY;
+        CompMatrix(pLightMatrix, pRotMatrix, pRotMatrix);
+        shade = pActor->scale - (pActor->groundY - pSprites->pos[1]) / 4;
+        if (shade < 0) {
+            shade = 0;
+        }
+        pMatrix->m[0][0] = shade;
+        pMatrix->m[0][1] = 0;
+        pMatrix->m[0][2] = 0;
+        pMatrix->m[1][0] = shade;
+        pMatrix->m[1][1] = 0;
+        pMatrix->m[1][2] = 0;
+        pMatrix->m[2][0] = shade;
+        pMatrix->m[2][1] = 0;
+        pMatrix->m[2][2] = 0;
+        MulMatrix(pRotMatrix, pMatrix);
+        SetRotMatrix(pRotMatrix);
+        SetTransMatrix(pRotMatrix);
+        pQuad = &((BattleWarpQuad*)((u8*)pActor + 0xB8))[quadIndex];
+        vec.vy = 0;
+        vec.vx = pActor->width;
+        vec.vz = pActor->depth;
+        gte_ldv0(&vec);
+        gte_rtps();
+        gte_stsxy2(&pQuad->corner[0]);
+        gte_stszotz(&depth);
+        vec.vx = -pActor->width;
+        gte_ldv0(&vec);
+        gte_rtps();
+        gte_stsxy2(&pQuad->corner[1]);
+        gte_stszotz(&sz);
+        if (sz < depth) {
+            depth = sz;
+        }
+        vec.vx = pActor->width;
+        vec.vz = -pActor->depth;
+        gte_ldv0(&vec);
+        gte_rtps();
+        gte_stsxy2(&pQuad->corner[2]);
+        gte_stszotz(&sz);
+        if (sz < depth) {
+            depth = sz;
+        }
+        vec.vx = -pActor->width;
+        gte_ldv0(&vec);
+        gte_rtps();
+        gte_stsxy2(&pQuad->corner[3]);
+        gte_stszotz(&sz);
+        if (sz < depth) {
+            depth = sz;
+        }
+        depth >>= g_GfxOTDepthShift;
+        addPrim(&pOt[depth], pQuad);
+        if (depth > 0x2D8) {
+            depth = 0x2D8;
+        }
+        pActor->unk39 = 0x6B - depth / 8;
+    }
+    MulMatrix0(pViewMatrix, &pSprites->globalTransform, pRotMatrix);
+    pSprite = pSprites;
+    for (i = 1; i < count; i++) {
+        pSprite++;
+        if (pSprite->jointIndex != 0xFFFF && pSprite->isVisible != 0) {
+            MulMatrix0(pRotMatrix, &pSprite->globalTransform, pMatrix);
+            SetLightMatrix(pMatrix);
+            CompMatrix(pTransMatrix, &pSprite->globalTransform, pMatrix);
+            if (pSprite->scale.pad > 0) {
+                pMatrix->m[0][0] = scale;
+                pMatrix->m[0][1] = 0;
+                pMatrix->m[0][2] = 0;
+                pMatrix->m[1][0] = 0;
+                pMatrix->m[1][1] = 0;
+                pMatrix->m[1][2] = 0;
+                pMatrix->m[2][0] = scale;
+                if (pSprite->scale.pad == 1) {
+                    pMatrix->m[0][1] = pTransMatrix->m[0][1];
+                    pMatrix->m[1][0] = pTransMatrix->m[1][0];
+                    pMatrix->m[1][1] = pTransMatrix->m[1][1];
+                }
+            }
+            SetRotMatrix(pMatrix);
+            SetTransMatrix(pMatrix);
+            ModelRenderPacket(pMesh->pParts[pSprite->jointIndex], ((void**)&pSprite->pModelPacketBuffer)[quadIndex],
+                              pOt, flags);
+        }
+    }
+    pModelList = (BattleModelListEntry*)pActor->pModelListEntries;
+    for (i = 0; i < pActor->numModelListEntries; i++, pModelList++) {
+        if (pModelList->spriteIndex < 0) {
+            continue;
+        }
+        tweenVec.vx = -rsin(pSprites->rot[1] + 0x400) * D_800D39E8 / 0x1000;
+        tweenVec.vz = rcos(pSprites->rot[1] + 0x400) * D_800D39E8 / 0x1000;
+        tweenVec.vy = pActor->unk3E;
+        CompMatrix(&pSprites->localTransform, &pSprites[pModelList->spriteIndex].globalTransform, pRotMatrix);
+        SetRotMatrix(pRotMatrix);
+        SetTransMatrix(pRotMatrix);
+        for (j = 0; j < pModelList->pointCount; j++) {
+            gte_ldv0(&pModelList->pPoints[j]);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(macPoint);
+            ((u16*)((void**)pModelList->pPackets)[j])[2] = ((u16*)macPoint)[0];
+            ((u16*)((void**)pModelList->pPackets)[j])[3] = ((u16*)macPoint)[1];
+            ((u16*)((void**)pModelList->pPackets)[j])[4] = ((u16*)macPoint)[2];
+        }
+        for (j = 0; j < pModelList->recordCount; j++) {
+            pPoint = &pModelList->pRecords[j];
+            CompMatrix(&pSprites->localTransform, &pSprites[pPoint->spriteIndex].globalTransform, pRotMatrix);
+            SetRotMatrix(pRotMatrix);
+            SetTransMatrix(pRotMatrix);
+            gte_ldv0((SVECTOR*)&pPoint->vx);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(macPoint);
+            pPoint->x = ((u16*)macPoint)[0];
+            pPoint->y = ((u16*)macPoint)[1];
+            pPoint->z = ((u16*)macPoint)[2];
+        }
+        func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale, pActor->groundY);
+    }
+    pSprite = (BattleSprite*)pActor->pTextures;
+    for (i = 0; i < pActor->numTextures; i++, pSprite++) {
+        func_800A3E98(pSprite, texParam);
+    }
+    pTween = (BattleSpriteTween*)pActor->pEntries;
+    for (i = 0; i < pActor->numEntries; i++, pTween++) {
+        if (pTween->spriteIndex < 0) {
+            continue;
+        }
+        k = pTween->slot;
+        pTween->slot = (pTween->slot - 1) & 7;
+        if (pTween->project3D == 0) {
+            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pRotMatrix);
+            SetRotMatrix(pRotMatrix);
+            SetTransMatrix(pRotMatrix);
+            gte_ldv0(&pTween->start);
+            gte_rtps();
+            gte_stsxy2(&pTween->offsets[k]);
+            gte_ldv0(&pTween->end);
+            gte_rtps();
+            gte_stsxy2(&pTween->offsets[k + 8]);
+            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
+                goto allocate;
+            }
+            if (pTween->pSlot == NULL) {
+                goto allocate;
+            }
+        } else {
+            s32 side = pTween->slot & 1;
+            s32* pStart = (s32*)((u8*)pTween + 0x1C + side * 0x10);
+            s32* pEnd = (s32*)((u8*)pTween + 0x3C + side * 0x10);
+
+            CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pRotMatrix);
+            SetRotMatrix(pRotMatrix);
+            SetTransMatrix(pRotMatrix);
+            gte_ldv0(&pTween->start);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(pStart);
+            gte_ldv0(&pTween->end);
+            gte_mvmva(1, 0, 0, 0, 0);
+            gte_stlvnl(pEnd);
+            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
+                goto allocate3D;
+            }
+            if (pTween->pSlot == NULL) {
+                goto done3D;
+            }
+        allocate3D:
+            pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
+            pTween->step = 1;
+            pTween->pSlot->is3D = 1;
+            pTween->pSlot->age = 0;
+            pTween->pSlot->lifetime = pTween->lifetime;
+            pTween->pSlot->red = pTween->red;
+            pTween->pSlot->green = pTween->green;
+            pTween->pSlot->blue = pTween->blue;
+            pTween->pSlot->redDelta = pTween->redDelta;
+            pTween->pSlot->greenDelta = pTween->greenDelta;
+            pTween->pSlot->blueDelta = pTween->blueDelta;
+            {
+                s32 other = 1 - (pTween->slot & 1);
+                s32* pFrom = (s32*)((u8*)pTween + 0x1C + other * 0x10);
+                s32* pTo = (s32*)((u8*)pTween + 0x3C + other * 0x10);
+
+                pTween->pSlot->x0 = ((u16*)pFrom)[0];
+                pTween->pSlot->y0 = ((u16*)pFrom)[2];
+                pTween->pSlot->z0 = ((u16*)pFrom)[4];
+                pTween->pSlot->x2 = ((u16*)pTo)[0];
+                pTween->pSlot->y2 = ((u16*)pTo)[2];
+                pTween->pSlot->z2 = ((u16*)pTo)[4];
+            }
+        done3D:
+            pTween->pSlot->x1 = ((u16*)pStart)[0];
+            pTween->pSlot->y1 = ((u16*)pStart)[2];
+            pTween->pSlot->z1 = ((u16*)pStart)[4];
+            pTween->pSlot->x3 = ((u16*)pEnd)[0];
+            pTween->pSlot->y3 = ((u16*)pEnd)[2];
+            pTween->pSlot->z3 = ((u16*)pEnd)[4];
+            continue;
+        }
+        goto done;
+    allocate:
+        pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
+        pTween->step = 1;
+        pTween->pSlot->is3D = 0;
+        pTween->pSlot->age = 0;
+        pTween->pSlot->lifetime = pTween->lifetime;
+        pTween->pSlot->red = pTween->red;
+        pTween->pSlot->green = pTween->green;
+        pTween->pSlot->blue = pTween->blue;
+        pTween->pSlot->redDelta = pTween->redDelta;
+        pTween->pSlot->greenDelta = pTween->greenDelta;
+        pTween->pSlot->blueDelta = pTween->blueDelta;
+        j = (pTween->slot + pTween->step) & 7;
+        pTween->pSlot->x0 = pTween->offsets[j].vx;
+        pTween->pSlot->y0 = pTween->offsets[j].vy;
+        pTween->pSlot->x2 = pTween->offsets[j + 8].vx;
+        pTween->pSlot->y2 = pTween->offsets[j + 8].vy;
+    done:
+        pTween->pSlot->x1 = pTween->offsets[pTween->slot].vx;
+        pTween->pSlot->y1 = pTween->offsets[pTween->slot].vy;
+        pTween->pSlot->x3 = pTween->offsets[pTween->slot + 8].vx;
+        pTween->pSlot->y3 = pTween->offsets[pTween->slot + 8].vy;
+    }
+}
+*/
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
