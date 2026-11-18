@@ -33,28 +33,28 @@ extern s32 BattleFreeBlock(void *pPool, BattleBlock *pBlock);
 // field offsets, so only the fields read here are named.
 typedef struct {
     /* 0x00 */ u8 unk00[0x2F];
-    /* 0x2F */ u8 unk2F;
+    /* 0x2F */ u8 commandCode; // 0xF7: queued but not dispatched yet, 0xFF: end of the queue
     /* 0x30 */ u8 unk30[0x16];
-    /* 0x46 */ u16 unk46;
+    /* 0x46 */ u16 slotMask; // the slots the row's command acts on (misc33 BattleActorRow.slotMask)
 } BattleCommandRow; // Size: 0x48
 
 extern BattleCommandRow g_BattleActorCommandIds[];
 
-// A queued move command: a point count at +0x12 and the point list at +0x14,
-// which BattleSetupActorMoveCommand hands to the actor. 0x18 is a lower bound
-// on its size; only the fields read here are typed.
+// A queued move command: a step count at +0x2, a point count at +0x12 and the
+// point list at the offset in +0x14, which BattleSetupActorMoveCommand hands to
+// the actor. 0x18 is a lower bound on its size; only the fields read here are typed.
 typedef struct {
     /* 0x00 */ u16 unk0;
-    /* 0x02 */ u16 unk2;
+    /* 0x02 */ u16 stepCount;
     /* 0x04 */ u8 unk4[0xE];
-    /* 0x12 */ u16 unk12;
-    /* 0x14 */ u32 unk14;
+    /* 0x12 */ u16 pointCount;
+    /* 0x14 */ u32 pointListOffset; // byte offset of the point list from the record start
 } BattleMoveCommand; // Size: 0x18
 
 // One 0x70-byte entry of the per-actor entry array BattleAllocActorEntryArray
-// allocates; only the id and the word at +8 are initialised here.
+// allocates; only the sprite index and the word at +8 are initialised here.
 typedef struct {
-    /* 0x00 */ s16 unk0;
+    /* 0x00 */ s16 spriteIndex; // negative = the entry is idle
     /* 0x02 */ u8 unk02[0x6];
     /* 0x08 */ u32 unk8;
     /* 0x0C */ u8 unk0C[0x64];
@@ -119,7 +119,7 @@ void BattleAllocActorEntryArray(BattleActor *pActor) {
     if (pActor->numEntries != 0) {
         pEntries = HeapAlloc(pActor->numEntries * sizeof(BattleActorEntry), 0);
         for (i = 0; i < pActor->numEntries; i++) {
-            pEntries[i].unk0 = -1;
+            pEntries[i].spriteIndex = -1;
             pEntries[i].unk8 = 0;
         }
         pActor->pEntries = (mem_addr)pEntries;
@@ -150,7 +150,7 @@ u8 BattleGetQueuedCommandCode(s32 arg0) {
     u8 v;
 
     do {
-        v = g_BattleActorCommandIds[arg0].unk2F;
+        v = g_BattleActorCommandIds[arg0].commandCode;
         arg0++;
     } while (v == stop);
     if (v == 0xFF) {
@@ -419,16 +419,16 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
 void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pCommand, s32 arg2) {
     u8 *p;
 
-    if (pCommand->unk12 != 0) {
+    if (pCommand->pointCount != 0) {
         pActor->stepIndex = 0;
         if (arg2 != 0) {
-            pActor->stepCount = pCommand->unk2;
+            pActor->stepCount = pCommand->stepCount;
         } else {
             pActor->stepCount = -1;
         }
         pActor->pointIndex = 0;
-        pActor->pointCount = pCommand->unk12;
-        p = (u8 *)pCommand + pCommand->unk14;
+        pActor->pointCount = pCommand->pointCount;
+        p = (u8 *)pCommand + pCommand->pointListOffset;
         pActor->pPointCursor = (mem_addr)p;
         pActor->pPointList = (mem_addr)p;
     } else {
