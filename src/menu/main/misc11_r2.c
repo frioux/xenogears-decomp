@@ -346,29 +346,46 @@ extern u16 g_MenuCellPrimXs[];
 extern u16 g_MenuCellPrimYs[];
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
-/* Best: 90.78% - every instruction matches except ONE register: retail keeps
-   the POLY_F4 colour 0x80 in $v0 with `li v0,0x80` INSIDE the loop, gcc's
-   loop.c moves it out into a free call-saved register ($s8), which also swaps
-   the $s6/$s7 assignment of `offset`/`i` and costs the extra $s8 save/restore
-   (580 vs 576 bytes).  Structure confirmed correct: the FT4 biv is
-   pBase + i * 0x28, the F4 biv is pBase + i * 0x18 with displacements 0xB4..,
-   the `offset` counter (0xB0, +0x18) is shared by the SetPolyF4 and
-   SetSemiTrans arguments, and the RECT is written y,x,h,w.  Tried: literal
-   0x80 three times, a u8 local `shade = 0x80`, a walking POLY_F4* instead of
-   the indexed form (89.28), -O3 (90.78, same), gcc-2.7.2-cdk (86.17).
+/* Park: 100.00% under gcc 2.6.0 with the Default flag set - 576 bytes, the whole
+   function identical word for word.  Under the unit's own 2.7.2 preset the same
+   body is 90.78: loop.c moves the POLY_F4 colour 0x80 out of the loop into a
+   free call-saved register ($s8), which also swaps the $s6/$s7 assignment of
+   `offset`/`i` and costs the extra save/restore (580 vs 576 bytes).  Measured on
+   the loop dump: the constant is a 1-insn movable with 3 uses and life 3, and
+   loop.c's desirability test threshold * savings * lifetime >= insn_count is
+   28 * 1 * 3 = 84 against insn_count 83, so it moves whatever the C says (a
+   hand-written +2-insn loop still moves it).  2.6.0 keeps the li in $v0 inside
+   the loop, which is retail.
+   FIX: one preset split, not a whole-unit switch.  In config/menu.yaml replace
+   [0x1FA28, c, main/misc11_r2] with
+   [0x1FA28, c, main/misc11_r2], [0x206E8, c, main/misc11_r2_260],
+   [0x20E4C, c, main/misc11_r2]
+   and put this body and the func_801E5B88 body below into
+   src/menu/main/misc11_r2_260.c on the XenoLibrary preset (gcc 2.6.0, Default
+   flags): every function of that run is 100.00 under 2.6.0 - func_801E56E8,
+   MenuInitializeCellLinePrims, MenuCreateCellPrimBlocks, MenuFreeCellPrimBlocks
+   and func_801E5B88 - and the rest of the unit stays on Default (under 2.6.0
+   MenuFillInventoryTables drops to 93.06 and MenuDrawSlotResourceSprites to
+   99.39).
+   Shape: `i` is initialized in its declaration, so `move s7,zero` lands in the
+   prologue; then pX, pBase, pY, then offset = 0xB0, in that source order.  The
+   FT4 is the indexed biv pBase + i * 0x28, the F4 the indexed biv
+   pBase + i * 0x18 with displacements 0xB4.., the `offset` counter (0xB0, +0x18)
+   is shared by the SetPolyF4 and SetSemiTrans arguments, and the RECT is written
+   y,x,h,w.  A walking POLY_F4* instead of the indexed form is 89.28.
    void func_801E56E8(s32 index) {
        u8* pBase;
        u16* pX;
        u16* pY;
        RECT rect;
+       s32 i = 0;
        s32 offset;
-       s32 i;
 
-       pBase = (u8*)g_Menu->pCellPrimBlocks[index];
        pX = &g_MenuCellPrimXs[index * 2];
+       pBase = (u8*)g_Menu->pCellPrimBlocks[index];
        pY = &g_MenuCellPrimYs[index * 2];
        offset = 0xB0;
-       for (i = 0; i < 2; i++) {
+       for (; i < 2; i++) {
            MenuInitializePolyFt4((POLY_FT4*)(pBase + i * 0x28));
            ((POLY_FT4*)(pBase + i * 0x28))->x0 = pX[0];
            ((POLY_FT4*)(pBase + i * 0x28))->y0 = pY[0];
