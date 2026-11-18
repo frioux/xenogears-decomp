@@ -150,38 +150,50 @@ extern s32 g_MovieHeapDebugEnabled;
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 
-// Best attempt (99.05%): retail's EXACT size (2276 bytes) and its exact register
-// set -- ra,s0-s4, with s0 the loop counter i and the teardown's 0xF0, s1 the
-// D_80077124 base, s2 pBase, s3 the constant 1, s4 the counter pointer. What is
-// left is the FRAME: retail's is 0x70 with the mode copy at 0x30 and &action at
-// 0x50, ours is 0x50 with those at 0x28 and 0x30, i.e. retail's locals area is
-// 0x30 bytes against our 0x10 -- an 8-byte local created before the `mode` copy
-// and a 24-byte one created between it and the MovieUpdatePadCursor call, both of
-// which no C in this body accounts for. Two scheduling swaps remain inside the
-// same size (retail's `li s3,1` before `addu s2,s1,zero`; one lui/addiu pair of
-// the D_8006FC40 call) and the expanded /3600 division's mfhi lands in t1 instead
-// of a2.
-// Four spellings are load-bearing and each was measured: the teardown's RECT
-// stores through absolute D_80077124[n] indices (a pointer local makes them
-// base-relative), the SetDef*Env calls through pBase (a second variable holding
-// the same address, or gcc re-materialises the base), `i = 0;` BEFORE the
-// MovieStreamCommand test with the first 7-iteration loop written `for (; i < 7;
-// i++)` (that is what keeps the move in the branch delay slot, -4 bytes and the
-// whole function's size), and the teardown passing `i = 0xF0` / `i` (that is what
-// stops gcc hoisting a sixth loop-invariant copy of 0xF0 into a callee-saved
-// register, +3 instructions when written as plain 0xF0 literals; the value is
-// dead there, the teardown breaks out of the loop).
+// Best attempt (99.02%): retail's EXACT size (2276 bytes), exact register set
+// (ra, s0-s4) and exact FRAME (0x70, mode copied at 0x30, &action at 0x50), so
+// its instruction multiset is identical to retail's. Three allocator/scheduling
+// ties are left, each one instruction: `li s3,1` sits at the END of the preheader
+// where retail has it at the top; the D_8006FC40 format-string `la a0` of the
+// stream-status FontPrintf lands just before the jal where retail has it before
+// the a1..a3 loads; and the /3600 magic division's `mfhi` goes to t1 instead of
+// straight into a2. A 4-minute permuter run (1229 iterations) on this body found
+// nothing.
+// Load-bearing, each measured:
+// - The two UNUSED locals are what reproduce retail's locals area: `SVECTOR sv`
+//   (8 bytes, unused, declared first) puts `mode` at 0x30 instead of 0x28, and
+//   `u32 spare2[6]` (24 bytes, unused) after `mode` puts `action` at 0x50 instead
+//   of 0x30. Anything else of 28 bytes or more (u32[7]) rounds the slot up to 32
+//   and the frame becomes 0x78. No instruction references either slot in retail
+//   either, so they are dead locals in the original source, not missing code.
+// - The loop head uses its OWN variable (pNext). Writing `pWork = &D_80077124[0]`
+//   there lets gcc CSE it with the preheader's base in s1, and the loop then
+//   clobbers s1 (lui s1 / addiu s1 / bne v0,s1 ...) where retail re-forms the
+//   address into v1: 6 instructions differ. A separate variable gives retail's
+//   exact `lui v1` form.
+// - `pCounters` is assigned BEFORE `pBase` (retail's s4 copy precedes its s2
+//   copy); the reverse source order swaps those two instructions.
+// - The teardown's RECT stores go through absolute D_80077124[n] indices (a
+//   pointer local makes them base-relative), the SetDef*Env calls go through
+//   pBase (a second variable holding the same address re-materialises it), `i = 0;`
+//   comes BEFORE the MovieStreamCommand test with the first 7-iteration loop
+//   written `for (; i < 7; i++)` (that keeps the move in the branch delay slot,
+//   -4 bytes and the whole function's size), and the teardown passes `i = 0xF0` /
+//   `i` (that stops gcc hoisting a sixth loop-invariant copy of 0xF0 into a
+//   callee-saved register, +3 instructions when written as plain 0xF0 literals;
+//   the value is dead there, the teardown breaks out of the loop).
 // Earlier measurements: plain 0xF0 literals 98.33 (2292 bytes), a screenHeight
-// local shared by both groups 98.36 (2288, and it costs s0 as a seventh saved
-// register), teardown-only screenHeight 98.33. gcc 2.6.0 scores the literal body
-// 98.62 with the identical three extra instructions, so this is not a preset
-// question; 2.7.2-cdk drops to 82.75. A 7-minute permuter run on the 98.33 body
-// found the `i = 0xF0` spelling and nothing else.
+// local shared by both groups 98.36 (2288), teardown-only screenHeight 98.33;
+// gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75, so this is not a
+// preset question.
 /*
 void func_800704E8(void) {
+    SVECTOR sv;
     MovieDebugMode mode;
+    u32 spare2[6];
     MovieDrawBuffer* pWork;
     MovieDrawBuffer* pBase;
+    MovieDrawBuffer* pNext;
     u32* pCounters;
     u32* pCounter;
     s32 i;
@@ -211,16 +223,16 @@ void func_800704E8(void) {
     pWork[1].drawEnv.isbg = 1;
     ArchiveSetIndex(0xC, 3);
 
-    pBase = pWork;
     pCounters = g_MovieStreamReadCount;
+    pBase = pWork;
     while (1) {
-        pWork = &D_80077124[0];
-        if (D_80077120 == pWork) {
-            pWork = &D_80077124[1];
+        pNext = &D_80077124[0];
+        if (D_80077120 == pNext) {
+            pNext = &D_80077124[1];
         }
-        D_80077120 = pWork;
+        D_80077120 = pNext;
         D_8007744C = 1 - D_8007744C;
-        ClearOTagR(pWork->ot, 0x20);
+        ClearOTagR(pNext->ot, 0x20);
         func_800712C4();
         MovieUpdatePadCursor(0, 0, &action);
         MovieUpdateStream();
