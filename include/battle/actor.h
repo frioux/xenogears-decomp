@@ -329,7 +329,7 @@ typedef struct {
     /* 0x00 */ u8* pScriptCursor; // the script BattleScriptResetActorState walks
     /* 0x04 */ u8 unk04[0x4];
     /* 0x08 */ u8* pScanCursor; // the script BattleScriptScanForOpcode62 scans
-    /* 0x0C */ u8 unk0C[0x4];
+    /* 0x0C */ u8* pRunCursor; // the script BattleRunActiveSlotScripts walks (same byte stream as pScriptCursor)
     /* 0x10 */ u32 dwordRegs[4];
     /* 0x20 */ u16 wordRegs[8];
     /* 0x30 */ u8 byteRegs[0x10];
