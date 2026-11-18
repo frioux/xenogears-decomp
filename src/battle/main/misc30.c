@@ -129,7 +129,11 @@ typedef struct {
 
 // The 0x1C-byte per-slot records at the head of g_BattleStateWork.
 typedef struct {
-    /* 0x00 */ u8 unk0[0xE];
+    /* 0x00 */ u8 unk0[0x8];
+    /* 0x08 */ u8 inUse; // non-zero while the slot is claimed; every reader here tests it against 0
+    /* 0x09 */ u8 unk9;
+    /* 0x0A */ u8 sideFlag; // non-zero faces the sprite 0x800 (half a turn) instead of 0
+    /* 0x0B */ u8 unkB[0x3];
     /* 0x0E */ u16 x; // whole x, compared with the actor's own
     /* 0x10 */ u16 z; // whole z, compared with the actor's own
     /* 0x12 */ u8 unk12[0xA];
@@ -523,7 +527,7 @@ void BattleLoadActorSlotAnimation(s32 index) {
     BattleWaitAndFreeActorBuffers();
     pBase = g_BattleStateWork;
     slotOffset = 0x8C8C;
-    if (pBase[index * 0x1C + 8] != 0) {
+    if (((BattleActorSlot*)pBase)[index].inUse != 0) {
         BattleUnloadActorArchive();
         BattleLoadSoundWdsFile();
     } else if (index < 3) {
@@ -842,7 +846,7 @@ void BattleActorSetFacingFromSideFlag(s32 index) {
         return;
     }
     pCounter = pBase + index * 0x1C;
-    sfx = (pCounter[0xA] != 0) << 11;
+    sfx = (((BattleActorSlot*)pCounter)->sideFlag != 0) << 11;
     func_800223B0(pSprite, sfx);
     SpriteSetDirection(pSprite, sfx);
 }
