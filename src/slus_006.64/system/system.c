@@ -20,10 +20,12 @@
 #define SYSTEM_GLYPH_WIDTH_NARROW 2
 #define SYSTEM_GLYPH_WIDTH_WIDE 3
 
-// The digits of a number glyph set, then the two codes after them
+// The digits of a number glyph set, then the two codes after them; a set is
+// this many codes apart from the next in the glyph table
 #define SYSTEM_NUMBER_GLYPH_DIGIT_COUNT 10
 #define SYSTEM_NUMBER_GLYPH_MINUS 10
 #define SYSTEM_NUMBER_GLYPH_PLUS 11
+#define SYSTEM_NUMBER_GLYPH_SET_STRIDE 16
 
 // System data banks (g_SystemDataEntries->entries) the named getters index
 
@@ -454,7 +456,7 @@ void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
     s32 v;
 
     v = value;
-    glyphOffset *= 16;
+    glyphOffset *= SYSTEM_NUMBER_GLYPH_SET_STRIDE;
 
     if (sign != 0) {
         if (v >= 0) {
@@ -483,7 +485,7 @@ void SystemFormatNumberGlyphs(int value, int glyphOffset, int flag) {
 
     if ((glyphOffset & 0xFFF0) == glyphOffset) {
         for (;;) {
-            if (pScan == pEnd + 10) {
+            if (pScan == pEnd + SYSTEM_NUMBER_GLYPH_DIGIT_COUNT) {
                 goto scanDone;
             }
             pScan++;
