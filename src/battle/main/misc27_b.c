@@ -93,8 +93,7 @@ BattleDistanceWaitTask* BattleCreateActorDistanceWaitTask(SpriteData* pSpriteDat
     pTask->distance = BattleSpriteDistanceToTarget(pSpriteData);
     pTask->minDistance = arg1;
     pTask->pSpriteBytecode = (void*)arg2;
-    // +0xAF is the top byte of the flag word at 0xAC: the animation the actor plays
-    pTask->animId = *(s8*)((u8*)pSpriteData + 0xAF);
+    pTask->animId = (s8)pSpriteData->flags_0xAC.bytes[3];
     pSpriteData->flags_0xAC.flags |= 0x20;
     return pTask;
 }
@@ -151,7 +150,7 @@ void BattleUpdateSpriteFollowTask(BattleSpriteFollowTask* pTask) {
     d.vy = a.y - b.y;
     pSpriteData->position.x += d.vx << 16;
     pSpriteData->position.y += d.vy << 16;
-    if (pTask->animId == *(s8*)((u8*)pTask->pSpriteData + 0xAF)) {
+    if (pTask->animId == (s8)pTask->pSpriteData->flags_0xAC.bytes[3]) {
         mode = ((u32)pTask->pSpriteData->flags_0xA8 >> 28) & 3;
         if (mode != 0) {
             if (mode != 1) {
@@ -172,7 +171,7 @@ BattleSpriteFollowTask* BattleCreateSpriteFollowTask(SpriteData* pSpriteData, u8
     pTask->pTargetSprite = pSpriteData->pTargetEntitySprite;
     // Read unsigned: the frame the follow starts on is a 16-bit value
     pTask->curSpriteFrame = *(u16*)&pSpriteData->curSpriteFrame;
-    pTask->animId = *(s8*)((u8*)pSpriteData + 0xAF);
+    pTask->animId = (s8)pSpriteData->flags_0xAC.bytes[3];
     pTask->sourceJoint = pArgs[0] & 0xF;
     pTask->targetJoint = pArgs[0] >> 4;
     BattleUpdateSpriteFollowTask(pTask);
