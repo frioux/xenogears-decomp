@@ -207,9 +207,9 @@ void func_801E5B88(void) {
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E5E4C);
-extern s32 D_801E9F98[];
-extern s32 D_801E9FBC[];
-extern s32 D_801EA494[];
+extern s32 g_MenuSlotResourceXs[];
+extern s32 g_MenuSlotResourceYs[];
+extern s32 g_MenuSlotResourceIds[];
 extern u32 g_MenuSlotNameTextureX[];
 extern u8 g_MenuSlotNameTextureY[];
 extern u16 g_SystemPalette1;
@@ -225,7 +225,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
    [offset+0x1312] with func_8002675C's return value, then the block stores
    renderContext to 0x130E, builds the context's POLY_FT4 with
    MenuInitializePolyFt4 and MenuSetFt4QuadVertices, and stores renderContext to
-   0x1311.  D_801E9F98/D_801E9FBC are the untyped x/y tables (0x801E9F98 is
+   0x1311.  g_MenuSlotResourceXs/g_MenuSlotResourceYs are the untyped x/y tables (0x801E9F98 is
    g_MenuRowQuadMode6Xs+0x30, so the indexes are past that symbol's data - do
    not type them against it).
    Left, all order/allocator ties measured one change at a time:
@@ -257,12 +257,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
             j++, offset += 0x87C, primOffset += 0x87C) {
            ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] = 0;
            for (i = 0; i < 9; i++) {
-               if (D_801EA494[i] != 0xFFFF) {
+               if (g_MenuSlotResourceIds[i] != 0xFFFF) {
                    ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] += func_8002675C(
-                       g_Menu->resources, D_801EA494[i],
+                       g_Menu->resources, g_MenuSlotResourceIds[i],
                        (POLY_FT4*)(offset + 0xA98 + (u32)g_Menu->pPrimBuffer +
                                    (((u8*)g_Menu->pPrimBuffer + offset)[0x1312] * 0x50 + 0x50)),
-                       g_Menu->renderContext, j * 0x50 + D_801E9F98[i], D_801E9FBC[i], 0x1000);
+                       g_Menu->renderContext, j * 0x50 + g_MenuSlotResourceXs[i], g_MenuSlotResourceYs[i], 0x1000);
                }
            }
            ((u8*)g_Menu->pPrimBuffer + offset)[0x130E] = (u_char)g_Menu->renderContext;
@@ -274,7 +274,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
                g_SystemPalette1;
            MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x820) +
                                               (primOffset + g_Menu->pPrimBuffer)),
-                         *(u16*)D_801E9F98 + j * 0x50, *(u16*)D_801E9FBC + 7,
+                         *(u16*)g_MenuSlotResourceXs + j * 0x50, *(u16*)g_MenuSlotResourceYs + 7,
                          g_MenuSlotNameTextureX[j] << 2, g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
            ((u8*)g_Menu->pPrimBuffer + offset)[0x1311] = (u_char)g_Menu->renderContext;
        }
@@ -347,7 +347,7 @@ s32 MenuGetGlyphKromAddress(u8* p) {
     }
     return Krom2RawAdd((hi << 8) | lo);
 }
-void func_801E6668(s32 index) {
+void MenuBuildGlyphTexture(s32 index) {
     u8* pGlyphBits;
     u8* pBits;
     u16* pTexture;
@@ -413,15 +413,15 @@ void func_801E6668(s32 index) {
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetPlayTimeDigits(u32 value);
 
-extern s32 D_801E9FE0[];
+extern s32 g_MenuPlayTimeQuadXs[];
 extern s32 D_801E9FE4[];
 
-void func_801E68AC(u8* pArg) {
+void MenuBuildPlayTimePrims(u8* pArg) {
     s32 i;
 
     func_8002675C(g_Menu->resources, 0xEE,
                   (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x240C),
-                  g_Menu->renderContext, D_801E9FE0[0], 0x7A, 0x1000);
+                  g_Menu->renderContext, g_MenuPlayTimeQuadXs[0], 0x7A, 0x1000);
     func_8002675C(g_Menu->resources, 0xEE,
                   (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x24AC),
                   g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
@@ -429,7 +429,7 @@ void func_801E68AC(u8* pArg) {
     for (i = 0; i < (s32)ARRAY_COUNT(g_Menu->playTimeDigitIds); i++) {
         func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x254C + i * 0x50),
-                      g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A, 0x1000);
+                      g_Menu->renderContext, g_MenuPlayTimeQuadXs[i + 2], 0x7A, 0x1000);
     }
     func_8002675C(g_Menu->resources, 0x17,
                   (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2C7C),

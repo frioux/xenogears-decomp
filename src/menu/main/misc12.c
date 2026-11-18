@@ -55,7 +55,7 @@ extern u32 ArchiveGetDebugTable(void);
 extern void ArchiveStopTransfer(int mode);
 
 void MenuClearGlyphTexture(void);
-void func_801E6668(s32 arg0);
+void MenuBuildGlyphTexture(s32 arg0);
 void MenuDrawCharacterSlots(s32 arg0);
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
@@ -63,7 +63,7 @@ extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 void MenuUploadStringTextures(MenuString* pStringList, u_char* pStringIdList, s32 yOffset, s32 count);
 void func_801E61B0(void);
-void func_801E68AC(u8* pEntry);
+void MenuBuildPlayTimePrims(u8* pEntry);
 void MenuDrawSlotSprite(u8 index, u8* pEntry);
 void MenuDrawSlotResourceSprites(u8 index, u8* pEntry);
 void func_801E6CFC(u8 index, u8* pEntry);
@@ -209,7 +209,7 @@ void MenuDrawCharacterSlots(s32 arg0) {
         ((u8*)g_Menu->pPrimBuffer + offset)[MENU_SLOT_PRIM_CONTEXT] = (u_char)g_Menu->renderContext;
         offset += MENU_SLOT_PRIM_STRIDE;
     }
-    func_801E68AC(pEntry);
+    MenuBuildPlayTimePrims(pEntry);
     func_801E733C();
 }
 
@@ -218,10 +218,10 @@ void MenuUpdateCharacterWindow(s32 arg0, u_char arg1) {
     if (arg0 != 0xFF) {
         if (arg1 != 0) {
             MenuDrawCharacterSlots(arg0);
-            func_801E6668(arg0);
+            MenuBuildGlyphTexture(arg0);
             ((u8*)g_Menu->pPrimBuffer)[0x2DBC] = 1;
         } else {
-            func_801E6668(arg0);
+            MenuBuildGlyphTexture(arg0);
             ((u8*)g_Menu->pPrimBuffer)[0x2DBC] = 0;
         }
         g_Menu->pManager->characterWindowBuilt = 1;
