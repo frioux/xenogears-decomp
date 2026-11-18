@@ -173,17 +173,17 @@ void BattleFreeWdsEntry(void) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
 // 96.88% (400 bytes against retail's 404). The loop, the switch arm order (seds
 // listed first is what puts the seds body inline and the WDS arm out of line, as
-// retail has it) and the frame are exact; retail's preheader holds
-// lui $s7,%hi(g_BattleWdsEntry), li $s6,-1 and a dead lui $s5,0xFFFF0000, and the
-// store becomes sw $v0,%lo(g_BattleWdsEntry)($s7). Ours re-forms the address inline
-// (lui $v1,%hi / sw $v0,%lo($v1)) - the missing 4 bytes. Making g_BattleWdsEntry a
-// pointer-deref store instead gives lui+addiu and an 0x88 frame (worse); the dead
-// pDebugState assignment below (unreachable after the seds arm's break; gcc still
-// hoists its address) is what reproduces the frame, the saved-register set and the
-// dead 0xFFFF0000 preheader constant, so it is load-bearing - do not delete it
-// without re-measuring. Two 5-minute permuter runs both plateaued at a block
-// duplication of the default arm (score 321 against 592), which is what pointed at
-// the pointer-local read of g_DebugTable in the first place.
+// retail has it) and the frame are exact. The one residual: retail hoists ONLY the
+// high half of the WDS entry address into $s7 in the loop preheader and keeps the
+// store's %lo displacement (lui $s7,%hi / sw $v0,%lo($s7)), while we re-form the
+// pair inside the loop body (lui $v1,%hi / sw $v0,%lo($v1)) - 4 bytes. Measured
+// dead ends: a pointer local for the entry (lui+addiu, 408 bytes), reading
+// g_DebugTable directly instead of through pDebugState (392, loses a saved
+// register), a volatile read of it, and a 4-minute permuter run (2122 iterations,
+// base=321 best=321). The dead pDebugState assignment below (unreachable after the
+// seds arm's break; gcc still hoists its address into $s7) is what reproduces the
+// frame, the saved-register set and the dead 0xFFFF0000 preheader constant, so it
+// is load-bearing - do not delete it without re-measuring.
 /*
 // Feeds one battle actor archive buffer to the sound player: every SEDS chunk is
 // added, every WDS chunk is (re)loaded after freeing the loaded one, and every
@@ -215,7 +215,6 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
             g_BattleActorArchiveReady = 0;
             g_BattleWdsEntry = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
             while (SoundGetPendingSpuCommandType(0) != 0) {
-                // Debugging
                 if (*pDebugState != -1) {
                     asm("break 0x400");
                 }
