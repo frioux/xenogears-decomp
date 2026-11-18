@@ -345,38 +345,58 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 
 
 
-// 64.83% (3700 bytes against retail's 3708; frame and every stack slot exact). The
-// arm set is transcribed against the jump table's 124 case values, both tables land
-// at the right offsets and every call site matches. What is left is one register:
-// we save s0-s8 + ra, retail saves s0-s6 + ra, and the whole allocation rotates
-// because of the extra pair.
-//  - the extra saved register is a loop-hoisted invariant: retail forms
-//    &g_BattleAnimPositionGroupB and &g_BattleAnimPositionGroupA inline in the arm
-//    that uses them (lui a0 / lw %lo(a0) / addiu a0,a0,%lo), while our build keeps
-//    one of them in $s8 for the whole loop, because the 0x9A and 0x9C arms each
-//    carry their own copy of the position-update tail (four formations, so loop.c
-//    hoists). Retail has ONE formation per group: its two arms merge their tails at
-//    the RotMatrix call (0x9A jumps to 0x800C15A4, 0x9C falls into it). Measured
-//    dead: writing that merge as a goto (rotate:) with a SVECTOR *pRotation local
-//    gives 63.51% at 3680 bytes and still 9 saved registers, so the merge alone
-//    does not move the allocator.
-//  - the mask 0xCFFFFFFF is now formed inline in each of the three arms (lui $s0
-//    three times, retail uses a1/s0/v0) once every use is its own assignment
-//    (mask = BATTLE_ANIM_MODE_HIGH_MASK; before each AND). That was 63.67 -> 64.83
-//    together with the next two items.
-//  - the local stack layout is now retail's exactly: vec 0x18, mtx 0x20, out 0x40,
-//    pointA 0x50, pointB 0x58. gcc 2.7.2 assigns stack slots in DECLARATION order
-//    and rounds an s16[2] array up to 8 bytes, so the declaration order is vec,
-//    mtx, out, pointA, pointB - not the order the arms use them. Retail's saved
-//    registers start at 0x68 where ours start at 0x60: retail has 8 more bytes of
-//    locals (i.e. 8 saved words vs our 10), so an 8-byte dead local reproduces the
-//    frame the moment the saved set loses its extra pair.
+// 66.74% (3704 bytes against retail's 3708; frame 0x88 and every local slot exact:
+// vec 0x18, mtx 0x20, out 0x40, pointA 0x50, pointB 0x58). The arm set is
+// transcribed against the jump table's 124 case values, both tables land at the
+// right offsets and every call site matches. WHAT IS LEFT IS ONE THING: we save
+// 10 registers (s0-s7 + fp + ra), retail saves 8 (s0-s6 + ra), so objdiff's
+// stream is retail+2 on every low s-register (s0->s2, s1->s3, s2->s4, s3->s5,
+// s5->s7 over 350+ instructions) even though 420 instructions already compare
+// equal. Nothing below closed it yet; all of it was measured.
+//  - the 0x9A/0x9C tails are now ONE tail in source (goto animApplyRotation after
+//    each RotMatrix), which is what retail has: it cross-jumps them at the
+//    RotMatrix jal (0x9A jumps to 0x800C15A4, 0x9C falls in) and keeps ONE
+//    formation per position group. With the duplication gone the group addresses
+//    come out retail-identical (lui a0 / lw %lo(a0) / addiu a0,a0,%lo for
+//    g_BattleAnimPositionGroupB, same for A) and 64.83 -> 65.99, but the saved
+//    count stayed at 10: the earlier $s8 hoist of that address was a symptom.
+//  - what is still hoisted into a callee-saved register is the constant 1: $fp
+//    gets "li $fp,1" in the loop head's beqz delay slot (retail has nop there) and
+//    serves three sites - the animScriptWaitTimer = 1 store, the 1 << mask
+//    argument of BattleQueueActorCommandPreservingSelection in 0xA4, and the
+//    (flags & 3) != 1 compare in 0xBE. Retail materialises each one separately
+//    (addiu v0,zero,1 / addiu a1,zero,1 / addiu v1,zero,1). Measured: dropping one
+//    of the three uses (or two) does NOT remove the hoist, and writing the
+//    0xCFFFFFFF mask as a literal instead of through the "mask" local is 66.27,
+//    so the mask local stays.
+//  - 0x9E: g_BattleStateWork + 0x8000 + 0xC58 folds to a %lo(+0x8C58) relocation;
+//    assigning the base first and adding 0x8000 in a second statement
+//    (pWork = (u8 *)g_BattleStateWork; pWork += 0x8000; *(u16 *)(pWork + 0xC58))
+//    reproduces retail's lui/addiu + li 0x8000 + addu + lhu 0xC58. 65.99 -> 66.74.
+//  - 0xBE: retail takes the == 1 arm (beq v0,v1) and stores curSpriteFrame in the
+//    fall-through. Flipping our if/else to that polarity measured WORSE (65.54),
+//    so the != 1 spelling and its arm order stay.
+//  - 0xE3: keeping the target in a pTarget local is worth 0.5% over spelling
+//    pSpriteData->pTargetEntitySprite twice (66.74 vs 66.27).
+//  - 0x9D and 0x97 read the 16.16 position words: retail uses lh, our build lhu,
+//    because the value is only stored back and gcc widens the load. position
+//    xWhole is already s16 in include/battle/actor.h, so this is not a header bug.
+//  - 0x9A: retail keeps &mtx in s0 across both the RotMatrix and ApplyMatrix calls
+//    (addiu s0,sp,0x20 then two "addu ...s0"); ours re-forms sp+0x20 per call.
+//  - the mask 0xCFFFFFFF is formed inline in each of the three arms (lui $s0 three
+//    times, retail uses a1/s0/v0) because every use is its own assignment
+//    (mask = BATTLE_ANIM_MODE_HIGH_MASK; before each AND).
 //  - curSpriteFrame is read unsigned: (u16)pSpriteData->curSpriteFrame gives
 //    retail's lhu in both frame-step arms (misc31 uses the same cast).
-//  - open: retail cross-jumps the two func_8001D2B0 call tails (j .L800C1298, then
-//    a jal with a nop delay slot and the +-1 addiu before it); ours keeps the call
-//    inline in each arm with the addiu in the jal's delay slot, and the arm layout
-//    past the first few still differs.
+//  - the func_8001D2B0 +1/-1 call tails are cross-jumped as retail does
+//    (j $L198 shared by the code<0x10 and code<0x30 arms) because both arms end
+//    with frames = (code & 0xF) + 1; before the shared if (code < 0x40).
+//  - no permuter run: at 66% the difference is structure/allocation, not a tie.
+//  - when the saved set loses its pair, retail has 8 more bytes of locals (saved
+//    registers start at 0x68 where ours start at 0x60), so an 8-byte dead local
+//    is owed at that point to keep the frame at 0x88.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
+/*
 void func_800C11CC(SpriteData *pSpriteData) {
     u8 *pArgs;
     u8 code;
@@ -816,3 +836,4 @@ void func_800C11CC(SpriteData *pSpriteData) {
         pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + D_8004FC40[code];
     }
 }
+*/
