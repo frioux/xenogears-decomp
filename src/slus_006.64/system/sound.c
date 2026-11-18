@@ -2421,7 +2421,7 @@ typedef struct {
 
 // One 4-byte slot of the percussion table the manager's heap block ends with.
 typedef struct {
-    /* 0x0 */ u8 instrument;
+    /* 0x0 */ u8 tone; // indexes the WDS tone table
     /* 0x1 */ u8 tune;
     /* 0x2 */ u8 unk2;
     /* 0x3 */ u8 pan;
@@ -3317,7 +3317,7 @@ void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pE
 
     pTone = (SoundPercussionTone*)((percussionIndex * 4) + pAudioManager->pPercussionData);
 
-    func_8003E5BC(pTone->instrument, pElement);
+    func_8003E5BC(pTone->tone, pElement);
 
     note = (pTone->tune << 8) + pElement->detune + pElement->toneTune;
     pElement->note = note << 16;
