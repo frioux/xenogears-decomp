@@ -535,31 +535,50 @@ extern s32 g_GfxOTDepthShift;
 // Parked at 89.78% (3028 bytes against retail's 2944: 757 instructions to 736).
 // The structure is retail's: both switches in retail's body order, all sixteen
 // vertex arms, the depth pipeline, the shared link tails and the loop tail are
-// the same instructions in the same order; what differs is the extra lui in each
-// arm, the register each live value lands in, and one merged tail too many.
-// Measured this round:
-// - The masks. Retail holds 0xFFFFFF in s4 and 0xFF000000 in $fp across the loop
-//   (lui+ori and lui in the preheader, no rematerialisation anywhere). This
-//   compile holds 0xFFFFFF (s7, it costs two instructions to remat) but
-//   rematerialises the top mask in every arm: seven extra lui. Naming both as
-//   u_long locals measures identically (same 3028 bytes, 88.39%), so the source
-//   lever for holding a one-instruction constant is still unknown.
-// - One link tail too many. Retail has two copies of the eleven-instruction tail:
-//   copy A carries the shadeMode test and the one jal BattleEmitDrawTPage in the
-//   function and is shared by all four UNTEXTURED kinds, copy B has no emit and
-//   serves the four textured ones. This compile splits the untextured kinds into
-//   a 3-vertex group and a 4-vertex group, each with its own emit (two jal).
-//   Only the untextured kinds emit at all: the textured arms never reach the
-//   shadeMode test. That alone took the body from 3164 to 3028 bytes.
+// the same instructions in the same order. Two items are left, and this round
+// proved they are ONE item.
+// - THE MASK IS THE ROOT CAUSE, AND IT IS MEASURED. Retail holds 0xFFFFFF in s4
+//   and 0xFF000000 in $fp across the loop (lui+ori and lui in the preheader, no
+//   rematerialisation anywhere). This compile holds 0xFFFFFF (s7) but remats the
+//   top mask with one lui in every link copy, and THAT is why the four untextured
+//   tails come out as two and the four textured ones as two instead of retail's
+//   one each: the two copies differ only in which of $8/$9 carries the li and
+//   which carries pOT ("li $8,-16777216 / lw $9,144(sp)" against the reverse),
+//   so jump.c cannot make them rtx-identical and no further merge happens.
+//   PROOF, one edit away: make the top mask a SHARED pseudo and everything else
+//   falls into place - replace 0xFF000000 in BattleLinkMeshPrim with (*pTagMask)
+//   and declare, before the `if (shadeMode != 0)`:
+//       u_long tagMaskStore = 0xFF000000;
+//       volatile u_long *pTagMask = &tagMaskStore;
+//   That measures 2996 bytes / 93.39% with ONE jal BattleEmitDrawTPage in the
+//   function and retail's two link tails (one with the emit, one without). It is
+//   not the answer because the volatile forces an 8-byte stack slot: .frame grows
+//   to 144 and every sp offset shifts (retail's 0x88 frame has all twelve var
+//   slots used: 0x30/0x34/0x38/0x3C flags and clipTest, 0x40/0x44 the other two
+//   gte_stflg destinations, 0x48/0x4C zSum and nclipFlag, 0x50 pNormals, 0x54
+//   count, 0x58 i, 0x5C &otz), so there is no room for a mask slot.
+//   What is needed: a source lever that makes gcc hoist a ONE-instruction
+//   constant into a callee-saved register without going through memory. gcc's cse
+//   substitutes a constant back into each use when it costs one instruction to
+//   rematerialise (0xFF000000, a single lui) but keeps a register for a
+//   two-instruction one (0xFFFFFF, lui+ori, which is exactly the asymmetry
+//   observed here), so `u_long mask = 0xFF000000;` is folded away (88.39%) and
+//   `& ~addrMask` is folded too (86.49%, 3028 bytes, seven li). Both were
+//   measured this round.
 // - pRec and pPacket are swapped: retail moves a1 into s1 at entry, copies s1
 //   into s2 for pPacket after the SetDrawTPage call and reuses s1 for pRec; this
-//   compile coalesces pPacket with pDst and puts pRec in s2.
+//   compile coalesces pPacket with pDst and puts pRec in s2. pFrame also keeps a
+//   callee-saved register (s0) that retail hands to the 0xFFFFFF mask once
+//   pFrame dies in the preheader.
 // - The OT address: here addu a0,t1,v0 (base first, from pOtEntry = &pOT[otz]),
 //   retail addu a0,v0,t1. Writing (u_long *)((otz << 2) + (u32)pOT) measures
 //   89.79% (same bytes), so the addu order is not the blocker.
-// Tried and rejected: locals for both masks; the index-first OT address; -O3
-// (88.69%, so the unit's -O2 is right); a shared pOtEntry per arm (already the
-// shape). The vertex-table addresses must stay index first,
+// Tried and rejected: locals for both masks (88.39%); the index-first OT address;
+// -O3 (88.69%, so the unit's -O2 is right); a shared pOtEntry per arm (already the
+// shape); the decomp-permuter (4 min, RESULT PERMUTER_BETTER 8293 -> 5913, and the
+// candidate is WRONG CODE: it swaps the vertex-table base pPart for pV2 in seven
+// arms, so it buys score by changing which array is indexed - do not port it).
+// The vertex-table addresses must stay index first,
 // (SVECTOR *)((index << 3) + (u32)pPart), or every arm reverses its addu.
 // The typedef, the extern, the two defines and the macro above this park are
 // deliberately outside it: park.py unpark lifts only the function, so they have
@@ -930,7 +949,8 @@ void func_800B1F6C(BattleModelFrame *pFrame, u8 *pDst, u_long *pOT, s32 flags, s
         pPacket += (pRec->outLen + 1) * 4;
         pRec = (BattleModelMeshPrim *)((u8 *)pRec + (pRec->len + 1) * 4);
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc26", func_800B1F6C);
 
 // Applies the model's tint to the colour bytes of every packet a frame expands
