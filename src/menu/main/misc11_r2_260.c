@@ -414,8 +414,8 @@ void func_801E68AC(u8* pArg) {
                   (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x24AC),
                   g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
     MenuSetPlayTimeDigits(*(u32*)pArg);
-    for (i = 0; i < 7; i++) {
-        func_8002675C(g_Menu->resources, ((u32*)g_Menu->playTimeDigitIds)[i],
+    for (i = 0; i < (s32)ARRAY_COUNT(g_Menu->playTimeDigitIds); i++) {
+        func_8002675C(g_Menu->resources, g_Menu->playTimeDigitIds[i],
                       (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x254C + i * 0x50),
                       g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A, 0x1000);
     }
