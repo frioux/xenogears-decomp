@@ -366,8 +366,27 @@ void MenuOverlayMain(void) {
     }
     MenuFinalizeMenuData();
 }
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
+
+/* Best: 98.62% (500 bytes = retail's exact size), instruction-identical modulo the saved
+   register ROTATION: retail pBuffer=s0, i=s1, lineCount=s2 against gcc's i=s0, lineCount=s1,
+   pBuffer=s2. Both compiles save exactly s0-s2 plus ra, so it is a register-assignment tie,
+   not a missing or extra local, and nothing below moves it.
+   Fixed on the way: the `cardPollMode = 0` store was missing (5 insns, 90.45 -> 94.45), the
+   newline scan must read `if (c != '\n') { i++; continue; }` (newline block out of line after
+   the `j` to the loop top), and the 0xFFFF needs a local (lineCountDelta) or `li a0,0xa` and
+   `li a1,0xffff` swap order (98.53).
+   Tried for the rotation, all measured: declaration orders (4), separate scan index (96.75),
+   separate init counter (96.75, the counter falls to v1), lineCount u32/s32 (97.82), s16
+   (97.66), i u32 (97.74), s16 (73.26), lineCountDelta u32 (98.62), s16 (97.62), u8 (98.05),
+   j u32 (98.14), s16 (86.49), u8 (92.73), a `u8 *pBuffer = NULL;` initializer (98.62 - the
+   dead store is eliminated, the pseudo number does not move the tie), `i = i + 2`, `!= 10`,
+   `pBuffer + i`, `if (lineCount)`, `(u8 *)(pBuffer + i)` (all 98.62), gcc 2.7.2 (98.62), -O3
+   (98.62), cdk (94.69), permuter 3x4min (stuck at 170). Load-bearing: the scan shape above,
+   lineCountDelta, the `cardPollMode = 0` store, and pInfo for the two tail stores (inline
+   g_Menu->menuUnk2 there is 93.02% at 520 bytes, 5 insns too many).
 void func_801C6400(void) {
-   u8* pBuffer = NULL;
+   u8* pBuffer;
    s32 i;
    s32 j;
    u16 lineCount;
@@ -420,6 +439,7 @@ void func_801C6400(void) {
    ArchiveSetIndex(0x10, 0);
    HeapFree(pBuffer);
 }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
 u_short MenuAndBitMaskLsbFirst(u_short mask, u_char index);
 void func_801C65F4(void);
