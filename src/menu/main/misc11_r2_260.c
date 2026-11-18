@@ -216,51 +216,66 @@ extern u16 g_SystemPalette1;
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E61B0);
-/* Best: 85.05% (656 vs 660 bytes).  Confirmed shape: outer loop is TWO
-   counters in one for ("j = 0, offset = 0; offset < 0x1974; j++, offset +=
-   0x87C") which is what makes retail test the 0x87C-scaled IV (s2) and keep
-   four separate givs s2/s3/s4/s5 = offset, j*0x50, 0xA98+offset, j*4 with no
-   register for j itself.  `primOffset` must be a real s32 local, otherwise
-   gcc folds 0xA98 into 0x50 (0xAE8) at the prim address and into 0x820 at the
-   two func_801E92{7C,0C} calls; and the prim pointer has to be a u8* local or
-   the same fold moves 0x820 onto it.  *(u16*)D_801E9F98 / *(u16*)D_801E9FBC
-   are needed to get retail's lhu (a plain D_801E9F98[0] gives lw).
-   Left, four instructions: (1) retail's primOffset lands in $s4 and j*0x50 in
-   $s3, ours swaps them; (2) retail emits "addiu s5,s5,4" (j++) right after
-   the g_MenuSlotNameTextureY load and ours after the call; (3) the MenuSetFt4QuadVertices argument
-   setup order differs (retail forms the 0x820 sum after loading base/ctx);
-   (4) retail reads the byte it stores to 0x130E/0x1311 with "lbu 776(v1)",
-   ours with "lw" - (u_char), (u8) and (s8) casts on g_Menu->renderContext all
-   leave the lw.  Same allocator-tie class as MenuInitializeCellQuadPrims/func_801E68AC.
+/* Best: 89.50% (668 vs 672 bytes, one instruction short) under gcc 2.6.0.
+   Structure is confirmed against the asm and every call/branch is right: the
+   outer loop is THREE accumulators in one for (offset += 0x87C tested against
+   0x1974, primOffset += 0x87C from 0xA98, j++), which is what gives retail the
+   four givs s2 = offset, s3 = j*0x50, s4 = 0xA98+offset, s5 = j*4 with no
+   register for j.  The inner 9-iteration loop bumps the byte counter at
+   [offset+0x1312] with func_8002675C's return value, then the block stores
+   renderContext to 0x130E, builds the context's POLY_FT4 with
+   MenuInitializePolyFt4 and MenuSetFt4QuadVertices, and stores renderContext to
+   0x1311.  D_801E9F98/D_801E9FBC are the untyped x/y tables (0x801E9F98 is
+   g_MenuRowQuadMode6Xs+0x30, so the indexes are past that symbol's data - do
+   not type them against it).
+   Left, all order/allocator ties measured one change at a time:
+   (1) retail's resource-prim address is spelled from offset
+   ("addiu v0,s2,0xA98; addu v0,v0,t1") and keeps 0x50 on the count term
+   ("addiu a2,a2,0x50"), ours folds 0xA98+0x50 into one addiu (that is the
+   missing instruction).  Using primOffset there instead removes the fold but
+   emits "addu t0,sX,t0; addiu t0,t0,0x50", and moving the count term to the
+   left of the sum does not help either (89.40).
+   (2) the s4/s5 roles are swapped (ours: s4 = j*4, s5 = primOffset; retail:
+   s4 = primOffset, s5 = j*4), and the prologue init order differs; reversing
+   primOffset/offset in the for-init does not move it.
+   (3) retail reads g_MenuSlotNameTextureX[j] with "lw" then "sll/andi 0xfc",
+   ours with "lbu" - the u_char parameter narrowing wins over every declared
+   element type tried (u32, s32) and over the explicit (u_char) cast.
+   (4) 2.7.2 is not an option for this unit (loop.c, see MenuInitializeCellQuadPrims).
+   Permuter: two 3-minute runs moved the base score for the prim-offset cast
+   (that is where 87.15 -> 89.50 came from) but its second find (a
+   "new_var = g_MenuSlotNameTextureX[j] << 2" embedded assignment) is 88.86
+   under objdiff.
+   The body below is the 89.50% one.
    void func_801E61B0(void) {
        s32 i;
        s32 j;
        s32 offset;
        s32 primOffset;
-       u8* pPrim;
 
-       for (j = 0, offset = 0; offset < 0x1974; j++, offset += 0x87C) {
-           primOffset = offset + 0xA98;
+       for (j = 0, offset = 0, primOffset = 0xA98; offset < 0x1974;
+            j++, offset += 0x87C, primOffset += 0x87C) {
            ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] = 0;
            for (i = 0; i < 9; i++) {
                if (D_801EA494[i] != 0xFFFF) {
                    ((u8*)g_Menu->pPrimBuffer + offset)[0x1312] += func_8002675C(
                        g_Menu->resources, D_801EA494[i],
-                       (POLY_FT4*)(primOffset + (u32)g_Menu->pPrimBuffer +
+                       (POLY_FT4*)(offset + 0xA98 + (u32)g_Menu->pPrimBuffer +
                                    (((u8*)g_Menu->pPrimBuffer + offset)[0x1312] * 0x50 + 0x50)),
                        g_Menu->renderContext, j * 0x50 + D_801E9F98[i], D_801E9FBC[i], 0x1000);
                }
            }
            ((u8*)g_Menu->pPrimBuffer + offset)[0x130E] = (u_char)g_Menu->renderContext;
-           pPrim = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
-           MenuInitializePolyFt4((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)));
+           MenuInitializePolyFt4((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x820) +
+                                             (primOffset + (u32)g_Menu->pPrimBuffer)));
            *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12CE) =
                GetTPage(0, 0, 0x180, 0);
            *(u16*)((u8*)g_Menu->pPrimBuffer + (g_Menu->renderContext * 0x28 + offset) + 0x12C6) =
                g_SystemPalette1;
-           MenuSetFt4QuadVertices((POLY_FT4*)(pPrim + (g_Menu->renderContext * 0x28 + 0x820)),
+           MenuSetFt4QuadVertices((POLY_FT4*)((g_Menu->renderContext * 0x28 + 0x820) +
+                                              (primOffset + g_Menu->pPrimBuffer)),
                          *(u16*)D_801E9F98 + j * 0x50, *(u16*)D_801E9FBC + 7,
-                         (u_char)(g_MenuSlotNameTextureX[j] << 2), g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
+                         g_MenuSlotNameTextureX[j] << 2, g_MenuSlotNameTextureY[j * 4], 0x48, 0xD);
            ((u8*)g_Menu->pPrimBuffer + offset)[0x1311] = (u_char)g_Menu->renderContext;
        }
    }
