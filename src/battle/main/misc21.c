@@ -659,37 +659,76 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
          m[2][1]); the ==1 arm copies 2/8/14 from pTransMatrix   71.29%  4104 B
      P6  and use pActor->scale (retail RELOADS it three times,
          so there is no scale local on that path)              73.90%  4052 B
-   What is left is 8 instructions (32 bytes) and register assignment. Measured
-   against retail: the CALL SET is already identical (8 CompMatrix, 7
-   SetTransMatrix, 7 SetRotMatrix, 2 MulMatrix0, 2 BattleAllocSpriteSlot, 15
-   more of one each), the prologue shape is retail's (move s8,a0, then
-   ra/s7..s0 saves, a1..a3 spilled to 0x68/0x70/0x78), and the frame is 0x108
-   against retail's 0x110: retail has TWO more 4-byte var slots (its locals
-   run to 0xB8, this body's to 0xA8). An unused local does not buy them back
-   (measured: gcc drops it, frame stays 0x108), so the 8 bytes are a real
-   local this body is missing - most likely the s32 copy of pActor->scale that
-   retail spills to 0xB8 in its own prologue. Retail also reads pActor->scale
-   with lhu (unsigned) where actor.h says s16, so a new use of that field on
-   this path must be spelled through a u16 view.
+   What is left is register assignment. Measured against retail: the CALL SET
+   is already identical (8 CompMatrix, 7 SetTransMatrix, 7 SetRotMatrix, 2
+   MulMatrix0, 2 BattleAllocSpriteSlot, 15 more of one each) and the prologue
+   shape is retail's (move s8,a0, then ra/s7..s0 saves, a1..a3 spilled to
+   0x68/0x70/0x78). Retail also reads pActor->scale with lhu (unsigned) where
+   actor.h says s16, so a use of that field on this path is spelled through a
+   u16 view.
    The tween loop's remaining tell: retail bases its whole 2D-allocate block on
    &pTween->slot (s1 = pTween + 0x5C) and reaches pPool/semiTrans/pSlot as
-   -88/-89/-84(s1), i.e. the source held the SLOT field's address. */
+   -88/-89/-84(s1), i.e. the source held the SLOT field's address.
+
+   Round 264. The round-263 "8 bytes of frame" item is CLOSED, and the frame
+   is now retail's exact 0x110/272:
+     P7  the missing local was the s32 copy of scale, as guessed. Retail's
+         prologue is `lhu 0x1C(fp)` -> `sh 0xA0(sp)` (a u16 local) then
+         `lhu 0xA0(sp)` -> `sw 0xB8(sp)` (an s32 local widened from it), i.e.
+         the source was "u16 x = pActor->scale;" followed by "s32 y = x;".
+         Written as scale16 (u16, the 6th argument of func_800A7948) and
+         scale (s32, the mult in the slot loop): those two instructions
+         appear and the frame becomes 0x110             73.81%  4064 B
+     P8  declaration order count, pMesh, pSprites, pSprite, scale16,
+         pRotMatrix, pTransMatrix, scale hands out retail's exact slots
+         0x80 count / 0x88 pMesh / 0x90 pSprites / 0x98 pSprite / 0xA0
+         scale16 / 0xA8 pRotMatrix / 0xB0 pTransMatrix / 0xB8 scale
+         (same 73.81% / 4064 B; the slot shift is what buys the frame).
+         gcc assigns these spill slots in DECLARATION order, and the two
+         scratch-pad pointers (0x1F800020/0x1F800040) are the two MATRIX
+         pointer locals - they are not separate data.
+     P9  the rsin factor must be negated at the CONSTANT: retail emits
+         `lh v1,%lo(D_800D39E8); negu v1,v1; mult v1,v0`, so the source was
+         "-D_800D39E8 * rsin(...)", not "-rsin(...) * D_800D39E8" (which
+         negates the result register instead)            74.09%  4068 B
+   Registers are NOT over-allocated: retail and this body both frame fp + ra +
+   s7..s0. Two measured non-levers from this round, so they are not retried:
+   - Assigning pSprite in the prologue, so that retail's mapping comes out
+     (its 0x90 slot is the MUTATED walker - bumped +0x7C in place and
+     reloaded at every use - and 0x98 is the fixed root copy) costs +36 bytes
+     and -0.55% (4100 B, 73.26%): the longer live range of the root pointer
+     adds a spill. The body below keeps pSprite live only inside its loop.
+   - The slot-scale loop's destination. Retail reloads pViewMatrix from
+     0x70(sp) and forms `addu a1,t2,s6` with s6 a byte-offset GIV (6 then
+     12), which is 3 instructions per iteration this body does not emit (it
+     keeps the pointer in s3 and uses immediate displacements). Both the
+     element-pointer form `((s16*)pViewMatrix + i*3)[3..5]` and a row
+     pointer local measured 70.74% / 4184 B, i.e. worse, so the allocator is
+     making that call, not the source.
+   Also proven: pSprites->scale.vy is the SVECTOR's s16 (`lh 0x4E`) - the
+   round-234 u16 cast on it was wrong; pSprites->pos[0]/pos[2] really are u16
+   reads of the s32 pos[] words (`lhu 0x5C`/`0x64`) and pos[1] a full `lw`.
+   Remaining: 4 instructions / 16 bytes short of retail's 4084, and the
+   register identity differs in most of the straight-line blocks. */
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 /*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
-    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    u32 count;
+    BattleModelPartList* pMesh;
+    BattleSprite* pSprites;
+    BattleSprite* pSprite;
+    u16 scale16;
     MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
     MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
-    BattleModelPartList* pMesh;
+    s32 scale;
+    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
     BattleModelListEntry* pModelList;
     BattleModelListPoint* pPoint;
     BattleSpriteTween* pTween;
     BattleWarpQuad* pQuad;
-    BattleSprite* pSprites;
-    BattleSprite* pSprite;
     BattlePartSlot* pPart;
     SVECTOR vec;
     SVECTOR tweenVec;
@@ -698,9 +737,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     s32 macPoint[4];
     s32 depth;
     s32 sz;
-    s32 scale;
     s32 shade;
-    u32 count;
     s32 i;
     s32 j;
     s32 k;
@@ -710,13 +747,14 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     }
     pMesh = pActor->pMesh;
     pSprites = pActor->pSprites;
-    scale = pActor->scale;
+    scale16 = pActor->scale;
+    scale = scale16;
     count = pSprites->count;
     for (i = 0; i < 2; i++) {
         if (g_BattlePartSlots[i].inUse != 0) {
             s16 dx = g_BattlePartSlots[i].x - ((u16*)&pSprites->pos[0])[0];
             s16 dy = g_BattlePartSlots[i].y -
-                     ((pSprites->pos[1] - pActor->height * (scale * ((u16*)&pSprites->scale.vy)[0] >> 12)) >> 13);
+                     ((pSprites->pos[1] - pActor->height * (scale * pSprites->scale.vy >> 12)) >> 13);
             s16 dz = g_BattlePartSlots[i].z - ((u16*)&pSprites->pos[0])[4];
             s32 denominator = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
 
@@ -826,15 +864,15 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
                 pMatrix->m[1][0] = 0;
                 pMatrix->m[1][2] = 0;
                 pMatrix->m[2][0] = 0;
-                pMatrix->m[0][0] = pActor->scale;
-                pMatrix->m[2][2] = pActor->scale;
+                pMatrix->m[0][0] = *(u16*)&pActor->scale;
+                pMatrix->m[2][2] = *(u16*)&pActor->scale;
                 if (pSprite->scale.pad == 1) {
                     pMatrix->m[0][1] = pTransMatrix->m[0][1];
                     pMatrix->m[1][1] = pTransMatrix->m[1][1];
                     pMatrix->m[2][1] = pTransMatrix->m[2][1];
                 } else {
                     pMatrix->m[0][1] = 0;
-                    pMatrix->m[1][1] = pActor->scale;
+                    pMatrix->m[1][1] = *(u16*)&pActor->scale;
                     pMatrix->m[2][1] = 0;
                 }
             }
@@ -849,7 +887,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         if (pModelList->spriteIndex < 0) {
             continue;
         }
-        tweenVec.vx = -rsin(pSprites->rot[1] + 0x400) * D_800D39E8 / 0x1000;
+        tweenVec.vx = -D_800D39E8 * rsin(pSprites->rot[1] + 0x400) / 0x1000;
         tweenVec.vz = rcos(pSprites->rot[1] + 0x400) * D_800D39E8 / 0x1000;
         tweenVec.vy = pActor->unk3E;
         CompMatrix(&pSprites->localTransform, &pSprites[pModelList->spriteIndex].globalTransform, pRotMatrix);
@@ -875,7 +913,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pPoint->y = ((u16*)macPoint)[1];
             pPoint->z = ((u16*)macPoint)[2];
         }
-        func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale, pActor->groundY);
+        func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
     }
     pSprite = (BattleSprite*)pActor->pTextures;
     for (i = 0; i < pActor->numTextures; i++, pSprite++) {
