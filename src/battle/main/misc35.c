@@ -345,7 +345,6 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
 // 64.83% (3700 bytes against retail's 3708; frame and every stack slot exact). The
 // arm set is transcribed against the jump table's 124 case values, both tables land
 // at the right offsets and every call site matches. What is left is one register:
@@ -378,7 +377,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
 //    a jal with a nop delay slot and the +-1 addiu before it); ours keeps the call
 //    inline in each arm with the addiu in the jal's delay slot, and the arm layout
 //    past the first few still differs.
-/*
 void func_800C11CC(SpriteData *pSpriteData) {
     u8 *pArgs;
     u8 code;
@@ -414,6 +412,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 frames = (code & 0xF) + 1;
             } else if (code < 0x30) {
                 func_8001D2B0(pSpriteData, (u16)pSpriteData->curSpriteFrame - 1);
+                frames = (code & 0xF) + 1;
             }
             if (code < 0x40) {
                 frames = (code & 0xF) + 1;
@@ -489,18 +488,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
             vec.vy = 0;
             vec.vz = 0;
             RotMatrix((SVECTOR *)&pSpriteData->pBase->rotation, &mtx);
-            ApplyMatrix(&mtx, &vec, &out);
-            if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_A) {
-                pSpriteData->position.x = g_BattleAnimPositionGroupB.x - (out.vx << 16);
-                pSpriteData->position.y = g_BattleAnimPositionGroupB.y - (out.vy << 16);
-                pSpriteData->position.z = g_BattleAnimPositionGroupB.z - (out.vz << 16);
-            }
-            if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_B) {
-                pSpriteData->position.x = g_BattleAnimPositionGroupA.x + (out.vx << 16);
-                pSpriteData->position.y = g_BattleAnimPositionGroupA.y + (out.vy << 16);
-                pSpriteData->position.z = g_BattleAnimPositionGroupA.z + (out.vz << 16);
-            }
-            break;
+            goto animApplyRotation;
         case 0x9B:
             pSpriteData->scale = (D_80059454 << 12) / *(s32 *)&D_800D30B8;
             break;
@@ -509,6 +497,9 @@ void func_800C11CC(SpriteData *pSpriteData) {
             vec.vy = 0;
             vec.vz = 0;
             RotMatrix((SVECTOR *)&D_800D30B0, &mtx);
+        // Both rotation opcodes share this tail in retail, which is what keeps the
+        // position-group addresses out of a loop-hoisted register.
+        animApplyRotation:
             ApplyMatrix(&mtx, &vec, &out);
             if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_A) {
                 pSpriteData->position.x = g_BattleAnimPositionGroupB.x - (out.vx << 16);
@@ -822,4 +813,3 @@ void func_800C11CC(SpriteData *pSpriteData) {
         pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + D_8004FC40[code];
     }
 }
-*/
