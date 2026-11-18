@@ -17,6 +17,11 @@ extern void func_800B6004();
 extern void BattleUpdateDistanceWaitTask();
 extern u8* TimerWorkListAllocateTask();
 extern s32 BattleSpriteDistanceToTarget(SpriteData* pSpriteData);
+extern u8* g_GfxCurWorkBuffer;
+extern u8* g_GfxCurWorkBufferEnd;
+extern u_long* g_GfxCurOT;
+extern s32 g_GfxOTDepthShift;
+extern MATRIX g_GfxBaseMatrix;
 
 typedef struct {
     /* 0x0 */ u8 unk0;
@@ -220,7 +225,70 @@ void BattleSetSpriteDrawWorkCallback(SpriteData* pSpriteData) {
     WorkListSetTaskCallback(&pTask->drawEntry, func_800B5DF4);
     pSpriteData->prim = 0x40;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B6004);
+void func_800B6004(WorkListEntry* pWork) {
+    s32 coord;
+    s32 ofs;
+    SpriteData* pSpriteData;
+    SpriteData* pLinked;
+    LINE_F2* pLine;
+    DR_TPAGE* pTpage;
+    SVECTOR vec;
+    s32 p;
+    s32 flag;
+    s32 otz;
+    u32 abr;
+
+    pSpriteData = pWork->pSpriteData;
+    if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
+        return;
+    }
+    pLine = (LINE_F2*)g_GfxCurWorkBuffer;
+    pLinked = pSpriteData->field_0x70;
+    if ((u8*)(pLine + 1) >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    coord = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+    vec.vx = coord;
+    coord = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    vec.vy = coord;
+    coord = ((BattleFixed16Vector*)&pSpriteData->position)->zWhole;
+    vec.vz = coord;
+    g_GfxCurWorkBuffer = (u8*)(pLine + 1);
+    SetRotMatrix(&g_GfxBaseMatrix);
+    SetTransMatrix(&g_GfxBaseMatrix);
+    otz = RotTransPers(&vec, (s32*)&pLine->x0, &p, &p) >> g_GfxOTDepthShift;
+    pSpriteData->field_0x2e = otz;
+    // Retail refills the same vertex from the sprite before overwriting it with
+    // the linked sprite's, dead stores included. The first read keeps its own
+    // local because retail still holds the projected depth in $v0 there.
+    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+    vec.vx = ofs;
+    coord = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    vec.vy = coord;
+    coord = ((BattleFixed16Vector*)&pSpriteData->position)->zWhole;
+    vec.vz = coord;
+    coord = ((BattleFixed16Vector*)&pLinked->position)->xWhole;
+    vec.vx = coord;
+    coord = ((BattleFixed16Vector*)&pLinked->position)->yWhole;
+    vec.vy = coord;
+    coord = ((BattleFixed16Vector*)&pLinked->position)->zWhole;
+    vec.vz = coord;
+    RotTransPers(&vec, (s32*)&pLine->x1, &p, &p);
+    setlen(pLine, 3);
+    *(u32*)&pLine->r0 = *(u32*)&pSpriteData->red;
+    AddPrim(&g_GfxCurOT[otz], pLine);
+    pTpage = (DR_TPAGE*)g_GfxCurWorkBuffer;
+    if ((u8*)(pTpage + 1) >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    abr = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
+    if (abr == 0) {
+        return;
+    }
+    g_GfxCurWorkBuffer = (u8*)(pTpage + 1);
+    setDrawTPage(pTpage, 0, 0, getTPage(0, abr - 1, 0, 0));
+    AddPrim(&g_GfxCurOT[otz], pTpage);
+}
 void BattleSetLinkedSpriteDrawWorkCallback(SpriteData* pSpriteData) {
     BattleSpriteTask* pTask;
 
