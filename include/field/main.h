@@ -135,6 +135,8 @@ extern int g_FieldSystemMode;
 extern int g_FieldCurRenderContextIndex;
 extern int g_FieldRenderContextUseOT2;
 extern RenderContext* g_FieldCurRenderContext;
-extern RenderContext g_FieldRenderContexts[2];
+#define FIELD_RENDER_CONTEXT_COUNT 2
+
+extern RenderContext g_FieldRenderContexts[FIELD_RENDER_CONTEXT_COUNT];
 
 #endif

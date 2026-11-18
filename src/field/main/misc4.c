@@ -19,7 +19,6 @@
 #define FIELD_SCREEN_STRIP_SIZE (FIELD_SCREEN_STRIP_WORD_COUNT * 4)
 
 // Number of switchable draw/display environments in g_FieldRenderContexts
-#define FIELD_RENDER_CONTEXT_COUNT 2
 
 // Texture UVs are byte-sized: FieldClampPolyFT4UVs pins each of them below
 // FIELD_TEXTURE_UV_COUNT
