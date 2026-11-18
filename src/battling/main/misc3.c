@@ -8,6 +8,15 @@
 // flags bit 27: the actor is on the second player's side, so it drives gauge record 1,
 // g_BattlePlayer2Vibration and the right-hand HUD column.
 #define BATTLE_ACTOR_FLAG_PLAYER2 0x8000000
+// flags bit 12: set by every modelIndex assignment in this unit, so the bit is the
+// actor's "picked a new model" mark.
+#define BATTLE_ACTOR_FLAG_MODEL_CHANGE 0x1000
+// flags bits 20-22: the vertical direction of the step the actor is taking. It is
+// cleared and re-set to one of the two directions when BattleUpdateActorMovement
+// picks the step model for the goal it walks to, and cleared on the frame after.
+#define BATTLE_ACTOR_MOVE_DIR_MASK 0x700000
+#define BATTLE_ACTOR_MOVE_DIR_DOWN 0x100000
+#define BATTLE_ACTOR_MOVE_DIR_UP 0x200000
 // What prevPartIndex holds when the next model has to restart the part animation.
 #define BATTLE_PART_INDEX_NONE 0xFF
 // Half a turn of the 12-bit angle rcos/rsin/ratan2 work in.
@@ -808,7 +817,7 @@ s32 dec;
 }
 
 void BattleActorBeginMove(BattleActor* p, s32 ang, s32 shift, s32 dec) {
-    p->flags |= 0x1000;
+    p->flags |= BATTLE_ACTOR_FLAG_MODEL_CHANGE;
     p->modelIndex = 8;
     p->prevPartIndex = BATTLE_PART_INDEX_NONE;
     p->moveTimer = 0x3C;
@@ -869,7 +878,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
         if (p->modelIndex == 9) {
             p->modelIndex = 0xC;
             p->prevPartIndex = BATTLE_PART_INDEX_NONE;
-            p->flags |= 0x1000;
+            p->flags |= BATTLE_ACTOR_FLAG_MODEL_CHANGE;
             goto done;
         }
     } else {
@@ -880,24 +889,24 @@ short BattleUpdateActorMovement(BattleActor* p) {
         }
         mid = (p->baseVertexPos.y - p->centerPosition.y) * 2 / 3 + p->centerPosition.y;
         if (p->moveGoalPosition.y < mid) {
-            if ((flags & 0x700000) == 0x100000) {
+            if ((flags & BATTLE_ACTOR_MOVE_DIR_MASK) == BATTLE_ACTOR_MOVE_DIR_DOWN) {
                 p->modelIndex = 7;
                 p->prevPartIndex = BATTLE_PART_INDEX_NONE;
-                p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
+                p->flags = (p->flags | BATTLE_ACTOR_FLAG_MODEL_CHANGE) & ~BATTLE_ACTOR_MOVE_DIR_MASK;
             } else {
                 p->modelIndex = 6;
                 p->prevPartIndex = BATTLE_PART_INDEX_NONE;
-                p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x100000;
+                p->flags = ((p->flags | BATTLE_ACTOR_FLAG_MODEL_CHANGE) & ~BATTLE_ACTOR_MOVE_DIR_MASK) | BATTLE_ACTOR_MOVE_DIR_DOWN;
             }
         } else {
-            if ((flags & 0x700000) == 0x200000) {
+            if ((flags & BATTLE_ACTOR_MOVE_DIR_MASK) == BATTLE_ACTOR_MOVE_DIR_UP) {
                 p->modelIndex = 7;
                 p->prevPartIndex = BATTLE_PART_INDEX_NONE;
-                p->flags = (p->flags | 0x1000) & 0xFF8FFFFF;
+                p->flags = (p->flags | BATTLE_ACTOR_FLAG_MODEL_CHANGE) & ~BATTLE_ACTOR_MOVE_DIR_MASK;
             } else {
                 p->modelIndex = 5;
                 p->prevPartIndex = BATTLE_PART_INDEX_NONE;
-                p->flags = ((p->flags | 0x1000) & 0xFF8FFFFF) | 0x200000;
+                p->flags = ((p->flags | BATTLE_ACTOR_FLAG_MODEL_CHANGE) & ~BATTLE_ACTOR_MOVE_DIR_MASK) | BATTLE_ACTOR_MOVE_DIR_UP;
             }
         }
     }
@@ -911,7 +920,7 @@ short BattleUpdateActorMovement(BattleActor* p) {
     case 2:
         p->modelIndex = 6;
         p->prevPartIndex = BATTLE_PART_INDEX_NONE;
-        p->flags |= 0x1000;
+        p->flags |= BATTLE_ACTOR_FLAG_MODEL_CHANGE;
         func_80077584(p, ang, 0xC, 0x64);
         break;
     case 3:
