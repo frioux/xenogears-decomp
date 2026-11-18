@@ -216,7 +216,83 @@ void BattleStartSpriteMotionTask(SpriteData* pSpriteData) {
     pTask = pSpriteData->field_0x6C;
     TimerWorkListSetTaskCallback(&pTask->timerEntry, BattleIntegrateSpriteVelocityTask);
 }
+// The identity matrix a sprite carrying its own transform set draws its line
+// through; the other choice is the shared g_GfxBaseMatrix.
+extern MATRIX D_800C3574;
+
+// Best attempt: 99.82%, 456 bytes (retail's exact size), 113 of 114 instructions.
+// The only difference is the %hi scratch register of the two symbol addresses in
+// the matrix selection: retail is "lui s0,%hi(sym) / j / addiu s0,s0,%lo(sym)",
+// this body gives "lui v0,%hi(sym) / j / addiu s0,v0,%lo(sym)" - reload put the
+// HIGH pseudo in a scratch register instead of tying it to the destination.
+// Measured and rejected: ternary vs if/else vs default+override (same shape),
+// four local declaration orders, "register" on the pointers, -O3, and this unit's
+// own functions at gcc-2.7.2-psx / 2.6.0-psx (86.80 / 86.62). Two 4-minute
+// permuter runs from different bodies (base score 20 and 135) found nothing.
+// The pBuf variable is load-bearing: it must stay live past the pLine assignment,
+// otherwise gcc merges the two and the "move s2,a1" that fills the flag test's
+// delay slot disappears (452 bytes, 98.86%).
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B5DF4);
+/*
+void func_800B5DF4(WorkListEntry* pWork) {
+    s32 ofs;
+    s32 flag;
+    s32 otz;
+    s32 shift;
+    u8* pBuf;
+    SpriteData* pSpriteData;
+    LINE_F2* pLine;
+    DR_TPAGE* pTpage;
+    SVECTOR vec;
+    MATRIX* pMatrix;
+    u32 abr;
+
+    pSpriteData = pWork->pSpriteData;
+    if (*(u16*)&pSpriteData->curSpriteFrame != 0) {
+        return;
+    }
+    pBuf = g_GfxCurWorkBuffer;
+    if (pBuf + 0x10 >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    pLine = (LINE_F2*)pBuf;
+    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->xWhole;
+    vec.vx = ofs;
+    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->yWhole;
+    vec.vy = ofs;
+    ofs = ((BattleFixed16Vector*)&pSpriteData->position)->zWhole;
+    vec.vz = ofs;
+    g_GfxCurWorkBuffer = pBuf + 0x10;
+    if (pSpriteData->field_0x3C_2 & 1) {
+        pMatrix = &D_800C3574;
+    } else {
+        pMatrix = &g_GfxBaseMatrix;
+    }
+    SetRotMatrix(pMatrix);
+    SetTransMatrix(pMatrix);
+    otz = RotTransPers(&vec, (s32*)&pLine->x0, &flag, &flag) >> g_GfxOTDepthShift;
+    pSpriteData->field_0x2e = otz;
+    shift = (u16)pSpriteData->field_0x36 + 8;
+    vec.vx -= pSpriteData->step.x >> shift;
+    vec.vy -= pSpriteData->step.y >> shift;
+    vec.vz -= pSpriteData->step.z >> shift;
+    RotTransPers(&vec, (s32*)&pLine->x1, &flag, &flag);
+    setlen(pLine, 3);
+    *(u32*)&pLine->r0 = *(u32*)&pSpriteData->red;
+    AddPrim(&g_GfxCurOT[otz], pLine);
+    pTpage = (DR_TPAGE*)g_GfxCurWorkBuffer;
+    if ((u8*)(pTpage + 1) >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    abr = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
+    if (abr == 0) {
+        return;
+    }
+    g_GfxCurWorkBuffer = (u8*)(pTpage + 1);
+    setDrawTPage(pTpage, 0, 0, getTPage(0, abr - 1, 0, 0));
+    AddPrim(&g_GfxCurOT[otz], pTpage);
+}
+*/
 void BattleSetSpriteDrawWorkCallback(SpriteData* pSpriteData) {
     BattleSpriteTask* pTask;
 
