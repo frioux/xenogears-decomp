@@ -77,7 +77,7 @@ typedef struct {
     /* 0x2 */ short nextBlockIndex;
     /* 0x4 */ int spuAddress;
     /* 0x8 */ int size;
-    /* 0xC */ u_int unkC; // Padding?
+    /* 0xC */ u_int pad0xC;
 } SoundSpuMemoryBlock;
 
 // Possible a more general queue to sending commands to the SPU,
@@ -199,8 +199,8 @@ typedef struct {
     /* 0x7   */ s8 unk_0x07;
     /* 0x8   */ s32 soundId;
     /* 0xC   */ u32 startTick; // g_SoundTimerTickCounter at element start; voice allocation picks the lowest
-    /* 0x10  */ u32 unk_0x10; // script address, stored with unk14
-    /* 0x14  */ u32 unk14;
+    /* 0x10  */ u32 unk_0x10; // script address, stored with pScriptIP
+    /* 0x14  */ u32 pScriptIP; // next script byte to run
     /* 0x18  */ u8* savedScriptIP;
     /* 0x1C  */ s32 unk_0x1C;
     /* 0x20  */ u16 loopCount;
@@ -216,11 +216,12 @@ typedef struct {
     /* 0x2C  */ u32 pWds; // SoundWDSEntry*
     /* 0x30  */ SoundVoiceData voice_data;
     /* 0x5C  */ s16 fermataDuration;
-    /* 0x5E  */ u8 unk_0x5E[0x02];
-    /* 0x60  */ u8 unk_0x60;
+    /* 0x5E  */ u16 restTicks; // ticks left before the note rests, counted down with fermataDuration
+    /* 0x60  */ s8 durationBias; // added to fermataDuration to give the note's length in ticks
     /* 0x61  */ u8 unk_0x61;
-    /* 0x62  */ u16 unk_0x62;
-    /* 0x64  */ u8 unk_0x64[0x02];
+    /* 0x62  */ u16 gateRatio; // gate length as n/16 of the note: 0x10 = whole note, 0xF = one tick short
+    /* 0x64  */ u8 currentNote; // note number the pitch in note is built from
+    /* 0x65  */ u8 nextNote; // note number parsed from the script, adopted into currentNote
     /* 0x66  */ u16 octave;
     /* 0x68  */ u32 note; // 16.16, ramped by noteStep
     /* 0x6C  */ s16 toneTune;

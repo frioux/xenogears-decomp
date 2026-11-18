@@ -2617,7 +2617,7 @@ void func_8003B424(AudioManager* pManager) {
             pElement->elementIndex = i;
             pElement->soundId = value;
             pElement->octave = 0x3C;
-            pElement->unk_0x62 = 0xF;
+            pElement->gateRatio = 0xF;
             pElement->loopIndex = 0xFFFF;
             pElement->volume = 0x6000;
             pElement->elementVolume = 0x7F000000;
@@ -2626,9 +2626,9 @@ void func_8003B424(AudioManager* pManager) {
             pElement->loopCount = 0;
             pElement->unk_0x22 = 0;
             pElement->fermataDuration = 0;
-            pElement->unk_0x60 = 0;
+            pElement->durationBias = 0;
             pElement->detune = 0;
-            pElement->unk_0x64[0] = 0;
+            pElement->currentNote = 0;
             pElement->pan = 0x4000;
             pElement->slideFrames = 0;
             pElement->noteOffset = 0;
@@ -2639,7 +2639,7 @@ void func_8003B424(AudioManager* pManager) {
             pElement->activeEnvelopeMask = 0;
             value = (u32)pSeqData + *pScriptOffset;
             pElement->unk_0x10 = value;
-            pElement->unk14 = value;
+            pElement->pScriptIP = value;
 
             for (j = NUM_VOICE_ENVELOPES - 1; j >= 0; j--) {
                 pElement->envelopes[j].flags = 0;
@@ -2753,16 +2753,16 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
             pElement->rampFlags = 0;
             value = (u32)pSoundFile + *pScriptOffset;
             pElement->octave = 0x3C;
-            pElement->unk_0x62 = 0xF;
+            pElement->gateRatio = 0xF;
             pElement->loopIndex = 0xFFFF;
             pElement->savedScriptIP = NULL;
             pElement->unk_0x1C = 0;
             pElement->loopCount = 0;
             pElement->unk_0x22 = 0;
             pElement->fermataDuration = 0;
-            pElement->unk_0x60 = 0;
+            pElement->durationBias = 0;
             pElement->detune = 0;
-            pElement->unk_0x64[0] = 0;
+            pElement->currentNote = 0;
             pElement->volume = volume;
             pElement->elementVolume = 0x7F000000;
             pElement->slideFrames = 0;
@@ -2774,7 +2774,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
             pElement->activeEnvelopeMask = 0;
             pElement->pan = pan;
             pElement->unk_0x10 = value;
-            pElement->unk14 = value;
+            pElement->pScriptIP = value;
 
             for (i = NUM_VOICE_ENVELOPES - 1; i >= 0; i--) {
                 pElement->envelopes[i].flags = 0;
@@ -3573,7 +3573,7 @@ u8* SoundScriptRampVolume(u8* pScript, AudioManager* pAudioManager, AudioElement
 }
 
 u8* SoundScriptSetUnk62(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    pAudioElements->unk_0x62 = *pScript;
+    pAudioElements->gateRatio = *pScript;
     return pScript + 1;
 }
 
@@ -3599,9 +3599,9 @@ u8* SoundScriptAddUnk60(u8* pScript, AudioManager* pAudioManager, AudioElement* 
     u8 value = *pScript++;
 
     if (value) {
-        pAudioElements->unk_0x60 += value;
+        pAudioElements->durationBias += value;
     } else {
-        pAudioElements->unk_0x60 = 0;
+        pAudioElements->durationBias = 0;
     }
 
     return pScript;
