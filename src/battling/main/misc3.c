@@ -65,30 +65,32 @@ typedef struct {
 // units reach further).
 typedef struct BattleActor {
     /* 0x0000 */ Vec4 position;
+    // The three VECTOR triples below carry the Psy-Q VECTOR's unused fourth word at
+    // 0x1C/0x2C/0x3C: nothing in any binary accesses those, so they are pad.
     /* 0x0010 */ s32 vx;
     /* 0x0014 */ s32 vy;
     /* 0x0018 */ s32 vz;
-    /* 0x001C */ u8 unk1C[0x4];
+    /* 0x001C */ u8 pad1C[0x4];
     /* 0x0020 */ s32 pushVx;
     /* 0x0024 */ s32 pushVy;
     /* 0x0028 */ s32 pushVz;
-    /* 0x002C */ s32 unk2C;
+    /* 0x002C */ u8 pad2C[0x4];
     /* 0x0030 */ s32 steerVx;
     /* 0x0034 */ s32 steerVy;
     /* 0x0038 */ s32 steerVz;
-    /* 0x003C */ u8 unk3C[0x4];
+    /* 0x003C */ u8 pad3C[0x4];
     /* 0x0040 */ s32 stepDistance;
     /* 0x0044 */ s32 steerSpeed;
     /* 0x0048 */ s32 distance;
     /* 0x004C */ u8 modelIndex;
-    /* 0x004D */ u8 unk4D;
+    /* 0x004D */ u8 pad4D;
     /* 0x004E */ u8 prevPartIndex;
     /* 0x004F */ u8 animSpeed;
     /* 0x0050 */ s16 lastFrame;
     // Added to animSpeed when the part animation advances (misc2 func_80074BA4);
     // the movement sets it from the distance and the speed scale.
     /* 0x0052 */ u8 animSpeedBonus;
-    /* 0x0053 */ u8 unk53;
+    /* 0x0053 */ u8 pad53;
     /* 0x0054 */ s32 angle;
     /* 0x0058 */ s32 targetAngle;
     // The actor's model part (misc4's struct ActorPart): its BattleActorSetPartTransform

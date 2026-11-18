@@ -28,7 +28,7 @@ extern u8 D_800D2CA4[];
 extern BattleCommandArg g_BattleCommandArgs[];
 extern u16 g_BattlePendingSlotMask;
 extern BattleSlotRegs g_BattleSlotRegs[];
-extern s32 func_8007EF6C(u8** arg0, u8 arg1, u8 arg2);
+extern s32 BattleExecScriptOpcode(u8** arg0, u8 arg1, u8 arg2);
 extern s32 func_8007F8C0(u8** arg0, u8 arg1);
 
 // A 4-byte status entry; only the first byte is written here.
@@ -478,7 +478,7 @@ void BattleScriptResetActorState(u8 arg0) {
             }
             BattleScriptSkipUnknownOpcodeWords(&pCursor);
         } else {
-            value = func_8007EF6C(&pCursor, slot, value);
+            value = BattleExecScriptOpcode(&pCursor, slot, value);
         }
     }
 }
@@ -518,7 +518,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
                 if (*pCursor == 0x62) {
                     result = 1;
                 }
-                value = func_8007EF6C(&pCursor, slot, value);
+                value = BattleExecScriptOpcode(&pCursor, slot, value);
             }
         }
     }
@@ -583,7 +583,7 @@ void BattleRunActiveSlotScripts(void) {
                 }
                 BattleScriptSkipUnknownOpcodeWords(&pCursor);
             } else {
-                value = func_8007EF6C(&pCursor, i, value);
+                value = BattleExecScriptOpcode(&pCursor, i, value);
             }
         }
         g_BattleCommandQueue->unk2DB = 0;

@@ -159,7 +159,7 @@ s32 BattleActorSlotHasFlag80(u8 arg0) {
 
     return D_800C3EB7[idx * 0x1C] >> 7;
 }
-// The per-opcode handlers func_8007EF6C dispatches to. They live in misc4..misc9.c
+// The per-opcode handlers BattleExecScriptOpcode dispatches to. They live in misc4..misc9.c
 // and in the still-unmatched stubs of this overlay; the grid-write ones take the
 // byte grid pArgs (0x100 bytes of 8-byte rows) as their second argument.
 extern u8 g_BattleCommandArgs[];
@@ -282,7 +282,7 @@ extern void func_8007E7E4(u8 **ppCommand, u8 slot);
 
 extern void BattleScriptCursorSkipWord(u8 **ppCommand);
 
-s32 func_8007EF6C(u8 **ppCommand, u8 slot, s32 row) {
+s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
     u8 *pCommand = *ppCommand;
     u8 *pArgs = g_BattleCommandArgs;
 
