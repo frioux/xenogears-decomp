@@ -130,50 +130,6 @@ extern s32 g_BattlePrimCount;
 extern DR_TPAGE g_BattleDrawTPage;
 extern s32 SpriteColorAddClamp(s32 color, s32 value);
 
-u8 *BattleGetFrame(u8 *pBase, s32 n) {
-    return &pBase[n * 0x1C + 0xC];
-}
-
-s32 BattleGetPrimitiveBufferSize(BattleModelFrame *pFrame) {
-    s32 count;
-    s32 total;
-    u8 *pPrim;
-    s32 n;
-
-    count = 0;
-    total = 0;
-    pPrim = (u8 *)((u32)pFrame->primsOffset + (u32)pFrame);
-    n = pFrame->primCount;
-    for (; count != n; count++) {
-        total += (pPrim[0] + 1) * 4;
-        pPrim += (pPrim[1] + 1) * 4;
-    }
-    return total;
-}
-
-// Advances the primitive cursor by one packet and counts the packet emitted.
-void BattleAdvancePrimitiveCursor(void) {
-    u8 *pCmd = g_BattlePrimCursor;
-    u8 size = pCmd[1];
-
-    g_BattlePrimCount += 1;
-    g_BattlePrimCursor = pCmd + (size + 1) * 4;
-}
-
-
-// What a saved primitive's code byte and colour flag select: bit 2 asks for a
-// texture coordinate per vertex, bit 3 for four vertices instead of three, bit 4
-// for a colour per vertex, and 0x100 marks a record that carries no colours and
-// takes the flat 0x80 instead. Each combination is one of the eight POLY_*
-// packets.
-#define BATTLE_PRIM_KIND_MASK 0x1C
-#define BATTLE_PRIM_TEXTURED 0x004
-#define BATTLE_PRIM_QUAD 0x008
-#define BATTLE_PRIM_GOURAUD 0x010
-#define BATTLE_PRIM_UNLIT 0x100
-#define BATTLE_PRIM_UNLIT_RGB 0x80 // the colour an unlit record's vertices take
-#define BATTLE_TPAGE_ABR_MASK 0xFF9F // clears the semi-transparency bits of a tpage
-
 // One 4-byte entry of a saved model primitive's trailing data: the per-vertex
 // texture coordinate and its clut on a textured record, or a vertex colour.
 typedef union {
@@ -204,6 +160,50 @@ typedef struct {
     /* 0x04 */ BattlePrimEntry entries[8]; // texture entries, then colour entries
     /* 0x24 */ u16 index[4]; // part indices func_800B1F6C transforms
 } BattleModelPrim; // Size: 0x2C
+
+u8 *BattleGetFrame(u8 *pBase, s32 n) {
+    return &pBase[n * 0x1C + 0xC];
+}
+
+s32 BattleGetPrimitiveBufferSize(BattleModelFrame *pFrame) {
+    s32 count;
+    s32 total;
+    BattleModelPrim *pPrim;
+    s32 n;
+
+    count = 0;
+    total = 0;
+    pPrim = (BattleModelPrim *)((u32)pFrame->primsOffset + (u32)pFrame);
+    n = pFrame->primCount;
+    for (; count != n; count++) {
+        total += (pPrim->outLen + 1) * 4;
+        pPrim = (BattleModelPrim *)((u8 *)pPrim + (pPrim->len + 1) * 4);
+    }
+    return total;
+}
+
+// Advances the primitive cursor by one packet and counts the packet emitted.
+void BattleAdvancePrimitiveCursor(void) {
+    u8 *pCmd = g_BattlePrimCursor;
+    u8 size = pCmd[1];
+
+    g_BattlePrimCount += 1;
+    g_BattlePrimCursor = pCmd + (size + 1) * 4;
+}
+
+
+// What a saved primitive's code byte and colour flag select: bit 2 asks for a
+// texture coordinate per vertex, bit 3 for four vertices instead of three, bit 4
+// for a colour per vertex, and 0x100 marks a record that carries no colours and
+// takes the flat 0x80 instead. Each combination is one of the eight POLY_*
+// packets.
+#define BATTLE_PRIM_KIND_MASK 0x1C
+#define BATTLE_PRIM_TEXTURED 0x004
+#define BATTLE_PRIM_QUAD 0x008
+#define BATTLE_PRIM_GOURAUD 0x010
+#define BATTLE_PRIM_UNLIT 0x100
+#define BATTLE_PRIM_UNLIT_RGB 0x80 // the colour an unlit record's vertices take
+#define BATTLE_TPAGE_ABR_MASK 0xFF9F // clears the semi-transparency bits of a tpage
 
 // Expands a model frame's saved primitives into the GPU packets the frame is
 // drawn from: the packet code and semi-transparency mode are applied here and
@@ -1386,7 +1386,7 @@ void BattleDrawScreenFade(WorkListEntry *pEntry) {
     POLY_F4 *pPoly;
     DR_MODE *pMode;
 
-    if ((u8 *)(pBuf + 0x50) >= g_GfxCurWorkBufferEnd) {
+    if (pBuf + 0x50 >= g_GfxCurWorkBufferEnd) {
         return;
     }
     pPoly = (POLY_F4 *)pBuf;
@@ -1524,7 +1524,7 @@ void BattleApplyImageTaskTint(WorkListEntry *pEntry) {
     BattleImageTask *pTask = pEntry->unk4;
 
     if (pTask->applied != pTask->current) {
-        pTask->applied = *(u16 *)&pTask->current;
+        pTask->applied = pTask->current;
         BattleSetActorRectParams(0, pTask->blendMode, 0x20 - pTask->current,
                       pTask->r, pTask->g, pTask->b);
     }
