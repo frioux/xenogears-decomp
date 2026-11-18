@@ -74,7 +74,7 @@ typedef struct {
     /* 0x44 */ s32 targetDistance; // measured by BattleFaceTargetAndMeasureDistance
     /* 0x48 */ u8 actionDone; // set when the current step's action has finished; state 4 waits on it
     /* 0x49 */ u8 pendingStep; // stateStep copied by BattleApplyStateStep, run once and cleared
-    /* 0x4A */ u8 unk4A;
+    /* 0x4A */ u8 commandUnhandled; // set by func_800B9C78's unknown-command arm, read and cleared by its next dispatch; the init clears it
     /* 0x4B */ u8 pad4B;
     /* 0x4C */ BattleActorSprite *pTargetSprite; // the actor BattleActorSnapToTargetAndFace is aimed at
 } BattleMisc33State; // Size: 0x50
@@ -520,7 +520,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
    post-call load dead; ours reloads after the call and keeps the store last, and the
    %hi/%lo base registers come out v0 where retail has v1.  Same instruction multiset.
    The PRE-call order is fixed and matches: pUpdate, g_BattleState, g_BattleCommandRowIndex,
-   unk4A, actionDone(1), unk30(0), pendingStep, pathIndex(1), pCurSprite.
+   commandUnhandled, actionDone(1), unk30(0), pendingStep, pathIndex(1), pCurSprite.
    void func_800BED4C(void) {
        BattleMisc33State *pState;
 
@@ -528,7 +528,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
        pState->pUpdate = func_800B9F78;
        g_BattleState = pState;
        g_BattleCommandRowIndex = 0;
-       pState->unk4A = 0;
+       pState->commandUnhandled = 0;
        g_BattleState->actionDone = 1;
        g_BattleState->unk30 = 0;
        g_BattleState->pendingStep = 0;
