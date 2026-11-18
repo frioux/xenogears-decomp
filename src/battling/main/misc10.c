@@ -12,6 +12,16 @@
 // g_BattleControlFlags bit 0: set while the player, not the COM, drives both sides.
 #define BATTLE_CONTROL_FLAG_USER 0x1
 
+// The size HeapAlloc gives the 128x128 battle grid the archive decompresses into,
+// and the ordering table BattleCreateOrderingTablePair splits in two.
+#define BATTLE_GRID_CELLS_SIZE 0x10010
+#define BATTLE_ORDERING_TABLE_SIZE 0x1000
+
+// Frames of no button input before the battle hands both sides to the COM, and the
+// number of frames C1 may be held on the default text list to skip that wait.
+#define BATTLE_IDLE_TIMEOUT 0x4650
+#define BATTLE_IDLE_HOLD_COUNT 0x78
+
 // The archive directory an actor's entry is loaded from below, the value
 // src/battling/main/misc12.c's BattleInitGraphics selects too;
 // include/system/archive.h's ARCHIVE_DIR_* list stops at 0x2C.
@@ -50,7 +60,7 @@ extern u8* g_BattleEffectImageActive;
 
 
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
-extern void ArchiveCdDataSync(s32 mode);
+extern s32 ArchiveCdDataSync(s32 mode);
 extern void func_8008E120(void);
 extern void func_8007F258(void* pOt, s32 arg);
 extern void BattleDrawTextPrims(void* pOt);
@@ -356,10 +366,124 @@ typedef struct {
     /* 0x0C */ Misc10TexRect* prect;
 } Misc10TagSrc; // Size: 0x10
 
+// The archive header ResolveArchiveEntryPointers relocates before func_80082C4C
+// and the rest read it: the message strings and the action-row table are the only
+// two pointers this unit takes out of it.
+typedef struct {
+    /* 0x0 */ u32 unk00;
+    /* 0x4 */ u8* pMessageStrings;
+    /* 0x8 */ Misc10ActionRow* pActionRows;
+} Misc10ArchiveHeader; // Size: 0xC
+
 extern Misc10ActionRow* D_80092874;
-extern u8 g_BattleActor1[];
-extern u8 g_BattleActor0[];
+extern Misc10Actor g_BattleActor1;
+extern Misc10Actor g_BattleActor0;
+extern Misc10Resource D_800917C0[];
 extern Misc10Prim g_BattleSharedPrimBuffer[];
+
+extern s16 g_BattleDebugFlags;
+extern s32* g_BattleGridCells;
+extern u8* g_BattleMessageStringTable;
+extern s32 g_BattleMultiplyNodeMatrices;
+extern u16 g_BattleFrameWaitCount;
+extern u8 g_BattleFacingUpdateEnabled;
+extern u8 g_BattleStageLightIndex;
+extern u8 g_BattleOptionOn;
+extern u8 g_BattleDifficultyLevel;
+extern u8 g_BattleMatchCount;
+extern u8 g_BattlePlayer1ComControlled;
+extern u8 g_BattlePlayer2ComControlled;
+extern s32 g_BattleStateAdvanceRequested;
+extern s32 g_BattleSavedScreenMode;
+extern s32 g_BattleDrawFlags;
+extern s32 g_BattleSceneOriginYMirror;
+extern s32 g_BattleSceneOriginY;
+extern s32 g_BattleSceneOriginZ;
+extern s32 g_BattleResultSide;
+extern s16 g_BattleCombatant0DownCount;
+extern s16 g_BattleCombatant1DownCount;
+extern u8 g_BattleMessageWindow[];
+extern u16 g_C1ButtonState;
+extern u16 g_C2ButtonState;
+extern u16 g_C1ButtonStateReleased;
+extern u16 g_C1ButtonStatePressedOnce;
+extern s32 g_SoundAudioManager;
+extern u8 D_8005061D;
+extern u8 D_8005061E;
+extern u8 D_8005061F;
+extern u8 D_80050620;
+extern u8 D_80050621;
+extern s32 D_80092798;
+extern s32 D_8009279C;
+extern void* D_800927B8;
+extern s32 D_800928B0;
+extern void* D_80097070;
+extern void* D_8009878C;
+extern s32 D_80097018;
+
+extern void* BattleCreateOrderingTablePair(s32 count);
+extern void* BattleCreateLightGroup(void* pParent);
+extern void ModelPartResolvePointers(void* pModelPart);
+extern void func_80029AFC(void* pQueue, s32 arg1, s32 arg2);
+extern void BattleSetScreenResolution(s32 width, s32 height);
+extern void BattleClearLineSlots(void);
+extern void func_80030988(s16 a0, s16 a1, s32 a2, s32 a3);
+extern void ControllerSetFrameCallback(void (*pCallback)(void));
+extern void FontLoadClut(short xDest, short yDest);
+extern void SystemTransferPaletteToVRAM(short xDest, short yDest);
+extern void BattleInitTextLists(void);
+extern void BattleInitOptionDefaults(void);
+extern void BattleEffectClearResourcePointers(void);
+extern void BattleFreeScreenBuffer(s32 arg);
+extern void SoundAddSedsEntry(s32 entryId);
+extern s32* SoundCreateAudioManagerOnHeap(void* pData);
+extern void SoundPlayAudioManager(s32* pManager, s32 volume, s32 frames);
+extern void LZSSDecompress(void* pSrc, void* pDst);
+extern void* LZSSHeapDecompress(void* pCompressed, s32 flags);
+extern void func_80081ECC(void);
+extern void ResolveArchiveEntryPointers(void* pHeader);
+extern void func_8007EEE8(s32 arg);
+extern void func_80082C4C(u8* pArchive);
+extern void func_8007B388(void* pArchive);
+extern void BattleLoadTextTimImages(void* pArchive);
+extern void func_800878DC(void* pArchive);
+extern void func_800868E0(u8* pArchive);
+extern void func_80071794(u8* pArchive);
+extern void BattleInitSpriteRectTable(void);
+extern void BattleInitMessageWindow(void);
+extern void BattleFreeNodeTree(void* pNode);
+extern void BattleInitTextWindow(void);
+extern void BattleEffectInitResources(void);
+extern void BattleResetState(void);
+extern void SystemStringReset(void* pString);
+extern void BattleFreeTextArchive(void);
+extern void BattleLoadSelectionTextures(s32 entry0, s32 entry1);
+extern void BattleInitTutorialMessage(void);
+extern s32 BattleIsDefaultTextList(void);
+extern void BattleReloadSlotEntries(void);
+extern void BattleUpdateTextWindow(void);
+extern void ControllerMergeStates(void);
+extern void func_8008BC04(void);
+extern void func_80034888(void* pString, void* pOt, s32 arg);
+extern void func_80079DF0(void* pActor1, void* pActor0);
+extern void func_800796B8(void* pActor1, void* pActor0);
+extern void func_8007A344(void* pActor1, void* pActor0);
+extern void func_8007AE10(void* pActor1, void* pActor0);
+extern void func_800840CC(void* pScene);
+extern void func_800846A0(void* pScene);
+extern void func_80072858(void* pScene);
+extern void func_80084A40(void* pScene);
+extern void func_80071AD0(void);
+extern void func_80083310(s32 arg);
+extern void SetGeomScreen(long distance);
+extern void FontSetColor(s32 red, s32 green, s32 blue);
+extern void FontSetPositionsByOffsetClamped(s32 offsetX, s32 offsetY);
+extern void BattleSetScreenTileBlack(void);
+extern void BattleSetScreenTileGrey(void);
+extern void BattleClearAndQueueActorPrims(void* pScene);
+extern char BattleResetForNextRound(void);
+extern void func_8007B270(u8* pColor0, u8* pColor1);
+extern void func_80084C88(Misc10Actor* pActor, u8* pData, s32 arg2);
 
 extern void BattleSetTpageAndClut(s16 x, s16 y, s16 clutX, s16 clutY);
 extern void BattleClearTpageAndClut(void);
@@ -467,10 +591,10 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_80084C88);
        pActor->flags = (pActor->flags & 0xF7FFFFFF) | ((arg2 & 1) << 27);
        if (arg2 != 0) {
            BattleSetTpageAndClut(0x380, 0, 0, 0x1FE);
-           pActor->pTarget = g_BattleActor1;
+           pActor->pTarget = (u8*)&g_BattleActor1;
        } else {
            BattleSetTpageAndClut(0x3C0, 0, 0, 0x1FF);
-           pActor->pTarget = g_BattleActor0;
+           pActor->pTarget = (u8*)&g_BattleActor0;
        }
        BattleRelocateBlockPointers(pData);
        pNode = func_8008B38C((u8*)pData);
@@ -635,6 +759,406 @@ s32 BattleCheckModeOver(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
+
+/* 85.76% objdiff, 2896 bytes against retail 2928 (741 instructions). This is the
+   battle scene's init and main loop: it allocates the grid and the ordering
+   table, loads the archive entries, then runs the frame loop whose switch on
+   g_BattleSavedScreenMode is the jtbl_80070260 table this stub owns. The body
+   below is a full transcription, and the instruction stream is very close: the
+   prologue, the five BattleAllocResourceBuffer calls, the two archive decompress
+   blocks, the reinit block, the D_8005061D mode switch and the whole frame-loop
+   head are instruction-identical apart from register choice and one jump-table
+   operand. What is left, per phase (instructions, retail vs this body):
+
+     phase                                  retail   ours
+     init + resource alloc + audio           123*     125
+     LZSSDecompress block (g_BattleGridCells)    9         9
+     first LZSSHeapDecompress block             21        21
+     reinit block (.L800855D8)                  30        30
+     state init (.L8008564C)                    21        21
+     D_8005061D mode switch + slot load        106       106
+     main while loop (idle timer + dispatch)    99        97
+     done block + two func_80084C88 calls       62        64
+     BattleResetForNextRound + actor origins    36        34
+     frame loop head (.L80085B48)               44        42
+     the 9-case switch on g_BattleSavedScreenMode 157     142
+     frame loop tail + screenRelease block      33        33
+                                              ----      ----
+                                              741       724
+
+   * retail's 138 includes the 15-instruction screenRelease block, which retail
+   places at 0x8008548C (between the audio-manager if and .L800854D4); this body
+   puts it at the end, so it lands in the tail instead. That is the whole reason
+   the first and last rows are 15 apart; excluding it, the init phase is 2 short.
+
+   1. THE REGISTER COUNT. This body saves six callee-saved registers (s0-s5,
+   frame 0x30) where retail saves five (s0-s4, frame 0x28, and retail's frame
+   leaves 0x10 bytes of its local area unwritten). So one local here has a live
+   range retail's source did not have, and every s-register number differs
+   because of it. Retail's allocation, which is a clean disjoint-range chain:
+   s2 = the scene object for the whole function; s0 = pRes, then the decompressed
+   buffer, then &g_BattleActor0; s1 = the idle timer, then &g_BattleActor1 (their
+   ranges are disjoint, the timer dies at the `done' block); s3 = the &~1 button
+   mask, then &g_BattleMatchCount; s4 = the idle counter. Once the extra live
+   value is gone the frame, the save order and all of these should fall into
+   retail's slots.
+   2. THE SWITCH (157 vs 142 instructions) is the biggest single gap and has not
+   been analysed case by case. Retail's 15 extra instructions are in the arms,
+   not in the dispatch: the dispatch, the sltiu bound check, the .rodata jtbl and
+   the `li a0,0x9E` in every break's delay slot all reproduce exactly (the
+   jtbl_80070260-vs-.rodata operand is expected in a unit that owns its tables).
+   Note retail's case bodies are physically ordered 1, 6, 7, 4, 8, 0, 5, 3, 2,
+   which is the order they are listed in here, and that case 1 jumps into the
+   middle of case 8 (a shared `commonDraw' label), case 7 jumps to case 3's body
+   and case 2 jumps there too - those three gotos are real, they are not
+   cross-jumping the compiler did: no plain `break' can produce them.
+   3. Two gcc-2.7.2 block-placement differences: this body hoists `move a0` for
+   the first call of a case above the `jr v0' dispatch (retail sets it at the
+   start of the arm), and it forms &g_BattleActor1 / &g_BattleActor0 at the top
+   of the `done' block instead of immediately before each func_80084C88 call as
+   retail does. Both are 1-2 instructions and neither has been tried.
+   4. The five resource words at D_800917C0 are read as an array here. Retail
+   takes the address of the D_800917DC word into a register and loads through it
+   twice (LZSSDecompress, then HeapFree) while it forms D_800917D4 and D_800917E4
+   as direct lui + lw pairs - a source pointer local for the first one only. That
+   is why pRes is spelled D_800917C0[k] from the reads on: keeping pRes live past
+   func_80029AFC is what forced the sixth saved register in the first place.
+   The reading of D_8005061D: retail's compare tree is `beq 1 / slti 2 / beq 0'
+   and its arms store s0, which holds 2 there and is overwritten with 1 in the
+   case-0 path - that is the `state' local, whose values are 0 (title), 1
+   (running), 2 (neither) and 10 (exit).
+   The idle timer is 0x4650 frames (BATTLE_IDLE_TIMEOUT) reset on any button
+   outside bit 0, and 0x78 frames (BATTLE_IDLE_HOLD_COUNT) of C1 held on the
+   default text list zero it immediately, which is what hands both sides to the
+   COM.
+   void func_800852C4(void) {
+   s32 func_800852C4(void) {
+       Misc10ArchiveHeader* pArchive;
+       Misc10Actor* pActor1;
+       Misc10Actor* pActor0;
+       Misc10Resource* pRes;
+       u8* pMatchCount;
+       u8* pBuf;
+       void* pScene;
+       s32 state;
+       s32 idleTimer;
+       s32 idleCount;
+       s32 count;
+
+       g_BattleDebugFlags = 0;
+       g_BattleControlFlags |= BATTLE_CONTROL_FLAG_USER;
+       g_BattleGridCells = HeapAlloc(BATTLE_GRID_CELLS_SIZE, 0);
+       pScene = BattleCreateLightGroup(BattleCreateOrderingTablePair(BATTLE_ORDERING_TABLE_SIZE));
+       ModelPartResolvePointers(g_BattleRotatedPartModel);
+       pRes = D_800917C0;
+       BattleAllocResourceBuffer(&pRes[0], 0);
+       BattleAllocResourceBuffer(&pRes[1], 0);
+       BattleAllocResourceBuffer(&pRes[2], 1);
+       BattleAllocResourceBuffer(&pRes[3], 1);
+       BattleAllocResourceBuffer(&pRes[4], 1);
+       func_80029AFC(pRes, 0, 0);
+       g_BattleSedsEntryId = D_800917C0[1].buffer;
+       pBuf = (u8*)D_800917C0[0].buffer;
+       BattleSetScreenResolution(0x140, 0xDA);
+       BattleClearLineSlots();
+       func_80030988(1, 1, 0x40, 0x40);
+       ControllerSetFrameCallback(BattleUpdateEffectImage);
+       g_BattleEffectImageActive = NULL;
+       FontLoadClut(0x7FFF, 0x8000);
+       SystemTransferPaletteToVRAM(0x140, 0xFF);
+       BattleInitTextLists();
+       BattleInitOptionDefaults();
+       BattleEffectClearResourcePointers();
+       D_800927B8 = NULL;
+       g_BattleSlotEntryBuffers[0] = NULL;
+       D_80097070 = NULL;
+       D_8009878C = NULL;
+       BattleFreeScreenBuffer(1);
+       ArchiveCdDataSync(0);
+       SoundAddSedsEntry(g_BattleSedsEntryId);
+       if (g_BattleAudioManagerEnabled != 0) {
+           g_BattlingAudioManager = SoundCreateAudioManagerOnHeap(pBuf);
+           SoundPlayAudioManager(g_BattlingAudioManager, 0x7F, 0);
+       } else {
+           g_BattlingAudioManager = g_SoundAudioManager;
+       }
+       LZSSDecompress((void*)D_800917C0[3].buffer, g_BattleGridCells);
+       HeapFree((void*)D_800917C0[3].buffer);
+       func_80081ECC();
+       pArchive = LZSSHeapDecompress((void*)D_800917C0[2].buffer, 0);
+       HeapFree((void*)D_800917C0[2].buffer);
+       ResolveArchiveEntryPointers(pArchive);
+       g_BattleMessageStringTable = pArchive->pMessageStrings;
+       D_80092874 = pArchive->pActionRows;
+       func_8007EEE8(g_BattleTransitionFlag == 1);
+       pArchive = LZSSHeapDecompress((void*)D_800917C0[4].buffer, 1);
+       HeapFree((void*)D_800917C0[4].buffer);
+       ResolveArchiveEntryPointers(pArchive);
+       func_80082C4C((u8*)pArchive);
+       func_8007B388(pArchive);
+       BattleLoadTextTimImages(pArchive);
+       func_800878DC(pArchive);
+       func_800868E0((u8*)pArchive);
+       func_80071794((u8*)pArchive);
+       HeapFree(pArchive);
+       BattleInitSpriteRectTable();
+       BattleInitMessageWindow();
+       func_8008BC04();
+       g_BattleMultiplyNodeMatrices = 0;
+
+   reinit:
+       HeapFreeAllDelayedBlocks();
+       idleTimer = BATTLE_IDLE_TIMEOUT;
+       BattleFreeNodeTree(D_8009878C);
+       BattleFreeNodeTree(D_80097070);
+       HeapFreeAllDelayedBlocks();
+       BattleInitTextWindow();
+       g_BattleEffectFrameTimer = 0xFF;
+       g_BattleEffectImageActive = NULL;
+       BattleEffectInitResources();
+       BattleResetState();
+       SystemStringReset(g_BattleMessageWindow);
+       g_BattleScreenMode = -1;
+       state = 2;
+       g_BattleFacingUpdateEnabled = 0;
+       g_BattleStageLightIndex = 0;
+       if (g_BattleTransitionFlag == 1) {
+           g_BattleFrameWaitCount = 0;
+           state = 0;
+           goto runLoop;
+       }
+       if (g_BattleTransitionFlag == state) {
+           g_BattleFacingUpdateEnabled = 1;
+           g_BattleOptionOn = 0;
+       }
+       g_BattleDifficultyLevel = D_80050621;
+       g_BattleMatchCount = D_80050620;
+       g_BattleTransitionFlag = 0;
+       BattleFreeTextArchive();
+       D_80092798 = D_8005061E;
+       D_8009279C = D_8005061F;
+       g_BattlePlayer1ComControlled = 0;
+       switch (D_8005061D) {
+       case 1:
+           g_BattlePlayer2ComControlled = 1;
+           BattleSetScreenMode(1);
+           g_BattleMode = 4;
+           break;
+       case 2:
+           g_BattlePlayer2ComControlled = 0;
+           BattleSetScreenMode(7);
+           g_BattleMode = 5;
+           BattleInitTutorialMessage();
+           break;
+       case 0:
+           g_BattlePlayer2ComControlled = 1;
+           BattleSetScreenMode(1);
+           g_BattleMode = 1;
+           BattleLoadSelectionTextures(D_80092798, D_8009279C);
+           if (D_8009279C == 5) {
+               g_BattleStageLightIndex = 1;
+           }
+           break;
+       }
+       state = 1;
+       BattleLoadSlotEntry(0, D_80092798);
+       BattleLoadSlotEntry(1, D_8009279C);
+       g_BattleStateAdvanceRequested = 0;
+       g_BattleFrameWaitCount = 2;
+
+   runLoop:
+       if (BattleCheckModeOver()) {
+           ArchiveCdDataSync(0);
+           state = 10;
+       }
+       while (state != 10) {
+           if ((g_C1ButtonState & ~1) != 0 || (g_C2ButtonState & ~1) != 0) {
+               idleTimer = BATTLE_IDLE_TIMEOUT;
+           }
+           if ((g_C1ButtonState & 1) != 0 && BattleIsDefaultTextList() != 0) {
+               idleCount++;
+               if (idleCount == BATTLE_IDLE_HOLD_COUNT) {
+                   idleTimer = 0;
+               }
+           } else {
+               idleCount = 0;
+           }
+           if (idleTimer != 0) {
+               idleTimer--;
+           } else if (g_BattleEffectFrameTimer != 0) {
+               BattleReloadSlotEntries();
+               g_BattleEffectFrameTimer = 0;
+               ArchiveCdDataSync(0);
+               BattleSetBothSidesCom();
+               goto done;
+           }
+           func_80084A40(pScene);
+           if (state == 0) {
+               BattleUpdateTextWindow();
+               if (g_BattleStateAdvanceRequested != 0) {
+                   g_BattleFrameWaitCount = 2;
+                   state = 1;
+               }
+               if ((g_BattleDrawFlags & 1) != 0) {
+                   func_8008E120();
+               }
+           } else if (state == 1) {
+               ControllerMergeStates();
+               if (BattleCheckModeOver() == 0) {
+                   func_8008E120();
+                   func_8007F258(g_BattleRootOrderingTable, 0);
+               }
+               if (ArchiveCdDataSync(1) == 0) {
+                   state = 10;
+               }
+           }
+           BattleQueueActorPrims((Misc10Actor*)pScene);
+           func_8008BC04();
+       }
+
+   done:
+       g_BattleFrameWaitCount = 0;
+       if (BattleCheckModeOver()) {
+           g_BattleEffectFrameTimer = 0;
+           g_BattleEffectImageActive = NULL;
+           BattleEffectFreeResources();
+           BattleFreeTextArchive();
+       }
+       pBuf = LZSSHeapDecompress(g_BattleSlotEntryBuffers[0], 0);
+       HeapFree(g_BattleSlotEntryBuffers[0]);
+       g_BattleSlotEntryBuffers[0] = pBuf;
+       BattleDrawEffectFrame();
+       pBuf = LZSSHeapDecompress(D_800927B8, 0);
+       HeapFree(D_800927B8);
+       D_800927B8 = pBuf;
+       BattleDrawEffectFrame();
+       pActor1 = &g_BattleActor1;
+       func_80084C88(pActor1, g_BattleSlotEntryBuffers[0], 0);
+       BattleDrawEffectFrame();
+       pActor0 = &g_BattleActor0;
+       func_80084C88(pActor0, D_800927B8, 1);
+       BattleDrawEffectFrame();
+       func_8007B270(&pActor1->effectColorR, &pActor0->effectColorR);
+       BattleSetScreenTileGrey();
+       if (g_BattleEffectFrameTimer != 0) {
+           g_BattleEffectImageActive = (u8*)1;
+           SoundSetAudioManagerMasterVolumeWithFade(g_BattlingAudioManager, 0x158, 0);
+           g_BattleMotionSpeedScale = 0x200;
+       }
+       g_BattleResultSide = 2;
+
+   newRound:
+       BattleResetForNextRound();
+       pActor1 = &g_BattleActor1;
+       pActor0 = &g_BattleActor0;
+       pMatchCount = &g_BattleMatchCount;
+       pActor1->position.x = 0x3E80;
+       g_BattleSceneOriginYMirror = 0;
+       g_BattleSceneOriginZ = 0x3F80;
+       pActor0->position.x = 0x4080;
+       g_BattleSceneOriginY = 0;
+       D_80097018 = 0x3F80;
+       for (;;) {
+           FontSetColor(0, 0xFF, 0);
+           g_BattleFrameWaitCount = 2;
+           D_800928B0 = 0;
+           g_BattleSavedScreenMode = g_BattleScreenMode;
+           BattleUpdateEffectTimer();
+           func_80034888(g_BattleMessageWindow, g_BattleRootOrderingTable, g_BattleDrawBufferIndex);
+           switch (g_BattleSavedScreenMode) {
+           case 1:
+               func_80079DF0(pActor1, pActor0);
+               SetGeomScreen(0xC0);
+               if (g_BattleScreenMode == 1) {
+                   func_800796B8(pActor1, pActor0);
+               }
+               goto commonDraw;
+           case 6:
+               func_80072858(pScene);
+               break;
+           case 7:
+               func_80071AD0();
+               SetGeomScreen(0xC0);
+               func_800840CC(pScene);
+               if (g_BattleScreenMode == 3) {
+                   g_BattleFrameWaitCount = 0;
+                   func_8008BC04();
+                   goto case3;
+               }
+               break;
+           case 4:
+               SetGeomScreen(0x800);
+               func_8007A344(pActor1, pActor0);
+               if (g_BattleScreenMode != 8) {
+                   func_80083310(1);
+                   D_800928B0 = 1;
+               }
+               goto commonDraw;
+           case 8:
+               SetGeomScreen(0x200);
+               func_8007AE10(pActor1, pActor0);
+           commonDraw:
+               func_800840CC(pScene);
+               break;
+           case 0:
+               BattleUpdateTextWindow();
+               BattleClearAndQueueActorPrims(pScene);
+               g_BattleFrameWaitCount = 0;
+               break;
+           case 5:
+               ControllerMergeStates();
+               if (g_C1ButtonStateReleased != 0) {
+                   goto screenRelease;
+               }
+               func_80079DF0(pActor1, pActor0);
+               SetGeomScreen(0xC0);
+               func_800796B8(pActor1, pActor0);
+               func_800846A0(pScene);
+               break;
+           case3:
+           case 3:
+               if (g_BattleTransitionFlag == 0) {
+                   BattleReturnToMainLoop();
+               }
+               BattleSetScreenTileBlack();
+               goto reinit;
+           case 2:
+               count = *pMatchCount;
+               if (count == 0) {
+                   goto romMatchOver;
+               }
+               if (g_BattleCombatant1DownCount == count) {
+                   count = pMatchCount[-2];
+               } else if (g_BattleCombatant0DownCount == count) {
+                   count = pMatchCount[-1];
+               } else {
+                   goto romMatchOver;
+               }
+               if (count != 0) {
+                   goto case3;
+               }
+               BattleSetScreenMode(6);
+               break;
+           romMatchOver:
+               BattleSetScreenMode(1);
+               goto newRound;
+           }
+           FontSetPositionsByOffsetClamped(0x9E, 0);
+           FontSetColor(0xFF, 0xFF, 0);
+           func_8008BC04();
+       }
+
+   screenRelease:
+       g_C1ButtonStateReleased = 0;
+       g_C1ButtonStatePressedOnce = 0;
+       BattleSetBothSidesUser();
+       g_BattleFrameWaitCount = 0;
+       BattleSetScreenTileBlack();
+       func_8008BC04();
+       goto reinit;
+   }
+   }
+*/
 
 void BattleCopyVertexOffsetAdd(u16* pSrc, u16* pDst) {
     pDst[0] = pSrc[0] + 0x18;
