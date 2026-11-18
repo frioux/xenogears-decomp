@@ -88,7 +88,7 @@ void func_800708C4(s32* p, s32 step) {
 */
 
 extern VECTOR g_BattleActor0;
-extern VECTOR D_80099078;
+extern VECTOR g_BattleEffectPlaceOrigin;
 extern s32 g_BattleSceneOriginY;
 extern s32 D_80097018;
 extern s32 D_80098780;
@@ -105,7 +105,7 @@ extern s32 func_80082488(VECTOR* pVec, s32 mode);
 
 /* 92.82%: same size as retail and every statement/call/constant is right; the
    gaps are allocation and position. Remaining diffs, all in the case 3/4 tail:
-   (a) retail forms &vec (s0) after the D_80099078 copy, ours hoists the
+   (a) retail forms &vec (s0) after the g_BattleEffectPlaceOrigin copy, ours hoists the
    addiu s0 above it; (b) the func_80082488 delta keeps retail's -0x40 in $v0
    (the call result) while ours copies it to $a0 first; (c) case 5 keeps
    &g_BattleCameraTarget in $s0 across the rcos call (sw v0,0(s0), then lw v0,0(s0)) where
@@ -143,7 +143,7 @@ extern BattleState g_BattleActor1;
 // the switch's table operand (jtbl_ vs .rodata), check_bin.sh battling is OK.
 // Three spellings are load-bearing and look gratuitous:
 //  - the do-while plus its identical if/else arms: the arms are the same store,
-//    and the join is what puts &vec's addiu after the D_80099078 copy;
+//    and the join is what puts &vec's addiu after the g_BattleEffectPlaceOrigin copy;
 //  - the delta/offset copy keeps the func_80082488 result in $v0 for the -0x40;
 //  - pTargetX is a pointer to the anchor's x word: the field spelling
 //    (pTarget->x on a BattleAnchor*) folds the address into a %lo store, and
@@ -185,7 +185,7 @@ void BattlePlaceEffectByMode(s32 mode) {
                 g_BattleEffectPlaceYOffset = scale;
             }
         } while (0);
-        vec = D_80099078;
+        vec = g_BattleEffectPlaceOrigin;
         pVec = &vec;
         vec.vy += g_BattleEffectPlaceYOffset;
         func_80070808(pVec, 0x10);

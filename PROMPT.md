@@ -250,6 +250,14 @@ of a match, and it is cheap.
   blob (`world_map/main/misc1` is still one) or is a same-address function in another
   overlay - and `rename_sym.py` skipped both as "still an INCLUDE_ASM stub". Put it in
   the brief: a `jal` in a matched `.s` is not a definition; look for the `{`.
+- **Pick naming files by the `D_` count in LIVE C, not by the raw count.** A file's
+  `D_` mentions are mostly in parks, `//` notes and stub asm, which the brief excludes,
+  so a plain `grep -o 'D_'` ranks the wrong files: round 246 sent `battle/misc3.c` and
+  `battle/misc23.c` (19 and 16 raw) and both came back with ZERO - every symbol was
+  either a `DATA_INTERIOR` (`g_BattleActors[31]`, a field of a 0x48-byte command row)
+  or mentioned only by a park. Strip `/* */` and `//` first, then rank by distinct `D_`
+  in the stripped text, skipping `psyq/` (`world_map/main/misc1.c` 61,
+  `field/main/misc.c` 55, `battling/main/misc12.c` 41, `world_map/main/misc12.c` 38).
 - **Feed the tools the union of every NAME line ever reported.** Extract it with a pattern that
   matches `NAME func_<8 hex> <Name>` ANYWHERE in the line, not `^NAME `: the worker reports write
   `- \`NAME func_X NewName\` - evidence` about as often as a bare line, and an anchored grep

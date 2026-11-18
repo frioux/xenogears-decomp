@@ -29,9 +29,6 @@
 // Where those digits start in g_Menu->digits.
 #define MENU_SLOT_STAT_DIGIT_START (MENU_MAX_DIGITS - MENU_SLOT_STAT_DIGIT_COUNT)
 
-// Pixels between one digit's quad and the next, in a menu digit row.
-#define MENU_DIGIT_SPACING 8
-
 
 // The save-slot record this unit writes: a packed copy of the parts of
 // g_GameState that live in a save file.  Everything is word-aligned so the

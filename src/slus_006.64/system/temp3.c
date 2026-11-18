@@ -182,7 +182,7 @@ extern s32 g_FieldTextRenderEnabled;
 extern s32 g_FieldDisableGearRender;
 extern s32 D_8004F37C;
 extern s32 D_8004F378;
-extern u8 D_8005942C;
+extern u8 g_FieldDiscChangeFade;
 extern u8 g_GameDiscChangeRequest;
 extern s16 g_GameWdsEntryReleased;
 extern s32 g_FieldScriptWalkFrameCounter;
@@ -222,7 +222,7 @@ void SystemResetGlobalState(void) {
     g_FieldDisableGearRender = 0;
     D_8004F37C = 0;
     D_8004F378 = 0;
-    D_8005942C = 0;
+    g_FieldDiscChangeFade = 0;
     g_GameDiscChangeRequest = 0;
     g_GameWdsEntryReleased = 0;
     g_FieldScriptWalkFrameCounter = 0;

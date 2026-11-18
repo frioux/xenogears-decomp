@@ -71,6 +71,8 @@
 #define MENU_MAX_NUM_ARROW_CURSORS 0x2
 #define MENU_WINDOW_BORDER_SIZE 0x8
 #define MENU_MAX_DIGITS 0x9
+// Pixels between one digit's quad and the next, in a menu digit row.
+#define MENU_DIGIT_SPACING 8
 
 // Max items to display in the shop at a time
 #define SHOP_MAX_ITEMS_IN_VIEW 8

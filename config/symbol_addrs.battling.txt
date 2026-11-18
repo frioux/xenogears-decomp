@@ -766,3 +766,4 @@ g_StrGaugePercentFormat = 0x8006FD08;
 g_StrGaugeFrameFormat = 0x8006FD10;
 g_BattleGaugeHighlightValue = 0x8009112C;
 g_BattleSpritePrimBufferCopy = 0x800926D0;
+g_BattleEffectPlaceOrigin = 0x80099078;
