@@ -366,20 +366,8 @@ void MenuOverlayMain(void) {
     }
     MenuFinalizeMenuData();
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
-
-/* Best: 98.62% (500 bytes = retail's exact size). Only a saved-register ROTATION is left:
-   retail has pBuffer=s0, i=s1, lineCount=s2; gcc gives i=s0, lineCount=s1, pBuffer=s2.
-   Every instruction is identical modulo the register names, including the li a0,0xA /
-   li a1,0xFFFF order. Fixed on the way: the `cardPollMode = 0` store was missing (that
-   alone was 5 insns / 20 bytes, 90.45% -> 94.45%), the newline scan must be written as
-   `if (c != '\n') { i++; continue; }` so the newline block lands out of line after the
-   `j` back to the loop top, and the 0xFFFF needs a LOCAL (lineCountDelta) or the two
-   loop constants come out in the other registers. Tried for the rotation: declaration
-   orders (4), a separate scan index variable (96.75%), lineCount u32 (97.82%), i u32
-   (97.74%), i u16 (83.78%), gcc-2.7.2-cdk (94.69%), permuter 3x4min (170 -> 170, stuck).
 void func_801C6400(void) {
-   u8* pBuffer;
+   u8* pBuffer = NULL;
    s32 i;
    s32 j;
    u16 lineCount;
@@ -432,7 +420,6 @@ void func_801C6400(void) {
    ArchiveSetIndex(0x10, 0);
    HeapFree(pBuffer);
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
 u_short MenuAndBitMaskLsbFirst(u_short mask, u_char index);
 void func_801C65F4(void);
