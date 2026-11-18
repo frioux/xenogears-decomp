@@ -4,6 +4,16 @@
 #include "psyq/memory.h"
 #include "system/model.h"
 
+// the map display buffer copied into VRAM when a mode initialises, and the VRAM
+// position it is copied to
+#define WORLD_MAP_SCREEN_WIDTH 320
+#define WORLD_MAP_SCREEN_HEIGHT 216
+#define WORLD_MAP_SCREEN_VRAM_X 0x2C0
+#define WORLD_MAP_SCREEN_VRAM_Y 0x100
+
+// the archive directory this overlay's files are read through
+#define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
+
 typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
@@ -571,9 +581,9 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
-    MoveImage(&rect, 0x2C0, 0x100);
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
@@ -603,7 +613,7 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
-    ArchiveSetIndex(0x24, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
     func_80097BC0(&g_WorldMapPlayerPosition);
     do {
         WorldMapUpdateLoadQueue();
@@ -1313,9 +1323,9 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     WorldMapInitGfxEnv();
     rect.x = 0;
     rect.y = 0;
-    rect.w = 0x140;
-    rect.h = 0xD8;
-    MoveImage(&rect, 0x2C0, 0x100);
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
     func_80072DB4(0x40, 0, 4, 2);
     while (ArchiveDataSync() >= 3) {
@@ -1345,7 +1355,7 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     WorldMapInitSpriteGroupTables();
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
-    ArchiveSetIndex(0x24, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
     func_80097BC0(&g_WorldMapPlayerPosition);
     do {
         WorldMapUpdateLoadQueue();
