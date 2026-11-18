@@ -324,6 +324,12 @@ paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main
     # divide's `mfhi` in retail's $a1).  Overlay keys carry no `{binary}`
     # placeholder - gears resolves it to slus_006.64, which no menu c_path contains.
     "menu/main/misc11_r2_260.",
+    # The func_801CD81C .. func_801D02D8 run of menu/main/misc4, split out of that
+    # unit by config/menu.yaml (menu/main/misc4 keeps func_801CD2AC and
+    # MenuUpdateSubMenuChoice on the Default preset). Every function defined in C
+    # in the run is 100.0 under 2.6.0 and 100.0 under Default except
+    # func_801CE540, which is byte-identical only here.
+    "menu/main/misc4_260.",
 ]
 
 # battle/main/misc27 is function-mixed and cannot be a single-preset unit: its

@@ -64,7 +64,13 @@ segments:
       - [0x31C, c, main/misc1]
       - [0x2B0C, c, main/misc2]
       - [0x3D78, c, main/misc3]
+      # menu/main/misc4 is function-mixed: MenuUpdateSubMenuChoice (the head) is
+      # 98.13 under gcc 2.6.0 and 100.00 under the Default preset; every other
+      # function in the unit is 100.00 under 2.6.0 and func_801CE540 is 97.78
+      # under Default (its loop increment is only in retail's beqz delay slot
+      # under 2.6.0). One c range per name, so the 2.6.0 run is its own unit.
       - [0x82AC, c, main/misc4]
+      - [0x881C, c, main/misc4_260]
       - [0xB9F0, c, main/misc5]
       - [0xCCA0, c, main/misc6]
       - [0xEC4C, c, main/misc7]
