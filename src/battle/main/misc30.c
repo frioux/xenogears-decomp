@@ -17,7 +17,7 @@ typedef struct {
     /* 0x38 */ u8 pad38[0x10];
     /* 0x48 */ u8 pendingAction; // 0x905C request: the frame loop runs it once when this is set
     /* 0x49 */ u8 pendingStep; // step the state loop dispatches once, then clears
-    /* 0x4A */ u8 unk4A;
+    /* 0x4A */ u8 commandUnhandled; // set by the command switch's default arm; the next dispatch clears it
     /* 0x4B */ u8 pad4B;
 } BattleState;
 
@@ -43,7 +43,7 @@ extern u_long* g_GfxCurOT;
 // repeated. Its bitfields at 0x10/0x14 are whole words to this unit.
 typedef struct {
     /* 0x00 */ void* unk0;
-    /* 0x04 */ struct BattleActorSprite* unk4; // pSpriteData, at least in some cases
+    /* 0x04 */ struct BattleActorSprite* pSpriteData; // the task's own spriteData in every entry this unit builds
     /* 0x08 */ void* onTriggerCallback;
     /* 0x0C */ void* onFreeCallback;
     /* 0x10 */ u32 unk10;
@@ -446,10 +446,10 @@ void func_800B9C78(void) {
     pSprite = *(BattleActorSprite**)(pBase + index * 4 + offset);
     code = pBase[g_BattleCommandRowIndex * 0x48 + 0x17F];
     BattleSetStateStep(8);
-    if (g_BattleState->unk4A != 0) {
+    if (g_BattleState->commandUnhandled != 0) {
         pBase[0xA73] = 0;
     }
-    g_BattleState->unk4A = 0;
+    g_BattleState->commandUnhandled = 0;
     switch (code) {
         case 0xFF:
             BattleSetStateStep(9);
@@ -501,7 +501,7 @@ void func_800B9C78(void) {
             D_800D39E4 = id & 0x1FF;
             break;
         default:
-            g_BattleState->unk4A = 1;
+            g_BattleState->commandUnhandled = 1;
             BattleSetSpriteTemplate(pSprite);
             pRow = g_BattleStateWork;
             pRow += g_BattleCommandRowIndex * 0x48;
@@ -641,8 +641,8 @@ AnimTask* BattleCreateAnimTask(void* pAnimFile, s16 clutX, s16 clutY, s16 texX, 
     pTask = WorkListsAddTasks(sizeof(AnimTask), NULL, BattleActorTickAnimScript,
                               BattleActorDrawProjected, BattleFreeActorAnimTask);
     pSprite = (BattleActorSprite*)&pTask->spriteData;
-    pTask->task1.unk4 = pSprite;
-    pTask->task2.unk4 = pSprite;
+    pTask->task1.pSpriteData = pSprite;
+    pTask->task2.pSpriteData = pSprite;
     pTask->task2.unk0 = NULL;
     SpriteInitFromAnimFileWithClut(pSprite, pAnimFile, clutX, clutY, texX, texY, unk5, clut);
     pSprite->field_0x6C = pTask;
@@ -675,7 +675,7 @@ void BattleActorDrawProjected(AnimTask* pTask) {
     if (D_800C3664 != 0) {
         return;
     }
-    pSprite = pTask->task1.unk4;
+    pSprite = pTask->task1.pSpriteData;
     coord = pSprite->position.parts.xWhole;
     vec.vx = coord;
     coord = pSprite->position.parts.yWhole;
@@ -720,7 +720,7 @@ void BattleFreeActorAnimTask(AnimTask* pTask) {
 }
 
 void BattleActorTickAnimScript(AnimTask* pTask) {
-    BattleActorSprite* pSprite = pTask->task1.unk4;
+    BattleActorSprite* pSprite = pTask->task1.pSpriteData;
 
     if (D_800C3664 == 0) {
         AnimScriptTick(pSprite);
@@ -963,7 +963,7 @@ void BattleActorSyncPositionFromModel(AnimTask* pTask) {
     s32 index;
     u32 unused[2]; // unused: reproduces retail's 0x28 frame
 
-    pSprite = pTask->task1.unk4;
+    pSprite = pTask->task1.pSpriteData;
     mode = pSprite->flags_0xA8 >> 30;
     index = ((pSprite->flags_0xAC.flags & 3) << 2) | mode;
     pRecord = g_BattleActors[index];
