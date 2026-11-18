@@ -232,8 +232,6 @@ extern MATRIX g_BattleSpriteOwnMatrix;
 // The pBuf variable is load-bearing: it must stay live past the pLine assignment,
 // otherwise gcc merges the two and the "move s2,a1" that fills the flag test's
 // delay slot disappears (452 bytes, 98.86%).
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27_b", func_800B5DF4);
-/*
 void func_800B5DF4(WorkListEntry* pWork) {
     s32 ofs;
     s32 flag;
@@ -244,7 +242,6 @@ void func_800B5DF4(WorkListEntry* pWork) {
     LINE_F2* pLine;
     DR_TPAGE* pTpage;
     SVECTOR vec;
-    MATRIX* pMatrix;
     u32 abr;
 
     pSpriteData = pWork->pSpriteData;
@@ -264,12 +261,12 @@ void func_800B5DF4(WorkListEntry* pWork) {
     vec.vz = ofs;
     g_GfxCurWorkBuffer = pBuf + 0x10;
     if (pSpriteData->field_0x3C_2 & 1) {
-        pMatrix = &g_BattleSpriteOwnMatrix;
+        SetRotMatrix(&g_BattleSpriteOwnMatrix);
+        SetTransMatrix(&g_BattleSpriteOwnMatrix);
     } else {
-        pMatrix = &g_GfxBaseMatrix;
+        SetRotMatrix(&g_GfxBaseMatrix);
+        SetTransMatrix(&g_GfxBaseMatrix);
     }
-    SetRotMatrix(pMatrix);
-    SetTransMatrix(pMatrix);
     otz = RotTransPers(&vec, (s32*)&pLine->x0, &flag, &flag) >> g_GfxOTDepthShift;
     pSpriteData->field_0x2e = otz;
     shift = (u16)pSpriteData->field_0x36 + 8;
@@ -292,7 +289,6 @@ void func_800B5DF4(WorkListEntry* pWork) {
     setDrawTPage(pTpage, 0, 0, getTPage(0, abr - 1, 0, 0));
     AddPrim(&g_GfxCurOT[otz], pTpage);
 }
-*/
 void BattleSetSpriteDrawWorkCallback(SpriteData* pSpriteData) {
     BattleSpriteTask* pTask;
 
