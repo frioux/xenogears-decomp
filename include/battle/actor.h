@@ -13,6 +13,9 @@
 // Shared by the battle units that read the structures below.
 // slotStates and slotAmounts hold one entry per battle slot.
 #define BATTLE_SLOT_COUNT 12
+// The actor slots the u16 slot mask walks one bit apiece (BattleCollectMaskedSlotActors;
+// the per-slot byte tables in misc12/misc32 hold this many entries).
+#define BATTLE_ACTOR_SLOT_COUNT 11
 // The element bits of an element byte (the row's, the work block's copy of it, and the
 // slot's): bit 0x40 above them raises the affinity multiplier from 15 to 18.
 #define BATTLE_ELEMENT_MASK 0x3F

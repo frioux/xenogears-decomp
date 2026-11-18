@@ -1,4 +1,8 @@
 #include "common.h"
+
+// Same value as include/battle/actor.h's BATTLE_ACTOR_SLOT_COUNT; duplicated here
+// because this unit does not include that header.
+#define BATTLE_ACTOR_SLOT_COUNT 11
 #include "system/memory.h"
 #include "psyq/libgte.h"
 #include "field/actor.h"
@@ -9,7 +13,6 @@
 // Per-frame step SpriteColorAddClamp is handed while a sprite fades out.
 #define BATTLE_SPRITE_FADE_COLOR_STEP (-4)
 // One bit per actor slot in the slot mask, matching the 11-entry per-slot tables.
-#define BATTLE_ACTOR_SLOT_COUNT 11
 
 // One battle sprite: the transform steps at 0x40..0x48 that BattleStepActorFadeOut
 // advances, the clip colour at 0x68..0x6A, the model parts at 0x74/0x7C and the
