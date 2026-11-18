@@ -787,8 +787,8 @@ s32 func_800852C4(void) {
     BattleSetScreenResolution(0x140, 0xDA);
     BattleClearLineSlots();
     func_80030988(1, 1, 0x40, 0x40);
-    ControllerSetFrameCallback(BattleUpdateEffectImage);
     g_BattleEffectImageActive = NULL;
+    ControllerSetFrameCallback(BattleUpdateEffectImage);
     FontLoadClut(0x7FFF, 0x8000);
     SystemTransferPaletteToVRAM(0x140, 0xFF);
     BattleInitTextLists();
