@@ -490,25 +490,55 @@ typedef struct {
 } ColorSlot; // Size: 0x70
 
 extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
-extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s16 scale, s16 ground);
+extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s32 scale, s16 ground);
 
-// PARK: the whole body was written and measured at objdiff 86.47% (3264 bytes against
-// retail's 3376, i.e. 28 instructions still missing) with gcc 2.6.0 + --expand-div.
-// Every phase below is transcribed and the call/branch structure matches; the open
-// deltas are allocation, in this order of size:
-//  - the two-quad tail of phase 5 (retail keeps (1-fp)<<4 in one temp and derives both
-//    slot bases from it; ours re-forms each slot base), ~19 instructions;
-//  - the SZ3 read-back: retail's object has 'mfc2 $19 / nop / sra / sw' (a stack
-//    spill of the depth), ours keeps it in a register and drops the nop, so the
-//    gte_stsz3_val macro in inline_c.h has no nop revision (4 instructions);
-//  - the bounding-box corner block: retail materialises &pModel->polys[packetIndex]
-//    lazily after the RTPS and keeps 0x28*packetIndex in a3 for the OT poke;
-//  - register identity: retail holds pModel in $s5, pMesh in $fp and pViewScratch
-//    (0x1F800020) in $s6; ours spills pViewScratch/pLightScratch to the frame, which
-//    is what makes ~300 of the 840 lines differ while objdiff still reads 86%.
-// A 4 minute permute run (1260 iterations) took its own metric from 11678 to 10583 by
-// splitting the shifted otz into its own local - that edit is in the body below.
-// Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
+// PARK, round 254: the body below now measures objdiff 87.92%, 3352 bytes against
+// retail's 3376 (six instructions short: the four `mfc2 $19` nops plus two). All four
+// phases are transcribed and the call/branch sequence matches retail's instruction for
+// instruction; what is left is a frame-layout and allocation delta, listed below in the
+// order it is worth attacking.
+// CLOSED THIS ROUND (each one measured on its own):
+//  - the corner depth chain is `s32 depthBuf[2]` and both elements are written by the
+//    SZ3 read-back itself: `gte_stsz3_val(depthBuf[0]); depthBuf[0] >>= 2;` etc. With two
+//    scalars gcc 2.6 keeps the min in a register and the whole `sw/lw/lw/slt/beqz/sw`
+//    chain collapses (3264 bytes); the array forces memory residency and is worth 24
+//    instructions. `depthBuf[0]` then carries the OT z too - retail stores otz back into
+//    that same 0x48 slot, and `if (depthBuf[0] >= 0x2D9)` plus `0x6B - depthBuf[0] / 8`
+//    read it back out of memory.
+//  - the tag poke is spelled `pModel->polys[packetIndex].tag` while the four SXY writes go
+//    through a `pPoly` local. Only the two spellings together make retail keep both a
+//    scaled offset (a3 = 0x28 * packetIndex) and the computed address (t1) live.
+//  - `u16 modelScale` + a `s32 scale` parameter in the func_801E22F8 declaration: retail
+//    loads the modelScale spill with `lhu` and stores it into the outgoing argument slot
+//    with no sign-extension pair. func_801E22F8.s reads that argument back at 0xEC(sp)
+//    with `lw`, so it is a word - the s16 it used to be cost an sll/sra pair here.
+//  - vec/trans/proj are `VECTOR` (four longs each), not s32[3]: retail's frame has
+//    svec 0x20, vec 0x28, trans 0x38, depthBuf 0x48, proj 0x50, swingVec 0x60 - no holes,
+//    i.e. every GTE scratch is a 16-byte VECTOR and the two 3-word reads are .vx/.vz.
+// STILL OPEN:
+//  - swingVec lands at 0x28 in our frame, so vec/trans shift up by 8 and depthBuf ends up
+//    at 0x60 instead of 0x48; retail's swingVec is the last slot at 0x60. gcc assigns
+//    swingVec's slot second whatever its position in the declaration list (measured with
+//    it declared first, between, and last), so this is not a source-order lever; until it
+//    moves, every stack immediate in phases 1a/1b differs from retail's by 8.
+//  - register identity, which is where the 12% lives: retail holds pModel in $s5, the
+//    0x1F800000 scratch in $s7, pViewScratch (0x1F800020) in $s6, pMesh in $fp (reused
+//    for the 0x50 proj buffer once pMesh dies) and pSkeleton in $s2 for the whole
+//    function. Ours: pModel $s6, 0x1F800000 $s8, 0x1F800020 $s5, proj $s5, and pSkeleton
+//    spilled to 0x80 and reloaded at eight sites. Nothing about the statement order or
+//    the local declaration order moved this (several orders tried).
+//  - four missing nops: retail has `mfc2 $19 / nop / sra / sw` at each corner, so its
+//    SDK macro carried the pipeline nop. include/psyq/inline_c.h has the nop only in
+//    gte_stopz_val; gte_stsz3_val has none and cannot gain one, because the already
+//    matched libgte_pers needs the nop-less form. Reaching 3376 needs a second,
+//    nop-bearing SZ3 macro in that header - a shared-header change, so it is left to a
+//    round that can prove the whole build.
+//  - smaller: retail re-reads pEntry->slot from memory four times in the one-quad tail of
+//    phase 5 (pVertex stores alias pEntry), where we keep it in the `slot` local.
+// The permuter cannot touch this body: its C parser rejects the GTE asm macros
+// ("inconsistent operand constraints in an asm"), and the 4-minute run on the 86.47%
+// body only moved the permuter's own metric. Un-park by deleting the INCLUDE_ASM line
+// and the enclosing comment.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 /*
@@ -526,14 +556,14 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     u8* pQuadA;
     u8* pQuadB;
     POLY_FT4* pPoly;
-    SVECTOR svec;
     SVECTOR swingVec;
-    s32 vec[3];
-    s32 trans[3];
-    u_short proj[6];
-    s16 modelScale;
+    SVECTOR svec;
+    VECTOR vec;
+    VECTOR trans;
+    s32 depthBuf[2]; // [0] shallowest corner depth, [1] the corner just projected
+    VECTOR proj;
+    u16 modelScale;
     s32 depth;
-    s32 otz;
     u_int numChildren;
     u_int jointIndex;
     s32 slot;
@@ -570,13 +600,13 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_mvmva(1, 0, 0, 0, 0);
         gte_stlvnl(trans);
 
-        svec.vy = -ratan2(vec[2] - trans[2], vec[0] - trans[0]);
+        svec.vy = -ratan2(vec.vz - trans.vz, vec.vx - trans.vx);
         svec.vx = 0;
         svec.vz = 0;
         RotMatrix(&svec, pViewScratch);
 
-        pViewScratch->t[0] = trans[0];
-        pViewScratch->t[2] = trans[2];
+        pViewScratch->t[0] = trans.vx;
+        pViewScratch->t[2] = trans.vz;
         pViewScratch->t[1] = pModel->ground;
 
         CompMatrix(pLightMatrix, &pSkeleton->globalTransform, pViewScratch);
@@ -608,17 +638,17 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x0);
-        gte_stsz3_val(depth);
-        depth >>= 2;
+        gte_stsz3_val(depthBuf[0]);
+        depthBuf[0] >>= 2;
 
         svec.vx = -pModel->width;
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x1);
-        gte_stsz3_val(slot);
-        slot >>= 2;
-        if (slot < depth) {
-            depth = slot;
+        gte_stsz3_val(depthBuf[1]);
+        depthBuf[1] >>= 2;
+        if (depthBuf[1] < depthBuf[0]) {
+            depthBuf[0] = depthBuf[1];
         }
 
         svec.vx = pModel->width;
@@ -626,29 +656,29 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x2);
-        gte_stsz3_val(slot);
-        slot >>= 2;
-        if (slot < depth) {
-            depth = slot;
+        gte_stsz3_val(depthBuf[1]);
+        depthBuf[1] >>= 2;
+        if (depthBuf[1] < depthBuf[0]) {
+            depthBuf[0] = depthBuf[1];
         }
 
         svec.vx = -pModel->width;
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x3);
-        gte_stsz3_val(slot);
-        slot >>= 2;
-        if (slot < depth) {
-            depth = slot;
+        gte_stsz3_val(depthBuf[1]);
+        depthBuf[1] >>= 2;
+        if (depthBuf[1] < depthBuf[0]) {
+            depthBuf[0] = depthBuf[1];
         }
 
-        otz = depth >> g_GfxOTDepthShift;
-        pPoly->tag = (pPoly->tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
-        pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
-        if (otz >= 0x2D9) {
-            otz = 0x2D8;
+        depthBuf[0] >>= g_GfxOTDepthShift;
+        pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[depthBuf[0]] & 0xFFFFFF);
+        pOt[depthBuf[0]] = (pOt[depthBuf[0]] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
+        if (depthBuf[0] >= 0x2D9) {
+            depthBuf[0] = 0x2D8;
         }
-        pModel->unk39 = 0x6B - otz / 8;
+        pModel->unk39 = 0x6B - depthBuf[0] / 8;
     }
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
@@ -711,9 +741,9 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(proj);
 
-            pListEntry->pPoints[j]->x = proj[0];
-            pListEntry->pPoints[j]->y = proj[2];
-            pListEntry->pPoints[j]->z = proj[4];
+            pListEntry->pPoints[j]->x = proj.vx;
+            pListEntry->pPoints[j]->y = proj.vy;
+            pListEntry->pPoints[j]->z = proj.vz;
         }
 
         pSection = pListEntry->pSections;
@@ -726,9 +756,9 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(proj);
 
-            pSection->x = proj[0];
-            pSection->y = proj[2];
-            pSection->z = proj[4];
+            pSection->x = proj.vx;
+            pSection->y = proj.vy;
+            pSection->z = proj.vz;
             pSection++;
         }
 
@@ -922,7 +952,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 // 'UnkInner1', 'Vertex', 'VertexBuffer' all already exist in 'include/libgear/main.h' and look
 // sufficient — no header change expected.
 //
-// CORRECTIONS after writing the body (the full body is parked below, 86.47%):
+// CORRECTIONS after writing the body (the full body is parked above, 87.92%):
 // - PARK_NOTE 3 is wrong about the fourth base: $s7 is loaded with a bare
 //   'lui $s7,0x1F80' and no 'ori', so it is 0x1F800000 (PSX_SCRATCH), not 0x1F80000E.
 //   splat prints (0x1F80000E>>16) only because some symbol access used that hi part.
