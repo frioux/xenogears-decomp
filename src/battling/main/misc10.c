@@ -122,7 +122,8 @@ typedef struct {
     /* 0x04 */ s16 requiredProgress; // the word src/battling/main/misc6.c reads as the entry's progress gate
     /* 0x06 */ u8 actionChances[0x4]; // one probability byte per action, copied out by misc18's BattleLoadWorkActionChances
     /* 0x0A */ u8 slotFlags[0xE];
-    /* 0x18 */ u8 unk18[0x8];
+    /* 0x18 */ u8 percent; // stored verbatim into the slot gauge's percent byte, and message 3 only swaps in its model while it is non-zero (misc3's BattleActionData)
+    /* 0x19 */ u8 unk19[0x7];
 } Misc10ActionRow; // Size: 0x20
 
 // The relocated resource block pData points at: the layout
@@ -187,7 +188,7 @@ typedef struct {
 } Misc10ModelRecord; // Size: 0x8
 
 typedef struct {
-    /* 0x0 */ u32 unk00;
+    /* 0x0 */ u32 state; // which payload the node carries: 1 a model part, 2 an entry list, 5 a work block (misc13's Misc13Node, whose BattleSetNode* helpers set it)
     /* 0x4 */ Misc10ModelRecord* pModel;
 } Misc10ModelNode; // Size: 0x8
 
