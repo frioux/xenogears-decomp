@@ -461,6 +461,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
 // pointer-cast spelling *(u8 *)arr and a u8 shadow local are rtx-identical to
 // case 0, so gcc 2.6.0 cross-jumps and the function is back to 200 bytes. Only a
 // volatile load keeps the duplicate block, so this is a structural wall.
+// RE-TESTED (permuter sweep, base=205 best=0): ported that candidate verbatim, diff_func.sh
+// reads 99.73% at 224 bytes and the arm is still wrong - the dead volatile load makes gcc
+// thread case 15 into the .L8009E82C block (its j lands 8 bytes inside that block, on the
+// 'lbu v1,7'), so case 15 reads 0x7. Both notes agree: do not port it.
+// New fact from that attempt: the andi is the zero-extension of a LIVE volatile QI load;
+// with the value dead gcc emits 'lbu v1,4' + 'nop' exactly as retail, so the only thing
+// standing between this body and a match is a free rtx difference between the two arms.
 /*
 void func_8009E788(void) {
     s32 idx;
