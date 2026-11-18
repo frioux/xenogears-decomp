@@ -760,11 +760,11 @@ s32 BattleCheckModeOver(void) {
 
 
 s32 func_800852C4(void) {
+    void* pScene;
     Misc10ArchiveHeader* pArchive;
     Misc10Resource* pRes;
     u8* pMatchCount;
     u8* pBuf;
-    void* pScene;
     s32 state;
     s32 idleTimer;
     s32 idleCount;
