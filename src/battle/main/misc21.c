@@ -755,7 +755,18 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    ARM ORDER: retail's 2D arm's `allocate` block falls through inline and the
    3D arm jumps, while this body puts both allocate blocks behind gotos; the
    two BattleAllocSpriteSlot calls sit in segments 33/37 here against 33/37
-   removed there, so re-order those two blocks first. */
+   removed there, so re-order those two blocks first.
+   Round 267b: THAT WAS IT. Writing the tween test the other way round -
+   `if (pTween->project3D != 0) { the 3D arm with allocate3D/done3D inline }
+   else { the 2D arm, both exits `goto allocate` }` - i.e. putting the 3D arm
+   FIRST so the 2D arm falls through into the shared `allocate:` block after
+   the loop, took the body from 76.95% / 4056 B to 83.41% / 4048 B and made
+   ALL 37 jal-delimited segments align in call order. Both spellings are
+   natural C, so keep this one; the % jump is arm layout, not a new match.
+   What is left (1000 instructions against retail's 1009, jal-to-jal counts):
+   slot loop -1, warp-quad block -2, sprite loop -5 (the pSprites-in-memory
+   item above), sprite body -3, model-list +1 and +2, texture loop +7,
+   tween 2D arm -6 and 3D arm +2, second allocate loop +2. */
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
@@ -972,23 +983,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         k = pTween->slot;
         pTween->slot = (pTween->slot - 1) & 7;
-        if (pTween->project3D == 0) {
-            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
-            SetRotMatrix(pMatrix);
-            SetTransMatrix(pMatrix);
-            gte_ldv0(&pTween->start);
-            gte_rtps();
-            gte_stsxy2(&pTween->offsets[k]);
-            gte_ldv0(&pTween->end);
-            gte_rtps();
-            gte_stsxy2(&pTween->offsets[k + 8]);
-            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
-                goto allocate;
-            }
-            if (pTween->pSlot == NULL) {
-                goto allocate;
-            }
-        } else {
+        if (pTween->project3D != 0) {
             s32 side = pTween->slot & 1;
             s32* pStart = (s32*)((u8*)pTween + 0x1C + side * 0x10);
             s32* pEnd = (s32*)((u8*)pTween + 0x3C + side * 0x10);
@@ -1040,6 +1035,22 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->y3 = ((u16*)pEnd)[2];
             pTween->pSlot->z3 = ((u16*)pEnd)[4];
             continue;
+        } else {
+            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
+            SetRotMatrix(pMatrix);
+            SetTransMatrix(pMatrix);
+            gte_ldv0(&pTween->start);
+            gte_rtps();
+            gte_stsxy2(&pTween->offsets[k]);
+            gte_ldv0(&pTween->end);
+            gte_rtps();
+            gte_stsxy2(&pTween->offsets[k + 8]);
+            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
+                goto allocate;
+            }
+            if (pTween->pSlot == NULL) {
+                goto allocate;
+            }
         }
         goto done;
     allocate:
