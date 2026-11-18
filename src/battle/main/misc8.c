@@ -61,7 +61,6 @@ extern u8 D_800CCD3E[];
 extern u8 D_800CCDEC[];
 extern u8 D_800C3EB7[];
 extern BattleSlotFlag g_BattleSlotFlags[];
-extern u8 D_800D3420[];
 extern u8 *g_BattleSlotParamTable;
 extern u8 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
@@ -272,15 +271,22 @@ void BattleStoreActorSlotTagCount(BattleSlotArgs **ppArgs, u8 row) {
     }
     g_BattleSlotRows[row].byteRegs[(*ppArgs)->slot] = count;
 }
-void BattleStoreSlotParamTableByte(u8 **arg0, u8 arg1) {
-    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
-    u8 value = BattleFindFirstFlagTableMatch(pField[(*arg0)[2]]);
-    u8 *pRow = (u8 *)(D_800D3420 + 0x10) + arg1 * 0x40;
-    u8 op = g_BattleSlotRecords[value].tag;
-    s32 opOffset = op * 8;
-    u8 slotTag = g_BattleSlotRecords[arg1 + 3].tag;
+void BattleStoreSlotParamTableByte(u8 **ppCommand, u8 slot) {
+    u16 *pWordRegs = g_BattleSlotRows[slot].wordRegs;
+    u8 *pByteRegs;
+    u8 record;
+    u8 op;
+    u8 slotTag;
+    s32 opOffset;
 
-    pRow[(*arg0)[1]] = g_BattleSlotParamTable[(opOffset + (slotTag * (op = 0x40))) + 0x140];
+    record = BattleFindFirstFlagTableMatch(pWordRegs[(*ppCommand)[2]]);
+    pByteRegs = g_BattleSlotRows[slot].byteRegs;
+    op = g_BattleSlotRecords[record].tag;
+    slotTag = g_BattleSlotRecords[slot + 3].tag;
+    opOffset = op * 8;
+    // the op reassignment is load-bearing: it is what makes gcc emit retail's
+    // operand order for the 0x40 slot stride and the table base addition
+    pByteRegs[(*ppCommand)[1]] = g_BattleSlotParamTable[(opOffset + (slotTag * (op = 0x40))) + 0x140];
 }
 
 void BattleStoreCharSlotMatchedTagCount(BattleSlotArgs **ppArgs, u8 row) {
