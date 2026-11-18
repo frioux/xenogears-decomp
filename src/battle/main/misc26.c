@@ -964,9 +964,9 @@ void func_800B39C0(s32 frames, s32 abr, u8 r, u8 g, u8 b) {
         goto restart;
     }
 created:
-    TimerWorkListAddTask(NULL, (WorkListEntry *)pTask);
-    pDraw = (WorkListEntry *)((u8 *)pTask + 0x1C);
-    WorkListAddTask((WorkListEntry *)pTask, pDraw);
+    TimerWorkListAddTask(NULL, &pTask->timerEntry);
+    pDraw = &pTask->drawEntry;
+    WorkListAddTask(&pTask->timerEntry, pDraw);
     pTask->timerEntry.unk14 &= 0x7FFFFFFF; // clears the flagged bit the work list just set
     if (g_FlagTimerWorkListAdds != 0) {
         g_NumFlaggedTimerWorkListEntries--;
