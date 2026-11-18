@@ -359,14 +359,17 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E56E8);
    FIX: one preset split, not a whole-unit switch.  In config/menu.yaml replace
    [0x1FA28, c, main/misc11_r2] with
    [0x1FA28, c, main/misc11_r2], [0x206E8, c, main/misc11_r2_260],
-   [0x20E4C, c, main/misc11_r2]
+   [0x21B70, c, main/misc11_r2]
    and put this body and the func_801E5B88 body below into
    src/menu/main/misc11_r2_260.c on the XenoLibrary preset (gcc 2.6.0, Default
-   flags): every function of that run is 100.00 under 2.6.0 - func_801E56E8,
-   MenuInitializeCellLinePrims, MenuCreateCellPrimBlocks, MenuFreeCellPrimBlocks
-   and func_801E5B88 - and the rest of the unit stays on Default (under 2.6.0
-   MenuFillInventoryTables drops to 93.06 and MenuDrawSlotResourceSprites to
-   99.39).
+   flags): every C function of that run scores 100.00 under 2.6.0, namely this
+   one, MenuInitializeCellLinePrims, MenuCreateCellPrimBlocks,
+   MenuFreeCellPrimBlocks, func_801E5B88, MenuAllocatePrimBuffer,
+   MenuFreePrimBuffer, MenuClearGlyphTexture, MenuCompressGlyphRows,
+   MenuGetGlyphKromAddress and MenuDrawSlotSprite.  The two runs that must stay
+   on Default are the head (MenuFillInventoryTables is 93.06 under 2.6.0) and the
+   tail from MenuDrawSlotResourceSprites (99.39 under 2.6.0).  func_801E68AC
+   stays a stub inside the 2.6.0 range; its parked body there reaches 98.29.
    Shape: `i` is initialized in its declaration, so `move s7,zero` lands in the
    prologue; then pX, pBase, pY, then offset = 0xB0, in that source order.  The
    FT4 is the indexed biv pBase + i * 0x28, the F4 the indexed biv
@@ -763,12 +766,20 @@ extern s32 D_801E9FE0[];
 extern s32 D_801E9FE4[];
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E68AC);
-/* Best: 91.16%.  Everything matches except gcc's loop.c hoists the loop's
-   y constant 0x7A out into a free call-saved register ($s6, adding its
-   save/restore and shifting the frame), where retail re-materialises it
-   with "li v0,0x7A" every iteration; that also flips the addu operand
-   order of the loop's prim pointer (retail "addu a2,s0,a2").  Same wall as
-   func_801E56E8 below.  Structure confirmed: x/y tables D_801E9FE0[0],
+/* Best: 98.29% under gcc 2.6.0 (Default flags), 91.23% under the unit's own
+   2.7.2 preset.  The whole gap is gcc 2.7.2's loop.c: it hoists the loop's y
+   constant 0x7A out into a free call-saved register ($s6, adding its
+   save/restore and shifting the frame), where retail re-materialises it with
+   "li v0,0x7A" every iteration; that also flips the addu operand order of the
+   loop's prim pointer (retail "addu a2,s0,a2").  2.6.0 keeps the li inside the
+   loop, exactly as retail does, and the two functions are the same wall as
+   func_801E56E8 above.  Under 2.6.0 what is left is four instructions of the
+   first digit block: the dividend of number / 10 lands in t0 where retail uses
+   v1, retail's "li s0,0x6E" fills the load-delay slot after the g_Menu load
+   where this body emits it one slot later, and the dividend's sra follows one
+   instruction later.  Everything else, including the second digit block and
+   both magic-number divides, is identical.
+   Structure confirmed: x/y tables D_801E9FE0[0],
    D_801E9FE4[0] then D_801E9FE0[i+2] in a 7-iteration loop, prim pointers
    0x240C/0x24AC/0x254C+i*0x50 off g_Menu->pPrimBuffer, then 0x2C7C, 0x2CCC,
    0x2D1C=(number/10), 0x2D6C=(number%10) with number = pArg[0x23]+1.
@@ -797,11 +808,13 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E68AC);
        func_8002675C(g_Menu->resources, 0x32,
                      (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2CCC),
                      g_Menu->renderContext, 0x10, 0x66, 0x1000);
-       number = pArg[0x23] + 1;
+       number = pArg[0x23];
+       number++;
        func_8002675C(g_Menu->resources, number / 10,
                      (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D1C),
                      g_Menu->renderContext, 0x10, 0x6E, 0x1000);
-       number = pArg[0x23] + 1;
+       number = pArg[0x23];
+       number++;
        func_8002675C(g_Menu->resources, number % 10,
                      (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D6C),
                      g_Menu->renderContext, 0x18, 0x6E, 0x1000);
