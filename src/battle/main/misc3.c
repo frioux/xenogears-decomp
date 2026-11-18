@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 #include "battle/battle_work.h"
+#include "battle/actor.h"
 
 // Size of the pool BattleAllocPacketPrimitives hands out (g_BattleGraphicsWork's
 // pPacketPrims): the 0x50-byte POLY_FT4 pairs BattleInitPacketPrimitives fills,
@@ -12,6 +13,10 @@
 // add and subtract modes the BlendAdd and BlendSub setters below turn on in it.
 #define BATTLE_PRIM_TPAGE_BLEND_ADD 0x20
 #define BATTLE_PRIM_TPAGE_BLEND_SUB 0x40
+
+// What g_BattleSlotDisplayValues holds for a slot whose flag is clear:
+// BattleResetSlotDisplayValues writes it to both of the slot's values.
+#define BATTLE_SLOT_DISPLAY_VALUE_EMPTY 0xFF
 
 extern u8 *g_BattlePulseTrianglePrims;
 extern u8 g_BattlePrimStartIndex;
@@ -571,7 +576,7 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
     u16 *pValue2;
 
     i = 0;
-    emptyValue = 0xFF;
+    emptyValue = BATTLE_SLOT_DISPLAY_VALUE_EMPTY;
     pFlags = pOut;
     pBase = g_BattleSlotDisplayValues;
     pExtra = pBase + 0x16;
@@ -594,7 +599,7 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
         pValue++;
         pValue2++;
         i++;
-    } while (i < 0xB);
+    } while (i < BATTLE_ACTOR_SLOT_COUNT);
 }
 /* 75.45%: with a pEntry local (one load of the global shared by the two uses
    after the sb) the first store and everything from the `sh` tail on is
