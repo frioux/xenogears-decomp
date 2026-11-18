@@ -577,6 +577,189 @@ void BattleClearAllSlotStates(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
+/* 95.18%, 3020 bytes against retail's 3032 (round 228). Every statement and both loops are in
+   place and the whole body is straight-line global/struct access, so what is left is register
+   allocation and statement scheduling: retail keeps the acting slot in a1 and the work block in
+   a0/a1, we have them the other way round, and retail's four stat growth statements keep the
+   /10 magic (0xCCCCCCCD) inline where ours hoists it into the prologue (t6) - same instruction
+   count, different position. The THREE missing instructions are the two arms of the
+   characterId == 4 test: retail reloads g_BattleCurWorkBlock and re-computes i * 8 in EACH arm
+   (lui/lw + sll a1,a1,0x3 per arm) and only cross-jumps the store tail, while gcc hoists our
+   single wb load and the sll out of the arms; the deref spelling
+   *((u8 *)g_BattleCurWorkBlock + i * 8 + 0x1028) does not change that.
+   Source facts recovered: the four growth statements divide by 20, not 10 (retail's
+   0x66666667 >> 3); the 0x2814 field under the 0x2228 row table is stored then /= 10 then
+   *= 10; the two row tables are 0x26 and 0x2A rows of 0x28 bytes at +0x1058 and +0x2228 with
+   the flag byte at row +0x13; the gates are accessoryEffectFlags4 & 0x2000 (double every row)
+   and accessoryEffectFlags5 & 0x4000 (halve), and the characterId 7 / gearId 0xF / gearId 0x12
+   arms are one statement per line. The g_GameState tail (0x1930 u16, 0x89A, 0x834,
+   and g_BattleOptionFlags + 9 == g_GameState + 0x2355) has to be reached through g_GameState
+   itself - one base, four displacements - which is what makes gcc 2.6 fold them into t5.
+void func_80097D5C(void) {
+    u8 i;
+    u8 j;
+    u8 *pFlags;
+    u16 effectFlags;
+    u32 value;
+    u8 *pSlotBytes;
+
+    for (i = 0; i < 3; i++) {
+        if (g_BattleActorCharIds[i] == BATTLE_SLOT_CHARACTER_NONE) {
+            continue;
+        }
+        g_BattleActingSlot = &g_BattleCurWorkBlock->slots[i];
+        g_BattleTargetSlotState = &g_BattleActingSlot->state;
+        pFlags = &g_BattleActingSlot->state.unkA4;
+        if (g_BattleActorCharIds[i] == 9) {
+            g_GameState.characters[9].characterId = 9;
+            g_BattleActingSlot->characterId = 9;
+        }
+        if (g_BattleActorCharIds[i] == 10) {
+            g_GameState.characters[10].characterId = 10;
+            g_BattleActingSlot->characterId = 10;
+        }
+        if (g_BattleActingSlot->characterId == 4) {
+            ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1028] = g_BattleActingSlot->unk04[0] + g_BattleActingSlot->unk04[0x18];
+        } else {
+            ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1028] = g_BattleActingSlot->unk57[1] + g_BattleActingSlot->unk04[0];
+        }
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1029] = g_BattleActingSlot->evade;
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102A] = g_BattleActingSlot->unk57[2] + g_BattleActingSlot->unk04[0x29];
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102B] = g_BattleActingSlot->hit;
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102C] = g_BattleActingSlot->ether;
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102D] = g_BattleActingSlot->unk5C[0];
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102E] = g_BattleActingSlot->unk57[3];
+        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3A[2])[0];
+        ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3A[6])[0];
+        ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 4))[0x800] = g_BattleActingSlot->maxHp;
+        ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 4))[0x801] = g_BattleActingSlot->maxMp;
+        g_BattleActingSlot->unk57[1] += g_BattleActingSlot->unk04[0x24];
+        g_BattleActingSlot->blockFlags = 0;
+        g_BattleActingSlot->unk57[2] += g_BattleActingSlot->unk04[0x25];
+        g_BattleActingSlot->unk57[3] += g_BattleActingSlot->unk04[0x26];
+        g_BattleActingSlot->ether += g_BattleActingSlot->unk04[0x27];
+        g_BattleActingSlot->unk5C[0] += g_BattleActingSlot->unk04[0x28];
+        g_BattleActingSlot->evade += g_BattleActingSlot->unk04[0x2A];
+        g_BattleActingSlot->hit += g_BattleActingSlot->unk04[0x2B];
+        if (g_BattleActingSlot->unk57[3] >= 0x11) {
+            g_BattleActingSlot->unk57[3] = 0x10;
+        }
+        if (g_BattleActingSlot->accessoryEffectFlags5 & 0x100) {
+            g_BattleActingSlot->evade += g_BattleActingSlot->evade >> 2;
+            g_BattleActingSlot->hit += g_BattleActingSlot->hit >> 2;
+        }
+        g_BattleActingSlot->hp = g_BattleActingSlot->hp + g_BattleActingSlot->maxHp * g_BattleActingSlot->unk04[0x2C] / 20;
+        g_BattleActingSlot->mp = g_BattleActingSlot->mp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk04[0x2D] / 20;
+        g_BattleActingSlot->maxHp = g_BattleActingSlot->maxHp + g_BattleActingSlot->maxHp * g_BattleActingSlot->unk04[0x2C] / 20;
+        g_BattleActingSlot->maxMp = g_BattleActingSlot->maxMp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk04[0x2D] / 20;
+        if (g_BattleActingSlot->hp >= 1000) {
+            g_BattleActingSlot->hp = 999;
+        }
+        if (g_BattleActingSlot->mp >= 100) {
+            g_BattleActingSlot->mp = 99;
+        }
+        if (g_BattleActingSlot->maxHp >= 1000) {
+            g_BattleActingSlot->maxHp = 999;
+        }
+        if (g_BattleActingSlot->maxMp >= 100) {
+            g_BattleActingSlot->maxMp = 99;
+        }
+        pSlotBytes = (u8 *)&g_BattleCurWorkBlock->slots[i];
+        pSlotBytes[0x158] = 5;
+        pSlotBytes[0x159] = 5;
+        pFlags[0] = 0;
+        ((u16 *)&g_BattleTargetSlotState->unk68[8])[0] += ((u16 *)&g_BattleTargetSlotState->unk3C[4])[0];
+        g_BattleTargetSlotState->valueBonus += ((u16 *)&g_BattleTargetSlotState->unk3C[6])[0];
+        g_BattleTargetSlotState->unk9A[2] += g_BattleTargetSlotState->unk3C[0x10];
+        ((u16 *)g_BattleTargetSlotState->unk68)[0] += ((u16 *)&g_BattleTargetSlotState->unk3C[8])[0]
+                                                    + ((u16 *)&g_BattleTargetSlotState->unk3C[0xA])[0];
+        ((u8 *)&g_BattleTargetSlotState->responsiveness)[0] += g_BattleTargetSlotState->unk3C[0x11];
+        g_BattleTargetSlotState->unk98 += g_BattleTargetSlotState->unk3C[0x12] - g_BattleTargetSlotState->unk3C[0xE];
+        g_BattleTargetSlotState->unk9E += g_BattleTargetSlotState->unk50[4];
+        if (g_BattleTargetSlotState->unk4F != 0 && g_BattleActingSlot->gearId != 0x12) {
+            value = g_BattleTargetSlotState->maxHp / 10 * g_BattleTargetSlotState->unk4F * 2 / 9;
+            ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] = value;
+            ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] /= 10;
+            ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] *= 10;
+        }
+        pFlags[1] = 0;
+        if (g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 & 0x1C00) {
+            pFlags[1] = 1;
+        }
+        if (g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 & 0x380) {
+            pFlags[1] = 2;
+        }
+        if (g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 & 0x70) {
+            pFlags[1] = 3;
+        }
+        g_BattleTargetSlotState->unk3C[3] = g_BattleTargetSlotState->unk74[0];
+        g_BattleTargetSlotState->unk3C[2] = g_BattleTargetSlotState->unk74[0];
+        g_BattleTargetSlotState->unk3C[3] += g_BattleTargetSlotState->unk50[6];
+        g_BattleTargetSlotState->unk3C[2] += g_BattleTargetSlotState->unk50[6];
+        if (g_BattleActingSlot->accessoryEffectFlags4 & BATTLE_GEAR_EFFECT_FLAG) {
+            for (j = 0; j < 0x26; j++) {
+                ((u8 *)g_BattleCurWorkBlock)[i * 0x5F0 + j * 0x28 + 0x106B] <<= 1;
+            }
+            for (j = 0; j < 0x2A; j++) {
+                ((u8 *)g_BattleCurWorkBlock)[i * 0x690 + j * 0x28 + 0x223B] <<= 1;
+            }
+        }
+        if (g_BattleActingSlot->accessoryEffectFlags5 & 0x4000) {
+            for (j = 0; j < 0x26; j++) {
+                ((u8 *)g_BattleCurWorkBlock)[i * 0x5F0 + j * 0x28 + 0x106B] =
+                    (((u8 *)g_BattleCurWorkBlock)[i * 0x5F0 + j * 0x28 + 0x106B] + 1) >> 1;
+            }
+            for (j = 0; j < 0x2A; j++) {
+                ((u8 *)g_BattleCurWorkBlock)[i * 0x690 + j * 0x28 + 0x223B] =
+                    (((u8 *)g_BattleCurWorkBlock)[i * 0x690 + j * 0x28 + 0x223B] + 1) >> 1;
+            }
+        }
+        if (g_BattleActingSlot->unk61[1] >= 50) {
+            g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 |= 8;
+        }
+        if (g_BattleActingSlot->characterId == 7) {
+            g_BattleTargetSlotState->hp = g_BattleActingSlot->hp * BATTLE_ACTOR_HP_SCALE;
+            g_BattleTargetSlotState->maxHp = g_BattleActingSlot->maxHp * BATTLE_ACTOR_HP_SCALE;
+            g_BattleTargetSlotState->unk3C[0] = g_BattleActingSlot->unk57[1];
+            ((u16 *)&g_BattleTargetSlotState->unk68[8])[0] = g_BattleActingSlot->unk57[2] * 12;
+            g_BattleTargetSlotState->valueBonus = g_BattleActingSlot->unk5C[0] * 6;
+            g_BattleTargetSlotState->unk98 = g_BattleActingSlot->unk57[3];
+            effectFlags = g_BattleTargetSlotState->accessoryEffectFlags1 | 0x3C4;
+            g_BattleTargetSlotState->accessoryEffectFlags1 = effectFlags;
+            if (g_BattleActingSlot->accessoryEffectFlags2 & BATTLE_GEAR_EFFECT_FLAG) {
+                g_BattleTargetSlotState->accessoryEffectFlags1 = effectFlags | 0x1000;
+            }
+        }
+        if (g_BattleActingSlot->gearId == 0xF) {
+            g_GameState.unk16BC[g_BattleActingSlot->characterId].statusFlags &= 0x8FFF;
+        }
+        if (g_BattleActingSlot->gearId == 0x12) {
+            g_BattleActingSlot->conditionFlags = 0x238;
+            ((u16 *)&g_BattleTargetSlotState->unk28[0x10])[0] = 0x26AC;
+            g_BattleTargetSlotState->unk3A = 0x26AC;
+            pFlags[1] = 0;
+            g_GameState.unk16BC[3].statusFlags = 0x8000;
+        }
+        if (g_GameState.fieldScriptMemory[0] >= 0xE7) {
+            if ((((u8 *)&g_GameState)[0x2355] & 0x80) == 0) {
+                ((u8 *)&g_GameState)[0x89A] = 0x27;
+                ((u8 *)&g_GameState)[0x834] = 0x1E;
+                ((u8 *)&g_GameState)[0x2355] |= 0x80;
+            }
+        }
+    }
+    g_BattleActorSlotFlagTestMode = 3;
+    for (i = 0; i < 3; i++) {
+        if (g_BattleActorCharIds[i] == BATTLE_SLOT_CHARACTER_NONE) {
+            g_BattleActorSlotFlagTestMode--;
+        }
+    }
+    for (i = 0; i < 3; i++) {
+        g_BattleCurWorkBlock->characterAmounts[i] = 0;
+        g_BattleCurWorkBlock->gearAmounts[i] = 0;
+    }
+}
+*/
 void BattleResetSlotConditionCounters(void) {
     u8 i;
     u8 j;
