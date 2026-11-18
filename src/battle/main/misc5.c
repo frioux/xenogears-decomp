@@ -15,15 +15,15 @@ extern u8 g_BattleSlotEnabledFlags[];
 // src/battle/main/misc1.c's BattleClearAllSlotFlagB4, is touched here; the other
 // three are written by misc1.c's func_80071B94 and misc3.c's func_80078658, which
 // reach them through the D_800D3718 (+0x0), D_800D3720 (+0x8) and D_800D3726
-// (+0xE) symbols. The 0x50 bytes after them are the slot's poly primitives.
+// (+0xE) symbols.
 typedef struct {
     /* 0x00 */ RECT rect; // the VRAM rect the slot's text texture is loaded into
     /* 0x08 */ u_long *pBuf; // the slot's text buffer, rendered into then loaded through rect
-    /* 0x0C */ u8 unkC;
+    /* 0x0C */ u8 palette; // index & 1: picks g_SystemPalette2 over g_SystemPalette1, as the menu records' palette
     /* 0x0D */ u8 enabled;
     /* 0x0E */ u8 textWidth; // what SystemRenderStringEntry returns for the slot's string
     /* 0x0F */ u8 padF;
-    /* 0x10 */ u8 unk10[0x50];
+    /* 0x10 */ POLY_FT4 polys[2]; // the slot's text quads, both set from the pointer misc3.c's func_800780A8 walks
 } BattleScreenSlot; // Size: 0x60
 
 // One 0x170-byte entry of the slot table at g_BattleSlotEntries: the two flag words the
