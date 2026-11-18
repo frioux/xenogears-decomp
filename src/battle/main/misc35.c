@@ -4,6 +4,7 @@
 #include "system/kernel.h"
 #include "system/sound.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 
 extern void SoundFreeWdsEntry(SoundWDSEntry *pWds);
 extern void SoundRemoveSedsEntry(void *pSoundFile);
@@ -252,4 +253,556 @@ void BattleRemoveSedsEntries(s32 *pArg) {
         pEntry++;
     }
 }
+
+extern u8 D_8004FC40[]; // per-opcode instruction length, indexed by the opcode byte
+extern u8 g_BattleStateWork[];
+extern s32 g_BattleCommandRowIndex;
+extern SpriteData *D_800C3E1C;
+extern s16 g_BattleActorListCount;
+extern s32 g_BattleActorList[];
+extern u8 D_800C4928;
+extern u8 D_800C3624;
+extern s32 g_WorkListCurTimer;
+extern SVECTOR g_BattleSlotVectors;
+extern SVECTOR D_800D335C;
+extern SVEC D_800D30B0;
+extern u16 D_800D30B8;
+extern s16 D_80059454;
+extern IVEC3 g_BattleAnimPositionGroupA;
+extern IVEC3 g_BattleAnimPositionGroupB;
+
+extern void func_8001D2B0(SpriteData *pSpriteData, s32 frame);
+extern void SpriteSetFrameFromAnimIndex(SpriteData *pSpriteData);
+extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
+extern void SpriteSetMoveSpeed(SpriteData *pSpriteData, s32 speed);
+extern s32 SpriteComputeAngleFromPoints(s32 from, s32 to);
+extern void SpriteSetDirection(SpriteData *pSpriteData, s16 direction);
+extern void func_800223B0(SpriteData *pSpriteData, s16 direction);
+extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
+extern void func_800B3F04(SpriteData *pSpriteData, s32 arg1, void *pValue);
+extern s32 BattleGetActorFlag41(void);
+extern void BattleStartScreenFade(s32 frames, s32 abr, u8 r, u8 g, u8 b);
+extern void BattleCreateTimedScaleTask(SVECTOR *pTarget, s32 frames);
+extern void func_80023538(SpriteData *pSpriteData, u8 *pScript);
+extern void BattleCreateActorDistanceWaitTask(SpriteData *pSpriteData, s32 minDistance, void *pCallback);
+extern void BattleActorUpdateFallMotion(SpriteData *pSpriteData);
+extern void BattleActorComputeFallDirection(SpriteData *pSpriteData);
+extern s32 ArchiveDataSync(void);
+extern void BattleUpdateCommandRows(void);
+extern s32 BattleFindTableEntryIndex(SpriteData *pSpriteData);
+extern void BattleRemapActorModelId(SpriteData *pSpriteData);
+extern void GfxQueueSpriteTileData(void *pData);
+extern u8 *BattleGetFrame(u8 *pBase, s32 n);
+extern s32 BattleGetPrimitiveBufferSize(void *pFrame);
+extern void BattleModelScaleParts(void *pFrame, s32 shift);
+extern void BattleExpandModelPrims(void *pFrame, u8 *pDst, s32 mode, u8 shadeTex);
+extern void BattleQueueActorCommandPreservingSelection(s32 slot, u16 mask, s32 arg2);
+extern void *AnimScriptResolveVariablePointer(SpriteData *pSpriteData, u8 *pIndex);
+extern void AnimScriptStackPushU24(SpriteData *pSpriteData, s32 value);
+extern s32 AnimScriptStackPopU24(SpriteData *pSpriteData);
+extern u_char AnimScriptStackPopU8(SpriteData *pSpriteData);
+extern void AnimScriptStackPushU8(SpriteData *pSpriteData, u8 value);
+extern void func_8001FBE4(SpriteData *pSpriteData, s32 code, u8 *pArgs);
+
+typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
+
+
+// What the animation id byte of the flag word means here: 0x3F asks for the
+// default animation instead of the special one.
+#define BATTLE_ANIM_ID_DEFAULT 0x3F
+// Bits 28-29 of flags_0xA8 are the slot mode; 0x10000000 arms it.
+#define BATTLE_ANIM_MODE_HIGH_MASK 0xCFFFFFFF
+#define BATTLE_ANIM_MODE_HIGH_SET 0x10000000
+// The two 6-bit frame counters it packs beside the mode: counter1 advances once per
+// wait opcode and saturates at 0x3F, counter2 is stepped by the frame-step opcode.
+#define BATTLE_ANIM_COUNTER1_MASK 0xF03FFFFF
+#define BATTLE_ANIM_COUNTER1_SHIFT 22
+#define BATTLE_ANIM_COUNTER2_MASK 0xFFFE07FF
+#define BATTLE_ANIM_COUNTER2_SHIFT 11
+#define BATTLE_ANIM_COUNTER_MASK 0x3F
+// The 4-bit mode field of field_0x40 that picks which position group an angle
+// opcode writes back to.
+#define BATTLE_ANIM_GROUP_MASK 0xF
+#define BATTLE_ANIM_GROUP_A 0xA
+#define BATTLE_ANIM_GROUP_B 0xB
+// The 12-bit speed field of flags_0xAC, and the 8-bit divisor a wait opcode scales
+// its frame count by.
+#define BATTLE_ANIM_SPEED_SHIFT 7
+#define BATTLE_ANIM_SPEED_MASK 0xFFF
+#define BATTLE_ANIM_SPEED_SCALE 256
+
+// The jump displacement is the 16-bit word the opcode carries, sign-extended.
+#define SCRIPT_JUMP_AT(p) ((s32)((s16)((p)[1] << 8) | (p)[0]))
+// The block offsets the other opcodes carry are signed at the byte they come from.
+#define SCRIPT_WORD_AT(p) (((s8 *)(p))[1] << 8 | (p)[0])
+// The 24-bit block offset, signed from its top byte.
+#define SCRIPT_U24_AT(p) (((s8)(p)[2] << 16) + ((p)[1] << 8) + (p)[0])
+// The angle between two x/z points, as the direction opcodes hand it to
+// SpriteSetDirection and func_800223B0.
+#define SCRIPT_ANGLE(from, to) \
+    SpriteComputeAngleFromPoints(((u16 *)(to))[1] << 16 | ((u16 *)(to))[0], \
+                                 ((u16 *)(from))[1] << 16 | ((u16 *)(from))[0])
+
+
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
+// 62.23% (3720 bytes against retail's 3708, frame 0x90 against retail's 0x88). The
+// whole arm set is transcribed against the jump table's 124 case values, both tables
+// land at the right offsets and every call site matches. What is left:
+//  - the mask 0xCFFFFFFF that the two mode arms and opcode 0x8F clear is hoisted by
+//    gcc into a saved register (or spilled) once for the whole loop; retail forms it
+//    inline in each of the three arms. Measured: a bitfield view of flags_0xA8 (this
+//    compiler packs the fields from the low bit up) still hoists it, and it spills.
+//  - retail reads curSpriteFrame with lhu in the two frame-step arms (a u16 callee
+//    parameter), ours with lh.
+//  - the block at 0x12A0 (frames = (code & 0xF) + 1) is shared by the three frame
+//    arms and reached by a j in retail; ours calls func_8001D2B0 inline in each arm.
+//  - the switch's arm layout is close but not identical past the first few arms.
+/*
+// Runs a battle sprite's animation bytecode until it waits or finishes: the
+// opcodes below 0x80 wait a number of frames (0x10-0x3F also step the frame
+// counter up or down), and the ones from 0x80 up are the individual commands the
+// jump table at .rodata+0 lists. Each iteration advances pSpriteBytecode by the
+// length table's entry for the opcode, except for the opcodes that jump.
+void func_800C11CC(SpriteData *pSpriteData) {
+    u8 *pArgs;
+    u8 code;
+    BattleSpriteState *pSprite;
+    s32 frames;
+    s32 count;
+    s32 offset;
+    s16 pointA[2];
+    s16 pointB[2];
+    SpriteData *pTarget;
+    SVECTOR vec;
+    MATRIX mtx;
+    VECTOR out;
+    u8 *pBuffer;
+    s32 size;
+    u32 flags;
+
+    pSprite = (BattleSpriteState *)pSpriteData;
+    while (pSpriteData->animScriptWaitTimer == 0) {
+        code = *(u8 *)pSpriteData->pSpriteBytecode;
+        pArgs = (u8 *)pSpriteData->pSpriteBytecode + 1;
+        if (code < 0x80) {
+            pSpriteData->pSpriteBytecode = pArgs;
+            if (code < 0x10) {
+                func_8001D2B0(pSpriteData, pSpriteData->curSpriteFrame + 1);
+                frames = (code & 0xF) + 1;
+            } else if (code < 0x20) {
+                pSpriteData->flags_0xA8 =
+                    (pSpriteData->flags_0xA8 & BATTLE_ANIM_COUNTER2_MASK) |
+                    (((((u32)pSpriteData->flags_0xA8 >> BATTLE_ANIM_COUNTER2_SHIFT) & BATTLE_ANIM_COUNTER_MASK) + 1 &
+                      BATTLE_ANIM_COUNTER_MASK)
+                     << BATTLE_ANIM_COUNTER2_SHIFT);
+                SpriteSetFrameFromAnimIndex(pSpriteData);
+                frames = (code & 0xF) + 1;
+            } else if (code < 0x30) {
+                func_8001D2B0(pSpriteData, pSpriteData->curSpriteFrame - 1);
+            }
+            if (code < 0x40) {
+                frames = (code & 0xF) + 1;
+            }
+            frames = frames * (s32)(((u32)pSpriteData->flags_0xAC.flags >> BATTLE_ANIM_SPEED_SHIFT) & BATTLE_ANIM_SPEED_MASK) /
+                     BATTLE_ANIM_SPEED_SCALE;
+            if (frames == 0) {
+                frames = 1;
+            }
+            count = ((((u32)pSpriteData->flags_0xA8 >> BATTLE_ANIM_COUNTER1_SHIFT) & BATTLE_ANIM_COUNTER_MASK) + 1) &
+                    BATTLE_ANIM_COUNTER_MASK;
+            pSpriteData->animScriptWaitTimer += frames;
+            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & BATTLE_ANIM_COUNTER1_MASK) |
+                                      (count << BATTLE_ANIM_COUNTER1_SHIFT);
+            if (count == 0) {
+                pSpriteData->flags_0xA8 =
+                    (pSpriteData->flags_0xA8 & BATTLE_ANIM_COUNTER1_MASK) |
+                    (((((u32)pSpriteData->flags_0xA8 >> BATTLE_ANIM_COUNTER1_SHIFT) & BATTLE_ANIM_COUNTER_MASK) - 1 &
+                      BATTLE_ANIM_COUNTER_MASK)
+                     << BATTLE_ANIM_COUNTER1_SHIFT);
+            }
+            return;
+        }
+        switch (code) {
+        case 0xE8:
+            func_800B3F04(pSpriteData, pArgs[0], AnimScriptResolveVariablePointer(pSpriteData, pArgs + 1));
+            break;
+        case 0xCA:
+            pBuffer = (u8 *)(pArgs + SCRIPT_WORD_AT(pArgs));
+            if (pBuffer[4] != 0) {
+                offset = pBuffer[4] - 1;
+            } else {
+                offset = BattleGetActorFlag41();
+            }
+            BattleStartScreenFade(pBuffer[3] >> 1, offset, pBuffer[0], pBuffer[1], pBuffer[2]);
+            break;
+        case 0xCB:
+            pBuffer = (u8 *)(pArgs + SCRIPT_WORD_AT(pArgs));
+            SpriteSetSVec(&vec, pBuffer[0], pBuffer[1], pBuffer[2]);
+            BattleCreateTimedScaleTask(&vec, pBuffer[3]);
+            break;
+        case 0xE3:
+            pTarget = pSpriteData->pTargetEntitySprite;
+            pTarget->flags_0xAC.bytes[3] = BATTLE_ANIM_ID_DEFAULT;
+            func_80023538(pTarget, (u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs));
+            break;
+        case 0xFB:
+            BattleCreateActorDistanceWaitTask(pSpriteData, pArgs[2] << 1,
+                                             (void *)((u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs)));
+            break;
+        case 0xC3:
+        case 0xEC:
+        case 0xF9:
+            func_800B3F04(pSpriteData, pArgs[0], pArgs + 1);
+            break;
+        case 0x9D:
+            if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_A) {
+                pBuffer = (u8 *)&g_BattleSlotVectors;
+            } else {
+                pBuffer = (u8 *)&D_800D335C;
+            }
+            ((s16 *)pBuffer)[0] = pSprite->position.xWhole;
+            ((s16 *)pBuffer)[1] = pSprite->position.yWhole;
+            ((s16 *)pBuffer)[2] = pSprite->position.zWhole;
+            break;
+        case 0x99:
+            pSpriteData->pBase->rotation.x = D_800D30B0.x;
+            pSpriteData->pBase->rotation.y = D_800D30B0.y;
+            pSpriteData->pBase->rotation.z = D_800D30B0.z;
+            break;
+        case 0x9A:
+            vec.vx = D_800D30B8;
+            vec.vy = 0;
+            vec.vz = 0;
+            RotMatrix((SVECTOR *)&pSpriteData->pBase->rotation, &mtx);
+            ApplyMatrix(&mtx, &vec, &out);
+            if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_A) {
+                pSpriteData->position.x = g_BattleAnimPositionGroupB.x - (out.vx << 16);
+                pSpriteData->position.y = g_BattleAnimPositionGroupB.y - (out.vy << 16);
+                pSpriteData->position.z = g_BattleAnimPositionGroupB.z - (out.vz << 16);
+            }
+            if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_B) {
+                pSpriteData->position.x = g_BattleAnimPositionGroupA.x + (out.vx << 16);
+                pSpriteData->position.y = g_BattleAnimPositionGroupA.y + (out.vy << 16);
+                pSpriteData->position.z = g_BattleAnimPositionGroupA.z + (out.vz << 16);
+            }
+            break;
+        case 0x9B:
+            pSpriteData->scale = (D_80059454 << 12) / *(s32 *)&D_800D30B8;
+            break;
+        case 0x9C:
+            vec.vx = (D_80059454 << 12) / pSpriteData->scale;
+            vec.vy = 0;
+            vec.vz = 0;
+            RotMatrix((SVECTOR *)&D_800D30B0, &mtx);
+            ApplyMatrix(&mtx, &vec, &out);
+            if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_A) {
+                pSpriteData->position.x = g_BattleAnimPositionGroupB.x - (out.vx << 16);
+                pSpriteData->position.y = g_BattleAnimPositionGroupB.y - (out.vy << 16);
+                pSpriteData->position.z = g_BattleAnimPositionGroupB.z - (out.vz << 16);
+            }
+            if (((pSpriteData->field_0x40 >> 13) & BATTLE_ANIM_GROUP_MASK) == BATTLE_ANIM_GROUP_B) {
+                pSpriteData->position.x = g_BattleAnimPositionGroupA.x + (out.vx << 16);
+                pSpriteData->position.y = g_BattleAnimPositionGroupA.y + (out.vy << 16);
+                pSpriteData->position.z = g_BattleAnimPositionGroupA.z + (out.vz << 16);
+            }
+            break;
+        case 0xC2:
+            pTarget = pSpriteData->pTargetEntitySprite;
+            pSpriteData->position.y = (pSpriteData->field_0x84 - 1) << 16;
+            offset = (s8)pArgs[0] * pSpriteData->scale / 4096;
+            if ((((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) == 0) {
+                offset = -offset;
+            }
+            pSprite->targetPosition.x = ((BattleSpriteState *)pTarget)->position.xWhole + offset;
+            pSprite->targetPosition.y = 0;
+            pSprite->targetPosition.z = ((BattleSpriteState *)pTarget)->position.zWhole;
+            BattleActorUpdateFallMotion(pSpriteData);
+            break;
+        case 0x97:
+            pTarget = pSpriteData->pTargetEntitySprite;
+            if (pSprite->position.yWhole < pSpriteData->field_0x84) {
+                pSpriteData->animScriptWaitTimer = 1;
+                return;
+            }
+            SpriteSetMoveSpeed(pSpriteData, 0);
+            pointA[0] = pSprite->position.xWhole;
+            pointA[1] = pSprite->position.zWhole;
+            pointB[0] = ((BattleSpriteState *)pTarget)->position.xWhole;
+            pointB[1] = ((BattleSpriteState *)pTarget)->position.zWhole;
+            SpriteSetDirection(pSpriteData, SCRIPT_ANGLE(pointA, pointB));
+            func_800223B0(pSpriteData, SCRIPT_ANGLE(pointA, pointB));
+            SpriteSetDirection(pTarget, SCRIPT_ANGLE(pointB, pointA));
+            func_800223B0(pTarget, SCRIPT_ANGLE(pointB, pointA));
+            break;
+        case 0xA4:
+            pTarget = pSpriteData->pTargetEntitySprite;
+            offset = (s8)pArgs[0];
+            if (pTarget->pDefaultAnimFile == NULL) {
+                BattleQueueActorCommandPreservingSelection(
+                    (((u32)pTarget->flags_0xAC.flags & 3) << 2) | ((u32)pTarget->flags_0xA8 >> 30),
+                    1 << ((((u32)pSpriteData->flags_0xAC.flags & 3) << 2) | ((u32)pSpriteData->flags_0xA8 >> 30)),
+                    offset);
+            } else {
+                SpritePlayAnimation(pTarget, offset);
+            }
+            break;
+        case 0x9E:
+            pSpriteData->animScriptWaitTimer = 1;
+            if ((*(u16 *)(g_BattleStateWork + 0x8000 + 0xC58) & 0x100) == 0) {
+                return;
+            }
+            break;
+        case 0x95:
+            pSpriteData->animScriptWaitTimer = 1;
+            if (ArchiveDataSync() != 0) {
+                return;
+            }
+            break;
+        case 0x89:
+            BattleActorUpdateFallMotion(pSpriteData);
+            break;
+        case 0x88:
+            BattleActorComputeFallDirection(pSpriteData);
+            break;
+        case 0x8F:
+            D_800C3624 = 1;
+            pSpriteData->pSpriteBytecode = NULL;
+            pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+            return;
+        case 0xF8:
+            pTarget = pSpriteData->pTargetEntitySprite;
+            count = (((u32)pTarget->flags_0xAC.flags & 3) << 2) | ((u32)pTarget->flags_0xA8 >> 30);
+            offset = g_BattleStateWork[(g_BattleCommandRowIndex - 1) * 0x48 + count + 0x150];
+            switch (pArgs[2] & 0x7F) {
+            case 0:
+                count = offset == 0;
+                break;
+            case 1:
+                count = offset == 1;
+                break;
+            case 2:
+                count = offset == 2;
+                break;
+            case 3:
+                count = offset == 3;
+                break;
+            case 4:
+                count = offset == 4 || offset == 7;
+                break;
+            case 5:
+                count = offset == 5;
+                break;
+            case 6:
+                count = offset == 6;
+                break;
+            case 7:
+                count = BattleFindTableEntryIndex(pTarget) + 1 < g_BattleActorListCount;
+                BattleRemapActorModelId(pSpriteData);
+                break;
+            case 8:
+                count = D_800C4928 != 0;
+                break;
+            case 9:
+                count = pTarget == D_800C3E1C;
+                break;
+            default:
+                count = 0;
+                break;
+            }
+            if (pArgs[2] & 0x80) {
+                count = count == 0;
+            }
+            if (count != 0) {
+                pSpriteData->pSpriteBytecode =
+                    (u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+                continue;
+            }
+            break;
+        case 0xF3:
+            if (pSpriteData->pBase->pFramesData != NULL) {
+                GfxQueueSpriteTileData(pSpriteData->pBase->pFramesData);
+            }
+            offset = SCRIPT_U24_AT(pArgs);
+            if (offset == 0) {
+                pSpriteData->pBase->pFramesData = NULL;
+                pSpriteData->pBase->pDirTransforms = NULL;
+                break;
+            }
+            pBuffer = pArgs + offset;
+            size = BattleGetPrimitiveBufferSize(BattleGetFrame(pBuffer, 0));
+            pBuffer = HeapAlloc(size * 2, 0);
+            if (pSpriteData->field_0x3A != 0) {
+                BattleModelScaleParts(BattleGetFrame(pArgs + offset, 0), 3);
+            }
+            BattleExpandModelPrims(BattleGetFrame(pArgs + offset, 0), pBuffer, pSprite->flags >> 29,
+                                   pSpriteData->prim & 1);
+            memcpy(pBuffer + size, pBuffer, size);
+            pSpriteData->pBase->pFramesData = pBuffer;
+            pSpriteData->pBase->pCurRenderFramesData = pBuffer + size;
+            pSpriteData->pBase->pDirTransforms = (SpriteDirectionTransforms *)BattleGetFrame(pArgs + offset, 0);
+            break;
+        case 0x8B:
+            BattleUpdateCommandRows();
+            break;
+        case 0xBE:
+            count = pArgs[0] | ((s8)pArgs[1] << 8);
+            frames = ((count >> 11) & 0xF) + 1;
+            frames = frames * (s32)(((u32)pSpriteData->flags_0xAC.flags >> BATTLE_ANIM_SPEED_SHIFT) & BATTLE_ANIM_SPEED_MASK) /
+                     BATTLE_ANIM_SPEED_SCALE;
+            if (frames == 0) {
+                frames = 1;
+            }
+            offset = count & 0x1FF;
+            if ((pSprite->flags & 3) != 1) {
+                pSpriteData->curSpriteFrame = offset;
+            } else {
+                if (count < 0) {
+                    if (offset != 0) {
+                        offset = *(u8 *)(pSpriteData->field_0x60 + offset - 1);
+                    }
+                }
+                pSpriteData->flags_0xAC.flags =
+                    (pSpriteData->flags_0xAC.flags & ~8) | ((count >> 6) & 8);
+                pSprite->flags =
+                    (pSprite->flags & ~8) |
+                    ((((pSpriteData->flags_0xAC.flags >> 3) & 1) ^ ((pSpriteData->flags_0xAC.flags >> 2) & 1)) << 3);
+                if ((count >> 10) & 1) {
+                    pSprite->flags |= 0x10;
+                } else {
+                    pSprite->flags &= ~0x10;
+                }
+                func_8001D2B0(pSpriteData, offset);
+            }
+            pSpriteData->animScriptWaitTimer += frames;
+            pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + 3;
+            return;
+        case 0x8E:
+            pSpriteData->pSpriteBytecode = NULL;
+            return;
+        case 0xE2:
+            AnimScriptStackPushU24(pSpriteData, (s32)pSpriteData->pSpriteBytecode + 3);
+            pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+            continue;
+        case 0x85:
+            pSpriteData->pSpriteBytecode = (void *)(((u32)pSpriteData->pSpriteBytecode & 0xFF000000) |
+                                                    AnimScriptStackPopU24(pSpriteData));
+            continue;
+        case 0xFA:
+            if (*(u8 *)AnimScriptResolveVariablePointer(pSpriteData, pArgs) != 0) {
+                pSpriteData->pSpriteBytecode =
+                    (u8 *)pSpriteData->pSpriteBytecode + ((s16)(pArgs[2] << 8) | pArgs[1]);
+                continue;
+            }
+            break;
+        case 0xD4:
+            pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+            }
+            continue;
+        case 0x86:
+            if (pSprite->step.y < 0) {
+                pSpriteData->animScriptWaitTimer = 1;
+                return;
+            }
+            break;
+        case 0x87:
+            if (pSprite->position.yWhole < pSpriteData->field_0x84) {
+                pSpriteData->animScriptWaitTimer = 1;
+                return;
+            }
+            break;
+        case 0x80:
+            pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+                return;
+            }
+            if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
+                SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
+            }
+            pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+            return;
+        case 0x98:
+            if (pSpriteData->field_0x70 == NULL) {
+                break;
+            }
+            pSpriteData->animScriptWaitTimer = 1;
+            if ((s8)((SpriteData *)pSpriteData->field_0x70)->flags_0xAC.bytes[3] != pSpriteData->field_0x8D) {
+                break;
+            }
+            if ((((u32)((SpriteData *)pSpriteData->field_0x70)->flags_0xA8 >> 28) & 3) != 2) {
+                break;
+            }
+            return;
+        case 0x82:
+            count = pSprite->step.y;
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+            }
+            SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xAC.bytes[3]);
+            pSprite->step.y = count;
+            pSpriteData->animScriptWaitTimer = 0;
+            func_800C11CC(pSpriteData);
+            return;
+        case 0x81:
+            if ((s8)pSpriteData->flags_0xAC.bytes[3] == BATTLE_ANIM_ID_DEFAULT) {
+                pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+                if (pSpriteData->field_0x68 != NULL) {
+                    ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+                    return;
+                }
+                if ((s8)pSpriteData->flags_0xB0.bytes[0] >= 0) {
+                    SpritePlayAnimation(pSpriteData, (s8)pSpriteData->flags_0xB0.bytes[0]);
+                }
+                pSpriteData->flags_0xA8 &= BATTLE_ANIM_MODE_HIGH_MASK;
+                return;
+            }
+            pSpriteData->animScriptWaitTimer = 0;
+            if (pSpriteData->field_0x68 != NULL) {
+                ((SpriteScriptCallback)pSpriteData->field_0x68)(pSpriteData);
+            }
+            pSpriteData->flags_0xA8 =
+                (pSpriteData->flags_0xA8 & BATTLE_ANIM_MODE_HIGH_MASK) | BATTLE_ANIM_MODE_HIGH_SET;
+            return;
+        case 0xE4:
+            count = AnimScriptStackPopU8(pSpriteData);
+            if (count != 0) {
+                AnimScriptStackPushU8(pSpriteData, count - 1);
+                pSpriteData->pSpriteBytecode =
+                    (u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+                continue;
+            }
+            break;
+        case 0xE1:
+            pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
+            continue;
+        case 0xA7:
+            pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + D_8004FC40[code];
+            if (pArgs[0] & 0x80) {
+                g_WorkListCurTimer = (pArgs[0] & 0x7F) + 1;
+                pSpriteData->animScriptWaitTimer++;
+                return;
+            }
+            count = (pArgs[0] + 2) *
+                    (s32)(((u32)pSpriteData->flags_0xAC.flags >> BATTLE_ANIM_SPEED_SHIFT) & BATTLE_ANIM_SPEED_MASK) /
+                    BATTLE_ANIM_SPEED_SCALE;
+            if (count == 0) {
+                count = 1;
+            }
+            pSpriteData->animScriptWaitTimer += count;
+            return;
+        case 0xC8:
+            func_8001FBE4(pSpriteData, pArgs[0], AnimScriptResolveVariablePointer(pSpriteData, pArgs + 1));
+            break;
+        case 0x9F:
+            break;
+        default:
+            func_8001FBE4(pSpriteData, code, pArgs);
+            break;
+        }
+        pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + D_8004FC40[code];
+    }
+}
+*/
