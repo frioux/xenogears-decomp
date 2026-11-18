@@ -10,6 +10,27 @@
 #include "system/graphics.h"
 #include "system/memory.h"
 
+// An actor script data word holds 12 bits; SetActorDataWord clamps to the maximum
+#define FIELD_ACTOR_DATA_WORD_MAX 0xFFF
+
+// g_FieldLineScrolls.pLineScrolls, .pDatas and .lengths hold this many entries
+#define FIELD_LINE_SCROLL_MAX 32
+
+// Number of steps a stepping actor rotation takes; curDoorStep counts them
+#define FIELD_DOOR_STEP_COUNT 31
+
+// StepActorMoveOn/Off read a direction angle (0..0xFFF) here; these two step
+// along Y instead, decreasing / increasing it
+#define FIELD_MOVE_DIRECTION_Y_DECREASE 0x1000
+#define FIELD_MOVE_DIRECTION_Y_INCREASE 0x1001
+
+// An inventory itemId carries the kind of table it indexes in its high byte
+#define FIELD_INVENTORY_KIND_ITEM 0
+#define FIELD_INVENTORY_KIND_WEAPON 1
+#define FIELD_INVENTORY_KIND_ACCESSORY 2
+#define FIELD_INVENTORY_KIND_GEAR_WEAPON 3
+#define FIELD_INVENTORY_KIND_GEAR_PARTS 4
+
 extern s32 g_FieldCurActorIndex;
 extern s32 g_PlayerActorIndex;
 
@@ -141,8 +162,8 @@ void FieldScriptVMHandlerSetActorDataWord(void) {
 
     index = FieldScriptVMGetArgument(1);
     value = FieldScriptVMGetArgument(3);
-    if (value >= 0x1000) {
-        value = 0xFFF;
+    if (value >= FIELD_ACTOR_DATA_WORD_MAX + 1) {
+        value = FIELD_ACTOR_DATA_WORD_MAX;
     }
 
     if (g_FieldActors[g_FieldCurActorIndex].status & 0x2000) {
@@ -213,7 +234,7 @@ void FieldScriptVMHandlerCreateLineScroll(void) {
     int argB;
     int i;
 
-    if (g_FieldScriptRoutineRunning == 0 && g_FieldLineScrolls.numLineScrolls < 0x20) {
+    if (g_FieldScriptRoutineRunning == 0 && g_FieldLineScrolls.numLineScrolls < FIELD_LINE_SCROLL_MAX) {
         count = FieldScriptVMGetInstructionArgument(9) & 0xFFFF;
         g_FieldLineScrolls.lengths[g_FieldLineScrolls.numLineScrolls] = count;
         g_FieldLineScrolls.pDatas[g_FieldLineScrolls.numLineScrolls] = HeapAlloc(count + 1, 0);
@@ -602,7 +623,7 @@ void FieldScriptVMHandlerRequestFieldState2(void) {
 
 void FieldScriptVMHandlerRequestFieldState3(void) {
     g_ShopIndex = FieldScriptVMGetArgument(1);
-    g_FieldRequestCode = 0x3;
+    g_FieldRequestCode = 3;
     g_FieldScriptVMStopFlag = 1;
     g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -642,7 +663,7 @@ void FieldScriptVMHandlerRequestFieldState1WithValue(void) {
 
 void FieldScriptVMHandlerRequestFieldState4(void) {
     g_ShopIndex = FieldScriptVMGetArgument(1);
-    g_FieldRequestCode = 0x4;
+    g_FieldRequestCode = 4;
     g_FieldScriptVMStopFlag = 1;
     g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -650,7 +671,7 @@ void FieldScriptVMHandlerRequestFieldState4(void) {
 
 void FieldScriptVMHandlerRequestFieldState5(void) {
     g_ShopIndex = FieldScriptVMGetArgument(1);
-    g_FieldRequestCode = 0x5;
+    g_FieldRequestCode = 5;
     g_FieldScriptVMStopFlag = 1;
     g_FieldPendingRequestCount++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
@@ -788,7 +809,7 @@ void FieldScriptVMHandlerStepActorRotationOn(void) {
             FieldSetSoundSlotElement(8, 3);
         } else {
             g_FieldScriptVMCurActor->curDoorStep++;
-            if (g_FieldScriptVMCurActor->curDoorStep < 0x1F) {
+            if (g_FieldScriptVMCurActor->curDoorStep < FIELD_DOOR_STEP_COUNT) {
                 if (SCRIPT_READ_U8_REL(1) == 0) {
                     g_FieldActors[g_FieldCurActorIndex].rotation.y += 0x20;
                 } else {
@@ -816,7 +837,7 @@ void FieldScriptVMHandlerStepActorRotationOff(void) {
             FieldSetSoundSlotElement(8, 3);
         } else {
             g_FieldScriptVMCurActor->curDoorStep++;
-            if (g_FieldScriptVMCurActor->curDoorStep < 0x1F) {
+            if (g_FieldScriptVMCurActor->curDoorStep < FIELD_DOOR_STEP_COUNT) {
                 if (SCRIPT_READ_U8_REL(1) == 0) {
                     g_FieldActors[g_FieldCurActorIndex].rotation.y -= 0x20;
                 } else {
@@ -857,11 +878,11 @@ void FieldScriptVMHandlerStepActorMoveOn() {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < FieldScriptVMGetArgument(3)) {
                 switch (FieldScriptVMGetArgument(5)) { 
-                    case 0x1000:
+                    case FIELD_MOVE_DIRECTION_Y_DECREASE:
                         g_FieldScriptVMCurActor->unkD0.vy -= FieldScriptVMGetArgument(1) * 0x10;
                         g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
-                    case 0x1001:
+                    case FIELD_MOVE_DIRECTION_Y_INCREASE:
                         g_FieldScriptVMCurActor->unkD0.vy += FieldScriptVMGetArgument(1) * 0x10;
                         g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
@@ -901,11 +922,11 @@ void FieldScriptVMHandlerStepActorMoveOff(void) {
             g_FieldScriptVMCurActor->curDoorStep++;
             if (g_FieldScriptVMCurActor->curDoorStep < FieldScriptVMGetArgument(3)) {
                 switch (FieldScriptVMGetArgument(5)) {
-                    case 0x1000:
+                    case FIELD_MOVE_DIRECTION_Y_DECREASE:
                         g_FieldScriptVMCurActor->unkD0.vy -= FieldScriptVMGetArgument(1) * 0x10;
                         g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
-                    case 0x1001:
+                    case FIELD_MOVE_DIRECTION_Y_INCREASE:
                         g_FieldScriptVMCurActor->unkD0.vy += FieldScriptVMGetArgument(1) * 0x10;
                         g_FieldScriptVMCurFieldActor->transformMatrix.t[1] = CONV_TO_GTE(g_FieldScriptVMCurActor->unkD0.vz);
                         break;
@@ -1188,15 +1209,15 @@ s32 FieldInventoryFindGearPartsSlot(int gearPartId) {
 // Get the array of inventory entry IDs for the given inventory kind
 u_char* FieldInventoryGetIdsArray(int itemId) {
     switch (itemId >> 8) {
-        case 0:
+        case FIELD_INVENTORY_KIND_ITEM:
             return g_pGameState->itemIDs;
-        case 1:
+        case FIELD_INVENTORY_KIND_WEAPON:
             return g_pGameState->weaponIDs;
-        case 2:
+        case FIELD_INVENTORY_KIND_ACCESSORY:
             return g_pGameState->accessoryIDs;
-        case 3:
+        case FIELD_INVENTORY_KIND_GEAR_WEAPON:
             return g_pGameState->gearWeaponsIds;
-        case 4:
+        case FIELD_INVENTORY_KIND_GEAR_PARTS:
             return g_pGameState->gearPartsIds;
     }
     return 0;
@@ -1205,15 +1226,15 @@ u_char* FieldInventoryGetIdsArray(int itemId) {
 // Get the array of inventory entry quantities for the given inventory kind
 u_char* FieldInventoryGetQuantitiesArray(int itemId) {
     switch (itemId >> 8) {
-        case 0:
+        case FIELD_INVENTORY_KIND_ITEM:
             return g_pGameState->itemQuantities;
-        case 1:
+        case FIELD_INVENTORY_KIND_WEAPON:
             return g_pGameState->weaponQuantities;
-        case 2:
+        case FIELD_INVENTORY_KIND_ACCESSORY:
             return g_pGameState->accessoryQuantities;
-        case 3:
+        case FIELD_INVENTORY_KIND_GEAR_WEAPON:
             return g_pGameState->gearWeaponsQty;
-        case 4:
+        case FIELD_INVENTORY_KIND_GEAR_PARTS:
             return g_pGameState->gearPartsQty;
     }
     return 0;
@@ -1222,16 +1243,16 @@ u_char* FieldInventoryGetQuantitiesArray(int itemId) {
 // Find the inventory slot of the given kind holding the given ID
 s32 FieldInventoryFindSlotById(s32 itemId) {
     switch (itemId >> 8) {
-        case 0:
+        case FIELD_INVENTORY_KIND_ITEM:
             return FieldInventoryFindItemSlot(itemId);
-        case 1:
-            return FieldInventoryFindWeaponSlot(itemId - 0x100);
-        case 2:
-            return FieldInventoryFindAccessorySlot(itemId - 0x200);
-        case 3:
-            return FieldInventoryFindGearWeaponSlot(itemId - 0x300);
-        case 4:
-            return FieldInventoryFindGearPartsSlot(itemId - 0x400);
+        case FIELD_INVENTORY_KIND_WEAPON:
+            return FieldInventoryFindWeaponSlot(itemId - (FIELD_INVENTORY_KIND_WEAPON << 8));
+        case FIELD_INVENTORY_KIND_ACCESSORY:
+            return FieldInventoryFindAccessorySlot(itemId - (FIELD_INVENTORY_KIND_ACCESSORY << 8));
+        case FIELD_INVENTORY_KIND_GEAR_WEAPON:
+            return FieldInventoryFindGearWeaponSlot(itemId - (FIELD_INVENTORY_KIND_GEAR_WEAPON << 8));
+        case FIELD_INVENTORY_KIND_GEAR_PARTS:
+            return FieldInventoryFindGearPartsSlot(itemId - (FIELD_INVENTORY_KIND_GEAR_PARTS << 8));
     }
     return 0;
 }
@@ -1239,15 +1260,15 @@ s32 FieldInventoryFindSlotById(s32 itemId) {
 // Find the first unused inventory slot of the given kind
 s32 FieldInventoryFindEmptySlotById(s32 itemId) {
     switch (itemId >> 8) {
-        case 0:
+        case FIELD_INVENTORY_KIND_ITEM:
             return FieldInventoryFindEmptyItemSlot();
-        case 1:
+        case FIELD_INVENTORY_KIND_WEAPON:
             return FieldInventoryFindEmptyWeaponSlot();
-        case 2:
+        case FIELD_INVENTORY_KIND_ACCESSORY:
             return FieldInventoryFindEmptyAccessorySlot();
-        case 3:
+        case FIELD_INVENTORY_KIND_GEAR_WEAPON:
             return FieldInventoryFindEmptyGearWeaponSlot();
-        case 4:
+        case FIELD_INVENTORY_KIND_GEAR_PARTS:
             return FieldInventoryFindEmptyGearPartsSlot();
     }
     return 0;
@@ -1313,7 +1334,7 @@ void FieldScriptHandleTriggerZone2D(void) {
         NormalClip(triggerPos4, triggerPos1, actorPosition2D) >= 0
     ) {
         // If we're inside the trigger zone, call script function based on argument
-        if (g_FieldScriptVMCurActor->flags12C_0x6 != 0x4) {
+        if (g_FieldScriptVMCurActor->flags12C_0x6 != SCRIPT_MAX_STACK_SIZE) {
             g_FieldScriptVMCurActor->scriptPointersStack[g_FieldScriptVMCurActor->flags12C_0x6] = g_FieldScriptVMCurActor->scriptInstructionPointer + 4;
             g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(2);
             g_FieldScriptVMCurActor->flags12C_0x6++;;
@@ -1357,7 +1378,7 @@ void FieldScriptHandleTriggerZone(void) {
             NormalClip(triggerPos4, triggerPos1, actorPosition2D) >= 0
         ) {
             // If we're inside the trigger zone, call script function based on argument
-            if (g_FieldScriptVMCurActor->flags12C_0x6 != 0x4) {
+            if (g_FieldScriptVMCurActor->flags12C_0x6 != SCRIPT_MAX_STACK_SIZE) {
                 g_FieldScriptVMCurActor->scriptPointersStack[g_FieldScriptVMCurActor->flags12C_0x6] = g_FieldScriptVMCurActor->scriptInstructionPointer + 4;
                 g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptVMGetInstructionArgument(2);
                 g_FieldScriptVMCurActor->flags12C_0x6++;;
@@ -1568,7 +1589,7 @@ void FieldScriptCheckActorDistance(void) {
     int actorIndex;
 
     actorIndex = FieldScriptVMGetActorIndex(1);
-    if (actorIndex != 0xFF) {
+    if (actorIndex != ACTOR_ID_INVALID) {
         pFieldActor = &g_FieldActors[FieldScriptVMGetActorIndex(1)];
         
         pActor = g_FieldScriptVMCurFieldActor->pActorData;
