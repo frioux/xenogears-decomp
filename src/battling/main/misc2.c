@@ -118,21 +118,21 @@ typedef struct {
 } BattlePartTiming; // Size: 0x2
 
 /* One of the 0x44-byte effect slots the actor owns at +0x64C; src/battling/
-   main/misc4.c clears the same records (in-use byte and unk40). */
+   main/misc4.c clears the same records (in-use byte and life). */
 typedef struct {
-    /* 0x00 */ VECTOR unk00;
-    /* 0x10 */ VECTOR unk10;
-    /* 0x20 */ SVECTOR unk20;
-    /* 0x28 */ SVECTOR unk28;
+    /* 0x00 */ VECTOR pos;
+    /* 0x10 */ VECTOR prevPos;
+    /* 0x20 */ SVECTOR velocity;
+    /* 0x28 */ SVECTOR direction;
     /* 0x30 */ u8 active;
     /* 0x31 */ u8 scale;
-    /* 0x32 */ u8 unk32;
-    /* 0x33 */ u8 unk33;
+    /* 0x32 */ u8 drawKind;
+    /* 0x33 */ u8 mode;
     /* 0x34 */ u8 pad34[0x4];
-    /* 0x38 */ s32 unk38;
-    /* 0x3C */ s16 unk3C;
-    /* 0x3E */ s16 unk3E;
-    /* 0x40 */ s16 unk40;
+    /* 0x38 */ s32 key;
+    /* 0x3C */ s16 percent;
+    /* 0x3E */ s16 dirWeight;
+    /* 0x40 */ s16 life;
     /* 0x42 */ u8 pad42[0x2];
 } BattleEffectSlot; // Size: 0x44
 
@@ -192,8 +192,8 @@ struct Actor {
     /* 0x15F0 */ u8 pad15F0[0x2];
     /* 0x15F2 */ s16 speedScale;
     /* 0x15F4 */ u8 pad15F4[0x60];
-    /* 0x1654 */ s32 unk1654;
-    /* 0x1658 */ s32 unk1658;
+    /* 0x1654 */ s32 gaugeLevelsMode1;
+    /* 0x1658 */ s32 gaugeLevelsMode2;
 }; // Size: unknown
 
 /* The 0x60-entry effect context allocated by BattleEffectInitContext. The
@@ -357,12 +357,12 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
 
 /* Draw parameters for one effect type, indexed by the caller's type id. */
 typedef struct {
-    /* 0x0 */ u16 unk0;
-    /* 0x2 */ u8 unk2;
-    /* 0x3 */ u8 unk3;
-    /* 0x4 */ u8 unk4;
-    /* 0x5 */ u8 unk5;
-    /* 0x6 */ u8 unk6;
+    /* 0x0 */ u16 dirWeight;
+    /* 0x2 */ u8 drawKind;
+    /* 0x3 */ u8 life;
+    /* 0x4 */ u8 scale;
+    /* 0x5 */ u8 mode;
+    /* 0x6 */ u8 soundId;
     /* 0x7 */ u8 pad7;
 } BattleEffectTemplate; // Size: 0x8
 
@@ -402,20 +402,20 @@ void BattleSpawnEffectSlot(VECTOR *p0, VECTOR *p1, Actor *p2, s32 arg3, s32 arg4
     } else {
         vDiff = vNormal;
     }
-    BattleNormalizeVectorToShort(&vDiff, &pSlot->unk28);
-    pSlot->unk3E = pEntry->unk0;
-    pSlot->scale = pEntry->unk4;
-    pSlot->unk40 = pEntry->unk3;
-    pSlot->unk32 = pEntry->unk2;
-    pSlot->unk33 = pEntry->unk5;
-    pSlot->unk38 = arg5;
-    pSlot->unk3C = arg4;
-    if (pEntry->unk6 != 0) {
-        func_8008EBD0(p2, pEntry->unk6, pSlot, 2);
+    BattleNormalizeVectorToShort(&vDiff, &pSlot->direction);
+    pSlot->dirWeight = pEntry->dirWeight;
+    pSlot->scale = pEntry->scale;
+    pSlot->life = pEntry->life;
+    pSlot->drawKind = pEntry->drawKind;
+    pSlot->mode = pEntry->mode;
+    pSlot->key = arg5;
+    pSlot->percent = arg4;
+    if (pEntry->soundId != 0) {
+        func_8008EBD0(p2, pEntry->soundId, pSlot, 2);
     }
-    BattleScaleSVectorGpf12(&pSlot->unk28, &pSlot->unk20, pSlot->scale);
-    pSlot->unk00 = *p0;
-    pSlot->unk10 = pSlot->unk00;
+    BattleScaleSVectorGpf12(&pSlot->direction, &pSlot->velocity, pSlot->scale);
+    pSlot->pos = *p0;
+    pSlot->prevPos = pSlot->pos;
     pSlot->active = 1;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073644);
@@ -533,10 +533,10 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
     p0->gaugeLevel = q;
     switch (arg2) {
     case 1:
-        p0->unk1654 += (s16)q;
+        p0->gaugeLevelsMode1 += (s16)q;
         break;
     case 2:
-        p0->unk1658 += (s16)q;
+        p0->gaugeLevelsMode2 += (s16)q;
         break;
     }
     return 1;
@@ -836,16 +836,16 @@ void BattleSetResultCode(s32 arg0) {
     }
     v = p->gaugeMax;
     a = (v * 176) / BATTLE_GAUGE_FRACTION_SCALE;
-    if (a < p->unk1654) {
+    if (a < p->gaugeLevelsMode1) {
         g_BattleResultCode = 0x83;
         return;
     }
     b = (v * 160) / BATTLE_GAUGE_FRACTION_SCALE;
-    if (b < p->unk1658) {
+    if (b < p->gaugeLevelsMode2) {
         g_BattleResultCode = 0x84;
         return;
     }
-    if (a < p->unk1658 + p->unk1654) {
+    if (a < p->gaugeLevelsMode2 + p->gaugeLevelsMode1) {
         g_BattleResultCode = 0x85;
         return;
     }
