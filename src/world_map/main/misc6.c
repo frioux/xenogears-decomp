@@ -4,6 +4,16 @@
 #include "system/memory.h"
 #include "psyq/memory.h"
 
+// g_SoundControlFlags bit: an SPU transfer command is in flight (owned by
+// include/system/sound.h, which this unit does not include)
+#define SOUND_CTL_FLAG_TRANSFER_BUSY (1 << 4)
+
+// the SPU's maximum volume, which SoundPlayAudioManager takes as its volume
+#define SPU_VOL_MAX 0x7F
+
+// frames SoundSetAudioManagerVolumeWithFade takes to reach silence
+#define WORLD_MAP_SOUND_FADE_OUT_FRAMES 240
+
 // the slot actor's fixed facing angle, as the cosine/sine pair its rotation
 // matrix (WorldMapUpdateSlotActor) is built from, in 1.12 fixed point
 #define WORLD_MAP_SLOT_FACING_COS 0xDA6
@@ -21,6 +31,10 @@
 // a slot's type is its actor index minus the group actors ahead of it in the
 // slot table (WorldMapInitSlotActor, and the group the slot drives)
 #define WORLD_MAP_SLOT_ACTOR_INDEX_BASE 4
+
+// frames a slot holds its scale after it is reset to full before state 1 starts
+// shrinking it (WorldMapInitSlotActor and the slot's command-2 handler)
+#define WORLD_MAP_SLOT_SCALE_HOLD_FRAMES 60
 
 // the map display buffer copied into VRAM when a mode initialises, and the
 // VRAM position it is copied to
@@ -453,13 +467,13 @@ void func_8007D918(void) {
         WorldMapUpdateLoadQueue();
         Vsync(0);
     } while (WorldMapGetQueuedLoadCount() > 0);
-    while (g_SoundControlFlags & 0x10) {
+    while (g_SoundControlFlags & SOUND_CTL_FLAG_TRANSFER_BUSY) {
     }
     HeapFree(g_WorldMapWdsFileBuffer);
     SoundAddSedsEntry(g_MenuSedsFile);
     memcpy(g_SoundBankLoadBuffer, g_WorldMapSoundBankBuffer, ArchiveDecodeAlignedSize(g_WorldMapSoundBankFileIndex));
     g_SoundAudioManager = SoundCreateAudioManagerOnHeap(g_SoundBankLoadBuffer);
-    SoundPlayAudioManager(g_SoundAudioManager, 0x7F, 0);
+    SoundPlayAudioManager(g_SoundAudioManager, SPU_VOL_MAX, 0);
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapSetActorScriptTables, func_8007DE98);
     WorldMapAddSlot(func_8007E450, func_8007E4E4);
@@ -482,7 +496,7 @@ void WorldMapExitToMap1A1(void) {
     u16 unkWord;
     u16 unkValue;
 
-    SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
+    SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, WORLD_MAP_SOUND_FADE_OUT_FRAMES);
     SoundStopAllElements();
     SoundRemoveSedsEntry(g_MenuSedsFile);
     HeapFree(g_MenuSedsFile);
@@ -894,7 +908,7 @@ int WorldMapInitSlotActor(int index) {
     pActor->state = 0;
     pActor->dirY = 0;
     unkValue = g_WorldMapSlotScales[nType];
-    pActor->stateTimer = 60;
+    pActor->stateTimer = WORLD_MAP_SLOT_SCALE_HOLD_FRAMES;
     pActor->scale = unkValue;
     return 1;
 }
@@ -920,7 +934,7 @@ int WorldMapUpdateSlotActor(int index) {
         pActor->state = 1;
         break;
     case 2:
-        pActor->stateTimer = 60;
+        pActor->stateTimer = WORLD_MAP_SLOT_SCALE_HOLD_FRAMES;
         pActor->dirX = -WORLD_MAP_SLOT_FACING_SIN;
         pActor->dirZ = WORLD_MAP_SLOT_FACING_COS;
         pActor->state = (pActor->command = 0);
