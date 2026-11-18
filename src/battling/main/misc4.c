@@ -1,6 +1,22 @@
 #include "common.h"
 #include "psyq/libgte.h"
 
+// flags bit 18: cleared at the top of every movement update and set when the floor
+// stops the actor's fall, i.e. the actor stands on the ground this frame (misc3
+// gates its walking velocity on it).
+#define BATTLE_ACTOR_FLAG_GROUNDED 0x40000
+// flags bits 29-30: the grid cell type BattleGetGridCellAtPosition reports for the
+// actor's position, shifted in every frame by BattleActorUpdateGroundMovement.
+#define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
+// The fall speed at which a landing in state 4 bounces back instead of stopping.
+#define BATTLE_ACTOR_BOUNCE_VY_MIN 0x40
+// A quarter of the 12-bit angle rcos/rsin/ratan2 work in: the base facing each side
+// starts at (misc3's BATTLE_ANGLE_HALF_TURN is the half turn of the same space).
+#define BATTLE_ANGLE_QUARTER_TURN 0x400
+// g_BattleTransitionCountdown is a byte countdown, so BattleSaveActorVectors
+// saturates it at this.
+#define BATTLE_TRANSITION_COUNTDOWN_MAX 255
+
 extern s32 g_BattleMotionSpeedScale;
 extern s32 g_BattleBothCombatantsDownCount;
 extern s32 g_BattleElapsedFrames;
@@ -486,21 +502,22 @@ void BattleActorUpdateGroundMovement(Actor* p) {
     s32 tmp[4]; // unused: reproduces the original's 0x10-byte frame slot
 
     p->floorY = func_80082488(p, 1);
-    p->flags = (p->flags & 0x9FFFFFFF) | (((BattleGetGridCellAtPosition(p) >> 24) & 3) << 29);
-    if ((p->flags & 0x60000000) == 0x60000000) {
+    p->flags = (p->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) |
+               (((BattleGetGridCellAtPosition(p) >> 24) & 3) << 29);
+    if ((p->flags & BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) == BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) {
         p->timer = 0xF;
     }
     BattleMovePointInsideRadius(p, &p->vx, 0x3E80);
-    p->flags &= 0xFFFBFFFF;
+    p->flags &= ~BATTLE_ACTOR_FLAG_GROUNDED;
     if (p->floorY < p->y + p->vy) {
-        p->flags |= 0x40000;
+        p->flags |= BATTLE_ACTOR_FLAG_GROUNDED;
         if (p->state == 4) {
             if (!(p->stateFlags & 0x10)) {
                 func_8008EBD0(p, 0xD, p, 2);
                 BattleUpdateControllerActuator(p, 6);
             }
             p->stateFlags |= 0x10;
-            if (p->vy >= 0x40) {
+            if (p->vy >= BATTLE_ACTOR_BOUNCE_VY_MIN) {
                 p->vy = -p->vy / 3;
             } else {
                 p->vy = 0;
@@ -765,8 +782,8 @@ void BattleResetState(void) {
 
 // char return (value unused): retail's `beqz` delay slot holds a nop, and a void
 // return lets gcc reorg steal the first insn of the if-body into it.
-char BattleResetForNextRound(void) {    g_BattleActor1.sideBaseAngle = 0x400;
-    g_BattleActor0.sideBaseAngle = -0x400;
+char BattleResetForNextRound(void) {    g_BattleActor1.sideBaseAngle = BATTLE_ANGLE_QUARTER_TURN;
+    g_BattleActor0.sideBaseAngle = -BATTLE_ANGLE_QUARTER_TURN;
     func_80078F00(&g_BattleActor1);
     func_80078F00(&g_BattleActor0);
     BattleEffectClearEntrySlots(g_BattleEffect);
@@ -834,11 +851,11 @@ void BattleResetUnk92640(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
 void BattleSaveActorVectors(s32 unk0) {
-    if (unk0 < 0xFF) {
+    if (unk0 < BATTLE_TRANSITION_COUNTDOWN_MAX) {
         g_BattleTransitionCountdown = unk0 - 2;
         g_BattleStateSlotIndex -= unk0;
     } else {
-        g_BattleTransitionCountdown = 0xFF;
+        g_BattleTransitionCountdown = BATTLE_TRANSITION_COUNTDOWN_MAX;
     }
     *(VECTOR*)&g_BattleSavedPositions = *(VECTOR*)&g_BattleActor1;
     *(VECTOR*)&D_80092A44 = *(VECTOR*)&g_BattleActor0;
