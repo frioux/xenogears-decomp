@@ -426,12 +426,15 @@ extern s32 g_BattleMessageShownIndex;
 
 // The battle message window the tutorial text is drawn into: the box rectangle
 // func_80032F54 fills in, the line count at +0xC and the redraw flag at +0x68.
+// The record is a SystemString (src/slus_006.64/system/system.c owns it, and the
+// global is 0x90 bytes up to g_BattleCameraPos), so +0x0/+0x2/+0x8 are that
+// struct's lineWidth/charIndex/spriteWidth.
 typedef struct {
-    /* 0x00 */ s16 unk0;
-    /* 0x02 */ s16 unk2;
+    /* 0x00 */ s16 lineWidth;
+    /* 0x02 */ s16 charIndex;
     /* 0x04 */ s16 x;
     /* 0x06 */ s16 y;
-    /* 0x08 */ s16 unk8;
+    /* 0x08 */ s16 spriteWidth;
     /* 0x0A */ s16 flags;
     /* 0x0C */ s16 lineCount;
     /* 0x0E */ u8 unkE[0x5A];
