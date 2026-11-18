@@ -3,7 +3,7 @@
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
 // the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, g_BattleSlotWordRegs and
-// D_800D3430 are its +0x10, +0x20 and +0x30 arrays; the handlers below read the
+// g_BattleSlotByteRegs are its +0x10, +0x20 and +0x30 arrays; the handlers below read the
 // operand indexes from the slot's current instruction (BattleCommand) and apply
 // the operation to that slot's registers.
 typedef struct {
@@ -44,7 +44,7 @@ extern u8 *g_BattlePrimPool;
 extern u8 *g_BattleSlotParamTable;
 extern u8 g_BattleSlotRows[];
 extern u8 g_BattleSlotWordRegs[];
-extern u8 D_800D3430[];
+extern u8 g_BattleSlotByteRegs[];
 extern u8 D_800C3EB7[];
 extern u8 g_BattleSlotStatusRows[];
 extern u8 D_800CD1B2[];

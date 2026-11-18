@@ -4,7 +4,7 @@
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
 // the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, g_BattleSlotWordRegs,
-// D_800D3430 and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F, and the two
+// g_BattleSlotByteRegs and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F, and the two
 // cursors at +0x00/+0x08 are those include/battle/actor.h's BattleSlotRegs names.
 typedef struct {
     /* 0x00 */ u8 *pScriptCursor;
@@ -20,7 +20,7 @@ extern BattleOpRegs g_BattleSlotRegs[];
 extern u8 g_BattleSlotRows[];
 extern u8 g_BattleSlotWordRegs[];
 extern u8 D_800D342E[];
-extern u8 D_800D3430[];
+extern u8 g_BattleSlotByteRegs[];
 extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
 extern u8 g_BattleCommandArgs;
@@ -317,7 +317,7 @@ void func_8007B9C8(u8 **p, u8 index) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // best: 98.12%. Sole gap: the pTable sum is formed into the base register (v0)
 // where retail reuses the index register (a1); every other register and
-// instruction matches, including the D_800D3430 base derived as
+// instruction matches, including the g_BattleSlotByteRegs base derived as
 // g_BattleSlotWordRegs+0x10. Permuter score 30 is this body and 778 more iterations found
 // nothing better; writing the index term first fixes the addu operand order but
 // moves the *p load to v1 and drops to 95.94%.
@@ -329,7 +329,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // so retail's pTable dst and pArgs do NOT collide). Every shape that commutes
 // the sum (a `u32 slot` local, `index * 0x40 + (u8 *)(g_BattleSlotWordRegs + 0x10)`,
 // the same with (*p)[1] inline so the load is CSE'd) gives retail's
-// `addu a1,a1,v0` but moves the load to v1 -> 95.94. Spelling D_800D3430
+// `addu a1,a1,v0` but moves the load to v1 -> 95.94. Spelling g_BattleSlotByteRegs
 // directly gives it its own lui/addiu (88.38), so the +0x10 really is derived
 // from the base.
 /*

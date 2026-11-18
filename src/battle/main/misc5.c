@@ -479,12 +479,12 @@ void BattleByteRegAddImmClamp(BattleCommand **pCommand, u8 arg1) {
 
 /* 61.47% - clamp to 0xFF. Original keeps the sum in v0 and copies it to the
    store register v1 (move v1,v0 in the bnez delay slot) and materialises the
-   D_800D3430 lui/addiu after the pointer load; gcc puts the sum straight in v1
+   g_BattleSlotByteRegs lui/addiu after the pointer load; gcc puts the sum straight in v1
    and the base 2 insns early. Tried: if/else with a res local (47.26%,
    branchless/min form), ternary, if-without-else, separate base/idx locals.
 void BattleByteRegAddImmClamp(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = g_BattleSlotByteRegs + arg1 * 0x40;
     s32 v = pRow[p->operand1] + p->operand2;
 
     if (v >= 0x100) {
@@ -505,12 +505,12 @@ void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
 }
 /* 67.00% - clamp at 0. Same miss as BattleByteRegAddImmClamp: the original keeps
    mem-p->operand2 in v0 and copies it into the store register v1 (move v1,v0 in the
-   bgez delay slot), and forms the D_800D3430 base after the pointer load.
+   bgez delay slot), and forms the g_BattleSlotByteRegs base after the pointer load.
    Tried: if/else with a res local (60.24%, branchless add/subu/sra/and form),
    v-first declaration orders.
 void BattleByteRegSubImmClamp(BattleCommand **pCommand, u8 arg1) {
     BattleCommand *p = *pCommand;
-    u8 *pRow = D_800D3430 + arg1 * 0x40;
+    u8 *pRow = g_BattleSlotByteRegs + arg1 * 0x40;
     s32 v = pRow[p->operand1] - p->operand2;
 
     if (v < 0) {

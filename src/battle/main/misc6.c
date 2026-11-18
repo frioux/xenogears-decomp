@@ -1,9 +1,9 @@
 #include "common.h"
 
-// Operator argument tables: g_BattleSlotWordRegs is the 16-bit field table, D_800D3430
+// Operator argument tables: g_BattleSlotWordRegs is the 16-bit field table, g_BattleSlotByteRegs
 // the 8-bit one; both are indexed by (*p + 0x3) << 6-style slot * 0x40 bytes.
 extern u8 g_BattleSlotWordRegs[];
-extern u8 D_800D3430[];
+extern u8 g_BattleSlotByteRegs[];
 
 // All four stubs in this unit are one and the same miss: retail holds the table base
 // in $v0 while our gcc gives it $v1, the second entry of mips REG_ALLOC_ORDER (a
