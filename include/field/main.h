@@ -13,6 +13,9 @@
 
 // FieldScene.unk48 flags
 #define FIELD_SCENE_INTERPOLATING_SCREEN_Z 0x10
+// Bits of FieldScene.unk48: an encounter is pending / a random encounter is armed
+#define FIELD_SCENE_ENCOUNTER_FLAG 0x8000
+#define FIELD_SCENE_RANDOM_ENCOUNTER_FLAGS 0xC000
 
 typedef struct {
     // There could potentially be more fields to the struct here

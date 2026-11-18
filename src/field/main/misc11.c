@@ -27,8 +27,6 @@
 
 // FieldScene.unk48 bits: SetSceneEncounterFlag sets the first,
 // SetRandomEncounterFlags sets both
-#define FIELD_SCENE_ENCOUNTER_FLAG 0x8000
-#define FIELD_SCENE_RANDOM_ENCOUNTER_FLAGS 0xC000
 
 // StepActorMoveOn/Off read a direction angle (0..0xFFF) here; these two step
 // along Y instead, decreasing / increasing it
