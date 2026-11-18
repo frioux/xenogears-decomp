@@ -158,7 +158,7 @@ extern u16 BattleMaskHasSlotBit(u16, u8);
 u8 BattleFindFirstFlagTableMatch(u16 arg0) {
     s32 i;
 
-    for (i = 0; i < 0xB; i++) {
+    for (i = 0; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(arg0, i) != 0) {
             break;
         }
