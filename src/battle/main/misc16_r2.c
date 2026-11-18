@@ -70,8 +70,8 @@ extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 typedef struct {
     /* 0x0 */ u16 x;
     /* 0x2 */ u16 y;
-    /* 0x4 */ u16 unk4;
-    /* 0x6 */ u16 unk6;
+    /* 0x4 */ u16 targetW; // size the expand animation grows w to
+    /* 0x6 */ u16 targetH; // size the expand animation grows h to
     /* 0x8 */ u16 w;
     /* 0xA */ u16 h;
     /* 0xC */ u8 slot;
@@ -86,10 +86,10 @@ typedef struct {
     /* 0x000 */ u8 unk0[0x66A];
     /* 0x66A */ u8 primStart; // prim index the menu cell prims were built at
     /* 0x66B */ u8 primsPending; // set once the cell prims are in the pool
-    /* 0x66C */ u8 unk66C;
+    /* 0x66C */ u8 numberPrimStart; // prim index the number prims were built at
     /* 0x66D */ u8 labelDrawn; // set by the cell that drew its label string
-    /* 0x66E */ u8 unk66E;
-    /* 0x66F */ u8 unk66F;
+    /* 0x66E */ u8 digitCount; // digit prims written into that bank
+    /* 0x66F */ u8 numberPrimsPending; // set once the number prims are in the pool
 } BattleMenuPrims; // Size: 0x670
 
 
@@ -101,7 +101,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FAD8);
    compiler behaviour: retail reloads each field inside the clamp arms
    (`lhu v0,8(a0); nop; addiu v0,v0,0x20` and `lhu v0,4(a0)`), i.e. the compare's
    operands are dead across the branch; 2.7.2 CSEs them into the compare registers
-   (a2 = w, a1 = unk4) and the two `sh v0,8(a0)` stores can no longer cross-jump
+   (a2 = w, a1 = targetW) and the two `sh v0,8(a0)` stores can no longer cross-jump
    into one. gcc 2.6.0 emits retail's exact reload shape with this source, and the
    four functions already matched in this unit stay 100.00 under 2.6.0
    (try_flags.sh --all), so the unit belongs on the same 2.6.0 preset as its
@@ -130,14 +130,14 @@ void func_8008FAD8(void) {
             continue;
         }
         count = 0;
-        if (p->w + 0x20 >= p->unk4) {
-            p->w = p->unk4;
+        if (p->w + 0x20 >= p->targetW) {
+            p->w = p->targetW;
             count++;
         } else {
             p->w += 0x20;
         }
-        if (p->h + 0x20 >= p->unk6) {
-            p->h = p->unk6;
+        if (p->h + 0x20 >= p->targetH) {
+            p->h = p->targetH;
             count++;
         } else {
             p->h += 0x20;
@@ -145,8 +145,8 @@ void func_8008FAD8(void) {
         if (count == 2) {
             *(g_BattleDisplayState + i + 0xBF) = 1;
         }
-        x = p->x + (p->unk4 >> 1) - (p->w >> 1);
-        y = p->y + (p->unk6 >> 1) - (p->h >> 1);
+        x = p->x + (p->targetW >> 1) - (p->w >> 1);
+        y = p->y + (p->targetH >> 1) - (p->h >> 1);
         func_8008F6E4(p->slot, x, y, p->w, p->h);
     }
 }
