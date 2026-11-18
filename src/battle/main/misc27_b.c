@@ -12,7 +12,7 @@ extern void func_800C08CC();
 extern void func_800B3CD4();
 extern void func_800B51B0();
 extern void BattleIntegrateSpriteVelocityTask();
-extern void func_800B5DF4();
+extern void BattleDrawActorLinePrim();
 extern void func_800B6004();
 extern void BattleUpdateDistanceWaitTask();
 extern u8* TimerWorkListAllocateTask();
@@ -228,7 +228,7 @@ extern MATRIX g_BattleSpriteOwnMatrix;
 // call site (no matrix pointer variable) is what makes cc1 tie %hi and %lo into the
 // same register. Selecting the matrix into a variable first gives
 // "lui v0,%hi(sym) / addiu s0,v0,%lo(sym)" instead of retail's "lui s0 / addiu s0,s0".
-void func_800B5DF4(WorkListEntry* pWork) {
+void BattleDrawActorLinePrim(WorkListEntry* pWork) {
     s32 ofs;
     s32 flag;
     s32 otz;
@@ -290,7 +290,7 @@ void BattleSetSpriteDrawWorkCallback(SpriteData* pSpriteData) {
 
     pSpriteData->curSpriteFrame = 1;
     pTask = pSpriteData->field_0x6C;
-    WorkListSetTaskCallback(&pTask->drawEntry, func_800B5DF4);
+    WorkListSetTaskCallback(&pTask->drawEntry, BattleDrawActorLinePrim);
     pSpriteData->prim = 0x40;
 }
 void func_800B6004(WorkListEntry* pWork) {

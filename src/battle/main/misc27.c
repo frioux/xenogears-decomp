@@ -16,7 +16,7 @@ extern void func_800B50D4();
 extern void func_800B5588();
 extern u8 D_800C356C[];
 extern void BattleIntegrateSpriteVelocityTask();
-extern void func_800B5DF4();
+extern void BattleDrawActorLinePrim();
 extern void func_800B6004();
 extern void BattleGetActorJointOffset();
 extern void BattleUpdateDistanceWaitTask();
