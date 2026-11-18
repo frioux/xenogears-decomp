@@ -361,10 +361,10 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     return 1;
 }
 typedef struct {
-    s16 unk0;
-    s16 unk2;
-    s16 unk4;
-    s16 unk6;
+    s16 fileIndex;
+    s16 tileColumns;
+    s16 tileRows;
+    s16 areaMode;
 } WorldMapTableEntry; // Size: 0x8
 
 extern u16 D_8009B564;
@@ -427,19 +427,19 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     } else {
         pEntry = (WorldMapTableEntry*)(arg0 * 8 + (s32)&D_8009B58C);
     }
-    D_8009D3C4 = pEntry->unk0 + 1;
-    D_8009C17C = pEntry->unk0 + 2;
-    g_WorldMapReloadFileIndex = pEntry->unk0 + 3;
-    g_WorldMapWdsFileIndex = pEntry->unk0 + 4;
-    g_WorldMapSoundBankFileIndex = pEntry->unk0 + 5;
-    g_WorldMapSedsBankFileIndex = pEntry->unk0 + 6;
-    g_WorldMapMode7SoundBankFileIndex = pEntry->unk0 + 7;
-    g_WorldMapExtraFileIndex = pEntry->unk0 + 8;
-    g_WorldMapGridImageFileIndex = pEntry->unk0 + 9;
-    D_8009BD08 = pEntry->unk0 + 0xA;
-    g_WorldMapTileColumns = pEntry->unk2;
-    g_WorldMapTileRows = pEntry->unk4;
-    g_WorldMapAreaMode = pEntry->unk6;
+    D_8009D3C4 = pEntry->fileIndex + 1;
+    D_8009C17C = pEntry->fileIndex + 2;
+    g_WorldMapReloadFileIndex = pEntry->fileIndex + 3;
+    g_WorldMapWdsFileIndex = pEntry->fileIndex + 4;
+    g_WorldMapSoundBankFileIndex = pEntry->fileIndex + 5;
+    g_WorldMapSedsBankFileIndex = pEntry->fileIndex + 6;
+    g_WorldMapMode7SoundBankFileIndex = pEntry->fileIndex + 7;
+    g_WorldMapExtraFileIndex = pEntry->fileIndex + 8;
+    g_WorldMapGridImageFileIndex = pEntry->fileIndex + 9;
+    D_8009BD08 = pEntry->fileIndex + 0xA;
+    g_WorldMapTileColumns = pEntry->tileColumns;
+    g_WorldMapTileRows = pEntry->tileRows;
+    g_WorldMapAreaMode = pEntry->areaMode;
 }
 */
 
@@ -1184,7 +1184,7 @@ typedef struct {
     /* 0x08 */ s32 modelOffset;
     /* 0x0C */ s32 modelRelocOffset;
     /* 0x10 */ s32 spriteSetOffset;
-    /* 0x14 */ s32 unk14;
+    /* 0x14 */ s32 primBlocksOffset;
     /* 0x18 */ s32 spriteGroupOffset;
     /* 0x1C */ s32 stringTableOffset;
     /* 0x20 */ s32 tileAnimOffset;
@@ -1237,7 +1237,7 @@ void WorldMapDecompressMapTables(void) {
     g_WorldMapSpriteSetTable = (s32)(pBase + pHeader->spriteSetOffset);
     // second live copy of the block base, as retail's codegen has
     pMapBase = pBase;
-    g_WorldMapPrimBlocks = (s32)(pMapBase + pHeader->unk14);
+    g_WorldMapPrimBlocks = (s32)(pMapBase + pHeader->primBlocksOffset);
     g_WorldMapSpriteGroups = (s32)(pMapBase + pHeader->spriteGroupOffset);
     g_WorldMapStringTable = (s32)(pMapBase + pHeader->stringTableOffset);
     g_WorldMapTileAnimSet = (s32)(pMapBase + pHeader->tileAnimOffset);
@@ -1730,10 +1730,10 @@ extern void* g_WorldMapSlotPrimsCopy;
 extern s32 g_WorldMapSlotPositionIndex;
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
-    /* 0x2 */ s16 unk2;
-    /* 0x4 */ s16 unk4;
-    /* 0x6 */ s16 unk6;
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+    /* 0x4 */ s16 z;
+    /* 0x6 */ s16 pad6;
 } WorldMapSlot; // Size: 0x8
 
 typedef struct {
@@ -1756,9 +1756,9 @@ void WorldMapAllocPrimBuffers(void) {
     g_WorldMapSlotPrimsCopy = HeapAlloc(WORLD_MAP_SLOT_COUNT * sizeof(POLY_FT4), 0);
     pSlot = (WorldMapSlot*)g_WorldMapSlotPositions;
     for (i = WORLD_MAP_SLOT_COUNT - 1; i != -1; i--) {
-        pSlot->unk4 = 0;
-        pSlot->unk2 = 0;
-        pSlot->unk0 = 0;
+        pSlot->z = 0;
+        pSlot->y = 0;
+        pSlot->x = 0;
         pSlot++;
     }
     pPrim = (POLY_FT4*)g_WorldMapSlotPrims;
