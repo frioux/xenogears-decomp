@@ -13,9 +13,9 @@ extern VECTOR g_WorldMapClipPlaneXZ1;
 extern VECTOR g_WorldMapClipPlaneYZ0;
 
 typedef struct {
-    /* 0x0 */ s32 unk0;
-    /* 0x4 */ s32 unk4;
-    /* 0x8 */ s32 unk8;
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
 } WorldMapMisc16Struct; // Size: 0xC
 
 extern u16 g_WorldMapSlotUpdateFlags;
@@ -23,20 +23,20 @@ extern s16 g_WorldMapGridOrigin;
 extern s16 D_8009C83C;
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
+    /* 0x0 */ s16 sin;
     /* 0x2 */ s16 pad2;
 } WorldMapMisc16TblEntry; // Size: 0x4
 
 typedef struct {
-    /* 0x0 */ u32 unk0;
-    /* 0x4 */ s16 unk4;
+    /* 0x0 */ u32 vxy;
+    /* 0x4 */ s16 vz;
     /* 0x6 */ u16 pad6;
 } WorldMapMisc16Pkt; // Size: 0x8
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
+    /* 0x0 */ s16 x;
     /* 0x2 */ s16 pad2;
-    /* 0x4 */ s16 unk4;
+    /* 0x4 */ s16 y;
 } WorldMapMisc16Rect; // Size: 0x6
 
 typedef struct {
@@ -64,35 +64,35 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);
    constant and of the y local are swapped (retail y=a2, const=a0; ours y=a0,
    const=a2), an allocator tie - 4 decl/init orders all give the same pairing.
    Shapes that are now right and must stay: x and y are BOTH locals loaded before
-   the g_WorldMapSlotUpdateFlags store (that is the retail top: unk0 load, unk8 load, li, sh);
-   the x branch writes p->unk0 = x + / - 0x800000 (a += reloads and emits a
-   per-branch flag store); the y branch reads the y local but reloads p->unk8 for
-   the store; the tail reloads through a y temp (y = p->unk0; g_WorldMapGridOrigin = (y >> 23) + 2;
-   y = p->unk8; D_8009C83C = (y >> 23) + 2;) - the direct form instead lets gcc hoist
+   the g_WorldMapSlotUpdateFlags store (that is the retail top: x load, z load, li, sh);
+   the x branch writes p->x = x + / - 0x800000 (a += reloads and emits a
+   per-branch flag store); the y branch reads the y local but reloads p->z for
+   the store; the tail reloads through a y temp (y = p->x; g_WorldMapGridOrigin = (y >> 23) + 2;
+   y = p->z; D_8009C83C = (y >> 23) + 2;) - the direct form instead lets gcc hoist
    the second load into the first load's delay slot and defer both stores (59 insns, 236 bytes).
 void func_800980D4(WorldMapMisc16Struct* p) {
     s32 y;
     s32 x;
-    x = p->unk0;
-    y = p->unk8;
+    x = p->x;
+    y = p->z;
     g_WorldMapSlotUpdateFlags = 0;
     if (x < -0x800000) {
-        p->unk0 = x + 0x800000;
+        p->x = x + 0x800000;
         g_WorldMapSlotUpdateFlags = 4;
     } else if (x > 0x800000) {
-        p->unk0 = x - 0x800000;
+        p->x = x - 0x800000;
         g_WorldMapSlotUpdateFlags = 8;
     }
     if (y < -0x800000) {
-        p->unk8 += 0x800000;
+        p->z += 0x800000;
         g_WorldMapSlotUpdateFlags |= 1;
     } else if (y > 0x800000) {
-        p->unk8 -= 0x800000;
+        p->z -= 0x800000;
         g_WorldMapSlotUpdateFlags |= 2;
     }
-    y = p->unk0;
+    y = p->x;
     g_WorldMapGridOrigin = (y >> 23) + 2;
-    y = p->unk8;
+    y = p->z;
     D_8009C83C = (y >> 23) + 2;
 }
 */
@@ -119,8 +119,8 @@ void func_800981C8(WorldMapMisc16Struct* p) {
 
     w = g_WorldMapTileColumns;
     h = g_WorldMapTileRows;
-    col = (p->unk0 >> 12) / 8 - ((g_WorldMapGridOrigin + 2) << 8);
-    row = (p->unk8 >> 12) / 8 - ((D_8009C83C + 2) << 8);
+    col = (p->x >> 12) / 8 - ((g_WorldMapGridOrigin + 2) << 8);
+    row = (p->z >> 12) / 8 - ((D_8009C83C + 2) << 8);
     if (col < 0) {
         col += w << 8;
     } else if ((w << 8) < col) {
@@ -208,8 +208,8 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
     CompMatrix(&g_WorldMapViewMatrix, (MATRIX*)0x1F800350, (MATRIX*)0x1F800370);
     SetRotMatrix((MATRIX*)0x1F800370);
     SetTransMatrix((MATRIX*)0x1F800370);
-    *(s32*)0x1F800318 = -((p->unk0 >> 12) & 0x7FF) - 0x1000;
-    *(s32*)0x1F800320 = -((p->unk8 >> 12) & 0x7FF) - 0x1000;
+    *(s32*)0x1F800318 = -((p->x >> 12) & 0x7FF) - 0x1000;
+    *(s32*)0x1F800320 = -((p->z >> 12) & 0x7FF) - 0x1000;
     *(volatile u16*)0x1F80032C = -*(s32*)0x1F800320;
     D_8009D7DC = 0;
     k = 0;
@@ -280,22 +280,22 @@ void func_80099708(u32* pSrc, s32 unk1, s32 unk2, WorldMapMisc16Rect* pRect) {
     pPkt = (WorldMapMisc16Pkt*)0x1F800000;
     pTbl = D_800523F0;
     p = pSrc;
-    x = pRect->unk0;
-    y = pRect->unk4;
+    x = pRect->x;
+    y = pRect->y;
     col = g_WorldMapGridShadePhase;
     for (oi = 8; oi != -1; oi--) {
         xCur = x;
-        iCol = pTbl[col & 0xFFF].unk0 * 2;
+        iCol = pTbl[col & 0xFFF].sin * 2;
         idx = g_WorldMapGridAngle;
         for (ii = 8; ii != -1; ii--) {
             v = *p;
             if (v & 0x1000) {
-                c = (((pTbl[idx & 0xFFF].unk0 * iCol) >> 20) + ((s8)v << 3)) << 16;
+                c = (((pTbl[idx & 0xFFF].sin * iCol) >> 20) + ((s8)v << 3)) << 16;
             } else {
                 c = (s8)v << 19;
             }
-            pPkt->unk0 = c | (xCur & 0xFFFF);
-            pPkt->unk4 = y;
+            pPkt->vxy = c | (xCur & 0xFFFF);
+            pPkt->vz = y;
             xCur += 0x80;
             pPkt++;
             p++;
