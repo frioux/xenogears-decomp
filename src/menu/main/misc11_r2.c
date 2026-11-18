@@ -11,6 +11,15 @@
 #define MENU_CELL_PRIM_BLOCK_SIZE 344
 #define MENU_PRIM_BUFFER_SIZE 11712
 
+// Pixel size of one character cell: the quad extent and the vertex offsets
+// MenuInitializeCellLinePrims writes.
+#define MENU_CELL_SIZE 16
+
+// Digits MenuDrawSlotResourceSprites draws of each of the two slot stats it
+// formats: MenuParseNumberToDigits leaves the value in the tail of
+// g_Menu->digits, any leading digit marked MENU_DIGIT_NONE.
+#define MENU_SLOT_STAT_DIGIT_COUNT 3
+
 
 // The save-slot record this unit writes: a packed copy of the parts of
 // g_GameState that live in a save file.  Everything is word-aligned so the
@@ -378,11 +387,11 @@ void MenuInitializeCellLinePrims(s32 index) {
         ((LINE_F3*)(pBase + i * 0x18 + 0x50))->b0 = 0;
         ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x0 = pX[0];
         ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y0 = pY[0];
-        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x1 = pX[0] + 0x10;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x1 = pX[0] + MENU_CELL_SIZE;
         ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y1 = pY[0];
-        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x2 = pX[0] + 0x10;
-        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y2 = pY[0] + 0x10;
-        MenuSetQuadVertices((SVECTOR*)(pBase + 0x100), pX[0], pY[0], 0x10, 0x10);
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->x2 = pX[0] + MENU_CELL_SIZE;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x50))->y2 = pY[0] + MENU_CELL_SIZE;
+        MenuSetQuadVertices((SVECTOR*)(pBase + 0x100), pX[0], pY[0], MENU_CELL_SIZE, MENU_CELL_SIZE);
         SetLineF3((LINE_F3*)(pBase + offB));
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->r0 = 0;
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->g0 = 0xFF;
@@ -390,17 +399,17 @@ void MenuInitializeCellLinePrims(s32 index) {
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x0 = pX[0];
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y0 = pY[0];
         ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x1 = pX[0];
-        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y1 = pY[0] + 0x10;
-        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x2 = pX[0] + 0x10;
-        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y2 = pY[0] + 0x10;
-        MenuSetQuadVertices((SVECTOR*)(pBase + 0x120), pX[0], pY[0], 0x10, 0x10);
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y1 = pY[0] + MENU_CELL_SIZE;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->x2 = pX[0] + MENU_CELL_SIZE;
+        ((LINE_F3*)(pBase + i * 0x18 + 0x80))->y2 = pY[0] + MENU_CELL_SIZE;
+        MenuSetQuadVertices((SVECTOR*)(pBase + 0x120), pX[0], pY[0], MENU_CELL_SIZE, MENU_CELL_SIZE);
     }
 }
 void MenuCreateCellPrimBlocks(void) {
     void* pMem;
     int i;
 
-    for (i = 0; i < 32; i++) {
+    for (i = 0; i < (s32)ARRAY_COUNT(g_Menu->pCellPrimBlocks); i++) {
         pMem = HeapAlloc(MENU_CELL_PRIM_BLOCK_SIZE, 0);
         g_Menu->pCellPrimBlocks[i] = pMem;
         bzero(pMem, MENU_CELL_PRIM_BLOCK_SIZE);
@@ -416,7 +425,7 @@ extern u8 g_MenuGlyphIsDoubleByte;
 void MenuFreeCellPrimBlocks(void) {
     int i;
 
-    for (i = 0; i < 32; i++) {
+    for (i = 0; i < (s32)ARRAY_COUNT(g_Menu->pCellPrimBlocks); i++) {
         HeapFree(g_Menu->pCellPrimBlocks[i]);
     }
 }
@@ -775,7 +784,7 @@ void MenuDrawSlotResourceSprites(u8 arg0, u8* pArg1) {
     MenuParseNumberToDigits((pArg1 + arg0)[0x16]);
     pCounter = (u8*)g_Menu->pPrimBuffer + arg0 * 0x87C;
     pCounter[0x1308] = 0;
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MENU_SLOT_STAT_DIGIT_COUNT; i++) {
         if (g_Menu->digits[6 + i] == MENU_DIGIT_NONE) {
             continue;
         }
