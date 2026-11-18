@@ -185,6 +185,20 @@ extern s32 g_MovieHeapDebugEnabled;
 // gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75. The one tie left in
 // this body IS a preset question - see the note below.
 
+// RE-MEASURED under the unit's gcc 2.6.0 preset: 99.04%, retail's exact 2276 bytes.
+// The /3600 magic division now lands in a2 as retail has it, and the only rows
+// objdump shows are two relocation spellings that link to the same address
+// (g_MovieStreamReadCount+0x3C vs retail's D_80076F78, and D_80077124+0x18 vs
+// retail's g_MovieStreamSlots). BUT tools/scripts/check_bin.sh still reports the
+// overlay MISMATCH: the stream-status FontPrintf below loads its D_8006FC40 format
+// string into a0 LAST, where retail loads it BEFORE the g_MovieStreamBlock /
+// WritePtr / BytesLeft arguments. That is a real byte difference, not a reloc
+// spelling, so the body stays parked. First lever to try: give the format string
+// a local ('char* pFormat = D_8006FC40;') so gcc hoists the address before the
+// other three loads.
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
+
+/* 99.04%, 2276 bytes (retail's exact size); see the note above for the last diff
 void func_800704E8(void) {
     SVECTOR sv;
     MovieDebugMode mode;
@@ -358,6 +372,7 @@ void func_800704E8(void) {
         g_MovieCursorIndex = cursor;
     }
 }
+*/
 
 // PARKED at 99.02% (2.7.2): retail's exact size (2276 bytes), frame (0x70, mode at
 // 0x30, &action at 0x50) and register set. Every instruction now matches except ONE:
@@ -736,6 +751,20 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     SetSemiTrans(pPoly1, 0);
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 }
+// PARKED at 98.67% under the unit's gcc 2.6.0 preset: retail's EXACT size (912
+// bytes) and instruction multiset. The only difference is the POSITION of two
+// prologue pairs: retail forms pColR/pTargetR AFTER the loop's steps-array
+// pointer (`lui s3 / addiu s3, D_80076FAC`) and gcc here forms them before it.
+// Everything else, including `i = 0` placed first (which retail also has, and
+// which is what made its twin func_800734B8 match), is identical.
+// Load-bearing, measured: the three `*(volatile u_char*)pColR` reads of the sums
+// are what reproduce retail's RE-READ of the current colour after the three
+// divisions (three lbu); the plain `*pColR` form lets gcc CSE the byte and lands
+// at 84 bytes short. An explicit `s32* pStep` local (to get the steps pointer
+// formed earlier) changes the durations access and lands at 880 bytes / 93.25%.
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
+
+/* 98.67%, 912 bytes, retail's exact size
 void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 r;
@@ -751,6 +780,7 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     u_char* pTargetG;
     u_char* pTargetB;
 
+    i = 0;
     pColB = &D_80076F8C[0].b;
     pTargetB = &D_80076F9C[0].b;
     pColG = pColB - 1;
@@ -760,7 +790,7 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 
-    for (i = 0; i < 4; i++) {
+    for (; i < 4; i++) {
         if (++D_80076FAC[i] > D_80076FBC[i]) {
             D_80076FAC[i] = 0;
             D_80076FBC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
@@ -813,6 +843,7 @@ void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
     pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
 }
+*/
 
 
 void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
@@ -923,97 +954,6 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
     pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
 }
-
-// Best attempt (93.54%, 804 bytes against retail's 820): retail's instruction
-// multiset plus four more reads. Retail keeps the six channel pointers in
-// s5/s4/t0/s8/s7/s6 with the pColG pointer (D_80076FCD) in caller-saved t0,
-// saved and restored around the three calls, and pPoly0 on the stack at 0x10(sp);
-// gcc here picks s7/s4/t2/s6/s8/s5 with the same one-caller-saved shape. Those
-// two allocation differences also change CSE: retail re-reads *pColR/*pColG/
-// *pColB after the three divisions (three extra lbu) instead of keeping the bytes
-// loaded for the deltas. Six declaration orders of the pointer locals all compile
-// identically; the combined single-expression form reads 93.37% at the same size,
-// and a second pointer to the same address (forced reloads) reads 94.34% at 812
-// bytes. The permuter's best was the same 812-byte form.
-/*
-void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
-    s32 i;
-    s32 r;
-    s32 g;
-    s32 b;
-    s32 dr;
-    s32 dg;
-    s32 db;
-    u_char* pColR;
-    u_char* pColG;
-    u_char* pColB;
-    u_char* pTargetR;
-    u_char* pTargetG;
-    u_char* pTargetB;
-
-    pColB = D_80076FCE;
-    pTargetB = D_80076FDE;
-    pColG = pColB - 1;
-    pTargetG = pTargetB - 1;
-    pColR = pColB - 2;
-    pTargetR = pTargetB - 2;
-
-    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
-
-    for (i = 0; i < 4; i++) {
-        if (++g_MovieGlowFadeSteps[i] > g_MovieGlowFadeDurations[i]) {
-            g_MovieGlowFadeSteps[i] = 0;
-            g_MovieGlowFadeDurations[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
-            *pColR = *pTargetR;
-            *pColG = *pTargetG;
-            *pColB = *pTargetB;
-            *pTargetR = 0xFF;
-            *pTargetG = 0xFF;
-            *pTargetB = (MovieGetRandomNumber() & 0x3F) - 0x42;
-        }
-
-        dr = (*pTargetR - *pColR) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
-        dg = (*pTargetG - *pColG) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
-        db = (*pTargetB - *pColB) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
-        r = *pColR + dr;
-        g = *pColG + dg;
-        b = *pColB + db;
-
-        switch (i) {
-        case 0:
-            pPoly1->r0 = r;
-            pPoly1->g0 = g;
-            pPoly1->b0 = b;
-            break;
-        case 1:
-            pPoly1->r1 = r;
-            pPoly1->g1 = g;
-            pPoly1->b1 = b;
-            break;
-        case 2:
-            pPoly1->r2 = r;
-            pPoly1->g2 = g;
-            pPoly1->b2 = b;
-            break;
-        case 3:
-            pPoly1->r3 = r;
-            pPoly1->g3 = g;
-            pPoly1->b3 = b;
-            break;
-        }
-
-        pColB += 4;
-        pTargetB += 4;
-        pColG += 4;
-        pTargetG += 4;
-        pColR += 4;
-        pTargetR += 4;
-    }
-
-    pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
-    pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
-}
-*/
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800737EC);
 
