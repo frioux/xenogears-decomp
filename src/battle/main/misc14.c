@@ -7,15 +7,15 @@
 // only the sub-image upload state this unit advances each frame.
 typedef struct {
     /* 0x000 */ u8 unk0[0x30];
-    /* 0x030 */ u32 unk30; // source page index, advances 4 words per upload
+    /* 0x030 */ u32 sourceWordOffset; // word offset into each sub-image source, 4 words per upload
     /* 0x034 */ u8 unk34[0x75];
-    /* 0x0A9 */ u8 unkA9;
-    /* 0x0AA */ u8 unkAA;
-    /* 0x0AB */ u8 unkAB;
+    /* 0x0A9 */ u8 moveSteps; // position interpolation steps accumulated, 6 per frame
+    /* 0x0AA */ u8 frameCount; // incremented every update; the upload runs on odd values
+    /* 0x0AB */ u8 sizeSteps; // size increment steps accumulated, 1 per frame
     /* 0x0AC */ u8 unkAC;
-    /* 0x0AD */ u8 unkAD;
+    /* 0x0AD */ u8 actorDrawActive; // func_80088B80 returns unless set
     /* 0x0AE */ u8 unkAE[0x1C];
-    /* 0x0CA */ u8 unkCA;
+    /* 0x0CA */ u8 slotTimersActive; // set to tick the 0x10 prim pool timers down
     /* 0x0CB */ u8 unkCB[0x4];
     /* 0x0CF */ u8 unkCF;
 } BattleUploadState; // Size: 0xD0 (lower bound: other units reach 0xFC)
@@ -24,10 +24,10 @@ typedef struct {
 // LoadImage uploads and the scroll BattleUpdateImageUpload animates.
 typedef struct {
     /* 0x0000 */ u8 unk0[0x6410];
-    /* 0x6410 */ s32 unk6410; // sub-image scroll, steps by 4 between 0x7C and 0x81
+    /* 0x6410 */ s32 scrollOffset; // sub-image scroll, steps by 4 between 0x7C and 0x81
     /* 0x6414 */ u8 unk6414;
-    /* 0x6415 */ u8 unk6415;
-    /* 0x6416 */ u8 unk6416;
+    /* 0x6415 */ u8 scrollActive; // while set, scrollOffset steps every update
+    /* 0x6416 */ u8 scrollDir; // 0 counts scrollOffset up to 0x81, 1 counts down
     /* 0x6417 */ u8 unk6417[0x2539];
     /* 0x8950 */ RECT uploadRect[4];
 } BattleUploadWork; // Size: 0x8970 (lower bound: other units reach 0xA2C8)
@@ -36,8 +36,8 @@ typedef struct {
 // fields this unit touches are named (see BattlePrimPool for the pool tail).
 typedef struct {
     /* 0x00 */ u8 unk0[0x26];
-    /* 0x26 */ s16 unk26;
-    /* 0x28 */ u8 unk28;
+    /* 0x26 */ s16 timer; // counts down to 0 while timerActive
+    /* 0x28 */ u8 timerActive;
     /* 0x29 */ u8 unk29[0xF];
 } BattlePrimPoolSlot; // Size: 0x38
 
@@ -162,7 +162,7 @@ void func_80088B80(void) {
     s32 sx;
     s32 sy;
 
-    if (g_BattleDisplayState->unkAD == 0) {
+    if (g_BattleDisplayState->actorDrawActive == 0) {
         return;
     }
     if (g_BattleLerpDone != 0) {
@@ -469,21 +469,21 @@ void BattleUploadImageFrame(void) {
     s32 vramOffset0;
     s32 vramOffset1;
     s32 vramOffset2;
-    g_BattleDisplayState->unkAA += 1;
-    if ((g_BattleDisplayState->unkAA & 1) == 0) {
+    g_BattleDisplayState->frameCount += 1;
+    if ((g_BattleDisplayState->frameCount & 1) == 0) {
         return;
     }
     vramOffset0 = 0x8970;
-    LoadImage(&g_BattleGraphicsWork->uploadRect[0], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset0 + (s32)g_BattleGraphicsWork));
+    LoadImage(&g_BattleGraphicsWork->uploadRect[0], (u_long*)(g_BattleDisplayState->sourceWordOffset * 4 + vramOffset0 + (s32)g_BattleGraphicsWork));
     vramOffset1 = 0x8FA0;
-    LoadImage(&g_BattleGraphicsWork->uploadRect[1], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset1 + (s32)g_BattleGraphicsWork));
+    LoadImage(&g_BattleGraphicsWork->uploadRect[1], (u_long*)(g_BattleDisplayState->sourceWordOffset * 4 + vramOffset1 + (s32)g_BattleGraphicsWork));
     vramOffset2 = 0x95D0;
-    LoadImage(&g_BattleGraphicsWork->uploadRect[2], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset2 + (s32)g_BattleGraphicsWork));
+    LoadImage(&g_BattleGraphicsWork->uploadRect[2], (u_long*)(g_BattleDisplayState->sourceWordOffset * 4 + vramOffset2 + (s32)g_BattleGraphicsWork));
     vramOffset3 = 0x9C00;
-    LoadImage(&g_BattleGraphicsWork->uploadRect[3], (u_long*)(g_BattleDisplayState->unk30 * 4 + vramOffset3 + (s32)g_BattleGraphicsWork));
-    g_BattleDisplayState->unk30 += 4;
-    if (g_BattleDisplayState->unk30 >= 0xC7) {
-        g_BattleDisplayState->unk30 = 0;
+    LoadImage(&g_BattleGraphicsWork->uploadRect[3], (u_long*)(g_BattleDisplayState->sourceWordOffset * 4 + vramOffset3 + (s32)g_BattleGraphicsWork));
+    g_BattleDisplayState->sourceWordOffset += 4;
+    if (g_BattleDisplayState->sourceWordOffset >= 0xC7) {
+        g_BattleDisplayState->sourceWordOffset = 0;
     }
 }
 void BattleUpdateImageUpload(u8 arg0) {
@@ -493,20 +493,20 @@ void BattleUpdateImageUpload(u8 arg0) {
     if (arg0 == 0) {
         func_80089CCC(0);
     }
-    g_BattleDisplayState->unkA9 += 6;
-    g_BattleDisplayState->unkAB += 1;
-    if (g_BattleGraphicsWork->unk6415 != 0) {
-        if (g_BattleGraphicsWork->unk6416 == 0) {
-            g_BattleGraphicsWork->unk6410 += 4;
-            if (g_BattleGraphicsWork->unk6410 >= 0x81) {
-                g_BattleGraphicsWork->unk6410 = 0x7C;
-                g_BattleGraphicsWork->unk6416 = 1;
+    g_BattleDisplayState->moveSteps += 6;
+    g_BattleDisplayState->sizeSteps += 1;
+    if (g_BattleGraphicsWork->scrollActive != 0) {
+        if (g_BattleGraphicsWork->scrollDir == 0) {
+            g_BattleGraphicsWork->scrollOffset += 4;
+            if (g_BattleGraphicsWork->scrollOffset >= 0x81) {
+                g_BattleGraphicsWork->scrollOffset = 0x7C;
+                g_BattleGraphicsWork->scrollDir = 1;
             }
         } else {
-            g_BattleGraphicsWork->unk6410 -= 4;
-            if (g_BattleGraphicsWork->unk6410 < 0) {
-                g_BattleGraphicsWork->unk6410 = 4;
-                g_BattleGraphicsWork->unk6416 = 0;
+            g_BattleGraphicsWork->scrollOffset -= 4;
+            if (g_BattleGraphicsWork->scrollOffset < 0) {
+                g_BattleGraphicsWork->scrollOffset = 4;
+                g_BattleGraphicsWork->scrollDir = 0;
             }
         }
     }
@@ -550,11 +550,11 @@ void BattleUpdatePauseMenu(u8 arg0) {
     } while (waiting != 0);
 
     BattleUploadImageFrame();
-    if (g_BattleDisplayState->unkCA != 0) {
+    if (g_BattleDisplayState->slotTimersActive != 0) {
         for (i = 0; i < 0x10; i++) {
-            if (g_BattlePrimPool[i].unk28 != 0) {
-                if (--g_BattlePrimPool[i].unk26 < 0) {
-                    g_BattlePrimPool[i].unk26 = 0;
+            if (g_BattlePrimPool[i].timerActive != 0) {
+                if (--g_BattlePrimPool[i].timer < 0) {
+                    g_BattlePrimPool[i].timer = 0;
                 }
             }
         }
