@@ -148,8 +148,6 @@ extern s32 g_MoviePrevPadButtons;
 extern s32 g_MovieCursorIndex;
 extern s32 g_MovieHeapDebugEnabled;
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
-
 // Best attempt (99.02%): retail's EXACT size (2276 bytes), exact register set
 // (ra, s0-s4) and exact FRAME (0x70, mode copied at 0x30, &action at 0x50), so
 // its instruction multiset is identical to retail's. Three allocator/scheduling
@@ -184,8 +182,29 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
 //   the value is dead there, the teardown breaks out of the loop).
 // Earlier measurements: plain 0xF0 literals 98.33 (2292 bytes), a screenHeight
 // local shared by both groups 98.36 (2288), teardown-only screenHeight 98.33;
-// gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75, so this is not a
-// preset question.
+// gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75. The one tie left in
+// this body IS a preset question - see the note below.
+INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
+
+// PARKED at 99.02% (2.7.2): retail's exact size (2276 bytes), frame (0x70, mode at
+// 0x30, &action at 0x50) and register set. Every instruction now matches except ONE:
+// the /3600 magic division's `mfhi` lands in t1 where retail writes a2 (and so the
+// next insn is `addu a2,t1,t0` against retail's `addu a2,a2,t0`). Everything else the
+// diff prints is relocation spelling only: the zero loop's `addiu v1,v1,60` over
+// g_MovieStreamReadCount (= 0x80076F3C + 0x3C = retail's D_80076F78) and the first
+// `drawEnv.isbg = 1` (D_80077124 + 0x18 = retail's g_MovieStreamSlots).
+// PRESET_260: gcc 2.6.0 gets this right. Compiled with gcc-2.6.0-psx the whole body
+// comes out instruction-identical to retail (`mfhi a2` / `addu a2,a2,t0`), and
+// tools/scripts/try_flags.sh movie/main/misc1 --all --gcc gcc-2.6.0-psx scores
+// func_800704E8 99.04 and ALL EIGHT already-matched C functions of the unit 100.00,
+// so the unit can be switched (2.7.2 expand_divmod uses a temp register for the div
+// high part, 2.6.0 writes it into the target). Not source-controllable under 2.7.2:
+// 16 hand shapes below (single/multi-statement division, div temp, self-assignment,
+// `60 * hours`, `playTime - minutes * 60`, three declaration orders, int vs s32,
+// inline-at-call, pointer local) all measure 99.02, and a 10-minute permuter run
+// (2991 iterations) is useless here: its base score is 365 for a body objdiff calls
+// 99.02%, i.e. dominated by the reloc-name rows above, and its 346 "improvement" is
+// that noise (measured 98.97% by objdiff).
 /*
 void func_800704E8(void) {
     SVECTOR sv;
@@ -518,7 +537,12 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072A08);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072D84);
 
-// Best attempt (99.40%): byte count, frame and every instruction except the
+// PARKED at 99.40% (2.7.2) but INSTRUCTION-IDENTICAL to retail under gcc 2.6.0
+// (PRESET_260, see func_800704E8 above): compiled with gcc-2.6.0-psx the body's only
+// remaining diffs are reloc addend spellings (D_80076F8D against D_80076F8C+1), i.e.
+// the same bytes. So the div-by-3 `mfhi` register tie below is the compiler, not the
+// source: 2.7.2 writes the quotient into the dying sign register, 2.6.0 into the
+// target. Under this unit's preset: byte count, frame and every instruction except the
 // destination register of the two div-by-3 sign fixups. Retail keeps the quotient
 // in v1 (mfhi v1 / subu v1,v1,v0 / addiu v1,v1,0x10 / sb v1); gcc 2.7.2 puts it in
 // v0, the dying dividend/sign register (subu v0,v1,v0). gcc only writes the fixup
