@@ -1082,8 +1082,8 @@ void FieldActorApplyPositionTransform(void) {
     pActor->curYPos = curY;
 }
 
-// Sprite data blob: one header word, then a table of sprite offsets relative to
-// the blob itself.
+// Sprite data blob (g_FieldSpriteData). This unit only uses the offset table at
+// +4; each entry is a sprite offset relative to the blob itself.
 typedef struct {
     /* 0x0 */ s32 unk0;
     /* 0x4 */ s32 offsets[1];
