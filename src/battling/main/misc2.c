@@ -340,13 +340,14 @@ void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     s32 n = g_BattleEffectEntryCount;
     BattleEffect *pEffect = g_BattleEffect;
 
-    /* The position stores must reach the record through a byte view: with
-       typed field stores (pEffect->x = ...) gcc loads all three globals
-       before storing any of them (63.89%), retail interleaves the load with
-       each single store. */
-    *(s16 *)((u8 *)pEffect + 0x14) = g_BattleEffectPosX;
-    *(s16 *)((u8 *)pEffect + 0x16) = g_BattleEffectPosY;
-    *(s16 *)((u8 *)pEffect + 0x18) = g_BattleEffectPosZ;
+    /* The first two position stores are volatile on purpose: they are the
+       scheduling barriers that keep each global's load next to its own store
+       (plain field stores let gcc hoist all three loads, 63.89%), while the
+       third store has to stay movable to fill the call's delay slot (with it
+       volatile too, 95.19%). */
+    *(volatile s16 *)&pEffect->x = g_BattleEffectPosX;
+    *(volatile s16 *)&pEffect->y = g_BattleEffectPosY;
+    pEffect->z = g_BattleEffectPosZ;
     pEffect->rotX = 0;
     pEffect->rotY = 0;
     pEffect->rotZ = 0;
