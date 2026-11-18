@@ -51,6 +51,14 @@ typedef struct {
     /* 0x14 */ u32 pointListOffset; // byte offset of the point list from the record start
 } BattleMoveCommand; // Size: 0x18
 
+// The block pActor->pBuffer points at: its +4 word is where the action-value
+// table continues for the command ids that do not fit +0x8's table, i.e. a
+// pointer into the middle of the same table (id 0x4E is its first entry).
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ s32 *pTailTable;
+} BattleActorBuffer; // Size: 0x8
+
 // One 0x70-byte entry of the per-actor entry array BattleAllocActorEntryArray
 // allocates; only the sprite index and the word at +8 are initialised here.
 typedef struct {
@@ -250,9 +258,9 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                 pActor->commandArgs[pActor->commandCount] = arg3;
             } else {
                 if (arg3 < 0x50) {
-                    pActor->actionValue = ((s32 *)pSource->pActionTable)[arg3];
+                    pActor->actionValue = ((s32 *)(u32)pSource->pActionTable)[arg3];
                 } else {
-                    pGroupTable = *(s32 **)((u8 *)pSource->pBuffer + 4);
+                    pGroupTable = ((BattleActorBuffer *)(u32)pSource->pBuffer)->pTailTable;
                     pActor->actionValue = pGroupTable[arg3 - 0x4E];
                 }
                 n = g_BattleCommandActorMask;
@@ -417,8 +425,6 @@ void BattleQueueSpriteCommandToPoint(u8 *pPool, BattleSprite *pSprite, s32 arg2,
     }
 }
 void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pCommand, s32 arg2) {
-    u8 *p;
-
     if (pCommand->pointCount != 0) {
         pActor->stepIndex = 0;
         if (arg2 != 0) {
@@ -428,9 +434,8 @@ void BattleSetupActorMoveCommand(BattleActor *pActor, BattleMoveCommand *pComman
         }
         pActor->pointIndex = 0;
         pActor->pointCount = pCommand->pointCount;
-        p = (u8 *)pCommand + pCommand->pointListOffset;
-        pActor->pPointCursor = (mem_addr)p;
-        pActor->pPointList = (mem_addr)p;
+        pActor->pPointCursor = (mem_addr)pCommand + pCommand->pointListOffset;
+        pActor->pPointList = pActor->pPointCursor;
     } else {
         pActor->stepIndex = -1;
     }
@@ -510,7 +515,13 @@ void BattleFreeActorEntryAndChildren(void *pPool, s32 index, BattleSprite *pSpri
    statements so the count is read as *(u16*)(arg0+0xA) AFTER arg0 += 7, i.e.
    from +0x11 instead of +0xA. It scores 90.43% because it emits the same
    instruction count, but it is semantically wrong; a second 4-minute round
-   from that body found nothing better (60 -> 60). Do not use it. *//*
+   from that body found nothing better (60 -> 60), and a third re-found exactly
+   that candidate (60). Do not use it.
+   Also measured: a non-void return type (s32, no return statement) changes
+   nothing, so the stolen slot is not the return-type lever here; `u8 on = 1;`
+   as the store value moves the li to the ENTRY block above the lhu and the
+   steal then hits li a3 instead (80 bytes, same 85.71); wrapping `arg0 += 7`
+   in `do { } while (0);` is flattened and also lands the addiu above the lhu. *//*
 void func_800AF270(u8 *arg0, u8 *arg1) {
     s32 n;
     s32 i;
