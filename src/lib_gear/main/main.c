@@ -156,7 +156,7 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
     pSkeleton[0].scale.vy = 0x1000;
     pSkeleton[0].scale.vz = 0x1000;
     pSkeleton[0].pParent = NULL;
-    pSkeleton[0].unk7 = 0;
+    pSkeleton[0].doRender = 0;
     pSkeleton[0].jointIndex = LIBGEAR_JOINT_INDEX_NONE;
     pSkeleton[0].numChildren = numJoints;
     pSkeleton[0].pModelPacketBuffer = NULL;
@@ -181,7 +181,7 @@ ModelJoint* LibGearInitializeSkeleton(ModelMesh* pModel, ModelJointEntry* pJoint
         pCurJoint->numChildren = i++;
         pCurJoint->doTransform = TRUE;
         pCurJoint->doRotate = TRUE;
-        pCurJoint->unk7 = 1;
+        pCurJoint->doRender = 1;
         pCurJoint->scale.vx = 0x1000;
         pCurJoint->scale.vy = 0x1000;
         pCurJoint->scale.vz = 0x1000;
@@ -479,10 +479,10 @@ void LibGearFreeModelMesh(ModelMesh* pMesh, s32 shouldFreeLightData) {
     }
 }
 
-// Model::pColorEntries entry (0x70 stride). UnkInner1 in libgear/main.h covers
-// only the tail of the record, so this file carries its own view of the head:
-// the joint it follows, the vertex it drives and the projected coordinates the
-// previous frame left behind.
+// Model::pColorEntries entry (0x70 stride). UnkInner1 in libgear/main.h has the
+// same layout under its own field names; this view exists for the parked body
+// below: the joint it follows, the vertex it drives and the projected
+// coordinates the previous frame left behind.
 typedef struct {
     /* 0x00 */ s16 jointIndex; // joint whose transform projects the two sources; negative = free
     /* 0x02 */ u8 is3D; // non-zero: the sources are projected in 3D and pass through the GTE
@@ -742,7 +742,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
     pJoint = pSkeleton + 1;
     for (jointIndex = 1; jointIndex < numChildren; jointIndex++) {
-        if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->unk7 != 0) {
+        if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
             MulMatrix0(pViewScratch, &pJoint->globalTransform, pScratch);
             SetLightMatrix(pScratch);
             CompMatrix(pLightScratch, &pJoint->globalTransform, pScratch);
@@ -1703,18 +1703,18 @@ s32 LibGearInitializeColorEntry(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, 
     s16 div;
 
     if (pEntry != NULL) {
-        pEntry->unk3 = arg18;
-        pEntry->unk5E = -1;
-        pEntry->unk0 = arg2;
-        pEntry->unk2 = arg3;
+        pEntry->isSemiTrans = arg18;
+        pEntry->age = -1;
+        pEntry->jointIndex = arg2;
+        pEntry->is3D = arg3;
         pEntry->unk4 = arg1;
-        pEntry->unkC = arg12;
-        pEntry->unkE = arg13;
-        pEntry->unk10 = arg14;
-        pEntry->unk14 = arg15;
-        pEntry->unk16 = arg16;
-        pEntry->unk18 = arg17;
-        pEntry->unk5C = 0;
+        pEntry->sourceA.vx = arg12;
+        pEntry->sourceA.vy = arg13;
+        pEntry->sourceA.vz = arg14;
+        pEntry->sourceB.vx = arg15;
+        pEntry->sourceB.vy = arg16;
+        pEntry->sourceB.vz = arg17;
+        pEntry->slot = 0;
         if (numFrames < LIBGEAR_COLOR_ENTRY_FRAME_MAX) {
             pEntry->numFrames = numFrames;
         } else {
@@ -2084,18 +2084,18 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->useScaledMatrices = 0;
     pModel->unk38 = 0;
     pModel->unk3A = negOne;
-    pModel->unk70[0] = 0;
-    pModel->unk70[1] = 0;
-    pModel->unk70[2] = 0;
-    pModel->unk70[3] = 0;
-    pModel->unk70[4] = 0;
-    pModel->unk70[5] = 0;
-    pModel->unk70[6] = 0;
-    pModel->unk70[7] = 0;
-    pModel->unk70[8] = 0;
-    pModel->unk70[9] = 0;
-    pModel->unk70[10] = 0;
-    pModel->unk70[11] = 0;
+    pModel->rotOffset[0] = 0;
+    pModel->rotOffset[1] = 0;
+    pModel->rotOffset[2] = 0;
+    pModel->rotStep[0] = 0;
+    pModel->rotStep[1] = 0;
+    pModel->rotStep[2] = 0;
+    pModel->posOffset[0] = 0;
+    pModel->posOffset[1] = 0;
+    pModel->posOffset[2] = 0;
+    pModel->posStep[0] = 0;
+    pModel->posStep[1] = 0;
+    pModel->posStep[2] = 0;
     pModel->posX = 0;
     pModel->posY = 0;
     pModel->posZ = 0;
@@ -2120,11 +2120,11 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
                 pModel->animValue = ((u32*)((Temp8*)pSource->unkC)->pUnk4)[arg3 - LIBGEAR_ANIM_WAD_INDEX_OFFSET];
             }
 
-            pModel->unk42 = 0;
-            pModel->unk40 = 0;
-            pModel->unk50 = 0;
-            pModel->unk54 = 0;
-            pModel->unk4C = 0;
+            pModel->repeatCount = 0;
+            pModel->frameTimer = 0;
+            pModel->pWaitScript = 0;
+            pModel->pGroundScript = 0;
+            pModel->pArrivalScript = 0;
             pModel->modelBitMask = g_LibGearModelBitMask;
             pModel->unk23 = 0;
             func_801E39F0(pModel, arg2, -1, 1, 0);
@@ -2513,7 +2513,7 @@ PLACEHOLDER
                 pModel->pScriptCursor += 4;
                 break;
             case 7:
-                pModel->pSkeleton[pCmd->unk4].unk7 = pCmd->unk5 & 1;
+                pModel->pSkeleton[pCmd->unk4].doRender = pCmd->unk5 & 1;
                 pModel->pScriptCursor += 6;
                 break;
             case 8: {
@@ -2712,7 +2712,7 @@ void func_801E63A8(Model* pModel) {
         index = pModel2->modelSlot;
     }
     if (pModel->sourceModelSlot == 0xFC) {
-        index = pModel->unk21;
+        index = pModel->linkedModelSlot;
     }
     if (pModel->sourceModelSlot == 0xFA) {
         if (pModel2) {
@@ -2813,8 +2813,8 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
     ModelJoint* pTarget = (ModelJoint*)(jointIndex * sizeof(ModelJoint) + (s32)pTargetSkeleton);
 
     numChildren = pChild->numChildren;
-    pJoint->unk7 = 0;
-    pTarget->unk7 = 1;
+    pJoint->doRender = 0;
+    pTarget->doRender = 1;
 
     LibGearFreeJointObject(pList, (s8*)pJoint->pRotationObject);
     pJoint->pRotationObject = 0;
@@ -2842,9 +2842,9 @@ void func_801E6668(ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
         pSkeleton++;
         pTargetSkeleton++;
 
-        if (pSkeleton->unk7 != 0) {
-            pSkeleton->unk7 = 0;
-            pTargetSkeleton->unk7 = 1;
+        if (pSkeleton->doRender != 0) {
+            pSkeleton->doRender = 0;
+            pTargetSkeleton->doRender = 1;
         }
     }
 }
@@ -2901,7 +2901,7 @@ void func_801E6830(Model* pModel, int type, s16* pMask) {
     } else if (index == 0xFD || index == 0xF9) {
         index = pModel->modelSlot;
     } else if (index == 0xFC) {
-        index = pModel->unk21;
+        index = pModel->linkedModelSlot;
     } else if (index == 0xFA) {
         index = 0xA;
     } else if (index == 0xF8) {
@@ -3085,7 +3085,7 @@ void LibGearSetJointFlag(Model* pModel, ModelJoint* pJoint, s32 flags) {
     ModelJoint* pChild;
     int i;
 
-    pJoint->unk7 = flags & 0x1;
+    pJoint->doRender = flags & 0x1;
 
     if (flags & LIBGEAR_JOINT_FLAG_RECURSE) {
         pChild = pModel->pSkeleton;
@@ -3768,7 +3768,7 @@ void LibGearAllocateColorEntries(Model* pModel) {
     if (pModel->numColorEntries) {
         pObjects = HeapAlloc(pModel->numColorEntries * sizeof(UnkInner1), 0x0);
         for (i = 0; i < pModel->numColorEntries; i++) {
-            pObjects[i].unk0 = -1;
+            pObjects[i].jointIndex = -1;
             pObjects[i].unk8 = 0;
         }
         pModel->pColorEntries = pObjects;

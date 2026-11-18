@@ -17,7 +17,7 @@ struct _ModelJoint {
     /* 0x04 */ u_char doTransform;
     /* 0x05 */ u_char doRotate;
     /* 0x06 */ u_char rotDirection;
-    /* 0x07 */ u_char unk7;
+    /* 0x07 */ u_char doRender; // non-zero: the joint's packets are drawn (LibGearSetJointFlag's bit 0)
     /* 0x08 */ u_short jointIndex;
     /* 0x0A */ u_short numChildren;
     /* 0x0c */ MATRIX localTransform;
@@ -189,21 +189,17 @@ typedef struct {
 } Temp9; // Size: 0x24
 
 typedef struct {
-    /* 0x0  */ s16 unk0;
-    /* 0x2  */ u8 unk2;
-    /* 0x3  */ u8 unk3;
+    /* 0x0  */ s16 jointIndex; // joint whose matrix projects the two sources; negative = free
+    /* 0x2  */ u8 is3D; // non-zero: the sources are projected in 3D and pass through the GTE
+    /* 0x3  */ u8 isSemiTrans; // handed to LibGearAllocVertex
     /* 0x4  */ u32 unk4;
     /* 0x8  */ u32 unk8;
-    /* 0xC  */ s16 unkC;
-    /* 0xE  */ s16 unkE;
-    /* 0x10 */ s16 unk10;
-    /* 0x12 */ s16 unk12;
-    /* 0x14 */ s16 unk14;
-    /* 0x16 */ s16 unk16;
-    /* 0x18 */ s16 unk18;
-    /* 0x1A */ u8 unk1A[0x42];
-    /* 0x5C */ s16 unk5C;
-    /* 0x5E */ s16 unk5E;
+    /* 0xC  */ SVECTOR sourceA; // the two points the joint's matrix projects
+    /* 0x14 */ SVECTOR sourceB;
+    /* 0x1C */ u16 screenA[16]; // projected x/y, two 0x10-byte slots of four SXY quads
+    /* 0x3C */ u16 screenB[16];
+    /* 0x5C */ s16 slot; // the quad the next projection writes; counts down and wraps at 8
+    /* 0x5E */ s16 age; // frames drawn; 0 after the wrap retires the entry
     /* 0x60 */ s16 numFrames;
     /* 0x62 */ s16 divisor;
     /* 0x64 */ s16 red;
@@ -234,7 +230,7 @@ typedef struct {
     /* 0x1C  */ s16 scale;
     /* 0x1E  */ s16 unk1E;
     /* 0x20  */ u8 modelSlot; // this model's index in g_LibGearModels
-    /* 0x21  */ u8 unk21;
+    /* 0x21  */ u8 linkedModelSlot; // the g_LibGearModels slot sourceModelSlot 0xFC resolves to
     /* 0x22  */ u8 unk22[0x1];
     /* 0x23  */ u8 unk23;
     /* 0x24  */ s16 height;
@@ -253,13 +249,15 @@ typedef struct {
     /* 0x3A  */ s16 unk3A;
     /* 0x3C  */ u16 objectType; // joint objects whose type matches it set a bit of the step result
     /* 0x3E  */ u16 unk3E;
-    /* 0x40  */ s16 unk40;
-    /* 0x42  */ s16 unk42;
-    /* 0x44  */ u8 unk44[0x6];
+    /* 0x40  */ s16 frameTimer; // the wait opcode's frame counter: advanced by the frame count, reset at the operand
+    /* 0x42  */ s16 repeatCount; // the repeat opcode's counter: advanced per entry, reset at the operand
+    /* 0x44  */ u16 waitTimer; // frames elapsed of the wait that resumes at pWaitScript
+    /* 0x46  */ u16 waitFrames; // that wait's length
+    /* 0x48  */ s16 arrivalDistance; // pArrivalScript resumes once LibGearGetModelDistance is within it
     /* 0x4A  */ u16 flags;
-    /* 0x4C  */ u32 unk4C;
-    /* 0x50  */ u32 unk50;
-    /* 0x54  */ u32 unk54;
+    /* 0x4C  */ u32 pArrivalScript; // script offset resumed when the model is within arrivalDistance
+    /* 0x50  */ u32 pWaitScript; // script offset resumed once waitTimer reaches waitFrames
+    /* 0x54  */ u32 pGroundScript; // script offset resumed when the root joint rises above ground
     /* 0x58  */ s16 sourceModelSlot; // g_LibGearModels slot whose transform places this one; 0xFF..0xFA pick it indirectly, 1..0x7F is slot + 1
     /* 0x5A  */ s16 sourceJointIndex; // joint of the model sourceModelSlot selects, whose transform places this one
     /* 0x5C  */ u8 parentModelSlot; // g_LibGearModels slot whose transform this one inherits; 0xFF = none
@@ -274,7 +272,10 @@ typedef struct {
     /* 0x6A  */ u16 attachOffsetX;
     /* 0x6C  */ u16 attachOffsetY;
     /* 0x6E  */ u16 attachOffsetZ;
-    /* 0x70  */ s16 unk70[0xC];
+    /* 0x70  */ u16 rotOffset[3]; // added to the root joint's rotation, >>3
+    /* 0x76  */ u16 rotStep[3]; // added to rotOffset every frame
+    /* 0x7C  */ s16 posOffset[3]; // scaled by the root joint's scale and rotated into its translation
+    /* 0x82  */ u16 posStep[3]; // added to posOffset every frame
     /* 0x88  */ s16 posX;
     /* 0x8A  */ s16 posY;
     /* 0x8C  */ s16 posZ;
