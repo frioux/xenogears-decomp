@@ -26,13 +26,15 @@ typedef struct {
     /* 0x10 */ POLY_FT4 polys[2]; // the slot's text quads, both set from the pointer misc3.c's func_800780A8 walks
 } BattleScreenSlot; // Size: 0x60
 
-// One 0x170-byte entry of the slot table at g_BattleSlotEntries: the two flag words the
-// slot state tests read. include/battle/actor.h's BattleTableEntry covers the
-// same table, but keeps the word at 0x8 inside its opaque unk04 array.
+// One 0x170-byte entry of the slot table at g_BattleSlotEntries: the flag words the
+// slot state tests read. The table starts 0x7C into the slot entry, so this view's
+// 0x0 and 0x8 are include/battle/actor.h's BattleTableEntry flag words at 0x7C
+// (activeEffectFlags1) and 0x84 (activeEffectFlags3); the three words in between are
+// the same grid's accessoryEffectFlags1/activeEffectFlags2/accessoryEffectFlags2.
 typedef struct {
     /* 0x000 */ u16 flags; // tested against 0xC000 and 0xC002
     /* 0x002 */ u8 unk2[0x6];
-    /* 0x008 */ u16 unk8; // tested against 0x20
+    /* 0x008 */ u16 activeEffectFlags3; // tested against 0x20
     /* 0x00A */ u8 unkA[0x166];
 } BattleSlotFlagEntry; // Size: 0x170
 
@@ -331,7 +333,7 @@ u32 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1) {
             if ((g_BattleSlotEntries[arg0].flags & 0xC002) == 0) {
                 res = 1;
                 if (arg1 == 0) {
-                    u32 f = g_BattleSlotEntries[arg0].unk8 & 0x20;
+                    u32 f = g_BattleSlotEntries[arg0].activeEffectFlags3 & 0x20;
 
                     res = f == 0;
                 }
@@ -342,9 +344,9 @@ u32 BattleSlotFlagsC002ClearRecordIdle(u8 arg0, u8 arg1) {
 }
 /* The do-while is load-bearing: without it gcc 2.7.2 allocates res to v1 and the
    arg0 * 0x170 offset to a0, the opposite of the original (res in a2, offset in
-   v1, reused for both flag words). The word at 0x8 is the original's
-   D_800CCD6C, spelled through the entry struct, so objdiff sees an addend
-   difference only. */
+   v1, reused for both flag words). activeEffectFlags3 is the original's
+   D_800CCD6C (the entry at 0x84), spelled through the entry struct, so objdiff
+   sees an addend difference only. */
 u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
     u8 res = 0;
 
@@ -352,7 +354,7 @@ u32 BattleSlotFlagsC002Clear(u8 arg0, u8 arg1) {
         if ((g_BattleSlotEntries[arg0].flags & 0xC002) == 0) {
             res = 1;
             if (arg1 == 0) {
-                u32 f = g_BattleSlotEntries[arg0].unk8 & 0x20;
+                u32 f = g_BattleSlotEntries[arg0].activeEffectFlags3 & 0x20;
 
                 res = f == 0;
             }
