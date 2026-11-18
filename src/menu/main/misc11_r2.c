@@ -85,15 +85,29 @@ typedef struct {
 // D_801E99E8.
 typedef struct {
     /* 0x0 */ u16 coord;
-    /* 0x2 */ u16 unk2;
+    /* 0x2 */ u16 pad2;
 } MenuGlyphCellPos; // Size: 0x4
 
 typedef struct {
-    /* 0x0000 */ u32 unk0[0x9];
+    // Save header: the per-party-slot summary func_801CBA4C fills in (the record
+    // src/menu/main/misc3.c declares as MenuSaveSlotHeader).
+    /* 0x0000 */ u32 spuChannelMask; // g_SpuChannelMask, see MenuApplySaveSlot
+    /* 0x0004 */ u16 hp[MAX_PARTY_MEMBERS];
+    /* 0x000A */ u16 maxHp[MAX_PARTY_MEMBERS];
+    /* 0x0010 */ u8 mp[MAX_PARTY_MEMBERS];
+    /* 0x0013 */ u8 maxMp[MAX_PARTY_MEMBERS];
+    /* 0x0016 */ u8 level[MAX_PARTY_MEMBERS];
+    /* 0x0019 */ u8 unk19[MAX_PARTY_MEMBERS];
+    /* 0x001C */ u8 characterIds[MAX_PARTY_MEMBERS];
+    /* 0x001F */ u8 unk1F;
+    /* 0x0020 */ u8 unk20[3];
+    /* 0x0023 */ u8 index; // card chunk index, as in MenuUnk2ImageChunk.index
     /* 0x0024 */ MenuSaveNamesA namesA;
     /* 0x0100 */ MenuSaveNamesB namesB;
     /* 0x0290 */ MenuSaveCharacter characters[MAX_GAME_CHARACTERS];
     /* 0x099C */ MenuSaveGear gears[MAX_GAME_GEARS];
+    // The four blobs below are copied verbatim from g_GameState at the offset their
+    // name gives, which is not their offset in this record.
     /* 0x0E4C */ MenuSaveBlob0x78 unk1648;
     /* 0x0EC4 */ MenuSaveBlob0x160 unk16C0;
     /* 0x1024 */ MenuSaveBlob0x100 unk1820;
