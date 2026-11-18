@@ -537,7 +537,12 @@ INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072A08);
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072D84);
 
-// Best attempt (99.40%): byte count, frame and every instruction except the
+// PARKED at 99.40% (2.7.2) but INSTRUCTION-IDENTICAL to retail under gcc 2.6.0
+// (PRESET_260, see func_800704E8 above): compiled with gcc-2.6.0-psx the body's only
+// remaining diffs are reloc addend spellings (D_80076F8D against D_80076F8C+1), i.e.
+// the same bytes. So the div-by-3 `mfhi` register tie below is the compiler, not the
+// source: 2.7.2 writes the quotient into the dying sign register, 2.6.0 into the
+// target. Under this unit's preset: byte count, frame and every instruction except the
 // destination register of the two div-by-3 sign fixups. Retail keeps the quotient
 // in v1 (mfhi v1 / subu v1,v1,v0 / addiu v1,v1,0x10 / sb v1); gcc 2.7.2 puts it in
 // v0, the dying dividend/sign register (subu v0,v1,v0). gcc only writes the fixup
