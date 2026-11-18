@@ -522,7 +522,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     Temp9* pListEntry;
     Temp8* pTexture;
     ColorSlot* pEntry;
-    u8* pSection;
+    Temp9Section* pSection;
     u8* pQuadA;
     u8* pQuadB;
     POLY_FT4* pPoly;
@@ -694,7 +694,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
     pListEntry = pModel->pModelListEntries;
     for (i = 0; i < pModel->numModelListEntries; i++, pListEntry++) {
-        if (*(s16*)pListEntry->unk0 < 0) {
+        if (pListEntry->jointIndex < 0) {
             continue;
         }
 
@@ -702,34 +702,34 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         swingVec.vz = g_LibGearSwingScale * rcos(pSkeleton->rotation.vy + 0x400) / 0x1000;
         swingVec.vy = pModel->unk3E;
 
-        CompMatrix(&pSkeleton->localTransform, &pSkeleton[*(s16*)pListEntry->unk0].globalTransform, pScratch);
+        CompMatrix(&pSkeleton->localTransform, &pSkeleton[pListEntry->jointIndex].globalTransform, pScratch);
         SetRotMatrix(pScratch);
         SetTransMatrix(pScratch);
 
-        for (j = 0; j < *(s16*)(pListEntry->unk0 + 4); j++) {
-            gte_ldv0(&((SVECTOR*)pListEntry->unk14)[j]);
+        for (j = 0; j < pListEntry->numVectors; j++) {
+            gte_ldv0(&pListEntry->pVectors[j]);
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(proj);
 
-            *(u16*)((u8*)pListEntry->unk1C[j] + 4) = proj[0];
-            *(u16*)((u8*)pListEntry->unk1C[j] + 6) = proj[2];
-            *(u16*)((u8*)pListEntry->unk1C[j] + 8) = proj[4];
+            pListEntry->pPoints[j]->x = proj[0];
+            pListEntry->pPoints[j]->y = proj[2];
+            pListEntry->pPoints[j]->z = proj[4];
         }
 
-        pSection = (u8*)pListEntry->unk18;
-        for (j = 0; j < *(s16*)(pListEntry->unk0 + 0xA); j++) {
-            CompMatrix(&pSkeleton->localTransform, &pSkeleton[*(s16*)(pSection + 6)].globalTransform, pScratch);
+        pSection = pListEntry->pSections;
+        for (j = 0; j < pListEntry->numSections; j++) {
+            CompMatrix(&pSkeleton->localTransform, &pSkeleton[pSection->vector.pad].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
-            gte_ldv0((SVECTOR*)pSection);
+            gte_ldv0(&pSection->vector);
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(proj);
 
-            *(u16*)(pSection + 8) = proj[0];
-            *(u16*)(pSection + 0xA) = proj[2];
-            *(u16*)(pSection + 0xC) = proj[4];
-            pSection += 0x10;
+            pSection->x = proj[0];
+            pSection->y = proj[2];
+            pSection->z = proj[4];
+            pSection++;
         }
 
         func_801E22F8(pListEntry, &swingVec, pLightMatrix, pOt, packetIndex, modelScale, pModel->ground);
@@ -1929,17 +1929,17 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E1A14);
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E22F8);
 
 void LibGearFreeModelEntry(Temp9* pEntry) {
-    if (pEntry->unk14 != NULL) {
-        HeapFree(pEntry->unk14);
-        HeapFree(pEntry->unk1C[0]);
-        HeapFree(pEntry->unk1C);
+    if (pEntry->pVectors != NULL) {
+        HeapFree(pEntry->pVectors);
+        HeapFree(pEntry->pPoints[0]);
+        HeapFree(pEntry->pPoints);
         HeapFree(pEntry->unk20);
 
-        if (pEntry->unk18 != NULL) {
-            HeapFree(pEntry->unk18);
+        if (pEntry->pSections != NULL) {
+            HeapFree(pEntry->pSections);
         }
 
-        pEntry->unk14 = NULL;
+        pEntry->pVectors = NULL;
     }
 }
 
