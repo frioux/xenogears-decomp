@@ -9,8 +9,8 @@
 #define MENU_STAT_AGILITY_MAX 20
 #define MENU_STAT_AGILITY_CAPPED 16 // what agility above the maximum is set to
 
-extern u8 D_801EA564[];
-extern u8 D_801EA568[];
+extern u8 g_MenuUnk17E0StringIds[];
+extern u8 g_MenuUnk18E0StringIdSets[];
 extern u8 g_GearPilotIds[];
 extern u8 D_801E9811;
 extern u8 g_MenuPanelRowXOffsets[];
@@ -79,8 +79,8 @@ void MenuInitializeUnk438Panel(void) {
     g_Menu->unk438 = HeapAlloc(0x25C0, 0);
     bzero(g_Menu->unk438, 0x25C0);
     func_801C72BC(4);
-    MenuLoadStringsFromIds(2, (u8*)g_Menu + 0x17E0, D_801EA564, (u8*)g_Menu->pManager + 0x4E);
-    MenuSetRowQuadVertices(2, (u8*)g_Menu + 0x17E0, D_801EA564, g_MenuPanelRowXOffsets, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
+    MenuLoadStringsFromIds(2, (u8*)g_Menu + 0x17E0, g_MenuUnk17E0StringIds, (u8*)g_Menu->pManager + 0x4E);
+    MenuSetRowQuadVertices(2, (u8*)g_Menu + 0x17E0, g_MenuUnk17E0StringIds, g_MenuPanelRowXOffsets, (u8*)g_Menu->pManager + 0x4E, 0, 0, 4);
     MenuCreateWindow(2, 0x44, 0xA, 0xE4, 0xC4, 0, 1, 4, 0);
     g_Menu->pManager->playTimeDigitsActive = 0;
     g_Menu->pManager->shouldRenderWindow[1] = 0;
@@ -258,7 +258,7 @@ u8 MenuInitializeGearScreenBuffers(void) {
     return i;
 }
 void MenuLoadUnk18E0Strings(u8 arg0) {
-    MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, D_801EA568 + arg0, (u8*)g_Menu->pManager + 0x54);
+    MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, g_MenuUnk18E0StringIdSets + arg0, (u8*)g_Menu->pManager + 0x54);
 }
 void MenuFreeGearScreenBuffers(void) {
     HeapFree(g_Menu->pGearWindowPrims);
@@ -387,7 +387,7 @@ u8 func_801E23CC(void) {
             }
             g_Menu->pManager->shouldRenderStrings18E0[4] = 1;
             g_Menu->pManager->shouldRenderStrings18E0[5] = 1;
-            MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, D_801EA568 + stringSet, (u8*)g_Menu->pManager + 0x54);
+            MenuLoadStringsFromIds(6, (u8*)g_Menu + 0x18E0, g_MenuUnk18E0StringIdSets + stringSet, (u8*)g_Menu->pManager + 0x54);
             g_Menu->pManager->shouldRenderUnk358Prims = 1;
             g_Menu->pManager->shouldRenderUnk35C = 1;
             g_Menu->pManager->shouldRenderPanel[1] = 1;
