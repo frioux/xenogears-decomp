@@ -256,12 +256,12 @@ void BattleAppendActorCommandBytes(BattleActor *pActor, BattleActor *pSource, vo
                     pActor->actionValue = pGroupTable[arg3 - 0x4E];
                 }
                 n = g_BattleCommandActorMask;
-                pActor->unk42 = 0;
-                pActor->unk40 = 0;
-                pActor->unk50 = 0;
-                pActor->unk54 = 0;
-                pActor->unk4C = 0;
-                pActor->unk23 = 0;
+                pActor->repeatCount = 0;
+                pActor->frameTimer = 0;
+                pActor->pWaitScript = 0;
+                pActor->pGroundScript = 0;
+                pActor->pArrivalScript = 0;
+                pActor->isModelLoading = 0;
                 pActor->modelBitMask = n;
                 func_800AAD54(pActor, arg2, -1, 1, 0);
             }

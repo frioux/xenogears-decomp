@@ -133,9 +133,9 @@ typedef struct {
     /* 0x01C */ s16 scale;
     /* 0x01E */ s16 groundTriangleIndex; // the ground search's last hit, handed back to it as the next hint
     /* 0x020 */ u8 actorSlot; // this actor's own g_BattleActors slot: target ids 0xFD/0xF9 resolve to it and the slot tables are indexed with it
-    /* 0x021 */ u8 unk21;
+    /* 0x021 */ u8 linkedActorSlot; // the g_BattleActors slot whose sprites this actor shares: command 0x16 hides the shared parts and forwards its command there
     /* 0x022 */ u8 unk22;
-    /* 0x023 */ u8 unk23;
+    /* 0x023 */ u8 isModelLoading; // set once the model file command has read the archive, cleared when ArchiveDataSync reports the load finished
     /* 0x024 */ s16 height;
     /* 0x026 */ s16 width;
     /* 0x028 */ s16 depth;
@@ -149,18 +149,20 @@ typedef struct {
     /* 0x037 */ u8 useScaledMatrices; // non-zero: the step runs func_8009F1C4, which folds each part's scale into its parent matrix (libgear's Model.useScaledMatrices)
     /* 0x038 */ u8 isBusy; // keeps BattleWaitAndFreeActorBuffers and BattleWaitForOtherActorAnimations waiting while it is set
     /* 0x039 */ u8 unk39;
-    /* 0x03A */ s16 unk3A;
+    /* 0x03A */ s16 savedActorMask; // command 0x6F stores g_BattleCommandActorMask here (-1 when its operand is 0); command 0x70 branches only while it still matches
     /* 0x03C */ u16 blockTag; // func_800A0838 compares it with each queued block's tag and sets that block's result bits
     /* 0x03E */ u16 unk3E;
-    /* 0x040 */ u16 unk40;
-    /* 0x042 */ u16 unk42;
-    /* 0x044 */ u8 unk44[0x6];
+    /* 0x040 */ u16 frameTimer; // the wait opcode's frame counter: incremented by the frame count and reset when it reaches the operand
+    /* 0x042 */ u16 repeatCount; // the repeat opcode's counter: incremented per re-entry and reset when it reaches the operand
+    /* 0x044 */ u16 waitTimer; // frames elapsed of the wait that resumes at pWaitScript
+    /* 0x046 */ u16 waitFrames; // that wait's length: pWaitScript resumes once waitTimer reaches it
+    /* 0x048 */ s16 arrivalDistance; // command 0x2E copies moveDistance here; pArrivalScript resumes once BattleGetActorSpriteDistance is within it
     /* 0x04A */ u16 flags4A;
-    /* 0x04C */ s32 unk4C;
-    /* 0x050 */ s32 unk50;
-    /* 0x054 */ s32 unk54;
-    /* 0x058 */ u16 unk58;
-    /* 0x05A */ u16 unk5A;
+    /* 0x04C */ s32 pArrivalScript; // script offset resumed when the actor is within arrivalDistance
+    /* 0x050 */ s32 pWaitScript; // script offset resumed when waitTimer reaches waitFrames
+    /* 0x054 */ s32 pGroundScript; // script offset resumed when the ground projection puts the sprite lower than its gravity
+    /* 0x058 */ u16 followTargetId; // target id func_800AEF68 resolves every frame to write posX/posY/posZ from that actor's position; 0 = none
+    /* 0x05A */ u16 followJointIndex; // which of that actor's sprites the composed matrix comes from
     /* 0x05C */ u8 parentActorSlot; // g_BattleActors slot of the actor whose transform this one inherits; 0xFF = none
     /* 0x05D */ u8 isAttached;
     /* 0x05E */ s16 parentJointIndex; // which of the parent's sprites this one hangs off
@@ -171,11 +173,14 @@ typedef struct {
     /* 0x06A */ u16 attachOffsetX;
     /* 0x06C */ u16 attachOffsetY;
     /* 0x06E */ u16 attachOffsetZ;
-    /* 0x070 */ u16 unk70[0xC];
+    /* 0x070 */ u16 rotOffset[3]; // added to the sprite's rot[0..2] every frame, >>3
+    /* 0x076 */ u16 rotStep[3]; // added to rotOffset every frame
+    /* 0x07C */ u16 posOffset[3]; // scaled by the sprite's scale and rotated into its position every frame
+    /* 0x082 */ u16 posStep[3]; // added to posOffset every frame
     /* 0x088 */ s16 posX;
     /* 0x08A */ s16 posY;
     /* 0x08C */ s16 posZ;
-    /* 0x08E */ u16 unk8E;
+    /* 0x08E */ u16 moveDistance; // the distance a move command stops at: the distance commands scale its operand by the actor's size, and command 0x2E copies it into arrivalDistance
     /* 0x090 */ u8 unk90[0x8];
     /* 0x098 */ s16 stepIndex; // the move command's current step; -1 = none installed
     /* 0x09A */ s16 stepCount; // steps the move command runs; -1 = repeat forever
