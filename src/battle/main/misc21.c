@@ -769,8 +769,6 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    tween 2D arm -6 and 3D arm +2, second allocate loop +2. */
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
-/*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
@@ -955,11 +953,11 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(macPoint);
             ((u16*)((void**)pModelList->pPackets)[j])[2] = ((u16*)macPoint)[0];
-            ((u16*)((void**)pModelList->pPackets)[j])[3] = ((u16*)macPoint)[1];
-            ((u16*)((void**)pModelList->pPackets)[j])[4] = ((u16*)macPoint)[2];
+            ((u16*)((void**)pModelList->pPackets)[j])[3] = ((u16*)macPoint)[2];
+            ((u16*)((void**)pModelList->pPackets)[j])[4] = ((u16*)macPoint)[4];
         }
-        for (j = 0; j < pModelList->recordCount; j++) {
-            pPoint = &pModelList->pRecords[j];
+        pPoint = pModelList->pRecords;
+        for (j = 0; j < pModelList->recordCount; j++, pPoint++) {
             CompMatrix(&pSprites->localTransform, &pSprites[pPoint->spriteIndex].globalTransform, pMatrix);
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
@@ -967,8 +965,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(macPoint);
             pPoint->x = ((u16*)macPoint)[0];
-            pPoint->y = ((u16*)macPoint)[1];
-            pPoint->z = ((u16*)macPoint)[2];
+            pPoint->y = ((u16*)macPoint)[2];
+            pPoint->z = ((u16*)macPoint)[4];
         }
         func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
     }
@@ -1077,7 +1075,6 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         pTween->pSlot->y3 = pTween->offsets[pTween->slot + 8].vy;
     }
 }
-*/
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
