@@ -320,51 +320,6 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
         pActor->scale += pActor->scaleStep;
     }
 }
-// Best: 98.71%. Instruction multiset and registers are identical bar one
-// store: `sw v?,4(s2)` (scale.vy = 0x1000) sits in the load-delay slot of
-// `lw 0x68` here, while retail puts it in the slot of `lw 0x70`. Source order
-// (vy before vx) is what fixes the store order; swapping them breaks it.
-// The guard is two tests in retail (beqz x==0 then bne x!=1), i.e. two
-// early returns, not one `if (x == 1)`.
-/*
-void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut, WorldMapModel *pModel) {
-    if (pActor->state == 0) {
-        return;
-    }
-    if (pActor->state != 1) {
-        return;
-    }
-    {
-        pModel->rot.vz = 0;
-        pModel->rot.vx = 0;
-        pModel->rot.vy = pActor->rotY;
-        pModel->scale.vx = pActor->scale & 0x7FFF;
-        pModel->scale.vy = 0x1000;
-        pModel->scale.vz = rcos(pActor->scaleAngle) * 6;
-        RotMatrix(&pModel->rot, &pModel->mat);
-        ScaleMatrix(&pModel->mat, &pModel->scale);
-        pOut->mat = pModel->mat;
-        pActor->red += pActor->redStep;
-        pActor->green += pActor->greenStep;
-        if (pActor->red >= 0x100) {
-            pActor->red = 0xFF;
-            pActor->redStep = -pActor->redStep;
-        } else if (pActor->red < 0x40) {
-            pActor->red = 0x40;
-            pActor->redStep = -pActor->redStep;
-        }
-        if (pActor->green >= 0x100) {
-            pActor->green = 0xFF;
-            pActor->greenStep = -pActor->greenStep;
-        } else if (pActor->green < 0x80) {
-            pActor->green = 0x80;
-            pActor->greenStep = -pActor->greenStep;
-        }
-        pActor->scaleAngle = (pActor->scaleAngle + 8) & 0xFFF;
-        pActor->scale += pActor->scaleStep;
-    }
-}
-*/
 
 void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, POLY_FT3 *pPrim, s32 count, s32 abr) {
     s32 i;
@@ -557,54 +512,35 @@ s32 WorldMapSetActorParams(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
-// Round 164: re-measured. The raw body below builds at 84.75% but is 224 bytes
-// against retail's 244 (61 insns), so the store-to-load fold of
-// g_WorldMapViewRotationY/Z also drops the two `lui`/`lh`/`sll` triples. The
-// typed-struct form re-measures 30.52% today (unchanged); a `volatile s16` on
-// the two externs brings both `lh` back but compiles to lhu+sll+sra and 252
-// bytes. Nothing tried keeps the two `lh` AND 244 bytes.
-// NOTE (rewrite round): this file now declares g_WorldMapViewRotationY u16,
-// because WorldMapShutdownScene reads it as an unsigned halfword; the reads in
-// the body below therefore build an lhu, so retail's `lh` + `sll 12` pair needs
-// a signed view of the global before this park can come back to 84.75%.
-// Round 111 triage: this body did NOT compile - it was defined void while the
-// unit's own extern at the top of the file says s32 (retail returns 1), so every
-// attempt to unpark it died before it produced bytes. With the s32 return below
-// it builds and scores 84.75%, 224 bytes = retail's exact size, so round 64's
-// numbers are real. New this round: '*(volatile s16 *)&g_WorldMapViewRotationY' does force
-// retail's reload but gcc emits lhu + sll 0x10 + sra 0x4 for it, 252 bytes,
-// 72.84% - gcc's volatile short load is unsigned, so the fold stays open.
-// Best: 84.75% with the raw byte-pointer form below; the typed-struct form
-// (pActor->unk7C = 0x1000; g_WorldMapViewRotationY = 0x400; ... v = g_WorldMapViewRotationY;) scores
-// 30.52% because gcc reorders the whole straight-line block once it folds the
-// store-to-load pair into the constant. Every instruction and relocation of
-// the raw form matches except that folding: retail re-loads g_WorldMapViewRotationY (lh)
-// and g_WorldMapViewRotationZ (lh) after storing them, we get lui $v0,0x40 instead.
-// Round-49 update: a volatile *store* (*(volatile s16 *)&g_WorldMapViewRotationY = 0x400)
-// does stop the fold and restores both lh's, but the extra live value shifts
-// the allocator one register over (temps to a1, 0x960000 to a0; 244 vs 224
-// bytes, 77%); the same happens spelling the angle globals as one array
-// (extern s16 g_WorldMapCameraRot[]) with the reads through g_WorldMapCameraRot[1]/[2]: no fold,
-// 79.41%, registers and store order off. My third shape - struct fields for the
-// stores, plain externs for the reads - is 79.57% and also loses the allocator.
-// -O1 scores 67.46. A volatile load forces the reload but emits
-// lhu + sll 0x10 + sra 0x4 instead of lh + sll 0xc (72.84%); volatile on the
-// stores alone changes nothing.
-// Round 64: two more shapes, both keep the fold away but not the scheduler.
-// (1) stores scalar (exact retail relocations) + reads spelled
-//     g_WorldMapCameraRot[1]/[2] with `extern s16 g_WorldMapCameraRot[]`: no fold, the two `lh`
-//     come back, but 51.59% / 244 bytes vs retail's 224 - cc1 hoists every
-//     li+store pair past the $0 stores and lands the WorldMapActor cluster at
-//     the end, exactly the misc4 WorldMapInitActorSlotTimer40 / misc7 func_800827EC class.
-// (2) try_flags --sweep over that body: best is gcc-2.7.2-cdk -O1 74.33,
-//     2.7.2 -O1 74.08, every -O2/-O3 row 43-52. So the store order is a -O2
-//     scheduler property, not a preset question; the unit's already-matched
-//     functions keep their flags.
+// Best: 96.15% at retail's exact size (244 bytes). The only difference left is
+// one register: the 0x960000 both stores share sits in $a0 here and in $a1 in
+// retail (`lui a1,0x96` just after the third position load). Everything else,
+// retail's two `lh` reloads of the angle globals included, is byte for byte.
+// What got it here, in case it helps invert that tie:
+// - The two `lh` are STORE-TO-LOAD FOLDING, not a volatile problem. The fold
+//   only fires when the read names the symbol the store wrote, so reading the
+//   angles through the neighbouring symbol `g_WorldMapCameraRot` (base
+//   0x8009BD38; +2 and +4 are the two view rotations) as s16 defeats it and
+//   brings back retail's lui/lh/sll. That relocation is base+addend where retail
+//   names the field, so diff_func never says MATCH for this body even when it is
+//   right: judge it with check_bin.sh.
+// - `v = -0x20;` before the block and `g_WorldMapCameraRot = v;` is what puts
+//   -0x20 in $v0 as retail does; the literal is materialised later.
+// - The Z angle needs its own variable (angleZ), loaded between the two 0x3C
+//   stores; otherwise gcc coalesces it into the Y value's register and the whole
+//   tail differs.
+// - 0x960000 has to be a variable assigned just after the third position load.
+//   As a literal it is materialised at its second use and the body shifts.
+// Tried on the last tie: three permuter runs (565 -> 360 -> 155 -> 95, then
+// NONE), u32/int/s32 for the constant, four declaration orders, and dropping the
+// variable altogether (that one loses retail's single `lui`, 240 bytes).
 /*
 s32 func_8008390C(s32 arg0) {
     WorldMapActor *pActor = &g_WorldMapSlots[arg0];
-    u8 *p = (u8 *)pActor;
+    s32 cameraHeight;
     s32 v;
+    u32 angleZ;
+    u8 *p = (u8 *)pActor;
 
     *(s32 *)(p + 0x7C) = 0x1000;
     v = g_WorldMapPlayerPosition[0];
@@ -616,23 +552,28 @@ s32 func_8008390C(s32 arg0) {
     g_WorldMapScrollTargetY = v;
     pActor->y = v;
     v = g_WorldMapPlayerPositionZ;
+    cameraHeight = 0x960000;
     g_WorldMapCameraTargetZ = v;
     g_WorldMapScrollTargetZ = v;
     pActor->z = v;
-    pActor->state = 0;
-    pActor->command = 0;
-    *(s32 *)(p + 0x5C) = 0x960000;
-    g_WorldMapCameraRot = -0x20;
+    v = -0x20;
+    do {
+        pActor->state = 0;
+        pActor->command = 0;
+        *(s32 *)(p + 0x5C) = cameraHeight;
+    } while (0);
+    g_WorldMapCameraRot = v;
     g_WorldMapViewRotationY = 0x400;
     g_WorldMapViewRotationZ = 0;
     *(s32 *)(p + 0x50) = -0x20000;
     *(s32 *)(p + 0x38) = -0x20000;
-    v = g_WorldMapViewRotationY;
+    v = ((s16 *)&g_WorldMapCameraRot)[1];
     g_WorldMapRotationMatrixValid = 0;
-    g_WorldMapCameraHeight = 0x960000;
+    g_WorldMapCameraHeight = cameraHeight;
     *(s32 *)(p + 0x54) = v << 12;
+    angleZ = ((s16 *)&g_WorldMapCameraRot)[2];
     *(s32 *)(p + 0x3C) = v << 12;
-    v = g_WorldMapViewRotationZ;
+    v = angleZ;
     g_WorldMapFadeLevel = 0x78;
     *(s32 *)(p + 0x58) = v << 12;
     *(s32 *)(p + 0x40) = v << 12;
