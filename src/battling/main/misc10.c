@@ -761,12 +761,21 @@ s32 BattleCheckModeOver(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
 
-/* 99.19% objdiff, retail's exact 2928 bytes. This is the battle scene's init and
+/* 99.24% objdiff, retail's exact 2928 bytes. This is the battle scene's init and
    frame loop; its jtbl_80070260 switch on g_BattleSavedScreenMode is the table this
    stub owns. The body below is a complete transcription, instruction-identical to
-   retail except for three register ties (RESIDUAL below).
+   retail except for ONE register pair (RESIDUAL below).
 
-   FIXED THIS ROUND, each one a source shape:
+   FIXED THIS ROUND: the block the audio manager is created on
+   (D_800917C0[0].buffer) is its own variable (pAudioBlock), not the pBuf the two
+   LZSS results are assigned to. With one pBuf covering both lifetimes gcc gave the
+   early block s1 and pushed the D_800917C0 base out of s0; as two variables the
+   early one takes s0 exactly as retail does (retail: lui s0,%hi(D_800917C4) ...
+   addu s1,v0 for the LZSS result), and the body went 99.19 -> 99.24. Splitting
+   either LZSS result off, or the archive pointer, is worse (99.13 / 99.14), so
+   those are one variable each in the original too.
+
+   FIXED EARLIER, each one a source shape:
    - The frame loop's `if (state == 0) ... else if (state == 1) ...` is a
      `switch (state)` with case 0 and case 1. gcc 2.7.2 puts both tests up front
      (beqz / li v0,1 / beq / nop / j / nop) and both arms out of line; that is
@@ -781,38 +790,46 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
      `ori s0,zero,1` in the jal's slot, so the state store is the first instruction
      after the first call.
    - `g_BattleEffectImageActive = NULL;` comes BEFORE
-     ControllerSetFrameCallback(BattleUpdateEffectImage), not after: retail emits
-     its lui at / sw zero between the callback's own lui-addiu and its jal.
-   - `count` is u8, not s32 (it is loaded through a u8 pointer); that is what puts
-     the reassigned count in v0 and the compared-against original in v1.
-   - pActor1/pActor0 are NOT locals. The two actor addresses appear inline
+     ControllerSetFrameCallback(BattleUpdateEffectImage), not after.
+   - `count` is u8, not s32 (it is loaded through a u8 pointer).
+   - pActor1/pActor0 are NOT locals: the two actor addresses appear inline
      (`g_BattleActor1.position.x = 0x3E80;`, `func_80079DF0(&g_BattleActor1,
-     &g_BattleActor0)`), and gcc then keeps them in s1/s0 across the whole loop and
-     materialises them at newRound exactly as retail does (lui v0 / addiu v0 /
-     addu s1,v0,zero). Pointer locals made it write each address twice.
+     &g_BattleActor0)`), and gcc then keeps them in s1/s0 across the whole loop.
 
-   RESIDUAL, three register ties, no size difference:
-   1. pScene is s3 here and s2 in retail, while the chain holding the constant 1,
-      the ~1 mask and &g_BattleMatchCount is s2 here and s3 in retail. Two allocnos
-      whose priority order flipped; every instruction is otherwise the same. Tried:
-      the pScene declaration moved first, pMatchCount moved after the origin stores
-      (gcc hoists it back), the seds/pBuf statements swapped, and two permuter runs
-      (10 minutes: 3929 -> 665; 7 minutes: 665 -> 580, whose best edit was a
-      duplicated if/else on pScene, i.e. only a register-allocation hack).
-   2. pBuf is s1 here and s0 in retail (retail reuses s0, the register the
-      D_800917C0 base and later `state` live in), and ours hoists the D_800917C4
-      load above the D_800917CC one.
-   3. Retail's `li s3,0x1` lands at the top of the reinit block (0x855EC, in
-      BattleFreeNodeTree's delay slot) and its `li s0,0x2` at 0x8566C; this body
-      emits `li s0,0x2` first and `li s2,0x1` later. Same instructions, different
-      slots.
-
+   RESIDUAL, one allocno pair and the li order it implies, no size difference:
+   pScene is s3 here and s2 in retail, and the chain that holds the constant 1, the
+   ~1 mask and &g_BattleMatchCount is s2 here and s3 in retail - the same two
+   allocnos swapped. Retail's `ori s3,zero,1` also lands at the top of the reinit
+   block (0x855EC, in BattleFreeNodeTree's delay slot) where this body emits
+   `ori s0,zero,2` (state = 2) and keeps the 1 until two calls later; the two `li`
+   positions are tied to the same pair.
+   Why it is not a source shape: both are long-lived global allocnos with the same
+   ref and live-range counts as retail's (pScene 8 refs / 642 insns, the 1 4 refs /
+   88 insns), and gcc 2.7.2's allocno_compare ranks the constant ABOVE pScene
+   (n_refs / live_length), which is exactly what this body does. The pairing is a
+   sort artefact that is sensitive to the total allocno set - the pAudioBlock split
+   above moved a different pair - so only a perturbation of the whole set flips it.
+   MEASURED, all at 2928 bytes unless noted. On the 99.19 body (one pBuf):
+   pMatchCount inlined as &g_BattleMatchCount 98.87 (2932); typed Misc10Actor*
+   pScene 99.19; pScene declared last 99.19; state = 2 moved after the facing/stage
+   stores 99.19; pMatchCount born early 98.70 (2932); `& 0xFFFE` instead of `& ~1`
+   98.36 (2916); a temp for BattleCreateOrderingTablePair's result - same code. Two
+   permuter runs (10 min: 3929 -> 665; 7 min: 665 -> 580) found nothing usable, so
+   do not spend another one.
+   On THIS body: pRes folded into D_800917C0[i] 99.24 (neutral, so pRes is the
+   original's variable), the second LZSS result as its own variable 99.13, the
+   first LZSS result as its own variable 99.13 (so both are pBuf), the second
+   archive as its own variable 99.19 (so both are pArchive), idleCount += 1 99.24,
+   a second pScene alias for the draw arms 98.80 (2936). Nothing tried moves the
+   pScene/constant pair; the one thing that did move a pair was the pAudioBlock
+   split above.
    s32 func_800852C4(void) {
        void* pScene;
        Misc10ArchiveHeader* pArchive;
        Misc10Resource* pRes;
        u8* pMatchCount;
        u8* pBuf;
+       u8* pAudioBlock;
        s32 state;
        s32 idleTimer;
        s32 idleCount;
@@ -831,7 +848,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        BattleAllocResourceBuffer(&pRes[4], 1);
        func_80029AFC(pRes, 0, 0);
        g_BattleSedsEntryId = D_800917C0[1].buffer;
-       pBuf = (u8*)D_800917C0[0].buffer;
+       pAudioBlock = (u8*)D_800917C0[0].buffer;
        BattleSetScreenResolution(0x140, 0xDA);
        BattleClearLineSlots();
        func_80030988(1, 1, 0x40, 0x40);
@@ -852,7 +869,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
        if (g_BattleAudioManagerEnabled == 0) {
            goto sharedAudioManager;
        }
-       g_BattlingAudioManager = SoundCreateAudioManagerOnHeap(pBuf);
+       g_BattlingAudioManager = SoundCreateAudioManagerOnHeap(pAudioBlock);
        SoundPlayAudioManager(g_BattlingAudioManager, 0x7F, 0);
        goto audioManagerReady;
 
