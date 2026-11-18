@@ -58,6 +58,14 @@ typedef struct {
     u8 *entries[1];
 } SystemDataEntries;
 
+// indices into SystemDataEntries.entries[]: which string/name table a lookup reads
+#define SYSTEM_STRING_BANK_ACCESSORY 0x11
+#define SYSTEM_STRING_BANK_ITEM 0x16
+#define SYSTEM_STRING_BANK_WEAPON 0x17
+#define SYSTEM_STRING_BANK_GLYPH 0x1B
+#define SYSTEM_STRING_BANK_GEAR_ACCESSORY 0x32
+#define SYSTEM_STRING_BANK_GEAR_WEAPON 51
+
 extern ArchiveStreamFileSectionHeader* g_ArchiveStreamSections;
 extern int g_ArchiveStreamSectionCount;
 

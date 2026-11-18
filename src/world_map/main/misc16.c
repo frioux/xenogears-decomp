@@ -1,12 +1,12 @@
 #include "common.h"
 #include "psyq/libgte.h"
 
-extern VECTOR D_8009BB4C;
-extern VECTOR D_8009BB5C;
-extern VECTOR D_8009BB6C;
-extern VECTOR D_8009BB7C;
-extern VECTOR D_8009BB8C;
-extern VECTOR D_8009BB9C;
+extern VECTOR g_WorldMapClipPlaneAxisY;
+extern VECTOR g_WorldMapClipPlaneAxisX;
+extern VECTOR g_WorldMapClipPlaneDirXNeg;
+extern VECTOR g_WorldMapClipPlaneDirXPos;
+extern VECTOR g_WorldMapClipPlaneDirYNeg;
+extern VECTOR g_WorldMapClipPlaneDirYPos;
 extern VECTOR g_WorldMapClipPlaneYZ1;
 extern VECTOR g_WorldMapClipPlaneXZ0;
 extern VECTOR g_WorldMapClipPlaneXZ1;
@@ -53,10 +53,10 @@ extern s32 g_WorldMapGridShadePhase;
 extern s32 g_WorldMapGridAngle;
 
 void WorldMapComputeClipPlaneVectors(void) {
-    OuterProduct0(&D_8009BB6C, &D_8009BB4C, &g_WorldMapClipPlaneXZ0);
-    OuterProduct0(&D_8009BB4C, &D_8009BB7C, &g_WorldMapClipPlaneXZ1);
-    OuterProduct0(&D_8009BB8C, &D_8009BB5C, &g_WorldMapClipPlaneYZ0);
-    OuterProduct0(&D_8009BB5C, &D_8009BB9C, &g_WorldMapClipPlaneYZ1);
+    OuterProduct0(&g_WorldMapClipPlaneDirXNeg, &g_WorldMapClipPlaneAxisY, &g_WorldMapClipPlaneXZ0);
+    OuterProduct0(&g_WorldMapClipPlaneAxisY, &g_WorldMapClipPlaneDirXPos, &g_WorldMapClipPlaneXZ1);
+    OuterProduct0(&g_WorldMapClipPlaneDirYNeg, &g_WorldMapClipPlaneAxisX, &g_WorldMapClipPlaneYZ0);
+    OuterProduct0(&g_WorldMapClipPlaneAxisX, &g_WorldMapClipPlaneDirYPos, &g_WorldMapClipPlaneYZ1);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800980D4);
