@@ -184,7 +184,195 @@ extern s32 g_MovieHeapDebugEnabled;
 // local shared by both groups 98.36 (2288), teardown-only screenHeight 98.33;
 // gcc 2.6.0 scores the literal body 98.62 and 2.7.2-cdk 82.75. The one tie left in
 // this body IS a preset question - see the note below.
+
+// RE-MEASURED under the unit's gcc 2.6.0 preset: 99.04%, retail's exact 2276 bytes.
+// The /3600 magic division now lands in a2 as retail has it, and the only rows
+// objdump shows are two relocation spellings that link to the same address
+// (g_MovieStreamReadCount+0x3C vs retail's D_80076F78, and D_80077124+0x18 vs
+// retail's g_MovieStreamSlots). BUT tools/scripts/check_bin.sh still reports the
+// overlay MISMATCH: the stream-status FontPrintf below loads its D_8006FC40 format
+// string into a0 LAST, where retail loads it BEFORE the g_MovieStreamBlock /
+// WritePtr / BytesLeft arguments. That is a real byte difference, not a reloc
+// spelling, so the body stays parked. First lever to try: give the format string
+// a local ('char* pFormat = D_8006FC40;') so gcc hoists the address before the
+// other three loads.
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800704E8);
+
+/* 99.04%, 2276 bytes (retail's exact size); see the note above for the last diff
+void func_800704E8(void) {
+    SVECTOR sv;
+    MovieDebugMode mode;
+    u32 spare2[6];
+    MovieDrawBuffer* pWork;
+    MovieDrawBuffer* pBase;
+    MovieDrawBuffer* pNext;
+    u32* pCounters;
+    u32* pCounter;
+    s32 i;
+    s32 action;
+    s32 fileSize;
+    s32 playTime;
+    s32 hours;
+    s32 minutes;
+    s32 seconds;
+    s32 cursor;
+
+    mode = D_8006FAF4;
+    ArchiveChangeStreamingFile(0);
+    MovieClearFrameBuffer();
+    g_MovieReadBuffer = NULL;
+    g_MovieStreamMode = 1;
+    for (i = 0xF; i >= 0; i--) {
+        g_MovieStreamReadCount[i] = 0;
+    }
+
+    pWork = &D_80077124[0];
+    SetDefDrawEnv(&pWork->drawEnv, 0, 0, 0x280, 0xF0);
+    SetDefDispEnv(&pWork->dispEnv, 0, 0xF0, 0x280, 0xF0);
+    SetDefDrawEnv(&pWork[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
+    SetDefDispEnv(&pWork[1].dispEnv, 0, 0, 0x280, 0xF0);
+    pWork->drawEnv.isbg = 1;
+    pWork[1].drawEnv.isbg = 1;
+    ArchiveSetIndex(0xC, 3);
+
+    pCounters = g_MovieStreamReadCount;
+    pBase = pWork;
+    while (1) {
+        pNext = &D_80077124[0];
+        if (D_80077120 == pNext) {
+            pNext = &D_80077124[1];
+        }
+        D_80077120 = pNext;
+        D_8007744C = 1 - D_8007744C;
+        ClearOTagR(pNext->ot, 0x20);
+        func_800712C4();
+        MovieUpdatePadCursor(0, 0, &action);
+        MovieUpdateStream();
+
+        if (g_MovieRandomMode != 0) {
+            FontPrintf(D_8006FAF8);
+        }
+        if (g_MovieStreamMode == 0) {
+            FontPrintf(D_8006FB08);
+        }
+        FontPrintf(D_8006FB18, g_MovieStreamCommand, g_MovieStreamReadErrors, g_MovieVsyncCount,
+                   g_ArchiveReadRetryCount, g_ArchiveCdDriveState);
+        switch (D_80076E64) {
+        case 0:
+            FontPrintf(D_8006FB44);
+            break;
+        case 1:
+            FontPrintf(D_8006FB50);
+            break;
+        case 2:
+            FontPrintf(D_8006FB5C);
+            break;
+        }
+        FontPrintf(D_8006FB68, g_ArchiveCdReadStartCount, g_ArchiveCdReadCompleteCount,
+                   g_ArchiveCdReadStatusErrorCount, g_ArchiveCdDataSectorCompleteCount,
+                   g_ArchiveCdDataSectorErrorCount, D_8005A49C, g_ArchiveCdReadRetryExhaustedCount,
+                   g_ArchiveCdHaltCompleteCount, g_ArchiveCdHaltErrorCount);
+        fileSize = ArchiveDataSync();
+        FontPrintf(D_8006FBA8, fileSize, ArchiveGetCurFileSize(), g_ArchiveFilePositionErrorCount,
+                   g_ArchiveStreamPositionErrors, D_8004FDEC, g_ArchiveStreamNextSectionId,
+                   g_ArchiveStreamCurSectionId);
+        FontPrintf(D_8006FBE4, D_80076E68, D_80076E6C, D_80076E70, D_80076E74, D_80076E78);
+        FontPrintf(D_8006FC14, g_MovieStreamSections, D_80076E80, D_80076E88, D_80076E8C);
+
+        i = 0;
+        if (g_MovieStreamCommand >= 0xB || g_MovieStreamBytesLeft > 0) {
+            FontPrintf(D_8006FC40, D_80076E98, g_MovieStreamBlock, g_MovieStreamWritePtr,
+                       g_MovieStreamBytesLeft);
+            for (; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i]);
+            }
+            FontPrintf(D_8006FC6C);
+            for (i = 0; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i + 7]);
+            }
+            FontPrintf(D_8006FC6C);
+            for (i = 0; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i + 14]);
+            }
+            FontPrintf(D_8006FC6C);
+            for (i = 0; i < 7; i++) {
+                FontPrintf(D_8006FC64, D_80076E98[i + 21]);
+            }
+            FontPrintf(D_8006FC6C);
+            if (g_MovieStreamSections != NULL) {
+                FontPrintf(D_8006FC70, g_MovieStreamSections[0].unk4, g_MovieStreamSections[1].unk4,
+                           g_MovieStreamSections[2].unk4, g_MovieStreamSections[3].unk4);
+            }
+        }
+
+        D_80076EA8 = 0;
+        FontPrintf(D_8006FC8C, g_MovieStreamCancelCount);
+        for (i = 0, pCounter = pCounters; i < 0xD; i++) {
+            FontPrintf(D_8006FC98, i, *pCounter);
+            D_80076EA8 += *pCounter;
+            if (g_MovieStreamCommandNow == i) {
+                FontPrintf(D_8006FCA4);
+            }
+            if (g_MovieStreamCommandBefore == i) {
+                FontPrintf(D_8006FCAC);
+            }
+            FontPrintf(D_8006FC6C);
+            pCounter++;
+        }
+
+        playTime = g_MoviePlayTimeSeconds;
+        hours = playTime / 3600;
+        minutes = playTime / 60 - hours * 60;
+        seconds = playTime % 60;
+        FontPrintf(D_8006FCB4, D_80076EA8, hours, minutes, seconds);
+        FontPrintf(D_8006FCD8);
+        if (g_MovieHeapDebugEnabled > 0) {
+            HeapDebugDump(1, 0, 6, 0x808D);
+        }
+
+        FontDrawLetters(D_80077120->ot);
+        func_80072F98((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[0], 8, 0xC, 0x270, 0xD8);
+        func_800734B8((POLY_G4*)D_80077120->ot, &D_80077120->polyG4[1], 7, 0xB, 0x272, 0xDA);
+        DrawSync(0);
+        Vsync(0);
+        PutDrawEnv(&D_80077120->drawEnv);
+        PutDispEnv(&D_80077120->dispEnv);
+        DrawOTag(&D_80077120->ot[0x1F]);
+        cursor = g_MovieCursorIndex;
+        if ((g_MoviePrevPadButtons & 0x800) == 0 && (g_MoviePadButtons & 0x800) != 0 &&
+            g_MovieStreamCommand == 0) {
+            g_MovieHeapDebugEnabled = 0;
+            ArchiveStopTransfer(0);
+            ArchiveCdDataSync(0);
+            if (g_MovieReadBuffer != NULL) {
+                HeapFree(g_MovieReadBuffer);
+            }
+            g_MovieReadBuffer = NULL;
+            if (D_80076E98 != NULL) {
+                HeapFree(D_80076E98);
+            }
+            D_80076E98 = NULL;
+            MovieClearFrameBuffer();
+            SetDefDrawEnv(&pBase->drawEnv, 0, 0, 0x140, 0xF0);
+            SetDefDispEnv(&pBase->dispEnv, 0, 0xF0, 0x140, 0xF0);
+            SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, i = 0xF0);
+            SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, i);
+            D_80077124[0].dispEnv.screen.x = 0;
+            D_80077124[0].dispEnv.screen.y = 0xA;
+            D_80077124[0].dispEnv.screen.w = 0x100;
+            D_80077124[0].dispEnv.screen.h = 0xD8;
+            D_80077124[1].dispEnv.screen.x = 0;
+            D_80077124[1].dispEnv.screen.y = 0xA;
+            D_80077124[1].dispEnv.screen.w = 0x100;
+            D_80077124[1].dispEnv.screen.h = 0xD8;
+            D_80077124[0].drawEnv.isbg = 1;
+            D_80077124[1].drawEnv.isbg = 1;
+            break;
+        }
+        g_MovieCursorIndex = cursor;
+    }
+}
+*/
 
 // PARKED at 99.02% (2.7.2): retail's exact size (2276 bytes), frame (0x70, mode at
 // 0x30, &action at 0x50) and register set. Every instruction now matches except ONE:
@@ -563,52 +751,21 @@ void func_80072D84(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     SetSemiTrans(pPoly1, 0);
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 }
+// PARKED at 98.67% under the unit's gcc 2.6.0 preset: retail's EXACT size (912
+// bytes) and instruction multiset. The only difference is the POSITION of two
+// prologue pairs: retail forms pColR/pTargetR AFTER the loop's steps-array
+// pointer (`lui s3 / addiu s3, D_80076FAC`) and gcc here forms them before it.
+// Everything else, including `i = 0` placed first (which retail also has, and
+// which is what made its twin func_800734B8 match), is identical.
+// Load-bearing, measured: the three `*(volatile u_char*)pColR` reads of the sums
+// are what reproduce retail's RE-READ of the current colour after the three
+// divisions (three lbu); the plain `*pColR` form lets gcc CSE the byte and lands
+// at 84 bytes short. An explicit `s32* pStep` local (to get the steps pointer
+// formed earlier) changes the durations access and lands at 880 bytes / 93.25%.
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_80072F98);
 
-void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
-    s32 i;
-    s32 j;
-    s32 color;
-
-    color = 0xFF;
-
-    // The colour triplets are 4-byte structs and splat labels every byte, so the
-    // three channels are addressed as byte arrays a stride of 4 apart.
-    for (i = 0; i < 0x10; i += 4) {
-        g_MovieGlowColours[i] = color;
-        D_80076FCD[i] = color;
-        D_80076FCE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
-        g_MovieGlowTargetColours[i] = color;
-        D_80076FDD[i] = color;
-        D_80076FDE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
-    }
-
-    for (j = 0; j < 4; j++) {
-        g_MovieGlowFadeSteps[j] = 0;
-        g_MovieGlowFadeDurations[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
-    }
-
-    SetPolyG4(pPoly0);
-    setXY4(pPoly0, x, y, x + w, y, x, y + h, x + w, y + h);
-    SetPolyG4(pPoly1);
-    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
-}
-
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800734B8);
-
-// Best attempt (93.54%, 804 bytes against retail's 820): retail's instruction
-// multiset plus four more reads. Retail keeps the six channel pointers in
-// s5/s4/t0/s8/s7/s6 with the pColG pointer (D_80076FCD) in caller-saved t0,
-// saved and restored around the three calls, and pPoly0 on the stack at 0x10(sp);
-// gcc here picks s7/s4/t2/s6/s8/s5 with the same one-caller-saved shape. Those
-// two allocation differences also change CSE: retail re-reads *pColR/*pColG/
-// *pColB after the three divisions (three extra lbu) instead of keeping the bytes
-// loaded for the deltas. Six declaration orders of the pointer locals all compile
-// identically; the combined single-expression form reads 93.37% at the same size,
-// and a second pointer to the same address (forced reloads) reads 94.34% at 812
-// bytes. The permuter's best was the same 812-byte form.
-/*
-void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+/* 98.67%, 912 bytes, retail's exact size
+void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
     s32 i;
     s32 r;
     s32 g;
@@ -623,8 +780,9 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     u_char* pTargetG;
     u_char* pTargetB;
 
-    pColB = D_80076FCE;
-    pTargetB = D_80076FDE;
+    i = 0;
+    pColB = &D_80076F8C[0].b;
+    pTargetB = &D_80076F9C[0].b;
     pColG = pColB - 1;
     pTargetG = pTargetB - 1;
     pColR = pColB - 2;
@@ -632,24 +790,24 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
 
     setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
 
-    for (i = 0; i < 4; i++) {
-        if (++g_MovieGlowFadeSteps[i] > g_MovieGlowFadeDurations[i]) {
-            g_MovieGlowFadeSteps[i] = 0;
-            g_MovieGlowFadeDurations[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+    for (; i < 4; i++) {
+        if (++D_80076FAC[i] > D_80076FBC[i]) {
+            D_80076FAC[i] = 0;
+            D_80076FBC[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
             *pColR = *pTargetR;
             *pColG = *pTargetG;
             *pColB = *pTargetB;
-            *pTargetR = 0xFF;
-            *pTargetG = 0xFF;
-            *pTargetB = (MovieGetRandomNumber() & 0x3F) - 0x42;
+            *pTargetR = (MovieGetRandomNumber() & 0xFF) / 32 + 8;
+            *pTargetG = 8;
+            *pTargetB = (MovieGetRandomNumber() & 0xFF) / 3 + 0x10;
         }
 
-        dr = (*pTargetR - *pColR) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
-        dg = (*pTargetG - *pColG) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
-        db = (*pTargetB - *pColB) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
-        r = *pColR + dr;
-        g = *pColG + dg;
-        b = *pColB + db;
+        dr = (*pTargetR - *pColR) * D_80076FAC[i] / D_80076FBC[i];
+        dg = (*pTargetG - *pColG) * D_80076FAC[i] / D_80076FBC[i];
+        db = (*pTargetB - *pColB) * D_80076FAC[i] / D_80076FBC[i];
+        r = *(volatile u_char*)pColR + dr;
+        g = *(volatile u_char*)pColG + dg;
+        b = *(volatile u_char*)pColB + db;
 
         switch (i) {
         case 0:
@@ -686,6 +844,116 @@ void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h)
     pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
 }
 */
+
+
+void MovieInitGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 j;
+    s32 color;
+
+    color = 0xFF;
+
+    // The colour triplets are 4-byte structs and splat labels every byte, so the
+    // three channels are addressed as byte arrays a stride of 4 apart.
+    for (i = 0; i < 0x10; i += 4) {
+        g_MovieGlowColours[i] = color;
+        D_80076FCD[i] = color;
+        D_80076FCE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
+        g_MovieGlowTargetColours[i] = color;
+        D_80076FDD[i] = color;
+        D_80076FDE[i] = (MovieGetRandomNumber() & 0x3F) - 0x42;
+    }
+
+    for (j = 0; j < 4; j++) {
+        g_MovieGlowFadeSteps[j] = 0;
+        g_MovieGlowFadeDurations[j] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+    }
+
+    SetPolyG4(pPoly0);
+    setXY4(pPoly0, x, y, x + w, y, x, y + h, x + w, y + h);
+    SetPolyG4(pPoly1);
+    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
+}
+
+
+void func_800734B8(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h) {
+    s32 i;
+    s32 r;
+    s32 g;
+    s32 b;
+    s32 dr;
+    s32 dg;
+    s32 db;
+    u_char* pColR;
+    u_char* pColG;
+    u_char* pColB;
+    u_char* pTargetR;
+    u_char* pTargetG;
+    u_char* pTargetB;
+
+    i = 0;
+    pColB = D_80076FCE;
+    pTargetB = D_80076FDE;
+    pColG = pColB - 1;
+    pTargetG = pTargetB - 1;
+    pColR = pColB - 2;
+    pTargetR = pTargetB - 2;
+
+    setXY4(pPoly1, x, y, x + w, y, x, y + h, x + w, y + h);
+
+    for (; i < 4; i++) {
+        if (++g_MovieGlowFadeSteps[i] > g_MovieGlowFadeDurations[i]) {
+            g_MovieGlowFadeSteps[i] = 0;
+            g_MovieGlowFadeDurations[i] = (MovieGetRandomNumber() & 0xFF) + 0x20;
+            *pColR = *pTargetR;
+            *pColG = *pTargetG;
+            *pColB = *pTargetB;
+            *pTargetR = 0xFF;
+            *pTargetG = 0xFF;
+            *pTargetB = (MovieGetRandomNumber() & 0x3F) - 0x42;
+        }
+
+        dr = (*pTargetR - *pColR) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
+        dg = (*pTargetG - *pColG) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
+        db = (*pTargetB - *pColB) * g_MovieGlowFadeSteps[i] / g_MovieGlowFadeDurations[i];
+        r = *(volatile u_char*)pColR + dr;
+        g = *(volatile u_char*)pColG + dg;
+        b = *(volatile u_char*)pColB + db;
+
+        switch (i) {
+        case 0:
+            pPoly1->r0 = r;
+            pPoly1->g0 = g;
+            pPoly1->b0 = b;
+            break;
+        case 1:
+            pPoly1->r1 = r;
+            pPoly1->g1 = g;
+            pPoly1->b1 = b;
+            break;
+        case 2:
+            pPoly1->r2 = r;
+            pPoly1->g2 = g;
+            pPoly1->b2 = b;
+            break;
+        case 3:
+            pPoly1->r3 = r;
+            pPoly1->g3 = g;
+            pPoly1->b3 = b;
+            break;
+        }
+
+        pColB += 4;
+        pTargetB += 4;
+        pColG += 4;
+        pTargetG += 4;
+        pColR += 4;
+        pTargetR += 4;
+    }
+
+    pPoly1->tag = (pPoly1->tag & 0xFF000000) | (pPoly0->tag & 0xFFFFFF);
+    pPoly0->tag = (pPoly0->tag & 0xFF000000) | ((u32)pPoly1 & 0xFFFFFF);
+}
 
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc1", func_800737EC);
 
