@@ -75,7 +75,16 @@ segments:
       - [0x1BF78, c, main/misc10]
       - [0x1F33C, c, main/misc11]
       - [0x1F928, c, main/misc11_r1]
+      # A unit name may appear in only ONE c range: splat writes one asm/<unit>.s
+      # and the linker script names one .c.o(.text), so a second range with the same
+      # name keeps only its own bytes (the middle run was built by gcc 2.6.0, the
+      # head and the tail by 2.7.2).
       - [0x1FA28, c, main/misc11_r2]
+      # func_801E56E8 .. func_801E68AC were built by gcc 2.6.0; the head and tail
+      # of the unit are 2.7.2 (MenuFillInventoryTables is 93.06 under 2.6.0,
+      # MenuDrawSlotResourceSprites 99.39).
+      - [0x206E8, c, main/misc11_r2_260]
+      - [0x21B70, c, main/misc11_r2_b]
       - [0x21CFC, c, main/misc12]
       - [0x246A4, data]
   - [0x25908]
