@@ -58,7 +58,8 @@ extern void BattleDrawTextRightOffset(u8 *p, s32 dy);
 extern void ControllerMergeStates(void);
 typedef struct {
     /* 0x0  */ u8 flags;
-    /* 0x1  */ u8 unk1[3];
+    /* 0x1  */ u8 messageId;
+    /* 0x2  */ u8 pad2[2];
     /* 0x4  */ u8 *pData;
     /* 0x8  */ void (*pCallback)(void *p);
     /* 0xC  */ void *pCallbackArg;
@@ -77,7 +78,7 @@ typedef struct {
 } BattleTextFrame; // Size: 0x10
 
 typedef struct {
-    /* 0x00 */ u8 unk0;
+    /* 0x00 */ u8 extraWidth;
     /* 0x01 */ u8 unk1[3];
     /* 0x04 */ BattleTextEntry *pEntries;
     /* 0x08 */ s16 count;
@@ -412,7 +413,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_800812BC);
    verified: two loops over p->count at 0x14 stride through p->pEntries;
    loop 1 does entry->xOffset = BattleGetTextWidth(entry->unk4) / 2 and keeps the
    running max, loop 2 stores max into entry->xOffset for the entries whose
-   flags byte has bit 1; then the frame header stores, the p->unk0 width
+   flags byte has bit 1; then the frame header stores, the p->extraWidth
    fixups, a 16-byte copy of the frame at 0x1C into 0x2C (frames[1] =
    frames[0] gives retail's four lw then four sw) and BattleSetTextColor(0).
    Learned: max must be s32, not s16 - as s16 gcc sign-extends max before
@@ -460,10 +461,10 @@ void func_800812BC(BattleTextList *p) {
             pEntry->xOffset = max;
         }
     }
-    if (p->unk0 != 0) {
-        p->frames[0].w += p->unk0;
-        p->frames[0].x -= p->unk0 / 2;
-        p->x = 0xA0 - p->unk0 / 2 - max;
+    if (p->extraWidth != 0) {
+        p->frames[0].w += p->extraWidth;
+        p->frames[0].x -= p->extraWidth / 2;
+        p->x = 0xA0 - p->extraWidth / 2 - max;
     }
     p->frames[1] = p->frames[0];
     BattleSetTextColor(0);
@@ -492,14 +493,14 @@ void BattleDrawTextList(BattleTextList *p) {
     if (p == g_BattleOptionTextList) {
         return;
     }
-    if (p->unk0 != 0) {
+    if (p->extraWidth != 0) {
         BattleSetTextCursor(p->x, p->y);
     } else {
         BattleSetTextCursor(0xA0, p->y);
     }
     for (i = 0; i < p->count; i++) {
         BattleSetRowTextColor(p, i);
-        if (p->unk0 != 0) {
+        if (p->extraWidth != 0) {
             BattleDrawTextLeft(p->pEntries[i].pData);
         } else {
             BattleDrawTextRightOffset(p->pEntries[i].pData, p->pEntries[i].xOffset);
@@ -509,7 +510,7 @@ void BattleDrawTextList(BattleTextList *p) {
         p->pCallback(p);
     }
 }
-/* 99.63%: the duplicated call (one per arm of the unk0 test) is what makes
+/* 99.63%: the duplicated call (one per arm of the extraWidth test) is what makes
    gcc cross-jump the two `jal BattleSetTextCursor` tails into one and keep retail's
    `lh a1,0x14` in BOTH arms; assigning a1 in both arms and calling once merges
    the load instead (95.15%).
@@ -532,7 +533,7 @@ void BattleDrawTextList(BattleTextList *p) {
     if ((s32 *)p == (s32 *)g_BattleOptionTextList) {
         return;
     }
-    if (p->unk0 != 0) {
+    if (p->extraWidth != 0) {
         BattleSetTextCursor(p->x, p->y);
     } else {
         BattleSetTextCursor(0xA0, p->y);
@@ -540,7 +541,7 @@ void BattleDrawTextList(BattleTextList *p) {
     i = 0;
     for (off = 0; i < p->count; i++) {
         BattleSetRowTextColor(p, i);
-        if (p->unk0 != 0) {
+        if (p->extraWidth != 0) {
             BattleDrawTextLeft((u8 *)*(u32 *)(off + p->pEntries + 4));
         } else {
             BattleDrawTextRightOffset((u8 *)*(u32 *)(off + p->pEntries + 4), *(s16 *)(off + p->pEntries + 0x12));
@@ -743,7 +744,7 @@ void BattleSetScreenTileBlack(void) {
 }
 
 typedef struct {
-    /* 0x0 */ s16 unk0;
+    /* 0x0 */ s16 height;
     /* 0x2 */ s16 unk2;
 } Misc8BattleGrid; // Size: 0x4
 
@@ -833,7 +834,7 @@ void func_80081ECC(void) {
     D_800955F8.copies[4].w = 0x40;
 
     for (i = 0; i < 0x4000; i++) {
-        g_BattleGridCells[i].unk0 = g_BattleGridCells[i].unk0 * 12;
+        g_BattleGridCells[i].height = g_BattleGridCells[i].height * 12;
     }
     func_80087830();
 }
