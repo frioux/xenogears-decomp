@@ -30,11 +30,15 @@ typedef struct {
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
     /* 0x30 */ s32 z;
-    /* 0x34 */ s32 unk34;
+    /* 0x34 */ s32 w; // fourth word of the x/y/z quad, copied whole with it
     /* 0x38 */ u8 pad38[0x4];
     /* 0x3C */ s32 dirY;
     /* 0x40 */ s32 dirZ;
     /* 0x44 */ u8 pad44[0xC];
+    // 0x50..0x64 are reused per slot mode, so no single name fits: the rotation
+    // handlers accumulate a 12-bit angle in 0x50 by 0x54 (mask 0xFFF, fed to
+    // RotMatrixYXZ) while the scroll handlers read 0x50 as a path position and
+    // 0x58 as the speed added to it.
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
@@ -42,16 +46,16 @@ typedef struct {
     /* 0x60 */ s32 unk60;
     /* 0x64 */ s32 unk64;
     /* 0x68 */ u8 pad68[0x4];
-    /* 0x6C */ s32 unk6C;
+    /* 0x6C */ s32 scaleAngle; // 12-bit angle; rcos of it scales the model
     /* 0x70 */ s32 scale;
-    /* 0x74 */ s32 unk74;
+    /* 0x74 */ s32 scaleStep;
     /* 0x78 */ u8 pad78[0x8];
 } WorldMapActor; // Size: 0x80
 
 // One entry of the g_WorldMapGroups table (stride 0x54). 0x48 and 0x4C are the source
 // and destination prim lists (g_WorldMapGroups[14]/[15] feed WorldMapSetupPrimTemplates).
 typedef struct {
-    /* 0x00 */ u16 unk0;
+    /* 0x00 */ u16 hidden; // nonzero: the sprite-set draw pass skips this entry
     /* 0x02 */ u16 pad2;
     /* 0x04 */ u32 unk4;
     /* 0x08 */ WorldMapPos4 pos;
@@ -668,7 +672,7 @@ s32 WorldMapInitActorSlotTimer40(s32 index) {
         g_WorldMapViewRotationZ = 0;
     } while (0);
     p->stateTimer = timer;
-    p->unk74 = 0;
+    p->scaleStep = 0;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
@@ -881,7 +885,7 @@ s32 WorldMapUpdateActorTerrainHeight(s32 index) {
     p = g_WorldMapSlots + index;
     if (p->command != 0) {
         p->command = 0;
-        g_WorldMapGroups->entry16.unk0 = 1;
+        g_WorldMapGroups->entry16.hidden = 1;
     }
     WorldMapWrapPosition(&p->x);
     p->y = func_80093A5C(p->x, p->z) + 0x18000;
@@ -953,7 +957,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
      `pEntries[a] = *(MATRIX *)...` (3+3+2).
    - the state machine's `p->state` is u16 (the four increments are lhu) but the switch
      test is s16 (lh + sltiu) - `switch ((s16)p->state)`.
-   - case 4 stores 1 to unk0 of entries 13..0 in DESCENDING address order, so that is
+   - case 4 stores 1 to hidden of entries 13..0 in DESCENDING address order, so that is
      the source order.
    - constants: -0x8000 / 0x4000 / 0x100 are the per-state position deltas, -0x18000
      the x wrap limit, 0x1580000 the z limit, 0x71 the sound id.
@@ -1051,20 +1055,20 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
             break;
         }
         p->command = 0;
-        pEntries[13].unk0 = 1;
-        pEntries[12].unk0 = 1;
-        pEntries[11].unk0 = 1;
-        pEntries[10].unk0 = 1;
-        pEntries[9].unk0 = 1;
-        pEntries[8].unk0 = 1;
-        pEntries[7].unk0 = 1;
-        pEntries[6].unk0 = 1;
-        pEntries[5].unk0 = 1;
-        pEntries[4].unk0 = 1;
-        pEntries[3].unk0 = 1;
-        pEntries[2].unk0 = 1;
-        pEntries[1].unk0 = 1;
-        pEntries[0].unk0 = 1;
+        pEntries[13].hidden = 1;
+        pEntries[12].hidden = 1;
+        pEntries[11].hidden = 1;
+        pEntries[10].hidden = 1;
+        pEntries[9].hidden = 1;
+        pEntries[8].hidden = 1;
+        pEntries[7].hidden = 1;
+        pEntries[6].hidden = 1;
+        pEntries[5].hidden = 1;
+        pEntries[4].hidden = 1;
+        pEntries[3].hidden = 1;
+        pEntries[2].hidden = 1;
+        pEntries[1].hidden = 1;
+        pEntries[0].hidden = 1;
         WorldMapDeactivateSpriteGroup(0xB);
         break;
     }
@@ -1141,7 +1145,7 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
     p = g_WorldMapSlots + index;
     p->state = 0;
     p->scale = 0;
-    p->unk6C = 0;
+    p->scaleAngle = 0;
     WorldMapSetupPrimTemplates(&g_WorldMapGroups->entry14, g_WorldMapGroups->entry14.pPackets[0],
                   g_WorldMapGroups->entry14.pModel->polyCount);
     WorldMapSetupPrimTemplates(&g_WorldMapGroups->entry15, g_WorldMapGroups->entry15.pPackets[0],
@@ -1150,13 +1154,13 @@ s32 WorldMapSetupGroup14And15Prims(s32 index) {
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
 /* 99.90%, 604 bytes = retail's exact size. The whole residual is that retail
-   loads p->unk6C into $v0 and stores it twice, while this body's single
+   loads p->scaleAngle into $v0 and stores it twice, while this body's single
    `scale` variable is $v1 for both values. Cause: local-alloc's combine_regs
    merges the two non-overlapping webs of the one variable, and their union
    contains the `li $v0,0x1000` plus its two stores, so $v0 is not free and
    both webs get $v1. Two separate locals break the merge and do give retail's
    $v0 then $v1, but then the p->scale load is moved up to just after the
-   p->unk6C load (into the dead $a2): 97.16%. do/while containers (around the
+   p->scaleAngle load (into the dead $a2): 97.16%. do/while containers (around the
    assignment, the stores, the whole pair) move that hoist rather than remove
    it, 94.5-97.2%, and drag the pMtxA address formation along. Volatile on one
    scratch store: 95.12%, 608 bytes. Plain memory stores instead of the local:
@@ -1177,21 +1181,21 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_8007A1B4);
     result = 1;
     pEntry[14].pos = pEntry[0].pos;
     pEntry[15].pos = pEntry[14].pos;
-    p->unk6C += 0xC0;
-    if (p->unk6C >= 0x800) {
+    p->scaleAngle += 0xC0;
+    if (p->scaleAngle >= 0x800) {
         p->scale = (p->scale + 0x100) & 0x7FFF;
     }
     if (p->scale >= 0x6000) {
         result = 3;
         p->command = 0;
         p->scale = 0;
-        p->unk6C = 0;
+        p->scaleAngle = 0;
     }
     pMtxA = (MATRIX *)0x1F8000F0;
     *pMtxA = g_WorldMapIdentityMatrix;
     pMtxB = (MATRIX *)0x1F800110;
     *pMtxB = *pMtxA;
-    scale = p->unk6C;
+    scale = p->scaleAngle;
     *(u32 *)0x1F800008 = scale;
     *(u32 *)0x1F800000 = scale;
     *(u32 *)0x1F800014 = 0x1000;
