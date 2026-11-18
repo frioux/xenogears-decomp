@@ -4,8 +4,8 @@
 
 extern u8 *g_BattleColorSourceA;
 extern u8 *g_BattleColorSourceB;
-extern u8 *D_800C3EA0;
-extern u8 *D_800C3D50[2];
+extern u8 *g_BattleSpriteRenderData;
+extern u8 *g_BattlePartPrimBuffers[2];
 extern u8 g_BattleSpritePool[];
 extern u8 g_BattleBlockPool[];
 extern u16 g_BattleCurrentActorSlot;
@@ -274,54 +274,54 @@ void func_800A5EB4(void) {
     g_BattleColorTintWork = HeapAlloc(0x88, 1);
     pDst = g_BattleColorTintBase;
     for (i = 0; i < 4; i++) {
-        if (D_800C3EA0 != NULL) {
-            pDst[0] = D_800C3EA0[i * 0x24 + 0x1740];
-            pDst[1] = D_800C3EA0[i * 0x24 + 0x1741];
-            pDst[2] = D_800C3EA0[i * 0x24 + 0x1742];
+        if (g_BattleSpriteRenderData != NULL) {
+            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1740];
+            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1741];
+            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x1742];
             pDst += 4;
-            pDst[0] = D_800C3EA0[i * 0x24 + 0x1748];
-            pDst[1] = D_800C3EA0[i * 0x24 + 0x1749];
-            pDst[2] = D_800C3EA0[i * 0x24 + 0x174A];
+            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1748];
+            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1749];
+            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x174A];
             pDst += 4;
-            pDst[0] = D_800C3EA0[i * 0x24 + 0x1750];
-            pDst[1] = D_800C3EA0[i * 0x24 + 0x1751];
-            pDst[2] = D_800C3EA0[i * 0x24 + 0x1752];
+            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1750];
+            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1751];
+            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x1752];
             pDst += 4;
-            pDst[0] = D_800C3EA0[i * 0x24 + 0x1758];
-            pDst[1] = D_800C3EA0[i * 0x24 + 0x1759];
-            pDst[2] = D_800C3EA0[i * 0x24 + 0x175A];
+            pDst[0] = g_BattleSpriteRenderData[i * 0x24 + 0x1758];
+            pDst[1] = g_BattleSpriteRenderData[i * 0x24 + 0x1759];
+            pDst[2] = g_BattleSpriteRenderData[i * 0x24 + 0x175A];
             pDst += 4;
-            pDst[0] = D_800C3EA0[i * 0x18 + 0x16E0];
-            pDst[1] = D_800C3EA0[i * 0x18 + 0x16E1];
-            pDst[2] = D_800C3EA0[i * 0x18 + 0x16E2];
+            pDst[0] = g_BattleSpriteRenderData[i * 0x18 + 0x16E0];
+            pDst[1] = g_BattleSpriteRenderData[i * 0x18 + 0x16E1];
+            pDst[2] = g_BattleSpriteRenderData[i * 0x18 + 0x16E2];
             pDst += 4;
         } else {
             pDst += 0x14;
         }
-        if (D_800C3D50[0] != NULL) {
-            pDst[0] = D_800C3D50[0][i * 0x18 + 0x284];
-            pDst[1] = D_800C3D50[0][i * 0x18 + 0x285];
-            pDst[2] = D_800C3D50[0][i * 0x18 + 0x286];
+        if (g_BattlePartPrimBuffers[0] != NULL) {
+            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x18 + 0x284];
+            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x18 + 0x285];
+            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x18 + 0x286];
         }
         pDst += 4;
     }
     for (i = 0; i < 2; i++) {
-        if (D_800C3D50[0] != NULL) {
-            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2E4];
-            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2E5];
-            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2E6];
+        if (g_BattlePartPrimBuffers[0] != NULL) {
+            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E4];
+            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E5];
+            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E6];
             pDst += 4;
-            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2EC];
-            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2ED];
-            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2EE];
+            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EC];
+            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2ED];
+            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EE];
             pDst += 4;
-            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2F4];
-            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2F5];
-            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2F6];
+            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F4];
+            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F5];
+            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F6];
             pDst += 4;
-            pDst[0] = D_800C3D50[0][i * 0x24 + 0x2FC];
-            pDst[1] = D_800C3D50[0][i * 0x24 + 0x2FD];
-            pDst[2] = D_800C3D50[0][i * 0x24 + 0x2FE];
+            pDst[0] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FC];
+            pDst[1] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FD];
+            pDst[2] = g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FE];
             pDst += 4;
         } else {
             pDst += 0x10;
@@ -365,20 +365,20 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
    so this is a single isolated tie and a good permuter/unpark candidate): the
    plain array form (parked below), index constant-first (0x1740 + i*0x24), an
    embedded assignment (pDst = ...)[K] and *((pDst = base + off) + K), a
-   pDst = D_800C3EA0 + i*0x24 per store, an integer (mem_addr) sum, and a plain
+   pDst = g_BattleSpriteRenderData + i*0x24 per store, an integer (mem_addr) sum, and a plain
    offset variable (s32 and u32) incremented in the body instead of a biv - all
    still index-first. The one shape that DOES emit base-first is
-   "pDst = &D_800C3EA0[i * 0x24 + 0x1740]; *pDst = ...", but it keeps 0x1740 in
+   "pDst = &g_BattleSpriteRenderData[i * 0x24 + 0x1740]; *pDst = ...", but it keeps 0x1740 in
    the sum ("addu v0,t1,v0; sb v1,0(v0)") and moves the base to $t1. A 4-minute
    permuter run found nothing (2036 iterations, base=300 best=300).
    try_flags: 2.7.2 -G0 95.59, cdk -G0 79.78, 2.6.0 -O1 46.66, -O3 98.71, so
    the preset is right.
    Structure, for whoever unparks it: pSrc = g_BattleColorTintBase is a table of 24-byte
    records of six 3-byte colours (advance 4 per colour). For i in 0..3: the four
-   0x1740/48/50/58 groups go into D_800C3EA0 + i*0x24, the 0x16E0 group and the
-   0x284 group (D_800C3D50[0]) use i*0x18, and when D_800C3EA0 is NULL the five
+   0x1740/48/50/58 groups go into g_BattleSpriteRenderData + i*0x24, the 0x16E0 group and the
+   0x284 group (g_BattlePartPrimBuffers[0]) use i*0x18, and when g_BattleSpriteRenderData is NULL the five
    groups are skipped with pSrc += 0x14. Then a second i in 0..1 loop writes the
-   0x2E4/2EC/2F4/2FC groups into D_800C3D50[0] + i*0x24 (pSrc += 0x10 when it is
+   0x2E4/2EC/2F4/2FC groups into g_BattlePartPrimBuffers[0] + i*0x24 (pSrc += 0x10 when it is
    NULL), and the last two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers
    set by BattleSetColorSources. Every store reloads its base global, so the
    destination expression has to be written out in full at each store - a
@@ -390,54 +390,54 @@ void func_800A64E4(void) {
 
     pSrc = g_BattleColorTintBase;
     for (i = 0; i < 4; i++) {
-        if (D_800C3EA0 != NULL) {
-            D_800C3EA0[i * 0x24 + 0x1740] = pSrc[0];
-            D_800C3EA0[i * 0x24 + 0x1741] = pSrc[1];
-            D_800C3EA0[i * 0x24 + 0x1742] = pSrc[2];
+        if (g_BattleSpriteRenderData != NULL) {
+            g_BattleSpriteRenderData[i * 0x24 + 0x1740] = pSrc[0];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1741] = pSrc[1];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1742] = pSrc[2];
             pSrc += 4;
-            D_800C3EA0[i * 0x24 + 0x1748] = pSrc[0];
-            D_800C3EA0[i * 0x24 + 0x1749] = pSrc[1];
-            D_800C3EA0[i * 0x24 + 0x174A] = pSrc[2];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1748] = pSrc[0];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1749] = pSrc[1];
+            g_BattleSpriteRenderData[i * 0x24 + 0x174A] = pSrc[2];
             pSrc += 4;
-            D_800C3EA0[i * 0x24 + 0x1750] = pSrc[0];
-            D_800C3EA0[i * 0x24 + 0x1751] = pSrc[1];
-            D_800C3EA0[i * 0x24 + 0x1752] = pSrc[2];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1750] = pSrc[0];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1751] = pSrc[1];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1752] = pSrc[2];
             pSrc += 4;
-            D_800C3EA0[i * 0x24 + 0x1758] = pSrc[0];
-            D_800C3EA0[i * 0x24 + 0x1759] = pSrc[1];
-            D_800C3EA0[i * 0x24 + 0x175A] = pSrc[2];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1758] = pSrc[0];
+            g_BattleSpriteRenderData[i * 0x24 + 0x1759] = pSrc[1];
+            g_BattleSpriteRenderData[i * 0x24 + 0x175A] = pSrc[2];
             pSrc += 4;
-            D_800C3EA0[i * 0x18 + 0x16E0] = pSrc[0];
-            D_800C3EA0[i * 0x18 + 0x16E1] = pSrc[1];
-            D_800C3EA0[i * 0x18 + 0x16E2] = pSrc[2];
+            g_BattleSpriteRenderData[i * 0x18 + 0x16E0] = pSrc[0];
+            g_BattleSpriteRenderData[i * 0x18 + 0x16E1] = pSrc[1];
+            g_BattleSpriteRenderData[i * 0x18 + 0x16E2] = pSrc[2];
             pSrc += 4;
         } else {
             pSrc += 0x14;
         }
-        if (D_800C3D50[0] != NULL) {
-            D_800C3D50[0][i * 0x18 + 0x284] = pSrc[0];
-            D_800C3D50[0][i * 0x18 + 0x285] = pSrc[1];
-            D_800C3D50[0][i * 0x18 + 0x286] = pSrc[2];
+        if (g_BattlePartPrimBuffers[0] != NULL) {
+            g_BattlePartPrimBuffers[0][i * 0x18 + 0x284] = pSrc[0];
+            g_BattlePartPrimBuffers[0][i * 0x18 + 0x285] = pSrc[1];
+            g_BattlePartPrimBuffers[0][i * 0x18 + 0x286] = pSrc[2];
         }
         pSrc += 4;
     }
     for (i = 0; i < 2; i++) {
-        if (D_800C3D50[0] != NULL) {
-            D_800C3D50[0][i * 0x24 + 0x2E4] = pSrc[0];
-            D_800C3D50[0][i * 0x24 + 0x2E5] = pSrc[1];
-            D_800C3D50[0][i * 0x24 + 0x2E6] = pSrc[2];
+        if (g_BattlePartPrimBuffers[0] != NULL) {
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E4] = pSrc[0];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E5] = pSrc[1];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2E6] = pSrc[2];
             pSrc += 4;
-            D_800C3D50[0][i * 0x24 + 0x2EC] = pSrc[0];
-            D_800C3D50[0][i * 0x24 + 0x2ED] = pSrc[1];
-            D_800C3D50[0][i * 0x24 + 0x2EE] = pSrc[2];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EC] = pSrc[0];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2ED] = pSrc[1];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2EE] = pSrc[2];
             pSrc += 4;
-            D_800C3D50[0][i * 0x24 + 0x2F4] = pSrc[0];
-            D_800C3D50[0][i * 0x24 + 0x2F5] = pSrc[1];
-            D_800C3D50[0][i * 0x24 + 0x2F6] = pSrc[2];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F4] = pSrc[0];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F5] = pSrc[1];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2F6] = pSrc[2];
             pSrc += 4;
-            D_800C3D50[0][i * 0x24 + 0x2FC] = pSrc[0];
-            D_800C3D50[0][i * 0x24 + 0x2FD] = pSrc[1];
-            D_800C3D50[0][i * 0x24 + 0x2FE] = pSrc[2];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FC] = pSrc[0];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FD] = pSrc[1];
+            g_BattlePartPrimBuffers[0][i * 0x24 + 0x2FE] = pSrc[2];
             pSrc += 4;
         } else {
             pSrc += 0x10;
@@ -529,7 +529,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
    original keeps g_BattleColorBlendWeight[i*6] in $s7 and derives $s8 = $s7 - 1 for
    g_BattleColorBlendMode[i*6] (combine_givs on two separate symbol bivs), while gcc 2.6 here
    derives every per-unit field from the single i*6 offset biv ($at + %lo), and
-   spends a saved register on a D_800C3D50 base instead, so the frame is 0x48 vs
+   spends a saved register on a g_BattlePartPrimBuffers base instead, so the frame is 0x48 vs
    retail 0x50 and the $s5/$s6 numbering shifts.
    Fixed vs the first attempt (81.99 -> 84.16): the AAD dispatch is a `switch` with
    case 0..3 and case 4 (that is what emits retail's bltz range check plus the
@@ -543,8 +543,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
    accesses (82.84%). Also note BattleApplyColorTint is re-declared here as
    (mem_addr, s32, u8 *) and g_BattleColorBlendMode/AAE are u8 while AAF..AB1 are s8.
 /*
-extern void *D_800C3EA0;
-extern void *D_800C3D50[];
+extern void *g_BattleSpriteRenderData;
+extern void *g_BattlePartPrimBuffers[];
 extern s16 D_800D2D2C;
 extern s16 D_800C3EA8;
 extern void *D_800D3608;
@@ -590,27 +590,27 @@ void func_800A6AE8(void) {
         }
         pData = g_BattleColorTintWork;
         for (j = 0; j < 4; j++) {
-            if (D_800C3EA0 != NULL) {
-                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 4, i, pData += 4);
-                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0xC, i, pData += 4);
-                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x14, i, pData += 4);
-                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x173C + j * 0x24 + 0x1C, i, pData += 4);
-                BattleApplyColorTint((mem_addr)D_800C3EA0 + 0x16DC + j * 0x18 + 4, i, pData += 4);
+            if (g_BattleSpriteRenderData != NULL) {
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 4, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0xC, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0x14, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0x1C, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x16DC + j * 0x18 + 4, i, pData += 4);
             } else {
                 pData += 0x14;
             }
-            if (D_800C3D50[0] != NULL) {
-                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x280 + j * 0x18 + 4, i, pData += 4);
+            if (g_BattlePartPrimBuffers[0] != NULL) {
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x280 + j * 0x18 + 4, i, pData += 4);
             } else {
                 pData += 4;
             }
         }
         for (j = 0; j < 2; j++) {
-            if (D_800C3D50[0] != NULL) {
-                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 4, i, pData += 4);
-                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0xC, i, pData += 4);
-                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x14, i, pData += 4);
-                BattleApplyColorTint((mem_addr)D_800C3D50[0] + 0x2E0 + j * 0x24 + 0x1C, i, pData += 4);
+            if (g_BattlePartPrimBuffers[0] != NULL) {
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 4, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 0xC, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 0x14, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 0x1C, i, pData += 4);
             } else {
                 pData += 0x10;
             }

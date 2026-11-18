@@ -124,13 +124,13 @@ extern BattleMisc22Entry *g_BattleTriangles; // triangle table
 extern s32 g_BattleTriangleCount;
 extern s32 BattleTestPointInTriangle(void *, void *, void *, s32);
 extern void BattleProjectPointOntoTriangle(void *, void *, void *, s32, s32);
-extern s16 D_800D2FC8;
-extern u16 *D_800D2FD0;
-extern s32 D_800C3E38;
+extern s16 g_BattleCircleCount;
+extern u16 *g_BattleCircles;
+extern s32 g_BattleSceneSpriteList;
 extern void ModelRenderPacket(void *pPart, void *pPacket, u_long *pOt, s32 flags);
 extern void *g_BattleStageData;
-extern void *D_800C3D50[2];
-extern void *D_800C3EA0;
+extern void *g_BattlePartPrimBuffers[2];
+extern void *g_BattleSpriteRenderData;
 extern LineScroll g_BattleLineScrolls[];
 extern s32 BattleGetActorRadius(void *pArg);
 extern void func_800A9FF0(s32 arg0);
@@ -406,23 +406,23 @@ void BattleFreeSceneResources(void) {
     s32 i;
 
     func_800A9FF0(0x1F);
-    D_800C3E38 = 0;
+    g_BattleSceneSpriteList = 0;
     i = 0;
     if (g_BattleStageData != 0) {
         HeapFree(g_BattleStageData);
     }
     g_BattleStageData = 0;
     for (; i < 2;) {
-        if (D_800C3D50[i] != 0) {
-            HeapFreeIfNotNull(D_800C3D50[i]);
+        if (g_BattlePartPrimBuffers[i] != 0) {
+            HeapFreeIfNotNull(g_BattlePartPrimBuffers[i]);
         }
-        D_800C3D50[i++] = 0;
+        g_BattlePartPrimBuffers[i++] = 0;
     }
     i = 0;
-    if (D_800C3EA0 != 0) {
-        HeapFree(D_800C3EA0);
+    if (g_BattleSpriteRenderData != 0) {
+        HeapFree(g_BattleSpriteRenderData);
     }
-    D_800C3EA0 = 0;
+    g_BattleSpriteRenderData = 0;
     for (; i < 2; i++) {
         GfxLineScrollFree(&g_BattleLineScrolls[i]);
     }
@@ -544,10 +544,10 @@ void func_800A48EC(BattleMisc22Mesh *pMesh, BattleMisc22Sprite *pSkeleton, MATRI
 */
 s32 BattlePushTargetOutOfCircles(u16 *pPos, s16 *pTarget) {
     s32 result = 0;
-    u16 *pSrc = D_800D2FD0;
+    u16 *pSrc = g_BattleCircles;
     s32 i;
 
-    for (i = 0; i < D_800D2FC8; i++) {
+    for (i = 0; i < g_BattleCircleCount; i++) {
         s32 dx = *pSrc++ - pPos[0];
         s32 dz = *pSrc++ - pPos[2];
         s16 limit = *pSrc++;
@@ -568,10 +568,10 @@ void BattleSteerActorTowardCircles(void *pArg) {
     s16 a;
     s16 b;
     s16 c;
-    u16 *pSrc = D_800D2FD0;
+    u16 *pSrc = g_BattleCircles;
     s32 i;
 
-    for (i = 0; i < D_800D2FC8; i++) {
+    for (i = 0; i < g_BattleCircleCount; i++) {
         a = *pSrc++;
         b = *pSrc++;
         c = *pSrc++;
