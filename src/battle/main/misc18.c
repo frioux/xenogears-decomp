@@ -13,6 +13,17 @@
 #define BATTLE_SWAP_CHANCE_PERCENT 50
 #define BATTLE_SWAP_CHANCE_PERCENT_CHARACTER_0 60
 
+// The condition timer BattleApplyScriptConditionTimer arms instead of the row's power when the
+// row's actionFlags has 0x4000, and the one BattleApplyActorConditionTimer always arms.
+#define BATTLE_CONDITION_TIMER_FIXED_COUNT 5
+
+// activeSlotMask holds one bit per actor slot (BATTLE_ACTOR_SLOT_COUNT of them, walked low bit
+// first by BattleInitActiveSlotActions): the low MAX_PARTY_MEMBERS bits are the party slots and
+// the ones above them up to bit 10 are the other actors. A row runs for one group only, so
+// BattleFilterSlotMaskByGroup narrows the mask within whichever group it already touches.
+#define BATTLE_PARTY_SLOT_MASK 0x7
+#define BATTLE_OTHER_SLOT_MASK 0x7F8
+
 extern u16 g_BattleSavedSlotUnk7A[];
 extern u8 g_BattleSlotUnk98Deltas[];
 extern u8 g_BattleActorCharIds[];
@@ -59,7 +70,7 @@ void BattleApplyScriptConditionTimer(void) {
                            g_BattleCurrentRow->conditionFlags);
 
     if (g_BattleCurrentRow->actionFlags & 0x4000) {
-        BattleSetSlotConditionTimer(g_BattleCurSlotIndex, g_BattleCurrentRow->conditionKind, g_BattleCurrentRow->conditionFlags, 5);
+        BattleSetSlotConditionTimer(g_BattleCurSlotIndex, g_BattleCurrentRow->conditionKind, g_BattleCurrentRow->conditionFlags, BATTLE_CONDITION_TIMER_FIXED_COUNT);
     } else {
         BattleSetSlotConditionTimer(g_BattleCurSlotIndex, g_BattleCurrentRow->conditionKind, g_BattleCurrentRow->conditionFlags,
                       g_BattleCurrentRow->power);
@@ -76,7 +87,7 @@ void BattleApplyActorConditionTimer(void) {
     if (BattleTryApplySlotCondition(p->chance, p->conditionKind, p->flags) == 1) {
         BattleRow *q = g_BattleCurrentRow;
 
-        BattleSetSlotConditionTimer(g_BattleCurSlotIndex, q->conditionKind, q->conditionFlags, 5);
+        BattleSetSlotConditionTimer(g_BattleCurSlotIndex, q->conditionKind, q->conditionFlags, BATTLE_CONDITION_TIMER_FIXED_COUNT);
     }
 }
 void BattleRollAndClearTargetConditions(void) {
@@ -1259,10 +1270,10 @@ void BattleSaveScriptCommandOperandsFromActor(void) {
     }
 }
 void BattleFilterSlotMaskByGroup(void) {
-    if (g_BattleCurWorkBlock->activeSlotMask & 7) {
-        g_BattleCurWorkBlock->activeSlotMask = g_BattleCurWorkBlock->slotMask & 7;
+    if (g_BattleCurWorkBlock->activeSlotMask & BATTLE_PARTY_SLOT_MASK) {
+        g_BattleCurWorkBlock->activeSlotMask = g_BattleCurWorkBlock->slotMask & BATTLE_PARTY_SLOT_MASK;
     }
-    if (g_BattleCurWorkBlock->activeSlotMask & 0x7F8) {
-        g_BattleCurWorkBlock->activeSlotMask = g_BattleCurWorkBlock->slotMask & 0x7F8;
+    if (g_BattleCurWorkBlock->activeSlotMask & BATTLE_OTHER_SLOT_MASK) {
+        g_BattleCurWorkBlock->activeSlotMask = g_BattleCurWorkBlock->slotMask & BATTLE_OTHER_SLOT_MASK;
     }
 }
