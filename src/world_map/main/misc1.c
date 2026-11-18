@@ -197,7 +197,7 @@ void WorldMapMainLoop(void) {
             g_WorldMapL2R2PressEdge = 0;
             if (WorldMapGetTileHalfIndex(&g_WorldMapScrollTargetX) != 4) {
                 for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
-                    ((u16*)g_GameState.unk1838)[2 + i] = g_GameState.gearRide[i];
+                    g_GameState.savedGearRide[i] = g_GameState.gearRide[i];
                 }
                 if (g_GameState.gearRide[0] != 0) {
                     g_GameState.gearRide[2] = 0;
@@ -237,13 +237,13 @@ void WorldMapMainLoop(void) {
             g_WorldMapLoopActive = 0;
             g_WorldMapAreaMode = 1;
             g_SoundEffectBankIndex = 0;
-            ((u16*)g_GameState.unk1838)[2] = g_GameState.gearRide[0];
-            ((u16*)g_GameState.unk1838)[3] = g_GameState.gearRide[1];
-            ((u16*)g_GameState.unk1838)[4] = g_GameState.gearRide[2];
+            g_GameState.savedGearRide[0] = g_GameState.gearRide[0];
+            g_GameState.savedGearRide[1] = g_GameState.gearRide[1];
+            g_GameState.savedGearRide[2] = g_GameState.gearRide[2];
         }
         g_WorldMapExpiredTimerCount = 0;
         if ((g_WorldMapPad1Released & CTRL_BTN_SELECT) != 0) {
-            ((u16*)g_GameState.unk1838)[5] ^= 1;
+            g_GameState.unk1842 ^= 1;
         }
         if (D_8009C178 == 0 && g_WorldMapMode4EntryTriggered != 0 && g_WorldMapLoopActive != 0) {
             if (g_WorldMapMode > 0) {
@@ -345,7 +345,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     func_80073B04();
     func_800737EC();
     func_80086798();
-    if (((u16*)g_GameState.unk1838)[5] == 0) {
+    if (g_GameState.unk1842 == 0) {
         func_800740B8();
     }
     return 1;
@@ -1680,7 +1680,7 @@ void func_800740B8(void) {
     // the three tiles the map script marks are replaced by script-set positions
     pPoint18 = (u16*)&g_GameState.scriptPosX;
     pPoint19 = &g_GameState.mapPosX;
-    pPoint1A = (u16*)&g_GameState.unk1838[0xC];
+    pPoint1A = (u16*)&g_GameState.playerMapPosX;
     pPos = D_8009B6F4;
     pDrawPage = &D_8009C5A0;
     addPrim(g_WorldMapRenderContext->pOt[0], pDrawPage);

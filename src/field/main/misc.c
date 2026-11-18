@@ -319,8 +319,8 @@ void FieldScriptSetTransitionParams(void) {
 }
 
 void FieldScriptWriteGameState17FC48(void) {
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), ((u_short*)&g_pGameState->unk1838)[6]);
-    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), ((u_short*)&g_pGameState->unk1838)[7]);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(1), g_pGameState->playerMapPosX);
+    FieldScriptMemoryWriteU16(SCRIPT_IMM_ARG(2), g_pGameState->playerMapPosZ);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 

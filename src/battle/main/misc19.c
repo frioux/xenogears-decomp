@@ -855,7 +855,7 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
         if (rand() % 100 < 25 && !(p->unk7A & 0x20)) {
             *pInfo = 2;
             bit = rand() % count;
-            if (*(u16*)&g_GameState.unk16BC[p->characterId].unk6 & ((0x8000 >> bit) & mask)) {
+            if (*(u16*)&g_GameState.unk16BC[p->characterId].characterConditionMask & ((0x8000 >> bit) & mask)) {
                 pInfo[1] = bit;
                 return;
             }

@@ -546,14 +546,14 @@ void WorldMapSyncGearRideActors(void) {
     pActors = g_WorldMapSlots;
     for (i = 0; i < 3; i++) {
         ride = g_GameState.gearRide[i];
-        if (ride != ((u8*)g_GameState.unk1838)[i * 2 + 4]) {
+        if (ride != ((u8*)g_GameState.savedGearRide)[i * 2]) {
             if (ride == 0) {
                 pActors[i + 1].x = pActors[i + 4].x;
                 pActors[i + 1].y = pActors[i + 4].y;
                 pActors[i + 1].z = pActors[i + 4].z;
                 pActors[i + 1].trailDelay = pActors[i + 4].trailDelay;
             } else {
-                ((s16*)((u8*)g_GameState.unk1838 + 0x122))[i * 3] = 0x400;
+                ((s16*)((u8*)g_GameState.pad1838 + 0x122))[i * 3] = 0x400;
                 pActors[i + 4].x = pActors[i + 1].x;
                 pActors[i + 4].y = pActors[i + 1].y;
                 pActors[i + 4].z = pActors[i + 1].z;

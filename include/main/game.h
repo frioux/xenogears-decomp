@@ -206,13 +206,14 @@ typedef struct {
     /* 0x02 */ s16 unk2;
     // unk4 and unk8 are command bit masks: unk4 is tested bit by bit against the 13
     // learnable command rows (src/battle/main/misc13), unk8 against the
-    // command-availability masks (BattleCheckActorCommandAvailable). unk6 and unkA
-    // answer the character-side and the gear-side slot with the same test, see
-    // BattleDrawCharStatusIfFlagged.
+    // command-availability masks (BattleCheckActorCommandAvailable).
     /* 0x04 */ s16 unk4;
-    /* 0x06 */ s16 unk6;
+    // One bit per condition the slot can be given. The character-side and the
+    // gear-side slot answer the same test from these two words, see
+    // BattleDrawCharStatusIfFlagged and func_8009BAC4 in src/battle/main/misc19.
+    /* 0x06 */ s16 characterConditionMask;
     /* 0x08 */ s16 unk8;
-    /* 0x0A */ s16 unkA;
+    /* 0x0A */ s16 gearConditionMask;
     /* 0x0C */ s16 unkC;
     /* 0x0E */ s16 unkE;
     /* 0x10 */ u8 unk10;
@@ -254,12 +255,15 @@ typedef struct {
     // saves gearRide here and sets 1, WorldMapExitMenuMode and
     // WorldMapSetPositionFromState clear it).
     /* 0x1836 */ u16 worldMapMenuActive;
-    // The world-map state a party slot writes before the map's script runs:
-    // the party's gearRide[3] bytes at +0x4/+0x6/+0x8 (compared back by
-    // WorldMapSyncGearRideActors), the tile the player actor stood on at
-    // +0xC/+0xE and its waypoint index at +0x10 (WorldMapInitializePlayerSlot). All are
-    // reached through casts, so the span stays as it is.
-    /* 0x1838 */ undefined8 unk1838[0x14];
+    // The world-map state WorldMapMainLoop fills in before the map's script runs
+    // and WorldMapInitializePlayerSlot reads back when the map is entered again.
+    /* 0x1838 */ u16 pad1838[2];
+    /* 0x183C */ u16 savedGearRide[MAX_PARTY_MEMBERS]; // g_GameState.gearRide[] saved while a mode-4 map runs, compared back by WorldMapSyncGearRideActors
+    /* 0x1842 */ u16 unk1842; // toggled by a SELECT press; while 0, WorldMapMainLoop calls func_800740B8
+    /* 0x1844 */ u16 playerMapPosX; // the player actor's WorldMapPlayer.x in map units, saved across a map change
+    /* 0x1846 */ u16 playerMapPosZ;
+    /* 0x1848 */ u16 playerTileIndex; // WorldMapPlayer.unk50, the index into the tile coordinate tables, saved with them
+    /* 0x184A */ u16 playerSlotInitCount; // 0 until the player slot has been placed once; after that the saved fields above decide the position
     // World-map position the field scripts set, split as map units << 12 |
     // fraction: x = mapPosX << 12 | mapPosXFraction, z = mapPosZ << 12 |
     // mapPosZFraction (FieldScriptSetGameState184E writes the map-unit halves).

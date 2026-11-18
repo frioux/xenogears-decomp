@@ -608,7 +608,7 @@ void BattleResetSlotConditionCounters(void) {
     flag = (u16)g_GameState.unk16BC[8].statusFlags;
     g_GameState.characters[8].agility = 7;
     if (flag & 0x2000) {
-        g_GameState.unk16BC[8].unk6 |= 0x800;
+        g_GameState.unk16BC[8].characterConditionMask |= 0x800;
     }
     if (g_GameState.fieldScriptMemory[0] < 0xBB) {
         g_GameState.gears[0].attackPower = 10;

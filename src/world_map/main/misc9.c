@@ -569,16 +569,16 @@ s32 func_80087C6C(s32 index) {
         pLayer->mat = g_WorldMapIdentityMatrix;
         pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
     } else {
-        pCount = &((u16*)g_GameState.unk1838)[9];
+        pCount = &g_GameState.playerSlotInitCount;
         if (*pCount == 0) {
             (*pCount)++;
             pSlot->unk50 = 0;
             pSlot->x = D_8009AF80[pSlot->unk50] << 12;
             z = D_8009AF90[pSlot->unk50];
         } else {
-            pSlot->unk50 = ((u16*)g_GameState.unk1838)[8];
-            pSlot->x = ((u16*)g_GameState.unk1838)[6] << 12;
-            z = ((u16*)g_GameState.unk1838)[7];
+            pSlot->unk50 = g_GameState.playerTileIndex;
+            pSlot->x = g_GameState.playerMapPosX << 12;
+            z = g_GameState.playerMapPosZ;
         }
         pSlot->z = z << 12;
         pSlot->y = WorldMapGetTilePlaneHeight(pSlot->x, pSlot->z);
@@ -742,9 +742,9 @@ s32 func_80087FD0(s32 index) {
             WorldMapDeactivateSpriteGroup(0x13);
         }
     }
-    ((u16*)g_GameState.unk1838)[6] = pSlot->x >> 12;
-    ((u16*)g_GameState.unk1838)[7] = pSlot->z >> 12;
-    ((u16*)g_GameState.unk1838)[8] = pSlot->unk50;
+    g_GameState.playerMapPosX = pSlot->x >> 12;
+    g_GameState.playerMapPosZ = pSlot->z >> 12;
+    g_GameState.playerTileIndex = pSlot->unk50;
     pPos->x = pSlot->x;
     pPos->y = pSlot->y + 0x30000;
     pPos->z = pSlot->z;

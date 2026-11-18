@@ -171,10 +171,10 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
 
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         ret = (u16)BattleMaskHasStatusBit(
-                  (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk6,
+                  (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].characterConditionMask,
                   arg1 + arg2 * 2) != 0;
     } else if ((u16)BattleMaskHasStatusBit(
-                   (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unkA,
+                   (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].gearConditionMask,
                    arg1 + arg2 * 2) != 0) {
         ret = 1;
     }
