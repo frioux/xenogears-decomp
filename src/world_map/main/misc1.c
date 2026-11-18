@@ -1393,7 +1393,7 @@ void func_800737EC(void) {
     s32 i;
     s32 nOtz;
 
-    pScratch = (WorldMapProjectionScratch*)0x1F800000;
+    pScratch = (WorldMapProjectionScratch*)PSX_SCRATCH;
     *(u16*)0x1F800004 = 0;
     pScratch->viewRotation.vx = 0;
     *(u16*)0x1F800002 = g_WorldMapViewRotationY;
