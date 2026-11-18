@@ -13,7 +13,7 @@ typedef union {
 } BattleFixed16; // Size: 0x4
 
 typedef struct {
-    /* 0x0 */ u8 unk0[0x4];
+    /* 0x0 */ u8 tag[0x4]; // AddPrim links the prim here
     /* 0x4 */ u8 r;
     /* 0x5 */ u8 g;
     /* 0x6 */ u8 b;
@@ -21,30 +21,31 @@ typedef struct {
 } BattleEffectColor; // Size: 0x20
 
 typedef struct {
-    /* 0x00 */ u16 unk00;
-    /* 0x02 */ u16 unk02;
-    /* 0x04 */ u16 unk04;
-    /* 0x06 */ u16 unk06;
-    /* 0x08 */ u16 unk08;
-    /* 0x0A */ u16 unk0A;
-    /* 0x0C */ u16 unk0C;
-    /* 0x0E */ u16 unk0E;
+    /* 0x00 */ u16 rotX; // the SVECTOR RotMatrix reads at 0x0 of the record in the draw pass
+    /* 0x02 */ u16 rotY;
+    /* 0x04 */ u16 rotZ;
+    /* 0x06 */ u16 pad6;
+    /* 0x08 */ u16 rotStepX; // added to rotX every update
+    /* 0x0A */ u16 rotStepY;
+    /* 0x0C */ u16 rotStepZ;
+    /* 0x0E */ u16 padE;
     /* 0x10 */ s32 posX;
     /* 0x14 */ s32 posY;
     /* 0x18 */ s32 posZ;
-    /* 0x1C */ u8 unk1C[0x8];
+    /* 0x1C */ u8 pad1C[0x4]; // the unused 4th word of the VECTOR TransMatrix reads at 0x10
+    /* 0x20 */ u8 unk20[0x4];
     /* 0x24 */ BattleEffectColor colors[2];
     /* 0x64 */ s32 timer;
     /* 0x68 */ BattleFixed16 velX;
     /* 0x6C */ BattleFixed16 velY;
     /* 0x70 */ BattleFixed16 velZ;
-    /* 0x74 */ u8 unk74[0x4];
+    /* 0x74 */ u8 pad74[0x4]; // the unused 4th word of the VECTOR the velocities form
     /* 0x78 */ s32 grav;
 } BattleEffect; // Size: 0x7C
 
 typedef struct {
     /* 0x00000 */ u8 unk00000[0x38];
-    /* 0x00038 */ s32 unk38;
+    /* 0x00038 */ s32 frameCount; // zeroed by the spawner, incremented once per update pass
     /* 0x0003C */ BattleEffect entries[2][14][20];
 } BattleEffectTable; // Size: 0x10F7C
 
@@ -369,7 +370,7 @@ void func_800B6F0C(BattleEffectTask *pTask) {
 
     pTable = pTask->pTable;
     pState = g_BattleStateWork + 0x8000;
-    pTable->unk38++;
+    pTable->frameCount++;
     for (i = 0; i != 2; i++) {
         for (j = 0; j != 14; j++) {
             for (k = 0; k != 20; k++) {
@@ -387,9 +388,9 @@ void func_800B6F0C(BattleEffectTask *pTask) {
                 vel[2] = (s32)pEntry->velZ.parts.whole;
                 pEntry->posX += vel[0];
                 pEntry->posY += vel[1];
-                pEntry->unk00 += pEntry->unk08;
-                pEntry->unk02 += pEntry->unk0A;
-                pEntry->unk04 += pEntry->unk0C;
+                pEntry->rotX += pEntry->rotStepX;
+                pEntry->rotY += pEntry->rotStepY;
+                pEntry->rotZ += pEntry->rotStepZ;
                 pEntry->posZ += vel[2];
                 pEntry->velY.value -= pEntry->velY.value / 16;
                 pEntry->velX.value -= pEntry->velX.value / 16;
