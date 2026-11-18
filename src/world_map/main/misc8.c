@@ -32,7 +32,7 @@ typedef struct {
     /* 0x06 */ u8 unk6[0x1A];
     /* 0x20 */ s16 state;
     /* 0x22 */ u16 pad22;
-    /* 0x24 */ s16 unk24;
+    /* 0x24 */ s16 hidden;
     /* 0x26 */ u16 pad26;
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
@@ -45,10 +45,10 @@ typedef struct {
     /* 0x48 */ s16 angle;
     /* 0x4A */ u16 pad4A;
     /* 0x4C */ void *pSprite;
-    /* 0x50 */ s32 unk50; // sprite-set slots' tint red; script slots keep their command cursor here
+    /* 0x50 */ s32 red; // sprite-set slots' tint red; script slots keep their command cursor here
     /* 0x54 */ s32 green;
     /* 0x58 */ s32 blue;
-    /* 0x5C */ s32 unk5C;
+    /* 0x5C */ s32 redStep; // sprite-set slots' red tint step; script slots keep the current facing angle here
     /* 0x60 */ s32 greenStep;
     /* 0x64 */ s32 unk64;
     /* 0x68 */ s32 rotY;
@@ -103,7 +103,7 @@ typedef struct {
 } WorldMapMesh; // Size: 0x16
 
 typedef struct WorldMapEntry {
-    /* 0x00 */ s16 unk0;
+    /* 0x00 */ s16 hidden;
     /* 0x02 */ s16 partIndex;
     /* 0x04 */ u16 flags;
     /* 0x06 */ u16 pad6;
@@ -300,14 +300,14 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
         RotMatrix(&pModel->rot, &pModel->mat);
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
-        pActor->unk50 += pActor->unk5C;
+        pActor->red += pActor->redStep;
         pActor->green += pActor->greenStep;
-        if (pActor->unk50 >= 0x100) {
-            pActor->unk50 = WORLD_MAP_TINT_CHANNEL_MAX;
-            pActor->unk5C = -pActor->unk5C;
-        } else if (pActor->unk50 < WORLD_MAP_TINT_RED_MIN) {
-            pActor->unk50 = WORLD_MAP_TINT_RED_MIN;
-            pActor->unk5C = -pActor->unk5C;
+        if (pActor->red >= 0x100) {
+            pActor->red = WORLD_MAP_TINT_CHANNEL_MAX;
+            pActor->redStep = -pActor->redStep;
+        } else if (pActor->red < WORLD_MAP_TINT_RED_MIN) {
+            pActor->red = WORLD_MAP_TINT_RED_MIN;
+            pActor->redStep = -pActor->redStep;
         }
         if (pActor->green >= 0x100) {
             pActor->green = WORLD_MAP_TINT_CHANNEL_MAX;
@@ -344,14 +344,14 @@ void WorldMapBuildActorModelMatrix(WorldMapActor *pActor, WorldMapModelOut *pOut
         RotMatrix(&pModel->rot, &pModel->mat);
         ScaleMatrix(&pModel->mat, &pModel->scale);
         pOut->mat = pModel->mat;
-        pActor->unk50 += pActor->unk5C;
+        pActor->red += pActor->redStep;
         pActor->green += pActor->greenStep;
-        if (pActor->unk50 >= 0x100) {
-            pActor->unk50 = 0xFF;
-            pActor->unk5C = -pActor->unk5C;
-        } else if (pActor->unk50 < 0x40) {
-            pActor->unk50 = 0x40;
-            pActor->unk5C = -pActor->unk5C;
+        if (pActor->red >= 0x100) {
+            pActor->red = 0xFF;
+            pActor->redStep = -pActor->redStep;
+        } else if (pActor->red < 0x40) {
+            pActor->red = 0x40;
+            pActor->redStep = -pActor->redStep;
         }
         if (pActor->green >= 0x100) {
             pActor->green = 0xFF;
@@ -410,7 +410,7 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
     case 0:
         break;
     case 1:
-        pSlots = &pActor->unk50;
+        pSlots = &pActor->red;
         pActor->state = 1;
         pActor->command = 0;
         pEntry->x = D_8009AABC[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT];
@@ -421,7 +421,7 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
         }
         break;
     case 2:
-        pSlots = &pActor->unk50;
+        pSlots = &pActor->red;
         pActor->state = 1;
         pActor->command = 0;
         pEntry->x = D_8009AB48[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT];
@@ -436,7 +436,7 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
         pActor->state = 0;
         break;
     case 4:
-        pSlots = &pActor->unk50;
+        pSlots = &pActor->red;
         pActor->state = 1;
         pActor->command = 0;
         pEntry->x = D_8009ABD4[row * WORLD_MAP_SPRITE_SET_PARAM_COUNT];
@@ -450,7 +450,7 @@ s32 WorldMapUpdateSpriteSetPrims(s32 arg0) {
     WorldMapBuildActorModelMatrix(pActor, pEntry, (WorldMapModel *)PSX_SCRATCH);
     WorldMapSetSpritePrimColor(pEntry->pPackets[g_WorldMapPrimPacketIndex],
                                pEntry->pModel->polyCount,
-                               pActor->unk50, pActor->green, pActor->blue);
+                               pActor->red, pActor->green, pActor->blue);
     return 1;
 }
 
@@ -559,7 +559,7 @@ s32 WorldMapShutdownScene(void) {
 }
 
 s32 WorldMapSetActorParams(s32 arg0) {
-    g_WorldMapSlots[arg0].unk50 = (u32)D_8009AC60;
+    g_WorldMapSlots[arg0].red = (u32)D_8009AC60;
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_8008390C);
@@ -653,8 +653,8 @@ s32 WorldMapSetActorPosition(s32 arg0) {
     pActor->y = 0x80000;
     pActor->z = 0x1A00000;
     pActor->state = 0;
-    g_WorldMapGroups[8].unk0 = 1;
-    g_WorldMapGroups[7].unk0 = 1;
+    g_WorldMapGroups[8].hidden = 1;
+    g_WorldMapGroups[7].hidden = 1;
     x = pActor->x >> 12;
     g_WorldMapGroups[8].x = x;
     g_WorldMapGroups[7].x = x;
@@ -730,7 +730,7 @@ void WorldMapInitSpriteSets(void) {
     SetLightMatrix(&D_8009A160);
     pDef = pSetTable->defs;
     for (i = 0; i < D_8009D7E0; i++, pDef++) {
-        g_WorldMapGroups[i].unk0 = 0;
+        g_WorldMapGroups[i].hidden = 0;
         g_WorldMapGroups[i].partIndex = pDef->partIndex;
         g_WorldMapGroups[i].flags = pDef->flags;
         g_WorldMapGroups[i].x = pDef->x;
@@ -754,7 +754,7 @@ void WorldMapInitSpriteSets(void) {
     g_GfxOTDepthShift = 2;
     D_8009C16C = -1;
     D_8009C840 = -1;
-    g_WorldMapGroups[4].unk0 = 1;
+    g_WorldMapGroups[4].hidden = 1;
 }
 
 void WorldMapFreeSpriteSets(void) {
@@ -812,7 +812,7 @@ void func_800848F4(void) {
     camX = g_WorldMapCameraTarget >> 12;
     camZ = g_WorldMapCameraTargetZ >> 12;
     for (i = 0; i < D_8009D7E0; i++) {
-        if (g_WorldMapGroups[i].unk0 != 0) {
+        if (g_WorldMapGroups[i].hidden != 0) {
             continue;
         }
         *pMat = g_WorldMapGroups[i].mat;
@@ -873,7 +873,7 @@ void func_800848F4(void) {
 // through $s1 = 0x1F800028, i.e. write them as byte offsets off one base):
 //   head: 0x1F800018/0x14/0x10 = 0x800 (scale, vz/vy/vx order), D_80050104 = 3,
 //         D_800595C0 = 0, g_BattleEmittedPacketCount = 0, SVECTOR at 0x1F8000A0 = {0,0,0}.
-//   per sprite set i (s4 = i, s2 = i*0x54): skip if g_WorldMapGroups[i].unk0 != 0;
+//   per sprite set i (s4 = i, s2 = i*0x54): skip if g_WorldMapGroups[i].hidden != 0;
 //         copy g_WorldMapGroups[i].mat (0x20..0x3C) to 0x1F8000F0..0x10C, then
 //         overwrite 0x1F800104/108/10C = unk8/unkC/-unk10;
 //   chain: while (p->unk50) { p = p->unk50; p->unk34/38/3C = unk8/unkC/-unk10;
@@ -1181,7 +1181,7 @@ void func_80085CDC(void) {
     pCam = (WorldMapPos *)&g_WorldMapCameraTarget;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
-        if ((pActor->unk24 == 0) & (pActor->pSprite != 0)) {
+        if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
             pScratch[2] = pActor->x - pCam->x;
             pScratch[4] = pActor->z - pCam->z;
             WorldMapWrapDelta(&pScratch[2]);
@@ -1195,7 +1195,7 @@ void func_80085CDC(void) {
     SetTransMatrix(pMat);
     pActor = g_WorldMapSlots;
     for (i = 0; i < 0x40; i++, pActor++) {
-        if ((pActor->unk24 == 0) & (pActor->pSprite != 0)) {
+        if ((pActor->hidden == 0) & (pActor->pSprite != 0)) {
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->x;
             ((SVECTOR *)pScratch)->vx = v;
             v = ((WorldMapSpritePosWhole *)pActor->pSprite)->y;
@@ -1211,10 +1211,10 @@ void func_80085CDC(void) {
     i = 0;
     pActor = g_WorldMapSlots;
     for (; i < 0x40; i++, pActor++) {
-        if ((pActor->unk24 == 0) & (pActor->pSprite != 0) & (pScratch[i + 6] < 0xB00)) {
+        if ((pActor->hidden == 0) & (pActor->pSprite != 0) & (pScratch[i + 6] < 0xB00)) {
             SpriteDrawFrame(pActor->pSprite, (u32 *)(((u32 *)g_WorldMapRenderContext)[0x1C]) + (pScratch[i + 6] >> 4));
             ang = pActor->angle;
-            cur = pActor->unk5C;
+            cur = pActor->redStep;
             d = ang - cur;
             if (d < 0) {
                 d += 0x1000;
@@ -1233,7 +1233,7 @@ void func_80085CDC(void) {
                     d = ang;
                 }
             }
-            pActor->unk5C = d;
+            pActor->redStep = d;
             func_800223B0(pActor->pSprite, (d - *(u16 *)&g_WorldMapViewRotationY - 0x400) & 0xFFF);
             AnimScriptTick(pActor->pSprite);
         }
