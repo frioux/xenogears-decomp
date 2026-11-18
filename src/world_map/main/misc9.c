@@ -46,7 +46,7 @@ void func_80099BFC(u8* pSrc, s32 count, u32 arg2, u8* pPrim);
 // 0x80-byte slot in the g_WorldMapSlots table
 typedef struct {
     /* 0x00 */ u8 pad0[0x20];
-    /* 0x20 */ u16 unk20;
+    /* 0x20 */ u16 state; // the per-state handler table switches on it
     /* 0x22 */ u8 pad22[0x6];
     /* 0x28 */ s32 x;
     /* 0x2C */ s32 y;
@@ -58,6 +58,10 @@ typedef struct {
     /* 0x44 */ u8 pad44[0x6];
     /* 0x4A */ u16 moveSpeed;
     /* 0x4C */ u8 pad4C[0x4];
+    // 0x50..0x5C are reused per slot mode, so no single name fits: the rotation
+    // handlers accumulate a 12-bit angle in 0x50 by 0x54 (mask 0xFFF, fed to
+    // RotMatrix), while the actor state machine reads 0x50/0x54 as a tile-space
+    // target and 0x58/0x5C as its trail index and draw angle.
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
@@ -66,9 +70,11 @@ typedef struct {
 } WorldMapPlayer; // Size: 0x80
 
 // 0x54-byte scene-layer entry in the g_WorldMapGroups table
-typedef struct {
-    /* 0x00 */ s16 unk0;
-    /* 0x02 */ u8 unk2[0x6];
+typedef struct WorldMapSceneLayer {
+    /* 0x00 */ s16 hidden; // nonzero: the sprite-set draw pass skips this entry
+    /* 0x02 */ s16 partIndex; // index into the model's parts
+    /* 0x04 */ u16 flags; // from the sprite-set definition; indexes D_8009AD2C
+    /* 0x06 */ u16 pad6;
     /* 0x08 */ s32 x;
     /* 0x0C */ s32 y;
     /* 0x10 */ s32 z;
@@ -79,7 +85,7 @@ typedef struct {
     /* 0x44 */ u8 unk44[0x4];
     /* 0x48 */ u8* pPrims; // vertex buffer
     /* 0x4C */ u8* pPrimsCopy; // copy destination for pPrims
-    /* 0x50 */ u8 unk50[0x4];
+    /* 0x50 */ struct WorldMapSceneLayer* pParent;
 } WorldMapSceneLayer; // Size: 0x54
 
 extern WorldMapPlayer* g_WorldMapSlots;
@@ -562,7 +568,7 @@ s32 func_80087C6C(s32 index) {
     pPos = (WorldMapPos*)0x1F800000;
     pSlot->moveSpeed = 0x4000;
     pLayer = &g_WorldMapGroups[tileIndex];
-    pSlot->unk20 = 0;
+    pSlot->state = 0;
     if (g_GameState.fieldScriptMemory[0] < 0xCD) {
         pSlot->x = 0xD80000;
         pSlot->z = 0x7280000;
@@ -761,7 +767,7 @@ s32 WorldMapInitializePlayerSlot(s32 index) {
     func_8008868C();
     pSlot = &g_WorldMapSlots[index];
     pSlot->unk54 = 4;
-    pSlot->unk20 = 0;
+    pSlot->state = 0;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0;
     pSlot->unk5C = 0xC;
