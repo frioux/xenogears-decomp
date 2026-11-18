@@ -693,7 +693,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007EEE8);
    D_80092874[i].requiredProgress and &D_80091964[i] (90.45), explicit
    pEntry/pRecord pointer locals with pEntry++ / pRecord += 3 (89.86), both
    declaration orders and both assignment orders of those locals (identical
-   either way - gcc resolves the tie itself), and (per an earlier session)
+   either way - gcc resolves the tie itself), the for-loop iteration list
+   ordered pEntry++, i++, pRecord += 3 (that DOES reproduce retail's tail
+   instruction order - addiu table, addiu i, slti, bnez with the record's
+   addiu 0xC in the delay slot - but the register tie stays: 89.71%, ours
+   table a0 / i a1 / record a2 against retail's record a0 / table a1 / i a2),
+   and (per an earlier session)
    i*3 over an s32 array, a nested if with continue, split increments, six
    declaration orders, -G0 / -O3 / gcc 2.6.0 / gcc 2.7.2-cdk (90.45 or worse
    under all). The remaining 'move a3,v0' also sits one block later than
