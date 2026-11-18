@@ -404,61 +404,34 @@ void MenuSetPlayTimeDigits(u32 value);
 extern s32 D_801E9FE0[];
 extern s32 D_801E9FE4[];
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E68AC);
-/* Best: 98.29% under gcc 2.6.0 (Default flags), 91.23% under the unit's own
-   2.7.2 preset.  The whole gap is gcc 2.7.2's loop.c: it hoists the loop's y
-   constant 0x7A out into a free call-saved register ($s6, adding its
-   save/restore and shifting the frame), where retail re-materialises it with
-   "li v0,0x7A" every iteration; that also flips the addu operand order of the
-   loop's prim pointer (retail "addu a2,s0,a2").  2.6.0 keeps the li inside the
-   loop, exactly as retail does, and the two functions are the same wall as
-   MenuInitializeCellQuadPrims above.  Under 2.6.0 what is left is four instructions of the
-   first digit block: the dividend of number / 10 lands in t0 where retail uses
-   v1, retail's "li s0,0x6E" fills the load-delay slot after the g_Menu load
-   where this body emits it one slot later, and the dividend's sra follows one
-   instruction later.  Everything else, including the second digit block and
-   both magic-number divides, is identical.
-   Structure confirmed: x/y tables D_801E9FE0[0],
-   D_801E9FE4[0] then D_801E9FE0[i+2] in a 7-iteration loop, prim pointers
-   0x240C/0x24AC/0x254C+i*0x50 off g_Menu->pPrimBuffer, then 0x2C7C, 0x2CCC,
-   0x2D1C=(number/10), 0x2D6C=(number%10) with number = pArg[0x23]+1.
-   Tried: an explicit u32 offset accumulator (loop addu becomes
-   "addu a2,s0,a2" but gcc spills s7 and the frame grows to 0x48, 87.42%).
-   void func_801E68AC(u8* pArg) {
-       s32 number;
-       s32 i;
+void func_801E68AC(u8* pArg) {
+    s32 i;
 
-       func_8002675C(g_Menu->resources, 0xEE,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x240C),
-                     g_Menu->renderContext, D_801E9FE0[0], 0x7A, 0x1000);
-       func_8002675C(g_Menu->resources, 0xEE,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x24AC),
-                     g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
-       MenuSetPlayTimeDigits(*(u32*)pArg);
-       for (i = 0; i < 7; i++) {
-           func_8002675C(g_Menu->resources, ((u32*)g_Menu->playTimeDigitIds)[i],
-                         (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x254C + i * 0x50),
-                         g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A,
-                         0x1000);
-       }
-       func_8002675C(g_Menu->resources, 0x17,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2C7C),
-                     g_Menu->renderContext, 0x8, 0x66, 0x1000);
-       func_8002675C(g_Menu->resources, 0x32,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2CCC),
-                     g_Menu->renderContext, 0x10, 0x66, 0x1000);
-       number = pArg[0x23];
-       number++;
-       func_8002675C(g_Menu->resources, number / 10,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D1C),
-                     g_Menu->renderContext, 0x10, 0x6E, 0x1000);
-       number = pArg[0x23];
-       number++;
-       func_8002675C(g_Menu->resources, number % 10,
-                     (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D6C),
-                     g_Menu->renderContext, 0x18, 0x6E, 0x1000);
-   }
-*/
+    func_8002675C(g_Menu->resources, 0xEE,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x240C),
+                  g_Menu->renderContext, D_801E9FE0[0], 0x7A, 0x1000);
+    func_8002675C(g_Menu->resources, 0xEE,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x24AC),
+                  g_Menu->renderContext, D_801E9FE4[0], 0x7A, 0x1000);
+    MenuSetPlayTimeDigits(*(u32*)pArg);
+    for (i = 0; i < 7; i++) {
+        func_8002675C(g_Menu->resources, ((u32*)g_Menu->playTimeDigitIds)[i],
+                      (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x254C + i * 0x50),
+                      g_Menu->renderContext, D_801E9FE0[i + 2], 0x7A, 0x1000);
+    }
+    func_8002675C(g_Menu->resources, 0x17,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2C7C),
+                  g_Menu->renderContext, 0x8, 0x66, 0x1000);
+    func_8002675C(g_Menu->resources, 0x32,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2CCC),
+                  g_Menu->renderContext, 0x10, 0x66, 0x1000);
+    func_8002675C(g_Menu->resources, (pArg[0x23] + 1) / 10,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D1C),
+                  g_Menu->renderContext, 0x10, 0x6E, 0x1000);
+    func_8002675C(g_Menu->resources, (pArg[0x23] + 1) % 10,
+                  (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + 0x2D6C),
+                  g_Menu->renderContext, 0x18, 0x6E, 0x1000);
+}
 
 extern u32 g_MenuSlotSpriteX[];
 extern u32 g_MenuSlotSpriteY[];
