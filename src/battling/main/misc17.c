@@ -1,6 +1,9 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 
+#define BATTLE_SPU_ADDR_BASE 0x60000
+#define BATTLE_SOUND_ID_NONE 0xFF
+
 // volatile: retail schedules this load after the argument setup, not before it.
 extern volatile s32 g_SpuChannelMask;
 extern s32 g_BattleEffectGrid;
@@ -353,16 +356,16 @@ void BattleReleaseFinishedSoundSlots(void) {
 }
 void BattlePlaySoundEffectById(u8* p) {
     if (p != NULL) {
-        BattleAcquireSoundSlot(p + 0x60000, 0, NULL, g_SpuChannelMask);
+        BattleAcquireSoundSlot(p + BATTLE_SPU_ADDR_BASE, 0, NULL, g_SpuChannelMask);
     }
 }
 void BattlePlaySoundEffectByIdx(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
     if (idx != 0) {
-        BattleAcquireSoundSlot((u8*)(idx + 0x60000), flags, pData,
+        BattleAcquireSoundSlot((u8*)(idx + BATTLE_SPU_ADDR_BASE), flags, pData,
                       (idx & 0x7F) | ((pActor->flags >> 20) & 0x80));
     }
 }
-void func_8008EBD0(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
+void BattlePlayActorSoundPair(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
     s32 i;
     s32 pad[2]; // unused: retail's frame is 0x30
     u8* pTable;
@@ -372,7 +375,7 @@ void func_8008EBD0(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
     }
     idx = pActor->pSoundTable[idx];
     i = idx << 1;
-    if (idx == 0xFF) {
+    if (idx == BATTLE_SOUND_ID_NONE) {
         return;
     }
     // Load-bearing shapes: the duplicated read keeps the base in $s0 with the table
@@ -387,12 +390,12 @@ void func_8008EBD0(BattleActor* pActor, s32 idx, u8* pData, s32 flags) {
             pTable = D_80091EE0;
         }
         if (idx != 0) {
-            BattleAcquireSoundSlot((u8*)(idx | 0x60000), flags, pData,
+            BattleAcquireSoundSlot((u8*)(idx | BATTLE_SPU_ADDR_BASE), flags, pData,
                           (idx & 0x7F) | ((pActor->flags >> 20) & 0x80));
         }
         idx = *(pTable + i + 1);
         if (idx != 0) {
-            BattleAcquireSoundSlot((u8*)(idx | 0x60000), flags, pData,
+            BattleAcquireSoundSlot((u8*)(idx | BATTLE_SPU_ADDR_BASE), flags, pData,
                           (idx & 0x7F) | ((pActor->flags >> 20) & 0x80));
         }
     } while (0);

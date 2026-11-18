@@ -994,7 +994,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077A9C);
    three residuals above are current, not stale.
 extern s32 BattleEffectAddSlotFromVector(Vec4* pVec, s32 action);
 extern void func_8008ED6C(u8* p, s32 idx);
-extern void func_8008EBD0(u8* p, s32 idx, void* pData, s32 flags);
+extern void BattlePlayActorSoundPair(u8* p, s32 idx, void* pData, s32 flags);
 extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern s32 BattleAccumulateGaugePoints(BattleActor* p, s32 points, s32 mode);
 extern u8 g_BattleCameraLerpFrames;
@@ -1101,14 +1101,14 @@ void func_80077A9C(BattleActor* p) {
                 p->vy -= 0x8C;
                 p->state |= 2;
                 func_8008ED6C((u8*)p, 0xA);
-                func_8008EBD0((u8*)p, 0xA, &p->centerPosition, 2);
+                BattlePlayActorSoundPair((u8*)p, 0xA, &p->centerPosition, 2);
             }
             break;
         case 5:
             p->modelIndex = 0xF;
             p->prevPartIndex = 0xFF;
             p->flags |= 0x1000;
-            func_8008EBD0((u8*)p, 0xE, p, 2);
+            BattlePlayActorSoundPair((u8*)p, 0xE, p, 2);
             p->actionPhaseTimer = 6;
             p->actionPhase = 4;
             break;

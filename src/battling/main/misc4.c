@@ -119,7 +119,7 @@ extern void BattleUpdateControllerActuator();
 extern s32 BattleGetScreenMode();
 extern void BattleApplyOptionWord(void);
 extern void BattleEffectCreateWork(void);
-extern void func_8008EBD0();
+extern void BattlePlayActorSoundPair();
 extern void BattlePlaySoundEffectByIdx();
 extern void func_8008ED6C();
 
@@ -513,7 +513,7 @@ void BattleActorUpdateGroundMovement(Actor* p) {
         p->flags |= BATTLE_ACTOR_FLAG_GROUNDED;
         if (p->state == 4) {
             if (!(p->stateFlags & 0x10)) {
-                func_8008EBD0(p, 0xD, p, 2);
+                BattlePlayActorSoundPair(p, 0xD, p, 2);
                 BattleUpdateControllerActuator(p, 6);
             }
             p->stateFlags |= 0x10;
@@ -710,7 +710,7 @@ void func_8007920C(Actor* p) {
         func_8007CD44(flag, &p->baseVertexPos, &p->edgeMidPos, flag);
         if (!(p->flags & 0x10000)) {
             func_8008ED6C(p, 8);
-            func_8008EBD0(p, 8, &p->edgeMidPos, 2);
+            BattlePlayActorSoundPair(p, 8, &p->edgeMidPos, 2);
         }
     }
 
@@ -737,11 +737,11 @@ void func_8007920C(Actor* p) {
             func_8008ED6C(p, 9);
             break;
         case 1:
-            func_8008EBD0(p, 7, p, 2);
+            BattlePlayActorSoundPair(p, 7, p, 2);
             func_8008ED6C(p, 9);
             break;
         case 2:
-            func_8008EBD0(p, 9, &p->edgeMidPos, 2);
+            BattlePlayActorSoundPair(p, 9, &p->edgeMidPos, 2);
             func_8008ED6C(p, 7);
             break;
         }

@@ -369,7 +369,7 @@ typedef struct {
 
 extern BattleEffectTemplate g_BattleEffectTemplateTable[];
 extern void BattleNormalizeVectorToShort(VECTOR *, SVECTOR *);
-extern void func_8008EBD0(u8 *, s32, void *, s32);
+extern void BattlePlayActorSoundPair(u8 *, s32, void *, s32);
 
 void BattleSpawnEffectSlot(VECTOR *p0, VECTOR *p1, Actor *p2, s32 arg3, s32 arg4, s32 arg5) {
     VECTOR vDiff;
@@ -412,7 +412,7 @@ void BattleSpawnEffectSlot(VECTOR *p0, VECTOR *p1, Actor *p2, s32 arg3, s32 arg4
     pSlot->key = arg5;
     pSlot->percent = arg4;
     if (pEntry->soundId != 0) {
-        func_8008EBD0(p2, pEntry->soundId, pSlot, 2);
+        BattlePlayActorSoundPair(p2, pEntry->soundId, pSlot, 2);
     }
     BattleScaleSVectorGpf12(&pSlot->direction, &pSlot->velocity, pSlot->scale);
     pSlot->pos = *p0;
