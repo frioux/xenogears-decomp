@@ -1,4 +1,6 @@
 #include "common.h"
+#include "battle/actor.h"
+#include "libgear/main.h"
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 
@@ -11,7 +13,7 @@ extern u8 g_BattleBlockPool[];
 extern u16 g_BattleCurrentActorSlot;
 extern u16 g_BattleCommandActorMask;
 extern u8 g_BattleColorTintPending;
-extern u8 *g_BattleActors[];
+extern BattleActor *g_BattleActors[];
 
 extern void BattleFreeBlockPool(u8 *);
 extern void BattleFreeSpritePool(u8 *);
@@ -623,22 +625,23 @@ void func_800A6AE8(void) {
 */
 
 void BattleUploadAndFreeImageResources(void) {
-    u8 *p;
-    u8 *pRect;
+    Temp8 *pRecord;
+    RECT *pRect;
     s32 i;
 
     if (g_BattleImageLoaded != 0) {
-        p = *(u8 **)(D_800D33E4 + 0x118);
-        for (i = 0; i < *(u8 *)(D_800D33E4 + 0x10E); i++) {
-            if (*(u16 *)(p + 0x1A) != 0) {
-                *(s32 *)p = 0;
+        pRecord = (Temp8 *)g_BattleActors[31]->pTextures;
+        for (i = 0; i < g_BattleActors[31]->numTextures; i++) {
+            if (pRecord->isLoaded != 0) {
+                pRecord->pSource = NULL;
             }
-            p += 0x30;
+            pRecord++;
         }
-        pRect = (u8 *)&g_BattleImageRect;
-        LoadImage((RECT *)pRect, g_BattleImageData);
+        pRect = &g_BattleImageRect;
+        LoadImage(pRect, g_BattleImageData);
         DrawSync(0);
-        BattleFreeImageEntry(pRect - 0x28);
+        // the rect is the +0x28 member of the image record BattleFreeImageEntry takes
+        BattleFreeImageEntry((u8 *)pRect - 0x28);
     }
     func_800A64E4();
     HeapFree(g_BattleColorTintBase);
