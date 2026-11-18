@@ -15,6 +15,13 @@
 // MenuInitializeCellLinePrims writes.
 #define MENU_CELL_SIZE 16
 
+// VRAM rect of the glyph texture MenuClearGlyphTexture clears: 64x32 VRAM words,
+// the 0x1000-byte 4bpp bitmap the glyphs are rasterised into.
+#define MENU_GLYPH_TEXTURE_X 0x140
+#define MENU_GLYPH_TEXTURE_Y 0xE0
+#define MENU_GLYPH_TEXTURE_WIDTH 64
+#define MENU_GLYPH_TEXTURE_HEIGHT 32
+
 // Digits MenuDrawSlotResourceSprites draws of each of the two slot stats it
 // formats: MenuParseNumberToDigits leaves the value in the tail of
 // g_Menu->digits, any leading digit marked MENU_DIGIT_NONE.
@@ -583,10 +590,10 @@ void MenuFreePrimBuffer(void) {
 void MenuClearGlyphTexture(void) {
     RECT rect;
 
-    rect.x = 0x140;
-    rect.y = 0xE0;
-    rect.w = 0x40;
-    rect.h = 0x20;
+    rect.x = MENU_GLYPH_TEXTURE_X;
+    rect.y = MENU_GLYPH_TEXTURE_Y;
+    rect.w = MENU_GLYPH_TEXTURE_WIDTH;
+    rect.h = MENU_GLYPH_TEXTURE_HEIGHT;
     ClearImage(&rect, 0, 0, 0);
     *(volatile u8*)&g_Menu->pManager->characterWindowBuilt = 0;
 }
