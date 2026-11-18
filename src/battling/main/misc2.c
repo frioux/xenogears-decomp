@@ -339,17 +339,17 @@ extern void BattleEffectUpdateEntries(BattleEffect *, u8 *, MATRIX *);
 void BattleEffectSetMatrix(u8 *p0, MATRIX *p1) {
     s32 n = g_BattleEffectEntryCount;
     BattleEffect *pEffect = g_BattleEffect;
-    u8 *p = (u8 *)pEffect;
 
-    /* The stores must go through a byte view: with typed field stores
-       (pEffect->x = ...) gcc loads all three globals before storing any of
-       them (63.89%), retail interleaves load and store. */
-    *(s16 *)(p + 0x14) = g_BattleEffectPosX;
-    *(s16 *)(p + 0x16) = g_BattleEffectPosY;
-    *(s16 *)(p + 0x18) = g_BattleEffectPosZ;
-    *(s16 *)(p + 0x34) = 0;
-    *(s16 *)(p + 0x36) = 0;
-    *(s16 *)(p + 0x38) = 0;
+    /* The position stores must reach the record through a byte view: with
+       typed field stores (pEffect->x = ...) gcc loads all three globals
+       before storing any of them (63.89%), retail interleaves the load with
+       each single store. */
+    *(s16 *)((u8 *)pEffect + 0x14) = g_BattleEffectPosX;
+    *(s16 *)((u8 *)pEffect + 0x16) = g_BattleEffectPosY;
+    *(s16 *)((u8 *)pEffect + 0x18) = g_BattleEffectPosZ;
+    pEffect->rotX = 0;
+    pEffect->rotY = 0;
+    pEffect->rotZ = 0;
     func_8008D680(pEffect, &g_BattleBaseMatrix, n);
     gte_SetTransRotMatrix_gpr(p1);
     BattleEffectUpdateEntries(pEffect, p0, p1);
