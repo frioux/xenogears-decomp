@@ -565,6 +565,20 @@ extern s32 g_GfxOTDepthShift;
 // - Also measured dead: -O3 (82.77 on this body), the unit's gcc-2.7.2-psx
 //   (87.49), -G8 and gcc 2.6.0 (both reject the body), the decomp-permuter at
 //   96.80 for four minutes (RESULT PERMUTER_NONE, its score 3130 = base).
+// - THE COPY IS NOT DELETED BY ANY OPTIMISER, SO STOP LOOKING FOR ITS SPELLING.
+//   cc1's own RTL dump (cc1 ... -dr) has it in the final RTL, right after the
+//   shadeMode branch: (insn 44 (set (reg/v:SI 104) (reg/v:SI 81))), where 81 is
+//   pDst and 104 is pPacket. It disappears at the register allocator, because
+//   insn 44 is pDst's last use, so global.c's conflict scan records no conflict
+//   between the two pseudos and both are given $s0; the move then becomes a
+//   self-move and is dropped. That is the whole shortfall and the whole register
+//   shift. Retail kept the move, so its build had pDst live past the copy: a
+//   second use. Measured, a second use does force the move back, but pDst then
+//   needs a tenth callee-saved register and is spilled instead
+//   (sw $5,140($sp), 2960 bytes, 95.62). Further dead spellings, all 2940:
+//   chained pDst = pPacket = pDst; pPacket = pDst; pDst = pPacket;
+//   pPacket = pDst; pDst = pDst; two identical copies in a row; and the copy
+//   moved after all four preheader field loads.
 // The vertex-table addresses must stay index first,
 // (SVECTOR *)((index << 3) + (u32)pPart), or every arm reverses its addu.
 // The typedef, the extern, the two defines and the macro above this park are
