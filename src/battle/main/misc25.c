@@ -768,29 +768,34 @@ extern u16 D_800C3544;
 extern s16 D_800C3546;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
-/* 74.97% (588 bytes vs 584): the control flow - the two-condition test, the
-   BattleFindGroundTriangle/BattleFindTriangleContainingPoint retry, the D_800C3546/D_800C3542/D_800C3544
-   bookkeeping - is in place; what is left is the head: retail loads
-   D_800D335C and D_800D335E first, then reads g_BattleSlotVectors/3356/3358 through one
-   base pointer s5 (= &g_BattleSlotVectors) both for the deltas and for the vec sums, and
-   it ranks dx in s1 / dy in s2 where ours swaps them. Tried: dy-first vs dx-first,
-   s16 vec[3] vs vec[4], direct globals vs one base pointer local.
+/* 84.30% (592 bytes vs retail's 588). Structure and store order are retail's
+   (vec[0], vec[2], vec[1], the result<0 tail, the -1/warm-start bookkeeping).
+   Residuals: retail keeps &g_BattleSlotVectors in s5 across the whole body and
+   reads 0(s5)/0x2(s5), where gcc 2.6.0 rematerialises the constant address at
+   every use (lui+lhu each time); that is also the missing saved register (retail
+   saves s0..s6+ra, we save five). Tried: a plain pointer local, a mem_addr
+   assignment, and an array declaration of the same address (the last one gets a
+   register but costs 8 more bytes and scores 82.25%). Tried also: vec[4] vs
+   vec[3], the tail as result<0/else and as result>=0/else (the latter is this
+   one), and loading the two pPos vectors before or after the three deltas.
 s16 func_800B0B14(s32 index) {
     u8 work[0x10];
-    s16 vec[4];
+    s16 vec[3];
+    s16 result;
+    u16 *pVectors;
     s32 dx;
     s32 dy;
     s32 dz;
     s32 len;
-    s32 result;
 
-    dy = (D_800D335E - D_800D3356) / 4;
-    dx = (s16)(D_800D335C - g_BattleSlotVectors);
+    pVectors = &g_BattleSlotVectors;
+    dx = (s16)(D_800D335C - pVectors[0]);
+    dy = ((s16)D_800D335E - (s16)pVectors[1]) / 4;
     dz = (s16)(D_800D3360 - D_800D3358);
     len = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
-    vec[0] = g_BattleSlotVectors + (dx << 9) / len;
-    vec[1] = D_800D3356 + (dy << 9) / len;
+    vec[0] = pVectors[0] + (dx << 9) / len;
     vec[2] = D_800D3358 + (dz << 9) / len;
+    vec[1] = pVectors[1] + (dy << 9) / len;
     result = -1;
     if (BattleIsPointWithinBounds(vec) != 0 && index != D_800C3546) {
         D_800C3546 = index;
@@ -802,15 +807,16 @@ s16 func_800B0B14(s32 index) {
             D_800C3542 = result;
         }
     }
-    if (result < 0) {
-        vec[1] = D_800C3544;
-    } else {
+    if (result >= 0) {
         BattleProjectPointOntoIndexedTriangle(vec, D_800C3542, work);
         D_800C3544 = vec[1];
+    } else {
+        vec[1] = D_800C3544;
     }
     return vec[1];
 }
 */
+
 extern s32 BattleGetActorHeight(s32 index);
 extern s32 BattleGetActorRadius(s32 index);
 
