@@ -335,25 +335,12 @@ void MenuFinalizeMenuData(void) {
     }
     HeapFree(g_Menu);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C62A8);
-
-/* Best: 92.33% - only the placement of the two MenuWaitForDiscChange call blocks differs: the
-   original lays the outer test's then-block out of line (beqz $v0 -> call block) and
-   falls through to the second test, then to a "j end".  Tried: else-if, `!=`/else
-   (87.67%), 2-way switch with default (92.33%), early break + separate if (92.33%),
-   nested if (92.33%), 2-way switch (92.33%), switch on g_GameDiscChangeRequest (92.33%), two
-   independent ifs (90.47%, 340 bytes), case order 2 before 0 (86.98%), gcc-2.6.0 (92.33%).
-   Instruction multiset is identical; this is a bb-reorder tie-break: retail keeps both
-   compare insns adjacent at the top and puts both call blocks after a `j end`.
 void func_801C62A8(void) {
-    u8 menuIndex;
-
     MenuInitializeMenuData();
     MenuSetupScreen();
-    g_Menu->shouldDrawMenu = 1;
-    g_Menu->soundEffectsEnabled = 1;
-    menuIndex = g_MenuOverlayIndex;
-    switch (menuIndex) {
+    g_Menu->shouldDrawMenu = TRUE;
+    g_Menu->soundEffectsEnabled = TRUE;
+    switch (g_MenuOverlayIndex) {
         case 0:
             func_801D2D38();
             MenuNormalMenuMain();
@@ -364,10 +351,13 @@ void func_801C62A8(void) {
             g_Menu->pManager->shouldRenderSelectionMenu = 0;
             g_Menu->pManager->shouldRenderPointerCursor = 0;
             g_Menu->pManager->unk3 = 0;
-            if (g_GameDiscChangeRequest == 0) {
-                MenuWaitForDiscChange(0);
-            } else if (g_GameDiscChangeRequest == menuIndex) {
-                MenuWaitForDiscChange(((u8*)g_GameState.fieldScriptMemory)[0xA4]);
+            switch (g_GameDiscChangeRequest) {
+                case 0:
+                    MenuWaitForDiscChange(0);
+                    break;
+                case 2:
+                    MenuWaitForDiscChange(((u8*)g_GameState.fieldScriptMemory)[0xA4]);
+                    break;
             }
             break;
         case 6:
@@ -376,28 +366,33 @@ void func_801C62A8(void) {
     }
     MenuFinalizeMenuData();
 }
-*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6400);
 
-/* Best: 90.45% (480 bytes, same size).  Remaining: gcc rotates the saved registers
-   (pBuffer/i/lineCount are s2/s0/s1 here vs s0/s1/s2 in the original) and puts the
-   newline block in-line where the original keeps it after a `j` back to the loop top.
-   Tried: per-statement re-deref of g_Menu->menuUnk2 (needed, the original reloads),
-   `while` vs `if (n) for(;;)` vs do-while loop shapes, explicit pointer for the
-   0x4FFC copy loop (needed, the original strength-reduces), declaration permutations.
+/* Best: 98.62% (500 bytes = retail's exact size). Only a saved-register ROTATION is left:
+   retail has pBuffer=s0, i=s1, lineCount=s2; gcc gives i=s0, lineCount=s1, pBuffer=s2.
+   Every instruction is identical modulo the register names, including the li a0,0xA /
+   li a1,0xFFFF order. Fixed on the way: the `cardPollMode = 0` store was missing (that
+   alone was 5 insns / 20 bytes, 90.45% -> 94.45%), the newline scan must be written as
+   `if (c != '\n') { i++; continue; }` so the newline block lands out of line after the
+   `j` back to the loop top, and the 0xFFFF needs a LOCAL (lineCountDelta) or the two
+   loop constants come out in the other registers. Tried for the rotation: declaration
+   orders (4), a separate scan index variable (96.75%), lineCount u32 (97.82%), i u32
+   (97.74%), i u16 (83.78%), gcc-2.7.2-cdk (94.69%), permuter 3x4min (170 -> 170, stuck).
 void func_801C6400(void) {
    u8* pBuffer;
    s32 i;
    s32 j;
    u16 lineCount;
+   s32 lineCountDelta;
    u8* p;
    MenuUnk2* pInfo;
 
    for (i = 0; i < 2; i++) {
        g_Menu->menuUnk2->cardEnumerated[i] = 0;
        g_Menu->menuUnk2->cardSlotCounts[i] = 0;
-       ((u8*)g_Menu->menuUnk2->previousCardSlotCounts)[i] = 0xFF;
+       g_Menu->menuUnk2->previousCardSlotCounts[i] = 0xFF;
    }
+   g_Menu->menuUnk2->cardPollMode = 0;
    for (i = 0; i < 0x20; i++) {
        g_Menu->menuUnk2->records[i].unk58 = 0;
        g_Menu->menuUnk2->slotRecordIndexes[i] = 0xFF;
@@ -409,20 +404,22 @@ void func_801C6400(void) {
    ArchiveReadFileToBuffer(1, pBuffer, 0, 0x80);
    ArchiveCdDataSync(0);
    if (lineCount != 0) {
+       lineCountDelta = 0xFFFF;
        for (;;) {
            if (pBuffer[i] >= 0x80) {
                i += 2;
                continue;
            }
-           if (pBuffer[i] == '\n') {
-               lineCount += 0xFFFF;
-               if (lineCount != 0) {
-                   i++;
-                   continue;
-               }
-               break;
+           if (pBuffer[i] != '\n') {
+               i++;
+               continue;
            }
+           lineCount += lineCountDelta;
            i++;
+           if (lineCount != 0) {
+               continue;
+           }
+           break;
        }
    }
    p = &pBuffer[i];
@@ -437,7 +434,54 @@ void func_801C6400(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6AA0);
+u_short MenuAndBitMaskLsbFirst(u_short mask, u_char index);
+void func_801C65F4(void);
+
+void func_801C6AA0(void) {
+    u32 mask;
+    s32 i;
+    s32 characterId;
+
+    if (g_MenuOverlayIndex == 0 && g_ShopIndex == 0) {
+        g_Menu->mainMenuChoice = g_MenuSavedMainMenuChoice;
+    } else {
+        g_Menu->mainMenuChoice = 1;
+    }
+    g_Menu->mainMenuPrevChoice = 0xFF;
+    g_Menu->cardCheckTimer = 60;
+    g_Menu->unk334 = 0;
+    g_Menu->unk335 = 0;
+    g_Menu->availableCharacterCount = 0;
+    mask = (g_GameState.characterFlags & g_GameState.FrMask) & 0x7FF;
+    for (i = 0; i < 0x10; i++) {
+        if (MenuAndBitMaskLsbFirst(mask, i) != 0) {
+            g_Menu->availableCharacters[i] = 1;
+        } else {
+            g_Menu->availableCharacters[i] = 0;
+        }
+    }
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        g_Menu->pManager->isGearScreenActive[i] = 0;
+        characterId = g_GameState.partyMembers[i];
+        if (characterId != CHARACTER_ID_NONE && g_Menu->availableCharacters[characterId] != 0) {
+            g_Menu->pManager->currentCharacterIDs[i] = characterId;
+            g_Menu->availableCharacterCount++;
+            if (g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].gearId != GEAR_ID_NONE) {
+                g_Menu->pManager->isGearScreenActive[i] = 1;
+                g_Menu->gearCharacterCount++;
+            }
+        } else {
+            g_Menu->pManager->currentCharacterIDs[i] = CHARACTER_ID_NONE;
+        }
+    }
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
+            g_Menu->characterSlot = i;
+            break;
+        }
+    }
+    func_801C65F4();
+}
 
 void MenuResetRenderContext(void) {
     g_Menu->renderContext = 0;
