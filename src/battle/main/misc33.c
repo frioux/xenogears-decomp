@@ -442,8 +442,10 @@ typedef struct {
 } BattlePadFrame; // Size: 0x8
 
 typedef struct {
-    /* 0x0000 */ u8 unk0[0xC58];
-    /* 0xC58 */ u16 cur[2];
+    /* 0x0000 */ u8 unk0[0xC50];
+    /* 0xC50 */ u8 *pRenderEnv; // one of the two double-buffered env blocks: DRAWENV at +0, DISPENV at +0x5C
+    /* 0xC54 */ u_long *pCurrentOT; // that block's ordering table at +0x70; what GfxSetCurrentOT is handed
+    /* 0x0C58 */ u16 cur[2];
     /* 0xC5C */ u16 pressed[2];
     /* 0xC60 */ u16 released[2];
     /* 0xC64 */ BattlePadFrame history[4];
