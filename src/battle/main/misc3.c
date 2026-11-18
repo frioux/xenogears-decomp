@@ -578,10 +578,11 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
     i = 0;
     emptyValue = BATTLE_SLOT_DISPLAY_VALUE_EMPTY;
     pFlags = pOut;
+    // g_BattleSlotDisplayValues is three banks of one u16 per slot
     pBase = g_BattleSlotDisplayValues;
-    pExtra = pBase + 0x16;
+    pExtra = pBase + BATTLE_ACTOR_SLOT_COUNT * 2;
     pValue = pBase;
-    pValue2 = pValue + 0xB;
+    pValue2 = pValue + BATTLE_ACTOR_SLOT_COUNT;
     do {
         if (g_BattleSlotEnabledFlags[i] != 0) {
             u16 value = func_80098AF8(i, 0);
