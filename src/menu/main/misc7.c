@@ -11,18 +11,18 @@ void MenuParseNumberToDigits(u32 number);
 
 // A window's tween state, one per window: &((MenuWindowTween*)g_Menu->windowTweens)[index].
 typedef struct {
-    /* 0x00 */ s32 unk0;
-    /* 0x04 */ s32 unk4;
-    /* 0x08 */ s32 unk8;
-    /* 0x0C */ s32 unkC;
-    /* 0x10 */ s32 unk10;
-    /* 0x14 */ s32 unk14;
-    /* 0x18 */ s32 unk18; // x, in 8.8 fixed point
-    /* 0x1C */ s32 unk1C; // y, in 8.8 fixed point
-    /* 0x20 */ u8 unk20;
-    /* 0x21 */ u8 unk21;
-    /* 0x22 */ u8 unk22;
-    /* 0x23 */ u8 unk23;
+    /* 0x00 */ s32 startX; // the window's x at offsetX == 0
+    /* 0x04 */ s32 endX; // where the tween stops
+    /* 0x08 */ s32 startY;
+    /* 0x0C */ s32 endY;
+    /* 0x10 */ s32 stepX; // added to offsetX per step, in 8.8 fixed point
+    /* 0x14 */ s32 stepY;
+    /* 0x18 */ s32 offsetX; // x offset from startX, in 8.8 fixed point
+    /* 0x1C */ s32 offsetY; // y offset from startY, in 8.8 fixed point
+    /* 0x20 */ u8 isDecreasingX; // set when endX < startX
+    /* 0x21 */ u8 isDecreasingY; // set when endY < startY
+    /* 0x22 */ u8 stepCount; // steps taken per update
+    /* 0x23 */ u8 isComplete; // set once the offset reaches its end
 } MenuWindowTween; // Size: 0x24
 
 // The gear window's prim buffer (g_Menu->pGearWindowPrims): this unit only needs the copy
@@ -538,8 +538,8 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     }
     pTween = &((MenuWindowTween*)(void*)g_Menu->windowTweens)[index];
     pWindow = g_Menu->characterWindows[index];
-    x = pTween->unk18 / 256 + pTween->unk0;
-    y = pTween->unk1C / 256 + pTween->unk8;
+    x = pTween->offsetX / 256 + pTween->startX;
+    y = pTween->offsetY / 256 + pTween->startY;
     func_801D4F2C(index, characterId, x, y);
     MenuSetCharacterWindowIcons(index, x, y);
     MenuSetCharacterHpDigits(index, characterId, x, y);
@@ -550,11 +550,10 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     pWindow->renderContext = *(u8*)&g_Menu->renderContext;
 }
 // Gold window prims (g_Menu->pGoldWindow): the nine digit quads, the 'G' glyph quad
-// and the digit count the quads are packed from.
+// per render context and the digit count the quads are packed from.
 typedef struct {
     /* 0x000 */ POLY_FT4 digitPrims[18]; // two per digit, one per render context
-    /* 0x2D0 */ POLY_FT4 glyphPrim;
-    /* 0x2F8 */ POLY_FT4 unk2F8;
+    /* 0x2D0 */ POLY_FT4 glyphPrims[2]; // one per render context, added by MenuAddGoldAndPlayTimePrims
     /* 0x320 */ s32 digitPrimCount;
     /* 0x324 */ u_char renderContext;
 } MenuGoldWindow; // Size: 0x328
@@ -582,7 +581,7 @@ void MenuSetGoldDigits(s32 x, s32 y) {
         digitX += 8;
     }
     func_8002675C(g_Menu->resources, 0x10,
-                  &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrim,
+                  &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrims[0],
                   g_Menu->renderContext, x + 0x50, y, 0x1000);
     g_Menu->pManager->goldDigitsActive = 1;
     ((MenuGoldWindow*)g_Menu->pGoldWindow)->renderContext = *(u8*)&g_Menu->renderContext;
