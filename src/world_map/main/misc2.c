@@ -135,7 +135,7 @@ extern WorldMapAnimSet* g_WorldMapTileAnimSet;
 extern WorldMapAnimSet* g_WorldMapFrameAnimSet;
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
 extern s32 g_WorldMapTileAnimEntryCount;
-extern u8 D_8009A1E8[];
+extern u8 g_WorldMapTileAnimSprites[];
 extern s16 D_8009C872[1];
 extern s16 g_WorldMapRandomTimers[];
 extern s32 g_WorldMapRandomTimerCount;
@@ -177,7 +177,7 @@ void WorldMapInitTileAnimEntries(void) {
     g_WorldMapTileAnimEntries = pEntry;
     for (i = 0; i < g_WorldMapTileAnimEntryCount; i++, pEntry++) {
         pEntry->pImageData = (u32)g_WorldMapTileAnimSet + g_WorldMapTileAnimSet->offsets[i];
-        pEntry->pSprite = &((WorldMapSprite*)D_8009A1E8)[i];
+        pEntry->pSprite = &((WorldMapSprite*)g_WorldMapTileAnimSprites)[i];
         pEntry->frameIndex = 0;
         pEntry->frameTimer = 1;
     }

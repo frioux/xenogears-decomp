@@ -2,7 +2,7 @@
 #include "battle/actor.h"
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
-// the same register file in 32-, 16- and 8-bit form. g_BattleSlotRows, D_800D3420 and
+// the same register file in 32-, 16- and 8-bit form. g_BattleSlotRows, g_BattleSlotWordRegs and
 // D_800D3430 are its +0x10, +0x20 and +0x30 arrays; the handlers below read the
 // three operand indexes from the slot's current instruction (BattleCommand) and
 // apply the operation to that slot's registers.

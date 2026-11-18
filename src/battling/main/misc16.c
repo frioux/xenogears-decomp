@@ -96,9 +96,9 @@ typedef struct {
     /* 0xC */ s32 entrySize;
 } Misc16Kind; // Size: 0x10
 
-extern Misc16Kind D_80091C74[];
-extern s32 D_80091CC4[];
-extern s32 D_80091CDC;
+extern Misc16Kind g_BattleEffectKindTable[];
+extern s32 g_BattleEffectUpdateTable[];
+extern s32 g_BattleEffectHalveEntryCountFn;
 
 typedef struct {
     /* 0x0 */ s32 x;
@@ -188,7 +188,7 @@ void BattleEffectComputeAngledEllipsePosition(Misc16Work* pWork, s16* pOut, s32 
     pOut[2] = pWork->centerZ + rot.vz;
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D3F4);
-/* 96.92% - everything matches except the load of D_80091CC4 into $a0
+/* 96.92% - everything matches except the load of g_BattleEffectUpdateTable into $a0
    where retail uses $v1 (and therefore has a nop after the lw before the
    store to pUpdate).  Tried: an s16 second parameter, a s32 one with an
    explicit (s16) cast on the index (that one fixes the updateKind store's extra
@@ -226,18 +226,18 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     pWork->halfRangeX = (s16)pWork->rangeX / 2;
     pWork->halfRangeY = (s16)pWork->rangeY / 2;
     pWork->halfRangeZ = (s16)pWork->rangeZ / 2;
-    kind = D_80091CC4[(s16)arg1];
+    kind = g_BattleEffectUpdateTable[(s16)arg1];
     pWork->pUpdate = kind;
     pWork->pEntries = NULL;
     pWork->kindIndex = arg0;
-    pWork->pHalveEntryCountIfBelow = D_80091CDC;
+    pWork->pHalveEntryCountIfBelow = g_BattleEffectHalveEntryCountFn;
     pWork->unk64 = 0;
     pWork->entryLife = 0x64;
     pWork->r = 0xFF;
     pWork->g = 0xFF;
     pWork->b = 0xFF;
     pWork->unk68 = 0;
-    pKind = &D_80091C74[pWork->kindIndex];
+    pKind = &g_BattleEffectKindTable[pWork->kindIndex];
     pWork->entrySize = pKind->entrySize;
     pWork->pUpdateEntry = pKind->pUpdateEntry;
     pWork->pCallback = pKind->pCallback;

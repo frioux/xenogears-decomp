@@ -4,7 +4,7 @@
 
 extern u8 *g_BattleDisplayState;
 extern u16 D_8005A3A0[];
-extern u8 D_800D3420[];
+extern u8 g_BattleSlotWordRegs[];
 extern u8 g_BattleSlotRows[];
 extern u8 g_BattleSlotEnabledFlags[];
 
@@ -433,7 +433,7 @@ void BattleWordRegSetImm(BattleCommand **pCommand, u8 arg1) {
     mem_addr regFileBase;
 
     // separate assignment: gcc materialises the base before the value loads if it is an initializer
-    regFileBase = (mem_addr)D_800D3420;
+    regFileBase = (mem_addr)g_BattleSlotWordRegs;
     *((u16 *)((p->operand1 << 1) + (arg1 * 0x40 + regFileBase))) = val;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc5", func_8007A968);

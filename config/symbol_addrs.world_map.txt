@@ -591,3 +591,6 @@ g_WorldMapClipPlaneDirXNeg = 0x8009BB6C;
 g_WorldMapClipPlaneDirXPos = 0x8009BB7C;
 g_WorldMapClipPlaneDirYNeg = 0x8009BB8C;
 g_WorldMapClipPlaneDirYPos = 0x8009BB9C;
+g_WorldMapTileAnimSprites = 0x8009A1E8;
+g_WorldMapTileShapeHalfAxisZ = 0x8009B36C;
+g_WorldMapTileShapeHalfOriginZ = 0x8009B46C;

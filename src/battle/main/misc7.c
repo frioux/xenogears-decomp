@@ -3,7 +3,7 @@
 #include "main/game.h"
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
-// the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, D_800D3420,
+// the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, g_BattleSlotWordRegs,
 // D_800D3430 and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F, and the two
 // cursors at +0x00/+0x08 are those include/battle/actor.h's BattleSlotRegs names.
 typedef struct {
@@ -18,7 +18,7 @@ typedef struct {
 
 extern BattleOpRegs g_BattleSlotRegs[];
 extern u8 g_BattleSlotRows[];
-extern u8 D_800D3420[];
+extern u8 g_BattleSlotWordRegs[];
 extern u8 D_800D342E[];
 extern u8 D_800D3430[];
 extern u8 D_800D343F[];
@@ -90,14 +90,14 @@ void BattleByteRegSetMatched(BattleCommand **p, u8 index) {
     pTable[(*p)->operand1] = result;
 }
 // best: 81.15%. Frame and register set now match; the only gap is that the
-// original materialises D_800D3420+0x10 with its own addiu and then adds slot
+// original materialises g_BattleSlotWordRegs+0x10 with its own addiu and then adds slot
 // and the arg byte, gcc folds the 0x10 into the lbu displacement. 62.17% if
 // pTable is a pointer local declared before the call.
 // screened: 81.15% is the max of Default / cdk 78.94 / 2.6.0 81.15.
 /*
 u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
     s32 slot = index * 0x40;
-    u16 *pField = (u16 *)(D_800D3420 + slot);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + slot);
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
@@ -105,7 +105,7 @@ u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
         g_BattleCommandArgs = 0x20;
         ret = arg2 + 1;
     } else {
-        BattleSlotByteVarGetSet(value, (*p)[2], (D_800D3420 + 0x10 + slot)[(*p)[1]], 0);
+        BattleSlotByteVarGetSet(value, (*p)[2], (g_BattleSlotWordRegs + 0x10 + slot)[(*p)[1]], 0);
     }
     return ret;
 }
@@ -138,7 +138,7 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
 // the same swap (retail can only load it early because the base reuses a0).
 // Structure that got it here from the 89.53 park: keep slot and base apart so
 // the sums form at their points of use - case 1 spells the field-table base
-// `(u8 *)(D_800D3420 - 0x10) + index * 0x40` (the -0x10 lands in the jal delay
+// `(u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40` (the -0x10 lands in the jal delay
 // slot) instead of deriving it from pField, and the D_800DCCDEC load and the
 // store keep retail's order.
 // Tried and no better: `switch ((*p)[2])` with (*p)[k] inline 96.17, a `u8 kind`
@@ -148,7 +148,7 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
 // case-2 index load into a volatile temp - the load order moves, the a0/a2 swap
 // does not).
 // Round 139: permuter again, 1398 iterations base=230 best=145 - a false gain.
-// Its candidate wraps the case-2 store in `if (p)` (or `if (D_800D3420)`) with
+// Its candidate wraps the case-2 store in `if (p)` (or `if (g_BattleSlotWordRegs)`) with
 // the body duplicated in both arms; that does buy retail's `lw a0,0(s2)` for
 // pArgs (p stays live in a0), but the discriminant lands in v1 (retail a2) and
 // the case-2 footer loses the slot sum and the gold load to v1 too: 95.25%
@@ -166,9 +166,9 @@ void func_8007B6C0(u8 **p, u8 index) {
 
     switch (pArgs[2]) {
     case 1: {
-        u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+        u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
         u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
-        u32 *pField32 = (u32 *)((u8 *)(D_800D3420 - 0x10) + index * 0x40);
+        u32 *pField32 = (u32 *)((u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40);
 
         pField32[(*p)[1]] = *(u32 *)(D_800CCDEC + value * 0x170);
         break;
@@ -186,7 +186,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 // best: 88.95%. Body recovered from the .s: u8 return (ret = arg2), the
 // g_BattleCommandArgs = 0x20 / arg2+1 path for value < 3, then (*p)[2] == 0 selects
 // D_800CCDF0 and everything else D_800CCDEC, storing the
-// ((u32 *)((u8 *)D_800D3420 - 0x10))[index * 0x40 + (*p)[1]] dword into
+// ((u32 *)((u8 *)g_BattleSlotWordRegs - 0x10))[index * 0x40 + (*p)[1]] dword into
 // value * 0x170 of it. Writing that field-table address INLINE, rather than
 // deriving it from pField, is what took the park from 87.67 to 88.95: the base
 // stays in s3 and index * 0x40 in s0 across the call, like retail. Two gaps
@@ -202,7 +202,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 // screened: 87.67% was the max of Default / cdk 78.94 / 2.6.0 87.67.
 /*
 u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
 
@@ -211,10 +211,10 @@ u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
         ret = arg2 + 1;
     } else if ((*p)[2] == 0) {
         *(u32 *)(D_800CCDF0 + value * 0x170) =
-            ((u32 *)((u8 *)(D_800D3420 - 0x10) + index * 0x40))[(*p)[1]];
+            ((u32 *)((u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40))[(*p)[1]];
     } else {
         *(u32 *)(D_800CCDEC + value * 0x170) =
-            ((u32 *)((u8 *)(D_800D3420 - 0x10) + index * 0x40))[(*p)[1]];
+            ((u32 *)((u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40))[(*p)[1]];
     }
     return ret;
 }
@@ -236,7 +236,7 @@ void func_8007B8D4(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     value = D_8005A3A0[pArgs[2]];
-    pField = (u16 *)(D_800D3420 + index * 0x40);
+    pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     pField[pArgs[1]] = value;
 }
 */
@@ -257,11 +257,11 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
     // The dead pField is load-bearing: its initializer makes gcc emit the
     // index*0x40 shift before the base lui/addiu, as retail does, and the base
     // has to stay an untyped byte pointer for the two stores to share it.
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     BattleCommand *pCmd = *p;
     u8 *base;
 
-    base = D_800D3420;
+    base = g_BattleSlotWordRegs;
     ((u16 *)(base + index * 0x40))[pCmd->operand2] = ((u16 *)(base + index * 0x40))[pCmd->operand1];
 }
 // best: 98.33%, permuter score 25 (2084 iterations from this body found
@@ -318,7 +318,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // best: 98.12%. Sole gap: the pTable sum is formed into the base register (v0)
 // where retail reuses the index register (a1); every other register and
 // instruction matches, including the D_800D3430 base derived as
-// D_800D3420+0x10. Permuter score 30 is this body and 778 more iterations found
+// g_BattleSlotWordRegs+0x10. Permuter score 30 is this body and 778 more iterations found
 // nothing better; writing the index term first fixes the addu operand order but
 // moves the *p load to v1 and drops to 95.94%.
 // screened: the plain pTable form is identical 95.94% under Default, 2.7.2-cdk
@@ -327,18 +327,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // nothing. The tie is exactly two coins: pTable's dst (retail a1 = the slot
 // register, so the sum is (plus slot base2)) and the *p load dst (retail a0,
 // so retail's pTable dst and pArgs do NOT collide). Every shape that commutes
-// the sum (a `u32 slot` local, `index * 0x40 + (u8 *)(D_800D3420 + 0x10)`,
+// the sum (a `u32 slot` local, `index * 0x40 + (u8 *)(g_BattleSlotWordRegs + 0x10)`,
 // the same with (*p)[1] inline so the load is CSE'd) gives retail's
 // `addu a1,a1,v0` but moves the load to v1 -> 95.94. Spelling D_800D3430
 // directly gives it its own lui/addiu (88.38), so the +0x10 really is derived
 // from the base.
 /*
 void func_8007BA04(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pTable;
     u8 *pArgs = *p;
 
-    pTable = (D_800D3420 + 0x10) - (-(index * 0x40));
+    pTable = (g_BattleSlotWordRegs + 0x10) - (-(index * 0x40));
     pField[pArgs[2]] = pTable[pArgs[1]];
 }
 */
@@ -431,7 +431,7 @@ void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
 /*
 void func_8007BD5C(u8 **p, u8 index) {
     u8 buf[3];
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 idx;
 
     buf[0] = buf[1] = buf[2] = 0;
@@ -465,14 +465,14 @@ void func_8007BEA8(u8 **p, u8 index) {
     u8 idx;
 
     buf[0] = buf[1] = buf[2] = 0;
-    ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = 0;
+    ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] = 0;
     while (!(buf[0] & buf[1] & buf[2])) {
         idx = GameRandomByteRange(0, 2);
         if (buf[idx] == 0) {
             if (BattleSlotFlagsC002ClearRecordIdle(idx, (*p)[2]) != 0
                 && g_BattleSlotRecords[(index + 3) * 0x1C] == g_BattleSlotRecords[idx * 0x1C]
                 && g_BattleSlotFlags[idx * 8] == 0) {
-                ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = BattleSlotBitMask(idx);
+                ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] = BattleSlotBitMask(idx);
                 break;
             }
             buf[idx] = 1;
@@ -483,7 +483,7 @@ void func_8007BEA8(u8 **p, u8 index) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BEA8);
 // best: 65.42%. Structure recovered (collect the 3..10 slots whose
 // g_BattleSlotRecords entry equals the (index+3) one into a stack buffer, then pick
-// one at random; both D_800D3420 stores are spelled inline, retail
+// one at random; both g_BattleSlotWordRegs stores are spelled inline, retail
 // re-forms their base with a fresh lui as well). Gap is the same hoist as
 // func_8007BEA8 (g_BattleSlotRecords/g_BattleSlotFlags bases into callee-saved registers,
 // +8 frame). -G0 changes nothing.
@@ -494,7 +494,7 @@ void func_8007C040(u8 **p, u8 index) {
     s32 count = 0;
     s32 i;
 
-    ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] = 0;
+    ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] = 0;
     for (i = 3; i < 11; i++) {
         if (BattleSlotFlagsC002ClearRecordIdle(i, (*p)[2]) != 0
             && g_BattleSlotRecords[(index + 3) * 0x1C] == g_BattleSlotRecords[i * 0x1C]
@@ -503,7 +503,7 @@ void func_8007C040(u8 **p, u8 index) {
         }
     }
     if (count != 0) {
-        ((u16 *)(D_800D3420 + index * 0x40))[(*p)[1]] =
+        ((u16 *)(g_BattleSlotWordRegs + index * 0x40))[(*p)[1]] =
             BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
     }
 }

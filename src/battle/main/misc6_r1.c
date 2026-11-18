@@ -11,22 +11,22 @@ typedef struct {
     /* 0x10 */ u8 unk10[0x30]; // the slot's byte registers, then the next slot's head
 } BattleSlotWordRegs; // Size: 0x40
 
-extern BattleSlotWordRegs D_800D3420[];
+extern BattleSlotWordRegs g_BattleSlotWordRegs[];
 
 void BattleWordRegAndImm(u8 **p, u8 index) {
-    u16 *pWordRegs = D_800D3420[index].wordRegs;
+    u16 *pWordRegs = g_BattleSlotWordRegs[index].wordRegs;
     u8 *pArgs = *p;
 
     pWordRegs[pArgs[1]] &= pArgs[2] + (pArgs[3] << 8);
 }
 void BattleWordRegOrImm(u8 **p, u8 index) {
-    u16 *pWordRegs = D_800D3420[index].wordRegs;
+    u16 *pWordRegs = g_BattleSlotWordRegs[index].wordRegs;
     u8 *pArgs = *p;
 
     pWordRegs[pArgs[1]] |= pArgs[2] + (pArgs[3] << 8);
 }
 void BattleWordRegXorImm(u8 **p, u8 index) {
-    u16 *pWordRegs = D_800D3420[index].wordRegs;
+    u16 *pWordRegs = g_BattleSlotWordRegs[index].wordRegs;
     u8 *pArgs = *p;
 
     pWordRegs[pArgs[1]] ^= pArgs[2] + (pArgs[3] << 8);

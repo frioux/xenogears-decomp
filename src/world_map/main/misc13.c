@@ -62,9 +62,9 @@ extern s32 D_8009B264[];
 extern s32 D_8009B26C[];
 extern WorldMapTileCell* g_WorldMapTileCellPointers[];
 extern s32 g_WorldMapTileShapeHalfAxis[];
-extern s32 D_8009B36C[];
+extern s32 g_WorldMapTileShapeHalfAxisZ[];
 extern s32 g_WorldMapTileShapeHalfOrigin[];
-extern s32 D_8009B46C[];
+extern s32 g_WorldMapTileShapeHalfOriginZ[];
 extern s32 g_WorldMapTileColumns;
 extern s32 g_WorldMapTileRows;
 extern s16 g_WorldMapAreaId;
@@ -419,8 +419,8 @@ s32 WorldMapGetTileHalfIndex(WorldMapPos* p) {
     n = WorldMapGetTileValue(p);
     k = (n & 0xF) * 4;
     dx = (u16)(p->x / 8) - g_WorldMapTileShapeHalfOrigin[k];
-    dz = (u16)(p->z / 8) - D_8009B46C[k];
-    sum = (dx * g_WorldMapTileShapeHalfAxis[k] >> 12) + (dz * D_8009B36C[k] >> 12);
+    dz = (u16)(p->z / 8) - g_WorldMapTileShapeHalfOriginZ[k];
+    sum = (dx * g_WorldMapTileShapeHalfAxis[k] >> 12) + (dz * g_WorldMapTileShapeHalfAxisZ[k] >> 12);
     if (sum > 0) {
         return ((u32)n >> 4) & 7;
     }

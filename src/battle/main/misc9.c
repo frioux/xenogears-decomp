@@ -2,7 +2,7 @@
 #include "battle/actor.h"
 
 // One slot of the per-slot operator register block at g_BattleSlotRegs (stride 0x40):
-// the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, D_800D3420 and
+// the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, g_BattleSlotWordRegs and
 // D_800D3430 are its +0x10, +0x20 and +0x30 arrays; the handlers below read the
 // operand indexes from the slot's current instruction (BattleCommand) and apply
 // the operation to that slot's registers.
@@ -43,7 +43,7 @@ extern u8 g_BattlePendingCharIndex;
 extern u8 *g_BattlePrimPool;
 extern u8 *g_BattleSlotParamTable;
 extern u8 g_BattleSlotRows[];
-extern u8 D_800D3420[];
+extern u8 g_BattleSlotWordRegs[];
 extern u8 D_800D3430[];
 extern u8 D_800C3EB7[];
 extern u8 g_BattleSlotStatusRows[];
@@ -64,7 +64,7 @@ extern u16 BattleSlotBitMask(u8 arg0);
    and saved-register set already exact): (1) the final store re-forms the row
    base with a fresh `lui a1 / addiu a1 / addu a0,a0,a1` instead of reusing the
    loop's base register - tried a pOut pointer (77-80%, gcc reuses the loop
-   base or spills), `(s32)D_800D3420` staged local (76.10%, shape right but one
+   base or spills), `(s32)g_BattleSlotWordRegs` staged local (76.10%, shape right but one
    extra insn) and the plain inline expression (the $at form);
    (2) retail steals `i++` into the beqz delay slot after the BattleSlotFlagsC002ClearRecordIdle
    call, gcc emits it at the loop head;
@@ -74,7 +74,7 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
     s32 count = 0;
     s32 i = 0;
     s32 idx;
-    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
 
     pField[(*arg0)[2]] = 0;
     idx = i;
@@ -88,7 +88,7 @@ void func_8007D8C0(u8 **arg0, s32 arg1) {
         }
     } while (i < 3);
     if (count != 0) {
-        u8 *pBase = D_800D3420 + (arg1 & 0xFF) * 0x40;
+        u8 *pBase = g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40;
 
         *(u16 *)(pBase + (*arg0)[2] * 2) = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
     }
@@ -101,7 +101,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007D8C0);
    addu a0,a0,a1` (a real register via `la`) and then adds the index; every shape
    tried (inline byte expression, (u16*)cast array index, s32 base local in both
    operand orders, u8 *pBase local, reuse of the pRow local) makes gcc fold the
-   two register terms first and emit `sh v0,D_800D3420(a0)`, i.e. maspsx's
+   two register terms first and emit `sh v0,g_BattleSlotWordRegs(a0)`, i.e. maspsx's
    $at form. So it is gcc's combine merging (sym+reg) into the store address that
    retail's compiler did not do, not a source detail.
    (2) retail steals `addiu s1,s1,1` into the beqz delay slot after the
@@ -113,7 +113,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
     s32 count = 0;
     s32 i;
     u8 idx;
-    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
 
     pRow[(*arg0)[2]] = 0;
     for (i = 3; i < 0xB; i++) {
@@ -126,7 +126,7 @@ void func_8007DA1C(u8 **arg0, s32 arg1) {
         }
     }
     if (count != 0) {
-        u8 *pBase = D_800D3420 + (arg1 & 0xFF) * 0x40;
+        u8 *pBase = g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40;
 
         *(u16 *)(pBase + (*arg0)[2] * 2) = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
     }
@@ -175,7 +175,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DB78);
    of a live s32 row base that does not change an operand - not a new shape of
    the expression, which is measured dead: plain pointer initialiser, the
    (s32)-cast form, an s32 base local (all 85.10%), a two-statement
-   base/pointer split and the (u16 *)((arg1 & 0xFF) * 0x40) + (s32)D_800D3420
+   base/pointer split and the (u16 *)((arg1 & 0xFF) * 0x40) + (s32)g_BattleSlotWordRegs
    form (identical output).
    The rest, unchanged: retail duplicates `slti v0,s1,3` into three places
    (delay slots of the a628 beqz and of both beqzs, plus the latch) where gcc
@@ -187,7 +187,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
     s32 count = 0;
     s32 offset = 0;
     s32 idx;
-    s32 rowBase = (arg1 & 0xFF) * 0x40 + (s32)D_800D3420;
+    s32 rowBase = (arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs;
     u16 *pRow = (u16 *)rowBase;
 
     pRow[(*arg0)[2]] = 0;
@@ -205,7 +205,7 @@ void func_8007DB78(u8 **arg0, s32 arg1) {
     }
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
@@ -218,7 +218,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
    local whose base is built in INT arithmetic, then the store:
 
        u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-       u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+       u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
        pOut[(*arg0)[2]] = value;
 
    That reproduces retail's andi/sll/lw p/lui a1/addiu a1/lbu p[2]/addu a0,a0,a1/
@@ -228,7 +228,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DCF8);
    (1) retail keeps a temp copy of the row base (addu v1,v1,v0 then move s5,v1,
    and the la lands in v0 before the remaining saves) where gcc computes
    addu s5,v1,a0 with the la in a0 after them - tried the plain pointer form,
-   (arg1 & 0xFF) * 0x40 + (s32)D_800D3420, and an s32 base local converted to
+   (arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs, and an s32 base local converted to
    u16* (all 89.33%, gcc coalesces the copy away).
    (2) sw s6/move s6,a1 is emitted before the i/count zero-inits here, after
    them in retail (declaration order i then count already matches retail's
@@ -242,7 +242,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     s32 i = 0;
     s32 count = 0;
     s32 idx;
-    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
 
     pRow[(*arg0)[2]] = 0;
     do {
@@ -256,7 +256,7 @@ void func_8007DE78(u8 **arg0, s32 arg1) {
     } while (i < 3);
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
@@ -299,7 +299,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
     s32 count = 0;
     s32 offset = 0;
     s32 idx;
-    u16 *pRow = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+    u16 *pRow = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
 
     pRow[(*arg0)[2]] = 0;
     while (i < 3) {
@@ -316,7 +316,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007DFD4);
     }
     if (count != 0) {
         u16 value = BattleSlotBitMask(buf[GameRandomByteRange(0, count - 1)]);
-        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)D_800D3420);
+        u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 + (s32)g_BattleSlotWordRegs);
 
         pOut[(*arg0)[2]] = value;
     }
@@ -399,7 +399,7 @@ void func_8007E334(u8 **arg0, u8 arg1) {
         }
         acc *= 2;
     }
-    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
     pRow[(*arg0)[1]] = acc << 2;
 } */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
@@ -407,7 +407,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E334);
    (g_BattleSlotRecords[offset], offset from 0x38 stepping -0x1C): that is the only form
    that reproduces the original's two `lui at / addu at / lbu %lo(at)` loads and
    the `li s2,0x38` prologue. Remaining: gcc splits the row base into
-   `(arg1 & 0xFF) << 6` plus a hoisted `&D_800D3420` (the original keeps the
+   `(arg1 & 0xFF) << 6` plus a hoisted `&g_BattleSlotWordRegs` (the original keeps the
    whole sum in s4) and hoists a third symbol base, so the frame grows to 0x38.
    Tried: row base as a pRow local (77.49%, gcc CSEs it with the store's), row
    base inline + pRow local for the store (80.63%).
@@ -420,8 +420,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc9", func_8007E438);
 /* R165 second pass: 80.63% (308 bytes) confirmed as recorded; unchanged, no
    lever found. Deltas. (1) The first record load is
    `g_BattleSlotRecords[BattleFindFirstFlagTableMatch(field) * 0x1C]` reached
-   inline: retail builds the row base D_800D3420 + arg1 * 0x40 + p[2] * 2 with
-   a single register sum, gcc splits off `&D_800D3420` and the <<6 and hoists
+   inline: retail builds the row base g_BattleSlotWordRegs + arg1 * 0x40 + p[2] * 2 with
+   a single register sum, gcc splits off `&g_BattleSlotWordRegs` and the <<6 and hoists
    them, which is what grows the frame to 0x38. (2) gcc keeps
    &g_BattleSlotRecords in a saved register across the loop for the first of
    the two record loads where retail re-forms it with `lui $at / addu $at`.
@@ -438,7 +438,7 @@ void func_8007E438(u8 **arg0, u8 arg1) {
     for (i = 2; i >= 0; i--) {
         if ((u8)BattleSlotFlagsC000Clear((u8)i) != 0) {
             if (((u8 *)g_BattleSlotRecords)[(u8)BattleFindFirstFlagTableMatch(
-                    *(u16 *)(D_800D3420 + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
+                    *(u16 *)(g_BattleSlotWordRegs + arg1 * 0x40 + (*arg0)[2] * 2)) * 0x1C] ==
                 ((u8 *)g_BattleSlotRecords)[offset]) {
                 acc |= 1;
             }
@@ -446,7 +446,7 @@ void func_8007E438(u8 **arg0, u8 arg1) {
         acc <<= 1;
         offset -= 0x1C;
     }
-    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
     pRow[(*arg0)[1]] = (u16)acc >> 1;
 }
  */
@@ -454,7 +454,7 @@ void func_8007E438(u8 **arg0, u8 arg1) {
    comparing g_BattleSlotRecords[(u8)BattleFindFirstFlagTableMatch(pField[p[2]]) * 0x1C] against
    g_BattleSlotRecords[offset] with offset = 0x118 stepping -0x1C, then storing
    `acc << 2` into the row. The row base MUST be a local pointer computed before
-   the loop (inline gives 74.68%: gcc hoists &D_800D3420 and the <<6 separately
+   the loop (inline gives 74.68%: gcc hoists &g_BattleSlotWordRegs and the <<6 separately
    and does the addu inside the loop, growing the frame to 0x38).
    Remaining: (1) gcc hoists &g_BattleSlotRecords into a register for the first of the two
    record loads only (retail uses the `lui at / addu at / lbu %lo(at)` form for
@@ -483,7 +483,7 @@ void func_8007E554(u8 **arg0, u8 arg1) {
     s32 acc = 0;
     s32 offset = 0x118;
     s32 i;
-    u16 *pField = (u16 *)(D_800D3420 + arg1 * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
     u16 *pRow;
 
     for (i = 0xA; i >= 3; i--) {
@@ -496,7 +496,7 @@ void func_8007E554(u8 **arg0, u8 arg1) {
         acc <<= 1;
         offset -= 0x1C;
     }
-    pRow = (u16 *)(D_800D3420 + arg1 * 0x40);
+    pRow = (u16 *)(g_BattleSlotWordRegs + arg1 * 0x40);
     pRow[(*arg0)[1]] = acc << 2;
 }
  */
@@ -621,7 +621,7 @@ s32 BattleSetTextScale(BattleCommand **ppCmd, u8 arg1) {
 s32 BattleWordRegEqImm(u8 **arg0, s32 arg1) {
     u8 *p = *arg0;
     s32 value = p[2] | (p[3] << 8);
-    u16 *pField = (u16 *)(D_800D3420 + (arg1 & 0xFF) * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + (arg1 & 0xFF) * 0x40);
 
     return pField[p[1]] == value;
 }

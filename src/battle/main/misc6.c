@@ -1,8 +1,8 @@
 #include "common.h"
 
-// Operator argument tables: D_800D3420 is the 16-bit field table, D_800D3430
+// Operator argument tables: g_BattleSlotWordRegs is the 16-bit field table, D_800D3430
 // the 8-bit one; both are indexed by (*p + 0x3) << 6-style slot * 0x40 bytes.
-extern u8 D_800D3420[];
+extern u8 g_BattleSlotWordRegs[];
 extern u8 D_800D3430[];
 
 // All four stubs in this unit are one and the same miss: retail holds the table base
@@ -14,10 +14,10 @@ extern u8 D_800D3430[];
 // not reachable from the source.
 
 // best 97.00% (2.7.2 and 2.6.0; 86.75 cdk): identical instruction multiset, only
-// the D_800D3420 base register differs - retail $v0/$a2, gcc $v1.
+// the g_BattleSlotWordRegs base register differs - retail $v0/$a2, gcc $v1.
 /*
 void func_8007AC30(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
     s32 value = pField[pArgs[1]] - (pArgs[2] + (pArgs[3] << 8));
 
@@ -29,10 +29,10 @@ void func_8007AC30(u8 **p, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC30);
 // best 97.39% (2.6.0; 96.52 2.7.2; 89.35 cdk): same single-register miss as
-// func_8007AC30, the D_800D3420 base lands in $v1 instead of retail's $v0/$a2.
+// func_8007AC30, the g_BattleSlotWordRegs base lands in $v1 instead of retail's $v0/$a2.
 /*
 void func_8007AC80(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
     s32 value = pField[pArgs[1]] * (pArgs[2] + (pArgs[3] << 8));
 
@@ -47,7 +47,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007AC80);
 // div trap): base in $v1 rather than $v0 renames the table loads and swaps div operands.
 /*
 void func_8007ACDC(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] /= pArgs[2] + (pArgs[3] << 8);
@@ -58,7 +58,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc6", func_8007ACDC);
 // register miss, which renames the loads and the div/mflo pair.
 /*
 void func_8007AD24(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(D_800D3420 + index * 0x40);
+    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 *pArgs = *p;
 
     pField[pArgs[1]] %= pArgs[2] + (pArgs[3] << 8);

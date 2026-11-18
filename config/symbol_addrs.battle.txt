@@ -1063,3 +1063,4 @@ g_BattleCommandCharIndex = 0x800D2C34;
 g_BattleCellActionRows = 0x800CDD40;
 g_BattleImage = 0x800D3600;
 g_BattleTargetScan = 0x800D2DD7;
+g_BattleSlotWordRegs = 0x800D3420;
