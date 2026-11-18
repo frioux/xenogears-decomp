@@ -434,7 +434,54 @@ void func_801C6400(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6AA0);
+u_short MenuAndBitMaskLsbFirst(u_short mask, u_char index);
+void func_801C65F4(void);
+
+void func_801C6AA0(void) {
+    u32 mask;
+    s32 i;
+    s32 characterId;
+
+    if (g_MenuOverlayIndex == 0 && g_ShopIndex == 0) {
+        g_Menu->mainMenuChoice = g_MenuSavedMainMenuChoice;
+    } else {
+        g_Menu->mainMenuChoice = 1;
+    }
+    g_Menu->mainMenuPrevChoice = 0xFF;
+    g_Menu->cardCheckTimer = 60;
+    g_Menu->unk334 = 0;
+    g_Menu->unk335 = 0;
+    g_Menu->availableCharacterCount = 0;
+    mask = (g_GameState.characterFlags & g_GameState.FrMask) & 0x7FF;
+    for (i = 0; i < 0x10; i++) {
+        if (MenuAndBitMaskLsbFirst(mask, i) != 0) {
+            g_Menu->availableCharacters[i] = 1;
+        } else {
+            g_Menu->availableCharacters[i] = 0;
+        }
+    }
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        g_Menu->pManager->isGearScreenActive[i] = 0;
+        characterId = g_GameState.partyMembers[i];
+        if (characterId != CHARACTER_ID_NONE && g_Menu->availableCharacters[characterId] != 0) {
+            g_Menu->pManager->currentCharacterIDs[i] = characterId;
+            g_Menu->availableCharacterCount++;
+            if (g_GameState.characters[g_Menu->pManager->currentCharacterIDs[i]].gearId != GEAR_ID_NONE) {
+                g_Menu->pManager->isGearScreenActive[i] = 1;
+                g_Menu->gearCharacterCount++;
+            }
+        } else {
+            g_Menu->pManager->currentCharacterIDs[i] = CHARACTER_ID_NONE;
+        }
+    }
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
+            g_Menu->characterSlot = i;
+            break;
+        }
+    }
+    func_801C65F4();
+}
 
 void MenuResetRenderContext(void) {
     g_Menu->renderContext = 0;
