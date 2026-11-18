@@ -222,7 +222,7 @@ typedef struct {
     /* 0x20 */ s32 initialActorIndex; // the actor index the init hands to BattleSetCurrentActorSprite
     /* 0x24 */ s32 actorIndex;
     /* 0x28 */ u8 unk28[0x18];
-    /* 0x40 */ void *unk40; // an index, not a pointer: func_800B8EBC passes it to BattleLoadActorSlotAnimation
+    /* 0x40 */ void *savedActorSlot; // an index, not a pointer: func_800B8EBC passes it to BattleLoadActorSlotAnimation
 } BattleUnitState; // Size: 0x44
 
 extern BattleUnitState *g_BattleState;
