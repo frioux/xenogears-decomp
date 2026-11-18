@@ -189,8 +189,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0FAC);
 // cast-address read of g_DebugTable (392), an if/else or `continue` guard
 // (94.06/392), a do/while wait loop (84.90/384), a pointer to the global taken
 // before the loop (400, %hi stays in $v0), and a local copy of the
-// SoundLoadWdsFile result (392). The `asm("break 0x400")` debug break is the same
-// idiom as field/main/misc2, controller_b and menu/misc2.
+// SoundLoadWdsFile result (392). Retail's `break 0x400` debug break inside the wait
+// loop has no C spelling (AGENTS.md forbids inline asm), so this body cannot go live
+// as it stands; the honest 94.06/392 is what the rest of it reproduces.
 /*
 // Feeds one battle actor archive buffer to the sound player: every SEDS chunk is
 // added, every WDS chunk is (re)loaded after freeing the loaded one, and every
@@ -221,7 +222,8 @@ SoundFile *func_800C0FAC(SoundArchiveBuffer *pBuffer) {
             g_BattleWdsEntry = SoundLoadWdsFile((SoundWDSEntry *)pChunk, 0);
             while (SoundGetPendingSpuCommandType(0) != 0) {
                 if (g_DebugTable != -1) {
-                    asm("break 0x400");
+                    // retail's `break 0x400` here has no C spelling: this park
+                    // cannot be un-parked until someone finds one.
                 }
             }
             if (i == 1) {
