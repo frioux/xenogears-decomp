@@ -427,11 +427,11 @@ void func_801C6400(void) {
    }
    p = &pBuffer[i];
    for (j = 0; j < 0x1E; j++) {
-       g_Menu->menuUnk2->unk4FE7[0x15 + j] = p[j];
+       g_Menu->menuUnk2->saveTitleSuffix[j] = p[j];
    }
    pInfo = g_Menu->menuUnk2;
-   pInfo->unk4FE7[0x34] = 0;
-   pInfo->unk4FE7[0x33] = 0;
+   pInfo->saveTitleSuffix[0x1F] = 0;
+   pInfo->saveTitleSuffix[0x1E] = 0;
    ArchiveSetIndex(0x10, 0);
    HeapFree(pBuffer);
 }

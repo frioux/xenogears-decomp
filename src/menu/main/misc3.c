@@ -519,7 +519,7 @@ void func_801CA8C0(u_char a0) {
     ((u8*)g_Menu->menuUnk2->saveTitle)[0x1F] = 0x40;
     ((u8*)g_Menu->menuUnk2->saveTitle)[0x20] = 0;
     ((u8*)g_Menu->menuUnk2->saveTitle)[0x21] = 0;
-    strcat(g_Menu->menuUnk2->saveTitle, &g_Menu->menuUnk2->unk4FE7[0x15]);
+    strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
