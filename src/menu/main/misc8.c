@@ -24,6 +24,9 @@ extern u8 D_801EA574[];
 extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
+extern s32 D_801E9D40[]; // X offset of each stat row of the stat table
+extern s32 D_801E9D5C[]; // Y offset of each stat row of the stat table
+extern s32 D_801EA45C[]; // Texture id of each stat row's label, 7 rows per stat group
 
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
@@ -52,6 +55,7 @@ void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
+void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDirentCount, s32* pTexPageId, s32* pClutX, s32* pClutY, s32* pTexPageX, s32* pTexPageY);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 
@@ -105,6 +109,53 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
+
+/* 99.75% (812 bytes, the original's size). The stat table's row labels: reset the
+   prim count at unk35C+0x32F3, draw 7 - statGroup rows of label prims with
+   func_8002675C (7 texture ids per stat group in D_801EA45C, x/y from
+   D_801E9D40/D_801E9D5C), shade the prims of every other row 0x40, then set the
+   four quad vertices of each prim from its own x0/y0/x1/y3.
+   The LAST loop differs only in two addu operand orders: retail is
+   `addu v1,a0,v1` (base first) for the prim address and `addu a0,s0,a0`
+   (offset first) for the vertex address, gcc emits the reverse of both, which is
+   its canonical "lower register number first" order. Tried: a pPrim pointer
+   local (97.28, gcc also re-bases 0x2420 and uses v0), a volatile pPrim local
+   (98.56), (off + (u32)base) for either address (95.66 for the vertex one, no
+   change for the prim one), and two permuter runs - PERMUTER_BETTER 490->426
+   from the non-volatile body (a second copy of g_Menu->unk35C, +4 bytes) and
+   PERMUTER_NONE base=50 best=50 from this body.
+   The six lhu (retail reads x0 and y0 TWICE) come from making the width/height
+   operands volatile: without that gcc cse's each pair into one load and adds two
+   moves (98.33%, also 812 bytes).
+void func_801D7F50(s32 x, s32 y, u_char statGroup) {
+    s32 texCoords[6]; // Filled and ignored
+    s32 start;
+    s32 i;
+    s32 j;
+
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_STRING_DEFENSE, &texCoords[0], &texCoords[1], &texCoords[2], &texCoords[3], &texCoords[4], &texCoords[5]);
+    ((u8*)g_Menu->unk35C)[0x32F3] = 0;
+    for (i = 0; i < 7 - statGroup; i++) {
+        start = ((u8*)g_Menu->unk35C)[0x32F3];
+        ((u8*)g_Menu->unk35C)[0x32F3] += func_8002675C(g_Menu->resources, D_801EA45C[statGroup * 7 + i], (POLY_FT4*)((u8*)g_Menu->unk35C + start * 0x50), g_Menu->renderContext, x + D_801E9D40[i], y + D_801E9D5C[i], 0x1000);
+        if (i & 1) {
+            for (j = start; j < ((u8*)g_Menu->unk35C)[0x32F3]; j++) {
+                SetShadeTex((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28), 0);
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->r0 = 0x40;
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->g0 = 0x40;
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->b0 = 0x40;
+            }
+        }
+    }
+    for (i = 0; i < ((u8*)g_Menu->unk35C)[0x32F3]; i++) {
+        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk35C + 0x2420 + i * 0x20),
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x1 - ((volatile POLY_FT4*)((g_Menu->renderContext + i * 2) * 0x28 + (u32)g_Menu->unk35C))->x0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y3 - ((volatile POLY_FT4*)((g_Menu->renderContext + i * 2) * 0x28 + (u32)g_Menu->unk35C))->y0);
+    }
+}
+*/
 void MenuSetStatBarQuadColors(POLY_G4* pPolys, u_char mode) {
     POLY_G4* pPoly;
     u8 rgb[3];
