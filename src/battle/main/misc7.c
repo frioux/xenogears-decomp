@@ -6,6 +6,11 @@
 // the same arguments in 32-, 16- and 8-bit form. g_BattleSlotRows, g_BattleSlotWordRegs,
 // g_BattleSlotByteRegs and D_800D343F are its +0x10, +0x20, +0x30 and +0x3F, and the two
 // cursors at +0x00/+0x08 are those include/battle/actor.h's BattleSlotRegs names.
+// Accessing a bank as g_BattleSlotRegs[index].wordRegs is the same code as the old
+// untyped `(u16 *)(g_BattleSlotWordRegs + index * 0x40)`, and it is what retail's
+// register shapes want: the base stays g_BattleSlotWordRegs and only the HI16/LO16
+// addend folds, so diff_func.sh prints 99.x for the bank accesses that are
+// byte-identical (check_bin.sh battle: OK).
 typedef struct {
     /* 0x00 */ u8 *pScriptCursor;
     /* 0x04 */ u8 unk04[0x4];
@@ -89,11 +94,6 @@ void BattleByteRegSetMatched(BattleCommand **p, u8 index) {
 
     pTable[(*p)->operand1] = result;
 }
-// best: 81.15%. Frame and register set now match; the only gap is that the
-// original materialises g_BattleSlotWordRegs+0x10 with its own addiu and then adds slot
-// and the arg byte, gcc folds the 0x10 into the lbu displacement. 62.17% if
-// pTable is a pointer local declared before the call.
-// screened: 81.15% is the max of Default / cdk 78.94 / 2.6.0 81.15.
 u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
@@ -125,36 +125,6 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
     }
     return ret;
 }
-// best: 96.17%. Both arms and every instruction now match; the whole gap is
-// one allocator coin: the top `*p` load result and the switch discriminant
-// keep swapped registers (retail: pArgs in a0 from `lw a0,0(s2)`, discriminant
-// in a2; gcc: pArgs a2, discriminant a0). Case 2's `lbu v0,1(a0)` then also
-// lands after the g_BattleSlotRows base instead of before it, which is a knock-on of
-// the same swap (retail can only load it early because the base reuses a0).
-// Structure that got it here from the 89.53 park: keep slot and base apart so
-// the sums form at their points of use - case 1 spells the field-table base
-// `(u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40` (the -0x10 lands in the jal delay
-// slot) instead of deriving it from pField, and the D_800DCCDEC load and the
-// store keep retail's order.
-// Tried and no better: `switch ((*p)[2])` with (*p)[k] inline 96.17, a `u8 kind`
-// local fed from (*p)[2] 96.17, `u8 *pArgs` used for all three subscripts 89.22
-// (pArgs then spans the call and takes s2), a u8 index local for case 2 96.17,
-// permuter 2423 iterations base=230 best=200 (its best candidate hoists the
-// case-2 index load into a volatile temp - the load order moves, the a0/a2 swap
-// does not).
-// Round 139: permuter again, 1398 iterations base=230 best=145 - a false gain.
-// Its candidate wraps the case-2 store in `if (p)` (or `if (g_BattleSlotWordRegs)`) with
-// the body duplicated in both arms; that does buy retail's `lw a0,0(s2)` for
-// pArgs (p stays live in a0), but the discriminant lands in v1 (retail a2) and
-// the case-2 footer loses the slot sum and the gold load to v1 too: 95.25%
-// here, not better. Typing the discriminant `BattleCommand *pCmd = *p; switch
-// (pCmd->operand2)` is byte-identical to this body at 96.17.
-// screened: 89.53% was the max of Default / cdk 78.78 / 2.6.0 89.53.
-// Round 161: the permuter's off-tree sweep (1840 iterations, base=230 best=145)
-// returned the SAME round-139 false gain - the `if (p)` duplication - so nothing
-// new was ported; it measures 95.25% here. Also neutral (96.17%): typing the
-// BattleFindFirstFlagTableMatch declaration `u32` instead of `s32`, and marking
-// pArgs `register`.
 void func_8007B6C0(u8 **p, u8 index) {
     switch ((*p)[2]) {
     case 1: {
@@ -168,23 +138,6 @@ void func_8007B6C0(u8 **p, u8 index) {
         break;
     }
 }
-// best: 88.95%. Body recovered from the .s: u8 return (ret = arg2), the
-// g_BattleCommandArgs = 0x20 / arg2+1 path for value < 3, then (*p)[2] == 0 selects
-// D_800CCDF0 and everything else D_800CCDEC, storing the
-// ((u32 *)((u8 *)g_BattleSlotWordRegs - 0x10))[index * 0x40 + (*p)[1]] dword into
-// value * 0x170 of it. Writing that field-table address INLINE, rather than
-// deriving it from pField, is what took the park from 87.67 to 88.95: the base
-// stays in s3 and index * 0x40 in s0 across the call, like retail. Two gaps
-// left, both allocator ties:
-//  - in each arm gcc folds the -0x10 into the load displacement and sums
-//    index*4 + slot first (`lw v1,-16(v1)`); retail does `addiu v1,s3,-0x10`,
-//    `addu v1,s0,v1`, then adds the index. A `u8 *pField32` local inside the
-//    arm instead drops to 80.92 (p -> s2, arg2 -> s3, base -> s1).
-//  - the u8 `value` lands in a1 (the dead index parameter) where retail uses
-//    v1; every other instruction matches.
-// The store direction matters: arg2 is the return value, the field-table dword
-// goes INTO D_800CCD*, not the other way round.
-// screened: 87.67% was the max of Default / cdk 78.94 / 2.6.0 87.67.
 u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
@@ -199,15 +152,6 @@ u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
     }
     return ret;
 }
-// best: 98.00%, permuter score 40. Sole gap: the pArgs[2] table index and the
-// pArgs[1] slot index keep swapped registers (retail puts the loaded value in
-// v0 and the slot index in v1, gcc the reverse); multiset identical.
-// The value temp computed before pField is what took it from 73.75 to 98.00.
-// Tried and no better: inline rhs 73.75, value with initializer 71.75, pArgs
-// declared first 71.75, assignment inside the store expr 73.75, u8 index temp
-// 73.75, s16 value 98.00, u8 pointer arithmetic store 98.00, 3121 permuter
-// iterations at base 40.
-// screened: 73.75% was the max of Default / cdk 50.94 / 2.6.0 73.75.
 void func_8007B8D4(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
@@ -236,61 +180,11 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
     base = g_BattleSlotWordRegs;
     ((u16 *)(base + index * 0x40))[pCmd->operand2] = ((u16 *)(base + index * 0x40))[pCmd->operand1];
 }
-// best: 98.33%, permuter score 25 (2084 iterations from this body found
-// nothing; three earlier runs from the 85.33% body also stalled). Retail is
-// 60 bytes, same as this body, and the only difference is which register holds
-// the g_BattleSlotRows + index*0x40 sum: retail `addu a1,a1,a0` (the slot register),
-// this body `addu a0,a0,a1` (the base register). The load-first header
-// (andi, sll, lw v0,0(a0), lui a0, addiu a0) matches exactly.
-// The addu destination is fixed by the C operand order, and the two orders are
-// mutually exclusive here: every index-first spelling of the sum
-// ((u32 *)g_BattleSlotRows + index * 0x10, g_BattleSlotRegs[index].dwordRegs,
-// &g_BattleSlotRegs[index].dwordRegs[0], (mem_addr)g_BattleSlotRows + index * 0x40, a slot
-// local, and the double-negated index-first form) gives retail's operand order
-// but materialises the base into v1 BEFORE the *p load (85.33%); base-first
-// keeps the header and only the sum's register differs. The do-while wrapper
-// and the dead pArgsCopy are load-bearing. Screened: same score under
-// Default, 2.7.2-cdk and 2.6.0, so not a compiler question.
-// Round 98: the two halves are ONE register decision, not two source decisions.
-// Spell the sum with separate locals (base loaded into its own local, then
-// `slot = index * 0x40 + pBase`, or the sum handed to a local first, or as an
-// embedded assignment, or typed as g_BattleSlotRegs[index].dwordRegs) and the sum's addu
-// DOES take retail's destination register - but the base address's lui/addiu
-// pair is then materialised into v0/v1 and hoisted above the *p load
-// (84.00-85.33%), because a0 still holds p there, so the address temp never
-// gets a0. Only the coalesced base-first form above puts the address temp in
-// a0, and that same a0 is what pins the pair in retail's load-delay slot (the
-// load reads a0, so hoisting over it is illegal). Fourth permuter run from this
-// body (2716 iterations) and a screening of the separate-locals form under -O3,
-// -G0 and 2.6.0 (84.00 flat) found nothing.
-// Round 103: the off-tree permuter-best candidate (base-first sum handed to a
-// pArgsCopy local, `pField = pArgsCopy` at the loop head, score 20 vs base 25)
-// is 85.33% here - its metric traded the load-first header away. Two more runs
-// from this body (2212 + 1661 iterations, base 25) found nothing. Inlining the
-// sum into one `pField = (u32 *)(g_BattleSlotRows - (-(index * 0x40)))` statement and
-// dropping the dead pBase local is byte-identical, 98.33.
 void func_8007B9C8(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     g_BattleSlotRegs[index].dwordRegs[pArgs[2]] = g_BattleSlotRegs[index].dwordRegs[pArgs[1]];
 }
-// best: 98.12%. Sole gap: the pTable sum is formed into the base register (v0)
-// where retail reuses the index register (a1); every other register and
-// instruction matches, including the g_BattleSlotByteRegs base derived as
-// g_BattleSlotWordRegs+0x10. Permuter score 30 is this body and 778 more iterations found
-// nothing better; writing the index term first fixes the addu operand order but
-// moves the *p load to v1 and drops to 95.94%.
-// screened: the plain pTable form is identical 95.94% under Default, 2.7.2-cdk
-// and 2.6.0 - a register allocation tie, not a compiler question.
-// Round 79: a third permuter run (1903 iterations) from base 30 also found
-// nothing. The tie is exactly two coins: pTable's dst (retail a1 = the slot
-// register, so the sum is (plus slot base2)) and the *p load dst (retail a0,
-// so retail's pTable dst and pArgs do NOT collide). Every shape that commutes
-// the sum (a `u32 slot` local, `index * 0x40 + (u8 *)(g_BattleSlotWordRegs + 0x10)`,
-// the same with (*p)[1] inline so the load is CSE'd) gives retail's
-// `addu a1,a1,v0` but moves the load to v1 -> 95.94. Spelling g_BattleSlotByteRegs
-// directly gives it its own lui/addiu (88.38), so the +0x10 really is derived
-// from the base.
 void func_8007BA04(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
@@ -347,12 +241,6 @@ void BattleSlotStoreWordLowBytes(BattleCommand **p, u8 index) {
     D_800CCDE8[slot].unk52 = (*p)->operand2;
     D_800CCDE8[slot].unk50 = (*p)->operand3;
 }
-// best: 98.82%. Only the last addu is commuted (original base first into a1,
-// gcc reuses the dead a2): identical multiset, same 98.82% under gcc 2.6.0 and
-// 2.7.2-cdk. Writing *p inline twice is required, the second load is CSE'd if
-// it goes through a local.
-// screened: identical 98.82% under Default, 2.7.2-cdk and 2.6.0 - a register
-// allocation tie, not a compiler question.
 void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
     pDest[count * 8 + (*p)[1]] = (*p)[2];
     (count * 8 + (*p)[1] + pDest)[1] = (*p)[3];
@@ -369,7 +257,8 @@ void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
 
     pField[(*p)->operand1] = value;
 }
-// best: 91.41% (91.53 with the untyped pField below). Structure recovered: the
+// best: 91.41% with the typed bank below (91.53 with the untyped pField of the
+// earlier rounds). Structure recovered: the
 // three `sb zero` are `buf[0] = buf[1] = buf[2] = 0`, and the two copies of the
 // test come from the top-tested while being rotated. Sole gap: gcc's
 // strength_reduce turns `g_BattleSlotFlags + idx * 8` into a GIV because idx is
