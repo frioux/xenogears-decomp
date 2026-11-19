@@ -663,18 +663,10 @@ void BattleFreeModelListEntryBuffers(Misc23Block *pBlock) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
-/* 99.12% (gcc 2.6.0, the unit preset): only the first clear loop's two live
-   values are swapped - the original has the counter in $v1 and the pointer in
-   $v0, gcc gives the counter $v0 and the pointer $v1, so "bgez" and the delay
-   slot follow. Everything else is byte-identical. What fixed the rest: the call
-   argument is an s32 local loaded before the "= 1" store (an s16 local makes gcc
-   emit lhu + sll/sra). Tried for the loop: pointer/counter source order both
-   ways, for-init vs separate statement, mem_addr + *(u32 *)pWord vs
-   u32 *pWord--, declaration order both ways, and a 4-minute permuter run
-   (1497 iterations, base=50 best=50, no find). Allocator tie-break class.
+void func_800A8B0C(void) {
     u8 *pBuf;
     s32 i;
+    s32 j;
     mem_addr pWord;
     s32 arg1;
 
@@ -689,9 +681,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     BattleCreateBlockPool(pBuf, arg1);
     BattleCreateSpritePool(g_BattleSpritePool, *(s16 *)(g_BattleStageData + 0x34A));
     BattleClearBlockSlots();
-    i = 0x1F;
+    j = 0x1F;
     pWord = (mem_addr)&D_800D33E4;
-    for (; i >= 0; i--) {
+    for (; j >= 0; j--) {
         *(u32 *)pWord = 0;
         pWord -= 4;
     }
@@ -701,7 +693,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     for (i = 0x14; i >= 0; i -= 0x14) {
         *(u16 *)(D_800D330A + i) = 0;
     }
-*/
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
 // A list of {archive file index, buffer that file is decoded into} pairs: the
@@ -730,36 +722,13 @@ extern u8 D_800CCD88[];
 extern u8 D_800CCDE8[];
 extern u8 D_800C3509[];
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
-/* 90.14% (under the unit's gcc 2.6.0 --expand-div -G0; was 77.73 when this was
-   first attempted under -G8). Fixed by this shape vs the old attempt:
-   - count is an s32 loaded from a u8 array (lbu), NOT a u8 local: that turns
-     the compare into "slt" (was sltu) and removes the "andi 0xff" before both
-     "beqz count" and "addu nameLen,count".
-   - pTable = D_800C3509 assigned BEFORE the if, so "lui/addiu s0" is emitted
-     before the branch and &D_800C3509 lives in a callee-saved register across
-     HeapAlloc ("addu v0,s0,s1; lbu s0,-1(v0)"); with the assignment after the
-     call gcc 2.6 folds the -1 into %lo(D_800C3509-1) and uses $at.
-   A 4-minute permuter run found base=1055 best=356 (PERMUTER_BETTER) on two
-   changes: "nameLen = 2; nameLen = base + nameLen;" for the second name length,
-   and moving func_80029AFC(g_BattleArchiveEntry, 0, 0) BEFORE the two pTail zero stores
-   (that one is semantically wrong - retail has the sh before the jal and the sw
-   in its delay slot - so port only the nameLen split and re-run the permuter
-   from there, up to three times while the score falls).
-   Remaining differences: (a) the original has an extra "move s3,s2" (a second
-   register holding pEntry, used for the fileIndex1/pBuffer1 stores while s2 keeps the
-   later ones) - a pHead = (u8 *)pEntry alias is CSE'd back into pEntry, so gcc
-   2.6 will not produce the copy; (b) that costs $s3 to pTail and pushes count
-   into $s4 (mine has count in $s3, pTail in $v1); (c) my index gets a "move"
-   copy out of the sll while the original shifts straight into $s1. Structurally
-   complete otherwise: every instruction and operand order matches.
 void func_800A9540(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     u8 *pTable;
     u16 *pTail;
     s32 alignedIndex;
     s32 remainder;
-    u32 index;
+    s32 index;
     s32 nameLen;
     s32 count;
     u8 base;
@@ -779,7 +748,8 @@ void func_800A9540(s32 arg0) {
     nameLen = base + 1;
     pEntry->fileIndex1 = nameLen;
     pEntry->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
-    nameLen = base + 2;
+    nameLen = 2;
+    nameLen = base + nameLen;
     pEntry->fileIndex2 = nameLen;
     pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
     pTail = &pEntry->fileIndex3;
@@ -794,7 +764,6 @@ void func_800A9540(s32 arg0) {
     func_80029AFC(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
-*/
 void BattleAllocateArchiveFilePair(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
