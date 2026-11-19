@@ -199,7 +199,7 @@ void FieldScriptVMHandlerPlayAnimation(void) {
 
     g_FieldScriptVMCurActor->flags &= 0xFEFFFFFF;
     animationID = *(u8*)&g_FieldScriptVMCurScriptData[g_FieldScriptVMCurActor->scriptInstructionPointer + 1];
-    g_FieldScriptVMCurActor->unkAnimationId = animationID;
+    g_FieldScriptVMCurActor->animationOverride = animationID;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
@@ -210,7 +210,7 @@ void FieldScriptPlayAnimationAndClearFlag16(void) {
 
 void FieldScriptClearAnimationOverrideIfFlag16(void) {
     if (g_FieldScriptVMCurActor->flags & 0x10000) {
-        g_FieldScriptVMCurActor->unkAnimationId = 0xFF;
+        g_FieldScriptVMCurActor->animationOverride = 0xFF;
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
     }
 }

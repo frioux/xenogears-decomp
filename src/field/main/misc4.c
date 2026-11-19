@@ -1259,7 +1259,7 @@ int func_8007B814(VECTOR* pVec, ActorData* pActor, SVECTOR* pPoints, s16 angle) 
         return -1;
     }
     if (pActor->scriptFlags.flags & 0x40000) {
-        out.vy = *(u_short*)&pActor->unkEC;
+        out.vy = *(u_short*)&pActor->scriptYPos;
     } else if ((out.vy << 16) < pActor->position.vy && D_800ADB98 == 0) {
         return -1;
     }

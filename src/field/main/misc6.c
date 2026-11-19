@@ -221,7 +221,7 @@ void FieldScriptVMHandlerSetActorFlagsFromArgument(void) {
 }
 
 void FieldScriptVMHandlerCommitActorYPosition(void) {
-    g_FieldScriptVMCurActor->unkEC = 0;
+    g_FieldScriptVMCurActor->scriptYPos = 0;
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x10 = 0x0;
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x15 = 0x1;
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
@@ -376,7 +376,7 @@ void func_8009E574(s32 nX, s32 nY) {
     pSprite->step.y = 0;
     pSprite->step.z = 0;
     pActor->fallSpeed = 0;
-    pActor->unkEC = 0;
+    pActor->scriptYPos = 0;
     pActor->curYPos = ((s16*)&pActor->position)[3];
     pActor->scriptFlags.flags = (pActor->scriptFlags.flags & ~0x40000) | 0x400000;
 }
@@ -389,7 +389,7 @@ void FieldScriptSetActorYPosition(short nY) {
     u8 unused[0x18]; // original has an unused stack slot; reproduces the frame
 
     g_FieldScriptVMCurActor->position.vy = nY * 0x10000;
-    g_FieldScriptVMCurActor->unkEC = nY;
+    g_FieldScriptVMCurActor->scriptYPos = nY;
     g_FieldScriptVMCurActor->curYPos = nY;
 }
 
@@ -981,7 +981,7 @@ void func_800A0524(int dstActorIndex, int srcActorIndex) {
         pDst->walkmeshTriIds[i] = pSrc->walkmeshTriIds[i];
     }
     pDst->walkmeshId = pSrc->walkmeshId;
-    pDst->unkEC = pSrc->unkEC;
+    pDst->scriptYPos = pSrc->scriptYPos;
     pDst->curYPos = pSrc->curYPos;
     pDst->curTriNormal.vx = pSrc->curTriNormal.vx;
     pDst->curTriNormal.vy = pSrc->curTriNormal.vy;

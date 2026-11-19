@@ -759,8 +759,8 @@ void func_800A3C8C(void) {
         pActorData = g_FieldActors[i].pActorData;
         pCursor = D_800AFC50;
         D_800AFC50 = pCursor + 0xC;
-        if (pActorData->specialAnimArchiveIndex != -1 && pActorData->unkAnimationId != 0xFF) {
-            *(u_short*)(pCursor + 0x20) = pActorData->unkAnimationId;
+        if (pActorData->specialAnimArchiveIndex != -1 && pActorData->animationOverride != 0xFF) {
+            *(u_short*)(pCursor + 0x20) = pActorData->animationOverride;
         }
 
         pActorData = g_FieldActors[i].pActorData;

@@ -1324,7 +1324,7 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
     HeapChangeCurrentUser(HEAP_USER_YOSI, NULL);
 
     g_FieldActors[actorIndex].pActorData->spriteId = spriteId;
-    g_FieldActors[actorIndex].pActorData->unk126 = spriteVariant;
+    g_FieldActors[actorIndex].pActorData->spriteSource = spriteVariant;
 
     pActorData = g_FieldActors[actorIndex].pActorData;
     pActorData->flags134 = (pActorData->flags134 & ~0xF) | (clutIndex & 0xF);
@@ -1408,7 +1408,7 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
         TimerWorkListUpdate();
         if (((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC == 0xFF) {
             pActorData = g_FieldActors[actorIndex].pActorData;
-            pActorData->unkAnimationId = 0xFF;
+            pActorData->animationOverride = 0xFF;
             pActorData->flags |= 0x1000000;
             pSpriteData->position.x = g_FieldActors[actorIndex].pActorData->position.vx;
             pSpriteData->position.y = g_FieldActors[actorIndex].pActorData->position.vy;

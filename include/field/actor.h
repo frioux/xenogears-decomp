@@ -290,9 +290,9 @@ typedef struct {
     /* 0xE4  */ short characterId;
     /* 0xE6  */ short defaultAnimationId;
     /* 0xE8  */ short curAnimationId;
-    /* 0xEA  */ short unkAnimationId;
-    /* 0xEC  */ short unkEC;
-    /* 0xEE  */ short unkEE;
+    /* 0xEA  */ short animationOverride; // 0xFF = none; replaces the computed animation id
+    /* 0xEC  */ short scriptYPos; // Y the script set; overrides the walkmesh height while scriptFlags_0x10 is set
+    /* 0xEE  */ short spriteClipY; // Y (in the frame's own space) the sprite's frames are cut off at
     /* 0xF0  */ int fallSpeed; // 16.16, accumulated by gravity and clamped to the material's limit
     /* 0xF4  */ u_short scaleX;
     /* 0xF6  */ u_short scaleY;
@@ -316,7 +316,7 @@ typedef struct {
     /* 0x11E */ short updateAngle; // Per-frame angle step of FieldMathUpdateAngle
     /* 0x120 */ void* pSpecialAnimFile;
     /* 0x124 */ short specialAnimArchiveIndex; // -1 when no special anim file is loaded
-    /* 0x126 */ u_char unk126;
+    /* 0x126 */ u_char spriteSource; // Bit 0x80: index into g_FieldSpriteData, else a party index into g_PartyDataBuffers
     /* 0x127 */ u_char spriteId;
     /* 0x128 */ short modelAnimation;
     /* 0x12A */ u_short unk12A;
@@ -352,9 +352,14 @@ typedef struct {
     /* 0x5A */ u_short spriteFlags; // Bit 0: a sprite model is attached and must be destroyed first
 } FieldActor;
 
-// Model space bounding box the actor's model data keeps a pointer to
+// Model space bounding box the actor's model data keeps a pointer to; the same
+// block holds the model's render command list below offset 0x20
 typedef struct {
-    /* 0x00 */ undefined8 unk0[0x20];
+    /* 0x00 */ undefined8 unk0[0x6];
+    /* 0x06 */ u16 numCommands;
+    /* 0x08 */ undefined8 unk8[0x8];
+    /* 0x10 */ u32* pCommands; // each word is (primitiveCount << 16 | opcode), then 2 words per primitive
+    /* 0x14 */ undefined8 unk14[0xC];
     /* 0x20 */ SVECTOR min;
     /* 0x28 */ SVECTOR max;
 } FieldActorModelBounds; // Size: 0x30
@@ -376,7 +381,7 @@ typedef struct {
 typedef struct {
     /* 0x00 */ undefined8 unk0[0x4];
     /* 0x04 */ FieldActorModelBounds* pBounds;
-    /* 0x08 */ undefined8 unk8[8];
+    /* 0x08 */ u8* pPrimitiveBuffers[2]; // one built-primitive buffer per g_FieldCurRenderContextIndex
     /* 0x10 */ undefined8 unk10[2];
     /* 0x12 */ s16 renderMode; // Passed to ModelRenderPacket as its 4th argument
     /* 0x14 */ FieldActorModelScriptTable* pScripts;
