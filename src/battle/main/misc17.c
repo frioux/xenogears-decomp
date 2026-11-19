@@ -136,6 +136,16 @@ extern u8 D_800CEF23[];
 // Number of action rows of one battle slot's status panel.
 #define BATTLE_STATUS_ROW_COUNT 16
 
+// The sprite packages BattleBuildSpriteColumn8 draws down one column, each 8 pixels below the last.
+#define BATTLE_SPRITE_COLUMN_PACKAGE_COUNT 8
+
+// The row's power is in twentieths: `power * amount / this` leaves the action's amount unchanged,
+// and BattleComputeActionAmount forces exactly that rate on a row whose actionFlags has 0x400.
+#define BATTLE_ACTION_POWER_FULL 20
+
+// rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
+#define BATTLE_PERCENT_ROLL_RANGE 100
+
 /* 91.38% (1444 bytes against retail's 1440) under this unit's gcc 2.6.0. Every
    call, rectangle and store is retail's and the tail from func_80090E7C onwards is
    byte-identical; the residual is four bytes of register scheduling plus one hoist.
@@ -289,7 +299,7 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     s32 offset;
 
     g_BattleDisplayState->spriteColumnPackageCount = 0;
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < BATTLE_SPRITE_COLUMN_PACKAGE_COUNT; i++) {
         offset = i * 8 + 0x38;
         g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(0x66,
             (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 80, 0x20,
@@ -1343,7 +1353,7 @@ void BattleComputeActionAmount(void) {
         }
         if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 0x4000) {
             g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 3;
-            g_BattleCurveTargets[g_BattleTargetSlotIndex] = (u16)(g_BattleActingSlot->maxMp / 10) * 2;
+            g_BattleCurveTargets[g_BattleTargetSlotIndex] = (u16)(g_BattleActingSlot->maxMp / BATTLE_MP_SCALE) * 2;
         }
         if ((g_BattleActingSlot->activeEffectFlags7 | g_BattleActingSlot->accessoryEffectFlags7) & 0x1000) {
             g_BattleCurveTargetModes[g_BattleTargetSlotIndex] = 2;
@@ -1364,7 +1374,7 @@ void BattleComputeActionAmount(void) {
         g_BattleActingSlot->activeEffectFlags2 &= ~0x80;
     }
     if (g_BattleCurrentRow->actionFlags & 0x400) {
-        rate = 0x14;
+        rate = BATTLE_ACTION_POWER_FULL;
     }
     func_80096494(&atkValue, &defValue, &command);
     if (g_BattleCurrentRow->actionFlags & 0x100) {
@@ -1384,7 +1394,7 @@ void BattleComputeActionAmount(void) {
     // && range test into a single unsigned compare.
     if (amountSource >= 0) {
         if (amountSource < 2) {
-            amount = rate * amount / 20;
+            amount = rate * amount / BATTLE_ACTION_POWER_FULL;
         }
     }
     if (amount <= 0) {
@@ -1488,7 +1498,7 @@ void BattleInitActiveSlotAction(void) {
     g_BattleCommandCellFlags |= 1 << slot;
 }
 void BattleClearStatusWordsOnAction6E(void) {
-    if (rand() % 100 > g_BattleCurrentRow->chance) {
+    if (rand() % BATTLE_PERCENT_ROLL_RANGE > g_BattleCurrentRow->chance) {
         return;
     }
     if (g_BattleCurrentRow->conditionKind != 0x6E) {
