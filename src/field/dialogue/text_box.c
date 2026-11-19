@@ -336,7 +336,246 @@ int FieldTextBoxCheckPortraitIdAvailable(int targetId) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C5A8);
+extern s32 g_FieldArchiveStreamActive;
+extern s32 g_FieldRequestCode;
+extern s32 g_FieldStreamSceneActive;
+extern s32 D_800AFD04;
+extern s32 D_800C4268;
+
+// The dialog data the two text size lookups read; system.c owns its layout.
+typedef struct FieldDialogData FieldDialogData;
+
+extern FieldDialogData* D_800ADBF0;
+extern int DialogGetWidth(FieldDialogData* pDialogData, int dialogIndex);
+extern int DialogGetHeight(FieldDialogData* pDialogData, int dialogIndex);
+extern s32 FieldArchiveTryDataSync(void);
+extern s32 func_8009C154(s32 faceId);
+extern int FieldTextBoxHasFreeSlot(void);
+extern int FieldTextBoxGetBottomIndex(void);
+extern int FieldTextBoxAllocateTop(void);
+extern void FieldTextBoxMarkInUse(int textBoxIndex);
+extern void FieldProjectActorPointToScreen(int actorIndex, int* pScreenX, int* pScreenY, int height);
+extern void func_8007F8DC(short x, short y, u16 dialogIndex, s32 textBoxIndex, s32 width,
+                          s32 height, s32 curActorIndex, s32 actorIndex, s32 mode,
+                          s32 flags, u32 faceFlags);
+
+// Text box flag bits, see g_FieldTextBoxes[].flags in include/field/text_box.h.
+#define FIELD_TEXT_BOX_FLAG_TOP 0x1
+#define FIELD_TEXT_BOX_FLAG_NO_BORDER 0x40
+#define FIELD_TEXT_BOX_FLAG_BOTTOM 0x80
+
+// Where the window ends up relative to the actor, from the two bits the script
+// byte at +4 keeps in its nibble.
+#define FIELD_TEXT_BOX_POSITION_FROM_ACTOR 0
+#define FIELD_TEXT_BOX_POSITION_ABOVE 1
+#define FIELD_TEXT_BOX_POSITION_BELOW 2
+
+// Opens the text box a script instruction asked for: picks the slot, sizes the
+// window from the dialog string and the instruction's mode, and records the
+// layout in the text box table. Returns 0 when a box was opened, -1 otherwise.
+s32 func_8009C5A8(s32 actorIndex, s32 mode) {
+    s32 foundIndex;
+    s32 textBoxIndex;
+    s32 x;
+    s32 screenY;
+    s32 left;
+    s32 y;
+    s32 width;
+    s32 height;
+    s32 visibleCount;
+    s32 flagsUnion;
+    s32 position;
+    s32 i;
+    u32 dialogFlags;
+    u32 faceFlags;
+    s32 flags;
+    u16 dialogIndex;
+
+    g_FieldScriptMaxInstructionCount += 0x20;
+
+    if (g_FieldArchiveStreamActive != 0 || D_800AFD04 != 0 || D_800C4268 != 0 ||
+        g_FieldRequestCode != 0xFF ||
+        (g_FieldStreamSceneActive == 0 && FieldArchiveTryDataSync() != 0)) {
+        g_FieldScriptVMStopFlag = 1;
+        return -1;
+    }
+
+    if (g_FieldScriptVMCurActor->faceId != 0xFF && func_8009C154(g_FieldScriptVMCurActor->faceId) == -1) {
+        g_FieldScriptVMStopFlag = 1;
+        return -1;
+    }
+
+    D_800C4268++;
+
+    if (FieldTextBoxFindCurrentActorTextBox(&foundIndex) != -1) {
+        g_FieldScriptVMStopFlag = 1;
+        g_FieldTextBoxes[foundIndex].status = 0;
+        return -1;
+    }
+
+    g_FieldScriptMaxInstructionCount += 8;
+    dialogIndex = FieldScriptVMGetInstructionArgument(1);
+
+    if (FieldTextBoxHasFreeSlot() == 0) {
+        textBoxIndex = FieldTextBoxAllocateTop();
+    } else {
+        textBoxIndex = FieldTextBoxGetBottomIndex();
+        if (textBoxIndex != TEXT_BOX_UNINITIALIZED) {
+            g_FieldTextBoxes[textBoxIndex].status = 0;
+            g_FieldScriptVMStopFlag = 1;
+            return -1;
+        }
+    }
+
+    visibleCount = 0;
+    flagsUnion = 0;
+    for (i = 0; i < 4; i++) {
+        if (g_FieldTextBoxes[i].visibility == 0) {
+            visibleCount++;
+            flagsUnion |= g_FieldTextBoxes[i].flags;
+        }
+    }
+
+    width = DialogGetWidth(D_800ADBF0, dialogIndex);
+    height = DialogGetHeight(D_800ADBF0, dialogIndex);
+
+    if (mode == 0 || mode == 3) {
+        if (g_FieldScriptVMCurActor->dialogWidth != 0) {
+            width = g_FieldScriptVMCurActor->dialogWidth;
+        }
+        if (g_FieldScriptVMCurActor->dialogHeight != 0) {
+            height = g_FieldScriptVMCurActor->dialogHeight;
+        }
+    }
+
+    dialogFlags = g_FieldScriptVMCurActor->dialogFlags;
+    g_FieldScriptVMCurActor->dialogFlags = dialogFlags & 0xFFFF;
+    faceFlags = dialogFlags & 0xFFFF;
+    if (SCRIPT_READ_U8_REL(3) != 0) {
+        faceFlags = (dialogFlags & 0xFF00) | SCRIPT_READ_U8_REL(3);
+        g_FieldScriptVMCurActor->dialogFlags = (dialogFlags & 0xFFFF) | (faceFlags << 16);
+    }
+
+    y = 0x10;
+    switch ((faceFlags >> 4) & 0x3) {
+    case FIELD_TEXT_BOX_POSITION_FROM_ACTOR:
+        if (!(((g_FieldScriptVMCurActor->direction - (FieldGetCameraDirection() & 0xFFFF)) & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS) < 5)) {
+            if (flagsUnion & FIELD_TEXT_BOX_FLAG_BOTTOM) {
+                goto layoutBelow;
+            }
+            if (visibleCount != 0) {
+                goto layoutBelow;
+            }
+        } else if (!(flagsUnion & FIELD_TEXT_BOX_FLAG_BOTTOM)) {
+            goto layoutBelow;
+        }
+        // Falls through into the layout above the actor.
+    case FIELD_TEXT_BOX_POSITION_ABOVE:
+        g_FieldTextBoxes[textBoxIndex].flags = FIELD_TEXT_BOX_FLAG_TOP;
+        if (mode == 0 || mode == 3) {
+            FieldProjectActorPointToScreen(actorIndex, &x, &screenY, -0x40);
+            if (mode == 0) {
+                y = screenY - height * 14 - 0x24;
+            } else {
+                y = 0x14;
+                x = 0xA0;
+            }
+            if (g_FieldScriptVMCurActor->faceId != 0xFF && !(faceFlags & 0x2)) {
+                height = 4;
+                if (width < 0x18) {
+                    width = 0x18;
+                }
+                width += 0x11;
+                y = 0x10;
+            }
+        } else {
+            width = 0x48;
+            height = 4;
+            x = 0xA0;
+            y = 0x10;
+        }
+        break;
+    case FIELD_TEXT_BOX_POSITION_BELOW:
+    layoutBelow:
+        g_FieldTextBoxes[textBoxIndex].flags = FIELD_TEXT_BOX_FLAG_TOP | FIELD_TEXT_BOX_FLAG_BOTTOM;
+        if (mode == 0 || mode == 3) {
+            FieldProjectActorPointToScreen(actorIndex, &x, &screenY, -0x40);
+            if (mode == 0) {
+                y = screenY + 0x30;
+            } else {
+                x = 0xA0;
+                y = 0x94;
+            }
+            if (g_FieldScriptVMCurActor->faceId != 0xFF && !(faceFlags & 0x2)) {
+                if (width < 0x18) {
+                    width = 0x18;
+                }
+                width += 0x11;
+                height = 4;
+                y = 0x94;
+            }
+        } else {
+            width = 0x48;
+            height = 4;
+            x = 0xA0;
+        }
+        break;
+    }
+
+    // Keep the window inside the visible area.
+    left = x - 8 - width * 2;
+    if (left < 0xC) {
+        left = 0xC;
+    }
+    if (left + 0x10 + width * 4 >= 0x135) {
+        left = 0x124 - width * 4;
+    }
+    if (y < 0x10) {
+        y = 0x10;
+    }
+    if (y + 8 + height * 14 >= 0xD5) {
+        y = 0xCC - height * 14;
+    }
+
+    if (mode == 0 || mode == 3) {
+        if (g_FieldScriptVMCurActor->dialogPixelWidth != 0) {
+            left = g_FieldScriptVMCurActor->dialogPixelWidth;
+        }
+        if (g_FieldScriptVMCurActor->dialogPixelHeight != 0) {
+            y = g_FieldScriptVMCurActor->dialogPixelHeight;
+        }
+        if (g_FieldScriptVMCurActor->dialogWidth != 0) {
+            width = g_FieldScriptVMCurActor->dialogWidth;
+        }
+        if (g_FieldScriptVMCurActor->dialogHeight != 0) {
+            height = g_FieldScriptVMCurActor->dialogHeight;
+        }
+        if (g_FieldScriptVMCurActor->faceId != 0xFF && !(faceFlags & 0x2)) {
+            height = 4;
+        }
+    }
+
+    if (faceFlags & FIELD_TEXT_BOX_FLAG_NO_BORDER) {
+        g_FieldTextBoxes[textBoxIndex].flags |= FIELD_TEXT_BOX_FLAG_NO_BORDER;
+    }
+
+    flags = 0;
+    if ((faceFlags & 0xC) == 0) {
+        if ((((g_FieldActors[actorIndex].pActorData->rotation.vy >> 9) - (FieldGetCameraDirection() & 0xFFFF) + 1) & MASK_8DIR_MOVEMENT_NUM_DIRECTIONS) >= 4) {
+            flags = 0x400;
+        }
+    } else if (faceFlags & 0x4) {
+        flags = 0x400;
+    }
+
+    func_8007F8DC(left, y, dialogIndex, textBoxIndex, width, height, g_FieldCurActorIndex, actorIndex,
+        mode, flags, faceFlags);
+    FieldTextBoxMarkInUse(textBoxIndex);
+
+    g_FieldScriptVMCurActor->rotation.vx |= 0x8000;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+    return 0;
+}
 
 extern u16 g_FieldTextBoxInUseMask[];
 
