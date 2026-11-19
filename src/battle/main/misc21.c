@@ -896,8 +896,6 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    differing: the two `beqz ... step == 0` targets (ours 0xfa4, retail 0xfac) and
    the sp temp offsets of the vec/mac arrays (retail 0x28/0x38/0x48 vs ours
    0x30/0x40/0x60 - retail's SVECTOR temporaries sit 8 bytes lower). */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
-/*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
@@ -915,10 +913,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     BattleSpriteTween* pTween;
     BattlePartSlot* pPart;
     SVECTOR vec;
-    SVECTOR tweenVec;
     s32 macStart[4];
     s32 macEnd[4];
-    s32 macPoint[4];
     s32 depth;
     s32 sz;
     s32 shade;
@@ -936,10 +932,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     count = pSprites->count;
     for (i = 0; i < 2; i++) {
         if (g_BattlePartSlots[i].inUse != 0) {
-            s16 dx = g_BattlePartSlots[i].x - ((u16*)&pSprites->pos[0])[0];
+            s16 dx = g_BattlePartSlots[i].x - ((u16*)&pSprite->pos[0])[0];
             s16 dy = g_BattlePartSlots[i].y -
-                     ((pSprites->pos[1] - pActor->height * (scale * pSprites->scale.vy >> 12)) >> 13);
-            s16 dz = g_BattlePartSlots[i].z - ((u16*)&pSprites->pos[0])[4];
+                     ((pSprite->pos[1] - pActor->height * (scale * pSprite->scale.vy >> 12)) >> 13);
+            s16 dz = g_BattlePartSlots[i].z - ((u16*)&pSprite->pos[0])[4];
             s32 denominator = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
 
             pViewMatrix->m[i + 1][0] =
@@ -954,9 +950,9 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pViewMatrix->m[i + 1][2] = 0;
         }
     }
-    CompMatrix(pLightMatrix, &pSprites->localTransform, pTransMatrix);
+    CompMatrix(pLightMatrix, &pSprite->localTransform, pTransMatrix);
     if ((pActor->flags4A & 1) == 0 && g_BattleExtraMatrixFlag != 0) {
-        CompMatrix(&pSprites->localTransform, &pSprites[1].globalTransform, pMatrix);
+        CompMatrix(&pSprite->localTransform, &pActor->pSprites[1].globalTransform, pMatrix);
         SetRotMatrix(pMatrix);
         SetTransMatrix(pMatrix);
         vec.vx = 0;
@@ -975,11 +971,11 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vx = 0;
         vec.vz = 0;
         RotMatrix(&vec, pRotMatrix);
-        pRotMatrix->m[2][2] = macEnd[0];
-        pRotMatrix->t[0] = pActor->groundY;
-        pRotMatrix->t[1] = macEnd[2];
+        pRotMatrix->t[0] = macEnd[0];
+        pRotMatrix->t[1] = pActor->groundY;
+        pRotMatrix->t[2] = macEnd[2];
         CompMatrix(pLightMatrix, pRotMatrix, pRotMatrix);
-        shade = pActor->scale - (pActor->groundY - pSprites->pos[1]) / 4;
+        shade = pActor->scale - (pActor->groundY - pActor->pSprites->pos[1]) / 4;
         if (shade < 0) {
             shade = 0;
         }
@@ -1034,7 +1030,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         pActor->unk39 = 0x6B - depth / 8;
     }
-    MulMatrix0(pViewMatrix, &pSprites->globalTransform, pRotMatrix);
+    MulMatrix0(pViewMatrix, &pSprite->globalTransform, pRotMatrix);
     pSprite++;
     for (i = 1; i < count; i++, pSprite++) {
         if (pSprite->jointIndex != 0xFFFF && pSprite->isVisible != 0) {
@@ -1064,6 +1060,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
                               pOt, flags);
         }
     }
+    {
+        s32 macPoint[4];
+        SVECTOR tweenVec;
+
     pModelList = (BattleModelListEntry*)pActor->pModelListEntries;
     for (i = 0; i < pActor->numModelListEntries; pModelList++, i++) {
         if (pModelList->spriteIndex < 0) {
@@ -1097,15 +1097,14 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
     }
+    }
     pTexture = pActor->pTextures;
     for (i = 0; i < pActor->numTextures; i++, pTexture++) {
         func_800A3E98(pTexture, texParam);
     }
     pTween = (BattleSpriteTween*)pActor->pEntries;
-    for (i = 0; i < pActor->numEntries; i++, pTween++) {
-        if (pTween->spriteIndex < 0) {
-            continue;
-        }
+    for (i = 0; i < pActor->numEntries; i++) {
+        if (pTween->spriteIndex >= 0) {
         pTween->slot = (pTween->slot - 1) & 7;
         if (pTween->project3D == 0) {
             CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
@@ -1138,8 +1137,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->redDelta = pTween->redDelta;
             pTween->pSlot->greenDelta = pTween->greenDelta;
             pTween->pSlot->blueDelta = pTween->blueDelta;
-            j = pTween->step;
-            j = (pTween->slot + j) & 7;
+            j = pTween->slot;
+            j = (j + pTween->step) & 7;
             pTween->pSlot->x0 = pTween->projectedStart[j].vx;
             pTween->pSlot->y0 = pTween->projectedStart[j].vy;
             pTween->pSlot->x2 = pTween->projectedEnd[j].vx;
@@ -1149,7 +1148,6 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->y1 = pTween->projectedStart[pTween->slot].vy;
             pTween->pSlot->x3 = pTween->projectedEnd[pTween->slot].vx;
             pTween->pSlot->y3 = pTween->projectedEnd[pTween->slot].vy;
-            continue;
         }
         CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
         SetRotMatrix(pMatrix);
@@ -1206,9 +1204,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->y3 = ((u16*)pEnd)[2];
             pTween->pSlot->z3 = ((u16*)pEnd)[4];
         }
+        }
+        pTween++;
     }
 }
-*/
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
