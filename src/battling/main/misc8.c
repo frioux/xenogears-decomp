@@ -96,8 +96,16 @@ extern BattleTextList g_BattleTextLists[8];
 extern BattleTextList g_BattleDefaultTextList[];
 extern BattleTextList g_BattleOptionTextList[];
 extern BattleTextList D_80091714[];
+extern BattleTextList D_80091750[];
 extern BattleTextList *g_BattleCurrentTextList;
 extern BattleTextList *g_BattlePrevTextList;
+extern s32 g_BattleCurrentTextPadIndex;
+extern s32 g_BattleTextEntryCursor;
+extern s32 g_BattleButtonState;
+extern s32 g_BattleButtonStatePressedOnce;
+extern s32 g_BattleButtonStateReleased;
+extern u8 D_80092764;
+extern int ControllerGetType(int controllerIndex);
 
 // Per-draw-buffer slot record, 0xF8 bytes: it starts with the screen area the
 // slot's text window covers.
@@ -111,7 +119,7 @@ extern Misc8SlotEntry g_BattleDrawBuffers[];
 extern void BattleDrawTextSprites(u8 *p);
 extern void func_800812BC(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
-extern void func_8008162C(BattleTextList *p, s32 a1);
+extern s32 func_8008162C(BattleTextList *p, s32 a1);
 extern void func_80081A44(void);
 extern void BattleDrawVibrationOptions(void);
 extern s32 BattleGetTextWidth(u32 a0);
@@ -554,7 +562,94 @@ void BattleDrawTextList(BattleTextList *p) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_8008162C);
+/* s32 (never used) is load-bearing: a void return lets reorg steal the branch
+   target's first instruction into the final `beqz` slot, retail has a nop. */
+s32 func_8008162C(BattleTextList *p, s32 padIndex) {
+    BattleTextEntry *pEntry = &p->pEntries[p->row];
+    BattleTextList *pCur;
+    void (*pCallback)(void *);
+    s32 sfx;
+    s32 type;
+    s32 stickY;
+    s32 stickX;
+
+    if (padIndex == 0 || p == D_80091750) {
+        BattleSetTextSpriteEntry(g_BattleTextEntryCursor, 0);
+        g_BattleTextEntryCursor = p->pEntries[p->row].messageId;
+    }
+    g_BattleCurrentTextPadIndex = padIndex;
+    type = 0;
+    if (padIndex == 1) {
+        g_BattleButtonState = g_C2ButtonState;
+        g_BattleButtonStatePressedOnce = g_C2ButtonStatePressedOnce;
+        g_BattleButtonStateReleased = g_C2ButtonStateReleased;
+        type = ControllerGetType(1);
+        stickY = g_C2LeftStickYAxis - 0x80;
+        stickX = g_C2LeftStickXAxis - 0x80;
+    } else if (padIndex == 0) {
+        g_BattleButtonState = g_C1ButtonState;
+        g_BattleButtonStatePressedOnce = g_C1ButtonStatePressedOnce;
+        g_BattleButtonStateReleased = g_C1ButtonStateReleased;
+        type = ControllerGetType(0);
+        stickY = g_C1LeftStickYAxis - 0x80;
+        stickX = g_C1LeftStickXAxis - 0x80;
+    }
+    if ((type == 3 || type == 4) && SquareRoot0(stickY * stickY + stickX * stickX) >= 0x41) {
+        if (D_80092764 == 0) {
+            BattlePlaySoundEffectById(0x24);
+            D_80092764 = 1;
+        }
+    } else {
+        D_80092764 = 0;
+    }
+    pCallback = pEntry->pCallback;
+    if (pCallback != 0 && ((pEntry->flags & 1) || (g_BattleButtonStateReleased & CTRL_BTN_CIRCLE))) {
+        if ((pEntry->flags & 1) == 0) {
+            BattlePlaySoundEffectById(0x21);
+        }
+        pCallback(pEntry->pCallbackArg);
+    }
+    pCur = g_BattleCurrentTextList;
+    if (pCur != 0) {
+        if (g_BattleButtonStateReleased & CTRL_BTN_CROSS) {
+            if (padIndex != 1 || p != D_80091714) {
+                if (pCur == &g_BattleTextLists[p->nextListIndex] && (p->nextListIndex < 5 || p->nextListIndex > 6)) {
+                    sfx = 0x24;
+                } else {
+                    BattleSetCurrentTextList(p->nextListIndex);
+                    sfx = 0x22;
+                }
+                BattlePlaySoundEffectById(sfx);
+            }
+        }
+        if (g_BattleButtonStatePressedOnce & CTRL_BTN_UP) {
+            BattlePlaySoundEffectById(0x1E);
+            p->row--;
+            if (p->row < 0) {
+                p->row = p->count - 1;
+            }
+            if (p->pEntries[p->row].flags & 4) {
+                p->row--;
+            }
+        }
+        if (g_BattleButtonStatePressedOnce & CTRL_BTN_DOWN) {
+            BattlePlaySoundEffectById(0x1E);
+            p->row++;
+            if (p->pEntries[p->row].flags & 4) {
+                p->row++;
+            }
+        }
+        if (p->row < 0) {
+            p->row = p->count - 1;
+        }
+        if (p->row >= p->count) {
+            p->row = 0;
+        }
+        if (p->pEntries[p->row].flags & 4) {
+            p->row--;
+        }
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
 /* PARK 98.01% (732 bytes, retail 740: two instructions SHORT, so it cannot
