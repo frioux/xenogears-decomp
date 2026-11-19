@@ -1,5 +1,7 @@
 #include "common.h"
 
+#include "psyq/libgte.h"
+
 // Same sentinel as include/main/game.h's WORLD_MAP_AREA_NONE (this unit does not include
 // game.h); duplicated here so the name is used, not the literal.
 #define WORLD_MAP_AREA_NONE (-1)
@@ -63,6 +65,26 @@ typedef struct {
     /* 0x50 */ s32 unk50;
 } WorldMapMenuSlot; // Size: 0x80
 
+// One 4-byte record of a tile's 9x9 zone grid, which WorldMapGetTileEntry points at.
+// height is that zone cell's terrain height; bit 7 of flags marks the cell as the
+// "up" corner of its quad (the height the plane normal is measured from).
+typedef struct {
+    /* 0x0 */ s8 height;
+    /* 0x1 */ u8 flags;
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 unk3;
+} WorldMapTileZoneCell; // Size: 0x4
+
+// One 0x10-byte row of the per-tile-shape axis table at D_8009B264 (the same
+// bytes as g_WorldMapCameraPathHeightsMode7 + 0x28, which another unit reads as a
+// plain s16 array): the x/z direction a position is projected on.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ u8 unk4[4];
+    /* 0x8 */ s32 z;
+    /* 0xC */ u8 unkC[4];
+} WorldMapTileShapeAxis; // Size: 0x10
+
 extern void SystemStringFree(void* pString);
 extern s32 WorldMapGetTileValue(WorldMapPos* p);
 extern u8* WorldMapGetTileEntry(s32 x, s32 z);
@@ -74,8 +96,11 @@ extern int rsin(int a);
 extern u8 g_WorldMapAreaNameString[];
 extern u8 g_WorldMapMode4AreaNameString[];
 extern WorldMapTileKindRow g_WorldMapTileKindTable[];
-extern s32 D_8009B264[];
-extern s32 D_8009B26C[];
+extern WorldMapTileShapeAxis D_8009B264[];
+extern s32 D_8009B244;
+extern s32 D_8009B24C;
+extern s32 D_8009B254;
+extern s32 D_8009B25C;
 extern WorldMapTileCell* g_WorldMapTileCellPointers[];
 extern s32 g_WorldMapTileShapeHalfAxis[];
 extern s32 g_WorldMapTileShapeHalfAxisZ[];
@@ -388,7 +413,64 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
     return g_WorldMapTileCellPointers[idx]->zones +
            zone * (WORLD_MAP_TILE_ZONE_CELLS * WORLD_MAP_TILE_CELL_RECORD_SIZE) + sub * WORLD_MAP_TILE_CELL_RECORD_SIZE;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093740);
+// Tile plane normal from the four zone-cell heights around the cell containing
+// (x, z). The two edge vectors and their cross product are built in scratchpad at
+// 0x1F800000 as absolute stores; pScratch/pEdge are deliberately the same value in
+// two variables, because the second copy is what makes gcc keep the base in a saved
+// register across the two calls (one variable is 95.81%).
+void func_80093740(WorldMapPos* pNormal, s32 x, s32 z) {
+    WorldMapTileZoneCell* pCell;
+    VECTOR* pEdge;
+    VECTOR* pScratch;
+    s32 sum;
+
+    pScratch = (VECTOR*)0x1F800000;
+    pCell = (WorldMapTileZoneCell*)WorldMapGetTileEntry(x, z);
+    // the quotients replace the parameters: retail keeps them in the parameters'
+    // own registers.
+    x = (u16)(x / 8);
+    z = (u16)(z / 8);
+    // sum picks which of the two edge pairs of the quad the position is nearer;
+    // it is written as a negated term so the compiler emits retail's negu+mult+addu.
+    if (pCell->flags & 0x80) {
+        sum = x * D_8009B254 + (-z) * D_8009B25C;
+        if (sum < 0) {
+            *(s32*)0x1F800000 = 0x10;
+            *(s32*)0x1F800008 = -0x10;
+            *(s32*)0x1F800010 = 0;
+            *(s32*)0x1F800018 = -0x10;
+            *(s32*)0x1F800004 = pCell[10].height - pCell[0].height;
+            *(s32*)0x1F800014 = pCell[9].height - pCell[0].height;
+        } else {
+            *(s32*)0x1F800000 = 0x10;
+            *(s32*)0x1F800010 = 0x10;
+            *(s32*)0x1F800008 = 0;
+            *(s32*)0x1F800018 = -0x10;
+            *(s32*)0x1F800004 = pCell[1].height - pCell[0].height;
+            *(s32*)0x1F800014 = pCell[10].height - pCell[0].height;
+        }
+    } else {
+        sum = (x - 0x10000) * D_8009B244 + (-z) * D_8009B24C;
+        if (sum < 0) {
+            *(s32*)0x1F800000 = -0x10;
+            *(s32*)0x1F800008 = -0x10;
+            *(s32*)0x1F800010 = -0x10;
+            *(s32*)0x1F800018 = 0;
+            *(s32*)0x1F800004 = pCell[9].height - pCell[1].height;
+            *(s32*)0x1F800014 = pCell[0].height - pCell[1].height;
+        } else {
+            *(s32*)0x1F800000 = 0;
+            *(s32*)0x1F800008 = -0x10;
+            *(s32*)0x1F800010 = -0x10;
+            *(s32*)0x1F800018 = -0x10;
+            *(s32*)0x1F800004 = pCell[10].height - pCell[1].height;
+            *(s32*)0x1F800014 = pCell[9].height - pCell[1].height;
+        }
+    }
+    pEdge = pScratch;
+    OuterProduct0(pEdge + 1, pEdge, pEdge + 2);
+    VectorNormal(pEdge + 2, (VECTOR*)pNormal);
+}
 s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     WorldMapPos a;
     WorldMapPos b;
@@ -459,34 +541,27 @@ s16 WorldMapGetTileKindValue(s16 row, s16 col) {
     return *(s16*)&g_WorldMapTileKindTable[row].kind[col * 2];
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094088);
-/* best: 79.96%. The index really is `k * 4` on the s32 arrays (the original's
-   sll 16/sra 12 sign-extends the s16 k and scales by 16; plain D_8009B264[k] is
-   sra 14 and is worse). Remaining deltas: gcc swaps the callee-saved pair (pPos
-   in s1, pOut in s0; the original has pPos in s0), and forms the second table
-   address as lui+addiu+addu instead of the original's lui+addu+lw %lo(at).
-
 s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
     s16 k;
     s32 sum;
 
     k = WorldMapGetTileShape(p);
-    sum = pPos->x * D_8009B264[k * 4] + pPos->z * D_8009B26C[k * 4];
+    sum = pPos->x * D_8009B264[k].x + pPos->z * D_8009B264[k].z;
     if (sum == 0) {
         pOut->x = pPos->x;
         pOut->z = pPos->z;
         return 0;
     }
     if (sum < 0) {
-        pOut->x = -D_8009B264[k * 4];
-        pOut->z = -D_8009B26C[k * 4];
+        pOut->x = -D_8009B264[k].x;
+        pOut->z = -D_8009B264[k].z;
     } else {
-        pOut->x = D_8009B264[k * 4];
-        pOut->z = D_8009B26C[k * 4];
+        pOut->x = D_8009B264[k].x;
+        pOut->z = D_8009B264[k].z;
     }
     return 1;
 }
-*/INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80094154);
 /* best: 98.21% (112 bytes, original 112). Instruction sequence and sizes are
    identical; the only delta is register choice: gcc swaps the two loads and
    puts the dz difference's operand load in the dying a0, and picks a3/v0 for
