@@ -351,8 +351,8 @@ void func_801D3488(u_char a0, u_char a1) {
     }
 
     if (g_Menu->pManager->isPanelActive[4] == 0) {
-        g_Menu->pShoulderButtonUi = HeapAlloc(0x1C4, 0);
-        bzero(g_Menu->pShoulderButtonUi, 0x1C4);
+        g_Menu->pShoulderButtonUi = HeapAlloc(sizeof(MenuShoulderButtonUi), 0);
+        bzero(g_Menu->pShoulderButtonUi, sizeof(MenuShoulderButtonUi));
         g_Menu->pManager->isPanelActive[4] = 1;
     }
 
