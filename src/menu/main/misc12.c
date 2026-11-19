@@ -79,7 +79,7 @@ extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 extern MenuTexturePos g_MenuSlotNameTextureX[];
 extern MenuTexturePos g_MenuSlotNameTextureY[];
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
-extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
+extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 extern void MenuMovePointerCursor(s32 arg0, s32 arg1);
 
 extern s32 D_801EA02C;
@@ -92,62 +92,75 @@ extern s32 D_801EA044;
 extern s32 D_801EA048;
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6CFC);
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
-/* Best: 68.99% (556 vs 484 bytes). Shape is certain (it is the MenuSetCharacterHpDigits
-   idiom from misc7: MenuParseNumberToDigits, then a counter byte at
-   unk34C + index*0x87C + 0x130A, then two loops over g_Menu->digits[6+i] that
-   accumulate func_8002675C return values, the second one with an n counter for
-   the x spacing). What is still wrong:
-   - gcc 2.6 hoists `(u_char)index * 0x50` (the x spacing term) out of loop 1
-     into the preheader; retail recomputes it in the body every iteration
-     (`sll v0,s2,2; addu v0,v0,s2; sll v0,v0,4`, first insn in the beq delay
-     slot). Tried: naming the sum in an s32 local (still hoisted), i*8 first,
-     (u_char)index inline. This is the blocker.
-   - retail keeps `(u_char)index` in s2 across both calls (`addu s2,v1,zero` in
-     the jal delay slot) and i in s0 initialised in the PROLOGUE (move s0,zero
-     right after sw s0,32(sp)); mine recomputes the andi after the call and puts
-     `move i,0` in the jal delay slot.
-   - retail's two addresses off the base differ in order: counter is
-     addu a0,unk34C,offset (base first) but the poly base is
-     addiu v0,offset,0xA98 then addu v0,v0,unk34C.
-   - x/y need s32 (not u16) in the func_8002675C prototype or gcc narrows the
-     load to `lhu` of the global; with u16 at 66.5%, with s32 68.99%.
-   func_801E6F5C is the same body with: lbu fields pEntry[index+0x10] and
-   pEntry[index+0x13], counter bytes 0x130C/0x130D, tables D_801EA03C/40/44/48,
-   poly offsets 0x6E0/0x780, loop bound 2, digits[7+i].
-void func_801E6CFC(s32 index, u8* pEntry) {
+/* Best: 88.75% at 608 bytes, which IS retail's size (0x21CFC..0x21F5C; the
+   "484 bytes" an older note here quoted was wrong). Three measured levers got it
+   from 69% to here, keep them:
+   - the fifth/sixth/seventh parameters of func_8002675C must be declared s32 in
+     this TU (the callee in system/temp2 really takes u16, but a u16 declaration
+     here makes gcc compute x in u16: lhu of D_801EA02C and an andi at the store).
+     Every already-matched function in this file stays 100.00 with the s32
+     declaration. 72.93% with u16.
+   - do NOT keep the slot byte offset in a local: inlining
+     (u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE at every use is what
+     makes retail recompute it per half and stops gcc hoisting it into a saved
+     register (found by the permuter, base 4694 -> 2023, 72.93 -> 88.59%).
+   - the second loop is the read-and-bump form (g_Menu->digits[6 + i++]) so i++
+     lands in the beq delay slot as retail has it.
+   What is left, all inside the loop bodies:
+   - retail forms the slot base as "addu a0,a2,s1" (pPrimBuffer first) where the
+     inline spelling gives "addu a0,s1,a0"; the embedded-assignment lever (a
+     pointer local assigned from the sum) does give base-first but then moves the
+     addiu for primOffset (index*0x87C + 0xA98) up into the beq delay slot, which
+     retail has later in the body, and costs an extra move (608 -> 616 bytes).
+   - retail stores x and the 0x1000 scale before it loads D_801EA030 for y;
+     ours stores them after.
+   Two runs of the permuter on this body found only new_var temporaries (1150 ->
+   1135), so this is a hand-shape problem, not a random-edit one.
+#define MENU_SLOT_STAT_DIGIT_COUNT 3
+#define MENU_SLOT_STAT_DIGIT_START 6
+void func_801E6CFC(u8 index, u8* pEntry) {
+    u8* pPrims;
+    s32 primOffset;
     s32 i = 0;
     s32 n;
-    u32 offset;
 
-    MenuParseNumberToDigits(*(u16*)(pEntry + (u_char)index * 2 + 4));
-    offset = (u_char)index * 0x87C;
-    ((u8*)g_Menu->pPrimBuffer + offset)[0x130A] = 0;
-    for (; i < 3; i++) {
-        if (g_Menu->digits[6 + i] != 0xFF) {
-            ((u8*)g_Menu->pPrimBuffer + offset)[0x130A] += func_8002675C(g_Menu->resources,
-                g_Menu->digits[6 + i],
-                (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + offset + 0xA98
-                    + (((u8*)g_Menu->pPrimBuffer + offset)[0x130A] * 0x50 + 0x500)),
-                g_Menu->renderContext, D_801EA02C + (u_char)index * 0x50 + i * 8, D_801EA030, 0x1000);
+    MenuParseNumberToDigits(*(u16*)(pEntry + index * 2 + 4));
+    ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130A] = 0;
+    for (; i < MENU_SLOT_STAT_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[MENU_SLOT_STAT_DIGIT_START + i] != MENU_DIGIT_NONE) {
+            primOffset = index * MENU_SLOT_PRIM_STRIDE + 0xA98;
+            pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
+            ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130A] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[MENU_SLOT_STAT_DIGIT_START + i],
+                (POLY_FT4*)(pPrims + (((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130A] * 0x50 + 0x500)),
+                g_Menu->renderContext, D_801EA02C + index * 0x50 + i * 8, D_801EA030, 0x1000);
         }
     }
-    i = 0;
-    MenuParseNumberToDigits(*(u16*)(pEntry + (u_char)index * 2 + 0xA));
-    ((u8*)g_Menu->pPrimBuffer + offset)[0x130B] = 0;
     n = 0;
-    for (; i < 3; i++) {
-        if (g_Menu->digits[6 + i] != 0xFF) {
-            ((u8*)g_Menu->pPrimBuffer + offset)[0x130B] += func_8002675C(g_Menu->resources,
-                g_Menu->digits[6 + i],
-                (POLY_FT4*)((u8*)g_Menu->pPrimBuffer + offset + 0xA98
-                    + (((u8*)g_Menu->pPrimBuffer + offset)[0x130B] * 0x50 + 0x5F0)),
-                g_Menu->renderContext, D_801EA034 + (u_char)index * 0x50 + n * 8, D_801EA038, 0x1000);
+    i = 0;
+    MenuParseNumberToDigits(*(u16*)(pEntry + index * 2 + 0xA));
+    ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130B] = 0;
+    for (; i < MENU_SLOT_STAT_DIGIT_COUNT; ) {
+        u8 count = g_Menu->digits[MENU_SLOT_STAT_DIGIT_START + i++];
+
+        if (count != MENU_DIGIT_NONE) {
+            primOffset = index * MENU_SLOT_PRIM_STRIDE + 0xA98;
+            pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
+            ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130B] += func_8002675C(
+                g_Menu->resources, count,
+                (POLY_FT4*)(pPrims + (((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130B] * 0x50 + 0x5F0)),
+                g_Menu->renderContext, D_801EA034 + index * 0x50 + n * 8, D_801EA038, 0x1000);
             n++;
         }
     }
 }
 */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
+/* func_801E6F5C is the same body as func_801E6CFC above with lbu fields
+   pEntry[index+0x10] and pEntry[index+0x13] (not the u16 pairs at index*2+4 and
+   index*2+0xA), counter bytes 0x130C/0x130D, tables D_801EA03C/40/44/48, poly
+   offsets 0x6E0/0x780, loop bound 2 and digits[7+i]. */
+
 void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
     RECT rect;
     u8 pairs[0x14];
