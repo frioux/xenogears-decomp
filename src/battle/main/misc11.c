@@ -250,7 +250,16 @@ void BattleAllocDrawBuffer(void) {
    pSrc += 2`) instead of `i * 4 + 8` is 85.22% at the same size (it loses the
    offset-first `addu` and the folded +8 displacement), `s32 v` is 89.62% at 476
    bytes, and two 4-minute permuter runs found only a no-op if/else (948 vs 971).
-   cdk gives 93.74, so it is not a preset question. */
+   cdk gives 93.74, so it is not a preset question.
+   Round 306 measured the address SPIKE on the same body: retail's per-store
+   address is `lw queue; addu v0,v0,s0; addu v0,a2,v0` + `sb K(v0)` - i.e.
+   `(queue + arg0*0x40) + off` with the +0x40 as an `off`-side sum, and the base
+   register FIRST. Writing `(g_BattleCommandQueue + arg0 * 0x40)[off + 8]` (the
+   natural row-subscript form, which is also the only one that reloads the global
+   per store the way retail does) gives the commuted `addu v0,s0,v0` and 87.12%
+   at 472 bytes, so the second half is right but the operand order needs the
+   embedded-assignment/base-in-a-statement forms, not the subscript. */
+
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
