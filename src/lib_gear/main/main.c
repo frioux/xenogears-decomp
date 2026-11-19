@@ -20,6 +20,9 @@
 #define LIBGEAR_ANIM_ID_WAD_BASE 0x50
 #define LIBGEAR_ANIM_WAD_INDEX_OFFSET 0x4E
 
+// Psy-Q angles wrap at 0x1000, so this offset into rsin/rcos is a quarter turn
+#define LIBGEAR_QUARTER_TURN 0x400
+
 // A byte of Model::commands: low 7 bits index the entry tables, bit 7 is a flag
 #define LIBGEAR_MODEL_COMMAND_ID_MASK 0x7F
 #define LIBGEAR_MODEL_COMMAND_FLAG 0x80
@@ -604,6 +607,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     VECTOR proj;
     SVECTOR swingVec;
     ModelMesh* pMeshLoaded;
+    s32 quarterTurn;
     u16 modelScale;
     MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
     MATRIX* pViewScratch = &pScratch[1];
@@ -621,6 +625,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
     pSkeleton = pModel->pSkeleton;
     pMeshLoaded = pModel->pMesh;
+    quarterTurn = LIBGEAR_QUARTER_TURN;
     modelScale = pModel->scale;
     numChildren = pSkeleton->numChildren;
 
@@ -772,8 +777,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             continue;
         }
 
-        swingVec.vx = -g_LibGearSwingScale * rsin(pSkeleton->rotation.vy + 0x400) / 0x1000;
-        swingVec.vz = g_LibGearSwingScale * rcos(pSkeleton->rotation.vy + 0x400) / 0x1000;
+        swingVec.vx = -g_LibGearSwingScale * rsin(pSkeleton->rotation.vy + quarterTurn) / 0x1000;
+        swingVec.vz = g_LibGearSwingScale * rcos(pSkeleton->rotation.vy + quarterTurn) / 0x1000;
         swingVec.vy = pModel->unk3E;
 
         CompMatrix(&pSkeleton->localTransform, &pSkeleton[pListEntry->jointIndex].globalTransform, pScratch);
