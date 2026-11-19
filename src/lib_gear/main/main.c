@@ -528,7 +528,7 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 //    the packet pointer in the RTPS shadow (its `lw t2,0xF8(sp)` sits right after
 //    RTPS) and a hoisted assignment costs a 12-row block. 91.57 -> 93.30%.
 //  - the 3D path's `pSection` was a `Temp9Section*`, so `pSection + 4` scaled by 0x10:
-//    retail's `lhu 0x4(a0)` is `screenA[8 * (1 - slot) + 2]`. Write the six reads
+//    retail's `lhu 0x4(a0)` is `screenA[8 * (1 - quadSlot) + 2]`. Write the six reads
 //    through the u16 arrays. 93.30 -> 94.07%.
 //  - the root-joint CompMatrix is IN PLACE: retail materialises 0x1F800020 in BOTH a1
 //    and a2 (two independent lui/ori pairs, at 0x1034 and in 0x1068's delay slot), so
@@ -563,14 +563,7 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 // The permuter cannot parse this body (the GTE macros are "inconsistent operand
 // constraints in an asm"), so it is a hand job. Un-park by deleting the INCLUDE_ASM
 // line and the enclosing comment.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
-
-/*
-
 void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex) {
-    MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
-    MATRIX* pViewScratch = &pScratch[1];
-    MATRIX* pLightScratch = &pScratch[2];
     ModelJoint* pSkeleton;
     ModelMesh* pMesh;
     ModelJoint* pJoint;
@@ -588,10 +581,13 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     VECTOR proj;
     SVECTOR swingVec;
     u16 modelScale;
+    MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
+    MATRIX* pViewScratch = &pScratch[1];
+    MATRIX* pLightScratch = &pScratch[2];
     s32 depth;
     s32 otz;
+    u16 quadSlot; // the quad bank the 2D/3D paths pick from the entry's slot
     u_int numChildren;
-    s32 slot;
     s32 i;
     s32 j;
 
@@ -607,7 +603,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     CompMatrix(pLightMatrix, &pSkeleton->localTransform, pLightScratch);
 
     if ((pModel->flags & 1) == 0) {
-        CompMatrix(&pSkeleton->localTransform, &pSkeleton[1].globalTransform, pScratch);
+        CompMatrix(&pSkeleton->localTransform, &pModel->pSkeleton[1].globalTransform, pScratch);
         SetRotMatrix(pScratch);
         SetTransMatrix(pScratch);
 
@@ -833,11 +829,11 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                slot = (pEntry->slot + pEntry->age) & 7;
-                pEntry->pVertex->x0 = pEntry->screenA[2 * slot];
-                pEntry->pVertex->y0 = pEntry->screenA[2 * slot + 1];
-                pEntry->pVertex->x2 = pEntry->screenB[2 * slot];
-                pEntry->pVertex->y2 = pEntry->screenB[2 * slot + 1];
+                quadSlot = (pEntry->slot + pEntry->age) & 7;
+                pEntry->pVertex->x0 = pEntry->screenA[2 * quadSlot];
+                pEntry->pVertex->y0 = pEntry->screenA[2 * quadSlot + 1];
+                pEntry->pVertex->x2 = pEntry->screenB[2 * quadSlot];
+                pEntry->pVertex->y2 = pEntry->screenB[2 * quadSlot + 1];
             }
 
             pEntry->pVertex->x1 = pEntry->screenA[2 * pEntry->slot];
@@ -849,9 +845,9 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
-            slot = pEntry->slot & 1;
-            pQuadA = (u8*)pEntry + 0x1C + 0x10 * slot;
-            pQuadB = (u8*)pEntry + 0x3C + 0x10 * slot;
+            quadSlot = pEntry->slot & 1;
+            pQuadA = (u8*)pEntry + 0x1C + 0x10 * quadSlot;
+            pQuadB = (u8*)pEntry + 0x3C + 0x10 * quadSlot;
 
             gte_ldv0(&pEntry->sourceA);
             gte_mvmva(1, 0, 0, 0, 0);
@@ -879,12 +875,12 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                pEntry->pVertex->x0 = pEntry->screenA[8 * (1 - slot)];
-                pEntry->pVertex->y0 = pEntry->screenA[8 * (1 - slot) + 2];
-                pEntry->pVertex->z0 = pEntry->screenA[8 * (1 - slot) + 4];
-                pEntry->pVertex->x2 = pEntry->screenB[8 * (1 - slot)];
-                pEntry->pVertex->y2 = pEntry->screenB[8 * (1 - slot) + 2];
-                pEntry->pVertex->z2 = pEntry->screenB[8 * (1 - slot) + 4];
+                pEntry->pVertex->x0 = pEntry->screenA[8 * (1 - quadSlot)];
+                pEntry->pVertex->y0 = pEntry->screenA[8 * (1 - quadSlot) + 2];
+                pEntry->pVertex->z0 = pEntry->screenA[8 * (1 - quadSlot) + 4];
+                pEntry->pVertex->x2 = pEntry->screenB[8 * (1 - quadSlot)];
+                pEntry->pVertex->y2 = pEntry->screenB[8 * (1 - quadSlot) + 2];
+                pEntry->pVertex->z2 = pEntry->screenB[8 * (1 - quadSlot) + 4];
             }
 
             pEntry->pVertex->x1 = *(u16*)(pQuadA + 0);
@@ -898,7 +894,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         pEntry++;
     }
 }
-*/
 
 
 // Decoded from the .s, verified against the near-twin function LibGearRenderModel
