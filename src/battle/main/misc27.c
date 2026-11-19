@@ -134,50 +134,57 @@ void BattleSetActorDirectionMatrix(SpriteData* pSpriteData, s32 index, MATRIX* p
     pMatrix->t[2] = pSpriteData->pBase->transformMatrix.t[2];
     SetMulMatrix(pMatrix, &pSpriteData->pBase->transformMatrix);
 }
-// 90.55% under gcc 2.7.2-cdk -G8 and -G0 and every swept -O/-G/-mcpu, 73.07 under
-// 2.6.0 (re-screened by the -G0 park sweep): no preset fixes this. The two combined
-// induction bases match and only the register assignment differs (retail keeps pActor in
-// $t1, the frame index in $a3). Permuter (4 min, -j 2) reached base=667 -> best=562 by
-// writing x through a fixed ((s16*)pArg)[0], which is not equivalent, so nothing there is
-// portable. The shape to reproduce is retail's two bases: x through 0(t0), y/z through
-// a base 4 bytes further on (-2(a1)/0(a1)), both advanced by 8.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
+// 95.27% at retail's exact 220 bytes: the instruction multiset, the frame and both
+// induction bases match, and the ONLY differing instruction is the y/z pointer's
+// def - retail copies the parameter in place of the first `bne` delay slot's nop
+// (`move t0,a1`) and adds 4 to $a1 itself, while this body (pX = pYz - 2) makes
+// pYz keep $a1 and derives pX with `addiu t0,a1,-4`. Swapping which pointer gets
+// $a1 needs the allocator to beat the copy-coalescing of pX with the parameter: a
+// plain `pX = (s16*)pOut` (either order, before or after the guards, as s16* or
+// SVECTOR*, via mem_addr or &pOut->vx, or with `pYz = pOut; pX = pYz; pYz += 2`)
+// is always 94.64% with pX coalesced into $a1, and the permuter cannot compile
+// this body ("conversion to non-scalar type requested"). One instruction from 100.
 /*
-void func_800B50D4(u8* pActor, u8* pArg) {
+void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
+    s16* pX;
+    s16* pYz;
+    s32 i;
     s32 x;
     s32 y;
-    s32 i;
     s16 scale;
-    u8* pFrame;
-    s16* pOut;
+    BattleDirectionTransform* pTransform;
 
-    if ((*(u32*)(pActor + 0x3C) & 3) != 1) {
+    if ((pSpriteData->field_0x3C_0 & 3) != 1) {
         return;
     }
-    if (*(u8**)(pActor + 0x20) == NULL) {
+    if (pSpriteData->pBase == NULL) {
         return;
     }
-    if (*(u8**)(*(u8**)(pActor + 0x20) + 0x34) == NULL) {
+    if (pSpriteData->pBase->pDirTransforms == NULL) {
         return;
     }
-    pOut = (s16*)pArg;
-    for (i = 0; i != 5; i++) {
-        pFrame = *(u8**)(*(u8**)(pActor + 0x20) + 0x34) + (D_800C356C[i] << 3);
-        x = *(s8*)pFrame;
-        y = *(s8*)(pFrame + 1);
-        if ((*(u32*)(pActor + 0xAC) >> 2) & 1) {
+    pYz = (s16*)pOut;
+    pX = pYz - 2;
+    for (i = 0; i != 5;) {
+        pTransform = (BattleDirectionTransform*)(D_800C356C[i] * sizeof(BattleDirectionTransform) + (mem_addr)pSpriteData->pBase->pDirTransforms);
+        x = pTransform->translationX;
+        y = pTransform->translationY;
+        if (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) {
             x = -x;
         }
-        scale = *(s16*)(pActor + 0x2C);
+        scale = pSpriteData->scale;
         x = (x * scale) / 0x2000;
         y = (y * scale) / 0x2000;
-        pOut[0] = x;
-        pOut[1] = y;
-        pOut[2] = 0;
-        pOut += 4;
+        i++;
+        pX[0] = x;
+        pYz[-1] = y;
+        pYz[0] = 0;
+        pYz += 4;
+        pX += 4;
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B50D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
 void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
