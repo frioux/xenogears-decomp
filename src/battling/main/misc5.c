@@ -179,13 +179,19 @@ extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
 
 /*
-Best attempt: objdiff 81.41% (a stale note here claimed 95.11%; that body does not
-reproduce it - re-measured at 81.41%, and the permuter's own scoring agrees it is
-not the closest shape). Retail loads r then b then g and interleaves the -0x80
-adds (lbu r; lbu b; addiu r; lbu g; addiu b; bgez r; addiu g); every source shape
-tried emits the loads in a different order or routes one of the three through
-$t0. permute.sh 4 min: base=1156 best=675, its best candidate splits the load
-from the add (g = p1[2]; b = g - 0x80) and scores worse under objdiff (86.33%).
+func_8007B270 is the effect-colour helper: it packs two RGB triples into two
+5-5-5 CLUT words (D_800926A8 / D_800926AA), writes the clut size pair and hands
+the result to LoadClut2. Best attempt: objdiff 95.11%, 288 bytes against
+retail's 280. Everything matches except the LOAD SCHEDULE of the first block:
+retail is lbu r; lbu b; addiu r; lbu g; addiu b (r's load-delay slot filled by
+b's load), gcc emits lbu r; nop; addiu r; lbu b; lbu g; addiu b, one instruction
+longer, and it also swaps the b/g temporaries (b in $v0 here, $v1 in retail).
+Tried: the loads split from the -0x80 adds, the adds interleaved as retail has
+them, u8 locals for the raw channels - all three compile to the identical
+stream, so the residual is cc1's schedule, not the source. The load order was
+NOT what the previous 81.41% note was missing: the gap closed by passing the
+CLUT x/y as shorts (retail reads them with lh; only this unit's other callers
+want the low byte of each).
 void func_8007B270(u8 *p0, u8 *p1) {
     s32 r;
     s32 b;
@@ -221,7 +227,7 @@ void func_8007B270(u8 *p0, u8 *p1) {
 
     D_800926AC = 0;
     D_800926AE = 0x1111;
-    D_800926A0 = LoadClut2((u_long *)D_800926A8, D_80092698, D_8009269C);
+    D_800926A0 = LoadClut2((u_long *)D_800926A8, *(s16 *)D_80092698, *(s16 *)D_8009269C);
 }
 */
 
