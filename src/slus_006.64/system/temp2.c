@@ -746,7 +746,165 @@ void func_80025D4C(s32 count, u16* pSrc, u16* pSrc2, u16* pDst,
 }
 */
 
+// The identity scale MATRIX the rotated quad helper starts from and the four
+// corner SVECTORs it projects (their z stays at the 0x1000 (1.0) the table is
+// initialised with).
+extern MATRIX D_800188CC;
+extern SVECTOR D_8004FDC0[];
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025FA8);
+
+// Parked at 97.85% (912 bytes = the original's exact size) under this unit's
+// preset (XenoGraphicsDiv, gcc 2.7.2-cdk). Everything but the allocator matches:
+// the frame (0xA0), every stack slot (geom offset 0x58/0x5C, p/flag 0x60/0x64,
+// angle 0x68, old geom screen 0x70), both clamp chains and the uv stores are
+// instruction for instruction. What is left:
+//  - the saved registers are rotated: retail has the data offset in s5, the loop
+//    index in s6, pDirent in s7 and D_8004FDC0's %hi in s4; this body has them
+//    one slot lower (s4/s5/s6) with %hi in s7. A cyclic rotation, i.e. an
+//    allocator tie, not a source shape.
+//  - retail's `i = 0` lands BEFORE the loop's entry branch and its angle store
+//    fills that branch's delay slot; here the store fills the count load's delay
+//    slot and `i = 0` fills the branch slot.
+// Measured and no move: `i = 0` as an explicit statement before the for, the
+// for-init moved in/out of the init clause, the angle store before/inside/after
+// the if-count guard wrapper, nCount as a separate local for the guard, 2*i vs
+// i*2, and a 3-minute permuter run (best 324 vs base 490, no zero). The
+// u16 localAngle[2] array and the geom/p/flag pairs declared as long[2] arrays
+// are LOAD-BEARING: an 8-byte slot for each is what reproduces retail's frame
+// (a plain u16 local is hoisted into a register by loop.c and the function drops
+// to 93.45%, and scalars instead of arrays give a 0x98 frame). The `if (count !=
+// 0)` wrapper must NOT be there: without it gcc inverts the loop and the entry
+// test/init order changes.
+/*
+// Draws each record of the dirent as a rotated, scaled textured quad: builds a
+// rotation/scale matrix, projects the record rectangle's corners through it with
+// the geometry offset swapped for (x, y) for the duration, then writes the uv
+// rectangle. A quad that ends up mirrored loses its first texel column (and row)
+// so the neighbouring texel is not sampled, and a quarter turn loses one column
+// unconditionally.
+s32 func_80025FA8(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
+                  s32 context, s16 x, s16 y, s16 scaleX, s16 scaleY,
+                  s16 angle) {
+    MATRIX matrix;
+    long scale[3];
+    long oldGeomOffset[2];
+    long pFlag[2];
+    long oldGeomScreen;
+    u16 localAngle[2];
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    POLY_FT4* pPrim;
+    s32 nAngle;
+    s32 nLeft;
+    s32 nTop;
+    s32 nRight;
+    s32 nBottom;
+    u16 u;
+    u16 v;
+    s32 width;
+    s32 height;
+    s32 i;
+
+    matrix = D_800188CC;
+    scale[0] = scaleX;
+    scale[1] = scaleY;
+    scale[2] = 0x1000;
+    PushMatrix();
+    ScaleMatrixL(&matrix, (VECTOR*)scale);
+    RotMatrixZ(angle, &matrix);
+    ReadGeomOffset(&oldGeomOffset[0], &oldGeomOffset[1]);
+    oldGeomScreen = ReadGeomScreen();
+    SetGeomOffset(x, y);
+    SetGeomScreen(0x1000);
+    SetRotMatrix(&matrix);
+    SetTransMatrix(&matrix);
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    i = 0;
+    localAngle[0] = angle;
+    for (; i != pDirent->count; i++) {
+            pPrim = pPrims + i * 2 + context;
+            pData = &pDirent->data[i];
+
+            SetPolyFT4(pPrim);
+            SetSemiTrans(pPrim, 0);
+            SetShadeTex(pPrim, 1);
+            pPrim->tpage = GetTPage(pData->texPageId, 0, (s16)pData->texPageX,
+                                    pData->texPageY);
+            pPrim->clut = GetClut(pData->clutX, pData->clutY);
+
+            nRight = pData->width;
+            nBottom = pData->height;
+            nLeft = pData->x;
+            nTop = (u16)pData->y;
+            if (!pData->flipX) {
+                D_8004FDC0[0].vx = nLeft;
+                D_8004FDC0[1].vx = nLeft + nRight;
+                D_8004FDC0[2].vx = nLeft + nRight;
+                D_8004FDC0[3].vx = nLeft;
+            } else {
+                D_8004FDC0[0].vx = nLeft + nRight;
+                D_8004FDC0[1].vx = nLeft;
+                D_8004FDC0[2].vx = nLeft;
+                D_8004FDC0[3].vx = nLeft + nRight;
+            }
+            if (!pData->flipY) {
+                D_8004FDC0[2].vy = nTop + nBottom;
+                D_8004FDC0[3].vy = nTop + nBottom;
+                D_8004FDC0[0].vy = nTop;
+                D_8004FDC0[1].vy = nTop;
+            } else {
+                D_8004FDC0[2].vy = nTop;
+                D_8004FDC0[3].vy = nTop;
+                D_8004FDC0[0].vy = nTop + nBottom;
+                D_8004FDC0[1].vy = nTop + nBottom;
+            }
+            RotTransPers4(&D_8004FDC0[0], &D_8004FDC0[1], &D_8004FDC0[2],
+                          &D_8004FDC0[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+                          (long*)&pPrim->x3, (long*)&pPrim->x2, &pFlag[0], &pFlag[1]);
+
+            u = pData->u;
+            v = (u16)pData->v;
+            width = pData->width;
+            height = pData->height;
+            nAngle = localAngle[0] & 0xFFF;
+            if (nAngle == 0xC00) {
+                u = u - 1;
+            }
+            if (nAngle == 0) {
+                if (pPrim->x3 < pPrim->x0) {
+                    u = u - 1;
+                    if ((s16)u < 0) {
+                        u = 0;
+                        width = width - 1;
+                    }
+                }
+                if (pPrim->y3 < pPrim->y0) {
+                    v = v - 1;
+                    if ((s16)v < 0) {
+                        v = 0;
+                        height = height - 1;
+                    }
+                }
+            }
+
+            pPrim->u0 = u;
+            pPrim->v0 = v;
+            pPrim->u1 = u + width;
+            pPrim->v1 = v;
+            pPrim->u2 = u;
+            pPrim->v2 = v + height;
+            pPrim->u3 = u + width;
+            pPrim->v3 = v + height;
+    }
+
+    SetGeomOffset(oldGeomOffset[0], oldGeomOffset[1]);
+    SetGeomScreen(oldGeomScreen);
+    PopMatrix();
+    return pDirent->count;
+}
+*/
 
 void ResourceHelperGetTexCoords(MenuResourceDirectory *dir, u32 index,
                    s32* outDirentCount,
