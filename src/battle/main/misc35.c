@@ -321,7 +321,7 @@ void BattleRemoveSedsEntries(s32 *pArg) {
     }
 }
 
-extern u8 D_8004FC40[]; // per-opcode instruction length, indexed by the opcode byte
+extern u8 g_AnimScriptCommandLengths[]; // per-opcode instruction length, indexed by the opcode byte
 extern u8 g_BattleStateWork[];
 extern s32 g_BattleCommandRowIndex;
 extern SpriteData *D_800C3E1C;
@@ -885,7 +885,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
             pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + SCRIPT_JUMP_AT(pArgs);
             continue;
         case 0xA7:
-            pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + D_8004FC40[code];
+            pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
             if (pArgs[0] & 0x80) {
                 g_WorkListCurTimer = (pArgs[0] & 0x7F) + 1;
                 pSpriteData->animScriptWaitTimer++;
@@ -908,7 +908,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
             func_8001FBE4(pSpriteData, code, pArgs);
             break;
         }
-        pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + D_8004FC40[code];
+        pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
     }
 }
 */

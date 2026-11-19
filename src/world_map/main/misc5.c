@@ -188,7 +188,7 @@ extern void WorldMapSetupMapPrims(void);
 extern void WorldMapInitSpriteGroupTables(void);
 extern void SoundAddSedsEntry(void *pSeds);
 extern s32 ArchiveSetIndex(s32 arg0, s32 arg1);
-extern void func_80097BC0(void *pPos);
+extern void WorldMapSetGridPosition(void *pPos);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern void WorldMapUpdateLoadQueue(void);
 extern s32 Vsync(s32 arg0);
@@ -857,7 +857,7 @@ void WorldMapInitializeModeWithGroupActors(void) {
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
-    func_80097BC0(pPos);
+    WorldMapSetGridPosition(pPos);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);

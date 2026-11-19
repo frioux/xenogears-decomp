@@ -1676,3 +1676,4 @@ SystemStringInit = 0x80032F54;
 g_GfxIdentityMatrix = 0x800188CC;
 g_GfxQuadCorners = 0x8004FDC0;
 g_WorldMapStepProbePos = 0x1F800060;
+g_AnimScriptCommandLengths = 0x8004FC40;

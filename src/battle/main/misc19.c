@@ -631,7 +631,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
 // the relocation differs. The typed access is what keeps the address a symbol plus
 // the index register (the byte-pointer spelling makes gcc hoist the base out of the
 // loop and costs the function an instruction).
-void func_8009AEFC(u8 arg0) {
+void BattleResetSlotEffectWords(u8 arg0) {
     BattleTableEntry* p;
     u16 keep;
     s32 characterId;

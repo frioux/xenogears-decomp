@@ -134,7 +134,7 @@ extern s32 g_WorldMapCameraTarget[];
 extern s32 g_WorldMapCameraTargetY;
 extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollX[];
-extern s32 D_8009BBBC;
+extern s32 g_WorldMapScrollZ;
 extern u32 g_WorldMapRotationMatrixValid;
 extern s32 g_WorldMapAreaIndex;
 extern u32 g_WorldMapScrollTargetX;
@@ -208,7 +208,7 @@ extern void WorldMapInitSpriteGroupTables(void);
 extern void *g_GameCurLoadedWDS;
 extern void *SoundLoadWdsFile(void *, void *);
 extern void *g_WorldMapWdsFileBuffer;
-extern void func_80097BC0(s32 *);
+extern void WorldMapSetGridPosition(s32 *);
 extern void WorldMapUpdateLoadQueue(void);
 extern int Vsync(int);
 extern int WorldMapGetQueuedLoadCount(void);
@@ -468,7 +468,7 @@ void func_8007D918(void) {
     ArchiveCdDataSync(0);
     g_GameCurLoadedWDS = SoundLoadWdsFile(g_WorldMapWdsFileBuffer, 0);
     ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
-    func_80097BC0(pPos);
+    WorldMapSetGridPosition(pPos);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);
@@ -720,7 +720,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             pActor->unk7C = 0x10000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
-            D_8009BBBC += 0x6D300;
+            g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
@@ -748,7 +748,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             pActor->unk5C[0] = 0x20000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFB3C00;
-            D_8009BBBC += 0xFFF9AA80;
+            g_WorldMapScrollZ += 0xFFF9AA80;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapCameraHeight += 0x20000;
@@ -780,7 +780,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             pActor->unk7C = 0x8000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
-            D_8009BBBC += 0x6D300;
+            g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
@@ -807,7 +807,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             pActor->unk5C[1] = 0x10000;
         } else {
             g_WorldMapScrollX[0] += 0xFFFBD300;
-            D_8009BBBC += 0x6D300;
+            g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapViewRotationY[0] -= 8;
@@ -1175,7 +1175,7 @@ void WorldMapInitializeModeWithActors(void) {
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
-    func_80097BC0(pPos);
+    WorldMapSetGridPosition(pPos);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);

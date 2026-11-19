@@ -146,7 +146,7 @@ extern s32 g_WorldMapCameraTargetZ;
 extern s32 g_WorldMapScrollTargetX;
 extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapScrollTargetZ;
-extern s32 D_8009BBBC;
+extern s32 g_WorldMapScrollZ;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
@@ -350,10 +350,10 @@ void func_80076FA8(WorldMapPlayer* pPlayer, WorldMapScrollDelta* pDelta) {
             pPlayer->y += pDelta->stepY;
         }
         if ((pDelta->stepZ < 0 ? -pDelta->stepZ : pDelta->stepZ) < 0x200) {
-            D_8009BBBC += pDelta->z;
+            g_WorldMapScrollZ += pDelta->z;
             pPlayer->z = g_WorldMapScrollTargetZ;
         } else {
-            D_8009BBBC += pDelta->stepZ;
+            g_WorldMapScrollZ += pDelta->stepZ;
             pPlayer->z += pDelta->stepZ;
         }
     }
@@ -431,7 +431,7 @@ extern void WorldMapInitActorAtScrollPosition(void);
 extern void func_800783E8(void);
 extern void WorldMapResetActorSlotWithSound(void);
 extern void func_80077E68(void);
-extern void func_80097BC0(void* p);
+extern void WorldMapSetGridPosition(void* p);
 extern void WorldMapUpdateLoadQueue(void);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern s32 func_8007756C(s32 arg0);
@@ -476,7 +476,7 @@ void WorldMapInitializeMode(void) {
     WorldMapSetupMapPrims();
     WorldMapInitSpriteGroupTables();
     ArchiveSetIndex(0x24, 0);
-    func_80097BC0(pPos);
+    WorldMapSetGridPosition(pPos);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);
@@ -725,7 +725,7 @@ void WorldMapInitializeModeWithSound(void) {
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(0x24, 0);
-    func_80097BC0(pPos);
+    WorldMapSetGridPosition(pPos);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);

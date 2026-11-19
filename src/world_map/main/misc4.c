@@ -143,7 +143,7 @@ extern s16 g_WorldMapPathFrame;
 extern s32 g_WorldMapScrollX;
 extern s16 g_WorldMapSlotUpdateFlags;
 extern s32 g_WorldMapCameraTarget;
-extern s32 D_8009BBBC[];
+extern s32 g_WorldMapScrollZ[];
 extern WorldMapRenderContext *g_WorldMapRenderContext;
 extern s32 g_WorldMapGridAngle;
 extern WorldMapPos4 g_WorldMapPlayerPosition;
@@ -191,7 +191,7 @@ extern void WorldMapSetupMapPrims(void);
 extern void WorldMapInitSpriteGroupTables(void);
 extern void SoundAddSedsEntry(u8 *);
 extern void ArchiveSetIndex(s32, s32);
-extern void func_80097BC0(WorldMapPos4 *);
+extern void WorldMapSetGridPosition(WorldMapPos4 *);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern void WorldMapUpdateLoadQueue(void);
 extern s32 Vsync(s32);
@@ -476,7 +476,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_800783E8);
    - the global must be re-assigned per copy run (`pEntries = (WorldMapEntry *)
      g_WorldMapGroups;` four times) or gcc CSEs the load into one register instead of
      retail's four reloads.
-   `D_8009BBBC[0] -= 0x4000` needs the array declaration (extern s32 D_8009BBBC[];)
+   `g_WorldMapScrollZ[0] -= 0x4000` needs the array declaration (extern s32 g_WorldMapScrollZ[];)
    to make gcc put the address in a register instead of the $at macro form.
    Remaining delta: the four scratchpad rotation vectors. Retail clears
    0xB4/0xB0/0xAC/0xA8/0xA4/0xA0 and then emits the value stores in the order
@@ -496,7 +496,7 @@ s32 func_800783E8(s32 index) {
 
     p = g_WorldMapSlots + index;
     p->z -= 0x4000;
-    D_8009BBBC[0] -= 0x4000;
+    g_WorldMapScrollZ[0] -= 0x4000;
     WorldMapWrapPosition(&p->x);
     *(u32 *)0x1F800000 = p->x >> 12;
     *(u32 *)0x1F800004 = p->y >> 12;
@@ -614,7 +614,7 @@ void WorldMapInitializeModeWithTerrainActors(void) {
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
-    func_80097BC0(&g_WorldMapPlayerPosition);
+    WorldMapSetGridPosition(&g_WorldMapPlayerPosition);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);
@@ -992,7 +992,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         WorldMapInitSpriteGroupSprites(11, pVec, 0);
         p->y += 0x4000;
         p->z += -0x8000;
-        D_8009BBBC[0] += -0x8000;
+        g_WorldMapScrollZ[0] += -0x8000;
         if (p->y < -0x18000) {
             break;
         }
@@ -1018,7 +1018,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         p->y += p->dirY;
         p->dirY += 0x100;
         p->z += -0x8000;
-        D_8009BBBC[0] += -0x8000;
+        g_WorldMapScrollZ[0] += -0x8000;
         if (p->y < -0x18000) {
             break;
         }
@@ -1037,7 +1037,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         pEntries[0].rot.vx -= 2;
         pEntries[0].rot.vz -= 1;
         p->z += p->dirZ;
-        D_8009BBBC[0] += p->dirZ;
+        g_WorldMapScrollZ[0] += p->dirZ;
         p->dirZ += 0x100;
         if (p->z > 0x1580000) {
             break;
@@ -1051,7 +1051,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         pEntries[0].rot.vx -= 2;
         pEntries[0].rot.vz -= 1;
         p->z += p->dirZ;
-        D_8009BBBC[0] += p->dirZ;
+        g_WorldMapScrollZ[0] += p->dirZ;
         p->dirZ += 0x100;
         p->stateTimer = p->stateTimer - 1;
         if ((s16)p->stateTimer > 0) {
@@ -1356,7 +1356,7 @@ void WorldMapInitializeModeWithScaledGroups(void) {
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
-    func_80097BC0(&g_WorldMapPlayerPosition);
+    WorldMapSetGridPosition(&g_WorldMapPlayerPosition);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);

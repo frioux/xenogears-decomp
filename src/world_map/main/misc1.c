@@ -664,7 +664,7 @@ extern void WorldMapInitFrameAnimEntries(void);
 extern void WorldMapSetupMapPrims(void);
 extern void WorldMapInitSpriteGroupTables(void);
 extern void* SoundLoadWdsFile(void* pBuffer, s32 arg1);
-extern void func_80097BC0(void* pPosition);
+extern void WorldMapSetGridPosition(void* pPosition);
 extern s32 WorldMapUpdateLoadQueue(void);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern void WorldMapRefreshGrid(void* pTarget);
@@ -791,7 +791,7 @@ void func_80072238(void) {
     }
     ArchiveSetIndex(WORLD_MAP_SOUND_ARCHIVE_INDEX, 0);
     if (g_WorldMapInitModeIndex == 0) {
-        func_80097BC0(&g_WorldMapPlayerPosition);
+        WorldMapSetGridPosition(&g_WorldMapPlayerPosition);
         do {
             WorldMapUpdateLoadQueue();
             Vsync(0);

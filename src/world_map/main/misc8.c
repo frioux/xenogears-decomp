@@ -179,7 +179,7 @@ extern void ModelPartFreeLightData(void *pModelPart);
 extern int Vsync(int mode);
 extern void WorldMapFreeGridImages(void);
 extern void WorldMapUpdateLoadQueue(void);
-extern void func_80097BC0(void *p);
+extern void WorldMapSetGridPosition(void *p);
 extern s32 WorldMapGetQueuedLoadCount(void);
 extern s16 func_80084DB8(void *pArg, s16 arg1);
 extern void WorldMapBuildSpritePrims(WorldMapEntry *pEntry, POLY_FT3 *pPrim, s32 count, s32 abr);
@@ -418,7 +418,7 @@ s32 WorldMapWaitForQueueDrain(s32 arg0) {
         DrawSync(0);
         Vsync(0);
         WorldMapFreeGridImages();
-        func_80097BC0(g_WorldMapPlayerPosition);
+        WorldMapSetGridPosition(g_WorldMapPlayerPosition);
         do {
             WorldMapUpdateLoadQueue();
             Vsync(0);
@@ -467,7 +467,7 @@ void WorldMapInitializeScene(void) {
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_MenuSedsFile);
     ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
-    func_80097BC0(pVec);
+    WorldMapSetGridPosition(pVec);
     do {
         WorldMapUpdateLoadQueue();
         Vsync(0);

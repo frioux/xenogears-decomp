@@ -445,7 +445,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 // flags_0xA8 bits 11..16 and SpriteSetFrameFromAnimIndex; 0x20-0x2F: func_8001D2B0(frame - 1);
 // 0x30-0x3F: no call) and every command < 0x40 adds (command & 0xF) + 1 to animScriptWaitTimer;
 // commands >= 0x80 are the script control ops and the default path advances
-// pSpriteBytecode by D_8004FC40[command] (a byte length table). The loop then bumps the script
+// pSpriteBytecode by g_AnimScriptCommandLengths[command] (a byte length table). The loop then bumps the script
 // index in flags_0xA8 bits 22..27 and, when that wraps to 0, decrements it once more. The
 // dispatch over >= 0x80 is one comparison tree in retail, so it wants a switch whose index is
 // a u8 local.

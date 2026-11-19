@@ -91,8 +91,8 @@ extern u32 ArchiveGetDebugTable(void);
 extern s32 WorldMapStepCdReadState(void);
 extern void WorldMapReadFileEntries(void *p);
 extern s32 g_WorldMapScrollX;
-extern s32 D_8009BBB8;
-extern s32 D_8009BBBC;
+extern s32 g_WorldMapScrollY;
+extern s32 g_WorldMapScrollZ;
 extern s16 g_WorldMapGridOrigin;
 extern s16 D_8009C83A;
 extern s16 D_8009C83C;
@@ -680,7 +680,7 @@ void WorldMapLoadClutAndTpageIds(void) {
 // mask into a lui at the top plus an ori 8 insns later (63.31%); the volatile
 // read of p[2] is what keeps that load out of the sh group, where a plain load
 // is hoisted a block early and needs a nop (91.77%).
-void func_80097BC0(s32 *p) {
+void WorldMapSetGridPosition(s32 *p) {
     u32 *pEnd;
     s32 i;
     s32 x;
@@ -693,7 +693,7 @@ void func_80097BC0(s32 *p) {
         *pEnd-- = 0;
     }
     x = p[0];
-    *(volatile s32 *)&D_8009BBB8 = 0;
+    *(volatile s32 *)&g_WorldMapScrollY = 0;
     *(volatile s32 *)&g_WorldMapGridAngle = 0;
     *(volatile s32 *)&g_WorldMapGridShadePhase = 0x400;
     *(volatile s32 *)&g_WorldMapScrollX = x & 0x7FFFFF;
@@ -701,7 +701,7 @@ void func_80097BC0(s32 *p) {
     *(volatile s16 *)&g_WorldMapGridOrigin = 2;
     *(volatile s16 *)&D_8009C83A = 0;
     *(volatile s16 *)&D_8009C83C = 2;
-    D_8009BBBC = z & 0x7FFFFF;
+    g_WorldMapScrollZ = z & 0x7FFFFF;
     func_800981C8((s32)p);
     WorldMapSubmitGridImageLoads();
 }

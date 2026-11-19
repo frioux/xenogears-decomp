@@ -41,7 +41,7 @@ extern u16 BattleSlotBitMask(u8 arg0);
 extern void BattleBeginAnimTask(u16 arg0);
 extern void BattleApplySlotMaskToEffects(u16 arg0);
 extern void func_80088490(u8 arg0);
-extern void func_8009AEFC(u8 arg0);
+extern void BattleResetSlotEffectWords(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
 extern void BattleReleaseCharSlot(u8 arg0);
 extern u8 g_BattleSlotConditions[];
@@ -891,7 +891,7 @@ void func_800826CC(u8 arg0) {
     u8 *pWork;
 
     func_80088490(arg0);
-    func_8009AEFC(arg0);
+    BattleResetSlotEffectWords(arg0);
     BattleFinishActorAnimationAndReleaseSlot(arg0);
     off = arg0 * 0x170;
     cond = *(u8 *)(off + (u32)g_BattleSlotConditions);
