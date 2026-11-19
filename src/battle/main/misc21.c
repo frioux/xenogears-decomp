@@ -765,7 +765,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
                 continue;
             }
             tweenVec.vx = -D_800D39E8 * rsin(pSprites->rot[1] + 0x400) / 0x1000;
-            tweenVec.vz = rcos(pSprites->rot[1] + 0x400) * D_800D39E8 / 0x1000;
+            tweenVec.vz = D_800D39E8 * rcos(pSprites->rot[1] + 0x400) / 0x1000;
             tweenVec.vy = pActor->unk3E;
             CompMatrix(&pSprites->localTransform, &pSprites[pModelList->spriteIndex].globalTransform, pMatrix);
             SetRotMatrix(pMatrix);
