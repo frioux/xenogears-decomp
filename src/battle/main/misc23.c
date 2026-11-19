@@ -384,7 +384,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
    NULL), and the last two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers
    set by BattleSetColorSources. Every store reloads its base global, so the
    destination expression has to be written out in full at each store - a
-   pointer local collapses the twelve loads into one. */
+   pointer local collapses the twelve loads into one.
+   ROUND 290 re-measure of the operand-association family: the per-store element
+   pointer "pAddr = &((u8 *)g_BattleSpriteRenderData)[i * 0x24];" then
+   "pAddr[0x1740] = pSrc[0];" is still index-first ("addu a0,a3,v0") and moves
+   the base into $a3, and the constant-against-base grouping has no meaning here
+   because retail keeps 0x1740 as the store displacement while the sum is only
+   base + i*0x24. Still an open tie; the permuter has run twice (2036 and 993
+   iterations) without a find. */
 /*
 void func_800A64E4(void) {
     u8 *pSrc;
@@ -722,13 +729,42 @@ extern u8 D_800CCD88[];
 extern u8 D_800CCDE8[];
 extern u8 D_800C3509[];
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
+/* 90.14% (under the unit's gcc 2.6.0 --expand-div -G0; was 77.73 when this was
+   first attempted under -G8). Fixed by this shape vs the old attempt:
+   - count is an s32 loaded from a u8 array (lbu), NOT a u8 local: that turns
+     the compare into "slt" (was sltu) and removes the "andi 0xff" before both
+     "beqz count" and "addu nameLen,count".
+   - pTable = D_800C3509 assigned BEFORE the if, so "lui/addiu s0" is emitted
+     before the branch and &D_800C3509 lives in a callee-saved register across
+     HeapAlloc ("addu v0,s0,s1; lbu s0,-1(v0)"); with the assignment after the
+     call gcc 2.6 folds the -1 into %lo(D_800C3509-1) and uses $at.
+   A 4-minute permuter run found base=1055 best=356 (PERMUTER_BETTER) on two
+   changes: "nameLen = 2; nameLen = base + nameLen;" for the second name length,
+   and moving func_80029AFC(g_BattleArchiveEntry, 0, 0) BEFORE the two pTail zero stores
+   (that one is semantically wrong - retail has the sh before the jal and the sw
+   in its delay slot - so port only the nameLen split and re-run the permuter
+   from there, up to three times while the score falls).
+   Remaining differences: (a) the original has an extra "move s3,s2" (a second
+   register holding pEntry, used for the fileIndex1/pBuffer1 stores while s2 keeps the
+   later ones) - a pHead = (u8 *)pEntry alias is CSE'd back into pEntry, so gcc
+   2.6 will not produce the copy; (b) that costs $s3 to pTail and pushes count
+   into $s4 (mine has count in $s3, pTail in $v1); (c) my index gets a "move"
+   copy out of the sll while the original shifts straight into $s1. Structurally
+   complete otherwise: every instruction and operand order matches.
+   ROUND 290 re-measure: the nameLen split ("nameLen = 2; nameLen = base +
+   nameLen;") alone leaves this at 90.14% (368 bytes, unchanged), and the permuter
+   from that body again only finds the semantically wrong jal reorder (base=1055
+   best=416). What is still missing is the pHead copy ("move s3,s2" in retail):
+   retail keeps pEntry in $s2 AND a second copy in $s3 for the fileIndex1/pBuffer1
+   stores, which is what pushes count into $s4 and frees $s3 for pTail later.
 void func_800A9540(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     u8 *pTable;
     u16 *pTail;
     s32 alignedIndex;
     s32 remainder;
-    s32 index;
+    u32 index;
     s32 nameLen;
     s32 count;
     u8 base;
@@ -748,8 +784,7 @@ void func_800A9540(s32 arg0) {
     nameLen = base + 1;
     pEntry->fileIndex1 = nameLen;
     pEntry->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
-    nameLen = 2;
-    nameLen = base + nameLen;
+    nameLen = base + 2;
     pEntry->fileIndex2 = nameLen;
     pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
     pTail = &pEntry->fileIndex3;
@@ -764,6 +799,7 @@ void func_800A9540(s32 arg0) {
     func_80029AFC(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
+*/
 void BattleAllocateArchiveFilePair(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     s32 alignedIndex;
