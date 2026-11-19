@@ -887,7 +887,6 @@ void func_80072238(void) {
 }
 */
 extern u16 g_NextMapFlags[];
-extern void* g_WorldMapSlots;
 extern void* g_WorldMapTilePrimBuffer;
 extern void* g_WorldMapTilePrimBufferCopy;
 extern s32 g_WorldMapAreaMode;
@@ -915,8 +914,16 @@ extern void WorldMapFreeGridImages(void);
 extern void WorldMapFreeSlotPool(void);
 extern void WorldMapFreeLoadQueues(void);
 
+// The 0x80-byte slot table at g_WorldMapSlots; misc10.c declares it in full as
+// WorldMapActor. This unit only reaches the sprite pointer.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4C];
+    /* 0x4C */ void* pSprite;
+    /* 0x50 */ u8 unk50[0x30];
+} WorldMapSlotActor; // Size: 0x80
+
+extern WorldMapSlotActor* g_WorldMapSlots;
 void func_8007299C(void) {
-    u8* p;
     s32 i;
 
     if (g_WorldMapAreaMode == 0) {
@@ -926,10 +933,9 @@ void func_8007299C(void) {
     SoundRemoveSedsEntry(g_MenuSedsFile);
     HeapFree(g_MenuSedsFile);
     for (i = 0; i < 0x40; i++) {
-        p = (u8*)(i * 0x80 + (s32)g_WorldMapSlots);
-        if (*(void**)(p + 0x4C) != NULL) {
-            SpriteDestroy(*(void**)(p + 0x4C));
-            *(void**)((u8*)g_WorldMapSlots + i * 0x80 + 0x4C) = NULL;
+        if (g_WorldMapSlots[i].pSprite != NULL) {
+            SpriteDestroy(g_WorldMapSlots[i].pSprite);
+            g_WorldMapSlots[i].pSprite = NULL;
         }
     }
     if (g_WorldMapAreaMode == 1) {
