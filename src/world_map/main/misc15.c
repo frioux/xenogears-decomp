@@ -25,6 +25,14 @@ typedef struct {
     /* 0xC */ u8 payload[0x18]; // CD read destination, streamed by func_80096C0C
 } Misc15CdRequest; // Size: 0x24
 
+// One entry of a request's payload: the cursor walks these 0xC bytes at a time
+// until it reaches the entry whose sector is 0.
+typedef struct {
+    /* 0x0 */ s32 sector;
+    /* 0x4 */ u32 size;
+    /* 0x8 */ s32 dest;
+} Misc15CdChunk; // Size: 0xC
+
 typedef struct {
     /* 0x0 */ u32 unk0[4];
 } Misc15Block16; // Size: 0x10
@@ -78,6 +86,7 @@ extern void func_80096C0C(u_char mode, u_char *pResult);
 extern s32 g_WorldMapCdSectorBuffer;
 extern s32 D_8009BCD0;
 extern s32 D_8009BCD4;
+extern u8 *g_WorldMapCdSectorRemainder;
 extern u32 ArchiveGetDebugTable(void);
 extern s32 WorldMapStepCdReadState(void);
 extern void WorldMapReadFileEntries(void *p);
@@ -208,6 +217,86 @@ void WorldMapCdReadCallback(s32 mode, u8 *pResult) {
         }
     }
 }
+// Best: 64.15% (800 bytes against retail's 780). Everything is decoded: the
+// sector header at g_WorldMapCdSectorBuffer, CdPosToInt/CdIntToPos, the 0xC
+// chunk cursor, the two sector copies of the short-tail read, all four
+// CdControlF call sites and the shared "expected sector + 1" tail. What differs
+// is BLOCK LAYOUT: gcc lays the two retry copies out inline (the top test comes
+// out `beq` into the success chain) where retail keeps the success chain first
+// with both retry copies late, and it loses the single shared `jal CdControlF`
+// tail that retail cross-jumps the three call sites into, for 5 extra
+// instructions.
+/*
+void func_80096C0C(u_char mode, u_char *pResult) {
+    CdlLOC *pLoc;
+    Misc15CdChunk *pChunk;
+    s32 sector;
+
+    if (mode == 1) {
+        CdGetSector(&g_WorldMapCdSectorBuffer, 3);
+        sector = CdPosToInt((CdlLOC *)&g_WorldMapCdSectorBuffer);
+        if (sector != g_WorldMapCdExpectedSector) {
+            g_WorldMapCdRetryCount++;
+            CdReadyCallback(NULL);
+            if (pResult[0] & CdlStatShellOpen) {
+                g_WorldMapCdReadState = 10;
+                g_WorldMapCdReadErrorCount++;
+                CdControlF(CdlNop, NULL);
+            } else {
+                g_WorldMapCdReadState = 11;
+                CdControlF(CdlGetTN, NULL);
+            }
+            return;
+        }
+        if (sector == g_WorldMapCdCurrentSector) {
+            if (g_WorldMapCdReadBytesLeft < 0x800) {
+                CdGetSector((void *)g_WorldMapCdReadDest, g_WorldMapCdReadBytesLeft / 4);
+                CdGetSector(g_WorldMapCdSectorRemainder, (0x800 - g_WorldMapCdReadBytesLeft) / 4);
+            } else {
+                CdGetSector((void *)g_WorldMapCdReadDest, 0x200);
+                g_WorldMapCdReadBytesLeft -= 0x800;
+            }
+            if (--g_WorldMapCdReadSectorsLeft != 0) {
+                g_WorldMapCdCurrentSector++;
+                g_WorldMapCdReadDest += 0x800;
+            } else {
+                pChunk = (Misc15CdChunk *)g_WorldMapCdRequestCursor;
+                sector = pChunk->sector;
+                g_WorldMapCdCurrentSector = sector;
+                g_WorldMapCdReadSectorsLeft = (pChunk->size + 0x7FF) >> 11;
+                g_WorldMapCdRequestCursor = (u8 *)(pChunk + 1);
+                g_WorldMapCdReadBytesLeft = pChunk->size;
+                g_WorldMapCdReadDest = pChunk->dest;
+                if (sector == 0) {
+                    g_WorldMapCdReadState = 3;
+                    CdReadyCallback(NULL);
+                    CdControlF(CdlPause, NULL);
+                } else if (sector - g_WorldMapCdExpectedSector < 0x13) {
+                    g_WorldMapCdExpectedSector++;
+                } else {
+                    g_WorldMapCdExpectedSector = sector;
+                    g_WorldMapCdReadState = 1;
+                    pLoc = &g_WorldMapCdReadLocation;
+                    CdIntToPos(sector, pLoc);
+                    CdControlF(CdlSetloc, (u8 *)pLoc);
+                    return;
+                }
+            }
+        }
+        g_WorldMapCdExpectedSector++;
+    } else {
+        g_WorldMapCdRetryCount++;
+        CdReadyCallback(NULL);
+        if (pResult[0] & CdlStatShellOpen) {
+            g_WorldMapCdReadState = 10;
+            g_WorldMapCdReadErrorCount++;
+            CdControlF(CdlNop, NULL);
+        } else {
+            g_WorldMapCdReadState = 11;
+            CdControlF(CdlGetTN, NULL);
+        }
+    }
+}*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096C0C);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
 // Best: 59.80%. The structure is decoded and every call/argument is right (the
@@ -586,24 +675,11 @@ void WorldMapLoadClutAndTpageIds(void) {
 }
 
 
-// Best: 63.31%. Same instruction multiset, different order: cc1 2.7.2's sched2
-// hoists the C618/C838/C83C stores above the two loads and splits the mask into
-// `li $4,0x7F0000` (kept at the top) + `ori $4,$4,0xFFFF` (emitted 8 insns
-// later, just before the ands); retail keeps lui+ori adjacent at the top and the
-// stores in source order, which is ASPSX 2.6x's reorder of the same RTL - we
-// assemble with GAS, which only inserts load-delay nops and never moves an insn.
-// Round 19 confirmed this on build/src/world_map/main/misc15.c.s. Also checked:
-// writing the statements in retail's own order changes nothing (sched2 re-does
-// it), the direct `p[0] & 0x7FFFFF` form gives 52.66%, and maspsx with li
-// expansion on (--maspsx "--use-comm-section --run-assembler", i.e. the Default
-// preset's flags) scores 72.42 here while dropping 6 already-matched functions
-// in this unit (WorldMapStartSlot 91.43, WorldMapSetSlotState3 91.43, WorldMapAllocSlotPool 95.38),
-// so the unit preset is right.
-// Round 42: the -O2 schedule is source-order-insensitive here (four statement
-// orders, retail's own included, give a byte-identical .s), and a try_flags
-// --sweep peaks at 74.19% (-O1, every gcc) / 67.66% (cdk -O1), so retail's
-// order is not reachable under the unit's -O2.
-/*
+// The volatile stores pin the statement order. Any plain spelling lets sched2
+// hoist the C838/C83C/0x400 stores above the two loads and split the 0x7FFFFF
+// mask into a lui at the top plus an ori 8 insns later (63.31%); the volatile
+// read of p[2] is what keeps that load out of the sh group, where a plain load
+// is hoisted a block early and needs a nop (91.77%).
 void func_80097BC0(s32 *p) {
     u32 *pEnd;
     s32 i;
@@ -617,20 +693,18 @@ void func_80097BC0(s32 *p) {
         *pEnd-- = 0;
     }
     x = p[0];
-    g_WorldMapGridShadePhase = 0x400;
-    D_8009BBB8 = 0;
-    g_WorldMapGridAngle = 0;
-    g_WorldMapScrollX = x & 0x7FFFFF;
-    z = p[2];
-    g_WorldMapGridOrigin = 2;
-    D_8009C83A = 0;
-    D_8009C83C = 2;
+    *(volatile s32 *)&D_8009BBB8 = 0;
+    *(volatile s32 *)&g_WorldMapGridAngle = 0;
+    *(volatile s32 *)&g_WorldMapGridShadePhase = 0x400;
+    *(volatile s32 *)&g_WorldMapScrollX = x & 0x7FFFFF;
+    z = *(volatile s32 *)&p[2];
+    *(volatile s16 *)&g_WorldMapGridOrigin = 2;
+    *(volatile s16 *)&D_8009C83A = 0;
+    *(volatile s16 *)&D_8009C83C = 2;
     D_8009BBBC = z & 0x7FFFFF;
     func_800981C8((s32)p);
     WorldMapSubmitGridImageLoads();
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
 
 void WorldMapRefreshGrid(s32 arg0) {
     u32 *pEnd;
