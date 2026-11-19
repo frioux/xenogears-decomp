@@ -17,7 +17,10 @@ typedef struct {
     s16 priority;
     u16 flags;
     SpuVolume volume;
-    u8 unkC[8];
+    // neither is ever read: retail clears both as halfwords when an element starts
+    u16 unkC;
+    u16 unkE;
+    u8 unk10[4];
     u16 pitch;
     u8 unk16[6];
     u32 startAddress;
@@ -200,7 +203,7 @@ typedef struct {
     /* 0x7   */ s8 unk_0x07;
     /* 0x8   */ s32 soundId;
     /* 0xC   */ u32 startTick; // g_SoundTimerTickCounter at element start; voice allocation picks the lowest
-    /* 0x10  */ u32 unk_0x10; // script address, stored with pScriptIP
+    /* 0x10  */ u32 scriptStartIP; // pScriptIP's initial value, never updated after the element starts
     /* 0x14  */ u32 pScriptIP; // next script byte to run
     /* 0x18  */ u8* savedScriptIP;
     /* 0x1C  */ s32 unk_0x1C;

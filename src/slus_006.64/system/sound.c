@@ -2634,11 +2634,11 @@ void func_8003B424(AudioManager* pManager) {
             pElement->noteOffset = 0;
             pElement->volumeOffset = 0;
             pElement->panOffset = 0;
-            ((u16*)pElement->voice_data.unkC)[0] = 0;
-            ((u16*)pElement->voice_data.unkC)[1] = 0;
+            pElement->voice_data.unkC = 0;
+            pElement->voice_data.unkE = 0;
             pElement->activeEnvelopeMask = 0;
             value = (u32)pSeqData + *pScriptOffset;
-            pElement->unk_0x10 = value;
+            pElement->scriptStartIP = value;
             pElement->pScriptIP = value;
 
             for (j = NUM_VOICE_ENVELOPES - 1; j >= 0; j--) {
@@ -2769,11 +2769,11 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
             pElement->noteOffset = 0;
             pElement->volumeOffset = 0;
             pElement->panOffset = 0;
-            ((u16*)pElement->voice_data.unkC)[0] = 0;
-            ((u16*)pElement->voice_data.unkC)[1] = 0;
+            pElement->voice_data.unkC = 0;
+            pElement->voice_data.unkE = 0;
             pElement->activeEnvelopeMask = 0;
             pElement->pan = pan;
-            pElement->unk_0x10 = value;
+            pElement->scriptStartIP = value;
             pElement->pScriptIP = value;
 
             for (i = NUM_VOICE_ENVELOPES - 1; i >= 0; i--) {
