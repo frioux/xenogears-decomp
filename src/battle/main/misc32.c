@@ -594,7 +594,78 @@ void BattleUnlinkAndFreeTask(void *pEntry) {
     WorkListsDeleteTasks(pEntry);
 }
 
+// The four sprite corners func_800BD810 hands RotTransPers4, reused by every sprite of a
+// frame: the entry's rectangle in its own order, top-left, top-right, bottom-right, bottom-left.
+extern SVECTOR D_8004FB98[4];
+
+#define BATTLE_SPRITE_QUAD_TAG_LEN 9 // POLY_FT4's packet length in words, minus the tag's own word
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
+
+/*
+// 77.80% (360 bytes against retail's 356: one extra nop). The instruction multiset
+// is retail's except that nop: the corner loads, the two sums and the eight corner
+// stores all come out in a different order and in different registers, which under
+// this preset's -fschedule-insns is the scheduler's choice, not the C's. Tried:
+// corners before the header stores (352 bytes, no nop at all, 64.09), the corner
+// block in do{...}while(0) (70.65), direct pPart->field reads in the corner stores
+// (412 bytes: gcc reloads every field across the packet stores), and dropping the
+// sum locals (gcc reloads width/height). The bodies below are the best one.
+// Draws one sprite-list entry: fills a textured quad in the packet buffer from the entry's
+// rectangle and texture page, projects its four corners through the battle's view matrix and
+// links the prim into the ordering table. Nothing is drawn once the packet buffer is full.
+void func_800BD810(Misc32SpritePart *pPart, u32 color) {
+    POLY_FT4 *pPoly;
+    s32 x;
+    s32 y;
+    s32 right;
+    s32 bottom;
+    s32 u;
+    s32 v;
+    s32 p;
+    s32 flag;
+
+    pPoly = (POLY_FT4 *)g_GfxCurWorkBuffer;
+    if ((u8 *)(pPoly + 1) >= g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    g_GfxCurWorkBuffer = pPoly + 1;
+    setlen(pPoly, BATTLE_SPRITE_QUAD_TAG_LEN);
+    *(u_long *)&pPoly->r0 = color;
+    pPoly->tpage = pPart->texPage;
+    pPoly->clut = pPart->clutID;
+    x = pPart->x;
+    y = pPart->y;
+    right = x + pPart->width;
+    bottom = y + pPart->height;
+    D_8004FB98[0].vx = x;
+    D_8004FB98[0].vy = y;
+    D_8004FB98[1].vx = right;
+    D_8004FB98[1].vy = y;
+    D_8004FB98[2].vx = right;
+    D_8004FB98[2].vy = bottom;
+    D_8004FB98[3].vx = x;
+    D_8004FB98[3].vy = bottom;
+    // the screen corners go in the prim's vertex order, top-left, top-right, bottom-left,
+    // bottom-right, which is how the GPU splits a quad into (0,1,2) and (1,2,3)
+    RotTransPers4(&D_8004FB98[0], &D_8004FB98[1], &D_8004FB98[2], &D_8004FB98[3],
+                  (long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x3, (long *)&pPoly->x2,
+                  &p, &flag);
+    u = pPart->u;
+    v = pPart->v;
+    right = u + pPart->width;
+    bottom = v + pPart->height;
+    pPoly->u0 = u;
+    pPoly->v0 = v;
+    pPoly->u1 = right;
+    pPoly->v1 = v;
+    pPoly->u2 = u;
+    pPoly->v2 = bottom;
+    pPoly->u3 = right;
+    pPoly->v3 = bottom;
+    addPrim(g_GfxCurOT, pPoly);
+}
+*/
 
 void BattleProjectPointToScreen(SVECTOR *pVec, s32 *pOut) {
     SVECTOR vec; // unused: reproduces retail's 0x40 frame
@@ -620,7 +691,6 @@ typedef struct {
 } BattleGeomMatrix; // Size: 0x20
 
 extern BattleGeomMatrix g_BattleGeomMatrix;
-extern void func_800BD810(Misc32SpritePart *pPart, u32 color);
 
 // 96.95% under this unit's cdk preset (89.20 on 2.7.2). Left: (1) retail keeps the
 // g_BattleGeomMatrix base in $s0 and stores `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix;
@@ -871,7 +941,75 @@ void BattleInitNumberSpriteTask(void) {
     pTask->partCount = 0;
     g_BattleNumberSpriteValue = -1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDF1C);
+extern void BattleCreateNumberSpriteTask(s32 value);
+
+// Refills the static number sprite whenever the battle's effect timer changes: hands the new
+// value to the sprite body, colours it the way the battle's colour mode asks and rebuilds its
+// part list from the digits of the value.
+void func_800BDF1C(Misc32Task *pTask) {
+    BattleNumberTask *pNumber;
+    u8 digits[6];
+    s32 value;
+    s32 mode;
+    s32 i;
+    s32 tex;
+
+    value = g_BattleEffectTimer;
+    if (g_BattleTimerTask == NULL) {
+        return;
+    }
+    if (D_800C3780 != 0) {
+        return;
+    }
+    pNumber = (BattleNumberTask *)g_BattleTimerTask;
+    if (value == g_BattleNumberSpriteValue) {
+        return;
+    }
+    g_BattleNumberSpriteValue = value;
+    BattleCreateNumberSpriteTask(value);
+    pNumber->color.channels.code = 0x2D;
+    pNumber->scale.vx = 0x2000;
+    pNumber->scale.vy = 0x2000;
+    pNumber->scale.vz = 0x2000;
+    pNumber->color.channels.code &= 0xFE;
+    mode = g_BattleColorMode;
+    pNumber->rot.vx = 0;
+    pNumber->rot.vy = 0;
+    pNumber->rot.vz = 0;
+    switch (mode) {
+    // retail emits the case bodies in this order, so the labels are listed in it
+    case 0xB:
+        pNumber->color.channels.red = 0;
+        pNumber->color.channels.green = 0;
+        pNumber->color.channels.blue = 0x80;
+        break;
+    case 3:
+        pNumber->color.channels.red = 0x80;
+        pNumber->color.channels.green = 0;
+        pNumber->color.channels.blue = 0x80;
+        break;
+    case 2:
+        pNumber->color.channels.red = 0;
+        pNumber->color.channels.green = 0x80;
+        pNumber->color.channels.blue = 0;
+        break;
+    default:
+        pNumber->color.channels.red = 0x80;
+        pNumber->color.channels.green = 0x80;
+        pNumber->color.channels.blue = 0x80;
+        break;
+    }
+    func_800BE6E8(value, digits, sizeof(digits) - 1, 0, 0);
+    tex = g_BattleDigitTextureIds[digits[0]];
+    pNumber->partCount = 0;
+    i = 0;
+    while (i != digits[0]) {
+        pNumber->partCount += ResourceHelperGetSpriteList(g_BattleSpriteArchive, digits[i + 1] + 0x72,
+                                                          &pNumber->parts[pNumber->partCount], tex, -8);
+        i++;
+        tex += 10;
+    }
+}
 extern void BattleFreeTimerTask(Misc32Task *pTask);
 
 void BattleFreeTimerTaskIfActive(void) {
