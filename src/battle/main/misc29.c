@@ -505,7 +505,6 @@ void func_800B88C4(void) {
     pWork->unkDA8 = 0;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
 
 void BattleEmptyHook(void) {
 }
