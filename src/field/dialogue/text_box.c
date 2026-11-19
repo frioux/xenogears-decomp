@@ -374,37 +374,50 @@ extern void func_8007F8DC(short x, short y, u16 dialogIndex, s32 textBoxIndex, s
 // window from the dialog string and the instruction's mode, and records the
 // layout in the text box table. Returns 0 when a box was opened, -1 otherwise.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C5A8);
-/* 99.41% (1872 bytes = retail's exact size; ONE instruction differs out of
-   469). The whole body is in address order at retail's size and matches
-   instruction for instruction except one delay slot in the below-actor arm at
-   0x2CEEC (retail fills `bne $s7,$v0` with `ori $s0,zero,0x94`, this build
-   leaves a nop there and materialises the same 0x94 in the delay slot of the
-   following `bnez $s7`, which is dead on both paths, so the bytes differ but
-   the code does not). gcc's reorg only fills that slot when it can prove the
-   target block is the branch's only predecessor; every spelling tried left it
-   empty. Tried and measured on this body: the seed `y = 0x94` before the
-   project call (99.10, the else arm's own 0x94 then gets cse'd away and the
-   slot takes `li $v0,0xA0`), `x = 0xA0` before `y = 0x94` in that arm, and a
-   permuter run (4 min, base 1345 -> best 959 - that is what produced the
-   `i = 8` / `i = 0x10` locals below, which are the source of the left/top
-   clamp shapes and must stay: without them gcc reassociates
-   `(x - 8) - width * 2` into `x - (width * 2 + 8)` and `(y + 8) + height * 14`
-   into `y + (height * 14 + 8)`, five instructions off each, 97.10%).
-   Un-park and re-diff to measure. Two more things this function taught:
+/* 99.87% (1872 bytes = retail's exact size, 469 instructions; the whole body
+   matches instruction for instruction except ONE dead instruction).
+   The difference is in the below-actor arm at 0x2CEEC: retail fills
+   `bne $s7,$v0` with `ori $s0,zero,0x94` - a y = 0x94 whose value both later
+   paths overwrite - where this build leaves a nop. Retail already has the live
+   copy of that constant in the following `bnez $s7` delay slot at 0x2CF0C and a
+   third in the faceId block's `j` slot at 0x2CF60, and this body has those two,
+   so retail's source carries one extra 0x94 assignment in this arm and gcc
+   2.7.2 declines to duplicate it into the bne's slot here.
+   Tried and measured on this body: `y = 0x94;` as the first statement of the
+   mode==0||mode==3 block (seed before the call) puts the constant in the bnez
+   slot AFTER the branch instead and cse then folds the else arm's copy away
+   (99.56, the bnez slot takes `li $v0,0xA0`); the same seed before the two mode
+   tests is stolen by reorg into the `beqz $s7` slot with the else copy folded
+   again (99.42); `y = screenY; y = y + 0x30;` regresses the else arm (99.82);
+   an empty `do { } while (0);` before the mode test changes nothing; a
+   4-minute permuter run gave PERMUTER_NONE, base 200 -> best 200.
+   Mechanism: cse walks from the flags store straight into the block after the
+   mode tests (that label has a single use), so two 0x94 assignments to `y` in
+   this arm can never both survive; retail's extra copy is a reorg fill this
+   build does not make. Do not re-derive the rest - it took 99.41 -> 99.87:
+   - `i = 0;` as its own statement before the visibleCount/flagsUnion loop (with
+     `for (; i < 4; i++)`) is what puts `move $a0,zero` FIRST, as retail has it;
+     the loop's own init clause emits it after the two accumulators (0.03).
+   - the three-statement `projectedY` split of the above arm's y is required:
+     with `y = screenY - height * 14 - 0x24;` this gcc computes height*14 before
+     loading screenY, retail loads screenY first (0.46).
    - `foundIndex` (the address-taken out-param of
      FieldTextBoxFindCurrentActorTextBox) is NOT textBoxIndex: retail keeps
-     textBoxIndex in a register ($s1) and spills only the found index, which
-     is read once in the "already open" path. With one variable for both the
-     whole allocation collapses (textBoxIndex spills, 8 saved regs, 0x68
-     frame).
+     textBoxIndex in a register ($s1) and spills only the found index, which is
+     read once in the "already open" path. With one variable for both the whole
+     allocation collapses (textBoxIndex spills, 8 saved regs, 0x68 frame).
    - the "already open" tail must be a `goto` to a label at the END of the
      function: coded inline it lands at 0x160 instead of retail's 0x6E4 and
      every branch target in the function is off by 0x38.
    - `x` is the projection out-param (memory, 0x34) and `screenY` is a second
-     out-param (0x38) that only exists to be copied into `y`, which is a
-     register variable; the window's left edge is a third register variable
-     (`left`) computed from `x`. Writing the clamps back into `x` stores to
-     memory and costs 9 instructions.
+     out-param (0x38) that only exists to be copied into `y`, a register
+     variable; the window's left edge is a third register variable (`left`)
+     computed from `x`. Writing the clamps back into `x` stores to memory and
+     costs 9 instructions.
+   - the `i = 8` / `i = 0x10` locals before the clamp comparisons must stay:
+     without them gcc reassociates `(x - 8) - width * 2` into
+     `x - (width * 2 + 8)` and `(y + 8) + height * 14` into
+     `y + (height * 14 + 8)`, five instructions off each way (97.10).
 s32 func_8009C5A8(s32 actorIndex, s32 mode) {
     s32 foundIndex;
     s32 textBoxIndex;
@@ -412,6 +425,7 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
     s32 screenY;
     s32 left;
     s32 y;
+    s32 projectedY;
     s32 width;
     s32 height;
     s32 visibleCount;
@@ -457,9 +471,10 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
         }
     }
 
+    i = 0;
     visibleCount = 0;
     flagsUnion = 0;
-    for (i = 0; i < 4; i++) {
+    for (; i < 4; i++) {
         if (g_FieldTextBoxes[i].visibility == 0) {
             visibleCount++;
             flagsUnion |= g_FieldTextBoxes[i].flags;
@@ -507,7 +522,9 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
         if (mode == 0 || mode == 3) {
             FieldProjectActorPointToScreen(actorIndex, &x, &screenY, -0x40);
             if (mode == 0) {
-                y = screenY - height * 14 - 0x24;
+                projectedY = screenY;
+                projectedY = projectedY - height * 14;
+                y = projectedY - 0x24;
             } else {
                 y = 0x14;
                 x = 0xA0;
