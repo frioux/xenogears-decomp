@@ -111,32 +111,30 @@ void BattleSetTaskCallback(SpriteData *pSprite) {
     pTask = pSprite->field_0x6C;
     WorkListSetTaskCallback(&pTask->drawEntry, SpriteDrawModelPartsInBaseMatrix);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6464);
-/* best 59.79% (s32 b0/b1 locals below) / 58.00% (inline p[0], p[1]).
-   retail clusters all three loads at the block top (lhu v0,0(a3); lbu a0,0(t1);
-   lbu a1,1(t1)) and only then does the andi/srl/addu work; gcc sinks the second
-   lbu below the srl.  Retail also chains both pointer loads in the same register
-   (lw v1,0x20(a0); lw v1,0x30(v1)) because the count lives in v0, while gcc
-   allocates the count to v1 and the chain to v0.  Tried: u16 v local, s32 byte
-   locals, i less-than n (gives slt instead of the rotated bne), signed and
-   unsigned packet pointer types, pointer chain before the count.
-void func_800B6464(u8 *pActor, u8 *p) {
-    u8 *pEntry;
-    s16 n;
+void func_800B6464(BattleSpriteState *pActor, u8 *p) {
+    SpriteFrameData *pFrame;
+    u8 n;
     s16 i;
+    u16 v;
+    s32 b0;
+    s32 b1;
+    s32 lo;
+    s32 hi;
 
-    n = *(u8 *)(pActor + 0x40) >> 2;
-    pEntry = (u8 *)(*(u32 *)(*(u32 *)(pActor + 0x20) + 0x30)) + 0xC;
+    n = pActor->unk40[0] >> 2;
+    pFrame = pActor->pBase->pCurRenderFramesData;
     for (i = 0; i != n; i++) {
-        u16 v = *(u16 *)pEntry;
-        s32 b0 = p[0];
-        s32 b1 = p[1];
-
-        *(u16 *)pEntry = ((v & 0x3F) + b0) | ((((v >> 6) & 0x1FF) + b1) << 6);
-        pEntry += 0x18;
+        v = pFrame->clutID;
+        b0 = p[0];
+        b1 = p[1];
+        lo = v & 0x3F;
+        hi = (v >> 6) & 0x1FF;
+        lo += b0;
+        hi += b1;
+        pFrame->clutID = lo | (hi << 6);
+        pFrame++;
     }
 }
-*/
 void BattleScriptPlaySpriteAnimation(s32 arg0, u8 *p) {
     BattleSpriteSlotTable *pState;
 
