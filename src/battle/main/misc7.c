@@ -369,19 +369,26 @@ void BattleWordRegSetRandomRange(BattleCommand **p, u8 index) {
 
     pField[(*p)->operand1] = value;
 }
-// best: 91.53%. Structure recovered (3-byte `buf[0] = buf[1] = buf[2] = 0`
-// is what gives the three sb zero; `while (!(buf[0] & buf[1] & buf[2]))`
-// reproduces both copies of the test). Sole gap: gcc hoists the loop-
-// invariant absolute base of g_BattleSlotFlags into a callee-saved register (s5)
-// at the preheader, so the frame is 56 instead of 48 and pField is added
-// straight into s4 instead of a1. Retail re-forms `lui $at,%hi(g_BattleSlotFlags)`
-// every iteration, i.e. its RTL keeps the symbol inside the mem address.
-// Unchanged by nested ifs, `&&`, -G0 and 2.6.0/cdk.
-// screened: 91.53% is the max of Default / cdk 88.92 / 2.6.0 91.53.
+// best: 91.41% (91.53 with the untyped pField below). Structure recovered: the
+// three `sb zero` are `buf[0] = buf[1] = buf[2] = 0`, and the two copies of the
+// test come from the top-tested while being rotated. Sole gap: gcc's
+// strength_reduce turns `g_BattleSlotFlags + idx * 8` into a GIV because idx is
+// loop-VARIANT and hoists the symbol's address into a spare callee-saved
+// register (s5, frame 56 against retail's 48), where retail keeps the symbol
+// inside the mem operand and lets maspsx expand `lui $at / addu $at,$at,v0 /
+// lbu %lo($at)` every iteration (pField then also lands in s4 instead of a1).
+// cc1_probe.sh names the trigger: the same access with a loop-INVARIANT index
+// (`index * 8` from a parameter) takes $2 and no saved register, and a
+// `u8 *pFlags = g_BattleSlotFlags` inside the body hoists as well.
+// Tried and no better (all 91.41): the global declared as a scalar with
+// `(&g_BattleSlotFlags)[idx * 8]`, a `*(volatile u8 *)` read (the round-299
+// read lever does not reach a GIV base), an index-first cast
+// `*(u8 *)((idx * 8) + (s32)g_BattleSlotFlags)`. Earlier rounds: nested ifs,
+// `&&`, -G0. screened: 91.53 is the max of Default / cdk 88.92 / 2.6.0 91.53.
 /*
 void func_8007BD5C(u8 **p, u8 index) {
     u8 buf[3];
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
+    u16 *pField = g_BattleSlotRegs[index].wordRegs;
     u8 idx;
 
     buf[0] = buf[1] = buf[2] = 0;
