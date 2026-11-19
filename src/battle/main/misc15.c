@@ -208,32 +208,33 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
-/* Best: 98.37% (205 insns vs the original's 206 -- ONE instruction short, so it
-   cannot link yet; the 96.69% park was 204). The lever that produced the pointer
-   register retail wants: assign `new_var = &g_BattleActionSlotMask;` BEFORE the
-   g_BattleSlotFlags branch and copy it (`pMask = new_var;`) at the use site. Without
-   that early assignment gcc 2.6 substitutes the constant address into every use
-   (no saved register, 3 saved regs instead of retail's 4 s0-s3, 204 insns).
-   What is left is only WHERE the address is formed, now that the register exists:
-   retail puts `nop; bnez` after the g_BattleSlotFlags load and forms s1 (= &g_BattleActionSlotMask)
-   AT the first use (BattleBeginAnimTask's argument); gcc forms s3 two
-   instructions earlier, filling the slots retail leaves as `nop`, and so the two
-   straight-line uses read 0(s3) instead of retail's fresh lui/addiu+lhu.
-   Also still off: `li v1,0xff / li v0,0x8b8` comes out swapped (value/off tie),
-   `li <i>,0x3` sits one call later than retail's BattleClearSlotCurveEntry
-   delay slot, and the saved-register numbering is s3=pointer where retail has
-   s1 (retail s3=arg0, s2=i). Permuter run from the 96.69% body found the
-   new_var lever (base=1011 best=472); a second run from THIS body is the next
-   step. Already ruled out: -G8/-G0 preset (99.73% under -G0, still short),
-   u16 pointer, register and volatile pMask, pMask[0], moving the
-   assignment site, -O1/-O3.
-   Round 297: the missing instruction is the loop's mask read. Retail re-forms
-   lui/hi + lhu/lo(g_BattleActionSlotMask) inside the loop (2 insns), while any
-   spelling that also holds the flag's ADDRESS in a register lets gcc read through
-   that register (1 insn: 820 bytes against retail's 824). Reading the symbol in
-   the loop while keeping the pointer makes gcc hoist the address into s3 instead
-   (97.15); a volatile pointer with a symbol loop is 97.22. A u16 temp for the
-   entry load in the else arm is 98.54 (a permuter run from 98.47 found it). */
+/* Best: 99.90% at retail's EXACT 824 bytes (206 insns) -- the body below has the
+   right size and multiset and fails to link only on two `addu` destinations.
+   What got here (all measured):
+   1. The loop's mask read: retail re-forms lui/%hi + lhu/%lo(g_BattleActionSlotMask)
+      inside the loop (2 insns). Any `*pMask` in the loop collapses that to one
+      insn through the saved register (820). A volatile read of the symbol in the
+      loop (`*(volatile u16 *)&g_BattleActionSlotMask`) is what puts the macro form
+      back.
+   2. `new_var = &g_BattleActionSlotMask;` before the `sel` test plus
+      `pMask = new_var;` at the use site. Creating the pointer at its first use
+      instead lets gcc substitute the address at both sites (816: 3 saved regs);
+      creating it early enough to be live across the mask's own live range is what
+      buys retail's 4th saved register.
+   3. `do { D_800C402F[off] = value; } while (0);` in the 0xFF fill loop and a
+      duplicate `pMask = new_var;` inside the `sel != 0` arm (the permuter found
+      both; without them the 0xFF/0x8B8 register pair and the sel-arm ordering are
+      off, 97.03%).
+   4. A `u16 entry` local in the else arm, then `sel = entry; sel = sel & 7;` in
+      two statements -- one statement is 98.47.
+   What is left, and it is a tie the permuter cannot move (base=20 best=20 after
+   2073 iterations): retail `addu v1,v1,v0` / `addu at,at,v1` (the sum coalesces
+   with its LEFT operand, (commandId + K) * 40) where the compile writes
+   `addu v0,v1,v0` / `addu at,at,v0` -- io in the right operand's register (arg0 *
+   1520). Both arms of the g_BattleSlotFlags branch show it. Measured and worse:
+   swapping the C operand order (91.00, 816), splitting the sum into two
+   statements `off = (c + K) * 40; off = off + arg0 * 1520;` (98.33, 828), a named
+   local for `off`, and the index inlined into the load (93.68, 804). */
 /*
 void func_8008ADD0(u8 arg0) {
     s32 off;
@@ -248,20 +249,31 @@ void func_8008ADD0(u8 arg0) {
     BattleApplySlotMaskToEffects(0);
     value = 0xFF;
     for (off = 0x8B8; off >= 0; off -= 0x48) {
-        D_800C402F[off] = value;
+        do {
+            D_800C402F[off] = value;
+        } while (0);
     }
-    new_var = &g_BattleActionSlotMask;
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x17;
         off = (g_BattleCommandQueue->commandId + 0x16) * 40 + arg0 * 1520;
         sel = *(u16 *)(g_BattleCellActionRows + off) & 7;
     } else {
         g_BattleCommandQueue->unk2DC = g_BattleCommandQueue->commandId + 0x16;
-        off = (g_BattleCommandQueue->commandId + 0x15) * 40 + arg0 * 1680;
-        sel = *(u16 *)(g_BattleActionRows + off) & 7;
+        {
+            u16 entry;
+
+            off = (g_BattleCommandQueue->commandId + 0x15) * 40 + arg0 * 1680;
+            entry = *(u16 *)(g_BattleActionRows + off);
+            sel = entry;
+            sel = sel & 7;
+        }
     }
+    new_var = &g_BattleActionSlotMask;
     if (sel != 0) {
-        mask = g_BattleTargetSlotMask;
+        pMask = new_var;
+        if (1) {
+            mask = g_BattleTargetSlotMask;
+        }
     } else {
         mask = BattleSlotBitMask(g_BattleTargetSlot);
     }
@@ -277,7 +289,7 @@ void func_8008ADD0(u8 arg0) {
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = *pMask;
     for (i = 3; i < 11; i++) {
-        if (BattleMaskHasSlotBit(*pMask, i) != 0) {
+        if (BattleMaskHasSlotBit(*(volatile u16 *)&g_BattleActionSlotMask, i) != 0) {
             func_80079840(arg0, i);
         }
     }
