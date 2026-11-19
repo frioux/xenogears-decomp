@@ -167,7 +167,7 @@ void GearShopMenuRenderShopUi(void) {
 void GearShopMenuRenderGearModel(void) {
     // most likely: if helper library is loaded into memory
     if (g_Menu->pManager->isPanelActive[0]) {
-        LibGearRenderFrame(&g_Menu->modelMatrix, &g_Menu->unk298, g_Menu->pGfxEnv->otBuffer, g_Menu->renderContext);
+        LibGearRenderFrame(&g_Menu->modelMatrix, &g_Menu->viewMatrix, g_Menu->pGfxEnv->otBuffer, g_Menu->renderContext);
     }
 }
 
@@ -2532,15 +2532,15 @@ void GearShopMenuInitializeGearView(void) {
 
     LibGearInitialize(0x40);
 
-    g_Menu->unk298 = 0x546;
-    g_Menu->unk29A = -0xE39;
-    g_Menu->unk29C = 0x546;
-    g_Menu->unk29E = 0;
-    g_Menu->unk2A0 = 0;
-    g_Menu->unk2A2 = 0;
-    g_Menu->unk2A4 = 0;
-    g_Menu->unk2A6 = 0;
-    g_Menu->unk2A8 = 0;
+    g_Menu->viewMatrix.m[0][0] = 0x546;
+    g_Menu->viewMatrix.m[0][1] = -0xE39;
+    g_Menu->viewMatrix.m[0][2] = 0x546;
+    g_Menu->viewMatrix.m[1][0] = 0;
+    g_Menu->viewMatrix.m[1][1] = 0;
+    g_Menu->viewMatrix.m[1][2] = 0;
+    g_Menu->viewMatrix.m[2][0] = 0;
+    g_Menu->viewMatrix.m[2][1] = 0;
+    g_Menu->viewMatrix.m[2][2] = 0;
 
     g_Menu->colorMatrix.m[0][0] = 0x600;
     g_Menu->colorMatrix.m[0][1] = 0;

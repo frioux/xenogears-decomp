@@ -773,22 +773,7 @@ typedef struct {
     /* 0x220  */ VECTOR cameraPosition;
     /* 0x230  */ MATRIX modelMatrix;
     /* 0x250  */ u8 unk250[0x48];
-    /* 0x298  */ s16 unk298;
-    /* 0x29A  */ s16 unk29A;
-    /* 0x29C  */ s16 unk29C;
-    /* 0x29E  */ s16 unk29E;
-    /* 0x2A0  */ s16 unk2A0;
-    /* 0x2A2  */ s16 unk2A2;
-    /* 0x2A4  */ s16 unk2A4;
-    /* 0x2A6  */ s16 unk2A6;
-    /* 0x2A8  */ s16 unk2A8;
-    /* 0x2AA  */ s16 unk2AA;
-    /* 0x2AC  */ s16 unk2AC;
-    /* 0x2AE  */ s16 unk2AE;
-    /* 0x2B0  */ s16 unk2B0;
-    /* 0x2B2  */ s16 unk2B2;
-    /* 0x2B4  */ s16 unk2B4;
-    /* 0x2B6  */ s16 unk2B6;
+    /* 0x298  */ MATRIX viewMatrix; // Gear model view matrix, handed to LibGearRenderFrame beside modelMatrix and used as func_801DCEC8's pViewMatrix
     /* 0x2B8  */ MATRIX colorMatrix; // Gear model colour matrix, handed to SetColorMatrix through D_801E8644
     /* 0x2D8  */ u32 idleFrameCount;
     /* 0x2DC  */ MenuResourceDirectory *resources;
