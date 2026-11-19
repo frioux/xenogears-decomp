@@ -21,7 +21,7 @@ extern s32 g_WorldMapMode4EntryTriggered;
 extern u8 *WorldMapGetTileEntry(s32 x, s32 z);
 extern u8 g_WorldMapZoneId;
 extern s16 g_WorldMapAreaId;
-extern u16 g_WorldMapViewRotationY;
+extern s16 g_WorldMapViewRotationY[];
 extern u8 g_WorldMapZoneProximity;
 extern void *g_WorldMapAreaRect;
 extern u32 g_WorldMapZoneAreaRects[3];
@@ -43,7 +43,7 @@ extern s32 D_8009C170;
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
 extern s32 g_WorldMapCameraHeight;
 extern s16 g_WorldMapCameraRot;
-extern s16 g_WorldMapViewRotationZ;
+extern s16 g_WorldMapViewRotationZ[];
 extern u16 g_WorldMapPlayerAngle;
 extern u32 g_WorldMapScrollTargetX[];
 extern s16 g_WorldMapCameraPathAnglesModes1To5[];
@@ -75,16 +75,19 @@ typedef struct {
     /* 0x40 */ u32 dirZ;
     /* 0x44 */ u32 unk44;
     /* 0x48 */ s16 angle;
-    /* 0x4A */ u16 moveSpeed;
+    /* 0x4A */ s16 moveSpeed;
     /* 0x4C */ void *pSprite;
     /* 0x50 */ s32 unk50;
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
     /* 0x60 */ s32 unk60;
-    /* 0x64 */ s16 *pCameraPathAngles;
+    // 0x64 is reused per slot mode: the mode 1 update (WorldMapMode1UpdateSlot) keeps the
+    // phase of its yaw ramp here and the camera-path modes store their angle track pointer
+    // in it, so no single type fits; the pointer spelling is cast at those two sites.
+    /* 0x64 */ s32 unk64;
     /* 0x68 */ s16 *pCameraPathHeights;
-    /* 0x6C */ u32 unk6C;
+    /* 0x6C */ s32 unk6C;
     /* 0x70 */ s32 unk70;
     /* 0x74 */ u32 unk74;
     /* 0x78 */ s32 targetAngle;
@@ -359,7 +362,7 @@ s32 WorldMapInitActorAtGameStatePosition(s32 idx) {
     pPlayer->dirX = 0;
     pPlayer->hidden = 0;
     pPlayer->unk60 = 0;
-    pPlayer->pCameraPathAngles = 0;
+    pPlayer->unk64 = 0;
     pPlayer->unk6C = 0;
     pPlayer->state = 8;
     pPlayer->angle = nAngle;
@@ -609,6 +612,212 @@ s32 func_80090E14(WorldMapPlayer *pPlayer) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80090FB4);
+/* best: 98.03%, 1148 bytes = retail's exact size, every relocation right, frame and
+   saved set exact (0x28 with ra/s1/s0, pPlayer in s1, &g_WorldMapViewRotationY across the
+   two rcos calls in s0). Decoded: the 0x64 phase dispatch, the four pad arms that build a
+   turn target and a 16.16 velocity target, the two "ramp toward the target by at most a
+   step, clamped to the remaining distance" blocks, the 0x6C pitch state machine, the 0x80
+   move-speed ramp with its +/-moveSpeed<<12 clamp, then the trig tail and the return ladder
+   1/4/0. Left is pure register naming plus one constant position:
+   - retail keeps pad in a0 and nTurn in v1 (this body v1 and a1); nTol is t2 and pRotZ t1
+     here t1 and t2. Eight declaration-order and statement-order permutations measured,
+     all 98.03%.
+   - the abs in both ramp blocks: retail is bgez / move a1,v0 / negu a1,a1, this body
+     bgez / slt (a duplicate that reorg steals into the slot) / negu. An if/else and a
+     second-variable spelling both measured the same; the permuter's best candidate scored
+     better in its own metric but compiled to the identical object.
+   - the `li 0x1000` for nTol: retail emits it before `subu`, reorg puts it in the `bgez`
+     delay slot here (retail has a nop there).
+   Spellings that ARE load-bearing, measured one at a time from 91.2% to here:
+   - `extern s16 g_WorldMapViewRotationY[];` and `pRotY[0]` for both rcos arguments. With a
+     scalar extern gcc uses the %hi/%lo macro form twice and the function loses a saved
+     register (1144 bytes, s1 never used).
+   - `pRotZ = g_WorldMapViewRotationZ;` (array decay, as a statement, not `&global`): that is
+     what makes retail's lui+addiu into t1 with the lh and the sh both through it.
+   - inside case 1 the FIRST initialisation is `nVel = 0`, which is the one reorg puts in
+     the dispatch's branch delay slot, as retail does. nTurn = 0 first puts nTurn there.
+   - the tail is `pPlayer->angle = (pPlayer->unk58 >> 12) & 0xFFF;` followed by
+     `g_WorldMapViewRotationY[0] = pPlayer->angle;`. Reading the field back keeps the shift
+     on the sum's register after the 0x58 store; a separate angle local puts `sra` into a
+     fresh register before the store (97.4%).
+   - the ramp's add/sub is a conditional expression, `(x < t) ? (x + s) : (x - s)`, which is
+     what emits retail's bnez / addu / subu / shared store.
+   - the 0x80 block really does test g_WorldMapPad1Held & 0x80 twice (retail re-reads the
+     global between the step and the clamp).
+   Field evidence for the struct: 0x64 is a phase counter here (0 then 1), not the camera-path
+   pointer the camera modes store in it; 0x4A moveSpeed is read with `lh` (so s16); 0x6C is
+   compared with slti (s32).
+   Dead ends measured: volatile s16* pRotY (adds sll/sra sign extension per read), the pad
+   passed inline instead of through a local, an if/else or two-variable abs, and a 4-minute
+   permuter run. No jtbl in this stub, so parking it costs no layout work.
+// Mode 1's per-frame slot update: ramps the slot's yaw (0x58, a 12.12 fixed-point angle,
+// with 0x5C as its angular velocity) toward the direction the pad asks for, tilts the pitch
+// accumulator 0x70 up/down, and rebuilds the slot's forward vector from both. The command
+// byte 0x64 is the phase: 0 seeds the ramp from the current angle, 1 runs it.
+s32 func_80090FB4(WorldMapPlayer *pPlayer) {
+    s16 *pRotY;
+    s16 *pRotZ;
+    s16 nAngle;
+    s32 nTurn;
+    s32 nVel;
+    s32 nStep;
+    s32 nTol;
+    s32 nDelta;
+    s32 nLimit;
+    s32 nAbs;
+    u16 nPad;
+
+    switch (pPlayer->unk64) {
+    case 0:
+        pPlayer->unk64 = 1;
+        pPlayer->unk5C = 0;
+        pPlayer->unk58 = pPlayer->angle << 12;
+        break;
+    case 1:
+        nVel = 0;
+        nTurn = 0;
+        nStep = 8;
+        nTol = 0x1200;
+        nPad = g_WorldMapPad1Held;
+        if (nPad & 0x8000) {
+            nTurn -= 0x60;
+            nVel -= 0x10000;
+        }
+        if (nPad & 0x2000) {
+            nTurn += 0x60;
+            nVel += 0x10000;
+        }
+        if (nPad & 0x4) {
+            nTurn -= 0x60;
+            nVel -= 0x10000;
+        }
+        if (nPad & 0x8) {
+            nTurn += 0x60;
+            nVel += 0x10000;
+        }
+        if (nPad & 0xA00C) {
+            nTol = 0x1000;
+            nDelta = g_WorldMapViewRotationZ[0] - nTurn;
+            if (nDelta < 0) {
+                nDelta = -nDelta;
+            }
+            nStep = nDelta >> 4;
+        }
+        pRotZ = g_WorldMapViewRotationZ;
+        nAngle = *pRotZ;
+        if (nAngle != nTurn) {
+            nDelta = nAngle - nTurn;
+            nAbs = (nDelta < 0) ? -nDelta : nDelta;
+            if (nAbs < nStep) {
+                nStep = nAbs;
+            }
+            nAngle = (nAngle < nTurn) ? (nAngle + nStep) : (nAngle - nStep);
+            *pRotZ = nAngle;
+        }
+        if (pPlayer->unk5C != nVel) {
+            nDelta = pPlayer->unk5C - nVel;
+            nAbs = (nDelta < 0) ? -nDelta : nDelta;
+            if (nAbs < nTol) {
+                nTol = nAbs;
+            }
+            if (pPlayer->unk5C < nVel) {
+                pPlayer->unk5C += nTol;
+            } else {
+                pPlayer->unk5C -= nTol;
+            }
+        }
+        break;
+    }
+    pPlayer->unk58 += pPlayer->unk5C;
+    pPlayer->angle = (pPlayer->unk58 >> 12) & 0xFFF;
+    g_WorldMapViewRotationY[0] = pPlayer->angle;
+    switch (pPlayer->unk6C) {
+    case 0:
+        pPlayer->unk6C = 1;
+        pPlayer->unk70 = 0;
+        break;
+    case 1:
+        if (pPlayer->unk70 != 0) {
+            if (pPlayer->unk70 < 0) {
+                pPlayer->unk70 += 0x2000;
+            } else {
+                pPlayer->unk70 -= 0x2000;
+            }
+        }
+        if (g_WorldMapPad1Held & 0x4000) {
+            pPlayer->unk6C = 2;
+        }
+        if (g_WorldMapPad1Held & 0x1000) {
+            pPlayer->unk6C = 3;
+        }
+        break;
+    case 2:
+        if (g_WorldMapPad1Held & 0x4000) {
+            pPlayer->unk70 -= 0x4000;
+            if (pPlayer->unk70 < -0x80000) {
+                pPlayer->unk70 = -0x80000;
+            }
+        } else {
+            pPlayer->unk6C = 1;
+        }
+        break;
+    case 3:
+        if (g_WorldMapPad1Held & 0x1000) {
+            pPlayer->unk70 += 0x4000;
+            if (pPlayer->unk70 > 0x80000) {
+                pPlayer->unk70 = 0x80000;
+            }
+        } else {
+            pPlayer->unk6C = 1;
+        }
+        break;
+    }
+    if (g_WorldMapPad1Held & 0x80) {
+        if (g_WorldMapPad1Held & 0x2) {
+            pPlayer->unk60 -= 0x1000;
+        } else {
+            pPlayer->unk60 += 0x1000;
+        }
+        if (g_WorldMapPad1Held & 0x80) {
+            nLimit = -pPlayer->moveSpeed << 12;
+            if (pPlayer->unk60 < nLimit) {
+                pPlayer->unk60 = nLimit;
+            }
+            nLimit = pPlayer->moveSpeed << 12;
+            if (nLimit < pPlayer->unk60) {
+                pPlayer->unk60 = nLimit;
+            }
+        }
+    } else if (pPlayer->unk60 != 0) {
+        if (pPlayer->unk60 < 0) {
+            pPlayer->unk60 += 0x1000;
+        } else {
+            pPlayer->unk60 -= 0x1000;
+        }
+    }
+    pRotY = g_WorldMapViewRotationY;
+    pPlayer->dirX = rcos(pRotY[0]);
+    pPlayer->dirY = rcos(pPlayer->unk70 >> 12);
+    pPlayer->dirZ = -rsin(pRotY[0]);
+    VectorNormal((VECTOR *)&pPlayer->dirX, (VECTOR *)&pPlayer->dirX);
+    if (g_WorldMapPad1Released & 0x20) {
+        if (g_WorldMapAreaId != -1) {
+            return 1;
+        }
+    }
+    if (g_WorldMapPad1Released & 0x40) {
+        if ((pPlayer->unk60 == 0) & (g_WorldMapViewRotationZ[0] == 0)) {
+            return 4;
+        }
+    }
+    if (g_WorldMapPad1Released & 0x10) {
+        if ((g_WorldMapMode4AreaId == -1) && (g_WorldMapAreaId == g_WorldMapMode4AreaId)) {
+            g_WorldMapMode4EntryTriggered = 1;
+        }
+    }
+    return 0;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_80091430);
 /* best: 91.20%, 160-byte body at retail's size and every branch offset identical.
    Retail keeps &g_WorldMapViewRotationY (s16) in $v1 across the `sh` store and the
@@ -630,7 +839,7 @@ s32 func_80091430(s32 idx) {
     pPlayer = g_WorldMapSlots + idx;
     *(Quad *)&pPlayer->x = *(Quad *)g_WorldMapScrollTargetX;
     nAngle = g_WorldMapPlayerAngle;
-    pRotY = &g_WorldMapViewRotationY;
+    pRotY = g_WorldMapViewRotationY;
     g_WorldMapViewRotationZ = 0;
     *(volatile s16 *)pRotY = nAngle;
     pPlayer->unk50 = (s16)nAngle;
@@ -660,7 +869,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
         pPlayer->unk50 = 3;
         g_WorldMapCameraHeight = 0x460000;
         g_WorldMapCameraRot = -0x260;
-        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesModes1To5;
+        pPlayer->unk64 = (s32)g_WorldMapCameraPathAnglesModes1To5;
         pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsModes1To5;
         break;
     case 6:
@@ -669,7 +878,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
         pPlayer->unk50 = 3;
         g_WorldMapCameraHeight = 0x280000;
         g_WorldMapCameraRot = -0x260;
-        pPlayer->pCameraPathAngles = g_WorldMapCameraPathAnglesMode7;
+        pPlayer->unk64 = (s32)g_WorldMapCameraPathAnglesMode7;
         pPlayer->pCameraPathHeights = g_WorldMapCameraPathHeightsMode7;
         break;
     }
