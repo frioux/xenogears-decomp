@@ -47,14 +47,15 @@ extern u32 D_800C3674;
 extern s32 D_800C3678;
 extern u8 g_BattleActiveAnimTaskCount;
 extern s32 D_800C3CBC;
+extern s32 D_800C3CC0;
 extern BattleSpriteColorTask *g_BattleSpriteColorTask;
 // The anim tasks the two owner groups run; AnimTask (system/animation.h) is the
 // record: entry, the entry the owner list links, then the sprite it animates.
 extern AnimTask *g_BattleAnimOwnerTaskGroupA;
 extern AnimTask *g_BattleAnimOwnerTaskGroupB;
-extern u16 g_BattleAnimSavedGroupStates[];
+extern s16 g_BattleAnimSavedGroupStates[];
 extern u16 D_800C3CD4[];
-extern u16 g_BattleAnimGroupStates[];
+extern s16 g_BattleAnimGroupStates[];
 extern u16 D_800D30A8[];
 extern void WorkListsRemoveEntriesForData(void *pTask);
 extern void AnimScriptTick(SpriteData *pSprite);
@@ -66,10 +67,6 @@ extern IVEC3 g_BattleAnimPositionGroupA;
 extern IVEC3 g_BattleAnimPositionGroupB;
 extern void func_800BC460(s32 arg0);
 
-// best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(g_BattleViewMatrix)
-// lands late and turns the three "lh" loads into v1 instead of v0. 2.6.0 fixes the
-// lhu re-read of field 0x36 that 2.7.2 forwards from the store.
-/*
 void func_800BB248(u8 *pTask) {
     u8 *pSpriteData;
     SVECTOR vec;
@@ -84,7 +81,7 @@ void func_800BB248(u8 *pTask) {
     pSpriteData = *(u8 **)(pTask + 4);
     mode = *(u32 *)(pSpriteData + 0xA8) >> 30;
     pField = (u16 *)(pSpriteData + 0x36);
-    *pField = BattleGetActorHeight(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
+    *(volatile u16 *)pField = BattleGetActorHeight(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
     pRead = (u16 *)(pSpriteData + 0x36);
     *(u16 *)(pSpriteData + 0x38) = *pRead >> 1;
     v = *(s16 *)(pSpriteData + 0x2);
@@ -102,9 +99,6 @@ void func_800BB248(u8 *pTask) {
     }
     *(u16 *)(pSpriteData + 0x2E) = nOTOffset;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB248);
-
 void BattleFreeActorSpriteTask(u8 *pEntry) {
     u32 unused[2];
     WorkListRemoveTask(pEntry + 0x1C);
@@ -120,11 +114,6 @@ void BattleAnimTaskAllocArchiveEntry(BattleArchiveLoadTask *pTask) {
     TimerWorkListSetTaskCallback(pTask, func_800BB620);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB6E0);
-// best 88.71% under cdk -G0 (44.87% under 2.7.2 -G8): the frame is 40 and every
-// instruction is present, only the global-base registers differ (we keep
-// &g_FlagTimerWorkListAdds in s0 with the saved byte in s3, retail uses s1/s4), plus one
-// load-delay nop after lw g_BattlePendingActorTaskCount that retail fills with the pEntry store.
-/*
 void func_800BB760(u8 *pEntry) {
     u8 saved;
     u8 *pTask;
@@ -134,13 +123,11 @@ void func_800BB760(u8 *pEntry) {
     g_TaskHeapAllocFlags = 1;
     pTask = TimerWorkListAllocateTask(NULL, 4);
     TimerWorkListSetTaskCallback(pTask, func_800BB6E0);
-    g_BattlePendingActorTaskCount++;
     *(u8 **)(pTask + 0x1C) = pEntry;
     g_TaskHeapAllocFlags = 0;
+    g_BattlePendingActorTaskCount++;
     g_FlagTimerWorkListAdds = saved;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB760);
 void BattleResetAnimState(void) {
     D_800C3674 = 0x200;
     D_800C3678 = -1;
@@ -298,6 +285,41 @@ void BattleInitAnimTask(AnimTask *pTask) {
     TimerWorkListSetTaskCallback(pTask, BattleAnimTaskTick);
     func_800BC2F0(2);
 }
+// best 97.55% at 260 bytes (retail 264): every instruction but one. Retail reaches
+// the second position group with 'addu a0,a0,8' off the SAME register that holds
+// &g_BattleAnimGroupStates; a compile-time-indexed spelling folds the +8 into the
+// displacement (260), and the pointer-walk spelling ('pStates += 4') restores the
+// addu but then the scheduler cannot fill the last lh's delay slot and the body
+// grows to 268. Case-body order is source order: case 4 first, then case 2.
+/*
+void func_800BC2F0(s32 state) {
+    D_800C3CC0 = state;
+    D_800C3CBC = 1;
+    switch (state) {
+    case 4:
+        D_800C3CBC = 5;
+        break;
+    case 2:
+        g_BattleAnimPositionGroupA.x = g_BattleAnimGroupStates[0] << 16;
+        g_BattleAnimPositionGroupA.y = g_BattleAnimGroupStates[1] << 16;
+        g_BattleAnimPositionGroupA.z = g_BattleAnimGroupStates[2] << 16;
+        g_BattleAnimPositionGroupB.x = g_BattleAnimGroupStates[4] << 16;
+        g_BattleAnimPositionGroupB.y = g_BattleAnimGroupStates[5] << 16;
+        g_BattleAnimPositionGroupB.z = g_BattleAnimGroupStates[6] << 16;
+        break;
+    default:
+        if (g_BattleAnimOwnerTaskGroupA != NULL) {
+            g_BattleAnimOwnerTaskGroupA->task1.onFreeCallback(g_BattleAnimOwnerTaskGroupA);
+            g_BattleAnimOwnerTaskGroupA = NULL;
+        }
+        if (g_BattleAnimOwnerTaskGroupB != NULL) {
+            g_BattleAnimOwnerTaskGroupB->task1.onFreeCallback(g_BattleAnimOwnerTaskGroupB);
+            g_BattleAnimOwnerTaskGroupB = NULL;
+        }
+        break;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC2F0);
 void BattleSetAnimTaskDoneState(s32 value) {
     g_BattlePendingAnimState = value;
