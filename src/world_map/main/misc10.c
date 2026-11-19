@@ -491,13 +491,14 @@ void WorldMapFreePrimTemplateBuffers(void) {
     HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
-void func_80089160(s32 arg0, SVECTOR* pPos, u16* pRot) {
+void func_80089160(s32 arg0, SVECTOR* pPos, s16* pRot) {
     WorldMapSprite* pSprite;
     s32 i;
     s32 found;
 
     found = 0;
     pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    // The original retests the group's first sprite 8 times: nothing advances pSprite here.
     for (i = 7; i != -1; i--) {
         if (pSprite->flags & 0x80) {
             found++;
@@ -505,6 +506,7 @@ void func_80089160(s32 arg0, SVECTOR* pPos, u16* pRot) {
         }
     }
     pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    // Both null tests are evaluated and and-ed (retail's sltiu/sltiu/and); `&&` branches instead.
     if ((pPos == 0) & (pRot == 0)) {
         for (i = 7; i != -1; i--) {
             if (found == 0) {
@@ -518,6 +520,7 @@ void func_80089160(s32 arg0, SVECTOR* pPos, u16* pRot) {
                 pSprite->timer = interval;
                 pSprite->lifeTimer = lifeTimer;
             }
+            // x/y and rotX/rotY are zeroed as one word each; two halfword stores do not reproduce it.
             *(s32*)&pSprite->rotX = 0;
             *(s32*)&pSprite->x = 0;
             pSprite->rotZ = 0;
