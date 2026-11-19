@@ -24,6 +24,9 @@ extern u8 D_801EA574[];
 extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
+extern s32 D_801E9D40[]; // X offset of each stat row of the stat table
+extern s32 D_801E9D5C[]; // Y offset of each stat row of the stat table
+extern s32 D_801EA45C[]; // Texture id of each stat row's label, 7 rows per stat group
 
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
@@ -52,6 +55,7 @@ void func_801E8F60(s32 mode, u_char index);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
+void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDirentCount, s32* pTexPageId, s32* pClutX, s32* pClutY, s32* pTexPageX, s32* pTexPageY);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7CFC);
 
@@ -105,6 +109,52 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
+
+/* 98.33% (812 bytes, the original's size). Everything matches except the final
+   MenuSetQuadVertices loop: retail computes the prim address base-first
+   (addu v1,a0,v1) and the vertex address offset-first (addu a0,s0,a0), and it
+   loads x0 and y0 TWICE (a1 and v0 for x0, a2 and v1 for y0) where gcc cse's
+   each to one load and adds a move. Tried: a pPrim local (97.28, gcc also
+   re-bases the 0x2420), (0x2420 + i*0x20) + (u32)base for the vertex address,
+   a u16* rect view, and a 4-minute permuter run (PERMUTER_BETTER 490->426 by
+   giving one read a second copy of g_Menu->unk35C, which emits an extra
+   reload: 816 bytes).
+   The closest shape found: marking the x0 and y0 reads volatile gives retail's
+   six loads back (the two duplicates are what retail has), 99.17% but 816 bytes
+   - gcc then evaluates the args in source order 1,2,3,4 with a stray nop, where
+   retail's y0 load sits after the x1/x0 pair (1,3,2,4). The duplicate loads say
+   retail's source read those two fields twice without cse merging them; nothing
+   found that both suppresses the merge and keeps retail's order.
+   Decoded below.
+void func_801D7F50(s32 x, s32 y, u_char statGroup) {
+    s32 texCoords[6]; // Filled and ignored
+    s32 start;
+    s32 i;
+    s32 j;
+
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_STRING_DEFENSE, &texCoords[0], &texCoords[1], &texCoords[2], &texCoords[3], &texCoords[4], &texCoords[5]);
+    ((u8*)g_Menu->unk35C)[0x32F3] = 0;
+    for (i = 0; i < 7 - statGroup; i++) {
+        start = ((u8*)g_Menu->unk35C)[0x32F3];
+        ((u8*)g_Menu->unk35C)[0x32F3] += func_8002675C(g_Menu->resources, D_801EA45C[statGroup * 7 + i], (POLY_FT4*)((u8*)g_Menu->unk35C + start * 0x50), g_Menu->renderContext, x + D_801E9D40[i], y + D_801E9D5C[i], 0x1000);
+        if (i & 1) {
+            for (j = start; j < ((u8*)g_Menu->unk35C)[0x32F3]; j++) {
+                SetShadeTex((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28), 0);
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->r0 = 0x40;
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->g0 = 0x40;
+                ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28))->b0 = 0x40;
+            }
+        }
+    }
+    for (i = 0; i < ((u8*)g_Menu->unk35C)[0x32F3]; i++) {
+        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk35C + 0x2420 + i * 0x20),
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x1 - ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y3 - ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y0);
+    }
+}
+*/
 void MenuSetStatBarQuadColors(POLY_G4* pPolys, u_char mode) {
     POLY_G4* pPoly;
     u8 rgb[3];
