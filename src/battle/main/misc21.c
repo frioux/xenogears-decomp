@@ -836,14 +836,13 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    Until then the 0x110-frame body below (11 insns short) is the better base. */
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
-/*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
     BattleModelPartList* pMesh;
-    BattleSprite* pSprites;
     BattleSprite* pSprite;
+    BattleSprite* pSprites;
+    Temp8* pTexture;
     u16 scale16;
     MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
     MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
@@ -864,15 +863,15 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     s32 shade;
     s32 i;
     s32 j;
-    s32 k;
 
     if (pActor->doUpdate == 0) {
         return;
     }
     pMesh = pActor->pMesh;
-    pSprites = pActor->pSprites;
     scale16 = pActor->scale;
+    pSprite = pActor->pSprites;
     scale = scale16;
+    pSprites = pSprite;
     count = pSprites->count;
     for (i = 0; i < 2; i++) {
         if (g_BattlePartSlots[i].inUse != 0) {
@@ -976,9 +975,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         pActor->unk39 = 0x6B - depth / 8;
     }
     MulMatrix0(pViewMatrix, &pSprites->globalTransform, pRotMatrix);
-    pSprite = pSprites;
-    for (i = 1; i < count; i++) {
-        pSprite++;
+    pSprite++;
+    for (i = 1; i < count; i++, pSprite++) {
         if (pSprite->jointIndex != 0xFFFF && pSprite->isVisible != 0) {
             MulMatrix0(pRotMatrix, &pSprite->globalTransform, pMatrix);
             SetLightMatrix(pMatrix);
@@ -1039,18 +1037,57 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
     }
-    pSprite = (BattleSprite*)pActor->pTextures;
-    for (i = 0; i < pActor->numTextures; i++, pSprite++) {
-        func_800A3E98(pSprite, texParam);
+    pTexture = pActor->pTextures;
+    for (i = 0; i < pActor->numTextures; i++, pTexture++) {
+        func_800A3E98(pTexture, texParam);
     }
     pTween = (BattleSpriteTween*)pActor->pEntries;
     for (i = 0; i < pActor->numEntries; i++, pTween++) {
         if (pTween->spriteIndex < 0) {
             continue;
         }
-        k = pTween->slot;
         pTween->slot = (pTween->slot - 1) & 7;
-        if (pTween->project3D != 0) {
+        if (pTween->project3D == 0) {
+            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
+            SetRotMatrix(pMatrix);
+            SetTransMatrix(pMatrix);
+            gte_ldv0(&pTween->start);
+            gte_rtps();
+            gte_stsxy2(&pTween->offsets[pTween->slot]);
+            gte_ldv0(&pTween->end);
+            gte_rtps();
+            gte_stsxy2(&pTween->offsets[pTween->slot + 8]);
+            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
+                goto allocate;
+            }
+            if (pTween->pSlot != NULL) {
+                goto done;
+            }
+        allocate:
+            pTween->step = 1;
+            pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
+            pTween->pSlot->is3D = 0;
+            pTween->pSlot->age = 0;
+            pTween->pSlot->lifetime = pTween->lifetime;
+            pTween->pSlot->red = pTween->red;
+            pTween->pSlot->green = pTween->green;
+            pTween->pSlot->blue = pTween->blue;
+            pTween->pSlot->redDelta = pTween->redDelta;
+            pTween->pSlot->greenDelta = pTween->greenDelta;
+            pTween->pSlot->blueDelta = pTween->blueDelta;
+            j = (pTween->slot + pTween->step) & 7;
+            pTween->pSlot->x0 = pTween->offsets[j].vx;
+            pTween->pSlot->y0 = pTween->offsets[j].vy;
+            pTween->pSlot->x2 = pTween->offsets[j + 8].vx;
+            pTween->pSlot->y2 = pTween->offsets[j + 8].vy;
+        done:
+            pTween->pSlot->x1 = pTween->offsets[pTween->slot].vx;
+            pTween->pSlot->y1 = pTween->offsets[pTween->slot].vy;
+            pTween->pSlot->x3 = pTween->offsets[pTween->slot + 8].vx;
+            pTween->pSlot->y3 = pTween->offsets[pTween->slot + 8].vy;
+            continue;
+        }
+        {
             s32 side = pTween->slot & 1;
             s32* pStart = (s32*)((u8*)pTween + 0x1C + side * 0x10);
             s32* pEnd = (s32*)((u8*)pTween + 0x3C + side * 0x10);
@@ -1067,7 +1104,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
                 goto allocate3D;
             }
-            if (pTween->pSlot == NULL) {
+            if (pTween->pSlot != NULL) {
                 goto done3D;
             }
         allocate3D:
@@ -1101,50 +1138,9 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->x3 = ((u16*)pEnd)[0];
             pTween->pSlot->y3 = ((u16*)pEnd)[2];
             pTween->pSlot->z3 = ((u16*)pEnd)[4];
-            continue;
-        } else {
-            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
-            SetRotMatrix(pMatrix);
-            SetTransMatrix(pMatrix);
-            gte_ldv0(&pTween->start);
-            gte_rtps();
-            gte_stsxy2(&pTween->offsets[k]);
-            gte_ldv0(&pTween->end);
-            gte_rtps();
-            gte_stsxy2(&pTween->offsets[k + 8]);
-            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
-                goto allocate;
-            }
-            if (pTween->pSlot == NULL) {
-                goto allocate;
-            }
         }
-        goto done;
-    allocate:
-        pTween->step = 1;
-        pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
-        pTween->pSlot->is3D = 0;
-        pTween->pSlot->age = 0;
-        pTween->pSlot->lifetime = pTween->lifetime;
-        pTween->pSlot->red = pTween->red;
-        pTween->pSlot->green = pTween->green;
-        pTween->pSlot->blue = pTween->blue;
-        pTween->pSlot->redDelta = pTween->redDelta;
-        pTween->pSlot->greenDelta = pTween->greenDelta;
-        pTween->pSlot->blueDelta = pTween->blueDelta;
-        j = (pTween->slot + pTween->step) & 7;
-        pTween->pSlot->x0 = pTween->offsets[j].vx;
-        pTween->pSlot->y0 = pTween->offsets[j].vy;
-        pTween->pSlot->x2 = pTween->offsets[j + 8].vx;
-        pTween->pSlot->y2 = pTween->offsets[j + 8].vy;
-    done:
-        pTween->pSlot->x1 = pTween->offsets[pTween->slot].vx;
-        pTween->pSlot->y1 = pTween->offsets[pTween->slot].vy;
-        pTween->pSlot->x3 = pTween->offsets[pTween->slot + 8].vx;
-        pTween->pSlot->y3 = pTween->offsets[pTween->slot + 8].vy;
     }
 }
-*/
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
