@@ -550,6 +550,147 @@ void FieldLoadActorAnimationFiles(void) {
     }
 }
 
+// Best attempt: 79.98% (1768 bytes against the original's 1772). The structure is exact: the
+// sprite/party split of the first loop, both func_80076AC0 call sites, the 2/3-entry CLUT-rect
+// switch on flags12C_0x10, the party sprite swap keyed on g_pGameState->gearRide, and both VM loops
+// (bytecode offsets 2 then 0, then FieldScriptVMRun(0xFFFF) with the D_800AFC74 fallback).
+// What is left is one saved register (frame 0x44 here against 0x48: the original keeps
+// &g_FieldActors in $s2 and does `lw v0,0(s2)` throughout the two VM loops, this body re-forms
+// lui/lw per access and so never needs $s2) plus the load sharing inside each case-body statement:
+// the original reads g_FieldActors ONCE per statement and takes both pSpriteData and pActorData
+// from that one read, while the volatile declaration in include/field/actor.h makes this body read
+// it twice. Measured alternatives: the plain view ((FieldActor**)&g_FieldActors, the misc6 idiom)
+// makes gcc keep the element pointer in a callee-saved register across the SpriteAllocClutRect call
+// so every reload disappears (81.92% at 1616 bytes); re-assigning a local pointer before each
+// statement reproduces the read count but reads 77.88%; the sprite path as the `then` branch
+// (the other if/else polarity) reads 77.59%. Also: asm/field/nonmatchings/scripts/virtual_machine/
+// func_800A28D4.s owns no data, so converting this stub cannot shift the overlay.
+/*
+extern void func_800A3474(void);
+extern void func_80076AC0(int actorIndex, int spriteId, void* pAnimFile, int modelKind, int clutIndex, int spriteVariant,
+                          int skipAnimTick);
+extern void SpriteAllocClutRect(SpriteData* pSpriteData, int count, int allocFlags);
+extern void* g_PartyDataBuffers[];
+extern s32 g_FieldSceneReloadFlags;
+extern s32 g_FieldPartyActorIndices[3];
+extern s32 g_FieldPartyActorSlots[3];
+extern s32 D_800AFC74;
+
+// The sprite blob's offset table: one offset per sprite, relative to the blob itself.
+typedef struct {
+    // 0x0 s32 unk0;
+    // 0x4 s32 offsets[1];
+} FieldSpriteDataBlob;
+
+// Builds every actor's sprite from the source its script data selected, swaps the party's
+// riders onto their gear's sprites, then runs each actor's script VM. Every actor access
+// goes through g_FieldActors (volatile), so the loads are in the original's order.
+void func_800A28D4(void) {
+    ActorData* pActor;
+    FieldSpriteDataBlob* pSpriteDataBlob;
+    FieldActor* pFieldActor;
+    void* pAnimFile;
+    void* pSwap;
+    void* pSpriteData;
+    int i;
+    int j;
+
+    if (g_GamePartySkinsInitialized) {
+        func_800A3474();
+
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
+            pActor = g_FieldActors[i].pActorData;
+            if (!(pActor->spriteSource & 0x80)) {
+                pAnimFile = g_PartyDataBuffers[pActor->spriteSource];
+            } else {
+                pSpriteDataBlob = g_FieldSpriteData;
+                pAnimFile = (void*)(pSpriteDataBlob->offsets[pActor->spriteSource & 0x7F] + (s32)pSpriteDataBlob);
+            }
+            func_80076AC0(i, pActor->spriteId, pAnimFile, (pActor->flags130 >> 28) & 3, pActor->flags134 & 0xF,
+                          g_FieldActors[i].pActorData->spriteSource, (g_FieldActors[i].pActorData->flags134 >> 4) & 1);
+
+            pFieldActor = &g_FieldActors[i];
+            switch (pFieldActor->pActorData->flags12C_0x10) {
+            case 1:
+                SpriteAllocClutRect((SpriteData*)pFieldActor->pSpriteData, 2, 0);
+                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[2] =
+                    g_FieldActors[i].pActorData->flags12C_0x12;
+                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[3] =
+                    g_FieldActors[i].pActorData->flags130 & 0x1FF;
+                break;
+            case 2:
+                SpriteAllocClutRect((SpriteData*)pFieldActor->pSpriteData, 3, 0);
+                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[2] =
+                    g_FieldActors[i].pActorData->flags12C_0x12;
+                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[3] =
+                    g_FieldActors[i].pActorData->flags130 & 0x1FF;
+                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[4] =
+                    (g_FieldActors[i].pActorData->flags130 >> 9) & 0x3FF;
+                ((u_short*)((SpriteDataI3*)((SpriteData*)g_FieldActors[i].pSpriteData)->field_0x7C)->field_0x18)[5] =
+                    (g_FieldActors[i].pActorData->flags130 >> 19) & 0x1FF;
+                break;
+            }
+        }
+
+        // A party member riding a gear uses the gear's sprite; hand the two actors' sprites
+        // over, or flag the model on the rider when the pair is not in gear.
+        if (g_FieldSceneReloadFlags) {
+            for (j = 0; j < MAX_PARTY_MEMBERS; j++) {
+                if (g_FieldPartyActorSlots[j] != ACTOR_ID_INVALID) {
+                    if (g_pGameState->gearRide[j] != 0) {
+                        pSpriteData = g_FieldActors[g_FieldPartyActorIndices[j]].pSpriteData;
+                        pSwap = g_FieldActors[g_FieldPartyActorSlots[j]].pSpriteData;
+                        g_FieldActors[g_FieldPartyActorSlots[j]].pSpriteData = pSpriteData;
+                        g_FieldActors[g_FieldPartyActorIndices[j]].pSpriteData = pSwap;
+
+                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags |= 0x200;
+                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags &= ~0x500;
+                        g_FieldActors[g_FieldPartyActorIndices[j]].status |= 0x20;
+                    } else {
+                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags |= 0x400;
+                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags &= ~0x300;
+                    }
+                }
+            }
+        }
+    } else {
+        FieldScriptMemoryWriteU16(0x10, 0x0);
+        FieldScriptWritePartyMemberIDs();
+
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
+            g_FieldCurActorIndex = i;
+            g_FieldScriptVMCurFieldActor = &g_FieldActors[i];
+            g_FieldScriptVMCurActor = g_FieldActors[i].pActorData;
+            g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(i, 2);
+            if (SCRIPT_READ_U8(g_FieldScriptVMCurActor->scriptInstructionPointer) == 0) {
+                g_FieldScriptVMCurActor->flags |= 0x4000000;
+            }
+
+            g_FieldCurActorIndex = i;
+            g_FieldScriptVMCurFieldActor = &g_FieldActors[i];
+            g_FieldScriptVMCurActor = g_FieldActors[i].pActorData;
+            g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(i, 0);
+        }
+
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
+            pFieldActor = &g_FieldActors[i];
+            g_FieldCurActorIndex = i;
+            D_800AFC74 = 0;
+            g_FieldScriptVMScriptEndFlag = 0;
+            g_FieldScriptVMCurFieldActor = pFieldActor;
+            g_FieldScriptVMCurActor = pFieldActor->pActorData;
+            FieldScriptVMRun(0xFFFF);
+
+            // The script did not choose a model, so give the actor the first sprite in the blob
+            if (D_800AFC74 == 0) {
+                pSpriteDataBlob = g_FieldSpriteData;
+                func_80076AC0(i, 0, (void*)(pSpriteDataBlob->offsets[0] + (s32)pSpriteDataBlob), 0, 0, 0x80, 0);
+                g_FieldScriptVMCurActor->flags |= 0x800;
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A28D4);
 
 void FieldScriptVMHandlerNop(void) {
