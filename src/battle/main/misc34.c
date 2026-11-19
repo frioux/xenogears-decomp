@@ -450,7 +450,6 @@ void func_800BFDA8(SpriteData *pActor, s32 arg1) {
     g_FlagTimerWorkListAdds = saved;
     pNew->flags_0xB0.flags = flags | 0x100;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
