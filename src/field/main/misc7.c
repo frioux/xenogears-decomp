@@ -147,7 +147,132 @@ void FieldScriptVMHandlerContinueMovementUnbounded(void) {
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80097A50);
+int func_80097A50(int arg0) {
+    FieldActor* pFieldActor;
+    ActorData* pActorData;
+    ActorData* pTargetActor;
+    SpriteData* pSpriteData;
+    VECTOR unused; // never referenced: it is what makes the frame 0x88
+    VECTOR delta;
+    VECTOR normal;
+    VECTOR move;
+    s32 depth;
+    s32 magnitude;
+    s32 distance;
+    s32 curX;
+    s32 curY;
+    s32 curZ;
+    s32 angle;
+    s32 rotationAngle;
+    ActorData* pTailActor;
+    s32 state = -1;
+    s32 y = 0;
+    s32 z = 0;
+    s32 x = 0;
+    s32 radius = 0;
+
+    pFieldActor = g_FieldActors;
+    pActorData = pFieldActor[g_FieldCurActorIndex].pActorData;
+    pSpriteData = pFieldActor[g_FieldCurActorIndex].pSpriteData;
+    if (pActorData->flags & 0x2000) {
+        pSpriteData->moveSpeed = 0x8000000 / g_FieldScriptVMCurActor->moveSpeed;
+    } else {
+        pSpriteData->moveSpeed = 0x4000000 / g_FieldScriptVMCurActor->moveSpeed;
+    }
+    magnitude = FieldGetVec1Magnitude(pSpriteData->moveSpeed >> 15) + 1;
+    radius = 0; // a declaration initialiser would put this zero in the prologue
+
+
+    switch (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17) {
+    case 0:
+        x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5));
+        z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
+        y = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(5));
+        break;
+
+    case 1:
+        x = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->moveStep.vx;
+        z = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->moveStep.vz;
+        y = FieldScriptArgument3(6, SCRIPT_READ_U8_REL(5)) + g_FieldScriptVMCurActor->moveStep.vy;
+        break;
+
+    case 2:
+        if (FieldScriptVMGetActorIndex(1) == ACTOR_ID_INVALID) {
+            return 0;
+        }
+        pTargetActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
+        radius = FieldGetVec1Magnitude(pTargetActor->solidRange + g_FieldScriptVMCurActor->solidRange);
+        x = g_FieldScriptVMCurActor->moveStep.vx;
+        z = g_FieldScriptVMCurActor->moveStep.vz;
+        y = FieldScriptArgument1(2, SCRIPT_READ_U8_REL(4));
+        break;
+
+    case 3:
+        angle = FieldScriptVMGetArgument(1) & 0xFFF;
+        x = (g_FieldScriptVMCurActor->moveStep.vx + rsin(angle) * 0x20) >> 12;
+        z = g_FieldScriptVMCurActor->moveStep.vz + (-(rcos(angle) << 5) >> 12);
+        y = g_FieldScriptVMCurActor->moveStep.vy + FieldScriptArgument1(3, SCRIPT_READ_U8_REL(7));
+        break;
+    }
+
+    curX = ((s16*)&g_FieldScriptVMCurActor->position.vx)[1];
+    curZ = ((s16*)&g_FieldScriptVMCurActor->position.vz)[1];
+    curY = ((s16*)&g_FieldScriptVMCurActor->position.vy)[1];
+    delta.vx = curX - x;
+    delta.vy = curY - y;
+    delta.vz = curZ - z;
+    VectorNormal(&delta, &normal);
+    depth = pSpriteData->moveSpeed >> 8;
+    move.vx = -((normal.vx * depth) >> 4);
+    move.vy = -((normal.vy * depth) >> 4);
+    move.vz = -((normal.vz * depth) >> 4);
+    g_FieldScriptVMCurActor->move.vx = move.vx;
+    g_FieldScriptVMCurActor->move.vy = move.vy;
+    g_FieldScriptVMCurActor->move.vz = move.vz;
+    g_FieldScriptVMCurActor->move.vy = 0;
+    distance = FieldGetVec3Magnitude(x - curX, y - curY, z - curZ);
+    if (((s16*)&g_FieldScriptVMCurActor->move.vx)[1] == 0
+        && ((s16*)&g_FieldScriptVMCurActor->move.vz)[1] == 0) {
+        state = 0;
+    }
+    pTailActor = g_FieldScriptVMCurActor;
+    pTailActor->scriptFlags.flags |= 0x400000;
+
+    if (pTailActor->scripts[pTailActor->curScriptIndex].flags_0 == 0
+        || magnitude + radius >= distance) {
+        if (state == -1) {
+            if (arg0 != 0) {
+                u_short rotation;
+
+                if (!(pTailActor->scriptFlags.flags & 0x8000)) {
+                    rotation = (u_short)pTailActor->rotation.vy | 0x8000;
+                } else {
+                    rotation = (u_short)pTailActor->lockedRotationY | 0x8000;
+                }
+                pTailActor->rotation.vx = rotation;
+                pTailActor->rotation.vy = rotation;
+            } else {
+                rotationAngle = FieldGetVec2Angle((IVEC3*)&move) | 0x8000;
+                g_FieldScriptVMCurActor->rotation.vx = rotationAngle;
+                g_FieldScriptVMCurActor->rotation.vy = rotationAngle;
+            }
+        }
+        g_FieldScriptVMCurActor->scriptYPos = (g_FieldScriptVMCurActor->position.vy + move.vy) >> 16;
+        g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 0;
+        g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
+        return 0;
+    }
+    if (state == -1) {
+        rotationAngle = FieldGetVec2Angle((IVEC3*)&move) | 0x8000;
+        g_FieldScriptVMCurActor->rotation.vx = rotationAngle;
+        g_FieldScriptVMCurActor->rotation.vy = rotationAngle;
+    }
+    g_FieldScriptVMCurActor->scriptYPos = (g_FieldScriptVMCurActor->position.vy + move.vy) >> 16;
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x40000;
+    g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0--;
+    g_FieldScriptVMStopFlag = 1;
+    return -1;
+}
 
 void FieldScriptVMHandlerWalkToActor(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 2;
@@ -464,8 +589,14 @@ extern long FieldGetVec2Magnitude(long, long);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
 /* Best attempt: 96.45%, 1896 bytes against retail's 1900 (one instruction short,
-   scriptInstructionPointer += 0xB in the walk tail). Everything structural is
-   settled and matches instruction for instruction:
+   `scriptInstructionPointer += 0xB` in the walk tail: retail emits the
+   walkmeshTriIds[i] store before the trip-count load and puts `move a2,i` in the
+   bnez delay slot, gcc sinks the store into that slot). Everything else is
+   instruction-identical apart from the register pair: retail keeps frameCount in
+   $s2 and arg3 in $s3, gcc 2.7.2 gives this body the opposite pair and every
+   knock-on follows. Six declaration-order permutations, gcc-2.6.0 (92.89%) and
+   two decomp-permuter runs (1578 iterations) left both untouched.
+   What settled the rest:
    - the dispatch is switch (SCRIPT_READ_U8_REL(1) & 3); case 0 takes the frame
      count straight from FieldScriptArgument4, case 1 divides the distance by it,
      case 2 is the jump (step.y from SquareRoot0 of the height field at
@@ -475,23 +606,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
      puts it between case 0 and case 1 in the object.
    - SpriteData+0x10 is step.y and +0x1C gravity; +0x1E is read as a signed
      halfword, hence the ((s16*)&gravity)[1] view.
-   - unkE0 must be a signed short (include/field/actor.h): retail reads it with
-     lh in the unk102 < unkE0 test and lhu only for its own increment.
+   - moveFrameTotal (0xE0) must be a signed short: retail reads it with lh in the
+     frameCounter < moveFrameTotal test and lhu only for its own increment.
    - VECTOR normal/point are never referenced; they only reproduce retail's
-     0xC0 frame (vars 136 vs 104).
-   What is left is register allocation and two orderings, none of them reachable
-   by the declaration order or statement order levers:
-   (a) retail keeps frameCount in $s2 and arg3 in $s3, gcc 2.7.2 gives this body
-       the opposite pair; five declaration permutations and per-case locals
-       produced identical bytes.
-   (b) the 0xF loop: retail emits walkmeshTriIds[i] = ret (sll/addu/sh) before
-       the trip-count load and puts move a2,i in the bnez delay slot, gcc hoists
-       i++ above the actor reload and sinks the store into the delay slot.
-   (c) case 3's else tail: retail stores ip before the flags mask word, gcc 2.7.2
-       finishes the flags mask first whichever order the two statements are in.
-   (d) the two pass-through calls whose result is discarded (FieldScriptArgument1
-       and 2 at the top of case 2, SquareRoot0(value)) are what retail does; they
-       stay. */
+     0xC0 frame.
+   - the two pass-through calls whose result is discarded (FieldScriptArgument1
+     and 2 at the top of case 2, SquareRoot0(value)) are what retail does. */
 /*
 void func_80099214(void) {
     VECTOR normals[4];
@@ -621,6 +741,7 @@ walk:
     g_FieldScriptVMStopFlag = 1;
 }
 */
+
 
 void FieldScriptVMHandlerWalkToPositionUnbounded(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0x17 = 0;
