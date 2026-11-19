@@ -286,7 +286,32 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     pWork->maxDistance = 0xFF;
     return 0;
 }
-/* 89.78%, re-measured 166: the body BUILDS (the permuter sweep's ERROR row was spurious) and the old number is real. Two differences: retail keeps one 'j epilogue; v0=0' trampoline right after the flags test, with the flags test a POSITIVE bnez into the body and the trampoline as its fall-through; ours is 4 bytes longer (272 vs 268) because the 'v < 0x1001' branch delay slot gets a li v0,1 where retail reuses the slti result and fills the slot with the lui 0xFFFF7FFF. Tried: flat four-return form, nested positive form (same 89.78), combined or-condition, shared-exit goto (84.93), the call result returned directly, gcc-2.7.2-cdk (88.88), and a 3-minute permuter run (PERMUTER_BETTER 823->643 was only a split 0x800 temp, which measured 88.28 by hand). gcc 2.7.2 puts the shared return-0 block at the function end in every spelling; block placement here is not source-controllable.
+/* 89.78%, re-measured this round: the body compiles and the number is real (272
+bytes against retail's 268, 68 instructions against 67). Two differences, both in
+the block layout, and the first one is why the function cannot close:
+1. Retail keeps ONE return-0 trampoline (j epilogue; move v0,zero) BETWEEN the
+   flags test and the body, with the flags test a taken bnez into the body and the
+   trampoline as its fall-through; the two guard returns share that block. gcc
+   2.7.2 here instead gives each guard its own return-0 block and places the
+   survivor after the third guard (BattleCheckPositionPastMapCenter on the
+   target's position) at +0x6c, threading the other into the epilogue branch.
+   Isolated this round: the guards' return-0 block is IDENTICAL to the third
+   guard's, so cross-jump merges them and the surviving block is not the one the
+   guard test created - a 3-minute permuter run's only improvement was to add a
+   store to the guard's block so it stops being identical (cost 823 -> 286), which
+   changes the code's behaviour, so it was rejected. A unique guard block means
+   retail's third guard exit emitted no block at all (bare 'beqz v0, epilogue' with
+   a nop delay slot, i.e. gcc knew v0 was already 0); 'v = call(); if (v == 0)
+   return v;' was tried to get that and produces the same layout.
+2. The last block's 'return 1' li is stolen into the preceding branch's delay slot,
+   which then needs a nop for the flags load; retail keeps the li after the load
+   and fills that slot with the 0xFFFF7FFF lui. Same instruction count either way.
+Screened this round: gcc-2.6.0 89.78, gcc-2.7.2-cdk 88.88, -G0 compile-failed.
+Shapes tried across rounds 166 and this one: two plain returns, combined
+or-condition, single && with the body nested (88.88), one trailing return 0 with
+the body nested, goto to a shared body label, shared-exit result variable (84.93),
+plus the permuter. 
+
 s32 func_8008FACC(BattleActor* pActor, BattleWork* pWork) {
     s32 v;
 
