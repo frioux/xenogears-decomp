@@ -557,5 +557,43 @@ void MenuInitializeWindowBorders(void) {
         &g_Menu->texPageX3, &g_Menu->texPageY3
     );
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6F70);
+extern void MenuSetPolyG4Gradient(POLY_G4* pPoly, u_char r, u_char g, u_char b);
+
+void func_801C6F70(void) {
+    RECT rect;
+    s32 i;
+
+    rect.y = 0;
+    rect.x = 0;
+    rect.h = 0x100;
+    rect.w = 0x100;
+    MenuResetSelectionCursorFlags();
+    for (i = 0; i < 2; i++) {
+        MenuSetPolyG4Gradient(&g_Menu->pCursorPrims->polyG4s[i], 0x80, 0x80, 0);
+        SetSemiTrans(&g_Menu->pCursorPrims->polyG4s[i], 1);
+        SetLineF3(&g_Menu->pCursorPrims->lines1[i]);
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xCC) = 0;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xCD) = 0x40;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xCE) = 0;
+        SetLineF3(&g_Menu->pCursorPrims->lines2[i]);
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xFC) = 0;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xFD) = 0x40;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xFE) = 0;
+        SetPolyF4(&g_Menu->pCursorPrims->polysDimEffect[i]);
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA0) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA2) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA4) = 0x140;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA6) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA8) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAA) = 0xE0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAC) = 0x140;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAE) = 0xE0;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9C) = 0x80;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9D) = 0x80;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9E) = 0x80;
+        SetSemiTrans(&g_Menu->pCursorPrims->polysDimEffect[i], 1);
+        SetDrawMode(&g_Menu->pCursorPrims->drModes1[i], 0, 0, GetTPage(0, 0, 0x140, 0x80), &rect);
+        SetDrawMode(&g_Menu->pCursorPrims->drawModeDimEffect[i], 0, 0, GetTPage(0, 2, 0x180, 0), &rect);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C72BC);
