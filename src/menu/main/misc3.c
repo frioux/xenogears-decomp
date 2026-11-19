@@ -14,6 +14,7 @@ extern u8* g_MenuCardChunkData;
 extern s32 D_801E9810[];
 extern s32 D_801E9818[];
 extern s32 D_801E9820[];
+extern s32 D_801E9828[];
 extern u16 D_8005A3A0[0x10];
 extern u16 D_8006F958[0x10];
 extern int g_SpuChannelMask;
@@ -371,8 +372,90 @@ s32 MenuFindFirstValidSlot(s32 a0) {
     g_Menu->cardSlotState = MENU_CARD_SLOT_STATE_READY;
     return result;
 }
+/* Best attempt: 84.07% (720 bytes vs retail's 704). Case 0 is EXACT (both phase-1
+   and phase-2 loops, the two `slti 0x1E` guards and the D_801E9828/D_801E9820
+   tables); the residual is case 1 and case 2. Case 1: retail keeps `t0 = g_Menu` in
+   a register but RELOADS `lw a0,812(t0)` (menuUnk2) at the top of every loop
+   iteration, where this compile CSEs menuUnk2 into a saved register (a3) - the extra
+   saved value is the whole 16-byte overshoot. Case 2: retail puts `lui v0,0x88888889`
+   in the case test's delay slot and runs `addiu a1,a1,3` after it; this compile puts
+   `addiu a1,a1,3` in the delay slot. Note the mirror func_801CA1D4 (the descending
+   version, same tables) is parked at 83.27% with the identical class of diff, so a
+   fix here should transfer both ways. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
+/*
+void func_801C9EF4(s32 a0, s32 a1) {
+    s32 i;
+    s32 j;
 
+    switch (a0) {
+    case 0:
+        for (i = a1; i + 3 < 0x1E; i += 3) {
+            j = D_801E9828[i];
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
+                g_Menu->menuUnk2->selectedSlot = i + 3;
+                break;
+            }
+        }
+        if (i + 3 < 0x1E) {
+            break;
+        }
+        i = g_Menu->menuUnk2->selectedSlot + 3;
+        if (i < 0x1E) {
+            if (i + 1 < 0x1E) {
+                for (; i + 1 < 0x1E; i++) {
+                    j = D_801E9820[i];
+                    if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
+                        g_Menu->menuUnk2->selectedSlot = i + 1;
+                        break;
+                    }
+                }
+            }
+        }
+        break;
+    case 1:
+        for (i = a1; i + 3 < 0x1E; i += 3) {
+            j = D_801E9828[i];
+            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
+                g_Menu->menuUnk2->selectedSlot = i + 3;
+                break;
+            }
+        }
+        if (i + 3 < 0x1E) {
+            break;
+        }
+        i = g_Menu->menuUnk2->selectedSlot + 3;
+        if (i < 0x1E) {
+            if (i + 1 < 0x1E) {
+                for (; i + 1 < 0x1E; i++) {
+                    j = D_801E9820[i];
+                    if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
+                        g_Menu->menuUnk2->selectedSlot = i + 1;
+                        break;
+                    }
+                }
+            }
+        }
+        break;
+    case 2:
+        i = a1 + 3;
+        if (((u8*)&g_Menu->menuUnk2->cardStatus[0])[i / 15] != 0) {
+            if (i < 0x1E) {
+                g_Menu->menuUnk2->selectedSlot = i;
+            } else {
+                i = g_Menu->menuUnk2->selectedSlot + 3;
+                if (i < 0x1E) {
+                    if (i + 1 < 0x1E) {
+                        g_Menu->menuUnk2->selectedSlot = i + 1;
+                    }
+                }
+            }
+        }
+        break;
+    }
+}
+
+*/
 /* Best attempt: 83.27% (668 bytes vs retail's 684). Structure is settled: each case
    is a step-3 search over D_801E9810 whose hit stores i - 3 and returns, followed --
    only when that search found nothing -- by a step-1 search over D_801E9818, each
@@ -585,7 +668,97 @@ void func_801CA8C0(u_char a0) {
     strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
 }
 */
+/* Best attempt: 97.36% (688 bytes vs retail's 692). Everything matches except the
+   dispatch tail of the {4,5} subtree: retail emits `beq v1,s5,case5` with an extra
+   `j` on the default path and both arms out of line, while gcc emits case 5 INLINE
+   (`bne v1,s5,test`) because that body lands next to the dispatch and its
+   `looping = 0; break;` tail cross-jumps into case 4's. Everything else is exact:
+   the do/while shape is `while (1) { ...; if (!looping) break; }`, the counter is a
+   `u8` (`addiu`+`andi` at the test), and `looping = 1;` must be assigned BEFORE the
+   `if (D_801E977A)` block -- as a later statement gcc saves the constant register
+   differently and the whole comparison drops to 95.99% (it also swaps frames/looping
+   between s2/s3). At 840k: case-body order in the switch is NOT free: (4,5,2,0) and
+   (5,4,2,0) both give 688/97.36, (0,2,4,5) 696/91.27, (0,5,2,4) 700/90.91, (2,5,0,4)
+   700/92.56; an explicit `default: break;` changes nothing. `li s1,1`/`li s5,5` come
+   from cse lifting the repeated constant 1 (two D_801E9778 stores + shouldRender[2]=1)
+   and 5 (two `input = 5` stores + the case test), so they need no source local. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
+/*
+extern u8 D_801E9778;
+extern u8 D_801E977A;
+extern u8 D_801EA8FC;
+
+u_char func_801CAA38(u_char a0) {
+    u_char cardStatus[2];
+    u_char result;
+    u_char looping;
+    u8 frames;
+
+    cardStatus[0] = g_Menu->menuUnk2->cardStatus[0];
+    cardStatus[1] = g_Menu->menuUnk2->cardStatus[1];
+    looping = 1;
+    if (D_801E977A != 0) {
+        g_Menu->menuUnk2->cardPollMode = 2;
+    }
+    D_801EA8FC = 0;
+    result = 0;
+    frames = 0xB4;
+    while (1) {
+        if (a0 == 0) {
+            g_Menu->pCursors->shouldRender[2] = 0;
+            g_Menu->pCursors->shouldRender[3] = 0;
+            if (g_Menu->input != 8) {
+                break;
+            }
+            frames -= 1;
+            if (frames == 0) {
+                break;
+            }
+        }
+        MenuRenderFrame();
+        if (a0 != 0 && D_801E977A != 0) {
+            if (cardStatus[0] != g_Menu->menuUnk2->cardStatus[0]) {
+                g_Menu->menuUnk2->cardEnumerated[0] = 0;
+                g_Menu->input = 5;
+                D_801E9778 = 1;
+            }
+            if (cardStatus[1] != g_Menu->menuUnk2->cardStatus[1]) {
+                g_Menu->menuUnk2->cardEnumerated[1] = 0;
+                g_Menu->input = 5;
+                D_801E9778 = 1;
+            }
+        }
+        switch (g_Menu->input) {
+        case 5:
+            result = 0;
+            D_801EA8FC = 1;
+            looping = 0;
+            break;
+        case 4:
+            looping = 0;
+            break;
+        case 2:
+            g_Menu->pCursors->shouldRender[2] = 1;
+            g_Menu->pCursors->shouldRender[3] = 0;
+            result = 1;
+            break;
+        case 0:
+            g_Menu->pCursors->shouldRender[2] = 0;
+            g_Menu->pCursors->shouldRender[3] = 1;
+            result = 0;
+            break;
+        }
+        if (!looping) {
+            break;
+        }
+    }
+    g_Menu->pCursors->shouldRender[2] = 0;
+    g_Menu->pCursors->shouldRender[3] = 0;
+    g_Menu->menuUnk2->cardPollMode = 0;
+    return result;
+}
+*/
+
 u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
     u_char result;
 
