@@ -387,7 +387,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095414);
        folds the whole 0x1F800060 into one saved register (the failure the
        func_80095CD4 note below describes); the WORLD_MAP_STEP_SCRATCH struct
        spelling below is 0.2% better.  Retail MIXES two spellings: the case-1
-       ProjectTriangleNormal call uses the symbols (`addiu a0,fp,%lo(D_1F800060)`,
+       ProjectTriangleNormal call uses the symbols (`addiu a0,fp,%lo(g_WorldMapStepProbePos)`,
        `%lo(D_1F800070)`, `%lo(D_1F800080)`), while case 0's call and the three
        WorldMapAlignDirectionToReference calls use raw fp+0x30/0x40/0x50/0x60/
        0x70/0x80 offsets with no relocation.  Note the func_80095CD4 park below
@@ -735,7 +735,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
 
 extern void WorldMapProjectTriangleNormal(SVec* pPos, SVec* pOut, SVec* pNormal, u16 setIndex,
                                           u16 triIndex);
-extern SVec D_1F800060; // candidate world position in the 0x1F800000 scratchpad
+extern SVec g_WorldMapStepProbePos; // candidate world position in the 0x1F800000 scratchpad
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
 /* best: 98.72% (684 bytes vs retail's 676, so 8 bytes / 2 insns long). Body structure
@@ -750,13 +750,13 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
       closed is the first store (x at 0x1F800060) together with the WrapPosition argument
       and the GetTilePlaneHeight load of the same address: as soon as all three are
       literals cse shares one register across them again. Spelling that store through the
-      symbol (D_1F800060.x = ...) breaks the sharing and reached 99.93% with retail's exact
+      symbol (g_WorldMapStepProbePos.x = ...) breaks the sharing and reached 99.93% with retail's exact
       169 instructions; it costs only a relocation, whose linked bytes are the same
       (`lui $at,0x1F80` + `sw $2,0x60($at)`), so it is the documented reloc-only exception.
-   2. The loop's `WorldMapCheckTriangleEdgeSide(&D_1F800060, ...)`: retail forms the
-      address with `lui $t0,%hi(D_1F800060)` + `addiu $a0,$t0,%lo(...)` (untied temp)
+   2. The loop's `WorldMapCheckTriangleEdgeSide(&g_WorldMapStepProbePos, ...)`: retail forms the
+      address with `lui $t0,%hi(g_WorldMapStepProbePos)` + `addiu $a0,$t0,%lo(...)` (untied temp)
       inside the loop; every spelling measured here gives the tied `lui $a0,%hi` +
-      `addiu $a0,$a0,%lo` that GNU as produces for gcc's one-insn `la $4,D_1F800060`.
+      `addiu $a0,$a0,%lo` that GNU as produces for gcc's one-insn `la $4,g_WorldMapStepProbePos`.
       A pointer local, an inline cast and a per-iteration assignment all give the same
       tied pair, and a 4-minute permuter run from the 99.93% body found nothing.
    3. WorldMapResolveStepAgainstTerrain takes `s16 kind` (its own stub loads the 5th
@@ -774,7 +774,7 @@ s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     s32 ret;
     u16 spriteIndex;
 
-    D_1F800060.x = pBase->x + ((pDelta->x * scale) >> 12);
+    g_WorldMapStepProbePos.x = pBase->x + ((pDelta->x * scale) >> 12);
     ((SVec*)0x1F800060)->y = pBase->y + ((pDelta->y * scale) >> 12);
     ((SVec*)0x1F800060)->z = pBase->z + ((pDelta->z * scale) >> 12);
     WorldMapWrapPosition((SVec*)0x1F800060);
@@ -801,7 +801,7 @@ s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     if (count != 0) {
         found = 0;
         for (i = 0; i < count; i += 2) {
-            if (WorldMapCheckTriangleEdgeSide((SVec*)&D_1F800060, 0x70, spriteIndex, D_8009D718[i]) == 0) {
+            if (WorldMapCheckTriangleEdgeSide((SVec*)&g_WorldMapStepProbePos, 0x70, spriteIndex, D_8009D718[i]) == 0) {
                 D_8009D718[i] = -1;
                 found += 2;
             }

@@ -104,7 +104,7 @@ extern s32 g_BattleTextEntryCursor;
 extern s32 g_BattleButtonState;
 extern s32 g_BattleButtonStatePressedOnce;
 extern s32 g_BattleButtonStateReleased;
-extern u8 D_80092764;
+extern u8 g_BattleStickPushSoundPlayed;
 extern int ControllerGetType(int controllerIndex);
 
 // Per-draw-buffer slot record, 0xF8 bytes: it starts with the screen area the
@@ -119,7 +119,7 @@ extern Misc8SlotEntry g_BattleDrawBuffers[];
 extern void BattleDrawTextSprites(u8 *p);
 extern void func_800812BC(BattleTextList *p);
 extern void BattleDrawTextList(BattleTextList *p);
-extern s32 func_8008162C(BattleTextList *p, s32 a1);
+extern s32 BattleUpdateTextPadInput(BattleTextList *p, s32 a1);
 extern void func_80081A44(void);
 extern void BattleDrawVibrationOptions(void);
 extern s32 BattleGetTextWidth(u32 a0);
@@ -564,7 +564,7 @@ void BattleDrawTextList(BattleTextList *p) {
 
 /* s32 (never used) is load-bearing: a void return lets reorg steal the branch
    target's first instruction into the final `beqz` slot, retail has a nop. */
-s32 func_8008162C(BattleTextList *p, s32 padIndex) {
+s32 BattleUpdateTextPadInput(BattleTextList *p, s32 padIndex) {
     BattleTextEntry *pEntry = &p->pEntries[p->row];
     BattleTextList *pCur;
     void (*pCallback)(void *);
@@ -595,12 +595,12 @@ s32 func_8008162C(BattleTextList *p, s32 padIndex) {
         stickX = g_C1LeftStickXAxis - 0x80;
     }
     if ((type == 3 || type == 4) && SquareRoot0(stickY * stickY + stickX * stickX) >= 0x41) {
-        if (D_80092764 == 0) {
+        if (g_BattleStickPushSoundPlayed == 0) {
             BattlePlaySoundEffectById(0x24);
-            D_80092764 = 1;
+            g_BattleStickPushSoundPlayed = 1;
         }
     } else {
-        D_80092764 = 0;
+        g_BattleStickPushSoundPlayed = 0;
     }
     pCallback = pEntry->pCallback;
     if (pCallback != 0 && ((pEntry->flags & 1) || (g_BattleButtonStateReleased & CTRL_BTN_CIRCLE))) {
@@ -656,7 +656,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
    link). g_BattleMode 1..5 selects a vibration-option screen; each arm tests
    g_BattleSlotConfirmFlags. Every arm but case 2 is instruction-identical,
    including the cross-jumped arms and gcc's shared tails: cases 1 and 4 share
-   the flags==0/3 handling, cases 1 and 5 share the func_8008162C(list5,0) tail
+   the flags==0/3 handling, cases 1 and 5 share the BattleUpdateTextPadInput(list5,0) tail
    (so case 5's flags==0 arm must NOT set g_BattleSlotConfirmLatched), case 3's call is its own
    copy. The inverted ternary `(flags & 1) == 0 ? 4 : 5` is what gives retail's
    bnez + li 5 + li 4 order.
@@ -666,7 +666,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081A44);
    store, then `nop; andi v0,v0,2`) and lets the arm value reuse $v0; gcc cse's
    the two reads here (one load, arm forced into $a0/$v1). The `flags` local is
    load-bearing: it is what stops cse from sharing the constant 1 across the two
-   func_8008162C calls, which is what keeps retail's 0x18 frame (without it the
+   BattleUpdateTextPadInput calls, which is what keeps retail's 0x18 frame (without it the
    frame is 0x20 with +3 insns and 94.33%). Every other body shape below keeps
    one or the other of those two properties, never both.
    Reached 96.05% (752 bytes) by forcing the reload with
@@ -689,11 +689,11 @@ void func_80081A44(void) {
         switch (g_BattleSlotConfirmFlags) {
         case 0:
             g_BattleSlotConfirmLatched = 0;
-            func_8008162C(g_BattleOptionTextList, 0);
+            BattleUpdateTextPadInput(g_BattleOptionTextList, 0);
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
-            func_8008162C(D_80091714, 0);
+            BattleUpdateTextPadInput(D_80091714, 0);
             break;
         case 3:
             g_BattleStateAdvanceRequested = 1;
@@ -709,8 +709,8 @@ void func_80081A44(void) {
         flags = g_BattleSlotConfirmFlags;
         D_800916E2 = (g_BattleSlotConfirmFlags & 1) == 0 ? 4 : 5;
         D_8009171E = (flags & 2) == 0 ? 4 : 5;
-        func_8008162C(&g_BattleTextLists[5], 0);
-        func_8008162C(&g_BattleTextLists[6], 1);
+        BattleUpdateTextPadInput(&g_BattleTextLists[5], 0);
+        BattleUpdateTextPadInput(&g_BattleTextLists[6], 1);
         if (g_BattleSlotConfirmFlags == 3) {
             g_BattleStateAdvanceRequested = 1;
         }
@@ -722,11 +722,11 @@ void func_80081A44(void) {
         switch (g_BattleSlotConfirmFlags) {
         case 0:
             g_BattleSlotConfirmLatched = 0;
-            func_8008162C(g_BattleOptionTextList, 0);
+            BattleUpdateTextPadInput(g_BattleOptionTextList, 0);
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
-            func_8008162C(D_80091714, 0);
+            BattleUpdateTextPadInput(D_80091714, 0);
             break;
         case 3:
             g_BattleStateAdvanceRequested = 1;
@@ -739,11 +739,11 @@ void func_80081A44(void) {
         switch (g_BattleSlotConfirmFlags) {
         case 0:
             g_BattleSlotConfirmLatched = 0;
-            func_8008162C(g_BattleOptionTextList, 0);
+            BattleUpdateTextPadInput(g_BattleOptionTextList, 0);
             break;
         case 1:
             g_BattleSlotConfirmLatched = 1;
-            func_8008162C(D_80091714, 0);
+            BattleUpdateTextPadInput(D_80091714, 0);
             break;
         case 3:
             g_BattleStateAdvanceRequested = 1;
@@ -755,7 +755,7 @@ void func_80081A44(void) {
     case 5:
         switch (g_BattleSlotConfirmFlags) {
         case 0:
-            func_8008162C(g_BattleOptionTextList, 0);
+            BattleUpdateTextPadInput(g_BattleOptionTextList, 0);
             break;
         case 1:
             if (g_BattleCursorIndex1 == 3) {
@@ -802,7 +802,7 @@ void BattleUpdateTextWindow(void) {
                     BattleRestoreScreenImage();
                 }
             }
-            func_8008162C(p, g_BattleTextPadIndex);
+            BattleUpdateTextPadInput(p, g_BattleTextPadIndex);
         }
         BattleDrawTextList(g_BattleCurrentTextList);
     }

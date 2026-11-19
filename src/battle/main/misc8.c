@@ -39,7 +39,7 @@ typedef struct {
     /* 0x054 */ u8 gearId; // the gear the slot's character has equipped
     /* 0x055 */ u8 unk55[0x63];
     /* 0x0B8 */ u32 scaledHp;
-    /* 0x0BC */ u32 scaledMaxHp; // written with scaledHp by func_8007B7B0, the pair func_80072F38 takes ratios of
+    /* 0x0BC */ u32 scaledMaxHp; // written with scaledHp by BattleSlotArgsStoreDwordFromReg, the pair func_80072F38 takes ratios of
     /* 0x0C0 */ u8 unkC0[0xB0];
 } BattleSlotEntry; // Size: 0x170
 

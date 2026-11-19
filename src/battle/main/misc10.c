@@ -256,13 +256,13 @@ extern void func_8007AC30(u8 **ppCommand, u8 slot);
 extern void func_8007AC80(u8 **ppCommand, u8 slot);
 extern void func_8007ACDC(u8 **ppCommand, u8 slot);
 extern void func_8007AD24(u8 **ppCommand, u8 slot);
-extern s32 func_8007B4B8(u8 **ppCommand, u8 slot, u8 row);
-extern void func_8007B6C0(u8 **ppCommand, u8 slot);
-extern s32 func_8007B7B0(u8 **ppCommand, u8 slot, u8 row);
-extern void func_8007B8D4(u8 **ppCommand, u8 slot);
-extern void func_8007B9C8(u8 **ppCommand, u8 slot);
-extern void func_8007BA04(u8 **ppCommand, u8 slot);
-extern void func_8007BC40(u8 **ppCommand, u8 *pArgs, u8 row);
+extern s32 BattleByteRegCopyToMatchedSlot(u8 **ppCommand, u8 slot, u8 row);
+extern void BattleDwordRegSetFromSlotArgs(u8 **ppCommand, u8 slot);
+extern s32 BattleSlotArgsStoreDwordFromReg(u8 **ppCommand, u8 slot, u8 row);
+extern void BattleWordTableLoadReg(u8 **ppCommand, u8 slot);
+extern void BattleDwordRegSetReg(u8 **ppCommand, u8 slot);
+extern void BattleWordRegSetFromByteReg(u8 **ppCommand, u8 slot);
+extern void BattleStoreCommandBytes(u8 **ppCommand, u8 *pArgs, u8 row);
 extern void func_8007BD5C(u8 **ppCommand, u8 slot);
 extern void func_8007BEA8(u8 **ppCommand, u8 slot);
 extern void func_8007C040(u8 **ppCommand, u8 slot);
@@ -414,7 +414,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleByteRegSetMatched(ppCommand, slot);
         break;
     case 0x2B:
-        row = func_8007B4B8(ppCommand, slot, row);
+        row = BattleByteRegCopyToMatchedSlot(ppCommand, slot, row);
         break;
     case 0x2C:
         BattleWordRegCopyFromMatchedSlot(ppCommand, slot);
@@ -423,13 +423,13 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         row = BattleWordRegCopyToMatchedSlot(ppCommand, slot, row);
         break;
     case 0x2E:
-        func_8007B6C0(ppCommand, slot);
+        BattleDwordRegSetFromSlotArgs(ppCommand, slot);
         break;
     case 0x2F:
-        row = func_8007B7B0(ppCommand, slot, row);
+        row = BattleSlotArgsStoreDwordFromReg(ppCommand, slot, row);
         break;
     case 0x30:
-        func_8007B8D4(ppCommand, slot);
+        BattleWordTableLoadReg(ppCommand, slot);
         break;
     case 0x31:
         BattleWordTableStoreReg(ppCommand, slot);
@@ -441,10 +441,10 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleWordRegSetReg(ppCommand, slot);
         break;
     case 0x34:
-        func_8007B9C8(ppCommand, slot);
+        BattleDwordRegSetReg(ppCommand, slot);
         break;
     case 0x35:
-        func_8007BA04(ppCommand, slot);
+        BattleWordRegSetFromByteReg(ppCommand, slot);
         break;
     case 0x36:
         BattleSlotStoreDwordFromWordReg(ppCommand, slot);
@@ -468,7 +468,7 @@ s32 BattleExecScriptOpcode(u8 **ppCommand, u8 slot, s32 row) {
         BattleSlotStoreWordLowBytes(ppCommand, slot);
         break;
     case 0x3D:
-        func_8007BC40(ppCommand, pArgs, row);
+        BattleStoreCommandBytes(ppCommand, pArgs, row);
         break;
     case 0x3E:
         BattleByteRegSetRandom(ppCommand, slot);

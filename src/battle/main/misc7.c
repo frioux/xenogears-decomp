@@ -45,13 +45,13 @@ extern u8 D_800CCE3E[];
 // One slot of the per-slot operator argument block at D_800CCDE8 (stride
 // 0x170): g_BattleWorkBlock + 0x100, i.e. the BattleTableEntry rows seen from
 // BattleSlotState +0x5C. +0x04 and +0x08 are the state's scaled hp and maxHp,
-// which the parked func_8007B6C0 reads and func_8007B7B0 writes. The writers
+// which the parked BattleDwordRegSetFromSlotArgs reads and BattleSlotArgsStoreDwordFromReg writes. The writers
 // below put one argument word into it as a dword, as a word, and as its two
 // bytes, hence the byte-by-byte fields.
 typedef struct {
     /* 0x00 */ u8 unk00[0x4];
-    /* 0x04 */ u32 hp; // BattleSlotState.hp: func_8007B6C0 copies it into a dword register
-    /* 0x08 */ u32 maxHp; // BattleSlotState.maxHp: func_8007B7B0 stores into it when operand2 is 0
+    /* 0x04 */ u32 hp; // BattleSlotState.hp: BattleDwordRegSetFromSlotArgs copies it into a dword register
+    /* 0x08 */ u32 maxHp; // BattleSlotState.maxHp: BattleSlotArgsStoreDwordFromReg stores into it when operand2 is 0
     /* 0x0C */ u8 unk0C[0x40];
     /* 0x4C */ u32 unk4C;
     /* 0x50 */ u8 unk50;
@@ -94,7 +94,7 @@ void BattleByteRegSetMatched(BattleCommand **p, u8 index) {
 
     pTable[(*p)->operand1] = result;
 }
-u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
+u8 BattleByteRegCopyToMatchedSlot(u8 **p, u8 index, u8 arg2) {
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
 
@@ -125,7 +125,7 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
     }
     return ret;
 }
-void func_8007B6C0(u8 **p, u8 index) {
+void BattleDwordRegSetFromSlotArgs(u8 **p, u8 index) {
     switch ((*p)[2]) {
     case 1: {
         u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
@@ -138,7 +138,7 @@ void func_8007B6C0(u8 **p, u8 index) {
         break;
     }
 }
-u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
+u8 BattleSlotArgsStoreDwordFromReg(u8 **p, u8 index, u8 arg2) {
     u8 ret = arg2;
     u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
 
@@ -152,7 +152,7 @@ u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
     }
     return ret;
 }
-void func_8007B8D4(u8 **p, u8 index) {
+void BattleWordTableLoadReg(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     g_BattleSlotRegs[index].wordRegs[pArgs[1]] = D_8005A3A0[pArgs[2]];
@@ -180,12 +180,12 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
     base = g_BattleSlotWordRegs;
     ((u16 *)(base + index * 0x40))[pCmd->operand2] = ((u16 *)(base + index * 0x40))[pCmd->operand1];
 }
-void func_8007B9C8(u8 **p, u8 index) {
+void BattleDwordRegSetReg(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     g_BattleSlotRegs[index].dwordRegs[pArgs[2]] = g_BattleSlotRegs[index].dwordRegs[pArgs[1]];
 }
-void func_8007BA04(u8 **p, u8 index) {
+void BattleWordRegSetFromByteReg(u8 **p, u8 index) {
     u8 *pArgs = *p;
 
     g_BattleSlotRegs[index].wordRegs[pArgs[2]] = g_BattleSlotRegs[index].byteRegs[pArgs[1]];
@@ -241,7 +241,7 @@ void BattleSlotStoreWordLowBytes(BattleCommand **p, u8 index) {
     D_800CCDE8[slot].unk52 = (*p)->operand2;
     D_800CCDE8[slot].unk50 = (*p)->operand3;
 }
-void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
+void BattleStoreCommandBytes(u8 **p, u8 *pDest, u8 count) {
     pDest[count * 8 + (*p)[1]] = (*p)[2];
     (count * 8 + (*p)[1] + pDest)[1] = (*p)[3];
 }
