@@ -297,7 +297,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
    above leaves 98.75), and that an explicit `u32 t` temp, s32 pointers and a
    second pointer local (`u32 *end = (u32 *)((s32)p1 + n)`, 71.25%, which puts
    `end` in $v1) all leave the copy temp in $v0 - $v0 is this function's first
-   free register, so the pick is out of source reach. */
+   free register, so the pick is out of source reach.
+   Round 288: this is the same class as func_80073DE4 and func_80073F34 below - a
+   dying single-use temp takes the LOWEST free call-clobbered register from our
+   cc1 ($v0 here, $v1 there) where retail reused a higher one ($t0, $a2). Five
+   more shapes measured byte-identical at 98.75%/32 bytes (`*p0++ = *p1++`,
+   `p0[0] = p1[0]`, the comma form, `(u32 *)` casts, s32 pointers), gcc-2.6.0 is
+   also 98.75, 2.7.2-cdk rejects the unit, and a 3-minute permuter run from this
+   body (2072 iterations) found nothing. */
 /* void func_800732AC(u32 *p0, u32 *p1, s32 n) {
     n += (s32)p1;
     do {
@@ -492,7 +499,12 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    `lh v0` + sum in `$v1` - and `arg1 += hw;` / `arg1 += *(s16 *)(p0 + 0xB6);`
    do NOT coalesce the sum into that `$a1` (both `addu v1,a1,v0`, 97.78), so the
    in-place spelling is not the lever either. A single shared exit (`result`
-   variable) is worse: it grows the frame to 76 bytes and 84.17%. */
+   variable) is worse: it grows the frame to 76 bytes and 84.17%.
+   Round 288: a 3-minute permuter run from this body (2072 iterations,
+   base=best=35) found nothing; see func_800732AC above for why the whole class
+   (a dying single-use temp taking our cc1's lowest free register, $v0 here for
+   the `lh` against retail's $v1) is a local_alloc difference, not a source
+   shape. */
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
     s32 t = *(s16 *)(p0 + 0xB6) + arg1;
 
@@ -569,7 +581,18 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
    bytes' readings were STALE: gcc 2.7.2 rejects a declaration after a statement
    (cc1 exit 33, 'parse error'), diff_func.sh then scores the previous variant's
    object, so nothing changed size. Declare such locals at the top of the
-   function when retrying this class. */
+   function when retrying this class.
+   Round 288: un-parked and re-measured at 99.91%/432 bytes against retail's 432,
+   so the only residual is still `lbu v1,1(s1)` for `lbu a2,1(s1)` (same
+   instruction count, same delay slot). Nine equivalent spellings of the test
+   (`0x10 == p1[1]`, `(u8)` cast, `(p1[1] & 0xFF)`, `p1[1] - 0x10`, u8 and s32
+   block locals, a one-case `switch`) all measure 99.91; only inverting the arms
+   moves anything (91.99). A 3-minute permuter run from this exact body (2195
+   iterations, base=best=10) found nothing either. Diagnosis is the same as
+   func_800732AC above: retail's cc1 picked a register our local_alloc will not
+   (it gave this dying single-use temp $a2 while $v1, $a0 and $a1 were free), so
+   the three parks of this unit are one compiler-version difference and not worth
+   another source-shape round. */
 /*
 extern s32 BattleEffectPackKey(s32, u8, s16, s32);
 extern s32 BattleEffectIsTwoVertexType(u8);
