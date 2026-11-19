@@ -35,7 +35,7 @@ extern u8 g_DressingRoomItemIds[];
 extern s32 g_MenuInventoryRowCount;
 extern u16 g_MenuInventoryScrollStep;
 extern u8 g_MenuPanelRowXOffsets[];
-extern u8 D_801EA550[];
+extern u8 g_MenuColumnRowStringIds[];
 extern u8 D_801E9785;
 extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
@@ -552,7 +552,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
    2. the row flag: retail `andi 0x1000 / sltiu / move`, ours `srl 0xc / xori / andi`.
       Tried `== 0`, `!(...)`, `< 1`, a u_int flags local and a (u16) cast on the masked
       value: cc1 folds all of them to the bit-test form. Same instruction count.
-   3. tail: D_801EA550, g_MenuPanelRowXOffsets and the literal 2 land in $s1/$s2/$s0
+   3. tail: g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets and the literal 2 land in $s1/$s2/$s0
       where retail has $s0/$s1/$s2 (cyclic rotation), and the second
       MenuSetRowQuadVertices call's setup is scheduled around the first call's tail -
       that is the one extra instruction.
@@ -632,9 +632,9 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
         } else {
             row = (flags & 0x1000) == 0;
         }
-        MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, D_801EA550, g_MenuPanelRowXOffsets,
+        MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets,
                                g_Menu->pManager->shouldRenderStrings10E0, row, 0, 2);
-        MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, D_801EA550, g_MenuPanelRowXOffsets,
+        MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets,
                                g_Menu->pManager->shouldRenderStrings10E0, (*pBase & 3) + 3, 0, 2);
         ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].renderContext = g_Menu->renderContext;
         ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING + 1].renderContext = g_Menu->renderContext;

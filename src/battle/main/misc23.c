@@ -73,7 +73,7 @@ typedef struct {
 extern s32 g_BattleActorStepTimer;
 extern u16 g_BattleTweenVectorAngle;
 extern u8 g_BattleExtraMatrixFlag;
-extern u16 D_800C3B7C;
+extern u16 g_BattleShadeAngle;
 extern u8 g_BattleStateBit;
 extern u8 D_800C3ACC[];
 extern u8 D_800D330A[];
@@ -682,7 +682,7 @@ void BattleInitializeStage(void) {
     g_BattleTweenVectorAngle = 0;
     g_BattleExtraMatrixFlag = 0;
     g_BattleActorSwitchFlag = 0;
-    D_800C3B7C = 0;
+    g_BattleShadeAngle = 0;
     arg1 = *(s16 *)(g_BattleStageData + 0x348);
     g_BattleStateBit = 1;
     BattleCreateBlockPool(pBuf, arg1);
@@ -900,7 +900,7 @@ extern u16 g_BattleActorMask;
 extern s16 g_BattleTweenVectorScale;
 extern s32 g_ModelRenderTestFlags;
 extern MATRIX *g_BattleColorMatrix;
-extern u8 D_800C3DF8;
+extern u8 g_BattleBlockPoolStepPending;
 extern u8 BattleClampScaledByte(s16, s16, s32);
 extern s32 BattleGetActorHeight(s32);
 extern s32 BattleGetActorRadius(s32);
@@ -912,7 +912,7 @@ extern void BattleStepActorAnimation(BattleActor *, u8 *, s32, s32, s32);
 extern void BattleDrawActor(BattleActor *, MATRIX *, MATRIX *, s32, s32, u_long *, s32);
 extern void BattleRenderSpriteSlots(u8 *, MATRIX *, s32, u_long *, s32);
 extern void func_800B026C(void *, s32, s32, s32);
-extern u16 D_800C3B80;
+extern u16 g_BattleShadeScale;
 
 /* Three statements below are split where the original programmer would have
    written one expression, and each split is load-bearing: it decides which
@@ -920,7 +920,7 @@ extern u16 D_800C3B80;
    delay slot. Folded back (timer + 1 + incr, for (step = 0; ...), for (j = 0;
    ...)) the body comes out 2 instructions short and four callee-saved registers
    rotate. */
-void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 quadIndex) {
+void BattleUpdateAndDrawActors(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 quadIndex) {
     BattleActor **ppActors;
     BattleActor **ppSlot;
     BattleSprite *pSprites;
@@ -948,11 +948,11 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     }
     g_BattleTweenVectorAngle += step * 0x38;
     g_BattleTweenVectorScale = (rsin((s16)g_BattleTweenVectorAngle) + 0x1000) / 800 + 4;
-    D_800C3B7C += 0x80;
-    D_800C3B80 = (rsin((s16)D_800C3B7C) + 0x1000) / 32;
-    colors[0] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x474));
-    colors[1] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x475));
-    colors[2] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x476));
+    g_BattleShadeAngle += 0x80;
+    g_BattleShadeScale = (rsin((s16)g_BattleShadeAngle) + 0x1000) / 32;
+    colors[0] = BattleClampScaledByte(g_BattleShadeScale, 0x20, *(u8 *)(g_BattleStageData + 0x474));
+    colors[1] = BattleClampScaledByte(g_BattleShadeScale, 0x20, *(u8 *)(g_BattleStageData + 0x475));
+    colors[2] = BattleClampScaledByte(g_BattleShadeScale, 0x20, *(u8 *)(g_BattleStageData + 0x476));
     if (g_BattleActors[g_BattleCurrentActorSlot] != 0) {
         if (!(g_BattleActors[g_BattleCurrentActorSlot]->flags4A & 0x20)) {
             // split: j = 0 must be the first of the three preheader copies
@@ -996,7 +996,7 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
             BattleStepActorAnimation(g_BattleActors[i], g_BattleBlockPool, step, quadIndex, g_BattleActorStepIncrement);
         }
     }
-    if (D_800C3DF8 != 0) {
+    if (g_BattleBlockPoolStepPending != 0) {
         func_800B026C(g_BattleBlockPool, step, 0, quadIndex);
     }
     for (i = 0; i < 32; i++) {

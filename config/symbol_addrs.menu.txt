@@ -392,3 +392,4 @@ g_MenuStatRowLabelTexIds = 0x801EA45C;
 g_MenuStatRowLabelOffsetX = 0x801E9D40;
 g_MenuStatRowLabelOffsetY = 0x801E9D5C;
 g_MenuRowDigitTextureIds = 0x801E97AC;
+g_MenuColumnRowStringIds = 0x801EA550;
