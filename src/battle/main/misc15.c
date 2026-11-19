@@ -100,6 +100,8 @@ extern u16 g_BattleTargetSlotMask;
 extern u8 g_BattleTargetSlot;
 extern u8 g_BattleCellActionRows[];
 extern u8 D_800CCD38[];
+extern u8 D_800CCD36[];
+extern u8 D_800CCD1C[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_BattleActionRows[];
 extern void BattleClearSlotCurveEntry(void);
@@ -299,42 +301,38 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
     BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
-/* Best: 89.19% (584 bytes vs the original's 596). Same calls, same branch tree,
-   same register set (s0=arg0, s1=arg0*0x170 offset, s2=inParty, s3=count,
-   s4=entry, s5=canAct, s6=result); what is left is two shapes:
-   1. the D_800CCD38 accesses. Retail keeps only the OFFSET in s1 and re-folds
-      `lui at,%hi(D_800CCD38); addu at,at,s1; lhu/sh %lo(at)` at each of the
-      three sites; gcc forms base+offset once into s1 (`lui/addiu` + `addu`).
-      Tried: three separate full spellings, an s32 off local, a u32 off.
-   2. the arg1 + arg2*2 sum: retail computes it into a1 (`addu a1,a1,v0`, the
-      incoming arg1) before the offset sum; gcc leaves arg1 in t0 (`move
-      t0,a1` at entry) and computes the call argument last.
-   Everything else, including the asymmetric second branch (retail's else path
-   is `if ((u16)BattleMaskHasStatusBit(...) != 0) inParty = 1;`, not an
-   assignment -- that asymmetry is what stops gcc cross-jumping the two calls),
-   already matches instruction for instruction. NEXT: permute this body. It
-   also needs `#include "main/game.h"`, D_800CCD38/g_BattleActorCharIds and
-   BattleMaskHasStatusBit, which are declared above.
-   Round 146 re-tested this body against today's externs: still 89.19%, same two
-   shapes of the note. New data point on shape 1: retail keeps ONLY the product in
-   s1 (`s1 = arg0 * 0x170`, built once after the branch merge) and re-forms
-   `lui at,%hi(D_800CCD38); addu at,at,s1` at all three sites -- including the load
-   and the store of the `-= count`, which is NOT CSE'd. Tried this round and still
-   89.19%: `extern u8 D_800CCD38[0x170]` (bounded) instead of `[]`, and spelling the
-   index inline as `D_800CCD38 + arg0 * 0x170` instead of through the `off` local.
-   gcc 2.6 materialises the whole symbol+offset address into s1 either way. Shape 2
-   as it now reads: retail copies arg1 at entry (`move v1,a1`) for the masked
-   offset term and computes the call's `arg1 + arg2*2` destructively on the raw a1
-   (`addu a1,a1,v0`) BEFORE the offset sum; ours copies arg1 to t0 and computes the
-   call argument last. */
+/* Best: 96.54% at retail's exact 596 bytes -- every block has retail's
+   instruction count and the multiset matches; what is left is register
+   assignment and statement order in the two g_BattleSlotFlags arms.
+   What took this from 89.19 to here:
+   1. the D_800CCD38 sites. gcc merges a repeated (symbol + reg) address into one
+      register (`lui/addiu` + `addu`, 3 instructions short of retail), so each of
+      the three accesses needs its OWN symbol spelling to stay in retail's
+      `lui at,%hi; addu at,at,reg; lhu/sh %lo(at)` form: the compare reads
+      D_800CCD38, and the `-=` is a load from D_800CCD1C + 0x1C and a store to
+      D_800CCD36 + 2 (all three spell the same address, so the linked bytes are
+      identical -- check_bin.sh proves it).
+   2. the second arm needs the bit index in a local assigned BEFORE its
+      BattleMaskHasStatusBit call; without it gcc keeps a copy of the raw arg1
+      (`move t0,a1` at entry) and does the sum at the call, which is retail's
+      first-arm shape only.
+   Left: the first arm wants that early sum (`addu a1,a1,v0` destroying the
+   incoming a1) while the second wants retail's masked recomputation, and giving
+   BOTH arms the local makes gcc CSE the masked form away (584 bytes). So the two
+   arms need opposite spellings of the same source line. Two 3-minute permuter
+   runs (from this body and from the 89.19 one) only returned variants that read
+   the local before assigning it. Measured dead: inline `D_800CCD38 + arg0*0x170`
+   at all three sites, an s32/u32 off local, one-symbol two-statement `-=`
+   (596 bytes but a formed base register). */
 /*
-s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
-    s32 result;
+u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
+    u8 result;
     u8 canAct;
     u8 inParty;
     u16 entry;
     u8 count;
     s32 off;
+    s32 bit;
 
     result = 0;
     canAct = 1;
@@ -343,12 +341,13 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
         off = (arg2 * 2 + arg1 + 0x16) * 40 + arg0 * 1520;
         entry = *(u16 *)(g_BattleCellActionRows + off);
         count = *(u8 *)(g_BattleCellActionRows + off + 0x13);
-        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unk6, arg1 + arg2 * 2) != 0;
+        inParty = (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].characterConditionMask, arg1 + arg2 * 2) != 0;
     } else {
         off = (arg2 * 2 + arg1 + 0x15) * 40 + arg0 * 1680;
         entry = *(u16 *)(g_BattleActionRows + off);
         count = *(u8 *)(g_BattleActionRows + off + 0x13);
-        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].unkA, arg1 + arg2 * 2) != 0) {
+        bit = arg1 + arg2 * 2;
+        if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].gearConditionMask, bit) != 0) {
             inParty = 1;
         }
     }
@@ -356,7 +355,8 @@ s32 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
         BattleClearPrimFlagsFourSlots(1);
         g_BattleDisplayState->pulseTriangleActive = 1;
         if (BattleRunTargetSlotSelection(entry, arg0, 0) != 0) {
-            *(u16 *)(D_800CCD38 + arg0 * 0x170) -= count;
+            *(u16 *)(D_800CCD36 + arg0 * 0x170 + 2) =
+                *(u16 *)(D_800CCD1C + arg0 * 0x170 + 0x1C) - count;
             result = 1;
         } else {
             g_BattleDisplayState->pulseTriangleActive = 0;
