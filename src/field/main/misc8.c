@@ -80,6 +80,196 @@ u_int FieldPopActorScriptWorkWord(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
+/* 77.88% (1200 bytes against retail's 1232; frame 0xA0 and the saved set
+   s0-s6+ra are retail's exactly, so the body is the right function and what is
+   left is register allocation plus store scheduling).
+   WHAT IS SETTLED:
+   - arg0 is the actor index; pActor = g_FieldActors[actorIndex].pActorData
+     (FieldActor +0x4C) is loaded once and every store in the body goes through
+     it. Retail's 0xA0 frame and the sp+0x18 / sp+0x58 slots come free from
+     `VECTOR normals[4]; SVECTOR points[4];` (points ends at 0x78, the saved
+     registers start at 0x80) - no spare local is needed.
+   - the 0x12C word is cleared through the header's anonymous bitfields
+     (flags12C_0x5, _0, _0x10, _0x12, _0x6, direction, _0xD, _0x2) and each one
+     reproduces retail's single lw/and/sw pair; flags130 has no bitfields in the
+     header, and THREE consecutive `flags130 &= ~0xFF80000; &= ~0x1FF;
+     &= ~0x7FE00;` statements reproduce retail's three ANDs with its masks
+     (0xF007FFFF, 0xFFFFFE00, 0xFFF801FF) in its own order - gcc does not fold
+     them, and it stores once.
+   - the 8-slot script reset loop (actorData+0x8C) is byte-identical: currentIP
+     0xFFFF, waitTimer 0, scriptId 0xFF, flags_0 0xFFFF, state/isInUse/
+     flags_0x17 cleared, flags_0x12 = 0xF.
+   - the triangle loop's range test is `tri != -1 && (u32)tri >= D_800AFB44[i]`
+     with the cast on the LEFT operand only; casting both sides emits the same
+     sltu but scores 1.7 lower (it re-schedules the loop).
+   - g_FieldActors must be read ONCE per iteration (one lui/lw serving both the
+     `(s16)transformMatrix.t[0]` and `.t[2]` loads), which needs the
+     `pFieldActor = &g_FieldActors[actorIndex];` local inside the loop.
+   RESIDUE (all measured, none source-controllable by hand so far):
+   (a) the loop: retail keeps TWO walking pointers (s1 stride 0x10 for normals,
+       s2 = sp+0x18 stride 8 with points at 0x40(s2)) plus addiu s2,/s1, in the
+       tail. That is what ONE aggregate `struct { VECTOR normals[4]; SVECTOR
+       points[4]; }` produces (measured: it removes all four per-iteration
+       address recomputations) - but the same body then over-allocates s7 (the
+       aggregate base) and s8 (the 8i walker for &points[i]), grows the frame to
+       0xA8 and drops to 75.14%. The two-array form keeps retail's frame and
+       saved set and pays 2 instructions (`sll`+`addu` twice per iteration).
+       Typing the argument as pPoint/pNormal pointer locals: 75.32%.
+   (b) the four tail reads (position.vx/vy/vz, curYPos) must stay four separate
+       volatile g_FieldActors reads. Hoisting `transformMatrix.t` into a `long*`
+       scores 78.88% but deletes 12 of retail's instructions (1180 bytes), so it
+       is a false lead: retail's chains are lui/lw/nop/addu/lw/nop/sll/sw with
+       the load-delay nops present, and ours interleave two chains so the nops
+       disappear (that is ~8 of the missing 32 bytes).
+   (c) the 32-bit mask constants land in swapped registers (retail a2 = 0xFFFCFFFF
+       before a1 = 0xF007FFFF) which re-orders the whole independent store run
+       that follows; retail also re-reads flags12C (lw a0,0x12C after storing it)
+       for flags12C_0x12 where gcc forwards the register from flags12C_0.
+   (d) the curTriNormal triple re-derives `lh 0x10(s0)` (walkmeshId) three times
+       in retail; ours does too, but retail's `addu v0,v0,a0` is index-first
+       where ours is `addu a0,a0,v0` (base-first) for the third site.
+   Permuter: three 4-minute runs, ~5000 iterations. It found the
+   `(u32)tri >=` cast (76.21 -> 77.88) and two statement moves that measured
+   worse in objdiff (dialogFlags between rotation.vx/vy: 77.31).
+
+extern s16 g_FieldWalkmeshTriCount;
+extern s32 D_800AFB44[];
+extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
+extern int rand(void);
+
+void func_80080A74(int actorIndex) {
+    ActorData* pActor;
+    FieldActor* pFieldActor;
+    VECTOR normals[4];
+    SVECTOR points[4];
+    s32 i;
+    s16 tri;
+
+    pActor = g_FieldActors[actorIndex].pActorData;
+
+    pActor->scriptFlags.flags = 0xB0;
+    pActor->flags = 0x800;
+    pActor->width = 0x10;
+    pActor->zWidth = 0x10;
+    pActor->height = 0x60;
+    pActor->canInteract = 0xFF;
+    pActor->parentActorId = 0xFF;
+
+    pActor->move.vx = 0;
+    pActor->move.vy = 0;
+    pActor->move.vz = 0;
+    pActor->moveModified.vx = 0;
+    pActor->moveModified.vy = 0;
+    pActor->moveModified.vz = 0;
+    pActor->positionOffset.vx = 0;
+    pActor->positionOffset.vy = 0;
+    pActor->positionOffset.vz = 0;
+    pActor->moveStep.vx = 0;
+    pActor->moveStep.vy = 0;
+    pActor->moveStep.vz = 0;
+    pActor->defaultAnimationId = 0;
+    pActor->animationOverride = 0xFF;
+    pActor->curDoorStep = 0;
+    pActor->scriptInstructionPointer = 0;
+    pActor->stuckFrameCount = 0;
+
+    pActor->flags12C_0x5 = 0;
+    pActor->updateAngle = 0x200;
+    pActor->solidRange = pActor->width;
+    pActor->flags12C_0 = 0;
+    pActor->blue2 = 0x80;
+    pActor->green2 = 0x80;
+    pActor->red2 = 0x80;
+    pActor->blue = 0x80;
+    pActor->green = 0x80;
+    pActor->red = 0x80;
+    pActor->modelAnimation = -1;
+
+    pActor->flags12C_0x10 = 0;
+    pActor->flags130 &= ~0xFF80000;
+    pActor->flags130 &= ~0x1FF;
+    pActor->flags130 &= ~0x7FE00;
+    pActor->flags12C_0x12 = 0;
+
+    for (i = 0; i < ACTOR_MAX_NUM_SCRIPTS; i++) {
+        pActor->scripts[i].currentIP = 0xFFFF;
+        pActor->scripts[i].waitTimer = 0;
+        pActor->scripts[i].scriptId = 0xFF;
+        pActor->scripts[i].flags_0 = 0xFFFF;
+        pActor->scripts[i].state = 0;
+        pActor->scripts[i].isInUse = 0;
+        pActor->scripts[i].flags_0x17 = 0;
+        pActor->scripts[i].flags_0x12 = 0xF;
+    }
+
+    pActor->pSpecialAnimFile = NULL;
+    pActor->characterId = 0xFF;
+    pActor->moveSpeed = 0x100;
+    pActor->flags12C_0x6 = 0;
+    pActor->flags134 &= ~0x80;
+    pActor->dialogHeight = 0;
+    pActor->dialogWidth = 0;
+    pActor->dialogPixelHeight = 0;
+    pActor->dialogPixelWidth = 0;
+    pActor->dialogFlags = 0;
+    pActor->waitScriptIndex = 0;
+    pActor->curScriptIndex = 0;
+    pActor->curAnimationId = 0;
+    pActor->walkmeshId = 0;
+    pActor->scriptYPos = 0;
+    pActor->direction = 0;
+    pActor->flags12C_0xD = 0;
+    pActor->flags134 &= ~0x60;
+
+    pActor->frameCounter = rand();
+    pActor->scaleX = 0x1000;
+    pActor->scaleY = 0x1000;
+    pActor->scaleZ = 0x1000;
+    pActor->soundState = 0xFF;
+    pActor->faceId = 0xFF;
+    pActor->rotation.vx = -0x8000;
+    pActor->rotation.vy = -0x8000;
+    pActor->rotation.vz = -0x8000;
+    pActor->specialAnimArchiveIndex = -1;
+    pActor->flags12C_0x2 = 0;
+    pActor->unkE3 = 0;
+    pActor->walkmeshTriIds[3] = 0;
+    pActor->walkmeshTriIds[2] = 0;
+    pActor->walkmeshTriIds[1] = 0;
+    pActor->walkmeshTriIds[0] = 0;
+
+    for (i = 0; i < g_FieldWalkmeshTriCount - 1; i++) {
+        pFieldActor = &g_FieldActors[actorIndex];
+        tri = func_8007B1C4((s16)pFieldActor->transformMatrix.t[0], (s16)pFieldActor->transformMatrix.t[2],
+                            i, &points[i], &normals[i]);
+        pActor->walkmeshTriIds[i] = tri;
+        if (tri != -1 && (u32)tri >= D_800AFB44[i]) {
+            D_800AFB44[i] = 0;
+            normals[i].vx = 0;
+            do {
+                normals[i].vy = 0;
+                normals[i].vz = 0;
+            } while (0);
+            points[i].vx = 0;
+            points[i].vy = 0;
+            points[i].vz = 0;
+        }
+    }
+
+    pActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(pActor);
+    pActor->curTriNormal.vx = normals[pActor->walkmeshId].vx;
+    pActor->curTriNormal.vy = normals[pActor->walkmeshId].vy;
+    pActor->curTriNormal.vz = normals[pActor->walkmeshId].vz;
+    pFieldActor = &g_FieldActors[actorIndex];
+    if (!(pFieldActor->status & 0x80)) {
+        pFieldActor->transformMatrix.t[1] = points[pActor->walkmeshId].vy;
+    }
+    pActor->position.vx = g_FieldActors[actorIndex].transformMatrix.t[0] << 16;
+    pActor->position.vy = g_FieldActors[actorIndex].transformMatrix.t[1] << 16;
+    pActor->position.vz = g_FieldActors[actorIndex].transformMatrix.t[2] << 16;
+    pActor->curYPos = g_FieldActors[actorIndex].transformMatrix.t[1];
+}
+*/
 
 /* 90.26% (468 bytes vs retail 456: three instructions too many). The levers
    that got it from 71.39% here: g_FieldActorAllocCount is indexed as g_FieldActorAllocCount[0]++
