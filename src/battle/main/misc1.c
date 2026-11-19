@@ -74,7 +74,7 @@ extern u16 D_800D2E04[];
 extern u16 g_BattleSlotDisplayValues[];
 extern u16 g_BattleSlotCountdownTimers[];
 extern u16 g_BattleCommandCellFlags;
-extern s32 BattleMaskHasSlotBit(s32, u8);
+extern u16 BattleMaskHasSlotBit(u16, u8);
 extern u16 BattleSlotBitMask(u8);
 extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3EB7[][0x1C];
@@ -732,12 +732,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
    (0x7) test and again for the mask local (lui/lhu/nop each time) where cse
    follows the jump and reuses the first load.
    Tried: listing each if/else arm in retail's order (done - worth 11 points),
-   s32 vs u16 mask with (u16) casts on BattleMaskHasSlotBit (the s32 form is what
-   reproduces retail's bare `bnez s2`), a u8 loop counter for the 3..0xA loop
-   (gcc then emits sltu for the test and an andi per iteration - wrong), and a
-   permuter run, which only found candidates that hoist BattleSlotBitMask(i)
-   unconditionally - a call retail does not make on the continue paths, so wrong
-   code.
+   s32 vs u16 mask (the s32 form reproduces retail's bare `bnez s2`), a u8 loop
+   counter for the 3..0xA loop (gcc then emits sltu for the test and an andi per
+   iteration - wrong), and a permuter run, which only found candidates that hoist
+   BattleSlotBitMask(i) unconditionally - a call retail does not make on the
+   continue paths, so wrong code. The 91.63% was measured with
+   `extern s32 BattleMaskHasSlotBit(s32, u8)` and a `(u16)` cast on each result,
+   which is the shape the mask loop wants; that prototype cannot live in this
+   file, because BattleResetActorCommandSlots' call then loses its
+   `andi v0,v0,0xFFFF` and that function links 4 bytes short.
+*/
 /*
 // Rebuilds g_BattleStateFlags, the mask of the slots that have an active action
 // pending, and then reconciles D_800C48EA (the battle menu event) with it.
@@ -765,7 +769,7 @@ void func_8007252C(void) {
         }
         if (D_800C3EB8[i][0] == 0) {
             if ((g_BattleSlotEntries[i].flags & 0xC000) != 0) {
-                if ((u16)BattleMaskHasSlotBit(D_800C3608, i) == 0) {
+                if (BattleMaskHasSlotBit(D_800C3608, i) == 0) {
                     g_BattleSlotEntriesBase[i].flags = 0;
                     g_BattleActorCountdownState[i] = 0xFF;
                     continue;
@@ -774,7 +778,7 @@ void func_8007252C(void) {
                 continue;
             }
         } else if ((g_BattleSlotEntries[i].stateFlags & 0xC000) != 0) {
-            if ((u16)BattleMaskHasSlotBit(D_800C3608, i) == 0) {
+            if (BattleMaskHasSlotBit(D_800C3608, i) == 0) {
                 g_BattleSlotEntries[i].effectFlags4Pair = 0;
                 g_BattleActorCountdownState[i] = 0xFF;
                 continue;
@@ -795,13 +799,13 @@ void func_8007252C(void) {
     }
     mask = g_BattleStateFlags;
     for (i = 0; i < 0xB; i++) {
-        if ((u16)BattleMaskHasSlotBit(mask, i) != 0 && (g_BattleSlotEntries[i].unk04 & 0x1000) != 0) {
+        if (BattleMaskHasSlotBit(mask, i) != 0 && (g_BattleSlotEntries[i].unk04 & 0x1000) != 0) {
             mask &= BattleSlotBitMaskInverted(i);
         }
     }
     if (mask == 0) {
         for (i = 0; i < 0xB; i++) {
-            if ((u16)BattleMaskHasSlotBit(g_BattleStateFlags, i) != 0 && (g_BattleSlotEntries[i].unk04 & 0x1000) != 0) {
+            if (BattleMaskHasSlotBit(g_BattleStateFlags, i) != 0 && (g_BattleSlotEntries[i].unk04 & 0x1000) != 0) {
                 g_BattleSlotEntries[i].unk04 &= 0xEFFF;
                 break;
             }
