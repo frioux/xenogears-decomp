@@ -53,7 +53,20 @@ extern s32 g_BattleAppendEntryCount;
 extern u32 g_NearColor;
 extern u8 D_80091834[];
 extern u8 D_800918B4[];
-extern u8 g_BattleSpanRenderParams[];
+/* The battle span render params block BattleRenderShadedSpans copies to
+   0x1F800120 (misc2_grid.c's BattleGridParams): four 8-byte shade entries, then
+   the tpage/clut pair of each of the four span textures. */
+typedef struct {
+    /* 0x0 */ u16 tpage;
+    /* 0x2 */ u16 clut;
+} BattlingSpanTexPage; // Size: 0x4
+
+typedef struct {
+    /* 0x00 */ u8 shades[0x20];
+    /* 0x20 */ BattlingSpanTexPage tex[4];
+} BattlingSpanParams; // Size: 0x30
+
+extern BattlingSpanParams g_BattleSpanRenderParams;
 extern u8 *D_80092854;
 extern u8 *g_BattleSpanBuffer;
 extern long MathGetLargestVectorComponent(long, long, long);
@@ -333,7 +346,7 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
 void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     g_NearColor = (g_NearColor & 0xFFFFFF) | 0x24000000;
     gte_ldrgb(&g_NearColor);
-    func_800732AC((void *)0x1F800120, g_BattleSpanRenderParams, 0x30);
+    func_800732AC((void *)0x1F800120, &g_BattleSpanRenderParams, 0x30);
     func_80072D18(arg0, arg1, arg2);
 }
 
@@ -359,7 +372,62 @@ void func_80087830(void) {
     func_800732AC(g_BattleSpanBuffer, D_80092854, 0xE100);
 }
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_800878DC);
+/* The battle texture archive after LZSSHeapDecompress and
+   ResolveArchiveEntryPointers: a pointer count, then one resolved pointer per
+   resource, each naming a TIM. Only the slots this unit loads are named. */
+typedef struct {
+    /* 0x00 */ s32 pointerCount;
+    /* 0x04 */ u_long *unk04[0xD];
+    /* 0x38 */ u_long *pQuadTim;
+    /* 0x3C */ u_long *unk3C[3];
+    /* 0x48 */ u_long *pSpanTim[4];
+    /* 0x58 */ u_long *unk58[6];
+    /* 0x70 */ u_long *pTim[9];
+} BattlingTextureArchive; // Size: 0x94
+
+void func_800878DC(BattlingTextureArchive *pArchive) {
+    TIM_IMAGE tim;
+    u16 *pClut;
+    u16 *pTpage;
+    u16 *pPixels;
+    SVECTOR pad; // retail's frame has eight bytes the C never touches
+    s32 stpBits;
+    s32 i;
+
+    pClut = &g_BattleSpanRenderParams.tex[0].clut;
+    pTpage = &g_BattleSpanRenderParams.tex[0].tpage;
+    for (i = 0; i < 4; i++) {
+        OpenTIM(pArchive->pSpanTim[i]);
+        ReadTIM(&tim);
+        pClut[i * 2] = GetClut(tim.crect->x, tim.crect->y);
+        pTpage[i * 2] = GetTPage(1, 1, tim.prect->x, tim.prect->y);
+        LoadImage(tim.crect, tim.caddr);
+        LoadImage(tim.prect, tim.paddr);
+    }
+
+    OpenTIM(pArchive->pQuadTim);
+    ReadTIM(&tim);
+    g_BattleQuadClut = GetClut(tim.crect->x, tim.crect->y);
+    g_BattleQuadTexPage = GetTPage(0, 2, tim.prect->x, tim.prect->y);
+    g_BattleQuadTexU = tim.prect->x * 4;
+    g_BattleQuadTexV = tim.prect->y;
+
+    pPixels = (u16 *)tim.caddr;
+    pPixels[0] = 0;
+    stpBits = -0x8000;
+    for (i = 1; i < 0x10; i++) {
+        pPixels[i] |= stpBits;
+    }
+    LoadImage(tim.crect, tim.caddr);
+    LoadImage(tim.prect, tim.paddr);
+
+    for (i = 0x1C; i < 0x25; i++) {
+        OpenTIM(pArchive->pTim[i - 0x1C]);
+        ReadTIM(&tim);
+        LoadImage(tim.crect, tim.caddr);
+        LoadImage(tim.prect, tim.paddr);
+    }
+}
 
 void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
     BattlingPacket *p = arg0->packet;
