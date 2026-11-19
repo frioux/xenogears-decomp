@@ -122,10 +122,167 @@ void BattleApplyScriptConditionTimer(void);
 void BattleSaveScriptCommandOperandsFromActor(void);
 void BattleClearStatusWordsOnAction6E(void);
 void func_800946F4(void);
+extern void func_8008FC1C(s32, s32, s32, s32, u8);
+extern void func_80090E7C(u8);
+extern void BattleUpdateFrame(void);
+extern void *GetStringEntryFromBank14(s32);
+extern void *GetStringEntryFromBank30(s32);
+extern u8 D_800CDD53[];
+extern u8 D_800CEF23[];
 
 // The largest amount the current action may deal; the tail of BattleComputeActionAmount clamps to it.
 #define BATTLE_ACTION_AMOUNT_MAX 9999
 
+// Number of action rows of one battle slot's status panel.
+#define BATTLE_STATUS_ROW_COUNT 16
+
+/* 91.38% (1444 bytes against retail's 1440) under this unit's gcc 2.6.0. Every
+   call, rectangle and store is retail's and the tail from func_80090E7C onwards is
+   byte-identical; the residual is four bytes of register scheduling plus one hoist.
+   Levers that were needed to get here:
+   - the two 16-row scans read a byte of a 0x28-byte action row: the index must be
+     built from two live locals (`rowOff` starting at 0x370 / 0x348 and stepped by
+     0x28, `slotOff` = arg0 * 0x5F0 / arg0 * 0x690) summed into a third (`off`)
+     before the load. That reproduces retail's `li s3,0x370`, `addu v0,s3,s5` and
+     the `lui $at / addu $at,at,v0 / lbu %lo(at)` macro form. Any single-expression
+     index, and `(i + 0x16) * 0x28`, makes gcc fold 0x370 into the symbol instead
+     (it names D_800CE0C3 / D_800CF26B and loads with displacement 0): 89-91%.
+   - the six upload rectangles must be six separate RECT locals, in this slot order:
+     nameRect 0x18, tensRect 0x20, onesRect 0x28, tileRect 0x30, stripRect 0x38,
+     blankRect 0x40. A `RECT rect[6]` array makes gcc keep `&rect[0]` in a register.
+   - `(u16)BattleMaskHasStatusBit(mask, i) != 0` is what emits the `andi 0xffff`
+     followed by `beqz` (a bare test of the s32 return gives sltu/bnez).
+   What is left, all measured:
+   - in both row scans gcc schedules the sum `off = rowOff + slotOff` one slot
+     earlier and into $v1, where retail computes it after the `sb active[i]` into
+     $v0; that shifts `move s1,zero`, `addiu s3,s3,40` and `addiu s0,s0,1` by one.
+   - gcc hoists `&D_800CCD3E[arg0 * 0x170]` out of the third loop into a register
+     (two extra instructions) where retail re-forms it per iteration through $at.
+     Routing the index through a variable does fix the address form but needs $s7
+     (89.48%).
+   - gcc derives the `bufs` base from `&nameRect` (`addiu s3,sp,24; move s0,s3;
+     lw a1,48(s0)`) where retail forms `addiu v0,sp,72; addu s0,v0,s2`.
+   Tried as well: all five index orders, the cast and the array spelling of both row
+   loads, a two-statement pointer split (pRow = base; pRow = pRow + idx), u8/u32
+   index types, and a 3-minute permuter run whose best candidate hoists `arg0 * 8`
+   into a `short` in the third loop and writes `i <= 16 - 1` (not ported). */
+/*
+
+void func_80091064(u8 arg0) {
+    RECT nameRect;
+    RECT tensRect;
+    RECT onesRect;
+    RECT tileRect;
+    RECT stripRect;
+    RECT blankRect;
+    void *bufs[BATTLE_STATUS_ROW_COUNT];
+    u8 active[BATTLE_STATUS_ROW_COUNT];
+    u8 values[BATTLE_STATUS_ROW_COUNT];
+    void *pBuf;
+    u8 *pStr;
+    u32 off;
+    s32 rowOff;
+    s32 slotOff;
+    u8 index;
+    s32 i;
+
+    BattleAllocPacketPrimitives();
+    func_80076EA4();
+    func_8008FC1C(0x20, 0x30, 0x98, 0x38, 0xC);
+    pBuf = BattleAllocTextBuffer(0x39);
+    D_800D2DB0 = pBuf;
+    bzero(pBuf, 0x618);
+    blankRect.x = 0x3C0;
+    blankRect.y = 0;
+    blankRect.w = 0x3C;
+    blankRect.h = 0xD;
+    BattleLoadImageAndSync(&blankRect, D_800D2DB0);
+    if (g_BattleSlotFlags[arg0 * 8] == 0) {
+        slotOff = arg0 * 0x5F0;
+        rowOff = 0x370;
+        for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
+            if ((u16)BattleMaskHasStatusBit(
+                    (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].characterConditionMask,
+                    i) != 0) {
+                active[i] = 1;
+                off = rowOff + slotOff;
+                values[i] = D_800CDD53[off];
+            } else {
+                active[i] = 0;
+                values[i] = 0;
+            }
+            rowOff += 0x28;
+        }
+    } else {
+        slotOff = arg0 * 0x690;
+        rowOff = 0x348;
+        for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
+            if ((u16)BattleMaskHasStatusBit(
+                    (u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].gearConditionMask,
+                    i) != 0) {
+                active[i] = 1;
+                off = rowOff + slotOff;
+                values[i] = D_800CEF23[off];
+            } else {
+                active[i] = 0;
+                values[i] = 0;
+            }
+            rowOff += 0x28;
+        }
+    }
+    for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
+        pBuf = BattleAllocTextBuffer(0x1B);
+        bufs[i] = pBuf;
+        bzero(pBuf, 0x30C);
+        tileRect.x = 0x380 + (i % 2) * 0x1E;
+        tileRect.y = 0x100 + (i / 2) * 0x10;
+        tileRect.w = 0x1B;
+        tileRect.h = 0x10;
+        BattleLoadImageAndSync(&tileRect, D_800D2DB0);
+        if (active[i] != 0) {
+            if (g_BattleSlotFlags[arg0 * 8] == 0) {
+                pStr = GetStringEntryFromBank14(*(u8 *)(D_800CCD3E + arg0 * 0x170) * 0x10 + i);
+            } else {
+                pStr = GetStringEntryFromBank30(*(u8 *)(g_BattleSlotTextIndex + arg0 * 0x170) * 0x10 + i);
+            }
+            SystemRenderStringEntry(pStr, bufs[i], 0x1B, 0);
+            nameRect.x = 0x380 + (i % 2) * 0x1E;
+            nameRect.y = 0x102 + (i / 2) * 0x10;
+            nameRect.w = 0x1E;
+            nameRect.h = 0xD;
+            BattleLoadImageAndSync(&nameRect, bufs[i]);
+        }
+        if (i % 2 == 0) {
+            stripRect.x = 0x3C0;
+            stripRect.y = 0x100 + (i / 2) * 0x10;
+            stripRect.w = 0x1B;
+            stripRect.h = 0x10;
+            BattleLoadImageAndSync(&stripRect, D_800D2DB0);
+        }
+        tensRect.x = 0x3C0 + (i % 2) * 0x10;
+        tensRect.y = 0x102 + (i / 2) * 0x10;
+        tensRect.w = 6;
+        tensRect.h = 0xD;
+        index = values[i] / 10;
+        BattleLoadImageAndSync(&tensRect, index != 0 ? D_800C3E5C[index] : D_800D2DB0);
+        onesRect.x = 0x3C2 + (i % 2) * 0x10;
+        onesRect.y = 0x102 + (i / 2) * 0x10;
+        onesRect.w = 6;
+        onesRect.h = 0xD;
+        BattleLoadImageAndSync(&onesRect, active[i] != 0 ? D_800C3E5C[values[i] % 10] : D_800D2DB0);
+    }
+    func_80090E7C(arg0);
+    for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
+        HeapFree(bufs[i]);
+    }
+    HeapFree(D_800D2DB0);
+    BattleUpdateFrame();
+    *(u16 *)(g_BattleGraphicsWork->pPacketPrims + 0x14E) = g_SystemPalette1;
+    *(u16 *)(g_BattleGraphicsWork->pPacketPrims + 0x176) = g_SystemPalette1;
+    g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
+    g_BattleDisplayState->unkB7 = 1;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091064);
 void BattleBuildSpriteColumn8(s32 arg0) {
     s32 i;
@@ -217,6 +374,8 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     s32 row;
     s32 col;
     u32 off;
+    s32 rowOff;
+    s32 slotOff;
 
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         off = (arg2 * 2 + arg1 + 0x16) * 0x28 + arg0 * 0x5F0;
