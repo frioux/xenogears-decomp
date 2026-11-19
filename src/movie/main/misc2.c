@@ -491,6 +491,16 @@ void func_80075534(void) {
     SetDefDispEnv(&pBase[0].dispEnv, 0, 0xF0, 0x280, 0xF0);
     SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
     SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x280, 0xF0);
+    // The ten stores below are the display flags and screen rects of the two draw
+    // buffers, i.e. exactly the block spelled
+    // pBase[0].drawEnv.isbg = 1; pBase[1].drawEnv.isbg = 1;
+    // pBase[n].dispEnv.screen.{x,y,w,h} = 0, 0xA, 0x100, 0xD8;
+    // (buffer 1 starts 0x138 after buffer 0, so those are D_80077274 and D_80077188
+    // here). Measured: the typed spelling is instruction-identical at retail's 2072
+    // bytes and links to the same addresses, but its relocations name
+    // g_MovieDebugDrawBuffers+0x18/0x150/0x64... where the original object names the
+    // exact addresses, so objdiff reads 99.61% and diff_func.sh can no longer fold it;
+    // this spelling keeps the function provable at 100.00%.
     g_MovieStreamSlots[0].unk0 = 1;
     D_80077274 = 1;
     D_80077188 = 0;
@@ -571,13 +581,17 @@ void func_80075534(void) {
 
         CdIntToPos(D_80076EFC, &pos);
         FontPrintf(D_800703CC, D_80076EFC, D_80076F00 * 0x10, pos.minute, pos.second, pos.sector);
+        // the row start is walked by the text column, the hex column has its own cursor
         pAscii = pSectorData + D_80076F00 * 0x10;
-        pHex = pAscii;        for (line = 0; line < 0xC; line++) {
+        pHex = pAscii;
+        for (line = 0; line < 0xC; line++) {
             FontPrintf(D_80070408, (line + D_80076F00) * 0x10);
             for (i = 0; i < 0xF; i++) {
-                FontPrintf(D_80070410, *pHex++);
+                FontPrintf(D_80070410, *pHex);
+                pHex++;
             }
-            FontPrintf(D_80070418, *pHex++);
+            FontPrintf(D_80070418, *pHex);
+            pHex++;
             FontPrintf(D_80070420);
             for (i = 0; i < 0x10; i++) {
                 c = *pAscii;
