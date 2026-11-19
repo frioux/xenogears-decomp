@@ -837,6 +837,67 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    Until then the 0x110-frame body below (11 insns short) is the better base. */
 
 
+
+/* Round 278: 83.78% -> 99.25% at retail's EXACT 4084 bytes. The function is NOT
+   parked for lack of progress: every jal-delimited segment now has retail's
+   instruction count (1009), so the only differences left are stack-slot identity
+   and register picks. What closed it, in order (all measured):
+     P15 the TWEEN LOOP ARM ORDER was backwards. Retail tests
+         `if (pTween->project3D == 0) {2D arm inline; continue;} 3D arm...`, so the
+         3D arm is the out-of-line one (beqz->else is not how it looks: retail's
+         head is `bnez v1, .L800A05A0`, i.e. the 2D arm is the THEN arm). 83.78 ->
+         91.81 in one edit, same size. Each arm carries its OWN allocate:/done:
+         labels INSIDE the if-branch, because retail has two copies of the field
+         fill; the pSlot test is `if (pSlot != NULL) goto done;` and the
+         fall-through enters allocate (the old body had it inverted, a real bug).
+     P16 the two gte_stsxy2 sites read `pTween->slot` FRESH, not a `k` local
+         (-4 insns); `pTween->slot = (pTween->slot - 1) & 7;` then the reads.
+     P17 the sprite loop's walker: the 8-byte frame item of round 269 is the
+         ROOT COPY pSprites (0x98). Source is `pSprite = pActor->pSprites;
+         pSprites = pSprite;` with pSprite DECLARED FIRST (slot 0x90) and the
+         prologue assignment order pMesh, scale16, pSprite, scale, pSprites,
+         count. Retail then bumps the walker in MEMORY: `pSprite++;
+         for (i = 1; i < count; i++, pSprite++)` - the pre-loop bump is the
+         preheader RMW, the latch bump is the tail RMW. Frame becomes 0x110 and
+         every spill slot above 0x90 lines up.
+     P18 the texture loop needs its OWN walker (`Temp8* pTexture` =
+         pActor->pTextures, stride 0x30). Reusing pSprite made gcc spill it to
+         0x90 and reload; a fresh local stays in s0 like retail.
+     P19 the model-list latch spells the WALKER bump before i++:
+         `for (...; pModelList++, i++)` puts the bump before the count load and
+         lets `addiu s5,s5,1` fill the lbu delay slot (retail's shape).
+     P20 the warp quad is `((BattleWarpQuad*)pActor->unkB8)[quadIndex]` at EVERY
+         use site, not a pQuad local: retail re-forms pActor + quadIndex*0x28 and
+         keeps 0xB8 as a displacement, and computes it inline at the first
+         gte_stsxy2 (after the GTE command), not before the vec stores.
+     P21 `if (++pTween->step == 0) continue;` - NOT
+         `if (++step != 0 && step > stepCount) goto allocate;`. Retail's step==0
+         edge jumps to the LOOP LATCH, past the pSlot test and the done tail;
+         the && form merges that edge with the pSlot check. This was the last
+         2 instructions and the `li <reg>,1` delay-slot position with them.
+     P22 two permuter finds: `j = pTween->step; j = (pTween->slot + j) & 7;` (two
+         statements) and `pRotMatrix->t[0] = pActor->groundY;` BEFORE
+         `t[1] = macEnd[2];`.
+     P23 split the tween's 16-entry DVECTOR into `projectedStart[8]` at 0x1C and
+         `projectedEnd[8]` at 0x3C: with two arrays indexed by the same k, gcc
+         keeps ONE base (pTween + k*4) and folds 0x1C/0x3C into the displacements
+         exactly as retail does; the `[k + 8]` spelling costs 3 instructions.
+   MEASURED REGRESSIONS this round, do not retry: `pSprite->...` in the slot loop
+   (99.08), `&pSprite->localTransform` for the first CompMatrix (99.07), inline
+   index for j (96.45), step=1 AFTER the call (98.17), u32 j, and
+   `for (...; pTween++, i++)` in the tween loop (4080 = 1 insn SHORT).
+   REMAINING (14 sites, all stack-slot/register identity, size already exact):
+   retail reads the WALKER (0x90) for the slot loop, the first CompMatrix
+   (0x8009FB74) and the sprite loop, and the ROOT (0x98) after it. Our body uses
+   pSprites (0x98) everywhere, so those `lw t2,144/152(sp)` pairs differ, and the
+   extra-matrix block's `CompMatrix(&pSprite->localTransform,
+   &pActor->pSprites[1].globalTransform, pMatrix)` re-reads pActor->pSprites from
+   the actor (`lw a1,4(fp)`), which no spelling tried here reproduced. Also
+   differing: the two `beqz ... step == 0` targets (ours 0xfa4, retail 0xfac) and
+   the sp temp offsets of the vec/mac arrays (retail 0x28/0x38/0x48 vs ours
+   0x30/0x40/0x60 - retail's SVECTOR temporaries sit 8 bytes lower). */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
+/*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
@@ -852,7 +913,6 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     BattleModelListEntry* pModelList;
     BattleModelListPoint* pPoint;
     BattleSpriteTween* pTween;
-    BattleWarpQuad* pQuad;
     BattlePartSlot* pPart;
     SVECTOR vec;
     SVECTOR tweenVec;
@@ -1148,6 +1208,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
     }
 }
+*/
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
