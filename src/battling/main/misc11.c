@@ -385,7 +385,7 @@ typedef struct {
     /* 0x70 */ u_long *pTim[9];
 } BattlingTextureArchive; // Size: 0x94
 
-void func_800878DC(BattlingTextureArchive *pArchive) {
+void BattlingLoadTextureArchive(BattlingTextureArchive *pArchive) {
     TIM_IMAGE tim;
     u16 *pClut;
     u16 *pTpage;
