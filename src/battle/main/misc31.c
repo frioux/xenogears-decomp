@@ -4,12 +4,13 @@
 #include "psyq/libgpu.h"
 #include "system/animation.h"
 
-// The archive-load task func_800BB760 queues (TimerWorkListAllocateTask payload 4):
-// a timer work-list entry followed by the animation archive index it loads.
+// The 0x20-byte timer work-list task func_800BB760 and BattleAnimTaskAllocArchiveEntry
+// queue (TimerWorkListAllocateTask payload 4): a work-list entry followed by the
+// 4-byte payload they carry - a pointer for one, an archive index for the other.
 typedef struct {
     /* 0x00 */ WorkListEntry entry;
-    /* 0x1C */ s32 archiveIndex;
-} BattleArchiveLoadTask; // Size: 0x20
+    /* 0x1C */ u32 payload;
+} BattleAnimWorkTask; // Size: 0x20
 
 // The sprite colour pulse task (g_BattleSpriteColorTask): the work-list entry, the
 // sprite it tints, and the angle it steps each frame.
@@ -176,55 +177,30 @@ void func_800BB540(u8 *pTask) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB540);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB620);
-void BattleAnimTaskAllocArchiveEntry(BattleArchiveLoadTask *pTask) {
-    func_800A9540(pTask->archiveIndex);
+void BattleAnimTaskAllocArchiveEntry(BattleAnimWorkTask *pTask) {
+    func_800A9540(pTask->payload);
     g_BattleAnimTaskAllocCount++;
     TimerWorkListSetTaskCallback(pTask, func_800BB620);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB6E0);
-// best 88.71% under cdk -G0 (44.87% under 2.7.2 -G8): the frame is 40 and every
-// instruction is present, only the global-base registers differ (we keep
-// &g_FlagTimerWorkListAdds in s0 with the saved byte in s3, retail uses s1/s4), plus one
-// load-delay nop after lw g_BattlePendingActorTaskCount that retail fills with the pEntry store.
-/*
 void func_800BB760(u8 *pEntry) {
     u8 saved;
-    u8 *pTask;
+    BattleAnimWorkTask *pTask;
+    s32 pendingCount;
 
     saved = g_FlagTimerWorkListAdds;
     g_FlagTimerWorkListAdds = 0;
     g_TaskHeapAllocFlags = 1;
-    pTask = TimerWorkListAllocateTask(NULL, 4);
+    pTask = (BattleAnimWorkTask *)TimerWorkListAllocateTask(NULL, 4);
     TimerWorkListSetTaskCallback(pTask, func_800BB6E0);
-    g_BattlePendingActorTaskCount++;
-    *(u8 **)(pTask + 0x1C) = pEntry;
+    // the counter is read into a local first: retail puts the payload store in the
+    // load-delay slot of that read, which a plain ++ cannot
+    pendingCount = g_BattlePendingActorTaskCount;
+    pTask->payload = (u32)pEntry;
     g_TaskHeapAllocFlags = 0;
+    g_BattlePendingActorTaskCount = pendingCount + 1;
     g_FlagTimerWorkListAdds = saved;
 }
-*/
-// best 94.74% at retail's exact 152 bytes: every store is in the right place except
-// that retail fills the load-delay slot of 'lw v0,g_BattlePendingActorTaskCount'
-// with the pEntry store ('lw / sw s3,0x1C(s0) / sb zero,g_TaskHeapAllocFlags').
-// Ours hoists that store above the load; moving it after the increment instead
-// leaves a nop in the delay slot and 156 bytes (88.71%), and a 4-minute permuter
-// run from the 94.74% body found nothing (base=60 best=60).
-/*
-void func_800BB760(u8 *pEntry) {
-    u8 saved;
-    u8 *pTask;
-
-    saved = g_FlagTimerWorkListAdds;
-    g_FlagTimerWorkListAdds = 0;
-    g_TaskHeapAllocFlags = 1;
-    pTask = TimerWorkListAllocateTask(NULL, 4);
-    TimerWorkListSetTaskCallback(pTask, func_800BB6E0);
-    *(u8 **)(pTask + 0x1C) = pEntry;
-    g_TaskHeapAllocFlags = 0;
-    g_BattlePendingActorTaskCount++;
-    g_FlagTimerWorkListAdds = saved;
-}
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB760);
 void BattleResetAnimState(void) {
     D_800C3674 = 0x200;
     D_800C3678 = -1;
