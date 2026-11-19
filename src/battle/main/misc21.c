@@ -982,11 +982,11 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             SetLightMatrix(pMatrix);
             CompMatrix(pTransMatrix, &pSprite->globalTransform, pMatrix);
             if (pSprite->scale.pad > 0) {
+                pMatrix->m[0][0] = *(u16*)&pActor->scale;
                 pMatrix->m[0][2] = 0;
                 pMatrix->m[1][0] = 0;
                 pMatrix->m[1][2] = 0;
                 pMatrix->m[2][0] = 0;
-                pMatrix->m[0][0] = *(u16*)&pActor->scale;
                 pMatrix->m[2][2] = *(u16*)&pActor->scale;
                 if (pSprite->scale.pad == 1) {
                     pMatrix->m[0][1] = pTransMatrix->m[0][1];
@@ -1005,7 +1005,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
     }
     pModelList = (BattleModelListEntry*)pActor->pModelListEntries;
-    for (i = 0; i < pActor->numModelListEntries; i++, pModelList++) {
+    for (i = 0; i < pActor->numModelListEntries; pModelList++, i++) {
         if (pModelList->spriteIndex < 0) {
             continue;
         }
