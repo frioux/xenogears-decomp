@@ -160,8 +160,8 @@ void func_800981C8(WorldMapMisc16Struct* p) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
 extern s32 g_WorldMapGridImageFileIndex;
-extern s32 D_8009BD08;
-extern s16 D_8009BBAC[];
+extern s32 g_WorldMapGridColumnImageFileIndex;
+extern s16 g_WorldMapGridCornerTileIndices[];
 extern u8* g_WorldMapTileCellPointers[];
 extern u32 ArchiveGetDebugTable(void);
 extern s32 ArchiveDecodeSector(s32 entryIndex);
@@ -191,7 +191,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80098CC0);
      row * 0x48 + 1 spelling gives addiu instead of li and loses the match).
    - the four-row/column groups walk g_WorldMapGridTileIds.grid[idx] with stride 1
      (rows) and stride 9 (columns), bases 1/0x49 and 9/0x11.
-   - loaded (& 2 / & 1) must be read into two locals BEFORE the four-cell D_8009BBAC
+   - loaded (& 2 / & 1) must be read into two locals BEFORE the four-cell g_WorldMapGridCornerTileIndices
      loop or the masks are recomputed inside it (that was 4 bytes and 2.4 points).
    Still wrong: retail puts the outer counter in s4 and the sector pointer in s5, ours
    swaps them (declaration order, splitting the free-pass counter into its own variable
@@ -250,7 +250,7 @@ void func_80098CC0(void) {
             }
             idx = 0x49;
         }
-        pSector = (u8*)ArchiveDecodeSector(D_8009BD08);
+        pSector = (u8*)ArchiveDecodeSector(g_WorldMapGridColumnImageFileIndex);
         idx = 9;
         for (i = 1; i != -1; i--) {
             for (j = 6; j != -1; j--) {
@@ -267,14 +267,14 @@ void func_80098CC0(void) {
         hasImage = loaded & 2;
         hasSector = loaded & 1;
         for (k = 0; k < 4; k++) {
-            id = g_WorldMapGridTileIds.grid[D_8009BBAC[k]];
+            id = g_WorldMapGridTileIds.grid[g_WorldMapGridCornerTileIndices[k]];
             if (g_WorldMapTileCellPointers[id] == NULL) {
                 g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
                 if (hasImage) {
                     pSector = (u8*)ArchiveDecodeSector(g_WorldMapGridImageFileIndex);
                     WorldMapAddCdRequest((s32)(pSector + id), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
                 } else if (hasSector) {
-                    pSector = (u8*)ArchiveDecodeSector(D_8009BD08);
+                    pSector = (u8*)ArchiveDecodeSector(g_WorldMapGridColumnImageFileIndex);
                     WorldMapAddCdRequest((s32)(pSector + ((id % g_WorldMapTileColumns) * g_WorldMapTileRows + id / g_WorldMapTileColumns)), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
                 }
             }
@@ -296,7 +296,7 @@ void func_80098CC0(void) {
             }
             idx = 0x49;
         }
-        pPath = ArchiveGetFilePath(D_8009BD08);
+        pPath = ArchiveGetFilePath(g_WorldMapGridColumnImageFileIndex);
         idx = 9;
         for (i = 1; i != -1; i--) {
             for (j = 6; j != -1; j--) {
@@ -313,14 +313,14 @@ void func_80098CC0(void) {
         hasImage = loaded & 2;
         hasSector = loaded & 1;
         for (k = 0; k < 4; k++) {
-            id = g_WorldMapGridTileIds.grid[D_8009BBAC[k]];
+            id = g_WorldMapGridTileIds.grid[g_WorldMapGridCornerTileIndices[k]];
             if (g_WorldMapTileCellPointers[id] == NULL) {
                 g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
                 if (hasImage) {
                     pPath = ArchiveGetFilePath(g_WorldMapGridImageFileIndex);
                     WorldMapAddFileLoadRequest((s32)pPath, id << 11, WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
                 } else if (hasSector) {
-                    pPath = ArchiveGetFilePath(D_8009BD08);
+                    pPath = ArchiveGetFilePath(g_WorldMapGridColumnImageFileIndex);
                     WorldMapAddFileLoadRequest((s32)pPath, ((id % g_WorldMapTileColumns) << 11) * g_WorldMapTileRows + ((id / g_WorldMapTileColumns) << 11), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
                 }
             }

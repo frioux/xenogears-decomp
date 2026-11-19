@@ -379,7 +379,7 @@ extern s32 g_WorldMapGridImageFileIndex;
 extern s32 g_WorldMapExtraFileIndex;
 extern s32 g_WorldMapTileRows;
 extern s32 g_WorldMapTileColumns;
-extern s32 D_8009BD08;
+extern s32 g_WorldMapGridColumnImageFileIndex;
 extern s32 g_WorldMapAreaMode;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
@@ -428,7 +428,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
     g_WorldMapMode7SoundBankFileIndex = pEntry->fileIndex + 7;
     g_WorldMapExtraFileIndex = pEntry->fileIndex + 8;
     g_WorldMapGridImageFileIndex = pEntry->fileIndex + 9;
-    D_8009BD08 = pEntry->fileIndex + 0xA;
+    g_WorldMapGridColumnImageFileIndex = pEntry->fileIndex + 0xA;
     g_WorldMapTileColumns = pEntry->tileColumns;
     g_WorldMapTileRows = pEntry->tileRows;
     g_WorldMapAreaMode = pEntry->areaMode;

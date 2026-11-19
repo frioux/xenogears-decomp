@@ -598,3 +598,5 @@ g_WorldMapSpritePrimCopy = 0x8009D7EC;
 g_WorldMapSemiTransPrimCopy = 0x8009D7FC;
 g_WorldMapFadeQuadBuffers = 0x8009D158;
 g_WorldMapTileShapeAxis = 0x8009B264;
+g_WorldMapGridColumnImageFileIndex = 0x8009BD08;
+g_WorldMapGridCornerTileIndices = 0x8009BBAC;
