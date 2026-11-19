@@ -672,8 +672,8 @@ extern void SoundReloadAudioManagerSamples(void* pManager, s32 volume, s32 arg2)
 extern void func_80089160(s32 arg0, s32 arg1, s32 arg2);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
-extern void func_800865A0(void);
-extern void func_80085FE0(void);
+extern void WorldMapAllocSemiTransPrimBuffers(void);
+extern void WorldMapAllocSpritePrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
 extern void WorldMapWrapTileVertexPositions(void);
 extern void WorldMapSetSlotEnterHandler(WorldMapSlotHandler pHandler, s32 index);
@@ -882,8 +882,8 @@ void func_80072238(void) {
     }
     func_800978FC();
     func_8008901C();
-    func_800865A0();
-    func_80085FE0();
+    WorldMapAllocSemiTransPrimBuffers();
+    WorldMapAllocSpritePrimBuffers();
     if (g_WorldMapInitModeIndex == 0) {
         WorldMapInitRandomTimers();
     }

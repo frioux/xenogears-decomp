@@ -72,7 +72,7 @@ extern void BattleClearFlagC6(void);
 extern void BattleFreeSlotBuffers(s32 arg0);
 extern u16 BattleSlotBitMask(u8 arg0);
 extern void BattleBeginAnimTask(u16 arg0);
-extern void func_800BCD98(u16 arg0);
+extern void BattleApplySlotMaskToEffects(u16 arg0);
 extern u16 BattleMaskHasSlotBit(u16 arg0, u8 arg1);
 extern u16 BattleSlotBitMaskInverted(u8 arg0);
 extern u8 D_800C400B[];
@@ -236,7 +236,7 @@ void func_8008ADD0(u8 arg0) {
     u16 *pMask;
 
     g_BattleSoundEnabled = 0;
-    func_800BCD98(0);
+    BattleApplySlotMaskToEffects(0);
     value = 0xFF;
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         D_800C402F[off] = value;
@@ -296,7 +296,7 @@ void BattleSetPrimFlagsFourSlots(u8 arg0) {
     g_BattleDisplayState->primState = 1;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
+    BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
 /* Best: 89.19% (584 bytes vs the original's 596). Same calls, same branch tree,
@@ -545,7 +545,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     u8 *pIds;
 
     g_BattleSoundEnabled = 0;
-    func_800BCD98(0);
+    BattleApplySlotMaskToEffects(0);
     value = BATTLE_COMMAND_NONE;
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         D_800C402F[off] = value;
@@ -607,7 +607,7 @@ void BattleSetPrimFlagsTwoSlots(u8 arg0) {
     g_BattleDisplayState->primState = 2;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
+    BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
     u8 value;
@@ -834,7 +834,7 @@ void BattleSetPrimFlagsTwoSlotsMode3(u8 arg0) {
     g_BattleDisplayState->primFlags[0] = g_BattleDisplayState->primFlags[1] = 1;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
+    BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008C4A8);
 /* Best: 88.52% (932 bytes vs the original's 884). Same calls, same branch tree,
@@ -882,7 +882,7 @@ s32 func_8008C4A8(u8 arg0) {
         g_BattleDisplayState->unkAF = 0;
         BattleFreeSlotPrims(1);
         g_BattleSoundEnabled = 0;
-        func_800BCD98(0);
+        BattleApplySlotMaskToEffects(0);
         g_BattleCommandQueue->slots[arg0].targetSlot = g_BattleTargetSlot;
         func_800877E0(arg0, g_BattleCommandQueue->slots[arg0].targetSlot);
         D_800C4928 = result;
@@ -930,6 +930,6 @@ void BattleSetPrimFlagsThreeSlots(u8 arg0) {
     g_BattleDisplayState->primState = 4;
     value = BattleSlotBitMask(arg0) | BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot);
     BattleBeginAnimTask(value);
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
+    BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue->slots[arg0].targetSlot));
 }
 

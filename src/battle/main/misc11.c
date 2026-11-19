@@ -39,7 +39,7 @@ extern u8 func_80084854(u8 arg0, u8 arg1);
 extern void func_80093B08(u8 arg0);
 extern u16 BattleSlotBitMask(u8 arg0);
 extern void BattleBeginAnimTask(u16 arg0);
-extern void func_800BCD98(u16 arg0);
+extern void BattleApplySlotMaskToEffects(u16 arg0);
 extern void func_80088490(u8 arg0);
 extern void func_8009AEFC(u8 arg0);
 extern void BattleFinishActorAnimationAndReleaseSlot(u8 arg0);
@@ -773,7 +773,7 @@ void BattleInitTargetSlotFlags(s32 arg0) {
         return;
     }
     BattleBeginAnimTask(BattleSlotBitMask(g_BattleCommandQueue[0x2E8]));
-    func_800BCD98(BattleSlotBitMask(g_BattleCommandQueue[0x2E8]));
+    BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleCommandQueue[0x2E8]));
     i = 0;
     do {
         if (func_80084854(g_BattleCommandQueue[0x2E8], i) != g_BattleCommandQueue[0x2E8]) {
@@ -795,7 +795,7 @@ void BattleAppendCommandRecord(u8 arg0) {
         return;
     }
     g_BattleCommandQueue[0x2E9] = 1;
-    func_800BCD98(0);
+    BattleApplySlotMaskToEffects(0);
     idx = arg0 * 0x40;
     *(g_BattleCommandQueue + idx + 0x3C) = g_BattleCommandQueue[0x2E8];
     BattleFreeStringTableAE();

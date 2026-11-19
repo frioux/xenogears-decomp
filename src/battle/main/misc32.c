@@ -28,7 +28,7 @@ typedef struct {
     /* 0x0A */ s16 z;
     /* 0x0C */ u8 unkC[0x1C];
     /* 0x28 */ u8 colors[0x3]; // written by BattleSetSpriteColorFromAngle
-    /* 0x2B */ u8 prim; // bit 0 cleared on spawn (func_800BD098), set on free
+    /* 0x2B */ u8 prim; // bit 0 cleared on spawn (BattleStartEffectColorRamp), set on free
     /* 0x2C */ u8 unk2C[0xA];
     /* 0x36 */ u16 yOffset; // the sprite's own vertical, taken once when the ramp starts
 } BattleEffectSprite; // Size: 0x38
@@ -39,11 +39,11 @@ typedef struct {
     /* 0x00 */ WorkListEntry timerEntry;
     /* 0x1C */ WorkListEntry workEntry;
     /* 0x38 */ BattleEffectSprite *pSprite;
-    /* 0x3C */ s32 posX; // the VECTOR func_800BCEAC hands TransMatrix
+    /* 0x3C */ s32 posX; // the VECTOR BattleDrawEffectColorRamp hands TransMatrix
     /* 0x40 */ s32 posY;
     /* 0x44 */ s32 posZ;
     /* 0x48 */ u8 pad48[0x4]; // the unused 4th word of the VECTOR posX..posZ
-    /* 0x4C */ u16 rotX; // the SVECTOR func_800BCEAC hands RotMatrix
+    /* 0x4C */ u16 rotX; // the SVECTOR BattleDrawEffectColorRamp hands RotMatrix
     /* 0x4E */ u16 rotY; // advanced 0x10 per step
     /* 0x50 */ u16 rotZ;
     /* 0x52 */ u16 pad52;
@@ -60,7 +60,7 @@ typedef struct {
 
 // The sprite colour pulse task g_BattleSpriteColorTask holds (misc31 owns the type and
 // its tick): the work-list entry, the sprite it tints and the battle slot it was
-// created for, which D_800C4922 retires.
+// created for, which g_BattleSpriteColorTaskSlot retires.
 typedef struct {
     /* 0x00 */ WorkListEntry entry;
     /* 0x1C */ SpriteData *pSpriteData;
@@ -69,7 +69,7 @@ typedef struct {
 } BattleSpriteColorTask; // Size: 0x28
 
 extern BattleSpriteColorTask *g_BattleSpriteColorTask;
-extern u8 D_800C4922;
+extern u8 g_BattleSpriteColorTaskSlot;
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern void BattleFreeSpriteColorTask();
@@ -80,13 +80,13 @@ extern void *TimerWorkListAllocateTask(void *pData, s32 dataSize);
 // slot, then makes one for this slot's sprite out of the two per-slot pointer tables the
 // battle state work block ends with (0x8C8C is the sprite misc33 animates, 0x8CB8 the
 // record TimerWorkListAllocateTask takes).
-void func_800BCC60(void) {
+void BattleStartSpriteColorPulse(void) {
     BattleSpriteColorTask *pTask;
     SpriteData *pSpriteData;
     u8 *pBase;
 
     if (g_BattleSpriteColorTask != NULL) {
-        if (g_BattleSpriteColorTask->slot == D_800C4922) {
+        if (g_BattleSpriteColorTask->slot == g_BattleSpriteColorTaskSlot) {
             return;
         }
         BattleFreeSpriteColorTask(0);
@@ -122,7 +122,7 @@ typedef struct {
 } BattleEffectSlotRecord; // Size: 0x8
 
 extern WorkListEntry *TimerWorkListFindEntryForDataAndCallback(void *pData, void *pCallback);
-extern void func_800BD098(BattleEffectSlotRecord *pRecord);
+extern void BattleStartEffectColorRamp(BattleEffectSlotRecord *pRecord);
 extern void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask);
 
 // The tail of the battle state work block, as this unit's effects reach it: the render
@@ -140,7 +140,7 @@ typedef struct {
 // order, starting the ramp of a masked-in slot that has no timer entry yet and running the
 // entry's on-free callback for a masked-out one. The records come from the tail of the work
 // block, whose 0x8CB8 offset is what makes gcc split the address the way retail does.
-void func_800BCD98(u16 mask) {
+void BattleApplySlotMaskToEffects(u16 mask) {
     BattleStateWorkTail *pWork;
     BattleEffectSlotRecord *pRecord;
     WorkListEntry *pEntry;
@@ -148,7 +148,7 @@ void func_800BCD98(u16 mask) {
 
     g_BattleActorMask = mask;
     if (mask != 0) {
-        func_800BCC60();
+        BattleStartSpriteColorPulse();
     } else {
         BattleFreeSpriteColorTask(0);
     }
@@ -158,7 +158,7 @@ void func_800BCD98(u16 mask) {
             pRecord = pWork->slotEffects[i];
             if (pRecord != NULL
                 && TimerWorkListFindEntryForDataAndCallback(pRecord, BattleApplyEffectSpriteColorRamp) == NULL) {
-                func_800BD098(pRecord);
+                BattleStartEffectColorRamp(pRecord);
             }
         } else {
             pRecord = pWork->slotEffects[i];
@@ -178,7 +178,7 @@ extern void func_800B1F6C(void *pFrame, void *pPrimBuffer, u_long *pOt, s32 flag
 // Draws one step of a colour-ramp effect: the block's position and rotation go through the
 // sprite base matrix, the perspective scale comes from the transformed depth, and the model
 // frame's primitives are handed to func_800B1F6C out of the buffer the render context picks.
-void func_800BCEAC(WorkListEntry *pEntry) {
+void BattleDrawEffectColorRamp(WorkListEntry *pEntry) {
     BattleEffectColorRampData *pData;
     MATRIX mtx;
     IVEC3 vec;
@@ -250,7 +250,7 @@ extern u8 D_8001C76C[];
 // Starts the colour ramp for one of the battle's slot effects: allocates its data block,
 // points it at the slot's sprite, and builds the double-buffered prim block (one copy of
 // the model frame's packets per render context) the draw callback hands to func_800B1F6C.
-void func_800BD098(BattleEffectSlotRecord *pRecord) {
+void BattleStartEffectColorRamp(BattleEffectSlotRecord *pRecord) {
     BattleEffectColorRampData *pData;
     BattleEffectSprite *pSprite;
     u8 *pBuffer;
@@ -258,7 +258,7 @@ void func_800BD098(BattleEffectSlotRecord *pRecord) {
 
     pSprite = pRecord->pSprite;
     pData = (BattleEffectColorRampData *)WorkListsAddTasks(0x68, pRecord, BattleApplyEffectSpriteColorRamp,
-                                                           func_800BCEAC, BattleFreeEffectSpriteTask);
+                                                           BattleDrawEffectColorRamp, BattleFreeEffectSpriteTask);
     pData->pSprite = pSprite;
     pData->yOffset = pSprite->yOffset;
     if (g_FlagTimerWorkListAdds != 0) {
@@ -347,7 +347,7 @@ extern Misc32Task *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCal
                                      void *pWorkCallback, void *pOnFreeCallback);
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, Misc32SpritePart *pOut, s16 x, s16 y);
 extern s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
-extern void func_800BDE58(void);
+extern void BattleInitNumberSpriteTask(void);
 extern void func_800BDA1C(u8 *pTask);
 extern void BattleUnlinkAndFreeTask(void *pEntry);
 extern void BattleStepEffectColorFade(Misc32Task *pTask);
@@ -476,7 +476,7 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     if (g_BattleState == NULL) {
         return;
     }
-    func_800BDE58();
+    BattleInitNumberSpriteTask();
     pCur = g_BattleTaskUnlinkList;
     g_BattleTaskListBusy = 0;
     while (pCur != NULL) {
@@ -775,8 +775,8 @@ void BattleFreeTimerTask(Misc32Task *pTask) {
 void BattleTimerTaskNoOp(void) {
 }
 
-// The battle's static timer task block (D_800D30EC): the timer entry, the work entry
-// func_800BDD3C draws, and the number sprite that entry transforms. Its colour word,
+// The battle's static timer task block (g_BattleNumberSpriteTask): the timer entry, the work entry
+// BattleDrawNumberSpriteTask draws, and the number sprite that entry transforms. Its colour word,
 // part count and parts sit 0x10 lower than misc33's BattleSpriteBody because the two
 // work-list entries come in front of them.
 typedef struct {
@@ -801,8 +801,8 @@ typedef struct {
     /* 0x68 */ Misc32SpritePart parts[6]; // a body part plus the five digits
 } BattleNumberTask; // Size: 0xF8
 
-extern BattleNumberTask D_800D30EC;
-extern s32 D_800D3680;
+extern BattleNumberTask g_BattleNumberSpriteTask;
+extern s32 g_BattleNumberSpriteValue;
 extern u8 D_800C3780;
 
 extern void func_80026BA4(u8 *pArchive, u32 index, s32 x, s32 y, u_long *pOt);
@@ -814,7 +814,7 @@ extern void TimerWorkListAddTask(void *pData, WorkListEntry *pEntry);
 // The number sprite's draw callback: draws the sprite body func_80026BA4 hands out at
 // the centre of the screen, then the same transform block misc33's BattleRenderSpriteBody
 // uses with this task's rotation and scale, and one textured quad per part.
-void func_800BDD3C(WorkListEntry *pEntry) {
+void BattleDrawNumberSpriteTask(WorkListEntry *pEntry) {
     BattleNumberTask *pTask;
     Misc32SpritePart *pPart;
     MATRIX mtx;
@@ -848,7 +848,7 @@ void func_800BDD3C(WorkListEntry *pEntry) {
 
 // Creates the static number-sprite task once per battle: both work-list entries, the
 // callbacks, the fixed on-screen position and the colour word func_800BDF1C fills in.
-void func_800BDE58(void) {
+void BattleInitNumberSpriteTask(void) {
     BattleNumberTask *pTask;
 
     if (g_BattleTimerTask != NULL) {
@@ -857,19 +857,19 @@ void func_800BDE58(void) {
     if (D_800C3780 != 0) {
         return;
     }
-    pTask = &D_800D30EC;
+    pTask = &g_BattleNumberSpriteTask;
     g_BattleTimerTask = (Misc32Task *)pTask;
     TimerWorkListAddTask(NULL, &pTask->timerEntry);
     WorkListAddTask(&pTask->timerEntry, &pTask->workEntry);
     TimerWorkListSetTaskCallback((Misc32Task *)pTask, BattleTimerTaskNoOp);
-    WorkListSetTaskCallback(&pTask->workEntry, func_800BDD3C);
+    WorkListSetTaskCallback(&pTask->workEntry, BattleDrawNumberSpriteTask);
     WorkListTaskSetOnFreeCallback(&pTask->timerEntry, BattleFreeTimerTask);
     pTask->x = 0x90;
     pTask->y = 0x2A;
     pTask->timerEntry.unk4 = pTask;
     pTask->workEntry.unk4 = pTask;
     pTask->partCount = 0;
-    D_800D3680 = -1;
+    g_BattleNumberSpriteValue = -1;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDF1C);
 extern void BattleFreeTimerTask(Misc32Task *pTask);

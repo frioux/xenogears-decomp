@@ -254,7 +254,7 @@ extern int ArchiveSetIndex(int, int);
 extern void WorldMapAddSlot(void *, void *);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
-extern void func_800865A0(void);
+extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
@@ -476,7 +476,7 @@ void WorldMapInitializeScene(void) {
     WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
     func_8008901C();
-    func_800865A0();
+    WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }
 s32 WorldMapShutdownScene(void) {

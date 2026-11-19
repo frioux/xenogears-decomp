@@ -195,7 +195,7 @@ extern s32 Vsync(s32 arg0);
 extern void WorldMapAddSlot(void *p0, void *p1);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
-extern void func_800865A0(void);
+extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
@@ -876,7 +876,7 @@ void WorldMapInitializeModeWithGroupActors(void) {
     WorldMapAddSlot((void *)WorldMapEnterNop, (void *)WorldMapUpdateFrameWithParticles);
     func_800978FC();
     func_8008901C();
-    func_800865A0();
+    WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }
 

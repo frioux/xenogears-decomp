@@ -224,7 +224,7 @@ extern void SoundPlayAudioManager(s32 *, int, int);
 extern void WorldMapAddSlot(void *, void *);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
-extern void func_800865A0(void);
+extern void WorldMapAllocSemiTransPrimBuffers(void);
 extern void WorldMapInitRandomTimers(void);
 extern void WorldMapModeInitFadeRect(void);
 extern void func_800925A0(void);
@@ -242,7 +242,7 @@ extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
 extern void WorldMapLoadSedsBank(void);
 extern void WorldMapRelocateMapEntryOffsets(void);
-extern void func_80085FE0(void);
+extern void WorldMapAllocSpritePrimBuffers(void);
 extern void WorldMapInitNop(void);
 extern void WorldMapUpdateFrame(void);
 extern void WorldMapInitSlotAtScrollPosition(void);
@@ -493,7 +493,7 @@ void func_8007D918(void) {
     WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
     func_800978FC();
     func_8008901C();
-    func_800865A0();
+    WorldMapAllocSemiTransPrimBuffers();
     WorldMapInitRandomTimers();
 }
 
@@ -1187,8 +1187,8 @@ void WorldMapInitializeModeWithActors(void) {
     WorldMapAddSlot(WorldMapInitNop, WorldMapUpdateFrame);
     func_800978FC();
     func_8008901C();
-    func_800865A0();
-    func_80085FE0();
+    WorldMapAllocSemiTransPrimBuffers();
+    WorldMapAllocSpritePrimBuffers();
     WorldMapInitRandomTimers();
 }
 void WorldMapExitToMap84(void) {

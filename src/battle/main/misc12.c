@@ -1221,7 +1221,7 @@ void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     }
 }
 extern void BattleBeginAnimTask(u16);
-extern void func_800BCD98(u16);
+extern void BattleApplySlotMaskToEffects(u16);
 extern void BattleUpdateFrame(void);
 extern u8 func_80084854(u8, u8);
 s32 BattleSelectTargetSlotLoop(u8 arg0) {
@@ -1236,7 +1236,7 @@ s32 BattleSelectTargetSlotLoop(u8 arg0) {
         while (g_BattleMenuEvent == 8) {
             m = b;
             BattleBeginAnimTask(BattleSlotBitMask(arg0) | BattleSlotBitMask(m));
-            func_800BCD98(BattleSlotBitMask(m));
+            BattleApplySlotMaskToEffects(BattleSlotBitMask(m));
             BattleUpdateFrame();
         }
         switch (g_BattleMenuEvent) {
@@ -1250,7 +1250,7 @@ s32 BattleSelectTargetSlotLoop(u8 arg0) {
             BattleBeginAnimTask(BattleSlotBitMask(arg0) |
                           BattleSlotBitMask(((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].targetSlot));
             state = 0;
-            func_800BCD98(BattleSlotBitMask(((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].targetSlot));
+            BattleApplySlotMaskToEffects(BattleSlotBitMask(((BattleActorSlots *)g_BattleCommandQueue)->slot[arg0].targetSlot));
             break;
         case 0:
             b = func_80084854(b, 0);
@@ -1396,16 +1396,16 @@ u8 BattleRunTargetSlotSelection(u16 arg0, u8 arg1, u8 arg2) {
         BattleUpdateFrame();
         switch (arg0 & 0xF) {
         case 0:
-            func_800BCD98(BattleSlotBitMask(g_BattleTargetSlot));
+            BattleApplySlotMaskToEffects(BattleSlotBitMask(g_BattleTargetSlot));
             BattleBeginAnimTask(BattleSlotBitMask(g_BattleTargetSlot));
             break;
         case 1:
-            func_800BCD98(g_BattleTargetSlotMask);
+            BattleApplySlotMaskToEffects(g_BattleTargetSlotMask);
             BattleBeginAnimTask(g_BattleTargetSlotMask);
             break;
         case 2:
             mask = BattleGetSameRowSlotMask();
-            func_800BCD98(mask);
+            BattleApplySlotMaskToEffects(mask);
             BattleBeginAnimTask(mask);
             break;
         }

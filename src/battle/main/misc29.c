@@ -18,7 +18,7 @@
 #define BATTLE_DISP_HEIGHT 224
 
 // The per-battle actor table is 11 slots; the first three are not part of the
-// group func_800B88C4 counts.
+// group BattleInitFrameRenderState counts.
 #define BATTLE_ACTOR_SLOT_COUNT 11
 #define BATTLE_FIRST_ACTOR_SLOT 3
 
@@ -186,11 +186,11 @@ extern BattleStageOrigin g_BattleSlotVectors[2];
 extern SVEC D_800D335C;
 extern s32 g_GameWdsEntrySlot3;
 extern void func_801E62E0(s32 arg0);
-extern void func_800B88C4(void);
+extern void BattleInitFrameRenderState(void);
 extern void BattleInitStateWorkBuffers(void);
 
 void func_800B81BC(s32 arg0) {
-    func_800B88C4();
+    BattleInitFrameRenderState();
     BattleInitStateWorkBuffers();
     func_801E62E0(arg0);
     SoundFreeWdsEntry((void *)g_GameWdsEntrySlot3);
@@ -208,7 +208,7 @@ void func_800B81BC(s32 arg0) {
 
 /* One of the battle's two frame environments: the DRAWENV a frame draws with,
    that frame's DISPENV 0x5C bytes later, then the frame's ordering table (the 0x1000
-   tags func_800B88C4 clears with ClearOTagR at DRAWENV + 0x70). */
+   tags BattleInitFrameRenderState clears with ClearOTagR at DRAWENV + 0x70). */
 typedef struct {
     /* 0x0000 */ DRAWENV draw;
     /* 0x005C */ DISPENV disp;
@@ -291,7 +291,7 @@ extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern s32 SoundGetActiveElementMask(s32 arg0);
 extern s16 SoundGetPendingSpuCommandType(s32 arg0);
 
-void func_800B838C(s32 arg0, s32 arg1) {
+void BattleLoadSoundEffectFilesAndPlay(s32 arg0, s32 arg1) {
     BattleArchiveRequest request;
     BattleArchiveEntry *pEntry;
     BattleArchiveEntry *pTable;
@@ -475,7 +475,7 @@ typedef struct {
     /* 0x20 */ s32 initialActorIndex; // the actor index the init hands to BattleSetCurrentActorSprite
     /* 0x24 */ s32 actorIndex;
     /* 0x28 */ u8 unk28[0x18];
-    /* 0x40 */ void *savedActorSlot; // an index, not a pointer: func_800B8EBC passes it to BattleLoadActorSlotAnimation
+    /* 0x40 */ void *savedActorSlot; // an index, not a pointer: BattleTearDownState passes it to BattleLoadActorSlotAnimation
 } BattleUnitState; // Size: 0x44
 
 extern BattleUnitState *g_BattleState;
@@ -514,7 +514,7 @@ extern s32 g_BattleLiveSlotCount;
 extern s32 g_AnimScriptExtraTicks;
 extern s32 g_GfxOTDepthShift;
 
-void func_800B88C4(void) {
+void BattleInitFrameRenderState(void) {
     BattleActorSlot *pSlot;
     BattleEnvBlock *pEnv;
     BattleRenderState *pWork;
@@ -615,7 +615,7 @@ void BattleActorInitSpriteFromSlot(void) {
 extern u8 D_800C3624;
 extern u16 D_800C3DF0;
 extern u8 g_BattleActorArchiveReady;
-extern u8 D_800C35D4;
+extern u8 g_BattleAudioFadeStarted;
 extern u8 D_800C3688;
 extern s32 *g_BattleAudioManager;
 extern void BattleSetFlag2DBAndReleaseAssets(void);
@@ -628,7 +628,7 @@ extern void BattleSetAnimTaskShort(s16 value);
 extern void BattleLoadActorSlotAnimation(s32 index);
 extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
 
-void func_800B8EBC(void) {
+void BattleTearDownState(void) {
     SpriteData *pSprite;
     SpriteData *pOwnedSprite;
     BattleOwnedSprites *pSprites;
@@ -662,10 +662,10 @@ void func_800B8EBC(void) {
     BattleSetAnimTaskShort(0xC0);
     BattleDestroyState();
     BattleLoadActorSlotAnimation(slot);
-    if (D_800C35D4 != 0) {
+    if (g_BattleAudioFadeStarted != 0) {
         SoundSetAudioManagerVolumeWithFade(g_BattleAudioManager, 0x7F, 0x50);
     }
-    D_800C35D4 = 0;
+    g_BattleAudioFadeStarted = 0;
     pSprites = (BattleOwnedSprites *)g_BattleStateWork;
     for (i = 0; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
         pOwnedSprite = pSprites->pOwnedSprites[i];

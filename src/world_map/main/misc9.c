@@ -19,9 +19,9 @@ extern u_char* g_WorldMapPrimBlocks;
 extern u_char* g_WorldMapTileVertexBuffer;
 extern u16 g_WorldMapClutIds[];
 extern u_char* g_WorldMapSpritePrims[];
-extern u_char* D_8009D7EC;
+extern u_char* g_WorldMapSpritePrimCopy;
 extern u_char* g_WorldMapSemiTransPrims[];
-extern u_char* D_8009D7FC;
+extern u_char* g_WorldMapSemiTransPrimCopy;
 extern s16 D_8009AFA0[];
 extern u16 D_8009B688[];
 extern u16 g_WorldMapTileGroupIds[];
@@ -181,17 +181,17 @@ void WorldMapRelocateMapEntryOffsets(void) {
 // assigned form), `mem_addr pp = (mem_addr)&g_...` with *(u_char**)pp, and the
 // plain symbol below. The 0x200-iteration POLY_FT4 loop and the trailing 0x5000
 // copy are byte-exact (the copy must be typed: memcpy of `u_char*` globals emits
-// lwl/lwr and scores 60%). func_800865A0 shows the identical idiom with
+// lwl/lwr and scores 60%). WorldMapAllocSemiTransPrimBuffers shows the identical idiom with
 // g_WorldMapSemiTransPrims. Screen: cdk 92.21, 2.6.0 92.27, best 92.27 here - not
 // a compiler miss.
-void func_80085FE0(void) {
+void WorldMapAllocSpritePrimBuffers(void) {
     POLY_FT4* pPrim;
     POLY_FT4* pDst;
     POLY_FT4* pSrc;
     s32 i;
 
     g_WorldMapSpritePrims[0] = HeapAlloc(0x5000, 1);
-    D_8009D7EC = HeapAlloc(0x5000, 1);
+    g_WorldMapSpritePrimCopy = HeapAlloc(0x5000, 1);
     pPrim = (POLY_FT4*)g_WorldMapSpritePrims[0];
     for (i = 0; i < 0x200; i++, pPrim++) {
         setPolyFT4(pPrim);
@@ -208,11 +208,11 @@ void func_80085FE0(void) {
         setTPage(pPrim, 0, 0, 0x380, 0x100);
     }
     pSrc = (POLY_FT4*)g_WorldMapSpritePrims[0];
-    pDst = (POLY_FT4*)D_8009D7EC;
+    pDst = (POLY_FT4*)g_WorldMapSpritePrimCopy;
     memcpy(pDst, pSrc, 0x5000);
 }
 void WorldMapFreeSpritePrimBuffers(void) {
-    HeapFree(D_8009D7EC);
+    HeapFree(g_WorldMapSpritePrimCopy);
     HeapFree(g_WorldMapSpritePrims[0]);
 }
 // Best: 95.40% (660 bytes vs retail's 640). The quad setup in the scratchpad, both
@@ -353,8 +353,8 @@ void WorldMapFreeTileVertexBuffers(void) {
 // The array form of the extern is deliberate: it is what makes gcc materialise the
 // global's ADDRESS into a callee-saved register (retail: lui/addiu into s0, store of
 // HeapAlloc #1 in the second call's delay slot, reload through s0) instead of the
-// assembler's lui $at / sw %lo(sym) macro. Same lever as func_80085FE0 above.
-void func_800865A0(void) {
+// assembler's lui $at / sw %lo(sym) macro. Same lever as WorldMapAllocSpritePrimBuffers above.
+void WorldMapAllocSemiTransPrimBuffers(void) {
     POLY_FT4* pPrim;
     POLY_FT4* pSrc;
     POLY_FT4* pDst;
@@ -364,7 +364,7 @@ void func_800865A0(void) {
     s32 primLen;
 
     g_WorldMapSemiTransPrims[0] = HeapAlloc(0x2D00, 1);
-    D_8009D7FC = HeapAlloc(0x2D00, 1);
+    g_WorldMapSemiTransPrimCopy = HeapAlloc(0x2D00, 1);
     pPrim = (POLY_FT4*)g_WorldMapSemiTransPrims[0];
     // The three packet values are load-bearing locals: gcc hoists a value that is
     // assigned in the loop into a callee-saved register, which is how retail gets
@@ -382,12 +382,12 @@ void func_800865A0(void) {
         SetSemiTrans(pPrim, 1);
     }
     pSrc = (POLY_FT4*)g_WorldMapSemiTransPrims[0];
-    pDst = (POLY_FT4*)D_8009D7FC;
+    pDst = (POLY_FT4*)g_WorldMapSemiTransPrimCopy;
     memcpy(pDst, pSrc, 0x2D00);
 }
 
 void WorldMapFreeSemiTransPrimBuffers(void) {
-    HeapFree(D_8009D7FC);
+    HeapFree(g_WorldMapSemiTransPrimCopy);
     HeapFree(g_WorldMapSemiTransPrims[0]);
 }
 
