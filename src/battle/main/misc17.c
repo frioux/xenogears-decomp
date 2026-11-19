@@ -101,6 +101,27 @@ void func_80092298(u8, u8 *);
 extern u_long *D_800D2DB0;
 extern void bzero(void *, s32);
 extern void HeapFree(void *);
+extern u8 *g_BattleCommandQueue;
+extern u8 D_800C3DE1[];
+extern u8 *g_BattleCurSlotState;
+extern BattleSlotState *g_BattleTargetSlotState;
+extern u8 *D_800C3D60;
+extern u16 g_BattleActionSlotMask;
+extern u8 D_800CCD3E[];
+extern void *D_800C348C[];
+extern u8 D_800D2DB8;
+extern u8 D_800C34AE;
+void BattleClearAllSlotStates(void);
+void BattleExecuteActionRow(void);
+void BattleSetSlotEntryFieldsTo1(u8);
+void BattleAccumulateSlotValueByRowFlag(void);
+void BattleRollPercentAndSetState38(void);
+void BattleRollPercentAndSwapActiveActor(void);
+void BattleApplyActorConditionTimer(void);
+void BattleApplyScriptConditionTimer(void);
+void BattleSaveScriptCommandOperandsFromActor(void);
+void BattleClearStatusWordsOnAction6E(void);
+void func_800946F4(void);
 
 // The largest amount the current action may deal; the tail of BattleComputeActionAmount clamps to it.
 #define BATTLE_ACTION_AMOUNT_MAX 9999
@@ -541,6 +562,110 @@ nextTile:
 */
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
+/* 64.13% (1004 bytes against retail's 1336). Everything up to the quad geometry
+   at the end is structurally right and measured: the two digit packages
+   (0x67+tens behind `if (tens != 0)`, 0x67+ones), the seven-row loop
+   (`g_BattleCommandQueue[i + 0x2C4] == 0xFF` breaks; `D_800C3DE1[i - 1] + 0x39`
+   for the first sprite and a bare 0xA for i != 0, 0x4A as the fourth argument),
+   the two flag stores, and the 16 quad halfword stores in retail's exact order.
+   TWO measured findings for whoever picks this up:
+   (1) THE QUADS ARE INDEXED BY THE PRIM INDEX, not by a constant. Retail scales
+   the pool base by 0x24 = sizeof(POLY_G4) for the gouraud pair and by 0x18 =
+   sizeof(POLY_F4) for the flat pair (`sll v0,v1,3 / addu / sll 2` and
+   `sll v0,v1,1 / addu / sll 3`), so the source is `...->gouraudQuads[idx].x0` /
+   `...->flatQuads[idx].x0` with idx = the word at 0x800CCB34; the store
+   displacements 0x5F8/0x640 are that struct's field offsets, and the 0x28 stride
+   this parked body uses is wrong.
+   (2) THE TAIL NEEDS A SCALAR DECLARATION OF 0x800CCB34, WHICH THIS UNIT CANNOT
+   HAVE. Retail re-reads that word once per store as `lui $v1,%hi(sym)` +
+   `lw $v1,%lo(sym)($v1)` (16 times, 2 instructions each, the address destroyed by
+   the load, i.e. a `(mem (symbol_ref))` RTL). Measured with cc1_probe.sh: only a
+   NON-ARRAY (scalar) declaration emits that form; `extern u8 g_X[]` (and an
+   s32/u32/volatile array, and `((s32 *)g_X)[0]`, `*(s32 *)&g_X`,
+   `*(s32 *)(g_X + 0)`, a pointer local) all emit ONE shared `la` + `lw 0(reg)`,
+   which is 16 instructions short and cannot link. The byte read earlier in the
+   tail (`lbu $v0, 0($t2)` after a `la`) is the ARRAY form, so retail's TU had
+   both views of the address (misc11.c in this overlay declares
+   `extern volatile s32 g_BattlePrimStartIndex;` and gets the scalar form). This
+   file's `extern u8 g_BattlePrimStartIndex[]` exists because the five matched
+   functions around this stub need the `la` form, so the two cannot coexist here
+   without a second symbol at 0x800CCB34 (symbol_addrs has no duplicate address
+   anywhere, and splat names the disassembly by address, so that is not obviously
+   safe) or converting those five to a scalar declaration plus pointer locals.
+   Also open: retail's `i * 0x20 + 0x2A` / `i * 0x20 + 0x1A` third arguments are
+   a SHIFTED induction variable (`lui s1,0x2A0000` / `sra $a2,s1,0x10`,
+   +0x200000 per row) where this body gives `li`/`sll`/`ori`; and retail's
+   `x = (arg1 & 0xFF) * 4 + 0x80` is emitted as andi / sll / addiu spread over
+   the first three stores. Un-parking needs no new externs beyond
+   `extern u8 *g_BattleCommandQueue;` and `extern u8 D_800C3DE1[];`, both now at
+   the top of this file. */
+/*
+void func_80092B74(u8 arg0, u8 arg1) {
+    u8 digits[2];
+    s16 x;
+    s32 i;
+
+    digits[0] = arg1 / 10;
+    digits[1] = arg1 % 10;
+    g_BattleDisplayState->spriteColumnPackageCount = 0;
+    if (digits[0] != 0) {
+        g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(digits[0] + 0x67,
+            (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 0x50, 0x56, 0x38);
+    }
+    g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(digits[1] + 0x67,
+        (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 0x50, 0x5E, 0x38);
+    for (i = 0; i < 7; i++) {
+        if (g_BattleCommandQueue[i + 0x2C4] == 0xFF) {
+            break;
+        }
+        g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(D_800C3DE1[i - 1] + 0x39,
+            (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 0x50, i * 0x20 + 0x2A,
+            0x4A);
+        if (i != 0) {
+            g_BattleDisplayState->spriteColumnPackageCount += BattleDrawSpritePackage(0xA,
+                (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 0x50,
+                i * 0x20 + 0x1A, 0x4A);
+        }
+    }
+    g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex[0];
+    g_BattleDisplayState->spriteColumnPending = 1;
+    x = arg1 * 4 + 0x80;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].x0 = 0x80;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].y0 = 0x34;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].x1 = x;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].y1 = 0x34;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].x2 = 0x80;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].y2 = 0x3C;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].x3 = x;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->gouraudQuads[0].y3 = 0x3C;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].x0 = x;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].y0 = 0x34;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].x1 = 0xF0;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].y1 = 0x34;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].x2 = x;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].y2 = 0x3C;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].x3 = 0xF0;
+    ((BattlePacketPool *)(g_BattleGraphicsWork->pPacketPrims +
+                          ((s32 *)g_BattlePrimStartIndex)[0] * 0x28))->flatQuads[0].y3 = 0x3C;
+    g_BattleGraphicsWork->pPacketPrims[0x66C] = g_BattlePrimStartIndex[0];
+    g_BattleGraphicsWork->pPacketPrims[0x66F] = 1;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 /* 90.96% (1204 bytes against retail's 1228) under this unit's gcc 2.6.0. The FRAME
    is retail's exactly (0xB0, vars 0x68, ten saved registers) and the body is the
@@ -835,6 +960,120 @@ void BattleClearSlotFlagsIfChar4(u8 arg0, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800941A4);
+/* 83.10% (1256 bytes against retail's 1360). The whole body is written and
+   compiles: the four early-exit groups, the row-table pick (idx*0x5F0 + 0x1058 +
+   rowIndex*0x28, else rowIndex*0x28 + 0x35D8), the two rand()-guarded blocks, the
+   three timer calls, the 0xB-slot mask walk and the tail. Residual is register
+   allocation, all of it one cause: this body keeps g_BattleCurWorkBlock in a
+   CALLEE-SAVED register across the calls (frame 0x20 with s0 and s1 saved) where
+   retail reloads the global after every call (frame 0x18, only s0 = the slot bit
+   mask). Writing every use as `g_BattleCurWorkBlock->...` inline instead of
+   through a `pWork` local was measured and changes nothing, so the value being
+   kept live is a source-shape question the next worker should attack with the
+   permuter (`tools/scripts/permute.sh battle/main/misc17 func_800941A4`), not by
+   hand. Also open: retail's `mask <<= 1` sits in the loop-back delay slot and its
+   `g_BattleCurSlotIndex++` is a global RMW at the loop tail (this body lets gcc
+   cache the index), and the final `lbu v0, %lo(D_800D2DB8)` on the fall-through
+   path (a return value or a volatile read - the early-exit path skips it) is not
+   reproduced here. Externs and the callee prototypes are all at the top of this
+   file already, so un-parking needs no new declarations. */
+/*
+void func_800941A4(void) {
+    BattleTableEntry *pSlot;
+    u16 flags;
+    u16 mask;
+    u8 row;
+    u8 i;
+
+    BattleClearAllSlotStates();
+    D_800D2DB8 = 0;
+    D_800C34AE = 0;
+    g_BattleTargetSlotIndex = g_BattleCurWorkBlock->actorIndex;
+    g_BattleActingSlot = &g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex];
+    g_BattleTargetSlotState = &g_BattleActingSlot->state;
+    if (g_BattleCurWorkBlock->slots[g_BattleTargetSlotIndex].state.flags & 0x80) {
+        BattleExecuteActionRow();
+        BattleSetSlotEntryFieldsTo1(g_BattleTargetSlotIndex);
+        return;
+    }
+    if (g_BattleTargetSlotIndex < 3) {
+        g_BattleCurrentRow = (BattleRow *)((u8 *)pWork + 0x1058 + g_BattleTargetSlotIndex * 0x5F0 + g_BattleCurWorkBlock->rowIndex * 0x28);
+    } else {
+        g_BattleCurrentRow = (BattleRow *)((u8 *)pWork + g_BattleCurWorkBlock->rowIndex * 0x28 + 0x35D8);
+    }
+    BattleSetSlotEntryFieldsTo2000(g_BattleTargetSlotIndex, 1);
+    flags = g_BattleCurrentRow->actionFlags;
+    if (flags & 0x10) {
+        BattleExecuteActionRow();
+        BattleSetSlotEntryFieldsTo1(g_BattleTargetSlotIndex);
+        BattleAccumulateSlotValueByRowFlag();
+        return;
+    }
+    g_BattleAmountThirdFlag = 0;
+    if ((flags & 0x100) && g_BattleActingSlot->characterId == 1) {
+        BattleRollPercentAndSetState38();
+    }
+    row = g_BattleCurWorkBlock->rowIndex;
+    if (g_BattleActingSlot->characterId == 4) {
+        if ((u8)(row - 4) < 2) {
+            g_BattleCurrentRow->element = ((u8 *)g_BattleActingSlot)[(row - 3) * 8 + 4];
+        }
+    }
+    mask = 1;
+    if (g_BattleActingSlot->activeEffectFlags2 & 0x20) {
+        if ((g_BattleActionSlotMask & 7) != 0 && g_BattleActionSlotMask < 7) {
+            for (i = 0; i < 3; i++) {
+                if (((u8 *)D_800CCD3E)[i * 0x170] == 3) {
+                    g_BattleActionSlotMask = 1 << i;
+                }
+            }
+        }
+    }
+    g_BattleCurSlotIndex = 0;
+    while (g_BattleCurSlotIndex < 0xB) {
+            if (mask & g_BattleCurWorkBlock->activeSlotMask) {
+            pSlot = &g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex];
+            g_BattleTargetSlotEntry = pSlot;
+            g_BattleCurSlotState = (u8 *)&pSlot->state;
+            D_800C3D60 = (u8 *)pSlot + 0x148;
+            if (g_BattleCurSlotIndex < 3) {
+                BattleRollPercentAndSwapActiveActor();
+            }
+            ((void (*)(void))D_800C348C[g_BattleCurrentRow->opcode])();
+            func_800946F4();
+            if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 0) {
+                flags = g_BattleCurrentRow->actionFlags;
+                if (flags & 0x800) {
+                    BattleApplyActorConditionTimer();
+                } else if (flags & 0x4000) {
+                    BattleApplyScriptConditionTimer();
+                } else if (flags & 4) {
+                    BattleClearStatusWordsOnAction6E();
+                }
+            }
+            if (g_BattleCurrentRow->actionFlags & 1) {
+                g_BattleCurWorkBlock->unk5FB0 = g_BattleCurrentRow->unk02;
+            } else {
+                g_BattleCurWorkBlock->unk5FB0 = g_BattleCurWorkBlock->rowIndex;
+            }
+        }
+        g_BattleCurSlotIndex++;
+        mask <<= 1;
+    }
+    BattleSaveScriptCommandOperandsFromActor();
+    BattleSetSlotEntryFieldsTo1(g_BattleTargetSlotIndex);
+    if (g_BattleActingSlot->characterId == 4 && D_800C34AE == 0) {
+        BattleDecrementGearPartUse();
+    }
+    if (g_BattleTargetSlotIndex < 3 && g_BattleCurWorkBlock->rowIndex < 7) {
+        if (!(0xFDE7 < *(u16 *)((u8 *)g_BattleActingSlot + g_BattleCurWorkBlock->rowIndex * 2 + 0x90))) {
+            *(u16 *)((u8 *)g_BattleActingSlot + g_BattleCurWorkBlock->rowIndex * 2 + 0x90) +=
+                ((u8 *)g_BattleActingSlot)[0x55] + ((u8 *)g_BattleActingSlot)[0xA1];
+        }
+    }
+    BattleAccumulateSlotValueByRowFlag();
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
 void BattleAccumulateSlotValueByRowFlag(void) {
     BattleWorkBlock *pWork = g_BattleCurWorkBlock;
