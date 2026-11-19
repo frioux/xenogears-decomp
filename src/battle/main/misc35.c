@@ -5,6 +5,7 @@
 #include "system/sound.h"
 #include "field/actor.h"
 #include "battle/actor.h"
+#include "psyq/inline_c.h"
 
 extern void SoundFreeWdsEntry(SoundWDSEntry *pWds);
 extern void SoundRemoveSedsEntry(void *pSoundFile);
@@ -162,7 +163,67 @@ void func_800C08CC(s32 partCount, SVECTOR *pVectors, BattleVectorCallback pCallb
         pCallback(&vecB, &vecA);
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C0D18);
+// One 16-byte row of the per-group direction matrix table: the four IR0 factors a
+// rotation group applies to its four source vectors in turn.
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ s32 unk4;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s32 unkC;
+} BattleDirectionMatrixRow; // Size: 0x10
+
+extern BattleDirectionMatrixRow *D_800C3A68;
+
+// Rotates one direction group's four source vectors, sums them into pOut and
+// quarters the sum - the average a trail segment is built from. Group numbers
+// eight matrix rows each, index picks the row inside the group.
+void func_800C0D18(s32 group, s32 index, SVECTOR *pPos, VECTOR *pOut) {
+    s32 vec[3];
+
+    gte_lddp(D_800C3A68[group * 8 + index].unk0);
+    vec[0] = pPos[0].vx;
+    vec[1] = pPos[0].vy;
+    vec[2] = pPos[0].vz;
+    gte_ldlvl(vec);
+    gte_gpf12();
+    gte_stlvl((s32 *)pOut);
+
+    gte_lddp(D_800C3A68[group * 8 + index].unk4);
+    vec[0] = pPos[1].vx;
+    vec[1] = pPos[1].vy;
+    vec[2] = pPos[1].vz;
+    gte_ldlvl(vec);
+    gte_gpf12();
+    gte_stlvl(vec);
+    pOut->vx += vec[0];
+    pOut->vy += vec[1];
+    pOut->vz += vec[2];
+
+    gte_lddp(D_800C3A68[group * 8 + index].unk8);
+    vec[0] = pPos[2].vx;
+    vec[1] = pPos[2].vy;
+    vec[2] = pPos[2].vz;
+    gte_ldlvl(vec);
+    gte_gpf12();
+    gte_stlvl(vec);
+    pOut->vx += vec[0];
+    pOut->vy += vec[1];
+    pOut->vz += vec[2];
+
+    gte_lddp(D_800C3A68[group * 8 + index].unkC);
+    vec[0] = pPos[3].vx;
+    vec[1] = pPos[3].vy;
+    vec[2] = pPos[3].vz;
+    gte_ldlvl(vec);
+    gte_gpf12();
+    gte_stlvl(vec);
+    pOut->vx += vec[0];
+    pOut->vy += vec[1];
+    pOut->vz += vec[2];
+    pOut->vx >>= 2;
+    pOut->vy >>= 2;
+    pOut->vz >>= 2;
+}
 
 void BattleFreeWdsEntry(void) {
     if (g_BattleWdsEntry != 0) {
@@ -401,6 +462,17 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 //  - when the saved set loses its pair, retail has 8 more bytes of locals (saved
 //    registers start at 0x68 where ours start at 0x60), so an 8-byte dead local
 //    is owed at that point to keep the frame at 0x88.
+//  Round 275: the extra pair is exactly `count` and `offset`. Retail runs the
+//  0xBE arm with count in $a2 and offset in $a3 (call-clobbered; both die before
+//  that arm's only jal) and keeps just `frames` in $s0, while our build gives
+//  count $s0 and offset $s1 - both already saved, so global_alloc rates them
+//  free - and the whole stream shifts up by two. Measured: giving the 0xBE arm
+//  its own block-local count/offset changes NOTHING (gcc had already split them;
+//  the pick is the allocator's cost model, not a live range), and --sweep over
+//  gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x -mcpu 3000/r8000 ranks
+//  the unit preset (cdk -O2 -G0) first at 66.74 (next best 66.43). A 4-minute
+//  permuter run (796 iterations) produced only a wrong-code candidate: it folded
+//  the two flags_0xA8 stores of the 0x81 arm into one, which retail has both of.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
 /*
 void func_800C11CC(SpriteData *pSpriteData) {
