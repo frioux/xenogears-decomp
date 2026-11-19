@@ -20,6 +20,7 @@ typedef struct {
 } BattleSpriteWork;
 
 extern u8 g_BattleActorCharIds[];
+extern u16 g_BattleSavedSlotUnk7A[];
 extern BattleSpriteWork *g_BattleDisplayState;
 extern u8 g_BattleCurSlotIndex;
 extern BattleWorkBlock *g_BattleCurWorkBlock;
@@ -53,7 +54,7 @@ void BattleReleaseEffectSlotIfChar4(void);
 void BattleSetSlotEntryFieldsTo2000(u8, s32);
 void func_800916D4(u8, u8, s32);
 void BattleParseNumberToDigits(u32);
-void BattleSetPolyFT4RectH13(POLY_FT4 *, s16, s16, u8, u8, s16);
+void BattleSetPolyFT4RectH13(POLY_FT4 *, u16, s16, u8, u8, s16);
 void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
 s32 func_8009A258(u8, s32);
 void func_8009187C(u8, u8, u8);
@@ -93,50 +94,39 @@ void BattleBuildSpriteColumn8(s32 arg0) {
     g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex[0];
     g_BattleDisplayState->spriteColumnPending = 1;
 }
-/* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
-   insn-identical; what is left is expansion order (gcc hoists `li a1,0x20` /
-   `li a2,0xA4` to the top here, the original materialises them after the UV
-   temps) and the arg1 narrowing landing in v0 instead of in place in a1.
-   Tried: %2 vs the explicit s-s/2*2 form, u32 vs u8 temps for the quotient,
-   pointer sum in both operand orders.
-   Re-screened: best 91.42 under gcc-2.6.0 (76.76 under cdk). There the left-
-   overs are different and partly source level - 2.6.0 narrows arg1 with
-   `sll/sra` where the original has `andi a1,s1,0xffff` (a signed-type hint),
-   and it keeps `li a1,0x20`/`li a2,0xA4` before the s/2*2 chain, not after. */
-/*
 void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
     u32 s;
-    u8 c;
+    s32 c;
     s32 i;
     u16 k;
+    u8 u;
+    u8 v;
+    u32 half;
 
     s = arg1 * 2 + arg0;
+    half = s / 2;
+    u = (s - half * 2) * 0x78 & 0xF8;
+    v = half * 16;
     BattleSetPolyFT4Rect(
-        (POLY_FT4 *)(g_BattlePrimStartIndex * 0x28 + 0x140 +
-                     (s32)(*(u8 **)(g_BattleGraphicsWork + 0xA230))),
-        0x20, 0xA4, (s - s / 2 * 2) * 0x78 & 0xF8, s / 2 * 16, 0x60, 0x10);
-    (*(u8 **)(g_BattleGraphicsWork + 0xA230))[0x66E] = 0;
+        (POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x140)),
+        0x20, 0xA4, u, v, 0x60, 0x10);
+    g_BattleGraphicsWork->pPacketPrims[0x66E] = 0;
     if (g_BattleActorCharIds[(u8)arg2] == 1) {
         BattleParseNumberToDigits(func_8009A258((u8)arg2, s + 0x16));
-        for (i = 0, k = 0x8C; i < 3; i++, k += 8) {
-            c = D_800C3CFA[i];
+        for (i = 0, k = 0x8C; i < 3; k += 8) {
+            c = D_800C3CFA[i++];
             if (c == 0xFF) {
                 continue;
             }
             BattleSetPolyFT4RectH13(
-                (POLY_FT4 *)((*(u8 **)(g_BattleGraphicsWork + 0xA230)) +
-                             (*(u8 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + 0x66E) *
-                                  2 +
-                              g_BattlePrimStartIndex) *
-                                 0x28 +
-                             0x190),
+                (POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                             ((g_BattleGraphicsWork->pPacketPrims[0x66E] * 2 +
+                               ((s32 *)g_BattlePrimStartIndex)[0]) * 0x28 + 0x190)),
                 k, 0xA6, (c * 8 + 0x78) & 0xF8, 0, 8);
-            (*(u8 **)(g_BattleGraphicsWork + 0xA230))[0x66E]++;
+            g_BattleGraphicsWork->pPacketPrims[0x66E]++;
         }
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
 /* 98.22% (704 bytes against retail's 700): the shape is now right -- the two
    table loads need the flag row's offset in a local (`off = (arg2 * 2 + arg1 +
    0x16) * 0x28 + arg0 * 0x5F0;` then `*(u16 *)(g_BattleCellActionRows + off)`),
@@ -465,57 +455,40 @@ void BattleAccumulateSlotValueByRowFlag(void) {
         }
     }
 }
-/* 91.61% first attempt: the whole shape is right (two count loops, the
-   if/else-if pair, the two duplicated fix loops, u8 counters masked with
-   0xFF). Left to close: the beqz delay slot (the original puts `i++` there,
-   gcc leaves a nop and emits it after the counter increment) and the
-   base/index order of the row-pointer addu in the two fix loops
-   (original `addu a0,t1,v1` base-first, gcc `addu v1,a3,v1`). Making the
-   count loops use a row pointer fixed their addu order (91.47 -> 91.61).
-   Tried: p[0x3E] vs the full expression, one u16 *p reused vs re-declared
-   per loop. Un-parking needs `extern u16 g_BattleSavedSlotUnk7A[];`.
-   Re-screened: best 96.96 under gcc-2.6.0 (90.04 under cdk). There only the
-   two count loops' registers differ (n1 in a2 vs t0, base in a0 vs a3), both
-   row addu's are operand-swapped, and one `j`/`nop` pair is left over. */
-/*
 void func_80094D24(void) {
     u8 i;
     u8 n1;
     u8 n2;
-    u16 *p;
 
-    for (i = 0, n1 = 0; i < 3; i++) {
-        p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
-        if (p[0x3E] & 0xC000) {
+    n1 = 0;
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 0xC000) {
             n1++;
         }
     }
-    for (i = 0, n2 = 0; i < 3; i++) {
-        p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
-        if (p[0x3E] & 2) {
+    n2 = 0;
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 2) {
             n2++;
         }
     }
     if (n1 == 1 && n2 == 2) {
-        for (i = 0; i < 3; i++) {
-            p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
-            if (p[0x3E] & 2) {
-                p[0x3E] &= ~2;
-                p[0x3D] = g_BattleSavedSlotUnk7A[i];
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+            if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 2) {
+                g_BattleCurWorkBlock->slots[i].activeEffectFlags1 &= ~2;
+                g_BattleCurWorkBlock->slots[i].conditionFlags = g_BattleSavedSlotUnk7A[i];
             }
         }
-    } else if (n1 == 2 && n2 == 1) {
-        for (i = 0; i < 3; i++) {
-            p = (u16 *)(g_BattleCurWorkBlock + i * 0x170);
-            if (p[0x3E] & 2) {
-                p[0x3E] &= ~2;
-                p[0x3D] = g_BattleSavedSlotUnk7A[i];
+    }
+    if (n1 == 2 && n2 == 1) {
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+            if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 2) {
+                g_BattleCurWorkBlock->slots[i].activeEffectFlags1 &= ~2;
+                g_BattleCurWorkBlock->slots[i].conditionFlags = g_BattleSavedSlotUnk7A[i];
             }
         }
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80094D24);
 void BattleComputeActionAmount(void) {
     BattleTableEntry *pAtk;
     BattleTableEntry *pDef;
