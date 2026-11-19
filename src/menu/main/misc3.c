@@ -186,7 +186,38 @@ void func_801C90B0(u_char a0, u_char a1) {
 }
 */
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
+void func_801C9270(int a0) {
+    MenuUnk2ImageChunk* pChunk;
+    int i;
+    int j;
+    int idx;
+    int matched;
+
+    for (i = 0; i < 0x10; i++) {
+        g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + i] = 0;
+    }
+    for (j = 0; j < 0xF; j++) {
+        /* matched=1 in the for-init is what puts retail's li t1,1 after the
+           hoisted record base; as a separate statement it lands above it. */
+        for (i = 0, matched = 1; i < 0xC; i++) {
+            if (g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j]].ids[i] != g_Menu->menuUnk2->gameSerialCode[i]) {
+                matched = 0;
+                break;
+            }
+        }
+        if (matched) {
+            g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + j] = 1;
+            idx = g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j];
+            /* index-first into a mem_addr base: retail's addu puts the offset in
+               the destination and pMenu in the addend, and &chunks[idx] alone
+               gives the opposite order (99.55%). */
+            pChunk = (MenuUnk2ImageChunk*)(idx * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks);
+            D_801EA6F4 = pChunk->data;
+            D_801EA6D0[a0][pChunk->index] = 1;
+        }
+    }
+}
+
 
 /* Round 286, best body: objdiff 94.04% but only SIX differing instructions (the
    permuter's instruction-diff score 155, against 165 for the 97.56% pointer-local
@@ -211,6 +242,7 @@ void func_801C9270(int a0) {
     MenuUnk2ImageChunk* pChunk;
     int i;
     int j;
+    int idx;
     int matched;
 
     for (i = 0; i < 0x10; i++) {
@@ -226,7 +258,8 @@ void func_801C9270(int a0) {
         }
         if (matched) {
             g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + j] = 1;
-            pChunk = &g_Menu->menuUnk2->chunks[g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j]];
+            idx = g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j];
+            pChunk = (MenuUnk2ImageChunk*)(idx * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks);
             D_801EA6F4 = pChunk->data;
             D_801EA6D0[a0][pChunk->index] = 1;
         }
@@ -579,7 +612,45 @@ void MenuResetSlotSelection(void) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAE08);
 
+/* Best attempt: 86.42% (272 bytes vs retail's 280). `pOdd = (u8*)&g_GameState + 1`
+   read as pOdd[offset + j] reproduces retail's two-add shape (offset+j in v0,
+   then the gs+1 constant) and its `lui %hi(g_GameState+1)` symbol, but gcc keeps
+   the constant in a SAVED register (s2, from the prologue) where retail reloads
+   it into the call-clobbered t0 in the inner preheader -- that fifth saved
+   value is the whole difference (5 saves vs retail's 4; it also pushes the
+   even-dest buffer pointer into s4). The form `((u8*)&g_GameState)[i + j + 1]`
+   is the same 86.36%. Tried: pEntry/pAll pointer locals, indexed both reads
+   (78-79%), StringEntry* advancing pointer, gcc-2.6.0 (89.15%), cdk (rejects).
+   Both loops and the decode/copy-back are otherwise exact. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB184);
+/*
+void func_801CB184(void) {
+    u8 inBuf[0x14];
+    u8 outBuf[0x14];
+    StringEntry* pEntry;
+    u8* pOdd;
+    s32 offset;
+    s32 j;
+
+    pEntry = g_GameState.strings;
+    pOdd = (u8*)&g_GameState + 1;
+    for (offset = 0; offset < 0x26C; offset += 0x14) {
+        for (j = 0; j < 0x14; j += 2) {
+            inBuf[j] = ((u8*)pEntry)[j];
+            inBuf[j + 1] = pOdd[offset + j];
+            if (((u8*)pEntry)[j] == 0 && pOdd[offset + j] == 0) {
+                break;
+            }
+        }
+        SystemDecodeGlyphCodesN((u16*)inBuf, outBuf, j / 2);
+        for (j = 0; j < 0x14; j++) {
+            ((u8*)pEntry)[j] = outBuf[j];
+        }
+        pEntry++;
+    }
+}
+
+*/
 
 /* Best attempt: 86.36%. The even-byte read wants an advancing pointer
    (s0 = &g_GameState + i, a1 = s0) and the odd-byte read wants the constant
