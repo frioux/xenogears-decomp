@@ -428,37 +428,34 @@ void MenuFreeShoulderButtonUi(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
-/* 79.85% (644 vs retail's 664 bytes). Decode is complete: draw one MenuString's
-   POLY_FT4 at polys[g_Menu->renderContext], for row `row' of either the name
-   texture tables (isGlyph == 0: g_MenuNameTextureX[index],
-   g_MenuNameTextureY[index*4], originY = D_801EA17C[row] - 0x24, width 0x48) or
-   the glyph tables (isGlyph != 0: D_801EA584[index], g_MenuGlyphSjisTable[index*4],
-   originY = D_801EA17C[row] - 0x30, width 0x60), and the shared tail
-   MenuSetFt4QuadVertices(poly, originY, D_801EA18C[row].x, (x << 2) & 0xFC, v,
-   width, 0xD) + MenuSetQuadVertices(pString->vertices, originY,
-   D_801EA18C[row].x, width, 0xD) + renderContext copy. The palette test is
-   currentCharacterIDs[index] & 1 for names and
-   (characters[currentCharacterIDs[index]].gearId + 0xB) & 1 for glyphs.
-   What is left is allocation, and the ledger is readable: retail saves FIVE
-   registers (s0 originY, reusing the isGlyph param; s1 pString; s2 index; s3
-   width; s4 row) and the attempt below saves SIX, because in the join gcc gives
-   saved registers to the 0xD constant and to the `row * 4' index shared by the
-   two D_801EA18C[row].x loads, where retail recomputes both in $v0
-   ('andi v0,s4,0xFF / sll v0,v0,2' twice). That extra pressure is also why
-   retail's arms end with the ctx load and the D_801EA18C load while gcc defers
-   them to the join. Worth keeping: the palette store must be ONE address
-   computation, which the ternary below gets right (retail computes
-   'addu v1,s1,ctx*0x28' once in the beqz delay slot and both arms store through
-   it); an if/else recomputes it per arm.
-   Tried: if/else instead of the ternary, locals for u/v/width/originY in several
-   declaration orders, width assigned before and after the palette test.
-*/
-/* Best attempt (79.85%):
+/* PARKED 92.91% (668 bytes against retail's 664 - FOUR bytes over, one extra insn).
+   Structure is now retail's; what is left is which saved register each pseudo gets.
+   THE BIG FIND (88.60 -> the frame and the shared tail): the tail is NOT shared source,
+   it is TWO COPIES, one per arm, that gcc cross-jumps into the single jal pair retail
+   shows (non-glyph arm ends in 'j' with the andi in its delay slot, glyph arm falls
+   through). Writing the tail once after the if/else gives the same instruction stream
+   but SIX callee-saved registers (0x40 frame) and 79.85%; duplicating it gives retail's
+   exact 0x38 frame and 5 saved regs, because each arm allocates separately and only the
+   identical suffix is merged.
+   Remaining ledger, all pure allocation (objdiff 92.91, 668 vs 664):
+   retail  isGlyph/originY s0, pString s1, index s2, width s3, row s4, and it REMATERIALISES
+           both the 0xD height (ori v0,zero,0xd twice) and row*4 (andi/sll into v0 twice)
+           and masks originY at each call (andi a1,s0,0xffff twice);
+   ours    pString s3, row s1, index s2 (then reused: li s2,0xd), width s4, and it keeps
+           row*4 and 0xD in saved registers across the first jal.
+   The permuter (three runs from this body, best 1462 penalty) found only the two
+   declaration-order/load-split edits already applied: new_var = D_801EA584[index] before
+   originY (90.75 -> 92.91, exact size) and u = X[index] << 2 listed before originY.
+   Also tried and measured, no gain: xOrigin local for the first call's D_801EA18C read
+   (identical 92.91), a volatile read of D_801EA18C in the second call (92.04, 672).
+   Best attempt:
    void func_801D36E0(MenuString* pString, u_char index, u_char isGlyph, u_char row) {
        s32 originY;
-       s32 width;
+       s32 new_var;
        s32 u;
+       s32 width;
        s32 v;
+       u_short xOrigin;
 
        MenuInitializePolyFt4(&pString->polys[g_Menu->renderContext]);
        pString->polys[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
@@ -467,20 +464,24 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
            width = 0x48;
            pString->polys[g_Menu->renderContext].clut =
                (g_Menu->pManager->currentCharacterIDs[index] & 1) ? g_SystemPalette2 : g_SystemPalette1;
-           originY = D_801EA17C[row] - 0x24;
            u = g_MenuNameTextureX[index] << 2;
+           originY = D_801EA17C[row] - 0x24;
            v = g_MenuNameTextureY[index * 4];
+           xOrigin = D_801EA18C[row].x;
+           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, xOrigin, u & 0xFC, v, width, 0xD);
+           MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
        } else {
            width = 0x60;
            pString->polys[g_Menu->renderContext].clut =
                ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId + 0xB) & 1) ? g_SystemPalette2 : g_SystemPalette1;
+           new_var = D_801EA584[index];
            originY = D_801EA17C[row] - 0x30;
-           u = D_801EA584[index] << 2;
+           u = new_var << 2;
            v = g_MenuGlyphSjisTable[index * 4];
+           xOrigin = D_801EA18C[row].x;
+           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, xOrigin, u & 0xFC, v, width, 0xD);
+           MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
        }
-
-       MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, D_801EA18C[row].x, u & 0xFC, v, width, 0xD);
-       MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
        pString->renderContext = *(u_char*)&g_Menu->renderContext;
    }
 */
