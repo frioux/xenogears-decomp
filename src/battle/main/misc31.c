@@ -238,16 +238,16 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
     pMatrix->t[2] = -vTmp.vz;
     PopMatrix();
 }
-// best 84.11% at retail's exact 228 bytes: the instruction multiset is identical,
-// only the argument-setup order differs. Retail interleaves the work-block pointer
-// build with the two stack stores (lw a3, move a2, sw 0x14, sw 0x18, lw v1,
-// li 4096, sw 0x1C, jal, sw 0x10) where we emit both loads before the stores, and
-// with -fschedule-insns on statement order does not move it. Both spellings of the
-// work pointer matter: 'g_BattleStateWork + 0x8000' as ONE expression folds into
-// the address addend (220 bytes), so the base must be a mem_addr local that is
-// assigned and then advanced. The three translation words are the matrix's t[]
-// reached from 0x20 before it, which is why retail holds 'matrix - 0x20' in $a0
-// and uses displacements 0x34/0x38/0x3C.
+// best 84.11% at retail's exact 228 bytes: the argument setup of func_800A4654 is the
+// same instruction multiset, only the order differs (retail loads depth 0xC54 first
+// and interleaves the two stack stores with the work-pointer build; we load primIndex
+// 0xC84 first and hoist both loads above the stores, and the addu destination is v0
+// instead of retail's v1). Statement order cannot move it: this preset runs
+// -fschedule-insns. A dead store that leaves the base in $v1
+// (pWork = (primIndex = (mem_addr)g_BattleStateWork);) measures 92.51% but is not a
+// spelling to ship; two 4-minute permuter runs from 84.11 and from 92.51 found
+// nothing beyond it. g_BattleStateWork + 0x8000 as one expression folds into the
+// address addend (220 bytes).
 /*
 void func_800BB9D4(void) {
     s32 *pViewTrans;
