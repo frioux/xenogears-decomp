@@ -914,7 +914,6 @@ extern void BattleRenderSpriteSlots(u8 *, MATRIX *, s32, u_long *, s32);
 extern void func_800B026C(void *, s32, s32, s32);
 extern u16 D_800C3B80;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
 /* 98.88% (unit preset gcc 2.6.0 --expand-div -G0): the whole function is recovered -
    every call, load, store, branch, the 0x60 frame and the ten saved registers are
    retail's, and the instruction stream is identical except for two missing
@@ -947,7 +946,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
    BattleGetActorHeight call and the other actor's into $s1 after it, which is why the
    source assigns pSprites, then the height, then pOtherSprites; the third call's
    arguments re-form (*ppSlot)->pSprites inline rather than reuse $s1. */
-/*
 void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 quadIndex) {
     BattleActor **ppActors;
     BattleActor **ppSlot;
@@ -957,14 +955,19 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     s32 step;
     s32 i;
     s32 j;
+    s32 timer;
     u8 colors[3];
 
-    g_BattleActorStepTimer = g_BattleActorStepTimer + 1 + g_BattleActorStepIncrement;
+    timer = g_BattleActorStepTimer + 1;
+    g_BattleActorStepTimer = timer + g_BattleActorStepIncrement;
+    step = 0;
     if (g_BattleActorStepTimer >= 7) {
         g_BattleActorStepTimer = 6;
     }
-    for (step = 0; g_BattleActorStepTimer >= 2; step++) {
+    do {
+    while (g_BattleActorStepTimer >= 2) {
         g_BattleActorStepTimer -= 2;
+        step++;
     }
     g_BattleTweenVectorAngle += step * 0x38;
     g_BattleTweenVectorScale = (rsin((s16)g_BattleTweenVectorAngle) + 0x1000) / 800 + 4;
@@ -975,9 +978,10 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     colors[2] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x476));
     if (g_BattleActors[g_BattleCurrentActorSlot] != 0) {
         if (!(g_BattleActors[g_BattleCurrentActorSlot]->flags4A & 0x20)) {
+            j = 0;
             ppActors = g_BattleActors;
             ppSlot = ppActors;
-            for (j = 0; j < BATTLE_ACTOR_SLOT_COUNT; j++, ppSlot++) {
+            for (; j < BATTLE_ACTOR_SLOT_COUNT; j++, ppSlot++) {
                 if (*ppSlot == 0) {
                     continue;
                 }
@@ -997,7 +1001,7 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
                 height = BattleGetActorHeight(j);
                 pOtherSprites = (*ppSlot)->pSprites;
                 if (pOtherSprites->pos[1] - height < pSprites->pos[1]) {
-                    if (ppActors[g_BattleCurrentActorSlot]->pSprites->pos[1] -
+                    if ((*(&ppActors[g_BattleCurrentActorSlot]))->pSprites->pos[1] -
                             BattleGetActorHeight(g_BattleCurrentActorSlot) <
                         pOtherSprites->pos[1]) {
                         BattlePushActorOutOfCircle(g_BattleCurrentActorSlot, (*ppSlot)->pSprites->pos[0],
@@ -1014,6 +1018,7 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
             BattleStepActorAnimation(g_BattleActors[i], g_BattleBlockPool, step, quadIndex, g_BattleActorStepIncrement);
         }
     }
+    } while (0);
     if (D_800C3DF8 != 0) {
         func_800B026C(g_BattleBlockPool, step, 0, quadIndex);
     }
@@ -1047,7 +1052,6 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     }
     BattleRenderSpriteSlots(g_BattleSpritePool, pLightMatrix, step, pOt, quadIndex);
 }
-*/
 
 void BattleFreeAllModelSlots(void) {
     s32 i;
