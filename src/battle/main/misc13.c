@@ -94,7 +94,7 @@ extern void BattleAttachActorAnimScripts(u8, s32, s32, s32);
 extern u8 g_BattleActorCommandIds[];
 extern u16 g_BattleCommandRows[];
 extern u8 *g_BattleGraphicsWork;
-extern u8 g_BattlePrimStartIndex;
+extern u8 g_BattlePrimStartIndex[];
 extern u8 *g_BattleSpriteColumnWork;
 extern u8 D_800C33B0[];
 extern void BattleSetPrimGrey80BlendAdd(u8 *);
@@ -639,44 +639,34 @@ void func_80088490(u8 arg0) {
 u8 BattleIsCharSlot18InUse(u8 arg0) {
     return g_BattleCharSlotUsage[(g_BattleSlotRecords[arg0 * 0x1C] + 0x18) << 2];
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_8008860C);
-/* 97.74%: instruction count and size are exact (624 bytes); the remaining
-   differences are (a) retail keeps `la $s0,g_BattlePrimStartIndex` in a register across the
-   BattleDrawSpritePackage call and reads both bytes with `lbu 0($s0)` (we rematerialise
-   `lui/%hi; lbu %lo` per use) and (b) the five pointer+offset `addu`s come out
-   base-first where retail has the offset in the destination. Spelling the
-   offset operand as an `s32` local (`off + (s32)g_BattleSpriteColumnWork`,
-   BattleBuildFlaggedSlotSpriteColumn's shape in misc14) fixes (b) on the two calls but makes gcc fold
-   `+0x1720`/`+0x2530` onto the base in the two BattleSetPrimGrey80BlendAdd/BF0 loops (90.24%),
-   and the `off` local for those loops regresses to 86.14% (636 bytes). The `off`
-   local form used everywhere is 94.79%; a `u8 *pSel = &g_BattlePrimStartIndex` local is
-   folded by cse back to the symbol (94.79%) or hoisted into a second saved
-   register if initialised before the first loop (92.59%, 632 bytes).
-/*
+// Draws the two sprite-column halves of the slot display: two package draws per half
+// followed by the blend pass over the prims each one appended. pPrimStart keeps the
+// prim counter's address in a register across the middle draw, as retail does.
 void func_8008860C(void) {
     s32 i;
+    u8 *pPrimStart;
 
     for (i = 0; i < 2; i++) {
-        g_BattleSpriteColumnWork[0x5D74] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D74] * 0x50 + 0x1720 + g_BattleSpriteColumnWork), 0xA0, 0x64);
+        g_BattleSpriteColumnWork[0x5D74] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D74] * 0x50 + (0x1720 + (s32)g_BattleSpriteColumnWork)), 0xA0, 0x64);
     }
-    g_BattleSpriteColumnWork[0x5D83] = g_BattlePrimStartIndex;
-    g_BattleSpriteColumnWork[0x5D70] = BattleDrawSpritePackage(0xA8, (s32)(g_BattleSpriteColumnWork[0x5D70] * 0x50 + g_BattleSpriteColumnWork), 0xA0, 0x64);
-    g_BattleSpriteColumnWork[0x5D92] = g_BattlePrimStartIndex;
+    pPrimStart = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D83] = *pPrimStart;
+    g_BattleSpriteColumnWork[0x5D70] = BattleDrawSpritePackage(0xA8, (s32)(g_BattleSpriteColumnWork[0x5D70] * 0x50 + (s32)g_BattleSpriteColumnWork), 0xA0, 0x64);
+    g_BattleSpriteColumnWork[0x5D92] = *pPrimStart;
     for (i = 0; i < g_BattleSpriteColumnWork[0x5D74]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D83]) * 0x28 + 0x1720 + g_BattleSpriteColumnWork));
+        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D83]) * 0x28 + (0x1720 + (s32)g_BattleSpriteColumnWork)));
     }
     for (i = 0; i < g_BattleSpriteColumnWork[0x5D70]; i++) {
-        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D92]) * 0x28 + g_BattleSpriteColumnWork));
+        BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D92]) * 0x28 + (s32)g_BattleSpriteColumnWork));
     }
     for (i = 2; i < 4; i++) {
-        g_BattleSpriteColumnWork[0x5D7E] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D7E] * 0x50 + 0x2530 + g_BattleSpriteColumnWork), 0xA0, 0x64);
+        g_BattleSpriteColumnWork[0x5D7E] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D7E] * 0x50 + (0x2530 + (s32)g_BattleSpriteColumnWork)), 0xA0, 0x64);
     }
-    g_BattleSpriteColumnWork[0x5D8D] = g_BattlePrimStartIndex;
+    g_BattleSpriteColumnWork[0x5D8D] = g_BattlePrimStartIndex[0];
     for (i = 0; i < g_BattleSpriteColumnWork[0x5D7E]; i++) {
-        BattleSetPrimGrey80BlendSub((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D8D]) * 0x28 + 0x2530 + g_BattleSpriteColumnWork));
+        BattleSetPrimGrey80BlendSub((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D8D]) * 0x28 + (0x2530 + (s32)g_BattleSpriteColumnWork)));
     }
 }
-*/
 void BattleSetupLinearMove(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     s32 dx;
     s32 dy;
