@@ -401,6 +401,17 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 //  - when the saved set loses its pair, retail has 8 more bytes of locals (saved
 //    registers start at 0x68 where ours start at 0x60), so an 8-byte dead local
 //    is owed at that point to keep the frame at 0x88.
+//  Round 275: the extra pair is exactly `count` and `offset`. Retail runs the
+//  0xBE arm with count in $a2 and offset in $a3 (call-clobbered; both die before
+//  that arm's only jal) and keeps just `frames` in $s0, while our build gives
+//  count $s0 and offset $s1 - both already saved, so global_alloc rates them
+//  free - and the whole stream shifts up by two. Measured: giving the 0xBE arm
+//  its own block-local count/offset changes NOTHING (gcc had already split them;
+//  the pick is the allocator's cost model, not a live range), and --sweep over
+//  gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x -mcpu 3000/r8000 ranks
+//  the unit preset (cdk -O2 -G0) first at 66.74 (next best 66.43). A 4-minute
+//  permuter run (796 iterations) produced only a wrong-code candidate: it folded
+//  the two flags_0xA8 stores of the 0x81 arm into one, which retail has both of.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
 /*
 void func_800C11CC(SpriteData *pSpriteData) {
