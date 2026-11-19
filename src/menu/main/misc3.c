@@ -929,7 +929,197 @@ void MenuApplySaveSlot(u32* pSrc) {
     func_801CB184();
 }
 
+/* Best attempt: 84.34% (1476 bytes vs retail's 1448, 7 instructions over).
+   Every call, global and constant is right; what is left is block layout and one
+   register too many:
+   - retail hoists the three cold blocks (close(fileFd) at 0x5A4, the
+     func_801C72BC/MenuApplySaveSlot arm at 0x5B4) ABOVE the case-1 body, and the
+     early exit jumps to a SHARED shouldUpdatePosition[0] = 1 tail (0x814) - this
+     body reaches the same shape with `goto updateCursor` + a `goto freeBuffer`
+     label but keeps the arm inline, so the byte count is over.
+   - retail keeps 0xFF in $fp for the whole function (`bne v0,s8`,
+     `sw $fp,0x4F80`, `sb $fp,0x4F8C/8D`); this body rematerialises `li a3,0xFF`
+     at each use, i.e. one pseudo short of retail's allocation, and that shows up
+     as the s0/s1 rotation (retry in s0 here, s1 in retail; pData in s1 here, s0
+     in retail). Tried: s32 vs u_char retry (`--retry` in a do-while gives the
+     extra `addiu v0 / move s1,v0` pair, the two-statement form gives `addiu
+     s1,s1,-1` + `andi`), `slot` kept vs inlined, `offset = 0` before vs inside
+     the `if (fd != 0)`, `result = 0` before vs after the second
+     characterWindowBuilt store, duplicated vs `goto` shared tails for both
+     shouldUpdatePosition and HeapFree.
+   - the checksum loop is retail's `addu v0,a0,v0` + `move a0,v0` in the
+     back-branch delay slot; `sum += *pData++;` in a do-while gives `addu
+     a0,a0,v0` (no copy), so the sum needs a second variable.
+   Not tried: a permuter run (the block layout is structural, which the permuter
+   cannot move), and dropping locals to free the register 0xFF wants.
+   Verified: the 0x1EFE-byte checksum, the 5-retry loops, the 0x2100-byte read
+   buffer and the prefix/records filename build (memcpy 6 bytes + strcat of
+   records[slotRecordIndexes[D_801E981C[selectedSlot]]].ids) all come out as
+   retail's instructions. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
+/*extern u_char func_801C93A8(void);
+extern s32 func_801CA750(s32 arg0);
+extern void func_801C72BC(u8 arg0);
+extern void MenuPlaySoundEffect(u8 arg0);
+
+// Reads the save file of the slot MenuResetSlotSelection/MenuFindFirstValidSlot picked
+// off the card, checks its 0x1EFE-byte checksum and hands it to MenuApplySaveSlot.
+// Returns the "stay in the menu" flag, and repeats the whole selection loop while
+// the load was skipped without finding a slot.
+u_char func_801CB304(void) {
+    char path[0x40];
+    s32 ready = 1;
+    u_char result = 1;
+    s32 repeat = 1;
+    s32 slot;
+    s32 fd;
+    s32 fileFd;
+    u_char retry;
+    u_char card;
+    u8* pBuffer;
+    u8* pData;
+    s32 offset;
+    s32 sum;
+    s32 count;
+
+    MenuResetSlotSelection();
+    while (repeat) {
+        if (func_801C93A8() & 0xFF) {
+            break;
+        }
+        if (ready) {
+            if (g_Menu->pManager->window2StringsActive) {
+                MenuFreeWindow2Strings();
+            }
+            ready = 0;
+            g_Menu->pCursors->shouldRender[0] = 1;
+        }
+        if (!MenuIsSlotUsable(1)) {
+            slot = MenuFindFirstValidSlot(1);
+            g_Menu->menuUnk2->selectedSlot = slot;
+            if (slot == MENU_SLOT_NONE) {
+                g_Menu->pManager->shouldRenderCursors = 0;
+                g_Menu->pManager->characterWindowBuilt = 0;
+                g_Menu->cardSlotState = 1;
+                result = 0;
+                g_Menu->pManager->characterWindowBuilt = 0;
+                MenuLoadWindow2Text(0x62, MENU_WINDOW_TEXT_NONE, 0);
+                break;
+            }
+        }
+        g_Menu->pManager->shouldRenderCursors = 1;
+        switch (func_801CA750(1)) {
+        case 1:
+            g_Menu->pCursors->shouldUpdatePosition[0] = 0;
+            g_Menu->menuUnk2->cardPollMode = 0;
+            card = 0;
+            if (g_Menu->menuUnk2->selectedSlot < MENU_CARD_SLOT_COUNT) {
+                memcpy(path, &D_801C50A8, 6);
+            } else {
+                memcpy(path, &D_801C50B0, 6);
+                card = 1;
+            }
+            strcat(path, g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[D_801E981C[g_Menu->menuUnk2->selectedSlot]]].ids);
+            if (MenuLoadWindow2Text(0x65, MENU_WINDOW_TEXT_NONE, 1) == 0) {
+                g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
+                goto updateCursor;
+            }
+            func_801D2F4C(0x3B);
+            retry = 5;
+            g_Menu->soundEffectsEnabled = 0;
+            fd = -1;
+            while (1) {
+                fd = open(path, 1);
+                if (fd == -1) {
+                    fd = 0;
+                    MenuWaitCardOperationFrames(card);
+                }
+                fileFd = fd;
+                if (fd != 0) {
+                    break;
+                }
+                retry--;
+                if (retry == 0) {
+                    break;
+                }
+            }
+            offset = 0;
+            if (fd != 0) {
+                g_Menu->pManager->shouldRenderCursors = 0;
+                pBuffer = HeapAlloc(0x2100, 1);
+                pData = pBuffer;
+                g_Menu->pManager->characterWindowBuilt = 0;
+                func_801CAE08(1);
+                while (offset < (g_Menu->menuUnk2->saveBlockCount << 13)) {
+                    MenuRenderFrame();
+                    retry = 5;
+                    while (1) {
+                        if (read(fd, pData, 0x100) != 0x100) {
+                            fd = 0;
+                            MenuWaitCardOperationFrames(card);
+                        }
+                        if (fd != 0) {
+                            break;
+                        }
+                        retry--;
+                        if (retry == 0) {
+                            close(fileFd);
+                            goto freeBuffer;
+                        }
+                    }
+                    offset += 0x100;
+                    pData += 0x100;
+                }
+                close(fd);
+                pData = pBuffer + 0x100;
+                sum = 0;
+                count = 0x1EFE;
+                do {
+                    sum += *pData++;
+                } while (--count >= 0);
+                if ((u8)sum == *pData) {
+                    func_801C72BC(1);
+                    MenuApplySaveSlot((u32*)(pBuffer + 0x100));
+                    func_801C72BC(0x11);
+                } else {
+                    fd = 0;
+                }
+            freeBuffer:
+                HeapFree(pBuffer);
+            }
+            func_801CAE08(2);
+            MenuFreeWindow2Strings();
+            if (fd != 0) {
+                repeat = 0;
+                g_Menu->soundEffectsEnabled = 1;
+                MenuPlaySoundEffect(0x34);
+                g_Menu->soundEffectsEnabled = 0;
+                MenuLoadWindow2Text(0x5C, MENU_WINDOW_TEXT_NONE, 0);
+            } else {
+                MenuLoadWindow2Text(0x3E, MENU_WINDOW_TEXT_NONE, 0);
+                g_Menu->menuUnk2->cardPollMode = 2;
+            }
+            func_801CAE08(0);
+            g_Menu->menuUnk2->cardEnumerated[0] = 0;
+            g_Menu->menuUnk2->cardEnumerated[1] = 0;
+            g_Menu->menuUnk2->previousCardSlotCounts[0] = MENU_SLOT_NONE;
+            g_Menu->menuUnk2->previousCardSlotCounts[1] = MENU_SLOT_NONE;
+        updateCursor:
+            g_Menu->pCursors->shouldUpdatePosition[0] = 1;
+            break;
+        case 2:
+            repeat = 0;
+            result = 0;
+            g_Menu->soundEffectsEnabled = 1;
+            break;
+        }
+    }
+    g_Menu->menuUnk2->cardPollMode = 1;
+    g_Menu->unk334 = 1;
+    return result;
+}
+*/
+
 u_char MenuWaitForCardStatusChange(u_char a0) {
     MenuUnk2* pMenu;
     u8 prev[2];
