@@ -638,19 +638,10 @@ extern s32 g_BattleFacingAngle;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
 extern void BattlePlaySoundEffectById(s32 arg);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
-
-/* 99.06%: every instruction is retail's, the function is 4 bytes short (1348 vs
-   1352) for one reason. At the `p->flags |= 0x400` store retail RELOADS the word
-   for the 0x8000000 test (`sw v1,208(s0); lw v0,208(s0); lui v1,0x800; and`)
-   while gcc forwards the stored value into the `and`, so `lui` is hoisted and
-   the reload disappears. Every other shape of the body is byte-identical.
-   Tried: `p->flags = p->flags | 0x400`, a `flags` local, both statement orders
-   for the |= 0x1000 / unk14 / |= 0x400 trio, a do/while block around the store.
-   The permuter (3 min) reached base=326 best=120 only by moving `p->gaugeDrain = 0`
-   inside the if, which fixes the reload but costs retail's store placement.
-*/
-/*
+/* Non-void return type with bare returns: as void gcc fills the beq delay slots
+   that retail leaves as nop. The two volatile flag stores are load-bearing: each
+   one stops gcc from forwarding the stored word into the next flags read, which
+   is why retail reloads 0xD0 three times here (99.06% without them). */
 s32 func_80077038(BattleActor* p) {
     u32 flags;
 
@@ -779,9 +770,9 @@ s32 func_80077038(BattleActor* p) {
         p->prevPartIndex = 0xFF;
         p->state = 5;
         p->actionPhase = 0;
-        p->flags |= 0x1000;
+        *(volatile u32 *)&p->flags |= 0x1000;
         p->vy -= 0x50;
-        p->flags |= 0x400;
+        *(volatile u32 *)&p->flags |= 0x400;
         if (p->flags & 0x8000000) {
             p->pushVx -= rcos(g_BattleFacingAngle) >> 9;
             p->pushVz -= rsin(g_BattleFacingAngle) >> 9;
@@ -795,7 +786,6 @@ s32 func_80077038(BattleActor* p) {
     }
     return;
 }
-*/
 
 /* Old-style definition and a non-void return both matter: BattleActorBeginMove
    calls it with one argument, and as void gcc fills the beqz delay slot with the
