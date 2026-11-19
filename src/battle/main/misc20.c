@@ -17,7 +17,7 @@ extern u8 *D_800C3D3C;
 extern s32 D_800C34DC[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u16 g_BattleActionSlotMask;
-extern s8 func_8009DBFC();
+extern s8 func_8009DBFC(u8);
 extern s32 func_80097610();
 extern void BattleSetSlotEntryFieldsTo2000(u8);
 extern void BattleRollPercentAndSetState38(void);
@@ -414,7 +414,161 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
     }
     return arg0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009DBFC);
+s8 func_8009DBFC(u8 arg0) {
+    s8 chance;
+    u8 kind;
+    u16 flags;
+    u8 amount;
+    BattleTableEntry *pEntry;
+    BattleTableEntry *pSlot;
+
+    pEntry = &g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex];
+    pSlot = pEntry;
+    if (arg0 != 0) {
+        chance = (s8)g_BattleTargetSlotState->weaponData[0].unk3;
+        kind = g_BattleTargetSlotState->weaponData[0].unk4;
+        flags = g_BattleTargetSlotState->weaponData[0].flags;
+        amount = BATTLE_CONDITION_TIMER_FIXED_COUNT;
+    } else {
+        chance = (s8)g_BattleCurrentRow->chance;
+        kind = g_BattleCurrentRow->conditionKind;
+        flags = g_BattleCurrentRow->conditionFlags;
+        amount = g_BattleCurrentRow->power;
+    }
+    if (!(g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags &
+          BATTLE_SLOT_GEAR_STATUS_FLAG)) {
+        return 0;
+    }
+    if (chance < rand() % BATTLE_PERCENT_ROLL_RANGE) {
+        return 0;
+    }
+    switch (kind) {
+    case 0:
+        if ((flags & 0x20) && (g_BattleCurSlotState->activeEffectFlags2 & 0x8000)) {
+            g_BattleCurSlotState->activeEffectFlags2 &= 0x7FFF;
+            g_BattleTargetSlotEntry->activeEffectFlags3 &= 0x7FFF;
+            return 1;
+        }
+        break;
+    case 1:
+        if (flags & 0xA) {
+            if (g_BattleCurSlotState->activeEffectFlags2 & 5) {
+                g_BattleCurSlotState->activeEffectFlags2 &= 0xFFFA;
+                return 1;
+            }
+        } else if (flags & 5) {
+            if (g_BattleCurSlotState->activeEffectFlags2 & 0xA) {
+                g_BattleCurSlotState->activeEffectFlags2 &= 0xFFF5;
+                return 1;
+            }
+        }
+        break;
+    }
+    if (kind == 0) {
+        if (flags & g_BattleCurSlotState->accessoryEffectFlags1) {
+            return 0;
+        }
+        switch (flags) {
+        case 0x400:
+            pSlot->state.conditionTimers[1] = amount;
+            g_BattleCurSlotState->activeEffectFlags1 &= 0xFBFF;
+            pEntry->activeEffectFlags1 |= 0x2000;
+            break;
+        case 0x1000:
+            g_BattleCurSlotState->activeEffectFlags1 &= 0xEFFF;
+            pEntry->activeEffectFlags2 |= 0x2000;
+            break;
+        case 0x200:
+            pSlot->state.conditionTimers[2] = amount;
+            break;
+        case 0x100:
+            pSlot->state.conditionTimers[3] = amount;
+            break;
+        case 0x80:
+            pSlot->state.conditionTimers[4] = amount;
+            break;
+        case 0x20:
+            pSlot->state.conditionTimers[5] = amount;
+            pEntry->activeEffectFlags1 |= 0x1000;
+            break;
+        case 0x10:
+            pSlot->state.conditionTimers[6] = amount;
+            break;
+        }
+        g_BattleCurSlotState->activeEffectFlags1 |= flags;
+    }
+    if (kind == 1) {
+        g_BattleCurSlotState->activeEffectFlags2 |= flags;
+        switch (flags) {
+        case 0x1000:
+            pSlot->state.conditionTimers[0xB] = amount;
+            break;
+        case 0x40:
+            pSlot->state.conditionTimers[0xC] = amount;
+            break;
+        case 0x20:
+            pSlot->state.conditionTimers[0xD] = amount;
+            break;
+        }
+    }
+    if (kind == 3) {
+        if (flags & 0xF000) {
+            if (g_BattleCurSlotState->accessoryEffectFlags3 & 0xF000) {
+                return 0;
+            }
+            g_BattleCurSlotState->activeEffectFlags3 =
+                (g_BattleCurSlotState->activeEffectFlags3 & 0xFFF) | flags;
+            pSlot->state.conditionTimers[8] = amount;
+        }
+        if (flags & 0xF00) {
+            if (g_BattleCurSlotState->accessoryEffectFlags3 & 0xF00) {
+                return 0;
+            }
+            g_BattleCurSlotState->activeEffectFlags3 =
+                (g_BattleCurSlotState->activeEffectFlags3 & 0xF0FF) | flags;
+            pSlot->state.conditionTimers[9] = amount;
+        }
+    }
+    if (kind == 0xA) {
+        g_BattleCurSlotState->activeEffectFlags3 &= ~flags;
+    }
+    if (kind == 0xB) {
+        if (!(g_BattleCurSlotState->accessoryEffectFlags1 & 0x40)) {
+            g_BattleCurSlotState->penaltyPercent += flags;
+            if (g_BattleCurSlotState->penaltyPercent >= BATTLE_PERCENT_ROLL_RANGE) {
+                g_BattleCurSlotState->penaltyPercent = 99;
+            }
+            kind = 0;
+            flags = 0x40;
+        }
+    }
+    if (kind == 0xC) {
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
+        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleCurSlotState->hp / flags;
+    }
+    if (kind == 0xD) {
+        g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
+        g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = g_BattleCurSlotState->hp - 1;
+    }
+    if (kind == 0xE) {
+        g_BattleCurSlotState->activeEffectFlags2 = 0;
+        g_BattleCurSlotState->activeEffectFlags3 = 0;
+        if (flags == 1) {
+            g_BattleCurSlotState->accessoryEffectFlags2 = 0;
+            g_BattleCurSlotState->accessoryEffectFlags3 = 0;
+        }
+    }
+    if (kind == 0x10) {
+        g_BattleCurSlotState->activeEffectFlags1 |= 1;
+        g_BattleTargetSlotEntry->activeEffectFlags1 |= 0x80;
+    }
+    if (kind == 0xF) {
+        g_BattleCurSlotState->activeEffectFlags1 &= 0xFFFE;
+        g_BattleTargetSlotEntry->activeEffectFlags1 &= 0xFF7F;
+    }
+    BattleSetCommandCodeForFlagBit(kind, flags);
+    return 1;
+}
 void BattleClearActorPercent99(void) {
     g_BattleCurSlotState->penaltyPercent = 0;
 }
