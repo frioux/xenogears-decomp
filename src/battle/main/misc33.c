@@ -681,7 +681,55 @@ void BattleSetStateStep(s32 arg0) {
     g_BattleState->stateStep = arg0;
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF0C4);
+// One 6-byte entry of the path-position list an actor walks: the point it moves to
+// and a flag that makes it face the point from further away.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u8 blocked;
+} BattleTargetPosition; // Size: 0x6
+
+// The battle work buffer up to the path-position list an actor walks; the list runs on
+// past this view.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0xA3C];
+    /* 0x0A3C */ BattleTargetPosition pathPositions[0];
+} BattleWorkPathPositions;
+
+#define BATTLE_TARGET_POSITION_NONE 0xFFFF
+#define BATTLE_PATH_POSITION(index) \
+    (((BattleWorkPathPositions *)g_BattleStateWork)->pathPositions[(index)])
+
+extern void func_800BF4F0(BattleActorSprite *p, void *pTarget);
+
+// The last state of an actor's walk along the path-position list: while the list has a
+// point left it copies that point into the sprite and faces it, and once the list is
+// exhausted it aims the sprite at its own position.
+void func_800BF0C4(BattleActorSprite *p) {
+    s32 posX;
+    s32 posY;
+    s32 faceArg;
+
+    if (BATTLE_PATH_POSITION(g_BattleState->pathIndex).x == BATTLE_TARGET_POSITION_NONE &&
+        BATTLE_PATH_POSITION(g_BattleState->pathIndex).y == BATTLE_TARGET_POSITION_NONE) {
+        posX = p->x;
+        posY = p->y;
+        p->targetHeight = 0;
+        p->targetX = posX;
+        p->targetY = posY;
+        func_800BF4F0(p, p->pTargetSprite);
+    } else {
+        p->targetX = BATTLE_PATH_POSITION(g_BattleState->pathIndex).x;
+        p->targetY = BATTLE_PATH_POSITION(g_BattleState->pathIndex).y;
+        p->targetHeight = 0;
+        faceArg = 2;
+        if (BATTLE_PATH_POSITION(g_BattleState->pathIndex).blocked != 0) {
+            faceArg = 3;
+        }
+        BattleFaceTargetAndMeasureDistance(p, faceArg);
+        g_BattleState->pathIndex++;
+    }
+}
 void BattleFaceTargetAndMeasureDistance(BattleActorSprite *p, s32 arg1) {
     DVECTOR vec0;
     DVECTOR vec1;
