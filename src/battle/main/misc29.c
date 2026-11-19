@@ -17,8 +17,22 @@
 #define BATTLE_DISP_WIDTH 320
 #define BATTLE_DISP_HEIGHT 224
 
+// The per-battle actor table is 11 slots; the first three are not part of the
+// group func_800B88C4 counts.
+#define BATTLE_ACTOR_SLOT_COUNT 11
+#define BATTLE_FIRST_ACTOR_SLOT 3
+
+// Offset of the render/pad state inside the work block g_BattleStateWork starts.
+#define BATTLE_RENDER_STATE_OFFSET 0x8000
+
+// Ordering-table tags per frame buffer: the 0x1000-lentry tag list at frame + 0x70.
+#define BATTLE_OT_TAG_COUNT 0x1000
+
 extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
+extern u16 D_800591B4; // stage file index the next stage load uses; func_800B8068 clears it
+extern u8 D_800591B1;  // set once the stage's archive reads are queued; func_800B8054 clears it
+ extern void *D_800C3E1C;
 extern void *D_800C3E1C;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern DISPENV D_800C4A7C;
@@ -50,15 +64,147 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
 void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
 }
+void func_800B7C34(s32 stage);
+void func_800B7E94(void);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7E94);
 void BattleSetSpriteTemplate(void *pArg) {
     D_800C3E1C = pArg;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8054);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8068);
+void func_800B8054(s16 stage) {
+    D_800591B4 = stage;
+    D_800591B1 = 0;
+}
+
+void func_800B8068(s32 stage) {
+    func_800B7C34(stage);
+    func_800B7E94();
+    D_800591B1 = 1;
+}
+/* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
+typedef struct {
+    /* 0x00 */ u8 unk0[0x6];
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, 0 means idle
+    /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0
+    /* 0x09 */ u8 unk9[0x5];
+    /* 0x0E */ u16 x;
+    /* 0x10 */ u16 z;
+    /* 0x12 */ u8 unk12[0xA];
+} BattleActorSlot; // Size: 0x1C
+
+extern BattleActorSlot g_BattleStateWork[];
+
+/* The streamed stage data behind g_BattleStageData: the two origins func_800B81BC
+   publishes as the anim group and slot vector state. */
+typedef struct {
+    /* 0x000 */ u8 unk0[0x47C];
+    /* 0x47C */ SVEC unk47C;
+    /* 0x482 */ SVEC unk482;
+} BattleStageData; // Size: 0x488
+
+extern void func_800B7870(void);
+extern void SoundLoadAndPlaySedsBank(void);
+extern void func_801E8588(void);
+extern void func_801E91E8(void);
+extern void func_801E9594(void);
+extern void func_801E893C(void);
+extern void func_800A8B0C(void);
+extern u8 func_801E7210(void *pData, void *pFileBuffer, void *pStreamBuffer, void *pTileSource,
+                        void *pTileSourceTail, void *pColorSources);
+extern void BattleSetColorSources(void *pColorSources, void *pDestination);
+extern u8 D_800D36B8;
+extern s32 g_SystemStreamedFileData;
+extern void *D_80059520;
+extern void *g_SystemStreamedFileBuffer;
+extern u8 D_800CCB94[];
+extern u8 D_800C4A39[];
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
+// 99.86% (292 bytes = retail's size). Only the jump-table operand differs
+// (retail names jtbl_80070A10, we say .rodata) and the label targets, i.e. the
+// body is right. It cannot be converted alone: func_800B7870 still owns the
+// table at the head of this unit's .rodata range (0xF0C, 0x14 bytes) and
+// jtbl_80070A10 sits at +0x14, which is 4 mod 8 - converting only this function
+// moves the table to the range start (or to an 8-aligned +0x18) and shifts the
+// overlay. Convert func_800B7870's switch in the same change.
+/*
+void func_800B8098(s32 stage) {
+    u8 *pBase;
+    u8 colorFlag;
+
+    D_800D36B8 = stage;
+    BattleInitDispEnvAndDrawEnv();
+    SoundLoadAndPlaySedsBank();
+    switch (stage) {
+    case 0:
+        func_800B7870();
+        break;
+    case 1:
+        ArchiveCdDataSync(0);
+        func_801E8588();
+        break;
+    case 2:
+        ArchiveCdDataSync(0);
+        func_801E91E8();
+        break;
+    case 3:
+        ArchiveCdDataSync(0);
+        func_801E9594();
+        break;
+    case 4:
+        ArchiveCdDataSync(0);
+        func_801E893C();
+        break;
+    case 5:
+        func_800B7870();
+        break;
+    default:
+        func_800B7870();
+        break;
+    }
+    ArchiveCdDataSync(0);
+    func_800A8B0C();
+    colorFlag = func_801E7210(&g_SystemStreamedFileData, D_80059520, g_SystemStreamedFileBuffer, D_800CCB94,
+                              D_800CCB94 + 0x20, D_800C4A39);
+    pBase = (u8 *)g_BattleStateWork;
+    pBase[0xB88] = colorFlag;
+    BattleSetColorSources(D_800C4A39, pBase + 0x4BF9);
+}*/
+
+
+/* The stage origins func_800B81BC publishes: g_BattleSlotVectors is the origin
+   pair 8 bytes behind D_800D335C, so both globals are two of these. */
+typedef struct {
+    /* 0x0 */ SVEC vec;
+    /* 0x6 */ u16 unk6;
+} BattleStageOrigin; // Size: 0x8
+
+extern BattleStageData *g_BattleStageData;
+extern BattleStageOrigin g_BattleAnimGroupStates[2];
+extern BattleStageOrigin g_BattleSlotVectors[2];
+extern SVEC D_800D335C;
+extern s32 g_GameWdsEntrySlot3;
+extern void func_801E62E0(s32 arg0);
+extern void func_800B88C4(void);
+extern void BattleInitStateWorkBuffers(void);
+
+void func_800B81BC(s32 arg0) {
+    func_800B88C4();
+    BattleInitStateWorkBuffers();
+    func_801E62E0(arg0);
+    SoundFreeWdsEntry((void *)g_GameWdsEntrySlot3);
+
+    SpriteSetSVec(&g_BattleAnimGroupStates[0].vec, g_BattleStageData->unk482.x, g_BattleStageData->unk482.y,
+                  g_BattleStageData->unk482.z);
+    SpriteSetSVec(&g_BattleSlotVectors[0].vec, g_BattleStageData->unk482.x, g_BattleStageData->unk482.y,
+                  g_BattleStageData->unk482.z);
+    SpriteSetSVec(&g_BattleAnimGroupStates[1].vec, g_BattleStageData->unk47C.x, g_BattleStageData->unk47C.y,
+                  g_BattleStageData->unk47C.z);
+    SpriteSetSVec(&D_800D335C, g_BattleStageData->unk47C.x, g_BattleStageData->unk47C.y,
+                  g_BattleStageData->unk47C.z);
+    SetDispMask(1);
+}
 
 /* One of the battle's two frame environments: the DRAWENV a frame draws with,
    that frame's DISPENV 0x5C bytes later, then the frame's ordering table (the 0x1000
@@ -204,19 +350,55 @@ void func_800B838C(s32 arg0, s32 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B838C);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8774);
-/* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
+/* The battle work block that g_BattleStateWork + 0x8000 starts: the render and
+   pad state. Only the fields this unit touches are typed here. */
 typedef struct {
-    /* 0x00 */ u8 unk0[0x6];
-    /* 0x06 */ u8 unk6;
-    /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, 0 means idle
-    /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0
-    /* 0x09 */ u8 unk9[0x5];
-    /* 0x0E */ u16 x;
-    /* 0x10 */ u16 z;
-    /* 0x12 */ u8 unk12[0xA];
-} BattleActorSlot; // Size: 0x1C
+    /* 0x000 */ u8 unk0[0xC50];
+    /* 0xC50 */ u8 *pRenderEnv; // one of the two double-buffered frame env blocks
+    /* 0xC54 */ u_long *pCurrentOT; // that block's ordering table at +0x70
+    /* 0xC58 */ u8 unkC58[0x2C];
+    /* 0xC84 */ s32 colorSetIndex; // selects the effect colour set; cleared at stage load, 1 after a change
+    /* 0xC88 */ u8 unkC88[0x120];
+    /* 0xDA8 */ u8 unkDA8;
+    /* 0xDA9 */ u8 unkDA9[0x3];
+    /* 0xDAC */ s32 unkDAC;
+    /* 0xDB0 */ u8 unkDB0[0x4D0];
+} BattleRenderState; // Size: 0x1280
+
+extern void BattleReleaseActorSlot(s32 index);
+extern void GfxFreeWorkBuffers(void);
+extern void WorkListsFreeAllEntries(void);
+extern void BattleFreeAllModelSlots(void);
+extern void BattleFreeSceneResources(void);
+extern void *g_BattleSoundBankMain;
+extern void *D_800D2D54;
+extern u8 g_IsBattle;
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+void func_800B8774(void) {
+    u8 *pStateBase;
+    BattleRenderState *pState;
+    s32 i;
+
+    pStateBase = (u8 *)g_BattleStateWork;
+    pState = (BattleRenderState *)(pStateBase + 0x8000);
+    if (pState->colorSetIndex == 0) {
+        func_800BE790();
+    }
+    DrawSync(0);
+    for (i = 0; i != 0xB; i++) {
+        BattleReleaseActorSlot(i);
+    }
+    GfxFreeWorkBuffers();
+    WorkListsFreeAllEntries();
+    SoundRemoveSedsEntry(g_BattleSoundBankMain);
+    HeapFree(g_BattleSoundBankMain);
+    g_IsBattle = 0;
+    DrawSync(0);
+    BattleFreeAllModelSlots();
+    BattleFreeSceneResources();
+    HeapFree(D_800D2D54);
+}
 
 /* Battle state pointed to by g_BattleState; only the fields this unit reads. */
 typedef struct {
@@ -230,7 +412,6 @@ typedef struct {
 } BattleUnitState; // Size: 0x44
 
 extern BattleUnitState *g_BattleState;
-extern BattleActorSlot g_BattleStateWork[];
 extern void BattleSetCurrentActorSprite(s32 actorIndex);
 extern void BattleActorUpdateGroundHeightAndTriangle(SpriteData *pSprite);
 
@@ -262,32 +443,38 @@ void BattleInitStateWorkBuffers(void) {
     g_ModelRenderTestFlags = 0;
 }
 
-// Best 75.16%: the body is right apart from the loop's slot pointer, which gcc
-// folds into the symbol (%lo(g_BattleStateWork + 0x54)) where retail materialises
-// g_BattleStateWork and then does a separate `addiu v1,v0,0x54`, so the two lbu
-// displacements come out -2/0 instead of 6/8. Tried: &g_BattleStateWork[3], (u8*)cast
-// + 0x54, a typed pointer local, a pBase local shared with the tail - all fold.
 extern s32 D_800C3D58;
 extern s32 g_AnimScriptExtraTicks;
 extern s32 g_GfxOTDepthShift;
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
+// 91.71% (308 bytes vs retail's 304, same instruction multiset but one unfilled
+// load-delay slot). Everything is retail's except the address formation of
+// g_AnimScriptExtraTicks: retail hoists `lui a0,%hi` into the delay slot of the
+// `lw` that reloads D_800C3D58 after the loop and keeps the base in a0 across the
+// clamp and the later read/zero, while gcc here fills that slot with a nop and
+// forms the address (in v1) at the clamp store. The loop itself is exact once the
+// slot pointer is written INDEXED off g_BattleStateWork (a pSlot++ walk rebases
+// the induction register onto the 0x8 field: 65.88%), and pCount/pFrame locals
+// kept the base in $s0 across the loop (also 65.88-78.72%).
 /*
 void func_800B88C4(void) {
     BattleActorSlot *pSlot;
+    BattleEnvBlock *pEnv;
+    BattleRenderState *pWork;
     u8 *pBase;
-    u8 *pWork;
-    u8 *pOT;
-    u8 *pBuf;
-    s32 value;
+    u8 *pBuffer;
+    u8 *pOldOT;
+    s32 extraTicks;
     s32 n;
     s32 i;
 
     D_800C3D58 = 0;
-    pSlot = (BattleActorSlot *)((u8 *)g_BattleStateWork + 0x54);
-    for (i = 3; i != 0xB; i++) {
-        if (pSlot->unk6 < 0x11 && pSlot->inUse != 0) {
+    pSlot = (BattleActorSlot *)g_BattleStateWork;
+    for (i = BATTLE_FIRST_ACTOR_SLOT; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+        if (pSlot[i].unk6 < 0x11 && pSlot[i].inUse != 0) {
             D_800C3D58++;
         }
-        pSlot++;
     }
     n = D_800C3D58 / 2 - 1;
     g_AnimScriptExtraTicks = n;
@@ -295,30 +482,29 @@ void func_800B88C4(void) {
         g_AnimScriptExtraTicks = 0;
     }
     pBase = (u8 *)g_BattleStateWork;
-    pWork = pBase + 0x8000;
-    value = g_AnimScriptExtraTicks;
+    pWork = (BattleRenderState *)(pBase + BATTLE_RENDER_STATE_OFFSET);
+    extraTicks = g_AnimScriptExtraTicks;
     g_AnimScriptExtraTicks = 0;
-    pOT = *(u8 **)(pWork + 0xC50);
+    pBuffer = pBase + 0xB70;
+    pOldOT = pWork->pRenderEnv;
     g_GfxOTDepthShift = 2;
-    if (pOT == pBase + 0xB70) {
-        pBuf = pBase + 0x4BE0;
-    } else {
-        *(s32 *)(pWork + 0xDAC) = value;
-        pBuf = pBase + 0xB70;
+    pWork->unkDAC = extraTicks;
+    if (pOldOT == pBuffer) {
+        pBuffer = pBase + 0x4BE0;
     }
-    *(u8 **)(pWork + 0xC50) = pBuf;
-    *(u8 **)(pWork + 0xC54) = pBuf + 0x70;
-    ClearOTagR((u_long *)(pBuf + 0x70), 0x1000);
-    *(s32 *)(pWork + 0xC84) = 1;
-    *(u8 **)(pWork + 0xC50) = pBase + 0x4BE0;
-    *(u8 *)(pWork + 0xDA8) = 0;
-    pBase[0x4BF8] = pBase[0xB88];
-    pBase[0x4BF9] = pBase[0xB89];
-    pBase[0x4BFA] = pBase[0xB8A];
-    pBase[0x4BFB] = pBase[0xB8B];
+    pWork->pRenderEnv = pBuffer;
+    pWork->pCurrentOT = (u_long *)(pBuffer + 0x70);
+    ClearOTagR((u_long *)pWork->pCurrentOT, BATTLE_OT_TAG_COUNT);
+    pWork->colorSetIndex = 1;
+    pEnv = (BattleEnvBlock *)pBase;
+    pEnv->frames[1].draw.isbg = pEnv->frames[0].draw.isbg;
+    pEnv->frames[1].draw.r0 = pEnv->frames[0].draw.r0;
+    pEnv->frames[1].draw.g0 = pEnv->frames[0].draw.g0;
+    pEnv->frames[1].draw.b0 = pEnv->frames[0].draw.b0;
+    pWork->pRenderEnv = pBase + 0x4BE0;
+    pWork->unkDA8 = 0;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
 
 void BattleEmptyHook(void) {
 }
