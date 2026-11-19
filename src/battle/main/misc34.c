@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 #include "psyq/libgte.h"
 #include "system/sound.h"
 
@@ -157,42 +158,34 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     pTask->minDistance = minDistance;
     pSpriteData->flags_0xAC.flags |= 0x20;
 }
-// best 73.04% (71.61% in the variant below, 108 bytes = one instruction short):
-// retail's first instruction is a `move t0,a1` copy of the second parameter (its
-// a1 is then reused for the 0x8C8C constant), and its reload of the target slot
-// happens before the g_BattleActorList lui; every instruction after that is present, only
-// the allocator's register roles differ. 0x8C8C is a byte offset into the
-// g_BattleStateWork block that does not fit a 16-bit displacement, so retail assembles
-// base+index and +0x8C8C in two addu's - that part the C below does reproduce.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
-/*
-// Makes the actor of slot arg0 the current battle sprite and points it at the actor
-// of slot arg1, which is also recorded as the model id table's only entry.
-void func_800BF85C(s32 arg0, s32 arg1) {
-    mem_addr base;
-    s32 off;
-    s32 slot;
-    s32 target;
-    SpriteData *pSprite;
-    u8 *pTargetSlot;
+// A view of g_BattleStateWork that reaches the per-slot sprite pointer table at
+// 0x8C8C: each entry is the sprite the spawner made for that slot.
+typedef struct {
+    /* 0x0000 */ u8 unk0000[0x8C8C];
+    /* 0x8C8C */ SpriteData *sprites[BATTLE_ACTOR_SLOT_COUNT];
+} BattleSpriteSlots;
 
-    base = (mem_addr)g_BattleStateWork;
-    off = 0x8C8C;
-    slot = arg1;
-    pSprite = *(SpriteData **)(base + (arg0 << 2) + off);
+// Makes the actor of slot arg0 the current battle sprite and makes the actor of slot
+// arg1 its target, which is also the only entry the model id table keeps.
+void func_800BF85C(s32 arg0, s32 arg1) {
+    BattleSpriteSlots *pSlots;
+    SpriteData **pTargetSlot;
+    SpriteData *pSprite;
+
+    pSlots = (BattleSpriteSlots *)g_BattleStateWork;
+    pSprite = pSlots->sprites[arg0];
     if (pSprite == NULL) {
         return;
     }
-    pTargetSlot = (u8 *)(base + (slot << 2) + off);
+    // The byte arithmetic (rather than &pSlots->sprites[arg1]) is what makes gcc add
+    // the base before 0x8C8C, as retail does; the struct form comes out 99.64%.
+    pTargetSlot = (SpriteData **)((u8 *)pSlots + (arg1 * 4) + 0x8C8C);
     D_800C3E1C = pSprite;
-    target = *(s32 *)pTargetSlot;
-    D_800D3634 = 1 << slot;
-    *(s32 *)((u8 *)pSprite + 0x74) = target;
-    target = *(s32 *)pTargetSlot;
+    pSprite->pTargetEntitySprite = *pTargetSlot;
+    D_800D3634 = 1 << arg1;
+    g_BattleActorList[0] = (s32)*pTargetSlot;
     g_BattleActorList[1] = 0;
-    g_BattleActorList[0] = target;
 }
-*/
 void BattleRemapActorModelId(SpriteData *pActor) {
     s32 i = 0;
     s32 *pEntry;
