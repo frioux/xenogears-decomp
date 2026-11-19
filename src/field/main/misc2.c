@@ -638,6 +638,162 @@ void func_80072D74(void) {
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
 
+extern s16 g_FieldCameraMode;
+extern u16 g_CamMovementFlags;
+extern s16 g_CamAtMovementDuration;
+extern s16 g_CamEyeMovementDuration;
+extern VECTOR g_CamAtMovementCurrent;
+extern VECTOR g_CamAtMovementDelta;
+extern VECTOR g_CamEyeMovementCurrent;
+extern VECTOR g_CamEyeMovementDelta;
+extern u16 g_FieldPlayerActorIndex16;
+extern s16 g_FieldWalkmeshTriCount;
+extern s32 D_800ADBAC;
+extern s32 D_800ADBB0;
+extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
+extern long FieldGetVec2Magnitude(long x, long z);
+
+// 89.20% (1108 bytes = the original's size). Structure is settled and the switch is a
+// THREE-case switch whose mode-0 and mode-2 arms both carry the follow-camera block: gcc
+// cross-jumps the two identical tails into one, which is why retail has the middle block
+// once (between the case-2/case-0 arms and the case-1 arm) and why case 1 alone reaches
+// the tail by fallthrough. What is left is gcc's address-CSE choice: retail uses bare
+// %hi/%lo symbol forms for a load+store pair at offset 0 (g_CamInterpolation.atStepDistance,
+// g_CamAtMovementCurrent.vx, g_CamMovementFlags) and only materialises a base where the
+// pair sits in one basic block (eyeStepDistance), while gcc here materialises the base for
+// every pair; that also re-orders the delta loads in the at-movement block. Also tried:
+// plain symbols everywhere (86.18, 1112 bytes: the top loses retail's a0 base), one
+// pointer local for all three g_FieldCameraMode uses (88.22, s0 where retail has a0+s1),
+// delta/step locals, nested ifs instead of &&, and a pointer for eyeStepDistance alone
+// (87.91, frame +8). Screened: 2.6.0 89.20, cdk 62.35 - not a preset question. The
+// permuter cannot run on this unit body ("conversion to non-scalar type requested" on the
+// first base compile).
+/*
+void func_80073230(void) {
+    VECTOR pos;
+    VECTOR normal;
+    SVECTOR point;
+    s16 duration;
+    u16 flags;
+    FieldActor* pActor;
+    s32 atDistance;
+    s32 eyeDistance;
+    s16* pMode;
+    s16* pCameraMode;
+
+    pMode = &g_FieldCameraMode;
+    switch (*pMode) {
+    case 2:
+        D_800ADBAC = 0;
+        if (++D_800ADBB0 >= 65) {
+            *pMode = 0;
+        }
+        func_800726E8();
+        pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (mem_addr)g_FieldActors);
+        pos.vx = pActor->pActorData->position.vx;
+        pos.vy = pActor->pActorData->position.vy;
+        pos.vz = pActor->pActorData->position.vz;
+        FieldCameraUpdateFromTarget(&pos, (s16)pActor->pActorData->curYPos);
+        if (!(g_Scene.unk48 & 0x4000)) {
+            func_8007B1C4((s16)(g_CameraEye2.vx >> 16), (s16)(g_CameraEye2.vz >> 16),
+                g_FieldWalkmeshTriCount - 1, &point, &normal);
+            if (point.vy < (s16)(g_CameraEye2.vy >> 16)) {
+                g_CameraEye2.vy = point.vy << 16;
+            }
+        }
+        pCameraMode = &g_FieldCameraMode;
+        if (*pCameraMode == 2) {
+            atDistance = FieldGetVec2Magnitude((s16)(g_CameraAt2.vx >> 16) - (s16)(g_CameraAt.vx >> 16),
+                (s16)(g_CameraAt2.vz >> 16) - (s16)(g_CameraAt.vz >> 16));
+            eyeDistance = FieldGetVec2Magnitude((s16)(g_CameraEye2.vx >> 16) - (s16)(g_CameraEye.vx >> 16),
+                (s16)(g_CameraEye2.vz >> 16) - (s16)(g_CameraEye.vz >> 16));
+            if (atDistance < 0x80) {
+                if (eyeDistance < 0x80) {
+                    *pCameraMode = 0;
+                }
+            }
+        }
+        break;
+    case 0:
+        D_800ADBB0 = 0;
+        if ((D_800ADBAC & 3) == 0) {
+            g_CamInterpolation.atStepDistance = g_CamInterpolation.atStepDistance < 9
+                ? 8 : g_CamInterpolation.atStepDistance - 2;
+            g_CamInterpolation.eyeStepDistance = g_CamInterpolation.eyeStepDistance < 9
+                ? 8 : g_CamInterpolation.eyeStepDistance - 2;
+        }
+        D_800ADBAC++;
+        func_800726E8();
+        pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (mem_addr)g_FieldActors);
+        pos.vx = pActor->pActorData->position.vx;
+        pos.vy = pActor->pActorData->position.vy;
+        pos.vz = pActor->pActorData->position.vz;
+        FieldCameraUpdateFromTarget(&pos, (s16)pActor->pActorData->curYPos);
+        if (!(g_Scene.unk48 & 0x4000)) {
+            func_8007B1C4((s16)(g_CameraEye2.vx >> 16), (s16)(g_CameraEye2.vz >> 16),
+                g_FieldWalkmeshTriCount - 1, &point, &normal);
+            if (point.vy < (s16)(g_CameraEye2.vy >> 16)) {
+                g_CameraEye2.vy = point.vy << 16;
+            }
+        }
+        pCameraMode = &g_FieldCameraMode;
+        if (*pCameraMode == 2) {
+            atDistance = FieldGetVec2Magnitude((s16)(g_CameraAt2.vx >> 16) - (s16)(g_CameraAt.vx >> 16),
+                (s16)(g_CameraAt2.vz >> 16) - (s16)(g_CameraAt.vz >> 16));
+            eyeDistance = FieldGetVec2Magnitude((s16)(g_CameraEye2.vx >> 16) - (s16)(g_CameraEye.vx >> 16),
+                (s16)(g_CameraEye2.vz >> 16) - (s16)(g_CameraEye.vz >> 16));
+            if (atDistance < 0x80) {
+                if (eyeDistance < 0x80) {
+                    *pCameraMode = 0;
+                }
+            }
+        }
+    
+        break;
+    case 1:
+        flags = g_CamMovementFlags;
+        D_800ADBAC = 0;
+        D_800ADBB0 = 0;
+        if (flags & FIELD_CAMERA_AT_MOVEMENT_ACTIVE) {
+            duration = g_CamAtMovementDuration;
+            if (duration != 0) {
+                g_CamAtMovementCurrent.vx += g_CamAtMovementDelta.vx;
+                g_CamAtMovementCurrent.vy += g_CamAtMovementDelta.vy;
+                g_CamAtMovementCurrent.vz += g_CamAtMovementDelta.vz;
+            }
+            duration--;
+            g_CamAtMovementDuration = duration;
+            if (duration == 0) {
+                g_CamMovementFlags = flags & ~FIELD_CAMERA_AT_MOVEMENT_ACTIVE;
+            }
+            g_CameraAt2.vx = g_CamAtMovementCurrent.vx;
+            g_CameraAt2.vy = g_CamAtMovementCurrent.vy;
+            g_CameraAt2.vz = g_CamAtMovementCurrent.vz;
+        }
+        flags = g_CamMovementFlags;
+        if (flags & FIELD_CAMERA_EYE_MOVEMENT_ACTIVE) {
+            duration = g_CamEyeMovementDuration;
+            if (duration != 0) {
+                g_CamEyeMovementCurrent.vx += g_CamEyeMovementDelta.vx;
+                g_CamEyeMovementCurrent.vy += g_CamEyeMovementDelta.vy;
+                g_CamEyeMovementCurrent.vz += g_CamEyeMovementDelta.vz;
+            }
+            duration--;
+            g_CamEyeMovementDuration = duration;
+            if (duration == 0) {
+                g_CamMovementFlags = flags & ~FIELD_CAMERA_EYE_MOVEMENT_ACTIVE;
+            }
+            g_CameraEye2.vx = g_CamEyeMovementCurrent.vx;
+            g_CameraEye2.vy = g_CamEyeMovementCurrent.vy;
+            g_CameraEye2.vz = g_CamEyeMovementCurrent.vz;
+        }
+        break;
+    }
+
+    func_80072D74();
+    g_Scene.sceneAngle.vy &= FIELD_ANGLE_MASK;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80073230);
 
 void FieldRotateEyeAboutAt(VECTOR* pEye, VECTOR* pAt) {
