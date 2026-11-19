@@ -62,7 +62,7 @@ typedef struct {
     /* 0x2C */ BattleWorkFlags flags;
     // The owner's moveCount as of the last func_8008F7B8, which the state-0
     // handler compares with the live one.
-    /* 0x30 */ u16 savedMoveCount;
+    /* 0x30 */ s16 savedMoveCount;
     /* 0x32 */ u16 pad32;
 } BattleWork; // Size: 0x34
 
@@ -123,7 +123,7 @@ typedef struct BattleActor {
     /* 0x1604 */ u8 unk1604[0x64];
     // Bumped by func_80075B50 each time it starts a move for the actor; the round
     // reset clears it.
-    /* 0x1668 */ u16 moveCount;
+    /* 0x1668 */ s16 moveCount;
 } BattleActor; // Size: 0x166A
 
 extern s32 func_80073DE4(BattleActor* p, s32 arg1);
@@ -341,7 +341,56 @@ void BattleEnterWorkState0(BattleActor* pActor) {
     pWork->state = 0;
     pWork->delay = (2 - pWork->difficulty) * 30 + 0x5A;
     func_8008F7B8(pWork);
-}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_8008FCC8);
+}
+void func_8008FCC8(BattleActor* pActor, BattleWork* pWork) {
+    s32 distance;
+
+    pWork->maxDistance = 0;
+    pWork->setFlag8000 = 0;
+    pWork->targetAngle = 0;
+    if (func_8008FACC(pActor, pWork) != 0) {
+        return;
+    }
+    if (g_BattleActorDistance2D < 0x200) {
+        if (pWork->flags.bits.attackRoll != 0) {
+            BattleEnterWorkState1(pActor);
+        } else if (pWork->difficulty != 0) {
+            BattleEnterWorkState2(pActor, 1);
+        }
+        if (pActor->pTarget->actionPhase == 2) {
+            BattleSetActorFlag2AndClearQueue(pActor, pWork);
+        }
+        if (pActor->moveCount + 2 < pWork->savedMoveCount) {
+            BattleEnterWorkState1(pActor);
+        }
+    }
+    distance = pActor->pTarget->nearestEffectDistance;
+    if (distance < 0x400) {
+        BattleEnterWorkState2(pActor, 3);
+        pWork->setFlag8000 = 1;
+    }
+    switch (pWork->phase) {
+    case 0:
+        if (--pWork->delay < 0) {
+            pWork->phase++;
+        }
+        if (pActor->pTarget->state != 0) {
+            break;
+        }
+        if (pWork->flags.bits.attackRoll != 0) {
+            if (BattleRollActorActionChance(pActor, 0) != 0) {
+                BattleQueueMessages4Then3(pActor);
+            }
+            BattleEnterWorkState3(pActor, 0);
+        }
+        break;
+    case 1:
+        if (BattleCheckActorBelowBreakThreshold(pActor, 0) != 0) {
+            BattleEnterWorkState3(pActor, 0);
+        }
+        break;
+    }
+}
 void BattleQueueRandomMessages(BattleActor* pActor) {
     s32 n;
     s32 v;
