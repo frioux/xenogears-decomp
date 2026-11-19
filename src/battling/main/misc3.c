@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 #include "system/memory.h"
 
 // Denominator of a 0..100 percent (misc2's BATTLE_GAUGE_FRACTION_SCALE is the 0..255 one).
@@ -11,6 +12,10 @@
 // flags bit 12: set by every modelIndex assignment in this unit, so the bit is the
 // actor's "picked a new model" mark.
 #define BATTLE_ACTOR_FLAG_MODEL_CHANGE 0x1000
+// flags bit 24: func_80076884 keeps it set while the input direction points into
+// the half-turn window behind the actor's facing; BattleTryQueueMessage5 refuses
+// while it is set.
+#define BATTLE_ACTOR_FLAG_FACING_AWAY 0x1000000
 // flags bits 20-22: the vertical direction of the step the actor is taking. It is
 // cleared and re-set to one of the two directions when BattleUpdateActorMovement
 // picks the step model for the goal it walks to, and cleared on the frame after.
@@ -631,7 +636,250 @@ short BattleTryQueueMessage5(BattleActor* p) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
+extern u8 g_BattleCameraSpinDirection;
+extern s32 ControllerGetType(s32 controllerIndex);
+extern u8 ControllerStickToAnalogX(s32 buttonState);
+extern u8 ControllerStickToAnalogY(s32 buttonState);
+
+/* The controller the actor reads: player 2's actor takes controller 1. A digital
+   pad's sticks come straight from the axis globals, an analog one's from the
+   button state. The four input ramps charge one direction at a time and decay
+   the rest, and (right - left, up - down) becomes the movement vector. */
+s32 func_80076884(BattleActor* p) {
+    u16 buttons;
+    u16 released;
+    u8 stickX;
+    u8 stickY;
+    s32 analog;
+    s32 rampStep;
+    s32 decayStep;
+    s32 enabled;
+    s32 stickY2;
+    s32 stickX2;
+    s32 angle;
+    s32 direction;
+    s32 distance;
+    s32 limit;
+    s32 diff;
+    u32 flags;
+
+    if (p->flags & BATTLE_ACTOR_FLAG_PLAYER2) {
+        analog = (u32)(ControllerGetType(1) - CONTROLLER_TYPE_ANALOG_PAD) < 2;
+        buttons = g_C2ButtonState;
+        released = g_C2ButtonStateReleased;
+        if (analog) {
+            stickX = g_C2LeftStickXAxis;
+            stickY = g_C2LeftStickYAxis;
+        } else {
+            stickX = ControllerStickToAnalogX(g_C2ButtonState);
+            stickY = ControllerStickToAnalogY(g_C2ButtonState);
+        }
+    } else {
+        analog = (u32)(ControllerGetType(CONTROLLER_TYPE_NONE) - CONTROLLER_TYPE_ANALOG_PAD) < 2;
+        buttons = g_C1ButtonState;
+        released = g_C1ButtonStateReleased;
+        if (analog) {
+            stickX = g_C1LeftStickXAxis;
+            stickY = g_C1LeftStickYAxis;
+        } else {
+            stickX = ControllerStickToAnalogX(g_C1ButtonState);
+            stickY = ControllerStickToAnalogY(g_C1ButtonState);
+        }
+    }
+    flags = p->flags;
+    if (flags & CTRL_BTN_CROSS) {
+        return;
+    }
+    if (g_BattleCameraSpinDirection != ((flags >> 17) & 1)) {
+        if (g_BattleCameraSpinDirection != 0) {
+            p->facingOffset = -p->sideBaseAngle;
+        } else {
+            p->facingOffset = p->sideBaseAngle;
+        }
+        p->flags = (p->flags & ~0x20000) | ((g_BattleCameraSpinDirection & 1) << 17);
+        p->facingAngle += BATTLE_ANGLE_HALF_TURN;
+        p->angleOffset += BATTLE_ANGLE_HALF_TURN;
+    }
+    if (released & CTRL_BTN_TRIANGLE) {
+        BattleQueueMessage(p, 1);
+        p->message12Count++;
+    }
+    if (released & CTRL_BTN_CIRCLE) {
+        BattleQueueMessage(p, 2);
+        p->message12Count++;
+    }
+    if (released & CTRL_BTN_R1) {
+        BattleQueueMessage(p, 3);
+        p->message3Count++;
+    }
+    if (released & CTRL_BTN_SQUARE) {
+        BattleResetMessageQueue(p);
+        BattleQueueMessage(p, 4);
+    }
+    if (buttons & CTRL_BTN_CROSS) {
+        p->flags |= 0x8000;
+    }
+    if (released & CTRL_BTN_CROSS) {
+        BattleResetMessageQueue(p);
+    }
+    decayStep = p->inputDecayStep;
+    if (buttons & CTRL_BTN_L1) {
+        p->flags |= 2;
+        BattleResetMessageQueue(p);
+        p->flags |= 0x100;
+        decayStep *= 4;
+    } else {
+        p->flags &= ~0x38;
+    }
+    if ((p->flags & 0x60000000) == 0x60000000 && !(p->typeFlags & 4)) {
+        rampStep = p->inputRampStep / 2;
+    } else {
+        rampStep = p->inputRampStep;
+    }
+    if ((p->flags & 0x60000000) == 0x20000000 && (p->typeFlags & 4)) {
+        rampStep = p->inputRampStep / 2;
+    }
+    if (p->flags & CTRL_BTN_SELECT) {
+        decayStep = decayStep * 2 / 3;
+        enabled = 0;
+    } else {
+        enabled = 1;
+    }
+    stickY2 = (stickY - 0x80) * 2;
+    stickX2 = (stickX - 0x80) * 2;
+    angle = ratan2(stickY2, stickX2) + p->facingOffset;
+    if (buttons & (CTRL_BTN_UP | CTRL_BTN_RIGHT | CTRL_BTN_DOWN | CTRL_BTN_LEFT)) {
+        if ((buttons & CTRL_BTN_UP) && enabled) {
+            p->inputUp += rampStep;
+            if (p->inputUp > 0x100) {
+                p->inputUp = 0x100;
+            }
+        } else {
+            p->inputUp -= decayStep;
+            if (p->inputUp < 0) {
+                p->inputUp = 0;
+            }
+        }
+        if ((buttons & CTRL_BTN_DOWN) && enabled) {
+            p->inputDown += rampStep;
+            if (p->inputDown > 0x100) {
+                p->inputDown = 0x100;
+            }
+        } else {
+            p->inputDown -= decayStep;
+            if (p->inputDown < 0) {
+                p->inputDown = 0;
+            }
+        }
+        if ((buttons & CTRL_BTN_LEFT) && enabled) {
+            p->inputLeft += rampStep;
+            if (p->inputLeft > 0x100) {
+                p->inputLeft = 0x100;
+            }
+        } else {
+            p->inputLeft -= decayStep;
+            if (p->inputLeft < 0) {
+                p->inputLeft = 0;
+            }
+        }
+        if ((buttons & CTRL_BTN_RIGHT) && enabled) {
+            p->inputRight += rampStep;
+            if (p->inputRight > 0x100) {
+                p->inputRight = 0x100;
+            }
+        } else {
+            p->inputRight -= decayStep;
+            if (p->inputRight < 0) {
+                p->inputRight = 0;
+            }
+        }
+        if (!(buttons & (CTRL_BTN_UP | CTRL_BTN_RIGHT | CTRL_BTN_DOWN | CTRL_BTN_LEFT))) {
+            angle = 0;
+        }
+    } else {
+        if (SquareRoot0(stickY2 * stickY2 + stickX2 * stickX2) < 0x30) {
+            angle = 0;
+        }
+        if (stickY2 < 0 && enabled) {
+            limit = stickY2 < 0 ? -stickY2 : stickY2;
+            p->inputUp += rampStep;
+            if (p->inputUp > limit) {
+                p->inputUp = limit;
+            }
+        } else {
+            p->inputUp -= decayStep;
+            if (p->inputUp < 0) {
+                p->inputUp = 0;
+            }
+        }
+        if (stickY2 > 0 && enabled) {
+            p->inputDown += rampStep;
+            if (p->inputDown > stickY2) {
+                p->inputDown = stickY2;
+            }
+        } else {
+            p->inputDown -= decayStep;
+            if (p->inputDown < 0) {
+                p->inputDown = 0;
+            }
+        }
+        if (stickX2 < 0 && enabled) {
+            limit = stickX2 < 0 ? -stickX2 : stickX2;
+            p->inputLeft += rampStep;
+            if (p->inputLeft > limit) {
+                p->inputLeft = limit;
+            }
+        } else {
+            p->inputLeft -= decayStep;
+            if (p->inputLeft < 0) {
+                p->inputLeft = 0;
+            }
+        }
+        if (stickX2 > 0 && enabled) {
+            p->inputRight += rampStep;
+            if (p->inputRight > stickX2) {
+                p->inputRight = stickX2;
+            }
+        } else {
+            p->inputRight -= decayStep;
+            if (p->inputRight < 0) {
+                p->inputRight = 0;
+            }
+        }
+    }
+    stickY2 = p->inputUp - p->inputDown;
+    stickX2 = p->inputRight - p->inputLeft;
+    direction = ratan2(stickX2, stickY2);
+    distance = SquareRoot0(stickY2 * stickY2 + stickX2 * stickX2);
+    if (distance > 0x100) {
+        distance = 0x100;
+    }
+    if (distance < 0x30) {
+        distance = 0;
+    }
+    if (distance != 0) {
+        p->distance = distance;
+        p->targetAngle = direction + p->facingOffset;
+    } else {
+        p->targetAngle = 0;
+    }
+    angle &= 0xFFF;
+    if ((u32)(angle - 0x201) < 0x3FF) {
+        BattleTryQueueMessage5(p);
+        p->flags |= BATTLE_ACTOR_FLAG_FACING_AWAY;
+    } else {
+        p->flags &= ~BATTLE_ACTOR_FLAG_FACING_AWAY;
+    }
+    if ((p->flags & 0x80000) && p->distance != 0) {
+        diff = (direction & 0xFFF) - ((ratan2(stickY - 0x80, stickX - 0x80) + 0x400) & 0xFFF);
+        if (diff < 0) {
+            diff = -diff;
+        }
+        if (diff >= 0x201) {
+            p->flags |= 0x80000;
+        }
+    }
+}
 
 extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleFacingAngle;
