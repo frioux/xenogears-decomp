@@ -808,7 +808,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
    single sra 24, gcc carries the raw u16 and extracts with sll 24 / sra 24 (and
    for vz fuses the << 7 into sra 17). The store order (vy before life) and
    the separate s8 texel local came from the permuter (91.67 -> 95.82 ->
-   96.85); one more permuter run from this body is the next step. */
+   96.85). A second permuter run (5 min, base=435 best=236) found one better
+   shape, not yet measured under objdiff: replace the separate texel store with
+   `pEntry->x = (texel = vx);` - the embedded assignment of the s8 copy. Port it,
+   re-measure, and if the u16 >> 16 representation still differs try carrying vx
+   and vz as s32 before the store. */
 /*
 void func_8007D7A8(VECTOR *pSrc, s32 count) {
     BattleSpriteEntry *pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
