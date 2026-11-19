@@ -1057,7 +1057,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             gte_ldv0(&pTween->end);
             gte_rtps();
             gte_stsxy2(&pTween->projectedEnd[pTween->slot]);
-            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
+            if (++pTween->step == 0) {
+                continue;
+            }
+            if (pTween->step > pTween->stepCount) {
                 goto allocate;
             }
             if (pTween->pSlot != NULL) {
@@ -1102,7 +1105,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             gte_ldv0(&pTween->end);
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(pEnd);
-            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
+            if (++pTween->step == 0) {
+                continue;
+            }
+            if (pTween->step > pTween->stepCount) {
                 goto allocate3D;
             }
             if (pTween->pSlot != NULL) {
