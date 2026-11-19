@@ -1121,25 +1121,32 @@ u8 BattleBuildTargetCandidateList(u8 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc12", func_80084854);
-/* 84.85%: 536 bytes against retail's 548 (3 instructions short). The saved-register
-   map now agrees with retail (s0 flag, s1 candidate pointer, s2 mode, s3 arg0*0x1C,
-   s4 arg0&0xFF, s5 result, s6 best) after three fixes: (a) BattleUnk1C's 0x2 field
-   typed u16 unk2 - D_800C3EC0 is D_800C3EBE+2 read as a u16 on a 0x1C stride, so
-   D_800C3EC0[i * 14] and D_800C3EBE[i].y are the same access; (b) flag = 0 moved
-   ABOVE the ratan2 call (retail sets it in the beq delay slot before the call, and
-   that is what keeps it live across the call in s0); (c) best = 0xFFFFFF written
-   first and declared s32 (retail compares with slt, not sltu). What is left:
-   retail's absolute difference is the REVERSED subtraction ('subu v0,v0,a0; mult
-   v0,v0') where 'if (d < 0) d = -d;' makes gcc emit 'negu v1,v1; mult v1,v1'; the
-   loop test is 'slt' (signed) where 'p < D_800C3E9B' gives 'sltu'; and we are 3
-   instructions short (we emit an extra mflo/nop pair retail does not have). Permuter
-   job, not a hand job.
-*/
+/* 87.82%: 536 bytes against retail's 548. The saved-register map, the switch
+   tree, the ratan2 call, the case-body sharing and the loop tail all agree with
+   retail (s0 flag, s1 candidate pointer, s2 arg1, s3 arg0 * 0x1C, s4 arg0, s5
+   result, s6 best; `switch (arg1)` rather than a `mode` local - the permuter found
+   that, 84.85 -> 87.82). What is left, all four measured:
+   1. The second axis. Retail RELOADS *p and recomputes the 0x1C index for the x
+      difference (lbu, nop, sll, subu, sll = 5 instructions); every spelling tried
+      here makes gcc 2.6.0 CSE the index across the first axis' branch join and
+      reuse the register (tools/scripts/probe_twoaxes.c reproduces the CSE in 20
+      lines, so the body shape is not the cause). The permuter's way of forcing the
+      reload was `D_800C3EBE[result = *p].x`, which stores *p into result on every
+      candidate instead of only on a new best one - wrong code, do not port it.
+   2. Prologue order. We emit the arg0-derived invariants (s4, s3) after the
+      `la s1` group; retail has them before s2 and s1, i.e. its entry-block
+      statements put the loop pointer last, after the hoisted ones.
+   3. The loop test is `slt` in retail (signed); `p < D_800C3E9B` gives `sltu`.
+   4. Retail keeps a nop after each of the two `sltiu` range tests inside case 2
+      where we steal the `flag = 1` or into the branch delay slot.
+   The absolute difference is NOT a wall any more: `if (d < 0) d = -d;` already
+   gives retail's two multiplies with one shared mflo (the old note here claimed
+   otherwise); only the negate form differs, negu against retail's reversed
+   `subu v0,v0,a0`, which is the same instruction count. */
 /*
 u8 func_80084854(u8 arg0, u8 arg1) {
     u8 *p;
     u8 result;
-    s32 mode;
     s32 angle;
     s32 flag;
     s32 dx;
@@ -1149,14 +1156,13 @@ u8 func_80084854(u8 arg0, u8 arg1) {
 
     best = 0xFFFFFF;
     result = arg0;
-    mode = arg1;
     p = g_BattleTargetCandidates;
     do {
-        if (*p != 0xFF && *p != arg0) {
+        if (*p != BATTLE_SLOT_NONE && *p != arg0) {
             flag = 0;
             angle = ratan2(D_800C3EBE[*p].y - D_800C3EBE[arg0].y,
                            D_800C3EBE[*p].x - D_800C3EBE[arg0].x);
-            switch (mode) {
+            switch (arg1) {
             case 0:
                 if ((u16)(angle + 0x200) < 0x400) {
                     flag = 1;
@@ -1200,7 +1206,9 @@ u8 func_80084854(u8 arg0, u8 arg1) {
         }
     } while (++p < D_800C3E9B);
     return result;
+}
 */
+
 void BattleEnsureTargetSlotInCandidateList(u8 arg0) {
     s32 off;
     s32 found;
