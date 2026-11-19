@@ -87,50 +87,12 @@ extern BattleActorSlotPos D_800C3668[3];
 extern u16 D_800C3666;
 extern u8 D_800C37CC;
 
-// best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(g_BattleViewMatrix)
-// lands late and turns the three "lh" loads into v1 instead of v0. 2.6.0 fixes the
-// lhu re-read of field 0x36 that 2.7.2 forwards from the store.
-/*
-void func_800BB248(u8 *pTask) {
-    u8 *pSpriteData;
-    SVECTOR vec;
-    long sxy;
-    long flag;
-    s32 nOTOffset;
-    s32 mode;
-    u16 *pField;
-    u16 *pRead;
-    s32 v;
-
-    pSpriteData = *(u8 **)(pTask + 4);
-    mode = *(u32 *)(pSpriteData + 0xA8) >> 30;
-    pField = (u16 *)(pSpriteData + 0x36);
-    *pField = BattleGetActorHeight(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
-    pRead = (u16 *)(pSpriteData + 0x36);
-    *(u16 *)(pSpriteData + 0x38) = *pRead >> 1;
-    v = *(s16 *)(pSpriteData + 0x2);
-    vec.vx = v;
-    v = *(s16 *)(pSpriteData + 0x6);
-    vec.vy = v;
-    v = *(s16 *)(pSpriteData + 0xA);
-    vec.vz = v;
-    SetRotMatrix(&g_BattleViewMatrix);
-    SetTransMatrix(&g_BattleViewMatrix);
-    nOTOffset = (RotTransPers(&vec, &sxy, (u_long *)&sxy, &flag) >> g_GfxOTDepthShift) +
-                *(s16 *)(pSpriteData + 0x30);
-    if (flag & 0x8000) {
-        nOTOffset = 0;
-    }
-    *(u16 *)(pSpriteData + 0x2E) = nOTOffset;
-}
-*/
 // best 99.61% at retail's exact 204 bytes: everything matches but the three SSVECTOR
 // loads. Retail puts the first in $v1 and the other two in $v0 (lh v1 / sh 0x10 /
 // lh v0 / sh 0x12 / lh v0 / sh 0x14); one shared temp gives $v1 three times
 // (three separate typed assignments give $v0 and 96.47%). The u16 store to field
 // 0x36 must be VOLATILE or gcc forwards the register into the 'lhu 0x36' re-read
 // as an 'andi 0xffff' (93.33%); retail really does reload it.
-/*
 void func_800BB248(u8 *pTask) {
     u8 *pSpriteData;
     SVECTOR vec;
@@ -141,6 +103,7 @@ void func_800BB248(u8 *pTask) {
     u16 *pField;
     u16 *pRead;
     s32 v;
+    s32 v2;
 
     pSpriteData = *(u8 **)(pTask + 4);
     mode = *(u32 *)(pSpriteData + 0xA8) >> 30;
@@ -150,10 +113,10 @@ void func_800BB248(u8 *pTask) {
     *(u16 *)(pSpriteData + 0x38) = *pRead >> 1;
     v = *(s16 *)(pSpriteData + 0x2);
     vec.vx = v;
-    v = *(s16 *)(pSpriteData + 0x6);
-    vec.vy = v;
-    v = *(s16 *)(pSpriteData + 0xA);
-    vec.vz = v;
+    v2 = *(s16 *)(pSpriteData + 0x6);
+    vec.vy = v2;
+    v2 = *(s16 *)(pSpriteData + 0xA);
+    vec.vz = v2;
     SetRotMatrix(&g_BattleViewMatrix);
     SetTransMatrix(&g_BattleViewMatrix);
     nOTOffset = (RotTransPers(&vec, &sxy, (u_long *)&sxy, &flag) >> g_GfxOTDepthShift) +
@@ -163,8 +126,6 @@ void func_800BB248(u8 *pTask) {
     }
     *(u16 *)(pSpriteData + 0x2E) = nOTOffset;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB248);
 
 void BattleFreeActorSpriteTask(u8 *pEntry) {
     u32 unused[2];
