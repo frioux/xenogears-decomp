@@ -861,7 +861,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             pEntry->pVertex->x3 = pEntry->screenB[2 * pEntry->slot];
             pEntry->pVertex->y3 = pEntry->screenB[2 * pEntry->slot + 1];
         } else {
-            CompMatrix(&pSkeleton->localTransform, &pSkeleton[pEntry->jointIndex].globalTransform, pScratch);
+            otz = pEntry->jointIndex;
+            CompMatrix(&pSkeleton->localTransform, &pSkeleton[otz].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
