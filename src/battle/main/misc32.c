@@ -600,29 +600,26 @@ extern SVECTOR D_8004FB98[4];
 
 #define BATTLE_SPRITE_QUAD_TAG_LEN 9 // POLY_FT4's packet length in words, minus the tag's own word
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD810);
-
-/*
-// 77.80% (360 bytes against retail's 356: one extra nop). The instruction multiset
-// is retail's except that nop: the corner loads, the two sums and the eight corner
-// stores all come out in a different order and in different registers, which under
-// this preset's -fschedule-insns is the scheduler's choice, not the C's. Tried:
-// corners before the header stores (352 bytes, no nop at all, 64.09), the corner
-// block in do{...}while(0) (70.65), direct pPart->field reads in the corner stores
-// (412 bytes: gcc reloads every field across the packet stores), and dropping the
-// sum locals (gcc reloads width/height). The bodies below are the best one.
 // Draws one sprite-list entry: fills a textured quad in the packet buffer from the entry's
 // rectangle and texture page, projects its four corners through the battle's view matrix and
 // links the prim into the ordering table. Nothing is drawn once the packet buffer is full.
+// The right/bottom sum pairs and the local ordering-table pointer are load-bearing: each copy
+// fixes one scheduling/register choice that retail makes (the scheduler runs here, so the
+// statement order decides nothing, but which pseudo carries the sum does).
 void func_800BD810(Misc32SpritePart *pPart, u32 color) {
     POLY_FT4 *pPoly;
+    u_long *pOt;
+    s32 width;
+    s32 height;
     s32 x;
     s32 y;
     s32 right;
+    s32 rightEdge;
     s32 bottom;
     s32 u;
     s32 v;
     s32 p;
+    s32 bottomEdge;
     s32 flag;
 
     pPoly = (POLY_FT4 *)g_GfxCurWorkBuffer;
@@ -634,10 +631,14 @@ void func_800BD810(Misc32SpritePart *pPart, u32 color) {
     *(u_long *)&pPoly->r0 = color;
     pPoly->tpage = pPart->texPage;
     pPoly->clut = pPart->clutID;
+    width = pPart->width;
+    height = pPart->height;
     x = pPart->x;
     y = pPart->y;
-    right = x + pPart->width;
-    bottom = y + pPart->height;
+    rightEdge = x + width;
+    right = rightEdge;
+    bottomEdge = y + height;
+    bottom = bottomEdge;
     D_8004FB98[0].vx = x;
     D_8004FB98[0].vy = y;
     D_8004FB98[1].vx = right;
@@ -663,9 +664,9 @@ void func_800BD810(Misc32SpritePart *pPart, u32 color) {
     pPoly->v2 = bottom;
     pPoly->u3 = right;
     pPoly->v3 = bottom;
-    addPrim(g_GfxCurOT, pPoly);
+    pOt = g_GfxCurOT;
+    addPrim(pOt, pPoly);
 }
-*/
 
 void BattleProjectPointToScreen(SVECTOR *pVec, s32 *pOut) {
     SVECTOR vec; // unused: reproduces retail's 0x40 frame
