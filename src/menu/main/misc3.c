@@ -3,7 +3,14 @@
 #include "system/menu.h"
 #include "psyq/libapi.h"
 
-
+// The arrays menuUnk2 indexes as card * MENU_CARD_RECORD_COUNT + record hold 16 records
+// per card, so a flat record index divides by it to get the card it is on.
+#define MENU_CARD_RECORD_COUNT 16
+#define MENU_CARD_COUNT 2 // memory card slots
+// MenuLoadWindow2Text's second text id when there is no second text to load.
+#define MENU_WINDOW_TEXT_NONE 0xFF
+// MenuFindFreeChunkIndex's index argument when the caller has none and wants a free one.
+#define MENU_CHUNK_INDEX_NONE 0xFF
 
 extern u8 D_801EA6D0[][0x10];
 extern u8* D_801EA6F4;
@@ -225,7 +232,7 @@ u_char MenuIsSlotUsable(s32 a0) {
     case 0:
         if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
             j = D_801E981C[idx];
-            if (pMenu->cardStatus[j / 16] != 0) {
+            if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
                     break;
                 }
@@ -236,7 +243,7 @@ u_char MenuIsSlotUsable(s32 a0) {
     case 1:
         if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
             j = D_801E981C[idx];
-            if (pMenu->cardStatus[j / 16] != 0) {
+            if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
                     if (pMenu->slotHasGameSave[j] != 0) {
                         break;
@@ -248,7 +255,7 @@ u_char MenuIsSlotUsable(s32 a0) {
         break;
     case 2:
         j = D_801E981C[idx];
-        if (pMenu->cardStatus[j / 16] == 0) {
+        if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] == 0) {
             result = 0;
         }
         break;
@@ -272,7 +279,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
     s32 j;
 
     start = (g_Menu->menuUnk2->cardStatus[0] == 0) ? MENU_CARD_SLOT_COUNT : 0;
-    limit = 2 * MENU_CARD_SLOT_COUNT;
+    limit = MENU_CARD_COUNT * MENU_CARD_SLOT_COUNT;
     if (g_Menu->menuUnk2->cardStatus[1] == 0) {
         limit = MENU_CARD_SLOT_COUNT;
     }
@@ -284,7 +291,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
         case 0:
             if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
                 j = D_801E981C[i];
-                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE) {
+                if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE) {
                     result = i;
                     searching = 0;
                 }
@@ -295,7 +302,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
         case 1:
             if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
                 j = D_801E981C[i];
-                if (g_Menu->menuUnk2->cardStatus[j / 16] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE &&
+                if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE &&
                     g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
                     result = i;
                     searching = 0;
@@ -306,7 +313,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
             break;
         case 2:
             j = D_801E981C[i];
-            if (g_Menu->menuUnk2->cardStatus[j / 16] != 0) {
+            if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 result = i;
                 searching = 0;
             }
@@ -531,7 +538,7 @@ u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
     g_Menu->pCursors->shouldRender[3] = 1;
     result = func_801CAA38(a2);
     MenuFreeWindow2Strings();
-    if (a1 != 0xFF && result != 0) {
+    if (a1 != MENU_WINDOW_TEXT_NONE && result != 0) {
         func_801D2F4C(a1);
         g_Menu->pCursors->shouldRender[3] = 1;
         result = func_801CAA38(a2);
@@ -622,7 +629,7 @@ u_char MenuWaitForCardStatusChange(u_char a0) {
     }
     MenuFreeWindow2Strings();
     if (changed == 0) {
-        result = MenuLoadWindow2Text(0x2F, 0xFF, 1);
+        result = MenuLoadWindow2Text(0x2F, MENU_WINDOW_TEXT_NONE, 1);
     }
     return result;
 }
@@ -631,7 +638,7 @@ u_char MenuFindFreeChunkIndex(u_char a0, u_char a1) {
     int i;
 
     found = 0;
-    if (a1 == 0xFF) {
+    if (a1 == MENU_CHUNK_INDEX_NONE) {
         for (i = 0; i < MENU_CARD_SLOT_COUNT; i++) {
             if (D_801EA6D0[a0][i] == 0) {
                 found = i;
