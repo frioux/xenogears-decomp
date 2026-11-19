@@ -144,55 +144,40 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80081C54);
-/* 63.38% (772 vs 776 bytes). What is settled, from the assembly:
-   - It fills one entry of a 0x48-byte ring at D_800B14F0 indexed by a volatile
-     s32 D_800B2360 (the original re-reads the index 13 times, so the global must
-     be declared volatile), then clears D_800C3910 and does
-     D_800B2360 = (D_800B2360 - 1) & 0x1F.
-   - Sources: one &g_FieldActors[actorIndex] read gives pActorData (FieldActor
-     0x4C) and pSpriteData (0x4); two early returns
-     (actorIndex != g_PlayerActorIndex, D_800B21CC != 0).
-   - Destination offsets from 0x800B14F0 (splat has a bss label at each of
-     0x14F0/14F4/14F8/14FA/14FC/1500/1502/1504/1510/1514/1518/1530/1534):
-     0x00 ActorData scriptFlags.flags, 0x04 ActorData flags,
-     0x08/0x0A/0x0C high halves of ActorData position (s16 at 0x22/0x26/0x2A),
-     0x10 SpriteData field_0x84, 0x12 ActorData curAnimationId,
-     0x14 rotation.vy & 0xFFF, 0x16..0x1C walkmeshTriIds[4] (copied by a loop),
-     0x20/0x24/0x28 SpriteData step.x/y/z, 0x30/0x34/0x38 curTriNormal vx/vy/vz,
-     0x40 curWalkmeshTriMaterial, 0x44 walkmeshId (byte store).
-   - Residue: (1) the 0x18 frame is never used by the body, so the original
-     source must have a dead ~0x18 local; (2) pActorData/pSpriteData land in
-     a3/a1 here instead of t0/a2; (3) address CSE - the original materialises
-     sym+0x20 once (la a1, 0x800B1510) and derives +0x10 and -0xA from it with
-     runtime addius, where gcc re-forms the symbolic address per statement
-     (sw $4,D_800B14F0+32($2)); both link to the same address, so the %hi/%lo
-     addend split can never read 100% in objdiff - gate this one with
-     tools/scripts/check_bin.sh field once the shape is right.
-*/
-/* attempt:
+/* 63.38% (772 vs retail 776 bytes): the ring layout is settled - 32 entries of
+   0x48 bytes based at D_800B14F0, filled from the player actor
+   (pActorData = FieldActor 0x4C, pSpriteData = 0x4; the earlier note had those
+   two swapped) and indexed by the volatile s32 D_800B2360, which retail
+   re-reads once per statement (13 reads). Then D_800C3910 = 0 and
+   D_800B2360 = (D_800B2360 - 1) & 0x1F. Two early outs:
+   actorIndex != g_PlayerActorIndex and D_800B21CC != 0.
+   Our instruction ORDER per store is value-load before the index read where
+   retail reads the index first, gcc hoists &D_800B1506 (the loop's tri-id
+   base) to the top where retail derives it mid-body from la a1,D_800B1510
+   (-0xA and +0x10), and the 0x18 frame plus retail's addiu sp,-0x18 in the bne
+   delay slot are missing (retail has a dead ~0x18 local). Every store's reloc
+   is D_800B14F0+off here against a splat label there, which diff_func folds -
+   so this one can only be judged on a MATCH line plus equal byte count, then
+   check_bin.sh. Struct below (FieldActorRenderPacket) is declared in this .c.
 typedef struct {
-    0x00    u_int scriptFlags;
-    0x04    u_int flags;
-    0x08    s16 positionX;
-    0x0A    s16 positionY;
-    0x0C    s16 positionZ;
-    0x0E    s16 pad0E;
-    0x10    s16 spriteUnk84;
-    0x12    s16 animationId;
-    0x14    s16 rotation;
-    0x16    s16 walkmeshTriIds[4];
-    0x1E    s16 pad1E;
-    0x20    s32 stepX;
-    0x24    s32 stepY;
-    0x28    s32 stepZ;
-    0x2C    s32 pad2C;
-    0x30    s32 normalX;
-    0x34    s32 normalY;
-    0x38    s32 normalZ;
-    0x3C    s32 pad3C;
-    0x40    u_int walkmeshTriMaterial;
-    0x44    u8 walkmeshId;
-    0x45    undefined8 pad45[3];
+    // 0x00 u_int scriptFlags;
+    // 0x04 u_int flags;
+    // 0x08 s16 positionX;
+    // 0x0A s16 positionY;
+    // 0x0C s16 positionZ;
+    // 0x0E s16 unk0E;
+    // 0x10 u_short spriteField84;
+    // 0x12 u_short animationId;
+    // 0x14 u_short rotation;
+    // 0x16 s16 walkmeshTriIds[4];
+    // 0x1E u_short unk1E;
+    // 0x20 IVEC3 step;
+    // 0x2C s32 unk2C;
+    // 0x30 IVEC3 normal;
+    // 0x3C s32 unk3C;
+    // 0x40 u_int walkmeshTriMaterial;
+    // 0x44 u8 walkmeshId;
+    // 0x45 undefined8 pad45[3];
 } FieldActorRenderPacket; // Size: 0x48
 
 extern FieldActorRenderPacket D_800B14F0[];
@@ -202,9 +187,9 @@ extern u_char D_800B21CC;
 extern s32 g_PlayerActorIndex;
 
 void func_80081C54(int actorIndex) {
-    FieldActor* pEntry = &g_FieldActors[actorIndex];
-    ActorData* pActor = pEntry->pActorData;
-    SpriteData* pSprite = (SpriteData*)pEntry->pSpriteData;
+    FieldActor* pFieldActor = &g_FieldActors[actorIndex];
+    ActorData* pActor = pFieldActor->pActorData;
+    SpriteData* pSprite = pFieldActor->pSpriteData;
     int i;
 
     if (actorIndex != g_PlayerActorIndex) {
@@ -213,30 +198,29 @@ void func_80081C54(int actorIndex) {
     if (D_800B21CC != 0) {
         return;
     }
-    D_800B14F0[D_800B2360].stepX = pSprite->step.x;
-    D_800B14F0[D_800B2360].stepY = pSprite->step.y;
-    D_800B14F0[D_800B2360].stepZ = pSprite->step.z;
-    D_800B14F0[D_800B2360].normalX = pActor->curTriNormal.vx;
-    D_800B14F0[D_800B2360].normalY = pActor->curTriNormal.vy;
-    D_800B14F0[D_800B2360].normalZ = pActor->curTriNormal.vz;
-    D_800B14F0[D_800B2360].rotation = *(u_short*)&pActor->rotation.vy & 0xFFF;
-    D_800B14F0[D_800B2360].spriteUnk84 = *(u_short*)&pSprite->field_0x84;
+    D_800B14F0[D_800B2360].step.x = pSprite->step.x;
+    D_800B14F0[D_800B2360].step.y = pSprite->step.y;
+    D_800B14F0[D_800B2360].step.z = pSprite->step.z;
+    D_800B14F0[D_800B2360].normal.x = pActor->curTriNormal.vx;
+    D_800B14F0[D_800B2360].normal.y = pActor->curTriNormal.vy;
+    D_800B14F0[D_800B2360].normal.z = pActor->curTriNormal.vz;
+    D_800B14F0[D_800B2360].rotation = (u_short)pActor->rotation.vy & 0xFFF;
+    D_800B14F0[D_800B2360].spriteField84 = (u_short)pSprite->field_0x84;
     D_800B14F0[D_800B2360].positionX = ((s16*)&pActor->position)[1];
     D_800B14F0[D_800B2360].positionY = ((s16*)&pActor->position)[3];
     D_800B14F0[D_800B2360].positionZ = ((s16*)&pActor->position)[5];
-    D_800B14F0[D_800B2360].animationId = *(u_short*)&pActor->curAnimationId;
+    D_800B14F0[D_800B2360].animationId = (u_short)pActor->curAnimationId;
     D_800B14F0[D_800B2360].walkmeshTriMaterial = pActor->curWalkmeshTriMaterial;
     D_800B14F0[D_800B2360].scriptFlags = pActor->scriptFlags.flags;
     D_800B14F0[D_800B2360].flags = pActor->flags;
     for (i = 0; i < 4; i++) {
         D_800B14F0[D_800B2360].walkmeshTriIds[i] = pActor->walkmeshTriIds[i];
     }
-    D_800B14F0[D_800B2360].walkmeshId = *(u_short*)&pActor->walkmeshId;
+    D_800B14F0[D_800B2360].walkmeshId = (u8)pActor->walkmeshId;
     D_800C3910 = 0;
     D_800B2360 = (D_800B2360 - 1) & 0x1F;
 }
 */
-
 int FieldActorTestMaterialScriptMask(ActorData* pActor) {
     u_int actorType = (pActor->scriptFlags.flags >> 9) & 3;
 
@@ -696,23 +680,17 @@ void SpriteSetDirection(SpriteData*, s16);
 
 void func_80081F80(SpriteData*, s16, FieldActor*);
 
-/* 96.86% (144 vs 148 bytes), permuter base 113 -> best 113 (2 runs, 1896
-   iters: it has nothing left). Was 92.51% before the do/while(0) edit below,
-   which moved the vy store out of the jal delay slot; a bare block, an
-   if/else and a flat sequence all fall back to 92.51%, so the wrapper is
-   load-bearing and must stay.
-   Frame and every other instruction match. The branch shape only comes out
-   with the ternary INSIDE the arithmetic, which gives retail's cond-add with
-   the delay slot filled.
-   Only residual, allocator: retail loads vy into v0, copies it (move v1,v0)
-   and tests in place (andi v0,v0,0x8000), keeping the copy in v1 for the
-   addiu; we load straight into v1 and are one instruction short, which also
-   makes the frame 0x18 instead of 0x20 (saves at 0x10/0x14 vs 0x18/0x1C) and
-   shortens the two branch displacements. Tried: s16 vs int current, reading
-   the field directly in the test, an assignment inside the condition, an
-   unused int local (frame only, no instruction), a bare block, gcc-2.7.2-cdk
-   (89.27%) and 2.6.0 (92.51%). Looks like a wall, not a tie.
-*//*
+/* 96.86% (144 vs retail 148 bytes): the frame is 0x18 instead of 0x20 and the
+   one missing instruction is retail's copy of rotation.vy out of the load
+   register before the 0x8000 mask test (lh v0 / move v1,v0 / andi v0,v0,0x8000)
+   where gcc loads straight into v1 and masks from it. Retail's RTL therefore
+   tested the load result and did the arithmetic on a SECOND variable, but every
+   two-variable spelling (s16/s16, s16/s32, u16 test variable) is copy-propagated
+   back into one pseudo. Everything else, including the do/while(0) that holds
+   the vy store out of the jal delay slot, is identical. Tried: s16 vs s32 vs u16
+   variables, the test reading the field directly (90.92%: gcc then does not CSE
+   the second load), an unused int local (frame only), gcc-2.7.2-cdk (89.27%),
+   2.6.0 (92.51%), permuter 2 runs / 1896 iters (base 113 = best 113).
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
     s16 current;
@@ -734,7 +712,8 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
             pActorData->rotation.vy = angle;
         }
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
@@ -907,21 +886,21 @@ void FieldStopSedsPlayback(void) {
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80085788);
-/* 93.00% (252 vs 280 bytes). The inner scan is byte-identical to retail thanks
-   to two shapes found earlier: the scan is `while (1) { if (pEntry->frameOffset ==
-   0xFFFF) break; pEntry++; i++; }` (a `while (cond)` gets inverted to a
-   two-ended test) and the stream id is one `s16` local (gcc does not CSE a
-   global across calls, so reading it inline reloads it three times).
-   Two residuals left, both allocator/scheduling, not structural: (1) retail
-   loads the id into s0 and copies it to s1 in the first jal delay slot
-   (`move s1,s0`), reusing s0 as scratch, where we load straight into s1;
-   (2) retail REMATERIALISES the loop bound every iteration (`addiu v0,s1,1`
-   before the head test and again in the back-edge, `slt v0,a1,v0`) while gcc
-   2.7.2 hoists `streamId + 1` into s0 once. Retail also forms `s1 + 0x115`
-   after ArchiveSetIndex; `streamId * 2` in the scan and the head test are
-   otherwise byte-identical.
+/* 93.00% (252 vs retail 264 bytes): the inner scan is byte-identical to retail
+   (while (1) { if (pEntry->frameOffset == 0xFFFF) break; pEntry++; i++; }) and
+   only the stream-id handling differs. Retail loads g_FieldStreamId ONCE into
+   s0, tests it against 0xFF, then COPIES it (move s1,s0) and does every later
+   use on the copy: addiu s0,s1,0x115 once for the archive file index and
+   addiu v0,s1,0x1 rematerialised on BOTH sides of the loop (head blez and the
+   back-edge slt). gcc here copy-propagates every s32 intermediate back onto the
+   loaded s16, so the copy vanishes, streamId+0x115 moves into the first jal
+   delay slot and streamId+1 is hoisted into s0 for the loop. Tried: s16+s32
+   (streamIndex = streamId) locals, a separate s32 fileIndex local, (s32)/(u16)
+   casts, the bound as streamId + 1 and as streamIndex + 1.
 void func_80085788(void) {
     s16 streamId;
+    s32 streamIndex;
+    s32 fileIndex;
     s32 count;
     s32 i;
     FieldUnk800AE060* pEntry;
@@ -931,17 +910,19 @@ void func_80085788(void) {
     if (streamId == 0xFF) {
         return;
     }
+    streamIndex = streamId;
     SoundStopAllElements();
     ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
-    pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(streamId + 0x115), 1);
+    fileIndex = streamIndex + 0x115;
+    pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(fileIndex), 1);
     g_FieldSedsFile = pSoundFile;
-    ArchiveReadFileToBuffer(streamId + 0x115, pSoundFile, 0, 0x80);
+    ArchiveReadFileToBuffer(fileIndex, pSoundFile, 0, 0x80);
     ArchiveCdDataSync(0);
     SoundAddSedsEntry(g_FieldSedsFile);
     SoundGetPendingSpuCommandType(0x10);
     ArchiveSetIndex(4, 0);
     i = 0;
-    for (count = 0; count < streamId + 1; count++) {
+    for (count = 0; count < streamIndex + 1; count++) {
         pEntry = &g_FieldSedsEntries[i];
         while (1) {
             if (pEntry->frameOffset == 0xFFFF) {
