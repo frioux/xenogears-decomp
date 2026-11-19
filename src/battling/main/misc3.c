@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 #include "system/memory.h"
 
 // Denominator of a 0..100 percent (misc2's BATTLE_GAUGE_FRACTION_SCALE is the 0..255 one).
@@ -11,6 +12,10 @@
 // flags bit 12: set by every modelIndex assignment in this unit, so the bit is the
 // actor's "picked a new model" mark.
 #define BATTLE_ACTOR_FLAG_MODEL_CHANGE 0x1000
+// flags bit 24: func_80076884 keeps it set while the input direction points into
+// the half-turn window behind the actor's facing; BattleTryQueueMessage5 refuses
+// while it is set.
+#define BATTLE_ACTOR_FLAG_FACING_AWAY 0x1000000
 // flags bits 20-22: the vertical direction of the step the actor is taking. It is
 // cleared and re-set to one of the two directions when BattleUpdateActorMovement
 // picks the step model for the goal it walks to, and cleared on the frame after.
@@ -631,26 +636,286 @@ short BattleTryQueueMessage5(BattleActor* p) {
     }
 }
 
+extern u8 g_BattleCameraSpinDirection;
+extern s32 ControllerGetType(s32 controllerIndex);
+extern u8 ControllerStickToAnalogX(s32 buttonState);
+extern u8 ControllerStickToAnalogY(s32 buttonState);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
 
+/* 97.34% (1968 vs retail's 1972 bytes). Everything is retail's except four
+   spots. (1, worth most of the gap) retail's analog-stick ramp blocks emit the
+   clamp as a real abs - `lw v0,0x8C; bgez s1; addu v1,s1; negu v1,v1; addu
+   v0,v0,s4; sw` - i.e. the `s1 < 0 ? -s1 : s1` sits BETWEEN the += 's load and
+   its add; here gcc folds the ternary to a bare `negu` (it knows s1 < 0 from
+   the guard) AND puts it above the load, so that block is 2 instructions short
+   and buys a load-delay `nop`. Giving the sign its own variable
+   (`negative = stickX2 < 0; limit = negative ? -stickX2 : stickX2;` - the form
+   the permuter found, kept below for inputLeft) does emit bgez/addu/negu, but
+   applying it to BOTH blocks costs 8 bytes and flips rampStep/decayStep from
+   retail's s4/s5 to s5/s4 (declaration order does not move it back). Tried:
+   `-stickY2` direct, abs before/after the +=, one shared sign variable, no
+   variable, limit reused as the sign, reversed ternary.
+   (2) retail stores flags at 0xD0 with a0 after BOTH `lw 0x648`/`lw 0xfc`; this
+   body stores it (in v1) between them - reordering the two `+= 0x800` above the
+   flags assignment puts the store last instead. (3) `p->distance`/`targetAngle`:
+   retail's `sw 0x48` lands in the beqz delay slot and `lh 0xce` after it, this
+   one has `nop; lh; sw`. (4) the final distance-window `subu` runs in v0 here,
+   v1 in retail. Preset is Default (-O2, gcc 2.7.2, -G8) and no scheduler runs,
+   so these are source-order/allocator artefacts, not a preset question. */
+/* The controller the actor reads: player 2's actor takes controller 1. A digital
+   pad's sticks come straight from the axis globals, an analog one's from the
+   button state. The four input ramps charge one direction at a time and decay
+   the rest, and (right - left, up - down) becomes the movement vector. */
+/*
+s32 func_80076884(BattleActor* p) {
+    u16 buttons;
+    u16 released;
+    u8 stickX;
+    u8 stickY;
+    s32 analog;
+    s32 rampStep;
+    s32 decayStep;
+    s32 enabled;
+    s32 stickY2;
+    s32 stickX2;
+    s32 angle;
+    s32 direction;
+    s32 distance;
+    s32 limit;
+    s32 negative;
+    s32 diff;
+    u32 flags;
+
+    if (p->flags & BATTLE_ACTOR_FLAG_PLAYER2) {
+        analog = (u32)(ControllerGetType(1) - CONTROLLER_TYPE_ANALOG_PAD) < 2;
+        buttons = g_C2ButtonState;
+        released = g_C2ButtonStateReleased;
+        if (analog) {
+            stickX = g_C2LeftStickXAxis;
+            stickY = g_C2LeftStickYAxis;
+        } else {
+            stickX = ControllerStickToAnalogX(g_C2ButtonState);
+            stickY = ControllerStickToAnalogY(g_C2ButtonState);
+        }
+    } else {
+        analog = (u32)(ControllerGetType(CONTROLLER_TYPE_NONE) - CONTROLLER_TYPE_ANALOG_PAD) < 2;
+        buttons = g_C1ButtonState;
+        released = g_C1ButtonStateReleased;
+        if (analog) {
+            stickX = g_C1LeftStickXAxis;
+            stickY = g_C1LeftStickYAxis;
+        } else {
+            stickX = ControllerStickToAnalogX(g_C1ButtonState);
+            stickY = ControllerStickToAnalogY(g_C1ButtonState);
+        }
+    }
+    flags = p->flags;
+    if (flags & 0x40) {
+        return;
+    }
+    if (g_BattleCameraSpinDirection != ((flags >> 17) & 1)) {
+        if (g_BattleCameraSpinDirection != 0) {
+            p->facingOffset = -p->sideBaseAngle;
+        } else {
+            p->facingOffset = p->sideBaseAngle;
+        }
+        p->flags = (p->flags & ~0x20000) | ((g_BattleCameraSpinDirection & 1) << 17);
+        p->facingAngle += BATTLE_ANGLE_HALF_TURN;
+        p->angleOffset += BATTLE_ANGLE_HALF_TURN;
+    }
+    if (released & CTRL_BTN_TRIANGLE) {
+        BattleQueueMessage(p, 1);
+        p->message12Count++;
+    }
+    if (released & CTRL_BTN_CIRCLE) {
+        BattleQueueMessage(p, 2);
+        p->message12Count++;
+    }
+    if (released & CTRL_BTN_R1) {
+        BattleQueueMessage(p, 3);
+        p->message3Count++;
+    }
+    if (released & CTRL_BTN_SQUARE) {
+        BattleResetMessageQueue(p);
+        BattleQueueMessage(p, 4);
+    }
+    if (buttons & 0x40) {
+        p->flags |= 0x8000;
+    }
+    if (released & 0x40) {
+        BattleResetMessageQueue(p);
+    }
+    decayStep = p->inputDecayStep;
+    if (buttons & CTRL_BTN_L1) {
+        p->flags |= 2;
+        BattleResetMessageQueue(p);
+        p->flags |= 0x100;
+        decayStep *= 4;
+    } else {
+        p->flags &= ~0x38;
+    }
+    if ((p->flags & 0x60000000) == 0x60000000 && !(p->typeFlags & 4)) {
+        rampStep = p->inputRampStep / 2;
+    } else {
+        rampStep = p->inputRampStep;
+    }
+    if ((p->flags & 0x60000000) == 0x20000000 && (p->typeFlags & 4)) {
+        rampStep = p->inputRampStep / 2;
+    }
+    if (p->flags & 0x100) {
+        decayStep = decayStep * 2 / 3;
+        enabled = 0;
+    } else {
+        enabled = 1;
+    }
+    stickY2 = (stickY - 0x80) * 2;
+    stickX2 = (stickX - 0x80) * 2;
+    angle = ratan2(stickY2, stickX2) + p->facingOffset;
+    if (buttons & (CTRL_BTN_UP | CTRL_BTN_RIGHT | CTRL_BTN_DOWN | CTRL_BTN_LEFT)) {
+        if ((buttons & CTRL_BTN_UP) && enabled) {
+            p->inputUp += rampStep;
+            if (p->inputUp > 0x100) {
+                p->inputUp = 0x100;
+            }
+        } else {
+            p->inputUp -= decayStep;
+            if (p->inputUp < 0) {
+                p->inputUp = 0;
+            }
+        }
+        if ((buttons & CTRL_BTN_DOWN) && enabled) {
+            p->inputDown += rampStep;
+            if (p->inputDown > 0x100) {
+                p->inputDown = 0x100;
+            }
+        } else {
+            p->inputDown -= decayStep;
+            if (p->inputDown < 0) {
+                p->inputDown = 0;
+            }
+        }
+        if ((buttons & CTRL_BTN_LEFT) && enabled) {
+            p->inputLeft += rampStep;
+            if (p->inputLeft > 0x100) {
+                p->inputLeft = 0x100;
+            }
+        } else {
+            p->inputLeft -= decayStep;
+            if (p->inputLeft < 0) {
+                p->inputLeft = 0;
+            }
+        }
+        if ((buttons & CTRL_BTN_RIGHT) && enabled) {
+            p->inputRight += rampStep;
+            if (p->inputRight > 0x100) {
+                p->inputRight = 0x100;
+            }
+        } else {
+            p->inputRight -= decayStep;
+            if (p->inputRight < 0) {
+                p->inputRight = 0;
+            }
+        }
+        if (!(buttons & (CTRL_BTN_UP | CTRL_BTN_RIGHT | CTRL_BTN_DOWN | CTRL_BTN_LEFT))) {
+            angle = 0;
+        }
+    } else {
+        if (SquareRoot0(stickY2 * stickY2 + stickX2 * stickX2) < 0x30) {
+            angle = 0;
+        }
+        if (stickY2 < 0 && enabled) {
+            limit = stickY2 < 0 ? -stickY2 : stickY2;
+            p->inputUp += rampStep;
+            if (p->inputUp > limit) {
+                p->inputUp = limit;
+            }
+        } else {
+            p->inputUp -= decayStep;
+            if (p->inputUp < 0) {
+                p->inputUp = 0;
+            }
+        }
+        if (stickY2 > 0 && enabled) {
+            p->inputDown += rampStep;
+            if (p->inputDown > stickY2) {
+                p->inputDown = stickY2;
+            }
+        } else {
+            p->inputDown -= decayStep;
+            if (p->inputDown < 0) {
+                p->inputDown = 0;
+            }
+        }
+        if (stickX2 < 0 && enabled) {
+            negative = stickX2 < 0;
+            limit = negative ? -stickX2 : stickX2;
+            p->inputLeft += rampStep;
+            if (p->inputLeft > limit) {
+                p->inputLeft = limit;
+            }
+        } else {
+            p->inputLeft -= decayStep;
+            if (p->inputLeft < 0) {
+                p->inputLeft = 0;
+            }
+        }
+        if (stickX2 > 0 && enabled) {
+            p->inputRight += rampStep;
+            if (p->inputRight > stickX2) {
+                p->inputRight = stickX2;
+            }
+        } else {
+            p->inputRight -= decayStep;
+            if (p->inputRight < 0) {
+                p->inputRight = 0;
+            }
+        }
+    }
+    stickY2 = p->inputUp - p->inputDown;
+    stickX2 = p->inputRight - p->inputLeft;
+    direction = ratan2(stickX2, stickY2);
+    distance = SquareRoot0(stickY2 * stickY2 + stickX2 * stickX2);
+    if (distance > 0x100) {
+        distance = 0x100;
+    }
+    if (distance < 0x30) {
+        distance = 0;
+    }
+    if (distance != 0) {
+        p->distance = distance;
+        p->targetAngle = direction + p->facingOffset;
+    } else {
+        p->targetAngle = 0;
+    }
+    angle &= 0xFFF;
+    if ((u32)(angle - 0x201) < 0x3FF) {
+        BattleTryQueueMessage5(p);
+        p->flags |= BATTLE_ACTOR_FLAG_FACING_AWAY;
+    } else {
+        p->flags &= ~BATTLE_ACTOR_FLAG_FACING_AWAY;
+    }
+    if ((p->flags & 0x80000) && p->distance != 0) {
+        diff = (direction & 0xFFF) - ((ratan2(stickY - 0x80, stickX - 0x80) + 0x400) & 0xFFF);
+        if (diff < 0) {
+            diff = -diff;
+        }
+        if (diff >= 0x201) {
+            p->flags |= 0x80000;
+        }
+    }
+}
+
+*/
 extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleFacingAngle;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
 extern void BattlePlaySoundEffectById(s32 arg);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80077038);
-
-/* 99.06%: every instruction is retail's, the function is 4 bytes short (1348 vs
-   1352) for one reason. At the `p->flags |= 0x400` store retail RELOADS the word
-   for the 0x8000000 test (`sw v1,208(s0); lw v0,208(s0); lui v1,0x800; and`)
-   while gcc forwards the stored value into the `and`, so `lui` is hoisted and
-   the reload disappears. Every other shape of the body is byte-identical.
-   Tried: `p->flags = p->flags | 0x400`, a `flags` local, both statement orders
-   for the |= 0x1000 / unk14 / |= 0x400 trio, a do/while block around the store.
-   The permuter (3 min) reached base=326 best=120 only by moving `p->gaugeDrain = 0`
-   inside the if, which fixes the reload but costs retail's store placement.
-*/
-/*
+/* Non-void return type with bare returns: as void gcc fills the beq delay slots
+   that retail leaves as nop. The two volatile flag stores are load-bearing: each
+   one stops gcc from forwarding the stored word into the next flags read, which
+   is why retail reloads 0xD0 three times here (99.06% without them). */
 s32 func_80077038(BattleActor* p) {
     u32 flags;
 
@@ -779,9 +1044,9 @@ s32 func_80077038(BattleActor* p) {
         p->prevPartIndex = 0xFF;
         p->state = 5;
         p->actionPhase = 0;
-        p->flags |= 0x1000;
+        *(volatile u32 *)&p->flags |= 0x1000;
         p->vy -= 0x50;
-        p->flags |= 0x400;
+        *(volatile u32 *)&p->flags |= 0x400;
         if (p->flags & 0x8000000) {
             p->pushVx -= rcos(g_BattleFacingAngle) >> 9;
             p->pushVz -= rsin(g_BattleFacingAngle) >> 9;
@@ -795,7 +1060,6 @@ s32 func_80077038(BattleActor* p) {
     }
     return;
 }
-*/
 
 /* Old-style definition and a non-void return both matter: BattleActorBeginMove
    calls it with one argument, and as void gcc fills the beqz delay slot with the
