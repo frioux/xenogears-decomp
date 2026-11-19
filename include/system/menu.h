@@ -65,6 +65,9 @@
 #define MENU_INPUT_IDLE 0x8
 #define MENU_INPUT_NEXT 0x9
 #define MENU_INPUT_PREV 0xA
+#define MENU_INPUT_SQUARE 6 // a direction press stores the input id; the group above is the mapped menu input
+#define MENU_INPUT_TRIANGLE 7
+#define MENU_INPUT_SELECT 0xC
 
 // Transition animation states
 #define MENU_ANIMATION_DONE 0x0
@@ -74,6 +77,9 @@
 #define MENU_CLOSE_ANIMATION_START 0x4
 
 #define MENU_MAX_NUM_WINDOWS 0x7
+#define MENU_SCREEN_VRAM_X 0x2C0 // VRAM position of the selection menu framebuffer rect
+#define MENU_SCREEN_VRAM_Y 0x100
+#define MENU_CURSOR_SHADE_WIDTH 0x40 // shaded rectangle behind the cursor
 #define MENU_CHARACTER_WINDOW_COUNT 3 // one window per party character
 #define MENU_MAX_NUM_CURSORS 0x4
 #define MENU_MAX_NUM_ARROW_CURSORS 0x2
@@ -111,6 +117,8 @@
 // So far these _seem_ to be consistent across overlays?
 #define MENU_SOUND_ERROR    4
 #define MENU_SOUND_CONFIRM  2
+#define MENU_SOUND_CURSOR   1
+#define MENU_SOUND_CANCEL   3
 
 /*
  * Menu Resource type definitions

@@ -10,22 +10,14 @@
 // display buffer one MENU_SCREEN_HEIGHT further down in VRAM.
 #define MENU_SCREEN_WIDTH 320
 #define MENU_SCREEN_HEIGHT 224
-// Where that rect's image sits in VRAM
-#define MENU_SCREEN_VRAM_X 0x2C0
-#define MENU_SCREEN_VRAM_Y 0x100
-// Width of the shaded rectangle the cursor draws behind itself, unless the overlay widens it
-#define MENU_CURSOR_SHADE_WIDTH 0x40
+// MENU_SCREEN_VRAM_X/Y (where the rect's image sits in VRAM) are in system/menu.h
+// MENU_CURSOR_SHADE_WIDTH (the shaded rectangle behind the cursor) is in system/menu.h
 // Frames a card operation is given to settle, counted in frames or in vsyncs.
 #define MENU_CARD_OPERATION_WAIT_FRAMES 59
 // Frames MenuWaitForDiscChange renders once the disc change prompt is under way
 #define MENU_DISC_CHANGE_WAIT_FRAMES 29
 // Menu sound effect ids; MENU_SOUND_CONFIRM and MENU_SOUND_ERROR are in system/menu.h
-#define MENU_SOUND_CURSOR 1
-#define MENU_SOUND_CANCEL 3
 // Mapped inputs; the rest of the MENU_INPUT_* group is in system/menu.h
-#define MENU_INPUT_SQUARE 6
-#define MENU_INPUT_TRIANGLE 7
-#define MENU_INPUT_SELECT 0xC
 
 extern u16 g_MenuBitMasksLsbFirst[]; // Bit masks, LSB first
 extern u16 g_MenuBitMasksMsbFirst[]; // Bit masks, MSB first
