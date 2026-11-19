@@ -166,7 +166,7 @@ extern s32 BattleAllocSpriteSlot(void* pPool, s16 arg1);
 extern BattlePartSlot g_BattlePartSlots[];
 extern u8 g_BattleExtraMatrixFlag;
 extern s32 g_GfxOTDepthShift;
-extern s16 D_800D39E8;
+extern s16 g_BattleTweenVectorScale;
 
 BattleModelPartList* BattleInitializeMesh(u8* pModel, BattleModelPartList* pList) {
     u32 count;
@@ -594,7 +594,7 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    (g_BattlePartSlots[i].x), where retail's object names the field addresses
    D_800D3306/3308/330A, so objdiff reads 99.96%; the linked bytes are identical
    (tools/scripts/check_bin.sh battle: OK). */
-void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
+void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
     s32 i;
@@ -767,8 +767,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             if (pModelList->spriteIndex < 0) {
                 continue;
             }
-            tweenVec.vx = -D_800D39E8 * rsin(pSprites->rot[1] + 0x400) / 0x1000;
-            tweenVec.vz = D_800D39E8 * rcos(pSprites->rot[1] + 0x400) / 0x1000;
+            tweenVec.vx = -g_BattleTweenVectorScale * rsin(pSprites->rot[1] + 0x400) / 0x1000;
+            tweenVec.vz = g_BattleTweenVectorScale * rcos(pSprites->rot[1] + 0x400) / 0x1000;
             tweenVec.vy = pActor->unk3E;
             CompMatrix(&pSprites->localTransform, &pSprites[pModelList->spriteIndex].globalTransform, pMatrix);
             SetRotMatrix(pMatrix);
