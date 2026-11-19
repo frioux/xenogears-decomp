@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 #include "psyq/libgpu.h"
 #include "system/animation.h"
 
@@ -87,44 +88,53 @@ extern BattleActorSlotPos D_800C3668[3];
 extern u16 D_800C3666;
 extern u8 D_800C37CC;
 
-// best 99.61% at retail's exact 204 bytes: everything matches but the three SSVECTOR
-// loads. Retail puts the first in $v1 and the other two in $v0 (lh v1 / sh 0x10 /
-// lh v0 / sh 0x12 / lh v0 / sh 0x14); one shared temp gives $v1 three times
-// (three separate typed assignments give $v0 and 96.47%). The u16 store to field
-// 0x36 must be VOLATILE or gcc forwards the register into the 'lhu 0x36' re-read
-// as an 'andi 0xffff' (93.33%); retail really does reload it.
+
+// Battle-side view of a battle actor's SpriteData (include/field/actor.h); the same
+// record src/battle/main/misc30.c views. Its 0x2E/0x30/0x36/0x38 fields are unnamed
+// spans in BattleSpriteState, which other battle units' matches depend on.
+typedef struct {
+    /* 0x00 */ BattleFixed16Vector position;
+    /* 0x0C */ u8 unkC[0x22];
+    /* 0x2E */ s16 otDepth; // projected depth + field_0x30, 0 when the projection clips
+    /* 0x30 */ s16 field_0x30;
+    /* 0x32 */ u8 unk32[0x4];
+    /* 0x36 */ volatile u16 height; // volatile: the original reloads it after the store
+    /* 0x38 */ u16 halfHeight;
+    /* 0x3A */ u8 unk3A[0x6E];
+    /* 0xA8 */ u32 flags_0xA8;
+    /* 0xAC */ u32 flags_0xAC;
+} BattleActorSprite; // Size: 0xB0
+// The three position halves go through TWO temporaries: the first load lands in $v1
+// because $v0 still holds the height, and a single temp shared by all three costs the
+// register split (99.61%).
 void func_800BB248(u8 *pTask) {
-    u8 *pSpriteData;
+    BattleActorSprite *pSprite;
     SVECTOR vec;
     long sxy;
     long flag;
     s32 nOTOffset;
     s32 mode;
-    u16 *pField;
-    u16 *pRead;
-    s32 v;
-    s32 v2;
+    s32 whole;
+    s32 whole2;
 
-    pSpriteData = *(u8 **)(pTask + 4);
-    mode = *(u32 *)(pSpriteData + 0xA8) >> 30;
-    pField = (u16 *)(pSpriteData + 0x36);
-    *(volatile u16 *)pField = BattleGetActorHeight(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
-    pRead = (u16 *)(pSpriteData + 0x36);
-    *(u16 *)(pSpriteData + 0x38) = *pRead >> 1;
-    v = *(s16 *)(pSpriteData + 0x2);
-    vec.vx = v;
-    v2 = *(s16 *)(pSpriteData + 0x6);
-    vec.vy = v2;
-    v2 = *(s16 *)(pSpriteData + 0xA);
-    vec.vz = v2;
+    pSprite = *(BattleActorSprite **)(pTask + 4);
+    mode = pSprite->flags_0xA8 >> 30;
+    pSprite->height = BattleGetActorHeight(((pSprite->flags_0xAC & 3) << 2) | mode);
+    pSprite->halfHeight = pSprite->height >> 1;
+    whole = pSprite->position.xWhole;
+    vec.vx = whole;
+    whole2 = pSprite->position.yWhole;
+    vec.vy = whole2;
+    whole2 = pSprite->position.zWhole;
+    vec.vz = whole2;
     SetRotMatrix(&g_BattleViewMatrix);
     SetTransMatrix(&g_BattleViewMatrix);
-    nOTOffset = (RotTransPers(&vec, &sxy, (u_long *)&sxy, &flag) >> g_GfxOTDepthShift) +
-                *(s16 *)(pSpriteData + 0x30);
+    nOTOffset = (RotTransPers(&vec, &sxy, &sxy, &flag) >> g_GfxOTDepthShift) +
+                pSprite->field_0x30;
     if (flag & 0x8000) {
         nOTOffset = 0;
     }
-    *(u16 *)(pSpriteData + 0x2E) = nOTOffset;
+    pSprite->otDepth = nOTOffset;
 }
 
 void BattleFreeActorSpriteTask(u8 *pEntry) {
