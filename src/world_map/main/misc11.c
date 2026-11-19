@@ -97,7 +97,7 @@ extern void WorldMapWrapDeltaScaled(WorldMapPos *);
 extern s32 SquareRoot0(s32);
 
 extern s32 func_8008C364(WorldMapActor *, s32);
-extern void func_80089160(s32, void *, void *);
+extern void WorldMapInitSpriteGroupSprites(s32, void *, void *);
 extern void WorldMapDeactivateSpriteGroup(s32);
 extern s16 WorldMapGetTileHalfIndex(void *);
 extern s32 WorldMapGetTilePlaneHeight(s32, s32);
@@ -603,7 +603,7 @@ void WorldMapUpdateSpriteGroupFromActor(s32 arg0, WorldMapActor *pActor, WorldMa
         pPos->rotZ = 0;
         pPos->rotX = 0;
         pPos->rotY = pActor->drawAngle;
-        func_80089160(arg0, &pPos->x, &pPos->rotX);
+        WorldMapInitSpriteGroupSprites(arg0, &pPos->x, &pPos->rotX);
     } else {
         WorldMapDeactivateSpriteGroup(arg0);
     }

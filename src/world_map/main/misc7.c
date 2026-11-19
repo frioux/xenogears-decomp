@@ -119,7 +119,7 @@ extern MATRIX g_WorldMapIdentityMatrix;
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
 extern s16 D_1F8000A0[];
-extern void func_80089160(s32, s16 *, s32);
+extern void WorldMapInitSpriteGroupSprites(s32, s16 *, s32);
 extern u16 g_WorldMapFadeIds[];
 extern u16 g_WorldMapFadeFrameCounts[];
 extern s32 g_WorldMapRotationMatrixValid;
@@ -181,7 +181,7 @@ s32 WorldMapInitSlotAtScrollPosition(s32 index) {
     return 1;
 }
 // Best: 84.76%. The branch, every immediate, every relocation and the three
-// func_80089160 calls match once the three scratchpad stores use the literal
+// WorldMapInitSpriteGroupSprites calls match once the three scratchpad stores use the literal
 // address 0x1F8000A0: retail writes them as `lui $at,0x1F80` + `sh $v0,0xA0($at)`
 // with no relocation, while naming D_1F8000A0 emits %hi/%lo and forces the base
 // into a saved register (that shape scores 76.71%). A 36-row try_flags sweep
@@ -206,9 +206,9 @@ s32 func_80080944(s32 index) {
     *(s16 *)0x1F8000A2 = v;
     v = pSlot->pos.z >> 12;
     *(s16 *)0x1F8000A4 = v;
-    func_80089160(0x28, (s16 *)0x1F8000A0, 0);
-    func_80089160(0x29, (s16 *)0x1F8000A0, 0);
-    func_80089160(0x2A, (s16 *)0x1F8000A0, 0);
+    WorldMapInitSpriteGroupSprites(0x28, (s16 *)0x1F8000A0, 0);
+    WorldMapInitSpriteGroupSprites(0x29, (s16 *)0x1F8000A0, 0);
+    WorldMapInitSpriteGroupSprites(0x2A, (s16 *)0x1F8000A0, 0);
     return 1;
 }
 */

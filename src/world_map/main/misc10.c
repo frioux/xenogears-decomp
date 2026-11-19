@@ -492,7 +492,7 @@ void WorldMapFreePrimTemplateBuffers(void) {
     HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
-void func_80089160(s32 arg0, SVECTOR* pPos, s16* pRot) {
+void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR* pPos, s16* pRot) {
     WorldMapSprite* pSprite;
     s32 i;
     s32 found;

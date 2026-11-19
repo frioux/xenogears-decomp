@@ -673,7 +673,7 @@ extern void SoundAddSedsEntry(void* pFile);
 extern void* SoundCreateAudioManagerOnHeap(void* pFile);
 extern void SoundPlayAudioManager(void* pManager, s32 volume, s32 arg2);
 extern void SoundReloadAudioManagerSamples(void* pManager, s32 volume, s32 arg2);
-extern void func_80089160(s32 arg0, s32 arg1, s32 arg2);
+extern void WorldMapInitSpriteGroupSprites(s32 arg0, s32 arg1, s32 arg2);
 extern void func_800978FC(void);
 extern void func_8008901C(void);
 extern void WorldMapAllocSemiTransPrimBuffers(void);
@@ -881,7 +881,7 @@ void func_80072238(void) {
     }
     g_FieldPlayerWalkmeshMaterial = 0;
     if (g_WorldMapLevelIndex == 0) {
-        func_80089160(0xE, 0, 0);
+        WorldMapInitSpriteGroupSprites(0xE, 0, 0);
         g_FieldPlayerWalkmeshMaterial = 1;
     }
     func_800978FC();

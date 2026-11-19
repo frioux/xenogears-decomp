@@ -658,7 +658,7 @@ s32 WorldMapSetSceneSpriteSetParents(void) {
 }
 void WorldMapWrapPosition(WorldMapPos* p);
 void WorldMapExtractRotationFromMatrix(MATRIX* pMtx, SVECTOR* pRot);
-void func_80089160(s32 arg0, void* pSrc, void* pRot);
+void WorldMapInitSpriteGroupSprites(s32 arg0, void* pSrc, void* pRot);
 void WorldMapDeactivateSpriteGroup(s32 arg0);
 void WorldMapQueueZoneEntry(s32 arg0, s32* pVec, s32 arg2, s32 arg3);
 
@@ -672,7 +672,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80087FD0);
 //      v1 not a0) and steals `addu s1,a0,a1` into the `beqz` delay slot where
 //      retail has the pLayer `addu s2,a0,v0`. Swapping the first two source
 //      assignments changes nothing (measured).
-//  (b) func_80089160's second argument: retail `ori a1,s4,0xA0`, this body
+//  (b) WorldMapInitSpriteGroupSprites's second argument: retail `ori a1,s4,0xA0`, this body
 //      `addiu a1,s4,0xA0`. The literal `(SVECTOR*)0x1F8000A0` form is worse
 //      (all three 0xA0 stores become `lui $at` + store); deriving them from pPos
 //      as below is what reproduces retail's `sh v0,160(s4)` bases.
@@ -771,7 +771,7 @@ s32 func_80087FD0(s32 index) {
             pRot->vz = pLayer->z;
             TransposeMatrix(&pLayer->mat, (MATRIX*)((u8*)pPos + 0x150));
             WorldMapExtractRotationFromMatrix((MATRIX*)((u8*)pPos + 0x150), (SVECTOR*)((u8*)pPos + 0xA8));
-            func_80089160(0x13, pRot, (SVECTOR*)((u8*)pPos + 0xA8));
+            WorldMapInitSpriteGroupSprites(0x13, pRot, (SVECTOR*)((u8*)pPos + 0xA8));
         } else {
             WorldMapDeactivateSpriteGroup(0x13);
         }

@@ -32,7 +32,7 @@ extern void WorldMapStartSlot(s32 arg0, s32 arg1);
 extern s32* g_SoundAudioManager;
 
 extern void SoundSetAudioManagerVolumeWithFade(s32* pManager);
-extern void func_80089160(s32 arg0, void* arg1, s32 arg2);
+extern void WorldMapInitSpriteGroupSprites(s32 arg0, void* arg1, s32 arg2);
 extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern void SoundFadeElementVolumeById(s32 arg0, s32 arg1, s32 arg2);
 
@@ -232,7 +232,7 @@ s32 WorldMapScriptOp04SetScratchPosition(s32 arg0, s32 arg1, s32 arg2, s32 arg3)
 }
 
 s32 WorldMapScriptOp05ActivateSpriteGroup(s32 arg0, s32 arg1) {
-    func_80089160(arg1, (void*)0x1F8000A0, 0);
+    WorldMapInitSpriteGroupSprites(arg1, (void*)0x1F8000A0, 0);
     return 2;
 }
 
@@ -490,7 +490,7 @@ void WorldMapInitializeMode(void) {
     WorldMapAllocSemiTransPrimBuffers();
     WorldMapAllocSpritePrimBuffers();
     WorldMapInitRandomTimers();
-    func_80089160(0xE, NULL, 0);
+    WorldMapInitSpriteGroupSprites(0xE, NULL, 0);
 }
 
 s32 WorldMapExitMode(void) {

@@ -111,8 +111,8 @@ extern void FontDrawLetters(void* pOt);
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut);
 // .bss: the CD sector the viewer below reads, and the row it is scrolled to
-extern s32 D_80076EFC;
-extern s32 D_80076F00;
+extern s32 g_MovieDebugSector;
+extern s32 g_MovieDebugSectorRow;
 extern s32 g_MovieCursorIndex;
 // .bss: the second draw buffer's display flag and the two buffers' display rects,
 // reached here at the exact addresses the original object names
@@ -466,7 +466,7 @@ void MoviePlayAudioManager(void) {
 // and steps the sector by one, by a screenful (0xC rows), by a second (0x4B sectors on a
 // 75-sector-per-second disc) or by a minute (0x1194 = 4500 sectors), re-reading the
 // sector only when it changed. Leaves with Circle.
-void func_80075534(void) {
+void MovieDebugSectorViewer(void) {
     MovieDrawBuffer* pBuffer;
     MovieDrawBuffer* pBase;
     u8* pSectorData;
@@ -511,7 +511,7 @@ void func_80075534(void) {
     D_800772C2 = 0xA;
     D_800772C4 = 0x100;
     D_800772C6 = 0xD8;
-    ArchiveReadFileFromCdSector(D_80076EFC, pSectorData, 0x800, 0, 0);
+    ArchiveReadFileFromCdSector(g_MovieDebugSector, pSectorData, 0x800, 0, 0);
     ArchiveCdDataSync(0);
 
     for (;;) {
@@ -525,67 +525,67 @@ void func_80075534(void) {
         FontPrintf(D_800703BC);
         MovieUpdatePadCursor(0, 0, &action);
 
-        prevSector = D_80076EFC;
+        prevSector = g_MovieDebugSector;
         if ((g_MoviePrevPadButtons & 0x1000) == 0 && (g_MoviePadButtons & 0x1000) != 0) {
-            if (D_80076F00 > 0) {
-                D_80076F00--;
+            if (g_MovieDebugSectorRow > 0) {
+                g_MovieDebugSectorRow--;
             }
         }
         if ((g_MoviePrevPadButtons & 0x10) == 0 && (g_MoviePadButtons & 0x10) != 0) {
-            D_80076F00 -= 0xC;
-            if (D_80076F00 < 0) {
-                D_80076F00 = 0;
+            g_MovieDebugSectorRow -= 0xC;
+            if (g_MovieDebugSectorRow < 0) {
+                g_MovieDebugSectorRow = 0;
             }
         }
         if ((g_MoviePrevPadButtons & 0x4000) == 0 && (g_MoviePadButtons & 0x4000) != 0) {
-            if (D_80076F00 < 0x74) {
-                D_80076F00++;
+            if (g_MovieDebugSectorRow < 0x74) {
+                g_MovieDebugSectorRow++;
             }
         }
         if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0) {
-            D_80076F00 += 0xC;
-            if (D_80076F00 >= 0x74) {
-                D_80076F00 = 0x74;
+            g_MovieDebugSectorRow += 0xC;
+            if (g_MovieDebugSectorRow >= 0x74) {
+                g_MovieDebugSectorRow = 0x74;
             }
         }
         if ((g_MoviePrevPadButtons & 0x8000) == 0 && (g_MoviePadButtons & 0x8000) != 0) {
-            if (D_80076EFC > 0) {
-                D_80076EFC--;
+            if (g_MovieDebugSector > 0) {
+                g_MovieDebugSector--;
             }
         }
         if ((g_MoviePrevPadButtons & 0x2000) == 0 && (g_MoviePadButtons & 0x2000) != 0) {
-            D_80076EFC++;
+            g_MovieDebugSector++;
         }
         if ((g_MoviePrevPadButtons & 0x4) == 0 && (g_MoviePadButtons & 0x4) != 0) {
-            D_80076EFC -= 0x4B;
-            if (D_80076EFC < 0) {
-                D_80076EFC = 0;
+            g_MovieDebugSector -= 0x4B;
+            if (g_MovieDebugSector < 0) {
+                g_MovieDebugSector = 0;
             }
         }
         if ((g_MoviePrevPadButtons & 0x8) == 0 && (g_MoviePadButtons & 0x8) != 0) {
-            D_80076EFC += 0x4B;
+            g_MovieDebugSector += 0x4B;
         }
         if ((g_MoviePrevPadButtons & 0x1) == 0 && (g_MoviePadButtons & 0x1) != 0) {
-            D_80076EFC -= 0x1194;
-            if (D_80076EFC < 0) {
-                D_80076EFC = 0;
+            g_MovieDebugSector -= 0x1194;
+            if (g_MovieDebugSector < 0) {
+                g_MovieDebugSector = 0;
             }
         }
         if ((g_MoviePrevPadButtons & 0x2) == 0 && (g_MoviePadButtons & 0x2) != 0) {
-            D_80076EFC += 0x1194;
+            g_MovieDebugSector += 0x1194;
         }
-        if (prevSector != D_80076EFC) {
-            ArchiveReadFileFromCdSector(D_80076EFC, pSectorData, 0x800, 0, 0);
+        if (prevSector != g_MovieDebugSector) {
+            ArchiveReadFileFromCdSector(g_MovieDebugSector, pSectorData, 0x800, 0, 0);
             ArchiveCdDataSync(0);
         }
 
-        CdIntToPos(D_80076EFC, &pos);
-        FontPrintf(D_800703CC, D_80076EFC, D_80076F00 * 0x10, pos.minute, pos.second, pos.sector);
+        CdIntToPos(g_MovieDebugSector, &pos);
+        FontPrintf(D_800703CC, g_MovieDebugSector, g_MovieDebugSectorRow * 0x10, pos.minute, pos.second, pos.sector);
         // the row start is walked by the text column, the hex column has its own cursor
-        pAscii = pSectorData + D_80076F00 * 0x10;
+        pAscii = pSectorData + g_MovieDebugSectorRow * 0x10;
         pHex = pAscii;
         for (line = 0; line < 0xC; line++) {
-            FontPrintf(D_80070408, (line + D_80076F00) * 0x10);
+            FontPrintf(D_80070408, (line + g_MovieDebugSectorRow) * 0x10);
             for (i = 0; i < 0xF; i++) {
                 FontPrintf(D_80070410, *pHex);
                 pHex++;
@@ -683,7 +683,7 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // Preset is right: -O3 77.96, -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0
 // -O2 -G0 (the unit's) 99.66.
 // What closed 92.4 -> 99.1 earlier, in order (all source shapes, not flags):
-//   1. FontPrintf(D_8007042C) takes ONE argument (func_80075534 calls it that way);
+//   1. FontPrintf(D_8007042C) takes ONE argument (MovieDebugSectorViewer calls it that way);
 //      passing pPath cost a `move a1,zero`.
 //   2. the hex/dec format is an if/else, not a ternary; cross-jumping then merges the
 //      two FontPrintf calls and hoists `move a1,s0` above the branch, as retail does.

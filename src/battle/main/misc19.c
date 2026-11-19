@@ -751,7 +751,7 @@ void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
     }
 }
 
-void func_8009B1E4(void) {
+void BattleInitItemInventoryAndConditionMasks(void) {
     u_char i;
 
     for (i = 1; i < 0x30; i++) {

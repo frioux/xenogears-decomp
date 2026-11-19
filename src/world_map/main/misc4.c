@@ -111,7 +111,7 @@ extern s32 g_WorldMapRotationMatrixValid;
 extern s16 g_WorldMapCameraRot;
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
-extern void func_80089160(s32, void *, s32);
+extern void WorldMapInitSpriteGroupSprites(s32, void *, s32);
 extern void WorldMapSetupPrimTemplates(WorldMapEntry *, POLY_FT4 *, s32);
 extern u8 *g_MenuSedsFile;
 extern void WorldMapWrapPosition(void *);
@@ -369,7 +369,7 @@ s32 func_80077E68(s32 index) {
         pVec->vy = -0x20D;
         pVec->vx = (g_WorldMapCameraTarget >> 12) + 0x32;
         pVec->vz = (g_WorldMapCameraTargetZ >> 12) - 0x70;
-        func_80089160(8, pVec, 0);
+        WorldMapInitSpriteGroupSprites(8, pVec, 0);
         break;
     case 1:
         pEntries = (WorldMapEntry *)g_WorldMapGroups;
@@ -947,7 +947,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
    identical except for which callee-saved register holds each local. The whole
    body is decoded; do not rewrite it from the assembly.
    Retail's allocation is $s0 = the 0xA0 scratch SVECTOR pointer (used only as the
-   func_80089160 argument; the stores themselves fold to 160/162/164($s3)), $s1 = p,
+   WorldMapInitSpriteGroupSprites argument; the stores themselves fold to 160/162/164($s3)), $s1 = p,
    $s2 = g_WorldMapGroups (for the case-1/2/3 rotation tweaks at entry 0's 0x18/0x1C),
    $s3 = the 0x1F800000 scratch base. Every attempt here gives $s0 = g_WorldMapGroups,
    $s1 = p, $s2 = scratch, $s3 = pVec: p and s1 agree, the other three rotate by one,
@@ -989,7 +989,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         pVec->vx = p->x >> 12;
         pVec->vy = p->y >> 12;
         pVec->vz = p->z >> 12;
-        func_80089160(11, pVec, 0);
+        WorldMapInitSpriteGroupSprites(11, pVec, 0);
         p->y += 0x4000;
         p->z += -0x8000;
         D_8009BBBC[0] += -0x8000;
@@ -998,7 +998,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         }
         p->dirY = -0x4000;
         p->state = p->state + 1;
-        func_80089160(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(12, pVec, 0);
         SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x71);
         p->stateTimer = 0x20;
         break;
@@ -1007,8 +1007,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         pVec->vx = p->x >> 12;
         pVec->vy = p->y >> 12;
         pVec->vz = p->z >> 12;
-        func_80089160(11, pVec, 0);
-        func_80089160(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(11, pVec, 0);
+        WorldMapInitSpriteGroupSprites(12, pVec, 0);
         p->stateTimer = p->stateTimer - 1;
         if ((s16)p->stateTimer <= 0) {
             WorldMapDeactivateSpriteGroup(0xC);
@@ -1024,7 +1024,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         }
         p->dirZ = -0x8000;
         p->state = p->state + 1;
-        func_80089160(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(12, pVec, 0);
         SoundPlaySoundEffectOnFreePair((((u16 *)g_MenuSedsFile)[0xA] << 16) | 0x71);
         break;
     case 2:
@@ -1032,8 +1032,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80079778);
         pVec->vx = p->x >> 12;
         pVec->vy = p->y >> 12;
         pVec->vz = p->z >> 12;
-        func_80089160(11, pVec, 0);
-        func_80089160(12, pVec, 0);
+        WorldMapInitSpriteGroupSprites(11, pVec, 0);
+        WorldMapInitSpriteGroupSprites(12, pVec, 0);
         pEntries[0].rot.vx -= 2;
         pEntries[0].rot.vz -= 1;
         p->z += p->dirZ;
@@ -1263,7 +1263,7 @@ s32 func_8007A430(s32 index) {
         *(s16 *)((u8 *)PSX_SCRATCH + 0xA0) = p->x >> 12;
         *(s16 *)((u8 *)PSX_SCRATCH + 0xA2) = p->y >> 12;
         *(s16 *)((u8 *)PSX_SCRATCH + 0xA4) = p->z >> 12;
-        func_80089160(9, 0x1F8000A0, 0);
+        WorldMapInitSpriteGroupSprites(9, 0x1F8000A0, 0);
     } else {
         p->stateTimer = 0x60;
         pSrc = &g_WorldMapPlayerPosition;
@@ -1291,7 +1291,7 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     pScratch->vx = s->x;
     pScratch->vy = s->y;
     pScratch->vz = s->z;
-    func_80089160(0xA, pScratch, 0);
+    WorldMapInitSpriteGroupSprites(0xA, pScratch, 0);
     return 3;
 }
 
@@ -1313,7 +1313,7 @@ s32 WorldMapUpdateObjectAPosition(s32 index) {
     dst[0] = s->x;
     dst[1] = s->y;
     dst[2] = s->z;
-    func_80089160(0xA, (s32)dst, 0);
+    WorldMapInitSpriteGroupSprites(0xA, (s32)dst, 0);
     return 3;
 }
 */

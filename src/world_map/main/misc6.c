@@ -143,7 +143,7 @@ extern u32 g_WorldMapScrollTargetZ;
 
 extern void WorldMapSetupPrimTemplates(void *, void *, int);
 extern void WorldMapSetSpriteSetParent(int, int);
-extern void func_80089160(int, void *, void *);
+extern void WorldMapInitSpriteGroupSprites(int, void *, void *);
 extern void WorldMapWrapPosition(VECTOR *);
 extern int func_80093A5C(int, int);
 extern void SoundSetAudioManagerVolumeWithFade(void *, int, int);
@@ -299,7 +299,7 @@ int WorldMapUpdateGroup12Actor(int index) {
         pScratch->position.vx = pActor->x >> 12;
         pScratch->position.vy = pActor->y >> 12;
         pScratch->position.vz = pActor->z >> 12;
-        func_80089160(0x1D, &pScratch->position, 0);
+        WorldMapInitSpriteGroupSprites(0x1D, &pScratch->position, 0);
         return 3;
     }
     {
@@ -314,7 +314,7 @@ int WorldMapUpdateGroup12Actor(int index) {
     pScratch->position.vx = pActor->x >> 12;
     pScratch->position.vy = pActor->y >> 12;
     pScratch->position.vz = pActor->z >> 12;
-    func_80089160(0x18, &pScratch->position, 0);
+    WorldMapInitSpriteGroupSprites(0x18, &pScratch->position, 0);
     }
     return 1;
 }
@@ -356,7 +356,7 @@ int WorldMapUpdateGroup13Actor(int index) {
     pScratch->position.vx = pActor->x >> 12;
     pScratch->position.vy = pActor->y >> 12;
     pScratch->position.vz = pActor->z >> 12;
-    func_80089160(0x19, &pScratch->position, 0);
+    WorldMapInitSpriteGroupSprites(0x19, &pScratch->position, 0);
     return 1;
 }
 
@@ -984,8 +984,8 @@ int WorldMapUpdateSlotActor(int index) {
         pPos->vz = (pActor->z - 0x6D3000) >> 12;
         pAngle->vx = (pAngle->vz = 0);
         pAngle->vy = ratan2(WORLD_MAP_SLOT_FACING_SIN, WORLD_MAP_SLOT_FACING_COS) & WORLD_MAP_ANGLE_MASK;
-        func_80089160(0x23, pPos, pAngle);
-        func_80089160(0x24, pPos, pAngle);
+        WorldMapInitSpriteGroupSprites(0x23, pPos, pAngle);
+        WorldMapInitSpriteGroupSprites(0x24, pPos, pAngle);
         break;
     }
     case 1:

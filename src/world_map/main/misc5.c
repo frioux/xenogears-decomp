@@ -153,7 +153,7 @@ extern void WorldMapFreeSlotPool(void);
 extern void WorldMapWrapPosition(void *p);
 extern s32 func_80093A5C(s32, s32);
 extern void WorldMapDeactivateSpriteGroup(s32);
-extern void func_80089160(s32, void *, s32);
+extern void WorldMapInitSpriteGroupSprites(s32, void *, s32);
 extern void WorldMapStartSlot(s32, s32);
 extern void WorldMapInterpolateQuadraticVector(s32, s16 *, s16 *, s16 *, s32 *);
 extern void WorldMapExtractRotationFromMatrix(MATRIX *, SVECTOR *);
@@ -235,15 +235,15 @@ s32 WorldMapUpdateActorState(s32 idx) {
         }
         break;
     case 2:
-        func_80089160(0x11, NULL, 0);
+        WorldMapInitSpriteGroupSprites(0x11, NULL, 0);
         pPlayer->state = 1;
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 1);
         break;
     case 3:
         WorldMapStartSlot(2, 2);
         pPlayer->state = 1;
-        func_80089160(0xF, NULL, 0);
-        func_80089160(0x10, NULL, 0);
+        WorldMapInitSpriteGroupSprites(0xF, NULL, 0);
+        WorldMapInitSpriteGroupSprites(0x10, NULL, 0);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 4);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 5);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 6);
@@ -677,7 +677,7 @@ int WorldMapActivateSpriteGroup9Timed(int idx) {
         WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
         WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
         WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
-        func_80089160(WORLD_MAP_SPRITE_GROUP9, WORLD_MAP_TILE_POS,
+        WorldMapInitSpriteGroupSprites(WORLD_MAP_SPRITE_GROUP9, WORLD_MAP_TILE_POS,
                       (s32)g_WorldMapSpriteGroup9Rotation);
     } else {
         pPlayer->stateTimer = WORLD_MAP_SPRITE_GROUP9_TIMER;
@@ -810,7 +810,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007BBEC);
             pRot->vy = pLayer->pos.y;
             pRot->vz = pLayer->pos.z;
             pOutRot->vz = -*(u16 *)&pOutRot->vz;
-            func_80089160(0x12, pRot, (s32)pOutRot);
+            WorldMapInitSpriteGroupSprites(0x12, pRot, (s32)pOutRot);
         }
         return result;
     }
@@ -970,7 +970,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5", func_8007C3B8);
         pScratchPos[0x51] = 0;
         pScratchPos[0x50] = g_WorldMapCameraTarget >> 12;
         pScratchPos[0x52] = g_WorldMapCameraTargetZ >> 12;
-        func_80089160(0x14, (void *)&pScratchPos[0x50], 0);
+        WorldMapInitSpriteGroupSprites(0x14, (void *)&pScratchPos[0x50], 0);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x10);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x11);
         SoundPlaySoundEffectOnFreePair((g_MenuSedsFile->sedId << 16) | 0x12);
@@ -1108,16 +1108,16 @@ int WorldMapUpdateGroup4Actor(int idx) {
     pScratchPos[0x50] = pPlayer->x >> 12;
     pScratchPos[0x51] = pPlayer->y >> 12;
     pScratchPos[0x52] = pPlayer->z >> 12;
-    func_80089160(0x13, (void *)&pScratchPos[0x50], 0);
+    WorldMapInitSpriteGroupSprites(0x13, (void *)&pScratchPos[0x50], 0);
     switch (pPlayer->state) {
     case 1:
-        func_80089160(0x1F, (void *)&pScratchPos[0x50], 0);
+        WorldMapInitSpriteGroupSprites(0x1F, (void *)&pScratchPos[0x50], 0);
         /* fallthrough */
     case 0:
         g_WorldMapScrollTargetZ = pPlayer->z;
         break;
     case 2:
-        func_80089160(0x1F, (void *)&pScratchPos[0x50], 0);
+        WorldMapInitSpriteGroupSprites(0x1F, (void *)&pScratchPos[0x50], 0);
         break;
     }
     return 1;
@@ -1168,12 +1168,12 @@ int func_8007CF18(int idx) {
     *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
     *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
     *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-    func_80089160(0x15, (void *)0x1F8000A0, 0);
+    WorldMapInitSpriteGroupSprites(0x15, (void *)0x1F8000A0, 0);
     if (*(s16 *)(pPlayer + 0x20) == 1) {
         *(u16 *)0x1F8000A0 = *(s32 *)(pPlayer + 0x28) >> 12;
         *(u16 *)0x1F8000A2 = *(s32 *)(pPlayer + 0x2C) >> 12;
         *(u16 *)0x1F8000A4 = *(s32 *)(pPlayer + 0x30) >> 12;
-        func_80089160(0x1E, (void *)0x1F8000A0, 0);
+        WorldMapInitSpriteGroupSprites(0x1E, (void *)0x1F8000A0, 0);
     }
     return 1;
 }
@@ -1218,7 +1218,7 @@ int WorldMapUpdateGroup9Actor(int idx) {
     WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
     WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
     WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
-    func_80089160(0x16, WORLD_MAP_TILE_POS, 0);
+    WorldMapInitSpriteGroupSprites(0x16, WORLD_MAP_TILE_POS, 0);
     return 1;
 }
 
@@ -1253,7 +1253,7 @@ int WorldMapUpdateGroup10Actor(int idx) {
         WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
         WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
         WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
-        func_80089160(0x1C, WORLD_MAP_TILE_POS, 0);
+        WorldMapInitSpriteGroupSprites(0x1C, WORLD_MAP_TILE_POS, 0);
         return 3;
     }
     pPlayer->z += pPlayer->dirZ;
@@ -1265,6 +1265,6 @@ int WorldMapUpdateGroup10Actor(int idx) {
     WORLD_MAP_TILE_POS->vx = pPlayer->x >> 12;
     WORLD_MAP_TILE_POS->vy = pPlayer->y >> 12;
     WORLD_MAP_TILE_POS->vz = pPlayer->z >> 12;
-    func_80089160(0x17, WORLD_MAP_TILE_POS, 0);
+    WorldMapInitSpriteGroupSprites(0x17, WORLD_MAP_TILE_POS, 0);
     return 1;
 }
