@@ -1187,6 +1187,203 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DEF10);
 
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DF0B4);
 
+// objdiff 95.40%, 1144 bytes (retail's exact size, 286 instructions), every
+// branch target and every slot at the same offset as the original. Both
+// channels reproduce retail's own structure: the whole-word read of the
+// rotation (lh x/y/z, compare, 0xFFF wrap) and of the translation (lw/lhu,
+// plain difference), the release path shared by the guard-fail, unchanged and
+// alloc-fail exits with the success path jumping over it, the opcode = flag + 3
+// fill, and the `if (pObject != NULL) { type test } else { alloc }` spelling of
+// the allocate-or-reuse step (with `else if` in the rotation arm instead it is
+// 1140 bytes / 92.27%, and in both arms 1128 / 88.26%).
+// What is left is ONE allocator tie that cascades: the original has pKeyframe in
+// s1 with pBlock coalesced onto it (hence the entry `move s1,a2` and the in-place
+// `addiu s1,s1,0x18`), x/y/z in s2/s3/s4, and pObject in a0 (hence the extra
+// `addu a0,v0,zero`); here x wins s1, so pKeyframe takes s2 and the whole
+// cascade shifts. Declaration order (pKeyframe first, x/y/z first, pObject
+// first), s16 instead of int x/y/z, and reusing `i` for blockType (which the
+// permuter proposed) all measure 95.40%. Three permuter runs (base 3748 -> 3274
+// -> 2776 -> 2514 on its own word metric) produced the two arm spellings above
+// and nothing further; the register swap is the remaining 4.6% (14 instructions
+// of 286).
+// The arguments are s32 on the evidence of the original's in-place `sw` of
+// `unk6 & 1`; it then reads both (lbu 0x8C(sp), lbu 0x90(sp)) a byte at a time,
+// which s32 cannot reproduce (it emits `lw`), while u8 grows the frame to 0x80
+// for `type` alone and 0x88 for both by spilling them into new slots.
+/*
+// Queues an interpolating Temp3 for the rotation and translation channel of each
+// joint below pSkeleton, reading the two keyframe runs of pBlock over numFrames
+// frames. A joint whose keyframe equals its current value releases the queued
+// object instead. `absolute` makes the interpolation end at the keyframe itself
+// rather than at the difference to the joint's current value.
+// Returns the number of joints visited.
+s32 func_801DF0B4(Temp4* pList, ModelJoint* pSkeleton, KeyframeBlock* pBlock, s32 numFrames,
+                  s32 absolute, s32 unk6, s32 type) {
+    Temp3* pObject;
+    s32 frame;
+    u16 numRotFrames;
+    u16 rotFrame;
+    u16 numTransFrames;
+    u16 transFrame;
+    u16 count;
+    u16 blockFlags;
+    s16 blockType;
+    s16* pKeyframe;
+    ModelJoint* pJoint;
+    int i;
+    int x;
+    int y;
+    int z;
+
+    frame = numFrames;
+    if (frame == 0) {
+        frame = 1;
+    }
+    rotFrame = 0;
+    transFrame = 0;
+
+    unk6 &= 0x1;
+
+    numRotFrames = pBlock->numRotFrames;
+    blockType = pBlock->type;
+    numTransFrames = pBlock->numTransFrames;
+    absolute &= 0x1;
+    blockFlags = pBlock->flags;
+    pKeyframe = pBlock->keyframes;
+
+    if (blockType == 0) {
+        pKeyframe += (numRotFrames + 1) * 3;
+    }
+
+    count = pSkeleton->numChildren - 1;
+
+    pJoint = pSkeleton;
+    for (i = 0; i < count; i++) {
+        pJoint++;
+
+        if (!(blockFlags & 0x1) && rotFrame < numRotFrames) {
+            x = *pKeyframe++;
+            y = *pKeyframe++;
+            z = *pKeyframe++;
+            rotFrame++;
+
+            if (pJoint->rotation.vx != x || pJoint->rotation.vy != y || pJoint->rotation.vz != z) {
+                pObject = pJoint->pRotationObject;
+                if (pObject != NULL) {
+                    if (pObject->type == 0xFF) {
+                        goto skipRotation;
+                    }
+                } else {
+                    pObject = LibGearAllocJointObject(pList);
+                }
+
+                if (pObject != NULL) {
+                    pObject->inUse = 1;
+                    pObject->unk1 = unk6;
+                    pObject->opcode = absolute + 3;
+                    pObject->type = type;
+
+                    pObject->startX = pJoint->rotation.vx;
+                    pObject->startY = pJoint->rotation.vy;
+                    pObject->startZ = pJoint->rotation.vz;
+
+                    x = (x - pJoint->rotation.vx) & 0xFFF;
+                    if (x >= 0x800) {
+                        x -= 0x1000;
+                    }
+                    pObject->targetX = x;
+
+                    y = (y - pJoint->rotation.vy) & 0xFFF;
+                    if (y >= 0x800) {
+                        y -= 0x1000;
+                    }
+                    pObject->targetY = y;
+
+                    z = (z - pJoint->rotation.vz) & 0xFFF;
+                    if (z >= 0x800) {
+                        z -= 0x1000;
+                    }
+                    pObject->targetZ = z;
+
+                    if (absolute) {
+                        pObject->targetX += pJoint->rotation.vx;
+                        pObject->targetY += pJoint->rotation.vy;
+                        pObject->targetZ += pJoint->rotation.vz;
+                    }
+
+                    pObject->curFrame = 0;
+                    pObject->endFrame = frame;
+                    pJoint->pRotationObject = pObject;
+                    goto skipRotation;
+                }
+            }
+        }
+
+        pObject = pJoint->pRotationObject;
+        if (pObject != NULL && pObject->type != 0xFF) {
+            LibGearFreeJointObject(pList, (s8*)pObject);
+            pJoint->pRotationObject = NULL;
+        }
+
+    skipRotation:
+
+        if (!(blockFlags & 0x2) && transFrame < numTransFrames) {
+            x = *pKeyframe++;
+            y = *pKeyframe++;
+            z = *pKeyframe++;
+            transFrame++;
+
+            if (pJoint->translation.x != x || pJoint->translation.y != y || pJoint->translation.z != z) {
+                pObject = pJoint->pTranslationObject;
+                if (pObject != NULL) {
+                    if (pObject->type == 0xFF) {
+                        goto skipTranslation;
+                    }
+                } else {
+                    pObject = LibGearAllocJointObject(pList);
+                }
+
+                if (pObject != NULL) {
+                    pObject->inUse = 1;
+                    pObject->unk1 = unk6;
+                    pObject->opcode = absolute + 3;
+                    pObject->type = type;
+
+                    pObject->startX = pJoint->translation.x;
+                    pObject->startY = pJoint->translation.y;
+                    pObject->startZ = pJoint->translation.z;
+
+                    if (absolute) {
+                        pObject->targetX = x;
+                        pObject->targetY = y;
+                        pObject->targetZ = z;
+                    } else {
+                        pObject->targetX = x - pJoint->translation.x;
+                        pObject->targetY = y - pJoint->translation.y;
+                        pObject->targetZ = z - pJoint->translation.z;
+                    }
+
+                    pObject->curFrame = 0;
+                    pObject->endFrame = frame;
+                    pJoint->pTranslationObject = pObject;
+                    goto skipTranslation;
+                }
+            }
+        }
+
+        pObject = pJoint->pTranslationObject;
+        if (pObject != NULL && pObject->type != 0xFF) {
+            LibGearFreeJointObject(pList, (s8*)pObject);
+            pJoint->pTranslationObject = NULL;
+        }
+
+    skipTranslation:;
+    }
+
+    return count;
+}
+*/
+
 void LibGearReleaseJointObjects(Temp4* pList, ModelJoint* pSkeleton, s32 index, s32 flags) {
     if (index < pSkeleton->numChildren) {
         pSkeleton += index;
