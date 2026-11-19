@@ -3,6 +3,9 @@
 #include "battle/actor.h"
 #include "psyq/libgpu.h"
 
+// An effect record is only drawn once its projected depth reaches this.
+#define BATTLE_EFFECT_MIN_DRAW_DEPTH 64
+
 // 16.16 fixed point; the integer part is the high half of the word.
 typedef union {
     /* 0x0 */ s32 value;
@@ -456,7 +459,7 @@ void func_800B7160(BattleEffectTask *pTask) {
                 pStateWork = g_BattleStateWork;
                 pState = pStateWork + 0x8000;
                 pColor = &pEntry->colors[*(s32 *)(pState + 0xC84)];
-                if (pEntry->posZ < 0x40) {
+                if (pEntry->posZ < BATTLE_EFFECT_MIN_DRAW_DEPTH) {
                     continue;
                 }
                 RotMatrix((SVECTOR *)pEntry, &mtx);
