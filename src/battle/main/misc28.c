@@ -142,54 +142,50 @@ void BattleScriptPlaySpriteAnimation(s32 arg0, u8 *p) {
     SpritePlayAnimation(pState->sprites[p[1]], p[0]);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
-/* best 94.05% (152 bytes, retail's exact size; 3 instructions differ).  Shape is
-   recovered: fill pointA {x at +0x2, z at +0xA} and pointB {x at +0xA0, z at
-   +0xA4} as s16[2] stack pairs, then pack each as low | high << 16 (low-half
-   FIRST in the or, which is retail's 'or d,low,high') and pass pointB as arg0,
-   pointA as arg1 to SpriteComputeAngleFromPoints, then SpriteSetDirection and
-   func_800223B0 with the s16 angle.  Getting 'lh' for the two pointA reads and
-   'lhu' only for the pointB pair needs an s32 local between the load and the s16
-   element store (a direct store makes gcc merge them into one HImode lhu), and
-   the 0x38 frame needs the dead s32 spare[2] (retail never stores into 0x20).
-   WHAT IS LEFT IS ONE INSTRUCTION'S POSITION: retail reloads pointA[0] with
-   'lhu a0,0x10(sp)' immediately after its 'sh' and keeps it live to the 'or',
-   while gcc always hoists the pointA[1] ACTOR load ('lh v0,0xA(s1)') above that
-   stack reload, so ours reloads it nine instructions later next to the or - a
-   register/position tie.  Tried: high-first packing (93.53), pack into s32
-   locals first (CSE'd away, 93.79 - kept as the pre-permuter body), the
-   statement-per-half form (loses retail's load-delay nop, 148 bytes), reads
-   interleaved with the stores (gcc forward-substitutes them: 'move'+'andi
-   0xffff'), a volatile read-back (gcc sinks it anyway), u16 elements (loses
-   'lh'), and two decomp-permuter runs (5000 iterations; its best non-UB
-   candidate is 190 vs 225 and wins only by reading pointA[0] BEFORE the store,
-   i.e. uninitialised stack).  gcc 2.6.0 and plain 2.7.2 -O2 give 94.05 and 82.89,
-   so this is not a preset question.  Next lever worth trying: something that
-   makes cse refuse to forward-substitute the store so the reload can sit at its
-   statement position.
-void func_800B6518(u8 *pActor) {
+/* best 94.05% (152 bytes = retail's exact size and instruction count; ONE
+   instruction sits in the wrong place).  Face the actor along the line from its
+   own x/z position (position.xWhole 0x2, position.zWhole 0xA) to targetPosition
+   (0xA0, 0xA4): pack each pair into an (x<<16)|z word, pass targetPosition as
+   arg0 and the actor's own position as arg1 to SpriteComputeAngleFromPoints,
+   then hand the s16 angle to SpriteSetDirection and func_800223B0.  The packing
+   OR takes the LOW half first (retail's 'or d,lo,hi').  Two measured details:
+   the actor's own position must go through an s32 local before the s16 element
+   store, or gcc merges the lh with the HImode store and emits lhu (retail has
+   lh,lh for this pair and lhu,lhu only for targetPosition, which the direct
+   field store reproduces); and the dead s32 spare[2] is what makes the frame
+   0x38 - retail never stores into 0x20.
+   WHAT IS LEFT is the reload of pointA[0]: retail does 'sh 0x10(sp)' then
+   'lhu a0,0x10(sp)' at once and keeps it live to the or, while gcc always issues
+   the pointA[1] actor load ('lh v0,0xA') first and reloads pointA[0] nine
+   instructions later next to the or.  Tried and measured: high-first packing
+   (93.53), packing into s32 locals before the call (CSE'd back into the args,
+   93.79), one statement per half (gcc takes the lh's load-delay slot, so the
+   retail nop disappears: 148 bytes), reads interleaved with the stores (gcc
+   forward-substitutes them as 'move'+'andi 0xffff', 90.92), a volatile read-back
+   (gcc sinks it below the targetPosition loads), u16 elements (loses lh), and
+   two decomp-permuter runs (5000 iterations, best 190 vs 225 - and its winner
+   only gains by reading pointA[0] BEFORE the store, i.e. uninitialised stack).
+   gcc 2.6.0 gives the same 94.05 and plain 2.7.2 -O2 82.89, so this is not a
+   preset question.  Next lever: make cse refuse to forward-substitute the s16
+   store so the reload can stay at its statement position.
+void func_800B6518(BattleSpriteState *pActor) {
     s16 pointA[2];
-    unsigned int packed;
     s16 pointB[2];
-    u16 *pPointA;
     s32 spare[2];
     s32 x;
     s32 z;
     s16 angle;
 
-    x = *(s16 *)(pActor + 0x2);
+    x = pActor->position.xWhole;
     pointA[0] = x;
-    z = *(s16 *)(pActor + 0xA);
+    z = pActor->position.zWhole;
     pointA[1] = z;
-    x = *(u16 *)(pActor + 0xA0);
-    pointB[0] = x;
-    packed = *(u16 *)(pActor + 0xA4);
-    z = packed;
-    pointB[1] = z;
-    packed = ((u16 *)pointB)[1];
-    angle = SpriteComputeAngleFromPoints(((u16 *)pointB)[0] | (packed << 16),
-                                        (pPointA = (u16 *)pointA)[0] | ((u16 *)pointA)[1] << 16);
-    SpriteSetDirection(pActor, angle);
-    func_800223B0(pActor, angle);
+    pointB[0] = pActor->targetPosition.x;
+    pointB[1] = pActor->targetPosition.z;
+    angle = SpriteComputeAngleFromPoints(((u16 *)pointB)[0] | ((u16 *)pointB)[1] << 16,
+                                         ((u16 *)pointA)[0] | ((u16 *)pointA)[1] << 16);
+    SpriteSetDirection((u8 *)pActor, angle);
+    func_800223B0((u8 *)pActor, angle);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
