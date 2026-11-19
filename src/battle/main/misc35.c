@@ -412,67 +412,62 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 
 
 
-// 66.74% (3704 bytes against retail's 3708; frame 0x88 and every local slot exact:
-// vec 0x18, mtx 0x20, out 0x40, pointA 0x50, pointB 0x58). The arm set is
-// transcribed against the jump table's 124 case values, both tables land at the
-// right offsets and every call site matches. WHAT IS LEFT IS ONE THING: we save
-// 10 registers (s0-s7 + fp + ra), retail saves 8 (s0-s6 + ra), so objdiff's
-// stream is retail+2 on every low s-register (s0->s2, s1->s3, s2->s4, s3->s5,
-// s5->s7 over 350+ instructions) even though 420 instructions already compare
-// equal. Nothing below closed it yet; all of it was measured.
-//  - the 0x9A/0x9C tails are now ONE tail in source (goto animApplyRotation after
-//    each RotMatrix), which is what retail has: it cross-jumps them at the
-//    RotMatrix jal (0x9A jumps to 0x800C15A4, 0x9C falls in) and keeps ONE
-//    formation per position group. With the duplication gone the group addresses
-//    come out retail-identical (lui a0 / lw %lo(a0) / addiu a0,a0,%lo for
-//    g_BattleAnimPositionGroupB, same for A) and 64.83 -> 65.99, but the saved
-//    count stayed at 10: the earlier $s8 hoist of that address was a symptom.
-//  - what is still hoisted into a callee-saved register is the constant 1: $fp
-//    gets "li $fp,1" in the loop head's beqz delay slot (retail has nop there) and
-//    serves three sites - the animScriptWaitTimer = 1 store, the 1 << mask
-//    argument of BattleQueueActorCommandPreservingSelection in 0xA4, and the
-//    (flags & 3) != 1 compare in 0xBE. Retail materialises each one separately
-//    (addiu v0,zero,1 / addiu a1,zero,1 / addiu v1,zero,1). Measured: dropping one
-//    of the three uses (or two) does NOT remove the hoist, and writing the
-//    0xCFFFFFFF mask as a literal instead of through the "mask" local is 66.27,
-//    so the mask local stays.
+// 67.82% (3700 bytes against retail's 3708; frame 0x88 and every local slot
+// exact: vec 0x18, mtx 0x20, out 0x40, pointA 0x50, pointB 0x58). The arm set is
+// transcribed against the jump table's 124 case values and every call site
+// matches. WHAT IS LEFT IS ONE THING: we save 9 registers (s0-s7 + ra), retail
+// saves 8 (s0-s6 + ra), and the leftover is exactly the constant 1 that cse/loop
+// keeps in $s7 (see below). pSpriteData is already in retail's $s2, code/frames
+// are one register high, so the stream matches except for that pair.
+//  - 0xF3: retail holds the COMBINED pointer pArgs + offset in one local and
+//    passes it to all three BattleGetFrame calls (addu s4,v0,s1 then three
+//    "addu a0,s4"); spelling pArgs + offset at each site keeps `offset` live
+//    across those four calls instead. One pFrames local: 66.74 -> 67.13.
+//  - 0xF8: retail reloads pSpriteData->pTargetEntitySprite per use (0x74($s2)
+//    three times: the count word, case 7's argument, case 9's compare), so the
+//    target's live range does not span the inner switch and cannot conflict with
+//    `count`. The pTarget local in that arm cost the extra register: 67.13 ->
+//    67.82. The other arms keep the local (0xE3 needs it, worth 0.5%).
+//  - the surviving extra register is the constant 1: "li $s7,1" lands in the
+//    loop head's beqz delay slot (retail has nop) and serves three sites - the
+//    animScriptWaitTimer = 1 store in 0x97, the 1 << mask argument of
+//    BattleQueueActorCommandPreservingSelection in 0xA4, and the (flags & 3) != 1
+//    compare in 0xBE. Retail materialises each separately (addiu v0/a1/v1,zero,1).
+//    Measured: writing all three as 2 keeps the sharing (the register just holds
+//    2), removing any ONE use keeps it, and writing the 0xCFFFFFFF mask as a
+//    literal instead of through the "mask" local is 66.27, so the mask local
+//    stays. Breaking it needs one of the three to differ in RTL, and no honest
+//    spelling of a constant does that.
+//  - the frame: retail's saved set starts at 0x68 where ours starts at 0x60, i.e.
+//    retail has 8 more bytes of locals than we do, so dropping to 8 saved
+//    registers also owes an 8-byte dead local to keep the frame at 0x88.
 //  - 0x9E: g_BattleStateWork + 0x8000 + 0xC58 folds to a %lo(+0x8C58) relocation;
 //    assigning the base first and adding 0x8000 in a second statement
 //    (pWork = (u8 *)g_BattleStateWork; pWork += 0x8000; *(u16 *)(pWork + 0xC58))
-//    reproduces retail's lui/addiu + li 0x8000 + addu + lhu 0xC58. 65.99 -> 66.74.
+//    reproduces retail's lui/addiu + li 0x8000 + addu + lhu 0xC58.
 //  - 0xBE: retail takes the == 1 arm (beq v0,v1) and stores curSpriteFrame in the
 //    fall-through. Flipping our if/else to that polarity measured WORSE (65.54),
 //    so the != 1 spelling and its arm order stay.
-//  - 0xE3: keeping the target in a pTarget local is worth 0.5% over spelling
-//    pSpriteData->pTargetEntitySprite twice (66.74 vs 66.27).
-//  - 0x9D and 0x97 read the 16.16 position words: retail uses lh, our build lhu,
-//    because the value is only stored back and gcc widens the load. position
-//    xWhole is already s16 in include/battle/actor.h, so this is not a header bug.
+//  - 0x9D and 0x97 read the 16.16 position words: retail uses lh, our build lhu.
+//    cc1_probe on a plain "s16 dst[0] = s->xWhole;" shows the same lhu, so this is
+//    gcc narrowing a load that is only stored back again, not a type or header
+//    bug. 0x9D also duplicates the three position stores in both branches of the
+//    group test where ours shares one tail - that is 2 of the 8 bytes we are short.
 //  - 0x9A: retail keeps &mtx in s0 across both the RotMatrix and ApplyMatrix calls
 //    (addiu s0,sp,0x20 then two "addu ...s0"); ours re-forms sp+0x20 per call.
-//  - the mask 0xCFFFFFFF is formed inline in each of the three arms (lui $s0 three
-//    times, retail uses a1/s0/v0) because every use is its own assignment
-//    (mask = BATTLE_ANIM_MODE_HIGH_MASK; before each AND).
 //  - curSpriteFrame is read unsigned: (u16)pSpriteData->curSpriteFrame gives
 //    retail's lhu in both frame-step arms (misc31 uses the same cast).
 //  - the func_8001D2B0 +1/-1 call tails are cross-jumped as retail does
 //    (j $L198 shared by the code<0x10 and code<0x30 arms) because both arms end
 //    with frames = (code & 0xF) + 1; before the shared if (code < 0x40).
-//  - no permuter run: at 66% the difference is structure/allocation, not a tie.
-//  - when the saved set loses its pair, retail has 8 more bytes of locals (saved
-//    registers start at 0x68 where ours start at 0x60), so an 8-byte dead local
-//    is owed at that point to keep the frame at 0x88.
-//  Round 275: the extra pair is exactly `count` and `offset`. Retail runs the
-//  0xBE arm with count in $a2 and offset in $a3 (call-clobbered; both die before
-//  that arm's only jal) and keeps just `frames` in $s0, while our build gives
-//  count $s0 and offset $s1 - both already saved, so global_alloc rates them
-//  free - and the whole stream shifts up by two. Measured: giving the 0xBE arm
-//  its own block-local count/offset changes NOTHING (gcc had already split them;
-//  the pick is the allocator's cost model, not a live range), and --sweep over
-//  gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x -mcpu 3000/r8000 ranks
-//  the unit preset (cdk -O2 -G0) first at 66.74 (next best 66.43). A 4-minute
-//  permuter run (796 iterations) produced only a wrong-code candidate: it folded
-//  the two flags_0xA8 stores of the 0x81 arm into one, which retail has both of.
+//  - the 0x9A/0x9C tails are ONE tail in source (goto animApplyRotation after each
+//    RotMatrix), which is what retail has: it cross-jumps them at the RotMatrix
+//    jal (0x9A jumps to 0x800C15A4, 0x9C falls in).
+//  - a preset sweep over gcc 2.6.0 / 2.7.2 / 2.7.2-cdk x -O1..-O3 x -G4/-G8 x
+//    -mcpu 3000/r8000 ranks the unit preset (cdk -O2 -G0) first at 66.74 (next
+//    best 66.43). Permuter runs on the 66.74 and the 67.82 body (796 and 1016
+//    iterations) found only wrong-code candidates: they delete the 0x81 arm's
+//    second flags_0xA8 store, which retail has both of.
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
 /*
 void func_800C11CC(SpriteData *pSpriteData) {
@@ -488,6 +483,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
     s16 pointB[2];
     SpriteData *pTarget;
     u8 *pBuffer;
+    u8 *pFrames;
     u8 *pWork;
     s32 size;
     u32 flags;
@@ -678,8 +674,8 @@ void func_800C11CC(SpriteData *pSpriteData) {
             pSpriteData->flags_0xA8 &= mask;
             return;
         case 0xF8:
-            pTarget = pSpriteData->pTargetEntitySprite;
-            count = (((u32)pTarget->flags_0xAC.flags & 3) << 2) | ((u32)pTarget->flags_0xA8 >> 30);
+            count = (((u32)((SpriteData *)pSpriteData->pTargetEntitySprite)->flags_0xAC.flags & 3) << 2) |
+                    ((u32)((SpriteData *)pSpriteData->pTargetEntitySprite)->flags_0xA8 >> 30);
             offset = g_BattleStateWork[(g_BattleCommandRowIndex - 1) * 0x48 + count + 0x150];
             switch (pArgs[2] & 0x7F) {
             case 0:
@@ -704,14 +700,15 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 count = offset == 6;
                 break;
             case 7:
-                count = BattleFindTableEntryIndex(pTarget) + 1 < g_BattleActorListCount;
+                count = BattleFindTableEntryIndex((SpriteData *)pSpriteData->pTargetEntitySprite) + 1 <
+                        g_BattleActorListCount;
                 BattleRemapActorModelId(pSpriteData);
                 break;
             case 8:
                 count = D_800C4928 != 0;
                 break;
             case 9:
-                count = pTarget == D_800C3E1C;
+                count = (SpriteData *)pSpriteData->pTargetEntitySprite == D_800C3E1C;
                 break;
             default:
                 count = 0;
@@ -736,18 +733,18 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 pSpriteData->pBase->pDirTransforms = NULL;
                 break;
             }
-            pBuffer = pArgs + offset;
-            size = BattleGetPrimitiveBufferSize(BattleGetFrame(pBuffer, 0));
+            pFrames = pArgs + offset;
+            size = BattleGetPrimitiveBufferSize(BattleGetFrame(pFrames, 0));
             pBuffer = HeapAlloc(size * 2, 0);
             if (pSpriteData->field_0x3A != 0) {
-                BattleModelScaleParts(BattleGetFrame(pArgs + offset, 0), 3);
+                BattleModelScaleParts(BattleGetFrame(pFrames, 0), 3);
             }
-            BattleExpandModelPrims(BattleGetFrame(pArgs + offset, 0), pBuffer, ((BattleSpriteState *)pSpriteData)->flags >> 29,
+            BattleExpandModelPrims(BattleGetFrame(pFrames, 0), pBuffer, ((BattleSpriteState *)pSpriteData)->flags >> 29,
                                    pSpriteData->prim & 1);
             memcpy(pBuffer + size, pBuffer, size);
             pSpriteData->pBase->pFramesData = pBuffer;
             pSpriteData->pBase->pCurRenderFramesData = pBuffer + size;
-            pSpriteData->pBase->pDirTransforms = (SpriteDirectionTransforms *)BattleGetFrame(pArgs + offset, 0);
+            pSpriteData->pBase->pDirTransforms = (SpriteDirectionTransforms *)BattleGetFrame(pFrames, 0);
             break;
         case 0x8B:
             BattleUpdateCommandRows();
