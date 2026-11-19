@@ -185,26 +185,20 @@ void func_8007B6C0(u8 **p, u8 index) {
 // The store direction matters: arg2 is the return value, the field-table dword
 // goes INTO D_800CCD*, not the other way round.
 // screened: 87.67% was the max of Default / cdk 78.94 / 2.6.0 87.67.
-/*
 u8 func_8007B7B0(u8 **p, u8 index, u8 arg2) {
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
     u8 ret = arg2;
-    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
 
     if (value < 3) {
         g_BattleCommandArgs = 0x20;
         ret = arg2 + 1;
     } else if ((*p)[2] == 0) {
-        *(u32 *)(D_800CCDF0 + value * 0x170) =
-            ((u32 *)((u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40))[(*p)[1]];
+        D_800CCDE8[value].maxHp = g_BattleSlotRegs[index].dwordRegs[(*p)[1]];
     } else {
-        *(u32 *)(D_800CCDEC + value * 0x170) =
-            ((u32 *)((u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40))[(*p)[1]];
+        D_800CCDE8[value].hp = g_BattleSlotRegs[index].dwordRegs[(*p)[1]];
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
 // best: 98.00%, permuter score 40. Sole gap: the pArgs[2] table index and the
 // pArgs[1] slot index keep swapped registers (retail puts the loaded value in
 // v0 and the slot index in v1, gcc the reverse); multiset identical.
