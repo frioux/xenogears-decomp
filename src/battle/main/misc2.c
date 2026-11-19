@@ -239,7 +239,62 @@ void BattleAddPrimPair280(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80074AB8);
+void func_80074AB8(void) {
+    u16 counter;
+
+    if (g_BattleDisplayState->unkC7 != 0) {
+        func_800728B8(g_BattleSpriteColumnWork + 0x3E80, g_BattleSpriteColumnWork[0x5D77],
+                      g_BattleSpriteColumnWork[0x5D86]);
+        func_800728B8(g_BattleSpriteColumnWork + 0x5280, g_BattleSpriteColumnWork[0x5D7C],
+                      g_BattleSpriteColumnWork[0x5D8B]);
+        func_800728B8(g_BattleSpriteColumnWork + 0x53C0, g_BattleSpriteColumnWork[0x5D7D],
+                      g_BattleSpriteColumnWork[0x5D8C]);
+        func_800728B8(g_BattleSpriteColumnWork + 0x43D0, g_BattleSpriteColumnWork[0x5D7F],
+                      g_BattleSpriteColumnWork[0x5D8E]);
+    }
+
+    if (g_BattleDisplayState->actorDrawActive == 0) {
+        return;
+    }
+
+    func_800728B8(g_BattleSpriteColumnWork + 0x46A0, 20, g_BattleSpriteColumnWork[0x5D98]);
+    func_800728B8(g_BattleSpriteColumnWork, g_BattleSpriteColumnWork[0x5D70],
+                  g_BattleSpriteColumnWork[0x5D92]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x1720, g_BattleSpriteColumnWork[0x5D74],
+                  g_BattleSpriteColumnWork[0x5D83]);
+
+    counter = *(u16 *)(g_BattleSpriteColumnWork + 0x5DA2) + 1;
+    *(u16 *)(g_BattleSpriteColumnWork + 0x5DA2) = counter;
+    if ((s16)counter < 15) {
+        func_800728B8(g_BattleSpriteColumnWork + 0x4CE0, g_BattleSpriteColumnWork[0x5DA1],
+                      g_BattleSpriteColumnWork[0x5DA0]);
+    } else if ((s16)counter >= 21) {
+        *(u16 *)(g_BattleSpriteColumnWork + 0x5DA2) = 0;
+    }
+
+    func_800728B8(g_BattleSpriteColumnWork + 0x3AC0, g_BattleSpriteColumnWork[0x5D75],
+                  g_BattleSpriteColumnWork[0x5D84]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x3E30, g_BattleSpriteColumnWork[0x5D76],
+                  g_BattleSpriteColumnWork[0x5D85]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x4E70, g_BattleSpriteColumnWork[0x5D78],
+                  g_BattleSpriteColumnWork[0x5D87]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x4FB0, g_BattleSpriteColumnWork[0x5D79],
+                  g_BattleSpriteColumnWork[0x5D88]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x50A0, g_BattleSpriteColumnWork[0x5D7A],
+                  g_BattleSpriteColumnWork[0x5D89]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x51E0, g_BattleSpriteColumnWork[0x5D7B],
+                  g_BattleSpriteColumnWork[0x5D8A]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x2530, g_BattleSpriteColumnWork[0x5D7E],
+                  g_BattleSpriteColumnWork[0x5D8D]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x32A0, g_BattleSpriteColumnWork[0x5D96],
+                  g_BattleSpriteColumnWork[0x5D97]);
+    func_800728B8(g_BattleSpriteColumnWork + 0x3C0, g_BattleSpriteColumnWork[0x5D71],
+                  g_BattleSpriteColumnWork[0x5D93]);
+    func_800728B8(g_BattleSpriteColumnWork + 0xD20, g_BattleSpriteColumnWork[0x5D72],
+                  g_BattleSpriteColumnWork[0x5D94]);
+    func_800728B8(g_BattleSpriteColumnWork + 0xFA0, g_BattleSpriteColumnWork[0x5D73],
+                  g_BattleSpriteColumnWork[0x5D95]);
+}
 void BattleUpdateRotationBuffer(void) {
     s32 i;
 
@@ -466,77 +521,97 @@ void func_800765C4(s32 slot) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
-/* 92.93%: everything structural matches (the 0xA9 loop, both func_80025FA8
-   calls with their five stack arguments, the SetSemiTrans loop, the 0xAB loop,
-   the two range tests, the 0x58 frame). Shapes that were needed: x and y are
-   16-byte memory objects (`u16 v[8]`, only v[0] and v[4] used) - two u16 locals
-   land at sp+0x28/0x2A and shrink the frame by 8 bytes; one `i` shared by the
-   three loops keeps the middle loop's index in $s0 across the SetSemiTrans
-   call, retail has it in $a3, so each loop needs its own variable; the
-   SetSemiTrans offset needs its own `off` local to get retail's
-   addu-in-the-jal-slot operand order. What is left is allocation only:
-   (1) retail keeps &g_BattlePrimStartIndex in $s0 from just after the 0x77 store and does
-   `lw a3,0(s0)` at both call sites, gcc 2.7.2 rematerialises
-   `lui/lw %lo(g_BattlePrimStartIndex)` at each site (a `s32 *pCtx` local does not survive,
-   it folds back and costs 8 points); (2) loop 1 emits `addu v1,v1,v0` where
-   retail has `addu v0,v0,v1` - gcc canonicalises the commutative operands, so
-   swapping the C operands changes nothing; (3) the second call's
-   `idx * 0x50 + 0x3768 + (s32)g_BattleGraphicsWork` chain interleaves with the stack-arg
-   stores (retail emits the three shifts contiguously and adds the constant to
-   the product, not to the base) and `li a1,0x1` is not stolen into the loop's
-   back-edge delay slot; (4) the 0xAB loop's index is $a1 here, $a3 in retail. */
+/* 95.68% at retail's exact 728 bytes; 4-minute permuter runs from 91.53 and from
+   this body both returned BETTER on their own metric but the ported edits were
+   worse under objdiff, so nothing was kept. What is left is allocation and
+   scheduling only:
+   (1) loop 1's two `sh` sums: retail accumulates into the SHIFTED value's
+   register (`addu v0,v0,v1`, dest = the >>8 result, `sh v0,40(sp)`); every
+   operand order in C gives dest = the lhu (`addu v1,v1,v0`), and giving the
+   shift its own `u32 dx` local swaps that but then puts the reload in $v1 and
+   drops to 93.45.
+   (2) retail reaches g_BattlePrimStartIndex at both func_80025FA8 call sites as
+   `lui s0,%hi; addiu s0,s0,%lo` once plus `lw a3,0(s0)` per call; a `s32 *pCtx`
+   local (also spelled `mem_addr pCtx` with a cast) is folded back to
+   `lui a3,%hi; lw a3,%lo(a3)` per site. Only `extern s32
+   g_BattlePrimStartIndex[]` was not tried, because three already-matched
+   functions in this file read it as a scalar.
+   (3) the second call's `idx * 0x50 + 0x3768` chain: the `sll <<4` and
+   `addiu 0x3768` come out in the other order and `sll s0,s0,1` (idx*2) lands in
+   the `j` delay slot instead of before the call.
+   (4) `li a1,0x1` (SetSemiTrans' second argument) sits at the top of the loop
+   body instead of in the back-edge delay slot, and the 0xAB loop's counter is
+   $a1 instead of retail's $a3.
+   The shapes that DID have to be right: the two package-call statements and the
+   0x104/0x106 updates through the first `if` are ONE statement unit
+   (`do { ... } while (0)`), which the permuter found and is worth 2 points; the
+   0x77 byte and the 0x90 byte are raw `*(u8 *)((u8 *)g_BattleDisplayState + N)`
+   so the global is reloaded between them like retail; `off`/`off2` hold
+   `product + 0x3768` so the base is added last, which is what puts retail's
+   `addiu` before the `lui/lw` of g_BattleGraphicsWork; and the two 16-byte
+   x/y objects are one `u16 v[8]` read as v[0]/v[4] (that is what puts them at
+   sp+0x28/0x30).
 /*
-void func_80076710(s32 arg0) {
+void func_80076710(s32 slot) {
     u16 v[8];
     s32 i;
     s32 j;
     s32 k;
     s32 idx;
     s32 off;
+    s32 off2;
+    s32 *pCtx;
 
-    for (i = 0; i < g_BattleDisplayState[0xA9]; i++) {
-        *(u32 *)(g_BattleDisplayState + 0x64) -= *(u32 *)(g_BattleDisplayState + 0x54);
-        *(u32 *)(g_BattleDisplayState + 0x6C) += *(u32 *)(g_BattleDisplayState + 0x5C);
-        v[0] = *(u16 *)(g_BattleDisplayState + 0x34) + (*(u32 *)(g_BattleDisplayState + 0x64) >> 8);
-        v[4] = *(u16 *)(g_BattleDisplayState + 0x44) + (*(u32 *)(g_BattleDisplayState + 0x6C) >> 8);
+    for (i = 0; i < g_BattleDisplayState->moveSteps; i++) {
+        *(s32 *)((u8 *)g_BattleDisplayState + 0x64) -= *(s32 *)((u8 *)g_BattleDisplayState + 0x54);
+        *(s32 *)((u8 *)g_BattleDisplayState + 0x6C) += *(s32 *)((u8 *)g_BattleDisplayState + 0x5C);
+        v[0] = (*(u32 *)((u8 *)g_BattleDisplayState + 0x64) >> 8) + *(u16 *)((u8 *)g_BattleDisplayState + 0x34);
+        v[4] = (*(u32 *)((u8 *)g_BattleDisplayState + 0x6C) >> 8) + *(u16 *)((u8 *)g_BattleDisplayState + 0x44);
     }
 
-    g_BattleDisplayState[0xA9] = 0;
-    g_BattleDisplayState[0x77] = 0;
+    g_BattleDisplayState->moveSteps = 0;
+    // a statement unit: this block is scheduled as one, which is what keeps retail's
+    // ordering of the two package calls and the 0x104/0x106 updates.
+    do {
+    pCtx = &g_BattlePrimStartIndex;
+    *(u8 *)((u8 *)g_BattleDisplayState + 0x77) = 0;
 
-    g_BattleDisplayState[0x77] = func_80025FA8(g_BattleSpriteArchive, 0x52, g_BattleGraphicsWork + 0x3768, g_BattlePrimStartIndex,
-                                     v[0], v[4], *(u16 *)(g_BattleDisplayState + 0x104),
-                                     *(u16 *)(g_BattleDisplayState + 0x104),
-                                     *(u16 *)(g_BattleDisplayState + 0x106));
+    *(u8 *)((u8 *)g_BattleDisplayState + 0x77) =
+        func_80025FA8(g_BattleSpriteArchive, 0x52, g_BattleGraphicsWork + 0x3768, *pCtx,
+                      v[0], v[4], *(u16 *)((u8 *)g_BattleDisplayState + 0x104),
+                      *(u16 *)((u8 *)g_BattleDisplayState + 0x104),
+                      *(u16 *)((u8 *)g_BattleDisplayState + 0x106));
 
-    idx = g_BattleDisplayState[0x77];
-    g_BattleDisplayState[0x77] +=
-        func_80025FA8(g_BattleSpriteArchive, 0x53, idx * 0x50 + 0x3768 + (s32)g_BattleGraphicsWork, g_BattlePrimStartIndex,
-                      v[0], v[4], *(u16 *)(g_BattleDisplayState + 0x104), *(u16 *)(g_BattleDisplayState + 0x104),
-                      *(u16 *)(g_BattleDisplayState + 0x106));
+    idx = *(u8 *)((u8 *)g_BattleDisplayState + 0x77);
+    off = idx * 0x50 + 0x3768;
+    *(u8 *)((u8 *)g_BattleDisplayState + 0x77) +=
+        func_80025FA8(g_BattleSpriteArchive, 0x53, off + (s32)g_BattleGraphicsWork, *pCtx,
+                      v[0], v[4], *(u16 *)((u8 *)g_BattleDisplayState + 0x104),
+                      *(u16 *)((u8 *)g_BattleDisplayState + 0x104),
+                      *(u16 *)((u8 *)g_BattleDisplayState + 0x106));
 
-    for (j = idx * 2; j < g_BattleDisplayState[0x77] * 2; j += 2) {
-        off = (j + g_BattlePrimStartIndex) * 40 + 0x3768;
-        SetSemiTrans((u8 *)(off + (s32)g_BattleGraphicsWork), 1);
+    for (j = idx * 2; j < *(u8 *)((u8 *)g_BattleDisplayState + 0x77) * 2; j += 2) {
+        off2 = (j + g_BattlePrimStartIndex) * 40 + 0x3768;
+        SetSemiTrans((u8 *)(off2 + (s32)g_BattleGraphicsWork), 1);
     }
 
-    g_BattleDisplayState[0x87] = *(u8 *)&g_BattlePrimStartIndex;
+    *(u8 *)((u8 *)g_BattleDisplayState + 0x87) = *(u8 *)&g_BattlePrimStartIndex;
 
-    for (k = 0; k < g_BattleDisplayState[0xAB]; k++) {
-        *(u16 *)(g_BattleDisplayState + 0x104) += 0x66;
-        *(u16 *)(g_BattleDisplayState + 0x106) += 0x80;
+    for (k = 0; k < g_BattleDisplayState->sizeSteps; k++) {
+        *(u16 *)((u8 *)g_BattleDisplayState + 0x104) += 0x66;
+        *(u16 *)((u8 *)g_BattleDisplayState + 0x106) += 0x80;
     }
-    g_BattleDisplayState[0xAB] = 0;
+    g_BattleDisplayState->sizeSteps = 0;
 
-    if (v[0] <= *(u32 *)(g_BattleDisplayState + 0x3C)) {
-        *(u8 *)(g_BattleDisplayState + arg0 + 0x90) = 1;
+    if (v[0] <= *(u32 *)((u8 *)g_BattleDisplayState + 0x3C)) {
+        *(u8 *)((u8 *)g_BattleDisplayState + slot + 0x90) = 1;
     }
-    if (v[4] >= *(u32 *)(g_BattleDisplayState + 0x4C)) {
-        *(u8 *)(g_BattleDisplayState + arg0 + 0x90) = 1;
+    } while (0);
+    if (v[4] >= *(u32 *)((u8 *)g_BattleDisplayState + 0x4C)) {
+        *(u8 *)((u8 *)g_BattleDisplayState + slot + 0x90) = 1;
     }
 }
 */
-
 void BattleLoadImageAndSync(RECT *pRect, u_long *pData) {
     LoadImage(pRect, pData);
     DrawSync(0);
