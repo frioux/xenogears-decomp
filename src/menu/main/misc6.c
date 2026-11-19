@@ -212,76 +212,45 @@ void MenuClearSubMenuChoiceFlags(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
-/* 86.93% (652 bytes = retail's exact size, so only address-tree ties are left).
-   Sets the four corners of a POLY_FT4 at
-   g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext]
-   (the string index is the byte field 0x338, the poly index the int field 0x308,
-   POLY_FT4 stride 0x28) from D_801E9A1C, D_801E9E94 and D_801E9A48, indexed by
-   subMenuChoice: x0 = x2 = A1C + (E94 + 0x16), x1 = x3 = width + x0 (+ E94, see
-   below), y0 = y1 = A48 - 0x22, y2 = y3 = A48 - 0x15. Then copies renderContext
-   into the string and sets pManager->shouldRenderSubMenuChoiceStrings[sub].
-   Two differences, both visible in every one of the eight stores:
-   (1) retail inserts g_Menu into the address EARLY, ('sll v0,sub,7 / addu v0,v0,a2'
-   then '+ ctx*0x28'), while gcc appends it last ('addu a0,a0,sub*0x80 /
-   addu a0,a2,a0');
-   (2) retail reads D_801E9E94 before D_801E9A1C in the x0/x2 stores but after it in
-   the x1/x3 stores, i.e. the two groups are grouped differently; gcc reassociates
-   both spellings into the same tree and emits one order for all four.
-   The frame needs the unused 0x48-byte local below to reproduce retail's 0x60.
+/* PARKED 99.75% (652 bytes = retail's exact size). Every instruction of the whole
+   function is identical to retail's except the SYMBOL ORDER of the two table loads
+   in the x0 and x2 stores: retail loads D_801E9E94 first (and puts the +0x16 on it)
+   then D_801E9A1C, while gcc swaps them. That is a canonicalisation, not an
+   allocator tie: gcc reassociates 'a + 0x16 + b' into '(b + 0x16) + a' whichever
+   order it is written, in both statements, and a 3-minute permuter run (1517
+   iterations, base 20 = best 20 from this body) and the variants below found
+   nothing that survives. The linked bytes DO differ (the two tables are 0x78
+   apart), so this cannot ship as a match.
+   What moved it from 86.93 to 99.75 (all of these are load-bearing):
+   - spelling the poly element as pointer arithmetic, '(pString->polys + ctx)', and
+     NOT 'pString->polys[ctx]': that is what makes gcc build retail's address tree
+     'sub*0x80 + g_Menu' first and add ctx*0x28 to it, instead of summing the two
+     scaled indices and adding g_Menu last (90.86);
+   - listing the two tables in retail's per-corner order in the SOURCE: x0/x2 read
+     D_801E9E94 first, x1/x3 read D_801E9A1C first and put the width last, which is
+     what reproduces retail's differing addiu attachment (x0: E94+0x16; x1:
+     A1C+0x16) and the width load LAST in the x1/x3 groups;
+   - the three tables are s16 [][2]: s16 is what makes the y stores 'lhu + addiu
+     -0x22' rather than 'lhu + li 0xffde + addu'; u16 on D_801E9A48 breaks exactly
+     that, and on D_801E9A1C/D_801E9E94 it costs the x0/x2 register line-up;
+   - the unused 0x48-byte local reproduces retail's 0x60 frame (ra at 0x58).
+   Dead ends measured: an (xOffset = E94 + 0x16, xOffset + A1C) comma temporary
+   (right load order, but the s16 temporary makes both loads 'lh' instead of 'lhu'),
+   u16 for the tables, s16 for the temporary, and a 'const 0x16 in a local' hoist.
 */
-/* Best attempt (86.93%):
-   void func_801D261C(void) {
-       u8 pad[0x48];
-
-       MenuLoadSubMenuChoiceStrings(0);
-
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x1 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x2 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x3 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
-       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
-       g_Menu->pManager->shouldRenderSubMenuChoiceStrings[g_Menu->subMenuChoice] = 1;
-   }
-*/
-/* PARKED 86.91% (652 bytes = retail's exact size). Decoded: set the four corners of
-   g_Menu->subMenuChoiceStrings[subMenuChoice].polys[renderContext] from three tables, then copy
-   renderContext into that MenuString and set pManager->shouldRenderSubMenuChoiceStrings[subMenuChoice] = 1.
-   x0 = x2 = D_801E9A1C[c] + (D_801E9E94[c] + 0x16);  x1 = x3 = width + x0;
-   y0 = y1 = D_801E9A48[c] - 0x22;                    y2 = y3 = D_801E9A48[c] - 0x15;
-   the source repeats every g_Menu-> load in all eight statements (retail re-reads
-   0x308/0x338 per statement; a pointer or index local makes gcc hoist them).
-   Findings that matter for the next attempt: (1) the three tables are indexed with
-   stride 4 and read with lhu, so they are arrays of 2 halfwords - declared here as
-   s16 [][2] and read [c][0]; declaring D_801E9A48 s16 is also what makes gcc use
-   lhu + addiu -0x22 instead of lhu + li 0xffde + addu (a 1-D s16 spelling scores
-   88.04% but indexes with stride 2, i.e. reads the wrong entry);
-   (2) retail's frame is 0x60 (ra at 0x58) and ours is 0x18, so the original has an
-   unused 0x48-byte stack local that has to be declared (the usual unused-local
-   trick) before the register allocation will line up.  FIXED: 'u8 pad[0x48]' as the
-   first local makes sp-0x60/ra-at-0x58 match retail exactly (86.91 -> 86.93, 652
-   bytes = retail's size).  Remaining differences are the address tree and the table
-   read order of every statement: retail adds g_Menu early (poly base =
-   ctx*0x28 + (sub*0x80 + g_Menu)) where gcc folds the global last, and retail reads
-   E94 before A1C in x0/x2 (addiu attached to E94) but A1C before E94 in x1/x3
-   (addiu attached to A1C), i.e. the two corner groups come from differently grouped
-   source expressions.  No source shape reproduces both.
-*/
-/* Best attempt (86.91%): the body below is what the note above was measured with.
+/*
 void func_801D261C(void) {
-    MenuLoadSubMenuChoiceStrings(0);
+    u8 pad[0x48];
 
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x1 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x2 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x3 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
-    g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    MenuLoadSubMenuChoiceStrings(0);
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x0 = D_801E9E94[g_Menu->subMenuChoice][0] + 0x16 + D_801E9A1C[g_Menu->subMenuChoice][0];
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x1 = D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16 + D_801E9E94[g_Menu->subMenuChoice][0] + g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width;
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x2 = D_801E9E94[g_Menu->subMenuChoice][0] + 0x16 + D_801E9A1C[g_Menu->subMenuChoice][0];
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->x3 = D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16 + D_801E9E94[g_Menu->subMenuChoice][0] + g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width;
+    (g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys + g_Menu->renderContext)->y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
     g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
     g_Menu->pManager->shouldRenderSubMenuChoiceStrings[g_Menu->subMenuChoice] = 1;
 }
