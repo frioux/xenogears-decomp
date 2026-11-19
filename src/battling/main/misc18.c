@@ -148,6 +148,7 @@ extern void func_80090580(BattleActor* pActor, BattleWork* pWork);
 extern void func_80090990(BattleActor* pActor, BattleWork* pWork);
 extern void BattleUpdateActorApproach(BattleActor* p, s32 arg1, s32 arg2);
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 arg1);
+extern s32 D_80092850;
 
 
 s32 BattleCheckActorBelowBreakThreshold(BattleActor* pActor, s32 arg1) {
@@ -268,6 +269,8 @@ extern s32 g_BattleFacingAngle;
 s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     Vec4 pos;
     s32 r;
+    s16 d;
+    u8 ticks;
 
     pos = *pPos;
     pos.x -= 0x3F80;
@@ -559,6 +562,8 @@ void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork) {
 void BattleEnterWorkState3(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
     s32 r;
+    s16 d;
+    u8 ticks;
 
     pWork = pActor->pWork;
     pWork->state = 3;
@@ -584,7 +589,71 @@ void BattleEnterWorkState2(BattleActor* pActor, s32 arg1) {
     pWork->setFlag8000 = BattleRollActorFlag8000(pActor, 0);
     pWork->flags.bytes.unk2E = 0;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090990);
+void func_80090990(BattleActor* pActor, BattleWork* pWork) {
+    s16 angle;
+    s32 distance;
+    s32 roll;
+    s16 delay;
+    u8 ticks;
+
+    if (func_8008FACC(pActor, pWork) != 0) {
+        return;
+    }
+    if (((u8*)pActor->pTarget->pNearestEffect)[0x33] == 1) {
+        distance = pActor->pTarget->nearestEffectDistance;
+        if (distance < 0x500 && pWork->difficulty != 0) {
+            pWork->setFlag8000 = 1;
+            angle = -0x400;
+            if (pWork->flags.bits.attackRoll != 0) {
+                angle = 0x400;
+            }
+            pWork->targetAngle = angle;
+            if (pWork->difficulty >= 2 && BattleRollActorActionChance(pActor, 0) != 0 &&
+                pWork->flags.bits.attackRoll != 0) {
+                if ((rand() & 3) == 0) {
+                    BattleQueueMessage(pActor, 4);
+                }
+                BattleQueueMessages4Then3(pActor);
+                pWork->flags.bytes.unk2E = 0;
+            }
+            pWork->flags.bytes.unk2E++;
+        }
+    }
+    if (BattleGetActorBreakProximity(pActor) == 0) {
+        pWork->setFlag8000 = 0;
+    }
+    if (g_BattleActorDistance2D > pWork->actionDistance || (g_BattleOptionOn != 0 && D_80092850 >= 0x4B1)) {
+        if (g_BattleOptionOn != 0) {
+            BattleQueueMessage(pActor, 4);
+        }
+        BattleQueueActionMessages(pActor, pWork);
+        BattleEnterWorkState0(pActor);
+    }
+    if (pWork->delay < 0 || pWork->maxDistance == 0) {
+        pWork->targetAngle = rand() % 1536 + 0x500;
+        roll = rand();
+        if (pWork->flags.flags & 0x400) {
+            delay = roll % 40 + 10;
+        } else {
+            delay = roll % 60 + 10;
+        }
+        /* the tick count has to be read before the delay is stored: cc1 keeps
+           that order, and the store lands in the delay compute otherwise */
+        ticks = pWork->ticks;
+        pWork->delay = delay;
+        pWork->maxDistance = 0xFF;
+        if (ticks != 0) {
+            pWork->ticks = ticks - 1;
+        } else {
+            if (BattleRollActorActionChance(pActor, 0) != 0) {
+                BattleQueueMessage(pActor, 4);
+                BattleQueueMessages4Then3(pActor);
+            }
+            pWork->ticks = rand() % 5 + 3;
+        }
+    }
+    pWork->delay--;
+}
 void BattleLoadWorkActionChances(BattleActor* pActor) {
     BattleActionData* pActionData;
     BattleWork* pWork;
