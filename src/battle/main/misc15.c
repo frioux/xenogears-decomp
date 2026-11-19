@@ -1,6 +1,22 @@
 #include "common.h"
 #include "main/game.h"
 
+// The sound the battle menu plays when it refuses an input; battle/main/misc12 holds the same
+// define for the units that do not include include/battle/actor.h either.
+#define BATTLE_SOUND_MENU_DENIED 0x4F
+// Command byte of a command record that holds no command: the fill loop that runs before a
+// command is queued writes it to every record's byte (battle/main/misc13 has the same define).
+#define BATTLE_COMMAND_NONE 0xFF
+// The low bits of a g_BattleCommandEntries flags word that pick the target mode.
+#define BATTLE_COMMAND_TARGET_MODE_MASK 0x7
+// The actor slots the u16 slot mask walks, party slots included: BATTLE_ACTOR_SLOT_COUNT and
+// BATTLE_PARTY_SLOT_MASK are include/battle/actor.h's, which this unit does not include.
+#define BATTLE_ACTOR_SLOT_COUNT 11
+#define BATTLE_PARTY_SLOT_MASK 0x7
+#define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - MAX_PARTY_MEMBERS)
+// The digits g_BattleNumberDigits holds, one per: BattleParseNumberToDigits walks them.
+#define BATTLE_NUMBER_DIGIT_COUNT 9
+
 // Command slot descriptor: one 0x40-byte entry per battle actor slot, in the
 // head array of the block g_BattleCommandQueue points at.
 typedef struct {
@@ -126,12 +142,12 @@ void BattleParseNumberToDigits(u32 arg0) {
     u32 divisor;
 
     divisor = 100000000;
-    for (i = 0; i < 9; i++) {
+    for (i = 0; i < BATTLE_NUMBER_DIGIT_COUNT; i++) {
         g_BattleNumberDigits[i] = arg0 / divisor;
         arg0 %= divisor;
         divisor /= 10;
     }
-    for (i = 1; i < 9; i++) {
+    for (i = 1; i < BATTLE_NUMBER_DIGIT_COUNT; i++) {
         if (g_BattleNumberDigits[i] == 0) {
             g_BattleNumberDigits[i - 1] = 0xFF;
         } else {
@@ -170,9 +186,9 @@ void BattleQueueCommandF3WithSlotMask(u16 arg0, u8 arg1) {
     s32 off;
     u8 idx;
 
-    mask = arg0 & 0xFFF8;
-    for (i = 0, off = 0x450; i < 8; i++) {
-        idx = i + 3;
+    mask = arg0 & ~BATTLE_PARTY_SLOT_MASK;
+    for (i = 0, off = 0x450; i < BATTLE_OTHER_SLOT_COUNT; i++) {
+        idx = i + MAX_PARTY_MEMBERS;
         if (BattleMaskHasSlotBit(mask, idx) != 0) {
             if ((*(u16 *)(D_800CCD1C + off) & 0x800) == 0) {
                 mask &= BattleSlotBitMaskInverted(idx);
@@ -530,12 +546,12 @@ void BattleActivateSelectedCommand(u8 arg0) {
 
     g_BattleSoundEnabled = 0;
     func_800BCD98(0);
-    value = 0xFF;
+    value = BATTLE_COMMAND_NONE;
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         D_800C402F[off] = value;
     }
     func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
-    sel = g_BattleCommandEntries[g_BattleCommandQueue->commandId].flags & 7;
+    sel = g_BattleCommandEntries[g_BattleCommandQueue->commandId].flags & BATTLE_COMMAND_TARGET_MODE_MASK;
     if (sel != 0) {
         mask = g_BattleTargetSlotMask;
     } else {
@@ -559,7 +575,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     D_800C4022[g_BattleCommandQueue->count * 36] = g_BattleActionParam;
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
-    for (i = 3; i < 11; i++) {
+    for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(g_BattleActionSlotMask, i) != 0) {
             func_80079840(arg0, i);
         }
@@ -569,7 +585,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     while (g_BattleCommandQueue->commandFinished == 0) {
         BattleUpdateFrame();
     }
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
         if (BattleMaskHasSlotBit(mask, i) != 0) {
             g_BattleDisplayState->slotMarks[i] = 1;
         }
@@ -625,7 +641,7 @@ s32 BattleActivateTwoSlotCommand(u8 arg0, u8 arg1, u8 arg2, u8 arg3) {
             result = 2;
         }
     } else {
-        BattlePlaySoundIfEnabled(0x4F);
+        BattlePlaySoundIfEnabled(BATTLE_SOUND_MENU_DENIED);
     }
     return result;
 }
