@@ -488,11 +488,14 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
     }
 }
 void BattleDrawSlotSpriteQuads(u8 arg0) {
+    // `zero` is a variable index and the two sums are written base - (-offset) on purpose: with a
+    // literal [0] gcc folds the negation pair into negu/subu (83.45%) and with `prims + offset` it
+    // swaps the addu operands (99.45%), both 100.00% only as written.
     u32 zero;
 
     zero = 0;
-    *(u16 *)(g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28)) + 0xE) = g_SystemPalette1;
-    *(u16 *)(g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28)) + 0x5E) = g_SystemPalette1;
+    ((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28))))->clut = g_SystemPalette1;
+    ((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28)) + 0x50))->clut = g_SystemPalette1;
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[zero] * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0x50)), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xA0)), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
@@ -500,19 +503,18 @@ void BattleDrawSlotSpriteQuads(u8 arg0) {
     g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
 }
 void BattleDrawSlotStatusPanel(void) {
+    // `zero`, the two-view spelling of pPacketPrims (`ppPrims` for the second store only) and the
+    // base - (-offset) sums are all measured: a literal index gives 87.61%, one view of the pool
+    // pointer 91.00% and `prims + offset` 99.49%, 100.00% only as written.
     u32 zero;
     u8 **ppPrims;
-    u8 *pPal;
-    u8 *pPal2;
 
     zero = 0;
     ppPrims = &g_BattleGraphicsWork->pPacketPrims;
-    pPal = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28));
-    *(u16 *)(pPal + 0xE) = g_SystemPalette1;
-    pPal2 = *ppPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28));
-    *(u16 *)(pPal2 + 0x5E) = g_SystemPalette1;
-    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28), 0x36, 0x62, 0, 0, 0x60, 0x40);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x50)), 0xC2, 0x62, 0x78, 0, 0x60, 0x40);
+    ((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28))))->clut = g_SystemPalette1;
+    ((POLY_FT4 *)(*ppPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28)) + 0x50))->clut = g_SystemPalette1;
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[zero] * 0x28), 0x36, 0x62, 0, 0, 0x60, 0x40);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0x50)), 0xC2, 0x62, 0x78, 0, 0x60, 0x40);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xA0)), 0x96, 0x62, 0, 0, 0x10, 0x40);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xF0)), 0x122, 0x62, 0x40, 0, 0x10, 0x40);
     g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
