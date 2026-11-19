@@ -439,6 +439,21 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008E430);
    Tried and worse: an s32 `left` statement before the stores (left, the arg3 mask and
    the arg4 load all hoist; 98.20 at 1604 bytes), a `top` statement local, a
    `*(volatile s32 *)&arg4` read (1612 bytes), gcc-2.7.2 (98.14).
+   ROUND 300: the value hoist is cse2's invariant-expression hoist to the top of the
+   basic block, and it is NOT source-spellable away: probed with tools/scripts/
+   cc1_probe.sh on a 2-store replica (a `quad[1]` stand-in for tilePrims[1]) and the
+   arg4 load + `addu` still hoist above the first store with the values inline, in an
+   embedded assignment, in brace blocks, in `do { } while (0)` blocks (one per store
+   and one for all), with a per-store scoped temporary, with an s16-dest cast, with
+   array-index vs pointer-sum addressing, and under gcc-2.6.0, 2.7.2 and 2.7.2-cdk.
+   The one lever that DOES keep the load in its own block is taking the argument's
+   address (`s32 *pArg4; pArg4 = &arg4;` then `arg2 + *pArg4 - 8`): the escaped
+   address stops the hoist - but gcc then narrows the read to `lhu` where retail has
+   `lw` (same size, same place, still not 100%). A second datapoint: five locals
+   (left/bottom/top/right/farRight, each assigned at its first store) give retail's
+   EXACT register assignment - a1=left, t0=bottom, a0=right, a3=half, a2=top - for
+   94.88% at 1600 bytes, so the values-as-locals structure is right and only their
+   placement is wrong. `-O1` removes the hoist but rewrites everything else (77.44).
 */
 /*
 void func_8008E430(u8 arg0, s32 arg1, s32 arg2, u16 arg3, s32 arg4) {
