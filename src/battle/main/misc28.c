@@ -96,7 +96,7 @@ extern s32 WorkListsAddTasks(s32 arg0, s32 arg1, void *pFn1, void *pFn2, void *p
 extern void func_800B7424(s32 arg0);
 extern void BattleCreateWorkTask(void);
 extern void func_800B6F0C(void);
-extern void BattleStoreGfxOrderingTable(void);
+extern void BattleStoreGfxOrderingTable(BattleEffectTask *pTask);
 extern void BattleDestroyWorkTask(u8 *p);
 extern s16 SpriteComputeAngleFromPoints(DVECTOR from, DVECTOR to);
 extern s32 SpriteScaleValue(void *pSprite, s32 arg1);
