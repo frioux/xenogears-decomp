@@ -34,7 +34,7 @@ extern u16 g_BattleSlotScreenOrigins[];
 extern u8 g_BattleSlotPageIndex;
 extern u8 g_BattleActorCharIds[];
 extern u8 *g_BattleSpriteColumnWork;
-extern u8 D_800C3EB6[];
+extern u8 g_BattleSlotActorIds[];
 extern u8 g_BattleSlotFlags[];
 
 extern u8 g_BattlePrimBuffer[];
@@ -63,7 +63,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073B64);
    try)
    plus the 0xEC/[0x99] draw at 0x6008 + i*0x140; (4) the optional 0xAF draw at
    0x9C8 and three draws at 0x3A88 + i*0xC80; (5) three entries at 0x1C/0x50/
-   0x1E0 strides, skipping entries whose D_800C3EB6[i*0x1C] is 0x7F, and the
+   0x1E0 strides, skipping entries whose g_BattleSlotActorIds[i*0x1C] is 0x7F, and the
    AddPrim whose index is `(i * 2 + ctx) * 36` where ctx is g_BattlePrimStartIndex reached
    as `&g_BattleCurOT + 0x30` (that is how retail gets it here:
    `lw v1,0x30(s4)` off the hoisted `la g_BattleCurOT`). Remaining differences are
@@ -125,7 +125,7 @@ void func_80073B64(void) {
 
     for (i = 0, off = 0x818, off2 = 0, off3 = 0; i < 3;
          i++, off += 0x50, off2 += 0x1C, off3 += 0x1E0) {
-        if ((&D_800C3EB6)[off2] != 0x7F) {
+        if ((&g_BattleSlotActorIds)[off2] != 0x7F) {
             func_800728B8((u8 *)(g_BattleGraphicsWork + off), 1, g_BattleDisplayState[0x83]);
             if (*(u8 *)(g_BattleDisplayState + i + 0xCC) != 0) {
                 func_800728B8((u8 *)(g_BattleGraphicsWork + off3),
@@ -179,7 +179,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
    rematerialises the link address with lui/lw. Every access shape tried
    (array subscript, integer cast of the symbol address, block-scoped base
    local) produces the biv. */
-void func_800742A0(void) {
+void BattleRenderSlotStatDigits(void) {
     s32 flagOfs;
     s32 i;
     s32 offset;
@@ -191,7 +191,7 @@ void func_800742A0(void) {
             g_BattleDisplayState->statSpriteCount[i] = 0;
             g_BattleDisplayState->valueSpriteCount[i] = 0;
             flagOfs = i * 8; // also what keeps retail's sll in the 0x7F test's delay slot
-            if (D_800C3EB6[offset] != 0x7F) {
+            if (g_BattleSlotActorIds[offset] != 0x7F) {
                 BattleRenderActorValueDigits(i);
                 value = func_80072F38(i, g_BattleSlotFlags[flagOfs]);
                 if (g_BattleSlotFlags[flagOfs] != 0) {
@@ -356,7 +356,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80075938);
 void BattleDrawFrameScreenMode1(void) {
     if (g_BattleFrameDrawSuppressed == 0) {
         func_8008FAD8();
-        func_800742A0();
+        BattleRenderSlotStatDigits();
         func_80075938();
         func_80073538();
         func_80073A58();

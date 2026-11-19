@@ -670,7 +670,7 @@ void BattleFreeModelListEntryBuffers(Misc23Block *pBlock) {
     }
 }
 
-void func_800A8B0C(void) {
+void BattleInitializeStage(void) {
     u8 *pBuf;
     s32 i;
     s32 j;
@@ -725,7 +725,7 @@ typedef struct {
 extern Misc23ArchiveEntry *g_BattleArchiveEntry;
 extern int ArchiveDecodeAlignedSize(unsigned int);
 extern void func_80029AFC(Misc23ArchiveEntry *, s32, s32);
-extern u8 D_800CCD88[];
+extern u8 g_BattleSlotTextIndex[];
 extern u8 D_800CCDE8[];
 extern u8 D_800C3509[];
 
@@ -772,7 +772,7 @@ void func_800A9540(s32 arg0) {
     ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
     ArchiveSetIndex(0x28, 1);
     HeapChangeCurrentUser(4, NULL);
-    index = D_800CCD88[arg0 * 0x170] * 2;
+    index = g_BattleSlotTextIndex[arg0 * 0x170] * 2;
     count = D_800CCDE8[arg0 * 0x170];
     pTable = D_800C3509;
     if (D_800C3509[index] < count) {

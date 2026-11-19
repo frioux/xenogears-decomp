@@ -292,7 +292,7 @@ extern void func_801E8588(void);
 extern void func_801E91E8(void);
 extern void func_801E9594(void);
 extern void func_801E893C(void);
-extern void func_800A8B0C(void);
+extern void BattleInitializeStage(void);
 extern u8 func_801E7210(void *pData, void *pFileBuffer, void *pStreamBuffer, void *pTileSource,
                         void *pTileSourceTail, void *pColorSources);
 extern void BattleSetColorSources(void *pColorSources, void *pDestination);
@@ -347,7 +347,7 @@ void func_800B8098(s32 stage) {
         break;
     }
     ArchiveCdDataSync(0);
-    func_800A8B0C();
+    BattleInitializeStage();
     colorFlag = func_801E7210(&g_SystemStreamedFileData, D_80059520, g_SystemStreamedFileBuffer, D_800CCB94,
                               D_800CCB94 + 0x20, D_800C4A39);
     pBase = (u8 *)g_BattleStateWork;

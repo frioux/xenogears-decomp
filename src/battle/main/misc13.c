@@ -96,7 +96,7 @@ extern u16 g_BattleCommandRows[];
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattlePrimStartIndex[];
 extern u8 *g_BattleSpriteColumnWork;
-extern u8 D_800C33B0[];
+extern u8 g_BattleSlotSpriteColumnIds[];
 extern void BattleSetPrimGrey80BlendAdd(u8 *);
 extern void BattleSetPrimGrey80BlendSub(u8 *);
 extern s32 GetStringEntryFromBank(s32, s32);
@@ -650,12 +650,12 @@ u8 BattleIsCharSlot18InUse(u8 arg0) {
 // Draws the two sprite-column halves of the slot display: two package draws per half
 // followed by the blend pass over the prims each one appended. pPrimStart keeps the
 // prim counter's address in a register across the middle draw, as retail does.
-void func_8008860C(void) {
+void BattleDrawSlotSpriteColumns(void) {
     s32 i;
     u8 *pPrimStart;
 
     for (i = 0; i < 2; i++) {
-        g_BattleSpriteColumnWork[0x5D74] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D74] * 0x50 + (0x1720 + (s32)g_BattleSpriteColumnWork)), 0xA0, 0x64);
+        g_BattleSpriteColumnWork[0x5D74] += BattleDrawSpritePackage(g_BattleSlotSpriteColumnIds[i], (s32)(g_BattleSpriteColumnWork[0x5D74] * 0x50 + (0x1720 + (s32)g_BattleSpriteColumnWork)), 0xA0, 0x64);
     }
     pPrimStart = g_BattlePrimStartIndex;
     g_BattleSpriteColumnWork[0x5D83] = *pPrimStart;
@@ -668,7 +668,7 @@ void func_8008860C(void) {
         BattleSetPrimGrey80BlendAdd((u8 *)((i * 2 + g_BattleSpriteColumnWork[0x5D92]) * 0x28 + (s32)g_BattleSpriteColumnWork));
     }
     for (i = 2; i < 4; i++) {
-        g_BattleSpriteColumnWork[0x5D7E] += BattleDrawSpritePackage(D_800C33B0[i], (s32)(g_BattleSpriteColumnWork[0x5D7E] * 0x50 + (0x2530 + (s32)g_BattleSpriteColumnWork)), 0xA0, 0x64);
+        g_BattleSpriteColumnWork[0x5D7E] += BattleDrawSpritePackage(g_BattleSlotSpriteColumnIds[i], (s32)(g_BattleSpriteColumnWork[0x5D7E] * 0x50 + (0x2530 + (s32)g_BattleSpriteColumnWork)), 0xA0, 0x64);
     }
     g_BattleSpriteColumnWork[0x5D8D] = g_BattlePrimStartIndex[0];
     for (i = 0; i < g_BattleSpriteColumnWork[0x5D7E]; i++) {

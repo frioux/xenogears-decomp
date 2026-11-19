@@ -67,7 +67,7 @@ extern u8 *GetStringEntry(u8 *, s32);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern u8 *D_800C3DE8;
-extern u8 D_800CCD88[];
+extern u8 g_BattleSlotTextIndex[];
 extern u8 g_BattleTargetSlotIndex;
 extern u8 g_BattleAmountThirdFlag;
 extern s32 func_80096AB8(void);
@@ -273,7 +273,7 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
     }
 }
-void func_80091EC4(u8 arg0) {
+void BattleDrawSlotSpriteQuads(u8 arg0) {
     u32 zero;
 
     zero = 0;
@@ -399,7 +399,7 @@ void func_8009382C(u8 arg0, u8 arg1) {
     s32 len1;
     s32 len2;
 
-    index = (D_800CCD88[arg0 * 0x170] * 4 + arg1) * 2;
+    index = (g_BattleSlotTextIndex[arg0 * 0x170] * 4 + arg1) * 2;
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
     bzero(pBuf, 0x618);
     len1 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index), pBuf, 0x39, 0);

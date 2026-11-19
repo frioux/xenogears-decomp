@@ -105,7 +105,7 @@ extern void BattleClearPrimFlagsThreeSlots(u8);
 extern void BattleSetPrimFlagsThreeSlots(u8);
 extern void BattlePlaySoundIfEnabled(u8);
 extern void BattleSetPolyFT4Rect(POLY_FT4 *, s16, s16, u8, u8, s16, s16);
-extern u8 D_800CCD88[];
+extern u8 g_BattleSlotTextIndex[];
 extern u8 g_BattleMenuEvent;
 extern void BattleFreePacketPrimitives(void);
 extern void BattleClearFlagC6(void);
@@ -207,7 +207,7 @@ u8 func_8008CFB8(u8 arg0) {
     for (i = 0; i < (limit = 4); i++) {
         if ((u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, i) != 0 &&
             (g_BattleSlotStatusRows[arg0].flags & statusMasks[i]) == 0) {
-            codes[i] = D_800CCD88[arg0 * 0x170] * 4 + i;
+            codes[i] = g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i;
             damage[i] = *(u16 *)(g_BattleActionRows + arg0 * 0x690 + (0x25 + i) * 0x28 + 0x24);
         }
     }

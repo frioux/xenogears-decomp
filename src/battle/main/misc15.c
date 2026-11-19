@@ -379,7 +379,7 @@ extern void func_80091064(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
 extern void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2);
 extern void BattleBuildSpriteColumn8(s32 arg0);
-extern void func_80091EC4(s32 arg0);
+extern void BattleDrawSlotSpriteQuads(s32 arg0);
 extern void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B478);
@@ -437,7 +437,7 @@ u8 func_8008B478(u8 arg0) {
         }
         if (g_BattleCursorScrollY != prevY) {
             BattleBuildSpriteColumn8(g_BattleCursorScrollY);
-            func_80091EC4(g_BattleCursorScrollY);
+            BattleDrawSlotSpriteQuads(g_BattleCursorScrollY);
             prevY = g_BattleCursorScrollY;
         }
         iv = i;
