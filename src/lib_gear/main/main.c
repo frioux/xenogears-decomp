@@ -518,14 +518,17 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 // `pRoot = pModel->pSkeleton;` for the list/colour phases and `pSkeleton` for phase 1
 // and the loop head - and the separate `pMeshLoaded` copy is not needed (one `pMesh`
 // local). Measured on its own: the split alone 98.42/3360, the mesh-copy drop alone
-// 97.59/3372, both 98.79/3360. The prologue's saved-register SET is then retail's
-// exactly and 247 of the shape rows close.
+// 97.59/3372, both 98.79/3360. The entry block's reload of pSkeleton disappears and
+// the prologue's saved-register SET becomes retail's ten.
 // WHAT IS LEFT, all measured from this body:
-//  - the saved-register NUMBERING: the same 8 values, different slots (this body
-//    s1=pSkeleton, s2=pViewMatrix, s3=pMesh, s5=numChildren, s6=pModel, s7=pScratch,
-//    fp=viewScratch; retail s1=pViewMatrix, s2=pSkeleton, s3=numChildren, s5=pModel,
-//    s6=viewScratch, s7=pScratch, fp=pMesh), visible only as the prologue's two
-//    swapped save/restore pairs. Every other row is a consequence or a branch offset.
+//  - TWO saved registers are swapped: s0=localT, s3=numChildren, s5=pModel,
+//    s6=viewScratch(0x1F800020), s7=pScratch(0x1F800000) and fp=pMesh are retail's,
+//    but pSkeleton takes s1 where retail has pViewMatrix there and pViewMatrix takes
+//    s2 (retail's pSkeleton). gcc ranks pSkeleton's 4 refs above pViewMatrix's 2, so
+//    it gets the lower number; the visible rows are the prologue's two swapped
+//    save/restore pairs. Measured dead: `pJoint = pRoot + 1` (98.67/3364, takes the
+//    loop head off pSkeleton), `numChildren = pModel->pSkeleton->numChildren`
+//    (neutral), a live copy `pView = pViewMatrix` for the MulMatrix0 (98.02).
 //  - 4 instructions SHORT (3360 vs retail 3376), all of them in the OT tail: retail
 //    homes `otz` in memory at 0x48(sp) (depthBuf[0]'s slot) - `sw a0,72(sp)` after the
 //    shift, `sw v0,72(sp)` for the clamp, `lw v1,72(sp)` for the /8 - which is why its
