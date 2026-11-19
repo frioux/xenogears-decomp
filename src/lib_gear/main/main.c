@@ -598,6 +598,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     POLY_FT4* pPoly;
     SVECTOR svec;
     VECTOR vec;
+    s32 quadIndex;
     VECTOR trans;
     s32 depthBuf[2]; // [0] shallowest corner depth, [1] the corner just projected
     VECTOR proj;
@@ -852,7 +853,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                quadSlot = (pEntry->slot + pEntry->age) & 7;
+                quadIndex = (pEntry->slot + pEntry->age) & 7;
+        quadSlot = quadIndex;
                 pEntry->pVertex->x0 = pEntry->screenA[2 * quadSlot];
                 pEntry->pVertex->y0 = pEntry->screenA[2 * quadSlot + 1];
                 pEntry->pVertex->x2 = pEntry->screenB[2 * quadSlot];

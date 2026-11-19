@@ -20,7 +20,7 @@ sw	a3,112(sp)
 sw	t2,136(sp)
 lbu	v0,52(s5)
 nop
-beqz	v0,<func_801DCEC8+0xd00>
+beqz	v0,<func_801DCEC8+0xcfc>
 lui	s7,0x1f80
 lui	a2,0x1f80
 lw	t2,4(s5)
@@ -368,7 +368,7 @@ bnez	v0,<func_801DCEC8+0x470>
 addiu	s2,s2,124
 lbu	v0,269(s5)
 lw	s6,276(s5)
-blez	v0,<func_801DCEC8+0x7f4>
+blez	v0,<func_801DCEC8+0x7f0>
 move	s4,zero
 addiu	s8,sp,80
 addiu	s3,s6,10
@@ -525,16 +525,15 @@ addiu	a1,sp,96
 jal	
 R_MIPS_26	func_801E22F8
 sw	v0,24(sp)
-addiu	s4,s4,1
 addiu	s3,s3,36
 lbu	v0,269(s5)
-nop
+addiu	s4,s4,1
 slt	v0,s4,v0
 bnez	v0,<func_801DCEC8+0x5a0>
 addiu	s6,s6,36
 lbu	v0,270(s5)
 lw	s0,280(s5)
-blez	v0,<func_801DCEC8+0x828>
+blez	v0,<func_801DCEC8+0x824>
 move	s4,zero
 lw	a1,240(sp)
 jal	
@@ -544,22 +543,22 @@ addiu	s4,s4,1
 lbu	v0,270(s5)
 nop
 slt	v0,s4,v0
-bnez	v0,<func_801DCEC8+0x804>
+bnez	v0,<func_801DCEC8+0x800>
 addiu	s0,s0,48
 lbu	v0,268(s5)
 lw	s2,272(s5)
-blez	v0,<func_801DCEC8+0xd00>
+blez	v0,<func_801DCEC8+0xcfc>
 move	s4,zero
 addiu	s1,s2,8
 lh	v0,0(s2)
 nop
-bltz	v0,<func_801DCEC8+0xce4>
+bltz	v0,<func_801DCEC8+0xce0>
 nop
 lhu	v0,84(s1)
 lbu	v1,-6(s1)
 addiu	v0,v0,-1
 andi	v0,v0,0x7
-bnez	v1,<func_801DCEC8+0xa9c>
+bnez	v1,<func_801DCEC8+0xa98>
 sh	v0,84(s1)
 move	a2,s7
 lw	a0,136(sp)
@@ -606,16 +605,16 @@ addiu	v0,v0,1
 sh	v0,86(s1)
 sll	v0,v0,0x10
 sra	v1,v0,0x10
-beqz	v1,<func_801DCEC8+0xcec>
+beqz	v1,<func_801DCEC8+0xce8>
 nop
 lh	v0,88(s1)
 nop
 slt	v0,v0,v1
-bnez	v0,<func_801DCEC8+0x940>
+bnez	v0,<func_801DCEC8+0x93c>
 li	t2,0x1
 lw	v0,0(s1)
 nop
-bnez	v0,<func_801DCEC8+0xa2c>
+bnez	v0,<func_801DCEC8+0xa28>
 nop
 lw	a0,-4(s1)
 lbu	a1,-5(s1)
@@ -703,7 +702,7 @@ lw	v1,0(s1)
 sll	v0,v0,0x2
 addu	v0,s2,v0
 lhu	v0,62(v0)
-j <func_801DCEC8+0xce4>
+j <func_801DCEC8+0xce0>
 R_MIPS_26	.text
 sh	v0,26(v1)
 move	a2,s7
@@ -753,16 +752,16 @@ addiu	v0,v0,1
 sh	v0,86(s1)
 sll	v0,v0,0x10
 sra	v1,v0,0x10
-beqz	v1,<func_801DCEC8+0xcec>
+beqz	v1,<func_801DCEC8+0xce8>
 nop
 lh	v0,88(s1)
 nop
 slt	v0,v0,v1
-bnez	v0,<func_801DCEC8+0xb80>
+bnez	v0,<func_801DCEC8+0xb7c>
 li	s0,0x1
 lw	v0,0(s1)
 nop
-bnez	v0,<func_801DCEC8+0xc84>
+bnez	v0,<func_801DCEC8+0xc80>
 nop
 lw	a0,-4(s1)
 lbu	a1,-5(s1)
@@ -859,7 +858,7 @@ addiu	s2,s2,112
 lbu	v0,268(s5)
 addiu	s4,s4,1
 slt	v0,s4,v0
-bnez	v0,<func_801DCEC8+0x83c>
+bnez	v0,<func_801DCEC8+0x838>
 nop
 lw	ra,220(sp)
 lw	s8,216(sp)
