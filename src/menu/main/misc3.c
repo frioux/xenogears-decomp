@@ -805,14 +805,14 @@ extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 // Case 0 frees the panel, 1 builds it, 2 stops its scroll.
 void func_801CAE08(u_char mode) {
     switch (mode) {
-    case 0:
+    case MENU_DATA_FREE:
         if (g_Menu->pManager->cellGridScrollState != 0) {
             g_Menu->pManager->cellGridScrollState = 0;
             MenuRenderFrame();
             HeapFree(g_Menu->pCellGrid);
         }
         break;
-    case 1:
+    case MENU_DATA_INITIALIZE:
         g_Menu->pCellGrid = HeapAlloc(sizeof(MenuCellGridPanel), 0);
         bzero(g_Menu->pCellGrid, sizeof(MenuCellGridPanel));
         SetPolyF4((POLY_F4*)(g_Menu->renderContext * sizeof(POLY_F4) + (s32)g_Menu->pCellGrid));
@@ -830,7 +830,7 @@ void func_801CAE08(u_char mode) {
         SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0xE1);
         SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0x8F);
         break;
-    case 2:
+    case 2: // panel built, stop its scroll
         if (g_Menu->pManager->cellGridScrollState == 0) {
             break;
         }
