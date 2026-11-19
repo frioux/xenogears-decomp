@@ -44,7 +44,8 @@ typedef struct {
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
-    /* 0x60 */ u8 unk60[0x1C];
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ u8 pad64[0x18];
     /* 0x7C */ s32 unk7C;
 } WorldMapSlot; // Size: 0x80
 
@@ -151,6 +152,10 @@ extern s32 g_WorldMapPrimPacketIndex;
 extern u8 *D_8009D158[];
 extern u8 *D_8009D15C;
 extern u16 *g_WorldMapFadeTable;
+extern s16 g_WorldMapPathFrame;
+extern u16 D_8009BD42;
+extern u16 D_8009BD4A;
+extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void SoundRemoveSedsEntry(void *p);
 extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
@@ -468,6 +473,90 @@ s32 func_800813E8(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
+// Best: 78.69%, 580 bytes against retail's 636. The clamp/easing chain is byte-identical:
+// unk50 -0x10000 down to 0x630000 with g_WorldMapCameraHeight eased by diff >> 5, unk54
+// += 0x1000 clamped to 0x10000 and eased into unk58 by diff >> 4 driving
+// g_WorldMapCameraRot, unk5C += 0x10000 clamped to 0x4B0000 and eased into unk60 the same
+// way, plus the func_80096F18 call and the rand()/unk7C jitter. Every residue is one
+// class: THIS gcc forwards a constant store to a later load where retail reloads.
+// 1. retail stores -0x80 to g_WorldMapCameraRot and -0x200 to g_WorldMapViewRotationY and
+//    then READS BOTH BACK to build unk58/unk54 and unk60/unk5C (retail's cameraRot address
+//    is CSE'd into $a0, ViewRotationY's is rematerialised, so the original kept a pointer
+//    to the rot); here gcc folds both to 0xFFF80000/0xFFE00000. A `s16 *pRot` local did not
+//    stop it, and a volatile read reloads but changes the extension (lhu + sll 16/sra 4
+//    instead of lh + sll 12).
+// 2. the same in the tail: retail reloads the scratchpad halfword for `D_8009BD4A += ...`
+//    (lhu 0xA2(s1) after the sh) where this gcc reuses the register.
+// 3. the command switch: retail has the two-case decision tree (beq 2 / slti 3 / bne 1)
+//    with an empty case 2; this gcc merges a bodyless case into the default and emits one
+//    bne. A narrow s16 switch index did not bring the tree back.
+// Preset screen not run; the body's structure is settled.
+/*
+s32 func_80081470(s32 index) {
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    s32 diff;
+    s16 command;
+    s16 shake;
+
+    command = pSlot->command;
+    switch (command) {
+    case 1:
+        pSlot->state = 1;
+        pSlot->command = 0;
+        g_WorldMapCameraRot = -0x80;
+        g_WorldMapViewRotationY = -0x200;
+        g_WorldMapViewRotationZ = 0;
+        pSlot->unk50 = 0x980000;
+        pSlot->unk58 = g_WorldMapCameraRot << 12;
+        pSlot->unk54 = g_WorldMapCameraRot << 12;
+        g_WorldMapCameraHeight = 0x980000;
+        pSlot->unk60 = g_WorldMapViewRotationY << 12;
+        pSlot->unk5C = g_WorldMapViewRotationY << 12;
+        break;
+    case 2:
+        break;
+    default:
+        break;
+    }
+    if (g_WorldMapRotationMatrixValid == 0) {
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+    }
+    if (pSlot->state == 1) {
+        pSlot->unk50 -= 0x10000;
+        if (pSlot->unk50 < 0x630000) {
+            pSlot->unk50 = 0x630000;
+        }
+        diff = pSlot->unk50 - g_WorldMapCameraHeight;
+        if (diff != 0) {
+            g_WorldMapCameraHeight += diff >> 5;
+        }
+        pSlot->unk54 += 0x1000;
+        if (pSlot->unk54 > 0x10000) {
+            pSlot->unk54 = 0x10000;
+        }
+        diff = pSlot->unk54 - pSlot->unk58;
+        if (diff != 0) {
+            pSlot->unk58 += diff >> 4;
+            g_WorldMapCameraRot = pSlot->unk58 >> 12;
+        }
+        pSlot->unk5C += 0x10000;
+        if (pSlot->unk5C > 0x4B0000) {
+            pSlot->unk5C = 0x4B0000;
+        }
+        diff = pSlot->unk5C - pSlot->unk60;
+        if (diff != 0) {
+            pSlot->unk60 += diff >> 5;
+            g_WorldMapViewRotationY = pSlot->unk60 >> 12;
+        }
+    }
+    shake = rand() % (pSlot->unk7C >> 12) - (pSlot->unk7C >> 13);
+    *(s16 *)0x1F8000A2 = shake;
+    D_8009BD42 = D_8009BD42 + shake;
+    D_8009BD4A = D_8009BD4A + *(s16 *)0x1F8000A2;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
 void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr) {
     s32 i;
