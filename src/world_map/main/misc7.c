@@ -149,7 +149,7 @@ extern void HeapFree(void *pMem);
 extern void SoundStopAllElements(void);
 extern void WorldMapFreeSpritePrimBuffers(void);
 extern s32 g_WorldMapPrimPacketIndex;
-extern u8 *D_8009D158[];
+extern u8 *g_WorldMapFadeQuadBuffers[];
 extern u8 *D_8009D15C;
 extern u16 *g_WorldMapFadeTable;
 extern s16 g_WorldMapPathFrame;
@@ -283,7 +283,7 @@ typedef struct {
 
 #define WORLD_MAP_SCALE_VECTORS ((WorldMapScaleVectors *)0x1F800000)
 
-s32 func_80080AC4(s32 index) {
+s32 WorldMapUpdateFadeGroups(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
     WorldMapEntry *pNextGroup;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
@@ -708,10 +708,10 @@ s32 func_80081C3C(void) {
     u8 *p;
     s32 i;
 
-    D_8009D158[0] = HeapAlloc(0x1E00, 0);
+    g_WorldMapFadeQuadBuffers[0] = HeapAlloc(0x1E00, 0);
     D_8009D15C = HeapAlloc(0x1E00, 0);
     g_WorldMapFadeTable = HeapAlloc(0x180, 0);
-    p = D_8009D158[0];
+    p = g_WorldMapFadeQuadBuffers[0];
     for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
         p[7] = 0x2C;
         p[3] = 9;
@@ -722,7 +722,7 @@ s32 func_80081C3C(void) {
         *(u16 *)(p + 0x16) = GetTPage(2, 0, 0x280, 0x100);
         p += 0x28;
     }
-    pSrc = (Quad *)D_8009D158[0];
+    pSrc = (Quad *)g_WorldMapFadeQuadBuffers[0];
     pDst = (Quad *)D_8009D15C;
     for (i = 0; i < 0x1E0; i++) {
         *pDst++ = *pSrc++;
@@ -735,7 +735,7 @@ s32 func_80081C3C(void) {
 }
 */
 // Best: 87.09%. Allocation, both loops' shapes and GetTPage are right; the
-// differences are (1) retail keeps &D_8009D158 in $s0 across the three
+// differences are (1) retail keeps &g_WorldMapFadeQuadBuffers in $s0 across the three
 // HeapAlloc calls (store and later load both go through it), gcc rematerialises
 // lui/$at for each; (2) retail materialises 9 into $s4 before 0x2C into $s3.
 // Preset screen: cdk 71.46, gcc-2.6.0 87.09.
@@ -753,7 +753,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
 // 4-minute permuter run (2245 iterations) found nothing.
 /*
 s32 func_80081D80(void) {
-    WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)D_8009D158[g_WorldMapPrimPacketIndex];
+    WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)g_WorldMapFadeQuadBuffers[g_WorldMapPrimPacketIndex];
     u16 *pFade = g_WorldMapFadeTable;
     DR_MOVE *pMove;
     s32 delta;
