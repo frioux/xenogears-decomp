@@ -34,19 +34,29 @@ typedef struct {
 // WorldMapPos is 12.4 fixed point, so a tile is WORLD_MAP_TILE_SIZE << 12 of those
 // (the 0x800000 the wrap functions add, and the 2047 WorldMapGetTileEntry masks to).
 #define WORLD_MAP_TILE_SIZE 2048
-// A tile cell is four zones of 9x9 sub-cells, each sub-cell a 4-byte record.
+// A tile cell is four zones of 9x9 sub-cells, each sub-cell a 4-byte record; the zone
+// grid is WORLD_MAP_TILE_ZONE_WIDTH wide, which is the row stride WorldMapGetTileEntry
+// multiplies the sub-cell row by.
 #define WORLD_MAP_TILE_ZONE_COUNT 4
-#define WORLD_MAP_TILE_ZONE_CELLS 81
+#define WORLD_MAP_TILE_ZONE_WIDTH 9
+#define WORLD_MAP_TILE_ZONE_CELLS (WORLD_MAP_TILE_ZONE_WIDTH * WORLD_MAP_TILE_ZONE_WIDTH)
 #define WORLD_MAP_TILE_CELL_RECORD_SIZE 4
+// A tile is WORLD_MAP_TILE_SUBCELLS x WORLD_MAP_TILE_SUBCELLS sub-cells, which is the
+// row length of WorldMapTileCell.values and the reason WorldMapGetTileValue packs the
+// two sub-cell indices into one index as 4-bit fields.
+#define WORLD_MAP_TILE_SUBCELLS 16
 // The shape field of a tile cell value: the low nibble WorldMapGetTileShape
 // returns, which WorldMapGetTileHalfIndex indexes the per-shape tables with.
 #define WORLD_MAP_TILE_SHAPE_MASK 0xF
+// WorldMapWrapDelta/Scaled treat a position delta larger than eight tiles as a wrap and
+// move it by the map's span; the same eight tiles in both position forms.
+#define WORLD_MAP_WRAP_DELTA_TILES 8
 
 // World map tile cell: the zone grids (0x510 bytes, where WorldMapGetTileValue
-// reads its values at) followed by the 16x16 sub-cell values.
+// reads its values at) followed by the sub-cell values.
 typedef struct {
     /* 0x000 */ u8 zones[WORLD_MAP_TILE_ZONE_COUNT * WORLD_MAP_TILE_ZONE_CELLS * WORLD_MAP_TILE_CELL_RECORD_SIZE];
-    /* 0x510 */ s16 values[16 * 16];
+    /* 0x510 */ s16 values[WORLD_MAP_TILE_SUBCELLS * WORLD_MAP_TILE_SUBCELLS];
 } WorldMapTileCell; // Size: 0x710
 
 // 12.4 fixed point world map position. y is the plane height read back by
@@ -57,20 +67,31 @@ typedef struct {
     /* 0x8 */ s32 z;
 } WorldMapPos; // Size: 0xC
 
-// One slot of the world map menu list; stride 0x80, only 0x20 and 0x50 are read.
+// WorldMapMenuSlot.state values, followed by WorldMapUpdateAreaNameString: the slot's
+// string holds nothing yet, or it holds the current area's name.
+#define WORLD_MAP_SLOT_STATE_EMPTY 0
+#define WORLD_MAP_SLOT_STATE_NAMED 1
+
+// One slot of the world map slot table g_WorldMapSlots, as the area-name string work
+// reads it. state is 0 while the slot's string holds nothing and 1 once it holds the
+// current area's name, which is areaId; WorldMapUpdateAreaNameString follows both.
 typedef struct {
     /* 0x00 */ u8 unk0[0x20];
-    /* 0x20 */ s16 unk20;
+    /* 0x20 */ s16 state;
     /* 0x22 */ u8 unk22[0x2E];
-    /* 0x50 */ s32 unk50;
+    /* 0x50 */ s32 areaId;
+    /* 0x54 */ u8 pad54[0x2C];
 } WorldMapMenuSlot; // Size: 0x80
 
-// One 4-byte record of a tile's 9x9 zone grid, which WorldMapGetTileEntry points at.
-// height is that zone cell's terrain height; bit 7 of flags marks the cell as the
-// "up" corner of its quad (the height the plane normal is measured from).
+// Bit 7 of a zone cell's flags byte: the cell is the "up" corner of its quad, so its
+// height is the one the plane normal and the interpolation are measured from.
+#define WORLD_MAP_ZONE_CELL_UP_CORNER 0x80
+
+// One 4-byte record of a tile's zone grid, which WorldMapGetTileEntry points at.
+// height is that zone cell's terrain height.
 typedef struct {
     /* 0x0 */ s8 height;
-    /* 0x1 */ u8 flags;
+    /* 0x1 */ u8 flags; // WORLD_MAP_ZONE_CELL_UP_CORNER marks the quad's up corner
     /* 0x2 */ u8 unk2;
     /* 0x3 */ u8 unk3;
 } WorldMapTileZoneCell; // Size: 0x4
@@ -92,6 +113,13 @@ extern long SquareRoot0(long a);
 extern long ratan2(long y, long x);
 extern int rcos(int a);
 extern int rsin(int a);
+
+// The world map frame render context g_WorldMapRenderContext points at: partial view of the
+// two ordering table heads it fills each frame (the same view misc4.c and misc7.c declare).
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderContext; // partial view
 
 extern u8 g_WorldMapAreaNameString[];
 extern u8 g_WorldMapMode4AreaNameString[];
@@ -121,7 +149,7 @@ extern void SystemStringPushBuffer(void* pString, void* pData);
 extern void func_80034888(void* pString, u32 unk, u32 arg);
 extern u8* GetStringEntry(u8* pData, s32 index);
 extern u8* g_WorldMapSlots;
-extern u32* g_WorldMapRenderContext;
+extern WorldMapRenderContext* g_WorldMapRenderContext;
 extern u8* g_WorldMapStringTable;
 extern s32 g_WorldMapPrimPacketIndex;
 extern s16 g_WorldMapMode4AreaId;
@@ -170,33 +198,33 @@ s32 WorldMapInitAreaNameString(void) {
 s32 WorldMapUpdateAreaNameString(s32 index) {
     WorldMapMenuSlot* pSlot;
 
-    pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * 0x80);
-    switch (pSlot->unk20) {
-    case 0:
+    pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * sizeof(WorldMapMenuSlot));
+    switch (pSlot->state) {
+    case WORLD_MAP_SLOT_STATE_EMPTY:
         if (g_WorldMapAreaId != WORLD_MAP_AREA_NONE) {
             SystemStringResetIfIdle(g_WorldMapAreaNameString);
             SystemStringPushBuffer(g_WorldMapAreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
-            pSlot->unk20 = 1;
-            pSlot->unk50 = g_WorldMapAreaId;
+            pSlot->state = WORLD_MAP_SLOT_STATE_NAMED;
+            pSlot->areaId = g_WorldMapAreaId;
         }
         break;
-    case 1:
+    case WORLD_MAP_SLOT_STATE_NAMED:
         if (g_WorldMapAreaId == WORLD_MAP_AREA_NONE) {
             SystemStringResetIfIdle(g_WorldMapAreaNameString);
-            pSlot->unk20 = 0;
-        } else if (g_WorldMapAreaId != pSlot->unk50) {
+            pSlot->state = WORLD_MAP_SLOT_STATE_EMPTY;
+        } else if (g_WorldMapAreaId != pSlot->areaId) {
             SystemStringResetIfIdle(g_WorldMapAreaNameString);
             SystemStringPushBuffer(g_WorldMapAreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapAreaId));
-            pSlot->unk50 = g_WorldMapAreaId;
+            pSlot->areaId = g_WorldMapAreaId;
         }
         break;
     }
-    func_80034888(g_WorldMapAreaNameString, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
+    func_80034888(g_WorldMapAreaNameString, (u32)g_WorldMapRenderContext->pOt[0], (u32)g_WorldMapPrimPacketIndex);
     return 1;
 }
 
 void WorldMapFreeAreaNameString(void) {
-    SystemStringFree(&g_WorldMapAreaNameString[0]);
+    SystemStringFree(g_WorldMapAreaNameString);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
@@ -253,39 +281,39 @@ s32 func_80092FD8(s32 index) {
     WorldMapMenuSlot* pSlot;
     WorldMapPrim* pPrim;
 
-    pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * 0x80);
-    switch (pSlot->unk20) {
-    case 0:
+    pSlot = (WorldMapMenuSlot*)(g_WorldMapSlots + index * sizeof(WorldMapMenuSlot));
+    switch (pSlot->state) {
+    case WORLD_MAP_SLOT_STATE_EMPTY:
         if (g_WorldMapMode4AreaId != -1) {
             SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
             SystemStringPushBuffer(g_WorldMapMode4AreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapMode4AreaId));
-            pSlot->unk20 = 1;
-            pSlot->unk50 = g_WorldMapMode4AreaId;
+            pSlot->state = WORLD_MAP_SLOT_STATE_NAMED;
+            pSlot->areaId = g_WorldMapMode4AreaId;
         }
         break;
-    case 1:
+    case WORLD_MAP_SLOT_STATE_NAMED:
         if (g_WorldMapMode4AreaId == -1) {
             SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
-            pSlot->unk20 = 0;
-        } else if (g_WorldMapMode4AreaId != pSlot->unk50) {
+            pSlot->state = WORLD_MAP_SLOT_STATE_EMPTY;
+        } else if (g_WorldMapMode4AreaId != pSlot->areaId) {
             SystemStringResetIfIdle(g_WorldMapMode4AreaNameString);
             SystemStringPushBuffer(g_WorldMapMode4AreaNameString, GetStringEntry(g_WorldMapStringTable, g_WorldMapMode4AreaId));
-            pSlot->unk50 = g_WorldMapMode4AreaId;
+            pSlot->areaId = g_WorldMapMode4AreaId;
         }
         break;
     }
-    func_80034888(g_WorldMapMode4AreaNameString, g_WorldMapRenderContext[0x1C], (u32)g_WorldMapPrimPacketIndex);
-    if (pSlot->unk20 == 1) {
+    func_80034888(g_WorldMapMode4AreaNameString, g_WorldMapRenderContext->pOt[0], (u32)g_WorldMapPrimPacketIndex);
+    if (pSlot->state == 1) {
         pPrim = &D_8009D2B8[g_WorldMapPrimPacketIndex];
-        pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32*)g_WorldMapRenderContext[0x1C] & 0xFFFFFF);
-        *(u32*)g_WorldMapRenderContext[0x1C] = (*(u32*)g_WorldMapRenderContext[0x1C] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
+        pPrim->tag = (pPrim->tag & 0xFF000000) | (*(u32*)g_WorldMapRenderContext->pOt[0] & 0xFFFFFF);
+        *(u32*)g_WorldMapRenderContext->pOt[0] = (*(u32*)g_WorldMapRenderContext->pOt[0] & 0xFF000000) | ((u32)pPrim & 0xFFFFFF);
     }
     return 1;
 }
 */
 
 void WorldMapFreeMode4AreaNameString(void) {
-    SystemStringFree(&g_WorldMapMode4AreaNameString[0]);
+    SystemStringFree(g_WorldMapMode4AreaNameString);
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_800931D8);
@@ -364,27 +392,27 @@ void WorldMapWrapPositionScaled(WorldMapPos* p) {
 }
 
 void WorldMapWrapDelta(WorldMapPos* p) {
-    if (p->x < -0x4000000) {
+    if (p->x < -(WORLD_MAP_WRAP_DELTA_TILES * (WORLD_MAP_TILE_SIZE << 12))) {
         p->x += g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12);
-    } else if (p->x > 0x4000000) {
+    } else if (p->x > WORLD_MAP_WRAP_DELTA_TILES * (WORLD_MAP_TILE_SIZE << 12)) {
         p->x -= g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12);
     }
-    if (p->z < -0x4000000) {
+    if (p->z < -(WORLD_MAP_WRAP_DELTA_TILES * (WORLD_MAP_TILE_SIZE << 12))) {
         p->z += g_WorldMapTileRows * (WORLD_MAP_TILE_SIZE << 12);
-    } else if (p->z > 0x4000000) {
+    } else if (p->z > WORLD_MAP_WRAP_DELTA_TILES * (WORLD_MAP_TILE_SIZE << 12)) {
         p->z -= g_WorldMapTileRows * (WORLD_MAP_TILE_SIZE << 12);
     }
 }
 
 void WorldMapWrapDeltaScaled(WorldMapPos* p) {
-    if (p->x < -0x4000) {
+    if (p->x < -(WORLD_MAP_WRAP_DELTA_TILES * WORLD_MAP_TILE_SIZE)) {
         p->x += g_WorldMapTileColumns * WORLD_MAP_TILE_SIZE;
-    } else if (p->x > 0x4000) {
+    } else if (p->x > WORLD_MAP_WRAP_DELTA_TILES * WORLD_MAP_TILE_SIZE) {
         p->x -= g_WorldMapTileColumns * WORLD_MAP_TILE_SIZE;
     }
-    if (p->z < -0x4000) {
+    if (p->z < -(WORLD_MAP_WRAP_DELTA_TILES * WORLD_MAP_TILE_SIZE)) {
         p->z += g_WorldMapTileRows * WORLD_MAP_TILE_SIZE;
-    } else if (p->z > 0x4000) {
+    } else if (p->z > WORLD_MAP_WRAP_DELTA_TILES * WORLD_MAP_TILE_SIZE) {
         p->z -= g_WorldMapTileRows * WORLD_MAP_TILE_SIZE;
     }
 }
@@ -411,7 +439,7 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
         zone |= 2;
         z -= WORLD_MAP_TILE_SIZE / 2;
     }
-    sub = (z >> 4) / 8 * 9 + (x >> 4) / 8;
+    sub = (z >> 4) / 8 * WORLD_MAP_TILE_ZONE_WIDTH + (x >> 4) / 8;
     return g_WorldMapTileCellPointers[idx]->zones +
            zone * (WORLD_MAP_TILE_ZONE_CELLS * WORLD_MAP_TILE_CELL_RECORD_SIZE) + sub * WORLD_MAP_TILE_CELL_RECORD_SIZE;
 }
@@ -434,7 +462,7 @@ void WorldMapBuildTilePlaneNormal(WorldMapPos* pNormal, s32 x, s32 z) {
     z = (u16)(z / 8);
     // sum picks which of the two edge pairs of the quad the position is nearer;
     // it is written as a negated term so the compiler emits retail's negu+mult+addu.
-    if (pCell->flags & 0x80) {
+    if (pCell->flags & WORLD_MAP_ZONE_CELL_UP_CORNER) {
         sum = x * D_8009B254 + (-z) * D_8009B25C;
         if (sum < 0) {
             *(s32*)0x1F800000 = 0x10;
@@ -482,7 +510,7 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     pTile = WorldMapGetTileEntry(x, z);
     a.x = (u16)(x / 8);
     a.z = -(u16)(z / 8);
-    if (pTile[1] & 0x80) {
+    if (pTile[1] & WORLD_MAP_ZONE_CELL_UP_CORNER) {
         b.x = 0;
         b.z = 0;
         b.y = (s8)pTile[0] << 12;
@@ -620,7 +648,8 @@ s32 WorldMapGetTileValue(WorldMapPos* p) {
 
     idx = ((p->z >> 20) / 8) * g_WorldMapTileColumns + (p->x >> 20) / 8;
     pCell = g_WorldMapTileCellPointers[idx];
-    sub = (((p->z & 0x7FF000) >> 19) << 4) | ((p->x & 0x7FF000) >> 19);
+    sub = (((p->z & ((WORLD_MAP_TILE_SIZE - 1) << 12)) >> 19) << 4) |
+          ((p->x & ((WORLD_MAP_TILE_SIZE - 1) << 12)) >> 19);
     pValue = pCell->values;
     return pValue[sub];
 }
