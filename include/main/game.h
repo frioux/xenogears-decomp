@@ -20,6 +20,7 @@
 #define WORLD_MAP_AREA_NONE (-1)
 // an angle is a 4096-step turn counter; every sum of angles is wrapped back into it
 #define WORLD_MAP_ANGLE_MASK 0xFFF
+#define WORLD_MAP_TILE_SIZE 2048 // world-position units per tile (a tile is 2048 << 12 in the 12.4 form)
 #define GEAR_ID_NONE 0xFF
 
 #define MAX_ITEM_QUANTITY 99

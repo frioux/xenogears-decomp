@@ -27,9 +27,10 @@ typedef struct {
     /* 0x04 */ u8 unk4[0x24];
 } WorldMapPrim; // Size: 0x28
 
-// One tile spans WORLD_MAP_TILE_SIZE world-position units. WorldMapPos is 12.4
-// fixed point, so a tile is WORLD_MAP_TILE_SIZE << 12 of those (the 0x800000 the
-// wrap functions add, and the 2047 WorldMapGetTileEntry masks a position to).
+// One tile spans WORLD_MAP_TILE_SIZE world-position units; the same define lives in
+// include/main/game.h, which this unit does not include.
+// WorldMapPos is 12.4 fixed point, so a tile is WORLD_MAP_TILE_SIZE << 12 of those
+// (the 0x800000 the wrap functions add, and the 2047 WorldMapGetTileEntry masks to).
 #define WORLD_MAP_TILE_SIZE 2048
 // A tile cell is four zones of 9x9 sub-cells, each sub-cell a 4-byte record.
 #define WORLD_MAP_TILE_ZONE_COUNT 4
