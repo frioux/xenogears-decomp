@@ -10,29 +10,39 @@ extern void ArchiveCdDataSync(int mode);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", func_8006FDEC);
 
-// Best attempt (93.61%): every instruction matches except that gcc's scheduler hoists
-// the two 0x14-byte light copies above the `sh` to D_800AFB00 (10 instructions moved),
-// and the three trailing ambient reads need pointer increments here where the original
-// indexes 0/2/4 off a fixed base without them. Also learned: the three model lights sit
-// directly after g_Scene in .bss (asm/field/data/3FAFC.bss.s) and the camera vectors sit
-// before it, and the original reaches all of them as byte offsets off one base register
-// holding &g_Scene - `addiu $a1,$s1,-0x110`, `sw $v0,0x138($s1)` - so the C has to spell
-// them that way (plain &g_CameraEye gives a separate lui/addiu pair and cannot match).
-// Retried: the trailing ambient reads as `pData[0]`, `pData[1]`, `pData[2]` do give the
-// original's `lhu 0/2/4($s0)` with no increments, but gcc then hoists the third `lhu`
-// into the previous load-delay `nop` (into $v1) and the 0x14-byte copies still hoist above
-// the `sh` to D_800AFB00, so the indexed form scores no better (91.6-92.4%). The copies
-// are the real blocker: our compile batches 4 loads + 4 stores per copy with $t0 as a
-// fourth scratch where retail interleaves them right after the $at store.
+// Best attempt, 93.66% at 660 bytes against retail's 672 (three instructions
+// short). Structure and every call match; two sched2/allocator spots differ.
+//  1. The two 0x14-byte light copies (`pLights[1] = pLights[0]`) are hoisted ten
+//     instructions above the third light's `sh ... D_800AFB00`: retail's copy
+//     loads land in $v0/$v1/$a2/$a3 and so cannot move above the `sh $v0`, our
+//     compile gives them $v1/$a2/$a3/$t0 and they float up (retail's two
+//     load-delay `nop`s go with them). Making the copy source or destination
+//     volatile does not help (a volatile source turns the copy into two memcpy
+//     calls).
+//  2. The three trailing ambient reads: our compile hoists the third `lhu` into
+//     the second one's load-delay slot with a fresh $v1; retail reads all three
+//     into $v0 with `nop` after each. Keeping the `color` temp for all three is
+//     what gets the rest of the shape right (writing the shift straight into the
+//     globals loses an instruction: 89.37%).
+// Levers that DID land, and are in the parked body: give each light its own
+// pointer local (`pLight1 = &pLights[1]`) and use it for BOTH the `vx` store and
+// the func_80030A30 argument - that is what makes the store `sw $v0,332($s1)`
+// and the argument `addu` instead of a rematerialised `lui $at` + `sw
+// %lo(g_Scene+332)` (92.40 -> 93.66). Facts: the three 0x14-byte lights sit
+// directly after g_Scene at +0x138/+0x14C/+0x160 (g_WorldScale is g_Scene+0x134)
+// and the ambient colours at +0x174/+0x176/+0x178; the camera vectors retail
+// reaches as `addiu $a1,$s1,-0x110` are g_CameraEye/At/Up at g_Scene-0x110,
+// -0x100, -0xF0, and plain &g_CameraEye gives a separate lui/addiu pair that
+// cannot match, so the casts off &g_Scene stay.
 /*
 typedef struct {
-     s32 vx;
-     s32 vy;
-     s32 vz;
-     s16 r;
-     s16 g;
-     s16 b;
-     undefined16 unk12;
+    s32 vx;
+    s32 vy;
+    s32 vz;
+    s16 r;
+    s16 g;
+    s16 b;
+    s16 pad12;
 } FieldLight; // Size: 0x14
 
 extern VECTOR g_CameraEye;
@@ -61,9 +71,10 @@ extern s16 D_800AFB04;
 extern s16 D_800AFB06;
 extern s16 D_800AFB08;
 
-// Light data stuff
 void func_8006FDEC(s16* pData) {
     FieldLight* pLights;
+    FieldLight* pLight1;
+    FieldLight* pLight2;
     long flag;
     u_short color;
 
@@ -77,6 +88,8 @@ void func_8006FDEC(s16* pData) {
     MulMatrix2(&g_Scene.viewMatrix, &g_Scene.worldToScreenMatrix);
 
     pLights = (FieldLight*)((u8*)&g_Scene + 0x138);
+    pLight1 = &pLights[1];
+    pLight2 = &pLights[2];
     pLights[0].vx = *pData++;
     D_800AFACC = *pData++;
     D_800AFAD0 = *pData++;
@@ -87,7 +100,7 @@ void func_8006FDEC(s16* pData) {
     pData++;
     func_80030A30(0, &pLights[0]);
 
-    pLights[1].vx = *pData++;
+    pLight1->vx = *pData++;
     D_800AFAE0 = *pData++;
     D_800AFAE4 = *pData++;
     pData++;
@@ -95,27 +108,28 @@ void func_8006FDEC(s16* pData) {
     D_800AFAEA = (u_short)*pData++ << 3;
     D_800AFAEC = (u_short)*pData++ << 3;
     pData++;
-    func_80030A30(1, &pLights[1]);
+    func_80030A30(1, pLight1);
 
-    pLights[2].vx = *pData++;
+    pLight2->vx = *pData++;
     D_800AFAF4 = *pData++;
     D_800AFAF8 = *pData++;
     pData++;
     D_800AFAFC = (u_short)*pData++ << 3;
     D_800AFAFE = (u_short)*pData++ << 3;
-    D_800AFB00 = (u_short)*pData++ << 3;
+    *(volatile s16*)&D_800AFB00 = (u_short)*pData++ << 3;
     pData++;
 
     pLights[1] = pLights[0];
     pLights[2] = pLights[0];
-    func_80030A30(2, &pLights[2]);
+    func_80030A30(2, pLight2);
 
-    color = (u_short)*pData++ << 4;
+    color = (u_short)pData[0] << 4;
     D_800AFB04 = color;
-    color = (u_short)*pData++ << 4;
+    color = (u_short)pData[1] << 4;
     D_800AFB06 = color;
-    color = (u_short)*pData++ << 4;
+    color = (u_short)pData[2] << 4;
     D_800AFB08 = color;
+    pData += 3;
 
     SetRotMatrix(&g_Scene.viewMatrix);
     SetTransMatrix(&g_Scene.viewMatrix);
@@ -124,8 +138,10 @@ void func_8006FDEC(s16* pData) {
     SetRotMatrix(&g_Scene.worldToScreenMatrix);
     SetTransMatrix(&g_Scene.worldToScreenMatrix);
 }
-
 */
+
+
+
 
 void FieldLZSSDecompress(void* _unused, void* pCompressed, void* pDecompressed) {
     LZSSDecompress(pCompressed, pDecompressed);
@@ -133,33 +149,31 @@ void FieldLZSSDecompress(void* _unused, void* pCompressed, void* pDecompressed) 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldFree);
 
-// Best attempt, 97.34%: the body is structurally right (ResetGraph,
-// WorkListsFreeAllEntries, the two-pass render context loop, the actor loop with
-// status & 0x40 / 0x2000 and its four frees, the eight HeapFrees, the line scroll
-// loop and the sound list teardown) and only two spots differ.
-//  1. The render context loop counter: the original emits `addiu $v0,$s1,1` and
-//     then a `move $s1,$v0` copy after the g_FieldCurRenderContextIndex load;
-//     every spelling tried here (separate `i++`, `i += 1`, `++i` inside the
-//     argument, `context = ++i`, assigning through a temp) gives a single
-//     `addiu $s1,$s1,1` that gcc's scheduler then hoists into the earlier call's
-//     delay slot, so this is a combine/scheduling choice, not the expression.
-//  2. g_FieldActorModelSlotCount: the original materialises `&g_FieldActorModelSlotCount` into $s0 with
-//     lui+addiu once and reuses it across LibGearShutdown/HeapFree/
-//     FieldRenderSyncAndFlush, gcc rematerialises `lui` + `lw %lo` for the read
-//     and `lui at` + `sw %lo` for the store instead. An explicit pointer local,
-//     hoisting that local above FontFree, and plain symbol read/write all give
-//     the same rematerialised form.
-//  3. Tried `tools/scripts/try_flags.sh field/main/misc3 FieldFree --gp -G0`: 98.66%,
-//     so the -G0/gp lead is not what closes this one either; the g_FieldActorModelSlotCount remat and
-//     the missing `move` both survive it.
-// Facts recovered for whoever retries: the unit needs field/actor.h for
-// g_FieldActors/g_FieldNumActors/g_FieldCurScriptFile/g_FieldSpriteData; the
-// actor loop must index as `(i * sizeof(FieldActor) + (int)g_FieldActors)` to get
-// the original's index-first `addu`, with one status read feeding both masks; the
-// line scroll table at g_FieldLineScrolls (0x144 bytes, same layout as misc11.c) and the
-// `lh -0x4` count loop match byte for byte.
+// Best attempt, 98.66% at 652 bytes against retail's 656 (one instruction short).
+// The body is otherwise identical: ResetGraph, WorkListsFreeAllEntries, the
+// two-pass render context loop, the actor loop with status & 0x40 / 0x2000 and
+// its four frees, the eight HeapFrees, the line scroll loop and the sound list
+// teardown. The single remaining difference is the render context loop counter:
+// retail emits `addiu $v0,$s1,1` then `move $s1,$v0` after the
+// g_FieldCurRenderContextIndex load, our compile a single `addiu $s1,$s1,1`
+// which reorg steals into the previous `jal GfxFlushImageList` delay slot (retail
+// has a `nop` there). Every spelling measured the same: `++i` inside the
+// argument, `(i = i + 1)`, `next = i + 1; i = next;` plus `i` in the argument
+// (all coalesce to one addiu), separate `i++`, `i += 1`. A non-void return type
+// did not bring retail's `nop` back either. This is the two-live-copies lever
+// and it needs the permuter; the permuter cannot parse the body as written
+// (base.c does not compile), so it is unrun here.
+// Two levers that DID land, and are in the parked body:
+//  - g_FieldActorModelSlotCount wants the unbounded-ARRAY extern
+//    (`extern s32 g_FieldActorModelSlotCount[];` + `pCount[0] = 0`), which
+//    materialises &symbol in $s0 once (`lui`/`addiu`) and reuses it for the read
+//    and the store; the scalar declaration rematerialises `lui`+`lw %lo` /
+//    `lui at`+`sw %lo` instead (this alone took 97.34 -> 98.66).
+//  - the actor loop must index as `(i * sizeof(FieldActor) + (int)g_FieldActors)`
+//    for the original's index-first `addu`, with one status read feeding both
+//    masks; g_FieldLineScrolls is 0x144 bytes, same layout as misc11.c.
 /*
-extern s32 g_FieldActorModelSlotCount;
+extern s32 g_FieldActorModelSlotCount[];
 extern void* g_FieldArchiveQueueBuffer;
 extern s32 D_800ADBF0;
 extern s32 D_800AFB18;
@@ -198,6 +212,7 @@ void FieldFree(void) {
     void* pModelData;
     u_short status;
     int i;
+    int next;
 
     ResetGraph(1);
     WorkListsFreeAllEntries();
@@ -206,7 +221,9 @@ void FieldFree(void) {
     do {
         GfxFlushImageList();
         DrawSync(0);
-        GfxSetRenderContext((g_FieldCurRenderContextIndex + ++i) & 1);
+        next = i + 1;
+        i = next;
+        GfxSetRenderContext((g_FieldCurRenderContextIndex + i) & 1);
         GfxFlushImageList();
         DrawSync(0);
         GfxFreeWorkBuffers();
@@ -247,18 +264,21 @@ void FieldFree(void) {
     }
 
     FontFree();
-    pCount = &g_FieldActorModelSlotCount;
+    pCount = g_FieldActorModelSlotCount;
     g_FieldLineScrolls.numLineScrolls = 0;
     if (*pCount != 0) {
         LibGearShutdown();
         HeapFree(g_FieldArchiveQueueBuffer);
         FieldRenderSyncAndFlush();
     }
-    *pCount = 0;
+    pCount[0] = 0;
     HeapFreeBlocksWithFlag(3);
     FieldFreeSpritePrimitives();
 }
 */
+
+
+
 
 void FieldLoadTIMWithClut(u_long *pTimData, short x, short y, short clutX, short clutY, short clutWidth, short clutHeight) {
     TIM_IMAGE* pTIM;
