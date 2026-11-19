@@ -34,8 +34,8 @@ extern u16 g_BattleSlotScreenOrigins[];
 extern u8 g_BattleSlotPageIndex;
 extern u8 g_BattleActorCharIds[];
 extern u8 *g_BattleSpriteColumnWork;
-extern u8 D_800C3EB6;
-extern u8 g_BattleSlotFlags;
+extern u8 D_800C3EB6[];
+extern u8 g_BattleSlotFlags[];
 
 extern u8 g_BattlePrimBuffer[];
 extern volatile u8 D_800D3725[];
@@ -179,30 +179,32 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
    rematerialises the link address with lui/lw. Every access shape tried
    (array subscript, integer cast of the symbol address, block-scoped base
    local) produces the biv. */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800742A0);
-/* void func_800742A0(void) {
+void func_800742A0(void) {
+    s32 flagOfs;
     s32 i;
     s32 offset;
     s32 value;
+    u8 *pSlot;
 
     for (i = 0, offset = 0; i < 3; i++, offset += 0x1C) {
-        if (*(u8 *)(g_BattleDisplayState + i + 0x7C) != 0) {
-            *(s32 *)(g_BattleDisplayState + i * 4 + 0xE0) = 0;
-            *(s32 *)(g_BattleDisplayState + i * 4 + 0xEC) = 0;
-            if ((&D_800C3EB6)[offset] != 0x7F) {
+        if (g_BattleDisplayState->slotMarks[i] != 0) {
+            g_BattleDisplayState->statSpriteCount[i] = 0;
+            g_BattleDisplayState->valueSpriteCount[i] = 0;
+            flagOfs = i * 8; // also what keeps retail's sll in the 0x7F test's delay slot
+            if (D_800C3EB6[offset] != 0x7F) {
                 BattleRenderActorValueDigits(i);
-                value = func_80072F38(i, *(u8 *)((s32)&g_BattleSlotFlags + i * 8));
-                if (*(u8 *)((s32)&g_BattleSlotFlags + i * 8) != 0) {
+                value = func_80072F38(i, g_BattleSlotFlags[flagOfs]);
+                if (g_BattleSlotFlags[flagOfs] != 0) {
                     BattleRenderActorStatDigits(i, value);
                 } else {
                     func_80072A9C(i, value);
                 }
-                *(u8 *)(g_BattleDisplayState + i + 0x93) = *(u8 *)&g_BattlePrimStartIndex;
-                *(u8 *)(g_BattleDisplayState + i + 0x7C) = 0;
+                *((pSlot = (u8 *)g_BattleDisplayState + i) + 0x93) = *(u8 *)&g_BattlePrimStartIndex;
+                g_BattleDisplayState->slotMarks[i] = 0;
             }
         }
     }
-} */
+}
 void BattleAddFourSlotPrims(void) {
     u8 *p;
 
@@ -404,47 +406,65 @@ void BattleDrawFrameByScreenMode(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
-/* 65.07% (316 bytes vs retail 320; the earlier attempt was 59.87%): the head,
-   the two conditional stores and the final byte decrement now match, including
-   the divu (height/divisor are u32) and the `addiu v1,v1,0x48` before the
-   `addu v1,a1,v1`. Still wrong: gcc reassociates `arg0 * 0x60 + (base + 0x48)`
-   into `(arg0 * 0x60 + 0x48) + base`, and it hoists the 0x104/0xA9 stores above
-   the height/divisor loads, so retail's sw 0x54=height, load 0x4C/0x54, divu,
-   mflo block comes out in a different order. Retail also re-reads g_BattleDisplayState
-   into a fresh register for the 0xAB store.
-void func_800765C4(s32 arg0) {
-    u16 *pEntry;
+/* 97.59%: 332 bytes, retail's exact size, one instruction out of place - gcc emits
+   the `sll v0,v0,1` (the u16 scale in the g_BattleSlotScreenOrigins index) before the
+   `lui %hi/addiu %lo` of the symbol, retail after it. A two-minute permuter run from
+   this body returned PERMUTER_NONE at base=60 (one instruction). What the body needed:
+   (1) every access is written as an inline `((u8 *)g_BattleDisplayState + off)` so gcc
+   reloads the global per block like retail (four loads) instead of keeping one register
+   live; (2) the second half of the 0x34..0xAB run goes through two pointer locals
+   (`pWork`, and `pAb` for the 0xAB store) because retail reloads into $v0 and $v1 there;
+   (3) the three zero stores are a do/while(0) unit so they keep retail's place after
+   the 0x5C pair; (4) the 0x5C=divisor store is the embedded assignment of the divisor
+   expression (permuter find); (5) `pTail[slot + 0x90] -= 1` inside an embedded
+   assignment of the base is what gives retail's `addu v1,v1,a2` operand order.
+void func_800765C4(s32 slot) {
+    u16 *pOrigin;
+    u8 *pTail;
+    u8 *pWork;
+    u8 *pAb;
     s32 base;
-    u32 height;
+    s32 offset;
+    s32 offset2;
+    s32 height;
     u32 divisor;
+    s32 scaled;
 
-    pEntry = &g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + arg0];
-    base = *pEntry;
-    *(s32 *)(g_BattleDisplayState + 0x44) = 0x1C;
-    *(s32 *)(g_BattleDisplayState + 0x34) = arg0 * 0x60 + (base + 0x48);
-    if ((&g_BattleSlotFlags)[arg0 * 8] != 0 && g_BattleActorCharIds[arg0] != 7) {
-        *(s32 *)(g_BattleDisplayState + 0x44) = 0x24;
-        *(s32 *)(g_BattleDisplayState + 0x34) = arg0 * 0x60 + (base + 0x44);
+    pOrigin = &g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot];
+    base = *pOrigin;
+    *(s32 *)((u8 *)g_BattleDisplayState + 0x44) = 0x1C;
+    offset = base + 0x48;
+    *(s32 *)((u8 *)g_BattleDisplayState + 0x34) = slot * 0x60 + offset;
+    if (g_BattleSlotFlags[slot * 8] != 0 && g_BattleActorCharIds[slot] != 7) {
+        offset2 = *pOrigin + 0x44;
+        *(s32 *)((u8 *)g_BattleDisplayState + 0x44) = 0x24;
+        *(s32 *)((u8 *)g_BattleDisplayState + 0x34) = slot * 0x60 + offset2;
     }
 
-    *(s32 *)(g_BattleDisplayState + 0x3C) = 0x10;
-    *(s32 *)(g_BattleDisplayState + 0x4C) = 0x98;
-    height = *(s32 *)(g_BattleDisplayState + 0x34) - 5 - *(s32 *)(g_BattleDisplayState + 0x3C);
-    *(s32 *)(g_BattleDisplayState + 0x54) = height;
-    divisor = *(s32 *)(g_BattleDisplayState + 0x4C) - (*(s32 *)(g_BattleDisplayState + 0x44) + 5);
-    *(u16 *)(g_BattleDisplayState + 0x104) = 0x800;
-    g_BattleDisplayState[0xA9] = 6;
-    *(s32 *)(g_BattleDisplayState + 0x5C) = divisor;
-    *(s32 *)(g_BattleDisplayState + 0x5C) = 0x100;
-    *(s32 *)(g_BattleDisplayState + 0x64) = 0;
-    *(s32 *)(g_BattleDisplayState + 0x6C) = 0;
-    *(u16 *)(g_BattleDisplayState + 0x106) = 0;
-    *(s32 *)(g_BattleDisplayState + 0x54) = (*(u32 *)(g_BattleDisplayState + 0x54) << 8) / divisor;
-    g_BattleDisplayState[0xAB] = 1;
-    g_BattleDisplayState[0x90 + arg0]--;
+    *(s32 *)((u8 *)g_BattleDisplayState + 0x3C) = 0x10;
+    *(s32 *)((u8 *)g_BattleDisplayState + 0x4C) = 0x98;
+    pWork = (u8 *)g_BattleDisplayState;
+    height = *(s32 *)(pWork + 0x34) - 5;
+    *(s32 *)(pWork + 0x54) = height - *(s32 *)(pWork + 0x3C);
+    divisor = *(s32 *)(pWork + 0x44) + 5;
+    *(s32 *)(pWork + 0x5C) = *(s32 *)(pWork + 0x4C) - divisor;
+    divisor = *(s32 *)(pWork + 0x5C);
+    scaled = (*(u32 *)(pWork + 0x54) << 8) / divisor;
+    *(u16 *)(pWork + 0x104) = 0x800;
+    *(u8 *)((u8 *)g_BattleDisplayState + 0xA9) = 6;
+    *(s32 *)(pWork + 0x5C) = 0x100;
+    pAb = (u8 *)g_BattleDisplayState;
+    do { // a unit so the cluster keeps retail's place after the 0x5C pair
+        *(s32 *)(pWork + 0x64) = 0;
+        *(s32 *)(pWork + 0x6C) = 0;
+        *(u16 *)(pWork + 0x106) = 0;
+    } while (0);
+    *(s32 *)(pWork + 0x54) = scaled;
+    *(u8 *)(pAb + 0xAB) = 1;
+    *((pTail = (u8 *)g_BattleDisplayState) + slot + 0x90) -= 1;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800765C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
 /* 92.93%: everything structural matches (the 0xA9 loop, both func_80025FA8
    calls with their five stack arguments, the SetSemiTrans loop, the 0xAB loop,
