@@ -815,6 +815,8 @@ void func_801CAE08(u_char mode) {
     case MENU_DATA_INITIALIZE:
         g_Menu->pCellGrid = HeapAlloc(sizeof(MenuCellGridPanel), 0);
         bzero(g_Menu->pCellGrid, sizeof(MenuCellGridPanel));
+        // int-first address so the sum reaches $a0 as `addu a0,a0,v0`; every typed
+        // spelling (`->quads[i]`, `quads + i`, a u8* base) gives the swapped operands.
         SetPolyF4((POLY_F4*)(g_Menu->renderContext * sizeof(POLY_F4) + (s32)g_Menu->pCellGrid));
         (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->r0 = 0xA0;
         (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->g0 = 0xA0;
