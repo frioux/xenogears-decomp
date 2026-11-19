@@ -5,6 +5,9 @@
 #include "battle/actor.h"
 #include "psyq/inline_c.h"
 
+#define BATTLE_ACTOR_DEPTH_MAX 0x2D8
+#define BATTLE_ACTOR_SHADE_MAX 0x6B
+
 typedef struct {
     /* 0x0 */ u8* pBlocks;
     /* 0x4 */ u16 usedCount;
@@ -720,10 +723,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         depth >>= g_GfxOTDepthShift;
         addPrim(&pOt[depth], &((BattleWarpQuad*)pActor->unkB8)[quadIndex]);
-        if (depth > 0x2D8) {
-            depth = 0x2D8;
+        if (depth > BATTLE_ACTOR_DEPTH_MAX) {
+            depth = BATTLE_ACTOR_DEPTH_MAX;
         }
-        pActor->unk39 = 0x6B - depth / 8;
+        pActor->unk39 = BATTLE_ACTOR_SHADE_MAX - depth / 8;
     }
     MulMatrix0(pViewMatrix, &pSprite->globalTransform, pRotMatrix);
     pSprite++;
