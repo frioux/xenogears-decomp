@@ -17,6 +17,7 @@ extern u8 g_MenuPanelRowXOffsets[];
 extern u8 D_801EA56E[];
 extern u32 g_MenuGearStringIdTable[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
+extern u8 D_801E97AC[];
 
 void MenuLoadStringsFromIds(u8, void*, u8*, void*);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
@@ -37,6 +38,10 @@ void MenuFreeCharacterSpriteRecords(void);
 void MenuFreeUnk35CPanel(void);
 void MenuClearSubMenuChoiceFlags(void);
 void MenuPlaySoundEffect(u8);
+s32 func_8002675C(MenuResourceDirectory*, u32, POLY_FT4*, s32, s32, s32, s32);
+void SystemDecodeGlyphCodesN(u16*, u8*, int);
+s32 SystemRenderStringEntry(u8*, void*, s32, s32);
+void func_801E7C50(MenuString*, s32, s32, s32);
 s32 func_801D9704(s32, u8, u8);
 void MenuInitializeUnk438Panel(void);
 void func_801E1AC8(u8);
@@ -198,7 +203,146 @@ u32 func_801E1418(u8 slot, u8 index) {
     return total / count;
 }
 */
+// The 0x25C0-byte block g_Menu->unk438 points at, as far as this unit reaches:
+// one record per dressing-room row (13 of them), each with the MenuString for its
+// number and the digit prims the number is built from, then the per-row state
+// bytes and the stat-table pointer MenuComputeCharacterStats reads.
+#define MENU_DRESSING_ROOM_ROW_COUNT 13
+
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x680];
+    /* 0x0680 */ MenuString numberStrings[MENU_DRESSING_ROOM_ROW_COUNT]; // polys[]: the number's quad, one per render context
+    /* 0x0D00 */ MenuString unk0D00;
+    /* 0x0D80 */ POLY_FT4 digitPrims[MENU_DRESSING_ROOM_ROW_COUNT][5][2]; // per digit: one prim per render context
+    /* 0x21D0 */ POLY_G4 bars[MENU_DRESSING_ROOM_ROW_COUNT][2];
+    /* 0x2578 */ u16* pStatTable; // stat values per character and row, see func_801E1418
+    /* 0x257C */ u8 digitPrimCount[MENU_DRESSING_ROOM_ROW_COUNT]; // digit prims used so far in digitPrims[]
+    /* 0x2589 */ u8 rowRenderContext[MENU_DRESSING_ROOM_ROW_COUNT]; // render context the row's digit prims were built with
+    /* 0x2596 */ u8 shouldRender[MENU_DRESSING_ROOM_ROW_COUNT];
+    /* 0x25A3 */ u8 hasBar[MENU_DRESSING_ROOM_ROW_COUNT];
+    /* 0x25B0 */ u8 barPrimIndex[MENU_DRESSING_ROOM_ROW_COUNT]; // which of the row's bars to add
+    /* 0x25BD */ u8 unk25BD[3];
+} MenuDressingRoomRowBlock; // Size: 0x25C0
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
+/* Best: 80.32% (1424 bytes; retail is 1412, so 3 instructions long). Structure is
+   decoded and every call, both switch arms and all 16 prim stores are in retail's
+   order. Sets up one dressing-room row: mode 1 appends the row's digit quads
+   straight from the texture atlas (D_801E97AC is a u8 [13][5] of texture ids with
+   0xFF = skip, one quad per digit at x = 0xD4 + i*0x10), mode 2 renders `value` as
+   three glyph codes into the row's 0x28 x 0xD texture cell, uploads it, sets the
+   number MenuString's quad and the value's POLY_G4 bar, then flags the row.
+   Facts measured this round, all worth keeping:
+   - the dispatch is a `switch (mode)`, NOT if/else-if: only the switch gives
+     retail's `beq a1,1 / li v0,2 / beq a1,v0 / lui v0,magic / j epilogue / nop`
+     (an if/else-if chain inlines the second test after the first arm).
+   - the digit code buffer is `u8 digitCodes[8]` written at 0,2,4 with the high
+     bytes zeroed FIRST and in the order 5,3,1 (gcc emits the three sb in reverse
+     source order; the last one lands in the mode test's delay slot).
+   - `if (tens != 0 || digitCodes[0] != 0)` is literally what retail tests (it
+     reloads the hundreds byte and compares to zero), even though 0xC3 is also
+     nonzero, so the all-blank arm is unreachable. Do not "fix" it.
+   - the bar width is `0xD4 + (5400 * value) / 10000`; `value * 54 / 100` folds to
+     a different multiply chain (measured with cc1_probe).
+   - the block g_Menu->unk438 points at is 0x25C0 bytes: MenuString[13] at 0x680
+     (one per row), one MenuString at 0xD00, POLY_FT4[13][5][2] at 0xD80 (two prims
+     per digit, one per render context), POLY_G4[13][2] at 0x21D0, the stat table
+     pointer at 0x2578, then five parallel u8[13] state arrays at 0x257C/0x2589/
+     0x2596/0x25A3/0x25B0. MenuDressingRoomRowBlock below is that layout.
+   - the row state bytes ARE a struct access: as `[slot]` on the struct the three
+     byte stores come out right (base + slot, one addu, g_Menu reloaded per
+     statement because the intervening stores may alias it). A pointer local for
+     g_Menu->unk438 makes gcc hoist and every store shrinks.
+   Residue (3 instructions and 16 store addresses): retail builds each prim-store
+   address as ((base + slot*0x80) + renderContext*0x28) with the 0x680 folded into
+   the store displacement, i.e. base-first; gcc builds (renderContext*0x28 +
+   slot*0x80) + base. The two char* spellings that put base first -
+   `(u8*)unk438 + slot*0x80 + 0x680` and the offsetof form - both make gcc
+   materialise 1664 in a register instead of folding it (1424 -> 1448 bytes), and
+   a `s32 rowOffset` local reproduces the add order in a cc1_probe snippet but not
+   in the real body. Also left: `li s2,0xD4` (the loop's x initialiser) is emitted
+   at the top of the mode-1 arm here but after the slot*13 chain in retail, and the
+   `lui t1,(0xD1B71759>>16)` / `ori` pair is split around 17 instructions in retail
+   (retail computes the bar width between the 6th and 7th FT4 stores) while this
+   body emits the pair adjacent at the multiply. Tried and no better: if/else-if for
+   the mode test (76.28%), the two char* store spellings (80.85%/1448 and
+   71.72%/1428), and gcc-2.6.0 is the unit's preset already.
+void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
+    u8 digitCodes[8];
+    u8 text[8];
+    RECT rect;
+    u8 texId;
+    s32 i;
+    u32 tens;
+    s32 x;
+
+    digitCodes[5] = 0;
+    digitCodes[3] = 0;
+    digitCodes[1] = 0;
+    switch (mode) {
+    case 1:
+        for (i = 0, x = 0xD4; i < 5; ) {
+            texId = D_801E97AC[slot * 5 + i++];
+            if (texId != 0xFF) {
+                ((MenuDressingRoomRowBlock*)g_Menu->unk438)->digitPrimCount[slot] +=
+                    func_8002675C(g_Menu->resources, texId,
+                        &((MenuDressingRoomRowBlock*)g_Menu->unk438)
+                             ->digitPrims[slot][((MenuDressingRoomRowBlock*)g_Menu->unk438)->digitPrimCount[slot]][0],
+                        g_Menu->renderContext, x, slot * FONT_LETTER_HEIGHT + 0x1F, 0x1000);
+            }
+            x += 0x10;
+        }
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->rowRenderContext[slot] = *(u8*)&g_Menu->renderContext;
+        break;
+    case 2:
+        if (value / 100 != 0) {
+            digitCodes[0] = 0x11;
+            value -= 100;
+        } else {
+            digitCodes[0] = 0xC3;
+        }
+        tens = value / 10;
+        if (tens != 0 || digitCodes[0] != 0) {
+            digitCodes[2] = tens + 0x10;
+            digitCodes[4] = value % 10 + 0x10;
+        } else {
+            digitCodes[2] = 0xC3;
+            digitCodes[4] = 0xC3;
+        }
+        SystemDecodeGlyphCodesN((u16*)digitCodes, text, 3);
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].width =
+            SystemRenderStringEntry(text, pWorkspace, 0x24, 1);
+        rect.x = 0x180 + (slot & 1) * 0x18;
+        rect.y = 0x80 + (slot / 2) * FONT_LETTER_HEIGHT;
+        rect.w = 0x28;
+        rect.h = FONT_LETTER_HEIGHT;
+        LoadImage(&rect, (u_long*)pWorkspace);
+        DrawSync(0);
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].x0 = 0x10A;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].y0 = slot * FONT_LETTER_HEIGHT + 0x1F;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].x1 =
+            0x10A + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].width;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].y1 = slot * FONT_LETTER_HEIGHT + 0x1F;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].x2 = 0x10A;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].y2 = slot * FONT_LETTER_HEIGHT + 0x2C;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].x3 =
+            0x10A + ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].width;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot].polys[g_Menu->renderContext].y3 = slot * FONT_LETTER_HEIGHT + 0x2C;
+        func_801E7C50(&((MenuDressingRoomRowBlock*)g_Menu->unk438)->numberStrings[slot], slot, 0x80, 0x82);
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].x0 = 0xD4;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].y0 = slot * FONT_LETTER_HEIGHT + 0x23;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].x1 = 0xD4 + (5400 * value) / 10000;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].y1 = slot * FONT_LETTER_HEIGHT + 0x23;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].x2 = 0xD4;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].y2 = slot * FONT_LETTER_HEIGHT + 0x2B;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].x3 = 0xD4 + (5400 * value) / 10000;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->bars[slot][g_Menu->renderContext].y3 = slot * FONT_LETTER_HEIGHT + 0x2B;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->barPrimIndex[slot] = *(u8*)&g_Menu->renderContext;
+        ((MenuDressingRoomRowBlock*)g_Menu->unk438)->hasBar[slot] = 1;
+        break;
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1AC8);
 u8 MenuRunUnk438PanelLoop(u8 slot) {
     u8 active;
