@@ -55,7 +55,7 @@ extern AnimTask *g_BattleAnimOwnerTaskGroupA;
 extern AnimTask *g_BattleAnimOwnerTaskGroupB;
 extern u16 g_BattleAnimSavedGroupStates[];
 extern u16 D_800C3CD4[];
-extern u16 g_BattleAnimGroupStates[];
+extern s16 g_BattleAnimGroupStates[];
 extern u16 D_800D30A8[];
 extern void WorkListsRemoveEntriesForData(void *pTask);
 extern void AnimScriptTick(SpriteData *pSprite);
@@ -415,17 +415,11 @@ void BattleInitAnimTask(AnimTask *pTask) {
     TimerWorkListSetTaskCallback(pTask, BattleAnimTaskTick);
     func_800BC2F0(2);
 }
-// best 97.55% at 260 bytes (retail 264): every instruction but one. Retail reaches
-// the second position group with 'addu a0,a0,8' off the SAME register that holds
-// &g_BattleAnimGroupStates; a compile-time-indexed spelling folds the +8 into the
-// displacement (260 bytes), and a pointer-walk spelling ('pStates += 4') restores
-// the addu but then the scheduler cannot fill the last lh's delay slot and the body
-// grows to 268. Case-body order is source order: case 4 first, then case 2.
-// NOTE g_BattleAnimGroupStates must be declared s16 to get retail's 'lh' here; that
-// change is byte-neutral for BattleFreeAnimTask and BattleInitAnimTask (both stayed
-// 100.00% at 312 and 408 bytes).
-/*
+// case 4 before case 2: this gcc emits switch bodies in source order.
+
 void func_800BC2F0(s32 state) {
+    s16 *pGroupBStates;
+
     D_800C3CC0 = state;
     D_800C3CBC = 1;
     switch (state) {
@@ -436,9 +430,12 @@ void func_800BC2F0(s32 state) {
         g_BattleAnimPositionGroupA.x = g_BattleAnimGroupStates[0] << 16;
         g_BattleAnimPositionGroupA.y = g_BattleAnimGroupStates[1] << 16;
         g_BattleAnimPositionGroupA.z = g_BattleAnimGroupStates[2] << 16;
-        g_BattleAnimPositionGroupB.x = g_BattleAnimGroupStates[4] << 16;
-        g_BattleAnimPositionGroupB.y = g_BattleAnimGroupStates[5] << 16;
-        g_BattleAnimPositionGroupB.z = g_BattleAnimGroupStates[6] << 16;
+        // the original walks a pointer for the second group: retail adds 8 to the
+        // table base and reads the following angles off the new address
+        pGroupBStates = g_BattleAnimGroupStates + 4;
+        g_BattleAnimPositionGroupB.x = pGroupBStates[0] << 16;
+        g_BattleAnimPositionGroupB.y = pGroupBStates[1] << 16;
+        g_BattleAnimPositionGroupB.z = pGroupBStates[2] << 16;
         break;
     default:
         if (g_BattleAnimOwnerTaskGroupA != NULL) {
@@ -452,8 +449,7 @@ void func_800BC2F0(s32 state) {
         break;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC2F0);
+
 void BattleSetAnimTaskDoneState(s32 value) {
     g_BattlePendingAnimState = value;
 }
