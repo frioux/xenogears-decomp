@@ -433,7 +433,38 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BEB04);
+extern u8 D_800591B0;
+extern u8 D_800591B2;
+extern u8 D_800591B3;
+extern void BattleWaitArchiveSync(void);
+extern int ArchiveGetArchiveOffsetIndices(s32 *pAligned, s32 *pRemainder);
+
+// Reloads the battle backdrop sprite sheet when D_800591B3 names a different
+// sheet than the one D_800591B2 records; the file goes to the fixed upload buffer.
+void func_800BEB04(void) {
+    s32 alignedIndex;
+    s32 remainder;
+    u8 loaded;
+    u8 sheet;
+
+    loaded = D_800591B2;
+    sheet = D_800591B3;
+    if (loaded != sheet) {
+        D_800591B2 = sheet;
+        BattleWaitArchiveSync();
+        ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
+        ArchiveSetIndex(0xC, 2);
+        ArchiveReadFileToBuffer(sheet + 2, (void *)0x801FC000, 0, 0x80);
+        BattleWaitArchiveSync();
+        ArchiveSetIndex(alignedIndex, remainder);
+        DrawSync(0);
+        Vsync(0);
+        EnterCriticalSection();
+        FlushCache();
+        ExitCriticalSection();
+    }
+    D_800591B0 = 1;
+}
 typedef struct {
     /* 0x00 */ u16 cur;
     /* 0x02 */ u16 pressed;
@@ -510,7 +541,24 @@ void BattleResetStateGlobals(void) {
     g_BattleState = NULL;
     g_BattleSlotBitMask = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
+void func_800BED4C(void) {
+    BattleMisc33State *pState;
+
+    pState = HeapAlloc(0x50, 0);
+    pState->pUpdate = func_800B9F78;
+    g_BattleState = pState;
+    g_BattleCommandRowIndex = 0;
+    pState->commandUnhandled = 0;
+    g_BattleState->actionDone = 1;
+    g_BattleState->unk30 = 0;
+    g_BattleState->pendingStep = 0;
+    g_BattleState->pathIndex = 1;
+    g_BattleState->pCurSprite = NULL;
+    BattleSetStateStep(0);
+    g_BattleState->timer = 0;
+    g_NumFlaggedTimerWorkListEntries = 0;
+    g_FlagTimerWorkListAdds = 1;
+}
 /* best 88.03% (156 bytes = retail's size).  The address of g_BattleState has to be
    live ACROSS the BattleSetStateStep call (retail reloads it into $s0 for every store
    and has ONE dead post-call `lw v0,0(s0)`), which only happens if a g_BattleState
