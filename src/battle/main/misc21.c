@@ -916,8 +916,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vz = 0;
         RotMatrix(&vec, pRotMatrix);
         pRotMatrix->m[2][2] = macEnd[0];
-        pRotMatrix->t[1] = macEnd[2];
         pRotMatrix->t[0] = pActor->groundY;
+        pRotMatrix->t[1] = macEnd[2];
         CompMatrix(pLightMatrix, pRotMatrix, pRotMatrix);
         shade = pActor->scale - (pActor->groundY - pSprites->pos[1]) / 4;
         if (shade < 0) {
@@ -1075,7 +1075,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->redDelta = pTween->redDelta;
             pTween->pSlot->greenDelta = pTween->greenDelta;
             pTween->pSlot->blueDelta = pTween->blueDelta;
-            j = (pTween->slot + pTween->step) & 7;
+            j = pTween->step;
+            j = (pTween->slot + j) & 7;
             pTween->pSlot->x0 = pTween->projectedStart[j].vx;
             pTween->pSlot->y0 = pTween->projectedStart[j].vy;
             pTween->pSlot->x2 = pTween->projectedEnd[j].vx;
