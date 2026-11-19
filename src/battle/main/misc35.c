@@ -46,7 +46,7 @@ void BattleCalcLookAtRotation(SVECTOR *pFrom, SVECTOR *pTo, u16 *pRot) {
 }
 typedef void (*BattleVectorCallback)(VECTOR *pFrom, VECTOR *pTo);
 
-extern void func_800C0D18(s32 group, s32 angle, SVECTOR *pPos, VECTOR *pOut);
+extern void BattleAverageRotatedVectors(s32 group, s32 angle, SVECTOR *pPos, VECTOR *pOut);
 extern s32 D_800D2FCC;
 
 // Emits the trail segments for a direction-transform task: for each of the five
@@ -92,67 +92,67 @@ void func_800C08CC(s32 partCount, SVECTOR *pVectors, BattleVectorCallback pCallb
         }
         partCount = 5;
     }
-    func_800C0D18(0, 0, pVectors, &vecA);
+    BattleAverageRotatedVectors(0, 0, pVectors, &vecA);
     n = 0;
     for (i = 1; i != 8; i++) {
         if (i & 1) {
-            func_800C0D18(0, i, &pVectors[n], &vecB);
+            BattleAverageRotatedVectors(0, i, &pVectors[n], &vecB);
             pCallback(&vecA, &vecB);
         } else {
-            func_800C0D18(0, i, &pVectors[n], &vecA);
+            BattleAverageRotatedVectors(0, i, &pVectors[n], &vecA);
             pCallback(&vecB, &vecA);
         }
     }
     if (partCount >= 6) {
         n = 1;
-        func_800C0D18(1, 0, &pVectors[n], &vecA);
+        BattleAverageRotatedVectors(1, 0, &pVectors[n], &vecA);
         pCallback(&vecB, &vecA);
         for (i = 1; i != 8; i++) {
             if (i & 1) {
-                func_800C0D18(1, i, &pVectors[n], &vecB);
+                BattleAverageRotatedVectors(1, i, &pVectors[n], &vecB);
                 pCallback(&vecA, &vecB);
             } else {
-                func_800C0D18(1, i, &pVectors[n], &vecA);
+                BattleAverageRotatedVectors(1, i, &pVectors[n], &vecA);
                 pCallback(&vecB, &vecA);
             }
         }
     }
     for (n = 2; n < partCount - 5; n++) {
-        func_800C0D18(2, 0, &pVectors[n], &vecA);
+        BattleAverageRotatedVectors(2, 0, &pVectors[n], &vecA);
         pCallback(&vecB, &vecA);
         for (i = 1; i != 8; i++) {
             if (i & 1) {
-                func_800C0D18(2, i, &pVectors[n], &vecB);
+                BattleAverageRotatedVectors(2, i, &pVectors[n], &vecB);
                 pCallback(&vecA, &vecB);
             } else {
-                func_800C0D18(2, i, &pVectors[n], &vecA);
+                BattleAverageRotatedVectors(2, i, &pVectors[n], &vecA);
                 pCallback(&vecB, &vecA);
             }
         }
     }
     if (partCount >= 7) {
         n = partCount - 5;
-        func_800C0D18(3, 0, &pVectors[n], &vecA);
+        BattleAverageRotatedVectors(3, 0, &pVectors[n], &vecA);
         pCallback(&vecB, &vecA);
         for (i = 1; i != 8; i++) {
             if (i & 1) {
-                func_800C0D18(3, i, &pVectors[n], &vecB);
+                BattleAverageRotatedVectors(3, i, &pVectors[n], &vecB);
                 pCallback(&vecA, &vecB);
             } else {
-                func_800C0D18(3, i, &pVectors[n], &vecA);
+                BattleAverageRotatedVectors(3, i, &pVectors[n], &vecA);
                 pCallback(&vecB, &vecA);
             }
         }
     }
     n = partCount - 4;
-    func_800C0D18(4, 0, &pVectors[n], &vecA);
+    BattleAverageRotatedVectors(4, 0, &pVectors[n], &vecA);
     pCallback(&vecB, &vecA);
     for (i = 1; i != 8; i++) {
         if (i & 1) {
-            func_800C0D18(4, i, &pVectors[n], &vecB);
+            BattleAverageRotatedVectors(4, i, &pVectors[n], &vecB);
             pCallback(&vecA, &vecB);
         } else {
-            func_800C0D18(4, i, &pVectors[n], &vecA);
+            BattleAverageRotatedVectors(4, i, &pVectors[n], &vecA);
             pCallback(&vecB, &vecA);
         }
     }
@@ -172,15 +172,15 @@ typedef struct {
     /* 0xC */ s32 unkC;
 } BattleDirectionMatrixRow; // Size: 0x10
 
-extern BattleDirectionMatrixRow *D_800C3A68;
+extern BattleDirectionMatrixRow *g_BattleDirectionMatrix;
 
 // Rotates one direction group's four source vectors, sums them into pOut and
 // quarters the sum - the average a trail segment is built from. Group numbers
 // eight matrix rows each, index picks the row inside the group.
-void func_800C0D18(s32 group, s32 index, SVECTOR *pPos, VECTOR *pOut) {
+void BattleAverageRotatedVectors(s32 group, s32 index, SVECTOR *pPos, VECTOR *pOut) {
     s32 vec[3];
 
-    gte_lddp(D_800C3A68[group * 8 + index].unk0);
+    gte_lddp(g_BattleDirectionMatrix[group * 8 + index].unk0);
     vec[0] = pPos[0].vx;
     vec[1] = pPos[0].vy;
     vec[2] = pPos[0].vz;
@@ -188,7 +188,7 @@ void func_800C0D18(s32 group, s32 index, SVECTOR *pPos, VECTOR *pOut) {
     gte_gpf12();
     gte_stlvl((s32 *)pOut);
 
-    gte_lddp(D_800C3A68[group * 8 + index].unk4);
+    gte_lddp(g_BattleDirectionMatrix[group * 8 + index].unk4);
     vec[0] = pPos[1].vx;
     vec[1] = pPos[1].vy;
     vec[2] = pPos[1].vz;
@@ -199,7 +199,7 @@ void func_800C0D18(s32 group, s32 index, SVECTOR *pPos, VECTOR *pOut) {
     pOut->vy += vec[1];
     pOut->vz += vec[2];
 
-    gte_lddp(D_800C3A68[group * 8 + index].unk8);
+    gte_lddp(g_BattleDirectionMatrix[group * 8 + index].unk8);
     vec[0] = pPos[2].vx;
     vec[1] = pPos[2].vy;
     vec[2] = pPos[2].vz;
@@ -210,7 +210,7 @@ void func_800C0D18(s32 group, s32 index, SVECTOR *pPos, VECTOR *pOut) {
     pOut->vy += vec[1];
     pOut->vz += vec[2];
 
-    gte_lddp(D_800C3A68[group * 8 + index].unkC);
+    gte_lddp(g_BattleDirectionMatrix[group * 8 + index].unkC);
     vec[0] = pPos[3].vx;
     vec[1] = pPos[3].vy;
     vec[2] = pPos[3].vz;
