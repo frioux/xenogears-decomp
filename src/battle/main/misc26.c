@@ -3,6 +3,18 @@
 #include "psyq/libgpu.h"
 #include "psyq/inline_c.h"
 
+// A timer work-list entry is stepped twice per frame, so an ease handed a frame
+// count runs twice that many steps.
+#define BATTLE_TIMER_STEPS_PER_FRAME 2
+// The quad a screen fade draws covers the 320x240 frame.
+#define BATTLE_SCREEN_WIDTH 320
+#define BATTLE_SCREEN_HEIGHT 240
+// The work-buffer room a screen fade claims before drawing its quad and mode,
+// more than the two packets take.
+#define BATTLE_FADE_QUAD_WORK_SIZE 80
+// BattleModelFrame.flags: the part scales of this frame are already applied.
+#define BATTLE_MODEL_FLAG_PARTS_SCALED 0x8000
+
 // WorkListEntry of include/system/animation.h; an overlay unit cannot include
 // that header (it holds tentative definitions of main-exe globals), so the
 // layout is repeated here.
@@ -26,7 +38,7 @@ typedef struct {
     /* 0x0C */ u32 unkC;
     /* 0x10 */ s32 primsOffset; // byte offset of the primitive packet array
     /* 0x14 */ s32 primCount;
-    /* 0x18 */ u32 flags; // 0x8000: part scales already applied
+    /* 0x18 */ u32 flags; // BATTLE_MODEL_FLAG_PARTS_SCALED once the scales are applied
 } BattleModelFrame; // Size: 0x1C
 
 // A three-component scale as the timed scale task keeps it: signed, because the
@@ -479,10 +491,10 @@ void BattleModelScaleParts(BattleModelFrame *pFrame, s32 shift) {
     s32 n;
     s32 i;
 
-    if (pFrame->flags & 0x8000) {
+    if (pFrame->flags & BATTLE_MODEL_FLAG_PARTS_SCALED) {
         return;
     }
-    pFrame->flags |= 0x8000;
+    pFrame->flags |= BATTLE_MODEL_FLAG_PARTS_SCALED;
     pPart = (SVECTOR *)((u32)pFrame->partsOffset + (u32)pFrame);
     n = pFrame->partCount;
     for (i = 0; i != n; i++) {
@@ -1300,8 +1312,8 @@ void BattleCreateTimedScaleTask(BattleScaleVector *pTarget, s32 frames) {
     pTask->target.vx = pTarget->vx;
     pTask->target.vy = pTarget->vy;
     pTask->target.vz = pTarget->vz;
-    pTask->framesLeft = frames * 2;
-    pTask->halfLength = frames * 2;
+    pTask->framesLeft = frames * BATTLE_TIMER_STEPS_PER_FRAME;
+    pTask->halfLength = frames * BATTLE_TIMER_STEPS_PER_FRAME;
     BattleStepScaleTask(pTask);
 }
 
@@ -1351,7 +1363,7 @@ void BattleDrawScreenFade(WorkListEntry *pEntry) {
     POLY_F4 *pPoly;
     DR_MODE *pMode;
 
-    if (pBuf + 0x50 >= g_GfxCurWorkBufferEnd) {
+    if (pBuf + BATTLE_FADE_QUAD_WORK_SIZE >= g_GfxCurWorkBufferEnd) {
         return;
     }
     pPoly = (POLY_F4 *)pBuf;
@@ -1364,12 +1376,12 @@ void BattleDrawScreenFade(WorkListEntry *pEntry) {
     pPoly->b0 = pTask->curB;
     pPoly->x0 = -0x20;
     pPoly->y0 = -0x20;
-    pPoly->x1 = 0x140;
+    pPoly->x1 = BATTLE_SCREEN_WIDTH;
     pPoly->y1 = -0x20;
     pPoly->x2 = -0x20;
-    pPoly->y2 = 0xF0;
-    pPoly->x3 = 0x140;
-    pPoly->y3 = 0xF0;
+    pPoly->y2 = BATTLE_SCREEN_HEIGHT;
+    pPoly->x3 = BATTLE_SCREEN_WIDTH;
+    pPoly->y3 = BATTLE_SCREEN_HEIGHT;
     SetDrawMode(pMode, 0, 0, GetTPage(0, pTask->abr, 0, 0), NULL);
     AddPrim(g_GfxCurOT + 2, pPoly);
     AddPrim(g_GfxCurOT + 2, pMode);
@@ -1393,7 +1405,7 @@ void BattleStartScreenFade(s32 frames, s32 abr, u8 r, u8 g, u8 b) {
     if (g_BattleScreenFadeBlocked != 0) {
         return;
     }
-    frames *= 2;
+    frames *= BATTLE_TIMER_STEPS_PER_FRAME;
     if (g_BattleScreenFadeOwnBuffer != 0) {
         if (g_BattleScreenFadeTask == NULL) {
             pTask = &g_BattleOwnedScreenFadeTask;
