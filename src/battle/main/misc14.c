@@ -8,7 +8,9 @@
 typedef struct {
     /* 0x000 */ u8 unk0[0x30];
     /* 0x030 */ u32 sourceWordOffset; // word offset into each sub-image source, 4 words per upload
-    /* 0x034 */ u8 unk34[0x75];
+    /* 0x034 */ u8 unk34[0x6C];
+    /* 0x0A0 */ u8 unkA0; // func_8008A684 returns unless set
+    /* 0x0A1 */ u8 unkA1[0x8];
     /* 0x0A9 */ u8 moveSteps; // position interpolation steps accumulated, 6 per frame
     /* 0x0AA */ u8 frameCount; // incremented every update; the upload runs on odd values
     /* 0x0AB */ u8 sizeSteps; // size increment steps accumulated, 1 per frame
@@ -41,6 +43,16 @@ typedef struct {
     /* 0x29 */ u8 unk29[0xF];
 } BattlePrimPoolSlot; // Size: 0x38
 
+// Partial view of the per-slot battle actor reached through D_800D32F8: only the
+// four animation-done flags at 0x15F8 are named here.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x15F8];
+    /* 0x15F8 */ u8 unk15F8; // set while the slot has two counters to step, not one
+    /* 0x15F9 */ u8 unk15F9; // cleared once both of the slot's counters are done
+    /* 0x15FA */ u8 unk15FA; // first counter done
+    /* 0x15FB */ u8 unk15FB; // second counter done
+} BattleActorAnimFlags; // Size: 0x15FC (lower bound, the actor continues past it)
+
 extern u16 D_800C3468[];
 extern u16 D_800C3448[];
 extern u8 g_BattleDisplayMode;
@@ -59,8 +71,16 @@ extern s32 g_BattleLerpTargetX;
 extern s32 g_BattleLerpStartY;
 extern s32 g_BattleLerpTargetY;
 extern u8 g_BattleLerpDone;
+extern BattleActorAnimFlags* D_800D32F8[];
+extern u8 g_BattleStateWork[];
+extern void func_801DF270(void);
+extern void func_801DF4C0(void);
 extern u8 D_800D2C36;
 extern u8 D_800C3CFA[];
+extern u8 D_800CDCB8[];
+extern u8 D_800CDCBC[];
+extern u8 D_800CDCD0[];
+extern u8 D_800CDCD4[];
 extern u8 D_800D2C38;
 extern u16 D_800D2C30;
 extern u16 D_800D2C3A;
@@ -609,6 +629,128 @@ void BattleUpdatePauseMenu(u8 arg0) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_8008A684);
+// Best attempt: objdiff 99.03%, 828 bytes = the original size, ONE instruction out of
+// place. Everything matches except the position of `move a0,zero` (offset = 0): retail
+// emits it inside the loop setup, between the D_800D32F8 base (lui/addiu a2) and
+// `addiu t2,a2,12`, while a source-level `offset = 0;` always lands before both. That
+// is the signature of a0 being a loop.c biv initialised with the other bivs, i.e. the
+// source wrote the byte offset as an `i * 8`-shaped expression; every spelling of that
+// (D_X[i * 2] on s32 arrays, *(s32 *)((s32)D_X + i * 8), offset = i * 8; in the body)
+// makes gcc 2.6.0 strength-reduce one biv per D_ symbol instead of sharing one register,
+// which costs 12-16 bytes. Measured, do not redo: done as a u8 local (not the literal 1,
+// +0.5), active as u8 (not s32, +3.5, found by the permuter), pCounters = (u8 *)(offset +
+// (s32)pWork) with the int arithmetic so the addu comes out index-first as retail has it,
+// and the counter stores written through pCounters + 0x9E20/0x9E08/0x9E24/0x9E0C (a
+// g_BattleStateWork base with a large constant is what produces retail's lui $at,1 /
+// addu / sw -0x61E0 split; through the D_ symbol the store is a bare sw macro). Two
+// 4-minute permuter runs closed the two type and width differences, then found nothing.
+/*
+void func_8008A684(u8 arg0) {
+    u8* pWork;
+    u8* pCounters;
+    BattleActorAnimFlags** pSlot;
+    s32 offset;
+    s32 i;
+    u8 active;
+    u8 done;
+    u8 waiting;
+    u8 muted;
+    s32 channelMask;
+
+    active = 1;
+    waiting = 1;
+    muted = 0;
+    do {
+        if (ControllerGetType(0) == 0) {
+            if (muted == 0) {
+                GraphicsDrawPauseLetters(0x88, 0x64);
+                GraphicsDrawPauseLetters(0x88, 0x144);
+                SoundMuteAllSpuChannels();
+                muted++;
+                channelMask = g_SpuChannelMask;
+            }
+        } else {
+            if (muted != 0) {
+                SoundEnableAllSpuChannels();
+                g_SpuChannelMask = channelMask;
+            }
+            waiting = 0;
+        }
+    } while (waiting != 0);
+
+    if (g_BattleDisplayState->unkCF == 0) {
+        g_BattleMenuEvent = 0xFF;
+    }
+    do {
+        if (ControllerIsStateStackFull() != 0) {
+            ControllerResetState();
+        } else {
+            while (ControllerPopState() != 0) {
+                if ((g_C1ButtonStateReleased & 0x20) != 0) {
+                    g_BattleMenuEvent = 4;
+                    break;
+                }
+                if ((g_C1ButtonStateReleased & 0x800) == 0) {
+                    continue;
+                }
+                if (D_800C3444 == 0) {
+                    SoundMuteAllSpuChannels();
+                    GraphicsDrawPauseLetters(0x88, 0x64);
+                    GraphicsDrawPauseLetters(0x88, 0x144);
+                    channelMask = g_SpuChannelMask;
+                    D_800C3444 = 1;
+                } else {
+                    SoundEnableAllSpuChannels();
+                    g_SpuChannelMask = channelMask;
+                    D_800C3444 = 0;
+                }
+                break;
+            }
+        }
+    } while (D_800C3444 != 0);
+
+    if (g_BattleDisplayState->unkA0 == 0) {
+        return;
+    }
+    if (D_800D32F8[0]->unk15F9 == 0) {
+        return;
+    }
+    done = 1;
+    pWork = g_BattleStateWork;
+    offset = 0;
+    for (i = 0; i < 3; i++) {
+        if (D_800D32F8[i]->unk15FA == 0) {
+            if (*(s32*)(D_800CDCD0 + offset) == 0) {
+                D_800D32F8[i]->unk15FA = done;
+            } else {
+                pCounters = (u8 *)(offset + (s32)pWork);
+                *(s32*)(pCounters + 0x9E20) = *(s32*)(D_800CDCD0 + offset) - 1;
+                *(s32*)(pCounters + 0x9E08) = *(s32*)(D_800CDCB8 + offset) + 1;
+            }
+        }
+        if (D_800D32F8[i]->unk15FB == 0) {
+            if (*(s32*)(D_800CDCD4 + offset) == 0) {
+                D_800D32F8[i]->unk15FB = done;
+            } else {
+                pCounters = (u8 *)(offset + (s32)pWork);
+                *(s32*)(pCounters + 0x9E24) = *(s32*)(D_800CDCD4 + offset) - 1;
+                *(s32*)(pCounters + 0x9E0C) = *(s32*)(D_800CDCBC + offset) + 1;
+            }
+        }
+        active &= D_800D32F8[i]->unk15FA;
+        if (D_800D32F8[0]->unk15F8 != 0) {
+            active &= D_800D32F8[i]->unk15FB;
+        }
+        offset += 8;
+    }
+    if (active == 0) {
+        func_801DF270();
+        func_801DF4C0();
+    } else {
+        D_800D32F8[0]->unk15F9 = 0;
+    }
+}
+*/
 void BattleUpdateEffectByScreenMode(u8 arg0) {
     switch (g_BattleDisplayMode) {
     case 0:
