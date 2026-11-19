@@ -13,6 +13,10 @@
  * BattleFreeActorArchiveAndSoundSeds are 100.00% under gcc 2.7.2-cdk -G0 and 45/45/81.63% at -G8.
  */
 
+// The battle's display region; the second of the two frame buffers starts one height down.
+#define BATTLE_DISP_WIDTH 320
+#define BATTLE_DISP_HEIGHT 224
+
 extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
 extern void *D_800C3E1C;
@@ -84,20 +88,20 @@ void BattleInitDispEnvAndDrawEnv(void) {
 
     SetGeomOffset(0xA0, 0xA4);
     pBase = (u8 *)&D_800C4A7C;
-    SetDefDispEnv((DISPENV *)pBase, 0, 0xE0, 0x140, 0xE0);
-    SetDefDispEnv((DISPENV *)(pBase + 0x4070), 0, 0, 0x140, 0xE0);
-    SetDefDrawEnv((DRAWENV *)(pBase - 0x5C), 0, 0, 0x140, 0xE0);
-    SetDefDrawEnv((DRAWENV *)(pBase + 0x4014), 0, 0xE0, 0x140, 0xE0);
+    SetDefDispEnv((DISPENV *)pBase, 0, BATTLE_DISP_HEIGHT, BATTLE_DISP_WIDTH, BATTLE_DISP_HEIGHT);
+    SetDefDispEnv((DISPENV *)(pBase + 0x4070), 0, 0, BATTLE_DISP_WIDTH, BATTLE_DISP_HEIGHT);
+    SetDefDrawEnv((DRAWENV *)(pBase - 0x5C), 0, 0, BATTLE_DISP_WIDTH, BATTLE_DISP_HEIGHT);
+    SetDefDrawEnv((DRAWENV *)(pBase + 0x4014), 0, BATTLE_DISP_HEIGHT, BATTLE_DISP_WIDTH, BATTLE_DISP_HEIGHT);
 
     pEnv = (BattleEnvBlock *)(pBase - 0xBCC);
-    pEnv->frames[1].disp.screen.y = 0xA;
-    pEnv->frames[0].disp.screen.y = 0xA;
-    pEnv->frames[1].disp.screen.w = 0x100;
-    pEnv->frames[0].disp.screen.w = 0x100;
+    pEnv->frames[1].disp.screen.y = 10;
+    pEnv->frames[0].disp.screen.y = 10;
+    pEnv->frames[1].disp.screen.w = 256;
+    pEnv->frames[0].disp.screen.w = 256;
     pEnv->frames[1].disp.screen.x = 0;
     pEnv->frames[0].disp.screen.x = 0;
-    pEnv->frames[1].disp.screen.h = 0xD8;
-    pEnv->frames[0].disp.screen.h = 0xD8;
+    pEnv->frames[1].disp.screen.h = 216;
+    pEnv->frames[0].disp.screen.h = 216;
 }
 void BattleWaitArchiveSync(void) {
     while (ArchiveDataSync() != 0) {
