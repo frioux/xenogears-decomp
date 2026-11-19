@@ -175,7 +175,7 @@ extern s32 BattleFindGroundTriangle(s16* pVec, s32 arg1, s32 arg2);
 extern s32 BattleFindTriangleContainingPoint(s16* pVec);
 extern void BattleProjectPointOntoIndexedTriangle(s16* pVec, s32 arg1, u8* pOut);
 extern void SpriteDrawFrame(BattleActorSprite* pSprite, u_long* pOT);
-extern void* func_800BFC80(void* pArg0, s32 arg1, s32 arg2);
+extern void* BattleFindAnimationTask(void* pArg0, s32 arg1, s32 arg2);
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern u8 g_FlagTimerWorkListAdds;
 extern void BattleWaitAndFreeActorBuffers(void);
@@ -778,7 +778,7 @@ void BattleReleaseActorSlot(s32 index) {
     if (pResource == NULL) {
         return;
     }
-    func_800BFC80(pResource, 0, 2);
+    BattleFindAnimationTask(pResource, 0, 2);
     if (index < 3) {
         pBlock = pBase + index * 0xC + 0x8000;
         ppBuffer = (void**)(pBlock + 0xD24);
@@ -817,7 +817,7 @@ void BattleReleaseActorSlot(s32 index) {
     if (pSprite == NULL) {
         return;
     }
-    func_800BFC80(pSprite, 0, 2);
+    BattleFindAnimationTask(pSprite, 0, 2);
     if (index < 3) {
         pSlot = pBase + index * 0xC + 0x8000;
         pPayload = *(void**)(pSlot + 0xD24);
@@ -875,7 +875,7 @@ void BattleNoOpCallback(void) {
 extern s32 g_NumTimerWorkListEntries;
 extern s32 g_BattlePendingActorTaskCount;
 extern void func_800BE790(void);
-extern void func_800BB760(s32 index);
+extern void BattleQueueActorSlotTask(s32 index);
 
 void BattleFinishActorAnimationAndReleaseSlot(s32 index) {
     s32 count;
@@ -905,7 +905,7 @@ void BattleFinishActorAnimationAndReleaseSlot(s32 index) {
     BattleReleaseActorSlot(index);
     func_800BE790();
     func_800BE790();
-    func_800BB760(index);
+    BattleQueueActorSlotTask(index);
     while (g_BattlePendingActorTaskCount != 0) {
         func_800BE790();
     }

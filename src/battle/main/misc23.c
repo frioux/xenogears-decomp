@@ -22,7 +22,7 @@ extern void BattleAppendActorCommandBytes(void *, void *, void *, void *);
 extern s32 BattleFindFirstActorInMask(void);
 extern void BattleFreeImageEntry(void *);
 extern void func_800A64E4(void);
-extern void func_800BF85C(s32, s32);
+extern void BattleSetCurrentSpriteAndTarget(s32, s32);
 extern void func_800A3640(void *, s32, s32, s16, s32, s16, s16, s32, s32, s32, s32, s16, s16, s16, s16, s32, s32, s32, s32);
 
 extern u8 *D_800D33E4;
@@ -1007,7 +1007,7 @@ void BattleSwitchActorAndQueueCommand(u16 arg0, u16 arg1, void *arg2) {
     ((u8 *)g_BattleActors[arg0])[0x35] = 1;
     g_NumFlaggedTimerWorkListEntries = 0;
     g_FlagTimerWorkListAdds = 1;
-    func_800BF85C(arg0, BattleFindFirstActorInMask());
+    BattleSetCurrentSpriteAndTarget(arg0, BattleFindFirstActorInMask());
     g_BattleCommandRowIndex = 1;
     g_BattleActorCommandIds[BattleFindFirstActorInMask()] = 0;
     if (g_BattleActors[arg0] != NULL) {

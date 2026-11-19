@@ -43,7 +43,7 @@ typedef struct {
     /* 0x7C */ s32 *pArchiveEntryIndex; // the entry id BattleLoadActorArchiveFile loads
     /* 0x80 */ u8 unk80[0x20];
     /* 0xA0 */ u16 targetX; // the point BattleAngleToTarget measures from x/y
-    /* 0xA2 */ u16 targetHeight; // the target's vertical: func_800BF0C4 zeroes it for a ground target, so the 2D angle ignores it
+    /* 0xA2 */ u16 targetHeight; // the target's vertical: BattleSetActorTargetFromPathPosition zeroes it for a ground target, so the 2D angle ignores it
     /* 0xA4 */ u16 targetY;
     /* 0xA6 */ u8 unkA6[0x2];
     /* 0xA8 */ u32 unkA8;
@@ -433,24 +433,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE6E8);
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BE790);
-extern u8 D_800591B0;
-extern u8 D_800591B2;
-extern u8 D_800591B3;
+extern u8 g_BattleStageFileLoadDone;
+extern u8 g_BattleLoadedStageFileId;
+extern u8 g_BattleRequestedStageFileId;
 extern void BattleWaitArchiveSync(void);
 extern int ArchiveGetArchiveOffsetIndices(s32 *pAligned, s32 *pRemainder);
 
-// Reloads the battle backdrop sprite sheet when D_800591B3 names a different
-// sheet than the one D_800591B2 records; the file goes to the fixed upload buffer.
-void func_800BEB04(void) {
+// Reloads the battle backdrop sprite sheet when g_BattleRequestedStageFileId names a different
+// sheet than the one g_BattleLoadedStageFileId records; the file goes to the fixed upload buffer.
+void BattleReloadStageFile(void) {
     s32 alignedIndex;
     s32 remainder;
     u8 loaded;
     u8 sheet;
 
-    loaded = D_800591B2;
-    sheet = D_800591B3;
+    loaded = g_BattleLoadedStageFileId;
+    sheet = g_BattleRequestedStageFileId;
     if (loaded != sheet) {
-        D_800591B2 = sheet;
+        g_BattleLoadedStageFileId = sheet;
         BattleWaitArchiveSync();
         ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
         ArchiveSetIndex(0xC, 2);
@@ -463,7 +463,7 @@ void func_800BEB04(void) {
         FlushCache();
         ExitCriticalSection();
     }
-    D_800591B0 = 1;
+    g_BattleStageFileLoadDone = 1;
 }
 typedef struct {
     /* 0x00 */ u16 cur;
@@ -688,12 +688,12 @@ typedef struct {
 #define BATTLE_PATH_POSITION(index) \
     (((BattleWorkPathPositions *)g_BattleStateWork)->pathPositions[(index)])
 
-extern void func_800BF4F0(BattleActorSprite *p, void *pTarget);
+extern void BattleStepActorAlongPath(BattleActorSprite *p, void *pTarget);
 
 // The last state of an actor's walk along the path-position list: while the list has a
 // point left it copies that point into the sprite and faces it, and once the list is
 // exhausted it aims the sprite at its own position.
-void func_800BF0C4(BattleActorSprite *p) {
+void BattleSetActorTargetFromPathPosition(BattleActorSprite *p) {
     s32 posX;
     s32 posY;
     s32 faceArg;
@@ -705,7 +705,7 @@ void func_800BF0C4(BattleActorSprite *p) {
         p->targetHeight = 0;
         p->targetX = posX;
         p->targetY = posY;
-        func_800BF4F0(p, p->pTargetSprite);
+        BattleStepActorAlongPath(p, p->pTargetSprite);
     } else {
         p->targetX = BATTLE_PATH_POSITION(g_BattleState->pathIndex).x;
         p->targetY = BATTLE_PATH_POSITION(g_BattleState->pathIndex).y;

@@ -4,7 +4,7 @@
 #include "psyq/libgpu.h"
 #include "system/animation.h"
 
-// The 0x20-byte timer work-list task func_800BB760 and BattleAnimTaskAllocArchiveEntry
+// The 0x20-byte timer work-list task BattleQueueActorSlotTask and BattleAnimTaskAllocArchiveEntry
 // queue (TimerWorkListAllocateTask payload 4): a work-list entry followed by the
 // 4-byte payload they carry - a pointer for one, an archive index for the other.
 typedef struct {
@@ -25,7 +25,7 @@ extern s32 g_BattlePendingAnimState;
 extern s16 D_800C3740;
 extern u8 g_BattleAnimCommandsSuppressed;
 
-extern void func_800BC2F0(s32);
+extern void BattleSetAnimState(s32);
 extern void HeapFree(void *pMem);
 extern void WorkListRemoveTask(void *pEntry);
 extern void TimerWorkListRemoveTask(void *pEntry);
@@ -48,7 +48,7 @@ extern u8 g_BattleAnimTaskAllocCount;
 extern u32 D_800C3674;
 extern s32 D_800C3678;
 extern u8 g_BattleActiveAnimTaskCount;
-extern s32 D_800C3CBC;
+extern s32 g_BattleAnimStateFlags;
 extern BattleSpriteColorTask *g_BattleSpriteColorTask;
 // The anim tasks the two owner groups run; AnimTask (system/animation.h) is the
 // record: entry, the entry the owner list links, then the sprite it animates.
@@ -67,7 +67,7 @@ extern u16 D_80059454;
 extern IVEC3 g_BattleAnimPositionGroupA;
 extern IVEC3 g_BattleAnimPositionGroupB;
 extern void func_800BC460(s32 arg0);
-extern s32 D_800C3CC0;
+extern s32 g_BattleAnimState;
 extern void func_800BB350(s32 arg0);
 extern void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4);
 extern void func_800A4654(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, s32 depth,
@@ -85,9 +85,9 @@ typedef struct {
     /* 0x2 */ s16 y;
 } BattleActorSlotPos; // Size: 0x4
 
-extern BattleActorSlotPos D_800C3668[3];
-extern u16 D_800C3666;
-extern u8 D_800C37CC;
+extern BattleActorSlotPos g_BattleActorSlotSpawnPos[3];
+extern u16 g_BattleActorSlotUsedMask;
+extern u8 g_BattleAllActorTasksDone;
 
 
 // Battle-side view of a battle actor's SpriteData (include/field/actor.h); the same
@@ -108,7 +108,7 @@ typedef struct {
 // The three position halves go through TWO temporaries: the first load lands in $v1
 // because $v0 still holds the height, and a single temp shared by all three costs the
 // register split (99.61%).
-void func_800BB248(u8 *pTask) {
+void BattleUpdateActorSpriteDepth(u8 *pTask) {
     BattleActorSprite *pSprite;
     SVECTOR vec;
     long sxy;
@@ -145,7 +145,7 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
     HeapFree(pEntry);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
-void func_800BB540(BattleAnimWorkTask *pTask) {
+void BattleSpawnActorSlot(BattleAnimWorkTask *pTask) {
     s32 i;
     u16 slotBit;
     u32 payload;
@@ -153,14 +153,14 @@ void func_800BB540(BattleAnimWorkTask *pTask) {
     BattleActorSlotPos *pSlotPos;
 
     for (i = 0, slotBit = 1; i != 3; i++, slotBit <<= 1) {
-        if ((D_800C3666 & slotBit) == 0) {
-            D_800C3666 |= slotBit;
+        if ((g_BattleActorSlotUsedMask & slotBit) == 0) {
+            g_BattleActorSlotUsedMask |= slotBit;
             break;
         }
     }
     // the base and the sum live in two variables: retail forms the table address
     // before it scales the index
-    pSlotPosTable = D_800C3668;
+    pSlotPosTable = g_BattleActorSlotSpawnPos;
     pSlotPos = pSlotPosTable + i;
     // the payload is a word for the slot's owner and a halfword for its target angle
     func_800A979C(pTask->payload, pSlotPos->x, pSlotPos->y, 0,
@@ -172,7 +172,7 @@ void func_800BB540(BattleAnimWorkTask *pTask) {
     pTask->entry.onFreeCallback(pTask);
     g_BattlePendingActorTaskCount--;
     if (g_BattlePendingActorTaskCount == 0) {
-        D_800C37CC = 1;
+        g_BattleAllActorTasksDone = 1;
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB620);
@@ -182,7 +182,7 @@ void BattleAnimTaskAllocArchiveEntry(BattleAnimWorkTask *pTask) {
     TimerWorkListSetTaskCallback(pTask, func_800BB620);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB6E0);
-void func_800BB760(u8 *pEntry) {
+void BattleQueueActorSlotTask(u8 *pEntry) {
     u8 saved;
     BattleAnimWorkTask *pTask;
     s32 pendingCount;
@@ -204,8 +204,8 @@ void BattleResetAnimState(void) {
     D_800C3674 = 0x200;
     D_800C3678 = -1;
     g_BattleActiveAnimTaskCount = 0;
-    D_800C3CBC = 1;
-    func_800BC2F0(0);
+    g_BattleAnimStateFlags = 1;
+    BattleSetAnimState(0);
 }
 void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, SVECTOR *pC) {
     VECTOR vTmp;
@@ -302,7 +302,7 @@ void BattleFreeAnimTask(AnimTask *pTask) {
     HeapFree(pTask);
     g_BattleActiveAnimTaskCount--;
     if (g_BattleActiveAnimTaskCount == 0) {
-        func_800BC2F0(g_BattlePendingAnimState);
+        BattleSetAnimState(g_BattlePendingAnimState);
     }
 }
 void BattleAnimTaskTick(AnimTask *pTask) {
@@ -388,18 +388,18 @@ void BattleInitAnimTask(AnimTask *pTask) {
     }
     WorkListTaskSetOnFreeCallback(pTask, BattleFreeAnimTask);
     TimerWorkListSetTaskCallback(pTask, BattleAnimTaskTick);
-    func_800BC2F0(2);
+    BattleSetAnimState(2);
 }
 // case 4 before case 2: this gcc emits switch bodies in source order.
 
-void func_800BC2F0(s32 state) {
+void BattleSetAnimState(s32 state) {
     s16 *pGroupBStates;
 
-    D_800C3CC0 = state;
-    D_800C3CBC = 1;
+    g_BattleAnimState = state;
+    g_BattleAnimStateFlags = 1;
     switch (state) {
     case 4:
-        D_800C3CBC = 5;
+        g_BattleAnimStateFlags = 5;
         break;
     case 2:
         g_BattleAnimPositionGroupA.x = g_BattleAnimGroupStates[0] << 16;
@@ -430,7 +430,7 @@ void BattleSetAnimTaskDoneState(s32 value) {
 }
 void BattleBeginAnimTask(u8 *pEntry) {
     if (g_BattleAnimCommandsSuppressed == 0) {
-        func_800BC2F0(1);
+        BattleSetAnimState(1);
         func_800BC460((s32)pEntry);
     }
     D_80059454 = D_800C3CDC;
@@ -442,13 +442,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BC460);
 
 void BattleSetAnimState4(void) {
     if (g_BattleAnimCommandsSuppressed == 0) {
-        func_800BC2F0(4);
+        BattleSetAnimState(4);
     }
 }
 
 void BattleSetAnimState1(void) {
     if (g_BattleAnimCommandsSuppressed == 0) {
-        func_800BC2F0(1);
+        BattleSetAnimState(1);
     }
 }
 

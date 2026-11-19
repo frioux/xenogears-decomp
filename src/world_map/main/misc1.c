@@ -367,7 +367,7 @@ typedef struct {
     s16 areaMode;
 } WorldMapTableEntry; // Size: 0x8
 
-extern u16 D_8009B564;
+extern u16 g_WorldMapLevelThresholds;
 extern u16 D_8009B566;
 extern WorldMapTableEntry D_8009B57C;
 extern WorldMapTableEntry D_8009B58C;
@@ -384,13 +384,13 @@ extern s32 g_WorldMapAreaMode;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
 /* best: 96.74% (320 bytes, retail's exact size). Everything matches except the
-   D_8009B564 base: retail materialises `lui v1,%hi(B564)` + `addiu v1,v1,%lo(B564)`
+   g_WorldMapLevelThresholds base: retail materialises `lui v1,%hi(B564)` + `addiu v1,v1,%lo(B564)`
    BEFORE the pre-check (the lui fills the `lhu v0,D_8009B566` load-delay slot) and
    then does `addiu v1,v1,2` inside the if, while gcc sinks the la into the if and
    folds the +2 into it (la B564+2) with a `nop` in the load-delay slot.
-   Round 287, the array lever measured: `extern u16 D_8009B564[];` +
-   `pTable = D_8009B564;` and `if (arg1 >= D_8009B564[1])` DOES materialise
-   `la $v1,D_8009B564` first, but the pre-check then loads through that base
+   Round 287, the array lever measured: `extern u16 g_WorldMapLevelThresholds[];` +
+   `pTable = g_WorldMapLevelThresholds;` and `if (arg1 >= g_WorldMapLevelThresholds[1])` DOES materialise
+   `la $v1,g_WorldMapLevelThresholds` first, but the pre-check then loads through that base
    (`lhu $v0,2($v1)`) where retail uses an absolute D_8009B566 load, and the
    `pTable++` moves into the bnez delay slot: 92.11%, 324 bytes. Kept the
    absolute-symbol spelling for the pre-check since 96.74% beats it.
@@ -406,7 +406,7 @@ void func_80071B9C(s32 arg0, s32 arg1) {
 
     if (arg0 < 8) {
         nLevel = 1;
-        pTable = &D_8009B564;
+        pTable = &g_WorldMapLevelThresholds;
         if (arg1 >= D_8009B566) {
             pTable++;
             do {

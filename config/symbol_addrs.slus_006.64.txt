@@ -1663,3 +1663,6 @@ g_ModelRenderTestFlags = 0x80050104;
 g_FieldDiscChangeFade = 0x8005942C;
 g_BattleStageFileIndex = 0x800591B4;
 g_BattleStageLoadQueued = 0x800591B1;
+g_BattleLoadedStageFileId = 0x800591B2;
+g_BattleRequestedStageFileId = 0x800591B3;
+g_BattleStageFileLoadDone = 0x800591B0;

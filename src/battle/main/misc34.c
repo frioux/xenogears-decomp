@@ -7,7 +7,7 @@
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern s16 g_BattleActorListCount;
 extern s32 g_BattleActorList[];
-extern s32 D_800D3640[];
+extern s32 g_BattleActorModelIds[];
 extern u16 g_BattleDelayCounter;
 extern u16 g_BattleActorDelayCounter;
 extern void *g_BattleState;
@@ -20,10 +20,10 @@ extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
 extern void BattleUpdateCommandRows(void);
-extern void *func_800BFC80(SpriteData *pSprite, s32 arg1, s32 mode);
+extern void *BattleFindAnimationTask(SpriteData *pSprite, s32 arg1, s32 mode);
 extern void *g_TimerWorkList;
 extern s32 BattleSpriteDistanceToTarget(SpriteData *pSpriteData);
-extern void func_800BF0C4(BattleSpriteState *pActor);
+extern void BattleSetActorTargetFromPathPosition(BattleSpriteState *pActor);
 extern void BattleActorSnapToTargetAndFace(SpriteData *pSprite, SpriteData *pTarget);
 extern void BattleFaceTargetAndMeasureDistance(BattleSpriteState *pActor, s32 arg1);
 extern void BattleSetStateStep(s32 arg0);
@@ -52,7 +52,7 @@ extern u8 g_BattleSoundArchiveLoaded;
 extern u8 g_BattleActorArchiveReady;
 extern u16 D_800D3634;
 extern void BattleFreeActorArchiveAndSoundSeds(void);
-extern void func_800BB760(s32 index);
+extern void BattleQueueActorSlotTask(s32 index);
 extern void BattleFreeWdsEntry(void);
 extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
 extern s16 SoundGetPendingSpuCommandType(s32 arg0);
@@ -113,7 +113,7 @@ typedef struct {
 // Walks the actor one frame along the battle state's target-position path: while the
 // path still has a point at the cursor the path step owns the actor, and once it ends
 // the actor is put on its target position and turned toward the target.
-void func_800BF4F0(BattleSpriteState *pActor, BattleSpriteState *pTarget) {
+void BattleStepActorAlongPath(BattleSpriteState *pActor, BattleSpriteState *pTarget) {
     BattlePathTable *pPath;
     BattleStatePathCursor *pState;
     s32 targetX;
@@ -143,7 +143,7 @@ void func_800BF4F0(BattleSpriteState *pActor, BattleSpriteState *pTarget) {
         BattleFaceTargetAndMeasureDistance(pActor, 3);
         BattleSetStateStep(2);
     } else {
-        func_800BF0C4(pActor);
+        BattleSetActorTargetFromPathPosition(pActor);
     }
 }
 
@@ -234,7 +234,7 @@ typedef struct {
 
 // Makes the actor of slot arg0 the current battle sprite and makes the actor of slot
 // arg1 its target, which is also the only entry the model id table keeps.
-void func_800BF85C(s32 arg0, s32 arg1) {
+void BattleSetCurrentSpriteAndTarget(s32 arg0, s32 arg1) {
     BattleSpriteSlots *pSlots;
     SpriteData **pTargetSlot;
     SpriteData *pSprite;
@@ -268,7 +268,7 @@ void BattleRemapActorModelId(SpriteData *pActor) {
     if (i >= g_BattleActorListCount) {
         pActor->pTargetEntitySprite = (void *)g_BattleActorList[0];
     } else {
-        pActor->pTargetEntitySprite = (void *)D_800D3640[i];
+        pActor->pTargetEntitySprite = (void *)g_BattleActorModelIds[i];
     }
 }
 s32 BattleFindTableEntryIndex(s32 arg0) {
@@ -342,7 +342,7 @@ void BattleReleaseAllActorSlots(void) {
         if (g_BattleStateWork[i].inUse != 0) {
             if (g_BattleActorSlotMode != 2 || i != mode) {
                 if (g_BattleStateWork[i].unk6 < 0x11) {
-                    func_800BB760(i);
+                    BattleQueueActorSlotTask(i);
                 }
             }
         }
@@ -382,7 +382,7 @@ void BattleLoadSoundWdsFile(void) {
 // the fifth animation package. mode 0 only reports it (returns the sprite the task
 // draws, or NULL), mode 1 also runs the task's callback when the animation id matches
 // and mode 2 runs it whatever the animation id is.
-void *func_800BFC80(SpriteData *pSprite, s32 arg1, s32 mode) {
+void *BattleFindAnimationTask(SpriteData *pSprite, s32 arg1, s32 mode) {
     WorkListEntry *pEntry;
     WorkListEntry *pOwner;
     WorkListEntry *pTask;
@@ -415,12 +415,12 @@ void *func_800BFC80(SpriteData *pSprite, s32 arg1, s32 mode) {
 }
 
 void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
-    func_800BFC80(arg0, arg1, 1);
+    BattleFindAnimationTask(arg0, arg1, 1);
 }
 
 // Builds the animation task of slot arg1 from the fifth battle animation package and
 // makes the new sprite the actor's target for it.
-void func_800BFDA8(SpriteData *pActor, s32 arg1) {
+void BattleCreateSlotAnimationTask(SpriteData *pActor, s32 arg1) {
     SpriteAnimPackage *pPackage;
     u16 *pAnims;
     s32 offset;
@@ -432,7 +432,7 @@ void func_800BFDA8(SpriteData *pActor, s32 arg1) {
     if (pActor->pDefaultAnimFile == NULL) {
         return;
     }
-    if (func_800BFC80(pActor, arg1, 0) != 0) {
+    if (BattleFindAnimationTask(pActor, arg1, 0) != 0) {
         return;
     }
     pPackage = &g_SpriteAnimPackageDirs5;

@@ -402,7 +402,7 @@ void func_800B853C(s32 mode) {
         for (i = 0; i != 3; i++) {
             pSprite = pOwned->pOwnedSprites[i];
             if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
-                func_800BFC80(pSprite, 0, 2);
+                BattleFindAnimationTask(pSprite, 0, 2);
                 SpritePlayAnimation(pSprite, 0x18);
             }
         }

@@ -272,8 +272,8 @@ void SpriteComputeTransformMatrix(SpriteData* pSpriteData) {
 
 // Set animation package
 extern u8 g_IsBattle;
-extern u8 D_800591B0;
-extern u8 D_800591B3;
+extern u8 g_BattleStageFileLoadDone;
+extern u8 g_BattleRequestedStageFileId;
 
 void SpriteSetupAnimPackage(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFileHeader* pAnimPackageFile, SVEC2 tex,
                    SVEC2 clut, u32 field_0x3C_1) {
@@ -284,13 +284,13 @@ void SpriteSetupAnimPackage(SpriteAnimPackage* pAnimPackage, SpriteAnimPackageFi
     pAnimPackage->pPalette = (void*)(pAnimPackageFile->paletteOffset + (mem_addr)pAnimPackageFile);
     pAnimPackage->pFrames = (void*)(pAnimPackageFile->framesOffset + (mem_addr)pAnimPackageFile);
     pAnimPackage->pAnimations = (void*)(pAnimPackageFile->animationsOffset + (mem_addr)pAnimPackageFile);
-    D_800591B0 = 0;
+    g_BattleStageFileLoadDone = 0;
 
     if (g_IsBattle) {
         numAnimations = (*(u16*)pAnimPackage->pAnimations >> 6) & 0x3F;
 
         if (numAnimations != 0) {
-            D_800591B3 = numAnimations;
+            g_BattleRequestedStageFileId = numAnimations;
         }
     }
 }
