@@ -75,6 +75,15 @@ extern s32 func_80096AB8(void);
 extern u16 func_80096FBC(void);
 extern u16 func_80097610(void);
 extern void func_80096494(u16 *, u16 *, u8 *);
+extern void BattleAllocPacketPrimitives(void);
+extern void func_80076EA4(void);
+extern s32 GetStringEntryFromBank(s32, s32);
+extern u_long *GetStringEntryFromBank12(s32);
+extern u_long *D_800C3E5C[];
+void func_80092298(u8, u8 *);
+extern u_long *D_800D2DB0;
+extern void bzero(void *, s32);
+extern void HeapFree(void *);
 
 // The largest amount the current action may deal; the tail of BattleComputeActionAmount clamps to it.
 #define BATTLE_ACTION_AMOUNT_MAX 9999
@@ -315,6 +324,118 @@ void BattleDrawSlotStatusPanel(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
+// 70.57% under this unit's gcc 2.6.0, at objdiff's 1028 bytes -- the same count
+// as the original, so the body is the right LENGTH and every difference is a
+// frame offset. The
+// whole body reproduces retail instruction for instruction -- the 0x618 text
+// buffer, the eight 0x1B x 0x10 tiles, the glyph blit shared by the i == 7 and
+// the arg1[i] arms, the even-tile load, the tens/ones digit blits with the
+// D_800C3E5C digit-buffer table -- and the only residual is the FRAME: retail is
+// 0x90 with 88 bytes of vars, this body is 0x98 because loop.c hoists the
+// address of the tens rect (the one address used from two arms, since retail has
+// a separate jal for the tens blit in each) and reload spills it (8 bytes at
+// 0x68) instead of rematerialising it. Retail has no address in a register at
+// all: every blit re-forms `addiu a0,sp,N` inline, which it can do because it
+// holds exactly nine values (i, (i/2)*16, (i%2)*0x1E+0x380, arg1, arg2, 0xD,
+// arg0, 6 and &pBufs[i]) in the nine saved registers. Handing the glyph and ones
+// rects ONE use each (rect stores in the arms, a `goto nextTile` past the glyph
+// blit, and a pData local feeding the ones blit both arms share) removes three of
+// the four hoisted addresses and leaves only the tens one, but that spelling is
+// 70.43% at 1012 bytes (4 bytes SHORT, so it cannot link); the body below keeps
+// the blit duplicated in both arms, 70.57% at 1028.
+// Tried: six vs one-at-a-time declaration orders (which DO decide the slots --
+// retail's are glyph 0x10, tens 0x18, ones 0x20, tile 0x28, second 0x30, source
+// rect 0x38, pBufs 0x40, i.e. that declaration order), block-scoped duplicate
+// RECTs (gcc does not share stack slots), a RECT* local per site (worse), the
+// free loop as a pointer walk (no change), which shows the extra biv is the
+// first loop's `pBufs[i]` byte offset ($20 = i*4, live across both loops).
+/*
+void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
+    RECT glyphRect;
+    RECT tensRect;
+    RECT onesRect;
+    RECT tileRect;
+    RECT secondRect;
+    RECT rect;
+    u_long *pBufs[8];
+    u_long *pData;
+    u8 tensDigit;
+    u8 onesDigit;
+    s32 i;
+
+    BattleAllocPacketPrimitives();
+    func_80076EA4();
+    D_800D2DB0 = BattleAllocTextBuffer(0x39);
+    bzero(D_800D2DB0, 0x618);
+    rect.x = 0x3C0;
+    rect.y = 0;
+    rect.w = 0x3C;
+    rect.h = 0xD;
+    BattleLoadImageAndSync(&rect, D_800D2DB0);
+    for (i = 0; i < 8; i++) {
+        pBufs[i] = BattleAllocTextBuffer(0x1B);
+        bzero(pBufs[i], 0x30C);
+        tileRect.x = (i % 2) * 0x1E + 0x380;
+        tileRect.y = (i / 2) * 16 + 0x100;
+        tileRect.w = 0x1B;
+        tileRect.h = 0x10;
+        BattleLoadImageAndSync(&tileRect, D_800D2DB0);
+        if (i == 7) {
+            SystemRenderStringEntry(GetStringEntryFromBank12(0xA), pBufs[i], 0x1B, 0);
+            glyphRect.x = (i % 2) * 0x1E + 0x380;
+            glyphRect.y = (i / 2) * 16 + 0x102;
+            glyphRect.w = 0x1E;
+            glyphRect.h = 0xD;
+        } else if (arg1[i] != 0xFF) {
+            SystemRenderStringEntry(GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg1[i]), pBufs[i], 0x1B, 0);
+            glyphRect.x = (i % 2) * 0x1E + 0x380;
+            glyphRect.y = (i / 2) * 16 + 0x102;
+            glyphRect.w = 0x1E;
+            glyphRect.h = 0xD;
+        } else {
+            goto nextTile;
+        }
+        BattleLoadImageAndSync(&glyphRect, pBufs[i]);
+nextTile:
+        if ((i & 1) == 0) {
+            secondRect.x = 0x3C0;
+            secondRect.y = (i / 2) * 16 + 0x100;
+            secondRect.w = 0x1B;
+            secondRect.h = 0x10;
+            BattleLoadImageAndSync(&secondRect, D_800D2DB0);
+        }
+        tensRect.x = (i % 2) * 16 + 0x3C0;
+        tensRect.y = (i / 2) * 16 + 0x102;
+        tensRect.w = 6;
+        tensRect.h = 0xD;
+        if (i == 7) {
+            BattleLoadImageAndSync(&tensRect, D_800D2DB0);
+            onesRect.x = (i % 2) * 16 + 0x3C2;
+            onesRect.y = (i / 2) * 16 + 0x102;
+            onesRect.w = 6;
+            onesRect.h = 0xD;
+            pData = D_800D2DB0;
+        } else {
+            tensDigit = arg2[i] / 10;
+            BattleLoadImageAndSync(&tensRect, tensDigit != 0 ? D_800C3E5C[tensDigit] : D_800D2DB0);
+            onesRect.x = (i % 2) * 16 + 0x3C2;
+            onesRect.y = (i / 2) * 16 + 0x102;
+            onesRect.w = 6;
+            onesRect.h = 0xD;
+            onesDigit = arg2[i] % 10;
+            pData = arg1[i] != 0xFF ? D_800C3E5C[onesDigit] : D_800D2DB0;
+        }
+        BattleLoadImageAndSync(&onesRect, pData);
+    }
+    func_80092298(arg0, arg1);
+    for (i = 0; i < 8; i++) {
+        HeapFree(pBufs[i]);
+    }
+    HeapFree(D_800D2DB0);
+    BattleDrawSlotStatusPanel();
+}
+*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
