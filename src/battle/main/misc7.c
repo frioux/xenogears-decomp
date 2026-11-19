@@ -94,23 +94,18 @@ void BattleByteRegSetMatched(BattleCommand **p, u8 index) {
 // and the arg byte, gcc folds the 0x10 into the lbu displacement. 62.17% if
 // pTable is a pointer local declared before the call.
 // screened: 81.15% is the max of Default / cdk 78.94 / 2.6.0 81.15.
-/*
 u8 func_8007B4B8(u8 **p, u8 index, u8 arg2) {
-    s32 slot = index * 0x40;
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + slot);
     u8 ret = arg2;
-    u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
+    u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
 
     if (value < 3) {
         g_BattleCommandArgs = 0x20;
         ret = arg2 + 1;
     } else {
-        BattleSlotByteVarGetSet(value, (*p)[2], (g_BattleSlotWordRegs + 0x10 + slot)[(*p)[1]], 0);
+        BattleSlotByteVarGetSet(value, (*p)[2], g_BattleSlotRegs[index].byteRegs[(*p)[1]], 0);
     }
     return ret;
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B4B8);
 void BattleWordRegCopyFromMatchedSlot(BattleCommand **p, u8 index) {
     u16 *pTable = g_BattleSlotRegs[index].wordRegs;
     u8 value = BattleFindFirstFlagTableMatch(pTable[(*p)->operand3]);
