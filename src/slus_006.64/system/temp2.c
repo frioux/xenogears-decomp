@@ -746,7 +746,165 @@ void func_80025D4C(s32 count, u16* pSrc, u16* pSrc2, u16* pDst,
 }
 */
 
+// The identity scale MATRIX the rotated quad helper starts from and the four
+// corner SVECTORs it projects (their z stays at the 0x1000 (1.0) the table is
+// initialised with).
+extern MATRIX D_800188CC;
+extern SVECTOR D_8004FDC0[];
+
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025FA8);
+
+// Parked at 97.85% (912 bytes = the original's exact size) under this unit's
+// preset (XenoGraphicsDiv, gcc 2.7.2-cdk). Everything but the allocator matches:
+// the frame (0xA0), every stack slot (geom offset 0x58/0x5C, p/flag 0x60/0x64,
+// angle 0x68, old geom screen 0x70), both clamp chains and the uv stores are
+// instruction for instruction. What is left:
+//  - the saved registers are rotated: retail has the data offset in s5, the loop
+//    index in s6, pDirent in s7 and D_8004FDC0's %hi in s4; this body has them
+//    one slot lower (s4/s5/s6) with %hi in s7. A cyclic rotation, i.e. an
+//    allocator tie, not a source shape.
+//  - retail's `i = 0` lands BEFORE the loop's entry branch and its angle store
+//    fills that branch's delay slot; here the store fills the count load's delay
+//    slot and `i = 0` fills the branch slot.
+// Measured and no move: `i = 0` as an explicit statement before the for, the
+// for-init moved in/out of the init clause, the angle store before/inside/after
+// the if-count guard wrapper, nCount as a separate local for the guard, 2*i vs
+// i*2, and a 3-minute permuter run (best 324 vs base 490, no zero). The
+// u16 localAngle[2] array and the geom/p/flag pairs declared as long[2] arrays
+// are LOAD-BEARING: an 8-byte slot for each is what reproduces retail's frame
+// (a plain u16 local is hoisted into a register by loop.c and the function drops
+// to 93.45%, and scalars instead of arrays give a 0x98 frame). The `if (count !=
+// 0)` wrapper must NOT be there: without it gcc inverts the loop and the entry
+// test/init order changes.
+/*
+// Draws each record of the dirent as a rotated, scaled textured quad: builds a
+// rotation/scale matrix, projects the record rectangle's corners through it with
+// the geometry offset swapped for (x, y) for the duration, then writes the uv
+// rectangle. A quad that ends up mirrored loses its first texel column (and row)
+// so the neighbouring texel is not sampled, and a quarter turn loses one column
+// unconditionally.
+s32 func_80025FA8(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
+                  s32 context, s16 x, s16 y, s16 scaleX, s16 scaleY,
+                  s16 angle) {
+    MATRIX matrix;
+    long scale[3];
+    long oldGeomOffset[2];
+    long pFlag[2];
+    long oldGeomScreen;
+    u16 localAngle[2];
+    MenuResourceDirentTextureMetadata* pDirent;
+    MenuResourceTextureMetadata* pData;
+    POLY_FT4* pPrim;
+    s32 nAngle;
+    s32 nLeft;
+    s32 nTop;
+    s32 nRight;
+    s32 nBottom;
+    u16 u;
+    u16 v;
+    s32 width;
+    s32 height;
+    s32 i;
+
+    matrix = D_800188CC;
+    scale[0] = scaleX;
+    scale[1] = scaleY;
+    scale[2] = 0x1000;
+    PushMatrix();
+    ScaleMatrixL(&matrix, (VECTOR*)scale);
+    RotMatrixZ(angle, &matrix);
+    ReadGeomOffset(&oldGeomOffset[0], &oldGeomOffset[1]);
+    oldGeomScreen = ReadGeomScreen();
+    SetGeomOffset(x, y);
+    SetGeomScreen(0x1000);
+    SetRotMatrix(&matrix);
+    SetTransMatrix(&matrix);
+
+    pDirent = (MenuResourceDirentTextureMetadata*)(dir->offsets[index] + (unsigned)dir);
+    i = 0;
+    localAngle[0] = angle;
+    for (; i != pDirent->count; i++) {
+            pPrim = pPrims + i * 2 + context;
+            pData = &pDirent->data[i];
+
+            SetPolyFT4(pPrim);
+            SetSemiTrans(pPrim, 0);
+            SetShadeTex(pPrim, 1);
+            pPrim->tpage = GetTPage(pData->texPageId, 0, (s16)pData->texPageX,
+                                    pData->texPageY);
+            pPrim->clut = GetClut(pData->clutX, pData->clutY);
+
+            nRight = pData->width;
+            nBottom = pData->height;
+            nLeft = pData->x;
+            nTop = (u16)pData->y;
+            if (!pData->flipX) {
+                D_8004FDC0[0].vx = nLeft;
+                D_8004FDC0[1].vx = nLeft + nRight;
+                D_8004FDC0[2].vx = nLeft + nRight;
+                D_8004FDC0[3].vx = nLeft;
+            } else {
+                D_8004FDC0[0].vx = nLeft + nRight;
+                D_8004FDC0[1].vx = nLeft;
+                D_8004FDC0[2].vx = nLeft;
+                D_8004FDC0[3].vx = nLeft + nRight;
+            }
+            if (!pData->flipY) {
+                D_8004FDC0[2].vy = nTop + nBottom;
+                D_8004FDC0[3].vy = nTop + nBottom;
+                D_8004FDC0[0].vy = nTop;
+                D_8004FDC0[1].vy = nTop;
+            } else {
+                D_8004FDC0[2].vy = nTop;
+                D_8004FDC0[3].vy = nTop;
+                D_8004FDC0[0].vy = nTop + nBottom;
+                D_8004FDC0[1].vy = nTop + nBottom;
+            }
+            RotTransPers4(&D_8004FDC0[0], &D_8004FDC0[1], &D_8004FDC0[2],
+                          &D_8004FDC0[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+                          (long*)&pPrim->x3, (long*)&pPrim->x2, &pFlag[0], &pFlag[1]);
+
+            u = pData->u;
+            v = (u16)pData->v;
+            width = pData->width;
+            height = pData->height;
+            nAngle = localAngle[0] & 0xFFF;
+            if (nAngle == 0xC00) {
+                u = u - 1;
+            }
+            if (nAngle == 0) {
+                if (pPrim->x3 < pPrim->x0) {
+                    u = u - 1;
+                    if ((s16)u < 0) {
+                        u = 0;
+                        width = width - 1;
+                    }
+                }
+                if (pPrim->y3 < pPrim->y0) {
+                    v = v - 1;
+                    if ((s16)v < 0) {
+                        v = 0;
+                        height = height - 1;
+                    }
+                }
+            }
+
+            pPrim->u0 = u;
+            pPrim->v0 = v;
+            pPrim->u1 = u + width;
+            pPrim->v1 = v;
+            pPrim->u2 = u;
+            pPrim->v2 = v + height;
+            pPrim->u3 = u + width;
+            pPrim->v3 = v + height;
+    }
+
+    SetGeomOffset(oldGeomOffset[0], oldGeomOffset[1]);
+    SetGeomScreen(oldGeomScreen);
+    PopMatrix();
+    return pDirent->count;
+}
+*/
 
 void ResourceHelperGetTexCoords(MenuResourceDirectory *dir, u32 index,
                    s32* outDirentCount,
@@ -1611,6 +1769,123 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800273C4);
 //    pair IS libgs' AddPrim macro, so arg5 is a u_long* OT slot (reloaded from
 //    the stack around GetTPage because it is call-clobbered).
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800278F8);
+
+// First body written, 72.38% (972 bytes against the original's 1096). The
+// structure above is confirmed (the derivation's "not a POLY_FT4" is wrong: it
+// IS a POLY_FT4, whose vertex coordinates are s16, which is why every
+// coordinate store is sh, and s0 = &pPrim->tpage is gcc's re-based common base,
+// not a different record). Everything the .s shows is present: the same five
+// divisions with the div traps, the same GetTPage arguments, AddPrim, the 8
+// iteration bound and the break at rowEnd >= 0x140.
+// What the diff still gets wrong, measured once:
+//  - arg3 (span) is used as a raw s32 everywhere (mult v1,a3, addiu a2,a3,0x100):
+//    this body declares it s32 and that part now matches, so do NOT narrow it.
+//  - retail keeps arg2 in fp (move s8,t3) and computes the colour mask
+//    0xFFFFFF into s5 (lui 0xff/ori 0xffff) BEFORE the loop; this body lets the
+//    first fall to a stack slot and re-materialises the mask per use.
+//  - retail's `half + (half * span) / 0x100` lands in its own register
+//    (addu v1,v1,v0 then subu v0,a1,v1); writing it inline into the subtraction
+//    fuses the two and shifts everything after it.
+//  - the loop body's register assignment diverges from the first statement, so
+//    the per-vertex store order (retail interleaves x/y/u/v across vertices:
+//    x0,x1,x2,y2,x3,y3,u0,y0,y1,u1,v0,u2,v1,u3,v2,v3) was not chased yet.
+// Worth about 20 more minutes with these four in hand.
+/*
+// The 0x34C render block func_8002709C allocates: sixteen textured quads (the
+// two 0x140-byte banks this helper fills), then the prims and draw state it
+// copies in.
+typedef struct {
+    POLY_FT4 ft4[16];              // 0x000
+    u8 unk280[0xA8];               // 0x280
+    s32 unk328;                    // 0x328
+    s32 unk32C;                    // 0x32C
+    s32 unk330;                    // 0x330
+    u16 unk334;                    // 0x334
+    u16 unk336;                    // 0x336
+    u16 unk338;                    // 0x338
+    u8 unk33A;                     // 0x33A
+} Temp2RenderBlock; // Size: 0x33B
+
+// Fills one bank of eight textured quads: the block's unk328 columns are spread
+// over the 0x140-wide screen, each row of quads is column-shifted by unk334>>2,
+// and the rows stop when they reach the screen edge or eight quads are written.
+void func_800278F8(Temp2RenderBlock* pBlock, s32 left, s32 top, s32 span,
+                   u_long* pOT, s32 bank) {
+    POLY_FT4* pPrim;
+    s32 quotient;
+    s32 half;
+    s32 col;
+    s32 rows;
+    s32 rowStart;
+    s32 rowEnd;
+    s32 u;
+    s32 width;
+    s32 height;
+    s32 texColumn;
+    s32 i;
+    u16 uOffset;
+    u16 v;
+
+    quotient = (pBlock->unk328 << 8) / (span + 0x100);
+    half = (0x140 - quotient) / 2;
+    col = (s16)(left - (half + (half * span) / 0x100)) % pBlock->unk328;
+    if ((s16)col < 0) {
+        col += (u16)pBlock->unk328;
+    }
+    rows = 0;
+    rowStart = 0;
+    if (top >= 0 && top <= pBlock->unk32C + 0xF0) {
+        rows = (pBlock->unk32C << 8) / (span + 0x100);
+    }
+    pPrim = (POLY_FT4*)((u8*)pBlock + (bank & 1) * 0x140);
+    if ((s16)rows <= 0) {
+        return;
+    }
+    uOffset = ((s16)pBlock->unk334 % 64) << (2 - (s16)pBlock->unk338);
+    for (i = 0; i < 8; i++, pPrim++) {
+        texColumn = (u16)pBlock->unk334 + ((s16)col >> (2 - (s16)pBlock->unk338));
+        u = (col + uOffset) & ((0x100 >> (s16)pBlock->unk338) - 1);
+        width = 0x100 - u;
+        if (pBlock->unk328 < (s16)col + (s16)width) {
+            width = (u16)pBlock->unk328 - col;
+        }
+        height = (width << 8) / (span + 0x100);
+        rowEnd = rowStart + height;
+        if ((s16)rowStart + (s16)height >= 0x141) {
+            height = 0x140 - rowStart;
+            col = (s16)(col + (height * (span + 0x100)) / 256) % pBlock->unk328;
+        } else {
+            col = (s16)(col + width) % pBlock->unk328;
+        }
+        v = pBlock->unk33A;
+        pPrim->x0 = rowStart;
+        pPrim->y0 = top - rows;
+        pPrim->u0 = u;
+        pPrim->v0 = v;
+        pPrim->x1 = rowEnd;
+        pPrim->y1 = top - rows;
+        pPrim->u1 = width + u - 1;
+        pPrim->v1 = v;
+        pPrim->x2 = rowStart;
+        pPrim->y2 = top;
+        pPrim->u2 = u;
+        pPrim->v2 = pBlock->unk33A + (u8)pBlock->unk32C;
+        pPrim->x3 = rowEnd;
+        pPrim->y3 = top;
+        pPrim->u3 = width + u - 1;
+        pPrim->v3 = pBlock->unk33A + (u8)pBlock->unk32C;
+        pPrim->tpage = GetTPage((s16)pBlock->unk338, 0,
+                                (s16)texColumn / 64 * 64,
+                                (s16)pBlock->unk336 / 256 * 256);
+        AddPrim(pOT, pPrim);
+        if ((s16)rowEnd >= 0x140) {
+            break;
+        }
+        rowStart = rowEnd;
+    }
+}
+*/
+
 
 void HeapFreeIfNotNull(void* pData) {
     if (pData) {
