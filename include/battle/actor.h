@@ -14,6 +14,8 @@
 // Shared by the battle units that read the structures below.
 // slotStates and slotAmounts hold one entry per battle slot.
 #define BATTLE_SLOT_COUNT 12
+// rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
+#define BATTLE_PERCENT_ROLL_RANGE 100
 // The actor slots the u16 slot mask walks one bit apiece (BattleCollectMaskedSlotActors;
 // the per-slot byte tables in misc12/misc32 hold this many entries).
 #define BATTLE_ACTOR_SLOT_COUNT 11

@@ -2,8 +2,6 @@
 #include "main/game.h"
 #include "battle/actor.h"
 
-// rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
-#define BATTLE_PERCENT_ROLL_RANGE 100
 
 // The timer index the flag-to-timer mapping leaves when a condition flag owns no timer.
 #define BATTLE_CONDITION_TIMER_INDEX_NONE 0xF

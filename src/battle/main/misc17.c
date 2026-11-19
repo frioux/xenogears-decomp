@@ -143,8 +143,6 @@ extern u8 D_800CEF23[];
 // and BattleComputeActionAmount forces exactly that rate on a row whose actionFlags has 0x400.
 #define BATTLE_ACTION_POWER_FULL 20
 
-// rand() % BATTLE_PERCENT_ROLL_RANGE is the 0..99 percent a chance is rolled against.
-#define BATTLE_PERCENT_ROLL_RANGE 100
 
 /* 91.38% (1444 bytes against retail's 1440) under this unit's gcc 2.6.0. Every
    call, rectangle and store is retail's and the tail from func_80090E7C onwards is
