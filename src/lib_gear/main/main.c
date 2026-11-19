@@ -619,6 +619,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     }
 
     pSkeleton = pModel->pSkeleton;
+    pMeshLoaded = pModel->pMesh;
     modelScale = pModel->scale;
     numChildren = pSkeleton->numChildren;
 
@@ -725,7 +726,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
 
-    pMesh = pModel->pMesh;
+    pMesh = pMeshLoaded;
     pJoint = pSkeleton + 1;
     for (i = 1; i < numChildren; i++, pJoint++) {
         if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
@@ -765,7 +766,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     }
 
     pListEntry = pModel->pModelListEntries;
-    for (i = 0; i < pModel->numModelListEntries; i++, pListEntry++) {
+    for (i = 0; i < pModel->numModelListEntries; pListEntry++, i++) {
         if (pListEntry->jointIndex < 0) {
             continue;
         }
