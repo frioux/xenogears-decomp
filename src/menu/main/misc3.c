@@ -783,7 +783,65 @@ void MenuResetSlotSelection(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAE08);
+// The cell grid panel block g_Menu->pCellGrid points at: the row quad and the two
+// strings MenuScrollCellGridRow draws, then the scroll that drives the quad's width.
+// (misc4_260.c declares the same block locally; it is the same allocation.)
+typedef struct {
+    /* 0x000 */ POLY_F4 quads[2];          // The row quad, one per render context
+    /* 0x030 */ POLY_FT4 glyphs12[12][2];  // A twelve glyph string, one prim per render context
+    /* 0x3F0 */ POLY_FT4 glyphs2[2][2];    // A two glyph string
+    /* 0x490 */ u8 unk490[0x320];
+    /* 0x7B0 */ s32 scrollX;        // Grows by scrollStep per scroll frame, wraps past 0x100
+    /* 0x7B4 */ s32 scrollStep;
+    /* 0x7B8 */ u_char renderContext; // Picks this frame's prim out of every pair above
+    /* 0x7B9 */ u8 unk7B9[3];
+} MenuCellGridPanel; // Size: 0x7BC
+
+extern s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, u16 x, u16 y, u16 scale);
+extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
+
+// pCellGrid is a void*, so every access reloads and re-casts it: retail reloads it
+// for each of the three colour bytes, so a pointer local must not be used here.
+// Case 0 frees the panel, 1 builds it, 2 stops its scroll.
+void func_801CAE08(u_char mode) {
+    switch (mode) {
+    case 0:
+        if (g_Menu->pManager->cellGridScrollState != 0) {
+            g_Menu->pManager->cellGridScrollState = 0;
+            MenuRenderFrame();
+            HeapFree(g_Menu->pCellGrid);
+        }
+        break;
+    case 1:
+        g_Menu->pCellGrid = HeapAlloc(sizeof(MenuCellGridPanel), 0);
+        bzero(g_Menu->pCellGrid, sizeof(MenuCellGridPanel));
+        SetPolyF4((POLY_F4*)(g_Menu->renderContext * sizeof(POLY_F4) + (s32)g_Menu->pCellGrid));
+        (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->r0 = 0xA0;
+        (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->g0 = 0xA0;
+        (g_Menu->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->b0 = 0;
+        func_8002675C(g_Menu->resources, 0x160, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs12[0],
+                      g_Menu->renderContext, 0xA0, 0x64, 0x1000);
+        func_8002675C(g_Menu->resources, 0x161, ((MenuCellGridPanel*)g_Menu->pCellGrid)->glyphs2[0],
+                      g_Menu->renderContext, 0xA0, 0x64, 0x1000);
+        ((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext = *(u_char*)&g_Menu->renderContext;
+        g_Menu->pManager->cellGridScrollState = 1;
+        ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollStep = 8;
+        SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0xE0);
+        SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0xE1);
+        SoundPlaySoundEffectOnFreePair((g_Menu->pSoundFile->sedId << 16) | 0x8F);
+        break;
+    case 2:
+        if (g_Menu->pManager->cellGridScrollState == 0) {
+            break;
+        }
+        ((MenuCellGridPanel*)g_Menu->pCellGrid)->scrollX = 0x100;
+        (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->r0 = 0;
+        (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->g0 = 0xA0;
+        (((MenuCellGridPanel*)g_Menu->pCellGrid)->renderContext + ((MenuCellGridPanel*)g_Menu->pCellGrid)->quads)->b0 = 0;
+        g_Menu->pManager->cellGridScrollState = 2;
+        break;
+    }
+}
 
 /* Best attempt: 86.42% (272 bytes vs retail's 280). `pOdd = (u8*)&g_GameState + 1`
    read as pOdd[offset + j] reproduces retail's two-add shape (offset+j in v0,
