@@ -131,7 +131,19 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
    Permuter: three 4-minute runs, ~5000 iterations. It found the
    `(u32)tri >=` cast (76.21 -> 77.88) and two statement moves that measured
    worse in objdiff (dialogFlags between rotation.vx/vy: 77.31).
-
+   Round 294 re-measured the whole body from this note (it compiles, 77.88%).
+   The 8 missing instructions are ALL in the segment after the walkmesh loop:
+   retail emits each of the four transformMatrix tail reads as a strictly
+   serial chain through v0 (lui/lw/nop/addu/lw/nop/sll/sw, 8 insns each = 32),
+   while gcc always prefetches the NEXT statement's volatile lw g_FieldActors
+   into the field load's delay slot (6 insns each = 24). Measured dead: making
+   the four field reads volatile (1204 bytes, 77.32), handing each read to one
+   reused s32 local via a comma expression (1204, 77.40). The rest of the diff
+   is register naming plus the flags12C store/reload pair (retail stores after
+   the 0xFFFCFFFF AND, reloads, ANDs 0xF003FFFF and stores again; gcc forwards
+   the register), and the mask constants landing in swapped registers.
+*/
+/*
 extern s16 g_FieldWalkmeshTriCount;
 extern s32 D_800AFB44[];
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
@@ -872,10 +884,21 @@ void func_80081F80(SpriteData*, s16, FieldActor*);
    variables, the test reading the field directly (90.92%: gcc then does not CSE
    the second load), an unused int local (frame only), gcc-2.7.2-cdk (89.27%),
    2.6.0 (92.51%), permuter 2 runs / 1896 iters (base 113 = best 113).
+   Round 294: retail's 0x20 frame is vars= 8 (gcc prints it in its own .frame
+   line), i.e. the original had 8 bytes of stack locals it never touched; one
+   unused u32 (4 bytes) is NOT enough (still 0x18). `u32 spare2[2];` as the last
+   declarations reproduces the frame exactly and the body below is 97.03% (144
+   vs 148) with every instruction but retail's move in place; gcc loads into v1
+   and ANDs into v0 where retail loaded into v0, copied to v1 and ANDed v0.
+   Third permuter run on this body (1796 iters) also found nothing.
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+/*
 void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActor, int direction) {
     s16 angle;
     s16 current;
     s16 angleCopy;
+    u32 spare2[2];
 
     if (pActorData->moveModified.vx != 0 || pActorData->moveModified.vz != 0) {
         current = pActorData->rotation.vy;
@@ -895,7 +918,7 @@ void func_800831F4(SpriteData* pSprite, ActorData* pActorData, FieldActor* pActo
     }
 }
 */
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800831F4);
+
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80083288);
 
