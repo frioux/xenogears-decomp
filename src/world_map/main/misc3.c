@@ -138,7 +138,7 @@ typedef struct {
 
 
 extern void WorldMapWrapDelta(WorldMapScrollDelta* pDelta);
-extern void func_80096F18(void* pOut, s32* pSrc, s32 nHeight);
+extern void func_80096F18(s16* pOut, s32* pSrc, s32 nHeight, u16* pAngles);
 extern s32 g_WorldMapFadeLevel;
 extern s32 D_8009BD48;
 extern s32 g_WorldMapCameraTargetY;
@@ -575,33 +575,84 @@ extern s32 g_WorldMapProjectionDistance;
 extern s32 D_8009BD48;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc3", func_800776E0);
-/* Best attempt: 92.93% (632 bytes; retail is 628). Everything is decoded and
-   every relocation is right. Retail keeps TWO callee-saved roles: s1 =
-   (u8*)0x1F800000 (set by the first insn of the prologue, used for the two
-   scratch deltas AND the two 0x1F8000A0 name words after the call) and s0 =
-   &g_WorldMapPathFrame (loaded mid-function just before func_80096F18, then used for
-   both lwl/lwr+swl/swr name swaps). Notes from the attempts below:
-   - gcc only keeps 0x1F800000 in a saved register when the 0x1F8000A0 name
-     access is spelled (pScratch + 0xA0) - a literal (WorldMapName8*)0x1F8000A0
-     makes gcc rematerialise lui/ori and the base lands in t0.
-   - the clamp is `if (nPos < -0x180000) ... else if (nPos > 0x18000) ...`,
-     both stores through one register (retail reuses v1), and nPos must be a
-     local (a0) - it also reproduces the branch-delay subu.
-   - the four key tests reload g_WorldMapPad1Held each time (u16; 0x1000 add 0x8000,
-     0x4000 sub 0x8000 on +0x28; 0x8004 add 0xFFFF0000 and 0x2008 add 0x10000
-     on +0x2C). 0x8000 must stay a literal so gcc materialises it with
-     ori v1,zero,0x8000 + addu.
-   - the compare is `(unk38 != unk28) | (unk3C != unk2C)` (xor/sltu/or) and the
-     body reloads 0x1F800000/0x1F800004 for the >>3 steps.
-   - retail keeps &g_WorldMapCameraRot in a3 for the single `sh v0,0(a3)` while the
-     g_WorldMapViewRotationY store goes through %lo($at); not reproduced yet.
-   - preset screen: 2 other functions in this unit match at 100 under the
-     unit's XenoWorldMap preset, so the compiler is right.
-   Open problem: with pName assigned right before the call gcc drops s1 (only
-   s0 is saved, sp-24 frame); with pName initialised at the top it saves s1 but
-   assigns the scratch base s0 and pName s1, the opposite of retail, and puts
-   the BD40 la in the prologue. Nothing has produced s1 = scratch with s0 =
-   pName.
+/* Best attempt: 94.04% (640 bytes; retail is 628). The body below is complete and
+   every relocation is right; three things are left, all of them gcc allocation choices.
+   (1) func_80096F18 takes FOUR arguments. Its own asm (misc15/func_80096F18.s) opens
+       with `addu s2,a3,zero` and reads `lhu 0(s2)` / `lhu 2(s2)`, and misc4/misc7/misc12
+       all declare it `(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles)`. The fourth
+       argument in retail is `&g_WorldMapCameraRot`, which is why retail has a3 =
+       &g_WorldMapCameraRot from 0x7D6C and stores the eased rotation through it
+       (`sh v0,0(a3)`) - the same register the call then passes. The old 3-argument
+       declaration in this file was wrong.
+   (2) With `s16 *pRot = &g_WorldMapCameraRot;` declared together with the others (i.e.
+       a top-of-function initialiser) gcc DOES emit retail's `lui a3,%hi / addiu a3` and
+       the shared `sh v0,0(a3)` - that variant is 87.41% at 632 bytes and its only defect
+       is that the la lands in the prologue instead of at the head of the last block.
+       Assigning pRot mid-block instead puts the la in retail's place (this body) but
+       makes gcc fold the store back to the `lui $at / sh %lo(sym)($at)` form and
+       rematerialise the address for the call. Volatile, array-extern, an s32* view, a
+       second scratch pointer, writing the 4th argument inline as &g_WorldMapCameraRot
+       and every declaration order of the four locals were measured - none combines both.
+   (3) The saved pair is rotated: retail has s1 = (u8 *)0x1F800000 and s0 =
+       &g_WorldMapPathFrame, gcc emits s0 = 0x1F800000 and s1 = pName for every spelling
+       tried (pScratch/pName/nPos/pRot declaration order, pName as an initialiser or an
+       assignment, frame-24 vs frame-32 come out of whether pName gets a register at all).
+       pName in a saved register and pRot's la mid-block appear to be mutually exclusive.
+   A 4-minute permuter run from this body found nothing (base 1113, best 940).
+   Confirmed correct in the body: the four pad tests reload g_WorldMapPad1Held (u16), the
+   0x8000 add is a literal so gcc emits li + addu, the -0x8000 / -0x10000 sides are adds
+   of a negative constant (addu, not subu), the clamp is one shared `sw v1,0x28(a1)` for
+   both bounds with nPos in a local, the compare is `(unk38 != unk28) | (unk3C != unk2C)`
+   (xor/sltu/or with the first delta in the branch delay slot), and the 0x1F8000A0 name
+   swap is an 8-byte struct move through a `u8 *` scratch base (lwl/lwr + swl/swr).
+s32 func_800776E0(s32 arg0) {
+    u8* pScratch = (u8*)0x1F800000;
+    s16* pRot;
+    u8* pSlot = (u8*)g_WorldMapSlots + (arg0 << 7);
+    WorldMapName8* pName;
+    s32 nPos;
+
+    if (g_WorldMapPad1Released & 0x40) {
+        g_WorldMapLoopActive = 0;
+        g_WorldMapAreaMode = 0;
+    }
+    if (g_WorldMapPad1Held & 0x1000) {
+        *(s32*)(pSlot + 0x28) += 0x8000;
+    }
+    if (g_WorldMapPad1Held & 0x4000) {
+        *(s32*)(pSlot + 0x28) += -0x8000;
+    }
+    nPos = *(s32*)(pSlot + 0x28);
+    if (nPos < -0x180000) {
+        *(s32*)(pSlot + 0x28) = -0x180000;
+    } else if (nPos > 0x18000) {
+        *(s32*)(pSlot + 0x28) = 0x18000;
+    }
+    if (g_WorldMapPad1Held & 0x8004) {
+        *(s32*)(pSlot + 0x2C) += 0xFFFF0000;
+    }
+    if (g_WorldMapPad1Held & 0x2008) {
+        *(s32*)(pSlot + 0x2C) += 0x10000;
+    }
+    if ((*(s32*)(pSlot + 0x38) != *(s32*)(pSlot + 0x28)) |
+        (*(s32*)(pSlot + 0x3C) != *(s32*)(pSlot + 0x2C))) {
+        *(s32*)pScratch = *(s32*)(pSlot + 0x28) - *(s32*)(pSlot + 0x38);
+        *(s32*)(pScratch + 4) = *(s32*)(pSlot + 0x2C) - *(s32*)(pSlot + 0x3C);
+        *(s32*)(pSlot + 0x38) += *(s32*)pScratch >> 3;
+        *(s32*)(pSlot + 0x3C) += *(s32*)(pScratch + 4) >> 3;
+    }
+    pRot = &g_WorldMapCameraRot;
+    pName = (WorldMapName8*)&g_WorldMapPathFrame;
+    *pRot = *(s32*)(pSlot + 0x38) >> 12;
+    g_WorldMapViewRotationY = *(s32*)(pSlot + 0x3C) >> 12;
+    func_80096F18(pName, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, (u16*)pRot);
+    *(WorldMapName8*)(pScratch + 0xA0) = *pName;
+    *pName = *(WorldMapName8*)&D_8009BD48;
+    *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)(pScratch + 0xA0);
+    g_WorldMapViewRotationY = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
+    SetGeomScreen(g_WorldMapProjectionDistance);
+    return 1;
+}
 */
 
 s32 WorldMapSlotEnterNop(void) {
@@ -687,52 +738,3 @@ void WorldMapInitializeModeWithSound(void) {
     func_8008901C();
     WorldMapAllocSemiTransPrimBuffers();
 }
-
-/*
-s32 func_800776E0(s32 arg0) {
-    u8* pScratch = (u8*)0x1F800000;
-    u8* pSlot = (u8*)g_WorldMapSlots + (arg0 << 7);
-    WorldMapName8* pName;
-    s32 nPos;
-
-    if (g_WorldMapPad1Released & 0x40) {
-        g_WorldMapLoopActive = 0;
-        g_WorldMapAreaMode = 0;
-    }
-    if (g_WorldMapPad1Held & 0x1000) {
-        *(s32*)(pSlot + 0x28) += 0x8000;
-    }
-    if (g_WorldMapPad1Held & 0x4000) {
-        *(s32*)(pSlot + 0x28) -= 0x8000;
-    }
-    nPos = *(s32*)(pSlot + 0x28);
-    if (nPos < -0x180000) {
-        *(s32*)(pSlot + 0x28) = -0x180000;
-    } else if (nPos > 0x18000) {
-        *(s32*)(pSlot + 0x28) = 0x18000;
-    }
-    if (g_WorldMapPad1Held & 0x8004) {
-        *(s32*)(pSlot + 0x2C) += 0xFFFF0000;
-    }
-    if (g_WorldMapPad1Held & 0x2008) {
-        *(s32*)(pSlot + 0x2C) += 0x10000;
-    }
-    if ((*(s32*)(pSlot + 0x38) != *(s32*)(pSlot + 0x28)) |
-        (*(s32*)(pSlot + 0x3C) != *(s32*)(pSlot + 0x2C))) {
-        *(s32*)pScratch = *(s32*)(pSlot + 0x28) - *(s32*)(pSlot + 0x38);
-        *(s32*)(pScratch + 4) = *(s32*)(pSlot + 0x2C) - *(s32*)(pSlot + 0x3C);
-        *(s32*)(pSlot + 0x38) += *(s32*)pScratch >> 3;
-        *(s32*)(pSlot + 0x3C) += *(s32*)(pScratch + 4) >> 3;
-    }
-    g_WorldMapCameraRot = *(s32*)(pSlot + 0x38) >> 12;
-    g_WorldMapViewRotationY = *(s32*)(pSlot + 0x3C) >> 12;
-    pName = (WorldMapName8*)&g_WorldMapPathFrame;
-    func_80096F18(pName, &g_WorldMapCameraTarget, g_WorldMapCameraHeight);
-    *(WorldMapName8*)(pScratch + 0xA0) = *pName;
-    *pName = *(WorldMapName8*)&D_8009BD48;
-    *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)(pScratch + 0xA0);
-    g_WorldMapViewRotationY = (g_WorldMapViewRotationY + 0x800) & 0xFFF;
-    SetGeomScreen(g_WorldMapProjectionDistance);
-    return 1;
-}
-*/
