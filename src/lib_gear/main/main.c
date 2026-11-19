@@ -497,7 +497,7 @@ typedef struct {
     /* 0x1C */ u16 screenA[16]; // projected coordinates, two 0x10 byte slots of 4 quads
     /* 0x3C */ u16 screenB[16];
     /* 0x5C */ s16 slot; // the quad the next projection writes; counts down and wraps at 8
-    /* 0x5E */ u16 age; // frames drawn; 0 after the wrap retires the entry
+    /* 0x5E */ s16 age; // frames drawn; 0 after the wrap retires the entry
     /* 0x60 */ s16 numFrames; // age the entry is driven to before the vertex is recycled
     /* 0x62 */ u16 lifetime; // copied into the vertex below
     /* 0x64 */ u16 red;
@@ -511,6 +511,35 @@ typedef struct {
 extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
 extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s32 scale, s16 ground);
 
+// PARK, round 284: objdiff 98.91% at retail's EXACT 3376 bytes. The OT tail below is
+// SOLVED; what is left is two swapped saved-register pairs.
+//  - the 4 missing instructions were TWO independent things. (1) both OT link pokes
+//    mask BOTH sides of the OR: retail's `and v1,v1,t0` (0xFF000000) on the packet tag
+//    is mirrored by `and v0,v0,t0` on the OT slot, so the slot poke is
+//    `pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);` and not a bare OR
+//    (round 282's `| `-only form was 8 bytes short by itself, 97.13). (2) retail's
+//    `otz` IS memory-homed in depthBuf[0]'s slot: `depthBuf[0] = otz;` as a separate
+//    statement AFTER the two pokes, then the clamp on `depthBuf[0]` and the `0x6B -
+//    depthBuf[0] / 8` through the array. That store sits before the `slti`, and the
+//    pointer store inside the poke invalidates memory CSE, so gcc reloads it - which
+//    is exactly retail's 3-insn `bgez/addiu 7/sra 3` division. Together: 3360 -> 3376.
+//  - `ColorSlot.age` is **s16**, not u16: retail reads it with `lh` in the 2D path's
+//    `(slot + age) & 7` and with `lhu` only for its own `age++`. s16 also lets the
+//    `(s16)` casts on the age compares go away at no cost.
+//  - still open: the saved-register map. s0=localT, s3=numChildren, s4=i,
+//    s7=pScratch(0x1F800000), fp=pMesh are retail's, but retail has s1=pViewMatrix and
+//    s2=pSkeleton where this body has s1=pSkeleton, s2=pViewMatrix, and retail has
+//    s5=pModel, s6=pViewScratch(0x1F800020) where this body has s5=pViewScratch,
+//    s6=pModel. Both pairs are ADJACENT in gcc's allocation order, i.e. their
+//    n_refs/live_length priorities are within noise of each other and the two
+//    parameter pseudos rank just below their local counterpart here. Every remaining
+//    row (93 of 846) is one of those four register names, the delay-slot placement it
+//    implies, and 2 `addu v0,v0,s2` / `addu v0,s2,v0` operand orders in the 2D colour
+//    path. Measured dead in this round: `pScratch[1].t[0..2]` for the three
+//    pViewScratch t[] writes (identical code), `numChildren = pRoot->numChildren` plus
+//    a reordered pRoot assignment (98.09/3380), `&pRoot->localTransform` for the first
+//    CompMatrix (pRoot and pSkeleton coalesce, no change).
+// Superseded round-283 header, kept for its history:
 // PARK, round 283: objdiff 98.79%, 3360 bytes. Round 282's 97.71 was an ENTRY-BLOCK
 // REGISTER-MAP artefact, not a missing instruction: retail's pSkeleton value dies at
 // the joint loop's head (its $s2 becomes the cursor) and every later use reads the
@@ -529,18 +558,13 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 //    save/restore pairs. Measured dead: `pJoint = pRoot + 1` (98.67/3364, takes the
 //    loop head off pSkeleton), `numChildren = pModel->pSkeleton->numChildren`
 //    (neutral), a live copy `pView = pViewMatrix` for the MulMatrix0 (98.02).
-//  - 4 instructions SHORT (3360 vs retail 3376), all of them in the OT tail: retail
-//    homes `otz` in memory at 0x48(sp) (depthBuf[0]'s slot) - `sw a0,72(sp)` after the
-//    shift, `sw v0,72(sp)` for the clamp, `lw v1,72(sp)` for the /8 - which is why its
-//    signed division is 3 insns (bgez/addiu 7/sra 3) where this body spends a
-//    `move v1,t0` first. Measured dead: `depthBuf[0] >>= shift` write-back 97.46/3396,
-//    one-statement `otz = depthBuf[0] >> shift` 98.18, ternary clamp and `> 0x2D8`
-//    clamp both neutral.
+//  - (OT tail, since solved by round 284 - see the header.) Measured dead: `depthBuf[0]
+//    >>= shift` write-back 97.46/3396, one-statement `otz = depthBuf[0] >> shift`
+//    98.18, ternary clamp and `> 0x2D8` clamp both neutral.
 //  - `addiu v0,i,0x84` at the joint loop head where retail keeps the coalesced cursor
 //    (`addiu s2,s2,0x7C` then `addiu s1,s2,8`); now that pSkeleton dies there,
 //    `pJoint = pSkeleton; pJoint++;` was re-measured and is worse (98.69).
-//  - one `lh`/`lhu` pair on `pSkeleton->rotation.vy` (the round-282 note's 0x5C/0x5E
-//    pair is a different one).
+//  - (the 0x5C/0x5E `lh`/`lhu` pair was `ColorSlot.age` being s16 - fixed in round 284.)
 // PERMUTER: a fourth round from THIS body found nothing (base=1336, best=1336).
 // Superseded round-282 header, kept for its history:
 // PARK, round 282: objdiff 97.71%, 3376 bytes - retail's EXACT size, so every
@@ -642,6 +666,8 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 //  - the 2D colour path's two `screenA[2*slot + 1]` / `screenB[2*slot + 1]` reads:
 //    retail `addu v0,v0,s2`, this body `addu v0,s2,v0` (2 rows).
 // Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
+
+
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 /*
@@ -784,11 +810,12 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         otz = depthBuf[0];
         otz >>= g_GfxOTDepthShift;
         pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
-        pOt[otz] = pOt[otz] | ((u32)pPoly & 0xFFFFFF);
-        if (otz >= 0x2D9) {
-            otz = 0x2D8;
+        pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
+        depthBuf[0] = otz;
+        if (depthBuf[0] >= 0x2D9) {
+            depthBuf[0] = 0x2D8;
         }
-        pModel->unk39 = 0x6B - otz / 8;
+        pModel->unk39 = 0x6B - depthBuf[0] / 8;
     }
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
@@ -902,11 +929,11 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             gte_stsxy2((u_long*)&pEntry->screenB[2 * pEntry->slot]);
 
             pEntry->age++;
-            if ((s16)pEntry->age == 0) {
+            if (pEntry->age == 0) {
                 continue;
             }
 
-            if (pEntry->numFrames < (s16)pEntry->age || pEntry->pVertex == NULL) {
+            if (pEntry->numFrames < pEntry->age || pEntry->pVertex == NULL) {
                 pEntry->age = 1;
                 pEntry->pVertex = LibGearAllocVertex(pEntry->pVertexBuffer, pEntry->isSemiTrans);
                 pEntry->pVertex->is3D = 0;
@@ -950,11 +977,11 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             gte_stlvnl(pQuadB);
 
             pEntry->age++;
-            if ((s16)pEntry->age == 0) {
+            if (pEntry->age == 0) {
                 continue;
             }
 
-            if (pEntry->numFrames < (s16)pEntry->age || pEntry->pVertex == NULL) {
+            if (pEntry->numFrames < pEntry->age || pEntry->pVertex == NULL) {
                 pEntry->age = 1;
                 pEntry->pVertex = LibGearAllocVertex(pEntry->pVertexBuffer, pEntry->isSemiTrans);
                 pEntry->pVertex->is3D = 1;
@@ -989,6 +1016,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         pEntry++;
     }
 }
+
 */
 
 
