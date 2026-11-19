@@ -233,6 +233,77 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
+/* 83.74%: the whole shape is derived and reproduces -- the leading
+   BattleSetPolyFT4Rect at 0x140 (x 0x7C, y 0xA4, v = (u8)(arg1 * 0x10), dx 0x60,
+   dy 0x10), the flags word g_BattleActionRows[arg0 * 0x690 + (arg1 + 0x25) * 0x28],
+   the 0x4000/0x1000 row pick (9/8/7), the 3-case switch on flags & 0xF
+   (0xC/0xD/0x15), the two BattleSetPolyFT4RectH13 blocks at 0x320 and 0x370 with
+   u/v/h from D_800D2F6A/D_800D2F6B/D_800D2F68[ofs] and the two palette stores at
+   +0x32E/+0x37E selected by D_800D2F69[ofs]. Same family as misc16_r2's
+   func_800904A0 (73.99 there, parked), which is where the structure came from.
+   Leftovers, 720 bytes against retail's 692: (1) gcc folds 0x25 * 0x28 into the
+   lhu's reloc addend (+0x5C8) where retail materialises arg1 + 0x25 first;
+   (2) retail keeps arg0 in s1 and arg1 in s0, here the reverse; (3) the switch's
+   compare tree is ==1 / <2 / ==2 in retail and a longer chain here.
+   Not chased further: an 8-attempt body of this size is a permuter job.
+   Un-parking needs no new externs (g_BattleActionRows, D_800D2F68..6B,
+   g_SystemPalette2 are already declared at the top of this file). */
+/*
+void func_80093578(u8 arg0, u8 arg1) {
+    u8 *pRec;
+    u16 flags;
+    u16 pal;
+    s32 row;
+    s32 col;
+    s32 ofs;
+
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                     ((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x140),
+                         0x7C, 0xA4, 0, (u8)(arg1 * 0x10), 0x60, 0x10);
+    flags = *(u16 *)(g_BattleActionRows + arg0 * 0x690 + (arg1 + 0x25) * 0x28);
+    if (flags & 0x4000) {
+        row = 9;
+    } else if (flags & 0x1000) {
+        row = 8;
+    } else {
+        row = 7;
+    }
+    switch (flags & 0xF) {
+    case 0:
+        col = 0xC;
+        break;
+    case 1:
+        col = 0xD;
+        break;
+    case 2:
+        col = 0x15;
+        break;
+    }
+    ofs = row * 4;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                         (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
+                            0x24, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+    ofs = col * 4;
+    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    if (D_800D2F69[ofs] != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x32E) = pal;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                         (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
+                            0x48, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    if (D_800D2F69[ofs] != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x37E) = pal;
+}
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
 /* 89.66%: the shape, both stack args, the RECT, the two string draws and both prim
    builds match. Residuals, all one cluster:
    1) retail keeps &g_BattlePrimStartIndex in $s3 (lui/addiu once, `lw v0,0(s3)` per
