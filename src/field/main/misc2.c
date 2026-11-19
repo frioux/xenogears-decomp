@@ -1159,6 +1159,19 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
     dest->m[2][2] = source->m[2][2];
 }
 
+// Structure read off the .s (nothing written yet): an 8-sprite loop filling 16 shorts each
+// from D_800AFC08 into D_800AFD24[i*16 + k], zeroed when g_Scene.dollyStop & D_800ADC24[i];
+// then a RECT at 0x800B004C with w = 0x80 and LoadImage(&rect, D_800AFD24), SetGeomScreen(0x80),
+// SetGeomOffset(0x10A, 0xA6); then FieldMatrixLookAt(sp+0x30, sp+0xB8, sp+0xC8, &g_CameraUp)
+// with pEye = (0, g_CameraEye.vy - g_CameraAt.vy, -FieldGetVec2Magnitude(...) << 16) and a zero
+// pAt; then the identity/CompMatrix/MulMatrix* chain on the 0x10 (MATRIX), 0x50, 0x70 and
+// 0x90 stack matrices; then two g_FieldCompassDisabled / g_FieldSkipCounter / D_8004F378
+// guarded loops of FieldRenderQuad over D_800B0F7C (5 quads = sprite slots 0x14..0x18) and of
+// FieldRenderQuadScreenRect over D_800B06BC (20 trigger-zone quads, x/y from
+// g_pFieldTriggerZones +0x40/+0x42), then FieldRenderQuad over D_800B0FEC (0x15..0x18) and
+// D_800B0FEC+0x10 (0x10 more); tail patches the prim's top byte between
+// D_800B1E00[g_FieldCurRenderContextIndex] and g_FieldCurRenderContext + 0x80D4, then
+// SetGeomOffset(0xA0, 0x70) and SetGeomScreen(g_Scene.scrZ). Frame 0xF8.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
 // Returns 1 if an actor wants its position reported to the script VM
