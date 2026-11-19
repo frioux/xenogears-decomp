@@ -17,6 +17,14 @@
 #define SYSTEM_GLYPH_CODE_END 0xFFFF
 #define SYSTEM_GLYPH_CODE_NOT_FOUND 0x8000
 
+// Height, in VRAM units, of the glyph strip one rendered row of text occupies;
+// two character slots share a strip
+#define SYSTEM_GLYPH_STRIP_HEIGHT 13
+
+// Width, in VRAM units, of one texture page: a row's sprites are split into a
+// first half up to this and a second half past it
+#define SYSTEM_TEXTURE_PAGE_WIDTH 0x100
+
 // Width, in VRAM units, one glyph advances the line
 #define SYSTEM_GLYPH_WIDTH_NARROW 2
 #define SYSTEM_GLYPH_WIDTH_WIDE 3
@@ -174,7 +182,7 @@ void func_80032F54(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y, s1
     pString->waitFrames = 0;
     pString->pBufferStack = NULL;
     pString->bufferCount = 0;
-    pString->lineHeight = 0xE;
+    pString->lineHeight = 14;
     pString->unk68 = 1;
     pString->unk69 = 1;
     pString->maxWidth = maxWidth;
@@ -204,17 +212,21 @@ void func_80032F54(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y, s1
 
     for (i = 0; i < pString->maxChars; i++) {
         setXY0Fast(&pString->pChars[i].sprt[0][0], pString->x, pString->y + pString->lineHeight * i);
-        setXY0Fast(&pString->pChars[i].sprt[0][1], pString->x + 0x100, pString->y + pString->lineHeight * i);
+        setXY0Fast(&pString->pChars[i].sprt[0][1], pString->x + SYSTEM_TEXTURE_PAGE_WIDTH, pString->y + pString->lineHeight * i);
         row = i / 2;
         odd = i & 1;
 
         setWHFast(&pString->pChars[i].sprt[0][0],
-                  pString->spriteWidth > 0x100 ? 0x100 : pString->spriteWidth, 0xD);
+                  pString->spriteWidth > SYSTEM_TEXTURE_PAGE_WIDTH ? SYSTEM_TEXTURE_PAGE_WIDTH
+                                                                 : pString->spriteWidth,
+                  SYSTEM_GLYPH_STRIP_HEIGHT);
         setWHFast(&pString->pChars[i].sprt[0][1],
-                  pString->spriteWidth < 0x101 ? 0 : pString->spriteWidth - 0xF0, 0xD);
+                  pString->spriteWidth <= SYSTEM_TEXTURE_PAGE_WIDTH
+                      ? 0 : pString->spriteWidth - (SYSTEM_TEXTURE_PAGE_WIDTH - 0x10),
+                  SYSTEM_GLYPH_STRIP_HEIGHT);
 
-        setUV0Fast(&pString->pChars[i].sprt[0][0], (vramX & 0x3F) * 4, (vramY + row * 0xD) & 0xFF);
-        setUV0Fast(&pString->pChars[i].sprt[0][1], (vramX & 0x3F) * 4, (vramY + row * 0xD) & 0xFF);
+        setUV0Fast(&pString->pChars[i].sprt[0][0], (vramX & 0x3F) * 4, (vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT) & 0xFF);
+        setUV0Fast(&pString->pChars[i].sprt[0][1], (vramX & 0x3F) * 4, (vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT) & 0xFF);
 
         setSprt(&pString->pChars[i].sprt[0][0]);
         setSprt(&pString->pChars[i].sprt[0][1]);
@@ -225,12 +237,12 @@ void func_80032F54(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y, s1
         pString->pChars[i].sprt[1][1] = pString->pChars[i].sprt[0][1];
 
         pString->pChars[i].imageRect.x = vramX;
-        pString->pChars[i].imageRect.y = vramY + row * 0xD;
+        pString->pChars[i].imageRect.y = vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT;
         pString->pChars[i].imageRect.w = pString->imageWidth;
-        pString->pChars[i].imageRect.h = 0xD;
+        pString->pChars[i].imageRect.h = SYSTEM_GLYPH_STRIP_HEIGHT;
         pString->pChars[i].x = 0;
         pString->pChars[i].clut = odd ? g_SystemPalette2 : g_SystemPalette1;
-        pString->pChars[i].textureV = vramY + row * 0xD;
+        pString->pChars[i].textureV = vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT;
         pString->pChars[i].paletteIndex = odd;
         pString->pChars[i].unk5B = i;
     }
