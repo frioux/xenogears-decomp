@@ -6,6 +6,9 @@
 // An effect record is only drawn once its projected depth reaches this.
 #define BATTLE_EFFECT_MIN_DRAW_DEPTH 64
 
+// How much each colour channel drops per frame while a record fades out.
+#define BATTLE_EFFECT_FADE_STEP 6
+
 // 16.16 fixed point; the integer part is the high half of the word.
 typedef union {
     /* 0x0 */ s32 value;
@@ -338,60 +341,26 @@ void BattleActorRotateVectorZ(BattleSpriteState *pSprite, s8 *p) {
     pSprite->step.y = vec.vy;
     pSprite->step.z = vec.vz;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
-/* best 88.54 percent (544 vs retail's 552 bytes, 136 vs 138 instructions); the
-   parked body below is measured and compiles.  Work item: the data pointer
-   (arg + 4) heads a 0x10F7C-byte table - s32 counter at 0x38, then
-   entries[2][14][20] of 0x7C-byte records from 0x3C (0x3C + 2*0x87A0 = 0x10F7C,
-   the size BattleCreateWorkTask passes to WorkListsAddTasks).  Record: u16
-   accumulators at 0x0/0x2/0x4 fed by 0x8/0xA/0xC, s32 pos XYZ at
-   0x10/0x14/0x18, 0x24 is an array of 0x20-byte colour records (r/g/b at
-   +4/+5/+6), s32 timer at 0x64, three 16.16 fixed velocities at 0x68/0x6C/0x70
-   (integer part = high half at 0x6A/0x6E/0x72), s32 gravity at 0x78 (added to
-   0x6C).  Damping order is 0x6C, 0x68, 0x70, then 0x6C += gravity.  Loops need
-   `for (x = 0; x != N; x++)`; `<` gives slti/bnez instead of retail's li+bne.
-   DONE in earlier rounds (keep): the g_BattleStateWork + 0x8000 + 0xC84 read
-   wants two variables computed INSIDE the k loop (that also leaves retail's dead
-   lui %hi(g_BattleStateWork) in the entry block), and the task pointer must be
-   BattleEffectTask * or the unit does not compile.
-   SOLVED THIS ROUND: the three fixed-point reads.  Retail sign-extends at the
-   load (lh 0x6A/0x6E/0x72, one nop delay each) where an array assignment gives
-   lhu + sll/sra; the lever is a SImode temporary, i.e.
-   `whole = pEntry->velX.parts.whole; vel.vx = whole;`.  A plain
-   `vel.vx = pEntry->velX.parts.whole;` is 8 bytes bigger.  An SVECTOR local
-   (vx/vy/vz at sp+0x10/0x12/0x14, which is retail's frame) with that temp is
-   the parked body: it reproduces the three lh reads and the sh spills exactly.
-   STILL OPEN: retail SPILLS pTable, and that spill is the remaining 8 bytes.  Its
-   code is `sw a0,0x18(sp)` in the entry block, then at each j-preheader
-   `lw t1,0x18(sp); addu s7,t1,s6` - so s7 holds &entries[i][0][0]
-   (= pTable + 0x3C + i*0x87A0, live across the j loop) while pTable itself is
-   reloaded per outer iteration.  Ours keeps pTable in s7 and re-forms
-   pTable + ioff + joff in the k head, saving those 2 instructions (frame 0x40
-   instead of 0x48).  Two consequences follow: retail also loads velY.value
-   (0x6C) early and keeps it in a3 across the position updates, and its posY
-   update sits right after the posX store instead of after rotZ.
-   MEASURED NON-SOLUTIONS: plain `s16 vel[3]` or SVECTOR with no temp -> retail's
-   552 bytes, 88.64 and the 0x48 frame with the t1 spill all come back, but the
-   reads are lhu + sll/sra; three separate s16 locals (528 bytes, 79.15); an
-   `BattleEffect (*pSets)[20]` local for pTable->entries[i] (536, 86.55 - gcc
-   folds it into the pTable biv chain anyway); `pSets += 14` per outer iteration
-   and a per-j `BattleEffect *pRow = pSets[j]` (both fold, no better); every
-   statement order of the six position/accumulator updates; a 5-minute permuter
-   run (RESULT PERMUTER_BETTER base=1887 best=747 by moving posZ += vel.vz above
-   posX, though objdiff stayed at 88.54 - its metric and objdiff disagree here).
-   NOTE FOR THE NEXT WORKER: this preset (XenoBattleTailCdk0) runs with
-   -fschedule-insns and -fschedule-insns2, so source statement order does NOT
-   decide instruction order - permuting the position updates is wasted effort.
-   The missing loop-carried register pressure, i.e. the spilled pTable, is the
-   only lever left, and it is not something a source spelling reached here.*/
-/*void func_800B6F0C(BattleEffectTask *pTask) {
+// Ages every live record of the table one frame: a record with a timer still
+// running only counts down, the rest fade their colours toward the clamp, drift
+// by their fixed-point velocity, spin by their step, and damp those velocities
+// by a sixteenth of themselves before gravity is added back.
+// The three velocities go through s32 temporaries: read straight into the
+// SVECTOR gcc widens with lhu + sll/sra where retail sign-extends at the load.
+// pRows is re-derived inside the middle loop because retail re-reads the spilled
+// table pointer once per row set; hoisting it to the outer loop keeps the table
+// in a register and loses retail's extra frame slot, reload and biv chain.
+void func_800B6F0C(BattleEffectTask *pTask) {
     BattleEffectTable *pTable;
+    BattleEffect (*pRows)[14][20];
     BattleEffect *pEntry;
     BattleEffectColor *pColor;
     u8 *pState;
     u8 *pStateWork;
     SVECTOR vel;
-    s32 whole;
+    s32 vx;
+    s32 vy;
+    s32 vz;
     s32 i;
     s32 j;
     s32 k;
@@ -400,8 +369,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
     pTable->frameCount++;
     for (i = 0; i != 2; i++) {
         for (j = 0; j != 14; j++) {
-            for (k = 0; k != 20; k++) {
-                pEntry = &pTable->entries[i][j][k];
+            // retail re-derives the row base from the spilled table once per row
+            // set, and does it after the inner loop's counter is cleared
+            for (k = 0, pRows = &pTable->entries[i]; k != 20; k++) {
+                pEntry = &(*pRows)[j][k];
                 if (pEntry->timer != 0) {
                     pEntry->timer--;
                     continue;
@@ -409,21 +380,21 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
                 pStateWork = g_BattleStateWork;
                 pState = pStateWork + 0x8000;
                 pColor = &pEntry->colors[*(s32 *)(pState + 0xC84)];
-                pColor->r = SpriteColorAddClamp(pColor->r, -6);
-                pColor->g = SpriteColorAddClamp(pColor->g, -6);
-                pColor->b = SpriteColorAddClamp(pColor->b, -6);
-                whole = pEntry->velX.parts.whole;
-                vel.vx = whole;
-                whole = pEntry->velY.parts.whole;
-                vel.vy = whole;
-                whole = pEntry->velZ.parts.whole;
-                vel.vz = whole;
+                pColor->r = SpriteColorAddClamp(pColor->r, -BATTLE_EFFECT_FADE_STEP);
+                pColor->g = SpriteColorAddClamp(pColor->g, -BATTLE_EFFECT_FADE_STEP);
+                pColor->b = SpriteColorAddClamp(pColor->b, -BATTLE_EFFECT_FADE_STEP);
+                vx = pEntry->velX.parts.whole;
+                vel.vx = vx;
+                vy = pEntry->velY.parts.whole;
+                vel.vy = vy;
+                vz = pEntry->velZ.parts.whole;
+                vel.vz = vz;
                 pEntry->posX += vel.vx;
                 pEntry->posY += vel.vy;
+                pEntry->posZ += vel.vz;
                 pEntry->rotX += pEntry->rotStepX;
                 pEntry->rotY += pEntry->rotStepY;
                 pEntry->rotZ += pEntry->rotStepZ;
-                pEntry->posZ += vel.vz;
                 pEntry->velY.value -= pEntry->velY.value / 16;
                 pEntry->velX.value -= pEntry->velX.value / 16;
                 pEntry->velZ.value -= pEntry->velZ.value / 16;
@@ -432,7 +403,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
         }
     }
 }
-*/
 
 void BattleStoreGfxOrderingTable(BattleEffectTask *pTask) {
     g_BattleSavedGfxOT = g_GfxCurOT;
