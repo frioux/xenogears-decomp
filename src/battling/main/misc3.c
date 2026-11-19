@@ -641,10 +641,33 @@ extern s32 ControllerGetType(s32 controllerIndex);
 extern u8 ControllerStickToAnalogX(s32 buttonState);
 extern u8 ControllerStickToAnalogY(s32 buttonState);
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
+
+/* 97.34% (1968 vs retail's 1972 bytes). Everything is retail's except four
+   spots. (1, worth most of the gap) retail's analog-stick ramp blocks emit the
+   clamp as a real abs - `lw v0,0x8C; bgez s1; addu v1,s1; negu v1,v1; addu
+   v0,v0,s4; sw` - i.e. the `s1 < 0 ? -s1 : s1` sits BETWEEN the += 's load and
+   its add; here gcc folds the ternary to a bare `negu` (it knows s1 < 0 from
+   the guard) AND puts it above the load, so that block is 2 instructions short
+   and buys a load-delay `nop`. Giving the sign its own variable
+   (`negative = stickX2 < 0; limit = negative ? -stickX2 : stickX2;` - the form
+   the permuter found, kept below for inputLeft) does emit bgez/addu/negu, but
+   applying it to BOTH blocks costs 8 bytes and flips rampStep/decayStep from
+   retail's s4/s5 to s5/s4 (declaration order does not move it back). Tried:
+   `-stickY2` direct, abs before/after the +=, one shared sign variable, no
+   variable, limit reused as the sign, reversed ternary.
+   (2) retail stores flags at 0xD0 with a0 after BOTH `lw 0x648`/`lw 0xfc`; this
+   body stores it (in v1) between them - reordering the two `+= 0x800` above the
+   flags assignment puts the store last instead. (3) `p->distance`/`targetAngle`:
+   retail's `sw 0x48` lands in the beqz delay slot and `lh 0xce` after it, this
+   one has `nop; lh; sw`. (4) the final distance-window `subu` runs in v0 here,
+   v1 in retail. Preset is Default (-O2, gcc 2.7.2, -G8) and no scheduler runs,
+   so these are source-order/allocator artefacts, not a preset question. */
 /* The controller the actor reads: player 2's actor takes controller 1. A digital
    pad's sticks come straight from the axis globals, an analog one's from the
    button state. The four input ramps charge one direction at a time and decay
    the rest, and (right - left, up - down) becomes the movement vector. */
+/*
 s32 func_80076884(BattleActor* p) {
     u16 buttons;
     u16 released;
@@ -660,6 +683,7 @@ s32 func_80076884(BattleActor* p) {
     s32 direction;
     s32 distance;
     s32 limit;
+    s32 negative;
     s32 diff;
     u32 flags;
 
@@ -824,7 +848,8 @@ s32 func_80076884(BattleActor* p) {
             }
         }
         if (stickX2 < 0 && enabled) {
-            limit = stickX2 < 0 ? -stickX2 : stickX2;
+            negative = stickX2 < 0;
+            limit = negative ? -stickX2 : stickX2;
             p->inputLeft += rampStep;
             if (p->inputLeft > limit) {
                 p->inputLeft = limit;
@@ -881,6 +906,7 @@ s32 func_80076884(BattleActor* p) {
     }
 }
 
+*/
 extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleFacingAngle;
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 v);
