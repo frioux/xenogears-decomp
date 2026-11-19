@@ -268,7 +268,64 @@ s32 func_80080A28(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080AC4);
+// The two GTE scale vectors the fade groups are scaled by, in the scratchpad. The
+// address is a literal on purpose: naming a symbol here makes gcc materialise %hi/%lo
+// through a saved register where the original stores through a bare lui $at.
+typedef struct {
+    /* 0x00 */ VECTOR first;
+    /* 0x10 */ VECTOR second;
+} WorldMapScaleVectors; // Size: 0x20
+
+#define WORLD_MAP_SCALE_VECTORS ((WorldMapScaleVectors *)0x1F800000)
+
+s32 func_80080AC4(s32 index) {
+    WorldMapEntry *pGroup = g_WorldMapGroups;
+    WorldMapEntry *pNextGroup;
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    s32 spread;
+    s32 pos;
+
+    if (pSlot->command == 1) {
+        pSlot->command = 0;
+    }
+    pos = pSlot->pos.x >> 12;
+    pGroup[1].x = pos;
+    pGroup->x = pos;
+    pos = pSlot->pos.y >> 12;
+    pGroup[1].y = pos;
+    pGroup->y = pos;
+    pos = pSlot->pos.z >> 12;
+    pGroup[1].z = pos;
+    pGroup->z = pos;
+    pGroup[1].matrix = g_WorldMapIdentityMatrix;
+    pGroup->matrix = pGroup[1].matrix;
+    WORLD_MAP_SCALE_VECTORS->first.vx = WORLD_MAP_SCALE_VECTORS->first.vz = pSlot->unk50;
+    spread = pSlot->unk54;
+    WORLD_MAP_SCALE_VECTORS->first.vy = WORLD_MAP_SCALE_VECTORS->second.vy = 0x1000;
+    WORLD_MAP_SCALE_VECTORS->second.vx = WORLD_MAP_SCALE_VECTORS->second.vz = spread;
+    ScaleMatrix(&pGroup->matrix, &WORLD_MAP_SCALE_VECTORS->first);
+    ScaleMatrix(&pGroup[1].matrix, &WORLD_MAP_SCALE_VECTORS->second);
+    pNextGroup = pGroup + 1;
+    pSlot->unk50 += 0x180;
+    if (pSlot->unk50 > 0x7FFF) {
+        pSlot->unk50 = 0x7FFF;
+    }
+    pSlot->unk54 += 0x180;
+    if (pSlot->unk54 > 0x7FFF) {
+        pSlot->unk54 = 0x7FFF;
+    }
+    WorldMapSetPrimColors(pGroup->pPackets[g_WorldMapPrimPacketIndex], pGroup->pModel->polyCount,
+                          pSlot->unk58, pSlot->unk58, pSlot->unk58);
+    pGroup = pNextGroup;
+    WorldMapSetPrimColors(pGroup->pPackets[g_WorldMapPrimPacketIndex], pGroup->pModel->polyCount,
+                          pSlot->unk58, pSlot->unk58, pSlot->unk58);
+    pSlot->unk58 -= 4;
+    if (pSlot->unk58 < 0) {
+        pSlot->unk58 = 0;
+        return 3;
+    }
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
 void WorldMapExitToMap1FA(void) {
     u16 v;
