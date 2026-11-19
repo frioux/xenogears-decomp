@@ -154,14 +154,8 @@ extern s16 D_8009A236;
 extern u16 D_8009A238;
 extern s16 D_8009A23A;
 extern u8 D_8009A23C;
-extern u8 D_8009A1C0[];
-extern u8 D_8009A1C3;
-extern u32 D_8009A1C4;
-extern s16 D_8009A1C8;
-extern s16 D_8009A1CA;
-extern s16 D_8009A1CC;
-extern s16 D_8009A1CE;
-extern u8 D_8009A2B8[];
+extern BattleTilePacket D_8009A1C0;
+extern BattleTilePacket D_8009A2B8;
 
 extern void BattleSetSlotBit(void);
 extern s32 BattleTestSlotBit(s32 slot);
@@ -227,24 +221,20 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
 }
 
 
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 
-/* Best attempt: objdiff 86.96% (the same body written as five plain locals with
-   a cached s32 was 61.85%; gcc 2.7.2-cdk scores 84.13 and 2.6.0 does not
-   compile it). Writing the read-modify-write as bitfield stores on
-   (BattleFlagBits*)&g_BattleOptionFlags reproduces everything: the single lw, the five
-   clearing masks (~0xF, ~0x10, ~0x20, ~0xFFFFE03F, ~0xFFFF1FFF), the five value
-   registers ($a2,$a1,$a0,$v1,$t0) and the lbu/andi/sll/or chain. The only
-   difference left is store placement: retail defers the first four stores until
-   after the fourth lbu and issues them together (sw a2/a1/a0/v1), gcc stores
-   each value as its bitfield assignment completes (sw a2 after the first lbu,
-   ...). No C shape found that holds a store back past a load, so this may be
-   unreachable; the typedef is kept here because the body is otherwise exact.
-   Round 42: cc1 run with -fschedule-insns -fschedule-insns2 emits byte-identical
-   code to the plain preset, so the deferral is not our scheduler being off; a
-   chained s32 through a pointer local scores 70.96 and keeps the single load but
-   stores inline as well. Retail holds four values live at once, a shape no
-   source order tried so far produces. */
+/* Best attempt: objdiff 86.96%. Bitfield stores on (BattleFlagBits*)&g_BattleOptionFlags
+   reproduce everything - the single lw, the five clearing masks (~0xF, ~0x10, ~0x20,
+   ~0xFFFFE03F, ~0xFFFF1FFF), the five value registers ($a2,$a1,$a0,$v1,$t0) and the
+   lbu/andi/sll/or chain - except store placement: retail defers the first four stores
+   until after the fourth lbu (sw a2/a1/a0/v1 together), gcc stores each value as its
+   bitfield assignment completes. Measurements: five plain locals with a cached s32
+   61.85%; chained s32 through a pointer local 70.96%; gcc-2.7.2-cdk 84.13; 2.6.0 does
+   not compile it; cc1_probe of this body with -fschedule-insns -fschedule-insns2 is
+   byte-identical to the plain unit flags (it does hoist the four mask constants, which
+   retail also hoists, but leaves the stores inline). Retail keeps four values live at
+   once, which no source order tried so far produces. */
 /*
 typedef struct {
     u32 mode : 4;
@@ -436,18 +426,21 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
 
-/* Best attempt: objdiff 79.77%. Everything from the prologue to the last tile
-   store matches, including the retail store order (0x1C3, 0x1C4, 0x1CC, 0x1C8,
-   0x1CA, 0x1CE). Two things are left and both come from one cause: gcc hoists
-   the trailing 16-byte struct copy of D_8009A1C0 -> D_8009A2B8 up to just after
-   the BattleSetScaleMatrix call (retail emits it last), and because that copy occupies
-   $v0/$v1 earlier, the tile stores use $s2/$s1 directly where retail copies
-   them into $v0 first (move $v0,$s2 ; sh $v0,0x1CC / move $v0,$s1 ; sh $v0,0x1CE).
-   Tried: struct copy vs four u32 copies (u32 form hoists the loads and uses
-   per-symbol stores), statement order copy-first vs copy-last, and volatile on
-   the copy destination (that makes gcc call memcpy). Round 50: not a preset
-   question either - -O1 scores 75.40, gcc-2.7.2-cdk 61.58, -O3 does not compile
-   (cc1 exits 33 on this unit). */
+/* Best attempt: objdiff 97.91%, but 508 bytes against retail's 512, so it cannot
+   link yet. The tile packet is a BattleTilePacket at D_8009A1C0 (tag/len at +0/+3,
+   code at +4, x/y at +8/+0xA, w/h at +0xC/+0xE) and the 16-byte copy is
+   D_8009A2B8 = D_8009A1C0. Typing both under that ONE symbol is what makes the
+   body work at all: with the tile fields declared as separate D_8009A1C3/1C4/1C8/
+   1CA/1CC/1CE externs (the same body, same store order) gcc treats the copy's loads
+   as independent of those stores and sched2 hoists the copy above them (79.77%, the
+   old park); through the shared D_8009A1C0 base the loads and stores alias, the copy
+   stays last, and the two truncating copies retail has for w/h come back too.
+   Still missing: retail copies the w and h parameters into $v0 before each sh
+   (addu v0,s2,zero / addu v0,s1,zero), which is the whole 4-byte gap. No spelling
+   found that makes cc1 2.7.2 emit that copy - probed u16/s16 locals, an explicit
+   (u16) cast, w & 0xFFFF, a u16* view, a shared s32 temp, bitfields for w/h, a
+   volatile field, and a struct-pointer field store: every one stores $s2/$s1
+   straight into the sh. */
 /*
 void func_80089330(s32 w, s32 h) {
     DISPENV* pDisp;
@@ -484,14 +477,15 @@ void func_80089330(s32 w, s32 h) {
     g_BattleScreenWidth = w;
     g_BattleScreenHeight = h;
     BattleSetScaleMatrix((s16)w, (s16)h);
-    D_8009A1C3 = 3;
-    D_8009A1C4 = 0x60000000;
-    D_8009A1CC = w;
-    D_8009A1C8 = 0;
-    D_8009A1CA = 0;
-    D_8009A1CE = h;
-    *(BattleBlk16*)&D_8009A2B8 = *(BattleBlk16*)&D_8009A1C0;
+    D_8009A1C0.len = 3;
+    D_8009A1C0.code = 0x60000000;
+    D_8009A1C0.w = w;
+    D_8009A1C0.x = 0;
+    D_8009A1C0.y = 0;
+    D_8009A1C0.h = h;
+    D_8009A2B8 = D_8009A1C0;
 }
+
 */
 void BattleInitDrawEnvs(s32 w, s32 h) {
     u8* pDtd;
