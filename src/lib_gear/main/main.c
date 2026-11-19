@@ -596,9 +596,6 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 // ("inconsistent operand constraints in an asm"), and the 4-minute run on the 86.47%
 // body only moved the permuter's own metric. Un-park by deleting the INCLUDE_ASM line
 // and the enclosing comment.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
-
-/*
 void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex) {
     MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
     MATRIX* pViewScratch = &pScratch[1];
@@ -621,6 +618,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     SVECTOR swingVec;
     u16 modelScale;
     s32 depth;
+    s32 otz;
     u_int numChildren;
     u_int jointIndex;
     s32 slot;
@@ -687,23 +685,20 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         SetRotMatrix(pViewScratch);
         SetTransMatrix(pViewScratch);
 
-        pPoly = &pModel->polys[packetIndex];
-
         svec.vx = pModel->width;
         svec.vy = 0;
         svec.vz = pModel->depth;
         gte_ldv0(&svec);
         gte_rtps();
+        pPoly = &pModel->polys[packetIndex];
         gte_stsxy2((u_long*)&pPoly->x0);
-        gte_stsz3_val(depthBuf[0]);
-        depthBuf[0] >>= 2;
+        gte_stszotz(&depthBuf[0]);
 
         svec.vx = -pModel->width;
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x1);
-        gte_stsz3_val(depthBuf[1]);
-        depthBuf[1] >>= 2;
+        gte_stszotz(&depthBuf[1]);
         if (depthBuf[1] < depthBuf[0]) {
             depthBuf[0] = depthBuf[1];
         }
@@ -713,8 +708,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x2);
-        gte_stsz3_val(depthBuf[1]);
-        depthBuf[1] >>= 2;
+        gte_stszotz(&depthBuf[1]);
         if (depthBuf[1] < depthBuf[0]) {
             depthBuf[0] = depthBuf[1];
         }
@@ -723,19 +717,18 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x3);
-        gte_stsz3_val(depthBuf[1]);
-        depthBuf[1] >>= 2;
+        gte_stszotz(&depthBuf[1]);
         if (depthBuf[1] < depthBuf[0]) {
             depthBuf[0] = depthBuf[1];
         }
 
-        depthBuf[0] >>= g_GfxOTDepthShift;
-        pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[depthBuf[0]] & 0xFFFFFF);
-        pOt[depthBuf[0]] = (pOt[depthBuf[0]] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
-        if (depthBuf[0] >= 0x2D9) {
-            depthBuf[0] = 0x2D8;
+        otz = depthBuf[0] >> g_GfxOTDepthShift;
+        pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
+        pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
+        if (otz >= 0x2D9) {
+            otz = 0x2D8;
         }
-        pModel->unk39 = 0x6B - depthBuf[0] / 8;
+        pModel->unk39 = 0x6B - otz / 8;
     }
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
@@ -874,11 +867,10 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->y2 = pEntry->screenB[2 * slot + 1];
             }
 
-            slot = pEntry->slot;
-            pEntry->pVertex->x1 = pEntry->screenA[2 * slot];
-            pEntry->pVertex->y1 = pEntry->screenA[2 * slot + 1];
-            pEntry->pVertex->x3 = pEntry->screenB[2 * slot];
-            pEntry->pVertex->y3 = pEntry->screenB[2 * slot + 1];
+            pEntry->pVertex->x1 = pEntry->screenA[2 * pEntry->slot];
+            pEntry->pVertex->y1 = pEntry->screenA[2 * pEntry->slot + 1];
+            pEntry->pVertex->x3 = pEntry->screenB[2 * pEntry->slot];
+            pEntry->pVertex->y3 = pEntry->screenB[2 * pEntry->slot + 1];
         } else {
             CompMatrix(&pSkeleton->localTransform, &pSkeleton[pEntry->jointIndex].globalTransform, pScratch);
             SetRotMatrix(pScratch);
@@ -936,7 +928,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         pEntry++;
     }
 }
-*/
 
 
 // Decoded from the .s, verified against the near-twin function LibGearRenderModel
