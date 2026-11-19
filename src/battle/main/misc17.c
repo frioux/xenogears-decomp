@@ -212,13 +212,17 @@ void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
-/* 87.45%: the whole shape (index branch, RECT, two string draws, two
-   BattleSetPolyFT4RectH13 calls, HeapFree) reproduces; the leftovers are the
-   &g_BattlePrimStartIndex wall (retail holds `lui s3/addiu s3` once and does `lw 0(s3)`
-   twice, gcc rematerialises `lui/lw` per call) and the `andi s0,s0,0xffff`
-   retail emits at index's first use (gcc proves the u8-derived range here and
-   drops it). Also tried: the (arg2*2+arg1)*2 sum in a local before the branch
-   (74.68 - it hoists the whole vofs computation to the top of the frame). */
+/* 99.22% (508 bytes against retail's 512): the array-extern spelling for
+   g_BattlePrimStartIndex plus `g_BattleGraphicsWork->pPacketPrims` reproduces
+   retail's `lui s3/addiu s3` + `lw 0(s3)` per call, and every other instruction
+   matches (geometry, RECT, both string draws, HeapFree). 87.45 -> 99.22 in one
+   edit. Residual: the same single `andi s0,s0,0xffff` retail emits at index's
+   first use that func_8009382C is missing -- gcc 2.6.0 proves the u16 range
+   (u8 table load * 0x20 + (u8 * 2 + u8) * 2 fits) and drops the truncation, so
+   the body is 4 bytes short. The two functions want the same answer: a spelling
+   of a `u16 index` computed from byte loads whose range cc1 2.6.0 cannot prove
+   (u16/s32/u32 locals, a u32 intermediate, a 3-statement form and a `u16`
+   parameter on GetStringEntry were all measured dead in func_8009382C). */
 /*
 void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     RECT rect;
@@ -241,8 +245,8 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     rect.w = 0x3C;
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, pBuf);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x280), 0x30, 0xB6, 0, 0, len1 & 0xFF);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x2D0), 0x30, 0xC6, 0, 0, len2 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x280)), 0x30, 0xB6, 0, 0, len1 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x2D0)), 0x30, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
 */
