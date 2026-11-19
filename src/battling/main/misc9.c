@@ -1,4 +1,8 @@
 #include "common.h"
+#define BATTLE_SPOKE_COUNT 32 // spokes of the ring BattleDrawViewOriginRing draws
+#define BATTLE_SPOKE_ANGLE_STEP 0x10 // angle increment per spoke, 4096-step turn
+#define BATTLE_SPOKE_RADIUS 0x3F80 // ring radius, also the offset subtracted from the view origin
+#define BATTLE_OT_DEPTH_MAX 0x1C00 // depth limit before the prim is queued
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
@@ -16,7 +20,7 @@ typedef struct {
 extern SVECTOR g_BattlePlaneNormal;
 extern VECTOR g_BattleViewOrigin;
 extern VECTOR g_BattleViewOriginZ;
-extern POLY_FT4* D_80092788[2];
+extern POLY_FT4* g_BattleDrawPrimPools[2];
 extern s32 g_BattleCameraPos;
 extern s32 g_BattleCameraTarget;
 extern s32 g_BattleCameraPosY;
@@ -468,7 +472,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082C4C);
      of u16/u8 members reproduces both loads without hoisting an address.
    - retail reloads the D_800927A8 address with a fresh lui per access, ours
      CSEs the eight uses into one callee-saved register (s0) - that is the
-     blocker; and retail keeps &D_80092788 in a callee-saved register across
+     blocker; and retail keeps &g_BattleDrawPrimPools in a callee-saved register across
      the two HeapAlloc calls and stores through it in the jal delay slot.
    - the CLUT loop wants an s32 -0x8000 local (or v0,v0,a0) and drop its
      counter in a2, ours picks a1; D_800927A8 needs a union of u16/u8
@@ -494,9 +498,9 @@ void func_80082C4C(u8* pArg) {
     D_800927A0 = GetClut(tim.crect->x, tim.crect->y);
     D_800927A4 = GetTPage(1, 0, tim.prect->x, tim.prect->y);
     D_800927A8.w = *(u8*)&tim.prect->y;
-    D_80092788 = HeapAlloc(0xA00, 0);
+    g_BattleDrawPrimPools = HeapAlloc(0xA00, 0);
     D_8009278C = HeapAlloc(0xA00, 0);
-    p = (POLY_FT4*)D_80092788;
+    p = (POLY_FT4*)g_BattleDrawPrimPools;
     for (i = 0; i < 0x40; i += 2) {
         setPolyFT4(p);
         p->u0 = 0x7F;
@@ -523,7 +527,7 @@ void func_80082C4C(u8* pArg) {
         p->v3 = D_800927A8.w;
         p++;
     }
-    func_800732AC(D_8009278C, D_80092788, 0xA00);
+    func_800732AC(D_8009278C, g_BattleDrawPrimPools, 0xA00);
 }
 */
 
@@ -549,7 +553,7 @@ void func_80082C4C(u8* pArg) {
    - gte_dpcs() had to be fixed to emit the canonical COP2 word: see the note
      in include/psyq/inline_c.h.
 */
-void func_80082E60(u_long* pOt, VECTOR* pCam) {
+void BattleDrawViewOriginRing(u_long* pOt, VECTOR* pCam) {
     VECTOR cam;
     SVECTOR vec[6];
     POLY_FT4* pPrim;
@@ -567,9 +571,9 @@ void func_80082E60(u_long* pOt, VECTOR* pCam) {
     s32 z;
 
     cam = *pCam;
-    pPrim = D_80092788[g_BattleDrawBufferIndex];
-    cam.vx -= 0x3F80;
-    cam.vz -= 0x3F80;
+    pPrim = g_BattleDrawPrimPools[g_BattleDrawBufferIndex];
+    cam.vx -= BATTLE_SPOKE_RADIUS;
+    cam.vz -= BATTLE_SPOKE_RADIUS;
     ang = ratan2(cam.vx, cam.vz) & 0xFFF0;
     ang -= 0x100;
     vec[0].vy = vec[1].vy = 0;
@@ -578,19 +582,19 @@ void func_80082E60(u_long* pOt, VECTOR* pCam) {
     // The first spoke keeps its own origin copies: with the subtraction inlined
     // gcc 2.7.2 folds it to `x + 0x3F80` and emits the addiu on the wrong
     // operand; sharing originX/originZ with the loop hoists both loads.
-    vec[0].vx = ((rcos(ang) * 0x3F80) >> 12) - (preOriginX = g_BattleViewOrigin.vx - 0x3F80);
-    vec[0].vz = ((rsin(ang) * 0x3F80) >> 12) - (preOriginZ = g_BattleViewOriginZ.vx - 0x3F80);
-    ang += 0x10;
-    for (i = 0; i < 0x20; i++) {
+    vec[0].vx = ((rcos(ang) * BATTLE_SPOKE_RADIUS) >> 12) - (preOriginX = g_BattleViewOrigin.vx - BATTLE_SPOKE_RADIUS);
+    vec[0].vz = ((rsin(ang) * BATTLE_SPOKE_RADIUS) >> 12) - (preOriginZ = g_BattleViewOriginZ.vx - BATTLE_SPOKE_RADIUS);
+    ang += BATTLE_SPOKE_ANGLE_STEP;
+    for (i = 0; i < BATTLE_SPOKE_COUNT; i++) {
         vec[2].vx = vec[0].vx;
         vec[4].vx = vec[0].vx;
         vec[2].vz = vec[0].vz;
         vec[4].vz = vec[0].vz;
-        x = ((rcos(ang) * 0x3F80) >> 12) - (originX = g_BattleViewOrigin.vx - 0x3F80);
+        x = ((rcos(ang) * BATTLE_SPOKE_RADIUS) >> 12) - (originX = g_BattleViewOrigin.vx - BATTLE_SPOKE_RADIUS);
         vec[1].vx = x;
         vec[3].vx = x;
         vec[5].vx = x;
-        z = ((rsin(ang) * 0x3F80) >> 12) - (originZ = g_BattleViewOrigin.vz - 0x3F80);
+        z = ((rsin(ang) * BATTLE_SPOKE_RADIUS) >> 12) - (originZ = g_BattleViewOrigin.vz - BATTLE_SPOKE_RADIUS);
         vec[1].vz = z;
         vec[3].vz = z;
         vec[5].vz = z;
@@ -617,7 +621,7 @@ void func_80082E60(u_long* pOt, VECTOR* pCam) {
         if (depth <= sz[3]) {
             depth = sz[3];
         }
-        if (depth < 0x1C00) {
+        if (depth < BATTLE_OT_DEPTH_MAX) {
             otIndex = depth >> 4;
             gte_strgb(&pPrim->r0);
             gte_strgb(&pNext->r0);
@@ -627,7 +631,7 @@ void func_80082E60(u_long* pOt, VECTOR* pCam) {
             AddPrim(pOt + otIndex, pNext);
         }
         pPrim += 2;
-        ang += 0x10;
+        ang += BATTLE_SPOKE_ANGLE_STEP;
         vec[0].vx = vec[1].vx;
         vec[0].vz = vec[1].vz;
     }
