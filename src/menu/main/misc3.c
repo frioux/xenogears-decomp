@@ -269,7 +269,7 @@ void MenuMarkSlotsWithGameSave(int a0) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
-extern s32 D_801E981C[];
+extern s32 g_MenuCardSlotOrder[];
 
 u_char MenuIsSlotUsable(s32 a0) {
     MenuUnk2* pMenu = g_Menu->menuUnk2;
@@ -280,7 +280,7 @@ u_char MenuIsSlotUsable(s32 a0) {
     switch (a0) {
     case 0:
         if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
-            j = D_801E981C[idx];
+            j = g_MenuCardSlotOrder[idx];
             if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
                     break;
@@ -291,7 +291,7 @@ u_char MenuIsSlotUsable(s32 a0) {
         break;
     case 1:
         if (*(s32*)&pMenu->cardEnumerated[0] & 0xFFFF0000) {
-            j = D_801E981C[idx];
+            j = g_MenuCardSlotOrder[idx];
             if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
                     if (pMenu->slotHasGameSave[j] != 0) {
@@ -303,7 +303,7 @@ u_char MenuIsSlotUsable(s32 a0) {
         result = 0;
         break;
     case 2:
-        j = D_801E981C[idx];
+        j = g_MenuCardSlotOrder[idx];
         if (pMenu->cardStatus[j / MENU_CARD_RECORD_COUNT] == 0) {
             result = 0;
         }
@@ -339,7 +339,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
         switch (a0) {
         case 0:
             if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
-                j = D_801E981C[i];
+                j = g_MenuCardSlotOrder[i];
                 if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE) {
                     result = i;
                     searching = 0;
@@ -350,7 +350,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
             break;
         case 1:
             if (*(s32*)&g_Menu->menuUnk2->cardEnumerated[0] & 0xFFFF0000) {
-                j = D_801E981C[i];
+                j = g_MenuCardSlotOrder[i];
                 if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0 && g_Menu->menuUnk2->slotRecordIndexes[j] != MENU_SLOT_NONE &&
                     g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
                     result = i;
@@ -361,7 +361,7 @@ s32 MenuFindFirstValidSlot(s32 a0) {
             }
             break;
         case 2:
-            j = D_801E981C[i];
+            j = g_MenuCardSlotOrder[i];
             if (g_Menu->menuUnk2->cardStatus[j / MENU_CARD_RECORD_COUNT] != 0) {
                 result = i;
                 searching = 0;
@@ -803,7 +803,7 @@ extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 // pCellGrid is a void*, so every access reloads and re-casts it: retail reloads it
 // for each of the three colour bytes, so a pointer local must not be used here.
 // Case 0 frees the panel, 1 builds it, 2 stops its scroll.
-void func_801CAE08(u_char mode) {
+void MenuSetCellGridPanelState(u_char mode) {
     switch (mode) {
     case MENU_DATA_FREE:
         if (g_Menu->pManager->cellGridScrollState != 0) {
@@ -956,7 +956,7 @@ void MenuApplySaveSlot(u32* pSrc) {
    cannot move), and dropping locals to free the register 0xFF wants.
    Verified: the 0x1EFE-byte checksum, the 5-retry loops, the 0x2100-byte read
    buffer and the prefix/records filename build (memcpy 6 bytes + strcat of
-   records[slotRecordIndexes[D_801E981C[selectedSlot]]].ids) all come out as
+   records[slotRecordIndexes[g_MenuCardSlotOrder[selectedSlot]]].ids) all come out as
    retail's instructions. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
 /*extern u_char func_801C93A8(void);
@@ -1021,7 +1021,7 @@ u_char func_801CB304(void) {
                 memcpy(path, &D_801C50B0, 6);
                 card = 1;
             }
-            strcat(path, g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[D_801E981C[g_Menu->menuUnk2->selectedSlot]]].ids);
+            strcat(path, g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]].ids);
             if (MenuLoadWindow2Text(0x65, MENU_WINDOW_TEXT_NONE, 1) == 0) {
                 g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
                 goto updateCursor;
@@ -1051,7 +1051,7 @@ u_char func_801CB304(void) {
                 pBuffer = HeapAlloc(0x2100, 1);
                 pData = pBuffer;
                 g_Menu->pManager->characterWindowBuilt = 0;
-                func_801CAE08(1);
+                MenuSetCellGridPanelState(1);
                 while (offset < (g_Menu->menuUnk2->saveBlockCount << 13)) {
                     MenuRenderFrame();
                     retry = 5;
@@ -1089,7 +1089,7 @@ u_char func_801CB304(void) {
             freeBuffer:
                 HeapFree(pBuffer);
             }
-            func_801CAE08(2);
+            MenuSetCellGridPanelState(2);
             MenuFreeWindow2Strings();
             if (fd != 0) {
                 repeat = 0;
@@ -1101,7 +1101,7 @@ u_char func_801CB304(void) {
                 MenuLoadWindow2Text(0x3E, MENU_WINDOW_TEXT_NONE, 0);
                 g_Menu->menuUnk2->cardPollMode = 2;
             }
-            func_801CAE08(0);
+            MenuSetCellGridPanelState(0);
             g_Menu->menuUnk2->cardEnumerated[0] = 0;
             g_Menu->menuUnk2->cardEnumerated[1] = 0;
             g_Menu->menuUnk2->previousCardSlotCounts[0] = MENU_SLOT_NONE;

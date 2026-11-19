@@ -1088,3 +1088,7 @@ g_BattleActionRowIconSprites = 0x800D2F68;
 g_BattleSlotTextIndex = 0x800CCD88;
 g_BattleSlotActorIds = 0x800C3EB6;
 g_BattleSlotSpriteColumnIds = 0x800C33B0;
+g_BattleActorStepTimer = 0x800C3E88;
+g_BattleActorStepIncrement = 0x800CCC5C;
+g_BattleTweenVectorAngle = 0x800C3CF0;
+g_BattleColorMatrix = 0x800D2FC0;

@@ -1778,7 +1778,7 @@ void SoundSendCommandConstant(s32 arg0) {
 //----------------------------------------------------------------------------------------------------------------------
 void SoundPlaySoundEffectOnFreePair(s32 arg0) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
-        s32 value = func_8003A65C(arg0, 2);
+        s32 value = SoundAllocateSoundEffectElements(arg0, 2);
 
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644((s16)(value | 0x2000), arg0, 0x6000, 0x4000);
@@ -1801,7 +1801,7 @@ void SoundPlaySoundEffectOnPair(s32 arg0, s32 arg1) {
 //----------------------------------------------------------------------------------------------------------------------
 void SoundSendCommandByIdWithLevels(s32 arg0, s32 arg1, s32 arg2) {
     if (g_SoundControlFlags & SOUND_CTL_FLAG_SOUND_EFFECT_ENABLED) {
-        s32 value = func_8003A65C(arg0, 2);
+        s32 value = SoundAllocateSoundEffectElements(arg0, 2);
 
         g_SoundEffectElementPairCount = SOUND_EFFECT_ELEMENT_PAIR_COUNT;
         func_8003B644((s16)(value | 0x2000), arg0, (s16)(arg1 << 8), (s16)(arg2 << 8));
@@ -2055,7 +2055,7 @@ s32 SoundGetActiveElementMask(s32 id) {
     return result;
 }
 
-s32 func_8003A65C(s32 soundId, s32 count) {
+s32 SoundAllocateSoundEffectElements(s32 soundId, s32 count) {
     AudioManager* pManager = g_SoundEffectAudioManager;
     AudioElement* pElement = &pManager->elements[0];
     u32 cnt = g_SoundEffectElementCount;

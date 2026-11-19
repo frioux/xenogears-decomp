@@ -834,7 +834,7 @@ typedef struct {
     /* 0x43C  */ MenuScrollBarHandle* pScrollHandle;
     /* 0x440  */ MenuShoulderButtonUi* pShoulderButtonUi;
     /* 0x444  */ MenuArrowCursor* arrowCursors[MENU_MAX_NUM_ARROW_CURSORS];
-    /* 0x44C  */ void* pCellGrid; // Cell grid panel block, allocated in func_801CAE08, drawn by MenuAddCellGridPrims
+    /* 0x44C  */ void* pCellGrid; // Cell grid panel block, allocated in MenuSetCellGridPanelState, drawn by MenuAddCellGridPrims
     /* 0x450  */ MenuShop* pShop;
     /* 0x454  */ MenuUnk8* menuUnk8;
     /* 0x458  */ SystemMenuArchiveData *pGearModelArchiveData[2]; // Per gear-model slot: its two archive files, load position and isModelCreated

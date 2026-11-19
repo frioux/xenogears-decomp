@@ -70,8 +70,8 @@ typedef struct {
     /* 0xD */ u8 visitStamp; // set to g_BattleTriangleVisitStamp once the node was tested
 } Misc23TreeEntry; // Size: 0xE
 
-extern s32 D_800C3E88;
-extern u16 D_800C3CF0;
+extern s32 g_BattleActorStepTimer;
+extern u16 g_BattleTweenVectorAngle;
 extern u8 g_BattleExtraMatrixFlag;
 extern u16 D_800C3B7C;
 extern u8 g_BattleStateBit;
@@ -678,8 +678,8 @@ void BattleInitializeStage(void) {
     s32 arg1;
 
     pBuf = g_BattleBlockPool;
-    D_800C3E88 = 0;
-    D_800C3CF0 = 0;
+    g_BattleActorStepTimer = 0;
+    g_BattleTweenVectorAngle = 0;
     g_BattleExtraMatrixFlag = 0;
     g_BattleActorSwitchFlag = 0;
     D_800C3B7C = 0;
@@ -895,11 +895,11 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     HeapFree(g_BattleArchiveEntry->pBuffer1);
 }
 */
-extern s32 D_800CCC5C;
+extern s32 g_BattleActorStepIncrement;
 extern u16 g_BattleActorMask;
 extern s16 g_BattleTweenVectorScale;
 extern s32 g_ModelRenderTestFlags;
-extern MATRIX *D_800D2FC0;
+extern MATRIX *g_BattleColorMatrix;
 extern u8 D_800C3DF8;
 extern u8 BattleClampScaledByte(s16, s16, s32);
 extern s32 BattleGetActorHeight(s32);
@@ -935,10 +935,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
    -O3 (identical), 2.7.2 (96.99), 2.7.2-cdk -G0 (78.36), and two permuter runs
    (1540 + 377 iterations) whose best edits were semantic no-ops (j = 6 hoisted out
    of the clamp).
-   Facts for whoever unparks it: D_800C3E88 is a frame counter, bumped by
-   1 + D_800CCC5C and clamped to 6, then halved into step by the subtract-2 loop;
-   step * 0x38 turns D_800C3CF0 (an angle); g_BattleTweenVectorScale =
-   (rsin((s16)D_800C3CF0) + 0x1000) / 800 + 4 and D_800C3B80 =
+   Facts for whoever unparks it: g_BattleActorStepTimer is a frame counter, bumped by
+   1 + g_BattleActorStepIncrement and clamped to 6, then halved into step by the subtract-2 loop;
+   step * 0x38 turns g_BattleTweenVectorAngle (an angle); g_BattleTweenVectorScale =
+   (rsin((s16)g_BattleTweenVectorAngle) + 0x1000) / 800 + 4 and D_800C3B80 =
    (rsin((s16)(D_800C3B7C += 0x80)) + 0x1000) / 32; the three u8 colors at sp+0x20
    are BattleClampScaledByte(D_800C3B80, 0x20, <the u8 at g_BattleStageData + 0x474/5/6>).
    The four
@@ -959,15 +959,15 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     s32 j;
     u8 colors[3];
 
-    D_800C3E88 = D_800C3E88 + 1 + D_800CCC5C;
-    if (D_800C3E88 >= 7) {
-        D_800C3E88 = 6;
+    g_BattleActorStepTimer = g_BattleActorStepTimer + 1 + g_BattleActorStepIncrement;
+    if (g_BattleActorStepTimer >= 7) {
+        g_BattleActorStepTimer = 6;
     }
-    for (step = 0; D_800C3E88 >= 2; step++) {
-        D_800C3E88 -= 2;
+    for (step = 0; g_BattleActorStepTimer >= 2; step++) {
+        g_BattleActorStepTimer -= 2;
     }
-    D_800C3CF0 += step * 0x38;
-    g_BattleTweenVectorScale = (rsin((s16)D_800C3CF0) + 0x1000) / 800 + 4;
+    g_BattleTweenVectorAngle += step * 0x38;
+    g_BattleTweenVectorScale = (rsin((s16)g_BattleTweenVectorAngle) + 0x1000) / 800 + 4;
     D_800C3B7C += 0x80;
     D_800C3B80 = (rsin((s16)D_800C3B7C) + 0x1000) / 32;
     colors[0] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x474));
@@ -1011,7 +1011,7 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     }
     for (i = 0; i < 32; i++) {
         if (g_BattleActors[i] != 0) {
-            BattleStepActorAnimation(g_BattleActors[i], g_BattleBlockPool, step, quadIndex, D_800CCC5C);
+            BattleStepActorAnimation(g_BattleActors[i], g_BattleBlockPool, step, quadIndex, g_BattleActorStepIncrement);
         }
     }
     if (D_800C3DF8 != 0) {
@@ -1025,7 +1025,7 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
         }
     }
     BattleTransformPartPositions(g_BattleActors);
-    SetColorMatrix(D_800D2FC0);
+    SetColorMatrix(g_BattleColorMatrix);
     if (g_BattleStateBit != 0) {
         for (i = 0; i < 0x1F; i++) {
             if (g_BattleActors[i] != 0) {
@@ -1040,7 +1040,7 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
                 } else {
                     g_ModelRenderTestFlags = 1;
                 }
-                BattleDrawActor(g_BattleActors[i], pLightMatrix, pViewMatrix, 1, D_800CCC5C, pOt, quadIndex);
+                BattleDrawActor(g_BattleActors[i], pLightMatrix, pViewMatrix, 1, g_BattleActorStepIncrement, pOt, quadIndex);
                 g_ModelRenderTestFlags = 0;
             }
         }

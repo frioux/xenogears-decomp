@@ -12,7 +12,7 @@
 void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 
-extern s32 D_801E981C[];
+extern s32 g_MenuCardSlotOrder[];
 extern s32 g_MenuCharacterLabelGlyphIds[];
 extern s32 g_MenuNameTextureX[];
 extern u8 g_MenuNameTextureY[];
@@ -377,7 +377,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
    `character != 0xFF` slot; gcc puts `li v0,0xFF` in the first slot and `li
    v1,0x1` in the second, so the body is one dead u8 truncation short.  That
    means retail's `valid` was truncated once more than `if (!valid)` needs.
-   Notes: D_801E981C is the overlay dlabel table in asm/menu/data/246A4.data.s so
+   Notes: g_MenuCardSlotOrder is the overlay dlabel table in asm/menu/data/246A4.data.s so
    it only needs an extern declaration.  The three colour bytes read the low byte
    at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
    written as &pData[ctx * N + K] (array subscript): that is what makes the addiu
@@ -395,14 +395,14 @@ void func_801CF37C(void) {
     if (g_Menu->cardSlotState != 2) {
         return;
     }
-    character = g_Menu->menuUnk2->slotRecordIndexes[D_801E981C[g_Menu->menuUnk2->selectedSlot]];
+    character = g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]];
     for (i = 0; i < 0x20; i++) {
         if (character != g_Menu->menuUnk2->slotRecordIndexes[i]) {
             continue;
         }
         valid = 1;
         if (character == 0xFF) {
-            valid = i == D_801E981C[g_Menu->menuUnk2->selectedSlot];
+            valid = i == g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot];
         }
         if (!valid) {
             continue;
@@ -432,7 +432,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
    calls and the AddPrim pair. Still open: the register assignment of those
    constants, and the first call's index argument, which retail builds as a u8
    flag - `li v1,1` before the `unk2F` test, cleared when i ==
-   D_801E981C[selectedSlot] / 16, then `andi v0,v1,0xFF` + `beqz` choosing
+   g_MenuCardSlotOrder[selectedSlot] / 16, then `andi v0,v1,0xFF` + `beqz` choosing
    0x122/0x115 - so it was a named local (`u8 useAlt = 1; if (...) useAlt = 0;`)
    and not the single ternary expression written here. Retail also recomputes
    `j*2` (sll at the loop latch) and copies base into s2 for the loop.
@@ -453,7 +453,7 @@ void func_801CF8D8(void) {
             pData = g_Menu->menuUnk2;
             if (pData->cardStatus[i] && g_Menu->pManager->isPanelActive[5]) {
                 func_8002675C(g_Menu->resources,
-                              (g_Menu->pManager->shouldRenderCursors && i == D_801E981C[pData->selectedSlot] / 16)
+                              (g_Menu->pManager->shouldRenderCursors && i == g_MenuCardSlotOrder[pData->selectedSlot] / 16)
                                   ? 0x122
                                   : 0x115,
                               (POLY_FT4*)((u8*)pData + base), g_Menu->renderContext, x0, y, scale);
@@ -479,7 +479,7 @@ void func_801CF8D8(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CFB48);
-// Cell grid panel block (g_Menu->pCellGrid), allocated in func_801CAE08: the quad
+// Cell grid panel block (g_Menu->pCellGrid), allocated in MenuSetCellGridPanelState: the quad
 // MenuScrollCellGridRow fills, one per render context, the two strings below it and
 // the scroll that drives the quad's width.
 typedef struct {
