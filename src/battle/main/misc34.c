@@ -10,20 +10,24 @@ extern s32 g_BattleActorList[];
 extern s32 D_800D3640[];
 extern u16 g_BattleDelayCounter;
 extern u16 g_BattleActorDelayCounter;
-extern s32 g_BattleState;
+extern void *g_BattleState;
 extern s32 g_BattlePendingCommand;
 extern s32 g_BattleWaitFrameCounter;
 extern s32 g_BattleTimerTask;
 extern u8 g_FlagTimerWorkListAdds;
-extern u8 g_SpriteAnimPackageDirs5[];
+extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
 extern void BattleUpdateCommandRows(void);
 extern void *func_800BFC80(void *, s32, s32);
 extern s32 BattleSpriteDistanceToTarget(SpriteData *pSpriteData);
+extern void func_800BF0C4(BattleSpriteState *pActor);
+extern void BattleActorSnapToTargetAndFace(SpriteData *pSprite, SpriteData *pTarget);
+extern void BattleFaceTargetAndMeasureDistance(BattleSpriteState *pActor, s32 arg1);
+extern void BattleSetStateStep(s32 arg0);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
-extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
+extern SpriteData *func_80023B84(SpriteData *pActor, u8 *pEntry, SpriteAnimPackage *pPackage);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
 /* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
@@ -78,7 +82,63 @@ typedef struct {
 } BattleDistanceTask; // Size: 0x30
 STATIC_ASSERT_SIZEOF(BattleDistanceTask, 0x30);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF4F0);
+// One 6-byte point of the target-position path the battle state walks, in whole
+// coordinates; 0xFFFF in y ends the path.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 z;
+} BattlePathPoint; // Size: 0x6
+
+// The target-position path as it sits in the battle state work block. pathIndex in
+// the battle state is the cursor into it.
+typedef struct {
+    /* 0x0000 */ u8 unk0000[0xA3C];
+    /* 0x0A3C */ BattlePathPoint points[1];
+} BattlePathTable;
+
+// The battle state g_BattleState points at; only the field this unit reads.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x2C];
+    /* 0x2C */ s32 pathIndex;
+} BattleStatePathCursor; // Size: 0x30
+
+// Walks the actor one frame along the battle state's target-position path: while the
+// path still has a point at the cursor the path step owns the actor, and once it ends
+// the actor is put on its target position and turned toward the target.
+void func_800BF4F0(BattleSpriteState *pActor, BattleSpriteState *pTarget) {
+    BattlePathTable *pPath;
+    BattleStatePathCursor *pState;
+    s32 targetX;
+    s32 targetZ;
+
+    pState = (BattleStatePathCursor *)g_BattleState;
+    pPath = (BattlePathTable *)g_BattleStateWork;
+    if (pPath->points[pState->pathIndex].x == 0xFFFF &&
+        pPath->points[pState->pathIndex].y == 0xFFFF) {
+        *(s32 *)&pActor->position = pActor->targetPosition.x << 16;
+        *(s32 *)&pActor->position.zFrac = pActor->targetPosition.z << 16;
+        targetX = pTarget->position.xWhole;
+        if (pActor->position.xWhole < targetX) {
+            pActor->targetPosition.x = targetX - 0x50;
+        } else {
+            pActor->targetPosition.x = targetX + 0x50;
+        }
+        targetZ = pTarget->position.zWhole;
+        pActor->targetPosition.z = targetZ;
+        pActor->targetPosition.y = 0;
+        if (pActor->targetPosition.x == pActor->position.xWhole) {
+            if (pActor->targetPosition.z == pActor->position.zWhole) {
+                BattleActorSnapToTargetAndFace((SpriteData *)pActor, (SpriteData *)pTarget);
+                return;
+            }
+        }
+        BattleFaceTargetAndMeasureDistance(pActor, 3);
+        BattleSetStateStep(2);
+    } else {
+        func_800BF0C4(pActor);
+    }
+}
 
 void BattleIncFrameCounter(void) {
     g_BattleWaitFrameCounter++;
@@ -317,43 +377,38 @@ void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
     func_800BFC80(arg0, arg1, 1);
 }
 
-// 95.75%: everything matches except the g_SpriteAnimPackageDirs5+0x10 load. Retail's ASPSX emits
-// lui/addiu/%lo(sym) then lw 16; gcc folds the address into the load
-// (lui %hi + lw 16(%hi_reg)), one instruction shorter - no C shape materialises it.
-// Hoisting the func_80023B84 argument into pEntry (permuter, score 177 -> 20) took it
-// from 90.75 to 95.75. A permuter variant reached 99.50 by 'pActor = &g_SpriteAnimPackageDirs5[0]'
-// so the table address lands in s2 and the 0x74 store writes the table instead of the
-// actor: same byte encodings, wrong code - do not un-park it as a match. Also tried:
-// (s32)g_SpriteAnimPackageDirs5 + 0x10 (folds the same way), decl order swaps.
-/*
-void func_800BFDA8(u8 *pActor, s32 arg1) {
-    u8 *pBase;
-    u8 *pTable;
+// Builds the animation task of slot arg1 from the fifth battle animation package and
+// makes the new sprite the actor's target for it.
+void func_800BFDA8(SpriteData *pActor, s32 arg1) {
+    SpriteAnimPackage *pPackage;
+    u16 *pAnims;
+    s32 offset;
     u8 *pEntry;
+    SpriteData *pNew;
     u8 saved;
-    u8 *pNew;
-    s32 flags;
+    u32 flags;
 
-    if (*(s32 *)(pActor + 0x48) == 0) {
+    if (pActor->pDefaultAnimFile == NULL) {
         return;
     }
     if (func_800BFC80(pActor, arg1, 0) != 0) {
         return;
     }
-    pTable = &g_SpriteAnimPackageDirs5[0];
-    pBase = *(u8 **)(pTable + 0x10);
-    pEntry = (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase);
+    pPackage = &g_SpriteAnimPackageDirs5;
+    pAnims = pPackage->pAnimations;
+    // The sum has to be spelled offset-first as integers: the pointer form
+    // ((u8 *)pAnims + offset) makes gcc add the base first, which is 99.75%.
+    offset = pAnims[arg1 + 1];
+    pEntry = (u8 *)(offset + (s32)pAnims);
     saved = g_FlagTimerWorkListAdds;
     g_FlagTimerWorkListAdds = 0;
-    pNew = func_80023B84(pActor, pEntry);
-    flags = *(s32 *)(pNew + 0xB0);
-    *(s8 *)(pNew + 0xAF) = arg1;
-    *(u8 **)(pNew + 0x74) = pActor;
+    pNew = func_80023B84(pActor, pEntry, pPackage);
+    flags = pNew->flags_0xB0.flags;
+    pNew->flags_0xAC.bytes[3] = arg1;
+    pNew->pTargetEntitySprite = pActor;
     g_FlagTimerWorkListAdds = saved;
-    flags |= 0x100;
-    *(s32 *)(pNew + 0xB0) = flags;
+    pNew->flags_0xB0.flags = flags | 0x100;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
