@@ -155,29 +155,19 @@ u8 BattleWordRegCopyToMatchedSlot(BattleCommand **p, u8 index, u8 arg2) {
 // new was ported; it measures 95.25% here. Also neutral (96.17%): typing the
 // BattleFindFirstFlagTableMatch declaration `u32` instead of `s32`, and marking
 // pArgs `register`.
-/*
 void func_8007B6C0(u8 **p, u8 index) {
-    u8 *pArgs = *p;
-
-    switch (pArgs[2]) {
+    switch ((*p)[2]) {
     case 1: {
-        u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
-        u8 value = BattleFindFirstFlagTableMatch(pField[(*p)[3]]);
-        u32 *pField32 = (u32 *)((u8 *)(g_BattleSlotWordRegs - 0x10) + index * 0x40);
+        u8 value = BattleFindFirstFlagTableMatch(g_BattleSlotRegs[index].wordRegs[(*p)[3]]);
 
-        pField32[(*p)[1]] = *(u32 *)(D_800CCDEC + value * 0x170);
+        g_BattleSlotRegs[index].dwordRegs[(*p)[1]] = D_800CCDE8[value].hp;
         break;
     }
-    case 2: {
-        u32 *pField32 = (u32 *)(g_BattleSlotRows + index * 0x40);
-
-        pField32[(*p)[1]] = g_GameState.gold;
+    case 2:
+        g_BattleSlotRegs[index].dwordRegs[(*p)[1]] = g_GameState.gold;
         break;
-    }
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B6C0);
 // best: 88.95%. Body recovered from the .s: u8 return (ret = arg2), the
 // g_BattleCommandArgs = 0x20 / arg2+1 path for value < 3, then (*p)[2] == 0 selects
 // D_800CCDF0 and everything else D_800CCDEC, storing the
