@@ -86,7 +86,8 @@ typedef struct {
     /* 0x08 */ BattleSpriteSlot* pSlot; // the slot BattleAllocSpriteSlot handed out
     /* 0x0C */ SVECTOR start;
     /* 0x14 */ SVECTOR end;
-    /* 0x1C */ DVECTOR offsets[16]; // the start projection of each step, then the end ones
+    /* 0x1C */ DVECTOR projectedStart[8]; // where `start` projects at each of the eight step slots
+    /* 0x3C */ DVECTOR projectedEnd[8];   // where `end` projects at each of the eight step slots
     /* 0x5C */ s16 slot; // which of the eight step slots this record is on
     /* 0x5E */ s16 step; // advanced per frame, runs to stepCount
     /* 0x60 */ s16 stepCount;
@@ -836,14 +837,74 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    Until then the 0x110-frame body below (11 insns short) is the better base. */
 
 
+
+/* Round 278: 83.78% -> 99.25% at retail's EXACT 4084 bytes. The function is NOT
+   parked for lack of progress: every jal-delimited segment now has retail's
+   instruction count (1009), so the only differences left are stack-slot identity
+   and register picks. What closed it, in order (all measured):
+     P15 the TWEEN LOOP ARM ORDER was backwards. Retail tests
+         `if (pTween->project3D == 0) {2D arm inline; continue;} 3D arm...`, so the
+         3D arm is the out-of-line one (beqz->else is not how it looks: retail's
+         head is `bnez v1, .L800A05A0`, i.e. the 2D arm is the THEN arm). 83.78 ->
+         91.81 in one edit, same size. Each arm carries its OWN allocate:/done:
+         labels INSIDE the if-branch, because retail has two copies of the field
+         fill; the pSlot test is `if (pSlot != NULL) goto done;` and the
+         fall-through enters allocate (the old body had it inverted, a real bug).
+     P16 the two gte_stsxy2 sites read `pTween->slot` FRESH, not a `k` local
+         (-4 insns); `pTween->slot = (pTween->slot - 1) & 7;` then the reads.
+     P17 the sprite loop's walker: the 8-byte frame item of round 269 is the
+         ROOT COPY pSprites (0x98). Source is `pSprite = pActor->pSprites;
+         pSprites = pSprite;` with pSprite DECLARED FIRST (slot 0x90) and the
+         prologue assignment order pMesh, scale16, pSprite, scale, pSprites,
+         count. Retail then bumps the walker in MEMORY: `pSprite++;
+         for (i = 1; i < count; i++, pSprite++)` - the pre-loop bump is the
+         preheader RMW, the latch bump is the tail RMW. Frame becomes 0x110 and
+         every spill slot above 0x90 lines up.
+     P18 the texture loop needs its OWN walker (`Temp8* pTexture` =
+         pActor->pTextures, stride 0x30). Reusing pSprite made gcc spill it to
+         0x90 and reload; a fresh local stays in s0 like retail.
+     P19 the model-list latch spells the WALKER bump before i++:
+         `for (...; pModelList++, i++)` puts the bump before the count load and
+         lets `addiu s5,s5,1` fill the lbu delay slot (retail's shape).
+     P20 the warp quad is `((BattleWarpQuad*)pActor->unkB8)[quadIndex]` at EVERY
+         use site, not a pQuad local: retail re-forms pActor + quadIndex*0x28 and
+         keeps 0xB8 as a displacement, and computes it inline at the first
+         gte_stsxy2 (after the GTE command), not before the vec stores.
+     P21 `if (++pTween->step == 0) continue;` - NOT
+         `if (++step != 0 && step > stepCount) goto allocate;`. Retail's step==0
+         edge jumps to the LOOP LATCH, past the pSlot test and the done tail;
+         the && form merges that edge with the pSlot check. This was the last
+         2 instructions and the `li <reg>,1` delay-slot position with them.
+     P22 two permuter finds: `j = pTween->step; j = (pTween->slot + j) & 7;` (two
+         statements) and `pRotMatrix->t[0] = pActor->groundY;` BEFORE
+         `t[1] = macEnd[2];`.
+     P23 split the tween's 16-entry DVECTOR into `projectedStart[8]` at 0x1C and
+         `projectedEnd[8]` at 0x3C: with two arrays indexed by the same k, gcc
+         keeps ONE base (pTween + k*4) and folds 0x1C/0x3C into the displacements
+         exactly as retail does; the `[k + 8]` spelling costs 3 instructions.
+   MEASURED REGRESSIONS this round, do not retry: `pSprite->...` in the slot loop
+   (99.08), `&pSprite->localTransform` for the first CompMatrix (99.07), inline
+   index for j (96.45), step=1 AFTER the call (98.17), u32 j, and
+   `for (...; pTween++, i++)` in the tween loop (4080 = 1 insn SHORT).
+   REMAINING (14 sites, all stack-slot/register identity, size already exact):
+   retail reads the WALKER (0x90) for the slot loop, the first CompMatrix
+   (0x8009FB74) and the sprite loop, and the ROOT (0x98) after it. Our body uses
+   pSprites (0x98) everywhere, so those `lw t2,144/152(sp)` pairs differ, and the
+   extra-matrix block's `CompMatrix(&pSprite->localTransform,
+   &pActor->pSprites[1].globalTransform, pMatrix)` re-reads pActor->pSprites from
+   the actor (`lw a1,4(fp)`), which no spelling tried here reproduced. Also
+   differing: the two `beqz ... step == 0` targets (ours 0xfa4, retail 0xfac) and
+   the sp temp offsets of the vec/mac arrays (retail 0x28/0x38/0x48 vs ours
+   0x30/0x40/0x60 - retail's SVECTOR temporaries sit 8 bytes lower). */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
 /*
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
     BattleModelPartList* pMesh;
-    BattleSprite* pSprites;
     BattleSprite* pSprite;
+    BattleSprite* pSprites;
+    Temp8* pTexture;
     u16 scale16;
     MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
     MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
@@ -852,7 +913,6 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     BattleModelListEntry* pModelList;
     BattleModelListPoint* pPoint;
     BattleSpriteTween* pTween;
-    BattleWarpQuad* pQuad;
     BattlePartSlot* pPart;
     SVECTOR vec;
     SVECTOR tweenVec;
@@ -864,15 +924,15 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     s32 shade;
     s32 i;
     s32 j;
-    s32 k;
 
     if (pActor->doUpdate == 0) {
         return;
     }
     pMesh = pActor->pMesh;
-    pSprites = pActor->pSprites;
     scale16 = pActor->scale;
+    pSprite = pActor->pSprites;
     scale = scale16;
+    pSprites = pSprite;
     count = pSprites->count;
     for (i = 0; i < 2; i++) {
         if (g_BattlePartSlots[i].inUse != 0) {
@@ -916,8 +976,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vz = 0;
         RotMatrix(&vec, pRotMatrix);
         pRotMatrix->m[2][2] = macEnd[0];
-        pRotMatrix->t[1] = macEnd[2];
         pRotMatrix->t[0] = pActor->groundY;
+        pRotMatrix->t[1] = macEnd[2];
         CompMatrix(pLightMatrix, pRotMatrix, pRotMatrix);
         shade = pActor->scale - (pActor->groundY - pSprites->pos[1]) / 4;
         if (shade < 0) {
@@ -935,18 +995,17 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         MulMatrix(pRotMatrix, pMatrix);
         SetRotMatrix(pRotMatrix);
         SetTransMatrix(pRotMatrix);
-        pQuad = &((BattleWarpQuad*)((u8*)pActor + 0xB8))[quadIndex];
-        vec.vy = 0;
         vec.vx = pActor->width;
+        vec.vy = 0;
         vec.vz = pActor->depth;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[0]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[0]);
         gte_stszotz(&depth);
         vec.vx = -pActor->width;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[1]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[1]);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
@@ -955,7 +1014,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vz = -pActor->depth;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[2]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[2]);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
@@ -963,32 +1022,31 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vx = -pActor->width;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[3]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[3]);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
         }
         depth >>= g_GfxOTDepthShift;
-        addPrim(&pOt[depth], pQuad);
+        addPrim(&pOt[depth], &((BattleWarpQuad*)pActor->unkB8)[quadIndex]);
         if (depth > 0x2D8) {
             depth = 0x2D8;
         }
         pActor->unk39 = 0x6B - depth / 8;
     }
     MulMatrix0(pViewMatrix, &pSprites->globalTransform, pRotMatrix);
-    pSprite = pSprites;
-    for (i = 1; i < count; i++) {
-        pSprite++;
+    pSprite++;
+    for (i = 1; i < count; i++, pSprite++) {
         if (pSprite->jointIndex != 0xFFFF && pSprite->isVisible != 0) {
             MulMatrix0(pRotMatrix, &pSprite->globalTransform, pMatrix);
             SetLightMatrix(pMatrix);
             CompMatrix(pTransMatrix, &pSprite->globalTransform, pMatrix);
             if (pSprite->scale.pad > 0) {
+                pMatrix->m[0][0] = *(u16*)&pActor->scale;
                 pMatrix->m[0][2] = 0;
                 pMatrix->m[1][0] = 0;
                 pMatrix->m[1][2] = 0;
                 pMatrix->m[2][0] = 0;
-                pMatrix->m[0][0] = *(u16*)&pActor->scale;
                 pMatrix->m[2][2] = *(u16*)&pActor->scale;
                 if (pSprite->scale.pad == 1) {
                     pMatrix->m[0][1] = pTransMatrix->m[0][1];
@@ -1007,7 +1065,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
     }
     pModelList = (BattleModelListEntry*)pActor->pModelListEntries;
-    for (i = 0; i < pActor->numModelListEntries; i++, pModelList++) {
+    for (i = 0; i < pActor->numModelListEntries; pModelList++, i++) {
         if (pModelList->spriteIndex < 0) {
             continue;
         }
@@ -1039,35 +1097,81 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
     }
-    pSprite = (BattleSprite*)pActor->pTextures;
-    for (i = 0; i < pActor->numTextures; i++, pSprite++) {
-        func_800A3E98(pSprite, texParam);
+    pTexture = pActor->pTextures;
+    for (i = 0; i < pActor->numTextures; i++, pTexture++) {
+        func_800A3E98(pTexture, texParam);
     }
     pTween = (BattleSpriteTween*)pActor->pEntries;
     for (i = 0; i < pActor->numEntries; i++, pTween++) {
         if (pTween->spriteIndex < 0) {
             continue;
         }
-        k = pTween->slot;
         pTween->slot = (pTween->slot - 1) & 7;
-        if (pTween->project3D != 0) {
-            s32 side = pTween->slot & 1;
-            s32* pStart = (s32*)((u8*)pTween + 0x1C + side * 0x10);
-            s32* pEnd = (s32*)((u8*)pTween + 0x3C + side * 0x10);
-
-            CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
+        if (pTween->project3D == 0) {
+            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
+            gte_ldv0(&pTween->start);
+            gte_rtps();
+            gte_stsxy2(&pTween->projectedStart[pTween->slot]);
+            gte_ldv0(&pTween->end);
+            gte_rtps();
+            gte_stsxy2(&pTween->projectedEnd[pTween->slot]);
+            if (++pTween->step == 0) {
+                continue;
+            }
+            if (pTween->step > pTween->stepCount) {
+                goto allocate;
+            }
+            if (pTween->pSlot != NULL) {
+                goto done;
+            }
+        allocate:
+            pTween->step = 1;
+            pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
+            pTween->pSlot->is3D = 0;
+            pTween->pSlot->age = 0;
+            pTween->pSlot->lifetime = pTween->lifetime;
+            pTween->pSlot->red = pTween->red;
+            pTween->pSlot->green = pTween->green;
+            pTween->pSlot->blue = pTween->blue;
+            pTween->pSlot->redDelta = pTween->redDelta;
+            pTween->pSlot->greenDelta = pTween->greenDelta;
+            pTween->pSlot->blueDelta = pTween->blueDelta;
+            j = pTween->step;
+            j = (pTween->slot + j) & 7;
+            pTween->pSlot->x0 = pTween->projectedStart[j].vx;
+            pTween->pSlot->y0 = pTween->projectedStart[j].vy;
+            pTween->pSlot->x2 = pTween->projectedEnd[j].vx;
+            pTween->pSlot->y2 = pTween->projectedEnd[j].vy;
+        done:
+            pTween->pSlot->x1 = pTween->projectedStart[pTween->slot].vx;
+            pTween->pSlot->y1 = pTween->projectedStart[pTween->slot].vy;
+            pTween->pSlot->x3 = pTween->projectedEnd[pTween->slot].vx;
+            pTween->pSlot->y3 = pTween->projectedEnd[pTween->slot].vy;
+            continue;
+        }
+        CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
+        SetRotMatrix(pMatrix);
+        SetTransMatrix(pMatrix);
+        {
+            s32 side = pTween->slot & 1;
+            s32* pStart = (s32*)&pTween->projectedStart[side * 4];
+            s32* pEnd = (s32*)&pTween->projectedEnd[side * 4];
+
             gte_ldv0(&pTween->start);
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(pStart);
             gte_ldv0(&pTween->end);
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(pEnd);
-            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
+            if (++pTween->step == 0) {
+                continue;
+            }
+            if (pTween->step > pTween->stepCount) {
                 goto allocate3D;
             }
-            if (pTween->pSlot == NULL) {
+            if (pTween->pSlot != NULL) {
                 goto done3D;
             }
         allocate3D:
@@ -1084,8 +1188,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->blueDelta = pTween->blueDelta;
             {
                 s32 other = 1 - side;
-                s32* pFrom = (s32*)((u8*)pTween + 0x1C + other * 0x10);
-                s32* pTo = (s32*)((u8*)pTween + 0x3C + other * 0x10);
+                s32* pFrom = (s32*)&pTween->projectedStart[other * 4];
+                s32* pTo = (s32*)&pTween->projectedEnd[other * 4];
 
                 pTween->pSlot->x0 = ((u16*)pFrom)[0];
                 pTween->pSlot->y0 = ((u16*)pFrom)[2];
@@ -1101,47 +1205,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->x3 = ((u16*)pEnd)[0];
             pTween->pSlot->y3 = ((u16*)pEnd)[2];
             pTween->pSlot->z3 = ((u16*)pEnd)[4];
-            continue;
-        } else {
-            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
-            SetRotMatrix(pMatrix);
-            SetTransMatrix(pMatrix);
-            gte_ldv0(&pTween->start);
-            gte_rtps();
-            gte_stsxy2(&pTween->offsets[k]);
-            gte_ldv0(&pTween->end);
-            gte_rtps();
-            gte_stsxy2(&pTween->offsets[k + 8]);
-            if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
-                goto allocate;
-            }
-            if (pTween->pSlot == NULL) {
-                goto allocate;
-            }
         }
-        goto done;
-    allocate:
-        pTween->step = 1;
-        pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
-        pTween->pSlot->is3D = 0;
-        pTween->pSlot->age = 0;
-        pTween->pSlot->lifetime = pTween->lifetime;
-        pTween->pSlot->red = pTween->red;
-        pTween->pSlot->green = pTween->green;
-        pTween->pSlot->blue = pTween->blue;
-        pTween->pSlot->redDelta = pTween->redDelta;
-        pTween->pSlot->greenDelta = pTween->greenDelta;
-        pTween->pSlot->blueDelta = pTween->blueDelta;
-        j = (pTween->slot + pTween->step) & 7;
-        pTween->pSlot->x0 = pTween->offsets[j].vx;
-        pTween->pSlot->y0 = pTween->offsets[j].vy;
-        pTween->pSlot->x2 = pTween->offsets[j + 8].vx;
-        pTween->pSlot->y2 = pTween->offsets[j + 8].vy;
-    done:
-        pTween->pSlot->x1 = pTween->offsets[pTween->slot].vx;
-        pTween->pSlot->y1 = pTween->offsets[pTween->slot].vy;
-        pTween->pSlot->x3 = pTween->offsets[pTween->slot + 8].vx;
-        pTween->pSlot->y3 = pTween->offsets[pTween->slot + 8].vy;
     }
 }
 */
