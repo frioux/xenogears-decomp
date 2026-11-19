@@ -906,15 +906,12 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                pSection = (u8*)pEntry + 0x1C + 0x10 * (1 - slot);
-                pEntry->pVertex->x0 = *(u16*)(pSection + 0);
-                pEntry->pVertex->y0 = *(u16*)(pSection + 4);
-                pEntry->pVertex->z0 = *(u16*)(pSection + 8);
-
-                pSection = (u8*)pEntry + 0x3C + 0x10 * (1 - slot);
-                pEntry->pVertex->x2 = *(u16*)(pSection + 0);
-                pEntry->pVertex->y2 = *(u16*)(pSection + 4);
-                pEntry->pVertex->z2 = *(u16*)(pSection + 8);
+                pEntry->pVertex->x0 = pEntry->screenA[8 * (1 - slot)];
+                pEntry->pVertex->y0 = pEntry->screenA[8 * (1 - slot) + 2];
+                pEntry->pVertex->z0 = pEntry->screenA[8 * (1 - slot) + 4];
+                pEntry->pVertex->x2 = pEntry->screenB[8 * (1 - slot)];
+                pEntry->pVertex->y2 = pEntry->screenB[8 * (1 - slot) + 2];
+                pEntry->pVertex->z2 = pEntry->screenB[8 * (1 - slot) + 4];
             }
 
             pEntry->pVertex->x1 = *(u16*)(pQuadA + 0);
