@@ -465,7 +465,7 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091B38);
-void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
+void BattleDrawCharStatusIfFlagged(u8 arg0, u8 arg1, u8 arg2) {
     u8 ret = 0;
 
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
@@ -1087,8 +1087,8 @@ void func_8009382C(u8 arg0, u8 arg1) {
     HeapFree(pBuf);
 }
 */
-// 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
-// function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
+// objdiff stays at 99.87 because retail names the per-slot row table g_BattleSlotStatusRows where
+// this body reaches the same word as g_BattleWorkBlock[slot].conditionFlags (reloc addend only).
 void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
     u16 tbl[4];
 
@@ -1431,57 +1431,61 @@ void BattleComputeActionAmount(void) {
     }
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = amount;
 }
+// 99.88 in objdiff for the reloc only: retail names g_BattleSlotConditions, this body
+// g_BattleWorkBlock[slot].state.flags (same word).
 void BattleSetSlotState2FromActorField5BWithModifiers(void) {
-    BattleTableEntry *p = g_BattleActingSlot;
-    BattleRow *q = g_BattleCurrentRow;
-    BattleTableEntry *r;
-    s16 v;
-    u16 f;
+    BattleTableEntry *pAtk = g_BattleActingSlot;
+    BattleRow *pRow = g_BattleCurrentRow;
+    BattleTableEntry *pDef;
+    s16 value;
+    u16 flags;
 
-    v = p->ether * q->power;
-    if (p->accessoryEffectFlags4 & 0x2000) {
-        v *= 2;
+    value = pAtk->ether * pRow->power;
+    if (pAtk->accessoryEffectFlags4 & 0x2000) {
+        value *= 2;
     }
-    r = g_BattleTargetSlotEntry;
-    f = r->activeEffectFlags7 | r->accessoryEffectFlags7;
-    if (f & 0x100) {
-        v = 7 * v / 10;
+    pDef = g_BattleTargetSlotEntry;
+    flags = pDef->activeEffectFlags7 | pDef->accessoryEffectFlags7;
+    if (flags & 0x100) {
+        value = 7 * value / 10;
     }
-    if (f & 0x200) {
-        v = 13 * v / 10;
+    if (flags & 0x200) {
+        value = 13 * value / 10;
     }
     if (g_BattleWorkBlock[g_BattleCurSlotIndex].state.flags & 0x80) {
-        v = 0;
+        value = 0;
     }
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
-    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = v;
+    g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = value;
 }
+// 99.84 in objdiff for the reloc only: retail names g_BattleCurveTargets[t], this body
+// `g_BattleCurveTargets + slot` (same address).
 void BattleInitActiveSlotAction(void) {
-    s32 t;
-    BattleTableEntry *p;
+    s32 slot;
+    BattleTableEntry *pTarget;
     s32 *pCurveTarget;
-    s32 v;
+    s32 maxHp;
 
     if (g_BattleWorkBlock[g_BattleCurSlotIndex].characterId == 2) {
         BattleSetSlotEntryFieldsTo2000(g_BattleCurSlotIndex, 1);
     }
-    t = g_BattleCurSlotIndex;
+    slot = g_BattleCurSlotIndex;
     g_BattleTargetSlotEntry->activeEffectFlags1 = 0;
     g_BattleTargetSlotEntry->activeEffectFlags2 = 0;
     g_BattleTargetSlotEntry->activeEffectFlags3 = 0;
     g_BattleTargetSlotEntry->activeEffectFlags4 = 0;
     g_BattleTargetSlotEntry->activeEffectFlags7 = 0;
-    g_BattleCurveTargetModes[t] = 2;
-    p = g_BattleTargetSlotEntry;
-    v = p->maxHp * g_BattleCurrentRow->power;
+    g_BattleCurveTargetModes[slot] = 2;
+    pTarget = g_BattleTargetSlotEntry;
+    maxHp = pTarget->maxHp * g_BattleCurrentRow->power;
     if (g_BattleCurSlotIndex) { // empty: makes gcc share this load with the one below ($v1, not $a1)
     }
-    t = g_BattleCurSlotIndex;
-    // A pointer, not g_BattleCurveTargets[t]: the indexed form schedules `1 << t` into the
+    slot = g_BattleCurSlotIndex;
+    // A pointer, not g_BattleCurveTargets[slot]: the indexed form schedules `1 << slot` into the
     // load's delay slot, which drops retail's nop (4 bytes short).
-    pCurveTarget = g_BattleCurveTargets + t;
-    *pCurveTarget = v / 10;
-    g_BattleCommandCellFlags |= 1 << t;
+    pCurveTarget = g_BattleCurveTargets + slot;
+    *pCurveTarget = maxHp / 10;
+    g_BattleCommandCellFlags |= 1 << slot;
 }
 void BattleClearStatusWordsOnAction6E(void) {
     if (rand() % 100 > g_BattleCurrentRow->chance) {
