@@ -1,5 +1,6 @@
 #include "common.h"
 
+#include "main/game.h"
 #include "psyq/libapi.h"
 #include "system/menu.h"
 #include "psyq/libcd.h"
@@ -16,6 +17,7 @@ extern s32 D_801EA700;
 extern s32 D_801EA704;
 extern s32 D_801EA708;
 extern s32 D_801EA70C;
+extern u8 D_801E9785; // Set once the three MenuCharacter records have been allocated
 extern u8 D_801EA710;
 extern u8 D_801EA714;
 extern CdlCB D_801EA718;
@@ -25,6 +27,12 @@ extern u8 D_801EA574[];
 extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
+extern s32 D_801EA054[]; // X positions of the character panel label glyphs, first row of the layout
+extern s32 D_801EA098[]; // The same X positions, second row of the layout
+extern s32 D_801EA0DC[]; // Y positions of the label glyphs of the first row
+extern s32 D_801EA120[]; // Y positions of the label glyphs of the second row
+
+void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char characterId, u_char localIndex, s32 arg3, s32 arg4, u_char arg5);
 
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
@@ -215,80 +223,81 @@ void MenuInitializeArrowCursor(u_char index) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB0A8);
 
-/* 98.80%. Only difference: the MenuSetQuadVertices argument setup. Original emits
-   `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff` (both sums,
-   then both truncations); gcc folds each sum into its argument position and
-   emits `addu a1; andi a1; addu a2; andi a2`. Every other line is identical.
-   Tried, all with the same interleaving: sums as s32 locals (also with the two
-   statements in reverse order), inline expressions, u16 locals, the four poly
-   loads hoisted into u16 locals first. cse replaces the use of a single-use sum
-   pseudo with the recomputed add, so neither the statement order nor the
-   innermost register survives. Also screened (all 98.80): gcc 2.7.2-cdk, -O3,
-   -G0.
-   Full decode: pCursor = g_Menu->arrowCursors[arg3] (MenuArrowCursor); the
-   poly record is &pCursor->polys[g_Menu->renderContext], read as u16 at
-   +8/+A/+10/+22 (POLY_FT4.x0/y0/x1/y3, hence lhu), ofsX in $s2, ofsY in $s1.
-   void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
-       MenuArrowCursor* pCursor;
-       u8* pPoly;
-       s32 ofsX;
-       s32 ofsY;
-       s32 x;
-       s32 y;
-       u16 lx0;
-       u16 ly0;
-       u16 lx1;
-       u16 ly1;
-       s32 shouldDraw = 1;
+/* 98.80% (664 bytes, retail's size; instruction multiset identical). The only
+   difference is the ORDER of the four MenuSetQuadVertices argument setups:
+   retail emits `addu a1,v1,s2; addu a2,t0,s1; andi a1,0xffff; andi a2,0xffff`
+   (both sums, then both truncations), this C emits `addu a1; andi a1; addu a2;
+   andi a2`. cse folds each single-use sum pseudo into its argument position, so
+   neither statement order nor a u16/u32/s32 local changes the interleaving.
+   Tried, all 98.80: sums as s32 locals in both orders, u32 locals, u16 locals,
+   inline expressions, hoisting the four poly loads. permute.sh, 3 minutes:
+   PERMUTER_NONE (base=60 best=60). Earlier lane also screened gcc 2.7.2-cdk,
+   -O3 and -G0 at the same 98.80.
+   Decode: pCursor = g_Menu->arrowCursors[arg3]; the poly record is
+   &pCursor->polys[g_Menu->renderContext] read as u16 at +8/+A/+10/+22
+   (POLY_FT4.x0/y0/x1/y3, hence the lhu); ofsX in $s2, ofsY in $s1.
+/*
+void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3) {
+    MenuArrowCursor* pCursor;
+    u8* pPoly;
+    s32 ofsX;
+    s32 ofsY;
+    s32 x;
+    s32 y;
+    u16 lx0;
+    u16 ly0;
+    u16 lx1;
+    u16 ly1;
+    s32 shouldDraw = 1;
 
-       pCursor = g_Menu->arrowCursors[arg3];
-       if (++pCursor->animFrameDuration >= 6) {
-           pCursor->curAnimFrame--;
-           if (pCursor->curAnimFrame < 0) {
-               pCursor->curAnimFrame = 4;
-           }
-           pCursor->animFrameDuration = 0;
-       }
-       switch (arg2) {
-       case 0:
-           ofsX = (arg0 % 2) * 0x88 + 0x1C;
-           ofsY = (arg0 / 2) * 0x10 + 0x11;
-           break;
-       case 1:
-           if (arg0 >= arg1 * 2 && arg0 < arg1 * 2 + 0x10) {
-               ofsX = (arg0 % 2) * 0x88 + 0x18;
-               ofsY = ((arg0 - arg1 * 2) / 2) * 0x10 + 0x11;
-           } else {
-               shouldDraw = 0;
-           }
-           break;
-       case 2:
-           ofsX = (arg0 % 2) * 0x88 + 0x18;
-           ofsY = (arg0 / 2) * 0x10 + 0x14;
-           break;
-       case 3:
-           ofsX = 0xA0;
-           ofsY = arg0 * 13 + 0x14;
-           shouldDraw = 2;
-           break;
-       }
-       if (shouldDraw != 0) {
-           func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
-                         g_Menu->renderContext, 0, 0, 0x1000);
-           pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
-           lx0 = *(u16*)(pPoly + 8);
-           ly0 = *(u16*)(pPoly + 0xA);
-           lx1 = *(u16*)(pPoly + 0x10);
-           ly1 = *(u16*)(pPoly + 0x22);
-           y = ly0 + ofsY;
-           x = lx0 + ofsX;
-           MenuSetQuadVertices(pCursor->vertices, x, y, lx1 - lx0, ly1 - ly0);
-           pCursor->renderContext = *(u8*)&g_Menu->renderContext;
-           g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
-       } else {
-           g_Menu->pManager->shouldRenderArrowCursor[arg3] = 0;
-       }
-   }
+    pCursor = g_Menu->arrowCursors[arg3];
+    if (++pCursor->animFrameDuration >= 6) {
+        pCursor->curAnimFrame--;
+        if (pCursor->curAnimFrame < 0) {
+            pCursor->curAnimFrame = 4;
+        }
+        pCursor->animFrameDuration = 0;
+    }
+    switch (arg2) {
+    case 0:
+        ofsX = (arg0 % 2) * 0x88 + 0x1C;
+        ofsY = (arg0 / 2) * 0x10 + 0x11;
+        break;
+    case 1:
+        if (arg0 >= arg1 * 2 && arg0 < arg1 * 2 + 0x10) {
+            ofsX = (arg0 % 2) * 0x88 + 0x18;
+            ofsY = ((arg0 - arg1 * 2) / 2) * 0x10 + 0x11;
+        } else {
+            shouldDraw = 0;
+        }
+        break;
+    case 2:
+        ofsX = (arg0 % 2) * 0x88 + 0x18;
+        ofsY = (arg0 / 2) * 0x10 + 0x14;
+        break;
+    case 3:
+        ofsX = 0xA0;
+        ofsY = arg0 * 13 + 0x14;
+        shouldDraw = 2;
+        break;
+    }
+    if (shouldDraw != 0) {
+        func_8002675C(g_Menu->resources, pCursor->curAnimFrame + 0x15B, (POLY_FT4*)pCursor,
+                      g_Menu->renderContext, 0, 0, 0x1000);
+        pPoly = (u8*)pCursor + g_Menu->renderContext * 0x28;
+        lx0 = *(u16*)(pPoly + 8);
+        ly0 = *(u16*)(pPoly + 0xA);
+        lx1 = *(u16*)(pPoly + 0x10);
+        ly1 = *(u16*)(pPoly + 0x22);
+        y = ly0 + ofsY;
+        x = lx0 + ofsX;
+        MenuSetQuadVertices(pCursor->vertices, x, y, lx1 - lx0, ly1 - ly0);
+        pCursor->renderContext = *(u8*)&g_Menu->renderContext;
+        g_Menu->pManager->shouldRenderArrowCursor[arg3] = 1;
+    } else {
+        g_Menu->pManager->shouldRenderArrowCursor[arg3] = 0;
+    }
+}
 */
 
 void MenuFreeArrowCursor(u_char index) {
@@ -339,3 +348,87 @@ void func_801DB39C(u_char arg0) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB39C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8_r2", func_801DB5E4);
+
+/* 99.93% (828 bytes = retail's size; instruction multiset identical). The only
+   difference is the register the u_char useGearPositions phi is built in: retail
+   writes `move s1,zero` in the beq delay slot, `li s1,0x1` in the == 2 arm and
+   truncates in place with `andi s1,s1,0xff` after the merge; this C builds the
+   phi in a call-clobbered register and copies at the merge
+   (`andi s1,a0,0xff`, or v0 depending on where the zero assignment sits). Tried,
+   all 99.93 and all 828 bytes: the inverted `!= 2` if/else (retail's block
+   layout, the form below), a pre-if `= 0` statement vs a declaration
+   initializer (declaration initializer is worse, 98.56), the zero assigned at the
+   top of the taken arm (moves the copy to v0), declaration order of the locals,
+   the statement order of the two currentCharacters/currentCharacterIDs reads.
+   permute.sh from the 99.93 body: PERMUTER_NONE (base=15 best=15); the first run
+   on the 99.15 body found the embedded assignment in the alloc loop above, which
+   was the other 10 instructions' worth.
+   Decode: allocates the three MenuCharacter records once (D_801E9785), zeroes
+   them, picks the label position tables by arg0 (2 = second layout row, whose
+   characters must have a gear: g_GameState.characters[id].gearId), builds each
+   party slot's prims with MenuBuildCharacterPrims and then fills the three
+   pointer-cursor quads: x 0x90..0xA0, y 0x30 + 0x38*i to 0x40 + 0x38*i. */
+/*
+// Rebuilds the three party-slot info panels: allocates their MenuCharacter
+// records once, then builds the prims of every slot whose character id is set
+// (arg0 selects the label position table: 2 is the second row of the layout).
+void func_801DB5E4(s32 arg0) {
+    MenuCharacter* pCharacter;
+    s32* pPositionsX;
+    s32* pPositionsY;
+    u_char useGearPositions;
+    u8 characterId;
+    u8 shouldBuild;
+    s32 i;
+
+    if (D_801E9785 == 0) {
+        for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+            pCharacter = (g_Menu->currentCharacters[i] = HeapAlloc(sizeof(MenuCharacter), 0));
+            bzero(pCharacter, sizeof(MenuCharacter));
+        }
+        D_801E9785 = 1;
+    }
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        bzero(g_Menu->currentCharacters[i], sizeof(MenuCharacter));
+    }
+    if ((u_char)arg0 != 2) {
+        pPositionsX = D_801EA054;
+        pPositionsY = D_801EA0DC;
+        useGearPositions = 0;
+    } else {
+        pPositionsX = D_801EA098;
+        pPositionsY = D_801EA120;
+        useGearPositions = 1;
+    }
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        pCharacter = g_Menu->currentCharacters[i];
+        characterId = g_Menu->pManager->currentCharacterIDs[i];
+        shouldBuild = 1;
+        if (characterId != CHARACTER_ID_NONE) {
+            if (useGearPositions) {
+                shouldBuild = g_GameState.characters[characterId].gearId != GEAR_ID_NONE;
+            }
+            if (shouldBuild) {
+                MenuBuildCharacterPrims(pCharacter, characterId, i, (s32)pPositionsX, (s32)pPositionsY,
+                                        useGearPositions);
+            }
+        } else {
+            pCharacter->shouldRender = 0;
+        }
+    }
+    g_Menu->pManager->shouldRenderCharacters = 1;
+    // The three prims are reached index-first: the `polysCursor[...]` subscript
+    // re-bases the address sum onto the block pointer, which is the commuted addu
+    // retail does not have.
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].x0 = 0x90;
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].y0 = i * 0x38 + 0x30;
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].x1 = 0xA0;
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].y1 = i * 0x38 + 0x30;
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].x2 = 0x90;
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].y2 = i * 0x38 + 0x40;
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].x3 = 0xA0;
+        (i * 2 + g_Menu->pCursors->renderContexts[i])[g_Menu->pCursors->polysCursor].y3 = i * 0x38 + 0x40;
+    }
+}
+*/
