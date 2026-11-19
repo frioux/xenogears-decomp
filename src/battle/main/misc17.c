@@ -439,40 +439,46 @@ nextTile:
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
-/* 83.74%: the whole shape is derived and reproduces -- the leading
-   BattleSetPolyFT4Rect at 0x140 (x 0x7C, y 0xA4, v = (u8)(arg1 * 0x10), dx 0x60,
-   dy 0x10), the flags word g_BattleActionRows[arg0 * 0x690 + (arg1 + 0x25) * 0x28],
-   the 0x4000/0x1000 row pick (9/8/7), the 3-case switch on flags & 0xF
-   (0xC/0xD/0x15), the two BattleSetPolyFT4RectH13 blocks at 0x320 and 0x370 with
-   u/v/h from D_800D2F6A/D_800D2F6B/g_BattleActionRowIconSprites[ofs] and the two palette stores at
-   +0x32E/+0x37E selected by D_800D2F69[ofs]. Same family as misc16_r2's
-   func_800904A0 (73.99 there, parked), which is where the structure came from.
-   Leftovers, 720 bytes against retail's 692: (1) gcc folds 0x25 * 0x28 into the
-   lhu's reloc addend (+0x5C8) where retail materialises arg1 + 0x25 first;
-   (2) retail keeps arg0 in s1 and arg1 in s0, here the reverse; (3) the switch's
-   compare tree is ==1 / <2 / ==2 in retail and a longer chain here.
-   Not chased further: an 8-attempt body of this size is a permuter job.
-   Un-parking needs no new externs (g_BattleActionRows, g_BattleActionRowIconSprites..6B,
-   g_SystemPalette2 are already declared at the top of this file). */
+/* 97.72% at objdiff's 692 bytes -- retail's EXACT size, and every instruction
+   is retail's: the only difference left is which register three values land in
+   (retail keeps `row` in $s0 where it holds the dying arg1, this body takes $a0;
+   `g_BattlePrimStartIndex[0]` is $v1 in retail and $t0 here; `pRec` is formed
+   with `addu v1,v1,v0` in place in retail). Structure that took it from 83.74:
+   (1) the flags word wants a named index local -- `index = arg1 + 0x25;` then
+   `row = index * 0x28;` before the load, otherwise gcc folds 0x25 * 0x28 into
+   the lhu's reloc addend (+0x5C8) where retail emits `addiu s0,s0,37` first;
+   (2) the row pick is 9 for flags & 0x4000, then 7 when 0x1000 is SET and 8 when
+   it is clear -- the older 9/8/7 reading had the delay-slot arm inverted;
+   (3) the switch needs `case 0`, `case 1`, `case 2` then `default: col = 0xC`,
+   listed in that order (case 0 present is what makes gcc emit the
+   `slti v0,v1,2` range test); listing them 0,2,1 or dropping case 0 loses the j;
+   (4) `pRec = g_BattleGraphicsWork->pPacketPrims;` before the 0x320 call.
+   Tried: declaration orders (six, no change), u16/s32 for row, index and ofs,
+   an `ofs` local vs `row * 4` inline (ofs lands in $t1 and costs 4 bytes), and
+   three 4-minute permuter runs (base 926 -> 655 -> 600 -> 385); the last one's
+   only improvement swapped `D_800D2F69[col * 4]` for `D_800D2F69[0xC * 4]`,
+   which is wrong code. Un-parking needs no new externs. */
 /*
 void func_80093578(u8 arg0, u8 arg1) {
     u8 *pRec;
+    s32 index;
     u16 flags;
     u16 pal;
     s32 row;
     s32 col;
-    s32 ofs;
 
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
-                                     ((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x140),
+                                     (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x140)),
                          0x7C, 0xA4, 0, (u8)(arg1 * 0x10), 0x60, 0x10);
-    flags = *(u16 *)(g_BattleActionRows + arg0 * 0x690 + (arg1 + 0x25) * 0x28);
+    index = arg1 + 0x25;
+    row = index * 0x28;
+    flags = *(u16 *)(g_BattleActionRows + row + arg0 * 0x690);
     if (flags & 0x4000) {
         row = 9;
     } else if (flags & 0x1000) {
-        row = 8;
-    } else {
         row = 7;
+    } else {
+        row = 8;
     }
     switch (flags & 0xF) {
     case 0:
@@ -484,14 +490,15 @@ void func_80093578(u8 arg0, u8 arg1) {
     case 2:
         col = 0x15;
         break;
+    default:
+        col = 0xC;
+        break;
     }
-    ofs = row * 4;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
-                                         (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
-                            0x24, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
-    ofs = col * 4;
+    pRec = g_BattleGraphicsWork->pPacketPrims;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(pRec + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
+                            0x24, 0xA6, D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
     pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
-    if (D_800D2F69[ofs] != 0) {
+    if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
@@ -499,7 +506,7 @@ void func_80093578(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x32E) = pal;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                          (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
-                            0x48, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
+                            0x48, 0xA6, D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
     pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
     if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
@@ -509,6 +516,7 @@ void func_80093578(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x37E) = pal;
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
 /* 99.04% (412 bytes against retail's 416): the array-extern spelling from
    func_8009209C closed the &g_BattlePrimStartIndex wall here too -- retail's
    `lui s3/addu s3` + `lw 0(s3)` per call is reproduced exactly, and every other
@@ -517,9 +525,13 @@ void func_80093578(u8 arg0, u8 arg1) {
    gcc 2.6.0 proves the range (u8 load * 4 + u8, * 2 -> <= 2550) and drops the
    mask, so the body is 4 bytes short and cannot link. Tried: u16 vs s32 vs u32
    index, a `u32 value` intermediate, the 3-statement `index = ...*4; index +=
-   arg1; index *= 2;` form (98.80), and declaring GetStringEntry's 2nd parameter
+   arg1; index *= 2;` form (98.80), declaring GetStringEntry's 2nd parameter
    `u16` (the second call's `ori a1,s0,1` proves it is not a parameter conversion,
-   and that spelling masks neither call). */
+   and that spelling masks neither call), an s32 index with an explicit
+   `(u16)(...)` initialiser (identical, the conversion is folded away too) and
+   gcc-2.7.2 (98.85). The mask is a u16 LOCAL's zero-extension, so it needs an
+   operand whose range 2.6.0 cannot bound; every operand here is a zero-extended
+   load or an `andi`-masked parameter. */
 /*
 void func_8009382C(u8 arg0, u8 arg1) {
     RECT rect;
@@ -543,7 +555,6 @@ void func_8009382C(u8 arg0, u8 arg1) {
     HeapFree(pBuf);
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
 // 100.0% under gcc 2.6.0-psx (99.81/99.76/99.90 under this unit's 2.7.2): this
 // function wants a 2.6.0 TU of its own; the unit as a whole is a 2.7.2 unit.
 void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
