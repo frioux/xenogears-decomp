@@ -303,7 +303,6 @@ void func_80093578(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x37E) = pal;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
 /* 89.66%: the shape, both stack args, the RECT, the two string draws and both prim
    builds match. Residuals, all one cluster:
    1) retail keeps &g_BattlePrimStartIndex in $s3 (lui/addiu once, `lw v0,0(s3)` per
