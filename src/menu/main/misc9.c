@@ -91,25 +91,23 @@ void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DB920);
 /* Best: 96.76, 1064 bytes (retail 1068). Structure matches retail everywhere
-   except three points:
-   1. Loop preheader order: retail emits the loop-entry `if (active)` test
-      BEFORE the hoisted idx/pQuantity setup, i.e. its source computed
-      `idx = arg0 * 2 + arg1` and `pQuantity = &g_GameState.itemQuantities[idx]`
-      INSIDE the while body and loop.c hoisted them into the preheader. Moving
-      both inside the loop closed 92.79 -> 96.76; the body below is that version.
-   2. The itemIDs clear in the `quantity == 0` branch: retail has
-      lui/addiu(g_GameState+0x1F90) + addiu 0x96 + addu fp + sb (5 insns); every
-      spelling of `g_GameState.itemQuantities[idx + MAX_INVENTORY_ITEMS] = 0`
-      now folds to the 3-insn %at macro `sb $0,%lo(g_GameState+0x2026)(fp)`,
-      `(u8*)itemQuantities + MAX_INVENTORY_ITEMS` then `[idx]` compiles the same
-      (measured 96.76/1064), and `pQuantity[MAX_INVENTORY_ITEMS]` gives
-      `sb $0,0x96(s7)` (also short). Retail's fresh la of the base says its
-      source took the array address into a variable; not reproduced.
-   3. Callee-saved rotation: retail refresh=$s1, &itemIDs=$s2, result=$s3, ours
-      $s3, $s1, $s2 (the other seven agree). Under gcc global-alloc priority
-      (floor_log2(n_refs)*n_refs*10000/live_length) the order is &itemIDs
-      (2 refs over ~12 insns) > result > refresh; no reachable length change
-      reorders it to retail's, so the lever is elsewhere.
+   except two points:
+   1. Loop order: retail emits the loop-entry `if (active)` test BEFORE the
+      hoisted idx/pQuantity setup, i.e. its source computed `idx = arg0 * 2 + arg1`
+      and `pQuantity = &g_GameState.itemQuantities[idx]` INSIDE the while body and
+      loop.c hoisted them into the preheader. Both are inside the loop below; that
+      is worth 92.79 -> 96.76.
+   2. The itemIDs clear in the `quantity == 0` branch, and with it the whole
+      instruction deficit: retail has lui/addiu(g_GameState+0x1F90) + addiu 0x96 +
+      addu fp + sb (5 insns) where ours has the assembler's 3-insn %at macro
+      `sb $0,%lo(g_GameState+0x2026)(fp)`. Re-measured with cc1_probe.sh: SEVEN
+      spellings of the clear (field index, itemQuantities + MAX + idx through a u8*
+      or u32 local, a two-statement pointer walk, &arr[MAX] + idx) ALL compile to
+      that same bare `sb $0,g_GameState+8230(reg)`, so cc1 always folds the 150 into
+      the symbol addend. Retail's addiu 0x96 off a fresh `la` means its base was NOT
+      known to be a constant, which no spelling of this address reproduces.
+   3. Callee-saved rotation is a knock-on of 2: retail refresh=$s1, &itemIDs=$s2,
+      result=$s3; ours $s3, $s1, $s2 (the other seven agree).
    permute.sh --minutes 3 on the earlier 92.79 body: PERMUTER_BETTER, cosmetic
    only. Not re-run from this body. */
 /*
@@ -521,54 +519,49 @@ void MenuFreeUnk430Panel(u_char arg0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
-/* Best: 94.01%, same size (416 bytes), from the round-63 attempt (u_char arg0).
-   Remaining deltas, all tried by hand this round:
-   1. loop 1: retail forms the compare address as base + (rc*0x28 + i*0x80)
-      (two addu, keeping base unmodified) and only then reuses the saved
-      base + i*0x80 and rc*0x28 for the call argument (addu a2,a1). Every C
-      that names pStrings[i].polys[pStrings[i].renderContext] once, or via a
-      separate ctx local, or via a pString pointer local, CSEs to
-      (base + i*0x80) + rc*0x28 and loses one addu (93.96-94.01%).
-   2. loop 2: retail repeats andi a1,arg0,0xff in the loop-back delay slot;
-      gcc un-hoists it out of the loop and leaves a nop there. A `u_char mode
-      = arg0;` local inside the body does not stop the hoist.
-   3. u_int arg0 with (arg0 & 0xFF) at each call site (so the mask is a real
-      per-site expression) gives 93.58%.
-   permute.sh --minutes 4 -j 2: PERMUTER_BETTER 777 -> 547, but the winner
-   caches g_Menu in a callee-saved local, which drops a lui/lw pair and
-   compiles to 408 bytes - wrong size, so not portable.
-   Round 106 re-check: the whole loop-1 delta is that one addu, nothing else.
-   Dropping the pPoly local and writing the address twice, and the
-   'pStrings[i].polys + ctx' spelling, both compile identically to each other
-   and to the version below (416 bytes, if-body one insn short, 93.96%): gcc
-   CSEs the poly address out of the compare and the argument regardless, and
-   the load then uses the record-base register that retail keeps in a2.
-   void func_801DD5E8(u_char arg0) {
-       MenuString* pStrings;
-       POLY_FT4* pPoly;
-       s32 i;
+/* Best: 94.01%, retail's exact size (416 bytes). Six instructions differ, all
+   allocator/scheduling:
+   1. loop 1 mirrors two registers: retail keeps the record base in $a0 and
+      `base + i*0x80` in $a2, ours the other way round; and the compare forms
+      `base + (i*0x80 + rc*0x28)` (two addu, base untouched) where the call
+      argument reuses `(base + i*0x80) + rc*0x28`. Every spelling of
+      pStrings[i].polys[pStrings[i].renderContext] - one expression, a ctx local,
+      a pString pointer local, the address written twice, `polys + ctx` - CSEs
+      to one form (93.96-94.01%).
+   2. loop 2: retail both computes `andi a1,arg0,0xff` before the loop and
+      duplicates it into the bnez delay slot; ours hoists it and leaves a nop.
+      A `u_char mode = arg0;` local in the body does not stop the hoist, and
+      u_int arg0 with a per-site (arg0 & 0xFF) measures 93.58%.
+   permute.sh --minutes 4 -j 2 (twice: rounds 63 and 293) both end
+   PERMUTER_BETTER with a non-portable winner: it hoists g_Menu into a local
+   before the last loop, which deletes a lui/lw pair and gives the wrong size. */
+/*
+void func_801DD5E8(u_char arg0) {
+    MenuString* pStrings;
+    POLY_FT4* pPoly;
+    s32 i;
 
-       func_801E8F60(5, arg0);
-       func_801E8F60(6, arg0);
-       for (i = 0; i < 0xC; i++) {
-           pStrings = g_Menu->unk430;
-           pPoly = &pStrings[i].polys[pStrings[i].renderContext];
-           if (pPoly->r0 != 0x20) {
-               MenuSetPrimShadingMode(pPoly, arg0);
-               pStrings = g_Menu->unk430;
-               pPoly = &pStrings[i + 0xE].polys[pStrings[i + 0xE].renderContext];
-               MenuSetPrimShadingMode(pPoly, arg0);
-           }
-       }
-       MenuSetPrimShadingMode(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
-       pStrings = g_Menu->unk430;
-       MenuSetPrimShadingMode(&pStrings[0x1C].polys[pStrings[0x1C].renderContext], arg0);
-       for (i = 0; i < 2; i++) {
-           pStrings = g_Menu->unk430;
-           pPoly = &pStrings[0x1E + i].polys[pStrings[0x1E + i].renderContext];
-           MenuSetPrimShadingMode(pPoly, arg0);
-       }
-   }
+    func_801E8F60(5, arg0);
+    func_801E8F60(6, arg0);
+    for (i = 0; i < 0xC; i++) {
+        pStrings = g_Menu->unk430;
+        pPoly = &pStrings[i].polys[pStrings[i].renderContext];
+        if (pPoly->r0 != 0x20) {
+            MenuSetPrimShadingMode(pPoly, arg0);
+            pStrings = g_Menu->unk430;
+            pPoly = &pStrings[i + 0xE].polys[pStrings[i + 0xE].renderContext];
+            MenuSetPrimShadingMode(pPoly, arg0);
+        }
+    }
+    MenuSetPrimShadingMode(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
+    pStrings = g_Menu->unk430;
+    MenuSetPrimShadingMode(&pStrings[0x1C].polys[pStrings[0x1C].renderContext], arg0);
+    for (i = 0; i < 2; i++) {
+        pStrings = g_Menu->unk430;
+        pPoly = &pStrings[0x1E + i].polys[pStrings[0x1E + i].renderContext];
+        MenuSetPrimShadingMode(pPoly, arg0);
+    }
+}
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
 
@@ -606,13 +599,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    0x38($sp) slot. So the tie is exactly `const 1` vs `needsOpen` for the ninth
    register, and declaration order does not move it: needsOpen first, active last,
    slot first and kind first all measure 94.45-94.46.
-   JUMP TABLE: this stub owns jtbl_801C512C, which is at +0x30 of the unit's .rodata
-   range (config/menu.yaml [0xFC, .rodata, main/misc9]) - func_801DBE54 owns the table
-   at +0x00 and func_801E05D0 the one at +0x60, so the three must be converted IN THAT
-   ORDER or every later table shifts by 0x30. Un-park this one only after
-   func_801DBE54's switch is C. Correction (round 231, see that park note): the
-   third table must STAY asm, so this stub plus func_801DBE54 is the shippable
-   pair - all three as C is 4 bytes short of the range. `case 4`'s flag byte is g_Menu->unk430 + 0x1084 + col
+   JUMP TABLE: CORRECTION (round 293) - this stub owns NO table (its .s has no
+   `jtbl`/`.rodata` reference), so it is a convertible stub; the note below had
+   misattributed jtbl_801C512C to it. The unit's three tables belong to
+   func_801DBE54 (+0x00 of the [0xFC, .rodata, main/misc9] range), func_801DDF24
+   (+0x30) and func_801E05D0 (+0x60); func_801DBE54's switch is already C and the
+   third must STAY asm (all three as C is 4 bytes short of the 0x90 range), so
+   func_801DDF24 + func_801E05D0 cannot be converted in this unit. Also: this
+   stub's parked body is no longer in the file, so it has to be rewritten from the
+   assembly - the round-231 note below still describes its residue. `case 4`'s flag byte is g_Menu->unk430 + 0x1084 + col
    (the buffer is the 0x1094 bytes MenuCreateUnk430Panel allocates); the three window
    dimensions are D_801E9788/94/A0[kind][0], u16 tables 0xC bytes apart, stride 4
    (282/282/162, 218/218/200, 82/82/100 - one row per character slot). `kind` is the
