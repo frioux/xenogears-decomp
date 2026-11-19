@@ -408,9 +408,7 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
     D_800C4268++;
 
     if (FieldTextBoxFindCurrentActorTextBox(&foundIndex) != -1) {
-        g_FieldScriptVMStopFlag = 1;
-        g_FieldTextBoxes[foundIndex].status = 0;
-        return -1;
+        goto textBoxOpen;
     }
 
     g_FieldScriptMaxInstructionCount += 8;
@@ -463,14 +461,16 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
             if (flagsUnion & FIELD_TEXT_BOX_FLAG_BOTTOM) {
                 goto layoutBelow;
             }
-            if (visibleCount != 0) {
-                goto layoutBelow;
+            if (visibleCount == 0) {
+                goto layoutAbove;
             }
+            goto layoutBelow;
         } else if (!(flagsUnion & FIELD_TEXT_BOX_FLAG_BOTTOM)) {
             goto layoutBelow;
         }
         // Falls through into the layout above the actor.
     case FIELD_TEXT_BOX_POSITION_ABOVE:
+    layoutAbove:
         g_FieldTextBoxes[textBoxIndex].flags = FIELD_TEXT_BOX_FLAG_TOP;
         if (mode == 0 || mode == 3) {
             FieldProjectActorPointToScreen(actorIndex, &x, &screenY, -0x40);
@@ -491,8 +491,8 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
         } else {
             width = 0x48;
             height = 4;
-            x = 0xA0;
             y = 0x10;
+            x = 0xA0;
         }
         break;
     case FIELD_TEXT_BOX_POSITION_BELOW:
@@ -503,8 +503,8 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
             if (mode == 0) {
                 y = screenY + 0x30;
             } else {
-                x = 0xA0;
                 y = 0x94;
+                x = 0xA0;
             }
             if (g_FieldScriptVMCurActor->faceId != 0xFF && !(faceFlags & 0x2)) {
                 if (width < 0x18) {
@@ -575,6 +575,11 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
     g_FieldScriptVMCurActor->rotation.vx |= 0x8000;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
     return 0;
+
+textBoxOpen:
+    g_FieldScriptVMStopFlag = 1;
+    g_FieldTextBoxes[foundIndex].status = 0;
+    return -1;
 }
 
 extern u16 g_FieldTextBoxInUseMask[];
