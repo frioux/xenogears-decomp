@@ -158,7 +158,7 @@ void FieldScriptVMHandlerSetActorFlags134(void) {
 
     value = FieldScriptArgument1(1, SCRIPT_READ_U8_REL(5));
     g_FieldScriptVMCurActor->flags134 = (g_FieldScriptVMCurActor->flags134 & 0xFFFFFF9F) | ((value & 3) << 5);
-    g_FieldScriptVMCurActor->unkEE = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
+    g_FieldScriptVMCurActor->spriteClipY = FieldScriptArgument2(3, SCRIPT_READ_U8_REL(5));
     g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
 }
 
@@ -170,7 +170,7 @@ void FieldScriptVMHandlerSetActorFlags134ByIndex(void) {
         pActor = g_FieldActors[FieldScriptVMGetActorIndex(1)].pActorData;
         value = FieldScriptArgument1(2, SCRIPT_READ_U8_REL(6));
         pActor->flags134 = (pActor->flags134 & 0xFFFFFF9F) | ((value & 3) << 5);
-        pActor->unkEE = FieldScriptArgument2(4, SCRIPT_READ_U8_REL(6));
+        pActor->spriteClipY = FieldScriptArgument2(4, SCRIPT_READ_U8_REL(6));
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }

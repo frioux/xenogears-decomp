@@ -442,8 +442,8 @@ void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
         pSprite->position.z = g_FieldScriptVMCurActor->position.vz;
     }
     
-    if (g_FieldScriptVMCurActor->unkAnimationId != 0xFF) {
-        animationId = g_FieldScriptVMCurActor->unkAnimationId;
+    if (g_FieldScriptVMCurActor->animationOverride != 0xFF) {
+        animationId = g_FieldScriptVMCurActor->animationOverride;
     }
     
     if (g_FieldScriptVMCurActor->curAnimationId != animationId &&  

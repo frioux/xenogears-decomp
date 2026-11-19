@@ -1291,7 +1291,7 @@ void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
 }
 
 void FieldScriptSetInvertedAnimationId(void) {
-    g_FieldScriptVMCurActor->unkAnimationId = ~SCRIPT_READ_U8_REL(1);
+    g_FieldScriptVMCurActor->animationOverride = ~SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
@@ -1572,7 +1572,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B5D4);
    truncation of the two FieldScriptVMGetInstructionArgumentS16 results because
    the prototype returns short. Declaration orders tried: pBounds,pData,pCur,
    pPrev (93.62%) and pBounds,pData,pPrev,pCur (88.80%, gcc re-associates the
-   unk8[ctx] address sums).
+   pPrimitiveBuffers[ctx] address sums).
 void func_8008B5D4(void) {
     FieldActorModelData* pModel;
     FieldActorModelBounds* pBounds;
@@ -1595,12 +1595,12 @@ void func_8008B5D4(void) {
     pModel = g_FieldActors[g_FieldCurActorIndex].pModelData;
     pBounds = pModel->pBounds;
     ctx = g_FieldCurRenderContextIndex;
-    pCur = ((u8**)pModel->unk8)[ctx];
-    pPrev = ((u8**)pModel->unk8)[(ctx + 1) & 1];
-    pData = ((u32**)pBounds->unk0)[4];
+    pCur = pModel->pPrimitiveBuffers[ctx];
+    pPrev = pModel->pPrimitiveBuffers[(ctx + 1) & 1];
+    pData = pBounds->pCommands;
     du = FieldScriptVMGetInstructionArgumentS16(1);
     dv = FieldScriptVMGetInstructionArgumentS16(3);
-    for (i = ((u16*)pBounds->unk0)[3]; i > 0; i--) {
+    for (i = pBounds->numCommands; i > 0; i--) {
         w = *pData;
         code = w & 0xFF;
         n = w >> 16;
@@ -1803,13 +1803,13 @@ void func_8008BF38(int partyIndex) {
     g_FieldPartyActorSlots[partyIndex] = g_FieldPartyActorSlots[partyIndex + 1];
 
     pActor = (characterId + g_FieldActors)->pActorData;
-    if (!(pActor->unk126 & 0x80)) {
+    if (!(pActor->spriteSource & 0x80)) {
         func_80076AC0(characterId, partyIndex, g_PartyDataBuffers[partyIndex], 1, 0, partyIndex, 1);
     } else {
-        pSprite = (void*)((*(s32*)(g_FieldSpriteData + (pActor->unk126 & 0x7F) * 4 + 4)) + (s32)g_FieldSpriteData);
+        pSprite = (void*)((*(s32*)(g_FieldSpriteData + (pActor->spriteSource & 0x7F) * 4 + 4)) + (s32)g_FieldSpriteData);
         func_80076AC0(characterId, pActor->spriteId, pSprite,
             ((u32)pActor->flags130 >> 28) & 0x3, pActor->flags134 & 0xF,
-            (characterId + g_FieldActors)->pActorData->unk126,
+            (characterId + g_FieldActors)->pActorData->spriteSource,
             ((u32)(characterId + g_FieldActors)->pActorData->flags134 >> 4) & 0x1);
     }
 
@@ -2187,7 +2187,7 @@ void FieldActorCopyPlacement(int dstActorId, int srcActorId) {
     dstActor->position.vx = srcActor->position.vx;
     dstActor->position.vy = srcActor->position.vy;
     dstActor->position.vz = srcActor->position.vz;
-    dstActor->unkEC = srcActor->unkEC;
+    dstActor->scriptYPos = srcActor->scriptYPos;
     dstActor->curYPos = srcActor->curYPos;
     dstActor->curWalkmeshTriMaterial = srcActor->curWalkmeshTriMaterial;
 
