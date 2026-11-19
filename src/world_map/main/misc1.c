@@ -1130,20 +1130,6 @@ void WorldMapSetPositionFromState(void) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
-/* best: 97.16% (236 bytes vs retail's 232). Retail's found-point block is
-   `lh v0,0(a2) / sw zero,g_WorldMapPlayerPositionY / sll / sw g_WorldMapPlayerPosition /
-   lh v0,4(a2) / nop / sll / sw g_WorldMapPlayerPositionZ`: the x and z loads share $v0 and
-   the z load is NOT hoisted above the two stores. Plain C hoists it (both loads adjacent,
-   228 bytes, 94.74%). Marking the first two stores `volatile` does NOT stop that (same
-   228 bytes), but marking the Z LOAD volatile does put it after the stores - at the cost
-   of one insn, because gcc 2.7.2 expands a volatile sign-extending 16-bit load as
-   `lhu / sll 16 / sra 4` instead of `lh / sll 12` (97.16%, 236 bytes). Everything else,
-   including the `sll/sra` narrowed-id search loop, matches. Do not read z as u16 to get
-   the `lhu / sll 12` shape - the shift keeps the low bits and changes the stored value
-   for negative z.
-*/
-/*
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
     s32 nPos;
@@ -1156,10 +1142,12 @@ void func_80073448(s32 arg0) {
         p = g_WorldMapPoints;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
-                *(volatile s32*)&g_WorldMapPlayerPositionY = 0;
+                g_WorldMapPlayerPositionY = 0;
                 nPos = p->x << 12;
-                *(volatile s32*)&g_WorldMapPlayerPosition = nPos;
-                nPos = *(volatile s16*)&p->z << 12;
+                g_WorldMapPlayerPosition = nPos;
+                // the byte cast keeps gcc from hoisting this load above the two position
+                // stores; retail reads z after them (`lh v0,4(a2)` then a load-delay nop).
+                nPos = *(s16*)((u8*)p + offsetof(WorldMapPoint, z)) << 12;
                 g_WorldMapPlayerPositionZ = nPos;
                 return;
             }
@@ -1170,7 +1158,6 @@ void func_80073448(s32 arg0) {
         g_WorldMapPlayerPositionZ = 0;
     }
 }
-*/
 
 // Header of the decompressed map data block: one offset per sub-block, relative to the start
 // of the block. The offsets are named after the D_ global the sub-block is stored into.
