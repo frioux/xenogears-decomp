@@ -30,7 +30,9 @@ typedef struct {
 typedef struct {
     /* 0x0000 */ u8 unk0[0x2AE0];
     /* 0x2AE0 */ u_char renderContext;
-    /* 0x2AE1 */ u8 unk2AE1[0xA];
+    /* 0x2AE1 */ u8 unk2AE1;
+    /* 0x2AE2 */ u8 unk2AE2;
+    /* 0x2AE3 */ u8 unk2AE3[0x8];
     /* 0x2AEB */ u8 digitPrimCount; // digit prims the gear window's number draws appended
 } MenuGearWindowPrims; // Size: 0x2AEC
 
@@ -730,6 +732,95 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6194);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6338);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D680C);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D6CF4);
+/* Best: 63.92% (892 bytes; retail is 1120 = 0x460). Decode, all seven calls and both
+   blocks are laid out below; the 228-byte shortfall is a source shape, not a missing
+   statement - start from the first difference, which is that retail computes rowOffset
+   (s0 = row * 24) AFTER the first MenuParseNumberToDigits (mine hoists it into the
+   prologue) and keeps the row parameter in s3 masked at each use.
+   Decode: two identical gear-stat blocks, the shape of the parked func_801D7154.
+   Block A: MenuParseNumberToDigits(characters[id].level, g_GameState + 0x2CE), count
+   byte 0x2AE1, a 3-digit loop over g_Menu->digits[6 + i] (!= 0xFF) calling
+   func_8002675C with 0x50-byte prims at +0xAF0, x = i * 8 + D_801E9CE0 - row * 24,
+   y = D_801E9CE4, then a count-time MenuSetQuadVertices loop over SVECTORs at
+   +0x2300 + i * 0x20 reading the +0xAF0 prim at context (renderContext + 2 * i):
+   x0 +0xAF8, y0 +0xAFA, x1 +0xB00, y3 +0xB12.
+   Block B is the same with characters[id].unk63 (0x2CF), count 0x2AE2, prims +0xBE0,
+   D_801E9CE8 / D_801E9CEC, verts +0x2360 - plus, per prim, SetShadeTex(pPrim, 0) and
+   the three shade stores r0 = 0, g0 = 0x80, b0 = 0 (the same shape as the matched
+   MenuSetCharacterUnk63Digits above).
+   Both quad loops read x0 and y0 twice each (0xAF8 / 0xAFA and 0xBE8 / 0xBEA): the
+   volatile-minuend trick measured in the func_801D7884 park above is used here.
+/*
+extern s32 D_801E9CE0;
+extern s32 D_801E9CE4;
+extern s32 D_801E9CE8;
+extern s32 D_801E9CEC;
+
+void func_801D6CF4(u_char index, u_char row) {
+    s32 characterOffset;
+    s32 rowOffset;
+    s32 i;
+    s32 vertOffset;
+
+    characterOffset = g_Menu->pManager->currentCharacterIDs[index] * sizeof(GameCharacter);
+    rowOffset = row * 24;
+    MenuParseNumberToDigits(*(u8*)((u8*)&g_GameState + 0x2CE + characterOffset));
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1 = 0;
+    for (i = 0; i < 3; i++) {
+        u8 digit = g_Menu->digits[6 + i];
+
+        if (digit != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1 += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)(((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1 *
+                                (2 * sizeof(POLY_FT4)) +
+                            0xAF0 + (u32)g_Menu->pGearWindowPrims),
+                g_Menu->renderContext, i * MENU_DIGIT_SPACING + D_801E9CE0 - rowOffset, D_801E9CE4,
+                0x1000);
+        }
+    }
+    vertOffset = 0x2300;
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE1; i++) {
+        POLY_FT4* pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                                      (g_Menu->renderContext + i * 2) * sizeof(POLY_FT4) + 0xAF0);
+
+        MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
+                            pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+        vertOffset += 0x20;
+    }
+
+    MenuParseNumberToDigits(*(u8*)((u8*)&g_GameState + 0x2CF + characterOffset));
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2 = 0;
+    for (i = 0; i < 3; i++) {
+        u8 digit = g_Menu->digits[6 + i];
+
+        if (digit != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2 += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)(((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2 *
+                                (2 * sizeof(POLY_FT4)) +
+                            0xBE0 + (u32)g_Menu->pGearWindowPrims),
+                g_Menu->renderContext, i * MENU_DIGIT_SPACING + D_801E9CE8 - rowOffset, D_801E9CEC,
+                0x1000);
+        }
+    }
+    vertOffset = 0x2360;
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE2; i++) {
+        POLY_FT4* pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                                      (g_Menu->renderContext + i * 2) * sizeof(POLY_FT4) + 0xBE0);
+
+        SetShadeTex(pPrim, 0);
+        pPrim->r0 = 0;
+        pPrim->g0 = 0x80;
+        pPrim->b0 = 0;
+        MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
+                            pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+        vertOffset += 0x20;
+    }
+}
+*/
 extern s32 D_801E9D10;
 extern s32 D_801E9D14;
 extern s32 D_801E9D18;
