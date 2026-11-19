@@ -32,25 +32,30 @@ typedef struct {
 
 typedef void (*UnknownHandler_t)(UnknownObject *, short);
 
+// One packet-node type: ModelRenderPacket picks handlers[renderMode] and calls it per
+// node; ModelInitializePacket calls pFnInitPrims per node and then advances the three
+// cursors (packet-node stream, model packet, primitive list) by the strides below.
+// The packet node's first byte picks the entry (0 = triangles, 8 = quads).
 typedef struct {
     /* 0x00 */ UnknownHandler_t handlers[6];
-    /* 0x18 */ int unk18;
-    /* 0x1C */ int unk1C;
-    /* 0x20 */ int unk20;
-    /* 0x24 */ int unk24;
+    /* 0x18 */ int pFnInitPrims; // ModelPacketInit*: fills the node's primitives in the packet
+    /* 0x1C */ int nodeStride; // bytes to advance g_BattlePacketNodeCursor per node
+    /* 0x20 */ int packetStride; // bytes to advance g_pCurModelPacket per node
+    /* 0x24 */ int primsStride; // bytes to advance the primitive list handed to pFnInitPrims
 } UnknownHandlerBlock;
 
 /*
+ * Entry 0:
  * handlers[0] = 0x8002E038
  * handlers[1] = func_8002ED20
  * handlers[2] = 0x8002E470
  * handlers[3] = 0x8002E8DC
  * handlers[4] = 0x8002E038
  * handlers[5] = 0x8002E038
- * unk18 = func_8002CDCC
- * unk1C = 0x00000008
- * unk20 = 0x00000004
- * unk24 = 0x00000014
+ * pFnInitPrims = func_8002CDCC (ModelPacketInitPolyF3)
+ * nodeStride = 0x00000008
+ * packetStride = 0x00000004
+ * primsStride = 0x00000014
  */
 
 extern UnknownHandlerBlock g_UnknownHandlerBlocks[17];
