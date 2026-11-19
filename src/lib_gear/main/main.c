@@ -508,97 +508,65 @@ typedef struct {
 extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
 extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s32 scale, s16 ground);
 
-// PARK, round 265: objdiff 87.94%, 3352 bytes against retail's 3376. The round-264 note
-// below is partly fiction - THE BODY IT MEASURED DID NOT COMPILE. gte_stlvnl takes the
-// destination ADDRESS ("r"), so `gte_stlvnl(vec)` on a `VECTOR` local is "inconsistent
-// operand constraints in an `asm'" at all four sites (cc1 exit 33); diff_func.sh then
-// silently scored the previous object. The body parked now compiles: `&vec`, `&trans`,
-// `&proj`.
-// CLOSED THIS ROUND (measured, one change at a time):
-//  - the frame: the round-264 note claimed gcc "assigns swingVec's slot second whatever
-//    its position in the declaration list". False. Declared FIRST it takes 0x20 and pushes
-//    svec/vec/trans/depthBuf/proj up by 8; declared LAST (after `VECTOR proj`) our frame is
-//    retail's exactly - svec 0x20, vec 0x28, trans 0x38, depthBuf 0x48, proj 0x50,
-//    swingVec 0x60, a1 0x68, a3 0x70 - and every stack immediate in phases 1a/1b now
-//    agrees with retail. 87.89 -> 87.94%.
-// REGISTER CENSUS (this round's assignment, and the answer to "is it over-allocation?"):
-//  - NO. Retail saves s0-s7 + $30 + ra in a 0xE0 frame; we save the same ten words in the
-//    same 0xE0 frame. The register *sets* agree value for value; only the numbers are
-//    permuted: retail pModel $s5, 0x1F800020 $s6, 0x1F800000 $s7, pMesh $30, numChildren
-//    $s3, jointIndex $s4, joint cursor $s2; ours pModel $s6, 0x1F800020 $s5, 0x1F800000
-//    $s8, pMesh $s7, numChildren $s4, jointIndex $s3, cursor $s2. That permutation alone is
-//    most of the missing 12%.
-//  - declaring pSkeleton/pMesh in either order, and assigning them in either order, changes
-//    nothing (measured). The preset is right: 2.6.0-O2-G8 87.94 vs gcc-2.7.2 85.50; -O3 and
-//    -G0 variants do not compile this body.
-//  - the one real allocation difference: pSkeleton. Both spill it (retail to 0x78, we to
-//    0x80), but retail keeps a copy in $s2 from the entry to the joint-loop preheader - its
-//    `addiu s2,s2,0x7C` reuses that register - and reloads the spill 6 times; we reload 12.
-//    That also reorders the spill slots: retail pSkeleton 0x78 / modelScale 0x80 /
-//    pLightScratch 0x88, ours pLightScratch 0x78 / pSkeleton 0x80 / modelScale 0x88.
-//  - the six missing instructions: retail's corner read-back is `addiu a0,sp,N / mfc2 t4,$19
-//    / nop / sra t4,t4,2 / sw t4,0(a0)` (the shift happens in the REGISTER and the address
-//    is CSE'd across corners 2-4), i.e. 4 after the address. Ours `gte_stsz3_val(depthBuf[1]);
-//    depthBuf[1] >>= 2;` stores, reloads, shifts, stores = 6. The right shape is a scalar
-//    (`gte_stsz3_val(sz3); depthBuf[1] = sz3 >> 2;`) but gcc 2.6 then spills the asm output
-//    into depthBuf's own slot (`mfc2 t0 / sw t0,72(sp) / lw v0,72(sp) / sra / sw`) - 87.32%,
-//    3316 bytes, with a fresh `s32 sz3` and again with the existing `depth` local. Four of
-//    the six are the `nop` after each `mfc2 $19`: include/psyq/inline_c.h's gte_stsz3_val
-//    carries none (gte_stopz_val does) and adding one would move the already matched
-//    libgte_pers/libgte_pers3/libgte_nclip_b, so it needs a second, nop-bearing SZ3 macro.
-// Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
-//
-// --- round 254 note, kept for the phase transcriptions ---
-// PARK, round 254 (revised 264, superseded where the round-265 note disagrees): 87.92%,
-// retail's 3376 (six instructions short: the four `mfc2 $19` nops plus two). All four
-// phases are transcribed and the call/branch sequence matches retail's instruction for
-// instruction; what is left is a frame-layout and allocation delta, listed below in the
-// order it is worth attacking.
-// CLOSED THIS ROUND (each one measured on its own):
-//  - the corner depth chain is `s32 depthBuf[2]` and both elements are written by the
-//    SZ3 read-back itself: `gte_stsz3_val(depthBuf[0]); depthBuf[0] >>= 2;` etc. With two
-//    scalars gcc 2.6 keeps the min in a register and the whole `sw/lw/lw/slt/beqz/sw`
-//    chain collapses (3264 bytes); the array forces memory residency and is worth 24
-//    instructions. `depthBuf[0]` then carries the OT z too - retail stores otz back into
-//    that same 0x48 slot, and `if (depthBuf[0] >= 0x2D9)` plus `0x6B - depthBuf[0] / 8`
-//    read it back out of memory.
-//  - the tag poke is spelled `pModel->polys[packetIndex].tag` while the four SXY writes go
-//    through a `pPoly` local. Only the two spellings together make retail keep both a
-//    scaled offset (a3 = 0x28 * packetIndex) and the computed address (t1) live.
-//  - `u16 modelScale` + a `s32 scale` parameter in the func_801E22F8 declaration: retail
-//    loads the modelScale spill with `lhu` and stores it into the outgoing argument slot
-//    with no sign-extension pair. func_801E22F8.s reads that argument back at 0xEC(sp)
-//    with `lw`, so it is a word - the s16 it used to be cost an sll/sra pair here.
-//  - vec/trans/proj are `VECTOR` (four longs each), not s32[3]: retail's frame has
-//    svec 0x20, vec 0x28, trans 0x38, depthBuf 0x48, proj 0x50, swingVec 0x60 - no holes,
-//    i.e. every GTE scratch is a 16-byte VECTOR and the two 3-word reads are .vx/.vz.
-// STILL OPEN:
-//  - swingVec lands at 0x28 in our frame, so vec/trans shift up by 8 and depthBuf ends up
-//    at 0x60 instead of 0x48; retail's swingVec is the last slot at 0x60. gcc assigns
-//    swingVec's slot second whatever its position in the declaration list (measured with
-//    it declared first, between, and last), so this is not a source-order lever; until it
-//    moves, every stack immediate in phases 1a/1b differs from retail's by 8.
-//  - register identity, which is where the 12% lives: retail holds pModel in $s5, the
-//    0x1F800000 scratch in $s7, pViewScratch (0x1F800020) in $s6, pMesh in $fp (reused
-//    for the 0x50 proj buffer once pMesh dies) and pSkeleton in $s2 for the whole
-//    function. Ours: pModel $s6, 0x1F800000 $s8, 0x1F800020 $s5, proj $s5, and pSkeleton
-//    spilled to 0x80 and reloaded at eight sites. Nothing about the statement order or
-//    the local declaration order moved this (several orders tried).
-//  - four missing nops: retail has `mfc2 $19 / nop / sra / sw` at each corner, so its
-//    SDK macro carried the pipeline nop. include/psyq/inline_c.h has the nop only in
-//    gte_stopz_val; gte_stsz3_val has none and cannot gain one, because the already
-//    matched libgte_pers needs the nop-less form. Reaching 3376 needs a second,
-//    nop-bearing SZ3 macro in that header - a shared-header change, so it is left to a
-//    round that can prove the whole build.
-//  - smaller: retail re-reads pEntry->slot from memory four times in the one-quad tail of
-//    phase 5 (pVertex stores alias pEntry), where we keep it in the `slot` local.
-// The permuter cannot touch this body: its C parser rejects the GTE asm macros
-// ("inconsistent operand constraints in an asm"), and the 4-minute run on the 86.47%
-// body only moved the permuter's own metric. Un-park by deleting the INCLUDE_ASM line
-// and the enclosing comment.
+// PARK, round 280: objdiff 94.35%, 3392 bytes against retail's 3376 (was 87.94% /
+// 3352). Every call, branch and GTE sequence in the body below is retail's; what is
+// left is a REGISTER PERMUTATION (185 of the 225 differing rows are a saved-register
+// rename) plus the pSkeleton spill.
+// CLOSED THIS ROUND, each measured on its own:
+//  - the corner depth read-back is `gte_stszotz(&depthBuf[0/1])`, NOT a `gte_stsz3_val`
+//    plus a shift: gte_stszotz already carries mfc2 $19 / nop / sra $12,$12,2 / sw
+//    through the address operand, which is retail's exact four-instruction shape and
+//    why retail materialises sp+0x48 and sp+0x4C once each. 87.94 -> 90.05%, and the
+//    six missing instructions (four `mfc2` nops plus two) come from it. The round-265
+//    note's "a second, nop-bearing SZ3 macro is needed" is WRONG - no header change.
+//  - the OT index is its own register value, not a `depthBuf[0] >>=` write-back:
+//    `otz = depthBuf[0] >> g_GfxOTDepthShift;` and then `pOt[otz]` twice. That keeps
+//    &pOt[otz] in one register across both pokes (retail's a1) instead of re-forming
+//    the address from a memory reload. 90.05 -> 91.57%.
+//  - `pPoly = &pModel->polys[packetIndex];` is assigned AFTER the first
+//    `gte_ldv0/gte_rtps`, immediately before the first `gte_stsxy2`: retail computes
+//    the packet pointer in the RTPS shadow (its `lw t2,0xF8(sp)` sits right after
+//    RTPS) and a hoisted assignment costs a 12-row block. 91.57 -> 93.30%.
+//  - the 3D path's `pSection` was a `Temp9Section*`, so `pSection + 4` scaled by 0x10:
+//    retail's `lhu 0x4(a0)` is `screenA[8 * (1 - slot) + 2]`. Write the six reads
+//    through the u16 arrays. 93.30 -> 94.07%.
+//  - the root-joint CompMatrix is IN PLACE: retail materialises 0x1F800020 in BOTH a1
+//    and a2 (two independent lui/ori pairs, at 0x1034 and in 0x1068's delay slot), so
+//    the call is `CompMatrix(pLightMatrix, pViewScratch, pViewScratch)`, not
+//    `...&pSkeleton->globalTransform, pViewScratch`. 94.07 -> 94.30%.
+//  - ONE loop variable serves all three loops (retail resets `$s4` with
+//    `addu s4,zero,zero` at each head and increments `s4` at the joint loop's latch);
+//    dropping the separate `jointIndex` local is 94.30 -> 94.35, and its only other
+//    effect is to move the permutation around.
+// REGISTER MAP (ours vs retail; the 0xE0 frame and the s0-s8+ra saved set agree, so
+// this is NOT over-allocation): pModel $s7/$s5, 0x1F800020 $s4/$s6, 0x1F800000
+// $s8/$s7, pMesh $s7/$s8, numChildren $s3/$s3 (agrees), loop var $s5/$s4, and
+// pSkeleton spilled at 0x80 in t0 against retail's $s2 / 0x78 / t2.
+// STILL OPEN, in the order the measurements point:
+//  - pSkeleton. Retail's entry block keeps it in $s2 (and spills it to 0x78, then
+//    reuses $s2 as the joint cursor with `addiu s2,s2,0x7C`); ours gives it no
+//    callee-saved home and reloads `lw t0,0x80(sp)` twelve times against retail's six.
+//    Most of the differing rows in the first 300 trace back to this.
+//  - the three two-cycles of the saved-register map. Statement and declaration order
+//    are measured dead (pSkeleton/pMesh in either order, the scratch pointers declared
+//    before or after the other locals, the assignments in either order): it is the
+//    allocator's own ordering, so the lever is one more or one fewer live value, not a
+//    reordering.
+//  - the OT tail: retail keeps `otz` in memory there (`sw a0,0x48(sp)` after the tag
+//    store, `lw v1,0x48(sp)` before the bgez) where our register copy spends two
+//    `addu v0,t0,zero` copies. No spill-favouring spelling found; `depthBuf[0] >>=`
+//    (the obvious one) re-forms &pOt[otz] and loses two points.
+//  - small: the pViewScratch t[] block wants retail's load order (trans.vx, ground,
+//    trans.vz) where our three statements give (vx, vz, ground); the joint loop's
+//    light-colour block has one store in a different slot; the model-list loop's
+//    `addiu s3,s3,0x24` sits one instruction earlier than retail's.
+// The permuter cannot parse this body (the GTE macros are "inconsistent operand
+// constraints in an asm"), so it is a hand job. Un-park by deleting the INCLUDE_ASM
+// line and the enclosing comment.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 /*
+
 void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex) {
     MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
     MATRIX* pViewScratch = &pScratch[1];
@@ -621,8 +589,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     SVECTOR swingVec;
     u16 modelScale;
     s32 depth;
+    s32 otz;
     u_int numChildren;
-    u_int jointIndex;
     s32 slot;
     s32 i;
     s32 j;
@@ -666,7 +634,10 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         pViewScratch->t[2] = trans.vz;
         pViewScratch->t[1] = pModel->ground;
 
-        CompMatrix(pLightMatrix, &pSkeleton->globalTransform, pViewScratch);
+        // Retail composes the light matrix with the view scratch in place, not
+        // with the root joint's globalTransform: the call site carries two
+        // materialised 0x1F800020 immediates (a1 and a2).
+        CompMatrix(pLightMatrix, pViewScratch, pViewScratch);
 
         depth = pModel->scale - (pModel->ground - pSkeleton->translation.y) / 4;
         if (depth < 0) {
@@ -687,23 +658,20 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         SetRotMatrix(pViewScratch);
         SetTransMatrix(pViewScratch);
 
-        pPoly = &pModel->polys[packetIndex];
-
         svec.vx = pModel->width;
         svec.vy = 0;
         svec.vz = pModel->depth;
         gte_ldv0(&svec);
         gte_rtps();
+        pPoly = &pModel->polys[packetIndex];
         gte_stsxy2((u_long*)&pPoly->x0);
-        gte_stsz3_val(depthBuf[0]);
-        depthBuf[0] >>= 2;
+        gte_stszotz(&depthBuf[0]);
 
         svec.vx = -pModel->width;
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x1);
-        gte_stsz3_val(depthBuf[1]);
-        depthBuf[1] >>= 2;
+        gte_stszotz(&depthBuf[1]);
         if (depthBuf[1] < depthBuf[0]) {
             depthBuf[0] = depthBuf[1];
         }
@@ -713,8 +681,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x2);
-        gte_stsz3_val(depthBuf[1]);
-        depthBuf[1] >>= 2;
+        gte_stszotz(&depthBuf[1]);
         if (depthBuf[1] < depthBuf[0]) {
             depthBuf[0] = depthBuf[1];
         }
@@ -723,25 +690,24 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_ldv0(&svec);
         gte_rtps();
         gte_stsxy2((u_long*)&pPoly->x3);
-        gte_stsz3_val(depthBuf[1]);
-        depthBuf[1] >>= 2;
+        gte_stszotz(&depthBuf[1]);
         if (depthBuf[1] < depthBuf[0]) {
             depthBuf[0] = depthBuf[1];
         }
 
-        depthBuf[0] >>= g_GfxOTDepthShift;
-        pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[depthBuf[0]] & 0xFFFFFF);
-        pOt[depthBuf[0]] = (pOt[depthBuf[0]] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
-        if (depthBuf[0] >= 0x2D9) {
-            depthBuf[0] = 0x2D8;
+        otz = depthBuf[0] >> g_GfxOTDepthShift;
+        pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
+        pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
+        if (otz >= 0x2D9) {
+            otz = 0x2D8;
         }
-        pModel->unk39 = 0x6B - depthBuf[0] / 8;
+        pModel->unk39 = 0x6B - otz / 8;
     }
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
 
     pJoint = pSkeleton + 1;
-    for (jointIndex = 1; jointIndex < numChildren; jointIndex++) {
+    for (i = 1; i < numChildren; i++) {
         if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
             MulMatrix0(pViewScratch, &pJoint->globalTransform, pScratch);
             SetLightMatrix(pScratch);
@@ -874,11 +840,10 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->y2 = pEntry->screenB[2 * slot + 1];
             }
 
-            slot = pEntry->slot;
-            pEntry->pVertex->x1 = pEntry->screenA[2 * slot];
-            pEntry->pVertex->y1 = pEntry->screenA[2 * slot + 1];
-            pEntry->pVertex->x3 = pEntry->screenB[2 * slot];
-            pEntry->pVertex->y3 = pEntry->screenB[2 * slot + 1];
+            pEntry->pVertex->x1 = pEntry->screenA[2 * pEntry->slot];
+            pEntry->pVertex->y1 = pEntry->screenA[2 * pEntry->slot + 1];
+            pEntry->pVertex->x3 = pEntry->screenB[2 * pEntry->slot];
+            pEntry->pVertex->y3 = pEntry->screenB[2 * pEntry->slot + 1];
         } else {
             CompMatrix(&pSkeleton->localTransform, &pSkeleton[pEntry->jointIndex].globalTransform, pScratch);
             SetRotMatrix(pScratch);
@@ -914,15 +879,12 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                pSection = (u8*)pEntry + 0x1C + 0x10 * (1 - slot);
-                pEntry->pVertex->x0 = *(u16*)(pSection + 0);
-                pEntry->pVertex->y0 = *(u16*)(pSection + 4);
-                pEntry->pVertex->z0 = *(u16*)(pSection + 8);
-
-                pSection = (u8*)pEntry + 0x3C + 0x10 * (1 - slot);
-                pEntry->pVertex->x2 = *(u16*)(pSection + 0);
-                pEntry->pVertex->y2 = *(u16*)(pSection + 4);
-                pEntry->pVertex->z2 = *(u16*)(pSection + 8);
+                pEntry->pVertex->x0 = pEntry->screenA[8 * (1 - slot)];
+                pEntry->pVertex->y0 = pEntry->screenA[8 * (1 - slot) + 2];
+                pEntry->pVertex->z0 = pEntry->screenA[8 * (1 - slot) + 4];
+                pEntry->pVertex->x2 = pEntry->screenB[8 * (1 - slot)];
+                pEntry->pVertex->y2 = pEntry->screenB[8 * (1 - slot) + 2];
+                pEntry->pVertex->z2 = pEntry->screenB[8 * (1 - slot) + 4];
             }
 
             pEntry->pVertex->x1 = *(u16*)(pQuadA + 0);
