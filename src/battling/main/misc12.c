@@ -224,20 +224,29 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80088A40);
 
-/* Best attempt: objdiff 86.96%. Bitfield stores on (BattleFlagBits*)&g_BattleOptionFlags
-   reproduce everything - the single lw, the five clearing masks (~0xF, ~0x10, ~0x20,
-   ~0xFFFFE03F, ~0xFFFF1FFF), the five value registers ($a2,$a1,$a0,$v1,$t0) and the
-   lbu/andi/sll/or chain - except store placement: retail defers the first four stores
-   until after the fourth lbu (sw a2/a1/a0/v1 together), gcc stores each value as its
-   bitfield assignment completes. Measurements: five plain locals with a cached s32
-   61.85%; chained s32 through a pointer local 70.96%; gcc-2.7.2-cdk 84.13; 2.6.0 does
-   not compile it; cc1_probe of this body with -fschedule-insns -fschedule-insns2 is
-   byte-identical to the plain unit flags (it does hoist the four mask constants, which
-   retail also hoists, but leaves the stores inline). Retail keeps four values live at
-   once, which no source order tried so far produces. */
+/* Best attempt: objdiff 86.96% at retail's exact 184 bytes, and with the bitfield
+   body below everything matches - the single lw, the five clearing masks
+   (~0xF, ~0x10, ~0x20, ~0xFFFFE03F, ~0xFFFF1FFF), the four hoisted `li` masks in
+   retail's order, the five value registers ($a2,$a1,$a0,$v1,$t0), the four
+   lbu/andi/sll/or chains and the final `and t0,v1,t0` - except the placement of the
+   first four stores: retail defers them past the last lbu and stores a2/a1/a0/v1
+   together, gcc stores each value where its chain step completes (every store sits
+   in the reload that the following bitfield assignment needs).
+   Round 292 re-measured the two axes this could come from and both are dead ends:
+   - the scheduler. cc1 2.7.2 with -fschedule-insns, -fschedule-insns2, both,
+     -fno-delayed-branch, on both spellings: output identical to the unit flags.
+     So the store positions are the RTL order, i.e. the source order.
+   - the compiler version. 2.7.2-psx, 2.7.2-cdk, 2.6.0 at -O2 and -O3 all
+     interleave the stores the same way (2.6.0 loses the `lw`/`la` shape as well).
+   And the source order cannot be "compute all five, then store": the chained
+   `*pFlags = (*pFlags & ~M) | v;` form (realistic C, 64.43%) is what produces the
+   five live chain registers retail has, while five temporaries followed by five
+   stores (73.13%) makes gcc fold the chain into one register and delete four of the
+   stores. So retail's shape needs both the five live values AND a store placement no
+   cc1 here emits from C - a permuter job, not a hand job. */
 /*
 typedef struct {
-    u32 mode : 4;
+    u32 mode : 4;   // 0x0
     u32 flagB : 1;
     u32 flagC : 1;
     u32 value : 7;
@@ -439,8 +448,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_80089330);
    (addu v0,s2,zero / addu v0,s1,zero), which is the whole 4-byte gap. No spelling
    found that makes cc1 2.7.2 emit that copy - probed u16/s16 locals, an explicit
    (u16) cast, w & 0xFFFF, a u16* view, a shared s32 temp, bitfields for w/h, a
-   volatile field, and a struct-pointer field store: every one stores $s2/$s1
-   straight into the sh. */
+   volatile field, a struct-pointer field store, and (round 292) `u16 tileW = w;
+   u16 tileH = h;` assigned just before the six stores: gcc folds the narrow local
+   into the sh and the body is byte-identical to the version with no locals at all.
+   The shape retail shows is a HI-mode pseudo that cannot be copied partially, so
+   the source stored a genuine narrow *variable* that was live across something -
+   but every u16 source spelling so far is folded away. */
 /*
 void func_80089330(s32 w, s32 h) {
     DISPENV* pDisp;
@@ -485,8 +498,8 @@ void func_80089330(s32 w, s32 h) {
     D_8009A1C0.h = h;
     D_8009A2B8 = D_8009A1C0;
 }
-
 */
+
 void BattleInitDrawEnvs(s32 w, s32 h) {
     u8* pDtd;
     u16 tpage;
@@ -563,16 +576,26 @@ void BattleInitSpritePrims(BattleSprite* p, s32 x, s32 y, s32 w, s32 h, s32 v) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc12", func_800898BC);
 
-/* Best attempt: objdiff 50.18%. The statement order and the five VectorNormal/
-   OuterProduct12 calls are right, but gcc 2.7.2 hoists the materialisation of all
-   four base addresses (&D_8009A0C8, &D_80096F98, &D_8009A918, &D_80097000) into
-   the prologue - it even interleaves their lui/addiu with the register saves -
-   while retail materialises each one right before its first use, after the three
-   D_8009A0C8/CC/D0 difference stores. Retail's first store also reuses $s2
-   (&D_8009A0C8) that way. Signatures: (MATRIX*, SVECTOR* pFrom, SVECTOR* pTo,
-   SVECTOR* pScale); pMat->m rows come from the D_80097000 / D_8009A918 /
-   D_80096F98 triples loaded as words and stored as halves, pMat->t = negated
-   D_8009A0C8/CC/D0. */
+/* Best attempt: objdiff 50.18% at 464 bytes against retail's 472, and 57.30% when
+   D_8009A0C8 is spelled as an unbounded array (see below). The statement order and
+   the five VectorNormal/OuterProduct12 calls are right; what differs is the base
+   addresses. Retail materialises each one AT ITS FIRST USE, interleaved with the
+   lh's (`lh v0,0x0($a2)` / `lh v1,0x0($s5)` / `lui $s2,%hi(D_8009A0C8)` +
+   `addiu`), and reaches D_8009A0C8 through that one register for the store, the two
+   reads and every call argument. Our compile instead hoists all four `lui/addiu`
+   pairs into the prologue (it even interleaves them with the register saves) and
+   stores D_8009A0C8 through a bare `sw $v0,%lo(sym)($at)` macro, i.e. it keeps TWO
+   address computations for it; that also frees the registers earlier and changes the
+   whole allocation (retail reloads v0/v1 pairs and fills the lh delay slots with the
+   address halves, ours batches four lh's then two subu's).
+   Measured in round 292: declaring D_8009A0C8 as `extern s32 D_8009A0C8[];` and
+   spelling it D_8009A0C8[0] / (VECTOR*)D_8009A0C8 lifts it to 57.30% (456 bytes) -
+   the "array-extern materialises the address" lever does move the store to a register
+   - but the four `la`s are still hoisted, so the allocation stays retail's opposite.
+   Signatures: (MATRIX*, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale); pMat->m rows
+   come from the D_80097000 / D_8009A918 / D_80096F98 triples loaded as words and
+   stored as halves (so those globals are s32 and m is s16), pMat->t = negated
+   D_8009A0C8/CC/D0. This one needs a session of its own. */
 /*
 void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) {
     D_8009A0C8 = pTo->vx - pFrom->vx;
@@ -602,6 +625,7 @@ void func_800898BC(MATRIX* pMat, SVECTOR* pFrom, SVECTOR* pTo, SVECTOR* pScale) 
     pMat->t[2] = -D_8009A0D0;
 }
 */
+
 /*@BattleSetMatrixFromPoints*/
 void BattleSetMatrixFromPoints(BattleMisc12Owner* pOwner, VECTOR* pFrom, VECTOR* pTo) {
     SVECTOR scale;
