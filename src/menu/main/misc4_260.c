@@ -423,6 +423,49 @@ void func_801CF37C(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF5E4);
+/* 99.06% (756 bytes, retail's exact 0x2F4): every expression, call, loop and the
+   frame are retail's; three single instructions sit elsewhere.
+   1. the arg copies in the prologue come out in arg order (a1, a2, a0; retail has
+      a2, a0, a1), so `sw s5 / move s5,a1` lands first instead of after
+      `move s1,a0`. Swapping the 2nd and 3rd parameter - the two callers pass the
+      same value for both, so it is unobservable - moves the copies to retail's
+      order and scores 99.12, but then fp holds a different argument, so it is not
+      a real fix.
+   2. the inner latch's `addiu s3,s3,1` (j++) lands in the `lbu` load-delay slot;
+      retail emits it before the loop bound's `lw`. `j = j + 1`, `j += 1`, ++j and
+      a while loop with a trailing j++ all measure the same.
+   3. the clut store's address sums base-first in retail (`addu v1,s0,v1`) and
+      offset-first here; the `pPrims[ctx]` subscript, `(pPrims + ctx)` and a
+      pointer local (87%) differ from retail only in that operand order.
+   Moving `primIndex++` out of the subscript into a trailing statement is what
+   took this from 98.40 to 99.06 - it is what puts `addiu s5,s5,1` in the
+   loop-back delay slot as retail has it. A 4-minute permuter run on this body
+   found only `long long start`, a different ABI, so nothing to port. */
+/* void func_801CF5E4(s32 start, s32 primIndex, s32 end) {
+    s32 i;
+    s32 j;
+    POLY_FT4* pPrims;
+
+    for (i = start; i < end; i++) {
+        if (g_Menu->menuUnk2->records[i].unk58) {
+            for (j = 0; j < g_Menu->menuUnk2->chunks[i].pad0[3]; j++) {
+                pPrims = (POLY_FT4*)g_Menu->pCellPrimBlocks[primIndex];
+                pPrims[g_Menu->renderContext].u0 = i * 16;
+                pPrims[g_Menu->renderContext].v0 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
+                pPrims[g_Menu->renderContext].u1 = i * 16 + 16;
+                pPrims[g_Menu->renderContext].v1 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
+                pPrims[g_Menu->renderContext].u2 = i * 16;
+                pPrims[g_Menu->renderContext].v2 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
+                pPrims[g_Menu->renderContext].u3 = i * 16 + 16;
+                pPrims[g_Menu->renderContext].v3 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
+                pPrims[g_Menu->renderContext].clut = GetClut(i * 16, i / 16 + 0x1C1);
+                MenuRenderTransformedQuads(1, (SVECTOR*)((u8*)pPrims + 0xE0), pPrims, g_Menu->renderContext);
+                primIndex++;
+            }
+        }
+    }
+}
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
 /* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->cardSlotState)`
    (retail loads it before the frame adjust for the guard's lbu 0x4D8); the
@@ -478,7 +521,73 @@ void func_801CF8D8(void) {
     }
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CFB48);
+// Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
+// (allocated in misc11's MenuCreateCellPrimBlocks): the two line prims, one per render
+// context each, and the eight source vertices the two lines are built from.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x50];
+    /* 0x050 */ LINE_F3 lines[2][2]; // [line][render context]
+    /* 0x0B0 */ u8 unkB0[0x50];
+    /* 0x100 */ SVECTOR verts[8];
+} MenuCellPrimBlock; // Size: 0x140
+void func_801CFB48(void) {
+    MenuCellPrimBlock* pBlock;
+    long interpolated;
+    long flag;
+    u8 character;
+    u8 valid;
+    s32 i;
+
+    if (g_Menu->cardSlotState == 0) {
+        return;
+    }
+    character = g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]];
+    for (i = 0; i < 0x20; i++) {
+        pBlock = (MenuCellPrimBlock*)g_Menu->pCellPrimBlocks[i];
+        if (!g_Menu->menuUnk2->cardStatus[i / 16]) {
+            continue;
+        }
+        if (i / 16 * 16 == i - 15) {
+            continue;
+        }
+        valid = 0;
+        if (character == g_Menu->menuUnk2->slotRecordIndexes[i] && g_Menu->cardSlotState == 2) {
+            valid = 1;
+            if (character == 0xFF) {
+                valid = i == g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot];
+            }
+        }
+        // The colour stores reach the line prims by summing the render context first:
+        // `pBlock->lines[0][renderContext].r0` is the same address but gcc then emits
+        // the commuted `addu v0,s0,v0` where retail has `addu v0,v0,s0` (all twelve
+        // stores, 99.58 with the struct spelling).
+        if (valid) {
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x50))->r0 = 0xFF;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x50))->g0 = 0;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x50))->b0 = 0;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->r0 = 0xFF;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->g0 = 0;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->b0 = 0;
+        } else {
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x50))->r0 = 0;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x50))->g0 = 0xFF;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x50))->b0 = 0;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->r0 = 0;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->g0 = 0xFF;
+            ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->b0 = 0;
+        }
+        RotTransPers3(&pBlock->verts[0], &pBlock->verts[1], &pBlock->verts[3],
+                      (long*)&pBlock->lines[0][g_Menu->renderContext].x0,
+                      (long*)&pBlock->lines[0][g_Menu->renderContext].x1,
+                      (long*)&pBlock->lines[0][g_Menu->renderContext].x2, &interpolated, &flag);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], &pBlock->lines[0][g_Menu->renderContext]);
+        RotTransPers3(&pBlock->verts[4], &pBlock->verts[6], &pBlock->verts[7],
+                      (long*)&pBlock->lines[1][g_Menu->renderContext].x0,
+                      (long*)&pBlock->lines[1][g_Menu->renderContext].x1,
+                      (long*)&pBlock->lines[1][g_Menu->renderContext].x2, &interpolated, &flag);
+        AddPrim(&g_Menu->pGfxEnv->ot[4], &pBlock->lines[1][g_Menu->renderContext]);
+    }
+}
 // Cell grid panel block (g_Menu->pCellGrid), allocated in MenuSetCellGridPanelState: the quad
 // MenuScrollCellGridRow fills, one per render context, the two strings below it and
 // the scroll that drives the quad's width.
