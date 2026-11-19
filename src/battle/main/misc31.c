@@ -145,16 +145,11 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
     HeapFree(pEntry);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
-// best 88.12% at 232 bytes (retail 224): the slot-mask loop and everything up to the
-// tail match. The gap is 'g_BattleAnimTaskAllocCount--' followed by
-// 'func_800BB350(*(u32 *)(pTask + 0x1C))': retail reads the byte, then loads the
-// argument, then subtracts, then calls with the store in the jal's delay slot
-// (lbu / lw a0 / addiu / jal / sb). Swapping the two statements gives retail's exact
-// 224 bytes but the call lands before the decrement (80.70%).
-/*
-void func_800BB540(u8 *pTask) {
+void func_800BB540(BattleAnimWorkTask *pTask) {
     s32 i;
     u16 slotBit;
+    u32 payload;
+    BattleActorSlotPos *pSlotPosTable;
     BattleActorSlotPos *pSlotPos;
 
     for (i = 0, slotBit = 1; i != 3; i++, slotBit <<= 1) {
@@ -163,19 +158,23 @@ void func_800BB540(u8 *pTask) {
             break;
         }
     }
-    pSlotPos = &D_800C3668[i];
-    func_800A979C(*(u32 *)(pTask + 0x1C), pSlotPos->x, pSlotPos->y, 0,
-                  (s16)(*(u16 *)(pTask + 0x1C) + 0x1C0));
+    // the base and the sum live in two variables: retail forms the table address
+    // before it scales the index
+    pSlotPosTable = D_800C3668;
+    pSlotPos = pSlotPosTable + i;
+    // the payload is a word for the slot's owner and a halfword for its target angle
+    func_800A979C(pTask->payload, pSlotPos->x, pSlotPos->y, 0,
+                  (s16)(*(u16 *)&pTask->payload + 0x1C0));
+    // read before the decrement so the count store fills the call's delay slot
+    payload = pTask->payload;
     g_BattleAnimTaskAllocCount--;
-    func_800BB350(*(u32 *)(pTask + 0x1C));
-    ((WorkListEntry *)pTask)->onFreeCallback(pTask);
+    func_800BB350(payload);
+    pTask->entry.onFreeCallback(pTask);
     g_BattlePendingActorTaskCount--;
     if (g_BattlePendingActorTaskCount == 0) {
         D_800C37CC = 1;
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB540);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB620);
 void BattleAnimTaskAllocArchiveEntry(BattleAnimWorkTask *pTask) {
     func_800A9540(pTask->payload);
