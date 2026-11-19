@@ -17,7 +17,8 @@ typedef struct {
     /* 0x4 */ u8 r;
     /* 0x5 */ u8 g;
     /* 0x6 */ u8 b;
-    /* 0x7 */ u8 unk7[0x19];
+    /* 0x7 */ u8 pad7;
+    /* 0x8 */ long sxy[3][2]; // RotTransPers3 writes one projected screen pair per vertex
 } BattleEffectColor; // Size: 0x20
 
 typedef struct {
@@ -74,6 +75,16 @@ extern void TimerWorkListRemoveTask(void *pEntry);
 extern void HeapFree(void *pMem);
 extern void GfxQueueSpriteTileData(void *pArg);
 extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
+extern SVECTOR D_800C3594[3];
+extern SVECTOR D_800C35AC[3];
+extern void ReadGeomOffset(long *ofx, long *ofy);
+extern long ReadGeomScreen(void);
+extern void SetGeomOffset(long ofx, long ofy);
+extern void SetGeomScreen(long h);
+extern void SetRotMatrix(MATRIX *m);
+extern void SetTransMatrix(MATRIX *m);
+extern long RotTransPers3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, long *sxy0, long *sxy1, long *sxy2, long *p, long *flag);
+extern void AddPrim(void *ot, void *p);
 extern void func_800B7160(void);
 extern u_long *g_GfxCurOT;
 extern u_long *g_BattleSavedGfxOT;
@@ -400,6 +411,77 @@ void BattleStoreGfxOrderingTable(void) {
     func_800B7160();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7160);
+/* best 88.39% (452 vs 464 bytes).  Draws every live record of the effect table
+   under the stored GTE matrices: saves the geometry offset and screen to give the
+   loop a 160/112/512 setup of its own, then for i in 0..1, j in 0..13, k in 0..19
+   transforms the record (RotMatrix over its first 8 bytes, TransMatrix over
+   0x10) and projects its colours[idx] prim (0x20 bytes: tag, r/g/b, then an
+   8-byte screen pair per vertex at +8/+0x10/+0x18) with RotTransPers3, linking it
+   into g_BattleSavedGfxOT at (return >> 6).  idx is the u32 at
+   g_BattleStateWork + 0x8000 + 0xC84; a record with posZ below 0x40 is skipped.
+   i selects D_800C3594 or D_800C35AC (two 3-SVECTOR vertex sets 0x18 apart).
+   The real function TAKES the task pointer (lw a0,0x4(a0)), which the caller
+   BattleStoreGfxOrderingTable forwards untouched - unlocking that needs its
+   signature changed too, which is why the extern here still says (void).
+   WHAT IS LEFT: retail spills `pTable + (0x3C + i*0x87A0)` to 0x58 and reloads
+   it in the k loop (frame 0x88), which shifts its whole local area: the geom
+   offset pair sits at 0x20/0x24 and mtx at 0x28, while ours puts mtx at 0x20,
+   the pair at 0x40 and the frame at 0x80.  Retail also loads the vertex table
+   base and the 0x8000 bias in the other order.  Tried: the two-statement
+   g_BattleStateWork/0x8000 split (keeps the addend out of %hi, but does not
+   spill), pColor before vs after the posZ guard (before is retail's), MATRIX
+   declared first/last, and `long` geom-offset locals.
+void func_800B7160(BattleEffectTask *pTask) {
+    s32 geomOffsetX;
+    s32 geomOffsetY;
+    MATRIX mtx;
+    s32 depth;
+    s32 flag;
+    BattleEffectTable *pTable;
+    BattleEffect *pEntry;
+    BattleEffectColor *pColor;
+    SVECTOR *pVertices;
+    u8 *pState;
+    s32 screen;
+    s32 i;
+    s32 j;
+    s32 k;
+
+    pTable = pTask->pTable;
+    ReadGeomOffset(&geomOffsetX, &geomOffsetY);
+    screen = ReadGeomScreen();
+    SetGeomOffset(160, 112);
+    SetGeomScreen(512);
+    for (i = 0; i != 2; i++) {
+        for (j = 0; j != 14; j++) {
+            for (k = 0; k != 20; k++) {
+                pEntry = &pTable->entries[i][j][k];
+                pState = g_BattleStateWork;
+                pState = pState + 0x8000;
+                pColor = &pEntry->colors[*(u32 *)(pState + 0xC84)];
+                if (pEntry->posZ < 0x40) {
+                    continue;
+                }
+                RotMatrix((SVECTOR *)pEntry, &mtx);
+                TransMatrix(&mtx, (VECTOR *)&pEntry->posX);
+                SetRotMatrix(&mtx);
+                SetTransMatrix(&mtx);
+                if (i == 0) {
+                    pVertices = D_800C3594;
+                } else {
+                    pVertices = D_800C35AC;
+                }
+                AddPrim(g_BattleSavedGfxOT + (RotTransPers3(pVertices, pVertices + 1, pVertices + 2,
+                                                            pColor->sxy[0], pColor->sxy[1], pColor->sxy[2],
+                                                            &depth, &flag) >> 6),
+                        pColor);
+            }
+        }
+    }
+    SetGeomOffset(geomOffsetX, geomOffsetY);
+    SetGeomScreen(screen);
+}
+*/
 void BattleDrawSyncAndFree(void *p) {
     DrawSync(0);
     HeapFree(p);
