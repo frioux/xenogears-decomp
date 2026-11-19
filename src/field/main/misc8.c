@@ -293,7 +293,7 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
 */
 
 extern s16 D_800B2344;
-extern s16 D_800B2346;
+extern s16 D_800B2346[];
 extern u8 D_800ADFB8[];
 void SpritePlayAnimation(int, int);
 void LibGearSetModelAnimation(u16, u16, s32);
@@ -305,22 +305,7 @@ typedef struct {
     /* 0x12C */ u_int flags12C;
 } ActorFlags12CView; // Size: 0x130
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800821F4);
-/* 95.91%, same size, register base only. Two findings. (1) The 0x12C word must
-   be read whole - the ActorData bitfields there make gcc narrow it to
-   `lbu 0x12D; srl 5`, so this unit reads it through ActorFlags12CView.
-   (2) The model-id base: the original does `la s2, D_800B2346` for the compare
-   and derives the table with a per-branch `addiu a0, s2, -0x162`; gcc here
-   rematerialises the compare inline and keeps the -0x162 address (used in both
-   branches) in s2 instead. Computing pTable after the compare is what gets
-   gcc to share one base at all; who owns the register is the remaining gap.
-   Verified this round: indexing the array directly with no local
-   (`((s16*)&D_800B2346)[i - 0xB1]`, recomputing the 0x12C read at each store)
-   drops to 91.23% and loses the s2 slot entirely (gcc folds each address into
-   `lui at; addu at,at,v0`), so the pointer local below is required.
 void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
-    s16* pTable;
-
     if (!(pActor->status & 0x40)) {
         return;
     }
@@ -330,12 +315,11 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
     if (actorId == 0xFF) {
         actorId = 0;
     }
-    // The model-id table ends right before D_800B2346; the original derives its
-    // base from that symbol, so index from the last entry.
-    if (actorId != (&D_800B2346)[0]) {
+    // The model-id table is the run of shorts ending at D_800B2346, which holds
+    // the id currently in use, so this file indexes it from that symbol.
+    if (actorId != D_800B2346[0]) {
         pActor->pActorData->scriptFlags.flags &= ~0x800;
     }
-    pTable = &D_800B2346 - 0xB1;
     if (!(pActor->pActorData->flags & 0x2000)) {
         if (pActor->pActorData->flags & 0x1000000) {
             return;
@@ -345,14 +329,13 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
     }
     if (actorId < 0x10) {
         LibGearSetModelAnimation(pActor->pActorData->flags12C_0xE, 0, D_800ADFB8[actorId]);
-        pTable[pActor->pActorData->flags12C_0xE] = D_800ADFB8[actorId];
+        D_800B2346[pActor->pActorData->flags12C_0xE - 0xB1] = D_800ADFB8[actorId];
     } else {
         actorId -= 0x10;
         LibGearSetModelAnimation(pActor->pActorData->flags12C_0xE, 0, actorId);
-        pTable[pActor->pActorData->flags12C_0xE] = actorId;
+        D_800B2346[pActor->pActorData->flags12C_0xE - 0xB1] = actorId;
     }
 }
-*/
 
 // Rectangular trigger zone given as a centre and per-axis half-extents, unlike
 // the quad-corner FieldTriggerZone.
