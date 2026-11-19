@@ -163,10 +163,10 @@ struct ActorScript {
     /* 0x20 */ u16 facing;
     /* 0x22 */ u8 pad22[0x2];
     // The actor's camera rig: func_8007A768 copies these into D_80092668..92674,
-    // which func_8007A958 feeds to rcos/rsin to orbit the camera around the actor.
+    // which BattleUpdateCameraPosition feeds to rcos/rsin to orbit the camera around the actor.
     /* 0x24 */ s16 cameraAngleOffset;
     /* 0x26 */ s16 cameraYOffset;
-    // The camera's look-at height: func_8007A958 subtracts it from the actor's y.
+    // The camera's look-at height: BattleUpdateCameraPosition subtracts it from the actor's y.
     /* 0x28 */ s16 cameraTargetYOffset;
     /* 0x2A */ s16 cameraRadius;
 }; // Size: unknown
@@ -174,7 +174,7 @@ struct ActorScript {
 // One 0xC-byte record of the state-slot array at 0x9CC: p->pState and
 // p->pNextState point at the two records g_BattleStateSlotIndex selects, one per
 // actor.  The two 16-bit words the flag helpers read-modify-write are its 0x6 and
-// 0xA fields; func_8007A344 sets the bytes at 0x9 and 0xA with the 0x1000 flag.
+// 0xA fields; BattleUpdateCombatantPair sets the bytes at 0x9 and 0xA with the 0x1000 flag.
 typedef struct {
     /* 0x0 */ u8 pad00[0x6];
     /* 0x6 */ u16 flags;
@@ -285,13 +285,13 @@ struct Actor {
     /* 0x050 */ u8 pad50[0x2];
     /* 0x052 */ u8 animSpeedBonus;
     /* 0x053 */ u8 pad53;
-    // Added to the script's camera angle and fed to rcos/rsin (func_8007A958).
+    // Added to the script's camera angle and fed to rcos/rsin (BattleUpdateCameraPosition).
     /* 0x054 */ s32 angle;
     /* 0x058 */ u8 pad58[0x4];
     /* 0x05C */ ActorPart* pPart;
     /* 0x060 */ u8 pad60[0xC];
     // The position x,y,z,pad copied here before the frame's movement
-    // (func_8007A344); func_80078920 takes the angle between two of them.
+    // (BattleUpdateCombatantPair); func_80078920 takes the angle between two of them.
     /* 0x06C */ Vec4 prevPosition;
     /* 0x07C */ u8 pad7C[0x8];
     /* 0x084 */ u8* pActionEntry;
@@ -357,10 +357,10 @@ struct Actor {
     // compares them with the other actor's before pushing the two apart.
     /* 0x92C */ Vec4 baseVertexPos;
     /* 0x93C */ Vec4 edgeMidPos;
-    // Mean of the two points above, word for word (func_8007920C); func_8007A958
+    // Mean of the two points above, word for word (func_8007920C); BattleUpdateCameraPosition
     // copies all four words out as the actor's draw position.
     /* 0x94C */ Vec4 midPosition;
-    // The 0x93C block as it was before this frame's update: func_8007A344 copies
+    // The 0x93C block as it was before this frame's update: BattleUpdateCombatantPair copies
     // it here, and func_8007920C compares its .y with the new one.
     /* 0x95C */ Vec4 prevEdgeMidPos;
     // Last frame's y of the vertexIndex0 and vertexIndex1 vertices, compared
@@ -379,7 +379,7 @@ struct Actor {
     // a record at a time as the battle advances.
     /* 0x9CC */ ActorStateSlot stateSlots[256];
     /* 0x15CC */ ActorStateSlot* pState;
-    // The record after pState's, the one func_8007A344 sets up for the next state.
+    // The record after pState's, the one BattleUpdateCombatantPair sets up for the next state.
     /* 0x15D0 */ ActorStateSlot* pNextState;
     // The colour the effects this actor spawns are tinted with: func_8007920C
     // passes it to BattleEffectSetColor, which takes a Color4.
@@ -1061,7 +1061,7 @@ extern void func_8007920C(Actor*);
 // state-slot pair at this frame's records, hands the input to BattleRotateCamera,
 // refreshes the gauges and animation and the two cached vectors the edge code
 // compares, and counts the transition down.
-void func_8007A344(Actor* p1, Actor* p2) {
+void BattleUpdateCombatantPair(Actor* p1, Actor* p2) {
     ActorStateSlot* pSlot1;
     ActorStateSlot* pSlot2;
     u8 slot;
@@ -1248,7 +1248,7 @@ extern void func_800379C8(char*, s32);
 // offsets give, then closes the last stretch two units a frame until the camera
 // is within 0x200 of the actor.  While the debug display flag is up the d-pad and
 // the shoulder buttons move the orbit offsets and print all four of them.
-void func_8007A958(Actor* p) {
+void BattleUpdateCameraPosition(Actor* p) {
     Vec4* pCam;
     Vec4 pos;
     u16 buttons;

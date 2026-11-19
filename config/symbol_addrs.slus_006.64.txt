@@ -1669,3 +1669,5 @@ g_BattleStageFileLoadDone = 0x800591B0;
 g_BattleSpriteQuadCorners = 0x8004FB98;
 g_BattleStageActorArchive = 0x800594F0;
 g_BattleStageStreamFile = 0x800594BC;
+g_SpriteQuadCorners = 0x8004FAD8;
+g_SpritePlaneMasks = 0x8004FAF8;

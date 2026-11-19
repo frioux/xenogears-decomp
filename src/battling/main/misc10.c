@@ -124,7 +124,7 @@ typedef struct {
     /* 0x20 */ u16 facing;
     /* 0x22 */ u8 pad22[0x2];
     // The actor's camera rig (misc4's func_8007A768 copies these into the
-    // g_BattleRender* globals func_8007A958 feeds to rcos/rsin).
+    // g_BattleRender* globals BattleUpdateCameraPosition feeds to rcos/rsin).
     /* 0x24 */ s16 cameraAngleOffset;
     /* 0x26 */ s16 cameraYOffset;
     /* 0x28 */ s16 cameraTargetYOffset;
@@ -473,7 +473,7 @@ extern void func_8008BC04(void);
 extern void func_80034888(void* pString, void* pOt, s32 arg);
 extern void func_80079DF0(void* pActor1, void* pActor0);
 extern void func_800796B8(void* pActor1, void* pActor0);
-extern void func_8007A344(void* pActor1, void* pActor0);
+extern void BattleUpdateCombatantPair(void* pActor1, void* pActor0);
 extern void func_8007AE10(void* pActor1, void* pActor0);
 extern void func_800840CC(void* pScene);
 extern void func_800846A0(void* pScene);
@@ -1097,7 +1097,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
                break;
            case 4:
                SetGeomScreen(0x800);
-               func_8007A344(&g_BattleActor1, &g_BattleActor0);
+               BattleUpdateCombatantPair(&g_BattleActor1, &g_BattleActor0);
                if (g_BattleScreenMode != 8) {
                    func_80083310(1);
                    D_800928B0 = 1;

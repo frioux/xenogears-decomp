@@ -339,8 +339,8 @@ void SpriteDrawFrameKeepBottom(SpriteData* pSpriteData, void* pArg1, void* pArg2
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
-extern SVECTOR D_8004FAD8[4];
-extern u16 D_8004FAF8[16];
+extern SVECTOR g_SpriteQuadCorners[4];
+extern u16 g_SpritePlaneMasks[16];
 extern void* g_GfxCurWorkBuffer;
 extern void* g_GfxCurWorkBufferEnd;
 
@@ -360,7 +360,7 @@ typedef struct {
      u3/v3/pad at 0x24, sizeof 0x28). setlen(pPrim, 9) is the tag len byte at
      3 and setcode 0x2C at 7 -> `setPolyFT4(pPrim)` then `setRGB0(pPrim,0,0,0)`.
    - 0x8004FAD8 is NOT g_BattleSpriteQuadCorners (that one is 0x8004FB98).
-     It is 4 SVECTORs of scratch (D_8004FAD8), written x into .vx and the
+     It is 4 SVECTORs of scratch (g_SpriteQuadCorners), written x into .vx and the
      screen-vertical into .vz because the quad lies in the XZ plane (vy is
      never written, the .sdata is zeroed). 0x8004FAF8 is a u16[16] of
      1,2,4..0x8000 used as the per-layer mask.
@@ -452,13 +452,13 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
         return;
     }
 
-    pVerts = D_8004FAD8;
+    pVerts = g_SpriteQuadCorners;
     lastPlane = -1;
     for (i = 0; i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2; i++) {
         frameFlags = pFrameData[i].flags;
         if (lastPlane != (frameFlags & 7)) {
             lastPlane = frameFlags & 7;
-            visible = (D_8004FAF8[lastPlane] & ((SpriteRenderFlagWords*)pSpriteData)->flags_0x3C.bytes[1]) == 0;
+            visible = (g_SpritePlaneMasks[lastPlane] & ((SpriteRenderFlagWords*)pSpriteData)->flags_0x3C.bytes[1]) == 0;
         }
         if (visible == 0) {
             continue;

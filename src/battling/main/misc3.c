@@ -253,7 +253,7 @@ typedef struct BattleActor {
     // record's position and flags through it (its BattleActorState).
     /* 0x09CC */ u8 stateRecord[0xC00];
     /* 0x15CC */ void* pState;
-    // The animation record misc2's BattleActorAnimData names: func_8007A344 swaps its
+    // The animation record misc2's BattleActorAnimData names: BattleUpdateCombatantPair swaps its
     // flags word (+6) and its two frame bytes (+9, +0xA) every frame.
     /* 0x15D0 */ void* pAnimData;
     // The effect tint, copied from the script block's +0x10..+0x12 by func_80084C88
