@@ -352,9 +352,11 @@ typedef struct {
     /* 0x40 */ SpriteFlagWord flags_0x40;
 } SpriteRenderFlagWords; // Size: 0x44
 
-/* Best attempt: 76.49% (1208 bytes, the original is 1196). The whole body is a
-   verified transcription; what is left is statement order and two allocator
-   choices. Facts a future attempt needs, all confirmed against the .s:
+/* Best attempt: 80.03% (1200 bytes, the original is 1196; round 294 took the
+   parked 76.49% body down to this by the two fixes marked FIXED). The rest of
+   the body is a verified transcription; what is left is the allocator's
+   choice of which nine values get s0-s8, and two statement spells.
+   Facts confirmed against the .s:
    - The prim IS a POLY_FT4 (this tree's libgpu.h has the shipped per-corner
      layout: u0/v0/clut at 0xC, u1/v1/tpage at 0x14, u2/v2/pad at 0x1C,
      u3/v3/pad at 0x24, sizeof 0x28). setlen(pPrim, 9) is the tag len byte at
@@ -366,7 +368,7 @@ typedef struct {
      1,2,4..0x8000 used as the per-layer mask.
    - The sprite's plane byte is byte 1 of the 0x3C word (lbu 0x3D) and the
      frame count is byte 0 of the 0x40 word >> 2 (lbu 0x40); the shared header
-     has bitfields/u32 there, so both need the local view below.
+     has bitfields/u32 there, so both need the local view above.
    - The frame count is re-read for the loop bound (lbu 0x40 each iteration) and
      compared with `bne i,count`, so write the expression in the for test, not
      the local.
@@ -378,24 +380,53 @@ typedef struct {
      pSpriteData` has to be written inline at each use, not held in a pointer
      local (a live pointer local costs a callee-saved register, spills the flag
      to 0x78 and grows the frame to 0xA8).
+   - FIXED this round: the frame data pointer belongs BEFORE the work-buffer
+     early-out (`pFrameData = pSpriteData->pBase->pCurRenderFramesData;` above
+     the first if) - retail loads pBase in the branch shadow, and the two nop
+     load-delay slots this C otherwise leaves in the preheader go away.
+   - FIXED this round: the quad edges need two source locals (`edgeX = tileX +
+     width;` before the x if, `edgeY = tileY + height;` before the z if) used by
+     BOTH stores of the arm. Writing `tileX + width` twice makes gcc emit the
+     addu twice (2 extra bytes per arm pair); with the local, reorg puts one
+     addu in the branch delay slot exactly as retail does.
    Measured and still wrong (each re-diffed):
    - retail emits width/height/n interleaved: width, then n, then width<<=n,
      then height, then height<<=n, then tileX, tileY - that order is worth
      74.90 -> 76.48 and is what the body below does.
    - the quad y stores are in the order [2],[3],[0],[1] in both arms.
-   - STILL WRONG, in address order: (a) retail splits the g_GfxBaseMatrix
-     address into `lui s0,%hi` + two `addiu ...%lo` (one for the MATRIX copy in
-     a1, one for ApplyMatrix' argument in s0) where this C CSEs it into one
-     callee-saved register; (b) retail copies the matrix in 3/3/2-word groups,
-     this C in 4/4; (c) the two y averages need `(s16)(y0+y1)/2` to get
-     retail's lhu+sll16/sra16 (without the cast gcc uses lh/sra and the body
-     drops to 1188 bytes / 72.65%); (d) retail keeps the 0xFFFFFF/0xFF000000
-     masks of addPrim call-clobbered inside the loop (lui/ori each iteration),
-     this C hoists them into a saved register; (e) the uv right/bottom edges
-     are `(u - 1) + extent` in retail (`addiu v0,v0,255; addu v1,v1,v0`), this C
-     folds them to `(u + extent) - 1`; (f) the x-quad sum `tileX + width` is
-     CSE'd into one addu by retail and emitted twice here.
+   - (a) the saved-register set is the same nine (s0-s8, retail's pOt is in
+     s8/fp) but assigned differently: retail spends one on `%hi(g_SpriteQuad
+     Corners)` kept alive across the loop for the element-0 store
+     (`sh a0,%lo(g_SpriteQuadCorners)(s7)`), this C spends it on addPrim's
+     0xFFFFFF mask (`lui s4,0xff; ori s4,s4,0xffff` in the preheader) and leaves
+     four nop load-delay slots in the uv block that retail fills with its
+     in-loop `lui a1,0xff` / `ori` / `lui a0,0xff00`. Spelling element 0 as
+     `g_SpriteQuadCorners[0].vx` to force the %hi form does NOT work - cse folds
+     it into the pVerts register and the frame grows to 0xA8 (1208 bytes); all
+     four elements through the global is worse still (0xA8, `visible` spilled).
+   - (b) retail splits the g_GfxBaseMatrix address into `lui s0,%hi` + TWO
+     `addiu ...%lo` (one for the 8-word MATRIX copy in a1, one for ApplyMatrix'
+     argument in s0, in 3/3/2-word groups); this C CSEs the address into one
+     callee-saved register and copies the matrix in 4/4 groups (the spare a1 is
+     what makes the fourth temp available).
+   - (c) retail copies each shifted width/height/tileX/tileY into a second
+     register unconditionally (`addu t0,t1,zero`) and negates THAT in the arm;
+     this C negates in place. Not reachable by source shape: a 4-minute permuter
+     run from this body (1630 iterations, base 7669 -> best 7224) only found
+     edits that negate unconditionally, i.e. wrong code.
+   - (d) retail's plane-mask read forms the array base in a register
+     (`lui/addiu` then `addu`), this C folds the index into the load through
+     $at (one instruction shorter).
+   - (e) the uv right/bottom edges are `addiu 255` applied to texX before the
+     addu (`(u + 0xFF) + width`) in retail, `(u + width) - 1` here. The C that
+     would emit it is `texX + 0xFF + width`, which no programmer writes, so it
+     was left alone.
+   - (f) the second y average uses `sra` in retail and `srl` here, i.e. retail
+     divides a signed value in both pairs; `(s16)(y2+y3)/2` is not enough to
+     make the second one signed.
 */
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E9BC);
 
 /*
 // Draws the sprite's frames as one rotated textured quad each: the base matrix
@@ -421,6 +452,8 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     s32 tileY;
     s32 width;
     s32 height;
+    s32 edgeX;
+    s32 edgeY;
     s32 depth;
     s32 flag;
 
@@ -444,10 +477,10 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     SetTransMatrix(&mat);
 
     count = ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2;
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
     if ((u8*)g_GfxCurWorkBuffer + count * sizeof(POLY_FT4) >= (u8*)g_GfxCurWorkBufferEnd) {
         return;
     }
-    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
     if (count == 0) {
         return;
     }
@@ -482,28 +515,30 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
             tileY = -tileY;
         }
 
+        edgeX = tileX + width;
         if (!((frameFlags >> 4) & 1)) {
             pVerts[0].vx = tileX;
-            pVerts[1].vx = tileX + width;
-            pVerts[2].vx = tileX + width;
+            pVerts[1].vx = edgeX;
+            pVerts[2].vx = edgeX;
             pVerts[3].vx = tileX;
         } else {
-            pVerts[0].vx = tileX + width;
+            pVerts[0].vx = edgeX;
             pVerts[1].vx = tileX;
             pVerts[2].vx = tileX;
-            pVerts[3].vx = tileX + width;
+            pVerts[3].vx = edgeX;
         }
 
+        edgeY = tileY + height;
         if (!((frameFlags >> 5) & 1)) {
-            pVerts[2].vz = tileY + height;
-            pVerts[3].vz = tileY + height;
+            pVerts[2].vz = edgeY;
+            pVerts[3].vz = edgeY;
             pVerts[0].vz = tileY;
             pVerts[1].vz = tileY;
         } else {
             pVerts[2].vz = tileY;
             pVerts[3].vz = tileY;
-            pVerts[0].vz = tileY + height;
-            pVerts[1].vz = tileY + height;
+            pVerts[0].vz = edgeY;
+            pVerts[1].vz = edgeY;
         }
 
         pPrim = g_GfxCurWorkBuffer;
@@ -531,7 +566,6 @@ void func_8001E9BC(SpriteData* pSpriteData, u_long* pOt) {
     }
 }
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E9BC);
 
 s32 SpriteAnimPackageTestFlag8000(u8* pFlags) {
     return pFlags[1] >> 7;
