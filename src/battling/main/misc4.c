@@ -163,12 +163,18 @@ struct ActorScript {
     /* 0x2A */ s16 cameraRadius;
 }; // Size: unknown
 
+// One 0xC-byte record of the state-slot array at 0x9CC: p->pState and
+// p->pNextState point at the two records g_BattleStateSlotIndex selects, one per
+// actor.  The two 16-bit words the flag helpers read-modify-write are its 0x6 and
+// 0xA fields; func_8007A344 sets the bytes at 0x9 and 0xA with the 0x1000 flag.
 typedef struct {
     /* 0x0 */ u8 pad00[0x6];
     /* 0x6 */ u16 flags;
-    /* 0x8 */ u8 pad08[0x2];
-    /* 0xA */ u16 flags2;
-} ActorSub;
+    /* 0x8 */ u8 pad08[0x1];
+    /* 0x9 */ u8 unk9;
+    /* 0xA */ u8 unkA;
+    /* 0xB */ u8 unkB;
+} ActorStateSlot; // Size: 0xC
 
 // Actor pointer at 0x15CC, aimed at the actor's own 0x9CC.
 
@@ -358,9 +364,13 @@ struct Actor {
     /* 0x99A */ s16 animFrameStep;
     /* 0x99C */ u8 pad99C[0x27];
     /* 0x9C3 */ u8 actionIndex;
-    /* 0x9C4 */ u8 pad9C4[0xC08];
-    /* 0x15CC */ ActorSub* pState;
-    /* 0x15D0 */ u8 pad15D0[0x4];
+    /* 0x9C4 */ u8 pad9C4[0x8];
+    // One record per state the actor can be put in; g_BattleStateSlotIndex walks it
+    // a record at a time as the battle advances.
+    /* 0x9CC */ ActorStateSlot stateSlots[256];
+    /* 0x15CC */ ActorStateSlot* pState;
+    // The record after pState's, the one func_8007A344 sets up for the next state.
+    /* 0x15D0 */ ActorStateSlot* pNextState;
     // The colour the effects this actor spawns are tinted with: func_8007920C
     // passes it to BattleEffectSetColor, which takes a Color4.
     /* 0x15D4 */ CVECTOR effectColor;
@@ -828,7 +838,7 @@ char BattleResetForNextRound(void) {    g_BattleActor1.sideBaseAngle = BATTLE_AN
 }
 
 void BattleActorSetUnk15CCFlags(Actor* p) {
-    p->pState->flags2 = (p->pState->flags2 & 0xFEFF) | ((p->flags << 6) & 0x100);
+    *(u16*)&p->pState->unkA = (*(u16*)&p->pState->unkA & 0xFEFF) | ((p->flags << 6) & 0x100);
     p->pState->flags = (p->pState->flags & 0xDFFF) | ((p->flags >> 2) & 0x2000);
     p->pState->flags = (p->pState->flags & 0xBFFF) | ((p->flags >> 5) & 0x4000);
 }
@@ -838,7 +848,7 @@ void BattleActorLoadUnk15CCFlags(Actor* p) {
     u32 signBit = 0x80000000; // a literal here gives `sll 17; srl 31`, retail has `sll 17; slti 0`
     u32 masked;
 
-    p->flags = (p->flags & ~4) | ((p->pState->flags2 >> 6) & 4);
+    p->flags = (p->flags & ~4) | ((*(u16*)&p->pState->unkA >> 6) & 4);
     p->flags = (p->flags & 0xFFFF7FFF) | ((p->pState->flags << 2) & 0x8000);
     masked = p->flags & 0xFFF7FFFF;
     flag = ((p->pState->flags << 17) & signBit) != 0;
@@ -868,7 +878,119 @@ void BattleSaveActorVectors(s32 unk0) {
     D_80092A38 = 0x100;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
+extern void BattleSetTextCursor(s32, s32);
+extern void BattleDrawTextLeft(char*);
+extern void func_80073644(Actor*);
+extern void BattleUpdateSlotGaugeDisplay(Actor*);
+extern void ControllerMergeStates(void);
+extern void BattleSetScreenMode(s32);
+extern void BattleRotateCamera(s32);
+extern void BattleActorApplyAnimationCommand(Actor*);
+extern void BattleEffectUpdateSlots(void);
+extern void BattleEffectQueueLineByType(Vec4*, Vec4*, s32);
+extern void BattleRandomizeCameraSpin(void);
+extern void func_80075B50(Actor*);
+extern void func_8007920C(Actor*);
+
+extern u8 g_BattleCameraLerpFrames;
+extern u8 g_BattleOptionOn;
+extern s32 g_BattleDrawFlags;
+extern char D_8006FD4C[];
+
+// One frame of the battle's own update, run on both combatants: it points their
+// state-slot pair at this frame's records, hands the input to BattleRotateCamera,
+// refreshes the gauges and animation and the two cached vectors the edge code
+// compares, and counts the transition down.
+void func_8007A344(Actor* p1, Actor* p2) {
+    ActorStateSlot* pSlot1;
+    ActorStateSlot* pSlot2;
+    u8 slot;
+    u8 nextSlot;
+    s32 buttons;
+    u32 cell;
+
+    slot = g_BattleStateSlotIndex;
+    nextSlot = slot + 1;
+    pSlot1 = &p1->stateSlots[slot];
+    pSlot2 = &p2->stateSlots[slot];
+    g_BattleStateSlotIndex = nextSlot;
+    p1->pState = pSlot1;
+    p2->pState = pSlot2;
+    p1->pNextState = &p1->stateSlots[nextSlot];
+    p2->pNextState = &p2->stateSlots[nextSlot];
+
+    if (g_BattleTransitionCountdown == BATTLE_TRANSITION_COUNTDOWN_MAX) {
+        p1->pNextState->flags |= 0x1000;
+        p2->pNextState->flags |= 0x1000;
+        p1->pNextState->unkA = 1;
+        p2->pNextState->unkA = 1;
+        p1->pNextState->unk9 = 1;
+        p2->pNextState->unk9 = 1;
+    }
+
+    if (g_BattleDrawFlags & 8) {
+        BattleSetTextCursor(0x10, 0x10);
+        BattleDrawTextLeft(D_8006FD4C);
+    }
+
+    func_80073644(p1);
+    func_80073644(p2);
+    BattleUpdateSlotGaugeDisplay(p1);
+    BattleUpdateSlotGaugeDisplay(p2);
+
+    p1->prevEdgeMidPos = p1->edgeMidPos;
+    p2->prevEdgeMidPos = p2->edgeMidPos;
+    p1->prevPosition = *(Vec4*)&p1->x;
+    p2->prevPosition = *(Vec4*)&p2->x;
+
+    g_BattleEffectEntryCount = 0;
+    if (g_BattleCameraLerpFrames >= 2) {
+        g_BattleCameraLerpFrames = 1;
+    }
+
+    ControllerMergeStates();
+    if (g_BattleTextPadIndex == 1) {
+        if (g_C2ButtonStateReleased & CTRL_BTN_CIRCLE) {
+            BattleSetScreenMode(8);
+        }
+        buttons = g_C2ButtonState;
+    } else {
+        if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
+            BattleSetScreenMode(8);
+        }
+        buttons = g_C1ButtonState;
+    }
+    BattleRotateCamera(buttons);
+
+    BattleActorApplyAnimationCommand(p1);
+    BattleActorApplyAnimationCommand(p2);
+    BattleActorSetPartTransform(p1);
+    BattleActorSetPartTransform(p2);
+
+    cell = BattleGetGridCellAtPosition(p1);
+    p1->flags = (p1->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) | ((cell & 0x3000000) << 5);
+    cell = BattleGetGridCellAtPosition(p2);
+    p2->flags = (p2->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) | ((cell & 0x3000000) << 5);
+
+    BattleActorLoadUnk15CCFlags(p1);
+    BattleActorLoadUnk15CCFlags(p2);
+    func_8007920C(p1);
+    func_8007920C(p2);
+    func_80075B50(p1);
+    func_80075B50(p2);
+    BattleEffectUpdateSlots();
+
+    if (g_BattleOptionOn != 0) {
+        BattleEffectQueueLineByType(&p1->midPosition, &p2->midPosition, 0x13);
+    }
+    if (g_BattleTransitionCountdown == BATTLE_TRANSITION_COUNTDOWN_MAX) {
+        BattleRandomizeCameraSpin();
+    }
+    if (g_BattleTransitionCountdown == 0) {
+        BattleSetScreenMode(8);
+    }
+    g_BattleTransitionCountdown--;
+}
 
 void BattleActorSetModelByTimer(Actor* p) {
     g_BattleMotionSpeedScale = 0x100;
@@ -1055,7 +1177,7 @@ void func_8007AC3C(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AE10);
 
 void BattleActorInitModelState(Actor* p, u8 unk4C) {
-    p->pState = (ActorSub*)((u8*)p + 0x9CC);
+    p->pState = (ActorStateSlot*)((u8*)p + 0x9CC);
     p->animSpeed = 0x10;
     p->modelIndex = unk4C;
     p->animSpeedBonus = 0;
