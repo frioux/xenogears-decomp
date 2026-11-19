@@ -18,6 +18,43 @@
 // BattleResetSlotDisplayValues writes it to both of the slot's values.
 #define BATTLE_SLOT_DISPLAY_VALUE_EMPTY 0xFF
 
+// One row of a battle sub-image: 198 halfwords of texels, uploaded as a 198x1
+// RECT because StoreImage takes its size from the rect.
+#define BATTLE_SUB_IMAGE_ROW_HALFWORDS 198
+#define BATTLE_SUB_IMAGE_ROW_BYTES (BATTLE_SUB_IMAGE_ROW_HALFWORDS * 2)
+// Bytes of one sub-image (its four rows), and how many of them
+// g_BattleGraphicsWork->unk8970 holds (0x18C0 bytes).
+#define BATTLE_SUB_IMAGE_BYTES (BATTLE_SUB_IMAGE_ROW_BYTES * 4)
+#define BATTLE_SUB_IMAGE_COUNT 4
+// Where the first of them sits in the work block (BattleGraphicsWork.unk8970).
+#define BATTLE_GRAPHICS_SUB_IMAGES_OFFSET 0x8970
+
+// A texture page is 256 halfwords square, the size the two full-page rects in
+// the display state's rect table are set to.
+#define BATTLE_TEX_PAGE_SIZE 0x100
+// The page coordinate of a tile is in 64-halfword units: the display state's
+// texel rects take its low six bits, doubled to a halfword offset.
+#define BATTLE_TEX_PAGE_COORD_MASK 0x3F
+
+// The four DR_MODE packets of g_BattleGraphicsWork, each 0xC bytes, sitting in
+// the gap between its scroll state and its upload rects.
+#define BATTLE_DRAW_MODES_OFFSET 0x8908
+
+// The tile records (BattleTileTexture) as the display state's rect table takes
+// them: the page coordinates it copies out are 16-bit values, the low halfword
+// of the record's s32 coordinate fields.
+typedef struct {
+    /* 0x00 */ s32 tp;
+    /* 0x04 */ s32 clutX;
+    /* 0x08 */ u16 clutY;
+    /* 0x0A */ u16 padA;
+    /* 0x0C */ u16 texPageX;
+    /* 0x0E */ u16 padE;
+    /* 0x10 */ u16 texPageY;
+    /* 0x12 */ u16 pad12;
+    /* 0x14 */ s32 unk14;
+} BattleTilePageCoords; // Size: 0x18
+
 extern u8 *g_BattlePulseTrianglePrims;
 extern u8 g_BattlePrimStartIndex;
 extern u8 g_BattleActorCharIds[];
@@ -414,6 +451,159 @@ void BattleClearFlagC6(void) {
     g_BattleDisplayState->pulseTriangleActive = 0;
 }
 
+/* 92.19% (1820 bytes against retail's 1816): everything from the 16 StoreImage
+   calls to the end of the function is byte-exact - the four sub-image base
+   registers (s6/s1/s2/s0 = gfx + 0x8970/0x8FA0/0x95D0/0x9C00, each with the
+   0x18C/0x318/0x4A4 row offsets), the four ResourceHelperGetTexCoords blocks
+   with their six out-pointers, the display state's six RECTs, and the four
+   GetTPage+SetDrawMode pairs (calls 1-2 pass the rect after the page rect as
+   `tw`, calls 3-4 pass the page rect itself). The whole diff is in the RECT
+   init block at the top:
+   1. retail's `li v0,0x1` is the first thing in the function, before the
+      g_BattleGraphicsWork load; ours comes after it.
+   2. retail's first `lhu` of tiles[0].clutY is hoisted ABOVE the four
+      `sh 0xC6` width stores while the other three stay below them: one load
+      moved across four independent stores, the STORE_HOIST shape the playbook
+      lists as not source-controllable, in the mirror direction. Tried: the load
+      inline per rect (this body), a chained `h = w = 0x100` order swap, w and
+      y interleaved per rect, and the four base pointers derived from one
+      `pImage` local (that one loses the four base registers: 87.68%).
+   Struct facts it establishes: the upload rects' y values are tiles[0].clutY
+   - 1, clutY, clutY - 2, clutY - 3, and every read the display state's RECT
+   table makes of the tile records is 16-bit (`lhu`) while GetTPage reads the
+   same words as s32 - hence the BattleTilePageCoords view at the top of this
+   file. The four DR_MODE packets are at gfx + 0x8908, 0xC apart, inside what
+   battle_work.h still calls unk6417.
+   Parked body (92.19):
+   // Stages the battle's tile atlas: stores the four sub-images of
+   // g_BattleGraphicsWork->unk8970 into the four VRAM rows they are drawn from,
+   // asks the sprite archive for the texel parameters of the four tile textures,
+   // and points the display state's rect table and draw modes at them.
+   void func_80077990(void) {
+       BattleGraphicsWork *pGfx;
+       RECT *pRects;
+       BattleTilePageCoords *pPageCoords;
+       u8 *pImage0;
+       u8 *pImage1;
+       u8 *pImage2;
+       u8 *pImage3;
+
+       pGfx = g_BattleGraphicsWork;
+       pImage0 = (u8 *)pGfx + BATTLE_GRAPHICS_SUB_IMAGES_OFFSET;
+       pImage1 = (u8 *)pGfx + BATTLE_GRAPHICS_SUB_IMAGES_OFFSET + BATTLE_SUB_IMAGE_BYTES;
+       pImage2 = (u8 *)pGfx + BATTLE_GRAPHICS_SUB_IMAGES_OFFSET + BATTLE_SUB_IMAGE_BYTES * 2;
+       pImage3 = (u8 *)pGfx + BATTLE_GRAPHICS_SUB_IMAGES_OFFSET + BATTLE_SUB_IMAGE_BYTES * 3;
+
+       // the four VRAM rows the sub-images are stored into: one sub-image row each,
+       // the last four rows above the CLUT block
+       pGfx->uploadRect[0].x = 1;
+       pGfx->uploadRect[0].h = 1;
+       pGfx->uploadRect[1].x = 1;
+       pGfx->uploadRect[1].h = 1;
+       pGfx->uploadRect[2].x = 1;
+       pGfx->uploadRect[2].h = 1;
+       pGfx->uploadRect[3].x = 1;
+       pGfx->uploadRect[3].h = 1;
+       pGfx->uploadRect[0].w = BATTLE_SUB_IMAGE_ROW_HALFWORDS;
+       pGfx->uploadRect[1].w = BATTLE_SUB_IMAGE_ROW_HALFWORDS;
+       pGfx->uploadRect[2].w = BATTLE_SUB_IMAGE_ROW_HALFWORDS;
+       pGfx->uploadRect[3].w = BATTLE_SUB_IMAGE_ROW_HALFWORDS;
+       pPageCoords = (BattleTilePageCoords *)pGfx->tiles;
+       pGfx->uploadRect[0].y = pPageCoords[0].clutY - 1;
+       pGfx->uploadRect[1].y = pPageCoords[0].clutY;
+       pGfx->uploadRect[2].y = pPageCoords[0].clutY - 2;
+       pGfx->uploadRect[3].y = pPageCoords[0].clutY - 3;
+
+       StoreImage(&g_BattleGraphicsWork->uploadRect[0], (u_long *)pImage0);
+       StoreImage(&g_BattleGraphicsWork->uploadRect[1], (u_long *)pImage1);
+       StoreImage(&g_BattleGraphicsWork->uploadRect[2], (u_long *)pImage2);
+       StoreImage(&g_BattleGraphicsWork->uploadRect[3], (u_long *)pImage3);
+       StoreImage(&g_BattleGraphicsWork->uploadRect[0], (u_long *)(pImage0 + BATTLE_SUB_IMAGE_ROW_BYTES));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[1], (u_long *)(pImage1 + BATTLE_SUB_IMAGE_ROW_BYTES));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[2], (u_long *)(pImage2 + BATTLE_SUB_IMAGE_ROW_BYTES));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[3], (u_long *)(pImage3 + BATTLE_SUB_IMAGE_ROW_BYTES));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[0], (u_long *)(pImage0 + BATTLE_SUB_IMAGE_ROW_BYTES * 2));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[1], (u_long *)(pImage1 + BATTLE_SUB_IMAGE_ROW_BYTES * 2));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[2], (u_long *)(pImage2 + BATTLE_SUB_IMAGE_ROW_BYTES * 2));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[3], (u_long *)(pImage3 + BATTLE_SUB_IMAGE_ROW_BYTES * 2));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[0], (u_long *)(pImage0 + BATTLE_SUB_IMAGE_ROW_BYTES * 3));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[1], (u_long *)(pImage1 + BATTLE_SUB_IMAGE_ROW_BYTES * 3));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[2], (u_long *)(pImage2 + BATTLE_SUB_IMAGE_ROW_BYTES * 3));
+       StoreImage(&g_BattleGraphicsWork->uploadRect[3], (u_long *)(pImage3 + BATTLE_SUB_IMAGE_ROW_BYTES * 3));
+
+       // the texel parameters of the four tile textures: the count word that closes
+       // tiles[n] and the five texture fields of tiles[n + 1]
+       ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x4B,
+                                  &g_BattleGraphicsWork->tiles[0].unk14, &g_BattleGraphicsWork->tiles[1].tp,
+                                  &g_BattleGraphicsWork->tiles[1].clutX, &g_BattleGraphicsWork->tiles[1].clutY,
+                                  &g_BattleGraphicsWork->tiles[1].texPageX, &g_BattleGraphicsWork->tiles[1].texPageY);
+       ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x50,
+                                  &g_BattleGraphicsWork->tiles[1].unk14, &g_BattleGraphicsWork->tiles[2].tp,
+                                  &g_BattleGraphicsWork->tiles[2].clutX, &g_BattleGraphicsWork->tiles[2].clutY,
+                                  &g_BattleGraphicsWork->tiles[2].texPageX, &g_BattleGraphicsWork->tiles[2].texPageY);
+       ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x4D,
+                                  &g_BattleGraphicsWork->tiles[2].unk14, &g_BattleGraphicsWork->tiles[3].tp,
+                                  &g_BattleGraphicsWork->tiles[3].clutX, &g_BattleGraphicsWork->tiles[3].clutY,
+                                  &g_BattleGraphicsWork->tiles[3].texPageX, &g_BattleGraphicsWork->tiles[3].texPageY);
+       ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x4E,
+                                  &g_BattleGraphicsWork->tiles[3].unk14, &g_BattleGraphicsWork->tiles[4].tp,
+                                  &g_BattleGraphicsWork->tiles[4].clutX, &g_BattleGraphicsWork->tiles[4].clutY,
+                                  &g_BattleGraphicsWork->tiles[4].texPageX, &g_BattleGraphicsWork->tiles[4].texPageY);
+
+       // the rect table the draw modes below take their texture window from: the
+       // whole page, then the five texel rects
+       pPageCoords = (BattleTilePageCoords *)g_BattleGraphicsWork->tiles;
+       pRects = (RECT *)g_BattleDisplayState->unk0;
+       pRects[0].x = pRects[0].y = 0;
+       pRects[0].h = BATTLE_TEX_PAGE_SIZE;
+       pRects[0].w = BATTLE_TEX_PAGE_SIZE;
+       g_BattleGraphicsWork->tiles[1].texPageX = 0x3C0;
+       g_BattleGraphicsWork->tiles[2].texPageX = 0x3C8;
+       pRects[1].x = (pPageCoords[0].texPageX & BATTLE_TEX_PAGE_COORD_MASK) * 2;
+       g_BattleGraphicsWork->tiles[1].texPageY = 0x34;
+       g_BattleGraphicsWork->tiles[2].texPageY = 0x34;
+       pRects[1].y = pPageCoords[0].texPageY;
+       pRects[1].w = BATTLE_TEX_PAGE_SIZE;
+       pRects[1].h = BATTLE_TEX_PAGE_SIZE;
+       pRects[2].x = (pPageCoords[1].texPageX & BATTLE_TEX_PAGE_COORD_MASK) * 2;
+       pRects[2].w = 8;
+       pRects[2].h = 0x10;
+       pRects[2].y = pPageCoords[1].texPageY;
+       pRects[3].x = (pPageCoords[2].texPageX & BATTLE_TEX_PAGE_COORD_MASK) * 2;
+       pRects[3].w = 8;
+       pRects[3].h = 0x10;
+       pRects[3].y = pPageCoords[2].texPageY;
+       pRects[4].x = (pPageCoords[3].texPageX & BATTLE_TEX_PAGE_COORD_MASK) * 2 + 0xE;
+       pRects[4].w = 0x10;
+       pRects[4].h = 8;
+       pRects[4].y = pPageCoords[3].texPageY;
+       pRects[5].x = (pPageCoords[4].texPageX & BATTLE_TEX_PAGE_COORD_MASK) * 2 + 0xE;
+       pRects[5].w = 0x10;
+       pRects[5].h = 8;
+       pRects[5].y = pPageCoords[4].texPageY;
+
+       SetDrawMode((DR_MODE *)((u8 *)g_BattleGraphicsWork + BATTLE_DRAW_MODES_OFFSET), 0, 0,
+                   GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
+                            g_BattleGraphicsWork->tiles[0].texPageX,
+                            g_BattleGraphicsWork->tiles[0].texPageY),
+                   (RECT *)(g_BattleDisplayState->unk0 + 8));
+       SetDrawMode((DR_MODE *)((u8 *)g_BattleGraphicsWork + BATTLE_DRAW_MODES_OFFSET + sizeof(DR_MODE)), 0, 0,
+                   GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
+                            g_BattleGraphicsWork->tiles[0].texPageX,
+                            g_BattleGraphicsWork->tiles[0].texPageY),
+                   (RECT *)(g_BattleDisplayState->unk0 + 8));
+       SetDrawMode((DR_MODE *)((u8 *)g_BattleGraphicsWork + BATTLE_DRAW_MODES_OFFSET + sizeof(DR_MODE) * 2), 0, 0,
+                   GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
+                            g_BattleGraphicsWork->tiles[0].texPageX,
+                            g_BattleGraphicsWork->tiles[0].texPageY),
+                   (RECT *)(g_BattleDisplayState->unk0));
+       SetDrawMode((DR_MODE *)((u8 *)g_BattleGraphicsWork + BATTLE_DRAW_MODES_OFFSET + sizeof(DR_MODE) * 3), 0, 0,
+                   GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
+                            g_BattleGraphicsWork->tiles[0].texPageX,
+                            g_BattleGraphicsWork->tiles[0].texPageY),
+                   (RECT *)(g_BattleDisplayState->unk0));
+   }
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
 /* 61.46%: retail walks two 0x28-byte packets from pInfo to pInfo+0x50 and
    finishes with pInfo[0x5D] = 0. What retail does that no attempt so far
