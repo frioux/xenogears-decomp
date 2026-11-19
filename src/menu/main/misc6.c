@@ -39,6 +39,25 @@ extern u32 D_801E9A68[];
 extern u32 g_MenuCursorXPositions[9]; // Cursor x positions
 extern s32 g_MenuCursorYPositions[9]; // Cursor y positions
 
+void MenuInitializePolyFt4(POLY_FT4* pPoly);
+void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
+extern s32 g_MenuNameTextureX[];
+extern u8 g_MenuNameTextureY[];
+extern u8 g_MenuGlyphSjisTable[];
+extern s32 D_801EA17C[];
+extern s32 D_801EA584[];
+extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
+
+// Row origins and texture-space u/v of one drawn string; the u/v pair is the low
+// half of a 4-byte entry, so both arrays are indexed with the entry, not the halfword.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+} MenuStringTextureOrigin; // Size: 0x4
+
+extern MenuStringTextureOrigin D_801EA18C[];
+
 void MenuAddScreenPrims(void) {
     if (g_Menu->shouldDrawMenu) {
         switch (g_MenuOverlayIndex) {
@@ -193,6 +212,41 @@ void MenuClearSubMenuChoiceFlags(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D261C);
+/* 86.93% (652 bytes = retail's exact size, so only address-tree ties are left).
+   Sets the four corners of a POLY_FT4 at
+   g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext]
+   (the string index is the byte field 0x338, the poly index the int field 0x308,
+   POLY_FT4 stride 0x28) from D_801E9A1C, D_801E9E94 and D_801E9A48, indexed by
+   subMenuChoice: x0 = x2 = A1C + (E94 + 0x16), x1 = x3 = width + x0 (+ E94, see
+   below), y0 = y1 = A48 - 0x22, y2 = y3 = A48 - 0x15. Then copies renderContext
+   into the string and sets pManager->shouldRenderSubMenuChoiceStrings[sub].
+   Two differences, both visible in every one of the eight stores:
+   (1) retail inserts g_Menu into the address EARLY, ('sll v0,sub,7 / addu v0,v0,a2'
+   then '+ ctx*0x28'), while gcc appends it last ('addu a0,a0,sub*0x80 /
+   addu a0,a2,a0');
+   (2) retail reads D_801E9E94 before D_801E9A1C in the x0/x2 stores but after it in
+   the x1/x3 stores, i.e. the two groups are grouped differently; gcc reassociates
+   both spellings into the same tree and emits one order for all four.
+   The frame needs the unused 0x48-byte local below to reproduce retail's 0x60.
+*/
+/* Best attempt (86.93%):
+   void func_801D261C(void) {
+       u8 pad[0x48];
+
+       MenuLoadSubMenuChoiceStrings(0);
+
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x0 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y0 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x1 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y1 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x22;
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x2 = D_801E9A1C[g_Menu->subMenuChoice][0] + (D_801E9E94[g_Menu->subMenuChoice][0] + 0x16);
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y2 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].x3 = g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].width + (D_801E9A1C[g_Menu->subMenuChoice][0] + 0x16) + D_801E9E94[g_Menu->subMenuChoice][0];
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].polys[g_Menu->renderContext].y3 = D_801E9A48[g_Menu->subMenuChoice][0] - 0x15;
+       g_Menu->subMenuChoiceStrings[g_Menu->subMenuChoice].renderContext = *(u_char*)&g_Menu->renderContext;
+       g_Menu->pManager->shouldRenderSubMenuChoiceStrings[g_Menu->subMenuChoice] = 1;
+   }
+*/
 /* PARKED 86.91% (652 bytes = retail's exact size). Decoded: set the four corners of
    g_Menu->subMenuChoiceStrings[subMenuChoice].polys[renderContext] from three tables, then copy
    renderContext into that MenuString and set pManager->shouldRenderSubMenuChoiceStrings[subMenuChoice] = 1.
@@ -248,7 +302,31 @@ void MenuUpdatePlayTimeDigits(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
-/* PARKED 99.18% (392 vs 388 bytes, and the instruction multiset is identical).
+/* NOTE: the park note below is STALE - it describes the character name/glyph texture
+   loop (MenuLoadCharacterNameTexture + gearId), which is func_801D2D38's body, not this
+   function's code. func_801D29A8 (228 insns, 0x38C bytes) is a window/panel builder and
+   has never been written in C. Its structure, from the .s:
+   if ((a0 & 0xFF) != 0) { MenuLoadStringsFromIds(8, g_Menu->optionStrings,
+   g_MenuMainRowStringIds, g_Menu->pManager + 0xC); three func_801C81E0 calls with
+   (0x100,0x86,0x60,6), (0x108,0x3E,0x68,0x3E), (0x110,-0xA,0x70,0x76) plus 8 and 0..2
+   as the two stack args } else { MenuClearBytes(8, g_Menu->pManager + 0xC); the same
+   three func_801C81E0 calls with x/y and w/h swapped: (0x60,6,0x100,0x86),
+   (0x68,0x3E,0x108,0x3E), (0x70,0x76,0x110,-0xA) }; the THIRD call is shared between
+   the two arms (cross-jumped: one jal, args assigned per arm). Then a
+   'while (!!(pManager->unk23 | pManager->unk47 | pManager->unk6B)) { for (i = 0; i < 3;
+   i++) if (pManager->currentCharacterIDs[i] != 0xFF) MenuSetCharacterWindowContents(i);
+   MenuRenderFrame(); for (i = 0; i < 3; i++) if (currentCharacterIDs[i] != 0xFF)
+   func_801C8324(i); }' loop (0xFF hoisted to s1), then if ((a0 & 0xFF) != 0) {
+   g_Menu->windowParameters[0..2] geometry stores, the same 3-row
+   MenuSetCharacterWindowContents loop, MenuPlaySoundEffect(0x5D), if ((a1 & 0xFF) == 0)
+   MenuCreateGoldWindow(), pManager->unk21 = 1, pManager->playTimeDigitsActive = 1 }
+   else { pManager->currentCharacterIDs[0..2] = 0, and if ((a1 & 0xFF) == 0)
+   pManager->shouldRenderWindow[0] = 0, pManager->goldDigitsActive = 0 }, then
+   MenuRenderFrame().
+*/
+/* STALE NOTE (kept for its history - describes func_801D2D38's loop instead):
+/* Earlier note for func_801D2D38 (99.18%, 392 vs 388 bytes; the attempt it measured is
+   gone but its two findings stand):
    Only two allocator ties are left:
    1. the two loop registers come out swapped (retail: the 3-count index in s0 and the
       strength-reduced 6 + i*2 in s1; ours the other way round; the same swap appears
@@ -381,6 +459,62 @@ void MenuFreeShoulderButtonUi(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
+/* 79.85% (644 vs retail's 664 bytes). Decode is complete: draw one MenuString's
+   POLY_FT4 at polys[g_Menu->renderContext], for row `row' of either the name
+   texture tables (isGlyph == 0: g_MenuNameTextureX[index],
+   g_MenuNameTextureY[index*4], originY = D_801EA17C[row] - 0x24, width 0x48) or
+   the glyph tables (isGlyph != 0: D_801EA584[index], g_MenuGlyphSjisTable[index*4],
+   originY = D_801EA17C[row] - 0x30, width 0x60), and the shared tail
+   MenuSetFt4QuadVertices(poly, originY, D_801EA18C[row].x, (x << 2) & 0xFC, v,
+   width, 0xD) + MenuSetQuadVertices(pString->vertices, originY,
+   D_801EA18C[row].x, width, 0xD) + renderContext copy. The palette test is
+   currentCharacterIDs[index] & 1 for names and
+   (characters[currentCharacterIDs[index]].gearId + 0xB) & 1 for glyphs.
+   What is left is allocation, and the ledger is readable: retail saves FIVE
+   registers (s0 originY, reusing the isGlyph param; s1 pString; s2 index; s3
+   width; s4 row) and the attempt below saves SIX, because in the join gcc gives
+   saved registers to the 0xD constant and to the `row * 4' index shared by the
+   two D_801EA18C[row].x loads, where retail recomputes both in $v0
+   ('andi v0,s4,0xFF / sll v0,v0,2' twice). That extra pressure is also why
+   retail's arms end with the ctx load and the D_801EA18C load while gcc defers
+   them to the join. Worth keeping: the palette store must be ONE address
+   computation, which the ternary below gets right (retail computes
+   'addu v1,s1,ctx*0x28' once in the beqz delay slot and both arms store through
+   it); an if/else recomputes it per arm.
+   Tried: if/else instead of the ternary, locals for u/v/width/originY in several
+   declaration orders, width assigned before and after the palette test.
+*/
+/* Best attempt (79.85%):
+   void func_801D36E0(MenuString* pString, u_char index, u_char isGlyph, u_char row) {
+       s32 originY;
+       s32 width;
+       s32 u;
+       s32 v;
+
+       MenuInitializePolyFt4(&pString->polys[g_Menu->renderContext]);
+       pString->polys[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
+
+       if (isGlyph == 0) {
+           width = 0x48;
+           pString->polys[g_Menu->renderContext].clut =
+               (g_Menu->pManager->currentCharacterIDs[index] & 1) ? g_SystemPalette2 : g_SystemPalette1;
+           originY = D_801EA17C[row] - 0x24;
+           u = g_MenuNameTextureX[index] << 2;
+           v = g_MenuNameTextureY[index * 4];
+       } else {
+           width = 0x60;
+           pString->polys[g_Menu->renderContext].clut =
+               ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId + 0xB) & 1) ? g_SystemPalette2 : g_SystemPalette1;
+           originY = D_801EA17C[row] - 0x30;
+           u = D_801EA584[index] << 2;
+           v = g_MenuGlyphSjisTable[index * 4];
+       }
+
+       MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, D_801EA18C[row].x, u & 0xFC, v, width, 0xD);
+       MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
+       pString->renderContext = *(u_char*)&g_Menu->renderContext;
+   }
+*/
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
     MenuWindowParameters* pParams;
 
