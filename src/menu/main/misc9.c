@@ -599,13 +599,15 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    0x38($sp) slot. So the tie is exactly `const 1` vs `needsOpen` for the ninth
    register, and declaration order does not move it: needsOpen first, active last,
    slot first and kind first all measure 94.45-94.46.
-   JUMP TABLE: this stub owns jtbl_801C512C, which is at +0x30 of the unit's .rodata
-   range (config/menu.yaml [0xFC, .rodata, main/misc9]) - func_801DBE54 owns the table
-   at +0x00 and func_801E05D0 the one at +0x60, so the three must be converted IN THAT
-   ORDER or every later table shifts by 0x30. Un-park this one only after
-   func_801DBE54's switch is C. Correction (round 231, see that park note): the
-   third table must STAY asm, so this stub plus func_801DBE54 is the shippable
-   pair - all three as C is 4 bytes short of the range. `case 4`'s flag byte is g_Menu->unk430 + 0x1084 + col
+   JUMP TABLE: CORRECTION (round 293) - this stub owns NO table (its .s has no
+   `jtbl`/`.rodata` reference), so it is a convertible stub; the note below had
+   misattributed jtbl_801C512C to it. The unit's three tables belong to
+   func_801DBE54 (+0x00 of the [0xFC, .rodata, main/misc9] range), func_801DDF24
+   (+0x30) and func_801E05D0 (+0x60); func_801DBE54's switch is already C and the
+   third must STAY asm (all three as C is 4 bytes short of the 0x90 range), so
+   func_801DDF24 + func_801E05D0 cannot be converted in this unit. Also: this
+   stub's parked body is no longer in the file, so it has to be rewritten from the
+   assembly - the round-231 note below still describes its residue. `case 4`'s flag byte is g_Menu->unk430 + 0x1084 + col
    (the buffer is the 0x1094 bytes MenuCreateUnk430Panel allocates); the three window
    dimensions are D_801E9788/94/A0[kind][0], u16 tables 0xC bytes apart, stride 4
    (282/282/162, 218/218/200, 82/82/100 - one row per character slot). `kind` is the
