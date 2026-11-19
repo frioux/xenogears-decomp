@@ -70,7 +70,20 @@ void func_800B8068(s32 stage) {
     func_800B7E94();
     D_800591B1 = 1;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
+/* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
+typedef struct {
+    /* 0x00 */ u8 unk0[0x6];
+    /* 0x06 */ u8 unk6;
+    /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, 0 means idle
+    /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0
+    /* 0x09 */ u8 unk9[0x5];
+    /* 0x0E */ u16 x;
+    /* 0x10 */ u16 z;
+    /* 0x12 */ u8 unk12[0xA];
+} BattleActorSlot; // Size: 0x1C
+
+extern BattleActorSlot g_BattleStateWork[];
+
 /* The streamed stage data behind g_BattleStageData: the two origins func_800B81BC
    publishes as the anim group and slot vector state. */
 typedef struct {
@@ -78,6 +91,76 @@ typedef struct {
     /* 0x47C */ SVEC unk47C;
     /* 0x482 */ SVEC unk482;
 } BattleStageData; // Size: 0x488
+
+extern void func_800B7870(void);
+extern void SoundLoadAndPlaySedsBank(void);
+extern void func_801E8588(void);
+extern void func_801E91E8(void);
+extern void func_801E9594(void);
+extern void func_801E893C(void);
+extern void func_800A8B0C(void);
+extern u8 func_801E7210(void *pData, void *pFileBuffer, void *pStreamBuffer, void *pTileSource,
+                        void *pTileSourceTail, void *pColorSources);
+extern void BattleSetColorSources(void *pColorSources, void *pDestination);
+extern u8 D_800D36B8;
+extern s32 g_SystemStreamedFileData;
+extern void *D_80059520;
+extern void *g_SystemStreamedFileBuffer;
+extern u8 D_800CCB94[];
+extern u8 D_800C4A39[];
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
+// 99.86% (292 bytes = retail's size). Only the jump-table operand differs
+// (retail names jtbl_80070A10, we say .rodata) and the label targets, i.e. the
+// body is right. It cannot be converted alone: func_800B7870 still owns the
+// table at the head of this unit's .rodata range (0xF0C, 0x14 bytes) and
+// jtbl_80070A10 sits at +0x14, which is 4 mod 8 - converting only this function
+// moves the table to the range start (or to an 8-aligned +0x18) and shifts the
+// overlay. Convert func_800B7870's switch in the same change.
+/*
+void func_800B8098(s32 stage) {
+    u8 *pBase;
+    u8 colorFlag;
+
+    D_800D36B8 = stage;
+    BattleInitDispEnvAndDrawEnv();
+    SoundLoadAndPlaySedsBank();
+    switch (stage) {
+    case 0:
+        func_800B7870();
+        break;
+    case 1:
+        ArchiveCdDataSync(0);
+        func_801E8588();
+        break;
+    case 2:
+        ArchiveCdDataSync(0);
+        func_801E91E8();
+        break;
+    case 3:
+        ArchiveCdDataSync(0);
+        func_801E9594();
+        break;
+    case 4:
+        ArchiveCdDataSync(0);
+        func_801E893C();
+        break;
+    case 5:
+        func_800B7870();
+        break;
+    default:
+        func_800B7870();
+        break;
+    }
+    ArchiveCdDataSync(0);
+    func_800A8B0C();
+    colorFlag = func_801E7210(&g_SystemStreamedFileData, D_80059520, g_SystemStreamedFileBuffer, D_800CCB94,
+                              D_800CCB94 + 0x20, D_800C4A39);
+    pBase = (u8 *)g_BattleStateWork;
+    pBase[0xB88] = colorFlag;
+    BattleSetColorSources(D_800C4A39, pBase + 0x4BF9);
+}*/
+
 
 /* The stage origins func_800B81BC publishes: g_BattleSlotVectors is the origin
    pair 8 bytes behind D_800D335C, so both globals are two of these. */
@@ -256,18 +339,6 @@ void func_800B838C(s32 arg0, s32 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B838C);
 
-/* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
-typedef struct {
-    /* 0x00 */ u8 unk0[0x6];
-    /* 0x06 */ u8 unk6;
-    /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, 0 means idle
-    /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0
-    /* 0x09 */ u8 unk9[0x5];
-    /* 0x0E */ u16 x;
-    /* 0x10 */ u16 z;
-    /* 0x12 */ u8 unk12[0xA];
-} BattleActorSlot; // Size: 0x1C
-
 /* The battle work block that g_BattleStateWork + 0x8000 starts: the render and
    pad state. Only the fields this unit touches are typed here. */
 typedef struct {
@@ -283,7 +354,6 @@ typedef struct {
     /* 0xDB0 */ u8 unkDB0[0x4D0];
 } BattleRenderState; // Size: 0x1280
 
-extern BattleActorSlot g_BattleStateWork[];
 extern void BattleReleaseActorSlot(s32 index);
 extern void GfxFreeWorkBuffers(void);
 extern void WorkListsFreeAllEntries(void);
