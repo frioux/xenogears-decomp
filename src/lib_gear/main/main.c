@@ -591,7 +591,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     s32 depth;
     s32 otz;
     u_int numChildren;
-    u_int jointIndex;
     s32 slot;
     s32 i;
     s32 j;
@@ -708,7 +707,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
 
     pJoint = pSkeleton + 1;
-    for (jointIndex = 1; jointIndex < numChildren; jointIndex++) {
+    for (i = 1; i < numChildren; i++) {
         if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
             MulMatrix0(pViewScratch, &pJoint->globalTransform, pScratch);
             SetLightMatrix(pScratch);
