@@ -127,17 +127,24 @@ typedef struct {
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
 
-/* 91.79%: same size as retail (264 bytes) and the loop body is instruction for
-   instruction, including the four reloads of the volatile g_BattlePrimStartIndex.
-   The 8-byte frame is retail's (nothing is stored in it), so the source keeps
-   `u32 spare[2]`; the `s32 new_var` guard copy is what puts `i` in a2 and pBase in
-   a3 instead of swapping them. What is left is three placements: retail keeps
-   `ori v1,zero,0x12` in the body (loop.c hoists our literal into t2 and so moves
-   `i++` into a different load delay slot), and it emits `move t1,v0` (the limit
-   copy) right after the 0xC load instead of after the pSrc address. Tie all 8
-   shapes, the guard/do-while swap, and a 4-minute permuter run (its best candidate
-   re-used `color` as the address multiplier and changed a stored value, so it is
-   not portable). */
+/* 96.29%: retail's exact 264 bytes and instruction for instruction, including
+   the four reloads of the volatile g_BattlePrimStartIndex, the i++ in the first
+   group's load delay slot and the two 0x5E offsets. What is left is ONE register
+   rotation: retail count=$t0, limit=$t1, color=$t2, in-loop constant=$v1; ours
+   count=$t1, limit=$t2, color=$t0 with $t0 reused for the in-loop constant
+   (color's live range ends at the first store). Two levers got here and both are
+   load-bearing:
+   - NO unused local: retail's 8-byte frame with nothing stored in it comes out by
+     itself (an earlier attempt's `u32 spare[2]` gave a 16-byte frame);
+   - the third store is written as an embedded assignment to `color`, which is what
+     keeps `ori v1,zero,0x12` inside the body: as a plain literal, or through a
+     separate `u16 shade` local, loop.c hoists it into the preheader and `i++`
+     then lands in a different delay slot (91.82%).
+   Tried on top of that: declaration order, guard/do-while swap, s32/u16 count,
+   s32 color, a separate `limit` local (97.73% but 260 bytes - it deletes the
+   limit copy), the outer do/while cluster wrapper the permuter suggested (95.98),
+   and two 4-minute permuter runs from this body (their best candidate re-used
+   `color` as the address multiplier and changed a stored value). */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
@@ -146,7 +153,6 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 *pBase;
     u8 *pSrc;
     s32 i;
-    u32 spare[2];
 
     count = arg1;
     if (arg0 == arg1) {
@@ -160,10 +166,10 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
         pSrc = D_800C3202;
         pSrc += arg0 * 6;
         do {
-            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x910) = color;
-            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x912) = pSrc[i] + 0x5E;
-            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x914) = 0x12;
-            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x916) = pSrc[i] + 0x5E;
+            *(u16 *)(pBase + (i * 2 + g_BattlePrimStartIndex) * 0x10 + 0x910) = color;
+            *(u16 *)(pBase + (i * 2 + g_BattlePrimStartIndex) * 0x10 + 0x912) = pSrc[i] + 0x5E;
+            *(u16 *)(pBase + (i * 2 + g_BattlePrimStartIndex) * 0x10 + 0x914) = (color = 0x12);
+            *(u16 *)(pBase + (i * 2 + g_BattlePrimStartIndex) * 0x10 + 0x916) = pSrc[i] + 0x5E;
             i++;
         } while (i < arg0 - 1);
     }
@@ -173,6 +179,7 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
 
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FBE0);
+
 void BattleFreeStringTableAE(void) {
     if (g_BattleDisplayState[0xAE] != 0) {
         HeapFree(D_800D367C);
@@ -231,12 +238,15 @@ void BattleAllocDrawBuffer(void) {
 }
 
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
-/* 91.69%: only a register rotation left (retail v=$a1, offset=$a2, quotient=$a3,
-   digits=$a0, mfhi=$v0; ours shifts the whole loop by one and has to put mfhi in
-   $t3). 12 hand shapes tried plus two 4-minute permuter runs (best score 948 vs
-   base 971, and its "fix" was a no-op if/else, so nothing to port). cdk gives
-   93.74, so not a preset question. */
+/* 91.69%: retail's exact 472 bytes, same calls, same branches, same address
+   computations; only the loop's registers rotate by one (retail v=$a1,
+   offset=$a2, quotient=$a3, digits=$a0, mfhi=$v0; ours v=$a2, offset=$a3,
+   quotient=$v0, digits=$a1, and mfhi needs a third scratch $t3). Measured on top
+   of this body: an explicit running byte offset (`offset = 8; offset += 4;
+   pSrc += 2`) instead of `i * 4 + 8` is 85.22% at the same size (it loses the
+   offset-first `addu` and the folded +8 displacement), `s32 v` is 89.62% at 476
+   bytes, and two 4-minute permuter runs found only a no-op if/else (948 vs 971).
+   cdk gives 93.74, so it is not a preset question. */
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
@@ -277,6 +287,7 @@ void func_8007FF14(u8 arg0) {
 }
 
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
 void BattleResetActorDrawState(u8 arg0) {
     s32 index;
 
