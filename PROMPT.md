@@ -69,6 +69,20 @@ matched C. The one matching queue that still exists is a **park with a named cau
 near-exact size** (99%+, instruction multiset identical): that is worth one worker when
 a tracker row records the specific construct, and nothing else is.
 
+**Measured at round 286 (2026-11-19): the census queue is real and it is where the matches
+are.** Rounds 285 and 286 briefed units from it and landed **4 then 11 matches** (+5 and
++16 names), against ~1 per round for the ten park rounds before. The yield per lane is
+6 (`battle/misc32`), 3 (`battle/misc29` twice), 2 (`world_map/misc9`); `battle/misc31`
+and `menu/misc3` landed 0 but returned a measured park each in the 91-99.6 range at
+retail's exact size. So: brief four units of this class per round, 60 minutes each,
+smallest stub first, and expect a park-heavy unit to be a 0-match one.
+
+Two filters in this file are wrong: `fresh_stubs.py` under-reports (see above), and
+**`grep 'sw \$sp'` misses splat's column-aligned output** - the real pattern is
+`grep -cE 'sw +\$sp'`, and it is worth running per stub, because round 286 briefed
+`battle/misc31`'s two stack-switch stubs and `battle/misc29`'s `.rodata`-owner
+`func_800B7870` (also a stack switch) without noticing.
+
 **Measured at round 285 (2026-11-19): the small-stub queue is NOT empty, `fresh_stubs.py`'s
 count is.** `fresh_stubs.py` reported 3 stubs (one the known non-function) while a plain
 census of the same tree found **61 units holding non-parked stubs of 150 instructions or
