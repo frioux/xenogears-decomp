@@ -171,18 +171,20 @@ void WorldMapRelocateMapEntryOffsets(void) {
     }
 }
 
-// Best: 92.27%. Everything matches except how &g_WorldMapSpritePrims is materialised:
-// retail computes it into s0 before the second HeapAlloc, stores HeapAlloc #1's
-// result through it there (delay slot) and reloads it after the call (lw v1,0(s0));
-// we store and reload through the symbolic address (lui $at / fresh lui), which is
-// the same 4 instructions, so the diff is register/reloc shape only. Taking the
-// address into a `u_char** ppHeap` local is folded straight back by fold_rtx.
-// Shape below is the natural one and stays at 92.27%. The address-in-register
-// idiom is the only thing missing; both neighbours share it.
-// func_800865A0 shows the identical idiom with g_WorldMapSemiTransPrims. The 0x200-iteration
-// POLY_FT4 loop and the trailing copy are byte-exact (the copy must be typed:
-// memcpy of `u_char*` globals emits lwl/lwr and scores 60%).
-// Screen: cdk 92.21, 2.6.0 92.27, best 92.27 here - not a compiler miss.
+// Best: 92.27% (324 bytes = retail's exact size). The ONLY delta is how
+// &g_WorldMapSpritePrims is materialised: retail computes it into s0 (lui/addiu), so
+// the store of HeapAlloc #1 fills the second call's delay slot (sw v0,0(s0)) and the
+// later reload is `lw v1,0(s0)`; we get the assembler's `lui $at / sw v0,sym` macro
+// plus a fresh `lui v1 / lw` - the same four instructions, but `li a1,1` takes the
+// delay slot instead, which shifts the whole tail. Measured non-solutions, all
+// 92.27: `u_char** pp = &g_WorldMapSpritePrims` (declaration initialiser AND
+// assigned form), `mem_addr pp = (mem_addr)&g_...` with *(u_char**)pp, and the
+// plain symbol below. The 0x200-iteration POLY_FT4 loop and the trailing 0x5000
+// copy are byte-exact (the copy must be typed: memcpy of `u_char*` globals emits
+// lwl/lwr and scores 60%). func_800865A0 shows the identical idiom with
+// g_WorldMapSemiTransPrims. Screen: cdk 92.21, 2.6.0 92.27, best 92.27 here - not
+// a compiler miss.
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80085FE0);
 /*
 void func_80085FE0(void) {
     POLY_FT4* pPrim;
@@ -212,8 +214,6 @@ void func_80085FE0(void) {
     memcpy(pDst, pSrc, 0x5000);
 }
 */
-
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80085FE0);
 void WorldMapFreeSpritePrimBuffers(void) {
     HeapFree(D_8009D7EC);
     HeapFree(g_WorldMapSpritePrims);
@@ -296,7 +296,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800863E0);
 //   the entry-block `x = 0` before the y-loop preheader, where retail has it
 //   (a redundant `x = 0;` statement is deleted by gcc, so this is the only way).
 //   Run 2 printed the same 721; run 3 (score-only) confirmed no further gain.
-// Moving pVertex's declaration to the end of the list does not move the tie.
+// Round 285 additions, all still 93.98 at 392 bytes: pVertex's declaration moved
+// to the head of the list, x's declaration moved to the head, dropping the
+// standalone `x = 0;`, and moving it above the pVertex assignment. The tie is
+// real allocation priority, not source order.
 /*
 void func_800863E0(void) {
     WorldMapPathEntry* pPath;
@@ -817,13 +820,19 @@ s32 WorldMapInitializePlayerSlot(s32 index) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008868C);
-// Best: 76.81%. Two-pointer walk over the interleaved s16 pairs of D_8009AFA0
-// (pX[0], pX[1] with pX += 2) offset by base = D_8009B688[g_WorldMapLevelIndex], ending at
-// a -1 sentinel. Retail materialises the sentinel as `li v0,-1` inside the loop
-// and as `li a0,-1` before it, i.e. loop.c did not hoist the constant; every
-// decl order / do-while / pointer-vs-index shape tried so far gets it hoisted
-// into a callee-saved s3 (frame 0x28 instead of 0x20).
-// Screen: cdk 61.86, 2.6.0 76.81, best 76.81 here - not a compiler miss.
+// Best: 76.81% (152 bytes vs retail's 148). Two-pointer walk over the interleaved
+// s16 pairs of D_8009AFA0 offset by base = D_8009B688[g_WorldMapLevelIndex], ending at a
+// -1 sentinel; all four `lh`/`addu`/`jal` operands and the if + do-while shape are
+// retail's. ONE residual, and everything else follows from it: retail lets the loop
+// test's -1 die after the call and rematerialises `li v0,-1` before the `bne`, so
+// that li is the body's last instruction and reorg then steals the exit block's
+// `li v0,1` into the branch slot; gcc here keeps a second live copy in $s3
+// (li s3,-1 in the preheader, frame 0x28 instead of 0x20), which makes the pY bump
+// the body's last instruction and it gets stolen instead. Every decl order,
+// do-while, `*pX++`/`pX += 2`, interleaved-vs-grouped increments, pointer-vs-index
+// and an s32 `end = -1` local measured the same 76.81. Permuter run 1
+// (base=1021 best=727, 2419 iters) only found a candidate that reads *pY for the
+// guard, i.e. wrong code - rejected. Screen: cdk 61.86, 2.6.0 76.81, best 76.81 here.
 /*
 s32 func_8008868C(void) {
     s32 base = D_8009B688[g_WorldMapLevelIndex];
@@ -835,9 +844,9 @@ s32 func_8008868C(void) {
             s32 vx = *pX;
             s32 vy = *pY;
 
-            WorldMapSetSpriteSetParent(base + vx, base + vy);
             pX += 2;
             pY += 2;
+            WorldMapSetSpriteSetParent(base + vx, base + vy);
         } while (*pX != -1);
     }
     return 1;
