@@ -5,6 +5,9 @@
 #include "battle/actor.h"
 #include "psyq/inline_c.h"
 
+#define BATTLE_ACTOR_DEPTH_MAX 0x2D8
+#define BATTLE_ACTOR_SHADE_MAX 0x6B
+
 typedef struct {
     /* 0x0 */ u8* pBlocks;
     /* 0x4 */ u16 usedCount;
@@ -576,331 +579,27 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
         }
     }
 }
-/* func_8009F844: 1021 insns / 0xFF4 bytes, never attempted, no body written yet.
-   Structural read from the .s (round 233), so the next worker does not redo it:
-   - Frame 0x110, and it is a LEAF-arg-shape function: a0-a3 plus THREE stack
-     words at sp+0x120 / 0x124 / 0x128. a0 ($fp) is a BattleActor and every
-     field it touches is already named in include/battle/actor.h (pMesh 0x0,
-     pSprites 0x4, scale 0x1C, height 0x24, width 0x26, depth 0x28, doUpdate
-     0x34, unk39 0x39 - written here as 0x6B minus depth/8 -, unk3E 0x3E,
-     flags4A 0x4A bit 0, numEntries 0x10C, numModelListEntries 0x10D,
-     numTextures 0x10E, pEntries 0x110, pModelListEntries 0x114, pTextures
-     0x118), so no view struct is needed. Globals: g_BattlePartSlots (u16[]),
-     D_800D3306 / D_800D3308 / D_800D330A (s16 per slot), g_BattleExtraMatrixFlag,
-     g_GfxOTDepthShift (srav), D_800D39E8 (rsin/rcos scale).
-   - Only SIX loops in 1000 instructions (everything else is straight line):
-     2 iterations stride 0x14 (slot scale vector: SquareRoot0 + three divides,
-     which --expand-div turns into the break 6 / break 7 pairs; result written
-     as three s16), 0x7C stride over actor->pSprites (0x80(sp) is its +0xA
-     count), 0x24 stride over pModelListEntries (rsin/rcos + CompMatrix, then
-     two inner loops: a vector array at +0xA stride 8 whose MAC1..3 land in a
-     packet's vertex coords, and +0xE stride-0x10 records), 0x30 stride over
-     pTextures calling func_800A3E98(record, stack+0x120), 0x70 stride over
-     pEntries (BattleActorEntry) with two RTPS + BattleAllocSpriteSlot.
-   - Inline GTE, so include/psyq/inline_c.h is required: MVMVA(1,0,0,0,0) +
-     swc2 $25/$26/$27 (MAC1..3 -> VECTOR, i.e. gte_mvl/mvmva + stlvnl),
-     RTPS six times with swc2 $14 (SXY2) either to a scratchpad warp slot or a
-     packet, and mfc2 $19 (SZ3) >> 2 for the depth that feeds g_GfxOTDepthShift.
-     0x1F800000 is the matrix scratchpad (s7), 0x1F800020/0x1F800040 the two
-     saved copies at 0xA8(sp)/0xB0(sp).
-   - Callees, 36 calls / 14 distinct: CompMatrix x8, SetTransMatrix x7,
-     SetRotMatrix x7, MulMatrix0 x2, BattleAllocSpriteSlot x2, and SquareRoot0,
-     SetLightMatrix, RotMatrix, MulMatrix, ratan2, rsin, rcos, ModelRenderPacket,
-     func_800A3E98, func_800A7948 (7 args: the last three are pushed at
-     0x10/0x14/0x18(sp)). Tail is jr $31 / nop, so the return type is void.
-   Budget: this is a 3-4 hour transcription with a diff loop, not a batch item. */
-/* Round 234: first full transcription, 61.32% / 3968 bytes vs retail's 4084.
-   The structure below is phase-for-phase retail's (the six loops, the GTE
-   blocks, the addPrim tail); the 116-byte gap is in the straight-line data
-   writes, and these are the leads, cheapest first:
-   - Both scratchpad "matrix" fills write NINE s16 at offsets
-     0/2/4/6/8/A/C/E/10 of PSX_SCRATCH (and of PSX_SCRATCH+0x20 for the
-     RotMatrix/m[2][2] block), i.e. the pads of a MATRIX are stored too, with
-     the value at 0, 4 and 8. That is not a MATRIX row/column pattern and the
-     natural m[i][j] spelling (9 stores at 0/2/4/8/A/C/10/12/14) is what the
-     parked body has: it is THREE 8-byte groups, so the original struct is
-     probably an SVECTOR[3] (sv vx,vy,vz and pad both written) or the source
-     wrote through a s16*. Nail this first, it is 2-4 stores per site.
-   - pRotMatrix->m[2][2] = macEnd[0], ->t[1] = macEnd[2], ->t[0] = groundY
-     (offsets 0x14/0x1C/0x18) are retail's and are kept literally.
-   - The 3rd argument (a2) is 0x800CCB94, the caller's param1: it is used BOTH
-     as the phase-1 destination (12 bytes at a2+6..a2+0x11, two groups of three
-     s16) and as MulMatrix0's first matrix. The parked body spells the
-     destination (s16*)pViewMatrix + 3, which is the one really raw site.
-   - Widths retail reads narrower than include/battle/actor.h declares:
-     pActor->scale lhu 0x1C (header s16), pSprites->scale.vy lhu 0x4E and
-     pSprites->pos[0]/pos[2] lhu 0x5C/0x64 (header s32 pos[3], s16 scale).
-     Addressed with ((u16*)&field)[n] casts in the body; a FIELD round should
-     decide whether actor.h wants a second u16 view.
-   - The frame is 0x110 in retail and 0x108 here: retail keeps a0 in $fp and
-     frames 10 callee-saved registers, this body 9.
-   Loops and their structs are decoded and declared at the top of this file
-   (BattlePartSlot, BattleSpriteSlot, BattleSpriteTween, BattleModelListEntry,
-   BattleModelListPoint, BattleWarpQuad) - BattleSpriteTween is the same record
-   as misc22.c's BattleMisc22Cmd and BattleSpriteSlot the same as its
-   BattleMisc22Spr, both with more fields named here. */
-/* Round 263: 61.32 -> 73.90%, and the body is now EXACTLY retail's structure
-   and only 8 instructions / 32 bytes short of retail's 4084. Phase table, so
-   the next lane starts from the last measured point:
-     P0  round-234 park as it stood                          61.32%  3968 B
-     P1  #include "psyq/inline_c.h" (it was missing! the whole
-         body compiled as calls to gte_ldv0/gte_rtps/... )   68.70%  4028 B
-     P2  slot-scale loop: index g_BattlePartSlots[i] and
-         ((s16*)pViewMatrix)[i*3+3..5] instead of a pPart /
-         pSlotScale pointer local                            70.25%  4108 B
-     P3  allocate arms: pTween->step = 1 BEFORE the
-         BattleAllocSpriteSlot call (retail keeps that sh in the
-         jal delay slot and needs no pSlot reload), and
-         "other = 1 - side" instead of re-reading slot & 1    71.51%  4084 B
-     P4  shade matrix written as the DIAGONAL (m[0][0], [1][1],
-         [2][2] = shade)                                     71.53%  4084 B
-     P5  sprite matrix: retail writes the four off-diagonal
-         zeros 4,6,10,12, then 0 and 16 = scale, then an
-         if/else on scale.pad for column 1 (m[0][1]/m[1][1]/
-         m[2][1]); the ==1 arm copies 2/8/14 from pTransMatrix   71.29%  4104 B
-     P6  and use pActor->scale (retail RELOADS it three times,
-         so there is no scale local on that path)              73.90%  4052 B
-   What is left is register assignment. Measured against retail: the CALL SET
-   is already identical (8 CompMatrix, 7 SetTransMatrix, 7 SetRotMatrix, 2
-   MulMatrix0, 2 BattleAllocSpriteSlot, 15 more of one each) and the prologue
-   shape is retail's (move s8,a0, then ra/s7..s0 saves, a1..a3 spilled to
-   0x68/0x70/0x78). Retail also reads pActor->scale with lhu (unsigned) where
-   actor.h says s16, so a use of that field on this path is spelled through a
-   u16 view.
-   The tween loop's remaining tell: retail bases its whole 2D-allocate block on
-   &pTween->slot (s1 = pTween + 0x5C) and reaches pPool/semiTrans/pSlot as
-   -88/-89/-84(s1), i.e. the source held the SLOT field's address.
-
-   Round 264. The round-263 "8 bytes of frame" item is CLOSED, and the frame
-   is now retail's exact 0x110/272:
-     P7  the missing local was the s32 copy of scale, as guessed. Retail's
-         prologue is `lhu 0x1C(fp)` -> `sh 0xA0(sp)` (a u16 local) then
-         `lhu 0xA0(sp)` -> `sw 0xB8(sp)` (an s32 local widened from it), i.e.
-         the source was "u16 x = pActor->scale;" followed by "s32 y = x;".
-         Written as scale16 (u16, the 6th argument of func_800A7948) and
-         scale (s32, the mult in the slot loop): those two instructions
-         appear and the frame becomes 0x110             73.81%  4064 B
-     P8  declaration order count, pMesh, pSprites, pSprite, scale16,
-         pRotMatrix, pTransMatrix, scale hands out retail's exact slots
-         0x80 count / 0x88 pMesh / 0x90 pSprites / 0x98 pSprite / 0xA0
-         scale16 / 0xA8 pRotMatrix / 0xB0 pTransMatrix / 0xB8 scale
-         (same 73.81% / 4064 B; the slot shift is what buys the frame).
-         gcc assigns these spill slots in DECLARATION order, and the two
-         scratch-pad pointers (0x1F800020/0x1F800040) are the two MATRIX
-         pointer locals - they are not separate data.
-     P9  the rsin factor must be negated at the CONSTANT: retail emits
-         `lh v1,%lo(D_800D39E8); negu v1,v1; mult v1,v0`, so the source was
-         "-D_800D39E8 * rsin(...)", not "-rsin(...) * D_800D39E8" (which
-         negates the result register instead)            74.09%  4068 B
-   Registers are NOT over-allocated: retail and this body both frame fp + ra +
-   s7..s0. Two measured non-levers from this round, so they are not retried:
-   - Assigning pSprite in the prologue, so that retail's mapping comes out
-     (its 0x90 slot is the MUTATED walker - bumped +0x7C in place and
-     reloaded at every use - and 0x98 is the fixed root copy) costs +36 bytes
-     and -0.55% (4100 B, 73.26%): the longer live range of the root pointer
-     adds a spill. The body below keeps pSprite live only inside its loop.
-   - The slot-scale loop's destination. Retail reloads pViewMatrix from
-     0x70(sp) and forms `addu a1,t2,s6` with s6 a byte-offset GIV (6 then
-     12), which is 3 instructions per iteration this body does not emit (it
-     keeps the pointer in s3 and uses immediate displacements). Both the
-     element-pointer form `((s16*)pViewMatrix + i*3)[3..5]` and a row
-     pointer local measured 70.74% / 4184 B, i.e. worse, so the allocator is
-     making that call, not the source.
-   Also proven: pSprites->scale.vy is the SVECTOR's s16 (`lh 0x4E`) - the
-   round-234 u16 cast on it was wrong; pSprites->pos[0]/pos[2] really are u16
-   reads of the s32 pos[] words (`lhu 0x5C`/`0x64`) and pos[1] a full `lw`.
-   Remaining: 4 instructions / 16 bytes short of retail's 4084, and the
-   register identity differs in most of the straight-line blocks.
-
-   Round 267 (this body): 74.09% / 4068 -> 76.95% / 4056 (retail 4084), and the
-   CALL SETUP is now byte-identical to retail (13 `move a0,s7` and 7
-   `move a2,s7` on both sides, where the old body loaded pRotMatrix from 0xA8(sp)
-   at every GTE call). Two changes, both corrections, not register games:
-     P10 The CompMatrix destination / SetRotMatrix / SetTransMatrix argument in
-         the two MODEL-LIST loops and the two TWEEN arms is pMatrix
-         (PSX_SCRATCH, retail's s7 = 0x1F800000), NOT pRotMatrix (0x1F800020).
-         Retail: `addiu a0,t2,12 / addu a1,t2,a1 / move a2,s7 / jal CompMatrix`
-         then `jal SetRotMatrix / move a0,s7 / jal SetTransMatrix / move a0,s7`.
-         Only two sites really use pRotMatrix: MulMatrix0(pViewMatrix, ...,
-         pRotMatrix) before the sprite loop and CompMatrix(pLightMatrix,
-         pRotMatrix, pRotMatrix) in the extra-matrix block, plus the two
-         MulMatrix0/CompMatrix calls of the sprite loop, which already agreed.
-                                                          75.60%  4032 B
-     P11 The slot loop writes ROWS of the matrix:
-         pViewMatrix->m[i + 1][0..2], not ((s16*)pViewMatrix)[i*3+3..5]. This is
-         what reproduces retail's 6 extra instructions there - it RELOADS
-         pViewMatrix from 0x70(sp) per iteration (`lw t2,112(sp); nop;
-         addu a1,t2,s6`, s6 = 6 then 12) instead of strength-reducing a bumped
-         pointer into s3. Offsets 6/8/A are m[1][0..2] and C/E/10 m[2][0..2],
-         so m[i + 1][*] is also the only realistic spelling.  76.95%  4056 B
-   Two measured non-levers this round, do not retry:
-   - The sprite loop walking `pSprites` IN PLACE with `pSprite` kept as the
-     root copy (which is exactly retail's 0x90 = mutated walker / 0x98 = root
-     slot pair, and does produce retail's `addiu t2,t2,124; sw t2,144(sp)`
-     preheader and the +5 instructions of seg 13 below): gcc then spends the
-     freed callee-saved register on the root copy and spills $a0 (pActor) to
-     0x68 instead of $s8, which costs `lw t1,104(sp)` +6 instructions in the
-     model-list loop and again +6 in the texture loop: 4120 B / 71.60%
-     (69.96% / 4156 B on the pre-P10 body). Retail scratches BOTH pointers, so
-     the lever is real but needs the register budget of P10/P11 first.
-   - An explicit `s32 viewOffset = 6;` stepped by 6 and used as
-     `((s16*)((u8*)pViewMatrix + viewOffset))[0..2]`: cc1 converts it back into
-     a pointer biv (74.34% / 4068 B, no size change).
-   Where the remaining 7 instructions are (jal-to-jal segment counts, retail
-   vs this body): slot loop -1, warp-quad block -2, sprite loop -5, sprite
-   body -3, model-list +1/+1/+2, tween tail +9. The sprite loop's -5 is the
-   retail shape `lw t2,144(sp) / addiu t2,t2,124 / sw t2,144(sp)` plus a
-   REGISTER biv of the walker at +8 incremented in the loop tail
-   (`addiu s1,s1,124`), i.e. retail increments the walker in memory AND keeps
-   its +8 base in a register across iterations. The tween tail's +9 is the
-   ARM ORDER: retail's 2D arm's `allocate` block falls through inline and the
-   3D arm jumps, while this body puts both allocate blocks behind gotos; the
-   two BattleAllocSpriteSlot calls sit in segments 33/37 here against 33/37
-   removed there, so re-order those two blocks first.
-   Round 267b: THAT WAS IT. Writing the tween test the other way round -
-   `if (pTween->project3D != 0) { the 3D arm with allocate3D/done3D inline }
-   else { the 2D arm, both exits `goto allocate` }` - i.e. putting the 3D arm
-   FIRST so the 2D arm falls through into the shared `allocate:` block after
-   the loop, took the body from 76.95% / 4056 B to 83.41% / 4048 B and made
-   ALL 37 jal-delimited segments align in call order. Both spellings are
-   natural C, so keep this one; the % jump is arm layout, not a new match.
-   What is left (1000 instructions against retail's 1009, jal-to-jal counts):
-   slot loop -1, warp-quad block -2, sprite loop -5 (the pSprites-in-memory
-   item above), sprite body -3, model-list +1 and +2, texture loop +7,
-   tween 2D arm -6 and 3D arm +2, second allocate loop +2. */
-
-/* Round 268: 83.41% / 4048 -> 83.78% / 4040 (retail 4084, so 11 insns short).
-   TWO REAL DEFECTS found by reading retail's instruction stream against the
-   body, both fixed, both keep the size:
-     P13 the two GTE MAC1..3 copies read the wrong halves. Retail loads
-         `lhu 0x50/0x54/0x58(sp)` - stride 4, i.e. the LOW half of each of the
-         three s32 words - where the body said `((u16*)macPoint)[0..2]`
-         (stride 2: x-low, x-high, y-low, so y and z were garbage). Now
-         [0], [2], [4] in both model-list loops, at the same size; the packet
-         loop and the record loop both read retail's exact displacements.
-     P14 the record loop was INDEXED (`pPoint = &pModelList->pRecords[j]`),
-         which re-derives `sll s0,s1,0x4` + `addu` from a `lw v0,14(s2)` reload
-         every iteration. Retail walks a POINTER (`lw s2,14(s3)` in the
-         preheader, `addiu s0,s2,12` for the +0xC rebased biv, stores at
-         -4/-2/0, `addiu s2,s2,16` in the tail). Writing
-         `pPoint = pModelList->pRecords; for (...; j++, pPoint++)` reproduces
-         retail exactly and dropped 2 instructions: 83.42% -> 83.78% / 4040 B.
-   Also corrected: the round-267 segment table's "texture loop +7" is MIS-NAMED.
-   The func_800A3E98 texture loop is already instruction-identical to retail
-   (check it directly: `lw a1,0x120(sp)` / `jal` / `move a0,sN` / `addiu
-   sN,sN,0x30`); the -7 is the model-list RECORD loop, which P14 closed. The
-   segment table in that older note cannot be reproduced from diff_func's own
-   alignment either (its deltas do not sum to the size difference), so measure
-   segments by reading the two streams, not by trusting those counts.
-   Measured REGRESSIONS this round, do not retry:
-   - `slot` as u16 (retail's decrement reads `lhu 0x54`): 82.60% / 4052 B. The
-     field is s16 - retail's u16 read there is one site only, and making the
-     field u16 turns the index loads (`lh 0x54`) into `lhu` too.
-   - Prologue root/walker copy: swapping the pSprite/pSprites DECLARATION slots
-     so the sprite-loop walker takes 0x90 (retail's slot) and assigning
-     `pSprite = pActor->pSprites` at the top: 82.29% / 4076 B. Retail really
-     does frame BOTH (0x90 walker bumped in memory, 0x98 root copy stored in the
-     prologue) but gcc here only spills the root.
-   - Dropping the `k` local so the 2D arm reloads `pTween->slot` at both
-     gte_stsxy2 sites: 82.70% / 4060 B.
-   - Moving the tween done block from `offsets[pTween->slot]` to `offsets[k]`:
-     83.80% / 4008 B - the PERCENTAGE RISES while the body gets 19 insns short.
-     Judge this unit by `(bytes, segment deltas)`, never by the % alone.
-   VERIFIED, so the next lane does not re-derive it: retail's sprite loop loads
-   the walker from 0x90(sp) at EVERY use and re-forms `addiu s1,t2,8`; our body
-   gives the same +8 biv but keeps the walker in a register (`lw s1,144(sp)`,
-   `addiu s1,s1,124`) - that whole +5 in the segment is retail's extra spill,
-   not a source shape. The tween loop's base is the remaining named item
-   (retail +0x08 = &pTween->pSlot, ours +0x5C = &pTween->slot): gcc picks that
-   biv from the reference distribution, and three source shapes failed to move
-   it, so it is not a spelling problem.
-
-   Round 269 (the +5 IS a source shape after all - this note's VERIFIED paragraph
-   above is wrong about it): retail's walker spill is produced by the ORDER of the
-   two source statements, not by the allocator. Retail's slots are 0x90 = the
-   MUTATED walker and 0x98 = the untouched root, and the copy between them is in
-   the PROLOGUE (`lw t2,0x90(sp); sw t2,0x98(sp)`, right before the
-   `count = pSprites->count` load), while every use before the sprite loop reads
-   0x90 and every use after it reads 0x98. Writing it that way - declare the
-   walker FIRST, `pSprite = pSprites;` in the prologue after `scale = scale16`,
-   and let the sprite loop bump `pSprite` - reproduces retail's in-memory walker
-   exactly: the preheader `lw/addiu 0x7C/sw` RMW, the `addiu s1,t2,8` biv, and
-   the per-iteration reloads. That is 4 of the missing instructions (sprite-loop
-   segment -5 -> -1) and the preheader slots become retail's (0x90 walker,
-   0x98 root), but it costs 8 bytes of frame: 0x110 -> 0x118, so every sp
-   displacement above 0xB8 and the three incoming-arg offsets
-   (0x128/0x12C/0x130 vs retail's 0x120/0x124/0x128) shift. The extra 8 bytes are
-   NOT a ninth variable (all eight slots 0x80..0xB8 and their roles come out
-   retail's) and not the texture loop's walker (giving it its own local keeps
-   0x118), so the next lane should hunt that 8-byte local first - closing the
-   frame is worth 5 instructions and is the biggest single item left.
-   Until then the 0x110-frame body below (11 insns short) is the better base. */
-
-
-
-/* Round 278: 83.78% -> 99.25% at retail's EXACT 4084 bytes. The function is NOT
-   parked for lack of progress: every jal-delimited segment now has retail's
-   instruction count (1009), so the only differences left are stack-slot identity
-   and register picks. What closed it, in order (all measured):
-     P15 the TWEEN LOOP ARM ORDER was backwards. Retail tests
-         `if (pTween->project3D == 0) {2D arm inline; continue;} 3D arm...`, so the
-         3D arm is the out-of-line one (beqz->else is not how it looks: retail's
-         head is `bnez v1, .L800A05A0`, i.e. the 2D arm is the THEN arm). 83.78 ->
-         91.81 in one edit, same size. Each arm carries its OWN allocate:/done:
-         labels INSIDE the if-branch, because retail has two copies of the field
-         fill; the pSlot test is `if (pSlot != NULL) goto done;` and the
-         fall-through enters allocate (the old body had it inverted, a real bug).
-     P16 the two gte_stsxy2 sites read `pTween->slot` FRESH, not a `k` local
-         (-4 insns); `pTween->slot = (pTween->slot - 1) & 7;` then the reads.
-     P17 the sprite loop's walker: the 8-byte frame item of round 269 is the
-         ROOT COPY pSprites (0x98). Source is `pSprite = pActor->pSprites;
-         pSprites = pSprite;` with pSprite DECLARED FIRST (slot 0x90) and the
-         prologue assignment order pMesh, scale16, pSprite, scale, pSprites,
-         count. Retail then bumps the walker in MEMORY: `pSprite++;
-         for (i = 1; i < count; i++, pSprite++)` - the pre-loop bump is the
-         preheader RMW, the latch bump is the tail RMW. Frame becomes 0x110 and
-         every spill slot above 0x90 lines up.
-     P18 the texture loop needs its OWN walker (`Temp8* pTexture` =
-         pActor->pTextures, stride 0x30). Reusing pSprite made gcc spill it to
-         0x90 and reload; a fresh local stays in s0 like retail.
-     P19 the model-list latch spells the WALKER bump before i++:
-         `for (...; pModelList++, i++)` puts the bump before the count load and
-         lets `addiu s5,s5,1` fill the lbu delay slot (retail's shape).
-     P20 the warp quad is `((BattleWarpQuad*)pActor->unkB8)[quadIndex]` at EVERY
-         use site, not a pQuad local: retail re-forms pActor + quadIndex*0x28 and
-         keeps 0xB8 as a displacement, and computes it inline at the first
-         gte_stsxy2 (after the GTE command), not before the vec stores.
-     P21 `if (++pTween->step == 0) continue;` - NOT
-         `if (++step != 0 && step > stepCount) goto allocate;`. Retail's step==0
-         edge jumps to the LOOP LATCH, past the pSlot test and the done tail;
-         the && form merges that edge with the pSlot check. This was the last
-         2 instructions and the `li <reg>,1` delay-slot position with them.
-     P22 two permuter finds: `j = pTween->step; j = (pTween->slot + j) & 7;` (two
-         statements) and `pRotMatrix->t[0] = pActor->groundY;` BEFORE
-         `t[1] = macEnd[2];`.
-     P23 split the tween's 16-entry DVECTOR into `projectedStart[8]` at 0x1C and
-         `projectedEnd[8]` at 0x3C: with two arrays indexed by the same k, gcc
-         keeps ONE base (pTween + k*4) and folds 0x1C/0x3C into the displacements
-         exactly as retail does; the `[k + 8]` spelling costs 3 instructions.
-   MEASURED REGRESSIONS this round, do not retry: `pSprite->...` in the slot loop
-   (99.08), `&pSprite->localTransform` for the first CompMatrix (99.07), inline
-   index for j (96.45), step=1 AFTER the call (98.17), u32 j, and
-   `for (...; pTween++, i++)` in the tween loop (4080 = 1 insn SHORT).
-   REMAINING (14 sites, all stack-slot/register identity, size already exact):
-   retail reads the WALKER (0x90) for the slot loop, the first CompMatrix
-   (0x8009FB74) and the sprite loop, and the ROOT (0x98) after it. Our body uses
-   pSprites (0x98) everywhere, so those `lw t2,144/152(sp)` pairs differ, and the
-   extra-matrix block's `CompMatrix(&pSprite->localTransform,
-   &pActor->pSprites[1].globalTransform, pMatrix)` re-reads pActor->pSprites from
-   the actor (`lw a1,4(fp)`), which no spelling tried here reproduced. Also
-   differing: the two `beqz ... step == 0` targets (ours 0xfa4, retail 0xfac) and
-   the sp temp offsets of the vec/mac arrays (retail 0x28/0x38/0x48 vs ours
-   0x30/0x40/0x60 - retail's SVECTOR temporaries sit 8 bytes lower). */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_8009F844);
-/*
+/* The stack layout is the function's shape: the memory locals are declared in
+   first-use order, and macPoint/tweenVec sit in a nested block so that depth and
+   sz (whose address gte_stszotz takes) land below them - without the block every
+   sp slot from 0x48 up shifts and ~20 instructions differ.
+   Load-bearing spellings, each measured: the tween loop is
+   `if (pTween->spriteIndex >= 0) { ... } pTween++;`, so the `++step == 0` continue
+   skips the bump exactly as retail does; each tween arm carries its own
+   allocate:/done: labels; the 2D arm is the THEN arm and the 3D arm the else;
+   pSprite and pSprites are two live copies (walker at sp+0x90, root at sp+0x98)
+   and the sprite loop bumps the walker in memory; `(k + pTween->projectedStart)`
+   is the only spelling that gives retail's index-first addu.
+   Residual: the slot scale is read through BattlePartSlot
+   (g_BattlePartSlots[i].x), where retail's object names the field addresses
+   D_800D3306/3308/330A, so objdiff reads 99.96%; the linked bytes are identical
+   (tools/scripts/check_bin.sh battle: OK). */
 void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
+    s32 i;
+    s32 j;
+    s32 k;
     BattleModelPartList* pMesh;
     BattleSprite* pSprite;
     BattleSprite* pSprites;
@@ -913,17 +612,12 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     BattleModelListEntry* pModelList;
     BattleModelListPoint* pPoint;
     BattleSpriteTween* pTween;
-    BattlePartSlot* pPart;
     SVECTOR vec;
-    SVECTOR tweenVec;
     s32 macStart[4];
     s32 macEnd[4];
-    s32 macPoint[4];
     s32 depth;
     s32 sz;
     s32 shade;
-    s32 i;
-    s32 j;
 
     if (pActor->doUpdate == 0) {
         return;
@@ -936,10 +630,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
     count = pSprites->count;
     for (i = 0; i < 2; i++) {
         if (g_BattlePartSlots[i].inUse != 0) {
-            s16 dx = g_BattlePartSlots[i].x - ((u16*)&pSprites->pos[0])[0];
+            s16 dx = g_BattlePartSlots[i].x - ((u16*)&pSprite->pos[0])[0];
             s16 dy = g_BattlePartSlots[i].y -
-                     ((pSprites->pos[1] - pActor->height * (scale * pSprites->scale.vy >> 12)) >> 13);
-            s16 dz = g_BattlePartSlots[i].z - ((u16*)&pSprites->pos[0])[4];
+                     ((pSprite->pos[1] - pActor->height * (scale * pSprite->scale.vy >> 12)) >> 13);
+            s16 dz = g_BattlePartSlots[i].z - ((u16*)&pSprite->pos[0])[4];
             s32 denominator = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
 
             pViewMatrix->m[i + 1][0] =
@@ -954,9 +648,9 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pViewMatrix->m[i + 1][2] = 0;
         }
     }
-    CompMatrix(pLightMatrix, &pSprites->localTransform, pTransMatrix);
+    CompMatrix(pLightMatrix, &pSprite->localTransform, pTransMatrix);
     if ((pActor->flags4A & 1) == 0 && g_BattleExtraMatrixFlag != 0) {
-        CompMatrix(&pSprites->localTransform, &pSprites[1].globalTransform, pMatrix);
+        CompMatrix(&pSprite->localTransform, &pActor->pSprites[1].globalTransform, pMatrix);
         SetRotMatrix(pMatrix);
         SetTransMatrix(pMatrix);
         vec.vx = 0;
@@ -975,11 +669,11 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vx = 0;
         vec.vz = 0;
         RotMatrix(&vec, pRotMatrix);
-        pRotMatrix->m[2][2] = macEnd[0];
-        pRotMatrix->t[0] = pActor->groundY;
-        pRotMatrix->t[1] = macEnd[2];
+        pRotMatrix->t[0] = macEnd[0];
+        pRotMatrix->t[1] = pActor->groundY;
+        pRotMatrix->t[2] = macEnd[2];
         CompMatrix(pLightMatrix, pRotMatrix, pRotMatrix);
-        shade = pActor->scale - (pActor->groundY - pSprites->pos[1]) / 4;
+        shade = pActor->scale - (pActor->groundY - pActor->pSprites->pos[1]) / 4;
         if (shade < 0) {
             shade = 0;
         }
@@ -1029,12 +723,12 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         }
         depth >>= g_GfxOTDepthShift;
         addPrim(&pOt[depth], &((BattleWarpQuad*)pActor->unkB8)[quadIndex]);
-        if (depth > 0x2D8) {
-            depth = 0x2D8;
+        if (depth > BATTLE_ACTOR_DEPTH_MAX) {
+            depth = BATTLE_ACTOR_DEPTH_MAX;
         }
-        pActor->unk39 = 0x6B - depth / 8;
+        pActor->unk39 = BATTLE_ACTOR_SHADE_MAX - depth / 8;
     }
-    MulMatrix0(pViewMatrix, &pSprites->globalTransform, pRotMatrix);
+    MulMatrix0(pViewMatrix, &pSprite->globalTransform, pRotMatrix);
     pSprite++;
     for (i = 1; i < count; i++, pSprite++) {
         if (pSprite->jointIndex != 0xFFFF && pSprite->isVisible != 0) {
@@ -1064,151 +758,156 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
                               pOt, flags);
         }
     }
-    pModelList = (BattleModelListEntry*)pActor->pModelListEntries;
-    for (i = 0; i < pActor->numModelListEntries; pModelList++, i++) {
-        if (pModelList->spriteIndex < 0) {
-            continue;
-        }
-        tweenVec.vx = -D_800D39E8 * rsin(pSprites->rot[1] + 0x400) / 0x1000;
-        tweenVec.vz = rcos(pSprites->rot[1] + 0x400) * D_800D39E8 / 0x1000;
-        tweenVec.vy = pActor->unk3E;
-        CompMatrix(&pSprites->localTransform, &pSprites[pModelList->spriteIndex].globalTransform, pMatrix);
-        SetRotMatrix(pMatrix);
-        SetTransMatrix(pMatrix);
-        for (j = 0; j < pModelList->pointCount; j++) {
-            gte_ldv0(&pModelList->pPoints[j]);
-            gte_mvmva(1, 0, 0, 0, 0);
-            gte_stlvnl(macPoint);
-            ((u16*)((void**)pModelList->pPackets)[j])[2] = ((u16*)macPoint)[0];
-            ((u16*)((void**)pModelList->pPackets)[j])[3] = ((u16*)macPoint)[2];
-            ((u16*)((void**)pModelList->pPackets)[j])[4] = ((u16*)macPoint)[4];
-        }
-        pPoint = pModelList->pRecords;
-        for (j = 0; j < pModelList->recordCount; j++, pPoint++) {
-            CompMatrix(&pSprites->localTransform, &pSprites[pPoint->spriteIndex].globalTransform, pMatrix);
+    {
+        s32 macPoint[4];
+        SVECTOR tweenVec;
+
+        pModelList = (BattleModelListEntry*)pActor->pModelListEntries;
+        for (i = 0; i < pActor->numModelListEntries; pModelList++, i++) {
+            if (pModelList->spriteIndex < 0) {
+                continue;
+            }
+            tweenVec.vx = -D_800D39E8 * rsin(pSprites->rot[1] + 0x400) / 0x1000;
+            tweenVec.vz = D_800D39E8 * rcos(pSprites->rot[1] + 0x400) / 0x1000;
+            tweenVec.vy = pActor->unk3E;
+            CompMatrix(&pSprites->localTransform, &pSprites[pModelList->spriteIndex].globalTransform, pMatrix);
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
-            gte_ldv0((SVECTOR*)&pPoint->vx);
-            gte_mvmva(1, 0, 0, 0, 0);
-            gte_stlvnl(macPoint);
-            pPoint->x = ((u16*)macPoint)[0];
-            pPoint->y = ((u16*)macPoint)[2];
-            pPoint->z = ((u16*)macPoint)[4];
+            for (j = 0; j < pModelList->pointCount; j++) {
+                gte_ldv0(&pModelList->pPoints[j]);
+                gte_mvmva(1, 0, 0, 0, 0);
+                gte_stlvnl(macPoint);
+                ((u16*)((void**)pModelList->pPackets)[j])[2] = ((u16*)macPoint)[0];
+                ((u16*)((void**)pModelList->pPackets)[j])[3] = ((u16*)macPoint)[2];
+                ((u16*)((void**)pModelList->pPackets)[j])[4] = ((u16*)macPoint)[4];
+            }
+            pPoint = pModelList->pRecords;
+            for (j = 0; j < pModelList->recordCount; j++, pPoint++) {
+                CompMatrix(&pSprites->localTransform, &pSprites[pPoint->spriteIndex].globalTransform, pMatrix);
+                SetRotMatrix(pMatrix);
+                SetTransMatrix(pMatrix);
+                gte_ldv0((SVECTOR*)&pPoint->vx);
+                gte_mvmva(1, 0, 0, 0, 0);
+                gte_stlvnl(macPoint);
+                pPoint->x = ((u16*)macPoint)[0];
+                pPoint->y = ((u16*)macPoint)[2];
+                pPoint->z = ((u16*)macPoint)[4];
+            }
+            func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
         }
-        func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
     }
     pTexture = pActor->pTextures;
     for (i = 0; i < pActor->numTextures; i++, pTexture++) {
         func_800A3E98(pTexture, texParam);
     }
     pTween = (BattleSpriteTween*)pActor->pEntries;
-    for (i = 0; i < pActor->numEntries; i++, pTween++) {
-        if (pTween->spriteIndex < 0) {
-            continue;
-        }
-        pTween->slot = (pTween->slot - 1) & 7;
-        if (pTween->project3D == 0) {
-            CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
+    for (i = 0; i < pActor->numEntries; i++) {
+        if (pTween->spriteIndex >= 0) {
+            pTween->slot = (pTween->slot - 1) & 7;
+            if (pTween->project3D == 0) {
+                CompMatrix(pTransMatrix, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
+                SetRotMatrix(pMatrix);
+                SetTransMatrix(pMatrix);
+                gte_ldv0(&pTween->start);
+                gte_rtps();
+                gte_stsxy2(&pTween->projectedStart[pTween->slot]);
+                gte_ldv0(&pTween->end);
+                gte_rtps();
+                gte_stsxy2(&pTween->projectedEnd[pTween->slot]);
+                if (++pTween->step == 0) {
+                    continue;
+                }
+                if (pTween->step > pTween->stepCount) {
+                    goto allocate;
+                }
+                if (pTween->pSlot != NULL) {
+                    goto done;
+                }
+            allocate:
+                pTween->step = 1;
+                pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
+                pTween->pSlot->is3D = 0;
+                pTween->pSlot->age = 0;
+                pTween->pSlot->lifetime = pTween->lifetime;
+                pTween->pSlot->red = pTween->red;
+                pTween->pSlot->green = pTween->green;
+                pTween->pSlot->blue = pTween->blue;
+                pTween->pSlot->redDelta = pTween->redDelta;
+                pTween->pSlot->greenDelta = pTween->greenDelta;
+                pTween->pSlot->blueDelta = pTween->blueDelta;
+                k = pTween->slot;
+                k += pTween->step;
+                k &= 7;
+                pTween->pSlot->x0 = (k + pTween->projectedStart)->vx;
+                pTween->pSlot->y0 = (k + pTween->projectedStart)->vy;
+                pTween->pSlot->x2 = (k + pTween->projectedEnd)->vx;
+                pTween->pSlot->y2 = (k + pTween->projectedEnd)->vy;
+            done:
+                pTween->pSlot->x1 = (pTween->slot + pTween->projectedStart)->vx;
+                pTween->pSlot->y1 = (pTween->slot + pTween->projectedStart)->vy;
+                pTween->pSlot->x3 = (pTween->slot + pTween->projectedEnd)->vx;
+                pTween->pSlot->y3 = (pTween->slot + pTween->projectedEnd)->vy;
+            } else {
+            CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
             SetRotMatrix(pMatrix);
             SetTransMatrix(pMatrix);
-            gte_ldv0(&pTween->start);
-            gte_rtps();
-            gte_stsxy2(&pTween->projectedStart[pTween->slot]);
-            gte_ldv0(&pTween->end);
-            gte_rtps();
-            gte_stsxy2(&pTween->projectedEnd[pTween->slot]);
-            if (++pTween->step == 0) {
-                continue;
-            }
-            if (pTween->step > pTween->stepCount) {
-                goto allocate;
-            }
-            if (pTween->pSlot != NULL) {
-                goto done;
-            }
-        allocate:
-            pTween->step = 1;
-            pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
-            pTween->pSlot->is3D = 0;
-            pTween->pSlot->age = 0;
-            pTween->pSlot->lifetime = pTween->lifetime;
-            pTween->pSlot->red = pTween->red;
-            pTween->pSlot->green = pTween->green;
-            pTween->pSlot->blue = pTween->blue;
-            pTween->pSlot->redDelta = pTween->redDelta;
-            pTween->pSlot->greenDelta = pTween->greenDelta;
-            pTween->pSlot->blueDelta = pTween->blueDelta;
-            j = pTween->step;
-            j = (pTween->slot + j) & 7;
-            pTween->pSlot->x0 = pTween->projectedStart[j].vx;
-            pTween->pSlot->y0 = pTween->projectedStart[j].vy;
-            pTween->pSlot->x2 = pTween->projectedEnd[j].vx;
-            pTween->pSlot->y2 = pTween->projectedEnd[j].vy;
-        done:
-            pTween->pSlot->x1 = pTween->projectedStart[pTween->slot].vx;
-            pTween->pSlot->y1 = pTween->projectedStart[pTween->slot].vy;
-            pTween->pSlot->x3 = pTween->projectedEnd[pTween->slot].vx;
-            pTween->pSlot->y3 = pTween->projectedEnd[pTween->slot].vy;
-            continue;
-        }
-        CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
-        SetRotMatrix(pMatrix);
-        SetTransMatrix(pMatrix);
-        {
-            s32 side = pTween->slot & 1;
-            s32* pStart = (s32*)&pTween->projectedStart[side * 4];
-            s32* pEnd = (s32*)&pTween->projectedEnd[side * 4];
-
-            gte_ldv0(&pTween->start);
-            gte_mvmva(1, 0, 0, 0, 0);
-            gte_stlvnl(pStart);
-            gte_ldv0(&pTween->end);
-            gte_mvmva(1, 0, 0, 0, 0);
-            gte_stlvnl(pEnd);
-            if (++pTween->step == 0) {
-                continue;
-            }
-            if (pTween->step > pTween->stepCount) {
-                goto allocate3D;
-            }
-            if (pTween->pSlot != NULL) {
-                goto done3D;
-            }
-        allocate3D:
-            pTween->step = 1;
-            pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
-            pTween->pSlot->is3D = 1;
-            pTween->pSlot->age = 0;
-            pTween->pSlot->lifetime = pTween->lifetime;
-            pTween->pSlot->red = pTween->red;
-            pTween->pSlot->green = pTween->green;
-            pTween->pSlot->blue = pTween->blue;
-            pTween->pSlot->redDelta = pTween->redDelta;
-            pTween->pSlot->greenDelta = pTween->greenDelta;
-            pTween->pSlot->blueDelta = pTween->blueDelta;
             {
-                s32 other = 1 - side;
-                s32* pFrom = (s32*)&pTween->projectedStart[other * 4];
-                s32* pTo = (s32*)&pTween->projectedEnd[other * 4];
+                s32 side = pTween->slot & 1;
+                s32* pStart = (s32*)&pTween->projectedStart[side * 4];
+                s32* pEnd = (s32*)&pTween->projectedEnd[side * 4];
 
-                pTween->pSlot->x0 = ((u16*)pFrom)[0];
-                pTween->pSlot->y0 = ((u16*)pFrom)[2];
-                pTween->pSlot->z0 = ((u16*)pFrom)[4];
-                pTween->pSlot->x2 = ((u16*)pTo)[0];
-                pTween->pSlot->y2 = ((u16*)pTo)[2];
-                pTween->pSlot->z2 = ((u16*)pTo)[4];
+                gte_ldv0(&pTween->start);
+                gte_mvmva(1, 0, 0, 0, 0);
+                gte_stlvnl(pStart);
+                gte_ldv0(&pTween->end);
+                gte_mvmva(1, 0, 0, 0, 0);
+                gte_stlvnl(pEnd);
+                if (++pTween->step == 0) {
+                    continue;
+                }
+                if (pTween->step > pTween->stepCount) {
+                    goto allocate3D;
+                }
+                if (pTween->pSlot != NULL) {
+                    goto done3D;
+                }
+            allocate3D:
+                pTween->step = 1;
+                pTween->pSlot = (BattleSpriteSlot*)BattleAllocSpriteSlot(pTween->pSpritePool, pTween->semiTrans);
+                pTween->pSlot->is3D = 1;
+                pTween->pSlot->age = 0;
+                pTween->pSlot->lifetime = pTween->lifetime;
+                pTween->pSlot->red = pTween->red;
+                pTween->pSlot->green = pTween->green;
+                pTween->pSlot->blue = pTween->blue;
+                pTween->pSlot->redDelta = pTween->redDelta;
+                pTween->pSlot->greenDelta = pTween->greenDelta;
+                pTween->pSlot->blueDelta = pTween->blueDelta;
+                {
+                    s32 other = 1 - side;
+                    s32* pFrom = (s32*)&pTween->projectedStart[other * 4];
+                    s32* pTo = (s32*)&pTween->projectedEnd[other * 4];
+
+                    pTween->pSlot->x0 = ((u16*)pFrom)[0];
+                    pTween->pSlot->y0 = ((u16*)pFrom)[2];
+                    pTween->pSlot->z0 = ((u16*)pFrom)[4];
+                    pTween->pSlot->x2 = ((u16*)pTo)[0];
+                    pTween->pSlot->y2 = ((u16*)pTo)[2];
+                    pTween->pSlot->z2 = ((u16*)pTo)[4];
+                }
+            done3D:
+                pTween->pSlot->x1 = ((u16*)pStart)[0];
+                pTween->pSlot->y1 = ((u16*)pStart)[2];
+                pTween->pSlot->z1 = ((u16*)pStart)[4];
+                pTween->pSlot->x3 = ((u16*)pEnd)[0];
+                pTween->pSlot->y3 = ((u16*)pEnd)[2];
+                pTween->pSlot->z3 = ((u16*)pEnd)[4];
             }
-        done3D:
-            pTween->pSlot->x1 = ((u16*)pStart)[0];
-            pTween->pSlot->y1 = ((u16*)pStart)[2];
-            pTween->pSlot->z1 = ((u16*)pStart)[4];
-            pTween->pSlot->x3 = ((u16*)pEnd)[0];
-            pTween->pSlot->y3 = ((u16*)pEnd)[2];
-            pTween->pSlot->z3 = ((u16*)pEnd)[4];
+            }
         }
+        pTween++;
     }
 }
-*/
 /* func_800A0838: 1238 insns, 8 calls (BattleFreeBlock x3, SquareRoot0 x2,
    ratan2 x2, ApplyMatrix x1), 127 internal labels and 166 memory writes - a
    state machine over the actor's queued blocks (include/battle/actor.h names
