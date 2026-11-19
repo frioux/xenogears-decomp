@@ -373,6 +373,38 @@ extern void func_8007F8DC(short x, short y, u16 dialogIndex, s32 textBoxIndex, s
 // Opens the text box a script instruction asked for: picks the slot, sizes the
 // window from the dialog string and the instruction's mode, and records the
 // layout in the text box table. Returns 0 when a box was opened, -1 otherwise.
+INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C5A8);
+/* 99.41% (1872 bytes = retail's exact size; ONE instruction differs out of
+   469). The whole body is in address order at retail's size and matches
+   instruction for instruction except one delay slot in the below-actor arm at
+   0x2CEEC (retail fills `bne $s7,$v0` with `ori $s0,zero,0x94`, this build
+   leaves a nop there and materialises the same 0x94 in the delay slot of the
+   following `bnez $s7`, which is dead on both paths, so the bytes differ but
+   the code does not). gcc's reorg only fills that slot when it can prove the
+   target block is the branch's only predecessor; every spelling tried left it
+   empty. Tried and measured on this body: the seed `y = 0x94` before the
+   project call (99.10, the else arm's own 0x94 then gets cse'd away and the
+   slot takes `li $v0,0xA0`), `x = 0xA0` before `y = 0x94` in that arm, and a
+   permuter run (4 min, base 1345 -> best 959 - that is what produced the
+   `i = 8` / `i = 0x10` locals below, which are the source of the left/top
+   clamp shapes and must stay: without them gcc reassociates
+   `(x - 8) - width * 2` into `x - (width * 2 + 8)` and `(y + 8) + height * 14`
+   into `y + (height * 14 + 8)`, five instructions off each, 97.10%).
+   Un-park and re-diff to measure. Two more things this function taught:
+   - `foundIndex` (the address-taken out-param of
+     FieldTextBoxFindCurrentActorTextBox) is NOT textBoxIndex: retail keeps
+     textBoxIndex in a register ($s1) and spills only the found index, which
+     is read once in the "already open" path. With one variable for both the
+     whole allocation collapses (textBoxIndex spills, 8 saved regs, 0x68
+     frame).
+   - the "already open" tail must be a `goto` to a label at the END of the
+     function: coded inline it lands at 0x160 instead of retail's 0x6E4 and
+     every branch target in the function is off by 0x38.
+   - `x` is the projection out-param (memory, 0x34) and `screenY` is a second
+     out-param (0x38) that only exists to be copied into `y`, which is a
+     register variable; the window's left edge is a third register variable
+     (`left`) computed from `x`. Writing the clamps back into `x` stores to
+     memory and costs 9 instructions.
 s32 func_8009C5A8(s32 actorIndex, s32 mode) {
     s32 foundIndex;
     s32 textBoxIndex;
@@ -523,17 +555,20 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
     }
 
     // Keep the window inside the visible area.
-    left = x - 8 - width * 2;
+    i = 8;
+    left = x - i - width * 2;
     if (left < 0xC) {
         left = 0xC;
     }
-    if (left + 0x10 + width * 4 >= 0x135) {
+    i = 0x10;
+    if (left + i + width * 4 >= 0x135) {
         left = 0x124 - width * 4;
     }
     if (y < 0x10) {
         y = 0x10;
     }
-    if (y + 8 + height * 14 >= 0xD5) {
+    i = 8;
+    if (y + i + height * 14 >= 0xD5) {
         y = 0xCC - height * 14;
     }
 
@@ -581,6 +616,7 @@ textBoxOpen:
     g_FieldTextBoxes[foundIndex].status = 0;
     return -1;
 }
+*/
 
 extern u16 g_FieldTextBoxInUseMask[];
 
