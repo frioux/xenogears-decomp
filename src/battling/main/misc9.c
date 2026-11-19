@@ -527,27 +527,17 @@ void func_80082C4C(u8* pArg) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082E60);
-
-/* best 93.20%, 0x368 bytes = the original's exact size, instruction multiset
-   identical: only the ORDER of the pre-loop's four pointer/argument setup
-   instructions differs (retail emits `move a0,s3; addiu s3,s3,16` right after
-   the first rcos returns and the `lw` of the view origin before the `sra`;
-   ours emits the `sra` first and the argument setup after it). The loop body
-   is byte-identical. A 5-minute permuter run (2223 edits) found nothing, so
-   the remaining diff is the scheduler, not the C.
-   What this body cost to recover, all load-bearing:
+/* What this body cost to recover, all load-bearing:
    - `cam.vx -= 0x3F80; cam.vz -= 0x3F80;` are separate statements: retail
      stores the adjusted values back into the local VECTOR and calls
      ratan2(cam.vx, cam.vz).
-   - the view-origin subtraction has to be an embedded assignment
+   - every view-origin subtraction is an embedded assignment
      (`x -= (originX = g_BattleViewOrigin.vx - 0x3F80)`); the plain
      `X - (O - 0x3F80)` makes fold reassociate to `(X + 0x3F80) - O`.
    - the X origin is g_BattleViewOrigin (whose address retail hoists into a
      saved register) but the loop's Z origin is that same VECTOR's .vz, while
-     the first column's Z origin is the separate symbol g_BattleViewOriginZ.
-   - g_BattleViewOriginZ is at g_BattleViewOrigin + 8 (they are the vz of one
-     VECTOR), which is why retail can use `lw 8(s7)` in the loop.
+     the first column's Z origin is the separate symbol g_BattleViewOriginZ,
+     which is at g_BattleViewOrigin + 8 (hence retail's `lw 8(s7)`).
    - `ang = ratan2(...) & 0xFFF0; ang -= 0x100;` as two statements: the
      one-expression form keeps the masked value alive and folds the later
      `ang += 0x10` into `addiu s3,s0,-240`.
@@ -558,6 +548,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082E60);
      first inside the `if` so the `sra` lands in its delay slot.
    - gte_dpcs() had to be fixed to emit the canonical COP2 word: see the note
      in include/psyq/inline_c.h.
+*/
 void func_80082E60(u_long* pOt, VECTOR* pCam) {
     VECTOR cam;
     SVECTOR vec[6];
@@ -571,6 +562,8 @@ void func_80082E60(u_long* pOt, VECTOR* pCam) {
     s32 originZ;
     s32 otIndex;
     s32 x;
+    s32 preOriginX; // dead: see the note above vec[0].vx
+    s32 preOriginZ;
     s32 z;
 
     cam = *pCam;
@@ -582,25 +575,22 @@ void func_80082E60(u_long* pOt, VECTOR* pCam) {
     vec[0].vy = vec[1].vy = 0;
     vec[2].vy = vec[3].vy = -0x290;
     vec[4].vy = vec[5].vy = -0x520;
-    x = ((rcos(ang) * 0x3F80) >> 12);
-    x -= (originX = g_BattleViewOrigin.vx - 0x3F80);
-    vec[0].vx = x;
-    z = ((rsin(ang) * 0x3F80) >> 12);
-    z -= (originZ = g_BattleViewOriginZ.vx - 0x3F80);
-    vec[0].vz = z;
+    // The first spoke keeps its own origin copies: with the subtraction inlined
+    // gcc 2.7.2 folds it to `x + 0x3F80` and emits the addiu on the wrong
+    // operand; sharing originX/originZ with the loop hoists both loads.
+    vec[0].vx = ((rcos(ang) * 0x3F80) >> 12) - (preOriginX = g_BattleViewOrigin.vx - 0x3F80);
+    vec[0].vz = ((rsin(ang) * 0x3F80) >> 12) - (preOriginZ = g_BattleViewOriginZ.vx - 0x3F80);
     ang += 0x10;
     for (i = 0; i < 0x20; i++) {
         vec[2].vx = vec[0].vx;
         vec[4].vx = vec[0].vx;
         vec[2].vz = vec[0].vz;
         vec[4].vz = vec[0].vz;
-        x = ((rcos(ang) * 0x3F80) >> 12);
-        x -= (originX = g_BattleViewOrigin.vx - 0x3F80);
+        x = ((rcos(ang) * 0x3F80) >> 12) - (originX = g_BattleViewOrigin.vx - 0x3F80);
         vec[1].vx = x;
         vec[3].vx = x;
         vec[5].vx = x;
-        z = ((rsin(ang) * 0x3F80) >> 12);
-        z -= (originZ = g_BattleViewOrigin.vz - 0x3F80);
+        z = ((rsin(ang) * 0x3F80) >> 12) - (originZ = g_BattleViewOrigin.vz - 0x3F80);
         vec[1].vz = z;
         vec[3].vz = z;
         vec[5].vz = z;
@@ -642,7 +632,7 @@ void func_80082E60(u_long* pOt, VECTOR* pCam) {
         vec[0].vz = vec[1].vz;
     }
 }
-*/
+
 
 void BattleRandomizeCameraPosition(void) {
     s32 ang;
