@@ -794,7 +794,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80073A58);
    with s0 saved) while gcc re-forms lui/lw per use and needs no saved register
    (0x10 frame). Tried: `u8 **pOt = &g_BattleCurOT` then `*pOt` (constant-propagated
    away) and the bare `g_BattleCurOT + 4` form (identical 91.30%). Same open problem as
-   misc2's func_800743A4 and func_800744BC - no shape found in the repo makes gcc
+   misc2's BattleAddFourSlotPrims and BattleAddPrimPair320 - no shape found in the repo makes gcc
    materialise the address of a global once across calls.
 void func_80073A58(void) {
     if (((u8 *)g_BattleGraphicsWork)[0x6415] != 0) {

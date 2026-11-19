@@ -257,7 +257,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_800904A0);
    g_BattleCommandGridIds[idx] * 0x10), the 0x4000/0x1000 row pick (9/7/8), the 3-case
    switch on flags & 0xF giving col (0xC/0xD/0x15, no default case), the two
    BattleSetPolyFT4RectH13 blocks (record offsets 0x320 and 0x370, u = D_800D2F6A[ofs],
-   v = D_800D2F6B[ofs], dx = D_800D2F68[ofs], ofs = row * 4 then
+   v = D_800D2F6B[ofs], dx = g_BattleActionRowIconSprites[ofs], ofs = row * 4 then
    (col & 0xFF) * 4) and the two palette stores at +0x32E/+0x37E selected by
    D_800D2F69[ofs]. g_BattlePrimStartIndex must be reached through a `s32 *pMode =
    &g_BattlePrimStartIndex` local -- that is what produces the retail `lui/addiu` + `lw`
@@ -306,7 +306,7 @@ void func_800904A0(u8 arg0, u8 arg1) {
     ofs = row * 4;
     pBase = *(u8 **)(g_BattleGraphicsWork + 0xA230);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x320)), 0xA8, 0x33,
-        D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+        D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
     pBase = *(u8 **)(g_BattleGraphicsWork + 0xA230);
     pRec = pBase + *pMode * 0x28;
     if (D_800D2F69[ofs] != 0) {
@@ -318,7 +318,7 @@ void func_800904A0(u8 arg0, u8 arg1) {
     ofs = (col & 0xFF) * 4;
     pBase = *(u8 **)(g_BattleGraphicsWork + 0xA230);
     BattleSetPolyFT4RectH13((POLY_FT4 *)(pBase + (*pMode * 0x28 + 0x370)), 0xD0, 0x33,
-        D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+        D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
     pBase = *(u8 **)(g_BattleGraphicsWork + 0xA230);
     pRec = pBase + *pMode * 0x28;
     if (D_800D2F69[ofs] != 0) {

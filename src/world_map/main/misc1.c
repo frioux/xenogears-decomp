@@ -648,7 +648,7 @@ extern void WorldMapComputeClipPlaneVectors(void);
 extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void SoundStopAllAudioManagers(void);
 extern void SoundDestroyAudioManager(void* pManager);
-extern void func_80073448(s32 areaIndex);
+extern void WorldMapSetPlayerPositionFromPoint(s32 areaIndex);
 extern void WorldMapLoadState(void);
 extern void WorldMapSyncGearRideActors(void);
 extern void WorldMapLoadTextureClut(void);
@@ -765,7 +765,7 @@ void func_80072238(void) {
     if (g_GameState.worldMapMenuActive != 0) {
         WorldMapSetPositionFromState();
     } else if (g_WorldMapInitModeIndex == 0) {
-        func_80073448(g_WorldMapAreaIndex);
+        WorldMapSetPlayerPositionFromPoint(g_WorldMapAreaIndex);
     } else {
         WorldMapLoadState();
         WorldMapSyncGearRideActors();
@@ -931,7 +931,7 @@ typedef struct {
 } WorldMapSlotActor; // Size: 0x80
 
 extern WorldMapSlotActor* g_WorldMapSlots;
-void func_8007299C(void) {
+void WorldMapFreeAreaResources(void) {
     s32 i;
 
     if (g_WorldMapAreaMode == 0) {
@@ -1127,7 +1127,7 @@ void WorldMapSetPositionFromState(void) {
     }
 }
 
-void func_80073448(s32 arg0) {
+void WorldMapSetPlayerPositionFromPoint(s32 arg0) {
     WorldMapPoint* p;
     s32 nPos;
 

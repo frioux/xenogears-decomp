@@ -28,7 +28,7 @@ void MenuFreeWindow(u8);
 void MenuRenderFrame(void);
 void MenuClearBytes(u8, u8*);
 void MenuLoadSubMenuChoiceStrings(u8);
-void func_801D3488(u8, u8);
+void MenuCreateShoulderButtonUi(u8, u8);
 void func_801E05D0(u8, u8, u8);
 void MenuShutdown(void);
 void MenuFreeUnk430Panel(u8);
@@ -72,7 +72,7 @@ void MenuInitializeUnk438Panel(void) {
     MenuManager* pManager;
     int i;
     /* One variable for both the count and the inner POLY_G4 index below: it has
-       to stay live across func_801D3488 so that it lands in a call-saved
+       to stay live across MenuCreateShoulderButtonUi so that it lands in a call-saved
        register, which is where retail keeps it. */
     int count;
 
@@ -93,7 +93,7 @@ void MenuInitializeUnk438Panel(void) {
         }
     }
     if (count >= 2) {
-        func_801D3488(3, 0);
+        MenuCreateShoulderButtonUi(3, 0);
     } else {
         g_Menu->pManager->shoulderButtonUiActive = 0;
     }
@@ -254,7 +254,7 @@ u8 MenuInitializeGearScreenBuffers(void) {
         }
         i++;
     }
-    func_801D3488(0, 1);
+    MenuCreateShoulderButtonUi(0, 1);
     return i;
 }
 void MenuLoadUnk18E0Strings(u8 arg0) {
@@ -394,7 +394,7 @@ u8 func_801E23CC(void) {
             MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
             g_Menu->pManager->shouldRenderPointerCursor = 1;
             g_Menu->subMenuPrevChoice = 0xFF;
-            func_801D3488(0, 1);
+            MenuCreateShoulderButtonUi(0, 1);
             break;
         case 5:
             active = 0;
@@ -436,7 +436,7 @@ void MenuInitializeCharacterScreenBuffers(void) {
     g_Menu->pEquipmentPanel = HeapAlloc(0x2AC, 0);
     bzero(g_Menu->pEquipmentPanel, 0x2AC);
     func_801C72BC(3);
-    func_801D3488(0, 0);
+    MenuCreateShoulderButtonUi(0, 0);
 }
 void MenuFreeCharacterScreenBuffers(void) {
     HeapFree(g_Menu->pGearWindowPrims);
@@ -521,7 +521,7 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
             MenuMovePointerCursor(g_Menu->subMenuChoice + 7, 1);
             g_Menu->pManager->shouldRenderPointerCursor = 1;
             g_Menu->subMenuPrevChoice = 0xFF;
-            func_801D3488(0, 0);
+            MenuCreateShoulderButtonUi(0, 0);
             break;
         case 5:
             active = 0;

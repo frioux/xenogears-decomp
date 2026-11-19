@@ -208,7 +208,7 @@ void func_80091EC4(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
-void func_8009209C(void) {
+void BattleDrawSlotStatusPanel(void) {
     u32 zero;
     u8 **ppPrims;
     u8 *pPal;
@@ -238,7 +238,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
    dy 0x10), the flags word g_BattleActionRows[arg0 * 0x690 + (arg1 + 0x25) * 0x28],
    the 0x4000/0x1000 row pick (9/8/7), the 3-case switch on flags & 0xF
    (0xC/0xD/0x15), the two BattleSetPolyFT4RectH13 blocks at 0x320 and 0x370 with
-   u/v/h from D_800D2F6A/D_800D2F6B/D_800D2F68[ofs] and the two palette stores at
+   u/v/h from D_800D2F6A/D_800D2F6B/g_BattleActionRowIconSprites[ofs] and the two palette stores at
    +0x32E/+0x37E selected by D_800D2F69[ofs]. Same family as misc16_r2's
    func_800904A0 (73.99 there, parked), which is where the structure came from.
    Leftovers, 720 bytes against retail's 692: (1) gcc folds 0x25 * 0x28 into the
@@ -246,7 +246,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
    (2) retail keeps arg0 in s1 and arg1 in s0, here the reverse; (3) the switch's
    compare tree is ==1 / <2 / ==2 in retail and a longer chain here.
    Not chased further: an 8-attempt body of this size is a permuter job.
-   Un-parking needs no new externs (g_BattleActionRows, D_800D2F68..6B,
+   Un-parking needs no new externs (g_BattleActionRows, g_BattleActionRowIconSprites..6B,
    g_SystemPalette2 are already declared at the top of this file). */
 /*
 void func_80093578(u8 arg0, u8 arg1) {
@@ -282,7 +282,7 @@ void func_80093578(u8 arg0, u8 arg1) {
     ofs = row * 4;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                          (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
-                            0x24, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+                            0x24, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
     ofs = col * 4;
     pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
     if (D_800D2F69[ofs] != 0) {
@@ -293,7 +293,7 @@ void func_80093578(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x32E) = pal;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
                                          (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
-                            0x48, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], D_800D2F68[ofs]);
+                            0x48, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
     pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
     if (D_800D2F69[ofs] != 0) {
         pal = g_SystemPalette2;

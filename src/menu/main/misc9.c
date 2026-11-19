@@ -63,7 +63,7 @@ void MenuClearBytes(s32 arg0, void* pArg1);
 void MenuLoadStringsFromIds(s32 arg0, void* pArg1, void* pArg2, void* pArg3);
 void MenuSetupPointerCursors(s32 arg0);
 void MenuInitializeArrowCursor(s32 arg0);
-void func_801D3488(s32 arg0, s32 arg1);
+void MenuCreateShoulderButtonUi(s32 arg0, s32 arg1);
 void func_801E3ECC(MenuDressingRoom* pDressingRoom, s32 gearId);
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
 void MenuSetRowQuadVertices(s32 arg0, void* pArg1, void* pArg2, void* pArg3, void* pArg4, u8 arg5, u8 arg6, u8 arg7);
@@ -489,7 +489,7 @@ void MenuCreateUnk430Panel(u_char arg0) {
     MenuLoadStringsFromIds(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuItemRowStringIds[index], g_Menu->pManager->shouldRenderStrings10E0);
     func_801C72BC((u8)kind);
     MenuSetupPointerCursors(2);
-    func_801D3488(2, arg0);
+    MenuCreateShoulderButtonUi(2, arg0);
 }
 
 void MenuFreeUnk430Panel(u_char arg0) {
@@ -728,7 +728,7 @@ void MenuInitializeCharacterSpriteRecords(u32 arg0) {
     func_801C72BC(7);
     MenuSetupPointerCursors(3);
     MenuInitializeArrowCursor(0);
-    func_801D3488(1, arg0 & 0xFF);
+    MenuCreateShoulderButtonUi(1, arg0 & 0xFF);
 }
 
 void MenuFreeCharacterSpriteRecords(void) {

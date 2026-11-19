@@ -29,11 +29,11 @@ void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void MenuRevealSelectionMenu(s32 a0, u32* a1);
 
 extern u32 g_MenuMainSelectionResourceIds[];
-extern u32 D_801EA164[];
+extern u32 g_MenuShoulderButtonArrowX[];
 extern s16 D_801E9A1C[][2];
 extern s16 D_801E9A48[][2];
 extern s16 D_801E9E94[][2];
-extern u32 D_801EA16C[];
+extern u32 g_MenuShoulderButtonArrowY[];
 extern u32 D_801E9A58[];
 extern u32 D_801E9A68[];
 extern u32 g_MenuCursorXPositions[9]; // Cursor x positions
@@ -343,7 +343,7 @@ void MenuFreeScrollHandle(void) {
     g_Menu->pManager->scrollHandleActive = 0;
     HeapFree(g_Menu->pScrollHandle);
 }
-void func_801D3488(u_char a0, u_char a1) {
+void MenuCreateShoulderButtonUi(u_char a0, u_char a1) {
     s32 i;
 
     if ((a1 == 0 ? g_Menu->availableCharacterCount : g_Menu->gearCharacterCount) == 1) {
@@ -357,7 +357,7 @@ void func_801D3488(u_char a0, u_char a1) {
     }
 
     for (i = 0; i < 2; i++) {
-        func_8002675C(g_Menu->resources, 0x164 + i, &g_Menu->pShoulderButtonUi->polys[i * 4], g_Menu->renderContext, D_801EA164[i], D_801EA16C[a0], 0x1000);
+        func_8002675C(g_Menu->resources, 0x164 + i, &g_Menu->pShoulderButtonUi->polys[i * 4], g_Menu->renderContext, g_MenuShoulderButtonArrowX[i], g_MenuShoulderButtonArrowY[a0], 0x1000);
     }
 
     for (i = 0; i < 4; i++) {

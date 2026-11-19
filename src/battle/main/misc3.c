@@ -57,14 +57,14 @@ extern void bzero(void *p, s32 n);
 extern void BattleInitSlotGraphics(s32 arg0, u16 arg1, u16 arg2, u16 arg3, u16 arg4, u8 arg5, u8 arg6);
 extern void *BattleAllocTextBuffer(s32 arg0);
 extern u8 D_800D36C0[];
-extern u8 D_800D36C8[];
+extern u8 g_BattlePrimBuffer[];
 extern BattleSlotGraphics *g_BattleSlotGraphics[];
 extern u8 g_SystemBackdropColor[];
 extern u8 D_800D2F3C[];
 extern u8 D_800D2F3D[];
 extern u8 D_800D2F3E[];
 extern u8 D_800D2F3F[];
-extern u8 D_800D2F68[];
+extern u8 g_BattleActionRowIconSprites[];
 extern u8 D_800D2F69[];
 extern u8 *D_800C3E5C[];
 
@@ -237,8 +237,8 @@ void func_80076EA4(void) {
         bzero(pBuf[i], 0x30C);
         D_800D2F3C[off] = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0xA), pBuf[i], 0x1B, 0);
         result = SystemRenderStringEntry(GetStringEntryFromBank12(i + 0x15), pBuf[i], 0x1B, 1);
-        D_800D2F68[off] = result;
-        pEntry = (u8 *)(D_800D2F68 + off);
+        g_BattleActionRowIconSprites[off] = result;
+        pEntry = (u8 *)(g_BattleActionRowIconSprites + off);
         D_800D2F3E[off] = pEntry[2] = 0x78;
         D_800D2F3F[off] = pEntry[3] = h;
         D_800D2F3D[off] = 0;
