@@ -43,6 +43,12 @@
 #define WORLD_MAP_SCREEN_VRAM_X 0x2C0
 #define WORLD_MAP_SCREEN_VRAM_Y 0x100
 
+// the VRAM page and palette row WorldMapBuildPolyFT4Templates points the prims
+// it builds at
+#define WORLD_MAP_TILE_TPAGE_X 0x300
+#define WORLD_MAP_TILE_TPAGE_Y 0x100
+#define WORLD_MAP_TILE_CLUT_Y 0x1FF
+
 // the archive directory this overlay's files are read through
 #define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
 
@@ -833,8 +839,8 @@ void WorldMapBuildPolyFT4Templates(WorldMapGroup *pGroup, u8 *pPrim, int count, 
 
     for (i = 0, pPoly = (POLY_FT4 *)pPrim; i < count; i++, pPoly++) {
         setPolyFT4(pPoly);
-        pPoly->tpage = GetTPage(0, abr, 0x300, 0x100);
-        pPoly->clut = GetClut(0, 0x1FF);
+        pPoly->tpage = GetTPage(0, abr, WORLD_MAP_TILE_TPAGE_X, WORLD_MAP_TILE_TPAGE_Y);
+        pPoly->clut = GetClut(0, WORLD_MAP_TILE_CLUT_Y);
         setSemiTrans(pPoly, 1);
         setRGB0(pPoly, 0x3C, 0x3C, 0xC0);
     }
