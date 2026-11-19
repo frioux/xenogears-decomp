@@ -101,7 +101,7 @@ extern void func_8002DDE4(void *pImg, s32 arg1, s32 arg2, s32 arg3);
 extern s32 WorkListsAddTasks(s32 arg0, s32 arg1, void *pFn1, void *pFn2, void *pFn3);
 extern void func_800B7424(s32 arg0);
 extern void BattleCreateWorkTask(void);
-extern void func_800B6F0C(BattleEffectTask *pTask);
+extern void BattleUpdateEffectTable(BattleEffectTask *pTask);
 extern void BattleStoreGfxOrderingTable(BattleEffectTask *pTask);
 extern void BattleDestroyWorkTask(u8 *p);
 extern s16 SpriteComputeAngleFromPoints(DVECTOR from, DVECTOR to);
@@ -350,7 +350,7 @@ void BattleActorRotateVectorZ(BattleSpriteState *pSprite, s8 *p) {
 // pRows is re-derived inside the middle loop because retail re-reads the spilled
 // table pointer once per row set; hoisting it to the outer loop keeps the table
 // in a register and loses retail's extra frame slot, reload and biv chain.
-void func_800B6F0C(BattleEffectTask *pTask) {
+void BattleUpdateEffectTable(BattleEffectTask *pTask) {
     BattleEffectTable *pTable;
     BattleEffect (*pRows)[14][20];
     BattleEffect *pEntry;
@@ -480,5 +480,5 @@ void BattleDestroyWorkTask(u8 *p) {
     GfxQueueSpriteTileData(p);
 }
 void BattleCreateWorkTask(void) {
-    func_800B7424(WorkListsAddTasks(0x10F7C, 0, func_800B6F0C, BattleStoreGfxOrderingTable, BattleDestroyWorkTask));
+    func_800B7424(WorkListsAddTasks(0x10F7C, 0, BattleUpdateEffectTable, BattleStoreGfxOrderingTable, BattleDestroyWorkTask));
 }
