@@ -24,6 +24,16 @@ import sys
 DEF = r"^[A-Za-z_][\w \t*]*?\b%s\s*\([^;]*\)\s*\{\n(?:.*?\n)*?\}[ \t]*(?=\n|$)"
 BLOCK = re.compile(r"^/\*((?:[^*]|\*(?!/))*?)\*/\n", re.M)
 FILLER = re.compile(r"^(?:[ \t]*(?://.*)?\n)*$")
+# A park's prose note is often its own /* ... */ block between the stub and the
+# body block ("PARKED 99.75%" above the /* body */), so a comment block counts as
+# filler. Without this, parked_funcs missed those parks entirely and the census
+# counted them as unwritten bodies (round 306: seven of nine lanes hit parks).
+NOTE_BLOCK = re.compile(r"/\*((?:[^*]|\*(?!/))*?)\*/", re.S)
+
+
+def filler_only(segment):
+    """True when the segment holds only blanks, // lines and /* */ notes."""
+    return FILLER.match(NOTE_BLOCK.sub("", segment)) is not None
 
 
 def unpark(text, name, asm_line):
@@ -36,9 +46,9 @@ def unpark(text, name, asm_line):
         body = re.search(DEF % name, m.group(1), re.M)
         if not body:
             continue
-        if m.end() <= inc and FILLER.match(text[m.end():inc]):
+        if m.end() <= inc and filler_only(text[m.end():inc]):
             return text[:m.start()] + body.group(0) + text[inc + len(asm_line) + 1:]
-        if m.start() >= inc + len(asm_line) and FILLER.match(text[inc + len(asm_line):m.start()]):
+        if m.start() >= inc + len(asm_line) and filler_only(text[inc + len(asm_line):m.start()]):
             return text[:inc] + body.group(0) + text[m.end():]
     return None
 

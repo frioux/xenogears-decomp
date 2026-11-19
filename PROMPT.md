@@ -80,7 +80,9 @@ a unit that has already had a lane (round 297: 0 matches from five such units), 
 report's own recommendation to keep looking for fresh small bodies (the non-psyq reservoir is
 now 1-3 stubs per untouched unit).
 
-Three things that still pay, in order:
+**Measured at round 306 (2026-11-19): nine lanes, 2 matches, and the census was the
+fault - see the freshness paragraph in "Choosing what to brief".** Three things that
+still pay, in order:
 1. **A unit where a TYPED spelling exists that the parks do not use.** Round 305's
    `battle/misc7` matched SEVEN of ten stubs in one lane by writing
    `g_BattleSlotRegs[index].wordRegs[...]` instead of `(u16 *)(g_BattleSlotWordRegs + index * 0x40)`.
@@ -769,6 +771,15 @@ by stub count, 10 to 16 with the method below).
    (`tools/scripts/fresh_stubs.py`; it applies the atfree/jtbl filters below too, and
    since 2026-11-14 keeps jump-table stubs of units that own their tables and atfree
    stubs of cdk -G0 units: 455 fresh stubs in 111 units).
+   **Measure freshness with `park_sweep.parked_funcs`, never with a hand-written
+   percentage regex.** Round 306 sized a nine-lane round from a regex census and seven
+   of the nine lanes opened on bodies that were already parked (2 matches). The cause was
+   `tools/scripts/park.py`'s filler rule: a park stored as `INCLUDE_ASM(...);` then its
+   own `/* PARKED 93.37% ... */` note block then `/* body */` was invisible, because only
+   blank and `//` lines counted as filler. `filler_only` now treats a `/* */` note as
+   filler as well, and `parked_funcs` also requires the block to hold a real definition
+   (which drops the notes that merely name the function): after the fix the tree holds
+   **211 fresh stubs in 84 units**, and `park.py unpark` works on those bodies too.
    Round 45 with this test: 14 workers, 3 committed matches before the kill.
    **A parked body, however, is written directly BELOW its stub, not above it**, so the
    above-window test alone missed every park whose note is the stub's own: on 2026-11-14
