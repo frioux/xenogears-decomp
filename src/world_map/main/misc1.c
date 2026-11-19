@@ -447,6 +447,14 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
    ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
    `pQueue[nCount++].pData`, terminator stores through the absolute symbols
    g_WorldMapStreamQueue/D_8009D3FC (grows the frame to 0x38).
+   Round 289: the two-cursor shape is NOT gcc splitting the givs of one entry
+   pointer. Writing loop 2 as `pEntry->archiveIndex` / `pEntry->pData` with
+   `pEntry++` (the pointer form the induction-base rule recommends) measures
+   84.53%, 512 bytes: the compile still keeps ONE base register with a
+   `sw v0,4(a0)` displacement, and the loop then also carries an `andi 0xff`
+   retail does not have. Retail's `la a1,D_8009D3FC` + `addiu a2,a1,-4` says the
+   source named D_8009D3FC itself, so the two cursors are two source pointers
+   (one per field), not one pointer plus displacements.
 */
 /*
 extern void* g_WorldMapPartyActorAnimFile0[3];
