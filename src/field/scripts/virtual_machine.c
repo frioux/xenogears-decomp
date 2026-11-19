@@ -257,6 +257,9 @@ void FieldScriptVMRun(int maxInstructionCount) {
 
 }
 
+// Round 306: permute.sh cannot run on this unit - its C parser rejects the preprocessed body
+// ('conversion to non-scalar type requested' while randomizing), so the 90.55% tie below has
+// had no permuter pass.
 // Best attempt: 90.49% (636 bytes, same size as the original: only register assignment differs).
 // - nMinPriority = 0xF must be assigned BEFORE the D_800B21CC check; the original keeps the
 //   `li a2,0xF` in the delay slot of that beqz.
@@ -447,6 +450,17 @@ void FieldScriptRunFirstActorRoutine3(void) {
 // - same result, and it drops the +0x80 reload shape.  (3) is 0x30 bytes of UNUSED locals in
 // retail (its saved regs sit at 0x30-0x3C), so a dummy 0x30-byte local would fix the frame
 // if the rest ever closes.
+// Round 306: the model-animation loop can be made instruction-identical except its preheader.
+// Best now 75.68% (568 bytes vs 592):
+//     pAnimTable = (s16*)((u8*)&g_FieldActorModelSlotCount - 0x80);
+//     for (i = 0; i < ((s32*)((u8*)pAnimTable + 0x80))[0]; i++)
+//         LibGearSetModelAnimation(i, 0, pAnimTable[i]);
+// reproduces the loop body exactly (lh 0(s0) walk, 'lw v0,0x80(s2)' count reload, the andi 0xFFFF
+// in both branch delay slots). Retail's preheader materialises &g_FieldActorModelSlotCount into a
+// call-clobbered register ('lui v1,%hi / addiu v1,v1,%lo / lw v0,0(v1)') and then derives the table
+// base from it ('addiu s2,v1,-0x80'); the nearest spelling above emits 'lw %lo' + its own
+// 'la count-0x80'. 'extern s32 g_FieldActorModelSlotCount[]' + pCount = <array> produces retail's
+// la/lw preheader but hands the callee-saved register to &count instead of the table base.
 /*
 extern s32 g_FieldActorModelSlotCount;
 extern s32 g_FieldActiveActorCount;
@@ -868,6 +882,11 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3474);
 //     tests flags12C with `andi $v0,$v0,0x1000`; gcc keeps pActorData in $a0 across the jal and
 //     reports the flags12C read as a plain word test here (it needs the u_int cast to avoid a
 //     srl/andi pair, that part is now right).
+// Round 306: the body below copies from 'pSrc' = &g_WorldMapSaveBlock, but retail copies from
+// &g_WorldMapSaveBlock + 0x3C ('addiu v0,a1,0x3C / move a2,v0' then the lwl/lwr loop, and its loop
+// end pointer is save+0xAC). Also measured: the two-statement 'pDst = (u8*)&g_FieldNumActors;
+// pDst -= 0xB8;' form still folds the -0xB8 into the la addend ('addiu a3,a3,-184' with the %lo
+// relocation) and scores 84.25%, so the materialise-then-adjust shape needs another lever.
 /*
 extern u8 g_WorldMapSaveBlock;
 extern u8* D_800AFC50;
