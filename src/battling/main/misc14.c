@@ -437,93 +437,140 @@ void BattleResetPartAnim(Misc14Anim *pAnim) {
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B13C);
 
+// The 0x10-byte part descriptor table Misc14Reloc::pPartList points at: which
+// node the part is appended to, which model part record it uses, and the angles
+// it is placed with. -1 in either index means "the root node" and "no model
+// part".
+typedef struct {
+    /* 0x0 */ s16 parent;
+    /* 0x2 */ s16 modelIndex;
+    /* 0x4 */ u16 rotation[3];
+    /* 0xA */ u16 position[3];
+} Misc14PartDesc; // Size: 0x10
+
+// Misc14Reloc::pPartList: a count word and that many part descriptors.
+typedef struct {
+    /* 0x0 */ u32 count;
+    /* 0x4 */ Misc14PartDesc descs[1];
+} Misc14PartSet; // Size: 0x14
+
+// Misc14Reloc::pPointerList: a count word and that many script pointers, each
+// of which func_8008B13C decodes into one animation entry of the list.
+typedef struct {
+    /* 0x0 */ u32 count;
+    /* 0x4 */ void *pScripts[1];
+} Misc14ScriptTable; // Size: 0x8
+
+// The entry list a model node owns: the node table built from the part
+// descriptors, the animation entries built from the script table, and the
+// descriptor table itself.
+typedef struct {
+    /* 0x00 */ u16 nodeCount;
+    /* 0x02 */ s16 animCount;
+    /* 0x04 */ Misc14ModelNode **pNodes;
+    /* 0x08 */ Misc14Anim *pEntries;
+    /* 0x0C */ s32 unk0C;
+    /* 0x10 */ s16 scaleX;
+    /* 0x12 */ s16 scaleY;
+    /* 0x14 */ s16 scaleZ;
+    /* 0x16 */ u16 pad16;
+    /* 0x18 */ Misc14PartDesc *pPartDescs;
+} Misc14EntryList; // Size: 0x1C
+
 extern u32 ModelResolvePointers(void *pModel);
-extern void *BattleCreateObject(void);
-extern void BattleAppendListEntry(void *pList, void *pNode);
-extern void BattleSetNodeModelPart(void *pNode, void *pData);
-extern void BattleSetNodeEntryList(void *pNode, void *pData);
-extern void *BattleCreateEntryList(void);
-extern void *BattleCreateModelPart(void);
-extern void BattleAttachModelPart(void *pPart, void *pModelPart);
-extern void func_8008B13C(void *pA, void *pB, void *pC);
+extern Misc14ModelNode *BattleCreateObject(void);
+extern void BattleAppendListEntry(Misc14ModelNode *pList, Misc14ModelNode *pNode);
+extern void BattleSetNodeModelPart(Misc14ModelNode *pNode, Misc14ModelPart *pData);
+extern void BattleSetNodeEntryList(Misc14ModelNode *pNode, Misc14EntryList *pData);
+extern Misc14EntryList *BattleCreateEntryList(void);
+extern Misc14ModelPart *BattleCreateModelPart(void);
+extern void BattleAttachModelPart(Misc14ModelPart *pPart, ModelPart *pModelPart);
+extern void func_8008B13C(void *pScript, Misc14Anim *pEntry, Misc14ModelNode *pNode);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B38C);
 
-/* Best attempt: objdiff 77.11%, 608 bytes against 592. Structure, call order,
-   both loops and every offset match; three stack homes instead of retail's two
-   (mine: pData 0x10, count 0x18, pNode 0x20; retail: pNode 0x10, pOther 0x18),
-   so the frame is 0x60 against 0x58 and every s-register is one higher. Retail
-   spills pOther (loaded once, read twice at the end) and keeps pData, count,
-   pBuf, pScale, pCur, pPart, pSlot and i in registers.
-   Two things did help and should be kept: reading *(s16 *)(pCur + 2) inline
-   twice instead of through an `idx` local (71.54 -> 77.11: retail reloads the
-   field after the BattleSetNodeModelPart call), and *(s16 *)pCur inline. Dead ends:
-   pSlot as ((u8 **)pBuf)[i] (71.80), every pointer declared before use (71.54). */
+/* Best attempt: objdiff 91.16%, 580 bytes against 592 (three instructions short).
+   Everything matches except which of two long-lived values gets a saved register:
+   retail spills pScripts to 0x18 and keeps the model data in s4, gcc keeps
+   pScripts in a register and spills the model data to 0x10, which costs the
+   `sw`/`lw` pair in the prologue and another reload at the BattleAttachModelPart
+   call. Both use nine s-registers and two stack homes, so the frame (0x58) is
+   right. What made the rest match, keep it:
+   - pDesc[i] instead of pDesc++ (with the pointer form gcc's combine_givs
+     re-bases the induction register onto the last memory reference and every
+     displacement shifts by 0x12); the indexed form gives retail's lh 2(s2) /
+     addiu s2,s2,0x10 exactly;
+   - the argument is a Misc14Reloc (misc10's func_80084C88 passes its pData
+     straight in): pPartList / pModelData / pPointerList are
+     {count, 0x10-byte part descriptors}, the 0x38-byte model part records and
+     {count, script pointers};
+   - the six halfword stores are the node's rotation (0x44) then sourcePos
+     (0x2C) from six u16 descriptor fields;
+   - `pAnim->pConfig = NULL;` for the null script, with `pAnim++` after the
+     if/else (reorg drops it into the j's delay slot).
+   Declaration order of the three block pointers does not change the spill
+   choice (measured), and a 4-minute permuter run from this body found nothing. */
 /*
-void *func_8008B38C(u8 *pArg) {
-    u8 *pData = *(u8 **)(pArg + 4);
-    u8 *pList = *(u8 **)pArg;
-    u8 *pOther = *(u8 **)(pArg + 8);
-    u32 count = *(u32 *)pList;
-    u8 *pCur = pList + 4;
-    u8 *pScale;
-    u8 *pNode;
-    u8 *pBuf;
-    u8 *pPart;
-    u8 *pListArg;
-    u8 **pSlot;
+Misc14ModelNode *func_8008B38C(Misc14Reloc *pBlock) {
+    u8 *pModelData = (u8 *)pBlock->pModelData;
+    Misc14PartSet *pParts = (Misc14PartSet *)pBlock->pPartList;
+    Misc14ScriptTable *pScripts = (Misc14ScriptTable *)pBlock->pPointerList;
+    u32 count = pParts->count;
+    Misc14PartDesc *pDesc = pParts->descs;
+    Misc14EntryList *pList;
+    Misc14ModelNode **pNodes;
+    Misc14ModelNode *pNode;
+    Misc14ModelNode *pPart;
+    Misc14ModelPart *pModelPart;
+    Misc14Anim *pAnim;
     u32 i;
 
-    ModelResolvePointers(pData);
+    ModelResolvePointers(pModelData);
     HeapSetCurrentContentType(0x12);
-    pBuf = HeapAlloc(count * 4, 0);
-    pScale = BattleCreateEntryList();
+    pNodes = HeapAlloc(count * 4, 0);
+    pList = BattleCreateEntryList();
     pNode = BattleCreateObject();
-    BattleSetNodeEntryList(pNode, pScale);
-    *(u8 **)(pScale + 4) = pBuf;
-    *(u16 *)pScale = count;
-    *(u8 **)(pScale + 0x18) = pCur;
-    pSlot = (u8 **)pBuf;
+    BattleSetNodeEntryList(pNode, pList);
+    pList->pNodes = pNodes;
+    pList->nodeCount = count;
+    pList->pPartDescs = pDesc;
     for (i = 0; i < count; i++) {
         pPart = BattleCreateObject();
-        *pSlot = pPart;
-        if (*(s16 *)(pCur + 2) != -1) {
-            pListArg = BattleCreateModelPart();
-            BattleSetNodeModelPart(pPart, pListArg);
-            BattleAttachModelPart(pListArg, pData + (*(s16 *)(pCur + 2) * 8 - *(s16 *)(pCur + 2)) * 8 + 0x10);
+        pNodes[i] = pPart;
+        if (pDesc[i].modelIndex != -1) {
+            pModelPart = BattleCreateModelPart();
+            BattleSetNodeModelPart(pPart, pModelPart);
+            BattleAttachModelPart(pModelPart, (ModelPart *)(pModelData + (pDesc[i].modelIndex * 0x38 + 0x10)));
         }
-        if (*(s16 *)pCur == -1) {
-            pListArg = pNode;
+        if (pDesc[i].parent == -1) {
+            BattleAppendListEntry(pNode, pPart);
         } else {
-            pListArg = *(u8 **)(pBuf + *(s16 *)pCur * 4);
+            BattleAppendListEntry(pNodes[pDesc[i].parent], pPart);
         }
-        BattleAppendListEntry(pListArg, pPart);
-        *(u16 *)(pPart + 0x44) = *(u16 *)(pCur + 4);
-        *(u16 *)(pPart + 0x46) = *(u16 *)(pCur + 6);
-        *(u16 *)(pPart + 0x48) = *(u16 *)(pCur + 8);
-        *(u16 *)(pPart + 0x2C) = *(u16 *)(pCur + 0xA);
-        *(u16 *)(pPart + 0x2E) = *(u16 *)(pCur + 0xC);
-        *(u16 *)(pPart + 0x30) = *(u16 *)(pCur + 0xE);
-        pSlot++;
-        pCur += 0x10;
+        pPart->rotation.vx = pDesc[i].rotation[0];
+        pPart->rotation.vy = pDesc[i].rotation[1];
+        pPart->rotation.vz = pDesc[i].rotation[2];
+        pPart->sourcePos.vx = pDesc[i].position[0];
+        pPart->sourcePos.vy = pDesc[i].position[1];
+        pPart->sourcePos.vz = pDesc[i].position[2];
     }
-    if (pOther != 0) {
+    if (pScripts != NULL) {
         HeapSetCurrentContentType(0x11);
-        pBuf = HeapAlloc(*(u32 *)pOther * 0x14, 0);
-        *(u8 **)(pScale + 8) = pBuf;
-        *(u16 *)(pScale + 2) = *(u32 *)pOther;
-        for (i = 0; i < *(u32 *)pOther; i++) {
-            if (*(u32 *)(pOther + 4) != 0) {
-                func_8008B13C(*(void **)(pOther + 4), pBuf, pNode);
+        pAnim = HeapAlloc(pScripts->count * sizeof(Misc14Anim), 0);
+        pList->pEntries = pAnim;
+        pList->animCount = pScripts->count;
+        for (i = 0; i < pScripts->count; i++) {
+            if (pScripts->pScripts[i] != NULL) {
+                func_8008B13C(pScripts->pScripts[i], pAnim, pNode);
             } else {
-                *(u32 *)pBuf = 0;
+                pAnim->pConfig = NULL;
             }
-            pBuf += 0x14;
-            pOther += 4;
+            pAnim++;
         }
     }
     return pNode;
 }
+
 */
 
 extern s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2);
