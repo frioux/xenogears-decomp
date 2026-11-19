@@ -447,6 +447,14 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071CDC);
    ids (breaks loop 1), pData stored before archiveIndex, nCount++ folded into
    `pQueue[nCount++].pData`, terminator stores through the absolute symbols
    g_WorldMapStreamQueue/D_8009D3FC (grows the frame to 0x38).
+   Round 289: the two-cursor shape is NOT gcc splitting the givs of one entry
+   pointer. Writing loop 2 as `pEntry->archiveIndex` / `pEntry->pData` with
+   `pEntry++` (the pointer form the induction-base rule recommends) measures
+   84.53%, 512 bytes: the compile still keeps ONE base register with a
+   `sw v0,4(a0)` displacement, and the loop then also carries an `andi 0xff`
+   retail does not have. Retail's `la a1,D_8009D3FC` + `addiu a2,a1,-4` says the
+   source named D_8009D3FC itself, so the two cursors are two source pointers
+   (one per field), not one pointer plus displacements.
 */
 /*
 extern void* g_WorldMapPartyActorAnimFile0[3];
@@ -886,26 +894,9 @@ void func_80072238(void) {
     SystemTransferPaletteToVRAM(0x130, 0x1E0);
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
-/* best: 98.37%, 532 bytes (same size). Everything matches except the four
-   insns of `g_NextMapFlags |= 0x8000`: retail materialises the address once
-   (lui v1,%hi / addiu v1,v1,%lo) and loads and stores through v1, gcc folds the
-   address into each access (lui v0,%hi + lhu %lo, then lui $at + sh %lo).
-   Tried with no change: a u16* local, a two-statement pointer load/store, and
-   `volatile u16`. Second note: the first loop's `addu` needed the index first,
-   i.e. `(u8*)(i * 0x80 + (s32)g_WorldMapSlots)`; the ptr-first spelling gives the
-   reversed addu. Sibling teardown WorldMapAllocPrimBuffers has the same 98.55% class.
-   Round 50: re-confirmed; `u16* pFlags = &g_NextMapFlags; *pFlags |= 0x8000;` (and with a
-   `volatile u16*`) still gives lui v0 / lhu %lo(v0) / lui $at + sh %lo: gcc folds the
-   address into the load, so the loaded value occupies the only free register and the
-   store needs $at. Retail needs the address in a THIRD register (v1) used twice.
-*/
-/*
-extern void* g_SoundAudioManager;
-extern void* g_WorldMapSlots;
+extern u16 g_NextMapFlags[];
 extern void* g_WorldMapTilePrimBuffer;
 extern void* g_WorldMapTilePrimBufferCopy;
-extern u16 g_NextMapFlags;
 extern s32 g_WorldMapAreaMode;
 extern void* g_WorldMapPartyActorAnimFile0[3];
 extern void* g_WorldMapActorAnimFiles[3];
@@ -931,8 +922,16 @@ extern void WorldMapFreeGridImages(void);
 extern void WorldMapFreeSlotPool(void);
 extern void WorldMapFreeLoadQueues(void);
 
+// The 0x80-byte slot table at g_WorldMapSlots; misc10.c declares it in full as
+// WorldMapActor. This unit only reaches the sprite pointer.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4C];
+    /* 0x4C */ void* pSprite;
+    /* 0x50 */ u8 unk50[0x30];
+} WorldMapSlotActor; // Size: 0x80
+
+extern WorldMapSlotActor* g_WorldMapSlots;
 void func_8007299C(void) {
-    u8* p;
     s32 i;
 
     if (g_WorldMapAreaMode == 0) {
@@ -942,15 +941,14 @@ void func_8007299C(void) {
     SoundRemoveSedsEntry(g_MenuSedsFile);
     HeapFree(g_MenuSedsFile);
     for (i = 0; i < 0x40; i++) {
-        p = (u8*)(i * 0x80 + (s32)g_WorldMapSlots);
-        if (*(void**)(p + 0x4C) != NULL) {
-            SpriteDestroy(*(void**)(p + 0x4C));
-            *(void**)((u8*)g_WorldMapSlots + i * 0x80 + 0x4C) = NULL;
+        if (g_WorldMapSlots[i].pSprite != NULL) {
+            SpriteDestroy(g_WorldMapSlots[i].pSprite);
+            g_WorldMapSlots[i].pSprite = NULL;
         }
     }
     if (g_WorldMapAreaMode == 1) {
         WorldMapSaveState();
-        g_NextMapFlags |= 0x8000;
+        g_NextMapFlags[0] |= 0x8000;
     }
     WorldMapFreeAreaNameString();
     WorldMapFreeMode4AreaNameString();
@@ -981,7 +979,6 @@ void func_8007299C(void) {
     WorldMapFreeSlotPool();
     WorldMapFreeLoadQueues();
 }
-*/
 
 extern u8 g_WorldMapColorFactors;
 extern u8 D_8009BB49;
@@ -1130,20 +1127,6 @@ void WorldMapSetPositionFromState(void) {
     }
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
-/* best: 97.16% (236 bytes vs retail's 232). Retail's found-point block is
-   `lh v0,0(a2) / sw zero,g_WorldMapPlayerPositionY / sll / sw g_WorldMapPlayerPosition /
-   lh v0,4(a2) / nop / sll / sw g_WorldMapPlayerPositionZ`: the x and z loads share $v0 and
-   the z load is NOT hoisted above the two stores. Plain C hoists it (both loads adjacent,
-   228 bytes, 94.74%). Marking the first two stores `volatile` does NOT stop that (same
-   228 bytes), but marking the Z LOAD volatile does put it after the stores - at the cost
-   of one insn, because gcc 2.7.2 expands a volatile sign-extending 16-bit load as
-   `lhu / sll 16 / sra 4` instead of `lh / sll 12` (97.16%, 236 bytes). Everything else,
-   including the `sll/sra` narrowed-id search loop, matches. Do not read z as u16 to get
-   the `lhu / sll 12` shape - the shift keeps the low bits and changes the stored value
-   for negative z.
-*/
-/*
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
     s32 nPos;
@@ -1156,10 +1139,12 @@ void func_80073448(s32 arg0) {
         p = g_WorldMapPoints;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
-                *(volatile s32*)&g_WorldMapPlayerPositionY = 0;
+                g_WorldMapPlayerPositionY = 0;
                 nPos = p->x << 12;
-                *(volatile s32*)&g_WorldMapPlayerPosition = nPos;
-                nPos = *(volatile s16*)&p->z << 12;
+                g_WorldMapPlayerPosition = nPos;
+                // the byte cast keeps gcc from hoisting this load above the two position
+                // stores; retail reads z after them (`lh v0,4(a2)` then a load-delay nop).
+                nPos = *(s16*)((u8*)p + offsetof(WorldMapPoint, z)) << 12;
                 g_WorldMapPlayerPositionZ = nPos;
                 return;
             }
@@ -1170,7 +1155,6 @@ void func_80073448(s32 arg0) {
         g_WorldMapPlayerPositionZ = 0;
     }
 }
-*/
 
 // Header of the decompressed map data block: one offset per sub-block, relative to the start
 // of the block. The offsets are named after the D_ global the sub-block is stored into.
