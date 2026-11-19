@@ -327,6 +327,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E7C50);
    in-loop andi/addiu 255 but loses the row*13 chain, 74.32% / 520 bytes; a dedicated
    s32 pal local assigned in both branches also kills the hoist but reuses the yOffset slot
    for row*13, 78.72% / 520 bytes (2 instructions short, so not linkable).
+   Round 285 (re-measured from this body): 75.81%, 528 bytes. The hoist is what makes the
+   frame 0x48 instead of retail's 0x40 (andi/addiu -1 plus a sw in the prologue, and an
+   lw before the 0x180 GetTPage). Reusing `color` for the palette value is not an option:
+   that byte is or-ed into tpage (`color | GetTPage(...)`), and it measures 71.32%.
 
 void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags) {
     POLY_FT4* pPoly;
@@ -571,6 +575,11 @@ void MenuRevealSelectionMenu(s32 count, s32* pEntries) {
    save order is retail's exactly and the pair lands in retail's slots.
    Left to solve: which of `la g_MenuSubMenuChoiceIds` / `la g_MenuSubMenuChoiceIds+4` is emitted first
    without displacing it into the save region.
+   Round 285: a 4-minute permuter run from the one-local body found nothing
+   (PERMUTER_NONE base=35 best=35, 1784 iterations), and moving the single
+   `pText = g_MenuSubMenuChoiceIds + 1;` init inside the outer loop (so loop.c hoists it)
+   changes nothing: 99.79%, 688 bytes, same two slots. The hoisted loop-1 base invariant
+   is still materialised after that statement, so the +4 form anchors either way.
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E86C8);
 /* Best: 99.79% (688 bytes = retail's size, exact instruction multiset; only which of
@@ -759,6 +768,8 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
    loop body keeps `andi` while the trailing call still elides it. So retail's andi cannot be
    restored by how the last argument is spelled; a different wrap-up block would be needed, and
    gcc 2.7.2 scores this function worse (99.15 under try_flags.sh).
+   Round 285: re-measured from the stored body, unchanged (99.61%, 612 bytes, `move a1,s1`
+   against retail's `andi a1,s1,0xff` on the last call only).
    void func_801E8F60(u8 arg0, u8 arg1) {
        s32 mode;
        s32 i;
