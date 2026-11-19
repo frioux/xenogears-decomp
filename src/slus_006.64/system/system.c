@@ -2,6 +2,7 @@
 #include "psyq/libgpu.h"
 #include "system/memory.h"
 #include "system/archive.h"
+#include "system/font.h"
 
 // SystemString.flags bits
 #define SYSTEM_STRING_FLAG_STOPPED 0x8       // rendering stopped, stopCode says why
@@ -15,6 +16,14 @@
 #define SYSTEM_GLYPH_CODE_COUNT 324
 #define SYSTEM_GLYPH_CODE_END 0xFFFF
 #define SYSTEM_GLYPH_CODE_NOT_FOUND 0x8000
+
+// Height, in VRAM units, of the glyph strip one rendered row of text occupies;
+// two character slots share a strip
+#define SYSTEM_GLYPH_STRIP_HEIGHT 13
+
+// Width, in VRAM units, of one texture page: a row's sprites are split into a
+// first half up to this and a second half past it
+#define SYSTEM_TEXTURE_PAGE_WIDTH 0x100
 
 // Width, in VRAM units, one glyph advances the line
 #define SYSTEM_GLYPH_WIDTH_NARROW 2
@@ -104,6 +113,18 @@ typedef struct {
     /* 0x5E */ s16 clut;         // g_SystemPalette1 or g_SystemPalette2
 } SystemStringChar; // Size: 0x60
 
+// Free-size tile (code 0x60) whose r,g,b,code word the game writes in one
+// store; spelling the colour as setRGB0's three byte stores plus setcode gives
+// four sb where the original has one sw (measured: 12 bytes over).
+typedef struct {
+    /* 0x0 */ u_long tag;      // addr:24, len:8
+    /* 0x4 */ u_long colorCode; // r, g, b, primitive code
+    /* 0x8 */ s16 x0;
+    /* 0xA */ s16 y0;
+    /* 0xC */ s16 w;
+    /* 0xE */ s16 h;
+} SystemStringTile; // Size: 0x10
+
 typedef struct SystemStringNode {
     /* 0x0 */ struct SystemStringNode* pNext;
     /* 0x4 */ void* pData;
@@ -132,7 +153,7 @@ typedef struct {
     /* 0x28 */ SystemStringChar* pChars;
     /* 0x2C */ void* pCharBuffer;
     /* 0x30 */ DR_MODE drawMode[2];
-    /* 0x48 */ TILE clearTile[2];
+    /* 0x48 */ SystemStringTile clearTile[2];
     /* 0x68 */ u8 unk68;
     /* 0x69 */ u8 unk69;
     /* 0x6A */ u8 unk6A;
@@ -151,7 +172,84 @@ typedef struct {
     /* 0x8C */ SystemStringNode* pBufferStack;
 } SystemString; // Size: 0x90
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80032F54);
+void func_80032F54(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y, s16 maxWidth, s16 maxChars) {
+    int i;
+    int row;
+    int odd;
+
+    pString->x = x;
+    pString->flags = 0;
+    pString->waitFrames = 0;
+    pString->pBufferStack = NULL;
+    pString->bufferCount = 0;
+    pString->lineHeight = 14;
+    pString->unk68 = 1;
+    pString->unk69 = 1;
+    pString->maxWidth = maxWidth;
+    pString->waiting = 0;
+    pString->unk6A = 0;
+    pString->unk6D = 0;
+    pString->stopCode = 0;
+    pString->lineOffset = SYSTEM_STRING_LINE_OFFSET_NONE;
+    pString->textureY = vramY;
+    pString->y = y;
+    pString->maxChars = maxChars;
+    pString->maxWidth |= 1;
+    pString->spriteWidth = pString->maxWidth << 2;
+    pString->imageWidth = pString->maxWidth + 3;
+
+    HeapSetCurrentContentType(HEAP_CONTENT_MES_WORK);
+    pString->pChars = HeapAlloc(pString->maxChars * sizeof(SystemStringChar), 0x2);
+    HeapSetCurrentContentType(HEAP_CONTENT_MES_IMAGE);
+    pString->pCharBuffer = HeapAlloc(pString->imageWidth * 0x1C, 0x2);
+
+    setlen(&pString->clearTile[0], 3);
+    pString->clearTile[0].colorCode = 0x60 << 24; // r,g,b = 0, code = 0x60
+    setXY0Fast(&pString->clearTile[0], pString->x - 7, pString->y - 5);
+    setWHFast(&pString->clearTile[0], pString->maxWidth * 4 + 0xD, pString->maxChars * pString->lineHeight + 0xA);
+    SetSemiTrans(&pString->clearTile[0], 1);
+    pString->clearTile[1] = pString->clearTile[0];
+
+    for (i = 0; i < pString->maxChars; i++) {
+        setXY0Fast(&pString->pChars[i].sprt[0][0], pString->x, pString->y + pString->lineHeight * i);
+        setXY0Fast(&pString->pChars[i].sprt[0][1], pString->x + SYSTEM_TEXTURE_PAGE_WIDTH, pString->y + pString->lineHeight * i);
+        row = i / 2;
+        odd = i & 1;
+
+        setWHFast(&pString->pChars[i].sprt[0][0],
+                  pString->spriteWidth > SYSTEM_TEXTURE_PAGE_WIDTH ? SYSTEM_TEXTURE_PAGE_WIDTH
+                                                                 : pString->spriteWidth,
+                  SYSTEM_GLYPH_STRIP_HEIGHT);
+        setWHFast(&pString->pChars[i].sprt[0][1],
+                  pString->spriteWidth <= SYSTEM_TEXTURE_PAGE_WIDTH
+                      ? 0 : pString->spriteWidth - (SYSTEM_TEXTURE_PAGE_WIDTH - 0x10),
+                  SYSTEM_GLYPH_STRIP_HEIGHT);
+
+        setUV0Fast(&pString->pChars[i].sprt[0][0], (vramX & 0x3F) * 4, (vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT) & 0xFF);
+        setUV0Fast(&pString->pChars[i].sprt[0][1], (vramX & 0x3F) * 4, (vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT) & 0xFF);
+
+        setSprt(&pString->pChars[i].sprt[0][0]);
+        setSprt(&pString->pChars[i].sprt[0][1]);
+        setShadeTex(&pString->pChars[i].sprt[0][0], 1);
+        setShadeTex(&pString->pChars[i].sprt[0][1], 1);
+
+        pString->pChars[i].sprt[1][0] = pString->pChars[i].sprt[0][0];
+        pString->pChars[i].sprt[1][1] = pString->pChars[i].sprt[0][1];
+
+        pString->pChars[i].imageRect.x = vramX;
+        pString->pChars[i].imageRect.y = vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT;
+        pString->pChars[i].imageRect.w = pString->imageWidth;
+        pString->pChars[i].imageRect.h = SYSTEM_GLYPH_STRIP_HEIGHT;
+        pString->pChars[i].x = 0;
+        pString->pChars[i].clut = odd ? g_SystemPalette2 : g_SystemPalette1;
+        pString->pChars[i].textureV = vramY + row * SYSTEM_GLYPH_STRIP_HEIGHT;
+        pString->pChars[i].paletteIndex = odd;
+        pString->pChars[i].unk5B = i;
+    }
+
+    SetDrawMode(&pString->drawMode[0], 0, 0, GetTPage(0, 0, vramX, vramY), NULL);
+    SetDrawMode(&pString->drawMode[1], 0, 0, GetTPage(0, 0, vramX + 0x40, vramY), NULL);
+}
 
 unsigned int ResolveArchiveEntryPointers(u32* header) {
     int i;
