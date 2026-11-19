@@ -44,7 +44,8 @@ typedef struct {
     /* 0x54 */ s32 unk54;
     /* 0x58 */ s32 unk58;
     /* 0x5C */ s32 unk5C;
-    /* 0x60 */ u8 unk60[0x1C];
+    /* 0x60 */ s32 unk60;
+    /* 0x64 */ u8 pad64[0x18];
     /* 0x7C */ s32 unk7C;
 } WorldMapSlot; // Size: 0x80
 
@@ -61,8 +62,47 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapEntry; // Size: 0x54
 
+// One world map fade quad: a textured quad per fade-table entry, jittered by
+// func_80081D80 so the wipe does not move in one block. The tpage word sits after the
+// second vertex's texcoords, where the original object reads it.
+typedef struct {
+    /* 0x00 */ u32 tag;
+    /* 0x04 */ u8 r;
+    /* 0x05 */ u8 g;
+    /* 0x06 */ u8 b;
+    /* 0x07 */ u8 code;
+    /* 0x08 */ s16 x0;
+    /* 0x0A */ s16 y0;
+    /* 0x0C */ u8 u0;
+    /* 0x0D */ u8 v0;
+    /* 0x0E */ u16 pad0E;
+    /* 0x10 */ s16 x1;
+    /* 0x12 */ s16 y1;
+    /* 0x14 */ u8 u1;
+    /* 0x15 */ u8 v1;
+    /* 0x16 */ u16 tpage;
+    /* 0x18 */ s16 x2;
+    /* 0x1A */ s16 y2;
+    /* 0x1C */ u8 u2;
+    /* 0x1D */ u8 v2;
+    /* 0x1E */ u16 pad1E;
+    /* 0x20 */ s16 x3;
+    /* 0x22 */ s16 y3;
+    /* 0x24 */ u8 u3;
+    /* 0x25 */ u8 v3;
+} WorldMapFadeQuad; // Size: 0x28
+
+// The world map frame render context g_WorldMapRenderContext points at: partial view of the
+// two ordering table heads it fills each frame.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderContext; // partial view
+
 extern WorldMapSlot *g_WorldMapSlots;
 extern WorldMapEntry *g_WorldMapGroups;
+extern WorldMapRenderContext *g_WorldMapRenderContext;
+extern DR_MOVE D_8009D164[];
 extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr);
 extern u8 D_8009A758[];
 extern void WorldMapStartSlot(s32 arg0, s32 arg1);
@@ -109,9 +149,13 @@ extern void HeapFree(void *pMem);
 extern void SoundStopAllElements(void);
 extern void WorldMapFreeSpritePrimBuffers(void);
 extern s32 g_WorldMapPrimPacketIndex;
-extern u8 *D_8009D158;
+extern u8 *D_8009D158[];
 extern u8 *D_8009D15C;
 extern u16 *g_WorldMapFadeTable;
+extern s16 g_WorldMapPathFrame;
+extern u16 D_8009BD42;
+extern u16 D_8009BD4A;
+extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void SoundRemoveSedsEntry(void *p);
 extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
@@ -229,7 +273,64 @@ s32 func_80080A28(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080A28);
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080AC4);
+// The two GTE scale vectors the fade groups are scaled by, in the scratchpad. The
+// address is a literal on purpose: naming a symbol here makes gcc materialise %hi/%lo
+// through a saved register where the original stores through a bare lui $at.
+typedef struct {
+    /* 0x00 */ VECTOR first;
+    /* 0x10 */ VECTOR second;
+} WorldMapScaleVectors; // Size: 0x20
+
+#define WORLD_MAP_SCALE_VECTORS ((WorldMapScaleVectors *)0x1F800000)
+
+s32 func_80080AC4(s32 index) {
+    WorldMapEntry *pGroup = g_WorldMapGroups;
+    WorldMapEntry *pNextGroup;
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    s32 spread;
+    s32 pos;
+
+    if (pSlot->command == 1) {
+        pSlot->command = 0;
+    }
+    pos = pSlot->pos.x >> 12;
+    pGroup[1].x = pos;
+    pGroup->x = pos;
+    pos = pSlot->pos.y >> 12;
+    pGroup[1].y = pos;
+    pGroup->y = pos;
+    pos = pSlot->pos.z >> 12;
+    pGroup[1].z = pos;
+    pGroup->z = pos;
+    pGroup[1].matrix = g_WorldMapIdentityMatrix;
+    pGroup->matrix = pGroup[1].matrix;
+    WORLD_MAP_SCALE_VECTORS->first.vx = WORLD_MAP_SCALE_VECTORS->first.vz = pSlot->unk50;
+    spread = pSlot->unk54;
+    WORLD_MAP_SCALE_VECTORS->first.vy = WORLD_MAP_SCALE_VECTORS->second.vy = 0x1000;
+    WORLD_MAP_SCALE_VECTORS->second.vx = WORLD_MAP_SCALE_VECTORS->second.vz = spread;
+    ScaleMatrix(&pGroup->matrix, &WORLD_MAP_SCALE_VECTORS->first);
+    ScaleMatrix(&pGroup[1].matrix, &WORLD_MAP_SCALE_VECTORS->second);
+    pNextGroup = pGroup + 1;
+    pSlot->unk50 += 0x180;
+    if (pSlot->unk50 > 0x7FFF) {
+        pSlot->unk50 = 0x7FFF;
+    }
+    pSlot->unk54 += 0x180;
+    if (pSlot->unk54 > 0x7FFF) {
+        pSlot->unk54 = 0x7FFF;
+    }
+    WorldMapSetPrimColors(pGroup->pPackets[g_WorldMapPrimPacketIndex], pGroup->pModel->polyCount,
+                          pSlot->unk58, pSlot->unk58, pSlot->unk58);
+    pGroup = pNextGroup;
+    WorldMapSetPrimColors(pGroup->pPackets[g_WorldMapPrimPacketIndex], pGroup->pModel->polyCount,
+                          pSlot->unk58, pSlot->unk58, pSlot->unk58);
+    pSlot->unk58 -= 4;
+    if (pSlot->unk58 < 0) {
+        pSlot->unk58 = 0;
+        return 3;
+    }
+    return 1;
+}
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
 void WorldMapExitToMap1FA(void) {
     u16 v;
@@ -372,6 +473,90 @@ s32 func_800813E8(s32 index) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
+// Best: 78.69%, 580 bytes against retail's 636. The clamp/easing chain is byte-identical:
+// unk50 -0x10000 down to 0x630000 with g_WorldMapCameraHeight eased by diff >> 5, unk54
+// += 0x1000 clamped to 0x10000 and eased into unk58 by diff >> 4 driving
+// g_WorldMapCameraRot, unk5C += 0x10000 clamped to 0x4B0000 and eased into unk60 the same
+// way, plus the func_80096F18 call and the rand()/unk7C jitter. Every residue is one
+// class: THIS gcc forwards a constant store to a later load where retail reloads.
+// 1. retail stores -0x80 to g_WorldMapCameraRot and -0x200 to g_WorldMapViewRotationY and
+//    then READS BOTH BACK to build unk58/unk54 and unk60/unk5C (retail's cameraRot address
+//    is CSE'd into $a0, ViewRotationY's is rematerialised, so the original kept a pointer
+//    to the rot); here gcc folds both to 0xFFF80000/0xFFE00000. A `s16 *pRot` local did not
+//    stop it, and a volatile read reloads but changes the extension (lhu + sll 16/sra 4
+//    instead of lh + sll 12).
+// 2. the same in the tail: retail reloads the scratchpad halfword for `D_8009BD4A += ...`
+//    (lhu 0xA2(s1) after the sh) where this gcc reuses the register.
+// 3. the command switch: retail has the two-case decision tree (beq 2 / slti 3 / bne 1)
+//    with an empty case 2; this gcc merges a bodyless case into the default and emits one
+//    bne. A narrow s16 switch index did not bring the tree back.
+// Preset screen not run; the body's structure is settled.
+/*
+s32 func_80081470(s32 index) {
+    WorldMapSlot *pSlot = &g_WorldMapSlots[index];
+    s32 diff;
+    s16 command;
+    s16 shake;
+
+    command = pSlot->command;
+    switch (command) {
+    case 1:
+        pSlot->state = 1;
+        pSlot->command = 0;
+        g_WorldMapCameraRot = -0x80;
+        g_WorldMapViewRotationY = -0x200;
+        g_WorldMapViewRotationZ = 0;
+        pSlot->unk50 = 0x980000;
+        pSlot->unk58 = g_WorldMapCameraRot << 12;
+        pSlot->unk54 = g_WorldMapCameraRot << 12;
+        g_WorldMapCameraHeight = 0x980000;
+        pSlot->unk60 = g_WorldMapViewRotationY << 12;
+        pSlot->unk5C = g_WorldMapViewRotationY << 12;
+        break;
+    case 2:
+        break;
+    default:
+        break;
+    }
+    if (g_WorldMapRotationMatrixValid == 0) {
+        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+                      &g_WorldMapCameraRot);
+    }
+    if (pSlot->state == 1) {
+        pSlot->unk50 -= 0x10000;
+        if (pSlot->unk50 < 0x630000) {
+            pSlot->unk50 = 0x630000;
+        }
+        diff = pSlot->unk50 - g_WorldMapCameraHeight;
+        if (diff != 0) {
+            g_WorldMapCameraHeight += diff >> 5;
+        }
+        pSlot->unk54 += 0x1000;
+        if (pSlot->unk54 > 0x10000) {
+            pSlot->unk54 = 0x10000;
+        }
+        diff = pSlot->unk54 - pSlot->unk58;
+        if (diff != 0) {
+            pSlot->unk58 += diff >> 4;
+            g_WorldMapCameraRot = pSlot->unk58 >> 12;
+        }
+        pSlot->unk5C += 0x10000;
+        if (pSlot->unk5C > 0x4B0000) {
+            pSlot->unk5C = 0x4B0000;
+        }
+        diff = pSlot->unk5C - pSlot->unk60;
+        if (diff != 0) {
+            pSlot->unk60 += diff >> 5;
+            g_WorldMapViewRotationY = pSlot->unk60 >> 12;
+        }
+    }
+    shake = rand() % (pSlot->unk7C >> 12) - (pSlot->unk7C >> 13);
+    *(s16 *)0x1F8000A2 = shake;
+    D_8009BD42 = D_8009BD42 + shake;
+    D_8009BD4A = D_8009BD4A + *(s16 *)0x1F8000A2;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081470);
 void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr) {
     s32 i;
@@ -523,10 +708,10 @@ s32 func_80081C3C(void) {
     u8 *p;
     s32 i;
 
-    D_8009D158 = HeapAlloc(0x1E00, 0);
+    D_8009D158[0] = HeapAlloc(0x1E00, 0);
     D_8009D15C = HeapAlloc(0x1E00, 0);
     g_WorldMapFadeTable = HeapAlloc(0x180, 0);
-    p = D_8009D158;
+    p = D_8009D158[0];
     for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
         p[7] = 0x2C;
         p[3] = 9;
@@ -537,7 +722,7 @@ s32 func_80081C3C(void) {
         *(u16 *)(p + 0x16) = GetTPage(2, 0, 0x280, 0x100);
         p += 0x28;
     }
-    pSrc = (Quad *)D_8009D158;
+    pSrc = (Quad *)D_8009D158[0];
     pDst = (Quad *)D_8009D15C;
     for (i = 0; i < 0x1E0; i++) {
         *pDst++ = *pSrc++;
@@ -555,6 +740,59 @@ s32 func_80081C3C(void) {
 // lui/$at for each; (2) retail materialises 9 into $s4 before 0x2C into $s3.
 // Preset screen: cdk 71.46, gcc-2.6.0 87.09.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
+
+// Best: 99.88%, retail's exact 564 bytes. The instruction sequence, every call, every
+// store offset and the constant allocation order all match; the one residue is gcc's
+// loop giv re-base. Retail keeps the vertex pointer at prim+0x25 and addresses the
+// sixteen stores at 0 .. -0x1D; this gcc picks prim+0x20 and addresses them at 5 ..
+// -0x18, i.e. the same addresses with every displacement 5 larger. `addPrim` is the
+// right spelling (hand-spelling the two setaddr pairs as explicit u32 masks puts the
+// base at 0x25 but then allocates 0xFF000000 before 0xFFFFFF, which costs the prologue
+// save pair and the tail mask registers instead, 96.50%). Declaration order, u32 vs s32
+// index, RECT/pMove/i first, operand order of both setaddr sums measured no better; a
+// 4-minute permuter run (2245 iterations) found nothing.
+/*
+s32 func_80081D80(void) {
+    WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)D_8009D158[g_WorldMapPrimPacketIndex];
+    u16 *pFade = g_WorldMapFadeTable;
+    DR_MOVE *pMove;
+    s32 delta;
+    s32 i;
+    RECT rect;
+
+    for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
+        delta = rand() % *pFade - *pFade / 2;
+        pFade++;
+        pQuad->y0 = i;
+        pQuad->y1 = i;
+        pQuad->v0 = i;
+        pQuad->v1 = i;
+        pQuad->u0 = 0;
+        pQuad->u1 = 0xC0;
+        pQuad->u2 = 0;
+        pQuad->u3 = 0xC0;
+        pQuad->y2 = i + 1;
+        pQuad->y3 = i + 1;
+        pQuad->v2 = i + 1;
+        pQuad->v3 = i + 1;
+        pQuad->x0 = delta + 0x40;
+        pQuad->x1 = delta + 0x100;
+        pQuad->x2 = delta + 0x40;
+        pQuad->x3 = delta + 0x100;
+        addPrim(g_WorldMapRenderContext->pOt[0], pQuad);
+        pQuad++;
+    }
+    rect.x = 0x40;
+    rect.w = 0xC0;
+    rect.h = 0xD8;
+    rect.y = g_WorldMapPrimPacketIndex * 0xD8;
+    SetDrawMove(&D_8009D164[g_WorldMapPrimPacketIndex], &rect, 0x280, 0x100);
+    pMove = &D_8009D164[g_WorldMapPrimPacketIndex];
+    addPrim(g_WorldMapRenderContext->pOt[0], pMove);
+    return 1;
+}
+
+"*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
 s32 WorldMapResetSlotColorFade(s32 index) {
