@@ -47,15 +47,14 @@ extern u32 D_800C3674;
 extern s32 D_800C3678;
 extern u8 g_BattleActiveAnimTaskCount;
 extern s32 D_800C3CBC;
-extern s32 D_800C3CC0;
 extern BattleSpriteColorTask *g_BattleSpriteColorTask;
 // The anim tasks the two owner groups run; AnimTask (system/animation.h) is the
 // record: entry, the entry the owner list links, then the sprite it animates.
 extern AnimTask *g_BattleAnimOwnerTaskGroupA;
 extern AnimTask *g_BattleAnimOwnerTaskGroupB;
-extern s16 g_BattleAnimSavedGroupStates[];
+extern u16 g_BattleAnimSavedGroupStates[];
 extern u16 D_800C3CD4[];
-extern s16 g_BattleAnimGroupStates[];
+extern u16 g_BattleAnimGroupStates[];
 extern u16 D_800D30A8[];
 extern void WorkListsRemoveEntriesForData(void *pTask);
 extern void AnimScriptTick(SpriteData *pSprite);
@@ -66,7 +65,72 @@ extern u16 D_80059454;
 extern IVEC3 g_BattleAnimPositionGroupA;
 extern IVEC3 g_BattleAnimPositionGroupB;
 extern void func_800BC460(s32 arg0);
+extern s32 D_800C3CC0;
+extern void func_800BB350(s32 arg0);
+extern void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4);
+extern void func_800A4654(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, s32 depth,
+                          s32 primIndex, SVECTOR *pC, SVECTOR *pD, s32 scale);
+extern SVECTOR g_BattleSlotVectors;
+extern SVECTOR D_800D335C;
+extern SVECTOR D_800C3730;
+extern SVECTOR D_800C354C;
+extern u8 D_800C372C;
+extern u8 g_BattleStateWork[];
 
+// The three actor-slot spawn positions the slot allocator hands out, one pair each.
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+} BattleActorSlotPos; // Size: 0x4
+
+extern BattleActorSlotPos D_800C3668[3];
+extern u16 D_800C3666;
+extern u8 D_800C37CC;
+
+// best 95.69% under gcc-2.6.0 (94.51% under 2.7.2): only the lui %hi(g_BattleViewMatrix)
+// lands late and turns the three "lh" loads into v1 instead of v0. 2.6.0 fixes the
+// lhu re-read of field 0x36 that 2.7.2 forwards from the store.
+/*
+void func_800BB248(u8 *pTask) {
+    u8 *pSpriteData;
+    SVECTOR vec;
+    long sxy;
+    long flag;
+    s32 nOTOffset;
+    s32 mode;
+    u16 *pField;
+    u16 *pRead;
+    s32 v;
+
+    pSpriteData = *(u8 **)(pTask + 4);
+    mode = *(u32 *)(pSpriteData + 0xA8) >> 30;
+    pField = (u16 *)(pSpriteData + 0x36);
+    *pField = BattleGetActorHeight(((*(u32 *)(pSpriteData + 0xAC) & 3) << 2) | mode);
+    pRead = (u16 *)(pSpriteData + 0x36);
+    *(u16 *)(pSpriteData + 0x38) = *pRead >> 1;
+    v = *(s16 *)(pSpriteData + 0x2);
+    vec.vx = v;
+    v = *(s16 *)(pSpriteData + 0x6);
+    vec.vy = v;
+    v = *(s16 *)(pSpriteData + 0xA);
+    vec.vz = v;
+    SetRotMatrix(&g_BattleViewMatrix);
+    SetTransMatrix(&g_BattleViewMatrix);
+    nOTOffset = (RotTransPers(&vec, &sxy, (u_long *)&sxy, &flag) >> g_GfxOTDepthShift) +
+                *(s16 *)(pSpriteData + 0x30);
+    if (flag & 0x8000) {
+        nOTOffset = 0;
+    }
+    *(u16 *)(pSpriteData + 0x2E) = nOTOffset;
+}
+*/
+// best 99.61% at retail's exact 204 bytes: everything matches but the three SSVECTOR
+// loads. Retail puts the first in $v1 and the other two in $v0 (lh v1 / sh 0x10 /
+// lh v0 / sh 0x12 / lh v0 / sh 0x14); one shared temp gives $v1 three times
+// (three separate typed assignments give $v0 and 96.47%). The u16 store to field
+// 0x36 must be VOLATILE or gcc forwards the register into the 'lhu 0x36' re-read
+// as an 'andi 0xffff' (93.33%); retail really does reload it.
+/*
 void func_800BB248(u8 *pTask) {
     u8 *pSpriteData;
     SVECTOR vec;
@@ -99,6 +163,9 @@ void func_800BB248(u8 *pTask) {
     }
     *(u16 *)(pSpriteData + 0x2E) = nOTOffset;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB248);
+
 void BattleFreeActorSpriteTask(u8 *pEntry) {
     u32 unused[2];
     WorkListRemoveTask(pEntry + 0x1C);
@@ -106,6 +173,36 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
     HeapFree(pEntry);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
+// best 88.12% at 232 bytes (retail 224): the slot-mask loop and everything up to the
+// tail match. The gap is 'g_BattleAnimTaskAllocCount--' followed by
+// 'func_800BB350(*(u32 *)(pTask + 0x1C))': retail reads the byte, then loads the
+// argument, then subtracts, then calls with the store in the jal's delay slot
+// (lbu / lw a0 / addiu / jal / sb). Swapping the two statements gives retail's exact
+// 224 bytes but the call lands before the decrement (80.70%).
+/*
+void func_800BB540(u8 *pTask) {
+    s32 i;
+    u16 slotBit;
+    BattleActorSlotPos *pSlotPos;
+
+    for (i = 0, slotBit = 1; i != 3; i++, slotBit <<= 1) {
+        if ((D_800C3666 & slotBit) == 0) {
+            D_800C3666 |= slotBit;
+            break;
+        }
+    }
+    pSlotPos = &D_800C3668[i];
+    func_800A979C(*(u32 *)(pTask + 0x1C), pSlotPos->x, pSlotPos->y, 0,
+                  (s16)(*(u16 *)(pTask + 0x1C) + 0x1C0));
+    g_BattleAnimTaskAllocCount--;
+    func_800BB350(*(u32 *)(pTask + 0x1C));
+    ((WorkListEntry *)pTask)->onFreeCallback(pTask);
+    g_BattlePendingActorTaskCount--;
+    if (g_BattlePendingActorTaskCount == 0) {
+        D_800C37CC = 1;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB540);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB620);
 void BattleAnimTaskAllocArchiveEntry(BattleArchiveLoadTask *pTask) {
@@ -114,6 +211,33 @@ void BattleAnimTaskAllocArchiveEntry(BattleArchiveLoadTask *pTask) {
     TimerWorkListSetTaskCallback(pTask, func_800BB620);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB6E0);
+// best 88.71% under cdk -G0 (44.87% under 2.7.2 -G8): the frame is 40 and every
+// instruction is present, only the global-base registers differ (we keep
+// &g_FlagTimerWorkListAdds in s0 with the saved byte in s3, retail uses s1/s4), plus one
+// load-delay nop after lw g_BattlePendingActorTaskCount that retail fills with the pEntry store.
+/*
+void func_800BB760(u8 *pEntry) {
+    u8 saved;
+    u8 *pTask;
+
+    saved = g_FlagTimerWorkListAdds;
+    g_FlagTimerWorkListAdds = 0;
+    g_TaskHeapAllocFlags = 1;
+    pTask = TimerWorkListAllocateTask(NULL, 4);
+    TimerWorkListSetTaskCallback(pTask, func_800BB6E0);
+    g_BattlePendingActorTaskCount++;
+    *(u8 **)(pTask + 0x1C) = pEntry;
+    g_TaskHeapAllocFlags = 0;
+    g_FlagTimerWorkListAdds = saved;
+}
+*/
+// best 94.74% at retail's exact 152 bytes: every store is in the right place except
+// that retail fills the load-delay slot of 'lw v0,g_BattlePendingActorTaskCount'
+// with the pEntry store ('lw / sw s3,0x1C(s0) / sb zero,g_TaskHeapAllocFlags').
+// Ours hoists that store above the load; moving it after the increment instead
+// leaves a nop in the delay slot and 156 bytes (88.71%), and a 4-minute permuter
+// run from the 94.74% body found nothing (base=60 best=60).
+/*
 void func_800BB760(u8 *pEntry) {
     u8 saved;
     u8 *pTask;
@@ -128,6 +252,8 @@ void func_800BB760(u8 *pEntry) {
     g_BattlePendingActorTaskCount++;
     g_FlagTimerWorkListAdds = saved;
 }
+*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB760);
 void BattleResetAnimState(void) {
     D_800C3674 = 0x200;
     D_800C3678 = -1;
@@ -166,6 +292,39 @@ void BattleBuildMatrixFromThreeVectors(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB
     pMatrix->t[2] = -vTmp.vz;
     PopMatrix();
 }
+// best 84.11% at retail's exact 228 bytes: the instruction multiset is identical,
+// only the argument-setup order differs. Retail interleaves the work-block pointer
+// build with the two stack stores (lw a3, move a2, sw 0x14, sw 0x18, lw v1,
+// li 4096, sw 0x1C, jal, sw 0x10) where we emit both loads before the stores, and
+// with -fschedule-insns on statement order does not move it. Both spellings of the
+// work pointer matter: 'g_BattleStateWork + 0x8000' as ONE expression folds into
+// the address addend (220 bytes), so the base must be a mem_addr local that is
+// assigned and then advanced. The three translation words are the matrix's t[]
+// reached from 0x20 before it, which is why retail holds 'matrix - 0x20' in $a0
+// and uses displacements 0x34/0x38/0x3C.
+/*
+void func_800BB9D4(void) {
+    s32 *pViewTrans;
+    mem_addr pWork;
+    s32 depth;
+    s32 primIndex;
+
+    BattleBuildMatrixFromThreeVectors(&g_BattleViewMatrix, &g_BattleSlotVectors, &D_800D335C,
+                                      &D_800C3730);
+    pViewTrans = (s32 *)((u8 *)&g_BattleViewMatrix - 0x20);
+    pViewTrans[0xD] += D_800C354C.vx;
+    pViewTrans[0xE] += D_800C354C.vy;
+    pViewTrans[0xF] += D_800C354C.vz;
+    if (D_800C372C == 0) {
+        pWork = (mem_addr)g_BattleStateWork;
+        pWork += 0x8000;
+        depth = *(s32 *)(pWork + 0xC54);
+        primIndex = *(s32 *)(pWork + 0xC84);
+        func_800A4654(&g_BattleViewMatrix, NULL, NULL, depth, primIndex, &g_BattleSlotVectors,
+                      &D_800D335C, 0x1000);
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB9D4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BBAB8);
 void BattleFreeAnimTask(AnimTask *pTask) {
@@ -288,9 +447,12 @@ void BattleInitAnimTask(AnimTask *pTask) {
 // best 97.55% at 260 bytes (retail 264): every instruction but one. Retail reaches
 // the second position group with 'addu a0,a0,8' off the SAME register that holds
 // &g_BattleAnimGroupStates; a compile-time-indexed spelling folds the +8 into the
-// displacement (260), and the pointer-walk spelling ('pStates += 4') restores the
-// addu but then the scheduler cannot fill the last lh's delay slot and the body
+// displacement (260 bytes), and a pointer-walk spelling ('pStates += 4') restores
+// the addu but then the scheduler cannot fill the last lh's delay slot and the body
 // grows to 268. Case-body order is source order: case 4 first, then case 2.
+// NOTE g_BattleAnimGroupStates must be declared s16 to get retail's 'lh' here; that
+// change is byte-neutral for BattleFreeAnimTask and BattleInitAnimTask (both stayed
+// 100.00% at 312 and 408 bytes).
 /*
 void func_800BC2F0(s32 state) {
     D_800C3CC0 = state;
