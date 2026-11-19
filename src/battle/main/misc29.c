@@ -544,7 +544,76 @@ void BattleActorInitSpriteFromSlot(void) {
     BattleDestroyState();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8EBC);
+
+extern u8 D_800C3624;
+extern u16 D_800C3DF0;
+extern u8 g_BattleActorArchiveReady;
+extern u8 D_800C35D4;
+extern u8 D_800C3688;
+extern s32 *g_BattleAudioManager;
+extern void BattleSetFlag2DBAndReleaseAssets(void);
+extern void func_800C0314(void);
+extern void func_800C0564(void);
+extern void BattleSetAnimTaskDoneState(s32 value);
+extern void BattleFreeTimerTaskIfActive(void);
+extern void BattleReleaseAllActorSlots(void);
+extern void BattleSetAnimTaskShort(s16 value);
+extern void BattleLoadActorSlotAnimation(s32 index);
+extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
+
+/* The work block at g_BattleStateWork seen from its sprite pointers: the eleven
+   sprites this function clears the 0x40 flag of on the way out. */
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x8C8C];
+    /* 0x8C8C */ SpriteData *pOwnedSprites[BATTLE_ACTOR_SLOT_COUNT];
+} BattleOwnedSprites; // Size: 0x8CB8
+
+void func_800B8EBC(void) {
+    SpriteData *pSprite;
+    SpriteData *pOwnedSprite;
+    BattleOwnedSprites *pSprites;
+    s32 slot;
+    s32 i;
+
+    // retail loads the sprite before testing the pointer, which is what keeps
+    // g_BattleState's address in $s1 across the calls below.
+    pSprite = g_BattleState->pSprite;
+    if (g_BattleState == NULL) {
+        return;
+    }
+    D_800C3624 = 0;
+    D_800C3DF0 = 0;
+    g_BattleActorArchiveReady = 0;
+    BattleSetFlag2DBAndReleaseAssets();
+    DrawSync(0);
+    slot = g_BattleState->savedActorSlot;
+    SpriteSetCallback(pSprite, NULL);
+    func_800C0314();
+    while (g_NumFlaggedTimerWorkListEntries != BattleIsTimerTaskActive()) {
+        func_800BE790();
+    }
+    func_800C0564();
+    BattleUnloadActorArchive();
+    BattleSetAnimTaskDoneState(1);
+    BattleFreeTimerTaskIfActive();
+    BattleLoadArchiveEntryFile();
+    BattleReleaseAllActorSlots();
+    D_800C3688 = 0;
+    BattleSetAnimTaskShort(0xC0);
+    BattleDestroyState();
+    BattleLoadActorSlotAnimation(slot);
+    if (D_800C35D4 != 0) {
+        SoundSetAudioManagerVolumeWithFade(g_BattleAudioManager, 0x7F, 0x50);
+    }
+    D_800C35D4 = 0;
+    pSprites = (BattleOwnedSprites *)g_BattleStateWork;
+    for (i = 0; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+        pOwnedSprite = pSprites->pOwnedSprites[i];
+        if (pOwnedSprite != NULL) {
+            pOwnedSprite->flags_0xAC.flags &= ~0x40;
+        }
+    }
+}
 
 void BattleSpritePlayStoredAnimation(SpriteData *pSprite) {
     SpritePlayAnimation(pSprite, (s8)pSprite->flags_0xB0.bytes[0]);
