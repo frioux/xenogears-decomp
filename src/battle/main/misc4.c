@@ -1,6 +1,16 @@
 #include "common.h"
 #include "battle/actor.h"
 
+// The command byte of a queue record that holds no command: the clear loops below fill the
+// whole record table with it (the same name battle/main/misc13 uses for the byte).
+#define BATTLE_COMMAND_NONE 0xFF
+// The command argument records BattleDispatchCommandRecords walks: the 0x100-byte
+// g_BattleCommandArgs buffer holds exactly this many 8-byte BattleCommandArg entries.
+#define BATTLE_COMMAND_ARG_COUNT 32
+// The non-party actor slots: slot numbers MAX_PARTY_MEMBERS through BATTLE_ACTOR_SLOT_COUNT - 1,
+// which are the ones the slot register file is indexed from 0 for.
+#define BATTLE_OTHER_SLOT_COUNT (BATTLE_ACTOR_SLOT_COUNT - MAX_PARTY_MEMBERS)
+
 // One 8-byte battle command argument record, indexed by actor. Entry 0 sits at
 // g_BattleCommandArgs, the same address this unit clears as a 0x100-byte scratch buffer.
 typedef struct {
@@ -193,7 +203,7 @@ void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleActorCountdownState[arg0] = 0xFF;
     // The empty-block wrapper keeps this store ahead of the g_BattleSlotEntries read-modify-write.
     do {
-        D_800C3D1B[arg0 - 3].unk0 = 1;
+        D_800C3D1B[arg0 - MAX_PARTY_MEMBERS].unk0 = 1;
     } while (0);
     g_BattleSlotEntries[arg0].flags &= 0x8000;
 }
@@ -281,7 +291,7 @@ void BattlePrintLanguageErrorLoop(u8 arg0, u8 arg1) {
     s32 off;
     u8 value;
 
-    value = 0xFF;
+    value = BATTLE_COMMAND_NONE;
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         D_800C402F[off] = value;
     }
@@ -319,7 +329,7 @@ void BattleDispatchCommandRecords(u8 arg0) {
     do {
         j = 0;
         slot = 0;
-        for (; j < 0xB; j++) {
+        for (; j < BATTLE_ACTOR_SLOT_COUNT; j++) {
             idx = j;
             if (BattleMaskHasSlotBit(g_BattleCommandArgs[i].slotMask, idx) != 0) {
                 slot = idx;
@@ -384,7 +394,7 @@ void BattleDispatchCommandRecords(u8 arg0) {
             break;
         }
         i++;
-    } while (i < 0x20 || again);
+    } while (i < BATTLE_COMMAND_ARG_COUNT || again);
 }
 void BattleQueueCommand1BAndFE(u8 arg0) {
     if (g_BattleSlotFlags[arg0 * 8] != 0) {
@@ -458,7 +468,7 @@ void BattleScriptResetActorState(u8 arg0) {
     u8* pEnd;
 
     value = 0;
-    slot = arg0 - 3;
+    slot = arg0 - MAX_PARTY_MEMBERS;
     pCursor = g_BattleSlotRegs[slot].pScriptCursor;
     p = (u8 *)g_BattleCommandArgs;
     pEnd = p + 0x100;
@@ -466,7 +476,7 @@ void BattleScriptResetActorState(u8 arg0) {
         *p++ = 0;
     } while (p < pEnd);
     for (i = 0x8B8; i >= 0; i -= 0x48) {
-        D_800C402F[i] = 0xFF;
+        D_800C402F[i] = BATTLE_COMMAND_NONE;
     }
     while (*pCursor != 0xFD) {
         if (*pCursor == 0xFF) {
@@ -492,9 +502,9 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
 
     result = 0;
     value = 0;
-    slot = arg0 - 3;
-    if ((g_BattleSlotEntries[slot + 3].flags & 0x8000) != 0) {
-        if ((D_800CCD1C[slot + 3].flags & 0x800) == 0) {
+    slot = arg0 - MAX_PARTY_MEMBERS;
+    if ((g_BattleSlotEntries[slot + MAX_PARTY_MEMBERS].flags & 0x8000) != 0) {
+        if ((D_800CCD1C[slot + MAX_PARTY_MEMBERS].flags & 0x800) == 0) {
             goto done;
         }
     }
@@ -523,7 +533,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
         }
     }
     if (g_BattleCommandArgs[0].opcode != 0) {
-        BattleDispatchCommandRecords(slot + 3);
+        BattleDispatchCommandRecords(slot + MAX_PARTY_MEMBERS);
     }
 done:
     return result;
@@ -557,7 +567,8 @@ void BattleRunActiveSlotScripts(void) {
     i = 0;
     stopOp = 0xFD;
     endOp = 0xFF;
-    for (idx = 3, off = 3 * sizeof(BattleTableEntry), off2 = 0, index = 0; i < 8;
+    for (idx = MAX_PARTY_MEMBERS, off = MAX_PARTY_MEMBERS * sizeof(BattleTableEntry), off2 = 0, index = 0;
+         i < BATTLE_OTHER_SLOT_COUNT;
          idx++, off += sizeof(BattleTableEntry), off2 += sizeof(BattleSlotRegs), index += 4, i++) {
         if (D_800C3D1A[index] == 0) {
             continue;
