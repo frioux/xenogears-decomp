@@ -879,7 +879,7 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 #define gte_dpcs() __asm__ volatile (				\
 	"nop;"							\
 	"nop;"							\
-	".word 0x00000e3f" )
+	"c2      0x780010;" )
 
 #define gte_dpct() __asm__ volatile (				\
 	"nop;"							\

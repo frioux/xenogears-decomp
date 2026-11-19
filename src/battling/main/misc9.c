@@ -14,6 +14,9 @@ typedef struct {
 } Unk16; // Size: 0x10
 
 extern SVECTOR g_BattlePlaneNormal;
+extern VECTOR g_BattleViewOrigin;
+extern VECTOR g_BattleViewOriginZ;
+extern POLY_FT4* D_80092788[2];
 extern s32 g_BattleCameraPos;
 extern s32 g_BattleCameraTarget;
 extern s32 g_BattleCameraPosY;
@@ -525,6 +528,121 @@ void func_80082C4C(u8* pArg) {
 */
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80082E60);
+
+/* best 93.20%, 0x368 bytes = the original's exact size, instruction multiset
+   identical: only the ORDER of the pre-loop's four pointer/argument setup
+   instructions differs (retail emits `move a0,s3; addiu s3,s3,16` right after
+   the first rcos returns and the `lw` of the view origin before the `sra`;
+   ours emits the `sra` first and the argument setup after it). The loop body
+   is byte-identical. A 5-minute permuter run (2223 edits) found nothing, so
+   the remaining diff is the scheduler, not the C.
+   What this body cost to recover, all load-bearing:
+   - `cam.vx -= 0x3F80; cam.vz -= 0x3F80;` are separate statements: retail
+     stores the adjusted values back into the local VECTOR and calls
+     ratan2(cam.vx, cam.vz).
+   - the view-origin subtraction has to be an embedded assignment
+     (`x -= (originX = g_BattleViewOrigin.vx - 0x3F80)`); the plain
+     `X - (O - 0x3F80)` makes fold reassociate to `(X + 0x3F80) - O`.
+   - the X origin is g_BattleViewOrigin (whose address retail hoists into a
+     saved register) but the loop's Z origin is that same VECTOR's .vz, while
+     the first column's Z origin is the separate symbol g_BattleViewOriginZ.
+   - g_BattleViewOriginZ is at g_BattleViewOrigin + 8 (they are the vz of one
+     VECTOR), which is why retail can use `lw 8(s7)` in the loop.
+   - `ang = ratan2(...) & 0xFFF0; ang -= 0x100;` as two statements: the
+     one-expression form keeps the masked value alive and folds the later
+     `ang += 0x10` into `addiu s3,s0,-240`.
+   - a s32 copy of each x/y vertex pair (retail does `lw`/`sw`): the two-short
+     form is four instructions, and a DVECTOR copy is unaligned lwl/lwr.
+   - `pNext = pPrim + 1` is assigned before the depth compares so reorg puts
+     the addiu in the `beqz` delay slot, and the OT index is a local assigned
+     first inside the `if` so the `sra` lands in its delay slot.
+   - gte_dpcs() had to be fixed to emit the canonical COP2 word: see the note
+     in include/psyq/inline_c.h.
+void func_80082E60(u_long* pOt, VECTOR* pCam) {
+    VECTOR cam;
+    SVECTOR vec[6];
+    POLY_FT4* pPrim;
+    POLY_FT4* pNext;
+    s32 sz[4];
+    s32 ang;
+    s32 depth;
+    s32 i;
+    s32 originX;
+    s32 originZ;
+    s32 otIndex;
+    s32 x;
+    s32 z;
+
+    cam = *pCam;
+    pPrim = D_80092788[g_BattleDrawBufferIndex];
+    cam.vx -= 0x3F80;
+    cam.vz -= 0x3F80;
+    ang = ratan2(cam.vx, cam.vz) & 0xFFF0;
+    ang -= 0x100;
+    vec[0].vy = vec[1].vy = 0;
+    vec[2].vy = vec[3].vy = -0x290;
+    vec[4].vy = vec[5].vy = -0x520;
+    x = ((rcos(ang) * 0x3F80) >> 12);
+    x -= (originX = g_BattleViewOrigin.vx - 0x3F80);
+    vec[0].vx = x;
+    z = ((rsin(ang) * 0x3F80) >> 12);
+    z -= (originZ = g_BattleViewOriginZ.vx - 0x3F80);
+    vec[0].vz = z;
+    ang += 0x10;
+    for (i = 0; i < 0x20; i++) {
+        vec[2].vx = vec[0].vx;
+        vec[4].vx = vec[0].vx;
+        vec[2].vz = vec[0].vz;
+        vec[4].vz = vec[0].vz;
+        x = ((rcos(ang) * 0x3F80) >> 12);
+        x -= (originX = g_BattleViewOrigin.vx - 0x3F80);
+        vec[1].vx = x;
+        vec[3].vx = x;
+        vec[5].vx = x;
+        z = ((rsin(ang) * 0x3F80) >> 12);
+        z -= (originZ = g_BattleViewOrigin.vz - 0x3F80);
+        vec[1].vz = z;
+        vec[3].vz = z;
+        vec[5].vz = z;
+        gte_ldv3(&vec[0], &vec[1], &vec[2]);
+        gte_rtpt();
+        gte_dpcs();
+        gte_stsxy3(&pPrim->x0, &pPrim->x1, &pPrim->x2);
+        gte_stsz3(&sz[0], &sz[1], &sz[2]);
+        gte_ldv3(&vec[3], &vec[4], &vec[5]);
+        gte_rtpt();
+        pNext = pPrim + 1;
+        depth = sz[0];
+        if (depth < sz[1]) {
+            depth = sz[1];
+        }
+        if (depth <= sz[2]) {
+            depth = sz[2];
+        }
+        *(s32*)&pNext->x0 = *(s32*)&pPrim->x2;
+        gte_stsxy(&pPrim->x3);
+        gte_stsxy3(&pPrim->x3, &pNext->x2, &pNext->x3);
+        gte_stsz(&sz[3]);
+        *(s32*)&pNext->x1 = *(s32*)&pPrim->x3;
+        if (depth <= sz[3]) {
+            depth = sz[3];
+        }
+        if (depth < 0x1C00) {
+            otIndex = depth >> 4;
+            gte_strgb(&pPrim->r0);
+            gte_strgb(&pNext->r0);
+            setPolyFT4(pPrim);
+            setPolyFT4(pNext);
+            AddPrim(pOt + otIndex, pPrim);
+            AddPrim(pOt + otIndex, pNext);
+        }
+        pPrim += 2;
+        ang += 0x10;
+        vec[0].vx = vec[1].vx;
+        vec[0].vz = vec[1].vz;
+    }
+}
+*/
 
 void BattleRandomizeCameraPosition(void) {
     s32 ang;
