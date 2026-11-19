@@ -226,7 +226,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008ADD0);
    new_var lever (base=1011 best=472); a second run from THIS body is the next
    step. Already ruled out: -G8/-G0 preset (99.73% under -G0, still short),
    u16 pointer, register and volatile pMask, pMask[0], moving the
-   assignment site, -O1/-O3. */
+   assignment site, -O1/-O3.
+   Round 297: the missing instruction is the loop's mask read. Retail re-forms
+   lui/hi + lhu/lo(g_BattleActionSlotMask) inside the loop (2 insns), while any
+   spelling that also holds the flag's ADDRESS in a register lets gcc read through
+   that register (1 insn: 820 bytes against retail's 824). Reading the symbol in
+   the loop while keeping the pointer makes gcc hoist the address into s3 instead
+   (97.15); a volatile pointer with a symbol loop is 97.22. A u16 temp for the
+   entry load in the else arm is 98.54 (a permuter run from 98.47 found it). */
 /*
 void func_8008ADD0(u8 arg0) {
     s32 off;
@@ -323,7 +330,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc15", func_8008B224);
    runs (from this body and from the 89.19 one) only returned variants that read
    the local before assigning it. Measured dead: inline `D_800CCD38 + arg0*0x170`
    at all three sites, an s32/u32 off local, one-symbol two-statement `-=`
-   (596 bytes but a formed base register). */
+   (596 bytes but a formed base register).
+   Round 297 re-measured: the bit local in BOTH arms makes cse merge the two sums
+   into one (584 bytes), and hoisting the mask call to the first statement of an
+   arm re-orders the loads and costs a saved register. The two retail sums differ
+   only in operand order, so the open question is which sum gcc emits first. */
 /*
 u8 func_8008B224(u8 arg0, u8 arg1, u8 arg2) {
     u8 result;
