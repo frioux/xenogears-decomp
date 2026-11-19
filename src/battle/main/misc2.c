@@ -19,6 +19,17 @@ typedef struct {
     /* 0xE6 */ u8 enabled[4];
 } BattlePulseWork; // Size: 0xEA
 
+// Partial view of the packet prim pool g_BattleGraphicsWork->pPacketPrims points at
+// (BATTLE_PACKET_PRIM_POOL_SIZE bytes): the prim index each list of POLY_FT4s is
+// drawn at, and the flag gating the four blocks at +0x0.
+typedef struct {
+    /* 0x000 */ POLY_FT4 prims[0x29];
+    /* 0x668 */ u8 ft4PrimIndex;  // prim index of the blocks at +0x0/+0x50/+0xA0/+0xF0
+    /* 0x669 */ u8 pending;       // while set, the four blocks at +0x0 have prims to add
+    /* 0x66A */ u8 pairPrimIndex; // prim index of the lists at +0x280/+0x2D0/+0x320/+0x370
+    /* 0x66B */ u8 unk66B[5];
+} BattlePacketPrims; // Size: 0x670
+
 extern u8 D_8005959C;
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattleDisplayMode;
@@ -256,36 +267,36 @@ void BattleRenderSlotStatDigits(void) {
     }
 }
 void BattleAddFourSlotPrims(void) {
-    u8 *p;
+    BattlePacketPrims *p;
 
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    if (p[0x669] == 0) {
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    if (p->pending == 0) {
         return;
     }
 
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x668] * 40 + (s32)p));
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x668] * 40 + (0x50 + (s32)p)));
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x668] * 40 + (0xA0 + (s32)p)));
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x668] * 40 + (0xF0 + (s32)p)));
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (s32)p));
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (0x50 + (s32)p)));
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (0xA0 + (s32)p)));
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (0xF0 + (s32)p)));
 }
 void BattleAddPrimPair320(void) {
-    u8 *p;
+    BattlePacketPrims *p;
 
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x66A] * 40 + (0x320 + (s32)p)));
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x66A] * 40 + (0x370 + (s32)p)));
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x320 + (s32)p)));
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x370 + (s32)p)));
 }
 void BattleAddPrimPair280(void) {
-    u8 *p;
+    BattlePacketPrims *p;
 
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x66A] * 40 + (0x280 + (s32)p)));
-    p = *(u8 **)(g_BattleGraphicsWork + 0xA230);
-    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p[0x66A] * 40 + (0x2D0 + (s32)p)));
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x280 + (s32)p)));
+    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x2D0 + (s32)p)));
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
