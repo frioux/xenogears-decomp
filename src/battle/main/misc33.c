@@ -541,12 +541,28 @@ void BattleResetStateGlobals(void) {
     g_BattleState = NULL;
     g_BattleSlotBitMask = 0;
 }
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
+/* best 93.82% (156 bytes = retail's size, SAME instruction multiset).  Two hunks left:
+   (1) retail feeds the actionDone(0x48)+unk30(0x30) stores from ONE reload of
+   g_BattleState and the pendingStep(0x49)+pathIndex(0x2C)+pCurSprite(0x04) group from
+   a second, while ours feeds actionDone from the first and unk30 from the second;
+   (2) retail's timer(0x34) store sits in the BattleSetStateStep jal delay slot, fed by
+   its THIRD reload, and the post-call `lw v0,0(s0)` is dead -- ours keeps the timer
+   store after the call, fed by the post-call reload.  Measured: the embedded
+   `pState = (g_BattleState = HeapAlloc(...));` is what puts the g_BattleState lui in
+   $s0 before func_800B9F78's (88.03 -> 93.82; without it gcc emits it two insns
+   later).  Tail orderings measured on top of that body: timer/call/globals 90.18% at
+   144 bytes (no post-call reload at all), timer/globals/call 88.69 at 164,
+   globals/timer/call 88.69 at 164, call/globals/timer 92.44 at 164,
+   globals/call/timer 84.44 at 168.  Two permuter runs (245 -> 150 score) only reach
+   this by adding a DUPLICATE timer store (160 bytes, 96.36%) -- that is not retail's
+   single 0x34 store, so it is not a match.  A later lane should try to find what makes
+   retail's post-call reload dead.
 void func_800BED4C(void) {
     BattleMisc33State *pState;
 
-    pState = HeapAlloc(0x50, 0);
+    pState = (g_BattleState = HeapAlloc(0x50, 0));
     pState->pUpdate = func_800B9F78;
-    g_BattleState = pState;
     g_BattleCommandRowIndex = 0;
     pState->commandUnhandled = 0;
     g_BattleState->actionDone = 1;
@@ -559,34 +575,6 @@ void func_800BED4C(void) {
     g_NumFlaggedTimerWorkListEntries = 0;
     g_FlagTimerWorkListAdds = 1;
 }
-/* best 88.03% (156 bytes = retail's size).  The address of g_BattleState has to be
-   live ACROSS the BattleSetStateStep call (retail reloads it into $s0 for every store
-   and has ONE dead post-call `lw v0,0(s0)`), which only happens if a g_BattleState
-   store follows the call -- so `g_BattleState->timer = 0;` is after it, NOT before
-   (before the call the body is 144 bytes, 85.18%).  Retail then reorg'd the timer
-   store into the jal delay slot using the reload it made BEFORE the call, leaving the
-   post-call load dead; ours reloads after the call and keeps the store last, and the
-   %hi/%lo base registers come out v0 where retail has v1.  Same instruction multiset.
-   The PRE-call order is fixed and matches: pUpdate, g_BattleState, g_BattleCommandRowIndex,
-   commandUnhandled, actionDone(1), unk30(0), pendingStep, pathIndex(1), pCurSprite.
-   void func_800BED4C(void) {
-       BattleMisc33State *pState;
-
-       pState = HeapAlloc(0x50, 0);
-       pState->pUpdate = func_800B9F78;
-       g_BattleState = pState;
-       g_BattleCommandRowIndex = 0;
-       pState->commandUnhandled = 0;
-       g_BattleState->actionDone = 1;
-       g_BattleState->unk30 = 0;
-       g_BattleState->pendingStep = 0;
-       g_BattleState->pathIndex = 1;
-       g_BattleState->pCurSprite = NULL;
-       BattleSetStateStep(0);
-       g_BattleState->timer = 0;
-       g_NumFlaggedTimerWorkListEntries = 0;
-       g_FlagTimerWorkListAdds = 1;
-   }
 */
 void BattleDestroyState(void) {
     HeapFree(g_BattleState);
