@@ -1,6 +1,8 @@
 #include "common.h"
 #include "main/game.h"
+#include "system/archive.h"
 #include "system/math.h"
+#include "system/memory.h"
 #include "field/script_vm.h"
 #include "field/actor.h"
 #include "field/text_box.h"
@@ -1162,7 +1164,120 @@ void FieldScriptVMHandlerReleaseActorModel(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A0FD8);
+extern s32 g_FieldArchiveStreamActive;
+extern s32 FieldArchiveTryDataSync(void);
+extern s32 ArchiveCdDataSync(s32 arg0);
+extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
+extern void func_80029AFC(StreamDataQueueEntry* pQueue, s32 arg1, s32 arg2);
+extern void func_801E742C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s16 arg4, s32 arg5,
+                          s32 arg6, s32 arg7, SVECTOR* pVector);
+extern StreamDataQueueEntry D_800B2394[];
+extern s32 D_8005A420[];
+extern s32 D_8005A450[];
+
+// Per-slot scratch the loader fills: an SVECTOR per slot at +0x0, which the
+// sprite update reads back, and the animation id taken from the model at +0x20.
+typedef struct {
+    /* 0x00 */ SVECTOR vectors[4];
+    /* 0x20 */ s32 animationIds[8];
+} FieldModelSlotScratch;
+
+extern FieldModelSlotScratch D_800B21EC;
+
+// The model record g_FieldActorModelPointers holds and the record it points at
+// from +0x4. This unit only touches the scale, the y and the two x/z words.
+typedef struct {
+    /* 0x00 */ u32 unk0;
+    /* 0x04 */ void* unk4;
+    /* 0x08 */ u8 unk8[0x14];
+    /* 0x1C */ s16 unk1C;
+    /* 0x1E */ u8 unk1E[0x42];
+    /* 0x60 */ s16 unk60;
+} FieldActorModel;
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x5C];
+    /* 0x5C */ s32 unk5C;
+    /* 0x60 */ u8 unk60[4];
+    /* 0x64 */ s32 unk64;
+} FieldActorModelSprite;
+
+void func_800A0FD8(void) {
+    ActorData* pActor;
+    s32 nSlot;
+    s32 nArg;
+    s32 nOffset;
+    void* pBuffer;
+    s16* pPosition;
+    s16 nScale;
+    s32 nPositionY;
+    FieldActorModel* pModel;
+    ActorData* pSpriteActor;
+
+    if (g_FieldArchiveStreamActive || FieldArchiveTryDataSync() != 0) {
+        g_FieldScriptVMCurActor->scriptInstructionPointer--;
+        g_FieldScriptVMStopFlag = 1;
+        return;
+    }
+
+    pActor = g_FieldScriptVMCurActor;
+    nSlot = pActor->flags12C_0xE;
+    pActor->flags &= ~0x2000;
+    ArchiveSetIndex(ARCHIVE_DIR_FIELD, 0);
+
+    switch (SCRIPT_READ_U8_REL(1)) {
+        case 0:
+            g_FieldActorModelPointers[nSlot][0x34] = 0;
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+
+        case 1:
+            LibGearFreeModel(g_FieldScriptVMCurActor->flags12C_0xE);
+            nArg = FieldScriptVMGetArgument(5);
+            D_800B21DC[nSlot] = nArg * 2;
+            D_800B2394[0].archiveIndex = nArg * 2 + 0x6BA;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + 0x6BA), 0);
+            D_8005A420[nSlot] = (s32)pBuffer;
+            D_800B2394[0].pData = pBuffer;
+            D_800B2394[1].archiveIndex = D_800B21DC[nSlot] + 0x6BB;
+            pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(D_800B21DC[nSlot] + 0x6BB), 1);
+            D_8005A450[nSlot] = (s32)pBuffer;
+            D_800B2394[1].pData = pBuffer;
+            D_800B2394[2].archiveIndex = 0;
+            D_800B2394[2].pData = NULL;
+            func_80029AFC(D_800B2394, 0, 0);
+            g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+            break;
+
+        case 2:
+            if (ArchiveCdDataSync(1) == 0) {
+                FieldScriptVMGetArgument(2);
+                nOffset = nSlot + D_800B225F[nSlot];
+                func_801E742C(nSlot, 0, D_8005A420[nSlot], D_8005A450[nSlot],
+                    (s16)(0x240 - (nOffset << 6)), 0x100, 0,
+                    (s16)(nSlot + 0xFC), &D_800B21EC.vectors[nSlot]);
+                D_800B21EC.animationIds[nSlot] = *(s16*)(g_FieldActorModelPointers[nSlot] + 0x1C);
+                HeapFree((void*)D_8005A450[nSlot]);
+
+                pSpriteActor = g_FieldScriptVMCurActor;
+                pSpriteActor->scriptInstructionPointer += 4;
+                pSpriteActor->flags |= 0x2000;
+                nScale = (s16)pSpriteActor->scaleX;
+                pPosition = (s16*)&pSpriteActor->position;
+                ((FieldActorModel*)g_FieldActorModelPointers[nSlot])->unk1C = (nScale * 5) >> 6;
+                // The y is a fixed-point half-word: an int local keeps the sign-extending load.
+                pModel = (FieldActorModel*)g_FieldActorModelPointers[nSlot];
+                nPositionY = pPosition[3];
+                pModel->unk60 = nPositionY;
+                ((FieldActorModelSprite*)((FieldActorModel*)g_FieldActorModelPointers[nSlot])->unk4)->unk5C = pPosition[1];
+                ((FieldActorModelSprite*)((FieldActorModel*)g_FieldActorModelPointers[nSlot])->unk4)->unk64 = pPosition[5];
+            } else {
+                g_FieldScriptVMCurActor->scriptInstructionPointer--;
+            }
+            break;
+    }
+    g_FieldScriptVMStopFlag = 1;
+}
 
 // Screened 36 variants: best 84.19% here, cdk 81.67%, 2.6.0 83.64% - the RMW vs
 // `++` store order is the gap (already reordered in cc1's .s).
