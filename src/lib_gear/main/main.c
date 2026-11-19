@@ -573,6 +573,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     Temp9Section* pSection;
     u8* pQuadA;
     u8* pQuadB;
+    u16* pBankA;
+    u16* pBankB;
     POLY_FT4* pPoly;
     SVECTOR svec;
     VECTOR vec;
@@ -875,12 +877,15 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                pEntry->pVertex->x0 = pEntry->screenA[8 * (1 - quadSlot)];
-                pEntry->pVertex->y0 = pEntry->screenA[8 * (1 - quadSlot) + 2];
-                pEntry->pVertex->z0 = pEntry->screenA[8 * (1 - quadSlot) + 4];
-                pEntry->pVertex->x2 = pEntry->screenB[8 * (1 - quadSlot)];
-                pEntry->pVertex->y2 = pEntry->screenB[8 * (1 - quadSlot) + 2];
-                pEntry->pVertex->z2 = pEntry->screenB[8 * (1 - quadSlot) + 4];
+                pBankA = &pEntry->screenA[8 * (1 - quadSlot)];
+                pBankB = &pEntry->screenB[8 * (1 - quadSlot)];
+
+                pEntry->pVertex->x0 = pBankA[0];
+                pEntry->pVertex->y0 = pBankA[2];
+                pEntry->pVertex->z0 = pBankA[4];
+                pEntry->pVertex->x2 = pBankB[0];
+                pEntry->pVertex->y2 = pBankB[2];
+                pEntry->pVertex->z2 = pBankB[4];
             }
 
             pEntry->pVertex->x1 = *(u16*)(pQuadA + 0);
