@@ -586,24 +586,11 @@ void WorldMapLoadClutAndTpageIds(void) {
 }
 
 
-// Best: 63.31%. Same instruction multiset, different order: cc1 2.7.2's sched2
-// hoists the C618/C838/C83C stores above the two loads and splits the mask into
-// `li $4,0x7F0000` (kept at the top) + `ori $4,$4,0xFFFF` (emitted 8 insns
-// later, just before the ands); retail keeps lui+ori adjacent at the top and the
-// stores in source order, which is ASPSX 2.6x's reorder of the same RTL - we
-// assemble with GAS, which only inserts load-delay nops and never moves an insn.
-// Round 19 confirmed this on build/src/world_map/main/misc15.c.s. Also checked:
-// writing the statements in retail's own order changes nothing (sched2 re-does
-// it), the direct `p[0] & 0x7FFFFF` form gives 52.66%, and maspsx with li
-// expansion on (--maspsx "--use-comm-section --run-assembler", i.e. the Default
-// preset's flags) scores 72.42 here while dropping 6 already-matched functions
-// in this unit (WorldMapStartSlot 91.43, WorldMapSetSlotState3 91.43, WorldMapAllocSlotPool 95.38),
-// so the unit preset is right.
-// Round 42: the -O2 schedule is source-order-insensitive here (four statement
-// orders, retail's own included, give a byte-identical .s), and a try_flags
-// --sweep peaks at 74.19% (-O1, every gcc) / 67.66% (cdk -O1), so retail's
-// order is not reachable under the unit's -O2.
-/*
+// The volatile stores pin the statement order. Any plain spelling lets sched2
+// hoist the C838/C83C/0x400 stores above the two loads and split the 0x7FFFFF
+// mask into a lui at the top plus an ori 8 insns later (63.31%); the volatile
+// read of p[2] is what keeps that load out of the sh group, where a plain load
+// is hoisted a block early and needs a nop (91.77%).
 void func_80097BC0(s32 *p) {
     u32 *pEnd;
     s32 i;
@@ -617,20 +604,18 @@ void func_80097BC0(s32 *p) {
         *pEnd-- = 0;
     }
     x = p[0];
-    g_WorldMapGridShadePhase = 0x400;
-    D_8009BBB8 = 0;
-    g_WorldMapGridAngle = 0;
-    g_WorldMapScrollX = x & 0x7FFFFF;
-    z = p[2];
-    g_WorldMapGridOrigin = 2;
-    D_8009C83A = 0;
-    D_8009C83C = 2;
+    *(volatile s32 *)&D_8009BBB8 = 0;
+    *(volatile s32 *)&g_WorldMapGridAngle = 0;
+    *(volatile s32 *)&g_WorldMapGridShadePhase = 0x400;
+    *(volatile s32 *)&g_WorldMapScrollX = x & 0x7FFFFF;
+    z = *(volatile s32 *)&p[2];
+    *(volatile s16 *)&g_WorldMapGridOrigin = 2;
+    *(volatile s16 *)&D_8009C83A = 0;
+    *(volatile s16 *)&D_8009C83C = 2;
     D_8009BBBC = z & 0x7FFFFF;
     func_800981C8((s32)p);
     WorldMapSubmitGridImageLoads();
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80097BC0);
 
 void WorldMapRefreshGrid(s32 arg0) {
     u32 *pEnd;
