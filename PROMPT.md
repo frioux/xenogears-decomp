@@ -69,6 +69,32 @@ matched C. The one matching queue that still exists is a **park with a named cau
 near-exact size** (99%+, instruction multiset identical): that is worth one worker when
 a tracker row records the specific construct, and nothing else is.
 
+**Measured at round 305 (2026-11-19, rounds 285-305): the project moved from 921 to 848 stubs,
+73 matches in 21 rounds, and what is left is a LONG TAIL.** The shape that produces matches
+now is one lane per unit on bodies NOBODY HAS WRITTEN, 60-90 minutes, `funcs` limited to
+2-5 stubs, with the unit's preset and the accumulated lever list from `brief.js`. Yields per
+round in that run: 4, 11, 10, 4, 8, 4, 3, 1, 2, 2, 1, 6, 0, 3, 2, 3, 1, 8. What stopped
+paying, each by measurement: park-continuation (rounds 288/294/297/304 - every lane reached
+92-99.9 percent at retail's exact size and stopped at the same `local_alloc` tie), re-briefing
+a unit that has already had a lane (round 297: 0 matches from five such units), and the
+report's own recommendation to keep looking for fresh small bodies (the non-psyq reservoir is
+now 1-3 stubs per untouched unit).
+
+Three things that still pay, in order:
+1. **A unit where a TYPED spelling exists that the parks do not use.** Round 305's
+   `battle/misc7` matched SEVEN of ten stubs in one lane by writing
+   `g_BattleSlotRegs[index].wordRegs[...]` instead of `(u16 *)(g_BattleSlotWordRegs + index * 0x40)`.
+   `battle/misc8` and `misc6_r1` were already fully matched, so that particular vein is spent,
+   but the generalisation is not: when a file declares a struct view and its parks use casts,
+   the typed form is usually the answer and the addend-only diff is 99.x RELOC that `check_bin` proves.
+2. **A mechanism question handed to one lane with `cc1_probe.sh`.** Rounds 304-305 answered
+   where cc1 places prologue saves, why a dead constant cannot sit in a delay slot, and that
+   an argument with a side effect is pre-expanded before a constant address. A prose question
+   with a 10-second probe loop beats a lane of hand shapes.
+3. **Quality rounds between matching rounds** (`brief.js` rewrite/const briefs): they cost a
+   round and return no matches, but they are how `D_`/`unk`/raw stay flat and how the lever
+   list stays true. Every third round is about right.
+
 **Measured at round 286 (2026-11-19): the census queue is real and it is where the matches
 are.** Rounds 285 and 286 briefed units from it and landed **4 then 11 matches** (+5 and
 +16 names), against ~1 per round for the ten park rounds before. The yield per lane is
