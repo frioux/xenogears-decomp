@@ -383,28 +383,20 @@ extern s32 D_8009BD08;
 extern s32 g_WorldMapAreaMode;
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071B9C);
-/* best: 96.74% (308 bytes, same size). Everything matches except the placement
-   of the D_8009B564 base: retail materialises it in the block BEFORE the pre-check
-   (lui v1 / addiu %lo(B564) with addend 0) and then adds 2 inside the if, while
-   gcc folds the +2 into a rematerialised la inside the if and leaves a nop in the
-   pre-block. Instruction count and every other insn are identical, so the only
-   remaining lever is keeping that address in a register across the branch; gcc
-   cse always rematerialises it. Shapes that got here:
-   - pre-check tests the SYMBOL D_8009B566 (not *pTable), so gcc folds that load
-     to a fresh lui v0 (matches retail);
-   - the pointer is &D_8009B564 (NOT &D_8009B566) plus a separate increment, which
-     is what produces retail's la-with-addend-0 + addiu 2 pattern;
-   - the loop is a do/while with the increment first, which reproduces retail's
-     rotated body exactly;
-   - the table index after the loop is nLevel (retail does sll v0,a0,3 after
-     addiu a0,a0,1, so the entry index and g_WorldMapLevelIndex both use the counter), and
-     pEntry is formed BEFORE the g_WorldMapLevelIndex store.
-   Tried with no change: pTable = &D_8009B564 + nLevel, (u16*)((u8*)pTable + 2),
-   the increment statement before vs after the if, and pTable[1] as the pre-check
-   (that one loads through the base register instead of folding).
-   Round 50: gcc forms the la as %lo(D_8009B566)+2 (the symbol it already loaded
-   for the pre-check), not %lo(D_8009B564); gcc-2.7.2-cdk drops this to 81.1% and
-   -G0 does not compile this unit, so the preset is not the lever.
+/* best: 96.74% (320 bytes, retail's exact size). Everything matches except the
+   D_8009B564 base: retail materialises `lui v1,%hi(B564)` + `addiu v1,v1,%lo(B564)`
+   BEFORE the pre-check (the lui fills the `lhu v0,D_8009B566` load-delay slot) and
+   then does `addiu v1,v1,2` inside the if, while gcc sinks the la into the if and
+   folds the +2 into it (la B564+2) with a `nop` in the load-delay slot.
+   Round 287, the array lever measured: `extern u16 D_8009B564[];` +
+   `pTable = D_8009B564;` and `if (arg1 >= D_8009B564[1])` DOES materialise
+   `la $v1,D_8009B564` first, but the pre-check then loads through that base
+   (`lhu $v0,2($v1)`) where retail uses an absolute D_8009B566 load, and the
+   `pTable++` moves into the bnez delay slot: 92.11%, 324 bytes. Kept the
+   absolute-symbol spelling for the pre-check since 96.74% beats it.
+   Other shapes already measured dead: pTable[1] as the pre-check (base-register
+   load), (u16*)((u8*)pTable + 2), increment before vs after the if, -cdk (81.1%),
+   -G0 does not compile this unit.
 */
 /*
 void func_80071B9C(s32 arg0, s32 arg1) {
@@ -518,6 +510,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
    regardless, because the address pseudo is created after the store. Dead end
    unless the address comes from a runtime base.
    Round 51: permuter 434 iterations, base=125 best=125 - no lever in the body.
+   Round 287: a volatile store (`*(volatile u16 *)&g_WorldMapStreamQueue = D_8009D3C4;`)
+   is worse, not better: 89.00%, 256 bytes - gcc then keeps the address in a callee-saved
+   $s0 across the store group and STILL emits `lui $at / sh %lo($at)` through %lo, so the
+   store itself never picks up the register.
 
 void func_80071EF0(void) {
     void* pBuffer;
@@ -1135,18 +1131,18 @@ void WorldMapSetPositionFromState(void) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80073448);
-// best: 94.74%, 228 bytes vs retail's 232 - the missing insn is the load-delay
-// `nop` after `lh v0,4(a2)`. Retail's found-point block is
-// `lh v0,0(a2) / sw zero,g_WorldMapPlayerPositionY / sll / sw g_WorldMapPlayerPosition / lh v0,4(a2) / nop /
-// sll / sw g_WorldMapPlayerPositionZ`, i.e. the x and z loads share $v0 and the z load is NOT
-// hoisted. gcc's sched1 hoists the independent z load above the stores whatever
-// the statement order. `nPos = p->z;` (load into the shared temp, shift at the
-// store) does produce retail's 232-byte shape but gcc then splits the two loads
-// into $v0/$v1 and moves `sw zero,g_WorldMapPlayerPositionY` after both of them (91.55%);
-// `nPos = p->x;` first is 89.48%. Rest matches retail exactly, including the
-// `g_GameState.worldMapState &= ~0x2000` base-register read-modify-write and the
-// `sll/sra` narrowed-id search loop.
-// (kept as // lines so permute.sh can find the parked body below it)
+/* best: 97.16% (236 bytes vs retail's 232). Retail's found-point block is
+   `lh v0,0(a2) / sw zero,g_WorldMapPlayerPositionY / sll / sw g_WorldMapPlayerPosition /
+   lh v0,4(a2) / nop / sll / sw g_WorldMapPlayerPositionZ`: the x and z loads share $v0 and
+   the z load is NOT hoisted above the two stores. Plain C hoists it (both loads adjacent,
+   228 bytes, 94.74%). Marking the first two stores `volatile` does NOT stop that (same
+   228 bytes), but marking the Z LOAD volatile does put it after the stores - at the cost
+   of one insn, because gcc 2.7.2 expands a volatile sign-extending 16-bit load as
+   `lhu / sll 16 / sra 4` instead of `lh / sll 12` (97.16%, 236 bytes). Everything else,
+   including the `sll/sra` narrowed-id search loop, matches. Do not read z as u16 to get
+   the `lhu / sll 12` shape - the shift keeps the low bits and changes the stored value
+   for negative z.
+*/
 /*
 void func_80073448(s32 arg0) {
     WorldMapPoint* p;
@@ -1160,10 +1156,10 @@ void func_80073448(s32 arg0) {
         p = g_WorldMapPoints;
         while (*(s16*)&p->id != -1) {
             if ((s16)p->id == arg0) {
-                g_WorldMapPlayerPositionY = 0;
+                *(volatile s32*)&g_WorldMapPlayerPositionY = 0;
                 nPos = p->x << 12;
-                g_WorldMapPlayerPosition = nPos;
-                nPos = p->z << 12;
+                *(volatile s32*)&g_WorldMapPlayerPosition = nPos;
+                nPos = *(volatile s16*)&p->z << 12;
                 g_WorldMapPlayerPositionZ = nPos;
                 return;
             }
