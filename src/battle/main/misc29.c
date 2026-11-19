@@ -291,17 +291,6 @@ extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern s32 SoundGetActiveElementMask(s32 arg0);
 extern s16 SoundGetPendingSpuCommandType(s32 arg0);
 
-// Best 94.91% under the unit preset (gcc 2.7.2-cdk, -G8 and -G0 alike; 93.69
-// under gcc 2.6.0). Structure is complete and in order; what is left:
-// (1) register roles - retail has s0=pEntry, s1=pTable, s2=pBuffer1, s3=pWds,
-// s4=arg0, s5=arg1, while arg0 takes $s0 here and pEntry stays live across the two
-// poll loops in $s3 (retail re-forms &D_800C35DC[arg0] after the loops with a fresh
-// lui/addiu, so pEntry is dead there and $s3 is free for pWds);
-// (2) the two store-then-reload pairs retail keeps ("sh v0,16(sp)" + "lhu a0,16(sp)",
-// likewise at 0x18(sp)) - gcc forwards the value from the register here.
-// Tried and worse: request accessed through a pointer local (88.0, needs $s6),
-// pTable[arg0] spelled inline instead of the pEntry local (88.0).
-/*
 void func_800B838C(s32 arg0, s32 arg1) {
     BattleArchiveRequest request;
     BattleArchiveEntry *pEntry;
@@ -309,12 +298,14 @@ void func_800B838C(s32 arg0, s32 arg1) {
     void *pBuffer1;
     void *pBuffer2;
     void *pWds;
+    s32 fileIndex;
     s32 id;
 
     BattleFreeWdsEntry();
     BattleWaitArchiveSync();
     ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
 
+    // the table needs its own pointer local; spelling every site as D_800C35DC[i] moves a register.
     pTable = D_800C35DC;
     pEntry = &pTable[arg0];
     request.fileIndex1 = pEntry->fileIndex;
@@ -323,7 +314,8 @@ void func_800B838C(s32 arg0, s32 arg1) {
     if (arg0 == 8) {
         request.fileIndex2 = pTable[8].fileIndex + 1;
     } else {
-        request.fileIndex2 = pEntry->fileIndex + 1 + arg1;
+        fileIndex = pEntry->fileIndex + 1;
+        request.fileIndex2 = fileIndex + arg1;
     }
     pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(request.fileIndex2), 0);
     request.pBuffer2 = pBuffer2;
@@ -337,7 +329,7 @@ void func_800B838C(s32 arg0, s32 arg1) {
     while (SoundGetPendingSpuCommandType(0) != 0) {
         func_800BE790();
     }
-    id = pEntry->soundId + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
+    id = D_800C35DC[arg0].soundId + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
     SoundPlaySoundEffectOnFreePair(id);
     while (SoundGetActiveElementMask(id) != 0) {
         func_800BE790();
@@ -347,8 +339,6 @@ void func_800B838C(s32 arg0, s32 arg1) {
     HeapFree(pBuffer2);
     HeapFree(pBuffer1);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B838C);
 
 /* The battle work block that g_BattleStateWork + 0x8000 starts: the render and
    pad state. Only the fields this unit touches are typed here. */
@@ -365,6 +355,13 @@ typedef struct {
     /* 0xDB0 */ u8 unkDB0[0x4D0];
 } BattleRenderState; // Size: 0x1280
 
+/* The work block at g_BattleStateWork seen from its sprite pointers: the eleven
+   sprites this function clears the 0x40 flag of on the way out. */
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x8C8C];
+    /* 0x8C8C */ SpriteData *pOwnedSprites[BATTLE_ACTOR_SLOT_COUNT];
+} BattleOwnedSprites; // Size: 0x8CB8
+
 extern void BattleReleaseActorSlot(s32 index);
 extern void GfxFreeWorkBuffers(void);
 extern void WorkListsFreeAllEntries(void);
@@ -375,6 +372,76 @@ extern void *g_BattleSceneResources;
 extern u8 g_IsBattle;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+// 88.41% (576 bytes vs retail's 560). The switch tree, every call and both loops
+// are retail's; what is left is register allocation: retail runs the case loops
+// with only $s0-$s3 (it re-materialises `li v0,21` and `li v0,3` inside the loop)
+// while gcc hoists both constants into $s4/$s3 here and needs two more saves and a
+// 0x38 frame. The tail loop's 3/0xB are materialised straight into the tail block
+// in retail, in the switch tree's delay slots here. Listing case 1 first is
+// required for retail's test order (1, then the slti a0,2 branch, then 0, then 2).
+/*
+extern void BattleStartScreenFade(s32 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4);
+extern void func_800A9FF0(s32 arg0);
+extern void BattleBeginAnimTask(s32 arg0);
+extern void ArchiveReadFileToBuffer(s32 fileIndex, void *pBuffer, u32 arg2, u32 arg3);
+extern void *D_800D39C8;
+
+void func_800B853C(s32 mode) {
+    BattleOwnedSprites *pOwned;
+    BattleRenderState *pWork;
+    SpriteData *pSprite;
+    void *pBuffer;
+    s32 i;
+
+    switch (mode) {
+    case 1:
+        break;
+    case 0:
+        BattleBeginAnimTask(-1);
+        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
+        for (i = 0; i != 3; i++) {
+            pSprite = pOwned->pOwnedSprites[i];
+            if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+                func_800BFC80(pSprite, 0, 2);
+                SpritePlayAnimation(pSprite, 0x18);
+            }
+        }
+        break;
+    case 2:
+        BattleBeginAnimTask(0);
+        BattleStartScreenFade(0x28, 2, 0xFF, 0xFF, 0xFF);
+        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
+        for (i = 0; i != 3; i++) {
+            pSprite = pOwned->pOwnedSprites[i];
+            if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+                SpritePlayAnimation(pSprite, 5);
+            }
+        }
+        for (i = 0x28; i > 0; i--) {
+            func_800BE790();
+        }
+        break;
+    }
+    for (i = BATTLE_FIRST_ACTOR_SLOT; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+        func_800A9FF0(i);
+        BattleReleaseActorSlot(i);
+    }
+    BattleFreeWdsEntry();
+    BattleWaitArchiveSync();
+    ArchiveSetIndex(0x2C, 0);
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(5), 1);
+    ArchiveReadFileToBuffer(5, pBuffer, 0, 0x80);
+    BattleWaitArchiveSync();
+    g_GameWdsEntrySlot3 = SoundLoadWdsFile(pBuffer, 0);
+    while (SoundGetPendingSpuCommandType(0) != 0) {
+        func_800BE790();
+    }
+    HeapFree(pBuffer);
+    HeapFree(D_800D39C8);
+    pWork = (BattleRenderState *)((u8 *)g_BattleStateWork + BATTLE_RENDER_STATE_OFFSET);
+    pWork->unkDA8 = 0;
+}
+*/
 void func_800B8774(void) {
     u8 *pStateBase;
     BattleRenderState *pState;
@@ -447,64 +514,50 @@ extern s32 g_BattleLiveSlotCount;
 extern s32 g_AnimScriptExtraTicks;
 extern s32 g_GfxOTDepthShift;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
-// 91.71% (308 bytes vs retail's 304, same instruction multiset but one unfilled
-// load-delay slot). Everything is retail's except the address formation of
-// g_AnimScriptExtraTicks: retail hoists `lui a0,%hi` into the delay slot of the
-// `lw` that reloads g_BattleLiveSlotCount after the loop and keeps the base in a0 across the
-// clamp and the later read/zero, while gcc here fills that slot with a nop and
-// forms the address (in v1) at the clamp store. The loop itself is exact once the
-// slot pointer is written INDEXED off g_BattleStateWork (a pSlot++ walk rebases
-// the induction register onto the 0x8 field: 65.88%), and pCount/pFrame locals
-// kept the base in $s0 across the loop (also 65.88-78.72%).
-/*
 void func_800B88C4(void) {
     BattleActorSlot *pSlot;
     BattleEnvBlock *pEnv;
     BattleRenderState *pWork;
     u8 *pBase;
-    u8 *pBuffer;
+    BattleFrameEnv *pFrame;
     u8 *pOldOT;
     s32 extraTicks;
-    s32 n;
-    s32 i;
+    s32 i = BATTLE_FIRST_ACTOR_SLOT;
 
     g_BattleLiveSlotCount = 0;
     pSlot = (BattleActorSlot *)g_BattleStateWork;
-    for (i = BATTLE_FIRST_ACTOR_SLOT; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+    for (; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (pSlot[i].unk6 < 0x11 && pSlot[i].inUse != 0) {
             g_BattleLiveSlotCount++;
         }
     }
-    n = g_BattleLiveSlotCount / 2 - 1;
-    g_AnimScriptExtraTicks = n;
-    if (n < 0) {
+    g_AnimScriptExtraTicks = g_BattleLiveSlotCount / 2 - 1;
+    if (g_AnimScriptExtraTicks < 0) {
         g_AnimScriptExtraTicks = 0;
     }
     pBase = (u8 *)g_BattleStateWork;
+    pEnv = (BattleEnvBlock *)pBase;
     pWork = (BattleRenderState *)(pBase + BATTLE_RENDER_STATE_OFFSET);
     extraTicks = g_AnimScriptExtraTicks;
     g_AnimScriptExtraTicks = 0;
-    pBuffer = pBase + 0xB70;
+    pFrame = &pEnv->frames[0];
     pOldOT = pWork->pRenderEnv;
     g_GfxOTDepthShift = 2;
     pWork->unkDAC = extraTicks;
-    if (pOldOT == pBuffer) {
-        pBuffer = pBase + 0x4BE0;
+    if (pOldOT == (u8 *)pFrame) {
+        pFrame = &pEnv->frames[1];
     }
-    pWork->pRenderEnv = pBuffer;
-    pWork->pCurrentOT = (u_long *)(pBuffer + 0x70);
+    pWork->pRenderEnv = (u8 *)pFrame;
+    pWork->pCurrentOT = (u_long *)pFrame->otBuffer;
     ClearOTagR((u_long *)pWork->pCurrentOT, BATTLE_OT_TAG_COUNT);
     pWork->colorSetIndex = 1;
-    pEnv = (BattleEnvBlock *)pBase;
     pEnv->frames[1].draw.isbg = pEnv->frames[0].draw.isbg;
     pEnv->frames[1].draw.r0 = pEnv->frames[0].draw.r0;
     pEnv->frames[1].draw.g0 = pEnv->frames[0].draw.g0;
     pEnv->frames[1].draw.b0 = pEnv->frames[0].draw.b0;
-    pWork->pRenderEnv = pBase + 0x4BE0;
+    pWork->pRenderEnv = (u8 *)&pEnv->frames[1];
     pWork->unkDA8 = 0;
 }
-*/
 
 void BattleEmptyHook(void) {
 }
@@ -558,7 +611,69 @@ void BattleActorInitSpriteFromSlot(void) {
     BattleDestroyState();
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8EBC);
+
+extern u8 D_800C3624;
+extern u16 D_800C3DF0;
+extern u8 g_BattleActorArchiveReady;
+extern u8 D_800C35D4;
+extern u8 D_800C3688;
+extern s32 *g_BattleAudioManager;
+extern void BattleSetFlag2DBAndReleaseAssets(void);
+extern void func_800C0314(void);
+extern void func_800C0564(void);
+extern void BattleSetAnimTaskDoneState(s32 value);
+extern void BattleFreeTimerTaskIfActive(void);
+extern void BattleReleaseAllActorSlots(void);
+extern void BattleSetAnimTaskShort(s16 value);
+extern void BattleLoadActorSlotAnimation(s32 index);
+extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
+
+void func_800B8EBC(void) {
+    SpriteData *pSprite;
+    SpriteData *pOwnedSprite;
+    BattleOwnedSprites *pSprites;
+    s32 slot;
+    s32 i;
+
+    // retail loads the sprite before testing the pointer, which is what keeps
+    // g_BattleState's address in $s1 across the calls below.
+    pSprite = g_BattleState->pSprite;
+    if (g_BattleState == NULL) {
+        return;
+    }
+    D_800C3624 = 0;
+    D_800C3DF0 = 0;
+    g_BattleActorArchiveReady = 0;
+    BattleSetFlag2DBAndReleaseAssets();
+    DrawSync(0);
+    slot = g_BattleState->savedActorSlot;
+    SpriteSetCallback(pSprite, NULL);
+    func_800C0314();
+    while (g_NumFlaggedTimerWorkListEntries != BattleIsTimerTaskActive()) {
+        func_800BE790();
+    }
+    func_800C0564();
+    BattleUnloadActorArchive();
+    BattleSetAnimTaskDoneState(1);
+    BattleFreeTimerTaskIfActive();
+    BattleLoadArchiveEntryFile();
+    BattleReleaseAllActorSlots();
+    D_800C3688 = 0;
+    BattleSetAnimTaskShort(0xC0);
+    BattleDestroyState();
+    BattleLoadActorSlotAnimation(slot);
+    if (D_800C35D4 != 0) {
+        SoundSetAudioManagerVolumeWithFade(g_BattleAudioManager, 0x7F, 0x50);
+    }
+    D_800C35D4 = 0;
+    pSprites = (BattleOwnedSprites *)g_BattleStateWork;
+    for (i = 0; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+        pOwnedSprite = pSprites->pOwnedSprites[i];
+        if (pOwnedSprite != NULL) {
+            pOwnedSprite->flags_0xAC.flags &= ~0x40;
+        }
+    }
+}
 
 void BattleSpritePlayStoredAnimation(SpriteData *pSprite) {
     SpritePlayAnimation(pSprite, (s8)pSprite->flags_0xB0.bytes[0]);
