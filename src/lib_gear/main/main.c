@@ -508,11 +508,36 @@ typedef struct {
 extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
 extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s32 scale, s16 ground);
 
-// PARK, round 280: objdiff 94.35%, 3392 bytes against retail's 3376 (was 87.94% /
-// 3352). Every call, branch and GTE sequence in the body below is retail's; what is
-// left is a REGISTER PERMUTATION (185 of the 225 differing rows are a saved-register
-// rename) plus the pSkeleton spill.
+// PARK, round 281: objdiff 96.88%, 3388 bytes against retail's 3376 (+3 instructions:
+// one pSkeleton reload in the entry block, the `otz` memory spill, and the
+// model-list loop's cursor order). 158 of 860 rows still differ, and the great
+// majority of those are saved-register renames between two equivalent maps.
 // CLOSED THIS ROUND, each measured on its own:
+//  - the 2D/3D quad index wants a NARROW local, not `s32 slot`: `u16 quadSlot` (the
+//    `s32` version left it in a callee-saved register). 94.35 -> 94.96%.
+//  - the declaration order of the scratch pointers sets the spilled-slot order:
+//    declaring `pScratch/pViewScratch/pLightScratch` AFTER `modelScale` moves
+//    pSkeleton's home to 0x78, retail's, instead of 0x80.
+//  - retail reads `pModel->pSkeleton` DIRECTLY (a fresh `lw 0x4(s5)`) at two phase-1
+//    sites - `&pModel->pSkeleton[1].globalTransform` and the
+//    `pModel->pSkeleton->translation.y` of the depth clamp - while the joint-loop and
+//    phase-3/5 uses go through the local. Writing the local at those two sites is
+//    what kept it alive across the whole of phase 1. 95.49 -> 96.46% together with
+//    the t[] order below.
+//  - `pViewScratch->t[]`'s source order is t[0], t[1], t[2] (trans.vx, ground,
+//    trans.vz); the "obvious" t[0], t[2], t[1] order is 95.81.
+//  - the 3D colour path holds TWO bank pointers (retail `addiu a0,v1,0x1c` and
+//    `addiu v1,v1,0x3c` off one `8*(1-slot)` scale): `pBankA = &pEntry->screenA[8*(1-slot)]`
+//    and `pBankB = &pEntry->screenB[8*(1-slot)]`, not six indexed reads off one base.
+//    94.96 -> 95.47%.
+//  - `pMesh = pModel->pMesh;` assigned just before the joint loop (not in the entry
+//    block) frees a register there: 96.68 -> 96.88%. Moving `numChildren` the same
+//    way is 96.12 (worse) and swapping scale/numChildren is 96.46.
+//  - joint/section loops: `for (...; i++, p++)` - the increments in the for-clause,
+//    not `p++` at the end of the body - is retail's latch order.
+//  - the light-colour else-arm is m[0][1]=0; m[1][1]=scale; m[2][1]=0 in that order
+//    (retail stores m[2][1] into the branch delay slot). 96.49 -> 96.68%.
+// CLOSED IN ROUND 280, kept for the record:
 //  - the corner depth read-back is `gte_stszotz(&depthBuf[0/1])`, NOT a `gte_stsz3_val`
 //    plus a shift: gte_stszotz already carries mfc2 $19 / nop / sra $12,$12,2 / sw
 //    through the address operand, which is retail's exact four-instruction shape and
@@ -528,7 +553,7 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 //    the packet pointer in the RTPS shadow (its `lw t2,0xF8(sp)` sits right after
 //    RTPS) and a hoisted assignment costs a 12-row block. 91.57 -> 93.30%.
 //  - the 3D path's `pSection` was a `Temp9Section*`, so `pSection + 4` scaled by 0x10:
-//    retail's `lhu 0x4(a0)` is `screenA[8 * (1 - slot) + 2]`. Write the six reads
+//    retail's `lhu 0x4(a0)` is `screenA[8 * (1 - quadSlot) + 2]`. Write the six reads
 //    through the u16 arrays. 93.30 -> 94.07%.
 //  - the root-joint CompMatrix is IN PLACE: retail materialises 0x1F800020 in BOTH a1
 //    and a2 (two independent lui/ori pairs, at 0x1034 and in 0x1068's delay slot), so
@@ -538,39 +563,31 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 //    `addu s4,zero,zero` at each head and increments `s4` at the joint loop's latch);
 //    dropping the separate `jointIndex` local is 94.30 -> 94.35, and its only other
 //    effect is to move the permutation around.
-// REGISTER MAP (ours vs retail; the 0xE0 frame and the s0-s8+ra saved set agree, so
-// this is NOT over-allocation): pModel $s7/$s5, 0x1F800020 $s4/$s6, 0x1F800000
-// $s8/$s7, pMesh $s7/$s8, numChildren $s3/$s3 (agrees), loop var $s5/$s4, and
-// pSkeleton spilled at 0x80 in t0 against retail's $s2 / 0x78 / t2.
-// STILL OPEN, in the order the measurements point:
-//  - pSkeleton. Retail's entry block keeps it in $s2 (and spills it to 0x78, then
-//    reuses $s2 as the joint cursor with `addiu s2,s2,0x7C`); ours gives it no
-//    callee-saved home and reloads `lw t0,0x80(sp)` twelve times against retail's six.
-//    Most of the differing rows in the first 300 trace back to this.
-//  - the three two-cycles of the saved-register map. Statement and declaration order
-//    are measured dead (pSkeleton/pMesh in either order, the scratch pointers declared
-//    before or after the other locals, the assignments in either order): it is the
-//    allocator's own ordering, so the lever is one more or one fewer live value, not a
-//    reordering.
-//  - the OT tail: retail keeps `otz` in memory there (`sw a0,0x48(sp)` after the tag
-//    store, `lw v1,0x48(sp)` before the bgez) where our register copy spends two
-//    `addu v0,t0,zero` copies. No spill-favouring spelling found; `depthBuf[0] >>=`
-//    (the obvious one) re-forms &pOt[otz] and loses two points.
-//  - small: the pViewScratch t[] block wants retail's load order (trans.vx, ground,
-//    trans.vz) where our three statements give (vx, vz, ground); the joint loop's
-//    light-colour block has one store in a different slot; the model-list loop's
-//    `addiu s3,s3,0x24` sits one instruction earlier than retail's.
-// The permuter cannot parse this body (the GTE macros are "inconsistent operand
-// constraints in an asm"), so it is a hand job. Un-park by deleting the INCLUDE_ASM
-// line and the enclosing comment.
+// STILL OPEN, in the order the measurements point (all three are ALLOCATOR calls, and
+// the saved set and the 0xE0 frame match retail exactly, so none of them is
+// over-allocation):
+//  - pSkeleton has no callee-saved home in the entry block: ours reloads
+//    `lw t0,0x78(sp)` right after storing it, where retail keeps it in $s2 for the
+//    whole of phase 1 and only reloads in phase 3/5. `pModel->pSkeleton` is already
+//    used at the two sites where retail loads it fresh (see above), so what is left is
+//    the pseudo's live range against 9 saved registers. Measured dead: moving
+//    numChildren out of the entry block (96.12), swapping scale/numChildren (96.46),
+//    every declaration order of the pointer locals.
+//  - the OT tail keeps `otz` in a register where retail spills it to 0x48(sp) (the
+//    same slot as depthBuf[0], so retail's source may have shifted depthBuf[0] in
+//    place - but `depthBuf[0] >>= shift` and every other write-back spelling costs
+//    28 bytes and 0.6 points, so the register form below is the best measured).
+//  - the model-list loop's two `addiu ..,0x24` cursors and the packet-buffer `addu`
+//    operand order (`addu v0,v0,s2` in retail, `addu v0,s2,v0` here) are the last
+//    ordering differences: 4 rows.
+// The permuter DOES parse this body now (`&vec`-style macro args; base=5173) and found
+// the 2D `u16 quadSlot` edit in 5 minutes, so run it again from this body rather than
+// hand-iterating. Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 /*
 
 void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex) {
-    MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
-    MATRIX* pViewScratch = &pScratch[1];
-    MATRIX* pLightScratch = &pScratch[2];
     ModelJoint* pSkeleton;
     ModelMesh* pMesh;
     ModelJoint* pJoint;
@@ -580,6 +597,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     Temp9Section* pSection;
     u8* pQuadA;
     u8* pQuadB;
+    u16* pBankA;
+    u16* pBankB;
     POLY_FT4* pPoly;
     SVECTOR svec;
     VECTOR vec;
@@ -588,10 +607,13 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     VECTOR proj;
     SVECTOR swingVec;
     u16 modelScale;
+    MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
+    MATRIX* pViewScratch = &pScratch[1];
+    MATRIX* pLightScratch = &pScratch[2];
     s32 depth;
     s32 otz;
+    u16 quadSlot; // the quad bank the 2D/3D paths pick from the entry's slot
     u_int numChildren;
-    s32 slot;
     s32 i;
     s32 j;
 
@@ -600,14 +622,13 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     }
 
     pSkeleton = pModel->pSkeleton;
-    pMesh = pModel->pMesh;
     modelScale = pModel->scale;
     numChildren = pSkeleton->numChildren;
 
     CompMatrix(pLightMatrix, &pSkeleton->localTransform, pLightScratch);
 
     if ((pModel->flags & 1) == 0) {
-        CompMatrix(&pSkeleton->localTransform, &pSkeleton[1].globalTransform, pScratch);
+        CompMatrix(&pSkeleton->localTransform, &pModel->pSkeleton[1].globalTransform, pScratch);
         SetRotMatrix(pScratch);
         SetTransMatrix(pScratch);
 
@@ -631,15 +652,15 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         RotMatrix(&svec, pViewScratch);
 
         pViewScratch->t[0] = trans.vx;
-        pViewScratch->t[2] = trans.vz;
         pViewScratch->t[1] = pModel->ground;
+        pViewScratch->t[2] = trans.vz;
 
         // Retail composes the light matrix with the view scratch in place, not
         // with the root joint's globalTransform: the call site carries two
         // materialised 0x1F800020 immediates (a1 and a2).
         CompMatrix(pLightMatrix, pViewScratch, pViewScratch);
 
-        depth = pModel->scale - (pModel->ground - pSkeleton->translation.y) / 4;
+        depth = pModel->scale - (pModel->ground - pModel->pSkeleton->translation.y) / 4;
         if (depth < 0) {
             depth = 0;
         }
@@ -706,8 +727,9 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
 
+    pMesh = pModel->pMesh;
     pJoint = pSkeleton + 1;
-    for (i = 1; i < numChildren; i++) {
+    for (i = 1; i < numChildren; i++, pJoint++) {
         if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
             MulMatrix0(pViewScratch, &pJoint->globalTransform, pScratch);
             SetLightMatrix(pScratch);
@@ -727,8 +749,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                     pScratch->m[2][1] = pLightScratch->m[2][1];
                 } else {
                     pScratch->m[0][1] = 0;
-                    pScratch->m[2][1] = 0;
                     pScratch->m[1][1] = pModel->scale;
+                    pScratch->m[2][1] = 0;
                 }
             }
 
@@ -742,7 +764,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 renderMode
             );
         }
-        pJoint++;
     }
 
     pListEntry = pModel->pModelListEntries;
@@ -770,7 +791,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         }
 
         pSection = pListEntry->pSections;
-        for (j = 0; j < pListEntry->numSections; j++) {
+        for (j = 0; j < pListEntry->numSections; j++, pSection++) {
             CompMatrix(&pSkeleton->localTransform, &pSkeleton[pSection->vector.pad].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
@@ -782,7 +803,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             pSection->x = proj.vx;
             pSection->y = proj.vy;
             pSection->z = proj.vz;
-            pSection++;
         }
 
         func_801E22F8(pListEntry, &swingVec, pLightMatrix, pOt, packetIndex, modelScale, pModel->ground);
@@ -833,11 +853,11 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                slot = (pEntry->slot + pEntry->age) & 7;
-                pEntry->pVertex->x0 = pEntry->screenA[2 * slot];
-                pEntry->pVertex->y0 = pEntry->screenA[2 * slot + 1];
-                pEntry->pVertex->x2 = pEntry->screenB[2 * slot];
-                pEntry->pVertex->y2 = pEntry->screenB[2 * slot + 1];
+                quadSlot = (pEntry->slot + pEntry->age) & 7;
+                pEntry->pVertex->x0 = pEntry->screenA[2 * quadSlot];
+                pEntry->pVertex->y0 = pEntry->screenA[2 * quadSlot + 1];
+                pEntry->pVertex->x2 = pEntry->screenB[2 * quadSlot];
+                pEntry->pVertex->y2 = pEntry->screenB[2 * quadSlot + 1];
             }
 
             pEntry->pVertex->x1 = pEntry->screenA[2 * pEntry->slot];
@@ -849,9 +869,9 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
-            slot = pEntry->slot & 1;
-            pQuadA = (u8*)pEntry + 0x1C + 0x10 * slot;
-            pQuadB = (u8*)pEntry + 0x3C + 0x10 * slot;
+            quadSlot = pEntry->slot & 1;
+            pQuadA = (u8*)pEntry + 0x1C + 0x10 * quadSlot;
+            pQuadB = (u8*)pEntry + 0x3C + 0x10 * quadSlot;
 
             gte_ldv0(&pEntry->sourceA);
             gte_mvmva(1, 0, 0, 0, 0);
@@ -879,12 +899,15 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                pEntry->pVertex->x0 = pEntry->screenA[8 * (1 - slot)];
-                pEntry->pVertex->y0 = pEntry->screenA[8 * (1 - slot) + 2];
-                pEntry->pVertex->z0 = pEntry->screenA[8 * (1 - slot) + 4];
-                pEntry->pVertex->x2 = pEntry->screenB[8 * (1 - slot)];
-                pEntry->pVertex->y2 = pEntry->screenB[8 * (1 - slot) + 2];
-                pEntry->pVertex->z2 = pEntry->screenB[8 * (1 - slot) + 4];
+                pBankA = &pEntry->screenA[8 * (1 - quadSlot)];
+                pBankB = &pEntry->screenB[8 * (1 - quadSlot)];
+
+                pEntry->pVertex->x0 = pBankA[0];
+                pEntry->pVertex->y0 = pBankA[2];
+                pEntry->pVertex->z0 = pBankA[4];
+                pEntry->pVertex->x2 = pBankB[0];
+                pEntry->pVertex->y2 = pBankB[2];
+                pEntry->pVertex->z2 = pBankB[4];
             }
 
             pEntry->pVertex->x1 = *(u16*)(pQuadA + 0);
