@@ -1038,7 +1038,21 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  * `pCurrent = &g_ArchiveStreamSections[entryIndex]` 97.00 (base-first addu);
  * `pCurrent = NULL;` before the loop 93.83; local sector-offset or pointer local for
  * the CdGetSector argument 96.48-96.67 (gcc folds them back);
- * gcc-2.7.2-cdk 95.67, -O3 82.52, gcc-2.6.0 does not compile the body.
+ * gcc-2.7.2-cdk 95.67, -O3 82.52; gcc-2.6.0 -O2 -G8 compiles the body today and
+ * scores the same 97.47, so the preset is not the answer.
+ * Round 304 re-measured, all at 97.47 / 736 unless stated: `nOffset` local for the
+ * sector offset (plain and assigned just before the id reads), `do { pCurrent->state
+ * = 1; } while (0)` around the state store, the queue index as two statements
+ * (`entryIndex = g_ArchiveStreamQueueIndex;` + store of `entryIndex + 1`), state
+ * store made volatile 96.67, plain (non-volatile) id reads 96.40 / 732 bytes. The
+ * permuter cannot run this body: its C parser rejects `*(s8* volatile*)&g_...`
+ * ('conversion to non-scalar type requested'), so it needs a re-spelled wp read
+ * first. Where the tie lives: the delay slot holds the FIRST insn sched2 scheduled
+ * in the arm, so it is rank_for_schedule's tie-break between `li v0,0x1` (feeds the
+ * `sh`) and `li a1,0x200` (feeds the `jal`) - source statement order does not reach
+ * it, and once `li v0,0x1` goes first the `sll` fills the `lhu a2` delay slot by
+ * itself. The loop copy (`addiu v1,v0,1` before `move s2,v0`; retail after) is the
+ * same class: local_alloc coalesced the load with the add instead of the copy.
  * The `if (pCurrent) {...} else {...}` tail is NOT a realistic source shape: it is
  * the permuter's find, it duplicates the cleanup arm, and it only works because
  * pCurrent is read uninitialised when the search loop is skipped (retail's asm reads
