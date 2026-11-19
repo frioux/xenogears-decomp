@@ -110,22 +110,23 @@ void func_801D7CFC(s32 arg0, u_char arg1, u_char arg2) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
 
-/* 98.33% (812 bytes, the original's size). Everything matches except the final
-   MenuSetQuadVertices loop: retail computes the prim address base-first
-   (addu v1,a0,v1) and the vertex address offset-first (addu a0,s0,a0), and it
-   loads x0 and y0 TWICE (a1 and v0 for x0, a2 and v1 for y0) where gcc cse's
-   each to one load and adds a move. Tried: a pPrim local (97.28, gcc also
-   re-bases the 0x2420), (0x2420 + i*0x20) + (u32)base for the vertex address,
-   a u16* rect view, and a 4-minute permuter run (PERMUTER_BETTER 490->426 by
-   giving one read a second copy of g_Menu->unk35C, which emits an extra
-   reload: 816 bytes).
-   The closest shape found: marking the x0 and y0 reads volatile gives retail's
-   six loads back (the two duplicates are what retail has), 99.17% but 816 bytes
-   - gcc then evaluates the args in source order 1,2,3,4 with a stray nop, where
-   retail's y0 load sits after the x1/x0 pair (1,3,2,4). The duplicate loads say
-   retail's source read those two fields twice without cse merging them; nothing
-   found that both suppresses the merge and keeps retail's order.
-   Decoded below.
+/* 99.75% (812 bytes, the original's size). The stat table's row labels: reset the
+   prim count at unk35C+0x32F3, draw 7 - statGroup rows of label prims with
+   func_8002675C (7 texture ids per stat group in D_801EA45C, x/y from
+   D_801E9D40/D_801E9D5C), shade the prims of every other row 0x40, then set the
+   four quad vertices of each prim from its own x0/y0/x1/y3.
+   The LAST loop differs only in two addu operand orders: retail is
+   `addu v1,a0,v1` (base first) for the prim address and `addu a0,s0,a0`
+   (offset first) for the vertex address, gcc emits the reverse of both, which is
+   its canonical "lower register number first" order. Tried: a pPrim pointer
+   local (97.28, gcc also re-bases 0x2420 and uses v0), a volatile pPrim local
+   (98.56), (off + (u32)base) for either address (95.66 for the vertex one, no
+   change for the prim one), and two permuter runs - PERMUTER_BETTER 490->426
+   from the non-volatile body (a second copy of g_Menu->unk35C, +4 bytes) and
+   PERMUTER_NONE base=50 best=50 from this body.
+   The six lhu (retail reads x0 and y0 TWICE) come from making the width/height
+   operands volatile: without that gcc cse's each pair into one load and adds two
+   moves (98.33%, also 812 bytes).
 void func_801D7F50(s32 x, s32 y, u_char statGroup) {
     s32 texCoords[6]; // Filled and ignored
     s32 start;
@@ -150,8 +151,8 @@ void func_801D7F50(s32 x, s32 y, u_char statGroup) {
         MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->unk35C + 0x2420 + i * 0x20),
                       ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x0,
                       ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y0,
-                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x1 - ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x0,
-                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y3 - ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y0);
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->x1 - ((volatile POLY_FT4*)((g_Menu->renderContext + i * 2) * 0x28 + (u32)g_Menu->unk35C))->x0,
+                      ((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + i * 2) * 0x28))->y3 - ((volatile POLY_FT4*)((g_Menu->renderContext + i * 2) * 0x28 + (u32)g_Menu->unk35C))->y0);
     }
 }
 */
