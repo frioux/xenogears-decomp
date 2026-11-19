@@ -125,20 +125,23 @@ extern WorkListEntry *TimerWorkListFindEntryForDataAndCallback(void *pData, void
 extern void func_800BD098(BattleEffectSlotRecord *pRecord);
 extern void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask);
 
-// 83.74% (272 bytes against retail's 276). The body is retail's instruction for
-// instruction except for the slot-table base: retail keeps the 0x8CB8 offset in $s5
-// (li hoisted out of the loop, `addu v0,s1,s5` each turn) while gcc rematerialises the
-// li in the branch delay slot at the loop bottom and keeps the base in $s3, so the
-// mask/pointer/index registers come out shuffled and the body is one instruction short.
-// Tried: the pointer folded into the symbol (86.88, `addiu $s3,%lo(sym),-0x34D0`), a
-// plain pointer walk, a mem_addr cast, pSlot assigned before the mask test (retail's
-// shape: the address is built once, the load is inside each arm), and both local
-// declaration orders.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
-/*
+// The tail of the battle state work block, as this unit's effects reach it: the render
+// context func_800B1F6C's double buffer is indexed by, then the per-slot pointer tables.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x8C84];
+    /* 0x8C84 */ s32 renderContext; // which of the two prim buffers the draw uses
+    /* 0x8C88 */ u8 unk8C88[0x4];
+    /* 0x8C8C */ SpriteData *slotSprites[11];
+    /* 0x8CB8 */ BattleEffectSlotRecord *slotEffects[11];
+} BattleStateWorkTail;
+
+// Applies the battle's slot mask to the per-slot effects: turns the sprite colour pulse on
+// when any slot is masked in and off when none is, then walks the slot records in mask
+// order, starting the ramp of a masked-in slot that has no timer entry yet and running the
+// entry's on-free callback for a masked-out one. The records come from the tail of the work
+// block, whose 0x8CB8 offset is what makes gcc split the address the way retail does.
 void func_800BCD98(u16 mask) {
-    u8 *pBase;
-    BattleEffectSlotRecord **pSlot;
+    BattleStateWorkTail *pWork;
     BattleEffectSlotRecord *pRecord;
     WorkListEntry *pEntry;
     s32 i;
@@ -149,17 +152,16 @@ void func_800BCD98(u16 mask) {
     } else {
         BattleFreeSpriteColorTask(0);
     }
-    pBase = g_BattleStateWork;
+    pWork = (BattleStateWorkTail *)g_BattleStateWork;
     for (i = 0; i != 0xB; i++, mask >>= 1) {
-        pSlot = (BattleEffectSlotRecord **)((mem_addr)pBase + 0x8CB8);
         if (mask & 1) {
-            pRecord = *pSlot;
+            pRecord = pWork->slotEffects[i];
             if (pRecord != NULL
                 && TimerWorkListFindEntryForDataAndCallback(pRecord, BattleApplyEffectSpriteColorRamp) == NULL) {
                 func_800BD098(pRecord);
             }
         } else {
-            pRecord = *pSlot;
+            pRecord = pWork->slotEffects[i];
             if (pRecord != NULL) {
                 pEntry = TimerWorkListFindEntryForDataAndCallback(pRecord, BattleApplyEffectSpriteColorRamp);
                 if (pEntry != NULL) {
@@ -167,15 +169,8 @@ void func_800BCD98(u16 mask) {
                 }
             }
         }
-        pBase += 4;
     }
-}*/
-// The tail of the battle state work block, as this unit's effects reach it: the render
-// context func_800B1F6C's double buffer is indexed by, then the per-slot pointer tables.
-typedef struct {
-    /* 0x0000 */ u8 unk0[0x8C84];
-    /* 0x8C84 */ s32 renderContext; // which of the two prim buffers the draw uses
-} BattleStateWorkTail;
+}
 
 extern void SpriteSetIVec3(IVEC3 *pVector, s32 x, s32 y, s32 z);
 extern void func_800B1F6C(void *pFrame, void *pPrimBuffer, u_long *pOt, s32 flags, s32 arg4, s32 arg5);
