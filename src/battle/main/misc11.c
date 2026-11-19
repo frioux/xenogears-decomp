@@ -127,29 +127,33 @@ typedef struct {
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
 
-/* 96.29%: retail's exact 264 bytes and instruction for instruction, including
-   the four reloads of the volatile g_BattlePrimStartIndex, the i++ in the first
-   group's load delay slot and the two 0x5E offsets. What is left is ONE register
-   rotation: retail count=$t0, limit=$t1, color=$t2, in-loop constant=$v1; ours
-   count=$t1, limit=$t2, color=$t0 with $t0 reused for the in-loop constant
-   (color's live range ends at the first store). Two levers got here and both are
-   load-bearing:
-   - NO unused local: retail's 8-byte frame with nothing stored in it comes out by
-     itself (an earlier attempt's `u32 spare[2]` gave a 16-byte frame);
-   - the third store is written as an embedded assignment to `color`, which is what
-     keeps `ori v1,zero,0x12` inside the body: as a plain literal, or through a
-     separate `u16 shade` local, loop.c hoists it into the preheader and `i++`
-     then lands in a different delay slot (91.82%).
-   Tried on top of that: declaration order, guard/do-while swap, s32/u16 count,
-   s32 color, a separate `limit` local (97.73% but 260 bytes - it deletes the
-   limit copy), the outer do/while cluster wrapper the permuter suggested (95.98),
-   and two 4-minute permuter runs from this body (their best candidate re-used
-   `color` as the address multiplier and changed a stored value). */
+/* 99.39%: two 4-minute permuter runs (base 245 -> 50 -> 40) closed everything
+   except ONE register swap. Retail count=$t0, limit=$t1, color=$t2; this body
+   gives color=$t0, limit=$t1, count=$t2. Their two finds are both load-bearing:
+   - a real `s32 limit;` local assigned in the preheader (`limit = arg0 - 1;`)
+     instead of `i < arg0 - 1` in the test: that is retail's `move t1,v0`, and it
+     took the body from 96.29 to 99.24;
+   - the preheader pair wrapped in `do { limit = arg0 - 1; pSrc = D_800C3202; }
+     while (0);` (schedule as one cluster), 99.24 -> 99.39.
+   What is left is not an allocator accident: `color` is the unit's only
+   block-local quantity (its def and its use are in the do-while's single block),
+   so local_alloc takes $t0 for it before global_alloc hands $t0 to the
+   cross-block `count`. Retail has color LAST, i.e. cross-block, which happens
+   when `color = 0xC` is written INSIDE the loop and loop.c hoists it into its own
+   preheader block - measured: that spelling fixes count/limit ($t0/$t1) but then
+   the 0xC is rematerialised in the loop (96.82, one instruction later per
+   iteration) because the same variable is set twice there (`(color = 0x12)`,
+   which is what keeps retail's in-loop `ori v1,zero,0x12`: as a plain literal
+   loop.c hoists it too, 91.82 with count correct). So the two requirements -
+   color cross-block, and 0xC hoisted while 0x12 is not - cannot be met by one
+   variable spelled from C here. Also measured dead: `shade`/fresh variable for
+   the 0x12 (hoisted, 91.82), `(color = 0x12)` as a separate statement. */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
     s32 new_var;
     u16 color;
+    s32 limit;
     u8 *pBase;
     u8 *pSrc;
     s32 i;
@@ -163,7 +167,7 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
     if (arg0 - 1 > new_var) {
         pBase = g_BattleGraphicsWork;
         color = 0xC;
-        pSrc = D_800C3202;
+        do { limit = arg0 - 1; pSrc = D_800C3202; } while (0);
         pSrc += arg0 * 6;
         do {
             *(u16 *)(pBase + (i * 2 + g_BattlePrimStartIndex) * 0x10 + 0x910) = color;
@@ -171,7 +175,7 @@ void func_8007FBE0(u8 arg0, u8 arg1) {
             *(u16 *)(pBase + (i * 2 + g_BattlePrimStartIndex) * 0x10 + 0x914) = (color = 0x12);
             *(u16 *)(pBase + (i * 2 + g_BattlePrimStartIndex) * 0x10 + 0x916) = pSrc[i] + 0x5E;
             i++;
-        } while (i < arg0 - 1);
+        } while (i < limit);
     }
     g_BattleDisplayState[0x97] = count;
     g_BattleDisplayState[0x98] = *(u8 *)&g_BattlePrimStartIndex;
@@ -246,7 +250,16 @@ void BattleAllocDrawBuffer(void) {
    pSrc += 2`) instead of `i * 4 + 8` is 85.22% at the same size (it loses the
    offset-first `addu` and the folded +8 displacement), `s32 v` is 89.62% at 476
    bytes, and two 4-minute permuter runs found only a no-op if/else (948 vs 971).
-   cdk gives 93.74, so it is not a preset question. */
+   cdk gives 93.74, so it is not a preset question.
+   Round 306 measured the address SPIKE on the same body: retail's per-store
+   address is `lw queue; addu v0,v0,s0; addu v0,a2,v0` + `sb K(v0)` - i.e.
+   `(queue + arg0*0x40) + off` with the +0x40 as an `off`-side sum, and the base
+   register FIRST. Writing `(g_BattleCommandQueue + arg0 * 0x40)[off + 8]` (the
+   natural row-subscript form, which is also the only one that reloads the global
+   per store the way retail does) gives the commuted `addu v0,s0,v0` and 87.12%
+   at 472 bytes, so the second half is right but the operand order needs the
+   embedded-assignment/base-in-a-statement forms, not the subscript. */
+
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
