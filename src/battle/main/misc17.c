@@ -9,15 +9,28 @@
 typedef struct {
     /* 0x000 */ u8 unk0[0x9C];
     /* 0x09C */ u8 spriteColumnPending;
-    /* 0x09D */ u8 unk9D[0x8];
+    /* 0x09D */ u8 menuColumnPending;
+    /* 0x09E */ u8 unk9E[0x7];
     /* 0x0A5 */ u8 spriteColumnPrimStart;
-    /* 0x0A6 */ u8 unkA6[0xA];
+    /* 0x0A6 */ u8 menuColumnPrimStart;
+    /* 0x0A7 */ u8 unkA7[0x9];
     /* 0x0B0 */ u8 unkB0;
     /* 0x0B1 */ u8 unkB1[0x6];
     /* 0x0B7 */ u8 unkB7;
     /* 0x0B8 */ u8 unkB8[0x40];
     /* 0x0F8 */ s32 spriteColumnPackageCount;
+    /* 0x0FC */ s32 menuColumnPackageCount;
 } BattleSpriteWork;
+
+// The battle packet pool that g_BattleGraphicsWork->pPacketPrims points at, as far as
+// this unit reaches into it: the two Gouraud quads the frame border is drawn into and
+// the two flat quads its blanking rects use. The pool is 0x670 bytes.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x5F0];
+    /* 0x5F0 */ POLY_G4 gouraudQuads[2];
+    /* 0x638 */ POLY_F4 flatQuads[2];
+    /* 0x668 */ u8 unk668[0x8];
+} BattlePacketPool; // Size: 0x670
 
 extern u8 g_BattleActorCharIds[];
 extern u16 g_BattleSavedSlotUnk7A[];
@@ -49,6 +62,9 @@ extern u8 D_800D2F6A[];
 extern u8 D_800D2F6B[];
 extern u8 g_BattleSlotFlags[];
 extern void *D_800D367C;
+extern u8 D_800C33B4[];  // 16 sprite ids, one per battle party column
+extern s16 D_800C33C4[][2];
+extern s16 D_800C3404[][2];
 
 void BattleReleaseEffectSlotIfChar4(void);
 void BattleSetSlotEntryFieldsTo2000(u8, s32);
@@ -323,6 +339,90 @@ void BattleDrawSlotStatusPanel(void) {
     g_BattleDisplayState->unkB7 = 3;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
+/* 96.97% at objdiff's 1260 bytes -- retail's EXACT size, and every instruction of
+   the two quad-initialisation loops (the two Gouraud quads and the two flat quads)
+   is retail's, including the per-store reload of g_BattleGraphicsWork->pPacketPrims
+   and the `addu a0,s2,a0` of the SetPolyG4 argument. The whole remainder is the
+   third loop's three registers: retail assigns $s0 to `i`, $s1 to the token cursor
+   and $s2 to the &D_800C33C4 induction pointer, this body takes $s1 to `i`, $s2 to
+   the cursor and $s0 to the pointer, which also puts retail's `addu at,at,s0` and
+   `sll v0,s0,2` on the wrong registers. Measured: making D_800C33C4 a
+   `s16 (*pColumns)[2]` local does reproduce retail's hoisted `lui/addiu` pointer
+   shape and `i` in $s0, but costs 4 bytes (1264, 96.03%) and moves the cursor to
+   $s3; the preheader order of `count = 0`, `pCursor = arg1` and an `i = 0;`
+   statement before the for, and both the `(u8 *)work + (count * 0x50 + 0x1E68)`
+   and `count * 0x50 + (0x1E68 + (s32)work)` spellings of the package base, all
+   measure the same. What does reproduce loops 1/2: the store goes through
+   `(i + <pool>->gouraudQuads)->r0` with the pool expression re-spelled for every
+   store (a `pPool` local shares one register, loads into $a0 instead of $v0 and
+   also breaks the SetPolyG4 argument's operand order), colours r0/g0/b0 and
+   r1/g1/b1 are 0xFF,0,0 while r2/r3 are 0, then the eight x/y halves follow; the
+   flat-quad loop sets only r0/g0/b0 and its eight x/y halves. The third loop reads
+   g_BattleDisplayState->menuColumnPackageCount (0xFC), draws through
+   BattleDrawSpritePackage into the 0x1E68 + count*0x50 package and sets
+   menuColumnPrimStart/menuColumnPending (0xA6/0x9D) at the end; `if (*pCursor++ ==
+   0xFF) continue;` is what produces retail's cursor bump in the beq delay slot,
+   and the test skips only the draw, it does not leave the loop. The
+   BattlePacketPool view struct and the D_800C33B4/D_800C33C4/D_800C3404 externs
+   above are for this body. */
+/*
+void func_80092298(u8 arg0, u8 *arg1) {
+    s32 i;
+    s32 size;
+    u8 *pCursor;
+
+    for (i = 0; i < 2; i++) {
+        SetPolyG4((i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads));
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->r0 = 0xFF;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->g0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->b0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->r1 = 0xFF;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->g1 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->b1 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->r2 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->g2 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->b2 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->r3 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->g3 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->b3 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->x0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->y0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->x1 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->y1 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->x2 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->y2 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->x3 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->gouraudQuads)->y3 = 0;
+    }
+    for (i = 0; i < 2; i++) {
+        SetPolyF4((i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads));
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->r0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->g0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->b0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->x0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->y0 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->x1 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->y1 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->x2 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->y2 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->x3 = 0;
+        (i + ((BattlePacketPool *)g_BattleGraphicsWork->pPacketPrims)->flatQuads)->y3 = 0;
+    }
+    g_BattleDisplayState->menuColumnPackageCount = 0;
+    pCursor = arg1;
+    i = 0;
+    for (; i < 0x10; i++) {
+        if (*pCursor++ == 0xFF) {
+            continue;
+        }
+        g_BattleDisplayState->menuColumnPackageCount += BattleDrawSpritePackage(D_800C33B4[i],
+            (u8 *)g_BattleGraphicsWork + (g_BattleDisplayState->menuColumnPackageCount * 0x50 + 0x1E68),
+            D_800C33C4[i][0], D_800C3404[i][0]);
+    }
+    g_BattleDisplayState->menuColumnPrimStart = g_BattlePrimStartIndex[0];
+    g_BattleDisplayState->menuColumnPending = 1;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 // 70.57% under this unit's gcc 2.6.0, at objdiff's 1028 bytes -- the same count
 // as the original, so the body is the right LENGTH and every difference is a
@@ -457,7 +557,17 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
    an `ofs` local vs `row * 4` inline (ofs lands in $t1 and costs 4 bytes), and
    three 4-minute permuter runs (base 926 -> 655 -> 600 -> 385); the last one's
    only improvement swapped `D_800D2F69[col * 4]` for `D_800D2F69[0xC * 4]`,
-   which is wrong code. Un-parking needs no new externs. */
+   which is wrong code. Round 294 added an 11-shape sweep (one shared variable for
+   the offset and the pick, 97.30 -- it does move the pick into an $s register but
+   then the two parameters swap $s0/$s1; a separate `rowIdx` for the pick, 97.60;
+   pick into `index`, 97.21; the offset inlined into the flags address, 96.56; u32
+   index, identical; s16 row, 97.60; `row = index; row *= 0x28;`, 97.30; reversed
+   product, identical; a `u16 *pFlags` local, 95.92 at 696 bytes; switch before the
+   pick, 87.86) and a fourth permuter run (base 385 -> 375, its only find a
+   `-(-(x))` double negation on the second pRec line that buys 0.05 and is not
+   shippable code). Preset screen: gcc-2.7.2 96.21, gcc-2.7.2-cdk 57.83, so 2.6.0 is
+   right. Only the allocator tie for `row` is left. Un-parking needs no new
+   externs. */
 /*
 void func_80093578(u8 arg0, u8 arg1) {
     u8 *pRec;
