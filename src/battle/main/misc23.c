@@ -384,7 +384,14 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A64E4);
    NULL), and the last two colours go to the g_BattleColorSourceA / g_BattleColorSourceB pointers
    set by BattleSetColorSources. Every store reloads its base global, so the
    destination expression has to be written out in full at each store - a
-   pointer local collapses the twelve loads into one. */
+   pointer local collapses the twelve loads into one.
+   ROUND 290 re-measure of the operand-association family: the per-store element
+   pointer "pAddr = &((u8 *)g_BattleSpriteRenderData)[i * 0x24];" then
+   "pAddr[0x1740] = pSrc[0];" is still index-first ("addu a0,a3,v0") and moves
+   the base into $a3, and the constant-against-base grouping has no meaning here
+   because retail keeps 0x1740 as the store displacement while the sum is only
+   base + i*0x24. Still an open tie; the permuter has run twice (2036 and 993
+   iterations) without a find. */
 /*
 void func_800A64E4(void) {
     u8 *pSrc;
@@ -663,18 +670,10 @@ void BattleFreeModelListEntryBuffers(Misc23Block *pBlock) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
-/* 99.12% (gcc 2.6.0, the unit preset): only the first clear loop's two live
-   values are swapped - the original has the counter in $v1 and the pointer in
-   $v0, gcc gives the counter $v0 and the pointer $v1, so "bgez" and the delay
-   slot follow. Everything else is byte-identical. What fixed the rest: the call
-   argument is an s32 local loaded before the "= 1" store (an s16 local makes gcc
-   emit lhu + sll/sra). Tried for the loop: pointer/counter source order both
-   ways, for-init vs separate statement, mem_addr + *(u32 *)pWord vs
-   u32 *pWord--, declaration order both ways, and a 4-minute permuter run
-   (1497 iterations, base=50 best=50, no find). Allocator tie-break class.
+void func_800A8B0C(void) {
     u8 *pBuf;
     s32 i;
+    s32 j;
     mem_addr pWord;
     s32 arg1;
 
@@ -689,9 +688,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     BattleCreateBlockPool(pBuf, arg1);
     BattleCreateSpritePool(g_BattleSpritePool, *(s16 *)(g_BattleStageData + 0x34A));
     BattleClearBlockSlots();
-    i = 0x1F;
+    j = 0x1F;
     pWord = (mem_addr)&D_800D33E4;
-    for (; i >= 0; i--) {
+    for (; j >= 0; j--) {
         *(u32 *)pWord = 0;
         pWord -= 4;
     }
@@ -701,7 +700,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8B0C);
     for (i = 0x14; i >= 0; i -= 0x14) {
         *(u16 *)(D_800D330A + i) = 0;
     }
-*/
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
 // A list of {archive file index, buffer that file is decoded into} pairs: the
@@ -753,6 +752,12 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
    into $s4 (mine has count in $s3, pTail in $v1); (c) my index gets a "move"
    copy out of the sll while the original shifts straight into $s1. Structurally
    complete otherwise: every instruction and operand order matches.
+   ROUND 290 re-measure: the nameLen split ("nameLen = 2; nameLen = base +
+   nameLen;") alone leaves this at 90.14% (368 bytes, unchanged), and the permuter
+   from that body again only finds the semantically wrong jal reorder (base=1055
+   best=416). What is still missing is the pHead copy ("move s3,s2" in retail):
+   retail keeps pEntry in $s2 AND a second copy in $s3 for the fileIndex1/pBuffer1
+   stores, which is what pushes count into $s4 and frees $s3 for pTail later.
 void func_800A9540(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
     u8 *pTable;
