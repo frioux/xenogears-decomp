@@ -664,7 +664,10 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         pViewScratch->t[2] = trans.vz;
         pViewScratch->t[1] = pModel->ground;
 
-        CompMatrix(pLightMatrix, &pSkeleton->globalTransform, pViewScratch);
+        // Retail composes the light matrix with the view scratch in place, not
+        // with the root joint's globalTransform: the call site carries two
+        // materialised 0x1F800020 immediates (a1 and a2).
+        CompMatrix(pLightMatrix, pViewScratch, pViewScratch);
 
         depth = pModel->scale - (pModel->ground - pSkeleton->translation.y) / 4;
         if (depth < 0) {
