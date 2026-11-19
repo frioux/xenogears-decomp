@@ -32,8 +32,7 @@ extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
 extern u16 g_BattleStageFileIndex; // stage file index the next stage load uses; func_800B8068 clears it
 extern u8 g_BattleStageLoadQueued;  // set once the stage's archive reads are queued; func_800B8054 clears it
- extern void *D_800C3E1C;
-extern void *D_800C3E1C;
+extern SpriteData *D_800C3E1C;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern DISPENV D_800C4A7C;
 extern void *g_BattleActorArchiveBuffer;
@@ -65,9 +64,193 @@ void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
 }
 void func_800B7C34(s32 stage);
-void func_800B7E94(void);
+s32 func_800B7E94(void);
+
+// The three actor spawn positions the stage loader blits into the framebuffer; the
+// same table the slot allocator hands out.
+typedef struct {
+    /* 0x0 */ s16 x;
+    /* 0x2 */ s16 y;
+} BattleActorSlotPos; // Size: 0x4
+
+/* The actor stage archive as this unit reads it: the word at +4 is an offset from the
+   buffer start to the file's chunk header, whose first u16 carries the stage variant
+   in bits 12-13. */
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ u32 chunkOffset;
+} BattleActorArchiveFile;
+
+extern BattleActorSlotPos g_BattleActorSlotSpawnPos[3];
+extern u16 g_BattleActorSlotUsedMask;
+extern u8 g_BattleActorSlotMode;
+extern u8 D_800C3CEC;
+extern BattleActorArchiveFile *D_800594F0;
+extern int *D_800594BC;
+extern void func_800BB080(s32 arg0);
+extern int ArchiveReadFileToBuffer(s32 fileIndex, void *pBuffer, u32 arg2, u32 arg3);
+extern int ArchiveDecodeAlignedSize(s32 fileIndex);
+extern void BattleUnloadActorArchive(void);
+extern int *ArchiveAllocStreamFile(int numEntries, int allocMode);
+extern void func_80029EB0(int, int *, int, int, short, short, short, short, short, short);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C34);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7E94);
+// 99.93% (608 bytes = retail's exact size). One instruction differs: retail's
+// call-argument index ends `or a0,a0,v0` (the AC word is the or's destination),
+// ours ends `or a0,v0,a0`. Everything else, including both 0xA8/0xAC load pairs
+// (retail computes the index twice, once for the mask and once for the call) and
+// the sh in the jal delay slot, is retail's.
+// Measured spellings: AC-left at both sites 95.18 (swaps the loads), A8-left at
+// both 93.93, mask A8-left + call AC-left 95.76, AC-left on the AC field without
+// the (u32) cast 98.47, index in two locals 95.68 (one computation, 584 bytes).
+// A 3-minute permuter run found nothing (base=10 best=10).
+/*
+// Loads the stage's actor archive and its stream file, then takes the slot state the
+// archive's chunk header asks for: variant 1 frees every slot, 2 and 3 free all but
+// the acting one. The actor archive buffer is kept for the teardown to free.
+void func_800B7C34(s32 stage) {
+    RECT rect;
+    BattleActorSlotPos *pSpawnPos;
+    BattleActorArchiveFile *pFile;
+    SpriteData *pSprite;
+    void *pBuffer;
+    s32 mode;
+    s32 fileIndex;
+    s32 streamIndex;
+
+    if (stage == 0xE3) {
+        pSpawnPos = g_BattleActorSlotSpawnPos;
+        rect.x = pSpawnPos[0].x;
+        rect.y = pSpawnPos[0].y;
+        rect.w = 0x40;
+        rect.h = 0x100;
+        MoveImage(&rect, 0x280, 0x100);
+        rect.x = pSpawnPos[1].x;
+        rect.y = pSpawnPos[1].y;
+        rect.w = 0x40;
+        rect.h = 0x100;
+        MoveImage(&rect, 0x240, 0x100);
+        rect.x = pSpawnPos[2].x;
+        rect.y = pSpawnPos[2].y;
+        rect.w = 0x40;
+        rect.h = 0x100;
+        MoveImage(&rect, 0x200, 0x100);
+        DrawSync(0);
+    }
+    BattleUnloadActorArchive();
+    ArchiveSetIndex(0xC, 2);
+    D_800C3CEC = 1;
+    D_800D2FDC = 1;
+    fileIndex = stage * 2 + 0x22;
+    streamIndex = stage * 2 + 0x23;
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(fileIndex), 0);
+    D_800594F0 = pBuffer;
+    ArchiveReadFileToBuffer(fileIndex, pBuffer, 0, 0x80);
+    BattleWaitArchiveSync();
+    pFile = D_800594F0;
+    mode = (*(u16 *)(pFile->chunkOffset + (s32)pFile) >> 12) & 3;
+    if (mode != 0) {
+        pSprite = D_800C3E1C;
+        g_BattleActorSlotMode = mode;
+        BattleBeginAnimTask(0);
+        if (mode == 1) {
+            func_800BB080(-1);
+            g_BattleActorSlotUsedMask = 0;
+        } else {
+            g_BattleActorSlotUsedMask &=
+                ~(1 << ((((u32)pSprite->flags_0xAC.flags & 3) << 2) | ((u32)pSprite->flags_0xA8 >> 30)));
+            func_800BB080(((u32)pSprite->flags_0xA8 >> 30) | (((u32)pSprite->flags_0xAC.flags & 3) << 2));
+        }
+    }
+    D_800594BC = ArchiveAllocStreamFile(8, 0);
+    if (ArchiveDecodeAlignedSize(streamIndex) >= 0x11) {
+        func_80029EB0(streamIndex, D_800594BC, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+    BattleWaitArchiveSync();
+    DrawSync(0);
+    g_BattleActorArchiveBuffer = D_800594F0;
+    HeapFree(D_800594BC);
+}
+*/
+/* The work-list entry g_BattleStateWork's timer tasks are given; this unit only
+   clears the trigger callback it adds the entry with. */
+typedef struct {
+    /* 0x00 */ void *unk0;
+    /* 0x04 */ void *unk4;
+    /* 0x08 */ void *onTriggerCallback;
+    /* 0x0C */ void *onFreeCallback;
+    /* 0x10 */ u32 unk10;
+    /* 0x14 */ u32 unk14;
+    /* 0x18 */ void *pNext;
+} BattleTimerEntry; // Size: 0x1C
+
+extern u8 D_800C3624;
+extern s16 D_800C3DF0;
+extern u8 g_BattleAudioFadeStarted;
+extern s32 *g_BattleAudioManager;
+extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
+extern SpriteAnimPackage g_SpriteAnimPackageDirs6;
+extern u32 func_800C0FAC(void *pBuffer);
+extern s32 SpriteAnimPackageTestFlag8000(void *pFrames);
+extern void SpriteSetupAnimPackage(SpriteAnimPackage *pAnimPackage, void *pAnimPackageFile, SVEC2 tex, SVEC2 clut,
+                                   u32 field_0x3C_1);
+extern void SpriteSetSpecialAnimFile(void *pSprite, void *pAnimFile);
+extern SpriteData *func_80023B84(SpriteData *pSprite, u8 *pAnimation, SpriteAnimPackage *pPackage);
+extern void BattleReloadStageFile(void);
+extern void TimerWorkListAddTask(void *pData, BattleTimerEntry *pEntry);
+extern void TimerWorkListRemoveTask(BattleTimerEntry *pEntry);
+extern u8 g_BattleSedsLoaded;
+
+// Swaps the stage's actor animation in: rebuilds the shared animation package from the
+// archive func_800B7C34 just loaded, then either starts the animation the current
+// actor's package selects (variant 0) or attaches the special animation file (1), and
+// hands the same frame environment to the outgoing sprite.
+s32 func_800B7E94(void) {
+    SVEC2 tex;
+    SVEC2 clut;
+    BattleTimerEntry timerEntry;
+    SpriteAnimPackage packageCopy;
+    SpriteAnimPackage *pPackage;
+    SpriteData *pSprite;
+    SpriteData *pOldSprite;
+    u16 *pAnims;
+    u32 pSedsFile;
+    s32 offset;
+    s32 result;
+
+    pPackage = &g_SpriteAnimPackageDirs6;
+    pOldSprite = D_800C3E1C;
+    TimerWorkListAddTask(NULL, &timerEntry);
+    timerEntry.onTriggerCallback = NULL;
+    BattleWaitArchiveSync();
+    tex.x = 0x380;
+    tex.y = 0x100;
+    clut.x = 0;
+    clut.y = 0x1F4;
+    D_800C3624 = 0;
+    SpriteSetupAnimPackage(pPackage, D_800594F0, tex, clut, 0);
+    BattleReloadStageFile();
+    result = 0;
+    if (SpriteAnimPackageTestFlag8000(pPackage->pFrames) != 0) {
+        packageCopy = *(SpriteAnimPackage *)D_800C3E1C->pVramData;
+        pAnims = pPackage->pAnimations;
+        offset = pAnims[D_800C3DF0 + 1];
+        pSprite = func_80023B84(D_800C3E1C, (u8 *)(offset + (s32)pAnims), pPackage);
+    } else {
+        result = 1;
+        pSprite = D_800C3E1C;
+        SpriteSetSpecialAnimFile(pSprite, D_800594F0);
+        SpritePlayAnimation(pSprite, -1);
+    }
+    pSedsFile = func_800C0FAC(D_800594F0);
+    pSprite->field_0x50 = pSedsFile;
+    pOldSprite->field_0x50 = pSedsFile;
+    g_BattleSedsLoaded = 1;
+    g_BattleAudioFadeStarted = 1;
+    SoundSetAudioManagerVolumeWithFade(g_BattleAudioManager, 0x60, 0x78);
+    TimerWorkListRemoveTask(&timerEntry);
+    return result;
+}
 void BattleSetSpriteTemplate(void *pArg) {
     D_800C3E1C = pArg;
 }
@@ -612,12 +795,8 @@ void BattleActorInitSpriteFromSlot(void) {
 }
 
 
-extern u8 D_800C3624;
-extern u16 D_800C3DF0;
 extern u8 g_BattleActorArchiveReady;
-extern u8 g_BattleAudioFadeStarted;
 extern u8 D_800C3688;
-extern s32 *g_BattleAudioManager;
 extern void BattleSetFlag2DBAndReleaseAssets(void);
 extern void func_800C0314(void);
 extern void func_800C0564(void);
@@ -626,7 +805,6 @@ extern void BattleFreeTimerTaskIfActive(void);
 extern void BattleReleaseAllActorSlots(void);
 extern void BattleSetAnimTaskShort(s16 value);
 extern void BattleLoadActorSlotAnimation(s32 index);
-extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
 
 void BattleTearDownState(void) {
     SpriteData *pSprite;
