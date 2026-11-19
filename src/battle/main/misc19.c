@@ -8,6 +8,8 @@
 #define BATTLE_ACTOR_ROW_STRIDE 0x5F0
 #define BATTLE_GEAR_ROW_TABLE 0x2228
 #define BATTLE_GEAR_ROW_STRIDE 0x690
+// The action work record the current action is built in, inside the block's work area.
+#define BATTLE_ACTION_WORK_TABLE 0x5F24
 
 // The evade and hit percents BattleResetActorStats puts a slot's stats back to.
 #define BATTLE_STAT_EVADE_RESET 20
@@ -155,7 +157,162 @@ u8 func_8009A258(u8 arg0, u8 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A258);
 
+// The action work record the battle loop reads back at +0x5F24 of the battle work
+// block: what the acting slot's action costs, hits for and deals.
+typedef struct {
+    /* 0x00 */ u16 rowCosts[15]; // the commandPoints cost of each of the actor's gear action rows
+    /* 0x1E */ u16 attackAmount; // the slot's attack figure: two stats times the weapon's attack
+    /* 0x20 */ u8 unk20[4];
+    /* 0x24 */ u16 flags; // the state's active effect bits and the low-hp/evade conditions
+    /* 0x26 */ u16 cost; // the action's cost, scaled by the state code it starts from
+    /* 0x28 */ u8 stateCode; // the slot state code the action started from
+    /* 0x29 */ u8 unk29; // the slot state's unk98
+    /* 0x2A */ u8 unk2A; // the slot state's penaltyPercent
+    /* 0x2B */ u8 unk2B;
+    /* 0x2C */ u8 unk2C;
+    /* 0x2D */ u8 unk2D;
+    /* 0x2E */ u16 amount; // what the action deals
+} BattleActionWork; // Size: 0x30
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
+
+// PARKED (98.85%, 1252 bytes against retail's 1248). Body COMPILES.
+// Structure is retail's: the pointer set (pEntry/pState/pCondition/pGearRow/pWork), the
+// 15-row cost copy loop, the state-code switch (a `switch` reproduces retail's test chain
+// where an if/else-if chain does not), and the tails. Load-bearing shapes found this round:
+// `u8 amount` (a u32 makes gcc coalesce the division result and lose retail's `move s1,v1`),
+// the split `attack = pState->unk3C[0]; attack = attack * pState->unk3C[3];`, a `u16` local
+// for the activeEffectFlags2 test, and a SECOND pCondition pointer (`new_var2`) for the tail
+// blocks, which is what fixed retail's sp.N regs (94 -> 98.85). Remaining: four register-role
+// swaps (retail `mflo v1` / `mfhi v0`, and the unk54/amount multiply pair in v1/v0) plus the
+// `pState->unk50[7]` byte load, which gcc CSEs across the branch where retail reloads it
+// because retail's copy dies in the `li v0,0x1E` delay slot. Retail is 4 bytes LONGER here.
+// `new_var2` also lands in a2 where retail reuses s2, and the maxHp==hp `amount++` block is
+// stolen into the `beq` delay slot instead of staying out of line. Two permuter rounds
+// (1506 and 1597 iterations) took this from 92.76 to 98.85 and found nothing further.
+/*
+void func_8009A2D4(u8 arg0) {
+    BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
+    BattleSlotState* pState = (BattleSlotState*)((u8*)&g_BattleWorkBlock[arg0] + 0xA4);
+    u8* pCondition = (u8*)&g_BattleWorkBlock[arg0] + 0x148;
+    BattleRow* pGearRow =
+        (BattleRow*)(arg0 * BATTLE_GEAR_ROW_STRIDE + BATTLE_GEAR_ROW_TABLE + (u32)g_BattleWorkBlock);
+    BattleActionWork* pWork = (BattleActionWork*)((u8*)g_BattleWorkBlock + BATTLE_ACTION_WORK_TABLE);
+    u16 new_var;
+    u8* new_var2;
+    u32 quotient;
+    u_char i;
+    u8 amount;
+    u16 attack;
+
+    for (i = 0; i < 15; i++) {
+        pWork->rowCosts[i] = pGearRow->commandPointCost;
+        pGearRow++;
+    }
+    if (pState->unk50[7] != 0) {
+        pWork->cost = pState->unk50[7] * pWork->rowCosts[0];
+    } else {
+        pWork->cost = 0x1E;
+    }
+    switch (*pCondition) {
+    case 1:
+    case 2:
+    case 3:
+        pWork->cost += *pCondition * 20;
+        break;
+    case 4:
+        pWork->cost = pWork->cost * 10;
+        break;
+    }
+    attack = pState->unk3C[0];
+    attack = attack * pState->unk3C[3];
+    pWork->attackAmount = attack;
+    attack = attack + pState->weaponData[0].attack;
+    pWork->attackAmount = attack;
+    if (pEntry->characterId == 4) {
+        attack = attack + pState->weaponData[2].attack;
+        pWork->attackAmount = attack;
+    }
+    new_var2 = pCondition;
+    pWork->unk29 = pState->unk98;
+    pWork->unk2A = pState->penaltyPercent;
+    if (pState->maxHp != pState->hp) {
+        quotient = (pState->maxHp - pState->hp) / (pState->maxHp / 10);
+        amount = quotient;
+        if ((amount & 0xFF) == 0) {
+            amount = quotient + 1;
+        }
+    } else {
+        amount++;
+    }
+    amount = (amount & 0xFF) * (*(u8*)&pEntry->unk54 + 5);
+    if ((g_GameState.unk22B6 & 0x4000) == 0) {
+        amount = 0;
+    }
+    if (*(u8*)&pEntry->commandPoints < 0x32) {
+        amount = 0;
+    }
+    if (pEntry->gearId == 3) {
+        amount = 0;
+    }
+    if (pEntry->gearId == 0xF) {
+        amount = 0x63;
+    }
+    if ((amount & 0xFF) > 0x63) {
+        amount = 0x63;
+    }
+    pWork->amount = amount & 0xFF;
+    pWork->flags = 0;
+    if (pState->activeEffectFlags1 & 0x100) {
+        pWork->flags |= 0x8000;
+    }
+    if (pState->activeEffectFlags1 & 0x200) {
+        pWork->flags |= 0x4000;
+    }
+    if (pState->activeEffectFlags1 & 0x80) {
+        pWork->flags |= 0x2000;
+    }
+    if (pState->activeEffectFlags1 & 0x10) {
+        pWork->flags |= 0x1000;
+    }
+    if (*(u16*)((u8*)pState + 0x38) < (*(u16*)((u8*)pState + 0x3A) >> 3)) {
+        pWork->flags |= 0x800;
+    } else {
+        pWork->flags &= 0xF7FF;
+    }
+    if (*(u16*)((u8*)pState + 0x38) == 0) {
+        pState->activeEffectFlags2 &= 0x7FFF;
+        pEntry->activeEffectFlags3 &= 0x7FFF;
+    }
+    new_var = pState->activeEffectFlags2;
+    if (new_var & 0x8000) {
+        pWork->unk2C = 1;
+    } else {
+        pWork->unk2C = 0;
+    }
+    if (*new_var2 == 4) {
+        pWork->stateCode = 4;
+        if (--g_BattleWorkBlock[arg0].state.conditionTimers[7] == 0) {
+            pState->activeEffectFlags2 &= 0xBFFF;
+            *new_var2 = 0;
+            *(u8*)&pEntry->unk54 = 0;
+        }
+    } else {
+        pWork->stateCode = *pCondition;
+        if (*pCondition == 3 && (g_GameState.unk22B6 & 0x4000) != 0) {
+            if (rand() % 100 < (amount & 0xFF)) {
+                pState->activeEffectFlags2 |= 0x4000;
+                g_BattleWorkBlock[arg0].state.conditionTimers[7] = 3;
+                if (g_BattleWorkBlock[arg0].accessoryEffectFlags5 & 0x40) {
+                    g_BattleWorkBlock[arg0].state.conditionTimers[7] = 6;
+                }
+                (*pCondition)++;
+            }
+        }
+    }
+}
+*/
+
 
 u8 BattleGetGameCharacterField5(u8 arg0) {
     return g_GameState.characters[arg0].slots[0].unk5;
@@ -599,7 +756,7 @@ void func_8009B1E4(void) {
 
     for (i = 1; i < 0x30; i++) {
         g_GameState.itemIDs[i] = i;
-        g_GameState.itemQuantities[i] = 0x63;
+        g_GameState.itemQuantities[i] = MAX_ITEM_QUANTITY;
     }
     *(u16 *)&g_GameState.unk16BC[0].unk4 = 0xFFF8;
     *(u16 *)&g_GameState.unk16BC[0].characterConditionMask = 0xFF00;
