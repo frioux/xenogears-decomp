@@ -451,7 +451,88 @@ void func_800BFDA8(SpriteData *pActor, s32 arg1) {
     pNew->flags_0xB0.flags = flags | 0x100;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
+// The battle state work block as the slot pass reads it: the actor slot rows at the
+// start and the 0x8000 flag word the pass clears its bit from.
+typedef struct {
+    /* 0x0000 */ BattleActorSlot slots[BATTLE_ACTOR_SLOT_COUNT];
+    /* 0x01DC */ u8 unk01DC[0x85C];
+    /* 0x0A38 */ u16 slotFlag8000Mask;
+} BattleSlotWorkView;
+
+extern BattleActor *g_BattleActors[];
+extern u16 g_BattleSlotBitMask;
+extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
+extern u16 D_800C3608;
+extern void func_800BEE2C(SpriteData *pSprite, s32 slotIndex, s32 animId);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
+// 64.53% first attempt (508 bytes vs retail's 592): structure, calls and both loops
+// are in place, but retail's first loop is a ROTATED countdown (`beqz s1` with the
+// `addiu s1,-1` in its delay slot, then `bltz`), it recomputes slotIndex a second time
+// for the func_800BEE2C argument (mine folds the two into one), and its collect-call
+// mask is spelled `v0 & (v0 ^ g_BattleSlotBitMask)` (xor+and) where `& ~mask` gives
+// nor+and. Also mine loads D_800C3E1C before the 0xA38 word, retail the other way.
+// The view and the externs above are the shapes this body needs.
+/*
+// Runs the 0x8000-flagged actor slots: every sprite the collect pass hands back is put
+// on animation 0x15 and its slot bit is added to the mask, then the pass waits until no
+// collected sprite is animating, pumping the frame loop and reloading the archive once
+// per wait. Returns the number of slots it kept.
+s32 func_800C0314(void) {
+    SpriteData *slots[BATTLE_SLOT_COUNT];
+    BattleSlotWorkView *pWork;
+    SpriteData *pSprite;
+    s32 i;
+    s32 count;
+    s32 slotIndex;
+    u8 flag;
+    u8 pending;
+
+    pWork = (BattleSlotWorkView *)g_BattleStateWork;
+    count = 0;
+    flag = 0;
+    i = BattleCollectMaskedSlotActors(pWork->slotFlag8000Mask & ~g_BattleSlotBitMask,
+                                     (void **)slots, (s32)D_800C3E1C);
+    for (i--; i >= 0; i--) {
+        pSprite = slots[i];
+        slotIndex = ((u32)pSprite->flags_0xA8 >> 30) |
+                    ((pSprite->flags_0xAC.flags & 3) << 2);
+        if ((D_800C3608 >> slotIndex) & 1) {
+            slots[i] = NULL;
+            continue;
+        }
+        pSprite->animScriptWaitTimer = 0;
+        if (pWork->slots[slotIndex].inUse != 0) {
+            flag = 1;
+            g_BattleActors[slotIndex]->isBusy = 1;
+            func_800BEE2C(pSprite, slotIndex, 0x15);
+        } else if ((s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+            SpritePlayAnimation(pSprite, 0x15);
+        }
+        count++;
+        g_BattleSlotBitMask |= 1 << slotIndex;
+    }
+    while (count != 0) {
+        pending = 0;
+        for (i = 0; i != count; i++) {
+            pSprite = slots[i];
+            if (pSprite != NULL && pSprite->pDefaultAnimFile != NULL &&
+                pSprite->animScriptWaitTimer != 0) {
+                pending = 1;
+            }
+        }
+        if (pending == 0) {
+            break;
+        }
+        BattleLoadArchiveEntryFile();
+        func_800BE790();
+    }
+    if (flag != 0) {
+        BattleWaitAndFreeActorBuffers();
+    }
+    return count;
+}
+*/
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
 // every instruction is present and in retail's order; what is left is
 //  (a) gcc hoists g_BattleConditionAnimIds's address out of the outer restart loop to the prologue
