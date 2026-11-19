@@ -686,7 +686,6 @@ void BattleActorApplyAnimationCommand(Actor *p0) {
     }
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 /* 99.08% (1212 bytes, the original's size): the whole body matches except the
    register the flag constant lands in, in two of the four mode-case blocks. The
    original loads -0x801 into $v1 and the reloaded flags into $a0 (`li v1,-2049;
@@ -695,7 +694,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
    same source shape, so it is a per-block local-alloc tie, not a source shape.
    Tried: swapping the `|` operands (93.43%, size wrong), a `flags` local for the
    read-modify-write (97.62% with the constant in $a0 everywhere), `(u8)` casts,
-   declaration orders for `i`/`old`/`delta`/`ret`. Levers that DID work and must
+   declaration orders for `i`/`old`/`delta`/`ret`, swapping the `&` operands, a
+   block-local `s32 keep = ~0x800;`, and a 4-minute permuter run from this body
+   (1729 iterations, base=140 best=140, nothing moved). Levers that DID work and must
    be kept: `part = p0->partIndex;` + `(u8)part != p0->prevPartIndex` reproduces the original's
    redundant `andi a0,a1,0xff` and, with `&D_80091130[part]` as the first
    statement of the if-body, its second `sll/addu s4` (gcc CSEs the two identical
@@ -705,6 +706,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
    stored register and stores before the branch; `p0->animFrame = pAnim->frame;`
    before `p0->frameDelta = delta;`; `i = 0;` as its own statement plus `while
    (i < delta)`; unkA declared before unk9 for the two zero-inits. */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80074BA4);
 /* void func_80074BA4(Actor *p0) {
     BattleActorState *pState = p0->pState;
     BattlePartMode *pMode;
@@ -885,18 +887,26 @@ void BattleSetResultCode(s32 arg0) {
     g_BattleResultCode = 0x87;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
-
-/* 92.66% (1352 bytes, the original's size): the whole body is right - every
-   call, every global store and the tail match instruction for instruction. What
-   is left: (a) the two loads of p0/p1's x/z for ratan2 come out one instruction
-   later than retail's (retail hoists them above the g_BattleActorDistance2D store, gcc
-   stores first), (b) the g_BattlePromptTimer cascade's three BattleGetScreenMode blocks
-   are ordered/scheduled differently, and (c) the `mode = 4 / if (== 2) mode = 2`
-   pair: retail has the 4 in the bne's delay slot. Written from the assembly in
-   one pass; the structure (if/else-if cascade over p0/p1's +0xD0 flags, then the
-   0x1E/0x3C timer cascade on g_BattlePromptTimer, then the distance/angle tail) is
-   believed correct. */
+/* 98.81% (1348 bytes; retail is 337 insns = 1348, NOT the 1352 an earlier note
+   claimed): every instruction matches in place except ONE swapped pair at the
+   tail - retail loads p0->x and p1->x BEFORE the g_BattleActorDistance2D store
+   (`lw v1,0(s1); lw a0,0(s0); lui at,%hi(...); sw v0,%lo(at)`) and gcc emits the
+   store first (the two z loads and both subu land identically). Three levers DID
+   work and must be kept: (1) the two u16 down counters want an ARRAY extern
+   (`extern u16 g_BattleCombatant0DownCount[];` + `g_BattleCombatant0DownCount[0]++`)
+   - retail forms `lui/addiu` into a saved register and stores through it, the
+   scalar declaration gives the bare `sw sym` macro (92.66 -> 94.25); (2) in the
+   p1-down arm the arm reads p1+0xD0 into a `u32 flags;` local placed AFTER
+   `g_BattleInputEnabled = 0;` and BEFORE g_BattleRoundOver/g_BattleResultSide, so
+   the load lands between the counter update and those two stores (94.25 -> 97.61;
+   the same local declared later, or the counter store left to sink after the
+   other stores, is wrong); (3) `if (g_BattleRoundOverFrames++ >= 0x3D) { if (side
+   == 2) mode = 2; else mode = 4; }` - the `mode = 4;` MUST NOT be a separate
+   statement before the inner if, or its `li a0,4` is stolen into the outer bnez
+   delay slot instead of the inner bne's (97.61 -> 98.81).
+   Measured dead for the last swap: a volatile store, s32 dx/dz locals (they need
+   a callee-saved register and grow the frame), and a 4-minute permuter run from
+   this body (1895 iterations, base=120 best=120). */
 /* extern s32 g_BattleTransitionFrames;
 extern u8 g_BattleFacingUpdateEnabled;
 extern u8 g_BattleReinitFlag;
@@ -906,10 +916,10 @@ extern s32 g_BattleRoundOverFrames;
 extern s32 g_BattleResultSide;
 extern s32 g_BattleBothCombatantsDownCount;
 extern u8 g_BattleInputEnabled;
-extern u16 g_BattleCombatant0DownCount;
+extern u16 g_BattleCombatant0DownCount[];
 extern u8 g_BattleTextPadIndex;
 extern s32 g_BattleMode;
-extern u16 g_BattleCombatant1DownCount;
+extern u16 g_BattleCombatant1DownCount[];
 extern s32 g_BattlePromptTimer;
 extern u8 g_BattleOptionOn;
 extern s32 g_BattleRoundNumber;
@@ -957,10 +967,11 @@ void func_800751C8(u8 *p0, u8 *p1) {
         }
     }
     if (g_BattleRoundOver != 0) {
-        mode = 4;
         if (g_BattleRoundOverFrames++ >= 0x3D) {
             if (g_BattleResultSide == 2) {
                 mode = 2;
+            } else {
+                mode = 4;
             }
             BattleSetScreenMode(mode);
             printf(D_8006FC30);
@@ -979,11 +990,14 @@ void func_800751C8(u8 *p0, u8 *p1) {
             g_BattleResultSide = 2;
             g_BattleBothCombatantsDownCount++;
         } else {
-            g_BattleCombatant0DownCount++;
-            g_BattleRoundOver = 1;
+            u32 flags;
+
+            g_BattleCombatant0DownCount[0]++;
             g_BattleInputEnabled = 0;
+            flags = *(u32 *)(p1 + 0xD0);
+            g_BattleRoundOver = 1;
             g_BattleResultSide = 1;
-            if (*(u32 *)(p1 + 0xD0) & 0x40) {
+            if (flags & 0x40) {
                 g_BattleTextPadIndex = 0;
             } else {
                 g_BattleTextPadIndex = 1;
@@ -991,7 +1005,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
             BattleSetResultCode(0);
         }
     } else if (*(u32 *)(p1 + 0xD0) & 0x800000) {
-        g_BattleCombatant1DownCount++;
+        g_BattleCombatant1DownCount[0]++;
         g_BattleRoundOver = 1;
         g_BattleInputEnabled = 0;
         g_BattleResultSide = 0;
@@ -1054,6 +1068,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
     g_BattleFacingAngle = ratan2(*(s32 *)(p0 + 0x0) - *(s32 *)(p1 + 0x0), *(s32 *)(p0 + 0x8) - *(s32 *)(p1 + 0x8));
 } */
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
 
 s32 BattleComputeScaledFieldDelta(Actor *p0, Actor *p1, s32 scale) {
     return (p1->unk15EC * scale) / 32 - p0->unk15EE;
