@@ -17,7 +17,8 @@ typedef struct {
     /* 0x4 */ u8 r;
     /* 0x5 */ u8 g;
     /* 0x6 */ u8 b;
-    /* 0x7 */ u8 unk7[0x19];
+    /* 0x7 */ u8 pad7;
+    /* 0x8 */ long sxy[3][2]; // RotTransPers3 writes one projected screen pair per vertex
 } BattleEffectColor; // Size: 0x20
 
 typedef struct {
@@ -74,6 +75,16 @@ extern void TimerWorkListRemoveTask(void *pEntry);
 extern void HeapFree(void *pMem);
 extern void GfxQueueSpriteTileData(void *pArg);
 extern void SpritePlayAnimation(SpriteData *pSpriteData, s32 animId);
+extern SVECTOR D_800C3594[3];
+extern SVECTOR D_800C35AC[3];
+extern void ReadGeomOffset(long *ofx, long *ofy);
+extern long ReadGeomScreen(void);
+extern void SetGeomOffset(long ofx, long ofy);
+extern void SetGeomScreen(long h);
+extern void SetRotMatrix(MATRIX *m);
+extern void SetTransMatrix(MATRIX *m);
+extern long RotTransPers3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, long *sxy0, long *sxy1, long *sxy2, long *p, long *flag);
+extern void AddPrim(void *ot, void *p);
 extern void func_800B7160(void);
 extern u_long *g_GfxCurOT;
 extern u_long *g_BattleSavedGfxOT;
@@ -87,11 +98,11 @@ extern void BattleCreateWorkTask(void);
 extern void func_800B6F0C(void);
 extern void BattleStoreGfxOrderingTable(void);
 extern void BattleDestroyWorkTask(u8 *p);
-extern s32 SpriteComputeAngleFromPoints(s32 arg0, s32 arg1);
+extern s16 SpriteComputeAngleFromPoints(DVECTOR from, DVECTOR to);
 extern s32 SpriteScaleValue(void *pSprite, s32 arg1);
 extern void func_801FC4C4(void *pArg0, void *pArg1, void *pBase, s32 arg3, s32 arg4, s32 arg5, s32 arg6, s32 arg7);
-extern void SpriteSetDirection(u8 *pActor, s16 arg1);
-extern void func_800223B0(u8 *pActor, s16 arg1);
+extern void SpriteSetDirection(BattleSpriteState *pActor, s16 direction);
+extern void func_800223B0(BattleSpriteState *pActor, s16 direction);
 extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
 extern void func_801FC53C(void *pArg, s32 arg1, s32 arg2, s32 arg3, s32 arg4, s32 arg5, s32 arg6);
 extern u8 SpriteColorAddClamp(u8 arg0, s16 arg1);
@@ -141,53 +152,26 @@ void BattleScriptPlaySpriteAnimation(s32 arg0, u8 *p) {
     pState = (BattleSpriteSlotTable *)g_BattleStateWork;
     SpritePlayAnimation(pState->sprites[p[1]], p[0]);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6518);
-/* best 94.05% (152 bytes = retail's exact size and instruction count; ONE
-   instruction sits in the wrong place).  Face the actor along the line from its
-   own x/z position (position.xWhole 0x2, position.zWhole 0xA) to targetPosition
-   (0xA0, 0xA4): pack each pair into an (x<<16)|z word, pass targetPosition as
-   arg0 and the actor's own position as arg1 to SpriteComputeAngleFromPoints,
-   then hand the s16 angle to SpriteSetDirection and func_800223B0.  The packing
-   OR takes the LOW half first (retail's 'or d,lo,hi').  Two measured details:
-   the actor's own position must go through an s32 local before the s16 element
-   store, or gcc merges the lh with the HImode store and emits lhu (retail has
-   lh,lh for this pair and lhu,lhu only for targetPosition, which the direct
-   field store reproduces); and the dead s32 spare[2] is what makes the frame
-   0x38 - retail never stores into 0x20.
-   WHAT IS LEFT is the reload of pointA[0]: retail does 'sh 0x10(sp)' then
-   'lhu a0,0x10(sp)' at once and keeps it live to the or, while gcc always issues
-   the pointA[1] actor load ('lh v0,0xA') first and reloads pointA[0] nine
-   instructions later next to the or.  Tried and measured: high-first packing
-   (93.53), packing into s32 locals before the call (CSE'd back into the args,
-   93.79), one statement per half (gcc takes the lh's load-delay slot, so the
-   retail nop disappears: 148 bytes), reads interleaved with the stores (gcc
-   forward-substitutes them as 'move'+'andi 0xffff', 90.92), a volatile read-back
-   (gcc sinks it below the targetPosition loads), u16 elements (loses lh), and
-   two decomp-permuter runs (5000 iterations, best 190 vs 225 - and its winner
-   only gains by reading pointA[0] BEFORE the store, i.e. uninitialised stack).
-   gcc 2.6.0 gives the same 94.05 and plain 2.7.2 -O2 82.89, so this is not a
-   preset question.  Next lever: make cse refuse to forward-substitute the s16
-   store so the reload can stay at its statement position.
+// The actor's own position goes through s32 locals so the loads stay signed
+// (retail reads targetPosition with lhu and its own position with lh).
 void func_800B6518(BattleSpriteState *pActor) {
-    s16 pointA[2];
-    s16 pointB[2];
-    s32 spare[2];
-    s32 x;
-    s32 z;
+    DVECTOR vec0;
+    DVECTOR vec1;
+    s32 c0;
+    s32 c1;
     s16 angle;
 
-    x = pActor->position.xWhole;
-    pointA[0] = x;
-    z = pActor->position.zWhole;
-    pointA[1] = z;
-    pointB[0] = pActor->targetPosition.x;
-    pointB[1] = pActor->targetPosition.z;
-    angle = SpriteComputeAngleFromPoints(((u16 *)pointB)[0] | ((u16 *)pointB)[1] << 16,
-                                         ((u16 *)pointA)[0] | ((u16 *)pointA)[1] << 16);
-    SpriteSetDirection((u8 *)pActor, angle);
-    func_800223B0((u8 *)pActor, angle);
+    c0 = pActor->position.xWhole;
+    vec0.vx = c0;
+    c1 = pActor->position.zWhole;
+    vec0.vy = c1;
+    vec1.vx = pActor->targetPosition.x;
+    vec1.vy = pActor->targetPosition.z;
+    angle = SpriteComputeAngleFromPoints(vec1, vec0);
+    SpriteSetDirection(pActor, angle);
+    func_800223B0(pActor, angle);
 }
-*/
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
 void BattleActorSetDirectionTowardPosition(BattleSpriteState *pSprite) {
     SVECTOR rot;
@@ -427,6 +411,77 @@ void BattleStoreGfxOrderingTable(void) {
     func_800B7160();
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7160);
+/* best 88.39% (452 vs 464 bytes).  Draws every live record of the effect table
+   under the stored GTE matrices: saves the geometry offset and screen to give the
+   loop a 160/112/512 setup of its own, then for i in 0..1, j in 0..13, k in 0..19
+   transforms the record (RotMatrix over its first 8 bytes, TransMatrix over
+   0x10) and projects its colours[idx] prim (0x20 bytes: tag, r/g/b, then an
+   8-byte screen pair per vertex at +8/+0x10/+0x18) with RotTransPers3, linking it
+   into g_BattleSavedGfxOT at (return >> 6).  idx is the u32 at
+   g_BattleStateWork + 0x8000 + 0xC84; a record with posZ below 0x40 is skipped.
+   i selects D_800C3594 or D_800C35AC (two 3-SVECTOR vertex sets 0x18 apart).
+   The real function TAKES the task pointer (lw a0,0x4(a0)), which the caller
+   BattleStoreGfxOrderingTable forwards untouched - unlocking that needs its
+   signature changed too, which is why the extern here still says (void).
+   WHAT IS LEFT: retail spills `pTable + (0x3C + i*0x87A0)` to 0x58 and reloads
+   it in the k loop (frame 0x88), which shifts its whole local area: the geom
+   offset pair sits at 0x20/0x24 and mtx at 0x28, while ours puts mtx at 0x20,
+   the pair at 0x40 and the frame at 0x80.  Retail also loads the vertex table
+   base and the 0x8000 bias in the other order.  Tried: the two-statement
+   g_BattleStateWork/0x8000 split (keeps the addend out of %hi, but does not
+   spill), pColor before vs after the posZ guard (before is retail's), MATRIX
+   declared first/last, and `long` geom-offset locals.
+void func_800B7160(BattleEffectTask *pTask) {
+    s32 geomOffsetX;
+    s32 geomOffsetY;
+    MATRIX mtx;
+    s32 depth;
+    s32 flag;
+    BattleEffectTable *pTable;
+    BattleEffect *pEntry;
+    BattleEffectColor *pColor;
+    SVECTOR *pVertices;
+    u8 *pState;
+    s32 screen;
+    s32 i;
+    s32 j;
+    s32 k;
+
+    pTable = pTask->pTable;
+    ReadGeomOffset(&geomOffsetX, &geomOffsetY);
+    screen = ReadGeomScreen();
+    SetGeomOffset(160, 112);
+    SetGeomScreen(512);
+    for (i = 0; i != 2; i++) {
+        for (j = 0; j != 14; j++) {
+            for (k = 0; k != 20; k++) {
+                pEntry = &pTable->entries[i][j][k];
+                pState = g_BattleStateWork;
+                pState = pState + 0x8000;
+                pColor = &pEntry->colors[*(u32 *)(pState + 0xC84)];
+                if (pEntry->posZ < 0x40) {
+                    continue;
+                }
+                RotMatrix((SVECTOR *)pEntry, &mtx);
+                TransMatrix(&mtx, (VECTOR *)&pEntry->posX);
+                SetRotMatrix(&mtx);
+                SetTransMatrix(&mtx);
+                if (i == 0) {
+                    pVertices = D_800C3594;
+                } else {
+                    pVertices = D_800C35AC;
+                }
+                AddPrim(g_BattleSavedGfxOT + (RotTransPers3(pVertices, pVertices + 1, pVertices + 2,
+                                                            pColor->sxy[0], pColor->sxy[1], pColor->sxy[2],
+                                                            &depth, &flag) >> 6),
+                        pColor);
+            }
+        }
+    }
+    SetGeomOffset(geomOffsetX, geomOffsetY);
+    SetGeomScreen(screen);
+}
+*/
 void BattleDrawSyncAndFree(void *p) {
     DrawSync(0);
     HeapFree(p);
