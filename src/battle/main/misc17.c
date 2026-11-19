@@ -24,7 +24,7 @@ extern BattleSpriteWork *g_BattleDisplayState;
 extern u8 g_BattleCurSlotIndex;
 extern BattleWorkBlock *g_BattleCurWorkBlock;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
-extern u8 g_BattlePrimStartIndex;
+extern u8 g_BattlePrimStartIndex[];
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleTargetSlotEntry;
 extern BattleTableEntry g_BattleWorkBlock[];
@@ -83,7 +83,7 @@ void BattleBuildSpriteColumn8(s32 arg0) {
             (u8 *)g_BattleGraphicsWork + 0xBA8 + g_BattleDisplayState->spriteColumnPackageCount * 80, 0x20,
             (s16)(offset + arg0));
     }
-    g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex;
+    g_BattleDisplayState->spriteColumnPrimStart = g_BattlePrimStartIndex[0];
     g_BattleDisplayState->spriteColumnPending = 1;
 }
 /* 86.04%: the s/2 and s-s/2*2 expansion, both UV args and the pointer sum are
@@ -182,7 +182,7 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
         func_800916D4(arg1, arg2, arg0);
         func_8009187C(arg0, arg1, arg2);
         func_80091B38(arg0, arg1, arg2);
-        g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex;
+        g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex[0];
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
     } else {
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
@@ -208,7 +208,28 @@ void func_80091EC4(u8 arg0) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009209C);
+void func_8009209C(void) {
+    u32 zero;
+    u8 **ppPrims;
+    u8 *pPrims;
+    u8 *pPal;
+    u8 *pPal2;
+
+    zero = 0;
+    ppPrims = &g_BattleGraphicsWork->pPacketPrims;
+    pPal = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28));
+    *(u16 *)(pPal + 0xE) = g_SystemPalette1;
+    pPal2 = *ppPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28));
+    pPrims = pPal2;
+    *(u16 *)(pPrims + 0x5E) = g_SystemPalette1;
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28), 0x36, 0x62, 0, 0, 0x60, 0x40);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(pPrims = g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x50)), 0xC2, 0x62, 0x78, 0, 0x60, 0x40);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xA0)), 0x96, 0x62, 0, 0, 0x10, 0x40);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xF0)), 0x122, 0x62, 0x40, 0, 0x10, 0x40);
+    g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
+    g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
+    g_BattleDisplayState->unkB7 = 3;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
@@ -271,7 +292,7 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
         if ((g_BattleWorkBlock[arg0].conditionFlags & tbl[arg1]) == 0) {
             func_80093578(arg0, arg1);
             func_8009382C(arg0, arg1);
-            g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex;
+            g_BattleGraphicsWork->pPacketPrims[0x66A] = g_BattlePrimStartIndex[0];
             g_BattleGraphicsWork->pPacketPrims[0x66B] = 1;
         } else {
             g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
