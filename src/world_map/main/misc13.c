@@ -97,6 +97,8 @@ extern u8 g_WorldMapAreaNameString[];
 extern u8 g_WorldMapMode4AreaNameString[];
 extern WorldMapTileKindRow g_WorldMapTileKindTable[];
 extern WorldMapTileShapeAxis g_WorldMapTileShapeAxis[];
+extern s32 g_WorldMapGridAngle;
+extern s32 g_WorldMapGridShadePhase;
 extern s32 D_8009B244;
 extern s32 D_8009B24C;
 extern s32 D_8009B254;
@@ -494,6 +496,122 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
     return a.y << 3;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80093A5C);
+/* best: 71.82 percent (1080 bytes vs retail 1072 = 268 insns; ours 270). Structure is
+   right: same 8 rcos calls in the same order, same multiply/shift chain, same
+   four scratch stores at 0xA2/0xAA/0xB2/0xBA, same four sum arms, same GTE pair,
+   same interpolate call. The 2 extra instructions are ONE spilled parameter
+   (the prologue stores z to 16(sp) and reloads it) - the quad block needs 9
+   values live at peak (x, z, pTile, xa, x0, za, z0, angle, phase) and retail
+   fits exactly that (s7, fp, s6, s1, s3, s0, s2, s5, s4). Measured, all worse:
+   heights read back from scratch in the arms (63.88, gcc then keeps the 0xA2
+   address in a saved register instead of retail's fresh lui), a single shared
+   height variable (66.24), s16 heights (67.35), the quads as a 2x2 loop (46.68,
+   gcc 2.7.2 does not unroll it), x1/z1 inlined into the angle sums (identical
+   71.82). Facts for the next attempt: retail reads the tile height with lb
+   (a signed read, so (s8)pTile[n] << 3) and the tile indices with srl (so
+   ((u32)x >> 19) & 7) while the last two stores use sra 12; the arms reload
+   h00/h10/h01 as lh from scratch but keep the last corner's height (h11) in a
+   register; retail's second-half accesses 0x1F800020/0x1F800028/0x1F8000A2 go
+   through a base register holding 0x1F800000 (see WorldMapBuildTilePlaneNormal's
+   pScratch/pEdge pair above) while the arm stores use the absolute-cast lui at
+   form. A permuter run from this body found nothing usable (its best candidates
+   changed the stored values).
+
+s32 func_80093A5C(s32 x, s32 z) {
+    u8* pTile;
+    s32 xa;
+    s32 za;
+    s32 x0;
+    s32 z0;
+    s32 angle;
+    s32 phase;
+    s32 sum;
+    s32 h00;
+    s32 h01;
+    s32 h10;
+    s32 h11;
+
+    pTile = WorldMapGetTileEntry(x, z);
+    xa = ((u32)x >> 19) & 7;
+    x0 = xa << 9;
+    za = ((u32)z >> 19) & 7;
+    z0 = za << 9;
+
+    angle = g_WorldMapGridAngle + x0;
+    phase = (rcos(g_WorldMapGridShadePhase + z0) << 4) >> 3;
+    h00 = (rcos(angle) * phase >> 20) + ((s8)pTile[0] << 3);
+    *(s16*)0x1F8000A2 = h00;
+
+    angle = g_WorldMapGridAngle + ((xa + 1) << 9);
+    phase = (rcos(g_WorldMapGridShadePhase + z0) << 4) >> 3;
+    h01 = (rcos(angle) * phase >> 20) + ((s8)pTile[4] << 3);
+    *(s16*)0x1F8000AA = h01;
+
+    angle = g_WorldMapGridAngle + x0;
+    phase = (rcos(g_WorldMapGridShadePhase + ((za + 1) << 9)) << 4) >> 3;
+    h10 = (rcos(angle) * phase >> 20) + ((s8)pTile[0x24] << 3);
+    *(s16*)0x1F8000B2 = h10;
+
+    angle = g_WorldMapGridAngle + ((xa + 1) << 9);
+    phase = (rcos(g_WorldMapGridShadePhase + ((za + 1) << 9)) << 4) >> 3;
+    h11 = (rcos(angle) * phase >> 20) + ((s8)pTile[0x28] << 3);
+    *(s16*)0x1F8000BA = h11;
+
+    xa = (u16)(x / 8);
+    za = (u16)(z / 8);
+    if (pTile[1] & 0x80) {
+        sum = xa * D_8009B254 + (-za) * D_8009B25C;
+        if (sum < 0) {
+            *(s32*)0x1F800000 = 0x80;
+            *(s32*)0x1F800008 = -0x80;
+            *(s32*)0x1F800010 = 0;
+            *(s32*)0x1F800018 = -0x80;
+            *(s32*)0x1F800004 = h11 - h00;
+            *(s32*)0x1F800014 = h10 - h00;
+        } else {
+            *(s32*)0x1F800000 = 0x80;
+            *(s32*)0x1F800010 = 0x80;
+            *(s32*)0x1F800008 = 0;
+            *(s32*)0x1F800018 = -0x80;
+            *(s32*)0x1F800004 = h01 - h00;
+            *(s32*)0x1F800014 = h11 - h00;
+        }
+    } else {
+        sum = (xa - 0x10000) * D_8009B244 + (-za) * D_8009B24C;
+        if (sum < 0) {
+            *(s32*)0x1F800000 = -0x80;
+            *(s32*)0x1F800008 = -0x80;
+            *(s32*)0x1F800010 = -0x80;
+            *(s32*)0x1F800018 = 0;
+            *(s32*)0x1F800004 = h10 - h01;
+            *(s32*)0x1F800014 = h00 - h01;
+        } else {
+            *(s32*)0x1F800000 = 0;
+            *(s32*)0x1F800008 = -0x80;
+            *(s32*)0x1F800010 = -0x80;
+            *(s32*)0x1F800018 = -0x80;
+            *(s32*)0x1F800004 = h11 - h01;
+            *(s32*)0x1F800014 = h10 - h01;
+        }
+    }
+    OuterProduct0((VECTOR*)0x1F800010, (VECTOR*)0x1F800000, (VECTOR*)0x1F800020);
+    VectorNormal((VECTOR*)0x1F800020, (VECTOR*)0x1F800000);
+    *(s32*)0x1F800010 = (x >> 12) & 0x7F;
+    *(s32*)0x1F800018 = -((z >> 12) & 0x7F);
+    if (pTile[1] & 0x80) {
+        *(s32*)0x1F800020 = 0;
+        *(s32*)0x1F800024 = *(s16*)0x1F8000A2;
+    } else {
+        *(s32*)0x1F800020 = 0x80;
+        *(s32*)0x1F800024 = *(s16*)0x1F8000AA;
+    }
+    *(s32*)0x1F800028 = 0;
+    WorldMapInterpolatePlaneHeight((WorldMapPos*)0x1F800010, (WorldMapPos*)0x1F800020,
+                                   (WorldMapPos*)0x1F800000);
+    return *(s32*)0x1F800014 << 12;
+}
+*/
+
 s32 WorldMapGetTileValue(WorldMapPos* p) {
     s16 idx;
     s32 sub;
