@@ -96,9 +96,17 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080A74);
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80080F44);
 /*
+96.36% (468 bytes = retail's 468, register assignment only). The volatile store
+is load-bearing: writing `*(ActorData* volatile*)&g_FieldActors[i].pActorData =
+HeapAlloc(0x138, 0);` makes cc1 keep that store ahead of the volatile reload of
+g_FieldActors that follows it (a plain store lets gcc hoist the second base load
+above it and costs the loop counter its a0 - 90.26%). Residue: retail gives the
+store's element a0, the reload's v1 and reloads pActorData through a0, ours uses
+v0/a2/v1 for the same three; three earlier statements (the `for` body, the
+spriteFlags store and the pData reload) are otherwise identical.
+Tried: the volatile store above; pActor/pFieldActor locals; indexed vs pointer
+forms; removing the pActor local; permuter (found the do-while in the tail).
 extern int g_FieldActorAllocCount[];
-void func_80080A74(int actorIndex);
-void FieldInitShadowQuad(Quad* pQuad);
 
 void func_80080F44(int actorIndex) {
     int numWords = sizeof(ActorData) / sizeof(u_int);
@@ -111,7 +119,7 @@ void func_80080F44(int actorIndex) {
 
     if (actorIndex < g_FieldActiveActorCount) {
         g_FieldActorAllocCount[0]++;
-        g_FieldActors[actorIndex].pActorData = HeapAlloc(0x138, 0);
+        *(ActorData* volatile*)&g_FieldActors[actorIndex].pActorData = HeapAlloc(0x138, 0);
         pData = (u_int*)g_FieldActors[actorIndex].pActorData;
         for (i = 0; i < numWords; i++) {
             *pData++ = 0;
