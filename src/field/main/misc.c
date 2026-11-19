@@ -766,11 +766,12 @@ void func_800888A4(void) {
     int value;
 
     pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
-    type = FieldScriptVMGetArgument(1) & 0xF;
-    value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
+    arg = 1;
+    type = FieldScriptVMGetArgument(arg) & 0xF;
+    value = ((FieldScriptVMGetArgument(arg) >> 4) << 8) + FieldScriptVMGetArgument(3);
     SpriteAllocClutRect(pSpriteData, 2, 0);
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
-    g_FieldScriptVMCurActor->flags12C_0x12 = type << 6;
+    ((u_int*)g_FieldScriptVMCurActor)[0x4B] = (((u_int*)g_FieldScriptVMCurActor)[0x4B] & 0xF003FFFF) | (type << 24);
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[3] = value;
     g_FieldScriptVMCurActor->flags130 = (g_FieldScriptVMCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
     g_FieldScriptVMCurActor->flags12C_0x10 = 1;
@@ -779,6 +780,61 @@ void func_800888A4(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
 
+// 88.92% (432 bytes against retail's 428; frame 0x28 and the saved set s0-s4+ra
+// are retail's exactly, every call and every store is in retail's own order).
+//   SETTLED: the four script arguments are read in this order (arg1 masked to
+//   0xF first, then arg1 >> 4 << 8 + arg3, then the same pair for arg5/arg7),
+//   SpriteAllocClutRect(pSpriteData, 3, 0) is called between them and the stores,
+//   and the rect words 2..5 plus the flags130 bit fields (bits 0-8, 9-18, 19-27,
+//   masks ~0x1FF / ~0x7FE00 / ~0xFF80000) and flags12C (10-bit field at bit 18,
+//   then flags12C_0x10 = 2) follow one statement each.
+//   THE ONE SIZE MISS: the first FieldScriptVMGetArgument's `ori a0,zero,1` is
+//   hoisted above the frame stores here, which leaves a nop in that jal's delay
+//   slot - that instruction is the whole 432-vs-428 gap. The sibling
+//   func_800888A4's note records the same miss; passing the argument through a
+//   local (`arg = 1;`) measured the same.
+//   MEASURED: `flags12C_0x12 = type << 6` makes gcc cse the << 6 with the sprite
+//   store and chain `sll s2,s2,0x12` after it (82.07%); retail's single
+//   `sll s2,s2,24` needs the shift written against the raw local, which needs
+//   whole-word access to the 0x12C word (no scalar member in the header) - that
+//   one change is 82.07 -> 88.63. Also measured dead: `type * 0x40` at either
+//   site, a modelType local, a pCurActor local vs the inline global, and moving
+//   the pCurActor assignment to its first use.
+//   THE REST is register naming (retail keeps the actor pointer in a2 and the
+//   0xFF80000 mask in a3, and leaves a1 free across the whole tail; here they are
+//   a1 and a2) plus the last block's three store order (retail stores 0x130, then
+//   scriptInstructionPointer, then 0x12C; two source orders were measured and
+//   neither reproduces it).
+/*
+extern void SpriteAllocClutRect(SpriteData*, s32, u_int);
+
+void func_800889BC(void) {
+    SpriteData* pSpriteData;
+    int type;
+    int value;
+    int type2;
+    int value2;
+    ActorData* pCurActor;
+
+    pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
+    type = FieldScriptVMGetArgument(1) & 0xF;
+    value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
+    type2 = FieldScriptVMGetArgument(5) & 0xF;
+    value2 = ((FieldScriptVMGetArgument(5) >> 4) << 8) + FieldScriptVMGetArgument(7);
+    SpriteAllocClutRect(pSpriteData, 3, 0);
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
+    pCurActor = g_FieldScriptVMCurActor;
+    ((u_int*)pCurActor)[0x4B] = (((u_int*)pCurActor)[0x4B] & 0xF003FFFF) | (type << 24);
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[3] = value;
+    pCurActor->flags130 = (pCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[4] = type2 << 6;
+    pCurActor->flags130 = (pCurActor->flags130 & ~0x7FE00) | (type2 << 15);
+    ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[5] = value2;
+    pCurActor->flags130 = (pCurActor->flags130 & ~0xFF80000) | ((value2 & 0x1FF) << 19);
+    pCurActor->scriptInstructionPointer += 9;
+    pCurActor->flags12C_0x10 = 2;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800889BC);
 
 // Start of particle handlers
@@ -2730,6 +2786,76 @@ void func_8008EA58(void) {
 }
  */
 
+// 94.74% (480 bytes against retail's 484 - ONE instruction short, so it cannot
+// link yet). Everything matches: the g_FieldMapChangeGate guard, the four
+// FieldScriptVMGetArgument calls, the switch tree (cases 0/1/2, no default), the
+// 0x140/0x100 image rect constants and the trailing globals.
+//   THE SIZE MISS is two register copies around `value` (arg7): retail keeps
+//   `addu v1,v0,zero` for the raw D_800C3A30 store and the `& 0xC0` flags, computes
+//   `andi v0,v0,0xf` early, and copies again (`addu v1,v0,zero`) for the switch
+//   operand; here gcc masks in place and zero-extends the operand
+//   (`andi v1,v0,0xffff`), which nets one instruction less. Measured identical:
+//   `switch (value & 0xF)` vs an `int type = value & 0xF;` local, and moving that
+//   assignment either side of the g_FieldStreamFlags store.
+//   THE OTHER GAP is the tail: retail reads the instruction pointer
+//   (`lhu v0,0xcc(a0); ori v1,1`) between the g_FieldStreamLoopPlayback and
+//   g_FieldStreamSceneActive stores; here the load is hoisted above LoopPlayback.
+//   The matched-neighbour note on func_8008EE14 records the same hoist.
+/*
+void func_8008EC30(void) {
+    u16 value;
+    int type;
+
+    if (g_FieldMapChangeGate.value == 0) {
+        g_FieldScriptVMStopFlag = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+    } else {
+        g_FieldStreamFileIndex = FieldScriptVMGetArgument(1);
+        D_800C3A2A = FieldScriptVMGetArgument(3);
+        g_FieldStreamTotalFrames = FieldScriptVMGetArgument(5);
+        value = FieldScriptVMGetArgument(7);
+        D_800C3A30 = value;
+        type = value & 0xF;
+        g_FieldStreamFlags = value & 0xC0;
+        D_800C3A32 = 0x140;
+        D_800C3A34 = 0x100;
+        D_800C3A30 &= 0xF;
+        g_FieldStreamFrameBase = 1;
+        switch (type) {
+            case 0:
+                g_FieldStreamImageX1 = 0x140;
+                g_FieldStreamImageY1 = 0;
+                g_FieldStreamImageX2 = 0x140;
+                g_FieldStreamImageY2 = 0x100;
+                g_FieldMode = 1;
+                g_FieldStreamRgb24 = 0;
+                break;
+            case 1:
+                g_FieldStreamImageX2 = 0;
+                g_FieldStreamImageY1 = 0;
+                g_FieldStreamImageX1 = 0;
+                g_FieldStreamImageY2 = 0x100;
+                g_FieldMode = 0;
+                g_FieldStreamRgb24 = 0;
+                break;
+            case 2:
+                g_FieldStreamImageX2 = 0;
+                g_FieldStreamImageY1 = 0;
+                g_FieldStreamImageX1 = 0;
+                g_FieldStreamImageY2 = 0x100;
+                g_FieldMode = 0;
+                g_FieldStreamRgb24 = 1;
+                break;
+        }
+        g_FieldStreamId = 0xFF;
+        g_FieldStreamLoopPlayback = 0;
+        g_FieldStreamSceneActive = 1;
+        g_FieldScriptVMStopFlag = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
+    }
+}
+
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 // 79.22%: everything up to the last four stores matches. The original's
