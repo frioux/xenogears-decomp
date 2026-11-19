@@ -338,7 +338,7 @@ struct Actor {
     /* 0x86C */ u8 pad86C[0x90];
     /* 0x8FC */ ActorScript* pScript;
     /* 0x900 */ u8 pad900[0x9];
-    // Selects the record D_8009196C holds that the result screen prints.
+    // Selects the record g_BattleResultRecords holds that the result screen prints.
     /* 0x909 */ u8 unk909;
     // Bits set per actor type (func_80084C88 stores one per typeId); func_8007920C
     // tests bit 0 before spawning the ground effect, misc3 bits 1 and 2.
@@ -1447,14 +1447,14 @@ typedef struct {
     /* 0x8 */ s32 unk8;
 } BattleResultRecord; // Size: 0xC
 
-extern BattleResultRecord D_8009196C[];
+extern BattleResultRecord g_BattleResultRecords[];
 
 // The battle's closing pass for the combatant pair.  It walks the transition
 // countdown's two ends (resetting the scratch state at its start, reopening it at
 // its end), sets the pad state up for the START prompt, picks the camera rig of the
 // side the result belongs to together with the line the debug read-out shows, then
 // runs the ground, model and animation updates for both actors.
-void func_8007AE10(Actor* p1, Actor* p2) {
+void BattleUpdateCombatantPairTransition(Actor* p1, Actor* p2) {
     char buf[0x40];
     u16 buttons;
     s32 floorY;
@@ -1509,7 +1509,7 @@ void func_8007AE10(Actor* p1, Actor* p2) {
         switch (g_BattleMode) {
         case 1:
             BattleByteRegTestReg(D_8006FDA8);
-            Sprintf(buf, D_8006FDBC, D_8009196C[p2->unk909].value);
+            Sprintf(buf, D_8006FDBC, g_BattleResultRecords[p2->unk909].value);
             BattleByteRegTestReg(buf);
             break;
         case 2:
