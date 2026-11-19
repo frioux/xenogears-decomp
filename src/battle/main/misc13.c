@@ -101,7 +101,7 @@ extern void BattleSetPrimGrey80BlendAdd(u8 *);
 extern void BattleSetPrimGrey80BlendSub(u8 *);
 extern s32 GetStringEntryFromBank(s32, s32);
 extern void func_80076D58(u8 *, u8, u8);
-extern void BattleSetPolyFT4RectH13(POLY_FT4 *, s16, s16, u8, u8, u8);
+extern void BattleSetPolyFT4RectH13(POLY_FT4 *, u16, u16, u8, u8, u8);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern u8 g_BattleCommandCharIndex[];
@@ -359,15 +359,22 @@ done:
     return result;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086028);
-/* 88.08%: instruction multiset is identical (same size, same prologue save
-   order, same delay-slot placement); every difference is the s-register NUMBER
-   gcc hands to each call-crossing value. Retail: s0=q s1=arg0 s2=arg2 s3=arg1
-   s4=r s5=arg3 s6=arg5 s7=arg4 fp=arg1*4; ours: s0=arg5 s1=q s2=arg0 s3=r
-   s4=arg1 s5=arg3 s6=arg1*4 s7=arg4 s8=arg2. The copies happen in the same
-   order, so it is an allocator priority tie, not a shape difference.
-   `arg1 * 0x50 + 0x5550 + g_BattleSpriteColumnWork` (symbol added last) is what puts the
-   `addu` in the func_80076D58 jal delay slot. The three masks 0xFFFC/0xFFF8/
-   0xF8 on the BattleSetPolyFT4RectH13 coordinates are literal in the source.
+/* 91.62%, 424 bytes (retail 432). Instruction multiset and schedule match; every
+   remaining difference is the s-register NUMBER each call-crossing value gets.
+   Retail: s0=q s1=arg0 s2=arg2 s3=arg1 s4=r s5=arg3 s6=arg5 s7=arg4 fp=arg1*4;
+   ours: s0=arg5 s1=q s2=arg0 s3=r s4=arg1 s5=arg3 s6=arg1*4 s7=arg4 s8=arg2 - an
+   allocator priority tie, and we come out 8 bytes short because the two stack
+   parameters are read into different registers. Permuter: 1663 iterations, base=1530
+   best=1125 (not zero).
+   Three spellings in this body are measured, not style: `((s32 *)g_BattlePrimStartIndex)[0]`
+   reads the counter with retail's `lw` (a plain u8 spelling is lbu, 88.08%);
+   `arg2 += arg5 + 1;` reproduces retail's `addiu s6,s6,1 / addu s2,s2,s6`
+   (folding it back into the call argument is 88.08%); and the callee's first two
+   rect arguments are declared u16 because retail passes `& 0xFFFC`/`& 0xFFF8` with no
+   sign extension (s16 makes gcc add `sll 0x10`/`sra 0x10`, 89.45% - note misc16_r1/r2
+   declare the same callee with s16, which is worth re-checking against its definition).
+   Also tried and measured: the permuter's `(arg1 * 2) + counter` operand swap.
+/*
 s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     s32 q;
     s32 r;
@@ -383,8 +390,9 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
     rect.w = 0x1E;
     rect.h = 0xD;
     LoadImage(&rect, *arg4);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)((g_BattlePrimStartIndex + arg1 * 2) * 0x28 + 0x5550 + g_BattleSpriteColumnWork),
-                  ((arg2 + arg5 + 1) * 0x10 + 0x50 + arg1 * 4) & 0xFFFC,
+    arg2 += arg5 + 1;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)((((s32 *)g_BattlePrimStartIndex)[0] + arg1 * 2) * 0x28 + 0x5550 + g_BattleSpriteColumnWork),
+                  (arg2 * 0x10 + 0x50 + arg1 * 4) & 0xFFFC,
                   (0xC8 - arg1 * 0x10) & 0xFFF8,
                   (q * 0x78) & 0xF8,
                   0x1A,
@@ -598,28 +606,26 @@ void BattleReleaseCharSlot(u8 arg0) {
     D_800D301D[(g_BattleSlotRecords[ofs] + sel) << 2] &= invMask;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
-/* 63.19%: first block and the five `g_BattleSlotRecords[ofs]` reloads match retail exactly;
-   still open: gcc branches on the skip condition (`beq $2,$0,store`, loop as
-   fall-through) where retail branches INTO the loop (`bnez $2,loop`) and puts
-   `li a1,0x40` in that delay slot; gcc keeps `n` in $a2 for the whole function
-   (retail loads it into $v1 and copies to $a2 on the skip and break paths, which
-   also makes retail's loop-exhaust path store $a2); gcc emits the
-   `g_BattleCharSlotUsage` flag store before `D_800D301D` (swap them in the source does not
-   change it - sched2 reorders); and `g_BattleSlotParamTable + idx*8` gives `addu idx,base`
-   where retail has `addu base,idx` (writing `idx*8 + g_BattleSlotParamTable` does not change
-   it either). `* 4` instead of `<< 2` scores 68.19% but folds the +0x10 into
-   `%lo` (`lbu v0,64(at)`) instead of retail's `addiu`/`sll` pair, i.e. it is a
-   wrong instruction choice that the fuzzy score likes; `<< 2` reproduces the
-   shape BattleIsCharSlot18InUse matched with. Dropping the `ofs` local and spelling
-   `arg0 * 0x1C` inline is worse (56.81%: gcc switches to a `la` base pointer and
-   loads `g_BattleSlotParamTable` twice).
+/* 68.06%, 316 bytes (retail 300): everything matches except (1) retail lays the
+   skip path out as a `j .Lstore` / `addu a2,v1` trampoline BEFORE the find loop and
+   BRANCHES INTO the loop (`bnez $v0,.Lloop` with `ori a1,0x40` - the loop's
+   `(i + 0x10) << 2` induction - in its delay slot), while gcc puts the loop
+   straight after the test (`beqz $v0,store`); (2) consequently the `g_BattleSlotRecords`
+   offset lives in $v1 in retail (a0 in ours) and retail stores D_800D301D before
+   g_BattleCharSlotUsage where we emit them the other way round (source order and the
+   do/while block both measured no change - sched2 reorders). The first offset is
+   spelled inline and the second assigned to `ofs` because retail recomputes
+   `arg0 * 0x1C` at the store block (63.19% with a single live `ofs`).
+   Tried: one live `ofs` for both (63.19%), `n = i; break` vs a separate counter
+   (unchanged), swapping the two flag stores (unchanged), and 0x1C spelled inline at
+   every site (56.81%).
+/*
 void func_80088490(u8 arg0) {
     s32 ofs;
     s32 i;
     s32 n;
 
-    ofs = arg0 * 0x1C;
-    n = g_BattleSlotRecords[ofs];
+    n = g_BattleSlotRecords[arg0 * 0x1C];
     if (g_BattleCharSlotUsage[(n + 0x10) << 2] != 0) {
         for (i = 0; i < 8; i++) {
             if (g_BattleCharSlotUsage[(i + 0x10) << 2] == 0) {
@@ -628,6 +634,7 @@ void func_80088490(u8 arg0) {
             }
         }
     }
+    ofs = arg0 * 0x1C;
     g_BattleSlotRecords[ofs] = n;
     D_800C3EB5[ofs] = 0;
     D_800D301D[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
