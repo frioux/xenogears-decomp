@@ -25,7 +25,7 @@ extern void func_800A64E4(void);
 extern void BattleSetCurrentSpriteAndTarget(s32, s32);
 extern void func_800A3640(void *, s32, s32, s16, s32, s16, s16, s32, s32, s32, s32, s16, s16, s16, s16, s32, s32, s32, s32);
 
-extern u8 *D_800D33E4;
+extern u8 *g_BattleImageList;
 extern u16 g_BattleImageLoaded;
 extern u_long *g_BattleImageData;
 extern RECT g_BattleImageRect;
@@ -263,8 +263,8 @@ void func_800A5EB4(void) {
     for (offset = 0x12; offset >= 0; offset -= 6) {
         g_BattleColorTintParams[offset] = 0;
     }
-    pEntry = *(u8 **)(D_800D33E4 + 0x118);
-    for (i = 0; i < *(u8 *)(D_800D33E4 + 0x10E); i++) {
+    pEntry = *(u8 **)(g_BattleImageList + 0x118);
+    for (i = 0; i < *(u8 *)(g_BattleImageList + 0x10E); i++) {
         if (*(u16 *)(pEntry + 0x1A) != 0) {
             *(void **)pEntry = g_BattleImage;
         }
@@ -689,7 +689,7 @@ void BattleInitializeStage(void) {
     BattleCreateSpritePool(g_BattleSpritePool, *(s16 *)(g_BattleStageData + 0x34A));
     BattleClearBlockSlots();
     j = 0x1F;
-    pWord = (mem_addr)&D_800D33E4;
+    pWord = (mem_addr)&g_BattleImageList;
     for (; j >= 0; j--) {
         *(u32 *)pWord = 0;
         pWord -= 4;

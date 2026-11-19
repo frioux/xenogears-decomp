@@ -1276,7 +1276,7 @@ typedef struct {
 
 extern FieldSpritePlacement D_800B1F78[];
 extern s32 g_GamePartySkinsInitialized;
-extern s32 D_800AFC74;
+extern s32 g_FieldScriptSpritesBuilt;
 extern SpriteData* SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5);
 extern SpriteData* SpriteAllocFromAnimFileWithClut(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5,
                                                    s32 arg6);
@@ -1299,7 +1299,7 @@ extern void func_8001F5BC(SpriteData* pSpriteData, s32 unusedIndex, s32* pOutX, 
 //  Findings worth keeping: FieldActor+0x40..0x48 is childMatrix.t[0..2] (NOT a `move`
 //  vector - ActorData has one at the same offset); ActorData::position is a VECTOR of
 //  longs and the code reads its 16.16 integer part through `((s16*)&position)[1]` /
-//  [3] / [5]; D_800AFC74 is its own global (zeroed by func_800A28D4), not part of
+//  [3] / [5]; g_FieldScriptSpritesBuilt is its own global (zeroed by func_800A28D4), not part of
 //  g_FieldStoredImageBuffer; the double `step.y = 0` store at 0x10 IS in the original
 //  (0x10, 0xC, 0x10, 0x14), duplicated here on purpose.
 //  The sprite model path itself: modelKind 0 builds from the D_800B1F78 placement table,
@@ -1430,7 +1430,7 @@ void func_80076AC0(s32 actorIndex, s32 spriteId, void* pAnimFile, s32 modelKind,
     pSpriteData->position.y = g_FieldActors[actorIndex].pActorData->position.vy;
     pSpriteData->position.z = g_FieldActors[actorIndex].pActorData->position.vz;
 
-    D_800AFC74++;
+    g_FieldScriptSpritesBuilt++;
 }
 */
 

@@ -553,7 +553,7 @@ void FieldLoadActorAnimationFiles(void) {
 // Best attempt: 79.98% (1768 bytes against the original's 1772). The structure is exact: the
 // sprite/party split of the first loop, both func_80076AC0 call sites, the 2/3-entry CLUT-rect
 // switch on flags12C_0x10, the party sprite swap keyed on g_pGameState->gearRide, and both VM loops
-// (bytecode offsets 2 then 0, then FieldScriptVMRun(0xFFFF) with the D_800AFC74 fallback).
+// (bytecode offsets 2 then 0, then FieldScriptVMRun(0xFFFF) with the g_FieldScriptSpritesBuilt fallback).
 // What is left is one saved register (frame 0x44 here against 0x48: the original keeps
 // &g_FieldActors in $s2 and does `lw v0,0(s2)` throughout the two VM loops, this body re-forms
 // lui/lw per access and so never needs $s2) plus the load sharing inside each case-body statement:
@@ -574,7 +574,7 @@ extern void* g_PartyDataBuffers[];
 extern s32 g_FieldSceneReloadFlags;
 extern s32 g_FieldPartyActorIndices[3];
 extern s32 g_FieldPartyActorSlots[3];
-extern s32 D_800AFC74;
+extern s32 g_FieldScriptSpritesBuilt;
 
 // The sprite blob's offset table: one offset per sprite, relative to the blob itself.
 typedef struct {
@@ -675,14 +675,14 @@ void func_800A28D4(void) {
         for (i = 0; i < g_FieldActiveActorCount; i++) {
             pFieldActor = &g_FieldActors[i];
             g_FieldCurActorIndex = i;
-            D_800AFC74 = 0;
+            g_FieldScriptSpritesBuilt = 0;
             g_FieldScriptVMScriptEndFlag = 0;
             g_FieldScriptVMCurFieldActor = pFieldActor;
             g_FieldScriptVMCurActor = pFieldActor->pActorData;
             FieldScriptVMRun(0xFFFF);
 
             // The script did not choose a model, so give the actor the first sprite in the blob
-            if (D_800AFC74 == 0) {
+            if (g_FieldScriptSpritesBuilt == 0) {
                 pSpriteDataBlob = g_FieldSpriteData;
                 func_80076AC0(i, 0, (void*)(pSpriteDataBlob->offsets[0] + (s32)pSpriteDataBlob), 0, 0, 0x80, 0);
                 g_FieldScriptVMCurActor->flags |= 0x800;

@@ -1672,3 +1672,4 @@ g_BattleStageStreamFile = 0x800594BC;
 g_SpriteQuadCorners = 0x8004FAD8;
 g_SpritePlaneMasks = 0x8004FAF8;
 SoundAllocateSoundEffectElements = 0x8003A65C;
+SystemStringInit = 0x80032F54;

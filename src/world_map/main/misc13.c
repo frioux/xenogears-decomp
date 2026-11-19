@@ -141,7 +141,7 @@ extern s32 g_WorldMapTileRows;
 extern s16 g_WorldMapAreaId;
 extern u16 g_WorldMapAreaNamePanelFlags;
 extern u8 D_8009D500;
-extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
+extern s32 SystemStringInit(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 extern void WorldMapBuildTilePlaneNormal(WorldMapPos* p, s32 x, s32 z);
 extern s32 WorldMapInterpolatePlaneHeight(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2);
 extern void SystemStringResetIfIdle(void* pString);
@@ -188,7 +188,7 @@ s32 WorldMapInitAreaNameString(void) {
 
     pBuffer = g_WorldMapAreaNameString;
     g_WorldMapAreaId = WORLD_MAP_AREA_NONE;
-    func_80032F54(pBuffer, 0x3C0, 0x180, 0xA0, 0x78, 0x20, 1);
+    SystemStringInit(pBuffer, 0x3C0, 0x180, 0xA0, 0x78, 0x20, 1);
     D_8009D500 = 8;
     g_WorldMapAreaNamePanelFlags |= 2;
     SystemStringResetIfIdle(pBuffer);
@@ -237,7 +237,7 @@ s32 func_80092DF8(void) {
     u16 flags;
 
     g_WorldMapMode4AreaId = WORLD_MAP_AREA_NONE;
-    func_80032F54(g_WorldMapMode4AreaNameString, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
+    SystemStringInit(g_WorldMapMode4AreaNameString, 0x3C0, 0x18D, 0xA0, 0x78, 0x20, 4);
     flags = g_WorldMapAreaNamePanelFlags;
     D_8009BDCC = 8;
     g_WorldMapAreaNamePanelFlags = flags | 2;

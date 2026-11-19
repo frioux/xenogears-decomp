@@ -1094,3 +1094,4 @@ g_BattleTweenVectorAngle = 0x800C3CF0;
 g_BattleColorMatrix = 0x800D2FC0;
 g_BattleSlotDigitSpriteIds = 0x800C3E08;
 g_BattleSlotDigitXOffsets = 0x800C3068;
+g_BattleImageList = 0x800D33E4;

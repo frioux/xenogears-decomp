@@ -24,9 +24,9 @@ extern u8 D_801EA574[];
 extern u8 g_MenuNameTextureX[];
 extern u8 D_801E9F88[];
 extern s32 D_801E977C[]; // String IDs of the menu scroll bar textures
-extern s32 D_801E9D40[]; // X offset of each stat row of the stat table
-extern s32 D_801E9D5C[]; // Y offset of each stat row of the stat table
-extern s32 D_801EA45C[]; // Texture id of each stat row's label, 7 rows per stat group
+extern s32 g_MenuStatRowLabelOffsetX[]; // X offset of each stat row of the stat table
+extern s32 g_MenuStatRowLabelOffsetY[]; // Y offset of each stat row of the stat table
+extern s32 g_MenuStatRowLabelTexIds[]; // Texture id of each stat row's label, 7 rows per stat group
 
 void MenuSetupPointerCursors(s32 arg0);
 void MenuFreeScrollHandle(void);
@@ -112,8 +112,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D7F50);
 
 /* 99.75% (812 bytes, the original's size). The stat table's row labels: reset the
    prim count at unk35C+0x32F3, draw 7 - statGroup rows of label prims with
-   func_8002675C (7 texture ids per stat group in D_801EA45C, x/y from
-   D_801E9D40/D_801E9D5C), shade the prims of every other row 0x40, then set the
+   func_8002675C (7 texture ids per stat group in g_MenuStatRowLabelTexIds, x/y from
+   g_MenuStatRowLabelOffsetX/g_MenuStatRowLabelOffsetY), shade the prims of every other row 0x40, then set the
    four quad vertices of each prim from its own x0/y0/x1/y3.
    The LAST loop differs only in two addu operand orders: retail is
    `addu v1,a0,v1` (base first) for the prim address and `addu a0,s0,a0`
@@ -137,7 +137,7 @@ void func_801D7F50(s32 x, s32 y, u_char statGroup) {
     ((u8*)g_Menu->unk35C)[0x32F3] = 0;
     for (i = 0; i < 7 - statGroup; i++) {
         start = ((u8*)g_Menu->unk35C)[0x32F3];
-        ((u8*)g_Menu->unk35C)[0x32F3] += func_8002675C(g_Menu->resources, D_801EA45C[statGroup * 7 + i], (POLY_FT4*)((u8*)g_Menu->unk35C + start * 0x50), g_Menu->renderContext, x + D_801E9D40[i], y + D_801E9D5C[i], 0x1000);
+        ((u8*)g_Menu->unk35C)[0x32F3] += func_8002675C(g_Menu->resources, g_MenuStatRowLabelTexIds[statGroup * 7 + i], (POLY_FT4*)((u8*)g_Menu->unk35C + start * 0x50), g_Menu->renderContext, x + g_MenuStatRowLabelOffsetX[i], y + g_MenuStatRowLabelOffsetY[i], 0x1000);
         if (i & 1) {
             for (j = start; j < ((u8*)g_Menu->unk35C)[0x32F3]; j++) {
                 SetShadeTex((POLY_FT4*)((u8*)g_Menu->unk35C + (g_Menu->renderContext + j * 2) * 0x28), 0);

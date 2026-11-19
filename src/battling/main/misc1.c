@@ -433,7 +433,7 @@ extern s32 g_BattleMessageIndex;
 extern s32 g_BattleMessageShownIndex;
 
 // The battle message window the tutorial text is drawn into: the box rectangle
-// func_80032F54 fills in, the line count at +0xC and the redraw flag at +0x68.
+// SystemStringInit fills in, the line count at +0xC and the redraw flag at +0x68.
 // The record is a SystemString (src/slus_006.64/system/system.c owns it, and the
 // global is 0x90 bytes up to g_BattleCameraPos), so +0x0/+0x2/+0x8 are that
 // struct's lineWidth/charIndex/spriteWidth.
@@ -450,12 +450,12 @@ typedef struct {
 } BattleMessageWindow; // Size: 0x69
 
 extern BattleMessageWindow g_BattleMessageWindow;
-extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
+extern s32 SystemStringInit(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
 
 void BattleInitMessageWindow(void) {
     g_BattleMessageShownIndex = -1;
     g_BattleMessageIndex = 0;
-    func_80032F54(&g_BattleMessageWindow, 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
+    SystemStringInit(&g_BattleMessageWindow, 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
 }
 
 extern u8 D_80092608;
@@ -522,7 +522,7 @@ void BattleInitTutorialMessage(void) {
     BattleSetScreenMode(7);
     g_BattleMode = 5;
     g_BattleOptionOn = 0;
-    func_80032F54(&g_BattleTutorialWindow[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
+    SystemStringInit(&g_BattleTutorialWindow[0], 0x140, 0x70, 0xA2, 0x2A, 0x1C, 8);
     SystemStringPushBuffer(&g_BattleTutorialWindow[0], GetStringEntry(g_BattleMessageStringTable, 0x42));
     D_800929BC = 0x1E;
     D_800925DC = 0;

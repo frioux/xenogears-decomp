@@ -388,3 +388,6 @@ g_MenuCardChunkData = 0x801EA6F4;
 g_MenuShoulderButtonArrowX = 0x801EA164;
 g_MenuShoulderButtonArrowY = 0x801EA16C;
 g_MenuCardSlotOrder = 0x801E981C;
+g_MenuStatRowLabelTexIds = 0x801EA45C;
+g_MenuStatRowLabelOffsetX = 0x801E9D40;
+g_MenuStatRowLabelOffsetY = 0x801E9D5C;

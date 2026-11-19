@@ -1060,3 +1060,4 @@ FieldSetGearModelAnimationForActor = 0x800821F4;
 g_FieldCurrentModelAnimationId = 0x800B2346;
 g_FieldModelAnimationIdsByActor = 0x800ADFB8;
 g_Unknown_800B2344 = 0x800B2344;
+g_FieldScriptSpritesBuilt = 0x800AFC74;

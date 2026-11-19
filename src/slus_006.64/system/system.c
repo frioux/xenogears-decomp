@@ -99,7 +99,7 @@ extern u16 g_SystemNumberGlyphBuffer[];
 extern u16 D_8005A0DE[];
 
 
-// One row of a rendered string. func_80032F54 sets the sprites up as free-size
+// One row of a rendered string. SystemStringInit sets the sprites up as free-size
 // textured rects (code 0x64) and the rect up for LoadImage, which uploads the
 // row's glyphs to it; func_80034888 draws one sprite per render context.
 typedef struct {
@@ -172,7 +172,7 @@ typedef struct {
     /* 0x8C */ SystemStringNode* pBufferStack;
 } SystemString; // Size: 0x90
 
-void func_80032F54(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y, s16 maxWidth, s16 maxChars) {
+void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y, s16 maxWidth, s16 maxChars) {
     int i;
     int row;
     int odd;
