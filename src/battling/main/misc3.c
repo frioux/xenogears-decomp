@@ -711,7 +711,7 @@ s32 func_80076884(BattleActor* p) {
         }
     }
     flags = p->flags;
-    if (flags & CTRL_BTN_CROSS) {
+    if (flags & 0x40) {
         return;
     }
     if (g_BattleCameraSpinDirection != ((flags >> 17) & 1)) {
@@ -740,10 +740,10 @@ s32 func_80076884(BattleActor* p) {
         BattleResetMessageQueue(p);
         BattleQueueMessage(p, 4);
     }
-    if (buttons & CTRL_BTN_CROSS) {
+    if (buttons & 0x40) {
         p->flags |= 0x8000;
     }
-    if (released & CTRL_BTN_CROSS) {
+    if (released & 0x40) {
         BattleResetMessageQueue(p);
     }
     decayStep = p->inputDecayStep;
@@ -763,7 +763,7 @@ s32 func_80076884(BattleActor* p) {
     if ((p->flags & 0x60000000) == 0x20000000 && (p->typeFlags & 4)) {
         rampStep = p->inputRampStep / 2;
     }
-    if (p->flags & CTRL_BTN_SELECT) {
+    if (p->flags & 0x100) {
         decayStep = decayStep * 2 / 3;
         enabled = 0;
     } else {
