@@ -5,10 +5,7 @@
 
 // The arrays menuUnk2 indexes as card * MENU_CARD_RECORD_COUNT + record hold 16 records
 // per card, so a flat record index divides by it to get the card it is on.
-#define MENU_CARD_RECORD_COUNT 16
-#define MENU_CARD_COUNT 2 // memory card slots
 // MenuLoadWindow2Text's second text id when there is no second text to load.
-#define MENU_WINDOW_TEXT_NONE 0xFF
 // MenuFindFreeChunkIndex's index argument when the caller has none and wants a free one.
 #define MENU_CHUNK_INDEX_NONE 0xFF
 

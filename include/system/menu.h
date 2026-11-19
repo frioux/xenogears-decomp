@@ -17,6 +17,9 @@
 // Card slot bookkeeping, see MenuUnk2: a memory card holds 15 slots, so the second card's
 // slots start at index MENU_CARD_SLOT_COUNT, and a slot with no record reads MENU_SLOT_NONE.
 #define MENU_CARD_SLOT_COUNT 15
+#define MENU_CARD_COUNT 2 // memory card slots, the dimension of cardStatus[]/cardEnumerated[]
+#define MENU_CARD_RECORD_COUNT 16 // save records per card; index / this is the card
+#define MENU_WINDOW_TEXT_NONE 0xFF // MenuLoadWindow2Text's no-second-text argument
 #define MENU_CARD_SLOT_STATE_READY 2 // g_Menu->cardSlotState once the slot list is built
 // One card slot's save chunk, the size of MenuUnk2ImageChunk
 #define MENU_IMAGE_CHUNK_SIZE 0x200
@@ -269,7 +272,7 @@ typedef struct {
     /* 0x4F7C */ s32 selectedSlot;
     /* 0x4F80 */ s32 previousSelectedSlot; // Slot the character window was last rebuilt for, 0xFF = none
     /* 0x4F84 */ s32 slotWriteCursor; // Next free index into slotRecordIndexes
-    /* 0x4F88 */ u8 cardEnumerated[2]; // One flag per memory card, set once its directory was listed
+    /* 0x4F88 */ u8 cardEnumerated[MENU_CARD_COUNT]; // One flag per memory card, set once its directory was listed
     /* 0x4F8A */ u8 cardSlotCounts[2]; // Directory entries found, one count per card
     /* 0x4F8C */ u8 previousCardSlotCounts[2]; // cardSlotCounts[] as read last time, one per card
     /* 0x4F8E */ u8 slotHasGameSave[0x20]; // One flag per card slot, set when its record's game code matched
@@ -277,7 +280,7 @@ typedef struct {
     /* 0x4FCE */ u8 gameSerialCode[0xD]; // 12-character game code and its terminator, both copied from the record's ids[]
     /* 0x4FDB */ u8 unk4FDB;
     /* 0x4FDC */ u8 unk4FDC[0x8];
-    /* 0x4FE4 */ u8 cardStatus[2];
+    /* 0x4FE4 */ u8 cardStatus[MENU_CARD_COUNT];
     /* 0x4FE6 */ u8 cardPollMode;
     /* 0x4FE7 */ u8 unk4FE7;
     /* 0x4FE8 */ u8 previousCardStatus[2];

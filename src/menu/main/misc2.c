@@ -12,7 +12,6 @@
 #define MENU_SCREEN_HEIGHT 224
 // MenuUnk2 records[]/chunks[] and the card slot arrays hold this many entries per memory
 // card, so a card's entries start at index * MENU_CARD_RECORD_COUNT.
-#define MENU_CARD_RECORD_COUNT 16
 // Frames a card operation is given to settle, counted in frames or in vsyncs.
 #define MENU_CARD_OPERATION_WAIT_FRAMES 59
 
