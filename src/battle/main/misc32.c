@@ -16,6 +16,48 @@ extern u8 g_BattleStateWork[];
    register), which is what retail's "atfree" stubs contain; at -G8 it leaves the
    bare macro to the assembler and emits `lui $at`. */
 
+// The sprite record a color-ramp task animates. x/y/z are the integer halves of
+// SpriteData's 16.16 IVEC3 position: this unit reads only those, with `lh`, so the low
+// half of each is an untouched pad here.
+typedef struct {
+    /* 0x00 */ u8 pad0[0x2];
+    /* 0x02 */ s16 x;
+    /* 0x04 */ u8 pad4[0x2];
+    /* 0x06 */ s16 y;
+    /* 0x08 */ u8 pad8[0x2];
+    /* 0x0A */ s16 z;
+    /* 0x0C */ u8 unkC[0x1C];
+    /* 0x28 */ u8 colors[0x3]; // written by BattleSetSpriteColorFromAngle
+    /* 0x2B */ u8 prim; // bit 0 cleared on spawn (func_800BD098), set on free
+    /* 0x2C */ u8 unk2C[0xA];
+    /* 0x36 */ u16 yOffset; // the sprite's own vertical, taken once when the ramp starts
+} BattleEffectSprite; // Size: 0x38
+
+// The color-ramp task's own data block, reached through the task entry's +0x4: the two
+// work-list entries WorkListsAddTasks fills in, then the task's own fields.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry workEntry;
+    /* 0x38 */ BattleEffectSprite *pSprite;
+    /* 0x3C */ s32 posX; // the VECTOR func_800BCEAC hands TransMatrix
+    /* 0x40 */ s32 posY;
+    /* 0x44 */ s32 posZ;
+    /* 0x48 */ u8 pad48[0x4]; // the unused 4th word of the VECTOR posX..posZ
+    /* 0x4C */ u16 rotX; // the SVECTOR func_800BCEAC hands RotMatrix
+    /* 0x4E */ u16 rotY; // advanced 0x10 per step
+    /* 0x50 */ u16 rotZ;
+    /* 0x52 */ u16 pad52;
+    /* 0x54 */ s32 yOffset; // the sprite's 0x36 word, subtracted from posY
+    /* 0x58 */ s32 angle; // advanced once per step
+    /* 0x5C */ void *pPrimBuffers[2]; // the double-buffered prim block, one per render context
+    /* 0x64 */ void *pFrame; // the model frame func_800B1F6C transforms
+} BattleEffectColorRampData; // Size: 0x68
+
+typedef struct {
+    /* 0x00 */ u8 unk0[0x4];
+    /* 0x04 */ BattleEffectColorRampData *pData;
+} BattleEffectTask; // Size: 0x8
+
 // The sprite colour pulse task g_BattleSpriteColorTask holds (misc31 owns the type and
 // its tick): the work-list entry, the sprite it tints and the battle slot it was
 // created for, which D_800C4922 retires.
@@ -71,46 +113,101 @@ extern s16 g_BattleActorMask;
 void BattleClearActorMask(void) {
     g_BattleActorMask = 0;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCEAC);
-// The sprite record a color-ramp task animates. x/y/z are the integer halves of
-// SpriteData's 16.16 IVEC3 position: this unit reads only those, with `lh`, so the low
-// half of each is an untouched pad here.
-typedef struct {
-    /* 0x00 */ u8 pad0[0x2];
-    /* 0x02 */ s16 x;
-    /* 0x04 */ u8 pad4[0x2];
-    /* 0x06 */ s16 y;
-    /* 0x08 */ u8 pad8[0x2];
-    /* 0x0A */ s16 z;
-    /* 0x0C */ u8 unkC[0x1C];
-    /* 0x28 */ u8 colors[0x3]; // written by BattleSetSpriteColorFromAngle
-    /* 0x2B */ u8 prim; // bit 0 cleared on spawn (func_800BD098), set on free
-} BattleEffectSprite; // Size: 0x2C
-
-// The color-ramp task's own data block, reached through the task entry's +0x4: the two
-// work-list entries WorkListsAddTasks fills in, then the task's own fields.
-typedef struct {
-    /* 0x00 */ WorkListEntry timerEntry;
-    /* 0x1C */ WorkListEntry workEntry;
-    /* 0x38 */ BattleEffectSprite *pSprite;
-    /* 0x3C */ s32 posX; // the VECTOR func_800BCEAC hands TransMatrix
-    /* 0x40 */ s32 posY;
-    /* 0x44 */ s32 posZ;
-    /* 0x48 */ u8 pad48[0x4]; // the unused 4th word of the VECTOR posX..posZ
-    /* 0x4C */ u16 rotX; // the SVECTOR func_800BCEAC hands RotMatrix
-    /* 0x4E */ u16 rotY; // advanced 0x10 per step
-    /* 0x50 */ u16 rotZ;
-    /* 0x52 */ u16 pad52;
-    /* 0x54 */ s32 yOffset; // the sprite's 0x36 word, subtracted from posY
-    /* 0x58 */ s32 angle; // advanced once per step
-    /* 0x5C */ void *pPrimBuffer; // base of the prim pointer buffer, queued to free
-} BattleEffectColorRampData; // Size: 0x60
-
+// The per-slot effect record the ramp's timer entries are keyed by: the second of the two
+// pointer tables the battle state work block ends with, holding the sprite each slot's
+// ramp animates.
 typedef struct {
     /* 0x00 */ u8 unk0[0x4];
-    /* 0x04 */ BattleEffectColorRampData *pData;
-} BattleEffectTask; // Size: 0x8
+    /* 0x04 */ BattleEffectSprite *pSprite;
+} BattleEffectSlotRecord; // Size: 0x8
+
+extern WorkListEntry *TimerWorkListFindEntryForDataAndCallback(void *pData, void *pCallback);
+extern void func_800BD098(BattleEffectSlotRecord *pRecord);
+extern void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask);
+
+// 83.74% (272 bytes against retail's 276). The body is retail's instruction for
+// instruction except for the slot-table base: retail keeps the 0x8CB8 offset in $s5
+// (li hoisted out of the loop, `addu v0,s1,s5` each turn) while gcc rematerialises the
+// li in the branch delay slot at the loop bottom and keeps the base in $s3, so the
+// mask/pointer/index registers come out shuffled and the body is one instruction short.
+// Tried: the pointer folded into the symbol (86.88, `addiu $s3,%lo(sym),-0x34D0`), a
+// plain pointer walk, a mem_addr cast, pSlot assigned before the mask test (retail's
+// shape: the address is built once, the load is inside each arm), and both local
+// declaration orders.
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCD98);
+/*
+void func_800BCD98(u16 mask) {
+    u8 *pBase;
+    BattleEffectSlotRecord **pSlot;
+    BattleEffectSlotRecord *pRecord;
+    WorkListEntry *pEntry;
+    s32 i;
+
+    g_BattleActorMask = mask;
+    if (mask != 0) {
+        func_800BCC60();
+    } else {
+        BattleFreeSpriteColorTask(0);
+    }
+    pBase = g_BattleStateWork;
+    for (i = 0; i != 0xB; i++, mask >>= 1) {
+        pSlot = (BattleEffectSlotRecord **)((mem_addr)pBase + 0x8CB8);
+        if (mask & 1) {
+            pRecord = *pSlot;
+            if (pRecord != NULL
+                && TimerWorkListFindEntryForDataAndCallback(pRecord, BattleApplyEffectSpriteColorRamp) == NULL) {
+                func_800BD098(pRecord);
+            }
+        } else {
+            pRecord = *pSlot;
+            if (pRecord != NULL) {
+                pEntry = TimerWorkListFindEntryForDataAndCallback(pRecord, BattleApplyEffectSpriteColorRamp);
+                if (pEntry != NULL) {
+                    pEntry->onFreeCallback(pEntry);
+                }
+            }
+        }
+        pBase += 4;
+    }
+}*/
+// The tail of the battle state work block, as this unit's effects reach it: the render
+// context func_800B1F6C's double buffer is indexed by, then the per-slot pointer tables.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x8C84];
+    /* 0x8C84 */ s32 renderContext; // which of the two prim buffers the draw uses
+} BattleStateWorkTail;
+
+extern void SpriteSetIVec3(IVEC3 *pVector, s32 x, s32 y, s32 z);
+extern void func_800B1F6C(void *pFrame, void *pPrimBuffer, u_long *pOt, s32 flags, s32 arg4, s32 arg5);
+
+// Draws one step of a colour-ramp effect: the block's position and rotation go through the
+// sprite base matrix, the perspective scale comes from the transformed depth, and the model
+// frame's primitives are handed to func_800B1F6C out of the buffer the render context picks.
+void func_800BCEAC(WorkListEntry *pEntry) {
+    BattleEffectColorRampData *pData;
+    MATRIX mtx;
+    IVEC3 vec;
+    s32 depth;
+    s32 scale;
+
+    pData = (BattleEffectColorRampData *)pEntry->unk4;
+    TransMatrix(&mtx, (VECTOR *)&pData->posX);
+    RotMatrix((SVECTOR *)&pData->rotX, &mtx);
+    CompMatrix(&g_GfxBaseMatrix, &mtx, &mtx);
+    scale = ReadGeomScreen() << 12;
+    depth = mtx.t[2];
+    if (depth != 0) {
+        scale = scale / depth;
+    }
+    scale = 0x1000000 / scale / 2;
+    SpriteSetIVec3(&vec, scale, scale, scale);
+    ScaleMatrixL(&mtx, (VECTOR *)&vec);
+    SetRotMatrix(&mtx);
+    SetTransMatrix(&mtx);
+    func_800B1F6C(pData->pFrame,
+                  pData->pPrimBuffers[((BattleStateWorkTail *)g_BattleStateWork)->renderContext],
+                  g_GfxCurOT, 0, 0, 0);
+}
 
 void BattleApplyEffectSpriteColorRamp(BattleEffectTask *pTask) {
     BattleEffectColorRampData *pData;
@@ -142,7 +239,7 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
     pSprite = pData->pSprite;
     pSprite->prim |= 1;
     func_8001F6B0(pSprite);
-    GfxQueueSpriteTileData(pData->pPrimBuffer);
+    GfxQueueSpriteTileData(pData->pPrimBuffers[0]);
     WorkListsRemoveEntriesForData(pTask);
     TimerWorkListRemoveTask(pTask);
     HeapFree(pData);
