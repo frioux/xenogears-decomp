@@ -2,6 +2,27 @@
 #include "psyq/libgpu.h"
 #include "battle/actor.h"
 
+typedef struct {
+    /* 0x0 */ u8 unk0;
+    /* 0x1 */ u8 unk1[3];
+} BattleStatusEntry; // Size: 0x4
+
+// One 0x170-byte row of the per-slot tables (BattleTableEntry in
+// include/battle/actor.h); only the words src/battle/main/misc1 reads are named.
+typedef struct {
+    /* 0x000 */ u16 flags; // 0xC000 = the slot's action is nullified, 0x8000 selects which half
+    /* 0x002 */ u8 unk02[2];
+    /* 0x004 */ u16 unk04; // 0x1000: the slot has a pending slot-action
+    /* 0x006 */ u8 unk06[0x82];
+    /* 0x088 */ u32 effectFlags4Pair; // activeEffectFlags4 and accessoryEffectFlags4 as one word
+    /* 0x08C */ u8 unk8C[0x18];
+    /* 0x0A4 */ u16 stateFlags; // the first word of the row's BattleSlotState, 0xC000 as above
+    /* 0x0A6 */ u8 unkA6[0xCA];
+} BattleSlotRow; // Size: 0x170
+
+// Digit sprite ids are indices into the glyph set that starts at this id.
+#define BATTLE_DIGIT_SPRITE_BASE 0x67
+
 // The per-slot digit-panel bookkeeping the renderers below advance. g_BattleDisplayState
 // points at the battle work block that battle_work.h's BattleWork describes for
 // misc2/misc3; the counters these two functions use sit past the fields that
@@ -54,6 +75,12 @@ extern u16 g_BattleSlotDisplayValues[];
 extern u16 g_BattleSlotCountdownTimers[];
 extern u16 g_BattleCommandCellFlags;
 extern u16 BattleMaskHasSlotBit(u16, u8);
+extern u16 BattleSlotBitMask(u8);
+extern u16 BattleSlotBitMaskInverted(u8);
+extern u8 D_800C3EB7[][0x1C];
+extern u8 D_800C3EB8[][0x1C];
+extern BattleStatusEntry D_800C3D1B[];
+extern u16 D_800C3608;
 extern u16 g_BattlePendingSlotMask;
 extern u8 D_800C402F[];
 extern u8 g_BattleCommandArgs;
@@ -66,6 +93,11 @@ extern void BattleClearSlotFlagB4(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
 extern u8 g_BattlePrimStartIndex;
 extern u8 g_BattleStatDigitSpriteIds[];
+extern u8 D_800C3E08[];
+// The scene resource block pointer's word is followed by the scene's three
+// optional digit sprite ids (0xFF when unused).
+extern u8 g_BattleSceneResources[];
+extern u16 D_800C3068[];
 extern u8 g_BattleSlotPageIndex;
 extern u16 g_BattleStatDigitXOffsets[];
 extern u16 g_BattleSlotScreenOrigins[];
@@ -73,12 +105,11 @@ extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern void func_80072938(POLY_FT4 *, s32, s32, s32);
 extern u8 D_800D3298;
 extern u8 g_BattleSlotEnabledFlags[];
-extern u16 g_BattleSlotEntries[];
-extern u16 D_800CCD68[];
+extern BattleSlotRow g_BattleSlotEntries[];
+extern BattleSlotRow g_BattleSlotEntriesBase[];
 extern u16 D_800CCD6C[];
 extern u16 D_800CCD6E[];
 extern u8 D_800CCE44[];
-extern u8 D_800CCE08[];
 extern u16 D_800D2E1C[];
 extern u8 g_BattleValueDigitSpriteIds[];
 extern u8 g_BattleSlotDisplayValue[];
@@ -692,6 +723,96 @@ void func_800723E0(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
+/* 91.63% under 2.6.0 (892 bytes against retail's 908). Both loops and the whole
+   control flow are instruction-identical to retail modulo REGISTER NUMBERING: the
+   only real miss is that retail keeps the loop counter in s1 and the 0x170 offset
+   biv in s0, ours the other way round, which shifts every later register by one
+   and reorders the prologue's save/increment pairs. The other gap is 3
+   instructions in the tail: retail reloads g_BattleStateFlags for the second
+   (0x7) test and again for the mask local (lui/lhu/nop each time) where cse
+   follows the jump and reuses the first load.
+   Tried: listing each if/else arm in retail's order (done - worth 11 points),
+   s32 vs u16 mask (the s32 form reproduces retail's bare `bnez s2`), a u8 loop
+   counter for the 3..0xA loop (gcc then emits sltu for the test and an andi per
+   iteration - wrong), and a permuter run, which only found candidates that hoist
+   BattleSlotBitMask(i) unconditionally - a call retail does not make on the
+   continue paths, so wrong code. The 91.63% was measured with
+   `extern s32 BattleMaskHasSlotBit(s32, u8)` and a `(u16)` cast on each result,
+   which is the shape the mask loop wants; that prototype cannot live in this
+   file, because BattleResetActorCommandSlots' call then loses its
+   `andi v0,v0,0xFFFF` and that function links 4 bytes short.
+*/
+/*
+// Rebuilds g_BattleStateFlags, the mask of the slots that have an active action
+// pending, and then reconciles D_800C48EA (the battle menu event) with it.
+void func_8007252C(void) {
+    s32 i;
+    s32 mask;
+
+    g_BattleStateFlags = 0;
+    for (i = 0; i < 3; i++) {
+        if (g_BattleSlotEnabledFlags[i] == 0) {
+            continue;
+        }
+        if ((g_BattleSlotEntries[i].flags & 0xC000) != 0) {
+            if ((g_BattleSlotEntries[i].flags & 0x8000) != 0) {
+                g_BattleSlotEntriesBase[i].flags = 0;
+            }
+            g_BattleActorCountdownState[i] = 0xFF;
+        } else if (D_800C3EB7[i][0] == 0) {
+            g_BattleStateFlags |= BattleSlotBitMask(i);
+        }
+    }
+    for (i = 3; i < 0xB; i++) {
+        if (g_BattleSlotEnabledFlags[i] == 0) {
+            continue;
+        }
+        if (D_800C3EB8[i][0] == 0) {
+            if ((g_BattleSlotEntries[i].flags & 0xC000) != 0) {
+                if (BattleMaskHasSlotBit(D_800C3608, i) == 0) {
+                    g_BattleSlotEntriesBase[i].flags = 0;
+                    g_BattleActorCountdownState[i] = 0xFF;
+                    continue;
+                }
+            } else if (D_800C3EB7[i][0] != 0 || D_800C3D1B[i - 3].unk0 != 0) {
+                continue;
+            }
+        } else if ((g_BattleSlotEntries[i].stateFlags & 0xC000) != 0) {
+            if (BattleMaskHasSlotBit(D_800C3608, i) == 0) {
+                g_BattleSlotEntries[i].effectFlags4Pair = 0;
+                g_BattleActorCountdownState[i] = 0xFF;
+                continue;
+            }
+        } else if (D_800C3EB7[i][0] != 0 || D_800C3D1B[i - 3].unk0 != 0) {
+            continue;
+        }
+        g_BattleStateFlags |= BattleSlotBitMask(i);
+    }
+    if ((g_BattleStateFlags & 0x7F8) == 0) {
+        D_800C48EA = 1;
+    }
+    if ((g_BattleStateFlags & 0x7) == 0) {
+        D_800C48EA = 0x81;
+    }
+    if (D_800C48EA != 0) {
+        return;
+    }
+    mask = g_BattleStateFlags;
+    for (i = 0; i < 0xB; i++) {
+        if (BattleMaskHasSlotBit(mask, i) != 0 && (g_BattleSlotEntries[i].unk04 & 0x1000) != 0) {
+            mask &= BattleSlotBitMaskInverted(i);
+        }
+    }
+    if (mask == 0) {
+        for (i = 0; i < 0xB; i++) {
+            if (BattleMaskHasSlotBit(g_BattleStateFlags, i) != 0 && (g_BattleSlotEntries[i].unk04 & 0x1000) != 0) {
+                g_BattleSlotEntries[i].unk04 &= 0xEFFF;
+                break;
+            }
+        }
+    }
+}
+*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800728B8);
 /* 78.84% under both 2.6.0 and 2.7.2: the original recomputes index*40 inline
@@ -736,7 +857,43 @@ void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
     }
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072A9C);
+void func_80072A9C(s32 slot, u8 arg1) {
+    s32 first;
+    s32 i;
+    s32 xIndex;
+
+    first = g_BattleDisplayState->statSpriteCount[slot];
+    for (i = 0; i < 3; i++) {
+        if (D_800C3E08[i] != 0xFF) {
+            g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
+                D_800C3E08[i] + BATTLE_DIGIT_SPRITE_BASE,
+                (s32)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
+                (s16)(D_800C3068[slot * 24 + i] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
+                0x10);
+        }
+    }
+    // The glyph after '9' separates the two groups.
+    g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
+        BATTLE_DIGIT_SPRITE_BASE + 10,
+        (s32)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
+        (s16)(D_800C3068[slot * 24 + 3] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
+        0x10);
+    // Unused scene sprite entries do not consume an x offset.
+    for (i = 4, xIndex = 4; i < 7; i++) {
+        if (g_BattleSceneResources[i] != 0xFF) {
+            g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
+                g_BattleSceneResources[i] + BATTLE_DIGIT_SPRITE_BASE,
+                (s32)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
+                (s16)(D_800C3068[slot * 24 + xIndex] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
+                0x10);
+            xIndex++;
+        }
+    }
+    if (arg1 != 0) {
+        func_80072938((POLY_FT4 *)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)), first,
+                      g_BattleDisplayState->statSpriteCount[slot], arg1);
+    }
+}
 void BattleRenderActorStatDigits(s32 slot, u8 arg1) {
     s32 first;
     s32 i;
