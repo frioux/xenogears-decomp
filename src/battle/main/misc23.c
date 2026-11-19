@@ -914,40 +914,12 @@ extern void BattleRenderSpriteSlots(u8 *, MATRIX *, s32, u_long *, s32);
 extern void func_800B026C(void *, s32, s32, s32);
 extern u16 D_800C3B80;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
-/* 98.88% (unit preset gcc 2.6.0 --expand-div -G0): the whole function is recovered -
-   every call, load, store, branch, the 0x60 frame and the ten saved registers are
-   retail's, and the instruction stream is identical except for two missing
-   instructions (ours 335, retail 337). All three remaining differences are one
-   allocator decision, so no source spelling reaches them:
-   (a) the loop-1 counter gets $s1 where retail has $s2. Post-reload cse2 then deletes
-       retail's separate "move s2,zero" (j = 0) because $s1 already holds 0 on that
-       path (it is loop 2's i = 0, which cse2 folds with ours);
-   (b) retail's loop-skip branch keeps a DUPLICATED "sll v0,s4,0x3" in its delay slot
-       (reorg duplicates the merge block's first insn there). Ours cannot: that slot
-       is taken by "move s4,zero" (step = 0) because
-   (c) retail copies p3 into $s6 in the middle of the prologue saves; ours emits that
-       copy last in the entry block, so reorg steals it into the first branch's delay
-       slot instead of "move s4,zero".
-   Measured and no help: while vs for form of the divide loop (identical), the other
-   chain assigned before pSprites, the height call before pSprites (93.13), the
-   inline pos[1] chain in the second test (96.32), every local declaration order,
-   -O3 (identical), 2.7.2 (96.99), 2.7.2-cdk -G0 (78.36), and two permuter runs
-   (1540 + 377 iterations) whose best edits were semantic no-ops (j = 6 hoisted out
-   of the clamp).
-   Facts for whoever unparks it: g_BattleActorStepTimer is a frame counter, bumped by
-   1 + g_BattleActorStepIncrement and clamped to 6, then halved into step by the subtract-2 loop;
-   step * 0x38 turns g_BattleTweenVectorAngle (an angle); g_BattleTweenVectorScale =
-   (rsin((s16)g_BattleTweenVectorAngle) + 0x1000) / 800 + 4 and D_800C3B80 =
-   (rsin((s16)(D_800C3B7C += 0x80)) + 0x1000) / 32; the three u8 colors at sp+0x20
-   are BattleClampScaledByte(D_800C3B80, 0x20, <the u8 at g_BattleStageData + 0x474/5/6>).
-   The four
-   slot loops run to 11 (circle pass), 32 (step animation), 32 (world position) and
-   31 (draw). In loop 1 retail loads the current actor's pSprites into $s0 BEFORE the
-   BattleGetActorHeight call and the other actor's into $s1 after it, which is why the
-   source assigns pSprites, then the height, then pOtherSprites; the third call's
-   arguments re-form (*ppSlot)->pSprites inline rather than reuse $s1. */
-/*
+/* Three statements below are split where the original programmer would have
+   written one expression, and each split is load-bearing: it decides which
+   register cc1 gives a value and which instruction reorg steals into a branch
+   delay slot. Folded back (timer + 1 + incr, for (step = 0; ...), for (j = 0;
+   ...)) the body comes out 2 instructions short and four callee-saved registers
+   rotate. */
 void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 quadIndex) {
     BattleActor **ppActors;
     BattleActor **ppSlot;
@@ -957,14 +929,22 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     s32 step;
     s32 i;
     s32 j;
+    s32 timer;
     u8 colors[3];
 
-    g_BattleActorStepTimer = g_BattleActorStepTimer + 1 + g_BattleActorStepIncrement;
+    // split: also fixes the order of the two gp-relative loads at the top
+    timer = g_BattleActorStepTimer + 1;
+    g_BattleActorStepTimer = timer + g_BattleActorStepIncrement;
+    // split: keeps the step = 0 copy at the end of the entry block, which is
+    // what leaves the loop-skip branch's delay slot free for the duplicated
+    // "step * 0x38" instruction
+    step = 0;
     if (g_BattleActorStepTimer >= 7) {
         g_BattleActorStepTimer = 6;
     }
-    for (step = 0; g_BattleActorStepTimer >= 2; step++) {
+    while (g_BattleActorStepTimer >= 2) {
         g_BattleActorStepTimer -= 2;
+        step++;
     }
     g_BattleTweenVectorAngle += step * 0x38;
     g_BattleTweenVectorScale = (rsin((s16)g_BattleTweenVectorAngle) + 0x1000) / 800 + 4;
@@ -975,9 +955,11 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     colors[2] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x476));
     if (g_BattleActors[g_BattleCurrentActorSlot] != 0) {
         if (!(g_BattleActors[g_BattleCurrentActorSlot]->flags4A & 0x20)) {
+            // split: j = 0 must be the first of the three preheader copies
+            j = 0;
             ppActors = g_BattleActors;
             ppSlot = ppActors;
-            for (j = 0; j < BATTLE_ACTOR_SLOT_COUNT; j++, ppSlot++) {
+            for (; j < BATTLE_ACTOR_SLOT_COUNT; j++, ppSlot++) {
                 if (*ppSlot == 0) {
                     continue;
                 }
@@ -1047,7 +1029,6 @@ void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 q
     }
     BattleRenderSpriteSlots(g_BattleSpritePool, pLightMatrix, step, pOt, quadIndex);
 }
-*/
 
 void BattleFreeAllModelSlots(void) {
     s32 i;
