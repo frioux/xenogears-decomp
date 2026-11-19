@@ -6,8 +6,8 @@
 #include "field/actor.h"
 #include "field/script_vm.h"
 
-extern s16 g_CamEyeMovementDuration;
-extern s16 g_CamAtMovementDuration;
+extern s16 g_CamEyeMovementDuration[];
+extern s16 g_CamAtMovementDuration[];
 extern s16 g_FieldCameraMode;
 extern s32 D_800AF930;
 extern s16 D_800AF936;
@@ -18,6 +18,11 @@ extern s16 D_800AF93A[]; // Part of a struct
 extern VECTOR g_CamAtMovementTo;
 extern VECTOR g_CamEyeMovementFrom;
 extern VECTOR g_CamEyeMovementTo;
+extern u16 g_CamMovementFlags;
+extern VECTOR g_CamAtMovementCurrent;
+extern VECTOR g_CamAtMovementDelta;
+extern VECTOR g_CamEyeMovementCurrent;
+extern VECTOR g_CamEyeMovementDelta;
 extern VECTOR g_CameraEye;
 extern VECTOR g_CameraEye2;
 extern VECTOR g_CameraAt;
@@ -32,12 +37,12 @@ void FieldScriptWaitForCameraMovement(void) {
     camMovementFlags = FIELD_CAMERA_AT_MOVEMENT_ACTIVE | FIELD_CAMERA_EYE_MOVEMENT_ACTIVE;
     
     // Is camera target movement done?
-    if (g_CamAtMovementDuration == 0) {
+    if (g_CamAtMovementDuration[0] == 0) {
         camMovementFlags &= ~FIELD_CAMERA_AT_MOVEMENT_ACTIVE;
     }
     
     // Is camera position movement done?
-    if (g_CamEyeMovementDuration == 0) {
+    if (g_CamEyeMovementDuration[0] == 0) {
         camMovementFlags &= FIELD_CAMERA_AT_MOVEMENT_ACTIVE;
     }
     
@@ -255,7 +260,147 @@ void FieldScriptResetCameraMovements(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 
+// Start a camera movement. The low nibble of the first argument byte selects
+// which of the four movement vectors is started, the high bit snaps the current
+// camera to the movement's starting point.
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", FieldScriptStartCameraMovement);
+
+/* Best: 82.87% (1604 bytes against retail's 1620; block layout and arm order
+   already match). Arm order is 0, 2, 3, 1 - that is retail's body order, not
+   ascending. What is solved and should be kept: retail reaches all three
+   accesses to a movement duration through ONE address register
+   (lui a0,%hi; addiu a0,a0,%lo; sh v1,0(a0); ... lh v0,0(a0)). That form only
+   comes out of an aggregate-typed object at addend 0: declaring the durations
+   `extern s16 g_...Duration[]` and writing g_...Duration[0] reproduces it
+   exactly, where a `s16*` local or the scalar both fold back to a bare symbol
+   store that maspsx expands through $at. The other users in this file read the
+   same symbol and still match 100.00% through the array spelling.
+   What is left: the arms' store order and register assignment. Retail keeps the
+   `g_CamMovementFlags` ori/sh between the Current and Delta store groups and
+   holds the three delta values in a1/a0/v1 and the From/To words in t1/t0/a3,
+   while this body computes the three multiplies up front, sinks the flags store
+   past the Delta group and picks $17 for a delta; and in the two speed arms the
+   duration store now goes through the array's address register where retail
+   uses the $at macro form (that is where the 16 missing bytes are). Moving the
+   flags statement before/after the Current stores changes nothing (measured).
+void FieldScriptStartCameraMovement(void) {
+    VECTOR direction;
+    VECTOR normalized;
+    s16 duration;
+    s32 speed;
+    s32 offsetX;
+    s32 offsetY;
+    s32 offsetZ;
+    u8 movementType;
+
+    movementType = SCRIPT_READ_U8_REL(1) & 0xF;
+    switch (movementType) {
+    case 0: {
+        duration = FieldScriptVMGetArgument(2);
+        g_CamAtMovementDuration[0] = duration;
+        if (duration == 0) {
+            g_CamAtMovementDuration[0] = duration + 1;
+            g_CamInterpolation.atStepDistance = 1;
+        }
+        offsetX = (g_CamAtMovementTo.vx - g_CamAtMovementFrom.vx) / g_CamAtMovementDuration[0];
+        offsetY = (g_CamAtMovementTo.vy - g_CamAtMovementFrom.vy) / g_CamAtMovementDuration[0];
+        offsetZ = (g_CamAtMovementTo.vz - g_CamAtMovementFrom.vz) / g_CamAtMovementDuration[0];
+        g_CamMovementFlags |= FIELD_CAMERA_AT_MOVEMENT_ACTIVE;
+        g_CamAtMovementCurrent.vx = g_CamAtMovementFrom.vx;
+        g_CamAtMovementCurrent.vy = g_CamAtMovementFrom.vy;
+        g_CamAtMovementCurrent.vz = g_CamAtMovementFrom.vz;
+        g_CamAtMovementDelta.vx = offsetX;
+        g_CamAtMovementDelta.vy = offsetY;
+        g_CamAtMovementDelta.vz = offsetZ;
+        if (SCRIPT_READ_U8_REL(1) & 0x80) {
+            g_CameraAt.vx = g_CamAtMovementFrom.vx;
+            g_CameraAt.vy = g_CamAtMovementFrom.vy;
+            g_CameraAt.vz = g_CamAtMovementFrom.vz;
+        }
+        break;
+    }
+    case 2: {
+        VECTOR* pFrom = &g_CamAtMovementFrom;
+
+        direction.vx = CONV_TO_GTE(pFrom->vx - g_CamAtMovementTo.vx);
+        direction.vy = CONV_TO_GTE(pFrom->vy - g_CamAtMovementTo.vy);
+        direction.vz = CONV_TO_GTE(pFrom->vz - g_CamAtMovementTo.vz);
+        VectorNormal(&direction, &normalized);
+        offsetX = FieldGetVec3Magnitude(
+            CONV_TO_GTE(pFrom->vx - g_CamAtMovementTo.vx),
+            CONV_TO_GTE(pFrom->vy - g_CamAtMovementTo.vy),
+            CONV_TO_GTE(pFrom->vz - g_CamAtMovementTo.vz));
+        speed = FieldScriptVMGetArgument(2);
+        g_CamAtMovementCurrent.vx = pFrom->vx;
+        g_CamAtMovementCurrent.vy = pFrom->vy;
+        g_CamAtMovementCurrent.vz = pFrom->vz;
+        g_CamMovementFlags |= FIELD_CAMERA_AT_MOVEMENT_ACTIVE;
+        g_CamAtMovementDelta.vx = -(normalized.vx * speed) << 4;
+        g_CamAtMovementDelta.vy = -(normalized.vy * speed) << 4;
+        g_CamAtMovementDelta.vz = -(normalized.vz * speed) << 4;
+        g_CamAtMovementDuration[0] = offsetX / speed;
+        if (SCRIPT_READ_U8_REL(1) & 0x80) {
+            g_CameraAt.vx = pFrom->vx;
+            g_CameraAt.vy = pFrom->vy;
+            g_CameraAt.vz = pFrom->vz;
+        }
+        break;
+    }
+    case 3: {
+        VECTOR* pFrom = &g_CamEyeMovementFrom;
+
+        direction.vx = CONV_TO_GTE(pFrom->vx - g_CamEyeMovementTo.vx);
+        direction.vy = CONV_TO_GTE(pFrom->vy - g_CamEyeMovementTo.vy);
+        direction.vz = CONV_TO_GTE(pFrom->vz - g_CamEyeMovementTo.vz);
+        VectorNormal(&direction, &normalized);
+        offsetX = FieldGetVec3Magnitude(
+            CONV_TO_GTE(pFrom->vx - g_CamEyeMovementTo.vx),
+            CONV_TO_GTE(pFrom->vy - g_CamEyeMovementTo.vy),
+            CONV_TO_GTE(pFrom->vz - g_CamEyeMovementTo.vz));
+        speed = FieldScriptVMGetArgument(2);
+        g_CamEyeMovementCurrent.vx = pFrom->vx;
+        g_CamEyeMovementCurrent.vy = pFrom->vy;
+        g_CamEyeMovementCurrent.vz = pFrom->vz;
+        g_CamMovementFlags |= FIELD_CAMERA_EYE_MOVEMENT_ACTIVE;
+        g_CamEyeMovementDelta.vx = -(normalized.vx * speed) << 4;
+        g_CamEyeMovementDelta.vy = -(normalized.vy * speed) << 4;
+        g_CamEyeMovementDelta.vz = -(normalized.vz * speed) << 4;
+        g_CamEyeMovementDuration[0] = offsetX / speed;
+        if (SCRIPT_READ_U8_REL(1) & 0x80) {
+            g_CameraEye.vx = pFrom->vx;
+            g_CameraEye.vy = pFrom->vy;
+            g_CameraEye.vz = pFrom->vz;
+        }
+        break;
+    }
+    case 1: {
+        duration = FieldScriptVMGetArgument(2);
+        g_CamEyeMovementDuration[0] = duration;
+        if (duration == 0) {
+            g_CamEyeMovementDuration[0] = duration + 1;
+            g_CamInterpolation.eyeStepDistance = 1;
+        }
+        offsetX = (g_CamEyeMovementTo.vx - g_CamEyeMovementFrom.vx) / g_CamEyeMovementDuration[0];
+        offsetY = (g_CamEyeMovementTo.vy - g_CamEyeMovementFrom.vy) / g_CamEyeMovementDuration[0];
+        offsetZ = (g_CamEyeMovementTo.vz - g_CamEyeMovementFrom.vz) / g_CamEyeMovementDuration[0];
+        g_CamMovementFlags |= FIELD_CAMERA_EYE_MOVEMENT_ACTIVE;
+        g_CamEyeMovementCurrent.vx = g_CamEyeMovementFrom.vx;
+        g_CamEyeMovementCurrent.vy = g_CamEyeMovementFrom.vy;
+        g_CamEyeMovementCurrent.vz = g_CamEyeMovementFrom.vz;
+        g_CamEyeMovementDelta.vx = offsetX;
+        g_CamEyeMovementDelta.vy = offsetY;
+        g_CamEyeMovementDelta.vz = offsetZ;
+        if (SCRIPT_READ_U8_REL(1) & 0x80) {
+            g_CameraEye.vx = g_CamEyeMovementFrom.vx;
+            g_CameraEye.vy = g_CamEyeMovementFrom.vy;
+            g_CameraEye.vz = g_CamEyeMovementFrom.vz;
+        }
+        break;
+    }
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
+}
+*/
 
 // Write the current interpolated value
 void FieldScriptWriteCurCameraTarget(void) {
