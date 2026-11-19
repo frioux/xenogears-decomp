@@ -2055,7 +2055,59 @@ s32 SoundGetActiveElementMask(s32 id) {
     return result;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003A65C);
+s32 func_8003A65C(s32 soundId, s32 count) {
+    AudioManager* pManager = g_SoundEffectAudioManager;
+    AudioElement* pElement = &pManager->elements[0];
+    u32 cnt = g_SoundEffectElementCount;
+    s32 index;
+    s32 bestIndex;
+    u32 bestTick;
+    u32 lowMask;
+    u32 blockMask;
+    s32 limit;
+    u32 exclude = 0;
+    u32 activeMask;
+    s32 span;
+
+    do {
+        if (pElement->active_flag & SOUND_CHANNEL_ACTIVE) {
+            if (pElement->soundId == soundId) {
+                pElement->active_flag = 0;
+                pManager->activeElementMask &= ~(1 << (u8)pElement->elementIndex);
+                SoundReleaseVoiceFromChannel(&pElement->voice_data, pElement->voice_number);
+            }
+        }
+        pElement++;
+        cnt--;
+    } while (cnt);
+
+    limit = pManager->elementCount - g_SoundSoundEffectChannelCount;
+    pManager = g_SoundEffectAudioManager;
+    span = count + 2;
+    index = g_SoundEffectElementCount - span;
+    lowMask = ~0u >> (32 - count);
+    bestTick = -1;
+    blockMask = lowMask << index;
+    activeMask = ~exclude & pManager->activeElementMask;
+    pElement = &pManager->elements[index];
+    if (activeMask & blockMask) {
+        do {
+            if (pElement->startTick < bestTick && (u8)pElement->unk_0x07 < 0x21) {
+                bestTick = pElement->startTick;
+                bestIndex = index;
+            }
+            blockMask >>= count;
+            if (blockMask < lowMask || (u32)index <= (u32)limit) {
+                index = bestIndex;
+                break;
+            }
+            pElement -= count;
+            index -= count;
+        } while (activeMask & blockMask);
+    }
+
+    return index;
+}
 
 s32 SoundAudioManagerIsActive(AudioManager* pManager) {
     return (u16)pManager->flags >> 15;
