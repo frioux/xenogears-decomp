@@ -94,6 +94,7 @@ extern void func_80096494(u16 *, u16 *, u8 *);
 extern void BattleAllocPacketPrimitives(void);
 extern void func_80076EA4(void);
 extern s32 GetStringEntryFromBank(s32, s32);
+extern void *GetStringEntryFromBank34(s32);
 extern u_long *GetStringEntryFromBank12(s32);
 extern u_long *D_800C3E5C[];
 void func_80092298(u8, u8 *);
@@ -463,6 +464,9 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     u8 onesDigit;
     s32 i;
 
+    divisors[0] = 1000;
+    divisors[1] = 100;
+    divisors[2] = 10;
     BattleAllocPacketPrimitives();
     func_80076EA4();
     D_800D2DB0 = BattleAllocTextBuffer(0x39);
@@ -538,6 +542,138 @@ nextTile:
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092B74);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800930AC);
+/* 90.96% (1204 bytes against retail's 1228) under this unit's gcc 2.6.0. The FRAME
+   is retail's exactly (0xB0, vars 0x68, ten saved registers) and the body is the
+   whole function: the 0x618 text buffer, the four-tile row (tile x 0x380, text
+   x 0x380/0x3C0+2j/0x3C6), the three-digit split with divisors {1000,100,10} and
+   the ones digit from the remainder, then the four pBufs frees, the two flat
+   quads at 0x94/0xFC and the 0x668/0x669/0xB7 flags.
+   Load-bearing shapes found by measurement: (1) the divisors array must be filled
+   with three assignments, not an initialiser -- `= {1000,100,10}` makes cc1 copy
+   from .rodata with lwl/lwr (worth 80.83 vs 76.49); (2) the row ys are the INLINE
+   expressions (i * 16 + 0x100 for the tile and second rects, i * 16 + 0x102 for
+   the glyph, the three tens slots and the ones slot) -- naming them y/textY is
+   87.29%, and it is the inline form that puts the 0x80 slot back and the frame at
+   retail's 0xB0; (3) the glyph RECT needs a hoisted `pGlyphRect = &glyphRect`
+   pointer (90.96 vs 86.08 inline): gcc otherwise spills the sp+0x20 base into a
+   var slot and then also re-bases pBufs on sp+0x20, which costs the arg0/pValue
+   slots; (4) the ones-digit arm is written as `if (*pId != 0xFF) {draw} else
+   {blank}` (87.27 -> 87.29 either way, but 85.74 with the arms the other way
+   round); (5) `u8 started`/`u8 digit` are the narrow types retail masks with
+   andi 0xFF at each use, and `u32 value` is what makes the divide/mult divu and
+   multu; (6) `u16 onesDigit` is the local whose use emits retail's `andi 0xFFFF`.
+   Residual (6 instructions, all allocator): retail folds the two table bases into
+   the assembler macro (lui $at,%hi / addu $at,$at,v0 / lbu|lw %lo($at)) where this
+   body materialises them (lui/addiu into a scratch + addu, one instruction more
+   each), and retail's row-y induction variable is HImode (lhu from 0x80) where the
+   inline-expression giv is SImode (lw). Tried: index/offset locals for both tables
+   (82.20 for both, and 80.x for one), `u16 y`/`textY` variables, declaration
+   orders, and two permuter runs (5255 -> 4281 -> 3657; its only real finds are the
+   pGlyphRect pointer and the arm order above). The 0x68 slot in this body holds
+   the spilled pGlyphRect where retail keeps arg0 there, which is the register
+   permutation the rest of the diff shows. */
+/*
+void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
+    RECT glyphRect;
+    RECT *pGlyphRect;
+    RECT onesRect;
+    RECT tensRect;
+    RECT tileRect;
+    RECT secondRect;
+    RECT rect;
+    u_long *pBufs[4];
+    u16 divisors[3];
+    u8 *pId;
+    u16 *pValue;
+    u32 value;
+    u8 started;
+    u8 digit;
+    u16 onesDigit;
+    s32 i;
+    s32 j;
+
+    divisors[0] = 1000;
+    divisors[1] = 100;
+    divisors[2] = 10;
+    BattleAllocPacketPrimitives();
+    func_80076EA4();
+    D_800D2DB0 = BattleAllocTextBuffer(0x39);
+    bzero(D_800D2DB0, 0x618);
+    rect.x = 0x3C0;
+    rect.y = 0;
+    rect.w = 0x3C;
+    rect.h = 0xD;
+    BattleLoadImageAndSync(&rect, D_800D2DB0);
+    pId = arg1;
+    pValue = arg2;
+    pGlyphRect = &glyphRect;
+    for (i = 0; i < 4; i++) {
+        pBufs[i] = BattleAllocTextBuffer(0x1B);
+        bzero(pBufs[i], 0x30C);
+        tileRect.x = 0x380;
+        tileRect.y = i * 16 + 0x100;
+        tileRect.w = 0x1B;
+        tileRect.h = 0x10;
+        BattleLoadImageAndSync(&tileRect, D_800D2DB0);
+        started = 0;
+        if (*pId != 0xFF) {
+            SystemRenderStringEntry(GetStringEntryFromBank34(g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i),
+                                    pBufs[i], 0x1B, 0);
+            glyphRect.x = 0x380;
+            glyphRect.y = i * 16 + 0x102;
+            glyphRect.w = 0x1E;
+            glyphRect.h = 0xD;
+            BattleLoadImageAndSync(pGlyphRect, pBufs[i]);
+        }
+        secondRect.x = 0x3C0;
+        secondRect.y = i * 16 + 0x100;
+        secondRect.w = 0x1B;
+        secondRect.h = 0x10;
+        BattleLoadImageAndSync(&secondRect, D_800D2DB0);
+        for (j = 0; j < 3; j++) {
+            tensRect.x = 0x3C0 + j * 2;
+            tensRect.y = i * 16 + 0x102;
+            tensRect.w = 6;
+            tensRect.h = 0xD;
+            value = *pValue;
+            digit = value / divisors[j];
+            if (digit != 0 || started != 0) {
+                BattleLoadImageAndSync(&tensRect, D_800C3E5C[digit]);
+                started = 1;
+                *pValue -= digit * divisors[j];
+            } else {
+                BattleLoadImageAndSync(&tensRect, D_800D2DB0);
+            }
+        }
+        onesRect.x = 0x3C6;
+        onesRect.y = i * 16 + 0x102;
+        onesRect.w = 6;
+        onesRect.h = 0xD;
+        if (*pId != 0xFF) {
+            value = *pValue;
+            onesDigit = value % 10;
+            BattleLoadImageAndSync(&onesRect, D_800C3E5C[onesDigit]);
+        } else {
+            BattleLoadImageAndSync(&onesRect, D_800D2DB0);
+        }
+        pId++;
+        pValue++;
+    }
+    for (i = 0; i < 4; i++) {
+        HeapFree(pBufs[i]);
+    }
+    HeapFree(D_800D2DB0);
+    *(u16 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0xE) = g_SystemPalette1;
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28),
+                         0x94, 0x54, 0, 0, 0x60, 0x40);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims +
+                                     (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0xA0)),
+                         0xFC, 0x54, 0, 0, 0x20, 0x40);
+    g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
+    g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
+    g_BattleDisplayState->unkB7 = 4;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093578);
 /* 97.72% at objdiff's 692 bytes -- retail's EXACT size, and every instruction
    is retail's: the only difference left is which register three values land in
