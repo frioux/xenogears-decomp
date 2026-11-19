@@ -230,6 +230,17 @@ void WorldMapFreeSpritePrimBuffers(void) {
 // counter shared by the copy loop and the inner column loop - that is what puts
 // retail's counter in s0 and forces `sw s0` before the save block - then the
 // struct-pointer origin, 95.40.
+// Round 286: re-measured after the array-extern lever landed above - unchanged, and the
+// residual is now named precisely. Ours materialises the symbol address of D_8009D618
+// (and, once the index is hoisted, of g_WorldMapGridTileIds) into a callee-saved register
+// and adds the scaled index to it, i.e. gcc's SPLIT address form; retail keeps the
+// non-split form (`lui $at,%hi(sym); addu $at,$at,v0; lh %lo(sym)(at)`), which costs no
+// register - hence retail's 0x28 frame and our 0x30. The same split/non-split difference
+// explains the clut copy: retail keeps 0x1F800000 in v1 and stores at displacement 0x68
+// (`addiu v1,v1,%lo(D_1F800002)`), we `li 0x1F800068` (lui+ori) and store at 0, +4 bytes.
+// Tried, all unchanged or worse: D_8009D618 sized [25], an explicit `slot = row * 5` biv
+// (which additionally hoisted the tile-id base, 0x30 frame), -G0 (95.40), gcc-2.7.2-cdk
+// (62.29, so not a preset). `-mno-split-addresses` is not an option in these cc1s.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_8008615C);
 /*
 void func_8008615C(void) {
