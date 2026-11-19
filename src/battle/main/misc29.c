@@ -19,6 +19,9 @@
 
 extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
+extern u16 D_800591B4; // stage file index the next stage load uses; func_800B8068 clears it
+extern u8 D_800591B1;  // set once the stage's archive reads are queued; func_800B8054 clears it
+ extern void *D_800C3E1C;
 extern void *D_800C3E1C;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern DISPENV D_800C4A7C;
@@ -50,15 +53,64 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
 void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
 }
+void func_800B7C34(s32 stage);
+void func_800B7E94(void);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7C34);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7E94);
 void BattleSetSpriteTemplate(void *pArg) {
     D_800C3E1C = pArg;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8054);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8068);
+void func_800B8054(s16 stage) {
+    D_800591B4 = stage;
+    D_800591B1 = 0;
+}
+
+void func_800B8068(s32 stage) {
+    func_800B7C34(stage);
+    func_800B7E94();
+    D_800591B1 = 1;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8098);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B81BC);
+/* The streamed stage data behind g_BattleStageData: the two origins func_800B81BC
+   publishes as the anim group and slot vector state. */
+typedef struct {
+    /* 0x000 */ u8 unk0[0x47C];
+    /* 0x47C */ SVEC unk47C;
+    /* 0x482 */ SVEC unk482;
+} BattleStageData; // Size: 0x488
+
+/* The stage origins func_800B81BC publishes: g_BattleSlotVectors is the origin
+   pair 8 bytes behind D_800D335C, so both globals are two of these. */
+typedef struct {
+    /* 0x0 */ SVEC vec;
+    /* 0x6 */ u16 unk6;
+} BattleStageOrigin; // Size: 0x8
+
+extern BattleStageData *g_BattleStageData;
+extern BattleStageOrigin g_BattleAnimGroupStates[2];
+extern BattleStageOrigin g_BattleSlotVectors[2];
+extern SVEC D_800D335C;
+extern s32 g_GameWdsEntrySlot3;
+extern void func_801E62E0(s32 arg0);
+extern void func_800B88C4(void);
+extern void BattleInitStateWorkBuffers(void);
+
+void func_800B81BC(s32 arg0) {
+    func_800B88C4();
+    BattleInitStateWorkBuffers();
+    func_801E62E0(arg0);
+    SoundFreeWdsEntry((void *)g_GameWdsEntrySlot3);
+
+    SpriteSetSVec(&g_BattleAnimGroupStates[0].vec, g_BattleStageData->unk482.x, g_BattleStageData->unk482.y,
+                  g_BattleStageData->unk482.z);
+    SpriteSetSVec(&g_BattleSlotVectors[0].vec, g_BattleStageData->unk482.x, g_BattleStageData->unk482.y,
+                  g_BattleStageData->unk482.z);
+    SpriteSetSVec(&g_BattleAnimGroupStates[1].vec, g_BattleStageData->unk47C.x, g_BattleStageData->unk47C.y,
+                  g_BattleStageData->unk47C.z);
+    SpriteSetSVec(&D_800D335C, g_BattleStageData->unk47C.x, g_BattleStageData->unk47C.y,
+                  g_BattleStageData->unk47C.z);
+    SetDispMask(1);
+}
 
 /* One of the battle's two frame environments: the DRAWENV a frame draws with,
    that frame's DISPENV 0x5C bytes later, then the frame's ordering table (the 0x1000
