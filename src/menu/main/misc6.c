@@ -262,25 +262,12 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
    instead of assigning it back to the u_char local - that reproduces retail's
    beq/j/andi-in-the-delay-slot shape exactly.
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
-/* PARKED 99.74% (392 bytes, instruction multiset identical). Only ONE difference is
-   left: retail loads the gearId into a0 and truncates in place (lbu a0 / beq a0,s2 /
-   addiu a0,a0,0xB / andi a0,a0,0xff); ours loads it into v0 and does andi a0,v0,0xff.
-   What got 99.18 -> 99.74: give the TWO loops separate counter variables (i and j).
-   With one shared i the allocator hands the first loop's counter s0 and the second
-   loop's s1; with i/j retail's shape falls out exactly (first loop in s1, then
-   loop2's counter s0 and its 6 + j*2 biv back in s1).
-   Tried for the gearId: u_char/int/u32 local, the cast outside the ternary, the cast
-   inside, both ternary arm orders, and inlining the whole
-   g_GameState.characters[...].gearId expression twice (-ffunction-cse). It stays in v0.
-*/
-/* Best attempt (99.74%): the body below is what the note above was measured with.
 void func_801D2D38(void) {
     s32 i;
     s32 j;
     u_char menuCharacterId;
     u_char characterIndex;
-    u32 characterId;
+    u_char gearId;
 
     if (g_MenuOverlayIndex == 0) {
         for (i = 0; i < 2; i++) {
@@ -298,15 +285,14 @@ void func_801D2D38(void) {
         if (menuCharacterId != 0xFF) {
             characterIndex = j;
             MenuLoadCharacterNameTexture(menuCharacterId, characterIndex * 2);
-            characterId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
-            MenuLoadCharacterNameTexture((u_char)((characterId == 0xFF) ? 0xFF : characterId + 0xB), 6 + (j << 1));
+            gearId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
+            MenuLoadCharacterNameTexture((gearId == 0xFF) ? 0xFF : gearId + 0xB, 6 + (j << 1));
         }
     }
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
     func_801D29A8(1, 0);
     MenuCreatePlayTimeWindow();
 }
-*/
 void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
@@ -343,22 +329,6 @@ void MenuFreeScrollHandle(void) {
     g_Menu->pManager->scrollHandleActive = 0;
     HeapFree(g_Menu->pScrollHandle);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D3488);
-/* PARKED 98.90% (492 bytes, identical instruction multiset). The first loop, the
-   early-return ternary (write it as "a1 == 0 ? availableCharacterCount : gearCharacterCount", not the other way
-   round), the HeapAlloc/bzero block and the tail all match exactly. The only
-   difference left is in the 4-iteration MenuSetQuadVertices loop, and it is NOT an
-   allocator tie - the add operand ORDER differs.  Retail loads pUi into v1 and forms
-   the poly address with 'addu v1,v1,v0' (base first, idx*0x28 already in v0); ours
-   forms the same address as 'addu $2,$2,$5' (offset first, pUi second), i.e. our RTL
-   is (plus off pUi) where retail's is (plus pUi off).  The array-subscript expansion
-   puts the base last, so retail's poly pointer did not come from a plain subscript.
-   The i*2+renderContext sum is right (both do 'sll a1,s0,1' then 'addu a1,a1,v0').
-   Tried, all still 98.90: poly pointer declared inside/outside the loop, an explicit
-   polys base local (96.50), an explicit index local, both ternary spellings, and
-   replacing the subscript with (POLY_FT4*)((u_char*)pUi + polyIndex * 0x28).
-*/
-/* Best attempt (98.90%): the body below is what the note above was measured with.
 void func_801D3488(u_char a0, u_char a1) {
     s32 i;
 
@@ -377,16 +347,18 @@ void func_801D3488(u_char a0, u_char a1) {
     }
 
     for (i = 0; i < 4; i++) {
+        MenuShoulderButtonUi* pUi = g_Menu->pShoulderButtonUi;
+        POLY_FT4* pPoly = pUi->polys;
         s32 polyIndex = i * 2 + g_Menu->renderContext;
-        POLY_FT4* pPoly = &g_Menu->pShoulderButtonUi->polys[polyIndex];
-        MenuSetQuadVertices(&g_Menu->pShoulderButtonUi->vertices[i * 4], pPoly->x0, pPoly->y0, pPoly->x1 - pPoly->x0, pPoly->y3 - pPoly->y0);
+        SVECTOR* pVertices = g_Menu->pShoulderButtonUi->vertices + i * 4;
+
+        pPoly += polyIndex;
+        MenuSetQuadVertices(pVertices, pPoly->x0, pPoly->y0, pPoly->x1 - pPoly->x0, pPoly->y3 - pPoly->y0);
     }
 
-    // the original reads renderContext as a byte here, but as a word for the arg above
     g_Menu->pShoulderButtonUi->renderContext = *(u_char*)&g_Menu->renderContext;
     g_Menu->pManager->shoulderButtonUiActive = 1;
 }
-*/
 void MenuFreeShoulderButtonUi(void) {
     if (g_Menu->pManager->isPanelActive[4] != 0) {
         g_Menu->pManager->shoulderButtonUiActive = 0;
