@@ -594,7 +594,81 @@ void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009B1E4);
+void func_8009B1E4(void) {
+    u_char i;
+
+    for (i = 1; i < 0x30; i++) {
+        g_GameState.itemIDs[i] = i;
+        g_GameState.itemQuantities[i] = 0x63;
+    }
+    *(u16 *)&g_GameState.unk16BC[0].unk4 = 0xFFF8;
+    *(u16 *)&g_GameState.unk16BC[0].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[0].gearConditionMask = 0xFE00;
+    *(u16 *)&g_GameState.unk16BC[0].statusFlags = 0xF000;
+    ((u_char *)&g_GameState.unk16BC[0])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[1].unk4 = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[1].characterConditionMask = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[1].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[1].gearConditionMask = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[1].statusFlags = 0xC000;
+    ((u_char *)&g_GameState.unk16BC[1])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[2].unk4 = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[2].characterConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[2].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[2].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[2].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[2])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[3].unk4 = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[3].characterConditionMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[3].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[3].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[3].statusFlags = 0xF000;
+    ((u_char *)&g_GameState.unk16BC[3])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[4].unk4 = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[4].characterConditionMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[4].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[4].gearConditionMask = 0xFC00;
+    *(u16 *)&g_GameState.unk16BC[4].statusFlags = 0xE000;
+    ((u_char *)&g_GameState.unk16BC[4])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[5].unk4 = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[5].characterConditionMask = 0xF000;
+    *(u16 *)&g_GameState.unk16BC[5].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[5].gearConditionMask = 0xF000;
+    *(u16 *)&g_GameState.unk16BC[5].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[5])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[6].unk4 = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[6].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[6].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[6].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[6].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[6])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[7].unk4 = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[7].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[7].unk8 = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[7].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[7].statusFlags = 0x0000;
+    ((u_char *)&g_GameState.unk16BC[7])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[8].unk4 = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[8].characterConditionMask = 0xF800;
+    *(u16 *)&g_GameState.unk16BC[8].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[8].gearConditionMask = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[8].statusFlags = 0xE000;
+    ((u_char *)&g_GameState.unk16BC[8])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[9].unk4 = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[9].characterConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[9].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[9].gearConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[9].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[9])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[10].unk4 = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[10].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[10].unk8 = 0xFFFF;
+    *(u16 *)&g_GameState.unk16BC[10].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[10].statusFlags = 0xC000;
+    ((u_char *)&g_GameState.unk16BC[10])[0x1B] = 7;
+}
+
 // best 94.23% under gcc-2.6.0 (93.87% on 2.7.2, 94.10% cdk): the g_BattleSlotConditions
 // base is hoisted out of the loop where retail re-forms lui/addiu per reference.
 // PARKED (93.87%). Body COMPILES (park triage, round 111; it needed the extern u8
