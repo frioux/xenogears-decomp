@@ -1,5 +1,31 @@
 #include "common.h"
 
+// battle actor.h is not includable in this overlay, so the constants these
+// bodies share with the other battle units are spelled here again.
+// flags bit 27, the second player's side (battle/misc3.c): the work block picks
+// the alternate slot for such an actor.
+#define BATTLE_ACTOR_FLAG_PLAYER2 0x8000000
+// Half and three-quarter turn of the 12-bit angle space; BATTLE_ANGLE_HALF_TURN is
+// spelled the same in battling/misc17.c, battle/misc3.c and battle/misc4.c.
+#define BATTLE_ANGLE_HALF_TURN 0x800
+#define BATTLE_ANGLE_THREE_QUARTER_TURN 0xC00
+// The gauge's full value. An actor's break threshold is this minus its
+// breakThresholdOffset, and the points within BATTLE_BREAK_PROXIMITY_RANGE above
+// that threshold are the proximity BattleGetActorBreakProximity reports as 1.
+#define BATTLE_GAUGE_FULL 0x1000
+#define BATTLE_BREAK_PROXIMITY_RANGE 0x200
+// The offset between the map's centre and the field coordinates. Both position
+// tests shift the point by it before asking which side of the centre it is on
+// (battling/misc9.c names the same value BATTLE_SPOKE_RADIUS, misc10 stores it as
+// the scene origin).
+#define BATTLE_SCENE_ORIGIN_OFFSET 0x3F80
+// State 2 takes its action once the AI's target distance (BattleVectorDistance of the
+// two positions, battling/misc2.c) reaches this.
+#define BATTLE_AI_TARGET_DISTANCE_MIN 1201
+// The action slots an actor carries: BattleQueueActionMessages walks one
+// actionEnabled byte and one BattleActionSlot per slot.
+#define BATTLE_ACTION_SLOT_COUNT 14
+
 typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
@@ -70,7 +96,7 @@ typedef struct {
 typedef struct {
     /* 0x0 */ u8 unk0[0x6];
     /* 0x6 */ u8 actionChances[0x4];
-    /* 0xA */ u8 actionEnabled[0xE];
+    /* 0xA */ u8 actionEnabled[BATTLE_ACTION_SLOT_COUNT];
 } BattleActionData; // Size: 0x18
 
 // The message ids an action queues, indexed by action; 0 means none.
@@ -161,11 +187,11 @@ s32 BattleCheckActorBelowBreakThreshold(BattleActor* pActor, s32 arg1) {
     if (arg1 != 0) {
         return func_80073DE4(pActor, pActor->breakThresholdOffset);
     }
-    return pActor->gaugePoints < 0x1000 - pActor->breakThresholdOffset;
+    return pActor->gaugePoints < BATTLE_GAUGE_FULL - pActor->breakThresholdOffset;
 }
 
 s32 BattleGetActorBreakThreshold(BattleActor* pActor, BattleWork* pWork) {
-    return 0x1000 - pActor->breakThresholdOffset;
+    return BATTLE_GAUGE_FULL - pActor->breakThresholdOffset;
 }
 
 s32 BattleGetActorBreakProximity(BattleActor* pActor) {
@@ -174,7 +200,7 @@ s32 BattleGetActorBreakProximity(BattleActor* pActor) {
 
     v1 = pActor->gaugePoints;
     v0 = pActor->pWork->breakThreshold;
-    return (v0 - 0x200 < v1) ? !(v0 < v1) : 2;
+    return (v0 - BATTLE_BREAK_PROXIMITY_RANGE < v1) ? !(v0 < v1) : 2;
 }
 
 // retail spells each limit as (x * k) << 6 >> 4; folding it to x * (4 * k) is 2 insns shorter
@@ -263,8 +289,8 @@ void BattleQueueMessages4Then3(BattleActor* pActor) {
     Vec4 pos;
 
     pos = *pPos;
-    pos.x -= 0x3F80;
-    pos.z -= 0x3F80;
+    pos.x -= BATTLE_SCENE_ORIGIN_OFFSET;
+    pos.z -= BATTLE_SCENE_ORIGIN_OFFSET;
     if (pos.x > 0 && pos.z > 0) {
         return 1;
     }
@@ -279,10 +305,11 @@ s32 BattleSetFacingFromPosition(Vec4* pPos, BattleWork* pWork) {
     u8 ticks;
 
     pos = *pPos;
-    pos.x -= 0x3F80;
-    pos.z -= 0x3F80;
+    pos.x -= BATTLE_SCENE_ORIGIN_OFFSET;
+    pos.z -= BATTLE_SCENE_ORIGIN_OFFSET;
     r = ratan2(pos.x, pos.z);
-    pWork->targetAngle = (((r & 0xFFF) >= 0x201) ? 0x800 : 0xC00) - g_BattleFacingAngle;
+    pWork->targetAngle =
+        (((r & 0xFFF) >= 0x201) ? BATTLE_ANGLE_HALF_TURN : BATTLE_ANGLE_THREE_QUARTER_TURN) - g_BattleFacingAngle;
     pWork->maxDistance = 0xFF;
     return 0;
 }
@@ -467,7 +494,7 @@ s32 BattleQueueActionMessages(BattleActor* pActor, BattleWork* pWork) {
         return 1;
     }
     n = rand() % n;
-    for (i = 0; i < 0xE; i++) {
+    for (i = 0; i < BATTLE_ACTION_SLOT_COUNT; i++) {
         if (pActor->pActionData->actionEnabled[i] == 0) {
             continue;
         }
@@ -613,7 +640,7 @@ void BattleUpdateWorkState3(BattleActor* pActor, BattleWork* pWork) {
     u8 ticks;
 
     if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) != 0 && g_BattleFacingUpdateEnabled != 0 &&
-        (pActor->flags & 0x8000000) != 0) {
+        (pActor->flags & BATTLE_ACTOR_FLAG_PLAYER2) != 0) {
         BattleEnterWorkState0(pActor);
         return;
     }
@@ -719,7 +746,8 @@ void BattleUpdateWorkState2(BattleActor* pActor, BattleWork* pWork) {
     if (BattleGetActorBreakProximity(pActor) == 0) {
         pWork->setFlag8000 = 0;
     }
-    if (g_BattleActorDistance2D > pWork->actionDistance || (g_BattleOptionOn != 0 && g_BattleAiTargetDistance >= 0x4B1)) {
+    if (g_BattleActorDistance2D > pWork->actionDistance ||
+        (g_BattleOptionOn != 0 && g_BattleAiTargetDistance >= BATTLE_AI_TARGET_DISTANCE_MIN)) {
         if (g_BattleOptionOn != 0) {
             BattleQueueMessage(pActor, 4);
         }
@@ -768,7 +796,7 @@ void BattleInitActorWork(BattleActor* pActor) {
     s32 thr;
 
     pWork = &g_BattleWorkSlots;
-    if ((pActor->flags & 0x8000000) != 0) {
+    if ((pActor->flags & BATTLE_ACTOR_FLAG_PLAYER2) != 0) {
         pWork = &D_80096F64;
     }
     pActor->pWork = pWork;
