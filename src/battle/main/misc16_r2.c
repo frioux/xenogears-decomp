@@ -8,7 +8,7 @@
 extern u8 g_BattleCommandGridIds[];
 extern u8 *D_800D329C;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
-extern s32 g_BattlePrimStartIndex;
+extern s32 g_BattlePrimStartIndex[];
 extern BattleWork *g_BattleDisplayState;
 extern u8 *g_BattleSlotGraphics[];
 extern u8 *g_BattleSlotRects[];
@@ -152,38 +152,36 @@ void func_8008FAD8(void) {
 }
 */
 
-/* 66.32%: the two BattleDrawSpritePackage loops and the accumulates match; the whole
-   gap is the 9-arg func_800263E4 call block. The original keeps &g_BattlePrimStartIndex
-   in s1 across the call (`lw a3,0(s1)` for the context arg, `lbu v0,0(s1)`
-   after it) and needs no extra saved register (0x50 frame, s0-s5 + ra); gcc
-   rematerialises `lui/lbu g_BattlePrimStartIndex` after the call, needs s6 and spills
-   mirrorY. The last addu is also reversed: original `addu a2,a2,v0`
-   (index product first), ours `addu a2,v0,a2`. Tried: `=` vs `+=` for the
-   accumulate (65.93/66.11), an explicit `u8 *pPal = (u8 *)&g_BattlePrimStartIndex` used
-   for both the s32 context and the tail byte store (66.32). Note the 5th
-   parameter is u8 (the count comes in with lbu), not s32.
+/* 86.50%: instruction-for-instruction identical to retail except one callee-saved
+   register too many (s0-s6 here against retail's s0-s5), which shifts every register in
+   the body by one. gcc cse keeps `arg0 << 16` alive in s3 across both calls for the two
+   `(s16)arg0` conversions, where retail re-extends at each site
+   (`sll a2,s3,0x10; sra a2,a2,0x10` inside the loop, `sll s0,s3,0x10` after it), and it
+   then cannot reuse s1 for `&g_BattlePrimStartIndex` the way retail does after the loop.
+   The array-extern `g_BattlePrimStartIndex[]` (with `[0]` for the word, `((u8 *)...)[0]`
+   for the byte) and the `(u8 *)g_BattleGraphicsWork + (count * 0x50 + 0x1E68)` base both
+   reproduce retail's shapes; the earlier note's `g_BattleGraphicsWork + 0x1E68` scaled by
+   sizeof(BattleGraphicsWork) and never compiled.
 void func_8008FC1C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u8 arg4) {
-    u8 *pPal;
     s32 i;
     s32 offset;
     s32 size;
 
-    *(s32 *)(g_BattleDisplayState + 0xFC) = 0;
+    g_BattleDisplayState->menuColumnPackageCount = 0;
     i = 0;
     for (offset = arg3; i < arg4; i++) {
-        size = BattleDrawSpritePackage(0x65, g_BattleGraphicsWork + (*(s32 *)(g_BattleDisplayState + 0xFC) * 0x50 + 0x1E68), arg0, offset);
-        *(s32 *)(g_BattleDisplayState + 0xFC) = size + *(s32 *)(g_BattleDisplayState + 0xFC);
+        size = BattleDrawSpritePackage(0x65, (u8 *)g_BattleGraphicsWork + (g_BattleDisplayState->menuColumnPackageCount * 0x50 + 0x1E68), arg0, offset);
+        g_BattleDisplayState->menuColumnPackageCount = size + g_BattleDisplayState->menuColumnPackageCount;
         offset += 8;
     }
-    pPal = (u8 *)&g_BattlePrimStartIndex;
-    size = BattleDrawSpritePackage(0x64, g_BattleGraphicsWork + (*(s32 *)(g_BattleDisplayState + 0xFC) * 0x50 + 0x1E68), arg0, arg1);
-    *(s32 *)(g_BattleDisplayState + 0xFC) = size + *(s32 *)(g_BattleDisplayState + 0xFC);
+    size = BattleDrawSpritePackage(0x64, (u8 *)g_BattleGraphicsWork + (g_BattleDisplayState->menuColumnPackageCount * 0x50 + 0x1E68), arg0, arg1);
+    g_BattleDisplayState->menuColumnPackageCount = size + g_BattleDisplayState->menuColumnPackageCount;
     size = func_800263E4(g_BattleSpriteArchive, 0x64,
-        (POLY_FT4 *)(g_BattleGraphicsWork + (*(s32 *)(g_BattleDisplayState + 0xFC) * 0x50 + 0x1E68)),
-        *(s32 *)pPal, (s16)arg0, (s16)arg2, 0x1000, 0, 1);
-    *(s32 *)(g_BattleDisplayState + 0xFC) = size + *(s32 *)(g_BattleDisplayState + 0xFC);
-    g_BattleDisplayState[0xA6] = *pPal;
-    g_BattleDisplayState[0x9D] = 1;
+        (u8 *)g_BattleGraphicsWork + (g_BattleDisplayState->menuColumnPackageCount * 0x50 + 0x1E68),
+        g_BattlePrimStartIndex[0], (s16)arg0, (s16)arg2, 0x1000, 0, 1);
+    g_BattleDisplayState->menuColumnPackageCount = size + g_BattleDisplayState->menuColumnPackageCount;
+    g_BattleDisplayState->menuColumnPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
+    g_BattleDisplayState->menuColumnPending = 1;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FC1C);
@@ -191,45 +189,49 @@ void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
-/* 99.62%: two commutative operand orders. The original loads the g_BattleGraphicsWork
-   index part first (sll/addu/sll) then `addiu a1,a1,0xBA8` then `addu a1,a1,v0`
-   with the pointer base; gcc either reverses the final addu (pointer base, as
-   below) or, with the base cast to s32, folds 0xBA8 onto the base side
-   (`addiu v0,v0,0xBA8; addu a1,a1,v0`). For the 4th argument gcc moves the -4
-   onto the loop induction variable (`addiu a3,s0,-4; addu a3,a3,s2`) whichever
-   way the sum is written, because fold attaches constants to the GIV; the
-   original has `addiu a3,s2,-4; addu a3,s0,a3`. Tried: arg0-4+offset,
-   (arg0-4)+offset, offset+arg0-4, offset+(arg0-4), base-first and
-   index-first with and without an (s32) cast on the base, and a `size` temp for
-   the block-size accumulate (that temp fixed the rest of the loop, 65 -> 99.62).
+/* 99.62% (212 bytes = retail's 0xd4): instruction-for-instruction identical except one
+   swapped add: retail puts the -4 on the parameter (`addiu a3,s2,-4; addu a3,s0,a3`)
+   where gcc 2.7.2 folds it onto the loop GIV (`addiu a3,s0,-4; addu a3,s2,a3`).
+   Tried: arg0-4+offset, (arg0-4)+offset, offset+(arg0-4), a pre-loop `y = arg0` copy
+   used as `y - 4 + offset` (99.02), and a 4-minute permuter run (2512 iterations, no
+   improvement). The base spelling is `(u8 *)g_BattleGraphicsWork + ...`: the raw
+   `g_BattleGraphicsWork + 0xBA8` in the earlier note scaled by sizeof(BattleGraphicsWork)
+   (0xA2C8) and never compiled.
 void func_8009023C(s32 arg0) {
     s32 i;
     s32 offset;
     s32 size;
 
-    *(s32 *)(g_BattleDisplayState + 0xF8) = 0;
+    g_BattleDisplayState->spriteColumnPackageCount = 0;
     i = 0;
     for (offset = 0x68; i < 9; i++) {
-        size = BattleDrawSpritePackage(0x66, g_BattleGraphicsWork + (*(s32 *)(g_BattleDisplayState + 0xF8) * 0x50 + 0xBA8), 0x20, arg0 - 4 + offset);
-        *(s32 *)(g_BattleDisplayState + 0xF8) = size + *(s32 *)(g_BattleDisplayState + 0xF8);
+        size = BattleDrawSpritePackage(0x66, (u8 *)g_BattleGraphicsWork + (g_BattleDisplayState->spriteColumnPackageCount * 0x50 + 0xBA8), 0x20, arg0 - 4 + offset);
+        g_BattleDisplayState->spriteColumnPackageCount = size + g_BattleDisplayState->spriteColumnPackageCount;
         offset += 8;
     }
-    g_BattleDisplayState[0xA5] = *(u8 *)&g_BattlePrimStartIndex;
-    g_BattleDisplayState[0x9C] = 1;
+    g_BattleDisplayState->spriteColumnPrimStart = *(u8 *)&g_BattlePrimStartIndex;
+    g_BattleDisplayState->spriteColumnPending = 1;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009023C);
-/* 74.61% (was 50.34): duplicating the palette store into both if-arms is what
-   reproduces the original's structure -- gcc computes the g_BattlePrimStartIndex*0x28 and
-   g_BattleGraphicsWork prefix in each arm and cross-jumps the shared tail
-   (P load, <<3, addu, `sh a0,0x14E`), exactly as the original does; a single
-   store after the join only reaches 50%.
-   Remaining gap: the original keeps `&g_BattlePrimStartIndex` in s2 (`lui/addiu` once, then
-   `lw v1,0(s2)` per use) and `index % 2` in s1 next to vofs in s3, and stores
-   the u8-truncated `v` to 0x10(sp) before reloading the index; here gcc reloads
-   g_BattlePrimStartIndex with a fresh lui/lw at each call (2 extra insns, 0x28 frame with
-   three saves instead of 0x30 with four). Keeping `i2 = index % 2` in a local
-   and using it twice drops it to 72.33. void func_80090310(u8 arg0, u8 arg1) {
+/* 81.85% (400 bytes; retail 0x188 = 100 insns). The array-extern
+   `extern s32 g_BattlePrimStartIndex[]` + `g_BattlePrimStartIndex[0]` gave retail's
+   `lui s2,%hi / addiu s2,s2,%lo / lw v1,0(s2)` (74.61 -> 81.85); the base is
+   `*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230)`, which reproduces retail's
+   `lui at,0x10000 / addu at / lw -0x5DD0(at)` - the earlier `g_BattleGraphicsWork + 0xA230`
+   spelling scaled by sizeof(BattleGraphicsWork) and never compiled.
+   Remaining: retail keeps index in a1 and reuses s1 for index % 2, ours puts index in s1
+   and reuses it for the modulo; retail sets `li a1,0x18 / li a2,0x33 / andi a3,0xf8`
+   before it loads the packet base, ours after; and the 0x140 must be added to the
+   prim-index product (`sll/addu/sll; addiu a0,a0,0x140`, base in the jal delay slot) where
+   gcc folds it onto the base (`addiu v0,t0,0x140; addu a0,a0,v0`). An `ofs` local for
+   `prim * 0x28 + 0x140` before `ofs + (s32)pBase` drops it to 65.93.
+   Two shapes are load-bearing: the palette store duplicated into BOTH if-arms (gcc
+   cross-jumps the shared tail into retail's `j .L80090398`) and the `& 0xF8` / `& 0xD0`
+   masks on the u arguments (retail's `andi a3,a3,0xf8` / `andi a3,s1,0xd0`; a plain u8
+   parameter gives `andi 0xff`).
+void func_80090310(u8 arg0, u8 arg1) {
+    u8 *pBase;
     s32 index;
     s32 vofs;
     s32 u;
@@ -240,14 +242,16 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009023C);
     if (index >= 0x11) {
         index -= 0x10;
         vofs = 0x10;
-        *(u16 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x14E) = g_SystemPalette2;
+        *(u16 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex[0] * 0x28 + 0x14E) = g_SystemPalette2;
     } else {
-        *(u16 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x14E) = g_SystemPalette1;
+        *(u16 *)(*(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex[0] * 0x28 + 0x14E) = g_SystemPalette1;
     }
     v = index / 2 * 13;
     u = index % 2 * 0x78;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x140), 0x18, 0x33, u, v, 0x60);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x190), 0x84, 0x33, (index % 2 << 6) | vofs, v, 0x10);
+    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex[0] * 0x28 + 0x140 + (s32)pBase), 0x18, 0x33, u & 0xF8, v & 0xFF, 0x60);
+    pBase = *(u8 **)((u8 *)g_BattleGraphicsWork + 0xA230);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex[0] * 0x28 + 0x190 + (s32)pBase), 0x84, 0x33, (index % 2 << 6 | vofs) & 0xD0, v & 0xFF, 0x10);
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090310);
@@ -348,7 +352,7 @@ void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, pBuf);
     pBase = g_BattleGraphicsWork->pPacketPrims;
-    palIndex = g_BattlePrimStartIndex;
+    palIndex = g_BattlePrimStartIndex[0];
     ofs = palIndex * 0x28 + 0x280;
     BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pBase), 0x30, 0x42, 0, 0, len & 0xFF);
     HeapFree(pBuf);
@@ -370,7 +374,7 @@ void BattleDrawMenuCell(u8 arg0, u8 arg1, u8 arg2) {
         func_800904A0(arg0, arg1);
         ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->labelDrawn = 1;
     }
-    ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primStart = *(u8 *)&g_BattlePrimStartIndex;
+    ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primStart = ((u8 *)g_BattlePrimStartIndex)[0];
     ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->primsPending = 1;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8009093C);
@@ -418,7 +422,7 @@ void BattleStepAnimatedCursorPrim(s32 arg0, s32 arg1, s32 *pIndex, u8 *pCount) {
     // above this store, which costs retail's load-delay nop (180 bytes -> 172).
     *(s32 *)((u8 *)g_BattleDisplayState + 0x100) =
         BattleDrawSpritePackage(*pIndex + 0xE0, (u8 *)g_BattleGraphicsWork + 0x27C8, arg0, arg1);
-    g_BattleDisplayState->cursorPrimStart = *(u8 *)&g_BattlePrimStartIndex;
+    g_BattleDisplayState->cursorPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
     *(volatile u8 *)&g_BattleDisplayState->cursorPending = 1;
 }
 /* 72.46%: the four draw blocks have the right shape (divide-by-10 magic, the
