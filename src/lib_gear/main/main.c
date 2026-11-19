@@ -725,8 +725,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                     pScratch->m[2][1] = pLightScratch->m[2][1];
                 } else {
                     pScratch->m[0][1] = 0;
-                    pScratch->m[2][1] = 0;
                     pScratch->m[1][1] = pModel->scale;
+                    pScratch->m[2][1] = 0;
                 }
             }
 
@@ -767,7 +767,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         }
 
         pSection = pListEntry->pSections;
-        for (j = 0; j < pListEntry->numSections; j++) {
+        for (j = 0; j < pListEntry->numSections; j++, pSection++) {
             CompMatrix(&pSkeleton->localTransform, &pSkeleton[pSection->vector.pad].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
@@ -779,7 +779,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             pSection->x = proj.vx;
             pSection->y = proj.vy;
             pSection->z = proj.vz;
-            pSection++;
         }
 
         func_801E22F8(pListEntry, &swingVec, pLightMatrix, pOt, packetIndex, modelScale, pModel->ground);
