@@ -20,15 +20,6 @@ typedef struct {
     /* 0x7 */ u8 unk7[0x19];
 } BattleEffectColor; // Size: 0x20
 
-// One 0x18-byte record of a sprite's per-frame render data (the pointer at
-// SpriteDataI1.pCurRenderFramesData); +0xC packs a 6-bit field in the low bits
-// and a 9-bit one at bit 6, each offset by one byte of the script's argument pair.
-typedef struct {
-    /* 0x0 */ u8 unk0[0xC];
-    /* 0xC */ u16 unkC;
-    /* 0xE */ u8 unkE[0xA];
-} BattleFrameOffsetData; // Size: 0x18
-
 typedef struct {
     /* 0x00 */ u16 rotX; // the SVECTOR RotMatrix reads at 0x0 of the record in the draw pass
     /* 0x02 */ u16 rotY;
@@ -121,7 +112,7 @@ void BattleSetTaskCallback(SpriteData *pSprite) {
     WorkListSetTaskCallback(&pTask->drawEntry, SpriteDrawModelPartsInBaseMatrix);
 }
 void func_800B6464(BattleSpriteState *pActor, u8 *p) {
-    BattleFrameOffsetData *pFrame;
+    SpriteFrameData *pFrame;
     u8 n;
     s16 i;
     u16 v;
@@ -131,16 +122,16 @@ void func_800B6464(BattleSpriteState *pActor, u8 *p) {
     s32 hi;
 
     n = pActor->unk40[0] >> 2;
-    pFrame = (BattleFrameOffsetData *)pActor->pBase->pCurRenderFramesData;
+    pFrame = pActor->pBase->pCurRenderFramesData;
     for (i = 0; i != n; i++) {
-        v = pFrame->unkC;
+        v = pFrame->clutID;
         b0 = p[0];
         b1 = p[1];
         lo = v & 0x3F;
         hi = (v >> 6) & 0x1FF;
         lo += b0;
         hi += b1;
-        pFrame->unkC = lo | (hi << 6);
+        pFrame->clutID = lo | (hi << 6);
         pFrame++;
     }
 }
