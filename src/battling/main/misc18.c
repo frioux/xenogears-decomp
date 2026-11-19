@@ -88,6 +88,12 @@ typedef struct {
 // A battle participant as this unit drives it. Only the fields this unit
 // touches are named; 0x1668 is the last one, so 0x166A is a lower bound on the
 // real size.
+// The effect record pNearestEffect points at; only the kind byte is read here.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x33];
+    /* 0x33 */ u8 unk33;
+} BattleEffect; // Size: 0x34
+
 typedef struct BattleActor {
     /* 0x000 */ Vec4 position;
     /* 0x010 */ u8 unk10[0x38];
@@ -114,7 +120,7 @@ typedef struct BattleActor {
     // state handlers here read the target's distance to tell whether it stands in
     // an effect.
     /* 0x8F4 */ u32 nearestEffectDistance;
-    /* 0x8F8 */ void* pNearestEffect;
+    /* 0x8F8 */ BattleEffect* pNearestEffect;
     /* 0x8FC */ u8 unk8FC[0x15];
     /* 0x911 */ u8 actionCount;
     /* 0x912 */ u8 unk912[0xCEA];
@@ -573,7 +579,73 @@ void BattleEnterWorkState3(BattleActor* pActor, s32 arg1) {
     func_8008F7B8(pWork);
     pWork->setFlag8000 = BattleRollActorFlag8000(pActor, 1);
     pWork->flags.bytes.unk2E = 0;
-}INCLUDE_ASM("asm/battling/nonmatchings/main/misc18", func_80090580);
+}
+void func_80090580(BattleActor* pActor, BattleWork* pWork) {
+    s16 angle;
+    s32 distance;
+    s32 roll;
+    s16 delay;
+    u8 ticks;
+
+    if (BattleCheckPositionPastMapCenter(&pActor->pTarget->position) != 0 && g_BattleFacingUpdateEnabled != 0 &&
+        (pActor->flags & 0x8000000) != 0) {
+        BattleEnterWorkState0(pActor);
+        return;
+    }
+    if (pActor->pTarget->pNearestEffect->unk33 == 1) {
+        distance = pActor->pTarget->nearestEffectDistance;
+        if (distance < 0x500 && pWork->difficulty != 0) {
+            pWork->setFlag8000 = 1;
+            angle = -0x400;
+            if (pWork->flags.bits.attackRoll != 0) {
+                angle = 0x400;
+            }
+            pWork->targetAngle = angle;
+            if (pWork->difficulty >= 2 && (rand() & 0xFF) < pWork->actionChance1 &&
+                BattleRollActorActionChance(pActor, 0) != 0 && pWork->flags.bits.attackRoll != 0) {
+                if ((rand() & 3) == 0) {
+                    BattleQueueMessage(pActor, 4);
+                }
+                BattleQueueMessages4Then3(pActor);
+                pWork->flags.bytes.unk2E = 0;
+            }
+            pWork->flags.bytes.unk2E++;
+        }
+    }
+    if (g_BattleActorDistance2D < 0x180) {
+        if ((rand() & 3) == 0) {
+            BattleQueueMessage(pActor, 4);
+        }
+        BattleEnterWorkState1(pActor);
+    }
+    if (BattleGetActorBreakProximity(pActor) == 0) {
+        pWork->setFlag8000 = 0;
+    }
+    if (pWork->delay < 0) {
+        pWork->targetAngle = rand() % 1536 - 0x300;
+        roll = rand();
+        if (pWork->flags.flags & 0x400) {
+            delay = roll % 120 + 10;
+        } else {
+            delay = roll % 100 + 10;
+        }
+        ticks = pWork->ticks;
+        pWork->delay = delay;
+        pWork->maxDistance = 0xFF;
+        if (ticks != 0) {
+            pWork->ticks = ticks - 1;
+        } else {
+            if ((rand() & 3) == 0) {
+                BattleQueueMessage(pActor, 4);
+            }
+            if (BattleDecideActorAction(pActor, pWork) != 0) {
+                BattleEnterWorkState0(pActor);
+            }
+            pWork->ticks = rand() % 4 + 1;
+        }
+    }
+    pWork->delay--;
+}
 void BattleEnterWorkState2(BattleActor* pActor, s32 arg1) {
     BattleWork* pWork;
 
@@ -599,7 +671,7 @@ void func_80090990(BattleActor* pActor, BattleWork* pWork) {
     if (func_8008FACC(pActor, pWork) != 0) {
         return;
     }
-    if (((u8*)pActor->pTarget->pNearestEffect)[0x33] == 1) {
+    if (pActor->pTarget->pNearestEffect->unk33 == 1) {
         distance = pActor->pTarget->nearestEffectDistance;
         if (distance < 0x500 && pWork->difficulty != 0) {
             pWork->setFlag8000 = 1;
