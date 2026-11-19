@@ -199,6 +199,19 @@ What that cost and what it bought, so the next session does not repeat it:
    then returned NONE from the better body. A parked body is a rewrite note now, not a
    round: the only park work left is one whose residual is 2-3 instructions of a reg_eqv
    tie, which no source spelling reaches.
+
+   **Round 288 closed the park queue by measuring its top, and the mechanism is now named.**
+   The two closest parks in the tree - `battling/misc2` `func_80073F34` at 99.91% and
+   `shop_menu/misc` `func_801CEB3C` at 99.92%, both at retail's exact byte count - are the
+   same defect: **the missing instruction is a dying single-use temporary that this cc1
+   places in its lowest free call-clobbered register (`$v0`/`$v1`) where retail reused a
+   higher one (`$a0`-`$a2`/`$t0`), with the instruction stream, the live-at-start masks and
+   the pseudo count otherwise identical.** Nine equivalent source spellings of the test all
+   measured the same 99.91, the permuter ran 2195 iterations from the exact body and
+   returned base=best, and `shop_menu`'s residual is a gcc-generated-giv preheader swap.
+   That is `local_alloc` between retail's cc1 and all three compilers in `tools/`, not a
+   source shape. **Do not brief a park above ~99.5% again** - and when a lane's report
+   names this class, spend the round elsewhere rather than on a second pass.
 3. **Jump-table stubs** ("Jump tables"). About 110 stubs that were excluded because a C
    `switch` broke the link are ordinary stubs now. They are larger than average, so
    brief them in the deep shape ("The round loop").
