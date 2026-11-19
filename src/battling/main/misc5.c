@@ -800,25 +800,14 @@ void func_8007D6B8(void) {
 }
 */
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D7A8);
-
-/* Best attempt: objdiff 96.85%, retail's exact size (368 bytes). Everything is
-   byte-identical except the register representation of the two u16 jitter
-   values: retail carries them as value << 16 in s1 and extracts (s8) with a
-   single sra 24, gcc carries the raw u16 and extracts with sll 24 / sra 24 (and
-   for vz fuses the << 7 into sra 17). The store order (vy before life) and
-   the separate s8 texel local came from the permuter (91.67 -> 95.82 ->
-   96.85). A second permuter run (5 min, base=435 best=236) found one better
-   shape, not yet measured under objdiff: replace the separate texel store with
-   `pEntry->x = (texel = vx);` - the embedded assignment of the s8 copy. Port it,
-   re-measure, and if the u16 >> 16 representation still differs try carrying vx
-   and vz as s32 before the store. */
-/*
 void func_8007D7A8(VECTOR *pSrc, s32 count) {
     BattleSpriteEntry *pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
     u16 vx;
-    s8 texel;
     u16 vz;
+    s32 a;
+    s32 b;
+    s32 row;
+    s32 col;
     u16 v;
     s32 index;
     s32 i;
@@ -829,11 +818,14 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
         }
         if (pEntry->life == 0) {
             vx = pSrc->vx - 32 + rand() % 64;
-            texel = (s8)vx;
             pEntry->x = vx;
+            a = vx << 16;
             vz = pSrc->vz - 32 + rand() % 64;
-            index = (((s8)vz) << 7) + texel;
             pEntry->z = vz;
+            b = vz << 16;
+            col = a >> 24;
+            row = (b >> 24) << 7;
+            index = row + col;
             v = *(u16 *)(g_BattleGridCells + index * 4);
             pEntry->groundY = v;
             pEntry->y = v;
@@ -843,7 +835,6 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
         }
     }
 }
-*/
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
 
