@@ -229,18 +229,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B7B0);
 // 73.75, s16 value 98.00, u8 pointer arithmetic store 98.00, 3121 permuter
 // iterations at base 40.
 // screened: 73.75% was the max of Default / cdk 50.94 / 2.6.0 73.75.
-/*
 void func_8007B8D4(u8 **p, u8 index) {
-    u16 value;
-    u16 *pField;
     u8 *pArgs = *p;
 
-    value = D_8005A3A0[pArgs[2]];
-    pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
-    pField[pArgs[1]] = value;
+    g_BattleSlotRegs[index].wordRegs[pArgs[1]] = D_8005A3A0[pArgs[2]];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B8D4);
 void BattleWordTableStoreReg(BattleCommand **p, u8 index) {
     u16 *pField = g_BattleSlotRegs[index].wordRegs;
     BattleCommand *pCmd = *p;
@@ -297,24 +290,11 @@ void BattleWordRegSetReg(BattleCommand **p, u8 index) {
 // from this body (2212 + 1661 iterations, base 25) found nothing. Inlining the
 // sum into one `pField = (u32 *)(g_BattleSlotRows - (-(index * 0x40)))` statement and
 // dropping the dead pBase local is byte-identical, 98.33.
-/*
 void func_8007B9C8(u8 **p, u8 index) {
     u8 *pArgs = *p;
-    u8 *pNext;
-    u8 *pArgsCopy;
-    u32 *pField;
-    u8 *pBase;
 
-    pBase = g_BattleSlotRows - (-(index * 0x40));
-    pField = (u32 *)pBase;
-    do {
-        pNext = pArgs;
-        pArgs = &(pArgsCopy = pNext)[1];
-        pField[pNext[2]] = pField[*pArgs];
-    } while (0);
+    g_BattleSlotRegs[index].dwordRegs[pArgs[2]] = g_BattleSlotRegs[index].dwordRegs[pArgs[1]];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // best: 98.12%. Sole gap: the pTable sum is formed into the base register (v0)
 // where retail reuses the index register (a1); every other register and
 // instruction matches, including the g_BattleSlotByteRegs base derived as
@@ -332,17 +312,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007B9C8);
 // `addu a1,a1,v0` but moves the load to v1 -> 95.94. Spelling g_BattleSlotByteRegs
 // directly gives it its own lui/addiu (88.38), so the +0x10 really is derived
 // from the base.
-/*
 void func_8007BA04(u8 **p, u8 index) {
-    u16 *pField = (u16 *)(g_BattleSlotWordRegs + index * 0x40);
-    u8 *pTable;
     u8 *pArgs = *p;
 
-    pTable = (g_BattleSlotWordRegs + 0x10) - (-(index * 0x40));
-    pField[pArgs[2]] = pTable[pArgs[1]];
+    g_BattleSlotRegs[index].wordRegs[pArgs[2]] = g_BattleSlotRegs[index].byteRegs[pArgs[1]];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BA04);
 void BattleSlotStoreDwordFromWordReg(BattleCommand **p, u8 index) {
     u32 *pField32 = g_BattleSlotRegs[index].dwordRegs;
     u16 *pWordRegs;
@@ -400,13 +374,10 @@ void BattleSlotStoreWordLowBytes(BattleCommand **p, u8 index) {
 // it goes through a local.
 // screened: identical 98.82% under Default, 2.7.2-cdk and 2.6.0 - a register
 // allocation tie, not a compiler question.
-/*
 void func_8007BC40(u8 **p, u8 *pDest, u8 count) {
     pDest[count * 8 + (*p)[1]] = (*p)[2];
-    pDest[count * 8 + ((*p)[1] + 1)] = (*p)[3];
+    (count * 8 + (*p)[1] + pDest)[1] = (*p)[3];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc7", func_8007BC40);
 void BattleByteRegSetRandom(BattleCommand **p, u8 index) {
     u8 value = GameRandomByteRange(0, (*p)->operand2);
     u8 *pTable = g_BattleSlotRegs[index].byteRegs;
