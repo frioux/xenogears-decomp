@@ -32,7 +32,10 @@ typedef struct {
     /* 0x2AE0 */ u_char renderContext;
     /* 0x2AE1 */ u8 unk2AE1;
     /* 0x2AE2 */ u8 unk2AE2;
-    /* 0x2AE3 */ u8 unk2AE3[0x8];
+    /* 0x2AE3 */ u8 unk2AE3[0x2];
+    /* 0x2AE5 */ u8 unk2AE5; // prims the first weight-digit block drew
+    /* 0x2AE6 */ u8 unk2AE6; // prims the second weight-digit block drew
+    /* 0x2AE7 */ u8 unk2AE7[0x4];
     /* 0x2AEB */ u8 digitPrimCount; // digit prims the gear window's number draws appended
 } MenuGearWindowPrims; // Size: 0x2AEC
 
@@ -899,103 +902,87 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7154);
     }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D74EC);
-/* Best: 95.19% (920 bytes, retail's exact size). Both halves decode completely;
-   the whole remaining diff is loop 2, in the same place for each half:
-   (1) retail loads x0 and y0 TWICE each - `lhu a1,0x11D8` for the x argument
-   and `lhu v0,0x11D8` again as the minuend of the width - while gcc CSEs the
-   twin HImode load at the same address (no store between them) and emits one
-   load plus a `move`; the parked func_801D6194 and func_801D7154 notes hit the
-   identical wall (0xA8/0xAA), so this is the unit's known un-CSE-able twin
-   `lhu`. (2) knock-on: retail holds the (renderContext + 2 * i) * 0x28 entry
-   address in v1 and computes the verts pointer with `addu a0,s1,a0` before the
-   loads, gcc picks v0 for the entry. Retail's load order is
-   x, x1, x0, y, y3, y0 - i.e. argument, width pair, argument, height pair - not
-   the x,y,w,h source order, which is probably the clue someone needs.
-   void func_801D74EC(u_char a0, u_char a1) {
-       s32 offset;
-       s32 i;
+/* Best: 99.83% (920 bytes, retail's exact size). Both halves decode completely and
+   the ONLY remaining difference is two `addu` operand orders, one per half:
+   retail `addu a2,a2,t1` (prim address) where gcc gives `addu a2,t1,a2`, and
+   retail `addu a0,s1,a0` (verts pointer, offset biv + base) where gcc gives
+   `addu a0,a0,s1`. Measured: spelling either sum offset-first
+   (`(off) + (u32)base`, or the flat `field * 0x50 + K + (u32)base`) gives
+   retail's operand order but rotates t0/t1 and drops to 94.43%; an explicit
+   `vertOffset` variable (the shape that matches in func_801D7884) is 98.00 and
+   `(u8*)base + i * 0x20 + K` flat is 93.17 (928 bytes). A 2-minute permuter run
+   (885 iters, base=40) found nothing. Everything else - the twin lhu (via the
+   volatile minuend), `(i * 2 + renderContext) * 0x28` (fixes the prim base
+   register) and `i * 8 + D_x - offset` - is exact.
+void func_801D74EC(u_char index, u_char characterId) {
+    s32 offset;
+    s32 i;
 
-       MenuParseNumberToDigits(
-           g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk44);
-       offset = a1 * 0x18;
-       ((u8*)g_Menu->pGearWindowPrims)[0x2AE5] = 0;
-       for (i = 0; i < 7; i++) {
-           if (g_Menu->digits[2 + i] != 0xFF) {
-               ((u8*)g_Menu->pGearWindowPrims)[0x2AE5] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[2 + i],
-                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                               (((u8*)g_Menu->pGearWindowPrims)[0x2AE5] * 0x50 + 0x11D0)),
-                   g_Menu->renderContext, D_801E9D20 + i * 8 - offset, D_801E9D24, 0x1000);
-           }
-       }
-       for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE5]; i++) {
-           u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
+    MenuParseNumberToDigits(
+        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk44);
+    offset = characterId * 0x18;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5 = 0;
+    for (i = 0; i < 7; i++) {
+        if (g_Menu->digits[2 + i] != 0xFF) {
+            s32 primCount = ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5;
 
-           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x25C0)),
-                               *(u16*)(pEntry + 0x11D8), *(u16*)(pEntry + 0x11DA),
-                               *(u16*)(pEntry + 0x11E0) - *(u16*)(pEntry + 0x11D8),
-                               *(u16*)(pEntry + 0x11F2) - *(u16*)(pEntry + 0x11DA));
-       }
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5 += func_8002675C(
+                g_Menu->resources, g_Menu->digits[2 + i],
+                (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims + (primCount * 0x50 + 0x11D0)),
+                g_Menu->renderContext, i * 8 + D_801E9D20 - offset, D_801E9D24, 0x1000);
+        }
+    }
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5; i++) {
+        u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (i * 2 + g_Menu->renderContext) * 0x28;
 
-       MenuParseNumberToDigits(
-           g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk48);
-       offset = a1 * 0x18;
-       ((u8*)g_Menu->pGearWindowPrims)[0x2AE6] = 0;
-       for (i = 0; i < 7; i++) {
-           if (g_Menu->digits[2 + i] != 0xFF) {
-               ((u8*)g_Menu->pGearWindowPrims)[0x2AE6] += func_8002675C(
-                   g_Menu->resources, g_Menu->digits[2 + i],
-                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                               (((u8*)g_Menu->pGearWindowPrims)[0x2AE6] * 0x50 + 0x1400)),
-                   g_Menu->renderContext, D_801E9D28 + i * 8 - offset, D_801E9D2C, 0x1000);
-           }
-       }
-       for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE6]; i++) {
-           u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
+        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x25C0)),
+                            *(u16*)(pEntry + 0x11D8), *(u16*)(pEntry + 0x11DA),
+                            *(u16*)(pEntry + 0x11E0) - *(volatile u16*)(pEntry + 0x11D8),
+                            *(u16*)(pEntry + 0x11F2) - *(volatile u16*)(pEntry + 0x11DA));
+    }
 
-           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x26A0)),
-                               *(u16*)(pEntry + 0x1408), *(u16*)(pEntry + 0x140A),
-                               *(u16*)(pEntry + 0x1410) - *(u16*)(pEntry + 0x1408),
-                               *(u16*)(pEntry + 0x1422) - *(u16*)(pEntry + 0x140A));
-       }
-   }
+    MenuParseNumberToDigits(
+        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk48);
+    offset = characterId * 0x18;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE6 = 0;
+    for (i = 0; i < 7; i++) {
+        if (g_Menu->digits[2 + i] != 0xFF) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE6 += func_8002675C(
+                g_Menu->resources, g_Menu->digits[2 + i],
+                (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE6 * 0x50 + 0x1400)),
+                g_Menu->renderContext, i * 8 + D_801E9D28 - offset, D_801E9D2C, 0x1000);
+        }
+    }
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE6; i++) {
+        u8* pEntry = (u8*)g_Menu->pGearWindowPrims + (i * 2 + g_Menu->renderContext) * 0x28;
+
+        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + (i * 0x20 + 0x26A0)),
+                            *(u16*)(pEntry + 0x1408), *(u16*)(pEntry + 0x140A),
+                            *(u16*)(pEntry + 0x1410) - *(volatile u16*)(pEntry + 0x1408),
+                            *(u16*)(pEntry + 0x1422) - *(volatile u16*)(pEntry + 0x140A));
+    }
+}
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D7884);
-/* Best: 92.09% at retail's exact 952 bytes. Structure, every call, every branch and the
-   frame (0x58, s0-s7) are right; what is left is register naming in the last loop plus
-   two scheduler picks. Findings worth keeping:
-   (1) THE TWIN lhu IS BEATABLE HERE. The last loop's MenuSetQuadVertices reads the prim's
-   x0 (0x1C78) and y0 (0x1C7A) TWICE each; a plain pPrim->x0 lets gcc CSE them into one
-   load plus a move. Reading the two minuends as *(volatile u16*)&pPrim->x0 reproduces
-   retail's six loads IN RETAIL'S ORDER (x0, x1, x0, y0, y3, y0) - the same wall as the
-   parked func_801D6194/7154/74EC, so try the volatile minuend there too. What is left is
-   only the register: retail keeps the prim base in v1 and the width temp in v0, gcc does
-   the reverse.
-   (2) The character row must be reached as g_GameState + 0x2E4 + id * 0xA4 (0x2E4 =
-   characters[] 0x26C + unk77): a `GameCharacter *pChar` local makes gcc put the
-   characters base in a register (`addiu v0,v0,620; lbu 119(v1)`), retail folds 0x2E4 into
-   each load's %lo half (`lbu a0,740(at)`), so the row base has to stay symbol-relative.
-   (3) The value is characters[id].unk78 + unk77 (0x2E4 loaded FIRST, so the sum reads
-   unk78 + unk77) * 10 + unk79, then (u16)(... * 22); the /100 must be UNSIGNED (a u32
-   local), then remainder = scaled - hundreds * 100 with hundreds a u16 (that is the
-   `andi 0xFFFF` between the srl 5 and the *100), and the /10 SIGNED (an s32 local).
-   (4) The digit loops are the round-121 read-and-bump form: `for (i = 0; i < count; ) {
-   u8 digit = g_Menu->digits[digitOffset + i++]; ... digitX += MENU_DIGIT_SPACING; }`.
-   (5) Row 0 draws characters[]-derived digits (3 of them from digits[6..8] plus the
-   (scaled % 100) / 10 digit at D_801E9D30 + 0x20); row 1 draws the gear weight
-   (gears[characters[id].gearId].weight, 5 digits from digits[4..8], x = D_801E9D30 + 8,
-   and every digit shifted by -row * 24 / +row * 8).
-   Tried: pPrim pointer local vs inline (no change), (i * 0x20 + 0x2A00) + (u32)base vs
-   base + offset (the offset-first form is what forms retail's `li s1,0x2A00` /
-   `addiu s1,s1,32` biv), `for (i = 0, digitX = x; ...)` (91.84, the x copy moves into the
-   branch instead of the preheader). The permuter rejects this base ("conversion to
-   non-scalar type requested"), so it is a hand job.
+/* Best: 92.68% at retail's exact 952 bytes. Structure, every call, every branch,
+   the frame (0x58, s0-s7) and the quad loop are right; what is left is one
+   allocator tie in the head: retail ranks `tensDigit` above `row` (s4 = tens,
+   s7 = row) and gcc ranks it below (s7 = tens, s6 = row), which rotates the
+   whole s4-s7 chain (row*8, row*24) and puts the /100 magic constant in a0
+   instead of the free a1, so it cannot hoist to the block start as retail does.
+   From global.c's allocno_compare: tens = 100*2refs/90live = 2.2 and
+   row = 100*4refs/151live = 2.6, a floor_log2 tie broken by pseudo order.
+   Tried: declaring tensDigit first (no change at all), inlining `remainder`
+   (90.87%, 944 bytes - the local is required), `(i * 2 + ctx)` operand order
+   (92.09 -> 92.68, keep it). The permuter rejects this base
+   ("conversion to non-scalar type requested").
 void func_801D7884(u_char index, u_char row) {
+    u16 tensDigit;
     s32 characterOffset;
     u32 scaled;
     u16 hundreds;
     s32 remainder;
-    u16 tensDigit;
     s32 count;
     s32 digitOffset;
     s32 x;
@@ -1051,7 +1038,7 @@ void func_801D7884(u_char index, u_char row) {
     vertOffset = 0x2A00;
     for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->digitPrimCount; i++) {
         POLY_FT4* pPrim = (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                      (g_Menu->renderContext + i * 2) * sizeof(POLY_FT4) + 0x1C70);
+                                      (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4) + 0x1C70);
 
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
