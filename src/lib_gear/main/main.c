@@ -511,6 +511,38 @@ typedef struct {
 extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
 extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s32 scale, s16 ground);
 
+// PARK, round 283: objdiff 98.79%, 3360 bytes. Round 282's 97.71 was an ENTRY-BLOCK
+// REGISTER-MAP artefact, not a missing instruction: retail's pSkeleton value dies at
+// the joint loop's head (its $s2 becomes the cursor) and every later use reads the
+// SPILLED copy at 0x78(sp), so the source carries TWO locals for the same field -
+// `pRoot = pModel->pSkeleton;` for the list/colour phases and `pSkeleton` for phase 1
+// and the loop head - and the separate `pMeshLoaded` copy is not needed (one `pMesh`
+// local). Measured on its own: the split alone 98.42/3360, the mesh-copy drop alone
+// 97.59/3372, both 98.79/3360. The entry block's reload of pSkeleton disappears and
+// the prologue's saved-register SET becomes retail's ten.
+// WHAT IS LEFT, all measured from this body:
+//  - TWO saved registers are swapped: s0=localT, s3=numChildren, s5=pModel,
+//    s6=viewScratch(0x1F800020), s7=pScratch(0x1F800000) and fp=pMesh are retail's,
+//    but pSkeleton takes s1 where retail has pViewMatrix there and pViewMatrix takes
+//    s2 (retail's pSkeleton). gcc ranks pSkeleton's 4 refs above pViewMatrix's 2, so
+//    it gets the lower number; the visible rows are the prologue's two swapped
+//    save/restore pairs. Measured dead: `pJoint = pRoot + 1` (98.67/3364, takes the
+//    loop head off pSkeleton), `numChildren = pModel->pSkeleton->numChildren`
+//    (neutral), a live copy `pView = pViewMatrix` for the MulMatrix0 (98.02).
+//  - 4 instructions SHORT (3360 vs retail 3376), all of them in the OT tail: retail
+//    homes `otz` in memory at 0x48(sp) (depthBuf[0]'s slot) - `sw a0,72(sp)` after the
+//    shift, `sw v0,72(sp)` for the clamp, `lw v1,72(sp)` for the /8 - which is why its
+//    signed division is 3 insns (bgez/addiu 7/sra 3) where this body spends a
+//    `move v1,t0` first. Measured dead: `depthBuf[0] >>= shift` write-back 97.46/3396,
+//    one-statement `otz = depthBuf[0] >> shift` 98.18, ternary clamp and `> 0x2D8`
+//    clamp both neutral.
+//  - `addiu v0,i,0x84` at the joint loop head where retail keeps the coalesced cursor
+//    (`addiu s2,s2,0x7C` then `addiu s1,s2,8`); now that pSkeleton dies there,
+//    `pJoint = pSkeleton; pJoint++;` was re-measured and is worse (98.69).
+//  - one `lh`/`lhu` pair on `pSkeleton->rotation.vy` (the round-282 note's 0x5C/0x5E
+//    pair is a different one).
+// PERMUTER: a fourth round from THIS body found nothing (base=1336, best=1336).
+// Superseded round-282 header, kept for its history:
 // PARK, round 282: objdiff 97.71%, 3376 bytes - retail's EXACT size, so every
 // remaining row is a register name or a statement order, not a missing instruction.
 // 31 diff blocks, and most of them are the same thing: the two builds assigned the
@@ -634,7 +666,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     s32 depthBuf[2]; // [0] shallowest corner depth, [1] the corner just projected
     VECTOR proj;
     SVECTOR swingVec;
-    ModelMesh* pMeshLoaded;
+    ModelJoint* pRoot;
     s32 quarterTurn;
     u16 modelScale;
     MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
@@ -652,10 +684,11 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     }
 
     pSkeleton = pModel->pSkeleton;
-    pMeshLoaded = pModel->pMesh;
+    pMesh = pModel->pMesh;
     quarterTurn = LIBGEAR_QUARTER_TURN;
     modelScale = pModel->scale;
     numChildren = pSkeleton->numChildren;
+    pRoot = pModel->pSkeleton;
 
     CompMatrix(pLightMatrix, &pSkeleton->localTransform, pLightScratch);
 
@@ -760,7 +793,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
 
-    pMesh = pMeshLoaded;
+    pMesh = pMesh;
     pJoint = pSkeleton + 1;
     for (i = 1; i < numChildren; i++, pJoint++) {
         if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
@@ -805,11 +838,11 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             continue;
         }
 
-        swingVec.vx = -g_LibGearSwingScale * rsin(pSkeleton->rotation.vy + quarterTurn) / 0x1000;
-        swingVec.vz = g_LibGearSwingScale * rcos(pSkeleton->rotation.vy + quarterTurn) / 0x1000;
+        swingVec.vx = -g_LibGearSwingScale * rsin(pRoot->rotation.vy + quarterTurn) / 0x1000;
+        swingVec.vz = g_LibGearSwingScale * rcos(pRoot->rotation.vy + quarterTurn) / 0x1000;
         swingVec.vy = pModel->unk3E;
 
-        CompMatrix(&pSkeleton->localTransform, &pSkeleton[pListEntry->jointIndex].globalTransform, pScratch);
+        CompMatrix(&pRoot->localTransform, &pRoot[pListEntry->jointIndex].globalTransform, pScratch);
         SetRotMatrix(pScratch);
         SetTransMatrix(pScratch);
 
@@ -825,7 +858,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
         pSection = pListEntry->pSections;
         for (j = 0; j < pListEntry->numSections; j++, pSection++) {
-            CompMatrix(&pSkeleton->localTransform, &pSkeleton[pSection->vector.pad].globalTransform, pScratch);
+            CompMatrix(&pRoot->localTransform, &pRoot[pSection->vector.pad].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
@@ -856,7 +889,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         pEntry->slot = (pEntry->slot - 1) & 7;
 
         if (pEntry->is3D == 0) {
-            CompMatrix(pLightScratch, &pSkeleton[pEntry->jointIndex].globalTransform, pScratch);
+            CompMatrix(pLightScratch, &pRoot[pEntry->jointIndex].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
@@ -900,7 +933,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             pEntry->pVertex->y3 = pEntry->screenB[2 * pEntry->slot + 1];
         } else {
             otz = pEntry->jointIndex;
-            CompMatrix(&pSkeleton->localTransform, &pSkeleton[otz].globalTransform, pScratch);
+            CompMatrix(&pRoot->localTransform, &pRoot[otz].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
