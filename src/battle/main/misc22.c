@@ -79,7 +79,7 @@ typedef struct {
     /* 0x1C */ BattleMisc22ImageRow *pRows; // region rows, indexed by rect28.y + row
     /* 0x20 */ s16 divisor; // second argument of pInterpolate
     /* 0x22 */ s16 offset; // third argument of pInterpolate
-    /* 0x24 */ s16 (*pInterpolate)(u16 angle, s16 divisor, s16 offset); // one of the BattleOffsetBy* helpers
+    /* 0x24 */ s32 (*pInterpolate)(u16 angle, s16 divisor, s16 offset); // one of the BattleOffsetBy* helpers
     /* 0x28 */ BattleMisc22Rect rect28;
 } BattleMisc22Image; // Size: 0x30
 
@@ -291,7 +291,156 @@ s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base) {
     return value;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
+extern void func_80026F44(s32 count, s32 level, u16 *pDst, u16 *pSrc);
+extern u32 func_80026FE8(s32 count, s32 level, u16 *pDst, u16 *pSrc, u16 *pSrc2);
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3E98);
+/* best 90.63% (1036 bytes; retail 1028 = 0x404, so two instructions over).
+   The shape is right end to end: the pInterpolate sign-extension pair, the
+   four case bodies in source order 0/1/4/5 with the balanced ==1 / <2 / ==4 /
+   ==5 tree, the two cross-jumped LoadImage tails, the rect clip with its
+   lh-then-lhu reload pairs, and both copy loops. What is left:
+   - the prevFrame early exit: retail is `lhu v0,0x18(s0)` + `beq s1,v0,`
+     straight to the epilogue; ours is bne + j + `move v0,s1`, because gcc
+     folds `return pArg->prevFrame` (and a u16 local of it) to the s16 frame it
+     was just compared with. Tried: the field, a u16 local, the swapped compare
+     operand order - all fold. Worth two instructions and the size excess.
+   - the `sh s2,0x18(s0)` store: retail stores the raw callback result, ours
+     copies it to v1 in the bgez delay slot first (so the store is `sh v1`).
+   - register swaps left in the loops: retail pSrcBase/pResultPixels=t2 and
+     pDstBase/pPixels=t3, ours the other way round, and the dst row product's
+     mflo lands in a0 instead of retail's a2.
+   Facts that closed the big gaps (found with tools/scripts/permute.sh, which
+   took the body 88.34 -> 90.63 in two runs):
+   - pInterpolate returns something WIDER than s16: retail sign-extends its
+     result explicitly (sll/sra into s1) and keeps the raw value in s2 for the
+     prevFrame store and the tail returns, so the field is declared s32 (...)
+     and the body keeps `level` (s32) and `frame` (s16) as two variables.
+   - loop B's source address needs the embedded assignment
+     `*(pSrcRow = pRows + 3 * (srcY + y) + (srcX + x))`: the plain expression
+     makes gcc put the scaled index first (base-last addu).
+   - `dstAddr = dstRect.x; dstAddr = dstAddr * 2 + (u32)pDstBase;` (two
+     statements) beats the one-line form.
+   - case 1 needs the pixelCount in its own s16 local.
+   - pDstBase/pSrcBase must be locals assigned before the mode test, or the
+     two base loads are not hoisted (1036 vs 1048 bytes).
+   The lib_gear twin of this body (func_801E1258 in src/lib_gear/main/main.c)
+   is the same function and is parked at 88.98% with the same two walls.
+s32 func_800A3E98(BattleMisc22Image *pArg, s32 arg1) {
+    BattleMisc22Image *pSource;
+    BattleMisc22Rect srcRect;
+    BattleMisc22Rect dstRect;
+    s32 level;
+    s16 frame;
+    s16 pixelCount;
+    u16 prevFrame;
+    s32 y;
+    s32 x;
+    s32 dstAddr;
+    s32 srcAddr;
+    u16 *pDstBase;
+    u16 *pSrcBase;
+    u16 *pSrcRow;
+
+    if (pArg->isLoaded == 0) {
+        return -1;
+    }
+
+    pArg->angle += pArg->angleStep * (arg1 + 1);
+    level = pArg->pInterpolate(pArg->angle, pArg->divisor, pArg->offset);
+    frame = level;
+    if (frame < 0) {
+        BattleFreeImageEntry(pArg);
+        return frame;
+    }
+    prevFrame = pArg->prevFrame;
+    if (frame == prevFrame) {
+        return prevFrame;
+    }
+    pArg->prevFrame = level;
+
+    switch (pArg->mode) {
+    case 0:
+        func_80026F44(pArg->pixelCount, frame, pArg->pResultPixels, pArg->pPixels);
+        if (pArg->pSource == 0) {
+            LoadImage(&pArg->rect28, pArg->pResultPixels);
+        }
+        break;
+    case 1:
+        pixelCount = pArg->pixelCount;
+        func_80026FE8(pixelCount, frame, pArg->pResultPixels, pArg->pStartPixels,
+                      pArg->pPixels);
+        if (pArg->pSource == 0) {
+            LoadImage(&pArg->rect28, pArg->pResultPixels);
+        }
+        break;
+    case 4:
+        BattleScaleImageRegion(pArg, frame);
+        break;
+    case 5:
+        BattleBlendImageRegion(pArg, frame);
+        break;
+    }
+
+    pSource = pArg->pSource;
+    if (pSource == 0) {
+        return (s16)level;
+    }
+    if (pSource->isLoaded == 0) {
+        return (s16)level;
+    }
+
+    // Clip the copy to the overlap of the two regions
+    if (pSource->rect28.x < pArg->rect28.x) {
+        dstRect.x = pArg->rect28.x - pSource->rect28.x;
+        srcRect.x = 0;
+        dstRect.w = pSource->rect28.x + pSource->rect28.w - pArg->rect28.x;
+    } else {
+        dstRect.x = 0;
+        srcRect.x = pSource->rect28.x - pArg->rect28.x;
+        dstRect.w = pArg->rect28.x + pArg->rect28.w - pSource->rect28.x;
+    }
+    if (pSource->rect28.y < pArg->rect28.y) {
+        dstRect.y = pArg->rect28.y - pSource->rect28.y;
+        srcRect.y = 0;
+        dstRect.h = pSource->rect28.y + pSource->rect28.h - pArg->rect28.y;
+    } else {
+        dstRect.y = 0;
+        srcRect.y = pSource->rect28.y - pArg->rect28.y;
+        dstRect.h = pArg->rect28.y + pArg->rect28.h - pSource->rect28.y;
+    }
+
+    if (dstRect.w > 0 && dstRect.h > 0) {
+        pSource->unk11 = 1;
+        pDstBase = pSource->pPixels;
+        if (pSource->mode < 4) {
+            pSrcBase = (pSrcBase = pArg->pResultPixels);
+            for (y = 0; y < dstRect.h; y++) {
+                for (x = 0; x < dstRect.w; x++) {
+                    dstAddr = dstRect.x * 2 + (u32)pDstBase;
+                    srcAddr = srcRect.x * 2 + (u32)pSrcBase;
+                    dstAddr = x * 2 + dstAddr;
+                    srcAddr = x * 2 + srcAddr;
+                    *(u16 *)((dstRect.y + y) * pSource->rect28.w * 2 + dstAddr) =
+                        *(u16 *)((srcRect.y + y) * pArg->rect28.w * 2 + srcAddr);
+                }
+            }
+        } else {
+            for (y = 0; y < dstRect.h; y++) {
+                for (x = 0; x < dstRect.w; x++) {
+                    dstAddr = dstRect.x;
+                    dstAddr = dstAddr * 2 + (u32)pDstBase;
+                    dstAddr = x * 2 + dstAddr;
+                    *(u16 *)((dstRect.y + y) * pSource->rect28.w * 2 + dstAddr) =
+                        *(pSrcRow = (u16 *)pArg->pRows + 3 * (srcRect.y + y) + (srcRect.x + x));
+                }
+            }
+        }
+    }
+
+    return (s16)level;
+}
+*/
 void BattleFreeImageEntry(BattleMisc22Image *pArg) {
     if (pArg->isLoaded != 0) {
         if (pArg->pPixels != 0) {
