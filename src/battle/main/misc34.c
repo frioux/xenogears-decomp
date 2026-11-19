@@ -1,5 +1,6 @@
 #include "common.h"
 #include "field/actor.h"
+#include "battle/actor.h"
 #include "psyq/libgte.h"
 #include "system/sound.h"
 
@@ -9,20 +10,25 @@ extern s32 g_BattleActorList[];
 extern s32 D_800D3640[];
 extern u16 g_BattleDelayCounter;
 extern u16 g_BattleActorDelayCounter;
-extern s32 g_BattleState;
+extern void *g_BattleState;
 extern s32 g_BattlePendingCommand;
 extern s32 g_BattleWaitFrameCounter;
 extern s32 g_BattleTimerTask;
 extern u8 g_FlagTimerWorkListAdds;
-extern u8 g_SpriteAnimPackageDirs5[];
+extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
 extern void BattleUpdateCommandRows(void);
-extern void *func_800BFC80(void *, s32, s32);
+extern void *func_800BFC80(SpriteData *pSprite, s32 arg1, s32 mode);
+extern void *g_TimerWorkList;
 extern s32 BattleSpriteDistanceToTarget(SpriteData *pSpriteData);
+extern void func_800BF0C4(BattleSpriteState *pActor);
+extern void BattleActorSnapToTargetAndFace(SpriteData *pSprite, SpriteData *pTarget);
+extern void BattleFaceTargetAndMeasureDistance(BattleSpriteState *pActor, s32 arg1);
+extern void BattleSetStateStep(s32 arg0);
 extern u8 *TimerWorkListAllocateTask(void *pList, s32 size);
-extern u8 *func_80023B84(u8 *pActor, u8 *pEntry);
+extern SpriteData *func_80023B84(SpriteData *pActor, u8 *pEntry, SpriteAnimPackage *pPackage);
 extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
 /* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
@@ -59,8 +65,14 @@ typedef struct WorkListEntry {
     /* 0x04 */ void *unk4;
     /* 0x08 */ void *onTriggerCallback;
     /* 0x0C */ void (*onFreeCallback)(void *);
-    /* 0x10 */ u32 unk10;
-    /* 0x14 */ u32 unk14;
+    /* 0x10 */ u32 unk10: 29; // address of the task this entry belongs to, without its tag bits
+    /* 0x10 */ u32 unk10_1: 1;
+    /* 0x10 */ u32 unk10_2: 1;
+    /* 0x10 */ u32 unk10_3: 1;
+    /* 0x14 */ u32 unk14: 29;
+    /* 0x14 */ u32 unk14_1: 1;
+    /* 0x14 */ u32 unk14_2: 1;
+    /* 0x14 */ u32 unk14_3: 1;
     /* 0x18 */ struct WorkListEntry *pNext;
 } WorkListEntry; // Size: 0x1C
 
@@ -77,7 +89,63 @@ typedef struct {
 } BattleDistanceTask; // Size: 0x30
 STATIC_ASSERT_SIZEOF(BattleDistanceTask, 0x30);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF4F0);
+// One 6-byte point of the target-position path the battle state walks, in whole
+// coordinates; 0xFFFF in y ends the path.
+typedef struct {
+    /* 0x0 */ u16 x;
+    /* 0x2 */ u16 y;
+    /* 0x4 */ u16 z;
+} BattlePathPoint; // Size: 0x6
+
+// The target-position path as it sits in the battle state work block. pathIndex in
+// the battle state is the cursor into it.
+typedef struct {
+    /* 0x0000 */ u8 unk0000[0xA3C];
+    /* 0x0A3C */ BattlePathPoint points[1];
+} BattlePathTable;
+
+// The battle state g_BattleState points at; only the field this unit reads.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x2C];
+    /* 0x2C */ s32 pathIndex;
+} BattleStatePathCursor; // Size: 0x30
+
+// Walks the actor one frame along the battle state's target-position path: while the
+// path still has a point at the cursor the path step owns the actor, and once it ends
+// the actor is put on its target position and turned toward the target.
+void func_800BF4F0(BattleSpriteState *pActor, BattleSpriteState *pTarget) {
+    BattlePathTable *pPath;
+    BattleStatePathCursor *pState;
+    s32 targetX;
+    s32 targetZ;
+
+    pState = (BattleStatePathCursor *)g_BattleState;
+    pPath = (BattlePathTable *)g_BattleStateWork;
+    if (pPath->points[pState->pathIndex].x == 0xFFFF &&
+        pPath->points[pState->pathIndex].y == 0xFFFF) {
+        *(s32 *)&pActor->position = pActor->targetPosition.x << 16;
+        *(s32 *)&pActor->position.zFrac = pActor->targetPosition.z << 16;
+        targetX = pTarget->position.xWhole;
+        if (pActor->position.xWhole < targetX) {
+            pActor->targetPosition.x = targetX - 0x50;
+        } else {
+            pActor->targetPosition.x = targetX + 0x50;
+        }
+        targetZ = pTarget->position.zWhole;
+        pActor->targetPosition.z = targetZ;
+        pActor->targetPosition.y = 0;
+        if (pActor->targetPosition.x == pActor->position.xWhole) {
+            if (pActor->targetPosition.z == pActor->position.zWhole) {
+                BattleActorSnapToTargetAndFace((SpriteData *)pActor, (SpriteData *)pTarget);
+                return;
+            }
+        }
+        BattleFaceTargetAndMeasureDistance(pActor, 3);
+        BattleSetStateStep(2);
+    } else {
+        func_800BF0C4(pActor);
+    }
+}
 
 void BattleIncFrameCounter(void) {
     g_BattleWaitFrameCounter++;
@@ -157,42 +225,34 @@ void BattleCreateActorDistanceTask(SpriteData *pSpriteData, s32 minDistance,
     pTask->minDistance = minDistance;
     pSpriteData->flags_0xAC.flags |= 0x20;
 }
-// best 73.04% (71.61% in the variant below, 108 bytes = one instruction short):
-// retail's first instruction is a `move t0,a1` copy of the second parameter (its
-// a1 is then reused for the 0x8C8C constant), and its reload of the target slot
-// happens before the g_BattleActorList lui; every instruction after that is present, only
-// the allocator's register roles differ. 0x8C8C is a byte offset into the
-// g_BattleStateWork block that does not fit a 16-bit displacement, so retail assembles
-// base+index and +0x8C8C in two addu's - that part the C below does reproduce.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BF85C);
-/*
-// Makes the actor of slot arg0 the current battle sprite and points it at the actor
-// of slot arg1, which is also recorded as the model id table's only entry.
-void func_800BF85C(s32 arg0, s32 arg1) {
-    mem_addr base;
-    s32 off;
-    s32 slot;
-    s32 target;
-    SpriteData *pSprite;
-    u8 *pTargetSlot;
+// A view of g_BattleStateWork that reaches the per-slot sprite pointer table at
+// 0x8C8C: each entry is the sprite the spawner made for that slot.
+typedef struct {
+    /* 0x0000 */ u8 unk0000[0x8C8C];
+    /* 0x8C8C */ SpriteData *sprites[BATTLE_ACTOR_SLOT_COUNT];
+} BattleSpriteSlots;
 
-    base = (mem_addr)g_BattleStateWork;
-    off = 0x8C8C;
-    slot = arg1;
-    pSprite = *(SpriteData **)(base + (arg0 << 2) + off);
+// Makes the actor of slot arg0 the current battle sprite and makes the actor of slot
+// arg1 its target, which is also the only entry the model id table keeps.
+void func_800BF85C(s32 arg0, s32 arg1) {
+    BattleSpriteSlots *pSlots;
+    SpriteData **pTargetSlot;
+    SpriteData *pSprite;
+
+    pSlots = (BattleSpriteSlots *)g_BattleStateWork;
+    pSprite = pSlots->sprites[arg0];
     if (pSprite == NULL) {
         return;
     }
-    pTargetSlot = (u8 *)(base + (slot << 2) + off);
+    // The byte arithmetic (rather than &pSlots->sprites[arg1]) is what makes gcc add
+    // the base before 0x8C8C, as retail does; the struct form comes out 99.64%.
+    pTargetSlot = (SpriteData **)((u8 *)pSlots + (arg1 * 4) + 0x8C8C);
     D_800C3E1C = pSprite;
-    target = *(s32 *)pTargetSlot;
-    D_800D3634 = 1 << slot;
-    *(s32 *)((u8 *)pSprite + 0x74) = target;
-    target = *(s32 *)pTargetSlot;
+    pSprite->pTargetEntitySprite = *pTargetSlot;
+    D_800D3634 = 1 << arg1;
+    g_BattleActorList[0] = (s32)*pTargetSlot;
     g_BattleActorList[1] = 0;
-    g_BattleActorList[0] = target;
 }
-*/
 void BattleRemapActorModelId(SpriteData *pActor) {
     s32 i = 0;
     s32 *pEntry;
@@ -318,52 +378,161 @@ void BattleLoadSoundWdsFile(void) {
     HeapFree(pWds);
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFC80);
+// Finds the timer task of the animation the sprite at pSprite->field_0x6C plays from
+// the fifth animation package. mode 0 only reports it (returns the sprite the task
+// draws, or NULL), mode 1 also runs the task's callback when the animation id matches
+// and mode 2 runs it whatever the animation id is.
+void *func_800BFC80(SpriteData *pSprite, s32 arg1, s32 mode) {
+    WorkListEntry *pEntry;
+    WorkListEntry *pOwner;
+    WorkListEntry *pTask;
+    SpriteData *pTaskSprite;
+
+    pOwner = (WorkListEntry *)pSprite->field_0x6C;
+    for (pEntry = g_TimerWorkList; pEntry != NULL; pEntry = pEntry->pNext) {
+        if (pEntry->unk0 != pOwner) {
+            continue;
+        }
+        if (pEntry->unk14 != pOwner->unk10 || (pEntry->unk14_1 & 1) == 0) {
+            continue;
+        }
+        pTaskSprite = (SpriteData *)pEntry->unk4;
+        if (pTaskSprite->pVramData != &g_SpriteAnimPackageDirs5) {
+            continue;
+        }
+        if (mode != 2) {
+            if ((s8)pTaskSprite->flags_0xAC.bytes[3] != arg1) {
+                continue;
+            }
+            if (mode == 0) {
+                return pTaskSprite;
+            }
+        }
+        pTask = (WorkListEntry *)pTaskSprite->field_0x6C;
+        pTask->onFreeCallback(pTask);
+    }
+    return NULL;
+}
 
 void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
     func_800BFC80(arg0, arg1, 1);
 }
 
-// 95.75%: everything matches except the g_SpriteAnimPackageDirs5+0x10 load. Retail's ASPSX emits
-// lui/addiu/%lo(sym) then lw 16; gcc folds the address into the load
-// (lui %hi + lw 16(%hi_reg)), one instruction shorter - no C shape materialises it.
-// Hoisting the func_80023B84 argument into pEntry (permuter, score 177 -> 20) took it
-// from 90.75 to 95.75. A permuter variant reached 99.50 by 'pActor = &g_SpriteAnimPackageDirs5[0]'
-// so the table address lands in s2 and the 0x74 store writes the table instead of the
-// actor: same byte encodings, wrong code - do not un-park it as a match. Also tried:
-// (s32)g_SpriteAnimPackageDirs5 + 0x10 (folds the same way), decl order swaps.
-/*
-void func_800BFDA8(u8 *pActor, s32 arg1) {
-    u8 *pBase;
-    u8 *pTable;
+// Builds the animation task of slot arg1 from the fifth battle animation package and
+// makes the new sprite the actor's target for it.
+void func_800BFDA8(SpriteData *pActor, s32 arg1) {
+    SpriteAnimPackage *pPackage;
+    u16 *pAnims;
+    s32 offset;
     u8 *pEntry;
+    SpriteData *pNew;
     u8 saved;
-    u8 *pNew;
-    s32 flags;
+    u32 flags;
 
-    if (*(s32 *)(pActor + 0x48) == 0) {
+    if (pActor->pDefaultAnimFile == NULL) {
         return;
     }
     if (func_800BFC80(pActor, arg1, 0) != 0) {
         return;
     }
-    pTable = &g_SpriteAnimPackageDirs5[0];
-    pBase = *(u8 **)(pTable + 0x10);
-    pEntry = (u8 *)((s32)(arg1 + (u16 *)pBase)[1] + (s32)pBase);
+    pPackage = &g_SpriteAnimPackageDirs5;
+    pAnims = pPackage->pAnimations;
+    // The sum has to be spelled offset-first as integers: the pointer form
+    // ((u8 *)pAnims + offset) makes gcc add the base first, which is 99.75%.
+    offset = pAnims[arg1 + 1];
+    pEntry = (u8 *)(offset + (s32)pAnims);
     saved = g_FlagTimerWorkListAdds;
     g_FlagTimerWorkListAdds = 0;
-    pNew = func_80023B84(pActor, pEntry);
-    flags = *(s32 *)(pNew + 0xB0);
-    *(s8 *)(pNew + 0xAF) = arg1;
-    *(u8 **)(pNew + 0x74) = pActor;
+    pNew = func_80023B84(pActor, pEntry, pPackage);
+    flags = pNew->flags_0xB0.flags;
+    pNew->flags_0xAC.bytes[3] = arg1;
+    pNew->pTargetEntitySprite = pActor;
     g_FlagTimerWorkListAdds = saved;
-    flags |= 0x100;
-    *(s32 *)(pNew + 0xB0) = flags;
+    pNew->flags_0xB0.flags = flags | 0x100;
+}
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
+// The battle state work block as the slot pass reads it: the actor slot rows at the
+// start and the 0x8000 flag word the pass clears its bit from.
+typedef struct {
+    /* 0x0000 */ BattleActorSlot slots[BATTLE_ACTOR_SLOT_COUNT];
+    /* 0x01DC */ u8 unk01DC[0x85C];
+    /* 0x0A38 */ u16 slotFlag8000Mask;
+} BattleSlotWorkView;
+
+extern BattleActor *g_BattleActors[];
+extern u16 g_BattleSlotBitMask;
+extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
+extern u16 D_800C3608;
+extern void func_800BEE2C(SpriteData *pSprite, s32 slotIndex, s32 animId);
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
+// 64.53% first attempt (508 bytes vs retail's 592): structure, calls and both loops
+// are in place, but retail's first loop is a ROTATED countdown (`beqz s1` with the
+// `addiu s1,-1` in its delay slot, then `bltz`), it recomputes slotIndex a second time
+// for the func_800BEE2C argument (mine folds the two into one), and its collect-call
+// mask is spelled `v0 & (v0 ^ g_BattleSlotBitMask)` (xor+and) where `& ~mask` gives
+// nor+and. Also mine loads D_800C3E1C before the 0xA38 word, retail the other way.
+// The view and the externs above are the shapes this body needs.
+/*
+// Runs the 0x8000-flagged actor slots: every sprite the collect pass hands back is put
+// on animation 0x15 and its slot bit is added to the mask, then the pass waits until no
+// collected sprite is animating, pumping the frame loop and reloading the archive once
+// per wait. Returns the number of slots it kept.
+s32 func_800C0314(void) {
+    SpriteData *slots[BATTLE_SLOT_COUNT];
+    BattleSlotWorkView *pWork;
+    SpriteData *pSprite;
+    s32 i;
+    s32 count;
+    s32 slotIndex;
+    u8 flag;
+    u8 pending;
+
+    pWork = (BattleSlotWorkView *)g_BattleStateWork;
+    count = 0;
+    flag = 0;
+    i = BattleCollectMaskedSlotActors(pWork->slotFlag8000Mask & ~g_BattleSlotBitMask,
+                                     (void **)slots, (s32)D_800C3E1C);
+    for (i--; i >= 0; i--) {
+        pSprite = slots[i];
+        slotIndex = ((u32)pSprite->flags_0xA8 >> 30) |
+                    ((pSprite->flags_0xAC.flags & 3) << 2);
+        if ((D_800C3608 >> slotIndex) & 1) {
+            slots[i] = NULL;
+            continue;
+        }
+        pSprite->animScriptWaitTimer = 0;
+        if (pWork->slots[slotIndex].inUse != 0) {
+            flag = 1;
+            g_BattleActors[slotIndex]->isBusy = 1;
+            func_800BEE2C(pSprite, slotIndex, 0x15);
+        } else if ((s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+            SpritePlayAnimation(pSprite, 0x15);
+        }
+        count++;
+        g_BattleSlotBitMask |= 1 << slotIndex;
+    }
+    while (count != 0) {
+        pending = 0;
+        for (i = 0; i != count; i++) {
+            pSprite = slots[i];
+            if (pSprite != NULL && pSprite->pDefaultAnimFile != NULL &&
+                pSprite->animScriptWaitTimer != 0) {
+                pending = 1;
+            }
+        }
+        if (pending == 0) {
+            break;
+        }
+        BattleLoadArchiveEntryFile();
+        func_800BE790();
+    }
+    if (flag != 0) {
+        BattleWaitAndFreeActorBuffers();
+    }
+    return count;
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFDA8);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFE48);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
 // 86.15% (96 insns, retail 96 - size equal, so it is a register/placement tie only):
 // every instruction is present and in retail's order; what is left is
 //  (a) gcc hoists g_BattleConditionAnimIds's address out of the outer restart loop to the prologue
