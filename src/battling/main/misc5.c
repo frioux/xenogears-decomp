@@ -110,7 +110,7 @@ typedef struct {
     /* 0x4 */ u16 z;
     /* 0x6 */ s8 life; // 0 marks a free entry; set to the entry's frame countdown
     /* 0x7 */ s8 vy; // added to y every frame and itself gains 2: gravity
-    /* 0x8 */ u16 groundY; // the y the entry falls back to: it dies once y >= groundY
+    /* 0x8 */ s16 groundY; // the y the entry falls back to: it dies once y >= groundY
 } BattleSpriteEntry; // Size: 0xA
 
 extern BattleSlot g_BattleEffectSlots[];
@@ -162,7 +162,7 @@ typedef struct {
 } BattlePrimTemplate16; // Size: 0x10
 
 extern u8 *g_BattleSpriteEntries;
-extern u8 *D_800926C0;
+extern u8 *D_800926C0[];
 extern u8 *D_800926C4;
 extern u8 *g_BattleSpriteSlots;
 extern u8 *g_BattleSpritePrimBuffers;
@@ -837,6 +837,93 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
+
+/* PARK 92.52% at retail's exact size (0x210 bytes, 132 instructions). The body
+   below is structurally byte-for-byte retail: the preheader's camera loads into
+   s0/t9/t8, the 0xA-byte entry stride over the double-buffered draw index, the
+   three-vertex RTPT accumulator, the per-prim SZ1/SZ2/SZ3 read-back through
+   0x1F8000B0, the 24-bit OT link and the shared fall gravity/expiry tail. Only
+   REGISTER ASSIGNMENT differs, on five loop-carried values: retail has
+   counter=$t0, entry=$t1, entry+7=$a1, prim=$a2, state=$a3; gcc puts
+   state=$t0, counter=$t1, entry=$a0, entry+7=$a2, prim=$a3. Tried with no
+   effect on the allocation: the local declaration order (seven permutations),
+   reading the camera as s32*/u32*, u32 state / u32 counter / s32 link / u32
+   buffer, and loading the camera before vs after the entry/prim preheader. The
+   single size lever that DID land here was dropping a pPrim local and masking
+   the prim address inline, `(u32)(pTemplate + k) & 0xFFFFFF` (540 -> 528, the
+   extra instructions were a callee-saved $s1 pair plus one unfilled load delay).
+   The permuter cannot run on this body (the inline-asm GTE macros fail its
+   parser). Facts: D_800926C0 is an ARRAY of prim-template pointers indexed by
+   g_BattleDrawBufferIndex (D_800926C4 is element 1); BattleSpriteEntry.groundY
+   is s16, read with lh, and the gravity tail compares a s16 copy of y. */
+
+/*
+void func_8007D918(u32 *pOt) {
+    BattlePrimTemplate *pTemplate;
+    BattleSpriteEntry *pEntry;
+    u8 *pScratch = (u8 *)0x1F800000;
+    u32 *pLink;
+    s32 camX;
+    s32 camY;
+    s32 camZ;
+    u32 link;
+    s32 buffer;
+    s16 y;
+    s32 n;
+    s32 i;
+
+    camX = *(s32 *)(pScratch + 0x00);
+    camY = *(s32 *)(pScratch + 0x04);
+    camZ = *(s32 *)(pScratch + 0x08);
+    buffer = g_BattleDrawBufferIndex;
+    pEntry = (BattleSpriteEntry *)(g_BattleSpriteEntries + buffer * sizeof(BattleSpriteEntry));
+    pTemplate = (BattlePrimTemplate *)D_800926C0[buffer];
+    n = 0;
+    for (i = buffer; i < 0xFC; i += 2, pEntry++) {
+        if (pEntry->life == 0) {
+            continue;
+        }
+        *(s16 *)(pScratch + 0x10) = pEntry->x - camX;
+        *(s16 *)(pScratch + 0x12) = pEntry->y - camY;
+        *(s16 *)(pScratch + 0x14) = pEntry->z - camZ;
+        if (n == 0) {
+            gte_ldv0((SVECTOR *)(pScratch + 0x10));
+            n = 1;
+        } else if (n == 1) {
+            gte_ldv1((SVECTOR *)(pScratch + 0x10));
+            n = 2;
+        } else {
+            gte_ldv2((SVECTOR *)(pScratch + 0x10));
+            n = 0;
+            gte_rtpt();
+            gte_stsxy0(&pTemplate[0].x);
+            gte_stsxy1(&pTemplate[1].x);
+            gte_stsxy2(&pTemplate[2].x);
+            gte_stsz1(pScratch + 0xB0);
+            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            link = *pLink;
+            *pLink = (u32)(pTemplate + 0) & 0xFFFFFF;
+            *(u32 *)((u32)(pTemplate + 0) & 0xFFFFFF) = link | 0x02000000;
+            gte_stsz2(pScratch + 0xB0);
+            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            link = *pLink;
+            *pLink = (u32)(pTemplate + 1) & 0xFFFFFF;
+            *(u32 *)((u32)(pTemplate + 1) & 0xFFFFFF) = link | 0x02000000;
+            gte_stsz(pScratch + 0xB0);
+            pLink = &pOt[*(s32 *)(pScratch + 0xB0) >> 4];
+            link = *pLink;
+            *pLink = (u32)(pTemplate + 2) & 0xFFFFFF;
+            *(u32 *)((u32)(pTemplate + 2) & 0xFFFFFF) = link | 0x02000000;
+            pTemplate += 3;
+        }
+        y = pEntry->y + pEntry->vy;
+        pEntry->y = y;
+        if (y >= pEntry->groundY) {
+            pEntry->life = 0;
+        }
+        pEntry->vy += 2;
+    }
+*/
 
 void BattleInitSpriteBuffers(void) {
     u8 *pTemplateBuf;
