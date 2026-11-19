@@ -583,10 +583,6 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 // The permuter DOES parse this body now (`&vec`-style macro args; base=5173) and found
 // the 2D `u16 quadSlot` edit in 5 minutes, so run it again from this body rather than
 // hand-iterating. Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
-INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
-
-/*
-
 void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex) {
     ModelJoint* pSkeleton;
     ModelMesh* pMesh;
@@ -718,7 +714,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
         otz = depthBuf[0] >> g_GfxOTDepthShift;
         pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
-        pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
+        pOt[otz] = pOt[otz] | ((u32)pPoly & 0xFFFFFF);
         if (otz >= 0x2D9) {
             otz = 0x2D8;
         }
@@ -921,7 +917,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         pEntry++;
     }
 }
-*/
 
 
 // Decoded from the .s, verified against the near-twin function LibGearRenderModel
