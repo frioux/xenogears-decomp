@@ -10,10 +10,22 @@
 // display buffer one MENU_SCREEN_HEIGHT further down in VRAM.
 #define MENU_SCREEN_WIDTH 320
 #define MENU_SCREEN_HEIGHT 224
-// MenuUnk2 records[]/chunks[] and the card slot arrays hold this many entries per memory
-// card, so a card's entries start at index * MENU_CARD_RECORD_COUNT.
+// Where that rect's image sits in VRAM
+#define MENU_SCREEN_VRAM_X 0x2C0
+#define MENU_SCREEN_VRAM_Y 0x100
+// Width of the shaded rectangle the cursor draws behind itself, unless the overlay widens it
+#define MENU_CURSOR_SHADE_WIDTH 0x40
 // Frames a card operation is given to settle, counted in frames or in vsyncs.
 #define MENU_CARD_OPERATION_WAIT_FRAMES 59
+// Frames MenuWaitForDiscChange renders once the disc change prompt is under way
+#define MENU_DISC_CHANGE_WAIT_FRAMES 29
+// Menu sound effect ids; MENU_SOUND_CONFIRM and MENU_SOUND_ERROR are in system/menu.h
+#define MENU_SOUND_CURSOR 1
+#define MENU_SOUND_CANCEL 3
+// Mapped inputs; the rest of the MENU_INPUT_* group is in system/menu.h
+#define MENU_INPUT_SQUARE 6
+#define MENU_INPUT_TRIANGLE 7
+#define MENU_INPUT_SELECT 0xC
 
 extern u16 g_MenuBitMasksLsbFirst[]; // Bit masks, LSB first
 extern u16 g_MenuBitMasksMsbFirst[]; // Bit masks, MSB first
@@ -62,11 +74,11 @@ void MenuInitializeWindowBorders(void);
 void func_801C6F70(void);
 
 void MenuSetupScreen(void) {
-    g_Menu->pSelectionMenu->vramRect.x = 0x2C0;
-    g_Menu->pSelectionMenu->vramRect.y = 0x100;
+    g_Menu->pSelectionMenu->vramRect.x = MENU_SCREEN_VRAM_X;
+    g_Menu->pSelectionMenu->vramRect.y = MENU_SCREEN_VRAM_Y;
     g_Menu->pSelectionMenu->vramRect.w = MENU_SCREEN_WIDTH;
     g_Menu->pSelectionMenu->vramRect.h = MENU_SCREEN_HEIGHT;
-    g_Menu->pCursorPrims->shadeWidth = 0x40;
+    g_Menu->pCursorPrims->shadeWidth = MENU_CURSOR_SHADE_WIDTH;
     MenuBuildAvailableCharacters();
     MenuResetRenderContext();
     MenuInitializeMenuStrings();
@@ -155,22 +167,22 @@ void MenuPollInput(void) {
         while (ControllerPopState()) {
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_RIGHT) {
                 input = MENU_INPUT_RIGHT;
-                MenuPlaySoundEffect(1);
+                MenuPlaySoundEffect(MENU_SOUND_CURSOR);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) {
                 input = MENU_INPUT_DOWN;
-                MenuPlaySoundEffect(1);
+                MenuPlaySoundEffect(MENU_SOUND_CURSOR);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_LEFT) {
                 input = MENU_INPUT_LEFT;
-                MenuPlaySoundEffect(1);
+                MenuPlaySoundEffect(MENU_SOUND_CURSOR);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_UP) {
                 input = MENU_INPUT_UP;
-                MenuPlaySoundEffect(1);
+                MenuPlaySoundEffect(MENU_SOUND_CURSOR);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
@@ -180,29 +192,29 @@ void MenuPollInput(void) {
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_CROSS) {
                 input = MENU_INPUT_BACK;
-                MenuPlaySoundEffect(3);
+                MenuPlaySoundEffect(MENU_SOUND_CANCEL);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_SQUARE) {
-                input = 6;
+                input = MENU_INPUT_SQUARE;
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_TRIANGLE) {
-                input = 7;
+                input = MENU_INPUT_TRIANGLE;
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_L1) {
                 input = MENU_INPUT_PREV;
-                MenuPlaySoundEffect(1);
+                MenuPlaySoundEffect(MENU_SOUND_CURSOR);
                 break;
             }
             if (g_C1ButtonStatePressedOnce & CTRL_BTN_R1) {
                 input = MENU_INPUT_NEXT;
-                MenuPlaySoundEffect(1);
+                MenuPlaySoundEffect(MENU_SOUND_CURSOR);
                 break;
             }
             if (g_C1ButtonStateReleased & CTRL_BTN_SELECT) {
-                input = 12;
+                input = MENU_INPUT_SELECT;
                 break;
             }
         }
@@ -421,7 +433,7 @@ void MenuWaitForDiscChange(u8 index) {
             if (func_801E93A0(index + 1)) {
                 MenuFreeWindow2Strings();
                 func_801D2F4C(0x89);
-                for (counter = 29; counter != 0; counter--) {
+                for (counter = MENU_DISC_CHANGE_WAIT_FRAMES; counter != 0; counter--) {
                     MenuRenderFrame();
                 }
                 MenuFreeWindow2Strings();
