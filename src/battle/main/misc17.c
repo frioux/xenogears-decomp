@@ -188,26 +188,18 @@ void BattleDrawCharStatusIfFlagged(u8 arg0, char arg1, u8 arg2) {
         g_BattleGraphicsWork->pPacketPrims[0x66B] = 0;
     }
 }
-/* 64.13%: shape is right (two palette stores, four BattleSetPolyFT4Rect calls with
-   the arg0/0x60/0x10 stack args, trailing 0x668 store) but retail keeps
-   `&g_BattlePrimStartIndex` in s0 (`lui/addiu` once) where gcc rematerialises
-   `lui/lw g_BattlePrimStartIndex` at each use and a `lui/lbu` at the end; that also costs
-   the 4th saved register (frame 56 vs 48) and swaps the s1/s2 roles of
-   arg0/0x60. Tried: plain g_BattlePrimStartIndex (64.13), `s32 *pIndex = &g_BattlePrimStartIndex`,
-   a `u8 *pPal` plus an s32 cache of it (59.64, and the body grows). This is
-   misc16's documented &g_BattlePrimStartIndex wall. */
-/*
 void func_80091EC4(u8 arg0) {
-    *(u16 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xE) = g_SystemPalette1;
-    *(u16 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x5E) = g_SystemPalette1;
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0x50), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xA0), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + g_BattlePrimStartIndex * 0x28 + 0xF0), 0x120, 0x34, 0x40, arg0, 0x10, 0x60);
-    *(u8 *)(*(u8 **)(g_BattleGraphicsWork + 0xA230) + 0x668) = *(u8 *)&g_BattlePrimStartIndex;
+    u32 zero;
+
+    zero = 0;
+    *(u16 *)(g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28)) + 0xE) = g_SystemPalette1;
+    *(u16 *)(g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28)) + 0x5E) = g_SystemPalette1;
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[zero] * 0x28), 0x34, 0x34, 0, arg0, 0x60, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0x50)), 0xB8, 0x34, 0x78, arg0, 0x60, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xA0)), 0x9C, 0x34, 0, arg0, 0x10, 0x60);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xF0)), 0x120, 0x34, 0x40, arg0, 0x10, 0x60);
+    g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
 void BattleDrawSlotStatusPanel(void) {
     u32 zero;
     u8 **ppPrims;
