@@ -495,47 +495,52 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
-/* 85.48%: retail keeps neither table offset in a register across the first
-   compare (both `arg * 0x1C` are scratch there) and reuses ONE saved register
-   ($s1) for ofsB in the middle and ofsA at the end; with ofsA/ofsB as locals
-   gcc keeps both live in $s1/$s3 from the top (692 vs 684 bytes, same
-   instruction multiset). Spelling the offsets inline instead makes gcc hoist
-   `la g_BattleSlotRecords` as a base pointer (67.96%, 0x30 frame). Also open: the sel
-   test order - retail computes `sltiu(arg0,3)` in the compare's delay slot,
-   `xori/sll 3`, then `sltiu(arg1,3)` + `beqz`/`move sel,0`/`move sel,v1`;
-   `(arg1 < 3) ? (arg0 >= 3) * 8 : 0` (82.50%), `sel = (arg0>=3)*8; if
-   (arg1>=3) sel = 0;` (85.48%) both put the arg1 test first. The tail's
-   `slot*4 + char*0x20 g_BattleSlotParamTable` operand order and the `if (arg0 < 3)` layout
-   (then = <3 at offsets 4/6, else = >=3 at 0x10/0x12) are right.
-void func_80087EDC(u8 arg0, u8 arg1) {
+/* 82.72%, 692 bytes (retail 684). The sel ladder is now retail's
+   (`sel = 0; if (arg1 < 3) sel = (arg0 >= 3) * 8;`), the mask needs
+   `(u16)BattleMaskHasSlotBit(...)` (without the cast the `andi v0,v0,0xFFFF` after
+   the jal is missing) and the parameters are s32 with `(u8)` casts - u8 params
+   lose the repeated `andi` retail emits at every use.
+   Residual: retail recomputes `arg0 * 0x1C` after the battle of calls and reuses
+   ONE saved register ($s1) for ofsB in the middle and ofsA at the tail, while gcc
+   keeps both live from the top ($s1/$s3, +8 bytes); the tail also reads
+   g_BattleSlotRecords[ofsA] before D_800C3EB5[ofsA] where retail reads the reverse.
+   Dead spellings measured: one `ofs` variable reassigned after the loop (720),
+   ofsA/ofsB inline at every site (652, 66.43%), ofsA assigned only at the tail
+   (700 and the prologue scatters, 84.84%), a typed `BattleCharSlotRow` struct view
+   (564, 60.05%: gcc merges the loads). Permuter 1679 iterations from this body,
+   base=3246 best=2636, and its only find is a dead `if (D_800C3EC0)` around the
+   sel assignment - not real source.
+*/
+/*
+void func_80087EDC(s32 arg0, s32 arg1) {
     s32 ofsA;
     s32 ofsB;
     s32 sel;
     s32 i;
 
-    ofsA = arg0 * 0x1C;
-    ofsB = arg1 * 0x1C;
+    ofsA = (u8)arg0 * 0x1C;
+    ofsB = (u8)arg1 * 0x1C;
     if (g_BattleSlotRecords[ofsA] == g_BattleSlotRecords[ofsB]) {
         return;
     }
-    sel = (arg0 >= 3) * 8;
-    if (arg1 >= 3) {
-        sel = 0;
+    sel = 0;
+    if ((u8)arg1 < 3) {
+        sel = ((u8)arg0 >= 3) * 8;
     }
     if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2] >= 4) {
         return;
     }
-    BattleReleaseCharSlot(arg0);
+    BattleReleaseCharSlot((u8)arg0);
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2]++;
     for (i = 0; i < 4; i++) {
-        if (BattleMaskHasSlotBit(D_800D301D[(g_BattleSlotRecords[ofsB] + sel) << 2], i) == 0) {
+        if ((u16)BattleMaskHasSlotBit(D_800D301D[(g_BattleSlotRecords[ofsB] + sel) << 2], i) == 0) {
             break;
         }
     }
     D_800C3EB5[ofsA] = i;
     g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
     D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] |= BattleSlotBitMask(D_800C3EB5[ofsA]);
-    if (arg0 < 3) {
+    if ((u8)arg0 < 3) {
         *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 4);
         *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(D_800C3EB5[ofsA] * 4 + g_BattleSlotRecords[ofsA] * 0x20 + g_BattleSlotParamTable + 6);
     } else {
