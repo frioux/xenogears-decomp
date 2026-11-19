@@ -291,17 +291,6 @@ extern void SoundPlaySoundEffectOnFreePair(s32 arg0);
 extern s32 SoundGetActiveElementMask(s32 arg0);
 extern s16 SoundGetPendingSpuCommandType(s32 arg0);
 
-// Best 94.91% under the unit preset (gcc 2.7.2-cdk, -G8 and -G0 alike; 93.69
-// under gcc 2.6.0). Structure is complete and in order; what is left:
-// (1) register roles - retail has s0=pEntry, s1=pTable, s2=pBuffer1, s3=pWds,
-// s4=arg0, s5=arg1, while arg0 takes $s0 here and pEntry stays live across the two
-// poll loops in $s3 (retail re-forms &D_800C35DC[arg0] after the loops with a fresh
-// lui/addiu, so pEntry is dead there and $s3 is free for pWds);
-// (2) the two store-then-reload pairs retail keeps ("sh v0,16(sp)" + "lhu a0,16(sp)",
-// likewise at 0x18(sp)) - gcc forwards the value from the register here.
-// Tried and worse: request accessed through a pointer local (88.0, needs $s6),
-// pTable[arg0] spelled inline instead of the pEntry local (88.0).
-/*
 void func_800B838C(s32 arg0, s32 arg1) {
     BattleArchiveRequest request;
     BattleArchiveEntry *pEntry;
@@ -309,12 +298,14 @@ void func_800B838C(s32 arg0, s32 arg1) {
     void *pBuffer1;
     void *pBuffer2;
     void *pWds;
+    s32 fileIndex;
     s32 id;
 
     BattleFreeWdsEntry();
     BattleWaitArchiveSync();
     ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
 
+    // the table needs its own pointer local; spelling every site as D_800C35DC[i] moves a register.
     pTable = D_800C35DC;
     pEntry = &pTable[arg0];
     request.fileIndex1 = pEntry->fileIndex;
@@ -323,7 +314,8 @@ void func_800B838C(s32 arg0, s32 arg1) {
     if (arg0 == 8) {
         request.fileIndex2 = pTable[8].fileIndex + 1;
     } else {
-        request.fileIndex2 = pEntry->fileIndex + 1 + arg1;
+        fileIndex = pEntry->fileIndex + 1;
+        request.fileIndex2 = fileIndex + arg1;
     }
     pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(request.fileIndex2), 0);
     request.pBuffer2 = pBuffer2;
@@ -337,7 +329,7 @@ void func_800B838C(s32 arg0, s32 arg1) {
     while (SoundGetPendingSpuCommandType(0) != 0) {
         func_800BE790();
     }
-    id = pEntry->soundId + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
+    id = D_800C35DC[arg0].soundId + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
     SoundPlaySoundEffectOnFreePair(id);
     while (SoundGetActiveElementMask(id) != 0) {
         func_800BE790();
@@ -347,8 +339,6 @@ void func_800B838C(s32 arg0, s32 arg1) {
     HeapFree(pBuffer2);
     HeapFree(pBuffer1);
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B838C);
 
 /* The battle work block that g_BattleStateWork + 0x8000 starts: the render and
    pad state. Only the fields this unit touches are typed here. */
