@@ -440,9 +440,104 @@ void func_801C6400(void) {
    HeapFree(pBuffer);
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C65F4);
+#define FIELD_TEX_COUNT(_i) ((_i) * 6) + 0
+#define FIELD_TEX_PAGE(_i)  ((_i) * 6) + 1
+#define FIELD_CLUT_X(_i)    ((_i) * 6) + 2
+#define FIELD_CLUT_Y(_i)    ((_i) * 6) + 3
+#define FIELD_TPAGE_X(_i)   ((_i) * 6) + 4
+#define FIELD_TPAGE_Y(_i)   ((_i) * 6) + 5
+
+extern u32* g_MenuResourcesFile; // Relative offsets into the menu resources archive
+extern SoundFile* g_MenuSedsFile;
+
+// The game code the save file header is stamped with, "BASLUS-00664" (disc one) and
+// "BASLUS-01160" (disc two); 12 characters and the terminator.
+extern u32 D_801C5028[]; // "BASLUS-00664" as words
+extern u32 D_801C5038[]; // "BASLUS-01160" as words
+
+extern void ResolveArchiveEntryPointers(u32* pFile);
+extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
+extern void ModelLoadTextureBlock(u8* pData);
+extern void SoundAddSedsEntry(SoundFile* pSoundFile);
+extern void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDirentCount, s32* pTexPageId,
+    s32* pClutX, s32* pClutY, s32* pTexPageX, s32* pTexPageY);
+
+void func_801C65F4(void) {
+    TIM_IMAGE tim;
+    s32 metadata[18];
+    SoundFile* pSoundFile;
+    u32* pFileHandle;
+    u8* pData;
+    s32 i;
+
+    pFileHandle = g_MenuResourcesFile;
+    ResolveArchiveEntryPointers(pFileHandle);
+    pData = LZSSHeapDecompress((void*)pFileHandle[1], 1);
+    OpenTIM((u_long*)pData);
+    ReadTIM(&g_Menu->menuUnk2->tim);
+    memcpy(g_Menu->menuUnk2->gameSerialCode, D_801C5028, sizeof(g_Menu->menuUnk2->gameSerialCode));
+    memcpy(g_Menu->menuUnk2->discTwoGameSerialCode, D_801C5038, sizeof(g_Menu->menuUnk2->gameSerialCode));
+    g_Menu->menuUnk2->saveFileMagic[0] = 0x53;
+    g_Menu->menuUnk2->saveFileMagic[1] = 0x43;
+    g_Menu->menuUnk2->saveIconDisplayFlag = 0x11;
+    g_Menu->menuUnk2->saveBlockCount = 1;
+    bzero(g_Menu->menuUnk2->saveTitle, sizeof(g_Menu->menuUnk2->saveTitle));
+    memmove(g_Menu->menuUnk2->saveIconPalette, (u8*)g_Menu->menuUnk2->tim.caddr,
+        sizeof(g_Menu->menuUnk2->saveIconPalette));
+    memmove(g_Menu->menuUnk2->saveIconImage, (u8*)g_Menu->menuUnk2->tim.paddr,
+        sizeof(g_Menu->menuUnk2->saveIconImage));
+    HeapFree(pData);
+    pData = LZSSHeapDecompress((void*)pFileHandle[2], 1);
+    ModelLoadTextureBlock(pData);
+    HeapFree(pData);
+    g_Menu->resources = LZSSHeapDecompress((void*)pFileHandle[3], 0);
+    g_Menu->pStringBank = LZSSHeapDecompress((void*)pFileHandle[4], 0);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_STRING_DEFENSE,
+        &metadata[FIELD_TEX_COUNT(0)], &metadata[FIELD_TEX_PAGE(0)],
+        &metadata[FIELD_CLUT_X(0)], &metadata[FIELD_CLUT_Y(0)],
+        &metadata[FIELD_TPAGE_X(0)], &metadata[FIELD_TPAGE_Y(0)]);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_1,
+        &metadata[FIELD_TEX_COUNT(0)], &metadata[FIELD_TEX_PAGE(0)],
+        &metadata[FIELD_CLUT_X(0)], &metadata[FIELD_CLUT_Y(0)],
+        &metadata[FIELD_TPAGE_X(0)], &metadata[FIELD_TPAGE_Y(0)]);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_2,
+        &metadata[FIELD_TEX_COUNT(1)], &metadata[FIELD_TEX_PAGE(1)],
+        &metadata[FIELD_CLUT_X(1)], &metadata[FIELD_CLUT_Y(1)],
+        &metadata[FIELD_TPAGE_X(1)], &metadata[FIELD_TPAGE_Y(1)]);
+    ResourceHelperGetTexCoords(g_Menu->resources, MENU_TEX_PORTRAIT_PARTY_MEMBER_3,
+        &metadata[FIELD_TEX_COUNT(2)], &metadata[FIELD_TEX_PAGE(2)],
+        &metadata[FIELD_CLUT_X(2)], &metadata[FIELD_CLUT_Y(2)],
+        &metadata[FIELD_TPAGE_X(2)], &metadata[FIELD_TPAGE_Y(2)]);
+    metadata[FIELD_TPAGE_X(1)] += 0xC;
+    pData = LZSSHeapDecompress((void*)pFileHandle[5], 1);
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
+            OpenTIM((u_long*)&pData[g_Menu->pManager->currentCharacterIDs[i] * 0xB20]);
+            ReadTIM(&tim);
+            tim.crect->x = metadata[FIELD_CLUT_X(i)];
+            tim.crect->y = metadata[FIELD_CLUT_Y(i)];
+            tim.prect->x = metadata[FIELD_TPAGE_X(i)];
+            tim.prect->y = metadata[FIELD_TPAGE_Y(i)];
+            LoadImage(tim.crect, tim.caddr);
+            LoadImage(tim.prect, tim.paddr);
+        }
+    }
+    DrawSync(0);
+    HeapFree(pData);
+    if (g_MenuDebugEnabled) {
+        ArchiveSetIndex(0x10, 2);
+        pSoundFile = HeapAlloc(ArchiveDecodeAlignedSize(5), 0);
+        g_MenuSedsFile = pSoundFile;
+        ArchiveReadFileToBuffer(5, pSoundFile, 0, 0x80);
+        ArchiveCdDataSync(0);
+        ArchiveSetIndex(0x10, 0);
+        SoundAddSedsEntry(g_MenuSedsFile);
+    }
+    g_Menu->pSoundFile = g_MenuSedsFile;
+    HeapFree(pFileHandle);
+}
+
 u_short MenuAndBitMaskLsbFirst(u_short mask, u_char index);
-void func_801C65F4(void);
 
 void MenuBuildAvailableCharacters(void) {
     u32 mask;
@@ -557,5 +652,47 @@ void MenuInitializeWindowBorders(void) {
         &g_Menu->texPageX3, &g_Menu->texPageY3
     );
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C6F70);
+// Screen size in pixels; the dim effect quad covers the whole framebuffer.
+#define MENU_SCREEN_WIDTH 320
+#define MENU_SCREEN_HEIGHT 224
+
+extern void MenuSetPolyG4Gradient(POLY_G4* pPoly, u_char r, u_char g, u_char b);
+
+void func_801C6F70(void) {
+    RECT rect;
+    s32 i;
+
+    rect.y = 0;
+    rect.x = 0;
+    rect.h = 0x100;
+    rect.w = 0x100;
+    MenuResetSelectionCursorFlags();
+    for (i = 0; i < 2; i++) {
+        MenuSetPolyG4Gradient(&g_Menu->pCursorPrims->polyG4s[i], 0x80, 0x80, 0);
+        SetSemiTrans(&g_Menu->pCursorPrims->polyG4s[i], 1);
+        SetLineF3(&g_Menu->pCursorPrims->lines1[i]);
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xCC) = 0;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xCD) = 0x40;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xCE) = 0;
+        SetLineF3(&g_Menu->pCursorPrims->lines2[i]);
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xFC) = 0;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xFD) = 0x40;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xFE) = 0;
+        SetPolyF4(&g_Menu->pCursorPrims->polysDimEffect[i]);
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA0) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA2) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA4) = MENU_SCREEN_WIDTH;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA6) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA8) = 0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAA) = MENU_SCREEN_HEIGHT;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAC) = MENU_SCREEN_WIDTH;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAE) = MENU_SCREEN_HEIGHT;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9C) = 0x80;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9D) = 0x80;
+        *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9E) = 0x80;
+        SetSemiTrans(&g_Menu->pCursorPrims->polysDimEffect[i], 1);
+        SetDrawMode(&g_Menu->pCursorPrims->drModes1[i], 0, 0, GetTPage(0, 0, 0x140, 0x80), &rect);
+        SetDrawMode(&g_Menu->pCursorPrims->drawModeDimEffect[i], 0, 0, GetTPage(0, 2, 0x180, 0), &rect);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C72BC);
