@@ -379,10 +379,10 @@ void func_80096494(u16 *pA, u16 *pB, u8 *pFlag) {
     }
     *pA = *pA * mul / 10;
     *pB = mul2 * *pB / 10;
-    if (((u16 *)&g_BattleActingSlot->unk04[0x2E])[0] & 0x10) {
+    if (((u16 *)g_BattleActingSlot->equipmentPercents)[0] & 0x10) {
         *pA += *pA / 5;
     }
-    if (((u16 *)&g_BattleTargetSlotEntry->unk04[0x2E])[0] & 0x10) {
+    if (((u16 *)g_BattleTargetSlotEntry->equipmentPercents)[0] & 0x10) {
         *pB += *pB / 5;
     }
 }
@@ -586,8 +586,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
    park (tools/scripts/permute.sh ... --minutes 10 -j 2), hand-ported, closed 124 differing
    instructions down to 74. Every one of them is a statement position or an own-pointer local:
    - the (u16 *)...unk68 += ... statement belongs BEFORE the unk9A[2] += one, not after it;
-   - the unk57[1] -> unk3C[0] copy in the characterId == 7 arm wants its own pointer local
-     (pUnk57 = g_BattleActingSlot->unk57) taken before the three statements above it;
+   - the attack -> unk3C[0] copy in the characterId == 7 arm wants its own pointer local
+     (pStats = &g_BattleActingSlot->unk57) taken before the three statements above it;
    - the blockFlags = 0 store wants its own pointer local (pSlot = g_BattleActingSlot;) taken
      after the maxHp store: that is what makes it store through the PRE-reload register, i.e.
      retail's 'sh zero,52(a1)' one += group earlier than a plain g_BattleActingSlot-> spelling
@@ -618,7 +618,7 @@ void func_80097D5C(void) {
     u8 *pFlags;
     u16 effectFlags;
     u8 *pSlotBytes;
-    u8 *pUnk57;
+    u8 *pStats;
 
     for (i = 0; i < 3; i++) {
         if (g_BattleActorCharIds[i] == BATTLE_SLOT_CHARACTER_NONE) {
@@ -638,39 +638,39 @@ void func_80097D5C(void) {
         if (g_BattleActingSlot->characterId == 4) {
             ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1028] = g_BattleActingSlot->unk04[0] + g_BattleActingSlot->unk04[0x18];
         } else {
-            ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1028] = g_BattleActingSlot->unk57[1] + g_BattleActingSlot->unk04[0];
+            ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1028] = g_BattleActingSlot->attack + g_BattleActingSlot->unk04[0];
         }
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x1029] = g_BattleActingSlot->evade;
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102A] = g_BattleActingSlot->unk57[2] + g_BattleActingSlot->unk04[0x29];
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102A] = g_BattleActingSlot->defense + g_BattleActingSlot->defenseFromAccessories;
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102B] = g_BattleActingSlot->hit;
         ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102C] = g_BattleActingSlot->ether;
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102D] = g_BattleActingSlot->unk5C[0];
-        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102E] = g_BattleActingSlot->unk57[3];
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102D] = g_BattleActingSlot->etherDefense;
+        ((u8 *)g_BattleCurWorkBlock + i * 8)[0x102E] = g_BattleActingSlot->agility;
         ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F4] = ((u32 *)&g_BattleActingSlot->unk3A[2])[0];
         ((u32 *)((u8 *)g_BattleCurWorkBlock + i * 8))[0x3F5] = ((u32 *)&g_BattleActingSlot->unk3A[6])[0];
         ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 4))[0x800] = g_BattleActingSlot->maxHp;
         pSlot = g_BattleActingSlot;
         effectFlags = 0;
         ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 4))[0x801] = g_BattleActingSlot->maxMp;
-        g_BattleActingSlot->unk57[1] += g_BattleActingSlot->unk04[0x24];
+        g_BattleActingSlot->attack += g_BattleActingSlot->attackFromEquipment;
         pSlot->blockFlags = 0;
-        g_BattleActingSlot->unk57[2] += g_BattleActingSlot->unk04[0x25];
-        g_BattleActingSlot->unk57[3] += g_BattleActingSlot->unk04[0x26];
-        g_BattleActingSlot->ether += g_BattleActingSlot->unk04[0x27];
-        g_BattleActingSlot->unk5C[0] += g_BattleActingSlot->unk04[0x28];
-        g_BattleActingSlot->evade += g_BattleActingSlot->unk04[0x2A];
-        g_BattleActingSlot->hit += g_BattleActingSlot->unk04[0x2B];
-        if (g_BattleActingSlot->unk57[3] >= 0x11) {
-            g_BattleActingSlot->unk57[3] = 0x10;
+        g_BattleActingSlot->defense += g_BattleActingSlot->defenseFromEquipment;
+        g_BattleActingSlot->agility += g_BattleActingSlot->agilityFromEquipment;
+        g_BattleActingSlot->ether += g_BattleActingSlot->etherFromEquipment;
+        g_BattleActingSlot->etherDefense += g_BattleActingSlot->etherDefenseFromEquipment;
+        g_BattleActingSlot->evade += g_BattleActingSlot->equipmentPercents[0];
+        g_BattleActingSlot->hit += g_BattleActingSlot->equipmentPercents[1];
+        if (g_BattleActingSlot->agility >= 0x11) {
+            g_BattleActingSlot->agility = 0x10;
         }
         if (g_BattleActingSlot->accessoryEffectFlags5 & 0x100) {
             g_BattleActingSlot->evade += g_BattleActingSlot->evade >> 2;
             g_BattleActingSlot->hit += g_BattleActingSlot->hit >> 2;
         }
-        g_BattleActingSlot->hp = g_BattleActingSlot->hp + g_BattleActingSlot->maxHp * g_BattleActingSlot->unk04[0x2C] / 20;
-        g_BattleActingSlot->mp = g_BattleActingSlot->mp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk04[0x2D] / 20;
-        g_BattleActingSlot->maxHp = g_BattleActingSlot->maxHp + g_BattleActingSlot->maxHp * g_BattleActingSlot->unk04[0x2C] / 20;
-        g_BattleActingSlot->maxMp = g_BattleActingSlot->maxMp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk04[0x2D] / 20;
+        g_BattleActingSlot->hp = g_BattleActingSlot->hp + g_BattleActingSlot->maxHp * g_BattleActingSlot->accessoryEffectFlags8 / 20;
+        g_BattleActingSlot->mp = g_BattleActingSlot->mp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk31 / 20;
+        g_BattleActingSlot->maxHp = g_BattleActingSlot->maxHp + g_BattleActingSlot->maxHp * g_BattleActingSlot->accessoryEffectFlags8 / 20;
+        g_BattleActingSlot->maxMp = g_BattleActingSlot->maxMp + g_BattleActingSlot->maxMp * g_BattleActingSlot->unk31 / 20;
         if (g_BattleActingSlot->hp >= 1000) {
             g_BattleActingSlot->hp = 999;
         }
@@ -739,11 +739,11 @@ void func_80097D5C(void) {
         if (g_BattleActingSlot->characterId == 7) {
             g_BattleTargetSlotState->hp = g_BattleActingSlot->hp * BATTLE_ACTOR_HP_SCALE;
             g_BattleTargetSlotState->maxHp = g_BattleActingSlot->maxHp * BATTLE_ACTOR_HP_SCALE;
-            pUnk57 = g_BattleActingSlot->unk57;
-            g_BattleTargetSlotState->unk3C[0] = pUnk57[1];
-            ((u16 *)&g_BattleTargetSlotState->unk68[8])[0] = g_BattleActingSlot->unk57[2] * 12;
-            g_BattleTargetSlotState->valueBonus = g_BattleActingSlot->unk5C[0] * 6;
-            g_BattleTargetSlotState->unk98 = g_BattleActingSlot->unk57[3];
+            pStats = &g_BattleActingSlot->unk57;
+            g_BattleTargetSlotState->unk3C[0] = pStats[1];
+            ((u16 *)&g_BattleTargetSlotState->unk68[8])[0] = g_BattleActingSlot->defense * 12;
+            g_BattleTargetSlotState->valueBonus = g_BattleActingSlot->etherDefense * 6;
+            g_BattleTargetSlotState->unk98 = g_BattleActingSlot->agility;
             effectFlags = g_BattleTargetSlotState->accessoryEffectFlags1 | 0x3C4;
             g_BattleTargetSlotState->accessoryEffectFlags1 = effectFlags;
             if (g_BattleActingSlot->accessoryEffectFlags2 & BATTLE_GEAR_EFFECT_FLAG) {

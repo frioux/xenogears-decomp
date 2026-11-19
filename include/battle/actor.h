@@ -193,7 +193,10 @@ typedef struct {
     /* 0x08A */ s16 posY;
     /* 0x08C */ s16 posZ;
     /* 0x08E */ u16 moveDistance; // the distance a move command stops at: the distance commands scale its operand by the actor's size, and command 0x2E copies it into arrivalDistance
-    /* 0x090 */ u8 unk90[0x8];
+    /* 0x090 */ s16 unk90; // an offset a queued command adds to the vector it tweens; negative = none, as in libgear's Model
+    /* 0x092 */ u16 unk92;
+    /* 0x094 */ u16 blendOffsetX; // added to the command's x, as in libgear's Model (func_800AE2A4)
+    /* 0x096 */ u16 blendOffsetY; // and to its y
     /* 0x098 */ s16 stepIndex; // the move command's current step; -1 = none installed
     /* 0x09A */ s16 stepCount; // steps the move command runs; -1 = repeat forever
     /* 0x09C */ s16 pointIndex; // points of the current step already run
@@ -272,7 +275,18 @@ typedef struct {
     /* 0x000 */ u16 flags;
     /* 0x002 */ u8 chance; // percent, rolled against rand() % 100 by BattleTryApplySlotCondition
     /* 0x003 */ u8 conditionKind; // passed as that function's kind word; its bits pick the condition word to clear
-    /* 0x004 */ u8 unk04[0x2E];
+    /* 0x004 */ u8 unk04[0x24];
+    // The equipment bonuses of the character record these 0xA4 bytes are (include/main/game.h,
+    // GameCharacter at the same offsets): misc18's func_80097D5C adds each to the stat it names.
+    /* 0x028 */ u8 attackFromEquipment;
+    /* 0x029 */ u8 defenseFromEquipment;
+    /* 0x02A */ u8 agilityFromEquipment;
+    /* 0x02B */ u8 etherFromEquipment;
+    /* 0x02C */ u8 etherDefenseFromEquipment;
+    /* 0x02D */ u8 defenseFromAccessories;
+    /* 0x02E */ u8 equipmentPercents[0x2]; // GameCharacter's hit and evade percentages from equipment, in that order; func_80097D5C adds [0] to evade and [1] to hit
+    /* 0x030 */ u8 accessoryEffectFlags8; // as in GameCharacter: the type-8 accessory flag word, summed per accessory
+    /* 0x031 */ u8 unk31;
     /* 0x032 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, as in GameCharacter: bit 0x40 doubles the condition timer, the 0x400/0x200 pair picks a drop rate
     /* 0x034 */ u16 blockFlags; // 0x4000/0x8000: the action is nullified; the row's actionFlags 0x100 picks which bit is tested
     /* 0x036 */ u16 unk36;
@@ -284,9 +298,13 @@ typedef struct {
     /* 0x052 */ u16 maxMp; // drawn as a gauge target like maxHp; the growth copy caps mp and maxMp at 99
     /* 0x054 */ u16 unk54;
     /* 0x056 */ u8 characterId; // indexes the per-character g_GameState table
-    /* 0x057 */ u8 unk57[0x4]; // +1/+2/+3 mirror GameCharacter's attack/defense/agility; nothing reads them yet
+    /* 0x057 */ u8 unk57;
+    /* 0x058 */ u8 attack;
+    /* 0x059 */ u8 defense;
+    /* 0x05A */ u8 agility;
     /* 0x05B */ u8 ether; // the ether action's amount is ether * row->power
-    /* 0x05C */ u8 unk5C[0x2];
+    /* 0x05C */ u8 etherDefense;
+    /* 0x05D */ u8 unk5D;
     /* 0x05E */ u8 evade; // the defender's evasion percent
     /* 0x05F */ u8 hit; // the attacker's hit percent
     /* 0x060 */ u8 conditionChance; // what chanceSource 0 reads: rolled against rand() % 100 in place of the row's own chance
