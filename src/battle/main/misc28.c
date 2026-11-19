@@ -88,7 +88,7 @@ extern void SetRotMatrix(MATRIX *m);
 extern void SetTransMatrix(MATRIX *m);
 extern long RotTransPers3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, long *sxy0, long *sxy1, long *sxy2, long *p, long *flag);
 extern void AddPrim(void *ot, void *p);
-extern void func_800B7160(BattleEffectTask *pTask);
+extern void BattleDrawEffectTable(BattleEffectTask *pTask);
 extern u_long *g_GfxCurOT;
 extern u_long *g_BattleSavedGfxOT;
 extern void SpriteDrawModelPartsInBaseMatrix(void *pTask);
@@ -417,7 +417,7 @@ void func_800B6F0C(BattleEffectTask *pTask) {
 */
 void BattleStoreGfxOrderingTable(BattleEffectTask *pTask) {
     g_BattleSavedGfxOT = g_GfxCurOT;
-    func_800B7160(pTask);
+    BattleDrawEffectTable(pTask);
 }
 /* Draws every live record of the effect table under its own 160/112/512 GTE
    setup: each record's rotation and position are transformed, and its
@@ -430,7 +430,7 @@ void BattleStoreGfxOrderingTable(BattleEffectTask *pTask) {
    g_BattleStateWork + 0x8000 address formation only survives as two assignments;
    otIndex likewise keeps the >> 6 ahead of the ordering-table load. */
 
-void func_800B7160(BattleEffectTask *pTask) {
+void BattleDrawEffectTable(BattleEffectTask *pTask) {
     long geomOffset[2];
     MATRIX mtx;
     long depth;
