@@ -11,13 +11,18 @@ typedef struct {
 // include/battle/actor.h); only the words src/battle/main/misc1 reads are named.
 typedef struct {
     /* 0x000 */ u16 flags; // 0xC000 = the slot's action is nullified, 0x8000 selects which half
-    /* 0x002 */ u8 unk02[2];
+    /* 0x002 */ u16 unk02;
     /* 0x004 */ u16 unk04; // 0x1000: the slot has a pending slot-action
     /* 0x006 */ u8 unk06[0x82];
     /* 0x088 */ u32 effectFlags4Pair; // activeEffectFlags4 and accessoryEffectFlags4 as one word
     /* 0x08C */ u8 unk8C[0x18];
     /* 0x0A4 */ u16 stateFlags; // the first word of the row's BattleSlotState, 0xC000 as above
-    /* 0x0A6 */ u8 unkA6[0xCA];
+    /* 0x0A6 */ u8 unkA6[0x12];
+    // The hp pair in 1/256ths that the display value ratios are taken of, as in
+    // misc8.c's BattleSlotEntry.
+    /* 0x0B8 */ s32 scaledHp;
+    /* 0x0BC */ s32 scaledMaxHp;
+    /* 0x0C0 */ u8 unkC0[0xB0];
 } BattleSlotRow; // Size: 0x170
 
 // Digit sprite ids are indices into the glyph set that starts at this id.
@@ -107,6 +112,13 @@ extern u8 D_800D3298;
 extern u8 g_BattleSlotEnabledFlags[];
 extern BattleSlotRow g_BattleSlotEntries[];
 extern BattleSlotRow g_BattleSlotEntriesBase[];
+extern u16 D_800D2D38; // hp display value, split into digits by func_80072F38
+extern u16 D_800D2E58; // the same hp, kept for the gauge
+extern u16 D_800D2FE0; // max hp display value, split into digits by func_80072F38
+extern u16 D_800D3330; // the same max hp
+extern s32 D_800D3018; // scaled hp display value, split into digits by func_80072F38
+extern s32 D_800D333C; // the same scaled hp
+extern s32 D_800D3668; // scaled max hp, only stored
 extern u16 D_800CCD6C[];
 extern u16 D_800CCD6E[];
 extern u8 D_800CCE44[];
@@ -273,6 +285,7 @@ void func_80070F40(void) {
     u8 savedFlags;
     s32 offset;
     s32 i;
+    u8 blank;
 
     nextMode = 1;
     g_BattleGraphicsWork = (u8 *)BattleAllocHeapBlock(0xA2B4, 0);
@@ -914,6 +927,137 @@ void BattleRenderActorStatDigits(s32 slot, u8 arg1) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80072F38);
+/* 81.16% under 2.6.0 (1088 bytes / 272 insns against retail's 1096 / 274). Every
+   instruction matches except the frame: retail saves THREE callee-saved registers
+   (s0 = 0x51EB851F, s1 = 0x66666667, s2 = 0xFF, each formed once and live to the
+   end) and ours saves two, because gcc rematerialises both division magics in
+   caller-saved registers instead of holding them across the function. Everything
+   else is exact: the 4 row loads, all 7 elided stores, all 11 digit-array stores,
+   the five-step scale division, both ratio ladders (one shared result = 2 arm) and
+   the three zero-suppression loops (their bound test must be an INDEXED for loop:
+   'for (i = 0; i < 2; i++)' with a break compiles to retail's lbu/bnez/sb/slt/bnez
+   shape, while a do-while over pointers gives sltu and an inverted branch).
+   Two measured constraints on the digit chains: hp/maxHp are s16 (a signed /100
+   and /10 with sll/sra pairs), the scaled value is s32; and the remainder must be
+   written as 'value = value - digit * 10' - with '%' gcc keeps the untruncated
+   quotient and drops the sll/sra pair. The intermediate stores to D_800D2D38 /
+   D_800D2FE0 / D_800D3018 survive only because the three chains are interleaved in
+   the source, so no two stores to the same global are adjacent (gcc deletes the
+   earlier one otherwise; measured on both layouts: 1028 bytes with the chains one
+   after another). Tried: pointer-biv loops, a do-while over pointers, a u8 blank
+   local for 0xFF, digits stored inline vs held to the end. A permuter run from
+   this body is the next step, not more hand shapes.
+s32 func_80072F38(s32 slot, u8 arg1) {
+    s16 hp;
+    s16 maxHp;
+    s32 scaledHp;
+    s32 scaledMaxHp;
+    s16 value;
+    s16 maxValue;
+    s32 scaledValue;
+    s16 hpDigit0;
+    s16 hpDigit1;
+    s16 maxHpDigit0;
+    s16 maxHpDigit1;
+    s32 scaledDigit0;
+    s32 scaledDigit1;
+    s32 scaledDigit2;
+    s32 scaledDigit3;
+    s32 result;
+    s32 i;
+
+    maxHp = g_BattleSlotEntriesBase[slot].unk02;
+    hp = g_BattleSlotEntriesBase[slot].flags;
+    scaledHp = g_BattleSlotEntriesBase[slot].scaledHp;
+    scaledMaxHp = g_BattleSlotEntriesBase[slot].scaledMaxHp;
+    D_800D3330 = maxHp;
+    D_800D2FE0 = maxHp;
+    D_800D2E58 = hp;
+    D_800D2D38 = hp;
+    D_800D333C = scaledHp;
+    D_800D3018 = scaledHp;
+    D_800D3668 = scaledMaxHp;
+
+    // 2 when the slot's value has run well ahead of its maximum, 1 when it is a
+    // quarter of the way there, 0 below that; the digit renderers take it as their
+    // shade mode.
+    result = 0;
+    if (arg1 != 0) {
+        if (scaledMaxHp / 8 >= scaledHp) {
+            result = 2;
+        } else if (scaledMaxHp / 4 >= scaledHp) {
+            result = 1;
+        }
+    } else if (maxHp / 8 >= hp) {
+        result = 2;
+    } else if (maxHp / 4 >= hp) {
+        result = 1;
+    }
+
+    value = D_800D2D38;
+    hpDigit0 = value / 100;
+    value = value - hpDigit0 * 100;
+    D_800D2D38 = value;
+    maxValue = D_800D2FE0;
+    maxHpDigit0 = maxValue / 100;
+    maxValue = maxValue - maxHpDigit0 * 100;
+    D_800D2FE0 = maxValue;
+    scaledValue = D_800D3018;
+    scaledDigit0 = scaledValue / 10000;
+    scaledValue = scaledValue - scaledDigit0 * 10000;
+    D_800D3018 = scaledValue;
+    hpDigit1 = value / 10;
+    value = value - hpDigit1 * 10;
+    D_800D2D38 = value;
+    maxHpDigit1 = maxValue / 10;
+    maxValue = maxValue - maxHpDigit1 * 10;
+    D_800D2FE0 = maxValue;
+    scaledDigit1 = scaledValue / 1000;
+    scaledValue = scaledValue - scaledDigit1 * 1000;
+    D_800D3018 = scaledValue;
+    scaledDigit2 = scaledValue / 100;
+    scaledValue = scaledValue - scaledDigit2 * 100;
+    g_BattleStatDigitSpriteIds[2] = scaledDigit2;
+    D_800D3018 = scaledValue;
+    scaledDigit3 = scaledValue / 10;
+    scaledValue = scaledValue - scaledDigit3 * 10;
+    g_BattleStatDigitSpriteIds[3] = scaledDigit3;
+    D_800D3018 = scaledValue;
+
+    blank = 0xFF;
+    g_BattleSlotDigitSpriteIds[0] = hpDigit0;
+    g_BattleSlotDigitSpriteIds[1] = hpDigit1;
+    g_BattleSceneResources[4] = maxHpDigit0;
+    g_BattleSceneResources[5] = maxHpDigit1;
+    g_BattleStatDigitSpriteIds[0] = scaledDigit0;
+    g_BattleStatDigitSpriteIds[1] = scaledDigit1;
+    g_BattleSlotDigitSpriteIds[2] = *(u8 *)&D_800D2D38;
+    g_BattleSceneResources[6] = *(u8 *)&D_800D2FE0;
+    g_BattleStatDigitSpriteIds[4] = *(u8 *)&D_800D3018;
+
+    // Blank the leading zeros of each group; the units digit is never blanked.
+    for (i = 0; i < 2; i++) {
+        if (g_BattleSlotDigitSpriteIds[i] != 0) {
+            break;
+        }
+        g_BattleSlotDigitSpriteIds[i] = blank;
+    }
+    for (i = 0; i < 2; i++) {
+        if (g_BattleSceneResources[4 + i] != 0) {
+            break;
+        }
+        g_BattleSceneResources[4 + i] = blank;
+    }
+    for (i = 0; i < 4; i++) {
+        if (g_BattleStatDigitSpriteIds[i] != 0) {
+            break;
+        }
+        g_BattleStatDigitSpriteIds[i] = blank;
+    }
+
+    return result;
+}
+*/
 void BattleRenderActorValueDigits(s32 slot) {
     u8 *pSlotGraphics;
     s16 amount;
