@@ -626,54 +626,35 @@ s32 func_8009ADA0(u8 arg0, u32* arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009ADA0);
-// best 90.27% (2.7.2-psx and gcc-2.6.0); 89.18% cdk. loop.c hoists the
-// D_800CCD68 base out of the 3..11 loop; retail re-forms it at both references.
-// PARKED (90.27%). Body COMPILES (park triage, round 111) but is 216 bytes
-// against retail's 220 - the missing instruction is the D_800CCD68 base that
-// retail re-forms per reference and gcc hoists, so it cannot link either.
-// Round 123 measured: index-first spelling (`i * 0x170 + (u32)D_800CCD68`) 90.27,
-// a `u16* q` pointer local assigned inside the loop 90.27, a `do { } while (0)`
-// around the RMW 87.36 (220 bytes, but it reaches 220 by a nop, not by keeping
-// the base per reference). retail's per-reference `lui at,%hi/addu at,at,v0` is
-// the maspsx expansion of a `symbol+reg` mem operand; ours materialises
-// `&D_800CCD68` with lui/addiu in the preheader (loop.c) and then does
-// `addu v0,v0,a1`. gcc's loop.c base hoist is the gate, not the loop shape.
-/*
-Best attempt: 88.27%. Everything matches except the 3..11 loop: the original
-   re-forms `lui at,%hi(D_800CCD68); addu at,at,v0` at BOTH memory references,
-   while gcc hoists the symbol base into a register before the loop (loop.c moves
-   the invariant), which then CSEs the address and drops 7 insns. Tried: plain
-   `*(u16*)(D_800CCD68 + i*0x170) &= 0xFFDF`, the `((u16*)(...))[0] &=` spelling
-   (86.36%), `u8 t` vs `s32 t` for the 0x56 temp. Everything else (two g_BattleCurWorkBlock
-   loads, the four zero stores, the `f & 0x2000` store and the BattleSetActorScaledHp call)
-   lines up exactly.
+// Retail's own symbol for the flag word this clears is D_800CCD68, which is
+// g_BattleWorkBlock + 0x80, i.e. the table's activeEffectFlags2; only the addend of
+// the relocation differs. The typed access is what keeps the address a symbol plus
+// the index register (the byte-pointer spelling makes gcc hoist the base out of the
+// loop and costs the function an instruction).
 void func_8009AEFC(u8 arg0) {
-    u8* p;
-    u16 f;
-    s32 t;
+    BattleTableEntry* p;
+    u16 keep;
+    s32 characterId;
+    u8 i;
 
-    *(u8*)((u8*)g_BattleCurWorkBlock + 0x5FC2) = 0;
-    p = arg0 * 0x170 + (u32)g_BattleCurWorkBlock;
-    f = *(u16*)(p + 0x80);
-    t = p[0x56];
-    *(u16*)(p + 0x7C) = 0;
-    *(u16*)(p + 0x84) = 0;
-    *(u16*)(p + 0x88) = 0;
-    *(u16*)(p + 0x8C) = 0;
-    *(u16*)(p + 0x80) = f & 0x2000;
-    if (t == 7) {
+    g_BattleCurWorkBlock->rowIndex = 0;
+    p = (BattleTableEntry*)(arg0 * sizeof(BattleTableEntry) + (u32)g_BattleCurWorkBlock);
+    keep = p->activeEffectFlags2;
+    characterId = p->characterId;
+    p->activeEffectFlags1 = 0;
+    p->activeEffectFlags3 = 0;
+    p->activeEffectFlags4 = 0;
+    p->activeEffectFlags7 = 0;
+    p->activeEffectFlags2 = keep & BATTLE_GEAR_EFFECT_FLAG;
+    if (characterId == 7) {
         BattleSetActorScaledHp(arg0, p);
     }
-    if (p[0x56] == 3) {
-        u8 i;
-
+    if (p->characterId == 3) {
         for (i = 3; i < 11; i++) {
-            *(u16*)(D_800CCD68 + i * 0x170) &= 0xFFDF;
+            g_BattleWorkBlock[i].activeEffectFlags2 &= ~0x20;
         }
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009AEFC);
 void BattleDecrementGearPartUse(void) {
     u8 sel = g_BattleCurWorkBlock->rowIndex;
     s32 idx;
@@ -826,50 +807,39 @@ void BattleInitItemInventoryAndConditionMasks(void) {
     ((u_char *)&g_GameState.unk16BC[10])[0x1B] = 7;
 }
 
-// best 94.23% under gcc-2.6.0 (93.87% on 2.7.2, 94.10% cdk): the g_BattleSlotConditions
-// base is hoisted out of the loop where retail re-forms lui/addiu per reference.
-// PARKED (93.87%). Body COMPILES (park triage, round 111; it needed the extern u8
-// g_BattleSlotConditions[] that is now at the top of the file). 532 bytes against retail's
-// 536 - the missing instruction is the g_BattleSlotConditions base retail re-forms per
-// reference and gcc hoists, the same gap as func_8009AEFC above.
+// PARKED (97.59%, 536 bytes = retail's size). Body COMPILES.
+// Round 306: the two g_BattleSlotConditions reads are typed here as
+// g_BattleWorkBlock[i].state.flags (D_800CCD68 is g_BattleWorkBlock + 0x15A, i.e.
+// state.flags), and that variant is what reproduces retail's per-reference
+// lui $at / addu $at form; the byte-array spelling made gcc hoist the base out of the
+// loop and cost an instruction (that was the old 93.87% / 532-byte park). The second
+// *arg0 read needs the volatile-lvalue cast, or gcc CSEs it away where retail reloads
+// it after the mult; that is what brings the body to retail's 536 bytes.
+// Remaining, three allocator/md ties: retail keeps maxHp in $v1 and hp in $a1 (this
+// body the other way round, in both arms), retail's arg0 pointer is $s2 and limit $s0
+// (here $s0 and $s2), and retail's rand() % 100 reads mfhi $a0 and shifts in place
+// where 2.7.2 emits mfhi $t1 / sra $a0,$t1,5 -- the same md difference that keeps
+// func_8009A9D0 and func_8009BD94 off 100. Try_flags on this body: 97.81 under
+// gcc-2.6.0, 94.63 under 2.7.2-cdk. Measured this round: limit/flags/drop declaration
+// order (no change), max/cur assigned cur-first (worse - $a1 becomes an address base).
 /*
-Best attempt: 93.87%. Every instruction from the `p[0x56] == 3` test onward
-   matches; the only difference is the g_BattleSlotConditions access. The original re-forms
-   `lui at,%hi(g_BattleSlotConditions); addu at,at,idx; lbu %lo(at)` at BOTH references,
-   while gcc's loop.c hoists the symbol base into a register before the loop
-   (`lui t1; addiu t1` at function entry) and then does `addu v0,idx,t1;
-   lbu 0(v0)` -- 4 bytes larger, which shifts every branch target before the
-   second block and swaps the max/cur registers ($a1/$v1). Same signature as the
-   func_8009AEFC park (D_800CCD68) in this unit.
-   Tried: `g_BattleSlotConditions[i*0x170]`, `((u32)i*0x170 + (u32)g_BattleSlotConditions)`,
-   `((u8*)&g_BattleSlotConditions)[(u32)i*0x170]`, `((u8*)&g_BattleSlotConditions)[i*0x170]`,
-   `*(volatile u8*)((u32)g_BattleSlotConditions + (u32)i*0x170)`, gcc-2.7.2-cdk (94.10%),
-   -O3 (93.87%) and -G0 (93.87%) -- all identical. Established from the matched
-   functions in this overlay (BattleGetGameCharacterField5 here, BattleActorPosXGreaterThan in misc12) that
-   gcc emits the $at form only when the symbol's address is credited to no
-   pseudo at all; here the same `sym + i*0x170` value occurs in both blocks, so
-   CSE credits it and the loop hoists it. Not source-reachable without changing
-   the instruction multiset (a hand-written shift chain for one of the two
-   indices would defeat the CSE but break retail's multiply-expansion chain).
-   NOTE: this file needs `extern u8 g_BattleSlotConditions[];` (added) or the attempt below
-   does not compile at all.
 void func_8009B46C(u16* arg0) {
     u8 count = 0;
     u8 i;
 
     for (i = 0; i < 3; i++) {
-        u8* p = (u8*)g_BattleCurWorkBlock + i * 0x170;
-        u8* q = p + 0xA4;
-        u32 cur;
+        BattleTableEntry* p = (BattleTableEntry*)(i * sizeof(BattleTableEntry) + (u32)g_BattleCurWorkBlock);
+        BattleSlotState* pState = &p->state;
         u32 max;
+        u32 cur;
 
-        if (p[0x56] == 0) {
-            if (g_BattleSlotConditions[i * 0x170] & 0x80) {
-                max = *(u32*)(p + 0x108);
-                cur = *(u32*)(p + 0x104);
+        if (p->characterId == 0) {
+            if (g_BattleWorkBlock[i].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
+                max = p->state.maxHp;
+                cur = p->state.hp;
             } else {
-                max = *(u16*)(p + 0x4E);
-                cur = *(u16*)(p + 0x4C);
+                max = p->maxHp;
+                cur = p->hp;
             }
             if (cur < (max >> 1)) {
                 count++;
@@ -878,13 +848,13 @@ void func_8009B46C(u16* arg0) {
                 count++;
             }
         }
-        if (p[0x56] == 3) {
-            if (g_BattleSlotConditions[i * 0x170] & 0x80) {
-                max = *(u32*)(q + 0x64);
-                cur = *(u32*)(q + 0x60);
+        if (p->characterId == 3) {
+            if (g_BattleWorkBlock[i].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
+                max = pState->maxHp;
+                cur = pState->hp;
             } else {
-                max = *(u16*)(p + 0x4E);
-                cur = *(u16*)(p + 0x4C);
+                max = p->maxHp;
+                cur = p->hp;
             }
             if (cur < (max >> 1)) {
                 count++;
@@ -895,16 +865,16 @@ void func_8009B46C(u16* arg0) {
         }
     }
     {
-        u32 limit = 0xA;
-        u16 f;
         s32 drop;
+        u16 flags;
+        s32 limit = 0xA;
 
         if (count != 0) {
-            *arg0 = *arg0 + count * (*arg0 >> 1);
+            *arg0 = *(volatile u16*)arg0 + count * (*arg0 >> 1);
         }
-        f = g_BattleActingSlot->accessoryEffectFlags5;
-        drop = (f & 0x400) ? 4 : 3;
-        if (f & 0x200) {
+        flags = g_BattleActingSlot->accessoryEffectFlags5;
+        drop = (flags & 0x400) ? 4 : 3;
+        if (flags & 0x200) {
             limit = 0x3C;
         }
         if (rand() % 100 < limit) {
@@ -1154,6 +1124,10 @@ void func_8009BAC4(u8 arg0, u8* pInfo, s16* pStatus) {
 // iterations. Also tried: two separate locals for idx and address, declaration
 // order swapped, u8* address local, u32 quotient local, 20u divisor, u32*
 // destination pointer local (70.17).
+// Round 306 re-measured it: the fully typed body
+// (g_BattleCurWorkBlock->slotAmounts[idx] = (u32)(power * maxHp) / 20) is 97.33%
+// with the identical tail swap, and a BattleWorkBlock* local for the store coalesces
+// away (97.33, no change), so the park below is still the best.
 // PARKED (98.33%).
 /*
 void func_8009BD94(void) {
