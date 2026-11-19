@@ -211,7 +211,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80091EC4);
 void func_8009209C(void) {
     u32 zero;
     u8 **ppPrims;
-    u8 *pPrims;
     u8 *pPal;
     u8 *pPal2;
 
@@ -220,10 +219,9 @@ void func_8009209C(void) {
     pPal = g_BattleGraphicsWork->pPacketPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28));
     *(u16 *)(pPal + 0xE) = g_SystemPalette1;
     pPal2 = *ppPrims - (-(((s32 *)g_BattlePrimStartIndex)[zero] * 0x28));
-    pPrims = pPal2;
-    *(u16 *)(pPrims + 0x5E) = g_SystemPalette1;
+    *(u16 *)(pPal2 + 0x5E) = g_SystemPalette1;
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28), 0x36, 0x62, 0, 0, 0x60, 0x40);
-    BattleSetPolyFT4Rect((POLY_FT4 *)(pPrims = g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x50)), 0xC2, 0x62, 0x78, 0, 0x60, 0x40);
+    BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x50)), 0xC2, 0x62, 0x78, 0, 0x60, 0x40);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xA0)), 0x96, 0x62, 0, 0, 0x10, 0x40);
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[zero] * 0x28 + 0xF0)), 0x122, 0x62, 0x40, 0, 0x10, 0x40);
     g_BattleGraphicsWork->pPacketPrims[0x668] = g_BattlePrimStartIndex[0];
