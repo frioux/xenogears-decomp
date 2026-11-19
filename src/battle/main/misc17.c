@@ -144,23 +144,24 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
-/* 98.22% (704 bytes against retail's 700): the shape is now right -- the two
-   table loads need the flag row's offset in a local (`off = (arg2 * 2 + arg1 +
-   0x16) * 0x28 + arg0 * 0x5F0;` then `*(u16 *)(g_BattleCellActionRows + off)`),
-   which is what makes gcc emit retail's symbol+register `lui $at` macro form
-   instead of materialising the base in a register; the row pick is 9/7/8 (the
-   old note's 9/8/7 was wrong for the 0x1000 case); the palette select needs the
-   prim base in a `u8 *pRec` local assigned BEFORE the if (retail computes
-   `pPacketPrims + index * 0x28` above the D_800D2F69 load); and the switch case
-   bodies have to be listed 0, 2, default, 1 to get retail's layout (case 1's body
-   emitted last; 97.48 with 1, 0, 2, default).
-   Residual: one instruction over. Retail fills the first beq's delay slot with
-   the `slti` and keeps case 1's body at the end; gcc puts a nop in that slot,
-   and the case-2 test comes out inverted (bne) with `li a1,0xDA` stolen into its
-   slot. `ofs = row * 4` / `ofs = col * 4` locals instead of the inline `row * 4`
-   are worse (94.68). A permuter run from this body is the next step.
-   Needs the externs added above: g_BattleCellActionRows, g_BattleActionRows,
-   g_BattleActionRowIconSprites, D_800D2F69/6A/6B, g_SystemPalette2. */
+/* 98.22% (704 bytes against retail's 700) under gcc 2.6.0 as well as 2.7.2, so
+   this is now a one-instruction residual and not a preset question. The whole
+   body reproduces retail: the two flag-row loads need the row offset in a local
+   (`off = (arg2 * 2 + arg1 + 0x16) * 0x28 + arg0 * 0x5F0;` then
+   `*(u16 *)(g_BattleCellActionRows + off)`), which is what makes gcc emit
+   retail's symbol+register `lui $at` macro form; the row pick is 9 (0x4000) /
+   7 (0x1000) / 8; the prim base needs a `u8 *pRec` local assigned before each
+   palette if; and the switch case bodies must be listed 0, 2, default, 1 to get
+   retail's layout (97.48 with 1, 0, 2, default).
+   The residual is the FIRST beq's delay slot: retail keeps case 1's body out of
+   line at the end of the switch and fills that slot with `slti v0,v1,2`, gcc
+   fills it with a nop (and, for the ==2 test, inverts to `bne` with the next
+   statement's `li a1,0xda` stolen into the slot where retail has
+   `beq` + `li s2,0x15`). Listing the cases 0, 2, 1, default instead DOES give
+   retail's exact 700 bytes (97.62) but puts case 1's body in that slot, so the
+   tie is which instruction gcc parks there, not the tree shape. Tried: every
+   case listing order, `s32 t = flags & 0xF; switch (t)`, `u8 t`, and a
+   pre-initialised `col = 0xC` with a two-case switch. */
 /*
 void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
     u16 flags;
