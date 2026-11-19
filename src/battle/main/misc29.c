@@ -17,6 +17,17 @@
 #define BATTLE_DISP_WIDTH 320
 #define BATTLE_DISP_HEIGHT 224
 
+// The per-battle actor table is 11 slots; the first three are not part of the
+// group func_800B88C4 counts.
+#define BATTLE_ACTOR_SLOT_COUNT 11
+#define BATTLE_FIRST_ACTOR_SLOT 3
+
+// Offset of the render/pad state inside the work block g_BattleStateWork starts.
+#define BATTLE_RENDER_STATE_OFFSET 0x8000
+
+// Ordering-table tags per frame buffer: the 0x1000-lentry tag list at frame + 0x70.
+#define BATTLE_OT_TAG_COUNT 0x1000
+
 extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
 extern u16 D_800591B4; // stage file index the next stage load uses; func_800B8068 clears it
@@ -432,32 +443,38 @@ void BattleInitStateWorkBuffers(void) {
     g_ModelRenderTestFlags = 0;
 }
 
-// Best 75.16%: the body is right apart from the loop's slot pointer, which gcc
-// folds into the symbol (%lo(g_BattleStateWork + 0x54)) where retail materialises
-// g_BattleStateWork and then does a separate `addiu v1,v0,0x54`, so the two lbu
-// displacements come out -2/0 instead of 6/8. Tried: &g_BattleStateWork[3], (u8*)cast
-// + 0x54, a typed pointer local, a pBase local shared with the tail - all fold.
 extern s32 D_800C3D58;
 extern s32 g_AnimScriptExtraTicks;
 extern s32 g_GfxOTDepthShift;
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
+// 91.71% (308 bytes vs retail's 304, same instruction multiset but one unfilled
+// load-delay slot). Everything is retail's except the address formation of
+// g_AnimScriptExtraTicks: retail hoists `lui a0,%hi` into the delay slot of the
+// `lw` that reloads D_800C3D58 after the loop and keeps the base in a0 across the
+// clamp and the later read/zero, while gcc here fills that slot with a nop and
+// forms the address (in v1) at the clamp store. The loop itself is exact once the
+// slot pointer is written INDEXED off g_BattleStateWork (a pSlot++ walk rebases
+// the induction register onto the 0x8 field: 65.88%), and pCount/pFrame locals
+// kept the base in $s0 across the loop (also 65.88-78.72%).
 /*
 void func_800B88C4(void) {
     BattleActorSlot *pSlot;
+    BattleEnvBlock *pEnv;
+    BattleRenderState *pWork;
     u8 *pBase;
-    u8 *pWork;
-    u8 *pOT;
-    u8 *pBuf;
-    s32 value;
+    u8 *pBuffer;
+    u8 *pOldOT;
+    s32 extraTicks;
     s32 n;
     s32 i;
 
     D_800C3D58 = 0;
-    pSlot = (BattleActorSlot *)((u8 *)g_BattleStateWork + 0x54);
-    for (i = 3; i != 0xB; i++) {
-        if (pSlot->unk6 < 0x11 && pSlot->inUse != 0) {
+    pSlot = (BattleActorSlot *)g_BattleStateWork;
+    for (i = BATTLE_FIRST_ACTOR_SLOT; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+        if (pSlot[i].unk6 < 0x11 && pSlot[i].inUse != 0) {
             D_800C3D58++;
         }
-        pSlot++;
     }
     n = D_800C3D58 / 2 - 1;
     g_AnimScriptExtraTicks = n;
@@ -465,27 +482,27 @@ void func_800B88C4(void) {
         g_AnimScriptExtraTicks = 0;
     }
     pBase = (u8 *)g_BattleStateWork;
-    pWork = pBase + 0x8000;
-    value = g_AnimScriptExtraTicks;
+    pWork = (BattleRenderState *)(pBase + BATTLE_RENDER_STATE_OFFSET);
+    extraTicks = g_AnimScriptExtraTicks;
     g_AnimScriptExtraTicks = 0;
-    pOT = *(u8 **)(pWork + 0xC50);
+    pBuffer = pBase + 0xB70;
+    pOldOT = pWork->pRenderEnv;
     g_GfxOTDepthShift = 2;
-    if (pOT == pBase + 0xB70) {
-        pBuf = pBase + 0x4BE0;
-    } else {
-        *(s32 *)(pWork + 0xDAC) = value;
-        pBuf = pBase + 0xB70;
+    pWork->unkDAC = extraTicks;
+    if (pOldOT == pBuffer) {
+        pBuffer = pBase + 0x4BE0;
     }
-    *(u8 **)(pWork + 0xC50) = pBuf;
-    *(u8 **)(pWork + 0xC54) = pBuf + 0x70;
-    ClearOTagR((u_long *)(pBuf + 0x70), 0x1000);
-    *(s32 *)(pWork + 0xC84) = 1;
-    *(u8 **)(pWork + 0xC50) = pBase + 0x4BE0;
-    *(u8 *)(pWork + 0xDA8) = 0;
-    pBase[0x4BF8] = pBase[0xB88];
-    pBase[0x4BF9] = pBase[0xB89];
-    pBase[0x4BFA] = pBase[0xB8A];
-    pBase[0x4BFB] = pBase[0xB8B];
+    pWork->pRenderEnv = pBuffer;
+    pWork->pCurrentOT = (u_long *)(pBuffer + 0x70);
+    ClearOTagR((u_long *)pWork->pCurrentOT, BATTLE_OT_TAG_COUNT);
+    pWork->colorSetIndex = 1;
+    pEnv = (BattleEnvBlock *)pBase;
+    pEnv->frames[1].draw.isbg = pEnv->frames[0].draw.isbg;
+    pEnv->frames[1].draw.r0 = pEnv->frames[0].draw.r0;
+    pEnv->frames[1].draw.g0 = pEnv->frames[0].draw.g0;
+    pEnv->frames[1].draw.b0 = pEnv->frames[0].draw.b0;
+    pWork->pRenderEnv = pBase + 0x4BE0;
+    pWork->unkDA8 = 0;
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
