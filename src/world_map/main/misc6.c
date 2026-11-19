@@ -546,23 +546,23 @@ int WorldMapSetActorScriptTables(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
-/* 56.38% (148 bytes = retail's 37 insns) is the best of round 202's shapes; the
-   body below is that one. func_80080578's twin, with the four actor stores;
-   retail's memory order is reproduced, so all that is left is register
-   allocation plus three schedule positions: retail puts `li 0x1000` ABOVE the
-   g_WorldMapRotationMatrixValid store and the `addu`/`sw 0x7C` pair ABOVE the
-   three player-position loads, keeps pActor in v1 with the loaded values in
-   a0/a1/a2, and materialises the return's `li v0,1` before the state store
-   instead of in the jr delay slot. Ours allocates pActor to a1 and the loads
-   to v1/a0/a2 and schedules the 0x7C store after the loads.
-   Ruled out in round 202 (all measured, all below 56.38): unk7C store before
-   the rotValid store (51.08), rotValid store after the loads (51.08), no
-   do-while (42.14), pActor declared then assigned after the rotValid store
-   (34.51), s32 loads, pointer-arith base, a local for the 0x1000 (the
-   pre-switch-constant idiom), chained assignment, -O1 (70.41 but a different
-   schedule again), -O3 (does not compile), gcc-2.7.2-cdk (45.27), gcc-2.6.0
-   (22.24). The tail order below (state/unk50 before command/unk58) was worth
-   52.59 -> 56.38.
+/* 92.57% (148 bytes = retail's 37 insns), round 292 - up from the 56.38 this
+   park held since round 202. Register allocation only now: retail keeps pActor
+   in v1 and the three player-position values in a0/a1/a2, ours takes a2 for
+   pActor and v1/a0/a1 for the values - the same rotation func_80080578 has, so
+   one lever closes both.
+   The schedule is retail's, and the shape that got it there is: plain
+   statements for the rotation-matrix-valid store and unk7C, then ONE
+   do { } while (0) around the position reads and the six target stores, then
+   the tail stores OUTSIDE the block. The block is what makes cc1 emit retail's
+   sll before the slots load and hoist the 0x1000 li above the rotValid store
+   (without it the fade constant is hoisted to the top of the function and the
+   actor pointer takes a2 from the start); leaving the tail outside it is what
+   lets reorg drop the last store into the jr delay slot as retail does. With
+   the block around everything: 64.06. Instruction multiset identical, 148
+   bytes = retail's.
+   Note 0x50/0x58 are stateIndex/pStateFrames in this unit's WorldMapActor,
+   which the other map modes reuse as plain words.
 */
 /* int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -570,10 +570,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
     u32 unkB0;
     u32 unkB4;
 
+    g_WorldMapRotationMatrixValid = 0;
+    pActor->unk7C = 0x1000;
     do {
-        g_WorldMapRotationMatrixValid = 0;
-        pActor->unk7C = 0x1000;
-        unkAc = *(u32 *)g_WorldMapPlayerPosition;
+        unkB4 = *(u32 *)g_WorldMapPlayerPosition;
+        unkAc = unkB4;
         unkB0 = g_WorldMapPlayerPositionY;
         unkB4 = g_WorldMapPlayerPositionZ;
         g_WorldMapFadeLevel = 0x78;
@@ -583,11 +584,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
         g_WorldMapScrollTargetY = unkB0;
         g_WorldMapCameraTargetZ = unkB4;
         g_WorldMapScrollTargetZ = unkB4;
-        pActor->state = 0;
-        pActor->unk50 = 0;
-        pActor->command = 1;
-        pActor->unk58 = (void *)0x40;
     } while (0);
+    pActor->command = 1;
+    pActor->pStateFrames = (void *)0x40;
+    pActor->state = 0;
+    pActor->stateIndex = 0;
     return 1;
 }
 */
@@ -1231,37 +1232,32 @@ int WorldMapInitActorScript(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
-/* 64.26% (136 bytes = retail's 34 insns), the best of round 202. Only THREE
-   deltas from retail, all schedule/allocation, none reachable from the source
-   order (every shape below measured):
-   (1) retail keeps pActor in v1 and the three player-position values in
-       a0/a1/a2; ours takes a2 for pActor and v1/a0/a1 for the values;
-   (2) retail's `li 0x1000` sits ABOVE the g_WorldMapRotationMatrixValid store
-       and its `sw v0,0x7C(v1)` ABOVE the three loads; ours emits the store
-       after the loads;
-   (3) the last two instructions swap - retail has `li v0,1` then `jr ra` with
-       `sh zero,32(v1)` in the delay slot, ours the other way round (reorg).
-   Tried and rejected: one do-while for the whole body (64.06 - what the park
-   used to hold), two do-while blocks (64.26, kept), three blocks (58.38),
-   loads first (52.44), unk7C after the fade store (64.06), unk7C first
-   (56.59), no block (37.03), s32 loads, pActor declared last, initialized
-   declarations, pointer-arith base, a local for the 0x1000, chained
-   assignment, volatile -fno-schedule-insns2 (54.09), -fschedule-insns (64.26),
-   -O1 (70.41 but a different schedule), gcc-2.7.2-cdk (45.27 under E450).
-   Both functions are the same body: whatever closes one closes the other.
+/* 92.21% (136 bytes = retail's 34 insns), round 292 - up from the 64.26 this
+   park held for two rounds. The two schedule deltas were closed by the block
+   shape, not by source order: ONE do { } while (0) around the position reads
+   and the six target stores, with the rotValid/unk7C stores and the
+   command/state/return OUTSIDE it. That makes cc1 emit retail's
+   sll-before-slots-load, hoist the 0x1000 li above the rotValid store and keep
+   the fade constant inside the block, and the trailing store outside the block
+   lands in the jr delay slot exactly as retail has it. Measured: no block
+   37.03, block around everything 64.06, two blocks 64.26.
+   What is left is one register rotation - retail pActor in v1 with the values
+   in a0/a1/a2, ours pActor in a2 with the values in v1/a0/a1 - the same tie as
+   its twin func_8007E450, so one lever closes both. A 4-minute permuter run on
+   the plain body found only the `unkB4 = ...PosX; unkAc = unkB4;` copy below
+   (92.21 vs 90.74 for `unkAc = ...PosX;`); drop it if a real fix appears.
 */
 /* int func_80080578(int index) {
-    WorldMapActor *pActor = &g_WorldMapSlots[index];
     u32 unkAc;
     u32 unkB0;
     u32 unkB4;
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
 
+    g_WorldMapRotationMatrixValid = 0;
+    pActor->unk7C = 0x1000;
     do {
-        g_WorldMapRotationMatrixValid = 0;
-        pActor->unk7C = 0x1000;
-    } while (0);
-    do {
-        unkAc = *(u32 *)g_WorldMapPlayerPosition;
+        unkB4 = *(u32 *)g_WorldMapPlayerPosition;
+        unkAc = unkB4;
         unkB0 = g_WorldMapPlayerPositionY;
         unkB4 = g_WorldMapPlayerPositionZ;
         g_WorldMapFadeLevel = 0x78;
@@ -1271,9 +1267,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
         g_WorldMapScrollTargetY = unkB0;
         g_WorldMapCameraTargetZ = unkB4;
         g_WorldMapScrollTargetZ = unkB4;
-        pActor->command = 1;
-        pActor->state = 0;
     } while (0);
+    pActor->command = 1;
+    pActor->state = 0;
     return 1;
 }
 */
