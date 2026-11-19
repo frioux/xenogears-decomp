@@ -591,6 +591,24 @@ extern s32 g_GfxOTDepthShift;
 //   chained pDst = pPacket = pDst; pPacket = pDst; pDst = pPacket;
 //   pPacket = pDst; pDst = pDst; two identical copies in a row; and the copy
 //   moved after all four preheader field loads.
+// - THE TIE IS REFUSED ONLY BY A CROSS-BLOCK USE, SO IT CANNOT BE CLOSED BY SOURCE
+//   (round 285). local_alloc merges pDst and pPacket into ONE quantity, so the copy
+//   is deleted at reload as a self-move and no spelling of it survives; what decides
+//   the merge is whether pDst is still live past the copy when local_alloc runs, not
+//   how the copy is written. Two shapes measured: a use in the copy's own block does
+//   not break it (if (pDst == NULL) return; written right after the copy gives 2948
+//   bytes, 96.72 - sched1 hoists the compare ABOVE the copy so pDst still dies there,
+//   and the guard then merges with the loop guard), and a use gcc can fold is
+//   invisible (if (pPacket != pDst) return;: 2940 bytes, 96.80, unchanged). Only a use
+//   in a LATER block keeps the copy, and that is the tenth callee-saved register that
+//   spills (2960 bytes, 95.62, above). So these 4 bytes cannot come from this body
+//   shape at all.
+//   Also dead this round: gcc 2.6.0 87.29; gcc 2.8.1 96.58 (maspsx
+//   --aspsx-version=2.79, also loses the copy); -O1 62.10; -O2 with
+//   -fno-schedule-insns and -fno-schedule-insns2 63.52 (so this unit's scheduler
+//   flags are right and are not the cause); -Os and -O3 reject the body. Every other
+//   instruction of the 736 is byte-identical apart from the register names of the
+//   cyclic shift, so there is no other line to fix.
 // The vertex-table addresses must stay index first,
 // (SVECTOR *)((index << 3) + (u32)pPart), or every arm reverses its addu.
 // The typedef, the extern, the two defines and the macro above this park are
