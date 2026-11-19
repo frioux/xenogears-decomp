@@ -447,64 +447,50 @@ extern s32 g_BattleLiveSlotCount;
 extern s32 g_AnimScriptExtraTicks;
 extern s32 g_GfxOTDepthShift;
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
-// 91.71% (308 bytes vs retail's 304, same instruction multiset but one unfilled
-// load-delay slot). Everything is retail's except the address formation of
-// g_AnimScriptExtraTicks: retail hoists `lui a0,%hi` into the delay slot of the
-// `lw` that reloads g_BattleLiveSlotCount after the loop and keeps the base in a0 across the
-// clamp and the later read/zero, while gcc here fills that slot with a nop and
-// forms the address (in v1) at the clamp store. The loop itself is exact once the
-// slot pointer is written INDEXED off g_BattleStateWork (a pSlot++ walk rebases
-// the induction register onto the 0x8 field: 65.88%), and pCount/pFrame locals
-// kept the base in $s0 across the loop (also 65.88-78.72%).
-/*
 void func_800B88C4(void) {
     BattleActorSlot *pSlot;
     BattleEnvBlock *pEnv;
     BattleRenderState *pWork;
     u8 *pBase;
-    u8 *pBuffer;
+    BattleFrameEnv *pFrame;
     u8 *pOldOT;
     s32 extraTicks;
-    s32 n;
-    s32 i;
+    s32 i = BATTLE_FIRST_ACTOR_SLOT;
 
     g_BattleLiveSlotCount = 0;
     pSlot = (BattleActorSlot *)g_BattleStateWork;
-    for (i = BATTLE_FIRST_ACTOR_SLOT; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+    for (; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (pSlot[i].unk6 < 0x11 && pSlot[i].inUse != 0) {
             g_BattleLiveSlotCount++;
         }
     }
-    n = g_BattleLiveSlotCount / 2 - 1;
-    g_AnimScriptExtraTicks = n;
-    if (n < 0) {
+    g_AnimScriptExtraTicks = g_BattleLiveSlotCount / 2 - 1;
+    if (g_AnimScriptExtraTicks < 0) {
         g_AnimScriptExtraTicks = 0;
     }
     pBase = (u8 *)g_BattleStateWork;
+    pEnv = (BattleEnvBlock *)pBase;
     pWork = (BattleRenderState *)(pBase + BATTLE_RENDER_STATE_OFFSET);
     extraTicks = g_AnimScriptExtraTicks;
     g_AnimScriptExtraTicks = 0;
-    pBuffer = pBase + 0xB70;
+    pFrame = &pEnv->frames[0];
     pOldOT = pWork->pRenderEnv;
     g_GfxOTDepthShift = 2;
     pWork->unkDAC = extraTicks;
-    if (pOldOT == pBuffer) {
-        pBuffer = pBase + 0x4BE0;
+    if (pOldOT == (u8 *)pFrame) {
+        pFrame = &pEnv->frames[1];
     }
-    pWork->pRenderEnv = pBuffer;
-    pWork->pCurrentOT = (u_long *)(pBuffer + 0x70);
+    pWork->pRenderEnv = (u8 *)pFrame;
+    pWork->pCurrentOT = (u_long *)pFrame->otBuffer;
     ClearOTagR((u_long *)pWork->pCurrentOT, BATTLE_OT_TAG_COUNT);
     pWork->colorSetIndex = 1;
-    pEnv = (BattleEnvBlock *)pBase;
     pEnv->frames[1].draw.isbg = pEnv->frames[0].draw.isbg;
     pEnv->frames[1].draw.r0 = pEnv->frames[0].draw.r0;
     pEnv->frames[1].draw.g0 = pEnv->frames[0].draw.g0;
     pEnv->frames[1].draw.b0 = pEnv->frames[0].draw.b0;
-    pWork->pRenderEnv = pBase + 0x4BE0;
+    pWork->pRenderEnv = (u8 *)&pEnv->frames[1];
     pWork->unkDA8 = 0;
 }
-*/
 
 void BattleEmptyHook(void) {
 }
