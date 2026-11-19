@@ -300,9 +300,9 @@ void func_80081F80(SpriteData* pSprite, s16 angle, FieldActor* pActor) {
 }
 */
 
-extern s16 D_800B2344;
-extern s16 D_800B2346[];
-extern u8 D_800ADFB8[];
+extern s16 g_Unknown_800B2344;
+extern s16 g_FieldCurrentModelAnimationId[];
+extern u8 g_FieldModelAnimationIdsByActor[];
 void SpritePlayAnimation(int, int);
 void LibGearSetModelAnimation(u16, u16, s32);
 
@@ -313,19 +313,19 @@ typedef struct {
     /* 0x12C */ u_int flags12C;
 } ActorFlags12CView; // Size: 0x130
 
-void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
+void FieldSetGearModelAnimationForActor(int arg0, int actorId, FieldActor* pActor) {
     if (!(pActor->status & 0x40)) {
         return;
     }
-    if (actorId != 3 && D_800B2344 == 0) {
+    if (actorId != 3 && g_Unknown_800B2344 == 0) {
         pActor->pActorData->scriptFlags.flags &= ~0x800;
     }
     if (actorId == 0xFF) {
         actorId = 0;
     }
-    // The model-id table is the run of shorts ending at D_800B2346, which holds
+    // The model-id table is the run of shorts ending at g_FieldCurrentModelAnimationId, which holds
     // the id currently in use, so this file indexes it from that symbol.
-    if (actorId != D_800B2346[0]) {
+    if (actorId != g_FieldCurrentModelAnimationId[0]) {
         pActor->pActorData->scriptFlags.flags &= ~0x800;
     }
     if (!(pActor->pActorData->flags & 0x2000)) {
@@ -336,12 +336,12 @@ void func_800821F4(int arg0, int actorId, FieldActor* pActor) {
         return;
     }
     if (actorId < 0x10) {
-        LibGearSetModelAnimation(pActor->pActorData->flags12C_0xE, 0, D_800ADFB8[actorId]);
-        D_800B2346[pActor->pActorData->flags12C_0xE - 0xB1] = D_800ADFB8[actorId];
+        LibGearSetModelAnimation(pActor->pActorData->flags12C_0xE, 0, g_FieldModelAnimationIdsByActor[actorId]);
+        g_FieldCurrentModelAnimationId[pActor->pActorData->flags12C_0xE - 0xB1] = g_FieldModelAnimationIdsByActor[actorId];
     } else {
         actorId -= 0x10;
         LibGearSetModelAnimation(pActor->pActorData->flags12C_0xE, 0, actorId);
-        D_800B2346[pActor->pActorData->flags12C_0xE - 0xB1] = actorId;
+        g_FieldCurrentModelAnimationId[pActor->pActorData->flags12C_0xE - 0xB1] = actorId;
     }
 }
 

@@ -50,7 +50,7 @@ extern s32 rand(void);
 extern s8 BattleTryApplySlotCondition(u8, u8, u16);
 extern void BattleSetSlotConditionTimer(u8, u8, u16, s32);
 extern void func_80098D2C(u8, u8);
-extern void func_80094D24(void);
+extern void BattleRestoreSlotConditionFlags(void);
 extern u8 BattleTestActorSlotFlagsC002ByMode(void);
 extern void BattleSetCommandCodeForSlotKindFlag(u8, u16);
 
@@ -860,7 +860,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
    arm, the two-statement form in the 0x2228 arm, 'other' as int, and the 'd'
    local (inlining rand() % 8 - 4 folds the 4).
    Row strides: 0x5F0 (+0x1058) when bit 0x80 of the actor's 0x15A byte is clear,
-   0x690 (+0x2228) when set, plus pBase[0x5FC2] * 0x28. func_80094D24 takes no
+   0x690 (+0x2228) when set, plus pBase[0x5FC2] * 0x28. BattleRestoreSlotConditionFlags takes no
    arguments. */
 /* 99.84%:
    u8 func_80098AF8(u8 sel) {
@@ -910,7 +910,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
        v = 0xA5 - v;
        d = rand() % 8 - 4;
        v -= d;
-       func_80094D24();
+       BattleRestoreSlotConditionFlags();
        return v;
    }
 */

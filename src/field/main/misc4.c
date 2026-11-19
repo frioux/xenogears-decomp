@@ -113,13 +113,13 @@ int func_80078BC8(void) {
 }
 */
 
-extern s16 D_800B2344;
+extern s16 g_Unknown_800B2344;
 void FieldOrVramStripPixels(void) {
     RECT rect;
     int i;
     u_int* pImage;
 
-    if (D_800B2344 != 0) {
+    if (g_Unknown_800B2344 != 0) {
         g_FieldRenderContexts[0].drawEnvs[0].dtd = 0;
         g_FieldRenderContexts[1].drawEnvs[0].dtd = 0;
         pImage = HeapAlloc(FIELD_SCREEN_STRIP_SIZE, 0x0);

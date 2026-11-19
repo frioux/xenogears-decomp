@@ -13,7 +13,7 @@ extern int g_FrameDeltaTime;
 extern void ArchiveCdDataSync(int mode);
 extern s32 D_800ADBD0;
 extern s32 g_PlayerActorIndex;
-extern s16 D_800B2344;
+extern s16 g_Unknown_800B2344;
 
 // g_FieldActors is volatile; reading it through a non-volatile lvalue reproduces
 // the original's delay-slot filling.
@@ -361,8 +361,8 @@ void FieldUpdateFrame(void) {
 /*
 s32 func_80077E10(void) {
     int new_var;
-    new_var = (D_800ADBD0 != 1) || (D_800B2344 != 0);
-    if (D_800ADBD0 != 1 || D_800B2344 != 0) {
+    new_var = (D_800ADBD0 != 1) || (g_Unknown_800B2344 != 0);
+    if (D_800ADBD0 != 1 || g_Unknown_800B2344 != 0) {
         return 0;
     }
     return -((FIELD_ACTORS[g_PlayerActorIndex].pActorData->scriptFlags.flags & 0x800) != 0);

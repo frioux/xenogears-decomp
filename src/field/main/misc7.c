@@ -450,7 +450,7 @@ void FieldScriptVMHandlerMoveActorAtSpeed(s32 arg0) {
         !g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0x18
     ) {
         g_FieldScriptVMCurActor->curAnimationId = animationId;
-        func_800821F4(pSprite, animationId, g_FieldScriptVMCurFieldActor, g_FieldScriptVMCurActor);
+        FieldSetGearModelAnimationForActor(pSprite, animationId, g_FieldScriptVMCurFieldActor, g_FieldScriptVMCurActor);
     }
     func_80081F80(pSprite, g_FieldScriptVMCurActor->rotation.vx, g_FieldScriptVMCurFieldActor);
 }

@@ -1056,3 +1056,7 @@ g_FieldStreamImageY1 = 0x800C3A24;
 g_FieldStreamImageX2 = 0x800C3A26;
 g_FieldStreamImageY2 = 0x800C3A28;
 g_FieldOtagPacket = 0x800B1E18;
+FieldSetGearModelAnimationForActor = 0x800821F4;
+g_FieldCurrentModelAnimationId = 0x800B2346;
+g_FieldModelAnimationIdsByActor = 0x800ADFB8;
+g_Unknown_800B2344 = 0x800B2344;

@@ -473,7 +473,7 @@ void BattleAccumulateSlotValueByRowFlag(void) {
         }
     }
 }
-void func_80094D24(void) {
+void BattleRestoreSlotConditionFlags(void) {
     u8 i;
     u8 n1;
     u8 n2;

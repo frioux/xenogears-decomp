@@ -289,7 +289,7 @@ void BattleAddPrimPair280(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_800745EC);
-void func_80074AB8(void) {
+void BattleAddSpriteColumnPrimLists(void) {
     u16 counter;
 
     if (g_BattleDisplayState->unkC7 != 0) {
@@ -474,7 +474,7 @@ void BattleDrawFrameScreenMode1(void) {
         BattleUpdateRotationBuffer();
         func_80073FB8();
         func_80088B80();
-        func_80074AB8();
+        BattleAddSpriteColumnPrimLists();
     }
 }
 
@@ -494,7 +494,7 @@ void BattleDrawFrameScreenMode2(void) {
     BattleAddPrimAndRenderObject();
     func_80073FB8();
     func_80088B80();
-    func_80074AB8();
+    BattleAddSpriteColumnPrimLists();
 }
 
 void BattleDrawFrameByScreenMode(void) {
