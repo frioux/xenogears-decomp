@@ -781,6 +781,21 @@ extern s32 g_BattleFacingAngle;
 extern s32 BattleVectorDistance2D(Vec4*, Vec4*);
 extern s32 BattleVectorLength2D(Vec4*);
 
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_800796B8);
+
+/* Best attempt: 84.47%. The structure, every call and the argument values are right;
+   three things are not. (a) The FRAME: retail is 0x50 with the four vector locals
+   sharing two 0x10 slots at sp+0x10 and sp+0x20 - the two orbit candidates' slots are
+   reused by the third point and by the lerp delta once they die - and it keeps six
+   callee-saved registers (s0-s5); this body needs 0x68 and seven, so gcc gave the
+   candidates and the later pair separate slots (declaring only two Vec4 locals and
+   reusing them brought the row count from 73 to 54 and is what this body does).
+   (b) The g_BattleFacingAngle / g_BattleActorDistance2D stores: retail stores the angle
+   first but only AFTER the BattleVectorDistance2D call returns, which needs the call's
+   result in a local (this body does that; the straight two-statement form stores the
+   angle before the call and loses the jal). (c) The third point's y is
+   D_80098680 - (min(3Ddist/4, 0x300) + 0x40) and the ground clamp compares that with
+   func_80082488(&g_BattleCameraPos, 0) - 0x100. Nothing here was permuted yet.
 // Aim the camera at the two combatants: the facing angle and their distance are
 // published for the rest of the battle code, the camera target is mirrored on their
 // midpoint, and the camera orbits to the nearer of the two candidate points on an
@@ -788,9 +803,8 @@ extern s32 BattleVectorLength2D(Vec4*);
 void func_800796B8(Actor* p1, Actor* p2) {
     Vec4 posA;
     Vec4 posB;
-    Vec4 pos;
-    Vec4 delta;
     s32 angle;
+    s32 dist2d;
     s32 dist;
     s32 radius;
     s32 lenA;
@@ -802,8 +816,9 @@ void func_800796B8(Actor* p1, Actor* p2) {
         return;
     }
     angle = ratan2(p1->x - p2->x, p1->z - p2->z);
+    dist2d = BattleVectorDistance2D((Vec4*)p1, (Vec4*)p2);
     g_BattleFacingAngle = angle;
-    g_BattleActorDistance2D = BattleVectorDistance2D((Vec4*)p1, (Vec4*)p2);
+    g_BattleActorDistance2D = dist2d;
     dist = BattleVectorDistance((Vec4*)p1, (Vec4*)p2);
     radius = dist * 2 / 3 + 0xC0;
     g_BattleCameraTarget = (p1->x + p2->x) / 2;
@@ -840,21 +855,22 @@ void func_800796B8(Actor* p1, Actor* p2) {
         dist = 0x300;
     }
     height = dist + 0x40;
-    pos.x = g_BattleCameraTarget + ((rcos(angle + g_BattleCameraAngleStep) * radius) >> 12);
-    pos.y = D_80098680 - height;
-    pos.z = D_80098684 + ((rsin(angle + g_BattleCameraAngleStep) * radius) >> 12);
-    delta.x = (pos.x - g_BattleCameraPos) / g_BattleCameraLerpFrames;
-    delta.z = (pos.z - g_BattleCameraPosZ) / g_BattleCameraLerpFrames;
-    BattleMovePointInsideRadius((Vec4*)&g_BattleCameraPos, &delta, 0x3A00);
-    g_BattleCameraPos += delta.x;
-    g_BattleCameraPosZ += delta.z;
+    posA.x = g_BattleCameraTarget + ((rcos(angle + g_BattleCameraAngleStep) * radius) >> 12);
+    posA.y = D_80098680 - height;
+    posA.z = D_80098684 + ((rsin(angle + g_BattleCameraAngleStep) * radius) >> 12);
+    posB.x = (posA.x - g_BattleCameraPos) / g_BattleCameraLerpFrames;
+    posB.z = (posA.z - g_BattleCameraPosZ) / g_BattleCameraLerpFrames;
+    BattleMovePointInsideRadius((Vec4*)&g_BattleCameraPos, &posB, 0x3A00);
+    g_BattleCameraPos += posB.x;
+    g_BattleCameraPosZ += posB.z;
     floorY = func_80082488((Vec4*)&g_BattleCameraPos, 0) - 0x100;
-    if (floorY < pos.y) {
-        pos.y = floorY;
+    if (floorY < posA.y) {
+        posA.y = floorY;
     }
-    g_BattleCameraPosY += (pos.y - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
+    g_BattleCameraPosY += (posA.y - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
     g_BattleCameraLerpFrames = 0x64;
 }
+*/
 
 void BattleInitOptionDefaults(void) {
     BattleEffectInitContext();
