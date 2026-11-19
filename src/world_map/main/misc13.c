@@ -27,6 +27,10 @@ typedef struct {
     /* 0x04 */ u8 unk4[0x24];
 } WorldMapPrim; // Size: 0x28
 
+// One tile spans WORLD_MAP_TILE_SIZE world-position units. WorldMapPos is 12.4
+// fixed point, so a tile is WORLD_MAP_TILE_SIZE << 12 of those (the 0x800000 the
+// wrap functions add, and the 2047 WorldMapGetTileEntry masks a position to).
+#define WORLD_MAP_TILE_SIZE 2048
 // A tile cell is four zones of 9x9 sub-cells, each sub-cell a 4-byte record.
 #define WORLD_MAP_TILE_ZONE_COUNT 4
 #define WORLD_MAP_TILE_ZONE_CELLS 81
@@ -302,58 +306,58 @@ void func_800931D8(u8* pSrc, u8* pDst, s32 count, u8* pFactors) {
 }
 */
 void WorldMapWrapPosition(WorldMapPos* p) {
-    if (p->x >= g_WorldMapTileColumns * 0x800000) {
-        p->x -= g_WorldMapTileColumns * 0x800000;
+    if (p->x >= g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12)) {
+        p->x -= g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12);
     }
     if (p->x < 0) {
-        p->x += g_WorldMapTileColumns * 0x800000;
+        p->x += g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12);
     }
-    if (p->z >= g_WorldMapTileRows * 0x800000) {
-        p->z -= g_WorldMapTileRows * 0x800000;
+    if (p->z >= g_WorldMapTileRows * (WORLD_MAP_TILE_SIZE << 12)) {
+        p->z -= g_WorldMapTileRows * (WORLD_MAP_TILE_SIZE << 12);
     }
     if (p->z < 0) {
-        p->z += g_WorldMapTileRows * 0x800000;
+        p->z += g_WorldMapTileRows * (WORLD_MAP_TILE_SIZE << 12);
     }
 }
 
 void WorldMapWrapPositionScaled(WorldMapPos* p) {
-    if (p->x >= g_WorldMapTileColumns * 2048) {
-        p->x -= g_WorldMapTileColumns * 2048;
+    if (p->x >= g_WorldMapTileColumns * WORLD_MAP_TILE_SIZE) {
+        p->x -= g_WorldMapTileColumns * WORLD_MAP_TILE_SIZE;
     }
     if (p->x < 0) {
-        p->x += g_WorldMapTileColumns * 2048;
+        p->x += g_WorldMapTileColumns * WORLD_MAP_TILE_SIZE;
     }
-    if (p->z >= g_WorldMapTileRows * 2048) {
-        p->z -= g_WorldMapTileRows * 2048;
+    if (p->z >= g_WorldMapTileRows * WORLD_MAP_TILE_SIZE) {
+        p->z -= g_WorldMapTileRows * WORLD_MAP_TILE_SIZE;
     }
     if (p->z < 0) {
-        p->z += g_WorldMapTileRows * 2048;
+        p->z += g_WorldMapTileRows * WORLD_MAP_TILE_SIZE;
     }
 }
 
 void WorldMapWrapDelta(WorldMapPos* p) {
     if (p->x < -0x4000000) {
-        p->x += g_WorldMapTileColumns * 0x800000;
+        p->x += g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12);
     } else if (p->x > 0x4000000) {
-        p->x -= g_WorldMapTileColumns * 0x800000;
+        p->x -= g_WorldMapTileColumns * (WORLD_MAP_TILE_SIZE << 12);
     }
     if (p->z < -0x4000000) {
-        p->z += g_WorldMapTileRows * 0x800000;
+        p->z += g_WorldMapTileRows * (WORLD_MAP_TILE_SIZE << 12);
     } else if (p->z > 0x4000000) {
-        p->z -= g_WorldMapTileRows * 0x800000;
+        p->z -= g_WorldMapTileRows * (WORLD_MAP_TILE_SIZE << 12);
     }
 }
 
 void WorldMapWrapDeltaScaled(WorldMapPos* p) {
     if (p->x < -0x4000) {
-        p->x += g_WorldMapTileColumns * 2048;
+        p->x += g_WorldMapTileColumns * WORLD_MAP_TILE_SIZE;
     } else if (p->x > 0x4000) {
-        p->x -= g_WorldMapTileColumns * 2048;
+        p->x -= g_WorldMapTileColumns * WORLD_MAP_TILE_SIZE;
     }
     if (p->z < -0x4000) {
-        p->z += g_WorldMapTileRows * 2048;
+        p->z += g_WorldMapTileRows * WORLD_MAP_TILE_SIZE;
     } else if (p->z > 0x4000) {
-        p->z -= g_WorldMapTileRows * 2048;
+        p->z -= g_WorldMapTileRows * WORLD_MAP_TILE_SIZE;
     }
 }
 
@@ -368,16 +372,16 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
     s16 sub;
 
     idx = (z >> 20) / 8 * g_WorldMapTileColumns + (x >> 20) / 8;
-    x = (x >> 12) & 0x7FF;
-    z = (z >> 12) & 0x7FF;
+    x = (x >> 12) & (WORLD_MAP_TILE_SIZE - 1);
+    z = (z >> 12) & (WORLD_MAP_TILE_SIZE - 1);
     zone = 0;
-    if (x >= 0x400) {
+    if (x >= WORLD_MAP_TILE_SIZE / 2) {
         zone = 1;
-        x -= 0x400;
+        x -= WORLD_MAP_TILE_SIZE / 2;
     }
-    if (z >= 0x400) {
+    if (z >= WORLD_MAP_TILE_SIZE / 2) {
         zone |= 2;
-        z -= 0x400;
+        z -= WORLD_MAP_TILE_SIZE / 2;
     }
     sub = (z >> 4) / 8 * 9 + (x >> 4) / 8;
     return g_WorldMapTileCellPointers[idx]->zones +
