@@ -127,36 +127,45 @@ typedef struct {
     /* 0x2F7 */ u8 unk2F7;
 } BattleActorSlots; // Size: 0x2F8
 
-/* 82.95%: best of 8 shapes, same size as retail (264 bytes). The loop body
-   matches instruction for instruction (four reloads of the volatile counter, the
-   two separate `lbu 0(a1)` of pSrc[i], the incrementing pSrc pointer and `i++` in
-   the body). What is left is loop.c's hoisting: retail puts `lui/lw g_BattleGraphicsWork`
-   and `ori t2,zero,0xC` in the PREHEADER (after the `blez`, with `i = 0` in its
-   delay slot) and keeps `ori v1,zero,0x12` in the body, while our gcc keeps the base
-   load and both constants in the body. Tried: pSrc as a pre-loop local (74.02 - its
-   init lands before the loop test, which retail has after); `u8 *pBase = g_BattleGraphicsWork;`
-   pre-loop (71.44, same reason); an `if (arg0 - 1 > 0) { pBase = ...; pSrc = ...; do {...} while (i < arg0 - 1); }`
-   guard form (69.45/78.17 with the two locals declared in either order) - that one
-   DOES hoist the base load and BOTH constants into the preheader, but it also drops
-   the phantom 8-byte frame and `i = 0` from the blez delay slot (5 insns short).
-   -O3 / -G0 / cdk change nothing material. A hoist loop.c will not do for the plain
-   `for` shape is not source-controllable so far. */
+/* 91.79%: same size as retail (264 bytes) and the loop body is instruction for
+   instruction, including the four reloads of the volatile g_BattlePrimStartIndex.
+   The 8-byte frame is retail's (nothing is stored in it), so the source keeps
+   `u32 spare[2]`; the `s32 new_var` guard copy is what puts `i` in a2 and pBase in
+   a3 instead of swapping them. What is left is three placements: retail keeps
+   `ori v1,zero,0x12` in the body (loop.c hoists our literal into t2 and so moves
+   `i++` into a different load delay slot), and it emits `move t1,v0` (the limit
+   copy) right after the 0xC load instead of after the pSrc address. Tie all 8
+   shapes, the guard/do-while swap, and a 4-minute permuter run (its best candidate
+   re-used `color` as the address multiplier and changed a stored value, so it is
+   not portable). */
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
     u8 count;
+    s32 new_var;
+    u16 color;
+    u8 *pBase;
+    u8 *pSrc;
     s32 i;
+    u32 spare[2];
 
     count = arg1;
     if (arg0 == arg1) {
         count = arg1 - 1;
     }
-    for (i = 0; i < arg0 - 1; i++) {
-        u8 *pSrc = D_800C3202 + arg0 * 6;
-
-        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x910) = 0xC;
-        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x912) = pSrc[i] + 0x5E;
-        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x914) = 0x12;
-        *(u16 *)(g_BattleGraphicsWork + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x916) = pSrc[i] + 0x5E;
+    new_var = 0;
+    i = 0;
+    if (arg0 - 1 > new_var) {
+        pBase = g_BattleGraphicsWork;
+        color = 0xC;
+        pSrc = D_800C3202;
+        pSrc += arg0 * 6;
+        do {
+            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x910) = color;
+            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x912) = pSrc[i] + 0x5E;
+            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x914) = 0x12;
+            *(u16 *)(pBase + (g_BattlePrimStartIndex + i * 2) * 0x10 + 0x916) = pSrc[i] + 0x5E;
+            i++;
+        } while (i < arg0 - 1);
     }
     g_BattleDisplayState[0x97] = count;
     g_BattleDisplayState[0x98] = *(u8 *)&g_BattlePrimStartIndex;
@@ -223,10 +232,11 @@ void BattleAllocDrawBuffer(void) {
 
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_8007FF14);
-/* 91.69%: only a register rotation left (retail v=$a1, digits=$a0, i*4=$a2,
-   quotient=$a3, mfhi=$v0; ours shifts by one). 12 hand shapes tried plus a
-   4-minute permuter run (best score 948 vs base 971, and its "fix" was a no-op
-   if/else, so nothing to port). cdk gives 93.74, so not a preset question. */
+/* 91.69%: only a register rotation left (retail v=$a1, offset=$a2, quotient=$a3,
+   digits=$a0, mfhi=$v0; ours shifts the whole loop by one and has to put mfhi in
+   $t3). 12 hand shapes tried plus two 4-minute permuter runs (best score 948 vs
+   base 971, and its "fix" was a no-op if/else, so nothing to port). cdk gives
+   93.74, so not a preset question. */
 /*
 void func_8007FF14(u8 arg0) {
     s32 i;
@@ -264,10 +274,9 @@ void func_8007FF14(u8 arg0) {
         g_BattleDisplayState[0xAD] = 1;
         g_BattleDisplayState[0xC7] = 1;
     }
-}*/
+}
 
-
-
+*/
 void BattleResetActorDrawState(u8 arg0) {
     s32 index;
 
