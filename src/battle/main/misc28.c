@@ -3,6 +3,9 @@
 #include "battle/actor.h"
 #include "psyq/libgpu.h"
 
+// An effect record is only drawn once its projected depth reaches this.
+#define BATTLE_EFFECT_MIN_DRAW_DEPTH 64
+
 // 16.16 fixed point; the integer part is the high half of the word.
 typedef union {
     /* 0x0 */ s32 value;
@@ -85,7 +88,7 @@ extern void SetRotMatrix(MATRIX *m);
 extern void SetTransMatrix(MATRIX *m);
 extern long RotTransPers3(SVECTOR *v0, SVECTOR *v1, SVECTOR *v2, long *sxy0, long *sxy1, long *sxy2, long *p, long *flag);
 extern void AddPrim(void *ot, void *p);
-extern void func_800B7160(void);
+extern void func_800B7160(BattleEffectTask *pTask);
 extern u_long *g_GfxCurOT;
 extern u_long *g_BattleSavedGfxOT;
 extern void SpriteDrawModelPartsInBaseMatrix(void *pTask);
@@ -95,8 +98,8 @@ extern void func_8002DDE4(void *pImg, s32 arg1, s32 arg2, s32 arg3);
 extern s32 WorkListsAddTasks(s32 arg0, s32 arg1, void *pFn1, void *pFn2, void *pFn3);
 extern void func_800B7424(s32 arg0);
 extern void BattleCreateWorkTask(void);
-extern void func_800B6F0C(void);
-extern void BattleStoreGfxOrderingTable(void);
+extern void func_800B6F0C(BattleEffectTask *pTask);
+extern void BattleStoreGfxOrderingTable(BattleEffectTask *pTask);
 extern void BattleDestroyWorkTask(u8 *p);
 extern s16 SpriteComputeAngleFromPoints(DVECTOR from, DVECTOR to);
 extern s32 SpriteScaleValue(void *pSprite, s32 arg1);
@@ -336,45 +339,49 @@ void BattleActorRotateVectorZ(BattleSpriteState *pSprite, s8 *p) {
     pSprite->step.z = vec.vz;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B6F0C);
-/* best 85.91% (540 vs 536 bytes).  Recovered shape: the work item's data pointer
-   (arg + 4) heads a 0x10F7C-byte table - s32 counter at 0x38, then
-   entries[2][14][20] of 0x7C-byte records from 0x3C (0x3C + 2*0x87A0 = 0x10F7C,
-   the size BattleCreateWorkTask passes to WorkListsAddTasks).  Record: u16
-   accumulators at 0x0/0x2/0x4 fed by 0x8/0xA/0xC, s32 pos XYZ at 0x10/0x14/0x18,
-   0x24 is an array of 0x20-byte color records (r/g/b at +4/+5/+6, faded by
-   SpriteColorAddClamp(x,-6)), s32 timer at 0x64, three 16.16 fixed velocities at
-   0x68/0x6C/0x70 (integer part read as the high half at 0x6A/0x6E/0x72), s32
-   gravity at 0x78 (added to 0x6C).  Damping order is 0x6C, 0x68, 0x70 - not
-   0x68 first - and `for (x = 0; x != N; x++)` with != is required, `<` gives
-   slti/bnez instead of retail's li+bne.
-   Three things left, see the parked notes on BattleScriptPlaySpriteAnimation and misc30:
-   (1) the g_BattleStateWork+0x8000+0xC84 read: retail materialises the symbol with
-   lui+addiu (addend 0), then li 0x8000 + addu, then lw 0xC84(base); gcc either
-   folds the whole 0x8C84 into one lui/addiu carry pair or, with pState a pointer
-   local, into lui 0x1/addiu -32768.  It also leaves a dead `lui v0,%hi
-   (g_BattleStateWork)` in retail's entry block, which nothing in our compile produces.
-   (2) the three fixed-point reads: retail sign-extends at the load (lh 0x6A),
+/* best 88.64% (552 vs 536 bytes), re-measured with a body that actually compiles
+   (the old 85.91% note came from a stale object: the extern here said (void), so
+   the definition was a conflicting-type error and ninja's failure was hidden).
+   Recovered shape: the work item's data pointer (arg + 4) heads a 0x10F7C-byte
+   table - s32 counter at 0x38, then entries[2][14][20] of 0x7C-byte records from
+   0x3C (0x3C + 2*0x87A0 = 0x10F7C, the size BattleCreateWorkTask passes to
+   WorkListsAddTasks).  Record: u16 accumulators at 0x0/0x2/0x4 fed by 0x8/0xA/0xC,
+   s32 pos XYZ at 0x10/0x14/0x18, 0x24 is an array of 0x20-byte color records
+   (r/g/b at +4/+5/+6, faded by SpriteColorAddClamp(x,-6)), s32 timer at 0x64,
+   three 16.16 fixed velocities at 0x68/0x6C/0x70 (integer part read as the high
+   half at 0x6A/0x6E/0x72), s32 gravity at 0x78 (added to 0x6C).  Damping order is
+   0x6C, 0x68, 0x70 - not 0x68 first - and `for (x = 0; x != N; x++)` with != is
+   required, `<` gives slti/bnez instead of retail's li+bne.
+   SOLVED since the previous note: the g_BattleStateWork + 0x8000 + 0xC84 read
+   (it wants two variables, `pStateWork = g_BattleStateWork; pState = pStateWork +
+   0x8000;`, computed INSIDE the k loop - that also leaves retail's dead
+   `lui v0,%hi(g_BattleStateWork)` in the entry block), and the task pointer (the
+   extern must say BattleEffectTask *, or the unit does not compile at all).
+   WHAT IS LEFT:
+   (1) the three fixed-point reads: retail sign-extends at the load (lh 0x6A),
    gcc emits lhu plus an explicit sll/sra pair; a plain s16[3] local gives lhu,
    three separate s16 locals drop the frame to 0x40 (retail is 0x48 with the
    three spills at sp+0x10/0x12/0x14), and casting the stored value to s32 keeps
    the frame but not the lh.
-   (3) retail's prologue saves fp first and runs `move fp,zero` between two
+   (2) retail's prologue saves fp first and runs `move fp,zero` between two
    stack stores; ours saves ra first and moves fp later.
+   (3) the position/accumulator store order: retail interleaves the vel load at
+   0x6C with the two position stores it does not feed, ours groups them.
    Tried: pointer local for the table base, colors[2] vs pointer arithmetic,
    velocity as a 16.16 union vs raw s16 casts vs three s16 locals, source-order
    permutations of the six position/accumulator updates.
 void func_800B6F0C(BattleEffectTask *pTask) {
     BattleEffectTable *pTable;
-    u8 *pState;
     BattleEffect *pEntry;
     BattleEffectColor *pColor;
+    u8 *pState;
+    u8 *pStateWork;
     s16 vel[3];
     s32 i;
     s32 j;
     s32 k;
 
     pTable = pTask->pTable;
-    pState = g_BattleStateWork + 0x8000;
     pTable->frameCount++;
     for (i = 0; i != 2; i++) {
         for (j = 0; j != 14; j++) {
@@ -384,7 +391,9 @@ void func_800B6F0C(BattleEffectTask *pTask) {
                     pEntry->timer--;
                     continue;
                 }
-                pColor = &pEntry->colors[*(u32 *)(pState + 0xC84)];
+                pStateWork = g_BattleStateWork;
+                pState = pStateWork + 0x8000;
+                pColor = &pEntry->colors[*(s32 *)(pState + 0xC84)];
                 pColor->r = SpriteColorAddClamp(pColor->r, -6);
                 pColor->g = SpriteColorAddClamp(pColor->g, -6);
                 pColor->b = SpriteColorAddClamp(pColor->b, -6);
@@ -406,49 +415,40 @@ void func_800B6F0C(BattleEffectTask *pTask) {
     }
 }
 */
-void BattleStoreGfxOrderingTable(void) {
+void BattleStoreGfxOrderingTable(BattleEffectTask *pTask) {
     g_BattleSavedGfxOT = g_GfxCurOT;
-    func_800B7160();
+    func_800B7160(pTask);
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B7160);
-/* best 88.39% (452 vs 464 bytes).  Draws every live record of the effect table
-   under the stored GTE matrices: saves the geometry offset and screen to give the
-   loop a 160/112/512 setup of its own, then for i in 0..1, j in 0..13, k in 0..19
-   transforms the record (RotMatrix over its first 8 bytes, TransMatrix over
-   0x10) and projects its colours[idx] prim (0x20 bytes: tag, r/g/b, then an
-   8-byte screen pair per vertex at +8/+0x10/+0x18) with RotTransPers3, linking it
-   into g_BattleSavedGfxOT at (return >> 6).  idx is the u32 at
-   g_BattleStateWork + 0x8000 + 0xC84; a record with posZ below 0x40 is skipped.
-   i selects D_800C3594 or D_800C35AC (two 3-SVECTOR vertex sets 0x18 apart).
-   The real function TAKES the task pointer (lw a0,0x4(a0)), which the caller
-   BattleStoreGfxOrderingTable forwards untouched - unlocking that needs its
-   signature changed too, which is why the extern here still says (void).
-   WHAT IS LEFT: retail spills `pTable + (0x3C + i*0x87A0)` to 0x58 and reloads
-   it in the k loop (frame 0x88), which shifts its whole local area: the geom
-   offset pair sits at 0x20/0x24 and mtx at 0x28, while ours puts mtx at 0x20,
-   the pair at 0x40 and the frame at 0x80.  Retail also loads the vertex table
-   base and the 0x8000 bias in the other order.  Tried: the two-statement
-   g_BattleStateWork/0x8000 split (keeps the addend out of %hi, but does not
-   spill), pColor before vs after the posZ guard (before is retail's), MATRIX
-   declared first/last, and `long` geom-offset locals.
+/* Draws every live record of the effect table under its own 160/112/512 GTE
+   setup: each record's rotation and position are transformed, and its
+   colours[idx] prim (tag, r/g/b, then a screen pair per vertex at +8/+0x10/+0x18)
+   is projected by RotTransPers3 and linked into the saved ordering table at
+   depth >> 6.  A record whose posZ is nearer than 0x40 is skipped; the dimmer
+   index is the word at 0x8C84 of g_BattleStateWork, and i selects the vertex
+   set D_800C3594 or D_800C35AC.
+   pStateWork holds the same base as g_BattleStateWork because retail's two-step
+   g_BattleStateWork + 0x8000 address formation only survives as two assignments;
+   otIndex likewise keeps the >> 6 ahead of the ordering-table load. */
+
 void func_800B7160(BattleEffectTask *pTask) {
-    s32 geomOffsetX;
-    s32 geomOffsetY;
+    long geomOffset[2];
     MATRIX mtx;
-    s32 depth;
-    s32 flag;
+    long depth;
+    long flag;
     BattleEffectTable *pTable;
     BattleEffect *pEntry;
     BattleEffectColor *pColor;
     SVECTOR *pVertices;
     u8 *pState;
+    u8 *pStateWork;
     s32 screen;
+    s32 otIndex;
     s32 i;
     s32 j;
     s32 k;
 
     pTable = pTask->pTable;
-    ReadGeomOffset(&geomOffsetX, &geomOffsetY);
+    ReadGeomOffset(geomOffset, geomOffset + 1);
     screen = ReadGeomScreen();
     SetGeomOffset(160, 112);
     SetGeomScreen(512);
@@ -456,10 +456,10 @@ void func_800B7160(BattleEffectTask *pTask) {
         for (j = 0; j != 14; j++) {
             for (k = 0; k != 20; k++) {
                 pEntry = &pTable->entries[i][j][k];
-                pState = g_BattleStateWork;
-                pState = pState + 0x8000;
-                pColor = &pEntry->colors[*(u32 *)(pState + 0xC84)];
-                if (pEntry->posZ < 0x40) {
+                pStateWork = g_BattleStateWork;
+                pState = pStateWork + 0x8000;
+                pColor = &pEntry->colors[*(s32 *)(pState + 0xC84)];
+                if (pEntry->posZ < BATTLE_EFFECT_MIN_DRAW_DEPTH) {
                     continue;
                 }
                 RotMatrix((SVECTOR *)pEntry, &mtx);
@@ -471,17 +471,16 @@ void func_800B7160(BattleEffectTask *pTask) {
                 } else {
                     pVertices = D_800C35AC;
                 }
-                AddPrim(g_BattleSavedGfxOT + (RotTransPers3(pVertices, pVertices + 1, pVertices + 2,
-                                                            pColor->sxy[0], pColor->sxy[1], pColor->sxy[2],
-                                                            &depth, &flag) >> 6),
-                        pColor);
+                otIndex = RotTransPers3(pVertices, pVertices + 1, pVertices + 2, pColor->sxy[0],
+                                        pColor->sxy[1], pColor->sxy[2], &depth, &flag) >> 6;
+                AddPrim(g_BattleSavedGfxOT + otIndex, pColor);
             }
         }
     }
-    SetGeomOffset(geomOffsetX, geomOffsetY);
+    SetGeomOffset(geomOffset[0], geomOffset[1]);
     SetGeomScreen(screen);
 }
-*/
+
 void BattleDrawSyncAndFree(void *p) {
     DrawSync(0);
     HeapFree(p);
