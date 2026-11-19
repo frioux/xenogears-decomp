@@ -886,26 +886,10 @@ void func_80072238(void) {
     SystemTransferPaletteToVRAM(0x130, 0x1E0);
 }
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_8007299C);
-/* best: 98.37%, 532 bytes (same size). Everything matches except the four
-   insns of `g_NextMapFlags |= 0x8000`: retail materialises the address once
-   (lui v1,%hi / addiu v1,v1,%lo) and loads and stores through v1, gcc folds the
-   address into each access (lui v0,%hi + lhu %lo, then lui $at + sh %lo).
-   Tried with no change: a u16* local, a two-statement pointer load/store, and
-   `volatile u16`. Second note: the first loop's `addu` needed the index first,
-   i.e. `(u8*)(i * 0x80 + (s32)g_WorldMapSlots)`; the ptr-first spelling gives the
-   reversed addu. Sibling teardown WorldMapAllocPrimBuffers has the same 98.55% class.
-   Round 50: re-confirmed; `u16* pFlags = &g_NextMapFlags; *pFlags |= 0x8000;` (and with a
-   `volatile u16*`) still gives lui v0 / lhu %lo(v0) / lui $at + sh %lo: gcc folds the
-   address into the load, so the loaded value occupies the only free register and the
-   store needs $at. Retail needs the address in a THIRD register (v1) used twice.
-*/
-/*
-extern void* g_SoundAudioManager;
+extern u16 g_NextMapFlags[];
 extern void* g_WorldMapSlots;
 extern void* g_WorldMapTilePrimBuffer;
 extern void* g_WorldMapTilePrimBufferCopy;
-extern u16 g_NextMapFlags;
 extern s32 g_WorldMapAreaMode;
 extern void* g_WorldMapPartyActorAnimFile0[3];
 extern void* g_WorldMapActorAnimFiles[3];
@@ -950,7 +934,7 @@ void func_8007299C(void) {
     }
     if (g_WorldMapAreaMode == 1) {
         WorldMapSaveState();
-        g_NextMapFlags |= 0x8000;
+        g_NextMapFlags[0] |= 0x8000;
     }
     WorldMapFreeAreaNameString();
     WorldMapFreeMode4AreaNameString();
@@ -981,7 +965,6 @@ void func_8007299C(void) {
     WorldMapFreeSlotPool();
     WorldMapFreeLoadQueues();
 }
-*/
 
 extern u8 g_WorldMapColorFactors;
 extern u8 D_8009BB49;
