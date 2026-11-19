@@ -36,6 +36,7 @@ extern u8 g_BattleActorCharIds[];
 extern u8 *g_BattleSpriteColumnWork;
 extern u8 g_BattleSlotActorIds[];
 extern u8 g_BattleSlotFlags[];
+extern BattleSlotGraphics *g_BattleSlotGraphics[];
 
 extern u8 g_BattlePrimBuffer[];
 extern volatile u8 D_800D3725[];
@@ -172,13 +173,62 @@ void BattleAddThreeFlaggedPrimLists(void) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80073FB8);
-/* 87.42%: instruction multiset matches except the two g_BattleSlotFlags reads. The
-   original forms `lui %hi(g_BattleSlotFlags); addu at,at,s1; lbu %lo(at)` from an
-   integer index s1 = i*8 recomputed every iteration, and keeps &g_BattleCurOT in
-   s0; gcc 2.7.2 strength-reduces the address into a pointer biv in s1 and
-   rematerialises the link address with lui/lw. Every access shape tried
-   (array subscript, integer cast of the symbol address, block-scoped base
-   local) produces the biv. */
+/* 95.80% at retail's exact 186 instructions (744 bytes), frame 0x20 / s0-s2+ra
+   exact. All twelve AddPrim sites and the two g_BattlePrimStartIndex chains are
+   recovered; the 8 prim lists are called in retail's source order, which is
+   0x280, 0x2D0, 0x320, 0x370 first and then 0x140, 0x190, 0x1E0, 0x230 - not
+   ascending. What is left is two instruction-shape ties:
+   (1) retail emits `addiu a1,a1,0x...` with a1 = count*40 (constant added to the
+   PRODUCT) then `addu a1,s0,a1` (base last) in the jal delay slot; every
+   spelling of `count * 40 + CONST + (s32)pSlot` is reassociated by gcc into
+   `count*40 + (CONST + pSlot)` (`addiu v0,s0,CONST` + `addu a1,a1,v0`), and so
+   is `(s32)pSlot + (count * 40 + CONST)` (86.90%). Giving the sum its own
+   `s32 off` local does produce retail's `addiu a1,a1,CONST`, but gcc then hoists
+   the `lbu 0x5A4(s0)` out of the call sequence and it drops to 80.72.
+   (2) the two `g_BattlePrimStartIndex * 12` chains differ only in which
+   registers gcc picks ($v0/$v1 swapped) and in the final `addu` operand order
+   (`addu a1,a1,v1` against `addu a1,v0,a1`).
+   Note the last two AddPrim offsets are `count * sizeof(POLY_G4)` (36) at 0x3C0
+   and `count * sizeof(DR_MODE)` (12) at 0x408, which is what the BattleSlotGraphics
+   header's prims[2]/drawModes[2] fields lay out.
+*/
+/*
+void func_80073FB8(void) {
+    BattleSlotGraphics *pSlot;
+    s32 i;
+
+    AddPrim(g_BattleCurOT[0] + 4,
+            (u8 *)(g_BattlePrimStartIndex * 12 + 0x8920 + (s32)g_BattleGraphicsWork));
+
+    for (i = 0; i < 4; i++) {
+        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0x7F) != 0 && g_BattleDisplayMode == 1) {
+            AddPrim(g_BattleCurOT[0] + 4,
+                    (u8 *)((i * 2 + *(u8 *)((u8 *)g_BattleDisplayState + i + 0x84)) * 52 + 0x5A0 +
+                           (s32)g_BattleGraphicsWork));
+        }
+    }
+
+    AddPrim(g_BattleCurOT[0] + 4,
+            (u8 *)(g_BattlePrimStartIndex * 12 + 0x8908 + (s32)g_BattleGraphicsWork));
+
+    for (i = 0; i < 7; i++) {
+        if (*(u8 *)((u8 *)g_BattleDisplayState + i + 0xB0) != 0) {
+            pSlot = g_BattleSlotGraphics[i];
+            func_800728B8((u8 *)pSlot, pSlot->packageCount, *(u8 *)((u8 *)pSlot + 0x5A4));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x280 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x2D0 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x320 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x370 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x140 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x190 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x1E0 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * 40 + 0x230 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(POLY_G4) + 0x3C0 + (s32)pSlot));
+            AddPrim(g_BattleCurOT[0] + 4, (u8 *)(*(u8 *)((u8 *)pSlot + 0x5A4) * sizeof(DR_MODE) + 0x408 + (s32)pSlot));
+        }
+    }
+}
+*/
 void BattleRenderSlotStatDigits(void) {
     s32 flagOfs;
     s32 i;
@@ -551,6 +601,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_80076710);
    `addiu` before the `lui/lw` of g_BattleGraphicsWork; and the two 16-byte
    x/y objects are one `u16 v[8]` read as v[0]/v[4] (that is what puts them at
    sp+0x28/0x30).
+*/
 /*
 void func_80076710(s32 slot) {
     u16 v[8];
