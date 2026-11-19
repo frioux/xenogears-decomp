@@ -828,6 +828,13 @@ void FieldScriptVMHandlerPartyMemberInGear(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
+// Sprite data blob (g_FieldSpriteData). This unit only uses the offset table at
+// +4; each entry is a sprite offset relative to the blob itself.
+typedef struct {
+    /* 0x0 */ s32 unk0;
+    /* 0x4 */ s32 offsets[1];
+} FieldSpriteDataBlob;
+
 extern s32 g_FieldPartyActorSlots[];
 extern s32 D_8005A448;
 extern s32 D_8005A44C;
@@ -1031,7 +1038,91 @@ void FieldScriptVMHandlerSetActorModelFromPartyMember(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
 }
 
+extern s32 g_FieldPartyActorSlots[];
+extern s32 g_FieldPartyActorIndices[];
+extern u8 D_800AE294[];
+extern s16 g_FieldPlayerActorIndex16;
+extern s32 g_PlayerActorIndex;
+extern s32 func_8009FA54(s32 nInstructionOffset);
+
+// 92.94% (896 vs 916 bytes - the body is 5 insns short of retail): the structure, the
+// three func_80076AC0 calls, the pSpriteData swap and the frame match. What is left:
+// (a) retail materialises &g_FieldSceneReloadFlags in one register (lui t2/addiu) and
+// loads through it twice (`lw t1,0(t2)`), the C value-load gives `lui/lw` twice;
+// (b) the arg-6 word (D_800AE294[characterId] + g_FieldSceneReloadFlags) | 0x80 is
+// re-derived from two fresh loads there and CSE'd here; (c) two addu operand orders
+// (`addu v1,v1,s0` vs `addu v1,s0,v1` for g_pGameState + partyId, and the swap's
+// `addu v1,v1,a2`); (d) the partyId*4 scale is hoisted into retail's beq delay slot.
+// Tried: nModel/nReloadFlags locals (one load each, worse), pFieldActor reuse,
+// pointer locals for the two swapped FieldActors (this body), inline table reads.
+/*
+void func_800A08B8(void) {
+    FieldActor* pFieldActor;
+    FieldSpriteDataBlob* pSpriteData;
+    void* pSprite;
+    void* pSwapSprite;
+    void* pOldSprite;
+    FieldActor* pActors;
+    FieldActor* pSwapActor;
+    FieldActor* pCurActor;
+    int characterId;
+    int partyId;
+
+    pFieldActor = &g_FieldActors[g_FieldCurActorIndex];
+    characterId = FieldPartySlotToCharacter(FieldScriptVMGetArgument(1));
+    partyId = FieldCharacterIdToPartyId(characterId);
+    g_FieldScriptVMCurActor->characterId = characterId;
+    pFieldActor->status = (pFieldActor->status & 0xF07F) | 0x200;
+    if (partyId != -1) {
+        if (partyId == 0) {
+            g_PlayerActorIndex = g_FieldCurActorIndex;
+            g_FieldPlayerActorIndex16 = g_FieldCurActorIndex;
+            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x4400;
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x80;
+        }
+        g_FieldPartyActorSlots[partyId] = g_FieldCurActorIndex;
+        if (g_FieldSceneReloadFlags != 0) {
+            pSpriteData = g_FieldSpriteData;
+            pSprite = (void*)(pSpriteData->offsets[D_800AE294[characterId] + g_FieldSceneReloadFlags] + (s32)pSpriteData);
+            func_80076AC0(g_FieldCurActorIndex, D_800AE294[characterId] + g_FieldSceneReloadFlags, pSprite, 0, 0,
+                (D_800AE294[characterId] + g_FieldSceneReloadFlags) | 0x80, 1);
+            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x300;
+            if (((u8*)g_pGameState)[0x22B1 + partyId] != 0) {
+                pActors = (FieldActor*)g_FieldActors;
+                pCurActor = (FieldActor*)(g_FieldCurActorIndex * sizeof(FieldActor) + (s32)pActors);
+                pSwapActor = &pActors[g_FieldPartyActorIndices[partyId]];
+                pSwapSprite = pSwapActor->pSpriteData;
+                pOldSprite = pCurActor->pSpriteData;
+                pCurActor->pSpriteData = pSwapSprite;
+                ((FieldActor*)(g_FieldPartyActorIndices[partyId] * sizeof(FieldActor) + (s32)g_FieldActors))->pSpriteData = pOldSprite;
+                g_FieldScriptVMCurActor->scriptFlags.flags |= 0x200;
+                g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x500;
+            }
+        } else {
+            func_80076AC0(g_FieldCurActorIndex, partyId, g_PartyDataBuffers[partyId], 1, 0, partyId, 1);
+            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x400;
+            g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x300;
+        }
+        g_FieldActors[g_FieldCurActorIndex].status &= 0xFFDF;
+        D_800AFD20 = -0xC0;
+        func_8009FA54(FieldScriptVMGetVariableValue(2));
+        FieldActorApplyPositionTransform();
+        g_FieldScriptVMCurActor->flags &= ~0x800;
+    } else {
+        func_80076AC0(g_FieldCurActorIndex, 0, g_PartyDataBuffers[0], 1, 0, 0, 1);
+        g_FieldScriptVMCurActor->scriptFlags.flags |= 0x1;
+        g_FieldScriptVMScriptEndFlag = 1;
+        g_FieldScriptVMStopFlag = 1;
+        g_FieldScriptVMCurActor->flags |= 0x100000;
+    }
+    g_FieldScriptVMCurActor->scriptFlags.flags |= 0x20000;
+    g_FieldScriptVMCurActor->flags |= 0x400;
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 3;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_800A08B8);
+
 
 extern s32 g_PlayerActorIndex;
 
@@ -1083,13 +1174,6 @@ void FieldActorApplyPositionTransform(void) {
     pSpriteData->field_0x84 = curY;
     pActor->curYPos = curY;
 }
-
-// Sprite data blob (g_FieldSpriteData). This unit only uses the offset table at
-// +4; each entry is a sprite offset relative to the blob itself.
-typedef struct {
-    /* 0x0 */ s32 unk0;
-    /* 0x4 */ s32 offsets[1];
-} FieldSpriteDataBlob;
 
 void FieldScriptVMHandlerSetActorModelFromSpriteIndex0(void) {
     FieldSpriteDataBlob* pSpriteData;
