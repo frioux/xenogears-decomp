@@ -111,7 +111,7 @@ void BattleSetTaskCallback(SpriteData *pSprite) {
     pTask = pSprite->field_0x6C;
     WorkListSetTaskCallback(&pTask->drawEntry, SpriteDrawModelPartsInBaseMatrix);
 }
-void func_800B6464(BattleSpriteState *pActor, u8 *p) {
+void BattleScriptOffsetFrameCluts(BattleSpriteState *pActor, u8 *p) {
     SpriteFrameData *pFrame;
     u8 n;
     s16 i;
