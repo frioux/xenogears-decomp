@@ -262,6 +262,19 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
    instead of assigning it back to the u_char local - that reproduces retail's
    beq/j/andi-in-the-delay-slot shape exactly.
 */
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2D38);
+/* PARKED 99.74% (392 bytes, instruction multiset identical). The ONE difference is the
+   register the gearId value lives in: retail keeps it in a0 all the way (lbu a0,780 /
+   beq a0,s2 / addiu a0,a0,0xB / andi a0,a0,0xff), ours loads it into v0 and masks
+   straight into a0 (andi a0,v0,0xff). Tried and measured, all 99.74 or worse:
+   assigning the ternary back to the u_char local (97.65, and the 0xFF arm's li is then
+   dropped as redundant), an if/else writing back to the same local (97.76, same li
+   loss), an intermediate u_char textureId (97.65), u_char/u32/s32 gearId, the cast on
+   the arm vs on the whole ternary (99.74), and a 4-minute permuter run (1650
+   iterations, best == base). Two loops need separate counters (i and j): with one
+   shared counter the loop registers swap and it is 99.18.
+*/
+/* Best attempt (99.74%): the body below is what the note above was measured with.
 void func_801D2D38(void) {
     s32 i;
     s32 j;
@@ -286,13 +299,14 @@ void func_801D2D38(void) {
             characterIndex = j;
             MenuLoadCharacterNameTexture(menuCharacterId, characterIndex * 2);
             gearId = g_GameState.characters[g_Menu->pManager->currentCharacterIDs[j]].gearId;
-            MenuLoadCharacterNameTexture((gearId == 0xFF) ? 0xFF : gearId + 0xB, 6 + (j << 1));
+            MenuLoadCharacterNameTexture((u_char)((gearId == 0xFF) ? 0xFF : gearId + 0xB), 6 + (j << 1));
         }
     }
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
     func_801D29A8(1, 0);
     MenuCreatePlayTimeWindow();
 }
+*/
 void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuSetGearWindowContents(a0, a1);
     func_801D7CFC(a0, a1, g_GameState.gearRide[a0]);
