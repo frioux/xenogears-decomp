@@ -69,7 +69,7 @@ void FieldScriptVMHandlerMoveToActor(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(5);
     }
-    if (func_80097A50(FieldScriptVMGetArgument(5)) == 0) {
+    if (FieldScriptVMStepActorMove(FieldScriptVMGetArgument(5)) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
     }
 }
@@ -83,7 +83,7 @@ void FieldScriptVMHandlerMoveToActorUnbounded(void) {
     g_FieldScriptVMCurActor->moveStep.vz = CONV_TO_GTE(pActorData->position.vz);
     g_FieldScriptVMCurActor->moveStep.vy = CONV_TO_GTE(pActorData->position.vy);
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
-    if (func_80097A50(0xFFFF) == 0) {
+    if (FieldScriptVMStepActorMove(0xFFFF) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
     }
 }
@@ -98,7 +98,7 @@ void FieldScriptVMHandlerMoveByOffset(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(8);
     }
-    if (func_80097A50(FieldScriptVMGetArgument(8)) == 0) {
+    if (FieldScriptVMStepActorMove(FieldScriptVMGetArgument(8)) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
     }
 }
@@ -111,7 +111,7 @@ void FieldScriptVMHandlerMoveByOffsetUnbounded(void) {
         g_FieldScriptVMCurActor->moveStep.vz = CONV_TO_GTE(g_FieldScriptVMCurActor->position.vz);
     }
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
-    if (func_80097A50(0xFFFF) == 0) {
+    if (FieldScriptVMStepActorMove(0xFFFF) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
     }
 }
@@ -126,7 +126,7 @@ void FieldScriptVMHandlerMoveInDirection(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(5);
     }
-    if (func_80097A50(FieldScriptVMGetArgument(5)) == 0) {
+    if (FieldScriptVMStepActorMove(FieldScriptVMGetArgument(5)) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
     }
 }
@@ -135,19 +135,19 @@ void FieldScriptVMHandlerContinueMovement(void) {
     if (g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 == 0xFFFF) {
         g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = FieldScriptVMGetArgument(8);
     }
-    if (func_80097A50(FieldScriptVMGetArgument(8)) == 0) {
+    if (FieldScriptVMStepActorMove(FieldScriptVMGetArgument(8)) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 0xA;
     }
 }
 
 void FieldScriptVMHandlerContinueMovementUnbounded(void) {
     g_FieldScriptVMCurActor->scripts[g_FieldScriptVMCurActor->curScriptIndex].flags_0 = 0xFFFF;
-    if (func_80097A50(0xFFFF) == 0) {
+    if (FieldScriptVMStepActorMove(0xFFFF) == 0) {
         g_FieldScriptVMCurActor->scriptInstructionPointer += 8;
     }
 }
 
-int func_80097A50(int arg0) {
+int FieldScriptVMStepActorMove(int arg0) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
     ActorData* pTargetActor;

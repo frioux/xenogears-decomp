@@ -1673,3 +1673,5 @@ g_SpriteQuadCorners = 0x8004FAD8;
 g_SpritePlaneMasks = 0x8004FAF8;
 SoundAllocateSoundEffectElements = 0x8003A65C;
 SystemStringInit = 0x80032F54;
+g_GfxIdentityMatrix = 0x800188CC;
+g_GfxQuadCorners = 0x8004FDC0;

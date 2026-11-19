@@ -15,7 +15,7 @@ extern void FieldScriptMemoryWriteU16(int, int);
 extern s32 g_FieldCurActorIndex; // Current actor index
 // Unbounded array so cc1 materialises the base in a register for a read-modify-write.
 extern s32 g_FieldActorModelSlotCount[];
-extern u8 D_800B225F[];
+extern u8 g_FieldActorModelSpriteRow[];
 extern s16 D_800B21DC[];
 extern s32 g_FieldSceneReloadFlags;
 extern int g_GameSceneMapNum;
@@ -1266,7 +1266,7 @@ typedef struct {
     /* 0x20 */ s32 animationIds[8];
 } FieldModelSlotScratch;
 
-extern FieldModelSlotScratch D_800B21EC;
+extern FieldModelSlotScratch g_FieldModelSlotScratch;
 
 // The model record g_FieldActorModelPointers holds and the record it points at
 // from +0x4. This unit only touches the scale, the y and the two x/z words.
@@ -1286,7 +1286,7 @@ typedef struct {
     /* 0x64 */ s32 unk64;
 } FieldActorModelSprite;
 
-void func_800A0FD8(void) {
+void FieldScriptVMHandlerUpdateActorModelSlot(void) {
     ActorData* pActor;
     s32 nSlot;
     s32 nArg;
@@ -1336,11 +1336,11 @@ void func_800A0FD8(void) {
         case 2:
             if (ArchiveCdDataSync(1) == 0) {
                 FieldScriptVMGetArgument(2);
-                nOffset = nSlot + D_800B225F[nSlot];
+                nOffset = nSlot + g_FieldActorModelSpriteRow[nSlot];
                 func_801E742C(nSlot, 0, D_8005A420[nSlot], D_8005A450[nSlot],
                     (s16)(0x240 - (nOffset << 6)), 0x100, 0,
-                    (s16)(nSlot + 0xFC), &D_800B21EC.vectors[nSlot]);
-                D_800B21EC.animationIds[nSlot] = *(s16*)(g_FieldActorModelPointers[nSlot] + 0x1C);
+                    (s16)(nSlot + 0xFC), &g_FieldModelSlotScratch.vectors[nSlot]);
+                g_FieldModelSlotScratch.animationIds[nSlot] = *(s16*)(g_FieldActorModelPointers[nSlot] + 0x1C);
                 HeapFree((void*)D_8005A450[nSlot]);
 
                 pSpriteActor = g_FieldScriptVMCurActor;
@@ -1392,7 +1392,7 @@ void func_800A1364(void) {
     g_FieldScriptVMCurActor->flags |= 0x2000;
     g_FieldScriptVMCurActor->flags &= ~0x800;
     D_800B21DC[g_FieldActorModelSlotCount[0]] = arg;
-    D_800B225F[g_FieldActorModelSlotCount[0]] = 0;
+    g_FieldActorModelSpriteRow[g_FieldActorModelSlotCount[0]] = 0;
     g_FieldScriptVMCurActor->flags12C_0xE = g_FieldActorModelSlotCount[0] & 7;
     g_FieldActorModelSlotCount[0]++;
 }

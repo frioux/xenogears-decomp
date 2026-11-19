@@ -17,7 +17,7 @@ extern u8 g_MenuPanelRowXOffsets[];
 extern u8 D_801EA56E[];
 extern u32 g_MenuGearStringIdTable[];
 extern u8 g_FieldPlayerWalkmeshMaterial;
-extern u8 D_801E97AC[];
+extern u8 g_MenuRowDigitTextureIds[];
 
 void MenuLoadStringsFromIds(u8, void*, u8*, void*);
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
@@ -228,7 +228,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
 /* Best: 80.32% (1424 bytes; retail is 1412, so 3 instructions long). Structure is
    decoded and every call, both switch arms and all 16 prim stores are in retail's
    order. Sets up one dressing-room row: mode 1 appends the row's digit quads
-   straight from the texture atlas (D_801E97AC is a u8 [13][5] of texture ids with
+   straight from the texture atlas (g_MenuRowDigitTextureIds is a u8 [13][5] of texture ids with
    0xFF = skip, one quad per digit at x = 0xD4 + i*0x10), mode 2 renders `value` as
    three glyph codes into the row's 0x28 x 0xD texture cell, uploads it, sets the
    number MenuString's quad and the value's POLY_G4 bar, then flags the row.
@@ -282,7 +282,7 @@ void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
     switch (mode) {
     case 1:
         for (i = 0, x = 0xD4; i < 5; ) {
-            texId = D_801E97AC[slot * 5 + i++];
+            texId = g_MenuRowDigitTextureIds[slot * 5 + i++];
             if (texId != 0xFF) {
                 ((MenuDressingRoomRowBlock*)g_Menu->unk438)->digitPrimCount[slot] +=
                     func_8002675C(g_Menu->resources, texId,

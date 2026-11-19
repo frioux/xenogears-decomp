@@ -749,8 +749,8 @@ void func_80025D4C(s32 count, u16* pSrc, u16* pSrc2, u16* pDst,
 // The identity scale MATRIX the rotated quad helper starts from and the four
 // corner SVECTORs it projects (their z stays at the 0x1000 (1.0) the table is
 // initialised with).
-extern MATRIX D_800188CC;
-extern SVECTOR D_8004FDC0[];
+extern MATRIX g_GfxIdentityMatrix;
+extern SVECTOR g_GfxQuadCorners[];
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025FA8);
 
@@ -760,7 +760,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025FA8);
 // angle 0x68, old geom screen 0x70), both clamp chains and the uv stores are
 // instruction for instruction. What is left:
 //  - the saved registers are rotated: retail has the data offset in s5, the loop
-//    index in s6, pDirent in s7 and D_8004FDC0's %hi in s4; this body has them
+//    index in s6, pDirent in s7 and g_GfxQuadCorners's %hi in s4; this body has them
 //    one slot lower (s4/s5/s6) with %hi in s7. A cyclic rotation, i.e. an
 //    allocator tie, not a source shape.
 //  - retail's `i = 0` lands BEFORE the loop's entry branch and its angle store
@@ -806,7 +806,7 @@ s32 func_80025FA8(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
     s32 height;
     s32 i;
 
-    matrix = D_800188CC;
+    matrix = g_GfxIdentityMatrix;
     scale[0] = scaleX;
     scale[1] = scaleY;
     scale[2] = 0x1000;
@@ -839,29 +839,29 @@ s32 func_80025FA8(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
             nLeft = pData->x;
             nTop = (u16)pData->y;
             if (!pData->flipX) {
-                D_8004FDC0[0].vx = nLeft;
-                D_8004FDC0[1].vx = nLeft + nRight;
-                D_8004FDC0[2].vx = nLeft + nRight;
-                D_8004FDC0[3].vx = nLeft;
+                g_GfxQuadCorners[0].vx = nLeft;
+                g_GfxQuadCorners[1].vx = nLeft + nRight;
+                g_GfxQuadCorners[2].vx = nLeft + nRight;
+                g_GfxQuadCorners[3].vx = nLeft;
             } else {
-                D_8004FDC0[0].vx = nLeft + nRight;
-                D_8004FDC0[1].vx = nLeft;
-                D_8004FDC0[2].vx = nLeft;
-                D_8004FDC0[3].vx = nLeft + nRight;
+                g_GfxQuadCorners[0].vx = nLeft + nRight;
+                g_GfxQuadCorners[1].vx = nLeft;
+                g_GfxQuadCorners[2].vx = nLeft;
+                g_GfxQuadCorners[3].vx = nLeft + nRight;
             }
             if (!pData->flipY) {
-                D_8004FDC0[2].vy = nTop + nBottom;
-                D_8004FDC0[3].vy = nTop + nBottom;
-                D_8004FDC0[0].vy = nTop;
-                D_8004FDC0[1].vy = nTop;
+                g_GfxQuadCorners[2].vy = nTop + nBottom;
+                g_GfxQuadCorners[3].vy = nTop + nBottom;
+                g_GfxQuadCorners[0].vy = nTop;
+                g_GfxQuadCorners[1].vy = nTop;
             } else {
-                D_8004FDC0[2].vy = nTop;
-                D_8004FDC0[3].vy = nTop;
-                D_8004FDC0[0].vy = nTop + nBottom;
-                D_8004FDC0[1].vy = nTop + nBottom;
+                g_GfxQuadCorners[2].vy = nTop;
+                g_GfxQuadCorners[3].vy = nTop;
+                g_GfxQuadCorners[0].vy = nTop + nBottom;
+                g_GfxQuadCorners[1].vy = nTop + nBottom;
             }
-            RotTransPers4(&D_8004FDC0[0], &D_8004FDC0[1], &D_8004FDC0[2],
-                          &D_8004FDC0[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+            RotTransPers4(&g_GfxQuadCorners[0], &g_GfxQuadCorners[1], &g_GfxQuadCorners[2],
+                          &g_GfxQuadCorners[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
                           (long*)&pPrim->x3, (long*)&pPrim->x2, &pFlag[0], &pFlag[1]);
 
             u = pData->u;

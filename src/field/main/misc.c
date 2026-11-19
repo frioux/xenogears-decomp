@@ -222,11 +222,11 @@ void func_800871B0(void) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800871B0);
 
-extern u8 D_800B225F[];
+extern u8 g_FieldActorModelSpriteRow[];
 
 void FieldScriptSetCharacterByte(void) {
     int characterId = FieldScriptVMGetArgument(1);
-    D_800B225F[characterId] = FieldScriptVMGetArgument(3);
+    g_FieldActorModelSpriteRow[characterId] = FieldScriptVMGetArgument(3);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
 

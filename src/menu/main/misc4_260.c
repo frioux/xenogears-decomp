@@ -616,7 +616,7 @@ typedef struct {
     /* 0x0B0 */ u8 unkB0[0x50];
     /* 0x100 */ SVECTOR verts[8];
 } MenuCellPrimBlock; // Size: 0x140
-void func_801CFB48(void) {
+void MenuDrawCardSlotCellLines(void) {
     MenuCellPrimBlock* pBlock;
     long interpolated;
     long flag;
@@ -728,7 +728,7 @@ void MenuAddCellGridPrims(void) {
     func_801CF37C();
     func_801CF5E4(0, 0, 0x10);
     func_801CF5E4(0x10, 0x10, 0x20);
-    func_801CFB48();
+    MenuDrawCardSlotCellLines();
     func_801CF8D8();
     MenuScrollCellGridRow();
     if (++g_Menu->characterCellTimer == MENU_CHARACTER_CELL_TIMER_FRAMES) {
