@@ -23,7 +23,7 @@ extern u16 D_800C3B9C;
 extern s16 D_800C3BA0;
 extern s16 D_800C3BA4;
 extern u16 D_800C3BA8;
-extern u16 g_BattleSlotVectors;
+extern u16 g_BattleSlotVectors[];
 extern s16 D_800D3356;
 extern u16 D_800D3358;
 extern u16 D_800D335C;
@@ -126,7 +126,7 @@ typedef struct {
     /* 0x352 */ s16 unk352;
 } BattleStreamData;
 
-extern BattleFrame D_800C3BD0;
+extern BattleFrame D_800C3BD0[];
 
 s16 BattleComputeScaledSine(s32 *pAxis, VECTOR *pV0, VECTOR *pV1, s32 divisor) {
     s32 vec[3];
@@ -761,7 +761,7 @@ void func_800B026C(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
     D_800C3B8C = 0;
 }
 */
-s32 BattleIsPointWithinBounds(s16 *pPos) {
+u16 BattleIsPointWithinBounds(s16 *pPos) {
     BattleStreamData *pData = g_BattleStageData;
 
     if (pPos[0] > pData->unk34E && pPos[0] < pData->unk34C && pPos[2] > pData->unk350 &&
@@ -775,19 +775,29 @@ extern u16 D_800C3544;
 extern s16 D_800C3546;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B0B14);
-/* 92.60% (600 bytes vs retail's 588). Only the base pointer is left: retail keeps
-   &g_BattleSlotVectors in s5 (lui/addiu once in the prologue) and reads 0(s5) for
-   D_800D3354 and 2(s5) for D_800D3356, where gcc 2.6.0 folds the constant address
-   into each load (lui+lhu twice) - which is also why retail saves s0..s6+ra and we
-   save five registers. Everything else is retail's: s16 dx/dz (the permuter found
-   s32 -> s16, 84.30 -> 92.60), dy as the signed /4, the vec store order
-   vec[0],vec[2],vec[1], the result>=0 tail and the D_800C3542/3544/3546 warm-start
-   bookkeeping. Tried: pointer local (plain, s16*), mem_addr assignment, an array
-   declaration of the same address (gets a register but scores 82.25%), inlining
-   (&g_BattleSlotVectors)[0..1] (identical code), a do/while(0) around the
-   D_800C3546 store, vec[4] vs vec[3], and both tail spellings. A second permuter
-   run only "won" by dropping the pointer's initialisation, i.e. by reading an
-   uninitialised variable - not portable.
+/* 96.54% (612 bytes vs retail's 588). Round 305 closed most of the old 7.4-point
+   gap and changed four things; the residual is ONE class only - cse still folds the
+   base into two of the four g_BattleSlotVectors loads (retail reads 0(s5)/2(s5)
+   four times) which costs the 2 extra instructions - worth 2 insns, do not re-derive
+   the rest:
+   1. `extern u16 g_BattleSlotVectors[]` (array extern, not a scalar) plus
+      `pVectors = g_BattleSlotVectors;` materialises the base once in a register
+      (92.60 -> 95.79). Tried and dead: scalar extern, plain/s16* pointer local,
+      inlining g_BattleSlotVectors[0..1], mem_addr assignment.
+   2. the three scaled deltas go into separate s32 locals (sx/sy/sz) and are stored
+      in vec[0],vec[1],vec[2] source order - cc1 then emits retail's store order
+      32/36/34 with vec[1]'s sh in the BattleIsPointWithinBounds jal delay slot
+      (95.79 -> 96.13). Writing the vec[] assignments in 0,2,1 order gives 34 before
+      36 and is worse.
+   3. BattleIsPointWithinBounds now returns u16 (was s32; its own 96-byte body is
+      still 100.00% and this file is its only caller). Retail's call site has
+      `sll v0,v0,0x10` before the beqz, which only a 16-bit return produces
+      (96.13 -> 96.27 at the time of the change).
+   Still retail's and already right: s16 dx/dz, dy as the signed /4, the result>=0
+   tail and the D_800C3542/3544/3546 warm-start bookkeeping.
+   Two permuter runs (round <305 and 305) only "win" by dropping the pointer's
+   initialisation, i.e. by reading an uninitialised variable - not portable.
+   This body is 79.21% under gcc-2.7.2-cdk -G0, so it is NOT a cdk stub.
 s16 func_800B0B14(s32 index) {
     u8 work[0x10];
     s16 vec[3];
@@ -795,17 +805,23 @@ s16 func_800B0B14(s32 index) {
     s16 dx;
     s32 dy;
     s16 dz;
+    s32 sx;
+    s32 sy;
+    s32 sz;
     u16 *pVectors;
     s32 len;
 
-    pVectors = &g_BattleSlotVectors;
+    pVectors = g_BattleSlotVectors;
     dx = D_800D335C - pVectors[0];
     dy = ((s16)D_800D335E - (s16)pVectors[1]) / 4;
     dz = D_800D3360 - D_800D3358;
     len = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
-    vec[0] = pVectors[0] + (dx << 9) / len;
-    vec[2] = D_800D3358 + (dz << 9) / len;
-    vec[1] = pVectors[1] + (dy << 9) / len;
+    sx = (dx << 9) / len;
+    sy = (dy << 9) / len;
+    sz = (dz << 9) / len;
+    vec[0] = pVectors[0] + sx;
+    vec[1] = pVectors[1] + sy;
+    vec[2] = D_800D3358 + sz;
     result = -1;
     if (BattleIsPointWithinBounds(vec) != 0 && index != D_800C3546) {
         D_800C3546 = index;
@@ -1048,33 +1064,41 @@ void BattleWaitForOtherActorAnimations(s32 arg0) {
     }
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc25", func_800B15D8);
-/* 71.38% under this unit's preset (XenoBattle260Div, gcc 2.6.0). 100.00% under
-   `--gcc gcc-2.7.2-cdk-psx --gp -G0` with this exact body, and tools/scripts/atfree.py
-   lists this stub's `lw $v0,%lo(D_800C3BD0)($a3)` as the cdk-with--G0 signature, so
-   the body below is believed correct and the residual is the PRESET: retail keeps
-   the lui half in $a3 and forms the addresses with separate addiu (a2 for the copy
-   destination, a0 in the bnez delay slot), while gcc 2.6.0 folds each address into
-   one register and re-forms the +8/+0x10 accesses with fresh lui/%hi pairs.
-   2.6.0 also chunks the 7-word copy 4+3 where retail has 3+3+1. Tried: `pDst`
-   pointer local for the copy, for the whole body, and for the two +8/+0x10
-   assignments only (gcc folds the constant address either way); global name on
-   every reference (72%), no `offset` local (loses retail's addiu v0,v0,0xC).
+/* PRESET: 71.38% under this unit's flags (XenoBattle260Div, gcc 2.6.0 -G8),
+   100.00% under `--gcc gcc-2.7.2-cdk-psx --gp -G0` with this exact body.
+   Re-measured round 305 with tools/scripts/try_flags.sh (the old note's provenance
+   was suspect, the number stands), and the unit cannot switch: under cdk -G0 the
+   already-matched functions fall to 55-99.9 (BattleSnapActorToGround/
+   BattleFreeActorBuffer/BattleClearBlockSlots stay 100, BattleSetExtraMatrixFlag
+   55.00, BattleIsPointWithinBounds 78.96), so this stub needs a yaml split.
+   Why it is compiler-bound, from the diff: cc1 2.7.2-cdk splits the symbol address
+   itself, so retail gets `lui $v0,%hi(g_BattlePrimCount)` + `sw $zero,%lo(...)($v0)`
+   and reads D_800C3BD0's tail through `lw 8($a0)`/`lw 16($a0)` off one address
+   register, where 2.6.0 emits the bare `sw $zero,sym` macro (maspsx expands it
+   through $at) and re-forms the +8/+0x10 addresses as absolute D_800C3BD8/
+   D_800C3BE0 symbol refs; cdk also chunks the 7-word copy 3+3+1 like retail where
+   2.6.0 uses 4+3. Source shape confirmed either way: offset = index*0x1C + 0xC in
+   its own local (without it gcc folds +0xC into every displacement), unk0 read
+   through the plain symbol so its %hi is CSE'd with the copy's, unk8/unk10 through
+   the pDst local. Tried under 2.6.0: pointer local, whole-body local, global name
+   at every reference, no offset local, -G0 (identical 71.38), array extern
+   (identical).
 s32 func_800B15D8(u8 *p, s32 index) {
-    BattleFrame *pFrame;
+    BattleFrame *pSrc;
     BattleFrame *pDst;
     s32 offset;
 
     offset = index * 0x1C + 0xC;
-    pFrame = (BattleFrame *)(p + offset);
-    pDst = &D_800C3BD0;
-    *pDst = *pFrame;
+    pSrc = (BattleFrame *)(p + offset);
+    pDst = D_800C3BD0;
+    *pDst = *pSrc;
     if ((*(u32 *)(p + 4) & 1) == 0) {
-        D_800C3BD0.unk0 = D_800C3BD0.unk0 + (mem_addr)pFrame;
-        D_800C3BD0.unk8 = D_800C3BD0.unk8 + (mem_addr)pFrame;
-        D_800C3BD0.unk10 = D_800C3BD0.unk10 + (mem_addr)pFrame;
+        D_800C3BD0[0].unk0 = D_800C3BD0[0].unk0 + (mem_addr)pSrc;
+        pDst->unk8 = pDst->unk8 + (mem_addr)pSrc;
+        pDst->unk10 = pDst->unk10 + (mem_addr)pSrc;
     }
     g_BattlePrimCount = 0;
-    g_BattlePrimCursor = D_800C3BD0.unk10;
-    return pFrame->unk14;
+    g_BattlePrimCursor = pDst->unk10;
+    return pSrc->unk14;
 }
 */
