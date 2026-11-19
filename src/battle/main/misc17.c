@@ -39,6 +39,13 @@ extern BattleTableEntry *g_BattleActingSlot;
 extern u8 g_BattleSlotFlags[];
 extern u8 D_800C3CFA[];
 extern u16 g_SystemPalette1;
+extern u16 g_SystemPalette2;
+extern u8 g_BattleActionRows[];
+extern u8 g_BattleCellActionRows[];
+extern u8 g_BattleActionRowIconSprites[];
+extern u8 D_800D2F69[];
+extern u8 D_800D2F6A[];
+extern u8 D_800D2F6B[];
 extern u8 g_BattleSlotFlags[];
 extern void *D_800D367C;
 
@@ -130,6 +137,80 @@ void func_800916D4(u8 arg0, u8 arg1, s32 arg2) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800916D4);
+/* 98.22% (704 bytes against retail's 700): the shape is now right -- the two
+   table loads need the flag row's offset in a local (`off = (arg2 * 2 + arg1 +
+   0x16) * 0x28 + arg0 * 0x5F0;` then `*(u16 *)(g_BattleCellActionRows + off)`),
+   which is what makes gcc emit retail's symbol+register `lui $at` macro form
+   instead of materialising the base in a register; the row pick is 9/7/8 (the
+   old note's 9/8/7 was wrong for the 0x1000 case); the palette select needs the
+   prim base in a `u8 *pRec` local assigned BEFORE the if (retail computes
+   `pPacketPrims + index * 0x28` above the D_800D2F69 load); and the switch case
+   bodies have to be listed 0, 2, default, 1 to get retail's layout (case 1's body
+   emitted last; 97.48 with 1, 0, 2, default).
+   Residual: one instruction over. Retail fills the first beq's delay slot with
+   the `slti` and keeps case 1's body at the end; gcc puts a nop in that slot,
+   and the case-2 test comes out inverted (bne) with `li a1,0xDA` stolen into its
+   slot. `ofs = row * 4` / `ofs = col * 4` locals instead of the inline `row * 4`
+   are worse (94.68). A permuter run from this body is the next step.
+   Needs the externs added above: g_BattleCellActionRows, g_BattleActionRows,
+   g_BattleActionRowIconSprites, D_800D2F69/6A/6B, g_SystemPalette2. */
+/*
+void func_8009187C(u8 arg0, u8 arg1, u8 arg2) {
+    u16 flags;
+    u16 pal;
+    u8 *pRec;
+    s32 row;
+    s32 col;
+    u32 off;
+
+    if (g_BattleSlotFlags[arg0 * 8] == 0) {
+        off = (arg2 * 2 + arg1 + 0x16) * 0x28 + arg0 * 0x5F0;
+        flags = *(u16 *)(g_BattleCellActionRows + off);
+    } else {
+        off = (arg2 * 2 + arg1 + 0x15) * 0x28 + arg0 * 0x690;
+        flags = *(u16 *)(g_BattleActionRows + off);
+    }
+    if (flags & 0x4000) {
+        row = 9;
+    } else if (flags & 0x1000) {
+        row = 7;
+    } else {
+        row = 8;
+    }
+    switch (flags & 0xF) {
+    case 0:
+        col = 0xC;
+        break;
+    case 2:
+        col = 0x15;
+        break;
+    default:
+        col = 0xC;
+        break;
+    case 1:
+        col = 0xD;
+        break;
+    }
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x320)),
+                           0xDA, 0xAA, D_800D2F6A[row * 4], D_800D2F6B[row * 4], g_BattleActionRowIconSprites[row * 4]);
+    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    if (D_800D2F69[row * 4] != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x32E) = pal;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
+                           0xFE, 0xAA, D_800D2F6A[col * 4], D_800D2F6B[col * 4], g_BattleActionRowIconSprites[col * 4]);
+    pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
+    if (D_800D2F69[col * 4] != 0) {
+        pal = g_SystemPalette2;
+    } else {
+        pal = g_SystemPalette1;
+    }
+    *(u16 *)(pRec + 0x37E) = pal;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
 /* 87.45%: the whole shape (index branch, RECT, two string draws, two
    BattleSetPolyFT4RectH13 calls, HeapFree) reproduces; the leftovers are the
@@ -287,7 +368,7 @@ void func_80093578(u8 arg0, u8 arg1) {
                                          (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x370)),
                             0x48, 0xA6, D_800D2F6A[ofs], D_800D2F6B[ofs], g_BattleActionRowIconSprites[ofs]);
     pRec = g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28;
-    if (D_800D2F69[ofs] != 0) {
+    if (D_800D2F69[col * 4] != 0) {
         pal = g_SystemPalette2;
     } else {
         pal = g_SystemPalette1;
@@ -295,26 +376,21 @@ void func_80093578(u8 arg0, u8 arg1) {
     *(u16 *)(pRec + 0x37E) = pal;
 }
 */
-/* 89.66%: the shape, both stack args, the RECT, the two string draws and both prim
-   builds match. Residuals, all one cluster:
-   1) retail keeps &g_BattlePrimStartIndex in $s3 (lui/addiu once, `lw v0,0(s3)` per
-      call, frame 56 with the s3 save); gcc 2.6.0 folds an
-      `s32 *pPrimIndex = &g_BattlePrimStartIndex;` local back into a
-      lui/lw %hi/%lo(g_BattlePrimStartIndex) per call and the frame stays 48.
-   2) the second call's `li a2,0xC6` is one slot earlier than retail's.
-   Fixed against the older 84.56 park: `g_BattleGraphicsWork + 0xA230` was TYPED pointer
-   arithmetic - BattleGraphicsWork is 0xA2C8 bytes, so gcc folded it to the constant
-   0x67211580. The field is already named in battle_work.h, so write
-   g_BattleGraphicsWork->pPacketPrims, and fold +0x280 / +0x2D0 into the index
-   expression (`*pPrimIndex * 0x28 + 0x280`) so retail's addiu lands before the base
-   addu. 84.56 -> 89.66. Next lever: a spelling of &g_BattlePrimStartIndex that
-   survives into a callee-saved register; every one tried is folded.
-   Un-parking needs no new externs. */
+/* 99.04% (412 bytes against retail's 416): the array-extern spelling from
+   func_8009209C closed the &g_BattlePrimStartIndex wall here too -- retail's
+   `lui s3/addu s3` + `lw 0(s3)` per call is reproduced exactly, and every other
+   instruction is identical. The whole remainder is the one `andi s0,s0,0xffff`
+   retail emits at index's FIRST use (the truncation of the u16 local):
+   gcc 2.6.0 proves the range (u8 load * 4 + u8, * 2 -> <= 2550) and drops the
+   mask, so the body is 4 bytes short and cannot link. Tried: u16 vs s32 vs u32
+   index, a `u32 value` intermediate, the 3-statement `index = ...*4; index +=
+   arg1; index *= 2;` form (98.80), and declaring GetStringEntry's 2nd parameter
+   `u16` (the second call's `ori a1,s0,1` proves it is not a parameter conversion,
+   and that spelling masks neither call). */
 /*
 void func_8009382C(u8 arg0, u8 arg1) {
     RECT rect;
     u8 *pBuf;
-    s32 *pPrimIndex;
     u16 index;
     s32 len1;
     s32 len2;
@@ -329,11 +405,8 @@ void func_8009382C(u8 arg0, u8 arg1) {
     rect.w = 0x3C;
     rect.h = 0xD;
     BattleLoadImageAndSync(&rect, pBuf);
-    pPrimIndex = &g_BattlePrimStartIndex;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (*pPrimIndex * 0x28 + 0x280)),
-                  0x88, 0xB6, 0, 0, len1 & 0xFF);
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (*pPrimIndex * 0x28 + 0x2D0)),
-                  0x88, 0xC6, 0, 0, len2 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x280)), 0x88, 0xB6, 0, 0, len1 & 0xFF);
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + (((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0x2D0)), 0x88, 0xC6, 0, 0, len2 & 0xFF);
     HeapFree(pBuf);
 }
 */
