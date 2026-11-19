@@ -887,7 +887,10 @@ error:
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 
-/* Best attempt: objdiff 96.81% (this was 96.40% before). func_8002B5D0 is
+/* NOTE: the park below func_8002B5D0 is the same body taken to 97.47% (retail's
+ * exact 736 bytes) - read that note first, it supersedes the measurements here.
+ *
+ * Best attempt: objdiff 96.81% (this was 96.40% before). func_8002B5D0 is
  * instruction-identical to this function (verified by diffing both .s files modulo
  * addresses), so one body matches both. Everything outside the found-block after
  * CdPosToInt matches byte for byte.
@@ -1012,6 +1015,122 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  * }
  */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
+
+/* Best attempt: objdiff 97.47% at retail's exact 736 bytes, instruction multiset
+ * identical. The ONLY remaining delta is a stolen branch-delay slot: retail's
+ * `beq v0,v1,\n li v0,0x1` against ours `beq ...\n li a1,0x200` (sched2 orders the
+ * state constant after the CdGetSector size constant, so reorg steals the wrong
+ * one, and the `sll a0,s2,0xb` lands after the wp load instead of before the sh).
+ * func_8002B2F0 is instruction-identical to this function (diffed modulo addresses),
+ * so a body that closes this one closes that one too.
+ *
+ * Shapes that got here from 91.80%:
+ *  - `entryIndex = g_ArchiveStreamQueueIndex++;` (not two statements) is what makes
+ *    gcc copy the loaded index to the saved register retail uses;
+ *  - the two id-counter reads must BOTH be volatile or cse merges them, and with the
+ *    volatile-id-read stated FIRST the register rotation comes out retail's
+ *    (a2 = stored id, a0 = shift, v1 = write pointer);
+ *  - the write-pointer read must be volatile or sched2 hoists the load above the
+ *    state store and maspsx then inserts a load-delay nop (+4 bytes).
+ * Measured and rejected (all with the rest fixed): state and id statements swapped
+ * 97.47 (same two rows); id read plain / increment volatile 96.48; both reads plain
+ * with the volatile wp read only 96.48; non-volatile wp read 96.81 / 740 bytes;
+ * `pCurrent = &g_ArchiveStreamSections[entryIndex]` 97.00 (base-first addu);
+ * `pCurrent = NULL;` before the loop 93.83; local sector-offset or pointer local for
+ * the CdGetSector argument 96.48-96.67 (gcc folds them back);
+ * gcc-2.7.2-cdk 95.67, -O3 82.52, gcc-2.6.0 does not compile the body.
+ * The `if (pCurrent) {...} else {...}` tail is NOT a realistic source shape: it is
+ * the permuter's find, it duplicates the cleanup arm, and it only works because
+ * pCurrent is read uninitialised when the search loop is skipped (retail's asm reads
+ * the raw register there too). It is worth 93.83 -> 97.47 on its own through the
+ * register allocation, so whoever finishes this function should keep it in mind but
+ * prefer an initialised spelling if one ever measures the same.
+ *
+ * void func_8002B5D0(u_char status) {
+ *     int entryIndex;
+ *     ArchiveStreamFileSectionHeader* pCurrent;
+ *     CdlLOC* pLoc;
+ *     u8* pBuf;
+ *     int i;
+ *     int k;
+ *     int l;
+ *
+ *     if (status != CdlDataReady)
+ *         goto error;
+ *
+ *     if (g_ArchiveStreamStopFlag > 0) {
+ *         CdReadyCallback(NULL);
+ *         CdDataCallback(NULL);
+ *         g_ArchiveCurFileSize = 0;
+ *         ArchiveCdSeekToFile(g_ArchiveCdChannel);
+ *         g_ArchivePendingReadCount = 0;
+ *         return;
+ *     }
+ *
+ *     if (g_ArchiveCurFileSize > 0) {
+ *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
+ *             entryIndex = g_ArchiveStreamQueueIndex++;
+ *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+ *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
+ *                 g_ArchiveStreamQueueIndex = 0;
+ *             if (pCurrent->state == 0)
+ *                 break;
+ *         }
+ *
+ *         if (pCurrent->state != 0)
+ *             goto errorNoInc;
+ *
+ *         pLoc = &g_ArchiveSectorLocation;
+ *         CdGetSector(pLoc, 3);
+ *         if (CdPosToInt(pLoc) == g_ArchiveCurFileSector) {
+ *             pCurrent->state = 1;
+ *             pCurrent->id = *(volatile u16*)&g_ArchiveStreamNextSectionId;
+ *             g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;
+ *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)*(s8* volatile*)&g_ArchiveStreamWritePointer), CD_SECTOR_SIZE / 4);
+ *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *             g_ArchiveCurFileSector += 1;
+ *             if (g_ArchiveCurFileSize > 0)
+ *                 return;
+ *         } else {
+ *             D_8004FDEC += 1;
+ *             pBuf = g_ArchiveSectorScratch;
+ *             CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
+ *             goto error;
+ *         }
+ *     }
+ *
+ *     if (pCurrent) {
+ *         CdReadyCallback(NULL);
+ *         g_ArchiveCurFileSize = 0;
+ *         return;
+ *     } else {
+ *         CdReadyCallback(NULL);
+ *         g_ArchiveCurFileSize = 0;
+ *         return;
+ *     }
+ *
+ * error:
+ *     g_ArchiveReadRetryCount += 1;
+ * errorNoInc:
+ *     g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
+ *     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
+ *     if (g_ArchiveReadRetryCount < 3) {
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
+ *     } else {
+ *         for (k = 9999; k >= 0; k--) {
+ *             for (l = 1999; l >= 0; l--) {
+ *             }
+ *         }
+ *         g_ArchiveReadRetryCount = 0;
+ *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
+ *         g_ArchiveCdReadRetryExhaustedCount += 1;
+ *     }
+ *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
+ *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
+ *     CdControlF(CdlNop, NULL);
+ * }
+ */
+
 
 /* Best attempt: objdiff 91.80% (was 87.60%). 396 bytes, instruction multiset
  * identical to retail; all remaining deltas are sched2 ordering + one register
