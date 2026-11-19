@@ -69,6 +69,26 @@ matched C. The one matching queue that still exists is a **park with a named cau
 near-exact size** (99%+, instruction multiset identical): that is worth one worker when
 a tracker row records the specific construct, and nothing else is.
 
+**Measured at round 285 (2026-11-19): the small-stub queue is NOT empty, `fresh_stubs.py`'s
+count is.** `fresh_stubs.py` reported 3 stubs (one the known non-function) while a plain
+census of the same tree found **61 units holding non-parked stubs of 150 instructions or
+fewer** - `battle/misc32` 8, `battle/misc29` 8, `battle/misc11` 7, `battle/misc31` 6,
+`menu/misc3` 5 (excluding `system/model`, which is splat-marked handwritten, and `psyq`).
+One 60-minute lane on `battle/misc29` turned four of them (`func_800B8054` 5 insns,
+`func_800B8068` 12, `func_800B81BC` 50, `func_800B8774` 51) into matches at 100.00% plus
+five named globals, which is more than the ten preceding park rounds produced together.
+So before running another quality round, measure the queue yourself:
+
+    find asm -path '*nonmatchings*' -name '*.s' | while read f; do
+        echo "$(grep -cE '^\s+/\* [0-9A-F]+ ' $f) $f"; done > /tmp/stubsizes.txt
+
+and cross it with the park census (`park.py`'s BLOCK + FILLER rule, as
+`tools/rounds/park_sweep.py:parked_funcs` does) - the stubs with no park block are the
+queue, whatever `fresh_stubs.py` says. Apply the per-unit filters (sw $sp, jtbl in a unit
+that does not own its tables, `convertible.py` BLOCKED) by hand; they are cheap. The
+bands at that date: 339 stubs under 100 instructions, 260 of 100-199, 172 of 200-349,
+120 of 350-599, 36 above.
+
 **Measured at round 275 (2026-11-19, rounds 268-275): the queues are not empty, they are
 HIDDEN BEHIND STALE VERDICTS, and the highest-yield work of the last eight rounds was
 re-testing one.** 929 stubs left, and in eight rounds the project gained 7 matches while

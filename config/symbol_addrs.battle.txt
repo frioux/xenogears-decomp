@@ -1068,3 +1068,6 @@ g_BattleSlotByteRegs = 0x800D3430;
 g_BattleSpriteOwnMatrix = 0x800C3574;
 g_BattleDirectionMatrix = 0x800C3A68;
 g_BattleTweenVectorScale = 0x800D39E8;
+g_BattleLiveSlotCount = 0x800C3D58;
+g_BattleStageIndex = 0x800D36B8;
+g_BattleSceneResources = 0x800D2D54;

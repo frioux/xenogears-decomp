@@ -1661,3 +1661,5 @@ g_GpuTimeoutDeadline = 0x800569E8;
 g_SpriteVramSlotPair = 0x8004FAB8;
 g_ModelRenderTestFlags = 0x80050104;
 g_FieldDiscChangeFade = 0x8005942C;
+g_BattleStageFileIndex = 0x800591B4;
+g_BattleStageLoadQueued = 0x800591B1;

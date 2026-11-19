@@ -506,7 +506,7 @@ void ShopMenuLoadWhiteVramRow(void) {
     HeapFree(pVramData);
 }
 
-void func_801C5EE8(void) {
+void ShopMenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->titleStrings[0].pVramBuffer = HeapAlloc(0x38E, 0);
     ShopMenuRenderStringsToVram(g_Menu->titleStrings, g_ShopMenuStringIds, 0, 4);
@@ -2688,7 +2688,7 @@ void ShopMenuMain(void) {
     g_Menu->pCursorPrims->shadeWidth = 0x40;
     ShopMenuInitialize();
     ShopMenuResetRenderContext();
-    func_801C5EE8();
+    ShopMenuInitializeMenuStrings();
     ShopMenuInitializeBackgrounds();
     ShopMenuInitializeWindowBorders();
     ShopMenuInitializeShopData();

@@ -386,7 +386,7 @@ void GearShopMenuInitializeMenuStringPolys(MenuString* pMenuString, s32 arg1, s3
     pMenuString->hasVertices = 0;
 }
 
-void func_801C5EE8(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 count) {
+void ShopMenuInitializeMenuStrings(MenuString* pStringList, u8* pStringIdList, s32 yOffset, s32 count) {
     s32 yPos;
     s32 i;
     u32 offset;
@@ -444,7 +444,7 @@ void GearShopMenuFillVramRectWhite(void) {
 void GearShopMenuInitializeMenuStrings(void) {
     SystemTransferPaletteToVRAM(0, 0x1D1);
     g_Menu->titleStrings[0].pVramBuffer = HeapAlloc(0x38E, 0);
-    func_801C5EE8(g_Menu->titleStrings, &g_MenuStringIds, 0, 4);
+    ShopMenuInitializeMenuStrings(g_Menu->titleStrings, &g_MenuStringIds, 0, 4);
     GearShopMenuFillVramRectWhite();
 }
 
@@ -2521,7 +2521,7 @@ void GearShopMenuFree(void) {
 }
 
 void GearShopMenuRenderMenuStringsToVram(s32 count, MenuString *menuString, s8 *arg2, s8 *unused) {
-    func_801C5EE8(menuString, arg2, 2, (u8)count);
+    ShopMenuInitializeMenuStrings(menuString, arg2, 2, (u8)count);
 }
 
 void GearShopMenuClearStringRenderFlags(u8 count, s8* buffer) {

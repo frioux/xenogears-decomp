@@ -30,8 +30,8 @@
 
 extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
-extern u16 D_800591B4; // stage file index the next stage load uses; func_800B8068 clears it
-extern u8 D_800591B1;  // set once the stage's archive reads are queued; func_800B8054 clears it
+extern u16 g_BattleStageFileIndex; // stage file index the next stage load uses; func_800B8068 clears it
+extern u8 g_BattleStageLoadQueued;  // set once the stage's archive reads are queued; func_800B8054 clears it
  extern void *D_800C3E1C;
 extern void *D_800C3E1C;
 extern s32 g_NumFlaggedTimerWorkListEntries;
@@ -72,14 +72,14 @@ void BattleSetSpriteTemplate(void *pArg) {
     D_800C3E1C = pArg;
 }
 void func_800B8054(s16 stage) {
-    D_800591B4 = stage;
-    D_800591B1 = 0;
+    g_BattleStageFileIndex = stage;
+    g_BattleStageLoadQueued = 0;
 }
 
 void func_800B8068(s32 stage) {
     func_800B7C34(stage);
     func_800B7E94();
-    D_800591B1 = 1;
+    g_BattleStageLoadQueued = 1;
 }
 /* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
 typedef struct {
@@ -113,7 +113,7 @@ extern void func_800A8B0C(void);
 extern u8 func_801E7210(void *pData, void *pFileBuffer, void *pStreamBuffer, void *pTileSource,
                         void *pTileSourceTail, void *pColorSources);
 extern void BattleSetColorSources(void *pColorSources, void *pDestination);
-extern u8 D_800D36B8;
+extern u8 g_BattleStageIndex;
 extern s32 g_SystemStreamedFileData;
 extern void *D_80059520;
 extern void *g_SystemStreamedFileBuffer;
@@ -133,7 +133,7 @@ void func_800B8098(s32 stage) {
     u8 *pBase;
     u8 colorFlag;
 
-    D_800D36B8 = stage;
+    g_BattleStageIndex = stage;
     BattleInitDispEnvAndDrawEnv();
     SoundLoadAndPlaySedsBank();
     switch (stage) {
@@ -371,7 +371,7 @@ extern void WorkListsFreeAllEntries(void);
 extern void BattleFreeAllModelSlots(void);
 extern void BattleFreeSceneResources(void);
 extern void *g_BattleSoundBankMain;
-extern void *D_800D2D54;
+extern void *g_BattleSceneResources;
 extern u8 g_IsBattle;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
@@ -397,7 +397,7 @@ void func_800B8774(void) {
     DrawSync(0);
     BattleFreeAllModelSlots();
     BattleFreeSceneResources();
-    HeapFree(D_800D2D54);
+    HeapFree(g_BattleSceneResources);
 }
 
 /* Battle state pointed to by g_BattleState; only the fields this unit reads. */
@@ -443,7 +443,7 @@ void BattleInitStateWorkBuffers(void) {
     g_ModelRenderTestFlags = 0;
 }
 
-extern s32 D_800C3D58;
+extern s32 g_BattleLiveSlotCount;
 extern s32 g_AnimScriptExtraTicks;
 extern s32 g_GfxOTDepthShift;
 
@@ -451,7 +451,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B88C4);
 // 91.71% (308 bytes vs retail's 304, same instruction multiset but one unfilled
 // load-delay slot). Everything is retail's except the address formation of
 // g_AnimScriptExtraTicks: retail hoists `lui a0,%hi` into the delay slot of the
-// `lw` that reloads D_800C3D58 after the loop and keeps the base in a0 across the
+// `lw` that reloads g_BattleLiveSlotCount after the loop and keeps the base in a0 across the
 // clamp and the later read/zero, while gcc here fills that slot with a nop and
 // forms the address (in v1) at the clamp store. The loop itself is exact once the
 // slot pointer is written INDEXED off g_BattleStateWork (a pSlot++ walk rebases
@@ -469,14 +469,14 @@ void func_800B88C4(void) {
     s32 n;
     s32 i;
 
-    D_800C3D58 = 0;
+    g_BattleLiveSlotCount = 0;
     pSlot = (BattleActorSlot *)g_BattleStateWork;
     for (i = BATTLE_FIRST_ACTOR_SLOT; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (pSlot[i].unk6 < 0x11 && pSlot[i].inUse != 0) {
-            D_800C3D58++;
+            g_BattleLiveSlotCount++;
         }
     }
-    n = D_800C3D58 / 2 - 1;
+    n = g_BattleLiveSlotCount / 2 - 1;
     g_AnimScriptExtraTicks = n;
     if (n < 0) {
         g_AnimScriptExtraTicks = 0;
