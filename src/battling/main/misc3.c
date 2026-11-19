@@ -158,7 +158,7 @@ typedef struct BattleActor {
     /* 0x00C6 */ u8 prevState;
     /* 0x00C7 */ u8 padC7;
     // Frames left in the current step: func_80075B50 sets it from the move
-    // record when the step is taken, func_80077038 counts it down, and at zero
+    // record when the step is taken, BattleUpdateActorStatus counts it down, and at zero
     // the move's frame count is cleared for the stop animation (0x300000).
     /* 0x00C8 */ s16 moveEndTimer;
     /* 0x00CA */ s16 moveTimer;
@@ -916,7 +916,7 @@ extern void BattlePlaySoundEffectById(s32 arg);
    that retail leaves as nop. The two volatile flag stores are load-bearing: each
    one stops gcc from forwarding the stored word into the next flags read, which
    is why retail reloads 0xD0 three times here (99.06% without them). */
-s32 func_80077038(BattleActor* p) {
+s32 BattleUpdateActorStatus(BattleActor* p) {
     u32 flags;
 
     if (p->flashTimer != 0) {

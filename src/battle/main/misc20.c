@@ -13,11 +13,11 @@ extern u8 g_BattleCurSlotIndex;
 extern u8 g_BattleTargetSlotIndex;
 extern u8 g_BattleAmountThirdFlag;
 extern u8 g_BattleCommandCharIndex;
-extern u8 *D_800C3D3C;
+extern u8 *g_BattleCommandCounter;
 extern s32 D_800C34DC[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u16 g_BattleActionSlotMask;
-extern s8 func_8009DBFC(u8);
+extern s8 BattleTryApplyCondition(u8);
 extern s32 func_80097610();
 extern void BattleSetSlotEntryFieldsTo2000(u8);
 extern void BattleRollPercentAndSetState38(void);
@@ -52,7 +52,7 @@ void BattleExecuteActionRow(void) {
     BattleSetSlotEntryFieldsTo2000(g_BattleTargetSlotIndex);
     actor = g_BattleCurWorkBlock->actorIndex;
     g_BattleAmountThirdFlag = 0;
-    D_800C3D3C = &g_BattleCurWorkBlock->slots[actor].state.unkA4;
+    g_BattleCommandCounter = &g_BattleCurWorkBlock->slots[actor].state.unkA4;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
         if (g_BattleActingSlot->characterId == 1) {
             BattleRollPercentAndSetState38();
@@ -82,11 +82,11 @@ void BattleExecuteActionRow(void) {
                         goto skip;
                     }
                 }
-                func_8009DBFC(one);
+                BattleTryApplyCondition(one);
             }
         skip:
             g_BattleCurWorkBlock->unk5FB0 = g_BattleCurrentRow->unk02;
-            func_8009C4B4();
+            BattleAdjustSlotAmountByCondition();
             BattleSetSlotBit20FromStatusBit200(g_BattleCurSlotIndex);
         }
         g_BattleCurSlotIndex++;
@@ -97,23 +97,23 @@ void BattleExecuteActionRow(void) {
     }
     BattleSaveScriptCommandOperands();
 }
-void func_8009C4B4(void) {
+void BattleAdjustSlotAmountByCondition(void) {
     s32 percent;
 
     if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS) {
         if (g_BattleCurWorkBlock->rowIndex < 3) {
-            if (++D_800C3D3C[0] > D_800C3D3C[1]) {
-                D_800C3D3C[0]--;
+            if (++g_BattleCommandCounter[0] > g_BattleCommandCounter[1]) {
+                g_BattleCommandCounter[0]--;
             }
         }
         if (g_BattleCurWorkBlock->rowIndex >= 3 && g_BattleCurWorkBlock->rowIndex < 6) {
-            D_800C3D3C[0] = g_BattleCommandCharIndex + 0xFF;
+            g_BattleCommandCounter[0] = g_BattleCommandCharIndex + 0xFF;
         }
         if (g_BattleCurWorkBlock->rowIndex >= 6 && g_BattleCurWorkBlock->rowIndex < 9) {
-            D_800C3D3C[0] = g_BattleCommandCharIndex + 0xFE;
+            g_BattleCommandCounter[0] = g_BattleCommandCharIndex + 0xFE;
         }
         if (g_BattleCurWorkBlock->rowIndex >= 9 && g_BattleCurWorkBlock->rowIndex < 12) {
-            D_800C3D3C[0] = g_BattleCommandCharIndex + 0xFD;
+            g_BattleCommandCounter[0] = g_BattleCommandCharIndex + 0xFD;
         }
         if (g_BattleCurWorkBlock->rowIndex >= 3 && g_BattleCurWorkBlock->rowIndex < 12) {
             *(u8 *)&g_BattleActingSlot->unk54 += (u32)g_BattleCurWorkBlock->rowIndex / 3;
@@ -209,7 +209,7 @@ void BattleSetCurrentSlotState6(void) {
     BattleWorkBlock *p;
     u8 i;
 
-    if (func_8009DBFC(0) == 0) {
+    if (BattleTryApplyCondition(0) == 0) {
         p = g_BattleCurWorkBlock;
         i = g_BattleCurSlotIndex;
         p->slotStates[i] = 6;
@@ -414,7 +414,7 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
     }
     return arg0;
 }
-s8 func_8009DBFC(u8 arg0) {
+s8 BattleTryApplyCondition(u8 arg0) {
     s8 chance;
     u8 kind;
     u16 flags;

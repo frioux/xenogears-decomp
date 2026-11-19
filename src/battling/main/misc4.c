@@ -369,7 +369,7 @@ struct Actor {
     // with a 6-unit tolerance in func_8007920C.
     /* 0x96C */ s16 prevVertex1Y;
     /* 0x96E */ s16 prevVertex0Y;
-    // Gauge damage applied by this frame's update, then cleared (misc3 func_80077038).
+    // Gauge damage applied by this frame's update, then cleared (misc3 BattleUpdateActorStatus).
     /* 0x970 */ s32 gaugeDamage;
     /* 0x974 */ u8 pad974[0x24];
     /* 0x998 */ s16 animFrame;
@@ -971,7 +971,7 @@ extern s32 ControllerPopState(void);
 extern s32 ControllerGetType(s32);
 extern void func_80076884(Actor*);
 extern void func_800751C8(Actor*, Actor*);
-extern void func_80077038(Actor*);
+extern void BattleUpdateActorStatus(Actor*);
 extern void func_80077A9C(Actor*);
 extern void func_80078194(Actor*);
 extern void func_80074BA4(Actor* p);
@@ -1104,8 +1104,8 @@ skipFacing:
     }
 
     func_800751C8(p1, p2);
-    func_80077038(p1);
-    func_80077038(p2);
+    BattleUpdateActorStatus(p1);
+    BattleUpdateActorStatus(p2);
     FontSetPositionsByOffsetClamped(0x4A, 0);
     func_80077A9C(p1);
     FontSetPositionsByOffsetClamped(0x6A, 0);
