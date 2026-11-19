@@ -69,6 +69,39 @@ matched C. The one matching queue that still exists is a **park with a named cau
 near-exact size** (99%+, instruction multiset identical): that is worth one worker when
 a tracker row records the specific construct, and nothing else is.
 
+**Measured at round 275 (2026-11-19, rounds 268-275): the queues are not empty, they are
+HIDDEN BEHIND STALE VERDICTS, and the highest-yield work of the last eight rounds was
+re-testing one.** 929 stubs left, and in eight rounds the project gained 7 matches while
+`D_`/`unk`/raw moved a few units each round. What mattered:
+
+- **`battle/misc35` was recorded as the one "mixed" preset case. It was not:** objdiff was
+  folding relocations, and `make check` under cdk -G0 is byte-identical. Switching it (no
+  split, no new file) made one park score 100.00 (`BattleFreeWdsEntry`), turned a stub the
+  unit's own park note had written off as an "ATFREE wall" into a fresh briefable body, and
+  `fresh_stubs.py` went from 2 stubs to 5. **Two of the three matches of rounds 269-270 came
+  out of that one audit.** When a note says a unit is "mixed" or a body is "un-convertible",
+  re-measure it before believing it - with `make check`, not `try_flags --all`.
+  `system/temp1` is the counter-example that keeps the procedure honest: every live function
+  screens 100.00 under cdk -G0 and the LINK fails, so revert it.
+- **A "GPF_BLOCKED / hand-written GTE, no macro exists" verdict was wrong too.**
+  `battle/misc35 func_800C0D18` matched at 100.00% (146 instructions) through
+  `gte_lddp`/`gte_ldlvl`/`gte_gpf12`/`gte_stlvl` after a lane refused it from the
+  disassembly. The discriminator is splat's `/* Handwritten function */` marker: the 19 GTE
+  stubs of `system/model` carry it and can never be C; the 9 GTE stubs without it are
+  ordinary compiler output. So `system/model` stays closed for the right reason now.
+- **A park's percentage can be fiction without the body being wrong: undefined behaviour.**
+  `func_800C0FAC` sat at 96.88% on a body that read a pointer local assigned after an `break`;
+  honest spelling is 94.06%. objdiff cannot see it. Same class as "the park never compiled".
+- **Quality rounds still pay, but only on a header whose evidence accumulated elsewhere:**
+  `battle_work.h` gave ~15 named members of three opaque spans, `actor.h` ~20 across four
+  spans, `libgear/main.h` 9, `system/sound.h` 6 - all from matched bodies in OTHER units plus
+  `ghidra_info.py --struct`. `system/menu.h` (92 `unk`, passed three times) returned ONE field
+  and a FIELD_UNKNOWN inventory; treat that as its answer, not as a task for a fourth pass.
+- Round 273 found that the `%hi`-across-a-branch tie is a C rule (address taken at its use
+  site, never through a pointer local that crosses a join); round 274 checked it in as
+  `tools/scripts/cc1_probe.sh <unit> <snippet.c>`, which answers a register question in ten
+  seconds. Use it before spending a lane on register guessing.
+
 **Measured at round 253 (2026-11-18, seven consecutive rounds 245-252): every queue is
 now at its floor, including the quality ones.** `fresh_stubs.py` lists **2 stubs** (one is
 the known non-function `system/menu func_8001C76C`), 944 stubs remain and all of them are
