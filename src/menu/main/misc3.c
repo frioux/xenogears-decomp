@@ -31,7 +31,8 @@ extern s32 g_MenuCardSlotTotals[];
 // The memory card directory prefix a slot's filename is appended to: D_801C50A8
 // reads "bu00:", D_801C50B0 "bu10:".
 typedef struct {
-    /* 0x0 */ u8 pathPrefix[6];
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ s16 unk4;
 } MenuCardPrefix; // Size: 0x6
 
 extern MenuCardPrefix D_801C50A8;
@@ -144,7 +145,16 @@ extern void MenuWaitCardOperationFrames(u_char index);
    cursor here (lw/addiu/sw), not the u8 header fields around it.
    Permuter (4 min, 1289 iterations, base=80 best=80) found nothing for the addu
    order, so the remaining two diffs are a1/v0 register swap (GIV_TIE) in the
-   strcat index math and the MenuReadFileChunk argument's addu operand order. */
+   strcat index math and the MenuReadFileChunk argument's addu operand order.
+   Round 286: the `lh`/`sh` tail of the 6-byte prefix copy proves the copy is an
+   AGGREGATE of an 8-byte {u32; s16} struct (a 6-byte 4-aligned type cannot be
+   declared in C): `memcpy(&prefix, &D_801C50A8, 6)` on that type inlines to
+   exactly retail's lw/lh/sw/sh pair, while a field-wise copy is 8 bytes shorter
+   and cross-jumps the two stores into one shared block (440 bytes, 94.55%). The
+   two remaining diffs are both "retail puts the OFFSET first in the addu"
+   (`addu a1,a1,v0` with a1 = k*0x5C, and `addu a1,s0,a1` with s0 = the chunk
+   offset); the index-first spellings `(slot + ...->records)` / `(k + ...->chunks)`
+   canonicalise back to base-first (88.12% with a slot local). */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C90B0);
 /*
 void func_801C90B0(u_char a0, u_char a1) {
@@ -178,16 +188,26 @@ void func_801C90B0(u_char a0, u_char a1) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9270);
 
-/* Best attempt: 97.56%. Instruction multiset identical; `matched = 1` is
-   scheduled before the menuUnk2 load (original: after the slotRecordIndexes load), which
-   then swaps the record base and pMenu between a2/a3 and flips the `chunks[k]`
-   addu operand order. Tried: matched placed before/after the pRecord
+/* Round 286, best body: objdiff 94.04% but only SIX differing instructions (the
+   permuter's instruction-diff score 155, against 165 for the 97.56% pointer-local
+   body below - objdiff's fuzzy percent weights this one lower even though it is
+   closer, so judge this body by the diff row count). Inlining the record
+   expression into the `if` (no `pRecord` local) is what removed the a2/a3 register
+   swap of the loop body: gcc then re-forms `pRecord + i` in the inner loop's delay
+   slot as retail does. The two remaining rows are `li t1,1` (matched) scheduled
+   two instructions above retail's (mine before the slotRecordIndexes lbu, retail
+   after it) and the `chunks[k]` address built base-first (`addu v1,v1,v0`) where
+   retail has offset-first (`addu v0,v0,v1`). The index-first spellings canonicalise
+   back.
+   The pointer-local variant (a `pRecord = &records[slotRecordIndexes[...]]` line
+   before the inner loop) reads objdiff 97.56% but differs in ~20 rows: it keeps the
+   record base out of the loop, swaps the record base and pMenu between a2/a3 and
+   also flips the `chunks[k]` order. Also tried: matched before/after the pRecord
    assignment, `u_char matched` (96.15%), `u_short` shape, and hoisting the
-   slotRecordIndexes byte into a `u8 idx` local (86.54% - the original really does reload
+   slotRecordIndexes byte into a `u8 idx` local (86.54% - retail really does reload
    slotRecordIndexes inside the `if`, so the index must stay inline). */
 /*
 void func_801C9270(int a0) {
-    MenuUnk2Record* pRecord;
     MenuUnk2ImageChunk* pChunk;
     int i;
     int j;
@@ -197,10 +217,9 @@ void func_801C9270(int a0) {
         g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + i] = 0;
     }
     for (j = 0; j < 0xF; j++) {
-        pRecord = &g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j]];
         matched = 1;
         for (i = 0; i < 0xC; i++) {
-            if (pRecord->ids[i] != g_Menu->menuUnk2->gameSerialCode[i]) {
+            if (g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j]].ids[i] != g_Menu->menuUnk2->gameSerialCode[i]) {
                 matched = 0;
                 break;
             }
@@ -213,7 +232,6 @@ void func_801C9270(int a0) {
         }
     }
 }
-
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C93A8);
@@ -499,15 +517,23 @@ void func_801CA5F0(s32 a0, s32 a1) {
 */
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA750);
-/* Best attempt: 96.91%. The template copy into 0x4B98 is 0x1B bytes in retail
-   (lw x6, then lh at source+0x18 and lb at source+0x1A storing sh/sb = a 3-byte
-   block move at alignment 2). A C aggregate of size 3 cannot exist, and a
-   0x1C-byte struct (u32[6] + s16 + s8) copies a seventh word; splitting the
-   tail into two statements makes gcc rematerialise &D_801C50E0 and emit
-   lhu/lbu with a fresh lui instead of reusing the copy's a3 base. Second diff:
-   mfhi lands in a3 here vs v1 in retail. Tried: single 0x1C struct copy,
-   0x18-byte head copy + two u16/s8 statements (77.87%), pointer locals for
-   source and destination.
+// Best attempt: 96.91%. The template copy into 0x4B98 is 0x1B bytes in retail
+// (lw x6, then lh at source+0x18 and lb at source+0x1A storing sh/sb = a 3-byte
+// block move at alignment 2). A C aggregate of size 3 cannot exist, and a
+// 0x1C-byte struct (u32[6] + s16 + s8) copies a seventh word; splitting the
+// tail into two statements makes gcc rematerialise &D_801C50E0 and emit
+// lhu/lbu with a fresh lui instead of reusing the copy's a3 base. Second diff:
+// mfhi lands in a3 here vs v1 in retail. Tried: single 0x1C struct copy,
+// 0x18-byte head copy + two u16/s8 statements (77.87%), pointer locals for
+// source and destination.
+// Round 286: this body does NOT COMPILE any more (MenuUnk2Text and D_801C50E0 no
+// longer exist; the title template is the 0x1B-byte block at a new symbol name),
+// so the 96.91% above was measured on a stale object. The type it needs is a
+// 0x1B-byte aggregate: retail copies 6 words + lh + lb off ONE source base (a3)
+// and stores them as displacements off the reloaded menuUnk2, which is a block
+// move, not field stores. Re-measure before trusting this note.
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
+/*
 void func_801CA8C0(u_char a0) {
     s32 n;
     s32 tens;
@@ -526,7 +552,6 @@ void func_801CA8C0(u_char a0) {
     strcat(g_Menu->menuUnk2->saveTitle, g_Menu->menuUnk2->saveTitleSuffix);
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA8C0);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
 u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
     u_char result;
