@@ -20,7 +20,8 @@ extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 extern void func_800A9FF0(s32);
 s32 BattleIsTimerTaskActive(void);
 extern void BattleUpdateCommandRows(void);
-extern void *func_800BFC80(void *, s32, s32);
+extern void *func_800BFC80(SpriteData *pSprite, s32 arg1, s32 mode);
+extern void *g_TimerWorkList;
 extern s32 BattleSpriteDistanceToTarget(SpriteData *pSpriteData);
 extern void func_800BF0C4(BattleSpriteState *pActor);
 extern void BattleActorSnapToTargetAndFace(SpriteData *pSprite, SpriteData *pTarget);
@@ -64,8 +65,14 @@ typedef struct WorkListEntry {
     /* 0x04 */ void *unk4;
     /* 0x08 */ void *onTriggerCallback;
     /* 0x0C */ void (*onFreeCallback)(void *);
-    /* 0x10 */ u32 unk10;
-    /* 0x14 */ u32 unk14;
+    /* 0x10 */ u32 unk10: 29; // address of the task this entry belongs to, without its tag bits
+    /* 0x10 */ u32 unk10_1: 1;
+    /* 0x10 */ u32 unk10_2: 1;
+    /* 0x10 */ u32 unk10_3: 1;
+    /* 0x14 */ u32 unk14: 29;
+    /* 0x14 */ u32 unk14_1: 1;
+    /* 0x14 */ u32 unk14_2: 1;
+    /* 0x14 */ u32 unk14_3: 1;
     /* 0x18 */ struct WorkListEntry *pNext;
 } WorkListEntry; // Size: 0x1C
 
@@ -371,7 +378,41 @@ void BattleLoadSoundWdsFile(void) {
     HeapFree(pWds);
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800BFC80);
+// Finds the timer task of the animation the sprite at pSprite->field_0x6C plays from
+// the fifth animation package. mode 0 only reports it (returns the sprite the task
+// draws, or NULL), mode 1 also runs the task's callback when the animation id matches
+// and mode 2 runs it whatever the animation id is.
+void *func_800BFC80(SpriteData *pSprite, s32 arg1, s32 mode) {
+    WorkListEntry *pEntry;
+    WorkListEntry *pOwner;
+    WorkListEntry *pTask;
+    SpriteData *pTaskSprite;
+
+    pOwner = (WorkListEntry *)pSprite->field_0x6C;
+    for (pEntry = g_TimerWorkList; pEntry != NULL; pEntry = pEntry->pNext) {
+        if (pEntry->unk0 != pOwner) {
+            continue;
+        }
+        if (pEntry->unk14 != pOwner->unk10 || (pEntry->unk14_1 & 1) == 0) {
+            continue;
+        }
+        pTaskSprite = (SpriteData *)pEntry->unk4;
+        if (pTaskSprite->pVramData != &g_SpriteAnimPackageDirs5) {
+            continue;
+        }
+        if (mode != 2) {
+            if ((s8)pTaskSprite->flags_0xAC.bytes[3] != arg1) {
+                continue;
+            }
+            if (mode == 0) {
+                return pTaskSprite;
+            }
+        }
+        pTask = (WorkListEntry *)pTaskSprite->field_0x6C;
+        pTask->onFreeCallback(pTask);
+    }
+    return NULL;
+}
 
 void BattleInvokeSpriteCallbackForActor(void *arg0, s32 arg1) {
     func_800BFC80(arg0, arg1, 1);
