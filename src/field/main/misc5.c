@@ -571,10 +571,25 @@ void FieldAddParticlePrims(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-/* Re-attempt at 99.56% / 500 bytes (the original size). Identical to the
-   original instruction for instruction except the two UV temporaries swap
-   registers: retail has j*16 and (j*16 & 0x3F) in v0 with +0x10 in v1, ours
-   the other way round. See the note below for the shapes already measured.
+/* Best attempt, 99.56% at the original's 500 bytes - identical instruction
+   for instruction, every offset and store order included, except which of the
+   two UV temporaries gets v0. Retail has j*16 and (j*16 & 0x3F) in v0 (the
+   mask reusing v0 once j*16 dies) and (j*16 & 0x3F) + 0x10 in v1; ours puts the
+   mask in v1 and the +0x10 temp in v0, i.e. local_alloc ranks the +0x10 temp
+   above the mask - the other way round from retail - and the temp lives two
+   instructions longer, which is the only visible difference.
+   Measured dead ends: the mask assigned before the x0/x2 stores and after them,
+   the mask and the +0x10 computed adjacent at retail's own position, a named
+   u1/u3 temp assigned at its first use, a 0x10 + nU operand swap, u_char on
+   the mask (94.91), and a 4-minute permuter run (base=55 best=55, 1314
+   iterations, nothing).
+   Settled facts: 14 x 20 grid of 16x16 tiles, i outer / j inner,
+   nIndex = i*20 + j, polygons is 560 POLY_GT4 (two copies of 280, the second
+   at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
+   0x7850 set to 0x80, y0/y1 = i*16 and y2/y3 = i*16 + 0x10 (s5/s3 counters),
+   x1/x3 = j*16 + 0x10 (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10,
+   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
+   *pPolyNext = *pPoly (0x34 bytes: a 4x lw/sw unrolled loop plus one word).
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -583,15 +598,16 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
         int j;
         int nIndex;
         int nU;
+        int nU1;
         int nX;
 
-        g_FieldParticlePrimitives = HeapAlloc(0x7A80, 0x1);
-        for (i = 0; i < 0xE; i++) {
-            for (j = 0; j < 0x14; j++) {
+        g_FieldParticlePrimitives = HeapAlloc(sizeof(FieldParticlePrimitiveSet), 0x1);
+        for (i = 0; i < FIELD_PARTICLE_GRID_ROWS; i++) {
+            for (j = 0; j < FIELD_PARTICLE_GRID_COLUMNS; j++) {
                 pPrims = g_FieldParticlePrimitives;
-                nIndex = i * 0x14 + j;
+                nIndex = i * FIELD_PARTICLE_GRID_COLUMNS + j;
                 pPoly = pPrims->polygons + nIndex;
-                pPolyNext = pPrims->polygons + 280 + nIndex;
+                pPolyNext = pPrims->polygons + FIELD_PARTICLE_GRID_ROWS * FIELD_PARTICLE_GRID_COLUMNS + nIndex;
                 pPrims->unk71C0[nIndex] = 0x80;
                 pPrims->unk73F0[nIndex] = 0x80;
                 pPrims->unk7620[nIndex] = 0x80;
@@ -602,6 +618,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
                 pPoly->x0 = nX;
                 pPoly->x2 = nX;
                 nU = nX & 0x3F;
+                nU1 = nU + 0x10;
                 pPoly->r0 = 0x80;
                 pPoly->g0 = 0x80;
                 pPoly->b0 = 0x80;
@@ -622,11 +639,11 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
                 pPoly->y3 = i * 0x10 + 0x10;
                 pPoly->u0 = nU;
                 pPoly->v0 = i * 0x10;
-                pPoly->u1 = nU + 0x10;
+                pPoly->u1 = nU1;
                 pPoly->v1 = i * 0x10;
                 pPoly->u2 = nU;
                 pPoly->v2 = i * 0x10 + 0x10;
-                pPoly->u3 = nU + 0x10;
+                pPoly->u3 = nU1;
                 pPoly->v3 = i * 0x10 + 0x10;
                 pPoly->tpage = GetTPage(0x2, 0x1, j / 4 * 0x40 + 0x2C0, 0x100);
                 SetSemiTrans(pPoly, 0x1);
@@ -636,28 +653,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
     }
 */
 
-/* PARKED-NOTE (previous attempt was 99.56% / 500 bytes, the original's size). Everything
-   matches - instruction sequence, store order, offsets, every other register -
-   except which of the two UV temporaries lands in v0:
-     original: j*16 in v0, u0/u2 = (v0 & 0x3F) reusing v0 after j*16 dies,
-               u1/u3 = that + 0x10 in v1
-     ours:     j*16 and the mask in v1 (same reuse), the +0x10 in v0
-   So gcc's allocno priority ranks the +0x10 temp above the j*16/mask group and
-   we need the opposite. Measured, none of these work:
-     - temp as a named local, int / u_short / u_char: the temp is allocated
-       LAST (v1 then a0), nX takes v0 and nU does not reuse it, and the
-       andi/addiu are emitted before the x0/x2 sh -> 94.92%.
-     - cast the temp at the store, (u_char)(nU + 0x10): same 94.92%.
-     - no UV locals at all (u0 = nX & 0x3F inline): same 94.92%.
-     - mask or x local as a narrow type: adds a truncation andi -> 94.91%.
-   Settled: 0xE x 0x14 grid of 16x16 tiles, i outer / j inner,
-   nIndex = i*0x14 + j, polygons is 560 POLY_GT4 (two copies of 280, next copy
-   at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
-   0x7850 set to 0x80, y0/y1 = i*16 in s5, y2/y3 = i*16 + 0x10 in s3,
-   x1/x3 = j*16 + 0x10 strength-reduced to an s4 counter,
-   tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
-   *pPolyNext = *pPoly (0x34 bytes: a 4x lw/sw unrolled loop plus one word).
-*/
 void func_800A7064(void) {
     HeapFree(g_FieldParticlePrimitives);
 }
