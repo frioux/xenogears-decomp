@@ -174,7 +174,9 @@ extern int rand(void);
 
 extern void BattleDrawLineQuads(s32);
 extern void BattleEffectJitterSVector(SVector *pVec);
-extern void func_8007D334(s32, s32, s32);
+extern s32 BattleVectorLength(s32 *arg0);
+extern void BattleQueueLineQuad(s32 *pPos, s32 *pPos2, u8 *pColor);
+extern void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type);
 extern void func_800732AC(void *, void *, s32);
 extern void func_8007E020(s32);
 
@@ -488,7 +490,13 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007C880);
    g_BattleDrawFlags / g_BattleEffectSpawnTick / 0x70 / 0x72 pair a few slots away from retail.
    Store order matches retail exactly (0x54, 0x56, 0x72, 0x78, 0x6C, 0x70,
    0x58, 0x74), so it is scheduler/allocator, not source order. Same
-   85.17 under -O3 and -G0, and 80.59 under gcc-2.7.2-cdk. */
+   85.17 under -O3 and -G0, and 80.59 under gcc-2.7.2-cdk.
+   ROUND 292: the permuter took this to 88.20% in two rounds - (a) write
+   `u = u + arg0 * 4` instead of `u += arg0 * 4`, and (b) hoist the CLUT word
+   into a local (`v = D_800926A0;` then `pMotion->clut = v;`) so its lhu is
+   issued with the other two loads rather than after the code store. Still
+   548 bytes; the remaining gap is the store order of the x/y/drawFlags/key/
+   0x6C/0x70/z/halfWidth block and the hoisting of the second scan's i = 0. */
 /*
 void func_8007C880(s32 arg0, VECTOR *pVec, u32 arg2, s32 arg3) {
     BattleSlot *pSlot;
@@ -748,7 +756,96 @@ void BattleEffectJitterVector(VECTOR *pSrc, VECTOR *pDst) {
     pDst->vz = pSrc->vz + rand() % 64 - 32;
 }
 
+/* PARK 99.48% at retail's exact size (808 bytes). diff_func.sh shows no
+   textual instruction difference at all, yet check_bin says the bytes move, so
+   the residual is one branch target or relocation the objdump text diff folds.
+   Established here: the caller-visible signature is (VECTOR *pA, VECTOR *pB,
+   s32 type), matching the extern above; the entry copies pB, subtracts pA,
+   calls BattleVectorLength for its side effect only, then divides the three
+   deltas by 7. The double loop is 3 x 7 quads with prev = pos = *pA re-copied
+   each outer pass (that assignment order is load-bearing: pos first),
+   BattleEffectJitterVector into a second VECTOR, the per-type colour, then
+   BattleQueueLineQuad(&prev, j == 6 ? pB : &jittered, color). Levers that were
+   needed, in order of gain: (1) prev = pos = *pA, not pos = prev;
+   (2) type 1 stores color[1] inside BOTH arms of the 0x100 clamp and then reads
+   it back through color[0] = color[1] = color[1] - that is where retail's
+   lbu/sb/sb triple comes from, and the plain color[0] = color[1] is one
+   instruction short; (3) type 0 writes color[2] before color[1]; (4) type 2's
+   white arm stores 0x52, 0x51, 0x50 and its red arm 0x50, 0x52, 0x51;
+   (5) the trailing argument select is an if/else with the call duplicated and
+   the j != 6 arm FIRST - the ternary hoists &prev into a callee-saved
+   register, +2 insns; (6) v = rand(); v %= 256; v += 0x40; as three
+   statements - the single expression keeps the return in $v0 and costs the
+   bgez register. */
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D334);
+
+/*
+void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type) {
+    VECTOR pos;
+    VECTOR step;
+    VECTOR prev;
+    VECTOR jittered;
+    u8 color[3];
+    s32 i;
+    s32 j;
+    s32 v;
+
+    step = *pB;
+    step.vx -= pA->vx;
+    step.vy -= pA->vy;
+    step.vz -= pA->vz;
+    BattleVectorLength((s32 *)&step);
+    step.vx /= 7;
+    step.vy /= 7;
+    step.vz /= 7;
+    for (i = 0; i < 3; i++) {
+        prev = pos = *pA;
+        for (j = 0; j < 7; j++) {
+            pos.vx += step.vx;
+            pos.vy += step.vy;
+            pos.vz += step.vz;
+            BattleEffectJitterVector(&pos, &jittered);
+            switch (type) {
+            case 0:
+                color[0] = rand() & 0x3F;
+                color[1] = rand() % 191 + 0x40;
+                color[2] = 0xFF;
+                break;
+            case 1:
+                v = rand();
+                v %= 256;
+                v += 0x40;
+                if (v < 0x100) {
+                    color[1] = v;
+                } else {
+                    color[1] = 0xFF;
+                }
+                color[0] = color[1] = color[1];
+                color[2] = v / 3;
+                break;
+            case 2:
+                if (j & 1) {
+                    color[2] = 0xFF;
+                    color[1] = 0xFF;
+                    color[0] = 0xFF;
+                } else {
+                    color[0] = 0xFF;
+                    color[2] = 0;
+                    color[1] = 0;
+                }
+                break;
+            }
+            if (j != 6) {
+                BattleQueueLineQuad((s32 *)&prev, (s32 *)&jittered, color);
+            } else {
+                BattleQueueLineQuad((s32 *)&prev, (s32 *)pB, color);
+            }
+            prev = jittered;
+        }
+    }
+}
+*/
 
 void BattleEffectQueueLineByType(s32 arg0, s32 arg1, s32 arg2) {
     switch (arg2) {
