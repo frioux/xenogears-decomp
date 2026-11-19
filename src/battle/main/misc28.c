@@ -179,6 +179,96 @@ void BattleActorFaceTarget(BattleSpriteState *pActor) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc28", func_800B65B0);
+/* 98.03% at the original's exact 600 bytes; the whole body matches except the
+   register the z-axis turn limit is formed in. The original truncates the angle
+   difference into $v0 and then copies it twice (move $a3,$v0 for the turn,
+   move $v1,$v0 for the magnitude); gcc merges the truncation into $a3, so the
+   block reads sra $a3,$v1,20 / move $v1,$a3 / bgez $a3 and is one move short
+   with one spare elsewhere. The y-axis block (listed plain, magnitude in a
+   do-while block) comes out right, so the two blocks differ only in that merge.
+   Tried: the plain form in either block (98.03 only when y is plain and z is an
+   embedded assignment inside a do-while magnitude block), a separate delta temp
+   for the (u16) subtraction, turn=delta before/after the magnitude,
+   delta = turn, two do-while blocks, a pointer local to vec (98.70 but 596
+   bytes, one instruction short), and three permuter runs (2063 -> 641 -> 296).
+void func_800B65B0(BattleSpriteState *pSprite, u8 *p) {
+    SVECTOR rot;
+    SVECTOR curRot;
+    VECTOR diff;
+    VECTOR sq;
+    VECTOR move;
+    SVECTOR vec;
+    MATRIX mtx;
+    VECTOR out;
+    s32 speed;
+    s32 len;
+    s32 len2;
+    s32 rate;
+    s32 delta;
+    s32 mag;
+    s32 turn;
+    s16 zero;
+
+    zero = 0;
+    diff.vx = pSprite->targetPosition.x - pSprite->position.xWhole;
+    diff.vy = pSprite->targetPosition.y - pSprite->position.yWhole;
+    diff.vz = pSprite->targetPosition.z - pSprite->position.zWhole;
+    Square0(&diff, &sq);
+    len = SquareRoot0(sq.vx + sq.vz);
+    rot.vy = -ratan2(diff.vz, diff.vx);
+    rot.vz = ratan2(diff.vy, (s16)len);
+    rot.vx = 0;
+
+    move.vx = pSprite->step.x >> 7;
+    move.vy = pSprite->step.y >> 7;
+    move.vz = pSprite->step.z >> 7;
+    Square0(&move, &sq);
+    speed = SquareRoot0(sq.vy + sq.vx + sq.vz);
+    len2 = SquareRoot0(sq.vx + sq.vz);
+    curRot.vy = -ratan2(move.vz, move.vx);
+    curRot.vz = ratan2(move.vy, (s16)len2);
+    curRot.vx = 0;
+
+    rate = p[0] << 2;
+    delta = ((u16)rot.vy - (u16)curRot.vy << 20) >> 20;
+    do {
+        mag = delta;
+    } while (0);
+    if (mag < 0) {
+        mag = -mag;
+    }
+    turn = delta;
+    if (mag > rate) {
+        turn = rate;
+        if (delta < 0) {
+            turn = -rate;
+        }
+    }
+    curRot.vy += turn;
+
+    turn = (delta = ((u16)rot.vz - (u16)curRot.vz << 20) >> 20);
+    do {
+        mag = delta;
+    } while (0);
+    if (mag < 0) {
+        mag = -mag;
+    }
+    if (mag > rate) {
+        turn = rate;
+        if (delta < 0) {
+            turn = -rate;
+        }
+    }
+    curRot.vz += turn;
+
+    SpriteSetSVec(&vec, (s16)speed, 0, 0);
+    RotMatrix(&curRot, &mtx);
+    ApplyMatrix(&mtx, &vec, &out);
+    pSprite->step.x = out.vx << 7;
+    pSprite->step.y = out.vy << 7;
+    pSprite->step.z = out.vz << 7;
+}
+*/
 void BattleActorSetDirectionTowardPosition(BattleSpriteState *pSprite) {
     SVECTOR rot;
     VECTOR diff;
