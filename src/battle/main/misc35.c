@@ -473,8 +473,6 @@ typedef void (*SpriteScriptCallback)(SpriteData *pSpriteData);
 //  the unit preset (cdk -O2 -G0) first at 66.74 (next best 66.43). A 4-minute
 //  permuter run (796 iterations) produced only a wrong-code candidate: it folded
 //  the two flags_0xA8 stores of the 0x81 arm into one, which retail has both of.
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc35", func_800C11CC);
-/*
 void func_800C11CC(SpriteData *pSpriteData) {
     u8 *pArgs;
     u8 code;
@@ -488,6 +486,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
     s16 pointB[2];
     SpriteData *pTarget;
     u8 *pBuffer;
+    u8 *pFrames;
     u8 *pWork;
     s32 size;
     u32 flags;
@@ -678,8 +677,8 @@ void func_800C11CC(SpriteData *pSpriteData) {
             pSpriteData->flags_0xA8 &= mask;
             return;
         case 0xF8:
-            pTarget = pSpriteData->pTargetEntitySprite;
-            count = (((u32)pTarget->flags_0xAC.flags & 3) << 2) | ((u32)pTarget->flags_0xA8 >> 30);
+            count = (((u32)((SpriteData *)pSpriteData->pTargetEntitySprite)->flags_0xAC.flags & 3) << 2) |
+                    ((u32)((SpriteData *)pSpriteData->pTargetEntitySprite)->flags_0xA8 >> 30);
             offset = g_BattleStateWork[(g_BattleCommandRowIndex - 1) * 0x48 + count + 0x150];
             switch (pArgs[2] & 0x7F) {
             case 0:
@@ -704,14 +703,15 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 count = offset == 6;
                 break;
             case 7:
-                count = BattleFindTableEntryIndex(pTarget) + 1 < g_BattleActorListCount;
+                count = BattleFindTableEntryIndex((SpriteData *)pSpriteData->pTargetEntitySprite) + 1 <
+                        g_BattleActorListCount;
                 BattleRemapActorModelId(pSpriteData);
                 break;
             case 8:
                 count = D_800C4928 != 0;
                 break;
             case 9:
-                count = pTarget == D_800C3E1C;
+                count = (SpriteData *)pSpriteData->pTargetEntitySprite == D_800C3E1C;
                 break;
             default:
                 count = 0;
@@ -736,18 +736,18 @@ void func_800C11CC(SpriteData *pSpriteData) {
                 pSpriteData->pBase->pDirTransforms = NULL;
                 break;
             }
-            pBuffer = pArgs + offset;
-            size = BattleGetPrimitiveBufferSize(BattleGetFrame(pBuffer, 0));
+            pFrames = pArgs + offset;
+            size = BattleGetPrimitiveBufferSize(BattleGetFrame(pFrames, 0));
             pBuffer = HeapAlloc(size * 2, 0);
             if (pSpriteData->field_0x3A != 0) {
-                BattleModelScaleParts(BattleGetFrame(pArgs + offset, 0), 3);
+                BattleModelScaleParts(BattleGetFrame(pFrames, 0), 3);
             }
-            BattleExpandModelPrims(BattleGetFrame(pArgs + offset, 0), pBuffer, ((BattleSpriteState *)pSpriteData)->flags >> 29,
+            BattleExpandModelPrims(BattleGetFrame(pFrames, 0), pBuffer, ((BattleSpriteState *)pSpriteData)->flags >> 29,
                                    pSpriteData->prim & 1);
             memcpy(pBuffer + size, pBuffer, size);
             pSpriteData->pBase->pFramesData = pBuffer;
             pSpriteData->pBase->pCurRenderFramesData = pBuffer + size;
-            pSpriteData->pBase->pDirTransforms = (SpriteDirectionTransforms *)BattleGetFrame(pArgs + offset, 0);
+            pSpriteData->pBase->pDirTransforms = (SpriteDirectionTransforms *)BattleGetFrame(pFrames, 0);
             break;
         case 0x8B:
             BattleUpdateCommandRows();
@@ -914,4 +914,3 @@ void func_800C11CC(SpriteData *pSpriteData) {
         pSpriteData->pSpriteBytecode = (u8 *)pSpriteData->pSpriteBytecode + D_8004FC40[code];
     }
 }
-*/
