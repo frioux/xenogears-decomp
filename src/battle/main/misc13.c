@@ -545,29 +545,30 @@ void func_80087EDC(u8 arg0, u8 arg1) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800881B8);
-/* 81.95% (476 of retail 500 bytes, shape right, registers wrong): keep the
-   `ofsA`/`ofsB` locals - spelling `arg0 * 0x1C` inline makes gcc build a
-   `lui/addiu` base pointer for g_BattleSlotRecords (62.92%), as in func_80088490.
-   Open: (1) retail recomputes `arg1 * 0x1C` after the sel if/else into $s2
-   (its masked arg1 lived in $a2, which sel overwrote) while we keep one
-   computation in $s2 from the top; (2) retail re-loads g_BattleSlotRecords[ofsA]
-   twice for the two flag stores (lui/addu/lbu each) where gcc forwards the
-   value just stored - that is 6 of the 24 missing bytes; (3) sel: retail is
-   `beqz(arg1<3)->li a2,0x10` with `li a2,0x18` in the second beqz's delay
-   slot, i.e. `if (arg1 >= 3 && arg0 < 3) sel = 0x18; else sel = 0x10;`,
-   which was tried and did not change the rest.
+/* 79.99%, 488 bytes (retail 500). NOTE the old 81.95% park note decoded `sel`
+   WRONG: retail is `sel = (arg1 < 3 && arg0 < 3) ? 0x18 : 0x10` (the
+   `ori $a2,0x18` in the second beqz's delay slot is skipped only when arg0 < 3),
+   not `arg1 >= 3 && arg0 < 3`. With the right condition the shape is right and the
+   residual is: retail keeps ofsB in the saved $s2 (reused after the
+   BattleReleaseCharSlot call) and re-forms ofsA into $a1 after the call, while gcc
+   wants both offsets live (472 bytes, 2 saved regs) or neither (508 bytes with an
+   `la` base pointer for g_BattleSlotRecords, which is what spelling `arg0 * 0x1C`
+   inline twice costs). Retail also re-loads g_BattleSlotRecords[ofsA] four times
+   where gcc forwards the value it just stored.
+   Spelling measured: both offsets as locals from the top (472, 81.02%), ofsB local +
+   arg0 inline at the compare (488, this body), arg0 inline everywhere (508, 77.47%).
+/*
 void func_800881B8(u8 arg0, u8 arg1) {
     s32 ofsA;
     s32 ofsB;
     u8 sel;
 
-    ofsA = arg0 * 0x1C;
     ofsB = arg1 * 0x1C;
-    if (g_BattleSlotRecords[ofsA] == g_BattleSlotRecords[ofsB]) {
+    if (g_BattleSlotRecords[arg0 * 0x1C] == g_BattleSlotRecords[ofsB]) {
         return;
     }
     sel = 0x10;
-    if (arg1 >= 3 && arg0 < 3) {
+    if (arg1 < 3 && arg0 < 3) {
         sel = 0x18;
     }
     if (g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsB] + sel) << 2] != 0) {
@@ -579,7 +580,7 @@ void func_800881B8(u8 arg0, u8 arg1) {
     g_BattleSlotRecords[ofsA] = g_BattleSlotRecords[ofsB];
     g_BattleCharSlotUsage[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
     D_800D301D[(g_BattleSlotRecords[ofsA] + sel) << 2] = 1;
-    if (arg0 >= 3) {
+    if (arg0 < 3) {
         *(u16 *)(D_800C3EBE + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x100);
         *(u16 *)(D_800C3EC0 + ofsA) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofsA] * 8 + 0x102);
     } else {
