@@ -475,8 +475,8 @@ void func_801C65F4(void) {
     pData = LZSSHeapDecompress((void*)pFileHandle[1], 1);
     OpenTIM((u_long*)pData);
     ReadTIM(&g_Menu->menuUnk2->tim);
-    memcpy(g_Menu->menuUnk2->gameSerialCode, D_801C5028, 0xD);
-    memcpy(g_Menu->menuUnk2->discTwoGameSerialCode, D_801C5038, 0xD);
+    memcpy(g_Menu->menuUnk2->gameSerialCode, D_801C5028, sizeof(g_Menu->menuUnk2->gameSerialCode));
+    memcpy(g_Menu->menuUnk2->discTwoGameSerialCode, D_801C5038, sizeof(g_Menu->menuUnk2->gameSerialCode));
     g_Menu->menuUnk2->saveFileMagic[0] = 0x53;
     g_Menu->menuUnk2->saveFileMagic[1] = 0x43;
     g_Menu->menuUnk2->saveIconDisplayFlag = 0x11;
@@ -652,6 +652,10 @@ void MenuInitializeWindowBorders(void) {
         &g_Menu->texPageX3, &g_Menu->texPageY3
     );
 }
+// Screen size in pixels; the dim effect quad covers the whole framebuffer.
+#define MENU_SCREEN_WIDTH 320
+#define MENU_SCREEN_HEIGHT 224
+
 extern void MenuSetPolyG4Gradient(POLY_G4* pPoly, u_char r, u_char g, u_char b);
 
 void func_801C6F70(void) {
@@ -677,12 +681,12 @@ void func_801C6F70(void) {
         SetPolyF4(&g_Menu->pCursorPrims->polysDimEffect[i]);
         *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA0) = 0;
         *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA2) = 0;
-        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA4) = 0x140;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA4) = MENU_SCREEN_WIDTH;
         *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA6) = 0;
         *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xA8) = 0;
-        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAA) = 0xE0;
-        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAC) = 0x140;
-        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAE) = 0xE0;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAA) = MENU_SCREEN_HEIGHT;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAC) = MENU_SCREEN_WIDTH;
+        *(s16*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0xAE) = MENU_SCREEN_HEIGHT;
         *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9C) = 0x80;
         *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9D) = 0x80;
         *(u8*)(i * 0x18 + (u32)g_Menu->pCursorPrims + 0x9E) = 0x80;
