@@ -602,6 +602,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     s32 depthBuf[2]; // [0] shallowest corner depth, [1] the corner just projected
     VECTOR proj;
     SVECTOR swingVec;
+    ModelMesh* pMeshLoaded;
     u16 modelScale;
     MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
     MATRIX* pViewScratch = &pScratch[1];
@@ -712,7 +713,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             depthBuf[0] = depthBuf[1];
         }
 
-        otz = depthBuf[0] >> g_GfxOTDepthShift;
+        otz = depthBuf[0];
+        otz >>= g_GfxOTDepthShift;
         pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
         pOt[otz] = pOt[otz] | ((u32)pPoly & 0xFFFFFF);
         if (otz >= 0x2D9) {
