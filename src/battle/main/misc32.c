@@ -596,7 +596,7 @@ void BattleUnlinkAndFreeTask(void *pEntry) {
 
 // The four sprite corners func_800BD810 hands RotTransPers4, reused by every sprite of a
 // frame: the entry's rectangle in its own order, top-left, top-right, bottom-right, bottom-left.
-extern SVECTOR D_8004FB98[4];
+extern SVECTOR g_BattleSpriteQuadCorners[4];
 
 #define BATTLE_SPRITE_QUAD_TAG_LEN 9 // POLY_FT4's packet length in words, minus the tag's own word
 
@@ -639,17 +639,17 @@ void func_800BD810(Misc32SpritePart *pPart, u32 color) {
     right = rightEdge;
     bottomEdge = y + height;
     bottom = bottomEdge;
-    D_8004FB98[0].vx = x;
-    D_8004FB98[0].vy = y;
-    D_8004FB98[1].vx = right;
-    D_8004FB98[1].vy = y;
-    D_8004FB98[2].vx = right;
-    D_8004FB98[2].vy = bottom;
-    D_8004FB98[3].vx = x;
-    D_8004FB98[3].vy = bottom;
+    g_BattleSpriteQuadCorners[0].vx = x;
+    g_BattleSpriteQuadCorners[0].vy = y;
+    g_BattleSpriteQuadCorners[1].vx = right;
+    g_BattleSpriteQuadCorners[1].vy = y;
+    g_BattleSpriteQuadCorners[2].vx = right;
+    g_BattleSpriteQuadCorners[2].vy = bottom;
+    g_BattleSpriteQuadCorners[3].vx = x;
+    g_BattleSpriteQuadCorners[3].vy = bottom;
     // the screen corners go in the prim's vertex order, top-left, top-right, bottom-left,
     // bottom-right, which is how the GPU splits a quad into (0,1,2) and (1,2,3)
-    RotTransPers4(&D_8004FB98[0], &D_8004FB98[1], &D_8004FB98[2], &D_8004FB98[3],
+    RotTransPers4(&g_BattleSpriteQuadCorners[0], &g_BattleSpriteQuadCorners[1], &g_BattleSpriteQuadCorners[2], &g_BattleSpriteQuadCorners[3],
                   (long *)&pPoly->x0, (long *)&pPoly->x1, (long *)&pPoly->x3, (long *)&pPoly->x2,
                   &p, &flag);
     u = pPart->u;
@@ -732,12 +732,12 @@ void func_800BDA1C(u8 *pTask) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDA1C);
 // Declared after the struct: the timer update takes the task. It reads none of
 // the argument's fields, it works off g_BattleTimerTask.
-extern void func_800BDF1C(Misc32Task *pTask);
+extern void BattleRefreshNumberSprite(Misc32Task *pTask);
 
 void BattleStepEffectColorFade(Misc32Task *pTask) {
     WorkListCallback_t pCallback;
 
-    func_800BDF1C(pTask);
+    BattleRefreshNumberSprite(pTask);
     pTask->colors[0] -= 2;
     pTask->colors[1] -= 2;
     pTask->colors[2] -= 2;
@@ -759,7 +759,7 @@ void BattleStepEffectColorFadeFromBase(Misc32Task *pTask) {
     WorkListCallback_t pCallback;
 
     pEffect = pTask;
-    func_800BDF1C(pTask);
+    BattleRefreshNumberSprite(pTask);
     // the volatile re-reads are required: without them cse forwards the previous
     // call's stored result into the next call's argument
     pEffect->colors[0] = SpriteColorAddClamp(pEffect->colors[0], -8);
@@ -810,7 +810,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDC14);
 void func_800BDC14(Misc32Task *pTask) {
     s32 nextTimer;
 
-    func_800BDF1C(pTask);
+    BattleRefreshNumberSprite(pTask);
     nextTimer = 0x10;
     if (--pTask->timer < 0) {
         pTask->timer = nextTimer;
@@ -822,7 +822,7 @@ void func_800BDC14(Misc32Task *pTask) {
 extern void func_800BDC14(Misc32Task *pTask);
 
 void BattleStepEffectPosition(Misc32Task *pTask) {
-    func_800BDF1C(pTask);
+    BattleRefreshNumberSprite(pTask);
     if (pTask->mirrored != 0) {
         pTask->posX += 0xC0000;
     } else {
@@ -858,7 +858,7 @@ typedef struct {
     /* 0x50 */ s16 x; // handed to func_80026BA4 as the sprite it draws and its position
     /* 0x52 */ s16 y;
     /* 0x54 */ u8 unk54[0xC];
-    // Set up one channel at a time by func_800BDF1C, drawn as the whole prim colour word.
+    // Set up one channel at a time by BattleRefreshNumberSprite, drawn as the whole prim colour word.
     /* 0x60 */ union {
         /* 0x60 */ u32 word;
         /* 0x60 */ struct {
@@ -918,7 +918,7 @@ void BattleDrawNumberSpriteTask(WorkListEntry *pEntry) {
 }
 
 // Creates the static number-sprite task once per battle: both work-list entries, the
-// callbacks, the fixed on-screen position and the colour word func_800BDF1C fills in.
+// callbacks, the fixed on-screen position and the colour word BattleRefreshNumberSprite fills in.
 void BattleInitNumberSpriteTask(void) {
     BattleNumberTask *pTask;
 
@@ -947,7 +947,7 @@ extern void BattleCreateNumberSpriteTask(s32 value);
 // Refills the static number sprite whenever the battle's effect timer changes: hands the new
 // value to the sprite body, colours it the way the battle's colour mode asks and rebuilds its
 // part list from the digits of the value.
-void func_800BDF1C(Misc32Task *pTask) {
+void BattleRefreshNumberSprite(Misc32Task *pTask) {
     BattleNumberTask *pNumber;
     u8 digits[6];
     s32 value;

@@ -64,7 +64,7 @@ void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
 }
 void func_800B7C34(s32 stage);
-s32 func_800B7E94(void);
+s32 BattleStartStageActorAnimation(void);
 
 // The three actor spawn positions the stage loader blits into the framebuffer; the
 // same table the slot allocator hands out.
@@ -84,9 +84,9 @@ typedef struct {
 extern BattleActorSlotPos g_BattleActorSlotSpawnPos[3];
 extern u16 g_BattleActorSlotUsedMask;
 extern u8 g_BattleActorSlotMode;
-extern u8 D_800C3CEC;
-extern BattleActorArchiveFile *D_800594F0;
-extern int *D_800594BC;
+extern u8 g_BattleActorArchiveLoading;
+extern BattleActorArchiveFile *g_BattleStageActorArchive;
+extern int *g_BattleStageStreamFile;
 extern void func_800BB080(s32 arg0);
 extern int ArchiveReadFileToBuffer(s32 fileIndex, void *pBuffer, u32 arg2, u32 arg3);
 extern int ArchiveDecodeAlignedSize(s32 fileIndex);
@@ -139,15 +139,15 @@ void func_800B7C34(s32 stage) {
     }
     BattleUnloadActorArchive();
     ArchiveSetIndex(0xC, 2);
-    D_800C3CEC = 1;
+    g_BattleActorArchiveLoading = 1;
     D_800D2FDC = 1;
     fileIndex = stage * 2 + 0x22;
     streamIndex = stage * 2 + 0x23;
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(fileIndex), 0);
-    D_800594F0 = pBuffer;
+    g_BattleStageActorArchive = pBuffer;
     ArchiveReadFileToBuffer(fileIndex, pBuffer, 0, 0x80);
     BattleWaitArchiveSync();
-    pFile = D_800594F0;
+    pFile = g_BattleStageActorArchive;
     mode = (*(u16 *)(pFile->chunkOffset + (s32)pFile) >> 12) & 3;
     if (mode != 0) {
         pSprite = D_800C3E1C;
@@ -162,14 +162,14 @@ void func_800B7C34(s32 stage) {
             func_800BB080(((u32)pSprite->flags_0xA8 >> 30) | (((u32)pSprite->flags_0xAC.flags & 3) << 2));
         }
     }
-    D_800594BC = ArchiveAllocStreamFile(8, 0);
+    g_BattleStageStreamFile = ArchiveAllocStreamFile(8, 0);
     if (ArchiveDecodeAlignedSize(streamIndex) >= 0x11) {
-        func_80029EB0(streamIndex, D_800594BC, 0, 0, 0, 0, 0, 0, 0, 0);
+        func_80029EB0(streamIndex, g_BattleStageStreamFile, 0, 0, 0, 0, 0, 0, 0, 0);
     }
     BattleWaitArchiveSync();
     DrawSync(0);
-    g_BattleActorArchiveBuffer = D_800594F0;
-    HeapFree(D_800594BC);
+    g_BattleActorArchiveBuffer = g_BattleStageActorArchive;
+    HeapFree(g_BattleStageStreamFile);
 }
 */
 /* The work-list entry g_BattleStateWork's timer tasks are given; this unit only
@@ -185,7 +185,7 @@ typedef struct {
 } BattleTimerEntry; // Size: 0x1C
 
 extern u8 D_800C3624;
-extern s16 D_800C3DF0;
+extern s16 g_BattleActorAnimationIndex;
 extern u8 g_BattleAudioFadeStarted;
 extern s32 *g_BattleAudioManager;
 extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
@@ -205,7 +205,7 @@ extern u8 g_BattleSedsLoaded;
 // archive func_800B7C34 just loaded, then either starts the animation the current
 // actor's package selects (variant 0) or attaches the special animation file (1), and
 // hands the same frame environment to the outgoing sprite.
-s32 func_800B7E94(void) {
+s32 BattleStartStageActorAnimation(void) {
     SVEC2 tex;
     SVEC2 clut;
     BattleTimerEntry timerEntry;
@@ -228,21 +228,21 @@ s32 func_800B7E94(void) {
     clut.x = 0;
     clut.y = 0x1F4;
     D_800C3624 = 0;
-    SpriteSetupAnimPackage(pPackage, D_800594F0, tex, clut, 0);
+    SpriteSetupAnimPackage(pPackage, g_BattleStageActorArchive, tex, clut, 0);
     BattleReloadStageFile();
     result = 0;
     if (SpriteAnimPackageTestFlag8000(pPackage->pFrames) != 0) {
         packageCopy = *(SpriteAnimPackage *)D_800C3E1C->pVramData;
         pAnims = pPackage->pAnimations;
-        offset = pAnims[D_800C3DF0 + 1];
+        offset = pAnims[g_BattleActorAnimationIndex + 1];
         pSprite = func_80023B84(D_800C3E1C, (u8 *)(offset + (s32)pAnims), pPackage);
     } else {
         result = 1;
         pSprite = D_800C3E1C;
-        SpriteSetSpecialAnimFile(pSprite, D_800594F0);
+        SpriteSetSpecialAnimFile(pSprite, g_BattleStageActorArchive);
         SpritePlayAnimation(pSprite, -1);
     }
-    pSedsFile = func_800C0FAC(D_800594F0);
+    pSedsFile = func_800C0FAC(g_BattleStageActorArchive);
     pSprite->field_0x50 = pSedsFile;
     pOldSprite->field_0x50 = pSedsFile;
     g_BattleSedsLoaded = 1;
@@ -261,7 +261,7 @@ void func_800B8054(s16 stage) {
 
 void func_800B8068(s32 stage) {
     func_800B7C34(stage);
-    func_800B7E94();
+    BattleStartStageActorAnimation();
     g_BattleStageLoadQueued = 1;
 }
 /* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
@@ -820,7 +820,7 @@ void BattleTearDownState(void) {
         return;
     }
     D_800C3624 = 0;
-    D_800C3DF0 = 0;
+    g_BattleActorAnimationIndex = 0;
     g_BattleActorArchiveReady = 0;
     BattleSetFlag2DBAndReleaseAssets();
     DrawSync(0);

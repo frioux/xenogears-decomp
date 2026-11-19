@@ -372,15 +372,15 @@ s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
      lbu(7) + (s8)lb(9) deltaHeight, all <<= n; flips are field_0x3C bits 3 and 4
      (bit 3 negates width and tileX, bit 4 negates height and tileY).
    - then SpriteFrameData->flags 0x14 bit 4 selects the x quads: {tx, tx+w, tx+w,
-     tx} or {tx+w, tx, tx, tx+w} into D_8004FB98[0..3].vx. Element 0 is stored
-     through the SYMBOL (%lo(D_8004FB98)($t1)) and elements 1-3 through a pointer
+     tx} or {tx+w, tx, tx, tx+w} into g_BattleSpriteQuadCorners[0..3].vx. Element 0 is stored
+     through the SYMBOL (%lo(g_BattleSpriteQuadCorners)($t1)) and elements 1-3 through a pointer
      local (+8/+0x10/+0x18), which is what keeps the hi part of the address live
      across the call and produces the spill/reload at 0x30($sp).
    - yMin/yMax = min/max(tileY, tileY+height) via a sign test on height; if
      (z < yMin) continue; clip = (z < yMax) ? yMax - z : 0; height -= clip;
      if (height < 0) tileY -= clip; then flags bit 5 selects {ty, ty, ty+h, ty+h}
      or the reverse for .vy.
-   - RotAverage4(D_8004FB98, +1, +2, +3, (long*)&pPrim->x0, &pPrim->x1, &pPrim->x3,
+   - RotAverage4(g_BattleSpriteQuadCorners, +1, +2, +3, (long*)&pPrim->x0, &pPrim->x1, &pPrim->x3,
      &pPrim->x2, &zDepth, &flag) - note x3 before x2; the two stack locals are at
      sp+0x28 and sp+0x2C.
    - after the call: n is reloaded, s1 (clip) is sra'd by n, texY = lbu(5) loaded
@@ -393,10 +393,10 @@ s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
    - tail is addPrim(pOt, pPrim): tag = (tag & 0xFF000000) | (*pOt & 0xFFFFFF),
      then *pOt = (*pOt & 0xFF000000) | ((u32)pPrim & 0xFFFFFF).
    Needs #include "psyq/libgpu.h" for POLY_FT4 and
-   `extern SVECTOR D_8004FB98[4];` (0x20 bytes, defined by
+   `extern SVECTOR g_BattleSpriteQuadCorners[4];` (0x20 bytes, defined by
    asm/slus_006.64/data/3F290.sdata.s, so no data definition is needed here).
 
-   extern SVECTOR D_8004FB98[4];
+   extern SVECTOR g_BattleSpriteQuadCorners[4];
 
    void func_8001EE88(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
        SVECTOR* pVerts;
@@ -431,7 +431,7 @@ s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
            return;
        }
 
-       pVerts = D_8004FB98;
+       pVerts = g_BattleSpriteQuadCorners;
        for (i = 0; i < (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++, pFrameData++) {
            pPrim = g_GfxCurWorkBuffer;
            g_GfxCurWorkBuffer = pPrim + 1;
@@ -460,12 +460,12 @@ s32 SpriteAnimPackageGetFrameCount(u16* pFlags) {
                tileY = -tileY;
            }
            if (!(pFrameData->flags & 0x10)) {
-               D_8004FB98[0].vx = tileX;
+               g_BattleSpriteQuadCorners[0].vx = tileX;
                pVerts[1].vx = tileX + width;
                pVerts[2].vx = tileX + width;
                pVerts[3].vx = tileX;
            } else {
-               D_8004FB98[0].vx = tileX + width;
+               g_BattleSpriteQuadCorners[0].vx = tileX + width;
                pVerts[1].vx = tileX;
                pVerts[2].vx = tileX;
                pVerts[3].vx = tileX + width;
@@ -550,11 +550,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
      must be declared in this unit: including system/animation.h turns the loads
      into `lw $v0,0($gp)`, the original uses lui/lw (%hi/%lo).
    - POLY_FT4 and setlen need #include "psyq/libgpu.h" (RotAverage4/SVECTOR come
-     from psyq/libgte.h via field/actor.h). D_8004FB98 is
-     `extern SVECTOR D_8004FB98[4]`; it is already in the sdata asm, do not
+     from psyq/libgte.h via field/actor.h). g_BattleSpriteQuadCorners is
+     `extern SVECTOR g_BattleSpriteQuadCorners[4]`; it is already in the sdata asm, do not
      define it here.
-   - element 0 of D_8004FB98 is stored through the SYMBOL (%lo(D_8004FB98)($t1))
-     and elements 1-3 through the pointer local `pVerts = D_8004FB98`; that is
+   - element 0 of g_BattleSpriteQuadCorners is stored through the SYMBOL (%lo(g_BattleSpriteQuadCorners)($t1))
+     and elements 1-3 through the pointer local `pVerts = g_BattleSpriteQuadCorners`; that is
      what keeps the hi half live and spills it to 0x30($sp) across the call.
    - width must be re-loaded from pFrameData->width AFTER the RotAverage4 call
      (the original reloads lbu 0x6(s3) there); keeping one local across the call
@@ -571,10 +571,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001EE88);
    same 77.38% (896 bytes against retail's 892). What had to be fixed for that:
    `func_8001F1D4`'s extern is really (SpriteData*, u_long* pOt, s32 depth) -
    the old (void*, void*) declaration conflicted with the body - POLY_FT4 needs
-   psyq/libgpu.h, and D_8004FB98 / g_GfxCurWorkBuffer / g_GfxCurWorkBufferEnd
+   psyq/libgpu.h, and g_BattleSpriteQuadCorners / g_GfxCurWorkBuffer / g_GfxCurWorkBufferEnd
    stay declared at file scope (outside this comment).
 
- extern SVECTOR D_8004FB98[4];
+ extern SVECTOR g_BattleSpriteQuadCorners[4];
 extern void* g_GfxCurWorkBuffer;
 extern void* g_GfxCurWorkBufferEnd;
 
@@ -611,7 +611,7 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
         return;
     }
 
-    pVerts = D_8004FB98;
+    pVerts = g_BattleSpriteQuadCorners;
     for (i = 0; i != (*(u8*)((u8*)pSpriteData + 0x40) >> 2); i++, pFrameData++) {
         pPrim = g_GfxCurWorkBuffer;
         g_GfxCurWorkBuffer = pPrim + 1;
@@ -640,12 +640,12 @@ void func_8001F1D4(SpriteData* pSpriteData, u_long* pOt, s32 depth) {
             tileY = -tileY;
         }
         if (!(pFrameData->flags & 0x10)) {
-            D_8004FB98[0].vx = tileX;
+            g_BattleSpriteQuadCorners[0].vx = tileX;
             pVerts[1].vx = tileX + width;
             pVerts[2].vx = tileX + width;
             pVerts[3].vx = tileX;
         } else {
-            D_8004FB98[0].vx = tileX + width;
+            g_BattleSpriteQuadCorners[0].vx = tileX + width;
             pVerts[1].vx = tileX;
             pVerts[2].vx = tileX;
             pVerts[3].vx = tileX + width;

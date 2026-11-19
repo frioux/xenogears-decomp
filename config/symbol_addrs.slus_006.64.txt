@@ -1666,3 +1666,6 @@ g_BattleStageLoadQueued = 0x800591B1;
 g_BattleLoadedStageFileId = 0x800591B2;
 g_BattleRequestedStageFileId = 0x800591B3;
 g_BattleStageFileLoadDone = 0x800591B0;
+g_BattleSpriteQuadCorners = 0x8004FB98;
+g_BattleStageActorArchive = 0x800594F0;
+g_BattleStageStreamFile = 0x800594BC;

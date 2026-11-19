@@ -9,8 +9,8 @@
 // MenuFindFreeChunkIndex's index argument when the caller has none and wants a free one.
 #define MENU_CHUNK_INDEX_NONE 0xFF
 
-extern u8 D_801EA6D0[][0x10];
-extern u8* D_801EA6F4;
+extern u8 g_MenuCardChunkInUse[][0x10];
+extern u8* g_MenuCardChunkData;
 extern s32 D_801E9810[];
 extern s32 D_801E9818[];
 extern s32 D_801E9820[];
@@ -64,7 +64,7 @@ int func_801C8D78(u_char a0) {
     g_MenuCardSlotTotals[a0] = 0;
     for (i = 0; i < 0x10; i++) {
         g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + i] = 0xFF;
-        D_801EA6D0[a0][i] = 0;
+        g_MenuCardChunkInUse[a0][i] = 0;
     }
     if (a0 == 0) {
         memcpy(&prefix, &D_801C50A8, 6);
@@ -186,7 +186,7 @@ void func_801C90B0(u_char a0, u_char a1) {
 }
 */
 
-void func_801C9270(int a0) {
+void MenuMarkSlotsWithGameSave(int a0) {
     MenuUnk2ImageChunk* pChunk;
     int i;
     int j;
@@ -212,8 +212,8 @@ void func_801C9270(int a0) {
                the destination and pMenu in the addend, and &chunks[idx] alone
                gives the opposite order (99.55%). */
             pChunk = (MenuUnk2ImageChunk*)(idx * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks);
-            D_801EA6F4 = pChunk->data;
-            D_801EA6D0[a0][pChunk->index] = 1;
+            g_MenuCardChunkData = pChunk->data;
+            g_MenuCardChunkInUse[a0][pChunk->index] = 1;
         }
     }
 }
@@ -238,7 +238,7 @@ void func_801C9270(int a0) {
    slotRecordIndexes byte into a `u8 idx` local (86.54% - retail really does reload
    slotRecordIndexes inside the `if`, so the index must stay inline). */
 /*
-void func_801C9270(int a0) {
+void MenuMarkSlotsWithGameSave(int a0) {
     MenuUnk2ImageChunk* pChunk;
     int i;
     int j;
@@ -260,8 +260,8 @@ void func_801C9270(int a0) {
             g_Menu->menuUnk2->slotHasGameSave[a0 * 0x10 + j] = 1;
             idx = g_Menu->menuUnk2->slotRecordIndexes[a0 * 0x10 + j];
             pChunk = (MenuUnk2ImageChunk*)(idx * sizeof(MenuUnk2ImageChunk) + (mem_addr)g_Menu->menuUnk2->chunks);
-            D_801EA6F4 = pChunk->data;
-            D_801EA6D0[a0][pChunk->index] = 1;
+            g_MenuCardChunkData = pChunk->data;
+            g_MenuCardChunkInUse[a0][pChunk->index] = 1;
         }
     }
 }
@@ -733,7 +733,7 @@ u_char MenuFindFreeChunkIndex(u_char a0, u_char a1) {
     found = 0;
     if (a1 == MENU_CHUNK_INDEX_NONE) {
         for (i = 0; i < MENU_CARD_SLOT_COUNT; i++) {
-            if (D_801EA6D0[a0][i] == 0) {
+            if (g_MenuCardChunkInUse[a0][i] == 0) {
                 found = i;
                 break;
             }

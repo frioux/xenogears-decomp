@@ -27,7 +27,7 @@ extern u8 g_BattleStateWork[];
 extern s32 g_BattleCommandRowIndex;
 extern u16 D_800C3608;
 extern u16 D_800C3614;
-extern u16 D_800C3DF0;
+extern u16 g_BattleActorAnimationIndex;
 extern u8 D_800C3623;
 
 // The per-slot vectors retail copies from 0x800D30A0 to 0x800D3354.
@@ -342,7 +342,7 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
             pBase = g_BattleStateWork;
             pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             id = *(u16 *)(pSlot + 0x172);
-            D_800C3DF0 = (id >> 9) & 0x3F;
+            g_BattleActorAnimationIndex = (id >> 9) & 0x3F;
             ((u8 *)pSprite)[0xAF] = 0x11;
             BattleActorWaitFramesWithCallback(id & 0x1FF, pSprite);
             BattleSetPendingCommand(pSprite);
@@ -354,7 +354,7 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
             pBase = g_BattleStateWork;
             pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             id = *(u16 *)(pSlot + 0x172);
-            D_800C3DF0 = (id >> 9) & 0x3F;
+            g_BattleActorAnimationIndex = (id >> 9) & 0x3F;
             ((u8 *)pSprite)[0xAF] = 0x11;
             BattleActorWaitFramesWithCallback(id & 0x1FF, pSprite);
             break;
@@ -501,7 +501,7 @@ void func_800B9C78(void) {
             pRow += g_BattleCommandRowIndex * 0x48;
             g_BattleCommandRowIndex = g_BattleCommandRowIndex + 1;
             id = *(u16 *)(pRow + 0x172);
-            D_800C3DF0 = (id >> 9) & 0x3F;
+            g_BattleActorAnimationIndex = (id >> 9) & 0x3F;
             D_800D39E4 = id & 0x1FF;
             break;
         default:
