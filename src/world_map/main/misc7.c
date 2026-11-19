@@ -61,8 +61,47 @@ typedef struct {
     /* 0x50 */ u8 unk50[0x4];
 } WorldMapEntry; // Size: 0x54
 
+// One world map fade quad: a textured quad per fade-table entry, jittered by
+// func_80081D80 so the wipe does not move in one block. The tpage word sits after the
+// second vertex's texcoords, where the original object reads it.
+typedef struct {
+    /* 0x00 */ u32 tag;
+    /* 0x04 */ u8 r;
+    /* 0x05 */ u8 g;
+    /* 0x06 */ u8 b;
+    /* 0x07 */ u8 code;
+    /* 0x08 */ s16 x0;
+    /* 0x0A */ s16 y0;
+    /* 0x0C */ u8 u0;
+    /* 0x0D */ u8 v0;
+    /* 0x0E */ u16 pad0E;
+    /* 0x10 */ s16 x1;
+    /* 0x12 */ s16 y1;
+    /* 0x14 */ u8 u1;
+    /* 0x15 */ u8 v1;
+    /* 0x16 */ u16 tpage;
+    /* 0x18 */ s16 x2;
+    /* 0x1A */ s16 y2;
+    /* 0x1C */ u8 u2;
+    /* 0x1D */ u8 v2;
+    /* 0x1E */ u16 pad1E;
+    /* 0x20 */ s16 x3;
+    /* 0x22 */ s16 y3;
+    /* 0x24 */ u8 u3;
+    /* 0x25 */ u8 v3;
+} WorldMapFadeQuad; // Size: 0x28
+
+// The world map frame render context g_WorldMapRenderContext points at: partial view of the
+// two ordering table heads it fills each frame.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x70];
+    /* 0x70 */ u_long *pOt[2];
+} WorldMapRenderContext; // partial view
+
 extern WorldMapSlot *g_WorldMapSlots;
 extern WorldMapEntry *g_WorldMapGroups;
+extern WorldMapRenderContext *g_WorldMapRenderContext;
+extern DR_MOVE D_8009D164[];
 extern void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count, s32 abr);
 extern u8 D_8009A758[];
 extern void WorldMapStartSlot(s32 arg0, s32 arg1);
@@ -109,7 +148,7 @@ extern void HeapFree(void *pMem);
 extern void SoundStopAllElements(void);
 extern void WorldMapFreeSpritePrimBuffers(void);
 extern s32 g_WorldMapPrimPacketIndex;
-extern u8 *D_8009D158;
+extern u8 *D_8009D158[];
 extern u8 *D_8009D15C;
 extern u16 *g_WorldMapFadeTable;
 extern void SoundRemoveSedsEntry(void *p);
@@ -523,10 +562,10 @@ s32 func_80081C3C(void) {
     u8 *p;
     s32 i;
 
-    D_8009D158 = HeapAlloc(0x1E00, 0);
+    D_8009D158[0] = HeapAlloc(0x1E00, 0);
     D_8009D15C = HeapAlloc(0x1E00, 0);
     g_WorldMapFadeTable = HeapAlloc(0x180, 0);
-    p = D_8009D158;
+    p = D_8009D158[0];
     for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
         p[7] = 0x2C;
         p[3] = 9;
@@ -537,7 +576,7 @@ s32 func_80081C3C(void) {
         *(u16 *)(p + 0x16) = GetTPage(2, 0, 0x280, 0x100);
         p += 0x28;
     }
-    pSrc = (Quad *)D_8009D158;
+    pSrc = (Quad *)D_8009D158[0];
     pDst = (Quad *)D_8009D15C;
     for (i = 0; i < 0x1E0; i++) {
         *pDst++ = *pSrc++;
@@ -555,6 +594,59 @@ s32 func_80081C3C(void) {
 // lui/$at for each; (2) retail materialises 9 into $s4 before 0x2C into $s3.
 // Preset screen: cdk 71.46, gcc-2.6.0 87.09.
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081C3C);
+
+// Best: 99.88%, retail's exact 564 bytes. The instruction sequence, every call, every
+// store offset and the constant allocation order all match; the one residue is gcc's
+// loop giv re-base. Retail keeps the vertex pointer at prim+0x25 and addresses the
+// sixteen stores at 0 .. -0x1D; this gcc picks prim+0x20 and addresses them at 5 ..
+// -0x18, i.e. the same addresses with every displacement 5 larger. `addPrim` is the
+// right spelling (hand-spelling the two setaddr pairs as explicit u32 masks puts the
+// base at 0x25 but then allocates 0xFF000000 before 0xFFFFFF, which costs the prologue
+// save pair and the tail mask registers instead, 96.50%). Declaration order, u32 vs s32
+// index, RECT/pMove/i first, operand order of both setaddr sums measured no better; a
+// 4-minute permuter run (2245 iterations) found nothing.
+/*
+s32 func_80081D80(void) {
+    WorldMapFadeQuad *pQuad = (WorldMapFadeQuad *)D_8009D158[g_WorldMapPrimPacketIndex];
+    u16 *pFade = g_WorldMapFadeTable;
+    DR_MOVE *pMove;
+    s32 delta;
+    s32 i;
+    RECT rect;
+
+    for (i = 0; i < WORLD_MAP_FADE_ENTRY_COUNT; i++) {
+        delta = rand() % *pFade - *pFade / 2;
+        pFade++;
+        pQuad->y0 = i;
+        pQuad->y1 = i;
+        pQuad->v0 = i;
+        pQuad->v1 = i;
+        pQuad->u0 = 0;
+        pQuad->u1 = 0xC0;
+        pQuad->u2 = 0;
+        pQuad->u3 = 0xC0;
+        pQuad->y2 = i + 1;
+        pQuad->y3 = i + 1;
+        pQuad->v2 = i + 1;
+        pQuad->v3 = i + 1;
+        pQuad->x0 = delta + 0x40;
+        pQuad->x1 = delta + 0x100;
+        pQuad->x2 = delta + 0x40;
+        pQuad->x3 = delta + 0x100;
+        addPrim(g_WorldMapRenderContext->pOt[0], pQuad);
+        pQuad++;
+    }
+    rect.x = 0x40;
+    rect.w = 0xC0;
+    rect.h = 0xD8;
+    rect.y = g_WorldMapPrimPacketIndex * 0xD8;
+    SetDrawMove(&D_8009D164[g_WorldMapPrimPacketIndex], &rect, 0x280, 0x100);
+    pMove = &D_8009D164[g_WorldMapPrimPacketIndex];
+    addPrim(g_WorldMapRenderContext->pOt[0], pMove);
+    return 1;
+}
+
+"*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80081D80);
 
 s32 WorldMapResetSlotColorFade(s32 index) {
