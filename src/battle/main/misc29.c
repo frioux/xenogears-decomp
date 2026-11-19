@@ -355,6 +355,13 @@ typedef struct {
     /* 0xDB0 */ u8 unkDB0[0x4D0];
 } BattleRenderState; // Size: 0x1280
 
+/* The work block at g_BattleStateWork seen from its sprite pointers: the eleven
+   sprites this function clears the 0x40 flag of on the way out. */
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x8C8C];
+    /* 0x8C8C */ SpriteData *pOwnedSprites[BATTLE_ACTOR_SLOT_COUNT];
+} BattleOwnedSprites; // Size: 0x8CB8
+
 extern void BattleReleaseActorSlot(s32 index);
 extern void GfxFreeWorkBuffers(void);
 extern void WorkListsFreeAllEntries(void);
@@ -365,6 +372,76 @@ extern void *g_BattleSceneResources;
 extern u8 g_IsBattle;
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+// 88.41% (576 bytes vs retail's 560). The switch tree, every call and both loops
+// are retail's; what is left is register allocation: retail runs the case loops
+// with only $s0-$s3 (it re-materialises `li v0,21` and `li v0,3` inside the loop)
+// while gcc hoists both constants into $s4/$s3 here and needs two more saves and a
+// 0x38 frame. The tail loop's 3/0xB are materialised straight into the tail block
+// in retail, in the switch tree's delay slots here. Listing case 1 first is
+// required for retail's test order (1, then the slti a0,2 branch, then 0, then 2).
+/*
+extern void BattleStartScreenFade(s32 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4);
+extern void func_800A9FF0(s32 arg0);
+extern void BattleBeginAnimTask(s32 arg0);
+extern void ArchiveReadFileToBuffer(s32 fileIndex, void *pBuffer, u32 arg2, u32 arg3);
+extern void *D_800D39C8;
+
+void func_800B853C(s32 mode) {
+    BattleOwnedSprites *pOwned;
+    BattleRenderState *pWork;
+    SpriteData *pSprite;
+    void *pBuffer;
+    s32 i;
+
+    switch (mode) {
+    case 1:
+        break;
+    case 0:
+        BattleBeginAnimTask(-1);
+        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
+        for (i = 0; i != 3; i++) {
+            pSprite = pOwned->pOwnedSprites[i];
+            if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+                func_800BFC80(pSprite, 0, 2);
+                SpritePlayAnimation(pSprite, 0x18);
+            }
+        }
+        break;
+    case 2:
+        BattleBeginAnimTask(0);
+        BattleStartScreenFade(0x28, 2, 0xFF, 0xFF, 0xFF);
+        pOwned = (BattleOwnedSprites *)g_BattleStateWork;
+        for (i = 0; i != 3; i++) {
+            pSprite = pOwned->pOwnedSprites[i];
+            if (pSprite != NULL && (s8)pSprite->flags_0xAC.bytes[3] != 0x15) {
+                SpritePlayAnimation(pSprite, 5);
+            }
+        }
+        for (i = 0x28; i > 0; i--) {
+            func_800BE790();
+        }
+        break;
+    }
+    for (i = BATTLE_FIRST_ACTOR_SLOT; i != BATTLE_ACTOR_SLOT_COUNT; i++) {
+        func_800A9FF0(i);
+        BattleReleaseActorSlot(i);
+    }
+    BattleFreeWdsEntry();
+    BattleWaitArchiveSync();
+    ArchiveSetIndex(0x2C, 0);
+    pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(5), 1);
+    ArchiveReadFileToBuffer(5, pBuffer, 0, 0x80);
+    BattleWaitArchiveSync();
+    g_GameWdsEntrySlot3 = SoundLoadWdsFile(pBuffer, 0);
+    while (SoundGetPendingSpuCommandType(0) != 0) {
+        func_800BE790();
+    }
+    HeapFree(pBuffer);
+    HeapFree(D_800D39C8);
+    pWork = (BattleRenderState *)((u8 *)g_BattleStateWork + BATTLE_RENDER_STATE_OFFSET);
+    pWork->unkDA8 = 0;
+}
+*/
 void func_800B8774(void) {
     u8 *pStateBase;
     BattleRenderState *pState;
@@ -550,13 +627,6 @@ extern void BattleReleaseAllActorSlots(void);
 extern void BattleSetAnimTaskShort(s16 value);
 extern void BattleLoadActorSlotAnimation(s32 index);
 extern void SoundSetAudioManagerVolumeWithFade(s32 *pManager, s32 arg1, s32 arg2);
-
-/* The work block at g_BattleStateWork seen from its sprite pointers: the eleven
-   sprites this function clears the 0x40 flag of on the way out. */
-typedef struct {
-    /* 0x0000 */ u8 unk0[0x8C8C];
-    /* 0x8C8C */ SpriteData *pOwnedSprites[BATTLE_ACTOR_SLOT_COUNT];
-} BattleOwnedSprites; // Size: 0x8CB8
 
 void func_800B8EBC(void) {
     SpriteData *pSprite;
