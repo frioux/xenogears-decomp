@@ -629,15 +629,15 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         RotMatrix(&svec, pViewScratch);
 
         pViewScratch->t[0] = trans.vx;
-        pViewScratch->t[2] = trans.vz;
         pViewScratch->t[1] = pModel->ground;
+        pViewScratch->t[2] = trans.vz;
 
         // Retail composes the light matrix with the view scratch in place, not
         // with the root joint's globalTransform: the call site carries two
         // materialised 0x1F800020 immediates (a1 and a2).
         CompMatrix(pLightMatrix, pViewScratch, pViewScratch);
 
-        depth = pModel->scale - (pModel->ground - pSkeleton->translation.y) / 4;
+        depth = pModel->scale - (pModel->ground - pModel->pSkeleton->translation.y) / 4;
         if (depth < 0) {
             depth = 0;
         }
@@ -705,7 +705,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
 
     pJoint = pSkeleton + 1;
-    for (i = 1; i < numChildren; i++) {
+    for (i = 1; i < numChildren; i++, pJoint++) {
         if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
             MulMatrix0(pViewScratch, &pJoint->globalTransform, pScratch);
             SetLightMatrix(pScratch);
@@ -740,7 +740,6 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 renderMode
             );
         }
-        pJoint++;
     }
 
     pListEntry = pModel->pModelListEntries;
