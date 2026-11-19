@@ -15,6 +15,10 @@ extern void func_800B51B0();
 extern void func_800B50D4();
 extern void func_800B5588();
 extern u8 D_800C356C[];
+extern u32 D_800D2FD8[];
+extern u16 D_800C3E9C[];
+extern u16 D_800C3D4C[];
+extern u16 D_800D3334[];
 extern void BattleIntegrateSpriteVelocityTask();
 extern void BattleDrawActorLinePrim();
 extern void func_800B6004();
@@ -40,7 +44,7 @@ typedef struct WorkListEntry {
     /* 0x00 */ void* unk0;
     /* 0x04 */ BattleDirectionTask* pTask;
     /* 0x08 */ void* onTriggerCallback;
-    /* 0x0C */ void* onFreeCallback;
+    /* 0x0C */ void (*onFreeCallback)(void*);
     /* 0x10 */ u32 unk10;
     /* 0x14 */ u32 unk14;
     /* 0x18 */ struct WorkListEntry* pNext;
@@ -187,6 +191,52 @@ void func_800B50D4(SpriteData* pSpriteData, SVECTOR* pOut) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B51B0);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc27", func_800B5588);
+// 90.01% (348 bytes): the four global stores and the loop match; retail's position
+// reads are unsigned at some sites (lhu) and signed at others (lh), which suggests the
+// original curPos/targetPos view is u16 and the delta is read through an s16 view - not
+// reproduced here. Two other measured findings:
+//  - The four globals must be extern ARRAYS (`D_800C3E9C[0] = ...`): as plain scalars
+//    they go through `lui $at` where retail uses `lui $v0,%hi` + the store off $v0
+//    (the atfree signature; with the array spelling that part matches exactly).
+//  - retail keeps only $s0 (0x18 frame); holding pWork across the tail call costs an
+//    $s1, so the onFree callback must be reached through pTask, not pWork.
+//  - The tail mode test is UNMERGED in retail (`beqz v1` / `li v0,1` / `bne v1,v0`)
+//    where gcc 2.7.2 merges `mode != 0 && mode != 1` into `sltiu v0,v1,2`; that is
+//    the 2.6.0/preset branch-shape class.
+/*
+void func_800B5588(WorkListEntry* pWork) {
+    BattleDirectionTask* pTask;
+    SpriteData* pSpriteData;
+    s32 mode;
+    s32 i;
+
+    pTask = pWork->pTask;
+    pSpriteData = pTask->pSpriteData;
+    D_800D2FD8[0] = (u32)pTask->pArgs;
+    D_800C3E9C[0] = pTask->radius;
+    D_800C3D4C[0] = pTask->semiTrans;
+    D_800D3334[0] = pSpriteData->field_0x2e;
+    if (pSpriteData->curSpriteFrame != pTask->curSpriteFrame) {
+        pTask->curSpriteFrame = pSpriteData->curSpriteFrame;
+        func_800B50D4(pSpriteData, pTask->targetPos);
+    }
+    for (i = 1; i != 5; i++) {
+        pTask->curPos[i].vx = pTask->curPos[i].vx + (pTask->targetPos[i].vx - pTask->curPos[i].vx) / 2;
+        pTask->curPos[i].vy = pTask->curPos[i].vy + (pTask->targetPos[i].vy - pTask->curPos[i].vy) / 2;
+        pTask->curPos[i].vz = pTask->curPos[i].vz + (pTask->targetPos[i].vz - pTask->curPos[i].vz) / 2;
+    }
+    pTask->curPos[0].vx = pTask->targetPos[0].vx;
+    pTask->curPos[0].vy = pTask->targetPos[0].vy;
+    pTask->curPos[0].vz = pTask->targetPos[0].vz;
+    if (pTask->animId == (s8)pTask->pSpriteData->flags_0xAC.bytes[3]) {
+        mode = ((u32)pTask->pSpriteData->flags_0xA8 >> 28) & 3;
+        if (mode != 0 && mode != 1) {
+            return;
+        }
+    }
+    pTask->timerTask.onFreeCallback(pTask);
+}
+*/
 void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
     BattleDirectionTask* pTask;
 
