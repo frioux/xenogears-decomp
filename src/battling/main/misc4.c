@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/controller.h"
 
 // flags bit 18: cleared at the top of every movement update and set when the floor
 // stops the actor's fall, i.e. the actor stands on the ground this frame (misc3
@@ -8,6 +9,8 @@
 // flags bits 29-30: the grid cell type BattleGetGridCellAtPosition reports for the
 // actor's position, shifted in every frame by BattleActorUpdateGroundMovement.
 #define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
+// g_BattleElapsedFrames stops counting here.
+#define BATTLE_ELAPSED_FRAMES_MAX 179999
 // The fall speed at which a landing in state 4 bounces back instead of stopping.
 #define BATTLE_ACTOR_BOUNCE_VY_MIN 0x40
 // A quarter of the 12-bit angle rcos/rsin/ratan2 work in: the base facing each side
@@ -84,6 +87,12 @@ extern u8 g_BattleReinitFlag;
 extern u8 g_BattleReinitValue;
 extern u8 g_BattleFrameSkipCountdown;
 extern u8 g_BattleTransitionFlag;
+extern u8 g_BattleCameraLerpFrames;
+extern u8 g_BattleOptionOn;
+extern u8 g_BattleFacingUpdateEnabled;
+extern s32 g_BattleDrawFlags;
+extern s32 g_BattleMode;
+extern char D_8006FD4C[];
 extern u8 g_BattleResultCode;
 extern s32 g_BattleCameraAngleStep;
 extern s32 g_BattleRoundOver;
@@ -98,7 +107,7 @@ extern void BattleEffectClearEntrySlots();
 extern void BattleEffectClearSlots();
 extern void BattleClearTextSpriteEntries();
 extern void BattleInitSoundSlots();
-extern void func_80074BA4(void);
+extern void func_80074BA4();
 extern void func_80078F00();
 extern void BattleRandomizeCameraPosition(void);
 extern void BattleEffectSetSpawnTimer();
@@ -162,12 +171,18 @@ struct ActorScript {
     /* 0x2A */ s16 cameraRadius;
 }; // Size: unknown
 
+// One 0xC-byte record of the state-slot array at 0x9CC: p->pState and
+// p->pNextState point at the two records g_BattleStateSlotIndex selects, one per
+// actor.  The two 16-bit words the flag helpers read-modify-write are its 0x6 and
+// 0xA fields; func_8007A344 sets the bytes at 0x9 and 0xA with the 0x1000 flag.
 typedef struct {
     /* 0x0 */ u8 pad00[0x6];
     /* 0x6 */ u16 flags;
-    /* 0x8 */ u8 pad08[0x2];
-    /* 0xA */ u16 flags2;
-} ActorSub;
+    /* 0x8 */ u8 pad08[0x1];
+    /* 0x9 */ u8 unk9;
+    /* 0xA */ u8 unkA;
+    /* 0xB */ u8 unkB;
+} ActorStateSlot; // Size: 0xC
 
 // Actor pointer at 0x15CC, aimed at the actor's own 0x9CC.
 
@@ -258,7 +273,9 @@ struct Actor {
     /* 0x020 */ s32 pushVx;
     /* 0x024 */ s32 pushVy;
     /* 0x028 */ s32 pushVz;
-    /* 0x02C */ u8 pad2C[0x20];
+    /* 0x02C */ u8 pad2C[0x1C];
+    // Cleared together with the round's message queues while g_BattleRoundOver is up.
+    /* 0x048 */ s32 unk48;
     /* 0x04C */ u8 modelIndex;
     /* 0x04D */ u8 pad4D;
     /* 0x04E */ u8 prevPartIndex;
@@ -357,9 +374,13 @@ struct Actor {
     /* 0x99A */ s16 animFrameStep;
     /* 0x99C */ u8 pad99C[0x27];
     /* 0x9C3 */ u8 actionIndex;
-    /* 0x9C4 */ u8 pad9C4[0xC08];
-    /* 0x15CC */ ActorSub* pState;
-    /* 0x15D0 */ u8 pad15D0[0x4];
+    /* 0x9C4 */ u8 pad9C4[0x8];
+    // One record per state the actor can be put in; g_BattleStateSlotIndex walks it
+    // a record at a time as the battle advances.
+    /* 0x9CC */ ActorStateSlot stateSlots[256];
+    /* 0x15CC */ ActorStateSlot* pState;
+    // The record after pState's, the one func_8007A344 sets up for the next state.
+    /* 0x15D0 */ ActorStateSlot* pNextState;
     // The colour the effects this actor spawns are tinted with: func_8007920C
     // passes it to BattleEffectSetColor, which takes a Color4.
     /* 0x15D4 */ CVECTOR effectColor;
@@ -827,7 +848,7 @@ char BattleResetForNextRound(void) {    g_BattleActor1.sideBaseAngle = BATTLE_AN
 }
 
 void BattleActorSetUnk15CCFlags(Actor* p) {
-    p->pState->flags2 = (p->pState->flags2 & 0xFEFF) | ((p->flags << 6) & 0x100);
+    *(u16*)&p->pState->unkA = (*(u16*)&p->pState->unkA & 0xFEFF) | ((p->flags << 6) & 0x100);
     p->pState->flags = (p->pState->flags & 0xDFFF) | ((p->flags >> 2) & 0x2000);
     p->pState->flags = (p->pState->flags & 0xBFFF) | ((p->flags >> 5) & 0x4000);
 }
@@ -837,7 +858,7 @@ void BattleActorLoadUnk15CCFlags(Actor* p) {
     u32 signBit = 0x80000000; // a literal here gives `sll 17; srl 31`, retail has `sll 17; slti 0`
     u32 masked;
 
-    p->flags = (p->flags & ~4) | ((p->pState->flags2 >> 6) & 4);
+    p->flags = (p->flags & ~4) | ((*(u16*)&p->pState->unkA >> 6) & 4);
     p->flags = (p->flags & 0xFFFF7FFF) | ((p->pState->flags << 2) & 0x8000);
     masked = p->flags & 0xFFF7FFFF;
     flag = ((p->pState->flags << 17) & signBit) != 0;
@@ -848,7 +869,162 @@ void BattleResetUnk92640(void) {
     g_BattleRoundOverFrames = 0;
 }
 
+extern s32 ControllerIsStateStackFull(void);
+extern void ControllerResetState(void);
+extern s32 ControllerPopState(void);
+extern s32 ControllerGetType(s32);
+extern void func_80076884(Actor*);
+extern void func_800751C8(Actor*, Actor*);
+extern void func_80077038(Actor*);
+extern void func_80077A9C(Actor*);
+extern void func_80078194(Actor*);
+extern void func_80074BA4(Actor* p);
+extern void func_80080C48(s32);
+extern void FontSetPositionsByOffsetClamped(s32, s32);
+extern void BattleSetSpriteTimer(s32);
+extern void BattleRunActorStateHandler(Actor*);
+extern void BattleDispatchWorkState(Actor*);
+extern void BattleStepDisplayState(void);
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
+
+/* Best attempt: 96.31% at retail's exact 1072 bytes, i.e. the instructions and the
+   frame are all there and only the ORDER inside the second basic block differs.
+   Retail loads g_BattleFrameRateLevel into $a2 FIRST (right after the
+   g_BattleStateSlotIndex lbu) and stores it into g_BattleFrameSkipCountdown after
+   the two pNextState stores, keeps `addu $a0,$s1,$zero` at the very top, and puts
+   `sb g_BattleStateSlotIndex` before the p2 pNextState store; this body emits the
+   same set in a different order (the load and the store both end up after the p1
+   pNextState store, and $a0 is set up there).  Measured and rejected: the
+   assignment written first, last, and through a local `frameRate` (all identical),
+   and `func_80080C48(g_BattleMode == 4 ? 2 : 1)` (that one hoists the 4 into $s2,
+   an extra saved register and 8 bytes - the if/else pair below is what
+   cross-jumps back to retail's single call).  Two sources of difference were
+   FIXED by this body: the state-slot pointers use the typed ActorStateSlot array,
+   and the skipped facing update needs a goto (no if/else keeps the call out of
+   the skipped arm).
+   NOT tried: the permuter.
+/*
+// The battle's frame update for the combatant pair: frame skipping, the state-slot
+// pair, the gauge/animation refresh, the input pass (one controller-pop state per
+// loop, which is where the pad whose START prompt is up is chosen) and the ground,
+// edge and effect updates.
+void func_80079DF0(Actor* p1, Actor* p2) {
+    s32 frameRate;
+
+    if (g_BattleFrameSkipCountdown != 0) {
+        g_BattleFrameSkipCountdown--;
+        return;
+    }
+
+    frameRate = g_BattleFrameRateLevel;
+    p1->pState = &p1->stateSlots[g_BattleStateSlotIndex];
+    p2->pState = &p2->stateSlots[g_BattleStateSlotIndex];
+    p1->pNextState = p1->pState;
+    g_BattleStateSlotIndex++;
+    p2->pNextState = p2->pState;
+    g_BattleFrameSkipCountdown = frameRate;
+
+    p1->flags = (p1->flags & ~0x40) | ((g_BattlePlayer1ComControlled & 1) << 6);
+    p2->flags = (p2->flags & ~0x40) | ((g_BattlePlayer2ComControlled & 1) << 6);
+
+    func_80073644(p1);
+    func_80073644(p2);
+    BattleUpdateSlotGaugeDisplay(p1);
+    BattleUpdateSlotGaugeDisplay(p2);
+
+    g_BattleEffectEntryCount = 0;
+    func_80075B50(p1);
+    func_80075B50(p2);
+
+    FontSetPositionsByOffsetClamped(0xA, 0x60);
+    BattleSetSpriteTimer(0);
+
+    if (g_BattleInputEnabled != 0) {
+        if (ControllerIsStateStackFull() != 0) {
+            ControllerResetState();
+        } else {
+            while (ControllerPopState() != 0) {
+                if ((((g_C1ButtonStateReleased | g_C2ButtonStateReleased) & CTRL_BTN_START) &&
+                     g_BattlePromptTimer < 0x14) ||
+                    ControllerGetType(0) == 0 ||
+                    (ControllerGetType(1) == 0 && g_BattleMode == 2)) {
+                    if ((g_C1ButtonStateReleased & CTRL_BTN_START) || ControllerGetType(0) == 0) {
+                        g_BattleTextPadIndex = 0;
+                    } else if (p2->flags & 0x40) {
+                        // Leaves the pad index alone and skips the facing update below.
+                        goto skipFacing;
+                    } else {
+                        g_BattleTextPadIndex = 1;
+                    }
+                    if (g_BattleFacingUpdateEnabled == 0) {
+                        if (g_BattleMode == 4) {
+                            func_80080C48(2);
+                        } else {
+                            func_80080C48(1);
+                        }
+                    }
+skipFacing:
+                    ;
+                }
+                func_80076884(p1);
+                func_80076884(p2);
+            }
+        }
+    } else {
+        ControllerMergeStates();
+    }
+
+    if (g_BattleInputEnabled != 0) {
+        if (g_BattleElapsedFrames != BATTLE_ELAPSED_FRAMES_MAX) {
+            g_BattleElapsedFrames++;
+        }
+        if (g_BattleMode == 4) {
+            BattleRunActorStateHandler(p2);
+        } else {
+            BattleDispatchWorkState(p1);
+            BattleDispatchWorkState(p2);
+        }
+    }
+
+    if (g_BattleRoundOver != 0) {
+        p1->unk48 = 0;
+        p2->unk48 = 0;
+        BattleResetMessageQueue(p1);
+        BattleResetMessageQueue(p2);
+    }
+
+    func_800751C8(p1, p2);
+    func_80077038(p1);
+    func_80077038(p2);
+    FontSetPositionsByOffsetClamped(0x4A, 0);
+    func_80077A9C(p1);
+    FontSetPositionsByOffsetClamped(0x6A, 0);
+    func_80077A9C(p2);
+    FontSetPositionsByOffsetClamped(0xA, 0x80);
+    func_80078194(p1);
+    func_80078194(p2);
+    BattleActorUpdateGroundMovement(p2);
+    BattleActorUpdateGroundMovement(p1);
+    func_80078920(p1, p2);
+    BattleActorSetPartTransform(p2);
+    BattleActorSetPartTransform(p1);
+    BattleStepDisplayState();
+    func_80074BA4(p1);
+    func_80074BA4(p2);
+    BattleActorSetUnk15CCFlags(p1);
+    BattleActorSetUnk15CCFlags(p2);
+    func_8007920C(p1);
+    func_8007920C(p2);
+    func_80074678(p1, p1->animFrame, p1->animFrameStep);
+    func_80074678(p2, p2->animFrame, p2->animFrameStep);
+    BattleEffectUpdateSlots();
+    if (g_BattleOptionOn != 0) {
+        BattleEffectQueueLineByType(&p1->midPosition, &p2->midPosition, 0x13);
+    }
+}
+*/
+
 
 void BattleSaveActorVectors(s32 unk0) {
     if (unk0 < BATTLE_TRANSITION_COUNTDOWN_MAX) {
@@ -867,7 +1043,114 @@ void BattleSaveActorVectors(s32 unk0) {
     D_80092A38 = 0x100;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A344);
+extern void BattleSetTextCursor(s32, s32);
+extern void BattleDrawTextLeft(char*);
+extern void func_80073644(Actor*);
+extern void BattleUpdateSlotGaugeDisplay(Actor*);
+extern void ControllerMergeStates(void);
+extern void BattleSetScreenMode(s32);
+extern void BattleRotateCamera(s32);
+extern void BattleActorApplyAnimationCommand(Actor*);
+extern void BattleEffectUpdateSlots(void);
+extern void BattleEffectQueueLineByType(Vec4*, Vec4*, s32);
+extern void BattleRandomizeCameraSpin(void);
+extern void func_80075B50(Actor*);
+extern void func_8007920C(Actor*);
+
+// One frame of the battle's own update, run on both combatants: it points their
+// state-slot pair at this frame's records, hands the input to BattleRotateCamera,
+// refreshes the gauges and animation and the two cached vectors the edge code
+// compares, and counts the transition down.
+void func_8007A344(Actor* p1, Actor* p2) {
+    ActorStateSlot* pSlot1;
+    ActorStateSlot* pSlot2;
+    u8 slot;
+    u8 nextSlot;
+    s32 buttons;
+    u32 cell;
+
+    slot = g_BattleStateSlotIndex;
+    nextSlot = slot + 1;
+    pSlot1 = &p1->stateSlots[slot];
+    pSlot2 = &p2->stateSlots[slot];
+    g_BattleStateSlotIndex = nextSlot;
+    p1->pState = pSlot1;
+    p2->pState = pSlot2;
+    p1->pNextState = &p1->stateSlots[nextSlot];
+    p2->pNextState = &p2->stateSlots[nextSlot];
+
+    if (g_BattleTransitionCountdown == BATTLE_TRANSITION_COUNTDOWN_MAX) {
+        p1->pNextState->flags |= 0x1000;
+        p2->pNextState->flags |= 0x1000;
+        p1->pNextState->unkA = 1;
+        p2->pNextState->unkA = 1;
+        p1->pNextState->unk9 = 1;
+        p2->pNextState->unk9 = 1;
+    }
+
+    if (g_BattleDrawFlags & 8) {
+        BattleSetTextCursor(0x10, 0x10);
+        BattleDrawTextLeft(D_8006FD4C);
+    }
+
+    func_80073644(p1);
+    func_80073644(p2);
+    BattleUpdateSlotGaugeDisplay(p1);
+    BattleUpdateSlotGaugeDisplay(p2);
+
+    p1->prevEdgeMidPos = p1->edgeMidPos;
+    p2->prevEdgeMidPos = p2->edgeMidPos;
+    p1->prevPosition = *(Vec4*)&p1->x;
+    p2->prevPosition = *(Vec4*)&p2->x;
+
+    g_BattleEffectEntryCount = 0;
+    if (g_BattleCameraLerpFrames >= 2) {
+        g_BattleCameraLerpFrames = 1;
+    }
+
+    ControllerMergeStates();
+    if (g_BattleTextPadIndex == 1) {
+        if (g_C2ButtonStateReleased & CTRL_BTN_CIRCLE) {
+            BattleSetScreenMode(8);
+        }
+        buttons = g_C2ButtonState;
+    } else {
+        if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
+            BattleSetScreenMode(8);
+        }
+        buttons = g_C1ButtonState;
+    }
+    BattleRotateCamera(buttons);
+
+    BattleActorApplyAnimationCommand(p1);
+    BattleActorApplyAnimationCommand(p2);
+    BattleActorSetPartTransform(p1);
+    BattleActorSetPartTransform(p2);
+
+    cell = BattleGetGridCellAtPosition(p1);
+    p1->flags = (p1->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) | ((cell & 0x3000000) << 5);
+    cell = BattleGetGridCellAtPosition(p2);
+    p2->flags = (p2->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) | ((cell & 0x3000000) << 5);
+
+    BattleActorLoadUnk15CCFlags(p1);
+    BattleActorLoadUnk15CCFlags(p2);
+    func_8007920C(p1);
+    func_8007920C(p2);
+    func_80075B50(p1);
+    func_80075B50(p2);
+    BattleEffectUpdateSlots();
+
+    if (g_BattleOptionOn != 0) {
+        BattleEffectQueueLineByType(&p1->midPosition, &p2->midPosition, 0x13);
+    }
+    if (g_BattleTransitionCountdown == BATTLE_TRANSITION_COUNTDOWN_MAX) {
+        BattleRandomizeCameraSpin();
+    }
+    if (g_BattleTransitionCountdown == 0) {
+        BattleSetScreenMode(8);
+    }
+    g_BattleTransitionCountdown--;
+}
 
 void BattleActorSetModelByTimer(Actor* p) {
     g_BattleMotionSpeedScale = 0x100;
@@ -947,7 +1230,75 @@ void BattleResetScratchState(void) {
     D_80097080 = 0x100;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A958);
+// Set while the battle's camera debug display is up.
+extern s32 D_800911D4;
+
+// The camera tuner's four debug read-outs (the offsets func_8007A768 loads).
+extern char g_StrCameraAngleFormat[];
+extern char g_StrCameraRefFormat[];
+extern char g_StrCameraCamFormat[];
+extern char g_StrCameraLenFormat[];
+
+extern s32 BattleVectorDistance(Vec4*, Vec4*);
+extern void func_80070808(Vec4*, s32);
+extern void func_800708C4(Vec4*, s32);
+extern void func_800379C8(char*, s32);
+
+// Places the battle camera on the actor's midpoint, at the orbit the tuner's
+// offsets give, then closes the last stretch two units a frame until the camera
+// is within 0x200 of the actor.  While the debug display flag is up the d-pad and
+// the shoulder buttons move the orbit offsets and print all four of them.
+void func_8007A958(Actor* p) {
+    Vec4* pCam;
+    Vec4 pos;
+    u16 buttons;
+
+    if (D_800911D4 != 0) {
+        buttons = g_C1ButtonState;
+        if (buttons & CTRL_BTN_UP) {
+            D_8009266C += 4;
+        }
+        if (buttons & CTRL_BTN_DOWN) {
+            D_8009266C -= 4;
+        }
+        if (buttons & CTRL_BTN_TRIANGLE) {
+            D_80092670 += 4;
+        }
+        if (buttons & CTRL_BTN_CROSS) {
+            D_80092670 -= 4;
+        }
+        if (buttons & CTRL_BTN_RIGHT) {
+            D_80092668 -= 0x20;
+        }
+        if (buttons & CTRL_BTN_LEFT) {
+            D_80092668 += 0x20;
+        }
+        if (buttons & CTRL_BTN_R1) {
+            D_80092674 -= 0x10;
+        }
+        if (buttons & CTRL_BTN_R2) {
+            D_80092674 += 0x10;
+        }
+        func_800379C8(g_StrCameraAngleFormat, D_80092668 & 0xFFF);
+        func_800379C8(g_StrCameraRefFormat, D_8009266C);
+        func_800379C8(g_StrCameraCamFormat, D_80092670);
+        func_800379C8(g_StrCameraLenFormat, D_80092674);
+    }
+
+    pos = p->midPosition;
+    pos.y = p->y - D_8009266C;
+    func_80070808(&pos, 8);
+    pos.y = p->y - D_80092670;
+    pos.x = p->x + ((rcos(p->angle + D_80092668) * D_80092674) >> 12);
+    pos.z = p->z + ((rsin(p->angle + D_80092668) * D_80092674) >> 12);
+    func_800708C4(&pos, 0x10);
+
+    pCam = (Vec4*)&g_BattleCameraPos;
+    while (BattleVectorDistance(pCam, (Vec4*)p) < 0x200) {
+        g_BattleCameraPosY -= 2;
+        pCam->x -= 2;
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
 
@@ -986,11 +1337,11 @@ void func_8007AC3C(void) {
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AE10);
 
 void BattleActorInitModelState(Actor* p, u8 unk4C) {
-    p->pState = (ActorSub*)((u8*)p + 0x9CC);
+    p->pState = (ActorStateSlot*)((u8*)p + 0x9CC);
     p->animSpeed = 0x10;
     p->modelIndex = unk4C;
     p->animSpeedBonus = 0;
     g_BattleMotionSpeedScale = 0x100;
-    func_80074BA4();
+    func_80074BA4(p);
     func_80074678(p, p->animFrame, p->animFrameStep);
 }
