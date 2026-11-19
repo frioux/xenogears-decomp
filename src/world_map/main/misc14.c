@@ -735,21 +735,36 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
 
 extern void WorldMapProjectTriangleNormal(SVec* pPos, SVec* pOut, SVec* pNormal, u16 setIndex,
                                           u16 triIndex);
+extern SVec D_1F800060; // candidate world position in the 0x1F800000 scratchpad
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
-/* best: 87.03% (688 bytes vs 704). The whole body matches except the probe
-   scratchpad at 0x1F800060/64/68: retail re-materialises each constant address
-   (`lui $at,0x1F80` + `sw ...0x60($at)`, `lui $v0,0x1F80` + `lw ...0x64($v0)`),
-   while gcc folds every 2+-use literal MEM address into a callee-saved register
-   (`li $17,0x1F800000; ori $17,$17,0x60` then `sw $2,0($17)`), which also takes
-   the s-registers retail gives to i/found/the sprite table. Tried: single
-   `*(s32*)0x1F8000xx` literals, a typed SVec* probe local, `((SVec*)0x1F800060)`
-   member accesses (75%), `volatile` on the scratch accesses, and the symbolic
-   `D_1F800060.x` spelling (that one emits %hi/%lo relocations retail does not
-   have). A one-store/one-load probe test still makes a const register, so the
-   trigger is two MEM uses of the same literal address, not the argument uses.
-   Also open: the 5th argument arrives as a word (`lw $t0,0x60($sp)`,
-   `sw $t0,0x10($sp)`) but WorldMapResolveStepAgainstTerrain takes an s16, so
-   ours sign-extends into $v0 first; retail never narrows.
+/* best: 98.72% (684 bytes vs retail's 676, so 8 bytes / 2 insns long). Body structure
+   is right; the 169-instruction stream differs in three places:
+   1. The typed-member spelling is the lever that closes the scratchpad addresses:
+      `*(s32*)0x1F800064 = x` makes cse materialise 0x1F800064 in a callee-saved
+      register (`li $s2,0x1F800000; ori $s2,$s2,0x64; sw ...0($s2)`), while
+      `((SVec*)0x1F800060)->y = x` keeps gcc's one-instruction macro form, which the
+      assembler expands per site exactly as retail does (`lui $at,0x1F80` + `sw ...0x64($at)`
+      for a store, `lui $a0,0x1F80` + `lw $a0,...0x60($a0)` for a load). With the typed
+      form 5 of the 6 scratchpad sites matched on the first try. The one that cannot be
+      closed is the first store (x at 0x1F800060) together with the WrapPosition argument
+      and the GetTilePlaneHeight load of the same address: as soon as all three are
+      literals cse shares one register across them again. Spelling that store through the
+      symbol (D_1F800060.x = ...) breaks the sharing and reached 99.93% with retail's exact
+      169 instructions; it costs only a relocation, whose linked bytes are the same
+      (`lui $at,0x1F80` + `sw $2,0x60($at)`), so it is the documented reloc-only exception.
+   2. The loop's `WorldMapCheckTriangleEdgeSide(&D_1F800060, ...)`: retail forms the
+      address with `lui $t0,%hi(D_1F800060)` + `addiu $a0,$t0,%lo(...)` (untied temp)
+      inside the loop; every spelling measured here gives the tied `lui $a0,%hi` +
+      `addiu $a0,$a0,%lo` that GNU as produces for gcc's one-insn `la $4,D_1F800060`.
+      A pointer local, an inline cast and a per-iteration assignment all give the same
+      tied pair, and a 4-minute permuter run from the 99.93% body found nothing.
+   3. WorldMapResolveStepAgainstTerrain takes `s16 kind` (its own stub loads the 5th
+      argument with `lh`, which is why widening it to s32 drops it to 99.09%), but this
+      caller reloads the 5th argument with `lw` and retail's call site never narrows it
+      (`lw $t0,0x60($sp)` then `sw $t0,0x10($sp)`). Keeping the callee's s16 signature
+      therefore costs the two sll/sra instructions that make this body 8 bytes long; the
+      s32 version (which needs the callee widened too) is the 99.93% measurement above.
 
 s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     s32 height;
@@ -759,49 +774,48 @@ s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     s32 ret;
     u16 spriteIndex;
 
-    *(s32*)0x1F800060 = pBase->x + ((pDelta->x * scale) >> 12);
-    *(s32*)0x1F800064 = pBase->y + ((pDelta->y * scale) >> 12);
-    *(s32*)0x1F800068 = pBase->z + ((pDelta->z * scale) >> 12);
-    WorldMapWrapPosition((void*)0x1F800060);
+    D_1F800060.x = pBase->x + ((pDelta->x * scale) >> 12);
+    ((SVec*)0x1F800060)->y = pBase->y + ((pDelta->y * scale) >> 12);
+    ((SVec*)0x1F800060)->z = pBase->z + ((pDelta->z * scale) >> 12);
+    WorldMapWrapPosition((SVec*)0x1F800060);
 
     pOut->x = pBase->x + ((pDelta->x * scale) >> 12);
     pOut->y = pBase->y + ((pDelta->y * scale) >> 12);
     pOut->z = pBase->z + ((pDelta->z * scale) >> 12);
     WorldMapWrapPosition(pOut);
 
-    height = WorldMapGetTilePlaneHeight(*(s32*)0x1F800060, *(s32*)0x1F800068) - 0x20000;
+    height = WorldMapGetTilePlaneHeight(((SVec*)0x1F800060)->x, ((SVec*)0x1F800060)->z) - 0x20000;
     if (height > 0x20000) {
         height = 0x20000;
     }
-    if (height < *(s32*)0x1F800064 || height < -0x280000) {
-        *(s32*)0x1F800064 = height;
+    if ((height < ((SVec*)0x1F800060)->y) | (height < -0x280000)) {
+        ((SVec*)0x1F800060)->y = height;
         pOut->y = height;
     }
-    if (height < -0x280000 && *(s32*)0x1F800064 < -0x280000) {
-        *(s32*)0x1F800064 = -0x280000;
+    if ((height > -0x280000) & (((SVec*)0x1F800060)->y < -0x280000)) {
+        ((SVec*)0x1F800060)->y = -0x280000;
         pOut->y = -0x280000;
     }
 
-    count = WorldMapFindSpriteSet((void*)0x1F800060, (s16*)&spriteIndex);
-    if (count == 0) {
-        ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
-    } else {
+    count = WorldMapFindSpriteSet((SVec*)0x1F800060, (s16*)&spriteIndex);
+    if (count != 0) {
         found = 0;
         for (i = 0; i < count; i += 2) {
-            if (WorldMapCheckTriangleEdgeSide(&D_1F800060, 0x70, spriteIndex, D_8009D718[i]) == 0) {
+            if (WorldMapCheckTriangleEdgeSide((SVec*)&D_1F800060, 0x70, spriteIndex, D_8009D718[i]) == 0) {
                 D_8009D718[i] = -1;
                 found += 2;
             }
         }
-        if (found == count) {
-            ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
-        } else {
+        if (found != count) {
+            ret = 0;
             pOut->x = -pDelta->x >> 1;
             pOut->y = -pDelta->y >> 1;
             pOut->z = -pDelta->z >> 1;
-            ret = 0;
+            goto done;
         }
     }
+    ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
+done:
     return ret;
 }
 */
