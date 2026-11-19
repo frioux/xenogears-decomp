@@ -20,8 +20,13 @@
 // Entries of MenuDressingRoom.statValues.
 #define MENU_STAT_VALUE_COUNT 9
 // Scratch buffer one rendered item name image is built in before LoadImage.
+#define MENU_COLUMN_IMAGE_SIZE 0x618
 // func_801C72BC's resource table: entry kind + 0x10 unloads what entry kind loaded.
 #define MENU_PANEL_FREE_OFFSET 0x10
+// Sprite records at the end of the 0x430 panel: 0x1C holds a copy of the selected
+// column's string, 0x1D..0x1F the three strings func_801DCE60 renders.
+#define MENU_PANEL_COLUMN_STRING 0x1C
+#define MENU_PANEL_HEADING_STRING 0x1E
 
 extern u8 g_MenuItemRowStringIds[][8]; // 8 u8 string IDs per panel
 extern u8 g_MenuCharacterRowStringIds[][6]; // 6 u8 string IDs per panel
@@ -30,6 +35,7 @@ extern u8 g_DressingRoomItemIds[];
 extern s32 g_MenuInventoryRowCount;
 extern u16 g_MenuInventoryScrollStep;
 extern u8 g_MenuPanelRowXOffsets[];
+extern u8 D_801EA550[];
 extern u8 D_801E9785;
 extern u16 D_801E9788[][2];
 extern u16 D_801E9794[][2];
@@ -37,14 +43,19 @@ extern u16 D_801E97A0[][2];
 extern u8 g_ShopIndex;
 extern u16 g_MenuEquipmentSlotRowY[][2];
 
-// 0x1094-byte item panel buffer built by MenuCreateUnk430Panel
+// 0x1094-byte item panel buffer built by MenuCreateUnk430Panel: one MenuString
+// sprite record per column, then the column heading string list and one flag per
+// column (read as a u8 array by MenuAddUnk430Prims in misc5).
 typedef struct {
-    /* 0x0000 */ u8 unk0[0x1084];
-    /* 0x1084 */ u8 unk1084[0x10];
+    /* 0x0000 */ MenuString strings[0x21];
+    /* 0x1080 */ void* pStringData; // String list the column headings are fetched from
+    /* 0x1084 */ u8 columnFlags[0xE]; // 0x80 = the column holds an item, see func_801DDF24
+    /* 0x1092 */ u8 shouldRenderColumnHeadings;
+    /* 0x1093 */ u8 pad1093;
 } MenuUnk430Panel; // Size: 0x1094
 
 void func_801DC3D8(u_char arg0, u_char arg1);
-void func_801DCE60(u_char arg0, u_char arg1, u_char arg2);
+void func_801DCE60(u_char arg0, s32 arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
@@ -82,6 +93,7 @@ void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 extern void* GetStringEntry(void* pStringData, u32 index);
 extern s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 len, s32 mode);
 void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height);
+void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 void func_801D8EA4(u8 arg0, u8 arg1, u8 arg2, u8 arg3);
 int func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
 u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3);
@@ -517,7 +529,129 @@ void MenuFreeUnk430Panel(u_char arg0) {
     g_Menu->pManager->shouldRenderWindow[1] = 1;
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
+/* Best: 97.64%, 1928 bytes (retail 1924 = 481 insns, ours 482). Fills one column of
+   the 0x430 panel: renders the column's two heading strings into a scratch buffer,
+   uploads them, points the four tail sprite records at them, copies the selected
+   column's record into MENU_PANEL_COLUMN_STRING and sets the row flags the prim
+   adder in misc5 renders. arg2 selects the panel kind (item / gear list / gear two
+   columns) and with it the string id base and the dressing room prim block.
+   Confirmed retail's: prologue and save set, frame 0x48, both switch trees, every
+   call site and store, the shared exits, the 0x4E/0xD constants hoisted to $s0/$s1.
+   Two edits got it from ~91% to here:
+   - arg1 must be declared s32, not u_char: as u_char cc1 emits a `move a0,a1`
+     parameter copy and masks that copy where retail masks $a1 in place, which also
+     puts the arms' `(arg1 & 0xFF)` masks back (97.27 -> 97.64).
+   - `(u32)(arg1 & 0xFF) >> 1` for the two-column prim offset: the signed shift
+     gives `sra` where retail has `srl`.
+   Three deltas left (permute.sh --minutes 4 -j 2: PERMUTER_BETTER 1751 -> 1210, the
+   winner is an inline_fn helper, not portable):
+   1. kind 2's shared `addu s0`: retail `addu s0,v0,v1` (the gearId << 3 side as the
+      destination), ours `addu s0,v1,v0`. Kinds 0 and 1 match. Tried both operand
+      orders, `gearId * 8` for `<< 3`, and an (arg1 & 0xFE)-first sum: cc1
+      canonicalises to offset-first every time.
+   2. the row flag: retail `andi 0x1000 / sltiu / move`, ours `srl 0xc / xori / andi`.
+      Tried `== 0`, `!(...)`, `< 1`, a u_int flags local and a (u16) cast on the masked
+      value: cc1 folds all of them to the bit-test form. Same instruction count.
+   3. tail: D_801EA550, g_MenuPanelRowXOffsets and the literal 2 land in $s1/$s2/$s0
+      where retail has $s0/$s1/$s2 (cyclic rotation), and the second
+      MenuSetRowQuadVertices call's setup is scheduled around the first call's tail -
+      that is the one extra instruction.
+   Realism owed: `flags = *(u16*)pBase` and `(*pBase & 3)` are raw reads of a prim
+   block. The panel itself is typed by MenuUnk430Panel above. */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
+/*
+void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
+    u8* pImage;
+    u8* pBase;
+    RECT rect;
+    u_int flags;
+    u16 stringId;
+    s32 row;
+    s32 i;
+
+    switch (arg2) {
+    case 0:
+        stringId = (g_Menu->pManager->currentCharacterIDs[arg0] << 5) + (arg1 & 0xFF) * 2;
+        break;
+    case 1:
+        stringId = (g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId << 5) + (arg1 & 0xFF) * 2;
+        break;
+    case 2:
+        stringId = (arg1 & 0xFE) + g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId * 8;
+        break;
+    }
+    if (((MenuUnk430Panel*)g_Menu->unk430)->columnFlags[arg1 & 0xFF] != 0) {
+        pImage = HeapAlloc(MENU_COLUMN_IMAGE_SIZE, 0);
+        bzero(pImage, MENU_COLUMN_IMAGE_SIZE);
+        ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].width =
+            SystemRenderStringEntry(GetStringEntry(((MenuUnk430Panel*)g_Menu->unk430)->pStringData, stringId), pImage, 0x39, 0);
+        ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1].width =
+            SystemRenderStringEntry(GetStringEntry(((MenuUnk430Panel*)g_Menu->unk430)->pStringData, stringId + 1), pImage, 0x39, 1);
+        rect.x = 0x140;
+        rect.y = 0x4E;
+        rect.w = 0x3C;
+        rect.h = 0xD;
+        LoadImage(&rect, pImage);
+        DrawSync(0);
+        func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING], 0, 0, 0);
+        MenuSetFt4QuadVertices(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].polys[g_Menu->renderContext],
+                               0x1C, 0x9E, 0, 0x4E,
+                               ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].width, 0xD);
+        MenuSetQuadVertices(((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].vertices, 0x1C, 0x9E,
+                            ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING].width, 0xD);
+        func_801E7C50(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1], 1, 0, 0);
+        MenuSetFt4QuadVertices(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1].polys[g_Menu->renderContext],
+                               0x1C, 0xAE, 0, 0x4E,
+                               ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1].width, 0xD);
+        MenuSetQuadVertices(((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1].vertices, 0x1C, 0xAE,
+                            ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_HEADING_STRING + 1].width, 0xD);
+        HeapFree(pImage);
+        memmove(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING],
+                &((MenuUnk430Panel*)g_Menu->unk430)->strings[arg1 & 0xFF], sizeof(MenuString));
+        MenuSetQuadVertices(((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].vertices, 0x12, 0x8E,
+                            ((MenuUnk430Panel*)g_Menu->unk430)->strings[arg1 & 0xFF].width, 0xD);
+        ((P_TAG*)&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].polys[g_Menu->renderContext])->r0 = 0x80;
+        ((P_TAG*)&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].polys[g_Menu->renderContext])->g0 = 0x80;
+        ((P_TAG*)&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].polys[g_Menu->renderContext])->b0 = 0x80;
+        SetSemiTrans(&((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].polys[g_Menu->renderContext], 0);
+        MenuClearBytes(MENU_ITEM_ROW_STRING_COUNT, g_Menu->pManager->shouldRenderStrings10E0);
+        switch (arg2) {
+        case 0:
+            pBase = (u8*)g_Menu->pDressingRoom->pCharacterSlots[g_Menu->pManager->currentCharacterIDs[arg0]] + (arg1 & 0xFF) * 40 + 0x370;
+            break;
+        case 1:
+            pBase = (u8*)g_Menu->pDressingRoom->pGearBlocks[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId] + (arg1 & 0xFF) * 40 + 0x348;
+            break;
+        case 2:
+            pBase = (u8*)g_Menu->pDressingRoom->pGearBlocks[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId] + ((u32)(arg1 & 0xFF) >> 1) * 40 + 0x5C8;
+            break;
+        }
+        flags = *(u16*)pBase;
+        if (flags & 0x4000) {
+            row = 2;
+        } else {
+            row = (flags & 0x1000) == 0;
+        }
+        MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, D_801EA550, g_MenuPanelRowXOffsets,
+                               g_Menu->pManager->shouldRenderStrings10E0, row, 0, 2);
+        MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, D_801EA550, g_MenuPanelRowXOffsets,
+                               g_Menu->pManager->shouldRenderStrings10E0, (*pBase & 3) + 3, 0, 2);
+        ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].renderContext = g_Menu->renderContext;
+        ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING + 1].renderContext = g_Menu->renderContext;
+        ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING + 2].renderContext = g_Menu->renderContext;
+        ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING + 3].renderContext = g_Menu->renderContext;
+        ((MenuUnk430Panel*)g_Menu->unk430)->shouldRenderColumnHeadings = 1;
+        g_Menu->pManager->shouldRenderStrings10E0[6] = 1;
+        g_Menu->pManager->shouldRenderStrings10E0[7] = 1;
+    } else {
+        ((MenuUnk430Panel*)g_Menu->unk430)->shouldRenderColumnHeadings = 0;
+        for (i = 0; i < 6; i++) {
+            g_Menu->pManager->shouldRenderStrings10E0[i] = 0;
+        }
+    }
+}
+*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
 /* Best: 99.58% at retail's exact size (424 bytes = 106 insns; the older 416-byte
    note here was wrong by two instructions). Six instructions differ, all
