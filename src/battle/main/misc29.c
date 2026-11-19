@@ -256,8 +256,6 @@ void func_800B838C(s32 arg0, s32 arg1) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B838C);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B8774);
 /* One 0x1C-byte slot of the battle actor table at g_BattleStateWork. */
 typedef struct {
     /* 0x00 */ u8 unk0[0x6];
@@ -269,6 +267,57 @@ typedef struct {
     /* 0x10 */ u16 z;
     /* 0x12 */ u8 unk12[0xA];
 } BattleActorSlot; // Size: 0x1C
+
+/* The battle work block that g_BattleStateWork + 0x8000 starts: the render and
+   pad state. Only the fields this unit touches are typed here. */
+typedef struct {
+    /* 0x000 */ u8 unk0[0xC50];
+    /* 0xC50 */ u8 *pRenderEnv; // one of the two double-buffered frame env blocks
+    /* 0xC54 */ u_long *pCurrentOT; // that block's ordering table at +0x70
+    /* 0xC58 */ u8 unkC58[0x2C];
+    /* 0xC84 */ s32 colorSetIndex; // selects the effect colour set; cleared at stage load, 1 after a change
+    /* 0xC88 */ u8 unkC88[0x120];
+    /* 0xDA8 */ u8 unkDA8;
+    /* 0xDA9 */ u8 unkDA9[0x3];
+    /* 0xDAC */ s32 unkDAC;
+    /* 0xDB0 */ u8 unkDB0[0x4D0];
+} BattleRenderState; // Size: 0x1280
+
+extern BattleActorSlot g_BattleStateWork[];
+extern void BattleReleaseActorSlot(s32 index);
+extern void GfxFreeWorkBuffers(void);
+extern void WorkListsFreeAllEntries(void);
+extern void BattleFreeAllModelSlots(void);
+extern void BattleFreeSceneResources(void);
+extern void *g_BattleSoundBankMain;
+extern void *D_800D2D54;
+extern u8 g_IsBattle;
+
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B853C);
+void func_800B8774(void) {
+    u8 *pStateBase;
+    BattleRenderState *pState;
+    s32 i;
+
+    pStateBase = (u8 *)g_BattleStateWork;
+    pState = (BattleRenderState *)(pStateBase + 0x8000);
+    if (pState->colorSetIndex == 0) {
+        func_800BE790();
+    }
+    DrawSync(0);
+    for (i = 0; i != 0xB; i++) {
+        BattleReleaseActorSlot(i);
+    }
+    GfxFreeWorkBuffers();
+    WorkListsFreeAllEntries();
+    SoundRemoveSedsEntry(g_BattleSoundBankMain);
+    HeapFree(g_BattleSoundBankMain);
+    g_IsBattle = 0;
+    DrawSync(0);
+    BattleFreeAllModelSlots();
+    BattleFreeSceneResources();
+    HeapFree(D_800D2D54);
+}
 
 /* Battle state pointed to by g_BattleState; only the fields this unit reads. */
 typedef struct {
@@ -282,7 +331,6 @@ typedef struct {
 } BattleUnitState; // Size: 0x44
 
 extern BattleUnitState *g_BattleState;
-extern BattleActorSlot g_BattleStateWork[];
 extern void BattleSetCurrentActorSprite(s32 actorIndex);
 extern void BattleActorUpdateGroundHeightAndTriangle(SpriteData *pSprite);
 
