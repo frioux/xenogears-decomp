@@ -154,7 +154,7 @@ void BattleScriptPlaySpriteAnimation(s32 arg0, u8 *p) {
 }
 // The actor's own position goes through s32 locals so the loads stay signed
 // (retail reads targetPosition with lhu and its own position with lh).
-void func_800B6518(BattleSpriteState *pActor) {
+void BattleActorFaceTarget(BattleSpriteState *pActor) {
     DVECTOR vec0;
     DVECTOR vec1;
     s32 c0;
