@@ -1,4 +1,5 @@
 #include "common.h"
+#include "psyq/libcd.h"
 #include "psyq/libgte.h"
 #include "psyq/libgpu.h"
 
@@ -83,6 +84,14 @@ extern s32 g_MovieStreamArchiveSection;
 extern s32 D_801D68B4;
 
 // .rodata
+extern char D_800703BC[];
+extern char D_800703CC[];
+extern char D_80070408[];
+extern char D_80070410[];
+extern char D_80070418[];
+extern char D_80070420[];
+extern char D_80070424[];
+extern char D_80070428[];
 extern char D_8007042C[];
 extern char D_80070430[];
 extern char D_80070450[];
@@ -99,6 +108,25 @@ extern char D_800704D4[];
 
 extern void FontPrintf(char*, ...);
 extern void FontDrawLetters(void* pOt);
+extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
+extern s32 MovieUpdatePadCursor(s32 arg0, s32 arg1, s32* pOut);
+// .bss: the CD sector the viewer below reads, and the row it is scrolled to
+extern s32 D_80076EFC;
+extern s32 D_80076F00;
+extern s32 g_MovieCursorIndex;
+// .bss: the second draw buffer's display flag and the two buffers' display rects,
+// reached here at the exact addresses the original object names
+// (buffer 1 starts 0x138 bytes after buffer 0, its display flag 0x18 in, its screen
+// rect at 0x64)
+extern u8 D_80077274;
+extern u16 D_80077188;
+extern u16 D_8007718A;
+extern u16 D_8007718C;
+extern u16 D_8007718E;
+extern u16 D_800772C0;
+extern u16 D_800772C2;
+extern u16 D_800772C4;
+extern u16 D_800772C6;
 extern void HeapDebugDump(u_int mode, u_int startBlockIdx, int endBlockIdx, u_int flags);
 extern void func_80072F98(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
 extern void MovieUpdateGlowPoly(POLY_G4* pPoly0, POLY_G4* pPoly1, s32 x, s32 y, s32 w, s32 h);
@@ -433,7 +461,174 @@ void MoviePlayAudioManager(void) {
     SoundPlayAudioManager(g_MovieAudioManager, 0x7F, 0);
 }
 
-INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80075534);
+// Hex/ASCII dump of one CD sector, the "ABSPOS/POS" monitor screen: the pad scrolls a
+// line cursor through the 0x800-byte sector buffer (rows of 0x10 bytes, 0xC rows shown)
+// and steps the sector by one, by a screenful (0xC rows), by a second (0x4B sectors on a
+// 75-sector-per-second disc) or by a minute (0x1194 = 4500 sectors), re-reading the
+// sector only when it changed. Leaves with Circle.
+void func_80075534(void) {
+    MovieDrawBuffer* pBuffer;
+    MovieDrawBuffer* pBase;
+    u8* pSectorData;
+    u8* pHex;
+    u8* pAscii;
+    CdlLOC pos;
+    s32 action;
+    s32 cursor;
+    s32 prevSector;
+    s32 line;
+    s32 i;
+    u8 c;
+
+    MovieClearFrameBuffer();
+    pSectorData = HeapAlloc(0x800, 0);
+    if (pSectorData == NULL) {
+        return;
+    }
+
+    pBase = &g_MovieDebugDrawBuffers[0];
+    SetDefDrawEnv(&pBase[0].drawEnv, 0, 0, 0x280, 0xF0);
+    SetDefDispEnv(&pBase[0].dispEnv, 0, 0xF0, 0x280, 0xF0);
+    SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x280, 0xF0);
+    SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x280, 0xF0);
+    g_MovieStreamSlots[0].unk0 = 1;
+    D_80077274 = 1;
+    D_80077188 = 0;
+    D_8007718A = 0xA;
+    D_8007718C = 0x100;
+    D_8007718E = 0xD8;
+    D_800772C0 = 0;
+    D_800772C2 = 0xA;
+    D_800772C4 = 0x100;
+    D_800772C6 = 0xD8;
+    ArchiveReadFileFromCdSector(D_80076EFC, pSectorData, 0x800, 0, 0);
+    ArchiveCdDataSync(0);
+
+    for (;;) {
+        pBuffer = &g_MovieDebugDrawBuffers[0];
+        if (g_MovieDebugDrawBuffer == pBuffer) {
+            pBuffer = &g_MovieDebugDrawBuffers[1];
+        }
+        g_MovieDebugDrawBuffer = pBuffer;
+        g_MovieDebugBufferParity = 1 - g_MovieDebugBufferParity;
+        ClearOTagR(pBuffer->ot, 0x20);
+        FontPrintf(D_800703BC);
+        MovieUpdatePadCursor(0, 0, &action);
+
+        prevSector = D_80076EFC;
+        if ((g_MoviePrevPadButtons & 0x1000) == 0 && (g_MoviePadButtons & 0x1000) != 0) {
+            if (D_80076F00 > 0) {
+                D_80076F00--;
+            }
+        }
+        if ((g_MoviePrevPadButtons & 0x10) == 0 && (g_MoviePadButtons & 0x10) != 0) {
+            D_80076F00 -= 0xC;
+            if (D_80076F00 < 0) {
+                D_80076F00 = 0;
+            }
+        }
+        if ((g_MoviePrevPadButtons & 0x4000) == 0 && (g_MoviePadButtons & 0x4000) != 0) {
+            if (D_80076F00 < 0x74) {
+                D_80076F00++;
+            }
+        }
+        if ((g_MoviePrevPadButtons & 0x40) == 0 && (g_MoviePadButtons & 0x40) != 0) {
+            D_80076F00 += 0xC;
+            if (D_80076F00 >= 0x74) {
+                D_80076F00 = 0x74;
+            }
+        }
+        if ((g_MoviePrevPadButtons & 0x8000) == 0 && (g_MoviePadButtons & 0x8000) != 0) {
+            if (D_80076EFC > 0) {
+                D_80076EFC--;
+            }
+        }
+        if ((g_MoviePrevPadButtons & 0x2000) == 0 && (g_MoviePadButtons & 0x2000) != 0) {
+            D_80076EFC++;
+        }
+        if ((g_MoviePrevPadButtons & 0x4) == 0 && (g_MoviePadButtons & 0x4) != 0) {
+            D_80076EFC -= 0x4B;
+            if (D_80076EFC < 0) {
+                D_80076EFC = 0;
+            }
+        }
+        if ((g_MoviePrevPadButtons & 0x8) == 0 && (g_MoviePadButtons & 0x8) != 0) {
+            D_80076EFC += 0x4B;
+        }
+        if ((g_MoviePrevPadButtons & 0x1) == 0 && (g_MoviePadButtons & 0x1) != 0) {
+            D_80076EFC -= 0x1194;
+            if (D_80076EFC < 0) {
+                D_80076EFC = 0;
+            }
+        }
+        if ((g_MoviePrevPadButtons & 0x2) == 0 && (g_MoviePadButtons & 0x2) != 0) {
+            D_80076EFC += 0x1194;
+        }
+        if (prevSector != D_80076EFC) {
+            ArchiveReadFileFromCdSector(D_80076EFC, pSectorData, 0x800, 0, 0);
+            ArchiveCdDataSync(0);
+        }
+
+        CdIntToPos(D_80076EFC, &pos);
+        FontPrintf(D_800703CC, D_80076EFC, D_80076F00 * 0x10, pos.minute, pos.second, pos.sector);
+        pAscii = pSectorData + D_80076F00 * 0x10;
+        pHex = pAscii;        for (line = 0; line < 0xC; line++) {
+            FontPrintf(D_80070408, (line + D_80076F00) * 0x10);
+            for (i = 0; i < 0xF; i++) {
+                FontPrintf(D_80070410, *pHex++);
+            }
+            FontPrintf(D_80070418, *pHex++);
+            FontPrintf(D_80070420);
+            for (i = 0; i < 0x10; i++) {
+                c = *pAscii;
+                if ((u32)(c - 0x20) < 0x5E) {
+                    FontPrintf(D_80070424, c);
+                } else {
+                    FontPrintf(D_80070428);
+                }
+                pAscii++;
+            }
+            FontPrintf(D_8007042C);
+        }
+        FontPrintf(D_80070430);
+        if (g_MovieHeapDebugEnabled > 0) {
+            HeapDebugDump(1, 0, 6, 0x808D);
+        }
+        FontDrawLetters(g_MovieDebugDrawBuffer->ot);
+        func_80072F98((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[0], 8, 0x14,
+                      0x270, 0xA0);
+        MovieUpdateGlowPoly((POLY_G4*)g_MovieDebugDrawBuffer->ot, &g_MovieDebugDrawBuffer->polyG4[1], 7,
+                            0x13, 0x272, 0xA2);
+        DrawSync(0);
+        Vsync(0);
+        PutDrawEnv(&g_MovieDebugDrawBuffer->drawEnv);
+        PutDispEnv(&g_MovieDebugDrawBuffer->dispEnv);
+        DrawOTag(&g_MovieDebugDrawBuffer->ot[0x1F]);
+        cursor = g_MovieCursorIndex;
+        if (action == 2) {
+            break;
+        }
+        g_MovieCursorIndex = cursor;
+    }
+
+    HeapFree(pSectorData);
+    MovieClearFrameBuffer();
+    pBase = &g_MovieDebugDrawBuffers[0];
+    SetDefDrawEnv(&pBase[0].drawEnv, 0, 0, 0x140, 0xF0);
+    SetDefDispEnv(&pBase[0].dispEnv, 0, 0xF0, 0x140, 0xF0);
+    SetDefDrawEnv(&pBase[1].drawEnv, 0, 0xF0, 0x140, 0xF0);
+    SetDefDispEnv(&pBase[1].dispEnv, 0, 0, 0x140, 0xF0);
+    g_MovieStreamSlots[0].unk0 = 1;
+    D_80077274 = 1;
+    D_80077188 = 0;
+    D_8007718A = 0xA;
+    D_8007718C = 0x100;
+    D_8007718E = 0xD8;
+    D_800772C0 = 0;
+    D_800772C2 = 0xA;
+    D_800772C4 = 0x100;
+    D_800772C6 = 0xD8;
+}
 
 int WorldMapSyncGearRideActors(u32 entryIndex) {
     u8* pArchiveEntry;
