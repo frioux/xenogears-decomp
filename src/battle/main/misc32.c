@@ -245,7 +245,43 @@ void BattleFreeEffectSpriteTask(BattleEffectTask *pTask) {
     HeapFree(pData);
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BD098);
+extern u8 *BattleGetFrame(u8 *pBase, s32 n);
+extern s32 BattleGetPrimitiveBufferSize(void *pFrame);
+extern void BattleExpandModelPrims(void *pFrame, u8 *pDst, s32 mode, u8 shadeTex);
+extern void SpriteSetSVec(SVECTOR *pVector, s16 x, s16 y, s16 z);
+extern void *memcpy(void *pDst, void *pSrc, u_int size);
+extern u8 D_8001C76C[];
+
+// Starts the colour ramp for one of the battle's slot effects: allocates its data block,
+// points it at the slot's sprite, and builds the double-buffered prim block (one copy of
+// the model frame's packets per render context) the draw callback hands to func_800B1F6C.
+void func_800BD098(BattleEffectSlotRecord *pRecord) {
+    BattleEffectColorRampData *pData;
+    BattleEffectSprite *pSprite;
+    u8 *pBuffer;
+    s32 size;
+
+    pSprite = pRecord->pSprite;
+    pData = (BattleEffectColorRampData *)WorkListsAddTasks(0x68, pRecord, BattleApplyEffectSpriteColorRamp,
+                                                           func_800BCEAC, BattleFreeEffectSpriteTask);
+    pData->pSprite = pSprite;
+    pData->yOffset = pSprite->yOffset;
+    if (g_FlagTimerWorkListAdds != 0) {
+        g_NumFlaggedTimerWorkListEntries--;
+    }
+    pData->timerEntry.unk14_3 = 0; // clears the flagged bit the work list just set
+    SpriteSetSVec((SVECTOR *)&pData->rotX, 0, 0, 0);
+    size = BattleGetPrimitiveBufferSize(BattleGetFrame(D_8001C76C, 0));
+    pBuffer = HeapAlloc(size * 2, 0);
+    BattleExpandModelPrims(BattleGetFrame(D_8001C76C, 0), pBuffer, 0, 1);
+    memcpy(pBuffer + size, pBuffer, size);
+    pData->pPrimBuffers[0] = pBuffer;
+    pData->pPrimBuffers[1] = pBuffer + size;
+    pData->pFrame = BattleGetFrame(D_8001C76C, 0);
+    pSprite->prim &= 0xFE;
+    func_8001F6B0(pSprite);
+    BattleApplyEffectSpriteColorRamp((BattleEffectTask *)pData);
+}
 extern s32 g_BattleCommandRowIndex;
 extern void *D_800C3E1C;
 extern s32 g_BattleEffectTimer;
