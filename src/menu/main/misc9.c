@@ -519,47 +519,55 @@ void MenuFreeUnk430Panel(u_char arg0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DC3D8);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD5E8);
-/* Best: 94.01%, retail's exact size (416 bytes). Six instructions differ, all
-   allocator/scheduling:
-   1. loop 1 mirrors two registers: retail keeps the record base in $a0 and
-      `base + i*0x80` in $a2, ours the other way round; and the compare forms
-      `base + (i*0x80 + rc*0x28)` (two addu, base untouched) where the call
-      argument reuses `(base + i*0x80) + rc*0x28`. Every spelling of
-      pStrings[i].polys[pStrings[i].renderContext] - one expression, a ctx local,
-      a pString pointer local, the address written twice, `polys + ctx` - CSEs
-      to one form (93.96-94.01%).
-   2. loop 2: retail both computes `andi a1,arg0,0xff` before the loop and
-      duplicates it into the bnez delay slot; ours hoists it and leaves a nop.
-      A `u_char mode = arg0;` local in the body does not stop the hoist, and
-      u_int arg0 with a per-site (arg0 & 0xFF) measures 93.58%.
-   permute.sh --minutes 4 -j 2 (twice: rounds 63 and 293) both end
-   PERMUTER_BETTER with a non-portable winner: it hoists g_Menu into a local
-   before the last loop, which deletes a lui/lw pair and gives the wrong size. */
+/* Best: 99.58% at retail's exact size (424 bytes = 106 insns; the older 416-byte
+   note here was wrong by two instructions). Six instructions differ, all
+   register/operand ties:
+   1. loop 1, second call site: retail's renderContext load address is
+      `addu v0,v1,s0` (base first), ours `addu v0,s0,v1` (offset first).
+   2. loop 2 preheader/body: retail puts g_Menu and the panel base in $v0 and the
+      i*0x80 offset in $v1; ours has the pair mirrored. The instruction shapes and
+      the order are identical, only those two scratch registers are swapped.
+   What got it here from 94.01 (round 293's park):
+   - retail has NO panel pointer local: every one of the six sites reads
+     g_Menu->unk430 fresh (`lui/lw g_Menu` + `lw 0x430`), so a `MenuString*
+     pStrings` local is wrong even though it looks tidier - inlining the global
+     is what matched the register roles (94.01 -> 99.48).
+   - the compare address is spelled with the two offsets summed first,
+     `*(u8*)((u8*)g_Menu->unk430 + (i * 0x80 + rc * 0x28) + 4)`, which is the one
+     spelling that reproduces retail's two-addu address (base untouched) while the
+     call argument reuses `(base + i*0x80) + rc*0x28`; every typed spelling CSEs
+     both uses into one address.
+   - the renderContext load needs the panel base in a local for that site only
+     (`pPanel = g_Menu->unk430;` then `&((MenuString*)pPanel)[i]`), which is what
+     turns `addu a2,s0,a0` into retail's `addu a2,a0,s0` (99.48 -> 99.58).
+   permute.sh --minutes 4 -j 2 (round 294, from this body) found exactly that last
+   edit (base=55 -> best=45); the other two runs (rounds 63, 293) found only a
+   non-portable winner that hoists g_Menu into a local and changes the size.
+   NOT realistic C yet: item 1's spelling is a raw byte cast. */
 /*
 void func_801DD5E8(u_char arg0) {
-    MenuString* pStrings;
+    MenuString* pString;
     POLY_FT4* pPoly;
+    void* pPanel;
     s32 i;
+    s32 rc;
 
     func_801E8F60(5, arg0);
     func_801E8F60(6, arg0);
     for (i = 0; i < 0xC; i++) {
-        pStrings = g_Menu->unk430;
-        pPoly = &pStrings[i].polys[pStrings[i].renderContext];
-        if (pPoly->r0 != 0x20) {
-            MenuSetPrimShadingMode(pPoly, arg0);
-            pStrings = g_Menu->unk430;
-            pPoly = &pStrings[i + 0xE].polys[pStrings[i + 0xE].renderContext];
+        pPanel = g_Menu->unk430;
+        pString = &((MenuString*)pPanel)[i];
+        rc = pString->renderContext;
+        if (*(u8*)((u8*)g_Menu->unk430 + (i * 0x80 + rc * 0x28) + 4) != 0x20) {
+            MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[i].polys[rc], arg0);
+            pPoly = &((MenuString*)g_Menu->unk430)[i + 0xE].polys[((MenuString*)g_Menu->unk430)[i + 0xE].renderContext];
             MenuSetPrimShadingMode(pPoly, arg0);
         }
     }
     MenuSetPrimShadingMode(&g_Menu->arrowCursors[0]->polys[g_Menu->arrowCursors[0]->renderContext], arg0);
-    pStrings = g_Menu->unk430;
-    MenuSetPrimShadingMode(&pStrings[0x1C].polys[pStrings[0x1C].renderContext], arg0);
+    MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[0x1C].polys[((MenuString*)g_Menu->unk430)[0x1C].renderContext], arg0);
     for (i = 0; i < 2; i++) {
-        pStrings = g_Menu->unk430;
-        pPoly = &pStrings[0x1E + i].polys[pStrings[0x1E + i].renderContext];
-        MenuSetPrimShadingMode(pPoly, arg0);
+        MenuSetPrimShadingMode(&((MenuString*)g_Menu->unk430)[0x1E + i].polys[((MenuString*)g_Menu->unk430)[0x1E + i].renderContext], arg0);
     }
 }
 */
