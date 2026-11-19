@@ -443,7 +443,7 @@ typedef struct {
 } BattleGeomMatrix; // Size: 0x20
 
 extern BattleGeomMatrix g_BattleGeomMatrix;
-extern void func_800BD810(u8 *pEntry, u8 *pData);
+extern void func_800BD810(Misc32SpritePart *pPart, u32 color);
 
 // 96.95% under this unit's cdk preset (89.20 on 2.7.2). Left: (1) retail keeps the
 // g_BattleGeomMatrix base in $s0 and stores `sw $v0,0x1C($s0)`, reusing $s0 for CompMatrix;
@@ -597,8 +597,103 @@ void BattleFreeTimerTask(Misc32Task *pTask) {
 }
 void BattleTimerTaskNoOp(void) {
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDD3C);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDE58);
+
+// The battle's static timer task block (D_800D30EC): the timer entry, the work entry
+// func_800BDD3C draws, and the number sprite that entry transforms. Its colour word,
+// part count and parts sit 0x10 lower than misc33's BattleSpriteBody because the two
+// work-list entries come in front of them.
+typedef struct {
+    /* 0x00 */ WorkListEntry timerEntry;
+    /* 0x1C */ WorkListEntry workEntry;
+    /* 0x38 */ SVECTOR rot; // passed to RotMatrix
+    /* 0x40 */ VECTOR scale; // and to ScaleMatrix
+    /* 0x50 */ s16 x; // handed to func_80026BA4 as the sprite it draws and its position
+    /* 0x52 */ s16 y;
+    /* 0x54 */ u8 unk54[0xC];
+    // Set up one channel at a time by func_800BDF1C, drawn as the whole prim colour word.
+    /* 0x60 */ union {
+        /* 0x60 */ u32 word;
+        /* 0x60 */ struct {
+            /* 0x60 */ u8 red;
+            /* 0x61 */ u8 green;
+            /* 0x62 */ u8 blue;
+            /* 0x63 */ u8 code; // the quad's code byte; 0x2C is textured with semi-transparency
+        } channels;
+    } color;
+    /* 0x64 */ s32 partCount;
+    /* 0x68 */ Misc32SpritePart parts[6]; // a body part plus the five digits
+} BattleNumberTask; // Size: 0xF8
+
+extern BattleNumberTask D_800D30EC;
+extern s32 D_800D3680;
+extern u8 D_800C3780;
+
+extern void func_80026BA4(u8 *pArchive, u32 index, s32 x, s32 y, u_long *pOt);
+extern void WorkListAddTask(WorkListEntry *pData, WorkListEntry *pEntry);
+extern void WorkListSetTaskCallback(WorkListEntry *pEntry, void *pCallback);
+extern void WorkListTaskSetOnFreeCallback(WorkListEntry *pEntry, void *pCallback);
+extern void TimerWorkListAddTask(void *pData, WorkListEntry *pEntry);
+
+// The number sprite's draw callback: draws the sprite body func_80026BA4 hands out at
+// the centre of the screen, then the same transform block misc33's BattleRenderSpriteBody
+// uses with this task's rotation and scale, and one textured quad per part.
+void func_800BDD3C(WorkListEntry *pEntry) {
+    BattleNumberTask *pTask;
+    Misc32SpritePart *pPart;
+    MATRIX mtx;
+    SVECTOR vec; // unused: reproduces retail's 0x68 frame
+    s32 pos[4]; // the VECTOR TransMatrix is given; only x/y/z are set
+    s32 ofx;
+    s32 ofy;
+    s32 i;
+
+    pTask = (BattleNumberTask *)pEntry->unk4;
+    ReadGeomOffset(&ofx, &ofy);
+    func_80026BA4(g_BattleSpriteArchive, 0x81, pTask->x, pTask->y, g_GfxCurOT);
+    pos[0] = (0xA0 - ofx) * 2;
+    pos[1] = (0x46 - ofy) * 2;
+    pos[2] = ReadGeomScreen();
+    g_BattleGeomMatrix.geomScreen = ReadGeomScreen();
+    RotMatrix(&pTask->rot, &mtx);
+    TransMatrix(&mtx, (VECTOR *)pos);
+    CompMatrix((MATRIX *)&g_BattleGeomMatrix, &mtx, &mtx);
+    ScaleMatrix(&mtx, &pTask->scale);
+    SetRotMatrix(&mtx);
+    SetTransMatrix(&mtx);
+    i = 0;
+    pPart = pTask->parts;
+    while (i != pTask->partCount) {
+        func_800BD810(pPart, pTask->color.word);
+        i++;
+        pPart++;
+    }
+}
+
+// Creates the static number-sprite task once per battle: both work-list entries, the
+// callbacks, the fixed on-screen position and the colour word func_800BDF1C fills in.
+void func_800BDE58(void) {
+    BattleNumberTask *pTask;
+
+    if (g_BattleTimerTask != NULL) {
+        return;
+    }
+    if (D_800C3780 != 0) {
+        return;
+    }
+    pTask = &D_800D30EC;
+    g_BattleTimerTask = (Misc32Task *)pTask;
+    TimerWorkListAddTask(NULL, &pTask->timerEntry);
+    WorkListAddTask(&pTask->timerEntry, &pTask->workEntry);
+    TimerWorkListSetTaskCallback((Misc32Task *)pTask, BattleTimerTaskNoOp);
+    WorkListSetTaskCallback(&pTask->workEntry, func_800BDD3C);
+    WorkListTaskSetOnFreeCallback(&pTask->timerEntry, BattleFreeTimerTask);
+    pTask->x = 0x90;
+    pTask->y = 0x2A;
+    pTask->timerEntry.unk4 = pTask;
+    pTask->workEntry.unk4 = pTask;
+    pTask->partCount = 0;
+    D_800D3680 = -1;
+}
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BDF1C);
 extern void BattleFreeTimerTask(Misc32Task *pTask);
 
