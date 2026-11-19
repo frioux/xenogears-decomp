@@ -20,6 +20,9 @@
 #define LIBGEAR_ANIM_ID_WAD_BASE 0x50
 #define LIBGEAR_ANIM_WAD_INDEX_OFFSET 0x4E
 
+// Psy-Q angles wrap at 0x1000, so this offset into rsin/rcos is a quarter turn
+#define LIBGEAR_QUARTER_TURN 0x400
+
 // A byte of Model::commands: low 7 bits index the entry tables, bit 7 is a flag
 #define LIBGEAR_MODEL_COMMAND_ID_MASK 0x7F
 #define LIBGEAR_MODEL_COMMAND_FLAG 0x80
@@ -508,11 +511,35 @@ typedef struct {
 extern s16 func_801E1258(Temp8* pTexture, s32 frameStep);
 extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix, u_long* pOt, s32 packetIndex, s32 scale, s16 ground);
 
-// PARK, round 281: objdiff 96.88%, 3388 bytes against retail's 3376 (+3 instructions:
-// one pSkeleton reload in the entry block, the `otz` memory spill, and the
-// model-list loop's cursor order). 158 of 860 rows still differ, and the great
-// majority of those are saved-register renames between two equivalent maps.
-// CLOSED THIS ROUND, each measured on its own:
+// PARK, round 282: objdiff 97.71%, 3376 bytes - retail's EXACT size, so every
+// remaining row is a register name or a statement order, not a missing instruction.
+// 31 diff blocks, and most of them are the same thing: the two builds assigned the
+// nine saved registers differently (retail s1=pViewMatrix, s2=pSkeleton,
+// s3=numChildren, s6=viewScratch, s8=pMesh; this body s1=pMeshLoaded,
+// s2=pViewMatrix, s6=numChildren, s8=viewScratch). That map is the wall: objdiff
+// charges a row for every one of those renames.
+// CLOSED IN ROUND 282, each measured on its own from the round-281 body (96.88):
+//  - both OT link pokes OR into the entry instead of masking it off first:
+//    `pOt[otz] = pOt[otz] | ((u32)pPoly & 0xFFFFFF);` 96.88 -> 97.13, -8 bytes.
+//  - the 3D colour path takes the joint index through a local first
+//    (`otz = pEntry->jointIndex; ... &pSkeleton[otz].globalTransform`): 97.08 AT
+//    RETAIL'S 3376 BYTES, and it stays exact from here on.
+//  - the OT shift is two statements (`otz = depthBuf[0]; otz >>= shift;`), not one
+//    expression: 97.18.
+//  - the joint loop's mesh pointer comes from a SECOND copy of `pModel->pMesh` that
+//    is loaded in the entry block (`pMeshLoaded`), assigned to `pMesh` just before
+//    the loop: 97.44. Removing the assignment and using pMeshLoaded directly is
+//    3372 bytes / 97.59 - the copy is load-bearing.
+//  - the model-list latch is `pListEntry++, i++` (pointer first): 97.64. This is the
+//    block whose `nop` delay slot was the last extra instruction.
+//  - the 2D quad index goes through its own s32 temp (`quadIndex`, then
+//    `quadSlot = quadIndex;`): 97.71.
+//  - `LIBGEAR_QUARTER_TURN` names the `+ 0x400` rsin/rcos offset, held in a local
+//    assigned in the entry block (a literal folds back per block); measured neutral.
+// THE PERMUTER IS DONE WITH THIS BODY: three rounds from 96.88 (score 3215 -> 2378)
+// found the `|=` poke, the jointIndex local, the quadSlot split and the 0x400 hoist,
+// and the last round produced only a bogus `numChildren = (pModel->doUpdate == 0)`.
+// CLOSED IN ROUND 281, kept for the record:
 //  - the 2D/3D quad index wants a NARROW local, not `s32 slot`: `u16 quadSlot` (the
 //    `s32` version left it in a callee-saved register). 94.35 -> 94.96%.
 //  - the declaration order of the scratch pointers sets the spilled-slot order:
@@ -563,26 +590,26 @@ extern void func_801E22F8(Temp9* pEntry, SVECTOR* pVector, MATRIX* pLightMatrix,
 //    `addu s4,zero,zero` at each head and increments `s4` at the joint loop's latch);
 //    dropping the separate `jointIndex` local is 94.30 -> 94.35, and its only other
 //    effect is to move the permutation around.
-// STILL OPEN, in the order the measurements point (all three are ALLOCATOR calls, and
-// the saved set and the 0xE0 frame match retail exactly, so none of them is
-// over-allocation):
-//  - pSkeleton has no callee-saved home in the entry block: ours reloads
-//    `lw t0,0x78(sp)` right after storing it, where retail keeps it in $s2 for the
-//    whole of phase 1 and only reloads in phase 3/5. `pModel->pSkeleton` is already
-//    used at the two sites where retail loads it fresh (see above), so what is left is
-//    the pseudo's live range against 9 saved registers. Measured dead: moving
-//    numChildren out of the entry block (96.12), swapping scale/numChildren (96.46),
-//    every declaration order of the pointer locals.
+// STILL OPEN (all ALLOCATOR calls: the saved set and the 0xE0 frame match retail
+// exactly, so none of them is over-allocation):
+//  - the saved-register map above.
+//  - pSkeleton has no callee-saved home in the entry block: this body reloads
+//    `lw t2,0x78(sp)` right after storing it, where retail keeps it in $s2 up to
+//    0x1478 (its pJoint cursor then takes s2 over) and only reloads in phase 3/5.
+//    Measured dead: moving numChildren out of the entry block (96.12), swapping
+//    scale/numChildren (96.46), using the local at the two phase-1 sites where retail
+//    loads `0x4(s5)` fresh (96.68), every declaration order of the pointer locals.
 //  - the OT tail keeps `otz` in a register where retail spills it to 0x48(sp) (the
-//    same slot as depthBuf[0], so retail's source may have shifted depthBuf[0] in
-//    place - but `depthBuf[0] >>= shift` and every other write-back spelling costs
-//    28 bytes and 0.6 points, so the register form below is the best measured).
-//  - the model-list loop's two `addiu ..,0x24` cursors and the packet-buffer `addu`
-//    operand order (`addu v0,v0,s2` in retail, `addu v0,s2,v0` here) are the last
-//    ordering differences: 4 rows.
-// The permuter DOES parse this body now (`&vec`-style macro args; base=5173) and found
-// the 2D `u16 quadSlot` edit in 5 minutes, so run it again from this body rather than
-// hand-iterating. Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
+//    depthBuf[0] slot) and reloads it for the /8, which also gives retail's 3-insn
+//    `bgez / addiu 7 / sra 3` division against 4 here. `depthBuf[0] >>= shift` and
+//    every other write-back spelling is much worse (3416 bytes, 95.99), so the
+//    register form below is the best measured.
+//  - `(pEntry->slot + pEntry->age) & 7` reads both fields with `lh` in retail and
+//    `lhu` here (2 rows; behaviour is identical after the mask). `s16 age` on the
+//    ColorSlot field changes nothing.
+//  - the 2D colour path's two `screenA[2*slot + 1]` / `screenB[2*slot + 1]` reads:
+//    retail `addu v0,v0,s2`, this body `addu v0,s2,v0` (2 rows).
+// Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 /*
@@ -602,10 +629,13 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     POLY_FT4* pPoly;
     SVECTOR svec;
     VECTOR vec;
+    s32 quadIndex;
     VECTOR trans;
     s32 depthBuf[2]; // [0] shallowest corner depth, [1] the corner just projected
     VECTOR proj;
     SVECTOR swingVec;
+    ModelMesh* pMeshLoaded;
+    s32 quarterTurn;
     u16 modelScale;
     MATRIX* pScratch = (MATRIX*)PSX_SCRATCH;
     MATRIX* pViewScratch = &pScratch[1];
@@ -622,6 +652,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     }
 
     pSkeleton = pModel->pSkeleton;
+    pMeshLoaded = pModel->pMesh;
+    quarterTurn = LIBGEAR_QUARTER_TURN;
     modelScale = pModel->scale;
     numChildren = pSkeleton->numChildren;
 
@@ -716,9 +748,10 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             depthBuf[0] = depthBuf[1];
         }
 
-        otz = depthBuf[0] >> g_GfxOTDepthShift;
+        otz = depthBuf[0];
+        otz >>= g_GfxOTDepthShift;
         pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
-        pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
+        pOt[otz] = pOt[otz] | ((u32)pPoly & 0xFFFFFF);
         if (otz >= 0x2D9) {
             otz = 0x2D8;
         }
@@ -727,7 +760,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
     MulMatrix0(pViewMatrix, &pSkeleton->globalTransform, pViewScratch);
 
-    pMesh = pModel->pMesh;
+    pMesh = pMeshLoaded;
     pJoint = pSkeleton + 1;
     for (i = 1; i < numChildren; i++, pJoint++) {
         if (pJoint->jointIndex != LIBGEAR_JOINT_INDEX_NONE && pJoint->doRender != 0) {
@@ -767,13 +800,13 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     }
 
     pListEntry = pModel->pModelListEntries;
-    for (i = 0; i < pModel->numModelListEntries; i++, pListEntry++) {
+    for (i = 0; i < pModel->numModelListEntries; pListEntry++, i++) {
         if (pListEntry->jointIndex < 0) {
             continue;
         }
 
-        swingVec.vx = -g_LibGearSwingScale * rsin(pSkeleton->rotation.vy + 0x400) / 0x1000;
-        swingVec.vz = g_LibGearSwingScale * rcos(pSkeleton->rotation.vy + 0x400) / 0x1000;
+        swingVec.vx = -g_LibGearSwingScale * rsin(pSkeleton->rotation.vy + quarterTurn) / 0x1000;
+        swingVec.vz = g_LibGearSwingScale * rcos(pSkeleton->rotation.vy + quarterTurn) / 0x1000;
         swingVec.vy = pModel->unk3E;
 
         CompMatrix(&pSkeleton->localTransform, &pSkeleton[pListEntry->jointIndex].globalTransform, pScratch);
@@ -853,7 +886,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
                 pEntry->pVertex->greenDelta = pEntry->greenDelta;
                 pEntry->pVertex->blueDelta = pEntry->blueDelta;
 
-                quadSlot = (pEntry->slot + pEntry->age) & 7;
+                quadIndex = (pEntry->slot + pEntry->age) & 7;
+        quadSlot = quadIndex;
                 pEntry->pVertex->x0 = pEntry->screenA[2 * quadSlot];
                 pEntry->pVertex->y0 = pEntry->screenA[2 * quadSlot + 1];
                 pEntry->pVertex->x2 = pEntry->screenB[2 * quadSlot];
@@ -865,7 +899,8 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
             pEntry->pVertex->x3 = pEntry->screenB[2 * pEntry->slot];
             pEntry->pVertex->y3 = pEntry->screenB[2 * pEntry->slot + 1];
         } else {
-            CompMatrix(&pSkeleton->localTransform, &pSkeleton[pEntry->jointIndex].globalTransform, pScratch);
+            otz = pEntry->jointIndex;
+            CompMatrix(&pSkeleton->localTransform, &pSkeleton[otz].globalTransform, pScratch);
             SetRotMatrix(pScratch);
             SetTransMatrix(pScratch);
 
@@ -922,6 +957,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
     }
 }
 */
+
 
 
 // Decoded from the .s, verified against the near-twin function LibGearRenderModel
