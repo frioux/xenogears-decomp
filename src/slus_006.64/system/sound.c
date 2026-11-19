@@ -2065,7 +2065,7 @@ s32 func_8003A65C(s32 soundId, s32 count) {
     u32 lowMask;
     u32 blockMask;
     s32 limit;
-    u32 exclude = 0;
+    u32 exclude = 0; // must stay a variable: retail's mask test builds ~0 in a register, not a literal
     u32 activeMask;
     s32 span;
 
