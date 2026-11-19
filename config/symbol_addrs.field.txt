@@ -967,6 +967,7 @@ g_FieldSoundMaxDistance = 0x800B21AC;
 g_FieldActorUpdateAngle = 0x800B21B4;
 g_FieldScreenShakeMode = 0x800B21D2;
 g_FieldModelAnimationIds = 0x800B21E4;
+D_800B21EC = 0x800B21EC;
 g_FieldBackgroundR = 0x800B225C;
 g_FieldBackgroundG = 0x800B225D;
 g_FieldBackgroundB = 0x800B225E;
