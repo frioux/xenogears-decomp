@@ -86,7 +86,8 @@ typedef struct {
     /* 0x08 */ BattleSpriteSlot* pSlot; // the slot BattleAllocSpriteSlot handed out
     /* 0x0C */ SVECTOR start;
     /* 0x14 */ SVECTOR end;
-    /* 0x1C */ DVECTOR offsets[16]; // the start projection of each step, then the end ones
+    /* 0x1C */ DVECTOR projectedStart[8]; // where `start` projects at each of the eight step slots
+    /* 0x3C */ DVECTOR projectedEnd[8];   // where `end` projects at each of the eight step slots
     /* 0x5C */ s16 slot; // which of the eight step slots this record is on
     /* 0x5E */ s16 step; // advanced per frame, runs to stepCount
     /* 0x60 */ s16 stepCount;
@@ -934,18 +935,17 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         MulMatrix(pRotMatrix, pMatrix);
         SetRotMatrix(pRotMatrix);
         SetTransMatrix(pRotMatrix);
-        pQuad = &((BattleWarpQuad*)((u8*)pActor + 0xB8))[quadIndex];
-        vec.vy = 0;
         vec.vx = pActor->width;
+        vec.vy = 0;
         vec.vz = pActor->depth;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[0]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[0]);
         gte_stszotz(&depth);
         vec.vx = -pActor->width;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[1]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[1]);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
@@ -954,7 +954,7 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vz = -pActor->depth;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[2]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[2]);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
@@ -962,13 +962,13 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
         vec.vx = -pActor->width;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&pQuad->corner[3]);
+        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[3]);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
         }
         depth >>= g_GfxOTDepthShift;
-        addPrim(&pOt[depth], pQuad);
+        addPrim(&pOt[depth], &((BattleWarpQuad*)pActor->unkB8)[quadIndex]);
         if (depth > 0x2D8) {
             depth = 0x2D8;
         }
@@ -1053,10 +1053,10 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             SetTransMatrix(pMatrix);
             gte_ldv0(&pTween->start);
             gte_rtps();
-            gte_stsxy2(&pTween->offsets[pTween->slot]);
+            gte_stsxy2(&pTween->projectedStart[pTween->slot]);
             gte_ldv0(&pTween->end);
             gte_rtps();
-            gte_stsxy2(&pTween->offsets[pTween->slot + 8]);
+            gte_stsxy2(&pTween->projectedEnd[pTween->slot]);
             if (++pTween->step != 0 && pTween->step > pTween->stepCount) {
                 goto allocate;
             }
@@ -1076,25 +1076,25 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->greenDelta = pTween->greenDelta;
             pTween->pSlot->blueDelta = pTween->blueDelta;
             j = (pTween->slot + pTween->step) & 7;
-            pTween->pSlot->x0 = pTween->offsets[j].vx;
-            pTween->pSlot->y0 = pTween->offsets[j].vy;
-            pTween->pSlot->x2 = pTween->offsets[j + 8].vx;
-            pTween->pSlot->y2 = pTween->offsets[j + 8].vy;
+            pTween->pSlot->x0 = pTween->projectedStart[j].vx;
+            pTween->pSlot->y0 = pTween->projectedStart[j].vy;
+            pTween->pSlot->x2 = pTween->projectedEnd[j].vx;
+            pTween->pSlot->y2 = pTween->projectedEnd[j].vy;
         done:
-            pTween->pSlot->x1 = pTween->offsets[pTween->slot].vx;
-            pTween->pSlot->y1 = pTween->offsets[pTween->slot].vy;
-            pTween->pSlot->x3 = pTween->offsets[pTween->slot + 8].vx;
-            pTween->pSlot->y3 = pTween->offsets[pTween->slot + 8].vy;
+            pTween->pSlot->x1 = pTween->projectedStart[pTween->slot].vx;
+            pTween->pSlot->y1 = pTween->projectedStart[pTween->slot].vy;
+            pTween->pSlot->x3 = pTween->projectedEnd[pTween->slot].vx;
+            pTween->pSlot->y3 = pTween->projectedEnd[pTween->slot].vy;
             continue;
         }
+        CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
+        SetRotMatrix(pMatrix);
+        SetTransMatrix(pMatrix);
         {
             s32 side = pTween->slot & 1;
-            s32* pStart = (s32*)((u8*)pTween + 0x1C + side * 0x10);
-            s32* pEnd = (s32*)((u8*)pTween + 0x3C + side * 0x10);
+            s32* pStart = (s32*)&pTween->projectedStart[side * 4];
+            s32* pEnd = (s32*)&pTween->projectedEnd[side * 4];
 
-            CompMatrix(&pSprites->localTransform, &pSprites[pTween->spriteIndex].globalTransform, pMatrix);
-            SetRotMatrix(pMatrix);
-            SetTransMatrix(pMatrix);
             gte_ldv0(&pTween->start);
             gte_mvmva(1, 0, 0, 0, 0);
             gte_stlvnl(pStart);
@@ -1121,8 +1121,8 @@ void func_8009F844(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatri
             pTween->pSlot->blueDelta = pTween->blueDelta;
             {
                 s32 other = 1 - side;
-                s32* pFrom = (s32*)((u8*)pTween + 0x1C + other * 0x10);
-                s32* pTo = (s32*)((u8*)pTween + 0x3C + other * 0x10);
+                s32* pFrom = (s32*)&pTween->projectedStart[other * 4];
+                s32* pTo = (s32*)&pTween->projectedEnd[other * 4];
 
                 pTween->pSlot->x0 = ((u16*)pFrom)[0];
                 pTween->pSlot->y0 = ((u16*)pFrom)[2];
