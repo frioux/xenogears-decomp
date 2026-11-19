@@ -730,75 +730,68 @@ extern u8 D_800CCDE8[];
 extern u8 D_800C3509[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
-/* 90.14% (under the unit's gcc 2.6.0 --expand-div -G0; was 77.73 when this was
-   first attempted under -G8). Fixed by this shape vs the old attempt:
-   - count is an s32 loaded from a u8 array (lbu), NOT a u8 local: that turns
-     the compare into "slt" (was sltu) and removes the "andi 0xff" before both
-     "beqz count" and "addu nameLen,count".
-   - pTable = D_800C3509 assigned BEFORE the if, so "lui/addiu s0" is emitted
-     before the branch and &D_800C3509 lives in a callee-saved register across
-     HeapAlloc ("addu v0,s0,s1; lbu s0,-1(v0)"); with the assignment after the
-     call gcc 2.6 folds the -1 into %lo(D_800C3509-1) and uses $at.
-   A 4-minute permuter run found base=1055 best=356 (PERMUTER_BETTER) on two
-   changes: "nameLen = 2; nameLen = base + nameLen;" for the second name length,
-   and moving func_80029AFC(g_BattleArchiveEntry, 0, 0) BEFORE the two pTail zero stores
-   (that one is semantically wrong - retail has the sh before the jal and the sw
-   in its delay slot - so port only the nameLen split and re-run the permuter
-   from there, up to three times while the score falls).
-   Remaining differences: (a) the original has an extra "move s3,s2" (a second
-   register holding pEntry, used for the fileIndex1/pBuffer1 stores while s2 keeps the
-   later ones) - a pHead = (u8 *)pEntry alias is CSE'd back into pEntry, so gcc
-   2.6 will not produce the copy; (b) that costs $s3 to pTail and pushes count
-   into $s4 (mine has count in $s3, pTail in $v1); (c) my index gets a "move"
-   copy out of the sll while the original shifts straight into $s1. Structurally
-   complete otherwise: every instruction and operand order matches.
-   ROUND 290 re-measure: the nameLen split ("nameLen = 2; nameLen = base +
-   nameLen;") alone leaves this at 90.14% (368 bytes, unchanged), and the permuter
-   from that body again only finds the semantically wrong jal reorder (base=1055
-   best=416). What is still missing is the pHead copy ("move s3,s2" in retail):
-   retail keeps pEntry in $s2 AND a second copy in $s3 for the fileIndex1/pBuffer1
-   stores, which is what pushes count into $s4 and frees $s3 for pTail later.
-void func_800A9540(s32 arg0) {
-    Misc23ArchiveEntry *pEntry;
-    u8 *pTable;
-    u16 *pTail;
-    s32 alignedIndex;
-    s32 remainder;
-    u32 index;
-    s32 nameLen;
-    s32 count;
-    u8 base;
+/* 93.51% (376 bytes against retail's 372, unit preset gcc 2.6.0 --expand-div -G0):
+   full structure recovered from the disassembly; this round added the one shape the
+   earlier 90.14 attempt was missing - the record filler walks the entry with a CURSOR
+   local ("pTail = pEntry;" then pTail->fileIndex1/pBuffer1, and pTail =
+   &pEntry->fileIndex3 / &pEntry->unk18 for the terminator), which is what produces
+   retail's "move s3,s2" copy and keeps it out of the way of the pair written through
+   pEntry (fileIndex2/pBuffer2). The last pair's terminator is written through the same
+   struct type ("pTail->fileIndex1 = 0; pTail->pBuffer1 = NULL;" -> "sh zero,0(s3)" +
+   "sw zero,4(s3)"), not through a u16*.
+   Facts kept from the 90.14 note: count is an s32 loaded from a u8 array (lbu), NOT a
+   u8 local (that turns the compare into slt and drops an andi); pTable = D_800C3509 is
+   assigned BEFORE the if so "lui/addiu s0" comes before the branch and the base lives in
+   a callee-saved register across HeapAlloc; the compare itself is written against the
+   GLOBAL ("if (D_800C3509[index] < count)") while the later -1 load goes through
+   pTable - that opposite-side spelling is worth ~5 points on its own.
+   Still open: the frame is 0x30 against retail's 0x38 and gcc 2.6 hands pEntry $s3 and
+   pTail $s2 where retail has pEntry in $s2 (declaring them in either order changes
+   nothing), so retail has one more live value than this body. Everything else - every
+   call, both HeapAlloc sizes, the 0/1 flag arguments, the delay-slot stores - matches. */
+/*
+   void func_800A9540(s32 arg0) {
+       Misc23ArchiveEntry *pEntry;
+       Misc23ArchiveEntry *pTail;
+       u8 *pTable;
+       s32 alignedIndex;
+       s32 remainder;
+       u32 index;
+       s32 nameLen;
+       s32 count;
+       u8 base;
 
-    ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
-    ArchiveSetIndex(0x28, 1);
-    HeapChangeCurrentUser(4, NULL);
-    index = g_BattleSlotTextIndex[arg0 * 0x170] * 2;
-    count = D_800CCDE8[arg0 * 0x170];
-    pTable = D_800C3509;
-    if (D_800C3509[index] < count) {
-        count = 0;
-    }
-    pEntry = HeapAlloc(0x20, 1);
-    g_BattleArchiveEntry = pEntry;
-    base = pTable[index - 1];
-    nameLen = base + 1;
-    pEntry->fileIndex1 = nameLen;
-    pEntry->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
-    nameLen = base + 2;
-    pEntry->fileIndex2 = nameLen;
-    pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
-    pTail = &pEntry->fileIndex3;
-    if (count != 0) {
-        nameLen = nameLen + count;
-        pEntry->fileIndex3 = nameLen;
-        pEntry->pBuffer3 = (s32)HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
-        pTail = &pEntry->unk18;
-    }
-    pTail[0] = 0;
-    *(s32 *)(pTail + 2) = 0;
-    func_80029AFC(g_BattleArchiveEntry, 0, 0);
-    ArchiveSetIndex(alignedIndex, remainder);
-}
+       ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
+       ArchiveSetIndex(0x28, 1);
+       HeapChangeCurrentUser(4, NULL);
+       index = g_BattleSlotTextIndex[arg0 * 0x170] * 2;
+       count = D_800CCDE8[arg0 * 0x170];
+       pTable = D_800C3509;
+       if (D_800C3509[index] < count) {
+           count = 0;
+       }
+       pEntry = HeapAlloc(0x20, 1);
+       g_BattleArchiveEntry = pEntry;
+       base = pTable[index - 1];
+       pTail = pEntry;
+       nameLen = base + 1;
+       pTail->fileIndex1 = nameLen;
+       pTail->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+       nameLen = base + 2;
+       pEntry->fileIndex2 = nameLen;
+       pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
+       pTail = &pEntry->fileIndex3;
+       if (count != 0) {
+           nameLen += count;
+           pEntry->fileIndex3 = nameLen;
+           pEntry->pBuffer3 = (s32)HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+           pTail = (Misc23ArchiveEntry *)&pEntry->unk18;
+       }
+       pTail->fileIndex1 = 0;
+       pTail->pBuffer1 = NULL;
+       func_80029AFC(g_BattleArchiveEntry, 0, 0);
+       ArchiveSetIndex(alignedIndex, remainder);
+   }
 */
 void BattleAllocateArchiveFilePair(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
@@ -915,79 +908,72 @@ void BattleFreeAllModelSlots(void) {
 }
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
-/* 91.39%: first attempt on this stub. Shape recovered from the disassembly:
-   arg0 is an index into g_BattleActors; the body is a null-checked chain of
-   HeapFree/BattleFreeModelMesh/SoundRemoveSedsEntry/BattleFreeAllSpriteBlocks+BattleFreeSpriteBlocksByTag on fields
-   0x00,0x04,0xA8,0xAC,0xB0 of the unit, then the 0x13..0x1E range test
-   "(u32)(arg0 - 0x13) < 0xC", then two counted loops (numTextures * 0x30 through
-   pTextures with BattleFreeImageEntry, numModelListEntries * 0x24 through
-   pModelListEntries with BattleFreeModelListEntryBuffers),
-   then HeapFree(unit)/unit = NULL, and finally the recursion into units
-   arg0*2+0xD and arg0*2+0xE when arg0 < 3.
-   What moved 82.96 -> 91.39: do NOT keep &g_BattleActors[arg0] in a local - retail
-   re-forms the slot address (lui/addiu + sll/addiu) at every use, so index
-   g_BattleActors[arg0] inline at each access. Still open: retail saves $s5 and a
-   0x48 frame (mine 0x38), keeps the loop pointer in $s2/$s0 pairs, and
-   re-emits "addiu v0,s4,-0x13" both in the beqz delay slot and after the
-   HeapFree call, so the range test and the two loop induction variables are
-   not yet the retail shape. */
+/* 99.90% (816 bytes, unit preset gcc 2.6.0 --expand-div -G0): whole body recovered,
+   retail's frame (0x48) and saved set ($s0-$s5) exact, every call/load/store and both
+   loop rotations identical. 91.39 -> 99.90 came from the FIRST HALF's address shape:
+   retail keeps &g_BattleActors[arg0] in $s1 and reloads *($s1) at every use, so the
+   slot pointer is a local, and it is built in TWO statements -
+   "ppActors = g_BattleActors; ppSlot = &ppActors[arg0];" - which is what emits
+   "lui/addiu %hi(g_BattleActors)" BEFORE the "sll s4,2". The one-statement form
+   "ppSlot = &g_BattleActors[arg0];" emits sll first (98.80), and indexing the global
+   inline everywhere (the first attempt) is 91.39. The second half (0x10C up) reaches
+   g_BattleActors[arg0] inline instead: that split is retail's own.
+   Only difference left: retail loads the *pSprites null-test operand into $a1 in BOTH
+   arms ("lw v0,0(s1); lw a1,4(v0); beqz a1") and cc1 uses $v0 ("lw v0,4(v0); beqz v0")
+   - same size, same instruction count, a register tie-break on a load that only feeds
+   a compare. Measured and no help: embedded assignment in the test (99.90), a pSprites
+   local assigned before the range test (95.68, 792 bytes - gcc hoists the load), -O3
+   (82.98), and a 1745-iteration permuter run (base=20 best=20, PERMUTER_NONE). */
 /*
 void func_800A9FF0(s32 arg0) {
-    u8 *pSlot;
+    BattleActor **ppActors;
+    BattleActor **ppSlot;
     s32 i;
-    s32 count;
-    s32 offset;
 
-    if (g_BattleActors[arg0] != NULL) {
-        if (*(void **)(g_BattleActors[arg0] + 0xA8) != NULL) {
-            HeapFree(*(void **)(g_BattleActors[arg0] + 0xA8));
-            BattleFreeModelMesh(*(void **)g_BattleActors[arg0], 1);
+    ppActors = g_BattleActors;
+    ppSlot = &ppActors[arg0];
+    if (*ppSlot != NULL) {
+        if ((*ppSlot)->pModelFile != NULL) {
+            HeapFree((void *)(*ppSlot)->pModelFile);
+            BattleFreeModelMesh((*ppSlot)->pMesh, 1);
         }
-        if (*(u8 *)(g_BattleActors[arg0] + 0x62) != 0) {
-            SoundRemoveSedsEntry(*(void **)(*(u8 **)(g_BattleActors[arg0] + 0xB0) + 8));
+        if ((*ppSlot)->unk62 != 0) {
+            SoundRemoveSedsEntry(*(void **)((*ppSlot)->pSoundBank1 + 8));
         }
-        if (*(void **)(g_BattleActors[arg0] + 0xAC) != NULL) {
-            HeapFree(*(void **)(g_BattleActors[arg0] + 0xAC));
+        if ((*ppSlot)->unkAC != NULL) {
+            HeapFree((void *)(*ppSlot)->unkAC);
         }
         if ((u32)(arg0 - 0x13) >= 0xC) {
-            if (*(void **)(g_BattleActors[arg0] + 4) != NULL) {
+            if ((*ppSlot)->pSprites != NULL) {
                 BattleFreeAllSpriteBlocks(g_BattleBlockPool);
-                BattleFreeSpriteBlocksByTag(g_BattleBlockPool, *(void **)(g_BattleActors[arg0] + 4), 0xFF);
-                BattleFreeModelSkeleton(*(void **)(g_BattleActors[arg0] + 4));
-                *(void **)(g_BattleActors[arg0] + 0) = NULL;
-                *(void **)(g_BattleActors[arg0] + 4) = NULL;
+                BattleFreeSpriteBlocksByTag(g_BattleBlockPool, (*ppSlot)->pSprites, 0xFF);
+                BattleFreeModelSkeleton((*ppSlot)->pSprites);
+                (*ppSlot)->pMesh = NULL;
+                (*ppSlot)->pSprites = NULL;
             }
-            BattleFreeActorBuffer(*(void **)&g_BattleActors[arg0]);
-        } else if (*(void **)(g_BattleActors[arg0] + 4) != NULL) {
+            BattleFreeActorBuffer(*ppSlot);
+        } else if ((*ppSlot)->pSprites != NULL) {
             BattleFreeAllSpriteBlocks(g_BattleBlockPool);
-            BattleFreeSpriteBlocksByTag(g_BattleBlockPool, *(void **)(g_BattleActors[arg0] + 4), 0xFF);
-            HeapFree(*(void **)(g_BattleActors[arg0] + 4));
+            BattleFreeSpriteBlocksByTag(g_BattleBlockPool, (*ppSlot)->pSprites, 0xFF);
+            HeapFree((*ppSlot)->pSprites);
         }
-            if (*(u8 *)(g_BattleActors[arg0] + 0x10C) != 0) {
-            HeapFree(*(void **)(g_BattleActors[arg0] + 0x110));
+        if (g_BattleActors[arg0]->numEntries != 0) {
+            HeapFree((void *)g_BattleActors[arg0]->pEntries);
         }
-        count = *(u8 *)(g_BattleActors[arg0] + 0x10E);
-        if (count != 0) {
-            offset = 0;
-            for (i = 0; i < count; i++) {
-                BattleFreeImageEntry((u8 *)*(void **)(g_BattleActors[arg0] + 0x118) + offset);
-                count = *(u8 *)(g_BattleActors[arg0] + 0x10E);
-                offset += 0x30;
+        if (g_BattleActors[arg0]->numTextures != 0) {
+            for (i = 0; i < g_BattleActors[arg0]->numTextures; i++) {
+                BattleFreeImageEntry(g_BattleActors[arg0]->pTextures + i);
             }
-            HeapFree(*(void **)(g_BattleActors[arg0] + 0x118));
+            HeapFree(g_BattleActors[arg0]->pTextures);
         }
-        count = *(u8 *)(g_BattleActors[arg0] + 0x10D);
-        if (count != 0) {
-            offset = 0;
-            for (i = 0; i < count; i++) {
-                BattleFreeModelListEntryBuffers((Misc23Block *)((u8 *)*(void **)(g_BattleActors[arg0] + 0x114) + offset));
-                count = *(u8 *)(g_BattleActors[arg0] + 0x10D);
-                offset += 0x24;
+        if (g_BattleActors[arg0]->numModelListEntries != 0) {
+            for (i = 0; i < g_BattleActors[arg0]->numModelListEntries; i++) {
+                BattleFreeModelListEntryBuffers((Misc23Block *)g_BattleActors[arg0]->pModelListEntries + i);
             }
-            HeapFree(*(void **)(g_BattleActors[arg0] + 0x114));
+            HeapFree((void *)g_BattleActors[arg0]->pModelListEntries);
         }
-        HeapFree(*(void **)&g_BattleActors[arg0]);
-        *(void **)&g_BattleActors[arg0] = NULL;
+        HeapFree(g_BattleActors[arg0]);
+        g_BattleActors[arg0] = NULL;
     }
     if (arg0 < 3) {
         func_800A9FF0(arg0 * 2 + 0xD);
