@@ -491,7 +491,99 @@ void WorldMapFreePrimTemplateBuffers(void) {
     HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089160);
+void func_80089160(s32 arg0, SVECTOR* pPos, u16* pRot) {
+    WorldMapSprite* pSprite;
+    s32 i;
+    s32 found;
+
+    found = 0;
+    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    for (i = 7; i != -1; i--) {
+        if (pSprite->flags & 0x80) {
+            found++;
+            break;
+        }
+    }
+    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    if ((pPos == 0) & (pRot == 0)) {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            *(s32*)&pSprite->rotX = 0;
+            *(s32*)&pSprite->x = 0;
+            pSprite->rotZ = 0;
+            pSprite->z = 0;
+            pSprite++;
+        }
+    } else if ((pPos != 0) & (pRot == 0)) {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            *(SVECTOR*)&pSprite->x = *pPos;
+            *(s32*)&pSprite->rotX = 0;
+            pSprite->rotZ = 0;
+            pSprite++;
+        }
+    } else if ((pPos == 0) & (pRot != 0)) {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            *(s32*)&pSprite->x = 0;
+            pSprite->z = 0;
+            pSprite->rotX = -pRot[0];
+            pSprite->rotY = -pRot[1];
+            pSprite->rotZ = -pRot[2];
+            pSprite++;
+        }
+    } else {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            *(SVECTOR*)&pSprite->x = *pPos;
+            pSprite->rotX = -pRot[0];
+            pSprite->rotY = -pRot[1];
+            pSprite->rotZ = -pRot[2];
+            pSprite++;
+        }
+    }
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_800893E0);
 /* 96.03%: every instruction matches except that retail holds the entry pointer
    in a3 and this shape holds it in v1, which also pulls the lhu of pEntry+0x10
