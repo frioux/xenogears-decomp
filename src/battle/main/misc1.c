@@ -722,6 +722,23 @@ void func_800723E0(void) {
     func_80071B94(0);
 }
 */
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
+/* 91.63% under 2.6.0 (892 bytes against retail's 908). Both loops and the whole
+   control flow are instruction-identical to retail modulo REGISTER NUMBERING: the
+   only real miss is that retail keeps the loop counter in s1 and the 0x170 offset
+   biv in s0, ours the other way round, which shifts every later register by one
+   and reorders the prologue's save/increment pairs. The other gap is 3
+   instructions in the tail: retail reloads g_BattleStateFlags for the second
+   (0x7) test and again for the mask local (lui/lhu/nop each time) where cse
+   follows the jump and reuses the first load.
+   Tried: listing each if/else arm in retail's order (done - worth 11 points),
+   s32 vs u16 mask with (u16) casts on BattleMaskHasSlotBit (the s32 form is what
+   reproduces retail's bare `bnez s2`), a u8 loop counter for the 3..0xA loop
+   (gcc then emits sltu for the test and an andi per iteration - wrong), and a
+   permuter run, which only found candidates that hoist BattleSlotBitMask(i)
+   unconditionally - a call retail does not make on the continue paths, so wrong
+   code.
+/*
 // Rebuilds g_BattleStateFlags, the mask of the slots that have an active action
 // pending, and then reconciles D_800C48EA (the battle menu event) with it.
 void func_8007252C(void) {
@@ -791,6 +808,7 @@ void func_8007252C(void) {
         }
     }
 }
+*/
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800728B8);
 /* 78.84% under both 2.6.0 and 2.7.2: the original recomputes index*40 inline
