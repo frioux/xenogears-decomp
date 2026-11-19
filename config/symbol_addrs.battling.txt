@@ -769,3 +769,7 @@ g_BattleSpritePrimBufferCopy = 0x800926D0;
 g_BattleEffectPlaceOrigin = 0x80099078;
 g_BattleReinitValue = 0x80091145;
 g_BattleDrawPrimPools = 0x80092788;
+g_StrCameraAngleFormat = 0x8006FD54;
+g_StrCameraRefFormat = 0x8006FD5C;
+g_StrCameraCamFormat = 0x8006FD64;
+g_StrCameraLenFormat = 0x8006FD6C;

@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgte.h"
+#include "system/controller.h"
 
 // flags bit 18: cleared at the top of every movement update and set when the floor
 // stops the actor's fall, i.e. the actor stands on the ground this frame (misc3
@@ -947,7 +948,75 @@ void BattleResetScratchState(void) {
     D_80097080 = 0x100;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A958);
+// Set while the battle's camera debug display is up.
+extern s32 D_800911D4;
+
+// The camera tuner's four debug read-outs (the offsets func_8007A768 loads).
+extern char g_StrCameraAngleFormat[];
+extern char g_StrCameraRefFormat[];
+extern char g_StrCameraCamFormat[];
+extern char g_StrCameraLenFormat[];
+
+extern s32 BattleVectorDistance(Vec4*, Vec4*);
+extern void func_80070808(Vec4*, s32);
+extern void func_800708C4(Vec4*, s32);
+extern void func_800379C8(char*, s32);
+
+// Places the battle camera on the actor's midpoint, at the orbit the tuner's
+// offsets give, then closes the last stretch two units a frame until the camera
+// is within 0x200 of the actor.  While the debug display flag is up the d-pad and
+// the shoulder buttons move the orbit offsets and print all four of them.
+void func_8007A958(Actor* p) {
+    Vec4* pCam;
+    Vec4 pos;
+    u16 buttons;
+
+    if (D_800911D4 != 0) {
+        buttons = g_C1ButtonState;
+        if (buttons & CTRL_BTN_UP) {
+            D_8009266C += 4;
+        }
+        if (buttons & CTRL_BTN_DOWN) {
+            D_8009266C -= 4;
+        }
+        if (buttons & CTRL_BTN_TRIANGLE) {
+            D_80092670 += 4;
+        }
+        if (buttons & CTRL_BTN_CROSS) {
+            D_80092670 -= 4;
+        }
+        if (buttons & CTRL_BTN_RIGHT) {
+            D_80092668 -= 0x20;
+        }
+        if (buttons & CTRL_BTN_LEFT) {
+            D_80092668 += 0x20;
+        }
+        if (buttons & CTRL_BTN_R1) {
+            D_80092674 -= 0x10;
+        }
+        if (buttons & CTRL_BTN_R2) {
+            D_80092674 += 0x10;
+        }
+        func_800379C8(g_StrCameraAngleFormat, D_80092668 & 0xFFF);
+        func_800379C8(g_StrCameraRefFormat, D_8009266C);
+        func_800379C8(g_StrCameraCamFormat, D_80092670);
+        func_800379C8(g_StrCameraLenFormat, D_80092674);
+    }
+
+    pos = p->midPosition;
+    pos.y = p->y - D_8009266C;
+    func_80070808(&pos, 8);
+    pos.y = p->y - D_80092670;
+    pos.x = p->x + ((rcos(p->angle + D_80092668) * D_80092674) >> 12);
+    pos.z = p->z + ((rsin(p->angle + D_80092668) * D_80092674) >> 12);
+    func_800708C4(&pos, 0x10);
+
+    pCam = (Vec4*)&g_BattleCameraPos;
+    while (BattleVectorDistance(pCam, (Vec4*)p) < 0x200) {
+        g_BattleCameraPosY -= 2;
+        pCam->x -= 2;
+    }
+}
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007AC3C);
 
