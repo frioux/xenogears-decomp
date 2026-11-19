@@ -895,7 +895,159 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     HeapFree(g_BattleArchiveEntry->pBuffer1);
 }
 */
+extern s32 D_800CCC5C;
+extern u16 g_BattleActorMask;
+extern s16 g_BattleTweenVectorScale;
+extern s32 g_ModelRenderTestFlags;
+extern MATRIX *D_800D2FC0;
+extern u8 D_800C3DF8;
+extern u8 BattleClampScaledByte(s16, s16, s32);
+extern s32 BattleGetActorHeight(s32);
+extern s32 BattleGetActorRadius(s32);
+extern void BattlePushActorOutOfCircle(s32, s32, s32, s32);
+extern void BattleSteerActorTowardCircles(s32);
+extern void BattleSpriteUpdateWorldPosition(BattleActor *);
+extern void BattleTransformPartPositions(BattleActor **);
+extern void BattleStepActorAnimation(BattleActor *, u8 *, s32, s32, s32);
+extern void BattleDrawActor(BattleActor *, MATRIX *, MATRIX *, s32, s32, u_long *, s32);
+extern void BattleRenderSpriteSlots(u8 *, MATRIX *, s32, u_long *, s32);
+extern void func_800B026C(void *, s32, s32, s32);
+extern u16 D_800C3B80;
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9A50);
+/* 98.88% (unit preset gcc 2.6.0 --expand-div -G0): the whole function is recovered -
+   every call, load, store, branch, the 0x60 frame and the ten saved registers are
+   retail's, and the instruction stream is identical except for two missing
+   instructions (ours 335, retail 337). All three remaining differences are one
+   allocator decision, so no source spelling reaches them:
+   (a) the loop-1 counter gets $s1 where retail has $s2. Post-reload cse2 then deletes
+       retail's separate "move s2,zero" (j = 0) because $s1 already holds 0 on that
+       path (it is loop 2's i = 0, which cse2 folds with ours);
+   (b) retail's loop-skip branch keeps a DUPLICATED "sll v0,s4,0x3" in its delay slot
+       (reorg duplicates the merge block's first insn there). Ours cannot: that slot
+       is taken by "move s4,zero" (step = 0) because
+   (c) retail copies p3 into $s6 in the middle of the prologue saves; ours emits that
+       copy last in the entry block, so reorg steals it into the first branch's delay
+       slot instead of "move s4,zero".
+   Measured and no help: while vs for form of the divide loop (identical), the other
+   chain assigned before pSprites, the height call before pSprites (93.13), the
+   inline pos[1] chain in the second test (96.32), every local declaration order,
+   -O3 (identical), 2.7.2 (96.99), 2.7.2-cdk -G0 (78.36), and two permuter runs
+   (1540 + 377 iterations) whose best edits were semantic no-ops (j = 6 hoisted out
+   of the clamp).
+   Facts for whoever unparks it: D_800C3E88 is a frame counter, bumped by
+   1 + D_800CCC5C and clamped to 6, then halved into step by the subtract-2 loop;
+   step * 0x38 turns D_800C3CF0 (an angle); g_BattleTweenVectorScale =
+   (rsin((s16)D_800C3CF0) + 0x1000) / 800 + 4 and D_800C3B80 =
+   (rsin((s16)(D_800C3B7C += 0x80)) + 0x1000) / 32; the three u8 colors at sp+0x20
+   are BattleClampScaledByte(D_800C3B80, 0x20, <the u8 at g_BattleStageData + 0x474/5/6>).
+   The four
+   slot loops run to 11 (circle pass), 32 (step animation), 32 (world position) and
+   31 (draw). In loop 1 retail loads the current actor's pSprites into $s0 BEFORE the
+   BattleGetActorHeight call and the other actor's into $s1 after it, which is why the
+   source assigns pSprites, then the height, then pOtherSprites; the third call's
+   arguments re-form (*ppSlot)->pSprites inline rather than reuse $s1. */
+/*
+void func_800A9A50(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long *pOt, s32 quadIndex) {
+    BattleActor **ppActors;
+    BattleActor **ppSlot;
+    BattleSprite *pSprites;
+    BattleSprite *pOtherSprites;
+    s32 height;
+    s32 step;
+    s32 i;
+    s32 j;
+    u8 colors[3];
+
+    D_800C3E88 = D_800C3E88 + 1 + D_800CCC5C;
+    if (D_800C3E88 >= 7) {
+        D_800C3E88 = 6;
+    }
+    for (step = 0; D_800C3E88 >= 2; step++) {
+        D_800C3E88 -= 2;
+    }
+    D_800C3CF0 += step * 0x38;
+    g_BattleTweenVectorScale = (rsin((s16)D_800C3CF0) + 0x1000) / 800 + 4;
+    D_800C3B7C += 0x80;
+    D_800C3B80 = (rsin((s16)D_800C3B7C) + 0x1000) / 32;
+    colors[0] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x474));
+    colors[1] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x475));
+    colors[2] = BattleClampScaledByte(D_800C3B80, 0x20, *(u8 *)(g_BattleStageData + 0x476));
+    if (g_BattleActors[g_BattleCurrentActorSlot] != 0) {
+        if (!(g_BattleActors[g_BattleCurrentActorSlot]->flags4A & 0x20)) {
+            ppActors = g_BattleActors;
+            ppSlot = ppActors;
+            for (j = 0; j < BATTLE_ACTOR_SLOT_COUNT; j++, ppSlot++) {
+                if (*ppSlot == 0) {
+                    continue;
+                }
+                if (g_BattleCurrentActorSlot == j) {
+                    continue;
+                }
+                if ((*ppSlot)->parentActorSlot != 0xFF) {
+                    continue;
+                }
+                if ((g_BattleCommandActorMask >> j) & 1) {
+                    continue;
+                }
+                if ((*ppSlot)->doUpdate == 0) {
+                    continue;
+                }
+                pSprites = ppActors[g_BattleCurrentActorSlot]->pSprites;
+                height = BattleGetActorHeight(j);
+                pOtherSprites = (*ppSlot)->pSprites;
+                if (pOtherSprites->pos[1] - height < pSprites->pos[1]) {
+                    if (ppActors[g_BattleCurrentActorSlot]->pSprites->pos[1] -
+                            BattleGetActorHeight(g_BattleCurrentActorSlot) <
+                        pOtherSprites->pos[1]) {
+                        BattlePushActorOutOfCircle(g_BattleCurrentActorSlot, (*ppSlot)->pSprites->pos[0],
+                                                   (*ppSlot)->pSprites->pos[2],
+                                                   BattleGetActorRadius(j) + BattleGetActorRadius(g_BattleCurrentActorSlot));
+                    }
+                }
+            }
+            BattleSteerActorTowardCircles(g_BattleCurrentActorSlot);
+        }
+    }
+    for (i = 0; i < 32; i++) {
+        if (g_BattleActors[i] != 0) {
+            BattleStepActorAnimation(g_BattleActors[i], g_BattleBlockPool, step, quadIndex, D_800CCC5C);
+        }
+    }
+    if (D_800C3DF8 != 0) {
+        func_800B026C(g_BattleBlockPool, step, 0, quadIndex);
+    }
+    for (i = 0; i < 32; i++) {
+        if (g_BattleActors[i] != 0) {
+            if (g_BattleActors[i]->parentActorSlot < 0xFF) {
+                BattleSpriteUpdateWorldPosition(g_BattleActors[i]);
+            }
+        }
+    }
+    BattleTransformPartPositions(g_BattleActors);
+    SetColorMatrix(D_800D2FC0);
+    if (g_BattleStateBit != 0) {
+        for (i = 0; i < 0x1F; i++) {
+            if (g_BattleActors[i] != 0) {
+                if ((g_BattleActorMask >> i) & 1) {
+                    SetBackColor(colors[0], colors[1], colors[2]);
+                } else {
+                    SetBackColor(*(u8 *)(g_BattleStageData + 0x474), *(u8 *)(g_BattleStageData + 0x475),
+                                 *(u8 *)(g_BattleStageData + 0x476));
+                }
+                if (g_BattleActors[i]->flags4A & 0x40) {
+                    g_ModelRenderTestFlags = 0;
+                } else {
+                    g_ModelRenderTestFlags = 1;
+                }
+                BattleDrawActor(g_BattleActors[i], pLightMatrix, pViewMatrix, 1, D_800CCC5C, pOt, quadIndex);
+                g_ModelRenderTestFlags = 0;
+            }
+        }
+    }
+    BattleRenderSpriteSlots(g_BattleSpritePool, pLightMatrix, step, pOt, quadIndex);
+}
+*/
 
 void BattleFreeAllModelSlots(void) {
     s32 i;
