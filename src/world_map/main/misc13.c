@@ -75,7 +75,7 @@ typedef struct {
     /* 0x3 */ u8 unk3;
 } WorldMapTileZoneCell; // Size: 0x4
 
-// One 0x10-byte row of the per-tile-shape axis table at D_8009B264 (the same
+// One 0x10-byte row of the per-tile-shape axis table at g_WorldMapTileShapeAxis (the same
 // bytes as g_WorldMapCameraPathHeightsMode7 + 0x28, which another unit reads as a
 // plain s16 array): the x/z direction a position is projected on.
 typedef struct {
@@ -96,7 +96,7 @@ extern int rsin(int a);
 extern u8 g_WorldMapAreaNameString[];
 extern u8 g_WorldMapMode4AreaNameString[];
 extern WorldMapTileKindRow g_WorldMapTileKindTable[];
-extern WorldMapTileShapeAxis D_8009B264[];
+extern WorldMapTileShapeAxis g_WorldMapTileShapeAxis[];
 extern s32 D_8009B244;
 extern s32 D_8009B24C;
 extern s32 D_8009B254;
@@ -112,7 +112,7 @@ extern s16 g_WorldMapAreaId;
 extern u16 g_WorldMapAreaNamePanelFlags;
 extern u8 D_8009D500;
 extern s32 func_80032F54(void* pString, s16 a, s16 b, s16 c, s16 d, s16 e, s16 f);
-extern void func_80093740(WorldMapPos* p, s32 x, s32 z);
+extern void WorldMapBuildTilePlaneNormal(WorldMapPos* p, s32 x, s32 z);
 extern s32 WorldMapInterpolatePlaneHeight(WorldMapPos* p0, WorldMapPos* p1, WorldMapPos* p2);
 extern void SystemStringResetIfIdle(void* pString);
 extern void SystemStringPushBuffer(void* pString, void* pData);
@@ -418,7 +418,7 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
 // 0x1F800000 as absolute stores; pScratch/pEdge are deliberately the same value in
 // two variables, because the second copy is what makes gcc keep the base in a saved
 // register across the two calls (one variable is 95.81%).
-void func_80093740(WorldMapPos* pNormal, s32 x, s32 z) {
+void WorldMapBuildTilePlaneNormal(WorldMapPos* pNormal, s32 x, s32 z) {
     WorldMapTileZoneCell* pCell;
     VECTOR* pEdge;
     VECTOR* pScratch;
@@ -489,7 +489,7 @@ s32 WorldMapGetTilePlaneHeight(s32 x, s32 z) {
         b.z = 0;
         b.y = (s8)pTile[4] << 12;
     }
-    func_80093740(&c, x, z);
+    WorldMapBuildTilePlaneNormal(&c, x, z);
     WorldMapInterpolatePlaneHeight(&a, &b, &c);
     return a.y << 3;
 }
@@ -541,23 +541,23 @@ s16 WorldMapGetTileKindValue(s16 row, s16 col) {
     return *(s16*)&g_WorldMapTileKindTable[row].kind[col * 2];
 }
 
-s32 func_80094088(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
+s32 WorldMapGetTileShapeAxisDirection(WorldMapPos* p, WorldMapPos* pPos, WorldMapPos* pOut) {
     s16 k;
     s32 sum;
 
     k = WorldMapGetTileShape(p);
-    sum = pPos->x * D_8009B264[k].x + pPos->z * D_8009B264[k].z;
+    sum = pPos->x * g_WorldMapTileShapeAxis[k].x + pPos->z * g_WorldMapTileShapeAxis[k].z;
     if (sum == 0) {
         pOut->x = pPos->x;
         pOut->z = pPos->z;
         return 0;
     }
     if (sum < 0) {
-        pOut->x = -D_8009B264[k].x;
-        pOut->z = -D_8009B264[k].z;
+        pOut->x = -g_WorldMapTileShapeAxis[k].x;
+        pOut->z = -g_WorldMapTileShapeAxis[k].z;
     } else {
-        pOut->x = D_8009B264[k].x;
-        pOut->z = D_8009B264[k].z;
+        pOut->x = g_WorldMapTileShapeAxis[k].x;
+        pOut->z = g_WorldMapTileShapeAxis[k].z;
     }
     return 1;
 }

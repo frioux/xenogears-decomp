@@ -22,7 +22,7 @@ typedef union {
         /* 0x0 */ u32 actionChance0Roll : 1;
         /* 0x0 */ u32 actionChance1Roll : 1;
         /* 0x0 */ u32 actionChance2Roll : 1;
-        // The rand() & 1 coin flip func_8008F7B8 takes: func_8008FCC8 sends the
+        // The rand() & 1 coin flip func_8008F7B8 takes: BattleUpdateWorkState0 sends the
         // actor into state 1 (approach and queue messages) when it reads set and
         // into state 2 when it reads clear.
         /* 0x0 */ u32 attackRoll : 1;
@@ -53,7 +53,7 @@ typedef struct {
     /* 0x18 */ s32 actionChance2;
     /* 0x1C */ s32 actionChance3;
     // The sub-state of state 0: 0 waits out the delay and then may attack,
-    // 1 waits until the actor drops below its break threshold (func_8008FCC8).
+    // 1 waits until the actor drops below its break threshold (BattleUpdateWorkState0).
     /* 0x20 */ s32 phase;
     /* 0x24 */ s32 breakThreshold;
     // The 2D distance the state-2 handler waits for before it takes the action
@@ -148,13 +148,13 @@ extern BattleWork g_BattleWorkSlots;
 extern BattleWork D_80096F64;
 extern BattleActionMessages g_BattleActionMessages[];
 extern u8 g_BattleFacingUpdateEnabled;
-extern void func_8008FCC8(BattleActor* pActor, BattleWork* pWork);
+extern void BattleUpdateWorkState0(BattleActor* pActor, BattleWork* pWork);
 extern void BattleUpdateWorkState1(BattleActor* pActor, BattleWork* pWork);
-extern void func_80090580(BattleActor* pActor, BattleWork* pWork);
-extern void func_80090990(BattleActor* pActor, BattleWork* pWork);
+extern void BattleUpdateWorkState3(BattleActor* pActor, BattleWork* pWork);
+extern void BattleUpdateWorkState2(BattleActor* pActor, BattleWork* pWork);
 extern void BattleUpdateActorApproach(BattleActor* p, s32 arg1, s32 arg2);
 extern s32 BattleCheckValueAboveScaledMax(BattleActor* p, s32 arg1);
-extern s32 D_80092850;
+extern s32 g_BattleAiTargetDistance;
 
 
 s32 BattleCheckActorBelowBreakThreshold(BattleActor* pActor, s32 arg1) {
@@ -351,7 +351,7 @@ void BattleEnterWorkState0(BattleActor* pActor) {
     pWork->delay = (2 - pWork->difficulty) * 30 + 0x5A;
     func_8008F7B8(pWork);
 }
-void func_8008FCC8(BattleActor* pActor, BattleWork* pWork) {
+void BattleUpdateWorkState0(BattleActor* pActor, BattleWork* pWork) {
     s32 distance;
 
     pWork->maxDistance = 0;
@@ -580,7 +580,7 @@ void BattleEnterWorkState3(BattleActor* pActor, s32 arg1) {
     pWork->setFlag8000 = BattleRollActorFlag8000(pActor, 1);
     pWork->flags.bytes.unk2E = 0;
 }
-void func_80090580(BattleActor* pActor, BattleWork* pWork) {
+void BattleUpdateWorkState3(BattleActor* pActor, BattleWork* pWork) {
     s16 angle;
     s32 distance;
     s32 roll;
@@ -661,7 +661,7 @@ void BattleEnterWorkState2(BattleActor* pActor, s32 arg1) {
     pWork->setFlag8000 = BattleRollActorFlag8000(pActor, 0);
     pWork->flags.bytes.unk2E = 0;
 }
-void func_80090990(BattleActor* pActor, BattleWork* pWork) {
+void BattleUpdateWorkState2(BattleActor* pActor, BattleWork* pWork) {
     s16 angle;
     s32 distance;
     s32 roll;
@@ -694,7 +694,7 @@ void func_80090990(BattleActor* pActor, BattleWork* pWork) {
     if (BattleGetActorBreakProximity(pActor) == 0) {
         pWork->setFlag8000 = 0;
     }
-    if (g_BattleActorDistance2D > pWork->actionDistance || (g_BattleOptionOn != 0 && D_80092850 >= 0x4B1)) {
+    if (g_BattleActorDistance2D > pWork->actionDistance || (g_BattleOptionOn != 0 && g_BattleAiTargetDistance >= 0x4B1)) {
         if (g_BattleOptionOn != 0) {
             BattleQueueMessage(pActor, 4);
         }
@@ -786,16 +786,16 @@ void BattleDispatchWorkState(BattleActor* pActor) {
         pWork->difficulty = g_BattleDifficultyLevel;
         switch (pWork->state) {
         case 0:
-            func_8008FCC8(pActor, pWork);
+            BattleUpdateWorkState0(pActor, pWork);
             break;
         case 1:
             BattleUpdateWorkState1(pActor, pWork);
             break;
         case 2:
-            func_80090990(pActor, pWork);
+            BattleUpdateWorkState2(pActor, pWork);
             break;
         case 3:
-            func_80090580(pActor, pWork);
+            BattleUpdateWorkState3(pActor, pWork);
             break;
         }
         if (pWork->setFlag8000 != 0) {

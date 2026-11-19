@@ -913,7 +913,7 @@ extern u16 g_BattleCombatant1DownCount;
 extern s32 g_BattlePromptTimer;
 extern u8 g_BattleOptionOn;
 extern s32 g_BattleRoundNumber;
-extern s32 D_80092850;
+extern s32 g_BattleAiTargetDistance;
 extern s32 g_BattleActorDistance2D;
 extern s32 g_BattleFacingAngle;
 extern u8 D_8006FC30[];
@@ -1049,7 +1049,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
         }
         g_BattlePromptTimer--;
     }
-    D_80092850 = BattleVectorDistance(p0, p1);
+    g_BattleAiTargetDistance = BattleVectorDistance(p0, p1);
     g_BattleActorDistance2D = BattleVectorDistance2D(p0, p1);
     g_BattleFacingAngle = ratan2(*(s32 *)(p0 + 0x0) - *(s32 *)(p1 + 0x0), *(s32 *)(p0 + 0x8) - *(s32 *)(p1 + 0x8));
 } */

@@ -227,7 +227,7 @@ s32 WorldMapProbeCellEdgeZFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pP
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);
-extern s32 func_80094088(SVec* p0, SVec* p1, SVec* p2);
+extern s32 WorldMapGetTileShapeAxisDirection(SVec* p0, SVec* p1, SVec* p2);
 extern s32 func_80094A5C(void* p0, SVec* p1, s32 mode, s16 kind);
 
 s32 WorldMapResolveStepAgainstTerrain(void* p0, SVec* p1, SVec* p2, s32 mode, s16 kind) {
@@ -241,7 +241,7 @@ s32 WorldMapResolveStepAgainstTerrain(void* p0, SVec* p1, SVec* p2, s32 mode, s1
         ret = 1;
         break;
     case 1:
-        result = func_80094088((SVec*)0x1F800000, p1, p2);
+        result = WorldMapGetTileShapeAxisDirection((SVec*)0x1F800000, p1, p2);
         ret = 0;
         if (result == 0) {
             p2->z = 0;

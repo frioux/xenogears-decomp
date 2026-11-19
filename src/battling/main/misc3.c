@@ -1213,13 +1213,13 @@ void BattleActorApplyCenterPosition(BattleActor* p) {
     p->flags |= 0x2000000;
 }
 
-extern s32 D_80092850;
+extern s32 g_BattleAiTargetDistance;
 extern u8 g_BattleOptionOn;
 extern s32 func_8008B650(s32 value, s32 max, s32 step);
 extern u8 g_BattleCameraLerpFrames;
 
 /* 89.19%: every call, both lerp limiter paths, the actionPhase==4 reset, the 0x40000
-   cos/sin pair, the p->steerSpeed steer block, the D_80092850 target-follow block and
+   cos/sin pair, the p->steerSpeed steer block, the g_BattleAiTargetDistance target-follow block and
    the final fade all line up, and the frame is retail's exactly (0x30, s0/s1/s2,
    delta at sp+0x10). Three residuals, all allocator/scheduling, no structure:
    - the p->actionPhase==2 block: retail keeps the 0xFFF7FFFF mask in $a0, the 0x90C
@@ -1230,7 +1230,7 @@ extern u8 g_BattleCameraLerpFrames;
      but gcc then sinks it 2 instructions late (worth 1 store, lost elsewhere).
    - every `mult` here yields `mfhi $t1` in retail and `mfhi $a3` in ours (6
      sites); the multiset is otherwise identical.
-   - the D_80092850 block: retail issues all three p->pTarget loads first (raw
+   - the g_BattleAiTargetDistance block: retail issues all three p->pTarget loads first (raw
      values spilled to sp+0x10..0x18) and pipelines the three mults; ours computes
      one delta at a time. A `Vec4 target = p->pTarget->position;` copy at the head
      of the block gets the pipelined shape but costs 0x10 of frame (0x40 vs 0x30),
@@ -1312,7 +1312,7 @@ void func_80078194(BattleActor* p) {
         p->vy += p->steerVy;
         p->vz += p->steerVz;
     }
-    if (D_80092850 >= 0x281 && g_BattleOptionOn != 0) {
+    if (g_BattleAiTargetDistance >= 0x281 && g_BattleOptionOn != 0) {
         Vec4 delta;
 
         delta.x = (p->pTarget->position.x - p->position.x) / 12;

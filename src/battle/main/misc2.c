@@ -45,7 +45,7 @@ extern volatile u8 D_800D3726[];
 extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, u16 x, s16 y, u8 u, u8 v, u8 dx);
 extern void func_800728B8(u8 *pDst, s32 arg1, s32 arg2);
-extern void func_80072A9C(s32 index, u8 arg1);
+extern void BattleRenderActorSplitDigitPanel(s32 index, u8 arg1);
 extern void BattleRenderActorStatDigits(s32 index, u8 arg1);
 extern s32 func_80072F38(s32 index, u8 arg1);
 extern void BattleRenderActorValueDigits(s32 index);
@@ -247,7 +247,7 @@ void BattleRenderSlotStatDigits(void) {
                 if (g_BattleSlotFlags[flagOfs] != 0) {
                     BattleRenderActorStatDigits(i, value);
                 } else {
-                    func_80072A9C(i, value);
+                    BattleRenderActorSplitDigitPanel(i, value);
                 }
                 *((pSlot = (u8 *)g_BattleDisplayState + i) + 0x93) = *(u8 *)&g_BattlePrimStartIndex;
                 g_BattleDisplayState->slotMarks[i] = 0;

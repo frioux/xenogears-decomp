@@ -93,11 +93,11 @@ extern void BattleClearSlotFlagB4(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
 extern u8 g_BattlePrimStartIndex;
 extern u8 g_BattleStatDigitSpriteIds[];
-extern u8 D_800C3E08[];
+extern u8 g_BattleSlotDigitSpriteIds[];
 // The scene resource block pointer's word is followed by the scene's three
 // optional digit sprite ids (0xFF when unused).
 extern u8 g_BattleSceneResources[];
-extern u16 D_800C3068[];
+extern u16 g_BattleSlotDigitXOffsets[];
 extern u8 g_BattleSlotPageIndex;
 extern u16 g_BattleStatDigitXOffsets[];
 extern u16 g_BattleSlotScreenOrigins[];
@@ -857,18 +857,18 @@ void func_80072938(POLY_FT4 *pPrim, s32 first, s32 last, s32 mode) {
     }
 }
 */
-void func_80072A9C(s32 slot, u8 arg1) {
+void BattleRenderActorSplitDigitPanel(s32 slot, u8 arg1) {
     s32 first;
     s32 i;
     s32 xIndex;
 
     first = g_BattleDisplayState->statSpriteCount[slot];
     for (i = 0; i < 3; i++) {
-        if (D_800C3E08[i] != 0xFF) {
+        if (g_BattleSlotDigitSpriteIds[i] != 0xFF) {
             g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
-                D_800C3E08[i] + BATTLE_DIGIT_SPRITE_BASE,
+                g_BattleSlotDigitSpriteIds[i] + BATTLE_DIGIT_SPRITE_BASE,
                 (s32)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
-                (s16)(D_800C3068[slot * 24 + i] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
+                (s16)(g_BattleSlotDigitXOffsets[slot * 24 + i] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
                 0x10);
         }
     }
@@ -876,7 +876,7 @@ void func_80072A9C(s32 slot, u8 arg1) {
     g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
         BATTLE_DIGIT_SPRITE_BASE + 10,
         (s32)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
-        (s16)(D_800C3068[slot * 24 + 3] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
+        (s16)(g_BattleSlotDigitXOffsets[slot * 24 + 3] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
         0x10);
     // Unused scene sprite entries do not consume an x offset.
     for (i = 4, xIndex = 4; i < 7; i++) {
@@ -884,7 +884,7 @@ void func_80072A9C(s32 slot, u8 arg1) {
             g_BattleDisplayState->statSpriteCount[slot] += BattleDrawSpritePackage(
                 g_BattleSceneResources[i] + BATTLE_DIGIT_SPRITE_BASE,
                 (s32)(g_BattleGraphicsWork + (slot * 3200 + 0x3A88)) + g_BattleDisplayState->statSpriteCount[slot] * 80,
-                (s16)(D_800C3068[slot * 24 + xIndex] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
+                (s16)(g_BattleSlotDigitXOffsets[slot * 24 + xIndex] + g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + slot]),
                 0x10);
             xIndex++;
         }
