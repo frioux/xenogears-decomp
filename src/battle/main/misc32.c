@@ -16,7 +16,56 @@ extern u8 g_BattleStateWork[];
    register), which is what retail's "atfree" stubs contain; at -G8 it leaves the
    bare macro to the assembler and emits `lui $at`. */
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc32", func_800BCC60);
+// The sprite colour pulse task g_BattleSpriteColorTask holds (misc31 owns the type and
+// its tick): the work-list entry, the sprite it tints and the battle slot it was
+// created for, which D_800C4922 retires.
+typedef struct {
+    /* 0x00 */ WorkListEntry entry;
+    /* 0x1C */ SpriteData *pSpriteData;
+    /* 0x20 */ s32 angle;
+    /* 0x24 */ s32 slot;
+} BattleSpriteColorTask; // Size: 0x28
+
+extern BattleSpriteColorTask *g_BattleSpriteColorTask;
+extern u8 D_800C4922;
+extern u8 g_FlagTimerWorkListAdds;
+extern s32 g_NumFlaggedTimerWorkListEntries;
+extern void BattleFreeSpriteColorTask();
+extern void BattleSpriteColorTaskTick(BattleSpriteColorTask *pTask);
+extern void *TimerWorkListAllocateTask(void *pData, s32 dataSize);
+
+// Pulses the current slot's sprite colour: retires the task still running for another
+// slot, then makes one for this slot's sprite out of the two per-slot pointer tables the
+// battle state work block ends with (0x8C8C is the sprite misc33 animates, 0x8CB8 the
+// record TimerWorkListAllocateTask takes).
+void func_800BCC60(void) {
+    BattleSpriteColorTask *pTask;
+    SpriteData *pSpriteData;
+    u8 *pBase;
+
+    if (g_BattleSpriteColorTask != NULL) {
+        if (g_BattleSpriteColorTask->slot == D_800C4922) {
+            return;
+        }
+        BattleFreeSpriteColorTask(0);
+    }
+    pBase = g_BattleStateWork;
+    if (*(SpriteData **)(pBase + pBase[0xA72] * 4 + 0x8CB8) == NULL) {
+        return;
+    }
+    pTask = TimerWorkListAllocateTask(*(SpriteData **)(pBase + pBase[0xA72] * 4 + 0x8CB8), 0xC);
+    g_BattleSpriteColorTask = pTask;
+    TimerWorkListSetTaskCallback(pTask, BattleSpriteColorTaskTick);
+    WorkListTaskSetOnFreeCallback(&pTask->entry, BattleFreeSpriteColorTask);
+    if (g_FlagTimerWorkListAdds != 0) {
+        g_NumFlaggedTimerWorkListEntries--;
+    }
+    pTask->entry.unk14_3 = 0; // clears the flagged bit the work list just set
+    pSpriteData = *(SpriteData **)(pBase + pBase[0xA72] * 4 + 0x8C8C);
+    pTask->pSpriteData = pSpriteData;
+    pTask->slot = pBase[0xA72];
+    pSpriteData->prim &= 0xFE;
+}
 extern s16 g_BattleActorMask;
 
 void BattleClearActorMask(void) {
@@ -175,7 +224,7 @@ extern void func_800BDA1C(u8 *pTask);
 extern void BattleUnlinkAndFreeTask(void *pEntry);
 extern void BattleStepEffectColorFade(Misc32Task *pTask);
 extern void BattleStepEffectPosition(Misc32Task *pTask);
-extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
+extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 
 extern void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind);
 extern void BattleAttachCommandRowEffect(s32 slot);
@@ -523,7 +572,7 @@ void BattleStepEffectColorFadeFromBase(Misc32Task *pTask) {
     }
 }
 
-extern void TimerWorkListSetTaskCallback(Misc32Task *pTask, void (*pCallback)(Misc32Task *));
+extern void TimerWorkListSetTaskCallback(void *pTask, void *pCallback);
 extern void BattleStepEffectColorFadeFromBase(Misc32Task *pTask);
 
 // 91.60%: COMPILES (parked body below). `nextTimer` is worth +8.2 (it stops gcc
