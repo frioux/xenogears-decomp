@@ -1,5 +1,10 @@
 #include "common.h"
+#include "system/memory.h"
 #include "psyq/libgte.h"
+
+#define WORLD_MAP_GRID_CELL_COUNT 81
+#define WORLD_MAP_GRID_WIDTH 9
+#define WORLD_MAP_TILE_SECTOR_SIZE 0x710
 
 extern VECTOR g_WorldMapClipPlaneAxisY;
 extern VECTOR g_WorldMapClipPlaneAxisX;
@@ -135,7 +140,6 @@ void func_800981C8(WorldMapMisc16Struct* p) {
     row >>= 8;
     D_8009D318 = g_WorldMapGridTileIds;
     colBase = col;
-    pGrid = g_WorldMapGridTileIds.grid;
     for (i = 8; i != -1; i--) {
         if (!(row < h)) {
             row = 0;
@@ -155,7 +159,177 @@ void func_800981C8(WorldMapMisc16Struct* p) {
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
+extern s32 g_WorldMapGridImageFileIndex;
+extern s32 D_8009BD08;
+extern s16 D_8009BBAC[];
+extern u8* g_WorldMapTileCellPointers[];
+extern u32 ArchiveGetDebugTable(void);
+extern s32 ArchiveDecodeSector(s32 entryIndex);
+extern u8* ArchiveGetFilePath(s32 entryIndex);
+extern s32 WorldMapAddCdRequest(s32 x, s32 y, s32 z);
+extern s32 WorldMapAddFileLoadRequest(s32 x, s32 y, s32 z, s32 w);
+extern s32 WorldMapSubmitCdRequests(void);
+extern s32 WorldMapSubmitFileLoads(void);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80098CC0);
+/* 96.96%, body is exactly retail's 1644 bytes and every call, branch and loop tail
+   matches: what is left is ONE allocator rotation plus one base-register choice.
+   Shape that got it here (all measured, keep them):
+   - the tile ids are walked with an INDEX (id = g_WorldMapGridTileIds.grid[idx]; idx++),
+     never with a pId++ pointer. With a walking pointer gcc keeps a constant -1 in a
+     callee-saved register for the two loop bounds, which steals the register that
+     holds g_WorldMapGridTileIds and makes every loop preheader re-form that address
+     (82.49% at the same byte count). The indexed form makes gcc re-materialise
+     'li v0,-1' per iteration exactly as retail does, and the symbol base lands in s8.
+   - the free pass (D_8009D318 vs the 81 live ids) is a plain count-up for/break loop.
+   - the two ArchiveGetDebugTable() calls are BOTH evaluated before the test, so the
+     condition has to be the bitwise form ((first == 0) | (second == 0xFFFFFFFF)) that
+     misc15's WorldMapSubmitGridImageLoads already uses and matches with.
+   - the 7-cell runs are for (i = 1; i != -1; i--) around for (j = 6; j != -1; j--),
+     with idx reset to 0x49 / 0x11 at the end of the outer body (retail re-materialises
+     those two constants in the outer back-branch delay slot; an idx += 0x48 or a
+     row * 0x48 + 1 spelling gives addiu instead of li and loses the match).
+   - the four-row/column groups walk g_WorldMapGridTileIds.grid[idx] with stride 1
+     (rows) and stride 9 (columns), bases 1/0x49 and 9/0x11.
+   - loaded (& 2 / & 1) must be read into two locals BEFORE the four-cell D_8009BBAC
+     loop or the masks are recomputed inside it (that was 4 bytes and 2.4 points).
+   Still wrong: retail puts the outer counter in s4 and the sector pointer in s5, ours
+   swaps them (declaration order, splitting the free-pass counter into its own variable
+   and moving the pointer declarations all measure 96.95-96.96 identical code), retail
+   keeps the idx constant in s0 where ours uses v0, and in the four-cell block retail
+   forms the g_WorldMapGridTileIds address with lui $at / addu $at where ours hoists
+   the base into a saved register. A 4-minute permuter run's only find was a u8
+   intermediate at one call site, which truncates the offset argument - wrong code,
+   do not port it. Next lever: a cc1_probe of the four-cell block, or try making the
+   free pass and the nest loops share one counter variable.
+/*
+void func_80098CC0(void) {
+    u8* pSector;
+    u8* pPath;
+    s32 i;
+    s32 j;
+    s32 k;
+    s32 idx;
+    s32 id;
+    s32 loaded;
+    s32 hasImage;
+    s32 hasSector;
+    u32 first;
+    u32 second;
+
+    for (i = 0; i < WORLD_MAP_GRID_CELL_COUNT; i++) {
+        id = D_8009D318.grid[i];
+        if (g_WorldMapTileCellPointers[id] != NULL) {
+            for (j = 0; j < WORLD_MAP_GRID_CELL_COUNT; j++) {
+                if (g_WorldMapGridTileIds.grid[j] == id) {
+                    break;
+                }
+            }
+            if (j == WORLD_MAP_GRID_CELL_COUNT) {
+                HeapFree(g_WorldMapTileCellPointers[id]);
+                g_WorldMapTileCellPointers[id] = NULL;
+            }
+        }
+    }
+
+    first = ArchiveGetDebugTable();
+    second = ArchiveGetDebugTable();
+    loaded = 0;
+    if ((first == 0) | (second == 0xFFFFFFFF)) {
+        pSector = (u8*)ArchiveDecodeSector(g_WorldMapGridImageFileIndex);
+        idx = 1;
+        for (i = 1; i != -1; i--) {
+            for (j = 6; j != -1; j--) {
+                id = g_WorldMapGridTileIds.grid[idx];
+                if (g_WorldMapTileCellPointers[id] == NULL) {
+                    g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
+                    WorldMapAddCdRequest((s32)(pSector + id), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                    loaded |= 2;
+                }
+                idx++;
+            }
+            idx = 0x49;
+        }
+        pSector = (u8*)ArchiveDecodeSector(D_8009BD08);
+        idx = 9;
+        for (i = 1; i != -1; i--) {
+            for (j = 6; j != -1; j--) {
+                id = g_WorldMapGridTileIds.grid[idx];
+                if (g_WorldMapTileCellPointers[id] == NULL) {
+                    g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
+                    WorldMapAddCdRequest((s32)(pSector + ((id % g_WorldMapTileColumns) * g_WorldMapTileRows + id / g_WorldMapTileColumns)), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                    loaded |= 1;
+                }
+                idx += WORLD_MAP_GRID_WIDTH;
+            }
+            idx = 0x11;
+        }
+        hasImage = loaded & 2;
+        hasSector = loaded & 1;
+        for (k = 0; k < 4; k++) {
+            id = g_WorldMapGridTileIds.grid[D_8009BBAC[k]];
+            if (g_WorldMapTileCellPointers[id] == NULL) {
+                g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
+                if (hasImage) {
+                    pSector = (u8*)ArchiveDecodeSector(g_WorldMapGridImageFileIndex);
+                    WorldMapAddCdRequest((s32)(pSector + id), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                } else if (hasSector) {
+                    pSector = (u8*)ArchiveDecodeSector(D_8009BD08);
+                    WorldMapAddCdRequest((s32)(pSector + ((id % g_WorldMapTileColumns) * g_WorldMapTileRows + id / g_WorldMapTileColumns)), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                }
+            }
+        }
+        WorldMapAddCdRequest(0, 0, 0);
+        WorldMapSubmitCdRequests();
+    } else {
+        pPath = ArchiveGetFilePath(g_WorldMapGridImageFileIndex);
+        idx = 1;
+        for (i = 1; i != -1; i--) {
+            for (j = 6; j != -1; j--) {
+                id = g_WorldMapGridTileIds.grid[idx];
+                if (g_WorldMapTileCellPointers[id] == NULL) {
+                    g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
+                    WorldMapAddFileLoadRequest((s32)pPath, id << 11, WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                    loaded |= 2;
+                }
+                idx++;
+            }
+            idx = 0x49;
+        }
+        pPath = ArchiveGetFilePath(D_8009BD08);
+        idx = 9;
+        for (i = 1; i != -1; i--) {
+            for (j = 6; j != -1; j--) {
+                id = g_WorldMapGridTileIds.grid[idx];
+                if (g_WorldMapTileCellPointers[id] == NULL) {
+                    g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
+                    WorldMapAddFileLoadRequest((s32)pPath, ((id % g_WorldMapTileColumns) << 11) * g_WorldMapTileRows + ((id / g_WorldMapTileColumns) << 11), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                    loaded |= 1;
+                }
+                idx += WORLD_MAP_GRID_WIDTH;
+            }
+            idx = 0x11;
+        }
+        hasImage = loaded & 2;
+        hasSector = loaded & 1;
+        for (k = 0; k < 4; k++) {
+            id = g_WorldMapGridTileIds.grid[D_8009BBAC[k]];
+            if (g_WorldMapTileCellPointers[id] == NULL) {
+                g_WorldMapTileCellPointers[id] = HeapAlloc(WORLD_MAP_TILE_SECTOR_SIZE, 0);
+                if (hasImage) {
+                    pPath = ArchiveGetFilePath(g_WorldMapGridImageFileIndex);
+                    WorldMapAddFileLoadRequest((s32)pPath, id << 11, WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                } else if (hasSector) {
+                    pPath = ArchiveGetFilePath(D_8009BD08);
+                    WorldMapAddFileLoadRequest((s32)pPath, ((id % g_WorldMapTileColumns) << 11) * g_WorldMapTileRows + ((id / g_WorldMapTileColumns) << 11), WORLD_MAP_TILE_SECTOR_SIZE, (s32)g_WorldMapTileCellPointers[id]);
+                }
+            }
+        }
+        WorldMapAddFileLoadRequest(0, 0, 0, 0);
+        WorldMapSubmitFileLoads();
+    }
+}
+*/
 typedef struct {
     /* 0x0 */ u16 unk0;
     /* 0x2 */ u16 unk2;
@@ -165,7 +339,6 @@ typedef struct {
 extern WorldMapMisc16Tex D_8009D650[];
 extern WorldMapMisc16Tex D_8009D654[];
 extern s16 D_8009D618[];
-extern u8* g_WorldMapTileCellPointers[];
 extern u16 D_8009CCB4[];
 extern u16 g_WorldMapTpageIds[];
 extern MATRIX g_WorldMapGridMatrix;
