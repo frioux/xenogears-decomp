@@ -18,6 +18,7 @@ extern void WorldMapSetSpriteSetParent(s32 arg0, s32 arg1);
 extern void SpriteSetScale(void* pSprite, s16 scale);
 extern void WorldMapQueueZoneEntry(s32 arg0, s32* pVec, s32 arg2, s32 arg3);
 extern s32 WorldMapGetTilePlaneHeight(s32 x, s32 z);
+extern void func_80089580(void);
 
 typedef struct {
     /* 0x0 */ s32 w[4];
@@ -491,7 +492,102 @@ void WorldMapFreePrimTemplateBuffers(void) {
     HeapFree(g_WorldMapPrimTemplateBufferCopy);
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089160);
+void func_80089160(s32 arg0, SVECTOR* pPos, s16* pRot) {
+    WorldMapSprite* pSprite;
+    s32 i;
+    s32 found;
+
+    found = 0;
+    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    // The original retests the group's first sprite 8 times: nothing advances pSprite here.
+    for (i = 7; i != -1; i--) {
+        if (pSprite->flags & 0x80) {
+            found++;
+            break;
+        }
+    }
+    pSprite = g_WorldMapSpriteGroups[arg0].sprites;
+    // Both null tests are evaluated and and-ed (retail's sltiu/sltiu/and); `&&` branches instead.
+    if ((pPos == 0) & (pRot == 0)) {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            // x/y and rotX/rotY are zeroed as one word each; two halfword stores do not reproduce it.
+            *(s32*)&pSprite->rotX = 0;
+            *(s32*)&pSprite->x = 0;
+            pSprite->rotZ = 0;
+            pSprite->z = 0;
+            pSprite++;
+        }
+    } else if ((pPos != 0) & (pRot == 0)) {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            *(SVECTOR*)&pSprite->x = *pPos;
+            *(s32*)&pSprite->rotX = 0;
+            pSprite->rotZ = 0;
+            pSprite++;
+        }
+    } else if ((pPos == 0) & (pRot != 0)) {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            *(s32*)&pSprite->x = 0;
+            pSprite->z = 0;
+            pSprite->rotX = -pRot[0];
+            pSprite->rotY = -pRot[1];
+            pSprite->rotZ = -pRot[2];
+            pSprite++;
+        }
+    } else {
+        for (i = 7; i != -1; i--) {
+            if (found == 0) {
+                u16 interval;
+                u32 lifeTimer;
+
+                pSprite->flags |= 0x80;
+                interval = pSprite->interval;
+                lifeTimer = pSprite->lifeTimerInit;
+                pSprite->count = 0;
+                pSprite->timer = interval;
+                pSprite->lifeTimer = lifeTimer;
+            }
+            *(SVECTOR*)&pSprite->x = *pPos;
+            pSprite->rotX = -pRot[0];
+            pSprite->rotY = -pRot[1];
+            pSprite->rotZ = -pRot[2];
+            pSprite++;
+        }
+    }
+}
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_800893E0);
 /* 96.03%: every instruction matches except that retail holds the entry pointer
    in a3 and this shape holds it in v1, which also pulls the lhu of pEntry+0x10
@@ -640,6 +736,139 @@ void func_80089580(void) {
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089748);
+/* 1324 bytes against retail's 1328, head byte-identical through the flags/0x10 block;
+   objdiff-cli reports 0.00% on this body (target_size comes back null), so score it
+   with the instruction diff, not the percentage. Structure recovered: 0x200-sprite
+   loop over g_WorldMapSpriteGroups, the packed low/high lifeTimer pair that is only
+   reloaded under flags & 0x10 and stored back at the tail of every active sprite
+   (`high << 16 | low`), the timer/interval reload, the trailActive&maxCount&count gate,
+   the 0xFF-entry scan for a free trail slot, and inside it RotMatrixYXZ of
+   pSprite->rotX into 0x1F8000F0, two ApplyMatrix calls (trailStart at 0x24, trailEnd at
+   0x2C) against the scratch vector at 0x1F800020, three rand()-seeded direction vectors
+   normalised into 0x1F800000 (the 0x14 component is skipped under flags & 0x20 / 0x40),
+   the spread pair (0x40/0x42 fields vs rand() % field under flags & 4 / 8), the
+   entry->x/y/z = (out << 12) + in * spread + (sprite->xyz << 12) blocks, the difference
+   >> 12, the second VectorNormal feeding velX/Y/Z = (vec * speed) >> 12, ratan2 of the
+   x/y components for entry->angle, and the word copies of accel/scale/color/colorStep/
+   scaleStep plus tpage = (flags & 3) << 5 | 0x9D. Remaining delta: my compile keeps the
+   sprite base in s5 where retail uses s6 (and swaps fp/s6 for the lifeTimer pair), so
+   the prologue save order and the 0x40 vs 0x38 frame differ, and the flags ^= 0x80 arm
+   is a taken jump instead of retail's fall-through into the store. pScratch
+   ((u8 *)0x1F800000) is load-bearing: absolute `*(s32 *)0x1F800004`-style accesses make
+   gcc hoist 0x1F800004/0x1F800008 into two extra callee-saved registers.
+
+/*
+void func_80089748(void) {
+    WorldMapSprite* pSprite;
+    WorldMapTrailEntry* pEntry;
+    u8* pScratch;
+    s32 i;
+    s32 j;
+    s32 flags;
+    s32 lifeTimer;
+    s32 low;
+    s32 high;
+    s32 spread;
+
+    pScratch = (u8*)0x1F800000;
+    pSprite = g_WorldMapSpriteGroups->sprites;
+    for (i = 0; i < 0x200; i++, pSprite++) {
+        flags = pSprite->flags;
+        if (!(flags & 0x80)) {
+            continue;
+        }
+        // low/high live across iterations: the original only reloads them under flags & 0x10
+        // and stores them back at the tail of every active sprite.
+        if (flags & 0x10) {
+            lifeTimer = pSprite->lifeTimer;
+            high = lifeTimer >> 16;
+            low = (s16)lifeTimer;
+            if (low != 0) {
+                low--;
+                goto storeLifeTimer;
+            }
+            if (high == 0) {
+                pSprite->flags ^= 0x80;
+                goto storeLifeTimer;
+            }
+            high--;
+        }
+        if (pSprite->timer != 0) {
+            pSprite->timer--;
+            goto storeLifeTimer;
+        }
+        pSprite->timer = pSprite->interval;
+        if (!((pSprite->trailActive > 0) & (pSprite->maxCount > 0) & (pSprite->count < pSprite->maxCount))) {
+            goto storeLifeTimer;
+        }
+        pEntry = g_WorldMapTrailEntries;
+        for (j = 0xFF; j != -1; j--) {
+            if (pEntry->trailFlags.status.active == 0) {
+                pEntry->spriteIndex = i;
+                pEntry->trailFlags.flags = *(u32*)&pSprite->trailCount;
+                RotMatrixYXZ((SVECTOR*)&pSprite->rotX, (MATRIX*)(pScratch + 0xF0));
+                ApplyMatrix((MATRIX*)(pScratch + 0xF0), (SVECTOR*)&pSprite->trailStart, (VECTOR*)(pScratch + 0x20));
+                if (flags & 0x20) {
+                    *(s32*)(pScratch + 0x014) = 0;
+                } else {
+                    *(s32*)(pScratch + 0x014) = (rand() & 0xFFF) - 0x800;
+                }
+                *(s32*)(pScratch + 0x010) = (rand() & 0xFFF) - 0x800;
+                *(s32*)(pScratch + 0x018) = (rand() & 0xFFF) - 0x800;
+                VectorNormal((VECTOR*)(pScratch + 0x10), (VECTOR*)(pScratch + 0x00));
+                if (flags & 0x4) {
+                    spread = pSprite->trailStartSpread;
+                } else {
+                    spread = rand() % pSprite->trailStartSpread;
+                }
+                pEntry->x = (*(s32*)(pScratch + 0x020) << 12) + *(s32*)(pScratch + 0x000) * spread + (pSprite->x << 12);
+                pEntry->y = (*(s32*)(pScratch + 0x024) << 12) + *(s32*)(pScratch + 0x004) * spread + (pSprite->y << 12);
+                pEntry->z = (*(s32*)(pScratch + 0x028) << 12) + *(s32*)(pScratch + 0x008) * spread + (pSprite->z << 12);
+                ApplyMatrix((MATRIX*)(pScratch + 0xF0), (SVECTOR*)&pSprite->trailEnd, (VECTOR*)(pScratch + 0x20));
+                if (flags & 0x40) {
+                    *(s32*)(pScratch + 0x014) = 0;
+                } else {
+                    *(s32*)(pScratch + 0x014) = (rand() & 0xFFF) - 0x800;
+                }
+                *(s32*)(pScratch + 0x010) = (rand() & 0xFFF) - 0x800;
+                *(s32*)(pScratch + 0x018) = (rand() & 0xFFF) - 0x800;
+                VectorNormal((VECTOR*)(pScratch + 0x10), (VECTOR*)(pScratch + 0x00));
+                if (flags & 0x8) {
+                    spread = pSprite->trailEndSpread;
+                } else {
+                    spread = rand() % pSprite->trailEndSpread;
+                }
+                *(s32*)(pScratch + 0x000) = (*(s32*)(pScratch + 0x020) << 12) + *(s32*)(pScratch + 0x000) * spread + (pSprite->x << 12);
+                *(s32*)(pScratch + 0x004) = (*(s32*)(pScratch + 0x024) << 12) + *(s32*)(pScratch + 0x004) * spread + (pSprite->y << 12);
+                *(s32*)(pScratch + 0x008) = (*(s32*)(pScratch + 0x028) << 12) + *(s32*)(pScratch + 0x008) * spread + (pSprite->z << 12);
+                *(s32*)(pScratch + 0x000) = (*(s32*)(pScratch + 0x000) - pEntry->x) >> 12;
+                *(s32*)(pScratch + 0x004) = (*(s32*)(pScratch + 0x004) - pEntry->y) >> 12;
+                *(s32*)(pScratch + 0x008) = (*(s32*)(pScratch + 0x008) - pEntry->z) >> 12;
+                VectorNormal((VECTOR*)(pScratch + 0x00), (VECTOR*)(pScratch + 0x10));
+                pEntry->velX = (*(s32*)(pScratch + 0x010) * pSprite->speed) >> 12;
+                pEntry->velY = (*(s32*)(pScratch + 0x014) * pSprite->speed) >> 12;
+                pEntry->velZ = (*(s32*)(pScratch + 0x018) * pSprite->speed) >> 12;
+                pEntry->angle = ratan2(*(s32*)(pScratch + 0x014), *(s32*)(pScratch + 0x010));
+                flags &= 3;
+                pEntry->accelX = pSprite->accelX;
+                pEntry->accelY = pSprite->accelY;
+                pEntry->accelZ = pSprite->accelZ;
+                *(u32*)&pEntry->scaleX = pSprite->scale;
+                *(u32*)&pEntry->colorStep = pSprite->colorStep;
+                pEntry->color = *(u32*)&pSprite->color[0];
+                pEntry->tpage = (flags << 5) | 0x9D;
+                *(u32*)&pEntry->scaleStepX = pSprite->scaleStep;
+                pSprite->count++;
+                break;
+            }
+            pEntry++;
+        }
+    storeLifeTimer:
+        pSprite->lifeTimer = (high << 16) | low;
+    }
+    func_80089580();
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_80089C78);
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
 /* 95.46% (612 bytes, retail 612): every instruction matches except the
