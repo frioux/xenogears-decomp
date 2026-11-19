@@ -118,6 +118,18 @@ extern Vec3 g_WorldMapPlayerPosition;
 extern MATRIX g_WorldMapIdentityMatrix;
 extern s32 g_WorldMapPlayerPositionY;
 extern s32 g_WorldMapPlayerPositionZ;
+extern s32 g_WorldMapCameraTarget;
+extern s32 g_WorldMapCameraTargetY;
+extern s32 g_WorldMapCameraTargetZ;
+extern s32 g_WorldMapScrollTargetX;
+extern s32 g_WorldMapScrollTargetY;
+extern s32 g_WorldMapScrollTargetZ;
+extern s32 g_WorldMapFadeLevel;
+extern s32 g_WorldMapCameraHeight;
+extern s32 g_WorldMapRotationMatrixValid;
+extern s16 g_WorldMapCameraRot;
+extern s16 g_WorldMapViewRotationY;
+extern s16 g_WorldMapViewRotationZ;
 extern s16 D_1F8000A0[];
 extern void WorldMapInitSpriteGroupSprites(s32, s16 *, s32);
 extern u16 g_WorldMapFadeIds[];
@@ -224,51 +236,34 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
     }
 }
 
-// Earlier body (92.64%): instruction multiset, relocations and every
-// store offset match; two residues. (1) retail emits `sll a0,a0,0x7` on the
-// parameter register and `addu v0,v0,a0`, gcc allocates a fresh pseudo
-// (`sll a1,a0,0x7`). (2) retail's `move a0,s0` (the first call argument) lands
-// between the two pos stores, gcc emits it just before them; writing the slot
-// stores in retail's emission order (x, y, unk54, unk50, unk58, z) gives this
-// shape, the x/y/z-first order gives the same 92.64%.
-// Preset screen: cdk 87.51, gcc-2.6.0 87.15.
-// Permuter (round 181): two BETTER candidates, both FALSE gains under objdiff.
-// 295 -> 220 (pos.z store moved up to second, plus an 0x80 temp for unk58)
-// measures 83.64%; a rerun 295 -> 275 (hoisting the model pointer load above
-// unk54 into a temp) measures 89.10%, because it makes gcc fold the lhu onto
-// that register and drop retail's separate `lw v0,64(s0)`. Slot store order is
-// source-insensitive here: z second, z third and an 0x80 local all reproduce
-// 92.64% byte for byte.
-// Best: 94.87%. Instruction multiset, relocations and every store offset match; the
-// one residue is where the call-argument copy lands: retail puts move a0,s0 between
-// the pos.y lui and its store (instruction 12), gcc puts it between li v1,-2048 and
-// the unk54 store, i.e. after the barrier. The parameter shift is NOT a residue any
-// more: sll a0,a0,0x7 now matches retail (older note claimed it could not be reached).
-// The empty do/while after the pos.y store is load-bearing: without it gcc sinks the
-// pos.y store below the Z load (92.64%), with it 93.33%. Hoisting the Z load into a
-// local s32 z ahead of unk54 (permuter 295 -> 120 -> 60, run 217) gives 94.87%.
-// Swept single and double barrier positions (after statement 0..5) with and without
-// the z local: 94.87% is the cap; a barrier after unk54 or later drops below 85%,
-// and an empty block or if (1) { } as the barrier gives the pre-barrier 92.64%. The
-// long long cast the permuter bundled with the z local measures 82.00% at 168 bytes
-// (false gain); a nested if (1) { } inside the do/while is neutral.
+// Best: 94.87%, 156 bytes = retail's exact size, with the two group entries typed
+// (pModel->polyCount, pPackets[0]) instead of the u8* arithmetic the older note used - the
+// same code, so the score is unchanged. The single residue is where the first call's
+// argument copy lands: retail puts `move a0,s0` between the pos.y lui and its store, this
+// alloc puts it after `li v1,-2048`. A second variable holding the group pointer
+// (pEntry = pGroup;) did not move it. The empty do/while after the pos.y store is
+// load-bearing (retail keeps the pos.y store above the Z load; without it 92.64). A
+// `s32 y = 0xFFF80000;` local assigned before the store gives 92.64 by delaying the slot
+// base. Preset screen: cdk 87.51, gcc-2.6.0 87.15.
 /*
 s32 func_80080A28(s32 index) {
-    u8 *p = g_WorldMapGroups;
+    WorldMapEntry *pGroup = g_WorldMapGroups;
+    WorldMapEntry *pEntry;
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 z;
 
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
     pSlot->pos.y = 0xFFF80000;
-    do { } while (0);
+    do { } while (0); // keeps the pos.y store ahead of the Z load
+    pEntry = pGroup;
     z = g_WorldMapPlayerPositionZ;
     pSlot->unk54 = -0x800;
     pSlot->unk50 = 0;
     pSlot->unk58 = 0x80;
     pSlot->pos.z = z;
-    WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
-    p += 0x54;
-    WorldMapSetupPrimTemplates(p, *(s32 *)(p + 0x48), *(u16 *)(*(s32 *)(p + 0x40) + 4));
+    WorldMapSetupPrimTemplates(pEntry, pEntry->pPackets[0], pEntry->pModel->polyCount);
+    pGroup++;
+    WorldMapSetupPrimTemplates(pGroup, pGroup->pPackets[0], pGroup->pModel->polyCount);
     return 3;
 }
 */
@@ -438,37 +433,37 @@ s32 WorldMapUpdateSlotState(s32 index) {
     }
     return 1;
 }
-// Best: 76.59%, same class as before: instruction multiset and relocations are
-// identical (the three source words are the separate globals g_WorldMapPlayerPosition,
-// g_WorldMapPlayerPositionY and g_WorldMapPlayerPositionZ, not offsets off a Vec3 - retail names all three),
-// only the schedule of the `sh` pairs differs. With the two slot halfword
-// stores written first gcc emits them right after the base addu and pushes the
-// BE28/D55C pair down (this shape, 76.59%); moving them last instead reorders
-// the whole tail (65.71%, and 33.94% while y/z were still struct offsets).
-// Reading y/z as g_WorldMapPlayerPosition.y/.z scores 77.76% but emits lui/lw 4(a0)/8(a0)
-// relocations retail does not have.
-// Preset screen: cdk 76.59, gcc-2.6.0 46.47.
+// Best: 79.41%, 136 bytes = retail's exact size. Instruction multiset, relocations and
+// every store offset match; only two residues: retail loads x, y, z in that order after
+// the unk7C store and mine hoists the z load to the top of the function, and retail puts
+// x in $a0 / y in $a1 where this alloc gives x $a1 / y $a0. The six target stores must be
+// one do/while block or gcc interleaves them (46.63 without it, 33.94 with plain inline
+// reads); swapping the x/y declaration order, moving the command store inside the block
+// and reading the globals inline in the block all measure worse (76.03-79.41).
+// Preset screen: cdk 34.09 on the plain body.
 /*
 s32 func_800813E8(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
-    s32 x;
     s32 y;
+    s32 x;
     s32 z;
 
-    pSlot->command = 1;
-    pSlot->state = 0;
     g_WorldMapRotationMatrixValid = 0;
     pSlot->unk7C = 0x1000;
     x = g_WorldMapPlayerPosition.x;
     y = g_WorldMapPlayerPositionY;
     z = g_WorldMapPlayerPositionZ;
     g_WorldMapFadeLevel = 0x78;
-    g_WorldMapCameraTarget = x;
-    g_WorldMapScrollTargetX = x;
-    g_WorldMapCameraTargetY = y;
-    g_WorldMapScrollTargetY = y;
-    g_WorldMapCameraTargetZ = z;
-    g_WorldMapScrollTargetZ = z;
+    do { // keeps the six target stores in source order
+        g_WorldMapCameraTarget = x;
+        g_WorldMapScrollTargetX = x;
+        g_WorldMapCameraTargetY = y;
+        g_WorldMapScrollTargetY = y;
+        g_WorldMapCameraTargetZ = z;
+        g_WorldMapScrollTargetZ = z;
+    } while (0);
+    pSlot->command = 1;
+    pSlot->state = 0;
     return 1;
 }
 */
@@ -569,25 +564,26 @@ void WorldMapInitPolyFt4Prims(WorldMapEntry *pEntry, POLY_FT4 *pPrim, s32 count,
     memcpy(pEntry->pPackets[1], pEntry->pPackets[0], count * sizeof(POLY_FT4));
 }
 
-// Best: 66.00%. Structure, relocations and offsets are all right (the call,
-// the three >>12 stores, the six slot stores); gcc's scheduler hoists the
-// g_WorldMapPlayerPositionY/g_WorldMapPlayerPositionZ loads and the g_WorldMapGroups load above the `sh 0x20`
-// store and sinks the g_WorldMapPlayerPosition load to its store, retail keeps statement
-// order. Locals x/y/z and a late pEntry assignment were no better.
-// Preset screen: cdk 50.54, gcc-2.6.0 58.56.
+// Best: 79.06%, 200 bytes = retail's exact size. Structure, relocations and every store
+// offset match; the residues are placement only: the g_WorldMapGroups load sits in the
+// prologue here (retail parks it between the pos.y load and its add), and the Z load is
+// hoisted above the pos.x store (retail loads it after the three unk stores). The
+// do/while after the state store is required (66.00 without it). Preset screen: cdk
+// 75.76, gcc-2.6.0 compile-failed.
 /*
 s32 func_800817A0(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     WorldMapEntry *pEntry = &g_WorldMapGroups[2];
 
     pSlot->state = 0;
+    do { } while (0); // keeps the position loads below the state store
     pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    pSlot->pos.y = g_WorldMapPlayerPositionY - 0x100000;
-    pSlot->pos.z = g_WorldMapPlayerPositionZ;
+    pSlot->pos.y = g_WorldMapPlayerPositionY + 0xFFF00000;
     pSlot->unk50 = 0;
     pSlot->unk54 = 0;
     pSlot->unk58 = 0;
-    WorldMapInitPolyFt4Prims(pEntry, pEntry->unk48, *(u16 *)(pEntry->unk40 + 4), 1);
+    pSlot->pos.z = g_WorldMapPlayerPositionZ;
+    WorldMapInitPolyFt4Prims(pEntry, pEntry->pPackets[0], pEntry->pModel->polyCount, 1);
     pEntry->x = pSlot->pos.x >> 12;
     pEntry->y = pSlot->pos.y >> 12;
     pEntry->z = pSlot->pos.z >> 12;
@@ -964,46 +960,50 @@ s32 WorldMapSetSlotScriptTable(s32 index) {
     g_WorldMapSlots[index].unk50 = (u32)D_8009A758;
     return 1;
 }
-// Best: 39.15%. Blocker is gcc's store-to-load forwarding: retail stores 0 to
-// g_WorldMapViewRotationY/g_WorldMapViewRotationZ and reads them back with `lh` to build the two `<< 12`
-// slot stores, while this gcc folds the read to 0 and drops the sll (which also
-// shuffles the whole tail). Same blocker as misc8's func_8008390C (84.75%).
-// Preset screen: cdk 36.73, gcc-2.6.0 40.43.
+// Best: 65.30%, 240 bytes against retail's 200 (objdiff prints 46.63 without the
+// two do/while barriers, 19.28 with plain per-statement reads). Retail's emission order
+// is reproduced exactly for the three position triples (one reused s32 local, as retail
+// reuses $v0) and the volatile zero stores are what keep retail's `lh` reloads, but gcc
+// permutes the constant stores of the tail and fills the three load-delay slots with
+// nops where retail fills them from the tail. Preset screen: cdk 36.73, gcc-2.6.0 40.43.
 /*
 s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
-    s32 a;
-    s32 b;
+    s32 v;
 
     pSlot->unk7C = 0x1000;
-    g_WorldMapCameraTarget = g_WorldMapPlayerPosition.x;
-    g_WorldMapScrollTargetX = g_WorldMapPlayerPosition.x;
-    pSlot->pos.x = g_WorldMapPlayerPosition.x;
-    g_WorldMapCameraTargetY = g_WorldMapPlayerPositionY;
-    g_WorldMapScrollTargetY = g_WorldMapPlayerPositionY;
-    pSlot->pos.y = g_WorldMapPlayerPositionY;
-    g_WorldMapCameraTargetZ = g_WorldMapPlayerPositionZ;
-    g_WorldMapScrollTargetZ = g_WorldMapPlayerPositionZ;
-    pSlot->pos.z = g_WorldMapPlayerPositionZ;
+    do { } while (0); // keeps the position stores above the constant stores
+    v = g_WorldMapPlayerPosition.x;
+    g_WorldMapCameraTarget = v;
+    g_WorldMapScrollTargetX = v;
+    pSlot->pos.x = v;
+    v = g_WorldMapPlayerPositionY;
+    g_WorldMapCameraTargetY = v;
+    g_WorldMapScrollTargetY = v;
+    pSlot->pos.y = v;
+    v = g_WorldMapPlayerPositionZ;
+    g_WorldMapCameraTargetZ = v;
+    g_WorldMapScrollTargetZ = v;
+    pSlot->pos.z = v;
+    do { } while (0);
     pSlot->state = 0;
     pSlot->command = 0;
     pSlot->unk5C = 0x500000;
     g_WorldMapCameraRot = -0x220;
-    g_WorldMapViewRotationY = 0;
-    g_WorldMapViewRotationZ = 0;
+    *(volatile s16 *)&g_WorldMapViewRotationY = 0;
+    *(volatile s16 *)&g_WorldMapViewRotationZ = 0;
     pSlot->unk50 = 0xFFDE0000;
     pSlot->unk38 = 0xFFDE0000;
-    a = g_WorldMapViewRotationY;
     g_WorldMapRotationMatrixValid = 0;
     g_WorldMapCameraHeight = 0x500000;
-    pSlot->unk54 = a << 12;
-    pSlot->unk3C = a << 12;
-    b = g_WorldMapViewRotationZ;
+    pSlot->unk54 = g_WorldMapViewRotationY << 12;
+    pSlot->unk3C = g_WorldMapViewRotationY << 12;
     g_WorldMapFadeLevel = 0x78;
-    pSlot->unk58 = b << 12;
-    pSlot->unk40 = b << 12;
+    pSlot->unk58 = g_WorldMapViewRotationZ << 12;
+    pSlot->unk40 = g_WorldMapViewRotationZ << 12;
     return 1;
 }
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800828DC);
