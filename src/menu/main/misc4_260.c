@@ -88,6 +88,92 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
+/* 99.15% (1120 bytes, retail's exact size): the four-digit-block body is retail's
+   instruction for instruction except two moved constants.
+   1. the else arm hoists `li s3,5` (the gear glyph count) to the top of the block;
+      retail emits it after the `lbu` of the character's gearId. Measured the same
+      with the count/base pair written before the value, after it, and as
+      `value; base; count`.
+   2. the prologue's argument copies come out in a different order (a3's copy is
+      emitted first here; retail has the stack argument's `lw s4`, then a0, a3, a1).
+      The same delta appears in func_801CF5E4 above, so it is one allocator
+      behaviour rather than a per-function source shape.
+   Structure worth keeping: `value` is assigned in each arm and parsed once (retail
+   has one jal MenuParseNumberToDigits); each block re-reads `g_Menu->digits[...]`
+   in its loop test; blocks 2 and 4 carry a separate placed-glyph counter for the
+   x argument while blocks 1 and 3 use the digit index; blocks 3 and 4 only run for
+   the character arm (arg5 == 0), which is the trailing `if (arg5 == 0)`. Putting
+   block 3's x back onto the digit index is what took this from 97.79 to 99.15. */
+/* void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
+    s32* pX = (s32*)arg3;
+    s32* pY = (s32*)arg4;
+    u32 value;
+    s32 glyphCount;
+    s32 glyphBase;
+    s32 i;
+    s32 j;
+    u_char digit;
+
+    if (arg5 == 0) {
+        value = g_GameState.characters[characterIndex].hp;
+        glyphCount = 3;
+        glyphBase = 6;
+    } else {
+        value = g_GameState.gears[g_GameState.characters[characterIndex].gearId].hp;
+        glyphCount = 5;
+        glyphBase = 4;
+    }
+    MenuParseNumberToDigits(value);
+    pCharacter->hpStringLength = 0;
+    for (i = 0; i < glyphCount; i++) {
+        digit = g_Menu->digits[glyphBase + i];
+        if (digit != MENU_DIGIT_NONE) {
+            pCharacter->hpStringLength += func_8002675C(g_Menu->resources, digit,
+                &pCharacter->polysHpString[pCharacter->hpStringLength * 2], g_Menu->renderContext,
+                i * MENU_DIGIT_SPACING + pX[12], localIndex * 0x38 + pY[12], 0x1000);
+        }
+    }
+    if (arg5 == 0) {
+        value = g_GameState.characters[characterIndex].maxHp;
+    } else {
+        value = g_GameState.gears[g_GameState.characters[characterIndex].gearId].maxHp;
+    }
+    MenuParseNumberToDigits(value);
+    pCharacter->maxHpStringLength = 0;
+    for (i = 0, j = 0; i < glyphCount; i++) {
+        digit = g_Menu->digits[glyphBase + i];
+        if (digit != MENU_DIGIT_NONE) {
+            pCharacter->maxHpStringLength += func_8002675C(g_Menu->resources, digit,
+                &pCharacter->polysMaxHpString[pCharacter->maxHpStringLength * 2], g_Menu->renderContext,
+                j * MENU_DIGIT_SPACING + pX[13], localIndex * 0x38 + pY[13], 0x1000);
+            j++;
+        }
+    }
+    if (arg5 == 0) {
+        MenuParseNumberToDigits(g_GameState.characters[characterIndex].mp);
+        pCharacter->mpStringLength = 0;
+        for (i = 0; i < 2; i++) {
+            digit = g_Menu->digits[7 + i];
+            if (digit != MENU_DIGIT_NONE) {
+                pCharacter->mpStringLength += func_8002675C(g_Menu->resources, digit,
+                    &pCharacter->polysMpString[pCharacter->mpStringLength * 2], g_Menu->renderContext,
+                    i * MENU_DIGIT_SPACING + pX[14], localIndex * 0x38 + pY[14], 0x1000);
+            }
+        }
+        MenuParseNumberToDigits(g_GameState.characters[characterIndex].maxMp);
+        pCharacter->maxMpStringLength = 0;
+        for (i = 0, j = 0; i < 2; i++) {
+            digit = g_Menu->digits[7 + i];
+            if (digit != MENU_DIGIT_NONE) {
+                pCharacter->maxMpStringLength += func_8002675C(g_Menu->resources, digit,
+                    &pCharacter->polysMaxMpString[pCharacter->maxMpStringLength * 2], g_Menu->renderContext,
+                    j * MENU_DIGIT_SPACING + pX[15], localIndex * 0x38 + pY[15], 0x1000);
+                j++;
+            }
+        }
+    }
+}
+*/
 void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
     MenuBuildCharacterLabelsAndPortrait(pCharacter, arg1, arg2, arg3, arg4, arg5);
     MenuBuildCharacterLevelDigits(pCharacter, arg1, arg2, arg3, arg4);
