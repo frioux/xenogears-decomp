@@ -265,6 +265,9 @@ extern s32 WorldMapSetActorParams(s32);
 extern s32 func_8008390C(s32);
 extern s32 WorldMapInterpolatePlaneHeight(WorldMapPos *p0, WorldMapPos *p1, WorldMapPos *p2);
 extern s32 func_80083A00(s32);
+extern void WorldMapDeactivateSpriteGroup(s32 arg0);
+extern s32 WorldMapApproachValue(s32 arg0, s32 arg1, s32 arg2);
+extern void WorldMapInitSpriteGroupSprites(s32 arg0, SVECTOR *pPos, s16 *pRot);
 extern s32 WorldMapSetActorPosition(s32);
 extern s32 func_80084068(s32);
 extern u8 *g_WorldMapRenderContext;
@@ -580,6 +583,73 @@ s32 func_8008390C(s32 arg0) {
     return 1;
 }
 */
+// one register: the 0x960000 both stores share sits in $a0 here and in $a1 in
+// retail (`lui a1,0x96` just after the third position load). Everything else,
+// retail's two `lh` reloads of the angle globals included, is byte for byte.
+// What got it here, in case it helps invert that tie:
+// - The two `lh` are STORE-TO-LOAD FOLDING, not a volatile problem. The fold
+//   only fires when the read names the symbol the store wrote, so reading the
+//   angles through the neighbouring symbol `g_WorldMapCameraRot` (base
+//   0x8009BD38; +2 and +4 are the two view rotations) as s16 defeats it and
+//   brings back retail's lui/lh/sll. That relocation is base+addend where retail
+//   names the field, so diff_func never says MATCH for this body even when it is
+//   right: judge it with check_bin.sh.
+// - `v = -0x20;` before the block and `g_WorldMapCameraRot = v;` is what puts
+//   -0x20 in $v0 as retail does; the literal is materialised later.
+// - The Z angle needs its own variable (angleZ), loaded between the two 0x3C
+//   stores; otherwise gcc coalesces it into the Y value's register and the whole
+//   tail differs.
+// - 0x960000 has to be a variable assigned just after the third position load.
+//   As a literal it is materialised at its second use and the body shifts.
+// Tried on the last tie: three permuter runs (565 -> 360 -> 155 -> 95, then
+// NONE), u32/int/s32 for the constant, four declaration orders, and dropping the
+// variable altogether (that one loses retail's single `lui`, 240 bytes).
+/*
+s32 func_8008390C(s32 arg0) {
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
+    s32 cameraHeight;
+    s32 v;
+    u32 angleZ;
+    u8 *p = (u8 *)pActor;
+
+    *(s32 *)(p + 0x7C) = 0x1000;
+    v = g_WorldMapPlayerPosition[0];
+    g_WorldMapCameraTarget = v;
+    g_WorldMapScrollTargetX = v;
+    pActor->x = v;
+    v = g_WorldMapPlayerPositionY;
+    g_WorldMapCameraTargetY = v;
+    g_WorldMapScrollTargetY = v;
+    pActor->y = v;
+    v = g_WorldMapPlayerPositionZ;
+    cameraHeight = 0x960000;
+    g_WorldMapCameraTargetZ = v;
+    g_WorldMapScrollTargetZ = v;
+    pActor->z = v;
+    v = -0x20;
+    do {
+        pActor->state = 0;
+        pActor->command = 0;
+        *(s32 *)(p + 0x5C) = cameraHeight;
+    } while (0);
+    g_WorldMapCameraRot = v;
+    g_WorldMapViewRotationY = 0x400;
+    g_WorldMapViewRotationZ = 0;
+    *(s32 *)(p + 0x50) = -0x20000;
+    *(s32 *)(p + 0x38) = -0x20000;
+    v = ((s16 *)&g_WorldMapCameraRot)[1];
+    g_WorldMapRotationMatrixValid = 0;
+    g_WorldMapCameraHeight = cameraHeight;
+    *(s32 *)(p + 0x54) = v << 12;
+    angleZ = ((s16 *)&g_WorldMapCameraRot)[2];
+    *(s32 *)(p + 0x3C) = v << 12;
+    v = angleZ;
+    g_WorldMapFadeLevel = 0x78;
+    *(s32 *)(p + 0x58) = v << 12;
+    *(s32 *)(p + 0x40) = v << 12;
+    return 1;
+}
+*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80083A00);
 
 s32 WorldMapSetActorPosition(s32 arg0) {
@@ -606,6 +676,136 @@ s32 WorldMapSetActorPosition(s32 arg0) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084068);
+// Best: 99.74% at retail's exact size (932 bytes) and instruction identical -
+// the ONLY diff is the second switch's table operand (retail names
+// jtbl_800704C8, the object says `.rodata`). It cannot be linked: `make check`
+// shifts the whole overlay by 4 bytes. Cause is the table's placement, not the C.
+// This unit's .rodata range is [0x98C, 0x9EC) and retail's tables inside it are
+//   +0x00 5 words - the C switch table of WorldMapUpdateSpriteSetPrims
+//   +0x14 jtbl_80070490 (6 words) and +0x2C jtbl_800704A8 (8 words), both owned
+//         by the func_80083A00 stub's asm
+//   +0x4C jtbl_800704C8 (5 words) - this function's table
+// cc1 emits named/asm rodata and the switch tables in source order, so the order
+// above reproduces exactly; what does not is the last table's ALIGNMENT: it lands
+// at section offset 0x4C (4 mod 8) and cc1's `.align 3` pads 4 bytes, giving
+// 0x50 (build/out shows the extra zero word at 0x9D8). Section-relative, so no C
+// spelling of the switch reaches it - do not retry this one alone. It needs the
+// 4 mod 8 parity broken, i.e. every rodata owner in the unit converted in address
+// order (func_80083A00 is the big one, 392 insns with two switches) - and even
+// then the pad lands wherever the preceding data ends, so measure before trusting.
+// Everything else here is exact and worth keeping: a `switch (pActor->command)`
+// with cases 1..4 and NO default compiles to retail's balanced comparison tree,
+// and the second `switch (pActor->state)` needs an explicit `case 0: break;` (so
+// gcc counts 5 cases, its table threshold) to become a jump table at all - without
+// it gcc emits a comparison chain (90.13%).
+// Other levers found here: the scratchpad must be a base-pointer local
+// (`u8 *pScratch = (u8 *)PSX_SCRATCH;`, stores written `*(s16 *)(pScratch + 0xA0)`),
+// which is what keeps 0x1F800000 in a saved register across the calls; the tail's
+// two sprite sets need a pointer local `pEntry = &g_WorldMapGroups[7]` with the
+// stores written `pEntry[1].x` then `pEntry[0].x` (the globals form is 95.48% and
+// 8 bytes short); and the declaration order `pEntry`, `pActor`, `pScratch` is what
+// reproduces retail's entry-block load order.
+// Externs it needs (kept above): WorldMapDeactivateSpriteGroup(s32),
+// WorldMapApproachValue(s32,s32,s32), WorldMapInitSpriteGroupSprites(s32,SVECTOR*,s16*).
+/*
+s32 func_80084068(s32 arg0) {
+    WorldMapEntry *pEntry = &g_WorldMapGroups[7];
+    WorldMapActor *pActor = &g_WorldMapSlots[arg0];
+    u8 *pScratch = (u8 *)PSX_SCRATCH;
+    s32 x;
+    s32 y;
+    s32 z;
+
+    switch (pActor->command) {
+    case 1:
+        pActor->command = 0;
+        pActor->state = 1;
+        g_WorldMapGroups[8].hidden = 0;
+        g_WorldMapGroups[7].hidden = 0;
+        break;
+    case 2:
+        pActor->command = 0;
+        pActor->state = 2;
+        WorldMapDeactivateSpriteGroup(3);
+        WorldMapDeactivateSpriteGroup(5);
+        WorldMapDeactivateSpriteGroup(6);
+        WorldMapDeactivateSpriteGroup(7);
+        WorldMapDeactivateSpriteGroup(0xA);
+        break;
+    case 3:
+        pActor->command = 0;
+        pActor->state = 3;
+        WorldMapDeactivateSpriteGroup(7);
+        WorldMapDeactivateSpriteGroup(8);
+        WorldMapDeactivateSpriteGroup(9);
+        break;
+    case 4:
+        pActor->command = 0;
+        pActor->state = 4;
+        WorldMapDeactivateSpriteGroup(5);
+        WorldMapDeactivateSpriteGroup(6);
+        WorldMapDeactivateSpriteGroup(7);
+        WorldMapDeactivateSpriteGroup(0xA);
+        WorldMapDeactivateSpriteGroup(0xB);
+        WorldMapDeactivateSpriteGroup(0xC);
+        break;
+    }
+    switch (pActor->state) {
+    case 0:
+        break;
+    case 1:
+        pActor->y = WorldMapApproachValue(pActor->y, 0xFFE80000, -0x400);
+        *(s16 *)(pScratch + 0xA0) = pActor->x >> 12;
+        *(s16 *)(pScratch + 0xA4) = pActor->z >> 12;
+        *(s16 *)(pScratch + 0xA2) = pActor->y >> 12;
+        WorldMapInitSpriteGroupSprites(3, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(5, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(6, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(7, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(0xA, (SVECTOR *)(pScratch + 0xA0), 0);
+        break;
+    case 2:
+        pActor->y = WorldMapApproachValue(pActor->y, 0xFFE80000, -0x400);
+        *(s16 *)(pScratch + 0xA0) = pActor->x >> 12;
+        *(s16 *)(pScratch + 0xA4) = pActor->z >> 12;
+        *(s16 *)(pScratch + 0xA2) = pActor->y >> 12;
+        WorldMapInitSpriteGroupSprites(7, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(8, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(9, (SVECTOR *)(pScratch + 0xA0), 0);
+        break;
+    case 3:
+        pActor->y = WorldMapApproachValue(pActor->y, 0xFFE80000, -0x400);
+        *(s16 *)(pScratch + 0xA0) = pActor->x >> 12;
+        *(s16 *)(pScratch + 0xA4) = pActor->z >> 12;
+        *(s16 *)(pScratch + 0xA2) = pActor->y >> 12;
+        WorldMapInitSpriteGroupSprites(5, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(6, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(7, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(0xA, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(0xB, (SVECTOR *)(pScratch + 0xA0), 0);
+        WorldMapInitSpriteGroupSprites(0xC, (SVECTOR *)(pScratch + 0xA0), 0);
+        break;
+    case 4:
+        pActor->y = WorldMapApproachValue(pActor->y, 0xFFE80000, -0x400);
+        *(s16 *)(pScratch + 0xA0) = pActor->x >> 12;
+        *(s16 *)(pScratch + 0xA4) = pActor->z >> 12;
+        *(s16 *)(pScratch + 0xA2) = pActor->y >> 12;
+        WorldMapInitSpriteGroupSprites(0xD, (SVECTOR *)(pScratch + 0xA0), 0);
+        *(s16 *)(pScratch + 0xA2) = 0;
+        WorldMapInitSpriteGroupSprites(0xE, (SVECTOR *)(pScratch + 0xA0), 0);
+        break;
+    }
+    x = pActor->x >> 12;
+    pEntry[1].x = x;
+    pEntry[0].x = x;
+    y = pActor->y >> 12;
+    pEntry[1].y = y;
+    pEntry[0].y = y;
+    z = pActor->z >> 12;
+    pEntry[1].z = z;
+    pEntry[0].z = z;
+    return 1;
+*/
 void WorldMapLoadTextureClut(void) {
     RECT rect;
     FadeParams factors = D_800704DC;
