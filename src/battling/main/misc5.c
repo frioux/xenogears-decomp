@@ -847,7 +847,8 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
    counter=$t0, entry=$t1, entry+7=$a1, prim=$a2, state=$a3; gcc puts
    state=$t0, counter=$t1, entry=$a0, entry+7=$a2, prim=$a3. Tried with no
    effect on the allocation: the local declaration order (seven permutations),
-   reading the camera as s32*/u32*, u32 state / u32 counter / s32 link / u32
+   reading the camera through s32 or u32
+   pointers, u32 state / u32 counter / s32 link / u32
    buffer, and loading the camera before vs after the entry/prim preheader. The
    single size lever that DID land here was dropping a pPrim local and masking
    the prim address inline, `(u32)(pTemplate + k) & 0xFFFFFF` (540 -> 528, the
