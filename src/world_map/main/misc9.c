@@ -18,9 +18,9 @@ extern u16 g_WorldMapLevelGroupIds[];
 extern u_char* g_WorldMapPrimBlocks;
 extern u_char* g_WorldMapTileVertexBuffer;
 extern u16 g_WorldMapClutIds[];
-extern u_char* g_WorldMapSpritePrims;
+extern u_char* g_WorldMapSpritePrims[];
 extern u_char* D_8009D7EC;
-extern u_char* g_WorldMapSemiTransPrims;
+extern u_char* g_WorldMapSemiTransPrims[];
 extern u_char* D_8009D7FC;
 extern s16 D_8009AFA0[];
 extern u16 D_8009B688[];
@@ -184,17 +184,15 @@ void WorldMapRelocateMapEntryOffsets(void) {
 // lwl/lwr and scores 60%). func_800865A0 shows the identical idiom with
 // g_WorldMapSemiTransPrims. Screen: cdk 92.21, 2.6.0 92.27, best 92.27 here - not
 // a compiler miss.
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80085FE0);
-/*
 void func_80085FE0(void) {
     POLY_FT4* pPrim;
     POLY_FT4* pDst;
     POLY_FT4* pSrc;
     s32 i;
 
-    g_WorldMapSpritePrims = HeapAlloc(0x5000, 1);
+    g_WorldMapSpritePrims[0] = HeapAlloc(0x5000, 1);
     D_8009D7EC = HeapAlloc(0x5000, 1);
-    pPrim = (POLY_FT4*)g_WorldMapSpritePrims;
+    pPrim = (POLY_FT4*)g_WorldMapSpritePrims[0];
     for (i = 0; i < 0x200; i++, pPrim++) {
         setPolyFT4(pPrim);
         setRGB0(pPrim, 0x80, 0x80, 0x80);
@@ -209,14 +207,13 @@ void func_80085FE0(void) {
         setClut(pPrim, 0xF0, 0x1FF);
         setTPage(pPrim, 0, 0, 0x380, 0x100);
     }
-    pSrc = (POLY_FT4*)g_WorldMapSpritePrims;
+    pSrc = (POLY_FT4*)g_WorldMapSpritePrims[0];
     pDst = (POLY_FT4*)D_8009D7EC;
     memcpy(pDst, pSrc, 0x5000);
 }
-*/
 void WorldMapFreeSpritePrimBuffers(void) {
     HeapFree(D_8009D7EC);
-    HeapFree(g_WorldMapSpritePrims);
+    HeapFree(g_WorldMapSpritePrims[0]);
 }
 // Best: 95.40% (660 bytes vs retail's 640). The quad setup in the scratchpad, both
 // matrix copies (g_WorldMapViewMatrix and g_WorldMapIdentityMatrix into 0x1F800028/0x1F800048), RotMatrixZ
@@ -277,7 +274,7 @@ void func_8008615C(void) {
             pEntry = (WorldMapTableEntry*)(pTable + id * 8);
             if (pEntry->count != 0) {
                 func_80099BFC((u8*)pEntry->offset, pEntry->count, g_WorldMapRenderContext[0x1C],
-                              ((u8**)&g_WorldMapSpritePrims)[g_WorldMapPrimPacketIndex] + D_8009BE04 * 0x28);
+                              g_WorldMapSpritePrims[g_WorldMapPrimPacketIndex] + D_8009BE04 * 0x28);
             }
         }
     }
@@ -342,37 +339,45 @@ void WorldMapFreeTileVertexBuffers(void) {
     HeapFree(g_WorldMapTileVertexSteps);
     HeapFree(g_WorldMapTileVertexBuffer);
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_800865A0);
-// Best: 53.39%. Shape recovered: 0x120 POLY_FT4 primitives in g_WorldMapSemiTransPrims, each
-// getting setPolyFT4 + setRGB0(0x26,0x26,0x26) + tpage GetTPage(0,1,0x3C0,0x100)
-// + clut GetClut(0x130,0x1FE) + SetSemiTrans(p,1), then a 0x2D00-byte memcpy
-// into D_8009D7FC (gcc inlines it as the 16-bytes-per-iteration loop). Retail
-// hoists both 9 and 0x2C into callee-saved s5/s4 and re-reads g_WorldMapSemiTransPrims through
-// the CSE'd symbol address in s0 (frame 0x30, six saved regs); ours rematerialises
-// 0x2C per iteration with li and reloads the symbol with a fresh lui (frame 0x28).
-/*
+// The array form of the extern is deliberate: it is what makes gcc materialise the
+// global's ADDRESS into a callee-saved register (retail: lui/addiu into s0, store of
+// HeapAlloc #1 in the second call's delay slot, reload through s0) instead of the
+// assembler's lui $at / sw %lo(sym) macro. Same lever as func_80085FE0 above.
 void func_800865A0(void) {
     POLY_FT4* pPrim;
     POLY_FT4* pSrc;
+    POLY_FT4* pDst;
     s32 i;
+    s32 primCode;
+    s32 primShade;
+    s32 primLen;
 
-    g_WorldMapSemiTransPrims = HeapAlloc(0x2D00, 1);
+    g_WorldMapSemiTransPrims[0] = HeapAlloc(0x2D00, 1);
     D_8009D7FC = HeapAlloc(0x2D00, 1);
-    pPrim = (POLY_FT4*)g_WorldMapSemiTransPrims;
+    pPrim = (POLY_FT4*)g_WorldMapSemiTransPrims[0];
+    // The three packet values are load-bearing locals: gcc hoists a value that is
+    // assigned in the loop into a callee-saved register, which is how retail gets
+    // 0x26/9/0x2C into s3/s5/s4 and a 0x30 frame; literals leave one of them as an
+    // in-loop li (frame 0x28, 53%).
+    primShade = 0x26;
     for (i = 0; i < 0x120; i++, pPrim++) {
-        setPolyFT4(pPrim);
-        setRGB0(pPrim, 0x26, 0x26, 0x26);
+        primLen = 9;
+        primCode = 0x2C;
+        setlen(pPrim, primLen);
+        setcode(pPrim, primCode);
+        setRGB0(pPrim, primShade, primShade, primShade);
         pPrim->tpage = GetTPage(0, 1, 0x3C0, 0x100);
         pPrim->clut = GetClut(0x130, 0x1FE);
         SetSemiTrans(pPrim, 1);
     }
-    pSrc = (POLY_FT4*)g_WorldMapSemiTransPrims;
-    memcpy(D_8009D7FC, pSrc, 0x2D00);
-}*/
+    pSrc = (POLY_FT4*)g_WorldMapSemiTransPrims[0];
+    pDst = (POLY_FT4*)D_8009D7FC;
+    memcpy(pDst, pSrc, 0x2D00);
+}
 
 void WorldMapFreeSemiTransPrimBuffers(void) {
     HeapFree(D_8009D7FC);
-    HeapFree(g_WorldMapSemiTransPrims);
+    HeapFree(g_WorldMapSemiTransPrims[0]);
 }
 
 void WorldMapWrapTileVertexPositions(void) {
