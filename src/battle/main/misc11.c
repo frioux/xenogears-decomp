@@ -117,11 +117,11 @@ typedef struct {
     /* 0x2DC */ u8 unk2DC;
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
-    /* 0x2DF */ u8 unk2DF;
+    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; func_80087AF0 also uses it as the step index into the action-id table
     /* 0x2E0 */ u8 colorShift; // subtracted from each colour byte of the slot's prims after << 4
     /* 0x2E1 */ u8 commandQueued; // set when a handler queued its command, so its next call returns at once
     /* 0x2E2 */ u8 lastMenuState; // the menuState the current frame was built for
-    /* 0x2E3 */ u8 unk2E3;
+    /* 0x2E3 */ u8 gaugeSpent; // set when a confirmed command spent gauge; func_80080160 then folds the leftover reading into the slot display value
     /* 0x2E4 */ u8 unk2E4;
     /* 0x2E5 */ u8 unk2E5;
     /* 0x2E6 */ u8 commandId; // the picked command, indexes the 0x10-byte command entry rows
@@ -880,7 +880,7 @@ void BattleAppendCommandRecord(u8 arg0) {
        `andi a0,s1,0xff` (98.33 -> 98.51). Round 341 measured the same cast as a
        regression to 97.26, but that was on the body WITHOUT (f): the extra andi it
        reported was the bnez-target damage, not the cast.
-   CLOSED THIS ROUND (341): case 4's arm ends with its OWN unk2DF++, so the source has
+   CLOSED THIS ROUND (341): case 4's arm ends with its OWN gaugeCost++, so the source has
    three separate read-modify-writes of 0x2DF (case 4, case 7, case 6) - that is
    retail's third copy at 0x80081E60, and adding it took the honest body 1328 -> 1356,
    retail's exact size. With it round 340's two permuter duplicate-arm blocks (case 6's
@@ -895,11 +895,11 @@ void BattleAppendCommandRecord(u8 arg0) {
         on an otherwise identical tree; a nop-return-type / statement reorder test is
         the only lever left and it rewrites the whole function.
    (ii) the gauge quotient lands in $v0 with mfhi $a3 where retail has $v1, because
-        retail materialises li v0,1 (the unk2E3 store's constant) BETWEEN the
+        retail materialises li v0,1 (the gaugeSpent store's constant) BETWEEN the
         division's `sra` and the timers `sh`, and that register is then taken. A
         `remain = 1;` statement before the timer store does hoist the constant into
         the middle of the sequence but lands it before `mfhi` in $a0 (98.47) and also
-        moves case 4's `addiu` to $a0; moving unk2E3 above the timers store and a
+        moves case 4's `addiu` to $a0; moving gaugeSpent above the timers store and a
         local for the quotient were measured in round 341 at 1368 / 97.04. A
         do-while(0) around the two stores instead hoists `sll s0,s0,0x1` and
         `lui a2,0x9249` out of the table sequence (1360, 97.27).
@@ -919,7 +919,7 @@ void func_80081B58(u32 arg0) {
         return;
     }
     slot = arg0;
-    ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF = 0;
+    ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost = 0;
     BattleInitTargetSlotFlags(slot);
     switch (g_BattleMenuEvent) {
     case 5:
@@ -999,13 +999,13 @@ void func_80081B58(u32 arg0) {
                 ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4++;
             }
         }
-        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF++;
+        ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost++;
     case 7:
-        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF++;
+        ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost++;
     case 6:
-        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF++;
+        ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost++;
         if (((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue
-                - ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF >= 0) {
+                - ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost >= 0) {
             BattlePlaySoundWithBaseId(0x4D);
             BattleAppendCommandRecord(arg0);
             if (g_BattleDisplayState[0xCB] != 0) {
@@ -1018,16 +1018,16 @@ void func_80081B58(u32 arg0) {
             }
             ((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue =
                 ((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue
-                - ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF;
+                - ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost;
             func_80085D34();
             who = arg0;
             func_800861D0(g_BattleMenuEvent, who);
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 =
-                func_80087AF0(who, ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF);
+                func_80087AF0(who, ((BattleActorSlots *)g_BattleCommandQueue)->gaugeCost);
             g_BattleSlotCountdownTimers[who] =
                 (g_BattleGaugeCountdownTable[((BattleActorSlots *)g_BattleCommandQueue)->gaugeMax]
                             [((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue] * 100) / 56;
-            ((BattleActorSlots *)g_BattleCommandQueue)->unk2E3 = 1;
+            ((BattleActorSlots *)g_BattleCommandQueue)->gaugeSpent = 1;
         } else {
             BattlePlaySoundWithBaseId(0x4F);
         }
