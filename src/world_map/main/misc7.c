@@ -63,10 +63,10 @@ typedef struct {
     /* 0x5C */ s32 unk5C;
     /* 0x60 */ s32 unk60;
     /* 0x64 */ u8 pad64[0x18];
-    /* 0x7C */ s32 unk7C;
+    /* 0x7C */ s32 shakeAmount; // 12-bit fixed: rand() takes its range from it
 } WorldMapSlot; // Size: 0x80
 
-typedef struct {
+typedef struct WorldMapEntry {
     /* 0x00 */ u8 unk0[0x8];
     /* 0x08 */ s32 x;
     /* 0x0C */ s32 y;
@@ -76,7 +76,7 @@ typedef struct {
     /* 0x40 */ ModelPart *pModel;
     /* 0x44 */ u32 unk44;
     /* 0x48 */ void *pPackets[2]; // prim lists, [0] source and [1] destination; g_WorldMapPrimPacketIndex picks one
-    /* 0x50 */ u8 unk50[0x4];
+    /* 0x50 */ struct WorldMapEntry *pParent;
 } WorldMapEntry; // Size: 0x54
 
 // One world map fade quad: a textured quad per fade-table entry, jittered by
@@ -599,7 +599,7 @@ s32 WorldMapUpdateSlotState(s32 index) {
 }
 // Best: 79.41%, 136 bytes = retail's exact size. Instruction multiset, relocations and
 // every store offset match; only two residues: retail loads x, y, z in that order after
-// the unk7C store and mine hoists the z load to the top of the function, and retail puts
+// the shakeAmount store and mine hoists the z load to the top of the function, and retail puts
 // x in $a0 / y in $a1 where this alloc gives x $a1 / y $a0. The six target stores must be
 // one do/while block or gcc interleaves them (46.63 without it, 33.94 with plain inline
 // reads); swapping the x/y declaration order, moving the command store inside the block
@@ -613,7 +613,7 @@ s32 func_800813E8(s32 index) {
     s32 z;
 
     g_WorldMapRotationMatrixValid = 0;
-    pSlot->unk7C = 0x1000;
+    pSlot->shakeAmount = 0x1000;
     x = g_WorldMapPlayerPosition.x;
     y = g_WorldMapPlayerPositionY;
     z = g_WorldMapPlayerPositionZ;
@@ -636,7 +636,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 // unk50 -0x10000 down to 0x630000 with g_WorldMapCameraHeight eased by diff >> 5, unk54
 // += 0x1000 clamped to 0x10000 and eased into unk58 by diff >> 4 driving
 // g_WorldMapCameraRot, unk5C += 0x10000 clamped to 0x4B0000 and eased into unk60 the same
-// way, plus the func_80096F18 call and the rand()/unk7C jitter. Every residue is one
+// way, plus the func_80096F18 call and the rand()/shakeAmount jitter. Every residue is one
 // class: THIS gcc forwards a constant store to a later load where retail reloads.
 // 1. retail stores -0x80 to g_WorldMapCameraRot and -0x200 to g_WorldMapViewRotationY and
 //    then READS BOTH BACK to build unk58/unk54 and unk60/unk5C (retail's cameraRot address
@@ -709,7 +709,7 @@ s32 func_80081470(s32 index) {
             g_WorldMapViewRotationY = pSlot->unk60 >> 12;
         }
     }
-    shake = rand() % (pSlot->unk7C >> 12) - (pSlot->unk7C >> 13);
+    shake = rand() % (pSlot->shakeAmount >> 12) - (pSlot->shakeAmount >> 13);
     *(s16 *)0x1F8000A2 = shake;
     D_8009BD42 = D_8009BD42 + shake;
     D_8009BD4A = D_8009BD4A + *(s16 *)0x1F8000A2;
@@ -1213,7 +1213,7 @@ s32 func_800827EC(s32 index) {
     WorldMapSlot *pSlot = &g_WorldMapSlots[index];
     s32 v;
 
-    pSlot->unk7C = 0x1000;
+    pSlot->shakeAmount = 0x1000;
     do { } while (0); // keeps the position stores above the constant stores
     v = g_WorldMapPlayerPosition.x;
     g_WorldMapCameraTarget = v;
