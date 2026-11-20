@@ -164,7 +164,6 @@ void FieldScriptSetGearStateFlag(void) {
 // NOTE the command dispatch must be a switch: an if/else chain compiles to a linear
 // compare chain (77.68%) and the original has gcc's comparison tree. It does not
 // generate a jump table (no jtbl_ relocation, 532 bytes).
-/*
 extern s32 D_800C3A48;
 extern s32 D_800AF87C;
 extern s16 D_800AFC58;
@@ -177,13 +176,24 @@ extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 // Captures or restores the screen region described by the script instruction: 0
 // grabs it into two freshly allocated buffers, 1 copies one back with
 // func_80026F44, 2 frees the buffers and 3 only advances the pointer.
+// Round 323: still 532 bytes / 97.81%, five substituted instructions and nothing
+// else. The case-0 group is a pure $s1/$s2 flip (retail's `move s1,v0` sits in the
+// second GetArgument's delay slot, so y=s1 and h=s2; ours copies the first result
+// into s2 and shifts s1) and neither order of the `y`/`h` declarations moves it -
+// measured both. A `u16 y, h` pair costs the size (536) and `s16 offset` in case 1
+// measures 98.23% at 540 bytes (`sll s0,s0,0x19`), so both are wrong-sized. The
+// x store keeps the `lui at / sh %lo(D_800AFC58)` macro form where retail folds it
+// onto the StoreImage argument register (`sh zero,0(a0)`), with the same `la` in
+// both. A permuter run from this body (base 436 -> best 243) only proposed the
+// s16/540 shape and a castless HeapFree, so it found nothing portable.
+/*
 void func_800871B0(void) {
     u8 command = SCRIPT_READ_U8_REL(1);
 
     switch (command) {
     case 0: {
-        s32 h;
         s32 y;
+        s32 h;
 
         g_FieldScriptMaxInstructionCount += 0x20;
         y = FieldScriptVMGetArgument(2);
