@@ -923,7 +923,7 @@ void MenuCreateListWindow(u_char arg0, u_char arg1) {
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
-/* Best: 91.87%, 1268 bytes (retail 1276 = 319 insns, ours 317).
+/* Best: 96.76%, 1272 bytes, frame 0x28 (retail 1276 = 319 insns, ours 318).
    Semantics: arg2 != 0 selects the 0x2A1 slot group (characters
    .extraWeaponIds when arg3 == 0, gears .extraWeaponIds otherwise, both
    weapons inventory); arg2 == 0 selects the 0x29C/0x2A5 groups (arg1 == 0 is
@@ -938,41 +938,49 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DF0D4);
    quantity (0 clears the id, >= 100 becomes 99). Result is 1 only when the
    selected character is id 4 (the two-weapon-slot one) and its weapon slot was
    already taken.
-   FOUR EDITS, EACH MEASURED, took this from 77.65 to 91.87:
+   SEVEN MEASURED EDITS, 77.65 -> 91.87 -> 96.76:
    1. ONE SHARED EXIT (77.65 -> 87.43): `if (updated == 0) goto done;` ... with a
       single `done: return result;` at the end. The early-return spelling makes
-      gcc 2.6.0 place the return block inline and invert the branch (bnez + j),
-      which also cascades through every later block's registers; retail has
-      `andi v0,t4; beqz v0,<epilogue>`, i.e. an out-of-line exit at the END.
-   2. characterId is u_char, not s32 (87.43 -> 88.70, permuter find).
-   3. gearId is u_char, not s32 (88.70 -> 90.94).
+      gcc 2.6.0 place the return block inline and invert the branch, which also
+      cascades through every later block's registers.
+   2. characterId u_char, not s32 (87.43 -> 88.70, permuter find).
+   3. gearId u_char, not s32 (88.70 -> 90.94).
    4. pQuantities/count assigned TWICE, once per arm of an `if (arg1 != 0)`
       (90.94 -> 91.87, permuter find). Both arms are identical text; the
-      duplication is what lands pQuantities in t3 and count in t1 (retail's
-      registers) instead of t4/t1 with an extra move. The pair is really
-      `pQuantities = pIds - MAX_INVENTORY_WEAPONS` for the top-level pair only
-      (both 100-entry inventories sit one inventory before their ids array).
-   Residual (every remaining diff is register naming, 8 bytes short):
-   - retail masks arg1 IN PLACE (`andi a0,a0,0xff`) right after the character-id
-     load and keeps it in a0 (it opens with `addu a0,a1,zero`); ours masks a
-     fresh register just before the use and puts pSlot in a1. MEASURED DEAD: a
-     `u_char slot = arg1;` local (with or without a matching `u_char index =
-     arg0;`) gives slot $t2, not $a0, and 90.61/87.21 with 1280 bytes.
-   - retail's index is `andi v1,t0,0xff` off the `move t0,a0` copy, which we
-     already match; only the arg1 side differs.
-   - retail materialises weaponIDs with a full `la` in the arg3==0 arm; gcc
-     folds it to `addiu t2,t2,-900` off the gearWeaponsIds anchor (same 4 insns).
-   - the panel address is `addu v0,v0,a0` (base first) in retail, `addu
-     v1,v1,v0` here; the embedded-assignment lever was measured worse.
-   permute.sh --minutes 5 -j 2 found the characterId type (4189 -> 3624) and the
-   duplicated pair (3335 -> 2764) on the bodies of the previous round; a third run
-   from the 91.87 body has not been made. A run on the 77.65 body offered only an
-   inline_fn helper (not portable).
-   No jump table in this stub; frame is retail's 0x28 minus 0x10 here. */
+      duplication is what lands pQuantities in t3 and count in t1 instead of
+      t4/t1 with an extra move.
+   5. panelItem, a `u_char` local holding the 0x2A1 panel byte, used in BOTH
+      arg2 != 0 arms (91.87 -> 93.12 -> 96.76). It is what makes gcc copy the
+      arg1 parameter out at entry (`move a0,a1` in retail: ours `move a0,a1`
+      too now) and hoists the panel load above the gears load.
+   6. READ THE SLOT FIRST in the two inventory-argument arms: `slotItem`/
+      `newItem` before the `pIds`/`pQuantities`/`count` triple (93.12 -> 95.30).
+      That reorders which g_GameState offset cse picks as the anchor for the
+      block: retail's accessory arm materialises g_GameState+0x2DF (the
+      pre-indexed slotItem base) and derives accessoryIDs/accessoryQuantities
+      from it with plain addiu rather than the other way round.
+   7. `if (arg3 == 0) ... else ...` in both polarities measures the same; the
+      current form keeps retail's mask-before-la order.
+   RESIDUAL, 4 BYTES: retail materialises g_GameState+0x1D9C (weaponIDs) with a
+   full `lui`/`addiu` in the arg3 == 0 arm on top of the gearWeaponsIds one;
+   cc1 folds it to `addiu t2,t2,-900` because cse knows t2 holds
+   g_GameState+0x2120 across the branch. MEASURED DEAD for that fold: if/else
+   in both polarities, a ternary, `if (!arg3)`, a one-case switch, `&arr[0]`,
+   a (u32) cast, a second statement in the arm, pQuantities in the arm, and
+   -O1/-Os/2.7.2/2.7.2-cdk/2.6.0 -G0. Two full la of one symbol only appear
+   when the two arms are separate blocks (see MenuReturnWeaponToInventory), so
+   the fold needs a block cse cannot follow from the first la. The remaining
+   diffs are four `addu` operand orders (retail base-first at the panel and
+   currentCharacterIDs addresses, ours offset-first - the embedded-assignment
+   lever was measured worse on them) and this la; the branch offsets are all
+   just the 4-byte shift.
+   permute.sh --minutes 4 -j 2 from the 91.87 body found edit 5. Not re-run
+   from this body. No jump table in this stub. */
 /*
 u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
     u_char* pIds;
     u_char* pQuantities;
+    u_char panelItem;
     u_char* pSlot;
     u_char characterId;
     u_char gearId;
@@ -1002,9 +1010,10 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
     if (arg2 != 0) {
         if (arg3 == 0) {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+            panelItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
             pSlot = &g_GameState.characters[characterId].extraWeaponIds[arg1];
             slotItem = *pSlot;
-            newItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
+            newItem = panelItem;
             if (slotItem != 0) {
                 if (((u_char*)&g_GameState)[0x2286 + *pSlot] < MAX_INVENTORY_WEAPONS) {
                     newItem = 0;
@@ -1016,10 +1025,11 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
             }
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+            panelItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
             gearId = g_GameState.characters[characterId].gearId;
             pSlot = &g_GameState.gears[gearId].extraWeaponIds[arg1];
             slotItem = *pSlot;
-            newItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A1 + arg1];
+            newItem = panelItem;
             if (slotItem != 0) {
                 if (((u_char*)&g_GameState)[0x22B6 + *pSlot] < MAX_INVENTORY_WEAPONS) {
                     newItem = 0;
@@ -1043,11 +1053,11 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
             }
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
+            slotItem = g_GameState.characters[characterId].accessorySlots[arg1 - 1];
+            newItem = ((u_char*)g_Menu->pEquipmentPanel + (arg1 - 1))[0x2A6];
             pIds = g_GameState.accessoryIDs;
             pQuantities = g_GameState.accessoryQuantities;
             count = MAX_INVENTORY_ACCESSORIES;
-            slotItem = g_GameState.characters[characterId].accessorySlots[arg1 - 1];
-            newItem = ((u_char*)g_Menu->pEquipmentPanel + (arg1 - 1))[0x2A6];
         }
     } else {
         if (arg1 == 0) {
@@ -1063,12 +1073,12 @@ u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
             }
         } else {
             characterId = g_Menu->pManager->currentCharacterIDs[arg0];
-            pIds = g_GameState.gearPartsIds;
-            pQuantities = g_GameState.gearPartsQty;
-            count = MAX_INVENTORY_ITEMS;
             gearId = g_GameState.characters[characterId].gearId;
             slotItem = g_GameState.gears[gearId].accessorySlots[arg1 - 1];
             newItem = ((u_char*)g_Menu->pEquipmentPanel)[0x2A5 + arg1];
+            pIds = g_GameState.gearPartsIds;
+            pQuantities = g_GameState.gearPartsQty;
+            count = MAX_INVENTORY_ITEMS;
         }
     }
 
