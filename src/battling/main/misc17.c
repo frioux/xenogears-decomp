@@ -250,23 +250,33 @@ void func_8008E120(void) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
-/* best: objdiff 89.48% - first half exact; retail expands the `flag ? 2 : 1` argument as an if/else that repeats
-   `addu a0,zero,zero` in both arms and joins with a jump, and re-forms &D_80096E00 with a fresh lui/addiu for the
-   second AddPrim instead of keeping it in a callee-saved register.
-void func_8008E2B8(u8* p0, s32 color, s32 flag) {
-    u8* pPkt;
+/* best: objdiff 94.71% - 272 bytes against retail's 276, typed now that the two
+   prim arrays are POLY_FT4/TILE. The quad setup, both prim codes, the added
+   semi-transparency bit and the duplicated a0/zero setup of the two GetTPage
+   calls in the if/else all match. Two differences left, one instruction each
+   way: retail truncates the GetTPage result straight into the argument register
+   (andi a3,v0,0xffff) where ours copies it first (a u_short tpage local; an s32
+   local is worse, 90.58% / 268 bytes), and retail re-forms &D_80096E00 with a
+   fresh lui/addiu for both SetDrawMode and the second AddPrim where ours keeps
+   it in $s0 across the call (three instructions cheaper, hence 272 bytes).
+void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
+    TILE* pTile;
     u_short tpage;
 
-    pPkt = D_80096DE0 + g_BattleDrawBufferIndex * 0x10;
-    *(u32*)(pPkt + 0x4) = (color | (color << 8) | (color << 16)) | 0x60000000;
-    *(u8*)(pPkt + 0x7) |= 2;
-    *(u8*)(pPkt + 0x3) = 3;
-    *(u32*)(pPkt + 0x8) = 0;
-    *(u32*)(pPkt + 0xC) = 0xDA0140;
-    AddPrim(p0, pPkt);
-    tpage = GetTPage(0, flag ? 2 : 1, 0, 0);
-    SetDrawMode((DR_MODE*)(D_80096E00 + g_BattleDrawBufferIndex * 0xC), 0, 1, tpage, 0);
-    AddPrim(p0, D_80096E00 + g_BattleDrawBufferIndex * 0xC);
+    pTile = &D_80096DE0[g_BattleDrawBufferIndex];
+    BattleSetRGBCFast(pTile, color, color, color, 0x60);
+    setlen(pTile, 3);
+    BattleSetXY0Fast(pTile, 0, 0);
+    BattleSetWHFast(pTile, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
+    setSemiTrans(pTile, 1);
+    AddPrim(pOt, pTile);
+    if (flag != 0) {
+        tpage = GetTPage(0, 2, 0, 0);
+    } else {
+        tpage = GetTPage(0, 1, 0, 0);
+    }
+    SetDrawMode(&D_80096E00[g_BattleDrawBufferIndex], 0, 1, tpage, NULL);
+    AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
 }
 */
 void func_8008E3CC(u8* pOt, s32 shadeLevel, s32 drawTile) {
