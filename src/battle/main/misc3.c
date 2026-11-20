@@ -18,6 +18,41 @@
 // BattleResetSlotDisplayValues writes it to both of the slot's values.
 #define BATTLE_SLOT_DISPLAY_VALUE_EMPTY 0xFF
 
+// The pulse-triangle pool g_BattlePulseTrianglePrims points at: the eight POLY_G3
+// triangles this unit's BattleInitPulseTrianglePrims builds, then the ramp and the
+// flags the pulse reads (src/battle/main/misc2.c carries the same view).
+typedef struct {
+    /* 0x00 */ POLY_G3 prims[8];
+    /* 0xE0 */ s32 fade;     // ramp word: seeded to 0xFF here, stepped by 4 in misc2
+    /* 0xE4 */ u8 firstPrim; // index of the first triangle drawn this frame
+    /* 0xE5 */ u8 fading;    // 1 while fading down, 0 while fading up
+    /* 0xE6 */ u8 unkE6[6];
+} BattlePulseWork; // Size: 0xEC
+
+// One 0x60-byte row of the screen slot table at g_BattleTextSlotRects: the VRAM rect
+// the slot's text texture is loaded into, the buffer it is rendered into and the width
+// that came out of the render (src/battle/main/misc5.c carries the same view).
+typedef struct {
+    /* 0x00 */ RECT rect;
+    /* 0x08 */ u_long *pBuf;
+    /* 0x0C */ u8 unkC[2];
+    /* 0x0E */ u8 textWidth;
+    /* 0x0F */ u8 unkF[0x51];
+} BattleScreenSlot; // Size: 0x60
+
+// One 0x48-byte row of the command record table at g_BattleCommandRecords, as the
+// queueing tail of this unit writes it: the actor slot at +0xD, the word the
+// command carries at +0x24 and the command byte at +0x31.
+typedef struct {
+    /* 0x00 */ u8 unk0[0xD];
+    /* 0x0D */ u8 actorSlot;
+    /* 0x0E */ u8 unkE[0x16];
+    /* 0x24 */ u16 unk24;
+    /* 0x26 */ u8 unk26[0xB];
+    /* 0x31 */ u8 command;
+    /* 0x32 */ u8 unk32[0x16];
+} BattleCommandRecord; // Size: 0x48
+
 // One row of a battle sub-image: 198 halfwords of texels, uploaded as a 198x1
 // RECT because StoreImage takes its size from the rect.
 #define BATTLE_SUB_IMAGE_ROW_HALFWORDS 198
@@ -63,9 +98,7 @@ extern u8 *g_BattleSpriteArchive;
 extern BattleGraphicsWork *g_BattleGraphicsWork;
 extern u8 *g_BattleCommandQueue;
 extern BattleWork *g_BattleDisplayState;
-extern u8 D_800C400B[];
-extern u8 D_800C4022[];
-extern u8 D_800C402F[];
+extern BattleCommandRecord g_BattleCommandRecords[];
 extern u8 g_BattleCommandTiles[];
 extern u8 D_800D2E61[];
 extern s32 g_SystemSemiTransMode;
@@ -75,9 +108,7 @@ extern u16 g_BattleSlotDisplayValues[];
 extern u8 g_BattleTextSlotCount;
 extern u8 *g_BattleTextStringBank;
 extern u8 g_BattleTextActorStringIds[];
-extern u8 g_BattleTextSlotRects[];
-extern u8 g_BattleTextSlotBuffers[];
-extern u8 g_BattleTextSlotFlags[];
+extern BattleScreenSlot g_BattleTextSlotRects[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 
@@ -441,9 +472,11 @@ void BattleInitPulseTrianglePrims(void) {
             ((u8 *)g_BattlePulseTrianglePrims)[(i * 2 + j) * sizeof(POLY_G3) + 0x16] = 0;
         }
     }
+    // The ramp word stays an untyped store: written as `->fade` (s32 or a union member
+    // alike) gcc 2.7.2 sinks it behind the two flag stores and hoists 0xFF late, 97.87%.
     *(s32 *)(g_BattlePulseTrianglePrims + 0xE0) = 0xFF;
-    g_BattlePulseTrianglePrims[0xE5] = 1;
-    g_BattlePulseTrianglePrims[0xE4] = g_BattlePrimStartIndex;
+    ((BattlePulseWork *)g_BattlePulseTrianglePrims)->fading = 1;
+    ((BattlePulseWork *)g_BattlePulseTrianglePrims)->firstPrim = g_BattlePrimStartIndex;
     g_BattleDisplayState->pulseTriangleActive = 1;
 }
 
@@ -832,28 +865,25 @@ void BattleQueueCommandFA(u8 index, u8 color) {
     u8 *pEntry;
 
     if (g_BattleTextSlotCount < BATTLE_TEXT_SLOT_MAX) {
-        *(u8 *)((u8 *)&g_BattleTextSlotFlags + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE) =
+        g_BattleTextSlotRects[g_BattleTextSlotCount].textWidth =
             SystemRenderStringEntry(GetStringEntry(g_BattleTextStringBank, g_BattleTextActorStringIds[index * 8]),
-                                    *(u8 **)((u8 *)&g_BattleTextSlotBuffers + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE), 0x39,
+                                    g_BattleTextSlotRects[g_BattleTextSlotCount].pBuf, 0x39,
                                     g_BattleTextSlotCount & 1);
-        // D_800D36C0 + 0x60 is g_BattleTextSlotBuffers: naming that symbol in both calls makes
-        // cse keep the row base in one pseudo across SystemRenderStringEntry and
-        // spill it, which costs 8 bytes of frame retail does not have.
-        BattleLoadImageAndSync((RECT *)((u8 *)&g_BattleTextSlotRects + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE),
-                      *(u_long **)((u8 *)&D_800D36C0 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE + BATTLE_TEXT_SLOT_SIZE));
-        D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
-        D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFA;
+        BattleLoadImageAndSync(&g_BattleTextSlotRects[g_BattleTextSlotCount].rect,
+                               g_BattleTextSlotRects[g_BattleTextSlotCount].pBuf);
+        g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].actorSlot = color;
+        g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].command = 0xFA;
         pEntry = g_BattleCommandQueue;
-        *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = g_BattleTextSlotCount++;
+        g_BattleCommandRecords[pEntry[0x2DA]].unk24 = g_BattleTextSlotCount++;
         pEntry[0x2DA]++;
     }
 }
 void BattleQueueCommandF7(u8 color, u8 flag) {
     u8 *pEntry;
 
-    D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = flag;
-    D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF7;
+    g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].actorSlot = flag;
+    g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].command = 0xF7;
     pEntry = g_BattleCommandQueue;
-    *(u16 *)(D_800C4022 + pEntry[0x2DA] * 0x48) = color;
+    g_BattleCommandRecords[pEntry[0x2DA]].unk24 = color;
     pEntry[0x2DA]++;
 }
