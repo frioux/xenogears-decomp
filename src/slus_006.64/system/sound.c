@@ -2756,7 +2756,7 @@ void func_8003B424(AudioManager* pManager) {
             pElement->pWds = (u32)pWds;
             pElement->sndId = (u8)pManager->sndId;
             if (pWds != NULL) {
-                func_8003E5BC(0, pElement);
+                SoundApplyToneToElement(0, pElement);
             }
             pElement->voice_number = voice;
             pElement->voice_data.modeFlags = 0;
@@ -2897,7 +2897,7 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
             pElement->pWds = (u32)pWds;
             pElement->sndId = pSoundFile->sndId;
             if (pWds != NULL) {
-                func_8003E5BC(0, pElement);
+                SoundApplyToneToElement(0, pElement);
             }
             pElement->voice_data.modeFlags = 0;
             pElement->voice_data.priority = 0x200;
@@ -3646,7 +3646,7 @@ void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pE
 
     pTone = (SoundPercussionTone*)((percussionIndex * 4) + pAudioManager->pPercussionData);
 
-    func_8003E5BC(pTone->tone, pElement);
+    SoundApplyToneToElement(pTone->tone, pElement);
 
     note = (pTone->tune << 8) + pElement->detune + pElement->toneTune;
     pElement->note = note << 16;
@@ -3921,7 +3921,7 @@ u8* SoundScriptSetVoice(u8* pScript, AudioManager* pAudioManager, AudioElement* 
 }
 
 u8* SoundScriptSetTone(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    func_8003E5BC(*pScript++, pAudioElements);
+    SoundApplyToneToElement(*pScript++, pAudioElements);
     return pScript;
 }
 
@@ -4061,7 +4061,7 @@ s32 SoundScriptNop2(s32 arg0) {
 
 // ADSR / Envelope Reset Handler?
 u8* SoundScriptCallE5BC(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
-    func_8003E5BC(pAudioElements->toneIndex, pAudioElements);
+    SoundApplyToneToElement(pAudioElements->toneIndex, pAudioElements);
     return pScript;
 }
 
@@ -4801,7 +4801,7 @@ u8* SoundScriptSetInstrumentAndTone(u8* pScript, AudioManager* pAudioManager, Au
         pWds = g_SoundWdsLinkedList;
     }
     pAudioElements->pWds = (u32)pWds;
-    func_8003E5BC(value, pAudioElements);
+    SoundApplyToneToElement(value, pAudioElements);
     return pScript + 2;
 }
 
@@ -4843,7 +4843,7 @@ u8* SoundScriptReleaseVoiceIfEnvelopeEnded(u8* pScript, AudioManager* pAudioMana
     return pScript;
 }
 
-void func_8003E5BC(s16 value, AudioElement* pElement) {
+void SoundApplyToneToElement(s16 value, AudioElement* pElement) {
     SoundWDSEntry* pWds;
     SoundWdsTone* pTone;
     u32 offset;
