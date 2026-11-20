@@ -187,18 +187,9 @@ void BattleEffectComputeAngledEllipsePosition(Misc16Work* pWork, s16* pOut, s32 
     pOut[1] = pWork->centerY + rot.vy;
     pOut[2] = pWork->centerZ + rot.vz;
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D3F4);
-/* 96.92% - everything matches except the load of g_BattleEffectUpdateTable into $a0
-   where retail uses $v1 (and therefore has a nop after the lw before the
-   store to pUpdate).  Tried: an s16 second parameter, a s32 one with an
-   explicit (s16) cast on the index (that one fixes the updateKind store's extra
-   move), and an s32 then u32 local for the loaded word declared first or
-   last.  The register is an allocator pick; $a0 is free at that point in
-   both versions.
 Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     Misc16Work* pWork;
     Misc16Kind* pKind;
-    u32 kind;
 
     HeapSetCurrentContentType(0x15);
     pWork = (Misc16Work*)HeapAlloc(0x7C, 0);
@@ -226,8 +217,8 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     pWork->halfRangeX = (s16)pWork->rangeX / 2;
     pWork->halfRangeY = (s16)pWork->rangeY / 2;
     pWork->halfRangeZ = (s16)pWork->rangeZ / 2;
-    kind = g_BattleEffectUpdateTable[(s16)arg1];
-    pWork->pUpdate = kind;
+    /* volatile: a plain store lets gcc hoist the HalveEntryCountFn load above it */
+    *(volatile s32*)&pWork->pUpdate = g_BattleEffectUpdateTable[(s16)arg1];
     pWork->pEntries = NULL;
     pWork->kindIndex = arg0;
     pWork->pHalveEntryCountIfBelow = g_BattleEffectHalveEntryCountFn;
@@ -244,7 +235,6 @@ Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
     pWork->pInitEntry = pKind->pInitEntry;
     return pWork;
 }
-*/
 /* Header every battle-effect entry starts with. An entry is pWork->entrySize bytes
    long (the kind table's size), so the walk keeps a byte cursor and casts; indexing
    it (pEntries + i * entrySize) makes gcc emit a mult loop (36%).  The first
