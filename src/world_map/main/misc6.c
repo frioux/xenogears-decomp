@@ -256,7 +256,7 @@ extern int WorldMapInitActorScript(int);
 extern s16 g_WorldMapCameraRot[];
 extern u16 g_WorldMapViewRotationZ;
 extern u16 g_WorldMapPathFrame;
-extern u16 D_8009BD42;
+extern u16 D_8009BD42[];
 extern u16 D_8009BD4A;
 extern s32 g_WorldMapCameraHeight;
 extern int rand(void);
@@ -1331,21 +1331,50 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
    found nothing; do not go back to it.
 */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
-/* int func_80080600(int index) {
+/* 86.95%, round 322. objdiff reports 768 bytes on both sides (retail is 192
+   instructions; older notes claiming 764 were wrong), so the park below is
+   exactly retail's size and its last two thirds are identical apart from
+   register names. Landed this round:
+   - `D_8009BD42` is declared as an unbounded ARRAY and reached as `[0]`, which
+     is what makes cc1 keep the counter's address in a register the way retail
+     does (`lui a3,%hi / addiu a3,%lo` once, then `lhu`/`sh` off it).
+   - `nDelta = (pActor->scale = pActor->scale - 0x10000);` (embedded assignment)
+     and `*(s16 *)(0xA2 + pScratch)` (index-first sum) are both worth ~0.3%.
+   - `case 2: break;` in the second `switch (pActor->state)`: retail really does
+     test state == 2 and send it to the end, so the switch has three case nodes
+     even though 2 does nothing.
+   Two residuals, both allocation/ordering rather than structure:
+   (1) the second switch's decision tree: retail emits an UNBALANCED chain
+     (`beq 1; slti <2; bnez end; li 2; beq end; li 3; beq case3; j end`), cc1
+     here emits the balanced pivot-2 tree for the same three labels (same 11
+     instructions, different order). The first switch on `command` comes out
+     balanced in both, so this is not the narrow-index lever.
+   (2) case 1: the angle base lands in $v1 where retail has $a0, which drags the
+     0x800000 constant into $v0 and makes the scheduler hoist the ViewRotY `lh`
+     into the first `lh`'s load delay slot, where retail has a `nop`. Two
+     4-minute permuter runs found only candidates that delete or move a store
+     (wrong code), so they were not ported. Everything else in the body (the
+     0x10000/0x4000/0x10000 decrement chain, the clamps, the rand tail) is
+     register-rotated by one: ours v1/a1/v0 where retail has v0/a0/v1.
+*/
+/*
+int func_80080600(int index) {
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
+    s16 *pAngle;
     s32 nValue;
     s32 nDelta;
 
     switch (pActor->command) {
     case 1:
+        pAngle = g_WorldMapCameraRot;
         pActor->state = 1;
         pActor->command = 0;
-        *(volatile s16 *)g_WorldMapCameraRot = 0x10;
+        *(volatile s16 *)pAngle = 0x10;
         *(volatile s16 *)&g_WorldMapViewRotationY = 0x8E0;
         *(volatile u16 *)&g_WorldMapViewRotationZ = 0;
         pActor->stateIndex = 0x800000;
-        nValue = g_WorldMapCameraRot[0] << 12;
+        nValue = pAngle[0] << 12;
         pActor->pStateFrames = (void *)nValue;
         pActor->pStateIds = (void *)nValue;
         nValue = g_WorldMapViewRotationY << 12;
@@ -1389,8 +1418,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
             pActor->pStateFrames = (void *)nValue;
             g_WorldMapCameraRot[0] = nValue >> 12;
         }
-        nDelta = pActor->scale - 0x10000;
-        pActor->scale = nDelta;
+        nDelta = (pActor->scale = pActor->scale - 0x10000);
         if (nDelta <= 0x2DFFFF) {
             pActor->scale = 0x2E0000;
         }
@@ -1400,6 +1428,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
             pActor->unk60[0] = nValue;
             g_WorldMapViewRotationY = nValue >> 12;
         }
+        break;
+    case 2:
         break;
     case 3:
         pActor->unk7C -= 0x4000;
@@ -1411,9 +1441,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
     }
     nValue = rand() % (pActor->unk7C >> 12);
     nValue -= pActor->unk7C >> 13;
-    *(s16 *)(pScratch + 0xA2) = (s16)nValue;
-    D_8009BD42 += nValue;
-    D_8009BD4A += *(u16 *)(pScratch + 0xA2);
+    *(s16 *)(0xA2 + pScratch) = (s16)nValue;
+    D_8009BD42[0] += nValue;
+    D_8009BD4A += *(u16 *)(0xA2 + pScratch);
     return 1;
 }
 */
