@@ -914,7 +914,7 @@ typedef struct {
     /* 0x14E */ u16 unk14E;
 } BattleCommandRow; // Size: 0x150
 
-void func_800B89FC(s32 arg0, s32 slot, s32 arg2, s32 arg3) {
+void BattleInitActorSlotAnimation(s32 arg0, s32 slot, s32 arg2, s32 arg3) {
     BattleUnitState *pState;
     SpriteData *pSprite;
     void *pBuffer;

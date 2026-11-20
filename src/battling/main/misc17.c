@@ -279,7 +279,7 @@ void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
     AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
 }
 */
-void func_8008E3CC(u8* pOt, s32 shadeLevel, s32 drawTile) {
+void BattleDrawEffectImage(u8* pOt, s32 shadeLevel, s32 drawTile) {
     POLY_FT4* pPrim;
     TILE* pTile;
     RECT rect;
@@ -409,7 +409,7 @@ void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
         SoundPlaySoundEffectOnPairWithLevels(pSlot->spuAddr, pSlot->elementIndex, 0x7F, 0x40);
     }
 }
-void func_8008E8B0(void) {
+void BattleUpdateSoundSlotPositions(void) {
     SVECTOR pos;
     s16 sxy[2];
     BattleSlot* pSlot;

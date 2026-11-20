@@ -70,7 +70,7 @@ extern s32 ArchiveCdDataSync(s32 mode);
 extern void func_8008E120(void);
 extern void func_8007F258(void* pOt, s32 arg);
 extern void BattleDrawTextPrims(void* pOt);
-extern void func_8008E3CC(void* pOt, s32 arg1, s32 arg2);
+extern void BattleDrawEffectImage(void* pOt, s32 arg1, s32 arg2);
 extern void func_8008BC04(void);
 extern void SoundSetAudioManagerMasterVolumeWithFade(s32 arg0, s32 arg1, s32 arg2);
 extern void BattleEffectFreeResources(void);
@@ -500,7 +500,7 @@ extern u8* BattleSetActorSoundTable(Misc10Actor* pActor);
 s32 BattleQueueActorPrims(Misc10Actor* pActor) {
     u32* pData = pActor->pDisplayWork;
 
-    func_8008E3CC((u8*)pData[g_BattleDrawBufferIndex + 1] + 8, 0xC0, 0);
+    BattleDrawEffectImage((u8*)pData[g_BattleDrawBufferIndex + 1] + 8, 0xC0, 0);
     BattleDrawTextPrims((u8*)pData[g_BattleDrawBufferIndex + 1] + 4);
     BattleAttachActorPrims(pData);
     BattleAddSharedPrim();
@@ -512,7 +512,7 @@ void BattleDrawEffectFrame(void) {
         func_8008E120();
         func_8007F258(g_BattleRootOrderingTable, 0);
         BattleDrawTextPrims(g_BattleRootOrderingTable);
-        func_8008E3CC(g_BattleRootOrderingTable, 0xC0, 1);
+        BattleDrawEffectImage(g_BattleRootOrderingTable, 0xC0, 1);
         func_8008BC04();
     }
 }
@@ -531,7 +531,7 @@ void BattleUpdateEffectTimer(void) {
             g_BattleMotionSpeedScale = 0x100;
             BattleEffectFreeResources();
         } else {
-            func_8008E3CC(g_BattleRootOrderingTable, timer, 1);
+            BattleDrawEffectImage(g_BattleRootOrderingTable, timer, 1);
         }
     } else {
         g_BattleEffectImageActive = 0;

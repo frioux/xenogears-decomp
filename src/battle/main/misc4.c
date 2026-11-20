@@ -89,7 +89,7 @@ extern void BattleQueueCommand1BAndFE(u8 arg0);
 extern void BattleClearSlotCurveState(void);
 extern void BattleClearSlotCurveEntry(void);
 extern s32 BattleFindMinValueOtherSlot(u8 arg0);
-extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
+extern void BattleInitActorSlotAnimation(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern s32 BattleSlotByteVarGetSet(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
 extern u8 D_800C3D19[];
 extern u8 D_800C3D1A[];
@@ -412,7 +412,7 @@ void func_80079778(u8 arg0) {
     BattleClearSlotCurveEntry();
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     BattleUpdateFrame();
-    func_800B89FC(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
+    BattleInitActorSlotAnimation(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
     BattleDispatchCommandRecords(arg0);
     BattleQueueCommand1BAndFE(arg0);
     while (g_BattleCommandQueue->unk2DB == 0) {

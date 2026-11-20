@@ -63,7 +63,7 @@ extern void func_8009BAC4(u8 arg0, u8 *pInfo, u8 *pField);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern void BattleInitSlotRowsForActor(s32 arg0, s32 arg1);
 extern s32 func_800877E0(s32 arg0, s32 arg1);
-extern void func_800B89FC(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern void BattleInitActorSlotAnimation(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
 extern void func_80087AF0(u8 arg0, u8 arg1);
 extern void func_8008ADD0(u8 arg0);
 extern void BattleSetSlotFlag15A1(u8 arg0);
@@ -449,7 +449,7 @@ void func_80080C94(u8 arg0) {
         }
         ret = 0;
         r = func_800877E0(arg0, (g_BattleCommandQueue + idx)[0x3C]);
-        func_800B89FC(r, arg0, (g_BattleCommandQueue + idx)[0x3C], BattleFindMinValueOtherSlot(arg0));
+        BattleInitActorSlotAnimation(r, arg0, (g_BattleCommandQueue + idx)[0x3C], BattleFindMinValueOtherSlot(arg0));
         func_80087AF0(arg0, info[1] + 1);
         BattleQueueCommandFE(arg0);
         break;

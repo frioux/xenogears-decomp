@@ -23,6 +23,10 @@ build_variables = {
     gp_flag = "-G8",
     endianness = "-EL"
 }
+# Per-file keys may sit on Default as well: a unit whose middle run needs 2.7.2 while
+# the rest of the file wants 2.6.0 keeps only that run's key here (round 314, menu/misc7).
+paths = [     "menu/main/misc7_r1.",
+]
 
 [[build_preset]]
 name = "PSY-Q"

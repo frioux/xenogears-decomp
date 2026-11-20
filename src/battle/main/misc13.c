@@ -90,7 +90,7 @@ extern u16 BattleSlotBitMask(u8);
 extern void func_80085D34(void);
 extern s32 func_800877E0(s32, s32);
 extern s32 BattleFindMinValueOtherSlot(s32);
-extern void func_800B89FC(s32, s32, s32, s32);
+extern void BattleInitActorSlotAnimation(s32, s32, s32, s32);
 extern u8 BattleSlotBitMaskInverted(u8);
 extern s32 func_8009ADA0(u8, s32 *);
 extern void BattleClearSlotCurveEntry(void);
@@ -605,7 +605,7 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
     BattleInitSlotRowsForActor(arg0, (g_BattleCommandQueue + idx)[0x3C]);
     g_BattleSoundEnabled = 0;
     r = func_800877E0(arg0, (g_BattleCommandQueue + idx)[0x3C]);
-    func_800B89FC(r, arg0, (g_BattleCommandQueue + idx)[0x3C], BattleFindMinValueOtherSlot(arg0));
+    BattleInitActorSlotAnimation(r, arg0, (g_BattleCommandQueue + idx)[0x3C], BattleFindMinValueOtherSlot(arg0));
     g_BattleSoundEnabled = 1;
     g_BattleSlotDisplayInitialized = 0;
 }

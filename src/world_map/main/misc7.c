@@ -422,7 +422,7 @@ s32 WorldMapUpdateFadeGroups(s32 index) {
 // (WorldMapFillFadeTable, WorldMapUpdateSlotColorFade), initialised the same way as
 // the other modes: load the map, its textures and its sound bank, then register each
 // slot's init/update pair. Proposed name: WorldMapInitializeFadeMode.
-void func_80080D00(void) {
+void WorldMapInitializeFadeMode(void) {
     RECT rect;
     Vec3 *pPos;
 
@@ -1073,9 +1073,9 @@ s32 WorldMapFillFadeTable(s32 index) {
     }
     return 1;
 }
-// The second fade mode: the same initialisation as func_80080D00 above, but the slot
+// The second fade mode: the same initialisation as WorldMapInitializeFadeMode above, but the slot
 // table is driven by a script and five sprite sets of its own.
-void func_80082324(void) {
+void WorldMapInitializeScriptMode(void) {
     RECT rect;
     Vec3 *pPos;
     WorldMapSlotFunc pSpriteSetInit;

@@ -574,7 +574,7 @@ void func_801CF37C(void) {
 // count and the colour table per iteration and emits `j++` ahead of the count load,
 // so the counter is bumped at the end of the body, not in the for clause; the
 // do/while(0) block schedules the tail (v3/clut/call) after the first seven stores.
-void func_801CF5E4(s32 start, s32 primIndex, s32 end) {
+void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
     s32 i;
     s32 j;
     s32 last = end;
@@ -784,8 +784,8 @@ void MenuScrollCellGridRow(void) {
 }
 void MenuAddCellGridPrims(void) {
     func_801CF37C();
-    func_801CF5E4(0, 0, 0x10);
-    func_801CF5E4(0x10, 0x10, 0x20);
+    MenuBuildCellGlyphQuads(0, 0, 0x10);
+    MenuBuildCellGlyphQuads(0x10, 0x10, 0x20);
     MenuDrawCardSlotCellLines();
     func_801CF8D8();
     MenuScrollCellGridRow();

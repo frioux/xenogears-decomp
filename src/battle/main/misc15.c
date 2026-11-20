@@ -110,7 +110,7 @@ extern void BattleQueueCommandFE(u8 arg0);
 extern void BattleApplySlotCurveAndStep(u8 arg0);
 extern void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2);
 extern s32 BattleFindMinValueOtherSlot(u8 arg0);
-extern void func_800B89FC(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
+extern void BattleInitActorSlotAnimation(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern s32 func_8008C81C(u8 arg0);
 extern void BattleNoOpCallback(s32 arg0, s32 arg1);
 extern void func_800877E0(u8 arg0, u8 arg1);
@@ -284,7 +284,7 @@ void func_8008ADD0(u8 arg0) {
     BattleApplySlotCurveAndStep(g_BattleCommandQueue->count);
     mask = BattleSlotBitMask(arg0);
     BattleBeginAnimTask(*pMask | mask);
-    func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
+    BattleInitActorSlotAnimation(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
     D_800C402F[g_BattleCommandQueue->count * 72] = g_BattleActionParam;
     D_800C400B[g_BattleCommandQueue->count * 72] = arg0;
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = *pMask;
@@ -573,7 +573,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     for (off = 0x8B8; off >= 0; off -= 0x48) {
         D_800C402F[off] = value;
     }
-    func_800B89FC(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
+    BattleInitActorSlotAnimation(1, arg0, g_BattleCommandQueue->slots[arg0].targetSlot, BattleFindMinValueOtherSlot(arg0));
     sel = g_BattleCommandEntries[g_BattleCommandQueue->commandId].flags & BATTLE_COMMAND_TARGET_MODE_MASK;
     if (sel != 0) {
         mask = g_BattleTargetSlotMask;
