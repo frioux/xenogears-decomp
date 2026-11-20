@@ -8,6 +8,7 @@
 // with one read-modify-write.
 typedef union {
     /* 0x0 */ u32 flags;
+    /* 0x0 */ u8 bytes[4];
     struct {
         /* 0x0 */ u32 unk0: 3;
         /* 0x3 */ u32 flipX: 1;
@@ -665,6 +666,118 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
+/* Best attempt: 84.31% (1104 bytes, the original's size; 276 instructions against its 276), so the
+   instruction stream, the call count and the statement order already agree. The ONE difference is a
+   callee-saved register: the original's frame is 0x40 and saves s0-s7 plus ra, this body's is 0x38
+   and saves s0-s6 plus ra. The extra register holds a value the original loads and never reads
+   again: `lw s3,36(s0)` right after `pTarget = &pAnimTask->spriteData` (pTarget->pVramData at 0x24)
+   with s3 only saved/restored afterwards. Writing `pVramData = pTarget->pVramData;` reproduces the
+   load, but gcc puts it in $v0 because the value is dead. Everything tried to make it live for one
+   instruction failed: a store back to pTarget->pVramData (adjacent, or as a redundant self-store,
+   which adds the store instead of dropping the load), a store at the tail (2 extra instructions and
+   the value lands in the wrong register), and a use in the `if (type != 0)` guard (adds a branch).
+   That missing register renames every later s-register (retail s0/s1/s2 -> this s0/s2/s1 etc.) and
+   three schedules that follow from the extra pressure: the original hoists the pTarget->flags_0xB0
+   load above the field_0x3C store, hoists the pTarget->flags_0xAC load above the flags_0xA8 store,
+   and reuses the 0x40 value it just stored (`move v1,a0`) instead of reloading it. -O3 under this
+   preset is 81.71 and gcc-2.7.2 is 81.11, so the preset is not the problem.
+   Two source facts were measured and must be kept by whoever retries: inside the flagBit block the
+   field_0x3A store comes BEFORE the field_0x40 store, and field_0x7C is the plain if/else (the
+   copy-into-the-field-then-test form measures 83.94% at 1100 bytes).
+/*
+extern u8 g_FlagTimerWorkListAdds;
+extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
+extern void func_80024730(AnimTask* pAnimTask);
+
+// Fills a fresh AnimTask's sprite from an existing one. The work-list counter is
+// saved and restored around the body because AnimTaskCreate adds work-list entries.
+SpriteData* func_80023B84(SpriteData* pSpriteData, u16* pAnimEntry, void* pAnimPackage) {
+    AnimTask* pAnimTask;
+    SpriteData* pTarget;
+    void* pVramData;
+    u8 savedWorkListAdds;
+    s32 numDirections;
+    s32 type;
+    u32 flags;
+    u32 flagBit;
+
+    savedWorkListAdds = g_FlagTimerWorkListAdds;
+    pSpriteData->flags_0xB0.flags |= 0x800;
+    if (((u32)pSpriteData->flags_0xB0.flags >> 8) & 1) {
+        g_FlagTimerWorkListAdds = 0;
+    }
+    numDirections = AnimEntryGetNumDirections(pAnimEntry);
+    if (numDirections == 3) {
+        numDirections = ((u32)pSpriteData->field_0x40 >> 13) & 0xF;
+    }
+    type = func_80023468(numDirections);
+    pAnimTask = AnimTaskCreate(numDirections, type, pAnimPackage, 0, pSpriteData->field_0x6C);
+    pAnimTask->task1.unk14_1 = 1;
+    pTarget = &pAnimTask->spriteData;
+    pVramData = pTarget->pVramData;
+    pTarget->pVramData = pVramData;
+    pTarget->field_0x40 = (pTarget->field_0x40 & 0xFFFE1FFF) | ((numDirections & 0xF) << 13);
+    g_SpriteFlags0x3C(pTarget).flags = (g_SpriteFlags0x3C(pTarget).flags & ~4) | (type & 3);
+    pTarget->field_0x40 = (pTarget->field_0x40 & ~0x1F00) | (pSpriteData->field_0x40 & 0x1F00);
+    g_SpriteFlags0x3C(pTarget).flags =
+        (g_SpriteFlags0x3C(pTarget).flags & ~8) | (g_SpriteFlags0x3C(pSpriteData).flags & 8);
+    g_SpriteFlags0x3C(pTarget).flags =
+        (g_SpriteFlags0x3C(pTarget).flags & ~0x10) | (g_SpriteFlags0x3C(pSpriteData).flags & 0x10);
+    g_SpriteFlags0x3C(pTarget).bytes[1] = g_SpriteFlags0x3C(pSpriteData).bytes[1];
+    pTarget->field_0x40 = (pTarget->field_0x40 & ~0x40000) | (pSpriteData->field_0x40 & 0x40000);
+    g_SpriteFlags0x3C(pTarget).flags = (g_SpriteFlags0x3C(pTarget).flags | 0x4000000) & ~4;
+    pTarget->moveSpeed = pSpriteData->moveSpeed;
+    pTarget->direction = pSpriteData->direction;
+    pTarget->scale = pSpriteData->scale;
+    pTarget->curSpriteFrame = pSpriteData->curSpriteFrame;
+    flagBit = ((u32)pSpriteData->flags_0xB0.flags >> 9) & 1;
+    pTarget->flags_0xB0.flags = (pTarget->flags_0xB0.flags & ~0x200) | (flagBit << 9);
+    if (flagBit) {
+        pTarget->field_0x3A = pSpriteData->field_0x3A;
+        pTarget->field_0x40 = (pTarget->field_0x40 & ~0x1F00) | 0x300;
+    }
+    flags = ((u32)pSpriteData->flags_0xA8 >> 30) | ((pSpriteData->flags_0xAC.flags & 3) << 2);
+    pTarget->flags_0xA8 = (pTarget->flags_0xA8 & 0x3FFFFFFF) | (flags << 30);
+    pTarget->flags_0xAC.flags = (pTarget->flags_0xAC.flags & ~3) | (flags >> 2);
+    pTarget->flags_0xB0.flags = (pTarget->flags_0xB0.flags & ~0x100) | (pSpriteData->flags_0xB0.flags & 0x100);
+    pTarget->flags_0xAC.flags = (pTarget->flags_0xAC.flags & ~0x40) | (pSpriteData->flags_0xAC.flags & 0x40);
+    pTarget->flags_0xAC.flags =
+        (pTarget->flags_0xAC.flags & 0xFFF8007F) | (pSpriteData->flags_0xAC.flags & 0x7FF80);
+    pTarget->flags_0xA8 &= ~1;
+    pTarget->flags_0xAC.flags = (pTarget->flags_0xAC.flags & ~4) | (pSpriteData->flags_0xAC.flags & 4);
+    if (pSpriteData->flags_0xA8 & 1) {
+        pTarget->field_0x7C = NULL;
+    } else {
+        pTarget->field_0x7C = pSpriteData->field_0x7C;
+    }
+    pTarget->field_0x70 = pSpriteData;
+    pTarget->pCurAnimFile = pSpriteData->pCurAnimFile;
+    pTarget->pDefaultAnimFile = pSpriteData->pDefaultAnimFile;
+    pTarget->pTargetEntitySprite = pSpriteData->pTargetEntitySprite;
+    pTarget->field_0x82 = pSpriteData->field_0x82;
+    pTarget->field_0x50 = pSpriteData->field_0x50;
+    pTarget->field_0x8D = pSpriteData->flags_0xAC.bytes[3];
+    pTarget->field_0x78 = pSpriteData->field_0x78;
+    pTarget->position.x = pSpriteData->position.x;
+    pTarget->position.y = pSpriteData->position.y;
+    pTarget->position.z = pSpriteData->position.z;
+    pTarget->step.x = pSpriteData->step.x;
+    pTarget->step.y = pSpriteData->step.y;
+    pTarget->step.z = pSpriteData->step.z;
+    if (type != 0) {
+        pTarget->pBase->rotation.x = pSpriteData->pBase->rotation.x;
+        pTarget->pBase->rotation.y = pSpriteData->pBase->rotation.y;
+        pTarget->pBase->rotation.z = pSpriteData->pBase->rotation.z;
+        pTarget->pBase->scale.x = pSpriteData->pBase->scale.x;
+        pTarget->pBase->scale.y = pSpriteData->pBase->scale.y;
+        pTarget->pBase->scale.z = pSpriteData->pBase->scale.z;
+    }
+    func_80023538(pTarget, pAnimEntry);
+    func_80024730(pAnimTask);
+    g_FlagTimerWorkListAdds = savedWorkListAdds;
+    return pTarget;
+}
+*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
 /* Best attempt: 85.83% (704 bytes; the original is 700). The body below is structurally right --
