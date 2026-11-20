@@ -219,7 +219,7 @@ typedef struct {
 extern u16 D_801E99F0[];
 extern u16 D_801E99F8[];
 
-void func_801E5E4C(void) {
+void MenuInitializeSlotHighlightPrims(void) {
     u16* pX;
     s32 i;
 
@@ -342,7 +342,7 @@ void MenuAllocatePrimBuffer(void) {
     g_Menu->pPrimBuffer = pMem;
     bzero(pMem, MENU_PRIM_BUFFER_SIZE);
     MenuInitializeGlyphQuadPrims();
-    func_801E5E4C();
+    MenuInitializeSlotHighlightPrims();
 }
 void MenuFreePrimBuffer(void) {
     void* pMem;

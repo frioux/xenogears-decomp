@@ -107,7 +107,7 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void func_801D5ED4(u_char index, u_char characterId);
-void func_801D6194(u_char characterId);
+void MenuSetCharacterIconPrims(u_char characterId);
 void func_801D6338(u_char index, u_char characterId);
 void func_801D680C(u_char index, u_char characterId);
 void func_801D6CF4(u_char index, u_char characterId);
@@ -236,7 +236,7 @@ void func_801D5ED4(u_char index, u_char row) {
                         D_801E9D38 - rowOffset, D_801E9D3C, width, 0xD);
 }
 */
-void func_801D6194(u_char characterId) {
+void MenuSetCharacterIconPrims(u_char characterId) {
     s32 i;
     u8* pBase;
     u8* pEntry;
@@ -489,7 +489,7 @@ extern s32 D_801E9D30;
 extern s32 D_801E9D34;
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7154);
 /* Best: 93.29% (912 bytes, retail frame 0x48 and both loops decoded). Second of
-   the two-block gear-stat renders (the sibling func_801D6194 above is the same
+   the two-block gear-stat renders (the sibling MenuSetCharacterIconPrims above is the same
    shape one field over). Block A: MenuParseNumberToDigits of the word at
    g_GameState.characters[pManager->currentCharacterIDs[a0]] + 0x44
    (weightFromEquipment|unk46), count byte g_Menu->pGearWindowPrims + 0x2AE3, then an
@@ -503,7 +503,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7154);
    Remaining diff: (1) retail loads entry+0xCD8 and entry+0xCDA TWICE (once for
    the x/y args, once for the width/height subtraction) and gcc CSEs them into
    one load plus two `move`s - the same un-CSE-able twin `lhu` as the parked
-   func_801D6194, so the source must read the fields through two spellings that
+   MenuSetCharacterIconPrims, so the source must read the fields through two spellings that
    gcc cannot prove identical; (2) the second loop keeps the SVECTOR pointer in
    s1 and the counter in s0 in retail, the reverse here, and retail forms the
    entry address as `addu v1,a0,v1` off pGearWindowPrims where gcc uses a third register
@@ -702,7 +702,7 @@ void func_801D7884(u_char index, u_char row) {
 */
 void MenuSetGearWindowContents(u_char index, u_char characterId) {
     func_801D5ED4(index, characterId);
-    func_801D6194(characterId);
+    MenuSetCharacterIconPrims(characterId);
     func_801D6338(index, characterId);
     func_801D680C(index, characterId);
     func_801D6CF4(index, characterId);

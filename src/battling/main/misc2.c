@@ -1079,7 +1079,7 @@ extern s32 Sprintf(char *, char *, ...);
 extern s32 BattleVectorDistance(u8 *, u8 *);
 extern s32 BattleVectorDistance2D(u8 *, u8 *);
 
-void func_800751C8(Actor *p0, Actor *p1) {
+void BattleUpdateRoundOverState(Actor *p0, Actor *p1) {
     char buf[0x10];
     s32 mode;
 

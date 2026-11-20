@@ -93,7 +93,7 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 s32 func_800263E4(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale, s32 mirrorX, s32 mirrorY);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void func_801D5ED4(u_char index, u_char characterId);
-void func_801D6194(u_char characterId);
+void MenuSetCharacterIconPrims(u_char characterId);
 void func_801D6338(u_char index, u_char characterId);
 void func_801D680C(u_char index, u_char characterId);
 void func_801D6CF4(u_char index, u_char characterId);

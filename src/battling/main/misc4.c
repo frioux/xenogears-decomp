@@ -970,7 +970,7 @@ extern void ControllerResetState(void);
 extern s32 ControllerPopState(void);
 extern s32 ControllerGetType(s32);
 extern void func_80076884(Actor*);
-extern void func_800751C8(Actor*, Actor*);
+extern void BattleUpdateRoundOverState(Actor*, Actor*);
 extern void BattleUpdateActorStatus(Actor*);
 extern void func_80077A9C(Actor*);
 extern void func_80078194(Actor*);
@@ -1103,7 +1103,7 @@ skipFacing:
         BattleResetMessageQueue(p2);
     }
 
-    func_800751C8(p1, p2);
+    BattleUpdateRoundOverState(p1, p2);
     BattleUpdateActorStatus(p1);
     BattleUpdateActorStatus(p2);
     FontSetPositionsByOffsetClamped(0x4A, 0);
