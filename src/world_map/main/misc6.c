@@ -1330,11 +1330,37 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
    body (which folded the reads, 6 instructions short, so it can never link)
    found nothing; do not go back to it.
 */
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
-/* 86.95%, round 322. objdiff reports 768 bytes on both sides (retail is 192
-   instructions; older notes claiming 764 were wrong), so the park below is
-   exactly retail's size and its last two thirds are identical apart from
-   register names. Landed this round:
+/* 96.01%, round 323 (was 86.95%). objdiff reports 768 bytes on both sides, so
+   the body below is exactly retail's size. Four finds this round, all in the
+   body:
+   - THE SECOND SWITCH'S DECISION TREE IS A `case 0`. Retail's tree is an
+     unbalanced chain (`beq 1; slti <2; bnez end; li 2; beq end; li 3; beq
+     case3`), which cc1 2.7.2 only emits when the switch has FOUR nodes: adding
+     `case 0: break;` (state 0 does nothing, exactly like the default) turned the
+     balanced pivot-2 tree into retail's chain. Probed with cc1_probe.sh on a
+     four-node vs three-node switch; the first switch on `command` stays
+     balanced in both, so this is the case COUNT, not the label order.
+   - the three case-1 volatile stores must sit in a `do { } while (0);` block:
+     outside one the scheduler sinks the ViewY/ViewZ stores below the stateIndex
+     store and the CameraRot `lh` (86.95), inside one they stay and the `lh`
+     gets retail's `nop` load-delay slot (92.36).
+   - the two `pStateFrames`/`pStateIds` stores must be volatile (88.41 without):
+     they pin the two stores below the ViewY load, which is what lets the
+     CameraHeight constant store land in that load's delay slot.
+   - `nDelta = (pActor->stateIndex = pActor->stateIndex - 0x10000);` (embedded
+     assignment, same lever as `scale`), `s16 *pAngle` declared BEFORE `pActor`,
+     and the same embedded form for `unk60[0]`: permuter finds, 92.36 -> 94.92 ->
+     96.01.
+   Residuals: (1) the register file of case 1 of the second switch is rotated by
+     one against retail (ours v1/a1/v0 where retail has v0/a0/v1) - the
+     `addiu` of the pStateIds clamp takes a fresh register where retail does it
+     in place, so retail's `nop` in that `beqz` slot is a `sw` here (still one
+     instruction short of that block, but the whole function is 768 bytes);
+     (2) case 1 of the first switch: the angle base lands in $v1 where retail
+     has $a0. A further 3-minute permuter run only produced candidates that add
+     a `break` inside the do-while (deleting the ViewRotZ store - wrong code),
+     so it was not ported.
+   History (round 322, 86.95%):
    - `D_8009BD42` is declared as an unbounded ARRAY and reached as `[0]`, which
      is what makes cc1 keep the counter's address in a register the way retail
      does (`lui a3,%hi / addiu a3,%lo` once, then `lhu`/`sh` off it).
@@ -1357,11 +1383,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
      0x10000/0x4000/0x10000 decrement chain, the clamps, the rand tail) is
      register-rotated by one: ours v1/a1/v0 where retail has v0/a0/v1.
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
 /*
 int func_80080600(int index) {
     u8 *pScratch = (u8 *)PSX_SCRATCH;
-    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s16 *pAngle;
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 nValue;
     s32 nDelta;
 
@@ -1370,15 +1397,17 @@ int func_80080600(int index) {
         pAngle = g_WorldMapCameraRot;
         pActor->state = 1;
         pActor->command = 0;
-        *(volatile s16 *)pAngle = 0x10;
-        *(volatile s16 *)&g_WorldMapViewRotationY = 0x8E0;
-        *(volatile u16 *)&g_WorldMapViewRotationZ = 0;
+        do {
+            *(volatile s16 *)pAngle = 0x10;
+            *(volatile s16 *)&g_WorldMapViewRotationY = 0x8E0;
+            *(volatile u16 *)&g_WorldMapViewRotationZ = 0;
+        } while (0);
         pActor->stateIndex = 0x800000;
         nValue = pAngle[0] << 12;
-        pActor->pStateFrames = (void *)nValue;
-        pActor->pStateIds = (void *)nValue;
-        nValue = g_WorldMapViewRotationY << 12;
+        *(volatile void **)&pActor->pStateFrames = (void *)nValue;
+        *(volatile void **)&pActor->pStateIds = (void *)nValue;
         g_WorldMapCameraHeight = 0x800000;
+        nValue = g_WorldMapViewRotationY << 12;
         pActor->unk60[0] = nValue;
         pActor->scale = nValue;
         break;
@@ -1398,8 +1427,7 @@ int func_80080600(int index) {
     }
     switch (pActor->state) {
     case 1:
-        nDelta = pActor->stateIndex - 0x10000;
-        pActor->stateIndex = nDelta;
+        nDelta = (pActor->stateIndex = pActor->stateIndex - 0x10000);
         if (nDelta <= 0x2FFFFF) {
             pActor->stateIndex = 0x300000;
         }
@@ -1408,7 +1436,7 @@ int func_80080600(int index) {
             g_WorldMapCameraHeight += nDelta >> 5;
         }
         nDelta = (s32)pActor->pStateIds - 0x4000;
-        pActor->pStateIds = (void *)nDelta;
+        *(volatile void **)&pActor->pStateIds = (void *)nDelta;
         if (nDelta < -0x100000) {
             pActor->pStateIds = (void *)-0x100000;
         }
@@ -1424,10 +1452,11 @@ int func_80080600(int index) {
         }
         nDelta = pActor->scale - pActor->unk60[0];
         if (nDelta != 0) {
-            nValue = pActor->unk60[0] + (nDelta >> 5);
-            pActor->unk60[0] = nValue;
+            nValue = (pActor->unk60[0] = pActor->unk60[0] + (nDelta >> 5));
             g_WorldMapViewRotationY = nValue >> 12;
         }
+        break;
+    case 0:
         break;
     case 2:
         break;
