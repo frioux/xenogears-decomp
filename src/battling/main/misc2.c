@@ -508,16 +508,33 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    base=best=35) found nothing; see func_800732AC above for why the whole class
    (a dying single-use temp taking our cc1's lowest free register, $v0 here for
    the `lh` against retail's $v1) is a local_alloc difference, not a source
-   shape. */
+   shape.
+   Round 333: 98.61% (72 bytes, retail's size) with the load and the sum spelled
+   as TWO statements and a bare declaration (`s32 t; t = *(s16 *)(p0 + 0xB6);
+   t = t + arg1;`) - that alone fixes retail's `lh v1,0xB6`. The two remaining
+   instructions are the DESTINATIONS: ours `addu v1,v1,a1` / `slti v0,v1,4097`
+   against retail `addu a1,v1,a1` / `slti v1,a1,4097`. Root cause measured this
+   round: with the sum spelled INLINE in the condition (`if ((t + arg1) >=
+   0x1001)`) cc1 DOES put the sum in the parameter's $a1 (`addu a1,v1,a1`, load
+   also in $v1), but then the sum has a single use, so the slti redefines $a1 in
+   place (`slti a1,a1,4097`) where retail used the dead $v1. Giving the sum its
+   second use (the division) is what moves it back to $v1 and the load to $v0
+   (98.06). Retail keeps a multi-use sum in the argument register across the
+   branch; our local_alloc will not, and that is why no spelling reaches 100.
+   Two permuter runs this round (from this body and from the inline one) only
+   re-found the inline form with the DIVISION reading the raw load instead of
+   the sum, i.e. by changing what the body computes. */
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 /* s32 func_80073DE4(u8 *p0, s32 arg1) {
-    s32 t = *(s16 *)(p0 + 0xB6) + arg1;
+    s32 t;
 
+    t = *(s16 *)(p0 + 0xB6);
+    t = t + arg1;
     if (t >= 0x1001) {
         return ((t - 0xFF1) / 20) < *(s16 *)(p0 + 0xB4);
     }
     return 1;
 } */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
 
 extern s32 g_BattleMode;
 extern void BattlePlaySoundEffectById(s32);
