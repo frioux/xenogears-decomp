@@ -92,7 +92,7 @@ extern u8 g_BattleCommandArgs;
 extern u8 g_BattleCommandTiles;
 extern void BattleResetActorStatDisplay(u8);
 extern void func_80071B94(s32);
-extern u16 func_80098AF8(s32, s32);
+extern u16 BattleSelectActionRow(s32, s32);
 extern void BattleSetSlotFlagB4(s32);
 extern void BattleClearSlotFlagB4(s32);
 extern s32 SystemRenderStringEntry(u8 *, s32, s32, s32);
@@ -550,7 +550,7 @@ void BattleResetActorCountdown(void) {
     if (g_BattleActorCountdownState[index] != 0xFF) {
         g_BattleActorCountdownState[index] = 0;
     }
-    g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3]] = func_80098AF8(g_BattleCommandQueue[0x2D3], 0);
+    g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3]] = BattleSelectActionRow(g_BattleCommandQueue[0x2D3], 0);
     g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3] - 0xB] = g_BattleSlotCountdownTimers[g_BattleCommandQueue[0x2D3]];
 }
 

@@ -61,7 +61,7 @@ extern BattleSlotGraphics *g_BattleSlotGraphics[];
 
 extern u8 g_BattlePrimBuffer[];
 extern volatile u8 D_800D3725[];
-extern volatile u8 D_800D3726[];
+extern volatile u8 g_BattleTextSlotFlags[];
 
 extern s32 func_8002675C(void *pDir, s32 index, void *pPrims, s32 context, s16 x, s16 y, s16 scale);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *p, u16 x, s16 y, u8 u, u8 v, u8 dx);
@@ -440,7 +440,7 @@ void BattleAddPrimAndRenderObject(void) {
    the shared `0x40 - w/2` / `0x9A - w/2` subu out of both arms (retail duplicates
    it, one more instruction) and the final `+ off` addu comes out
    `addu a0,a0,s0` where retail has `addu a0,s0,a0`. Three levers got here from
-   62.98: (1) D_800D3725/D_800D3726 are VOLATILE - retail loads D_800D3726[off]
+   62.98: (1) D_800D3725/g_BattleTextSlotFlags are VOLATILE - retail loads g_BattleTextSlotFlags[off]
    twice per arm instead of CSE-ing it, and volatile is also what stops loop.c
    from making an address biv for each (three bivs with a plain declaration);
    (2) g_BattleCurOT is declared as an array so its address is materialised in a
@@ -450,7 +450,7 @@ void BattleAddPrimAndRenderObject(void) {
    (3) g_BattlePrimBuffer as an array, and the prim address associated as
    `prod + ((s32)g_BattlePrimBuffer + off)` (the `off + (prod + base)` spelling makes
    gcc extract a `base + off` biv and costs a register and 8 bytes).
-   The source indexes with i*0x60: retail folds D_800D3726[i*0x60] in the i==0
+   The source indexes with i*0x60: retail folds g_BattleTextSlotFlags[i*0x60] in the i==0
    arm to the bare symbol, so it knew the index was 0 there.
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc2", func_8007500C);
@@ -465,11 +465,11 @@ void func_8007500C(void) {
         if (D_800D3725[off] != 0) {
             if (i == 0) {
                 BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex * 40 + (s32)g_BattlePrimBuffer),
-                                        0x40 - (D_800D3726[off] >> 1), 0x2C, 0, 0, D_800D3726[off]);
+                                        0x40 - (g_BattleTextSlotFlags[off] >> 1), 0x2C, 0, 0, g_BattleTextSlotFlags[off]);
             } else {
                 BattleSetPolyFT4RectH13((POLY_FT4 *)(g_BattlePrimStartIndex * 40 + ((s32)g_BattlePrimBuffer + off)),
-                                        0x9A - (D_800D3726[off] >> 1), 0xCA, 0,
-                                        (13 * (i / 2)) & 0xFF, D_800D3726[off]);
+                                        0x9A - (g_BattleTextSlotFlags[off] >> 1), 0xCA, 0,
+                                        (13 * (i / 2)) & 0xFF, g_BattleTextSlotFlags[off]);
             }
             AddPrim(g_BattleCurOT[0] + 4,
                     (u8 *)(((s32 *)g_BattleCurOT)[12] * 40 + ((s32)g_BattlePrimBuffer + off)));

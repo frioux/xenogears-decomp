@@ -553,7 +553,7 @@ void MenuFreeShoulderButtonUi(void) {
         HeapFree(g_Menu->pShoulderButtonUi);
     }
 }
-void func_801D36E0(MenuString* pString, u_char index, u_char isGlyph, u_char row) {
+void MenuSetStringTexturePrims(MenuString* pString, u_char index, u_char isGlyph, u_char row) {
     s32 originY;
     s32 u;
     s32 width;

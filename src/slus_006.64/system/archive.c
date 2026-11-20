@@ -26,7 +26,7 @@ extern s32 g_ArchiveReadRetryCount;
 extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
 extern void func_8002B5D0();
-extern void func_8002B8B0(s32 unused, s32 nQueueIndex);
+extern void ArchiveStreamLoadSection(s32 unused, s32 nQueueIndex);
 extern void ArchiveImageStreamSectorCallback();
 extern void ArchiveImageStreamProcessSector();
 extern void ArchiveStreamFileDataCallback();
@@ -42,7 +42,7 @@ extern char g_StrArchiveDebugImageRect[];
 extern char g_StrArchiveDebugChunkHeights[];
 extern void func_800379C8(char*, ...);
 extern s32 g_ArchiveImageBlocksLeft;
-extern int D_80059F04;
+extern int g_ArchiveStreamFileHandle;
 extern CdlLOC g_ArchiveSectorLocation;
 extern u8 g_ArchiveSectorScratch[];
 extern s32 g_ArchiveFilePositionErrorCount;
@@ -370,7 +370,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
  *     4,5,6 in $s6/$s7/$fp; this draft spills only two of them, so its frame is
  *     0x48 rather than 0x50. Both save the same ten registers.
  * Shared-park hints: the six u16 stack arguments are the image chunk
- * descriptors ArchiveImageStreamProcessSector consumes (D_80059F24..D_80059F38); D_80059F04 is
+ * descriptors ArchiveImageStreamProcessSector consumes (D_80059F24..D_80059F38); g_ArchiveStreamFileHandle is
  * this path's own PCopen handle. _i_ is a s16: the clear loop shifts it with
  * sll 16 / sra 14 and every retry counter sign-extends with sll 16 / sra 16.
  * Three seconds of the earlier draft's search are in permuter/func_80029EB0
@@ -440,19 +440,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
  *         pFilePath = ArchiveGetFilePath(index);
  *
  *         for (i = 0; i < RETRY_COUNT; i++) {
- *             D_80059F04 = PCopen(pFilePath, 0, 0);
- *             if (D_80059F04 == -1)
+ *             g_ArchiveStreamFileHandle = PCopen(pFilePath, 0, 0);
+ *             if (g_ArchiveStreamFileHandle == -1)
  *                 GfxDrawArchiveReadRetry(i, 0xFF, 0, 0);
  *             else
  *                 break;
  *         }
  *
  *         do {
- *             func_8002B8B0(0, 0);
+ *             ArchiveStreamLoadSection(0, 0);
  *             ArchiveImageStreamProcessSector(0, 0);
  *         } while (g_ArchivePendingReadCount > 0);
  *
- *         while (nClose = PCclose(D_80059F04)) {
+ *         while (nClose = PCclose(g_ArchiveStreamFileHandle)) {
  *             GfxDrawArchiveReadRetry(nClose, 0, 0, 0xFF);
  *             if (++nClose >= RETRY_COUNT)
  *                 break;
@@ -1276,7 +1276,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 // retail keeps its value live into the loop in $a1, which a local born inside the
 // loop cannot reproduce (it folds into the load temp), and an initialised local
 // costs the `li` retail does not have.
-void func_8002B8B0(s32 unused, s32 nQueueIndex) {
+void ArchiveStreamLoadSection(s32 unused, s32 nQueueIndex) {
     s16 i;
     s32 nSectorOffset;
     u16 nSectionId;
@@ -1303,7 +1303,7 @@ void func_8002B8B0(s32 unused, s32 nQueueIndex) {
             g_ArchiveStreamNextSectionId = nNextSectionId;
             nSectorOffset = nQueueIndex * CD_SECTOR_SIZE;
             for (; i < RETRY_COUNT; i++) {
-                if (PCread(D_80059F04, (u8*)(nSectorOffset + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE) != 0)
+                if (PCread(g_ArchiveStreamFileHandle, (u8*)(nSectorOffset + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE) != 0)
                     break;
                 GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
             }

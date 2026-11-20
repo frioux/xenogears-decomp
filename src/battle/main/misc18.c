@@ -1021,7 +1021,7 @@ void BattleResetSlotConditionCounters(void) {
 // The row comes from the character table or, when the slot's status flags say gear, the gear
 // table. Each arm needs its OWN row-pointer local - with one shared local cc1 gives the second
 // arm's last add a fresh register (99.68%) instead of accumulating into the pointer as retail does.
-u8 func_80098AF8(u8 sel) {
+u8 BattleSelectActionRow(u8 sel) {
     BattleWorkBlock *pBase = g_BattleCurWorkBlock;
     BattleTableEntry *pActor = (BattleTableEntry *)(sel * sizeof(BattleTableEntry) + (s32)pBase);
     BattleRow *pRow;

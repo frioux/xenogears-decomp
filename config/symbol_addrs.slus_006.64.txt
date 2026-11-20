@@ -1679,3 +1679,5 @@ g_WorldMapStepProbePos = 0x1F800060;
 g_AnimScriptCommandLengths = 0x8004FC40;
 ArchiveImageStreamSectorCallback = 0x8002BB50;
 ArchiveImageStreamProcessSector = 0x8002BF38;
+ArchiveStreamLoadSection = 0x8002B8B0;
+g_ArchiveStreamFileHandle = 0x80059F04;

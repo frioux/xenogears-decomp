@@ -8,13 +8,13 @@ extern u8 g_BattleSlotWordRegs[];
 extern u8 g_BattleSlotRows[];
 extern u8 g_BattleSlotEnabledFlags[];
 
-// One 0x60-byte entry of the screen slot table at D_800D3718: the VRAM rect the
+// One 0x60-byte entry of the screen slot table at g_BattleTextSlotRects: the VRAM rect the
 // slot's text texture is loaded into, the buffer that texture is rendered into,
 // the slot's enable flag and the width the rendered string came out at. Only the
 // enable flag, set by BattleSet/ClearSlotFlagB4 and cleared for every slot by
 // src/battle/main/misc1.c's BattleClearAllSlotFlagB4, is touched here; the other
-// three are written by misc1.c's func_80071B94 and misc3.c's func_80078658, which
-// reach them through the D_800D3718 (+0x0), D_800D3720 (+0x8) and D_800D3726
+// three are written by misc1.c's func_80071B94 and misc3.c's BattleQueueCommandFA, which
+// reach them through the g_BattleTextSlotRects (+0x0), g_BattleTextSlotBuffers (+0x8) and g_BattleTextSlotFlags
 // (+0xE) symbols.
 typedef struct {
     /* 0x00 */ RECT rect; // the VRAM rect the slot's text texture is loaded into
@@ -136,7 +136,7 @@ typedef struct {
     /* 0x1B */ u8 flags;
 } BattleSlotRecord; // Size: 0x1C
 
-extern BattleScreenSlot D_800D3718[];
+extern BattleScreenSlot g_BattleTextSlotRects[];
 extern BattleSlotFlagEntry g_BattleSlotEntries[];
 extern BattleSlotRecord D_800C3E9C[];
 extern BattleSlotRegs g_BattleSlotRegs[];
@@ -144,12 +144,12 @@ extern BattleSlotVarEntry g_BattleWorkBlock[];
 
 void BattleSetSlotFlagB4(u8 arg0) {
     g_BattleDisplayState[0xB4] = 1;
-    D_800D3718[arg0].enabled = 1;
+    g_BattleTextSlotRects[arg0].enabled = 1;
 }
 
 void BattleClearSlotFlagB4(u8 arg0) {
     g_BattleDisplayState[0xB4] = 0;
-    D_800D3718[arg0].enabled = 0;
+    g_BattleTextSlotRects[arg0].enabled = 0;
 }
 
 extern u16 BattleMaskHasSlotBit(u16, u8);

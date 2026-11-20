@@ -73,17 +73,17 @@ extern u8 g_BattleSlotEnabledFlags[];
 extern u8 g_BattleActorCountdownState[];
 extern u16 g_BattleSlotDisplayValues[];
 extern u8 g_BattleTextSlotCount;
-extern u8 *D_800C3DDC;
-extern u8 D_800D2E5F[];
-extern u8 D_800D3718[];
-extern u8 D_800D3720[];
-extern u8 D_800D3726[];
+extern u8 *g_BattleTextStringBank;
+extern u8 g_BattleTextActorStringIds[];
+extern u8 g_BattleTextSlotRects[];
+extern u8 g_BattleTextSlotBuffers[];
+extern u8 g_BattleTextSlotFlags[];
 extern u16 g_SystemPalette1;
 extern u16 g_SystemPalette2;
 
 extern s32 BattleAllocHeapBlock(s32, s32);
 extern s32 GetStringEntryFromBank12(s32);
-extern u16 func_80098AF8(s32, s32);
+extern u16 BattleSelectActionRow(s32, s32);
 extern void BattleInitPacketPrimitives(void);
 extern void HeapFree(void *pMem);
 extern u8 *GetStringEntry(u8 *, s32);
@@ -653,7 +653,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800780A8);
    plus a SECOND offset register (s0 = 0xC0k, `addu a0,s0,a0` for the first
    func_800780A8 base) and a third giv for base+0x10+offset (s4). With the
    symbol+0x60 folded into the address (this body) gcc instead makes s3 a
-   pointer giv onto D_800D3720. Tried this round: explicit `offset` local
+   pointer giv onto g_BattleTextSlotBuffers. Tried this round: explicit `offset` local
    incremented in the loop (88.25, 356 bytes - one giv short, the copy
    destination becomes base+0x60+offset); `offset` + `offset2 = offset + 0x60`
    (94.45, 368 bytes - the s3 and s0 shape is right but base+0x10+offset is
@@ -673,15 +673,15 @@ void func_8007819C(void) {
     for (i = 0; i < 8; i += 2) {
         pBuf = BattleAllocTextBuffer(0x39);
         *(u8 **)(D_800D36C0 + i * 0x60 + 0x60) = pBuf;
-        *(u8 **)(D_800D3720 + i * 0x60 + 0x60) = pBuf;
-        pRect = (RECT *)(D_800D3718 + i * 0x60);
+        *(u8 **)(g_BattleTextSlotBuffers + i * 0x60 + 0x60) = pBuf;
+        pRect = (RECT *)(g_BattleTextSlotRects + i * 0x60);
         pRect->x = 0x3C0;
         pRect->y = (i / 2) * 13;
         pRect->w = 0x3C;
         pRect->h = 0xD;
-        *(RECT *)(D_800D3718 + i * 0x60 + 0x60) = *pRect;
-        func_800780A8(D_800D3718 - 0x50 + i * 0x60, i);
-        func_800780A8(D_800D3718 + i * 0x60 + 0x10, i + 1);
+        *(RECT *)(g_BattleTextSlotRects + i * 0x60 + 0x60) = *pRect;
+        func_800780A8(g_BattleTextSlotRects - 0x50 + i * 0x60, i);
+        func_800780A8(g_BattleTextSlotRects + i * 0x60 + 0x10, i + 1);
     }
 }
 */
@@ -775,7 +775,7 @@ void BattleResetSlotDisplayValues(u8 *pOut) {
     pValue2 = pValue + BATTLE_ACTOR_SLOT_COUNT;
     do {
         if (g_BattleSlotEnabledFlags[i] != 0) {
-            u16 value = func_80098AF8(i, 0);
+            u16 value = BattleSelectActionRow(i, 0);
 
             *pValue2 = value;
             *pValue = value;
@@ -819,7 +819,7 @@ void func_800785D4(u8 color, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 
-// A battle text slot: one 0x60-byte row of the buffer at D_800D3718, holding the
+// A battle text slot: one 0x60-byte row of the buffer at g_BattleTextSlotRects, holding the
 // rect and the buffer its string is uploaded through (the row is reached through
 // three separate symbols: the rect array, the row's buffer pointer and the byte
 // SystemRenderStringEntry's result is kept in).
@@ -828,18 +828,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 // rows the buffer has room for.
 #define BATTLE_TEXT_SLOT_MAX 9
 
-void func_80078658(u8 index, u8 color) {
+void BattleQueueCommandFA(u8 index, u8 color) {
     u8 *pEntry;
 
     if (g_BattleTextSlotCount < BATTLE_TEXT_SLOT_MAX) {
-        *(u8 *)((u8 *)&D_800D3726 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE) =
-            SystemRenderStringEntry(GetStringEntry(D_800C3DDC, D_800D2E5F[index * 8]),
-                                    *(u8 **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE), 0x39,
+        *(u8 *)((u8 *)&g_BattleTextSlotFlags + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE) =
+            SystemRenderStringEntry(GetStringEntry(g_BattleTextStringBank, g_BattleTextActorStringIds[index * 8]),
+                                    *(u8 **)((u8 *)&g_BattleTextSlotBuffers + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE), 0x39,
                                     g_BattleTextSlotCount & 1);
-        // D_800D36C0 + 0x60 is D_800D3720: naming that symbol in both calls makes
+        // D_800D36C0 + 0x60 is g_BattleTextSlotBuffers: naming that symbol in both calls makes
         // cse keep the row base in one pseudo across SystemRenderStringEntry and
         // spill it, which costs 8 bytes of frame retail does not have.
-        BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE),
+        BattleLoadImageAndSync((RECT *)((u8 *)&g_BattleTextSlotRects + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE),
                       *(u_long **)((u8 *)&D_800D36C0 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE + BATTLE_TEXT_SLOT_SIZE));
         D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
         D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFA;

@@ -85,7 +85,7 @@ extern BattleSlotRow g_BattleCommandRecords[];
 extern BattleCommandQueue *g_BattleCommandQueue;
 extern u8 D_800C402F[];
 extern void func_800785D4(u8 arg0, u8 arg1);
-extern void func_80078658(u8 arg0, u8 arg1);
+extern void BattleQueueCommandFA(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF7(u8 arg0, u8 arg1);
 extern void BattleQueueCommandF8(u8 arg0);
 extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
@@ -121,7 +121,7 @@ void BattleQueueCommandF8(u8 arg0) {
 }
 void BattleQueueCommandF8IfFlagged(u8 arg0, u8 arg1) {
     if (g_BattleCommandArgs[arg0].unk3 != 0) {
-        func_80078658(arg0, arg1);
+        BattleQueueCommandFA(arg0, arg1);
         BattleQueueCommandF7(0x1E, arg1);
         BattleQueueCommandF8(arg1);
     }
@@ -381,7 +381,7 @@ void BattleDispatchCommandRecords(u8 arg0) {
             BattleAddCommandWordVar(arg0, i, slot);
             break;
         case 0xC:
-            func_80078658(i, arg0);
+            BattleQueueCommandFA(i, arg0);
             break;
         case 0xD:
             BattleQueueCommandF4(arg0, i, slot);
