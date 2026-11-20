@@ -161,7 +161,7 @@ void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
 void MenuApplyGearAccessories(MenuDressingRoom*, u8);
 
-void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
+void MenuSaveSlotReadGameState(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
     GameGear* pGear;
     MenuSaveGear* pSaveGear;
     u8 i;
@@ -228,7 +228,7 @@ void MenuFillInventoryTables(void) {
 // Resets the eleven 0x20-byte per-gear stat limit rows the gear screens clamp
 // against, plus the party flag word.  BattleInitItemInventoryAndConditionMasks
 // (src/battle/main/misc19.c) writes the same rows, with battle's values.
-void func_801E5178(void) {
+void MenuResetConditionMasks(void) {
     g_GameState.characterFlags = 0x7FF;
     *(u16 *)&g_GameState.unk16BC[0x00].commandMask = 0xFFF8;
     *(u16 *)&g_GameState.unk16BC[0x00].characterConditionMask = 0xFF00;
@@ -299,7 +299,7 @@ void func_801E5178(void) {
 }
 // Builds window `windowIndex`'s background quad and its four border strips.  The
 // same body ships as MemberChangeMenuInitializeWindowGraphics.
-void func_801E53CC(u_char windowIndex) {
+void MenuInitializeWindowGraphics(u_char windowIndex) {
     RECT texWindow;
     MenuWindow* pWindow;
     u_char i;

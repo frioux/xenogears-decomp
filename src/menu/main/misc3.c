@@ -18,7 +18,7 @@ extern s32 D_801E9828[];
 extern u16 D_8005A3A0[0x10];
 extern u16 D_8006F958[0x10];
 extern int g_SpuChannelMask;
-extern int func_801E4D10(u32*, void*);
+extern int MenuSaveSlotReadGameState(u32*, void*);
 extern int MenuCreateWindow2Strings(u_char);
 extern u_char func_801CAA38(u_char);
 extern int MenuFreeWindow2Strings(void);
@@ -923,7 +923,7 @@ void func_801CB184(void) {
 void MenuApplySaveSlot(u32* pSrc) {
     int i;
 
-    func_801E4D10(pSrc, g_Menu->pDressingRoom);
+    MenuSaveSlotReadGameState(pSrc, g_Menu->pDressingRoom);
     g_SpuChannelMask = *pSrc;
     for (i = 0; i < 0x10; i++) {
         D_8005A3A0[i] = D_8006F958[i];

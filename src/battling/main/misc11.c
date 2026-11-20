@@ -478,7 +478,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
    A 5-minute 2-job permuter run (2340 iterations) went 1825 -> 456 without
    finding a size-correct zero; both of its wins were that extra-move pointer
    local, so re-run it from this body with the store order as the target.
-   D_8009A928 is the same 0x68-stride table as D_8009A988 + 0x60 (that splat
+   g_BattleTargetCrosses is the same 0x68-stride table as D_8009A988 + 0x60 (that splat
    symbol aliases this table's pos field; BattleAppendEntry fills it).
    The best body, verbatim:
 // One flat line of a battle target's cross, colour and code written as the
@@ -504,7 +504,7 @@ typedef struct {
     // 0x60 SVECTOR pos;
 } BattlingCrossEntry; // Size: 0x68
 
-extern BattlingCrossEntry D_8009A928[];
+extern BattlingCrossEntry g_BattleTargetCrosses[];
 
 void func_80087EA0(u8 *pOt) {
     SVECTOR vtx[6];
@@ -513,7 +513,7 @@ void func_80087EA0(u8 *pOt) {
     s32 j;
 
     for (i = 0; i < g_BattleAppendEntryCount; i++) {
-        pEntry = &D_8009A928[i];
+        pEntry = &g_BattleTargetCrosses[i];
 
         vtx[0].vx = pEntry->pos.vx - 0x20;
         vtx[0].vy = pEntry->pos.vy;

@@ -82,7 +82,7 @@ extern VECTOR g_BattleViewOriginZ;
 extern s32 rand(void);
 extern void func_80031870(u8* pLink, u32 addr);
 
-Misc16Work* func_8008D3F4(s32 arg0, s32 arg1);
+Misc16Work* BattleEffectCreateWorkKind(s32 arg0, s32 arg1);
 void BattleEffectUpdateEntries(Misc16Work* pWork, u8* pArg1, MATRIX* pMat);
 void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count);
 
@@ -187,7 +187,7 @@ void BattleEffectComputeAngledEllipsePosition(Misc16Work* pWork, s16* pOut, s32 
     pOut[1] = pWork->centerY + rot.vy;
     pOut[2] = pWork->centerZ + rot.vz;
 }
-Misc16Work* func_8008D3F4(s32 arg0, s32 arg1) {
+Misc16Work* BattleEffectCreateWorkKind(s32 arg0, s32 arg1) {
     Misc16Work* pWork;
     Misc16Kind* pKind;
 
@@ -500,7 +500,7 @@ void BattleEffectCreateWork(void) {
     s16 initValue;
     Misc16Work* pWork;
 
-    pWork = func_8008D3F4(1, NULL);
+    pWork = BattleEffectCreateWorkKind(1, NULL);
     pWork->r = 0xFF;
     pWork->g = 0xA0;
     pWork->b = 0x70;

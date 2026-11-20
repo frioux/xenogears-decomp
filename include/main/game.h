@@ -242,7 +242,7 @@ typedef struct {
     /* 0x0978 */ GameGear gears[MAX_GAME_GEARS];
     /* 0x1648 */ undefined8 unk1648[0x74];
     // Eleven 0x20-byte per-character condition/command rows; the eleventh also runs over the
-    // four bytes after it, which is what the eleven 0x20-byte rows at +0x16C0 of func_801E5178 cover.
+    // four bytes after it, which is what the eleven 0x20-byte rows at +0x16C0 of MenuResetConditionMasks cover.
     /* 0x16BC */ UnkGearState unk16BC[11];
     /* 0x17FC */ undefined8 unk17FC[0x4];
     // World map ground position in map units; << 12 gives the actor coordinate

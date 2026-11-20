@@ -872,7 +872,7 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
         if (pItem->amount == 1) {
             MenuFillInventoryTables();
         } else if (pItem->amount == 2) {
-            func_801E5178();
+            MenuResetConditionMasks();
         }
     }
     if (pItem->unkA & 0x8000) {

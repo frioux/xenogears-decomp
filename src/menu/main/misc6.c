@@ -14,7 +14,7 @@ void MenuAddScreen6Prims(void);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
 void MenuPlaySoundEffect(u_char soundEffectId);
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8);
-void func_801E53CC(u_char a0);
+void MenuInitializeWindowGraphics(u_char a0);
 void MenuFreeWindow(u_char a0);
 void MenuSetGoldDigits(u_char a0, u_char a1);
 void MenuSetPlayTimeDigitPrims(u_char a0, u_char a1);
@@ -410,7 +410,7 @@ void func_801D2D38(void) {
             bzero(g_Menu->windows[i], 0x720);
             g_Menu->windowParameters[i] = HeapAlloc(0x18, 0);
             bzero(g_Menu->windowParameters[i], 0x18);
-            func_801E53CC(i);
+            MenuInitializeWindowGraphics(i);
         }
         MenuPlaySoundEffect(0x5E);
     }
@@ -613,7 +613,7 @@ void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4,
         bzero(g_Menu->windows[a0], sizeof(MenuWindow));
         g_Menu->windowParameters[a0] = HeapAlloc(sizeof(MenuWindowParameters), 0);
         bzero(g_Menu->windowParameters[a0], sizeof(MenuWindowParameters));
-        func_801E53CC(a0);
+        MenuInitializeWindowGraphics(a0);
     }
 
     pParams = g_Menu->windowParameters[a0];

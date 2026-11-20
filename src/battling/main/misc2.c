@@ -319,12 +319,12 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800731F8);
 } */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800732AC);
 
-extern BattleEffect *func_8008D3F4(s32, s32);
+extern BattleEffect *BattleEffectCreateWorkKind(s32, s32);
 extern void BattleEffectAllocEntries(BattleEffect *, s32);
 extern BattleEffect *g_BattleEffect;
 
 void BattleEffectInitContext(void) {
-    BattleEffect *p = func_8008D3F4(3, 0);
+    BattleEffect *p = BattleEffectCreateWorkKind(3, 0);
 
     p->r = 0x80;
     p->g = 0x80;
