@@ -94,34 +94,46 @@ extern int ControllerGetType(int controllerIndex);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
-/* 96.67%: every instruction and the 96-byte size are retail's; the residual is
-   a pure register permutation of two chains. Retail runs the D_80098800 chain
-   in $a1/$v1 and the D_800970E4 chain in $a0/$v0, and emits the D_80098800
-   chain first. Allocation follows CREATION order in this compiler (first
-   statement gets $a0/$v0), so the reversed pointer-local pair below is the only
-   spelling that reproduces retail's registers, and then the two chains come out
-   in the other order. Measured: inline D_80098800 first 96.25, inline reversed
-   95.42, pointer locals in statement order 96.25, mixed (one pointer local, one
-   inline) 96.25, s32 return type 96.67 (no change), gcc-2.7.2-cdk 86.08,
-   gcc-2.6.0 87.50, and a 4-minute permuter run from 96.67 found nothing
-   (RESULT PERMUTER_NONE base=70 best=70, 2418 iterations). To close it someone
-   needs B's address/value pseudos created before A's while A's chain is still
-   emitted first - a scheduler priority this source does not control. */
+/* 99.17% (96 bytes, retail 96). The only residual is the ORDER of the two
+   stores: retail is `sw v1,0(a1)` [D_80098800 chain] then `lw ra,24(sp)` then
+   `sw v0,0(a0)` [D_800970E4 chain], and every spelling below emits the two
+   stores the other way round while keeping retail's registers ($a1/$v1 = the
+   D_80098800 chain, $a0/$v0 = the D_800970E4 chain) and its load/ori order.
+   This compiler allocates a chain's base/value pseudos in CREATION order, so
+   the statement order that fixes the registers is the one that also fixes the
+   store order - the two cannot be decoupled from source. Measured: two plain
+   `pA[0] |= 0xC;` / `pB[0] |= 0xC;` with pointer locals A-first 96.25 (registers
+   reversed: $a0/$v0 for the D_80098800 chain), the same with the ORs in the
+   other order 97.50 (registers right, both chains' positions swapped), the
+   D_80098800 chain written store-first 96.25/97.71, both chains via value
+   temporaries 97.71, s32 return type (pins $v0 on the last chain, no change to
+   the bases) 96.67, gcc-2.6.0 90.42 (same registers, `sw A / sw B / lw ra`),
+   gcc-2.7.2-cdk compile-fails on this body. Three permuter runs: 4 min from 97.50
+   found the `new_var = D_800970E4; pB = new_var;` double copy plus the
+   D_80098800 chain through a value temporary (98.75), 4 min from there found
+   the one-statement-per-arithmetic-step split (new_var3, 99.17), and 3 min from
+   that found nothing (RESULT PERMUTER_NONE base=20 best=20). */
 /* void func_8007F854(void) {
+    s32* new_var;
+    int new_var3;
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
-    s32 *pA;
-    s32 *pB;
+    s32* pA;
+    int new_var2;
+    s32* pB;
 
     g_BattleScreenCopyRequest = 1;
     BattleSetScreenMode(1);
     g_BattleCurrentTextList = 0;
     BattleClearTextSpriteEntries();
-    pB = D_800970E4;
     pA = D_80098800;
-    pA[0] |= 0xC;
+    new_var = D_800970E4;
+    pB = new_var;
+    new_var3 = pA[0];
+    new_var3 = new_var3 | 0xC;
     pB[0] |= 0xC;
+    new_var2 = new_var3;
+    pA[0] = new_var2;
 } */
-
 void BattleResetTextListState(void) {
     s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
 
