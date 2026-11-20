@@ -12,6 +12,12 @@
 // lineOffset value that means no offset
 #define SYSTEM_STRING_LINE_OFFSET_NONE 0xFF
 
+// One entry of the glyph code table: the two bytes that identify a glyph
+typedef struct {
+    /* 0x0 */ u8 firstByte;
+    /* 0x1 */ u8 secondByte;
+} SystemGlyphEntry; // Size: 0x2
+
 // Glyph code table (system data bank 0x1B) and the codes it holds
 #define SYSTEM_GLYPH_CODE_COUNT 324
 #define SYSTEM_GLYPH_CODE_END 0xFFFF
@@ -251,26 +257,30 @@ void SystemStringInit(SystemString* pString, s16 vramX, s16 vramY, s16 x, s16 y,
     SetDrawMode(&pString->drawMode[1], 0, 0, GetTPage(0, 0, vramX + 0x40, vramY), NULL);
 }
 
-unsigned int ResolveArchiveEntryPointers(u32* header) {
-    int i;
-    u32 base_address = (u32)header;
-    u32* pointers = header;
+// A loaded file/archive header: a count followed by that many offsets, each
+// relative to the start of the header.
+typedef struct {
+    /* 0x0 */ u32 count;
+    /* 0x4 */ u32 offsets[1];
+} SystemOffsetTable; // Size: 0x8
 
-    for (i = 1; i <= *header; i++) {
-        pointers[i] += base_address;
+unsigned int ResolveArchiveEntryPointers(SystemOffsetTable* pTable) {
+    u32 i;
+    u32 base = (u32)pTable;
+    for (i = 1; i <= pTable->count; i++) {
+        pTable->offsets[i - 1] += base;
     }
 
-    return *header;
+    return pTable->count;
 }
 
 // Same as ResolveArchiveEntryPointers, but no return value
-void ResolveFileEntryPointers(u32* header) {
-    int i;
-    u32 base_address = (u32)header;
-    u32* pointers = header;
+void ResolveFileEntryPointers(SystemOffsetTable* pTable) {
+    u32 i;
+    u32 base = (u32)pTable;
 
-    for (i = 1; i <= *header; i++) {
-        pointers[i] += base_address;
+    for (i = 1; i <= pTable->count; i++) {
+        pTable->offsets[i - 1] += base;
     }
 }
 
@@ -455,19 +465,21 @@ void* GetStringEntryFromBank34(int entryId) {
 }
 
 void SystemDecodeGlyphCodes(u16* pInput) {
-    u8* pEntry = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
+    SystemGlyphEntry* pGlyphTable = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
     u8* pOutput = g_SystemGlyphDecodeBuffer;
-    u8* pPos;
+    SystemGlyphEntry* pEntry;
 
     while (*pInput != SYSTEM_GLYPH_CODE_END) {
-        pPos = (u8*)((*pInput) * 2) + (int)pEntry;
+        // index-first address sum: the typed subscript pGlyphTable[*pInput]
+        // emits the commuted addu and measures 99.67%
+        pEntry = (SystemGlyphEntry*)((*pInput) * sizeof(SystemGlyphEntry) + (mem_addr)pGlyphTable);
         pInput++;
 
-        if (pPos[0]) {
-            *pOutput++ = pPos[0];
-            *pOutput++ = pPos[1];
+        if (pEntry->firstByte) {
+            *pOutput++ = pEntry->firstByte;
+            *pOutput++ = pEntry->secondByte;
         } else {
-            *pOutput++ = pPos[1];
+            *pOutput++ = pEntry->secondByte;
         }
     }
 
@@ -476,20 +488,19 @@ void SystemDecodeGlyphCodes(u16* pInput) {
 
 void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count) {
     int i;
-    u8 *pEntry = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
-    u8 *pPos;
+    SystemGlyphEntry* pGlyphTable = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
+    SystemGlyphEntry* pEntry;
 
     for(i = count-1; i != -1; i--) {
-        // I don't like this, but it solves a finnicky register swap
-        pPos = (u8 *) ((pInput[0] * 2) + (int)pEntry);
+        pEntry = (SystemGlyphEntry*)((*pInput) * sizeof(SystemGlyphEntry) + (mem_addr)pGlyphTable);
         pInput++;
 
-        if(pPos[0]) {
-            *pOutput++ = pPos[0];
-            *pOutput++ = pPos[1];
+        if(pEntry->firstByte) {
+            *pOutput++ = pEntry->firstByte;
+            *pOutput++ = pEntry->secondByte;
 
         } else {
-            *pOutput++ = pPos[1];
+            *pOutput++ = pEntry->secondByte;
         }
     }
 
@@ -498,10 +509,10 @@ void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count) {
 
 int SystemFindGlyphCode(u8 firstByte, u8 secondByte) {
     s16 i;
-    u8* pGlyph = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
+    SystemGlyphEntry* pGlyph = g_SystemDataEntries->entries[SYSTEM_STRING_BANK_GLYPH];
 
     for (i = 0; i < SYSTEM_GLYPH_CODE_COUNT; i++) {
-        if (pGlyph[i * 2] == firstByte && pGlyph[i * 2 + 1] == secondByte) {
+        if (pGlyph[i].firstByte == firstByte && pGlyph[i].secondByte == secondByte) {
             return i;
         }
     }
