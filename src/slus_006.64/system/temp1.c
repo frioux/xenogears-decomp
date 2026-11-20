@@ -666,24 +666,31 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
-/* Best attempt: 84.31% (1104 bytes, the original's size; 276 instructions against its 276), so the
-   instruction stream, the call count and the statement order already agree. The ONE difference is a
-   callee-saved register: the original's frame is 0x40 and saves s0-s7 plus ra, this body's is 0x38
-   and saves s0-s6 plus ra. The extra register holds a value the original loads and never reads
-   again: `lw s3,36(s0)` right after `pTarget = &pAnimTask->spriteData` (pTarget->pVramData at 0x24)
-   with s3 only saved/restored afterwards. Writing `pVramData = pTarget->pVramData;` reproduces the
-   load, but gcc puts it in $v0 because the value is dead. Everything tried to make it live for one
-   instruction failed: a store back to pTarget->pVramData (adjacent, or as a redundant self-store,
-   which adds the store instead of dropping the load), a store at the tail (2 extra instructions and
-   the value lands in the wrong register), and a use in the `if (type != 0)` guard (adds a branch).
-   That missing register renames every later s-register (retail s0/s1/s2 -> this s0/s2/s1 etc.) and
-   three schedules that follow from the extra pressure: the original hoists the pTarget->flags_0xB0
-   load above the field_0x3C store, hoists the pTarget->flags_0xAC load above the flags_0xA8 store,
-   and reuses the 0x40 value it just stored (`move v1,a0`) instead of reloading it. -O3 under this
-   preset is 81.71 and gcc-2.7.2 is 81.11, so the preset is not the problem.
-   Two source facts were measured and must be kept by whoever retries: inside the flagBit block the
-   field_0x3A store comes BEFORE the field_0x40 store, and field_0x7C is the plain if/else (the
-   copy-into-the-field-then-test form measures 83.94% at 1100 bytes).
+/* Best attempt: 85.47% (1100 bytes / 275 instructions; retail is 1108 bytes / 277, so this body is
+   EXACTLY the save/restore pair of an eighth callee-saved register short). Every instruction shape,
+   the call count, the frame/stack slots and the block layout now agree; what is missing is the
+   register assignment, and everything else (three store/load interleavings) follows from it.
+   THE MECHANISM, measured this round: retail loads the dead field into the FREE callee-saved register
+   (`lw $s3,0x24($s0)` where $s3 held the third parameter until AnimTaskCreate's call), because at
+   that point every caller-saved register is busy - retail materialises BOTH field_0x40 masks
+   (0xFFFE1FFF in a1, 0xFFFBFFFF in a2) at the head of the post-call block, so v0, v1, a0, a1, a2,
+   t0, t1 are all live at the load. Our compile materialises those constants next to their uses, so
+   the dead load gets v0 and the frame loses 8 bytes. This unit runs cc1 with -fschedule-insns and
+   -fschedule-insns2 (see the "options enabled" header in build/src/.../temp1.c.s), so that
+   placement is the scheduler's, not statement order - do not chase it by reordering statements.
+   Two more measured facts: `pVramData = pAnimPackage;` at the head (reusing one local for the
+   parameter and then for the field) does NOT share a register - gcc keeps the parameter copy in s0
+   and deletes the second dead load (274 instructions, 85.35%); and the self-store
+   `pTarget->pVramData = pVramData;` is deleted by cse as redundant while the load survives (that is
+   how the load got into the body at all).
+   LOAD-BEARING SOURCE FACTS (each measured): the field_0x7C pair must be written with the NEGATED
+   test - `if (!(pSpriteData->flags_0xA8 & 1)) { copy } else { NULL }` - which gives retail's
+   `bnez -> NULL arm, copy arm inline with the store in the j delay slot` (the plain
+   `if (flags & 1) { NULL } else { copy }` form is 84.31 and lays the arms out the other way);
+   inside the flagBit block field_0x3A is stored BEFORE field_0x40; and the field_0x40/0x3C stores
+   must stay in the interleaved order they are in below.
+   Tried and rejected: passing the field through a second local (above), dropping the dead load
+   earlier than the field_0x40 read, and -O3 (81.71) / gcc-2.7.2 (81.11) under this preset.
 /*
 extern u8 g_FlagTimerWorkListAdds;
 extern void func_80023538(SpriteData* pSpriteData, void* pAnimEntry);
@@ -745,10 +752,10 @@ SpriteData* func_80023B84(SpriteData* pSpriteData, u16* pAnimEntry, void* pAnimP
         (pTarget->flags_0xAC.flags & 0xFFF8007F) | (pSpriteData->flags_0xAC.flags & 0x7FF80);
     pTarget->flags_0xA8 &= ~1;
     pTarget->flags_0xAC.flags = (pTarget->flags_0xAC.flags & ~4) | (pSpriteData->flags_0xAC.flags & 4);
-    if (pSpriteData->flags_0xA8 & 1) {
-        pTarget->field_0x7C = NULL;
-    } else {
+    if (!(pSpriteData->flags_0xA8 & 1)) {
         pTarget->field_0x7C = pSpriteData->field_0x7C;
+    } else {
+        pTarget->field_0x7C = NULL;
     }
     pTarget->field_0x70 = pSpriteData;
     pTarget->pCurAnimFile = pSpriteData->pCurAnimFile;
