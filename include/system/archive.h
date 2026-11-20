@@ -51,7 +51,7 @@ typedef struct {
 } ArchiveStreamFileSectionHeader;
 
 typedef struct {
-    /* 0x0 */ short archiveIndex;
+    /* 0x0 */ u16 archiveIndex;
     /* 0x2 */ u16 _pad;
     /* 0x4 */ void* pData;
 } StreamDataQueueEntry;

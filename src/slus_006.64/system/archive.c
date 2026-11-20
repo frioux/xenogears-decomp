@@ -212,7 +212,6 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     return 0;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
 /* Best attempt: objdiff 91.28%, 948 bytes against retail's 940. Rebuilt from
  * the .s (the previous draft was 81.29%); the whole structure, the frame (0x40,
  * all eight s-registers plus ra) and every branch target now agree. What is left:
@@ -239,133 +238,136 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029AFC);
  * gains a stray `andi 0xFFFF` before the g_ArchiveCurEntryIndex store. No other
  * unit READS that field today (all uses are stores, byte-identical either way),
  * so widening it is safe, but it is a header decision and was left alone.
- *
-int func_80029AFC(StreamDataQueueEntry* pQueue, s32 channel) {
- *     StreamDataQueueEntry* pEntry;
- *     StreamDataQueueEntry* pCurEntry;
- *     s32* pWord;
- *     char* pFilePath;
- *     void* pTempData;
- *     void* pData;
- *     CdlLOC* pLoc;
- *     s32 hFile;
- *     s32 nCount;
- *     s32 i;
- *     s32 j;
- *     s32 nMinIndex;
- *     s32 nRetry;
- *     u32 nIndex;
- *     u16 nEntryIndex;
- *     u16 nMinValue;
- *     u16 nTempIndex;
- * 
- *     if (pQueue == NULL) {
- *         return -3;
- *     }
- * 
- *     nCount = 0;
- *     if (pQueue->archiveIndex != 0) {
- *         pEntry = pQueue;
- *         do {
- *             pEntry++;
- *             nCount++;
- *         } while (pEntry->archiveIndex != 0);
- *     }
- * 
- *     if (nCount == 0) {
- *         return -3;
- *     }
- * 
- *     for (i = 0; i < nCount - 1; i++) {
- *         nMinIndex = i;
- *         nMinValue = pQueue[i].archiveIndex;
- *         for (j = i + 1; j < nCount; j++) {
- *             if (pQueue[j].archiveIndex < nMinValue) {
- *                 nMinIndex = j;
- *                 nMinValue = pQueue[nMinIndex].archiveIndex;
- *             }
- *         }
- *         nTempIndex = pQueue[i].archiveIndex;
- *         pTempData = pQueue[i].pData;
- *         pQueue[i].archiveIndex = pQueue[nMinIndex].archiveIndex;
- *         pQueue[i].pData = pQueue[nMinIndex].pData;
- *         pQueue[nMinIndex].archiveIndex = nTempIndex;
- *         pQueue[nMinIndex].pData = pTempData;
- *     }
- * 
- *     ArchiveCdDataSync(0);
- *     g_ArchiveHeaderOffsetBase = g_CurArchiveOffset;
- *     for (i = 2, pWord = &D_80059F00; i >= 0; i--) {
- *         *pWord-- = 0;
- *     }
- * 
- *     pData = pQueue->pData;
- *     nIndex = pQueue->archiveIndex;
- *     g_ArchiveStreamQueueIndex = 0;
- *     g_ArchiveStreamQueue = pQueue;
- *     g_ArchivePendingReadCount = nCount;
- *     g_ArchiveStreamQueueCount = nCount;
- *     g_ArchiveStreamWritePointer = pData;
- * 
- *     if (nIndex == 0 || pData == NULL) {
- *         ArchiveCdSeekToFile(channel);
- *     } else {
- *         g_ArchiveCurEntryIndex = nIndex;
- *         g_ArchiveCurFileSector = ArchiveDecodeSector(nIndex);
- *         g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nIndex);
- *         g_ArchiveCdChannel = channel & 0xFFFF;
- *         g_ArchiveStreamResumedFile = 0;
- *         g_ArchiveStreamStopFlag = 0;
- *         g_ArchiveReadRetryCount = 0;
- *         pLoc = &g_ArchiveCdCurLocation;
- *         CdIntToPos(g_ArchiveCurFileSector, pLoc);
- * 
- *         if (g_ArchiveDebugTable != 0) {
- *             for (i = 0; i < nCount; i++) {
- *                 nEntryIndex = pQueue[i].archiveIndex;
- *                 g_ArchiveCurEntryIndex = nEntryIndex;
- *                 pFilePath = ArchiveGetFilePath(nEntryIndex);
- * 
- *                 for (nRetry = 0; nRetry < RETRY_COUNT; nRetry++) {
- *                     hFile = PCopen(pFilePath, 0, 0);
- *                     if (hFile == -1)
- *                         GfxDrawArchiveReadRetry(nRetry, 0xFF, 0, 0);
- *                     else
- *                         break;
- *                 }
- * 
- *                 if (pQueue[i].pData != NULL) {
- *                     pCurEntry = &pQueue[i];
- *                     for (nRetry = 0; nRetry < RETRY_COUNT; nRetry++) {
- *                         if (PCread(hFile, pCurEntry->pData, ArchiveDecodeSizeAligned(nEntryIndex)) != 0)
- *                             break;
- *                         GfxDrawArchiveReadRetry(nRetry, 0, 0xFF, 0);
- *                     }
- *                 }
- * 
- *                 for (nRetry = 0; nRetry < RETRY_COUNT; nRetry++) {
- *                     if (PCclose(hFile) == 0)
- *                         break;
- *                     GfxDrawArchiveReadRetry(nRetry, 0, 0, 0xFF);
- *                 }
- *             }
- *         } else {
- *             g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
- *             CdDataCallback(&ArchiveRestorePendingCount);
- *             CdSyncCallback(&ArchiveCdDriveCommandHandler);
- *             CdReadyCallback(&ArchiveCdReadyReadQueuedFile);
- *             g_ArchiveCdReadStartCount += 1;
- *             CdControlF(CdlSetloc, (void*)pLoc);
- *             return 0;
- *         }
- *     }
- * 
- *     g_ArchiveCurFileSize = 0;
- *     g_ArchivePendingReadCount = 0;
- *     return 0;
- * }
- * 
  */
+int func_80029AFC(StreamDataQueueEntry* pQueue, s32 channel) {
+    StreamDataQueueEntry* pEntry;
+    StreamDataQueueEntry* pCurEntry;
+    s32* pWord;
+    char* pFilePath;
+    void* pTempData;
+    void* pData;
+    CdlLOC* pLoc;
+    s32 hFile;
+    s32 nCount;
+    s32 i;
+    s32 j;
+    s32 nMinIndex;
+    u32 nIndex;
+    u16 nEntryIndex;
+
+    if (pQueue == NULL) {
+        return -3;
+    }
+
+    nCount = 0;
+    if (pQueue->archiveIndex != 0) {
+        pEntry = pQueue;
+        do {
+            pEntry++;
+            nCount++;
+        } while (pEntry->archiveIndex != 0);
+    }
+
+    if (nCount == 0) {
+        return -3;
+    }
+
+    for (i = 0; i < nCount - 1; i++) {
+        nMinIndex = i;
+        nEntryIndex = pQueue[i].archiveIndex;
+        for (j = i + 1; j < nCount; j++) {
+            if (pQueue[j].archiveIndex < nEntryIndex) {
+                nMinIndex = j;
+                nEntryIndex = *(volatile u16*)&pQueue[nMinIndex].archiveIndex;
+            }
+        }
+        nEntryIndex = pQueue[i].archiveIndex;
+        pTempData = pQueue[i].pData;
+        pQueue[i].archiveIndex = pQueue[nMinIndex].archiveIndex;
+        pQueue[i].pData = pQueue[nMinIndex].pData;
+        pQueue[nMinIndex].archiveIndex = nEntryIndex;
+        pQueue[nMinIndex].pData = pTempData;
+    }
+
+    ArchiveCdDataSync(0);
+    g_ArchiveHeaderOffsetBase = g_CurArchiveOffset;
+    for (i = 2, pWord = &D_80059F00; i >= 0; i--) {
+        *pWord-- = 0;
+    }
+
+    pData = pQueue->pData;
+    nIndex = pQueue->archiveIndex;
+    g_ArchiveStreamQueueIndex = 0;
+    g_ArchiveStreamQueue = pQueue;
+    g_ArchivePendingReadCount = nCount;
+    g_ArchiveStreamQueueCount = nCount;
+    g_ArchiveStreamWritePointer = pData;
+
+    if (nIndex == 0 || pData == NULL) {
+        ArchiveCdSeekToFile(channel);
+        g_ArchiveCurFileSize = 0;
+        g_ArchivePendingReadCount = 0;
+        return 0;
+    }
+
+    {
+        g_ArchiveCurEntryIndex = nIndex;
+        g_ArchiveCurFileSector = ArchiveDecodeSector(nIndex);
+        g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nIndex);
+        g_ArchiveCdChannel = channel & 0xFFFF;
+        g_ArchiveStreamResumedFile = 0;
+        g_ArchiveStreamStopFlag = 0;
+        g_ArchiveReadRetryCount = 0;
+        pLoc = &g_ArchiveCdCurLocation;
+        CdIntToPos(g_ArchiveCurFileSector, pLoc);
+
+        if (g_ArchiveDebugTable != 0) {
+            for (i = 0; i < nCount; i++) {
+                nEntryIndex = pQueue[i].archiveIndex;
+                g_ArchiveCurEntryIndex = nEntryIndex;
+                pFilePath = ArchiveGetFilePath(nEntryIndex);
+
+                for (j = 0; j < RETRY_COUNT; j++) {
+                    hFile = PCopen(pFilePath, 0, 0);
+                    if (hFile != -1)
+                        goto opened;
+                    GfxDrawArchiveReadRetry(j, 0xFF, 0, 0);
+                }
+                goto close;
+
+            opened:
+                if (pQueue[i].pData != NULL) {
+                    pCurEntry = &pQueue[i];
+                    for (j = 0; j < RETRY_COUNT; j++) {
+                        if (PCread(hFile, pCurEntry->pData, ArchiveDecodeSizeAligned(nEntryIndex)) != 0)
+                            break;
+                        GfxDrawArchiveReadRetry(j, 0, 0xFF, 0);
+                    }
+                }
+
+            close:
+
+                for (j = 0; j < RETRY_COUNT; j++) {
+                    if (PCclose(hFile) == 0)
+                        break;
+                    GfxDrawArchiveReadRetry(j, 0, 0, 0xFF);
+                }
+            }
+
+            g_ArchiveCurFileSize = 0;
+            g_ArchivePendingReadCount = 0;
+            return 0;
+        }
+    }
+
+    g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
+    CdDataCallback(&ArchiveRestorePendingCount);
+    CdSyncCallback(&ArchiveCdDriveCommandHandler);
+    CdReadyCallback(&ArchiveCdReadyReadQueuedFile);
+    g_ArchiveCdReadStartCount += 1;
+    CdControlF(CdlSetloc, (void*)pLoc);
+    return 0;
+}
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
