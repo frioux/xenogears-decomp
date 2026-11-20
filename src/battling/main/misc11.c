@@ -18,6 +18,12 @@ extern void func_800316C0(void *pOt, void *pPrim);
 // ground shadow (misc4 tests the same field the same way).
 #define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
 
+// The cross's three axes as the packed colour word of a LINE_F2: code 0x40 in
+// the top byte, then the pure red, green and blue components.
+#define BATTLE_CROSS_LINE_RED 0x400000FF
+#define BATTLE_CROSS_LINE_GREEN 0x4000FF00
+#define BATTLE_CROSS_LINE_BLUE 0x40FF0000
+
 typedef struct {
     /* 0x00 */ LINE_F2 prim[2];
     /* 0x20 */ SVECTOR pos[2];
@@ -74,7 +80,7 @@ typedef struct {
 } BattlingSpanParams; // Size: 0x30
 
 extern BattlingSpanParams g_BattleSpanRenderParams;
-extern u8 *D_80092854;
+extern u8 *D_80092854[];
 extern u8 *g_BattleSpanBuffer;
 extern long MathGetLargestVectorComponent(long, long, long);
 extern void func_800732AC(void *, void *, s32);
@@ -310,18 +316,28 @@ void BattleClearSpanTables(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087698);
-/* Best 81.23%: two clusters left. (1) gcc puts the live interpolated value in
-   a0 and the table byte in v1; the original has them the other way round
-   (v1 / a0). (2) the original's loop tail is i++; slt; bnez; addu(cur += step)
-   in the branch delay slot, gcc emits addu before the slt and a nop in the
-   slot. Tried: for-increment order i++,cur += step and cur += step,i++;
-   t declared before v. Semantics: interpolate a shaded span into the two
-   buffers g_BattleSpanTableMin / g_BattleSpanTableMax, clamped by the tables D_80091834 /
-   D_800918B4+1.
+/* Best 98.69%, at retail's exact size (260 bytes). One allocator tie is left:
+   retail keeps the interpolated value in $v1 and the clamped table byte in $a0,
+   gcc 2.7.2 swaps the pair ($a0 / $v1) in both clamp halves. Everything else is
+   exact, including the sra/addu/div prologue and the 'addu t0,t0,t1' in the
+   bnez delay slot.
+   Load-bearing shapes found: cur and step must be ASSIGNED after the swap block,
+   not declared with an initialiser (an initialiser makes gcc compute them above
+   the 'arg1 == arg3' early return and the body is 20 bytes too long); the swap
+   writes must read the parameter being overwritten first ('t = arg2; arg2 =
+   arg0; arg0 = t;'), which is what puts the temp in $v0; two separate temps for
+   the two halves (t and u here) are worth 0.15 over one shared temp; and
+   'cur += step, i++' in the for increment is what fills the back-edge delay
+   slot. Tried and worse: a u8 temp (94.08), reusing v as the second temp (97.62),
+   reordering the declarations, moving the shift after the p assignment.
+   A 4-minute 2-job permuter run (2292 iterations) produced the two-temp swap and
+   reported base=95 best=85; a second run from this body is the next step, with
+   the v/t register pair as the target.
 void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
-    s32 cur = arg0 << 8;
-    s32 step = ((arg2 - arg0) << 8) / (arg3 - arg1);
+    s32 cur;
+    s32 step;
     s32 t;
+    s32 u;
     s32 v;
     s32 i;
     u8 *p;
@@ -330,15 +346,15 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
         return;
     }
     if (arg3 < arg1) {
-        t = arg0;
-        arg0 = arg2;
-        arg2 = t;
-        t = arg1;
-        arg1 = arg3;
-        arg3 = t;
-        cur = arg0 << 8;
-        step = ((arg2 - arg0) << 8) / (arg3 - arg1);
+        t = arg2;
+        arg2 = arg0;
+        arg0 = t;
+        u = arg3;
+        arg3 = arg1;
+        arg1 = u;
     }
+    cur = arg0 << 8;
+    step = ((arg2 - arg0) << 8) / (arg3 - arg1);
     for (i = arg1; i < arg3; cur += step, i++) {
         if (i < 0) {
             continue;
@@ -365,8 +381,8 @@ void func_80087698(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
         }
     }
 }
-*/
 
+*/
 void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     g_NearColor = (g_NearColor & 0xFFFFFF) | 0x24000000;
     gte_ldrgb(&g_NearColor);
@@ -374,28 +390,22 @@ void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     func_80072D18(arg0, arg1, arg2);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087830);
-/* Best 80.95%: the original CSEs &D_80092854 for the store and the following load
-   and keeps it in s0 (frame 0x18); gcc recomputes the address with $at each time
-   (frame 0x10, 4 bytes short). Tried: p = g + 7, p = g then p += 7 (80.95),
-   p initialized at declaration (74.72), explicit u8 **pBuf = &D_80092854.
 void func_80087830(void) {
     s32 i;
     u8 *p;
 
     g_BattleSpanTableMax = (u8 *)0x1F800000;
     g_BattleSpanTableMin = (u8 *)0x1F800080;
-    D_80092854 = HeapAlloc(0xE100, 0);
+    D_80092854[0] = HeapAlloc(0xE100, 0);
     g_BattleSpanBuffer = HeapAlloc(0xE100, 0);
-    p = D_80092854 + 7;
+    p = D_80092854[0] + 7;
     for (i = 0; i < 0x708; i++) {
         p[-4] = 7;
         p[0] = 0x24;
         p += 0x20;
     }
-    func_800732AC(g_BattleSpanBuffer, D_80092854, 0xE100);
+    func_800732AC(g_BattleSpanBuffer, D_80092854[0], 0xE100);
 }
-*/
 /* The battle texture archive after LZSSHeapDecompress and
    ResolveArchiveEntryPointers: a pointer count, then one resolved pointer per
    resource, each naming a TIM. Only the slots this unit loads are named. */
@@ -561,50 +571,27 @@ void BattleAppendEntry(s32 *arg0) {
         g_BattleAppendEntryCount = i + 1;
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
-/* Best 96.46%, at retail's exact size (876 bytes). The residual is the store
-   order inside the three-line colour block: retail emits
-   sb 3 / sw 4 / sb 19 / sw 20 / sb 35 / sw 36 (its source order) and re-derives
-   the buffer base 4 times, gcc 2.7.2 reorders ours to sb 3 / sb 19 / sw 4 /
-   sb 35 / sw 20 / sw 36 and re-derives the base 4 times a different way, which
-   also pushes the three packed colour words into a2/a3 instead of retail's
-   a0/a2. Everything else is exact: the 18 vertex stores, the view-origin
-   subtract loop, both ldv3/RTPT/stsxy3 groups, the +8/+0xC/+0x18 and
-   +0x1C/+0x28/+0x2C store offsets, the giv increment (addiu s2,s2,0x68 right
-   after the second reload) and the three func_800316C0 calls.
-   The two levels of struct are load-bearing: a single
-   'line[bufDraw * 3 + k]' subscript makes gcc scale (bufDraw*3+k) as one value
-   (the addiu lands before the sll) so the store displacements come out wrong;
-   with 'prims[bufDraw].line[k]' they fold to retail's +0x13/+0x23.
-   Reaching the prims through an extra pointer local buys 97.28% but costs 4
-   bytes (one extra move) - retail has no such move, so it cannot link.
-   A 5-minute 2-job permuter run (2340 iterations) went 1825 -> 456 without
-   finding a size-correct zero; both of its wins were that extra-move pointer
-   local, so re-run it from this body with the store order as the target.
-   g_BattleTargetCrosses is the same 0x68-stride table as D_8009A988 + 0x60 (that splat
-   symbol aliases this table's pos field; BattleAppendEntry fills it).
-   The best body, verbatim:
 // One flat line of a battle target's cross, colour and code written as the
 // single packed word the tag length and colour live in.
 typedef struct {
-    // 0x0 u8 pad0[0x3];
-    // 0x3 u8 tagLength;
-    // 0x4 BattlingPacketWord color;
-    // 0x8 s16 x0;
-    // 0xA s16 y0;
-    // 0xC s16 x1;
-    // 0xE s16 y1;
+    /* 0x0 */ u8 pad0[0x3];
+    /* 0x3 */ u8 tagLength;
+    /* 0x4 */ BattlingPacketWord color;
+    /* 0x8 */ s16 x0;
+    /* 0xA */ s16 y0;
+    /* 0xC */ s16 x1;
+    /* 0xE */ s16 y1;
 } BattlingCrossLine; // Size: 0x10
 
 // A battle target's cross in one draw buffer: the X, Y and Z axis segments.
 typedef struct {
-    // 0x00 BattlingCrossLine line[3];
+    /* 0x00 */ BattlingCrossLine line[3];
 } BattlingCrossPrims; // Size: 0x30
 
 // The cross, one set of prims per draw buffer, then the centre it sits on.
 typedef struct {
-    // 0x00 BattlingCrossPrims prims[2];
-    // 0x60 SVECTOR pos;
+    /* 0x00 */ BattlingCrossPrims prims[2];
+    /* 0x60 */ SVECTOR pos;
 } BattlingCrossEntry; // Size: 0x68
 
 extern BattlingCrossEntry g_BattleTargetCrosses[];
@@ -655,11 +642,15 @@ void func_80087EA0(u8 *pOt) {
                    &(g_BattleDrawBufferIndex + pEntry->prims)->line[2].x1);
 
         (g_BattleDrawBufferIndex + pEntry->prims)->line[0].tagLength = 3;
-        (g_BattleDrawBufferIndex + pEntry->prims)->line[0].color.word = 0x400000FF;
+        // The first two colour words have to be stored where they are written:
+        // their volatile lvalue is what keeps the following tag-length store
+        // from being scheduled ahead of them (the third store fills the call's
+        // delay slot, so it stays plain).
+        *(volatile u32 *)&(g_BattleDrawBufferIndex + pEntry->prims)->line[0].color.word = BATTLE_CROSS_LINE_RED;
         (g_BattleDrawBufferIndex + pEntry->prims)->line[1].tagLength = 3;
-        (g_BattleDrawBufferIndex + pEntry->prims)->line[1].color.word = 0x4000FF00;
+        *(volatile u32 *)&(g_BattleDrawBufferIndex + pEntry->prims)->line[1].color.word = BATTLE_CROSS_LINE_GREEN;
         (g_BattleDrawBufferIndex + pEntry->prims)->line[2].tagLength = 3;
-        (g_BattleDrawBufferIndex + pEntry->prims)->line[2].color.word = 0x40FF0000;
+        (g_BattleDrawBufferIndex + pEntry->prims)->line[2].color.word = BATTLE_CROSS_LINE_BLUE;
 
         func_800316C0(pOt, &(g_BattleDrawBufferIndex + pEntry->prims)->line[0]);
         func_800316C0(pOt, &(g_BattleDrawBufferIndex + pEntry->prims)->line[1]);
@@ -667,7 +658,6 @@ void func_80087EA0(u8 *pOt) {
     }
     g_BattleAppendEntryCount = 0;
 }
-*/
 
 void *BattleAllocLineSlot(s32 *arg0, s32 *arg1, s32 arg2) {
     s32 i;
