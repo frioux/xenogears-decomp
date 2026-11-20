@@ -887,67 +887,24 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode) {
         break;
     }
 }
-// Triage r111: as stored here it is 98.20% (612 bytes = retail's size). The addiu-on-offset shape does work: with "s32 off; off = (i * 2 + pWindow->renderContext) * 0x28 + K; MenuSetPrimShadingMode((POLY_FT4*)(off + (u32)pWindow), mode);" in each of the five K != 0 loops, the final block in its own braced { s32 off; ... } with (u_char)mode, and loop 1 as "(...) * 0x28 + (u32)pWindow" (base last), it reaches 99.51%. Residual: the last call re-truncates mode (retail andi a1,s1,0xFF, gcc proves 2..3 and emits move a1,s1) and retail loads pWindow into v1 there where gcc picks a2. Permuter 3 min from the 99.51% body: no gain (base=215 best=215).
-// Round 121: the call sites are the MenuWindow poly arrays (polysWindowBorderCorners[8] at 0x0,
-// polysWindowBorderTop/Bottom/Left/Right[4], polysScrollBarEnds[4] at 0x410, polysScrollBarEmpty[2]),
-// indexed [i * 2 + pWindow->renderContext]; that form gives retail's "addiu a0,a0,K" on the index
-// chain and 612 bytes. 99.08%: every call's final add is mirrored ("addu a0,a2,a0" vs retail's
-// "addu a0,a0,a2"), the last block loads the window into a2 where retail uses v1, and the last call
-// emits "move a1,s1" where retail keeps "andi a1,s1,0xFF".
-// Round 121: the call sites are the MenuWindow poly arrays (polysWindowBorderCorners at 0x0,
-// polysWindowBorderTop/Bottom/Left/Right at 0x140/0x1E0/0x280/0x320, polysScrollBarEnds at 0x410,
-// polysScrollBarEmpty at 0x3C0) indexed [i * 2 + pWindow->renderContext]: that reproduces retail's
-// "addiu a0,a0,K" on the index chain and lands on 612 bytes, retail's exact size.
-/* Best: 99.61% (612 bytes). ONE instruction is left: the final call passes mode as "move a1,s1"
-   where retail keeps "andi a1,s1,0xFF" (same value, since mode is only 2 or 3). Every other
-   instruction, register and delay slot is retail's.
-   What got here from 96.65: write each call as
-   "&g_Menu->windows[arg0]->polyX[i * 2 + g_Menu->windows[arg0]->renderContext]". A per-loop
-   "pWindow = g_Menu->windows[arg0]" local instead gives retail's chain in a0 and the addiu on the
-   chain but the final add mirrored ("addu a0,a2,a0" vs retail's "addu a0,a0,a2"); the
-   int-local/inline spellings ("off + (u32)pWindow", "chain + K + (u32)pWindow") fix that add order
-   but then fold K onto the window ("addiu v0,a2,0xK") - 96.70-99.02.
-   Tried for the andi: (u_char)mode cast, "mode & 0xFF", an empty do/while before it, dropping the
-   pWindow local entirely, and 2 permuter runs from this body (no gain, base=200 best=200).
-   Round 123 (7 more spellings, all 99.61% / 612 bytes, all identical): "(u_char)mode" on the last
-   call, "u8 shade = mode;" in its own block, "s32 shade = mode;" (assigned and declared-then-
-   assigned), "mode & 0xFF", "do { call } while (0)", and "u_char mode;" as the declaration. The
-   delta is a gcc 2.6.0 value-tracking artifact, NOT a source shape: a scratch probe compiled in
-   this unit (`s32 mode = sel ? 3 : 2; call(p, mode); call(p, mode);`) elides the narrowing in
-   straight-line code, and with a loop in front (`for (...) call(p + i, mode); call(p, mode);`) the
-   loop body keeps `andi` while the trailing call still elides it. So retail's andi cannot be
-   restored by how the last argument is spelled; a different wrap-up block would be needed, and
-   gcc 2.7.2 scores this function worse (99.15 under try_flags.sh).
-   Round 285: re-measured from the stored body, unchanged (99.61%, 612 bytes, `move a1,s1`
-   against retail's `andi a1,s1,0xff` on the last call only).
-   Round 318: a no-op redefinition (`mode = mode;`) before the last call changes nothing
-   (still 99.61%, `move a1,s1`), so the value-tracking elision stands as the diagnosis.
-   void func_801E8F60(u8 arg0, u8 arg1) {
-       s32 mode;
-       s32 i;
-
-       mode = arg1 ? 3 : 2;
-       for (i = 0; i < 4; i++) {
-           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderCorners[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
-       }
-       for (i = 0; i < 4; i++) {
-           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderTop[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
-       }
-       for (i = 0; i < 4; i++) {
-           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderBottom[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
-       }
-       for (i = 0; i < 4; i++) {
-           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderLeft[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
-       }
-       for (i = 0; i < 4; i++) {
-           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysWindowBorderRight[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
-       }
-       for (i = 0; i < 2; i++) {
-           MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysScrollBarEnds[i * 2 + g_Menu->windows[arg0]->renderContext], mode);
-       }
-       MenuSetPrimShadingMode(&g_Menu->windows[arg0]->polysScrollBarEmpty[g_Menu->windows[arg0]->renderContext], mode);
-   }
-*/
+/* Best: 99.61% (612 bytes = retail's size), ONE instruction left: the last call
+   passes mode as "move a1,s1" where retail has "andi a1,s1,0xFF" (same value;
+   mode is only 2 or 3). Everything else - every register, delay slot and save -
+   is retail's. The call sites are the MenuWindow poly arrays
+   (polysWindowBorderCorners[8] at 0x0, polysWindowBorderTop/Bottom/Left/Right[4]
+   at 0x140/0x1E0/0x280/0x320, polysScrollBarEnds[4] at 0x410,
+   polysScrollBarEmpty[2] at 0x3C0) indexed [i * 2 + pWindow->renderContext].
+   Rounds 111/121/123/285/318 tried ~20 spellings (u_char mode, "u8 shade =
+   mode;", "s32 shade = mode;", an explicit (u_char) cast, "mode & 0xFF", a
+   do/while around the call, "mode = mode;") and two permuter runs: all stay at
+   99.61% with "move a1,s1". cc1_probe (this round, six variants) shows why: the
+   last block is reached only from loop 6's exit branch, so cse carries s1's
+   known value (2 or 3) into it and folds the u_char conversion, while the loop
+   heads (two predecessors) keep their "andi". A 4-minute permuter run this
+   round found that "i = arg1 ? 3 : 2; mode = i;" DOES restore the andi (base
+   200 -> 126) but only by keeping the constant in a second register and copying
+   it ("move s1,s0", +4 bytes, 616 bytes), so it cannot be the original source -
+   retail assigns the constant straight into s1 ("li s1,0x2"/"li s1,0x3"). */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E8F60);
 void MenuSetPolySemiTransGrey(P_TAG* pTag) {
     SetSemiTrans(pTag, 1);
