@@ -472,8 +472,6 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 // animScriptWaitTimer. The wait-timer increment is in a local the frame commands assign, so
 // the control-opcode path adds the previous command's value, as retail does; a
 // `(s16)value >> 11` spelling is needed for retail's sra in the 0xBE timer term.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
-/*
 // Best: 72.61% (820 bytes; retail is 788, frame 0x38 against retail's 0x30). What closed the
 // gap from the round-319 park's 42.73, each measured on its own:
 //  - the two advance statements must read pSpriteData->pSpriteBytecode (the field) and not the
@@ -501,21 +499,51 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800226
 // retail materialises it twice, separately, for the same reason. A spelling that gives the -9
 // and 0xF03FFFFF pseudos one use each while still emitting retail's single materialisation (or a
 // preset that skips loop.c invariant motion) is the whole remaining job.
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
+/*
+// Best: 91.20% (788 bytes = retail's exact size, retail's exact register set: s0-s5 + ra,
+// frame 0x30). Round 330 closed 72.61 -> 91.20 and found the two levers that decide whether
+// loop.c hoists a loop-invariant constant (it hoists iff
+// (loop_has_call ? 1 : 2) * (1 + n_non_fixed_regs) * savings * m->lifetime >= insn_count,
+// with savings = the number of loads of that value, lifetime = the luid span between its first
+// and last use, insn_count = the loop's RTL insn count - 187 here; cc1 -dL prints the numbers
+// as "Insn N: regno R (life L), move-insn savings S moved/not desirable", see the loop dump
+// recipe in the file history):
+//  - shorten the SPAN between a constant's first and last use. -9 (the two `& ~8`s) was hoisted
+//    at life 14-16 through the s16 value path and at life 7 with its two ANDs 6 insns apart;
+//    reading the 0x3C word into a local before the 0xAC update drops it to life 6 = not hoisted.
+//  - 0xF03FFFFF was hoisted at life 7 with `(flags & MASK) | (count << 22)` as one expression;
+//    hoisting `count << 22` into its own local first puts the mask's use later, life 6, not
+//    hoisted. That is the ONLY reason the tail reads that way - it costs retail's `and`-first
+//    order in the tail block (the last ordering difference besides the 0xBE arm's).
+// Also settled this round: `value` is s32 (an s16/u16 local is hoisted again: 88.61%, 796);
+// the case-body source order must be 0xB3 AFTER 0xE2 and 0x86/0x87/0x97 LAST (retail's block
+// order is BE, E2, B3, merged-86/87/97-check, length advance; any other order costs 4-8 bytes
+// and 10-14 points); the flip bit must be an unfolded `((f >> 3) & 1) ^ ((f >> 2) & 1)` - gcc
+// folds it to `(f << 1 & 8 ^ newBit3)` (3 insns) if the 0x3C clear is written early enough to
+// let it see that bit 3 of the new word is the flip value; `%hi/%lo` pairs for
+// g_AnimScriptCommandLengths stay unhoisted in both compiles.
+// What is left is statement order inside two blocks (the tail's `and`, the 0xBE arm's load
+// order/lhu position) plus `srl` vs retail's `sra v0,s0,11` for (`s16)value >> 11`, which no
+// spelling tried (s16/u16/s32 locals, u16 local with a cast) reproduces. A 4-minute permuter
+// run found only the `new_var = 0x3F` local below (90.95 -> 91.20).
+
 // SpriteData's 0x3C flag word: the shared header only splits bits 20-31 into fields,
 // so the flip bit this VM mirrors the animation flags into sits inside its 20-bit
 // field_0x3C_0 (the same view system/temp1.c declares for the word).
 typedef union {
-    // 0x0 u32 flags;
-    // 0x0 struct {
-        // 0x0 u32 unk0 : 3;
-        // 0x3 u32 flipX : 1;
-        // 0x4 u32 unk4 : 28;
+    // 0x0  u32 flags;
+    // 0x0  u8 bytes[4];
+    struct {
+        // 0x0  u32 unk0: 3;
+        // 0x3  u32 flipX: 1;
+        // 0x4  u32 unk4: 28;
     } fields;
 } SpriteTransformFlags;
 
 typedef struct {
-    // 0x00 u8 unk0[0x3C];
-    // 0x3C SpriteTransformFlags flags_0x3C;
+    // 0x00  u8 unk0[0x3C];
+    // 0x3C  SpriteTransformFlags flags_0x3C;
 } SpriteTransformFlagsView;
 
 // flags_0xA8's frame counter (bits 11..16) and script index (bits 22..27) are read and
@@ -539,7 +567,10 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
     s32 ticks;
     s32 count;
     s32 offset;
-    s16 value;
+    u32 flags;
+    int new_var;
+    u32 transformFlags;
+    s32 value;
 
     while (1) {
         pBytecode = pSpriteData->pSpriteBytecode;
@@ -568,11 +599,12 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
             if (code < 0x40) {
                 ticks = (code & 0xF) + 1;
             }
-            count = (ANIM_SCRIPT_COUNTER(pSpriteData->flags_0xA8, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) + 1) &
+            flags = pSpriteData->flags_0xA8;
+            count = (ANIM_SCRIPT_COUNTER(flags, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) + 1) &
                     ANIM_SCRIPT_COUNTER_MASK;
             pSpriteData->animScriptWaitTimer += ticks;
-            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
-                                      (count << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT);
+            transformFlags = count << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT;
+            pSpriteData->flags_0xA8 = (flags & ANIM_SCRIPT_SCRIPT_INDEX_MASK) | transformFlags;
             if (count == 0) {
                 pSpriteData->flags_0xA8 =
                     (pSpriteData->flags_0xA8 & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
@@ -588,6 +620,32 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
             case 0x81:
             case 0x82:
                 return;
+            case 0xBE:
+                value = pBytecode[1] | (pBytecode[2] << 8);
+                flags = pSpriteData->flags_0xAC.flags;
+                transformFlags = ((SpriteTransformFlagsView*)pSpriteData)->flags_0x3C.flags;
+                flags = (flags & ~ANIM_SCRIPT_FLIP_BIT) | (((u32)value >> 6) & ANIM_SCRIPT_FLIP_BIT);
+                pSpriteData->flags_0xAC.flags = flags;
+                transformFlags = (transformFlags & ~ANIM_SCRIPT_FLIP_BIT) |
+                                 ((((flags >> 3) & 1) ^ ((flags >> 2) & 1)) << 3);
+                ((SpriteTransformFlagsView*)pSpriteData)->flags_0x3C.flags = transformFlags;
+                if ((u16)pSpriteData->curSpriteFrame != (value & 0x1FF)) {
+                    func_8001D2B0(pSpriteData, value & 0x1FF);
+                }
+                pSpriteData->animScriptWaitTimer += (((s16)value >> 11) & 0xF) + 1;
+                break;
+            case 0xE2:
+                // subroutine call: push the return address, jump by the signed 16-bit offset
+                offset = pBytecode[1] + (s16)(pBytecode[2] << 8);
+                AnimScriptStackPushU24(pSpriteData, (mem_addr)(pBytecode + 3));
+                pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + (s16)offset;
+                continue;
+            case 0xB3:
+                new_var = 0x3F;
+                pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_COUNTER_MASK) |
+                                          ((((s8)pBytecode[1]) & new_var)
+                                           << ANIM_SCRIPT_FRAME_COUNTER_SHIFT);
+                break;
             case 0x86:
                 if (pBytecode == pEnd) {
                     return;
@@ -603,29 +661,6 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
                     return;
                 }
                 break;
-            case 0xB3:
-                pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_COUNTER_MASK) |
-                                          ((((s8)pBytecode[1]) & ANIM_SCRIPT_COUNTER_MASK)
-                                           << ANIM_SCRIPT_FRAME_COUNTER_SHIFT);
-                break;
-            case 0xBE:
-                value = pBytecode[1] | (pBytecode[2] << 8);
-                pSpriteData->flags_0xAC.flags = (pSpriteData->flags_0xAC.flags & ~ANIM_SCRIPT_FLIP_BIT) |
-                                                ((value >> 6) & ANIM_SCRIPT_FLIP_BIT);
-                ((SpriteTransformFlagsView*)pSpriteData)->flags_0x3C.fields.flipX =
-                    (((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
-                    (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1);
-                if ((u16)pSpriteData->curSpriteFrame != (value & 0x1FF)) {
-                    func_8001D2B0(pSpriteData, value & 0x1FF);
-                }
-                pSpriteData->animScriptWaitTimer += ((value >> 11) & 0xF) + 1;
-                break;
-            case 0xE2:
-                // subroutine call: push the return address, jump by the signed 16-bit offset
-                offset = pBytecode[1] + (s16)(pBytecode[2] << 8);
-                AnimScriptStackPushU24(pSpriteData, (mem_addr)(pBytecode + 3));
-                pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + (s16)offset;
-                continue;
             }
             pSpriteData->pSpriteBytecode =
                 (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
