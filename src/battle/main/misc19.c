@@ -15,6 +15,9 @@
 #define BATTLE_STAT_EVADE_RESET 20
 #define BATTLE_STAT_HIT_RESET 15
 
+// The commandMask of a character who has every one of the 13 learnable command rows.
+#define BATTLE_COMMAND_MASK_ALL 0xFFF8
+
 
 extern BattleWorkBlock* g_BattleCurWorkBlock;
 extern u8 g_BattleCurSlotIndex;
@@ -651,7 +654,7 @@ void BattleResetSlotEffectWords(u8 arg0) {
         BattleSetActorScaledHp(arg0, p);
     }
     if (p->characterId == 3) {
-        for (i = 3; i < 11; i++) {
+        for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
             g_BattleWorkBlock[i].activeEffectFlags2 &= ~0x20;
         }
     }
@@ -736,11 +739,11 @@ void BattleSetActorScaledHp(u8 arg0, BattleTableEntry* pArg) {
 void BattleInitItemInventoryAndConditionMasks(void) {
     u_char i;
 
-    for (i = 1; i < 0x30; i++) {
+    for (i = 1; i < 48; i++) {
         g_GameState.itemIDs[i] = i;
         g_GameState.itemQuantities[i] = MAX_ITEM_QUANTITY;
     }
-    *(u16 *)&g_GameState.unk16BC[0].commandMask = 0xFFF8;
+    *(u16 *)&g_GameState.unk16BC[0].commandMask = BATTLE_COMMAND_MASK_ALL;
     *(u16 *)&g_GameState.unk16BC[0].characterConditionMask = 0xFF00;
     *(u16 *)&g_GameState.unk16BC[0].unk8 = 0xFFFF;
     *(u16 *)&g_GameState.unk16BC[0].gearConditionMask = 0xFE00;
