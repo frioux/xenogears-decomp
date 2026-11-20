@@ -944,7 +944,7 @@ the way retail's 3.x SetTransVector + SetRotMatrix pair comes out. */
 #define gte_nclip() __asm__ volatile (				\
 	"nop;"							\
 	"nop;"							\
-	".word 0x0000117f" )
+	"c2      0x1400006;" )
 
 #define gte_avsz3() __asm__ volatile (				\
 	"nop;"							\
