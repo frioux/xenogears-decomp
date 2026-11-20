@@ -1159,7 +1159,7 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
     dest->m[2][2] = source->m[2][2];
 }
 
-// 95.62% / 1432 bytes (retail is 1428: 0x80074108..0x8007469C, 357 insns). What it is: an
+// 97.44% / 1432 bytes (retail is 1428: 0x80074108..0x8007469C, 357 insns). What it is: an
 // 8-row sprite sheet fill from D_800AFC08 into D_800AFD24 (a row zeroed when
 // g_Scene.dollyStop & D_800ADC24[i]), a RECT at 0x800B004C with w = 0x80 and
 // LoadImage(&rect, D_800AFD24), SetGeomScreen(0x80), SetGeomOffset(0x10A, 0xA6), a
@@ -1173,41 +1173,51 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 // D_800B1E00[g_FieldCurRenderContextIndex] and the context's ot3[0], then
 // SetGeomOffset(0xA0, 0x70) and SetGeomScreen(g_Scene.sceneScrZ). Frame 0xF8.
 //
-// The structure is right - every call, branch, loop, stack slot and stack-argument store
-// is in retail's place, and the whole first half (sheet fill, LoadImage, LookAt, the
-// CompMatrix chain) is instruction-identical. Residuals, all measured:
-// 1. ONE INSTRUCTION OVER, so this body can never link as it stands. The last
-//    FieldRenderQuad loop (D_800B0FEC, i = 0x15..0x18) puts the loop-carried
-//    `addu a1,s1,zero` at the top of the body only and gives the back-edge delay slot to
-//    the 0xFFFFFF constant's `lui`; this build emits the body copy AND a second
-//    `move a1,s1` in the back-edge slot. Tried: `pQuad` + a separate `pQuad++` statement
-//    (95.13), `pQuad++` in the argument (95.10 with a non-const tail), and the best,
-//    `for (i = 0x15, pQuad = D_800B0FEC; ...)` (95.62, which also fixes the preheader
-//    order of `li s2,0x80D4`).
-// 2. The tail's three ot3[0] accesses NEED a context pointer local, not
-//    g_FieldCurRenderContext inline: the store through pOverlayTag otherwise makes gcc
-//    reload the global (3 extra insns). With the local, retail's three
-//    `lui at,0x1 / addu at,$ctx,at` address forms (0x80D4 does not fit a 16-bit
-//    displacement) come out - but this build then orders the D_800B1E00 symbol load after
-//    the index shifts where retail has it before, and names the 0xFFFFFF mask $t1 where
-//    retail has $a3. Same instruction count.
-// 3. The camera base: retail keeps ONE register (`lui/addiu` of 0x800AF884, i.e.
-//    &g_CameraEye.vy) and reaches the up vector as `addiu a3,s0,0x1C` with NO relocation,
-//    so the original source took both from one symbol. Written with the symbols the rest
-//    of the unit uses (g_CameraEye / g_CameraUp) this build materialises each separately
-//    (`lui %hi(g_CameraEye); lw 4(...)` and `lui %hi(g_CameraUp); addiu`) - equal
-//    instruction count, but it is the same subobject-base wall the unit's other parks are
-//    stuck on (see FieldActorApplyRotationAndScale). Not tried: a single-symbol view such
-//    as `((VECTOR*)&g_CameraEye)[2]` for the up vector.
-// 4. The trigger-zone screen offsets are D_800ADC24[8 + k*2] / [9 + k*2] (four x/y pairs
-//    stored after the eight direction masks, at 0x800ADC34), but retail's relocation names
-//    g_pFieldTriggerZones + 0x40, i.e. the source reached 0x800ADC34 from a symbol at
-//    0x800ADBF4. Same linked address either way; objdiff cannot reach 100% on the address
-//    form. The counter starts at 0x10 because 0x700 / 0x70 = 16, so the trigger quads are
-//    D_800B06BC[0x10..0x13], and D_800B0F7C / D_800B0FEC are the quads at D_800B06BC + 20
-//    and + 21 (Quad is 0x70 bytes), which is why their references carry no offset.
+// The structure is right - every call, branch, loop, stack slot, stack-argument store and
+// the WHOLE first half (sheet fill, LoadImage, the camera vectors, LookAt, the CompMatrix
+// chain) is instruction-identical. Residuals, all measured this round (round 340):
+// 1. ONE INSTRUCTION OVER, still the blocker, and it can never link as it stands. The last
+//    FieldRenderQuad loop (D_800B0FEC, i = 0x15..0x18) needs the per-iteration copy of the
+//    induction pointer at the TOP of the body (`addu a1,s1,zero` preceded only by the loop
+//    label, increment `addiu s1,s1,0x70` right after it, empty latch), which is what frees
+//    the back-edge delay slot for the 0xFFFFFF `lui`. This build always produces the OTHER
+//    loop.c form: a preheader initialiser plus the copy in the latch, so the copy takes the
+//    delay slot and the `lui` moves after the loop - one instruction more than retail.
+//    Diagnosed as loop.c's move_movables turning the per-iteration copy of a biv into a
+//    SECOND biv; every spelling tried keeps the latch copy: `pQuad++` in the argument
+//    (95.62, and its preheader order is wrong too), `pQuad` + a separate `pQuad++`
+//    (95.13), `pCurrentQuad = pQuad++` (95.62), do-while with the increments in the body
+//    (95.18), `goto` loop (95.56), `for (;;)` + if/else + break (94.82, 1436 bytes). The
+//    BEST is the strength-reduced index `&D_800B0FEC[i - 0x15]`, which is the only spelling
+//    that also reproduces retail's preheader order (`ori s0,0x15`; `ori s2,0x80D4`;
+//    `lui/addiu s1`) - 97.44 with the two spellings below.
+// 2. The tail's three ot3[0] accesses: retail keeps the context in $a2 and the prim word in
+//    $a1, with the 0xFFFFFF mask in $a3 (its `lui` filling the three guard delay slots) and
+//    the D_800B1E00 base materialised BEFORE the index shifts. This build puts the context
+//    in $a3, the mask in $t1 and the D_800B1E00 base after the shifts - same instruction
+//    count, one register rotation over. `pRenderContext`/`pOverlayTag` locals are required
+//    (inlining the global reloads it after the tag store, 3 extra insns). Same count.
+// 3. SOLVED this round - do not re-derive: the camera base. Retail keeps ONE register
+//    (`lui/addiu` of g_CameraEye + 0x4) and reaches the up vector as `addiu a3,s0,0x1C`
+//    with NO relocation. A partial view struct declared in this file and based at
+//    `&g_CameraEye.vy` reproduces it exactly (`FieldCameraVectors` below: eyeY at 0x0 is
+//    g_CameraEye.vy, `up` at 0x1C is g_CameraUp). Writing g_CameraEye.vy / g_CameraUp by
+//    name instead gives two separate symbol materialisations (the subobject-base wall).
+// 4. SOLVED this round: the trigger-zone screen offsets. Retail reaches 0x800ADC34 as
+//    g_pFieldTriggerZones + 0x40 (the symbol is at 0x800ADBF4) and reads it with `lh`, so
+//    the source took `((s16 *)((u8 *)&g_pFieldTriggerZones + 0x40))[k]`; spelling them as
+//    D_800ADC24[8 + k*2] links to the same bytes but objdiff can never agree on the reloc.
+//    The masks above them stay D_800ADC24 (retail names that symbol). The counter starts at
+//    0x10 because 0x700 / 0x70 = 16, so the trigger quads are D_800B06BC[0x10..0x13], and
+//    D_800B0F7C / D_800B0FEC are the quads at D_800B06BC + 20 and + 21 (Quad is 0x70 bytes),
+//    which is why their references carry no offset.
 // 5. `li s2,0x80D4` and `addiu a2,sp,0x70` land one slot apart from retail inside both quad
-//    loop preheaders (harmless reorder).
+//    loop preheaders (harmless reorder; the index spelling above fixes loop 3's).
+//
+// Host-side tip that made this round cheap: `.venv/bin/elfObjDisasm --functions <Func> -a
+// build/src/field/main/misc2.c.o /tmp/out` disassembles the compiled object (relocations
+// resolved, labels printed) without docker, so a loop's exact instruction order can be read
+// instead of inferred from diff_func's side-by-side.
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
 
 /*
@@ -1231,6 +1241,17 @@ extern Quad D_800B0F7C[]; // Compass quad
 extern Quad D_800B0FEC[]; // Screen overlay quads
 extern u8 D_800B1E00[];
 
+// The camera vector block seen from the eye's y component: retail keeps that address in a
+// register and reaches the up vector as +0x1C with no relocation, so the original source
+// took both from one symbol.
+typedef struct {
+    s32 eyeY; // 0x00: g_CameraEye.vy
+    s32 eyeZ; // 0x04
+    s32 eyePad; // 0x08
+    VECTOR at; // 0x0C: g_CameraAt
+    VECTOR up; // 0x1C: g_CameraUp
+} FieldCameraVectors;
+
 #define FIELD_SPRITE_SHEET_ROW_COUNT 8
 #define FIELD_SPRITE_SHEET_ROW_WIDTH 16
 #define FIELD_SPRITE_SHEET_WIDTH 0x80
@@ -1247,9 +1268,11 @@ void func_80074108(void) {
     SVECTOR vecRot; // 0xB0
     VECTOR vecEye; // 0xB8
     VECTOR vecAt; // 0xC8
+    FieldCameraVectors* pCamera;
     FieldActor* pActor;
     RenderContext* pRenderContext;
     Quad* pQuad;
+    Quad* pCurrentQuad;
     u32* pOverlayTag;
     s16 nTargetAngle;
     u8 nDollyStop;
@@ -1276,15 +1299,16 @@ void func_80074108(void) {
     SetGeomScreen(FIELD_SPRITE_SHEET_WIDTH);
     SetGeomOffset(0x10A, 0xA6);
 
+    pCamera = (FieldCameraVectors*)&g_CameraEye.vy;
     vecAt.vx = 0;
     vecAt.vy = 0;
     vecAt.vz = 0;
     vecEye.vx = 0;
-    vecEye.vy = g_CameraEye.vy - g_CameraAt.vy;
+    vecEye.vy = pCamera->eyeY - g_CameraAt.vy;
     nMagnitude = FieldGetVec2Magnitude((g_CameraEye.vx - g_CameraAt.vx) >> 16,
         (g_CameraEye.vz - g_CameraAt.vz) >> 16);
     vecEye.vz = -nMagnitude << 16;
-    FieldMatrixLookAt(&matView, &vecEye, &vecAt, &g_CameraUp);
+    FieldMatrixLookAt(&matView, &vecEye, &vecAt, &pCamera->up);
 
     FieldMatrixSetIdentity(&matProj);
     matProj.t[2] = FIELD_SPRITE_SHEET_WIDTH;
@@ -1335,8 +1359,8 @@ void func_80074108(void) {
     if (g_FieldCompassDisabled == 0 && g_FieldSkipCounter == 0 && D_8004F378 == 0) {
         for (i = 0x10; i < 0x14; i++) {
             FieldMatrixSetIdentity(&matWork);
-            matWork.t[0] = (s16)D_800ADC24[(i - 0x10) * 2 + 8];
-            matWork.t[2] = (s16)D_800ADC24[(i - 0x10) * 2 + 9];
+            matWork.t[0] = ((s16 *)((u8 *)&g_pFieldTriggerZones + 0x40))[(i - 0x10) * 2];
+            matWork.t[2] = ((s16 *)((u8 *)&g_pFieldTriggerZones + 0x40))[(i - 0x10) * 2 + 1];
             CompMatrix(&matProj, &matWork, &matCoord);
             FieldMatrixCopyTransform(&matCoord, &matRot);
             FieldRenderQuadScreenRect(g_FieldCurRenderContext->ot3, &D_800B06BC[i], &matCoord,
@@ -1348,8 +1372,8 @@ void func_80074108(void) {
                 g_FieldCurRenderContextIndex);
         }
 
-        for (i = 0x15, pQuad = D_800B0FEC; i < 0x19; i++) {
-            FieldRenderQuad(g_FieldCurRenderContext->ot3, pQuad++, &matProj,
+        for (i = 0x15; i < 0x19; i++) {
+            FieldRenderQuad(g_FieldCurRenderContext->ot3, &D_800B0FEC[i - 0x15], &matProj,
                 g_FieldCurRenderContextIndex);
         }
     }
