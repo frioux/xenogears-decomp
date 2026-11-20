@@ -869,4 +869,105 @@ s32 func_8008868C(void) {
 }
 */
 
+// Four-word position quad copied whole out of the scratchpad
+ typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} WorldMapPos4; // Size: 0x10
+
+// One entry of the g_WorldMapGroups table (stride 0x54); this unit only touches the
+// position quad and the matrix a rotation step propagates down the entry chain.
+typedef struct {
+    /* 0x00 */ u8 pad0[0x8];
+    /* 0x08 */ WorldMapPos4 pos;
+    /* 0x18 */ u8 pad18[0x8];
+    /* 0x20 */ MATRIX matrix;
+    /* 0x40 */ u8 pad40[0x14];
+} WorldMapEntry; // Size: 0x54
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc9", func_80088720);
+// Best: 90.69% (1064 bytes vs retail's 1056). Structure, call set, both
+// RotMatrixYXZ tables and the five matrix copies are retail's; the residuals are
+// all instruction PLACEMENT, and every one of them is a load or constant that gcc
+// hoists two to three slots above the first store of the block it belongs to,
+// where retail keeps it next to its use:
+//  (a) the prologue: retail materialises the first RotMatrixYXZ's second argument
+//      (`lui a1,0x1F80` / `ori a1,a1,0xF0` in the jal delay slot) inside the
+//      scratchpad store block, we emit that lui second, right after the first
+//      argument's `ori a0,a0,0xA0`. The same hoist is why the angle temporaries
+//      come out in a2 (retail's a1) - one spill of the address, two symptoms.
+//  (b) the two scratchpad angle loads (0x50/0x58) sit before the four clears
+//      instead of around them; the volatile-store spelling, a local for the value
+//      and a do/while block around the clears all measured the same order.
+//  (c) the 0x182C/0x182E/0x1830 reads are hoisted above the x store, retail keeps
+//      the y read after it. Writing the three stores in x,z,y source order (not
+//      x,y,z) is what got this from 87.95 to 90.69, so the y statement's position
+//      is a real lever here; x,y,z and the same-order local forms are worse.
+//  Also residual: retail re-forms the copy base twice off g_WorldMapGroups (v1
+//  for entry+5, then v0 kept for entry+3 and the 2/1/0 chain) and we use one base
+//  register for all five; the index-first cast spelling
+//  `(WorldMapEntry *)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups)`
+//  reproduces retail's index-first `addu` order and the second reload, but not the
+//  register split. Permuter: the shipped decomp-permuter cannot parse this body
+//  ("conversion to non-scalar type requested" on the MATRIX struct assignments),
+//  so it needs hand work or a permuter that accepts struct assignment.
+/*
+s32 func_80088720(s32 index) {
+    WorldMapPlayer* pSlot;
+    WorldMapEntry* pEntries;
+    WorldMapPos* pPos;
+    WorldMapPos* pSlotPos;
+    s32 tileIndex;
+    s32 dist;
+
+    pSlot = &g_WorldMapSlots[index];
+    tileIndex = D_8009B688[g_WorldMapLevelIndex];
+    pSlot->unk50 = (pSlot->unk50 + pSlot->unk54) & 0xFFF;
+    pSlot->unk58 = (pSlot->unk58 + pSlot->unk5C) & 0xFFF;
+    *(s16*)0x1F8000A4 = 0;
+    *(s16*)0x1F8000A0 = 0;
+    *(s16*)0x1F8000AC = 0;
+    *(s16*)0x1F8000A8 = 0;
+    *(s16*)0x1F8000A2 = pSlot->unk50;
+    *(s16*)0x1F8000AA = pSlot->unk58;
+    RotMatrixYXZ((SVECTOR*)0x1F8000A0, (MATRIX*)0x1F8000F0);
+    RotMatrixYXZ((SVECTOR*)0x1F8000A8, (MATRIX*)0x1F800110);
+    // the global is re-read per copy run: one pointer local makes gcc CSE the load
+    // and hand the base to a register retail does not use
+    pEntries = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
+    pEntries[5].matrix = *(MATRIX*)0x1F8000F0;
+    pEntries = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
+    pEntries[3].matrix = *(MATRIX*)0x1F800110;
+    pEntries[2].matrix = pEntries[3].matrix;
+    pEntries[1].matrix = pEntries[2].matrix;
+    pEntries[0].matrix = pEntries[1].matrix;
+    pPos = (WorldMapPos*)0x1F800000;
+    pPos->x = *(u16*)&g_GameState.scriptPosX - (pSlot->x >> 12);
+    pPos->z = *(u16*)&g_GameState.scriptPosZ - (pSlot->z >> 12);
+    pPos->y = g_GameState.scriptPosY;
+    WorldMapWrapDeltaScaled(pPos);
+    dist = SquareRoot0(pPos->x * pPos->x + pPos->z * pPos->z);
+    if (dist < 0x300 && pPos->y < -0x240) {
+        pSlot->moveSpeed = 0;
+    } else {
+        pSlot->moveSpeed = 1;
+    }
+    pSlotPos = (WorldMapPos*)&pSlot->x;
+    pSlot->x += pSlot->dirX * (s16)pSlot->moveSpeed;
+    pSlot->z += pSlot->dirZ * (s16)pSlot->moveSpeed;
+    WorldMapWrapPosition(pSlotPos);
+    pPos->x = pSlot->x >> 12;
+    pPos->y = pSlot->y >> 12;
+    pPos->z = pSlot->z >> 12;
+    pEntries = (WorldMapEntry*)(tileIndex * sizeof(WorldMapEntry) + (u32)g_WorldMapGroups);
+    pEntries[12].pos = *(WorldMapPos4*)0x1F800000;
+    WorldMapQueueZoneEntry(index, (s32*)pSlotPos, 0x180, 0xC0);
+    g_GameState.mapPosXFraction = pSlot->x;
+    g_GameState.mapPosX = pSlot->x >> 12;
+    g_GameState.mapPosZFraction = pSlot->z;
+    g_GameState.mapPosZ = pSlot->z >> 12;
+    return 1;
+}
+*/
