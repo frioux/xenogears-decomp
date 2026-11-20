@@ -1317,75 +1317,25 @@ void func_8002B8B0(s32 unused, s32 nQueueIndex) {
     if (g_ArchiveCurFileSize <= 0)
         g_ArchiveCurFileSize = 0;
 }
-/* MECHANISM: the loop's queue-index copy is a REGISTER-LIVE-RANGE question, not a
- * spelling one (round 334, 18 cc1_probe snippets + 20 measured spellings).
- *
- * Retail's loop head is  lw v0,q / addu a1,v0,zero / addiu v1,a1,1 / sll v0,a1,3 /
- * sw v1,q . The copy exists in our compile too, but sched2 puts it AFTER the add
- * and the add reads the load's temp. The order follows from the copy's SHAPE, not
- * from the schedule: when the local is a distinct pseudo that is already LIVE at
- * the load, cc1 must materialise it (addu a1,v0,zero) and the increment then reads
- * a1, giving retail's order. When the local is created inside the loop it is
- * coalesced into the load temp and the add reads that.
- * Proof (cc1_probe, faithful replica of this body): `nIndex = g_ArchiveStreamQueueIndex++;`
- * gives add-then-copy; the SAME body with `s32 nIndex = -1;` gives retail's loop
- * byte for byte. Measured in the unit: 404 bytes / 98.89%, and the ONLY residual is
- * the extra `li a1,-1` the initialiser costs - retail's 400 bytes has no slot for
- * it, so the live-in has to come from an instruction that already exists.
- * Probed and dead (all keep add-then-copy, or coalesce the copy away entirely):
- * two statements (`nIndex = q; q = nIndex + 1;` -> 396 bytes, cannot link);
- * `g_Qa[0]++` through an unbounded array extern; `(*pQ)++` through a pointer
- * local; `pQX->q++` (struct member); `g = (nIndex = g) + 1`; `nIndex = g, g = nIndex + 1`;
- * `g = 1 + (nIndex = g)`; `nTemp = g; nIndex = nTemp; g = nIndex + 1`;
- * `nIndex = nTemp = g; g = nIndex + 1;`; `nIndex = g; g = g + 1;`; the wrap test
- * reading the local; declaration order of nIndex first/last; cdk (96.65) and 2.6.0
- * (98.80) same tie. The copy survives only from a post-increment.
- * NOTE the same loop is in func_8002B2F0 and func_8002B5D0 (identical bodies), so
- * whatever closes this closes those two.
- *
- * Best body (98.89%, 404 bytes - retail is 400):
- * void func_8002B8B0(void) {
- *     s16 i;
- *     s32 nIndex = -1;
- *     s32 nSectorOffset;
- *     u16 nSectionId;
- *     u16 nNextSectionId;
- *     ArchiveStreamFileSectionHeader* pHeader;
- *
- *     if (g_ArchiveCurFileSize > 0) {
- *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
- *             nIndex = g_ArchiveStreamQueueIndex++;
- *             pHeader = (ArchiveStreamFileSectionHeader*)(nIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
- *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
- *                 g_ArchiveStreamQueueIndex = 0;
- *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED)
- *                 break;
- *         }
- *
- *         if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
- *             i = 0;
- *             // volatile: retail stores the state before it reloads the id counter
-            *(volatile u16*)&pHeader->state = 1;
- *             nSectionId = g_ArchiveStreamNextSectionId;
- *             nNextSectionId = nSectionId + 1;
- *             pHeader->id = nSectionId;
- *             g_ArchiveStreamNextSectionId = nNextSectionId;
- *             nSectorOffset = nIndex * CD_SECTOR_SIZE;
- *             for (; i < RETRY_COUNT; i++) {
- *                 if (PCread(D_80059F04, (u8*)(nSectorOffset + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE) != 0)
- *                     break;
- *                 GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
- *             }
- *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
- *             g_ArchiveCurFileSector += 1;
- *         } else {
- *             g_ArchiveCurFileSize = 0;
- *         }
- *     }
- *
- *     if (g_ArchiveCurFileSize <= 0)
- *         g_ArchiveCurFileSize = 0;
- * }
+/* The queue-index copy in this body (round 334 posed it as a live-range question;
+ * round 335 closed it). Retail's loop head is
+ *     lw v0,q / addu a1,v0,zero / addiu v1,a1,1 / sll v0,a1,3 / sw v1,q
+ * The copy only comes out FIRST when the index variable is already live at the load.
+ * A local born inside the loop is coalesced into the load temp, and the copy then
+ * lands after the addiu with the add reading the temp (that is the 400-byte
+ * measurement with a wrong order); an initialised local gives retail's loop byte
+ * for byte but costs a `li a1,-1` retail has no room for (404 bytes). The live-in
+ * has to come from an instruction that already exists, and it does: the function's
+ * SECOND PARAMETER, which the caller (func_80029EB0) clears in the jal delay slot -
+ * so the scan's index variable IS that parameter and its initial value is free.
+ * 400 bytes / 100.00%; param0 is unused, which is why the caller passes two zeros.
+ * `*(volatile u16*)&pHeader->state = 1;` is load-bearing (93.90% without it): retail
+ * stores the state before reloading the id counter and the volatile blocks the CSE
+ * that would otherwise sink the store.
+ * func_8002B2F0 / func_8002B5D0 hold the same loop, but there the copy goes to $s2
+ * (the index lives across the CdGetSector call, so it is callee-saved and cannot be
+ * coalesced anyway) - the live-in question does not arise, and their residual is the
+ * sched2 delay-slot tie documented above func_8002B5D0.
  */
 
 void ArchiveRestorePendingCount(void) {
