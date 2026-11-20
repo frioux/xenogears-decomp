@@ -46,7 +46,7 @@ typedef struct {
     /* 0xA2 */ u16 targetHeight; // the target's vertical: BattleSetActorTargetFromPathPosition zeroes it for a ground target, so the 2D angle ignores it
     /* 0xA4 */ u16 targetY;
     /* 0xA6 */ u8 unkA6[0x2];
-    /* 0xA8 */ u32 unkA8;
+    /* 0xA8 */ u32 flags_0xA8; // the flag word SpriteData (include/field/actor.h) and every battle unit spell flags_0xA8; this unit shifts out its top two bits as the sprite's animation direction
     // func_800BF3E8 reads byte 3 as a signed byte (\`lb 0xAF\`), so the 0xAC word and
     // the 0xAF byte are one storage read at two widths.
     /* 0xAC */ union {
@@ -85,17 +85,20 @@ extern s32 g_BattleCommandRowIndex;
 // A 0x48-byte row of the per-battle actor table that g_BattleStateWork + 0x108 starts;
 // misc25 indexes the same rows as g_BattleActorCommandIds[g_BattleCommandRowIndex - 1].
 typedef struct {
-    /* 0x00 */ u8 unk0[0x46];
+    /* 0x00 */ u8 unk0[0x2F];
+    /* 0x2F */ u8 commandCode; // 0xF7: queued but not dispatched yet, 0xFF: end of the queue (misc24 BattleGetQueuedCommandCode)
+    /* 0x30 */ u8 unk30[0x16];
     /* 0x46 */ u16 slotMask;
 } BattleActorRow; // Size: 0x48
 
 extern BattleActorRow D_800C3FB8[];
 // One 0x1C-byte row of the sensor table the battle state work block starts with; a
-// sprite's row index is its animation direction (unkA8>>30) and part key (flags&3).
+// sprite's row index is its animation direction (flags_0xA8>>30) and part key (flags&3).
 typedef struct {
     /* 0x00 */ u8 unk0[0x7];
     /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, clear means idle
-    /* 0x08 */ u8 unk8[0x6];
+    /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0 (misc29/misc34 BattleActorSlot.inUse)
+    /* 0x09 */ u8 unk9[0x5];
     /* 0x0E */ u16 x; // whole x the slot's sprite takes its 16.16 position from (misc29 BattleActorInitSpriteFromSlot)
     /* 0x10 */ u16 z;
     /* 0x12 */ u8 unk12[0xA];
@@ -655,7 +658,7 @@ void BattleSetCurrentActorSprite(s32 actorIndex) {
 
     pSprite = g_BattleState->pCurSprite;
     if (pSprite != NULL && g_BattleState->actorIndex != actorIndex) {
-        part = pSprite->unkA8 >> 30;
+        part = pSprite->flags_0xA8 >> 30;
         if (((BattleSpriteSensorRow *)g_BattleStateWork)[((g_BattleState->pCurSprite->flags.word & 3) << 2) | part].flags == 0) {
             SpritePlayAnimation(g_BattleState->pCurSprite, g_BattleState->pCurSprite->animId);
         }
@@ -751,7 +754,7 @@ void BattleLoadActorArchiveFile(BattleActorSprite *pSprite) {
     pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(entry), 1);
     ArchiveReadFileToBuffer(entry, pBuffer, 0, 0x80);
     g_BattleActorArchiveBuffer = pBuffer;
-    part = pSprite->unkA8 >> 30;
+    part = pSprite->flags_0xA8 >> 30;
     g_BattleActorArchivePartKey = ((pSprite->flags.word & 3) << 2) | part;
 }
 s32 BattleLoadSoundSeds(void) {
@@ -774,7 +777,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
    (retail re-reads g_BattleActorList for the pState->pTargetSprite store: `lw a0,0(s2)` after
    the two 0x74 stores, so its address lives in $s2 and the loaded head in $s0;
    ours CSEs the third read onto s0 and needs no second saved register) and the
-   unkA8/flags load order.  The two `lhu` of the mask ARE two separate C
+   flags_0xA8/flags load order.  The two `lhu` of the mask ARE two separate C
    expressions -- one per statement, with the D_800D3634 store between them --
    and the call argument must be the later statement's load, so the argument
    expression is written last.  The table row is 0x48 bytes at g_BattleStateWork+0x108
@@ -795,7 +798,7 @@ void func_800BF3E8(BattleActorSprite *p) {
     p->pTargetSprite = g_BattleActorList;
     ((BattleActorSprite *)g_BattleActorList)->pTargetSprite = p;
     pState->pTargetSprite = g_BattleActorList;
-    pState->partKey = ((pLast->flags.word & 3) << 2) | (pLast->unkA8 >> 30);
+    pState->partKey = ((pLast->flags.word & 3) << 2) | (pLast->flags_0xA8 >> 30);
     func_800223B0(p, BattleAngleToPoint(p, p->pTargetSprite));
     if (pLast->flags.sbytes[3] != 0x15) {
         func_800223B0(pLast, BattleAngleToPoint(p->pTargetSprite, p));
