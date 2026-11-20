@@ -6,6 +6,9 @@
 // Temp
 extern int func_800286CC(void);
 
+#define ARCHIVE_DEBUG_BLOCK_HEADER_SIZE 0x20
+#define ARCHIVE_STREAM_FILE_READY 3
+
 extern s32 g_ArchiveCurFileSector;
 
 extern s32 g_ArchiveStreamQueue;
@@ -14,6 +17,14 @@ extern u16 g_ArchiveStreamReadSectionId;
 extern u32 g_ArchiveCurEntryIndex;
 extern void GfxDrawArchiveReadRetry(int, int, int, int);
 extern int ArchiveDecodeSizeAligned(int entryIndex);
+extern s16 g_ArchiveDebugStreamSectionCount;
+extern s8* g_ArchiveStreamWritePointer;
+extern u16 g_ArchiveStreamNextSectionId;
+extern u8 g_ArchiveSectorScratch[];
+extern s32 D_80059F54;  // debug stream: sector buffer being split
+extern s32 D_80059F58;  // debug stream: payload cursor inside that sector
+extern s16 D_80059F5C;  // debug stream: sub-blocks in that sector
+extern u16 D_8005A4B8;  // debug stream: sector header word at +8
 
 void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
     g_ArchiveCdReadStartCount = 0;
@@ -383,22 +394,27 @@ int ArchiveClearStreamFileSections(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
 
-/* Best: 97.87%. Structure is right; the rest is register allocation and one
- * delay slot. Loads the stream pointer into v0 before the frame and copies it
- * to s2 only when the global is referenced twice (guard on the global, then
- * assign from it) - writing `pData = g_ArchiveCurStreamFile; if (!pData)` puts
- * the load straight into s2 and emits the prologue first (93.87%). The debug
- * loop's g_ArchiveStreamSections load must come from inside the loop body so loop.c hoists
- * it into the preheader, after the entry test. Still different: the original
- * keeps the section count in a1, g_ArchiveStreamQueueIndex in v1, the header base in a3 and a
- * loop-invariant copy of the limit in a1 (`move a1,v0` after the entry test,
- * which needs either a second reference to g_ArchiveStreamSectionCount or a two-variable loop
- * bound), reuses v0 for the g_ArchiveStreamQueue queue index, and materialises
- * `move v0,zero` in the g_ArchiveCurFileSize blez delay slot instead of
- * sharing the trailing NULL block.
+/* Best: 98.25% at retail's exact 844 bytes; the instruction stream, block layout and
+ * every branch target now match. The remaining 27 diff rows are REGISTER NAMES only
+ * (retail: nSections a1, sections base a3, limit copy a1, queue-index load v1 and its
+ * copy a2; ours: nSections a2, sections base a2, limit copy v1, load v0, copy a1), so
+ * this is an allocation tie and not a source shape - 7 declaration orders, the
+ * `(index * sizeof(T) + (mem_addr)base)` spelling for both pointers and a
+ * declaration-initialiser variant all measured the identical 98.25/844.
+ *
+ * The two levers that got here from 97.87% (836 bytes, two instructions short) are both
+ * in the debug-table scan and both are load-bearing:
+ *  - the loop bound and the wrap test read g_ArchiveStreamSectionCount DIRECTLY in the
+ *    source, not through a `nLimit` local. cse merges the two global loads into one
+ *    pseudo, loop.c then hoists it and emits retail's `move a1,v0` preheader copy,
+ *    while the zero-trip `blez` keeps using the load register. A `nLimit` local is
+ *    coalesced into the load register and costs both the copy and 4 bytes.
+ *  - `nIndex = g_ArchiveStreamQueueIndex++;` (not two statements) is what produces
+ *    retail's separate queue-index copy.
+ * The permuter cannot run this body: its randomization at rng_seed 0 (the forced base
+ * candidate) emits invalid C and it reports "Unable to compile base.c".
  *
  * u_char* func_80028B14(void) {
- *     int nLimit;
  *     u_char* pData;
  *     ArchiveStreamFileSectionHeader* pHeader;
  *     ArchiveStreamFileSectionHeader* pHeaders;
@@ -427,13 +443,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028B14);
  *             return NULL;
  *         }
  *
- *         nLimit = g_ArchiveStreamSectionCount;
- *         for (i = 0; i < nLimit; i++) {
+ *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
  *             pHeaders = g_ArchiveStreamSections;
- *             nIndex = g_ArchiveStreamQueueIndex;
+ *             nIndex = g_ArchiveStreamQueueIndex++;
  *             pHeader = pHeaders + nIndex;
- *             g_ArchiveStreamQueueIndex = nIndex + 1;
- *             if (g_ArchiveStreamQueueIndex >= nLimit) {
+ *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount) {
  *                 g_ArchiveStreamQueueIndex = 0;
  *             }
  *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
@@ -566,6 +580,181 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 }
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
+
+/* Best: 39.90% (1280 bytes against retail's 1324). First written body, ~90% of the
+ * instruction multiset in place; what is left is STRUCTURE, not registers:
+ *  - retail's frame is 0x50, ours 0x48: two stack locals too few, i.e. at least one
+ *    source local is missing (retail's s5 holds the stream pointer and is then reused
+ *    for pData - `addu s5,v0,zero` then `addiu s5,v0,0x24` - so it is ONE variable
+ *    reassigned, which is done here, yet a slot is still short).
+ *  - retail keeps i in s1 and pSection in s2 concurrently with pHeaders in s3 through
+ *    the whole debug block; ours reuses them.
+ * Known-good facts about the shape, all read off the .s and already encoded below:
+ *  - `if (g_ArchiveDebugTable == 0) goto fail;` INVERTED, with the pData reassignment
+ *    landing in the beqz delay slot; the debug body then falls into a shared
+ *    `fail: *pSectionOut = 0;` whose label is also the target of every early exit.
+ *  - The debug path and the fail path both continue into the section SEARCH loop
+ *    (retail L80029378), and the loop's bound is nSections (the stream-file header
+ *    count), while the success test compares i against g_ArchiveStreamSectionCount -
+ *    two different counters, exactly as in func_80028B14's non-debug scan.
+ *  - The `seek` block is shared by three call sites (scratch[0] == 1 twice, and
+ *    `pSection->size < D_80059F5C`), the last of which passes -0x28 or -0x20 depending
+ *    on g_ArchiveCdMode & 8; retail then stores 0 through pSectionOut and jumps PAST
+ *    the shared fail store.
+ *  - D_80059F54 / D_80059F58 / D_80059F5C (s16) / D_8005A4B8 are the debug stream's
+ *    per-sector state and have no symbols yet; they are splat-owned data labels, so a
+ *    struct view has to be declared here rather than defined.
+ *
+ * s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
+ *     ArchiveStreamFileSectionHeader* pSection;
+ *     ArchiveStreamFileSectionHeader* pHeaders;
+ *     u8* pData;
+ *     u8* pSector;
+ *     s32 nSections;
+ *     s32 nOffset;
+ *     s32 nIndex;
+ *     s32 nSeek;
+ *     s32 nRemaining;
+ *     s32 i;
+ *
+ *     if (g_ArchiveCurStreamFile == NULL) {
+ *         return 1;
+ *     }
+ *
+ *     pData = g_ArchiveCurStreamFile;
+ *     pHeaders = (ArchiveStreamFileSectionHeader*)(pData + 4);
+ *     nSections = *(s32*)pData;
+ *     pData = pData + nSections * sizeof(ArchiveStreamFileSectionHeader) + STREAM_FILE_HEADER_SIZE;
+ *
+ *     if (g_ArchiveDebugTable == 0) {
+ *         goto fail;
+ *     }
+ *     {
+ *         if (g_ArchiveDebugFileHandle == -1) {
+ *             goto fail;
+ *         }
+ *         if (g_ArchiveCurFileSize <= 0) {
+ *             goto fail;
+ *         }
+ *
+ *         if (g_ArchiveDebugStreamSectionCount != 0) {
+ *             if (g_ArchiveCdMode[0] & 8) {
+ *                 PCread(g_ArchiveDebugFileHandle, (char*)g_ArchiveSectorScratch, 8);
+ *                 if (g_ArchiveSectorScratch[0] == 1) {
+ *                     nSeek = 0x918;
+ *                     goto seek;
+ *                 }
+ *             }
+ *
+ *             nIndex = g_ArchiveStreamQueueIndex + 1;
+ *             pSection = (ArchiveStreamFileSectionHeader*)(nIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+ *             g_ArchiveStreamQueueIndex = nIndex;
+ *             pSection->state = ARCHIVE_STREAM_FILE_READY;
+ *             pSection->id = g_ArchiveStreamNextSectionId;
+ *             g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
+ *             PCread(g_ArchiveDebugFileHandle, (char*)(D_80059F54 + g_ArchiveDebugStreamSectionCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *             PCread(g_ArchiveDebugFileHandle, (char*)(D_80059F58 + g_ArchiveDebugStreamSectionCount * (CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE)), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *             if (g_ArchiveCdMode[0] & 8) {
+ *                 PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
+ *             }
+ *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *             g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
+ *             if (g_ArchiveDebugStreamSectionCount >= D_80059F5C) {
+ *                 g_ArchiveDebugStreamSectionCount = 0;
+ *             }
+ *             *pSectionOut = 0;
+ *             goto search;
+ *         }
+ *
+ *         i = 0;
+ *         while (i < g_ArchiveStreamSectionCount) {
+ *             pSection = (ArchiveStreamFileSectionHeader*)(i * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+ *             if (pSection->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
+ *                 break;
+ *             }
+ *             i += pSection->size;
+ *         }
+ *         if (i >= g_ArchiveStreamSectionCount) {
+ *             goto fail;
+ *         }
+ *
+ *         nOffset = i * CD_SECTOR_SIZE;
+ *         if (g_ArchiveCdMode[0] & 8) {
+ *             PCread(g_ArchiveDebugFileHandle, (char*)g_ArchiveSectorScratch, 8);
+ *             if (g_ArchiveSectorScratch[0] == 1) {
+ *                 nSeek = 0x918;
+ *                 goto seek;
+ *             }
+ *         }
+ *
+ *         pSector = (u8*)(nOffset + (mem_addr)g_ArchiveStreamWritePointer);
+ *         D_80059F54 = (s32)pSector;
+ *         PCread(g_ArchiveDebugFileHandle, (char*)pSector, ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *         D_80059F5C = *(u16*)(pSector + 6);
+ *         D_8005A4B8 = *(u16*)(pSector + 8);
+ *
+ *         if (pSection->size < D_80059F5C) {
+ *             if (g_ArchiveCdMode[0] & 8) {
+ *                 nSeek = -0x28;
+ *             } else {
+ *                 nSeek = -0x20;
+ *             }
+ *             goto seek;
+ *         }
+ *
+ *         pSection->state = ARCHIVE_STREAM_FILE_READY;
+ *         pSection->id = g_ArchiveStreamNextSectionId;
+ *         nRemaining = pSection->size - D_80059F5C;
+ *         if (nRemaining >= 3) {
+ *             pSection->size = D_80059F5C + 1;
+ *             pSection[D_80059F5C + 1].size = nRemaining - 1;
+ *             pSection[D_80059F5C + 1].state = ARCHIVE_STREAM_FILE_NOT_LOADED;
+ *             ArchiveConsolidateStreamFileEntry(D_80059F5C + 1);
+ *         }
+ *
+ *         g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
+ *         D_80059F58 = nOffset + (mem_addr)g_ArchiveStreamWritePointer + D_80059F5C * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE;
+ *         PCread(g_ArchiveDebugFileHandle, (char*)D_80059F58, CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *         if (g_ArchiveCdMode[0] & 8) {
+ *             PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
+ *         }
+ *         g_ArchiveStreamQueueIndex = i;
+ *         g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+ *         g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
+ *         *pSectionOut = 0;
+ *         goto search;
+ *
+ *     seek:
+ *         PClseek(g_ArchiveDebugFileHandle, nSeek, 1);
+ *         *pSectionOut = 0;
+ *         goto search;
+ *     }
+ *
+ * fail:
+ *     *pSectionOut = 0;
+ *
+ * search:
+ *     for (i = 0; i < nSections; i++, pHeaders++) {
+ *         if (pHeaders->state == ARCHIVE_STREAM_FILE_READY && pHeaders->id == g_ArchiveStreamReadSectionId) {
+ *             break;
+ *         }
+ *     }
+ *
+ *     if (i == g_ArchiveStreamSectionCount) {
+ *         return 1;
+ *     }
+ *
+ *     pSection = (ArchiveStreamFileSectionHeader*)(pData + i * CD_SECTOR_SIZE);
+ *     *pSectionOut = (s32)pSection;
+ *     *pDataOut = (s32)((u8*)pSection + pSection->unk2 * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *     if (ArchiveCheckStreamFileSectionStates(i, pSection->unk2, ARCHIVE_STREAM_FILE_READY) != 0) {
+ *         return 1;
+ *     }
+ *
+ *     g_ArchiveStreamReadSectionId += pSection->unk2;
+ *     return 0;
+ * }
+ */
 
 u_short ArchiveReleaseStreamBlock(u_char* pSection) {
     u_char* pStream;
