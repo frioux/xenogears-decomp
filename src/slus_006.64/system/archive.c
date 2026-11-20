@@ -1273,58 +1273,62 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
-/*
-/* Best attempt: objdiff 90.50% at retail's exact 400 bytes, instruction multiset
- * identical. Two deltas remain and both are allocator/scheduling, not structure:
- *  - a cyclic register rotation: retail keeps the section count in a0, the queue
- *    index in a1 and the section pointer in a2; we get a1/a2/a0. The copy
- *    instructions themselves are all present in both.
- *  - inside the found block retail emits `li v0,1 / sh v0,0(p)` BEFORE the
- *    `lhu g_ArchiveStreamNextSectionId` and stores the id before the incremented
- *    global; we emit the state store after the load and the global store first.
+/* Best attempt: objdiff 91.85% at retail's exact 400 bytes, instruction multiset
+ * identical; the three residual deltas are instruction placement, not structure.
+ *  1. the scan loop: retail copies the loaded queue index first
+ *     (move a1,v0) and then adds (addiu v1,a1,1); we emit addiu v1,v0,1 before
+ *     the copy. `nIndex = g_ArchiveStreamQueueIndex++` is load-bearing (the
+ *     two-statement `nIndex = g; g = nIndex + 1` drops that copy and is 4 bytes
+ *     short), so the only difference is where the copy lands.
+ *  2. the found block: retail emits li v0,1 / sh v0,0(p) before the
+ *     lhu g_ArchiveStreamNextSectionId; we emit the lhu first.
+ *  3. retail's hoisted nSectorOffset sll sits after that lhu and before the
+ *     addiu; ours lands at the head of the block, in the found test's delay slot.
  * Load-bearing spellings found (each measured):
- *  - `nIndex = g_ArchiveStreamQueueIndex++;` is what produces retail's extra
- *    `move a1,v0` copy of the loaded index; the `g = nIndex + 1`, `++g` and
- *    `nNextIndex = nIndex + 1` spellings are all 396 bytes (4 SHORT: retail has
- *    that copy and nothing else) at 90.19-91.50%.
- *  - reading g_ArchiveStreamSectionCount in the loop bound AND in the wrap test
- *    (not a nLimit local) is what makes the count a `move a0,v0` copy instead of
- *    a direct `lw a0` (392 bytes, 90.30%).
- * Measured and rejected: nLimit local 90.30; `&pHeaders[nIndex]` 90.19; the
- * section test spelled inline as `g_ArchiveStreamSections[nIndex].state` with
- * pHeader formed after the loop 412 bytes 84.00; `pHeader->id = g++` 89.04; an
- * nSectorOffset local 90.50 (no change). A 4-minute permuter run (base=1081,
- * best=665) only found a candidate that deletes the state store as dead code
- * after the `break`, so nothing there is portable.
+ *  - the section-id bump wants TWO locals (nSectionId, then nNextSectionId, then
+ *    both stores): `pHeader->id = g; g += 1;` puts the addiu after the id store
+ *    (91.30) and `pHeader->id = g++` reorders the two stores.
+ *  - addressing pHeader index-first and the PCread buffer base-first fixes both
+ *    addu operand orders (91.30 -> 91.85).
+ *  - the section count read inline in the loop bound AND in the wrap test is
+ *    what makes retail's move a0,v0 count copy instead of a direct lw a0.
+ * Measured and rejected: `&g_ArchiveStreamSections[nIndex]` 91.30; a nLimit
+ * local 90.30; the section test inlined with pHeader formed after the loop
+ * (412 bytes, 84.00); `pHeader->id = g++` 89.04; moving the state store to the
+ * end of the block (grows the frame to s1/s2); an unused nSectorOffset local
+ * (no change). The permuter cannot run on this body: its parser rejects the
+ * sizeof cast ("conversion to non-scalar type requested"), and an earlier
+ * 4-minute run on the 90.50 body (base=1081 best=665) found only a
+ * dead-code-deleting candidate.
  *
  * void func_8002B8B0(void) {
  *     s16 i;
  *     s32 nIndex;
  *     s32 nSectorOffset;
+ *     u16 nSectionId;
+ *     u16 nNextSectionId;
  *     ArchiveStreamFileSectionHeader* pHeader;
- *     ArchiveStreamFileSectionHeader* pHeaders;
  *
  *     if (g_ArchiveCurFileSize > 0) {
  *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
  *             nIndex = g_ArchiveStreamQueueIndex++;
- *             pHeader = &g_ArchiveStreamSections[nIndex];
- *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount) {
+ *             pHeader = (ArchiveStreamFileSectionHeader*)(nIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+ *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
  *                 g_ArchiveStreamQueueIndex = 0;
- *             }
- *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
+ *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED)
  *                 break;
- *             }
  *         }
  *
  *         if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
  *             pHeader->state = 1;
- *             pHeader->id = g_ArchiveStreamNextSectionId;
- *             g_ArchiveStreamNextSectionId += 1;
+ *             nSectionId = g_ArchiveStreamNextSectionId;
  *             nSectorOffset = nIndex * CD_SECTOR_SIZE;
+ *             nNextSectionId = nSectionId + 1;
+ *             pHeader->id = nSectionId;
+ *             g_ArchiveStreamNextSectionId = nNextSectionId;
  *             for (i = 0; i < RETRY_COUNT; i++) {
- *                 if (PCread(D_80059F04, g_ArchiveStreamWritePointer + nSectorOffset, CD_SECTOR_SIZE) != 0) {
+ *                 if (PCread(D_80059F04, (u8*)(nSectorOffset + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE) != 0)
  *                     break;
- *                 }
  *                 GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
  *             }
  *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
@@ -1334,9 +1338,8 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
  *         }
  *     }
  *
- *     if (g_ArchiveCurFileSize <= 0) {
+ *     if (g_ArchiveCurFileSize <= 0)
  *         g_ArchiveCurFileSize = 0;
- *     }
  * }
  */
 
