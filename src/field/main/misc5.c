@@ -43,6 +43,10 @@
 // g_FieldParticleFadeDistance of the screen centre
 #define FIELD_PARTICLE_CORNER_FADE_STEP 6
 
+// How much g_FieldParticleFadeDistance grows per frame of the particle-fade
+// phase of the zoom fade effect
+#define FIELD_PARTICLE_FADE_DISTANCE_STEP 6
+
 // STP, the semi-transparency bit of two packed 16-bit texels
 #define FIELD_TEXEL_SEMITRANS_MASK 0x80008000
 
@@ -269,7 +273,7 @@ dispatch:
             FieldAddParticlePrims();
             func_8007554C();
             FieldTickSkipCounter();
-            g_FieldParticleFadeDistance += 6;
+            g_FieldParticleFadeDistance += FIELD_PARTICLE_FADE_DISTANCE_STEP;
         }
         DrawSync(0);
         func_800A7064();
