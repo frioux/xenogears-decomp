@@ -36,7 +36,7 @@ extern s32 D_800ADB68;
 extern u16 D_800ADF68[]; // Camera-relative facing angle per d-pad direction
 extern u16 D_800ADF88[];
 // The four shorts at 0x800B2340 are one object (see field/party/stats.c).
-extern u16 D_800B2340[];
+extern u16 g_FieldTalkShorts[];
 extern s16 D_800B2342;
 extern u8 D_800B2354;
 extern u8 D_800B21CE;
@@ -666,7 +666,7 @@ void FieldScriptVMHandlerRandomizeActorXRotation2(void) {
 
 void FieldScriptVMHandlerStartEncounter(void) {
     unsigned short nStoredIP = g_FieldScriptVMCurActor->scriptInstructionPointer;
-    func_8009F5F4(); // Do Encounter
+    FieldScriptVMHandlerCheckActorInteraction(); // Do Encounter
     g_FieldScriptVMStopFlag = 1;
     g_FieldScriptVMCurActor->scriptInstructionPointer = nStoredIP;
 }
@@ -676,9 +676,9 @@ void FieldScriptVMHandlerStartEncounter(void) {
 // free textbox, bumps the encounter hold counter, arms the message state and turns
 // the actor to the d-pad direction (relative to the camera). Called by
 // FieldScriptVMHandlerStartEncounter, which undoes the trailer's IP advance.
-// The talk repeat timer is D_800B2340[1]: the tests read it signed through
+// The talk repeat timer is g_FieldTalkShorts[1]: the tests read it signed through
 // D_800B2342, the decrement goes through the array so the address is formed once.
-void func_8009F5F4(void) {
+void FieldScriptVMHandlerCheckActorInteraction(void) {
     // Retail's frame is 0x60 and stores nothing but $ra.
     u8 pad[0x48];
     u16 nAngle;
@@ -741,10 +741,10 @@ void func_8009F5F4(void) {
                 nSavedMessageState = D_800B2360;
                 *(volatile s16*)&pActor->curAnimationId = 0xFF;
                 D_800ADB28 = nSavedMessageState;
-                D_800B2342 = D_800B2340[0];
+                D_800B2342 = g_FieldTalkShorts[0];
             }
             if (D_800B2342 != 0) {
-                D_800B2340[1]--;
+                g_FieldTalkShorts[1]--;
             }
         buttons:
             if (D_800B2354 == 0) {

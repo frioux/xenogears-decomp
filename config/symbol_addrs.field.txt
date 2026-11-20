@@ -1074,3 +1074,5 @@ g_FieldWalkAbortCount = 0x800B2348;
 FieldLoadSceneAndRun = 0x80078D44;
 g_FieldActive = 0x800AFD04;
 g_FieldScriptDataStream = 0x800ADC14;
+FieldScriptVMHandlerCheckActorInteraction = 0x8009F5F4;
+g_FieldTalkShorts = 0x800B2340;

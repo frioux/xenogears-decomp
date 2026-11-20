@@ -59,13 +59,13 @@ void FieldScriptVMHandlerDecreasePartyHp(void) {
 
 // The four shorts at 0x800B2340 are one object, not four separate s16: only then
 // does gcc keep the original store-then-load order.
-extern s16 D_800B2340[];
+extern s16 g_FieldTalkShorts[];
 
 void FieldScriptSetShorts2340To2346(void) {
-    D_800B2340[2] = FieldScriptVMGetArgument(1);
-    D_800B2340[3] = FieldScriptVMGetArgument(3);
-    D_800B2340[0] = FieldScriptVMGetArgument(5);
-    D_800B2340[1] = 0;
+    g_FieldTalkShorts[2] = FieldScriptVMGetArgument(1);
+    g_FieldTalkShorts[3] = FieldScriptVMGetArgument(3);
+    g_FieldTalkShorts[0] = FieldScriptVMGetArgument(5);
+    g_FieldTalkShorts[1] = 0;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 7;
 }
 
