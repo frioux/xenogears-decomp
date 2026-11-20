@@ -477,8 +477,24 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
    cc1_probe on a self-contained replica of the loop shows the same hoisting on a
    nearly empty function, so this is loop.c's move_movables preferring the 2-use base
    over the 1-use bound, not a register limit: no source spelling found that makes it
-   hoist the bound instead. Untried: a spelling where the store base has ONE use per
-   iteration and no live range outside the loop. */
+   hoist the bound instead.
+   ROUND 328: the real residual is that loop.c creates a strength-reduced BIV for
+   `rects[count]` (5 uses in the taken path) and that BIV's base takes the register
+   retail spends on `g_BattleValueDigitSpriteIds + 4`; retail has no BIV at all, it
+   re-forms `&rects[0]` and `&rect` from $sp every iteration (one `addiu` each) and
+   keeps only the ids pointer, x and the bound. Measured this round, all at retail's
+   784 bytes and all still IV-ing: a source pointer walk (add `u8 *pDigit` /
+   `u8 *pDigitEnd` locals and `for (pDigit = ids; pDigit < pDigitEnd; pDigit++)`)
+   makes gcc duplicate the exit test (`sltu`+`beqz` guard on top of the rotated loop)
+   and keep the element pointer, 79.19%; `volatile RECT rects[4]` keeps the IV too and
+   loses retail's store order, 85.47%; writing the four stores in retail's own order
+   (w, x, y, h instead of x, y, w, h) changes nothing, 87.15 - gcc reorders them to
+   x, 6, 0, 0xD in both spellings where retail emits 6, x, 0, 0xD. Presets screened:
+   gcc-2.7.2-cdk 79.01, -G0 87.15, gcc-2.6.0 91.87 (PRESET_260 reported; the unit
+   cannot switch - 2.6.0 drops BattleResetActorStatDisplay to 99.19,
+   BattleCheckCommandKeyStatusBit to 99.78 and BattleInitSlotRowsForActor to 99.44).
+   Untried: a spelling where the store base has ONE use per iteration and no live
+   range outside the loop. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
 /*
 s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
