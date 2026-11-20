@@ -174,73 +174,72 @@ typedef struct {
 } WorldMapMisc16TileMask; // Size: 0xC8
 
 extern WorldMapMisc16Tex D_8009D650[];
+extern u8 D_1F8000C8[];
 extern s16 D_8009D618[];
 extern WorldMapMisc16TileMask D_8009B7A8[];
 extern MATRIX g_WorldMapGridMatrix;
 extern MATRIX g_WorldMapViewMatrix;
 extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, WorldMapMisc16Point* p2, WorldMapMisc16Point* p3);
 
-/* 75.17%, 1060 bytes against retail's 1036 (259 insns). Was 74.38 / 1048; the three
-   changes below are new this round and must stay.
-   WHAT IT IS: clip a 5x5 block of grid cells against four frustum planes. The prologue
-   copies g_WorldMapGridMatrix to 0x1F8000F0, CompMatrix's g_WorldMapViewMatrix into
-   0x1F800110 and sets both GTE matrices. 0x1F800040 gets -(x>>12 & 0x7FF) - 0x1000, the
-   same for z goes to 0x1F800048 and its negation to 0x1F8000A4. Nine 8-byte points (vx,
-   vy, vz: an SVECTOR layout) live at 0x1F8000A0 + 8*k, k = 0..8, a 3x3 grid: the vy of
-   each is cleared first, in the descending order 0xE2, 0xDA ... 0xA2, each through its
-   own lui $at, so those nine are absolute-cast stores and not base-relative.
-   Per cell: the four grid corners (0xA0/0xA8/0xB0/0xB8) go to func_800987AC (the
-   handwritten GTE clip test, 4 points -> -1/0/1) and, only when the first test returns 0,
-   the five inner points 0xC0/0xC8/0xD0/0xD8/0xE0 are built and handed to four more
-   tests. Every call passes its four points in the order (top-left, top-right,
-   bottom-left, bottom-right); the first result goes to D_8009D618[k] (s16, 25 cells) and
-   the four results are packed two per u32 into D_8009D650[k] (word0 = r0 | r1<<16,
-   word1 = r2 | r3<<16; a non-zero first result is written to both words). Tail:
-   nVariant = (x>=0x400) | (z>=0x400 ? 2 : 0) picks one of four 0xC8-byte records of
-   D_8009B7A8 and ORs its 25 8-byte mask words into D_8009D650.
-   NEW THIS ROUND (all measured live):
-   FIX 4 (wrong code found in the old park): the old body passed call 3 as
-   (pPt5, pPt2, pPt8, pPt7); retail is (0xC8, 0xE0, 0xB0, 0xD8), i.e. (TL, TR, BL, BR)
-   like the other three calls. The swapped a1/a2 pair alone was worth nothing (74.38 ->
-   74.42) but the body was WRONG, so do not restore it.
-   FIX 5 (the addiu lever): retail forms 0xC0/0xC8/0xD0/0xE0 per ROW with
-   `addiu $sN,$s2,K` off its scratch base and 0xD8 inside the quad block, and only
-   0xA0..0xB8 as two-instruction lui/ori constants. This cc1 always folds
-   `pScratch + K` to the constant 0x1F8000K and materialises it with lui/ori, because
-   pScratch (0x1F800000) needs ONE instruction and cse records it; the addiu form comes
-   back as soon as the base needs TWO instructions, since cse cannot record those. So
-   keep ONE point base `pPt = (WorldMapMisc16Point*)(pScratch + 0xA0)` and pass
-   `&pPt[k]` (k = 0..8) instead of five separate 0xC0..0xE0 pointer locals: the inner
-   four then come out as `addiu $sN,$<pPt>,K` at the row head, exactly retail's shape
-   (74.38 -> 75.17). The remaining price is that pPt occupies a second callee-saved
-   register, which is why the whole set is still one place rotated.
-   FIX 6: with pPt as the only point base, retail's per-row formation is reproduced but
-   the four corner pointers must come from pPt too, so 0xA0 is materialised once into a
-   register instead of spilled like retail's 0x18(sp)/0x20(sp)/0x28(sp)/0x30(sp) slots.
-   Tried and NOT better: corner pointers as absolute literals (0x1F8000A0 etc.) plus the
-   inner ones from pPt scores 75.42 at 1016 bytes, i.e. 5 instructions SHORT of retail,
-   so it cannot link - it also loses the per-row addiu group.
-   STILL WRONG: 6 instructions over. p->z is loaded with p->x before the nine zero
-   stores (retail loads z after them, through the same $t6 it kept live); pClip is
-   spilled and reloaded per column (retail keeps it in $s5) because pPt takes the
-   register retail gives pClip; the first quad block's six stores come out
-   A8,AC,B0,B4,B8,BC where retail has A8,B4,AC,B0,B8,BC (source order is already
-   retail's; measured earlier: typed field stores 69.44 at 1076, a volatile on the
-   first two stores and on none both 74.38); the tail OR loop is 1 instruction long
-   (retail keeps two destination cursors, s3 and s3+4). Register map wanted:
-   base 0x1F800000 = $s2, pTex = $s3, col = $s4, pClip = $s5, 0xE0 = $s6, row = $s7,
-   0xD0 = $fp, nPack = $s1, 0xD8 = $s0.
-   Not a preset question: gcc-2.7.2-cdk scores 70.06 and gcc-2.6.0 69.89 on this body.
-   A 3-minute permuter run on the old 42.23 body produced only wrong-code candidates.
-*/
+/* 80.26%, 1044 bytes against retail's 1036 (259 insns, .frame 0x70, mask s0-s8+ra):
+   two instructions over. WHAT IT IS: clip a 5x5 block of grid cells against four frustum
+   planes. The prologue copies g_WorldMapGridMatrix to 0x1F8000F0, CompMatrix's
+   g_WorldMapViewMatrix into 0x1F800110 and sets both GTE matrices. 0x1F800040 gets
+   -(x>>12 & 0x7FF) - 0x1000, the same for z goes to 0x1F800048 and its negation to
+   0x1F8000A4. Nine 8-byte points (vx, vy, vz: an SVECTOR layout) live at 0x1F8000A0 +
+   8*k, k = 0..8, a 3x3 grid: the vy of each is cleared first, in the descending order
+   0xE2, 0xDA ... 0xA2. Per cell: the four grid corners (0xA0/0xA8/0xB0/0xB8) go to
+   func_800987AC (the handwritten GTE clip test, 4 points -> -1/0/1) and, only when the
+   first test returns 0, the five inner points 0xC0/0xC8/0xD0/0xD8/0xE0 are built and
+   handed to four more tests, always in the order (top-left, top-right, bottom-left,
+   bottom-right). The first result goes to D_8009D618[k] (s16, 25 cells) and the four
+   results are packed two per u32 into D_8009D650[k] (word0 = r0 | r1<<16, word1 =
+   r2 | r3<<16; a non-zero first result is written to both words). Tail: nVariant =
+   (x>=0x400) | (z>=0x400 ? 2 : 0) picks one of four 0xC8-byte records of D_8009B7A8 and
+   ORs its 25 8-byte mask words into D_8009D650.
+
+   THE TWO MEMORY SPELLINGS ARE BOTH REAL, keep the split: the setup stores (0x40, 0x48,
+   0xA4 and the nine vy zeros) are ABSOLUTE literals, which maspsx renders as
+   `lui $at; sw/sh %lo($at)`, while every loop access is base + displacement off
+   $s2 = 0x1F800000. Writing the loop accesses as `pScratch + K` reproduces that exactly.
+   The four corner POINTERS are literal constants too (`lui+ori`, no reloc) - keep
+   `(WorldMapMisc16Point*)0x1F8000A0` and pass `&pQuad[0..3]`. The five inner pointers are
+   `pScratch + 0xC0..0xE0`: retail shows `addiu $tN,$s2,%lo(D_1F8000K)` because splat's
+   expected/ object carries a linker reloc there, the linked bytes are the same either way
+   (same class as the misc12 note: objdiff only sees the reloc name). The round-339 body's
+   single `pPt = pScratch + 0xA0` base was the wrong direction (75.17 / 1060): it costs a
+   callee-saved register, which spills pClip.
+
+   WHERE THE LAST TWO INSTRUCTIONS ARE (both measured, do not redo the search):
+   (1) TEN values are live across the calls and gcc keeps nine, spilling exactly one. By
+   default it spills pClip (79.56 / 1056, `lw t6,..(sp) / nop / sh v0,0(t6) / addiu`).
+   Spelling the 0xC8 argument as the named symbol `(WorldMapMisc16Point*)D_1F8000C8` costs
+   a lui+addiu at that site instead of addiu+spill, frees that register, and pClip lands in
+   $s8 with its increment in the `if (nClip == 0)` bnez delay slot (80.26 / 1044, frame
+   0x68 vs retail's 0x70). Retail instead spills 0xC8 (`addiu $t6,$s2,%lo` + sw + two lw,
+   4 insns) and keeps pClip in $s5. The tie is between pClip and 0xC8 and NO source
+   spelling flipped it: declaration order, statement order and placement of the three
+   pointer initialisations, u16 vs s16 nClip, `*pClip = nClip; ++pClip;` vs `*pClip++`,
+   `pClip[0] = nClip`, pQuad[5] as a constant for 0xC8, and 0xC0/0xD0/0xD8/0xE0 as symbols
+   were all measured.
+   (2) the tail's nVariant: retail computes the x compare, then the z compare, and fills
+   the `bnez` delay slot with `xori s4,v0,1`; this body computes the xori before the z
+   test and leaves a nop. An unused `u32 spare[2]` does not restore retail's 0x70 frame.
+
+   Permuter: a 4-minute run from the 79.56 body (1763 iterations) found ONE candidate,
+   82.86 / 1048, which reuses pClip as a scratch pointer INSIDE the nClip arm - wrong code
+   (it destroys the output cursor), so do not port it. It confirms the pressure story: one
+   extra reference on pClip wins it the register.
+   Not a preset question: gcc-2.7.2-cdk scores 70.06 and gcc-2.6.0 69.89 on this body. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
-/* void func_800983A0(WorldMapMisc16Struct* p) {
-    WorldMapMisc16Point* pPt;
+/*
+void func_800983A0(WorldMapMisc16Struct* p) {
+    u8* pScratch;
+    WorldMapMisc16Point* pQuad;
     WorldMapMisc16Tex* pTex;
     WorldMapMisc16Tex* pMaskEntry;
     WorldMapMisc16TileMask* pMask;
     s16* pClip;
-    u8* pScratch;
     s32 nX;
     s32 nZ;
     s16 nClip;
@@ -255,7 +254,9 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
     SetRotMatrix((MATRIX*)0x1F800110);
     SetTransMatrix((MATRIX*)0x1F800110);
 
-    pPt = (WorldMapMisc16Point*)(pScratch + 0xA0);
+    pClip = D_8009D618;
+    pQuad = (WorldMapMisc16Point*)0x1F8000A0;
+    pTex = D_8009D650;
 
     nX = -((p->x >> 12) & 0x7FF) - 0x1000;
     *(s32*)0x1F800040 = nX;
@@ -275,18 +276,16 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
     *(s32*)0x1F800048 = nZ;
     *(u16*)0x1F8000A4 = -nZ;
 
-    pClip = D_8009D618;
-    pTex = D_8009D650;
     for (; row < 5; row++) {
-        *(u16*)(pScratch + 0xA0) = *(s32*)0x1F800040;
+        *(u16*)(pScratch + 0xA0) = *(s32*)(pScratch + 0x40);
         for (col = 0; col < 5; col++) {
             *(u16*)(pScratch + 0xA8) = *(u16*)(pScratch + 0xA0) + 0x800;
-            *(u16*)(pScratch + 0xB4) = *(u16*)(pScratch + 0xA4) - 0x800;
             *(u16*)(pScratch + 0xAC) = *(u16*)(pScratch + 0xA4);
+            *(u16*)(pScratch + 0xB4) = *(u16*)(pScratch + 0xA4) - 0x800;
             *(u16*)(pScratch + 0xB0) = *(u16*)(pScratch + 0xA0);
             *(u16*)(pScratch + 0xB8) = *(u16*)(pScratch + 0xA0) + 0x800;
             *(u16*)(pScratch + 0xBC) = *(u16*)(pScratch + 0xA4) - 0x800;
-            nClip = func_800987AC(&pPt[0], &pPt[1], &pPt[2], &pPt[3]);
+            nClip = func_800987AC(&pQuad[0], &pQuad[1], &pQuad[2], &pQuad[3]);
             *pClip++ = nClip;
             if (nClip == 0) {
                 *(u16*)(pScratch + 0xC0) = *(u16*)(pScratch + 0xA0) + 0x400;
@@ -299,14 +298,14 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
                 *(u16*)(pScratch + 0xDC) = *(u16*)(pScratch + 0xB4);
                 *(u16*)(pScratch + 0xE0) = *(u16*)(pScratch + 0xC0);
                 *(u16*)(pScratch + 0xE4) = *(u16*)(pScratch + 0xCC);
-                nClip = func_800987AC(&pPt[0], &pPt[4], &pPt[5], &pPt[8]);
+                nClip = func_800987AC(&pQuad[0], (WorldMapMisc16Point*)(pScratch + 0xC0), (WorldMapMisc16Point*)D_1F8000C8, (WorldMapMisc16Point*)(pScratch + 0xE0));
                 nPack = nClip & 0xFFFF;
-                nClip = func_800987AC(&pPt[4], &pPt[1], &pPt[8], &pPt[6]);
+                nClip = func_800987AC((WorldMapMisc16Point*)(pScratch + 0xC0), &pQuad[1], (WorldMapMisc16Point*)(pScratch + 0xE0), (WorldMapMisc16Point*)(pScratch + 0xD0));
                 nPack |= nClip << 16;
                 *(u32*)pTex = nPack;
-                nClip = func_800987AC(&pPt[5], &pPt[8], &pPt[2], &pPt[7]);
+                nClip = func_800987AC((WorldMapMisc16Point*)D_1F8000C8, (WorldMapMisc16Point*)(pScratch + 0xE0), &pQuad[2], (WorldMapMisc16Point*)(pScratch + 0xD8));
                 nPack = nClip & 0xFFFF;
-                nClip = func_800987AC(&pPt[8], &pPt[6], &pPt[7], &pPt[3]);
+                nClip = func_800987AC((WorldMapMisc16Point*)(pScratch + 0xE0), (WorldMapMisc16Point*)(pScratch + 0xD0), (WorldMapMisc16Point*)(pScratch + 0xD8), &pQuad[3]);
                 nPack |= nClip << 16;
             } else {
                 nPack = nClip & 0xFFFF;
@@ -337,6 +336,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
     }
 }
 */
+
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800987AC);
 extern s32 g_WorldMapGridImageFileIndex;
 extern s32 g_WorldMapGridColumnImageFileIndex;
