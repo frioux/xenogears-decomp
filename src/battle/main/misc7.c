@@ -28,31 +28,17 @@ typedef struct {
 } BattleOpRegs; // Size: 0x40
 
 extern BattleOpRegs g_BattleSlotRegs[];
-extern u8 g_BattleSlotRows[];
 extern u8 g_BattleSlotWordRegs[];
-extern u8 D_800D342E[];
-extern u8 g_BattleSlotByteRegs[];
-extern u8 D_800D343F[];
 extern u16 D_8005A3A0[];
 extern u8 g_BattleSlotFlags[];
 extern u8 g_BattleSlotRecords[];
-extern u8 D_800CCDEC[];
-extern u8 D_800CCDF0[];
-extern u8 D_800CCE34[];
-extern u8 D_800CCE38[];
-extern u8 D_800CCE39[];
-extern u8 D_800CCE3A[];
-extern u8 D_800CCE3B[];
-extern u8 D_800CCE3C[];
-extern u8 D_800CCE3D[];
-extern u8 D_800CCE3E[];
 
 // One slot of the per-slot operator argument block at D_800CCDE8 (stride
 // 0x170): g_BattleWorkBlock + 0x100, i.e. the BattleTableEntry rows seen from
 // BattleSlotState +0x5C. +0x04 and +0x08 are the state's scaled hp and maxHp,
-// which the parked BattleDwordRegSetFromSlotArgs reads and BattleSlotArgsStoreDwordFromReg writes. The writers
-// below put one argument word into it as a dword, as a word, and as its two
-// bytes, hence the byte-by-byte fields.
+// which BattleDwordRegSetFromSlotArgs reads and BattleSlotArgsStoreDwordFromReg
+// writes. The writers below put one argument word into it as a dword, as a
+// word, and as its two bytes, hence the byte-by-byte fields.
 typedef struct {
     /* 0x00 */ u8 unk00[0x4];
     /* 0x04 */ u32 hp; // BattleSlotState.hp: BattleDwordRegSetFromSlotArgs copies it into a dword register
