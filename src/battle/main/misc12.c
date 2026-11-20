@@ -145,14 +145,14 @@ typedef struct {
     /* 0x2D7 */ u8 unk2D7[0x3];
     /* 0x2DA */ u8 count; // queued commands, the row BattleClearSlotCurveEntry indexes
     /* 0x2DB */ u8 commandFinished; // 0 while a queued command runs, 1 once it has; BattleWaitWhileStateIs8 and func_80079778 spin on it
-    /* 0x2DC */ u8 unk2DC;
+    /* 0x2DC */ u8 commandCostIndex; // one-based index into g_BattleCommandCost of the command just queued, so the confirm handler charges that row
     /* 0x2DD */ u8 menuState; // the state each menu event handler switches to
     /* 0x2DE */ u8 eventHandled; // handlers set it to release the update wait loop
-    /* 0x2DF */ u8 unk2DF;
+    /* 0x2DF */ u8 gaugeCost; // gauge points the confirmed command spends; func_80087AF0 also uses it as the step index into the action-id table
     /* 0x2E0 */ u8 colorShift; // subtracted from each colour byte of the slot's prims after << 4
     /* 0x2E1 */ u8 commandQueued; // set when a handler queued its command, so its next call returns at once
     /* 0x2E2 */ u8 lastMenuState; // the menuState the current frame was built for; the dispatcher rebuilds when it differs
-    /* 0x2E3 */ u8 unk2E3;
+    /* 0x2E3 */ u8 gaugeSpent; // set when a confirmed command spent gauge; func_80080160 then folds the leftover reading into the slot display value
     /* 0x2E4 */ u8 unk2E4;
     /* 0x2E5 */ u8 unk2E5;
     /* 0x2E6 */ u8 commandId; // the picked command: indexes the 0x10-byte g_BattleCommandEntries rows and is BattleBeginAction's third argument
@@ -884,7 +884,7 @@ u32 func_80083948(u8 arg0) {
                 (u8)func_80086F98(index - 1, arg0) == 0;
             func_80087AF0(arg0, index);
             g_BattleSlotEntries[arg0].counter =
-                g_BattleSlotEntries[arg0].counter - g_BattleCommandCost[((BattleActorSlots *)g_BattleCommandQueue)->unk2DC];
+                g_BattleSlotEntries[arg0].counter - g_BattleCommandCost[((BattleActorSlots *)g_BattleCommandQueue)->commandCostIndex];
             func_800898F0(arg0);
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 = ((BattleActorSlots *)g_BattleCommandQueue)->unk2E7 + 1;
         } else {
