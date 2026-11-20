@@ -111,15 +111,17 @@ typedef struct {
     /* 0x3 */ u8 flags;
 } BattleActionSlot; // Size: 0x4
 
-// A battle participant as this unit drives it. Only the fields this unit
-// touches are named; 0x1668 is the last one, so 0x166A is a lower bound on the
-// real size.
-// The effect record pNearestEffect points at; only the kind byte is read here.
+// The effect record pNearestEffect points at: one of the 0x44-byte slots the actor
+// keeps at +0x64C, whose nearest active one func_80073644 records at +0x8F8. Only
+// the mode byte is read here; misc2/misc3/misc10 declare the same slot.
 typedef struct {
     /* 0x00 */ u8 unk0[0x33];
-    /* 0x33 */ u8 unk33;
+    /* 0x33 */ u8 mode;
 } BattleEffect; // Size: 0x34
 
+// A battle participant as this unit drives it: the fields this unit touches plus the
+// offsets the sibling battle units name around them (misc2, misc3, misc4, misc17).
+// 0x1668 is the last one, so 0x166A is a lower bound on the real size.
 typedef struct BattleActor {
     /* 0x000 */ Vec4 position;
     /* 0x010 */ u8 unk10[0x38];
@@ -131,14 +133,41 @@ typedef struct BattleActor {
     /* 0x084 */ u8 unk84[0x30];
     /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 gaugePoints;
-    /* 0x0B8 */ u8 unkB8[0x6];
+    // The gauge as it stood before this frame's update and the level its points
+    // reached: func_80077038 rewrites all three around gaugePoints, and misc2's
+    // BattleAccumulateGaugePoints raises gaugeLevel.
+    /* 0x0B8 */ s16 prevGaugeValue;
+    /* 0x0BA */ s16 gaugeLevel;
+    // The gauge's full value: BattleCheckValueAboveScaledMax scales it (misc17) and
+    // misc2's BattleSetResultCode compares gaugeLevelsMode1/2 with fractions of it.
+    /* 0x0BC */ s16 gaugeMax;
     /* 0x0BE */ s16 breakThresholdOffset;
-    /* 0x0C0 */ u8 unkC0[0x4];
+    // The gauge bar as it is drawn: its width, the width of the frame before, the
+    // frames of hit flash left and the timer of the phase the bar animates (misc4's
+    // round reset stores 0x7F and 0xF0 into the first and the third).
+    /* 0x0C0 */ u8 gaugeWidth;
+    /* 0x0C1 */ u8 prevGaugeWidth;
+    /* 0x0C2 */ u8 flashTimer;
+    /* 0x0C3 */ u8 actionPhaseTimer;
     /* 0x0C4 */ u8 state;
     /* 0x0C5 */ u8 actionPhase;
-    /* 0x0C6 */ u8 unkC6[0xA];
+    // The state byte as the previous frame left it (misc4 copies it here), then the
+    // frames left in the current step and in the move as a whole (misc4's reset
+    // clears both).
+    /* 0x0C6 */ u8 prevState;
+    /* 0x0C7 */ u8 padC7;
+    /* 0x0C8 */ s16 moveEndTimer;
+    /* 0x0CA */ s16 moveTimer;
+    // The 12-bit facing this actor's side starts from (the round reset stores 0x400
+    // for one side and -0x400 for the other) and the offset every facing it computes
+    // takes from it: func_80076884 reads one and writes the other.
+    /* 0x0CC */ s16 sideBaseAngle;
+    /* 0x0CE */ s16 facingOffset;
     /* 0x0D0 */ u32 flags;
-    /* 0x0D4 */ u8 unkD4[0x4];
+    // The movement state in bits 0-1 and the state of the frame before in bits 2-3;
+    // the movement code shifts one into the other, and the round reset clears bits 4
+    // and 6 (misc4).
+    /* 0x0D4 */ u32 stateFlags;
     /* 0x0D8 */ struct BattleActor* pTarget;
     /* 0x0DC */ u8 unkDC[0x818];
     // The distance from the actor to the nearest active effect slot and that slot,
@@ -152,7 +181,18 @@ typedef struct BattleActor {
     /* 0x912 */ u8 unk912[0xCEA];
     /* 0x15FC */ BattleWork* pWork;
     /* 0x1600 */ BattleActionData* pActionData;
-    /* 0x1604 */ u8 unk1604[0x64];
+    /* 0x1604 */ u8 unk1604[0x50];
+    // The gauge levels this actor accumulated in each of the two categories; misc2's
+    // BattleSetResultCode compares them with fractions of gaugeMax.
+    /* 0x1654 */ s32 gaugeLevelsMode1;
+    /* 0x1658 */ s32 gaugeLevelsMode2;
+    // Counters the input handler bumps as it queues messages: message12Count for each
+    // message 1 or 2, message3Count for each message 3 (misc3).
+    /* 0x165C */ s32 message3Count;
+    /* 0x1660 */ s32 message12Count;
+    // The actor type's sound table, installed by BattleSetActorSoundTable and indexed
+    // by sound id (misc17).
+    /* 0x1664 */ u8* pSoundTable;
     // Bumped by func_80075B50 each time it starts a move for the actor; the round
     // reset clears it.
     /* 0x1668 */ s16 moveCount;
@@ -644,7 +684,7 @@ void BattleUpdateWorkState3(BattleActor* pActor, BattleWork* pWork) {
         BattleEnterWorkState0(pActor);
         return;
     }
-    if (pActor->pTarget->pNearestEffect->unk33 == 1) {
+    if (pActor->pTarget->pNearestEffect->mode == 1) {
         distance = pActor->pTarget->nearestEffectDistance;
         if (distance < 0x500 && pWork->difficulty != 0) {
             pWork->setFlag8000 = 1;
@@ -723,7 +763,7 @@ void BattleUpdateWorkState2(BattleActor* pActor, BattleWork* pWork) {
     if (func_8008FACC(pActor, pWork) != 0) {
         return;
     }
-    if (pActor->pTarget->pNearestEffect->unk33 == 1) {
+    if (pActor->pTarget->pNearestEffect->mode == 1) {
         distance = pActor->pTarget->nearestEffectDistance;
         if (distance < 0x500 && pWork->difficulty != 0) {
             pWork->setFlag8000 = 1;
