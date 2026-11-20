@@ -1159,20 +1159,212 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
     dest->m[2][2] = source->m[2][2];
 }
 
-// Structure read off the .s (nothing written yet): an 8-sprite loop filling 16 shorts each
-// from D_800AFC08 into D_800AFD24[i*16 + k], zeroed when g_Scene.dollyStop & D_800ADC24[i];
-// then a RECT at 0x800B004C with w = 0x80 and LoadImage(&rect, D_800AFD24), SetGeomScreen(0x80),
-// SetGeomOffset(0x10A, 0xA6); then FieldMatrixLookAt(sp+0x30, sp+0xB8, sp+0xC8, &g_CameraUp)
-// with pEye = (0, g_CameraEye.vy - g_CameraAt.vy, -FieldGetVec2Magnitude(...) << 16) and a zero
-// pAt; then the identity/CompMatrix/MulMatrix* chain on the 0x10 (MATRIX), 0x50, 0x70 and
-// 0x90 stack matrices; then two g_FieldCompassDisabled / g_FieldSkipCounter / D_8004F378
-// guarded loops of FieldRenderQuad over D_800B0F7C (5 quads = sprite slots 0x14..0x18) and of
-// FieldRenderQuadScreenRect over D_800B06BC (20 trigger-zone quads, x/y from
-// g_pFieldTriggerZones +0x40/+0x42), then FieldRenderQuad over D_800B0FEC (0x15..0x18) and
-// D_800B0FEC+0x10 (0x10 more); tail patches the prim's top byte between
-// D_800B1E00[g_FieldCurRenderContextIndex] and g_FieldCurRenderContext + 0x80D4, then
-// SetGeomOffset(0xA0, 0x70) and SetGeomScreen(g_Scene.scrZ). Frame 0xF8.
+// 95.62% / 1432 bytes (retail is 1428: 0x80074108..0x8007469C, 357 insns). What it is: an
+// 8-row sprite sheet fill from D_800AFC08 into D_800AFD24 (a row zeroed when
+// g_Scene.dollyStop & D_800ADC24[i]), a RECT at 0x800B004C with w = 0x80 and
+// LoadImage(&rect, D_800AFD24), SetGeomScreen(0x80), SetGeomOffset(0x10A, 0xA6), a
+// FieldMatrixLookAt whose pEye is (0, g_CameraEye.vy - g_CameraAt.vy,
+// -FieldGetVec2Magnitude(...) << 16) with a zero pAt, the identity/CompMatrix/MulMatrix*
+// chain over the 0x10/0x30/0x50/0x70/0x90 stack matrices, and two
+// g_FieldCompassDisabled / g_FieldSkipCounter / D_8004F378 guarded passes:
+// FieldRenderQuad over the compass quad (slot 0x14) with matCoord, then
+// FieldRenderQuadScreenRect plus 20 FieldRenderQuad over the D_800B06BC quads and 4 more
+// from slot 0x15 with matProj. Tail patches a prim's top byte between
+// D_800B1E00[g_FieldCurRenderContextIndex] and the context's ot3[0], then
+// SetGeomOffset(0xA0, 0x70) and SetGeomScreen(g_Scene.sceneScrZ). Frame 0xF8.
+//
+// The structure is right - every call, branch, loop, stack slot and stack-argument store
+// is in retail's place, and the whole first half (sheet fill, LoadImage, LookAt, the
+// CompMatrix chain) is instruction-identical. Residuals, all measured:
+// 1. ONE INSTRUCTION OVER, so this body can never link as it stands. The last
+//    FieldRenderQuad loop (D_800B0FEC, i = 0x15..0x18) puts the loop-carried
+//    `addu a1,s1,zero` at the top of the body only and gives the back-edge delay slot to
+//    the 0xFFFFFF constant's `lui`; this build emits the body copy AND a second
+//    `move a1,s1` in the back-edge slot. Tried: `pQuad` + a separate `pQuad++` statement
+//    (95.13), `pQuad++` in the argument (95.10 with a non-const tail), and the best,
+//    `for (i = 0x15, pQuad = D_800B0FEC; ...)` (95.62, which also fixes the preheader
+//    order of `li s2,0x80D4`).
+// 2. The tail's three ot3[0] accesses NEED a context pointer local, not
+//    g_FieldCurRenderContext inline: the store through pOverlayTag otherwise makes gcc
+//    reload the global (3 extra insns). With the local, retail's three
+//    `lui at,0x1 / addu at,$ctx,at` address forms (0x80D4 does not fit a 16-bit
+//    displacement) come out - but this build then orders the D_800B1E00 symbol load after
+//    the index shifts where retail has it before, and names the 0xFFFFFF mask $t1 where
+//    retail has $a3. Same instruction count.
+// 3. The camera base: retail keeps ONE register (`lui/addiu` of 0x800AF884, i.e.
+//    &g_CameraEye.vy) and reaches the up vector as `addiu a3,s0,0x1C` with NO relocation,
+//    so the original source took both from one symbol. Written with the symbols the rest
+//    of the unit uses (g_CameraEye / g_CameraUp) this build materialises each separately
+//    (`lui %hi(g_CameraEye); lw 4(...)` and `lui %hi(g_CameraUp); addiu`) - equal
+//    instruction count, but it is the same subobject-base wall the unit's other parks are
+//    stuck on (see FieldActorApplyRotationAndScale). Not tried: a single-symbol view such
+//    as `((VECTOR*)&g_CameraEye)[2]` for the up vector.
+// 4. The trigger-zone screen offsets are D_800ADC24[8 + k*2] / [9 + k*2] (four x/y pairs
+//    stored after the eight direction masks, at 0x800ADC34), but retail's relocation names
+//    g_pFieldTriggerZones + 0x40, i.e. the source reached 0x800ADC34 from a symbol at
+//    0x800ADBF4. Same linked address either way; objdiff cannot reach 100% on the address
+//    form. The counter starts at 0x10 because 0x700 / 0x70 = 16, so the trigger quads are
+//    D_800B06BC[0x10..0x13], and D_800B0F7C / D_800B0FEC are the quads at D_800B06BC + 20
+//    and + 21 (Quad is 0x70 bytes), which is why their references carry no offset.
+// 5. `li s2,0x80D4` and `addiu a2,sp,0x70` land one slot apart from retail inside both quad
+//    loop preheaders (harmless reorder).
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80074108);
+
+/*
+extern long FieldGetVec2Magnitude(long x, long z);
+extern void FieldRenderQuad(u_long* ot, Quad* pQuad, MATRIX* pMatTransform, int renderContext);
+extern void FieldRenderQuadScreenRect(u_long* ot, Quad* pQuad, MATRIX* pMatTransform, int renderContext);
+extern FieldActor* g_FieldActors;
+extern int g_FieldCurRenderContextIndex;
+extern RenderContext* g_FieldCurRenderContext;
+extern u16 g_FieldPlayerActorIndex16; // Slot the player actor occupies in g_FieldActors
+extern u_char g_FieldCompassDisabled;
+extern s32 D_8004F378;
+extern s16 D_800ADB48; // Compass angle, interpolated towards D_800ADB4A every frame
+extern s16 D_800ADB4A; // Compass angle the player actor's facing asks for
+extern u16 D_800ADC24[]; // Eight dollyStop masks, then four x/y screen offsets for the compass
+extern u16 D_800AFC08[]; // Sprite sheet whose rows are copied into D_800AFD24
+extern u16 D_800AFD24[]; // Sprite sheet uploaded to VRAM once every direction mask is resolved
+extern RECT D_800B004C; // LoadImage rect of the sprite sheet
+extern Quad D_800B06BC[]; // Trigger zone quads, then the compass and screen overlay quads
+extern Quad D_800B0F7C[]; // Compass quad
+extern Quad D_800B0FEC[]; // Screen overlay quads
+extern u8 D_800B1E00[];
+
+#define FIELD_SPRITE_SHEET_ROW_COUNT 8
+#define FIELD_SPRITE_SHEET_ROW_WIDTH 16
+#define FIELD_SPRITE_SHEET_WIDTH 0x80
+#define FIELD_OVERLAY_PRIM_SIZE 0xC0
+#define FIELD_PRIM_WORD_MASK 0xFFFFFF
+#define FIELD_PRIM_TOP_BYTE 0xFF000000
+
+void func_80074108(void) {
+    MATRIX matProj; // 0x10: projection matrix, t[2] holds the screen distance
+    MATRIX matView; // 0x30
+    MATRIX matWork; // 0x50
+    MATRIX matCoord; // 0x70
+    MATRIX matRot; // 0x90
+    SVECTOR vecRot; // 0xB0
+    VECTOR vecEye; // 0xB8
+    VECTOR vecAt; // 0xC8
+    FieldActor* pActor;
+    RenderContext* pRenderContext;
+    Quad* pQuad;
+    u32* pOverlayTag;
+    s16 nTargetAngle;
+    u8 nDollyStop;
+    int nMagnitude;
+    int nAngle;
+    int i;
+    int k;
+
+    nDollyStop = g_Scene.dollyStop;
+    for (i = 0; i < FIELD_SPRITE_SHEET_ROW_COUNT; i++) {
+        if (nDollyStop & D_800ADC24[i]) {
+            for (k = 0; k < FIELD_SPRITE_SHEET_ROW_WIDTH; k++) {
+                D_800AFD24[i * FIELD_SPRITE_SHEET_ROW_WIDTH + k] = 0;
+            }
+        } else {
+            for (k = 0; k < FIELD_SPRITE_SHEET_ROW_WIDTH; k++) {
+                D_800AFD24[i * FIELD_SPRITE_SHEET_ROW_WIDTH + k] = D_800AFC08[k];
+            }
+        }
+    }
+
+    D_800B004C.w = FIELD_SPRITE_SHEET_WIDTH;
+    LoadImage(&D_800B004C, D_800AFD24);
+    SetGeomScreen(FIELD_SPRITE_SHEET_WIDTH);
+    SetGeomOffset(0x10A, 0xA6);
+
+    vecAt.vx = 0;
+    vecAt.vy = 0;
+    vecAt.vz = 0;
+    vecEye.vx = 0;
+    vecEye.vy = g_CameraEye.vy - g_CameraAt.vy;
+    nMagnitude = FieldGetVec2Magnitude((g_CameraEye.vx - g_CameraAt.vx) >> 16,
+        (g_CameraEye.vz - g_CameraAt.vz) >> 16);
+    vecEye.vz = -nMagnitude << 16;
+    FieldMatrixLookAt(&matView, &vecEye, &vecAt, &g_CameraUp);
+
+    FieldMatrixSetIdentity(&matProj);
+    matProj.t[2] = FIELD_SPRITE_SHEET_WIDTH;
+    SetRotMatrix(&matProj);
+    SetTransMatrix(&matProj);
+
+    pActor = (FieldActor*)(g_FieldPlayerActorIndex16 * sizeof(FieldActor) + (mem_addr)g_FieldActors);
+    nTargetAngle = (u16)pActor->pActorData->rotation.vy + ((u16)g_CamInterpolation.curAngleY + 0x400);
+    D_800ADB4A = nTargetAngle;
+    nAngle = FieldMathUpdateAngle(D_800ADB48, nTargetAngle, 0x40);
+
+    D_800ADB48 = nAngle;
+    vecRot.vx = 0;
+    vecRot.vy = nAngle;
+    vecRot.vz = 0;
+    FieldMatrixResetTranslation(&matWork);
+    RotMatrix(&vecRot, &matWork);
+    MulMatrix2(&matView, &matWork);
+    matWork.t[2] = 0x1000;
+    CompMatrix(&matProj, &matWork, &matCoord);
+
+    if (g_FieldCompassDisabled == 0 && g_FieldSkipCounter == 0 && D_8004F378 == 0) {
+        pQuad = D_800B0F7C;
+        for (i = 0x14; i < 0x15; i++) {
+            FieldRenderQuad(g_FieldCurRenderContext->ot3, pQuad++, &matCoord,
+                g_FieldCurRenderContextIndex);
+        }
+    }
+
+    FieldMatrixSetIdentity(&matWork);
+    MulMatrix2(&matView, &matWork);
+    matWork.t[2] = 0x1000;
+    CompMatrix(&matProj, &matWork, &matCoord);
+    MulMatrix0(&matProj, &matWork, &g_Scene.unkF4);
+    SetRotMatrix(&matProj);
+    SetTransMatrix(&matProj);
+    FieldMatrixSetIdentity(&matWork);
+    MulMatrix2(&g_Scene.viewMatrix, &matWork);
+    matWork.t[2] = 0x1000;
+    CompMatrix(&matProj, &matWork, &matCoord);
+    FieldMatrixCopy(&matProj, &matCoord);
+
+    vecRot.vx = 0x400;
+    vecRot.vy = 0;
+    vecRot.vz = 0;
+    RotMatrix(&vecRot, &matRot);
+
+    if (g_FieldCompassDisabled == 0 && g_FieldSkipCounter == 0 && D_8004F378 == 0) {
+        for (i = 0x10; i < 0x14; i++) {
+            FieldMatrixSetIdentity(&matWork);
+            matWork.t[0] = (s16)D_800ADC24[(i - 0x10) * 2 + 8];
+            matWork.t[2] = (s16)D_800ADC24[(i - 0x10) * 2 + 9];
+            CompMatrix(&matProj, &matWork, &matCoord);
+            FieldMatrixCopyTransform(&matCoord, &matRot);
+            FieldRenderQuadScreenRect(g_FieldCurRenderContext->ot3, &D_800B06BC[i], &matCoord,
+                g_FieldCurRenderContextIndex);
+        }
+
+        for (i = 0; i < 0x10; i++) {
+            FieldRenderQuad(g_FieldCurRenderContext->ot3, &D_800B06BC[i], &matProj,
+                g_FieldCurRenderContextIndex);
+        }
+
+        for (i = 0x15, pQuad = D_800B0FEC; i < 0x19; i++) {
+            FieldRenderQuad(g_FieldCurRenderContext->ot3, pQuad++, &matProj,
+                g_FieldCurRenderContextIndex);
+        }
+    }
+
+    pRenderContext = g_FieldCurRenderContext;
+    pOverlayTag = (u32*)(D_800B1E00 + g_FieldCurRenderContextIndex * FIELD_OVERLAY_PRIM_SIZE);
+    *pOverlayTag = (*pOverlayTag & FIELD_PRIM_TOP_BYTE) |
+        (pRenderContext->ot3[0] & FIELD_PRIM_WORD_MASK);
+    pRenderContext->ot3[0] = (pRenderContext->ot3[0] & FIELD_PRIM_TOP_BYTE) |
+        ((u32)pOverlayTag & FIELD_PRIM_WORD_MASK);
+
+    SetGeomOffset(0xA0, 0x70);
+    SetGeomScreen(g_Scene.sceneScrZ);
+}
+*/
 
 // Returns 1 if an actor wants its position reported to the script VM
 int FieldAnyActorHasFlag8000(void) {
