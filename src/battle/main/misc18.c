@@ -1008,7 +1008,57 @@ void BattleResetSlotConditionCounters(void) {
         g_GameState.gears[15].armorId = 0x28;
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80098AF8);
+u8 func_80098AF8(u8 sel) {
+    u8 *pBase = g_BattleCurWorkBlock;
+    u8 *pActor = (u8 *)(sel * 0x170 + (s32)pBase);
+    u8 *pRow;
+    u8 *pRow2;
+    int other;
+    int rowOffset;
+    s32 t;
+    s32 v;
+    s32 d;
+
+    g_BattleActingSlot = (BattleTableEntry *)pActor;
+    g_BattleTargetSlotState = (BattleSlotState *)(pActor + 0xA4);
+    rowOffset = 0x1058;
+
+    if (sel < 3) {
+        if ((pActor[0x15A] & 0x80) == 0) {
+            pRow = (u8 *)(sel * 0x5F0 + rowOffset) + (s32)pBase + pBase[0x5FC2] * 0x28;
+            g_BattleCurrentRow = (BattleRow *)pRow;
+            other = pActor[0x5A];
+            t = (s8)pRow[0x27];
+            if (t < other) {
+                v = (other - t) * 9;
+            } else {
+                v = 9;
+            }
+        } else {
+            rowOffset = 0x2228;
+            pRow2 = (u8 *)(sel * 0x690 + rowOffset) + (s32)pBase + pBase[0x5FC2] * 0x28;
+            g_BattleCurrentRow = (BattleRow *)pRow2;
+            other = pActor[0x13C];
+            t = (s8)pRow2[0x27];
+            if (t < other) {
+                v = (other - t) * 9;
+            } else {
+                v = 9;
+            }
+        }
+    } else {
+        v = pActor[0x5A] * 9;
+    }
+
+    if ((u16)v >= 0xA6) {
+        v = 0xA0;
+    }
+    v = 0xA5 - v;
+    d = rand() % 8 - 4;
+    v -= d;
+    BattleRestoreSlotConditionFlags();
+    return v;
+}
 /* 99.84%, 372 bytes = the original's. Everything is instruction-identical except
    ONE pair inside the 0x2228 arm of the sel < 3 row-pointer computation:
    retail keeps the table offset on the INDEX (addiu v1,v1,8744 then
