@@ -311,7 +311,21 @@ extern s16 g_SoundCdVolumeFadeActive;
 extern u16 g_SoundPendingSpuIrqEnable;
 extern s32 g_SoundTimerTicksTotal;
 extern s32 g_SoundTimerCyclesElapsed;
-extern void* g_SoundCdSequencerState;
+// State block reached through g_SoundCdSequencerState (only reader in the binary).
+typedef struct {
+    u16 active;      // 0x00, bit 0 = sequencer active
+    u8 unk2[0x10];   // 0x02
+    u16 unk12;       // 0x12
+    u8 unk14[0x22];  // 0x14
+    s16 unk36;       // 0x36
+    s16 unk38;       // 0x38
+    s16 unk3A;       // 0x3A
+    u8 unk3C[0x26];  // 0x3C
+    s16 unk62;       // 0x62
+    s16 unk64;       // 0x64
+    s16 unk66;       // 0x66
+} SoundCdSeqState; // Size: 0x68
+extern SoundCdSeqState* g_SoundCdSequencerState;
 extern AudioManager* g_SoundEffectAudioManager;
 
 s32 SoundTimerInterruptHandler(void);
@@ -718,31 +732,18 @@ void SoundStopAllPlayback(void) {
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800386C4);
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 93.18 / 97.67 / 97.67 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (97.67%, 352 bytes - same size as the original). Everything matches: the switch/tree
-shape needs `case 0: break;` (with only cases 1-3 gcc pivots on 2 and the whole tree differs),
-the volume local must be shifted back into itself (`volume <<= 7/6`) so only one sll is emitted.
-Only delta left: the `li v0,1` for the two flag stores is emitted one instruction early (before
-the `sh s0,0x66`) where the original emits it after. Source order 0x66 then 0x36/0x62 already;
-chained `pState->unk62 = pState->unk36 = 1;` and a separate flag local do not move it.
-// State block reached through g_SoundCdSequencerState (only reader in the binary).
-typedef struct {
-    u16 active;      // 0x00, bit 0 = sequencer active
-    u8 unk2[0x10];   // 0x02
-    u16 unk12;       // 0x12
-    u8 unk14[0x22];  // 0x14
-    s16 unk36;       // 0x36
-    s16 unk38;       // 0x38
-    s16 unk3A;       // 0x3A
-    u8 unk3C[0x26];  // 0x3C
-    s16 unk62;       // 0x62
-    s16 unk64;       // 0x64
-    s16 unk66;       // 0x66
-} SoundCdSeqState; // Size: 0x68
-
-extern SoundCdSeqState* g_SoundCdSequencerState;
-
+Screened: gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0 = 93.18 / 97.67 / 97.73 - not a
+compiler-only match; this preset is the best of the three.
+Attempt (97.73%, retail's exact 352 bytes). Everything matches except ONE instruction's position:
+retail is `sh s0,0x66(s1); li v0,1; sh v0,0x36(s1); sh v0,0x62(s1)`, ours puts the `li` first.
+Measured dead: source statement order in both directions (0x36/0x62 last is 97.58), chained
+`unk62 = unk36 = 1;`, separate `unk36 = 1; unk62 = 1;`, a `do { } while (0);` around the flag pair
+(the round-311 constant-at-block-head lever), and a volatile store on unk66 (97.73 all). A 4-minute
+PERMUTER_NONE run (1811 iterations, base=60 best=60) found nothing, and a cc1_probe snippet
+(`p->u[0x33] = v; p->u[0x1B] = 1; p->u[0x31] = 1;`) shows cc1 itself emits the `li` first, so this
+is the STORE_HOIST class the playbook lists as unreachable from source. The switch tree needs
+`case 0: break;` (with only cases 1-3 gcc pivots on 2), and volume must be shifted into itself
+(`volume <<= 7/6`) so only one sll is emitted.
 void func_800386C4(s32 mode) {
     AudioManager* pManager;
     SoundCdSeqState* pState;
@@ -2784,6 +2785,14 @@ spelling: retail emits `addu v0,s2,v0` and then adds the masked index, and this 
 `+ pSoundFile->volumeTableOffset` form scores 95.35 (one instruction order swap) - retry it only
 if the fold above is ever solved.
 All six callers of this function stay at 100.00% with the real four-argument prototype in scope.
+Round 322, measured on the fold: splitting the scaling as `value = (u32)((s16)volume * tablebyte);`
+then `volume = value >> 7;` DOES give retail's exact register shape (`srl s8,v0,0x7` - product left
+in $v0, volume in $s8) and still folds the test shift into the product's register: 96.66. So the
+register question is closed and the residual is purely cse's equivalence note on the shift's
+destination letting combine rewrite `(lshltr (lshltr product 7) 15)` as `product >> 22`; the two
+statements `volume = volume >> 7` variant coalesces the product into volume's $s6 (96.16), and
+`if (volume & 0x8000)` loses the `srl 15` instruction entirely (one short of retail's size - cannot
+link). Nothing in source order, declaration order or a do/while block moved the fold.
 */
 /*
 void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
@@ -2794,10 +2803,10 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
     u16* pScriptOffset;
     u8 elementFlags;
     s16 sedId = soundId >> 16;
-    u32 volume = level;
     u32 value;
     s32 count;
     s32 i;
+    u32 volume = level;
 
     while (pSoundFile->sedId != sedId) {
         pSoundFile = pSoundFile->pNext;
@@ -2886,8 +2895,8 @@ void func_8003B644(s16 element, s32 soundId, s32 level, s16 pan) {
 
     pManager->flags |= 0x8000;
     EnableEvent(g_unk_SoundEvent);
-}*/
-
+}
+*/
 void SoundFreeAudioManagerBackups(AudioManager* pManager) {
     AudioManager* pEntry = pManager->pBackup;
 
@@ -3296,26 +3305,32 @@ void SoundTickInterpolator(AudioInterpolator* interpolator) {
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
 /*
-Attempt (96.45%, 544 bytes vs the original's 540): the whole element walk is instruction for
-instruction right - the flag masks, the two 16-bit counters packed in the word at 0x5C, the
-ramp accumulators, the key-off tail. Three deltas left, all allocator/scheduler: (a) the -1
-constant occupies t3 here and t4 in the original while activeFlags takes the other one,
-(b) the original puts `addiu t2,t2,-1` in the bne's delay slot and keeps `sh a3,2(a0)`
-before it, this emits the store into the slot and the addiu after the key-off block (+4
-bytes), (c) the loop tail: original `addiu v0,a2,-1 / move a2,v0 / sll v0,v0,16`, this
-`addu a2,a2,t3 / andi v0,a2,0xffff` (gcc 2.6 combine turns the u16 decrement into +0xFFFF).
-Local declaration order, s32/u16 counters and `while(--count)` vs `count--; while(count)`
-all leave the same allocation. The header's AudioManager tempoFrames/tempoTarget and AudioElement
-volumeStep/volumeFrames are u16 (the original loads them with lhu, not lh).
+Attempt (98.07%, 548 bytes = the original's EXACT size; the old 96.45 park claimed 540 - retail's
+last instruction is at 0x8003C6E4, so .size is 0x224 = 548 and that body was one instruction
+short). The whole element walk is instruction for instruction right: the flag masks, the two
+16-bit counters packed in the word at 0x5C, the ramp accumulators, the key-off tail.
+The loop tail is what got the size back, and it needs TWO variables: `next = count - 1;` then
+`count = next;` with `} while ((s16)next != 0);` emits retail's `addiu v0,a2,-1 / move a2,v0 /
+sll v0,v0,0x10`. Measured dead on the tail: a `u16 count` with `count--` (combine folds it to
+`addu a2,a2,t3` off the hoisted 0xFFFF - 2 instructions, 96.45), `} while ((u16)count != 0);`
+(andi instead of sll, 96.90), and `count = count - 1; next = count;` (in-place addiu, 97.30).
+Last residual: ONE register in ONE instruction - retail's final `sll v0,v0,0x10` reads the fresh
+`next` ($v0) where this reads the loop-carried `count` ($a2); gcc knows they are equal after the
+copy. A 4-minute permuter run printed PERMUTER_BETTER base=127 best=77 (the diff was lost - rerun
+and port it), a 2-minute rerun found nothing. Also open: the -1 constant sits in t3 here and in
+t4 in retail, with the activeFlags load taking the other (a pure naming swap).
+The header's AudioManager tempoFrames/tempoTarget and AudioElement volumeStep/volumeFrames are u16
+(the original loads them with lhu, not lh).
 void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
     u16 activeFlags;
-    u16 count = elementCount;
+    s32 count = elementCount;
     u16 tickCounter = pManager->tempoFrames;
     u32 fermataTimer;
     s32 fermataTicks;
     s32 restTicks;
     u16 statusFlags;
     u16 elementFlags;
+    s32 next;
 
     if (tickCounter != 0) {
         tickCounter--;
@@ -3389,8 +3404,9 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
             pElement->status_flags = statusFlags;
         }
         pElement++;
-        count--;
-    } while (count != 0);
+        next = count - 1;
+        count = next;
+    } while ((s16)next != 0);
 }
 */
 
