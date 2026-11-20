@@ -3,6 +3,8 @@
 #define BATTLE_SPOKE_ANGLE_STEP 0x10 // angle increment per spoke, 4096-step turn
 #define BATTLE_SPOKE_RADIUS 0x3F80 // ring radius, also the offset subtracted from the view origin
 #define BATTLE_OT_DEPTH_MAX 0x1C00 // depth limit before the prim is queued
+#define BATTLE_ANGLE_QUARTER_TURN 0x400 // a quarter turn in the 4096-step angle space
+#define BATTLE_CAMERA_LERP_FRAMES 100 // frames the camera lerp restarts with
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
@@ -800,7 +802,83 @@ void BattleRandomizeCameraSpin(void) {
     func_80083310(0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083738);
+extern s32 g_BattleCameraTarget;
+extern s32 D_80098680;
+extern s32 D_80098684;
+extern s32 D_8009277C;
+extern u8 g_BattleCameraSpinDirection;
+extern s32 BattleVectorDistance(VECTOR* pA, VECTOR* pB);
+extern s32 BattleVectorLength2D(VECTOR* p);
+
+// Mirrors the camera on the combatants' midpoint and orbits it to whichever of
+// the two candidate points on the ring is nearer, moving a fraction of the way
+// there each frame (the ring shrinks as the pair closes).
+void func_80083738(VECTOR* pA, VECTOR* pB) {
+    VECTOR pos;
+    VECTOR alt;
+    VECTOR pad0[2]; // unused: the original's frame carries two more 0x10 slots
+    VECTOR* pCamPos;
+    long* pBvz; // load-bearing: pB->vz read inline loses the original's load pairing
+    s32* pTargetX;
+    s32 angle;
+    s32 dist;
+    s32 radius;
+    s32 lenPos;
+    s32 lenAlt;
+
+    angle = ratan2(pA->vx - pB->vx, pA->vz - pB->vz);
+    dist = BattleVectorDistance(pA, pB);
+    pTargetX = &g_BattleCameraTarget;
+    *pTargetX = (pA->vx + pB->vx) / 2;
+    radius = dist * 2 / 3 + 0xC0;
+    pBvz = &pB->vz;
+    D_80098680 = (pA->vy + pB->vy) / 2 - 0xA0;
+    D_80098684 = (pA->vz + *pBvz) / 2;
+    g_BattleCameraOrbitRadius = radius;
+    pos.vx = *pTargetX + ((rcos(angle - BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vz = D_80098684 + ((rsin(angle - BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    alt.vx = *pTargetX + ((rcos(angle + BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    alt.vz = D_80098684 + ((rsin(angle + BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vx -= g_BattleCameraPos;
+    pos.vy -= g_BattleCameraPosY;
+    pos.vz -= g_BattleCameraPosZ;
+    alt.vx -= g_BattleCameraPos;
+    alt.vy -= g_BattleCameraPosY;
+    alt.vz -= g_BattleCameraPosZ;
+    lenPos = BattleVectorLength2D(&pos);
+    lenAlt = BattleVectorLength2D(&alt);
+    if (lenAlt < lenPos) {
+        g_BattleCameraAngleStep = BATTLE_ANGLE_QUARTER_TURN;
+        g_BattleCameraSpinDirection = 0;
+    } else {
+        g_BattleCameraAngleStep = -BATTLE_ANGLE_QUARTER_TURN;
+        g_BattleCameraSpinDirection = 1;
+    }
+    dist /= 4;
+    if (dist > 0x300) {
+        dist = 0x300;
+    }
+    pos.vy = D_80098680 - g_BattleCameraYOffset - dist;
+    pos.vx = g_BattleCameraTarget +
+            ((rcos(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vz = D_80098684 + ((rsin(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
+    // the ground height reuses lenPos: a fresh local puts it in the wrong register
+    lenPos = func_80082488(&pos, 0) - 0x100;
+    if (lenPos < pos.vy) {
+        pos.vy = lenPos;
+    }
+    pCamPos = (VECTOR*)&g_BattleCameraPos;
+    pos.vx = (pos.vx - pCamPos->vx) / g_BattleCameraLerpFrames;
+    pos.vy = (pos.vy - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
+    pos.vz = (pos.vz - g_BattleCameraPosZ) / g_BattleCameraLerpFrames;
+    D_8009277C = angle;
+    BattleMovePointInsideRadius(pCamPos, &pos, 0x3D00);
+    g_BattleCameraLerpFrames = BATTLE_CAMERA_LERP_FRAMES;
+    // volatile: without it sched2 raises the g_BattleCameraPosY load above this store
+    *(volatile s32*)&pCamPos->vx += pos.vx;
+    g_BattleCameraPosY += pos.vy;
+    g_BattleCameraPosZ += pos.vz;
+}
 
 void BattleGetCameraPoints(Unk16* p0, Unk16* p1) {
     *p0 = *(Unk16*)&g_BattleCameraPos;
@@ -849,22 +927,18 @@ s32 BattleGetScreenMode(void) {
     return g_BattleSavedScreenMode;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083CE8);
-
-/* best 85.00%: instruction stream is insn-for-insn identical; gcc puts n in
-   t0 and the 0x88888889 magic in a0 where the original has n in a0, the magic
-   in a1 and an extra `move a2,t0` for n/1800, and gcc hoists the format
-   address. Splitting the three values into locals gives byte-identical C
-   output (also 85.00%).
+// Writes the battle timer's minutes:seconds:hundredths into buf and draws it;
+// the two remainders are taken off the frame count once each.
 void func_80083CE8(void) {
     char buf[0x20];
     s32 n;
+    s32 rem;
 
     n = g_BattleElapsedFrames;
-    Sprintf(buf, D_800701B0, n / 1800, (n % 1800) / 30, (n % 30) * 99 / 30);
+    rem = n % 1800;
+    Sprintf(buf, D_800701B0, n / 1800, rem / 30, (n % 30) * 99 / 30);
     BattleDrawTextLeft(buf);
 }
-*/
 
 void BattleFadeActorLights(PolyTable* pTable, Battler9* pActor, s32 idx) {
     PolyOwner* pOwner;
