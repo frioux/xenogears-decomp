@@ -569,35 +569,26 @@ void func_801CF37C(void) {
     }
 }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF5E4);
-/* 99.06% (756 bytes, retail's exact 0x2F4): one allocator tie left, two single
-   instructions.
-   1. Fixed: the prologue copies (retail: a2, a0, a1; a plain `i < end` loop gave
-      a1, a2, a0) - giving `end` a LIVE COPY (`s32 last = end;`) puts retail's
-      copies in order. Keep that local.
-   2. the inner latch's `addiu s3,s3,1` (j++) lands after the bound's `lbu` here;
-      retail emits it in the delay slot of the `lw a1,%lo(g_Menu)`, i.e. its
-      latch RTL is increment-then-test and this compile's is test-then-increment.
-      `j = j + 1`, `j += 1`, ++j, a while loop with a trailing j++ and a
-      do/while all measure the same.
-   3. the clut store's address sums base-first in retail (`addu v1,s0,v1`) and
-      offset-first here; `pPrims[ctx]`, `(pPrims + ctx)` and a pointer local (87%)
-      differ from retail only in that operand order. The seven `sb` stores above
-      it are offset-first in BOTH, so this is that one site's tree.
-   Moving `primIndex++` out of the subscript into a trailing statement is what
-   took this from 98.40 to 99.06 - it puts `addiu s5,s5,1` in the loop-back
-   delay slot as retail has it. A 4-minute permuter run on the pre-`last` body
-   found nothing. */
-/* void func_801CF5E4(s32 start, s32 primIndex, s32 end) {
+// Fills the cell glyph quads of the cells [start, end): one prim per chunk of the
+// record, reduced against the chunk's own vertex ring.  Retail re-reads the chunk
+// count and the colour table per iteration and emits `j++` ahead of the count load,
+// so the counter is bumped at the end of the body, not in the for clause; the
+// do/while(0) block schedules the tail (v3/clut/call) after the first seven stores.
+void func_801CF5E4(s32 start, s32 primIndex, s32 end) {
     s32 i;
     s32 j;
     s32 last = end;
+    s32 prim;
     POLY_FT4* pPrims;
+    u16 clut;
+    s32 cellOffset;
 
-    for (i = start; i < last; i++) {
+    i = start;
+    prim = primIndex;
+    for (; i < last; i++) {
         if (g_Menu->menuUnk2->records[i].unk58) {
-            for (j = 0; j < g_Menu->menuUnk2->chunks[i].pad0[3]; j++) {
-                pPrims = (POLY_FT4*)g_Menu->pCellPrimBlocks[primIndex];
+            for (j = 0; j < g_Menu->menuUnk2->chunks[i].pad0[3]; ) {
+                pPrims = (POLY_FT4*)g_Menu->pCellPrimBlocks[prim];
                 pPrims[g_Menu->renderContext].u0 = i * 16;
                 pPrims[g_Menu->renderContext].v0 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
                 pPrims[g_Menu->renderContext].u1 = i * 16 + 16;
@@ -605,15 +596,20 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF5E4);
                 pPrims[g_Menu->renderContext].u2 = i * 16;
                 pPrims[g_Menu->renderContext].v2 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
                 pPrims[g_Menu->renderContext].u3 = i * 16 + 16;
-                pPrims[g_Menu->renderContext].v3 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
-                pPrims[g_Menu->renderContext].clut = GetClut(i * 16, i / 16 + 0x1C1);
-                MenuRenderTransformedQuads(1, (SVECTOR*)((u8*)pPrims + 0xE0), pPrims, g_Menu->renderContext);
-                primIndex++;
+                do {
+                    pPrims[g_Menu->renderContext].v3 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
+                    clut = GetClut(i * 16, i / 16 + 0x1C1);
+                    cellOffset = g_Menu->renderContext * sizeof(POLY_FT4);
+                    ((POLY_FT4*)((u8*)pPrims + cellOffset))->clut = clut;
+                    MenuRenderTransformedQuads(1, (SVECTOR*)((u8*)pPrims + 0xE0), pPrims, g_Menu->renderContext);
+                } while (0);
+                j++;
+                prim++;
             }
         }
     }
 }
-*/
+
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF8D8);
 /* 72.99% (568 vs 620 bytes). The whole loop sits inside `if (g_Menu->cardSlotState)`
    (retail loads it before the frame adjust for the guard's lbu 0x4D8); the
