@@ -7,6 +7,7 @@
 #include "field/actor.h"
 #include "field/text_box.h"
 #include "field/main.h"
+#include "field/camera.h"
 
 extern void func_80076AC0(s32, s32, void*, s32, s32, s32, s32);
 extern void FieldActorApplyPositionTransform();
@@ -26,6 +27,24 @@ extern int FieldPartySlotToCharacter(int);
 extern void* g_PartyDataBuffers[];
 extern s32 g_FieldScriptVMScriptEndFlag;
 extern s16 D_800AFD20;
+extern u16 g_FieldP1ButtonsPressed;
+extern u16 g_FieldP1ButtonsReleased;
+extern s32 g_FieldRequestCode;
+extern s16 D_800ADB02; // Frames the player has gone without moving while interacting
+extern s32 D_800ADB28;
+extern s32 D_800ADB68;
+extern u16 D_800ADF68[]; // Camera-relative facing angle per d-pad direction
+extern u16 D_800ADF88[];
+extern volatile u16 D_800B2340;
+extern s16 D_800B2342;
+extern u8 D_800B2354;
+extern u8 D_800B21CE;
+extern volatile s32 D_800B2360;
+extern int FieldActorTestMaterialScriptMask(ActorData* pActor);
+extern void func_80079288(void);
+extern s16 g_Unknown_800B2344;
+
+#define FIELD_ENCOUNTER_HOLD_FRAMES 0x20 // Frames a held confirm repeats as a press
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0xA = 0x1;
@@ -652,6 +671,24 @@ void FieldScriptVMHandlerStartEncounter(void) {
 
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009F5F4);
+/* 96.60% (1044 vs retail 1036 bytes). Four residuals, all measured:
+   1. the second accept block emits an extra `lui %hi/lw g_FieldScriptVMCurActor`
+      before `sh 0xFF,0xE8(actor)`: the volatile flags store stops gcc reusing the
+      pointer it already has in $v1 (that reload is the whole +8 bytes). A pActor
+      local assigned after the jal is the next thing to try (no call follows it).
+   2. `nTextBoxIndex = -(nTextBoxIndex == 4)` reassignment reproduces the loop exit
+      exactly but lands the negate in the counter register: ours `negu v1,v0 / li v0,-1
+      / bne v1,v0`, retail `negu v0,v0 / li v1,-1 / bne v0,v1`.
+   3. the D_800B2342 decrement: retail keeps the ADDRESS in a register
+      (`lui/addiu` + `lhu 0(v1)` / `sh 0(v1)`), ours uses the maspsx symbol macro.
+      The `extern s16 D_800B2342[]` unbounded-array form produces retail exactly, but
+      gcc then CSEs that base with the `D_800B2342 = D_800B2340` store across the jal
+      and spills it to $s0 (+3 instructions, and retail saves no callee-saved reg).
+   4. the frame: retail is 0x60 with only $ra stored (so 0x58 bytes of dead locals);
+      ours is 0x18. An unused local of exactly 0x58 bytes is the lever.
+   The volatile flags store is load-bearing: it is what puts the flags RMW first and
+   keeps gcc from hoisting the two global loads above it (92.36 -> 96.60).
+*/
 
 int FieldCharacterIdToPartyId(int characterId) {
     int i;
@@ -734,6 +771,7 @@ s32 func_8009FA54(s32 nInstructionOffset) {
     return 0;
 }
 */
+
 INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009FA54);
 void FieldScriptVMHandlerReloadSceneMapData(void) {
     ActorData* pActor;
