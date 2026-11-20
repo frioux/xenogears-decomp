@@ -134,7 +134,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
 
 /* objdiff 75.33% (296 bytes, same size; was 68.19% with the old if/else order).
    Settled: charId = g_Menu->pManager->currentCharacterIDs[slot]; weight =
-   *pWeight++ where pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
+   *pWeight++ where pWeight = g_GameState.characters[charId].statWeights;
    value = pRow[i] where pRow = (u8*)pTable + charId * 0x110 + index * 0xE and
    pTable = *(u32*)((u8*)g_Menu->unk438 + 0x2578); total/count are u32, the loop
    counter is a signed int (retail ends the loop with slti, not sltiu). The
@@ -173,7 +173,7 @@ u32 func_801E1418(u8 slot, u8 index) {
     }
     count = 0;
     charId = g_Menu->pManager->currentCharacterIDs[slot];
-    pWeight = (u16*)((u8*)&g_GameState.characters[charId] + 0x90);
+    pWeight = g_GameState.characters[charId].statWeights;
     pTable = *(u16**)((u8*)g_Menu->unk438 + 0x2578);
     pRow = (u16*)((u8*)pTable + charId * 0x110 + index * 0xE);
     for (i = 0; i < 7; i++) {
@@ -858,14 +858,14 @@ s32 func_801E31C0(MenuDressingRoom* pDressingRoom, u8 charIndex, u8 itemIndex) {
     }
     if (pItem->unkA & 2) {
         if (pItem->unkC & 0x8000) {
-            pChar->unk78 = pChar->unk78 + pItem->amount;
-            if (pChar->unk78 > 200) {
-                pChar->unk78 = 200;
+            pChar->statBonus = pChar->statBonus + pItem->amount;
+            if (pChar->statBonus > 200) {
+                pChar->statBonus = 200;
             }
-        } else if (pChar->unk78 < (u8)pItem->unkC) {
-            pChar->unk78 = 0;
+        } else if (pChar->statBonus < (u8)pItem->unkC) {
+            pChar->statBonus = 0;
         } else {
-            pChar->unk78 = pChar->unk78 - pItem->unkC;
+            pChar->statBonus = pChar->statBonus - pItem->unkC;
         }
     }
     if (pItem->unkA & 1) {
@@ -932,7 +932,7 @@ void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 charIndex)
     pChar->hitPercentageFromEquipment = 0;
     pChar->evadePercentageFromEquipment = 0;
     pChar->accessoryEffectFlags8 = 0;
-    pChar->unk31 = 0;
+    pChar->mpPercentFromAccessories = 0;
     pChar->accessoryEffectFlags1 = 0;
     pChar->accessoryEffectFlags2 = 0;
     pChar->accessoryEffectFlags3 = 0;

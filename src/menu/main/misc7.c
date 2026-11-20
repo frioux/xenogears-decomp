@@ -1111,7 +1111,7 @@ void func_801D7884(u_char index, u_char row) {
     s32 vertOffset;
     s32 i;
 
-    // The character's stat row: characters[] is 0xA4 bytes and unk77 sits 0x2E4 into g_GameState.
+    // The character's stat row: characters[] is 0xA4 bytes and statBase/statBonus/unk79 sit 0x2E3/0x2E4/0x2E5 into g_GameState.
     // Retail folds that 0x2E4 into each load's %lo half, so the row is reached through
     // g_GameState (a pointer local would burn a register on the base).
     if (row == 0) {

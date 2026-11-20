@@ -57,7 +57,7 @@ typedef struct {
     /* 0x2E */ u8 hitPercentageFromEquipment;
     /* 0x2F */ u8 evadePercentageFromEquipment;
     /* 0x30 */ u8 accessoryEffectFlags8; // the type-8 accessory flag word, summed not OR'ed: cases 8 and 9 both accumulate into it (MenuApplyEquippedItemBonuses)
-    /* 0x31 */ u8 unk31;
+    /* 0x31 */ u8 mpPercentFromAccessories; // percent of maxMp added to mp and maxMp at battle init, cleared with the equipment bonuses (MenuApplyEquippedItemBonuses)
     /* 0x32 */ u16 accessoryEffectFlags5; // the type-5 accessory flag word, see the 0x7E block
     /* 0x34 */ u8 unk34[0x10];
     // Two 32-bit numbers the menu window draws wide (up to 8 digits) with
@@ -91,11 +91,11 @@ typedef struct {
     /* 0x6A */ undefined8 weaponId[0x5];
     /* 0x6F */ undefined8 extraWeaponIds[0x5]; // Billy's four guns are summed, so all four slots are weapons
     /* 0x74 */ undefined8 accessorySlots[0x3];
-    // FieldScriptSetCharacterField78 stores argument - unk77 in unk78 and
-    // FieldScriptWriteCharacterFieldSum reads back their sum, so unk77 is the value
+    // FieldScriptSetCharacterField78 stores argument - statBase in statBonus and
+    // FieldScriptWriteCharacterFieldSum reads back their sum, so statBase is the value
     // the script cannot set below.
-    /* 0x77 */ u8 unk77;
-    /* 0x78 */ u8 unk78;
+    /* 0x77 */ u8 statBase;
+    /* 0x78 */ u8 statBonus;
     /* 0x79 */ u8 unk79;
     /* 0x7A */ u16 unk7A;
     /* 0x7C */ u16 activeEffectFlags1; // starts the active/accessory word grid below, as in GameGear and BattleTableEntry
@@ -113,7 +113,7 @@ typedef struct {
     /* 0x8A */ u16 accessoryEffectFlags4;
     /* 0x8C */ u16 activeEffectFlags7;
     /* 0x8E */ u16 accessoryEffectFlags7; // also gains GameCharacterSlot.flags once that slot's unk3 reads 0x64
-    /* 0x90 */ u8 unk90[0x10]; // a u16[8] (7 entries read) the dressing room weighs against a per-character table to make a percentage, see the parked func_801E1418 in menu/main/misc10; BattleInitActiveSlotActions adds 10 to each of the first seven at battle init
+    /* 0x90 */ u16 statWeights[8]; // one weight per dressing-room stat row (7 read), weighed against a per-character table to make a percentage, see the parked func_801E1418 in menu/main/misc10; BattleInitActiveSlotActions adds 10 to each of the first seven at battle init
     /* 0xA0 */ u_char gearId;
     /* 0xA1 */ u8 accessoryEffectFlags10; // the type-10 accessory flag word, summed not OR'ed, see MenuApplyEquippedItemBonuses
     /* 0xA2 */ undefined8 unkA2[0x2];
@@ -213,9 +213,10 @@ typedef struct {
     /* 0x00 */ s16 unk0;
     /* 0x02 */ s16 unk2;
     // unk4 and unk8 are command bit masks: unk4 is tested bit by bit against the 13
-    // learnable command rows (src/battle/main/misc13), unk8 against the
+    // learnable command rows (src/battle/main/misc13, whose battle reset sets one bit per
+    // command the character has), unk8 against the
     // command-availability masks (BattleCheckActorCommandAvailable).
-    /* 0x04 */ s16 unk4;
+    /* 0x04 */ s16 commandMask;
     // One bit per condition the slot can be given. The character-side and the
     // gear-side slot answer the same test from these two words, see
     // BattleDrawCharStatusIfFlagged and func_8009BAC4 in src/battle/main/misc19.
@@ -240,8 +241,10 @@ typedef struct {
     /* 0x026C */ GameCharacter characters[MAX_GAME_CHARACTERS];
     /* 0x0978 */ GameGear gears[MAX_GAME_GEARS];
     /* 0x1648 */ undefined8 unk1648[0x74];
-    /* 0x16BC */ UnkGearState unk16BC[10];
-    /* 0x17FC */ undefined8 unk17FC[0x24];
+    // Eleven 0x20-byte per-character condition/command rows; the eleventh also runs over the
+    // four bytes after it, which is what the eleven 0x20-byte rows at +0x16C0 of func_801E5178 cover.
+    /* 0x16BC */ UnkGearState unk16BC[11];
+    /* 0x17FC */ undefined8 unk17FC[0x4];
     // World map ground position in map units; << 12 gives the actor coordinate
     // WorldMapSetPositionFromState copies into g_WorldMapPlayerPosition.
     /* 0x1820 */ u16 worldMapPosX;
@@ -267,7 +270,7 @@ typedef struct {
     // and WorldMapInitializePlayerSlot reads back when the map is entered again.
     /* 0x1838 */ u16 pad1838[2];
     /* 0x183C */ u16 savedGearRide[MAX_PARTY_MEMBERS]; // g_GameState.gearRide[] saved while a mode-4 map runs, compared back by WorldMapSyncGearRideActors
-    /* 0x1842 */ u16 unk1842; // toggled by a SELECT press; while 0, WorldMapMainLoop calls func_800740B8, which draws the map's tile layer
+    /* 0x1842 */ u16 hideTileLayer; // toggled by a SELECT press; while 0, WorldMapMainLoop calls func_800740B8, which draws the map's tile layer
     /* 0x1844 */ u16 playerMapPosX; // the player actor's WorldMapPlayer.x in map units, saved across a map change
     /* 0x1846 */ u16 playerMapPosZ;
     /* 0x1848 */ u16 playerTileIndex; // WorldMapPlayer.unk50, the index into the tile coordinate tables, saved with them

@@ -1255,12 +1255,12 @@ void FieldScriptSetCharacterField78(void) {
     int partyId = FieldPartySlotToCharacter(FieldScriptVMGetArgument(3));
 
     if (partyId != CHARACTER_ID_NONE) {
-        int value = FieldScriptVMGetArgument(1) - g_pGameState->characters[partyId].unk77;
+        int value = FieldScriptVMGetArgument(1) - g_pGameState->characters[partyId].statBase;
 
         if (value < 0) {
             value = 0;
         }
-        g_pGameState->characters[partyId].unk78 = value;
+        g_pGameState->characters[partyId].statBonus = value;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 5;
 }
@@ -1269,7 +1269,7 @@ void FieldScriptWriteCharacterFieldSum(void) {
     int partyId = FieldPartySlotToCharacter(FieldScriptVMGetArgument(3));
 
     if (partyId != CHARACTER_ID_NONE) {
-        int value = g_pGameState->characters[partyId].unk77 + g_pGameState->characters[partyId].unk78;
+        int value = g_pGameState->characters[partyId].statBase + g_pGameState->characters[partyId].statBonus;
 
         FieldScriptMemoryWriteU16(FieldScriptVMGetInstructionArgument(1) & 0xFFFF, value);
     } else {

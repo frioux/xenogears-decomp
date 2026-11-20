@@ -253,7 +253,7 @@ void WorldMapMainLoop(void) {
         }
         g_WorldMapExpiredTimerCount = 0;
         if ((g_WorldMapPad1Released & CTRL_BTN_SELECT) != 0) {
-            g_GameState.unk1842 ^= 1;
+            g_GameState.hideTileLayer ^= 1;
         }
         if (g_WorldMapFadeActive == 0 && g_WorldMapMode4EntryTriggered != 0 && g_WorldMapLoopActive != 0) {
             if (g_WorldMapMode > 0) {
@@ -355,7 +355,7 @@ s32 WorldMapUpdateFrameWithSlotProjection(void) {
     func_80073B04();
     func_800737EC();
     func_80086798();
-    if (g_GameState.unk1842 == 0) {
+    if (g_GameState.hideTileLayer == 0) {
         func_800740B8();
     }
     return 1;

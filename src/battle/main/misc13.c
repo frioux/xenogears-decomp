@@ -350,7 +350,7 @@ s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1) {
         j++;
     case 12:
         pEntry = g_BattleCommandStatusBytes[D_800CCD36[arg1 * 0x170 + 8]];
-        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].unk4,
+        if ((u16)BattleMaskHasStatusBit(*(u16 *)&g_GameState.unk16BC[g_BattleActorCharIds[arg1]].commandMask,
                                         pEntry[0xC - j]) != 0) {
             result = 1;
         }
