@@ -200,6 +200,12 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
 // below the 0x84 store, which measures WORSE under objdiff (69.18%) - not taken.
 // Still true from the old note: 0x3C is unsigned (ori 0xFFFF) while 0x98/0x3A/0x1E
 // are signed -1 (addiu), so the two constants must stay spelled differently.
+// Round 318 wrote the body typed (pActor->blockTag = 0xFFFF; ... rotOffset[0..2],
+// rotStep[0..2], posOffset[0..2], posStep[0..2], posX/Y/Z all 0; moveDistance = 1;
+// skipGroundSnap = 0; groundTriangleIndex = -1) in retail's store order: also
+// 74.36% at 156 bytes, i.e. EVERY store and every li lands in retail's place and
+// the only residual is the -1 load (retail's is insn 1, ours is at the first -1
+// store). So the wall is exactly the one above, not the field spelling.
 /*
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(s16 *)(arg0 + 0x98) = -1;
