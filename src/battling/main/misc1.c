@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "system/controller.h"
 
 extern u8 g_BattleTutorialWindow[];
 
@@ -130,7 +131,10 @@ typedef struct {
     /* 0x04F */ u8 animSpeed;
     /* 0x050 */ u8 unk50[0x2];
     /* 0x052 */ u8 animSpeedBonus;
-    /* 0x053 */ u8 unk53[0x61];
+    /* 0x053 */ u8 unk53[0x5D];
+    // The height func_80082488 reports for the actor's position, refreshed every
+    // frame by the grid walk below and by BattleActorUpdateGroundMovement.
+    /* 0x0B0 */ s32 floorY;
     /* 0x0B4 */ s16 gaugeValue;
     /* 0x0B6 */ s16 gaugePoints;
     /* 0x0B8 */ u8 unkB8[0x18];
@@ -533,15 +537,155 @@ void BattleInitTutorialMessage(void) {
     func_8007191C(9);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071AD0);
+extern u8 D_800925F0;
+extern s32 g_BattleDrawFlags;
+extern u8* g_BattleRootOrderingTable;
+extern u16 g_C1ButtonStatePressedOnce;
+extern u16 g_C1ButtonStateReleased;
+extern void ControllerMergeStates(void);
+extern void SystemStringSetColor(void* pString, s32 red, s32 green, s32 blue);
+extern void SystemStringSetLineOffset(void* pString, s32 lineOffset);
+extern void SystemStringReset(void* pString);
+extern void func_80034888(void* pString, void* pOt, s32 arg);
+extern void func_80079DF0(void* pActor1, void* pActor0);
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_80071DA4);
+// The tutorial text has this many lines; the pad scrolls the window's first line.
+#define BATTLE_TUTORIAL_LINE_COUNT 8
+
+/* The per-frame tutorial drawing/text step. The line offset is stepped as an
+   unsigned byte (lbu/addiu/sb) and read back as a signed one when it is clamped
+   and handed to SystemStringSetLineOffset (lb), so the three casts are what makes
+   gcc choose the sign-extending load. g_BattleScriptCursor is held as an s32 by
+   BattleSetValueAndClearFlags, so the script byte it points at is read through a
+   cast rather than through a typed cursor.
+*/
+void func_80071AD0(void) {
+    BattleMessageWindow* pMsg;
+    u8* pWindow;
+    u8* pCursor;
+
+    if (D_800925F0 != 0) {
+        if ((g_BattleDrawFlags & 4) != 0) {
+            BattleQueueSpriteAndTpagePrims(g_BattleRootOrderingTable);
+        }
+    }
+    ControllerMergeStates();
+    pMsg = &g_BattleMessageWindow;
+    if (D_80092608 != 0) {
+        if (g_C1ButtonStatePressedOnce & CTRL_BTN_UP) {
+            BattlePlaySoundEffectById(0x1E);
+            g_BattleTutorialLineOffset--;
+        }
+        if (g_C1ButtonStatePressedOnce & CTRL_BTN_DOWN) {
+            BattlePlaySoundEffectById(0x1E);
+            g_BattleTutorialLineOffset++;
+        }
+        if ((s8)g_BattleTutorialLineOffset >= BATTLE_TUTORIAL_LINE_COUNT) {
+            g_BattleTutorialLineOffset = 0;
+        }
+        if ((s8)g_BattleTutorialLineOffset < 0) {
+            g_BattleTutorialLineOffset = BATTLE_TUTORIAL_LINE_COUNT - 1;
+        }
+        pWindow = &g_BattleTutorialWindow[0];
+        SystemStringSetColor(pWindow, (g_BattleDrawFlags * 7) & 0x3F, 0xC0, 0x10);
+        SystemStringSetLineOffset(pWindow, (s8)g_BattleTutorialLineOffset);
+        if (g_C1ButtonStateReleased & CTRL_BTN_CIRCLE) {
+            BattlePlaySoundEffectById(0x21);
+            func_8007191C((s8)g_BattleTutorialLineOffset + 1);
+            SystemStringReset(pMsg);
+        }
+    }
+    pCursor = (u8*)g_BattleScriptCursor;
+    if (*pCursor == 0) {
+        func_8007191C(0);
+    }
+    func_8007107C();
+    g_BattleWindowPosX += BattleRoundDivAwayFromZero(D_800925E8, g_BattleWindowPosX, 4);
+    g_BattleWindowPosY += BattleRoundDivAwayFromZero(D_800925EC, g_BattleWindowPosY, 4);
+    if (D_80092608 != 0) {
+        func_80034888(&g_BattleTutorialWindow[0], g_BattleRootOrderingTable, g_BattleDrawBufferIndex);
+    }
+    if (g_BattleMessageIndex != g_BattleMessageShownIndex) {
+        pMsg->redraw = 3;
+        SystemStringReset(pMsg);
+        SystemStringPushBuffer(pMsg, GetStringEntry(g_BattleMessageStringTable, g_BattleMessageIndex));
+        g_BattleMessageShownIndex = g_BattleMessageIndex;
+    }
+    func_80079DF0(&g_BattleActor1, &g_BattleActor0);
+    BattlePlaceEffectByMode(g_BattleEffectPlaceMode);
+}
+
+#define BATTLE_GRID_NEIGHBOUR_COUNT 8
+#define BATTLE_GRID_CELL_STEP 0xC0
+// A neighbour has to be this much lower before the actor steps into it, and the
+// walk gives up after this many steps.
+#define BATTLE_GRID_WALK_TOLERANCE 0x40
+#define BATTLE_GRID_WALK_MAX_STEPS 20
+// flags bits 29-30: the grid cell type BattleGetGridCellAtPosition reports.
+#define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
+
+// The eight cells around a battle grid cell, as the (x, z) step from the cell to
+// each neighbour in BATTLE_GRID_CELL_STEP units: the x column is D_80091084 and
+// the z column four bytes behind the next entry, so both are walked with a
+// two-word stride. Retail reaches the x column through the symbol and keeps a
+// pointer to the z column, which it re-forms for the final step; that is the
+// shape the (i * 2) subscripts and pStepZ below reproduce (the same table spelled
+// as an array of a two-field struct measures 82.12%).
+extern s32 D_80091084[];
+extern s32 D_80091088[];
+extern u32 BattleGetGridCellAtPosition(VECTOR* pPos);
+
+// Walks the actor's position down the battle grid, one grid cell at a time, as
+// long as a lower neighbour cell exists, then stamps the height it ended on and
+// the grid cell type it is standing in.
+/* Walks the actor down the grid: while a neighbouring cell is a tolerance lower
+   than the height it is standing at, step into the lowest neighbour, and stamp
+   the height and cell type it ended on. pActor and pStepZ are the two copies
+   retail keeps of a pointer it also needs outside the loop.
+*/
+void func_80071DA4(BattleState* p) {
+    BattleState* pActor;
+    s32* pStepZ;
+    VECTOR pos;
+    s32 bestIndex;
+    s32 best;
+    s32 count;
+    s32 i;
+    s32 value;
+
+    pActor = p;
+    pStepZ = D_80091088;
+    count = 0;
+    do {
+        best = pActor->position.vy = func_80082488(&pActor->position, 1);
+        for (i = 0; i < BATTLE_GRID_NEIGHBOUR_COUNT; i++) {
+            pos = pActor->position;
+            pos.vx += D_80091084[i * 2] * BATTLE_GRID_CELL_STEP;
+            pos.vz += pStepZ[i * 2] * BATTLE_GRID_CELL_STEP;
+            value = func_80082488(&pos, 1);
+            if (value < best - BATTLE_GRID_WALK_TOLERANCE) {
+                bestIndex = i;
+                best = value;
+            }
+        }
+        if (best >= pActor->position.vy - BATTLE_GRID_WALK_TOLERANCE) {
+            pActor->position.vy = func_80082488(&pActor->position, 1);
+            break;
+        }
+        pActor->position.vx -= D_80091084[bestIndex * 2] * BATTLE_GRID_CELL_STEP;
+        pActor->position.vz -= pStepZ[bestIndex * 2] * BATTLE_GRID_CELL_STEP;
+        count++;
+    } while (count < BATTLE_GRID_WALK_MAX_STEPS);
+    p->floorY = func_80082488(&p->position, 1);
+    p->flags = (p->flags & ~BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) |
+               (((BattleGetGridCellAtPosition(&p->position) >> 24) & 3) << 29);
+}
 
 extern s32 g_BattleActorDistance2D;
 extern s32 g_BattlingAudioManager;
 extern void SoundStopAudioManager(s32 arg);
 extern void SoundStopAllElements(void);
-extern void func_80071DA4(u8* p);
+extern void func_80071DA4(BattleState* p);
 
 /* 91.77%: case 3 is the only difference. retail materialises &g_BattleCameraPosY into
    $v1 and stores through it twice (lui v1/%hi; addiu v1/%lo; sw v0,0(v1));
