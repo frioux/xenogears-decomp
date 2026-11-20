@@ -1246,7 +1246,102 @@ void func_800941A4(void) {
     BattleAccumulateSlotValueByRowFlag();
 }
 */
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_800946F4);
+void func_800946F4(void) {
+    u32 amount;
+    u32 sum;
+    u16 value;
+    u16 flags;
+    s32 limit;
+    u8 state;
+    u8 i;
+
+    if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 0) {
+        if (g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] ==
+            g_BattleTargetSlotEntry->hp) {
+            if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS) {
+                value = *(u16 *)g_BattleActingSlot->unk3A + 1;
+                *(u16 *)g_BattleActingSlot->unk3A = value;
+                if (value > 0xFDE8) {
+                    *(u16 *)g_BattleActingSlot->unk3A = value - 1;
+                }
+            }
+        }
+        flags = g_BattleTargetSlotEntry->activeEffectFlags2;
+        g_BattleTargetSlotEntry->activeEffectFlags2 = flags & 0xEFFF;
+        if (flags & BATTLE_GEAR_EFFECT_FLAG) {
+            if (rand() % BATTLE_PERCENT_ROLL_RANGE < 70) {
+                g_BattleTargetSlotEntry->activeEffectFlags2 &= 0xDFFF;
+            }
+        }
+        if (g_BattleCurrentRow->actionFlags & 0x100) {
+            if (g_BattleTargetSlotEntry->unk36 & 0x4000) {
+                g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
+            }
+            if (g_BattleTargetSlotEntry->unk36 & 0x2000) {
+                if ((g_BattleCurrentRow->element & 0xF) == 0) {
+                    g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
+                }
+            }
+        }
+        if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x80) {
+            limit = 0x3C;
+            if (g_BattleTargetSlotEntry->characterId == 0) {
+                limit = 0x50;
+            }
+            if (rand() % BATTLE_PERCENT_ROLL_RANGE < limit) {
+                g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
+                    (u32)g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] >> 1;
+            } else {
+                amount = g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex];
+                sum = amount >> 1;
+                sum = sum + amount;
+                g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = sum;
+            }
+        }
+        if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x20) {
+            g_BattleCurWorkBlock->slotStates[g_BattleTargetSlotIndex] = 0;
+            g_BattleCurWorkBlock->slotAmounts[g_BattleTargetSlotIndex] =
+                g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex];
+        }
+        if (g_BattleTargetSlotIndex < MAX_PARTY_MEMBERS &&
+            g_BattleTargetSlotIndex != g_BattleCurSlotIndex) {
+            if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].activeEffectFlags1 & 2) {
+                g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].activeEffectFlags1 &= ~2;
+                g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].conditionFlags =
+                    g_BattleSavedSlotUnk7A[g_BattleCurSlotIndex];
+            }
+        }
+        if (g_BattleTargetSlotEntry->characterId == 3) {
+            if ((u32)g_BattleCurveTargets[g_BattleCurSlotIndex] >= g_BattleTargetSlotEntry->hp) {
+                for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
+                    g_BattleWorkBlock[i].activeEffectFlags2 &= ~0x20;
+                }
+            }
+        }
+    }
+    if (g_BattleTargetSlotEntry->unk36 & 0x8000) {
+        state = g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex];
+        switch (state) {
+        case 0:
+        case 5:
+            g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
+            break;
+        case 2:
+            g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0;
+            break;
+        }
+    }
+    if (g_BattleTargetSlotEntry->accessoryEffectFlags3 & 0x80) {
+        if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 2) {
+            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] <<= 1;
+        }
+    }
+    if (g_BattleTargetSlotEntry->accessoryEffectFlags4 & 0x200) {
+        if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 1) {
+            g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = 0;
+        }
+    }
+}
 void BattleAccumulateSlotValueByRowFlag(void) {
     BattleWorkBlock *pWork = g_BattleCurWorkBlock;
     u8 slot;
