@@ -390,7 +390,7 @@ void BattleRenderShadedSpans(s32 arg0, s32 arg1, s32 arg2) {
     func_80072D18(arg0, arg1, arg2);
 }
 
-void func_80087830(void) {
+void BattleInitSpanBuffers(void) {
     s32 i;
     u8 *p;
 
@@ -596,7 +596,7 @@ typedef struct {
 
 extern BattlingCrossEntry g_BattleTargetCrosses[];
 
-void func_80087EA0(u8 *pOt) {
+void BattleDrawTargetCrosses(u8 *pOt) {
     SVECTOR vtx[6];
     BattlingCrossEntry *pEntry;
     s32 i;

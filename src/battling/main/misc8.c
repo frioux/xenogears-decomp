@@ -854,7 +854,7 @@ extern DR_TPAGE D_800955C8[4];
 extern Misc8DimSprites D_800955F8;
 extern void BattleInitDrawEnvPair(void);
 extern void func_800732AC(void *pDst, void *pSrc, s32 n);
-extern void func_80087830(void);
+extern void BattleInitSpanBuffers(void);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081ECC);
 /* PARK 70.16% (752 bytes vs retail 684).  The whole geometry of the function
@@ -873,7 +873,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc8", func_80081ECC);
    plus one trailing word), the four GetTPage/SetDrawTPage pairs with
    D_800955C8 in $s0, the header stores, the func_800732AC copy of the 0x14-byte
    sprite template into five 0x14-byte copies, the eight copy fixups, the
-   0x4000-entry x12 scale loop on g_BattleGridCells and the func_80087830 tail.
+   0x4000-entry x12 scale loop on g_BattleGridCells and the BattleInitSpanBuffers tail.
    Tried: per-vertex interleaved field writes (70.16%), all four setRGB first
    then setXYWH(0,0,0x140,0x60) (67.89% - setXYWH is what makes retail's
    x3,y3 come out as the single 0x600140 constant, so it is probably the right
@@ -931,6 +931,6 @@ void func_80081ECC(void) {
     for (i = 0; i < 0x4000; i++) {
         g_BattleGridCells[i].height = g_BattleGridCells[i].height * 12;
     }
-    func_80087830();
+    BattleInitSpanBuffers();
 }
 */
