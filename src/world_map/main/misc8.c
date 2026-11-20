@@ -1066,41 +1066,42 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
 }
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
-// Best: 94.82% at retail's exact 924 bytes (231 instructions). The body IS
-// compiler output despite splat's "Handwritten function" marker, and every
-// call, GTE encoding, the 0x50 frame, the loop tail and the epilogue are exact.
-// The whole residue is FOUR instruction-order ties in the two blocks around the
-// distance test, nothing structural:
+// Best: 98.62% at retail's exact 924 bytes (231 instructions). The body IS
+// compiler output despite splat's "Handwritten function" marker: every call,
+// GTE encoding, the 0x50 frame, the loop body and the epilogue are exact.
+// What the distance-test block needed:
 // - `far |= dz >= 0x800;` - an ACCUMULATOR, not `farX | farZ` and not an inline
-//   `(dx >= 0x800) | (dz >= 0x800)` - is what keeps the dx compare (`slti` +
-//   `xori`) in place, right after the negu and BEFORE the dz loads, as retail
-//   has it. Both other spellings sink it past the dz compare (91.99%).
+//   `(dx >= 0x800) | (dz >= 0x800)` - keeps the dx compare (slti + xori) in
+//   place, right after the negu and BEFORE the dz loads, as retail has it.
+// - `dx` has to be built in three statements (`dx = pPos->x; dx = dx >> 12;
+//   dx = dx - pEntry->x;`); as one expression gcc loads pPos->x into v0 after
+//   the `addu s1,v1,v0` and the whole dx block moves (permuter find).
 // - The distance test must be an `if/else` (body in the else) AND the `if` block
-//   must end with an empty `do { } while (0);` AFTER the return - found by the
-//   permuter (base 1715 -> 1415), and together they are the only spelling that
-//   gives retail's block layout: `beq a1,<body>` with the ret0 block inline
-//   (`j <epilogue>; move v0,zero`) instead of gcc threading `bne -> epilogue`
-//   and folding the value copy into the branch's delay slot (916 bytes).
-// - STILL WRONG (4 sites): (a) retail loads `pPos->x` straight into `a1` BEFORE
-//   `addu s1,v1,v0` and keeps `pEntry->x` in `v0`; here it is `lw v0,0(a0)` /
-//   `lw v1,8(s1)` / `subu a1,v0,v1`. (b) retail's `lui $s0,0x1F80` (the pWork
-//   base) is the `beq`'s delay slot and its `move $s2,zero` (i = 0) comes later;
-//   here the `li $16,0x1f800000` is stolen into the dx `bgez` slot (retail has a
-//   `nop` there) and `i = 0` fills the `beq` slot instead. Same root cause:
-//   our pWork constant's `lui` is emitted in the entry block, retail's in the
-//   body block - a `pWork = (WorldMapClipWork *)0x1F800000;` assignment inside
-//   the body (with the two delta stores spelled against the D_1F800040/48
-//   symbols so they still fold) is the untried lever. (c) `lw a3,0(a0)` (count)
-//   is one slot later than retail. (d) two operands differ by relocation only
-//   (`addiu v0,s0,%lo(D_1F800010)` / `%lo(D_1F800020)` in retail vs the folded
-//   `addiu v0,s0,16`/`32` here) - byte identical when linked, so diff_func can
-//   never print MATCH; judge this function with check_bin.sh.
-// A 4-minute permuter run from the 93.51% body found the empty do-block; the
-// next run should start from the body below.
+//   must end with an empty `do { } while (0);` AFTER the return - together they
+//   are the only spelling that gives retail's block layout: `beq a1,<body>`
+//   with the ret0 block inline (`j <epilogue>; move v0,zero`) instead of gcc
+//   threading `bne -> epilogue`.
+// - `pVerts = pMesh->pVerts;` must be assigned BEFORE `pWork->clip[2]` and
+//   `pTri = pMesh->tris;` (96.87 -> 98.62): it decides where `count`'s load and
+//   its spill to 0x18(sp) land.
+// Residue - allocator/regalloc ties only; three permuter runs (base 325 last)
+// found nothing:
+// (a) 9 instructions: retail keeps dx AND the far flag in a1 (`sra a1,a1,0xc`,
+//     `slti a1,a1,2048`, `xori a1,a1,0x1`) where this body uses a2 for dx and
+//     splits the compare through v0 into a1. One-variable (`dx = dx >= 0x800`),
+//     `!= 0`, u32 and declaration-order spellings all measure the same or worse.
+// (b) 2 instructions: retail's pWork `lui $s0,0x1F80` is the `beq` delay slot
+//     and its `move $s2,zero` (i = 0) sits inside the body block; here the lui
+//     is stolen into the dx `bgez` slot (retail has a nop) and i = 0 fills the
+//     `beq` slot. Assigning pWork inside the body block, with the delta stores
+//     spelled `*(s32 *)0x1F800040`, is WORSE: 95.88% / 928 bytes.
+// (c) two operands differ by relocation only (`addiu v0,s0,%lo(D_1F800010)` and
+//     `%lo(D_1F800020)` in retail vs the folded `addiu v0,s0,16` / `32` here) -
+//     byte identical when linked, so diff_func can never print MATCH; judge this
+//     function with check_bin.sh.
 /*
 s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
     WorldMapEntry *pEntry = &g_WorldMapGroups[setIndex];
-    WorldMapClipWork *pWork = (WorldMapClipWork *)0x1F800000;
     MATRIX *pMat;
     WorldMapMesh *pMesh;
     WorldMapTriangle *pTri;
@@ -1110,10 +1111,13 @@ s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
     s32 dx;
     s32 dz;
     s32 i;
+    WorldMapClipWork *pWork = (WorldMapClipWork *)0x1F800000;
     s32 n;
     long flag;
 
-    dx = (pPos->x >> 12) - pEntry->x;
+    dx = pPos->x;
+    dx = dx >> 12;
+    dx = dx - pEntry->x;
     pWork->delta.vx = dx;
     if (dx < 0) {
         dx = -dx;
@@ -1140,15 +1144,15 @@ s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
         pMat->t[0] = 0;
         *(s32 *)0x1F800008 = 0x800;
         *(s32 *)0x1F800004 = 0x800;
-        *(s32 *)0x1F800000 = 0x800;
         pMat->t[1] = pEntry->y;
+        *(s32 *)0x1F800000 = 0x800;
         ScaleMatrix(pMat, (VECTOR *)0x1F800000);
         SetRotMatrix(pMat);
         SetTransMatrix(pMat);
         pMesh = pEntry->pMesh;
         count = pMesh->unk0;
-        pWork->clip[2] = (pWork->delta.vz << 16) | ((u16 *)&pWork->delta)[0];
         pVerts = pMesh->pVerts;
+        pWork->clip[2] = (pWork->delta.vz << 16) | ((u16 *)&pWork->delta)[0];
         pTri = pMesh->tris;
         for (; i < count; i++, pTri++) {
             gte_ldv0(&pVerts[pTri->vert[0]]);
