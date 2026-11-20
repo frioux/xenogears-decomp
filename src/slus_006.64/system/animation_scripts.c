@@ -499,8 +499,6 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 // retail materialises it twice, separately, for the same reason. A spelling that gives the -9
 // and 0xF03FFFFF pseudos one use each while still emitting retail's single materialisation (or a
 // preset that skips loop.c invariant motion) is the whole remaining job.
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
-/*
 // Best: 91.20% (788 bytes = retail's exact size, retail's exact register set: s0-s5 + ra,
 // frame 0x30). Round 330 closed 72.61 -> 91.20 and found the two levers that decide whether
 // loop.c hoists a loop-invariant constant (it hoists iff
@@ -523,14 +521,40 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800226
 // folds it to `(f << 1 & 8 ^ newBit3)` (3 insns) if the 0x3C clear is written early enough to
 // let it see that bit 3 of the new word is the flip value; `%hi/%lo` pairs for
 // g_AnimScriptCommandLengths stay unhoisted in both compiles.
-// What is left is statement order inside two blocks (the tail's `and`, the 0xBE arm's load
-// order/lhu position) plus `srl` vs retail's `sra v0,s0,11` for (`s16)value >> 11`, which no
-// spelling tried (s16/u16/s32 locals, u16 local with a cast) reproduces. A 4-minute permuter
-// run found only the `new_var = 0x3F` local below (90.95 -> 91.20).
+// Best: 94.23% (788 bytes = retail's exact size). Round 331 took 91.20 -> 94.23 with six
+// permuter finds, each ported and re-measured; they are the five odd-looking statements below
+// (all load-bearing, do not tidy):
+//  - `pArg = &pBytecode[1]` at the head of the loop and `*pArg` in the 0xE2 arm: retail reads
+//    pBytecode[1] twice through TWO address registers (`lbu v0,1(a1)` and `lbu s0,1(a3)`), which
+//    only a second address value produces (91.20 -> 92.50).
+//  - `((value >> 11) & 0xF)`, no `(s16)` cast: retail's `sra` is NOT reachable - every spelling
+//    that makes value signed costs a sign-extend pair (s16 local 796 bytes, `(s16)` cast 796);
+//    gcc also folds `(value >> 11) & 0xF` back to `srl`+`andi` whatever the mask is written as.
+//    Retail's sra comes from a source shape this compiler does not have (92.50 -> 92.83).
+//  - `transformFlags = count; transformFlags <<= 22;` as two statements (92.83 -> 93.02).
+//  - `((flags >> 2) >> 1) & 1` for the flip XOR's bit 3 (93.02 -> 93.29).
+//  - `value = (flags & MASK) | transformFlags;` then `pSpriteData->flags_0xA8 = value;` - the
+//    tail's result reuses the 0xBE arm's dead `value` local (93.29 -> 94.23). A NEW local here
+//    costs a frame slot and does not match.
+// WHAT IS LEFT is register naming only, except one ordering difference: retail's tail block
+// computes `and a1,v0,a2` (flags & 0xF03FFFFF) as the SECOND instruction after the load, ours
+// puts the same `and` after the `sll`. Retail's source therefore ANDed the mask EARLY
+// (`transformFlags = flags & MASK;` first) and updated the wait timer afterwards - but that
+// spelling lengthens the mask's luid span to ~12 and loop.c hoists it into a sixth saved
+// register (89.30%, 796 bytes). So the two levers conflict; the anti-hoist shape is kept.
+// Everything else at 94.23 is the same instructions with different register names: head
+// `addiu a1,a3,1` vs ours a0, tail mask a2 vs a3, 0xBE arm -9 in a2 vs a0, and the delay-slot
+// position of `sw pSpriteBytecode` (retail one instruction later, in the second beqz's slot).
+// Tried and dead: swapping the two 0xBE stores (776 bytes, worse), `(*pSpriteData).f` spelling
+// (identical), reusing a `mem_addr`/`u8*` local for pBytecode+3 before the switch (the
+// permuter scores it 740 vs 865 but it does NOT reproduce in the real build - 94.23 either way).
+// Five permuter runs on this body found only the six edits above; nothing better since.
 
 // SpriteData's 0x3C flag word: the shared header only splits bits 20-31 into fields,
 // so the flip bit this VM mirrors the animation flags into sits inside its 20-bit
 // field_0x3C_0 (the same view system/temp1.c declares for the word).
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
+/*
 typedef union {
     // 0x0  u32 flags;
     // 0x0  u8 bytes[4];
@@ -563,6 +587,7 @@ extern void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData);
 
 void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
     u8* pBytecode;
+    u8* pArg;
     u8 code;
     s32 ticks;
     s32 count;
@@ -579,6 +604,7 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
             return;
         }
         code = *pBytecode;
+        pArg = &pBytecode[1];
         if (code < 0x80) {
             pSpriteData->pSpriteBytecode = pBytecode + 1;
             if (code < 0x10) {
@@ -603,8 +629,10 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
             count = (ANIM_SCRIPT_COUNTER(flags, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) + 1) &
                     ANIM_SCRIPT_COUNTER_MASK;
             pSpriteData->animScriptWaitTimer += ticks;
-            transformFlags = count << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT;
-            pSpriteData->flags_0xA8 = (flags & ANIM_SCRIPT_SCRIPT_INDEX_MASK) | transformFlags;
+            transformFlags = count;
+            transformFlags = transformFlags << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT;
+            value = (flags & ANIM_SCRIPT_SCRIPT_INDEX_MASK) | transformFlags;
+            pSpriteData->flags_0xA8 = value;
             if (count == 0) {
                 pSpriteData->flags_0xA8 =
                     (pSpriteData->flags_0xA8 & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
@@ -627,16 +655,16 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
                 flags = (flags & ~ANIM_SCRIPT_FLIP_BIT) | (((u32)value >> 6) & ANIM_SCRIPT_FLIP_BIT);
                 pSpriteData->flags_0xAC.flags = flags;
                 transformFlags = (transformFlags & ~ANIM_SCRIPT_FLIP_BIT) |
-                                 ((((flags >> 3) & 1) ^ ((flags >> 2) & 1)) << 3);
+                                 (((((flags >> 2) >> 1) & 1) ^ ((flags >> 2) & 1)) << 3);
                 ((SpriteTransformFlagsView*)pSpriteData)->flags_0x3C.flags = transformFlags;
                 if ((u16)pSpriteData->curSpriteFrame != (value & 0x1FF)) {
                     func_8001D2B0(pSpriteData, value & 0x1FF);
                 }
-                pSpriteData->animScriptWaitTimer += (((s16)value >> 11) & 0xF) + 1;
+                pSpriteData->animScriptWaitTimer += ((value >> 11) & 0xF) + 1;
                 break;
             case 0xE2:
                 // subroutine call: push the return address, jump by the signed 16-bit offset
-                offset = pBytecode[1] + (s16)(pBytecode[2] << 8);
+                offset = *pArg + (s16)(pBytecode[2] << 8);
                 AnimScriptStackPushU24(pSpriteData, (mem_addr)(pBytecode + 3));
                 pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + (s16)offset;
                 continue;
