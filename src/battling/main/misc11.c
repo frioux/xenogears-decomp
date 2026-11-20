@@ -458,7 +458,89 @@ void BattleAppendEntry(s32 *arg0) {
         g_BattleAppendEntryCount = i + 1;
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087EA0);
+// One flat line of a battle target's cross, colour and code written as the
+// single packed word the tag length and colour live in.
+typedef struct {
+    /* 0x0 */ u8 pad0[0x3];
+    /* 0x3 */ u8 tagLength;
+    /* 0x4 */ BattlingPacketWord color;
+    /* 0x8 */ s16 x0;
+    /* 0xA */ s16 y0;
+    /* 0xC */ s16 x1;
+    /* 0xE */ s16 y1;
+} BattlingCrossLine; // Size: 0x10
+
+// A battle target's cross in one draw buffer: the X, Y and Z axis segments.
+typedef struct {
+    /* 0x00 */ BattlingCrossLine line[3];
+} BattlingCrossPrims; // Size: 0x30
+
+// The cross, one set of prims per draw buffer, then the centre it sits on.
+typedef struct {
+    /* 0x00 */ BattlingCrossPrims prims[2];
+    /* 0x60 */ SVECTOR pos;
+} BattlingCrossEntry; // Size: 0x68
+
+extern BattlingCrossEntry D_8009A928[];
+
+void func_80087EA0(u8 *pOt) {
+    SVECTOR vtx[6];
+    BattlingCrossEntry *pEntry;
+    s32 i;
+    s32 j;
+
+    for (i = 0; i < g_BattleAppendEntryCount; i++) {
+        pEntry = &D_8009A928[i];
+
+        vtx[0].vx = pEntry->pos.vx - 0x20;
+        vtx[0].vy = pEntry->pos.vy;
+        vtx[0].vz = pEntry->pos.vz;
+        vtx[1].vx = pEntry->pos.vx + 0x20;
+        vtx[1].vy = pEntry->pos.vy;
+        vtx[1].vz = pEntry->pos.vz;
+        vtx[2].vx = pEntry->pos.vx;
+        vtx[2].vy = pEntry->pos.vy - 0x20;
+        vtx[2].vz = pEntry->pos.vz;
+        vtx[3].vx = pEntry->pos.vx;
+        vtx[3].vy = pEntry->pos.vy + 0x20;
+        vtx[3].vz = pEntry->pos.vz;
+        vtx[4].vx = pEntry->pos.vx;
+        vtx[4].vy = pEntry->pos.vy;
+        vtx[4].vz = pEntry->pos.vz - 0x20;
+        vtx[5].vx = pEntry->pos.vx;
+        vtx[5].vy = pEntry->pos.vy;
+        vtx[5].vz = pEntry->pos.vz + 0x20;
+
+        for (j = 0; j < 6; j++) {
+            vtx[j].vx -= g_BattleViewOrigin.vx;
+            vtx[j].vy -= g_BattleViewOrigin.vy;
+            vtx[j].vz -= g_BattleViewOrigin.vz;
+        }
+
+        gte_ldv3(&vtx[0], &vtx[1], &vtx[2]);
+        gte_rtpt();
+        gte_stsxy3(&pEntry->prims[g_BattleDrawBufferIndex].line[0].x0,
+                   &pEntry->prims[g_BattleDrawBufferIndex].line[0].x1,
+                   &pEntry->prims[g_BattleDrawBufferIndex].line[1].x0);
+        gte_ldv3(&vtx[3], &vtx[4], &vtx[5]);
+        gte_rtpt();
+        gte_stsxy3(&pEntry->prims[g_BattleDrawBufferIndex].line[1].x1,
+                   &pEntry->prims[g_BattleDrawBufferIndex].line[2].x0,
+                   &pEntry->prims[g_BattleDrawBufferIndex].line[2].x1);
+
+        pEntry->prims[g_BattleDrawBufferIndex].line[0].tagLength = 3;
+        pEntry->prims[g_BattleDrawBufferIndex].line[0].color.word = 0x400000FF;
+        pEntry->prims[g_BattleDrawBufferIndex].line[1].tagLength = 3;
+        pEntry->prims[g_BattleDrawBufferIndex].line[1].color.word = 0x4000FF00;
+        pEntry->prims[g_BattleDrawBufferIndex].line[2].tagLength = 3;
+        pEntry->prims[g_BattleDrawBufferIndex].line[2].color.word = 0x40FF0000;
+
+        func_800316C0(pOt, &pEntry->prims[g_BattleDrawBufferIndex].line[0]);
+        func_800316C0(pOt, &pEntry->prims[g_BattleDrawBufferIndex].line[1]);
+        func_800316C0(pOt, &pEntry->prims[g_BattleDrawBufferIndex].line[2]);
+    }
+    g_BattleAppendEntryCount = 0;
+}
 
 void *BattleAllocLineSlot(s32 *arg0, s32 *arg1, s32 arg2) {
     s32 i;
