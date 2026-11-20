@@ -3,6 +3,10 @@
 #include "system/menu.h"
 
 
+// One bit per character id (MAX_GAME_CHARACTERS of them), the part of
+// g_GameState.characterFlags that flags a character.
+#define MENU_CHARACTER_FLAG_MASK 0x7FF
+
 // Quantity MenuFillInventoryTables gives every filled slot.
 #define MENU_INVENTORY_FILL_QUANTITY 10
 
@@ -170,7 +174,7 @@ void MenuSaveSlotReadGameState(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingR
     // The source side is an index-first sum rather than pSlot->characters[i]: that
     // spelling loses retail's addu order and one instruction (99.00%).
     for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
-        mem_addr charOffset = i * 0xA4 + 0x290;
+        mem_addr charOffset = i * sizeof(MenuSaveCharacter) + offsetof(MenuSaveSlot, characters);
         *(MenuSaveCharacter*)&g_GameState.characters[i] =
             *(MenuSaveCharacter*)((mem_addr)pSlot + charOffset);
     }
@@ -229,7 +233,7 @@ void MenuFillInventoryTables(void) {
 // against, plus the party flag word.  BattleInitItemInventoryAndConditionMasks
 // (src/battle/main/misc19.c) writes the same rows, with battle's values.
 void MenuResetConditionMasks(void) {
-    g_GameState.characterFlags = 0x7FF;
+    g_GameState.characterFlags = MENU_CHARACTER_FLAG_MASK;
     *(u16 *)&g_GameState.unk16BC[0x00].commandMask = 0xFFF8;
     *(u16 *)&g_GameState.unk16BC[0x00].characterConditionMask = 0xFF00;
     *(u16 *)&g_GameState.unk16BC[0x00].unk8 = 0xFFF0;
