@@ -732,18 +732,19 @@ void SoundStopAllPlayback(void) {
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_800386C4);
 /*
-Screened: gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0 = 93.18 / 97.67 / 97.73 - not a
-compiler-only match; this preset is the best of the three.
 Attempt (97.73%, retail's exact 352 bytes). Everything matches except ONE instruction's position:
-retail is `sh s0,0x66(s1); li v0,1; sh v0,0x36(s1); sh v0,0x62(s1)`, ours puts the `li` first.
-Measured dead: source statement order in both directions (0x36/0x62 last is 97.58), chained
-`unk62 = unk36 = 1;`, separate `unk36 = 1; unk62 = 1;`, a `do { } while (0);` around the flag pair
-(the round-311 constant-at-block-head lever), and a volatile store on unk66 (97.73 all). A 4-minute
-PERMUTER_NONE run (1811 iterations, base=60 best=60) found nothing, and a cc1_probe snippet
-(`p->u[0x33] = v; p->u[0x1B] = 1; p->u[0x31] = 1;`) shows cc1 itself emits the `li` first, so this
-is the STORE_HOIST class the playbook lists as unreachable from source. The switch tree needs
-`case 0: break;` (with only cases 1-3 gcc pivots on 2), and volume must be shifted into itself
-(`volume <<= 7/6`) so only one sll is emitted.
+retail is `sh s0,0x66(s1); li v0,1; sh v0,0x36(s1); sh v0,0x62(s1)`, ours puts the `li` first (the
+constant is materialised at the head of the block). Screened: gcc-2.7.2-cdk / gcc-2.7.2 / this
+unit's gcc-2.6.0 = 93.18 / 97.67 / 97.73, so the preset is not the answer either.
+Measured dead on the `li`: source statement order in both directions (0x36/0x62 last is 97.58),
+`unk62 = unk36 = 1;`, a `u16` local assigned 1 AFTER the 0x66 store, a `do { } while (0);` around
+the flag pair, around the 0x66 store alone and around all three stores, and a volatile store on
+unk66 (97.73 all). Duplicating the three stores in BOTH volume arms (so cross-jumping forms the
+tail) does give retail's store order but moves the `li` into the beq delay slot instead. A 4-minute
+PERMUTER_NONE run (1811 iterations, base=60 best=60) found nothing, and cc1_probe shows cc1 itself
+hoists the constant, so this is the STORE_HOIST class. The switch tree needs `case 0: break;` (with
+only cases 1-3 gcc pivots on 2), and volume must be shifted into itself (`volume <<= 7/6`) so only
+one sll is emitted.
 void func_800386C4(s32 mode) {
     AudioManager* pManager;
     SoundCdSeqState* pState;
@@ -3305,20 +3306,25 @@ void SoundTickInterpolator(AudioInterpolator* interpolator) {
 //----------------------------------------------------------------------------------------------------------------------
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C4C4);
 /*
-Attempt (98.07%, 548 bytes = the original's EXACT size; the old 96.45 park claimed 540 - retail's
-last instruction is at 0x8003C6E4, so .size is 0x224 = 548 and that body was one instruction
-short). The whole element walk is instruction for instruction right: the flag masks, the two
-16-bit counters packed in the word at 0x5C, the ramp accumulators, the key-off tail.
-The loop tail is what got the size back, and it needs TWO variables: `next = count - 1;` then
-`count = next;` with `} while ((s16)next != 0);` emits retail's `addiu v0,a2,-1 / move a2,v0 /
-sll v0,v0,0x10`. Measured dead on the tail: a `u16 count` with `count--` (combine folds it to
-`addu a2,a2,t3` off the hoisted 0xFFFF - 2 instructions, 96.45), `} while ((u16)count != 0);`
-(andi instead of sll, 96.90), and `count = count - 1; next = count;` (in-place addiu, 97.30).
-Last residual: ONE register in ONE instruction - retail's final `sll v0,v0,0x10` reads the fresh
-`next` ($v0) where this reads the loop-carried `count` ($a2); gcc knows they are equal after the
-copy. A 4-minute permuter run printed PERMUTER_BETTER base=127 best=77 (the diff was lost - rerun
-and port it), a 2-minute rerun found nothing. Also open: the -1 constant sits in t3 here and in
-t4 in retail, with the activeFlags load taking the other (a pure naming swap).
+Attempt (99.92%, retail's exact 548 bytes; 2 instructions differ, so it cannot link yet). The element
+walk, the flag masks, the two 16-bit counters packed in the word at 0x5C, the ramp accumulators and
+the key-off tail are all instruction for instruction right. What is left:
+(1) the loop tail's last shift: retail `sll v0,v0,0x10` reads the fresh `next` ($v0), ours reads the
+    loop-carried `count` ($a2) - gcc knows `next == count` after the copy. Needs the TWO-variable tail
+    `next = count - 1; count = next;` with `while ((s16)next != 0)`. Measured dead on it: a `u16`
+    count with `count--` (combine folds it to `addu a2,a2,t3` off a hoisted 0xFFFF, 96.45),
+    `while ((u16)count != 0)` (andi, 96.90), `count = count - 1; next = count;` (97.30), `s16 next`
+    (98.46, and it adds an `sra`).
+(2) the base register of the rampFlags store: retail `sh a3,0x2($a0)` with $a0 = &status_flags (the
+    whole function reaches the element at -2 from that base), ours `sh a3,0x4($a1)` with $a1 = the
+    element base. Same address, different encoding.
+The VOLATILE STORE below is load-bearing: without it reorg steals that store into the `bne`
+`fermataTicks` delay slot and the restTicks `addiu` stays in the block (98.07, one swapped pair).
+`*(volatile u16*)(&pElement->status_flags + 1)` and the plain `pElement->rampFlags` are the same
+address; both spellings of the volatile lvalue give 99.92, and the element-base spelling
+(`*(volatile u16*)&pElement->rampFlags`) does too. A 5-minute permuter run (output-66) offered moving
+this store into the `elementFlags & 0x20` arm (66 vs base 127) - that is WRONG CODE (retail's single
+`sh a3,0x2(a0)` sits in the shared tail and is reached from all four arms), so it was not taken.
 The header's AudioManager tempoFrames/tempoTarget and AudioElement volumeStep/volumeFrames are u16
 (the original loads them with lhu, not lh).
 void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCount) {
@@ -3388,7 +3394,7 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
                     }
                     statusFlags |= SOUND_STATUS_VOLUME_CHANGE;
                 }
-                pElement->rampFlags = elementFlags;
+                *(volatile u16*)(&pElement->status_flags + 1) = elementFlags;
                 if (--fermataTicks == 1) {
                     if (activeFlags & 0x1000) {
                         pElement->voice_data.releaseRate = 6;
