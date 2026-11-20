@@ -1146,46 +1146,55 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  */
 
 
-/* Best attempt: objdiff 91.80% (was 87.60%). 396 bytes, instruction multiset
- * identical to retail; all remaining deltas are sched2 ordering + one register
- * copy. What this version fixed vs the old park: numSections and pSection are
- * read through the globals *inside* the loop body so gcc 2.6 loop.c hoists
- * them into the post-entry-test preheader exactly like retail (lw g_ArchiveStreamSectionCount,
- * blez, move s0,zero, lw g_ArchiveStreamSections, move a0,v0); and the sector offset is a
- * local (`nSectorOffset`) rather than `entryIndex * CD_SECTOR_SIZE` inside the
- * call.
- * Remaining: (a) retail has `lw v0,g_ArchiveStreamQueueIndex; nop; move a1,v0` (a copy of the
- * loaded entry index before addiu/sll) while we allocate the load directly;
- * (b) inside the found block retail emits `li v0,0x1; sh v0,0(p)` before
- * `lhu v0,g_ArchiveStreamNextSectionId` and its `addiu v1,v0,1` before the id store, ours emits
- * them after (same registers otherwise). Measured: `pCurrent->id =
- * g_ArchiveStreamNextSectionId++` 90.19%; old park 87.60%.
- */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
-/* void func_8002B8B0(void) {
- *     ArchiveStreamFileSectionHeader* pCurrent;
+/*
+/* Best attempt: objdiff 90.50% at retail's exact 400 bytes, instruction multiset
+ * identical. Two deltas remain and both are allocator/scheduling, not structure:
+ *  - a cyclic register rotation: retail keeps the section count in a0, the queue
+ *    index in a1 and the section pointer in a2; we get a1/a2/a0. The copy
+ *    instructions themselves are all present in both.
+ *  - inside the found block retail emits `li v0,1 / sh v0,0(p)` BEFORE the
+ *    `lhu g_ArchiveStreamNextSectionId` and stores the id before the incremented
+ *    global; we emit the state store after the load and the global store first.
+ * Load-bearing spellings found (each measured):
+ *  - `nIndex = g_ArchiveStreamQueueIndex++;` is what produces retail's extra
+ *    `move a1,v0` copy of the loaded index; the `g = nIndex + 1`, `++g` and
+ *    `nNextIndex = nIndex + 1` spellings are all 396 bytes (4 SHORT: retail has
+ *    that copy and nothing else) at 90.19-91.50%.
+ *  - reading g_ArchiveStreamSectionCount in the loop bound AND in the wrap test
+ *    (not a nLimit local) is what makes the count a `move a0,v0` copy instead of
+ *    a direct `lw a0` (392 bytes, 90.30%).
+ * Measured and rejected: nLimit local 90.30; `&pHeaders[nIndex]` 90.19; the
+ * section test spelled inline as `g_ArchiveStreamSections[nIndex].state` with
+ * pHeader formed after the loop 412 bytes 84.00; `pHeader->id = g++` 89.04; an
+ * nSectorOffset local 90.50 (no change). A 4-minute permuter run (base=1081,
+ * best=665) only found a candidate that deletes the state store as dead code
+ * after the `break`, so nothing there is portable.
+ *
+ * void func_8002B8B0(void) {
  *     s16 i;
- *     int entryIndex;
- *     int nSectorOffset;
+ *     s32 nIndex;
+ *     s32 nSectorOffset;
+ *     ArchiveStreamFileSectionHeader* pHeader;
+ *     ArchiveStreamFileSectionHeader* pHeaders;
  *
  *     if (g_ArchiveCurFileSize > 0) {
  *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
- *             entryIndex = g_ArchiveStreamQueueIndex;
- *             pCurrent = &g_ArchiveStreamSections[entryIndex];
- *             g_ArchiveStreamQueueIndex = entryIndex + 1;
+ *             nIndex = g_ArchiveStreamQueueIndex++;
+ *             pHeader = &g_ArchiveStreamSections[nIndex];
  *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount) {
  *                 g_ArchiveStreamQueueIndex = 0;
  *             }
- *             if (pCurrent->state == 0) {
+ *             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
  *                 break;
  *             }
  *         }
  *
- *         if (pCurrent->state == 0) {
- *             pCurrent->state = 1;
- *             pCurrent->id = g_ArchiveStreamNextSectionId;
+ *         if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
+ *             pHeader->state = 1;
+ *             pHeader->id = g_ArchiveStreamNextSectionId;
  *             g_ArchiveStreamNextSectionId += 1;
- *             nSectorOffset = entryIndex * CD_SECTOR_SIZE;
+ *             nSectorOffset = nIndex * CD_SECTOR_SIZE;
  *             for (i = 0; i < RETRY_COUNT; i++) {
  *                 if (PCread(D_80059F04, g_ArchiveStreamWritePointer + nSectorOffset, CD_SECTOR_SIZE) != 0) {
  *                     break;
