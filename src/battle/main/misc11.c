@@ -890,7 +890,10 @@ void BattleAppendCommandRecord(u8 arg0) {
          measures 1368 / 97.04.
    (iv)  the third switch's case-5 beq has a nop in its delay slot in retail where we
          put slti, and retail's li a0,4 sits in the case-4 beq's slot where we keep it
-         at the head of the arm. */
+         at the head of the arm.
+   The preset is right: a 4-minute permuter run on this body found nothing
+   (base 444 = best 444), cdk is 95.31, -G0 is the same 98.23, and 2.6.0 does not
+   compile the unit. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 /*
 void func_80081B58(u32 arg0) {
