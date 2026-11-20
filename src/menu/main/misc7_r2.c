@@ -39,7 +39,8 @@ typedef struct {
     /* 0x2AE0 */ u_char renderContext;
     /* 0x2AE1 */ u8 unk2AE1;
     /* 0x2AE2 */ u8 unk2AE2;
-    /* 0x2AE3 */ u8 unk2AE3[0x2];
+    /* 0x2AE3 */ u8 firstWideNumberPrimCount; // prims the first wide number drew
+    /* 0x2AE4 */ u8 secondWideNumberPrimCount; // prims the second wide number drew
     /* 0x2AE5 */ u8 unk2AE5; // prims the first weight-digit block drew
     /* 0x2AE6 */ u8 unk2AE6; // prims the second weight-digit block drew
     /* 0x2AE7 */ u8 hpPrimCount; // digit prims the hp number drew
@@ -315,7 +316,6 @@ void func_801D6338(u_char index, u_char characterId) {
     s32 x;
     s32 count;
     s32 digitOffset;
-    s32 vertOffset;
 
     if (characterId == 0) {
         count = MENU_HP_DIGIT_COUNT;
@@ -350,7 +350,6 @@ void func_801D6338(u_char index, u_char characterId) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 
     if (characterId == 0) {
@@ -382,11 +381,135 @@ void func_801D6338(u_char index, u_char characterId) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 }
 */
+extern s32 D_801E9D00;
+extern s32 D_801E9D04;
+extern s32 D_801E9D08;
+extern s32 D_801E9D0C;
+
+// The gear window's mp (character: two digits) or fuel (gear: four digits) numbers:
+// the same two digit-prim passes and quad pass as the stat numbers above.
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D680C);
+/* Best: 97.57% at retail's EXACT 1256 bytes (314 instructions, frame 0x68 already
+   right). The structure, both calls sets, both digit loops and the first half are
+   all exact; what is left is ONE symptom repeated four times: in both quad loops
+   and their preheaders/postambles gcc keeps g_Menu in $v1 where retail keeps it in
+   $a0, and inside each quad loop it hoists the renderContext/prims loads above the
+   `sll v0,s0,1` and rotates the index chain through $v0/$v1 (retail: sll first,
+   then the two loads, then the chain in $v0/$v1). A permuter run found
+   `u8 *new_var[2]` (two pointer slots in memory) for the prim base, which fixes
+   the body but grows the frame to 1272 bytes, so it can never link - do not port
+   it. Also 1 instruction out of place: half two's digit loop keeps `addiu s1,s1,8`
+   INSIDE the body (between the count `lbu` and the count `sb`) where this body
+   puts it in the back-branch delay slot (half one is the delay-slot form in retail
+   too).
+   FACTS LEARNED:
+   - this is the mp (character) / fuel (gear) window: characters[id].mp/maxMp
+     (0x50/0x52) with 2 digits from g_Menu->digits[7 + i], and
+     gears[characters[id].gearId].fuel/maxFuel (0x38/0x3A) with 4 digits from
+     digits[5 + i]; count and digitOffset are set ONCE at the top and reused by
+     both halves (s3/s6).
+   - x/y are per-arm locals: D_801E9D00 / D_801E9D04 (half 1), D_801E9D08 (+0x20
+     less for a gear) / D_801E9D0C (+0x10 for a gear) (half 2).
+   - half 2's arms must call MenuParseNumberToDigits FIRST and assign x/y AFTER it;
+     with x/y before the call the body is 6 points worse (91.69 -> 97.57).
+   - the quad loops need the `vertOffset = 0x28C0 + i * 0x20;` + `(SVECTOR*)
+     (vertOffset + (u32)pPrims)` spelling to get retail's `li s1,0x...` preheader
+     and the offset-first `addu a0,s1,a0` (the same lever as func_801D7154); in
+     the SECOND loop that spelling does not strength-reduce here, so it is left
+     inline.
+   Body (97.57%):
+   void func_801D680C(u_char index, u_char characterId) {
+       u8* pPrims;
+       u8* pBase;
+       u8* pEntry;
+       s32 vertOffset;
+       s32 count;
+       s32 digitOffset;
+       s32 x;
+       s32 y;
+       s32 i;
+
+       if (characterId == 0) {
+           count = 2;
+           digitOffset = 7;
+           x = D_801E9D00;
+           y = D_801E9D04;
+           MenuParseNumberToDigits(g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].mp);
+       } else {
+           count = 4;
+           digitOffset = 5;
+           x = D_801E9D00;
+           y = D_801E9D04 + 8;
+           MenuParseNumberToDigits(
+               g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].fuel);
+       }
+       ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] = 0;
+       for (i = 0; i < count; i++) {
+           if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
+               ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[digitOffset + i],
+                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                               (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] *
+                                    (2 * sizeof(POLY_FT4)) +
+                                0x1950)),
+                   g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - characterId * 24, y, 0x1000);
+           }
+       }
+       for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0]; i++) {
+           POLY_FT4* pPrim;
+           s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+           vertOffset = 0x28C0 + i * 0x20;
+           pBase = (u8*)g_Menu->pGearWindowPrims;
+           pPrims = pBase;
+           pEntry = pBase + primOffset;
+           pPrim = (POLY_FT4*)(pEntry + 0x1950);
+           MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)pPrims),
+                               pPrim->x0, pPrim->y0,
+                               pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                               pPrim->y3 - *(volatile u16*)&pPrim->y0);
+       }
+
+       if (characterId == 0) {
+           MenuParseNumberToDigits(g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].maxMp);
+           x = D_801E9D08;
+           y = D_801E9D0C;
+       } else {
+           MenuParseNumberToDigits(
+               g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].maxFuel);
+           x = D_801E9D08 - 0x20;
+           y = D_801E9D0C + 0x10;
+       }
+       ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] = 0;
+       for (i = 0; i < count; i++) {
+           if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
+               ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[digitOffset + i],
+                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                               (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] *
+                                    (2 * sizeof(POLY_FT4)) +
+                                0x1AE0)),
+                   g_Menu->renderContext, x + 4 * (i * 2) - characterId * 24, y, 0x1000);
+           }
+       }
+       for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1]; i++) {
+           POLY_FT4* pPrim;
+           s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+           pPrims = (u8*)g_Menu->pGearWindowPrims;
+           pBase = pPrims;
+           pEntry = pBase + primOffset;
+           pPrim = (POLY_FT4*)(pEntry + 0x1AE0);
+           MenuSetQuadVertices((SVECTOR*)(pPrims + 0x2960 + i * 0x20),
+                               pPrim->x0, pPrim->y0,
+                               pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                               pPrim->y3 - *(volatile u16*)&pPrim->y0);
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D6CF4);
 /* Best: 63.92% (892 bytes; retail is 1120 = 0x460). Decode, all seven calls and both
    blocks are laid out below; the 228-byte shortfall is a source shape, not a missing
@@ -416,7 +539,6 @@ void func_801D6CF4(u_char index, u_char row) {
     s32 characterOffset;
     s32 rowOffset;
     s32 i;
-    s32 vertOffset;
 
     characterOffset = g_Menu->pManager->currentCharacterIDs[index] * sizeof(GameCharacter);
     rowOffset = row * 24;
@@ -443,7 +565,6 @@ void func_801D6CF4(u_char index, u_char row) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 
     MenuParseNumberToDigits(*(u8*)((u8*)&g_GameState + 0x2CF + characterOffset));
@@ -473,7 +594,6 @@ void func_801D6CF4(u_char index, u_char row) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 }
 */
@@ -487,73 +607,81 @@ extern s32 D_801E9D28;
 extern s32 D_801E9D2C;
 extern s32 D_801E9D30;
 extern s32 D_801E9D34;
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7154);
-/* Best: 93.29% (912 bytes, retail frame 0x48 and both loops decoded). Second of
-   the two-block gear-stat renders (the sibling MenuSetCharacterIconPrims above is the same
-   shape one field over). Block A: MenuParseNumberToDigits of the word at
-   g_GameState.characters[pManager->currentCharacterIDs[a0]] + 0x44
-   (weightFromEquipment|unk46), count byte g_Menu->pGearWindowPrims + 0x2AE3, then an
-   8-iteration loop over g_Menu->digits[1 + i] (!= 0xFF) calling func_8002675C
-   with 0x50-byte prims at +0xCD0, x = D_801E9D10 + i * 8 - 0x18 * a1, y =
-   D_801E9D14, then a count-time loop of MenuSetQuadVertices over SVECTORs at
-   +0x23C0 + i * 0x20 reading u16s at entry + 0xCD8/0xCDA/0xCE0/0xCF2 (POLY_FT4
-   x0/y0/x1/y3 of the +0xCD0 prim at context (renderContext + 2 * i)). Block B
-   repeats it with 0x48, +0x2AE4, +0xF50, D_801E9D18/1C, SVECTORs at +0x24C0 and
-   u16s at +0xF58/0xF5A/0xF60/0xF72.
-   Remaining diff: (1) retail loads entry+0xCD8 and entry+0xCDA TWICE (once for
-   the x/y args, once for the width/height subtraction) and gcc CSEs them into
-   one load plus two `move`s - the same un-CSE-able twin `lhu` as the parked
-   MenuSetCharacterIconPrims, so the source must read the fields through two spellings that
-   gcc cannot prove identical; (2) the second loop keeps the SVECTOR pointer in
-   s1 and the counter in s0 in retail, the reverse here, and retail forms the
-   entry address as `addu v1,a0,v1` off pGearWindowPrims where gcc uses a third register
-   (t0). Not an allocator tie: fix (1) first, it changes the whole block.
-    void func_801D7154(u_char a0, u_char a1) {
-        u8* pEntry;
-        s32 offset;
-        s32 i;
+// The gear window's two stat numbers (unk44, unk48 of the character): each is
+// drawn as up to eight digits, then every prim it produced is grown to its glyph box.
+void func_801D7154(u_char index, u_char characterId) {
+    u8* pPrims;
+    u8* pBase;
+    u8* pEntry;
+    s32 offset;
+    s32 vertOffset;
+    s32 i;
 
-        MenuParseNumberToDigits(
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk44);
-        offset = a1 * 0x18;
-        ((u8*)g_Menu->pGearWindowPrims)[0x2AE3] = 0;
-        for (i = 0; i < 8; i++) {
-            if (g_Menu->digits[1 + i] != 0xFF) {
-                ((u8*)g_Menu->pGearWindowPrims)[0x2AE3] += func_8002675C(
+    MenuParseNumberToDigits(
+        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[2]);
+    offset = characterId * 24;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumberPrimCount = 0;
+    for (i = 0; i < MENU_MAX_DIGITS - 1; i++) {
+        if (g_Menu->digits[1 + i] != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumberPrimCount +=
+                func_8002675C(
                     g_Menu->resources, g_Menu->digits[1 + i],
                     (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                (((u8*)g_Menu->pGearWindowPrims)[0x2AE3] * 0x50 + 0xCD0)),
-                    g_Menu->renderContext, D_801E9D10 + i * 8 - offset, D_801E9D14, 0x1000);
-            }
-        }
-        for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE3]; i++) {
-            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
-            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x23C0 + i * 0x20),
-                                *(u16*)(pEntry + 0xCD8), *(u16*)(pEntry + 0xCDA),
-                                *(u16*)(pEntry + 0xCE0) - *(u16*)(pEntry + 0xCD8),
-                                *(u16*)(pEntry + 0xCF2) - *(u16*)(pEntry + 0xCDA));
-        }
-        MenuParseNumberToDigits(
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk48);
-        ((u8*)g_Menu->pGearWindowPrims)[0x2AE4] = 0;
-        for (i = 0; i < 8; i++) {
-            if (g_Menu->digits[1 + i] != 0xFF) {
-                ((u8*)g_Menu->pGearWindowPrims)[0x2AE4] += func_8002675C(
-                    g_Menu->resources, g_Menu->digits[1 + i],
-                    (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                (((u8*)g_Menu->pGearWindowPrims)[0x2AE4] * 0x50 + 0xF50)),
-                    g_Menu->renderContext, D_801E9D18 + i * 8 - offset, D_801E9D1C, 0x1000);
-            }
-        }
-        for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE4]; i++) {
-            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
-            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x24C0 + i * 0x20),
-                                *(u16*)(pEntry + 0xF58), *(u16*)(pEntry + 0xF5A),
-                                *(u16*)(pEntry + 0xF60) - *(u16*)(pEntry + 0xF58),
-                                *(u16*)(pEntry + 0xF72) - *(u16*)(pEntry + 0xF5A));
+                                (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)
+                                         ->firstWideNumberPrimCount *
+                                     (2 * sizeof(POLY_FT4)) +
+                                 0xCD0)),
+                    g_Menu->renderContext, D_801E9D10 + i * MENU_DIGIT_SPACING - offset,
+                    D_801E9D14, 0x1000);
         }
     }
-*/
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->firstWideNumberPrimCount;
+         i++) {
+        POLY_FT4* pPrim;
+        s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+        pBase = (u8*)g_Menu->pGearWindowPrims;
+        pEntry = pBase + primOffset;
+        pPrim = (POLY_FT4*)(pEntry + 0xCD0);
+        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x23C0 + i * 0x20),
+                            pPrim->x0, pPrim->y0,
+                            pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+    }
+
+    MenuParseNumberToDigits(
+        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[3]);
+    offset = characterId * 24;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumberPrimCount = 0;
+    for (i = 0; i < MENU_MAX_DIGITS - 1; i++) {
+        if (g_Menu->digits[1 + i] != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumberPrimCount +=
+                func_8002675C(
+                    g_Menu->resources, g_Menu->digits[1 + i],
+                    (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                                (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)
+                                         ->secondWideNumberPrimCount *
+                                     (2 * sizeof(POLY_FT4)) +
+                                 0xF50)),
+                    g_Menu->renderContext, D_801E9D18 + i * MENU_DIGIT_SPACING - offset,
+                    D_801E9D1C, 0x1000);
+        }
+    }
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->secondWideNumberPrimCount;
+         i++) {
+        POLY_FT4* pPrim;
+        s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+        pPrims = (u8*)g_Menu->pGearWindowPrims;
+        pBase = pPrims;
+        pEntry = pBase + primOffset;
+        pPrim = (POLY_FT4*)(pEntry + 0xF50);
+        vertOffset = 0x24C0 + i * 0x20;
+        MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)pPrims), pPrim->x0, pPrim->y0,
+                            pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D74EC);
 /* Best: 99.83% (920 bytes, retail's exact size). Both halves decode completely and
    the ONLY remaining difference is two `addu` operand orders, one per half:
@@ -572,7 +700,7 @@ void func_801D74EC(u_char index, u_char characterId) {
     s32 i;
 
     MenuParseNumberToDigits(
-        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk44);
+        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[2]);
     offset = characterId * 0x18;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5 = 0;
     for (i = 0; i < 7; i++) {
@@ -639,7 +767,6 @@ void func_801D7884(u_char index, u_char row) {
     s32 count;
     s32 digitOffset;
     s32 x;
-    s32 vertOffset;
     s32 i;
 
     // The character's stat row: characters[] is 0xA4 bytes and statBase/statBonus/unk79 sit 0x2E3/0x2E4/0x2E5 into g_GameState.
@@ -696,7 +823,6 @@ void func_801D7884(u_char index, u_char row) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 }
 */
