@@ -1781,6 +1781,15 @@ extern void func_80077268(void);
 // prevMaxInstructionCount assigned BEFORE prevActorIndex (that decides which of
 // the two gets a register and which is spilled); and a s32 rather than u_short
 // return for FieldScriptGetBytecodeOffset, since retail has no andi 0xffff.
+// Round 323: the round-315 two-local base spelling was tried too. A base local
+// assigned from *ppFieldActors plus `pFieldActor = (FieldActor*)((u8*)pBase +
+// i * sizeof(FieldActor));` gives `addu v1,v0,s2` (base-first, sum in $v1) at
+// 97.50; the in-place form (`pFieldActor = *ppFieldActors; pFieldActor =
+// (FieldActor*)((u8*)pFieldActor + i * sizeof(FieldActor));`) puts the sum in
+// the base's own register (`addu v1,v1,s2`) at 97.45 - so the sum CAN take the
+// base register, but then the base's load and the pActorData load swap $v0/$v1
+// against retail. The whole group is one two-register coin flip; the
+// subexpression form below keeps $v0 (retail's destination) at 97.58.
 /*
 void func_8008B978(int characterId) {
     FieldActor* pPrevFieldActor;
@@ -3069,6 +3078,12 @@ void func_8008EA58(void) {
 //   cannot be had together; a separate `u16 raw` local folds away (476). Statement
 //   order of `type = value & 0xF` against the raw store changes nothing in either
 //   form.
+// Round 323: the loopPlayback volatile was pinning the tail group the wrong way -
+// with a plain `g_FieldStreamLoopPlayback = 0;` retail's `lhu 0xCC(a0)` / `li
+// v1,1` sit after that `sh` and the tail matches. `int value` (476 bytes) and a
+// volatile raw store with `D_800C3A30 = type` (476) both lose the 4 bytes; the
+// head's three-instruction residual is the copy-and-AND-order trade recorded
+// above and nothing reorders it.
 /*
 void func_8008EC30(void) {
     u16 value;
@@ -3116,12 +3131,13 @@ void func_8008EC30(void) {
                 break;
         }
         g_FieldStreamId = 0xFF;
-        *(volatile u16*)&g_FieldStreamLoopPlayback = 0;
+        g_FieldStreamLoopPlayback = 0;
         g_FieldStreamSceneActive = 1;
         g_FieldScriptVMStopFlag = 1;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 9;
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
 
 
