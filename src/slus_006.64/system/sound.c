@@ -1322,6 +1322,25 @@ the condition (82.58, kills retail's duplicated lh), and a 4-minute permuter run
 (486 -> 355) whose only improvement is WRONG CODE - it hoists `short new_var =
 pPrevBlock->nextBlockIndex;` above the loop and indexes with the fixed value, so the loop
 would never advance. That candidate does say what gcc wants: a live short in a register.
+ROUND 316 PROVED THE HOIST IS NOT SOURCE-CONTROLLABLE (nine spellings, cc1_probe.sh, every
+one hoists the base into the preheader as `la $16` plus `move $6,$16` with a nop in the lh's
+load-delay slot): `&Arr[i]`, `Arr + i`, `(u8*)Arr + (i << 4)`, `(u8*)Arr + i * sizeof(T)`,
+`&Arr[(u8)i]`, a base local assigned inside the body, the same local live across the whole
+function (that one only moves the copy into a callee-saved $19 and turns the addu
+base-first, so it is worse), the unbounded-array extern vs the header's array declaration,
+and gcc-2.7.2-cdk (`move $7,$16`, same hoist). Padding the loop body with 1/3/6/12 extra
+global increments did not stop it either, so round 113's move_movables cost threshold is not
+what we hit here: for a body this small the invariant is always moved. Searching every
+matched function in all eleven binaries for an address formed inside a loop found exactly
+one family where retail re-forms it (field/misc9 FieldInitScreenStripSprites), and there the
+loop contains jal calls and the re-formed `la` sits in a block AFTER them, where cse2 cannot
+forward the callee-saved copy; this loop has no call, so that route does not exist. Treat the
+remaining delta as a compiler heuristic, not a missing spelling: the sibling
+SoundSpuMemoryAllocateBlockFit hoists the same way and matches because retail does too, so
+move_movables is running normally here and retail's own Fit object shows the identical
+hoisted-copy shape (`addu t0,s0,zero` in its preheader). Whatever defeated the hoist in
+Block's original source is therefore not how the base is spelled (nine measured above), so
+it is the loop or its exits - that is the next lead, not another address spelling.
     // Allocates a block of SPU memory of the given size, returns the SPU address or 0 on failure.
     int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
         SoundSpuMemoryBlock* pPrevBlock;
