@@ -112,7 +112,7 @@ void MenuSetCharacterIconPrims(u_char characterId);
 void func_801D6338(u_char index, u_char characterId);
 void func_801D680C(u_char index, u_char characterId);
 void func_801D6CF4(u_char index, u_char characterId);
-void func_801D7154(u_char index, u_char characterId);
+void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId);
 void func_801D74EC(u_char index, u_char characterId);
 void func_801D7884(u_char index, u_char characterId);
 
@@ -417,7 +417,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D680C);
      with x/y before the call the body is 6 points worse (91.69 -> 97.57).
    - the quad loops need the `vertOffset = 0x28C0 + i * 0x20;` + `(SVECTOR*)
      (vertOffset + (u32)pPrims)` spelling to get retail's `li s1,0x...` preheader
-     and the offset-first `addu a0,s1,a0` (the same lever as func_801D7154); in
+     and the offset-first `addu a0,s1,a0` (the same lever as MenuSetGearWindowWideNumberPrims); in
      the SECOND loop that spelling does not strength-reduce here, so it is left
      inline.
    Body (97.57%):
@@ -516,7 +516,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D6CF4);
    statement - start from the first difference, which is that retail computes rowOffset
    (s0 = row * 24) AFTER the first MenuParseNumberToDigits (mine hoists it into the
    prologue) and keeps the row parameter in s3 masked at each use.
-   Decode: two identical gear-stat blocks, the shape of the parked func_801D7154.
+   Decode: two identical gear-stat blocks, the shape of the parked MenuSetGearWindowWideNumberPrims.
    Block A: MenuParseNumberToDigits(characters[id].level, g_GameState + 0x2CE), count
    byte 0x2AE1, a 3-digit loop over g_Menu->digits[6 + i] (!= 0xFF) calling
    func_8002675C with 0x50-byte prims at +0xAF0, x = i * 8 + D_801E9CE0 - row * 24,
@@ -609,7 +609,7 @@ extern s32 D_801E9D30;
 extern s32 D_801E9D34;
 // The gear window's two stat numbers (unk44, unk48 of the character): each is
 // drawn as up to eight digits, then every prim it produced is grown to its glyph box.
-void func_801D7154(u_char index, u_char characterId) {
+void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId) {
     u8* pPrims;
     u8* pBase;
     u8* pEntry;
@@ -834,7 +834,7 @@ void MenuSetGearWindowContents(u_char index, u_char characterId) {
     func_801D6CF4(index, characterId);
     func_801D74EC(index, characterId);
     func_801D7884(index, characterId);
-    func_801D7154(index, characterId);
+    MenuSetGearWindowWideNumberPrims(index, characterId);
     g_Menu->pManager->shouldRenderUnk358Prims = 1;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->renderContext = *(u8*)&g_Menu->renderContext;
 }
