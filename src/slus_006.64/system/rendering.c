@@ -358,12 +358,11 @@ typedef struct {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
-/* Best attempt: 86.78% (1504 bytes; retail is 1508 = 377 instructions, so this
-   body is ONE instruction short - it cannot link as-is and the round-346 body
-   (84.08%, exactly 1508) was size-exact. Read the residues below before changing
-   anything: three measured source fixes took it 84.08 -> 86.24 -> 87.21 -> 88.05
-   and one of them is a MISCOMPILE, which is why the best body is not the best
-   number.
+/* Best attempt: 89.45% (1496 bytes; retail is 1508 = 377 instructions, so this
+   body is three instructions short). Rounds 346-348 took the body 84.08 -> 86.78
+   -> 89.45 in single measured steps; read the residues below before changing
+   anything: one of the earlier fixes is a MISCOMPILE, which is why the best
+   body was not the best number.
    The tail (prim build, quad corners, RotTransPers4, uv, addPrim) is the same
    code as func_8001E9BC / func_8001EE88 / func_8001F1D4 in this file.
 
@@ -444,13 +443,31 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
      s6=offsetX, s7=lastPlane, s8=offsetY; this body has s3=pSpriteData,
      s2=pFrameData, s1=pVerts, s4=transY, s0=transX, s5=mask, s6=lastPlane,
      s7=offsetX, s8=offsetY. That rotation is most of objdiff's remaining 13%.
-   - THE PERMUTER CANNOT RUN ON THIS BODY YET: `tools/scripts/permute.sh
-     slus_006.64/system/rendering func_8001E3D8` dies with "the base did not
-     compile or parse" (`conversion to non-scalar type requested`), although
-     base.c itself compiles with the unit's own cc1 - something in the
-     permuter's own preprocessing rejects it. Fixing that is the cheapest next
-     step: the structure, the frame, the block order and the call set are all
-     retail's and only allocation and two `move`s are left.
+   - ROUND 348: THE PERMUTER RUNS NOW. It died on the pTransform spelling
+     `(SpriteDirectionTransform*)(lastPlane * sizeof(SpriteDirectionTransform) +
+     (mem_addr)pDirTransforms)`: decomp-permuter re-prints the AST and its printer
+     turns `sizeof(Typedef)` into a cast, so cc1 reports "conversion to
+     non-scalar type requested" on text that was fine. The spelling
+     `&pSpriteData->pBase->pDirTransforms->dirTransforms[lastPlane]` (and the
+     same expression for rot.vy/rot.vz, which is what retail's re-read of
+     pDirTransforms shows) parses and costs nothing (86.78 -> 86.74).
+   - ROUND 348 measured, each re-diffed: splitting the offsetX shift into two
+     statements (offsetX = the lb, then offsetX <<= n; offsetY stays one
+     statement) 86.74 -> 87.86; then scaling transX BEFORE transY (the opposite
+     of the order retail's `mult s1,v1` shows) 87.86 -> 89.01; then hoisting
+     `deltaHeight = pFrameData[i].deltaHeight;` above the tpage store and
+     using `(s8)deltaHeight` 89.01 -> 89.45 at 1496 bytes, i.e. +0.44 for -8
+     bytes (reverting it gives 89.01 / 1504, ONE instruction short - the better
+     base if the missing instructions matter more than the score). Hoisting
+     deltaWidth the same way is 87.72 - do not.
+   - ROUND 348 permuter runs, each from the body it produced: 5262 -> 4687 ->
+     4112 -> 3802 -> 3514 (its own score against retail's target.o). Everything
+     it found after 3802 was WRONG CODE and was not ported: a pOt copy in the
+     else addPrim arm (1452 bytes / 83.76, and it drops 13 instructions),
+     pVerts[(spriteFlags >> 3) * 0], and drawTileX replaced by -tileX in the x
+     arms (that negates unconditionally - a different result). So the next step
+     is not another permuter run from this body.
+   - NOT A PRESET: under gcc-2.7.2-cdk-psx this body is 90.15, not 100.
 */
 
 /*
@@ -481,6 +498,7 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     s32 drawTileX;
     s32 drawTileY;
     s32 width;
+    u8 deltaHeight;
     s32 height;
     s32 texX;
     s32 texY;
@@ -491,7 +509,8 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
 
     flipX = ((u32)pSpriteData->flags_0xAC.flags >> 2) & 1;
     offsetY = (s8)pSpriteData->pBase->offsetY << ((pSpriteData->field_0x40 >> 8) & 0x1F);
-    offsetX = (s8)pSpriteData->pBase->offsetX << ((pSpriteData->field_0x40 >> 8) & 0x1F);
+    offsetX = (s8)pSpriteData->pBase->offsetX;
+    offsetX = offsetX << ((pSpriteData->field_0x40 >> 8) & 0x1F);
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
     if (flipX) {
         offsetX = -offsetX;
@@ -512,8 +531,7 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         if ((pFrameData[i].flags & 7) != lastPlane) {
             lastPlane = pFrameData[i].flags & 7;
             visible = (g_SpritePlaneMasks[lastPlane] & ((SpriteRenderFlagWords*)pSpriteData)->flags_0x3C.bytes[1]) == 0;
-            pTransform = (SpriteDirectionTransform*)(lastPlane * sizeof(SpriteDirectionTransform) +
-                                                     (mem_addr)pSpriteData->pBase->pDirTransforms);
+            pTransform = &pSpriteData->pBase->pDirTransforms->dirTransforms[lastPlane];
             if (pSpriteData->pBase->pDirTransforms != NULL &&
                 (pTransform->translationX != 0 || pTransform->translationY != 0 || pTransform->rotationZ != 0)) {
                 n = (pSpriteData->field_0x40 >> 8) & 0x1F;
@@ -522,11 +540,11 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
                 if ((SpriteFlags0x3C(pSpriteData) >> 3) & 1) {
                     transX = -transX;
                 }
-                transY = transY * pSpriteData->scale / 0x1000;
                 transX = transX * pSpriteData->scale / 0x1000;
+                transY = transY * pSpriteData->scale / 0x1000;
                 rot.vx = pTransform->rotationX;
-                rot.vy = ((SpriteDirectionTransform*)pSpriteData->pBase->pDirTransforms)[lastPlane].rotationY;
-                rot.vz = ((SpriteDirectionTransform*)pSpriteData->pBase->pDirTransforms)[lastPlane].rotationZ;
+                rot.vy = pSpriteData->pBase->pDirTransforms->dirTransforms[lastPlane].rotationY;
+                rot.vz = pSpriteData->pBase->pDirTransforms->dirTransforms[lastPlane].rotationZ;
                 if ((SpriteFlags0x3C(pSpriteData) >> 3) & 1) {
                     rot.vz = -rot.vz;
                 }
@@ -550,11 +568,12 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         g_GfxCurWorkBuffer = pPrim + 1;
         setlen(pPrim, 9);
         *(u32*)&pPrim->r0 = pFrameData[i].colorAndCode;
+        deltaHeight = pFrameData[i].deltaHeight;
         pPrim->tpage = pFrameData[i].texPage;
         pPrim->clut = pFrameData[i].clutID;
         n = (pSpriteData->field_0x40 >> 8) & 0x1F;
         width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth) << n;
-        height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight) << n;
+        height = (s16)(pFrameData[i].height + (s8)deltaHeight) << n;
         tileX = pFrameData[i].tileX << n;
         tileY = pFrameData[i].tileY << n;
         spriteFlags = SpriteFlags0x3C(pSpriteData);
@@ -636,6 +655,7 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     } while (++i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2);
 }
 */
+
 
 /* Best attempt: 80.03% (1200 bytes, the original is 1196; round 294 took the
    parked 76.49% body down to this by the two fixes marked FIXED). The rest of
