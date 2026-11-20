@@ -236,6 +236,7 @@ void func_800983A0(WorldMapMisc16Struct* p) {
     WorldMapMisc16Point* pQuad;
     WorldMapMisc16Tex* pTex;
     WorldMapMisc16Tex* pMaskEntry;
+    u8* pA0;
     WorldMapMisc16TileMask* pMask;
     s16* pClip;
     s32 nX;
@@ -279,9 +280,10 @@ void func_800983A0(WorldMapMisc16Struct* p) {
         for (col = 0; col < 5; col++) {
             *(u16*)(pScratch + 0xA8) = *(u16*)(pScratch + 0xA0) + 0x800;
             *(u16*)(pScratch + 0xAC) = *(u16*)(pScratch + 0xA4);
-            *(u16*)(pScratch + 0xB4) = *(u16*)(pScratch + 0xA4) - 0x800;
+            pA0 = pScratch + 0xA0;
             *(u16*)(pScratch + 0xB0) = *(u16*)(pScratch + 0xA0);
-            *(u16*)(pScratch + 0xB8) = *(u16*)(pScratch + 0xA0) + 0x800;
+            *(u16*)(pScratch + 0xB4) = *(u16*)(pScratch + 0xA4) - 0x800;
+            *(u16*)(pScratch + 0xB8) = *(u16*)pA0 + 0x800;
             *(u16*)(pScratch + 0xBC) = *(u16*)(pScratch + 0xA4) - 0x800;
             nClip = func_800987AC(&pQuad[0], &pQuad[1], &pQuad[2], &pQuad[3]);
             *pClip++ = nClip;
@@ -291,7 +293,7 @@ void func_800983A0(WorldMapMisc16Struct* p) {
                 *(u16*)(pScratch + 0xC8) = *(u16*)(pScratch + 0xA0);
                 *(u16*)(pScratch + 0xCC) = *(u16*)(pScratch + 0xA4) - 0x400;
                 *(u16*)(pScratch + 0xD0) = *(u16*)(pScratch + 0xA8);
-                *(u16*)(pScratch + 0xD4) = *(u16*)(pScratch + 0xCC);
+                *(u16*)(0xD4 + pScratch) = *(u16*)(pScratch + 0xCC);
                 *(u16*)(pScratch + 0xD8) = *(u16*)(pScratch + 0xC0);
                 *(u16*)(pScratch + 0xDC) = *(u16*)(pScratch + 0xB4);
                 *(u16*)(pScratch + 0xE0) = *(u16*)(pScratch + 0xC0);
