@@ -44,13 +44,13 @@ typedef struct {
     /* 0x2AEB */ u8 digitPrimCount; // digit prims the gear window's number draws appended
 } MenuGearWindowPrims; // Size: 0x2AEC
 
-void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuSetWindowScrollBar(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
 void MenuSetWindowBorderBottom(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D4688(u_char a0, u_short a1, u_short a2, u_short a3);
-void func_801D49D0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
+void MenuSetWindowBorderLeft(u_char a0, u_short a1, u_short a2, u_short a3);
+void MenuSetWindowBorderRight(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuSetCharacterPortraitPrims(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2);
 void MenuSetCharacterHpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterMpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
@@ -114,7 +114,7 @@ void MenuSetCharacterWindowContents(u_char index, u_char characterId) {
     pWindow = g_Menu->characterWindows[index];
     x = pTween->offsetX / 256 + pTween->startX;
     y = pTween->offsetY / 256 + pTween->startY;
-    func_801D4F2C(index, characterId, x, y);
+    MenuSetCharacterPortraitPrims(index, characterId, x, y);
     MenuSetCharacterWindowIcons(index, x, y);
     MenuSetCharacterHpDigits(index, characterId, x, y);
     MenuSetCharacterMpDigits(index, characterId, x, y);

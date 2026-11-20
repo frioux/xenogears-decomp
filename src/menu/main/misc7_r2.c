@@ -59,13 +59,13 @@ typedef struct {
     /* 0x324 */ u_char renderContext;
 } MenuGoldWindow; // Size: 0x328
 
-void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuSetWindowScrollBar(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
 void MenuSetWindowBorderBottom(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D4688(u_char a0, u_short a1, u_short a2, u_short a3);
-void func_801D49D0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
+void MenuSetWindowBorderLeft(u_char a0, u_short a1, u_short a2, u_short a3);
+void MenuSetWindowBorderRight(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuSetCharacterPortraitPrims(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2);
 void MenuSetCharacterHpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterMpDigits(u_char a0, u_char a1, s32 a2, s32 a3);

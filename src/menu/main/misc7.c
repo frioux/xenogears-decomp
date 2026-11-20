@@ -44,13 +44,13 @@ typedef struct {
     /* 0x2AEB */ u8 digitPrimCount; // digit prims the gear window's number draws appended
 } MenuGearWindowPrims; // Size: 0x2AEC
 
-void func_801D3C4C(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuSetWindowScrollBar(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
 void MenuSetWindowBorderBottom(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D4688(u_char a0, u_short a1, u_short a2, u_short a3);
-void func_801D49D0(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3);
+void MenuSetWindowBorderLeft(u_char a0, u_short a1, u_short a2, u_short a3);
+void MenuSetWindowBorderRight(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
+void MenuSetCharacterPortraitPrims(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterWindowIcons(u_char a0, s32 a1, s32 a2);
 void MenuSetCharacterHpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
 void MenuSetCharacterMpDigits(u_char a0, u_char a1, s32 a2, s32 a3);
@@ -101,7 +101,7 @@ void MenuSetGearWindowWideNumberPrims(u_char index, u_char characterId);
 void func_801D74EC(u_char index, u_char characterId);
 void func_801D7884(u_char index, u_char characterId);
 
-void func_801D3C4C(u_char index, u_short x, u_short y, u_short width, u_short height) {
+void MenuSetWindowScrollBar(u_char index, u_short x, u_short y, u_short width, u_short height) {
     MenuWindow* pWindow = g_Menu->windows[index];
 
     func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_ORNAMENT,
@@ -235,7 +235,7 @@ void MenuSetWindowBorderBottom(u_char index, u_short x, u_short y, u_short width
         MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
     }
 }
-void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
+void MenuSetWindowBorderLeft(u_char index, u_short x, u_short y, u_short height) {
        MenuWindow* pWindow = g_Menu->windows[index];
        u16 left;
        s32 halfHeight;
@@ -267,7 +267,7 @@ void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
        }
    }
 
-void func_801D49D0(u_char index, u_short x, u_short y, u_short width, u_short height) {
+void MenuSetWindowBorderRight(u_char index, u_short x, u_short y, u_short width, u_short height) {
     MenuWindow* pWindow = g_Menu->windows[index];
     u16 right;
     s32 halfHeight;
@@ -308,10 +308,10 @@ void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short he
     MenuInitializeWindowBorderCorners(index, x, y, width, height);
     func_801D3FF8(index, x, y, width);
     MenuSetWindowBorderBottom(index, x, y, width, height);
-    func_801D4688(index, x, y, height);
-    func_801D49D0(index, x, y, width, height);
+    MenuSetWindowBorderLeft(index, x, y, height);
+    MenuSetWindowBorderRight(index, x, y, width, height);
     if (hasScrollBar != 0) {
-        func_801D3C4C(index, x, y, width, height);
+        MenuSetWindowScrollBar(index, x, y, width, height);
     }
     pWindow->hasScrollBar = hasScrollBar;
     pWindow->useDefaultMatrix = useDefaultMatrix;
@@ -331,7 +331,7 @@ typedef struct {
     /* 0x50 */ POLY_FT4 portraitPrims[2]; // one per render context
 } MenuCharacterPortraitPrims; // Size: 0xA0
 
-void func_801D4F2C(u_char index, u_char characterId, s32 x, s32 y) {
+void MenuSetCharacterPortraitPrims(u_char index, u_char characterId, s32 x, s32 y) {
     MenuCharacterPortraitPrims* pWindow =
         (MenuCharacterPortraitPrims*)g_Menu->characterWindows[index];
     u8* pBase;
