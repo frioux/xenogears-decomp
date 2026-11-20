@@ -887,27 +887,12 @@ void BattleSetResultCode(s32 arg0) {
     g_BattleResultCode = 0x87;
 }
 
-/* 98.81% (1348 bytes; retail is 337 insns = 1348, NOT the 1352 an earlier note
-   claimed): every instruction matches in place except ONE swapped pair at the
-   tail - retail loads p0->x and p1->x BEFORE the g_BattleActorDistance2D store
-   (`lw v1,0(s1); lw a0,0(s0); lui at,%hi(...); sw v0,%lo(at)`) and gcc emits the
-   store first (the two z loads and both subu land identically). Three levers DID
-   work and must be kept: (1) the two u16 down counters want an ARRAY extern
-   (`extern u16 g_BattleCombatant0DownCount[];` + `g_BattleCombatant0DownCount[0]++`)
-   - retail forms `lui/addiu` into a saved register and stores through it, the
-   scalar declaration gives the bare `sw sym` macro (92.66 -> 94.25); (2) in the
-   p1-down arm the arm reads p1+0xD0 into a `u32 flags;` local placed AFTER
-   `g_BattleInputEnabled = 0;` and BEFORE g_BattleRoundOver/g_BattleResultSide, so
-   the load lands between the counter update and those two stores (94.25 -> 97.61;
-   the same local declared later, or the counter store left to sink after the
-   other stores, is wrong); (3) `if (g_BattleRoundOverFrames++ >= 0x3D) { if (side
-   == 2) mode = 2; else mode = 4; }` - the `mode = 4;` MUST NOT be a separate
-   statement before the inner if, or its `li a0,4` is stolen into the outer bnez
-   delay slot instead of the inner bne's (97.61 -> 98.81).
-   Measured dead for the last swap: a volatile store, s32 dx/dz locals (they need
-   a callee-saved register and grow the frame), and a 4-minute permuter run from
-   this body (1895 iterations, base=120 best=120). */
-/* extern s32 g_BattleTransitionFrames;
+/* Load-bearing spellings: the two down counters are unbounded-ARRAY externs (a
+   scalar makes maspsx emit the bare `sw sym` macro instead of lui/addiu through
+   a saved register), and the facing-angle tail reads the actor positions through
+   a BattleQuad view - the raw `*(s32 *)(p + 0)` form makes gcc order the two x
+   loads after the g_BattleActorDistance2D store. */
+extern s32 g_BattleTransitionFrames;
 extern u8 g_BattleFacingUpdateEnabled;
 extern u8 g_BattleReinitFlag;
 extern u8 g_BattleReinitValue;
@@ -1065,10 +1050,9 @@ void func_800751C8(u8 *p0, u8 *p1) {
     }
     g_BattleAiTargetDistance = BattleVectorDistance(p0, p1);
     g_BattleActorDistance2D = BattleVectorDistance2D(p0, p1);
-    g_BattleFacingAngle = ratan2(*(s32 *)(p0 + 0x0) - *(s32 *)(p1 + 0x0), *(s32 *)(p0 + 0x8) - *(s32 *)(p1 + 0x8));
-} */
-
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800751C8);
+    g_BattleFacingAngle = ratan2(((BattleQuad *)p0)->vx - ((BattleQuad *)p1)->vx,
+                                 ((BattleQuad *)p0)->vz - ((BattleQuad *)p1)->vz);
+}
 
 s32 BattleComputeScaledFieldDelta(Actor *p0, Actor *p1, s32 scale) {
     return (p1->unk15EC * scale) / 32 - p0->unk15EE;
