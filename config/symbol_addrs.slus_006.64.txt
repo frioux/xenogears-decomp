@@ -1677,3 +1677,5 @@ g_GfxIdentityMatrix = 0x800188CC;
 g_GfxQuadCorners = 0x8004FDC0;
 g_WorldMapStepProbePos = 0x1F800060;
 g_AnimScriptCommandLengths = 0x8004FC40;
+ArchiveImageStreamSectorCallback = 0x8002BB50;
+ArchiveImageStreamProcessSector = 0x8002BF38;

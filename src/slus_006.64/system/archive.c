@@ -27,8 +27,8 @@ extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
 extern void func_8002B5D0();
 extern void func_8002B8B0();
-extern void func_8002BB50();
-extern void func_8002BF38();
+extern void ArchiveImageStreamSectorCallback();
+extern void ArchiveImageStreamProcessSector();
 extern void ArchiveStreamFileDataCallback();
 extern void ArchiveRestorePendingCount();
 void ArchiveCdReadyReadQueuedFile(u_char status);
@@ -370,7 +370,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
  *     4,5,6 in $s6/$s7/$fp; this draft spills only two of them, so its frame is
  *     0x48 rather than 0x50. Both save the same ten registers.
  * Shared-park hints: the six u16 stack arguments are the image chunk
- * descriptors func_8002BF38 consumes (D_80059F24..D_80059F38); D_80059F04 is
+ * descriptors ArchiveImageStreamProcessSector consumes (D_80059F24..D_80059F38); D_80059F04 is
  * this path's own PCopen handle. _i_ is a s16: the clear loop shifts it with
  * sll 16 / sra 14 and every retry counter sign-extends with sll 16 / sra 16.
  * Three seconds of the earlier draft's search are in permuter/func_80029EB0
@@ -449,7 +449,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
  *
  *         do {
  *             func_8002B8B0(0, 0);
- *             func_8002BF38(0, 0);
+ *             ArchiveImageStreamProcessSector(0, 0);
  *         } while (g_ArchivePendingReadCount > 0);
  *
  *         while (nClose = PCclose(D_80059F04)) {
@@ -468,7 +468,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_80029EB0);
  *     }
  *
  *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
- *     CdDataCallback(&func_8002BB50);
+ *     CdDataCallback(&ArchiveImageStreamSectorCallback);
  *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
  *     CdReadyCallback(&func_8002B5D0);
  *     g_ArchiveCdReadStartCount += 1;
@@ -1372,7 +1372,7 @@ void ArchiveStreamFileDataCallback(void) {
     g_ArchivePendingReadCount = 0;
 }
 
-void func_8002BB50(void) {
+void ArchiveImageStreamSectorCallback(void) {
     ArchiveStreamFileSectionHeader* pSection;
     ArchiveStreamFileSectionHeader* pIter;
     ArchiveStreamFileSectionHeader* pSections;
@@ -1496,7 +1496,7 @@ void func_8002BB50(void) {
     g_ArchiveStreamCurSectionId += 1;
 }
 
-void func_8002BF38(void) {
+void ArchiveImageStreamProcessSector(void) {
     ArchiveStreamFileSectionHeader* pSection;
     ArchiveStreamFileSectionHeader* pIter;
     ArchiveStreamFileSectionHeader* pSections;
