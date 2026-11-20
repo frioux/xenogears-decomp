@@ -1492,6 +1492,15 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
+// Re-measured with today's externs: 92.02% at 388 bytes against retail's 368, so
+// the 84.19%/368 below is stale. The body keeps g_FieldActorModelSlotCount's
+// ADDRESS in a register (`lw`/`sw 0(a0)`), where retail re-forms `lui %hi`+`lw`
+// at every one of its four uses, and it hoists the 0xFFFF1FFF mask above the
+// store group; retail builds it between the two model-slot stores. Tried this
+// round: two sequential do-while-0 blocks around the store groups (92.58%, 396
+// bytes - bigger), reverting to the plain list. Untried: an explicit volatile
+// u32 RMW at 0x12C (the header has only the bitfields, so it needs an offset
+// cast).
 // Screened 36 variants: best 84.19% here, cdk 81.67%, 2.6.0 83.64% - the RMW vs
 // `++` store order is the gap (already reordered in cc1's .s).
 // 84.19% (368 vs 368 bytes): the frame, all four calls and every load/store match.
