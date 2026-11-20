@@ -569,6 +569,16 @@ void func_801CF37C(void) {
     }
 }
 */
+// Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
+// (allocated in misc11's MenuCreateCellPrimBlocks): the glyph quad every render context
+// gets, the two line prims, and the source vertices the quad is rendered from.
+typedef struct {
+    /* 0x000 */ POLY_FT4 quads[2]; // Glyph quad, one per render context
+    /* 0x050 */ LINE_F3 lines[2][2]; // [line][render context]
+    /* 0x0B0 */ u8 unkB0[0x30];
+    /* 0x0E0 */ SVECTOR quadVerts[4]; // Source vertices of quads
+    /* 0x100 */ SVECTOR lineVerts[2][4]; // Source vertices of lines[line]
+} MenuCellPrimBlock; // Size: 0x140
 // Fills the cell glyph quads of the cells [start, end): one prim per chunk of the
 // record, reduced against the chunk's own vertex ring.  Retail re-reads the chunk
 // count and the colour table per iteration and emits `j++` ahead of the count load,
@@ -579,29 +589,33 @@ void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
     s32 j;
     s32 last = end;
     s32 prim;
-    POLY_FT4* pPrims;
+    MenuCellPrimBlock* pBlock;
     u16 clut;
-    s32 cellOffset;
 
     i = start;
     prim = primIndex;
     for (; i < last; i++) {
         if (g_Menu->menuUnk2->records[i].unk58) {
             for (j = 0; j < g_Menu->menuUnk2->chunks[i].pad0[3]; ) {
-                pPrims = (POLY_FT4*)g_Menu->pCellPrimBlocks[prim];
-                pPrims[g_Menu->renderContext].u0 = i * 16;
-                pPrims[g_Menu->renderContext].v0 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
-                pPrims[g_Menu->renderContext].u1 = i * 16 + 16;
-                pPrims[g_Menu->renderContext].v1 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
-                pPrims[g_Menu->renderContext].u2 = i * 16;
-                pPrims[g_Menu->renderContext].v2 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
-                pPrims[g_Menu->renderContext].u3 = i * 16 + 16;
+                pBlock = (MenuCellPrimBlock*)g_Menu->pCellPrimBlocks[prim];
+                // The render context is summed in first (`ctx + pBlock->quads`): the struct
+                // subscript is the same address but emits the commuted `addu v0,s0,v0`
+                // where retail has `addu v0,v0,s0` (99.58).
+                (g_Menu->renderContext + pBlock->quads)->u0 = i * 16;
+                (g_Menu->renderContext + pBlock->quads)->v0 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
+                (g_Menu->renderContext + pBlock->quads)->u1 = i * 16 + 16;
+                (g_Menu->renderContext + pBlock->quads)->v1 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
+                (g_Menu->renderContext + pBlock->quads)->u2 = i * 16;
+                (g_Menu->renderContext + pBlock->quads)->v2 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
+                (g_Menu->renderContext + pBlock->quads)->u3 = i * 16 + 16;
                 do {
-                    pPrims[g_Menu->renderContext].v3 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
+                    (g_Menu->renderContext + pBlock->quads)->v3 =
+                        g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
                     clut = GetClut(i * 16, i / 16 + 0x1C1);
-                    cellOffset = g_Menu->renderContext * sizeof(POLY_FT4);
-                    ((POLY_FT4*)((u8*)pPrims + cellOffset))->clut = clut;
-                    MenuRenderTransformedQuads(1, (SVECTOR*)((u8*)pPrims + 0xE0), pPrims, g_Menu->renderContext);
+                    // Base-first sum: retail's clut store is `addu v1,s0,v1`, the reverse
+                    // of the eight vertex stores above (99.95 with the index-first form here).
+                    pBlock->quads[g_Menu->renderContext].clut = clut;
+                    MenuRenderTransformedQuads(1, pBlock->quadVerts, pBlock->quads, g_Menu->renderContext);
                 } while (0);
                 j++;
                 prim++;
@@ -667,13 +681,7 @@ void func_801CF8D8(void) {
 */
 // Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
 // (allocated in misc11's MenuCreateCellPrimBlocks): the two line prims, one per render
-// context each, and the eight source vertices the two lines are built from.
-typedef struct {
-    /* 0x000 */ u8 unk0[0x50];
-    /* 0x050 */ LINE_F3 lines[2][2]; // [line][render context]
-    /* 0x0B0 */ u8 unkB0[0x50];
-    /* 0x100 */ SVECTOR verts[8];
-} MenuCellPrimBlock; // Size: 0x140
+// context each, and the source vertices the lines are built from.
 void MenuDrawCardSlotCellLines(void) {
     MenuCellPrimBlock* pBlock;
     long interpolated;
@@ -720,12 +728,12 @@ void MenuDrawCardSlotCellLines(void) {
             ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->g0 = 0xFF;
             ((LINE_F3*)(g_Menu->renderContext * sizeof(LINE_F3) + (u32)pBlock + 0x80))->b0 = 0;
         }
-        RotTransPers3(&pBlock->verts[0], &pBlock->verts[1], &pBlock->verts[3],
+        RotTransPers3(&pBlock->lineVerts[0][0], &pBlock->lineVerts[0][1], &pBlock->lineVerts[0][3],
                       (long*)&pBlock->lines[0][g_Menu->renderContext].x0,
                       (long*)&pBlock->lines[0][g_Menu->renderContext].x1,
                       (long*)&pBlock->lines[0][g_Menu->renderContext].x2, &interpolated, &flag);
         AddPrim(&g_Menu->pGfxEnv->ot[4], &pBlock->lines[0][g_Menu->renderContext]);
-        RotTransPers3(&pBlock->verts[4], &pBlock->verts[6], &pBlock->verts[7],
+        RotTransPers3(&pBlock->lineVerts[1][0], &pBlock->lineVerts[1][2], &pBlock->lineVerts[1][3],
                       (long*)&pBlock->lines[1][g_Menu->renderContext].x0,
                       (long*)&pBlock->lines[1][g_Menu->renderContext].x1,
                       (long*)&pBlock->lines[1][g_Menu->renderContext].x2, &interpolated, &flag);
