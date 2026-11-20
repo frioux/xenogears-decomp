@@ -23,7 +23,7 @@ extern u8 g_BattleTargetSlotIndex;
 extern u8 g_BattleCurSlotIndex;
 extern u8 g_BattleAmountThirdFlag;
 extern BattleSlotState *g_BattleTargetSlotState;
-extern u8 *g_BattleCurSlotState;
+extern BattleSlotState *g_BattleCurSlotState;
 
 extern u16 g_BattleActionParam;
 extern u16 g_BattleCommandCellFlags;
@@ -457,7 +457,78 @@ void BattleRollPercentAndSwapActiveActor(void) {
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097610);
+s16 func_80097610(void) {
+    u16 value;
+    u16 amount;
+    u16 stat;
+    u8 i;
+    u8 count;
+    u16 result;
+
+    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
+        value = g_BattleCurSlotState->baseDefense;
+    } else {
+        amount = g_BattleTargetSlotEntry->defense;
+        value = g_BattleTargetSlotEntry->defenseFromAccessories;
+    }
+
+    stat = g_BattleTargetSlotEntry->etherDefense;
+    if (g_BattleCurrentRow->actionFlags & 0x100) {
+        if ((g_BattleTargetSlotEntry->activeEffectFlags4 | g_BattleTargetSlotEntry->accessoryEffectFlags4) & 0x4000) {
+            stat = stat + (u32)stat * 2;
+            stat = stat >> 1;
+        }
+    } else {
+        if ((g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) == 0 &&
+            ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x100)) {
+            amount = (u32)amount * 3 >> 1;
+        }
+    }
+    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
+        amount = 0;
+    }
+
+    switch (g_BattleCurrentRow->pad1B) {
+    case 0:
+        result = value + amount;
+        break;
+    case 1:
+        result = stat;
+        break;
+    case 2:
+        result = value;
+        break;
+    }
+
+    if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
+        return (s16)result;
+    }
+
+    count = 0;
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_BattleCurWorkBlock->slots[i].activeEffectFlags1 & 0x8000) {
+            count++;
+        }
+    }
+
+    if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x4) {
+        if (count != 0 && (g_BattleCurrentRow->actionFlags & 0x100) == 0) {
+            result = (u16)result * (4 - count) / 4;
+        }
+    }
+    if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x2) {
+        if (count != 0 && (g_BattleCurrentRow->actionFlags & 0x100) == 0) {
+            result = (u16)result * (count + 2) / 2;
+        }
+    }
+    if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x1) {
+        if (count != 0) {
+            result = (u16)result * (count + 2) / 2;
+        }
+    }
+
+    return (s16)result;
+}
 void BattleNop(void) {
 }
 s8 BattleTryApplySlotCondition(u8 chance, u8 kind, u16 flags) {
