@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "psyq/inline_c.h"
 
 #define BATTLE_SPU_ADDR_BASE 0x60000
 #define BATTLE_SOUND_ID_NONE 0xFF
@@ -11,17 +12,42 @@
 #define BATTLE_ANGLE_HALF_TURN 0x800 // same define as battle/misc3.c and battle/misc4.c; battle actor.h is not includable here
 // Denominator of a 0..255 gauge fraction (src/battling/main/misc2.c's BATTLE_GAUGE_FRACTION_SCALE).
 #define BATTLE_GAUGE_FRACTION_SCALE 255 // same define as battle/misc2.c; battle actor.h is not includable here
+// The battle effect image quad spans the whole screen (0x140 x 0xDA) and its
+// texture points run up to (0x6F, 0x2A).
+#define BATTLE_EFFECT_QUAD_WIDTH 0x140
+#define BATTLE_EFFECT_QUAD_HEIGHT 0xDA
+#define BATTLE_EFFECT_TEX_U_MAX 0x6F
+#define BATTLE_EFFECT_TEX_V_MAX 0x2A
+// The shade the effect is drawn at when it is not tinted: the quad is then drawn
+// as a raw texture (bit 0 of the primitive code) instead of a coloured one.
+#define BATTLE_EFFECT_SHADE_NEUTRAL 0x80
+
+// gcc 2.7.2 does not merge adjacent byte/halfword stores, so the effect prim
+// fields are written as the word stores its object has (the helpers
+// src/battling/main/misc10.c uses for its own prims).
+#define BattleSetXY0Fast(p, _x0, _y0) *(s32*)&(p)->x0 = (_x0) | ((_y0) << 0x10)
+#define BattleSetXY1Fast(p, _x1, _y1) *(s32*)&(p)->x1 = (_x1) | ((_y1) << 0x10)
+#define BattleSetXY2Fast(p, _x2, _y2) *(s32*)&(p)->x2 = (_x2) | ((_y2) << 0x10)
+#define BattleSetXY3Fast(p, _x3, _y3) *(s32*)&(p)->x3 = (_x3) | ((_y3) << 0x10)
+#define BattleSetWHFast(p, _w, _h) *(s32*)&(p)->w = (_w) | ((_h) << 0x10)
+#define BattleSetUV0Fast(p, _u0, _v0) *(u16*)&(p)->u0 = (_u0) | ((_v0) << 0x8)
+#define BattleSetUV1Fast(p, _u1, _v1) *(u16*)&(p)->u1 = (_u1) | ((_v1) << 0x8)
+#define BattleSetUV2Fast(p, _u2, _v2) *(u16*)&(p)->u2 = (_u2) | ((_v2) << 0x8)
+#define BattleSetUV3Fast(p, _u3, _v3) *(u16*)&(p)->u3 = (_u3) | ((_v3) << 0x8)
+#define BattleSetRGBCFast(p, _r0, _g0, _b0, _code) \
+    *(s32*)&(p)->r0 = (_r0) | ((_g0) << 0x8) | ((_b0) << 0x10) | ((_code) << 0x18)
 
 // volatile: retail schedules this load after the argument setup, not before it.
 extern volatile s32 g_SpuChannelMask;
 extern s32 g_BattleEffectGrid;
 extern s32 g_BattleEffectGridNext;
-extern s32 g_BattleEffectImage;
+extern u_long* g_BattleEffectImage;
 extern s32 g_BattleActorDistance2D;
 extern u8 g_BattleAiAppliedBehaviorLevel;
 extern u8 g_BattleDrawBufferIndex;
-extern u8 D_80096DE0[];
-extern u8 D_80096E00[];
+extern POLY_FT4 D_80096D90[2];
+extern TILE D_80096DE0[2];
+extern DR_MODE D_80096E00[2];
 extern u8 g_BattleAiBehaviorLevel;
 extern u8 g_BattlePlayer2ComControlled;
 
@@ -146,6 +172,9 @@ extern void BattleQueueRandomMessages(BattleActor*, BattleWork*, s32);
 extern void BattleDispatchWorkState(BattleActor*);
 extern void SoundPlaySoundEffectOnPairWithLevels(s32, s32, s32, s32);
 extern void BattleEffectCopyBuffers(void);
+extern void SoundSetElementPanByIndex(s32, s32);
+extern void SoundSetElementVolumeByIndex(s32, s32);
+extern VECTOR g_BattleViewOrigin;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
 /* best: objdiff 87.18% - 392 vs 320 bytes. Frame (0x30, s5 = mfhi), the
@@ -221,44 +250,75 @@ void func_8008E120(void) {
 }
 */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E2B8);
-/* best: objdiff 89.48% - first half exact; retail expands the `flag ? 2 : 1` argument as an if/else that repeats
-   `addu a0,zero,zero` in both arms and joins with a jump, and re-forms &D_80096E00 with a fresh lui/addiu for the
-   second AddPrim instead of keeping it in a callee-saved register.
-void func_8008E2B8(u8* p0, s32 color, s32 flag) {
-    u8* pPkt;
+/* best: objdiff 94.71% - 272 bytes against retail's 276, typed now that the two
+   prim arrays are POLY_FT4/TILE. The quad setup, both prim codes, the added
+   semi-transparency bit and the duplicated a0/zero setup of the two GetTPage
+   calls in the if/else all match. Two differences left, one instruction each
+   way: retail truncates the GetTPage result straight into the argument register
+   (andi a3,v0,0xffff) where ours copies it first (a u_short tpage local; an s32
+   local is worse, 90.58% / 268 bytes), and retail re-forms &D_80096E00 with a
+   fresh lui/addiu for both SetDrawMode and the second AddPrim where ours keeps
+   it in $s0 across the call (three instructions cheaper, hence 272 bytes).
+void func_8008E2B8(u8* pOt, s32 color, s32 flag) {
+    TILE* pTile;
     u_short tpage;
 
-    pPkt = D_80096DE0 + g_BattleDrawBufferIndex * 0x10;
-    *(u32*)(pPkt + 0x4) = (color | (color << 8) | (color << 16)) | 0x60000000;
-    *(u8*)(pPkt + 0x7) |= 2;
-    *(u8*)(pPkt + 0x3) = 3;
-    *(u32*)(pPkt + 0x8) = 0;
-    *(u32*)(pPkt + 0xC) = 0xDA0140;
-    AddPrim(p0, pPkt);
-    tpage = GetTPage(0, flag ? 2 : 1, 0, 0);
-    SetDrawMode((DR_MODE*)(D_80096E00 + g_BattleDrawBufferIndex * 0xC), 0, 1, tpage, 0);
-    AddPrim(p0, D_80096E00 + g_BattleDrawBufferIndex * 0xC);
+    pTile = &D_80096DE0[g_BattleDrawBufferIndex];
+    BattleSetRGBCFast(pTile, color, color, color, 0x60);
+    setlen(pTile, 3);
+    BattleSetXY0Fast(pTile, 0, 0);
+    BattleSetWHFast(pTile, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
+    setSemiTrans(pTile, 1);
+    AddPrim(pOt, pTile);
+    if (flag != 0) {
+        tpage = GetTPage(0, 2, 0, 0);
+    } else {
+        tpage = GetTPage(0, 1, 0, 0);
+    }
+    SetDrawMode(&D_80096E00[g_BattleDrawBufferIndex], 0, 1, tpage, NULL);
+    AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
 }
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
-/* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (g_BattleSoundSlots[i].unkC) loses the strength reduction entirely (45%).
-void BattleInitSoundSlots(void) {
-    BattleSlot* pSlot;
-    s32 timer;
-    u32 i;
+void func_8008E3CC(u8* pOt, s32 shadeLevel, s32 drawTile) {
+    POLY_FT4* pPrim;
+    TILE* pTile;
+    RECT rect;
+    s32 shade;
 
-    timer = 0x300;
-    SoundStopAllElements();
-    pSlot = g_BattleSoundSlots;
-    for (i = 0; i < 4; i++) {
-        pSlot->elementMask = timer;
-        timer <<= 2;
-        pSlot->active = 0;
-        pSlot->timer = 0;
-        pSlot->elementIndex = i * 2;
-        pSlot++;
+    shade = shadeLevel * 2 / 3;
+    pPrim = &D_80096D90[g_BattleDrawBufferIndex];
+    setlen(pPrim, 9);
+    BattleSetRGBCFast(pPrim, shade, shade, shade, 0x2C);
+    setShadeTex(pPrim, shade == BATTLE_EFFECT_SHADE_NEUTRAL);
+    BattleSetXY0Fast(pPrim, 0, 0);
+    BattleSetXY1Fast(pPrim, BATTLE_EFFECT_QUAD_WIDTH, 0);
+    BattleSetXY2Fast(pPrim, 0, BATTLE_EFFECT_QUAD_HEIGHT);
+    BattleSetXY3Fast(pPrim, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
+    BattleSetUV0Fast(pPrim, 0, 0);
+    BattleSetUV1Fast(pPrim, BATTLE_EFFECT_TEX_U_MAX, 0);
+    BattleSetUV2Fast(pPrim, 0, BATTLE_EFFECT_TEX_V_MAX);
+    BattleSetUV3Fast(pPrim, BATTLE_EFFECT_TEX_U_MAX, BATTLE_EFFECT_TEX_V_MAX);
+    setSemiTrans(pPrim, 1);
+    pPrim->tpage = GetTPage(1, 1, 0x140, 0x100);
+    pPrim->clut = GetClut(0, 0x1FD);
+    AddPrim(pOt, pPrim);
+    setRECT(&rect, 0x140, 0x100, 0x38, 0x2B);
+    LoadImage(&rect, g_BattleEffectImage);
+    if (drawTile != 0) {
+        pTile = &D_80096DE0[g_BattleDrawBufferIndex];
+        if (shadeLevel > 0x80) {
+            shade = shadeLevel * 2;
+            setlen(pTile, 3);
+            BattleSetRGBCFast(pTile, shade, shade, shade, 0x60);
+            setSemiTrans(pTile, 1);
+            BattleSetXY0Fast(pTile, 0, 0);
+            BattleSetWHFast(pTile, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
+            AddPrim(pOt, pTile);
+        }
     }
-}*/
+    SetDrawMode(&D_80096E00[g_BattleDrawBufferIndex], 0, 1, GetTPage(0, 2, 0, 0), NULL);
+    AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
+}
 void BattleInitSoundSlots(void) {
     BattleSlot* pSlot;
     s32 timer;
@@ -349,7 +409,65 @@ void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
         SoundPlaySoundEffectOnPairWithLevels(pSlot->spuAddr, pSlot->elementIndex, 0x7F, 0x40);
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
+void func_8008E8B0(void) {
+    SVECTOR pos;
+    s16 sxy[2];
+    BattleSlot* pSlot;
+    s32 depth;
+    s32 x;
+    s32 volume;
+    s32 pan;
+    s32 i;
+
+    for (i = 0; i < BATTLE_SOUND_SLOT_COUNT; i++) {
+        pSlot = &g_BattleSoundSlots[i];
+        if (pSlot->active == 0) {
+            continue;
+        }
+        if (pSlot->soundId == 0) {
+            continue;
+        }
+        if (pSlot->soundId == 1) {
+            pos.vx = pSlot->data[0];
+            pos.vy = pSlot->data[1];
+            pos.vz = pSlot->data[2];
+        } else {
+            pos.vx = pSlot->pData[0];
+            pos.vy = pSlot->pData[1];
+            pos.vz = pSlot->pData[2];
+        }
+        pos.vx -= g_BattleViewOrigin.vx;
+        pos.vy -= g_BattleViewOrigin.vy;
+        pos.vz -= g_BattleViewOrigin.vz;
+        gte_ldv0(&pos);
+        gte_rtps();
+        gte_stsxy(sxy);
+        gte_stsz(&depth);
+        x = sxy[0];
+        if (x < 0) {
+            x = 0;
+        }
+        if (x > 0x140) {
+            x = 0x140;
+        }
+        volume = (0x3000 - depth) * 127 / 0x3000;
+        if (volume < 0x28) {
+            volume = 0x28;
+        }
+        if (volume > 0x7F) {
+            volume = 0x7F;
+        }
+        pan = x * 127 / 0x140;
+        if (pSlot->timer != 0) {
+            SoundSetElementPanByIndex(pSlot->elementIndex, pan);
+            SoundSetElementVolumeByIndex(pSlot->elementIndex, volume);
+        } else {
+            SoundPlaySoundEffectOnPairWithLevels(pSlot->spuAddr, pSlot->elementIndex,
+                                                 (s16)volume, (s16)pan);
+        }
+    }
+    BattleIncrementSoundSlotTimers();
+}
 void BattleReleaseFinishedSoundSlots(void) {
     BattleSlot* pSlot;
     s32 i;
@@ -420,38 +538,36 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
         }
     }
 }
-/* best: objdiff 99.43% - size (176), frame (0x28, `s32 pad[2]` supplies retail's extra 8 bytes), the whole
-   instruction multiset, both loads' position and the $at-vs-base split of the two table reads all match. Only
-   difference: register numbering. Retail keeps &D_80091EE0 in s1 and the byte index in s2; gcc gives the index
-   s1 and the base s2. The non-void return is what fixed the arg-4 load order: plain void was 90.34%.
-   Permuter from the 99.43 body: 1404 iterations, no gain (base 25, best 25). Also tried: reading D_80091EE0[]
-   directly for both (78.93%), pTable assigned before the byte load (92.50%) or right after `i = v << 1` (no
-   change), an initializer on the pointer (92.50%), a u32 index (no change), pad declared last (no change),
-   -G0 and gcc-2.7.2-cdk (76.41%). Later round: an element pointer `pElem = (pTable + i) + 1` read twice with
-   a non-void return gives retail's base-first `addu` at the same 176 bytes / 99.43; the two remaining diffs are
-   the s1/s2 rotation of base and index and retail's `nop` in the second `beqz` delay slot, and neither moved
-   under object-typed locals, declaration order, a do/while block or a duplicated table load.
-/*
-int func_8008ED6C(u8* p, s32 idx) {
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+/* best: objdiff 90.34% - 176 bytes, retail's exact size, frame (0x28 with the
+   unused s32 pad[2]) and every instruction identical except that gcc gives the
+   doubled table index $s1 and the D_80091EE0 base $s2 where retail has them the
+   other way round. Tried: the three declaration orders (no change), the index
+   as u32, i = soundId * 2, an initialiser on the pointer, pEntry = &D_80091EE0[i]
+   with pEntry[1] (85.84%, 168 bytes), both reads spelled D_80091EE0[i] (90.70%,
+   184 bytes), a non-void return (90.11%) and a 3-minute permuter run (base 145,
+   best 25, only found a nonsense volatile return type). The $at form of the
+   first read and the base-plus-index form of the second are both required.
+void func_8008ED6C(BattleActor* pActor, s32 idx) {
     s32 pad[2];
-    u8* pTable;
+    u8* pSoundTable;
     s32 i;
-    u8 v;
+    u8 soundId;
 
-    v = *(u8*)(*(u32*)(p + 0x1664) + idx);
-    if (v == 0xFF) {
+    soundId = pActor->pSoundTable[idx];
+    if (soundId == BATTLE_SOUND_ID_NONE) {
         return;
     }
-    i = v << 1;
-    pTable = D_80091EE0;
+    i = soundId << 1;
+    pSoundTable = D_80091EE0;
     if (D_80091EE0[i] != 0) {
-        BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
+        BattleStopSoundSlotsByFlags(((pActor->flags >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
     }
-    if (pTable[i + 1] != 0) {
-        BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
+    if (pSoundTable[i + 1] != 0) {
+        BattleStopSoundSlotsByFlags(((pActor->flags >> 20) & 0x80) | (pSoundTable[i + 1] & 0x7F));
     }
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+}
+*/
 void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 step;
