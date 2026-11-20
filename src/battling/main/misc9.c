@@ -927,22 +927,18 @@ s32 BattleGetScreenMode(void) {
     return g_BattleSavedScreenMode;
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083CE8);
-
-/* best 85.00%: instruction stream is insn-for-insn identical; gcc puts n in
-   t0 and the 0x88888889 magic in a0 where the original has n in a0, the magic
-   in a1 and an extra `move a2,t0` for n/1800, and gcc hoists the format
-   address. Splitting the three values into locals gives byte-identical C
-   output (also 85.00%).
+// Writes the battle timer's minutes:seconds:hundredths into buf and draws it;
+// the two remainders are taken off the frame count once each.
 void func_80083CE8(void) {
     char buf[0x20];
     s32 n;
+    s32 rem;
 
     n = g_BattleElapsedFrames;
-    Sprintf(buf, D_800701B0, n / 1800, (n % 1800) / 30, (n % 30) * 99 / 30);
+    rem = n % 1800;
+    Sprintf(buf, D_800701B0, n / 1800, rem / 30, (n % 30) * 99 / 30);
     BattleDrawTextLeft(buf);
 }
-*/
 
 void BattleFadeActorLights(PolyTable* pTable, Battler9* pActor, s32 idx) {
     PolyOwner* pOwner;
