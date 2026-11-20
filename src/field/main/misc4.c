@@ -11,6 +11,25 @@
 #include "psyq/libcd.h"
 #include "psyq/inline_c.h"
 
+// The field fades between black and FIELD_FADE_COLOR_MAX, a 16.16 fixed point
+// polygon colour (so >> 16 is the 0..0xFF channel value), FIELD_FADE_COLOR_STEP
+// at a time
+#define FIELD_FADE_COLOR_MAX 0x800000
+#define FIELD_FADE_COLOR_STEP 0x40000
+
+// Frames the field keeps rendering while it fades out, and while it waits for a
+// requested disc change
+#define FIELD_FADE_FRAME_COUNT 0x20
+#define FIELD_DISC_CHANGE_FRAME_COUNT 8
+
+// g_FieldZoomFadeScale is ramped by FIELD_ZOOM_FADE_SCALE_STEP per frame, up to
+// FIELD_ZOOM_FADE_SCALE_MAX (0x1000 is 1:1)
+#define FIELD_ZOOM_FADE_SCALE_MAX 0x22C0
+#define FIELD_ZOOM_FADE_SCALE_STEP 0x20
+
+// WDS bank the field asks for when the game is changing discs
+#define FIELD_DISC_CHANGE_WDS_BANK 0xE
+
 // FieldOrVramStripPixels converts one strip of 16-bit VRAM pixels, read two at a
 // time through a u_int word
 #define FIELD_SCREEN_STRIP_WIDTH 0x100
@@ -159,7 +178,7 @@ extern s32 g_GameReusePendingAudioManager;
 extern s32 g_SoundPendingAudioManager;
 extern s32 D_800AFD04;
 extern s32 g_FieldScriptDataStreamActive;
-extern s32 D_800ADC14;
+extern int* D_800ADC14; // buffer the field script data stream is read into
 extern s32 g_FieldZoomFadeScale;
 extern s32 g_FieldActorModelSlotCount;
 extern AudioManager* g_SoundAudioManager;
@@ -195,44 +214,13 @@ extern void SoundFreeLoadedWdsAndAudioManager(void);
 extern void func_800A24C4(void);
 extern void FontFree(void);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
-/* Best attempt: 97.87% (1344 bytes; the original is 1348, one instruction
-   short). Every call, loop, branch and delay slot is retail's; what is left is
-   one hoist decision and the register assignment that follows from it.
-   1. Retail hoists NO invariant out of the first (g_FieldScriptDataStreamActive)
-      loop: its preheader is just `bne` + `lui $s0,0x80` (nFade) in the delay
-      slot, the fade arm re-forms the step inline (`lui $v0,0xfffc`,
-      `addu $s0,$s0,$v0`) and the fade test loads `li $v0,1` inside the body.
-      Our compile hoists both out of the same loop (`li $s3,1`,
-      `lui $s0,0xfffc` in the preheader), which is +2 instructions there and -1
-      in the arm, and that extra live-in register is what raises the loop's
-      register pressure so that the second hoist pays as well. The later
-      (g_FieldDiscChangeFade) loop, which retail DOES hoist into $s1, and the
-      0x20 loop, which retail hoists into $s3, both match in shape.
-   2. Consequence: retail's $s0 = nFade and $s1 = the loop counter, ours is the
-      other way round ($s1 = nFade, $s0 = counter); that one swap accounts for
-      about twenty of the differing instructions and everything else is
-      register naming. Declaration orders tried: rect/i/nFadeStep/nFade,
-      nFade first, nFadeStep first - no change.
-   3. nFadeStep: the if/else spelling below is what reproduces retail's three
-      stores (0 in the first beq's delay slot, 0x20 in the second beq's, 0 on
-      the fall-through). `nFadeStep = 0x20; if (A == 1 || B == 1) nFadeStep = 0;`
-      is 97.50% (one instruction short: the 0x20 store lands in the first delay
-      slot instead of the second), and
-      `nFadeStep = 0; if (A != 1) { nFadeStep = 0x20; if (B == 1) ... }` folds to
-      a setcc (`xori/sltu/sll $s2,$v0,0x5`) at 97.09%.
-   A permuter run (4 min, 1728 iters) reported PERMUTER_BETTER 989 -> 461 for a
-   body that duplicates the loop body under `if (nFade || g_GameLoadedWdsBankIndex)`;
-   ported by hand that body is 98.66% but 1340 bytes (two instructions short),
-   so it is not an improvement over this one.
-/*
 // Loads the scene map, fades the field in, runs it until the state machine
 // leaves state 1 and then tears the field down
 void func_80078D44(void) {
     RECT rect;
     int i;
-    int nFadeStep;
-    int nFade;
+    int nZoomScaleStep;
+    int nFadeColor;
 
     FieldLoadFont();
     FieldStoreScreenImage();
@@ -246,8 +234,8 @@ void func_80078D44(void) {
     if (g_FieldScreenSetupDone == 0) {
         rect.x = 0;
         rect.y = 0x100;
-        rect.w = 0x140;
-        rect.h = 0xE0;
+        rect.w = SCREEN_WIDTH;
+        rect.h = SCREEN_HEIGHT;
         MoveImage(&rect, 0, 0);
     }
     g_FieldCurRenderContextIndex = 1;
@@ -271,30 +259,34 @@ void func_80078D44(void) {
         LibGearSetDirectKeyframes(1);
     }
     if (g_GameDiscChangeRequest == 1 || g_FieldDiscChangeFade == 1) {
-        nFadeStep = 0;
+        nZoomScaleStep = 0;
     } else {
-        nFadeStep = 0x20;
+        nZoomScaleStep = FIELD_ZOOM_FADE_SCALE_STEP;
     }
-    nFade = 0x800000;
+    nFadeColor = FIELD_FADE_COLOR_MAX;
     if (g_FieldScriptDataStreamActive == 1) {
-        do {
-            FieldClearAndSwapOTag();
-            FieldZoomFadeEffectUpdate();
-            FieldDisplay();
-            if (g_FieldDiscChangeFade != 1) {
-                if (g_FieldZoomFadeScale < 0x22C0) {
-                    g_FieldZoomFadeScale += nFadeStep;
-                }
-            } else {
-                FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-                nFade -= 0x40000;
-                if (nFade < 0) {
-                    nFade = 0;
-                }
+        // A goto loop, not do-while: the do-while form makes cc1 hoist the fade
+        // step and the state comparison out of the loop's preheader
+    fieldLoop:
+        FieldClearAndSwapOTag();
+        FieldZoomFadeEffectUpdate();
+        FieldDisplay();
+        if (g_FieldDiscChangeFade != 1) {
+            if (g_FieldZoomFadeScale < FIELD_ZOOM_FADE_SCALE_MAX) {
+                g_FieldZoomFadeScale += nZoomScaleStep;
             }
-        } while (ArchiveDataSync() != 0);
+        } else {
+            FieldZoomFadeEffectSetPolygonColor(nFadeColor >> 16);
+            nFadeColor -= FIELD_FADE_COLOR_STEP;
+            if (nFadeColor < 0) {
+                nFadeColor = 0;
+            }
+        }
+        if (ArchiveDataSync() != 0) {
+            goto fieldLoop;
+        }
         DrawSync(0);
-        HeapFree((void*)D_800ADC14);
+        HeapFree(D_800ADC14);
         g_FieldScriptDataStreamActive = 0;
         FieldOrVramStripPixels();
     }
@@ -303,15 +295,15 @@ void func_80078D44(void) {
             FieldClearAndSwapOTag();
             FieldZoomFadeEffectUpdate();
             FieldDisplay();
-            FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-            nFade -= 0x40000;
-        } while (nFade >= 0);
+            FieldZoomFadeEffectSetPolygonColor(nFadeColor >> 16);
+            nFadeColor -= FIELD_FADE_COLOR_STEP;
+        } while (nFadeColor >= 0);
     }
     if (g_GameDiscChangeRequest == 1) {
-        rect.x = 0;
         rect.y = 0;
-        rect.w = 0x140;
-        rect.h = 0xE0;
+        rect.x = 0;
+        rect.w = SCREEN_WIDTH;
+        rect.h = SCREEN_HEIGHT;
         MoveImage(&rect, 0x200, 0);
     }
     if (g_WorldMapAudioManagerLoaded != 0) {
@@ -327,7 +319,7 @@ void func_80078D44(void) {
     ControllerResetState();
     g_GameWdsBankLoadState = 0;
     if (g_GameDiscChangeRequest == 1) {
-        g_GameRequestedWdsBankIndex = 0xE;
+        g_GameRequestedWdsBankIndex = FIELD_DISC_CHANGE_WDS_BANK;
         FieldFreePendingAudioManager();
     }
     if (g_GameLoadedWdsBankIndex != g_GameRequestedWdsBankIndex) {
@@ -344,19 +336,20 @@ void func_80078D44(void) {
     if (g_GameDiscChangeRequest != 1) {
         if (g_FieldDiscChangeFade != 1) {
             FieldFadeToBlack(0x20);
-            for (i = 0; i < 0x20; i++) {
+            nFadeColor = FIELD_FADE_COLOR_MAX;
+            for (i = 0; i < FIELD_FADE_FRAME_COUNT; i++) {
                 FieldUpdateFrame();
                 FieldZoomFadeEffectUpdate();
                 func_8007554C();
                 FieldTickSkipCounter();
                 if (g_GameDiscChangeRequest != 1) {
-                    FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-                    nFade -= 0x40000;
-                    if (nFade < 0) {
-                        nFade = 0;
+                    FieldZoomFadeEffectSetPolygonColor(nFadeColor >> 16);
+                    nFadeColor -= FIELD_FADE_COLOR_STEP;
+                    if (nFadeColor < 0) {
+                        nFadeColor = 0;
                     }
-                    if (g_FieldZoomFadeScale < 0x22C0) {
-                        g_FieldZoomFadeScale += nFadeStep;
+                    if (g_FieldZoomFadeScale < FIELD_ZOOM_FADE_SCALE_MAX) {
+                        g_FieldZoomFadeScale += nZoomScaleStep;
                     }
                 }
             }
@@ -364,7 +357,7 @@ void func_80078D44(void) {
             FieldFadeToBlack(0x20);
         }
     } else {
-        for (i = 0; i < 8; i++) {
+        for (i = 0; i < FIELD_DISC_CHANGE_FRAME_COUNT; i++) {
             FieldUpdateFrame();
             FieldZoomFadeEffectUpdate();
             func_8007554C();
@@ -380,7 +373,6 @@ void func_80078D44(void) {
     FieldLoadFont();
     D_800AFD04 = 0;
 }
-*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
 /* Best attempt: 79.46% (the form below scores 78.37%, 728 bytes against the
