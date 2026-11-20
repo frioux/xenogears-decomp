@@ -2,6 +2,28 @@
 #include "battle/actor.h"
 #include "main/game.h"
 
+// The percent chance BattleAdjustSlotAmountByCondition halves an action's amount instead of adding
+// half of it, when the target's accessoryEffectFlags5 has 0x80; a target whose characterId is 0 is
+// rolled against the higher one.
+#define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT 60
+#define BATTLE_AMOUNT_HALVE_CHANCE_PERCENT_CHARACTER_0 80
+
+// The percent chance BattleAdjustSlotAmountByCondition takes the target's activeEffectFlags2 bit
+// 0x2000 and the acting slot's activeEffectFlags1 bit 0x1000 off the target.
+#define BATTLE_EFFECT_REMOVE_CHANCE_PERCENT 80
+
+// The row's power is in twentieths: `power * stat / this` leaves the action's amount unchanged.
+#define BATTLE_ACTION_POWER_FULL 20
+
+// A slot's penalty percent scales an action's value by (100 - it) / 100, and a full one would leave
+// nothing, so BattleTryApplyCondition clamps it one step below.
+#define BATTLE_PERCENT_FULL 100
+#define BATTLE_PENALTY_PERCENT_MAX 99
+
+// amountMultiplier is in quarter units, this being the value that leaves the action's amount
+// unchanged.
+#define BATTLE_AMOUNT_MULTIPLIER_UNCHANGED 4
+
 extern u8 *D_800C3D60;
 extern BattleRow *g_BattleCurrentRow;
 extern BattleTableEntry *g_BattleActingSlot;
@@ -130,7 +152,7 @@ void BattleAdjustSlotAmountByCondition(void) {
     }
     if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 0) {
         if (g_BattleTargetSlotEntry->activeEffectFlags2 & 0x2000) {
-            if (rand() % BATTLE_PERCENT_ROLL_RANGE < 0x50) {
+            if (rand() % BATTLE_PERCENT_ROLL_RANGE < BATTLE_EFFECT_REMOVE_CHANCE_PERCENT) {
                 g_BattleTargetSlotEntry->activeEffectFlags2 &= 0xDFFF;
                 g_BattleCurSlotState->activeEffectFlags1 &= 0xEFFF;
             }
@@ -144,9 +166,9 @@ void BattleAdjustSlotAmountByCondition(void) {
     if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 0) {
         if (g_BattleTargetSlotEntry->accessoryEffectFlags5 & 0x80) {
             if (g_BattleTargetSlotEntry->characterId == 0) {
-                percent = 0x50;
+                percent = BATTLE_AMOUNT_HALVE_CHANCE_PERCENT_CHARACTER_0;
             } else {
-                percent = 0x3C;
+                percent = BATTLE_AMOUNT_HALVE_CHANCE_PERCENT;
             }
             if (rand() % BATTLE_PERCENT_ROLL_RANGE < percent) {
                 g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] =
@@ -356,11 +378,11 @@ u16 BattleScaleValueByMultiplierByte(void) {
         f = g_BattleTargetSlotState->activeEffectFlags1;
         b = g_BattleTargetSlotState->amountMultiplier;
         if ((f & 0x100) || b == 0) {
-            n = 4;
+            n = BATTLE_AMOUNT_MULTIPLIER_UNCHANGED;
         } else {
             n = b;
         }
-        ret = n * ret / 4;
+        ret = n * ret / BATTLE_AMOUNT_MULTIPLIER_UNCHANGED;
         if ((g_BattleTargetSlotState->activeEffectFlags2 | g_BattleTargetSlotState->accessoryEffectFlags2) & 0x40) {
             ret = ret + ((ret & 0xFFFF) >> 1);
         }
@@ -376,7 +398,7 @@ u16 BattleApplySlotPercentToValue(void) {
         n = g_BattleCurSlotState->penaltyPercent;
         v = g_BattleCurSlotState->valueBonus;
         if (n != 0 && v != 0) {
-            v = v * (100 - n) / 100;
+            v = v * (BATTLE_PERCENT_FULL - n) / BATTLE_PERCENT_FULL;
         }
         if (g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 0x80) {
             ret = ret + v;
@@ -387,7 +409,7 @@ u16 BattleApplySlotPercentToValue(void) {
     } else {
         n = g_BattleCurSlotState->penaltyPercent;
         if (n != 0) {
-            ret = ret * (100 - n) / 100;
+            ret = ret * (BATTLE_PERCENT_FULL - n) / BATTLE_PERCENT_FULL;
         }
     }
     return ret;
@@ -398,7 +420,7 @@ s32 BattleScaleValueByRowBitPercent(s32 arg0) {
     u8 idx; /* left unassigned when the scan finds no bit, as in retail */
     u8 v;
 
-    for (i = 0; i < 0x10; i++) {
+    for (i = 0; i < sizeof(g_BattleCurSlotState->statusPenaltyPercent); i++) {
         if (mask & (0x8000 >> i)) {
             idx = i;
             break;
@@ -536,7 +558,7 @@ s8 BattleTryApplyCondition(u8 arg0) {
         if (!(g_BattleCurSlotState->accessoryEffectFlags1 & 0x40)) {
             g_BattleCurSlotState->penaltyPercent += flags;
             if (g_BattleCurSlotState->penaltyPercent >= BATTLE_PERCENT_ROLL_RANGE) {
-                g_BattleCurSlotState->penaltyPercent = 99;
+                g_BattleCurSlotState->penaltyPercent = BATTLE_PENALTY_PERCENT_MAX;
             }
             kind = 0;
             flags = 0x40;
@@ -582,7 +604,7 @@ void BattleSetSlotState2FromActorField4F(void) {
 }
 void BattleSetSlotState2FromScriptField11Div20(void) {
     u32 v = g_BattleCurrentRow->power * g_BattleCurSlotState->maxHp;
-    u32 q = v / 20;
+    u32 q = v / BATTLE_ACTION_POWER_FULL;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 2;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
@@ -599,14 +621,14 @@ void BattleSetSlotFields148And10C(void) {
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
     s32 v = g_BattleCurSlotState->unk3A * g_BattleCurrentRow->power;
-    s32 q = v / 20;
+    s32 q = v / BATTLE_ACTION_POWER_FULL;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0xA;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
     s32 v = g_BattleCurSlotState->unk3A * g_BattleCurrentRow->power;
-    s32 q = v / 20;
+    s32 q = v / BATTLE_ACTION_POWER_FULL;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0xB;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
