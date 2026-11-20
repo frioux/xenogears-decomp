@@ -9,7 +9,14 @@ extern u8 *g_BattleSpanTableMax;
 extern u8 *g_BattleSpanTableMin;
 extern u8 g_BattleDrawBufferIndex;
 extern VECTOR g_BattleViewOrigin;
+extern VECTOR g_BattleViewOriginZ;
+extern s32 func_80082488(VECTOR *pPos, s32 fixHeights);
+extern void BattleCopyPlaneNormal(SVECTOR *pNormal);
 extern void func_800316C0(void *pOt, void *pPrim);
+
+// The flags word's grid-cell bits: an actor whose value here is 2 gets no
+// ground shadow (misc4 tests the same field the same way).
+#define BATTLE_ACTOR_FLAGS_GRID_CELL_MASK 0x60000000
 
 typedef struct {
     /* 0x00 */ LINE_F2 prim[2];
@@ -87,6 +94,15 @@ typedef union {
     /* 0x0 */ u8 bytes[4];
 } BattlingPacketWord;
 
+// One world point of the pair the shadow under an actor is built from: the
+// first three words are read, the fourth is the Psy-Q VECTOR's unused one.
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+    /* 0xC */ s32 w;
+} BattlingVec4; // Size: 0x10
+
 typedef struct {
     /* 0x00 */ u8 pad0[0x3];
     /* 0x03 */ u8 tagLength;
@@ -99,13 +115,21 @@ typedef struct {
     /* 0x16 */ u16 tpage;
     /* 0x18 */ u8 pad18[0x4];
     /* 0x1C */ u16 uv2;
-    /* 0x1E */ u8 pad1E[0x6];
+    /* 0x1E */ u8 pad1E[0x2];
+    /* 0x20 */ u16 x3;
+    /* 0x22 */ u16 y3;
     /* 0x24 */ u16 uv3;
     /* 0x26 */ u8 pad26[0x2];
 } BattlingPacket; // Size: 0x28
 
 typedef struct {
-    /* 0x0000 */ u8 pad0[0x1604];
+    /* 0x0000 */ u8 pad0[0xD0];
+    /* 0x00D0 */ u32 flags;
+    /* 0x00D4 */ u8 padD4[0x858];
+    // The two world points the actor's ground shadow is derived from.
+    /* 0x092C */ BattlingVec4 baseVertexPos;
+    /* 0x093C */ BattlingVec4 centerPosition;
+    /* 0x094C */ u8 pad94C[0xCB8];
     /* 0x1604 */ BattlingPacket packet[2];
 } BattlingPacketOwner; // Size: 0x1654
 
@@ -444,7 +468,86 @@ void BattleInitSemiTransQuadPacket(BattlingPacketOwner *arg0) {
     arg0->packet[1] = arg0->packet[0];
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc11", func_80087B74);
+// The ground shadow under one actor: a square on the plane under the pair of
+// world points the actor stands on, squashed flat by a rotation matrix whose Y
+// row is that plane's normal and added to the ordering table at its depth.
+void func_80087B74(BattlingPacketOwner *pOwner, u_long *pOt, MATRIX *pMatrix) {
+    SVECTOR quad[4];
+    VECTOR center;
+    VECTOR unusedCenter; // retail's frame has a slot here that nothing stores into
+    SVECTOR normal;
+    MATRIX shadowMatrix;
+    BattlingPacket *pPacket;
+    s32 otIndex;
+    s32 depth0;
+    s32 depth1;
+    s32 depth2;
+    s32 depth3;
+    s32 size;
+    s32 shadowDepth;
+
+    if ((pOwner->flags & BATTLE_ACTOR_FLAGS_GRID_CELL_MASK) == 0x20000000) {
+        return;
+    }
+    size = (pOwner->centerPosition.y + pOwner->baseVertexPos.y) / 32 + 144;
+    if (size <= 0) {
+        return;
+    }
+    center.vx = (pOwner->centerPosition.x + pOwner->baseVertexPos.x) / 2;
+    center.vz = (pOwner->centerPosition.z + pOwner->baseVertexPos.z) / 2;
+    center.vy = 0;
+    // The four corners are assigned a value at a time: gcc emits a chained
+    // assignment in reverse, which is the order retail's twelve stores come out in.
+    quad[0].vx = quad[1].vx = quad[0].vz = quad[2].vz = -size;
+    quad[3].vx = quad[2].vx = quad[1].vz = quad[3].vz = size;
+    quad[0].vy = quad[1].vy = quad[2].vy = quad[3].vy = 0;
+
+    shadowMatrix.t[0] = center.vx - g_BattleViewOrigin.vx;
+    pPacket = &pOwner->packet[g_BattleDrawBufferIndex];
+    shadowMatrix.t[1] = func_80082488(&center, 0);
+    shadowMatrix.t[2] = center.vz - g_BattleViewOriginZ.vx;
+    BattleCopyPlaneNormal(&normal);
+    shadowMatrix.m[0][0] = 0x1000;
+    shadowMatrix.m[0][1] = 0;
+    shadowMatrix.m[0][2] = 0;
+    shadowMatrix.m[1][0] = normal.vx;
+    shadowMatrix.m[1][1] = normal.vy;
+    shadowMatrix.m[1][2] = normal.vz;
+    shadowMatrix.m[2][0] = 0;
+    shadowMatrix.m[2][1] = 0;
+    shadowMatrix.m[2][2] = 0x1000;
+    CompMatrix(pMatrix, &shadowMatrix, &shadowMatrix);
+
+    gte_SetRotTransMatrix_gpr(&shadowMatrix);
+    gte_ldv3c(&quad[0]);
+    gte_rtpt();
+    gte_nclip();
+    // The area test's result and the ordering table bucket share one local, which
+    // is why retail stores both to the same stack slot.
+    gte_stopz(&otIndex);
+    if (otIndex < 0) {
+        return;
+    }
+    gte_stsz3(&depth0, &depth1, &depth2);
+    gte_stsxy3_g3(pPacket);
+    gte_ldv0(&quad[3]);
+    gte_rtps();
+    gte_stsz(&depth3);
+    gte_stsxy(&pPacket->x3);
+
+    shadowDepth = depth0;
+    if (depth1 < shadowDepth) {
+        shadowDepth = depth1;
+    }
+    if (depth2 < shadowDepth) {
+        shadowDepth = depth2;
+    }
+    if (depth3 < shadowDepth) {
+        shadowDepth = depth3;
+    }
+    otIndex = shadowDepth >> 4;
+    AddPrim(pOt + otIndex, pPacket);
+}
 
 void BattleAppendEntry(s32 *arg0) {
     s32 i = g_BattleAppendEntryCount;
