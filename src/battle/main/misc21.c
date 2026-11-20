@@ -9,13 +9,13 @@
 #define BATTLE_ACTOR_SHADE_MAX 0x6B
 
 typedef struct {
-    /* 0x0 */ u8* pBlocks;
+    /* 0x0 */ BattleBlock* pBlocks;
     /* 0x4 */ u16 usedCount;
     /* 0x6 */ u16 capacity;
 } BattleBlockPool; // Size: 0x8
 
 typedef struct {
-    /* 0x0 */ u8* pBlocks;
+    /* 0x0 */ Vertex* pBlocks;
     /* 0x4 */ s16 count;
     /* 0x6 */ u16 unk6;
 } BattleSpritePool; // Size: 0x8
@@ -145,6 +145,15 @@ typedef struct {
     /* 0x04 */ u32 code;
     /* 0x08 */ BattleWarpCorner corner[4];
 } BattleWarpQuad; // Size: 0x28
+
+// The three MATRIX slots the battle renderer stages its GTE work in, at the
+// start of the PSX scratchpad: the working matrix, the composed rotation and
+// the composed light/translation matrix.
+typedef struct {
+    /* 0x00 */ MATRIX work;
+    /* 0x20 */ MATRIX rot;
+    /* 0x40 */ MATRIX trans;
+} BattleScratchMatrices; // Size: 0x60
 
 extern void* HeapAlloc(u_int allocSize, u_int allocFlags);
 extern u_int HeapFree(void* pMem);
@@ -341,7 +350,7 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
             }
             pSprites->doRotate = 0;
         }
-        if (pSprites->pParent != NULL && *((u8*)pSprites->pParent + 4) == 1) {
+        if (pSprites->pParent != NULL && ((BattleSprite*)pSprites->pParent)->doTransform == 1) {
             pSprites->doTransform = 1;
         }
         if (pSprites->doTransform != 0) {
@@ -349,7 +358,7 @@ s32 BattleUpdateSpriteTransforms(BattleSprite* pSprites, s32 scale) {
             pSprites->localTransform.t[1] = pSprites->pos[1];
             pSprites->localTransform.t[2] = pSprites->pos[2];
             if (pSprites->pParent != NULL) {
-                CompMatrix((MATRIX*)((u8*)pSprites->pParent + 0x2C), &pSprites->localTransform,
+                CompMatrix(&((BattleSprite*)pSprites->pParent)->globalTransform, &pSprites->localTransform,
                            &pSprites->globalTransform);
             } else {
                 pSprites->globalTransform = pSprites->localTransform;
@@ -517,9 +526,10 @@ void BattleNoOp(void) {
 }
 void BattleRenderModel(BattleModelPartList* pMesh, BattleSprite* pSkeleton, MATRIX* pLightMatrix,
                    MATRIX* pViewMatrix, s32 arg4, s32 arg5, s32 packetIndex) {
-    MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
-    MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
-    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    BattleScratchMatrices* pScratch = (BattleScratchMatrices*)PSX_SCRATCH;
+    MATRIX* pRotMatrix = &pScratch->rot;
+    MATRIX* pTransMatrix = &pScratch->trans;
+    MATRIX* pMatrix = &pScratch->work;
     u_int numChildren;
     u_int i;
 
@@ -592,8 +602,10 @@ void BattleFreeModelMesh(BattleModelPartList* pList, s32 freeLight) {
    is the only spelling that gives retail's index-first addu.
    Residual: the slot scale is read through BattlePartSlot
    (g_BattlePartSlots[i].x), where retail's object names the field addresses
-   D_800D3306/3308/330A, so objdiff reads 99.96%; the linked bytes are identical
-   (tools/scripts/check_bin.sh battle: OK). */
+   D_800D3306/3308/330A (g_BattlePartSlots is 0x800D3304, so those are its +2/+4/+6
+   fields), so objdiff reads 99.97%; the linked bytes are identical
+   (tools/scripts/check_bin.sh battle: OK). The actor scale is read as `*(u16*)&`
+   because actor.h types it `s16` and retail loads it `lhu`. */
 void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 flags,
                    s32 texParam, u_long* pOt, s32 quadIndex) {
     u32 count;
@@ -605,10 +617,11 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
     BattleSprite* pSprites;
     Temp8* pTexture;
     u16 scale16;
-    MATRIX* pRotMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x20);
-    MATRIX* pTransMatrix = (MATRIX*)((u8*)PSX_SCRATCH + 0x40);
+    BattleScratchMatrices* pScratch = (BattleScratchMatrices*)PSX_SCRATCH;
+    MATRIX* pRotMatrix = &pScratch->rot;
+    MATRIX* pTransMatrix = &pScratch->trans;
     s32 scale;
-    MATRIX* pMatrix = (MATRIX*)PSX_SCRATCH;
+    MATRIX* pMatrix = &pScratch->work;
     BattleModelListEntry* pModelList;
     BattleModelListPoint* pPoint;
     BattleSpriteTween* pTween;
@@ -630,10 +643,10 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
     count = pSprites->count;
     for (i = 0; i < 2; i++) {
         if (g_BattlePartSlots[i].inUse != 0) {
-            s16 dx = g_BattlePartSlots[i].x - ((u16*)&pSprite->pos[0])[0];
+            s16 dx = g_BattlePartSlots[i].x - (u16)pSprite->pos[0];
             s16 dy = g_BattlePartSlots[i].y -
                      ((pSprite->pos[1] - pActor->height * (scale * pSprite->scale.vy >> 12)) >> 13);
-            s16 dz = g_BattlePartSlots[i].z - ((u16*)&pSprite->pos[0])[4];
+            s16 dz = g_BattlePartSlots[i].z - (u16)pSprite->pos[2];
             s32 denominator = SquareRoot0(dx * dx + dy * dy + dz * dz) + 1;
 
             pViewMatrix->m[i + 1][0] =
@@ -777,9 +790,9 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
                 gte_ldv0(&pModelList->pPoints[j]);
                 gte_mvmva(1, 0, 0, 0, 0);
                 gte_stlvnl(macPoint);
-                ((u16*)((void**)pModelList->pPackets)[j])[2] = ((u16*)macPoint)[0];
-                ((u16*)((void**)pModelList->pPackets)[j])[3] = ((u16*)macPoint)[2];
-                ((u16*)((void**)pModelList->pPackets)[j])[4] = ((u16*)macPoint)[4];
+                ((u16*)((void**)pModelList->pPackets)[j])[2] = (u16)macPoint[0];
+                ((u16*)((void**)pModelList->pPackets)[j])[3] = (u16)macPoint[1];
+                ((u16*)((void**)pModelList->pPackets)[j])[4] = (u16)macPoint[2];
             }
             pPoint = pModelList->pRecords;
             for (j = 0; j < pModelList->recordCount; j++, pPoint++) {
@@ -789,9 +802,9 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
                 gte_ldv0((SVECTOR*)&pPoint->vx);
                 gte_mvmva(1, 0, 0, 0, 0);
                 gte_stlvnl(macPoint);
-                pPoint->x = ((u16*)macPoint)[0];
-                pPoint->y = ((u16*)macPoint)[2];
-                pPoint->z = ((u16*)macPoint)[4];
+                pPoint->x = (u16)macPoint[0];
+                pPoint->y = (u16)macPoint[1];
+                pPoint->z = (u16)macPoint[2];
             }
             func_800A7948(pModelList, &tweenVec, pLightMatrix, pOt, quadIndex, scale16, pActor->groundY);
         }
@@ -853,8 +866,8 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
             SetTransMatrix(pMatrix);
             {
                 s32 side = pTween->slot & 1;
-                s32* pStart = (s32*)&pTween->projectedStart[side * 4];
-                s32* pEnd = (s32*)&pTween->projectedEnd[side * 4];
+                DVECTOR* pStart = &pTween->projectedStart[side * 4];
+                DVECTOR* pEnd = &pTween->projectedEnd[side * 4];
 
                 gte_ldv0(&pTween->start);
                 gte_mvmva(1, 0, 0, 0, 0);
@@ -885,23 +898,23 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
                 pTween->pSlot->blueDelta = pTween->blueDelta;
                 {
                     s32 other = 1 - side;
-                    s32* pFrom = (s32*)&pTween->projectedStart[other * 4];
-                    s32* pTo = (s32*)&pTween->projectedEnd[other * 4];
+                    DVECTOR* pFrom = &pTween->projectedStart[other * 4];
+                    DVECTOR* pTo = &pTween->projectedEnd[other * 4];
 
-                    pTween->pSlot->x0 = ((u16*)pFrom)[0];
-                    pTween->pSlot->y0 = ((u16*)pFrom)[2];
-                    pTween->pSlot->z0 = ((u16*)pFrom)[4];
-                    pTween->pSlot->x2 = ((u16*)pTo)[0];
-                    pTween->pSlot->y2 = ((u16*)pTo)[2];
-                    pTween->pSlot->z2 = ((u16*)pTo)[4];
+                    pTween->pSlot->x0 = pFrom[0].vx;
+                    pTween->pSlot->y0 = pFrom[1].vx;
+                    pTween->pSlot->z0 = pFrom[2].vx;
+                    pTween->pSlot->x2 = pTo[0].vx;
+                    pTween->pSlot->y2 = pTo[1].vx;
+                    pTween->pSlot->z2 = pTo[2].vx;
                 }
             done3D:
-                pTween->pSlot->x1 = ((u16*)pStart)[0];
-                pTween->pSlot->y1 = ((u16*)pStart)[2];
-                pTween->pSlot->z1 = ((u16*)pStart)[4];
-                pTween->pSlot->x3 = ((u16*)pEnd)[0];
-                pTween->pSlot->y3 = ((u16*)pEnd)[2];
-                pTween->pSlot->z3 = ((u16*)pEnd)[4];
+                pTween->pSlot->x1 = pStart[0].vx;
+                pTween->pSlot->y1 = pStart[1].vx;
+                pTween->pSlot->z1 = pStart[2].vx;
+                pTween->pSlot->x3 = pEnd[0].vx;
+                pTween->pSlot->y3 = pEnd[1].vx;
+                pTween->pSlot->z3 = pEnd[2].vx;
             }
             }
         }
@@ -1277,7 +1290,7 @@ BattleBlockPool* BattleCreateBlockPool(BattleBlockPool* pPool, s32 count) {
     }
     pPool->capacity = count;
     HeapChangeCurrentUser(4, NULL);
-    pPool->pBlocks = HeapAlloc(count * 0x14, 0);
+    pPool->pBlocks = HeapAlloc(count * sizeof(BattleBlock), 0);
     if (pPool->pBlocks != NULL) {
         BattleResetBlockPool(pPool);
         return pPool;
@@ -1285,7 +1298,7 @@ BattleBlockPool* BattleCreateBlockPool(BattleBlockPool* pPool, s32 count) {
     return NULL;
 }
 void BattleFreeBlockPool(BattleBlockPool* pPool) {
-    u8* pBlocks = pPool->pBlocks;
+    BattleBlock* pBlocks = pPool->pBlocks;
 
     pPool->usedCount = 0;
     if (pBlocks != NULL) {
@@ -1298,7 +1311,7 @@ void BattleResetBlockPool(BattleBlockPool* pPool) {
     s32 i;
 
     if (pPool->pBlocks != NULL) {
-        pBlock = (BattleBlock*)pPool->pBlocks;
+        pBlock = pPool->pBlocks;
         pPool->usedCount = 0;
         for (i = 0; i < pPool->capacity; i++) {
             pBlock->inUse = 0;
@@ -1310,11 +1323,11 @@ BattleBlock* BattleAllocBlock(BattleBlockPool* pPool) {
     BattleBlock* pBlock;
 
     if (pPool->usedCount < pPool->capacity) {
-        pBlock = &((BattleBlock*)pPool->pBlocks)[pPool->usedCount];
+        pBlock = &pPool->pBlocks[pPool->usedCount];
         if (pBlock->inUse == 0) {
             pPool->usedCount++;
             while (pPool->usedCount < pPool->capacity &&
-                   ((BattleBlock*)pPool->pBlocks)[pPool->usedCount].inUse != 0) {
+                   pPool->pBlocks[pPool->usedCount].inUse != 0) {
                 pPool->usedCount++;
             }
             return pBlock;
@@ -1328,7 +1341,7 @@ s32 BattleFreeBlock(BattleBlockPool* pPool, BattleBlock* pBlock) {
     if (pBlock == NULL) {
         return -1;
     }
-    index = (u32)((u8*)pBlock - pPool->pBlocks) / 0x14;
+    index = (u32)((u8*)pBlock - (u8*)pPool->pBlocks) / sizeof(BattleBlock);
     if (index < pPool->usedCount) {
         pPool->usedCount = index;
     }
@@ -1680,7 +1693,7 @@ BattleSpritePool* BattleCreateSpritePool(BattleSpritePool* pPool, s32 count) {
     return NULL;
 }
 void BattleFreeSpritePool(BattleBlockPool* pPool) {
-    u8* pBlocks = pPool->pBlocks;
+    BattleBlock* pBlocks = pPool->pBlocks;
 
     pPool->usedCount = 0;
     pPool->capacity = 0;
@@ -1694,7 +1707,7 @@ void BattleResetSpritePool(BattleSpritePool* pPool) {
     int j;
     Vertex* pVertex;
 
-    pVertex = (Vertex*)pPool->pBlocks;
+    pVertex = pPool->pBlocks;
     for (i = 0; i < pPool->count + 1; i++) {
         pVertex->age = -1;
         pVertex->lifetime = 0;
