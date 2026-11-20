@@ -384,7 +384,132 @@ void func_801D6338(u_char index, u_char characterId) {
     }
 }
 */
+extern s32 D_801E9D00;
+extern s32 D_801E9D04;
+extern s32 D_801E9D08;
+extern s32 D_801E9D0C;
+
+// The gear window's mp (character: two digits) or fuel (gear: four digits) numbers:
+// the same two digit-prim passes and quad pass as the stat numbers above.
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D680C);
+/* Best: 97.57% at retail's EXACT 1256 bytes (314 instructions, frame 0x68 already
+   right). The structure, both calls sets, both digit loops and the first half are
+   all exact; what is left is ONE symptom repeated four times: in both quad loops
+   and their preheaders/postambles gcc keeps g_Menu in $v1 where retail keeps it in
+   $a0, and inside each quad loop it hoists the renderContext/prims loads above the
+   `sll v0,s0,1` and rotates the index chain through $v0/$v1 (retail: sll first,
+   then the two loads, then the chain in $v0/$v1). A permuter run found
+   `u8 *new_var[2]` (two pointer slots in memory) for the prim base, which fixes
+   the body but grows the frame to 1272 bytes, so it can never link - do not port
+   it. Also 1 instruction out of place: half two's digit loop keeps `addiu s1,s1,8`
+   INSIDE the body (between the count `lbu` and the count `sb`) where this body
+   puts it in the back-branch delay slot (half one is the delay-slot form in retail
+   too).
+   FACTS LEARNED:
+   - this is the mp (character) / fuel (gear) window: characters[id].mp/maxMp
+     (0x50/0x52) with 2 digits from g_Menu->digits[7 + i], and
+     gears[characters[id].gearId].fuel/maxFuel (0x38/0x3A) with 4 digits from
+     digits[5 + i]; count and digitOffset are set ONCE at the top and reused by
+     both halves (s3/s6).
+   - x/y are per-arm locals: D_801E9D00 / D_801E9D04 (half 1), D_801E9D08 (+0x20
+     less for a gear) / D_801E9D0C (+0x10 for a gear) (half 2).
+   - half 2's arms must call MenuParseNumberToDigits FIRST and assign x/y AFTER it;
+     with x/y before the call the body is 6 points worse (91.69 -> 97.57).
+   - the quad loops need the `vertOffset = 0x28C0 + i * 0x20;` + `(SVECTOR*)
+     (vertOffset + (u32)pPrims)` spelling to get retail's `li s1,0x...` preheader
+     and the offset-first `addu a0,s1,a0` (the same lever as func_801D7154); in
+     the SECOND loop that spelling does not strength-reduce here, so it is left
+     inline.
+   Body (97.57%):
+   void func_801D680C(u_char index, u_char characterId) {
+       u8* pPrims;
+       u8* pBase;
+       u8* pEntry;
+       s32 vertOffset;
+       s32 count;
+       s32 digitOffset;
+       s32 x;
+       s32 y;
+       s32 i;
+
+       if (characterId == 0) {
+           count = 2;
+           digitOffset = 7;
+           x = D_801E9D00;
+           y = D_801E9D04;
+           MenuParseNumberToDigits(g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].mp);
+       } else {
+           count = 4;
+           digitOffset = 5;
+           x = D_801E9D00;
+           y = D_801E9D04 + 8;
+           MenuParseNumberToDigits(
+               g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].fuel);
+       }
+       ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] = 0;
+       for (i = 0; i < count; i++) {
+           if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
+               ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[digitOffset + i],
+                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                               (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0] *
+                                    (2 * sizeof(POLY_FT4)) +
+                                0x1950)),
+                   g_Menu->renderContext, x + i * MENU_DIGIT_SPACING - characterId * 24, y, 0x1000);
+           }
+       }
+       for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[0]; i++) {
+           POLY_FT4* pPrim;
+           s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+           vertOffset = 0x28C0 + i * 0x20;
+           pBase = (u8*)g_Menu->pGearWindowPrims;
+           pPrims = pBase;
+           pEntry = pBase + primOffset;
+           pPrim = (POLY_FT4*)(pEntry + 0x1950);
+           MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)pPrims),
+                               pPrim->x0, pPrim->y0,
+                               pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                               pPrim->y3 - *(volatile u16*)&pPrim->y0);
+       }
+
+       if (characterId == 0) {
+           MenuParseNumberToDigits(g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].maxMp);
+           x = D_801E9D08;
+           y = D_801E9D0C;
+       } else {
+           MenuParseNumberToDigits(
+               g_GameState.gears[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId].maxFuel);
+           x = D_801E9D08 - 0x20;
+           y = D_801E9D0C + 0x10;
+       }
+       ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] = 0;
+       for (i = 0; i < count; i++) {
+           if (g_Menu->digits[digitOffset + i] != MENU_DIGIT_NONE) {
+               ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] += func_8002675C(
+                   g_Menu->resources, g_Menu->digits[digitOffset + i],
+                   (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                               (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1] *
+                                    (2 * sizeof(POLY_FT4)) +
+                                0x1AE0)),
+                   g_Menu->renderContext, x + 4 * (i * 2) - characterId * 24, y, 0x1000);
+           }
+       }
+       for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE9[1]; i++) {
+           POLY_FT4* pPrim;
+           s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+           pPrims = (u8*)g_Menu->pGearWindowPrims;
+           pBase = pPrims;
+           pEntry = pBase + primOffset;
+           pPrim = (POLY_FT4*)(pEntry + 0x1AE0);
+           MenuSetQuadVertices((SVECTOR*)(pPrims + 0x2960 + i * 0x20),
+                               pPrim->x0, pPrim->y0,
+                               pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                               pPrim->y3 - *(volatile u16*)&pPrim->y0);
+       }
+   }
+*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D6CF4);
 /* Best: 63.92% (892 bytes; retail is 1120 = 0x460). Decode, all seven calls and both
    blocks are laid out below; the 228-byte shortfall is a source shape, not a missing
