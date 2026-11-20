@@ -55,7 +55,15 @@ extern s32 BattleSlotWordVarGetSet(u8 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern u8 GameRandomByteRange(s32 arg0, u8 arg1);
 extern u16 BattleSlotBitMask(u8 arg0);
 
-/* best: 80.37%. Same family as func_8007DA1C/DB78/DCF8/DE78/DFD4 (all still
+/* R309: 89.33% (340 bytes, retail 348) using func_8007DE78's solved tail - a
+   `u16 value` local, then `u16 *pOut = (u16 *)((arg1 & 0xFF) * 0x40 +
+   (s32)g_BattleSlotWordRegs);` and `pOut[(*arg0)[2]] = value;` reproduces
+   retail's andi/sll/lw p/lui/addiu/lbu p[2]/addu/sll/addu/sh exactly. The 2
+   missing instructions are the base copy (`addu v1,v1,v0` + `move s5,v1` where
+   gcc coalesces an `addu s5,v1,a0`; the typed
+   g_BattleSlotRegs[arg1 & 0xFF].wordRegs view and an s32 rowBase local measure
+   the same) and one duplicated `slti v0,s1,3` reorg puts in a beqz delay slot.
+   Previous best: 80.37%. Same family as func_8007DA1C/DB78/DCF8/DE78/DFD4 (all still
    stubs). Structure recovered from the asm: zero the row slot, then a do-while
    over the operator slots collecting the matching ones into an 8-byte stack
    buffer, then pick one at random. The `idx = i++` copy is real: retail keeps
