@@ -90,8 +90,6 @@ extern s32 D_80097064;
 extern s32 g_BattleSceneOriginYMirror;
 extern s32 g_BattleSceneOriginZ;
 
-// One past the last of the three effect-cell frame counters.
-extern s32 g_BattleEffectCellsEnd;
 extern void func_80070808(VECTOR* pVec, s32 step);
 extern void func_800708C4(VECTOR* pVec, s32 step);
 extern void BattleAimCameraAtCombatants(VECTOR* pA, VECTOR* pB);
