@@ -1272,7 +1272,46 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  */
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
+void func_8002B8B0(s32 param0, s32 nIndex) {
+    s16 i;
+    s32 nSectorOffset;
+    u16 nSectionId;
+    u16 nNextSectionId;
+    ArchiveStreamFileSectionHeader* pHeader;
+
+    if (g_ArchiveCurFileSize > 0) {
+        for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
+            nIndex = g_ArchiveStreamQueueIndex++;
+            pHeader = (ArchiveStreamFileSectionHeader*)(nIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+            if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
+                g_ArchiveStreamQueueIndex = 0;
+            if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED)
+                break;
+        }
+
+        if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
+            i = 0;
+            *(volatile u16*)&pHeader->state = 1;
+            nSectionId = g_ArchiveStreamNextSectionId;
+            nNextSectionId = nSectionId + 1;
+            pHeader->id = nSectionId;
+            g_ArchiveStreamNextSectionId = nNextSectionId;
+            nSectorOffset = nIndex * CD_SECTOR_SIZE;
+            for (; i < RETRY_COUNT; i++) {
+                if (PCread(D_80059F04, (u8*)(nSectorOffset + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE) != 0)
+                    break;
+                GfxDrawArchiveReadRetry(i, 0, 0xFF, 0);
+            }
+            g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
+            g_ArchiveCurFileSector += 1;
+        } else {
+            g_ArchiveCurFileSize = 0;
+        }
+    }
+
+    if (g_ArchiveCurFileSize <= 0)
+        g_ArchiveCurFileSize = 0;
+}
 /* MECHANISM: the loop's queue-index copy is a REGISTER-LIVE-RANGE question, not a
  * spelling one (round 334, 18 cc1_probe snippets + 20 measured spellings).
  *
