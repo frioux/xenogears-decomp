@@ -206,7 +206,58 @@ void MenuInitializeGlyphQuadPrims(void) {
     }
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2_260", func_801E5E4C);
+// The pair of highlight primitives this unit writes at the head of
+// g_Menu->pPrimBuffer, one per render context: a flat textured quad and the
+// Gouraud quad shaded behind it. The slot portrait prims follow at 0xA98
+// (see MenuDrawSlotSprite).
+typedef struct {
+    /* 0x0 */ u8 unk0[0xA00];
+    /* 0xA00 */ POLY_FT4 quads[2];
+    /* 0xA50 */ POLY_G4 shades[2];
+} MenuSlotQuads; // Size: 0xA98
+
+extern u16 D_801E99F0[];
+extern u16 D_801E99F8[];
+
+void func_801E5E4C(void) {
+    u16* pX;
+    s32 i;
+
+    for (i = 0, pX = D_801E99F0; i < 2; i++) {
+        MenuInitializePolyFt4(&((MenuSlotQuads*)g_Menu->pPrimBuffer)->quads[i]);
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->x0 = pX[0];
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->y0 = D_801E99F8[0];
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->x1 = pX[0] + 0x20;
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->y1 = D_801E99F8[0];
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->x2 = pX[0];
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->y2 = D_801E99F8[0] + 0x20;
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->x3 = pX[0] + 0x20;
+        ((POLY_FT4*)(i * 0x28 + 0xA00 + (u32)g_Menu->pPrimBuffer))->y3 = D_801E99F8[0] + 0x20;
+        ((MenuSlotQuads*)g_Menu->pPrimBuffer)->quads[i].tpage = GetTPage(0, 0, 0x140, 0x80);
+        SetPolyG4(&((MenuSlotQuads*)g_Menu->pPrimBuffer)->shades[i]);
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->r0 = 0x80;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->g0 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->b0 = 0x80;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->r1 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->g1 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->b1 = 0x80;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->r2 = 0x10;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->g2 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->b2 = 0x10;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->r3 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->g3 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->b3 = 0x10;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->x0 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->y0 = 0x4A;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->x1 = 0x140;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->y1 = 0x4A;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->x2 = 0;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->y2 = 0x8A;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->x3 = 0x140;
+        ((POLY_G4*)(i * 0x24 + 0xA50 + (u32)g_Menu->pPrimBuffer))->y3 = 0x8A;
+    }
+}
+
 extern s32 g_MenuSlotResourceXs[];
 extern s32 g_MenuSlotResourceYs[];
 extern s32 g_MenuSlotResourceIds[];
