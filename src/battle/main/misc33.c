@@ -117,7 +117,7 @@ extern u16 g_BattleSlotBitMask;
 extern u8 g_BattleSedsLoaded;
 extern u8 g_BattleHexDigitTable[];
 extern u8 g_BattleStateWork[];
-extern u32 D_800C37A4[];
+extern u32 g_BattleDecimalDivisors[];
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 
@@ -179,7 +179,7 @@ typedef struct {
 
 extern BattleSpriteBody *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCallback,
                                           void *pWorkCallback, void *pOnFreeCallback);
-extern s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
+extern s32 BattleWriteDecimalDigits(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, BattleSpritePart *pOut, s16 x, s16 y);
 extern s32 BattleAttachEffectSprite(BattleActorSprite *p, s32 arg1, s32 arg2);
 extern void BattleFreeTimerTaskIfActive(void);
@@ -305,7 +305,7 @@ void BattleCreateNumberSpriteTask(s32 value) {
         pBody->color.channels.blue = 0x80;
         break;
     }
-    func_800BE6E8(value, digits, sizeof(digits) - 1, 0, 0);
+    BattleWriteDecimalDigits(value, digits, sizeof(digits) - 1, 0, 0);
     tex = g_BattleDigitTextureIds[digits[0]];
     pBody->partCount = 0;
     i = 0;
@@ -394,8 +394,8 @@ void BattleWriteHexDigits(s32 arg0, u8 *p, s32 n, s32 arg3) {
 // value). n is the number of leading places leading zeros are suppressed in, so
 // the widest field is n + 1 characters; started != 0 keeps those leading zeros,
 // and base is added to every digit. Returns the number of characters written.
-// D_800C37A4 holds the decimal place divisors, 10^1 through 10^9.
-s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
+// g_BattleDecimalDivisors holds the decimal place divisors, 10^1 through 10^9.
+s32 BattleWriteDecimalDigits(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
     u8 *pDst;
     u8 digit;
     s32 count;
@@ -411,7 +411,7 @@ s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base) {
         value = -value;
         n--;
     }
-    pPlace = D_800C37A4;
+    pPlace = g_BattleDecimalDivisors;
     pTab = pPlace + n;
     for (;;) {
         value = (u32)value % *pTab;

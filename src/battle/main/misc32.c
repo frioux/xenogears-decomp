@@ -346,7 +346,7 @@ extern u8 g_BattleTaskListBusy;
 extern Misc32Task *WorkListsAddTasks(s32 allocSize, void *pData, void *pTimerCallback,
                                      void *pWorkCallback, void *pOnFreeCallback);
 extern s32 ResourceHelperGetSpriteList(u8 *pDir, u32 index, Misc32SpritePart *pOut, s16 x, s16 y);
-extern s32 func_800BE6E8(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
+extern s32 BattleWriteDecimalDigits(s32 value, u8 *pBuf, s32 n, u8 started, s32 base);
 extern void BattleInitNumberSpriteTask(void);
 extern void func_800BDA1C(u8 *pTask);
 extern void BattleUnlinkAndFreeTask(void *pEntry);
@@ -507,7 +507,7 @@ void BattleAttachEffectSprite(Misc32ActorSprite *pSprite, s32 value, s32 kind) {
     pTask->mirrored = (pSprite->flags >> 2) & 1;
     pTask->partCount = 0;
     if (kind != 4) {
-        func_800BE6E8(value, digits, 5, 0, 0);
+        BattleWriteDecimalDigits(value, digits, 5, 0, 0);
         tex = g_BattleDigitTextureIds[digits[0]];
     }
     switch (kind) {
@@ -1000,7 +1000,7 @@ void BattleRefreshNumberSprite(Misc32Task *pTask) {
         pNumber->color.channels.blue = 0x80;
         break;
     }
-    func_800BE6E8(value, digits, sizeof(digits) - 1, 0, 0);
+    BattleWriteDecimalDigits(value, digits, sizeof(digits) - 1, 0, 0);
     tex = g_BattleDigitTextureIds[digits[0]];
     pNumber->partCount = 0;
     i = 0;
