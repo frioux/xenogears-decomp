@@ -648,24 +648,30 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B650);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008B730);
 
-/* Best attempt: objdiff 91.66%, 760 bytes against 756 - one instruction too many.
-   Whole structure, all four loops, the script decoder and the unused 0x10 stack
-   slot are right (keep the pad[4]: without it the frame is 0x50, not retail's
-   0x60). Also confirmed: the arg1 == 0 early exit returns whatever is in $v0 (the
-   config pointer), so it is not `return 0/1` - it is the enclosing
-   `if (arg1 != 0) { ...; return X; }` with no trailing return, which is why that
-   path has a nop, not a li, in the beqz delay slot.
-   What is still wrong:
-   1. The three loops emit `lw count; nop; lh count; addiu i,1` where retail has
-      `lw count; addiu i,1; lh count` (maspsx then needs no nop). Tried i++/++i
-      and pEntry++/++pEntry - no change. Next: `i = 0; while (i < count) { ...;
-      i++; }` so the increment is body code.
-   2. The script decoder needs `move v1,v0` after the `lb` (retail keeps the char
-      in v1 and the load in v0); gcc loads straight into v1 here.
-   3. The final `return pAnim->position == pAnim->pConfig->length && arg2 == 1;`
-      costs an
-      extra `move v0,a0` (gcc puts the sltiu in a0) and picks v1/v0 where retail
-      picks a0/v1. */
+/* Best attempt: objdiff 92.55%, 756 bytes = the original's exact size, so this
+   is register/scheduling placement only, not structure. Load-bearing pieces:
+   - `pAnim->position += arg1;` must RELOAD the field (retail: lh a1,0x12 /
+     addu / move a0,a1 in the beqz slot / addu v0,a0,s5). The local-only
+     `position = pos + arg1` duplicates the addu (2 extra bytes) and picks the
+     wrong registers - the permuter found this, 92.26 -> 92.47.
+   - the closing test is `if (position != length) return 0;` then
+     `return arg2 == 1;`, NOT `return A && B`: the && spelling costs a
+     `move v0,a0` (760 bytes, 91.66).
+   - `s32 pad[2]` fixes the frame: 0x38 bytes of locals is 8 too many (frame
+     0x68), and an array is the only unused local cc1 keeps (unused scalars are
+     dropped, u16/s32 arrays round their slot up to 16 bytes).
+   Residual, all equal-count placements:
+   1. the three loop tails emit `lw count; lh count; addiu i,1` where retail has
+      `lw count; addiu i,1; lh count`. `for`, `while`, `++i`, `i++` and moving
+      the increment into the body all measure this same shape.
+   2. the script decoder loads the command straight into the char's register
+      (retail takes `lb v0` then `move v1,v0`, and keeps pScript in a1 where we
+      use a0).
+   3. the final compare picks v1/v0 for position/length where retail uses
+      a0/v1.
+   A 5-minute permuter run from the 92.26 body found the `+=` above and nothing
+   else; the remaining three are placement, so run the permuter again from THIS
+   body rather than hand-iterating. */
 /*
 s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
     Misc14AnimEntry *pEntry;
@@ -675,81 +681,83 @@ s32 func_8008B730(Misc14Anim *pAnim, s32 arg1, s32 arg2) {
     s32 i;
     s32 j;
     s32 pos;
-    s32 pad[4];
+    s32 pad[2];
 
     if (pAnim->pConfig == NULL) {
         return 1;
     }
     if (arg1 != 0) {
-    pos = pAnim->position;
-    if (pos + arg1 > pAnim->pConfig->length) {
-        arg1 = pAnim->pConfig->length - pos;
-    }
-    pAnim->position = pos + arg1;
-    arg2 -= arg1;
-    if (arg2 <= 0) {
-        arg2 = 1;
-    }
-    pEntry = pAnim->pEntries;
-    if (arg2 == 1) {
-        for (i = 0; i < pAnim->pConfig->entryCount; i++) {
-            *(u16 *)pEntry->pValue = pEntry->target;
-            ++pEntry;
+        pos = pAnim->position;
+        if (pos + arg1 > pAnim->pConfig->length) {
+            arg1 = pAnim->pConfig->length - pos;
         }
-    } else {
-        for (i = 0; i < pAnim->pConfig->entryCount; i++) {
-            u16 value = *pEntry->pValue;
-
-            if (pEntry->isAngle != 0) {
-                *pEntry->pValue = BattleInterpolateAngle((s16)value, (s16)pEntry->target, arg2);
-            } else {
-                *pEntry->pValue = value + ((s16)pEntry->target - (s16)value) / arg2;
+        pAnim->position += arg1;
+        arg2 -= arg1;
+        if (arg2 <= 0) {
+            arg2 = 1;
+        }
+        pEntry = pAnim->pEntries;
+        if (arg2 == 1) {
+            for (i = 0; i < pAnim->pConfig->entryCount; i++) {
+                *(u16 *)pEntry->pValue = pEntry->target;
+                ++pEntry;
             }
-            ++pEntry;
-        }
-    }
-    pTrack = pAnim->pTracks;
-    for (i = 0; i < pAnim->pConfig->trackCount; i++) {
-        for (j = 0; j < arg1; j++) {
-            if (pTrack->wait != 0) {
-                pTrack->wait--;
-            } else {
-                pScript = pTrack->pScript;
-                pTrack->pScript = pScript + 1;
-                c = *(s8 *)pScript;
-                if (c & 0x80) {
-                    s32 bits = c & 0x3F;
+        } else {
+            for (i = 0; i < pAnim->pConfig->entryCount; i++) {
+                u16 value = *pEntry->pValue;
 
-                    if (c & 0x40) {
-                        pTrack->pScript = pScript + 2;
-                        pTrack->step = bits | ((s8)pScript[1] << 6);
-                    } else {
-                        pTrack->wait = bits;
-                    }
+                if (pEntry->isAngle != 0) {
+                    *pEntry->pValue = BattleInterpolateAngle((s16)value, (s16)pEntry->target, arg2);
                 } else {
-                    pTrack->step = (s8)(c << 1) >> 1;
+                    *pEntry->pValue = value + ((s16)pEntry->target - (s16)value) / arg2;
+                }
+                ++pEntry;
+            }
+        }
+        pTrack = pAnim->pTracks;
+        for (i = 0; i < pAnim->pConfig->trackCount; i++) {
+            for (j = 0; j < arg1; j++) {
+                if (pTrack->wait != 0) {
+                    pTrack->wait--;
+                } else {
+                    pScript = pTrack->pScript;
+                    pTrack->pScript = pScript + 1;
+                    c = *(s8 *)pScript;
+                    if (c & 0x80) {
+                        s32 bits = c & 0x3F;
+
+                        if (c & 0x40) {
+                            pTrack->pScript = pScript + 2;
+                            pTrack->step = bits | ((s8)pScript[1] << 6);
+                        } else {
+                            pTrack->wait = bits;
+                        }
+                    } else {
+                        pTrack->step = (s8)(c << 1) >> 1;
+                    }
+                }
+                pTrack->value += pTrack->step;
+            }
+            if (arg2 == 1) {
+                *pTrack->pValue = pTrack->value;
+            } else {
+                u16 value = *pTrack->pValue;
+
+                if (pTrack->isAngle != 0) {
+                    *pTrack->pValue = BattleInterpolateAngle((s16)value, (s16)pTrack->value, arg2);
+                } else {
+                    *pTrack->pValue = value + ((s16)pTrack->value - (s16)value) / arg2;
                 }
             }
-            pTrack->value += pTrack->step;
+            pTrack++;
         }
-        if (arg2 == 1) {
-            *pTrack->pValue = pTrack->value;
-        } else {
-            u16 value = *pTrack->pValue;
-
-            if (pTrack->isAngle != 0) {
-                *pTrack->pValue = BattleInterpolateAngle((s16)value, (s16)pTrack->value, arg2);
-            } else {
-                *pTrack->pValue = value + ((s16)pTrack->value - (s16)value) / arg2;
-            }
+        if (pAnim->position != pAnim->pConfig->length) {
+            return 0;
         }
-        pTrack++;
-    }
-    return pAnim->position == pAnim->pConfig->length && arg2 == 1;
+        return arg2 == 1;
     }
 }
 */
-
 // A swapped-out execution context: the register file func_8008BB3C restores
 // (word 0x1C $gp, 0x1D $sp, 0x1E $fp, 0x1F $ra) and the stack it runs on.
 typedef struct {
@@ -790,7 +798,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc14", func_8008BB00);
    pointer, an 8-byte struct copy (70.71%, it also bases the second load off one
    symbol) and a 2-minute permuter run (nothing better) all leave the allocation
    alone. Its sibling func_8008BB1C has the same $t0-against-$v0 tie, so both are
-   one allocator question, not two. */
+   one allocator question, not two. Probed with cc1_probe.sh (round 331): two
+   separate locals, a u32* destination, a (long long) struct copy, a non-void
+   return type, a dead re-read and volatile sources all put the temps in $2/$3
+   under 2.7.2, 2.6.0 and 2.7.2-cdk, so the $t0/$t1 choice is not reachable from
+   source with these compilers. */
 /*
 void func_8008BB00(Misc14Entry *pDst) {
     pDst->unk0 = D_80096D88;
