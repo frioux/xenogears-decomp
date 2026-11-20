@@ -23,10 +23,19 @@ typedef struct {
     /* 0x6 */ u16 slotMask;
 } BattleCommandArg; // Size: 0x8
 
+// The head of the block g_BattleCommandQueue points at: one descriptor per battle actor
+// slot, indexed by the actor slot the command is being built for.
+typedef struct {
+    /* 0x00 */ u8 unk00[0x3C];
+    /* 0x3C */ u8 targetSlot; // the slot this descriptor's queued command targets
+    /* 0x3D */ u8 unk3D[0x3];
+} BattleCommandSlot; // Size: 0x40
+
 // The command queue header g_BattleCommandQueue points at. Only the tail this unit fills
 // is named.
 typedef struct {
-    /* 0x000 */ u8 unk000[0x2D3];
+    /* 0x000 */ BattleCommandSlot slots[BATTLE_ACTOR_SLOT_COUNT];
+    /* 0x2C0 */ u8 unk2C0[0x13];
     /* 0x2D3 */ u8 unk2D3;
     /* 0x2D4 */ u8 unk2D4[6];
     /* 0x2DA */ u8 count; // queued commands
@@ -48,9 +57,6 @@ typedef struct {
 } BattleStatusEntry; // Size: 0x4
 
 extern BattleStatusEntry D_800C3D1B[];
-extern u8 D_800D342E[];
-extern u8 D_800D3439[];
-extern u8 D_800D343E[];
 extern u16 g_BattleSlotFlag8000Mask;
 extern s32 BattleSlotBitMask(u8 arg0);
 extern u8 g_BattleActorCountdownState[];
@@ -422,22 +428,19 @@ void func_80079778(u8 arg0) {
 void func_80079840(u8 arg0, u8 arg1) {
     u8 slot;
     s32 i;
-    u8 *pSlot;
-    int new_var2;
+    BattleCommandSlot *pSlot;
 
     if (arg1 >= 3) {
         slot = arg1 - 3;
-        *(u16 *)&D_800D342E[slot * 0x40] = BattleSlotBitMask(arg0);
+        g_BattleSlotRegs[slot].wordRegs[7] = BattleSlotBitMask(arg0);
         for (i = 0; i < 5; i++) {
-            do { } while (0);
-            new_var2 = 0x40;
-            D_800D3439[slot * new_var2 + i] = D_800D2CA4[i];
+            g_BattleSlotRegs[slot].byteRegs[9 + i] = D_800D2CA4[i];
         }
-        pSlot = (u8 *)g_BattleCommandQueue + arg0 * 0x40;
-        if (g_BattleSlotFlag8000Mask & BattleSlotBitMask(pSlot[0x3C])) {
-            D_800D343E[slot * 0x40] = 1;
+        pSlot = &g_BattleCommandQueue->slots[arg0];
+        if (g_BattleSlotFlag8000Mask & BattleSlotBitMask(pSlot->targetSlot)) {
+            g_BattleSlotRegs[slot].byteRegs[0xE] = 1;
         } else {
-            D_800D343E[slot * 0x40] = 0;
+            g_BattleSlotRegs[slot].byteRegs[0xE] = 0;
         }
     }
 }
