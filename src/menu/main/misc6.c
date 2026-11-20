@@ -24,9 +24,12 @@ void MenuDrawStatTable(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
 void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
-void func_801D29A8(s32 a0, s32 a1);
+void func_801D29A8(u_char isCreate, u_char isSubmenuOpening);
 void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void MenuRevealSelectionMenu(s32 a0, u32* a1);
+void* GetStringEntry(void* pStringData, u32 index);
+s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 length, s32 mode);
+void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 
 extern u32 g_MenuMainSelectionResourceIds[];
 extern u32 g_MenuShoulderButtonArrowX[];
@@ -270,29 +273,101 @@ void MenuUpdatePlayTimeDigits(void) {
         MenuSetPlayTimeDigitPrims(0xD0, 0xCA);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
-/* NOTE: the park note below is STALE - it describes the character name/glyph texture
-   loop (MenuLoadCharacterNameTexture + gearId), which is func_801D2D38's body, not this
-   function's code. func_801D29A8 (228 insns, 0x38C bytes) is a window/panel builder and
-   has never been written in C. Its structure, from the .s:
-   if ((a0 & 0xFF) != 0) { MenuLoadStringsFromIds(8, g_Menu->optionStrings,
-   g_MenuMainRowStringIds, g_Menu->pManager + 0xC); three func_801C81E0 calls with
-   (0x100,0x86,0x60,6), (0x108,0x3E,0x68,0x3E), (0x110,-0xA,0x70,0x76) plus 8 and 0..2
-   as the two stack args } else { MenuClearBytes(8, g_Menu->pManager + 0xC); the same
-   three func_801C81E0 calls with x/y and w/h swapped: (0x60,6,0x100,0x86),
-   (0x68,0x3E,0x108,0x3E), (0x70,0x76,0x110,-0xA) }; the THIRD call is shared between
-   the two arms (cross-jumped: one jal, args assigned per arm). Then a
-   'while (!!(pManager->unk23 | pManager->unk47 | pManager->unk6B)) { for (i = 0; i < 3;
-   i++) if (pManager->currentCharacterIDs[i] != 0xFF) MenuSetCharacterWindowContents(i);
-   MenuRenderFrame(); for (i = 0; i < 3; i++) if (currentCharacterIDs[i] != 0xFF)
-   func_801C8324(i); }' loop (0xFF hoisted to s1), then if ((a0 & 0xFF) != 0) {
-   g_Menu->windowParameters[0..2] geometry stores, the same 3-row
-   MenuSetCharacterWindowContents loop, MenuPlaySoundEffect(0x5D), if ((a1 & 0xFF) == 0)
-   MenuCreateGoldWindow(), pManager->unk21 = 1, pManager->playTimeDigitsActive = 1 }
-   else { pManager->currentCharacterIDs[0..2] = 0, and if ((a1 & 0xFF) == 0)
-   pManager->shouldRenderWindow[0] = 0, pManager->goldDigitsActive = 0 }, then
-   MenuRenderFrame().
-*/
+// The three 0x24-byte tween records in g_Menu->windowTweens, the same view misc7.c
+// declares for MenuSetCharacterWindowContents; hoist to menu.h when a header round runs.
+typedef struct {
+    /* 0x00 */ s32 startX;
+    /* 0x04 */ s32 endX;
+    /* 0x08 */ s32 startY;
+    /* 0x0C */ s32 endY;
+    /* 0x10 */ s32 stepX;
+    /* 0x14 */ s32 stepY;
+    /* 0x18 */ s32 offsetX;
+    /* 0x1C */ s32 offsetY;
+    /* 0x20 */ u8 isDecreasingX;
+    /* 0x21 */ u8 isDecreasingY;
+    /* 0x22 */ u8 stepCount;
+    /* 0x23 */ u8 isComplete;
+} MenuWindowTween; // Size: 0x24
+
+void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index);
+void func_801C8324(u_char index);
+void MenuSetCharacterWindowContents(u_char index, u_char characterId);
+void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pRenderFlags);
+void MenuClearBytes(s32 count, void* pBytes);
+
+extern u8 g_MenuMainRowStringIds[];
+
+void func_801D29A8(u_char isCreate, u_char isSubmenuOpening) {
+    u_char characterId;
+    s32 i;
+
+    if (isCreate) {
+        MenuLoadStringsFromIds(8, g_Menu->optionStrings, g_MenuMainRowStringIds, g_Menu->pManager->shouldRenderStrings);
+        func_801C81E0(0x100, 0x86, 0x60, 6, 8, 0);
+        func_801C81E0(0x108, 0x3E, 0x68, 0x3E, 8, 1);
+        func_801C81E0(0x110, -0xA, 0x70, 0x76, 8, 2);
+    } else {
+        MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
+        func_801C81E0(0x60, 6, 0x100, 0x86, 8, 0);
+        func_801C81E0(0x68, 0x3E, 0x108, 0x3E, 8, 1);
+        func_801C81E0(0x70, 0x76, 0x110, -0xA, 8, 2);
+    }
+
+    // Wait for the three character panels to finish tweening in
+    while (!((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].isComplete
+        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].isComplete
+        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].isComplete) {
+        for (i = 0; i < 3; i++) {
+            characterId = g_Menu->pManager->currentCharacterIDs[i];
+            if (characterId != CHARACTER_ID_NONE) {
+                MenuSetCharacterWindowContents(i, characterId);
+            }
+        }
+        MenuRenderFrame();
+        for (i = 0; i < 3; i++) {
+            if (g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
+                func_801C8324(i);
+            }
+        }
+    }
+
+    if (isCreate) {
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startX = 0x60;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startY = 6;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startX = 0x68;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startY = 0x3E;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startX = 0x70;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startY = 0x76;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetX =
+            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetY = 0;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetX =
+            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetY = 0;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetX =
+            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetY = 0;
+        for (i = 0; i < 3; i++) {
+            characterId = g_Menu->pManager->currentCharacterIDs[i];
+            if (characterId != CHARACTER_ID_NONE) {
+                MenuSetCharacterWindowContents(i, characterId);
+            }
+        }
+        MenuPlaySoundEffect(0x5D);
+        if (!isSubmenuOpening) {
+            MenuCreateGoldWindow();
+        }
+        g_Menu->pManager->shouldRenderWindow[1] = 1;
+        g_Menu->pManager->playTimeDigitsActive = 1;
+    } else {
+        g_Menu->pManager->shouldRenderCharacterWindows[0] =
+            g_Menu->pManager->shouldRenderCharacterWindows[1] =
+            g_Menu->pManager->shouldRenderCharacterWindows[2] = 0;
+        if (!isSubmenuOpening) {
+            g_Menu->pManager->shouldRenderWindow[0] = 0;
+            g_Menu->pManager->goldDigitsActive = 0;
+        }
+    }
+    MenuRenderFrame();
+}
 /* STALE NOTE (kept for its history - describes func_801D2D38's loop instead):
 /* Earlier note for func_801D2D38 (99.18%, 392 vs 388 bytes; the attempt it measured is
    gone but its two findings stand):
@@ -362,7 +437,58 @@ void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuRenderFrame();
     func_801D8EA4(a0, 0, 0, a1);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2F4C);
+void func_801D2F4C(u_char stringIndex) {
+    MenuWindowParameters* pWindowParams;
+    MenuString* pString;
+    int i;
+    int xPosition;
+
+    MenuCreateWindow(2, 0x7A, 0x96, 0xBC, 0x40, 1, 1, 4, 0);
+    pWindowParams = g_Menu->windowParameters[2];
+    while (!pWindowParams->isOpen) {
+        MenuRenderFrame();
+    }
+    xPosition = 0x84;
+
+    for (i = 0; i < 4; i++) {
+        g_Menu->modalStrings[i] = HeapAlloc(sizeof(MenuString), 0);
+        bzero(g_Menu->modalStrings[i], sizeof(MenuString));
+
+        // Even entries own a VRAM buffer; the odd one below them shares it
+        if (!(i & 1)) {
+            g_Menu->modalStrings[i]->pVramBuffer = HeapAlloc(0x5CA, 0);
+            g_Menu->modalStrings[i]->vramDest.x = 320;
+            g_Menu->modalStrings[i]->vramDest.y = ((i / 2) * FONT_LETTER_HEIGHT) + 78;
+            g_Menu->modalStrings[i]->vramDest.w = 58;
+            g_Menu->modalStrings[i]->vramDest.h = FONT_LETTER_HEIGHT;
+            continue;
+        }
+
+        g_Menu->modalStrings[i]->pVramBuffer = g_Menu->modalStrings[i - 1]->pVramBuffer;
+    }
+
+    for (i = 0; i < 3; i++) {
+        pString = g_Menu->modalStrings[i];
+        pString->width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, stringIndex + i),
+            pString->pVramBuffer, 0x36, i % 2);
+        func_801E7C50(pString, i, 0, 0);
+        MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], xPosition, (i * 16) + 0xA0, 0,
+            (i / 2) * FONT_LETTER_HEIGHT + 0x4E, pString->width, FONT_LETTER_HEIGHT);
+        MenuSetQuadVertices(pString->vertices, xPosition, (i * 16) + 0xA0, pString->width, FONT_LETTER_HEIGHT);
+        pString->renderContext = *(u_char*)&g_Menu->renderContext;
+        pString->hasVertices = 1;
+    }
+
+    LoadImage(&g_Menu->modalStrings[0]->vramDest, g_Menu->modalStrings[0]->pVramBuffer);
+    LoadImage(&g_Menu->modalStrings[2]->vramDest, g_Menu->modalStrings[2]->pVramBuffer);
+    DrawSync(0);
+
+    g_Menu->pManager->shouldRenderModalStrings = 1;
+    HeapFree(g_Menu->modalStrings[0]->pVramBuffer);
+    HeapFree(g_Menu->modalStrings[2]->pVramBuffer);
+    MenuRenderFrame();
+    MenuRenderFrame();
+}
 void MenuFreeWindow2Strings(void) {
     s32 i;
 
@@ -428,34 +554,29 @@ void MenuFreeShoulderButtonUi(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
-/* PARKED 92.91% (668 bytes against retail's 664 - FOUR bytes over, one extra insn).
-   Structure is now retail's; what is left is which saved register each pseudo gets.
-   THE BIG FIND (88.60 -> the frame and the shared tail): the tail is NOT shared source,
-   it is TWO COPIES, one per arm, that gcc cross-jumps into the single jal pair retail
-   shows (non-glyph arm ends in 'j' with the andi in its delay slot, glyph arm falls
-   through). Writing the tail once after the if/else gives the same instruction stream
-   but SIX callee-saved registers (0x40 frame) and 79.85%; duplicating it gives retail's
-   exact 0x38 frame and 5 saved regs, because each arm allocates separately and only the
-   identical suffix is merged.
-   Remaining ledger, all pure allocation (objdiff 92.91, 668 vs 664):
-   retail  isGlyph/originY s0, pString s1, index s2, width s3, row s4, and it REMATERIALISES
-           both the 0xD height (ori v0,zero,0xd twice) and row*4 (andi/sll into v0 twice)
-           and masks originY at each call (andi a1,s0,0xffff twice);
-   ours    pString s3, row s1, index s2 (then reused: li s2,0xd), width s4, and it keeps
-           row*4 and 0xD in saved registers across the first jal.
-   The permuter (three runs from this body, best 1462 penalty) found only the two
-   declaration-order/load-split edits already applied: new_var = D_801EA584[index] before
-   originY (90.75 -> 92.91, exact size) and u = X[index] << 2 listed before originY.
-   Also tried and measured, no gain: xOrigin local for the first call's D_801EA18C read
-   (identical 92.91), a volatile read of D_801EA18C in the second call (92.04, 672).
+/* PARKED 92.91% (668 bytes against retail's 664 - one extra instruction).
+   Structure is retail's; the residue is two allocator facts:
+   1. retail keeps originY UNMASKED in s0 and masks it at each call (andi a1,s0,0xffff
+      twice), while gcc here folds the two u_short argument conversions into one
+      'andi s0,s0,0xffff' in place (originY dies at the first mask) and then 'move
+      a1,s0' twice: one instruction more.
+   2. retail's callee-saved assignment is pString=s1, width=s3 while ours is
+      pString=s3, row=s1, so every poly address reads 'addu a0,s3,...' for retail's
+      'addu a0,s1,...'.
+   Also, retail rematerialises the 0xD height with two 'li v0,0xd' (ours keeps it in
+   the freed index register) and row*4 twice; ours does not.
+   Measured this round, all worse or equal: passing 'D_801EA17C[row] - 0x24' inline
+   at both call sites instead of the originY local (75.89, 744 bytes - gcc then
+   re-forms the whole address per call), a u_short xOrigin local (identical 92.91),
+   and four locals u/v/xOrigin spelled as one expression in the first call.
+   The tail is TWO COPIES, one per arm, that gcc cross-jumps into the single jal pair
+   retail shows (sharing it in source costs the frame: 0x40 and 79.85%).
    Best attempt:
    void func_801D36E0(MenuString* pString, u_char index, u_char isGlyph, u_char row) {
        s32 originY;
-       s32 new_var;
        s32 u;
        s32 width;
        s32 v;
-       u_short xOrigin;
 
        MenuInitializePolyFt4(&pString->polys[g_Menu->renderContext]);
        pString->polys[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
@@ -467,24 +588,23 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
            u = g_MenuNameTextureX[index] << 2;
            originY = D_801EA17C[row] - 0x24;
            v = g_MenuNameTextureY[index * 4];
-           xOrigin = D_801EA18C[row].x;
-           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, xOrigin, u & 0xFC, v, width, 0xD);
+           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, D_801EA18C[row].x, u & 0xFC, v, width, 0xD);
            MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
        } else {
            width = 0x60;
            pString->polys[g_Menu->renderContext].clut =
                ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId + 0xB) & 1) ? g_SystemPalette2 : g_SystemPalette1;
-           new_var = D_801EA584[index];
+           u = D_801EA584[index];
            originY = D_801EA17C[row] - 0x30;
-           u = new_var << 2;
+           u <<= 2;
            v = g_MenuGlyphSjisTable[index * 4];
-           xOrigin = D_801EA18C[row].x;
-           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, xOrigin, u & 0xFC, v, width, 0xD);
+           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, D_801EA18C[row].x, u & 0xFC, v, width, 0xD);
            MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
        }
        pString->renderContext = *(u_char*)&g_Menu->renderContext;
    }
 */
+
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
     MenuWindowParameters* pParams;
 
