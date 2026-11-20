@@ -474,21 +474,39 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_800223
 // `(s16)value >> 11` spelling is needed for retail's sra in the 0xBE timer term.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/animation_scripts", func_80022660);
 /*
-// flags_0xA8's frame counter (bits 11..16) and script index (bits 22..27) are read and
-// written whole, so both live in masks rather than bitfields.
-#define ANIM_SCRIPT_FRAME_MASK 0xFFFE07FF
-#define ANIM_SCRIPT_FRAME_SHIFT 11
-#define ANIM_SCRIPT_INDEX_MASK 0xF03FFFFF
-#define ANIM_SCRIPT_INDEX_SHIFT 22
-#define ANIM_SCRIPT_COUNT_MASK 0x3F
-#define ANIM_SCRIPT_FIELD(word, shift) (((u32)(word) >> (shift)) & ANIM_SCRIPT_COUNT_MASK)
-
-// SpriteData's 0x3C word: the header only splits bits 20..31 into fields, so the word's
-// flip bit (bit 3), which this unit mirrors the animation flags into, needs a local view
-// (the same view system/temp1.c declares for the same word).
+// Best: 72.61% (820 bytes; retail is 788, frame 0x38 against retail's 0x30). What closed the
+// gap from the round-319 park's 42.73, each measured on its own:
+//  - the two advance statements must read pSpriteData->pSpriteBytecode (the field) and not the
+//    pBytecode local. The local is live across the frame commands' calls, so it takes a
+//    callee-saved register; reading the field lets gcc keep it in the call-clobbered a3 and
+//    reload it after each call, which is retail's shape. Worth most of the gain on its own.
+//  - the index-bump tail belongs INSIDE the `if (code < 0x80)` block, ending in `continue`:
+//    retail's block order is loop head, frame commands, tail (with its `j` back to the head),
+//    and only then the switch, which is what the `continue` produces.
+//  - 0x86, 0x87 and 0x97 need SEPARATE case bodies. Retail's decision tree has 0x87 as its root
+//    node and 0x86 as a separate node, which only happens when the case labels differ (gcc
+//    merges adjacent values that share one label into a range node); the three identical blocks
+//    are then cross-jumped into retail's single .L80022920.
+//  - the 0xE2 offset is the signed 16-bit word: (s16)(pBytecode[2] << 8) gives retail's
+//    lbu/sll 24/sra 16, where (s8)pBytecode[2] << 8 gives lb/sll 8.
+// WHAT IS LEFT IS ONE THING: we save 8 registers (s0-s7 + ra, frame 0x38) against retail's 6
+// (s0-s5 + ra, frame 0x30), and the two extra are the loop-invariant constants -9 (the two
+// `and`s of the 0xBE arm) and 0xF03FFFFF (the tail and the count == 0 block). loop.c hoists a
+// constant load whose pseudo has more than one use in the loop, and it goes to a callee-saved
+// register; no source spelling stops it: cc1_probe.sh on a 20-line replica keeps the `li` in the
+// preheader under 2.7.2-cdk, 2.7.2 and 2.6.0, and the preset sweep ranks the unit's own cdk -O2
+// first (plain 2.7.2 -O2 70.45, cdk -O3 67.92, 2.6.0 -O3 66.37, -O1 about 50). The one observed
+// exception is the point to work from: 0xFFFE07FF is NOT hoisted, because its two uses sit in
+// blocks that do not dominate each other, so cse gives each block its own single-use load - and
+// retail materialises it twice, separately, for the same reason. A spelling that gives the -9
+// and 0xF03FFFFF pseudos one use each while still emitting retail's single materialisation (or a
+// preset that skips loop.c invariant motion) is the whole remaining job.
+// SpriteData's 0x3C flag word: the shared header only splits bits 20-31 into fields,
+// so the flip bit this VM mirrors the animation flags into sits inside its 20-bit
+// field_0x3C_0 (the same view system/temp1.c declares for the word).
 typedef union {
     // 0x0 u32 flags;
-    struct {
+    // 0x0 struct {
         // 0x0 u32 unk0 : 3;
         // 0x3 u32 flipX : 1;
         // 0x4 u32 unk4 : 28;
@@ -500,29 +518,33 @@ typedef struct {
     // 0x3C SpriteTransformFlags flags_0x3C;
 } SpriteTransformFlagsView;
 
+// flags_0xA8's frame counter (bits 11..16) and script index (bits 22..27) are read and
+// written whole, so both live in masks rather than bitfields.
+#define ANIM_SCRIPT_FRAME_COUNTER_MASK 0xFFFE07FF
+#define ANIM_SCRIPT_FRAME_COUNTER_SHIFT 11
+#define ANIM_SCRIPT_SCRIPT_INDEX_MASK 0xF03FFFFF
+#define ANIM_SCRIPT_SCRIPT_INDEX_SHIFT 22
+#define ANIM_SCRIPT_COUNTER_MASK 0x3F
+#define ANIM_SCRIPT_COUNTER(word, shift) (((u32)(word) >> (shift)) & ANIM_SCRIPT_COUNTER_MASK)
+// The transform's flip bit mirrors the two animation flip bits: set when they differ.
+#define ANIM_SCRIPT_FLIP_BIT 8
+
 extern u8 g_AnimScriptCommandLengths[]; // instruction length per opcode
-// non-prototype on purpose: the second argument is a frame index, not in the header's prototype
-extern void func_8001D2B0();
+extern void func_8001D2B0(SpriteData* pSpriteData, s32 frame);
 extern void SpriteSetFrameFromAnimIndex(SpriteData* pSpriteData);
 
-
-// Run Sprite Animation VM
-// Commands below 0x80 are timing/frame commands and every command below 0x40 adds
-// (command & 0xF) + 1 to animScriptWaitTimer; the rest are control opcodes, whose default
-// path advances pSpriteBytecode by g_AnimScriptCommandLengths[command]. The loop then bumps
-// the script index and, when that wraps to 0, decrements it once more.
 void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
     u8* pBytecode;
     u8 code;
     s32 ticks;
     s32 count;
     s32 offset;
-    u16 value;
+    s16 value;
 
     while (1) {
         pBytecode = pSpriteData->pSpriteBytecode;
         if (pBytecode == pEnd &&
-            ANIM_SCRIPT_FIELD(pSpriteData->flags_0xA8, ANIM_SCRIPT_INDEX_SHIFT) == scriptIndex) {
+            ANIM_SCRIPT_COUNTER(pSpriteData->flags_0xA8, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) == scriptIndex) {
             return;
         }
         code = *pBytecode;
@@ -533,10 +555,10 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
                 ticks = (code & 0xF) + 1;
             } else if (code < 0x20) {
                 pSpriteData->flags_0xA8 =
-                    (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_MASK) |
-                    ((ANIM_SCRIPT_FIELD(pSpriteData->flags_0xA8, ANIM_SCRIPT_FRAME_SHIFT) + 1) &
-                     ANIM_SCRIPT_COUNT_MASK)
-                        << ANIM_SCRIPT_FRAME_SHIFT;
+                    (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_COUNTER_MASK) |
+                    (((ANIM_SCRIPT_COUNTER(pSpriteData->flags_0xA8, ANIM_SCRIPT_FRAME_COUNTER_SHIFT) + 1) &
+                      ANIM_SCRIPT_COUNTER_MASK)
+                     << ANIM_SCRIPT_FRAME_COUNTER_SHIFT);
                 SpriteSetFrameFromAnimIndex(pSpriteData);
                 ticks = (code & 0xF) + 1;
             } else if (code < 0x30) {
@@ -546,54 +568,68 @@ void func_80022660(SpriteData* pSpriteData, u8* pEnd, s32 scriptIndex) {
             if (code < 0x40) {
                 ticks = (code & 0xF) + 1;
             }
-        } else {
+            count = (ANIM_SCRIPT_COUNTER(pSpriteData->flags_0xA8, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) + 1) &
+                    ANIM_SCRIPT_COUNTER_MASK;
+            pSpriteData->animScriptWaitTimer += ticks;
+            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
+                                      (count << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT);
+            if (count == 0) {
+                pSpriteData->flags_0xA8 =
+                    (pSpriteData->flags_0xA8 & ANIM_SCRIPT_SCRIPT_INDEX_MASK) |
+                    (((ANIM_SCRIPT_COUNTER(pSpriteData->flags_0xA8, ANIM_SCRIPT_SCRIPT_INDEX_SHIFT) - 1) &
+                      ANIM_SCRIPT_COUNTER_MASK)
+                     << ANIM_SCRIPT_SCRIPT_INDEX_SHIFT);
+            }
+            continue;
+        }
+        {
             switch (code) {
             case 0x80:
             case 0x81:
             case 0x82:
                 return;
             case 0x86:
+                if (pBytecode == pEnd) {
+                    return;
+                }
+                break;
             case 0x87:
+                if (pBytecode == pEnd) {
+                    return;
+                }
+                break;
             case 0x97:
                 if (pBytecode == pEnd) {
                     return;
                 }
                 break;
             case 0xB3:
-                pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_MASK) |
-                                          ((((s8)pBytecode[1]) & ANIM_SCRIPT_COUNT_MASK) << ANIM_SCRIPT_FRAME_SHIFT);
+                pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_FRAME_COUNTER_MASK) |
+                                          ((((s8)pBytecode[1]) & ANIM_SCRIPT_COUNTER_MASK)
+                                           << ANIM_SCRIPT_FRAME_COUNTER_SHIFT);
                 break;
             case 0xBE:
                 value = pBytecode[1] | (pBytecode[2] << 8);
-                pSpriteData->flags_0xAC.flags = (pSpriteData->flags_0xAC.flags & ~8) | ((value >> 6) & 8);
-                // the transform's flip bit mirrors the animation flags' two flip bits
+                pSpriteData->flags_0xAC.flags = (pSpriteData->flags_0xAC.flags & ~ANIM_SCRIPT_FLIP_BIT) |
+                                                ((value >> 6) & ANIM_SCRIPT_FLIP_BIT);
                 ((SpriteTransformFlagsView*)pSpriteData)->flags_0x3C.fields.flipX =
                     (((u32)pSpriteData->flags_0xAC.flags >> 3) & 1) ^
                     (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1);
                 if ((u16)pSpriteData->curSpriteFrame != (value & 0x1FF)) {
-                    func_8001D2B0(pSpriteData);
+                    func_8001D2B0(pSpriteData, value & 0x1FF);
                 }
                 pSpriteData->animScriptWaitTimer += ((value >> 11) & 0xF) + 1;
                 break;
             case 0xE2:
                 // subroutine call: push the return address, jump by the signed 16-bit offset
-                offset = pBytecode[1] + (((s8)pBytecode[2]) << 8);
+                offset = pBytecode[1] + (s16)(pBytecode[2] << 8);
                 AnimScriptStackPushU24(pSpriteData, (mem_addr)(pBytecode + 3));
-                pSpriteData->pSpriteBytecode = pBytecode + (s16)offset;
+                pSpriteData->pSpriteBytecode = (u8*)pSpriteData->pSpriteBytecode + (s16)offset;
                 continue;
             }
-            pSpriteData->pSpriteBytecode = pBytecode + g_AnimScriptCommandLengths[code];
+            pSpriteData->pSpriteBytecode =
+                (u8*)pSpriteData->pSpriteBytecode + g_AnimScriptCommandLengths[code];
             continue;
-        }
-        count = (ANIM_SCRIPT_FIELD(pSpriteData->flags_0xA8, ANIM_SCRIPT_INDEX_SHIFT) + 1) & ANIM_SCRIPT_COUNT_MASK;
-        pSpriteData->animScriptWaitTimer += ticks;
-        pSpriteData->flags_0xA8 =
-            (pSpriteData->flags_0xA8 & ANIM_SCRIPT_INDEX_MASK) | (count << ANIM_SCRIPT_INDEX_SHIFT);
-        if (count == 0) {
-            pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & ANIM_SCRIPT_INDEX_MASK) |
-                                      ((ANIM_SCRIPT_FIELD(pSpriteData->flags_0xA8, ANIM_SCRIPT_INDEX_SHIFT) - 1) &
-                                       ANIM_SCRIPT_COUNT_MASK)
-                                          << ANIM_SCRIPT_INDEX_SHIFT;
         }
     }
 }
