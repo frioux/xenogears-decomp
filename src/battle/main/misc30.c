@@ -85,13 +85,16 @@ typedef struct BattleActorSprite {
     /* 0x18 */ s32 moveSpeed;
     /* 0x1C */ u32 gravity;
     /* 0x20 */ SpriteDataI1* pBase;
-    /* 0x24 */ u8 unk24[0xA];
+    /* 0x24 */ void* pVramData; // the SpriteAnimPackage whose pFrames the animation test reads
+    /* 0x28 */ u8 unk28[0x6];
     /* 0x2E */ s16 field_0x2e;
     /* 0x30 */ s16 field_0x30;
     /* 0x32 */ s16 direction;
     /* 0x34 */ u8 unk34[0x8];
     /* 0x3C */ u32 flags; // 0x4: transform matrix dirty
-    /* 0x40 */ u8 unk40[0x24];
+    /* 0x40 */ u8 unk40[0x10];
+    /* 0x50 */ u32 pSedsFile; // the SEDS bank BattleLoadSoundSeds hands this sprite
+    /* 0x54 */ u8 unk54[0x10];
     /* 0x64 */ void* pSpriteBytecode;
     /* 0x68 */ void* pCallback; // the slot SpriteSetCallback stores into
     /* 0x6C */ void* field_0x6C;
@@ -129,7 +132,8 @@ typedef struct {
 
 // The 0x1C-byte per-slot records at the head of g_BattleStateWork.
 typedef struct {
-    /* 0x00 */ u8 unk0[0x8];
+    /* 0x00 */ u8 unk0[0x7];
+    /* 0x07 */ u8 flags; // tested against 0 only; while set, the 0xFF state arm replays no animation
     /* 0x08 */ u8 inUse; // non-zero while the slot is claimed; every reader here tests it against 0
     /* 0x09 */ u8 unk9;
     /* 0x0A */ u8 sideFlag; // non-zero faces the sprite 0x800 (half a turn) instead of 0
