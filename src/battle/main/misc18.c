@@ -11,6 +11,14 @@
 #define BATTLE_SWAP_CHANCE_PERCENT 50
 #define BATTLE_SWAP_CHANCE_PERCENT_CHARACTER_0 60
 
+// The two per-actor action row tables BattleWorkBlock carries (see BattleRow): the character one
+// at +0x1058 with 0x5F0 bytes per actor, the gear one at +0x2228 with 0x690. rowIndex picks the
+// row in either.
+#define BATTLE_CHAR_ROW_OFFSET 0x1058
+#define BATTLE_CHAR_ROW_STRIDE 0x5F0
+#define BATTLE_GEAR_ROW_OFFSET 0x2228
+#define BATTLE_GEAR_ROW_STRIDE 0x690
+
 extern u16 g_BattleSavedSlotUnk7A[];
 extern u8 g_BattleSlotUnk98Deltas[];
 extern u8 g_BattleActorCharIds[];
@@ -1008,38 +1016,45 @@ void BattleResetSlotConditionCounters(void) {
         g_GameState.gears[15].armorId = 0x28;
     }
 }
+// Points the acting slot, its state and the current action row at `sel` and returns the
+// countdown its caller stores: a base minus nine per row the slot still has to reach, jittered.
+// The row comes from the character table or, when the slot's status flags say gear, the gear
+// table. Each arm needs its OWN row-pointer local - with one shared local cc1 gives the second
+// arm's last add a fresh register (99.68%) instead of accumulating into the pointer as retail does.
 u8 func_80098AF8(u8 sel) {
-    u8 *pBase = g_BattleCurWorkBlock;
-    u8 *pActor = (u8 *)(sel * 0x170 + (s32)pBase);
-    u8 *pRow;
-    u8 *pRow2;
-    int other;
-    int rowOffset;
+    BattleWorkBlock *pBase = g_BattleCurWorkBlock;
+    BattleTableEntry *pActor = (BattleTableEntry *)(sel * sizeof(BattleTableEntry) + (s32)pBase);
+    BattleRow *pRow;
+    BattleRow *pGearRow;
+    s32 rowOffset;
+    s32 other;
     s32 t;
     s32 v;
     s32 d;
 
-    g_BattleActingSlot = (BattleTableEntry *)pActor;
-    g_BattleTargetSlotState = (BattleSlotState *)(pActor + 0xA4);
-    rowOffset = 0x1058;
+    g_BattleActingSlot = pActor;
+    g_BattleTargetSlotState = &pActor->state;
+    rowOffset = BATTLE_CHAR_ROW_OFFSET;
 
-    if (sel < 3) {
-        if ((pActor[0x15A] & 0x80) == 0) {
-            pRow = (u8 *)(sel * 0x5F0 + rowOffset) + (s32)pBase + pBase[0x5FC2] * 0x28;
-            g_BattleCurrentRow = (BattleRow *)pRow;
-            other = pActor[0x5A];
-            t = (s8)pRow[0x27];
+    if (sel < MAX_PARTY_MEMBERS) {
+        if ((pActor->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) == 0) {
+            pRow = (BattleRow *)((u8 *)(sel * BATTLE_CHAR_ROW_STRIDE + rowOffset) + (s32)pBase +
+                                 pBase->rowIndex * sizeof(BattleRow));
+            g_BattleCurrentRow = pRow;
+            other = pActor->agility;
+            t = pRow->unk27;
             if (t < other) {
                 v = (other - t) * 9;
             } else {
                 v = 9;
             }
         } else {
-            rowOffset = 0x2228;
-            pRow2 = (u8 *)(sel * 0x690 + rowOffset) + (s32)pBase + pBase[0x5FC2] * 0x28;
-            g_BattleCurrentRow = (BattleRow *)pRow2;
-            other = pActor[0x13C];
-            t = (s8)pRow2[0x27];
+            rowOffset = BATTLE_GEAR_ROW_OFFSET;
+            pGearRow = (BattleRow *)((u8 *)(sel * BATTLE_GEAR_ROW_STRIDE + rowOffset) + (s32)pBase +
+                                     pBase->rowIndex * sizeof(BattleRow));
+            g_BattleCurrentRow = pGearRow;
+            other = pActor->state.agility;
+            t = pGearRow->unk27;
             if (t < other) {
                 v = (other - t) * 9;
             } else {
@@ -1047,105 +1062,18 @@ u8 func_80098AF8(u8 sel) {
             }
         }
     } else {
-        v = pActor[0x5A] * 9;
+        v = pActor->agility * 9;
     }
 
-    if ((u16)v >= 0xA6) {
-        v = 0xA0;
+    if ((u16)v >= 166) {
+        v = 160;
     }
-    v = 0xA5 - v;
+    v = 165 - v;
     d = rand() % 8 - 4;
     v -= d;
     BattleRestoreSlotConditionFlags();
     return v;
 }
-/* 99.84%, 372 bytes = the original's. Everything is instruction-identical except
-   ONE pair inside the 0x2228 arm of the sel < 3 row-pointer computation:
-   retail keeps the table offset on the INDEX (addiu v1,v1,8744 then
-   addu v1,v1,a1); cc1 folds it onto the base (addiu v0,a1,8744 then
-   addu v1,v1,v0). Retail's two arms are shape-identical, so the source's two
-   expressions almost certainly were too, which is what makes this one pair
-   worth another look rather than a dead wall.
-   Not a preset: gcc-2.7.2 and gcc-2.7.2-cdk both score 99.84 on this body.
-   Permuter: 4 min / 1814 iterations from score 15 -> best 15 (nothing).
-   What the tie actually is: with a VARIABLE table offset both arms get retail's
-   index+const form and the in-place accumulation, but the LAST add then sinks
-   into a fresh register (addu v0,v1,v0 where retail has addu v1,v1,v0); with a
-   LITERAL offset the last add is in place and the constant moves to the base.
-   Every way of getting a non-constant offset tried so far also costs a live
-   local, and this function has no spare register: any extra live range shifts
-   the whole body (the actor/target stores move from a2 to a3).
-   Measured, all 372 bytes, branch A one-expression with the hoisted rowOffset
-   unless stated:
-     99.84 two-statement branch B with a literal 0x2228 (this body)
-     99.84 (u8 *)(0x2228 + sel * 0x690), and (u8 *)(sel * 0x690) + 0x2228 + base
-     99.68 one expression in both arms with rowOffset = 0x2228 in the else arm
-     99.57 &pBase[sel * 0x690 + 0x2228] + nrow one expression
-     99.52 (u8 *)(sel * 0x690 + 0x2228 + (s32)pBase) + nrow one expression
-     96.08 rowOffset = 0x2228 then two statements; also three-statement accumulate
-     96.08 embedded assignment ((other = sel * 0x690 + 0x2228) + base)
-     96.02 &pBase[...] then a second statement
-     95.75/95.27 embedded assignment to t / to rowOffset
-     95.16 two statements in both arms
-   Load-bearing, do not "tidy": the rowOffset local hoisted BEFORE the if (it
-   keeps the 0x1058 add on the index), the one-expression form in the 0x80-clear
-   arm, the two-statement form in the 0x2228 arm, 'other' as int, and the 'd'
-   local (inlining rand() % 8 - 4 folds the 4).
-   Row strides: 0x5F0 (+0x1058) when bit 0x80 of the actor's 0x15A byte is clear,
-   0x690 (+0x2228) when set, plus pBase[0x5FC2] * 0x28. BattleRestoreSlotConditionFlags takes no
-   arguments. */
-/* 99.84%:
-   u8 func_80098AF8(u8 sel) {
-       u8 *pBase = g_BattleCurWorkBlock;
-       u8 *pActor = (u8 *)(sel * 0x170 + (s32)pBase);
-       u8 *pRow;
-       int other;
-       int rowOffset;
-       s32 t;
-       s32 v;
-       s32 d;
-
-       g_BattleActingSlot = pActor;
-       g_BattleTargetSlotState = (BattleSlotState *)(pActor + 0xA4);
-       rowOffset = 0x1058;
-
-       if (sel < 3) {
-           if ((pActor[0x15A] & 0x80) == 0) {
-               pRow = (u8 *)(sel * 0x5F0 + rowOffset) + (s32)pBase + pBase[0x5FC2] * 0x28;
-               g_BattleCurrentRow = pRow;
-               other = pActor[0x5A];
-               t = (s8)pRow[0x27];
-               if (t < other) {
-                   v = (other - t) * 9;
-               } else {
-                   v = 9;
-               }
-           } else {
-               pRow = (u8 *)(sel * 0x690 + 0x2228) + (s32)pBase;
-               pRow = pRow + pBase[0x5FC2] * 0x28;
-               g_BattleCurrentRow = pRow;
-               other = pActor[0x13C];
-               t = (s8)pRow[0x27];
-               if (t < other) {
-                   v = (other - t) * 9;
-               } else {
-                   v = 9;
-               }
-           }
-       } else {
-           v = pActor[0x5A] * 9;
-       }
-
-       if ((u16)v >= 0xA6) {
-           v = 0xA0;
-       }
-       v = 0xA5 - v;
-       d = rand() % 8 - 4;
-       v -= d;
-       BattleRestoreSlotConditionFlags();
-       return v;
-   }
-*/
 void BattleInitActiveSlotActions(u8 sel) {
     u8 i;
     u16 mask;
