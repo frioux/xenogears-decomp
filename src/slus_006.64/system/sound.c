@@ -57,6 +57,7 @@ s32 SoundEnvelopeStepTriangleHalfRate(AudioEnvelope* pEnvelope);
 // AudioElement.active_flag bits (the percussion, hold, rest and instrument bits are SOUND_CHANNEL_* in sound.h)
 #define SOUND_CHANNEL_ACTIVE                0x1     // element is playing and gets stepped
 #define SOUND_CHANNEL_MUTED                 0x20    // silenced by SoundMuteElementsByFlags
+#define SOUND_CHANNEL_NTOE                  0x200   // the 0x81 script command sets it, 0x80 and the 0xB0/0xB1 pair clear it
 // SoundVoiceData.flags: one bit per SPU voice register group the element scripts rewrite
 #define SOUND_VOICE_FLAG_VOLUME             0x1
 #define SOUND_VOICE_FLAG_PITCH              0x4
@@ -3433,33 +3434,50 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
     } while ((s16)next != 0);
 }
 */
-
-// 72.67%, retail's 1436 bytes against this body's 1452 (4 instructions long). Written from the
-// assembly; the flow, the field set and the block order are retail's, and the last two blocks (the
-// gate/duration arithmetic and the envelope reset, including its `&envelopes[0].flags` base and the
-// loaded-once flags) are instruction for instruction right. What is left:
-// (1) THE FRAME: retail is 0x48 with s0-s7+fp+ra saved (32 bytes of locals); this body is 0x40 with
-//     s0-s7+ra (24 bytes), so the original source had one more callee-saved value and one more
-//     spill. retail's $fp holds 0x90, which is the scan loop's `cmd == 0x90`.
-// (2) THE SCAN LOOP CHAIN: retail hoists `li a3,0x80` / `li a1,0x81` before the loop and tests
-//     0x90 (against $fp), 0x80, 0x81, the 0xB0-0xB1 range (sltiu), 0x99, 0x9A in that order, with
-//     the 0x80 and range arms cross-jumped onto one `&= ~0x200`. This body materialises the
-//     constants inside the blocks and puts the 0xB0 test before 0x81's. The commands are compared
-//     as s16 (that is what `sll 16`/`sra 14` for the handler index and `sll 16`/`sra 16` for the
-//     length index mean), which is why `cmd` is declared s16 here - but that costs the extra
-//     `move v1,a0` at the script loop top, so the original probably kept a `u8 cmd` for the
-//     `< 0x80` tests and a separate s16 copy for the scan loop (measured: u8 cmd + s16 opcode was
-//     only 70.51 + 16 bytes, so that split alone is not it either).
-// (3) PROLOGUE ORDER: retail defines $s4 (pManager), $s6 (count), $s2 (pElement) in that order
-//     where this body gets argument order s4, s2, s6.
-// (4) The two active_flag reloads retail does (the `!= 0` test, then `activeFlags = ...`) are cse'd
-//     into one load here; a volatile read at the second one is untried.
-// The field notes below are corrections to the round-346 body, all read off the .s and all present
-// in this one: the script loop's continue test is `active_flag & 0x500` (0(s2)), not status_flags;
-// the `cmd < 0x80` mark at the end of the scan sets/clears 0x1000 on ACTIVE_FLAG (0(s2)), not
-// status_flags; gateRatio is tested 0xF first and 0x10 second; the envelope loop reads flags once
-// into a local (a store to status_flags otherwise kills the cse entry and reloads it - the
-// `lhu v0,0(a0)` extra instruction); and `note` must stay s32 (`u8 note` costs two more masks).
+// 75.84%, retail's 1436 bytes against this body's 1440 (ONE instruction long). The element loop,
+// the note path, the gate/duration arithmetic and the envelope reset are instruction for
+// instruction right, and the frame is now retail's exactly: 0x48, s0-s8+ra saved (retail's $fp is
+// $s8, holding the scan loop's 0x90) and 32 bytes of locals.
+// WHAT ROUND 350 CHANGED (all measured):
+// (1) `cmd` is s32, not s16: 72.67 -> 74.51. retail's `cmd < 0x80` test is `slti` (SIGNED), and a
+//     s16 cmd makes gcc reuse the HImode value for the two table indices (`sll v0,a2,0x2`, one
+//     instruction) where retail has `addiu v0,a2,-0x80 / sll v0,v0,16 / sra v0,v0,14`. Writing the
+//     indices `(s16)(cmd - 0x80)` on the s32 value emits retail's three-instruction pair: 74.51 ->
+//     75.78. A cc1_probe over seven spellings shows `(s16)(cmd - 0x80)` on a table index is the ONLY
+//     one that emits sign_extendhisi2, which is where both of retail's index pairs come from.
+// (2) the dead `u32 spare[2]` is what makes the frame 0x48 with 32 bytes of locals (round-331
+//     lever); without it the frame is 0x40 with 24. It only lands with cmd s32.
+// STILL DIFFERENT, and what each measurement says:
+// (a) THE ONE EXTRA INSTRUCTION IS THE PEELED SCAN-LOOP BOTTOM. Our `do {} while ((cmd = *pScript)
+//     >= 0x80)` makes gcc inline a copy of `lbu a2,0(s1) / slti / bnez` after the 0x90 arm; retail
+//     does `bnez s1,.L8003CA48` into ONE shared bottom. Rewriting the scan loop as
+//     `while (1) { if (cmd < 0x80) break; ...; cmd = *pScript; }` removes the duplication and keeps
+//     the exact frame, but gcc then reorders the blocks: the 0x80/0x81 tails land after the chain
+//     instead of right after the mask-clear block and all of 0x80/0x81/0x90 become function-level
+//     constant hoists, and the score falls to 48.89% (1396 bytes). So the LAYOUT lives in the
+//     do-while body (75.84) and the SHAPE in the while(1) body; nothing tried merges them. The
+//     explicit `continue` in the 0x90 arm compiles identically to the fall-through.
+// (b) retail's scan-loop comparisons run on an explicit s16 (`sll v1,a2,16` in the loop-back's
+//     branch delay slot, `sra v1,v1,16` at the loop top) and ours compare the SImode cmd directly.
+//     Every spelling of that conversion folds to a bare `move`: `s16 op = cmd`, `(s16)cmd` at each
+//     comparison, `s16 cmd` (and it costs the two index instructions above), `*(s16 *)&cmd` (66.x).
+//     `u8 cmd` turns the `< 0x80` test into `sltu`, and `u16 cmd` does the same, so cmd is signed.
+// (c) retail loads active_flag TWICE (`lhu v0,0(s2)` for the `!= 0` test, then `lhu s3,0(s2)`);
+//     ours cse's them into one load plus `move s3,v1`. `*(volatile u16 *)&pElement->active_flag` at
+//     the second read does give the reload but costs one instruction elsewhere (75.67 / 1444).
+// (d) `if (pElement->active_flag != 0)` after the pScriptIP store: retail emits `bnez` + `j` +
+//     `addiu s0,s0,0x158` (2 more than ours, which inverts to `beqz` to the epilogue).
+// (e) the note path: retail keeps `addu a0,a1,zero` (the selector copy feeding two table reads) and
+//     its `addiu s1,s1,1` before the `bnez`; ours lets s1 advance in the delay slot.
+// (f) retail's octave read is `lbu 0x64(s0)` - the field at 0x66 is a BYTE in the original source,
+//     the header declares it u16, so ours is `lhu`.
+// (g) prologue save order: retail defines s4 (pManager), s6 (count), s2 (pElement); ours s4, s2, s6.
+// (h) the mask-clear block: retail hoists the `1` into $s7 (`sllv v0,s7,v0`) and ours materialises
+//     it in $s8 for that use while 0x90 takes $s7 - that is the constant-hoisting order, not source.
+// SEMANTIC FIX in this body (read off the .s): the 0x80 / 0x81 / 0xB0-0xB1 arms set and clear 0x200
+// on ACTIVE_FLAG (0(s2)) - SOUND_CHANNEL_NTOE - not on status_flags; and the script loop's continue
+// test is `active_flag & 0x500`, the `cmd < 0x80` mark at the end sets/clears 0x1000 on active_flag.
+// gateRatio is tested 0xF first and 0x10 second, and the envelope loop reads flags once into a local.
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 /*
 void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
@@ -3468,7 +3486,7 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
     AudioEnvelope* pEnvelope;
     u32 activeFlags;
     s32 noteStarted;
-    s16 cmd;
+    s32 cmd;
     u8 selector;
     s32 note;
     u8 length;
@@ -3478,6 +3496,7 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
     u16 gateTicks;
     s32 i;
     s32 next;
+    u32 spare[2];
 
     do {
         if (pElement->active_flag != 0) {
@@ -3528,7 +3547,7 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                             pElement->status_flags |= SOUND_STATUS_VOLUME_CHANGE | SOUND_STATUS_PLAYING_NTOE;
                         }
                     } else {
-                        pScript = g_SoundScriptHandlers[cmd - 0x80](pScript, pManager, pElement);
+                        pScript = g_SoundScriptHandlers[(s16)(cmd - 0x80)](pScript, pManager, pElement);
                         if (pElement->active_flag == 0) {
                             pManager->activeElementMask &= ~(1 << pElement->elementIndex);
                             break;
@@ -3557,13 +3576,13 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                                     break;
                                 }
                             } else if (cmd == 0x80) {
-                                pElement->status_flags &= ~SOUND_STATUS_PLAYING_NTOE;
+                                pElement->active_flag &= ~SOUND_CHANNEL_NTOE;
                                 break;
                             } else if (cmd == 0x81) {
-                                pElement->status_flags |= SOUND_STATUS_PLAYING_NTOE;
+                                pElement->active_flag |= SOUND_CHANNEL_NTOE;
                                 break;
                             } else if (cmd >= 0xB0 && cmd <= 0xB1) {
-                                pElement->status_flags &= ~SOUND_STATUS_PLAYING_NTOE;
+                                pElement->active_flag &= ~SOUND_CHANNEL_NTOE;
                                 break;
                             } else {
                                 if (cmd == 0x99) {
@@ -3578,12 +3597,11 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                                     pScript = pLoop->end;
                                     pLoop--;
                                 } else {
-                                    pScript += g_SoundScriptCommandLengths[cmd - 0x80];
+                                    pScript += g_SoundScriptCommandLengths[(s16)(cmd - 0x80)];
                                 }
                             }
                         } while ((cmd = *pScript) >= 0x80);
                     }
-
                     if (cmd < 0x80) {
                         pElement->active_flag |= 0x1000;
                     } else {
@@ -3655,6 +3673,7 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
     } while ((s16)next != 0);
 }
 */
+
 
 void SoundSetElementPercussionTone(AudioManager* pAudioManager, AudioElement* pElement, u8 percussionIndex) {
     SoundPercussionTone* pTone;
