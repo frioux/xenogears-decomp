@@ -6,6 +6,18 @@
 #include "system/math.h"
 #include "system/model.h"
 
+// Sentinel values for the fields below that carry a state rather than a quantity
+#define LIBGEAR_VERTEX_AGE_FREE (-1)        // Vertex::age: the slot is free
+#define LIBGEAR_COLOR_ENTRY_JOINT_NONE (-1) // UnkInner1::jointIndex: the entry is free
+#define LIBGEAR_SCRIPT_FRAME_STOPPED (-1)   // Model::frame: nothing to run
+// Temp3::opcode, the value LibGearSetJointRotation / LibGearMoveJointToPoint queue
+#define LIBGEAR_JOINT_OPCODE_INTERPOLATE 3
+#define LIBGEAR_JOINT_OPCODE_MOVE_BASE 7
+// ModelJoint::doRender / LibGearSetJointFlag's other bits
+#define LIBGEAR_JOINT_FLAG_RENDER 0x1
+#define LIBGEAR_JOINT_FLAG_ADD 0x20    // add to the joint's value instead of setting it
+#define LIBGEAR_JOINT_FLAG_RECURSE 0x80 // apply to the joint's children too
+
 // Queued joint object (LibGearAllocJointObject); defined with the pool below
 struct _Temp3;
 typedef struct _Temp3 Temp3;

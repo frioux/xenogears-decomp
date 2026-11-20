@@ -4,6 +4,10 @@
 // ActorData::soundState once the handler released the actor's sound slot: no proximity sound
 #define FIELD_ACTOR_SOUND_STATE_NONE 0xFF
 
+// ActorData::scriptFlags bits (FieldScriptSetPlayerActor, FieldScriptSetActorMovementFlag)
+#define FIELD_SCRIPT_FLAG_PLAYER_ACTOR 0x4000
+#define FIELD_SCRIPT_FLAG_ROTATION_LOCKED 0x8000
+
 #include "psyq/libgte.h"
 
 #define ACTOR_ID_INVALID 0xFF

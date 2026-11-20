@@ -47,9 +47,6 @@
 #define LIBGEAR_JOINT_RELEASE_SCALE 0x4
 
 // LibGearSetJointTransform / LibGearSetJointFlag flags
-#define LIBGEAR_JOINT_FLAG_RENDER 0x1 // LibGearSetJointFlag only: the joint's doRender
-#define LIBGEAR_JOINT_FLAG_ADD 0x20 // add to the joint's value instead of setting it
-#define LIBGEAR_JOINT_FLAG_RECURSE 0x80 // apply to the joint's children too
 
 // Which of the joint's vectors LibGearSetJointTransform drives; anything else is the scale
 #define LIBGEAR_JOINT_CHANNEL_MASK 0x7
@@ -57,8 +54,6 @@
 #define LIBGEAR_JOINT_CHANNEL_TRANSLATION 1
 
 // Temp3::opcode values LibGearSetJointRotation and LibGearMoveJointToPoint queue
-#define LIBGEAR_JOINT_OPCODE_INTERPOLATE 3
-#define LIBGEAR_JOINT_OPCODE_MOVE_BASE 7
 
 // Interpolation curves LibGearGetInterpolationFunc picks by type; 0 (the default) is the sine
 #define LIBGEAR_INTERPOLATE_RISE 1
@@ -72,16 +67,13 @@
 #define LIBGEAR_COLOR_ENTRY_FRAME_MAX 7
 
 // UnkInner1::jointIndex meaning the entry projects through no joint
-#define LIBGEAR_COLOR_ENTRY_JOINT_NONE (-1)
 
 // Model::frame meaning the model's animation script is not running
-#define LIBGEAR_SCRIPT_FRAME_STOPPED (-1)
 
 // Vertex entries LibGearInitialize creates the shared vertex buffer with
 #define LIBGEAR_VERTEX_BUFFER_CAPACITY 16
 
 // Vertex::age meaning the vertex buffer slot holds no vertex
-#define LIBGEAR_VERTEX_AGE_FREE (-1)
 
 // Degrees g_LibGearSwingAngle advances per stepped frame
 #define LIBGEAR_SWING_ANGLE_STEP 56

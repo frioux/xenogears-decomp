@@ -68,8 +68,6 @@
 
 // scriptFlags bits a script handler sets by hand: the actor the player drives, and
 // the facing latched into ActorData::lockedRotationY.
-#define FIELD_SCRIPT_FLAG_PLAYER_ACTOR 0x4000
-#define FIELD_SCRIPT_FLAG_ROTATION_LOCKED 0x8000
 
 // Field archive entry a WDS bank sits at, above its bank index: the field WDS
 // directory's own, and the battle sound directory's.
