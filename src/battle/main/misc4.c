@@ -36,10 +36,10 @@ typedef struct {
 typedef struct {
     /* 0x000 */ BattleCommandSlot slots[BATTLE_ACTOR_SLOT_COUNT];
     /* 0x2C0 */ u8 unk2C0[0x13];
-    /* 0x2D3 */ u8 unk2D3;
+    /* 0x2D3 */ u8 actorIndex; // the slot whose command is being built, as in misc11's view of this block
     /* 0x2D4 */ u8 unk2D4[6];
     /* 0x2DA */ u8 count; // queued commands
-    /* 0x2DB */ u8 unk2DB;
+    /* 0x2DB */ u8 commandFinished; // 0 while a queued command runs: cleared before func_80079778, which spins on it
     /* 0x2DC */ u8 unk2DC;
 } BattleCommandQueue; // Size: 0x2DD
 
@@ -50,17 +50,21 @@ extern BattleSlotRegs g_BattleSlotRegs[];
 extern s32 BattleExecScriptOpcode(u8** arg0, u8 arg1, u8 arg2);
 extern s32 func_8007F8C0(u8** arg0, u8 arg1);
 
-// A 4-byte status entry; only the first byte is written here.
+// One 4-byte group of the per-slot script flags at g_BattleSlotScriptFlags, a group per
+// non-party slot at a (slot - MAX_PARTY_MEMBERS) * 4 stride. Battle code also names three of
+// the four bytes by absolute address: +0x0 is g_BattleSlotScriptFlags, +0x1 D_800C3D19,
+// +0x2 D_800C3D1A and +0x3 D_800C3D1B.
 typedef struct {
     /* 0x0 */ u8 unk0;
-    /* 0x1 */ u8 unk1[3];
-} BattleStatusEntry; // Size: 0x4
+    /* 0x1 */ u8 unk1;
+    /* 0x2 */ u8 unk2;
+    /* 0x3 */ u8 unk3; // set to 1 for the slot BattleQueueCommandF9 queues its command for
+} BattleSlotScriptFlags; // Size: 0x4
 
-extern BattleStatusEntry D_800C3D1B[];
 extern u16 g_BattleSlotFlag8000Mask;
 extern s32 BattleSlotBitMask(u8 arg0);
 extern u8 g_BattleActorCountdownState[];
-extern u8 g_BattleSlotScriptFlags[];
+extern BattleSlotScriptFlags g_BattleSlotScriptFlags[];
 extern BattleTableEntry g_BattleSlotEntries[];
 extern u8 g_BattleSlotFlags[];
 extern u16 g_BattleActionSlotMask[];
@@ -97,8 +101,6 @@ extern void BattleClearSlotCurveEntry(void);
 extern s32 BattleFindMinValueOtherSlot(u8 arg0);
 extern void BattleInitActorSlotAnimation(s32 arg0, u8 arg1, s32 arg2, s32 arg3);
 extern s32 BattleSlotByteVarGetSet(u8 arg0, u8 arg1, u8 arg2, s32 arg3);
-extern u8 D_800C3D19[];
-extern u8 D_800C3D1A[];
 extern u8 D_800D340C[];
 extern BattleTableEntry D_800CCD1C[];
 extern void BattleSetOverlayArg(u8 arg0);
@@ -209,7 +211,7 @@ void BattleQueueCommandF9(u8 arg0, u8 arg1, u8 arg2) {
     g_BattleActorCountdownState[arg0] = 0xFF;
     // The empty-block wrapper keeps this store ahead of the g_BattleSlotEntries read-modify-write.
     do {
-        D_800C3D1B[arg0 - MAX_PARTY_MEMBERS].unk0 = 1;
+        g_BattleSlotScriptFlags[arg0 - MAX_PARTY_MEMBERS].unk3 = 1;
     } while (0);
     g_BattleSlotEntries[arg0].flags &= 0x8000;
 }
@@ -249,8 +251,8 @@ void func_80078E24(u8 arg0, u8 arg1, u8 arg2) {
     *(u32 *)(D_800D3404 + dst) = *(u32 *)(D_800D3404 + src);
     *(u32 *)(D_800D3408 + dst) = *(u32 *)(D_800D3408 + src);
     *(u32 *)(D_800D340C + dst) = *(u32 *)(D_800D340C + src);
-    g_BattleSlotScriptFlags[(arg0 - 3) * 4] = g_BattleSlotScriptFlags[(slot - 3) * 4];
-    D_800C3D19[(arg0 - 3) * 4] = D_800C3D19[(slot - 3) * 4];
+    g_BattleSlotScriptFlags[arg0 - MAX_PARTY_MEMBERS].unk0 = g_BattleSlotScriptFlags[slot - MAX_PARTY_MEMBERS].unk0;
+    g_BattleSlotScriptFlags[arg0 - MAX_PARTY_MEMBERS].unk1 = g_BattleSlotScriptFlags[slot - MAX_PARTY_MEMBERS].unk1;
     memmove(&g_BattleWorkBlock[arg0], &g_BattleWorkBlock[slot], sizeof(BattleTableEntry));
     D_800C4022[g_BattleCommandQueue->count][0] = slot;
     D_800C402F[g_BattleCommandQueue->count * 72] = 0xFB;
@@ -421,7 +423,7 @@ void func_80079778(u8 arg0) {
     BattleInitActorSlotAnimation(1, arg0, 0, BattleFindMinValueOtherSlot(arg0));
     BattleDispatchCommandRecords(arg0);
     BattleQueueCommand1BAndFE(arg0);
-    while (g_BattleCommandQueue->unk2DB == 0) {
+    while (g_BattleCommandQueue->commandFinished == 0) {
         BattleUpdateFrame();
     }
 }
@@ -467,7 +469,7 @@ void BattleScriptResetActorState(u8 arg0) {
     slot = arg0 - MAX_PARTY_MEMBERS;
     pCursor = g_BattleSlotRegs[slot].pScriptCursor;
     p = (u8 *)g_BattleCommandArgs;
-    pEnd = p + 0x100;
+    pEnd = p + BATTLE_COMMAND_ARG_COUNT * sizeof(BattleCommandArg);
     do {
         *p++ = 0;
     } while (p < pEnd);
@@ -505,7 +507,7 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
         }
     }
     g_BattleCommandArgs[0].opcode = 0;
-    if (g_BattleSlotScriptFlags[slot * 4] != 0) {
+    if (g_BattleSlotScriptFlags[slot].unk0 != 0) {
         pCursor = g_BattleSlotRegs[slot].pScanCursor;
         p = g_BattleCommandArgs;
         pEnd = p + 0x100;
@@ -534,19 +536,18 @@ s32 BattleScriptScanForOpcode62(u8 arg0) {
 done:
     return result;
 }
-// The three typed spellings of this body's accesses were measured and all lose: reading the two
-// slot-entry flag words as g_BattleSlotEntries[idx].flags / D_800CCD1C[idx].flags drops the loop's
-// 0x170-byte induction variable and rearranges the saved registers (88.24%, 496 bytes, retail 500);
-// typing only the first of them is worse (87.59%, 512 bytes); and taking the cursor from
-// g_BattleSlotRegs[i].pRunCursor keeps the byte stream but emits %hi(g_BattleSlotRegs) + a 12 displacement
-// where retail folds the +0xC into the symbol (99.92%, same 500 bytes, links identical). The byte
-// offset is what retail's induction variables carry, so it stays in the source. The +0xC cursor
-// wants a named BattleSlotRegs field before it can be spelled without a cast.
+// Walks the command script of every non-party slot that has one, running each opcode through
+// BattleExecScriptOpcode. The cursor and the two script-flag bytes come from typed tables; the two
+// 0x170-byte flag words below keep a byte offset, because reading them as
+// g_BattleSlotEntries[idx].flags / D_800CCD1C[idx].flags drops the loop's 0x170-byte induction
+// variable and rearranges the saved registers (88.08%, 496 bytes, retail 500). Measured against the
+// typed body, only the folded relocations differ: %hi(g_BattleSlotRegs) + 12 for D_800D340C and
+// %hi(g_BattleSlotScriptFlags) + 1/+2 for D_800C3D19/D_800C3D1A (99.76%, same 500 bytes, same link).
+// The D_800C402F fill below is the command byte of 32 0x48-byte records hoisted out of the record
+// table, which this unit still walks as bytes (BattleSlotRow).
 void BattleRunActiveSlotScripts(void) {
     s32 i;
     s32 off;
-    s32 off2;
-    s32 index;
     s32 j;
     s32 idx;
     u32 value;
@@ -558,22 +559,22 @@ void BattleRunActiveSlotScripts(void) {
     u32 stopOp;
     u32 endOp;
 
-    saved = g_BattleCommandQueue->unk2D3;
+    saved = g_BattleCommandQueue->actorIndex;
     value = 0;
     i = 0;
     stopOp = 0xFD;
     endOp = 0xFF;
-    for (idx = MAX_PARTY_MEMBERS, off = MAX_PARTY_MEMBERS * sizeof(BattleTableEntry), off2 = 0, index = 0;
+    for (idx = MAX_PARTY_MEMBERS, off = MAX_PARTY_MEMBERS * sizeof(BattleTableEntry);
          i < BATTLE_OTHER_SLOT_COUNT;
-         idx++, off += sizeof(BattleTableEntry), off2 += sizeof(BattleSlotRegs), index += 4, i++) {
-        if (D_800C3D1A[index] == 0) {
+         idx++, off += sizeof(BattleTableEntry), i++) {
+        if (g_BattleSlotScriptFlags[i].unk2 == 0) {
             continue;
         }
-        if (D_800C3D19[index] == 0) {
+        if (g_BattleSlotScriptFlags[i].unk1 == 0) {
             continue;
         }
-        g_BattleCommandQueue->unk2D3 = idx;
-        pCursor = *(u8**)(D_800D340C + off2);
+        g_BattleCommandQueue->actorIndex = idx;
+        pCursor = g_BattleSlotRegs[i].pRunCursor;
         flags = *(u16*)((u8*)g_BattleSlotEntries + off);
         p = g_BattleCommandArgs;
         if ((flags & 0x8000) != 0) {
@@ -584,7 +585,7 @@ void BattleRunActiveSlotScripts(void) {
         for (j = 0x8B8; j >= 0; j -= 0x48) {
             D_800C402F[j] = endOp;
         }
-        pEnd = p + 0x100;
+        pEnd = p + BATTLE_COMMAND_ARG_COUNT * sizeof(BattleCommandArg);
         do {
             *p++ = 0;
         } while (p < pEnd);
@@ -601,9 +602,9 @@ void BattleRunActiveSlotScripts(void) {
                 value = BattleExecScriptOpcode(&pCursor, i, value);
             }
         }
-        g_BattleCommandQueue->unk2DB = 0;
+        g_BattleCommandQueue->commandFinished = 0;
         func_80079778(idx);
         BattleSetOverlayArg(0);
     }
-    g_BattleCommandQueue->unk2D3 = saved;
+    g_BattleCommandQueue->actorIndex = saved;
 }
