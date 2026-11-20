@@ -618,7 +618,14 @@ missing struct. The rules a worker follows are in `brief.js` ("REALISTIC C").
   attributed to a function - which the plain grep below does, and that is how round
   151 briefed four rewrite workers on `INCLUDE_ASM` stubs whose "raw lines" and
   "matched functions" were parks (one of them, `world_map/misc10`, has **zero** live
-  raw lines). The old grep, for the historical numbers only:
+  raw lines). **The total can FALL without the code getting typed**, because the tool
+  does not count a cast whose base is an index-first sum: round 309's `menu/misc1`
+  turned 17 `*(s16*)(i * 0x18 + (u32)p + 0xA0)` into
+  `((LINE_F3*)(i * sizeof(LINE_F3) + (u32)base))->r0`, which is better C but is still a
+  cast - so `grep -cE '\(\w+\*\)\([^)]*\+ \(u32\)' src --include=*.c` (81 sites) is
+  the companion number, and that spelling is load-bearing where it appears (the honest
+  `base[i].field` form flips every `addu` to base-first: 99.19%, and C subscripts cannot
+  write index-first). The old grep, for the historical numbers only:
 
       grep -rcE 'D_[0-9A-F]{8} \+ \w+ \* |\*\((const )?[us](8|16|32) ?\*+\)\(|\(\*\w+\)\[|\(\(?[us](8|16|32) ?\*\)\w+\)? \+ ' src
 

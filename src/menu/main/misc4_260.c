@@ -8,6 +8,8 @@
 #define MENU_EQUIPMENT_PANEL_ROW_COUNT 5 // rows of the equipment panel (g_Menu->pEquipmentPanel)
 #define MENU_CHARACTER_CELL_TIMER_FRAMES 15 // characterCellTimer wraps at this frame count
 #define MENU_CHARACTER_CELL_FRAME_COUNT 6 // frames in one character cell animation cycle
+#define MENU_SELECTION_TINT_DISABLED 0x20 // r0/g0/b0 of a disabled selection menu prim
+#define MENU_SELECTION_TINT_NORMAL 0x80 // r0/g0/b0 of an enabled one
 
 void MenuParseNumberToDigits(u32 number);
 s32 func_8002675C(MenuResourceDirectory* pDir, u32 index, POLY_FT4* pPrims, s32 context, s32 x, s32 y, s32 scale);
@@ -88,22 +90,28 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
 }
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
-/* 99.15% (1120 bytes, retail's exact size): the four-digit-block body is retail's
-   instruction for instruction except two moved constants.
-   1. the else arm hoists `li s3,5` (the gear glyph count) to the top of the block;
-      retail emits it after the `lbu` of the character's gearId. Measured the same
-      with the count/base pair written before the value, after it, and as
-      `value; base; count`.
-   2. the prologue's argument copies come out in a different order (a3's copy is
-      emitted first here; retail has the stack argument's `lw s4`, then a0, a3, a1).
-      The same delta appears in func_801CF5E4 above, so it is one allocator
-      behaviour rather than a per-function source shape.
+/* 99.17% (1120 bytes, retail's exact size): ONE moved `li`. The four digit blocks
+   are retail's instruction for instruction; the frame, the argument copies and
+   every call agree.
+   Remaining delta, in the first if/else's ELSE arm: retail emits
+       lbu v1,gearId / li s3,0x5 (glyphCount) / sll chain / lw a0,hp / li s6,0x4
+   i.e. value, count, base in source order - but gcc 2.6.0 here HOISTS the else
+   arm's FIRST constant assignment to the top of the block (above the andi/sll
+   chain) and leaves the second after the gearId lbu, so (value,count,base) gives
+   `li s3,5` at the block top and `li s6,4` in the lbu slot (99.15), and
+   (value,base,count) gives `li s6,4` at the top and `li s3,5` in the lbu slot
+   (99.17). Both keep retail's instruction count; neither puts both constants
+   after the hp load as retail does. The IF arm (value,count,base) keeps source
+   order and matches, so this is the else block only. Also tried: a `u8 gearId`
+   local, the two constants before the value, and a while-loop spelling - none
+   moves the hoist. A hoist above the *whole* block is not reachable from
+   statement order, so this wants a smarter eye than another declaration order.
    Structure worth keeping: `value` is assigned in each arm and parsed once (retail
    has one jal MenuParseNumberToDigits); each block re-reads `g_Menu->digits[...]`
    in its loop test; blocks 2 and 4 carry a separate placed-glyph counter for the
    x argument while blocks 1 and 3 use the digit index; blocks 3 and 4 only run for
-   the character arm (arg5 == 0), which is the trailing `if (arg5 == 0)`. Putting
-   block 3's x back onto the digit index is what took this from 97.79 to 99.15. */
+   the character arm (arg5 == 0). Putting block 3's x back onto the digit index is
+   what took this from 97.79 to 99.15. */
 /* void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
     s32* pX = (s32*)arg3;
     s32* pY = (s32*)arg4;
@@ -120,8 +128,8 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
         glyphBase = 6;
     } else {
         value = g_GameState.gears[g_GameState.characters[characterIndex].gearId].hp;
-        glyphCount = 5;
         glyphBase = 4;
+        glyphCount = 5;
     }
     MenuParseNumberToDigits(value);
     pCharacter->hpStringLength = 0;
@@ -449,7 +457,60 @@ void MenuAddUnk360Prims(void) {
         }
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CEC40);
+// The selection menu's own prims.  Every cursor and text quad is re-tinted (0x20
+// dimmed while the option is disabled, 0x80 normal) the frame the disabled state
+// changes, then both prim runs go into the ordering table.  Each store re-reads
+// g_Menu->pSelectionMenu: the prim block is reached through two global loads and
+// every store invalidates them.
+void func_801CEC40(void) {
+    s32 i;
+
+    if (!g_Menu->pManager->shouldRenderSelectionMenu) {
+        return;
+    }
+    if (g_Menu->pSelectionMenu->isDisabled != g_Menu->pSelectionMenu->isDisabledRendered) {
+        if (g_Menu->pSelectionMenu->isDisabled) {
+            for (i = 0; i < g_Menu->pSelectionMenu->numTexts; i++) {
+                SetSemiTrans(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 1);
+                SetShadeTex(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].tpage |= 0x20;
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].r0 = MENU_SELECTION_TINT_DISABLED;
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].g0 = MENU_SELECTION_TINT_DISABLED;
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].b0 = MENU_SELECTION_TINT_DISABLED;
+            }
+            for (i = 0; i < g_Menu->pSelectionMenu->numCursors; i++) {
+                SetSemiTrans(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 1);
+                SetShadeTex(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 0);
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].tpage |= 0x20;
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].r0 = MENU_SELECTION_TINT_DISABLED;
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].g0 = MENU_SELECTION_TINT_DISABLED;
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].b0 = MENU_SELECTION_TINT_DISABLED;
+            }
+        } else {
+            for (i = 0; i < g_Menu->pSelectionMenu->numTexts; i++) {
+                SetSemiTrans(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
+                SetShadeTex(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].tpage |= 0x20;
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].r0 = MENU_SELECTION_TINT_NORMAL;
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].g0 = MENU_SELECTION_TINT_NORMAL;
+                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].b0 = MENU_SELECTION_TINT_NORMAL;
+            }
+            for (i = 0; i < g_Menu->pSelectionMenu->numCursors; i++) {
+                SetSemiTrans(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 0);
+                SetShadeTex(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 0);
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].tpage |= 0x20;
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].r0 = MENU_SELECTION_TINT_NORMAL;
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].g0 = MENU_SELECTION_TINT_NORMAL;
+                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].b0 = MENU_SELECTION_TINT_NORMAL;
+            }
+        }
+        g_Menu->pSelectionMenu->isDisabledRendered = g_Menu->pSelectionMenu->isDisabled;
+    }
+    MenuRenderString(g_Menu->pSelectionMenu->numTexts, g_Menu->pSelectionMenu->polysTexts,
+                     g_Menu->pSelectionMenu->textsRenderCtx);
+    MenuRenderString(g_Menu->pSelectionMenu->numCursors, g_Menu->pSelectionMenu->polysCursors,
+                     g_Menu->pSelectionMenu->cursorsRenderCtx);
+}
 void MenuAddUnk5StringPrims(void) {
     if (g_Menu->pManager->shouldRenderSubmenuStrings) {
         MenuRenderString(g_Menu->pSubmenuPrims->polys500PrimCount, g_Menu->pSubmenuPrims->polys500, g_Menu->pSubmenuPrims->polys500RenderCtx);
@@ -509,30 +570,31 @@ void func_801CF37C(void) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF5E4);
-/* 99.06% (756 bytes, retail's exact 0x2F4): every expression, call, loop and the
-   frame are retail's; three single instructions sit elsewhere.
-   1. the arg copies in the prologue come out in arg order (a1, a2, a0; retail has
-      a2, a0, a1), so `sw s5 / move s5,a1` lands first instead of after
-      `move s1,a0`. Swapping the 2nd and 3rd parameter - the two callers pass the
-      same value for both, so it is unobservable - moves the copies to retail's
-      order and scores 99.12, but then fp holds a different argument, so it is not
-      a real fix.
-   2. the inner latch's `addiu s3,s3,1` (j++) lands in the `lbu` load-delay slot;
-      retail emits it before the loop bound's `lw`. `j = j + 1`, `j += 1`, ++j and
-      a while loop with a trailing j++ all measure the same.
+/* 99.06% (756 bytes, retail's exact 0x2F4): one allocator tie left, two single
+   instructions.
+   1. Fixed: the prologue copies (retail: a2, a0, a1; a plain `i < end` loop gave
+      a1, a2, a0) - giving `end` a LIVE COPY (`s32 last = end;`) puts retail's
+      copies in order. Keep that local.
+   2. the inner latch's `addiu s3,s3,1` (j++) lands after the bound's `lbu` here;
+      retail emits it in the delay slot of the `lw a1,%lo(g_Menu)`, i.e. its
+      latch RTL is increment-then-test and this compile's is test-then-increment.
+      `j = j + 1`, `j += 1`, ++j, a while loop with a trailing j++ and a
+      do/while all measure the same.
    3. the clut store's address sums base-first in retail (`addu v1,s0,v1`) and
-      offset-first here; the `pPrims[ctx]` subscript, `(pPrims + ctx)` and a
-      pointer local (87%) differ from retail only in that operand order.
+      offset-first here; `pPrims[ctx]`, `(pPrims + ctx)` and a pointer local (87%)
+      differ from retail only in that operand order. The seven `sb` stores above
+      it are offset-first in BOTH, so this is that one site's tree.
    Moving `primIndex++` out of the subscript into a trailing statement is what
-   took this from 98.40 to 99.06 - it is what puts `addiu s5,s5,1` in the
-   loop-back delay slot as retail has it. A 4-minute permuter run on this body
-   found only `long long start`, a different ABI, so nothing to port. */
+   took this from 98.40 to 99.06 - it puts `addiu s5,s5,1` in the loop-back
+   delay slot as retail has it. A 4-minute permuter run on the pre-`last` body
+   found nothing. */
 /* void func_801CF5E4(s32 start, s32 primIndex, s32 end) {
     s32 i;
     s32 j;
+    s32 last = end;
     POLY_FT4* pPrims;
 
-    for (i = start; i < end; i++) {
+    for (i = start; i < last; i++) {
         if (g_Menu->menuUnk2->records[i].unk58) {
             for (j = 0; j < g_Menu->menuUnk2->chunks[i].pad0[3]; j++) {
                 pPrims = (POLY_FT4*)g_Menu->pCellPrimBlocks[primIndex];
