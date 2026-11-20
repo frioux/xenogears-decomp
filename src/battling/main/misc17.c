@@ -1,5 +1,6 @@
 #include "common.h"
 #include "psyq/libgpu.h"
+#include "psyq/inline_c.h"
 
 #define BATTLE_SPU_ADDR_BASE 0x60000
 #define BATTLE_SOUND_ID_NONE 0xFF
@@ -146,6 +147,9 @@ extern void BattleQueueRandomMessages(BattleActor*, BattleWork*, s32);
 extern void BattleDispatchWorkState(BattleActor*);
 extern void SoundPlaySoundEffectOnPairWithLevels(s32, s32, s32, s32);
 extern void BattleEffectCopyBuffers(void);
+extern void SoundSetElementPanByIndex(s32, s32);
+extern void SoundSetElementVolumeByIndex(s32, s32);
+extern VECTOR g_BattleViewOrigin;
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E120);
 /* best: objdiff 87.18% - 392 vs 320 bytes. Frame (0x30, s5 = mfhi), the
@@ -349,7 +353,65 @@ void BattleAcquireSoundSlot(u8* p0, u32 idx, u8* pData, u32 flags) {
         SoundPlaySoundEffectOnPairWithLevels(pSlot->spuAddr, pSlot->elementIndex, 0x7F, 0x40);
     }
 }
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E8B0);
+void func_8008E8B0(void) {
+    SVECTOR pos;
+    s16 sxy[2];
+    BattleSlot* pSlot;
+    s32 depth;
+    s32 x;
+    s32 volume;
+    s32 pan;
+    s32 i;
+
+    for (i = 0; i < BATTLE_SOUND_SLOT_COUNT; i++) {
+        pSlot = &g_BattleSoundSlots[i];
+        if (pSlot->active == 0) {
+            continue;
+        }
+        if (pSlot->soundId == 0) {
+            continue;
+        }
+        if (pSlot->soundId == 1) {
+            pos.vx = pSlot->data[0];
+            pos.vy = pSlot->data[1];
+            pos.vz = pSlot->data[2];
+        } else {
+            pos.vx = pSlot->pData[0];
+            pos.vy = pSlot->pData[1];
+            pos.vz = pSlot->pData[2];
+        }
+        pos.vx -= g_BattleViewOrigin.vx;
+        pos.vy -= g_BattleViewOrigin.vy;
+        pos.vz -= g_BattleViewOrigin.vz;
+        gte_ldv0(&pos);
+        gte_rtps();
+        gte_stsxy(sxy);
+        gte_stsz(&depth);
+        x = sxy[0];
+        if (x < 0) {
+            x = 0;
+        }
+        if (x > 0x140) {
+            x = 0x140;
+        }
+        volume = (0x3000 - depth) * 127 / 0x3000;
+        if (volume < 0x28) {
+            volume = 0x28;
+        }
+        if (volume > 0x7F) {
+            volume = 0x7F;
+        }
+        pan = x * 127 / 0x140;
+        if (pSlot->timer != 0) {
+            SoundSetElementPanByIndex(pSlot->elementIndex, pan);
+            SoundSetElementVolumeByIndex(pSlot->elementIndex, volume);
+        } else {
+            SoundPlaySoundEffectOnPairWithLevels(pSlot->spuAddr, pSlot->elementIndex,
+                                                 (s16)volume, (s16)pan);
+        }
+    }
+    BattleIncrementSoundSlotTimers();
+}
 void BattleReleaseFinishedSoundSlots(void) {
     BattleSlot* pSlot;
     s32 i;
