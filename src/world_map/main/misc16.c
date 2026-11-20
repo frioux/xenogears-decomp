@@ -329,12 +329,10 @@ void func_800983A0(WorldMapMisc16Struct* p) {
     }
     pMask = &D_8009B7A8[nVariant];
     pTex = D_8009D650;
-    pMaskEntry = pMask->entry;
     for (row = 0; row < 25; row++) {
-        pTex->unk0 |= pMaskEntry->unk0;
-        pTex->unk4 |= pMaskEntry->unk4;
+        pTex->unk0 |= pMask->entry->unk0;
+        pTex->unk4 |= pMask->entry->unk4;
         pTex++;
-        pMaskEntry++;
     }
 }
 
