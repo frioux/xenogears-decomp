@@ -105,7 +105,7 @@ typedef struct {
 extern BattleScreenFadeTask *g_BattleScreenFadeTask;
 extern BattleScaleTask *g_BattleScaleTask;
 extern u8 g_BattleScreenFadeOwnBuffer;
-extern u32 g_BattleImageTask;
+extern BattleImageTask *g_BattleImageTask; // the image task, while one is running
 // the two statically allocated fades: one the overlay owns, one shared
 extern BattleScreenFadeTask g_BattleOwnedScreenFadeTask;
 extern BattleScreenFadeTask g_BattleStaticScreenFadeTask;
