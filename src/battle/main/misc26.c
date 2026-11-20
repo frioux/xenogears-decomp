@@ -112,9 +112,9 @@ extern BattleScreenFadeTask g_BattleStaticScreenFadeTask;
 extern BattleScreenFadeTask *g_BattleOwnedScreenFade; // the owned one, once it is set up
 // the scale the frame being drawn is drawn at, mirrored to the other field of
 // the interlaced pair on every other frame
-extern s16 D_800C354C;
-extern s16 D_800C354E;
-extern s16 D_800C3550;
+extern s16 g_BattleDrawScaleX;
+extern s16 g_BattleDrawScaleY;
+extern s16 g_BattleDrawScaleZ;
 extern u8 g_BattleScreenFadeBlocked; // set while a fade is already being driven outside the battle
 extern u8 g_FlagTimerWorkListAdds;
 extern s32 g_NumFlaggedTimerWorkListEntries;
@@ -1276,19 +1276,19 @@ void BattleStepScaleTask(BattleScaleTask *pTask) {
     }
     pTask->frame++;
     if (pTask->frame & 2) {
-        D_800C354C = -pTask->current.vx;
+        g_BattleDrawScaleX = -pTask->current.vx;
     } else {
-        D_800C354C = pTask->current.vx;
+        g_BattleDrawScaleX = pTask->current.vx;
     }
     if (pTask->frame & 2) {
-        D_800C354E = -pTask->current.vy;
+        g_BattleDrawScaleY = -pTask->current.vy;
     } else {
-        D_800C354E = pTask->current.vy;
+        g_BattleDrawScaleY = pTask->current.vy;
     }
     if (pTask->frame & 2) {
-        D_800C3550 = -pTask->current.vz;
+        g_BattleDrawScaleZ = -pTask->current.vz;
     } else {
-        D_800C3550 = pTask->current.vz;
+        g_BattleDrawScaleZ = pTask->current.vz;
     }
     if (pTask->current.vx == 0 && pTask->current.vy == 0 && pTask->current.vz == 0 && pTask->framesLeft == 0) {
         pTask->entry.onFreeCallback(pTask);

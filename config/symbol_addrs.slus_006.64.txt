@@ -1687,3 +1687,6 @@ g_BattleRequestedDifficultyLevel = 0x80050621;
 g_ArchiveDebugStreamSector = 0x80059F54;
 g_ArchiveDebugStreamPayload = 0x80059F58;
 g_ArchiveDebugStreamBlockCount = 0x80059F5C;
+g_SoundScriptCommandLengths = 0x80050824;
+g_SoundNoteDefaultDurations = 0x800509B0;
+g_SoundNoteTypePitchOffsets = 0x80050A94;

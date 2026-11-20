@@ -330,9 +330,9 @@ extern AudioManager* g_SoundEffectAudioManager;
 // Script interpreter tables (the bytes live in the exe's .sdata, one entry per command).
 typedef u8* (*SoundScriptHandler)(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements);
 extern SoundScriptHandler g_SoundScriptHandlers[];
-extern u8 D_80050824[]; // bytes of arguments the command carries, indexed by command - 0x80
-extern u8 D_800509B0[]; // default duration of a note command in ticks, 0 = the script carries it
-extern u8 D_80050A94[]; // offset of the note command's pitch from the element's octave
+extern u8 g_SoundScriptCommandLengths[]; // bytes of arguments the command carries, indexed by command - 0x80
+extern u8 g_SoundNoteDefaultDurations[]; // default duration of a note command in ticks, 0 = the script carries it
+extern u8 g_SoundNoteTypePitchOffsets[]; // offset of the note command's pitch from the element's octave
 
 s32 SoundTimerInterruptHandler(void);
 void SoundSpuIRQHandler(void);
@@ -3480,11 +3480,11 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                         pElement->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
 
                         selector = *pScript;
-                        note = pElement->octave + D_80050A94[selector];
+                        note = pElement->octave + g_SoundNoteTypePitchOffsets[selector];
                         pElement->nextNote = note;
                         pScript++;
 
-                        length = D_800509B0[selector];
+                        length = g_SoundNoteDefaultDurations[selector];
                         if (length == 0) {
                             length = *pScript++;
                         }
@@ -3559,7 +3559,7 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                                     pScript = pLoop->end;
                                     pLoop--;
                                 } else {
-                                    pScript += D_80050824[cmd - 0x80];
+                                    pScript += g_SoundScriptCommandLengths[cmd - 0x80];
                                 }
                             }
                         } while ((cmd = *pScript) >= 0x80);

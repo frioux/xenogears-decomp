@@ -83,7 +83,7 @@ extern void func_800A4654(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, s32 depth,
 extern SVECTOR g_BattleSlotVectors;
 extern SVECTOR D_800D335C;
 extern SVECTOR D_800C3730;
-extern SVECTOR D_800C354C;
+extern SVECTOR g_BattleDrawScaleX;
 extern u8 D_800C372C;
 extern u8 g_BattleStateWork[];
 
@@ -339,9 +339,9 @@ void func_800BB9D4(void) {
     BattleBuildMatrixFromThreeVectors(&g_BattleViewMatrix, &g_BattleSlotVectors, &D_800D335C,
                                       &D_800C3730);
     pViewTrans = (s32 *)((u8 *)&g_BattleViewMatrix - 0x20);
-    pViewTrans[0xD] += D_800C354C.vx;
-    pViewTrans[0xE] += D_800C354C.vy;
-    pViewTrans[0xF] += D_800C354C.vz;
+    pViewTrans[0xD] += g_BattleDrawScaleX.vx;
+    pViewTrans[0xE] += g_BattleDrawScaleX.vy;
+    pViewTrans[0xF] += g_BattleDrawScaleX.vz;
     if (D_800C372C == 0) {
         pWork = (mem_addr)g_BattleStateWork;
         pWork += 0x8000;
