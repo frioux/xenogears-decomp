@@ -225,56 +225,36 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D5ED4);
                      D_801E9D38 - rowOffset, D_801E9D3C, width, 0xD);
    }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D6194);
-/* Best: 98.29% (424 bytes; retail is 420 = 105 insns, so this cannot link).
-   The twin `lhu` of loop 2 is CLOSED by the volatile minuend
-   (`pEntry->x1 - *(volatile u16*)&pEntry->x0`) - that alone took this body from
-   93.40 to 98.29, the same lever func_801D6338's park records.
-   Three diffs left:
-   (1) retail has `addiu s0,s0,1` in the delay slot of the `digit == 0xFFFF`
-       beq at the loop TOP (the counter is bumped before the body and the next
-       address sum `addu v0,s1,s0` is recomputed in the back-edge slot); gcc
-       2.7.2 puts the bump at the end of the body, which is the one extra
-       instruction. Measured: `digit = D_801EA39C[... + i++]` with the digit as
-       the call arg is 87.31 (412 bytes - gcc drops the address IV); `i++` in
-       the compare with `i - 1` as the arg DOES put the addiu in the beq slot
-       but needs a new base register (s2/s3) and is 83.97 (444 bytes).
-   (2) the prim address sum: retail `addu a2,a2,t1` (offset + base), gcc
-       `addu a2,t1,a2`. The offset-first spelling
-       (`count * 0x50 + 0xA0 + (u32)g_Menu->pGearWindowPrims`) gives retail's
-       operand order but rotates t0/t1 and measures 91.05.
-   (3) the verts pointer: retail `addu a0,s1,a0` (the 0x1EE0 running offset +
-       base), gcc `addu a0,a0,s1`; the offset-first spelling loses the running
-       offset entirely (91.05).
-   Loop 2 stays exact as `(i * 2 + g_Menu->renderContext) * 0x28`.
-   Symbols added: D_801E9B60, D_801E9C20, D_801EA39C (asm/menu/data/246A4.data.s).
-   void func_801D6194(u_char characterId) {
-       s32 i;
-       u8* pEntry;
+void func_801D6194(u_char characterId) {
+    s32 i;
+    u8* pBase;
+    u8* pEntry;
 
-       ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] = 0;
-       for (i = 0; i < 0x18; i++) {
-           if (D_801EA39C[characterId * 0x18 + i] == 0xFFFF) continue;
-           ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] += func_8002675C(
-               g_Menu->resources,
-               D_801EA39C[characterId * 0x18 + i],
-               (POLY_FT4*)(((u8*)g_Menu->pGearWindowPrims) +
-                           (((u8*)g_Menu->pGearWindowPrims)[0x2AEC] * 0x50 + 0xA0)),
-               g_Menu->renderContext,
-               D_801E9B60[characterId * 0x18 + i],
-               D_801E9C20[characterId * 0x18 + i],
-               0x1000);
-       }
-       for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AEC]; i++) {
-           pEntry = (u8*)g_Menu->pGearWindowPrims + (i * 2 + g_Menu->renderContext) * 0x28;
-           MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EE0 + i * 0x20),
-                               *(u16*)(pEntry + 0xA8),
-                               *(u16*)(pEntry + 0xAA),
-                               *(u16*)(pEntry + 0xB0) - *(volatile u16*)(pEntry + 0xA8),
-                               *(u16*)(pEntry + 0xC2) - *(volatile u16*)(pEntry + 0xAA));
-       }
-   }
-*/
+    ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] = 0;
+    for (i = 0; i < 0x18; i++) {
+        if (D_801EA39C[characterId * 0x18 + i] == 0xFFFF) continue;
+        ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] += func_8002675C(
+            g_Menu->resources,
+            D_801EA39C[characterId * 0x18 + i],
+            (POLY_FT4*)(((u8*)g_Menu->pGearWindowPrims) +
+                        (((u8*)g_Menu->pGearWindowPrims)[0x2AEC] * 0x50 + 0xA0)),
+            g_Menu->renderContext,
+            D_801E9B60[characterId * 0x18 + i],
+            D_801E9C20[characterId * 0x18 + i],
+            0x1000);
+    }
+    for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AEC]; i++) {
+        s32 offset = (i * 2 + g_Menu->renderContext) * 0x28;
+
+        pBase = (u8*)g_Menu->pGearWindowPrims;
+        pEntry = pBase + offset;
+        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EE0 + i * 0x20),
+                            *(u16*)(pEntry + 0xA8),
+                            *(u16*)(pEntry + 0xAA),
+                            *(u16*)(pEntry + 0xB0) - *(volatile u16*)(pEntry + 0xA8),
+                            *(u16*)(pEntry + 0xC2) - *(volatile u16*)(pEntry + 0xAA));
+    }
+}
 extern s32 D_801E9CF0;
 extern s32 D_801E9CF4;
 extern s32 D_801E9CF8;
