@@ -25,11 +25,12 @@
 #define BATTLE_TILE_SOURCE_V 4
 
 // One actor's block of the per-actor action-row table g_BattleActionRows: 42 rows per
-// actor (BattleRow, 0x28 bytes, actor.h), of which this unit reads +0x0 and +0x24 of
-// the four rows at +0x25. The offset stays an integer: indexing a BattleRow array
-// makes gcc form the actor term (arg0 * 0x690) before the row term and reach both
-// fields off one base register (464 bytes, 86.94%), where retail forms the row term
-// first and re-forms the symbol for each read.
+// actor (BattleRow, 0x28 bytes, actor.h), of which this unit reads flags (+0x0) and
+// commandPointCost (+0x24) of the four rows at +0x25. The offset stays an integer:
+// indexing a BattleRow array makes gcc form the actor term (arg0 * 0x690) before the
+// row term and reach both fields off one base register (464 bytes against retail's
+// 468, 87.56%), where retail forms the row term first and re-forms the symbol for
+// each read.
 #define BATTLE_ACTION_ROW_STRIDE 0x690
 extern u8 g_BattleActionRows[];
 
@@ -143,9 +144,9 @@ u8 BattleTryUseSlotCommand(u8 arg0, u8 arg1) {
     ret = 0;
     flag = 1;
     idx = (arg1 + 0x25) * sizeof(BattleRow) + arg0 * BATTLE_ACTION_ROW_STRIDE;
-    trigger = *(u16 *)(g_BattleActionRows + idx + 0x24); // the action row's +0x24 word
+    trigger = *(u16 *)(g_BattleActionRows + idx + 0x24); // row's commandPointCost
     cur = D_800CCDC4[arg0].flags;
-    dmg = *(u16 *)(g_BattleActionRows + idx); // the action row's +0x0 word
+    dmg = *(u16 *)(g_BattleActionRows + idx); // row's flags
     if (cur >= trigger &&
         (u16)BattleMaskHasStatusBit((u16)g_GameState.unk16BC[g_BattleActorCharIds[arg0]].statusFlags, arg1) != 0 &&
         (g_BattleSlotStatusRows[arg0].flags & statusMasks[arg1]) == 0) {
