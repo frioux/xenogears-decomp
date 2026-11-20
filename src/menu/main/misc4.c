@@ -7,7 +7,7 @@ extern u8 g_MenuOverlayIndex;
 extern u_char func_801CB304(void);
 extern u_char func_801CBD90(u_char arg0);
 extern u_char func_801CC6D8(void);
-extern u_char func_801CD2AC(void);
+extern u_char MenuEraseCardSaveFile(void);
 extern void MenuSetupPointerCursors(s32 arg0);
 extern void MenuHidePointerCursors(void);
 
@@ -24,21 +24,21 @@ extern void MenuRenderFrame(void);
 extern s32 g_MenuCardSlotOrder[];
 extern u8 D_801E9778;
 
-// The memory card directory prefix a slot's filename is appended to: D_801C50A8
-// reads "bu00:", D_801C50B0 "bu10:".
+// The memory card directory prefix a slot's filename is appended to: g_MenuCardPathPrefix0
+// reads "bu00:", g_MenuCardPathPrefix1 "bu10:".
 typedef struct {
     /* 0x0 */ u32 unk0;
     /* 0x4 */ s16 unk4;
 } MenuCardPrefix; // Size: 0x6
 
-extern MenuCardPrefix D_801C50A8;
-extern MenuCardPrefix D_801C50B0;
+extern MenuCardPrefix g_MenuCardPathPrefix0;
+extern MenuCardPrefix g_MenuCardPathPrefix1;
 
 // Reads the save file of the slot MenuResetSlotSelection/MenuFindFirstValidSlot picked
 // off the card and erases it from the card. Returns the "stay in the menu" flag, and
 // repeats the whole selection loop while the erase was skipped.
 // path holds the "bu00:"/"bu10:" card prefix followed by the record's own id string.
-u_char func_801CD2AC(void) {
+u_char MenuEraseCardSaveFile(void) {
     char path[0x40];
     u_char ready = 1;
     s32 repeat = 1;
@@ -82,9 +82,9 @@ u_char func_801CD2AC(void) {
                     g_Menu->pManager->characterWindowBuilt = 0;
                     g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
                     if (g_Menu->menuUnk2->selectedSlot < MENU_CARD_SLOT_COUNT) {
-                        memcpy(path, &D_801C50A8, 6);
+                        memcpy(path, &g_MenuCardPathPrefix0, 6);
                     } else {
-                        memcpy(path, &D_801C50B0, 6);
+                        memcpy(path, &g_MenuCardPathPrefix1, 6);
                     }
                     recordIndex = g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]];
                     // The byte offset first: written as &records[recordIndex] gcc commutes
@@ -135,7 +135,7 @@ s32 MenuUpdateSubMenuChoice(u_char arg0) {
     switch (choice) {
         case 0:
             g_Menu->unk334 = 7;
-            if (func_801CD2AC()) {
+            if (MenuEraseCardSaveFile()) {
                 result = 0;
             }
             break;

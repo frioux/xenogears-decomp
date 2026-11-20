@@ -61,7 +61,7 @@ typedef struct {
 
 void MenuSetWindowScrollBar(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
+void MenuSetWindowBorderTop(u_char a0, u_short a1, u_short a2, u_short a3);
 void MenuSetWindowBorderBottom(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuSetWindowBorderLeft(u_char a0, u_short a1, u_short a2, u_short a3);
 void MenuSetWindowBorderRight(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);

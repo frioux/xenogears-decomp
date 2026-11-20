@@ -29,15 +29,15 @@ extern u_char MenuLoadWindow2Text(u_char, u_char, u_char);
 extern void SystemDecodeGlyphCodesN(u16* pInput, u8* pOutput, int count);
 extern s32 g_MenuCardSlotTotals[];
 
-// The memory card directory prefix a slot's filename is appended to: D_801C50A8
-// reads "bu00:", D_801C50B0 "bu10:".
+// The memory card directory prefix a slot's filename is appended to: g_MenuCardPathPrefix0
+// reads "bu00:", g_MenuCardPathPrefix1 "bu10:".
 typedef struct {
     /* 0x0 */ u32 unk0;
     /* 0x4 */ s16 unk4;
 } MenuCardPrefix; // Size: 0x6
 
-extern MenuCardPrefix D_801C50A8;
-extern MenuCardPrefix D_801C50B0;
+extern MenuCardPrefix g_MenuCardPathPrefix0;
+extern MenuCardPrefix g_MenuCardPathPrefix1;
 
 /* Best attempt: 90.05% (380 bytes vs retail's 368). Every construct is right -- the
    DIRENTRY do/while over firstfile/nextfile, the 6-byte prefix copy, the retry
@@ -68,9 +68,9 @@ int func_801C8D78(u_char a0) {
         g_MenuCardChunkInUse[a0][i] = 0;
     }
     if (a0 == 0) {
-        memcpy(&prefix, &D_801C50A8, 6);
+        memcpy(&prefix, &g_MenuCardPathPrefix0, 6);
     } else {
-        memcpy(&prefix, &D_801C50B0, 6);
+        memcpy(&prefix, &g_MenuCardPathPrefix1, 6);
     }
     if (--retry != 0) {
         count = 0;
@@ -137,19 +137,19 @@ extern void MenuWaitCardOperationFrames(u_char index);
    the only difference is the operand order of the two `addu`s that add a hoisted
    offset to `g_Menu->menuUnk2`: retail emits `addu a1,s0,a1` (offset first) where
    this emits `addu a1,a1,s0`. Tried: with/without the (char*) cast on the strcat
-   argument, `memcpy(&prefix, &D_801C50A8, 6)` vs two field assignments (the two
+   argument, `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` vs two field assignments (the two
    statements get cross-jumped), and the `.pad0` vs `&chunks[idx]` spelling.
-   Learned: the 6-byte prefix copy is `memcpy(&prefix, &D_801C50A8, 6)` -- a 6-byte
+   Learned: the 6-byte prefix copy is `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` -- a 6-byte
    aggregate copy is impossible in C (a {u32;s16;} struct is 8 bytes and copies 8),
    and two field assignments are merged by -fcross-jumping. func_801CB304 and
-   misc4's func_801CD2AC use the same idiom. Also: slotWriteCursor is an s32 write
+   misc4's MenuEraseCardSaveFile use the same idiom. Also: slotWriteCursor is an s32 write
    cursor here (lw/addiu/sw), not the u8 header fields around it.
    Permuter (4 min, 1289 iterations, base=80 best=80) found nothing for the addu
    order, so the remaining two diffs are a1/v0 register swap (GIV_TIE) in the
    strcat index math and the MenuReadFileChunk argument's addu operand order.
    Round 286: the `lh`/`sh` tail of the 6-byte prefix copy proves the copy is an
    AGGREGATE of an 8-byte {u32; s16} struct (a 6-byte 4-aligned type cannot be
-   declared in C): `memcpy(&prefix, &D_801C50A8, 6)` on that type inlines to
+   declared in C): `memcpy(&prefix, &g_MenuCardPathPrefix0, 6)` on that type inlines to
    exactly retail's lw/lh/sw/sh pair, while a field-wise copy is 8 bytes shorter
    and cross-jumps the two stores into one shared block (440 bytes, 94.55%). The
    two remaining diffs are both "retail puts the OFFSET first in the addu"
@@ -165,9 +165,9 @@ void func_801C90B0(u_char a0, u_char a1) {
     s32 i;
 
     if (a0 == 0) {
-        memcpy(&prefix, &D_801C50A8, 6);
+        memcpy(&prefix, &g_MenuCardPathPrefix0, 6);
     } else {
-        memcpy(&prefix, &D_801C50B0, 6);
+        memcpy(&prefix, &g_MenuCardPathPrefix1, 6);
     }
     strcpy(path, (char*)&prefix);
     strcat(path, g_Menu->menuUnk2->records[a0 * 0x10 + a1].ids);
@@ -1016,9 +1016,9 @@ u_char func_801CB304(void) {
             g_Menu->menuUnk2->cardPollMode = 0;
             card = 0;
             if (g_Menu->menuUnk2->selectedSlot < MENU_CARD_SLOT_COUNT) {
-                memcpy(path, &D_801C50A8, 6);
+                memcpy(path, &g_MenuCardPathPrefix0, 6);
             } else {
-                memcpy(path, &D_801C50B0, 6);
+                memcpy(path, &g_MenuCardPathPrefix1, 6);
                 card = 1;
             }
             strcat(path, g_Menu->menuUnk2->records[g_Menu->menuUnk2->slotRecordIndexes[g_MenuCardSlotOrder[g_Menu->menuUnk2->selectedSlot]]].ids);

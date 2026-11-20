@@ -158,7 +158,7 @@ extern u8 g_BattleCursorScrollState;
 extern s32 g_BattleCursorScrollY;
 extern u16 D_800D2C2A;
 extern void func_8007171C(void);
-extern void func_80089CCC(s32 arg0);
+extern void BattlePollMenuEvent(s32 arg0);
 extern void BattleParseNumberToDigits(s32 arg0);
 extern void BattleSetPrimGrey80BlendSub(u8 *p);
 
@@ -508,7 +508,7 @@ s32 BattleMaskHasSlotBit(s32 mask, u8 idx) {
     }
     return flags;
 }
-void func_80089CCC(s32 arg0) {
+void BattlePollMenuEvent(s32 arg0) {
     s32 channelMask;
     BattleMenuEventHistory* pEvent;
     u8* pMenuExit;
@@ -693,7 +693,7 @@ void BattleUpdateImageUpload(u8 arg0) {
         func_8007171C();
     }
     if (arg0 == 0) {
-        func_80089CCC(0);
+        BattlePollMenuEvent(0);
     }
     g_BattleDisplayState->moveSteps += 6;
     g_BattleDisplayState->sizeSteps += 1;

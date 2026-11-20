@@ -46,7 +46,7 @@ typedef struct {
 
 void MenuSetWindowScrollBar(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuInitializeWindowBorderCorners(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
-void func_801D3FF8(u_char a0, u_short a1, u_short a2, u_short a3);
+void MenuSetWindowBorderTop(u_char a0, u_short a1, u_short a2, u_short a3);
 void MenuSetWindowBorderBottom(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
 void MenuSetWindowBorderLeft(u_char a0, u_short a1, u_short a2, u_short a3);
 void MenuSetWindowBorderRight(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4);
@@ -154,7 +154,7 @@ void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_sho
         MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderCorners[i * 2 + g_Menu->renderContext]);
     }
 }
-void func_801D3FF8(u_char index, u_short x, u_short y, u_short width) {
+void MenuSetWindowBorderTop(u_char index, u_short x, u_short y, u_short width) {
     MenuWindow* pWindow = g_Menu->windows[index];
     s32 halfWidth;
     s32 i;
@@ -289,7 +289,7 @@ void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short he
     g_Menu->pManager->shouldRenderWindow[index] = 0;
     MenuSetQuadVertices(pWindow->vertsBackground, x, y, width, height);
     MenuInitializeWindowBorderCorners(index, x, y, width, height);
-    func_801D3FF8(index, x, y, width);
+    MenuSetWindowBorderTop(index, x, y, width);
     MenuSetWindowBorderBottom(index, x, y, width, height);
     MenuSetWindowBorderLeft(index, x, y, height);
     MenuSetWindowBorderRight(index, x, y, width, height);
