@@ -441,10 +441,10 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009187C);
    edit. Residual: the same single `andi s0,s0,0xffff` retail emits at index's
    first use that func_8009382C is missing -- gcc 2.6.0 proves the u16 range
    (u8 table load * 0x20 + (u8 * 2 + u8) * 2 fits) and drops the truncation, so
-   the body is 4 bytes short. The two functions want the same answer: a spelling
-   of a `u16 index` computed from byte loads whose range cc1 2.6.0 cannot prove
-   (u16/s32/u32 locals, a u32 intermediate, a 3-statement form and a `u16`
-   parameter on GetStringEntry were all measured dead in func_8009382C). */
+   the body is 4 bytes short. Round 323 probed this to a dead end (see the note
+   under func_8009382C): 35 spellings of a bounded `u16 index` all fold, and the
+   only operands that keep the mask are unbounded ones that cost an extra
+   instruction. */
 /*
 void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
     RECT rect;
@@ -1063,15 +1063,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_8009382C);
    instruction is identical. The whole remainder is the one `andi s0,s0,0xffff`
    retail emits at index's FIRST use (the truncation of the u16 local):
    gcc 2.6.0 proves the range (u8 load * 4 + u8, * 2 -> <= 2550) and drops the
-   mask, so the body is 4 bytes short and cannot link. Tried: u16 vs s32 vs u32
-   index, a `u32 value` intermediate, the 3-statement `index = ...*4; index +=
-   arg1; index *= 2;` form (98.80), declaring GetStringEntry's 2nd parameter
-   `u16` (the second call's `ori a1,s0,1` proves it is not a parameter conversion,
-   and that spelling masks neither call), an s32 index with an explicit
-   `(u16)(...)` initialiser (identical, the conversion is folded away too) and
-   gcc-2.7.2 (98.85). The mask is a u16 LOCAL's zero-extension, so it needs an
-   operand whose range 2.6.0 cannot bound; every operand here is a zero-extended
-   load or an `andi`-masked parameter. */
+   mask, so the body is 4 bytes short and cannot link. The mask is a HImode
+   value's zero-extension and cc1 keeps it only when nonzero_bits cannot bound
+   the operand; round 323 measured 35 spellings (u16 / s16 / s32 / u32 local,
+   volatile, bitfield, struct member, one-element array, declaration initialiser,
+   second `u16` copy, `s16` round trip, unprototyped callee, `u16` parameter on
+   the callee, `& 0xFFFF`, `| 0`, `index = index;`, `(u16)` at the use, the
+   three-statement HImode form, both arms of an if/else) and every one emits
+   retail's stream minus that instruction, under 2.6.0, 2.7.2 and 2.7.2-cdk
+   alike. The forms that do keep it are a call result, an `s32` global load,
+   `x % k` (func_80093B08's own mask on `x - (x/10)*10`) and a HImode compare,
+   each of which adds an instruction here. Measured dead earlier too: an s32
+   index with an explicit `(u16)(...)` initialiser, and gcc-2.7.2 (98.85). */
 /*
 void func_8009382C(u8 arg0, u8 arg1) {
     RECT rect;
