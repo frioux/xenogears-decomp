@@ -419,36 +419,29 @@ void func_80079778(u8 arg0) {
         BattleUpdateFrame();
     }
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc4", func_80079840);
-/* Best: 96.48%. Two emit-order/allocator tie-breaks left: the loop preheader
-   puts `move a1,v1` after `la a2` where the original has it first, and the
-   g_BattleCommandQueue load adds index-first (`addu v0,v0,v1`) where the original adds
-   base-first (`addu v1,v1,v0`). Tried: g_BattleCommandQueue[slot * 0x40 + 0x3C] inline,
-   the (mem_addr) cast form, and a u8* pBuf local (96.48%). The slot/off split
-   matters: `u8 slot = arg1 - 3` with `slot * 0x40` at each use reproduces the
-   original's andi-then-sll rematerialisation; folding them into one u8 off
-   gives a single sll in the preheader and 93.20%.
-
 void func_80079840(u8 arg0, u8 arg1) {
     u8 slot;
     s32 i;
-    u8* pBuf;
+    u8 *pSlot;
+    int new_var2;
 
     if (arg1 >= 3) {
         slot = arg1 - 3;
-        *(u16*)&D_800D342E[slot * 0x40] = BattleSlotBitMask(arg0);
+        *(u16 *)&D_800D342E[slot * 0x40] = BattleSlotBitMask(arg0);
         for (i = 0; i < 5; i++) {
-            D_800D3439[slot * 0x40 + i] = D_800D2CA4[i];
+            do { } while (0);
+            new_var2 = 0x40;
+            D_800D3439[slot * new_var2 + i] = D_800D2CA4[i];
         }
-        pBuf = g_BattleCommandQueue + (arg0 & 0xFF) * 0x40;
-        if (g_BattleSlotFlag8000Mask & BattleSlotBitMask(pBuf[0x3C])) {
+        pSlot = (u8 *)g_BattleCommandQueue + arg0 * 0x40;
+        if (g_BattleSlotFlag8000Mask & BattleSlotBitMask(pSlot[0x3C])) {
             D_800D343E[slot * 0x40] = 1;
         } else {
             D_800D343E[slot * 0x40] = 0;
         }
     }
 }
-*/void BattleScriptCursorSkipWord(u8** pCursor) {
+void BattleScriptCursorSkipWord(u8** pCursor) {
     *pCursor += 4;
 }
 void BattleScriptSkipUnknownOpcodeWords(u8** pCursor) {
