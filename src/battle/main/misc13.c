@@ -43,10 +43,19 @@ typedef struct {
     /* 0x00 */ u16 slotMask;
     /* 0x02 */ u8 unk2[0xB];
     /* 0x0D */ u8 actorSlot;
-    /* 0x0E */ u8 unkE[0x23];
+    /* 0x0E */ u8 unkE[0x16];
+    /* 0x24 */ u16 unk24; // BattleSlotBitMask of the queued action's target slot
+    /* 0x26 */ u8 unk26[0xB];
     /* 0x31 */ u8 command;
     /* 0x32 */ u8 unk32[0x16];
 } BattleCommandRecord; // Size: 0x48
+
+// The word at +0 of one 0x170-byte command row (D_800CCD1C): bit 0x800 marks a row
+// whose action is already queued.
+typedef struct {
+    /* 0x000 */ u16 flags;
+    /* 0x002 */ u8 unk2[0x16E];
+} BattleCommandRow; // Size: 0x170
 
 // The active/accessory pair of effect flag words: one row of the five the slot
 // entry carries, each active word at +0 and the accessory-granted copy of the same
@@ -86,7 +95,7 @@ extern void BattleApplySlotCurve(u8);
 extern void func_80085618(u8);
 extern void BattleInitActiveSlotActions(u16);
 extern void func_800941A4(void);
-extern u16 BattleSlotBitMask(u8);
+extern s32 BattleSlotBitMask(u8);
 extern void func_80085D34(void);
 extern s32 func_800877E0(s32, s32);
 extern s32 BattleFindMinValueOtherSlot(s32);
@@ -132,6 +141,14 @@ extern s32 g_BattleLerpFracY;
 extern u8 g_BattleLerpDone;
 extern u8 GameRandomByteRange(s32, u8);
 extern s32 BattleMaskHasSlotBit(s32, u8);
+extern u8 D_800C400B[];
+extern u8 D_800C402F[];
+extern u8 D_800C34B3[][3];
+extern BattleCommandRow D_800CCD1C[];
+extern void func_80087EDC(u8, u8);
+extern void func_800881B8(u8, u8);
+extern void BattleSetSlotRegistersFromActor(u8, u8);
+extern s32 BattleScriptScanForOpcode62(u8);
 
 /* NOT ATTEMPTED - decoded map only (no body written, nothing measured).
    311 insns, owns the FIRST jump table of the unit (jtbl_80070250, 12 entries,
@@ -625,8 +642,92 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
     g_BattleSoundEnabled = 1;
     g_BattleSlotDisplayInitialized = 0;
 }
+/* 97.29%, 1004 bytes (= retail). Every remaining difference is a temp register, an
+   `addu` operand order or one extra `andi`:
+   - the `(u8)` zero-extension of the loaded command byte is hoisted before the
+     `sltiu` where retail compares the raw `lbu` register, which also costs the
+     reload retail has in the >= 8 arm (`lbu $a1,0x2DC($a2)` twice). Round 323's
+     finding covers this class: cc1 emits `andi reg,reg,0xFF` for a bounded HImode
+     whose nonzero_bits it cannot bound, and no source spelling reaches retail's
+     shape.
+   - retail loads the queue count byte TWICE at the record group (`lbu $v1` for the
+     D_800C400B index, `lbu $s3` for the count BattleApplySlotCurveAndStep gets);
+     cse merges them here. Measured with the index re-spelled
+     `*(u8 *)(g_BattleCommandQueue + 0x2DA)` (no change) and with
+     `12 * (count * 6)` for the 0x48 stride (no change).
+   - three `addu` come out offset-first (`addu v0,s0,a0`) where retail is base-first,
+     and the 0x40/0x48 stride temps land in $v0 where retail uses $v1.
+   Load-bearing spellings, each measured: the two parameters are `u8` - that is what
+   puts arg0 in $s2, the slot mask in $s1 and arg1/ofs in $s0 (s32 parameters give a
+   cyclic s0/s1/s2 rotation, 96.14%); there is NO `ofs` local (`slot * 0x40` spelled
+   at every use, 96.14 -> 97.29, but with `slot` kept - dropping `slot` too is
+   96.43); the first block is `if (flags == 0) { if (charId != 4) ... } else ...`
+   because that polarity is what makes the flags==0 arm fall through; the
+   `(u16)BattleMaskHasStatusBit` cast keeps retail's `andi v0,0xFFFF`; and the record
+   command byte is written through `*(u8 *)&g_BattleActionParam` because retail
+   reads that u16 global with `lbu`. Also needed: `BattleSlotBitMask` must return
+   s32 (a u16 return drops the `andi $a1,$v0,0xFFFF` at the BattleBeginActorAction
+   call). Permuter, 1899 iterations from the s32/unified-`ofs` body (base=1111):
+   best 809 is a 1000-byte body - one instruction short, so it cannot link.
+   Declaration order (24 permutations) changes nothing. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+/*
+s32 func_80087AF0(u8 arg0, u8 arg1) {
+    u8 slot;
+    u8 count;
+    s32 ofs;
+    s32 done;
+
+    done = 0;
+    if (g_BattleSlotDisplayInitialized == 0) {
+        if (g_BattleSlotFlags[(u8)arg0 * 8] == 0) {
+            if (g_BattleActorCharIds[(u8)arg0] != 4) {
+                func_80087EDC((u8)arg0, g_BattleCommandQueue[(u8)arg0 * 0x40 + 0x3C]);
+            }
+        } else {
+            func_800881B8((u8)arg0, g_BattleCommandQueue[(u8)arg0 * 0x40 + 0x3C]);
+        }
+        g_BattleSlotDisplayInitialized = 1;
+    }
+    BattleClearSlotCurveEntry();
+    if (g_BattleSlotFlags[(u8)arg0 * 8] == 0) {
+        if (g_BattleCommandQueue[0x2DC] < 8) {
+            g_BattleCommandQueue[0x2DC] = D_800C34B3[g_BattleCommandQueue[0x2DC]][arg1 & 0xFF];
+        } else if ((u16)BattleMaskHasStatusBit(
+                       *(u16 *)((u8 *)&g_GameState + 0x16C0 + g_BattleActorCharIds[(u8)arg0] * 0x20),
+                       (g_BattleCommandQueue[0x2DC] - 8) & 0xFF) != 0) {
+            done = 1;
+        } else {
+            g_BattleCommandQueue[0x2DC] = 7;
+        }
+    } else {
+        g_BattleCommandQueue[0x2DC] = g_BattleCommandQueue[0x2DC] + 1;
+    }
+    slot = (u8)arg0;
+    if (D_800CCD1C[g_BattleCommandQueue[slot * 0x40 + 0x3C]].flags & 0x800) {
+        D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
+        D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xF3;
+        g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].unk24 =
+            BattleSlotBitMask(g_BattleCommandQueue[slot * 0x40 + 0x3C]);
+        g_BattleCommandQueue[0x2DA] = g_BattleCommandQueue[0x2DA] + 1;
+    }
+    BattleBeginActorAction(slot, (u16)BattleSlotBitMask(g_BattleCommandQueue[slot * 0x40 + 0x3C]),
+                           g_BattleCommandQueue[0x2DC] - 1);
+    count = g_BattleCommandQueue[0x2DA];
+    D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
+    g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].slotMask = g_BattleActionSlotMask;
+    g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].command = *(u8 *)&g_BattleActionParam;
+    g_BattleCommandQueue[0x2DA] = g_BattleCommandQueue[0x2DA] + 1;
+    BattleSetSlotRegistersFromActor(slot, g_BattleCommandQueue[slot * 0x40 + 0x3C]);
+    if (g_BattleCommandQueue[slot * 0x40 + 0x3C] >= 3) {
+        if ((u8)BattleScriptScanForOpcode62(g_BattleCommandQueue[slot * 0x40 + 0x3C]) != 0) {
+            done = 1;
+        }
+    }
+    BattleApplySlotCurveAndStep(count);
+    return done;
+}
+*/INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
 /* 82.72%, 692 bytes (retail 684). The sel ladder is now retail's
    (`sel = 0; if (arg1 < 3) sel = (arg0 >= 3) * 8;`), the mask needs
    `(u16)BattleMaskHasSlotBit(...)` (without the cast the `andi v0,v0,0xFFFF` after
