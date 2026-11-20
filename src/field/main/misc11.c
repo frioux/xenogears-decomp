@@ -392,8 +392,6 @@ void FieldScriptVMHandlerSetDirectionFromRotation(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer++;
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
-
 extern u_int g_FieldSavedPlayerScriptFlags[];
 
 extern s32 g_FieldMapChangeGate;
@@ -401,8 +399,155 @@ extern s32 g_FieldEntryStateGate;
 extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldSpecialAnimLoadPending;
 extern s32 g_GameWdsBankLoadState;
+extern s32 g_FieldMapTransitionGate;
+extern int g_GameSceneMapNum;
 
-int func_80092894(int, int, int, int);
+long FieldGetVec1Magnitude(long);
+long FieldGetVec2Magnitude(long, long);
+s32 FieldGetVec2Angle(IVEC3*);
+void FieldSetGearModelAnimationForActor(int, int, FieldActor*);
+
+// A field angle is a 4096-step turn, so a quarter of one points sideways
+#define FIELD_ANGLE_QUARTER_TURN 0x400
+
+// An actor that has not moved for this many frames gives up walking and is
+// snapped onto its target
+#define FIELD_ACTOR_STUCK_FRAME_MAX 65
+
+/* 48.90% (904 bytes, retail 908). Parked attempt, written as variant (2) below
+   because it is the one-shot body: everything except the block
+   LAYOUT is instruction-identical: the prologue, the map-transition block, the
+   rsin/rcos target computation, the delta/FieldGetVec2Magnitude call, the stuck
+   -frame counter and the still-walking tail all match one for one. Retail puts the
+   ARRIVAL block (rotation | 0x8000, moveSpeed = 0, FieldSetGearModelAnimationForActor,
+   script slot flags, ip += 6, return 0) INLINE immediately after the
+   `slt radius,distance` test, and the walking arm out of line at the end with its
+   give-up test jumping BACK into that arrival block:
+   `slt v0,fp,v0 / bnez v0,<walk> / <arrival> / j <epilogue> / <walk> / ... /
+   beqz v0,<arrival>`. gcc 2.7.2 lays the arrival out LAST here in every spelling
+   tried, because the block that falls into the epilogue is the one it keeps inline:
+   (1) `if (radius >= distance) { arrival; return 0; }` then the walking arm, with the
+   give-up ending on a second copy of the arrival - gcc cross-jumps the two copies
+   onto the LATER one (retail kept the earlier), giving `beqz v0,<arrival-last>`;
+   (2) the same with an explicit else around the walking arm - identical result;
+   (3) `if (radius < distance) { walking }` then a single arrival, and the same via
+   `goto arrived` - source order, so the arrival still ends up last. Block order is
+   the only residual, so this needs either a spelling that makes gcc keep the first
+   copy of a duplicated tail or a permuter run; the earlier misc12 sibling
+   (func_80099AC0) is parked on a 1-instruction residual of its own for comparison.
+*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
+/* // Walk the player actor towards (arg2, arg3) and turn it that way, or, when arg1
+// is 0, towards the point the script actor's position offset reaches (arg0 is
+// added to its angle). Returns 0 once the player is on the target, or has been
+// stuck for too long and is snapped onto it, and -1 while it still walks.
+s32 func_80092894(s32 arg0, s32 arg1, s32 arg2, s32 arg3) {
+    FieldActor* pFieldActor;
+    ActorData* pActorData;
+    SpriteData* pSpriteData;
+    IVEC3 delta;
+    u_short rotation;
+    s32 angle;
+    s32 rotationAngle;
+    s32 radius;
+    s32 distance;
+    s32 x;
+    s32 z;
+    s32 curX;
+    s32 curZ;
+
+    g_FieldControl.isRandomEncountersEnabled = -1;
+    pFieldActor = &g_FieldActors[g_PlayerActorIndex];
+    pActorData = pFieldActor->pActorData;
+    pSpriteData = pFieldActor->pSpriteData;
+    pActorData->flags |= 0x38;
+    pSpriteData->moveSpeed = 0x80000;
+    radius = FieldGetVec1Magnitude(pSpriteData->moveSpeed >> 16) * 2;
+    curX = ((s16*)&pActorData->position.vx)[1];
+    curZ = ((s16*)&pActorData->position.vz)[1];
+    x = arg2;
+
+    if (arg1 == 0) {
+        if (g_FieldMapChangeGate == 0 || g_FieldEntryStateGate == 0) {
+            g_FieldScriptVMStopFlag = 1;
+        }
+        if (g_FieldMapTransitionGate != 0) {
+            s32 mapArg = FieldScriptVMGetArgument(4);
+            s32 mapValue = FieldScriptVMGetArgument(2);
+
+            FieldScriptVMSaveSceneState();
+            g_FieldMapTransitionGate = 0;
+            FieldScriptMemoryWriteU16(2, mapArg);
+            g_GameSceneMapNum = mapValue;
+        }
+        angle = g_FieldScriptVMCurFieldActor->rotation.y + arg0 - FIELD_ANGLE_QUARTER_TURN;
+        x = g_FieldScriptVMCurActor->positionOffset.vx + ((s16*)&g_FieldScriptVMCurActor->position.vx)[1] + ((rsin(angle) * 40) >> 12);
+        z = g_FieldScriptVMCurActor->positionOffset.vz + ((s16*)&g_FieldScriptVMCurActor->position.vz)[1] + (-(rcos(angle) * 40) >> 12);
+    } else {
+        z = arg3;
+    }
+
+    delta.x = x - curX;
+    delta.y = 0;
+    delta.z = z - curZ;
+    distance = FieldGetVec2Magnitude(delta.x, delta.z);
+
+    if (radius >= distance) {
+        rotation = (u_short)pActorData->rotation.vy | 0x8000;
+        pActorData->rotation.vx = rotation;
+        pActorData->rotation.vy = rotation;
+        pSpriteData->moveSpeed = 0;
+        pActorData->curAnimationId = 0;
+        FieldSetGearModelAnimationForActor(pSpriteData, 0, &g_FieldActors[g_PlayerActorIndex]);
+        g_FieldScriptVMStopFlag = 1;
+        pActorData->scripts[pActorData->curScriptIndex].flags_0 = 0xFFFF;
+        pActorData->scripts[pActorData->curScriptIndex].flags_0x17 = 0;
+        pActorData->scriptFlags.flags &= ~0x200000;
+        if (arg1 == 1) {
+            pActorData->flags &= ~0x38;
+        }
+        pActorData->stuckFrameCount = 0;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+        return 0;
+    } else {
+        if (pActorData->prevPosition.x == ((s16*)&pActorData->position.vx)[1]
+            && pActorData->prevPosition.y == ((s16*)&pActorData->position.vy)[1]
+            && pActorData->prevPosition.z == ((s16*)&pActorData->position.vz)[1]) {
+            pActorData->stuckFrameCount++;
+        } else {
+            pActorData->stuckFrameCount = 0;
+        }
+
+        if ((s16)pActorData->stuckFrameCount < FIELD_ACTOR_STUCK_FRAME_MAX) {
+            rotationAngle = FieldGetVec2Angle(&delta);
+            pActorData->rotation.vx = rotationAngle;
+            pActorData->rotation.vy = rotationAngle;
+            g_FieldScriptVMStopFlag = 1;
+            if (arg1 != 0) {
+                g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+            }
+            return -1;
+        }
+        rotation = (u_short)pActorData->rotation.vy | 0x8000;
+        pActorData->rotation.vx = rotation;
+        pActorData->rotation.vy = rotation;
+        pSpriteData->moveSpeed = 0;
+        pActorData->curAnimationId = 0;
+        FieldSetGearModelAnimationForActor(pSpriteData, 0, &g_FieldActors[g_PlayerActorIndex]);
+        g_FieldScriptVMStopFlag = 1;
+        pActorData->scripts[pActorData->curScriptIndex].flags_0 = 0xFFFF;
+        pActorData->scripts[pActorData->curScriptIndex].flags_0x17 = 0;
+        pActorData->scriptFlags.flags &= ~0x200000;
+        if (arg1 == 1) {
+            pActorData->flags &= ~0x38;
+        }
+        pActorData->stuckFrameCount = 0;
+        g_FieldScriptVMCurActor->scriptInstructionPointer += 6;
+        return 0;
+    }
+}
+ */
+
 void FieldPlayerSetScriptFlag80(void);
 
 void FieldScriptVMHandlerMapTransitionWithArgs(void) {
@@ -448,7 +593,6 @@ void FieldScriptVMHandlerMapTransitionOffset(void) {
     }
 }
 
-extern int g_GameSceneMapNum;
 extern s32 g_FieldGameStateChangeRequest;
 extern s32 g_FieldNextGameState;
 
@@ -519,8 +663,6 @@ void FieldScriptVMHandlerSetFadeParams(void) {
 }
 
 extern s32 g_FieldStreamSceneActive;
-extern s32 g_FieldMapTransitionGate;
-
 void FieldScriptVMHandlerRestoreMap(void) {
     int a;
     int b;
