@@ -456,6 +456,126 @@ void BattleRollPercentAndSwapActiveActor(void) {
     g_BattleCurWorkBlock->commandCode = 0x34;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
+/* 93.02%, 1216 bytes against the original's 1284 (304 of 321 instructions).
+   The structure is right: every global load, every bit test, the four
+   rand() % 100 expansions and both threshold subtractions are in retail's
+   order. What is left, from a unified diff of the two objects:
+   - the row's +0x15 byte: retail loads it lbu and then sign-extends with
+     sll 24 / sra 24; a s32, u32 and u8 local, a plain (s8) cast on the field and
+     a u8* cast all make cc1 emit a single lb instead, which is 2 instructions
+     short of retail's size. The original read that byte unsigned where cc1
+     could not fold it away.
+   - the last block: retail keeps high - 0x5A in one register and then subtracts
+     low by it; low - (high - 0x5A) is reassociated here to (low + 0x5A) - high.
+     A local holding high - 0x5A was not measured, no budget left.
+   - the three roll blocks come out with the opposite branch polarity (bnez where
+     retail has beqz), which also flips the block order: retail puts the
+     "return 1" arm in the jump target and the other in the fall-through.
+     Writing each one the other way (if (rem < K) return X; return Y;) is the
+     first thing to try.
+   Everything else matched instruction for instruction, so this is a block
+   layout job, not a wrong model. */
+/*
+s32 func_80096AB8(void) {
+    s32 evade;
+    s32 hit;
+    s32 low;
+    s32 high;
+    u16 flags;
+    s32 diff;
+    u32 mod;
+
+    evade = g_BattleActingSlot->evade;
+    hit = g_BattleTargetSlotEntry->hit;
+    low = 0;
+    high = 0;
+
+    if ((g_BattleCurrentRow->actionFlags & 0x40) != 0 &&
+        (g_BattleSlotConditions[g_BattleCurSlotIndex][0] & 0x80) != 0) {
+        return 3;
+    }
+
+    if (g_BattleActingSlot->characterId == 4) {
+        if ((g_BattleCurrentRow->unk0C[4] & 0x80) != 0 &&
+            g_GameState.gearPartsIds[0x6C + g_BattleActingSlot->extraWeaponIds[0]] == 0) {
+            D_800C34AE = 1;
+            return 3;
+        }
+        if ((g_BattleCurrentRow->unk0C[4] & 0x10) != 0 &&
+            g_GameState.gearPartsIds[0x6C + g_BattleActingSlot->extraWeaponIds[3]] == 0) {
+            D_800C34AE = 1;
+            return 3;
+        }
+    }
+
+    if ((g_BattleCurrentRow->actionFlags & 0x200) != 0) {
+        if ((g_BattleTargetSlotEntry->blockFlags & 0x8) != 0) {
+            return 3;
+        }
+        if ((g_BattleSlotConditions[g_BattleCurSlotIndex][0] & 0x80) != 0) {
+            return 3;
+        }
+    }
+
+    if ((g_BattleCurrentRow->actionFlags & 0x1000) != 0) {
+        return 3;
+    }
+    flags = g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3;
+    if ((flags & 0x100) != 0) {
+        return 3;
+    }
+    if ((g_BattleTargetSlotEntry->activeEffectFlags1 & 0x2000) != 0) {
+        return 1;
+    }
+    if ((g_BattleTargetSlotEntry->activeEffectFlags2 & 0x1000) != 0) {
+        return 1;
+    }
+    if ((g_BattleCurrentRow->actionFlags & 0x8000) != 0) {
+        return 1;
+    }
+    if ((g_BattleCurrentRow->actionFlags & 0x2) != 0) {
+        return 5;
+    }
+
+    if ((g_BattleActingSlot->activeEffectFlags1 & 0x400) != 0) {
+        low -= 0x32;
+    }
+    if ((g_BattleActingSlot->activeEffectFlags3 | g_BattleActingSlot->accessoryEffectFlags3) & 0x1000) {
+        low += 0x1E;
+    }
+    if ((flags & 0x800) != 0) {
+        high += 0x32;
+    }
+
+    mod = g_BattleCurrentRow->evadeModifier;
+    diff = evade + (s8)mod - hit;
+    if ((g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex].state.flags & 1) != 0) {
+        if (rand() % BATTLE_PERCENT_ROLL_RANGE >= 0x5F) {
+            return 1;
+        }
+        return 2;
+    }
+    if ((flags & 0x20) != 0) {
+        if ((s16)(rand() % BATTLE_PERCENT_ROLL_RANGE - diff) < 0x32) {
+            return 1;
+        }
+        return 3;
+    }
+    if ((g_BattleTargetSlotEntry->activeEffectFlags3 | g_BattleTargetSlotEntry->accessoryEffectFlags3) & 0x40) {
+        if ((s16)(rand() % BATTLE_PERCENT_ROLL_RANGE - diff) < 0x32) {
+            return 1;
+        }
+        return 2;
+    }
+    if ((s16)(rand() % BATTLE_PERCENT_ROLL_RANGE - diff) >= (s16)(low - (high - 0x5A))) {
+        return 3;
+    }
+    if ((s16)(rand() % BATTLE_PERCENT_ROLL_RANGE - diff) < (s16)(low - (high - 0x55))) {
+        return 1;
+    }
+    return 2;
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
 s16 func_80097610(void) {
     u16 value;
