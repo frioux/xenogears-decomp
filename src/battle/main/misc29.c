@@ -670,7 +670,6 @@ typedef struct {
 } BattleUnitState; // Size: 0x44
 
 extern BattleUnitState *g_BattleState;
-extern void BattleSetCurrentActorSprite(s32 actorIndex);
 extern void BattleActorUpdateGroundHeightAndTriangle(SpriteData *pSprite);
 
 extern u8 g_IsBattle;
@@ -753,7 +752,106 @@ void BattleInitFrameRenderState(void) {
 void BattleEmptyHook(void) {
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B89FC);
+extern u8 g_BattleSoundArchiveLoaded;
+extern u8 g_BattleActorArchiveReady; // the stage actor archive's stream file is loaded
+extern void *g_BattleWdsEntry;
+extern u32 g_BattleActorArchivePartKey;
+extern u16 D_800C3608; // one bit per actor slot, cleared for the slot the init claims
+extern s32 g_BattleCommandRowIndex;
+extern void BattleLoadSoundWdsFile(void);
+extern void BattleSetStateStep(s32 arg0);
+extern void BattleApplyStateStep(void);
+extern void BattleSetActorTargetFromPathPosition(SpriteData *pSprite);
+extern void BattleLoadActorArchiveFile(SpriteData *pSprite);
+extern void func_800BF3E8(SpriteData *pSprite);
+extern BattleUnitState *func_800BED4C(void);
+extern SpriteData *BattleSetCurrentActorSprite(s32 actorIndex);
+
+/* The command row table g_BattleStateWork + 0x108 starts: 0x48-byte rows, this unit
+   only reading the row's u16 at 0x14E (misc32 declares the whole row). */
+typedef struct {
+    /* 0x000 */ u8 unk0[0x14E];
+    /* 0x14E */ u16 unk14E;
+} BattleCommandRow; // Size: 0x150
+
+void func_800B89FC(s32 arg0, s32 slot, s32 arg2, s32 arg3) {
+    BattleUnitState *pState;
+    SpriteData *pSprite;
+    void *pBuffer;
+    u32 direction; // flags_0xA8 bits 30-31, one half of the archive part key
+    u32 part;      // flags_0xAC bits 0-1, the other half
+    s32 step;
+
+    BattleSetAnimTaskDoneState(0);
+    if (g_BattleState != NULL) {
+        while (1) {
+            asm("break 0x400");
+        }
+    }
+    func_800BE790();
+    func_800BE790();
+    D_800C3624 = 0;
+    D_800C3608 &= ~(1 << slot);
+    pState = func_800BED4C();
+    g_BattleState = pState;
+    pState->savedActorSlot = arg3;
+    pState->initialActorIndex = slot;
+    func_800BF3E8(BattleSetCurrentActorSprite(slot));
+    g_BattleActorAnimationIndex = 0;
+    pSprite = g_BattleState->pSprite;
+    if (((BattleActorSlot *)g_BattleStateWork)[slot].inUse == 0) {
+        BattleFreeWdsEntry();
+        g_BattleSoundArchiveLoaded = 0;
+        BattleSetAnimTaskShort(0xC0);
+        if (SpriteAnimPackageTestFlag8000(((SpriteAnimPackage *)pSprite->pVramData)->pFrames) == 0) {
+            g_BattleActorArchiveReady = 0;
+            if (g_BattleActorArchiveBuffer != NULL) {
+                direction = (u32)pSprite->flags_0xA8 >> 30;
+                part = (u32)pSprite->flags_0xAC.flags & 3;
+                if (((part << 2) | direction) == g_BattleActorArchivePartKey) {
+                    goto done;
+                }
+            }
+            BattleLoadActorArchiveFile(pSprite);
+        } else {
+            if (g_BattleActorArchiveReady == 0) {
+                BattleWaitArchiveSync();
+                ArchiveSetIndex(0x2C, 0);
+                pBuffer = HeapAlloc(ArchiveDecodeAlignedSize(7), 0);
+                ArchiveReadFileToBuffer(7, pBuffer, 0, 0x80);
+                BattleWaitArchiveSync();
+                BattleFreeWdsEntry();
+                g_BattleWdsEntry = SoundLoadWdsFile(pBuffer, 0);
+                while (SoundGetPendingSpuCommandType(0) != 0) {
+                    func_800BE790();
+                }
+                HeapFree(pBuffer);
+            }
+            g_BattleActorArchiveReady = 1;
+        }
+    } else {
+        BattleFreeActorArchiveAndSoundSeds();
+        BattleLoadSoundWdsFile();
+        BattleSetStateStep(8);
+        func_800BEE2C(slot, arg2, 0x1A);
+        BattleSetAnimTaskShort(0xC0);
+    }
+done:
+    if (arg0 == 0) {
+        if (((BattleActorSlot *)g_BattleStateWork)[slot].inUse != 0) {
+            func_800BEE2C(slot, ((BattleCommandRow *)((u8 *)g_BattleStateWork + g_BattleCommandRowIndex * 0x48))->unk14E, 2);
+        } else {
+            SpriteSetCallback(pSprite, BattleApplyStateStep);
+            BattleSetActorTargetFromPathPosition(pSprite);
+        }
+    } else {
+        step = 4;
+        if (((BattleActorSlot *)g_BattleStateWork)[slot].inUse != 0) {
+            step = 9;
+        }
+        BattleSetStateStep(step);
+    }
+}
 void BattleFreeActorArchiveAndSoundSeds(void) {
     BattleWaitArchiveSync();
     BattleLoadArchiveEntryFile();
@@ -803,7 +901,6 @@ void BattleActorInitSpriteFromSlot(void) {
 }
 
 
-extern u8 g_BattleActorArchiveReady;
 extern u8 D_800C3688;
 extern void BattleSetFlag2DBAndReleaseAssets(void);
 extern void func_800C0314(void);
