@@ -290,26 +290,22 @@ void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
    entry->unk6 = pWork->entryLife and calls pWork->pUpdateEntry(entry).  Not attempted
    body-wise yet. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
-/* 88.85% first attempt (736 bytes, frame 0xB8 vs retail 0xC0).  What is
-   already right: the whole prologue order, the *pMat copy, the three
-   centerX/centerY/centerZ additions (they want u16 x/y/z, which is why the
-   struct now declares those three as u16), the RotMatrix/MulMatrix chain,
-   both loops with --count == -1 and the pUpdateEntry/pUpdate call order.
-   Still different: (1) retail spills pWork->pUpdateEntry to 0x80(sp) and keeps
-   nine callee regs, gcc here keeps it in $s8 so the frame is 8 bytes
-   short - one more live value is needed somewhere, probably from the GTE
-   block below; (2) retail keeps pDir = sp+0x18 in $s6 across both loops
-   and stores through it; (3) retail re-reads IR1-IR3 with lhu from that
-   buffer before mtc2 into IR1-IR3 (a real memory round trip, so it is not
-   CSE-able in our compile: gcc reuses the mfc2 results) and keeps the
-   addiu pEntry+8 address instead of folding it into the sh offsets.  The
-   GTE shape is the same one BattleEffectRotateVectorByDepth above matches with
-   gte_ldv0 / gte_mvmva(1,0,0,3,0) / gte_stir123_gpr, so the macro set is
-   available; the open question is which libgte macro spells the
-   store-then-reload-into-IR round trip.
+/* 97.73% (760 bytes, retail 768).  The frame (0xC0), every save slot, the spill of
+   pUpdateEntry to 0x80(sp), the *pMat copy, the centerX/Y/Z adds, the
+   RotMatrix/MulMatrix chain, both loops and the call order all match.  Three
+   residues: (1) the IR1-IR3 round trip needs a `volatile u16 dir[3]` plus a
+   `pDir = dir;` INSIDE the loop right before the stores, or gcc folds the sh and
+   the lhu back into the mfc2 results (that one change is 88.59 -> 97.73); retail
+   nevertheless stores through $s6 with 0/2/4 offsets, and hoisting `pDir = dir;`
+   above the loop is 96.70; (2) retail's depth lands in $s1 as `lh v0,line; nop;
+   addu s1,v0,v1` where ours folds the add into $a0 (mtc2 a0,$8); (3) retail
+   materialises pEntry+8 in $v0 (`addiu v0,s3,8`) and stores at 0/2/4, ours folds
+   the +8 into the sh displacements - two instructions, the 8 bytes missing.
+
 void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
     SVECTOR vec;
-    SVECTOR dir;
+    volatile u16 dir[3];
+    volatile u16* pDir;
     MATRIX rotBase;
     MATRIX mat;
     MATRIX rotExtra;
@@ -325,6 +321,7 @@ void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
     s16 vy;
     s16 vz;
     u8* pEntry;
+    s16* pOut;
 
     pUpdateEntry = (void (*)(u8*))pWork->pUpdateEntry;
     pUpdate = (void (*)(Misc16Work*, u8*))pWork->pUpdate;
@@ -355,18 +352,20 @@ void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
             gte_ldv0(&vec);
             gte_mvmva(1, 0, 0, 3, 0);
             gte_stir123_gpr(vx, vy, vz);
-            dir.vx = vx;
-            dir.vy = vy;
-            dir.vz = vz;
+            pDir = dir;
+            pDir[0] = vx;
+            pDir[1] = vy;
+            pDir[2] = vz;
             gte_lddp(depth);
-            gte_ldir123(dir.vx, dir.vy, dir.vz);
+            gte_ldir123(pDir[0], pDir[1], pDir[2]);
             gte_nop();
             gte_nop();
             gte_gpf12_b();
             gte_stir123_gpr(vx, vy, vz);
-            ((s16*)(pEntry + 8))[0] = vx;
-            ((s16*)(pEntry + 8))[1] = vy;
-            ((s16*)(pEntry + 8))[2] = vz;
+            pOut = (s16*)(pEntry + 8);
+            pOut[0] = vx;
+            pOut[1] = vy;
+            pOut[2] = vz;
         }
         pEntry += pWork->entrySize;
     }
@@ -563,9 +562,11 @@ void BattleEffectRotateVectorByDepth(SVECTOR* pIn, SVECTOR* pOut, s32 depth) {
 }
 /* Retail's code is not compiler output: the GTE sequence at 0x8008DEC4 is
    lwc2 $0/lwc2 $1 then two nops and straight to swc2 $14 - there is no RTPS
-   command word in the disc bytes - and $v0 = (g_BattleDrawBufferIndex << 4) + 0x10 at
+   command word in the disc bytes (disc/battling.bin 0x1E3DC and 0x1E3E0 are
+   literally 00000000) - and $v0 = (g_BattleDrawBufferIndex << 4) + 0x10 at
    0x8008DEB4 is overwritten by sp+0x10 before it is used, so pObj ends up as
-   pArg0 + (the stack address of the local vector).  Left as INCLUDE_ASM. */
+   pArg0 + (the stack address of the local vector).  A source line can produce
+   neither, so no C body reproduces these bytes.  Left as INCLUDE_ASM. */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008DE54);
 
 void BattleEffectClearResourcePointers(void) {
