@@ -325,35 +325,41 @@ void MenuFreeWindow(u_char index) {
     HeapFree(g_Menu->windows[index]);
     HeapFree(g_Menu->windowParameters[index]);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4F2C);
-/* Best: 87.79%. Structure and every called function/prototype is right; what is
-   left is allocation and instruction order: (1) retail emits `addu v1,s1,v1`
-   for the tpage-store address where gcc commutes it to `addu v1,v1,s1`, (2)
-   retail keeps a0 in s3 / a3 in s4, gcc the reverse, (3) in the MenuSetFt4QuadVertices
-   arg setup retail does `andi a3,a3,0xFC` after the a1/a2 masks and keeps the
-   7th stack store (`sw v0,0x18(sp)`) before the jal, gcc puts it in the delay
-   slot. MenuSetFt4QuadVertices must be declared `u_short x, u_short y` HERE (misc12.c
-   defines it as `short`): with `short` the caller gets sll/sra 0x10 instead of
-   retail's `andi 0xFFFF`.
-   void func_801D4F2C(u_char a0, u_char a1, s32 a2, s32 a3) {
-       u8* pWindow = (u8*)g_Menu->characterWindows[a0];
-       u8* pBase;
-   
-       func_8002675C(g_Menu->resources, a0 + 0x14B, (POLY_FT4*)pWindow,
-                     g_Menu->renderContext, a2, a3, 0x1000);
-       MenuInitializePolyFt4((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)));
-       *(u16*)(pWindow + g_Menu->renderContext * 0x28 + 0x66) = GetTPage(0, 0, 0x180, 0);
-       pBase = pWindow + g_Menu->renderContext * 0x28;
-       if (g_Menu->pManager->currentCharacterIDs[a0] & 1) {
-           *(u16*)(pBase + 0x5E) = g_SystemPalette2;
-       } else {
-           *(u16*)(pBase + 0x5E) = g_SystemPalette1;
-       }
-       MenuSetFt4QuadVertices((POLY_FT4*)(pWindow + (g_Menu->renderContext * 0x28 + 0x50)),
-                     D_801E9B58 + a2, D_801E9B5C + a3,
-                     (g_MenuNameTextureX[a0] << 2) & 0xFC, g_MenuNameTextureY[a0], 0x48, 0xD);
-   }
-*/
+// The party member portrait prims of a MenuCharacterWindow, at the tail of its unk0.
+typedef struct {
+    /* 0x00 */ u8 unk0[0x50];
+    /* 0x50 */ POLY_FT4 portraitPrims[2]; // one per render context
+} MenuCharacterPortraitPrims; // Size: 0xA0
+
+void func_801D4F2C(u_char index, u_char characterId, s32 x, s32 y) {
+    MenuCharacterPortraitPrims* pWindow =
+        (MenuCharacterPortraitPrims*)g_Menu->characterWindows[index];
+    u8* pBase;
+    s32 texX;
+    s32 tpageOffset;
+    u16 tpage;
+
+    func_8002675C(g_Menu->resources, index + MENU_TEX_PORTRAIT_PARTY_MEMBER_1,
+                  (POLY_FT4*)pWindow, g_Menu->renderContext, x, y, 0x1000);
+    MenuInitializePolyFt4(&pWindow->portraitPrims[g_Menu->renderContext]);
+    // The tpage address is summed in integer space into its own local: a
+    // single-expression form commutes retail's `addu v1,s1,v1`.
+    tpage = GetTPage(0, 0, 0x180, 0);
+    tpageOffset = g_Menu->renderContext * sizeof(POLY_FT4);
+    *(u16*)((u8*)pWindow + tpageOffset + 0x66) = tpage;
+    // The clut address stays untyped: a POLY_FT4 member access recomputes it
+    // inside each arm of the palette test.
+    pBase = (u8*)pWindow + g_Menu->renderContext * sizeof(POLY_FT4);
+    if (g_Menu->pManager->currentCharacterIDs[index] & 1) {
+        *(u16*)(pBase + 0x5E) = g_SystemPalette2;
+    } else {
+        *(u16*)(pBase + 0x5E) = g_SystemPalette1;
+    }
+    texX = g_MenuNameTextureX[index];
+    MenuSetFt4QuadVertices(&pWindow->portraitPrims[g_Menu->renderContext], D_801E9B58 + x,
+                           D_801E9B5C + y, ((texX << 1) << 1) & 0xFC, g_MenuNameTextureY[index * 4],
+                           0x48, 0xD);
+}
 void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {
     MenuCharacterWindow* pWindow = g_Menu->characterWindows[index];
     s32 i;
