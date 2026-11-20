@@ -269,7 +269,24 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    matrix calls (85.47) or after the vy zeros (87.05); `pClip += 1` (identical);
    `(WorldMapMisc16Point*)(pScratch + 0xB8)` for the fourth corner (78.80 / 1028);
    nXClip/nZClip locals (80.30 / 1044). Not a preset question: gcc-2.7.2-cdk scores
-   70.06 and gcc-2.6.0 69.89 on this body. */
+   70.06 and gcc-2.6.0 69.89 on this body.
+
+   ROUND 350: the four remaining bytes ARE the fourth corner pointer, and nothing else.
+   Retail forms it with `ori t6,t6,0xB8` off the 0x1F800000 it had just reloaded for the
+   spill slot, where `&pQuad[3]` makes this build materialise 0x1F8000B8 from scratch
+   (lui+ori) - exactly the one instruction, 1040 against 1036. Spelling it
+   `(WorldMapMisc16Point*)(pScratch + 0xB8)` DOES reach retail's exact 1036 bytes, but
+   it re-ranks the entire allocation (base to s1, a corner pointer into s8, pClip to s2)
+   for 81.45, with every other row of the diff unchanged. So size and allocation cannot
+   be had from this body: that one pointer spelling moves five registers. Also measured
+   this round, all correct code and all worse: a dead `u32 pad[2]` local (frame 0x70,
+   88.75 - the pad takes retail's 0x18 slot and shifts every constant slot by 8);
+   `pD0`/`pE0` as ROW-loop locals (1032 / 85.86, base to s1); reusing `col` for the tail
+   variant (88.54 - it DOES put the variant in a saved register with retail's
+   xori-in-the-bnez-delay-slot, but pTex and the variant then swap s3/s4); a
+   `do { } while (0)` around the ten 0xC0..0xE4 stores (1016 / 79.67). The tail is the
+   other divergence: retail keeps the variant in s4 (col's dead register) and the mask
+   base in s5 (pClip's), where this body hands both a caller-saved temp (v1 / a1). */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 /*
 void func_800983A0(WorldMapMisc16Struct* p) {
