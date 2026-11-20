@@ -227,10 +227,9 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
    shows all three emit the same `la`), and `volatile` on the array declaration. gcc
    2.6.0 scores 92.77 with the unit's four matched functions still 100.00, so the preset
    is not the answer either. Next lever to try: a per-site spelling that gives each
-   address pseudo a single use so loop.c has nothing shared to hoist.
-   Not tried: a distinct RTL spelling per site so each invariant address pseudo has a
-   single use (loop.c then has no shared hoist), separate ofs-style temporaries per
-   digit site, a pointer local per arm, and the permuter.
+   address pseudo a single use so loop.c has nothing shared to hoist; also untried for
+   this body: separate ofs-style temporaries per digit site, a pointer local per arm,
+   and the permuter.
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
@@ -614,6 +613,7 @@ void func_80090C44(u8 arg0) {
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
 extern void func_80090C44(u8);
 
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
 /* 83.46% (488 bytes = retail's exact 122 instructions). Both draw blocks and both
    palette picks are retail's; the palette blocks and the tail (func_80090C44 in the
    store's delay slot, the trailing `lbu g_BattlePrimStartIndex`) are byte-identical.
@@ -631,6 +631,11 @@ extern void func_80090C44(u8);
      loses them.
    `pal = D_800D2F80;` above the first call is a scratch for the dx argument (the
    permuter's find, 1155 -> 83.46); retail keeps it in v1, this build in t0.
+   ROUND 312: passing D_800D2F80 inline as the dx argument instead of through that
+   scratch is 82.24, and adding `u = D_800D2F82;` before it (`u` passed as the u
+   argument) is exactly 83.46 again - so the scratch is load-bearing and the residual
+   is NOT the u/dx/v load order on its own: retail loads them u, dx, v after
+   `lw t0,0(s0)` and this build dx, u, v with dx before the sll chain.
    Remaining: retail fills the entry block's first slots with `lui v0,%hi(
    g_BattleGraphicsWork); lw v0,0(v0)` between `li a1,0xA8` and `li a2,0xA6` and
    loads D_800D2F80 before the sll chain; this build emits both after it. A short
@@ -638,7 +643,6 @@ extern void func_80090C44(u8);
    conversion pair per site (504 bytes), i.e. ofs is not narrow in the original.
    Not tried: a distinct RTL spelling for the pPrims member access, and a second
    permuter run from the 83.46 body.
-*/
 void func_80090E7C(u8 arg0) {
     u8 *pRec;
     u8 *pPrims;
@@ -676,4 +680,4 @@ void func_80090E7C(u8 arg0) {
     BattleDrawSpritePackage(0x71, (s32)(g_BattleGraphicsWork->pPacketPrims + 0x5A0), 0x118, 0xD1);
     ((BattleMenuPrims *)g_BattleGraphicsWork->pPacketPrims)->numberPrimStart = ((u8 *)g_BattlePrimStartIndex)[0];
 }
-
+*/
