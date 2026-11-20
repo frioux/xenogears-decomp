@@ -105,7 +105,7 @@ void MenuSetQuadVertices(SVECTOR* pVertices, u16 x, u16 y, u16 width, u16 height
 void MenuSetFt4QuadVertices(POLY_FT4* pPoly, u_short x, u_short y, u_char u, u_char v, s32 width, s32 height);
 void func_801D8EA4(u8 arg0, u8 arg1, u8 arg2, u8 arg3);
 int func_801DE5CC(u_char arg0, s32 arg1, s32 arg2, u_char arg3, u_char arg4);
-u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3);
+u_char MenuEquipItemFromPanel(u_char arg0, u_char arg1, u_char arg2, u_char arg3);
 void MenuDrawStatTable(u8 arg0, u8 arg1, u8 arg2, u8 arg3);
 void MenuApplyEquippedItemBonuses(MenuDressingRoom* pDressingRoom, u8 characterId);
 void MenuComputeCharacterStats(MenuDressingRoom* pDressingRoom, u8 characterId);
@@ -944,7 +944,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DE5CC);
 // folds the second into `addiu t2,t2,-900` when the arms are single statements,
 // which leaves the body 4 bytes short. The duplicated addiu is then merged back
 // into one after the join by cross-jumping.
-u_char func_801DF0D4(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
+u_char MenuEquipItemFromPanel(u_char arg0, u_char arg1, u_char arg2, u_char arg3) {
     u_char* pIds;
     u_char* pQuantities;
     u_char panelItem;
@@ -1573,7 +1573,7 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
                 g_Menu->pManager->shouldRenderArrowCursor[0] = 0;
                 break;
             case MENU_INPUT_CONFIRM:
-                equipResult = func_801DF0D4(arg0, slot, group, kind);
+                equipResult = MenuEquipItemFromPanel(arg0, slot, group, kind);
                 prevChar = 0xFF;
                 if (equipResult != 0) {
                     group ^= 1;
