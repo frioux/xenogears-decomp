@@ -819,16 +819,28 @@ void func_800785D4(u8 color, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 
+// A battle text slot: one 0x60-byte row of the buffer at D_800D3718, holding the
+// rect and the buffer its string is uploaded through (the row is reached through
+// three separate symbols: the rect array, the row's buffer pointer and the byte
+// SystemRenderStringEntry's result is kept in).
+#define BATTLE_TEXT_SLOT_SIZE 0x60
+// A slot is only taken while g_BattleTextSlotCount is below this, the number of
+// rows the buffer has room for.
+#define BATTLE_TEXT_SLOT_MAX 9
+
 void func_80078658(u8 index, u8 color) {
     u8 *pEntry;
 
-    if (g_BattleTextSlotCount < 9) {
-        *(u8 *)((u8 *)&D_800D3726 + g_BattleTextSlotCount * 0x60) =
+    if (g_BattleTextSlotCount < BATTLE_TEXT_SLOT_MAX) {
+        *(u8 *)((u8 *)&D_800D3726 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE) =
             SystemRenderStringEntry(GetStringEntry(D_800C3DDC, D_800D2E5F[index * 8]),
-                                    *(u8 **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * 0x60), 0x39,
+                                    *(u8 **)((u8 *)&D_800D3720 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE), 0x39,
                                     g_BattleTextSlotCount & 1);
-        BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + g_BattleTextSlotCount * 0x60),
-                      *(u_long **)((u8 *)&D_800D36C0 + g_BattleTextSlotCount * 0x60 + 0x60));
+        // D_800D36C0 + 0x60 is D_800D3720: naming that symbol in both calls makes
+        // cse keep the row base in one pseudo across SystemRenderStringEntry and
+        // spill it, which costs 8 bytes of frame retail does not have.
+        BattleLoadImageAndSync((RECT *)((u8 *)&D_800D3718 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE),
+                      *(u_long **)((u8 *)&D_800D36C0 + g_BattleTextSlotCount * BATTLE_TEXT_SLOT_SIZE + BATTLE_TEXT_SLOT_SIZE));
         D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = color;
         D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = 0xFA;
         pEntry = g_BattleCommandQueue;
