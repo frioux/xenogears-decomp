@@ -528,38 +528,36 @@ void BattleStopSoundSlotsByFlags(u8 kind) {
         }
     }
 }
-/* best: objdiff 99.43% - size (176), frame (0x28, `s32 pad[2]` supplies retail's extra 8 bytes), the whole
-   instruction multiset, both loads' position and the $at-vs-base split of the two table reads all match. Only
-   difference: register numbering. Retail keeps &D_80091EE0 in s1 and the byte index in s2; gcc gives the index
-   s1 and the base s2. The non-void return is what fixed the arg-4 load order: plain void was 90.34%.
-   Permuter from the 99.43 body: 1404 iterations, no gain (base 25, best 25). Also tried: reading D_80091EE0[]
-   directly for both (78.93%), pTable assigned before the byte load (92.50%) or right after `i = v << 1` (no
-   change), an initializer on the pointer (92.50%), a u32 index (no change), pad declared last (no change),
-   -G0 and gcc-2.7.2-cdk (76.41%). Later round: an element pointer `pElem = (pTable + i) + 1` read twice with
-   a non-void return gives retail's base-first `addu` at the same 176 bytes / 99.43; the two remaining diffs are
-   the s1/s2 rotation of base and index and retail's `nop` in the second `beqz` delay slot, and neither moved
-   under object-typed locals, declaration order, a do/while block or a duplicated table load.
-/*
-int func_8008ED6C(u8* p, s32 idx) {
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+/* best: objdiff 90.34% - 176 bytes, retail's exact size, frame (0x28 with the
+   unused s32 pad[2]) and every instruction identical except that gcc gives the
+   doubled table index $s1 and the D_80091EE0 base $s2 where retail has them the
+   other way round. Tried: the three declaration orders (no change), the index
+   as u32, i = soundId * 2, an initialiser on the pointer, pEntry = &D_80091EE0[i]
+   with pEntry[1] (85.84%, 168 bytes), both reads spelled D_80091EE0[i] (90.70%,
+   184 bytes), a non-void return (90.11%) and a 3-minute permuter run (base 145,
+   best 25, only found a nonsense volatile return type). The $at form of the
+   first read and the base-plus-index form of the second are both required.
+void func_8008ED6C(BattleActor* pActor, s32 idx) {
     s32 pad[2];
-    u8* pTable;
+    u8* pSoundTable;
     s32 i;
-    u8 v;
+    u8 soundId;
 
-    v = *(u8*)(*(u32*)(p + 0x1664) + idx);
-    if (v == 0xFF) {
+    soundId = pActor->pSoundTable[idx];
+    if (soundId == BATTLE_SOUND_ID_NONE) {
         return;
     }
-    i = v << 1;
-    pTable = D_80091EE0;
+    i = soundId << 1;
+    pSoundTable = D_80091EE0;
     if (D_80091EE0[i] != 0) {
-        BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
+        BattleStopSoundSlotsByFlags(((pActor->flags >> 20) & 0x80) | (D_80091EE0[i] & 0x7F));
     }
-    if (pTable[i + 1] != 0) {
-        BattleStopSoundSlotsByFlags(((*(u32*)(p + 0xD0) >> 20) & 0x80) | (pTable[i + 1] & 0x7F));
+    if (pSoundTable[i + 1] != 0) {
+        BattleStopSoundSlotsByFlags(((pActor->flags >> 20) & 0x80) | (pSoundTable[i + 1] & 0x7F));
     }
-}*/
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008ED6C);
+}
+*/
 void BattleUpdateActorApproach(BattleActor* pActor, s16 arg1, s16 arg2) {
     s32 pad[4];
     s32 step;
