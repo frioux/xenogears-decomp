@@ -36,9 +36,14 @@ Start:
 
     colima status || colima start --vz-rosetta
     make check              # all ELEVEN outputs OK before you touch anything
-    grep -rc '^INCLUDE_ASM' src | awk -F'[/:]' '{n[$2]+=$NF} END{for(b in n) print n[b], b}' | sort -rn
+    grep -rho 'INCLUDE_ASM(' src --include=*.c | wc -l                     # total: 844 at round 310
+    grep -rho 'INCLUDE_ASM("[^"]*/' src --include=*.c | cut -d/ -f2 | sort | uniq -c | sort -rn   # per binary
 
-That last line is the scoreboard (stubs per binary; 4568 functions in total). Four
+That last line is the scoreboard (stubs per binary; 4568 functions in total). Count stubs
+with `grep -rho 'INCLUDE_ASM(' src --include=*.c | wc -l`, **not** `grep -c '^INCLUDE_ASM'`:
+a worker that re-parks a body writes `}*/INCLUDE_ASM(...);` and the stub then starts
+mid-line and disappears from the line-start count (round 310 lost two that way, one of
+them a real stub). Four
 numbers move in this job: **functions matched** and **matched functions with a real
 name** go up, and **raw lines** (matched C that no programmer would have written; see
 "Realistic C") and **placeholder names** (`D_<addr>` globals and `unk<offset>` fields
