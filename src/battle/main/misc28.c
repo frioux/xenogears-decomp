@@ -50,6 +50,9 @@ typedef struct {
     /* 0x78 */ s32 grav;
 } BattleEffect; // Size: 0x7C
 
+// One row of a record set: 20 records per row, 14 rows per set.
+typedef BattleEffect BattleEffectRow[20];
+
 typedef struct {
     /* 0x00000 */ u8 unk00000[0x38];
     /* 0x00038 */ s32 frameCount; // zeroed by the spawner, incremented once per update pass
@@ -60,6 +63,13 @@ typedef struct {
     /* 0x0 */ u8 unk0[0x4];
     /* 0x4 */ BattleEffectTable *pTable;
 } BattleEffectTask; // Size: 0x8
+
+// The battle state block 0x8000 bytes into g_BattleStateWork, as misc29 types it:
+// only the field this unit reads is carried here.
+typedef struct {
+    /* 0x000 */ u8 unk0[0xC84];
+    /* 0xC84 */ s32 colorSetIndex; // selects the effect colour set
+} BattleRenderState;
 
 // What SpriteData.field_0x6C points at: first the sprite's timer entry, then at
 // 0x1C the entry the per-frame draw pass hangs its callback on.
@@ -442,10 +452,10 @@ void BattleActorRotateVectorZ(BattleSpriteState *pSprite, s8 *p) {
 // in a register and loses retail's extra frame slot, reload and biv chain.
 void BattleUpdateEffectTable(BattleEffectTask *pTask) {
     BattleEffectTable *pTable;
-    BattleEffect (*pRows)[14][20];
+    BattleEffectRow *pRows;
     BattleEffect *pEntry;
     BattleEffectColor *pColor;
-    u8 *pState;
+    BattleRenderState *pState;
     u8 *pStateWork;
     SVECTOR vel;
     s32 vx;
@@ -461,15 +471,15 @@ void BattleUpdateEffectTable(BattleEffectTask *pTask) {
         for (j = 0; j != 14; j++) {
             // retail re-derives the row base from the spilled table once per row
             // set, and does it after the inner loop's counter is cleared
-            for (k = 0, pRows = &pTable->entries[i]; k != 20; k++) {
-                pEntry = &(*pRows)[j][k];
+            for (k = 0, pRows = pTable->entries[i]; k != 20; k++) {
+                pEntry = &pRows[j][k];
                 if (pEntry->timer != 0) {
                     pEntry->timer--;
                     continue;
                 }
                 pStateWork = g_BattleStateWork;
-                pState = pStateWork + 0x8000;
-                pColor = &pEntry->colors[*(s32 *)(pState + 0xC84)];
+                pState = (BattleRenderState *)(pStateWork + 0x8000);
+                pColor = &pEntry->colors[pState->colorSetIndex];
                 pColor->r = SpriteColorAddClamp(pColor->r, -BATTLE_EFFECT_FADE_STEP);
                 pColor->g = SpriteColorAddClamp(pColor->g, -BATTLE_EFFECT_FADE_STEP);
                 pColor->b = SpriteColorAddClamp(pColor->b, -BATTLE_EFFECT_FADE_STEP);
@@ -518,7 +528,7 @@ void BattleDrawEffectTable(BattleEffectTask *pTask) {
     BattleEffect *pEntry;
     BattleEffectColor *pColor;
     SVECTOR *pVertices;
-    u8 *pState;
+    BattleRenderState *pState;
     u8 *pStateWork;
     s32 screen;
     s32 otIndex;
@@ -536,8 +546,8 @@ void BattleDrawEffectTable(BattleEffectTask *pTask) {
             for (k = 0; k != 20; k++) {
                 pEntry = &pTable->entries[i][j][k];
                 pStateWork = g_BattleStateWork;
-                pState = pStateWork + 0x8000;
-                pColor = &pEntry->colors[*(s32 *)(pState + 0xC84)];
+                pState = (BattleRenderState *)(pStateWork + 0x8000);
+                pColor = &pEntry->colors[pState->colorSetIndex];
                 if (pEntry->posZ < BATTLE_EFFECT_MIN_DRAW_DEPTH) {
                     continue;
                 }
