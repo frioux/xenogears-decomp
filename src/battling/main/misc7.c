@@ -94,24 +94,32 @@ extern int ControllerGetType(int controllerIndex);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc7", func_8007F854);
 
-/* 96.25%: the register assignment is NOT mirrored - D_80098800 is (a1,v1) and
-   D_800970E4 is (a0,v0) in both the original and our compile. The only
-   difference is group order: retail runs the D_80098800 load/ori/store first
-   and the D_800970E4 one second, ours always schedules the v0 chain (D_800970E4)
-   first even with the statements written the other way round, and `lw ra` sits
-   between the two stores in both. sched2 priority tie, not a source shape.
-   Also tried: statements reversed (95.42), no tmp[] (96.08), two s32 locals
-   for the loads (96.08, and it also drops the 8-byte frame slot). */
-
+/* 96.67%: every instruction and the 96-byte size are retail's; the residual is
+   a pure register permutation of two chains. Retail runs the D_80098800 chain
+   in $a1/$v1 and the D_800970E4 chain in $a0/$v0, and emits the D_80098800
+   chain first. Allocation follows CREATION order in this compiler (first
+   statement gets $a0/$v0), so the reversed pointer-local pair below is the only
+   spelling that reproduces retail's registers, and then the two chains come out
+   in the other order. Measured: inline D_80098800 first 96.25, inline reversed
+   95.42, pointer locals in statement order 96.25, mixed (one pointer local, one
+   inline) 96.25, s32 return type 96.67 (no change), gcc-2.7.2-cdk 86.08,
+   gcc-2.6.0 87.50, and a 4-minute permuter run from 96.67 found nothing
+   (RESULT PERMUTER_NONE base=70 best=70, 2418 iterations). To close it someone
+   needs B's address/value pseudos created before A's while A's chain is still
+   emitted first - a scheduler priority this source does not control. */
 /* void func_8007F854(void) {
-    s32 tmp[2];
+    s32 tmp[2]; // reproduces the original's unused 8-byte stack slot
+    s32 *pA;
+    s32 *pB;
 
     g_BattleScreenCopyRequest = 1;
     BattleSetScreenMode(1);
     g_BattleCurrentTextList = 0;
     BattleClearTextSpriteEntries();
-    D_80098800[0] |= 0xC;
-    D_800970E4[0] |= 0xC;
+    pB = D_800970E4;
+    pA = D_80098800;
+    pA[0] |= 0xC;
+    pB[0] |= 0xC;
 } */
 
 void BattleResetTextListState(void) {
