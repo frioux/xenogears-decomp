@@ -936,21 +936,24 @@ void func_8007D7A8(VECTOR *pSrc, s32 count) {
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007D918);
 
-/* PARK 92.52% at retail's exact size (0x210 bytes, 132 instructions). The body
-   below is structurally byte-for-byte retail: the preheader's camera loads into
-   s0/t9/t8, the 0xA-byte entry stride over the double-buffered draw index, the
-   three-vertex RTPT accumulator, the per-prim SZ1/SZ2/SZ3 read-back through
-   0x1F8000B0, the 24-bit OT link and the shared fall gravity/expiry tail. Only
-   REGISTER ASSIGNMENT differs, on five loop-carried values: retail has
-   counter=$t0, entry=$t1, entry+7=$a1, prim=$a2, state=$a3; gcc puts
-   state=$t0, counter=$t1, entry=$a0, entry+7=$a2, prim=$a3. Tried with no
-   effect on the allocation: the local declaration order (seven permutations),
-   reading the camera through s32 or u32
-   pointers, u32 state / u32 counter / s32 link / u32
-   buffer, and loading the camera before vs after the entry/prim preheader. The
-   single size lever that DID land here was dropping a pPrim local and masking
-   the prim address inline, `(u32)(pTemplate + k) & 0xFFFFFF` (540 -> 528, the
-   extra instructions were a callee-saved $s1 pair plus one unfilled load delay).
+/* PARK 92.52% at retail's exact size (528 bytes, 132 instructions), re-measured
+   live in round 312. The parked text below now COMPILES: round 310's failure was
+   simply that this block was missing its final closing brace. One more thing a
+   live definition needs: BattleEffectQueueMatrixPrims above calls this function
+   with no prototype in scope, so un-parking it without an
+   `extern void func_8007D918(u32 *pOt);` above the caller is a conflicting-type
+   error against the implicit `int ()` declaration.
+   The body is structurally retail: the preheader's camera loads (s0/t9/t8), the
+   0xA-byte entry stride over the doubled draw index, the three-vertex RTPT
+   accumulator, the per-prim SZ1/SZ2/SZ3 read-back through 0x1F8000B0, the 24-bit
+   OT link and the shared fall gravity/expiry tail. Only REGISTER ASSIGNMENT
+   differs, on five loop-carried values: retail counter=$t0, entry=$t1,
+   entry+7=$a1, prim=$a2, state=$a3; gcc gives state=$t0, counter=$t1,
+   entry=$a0, entry+7=$a2, prim=$a3. Tried with no effect: declaration order
+   (eight permutations), `i = buffer;` hoisted before the loop init (92.78% but
+   524 bytes - one instruction short, it loses retail's preheader counter copy),
+   s32/u32 camera reads, u32 state/counter. Preset screen, round 312: gcc 2.6.0
+   93.42, gcc 2.7.2-cdk 82.89, -O3 92.52, -G0 92.52 - so it is not a preset.
    The permuter cannot run on this body (the inline-asm GTE macros fail its
    parser). Facts: D_800926C0 is an ARRAY of prim-template pointers indexed by
    g_BattleDrawBufferIndex (D_800926C4 is element 1); BattleSpriteEntry.groundY
@@ -968,8 +971,8 @@ void func_8007D918(u32 *pOt) {
     u32 link;
     s32 buffer;
     s16 y;
-    s32 n;
     s32 i;
+    s32 n;
 
     camX = *(s32 *)(pScratch + 0x00);
     camY = *(s32 *)(pScratch + 0x04);
@@ -1022,6 +1025,7 @@ void func_8007D918(u32 *pOt) {
         }
         pEntry->vy += 2;
     }
+}
 */
 
 void BattleInitSpriteBuffers(void) {
