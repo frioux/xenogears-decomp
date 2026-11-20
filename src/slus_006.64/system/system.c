@@ -58,7 +58,7 @@ extern s16 g_SystemPalette2;
 
 // One global text object (a SystemString at 0x80059FD8) and its char buffer;
 // the fields are split out because each field address is its own symbol.
-extern s16 D_80059FD8;
+extern s16 D_80059FD8[];
 extern s16 D_80059FDA;
 extern s16 D_80059FE0;
 extern s16 D_80059FE2;
@@ -742,39 +742,44 @@ void SystemStringClearLineOffset(SystemString* pString) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", func_80034888);
 
-// Render string entry to a buffer
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/system", SystemRenderStringEntry);
+// Primitive code of the free-size textured rects a rendered row's sprites are
+#define SYSTEM_STRING_RECT_CODE 0x64
 
-/* Best attempt, 28.31%: every instruction and data reference is right and the
-   statement order below is exactly the order of the original stores, but gcc
-   emits the 8 constant-touching stores (D_80059FE0, D_8005A040, D_8005A041,
-   D_8005A068, andi a3) about ten instructions earlier than the original, and
-   reuses one li v0,1 where the original loads the constant twice.
+// Render string entry to a buffer
 int SystemRenderStringEntry(void* pCur, void* pCharBuffer, int mode, int flag) {
+    int primitiveCode;
+    s16* pStringBytes;
+
     D_80059FE2 = mode;
     D_80059FE4 = 1;
     D_80059FE2 = mode | 1;
     D_80059FE0 = (s16)(mode | 1) * 4;
+    pStringBytes = D_80059FD8;
+    primitiveCode = SYSTEM_STRING_RECT_CODE;
     D_80059FF4 = pCur;
-    D_8005A040 = 1;
     D_80059FEA = (mode | 1) + 3;
-    D_8005A05C = 0;
-    D_8005A044 = 0;
-    D_8005A042 = 0;
-    D_8005A004 = pCharBuffer;
-    D_80059FE8 = 0;
-    D_80059FDA = 0;
-    D_80059FD8 = 0;
-    D_8005A041 = 0x64;
+    D_8005A040 = 1;
+    do {
+        D_8005A05C = 0;
+        D_8005A044 = 0;
+        D_8005A042 = 0;
+        D_8005A004 = pCharBuffer;
+        D_80059FE8 = 0;
+        D_80059FDA = 0;
+        D_80059FD8[0] = 0;
+        D_8005A041 = primitiveCode;
+    } while (0);
     D_8005A000 = D_8005A068;
     D_8005A0C0 = 0;
     D_8005A0C2 = flag & 1;
 
-    func_80033DF0(&D_80059FD8);
+    // The do/while block above and the two hoisted locals are load-bearing:
+    // without them gcc hoists the constant stores above the group (28.31%).
+    func_80033DF0(pStringBytes);
 
     return ((SystemStringChar*)D_8005A000)->x * 4;
 }
-*/
+
 
 int SystemGetGlyphWidth(u16 first, u16 second) {
     if (first == 0) {
