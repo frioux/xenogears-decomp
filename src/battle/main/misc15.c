@@ -105,7 +105,7 @@ extern u8 D_800CCD1C[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_BattleActionRows[];
 extern void BattleClearSlotCurveEntry(void);
-extern void func_80079840(u8 arg0, u8 arg1);
+extern void BattleSetSlotRegistersFromActor(u8 arg0, u8 arg1);
 extern void BattleQueueCommandFE(u8 arg0);
 extern void BattleApplySlotCurveAndStep(u8 arg0);
 extern void BattleBeginActorAction(u8 arg0, u16 arg1, u16 arg2);
@@ -290,7 +290,7 @@ void func_8008ADD0(u8 arg0) {
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = *pMask;
     for (i = 3; i < 11; i++) {
         if (BattleMaskHasSlotBit(*(volatile u16 *)&g_BattleActionSlotMask, i) != 0) {
-            func_80079840(arg0, i);
+            BattleSetSlotRegistersFromActor(arg0, i);
         }
     }
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;
@@ -600,7 +600,7 @@ void BattleActivateSelectedCommand(u8 arg0) {
     *(u16 *)(g_BattleCommandRecords + g_BattleCommandQueue->count * 72) = g_BattleActionSlotMask;
     for (i = MAX_PARTY_MEMBERS; i < BATTLE_ACTOR_SLOT_COUNT; i++) {
         if (BattleMaskHasSlotBit(g_BattleActionSlotMask, i) != 0) {
-            func_80079840(arg0, i);
+            BattleSetSlotRegistersFromActor(arg0, i);
         }
     }
     g_BattleCommandQueue->count = g_BattleCommandQueue->count + 1;

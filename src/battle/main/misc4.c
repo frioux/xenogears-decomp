@@ -425,7 +425,7 @@ void func_80079778(u8 arg0) {
         BattleUpdateFrame();
     }
 }
-void func_80079840(u8 arg0, u8 arg1) {
+void BattleSetSlotRegistersFromActor(u8 arg0, u8 arg1) {
     u8 slot;
     s32 i;
     BattleCommandSlot *pSlot;

@@ -507,7 +507,7 @@ void BattleFreeActorEntryAndChildren(void *pPool, s32 index, BattleSprite *pSpri
         }
     }
 }
-void func_800AF270(BattleSprite *pParts, BattleSprite *pOther) {
+void BattleSpriteUpdatePartVisibility(BattleSprite *pParts, BattleSprite *pOther) {
     s32 n;
     s32 i;
     u8 *pVisible;
