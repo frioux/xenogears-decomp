@@ -71,7 +71,7 @@ extern void func_80085D34(void);
 extern void func_800861D0(u8 arg0, u8 arg1);
 extern s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1);
 extern u16 g_BattleSlotCountdownTimers[];
-extern u8 D_800C31D4[];
+extern u8 D_800C31D4[][8];
 extern void func_8008ADD0(u8 arg0);
 extern void BattleSetSlotFlag15A1(u8 arg0);
 extern u8 g_BattleSlotDisplayInitialized;
@@ -86,7 +86,7 @@ extern void BattlePlaySoundIfEnabled(u8 arg0);
 extern void BattleSetupActorSlotDisplay(u8 arg0);
 extern void BattleEnsureTargetSlotInCandidateList(u8 arg0);
 extern void BattleInitPulseTrianglePrims(void);
-extern void func_800826CC(u8 arg0);
+extern void func_800826CC(u8 arg0); 
 extern u8 func_8008BED8(u8 arg0);
 extern void BattleActivateSelectedCommand(u8 arg0);
 
@@ -850,7 +850,6 @@ void BattleAppendCommandRecord(u8 arg0) {
     BattleClearSlotFlagsIfChar4(arg0, 0);
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 /* 94.76%, 1328 bytes against retail's 1356. The shape is right: both dispatch
    trees, the four-arm target switch that gcc cross-jumps into one shared tail, and
    the 4/7/6 fall-through arms whose three `unk2DF++` are three separate
@@ -880,7 +879,6 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
          load sits above the `li v1,1` in retail. Six statement orders measured.
    (iii) `li a0,4` belongs in the third switch's case-4 `beq` delay slot; ours keeps it
          at the head of the arm. */
-/*
 void func_80081B58(u32 arg0) {
     u8 who;
     u8 slot;
@@ -901,9 +899,10 @@ void func_80081B58(u32 arg0) {
             break;
         }
         BattleActorInitSpriteFromSlot();
-        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = (g_BattleSoundEnabled = 1);
+        g_BattleSoundEnabled = 1;
         g_BattleDisplayState[0x7B] = 0;
         g_BattleDisplayState[0xAF] = 0;
+        ((BattleActorSlots *)g_BattleCommandQueue)->menuState = 1;
         BattleClearFlagC6();
         BattleClearSlotFlagsIfChar4(slot, 1);
         break;
@@ -924,7 +923,13 @@ void func_80081B58(u32 arg0) {
             g_BattleMenuEvent = 5;
             BattlePlaySoundWithBaseId(0x4F);
         }
-        break;
+        // Load-bearing block shape: the if/else keeps gcc from filling the
+        // branch's delay slot, which is what retail's layout needs.
+        if (arg0) {
+            break;
+        } else {
+            break;
+        }
     }
     if (((BattleActorSlots *)g_BattleCommandQueue)->commandAppended == 0) {
         switch (g_BattleMenuEvent) {
@@ -995,8 +1000,8 @@ void func_80081B58(u32 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 =
                 func_80087AF0(arg0, ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF);
             g_BattleSlotCountdownTimers[who] =
-                (D_800C31D4[((BattleActorSlots *)g_BattleCommandQueue)->gaugeMax * 8
-                            + ((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue] * 100) / 56;
+                (D_800C31D4[((BattleActorSlots *)g_BattleCommandQueue)->gaugeMax]
+                            [((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue] * 100) / 56;
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E3 = 1;
         } else {
             BattlePlaySoundWithBaseId(0x4F);
@@ -1012,7 +1017,6 @@ void func_80081B58(u32 arg0) {
         ((BattleActorSlots *)g_BattleCommandQueue)->commandQueued = 1;
     }
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800820A4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_800822C4);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80082504);
