@@ -569,6 +569,11 @@ void func_801CF37C(void) {
     }
 }
 */
+// Fills the cell glyph quads of the cells [start, end): one prim per chunk of the
+// record, reduced against the chunk's own vertex ring.  Retail re-reads the chunk
+// count and the colour table per iteration and emits `j++` ahead of the count load,
+// so the counter is bumped at the end of the body, not in the for clause; the
+// do/while(0) block schedules the tail (v3/clut/call) after the first seven stores.
 void func_801CF5E4(s32 start, s32 primIndex, s32 end) {
     s32 i;
     s32 j;
@@ -591,13 +596,13 @@ void func_801CF5E4(s32 start, s32 primIndex, s32 end) {
                 pPrims[g_Menu->renderContext].u2 = i * 16;
                 pPrims[g_Menu->renderContext].v2 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
                 pPrims[g_Menu->renderContext].u3 = i * 16 + 16;
-                if (1) {
+                do {
                     pPrims[g_Menu->renderContext].v3 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4] + 16;
                     clut = GetClut(i * 16, i / 16 + 0x1C1);
                     cellOffset = g_Menu->renderContext * sizeof(POLY_FT4);
-                    *(u16*)((u8*)pPrims + cellOffset + 0xE) = clut;
+                    ((POLY_FT4*)((u8*)pPrims + cellOffset))->clut = clut;
                     MenuRenderTransformedQuads(1, (SVECTOR*)((u8*)pPrims + 0xE0), pPrims, g_Menu->renderContext);
-                }
+                } while (0);
                 j++;
                 prim++;
             }
