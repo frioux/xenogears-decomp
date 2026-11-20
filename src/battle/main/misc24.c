@@ -200,6 +200,12 @@ s16 (*BattleGetAngleOffsetFunction(s32 arg0))(s16 angle, s16 divisor, s16 base) 
 // below the 0x84 store, which measures WORSE under objdiff (69.18%) - not taken.
 // Still true from the old note: 0x3C is unsigned (ori 0xFFFF) while 0x98/0x3A/0x1E
 // are signed -1 (addiu), so the two constants must stay spelled differently.
+// Round 318 wrote the body typed (pActor->blockTag = 0xFFFF; ... rotOffset[0..2],
+// rotStep[0..2], posOffset[0..2], posStep[0..2], posX/Y/Z all 0; moveDistance = 1;
+// skipGroundSnap = 0; groundTriangleIndex = -1) in retail's store order: also
+// 74.36% at 156 bytes, i.e. EVERY store and every li lands in retail's place and
+// the only residual is the -1 load (retail's is insn 1, ours is at the first -1
+// store). So the wall is exactly the one above, not the field spelling.
 /*
 void func_800AA898(u8 *arg0, s32 arg1, s32 arg2, s32 arg3) {
     *(s16 *)(arg0 + 0x98) = -1;
@@ -501,41 +507,26 @@ void BattleFreeActorEntryAndChildren(void *pPool, s32 index, BattleSprite *pSpri
         }
     }
 }
-/* 85.71% (80 bytes vs 84) - instruction multiset identical, only the preheader order differs:
-   the original emits the hoisted "li a3,1" before "addiu a0,a0,7", here the
-   arg0 += 7 statement lands there first (and reorg then fills the beqz delay
-   slot with it, so the frame is one insn shorter). The increment is in the
-   ENTRY block here, in the original it is in the preheader after the loop
-   guard, which is why the original still has a nop in the beqz delay slot.
-   Indexed forms arg0[i*0x7C+7] (90.33%) or p=arg0+7 / p[i*0x7C] (90.43%) put
-   li a3 first but let gcc fold the +7 into the load displacement (lbu 7(a0)) or
-   into the biv init (addiu a0,a0,0x83); a u8 one; local made it worse, the
-   addiu hoisted above the slt.
-   Permuter (base=163 best=60) found only a TRAP: swapping the two first
-   statements so the count is read as *(u16*)(arg0+0xA) AFTER arg0 += 7, i.e.
-   from +0x11 instead of +0xA. It scores 90.43% because it emits the same
-   instruction count, but it is semantically wrong; a second 4-minute round
-   from that body found nothing better (60 -> 60), and a third re-found exactly
-   that candidate (60). Do not use it.
-   Also measured: a non-void return type (s32, no return statement) changes
-   nothing, so the stolen slot is not the return-type lever here; `u8 on = 1;`
-   as the store value moves the li to the ENTRY block above the lhu and the
-   steal then hits li a3 instead (80 bytes, same 85.71); wrapping `arg0 += 7`
-   in `do { } while (0);` is flattened and also lands the addiu above the lhu. *//*
-void func_800AF270(u8 *arg0, u8 *arg1) {
+void func_800AF270(BattleSprite *pParts, BattleSprite *pOther) {
     s32 n;
     s32 i;
+    u8 *pVisible;
+    u8 visible;
 
-    n = *(u16 *)(arg0 + 0xA);
-    arg0 += 7;
-    for (i = 1; i < n; i++) {
-        arg1 += 0x7C;
-        arg0 += 0x7C;
-        if (*arg0 != 0) {
-            *arg0 = 0;
-            arg1[7] = 1;
-        }
+    n = pParts->count;
+    i = 1;
+    // retail's guard plus the bottom test: a single for loop compiles to a countdown (74.52%)
+    if (i < n) {
+        visible = TRUE;
+        pVisible = &pParts->isVisible;
+        do {
+            pVisible += sizeof(BattleSprite);
+            pOther++;
+            if (*pVisible != 0) {
+                *pVisible = 0;
+                pOther->isVisible = visible;
+            }
+            i++;
+        } while (i < n);
     }
 }
-*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc24", func_800AF270);
