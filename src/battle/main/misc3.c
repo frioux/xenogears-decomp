@@ -47,7 +47,7 @@ typedef struct {
     /* 0x00 */ u8 unk0[0xD];
     /* 0x0D */ u8 actorSlot;
     /* 0x0E */ u8 unkE[0x16];
-    /* 0x24 */ u16 unk24;
+    /* 0x24 */ u16 param;
     /* 0x26 */ u8 unk26[0xB];
     /* 0x31 */ u8 command;
     /* 0x32 */ u8 unk32[0x16];
@@ -869,7 +869,7 @@ void BattleQueueCommandFA(u8 index, u8 color) {
         g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].actorSlot = color;
         g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].command = 0xFA;
         pEntry = g_BattleCommandQueue;
-        g_BattleCommandRecords[pEntry[0x2DA]].unk24 = g_BattleTextSlotCount++;
+        g_BattleCommandRecords[pEntry[0x2DA]].param = g_BattleTextSlotCount++;
         pEntry[0x2DA]++;
     }
 }
@@ -879,6 +879,6 @@ void BattleQueueCommandF7(u8 color, u8 flag) {
     g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].actorSlot = flag;
     g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].command = 0xF7;
     pEntry = g_BattleCommandQueue;
-    g_BattleCommandRecords[pEntry[0x2DA]].unk24 = color;
+    g_BattleCommandRecords[pEntry[0x2DA]].param = color;
     pEntry[0x2DA]++;
 }
