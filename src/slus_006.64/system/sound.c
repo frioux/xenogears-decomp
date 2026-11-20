@@ -1305,11 +1305,16 @@ void SoundSpuMemoryInitialize(void) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlock);
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 73.56 / 94.58 / 94.58 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (94.58%, same size): every instruction matches except the two callee-saved pointers:
-the original keeps the free address in s0 and the loop-carried block in s1, gcc 2.6 picks the
-reverse (pPrevBlock s0, address s1) whatever the declaration order.
+Attempt (94.58%, 256 bytes = retail's size). Residual, in the loop head only: retail
+REMATERIALISES the array base every iteration (`lh v0,2(s1); lui %hi; addiu %lo; sll; addu`)
+while gcc 2.6 hoists one copy into a2 in the preheader (`move a2,s0` plus a nop in the lh's
+load-delay slot), and therefore also swaps the two callee-saved pointers (here address s1,
+pPrevBlock s0; retail address s0, pPrevBlock s1). Tried, all 93-94.6%: an index local,
+`(u8*)base + (i<<4)`, `new_var = pPrevBlock` used as the index (that one fixes the registers
+but folds the base into s1, 244 bytes), a do/while round the loop body (93.25), declaration
+order, and -O1/-O3/-G0/cdk screens (all worse). loop.c hoists the base here; the sibling
+SoundSpuMemoryAllocateBlockFit shows the same hoist and matches, so the hoist itself is not
+the blocker - retail's source must defeat it somehow.
     // Allocates a block of SPU memory of the given size, returns the SPU address or 0 on failure.
     int SoundSpuMemoryAllocateBlock(int size, int unkArg) {
         int address;
@@ -1403,29 +1408,36 @@ int SoundSpuMemoryAllocateBlockFit(int size) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 79.46 / 87.00 / 87.00 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (87.00%): the control flow matches; gcc 2.6 puts `address` in s0 and the loop-carried block
-pointer in s1, the original has them the other way round (address s1, pPrevBlock s0 - descending
-register order by reference count).
+Attempt (87.00%, 296 bytes against retail's 292). The whole preheader matches retail
+instruction for instruction (base la in s0, size s2, address s1, nSpace a2=0,
+freeAddress a1, endAddress a3) and so does the alloc tail; the residual is the loop:
+retail is a do-while whose bottom test is `slt v0,v1,s1; bnez v0,head; addu s0,a0` (the
+pPrevBlock = pBlock assignment in the back edge's delay slot, so pPrevBlock is s0 and
+address s1), while every spelling here either rotates the loop (do-while: gcc hoists
+the top `nextBlockIndex == 0` test into the preheader and runs the body bottom-tested,
+72-73%) or needs an extra `j` back to the head (while(1)+continue, 87.00%, and the two
+callee-saved pointers come out address s0 / pPrevBlock s1 - the reverse of retail).
+Hand shapes tried: do-while, do-while with an index local, while(1)+continue (87.00),
+the nested if/while of the previous note (87.00); permuter 4 min: 1079 -> 651, best
+edit only wrapped a `return 0` in do{}while(0), so no.
     // Allocates SPU memory at a specific address, returns the address or 0 on failure.
     int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
-        SoundSpuMemoryBlock* pBlock;
+        int nSpace;
         SoundSpuMemoryBlock* pPrevBlock;
+        SoundSpuMemoryBlock* pBlock;
         int freeAddress;
         int endAddress;
-        int nSpace;
         int index;
 
-        pPrevBlock = &g_SoundSpuMemoryBlocks[0];
+        pPrevBlock = g_SoundSpuMemoryBlocks;
         nSpace = 0;
-        freeAddress = g_SoundSpuMemoryBlocks[0].spuAddress + g_SoundSpuMemoryBlocks[0].size;
+        freeAddress = pPrevBlock->spuAddress + pPrevBlock->size;
         endAddress = address + size;
 
-        if (g_SoundSpuMemoryBlocks[0].spuAddress < address) {
+        if (pPrevBlock->spuAddress < address) {
             while (1) {
                 if (pPrevBlock->nextBlockIndex == 0) {
-                    nSpace = 0x80000 - freeAddress;
+                    nSpace = SOUND_SPU_MEMORY_SIZE - freeAddress;
                     break;
                 }
                 pBlock = &g_SoundSpuMemoryBlocks[pPrevBlock->nextBlockIndex];
@@ -1442,7 +1454,6 @@ register order by reference count).
             }
         }
 
-    have_space:
         if (nSpace < size) {
             return 0;
         }
