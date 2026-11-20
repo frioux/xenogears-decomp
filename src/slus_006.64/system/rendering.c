@@ -356,13 +356,13 @@ typedef struct {
 #define SpriteFlags0x3C(pSpriteData) ((u32)((SpriteRenderFlagWords*)(pSpriteData))->flags_0x3C.flags)
 
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
-
-/* Best attempt: 89.45% (1496 bytes; retail is 1508 = 377 instructions, so this
-   body is three instructions short). Rounds 346-348 took the body 84.08 -> 86.78
-   -> 89.45 in single measured steps; read the residues below before changing
-   anything: one of the earlier fixes is a MISCOMPILE, which is why the best
-   body was not the best number.
+/* Best attempt parked below: 89.01% (1504 bytes; retail is 1508 = 377
+   instructions, so the body is ONE instruction short). This is the ROUND 349
+   base: the same body with the deltaHeight hoist reverted; the 89.45% / 1496
+   byte variant (three short) is described in the notes below.
+   Rounds 346-349 took the body 84.08 -> 86.78 -> 89.01/89.45 in single measured
+   steps; read the residues below before changing anything: one of the earlier
+   fixes is a MISCOMPILE, which is why the best body was not the best number.
    The tail (prim build, quad corners, RotTransPers4, uv, addPrim) is the same
    code as func_8001E9BC / func_8001EE88 / func_8001F1D4 in this file.
 
@@ -467,8 +467,30 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
      pVerts[(spriteFlags >> 3) * 0], and drawTileX replaced by -tileX in the x
      arms (that negates unconditionally - a different result). So the next step
      is not another permuter run from this body.
+   - ROUND 349 (all re-diffed, none kept): the four unconditional copies cannot
+     be forced. Interleaving each copy right after its own shift (retail's
+     spacing) is a no-op: same 89.01 / 1504. Reversing the copy order (tile
+     copies first) is 88.25 / 1500. Splitting the tile shifts into two
+     statements is 86.77 / 1500. ONE shared scratch variable carrying both tile
+     copies (tileCopy = tileX; drawTileX = tileCopy; then again for tileY, the
+     round-348 sibling lever) keeps 89.01 / 1504 and gcc coalesces the scratch
+     away exactly as it does drawTileX/drawTileY. Read the surviving copies as
+     the allocator's answer to liveness: drawWidth and drawHeight survive
+     because `width`/`height` are REASSIGNED later in the uv block, while
+     tileX/tileY are never reassigned, so cc1 puts drawTileX and tileX in one
+     register and negates in place (`negu a1,a1`). Retail's own `negu t0,t2`
+     shows the negation reading the SOURCE variable, so the source really is
+     `drawX = -x;` for all four.
+   - The one missing instruction is the `move v1,a3` (drawTileY) that retail
+     puts in the second `beqz` delay slot; this body's `move a0,a2` slot holds a
+     maspsx load-delay nop instead. Getting both tile copies would add two
+     instructions, i.e. 1512, so one instruction elsewhere also differs (this
+     body emits nop plus a second beqz pair in the loop preheader where retail
+     fills both delay slots).
    - NOT A PRESET: under gcc-2.7.2-cdk-psx this body is 90.15, not 100.
 */
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
 
 /*
 void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
@@ -498,7 +520,6 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
     s32 drawTileX;
     s32 drawTileY;
     s32 width;
-    u8 deltaHeight;
     s32 height;
     s32 texX;
     s32 texY;
@@ -568,12 +589,11 @@ void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
         g_GfxCurWorkBuffer = pPrim + 1;
         setlen(pPrim, 9);
         *(u32*)&pPrim->r0 = pFrameData[i].colorAndCode;
-        deltaHeight = pFrameData[i].deltaHeight;
         pPrim->tpage = pFrameData[i].texPage;
         pPrim->clut = pFrameData[i].clutID;
         n = (pSpriteData->field_0x40 >> 8) & 0x1F;
         width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth) << n;
-        height = (s16)(pFrameData[i].height + (s8)deltaHeight) << n;
+        height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight) << n;
         tileX = pFrameData[i].tileX << n;
         tileY = pFrameData[i].tileY << n;
         spriteFlags = SpriteFlags0x3C(pSpriteData);
