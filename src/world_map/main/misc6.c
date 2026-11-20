@@ -558,6 +558,15 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
    and v1/a0/a1 for the values. Reading g_WorldMapPlayerPositionZ inline at both
    stores, reading all three inline, and loading posZ just before its stores all
    leave pActor in a2, so it is an allocator tie, not a spelling.
+   Round 333 re-measured 97.97 (148 bytes) and killed the remaining spellings
+   for the rotation: `pActor` declared after the three value locals, a two
+   statement `pActor = &g_WorldMapSlots[index];` instead of the declaration
+   initialiser, and s32 instead of u32 values all measure 97.97 unchanged, while
+   dropping the posZ alias costs the load order (96.62 - the alias is
+   load-bearing, keep it). A 4-minute permuter run from this body (2502
+   iterations, base=75 best=75) found nothing - the second run on it. The delta
+   is one register swap (pActor v1 <-> posZ a2) over an otherwise byte-identical
+   stream, i.e. local-alloc's tie-break. Parked.
 */
 /* int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1278,6 +1287,12 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
    stateIndex) leave a store next to the jr, which this body does not have.
    A 4-minute permuter run from the 94.71 body only proposed moving the command
    store back out of the block (i.e. back to 92.21), so it is exhausted here.
+   Round 333 re-measured this body at 94.71 (136 bytes) and added: the plain
+   `posX = *(u32 *)g_WorldMapPlayerPosition;` load (no posZ alias) is also
+   94.71 here, and moving the tail `pActor->state = 0;` inside the do-block
+   changes nothing. Putting the `return 1;` INSIDE the block with it (so
+   loop.c could hoist the return constant into the preheader the way it hoists
+   the command's `li v0,1`) is 86.47 and DROPS the command store - do not retry.
 */
 /* int func_80080578(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
