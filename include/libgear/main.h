@@ -144,7 +144,7 @@ typedef struct _Temp8 {
     /* 0x16 */ u16 angleStep;
     /* 0x18 */ u16 prevFrame; // the interpolated frame last applied; the same value again skips the upload
     /* 0x1A */ u16 isLoaded; // buffers below are held; cleared by LibGearFlushTexture
-    /* 0x1C */ void* pRows; // region rows of 3 pixels, indexed by rect.y + row
+    /* 0x1C */ s16* pRows; // region rows of 3 pixels, indexed by rect.y + row
     /* 0x20 */ s16 divisor; // second argument of pInterpolate
     /* 0x22 */ s16 offset; // third argument of pInterpolate
     /* 0x24 */ s16 (*pInterpolate)(u_short frame, s16 x, s16 y); // maps unk14 to the blend value; called with (unk14, divisor, offset)
@@ -222,8 +222,8 @@ typedef struct {
 typedef struct {
     /* 0x0   */ ModelMesh* pMesh;
     /* 0x4   */ ModelJoint* pSkeleton; // Array of joints
-    /* 0x8   */ u32 pAnimTable; // address of the entry table a queued animation id indexes
-    /* 0xC   */ u32 unkC;
+    /* 0x8   */ u32* pAnimTable; // address of the entry table a queued animation id indexes
+    /* 0xC   */ Temp8* unkC;
     /* 0x10  */ u32 animValue; // the table entry that id selects
     /* 0x14  */ Temp7** pEntryTableLow; // entries for animation ids below 0x40 (indexed id + 1)
     /* 0x18  */ Temp7** pEntryTableHigh; // and from 0x40 up (indexed id - 0x3F)

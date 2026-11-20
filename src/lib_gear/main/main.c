@@ -1389,17 +1389,17 @@ void LibGearReleaseJointObjects(Temp4* pList, ModelJoint* pSkeleton, s32 index, 
         pSkeleton += index;
 
         if (pSkeleton->pRotationObject != NULL && (flags & LIBGEAR_JOINT_RELEASE_ROTATION)) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
+            LibGearFreeJointObject(pList, pSkeleton->pRotationObject);
             pSkeleton->pRotationObject = 0;
         }
 
         if (pSkeleton->pTranslationObject != NULL && (flags & LIBGEAR_JOINT_RELEASE_TRANSLATION)) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
+            LibGearFreeJointObject(pList, pSkeleton->pTranslationObject);
             pSkeleton->pTranslationObject = 0;
         }
 
         if (pSkeleton->pScaleObject != NULL && (flags & LIBGEAR_JOINT_RELEASE_SCALE)) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
+            LibGearFreeJointObject(pList, pSkeleton->pScaleObject);
             pSkeleton->pScaleObject = 0;
         }
     }
@@ -1468,18 +1468,18 @@ Temp3* LibGearAllocJointObject(Temp4* pList) {
     return NULL;
 }
 
-int LibGearFreeJointObject(Temp4* pUnk, s8* arg1) {
+int LibGearFreeJointObject(Temp4* pList, Temp3* pObject) {
     int index;
 
-    if (arg1 == NULL) {
+    if (pObject == NULL) {
         return -1;
     }
-    
-    index = ((mem_addr)arg1 - (mem_addr)pUnk->pObjects) / sizeof(Temp3);
-    if (index < pUnk->freeIndex) {
-        pUnk->freeIndex = index;
+
+    index = ((mem_addr)pObject - (mem_addr)pList->pObjects) / sizeof(Temp3);
+    if (index < pList->freeIndex) {
+        pList->freeIndex = index;
     }
-    *arg1 = 0;
+    pObject->inUse = 0;
     return index;
 }
 
@@ -1782,17 +1782,17 @@ void LibGearReleaseSkeletonObjects(Temp4* pList, ModelJoint* pSkeleton) {
 
     for (i = 0; i < numChildren; i++) {
         if (pSkeleton->pRotationObject != 0 && pSkeleton->pRotationObject->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
+            LibGearFreeJointObject(pList, pSkeleton->pRotationObject);
             pSkeleton->pRotationObject = 0;
         }
 
         if (pSkeleton->pTranslationObject != 0 && pSkeleton->pTranslationObject->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
+            LibGearFreeJointObject(pList, pSkeleton->pTranslationObject);
             pSkeleton->pTranslationObject = 0;
         }
 
         if (pSkeleton->pScaleObject != 0 && pSkeleton->pScaleObject->type != 0xFF) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
+            LibGearFreeJointObject(pList, pSkeleton->pScaleObject);
             pSkeleton->pScaleObject = 0;
         }
 
@@ -1806,17 +1806,17 @@ void LibGearReleaseSkeletonObjectsByType(Temp4* pList, ModelJoint* pSkeleton, u8
 
     for (i = 0; i < numChildren; i++) {
         if (pSkeleton->pRotationObject != 0 && pSkeleton->pRotationObject->type == type) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pRotationObject);
+            LibGearFreeJointObject(pList, pSkeleton->pRotationObject);
             pSkeleton->pRotationObject = 0;
         }
 
         if (pSkeleton->pTranslationObject != 0 && pSkeleton->pTranslationObject->type == type) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pTranslationObject);
+            LibGearFreeJointObject(pList, pSkeleton->pTranslationObject);
             pSkeleton->pTranslationObject = 0;
         }
 
         if (pSkeleton->pScaleObject != 0 && pSkeleton->pScaleObject->type == type) {
-            LibGearFreeJointObject(pList, (s8*)pSkeleton->pScaleObject);
+            LibGearFreeJointObject(pList, pSkeleton->pScaleObject);
             pSkeleton->pScaleObject = 0;
         }
 
@@ -2231,7 +2231,7 @@ void LibGearFadeTexturePixels(Temp8* pTexture, s16 scale) {
 
     for (y = 0; y < pTexture->rect.h; y++) {
         for (x = 0; x < pTexture->rect.w; x++) {
-            pDst = (s16*)pTexture->pRows + 3 * (pTexture->rect.y + y);
+            pDst = pTexture->pRows + 3 * (pTexture->rect.y + y);
             pDst[pTexture->rect.x + x] = (*pSrc * scale) / 0x20;
             pSrc++;
         }
@@ -2247,7 +2247,7 @@ void LibGearBlendTexturePixels(Temp8* pTexture, s16 scale) {
 
     for (y = 0; y < pTexture->rect.h; y++) {
         for (x = 0; x < pTexture->rect.w; x++) {
-            pDst = (s16*)pTexture->pRows + 3 * (pTexture->rect.y + y);
+            pDst = pTexture->pRows + 3 * (pTexture->rect.y + y);
             pDst[pTexture->rect.x + x] = *pDelta + (*pSrc - *pDelta) * scale / 0x20;
             pSrc++;
             pDelta++;
@@ -2352,7 +2352,7 @@ void func_801E3534(Model* pModel, s32 arg1, u32 arg2, u32 arg3) {
     pModel->objectType = 0xFFFF;
     pModel->parentModelSlot = 0xFF;
     pModel->unk39 = 0x6B;
-    pModel->pAnimTable = arg2;
+    pModel->pAnimTable = (u32*)arg2;
     pModel->unkC = 0;
     pModel->animValue = 0;
     pModel->pEntryTableLow = (Temp7**)arg3;
@@ -2394,9 +2394,9 @@ void LibGearSetAnimation(Model* pModel, Model* pSource, s32 arg2, s32 arg3) {
             pModel->commandArgs[pModel->commandCount] = arg3;
         } else {
             if (arg3 < LIBGEAR_ANIM_ID_WAD_BASE) {
-                pModel->animValue = ((u32*)pSource->pAnimTable)[arg3];
+                pModel->animValue = pSource->pAnimTable[arg3];
             } else {
-                pModel->animValue = ((u32*)((Temp8*)pSource->unkC)->pUnk4)[arg3 - LIBGEAR_ANIM_WAD_INDEX_OFFSET];
+                pModel->animValue = ((u32*)pSource->unkC->pUnk4)[arg3 - LIBGEAR_ANIM_WAD_INDEX_OFFSET];
             }
 
             pModel->repeatCount = 0;
@@ -3095,11 +3095,11 @@ void func_801E6578(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoi
     pJoint->doRender = 0;
     pTarget->doRender = 1;
 
-    LibGearFreeJointObject(pList, (s8*)pJoint->pRotationObject);
+    LibGearFreeJointObject(pList, pJoint->pRotationObject);
     pJoint->pRotationObject = 0;
-    LibGearFreeJointObject(pList, (s8*)pJoint->pTranslationObject);
+    LibGearFreeJointObject(pList, pJoint->pTranslationObject);
     pJoint->pTranslationObject = 0;
-    LibGearFreeJointObject(pList, (s8*)pJoint->pScaleObject);
+    LibGearFreeJointObject(pList, pJoint->pScaleObject);
     pJoint->pScaleObject = 0;
 
     for (i = 1; i < numChildren; i++) {
