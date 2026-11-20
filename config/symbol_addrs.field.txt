@@ -1065,3 +1065,4 @@ g_FieldScriptSpritesBuilt = 0x800AFC74;
 FieldScriptVMHandlerUpdateActorModelSlot = 0x800A0FD8;
 FieldScriptVMStepActorMove = 0x80097A50;
 g_FieldActorModelSpriteRow = 0x800B225F;
+FieldScriptVMAdvanceInstruction = 0x8008848C;

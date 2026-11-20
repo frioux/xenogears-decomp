@@ -121,7 +121,7 @@ void BattleApplyActorConditionTimer(void);
 void BattleApplyScriptConditionTimer(void);
 void BattleSaveScriptCommandOperandsFromActor(void);
 void BattleClearStatusWordsOnAction6E(void);
-void func_800946F4(void);
+void BattleResolveSlotActionState(void);
 extern void func_8008FC1C(s32, s32, s32, s32, u8);
 extern void func_80090E7C(u8);
 extern void BattleUpdateFrame(void);
@@ -1355,7 +1355,7 @@ void func_800941A4(void) {
                 BattleRollPercentAndSwapActiveActor();
             }
             ((void (*)(void))D_800C348C[g_BattleCurrentRow->opcode])();
-            func_800946F4();
+            BattleResolveSlotActionState();
             if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 0) {
                 flags = g_BattleCurrentRow->actionFlags;
                 if (flags & 0x800) {
@@ -1389,7 +1389,7 @@ void func_800941A4(void) {
     BattleAccumulateSlotValueByRowFlag();
 }
 */
-void func_800946F4(void) {
+void BattleResolveSlotActionState(void) {
     u32 amount;
     u32 sum;
     u16 value;

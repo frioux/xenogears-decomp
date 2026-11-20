@@ -624,7 +624,7 @@ extern FieldScriptGlobalS16 g_FieldScriptShopIndex;
 
 // Sets the shop index a script step selects to the inverse of its argument's low
 // bit (0/1), then steps over the instruction.
-void func_8008848C(void) {
+void FieldScriptVMAdvanceInstruction(void) {
     int value = SCRIPT_READ_U8_REL(1);
 
     // volatile: retail loads the instruction pointer a second time for the step,
