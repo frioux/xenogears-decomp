@@ -72,6 +72,146 @@ void BattleAllocWorkBuffer(void) {
     func_800B7424(pWork);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7424);
+// 73.66% (1092 bytes vs retail's 1100). The frame (a 0xA0 with all ten saved
+// registers), the pWork spill, the three loops and every rand()/GTE call are
+// retail's. The residual is the address arithmetic: retail keeps blockOffset,
+// rowBytes and the two row coordinates in STACK slots and reloads them per sprite
+// (`lw t1,0x70(sp); addu v1,t0,t1; lw t0,0x64(sp); addu v1,v1,t0`), where this body
+// folds blockOffset+rowBytes into one pseudo, so every record address and then
+// every store through it differs. Next lever: build the record base in two
+// statements (round-291 &g_Array[i] note), and check the poly uv order (retail
+// writes u1,u2,v0,v2 shared and only u0/v1 per pass, the pass-0 arm repeating its
+// `lbu 0x54(sp)` load).
+/*
+// One spawned effect sprite of the block func_800B7424 fills: the two textures it
+// draws (POLY_FT3s of the same tile), the 16.16 position the matrix pass measures,
+// and the matrix-transformed offset ApplyMatrixLV leaves at 0x68.
+typedef struct {
+    // 0x00 s16 x;
+    // 0x02 s16 y;
+    // 0x04 s16 z;
+    // 0x06 s16 unk6;
+    // 0x08 s16 unk8; // the random tint offsets added to the flat colour
+    // 0x0A s16 unkA;
+    // 0x0C s16 unkC;
+    // 0x0E s16 unkE;
+    // 0x10 s32 unk10; // 16.16 position Square0 measures and ratan2 aims from
+    // 0x14 s32 unk14;
+    // 0x18 s32 unk18;
+    // 0x1C s32 unk1C;
+    // 0x20 s32 unk20;
+    // 0x24 POLY_FT3 polys[2];
+    // 0x64 s32 unk64;
+    // 0x68 s32 unk68[4];
+    // 0x78 s32 unk78;
+} BattleEffectSprite; // Size: 0x7C
+
+extern s32 D_800C35C4[3]; // the offset ApplyMatrixLV rotates, its z jittered per sprite
+
+void func_800B7424(BattleWorkBuffer *pWork) {
+    s32 vec[4];
+    SVECTOR angles;
+    MATRIX matrix;
+    BattleEffectSprite *pSprite;
+    POLY_FT3 *pPoly;
+    s32 radius;
+    s32 dist;
+    s32 rowOffset;
+    s32 passOffset;
+    s32 rowBytes;
+    s32 zPass0;
+    s32 zPass1;
+    s32 colOffset;
+    s32 blockOffset;
+    s32 angle;
+    s32 scale;
+    s32 pass;
+    s32 row;
+    s32 col;
+    s32 i;
+
+    pWork->frameCount = 0;
+    radius = SquareRoot0(0x9500) << 10;
+    blockOffset = 0x3C;
+    pass = 0;
+    while (pass != 2) {
+        rowBytes = 0;
+        zPass1 = -0xCA0;
+        zPass0 = -0xD60;
+        row = 0;
+        while (row != 0xE) {
+            passOffset = zPass1;
+            rowOffset = zPass0;
+            colOffset = 0;
+            col = 0;
+            while (col != 0x14) {
+                pSprite = (BattleEffectSprite *)((u8 *)pWork + (blockOffset + rowBytes) + col * 0x7C);
+                pSprite->x = 0;
+                pSprite->y = 0;
+                pSprite->z = 0;
+                if (pass == 0) {
+                    pSprite->unk10 = (col * 16 - 0x95) << 5;
+                    pSprite->unk18 = 0x4000;
+                    pSprite->unk14 = rowOffset;
+                } else {
+                    pSprite->unk10 = (col * 16 - 0x9B) << 5;
+                    pSprite->unk18 = 0x4000;
+                    pSprite->unk14 = passOffset;
+                }
+                D_800C35C4[2] = 0xFE0C0000;
+                rand();
+                D_800C35C4[2] -= (rand() % 1000) << 16;
+                Square0((VECTOR *)&pSprite->unk10, (VECTOR *)vec);
+                dist = SquareRoot0(vec[0] + vec[1]);
+                pSprite->unk64 = (radius / 32 - dist) / 0x800;
+                pSprite->unk64 = dist / 0x400;
+                angle = ratan2(pSprite->unk14, pSprite->unk10) + 0x600;
+                scale = (dist << 11) / radius - 0x20;
+                angles.vx = 0;
+                angles.vz = angle + rand() % 1024;
+                angles.vy = scale + rand() % 64;
+                RotMatrixZYX(&angles, &matrix);
+                ApplyMatrixLV(&matrix, (VECTOR *)D_800C35C4, (VECTOR *)pSprite->unk68);
+                pSprite->unk78 = 0x70800 - ((rand() % 1600) << 8);
+                pSprite->unk8 = (rand() & 0xFF) - 0x7F;
+                pSprite->unkA = (rand() & 0xFF) - 0x7F;
+                pSprite->unkC = (rand() & 0x1FF) - 0xFF;
+                i = 0;
+                while (i != 2) {
+                    pPoly = (POLY_FT3 *)((u8 *)pSprite + 0x24 + i * 0x20);
+                    SetPolyFT3(pPoly);
+                    SetShadeTex(pPoly, 0);
+                    pPoly->r0 = 0xFF;
+                    pPoly->g0 = 0xFF;
+                    pPoly->b0 = 0xFF;
+                    pPoly->code = pPoly->code & 0xFD;
+                    pPoly->tpage = GetTPage(2, 1, col * 16 + 0x2C0, 0x100);
+                    pPoly->u1 = (col * 16 & 0x3F) + 0x10;
+                    pPoly->u2 = col * 16 & 0x3F;
+                    pPoly->v0 = row * 16;
+                    pPoly->v2 = row * 16 + 0x10;
+                    if (pass == 0) {
+                        pPoly->u0 = col * 16 & 0x3F;
+                        pPoly->v1 = row * 16;
+                    } else {
+                        pPoly->u0 = (col * 16 & 0x3F) + 0x10;
+                        pPoly->v1 = row * 16 + 0x10;
+                    }
+                    i++;
+                }
+                colOffset = colOffset + 0x10;
+                col++;
+            }
+            zPass0 = zPass0 + 0x200;
+            zPass1 = zPass1 + 0x200;
+            rowBytes = rowBytes + 0x9B0;
+            row++;
+        }
+        blockOffset = blockOffset + 0x87A0;
+        pass++;
+    }
+}
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc29", func_800B7870);
 void BattleClearFlagD2FDC(void) {
     D_800D2FDC = 0;
