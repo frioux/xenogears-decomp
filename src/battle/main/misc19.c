@@ -493,6 +493,10 @@ u8 BattleClearSlotFlag15A1(u8 arg0) {
 // permuter run (2294 iterations, base=20 best=20) found nothing. Also measured, both
 // worse: sharing the two `slots[arg0]` pointers p and r (98.68), and a block pointer
 // live across the function (90.81 in To2000). So the cast sum stays.
+// Round 327 re-derived it with a .c-local view struct above the functions
+// (`->gearRows[arg0]`, and the index-first `arg0 * rows + ->gearRows[0]`): 99.71/99.77
+// again, the two addu alone, and a single-expression typed sum with no `s32 rowOffset`
+// local is 93.75. The row base stays a byte offset in a local added to the block base.
 void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     BattleTableEntry* p = &g_BattleCurWorkBlock->slots[arg0];
     BattleTableEntry* r;
@@ -509,7 +513,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
     r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         s32 rowOffset = arg0 * BATTLE_GEAR_ROW_STRIDE + BATTLE_GEAR_ROW_TABLE;
-        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
+        BattleRow* pRow = (BattleRow*)(rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[21].flags = 1;
         pRow[23].flags = 1;
@@ -520,7 +524,7 @@ void BattleSetSlotEntryFieldsTo1(u8 arg0) {
         pRow[28].flags = 1;
     } else {
         s32 rowOffset = arg0 * BATTLE_ACTOR_ROW_STRIDE + BATTLE_ACTOR_ROW_TABLE;
-        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
+        BattleRow* pRow = (BattleRow*)(rowOffset + (u32)g_BattleCurWorkBlock);
 
         pRow[22].flags = 1;
         pRow[24].flags = 1;
@@ -554,30 +558,30 @@ void BattleSetSlotEntryFieldsTo2000(u8 arg0, u8 arg1) {
     r = &g_BattleCurWorkBlock->slots[arg0];
     if (r->state.flags & BATTLE_SLOT_GEAR_STATUS_FLAG) {
         s32 rowOffset = arg0 * BATTLE_GEAR_ROW_STRIDE + BATTLE_GEAR_ROW_TABLE;
-        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
+        BattleRow* pRow = (BattleRow*)(rowOffset + (u32)g_BattleCurWorkBlock);
 
-        pRow[21].flags = 0x2000;
-        pRow[23].flags = 0x2000;
-        pRow[24].flags = 0x2000;
-        pRow[25].flags = 0x2000;
-        pRow[26].flags = 0x2000;
-        pRow[27].flags = 0x2000;
-        pRow[28].flags = 0x2000;
+        pRow[21].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[23].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[24].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[25].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[26].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[27].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[28].flags = BATTLE_GEAR_EFFECT_FLAG;
         r->state.activeEffectFlags2 &= ~BATTLE_GEAR_EFFECT_FLAG;
     } else {
         s32 rowOffset = arg0 * BATTLE_ACTOR_ROW_STRIDE + BATTLE_ACTOR_ROW_TABLE;
-        BattleRow* pRow = (BattleRow*)((u8*)rowOffset + (u32)g_BattleCurWorkBlock);
+        BattleRow* pRow = (BattleRow*)(rowOffset + (u32)g_BattleCurWorkBlock);
 
-        pRow[22].flags = 0x2000;
-        pRow[24].flags = 0x2000;
-        pRow[25].flags = 0x2000;
-        pRow[26].flags = 0x2000;
-        pRow[27].flags = 0x2000;
-        pRow[28].flags = 0x2000;
-        pRow[29].flags = 0x2000;
-        pRow[30].flags = 0x2000;
-        pRow[31].flags = 0x2000;
-        pRow[32].flags = 0x2000;
+        pRow[22].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[24].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[25].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[26].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[27].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[28].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[29].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[30].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[31].flags = BATTLE_GEAR_EFFECT_FLAG;
+        pRow[32].flags = BATTLE_GEAR_EFFECT_FLAG;
         r->activeEffectFlags4 &= ~BATTLE_ACTOR_EFFECT_FLAG;
     }
 }
