@@ -1055,7 +1055,7 @@ extern s32 g_BattleActorDistance2D;
 extern s32 g_BattleFacingAngle;
 extern u8 D_8006FC30[];
 extern u8 D_8006FC34[];
-extern u8 D_8006FC3C[];
+extern u8 g_StrBattleMoveCheck3[];
 extern u8 D_8006FC48[];
 extern u8 D_8006FC54[];
 extern u8 D_8006FC58[];
@@ -1106,7 +1106,7 @@ void BattleUpdateRoundOverState(Actor *p0, Actor *p1) {
             printf(D_8006FC34);
         }
         if (g_BattleResultSide == 2) {
-            BattleByteRegTestReg(D_8006FC3C);
+            BattleByteRegTestReg(g_StrBattleMoveCheck3);
         } else {
             BattleByteRegTestReg(D_8006FC48);
         }

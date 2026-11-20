@@ -40,10 +40,10 @@ typedef struct {
 } UnkA884; // Size: unknown
 
 extern s32 g_BattleRoundOverFrames;
-extern s32 D_80092668;
-extern s32 D_8009266C;
-extern s32 D_80092670;
-extern s32 D_80092674;
+extern s32 g_BattleCameraRigAngleOffset;
+extern s32 g_BattleCameraRigTargetYOffset;
+extern s32 g_BattleCameraRigYOffset;
+extern s32 g_BattleCameraRigRadius;
 extern s32 g_BattleTransitionCountdown;
 extern s32 g_BattleActorDistance2D;
 extern s32 g_BattleResultSide;
@@ -92,7 +92,7 @@ extern u8 g_BattleOptionOn;
 extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleDrawFlags;
 extern s32 g_BattleMode;
-extern char D_8006FD4C[];
+extern char g_StrBattleReplay[];
 extern u8 g_BattleResultCode;
 extern s32 g_BattleCameraAngleStep;
 extern s32 g_BattleRoundOver;
@@ -162,7 +162,7 @@ struct ActorScript {
     /* 0x10 */ u8 pad10[0x10];
     /* 0x20 */ u16 facing;
     /* 0x22 */ u8 pad22[0x2];
-    // The actor's camera rig: func_8007A768 copies these into D_80092668..92674,
+    // The actor's camera rig: func_8007A768 copies these into g_BattleCameraRigAngleOffset..92674,
     // which BattleUpdateCameraPosition feeds to rcos/rsin to orbit the camera around the actor.
     /* 0x24 */ s16 cameraAngleOffset;
     /* 0x26 */ s16 cameraYOffset;
@@ -1184,7 +1184,7 @@ void BattleUpdateCombatantPair(Actor* p1, Actor* p2) {
 
     if (g_BattleDrawFlags & 8) {
         BattleSetTextCursor(0x10, 0x10);
-        BattleDrawTextLeft(D_8006FD4C);
+        BattleDrawTextLeft(g_StrBattleReplay);
     }
 
     func_80073644(p1);
@@ -1275,9 +1275,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
    Retail loads p->y once into $v1 and reuses it for both the D_80098680 store
    and the '- 0x400' (addiu lands in $v1), while a plain 'p->y' reloads it after
    the global store (gcc will not CSE a load through the parameter across a store
-   to a global) and reassociates '(x - 0x400) - D_80092670' into 'x - (D_80092670 + 0x400)'.
+   to a global) and reassociates '(x - 0x400) - g_BattleCameraRigYOffset' into 'x - (g_BattleCameraRigYOffset + 0x400)'.
    A 's32 y = p->y' local removes the reload and keeps the subtraction grouped
-   ('t = y - 0x400; g_BattleCameraPosY = t - D_80092670;' gives retail's store order and
+   ('t = y - 0x400; g_BattleCameraPosY = t - g_BattleCameraRigYOffset;' gives retail's store order and
    addu $v0,$v0,-0x400) but reaches only 92.31%: gcc then also keeps 0x400 out of
    the addu and the register tie moves. Holding y and t in separate locals that
    let gcc see both uses at once drops to 84.83%.
@@ -1285,18 +1285,18 @@ void func_8007A768(Actor* p) {
     ActorScript* pScript = p->pScript;
     s32 r;
 
-    D_80092668 = pScript->cameraAngleOffset;
-    D_8009266C = pScript->cameraTargetYOffset;
-    D_80092670 = pScript->cameraYOffset;
-    D_80092674 = pScript->cameraRadius;
+    g_BattleCameraRigAngleOffset = pScript->cameraAngleOffset;
+    g_BattleCameraRigTargetYOffset = pScript->cameraTargetYOffset;
+    g_BattleCameraRigYOffset = pScript->cameraYOffset;
+    g_BattleCameraRigRadius = pScript->cameraRadius;
     SetGeomScreen(0x200);
     r = rand();
     D_80098680 = p->y;
     g_BattleCameraTarget = p->x;
-    g_BattleCameraPosY = p->y - 0x400 - D_80092670;
+    g_BattleCameraPosY = p->y - 0x400 - g_BattleCameraRigYOffset;
     D_80098684 = p->z;
-    g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * D_80092674) >> 12);
-    g_BattleCameraPosZ = D_80098684 + (((rsin(r) << 2) * D_80092674) >> 12);
+    g_BattleCameraPos = g_BattleCameraTarget + (((rcos(r) << 2) * g_BattleCameraRigRadius) >> 12);
+    g_BattleCameraPosZ = D_80098684 + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
 }
 */
 
@@ -1325,7 +1325,7 @@ void BattleResetScratchState(void) {
 }
 
 // Set while the battle's camera debug display is up.
-extern s32 D_800911D4;
+extern s32 g_BattleCameraDebugEnabled;
 
 // The camera tuner's four debug read-outs (the offsets func_8007A768 loads).
 extern char g_StrCameraAngleFormat[];
@@ -1347,44 +1347,44 @@ void BattleUpdateCameraPosition(Actor* p) {
     Vec4 pos;
     u16 buttons;
 
-    if (D_800911D4 != 0) {
+    if (g_BattleCameraDebugEnabled != 0) {
         buttons = g_C1ButtonState;
         if (buttons & CTRL_BTN_UP) {
-            D_8009266C += 4;
+            g_BattleCameraRigTargetYOffset += 4;
         }
         if (buttons & CTRL_BTN_DOWN) {
-            D_8009266C -= 4;
+            g_BattleCameraRigTargetYOffset -= 4;
         }
         if (buttons & CTRL_BTN_TRIANGLE) {
-            D_80092670 += 4;
+            g_BattleCameraRigYOffset += 4;
         }
         if (buttons & CTRL_BTN_CROSS) {
-            D_80092670 -= 4;
+            g_BattleCameraRigYOffset -= 4;
         }
         if (buttons & CTRL_BTN_RIGHT) {
-            D_80092668 -= 0x20;
+            g_BattleCameraRigAngleOffset -= 0x20;
         }
         if (buttons & CTRL_BTN_LEFT) {
-            D_80092668 += 0x20;
+            g_BattleCameraRigAngleOffset += 0x20;
         }
         if (buttons & CTRL_BTN_R1) {
-            D_80092674 -= 0x10;
+            g_BattleCameraRigRadius -= 0x10;
         }
         if (buttons & CTRL_BTN_R2) {
-            D_80092674 += 0x10;
+            g_BattleCameraRigRadius += 0x10;
         }
-        func_800379C8(g_StrCameraAngleFormat, D_80092668 & 0xFFF);
-        func_800379C8(g_StrCameraRefFormat, D_8009266C);
-        func_800379C8(g_StrCameraCamFormat, D_80092670);
-        func_800379C8(g_StrCameraLenFormat, D_80092674);
+        func_800379C8(g_StrCameraAngleFormat, g_BattleCameraRigAngleOffset & 0xFFF);
+        func_800379C8(g_StrCameraRefFormat, g_BattleCameraRigTargetYOffset);
+        func_800379C8(g_StrCameraCamFormat, g_BattleCameraRigYOffset);
+        func_800379C8(g_StrCameraLenFormat, g_BattleCameraRigRadius);
     }
 
     pos = p->midPosition;
-    pos.y = p->y - D_8009266C;
+    pos.y = p->y - g_BattleCameraRigTargetYOffset;
     func_80070808(&pos, 8);
-    pos.y = p->y - D_80092670;
-    pos.x = p->x + ((rcos(p->angle + D_80092668) * D_80092674) >> 12);
-    pos.z = p->z + ((rsin(p->angle + D_80092668) * D_80092674) >> 12);
+    pos.y = p->y - g_BattleCameraRigYOffset;
+    pos.x = p->x + ((rcos(p->angle + g_BattleCameraRigAngleOffset) * g_BattleCameraRigRadius) >> 12);
+    pos.z = p->z + ((rsin(p->angle + g_BattleCameraRigAngleOffset) * g_BattleCameraRigRadius) >> 12);
     func_800708C4(&pos, 0x10);
 
     pCam = (Vec4*)&g_BattleCameraPos;
@@ -1428,14 +1428,14 @@ void func_8007AC3C(void) {
 */
 
 
-extern char D_8006FC3C[];
-extern char D_8006FD74[];
-extern char D_8006FD88[];
-extern char D_8006FD98[];
-extern char D_8006FDA8[];
+extern char g_StrBattleMoveCheck3[];
+extern char g_StrBattleResultVictor[];
+extern char g_StrBattleResult1PlayerVictory[];
+extern char g_StrBattleResultCom1Victory[];
+extern char g_StrBattleResultDefeated[];
 extern char D_8006FDC8[];
-extern char D_8006FDD8[];
-extern char D_8006FDBC[];
+extern char g_StrBattleResultCom2Victory[];
+extern char g_StrBattleResultByFormat[];
 extern s32 Sprintf(char*, char*, ...);
 extern void BattleByteRegTestReg(char*);
 
@@ -1479,7 +1479,7 @@ void BattleUpdateCombatantPairTransition(Actor* p1, Actor* p2) {
 
     g_BattleTransitionCountdown--;
     if (g_BattleTransitionCountdown == -1) {
-        if (D_800911D4 == 0 || g_BattleMode == 3) {
+        if (g_BattleCameraDebugEnabled == 0 || g_BattleMode == 3) {
             BattleSetScreenMode(2);
         } else {
             p1->flags |= 0x2000000;
@@ -1494,13 +1494,13 @@ void BattleUpdateCombatantPairTransition(Actor* p1, Actor* p2) {
         BattleUpdateCameraPosition(p1);
         switch (g_BattleMode) {
         case 1:
-            BattleByteRegTestReg(D_8006FD74);
+            BattleByteRegTestReg(g_StrBattleResultVictor);
             break;
         case 2:
-            BattleByteRegTestReg(D_8006FD88);
+            BattleByteRegTestReg(g_StrBattleResult1PlayerVictory);
             break;
         case 3:
-            BattleByteRegTestReg(D_8006FD98);
+            BattleByteRegTestReg(g_StrBattleResultCom1Victory);
             break;
         }
         break;
@@ -1508,24 +1508,24 @@ void BattleUpdateCombatantPairTransition(Actor* p1, Actor* p2) {
         BattleUpdateCameraPosition(p2);
         switch (g_BattleMode) {
         case 1:
-            BattleByteRegTestReg(D_8006FDA8);
-            Sprintf(buf, D_8006FDBC, g_BattleResultRecords[p2->unk909].value);
+            BattleByteRegTestReg(g_StrBattleResultDefeated);
+            Sprintf(buf, g_StrBattleResultByFormat, g_BattleResultRecords[p2->unk909].value);
             BattleByteRegTestReg(buf);
             break;
         case 2:
             BattleByteRegTestReg(D_8006FDC8);
             break;
         case 3:
-            BattleByteRegTestReg(D_8006FDD8);
+            BattleByteRegTestReg(g_StrBattleResultCom2Victory);
             break;
         }
         break;
     case 2:
-        BattleByteRegTestReg(D_8006FC3C);
+        BattleByteRegTestReg(g_StrBattleMoveCheck3);
         break;
     }
 
-    floorY = func_80082488(&g_BattleCameraPos, 0) - D_80092670;
+    floorY = func_80082488(&g_BattleCameraPos, 0) - g_BattleCameraRigYOffset;
     if (floorY < g_BattleCameraPosY) {
         g_BattleCameraPosY = floorY;
     }
