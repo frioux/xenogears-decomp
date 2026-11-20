@@ -333,7 +333,10 @@ void WorldMapSetPrimColors(POLY_FT4 *pPrim, s32 count, s32 a, s32 b, s32 c) {
 // (pEntry = pGroup;) did not move it. The empty do/while after the pos.y store is
 // load-bearing (retail keeps the pos.y store above the Z load; without it 92.64). A
 // `s32 y = 0xFFF80000;` local assigned before the store gives 92.64 by delaying the slot
-// base. Preset screen: cdk 87.51, gcc-2.6.0 87.15.
+// base. Placing that second variable before the pos.y store, after it and after the
+// do/while all measure the same, and a single pEntry variable (pEntry = g_WorldMapGroups;
+// then pEntry++) gives the identical body; a 4-minute permuter run (1887 iterations)
+// found nothing. Preset screen: cdk 87.51, gcc-2.6.0 87.15.
 /*
 s32 func_80080A28(s32 index) {
     WorldMapEntry *pGroup = g_WorldMapGroups;
