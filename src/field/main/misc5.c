@@ -235,40 +235,6 @@ extern void FieldStoreScreenImage(void);
 extern void FieldRestoreScreenImage(void);
 extern void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR);
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5924);
-
-/* Best attempt, 93.12% at 804 bytes (retail is 796: 0x800A5C40 - 0x800A5924).
-   Case BODY ORDER is source order: listing the cases 4, then 1+2, then 3 with
-   the default last reproduces retail's [case 4][cases 1,2][case 3] block order.
-   The body is otherwise instruction-identical; the 8-byte surplus is TWO
-   loop.c / hoisting placements, both localised in round 312:
-   1. THE PUMP LOOP IS ROTATED (+4 insns, the whole surplus's source). Retail
-      keeps the un-rotated shape: `li $s0,0x3` BEFORE `lw $v0,mode`, then
-      `bne $v0,$s0,<dispatch>` / `nop` / <pump body> / `j <same test>`. This
-      build rotates it: the top test compares a literal (`li $v0,3`), sets
-      `s0 = 3` in the delay slot, and duplicates the whole `lui/lw/nop/beq/nop`
-      test plus a `j <dispatch>` at the bottom. Retail's compare against a
-      REGISTER holding 3 (not an immediate) says the source compared two
-      variables there, e.g. a local set to 3 just before the loop - untried;
-      every other spelling of the loop (while, for(;;)+break, do-while,
-      while+continue, goto, volatile mode global) rotates, and 2.6.0 / cdk do
-      too (measured with cc1_probe.sh in round 311).
-   2. THE 0x800000 FADE STEP NUMERATOR IS HOISTED OUT OF THE OUTER for(;;)
-      (-2 insns, so it partly pays for (1)). Retail materialises
-      `lui $s2,0x80` in EACH inner loop's preheader (0x800A5AB4 and 0x800A5B80,
-      both after the `blez`/counter-zero pair), keeping only the per-arm
-      running colour 0x800000 in $s1 (its `lui` sits in the FieldFadeToBlack
-      jal delay slot in the 1/2 arm). Ours emits ONE `lui $s2,0x80` before the
-      dispatch. Measured worse: assigning the numerator to a local
-      (`nStep = 0x800000;` before each inner loop, `nColor -= nStep /
-      duration;`) gives 92.71% at 812 bytes - it costs two statements and still
-      hoists.
-   Note the callee is called with (1, 1) in both arms (a0 = 1 in the dispatch
-   delay slot, a1 = 1 in the jal slot) but FieldZoomFadeEffectLoadTextures is
-   DEFINED above with a (void) parameter list; its own body passes its incoming
-   a0/a1 straight through to FieldZoomFadeEffectInitialize, so the honest
-   original signature has two int parameters - the attempt below uses a cast to
-   get the argument setup without touching the matched definition.
 extern void FieldAddParticlePrims(void);
 extern void FieldZoomFadeEffectUpdate(void);
 
@@ -290,80 +256,80 @@ void func_800A5924(void) {
     }
     FieldRenderSync();
 
-    for (;;) {
-        switch (g_FieldScriptFadeMode) {
-        case 4:
-            ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
-            func_800A6E70();
-            D_800ADC08 = 1;
-            FieldFadeToBlack(g_FieldScriptFadeDuration);
-            g_FieldParticleFadeDistance = 0;
-            for (i = 0; i < g_FieldScriptFadeDuration; i++) {
-                FieldUpdateFrame();
-                FieldAddParticlePrims();
-                func_8007554C();
-                FieldTickSkipCounter();
-                g_FieldParticleFadeDistance += 6;
-            }
-            DrawSync(0);
-            func_800A7064();
-            goto end;
-        case 1:
-        case 2:
-            ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
-            D_800ADC08 = 1;
-            FieldFadeToBlack(g_FieldScriptFadeDuration);
-            nColor = 0x800000;
-            for (i = 0; i < g_FieldScriptFadeDuration; i++) {
-                FieldUpdateFrame();
-                FieldZoomFadeEffectUpdate();
-                func_8007554C();
-                FieldTickSkipCounter();
-                FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
-                nColor -= 0x800000 / g_FieldScriptFadeDuration;
-                if (nColor < 0) {
-                    nColor = 0;
-                }
-            }
-            goto end;
-        case 3:
-            FieldZoomFadeEffectInitialize(1, 1);
-            nColor = FIELD_SCREEN_VRAM_X;
-            for (i = 0; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
-                FieldSetVRAMTextureSemiTrans(nColor, FIELD_SCREEN_VRAM_Y, SCREEN_HEIGHT);
-                nColor += FIELD_ZOOM_FADE_TILE_WIDTH;
-            }
-            FieldFadeToWhite(g_FieldScriptFadeDuration);
-            FieldZoomFadeEffectSetPolygonColor(0);
-            nColor = 0;
-            for (i = 0; i < g_FieldScriptFadeDuration; i++) {
-                FieldUpdateFrame();
-                FieldZoomFadeEffectUpdate();
-                func_8007554C();
-                FieldTickSkipCounter();
-                FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
-                nColor += 0x800000 / g_FieldScriptFadeDuration;
-            }
-            break;
-        default:
-            goto end;
+dispatch:
+    switch (g_FieldScriptFadeMode) {
+    case 4:
+        ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
+        func_800A6E70();
+        D_800ADC08 = 1;
+        FieldFadeToBlack(g_FieldScriptFadeDuration);
+        g_FieldParticleFadeDistance = 0;
+        for (i = 0; i < g_FieldScriptFadeDuration; i++) {
+            FieldUpdateFrame();
+            FieldAddParticlePrims();
+            func_8007554C();
+            FieldTickSkipCounter();
+            g_FieldParticleFadeDistance += 6;
         }
-
-        while (g_FieldScriptFadeMode == 3) {
+        DrawSync(0);
+        func_800A7064();
+        goto end;
+    case 1:
+    case 2:
+        ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
+        D_800ADC08 = 1;
+        FieldFadeToBlack(g_FieldScriptFadeDuration);
+        nColor = 0x800000;
+        for (i = 0; i < g_FieldScriptFadeDuration; i++) {
             FieldUpdateFrame();
             FieldZoomFadeEffectUpdate();
             func_8007554C();
             FieldTickSkipCounter();
+            FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
+            nColor -= 0x800000 / g_FieldScriptFadeDuration;
+            if (nColor < 0) {
+                nColor = 0;
+            }
         }
+        goto end;
+    case 3:
+        FieldZoomFadeEffectInitialize(1, 1);
+        for (i = 0, nColor = FIELD_SCREEN_VRAM_X; i < FIELD_ZOOM_FADE_TILE_COUNT; i++) {
+            FieldSetVRAMTextureSemiTrans(nColor, FIELD_SCREEN_VRAM_Y, SCREEN_HEIGHT);
+            nColor += FIELD_ZOOM_FADE_TILE_WIDTH;
+        }
+        FieldFadeToWhite(g_FieldScriptFadeDuration);
+        FieldZoomFadeEffectSetPolygonColor(0);
+        nColor = 0;
+        for (i = 0; i < g_FieldScriptFadeDuration; i++) {
+            FieldUpdateFrame();
+            FieldZoomFadeEffectUpdate();
+            func_8007554C();
+            FieldTickSkipCounter();
+            FieldZoomFadeEffectSetPolygonColor(nColor >> 16);
+            nColor += 0x800000 / g_FieldScriptFadeDuration;
+        }
+        break;
+    default:
+        goto end;
     }
+
+    while (1) {
+        if (g_FieldScriptFadeMode != 3) {
+            break;
+        }
+        FieldUpdateFrame();
+        FieldZoomFadeEffectUpdate();
+        func_8007554C();
+        FieldTickSkipCounter();
+    }
+    goto dispatch;
 
 end:
     g_FieldScriptFadeMode = 0;
     FieldRestoreScreenImage();
     FieldLoadFont();
 }
-*/
-
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A5C40);
 
