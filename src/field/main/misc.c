@@ -1758,6 +1758,19 @@ extern void func_80077268(void);
 // is an allocation coin flip: tried pActor vs g_FieldScriptVMCurFieldActor
 // store-forwarding, both declaration orders, (*ppFieldActors)[i].pActorData
 // (95.94%), and the permuter (its parser rejects this body).
+// Round 322: 97.58% (776 bytes), ONE instruction left - the found arm's addu
+// operand order (retail `addu v0,v0,s2`, this body `addu v0,s2,v0`: same
+// registers, same destination, printed the other way round). The gear site's
+// register swap closed by giving its write-back its OWN pointer local (the
+// pWriteActor declaration below: 97.53 -> 97.58, retail's `lw v0,76(v0)` /
+// `sh s1,204(v0)`). The addu order is the assignment-vs-subexpression lever
+// exactly, and it will not do both: with the sum ASSIGNED (`pFieldActor =
+// &(*ppFieldActors)[i]; pActor = pFieldActor->pActorData;`, an embedded
+// assignment, or `pFieldActor = *ppFieldActors; pFieldActor += i;`) the operand
+// order is retail's base-first but the sum lands in $v1 and the load and both
+// stores swap with it (97.45-97.50); as a sub-expression it lands in $v0 with
+// the wrong order (this body, 97.58). The permuter cannot parse the unit
+// ("conversion to non-scalar type requested" in the preprocessed file).
 // The pieces that are load-bearing, all measured: ppFieldActors =
 // (FieldActor**)&g_FieldActors before the loop (without it the compiler
 // re-materialises the address at both actor sites and the frame loses that
@@ -1780,6 +1793,7 @@ void func_8008B978(int characterId) {
     s32 i;
     s32 prevIP;
     FieldActor** ppFieldActors;
+    ActorData* pWriteActor;
     s32 offset;
     u8* pScript;
 
@@ -1798,13 +1812,14 @@ void func_8008B978(int characterId) {
             if (pScript[0] != FIELD_SCRIPT_OPCODE_PARTY_MODEL || pScript[1] != characterId) {
                 continue;
             }
+            pActor = (&(*ppFieldActors)[i])->pActorData;
             pFieldActor = &(*ppFieldActors)[i];
             g_FieldScriptVMCurFieldActor = pFieldActor;
-            g_FieldScriptVMCurActor = g_FieldScriptVMCurFieldActor->pActorData;
+            g_FieldScriptVMCurActor = pActor;
             func_80080A74(i);
-            pActor = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;
+            pWriteActor = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;
             g_FieldCurActorIndex = i;
-            pActor->scriptInstructionPointer = offset;
+            pWriteActor->scriptInstructionPointer = offset;
             g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(i, 0);
             g_FieldScriptVMScriptEndFlag = 0;
             offset = FieldScriptGetBytecodeOffset(i, 0);
@@ -3043,7 +3058,17 @@ void func_8008EA58(void) {
 //   The matched-neighbour note on func_8008EE14 records the same hoist.
 // 94.74% (480 bytes, same size): the post-reload scheduler puts our lhu ip
 // + li 1 above the g_FieldStreamLoopPlayback store where retail has them after
-// it; a volatile store on that playbacks field does not move it.
+// it; a volatile store on that playbacks field does not move it, and neither does
+// one on the FIRST store of the group (g_FieldStreamId) (round 322: identical
+// 480 bytes; volatile can only pin the load lower by pinning the whole group).
+//   The size miss is the raw-value copy retail keeps (`move v1,v0` before
+//   `andi v0,v0,0xf` / `sh v1` / `andi v1,v1,0xc0`). A volatile store on the raw
+//   D_800C3A30 store DOES produce the copy, but pins the type mask after it
+//   (89.25% 492 bytes, and 480/91.93% once the masked store is written
+//   `D_800C3A30 = type;` instead of `&= 0xF`), so the copy and retail's AND order
+//   cannot be had together; a separate `u16 raw` local folds away (476). Statement
+//   order of `type = value & 0xF` against the raw store changes nothing in either
+//   form.
 /*
 void func_8008EC30(void) {
     u16 value;
@@ -3098,7 +3123,6 @@ void func_8008EC30(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008EC30);
-
 
 
 // 79.22%: everything up to the last four stores matches. The original's
