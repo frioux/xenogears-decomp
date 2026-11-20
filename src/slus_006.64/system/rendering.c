@@ -337,9 +337,8 @@ void SpriteDrawFrameKeepBottom(SpriteData* pSpriteData, void* pArg1, void* pArg2
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
-
 extern SVECTOR g_SpriteQuadCorners[4];
+extern SVECTOR g_BattleSpriteQuadCorners[4];
 extern u16 g_SpritePlaneMasks[16];
 extern void* g_GfxCurWorkBuffer;
 extern void* g_GfxCurWorkBufferEnd;
@@ -351,6 +350,262 @@ typedef struct {
     /* 0x3C */ SpriteFlagWord flags_0x3C;
     /* 0x40 */ SpriteFlagWord flags_0x40;
 } SpriteRenderFlagWords; // Size: 0x44
+
+// The whole 0x3C flag word: its bit tests need the raw word, which the bitfields
+// in field/actor.h only expose as separate fields.
+#define SpriteFlags0x3C(pSpriteData) ((u32)((SpriteRenderFlagWords*)(pSpriteData))->flags_0x3C.flags)
+
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001E3D8);
+
+/* Best attempt: 84.08% (1508 bytes, and retail is 1508 - 377 instructions - so
+   the size is exact; what is left is register rotation and one instruction
+   order). Round 346 wrote this from the .s; nothing was parked here before.
+   The tail (prim build, quad corners, RotTransPers4, uv, addPrim) is the same
+   code as func_8001E9BC / func_8001EE88 / func_8001F1D4 in this file.
+
+   Facts confirmed by measurement, each of which is load-bearing:
+   - The frame loop is a DO/WHILE, not a `for`: retail has no top exit test
+     (it enters at .L8001E494 straight from the preheader), and the `for` form
+     makes gcc duplicate the loop exit test (+3 instructions, 1524 bytes).
+   - INDEXED access pFrameData[i] is REQUIRED. With `i++, pFrameData++` and
+     `pFrameData->`, gcc re-bases the induction register to pFrameData+7 and
+     every field goes negative; because the pointer is then also spilled the
+     frame grows to 0xB0. With pFrameData[i] the frame is retail's exact 0x98
+     and there is no re-basing (same finding as the func_8001E9BC note).
+   - `pTransform->translationX != 0 || pTransform->translationY != 0` DOES
+     compile to retail's single `lhu 0(a0)` plus `bnez` (gcc merges the two
+     adjacent s8 loads), so the realistic spelling is right; the earlier guess
+     that the source tested a u16 field is unnecessary.
+   - The scaling must stay `y = y * scale / 0x1000;` - that is what emits
+     retail's `bgez / addiu 0xFFF / sra 12` pair, and y (translationY) is
+     computed before x (translationX), both negated by bit 3 of field_0x3C.
+   - ONE `lastPlane` variable carries both the current and the remembered plane
+     (initialised -1, compared against `pFrameData[i].flags & 7`): retail keeps
+     it in one register and indexes the plane mask, the transform table and the
+     tail's `<< 2` from it. Separate `mode`/`prevMode` locals cost a second
+     callee-saved register and spill prevMode to the stack.
+   - The 0x3C bit tests need the WHOLE u32 word: `(field_0x3C_0 >> 3) & 1` on
+     the actor.h bitfield emits `and 0xFFFFF` + `sra` with the 0xFFFFF constant
+     spilled and reloaded, where retail is `lw / srl 3 / andi 1`. Hence the
+     SpriteFlags0x3C macro above (the device temp1.c/temp2.c use).
+   - The frame-flag tests need a u32 cast: `pFrameData[i].flags >> 4 & 1` on the
+     s32 field gives `sra`, retail has `srl` (bits 4 and 5 both).
+   - offsetX/offsetY (the sprite's scaled offsets, subtracted from the projected
+     corners) and transX/transY (the layer transform's scaled translation, added
+     to mat.t[]) must be SEPARATE locals: both pairs are live at the same time
+     in retail (s6/fp versus s0/s1) and reusing one pair is also a semantic bug.
+   - `n` must be recomputed in every block that shifts by it (retail re-reads
+     field_0x40 in the matrix block and again in the quad block). One `n`
+     assigned before the loop is loop-invariant, so it takes a callee-saved
+     register and grows the frame.
+   - the 0xFFFFFF mask (addPrim) is hoisted to a callee-saved register by both.
+   What is still wrong, measured:
+   - retail copies each shifted width/height/tileX/tileY into a SECOND register
+     unconditionally (`move t0,t2`) and negates that copy in the bit-3/bit-4
+     arm; negating in place is 84.61% at 1500 bytes (2 instructions short of
+     retail, so it cannot link). Writing the negation into separate
+     drawWidth/drawHeight/drawTileX/drawTileY locals reproduces the four moves
+     and retail's exact 1508 bytes - which is the body below - and the rest of
+     the spread is which register each copy lands in.
+   - the plane-mask read: retail forms the array base in a general register
+     (`lui v1,%hi` + `addiu v1,v1,%lo`) and then `addu v0,index,v1`; this C
+     folds the index into the load through $at. Same instruction count, but it
+     changes the addu's destination. The func_8001E9BC note calls this
+     unreachable; a `(mem_addr)` base or an array-extern spelling is worth a
+     try (AGENTS "unbounded array extern" / "base in a statement" levers).
+   - the first division's `sra s0` lands in the delay slot of the LATER bit-3
+     `beqz` in retail and next to its `mflo` here; that is scheduling of one
+     instruction into a branch slot.
+   A 4-minute permuter run on this body is the next cheap step: the structure,
+   the frame, the block order and the call set are all retail's.
+
+// Draws every frame of the sprite's current animation as one textured quad. A
+// frame's layer picks the direction transform whose matrix projects its corners
+// (consecutive frames of the same layer share that matrix), and the sprite's
+// plane byte masks whole layers out. The projected corners are then moved by the
+// sprite's scaled offsets, so the quad hangs off the sprite's own origin.
+void func_8001E3D8(SpriteData* pSpriteData, void* pArg) {
+    SpriteFrameData* pFrameData;
+    SpriteDirectionTransform* pTransform;
+    POLY_FT4* pPrim;
+    SVECTOR* pVerts;
+    MATRIX* pMatrix;
+    MATRIX mat;
+    SVECTOR rot;
+    u_long* pOt;
+    s32 count;
+    s32 i;
+    s32 n;
+    s32 lastPlane;
+    s32 offsetX;
+    s32 offsetY;
+    s32 transX;
+    s32 transY;
+    s32 tileX;
+    s32 tileY;
+    s32 edgeX;
+    s32 edgeY;
+    s32 drawWidth;
+    s32 drawHeight;
+    s32 drawTileX;
+    s32 drawTileY;
+    s32 width;
+    s32 height;
+    s32 texX;
+    s32 texY;
+    s32 z;
+    s32 flag;
+    u32 spriteFlags;
+    u8 visible;
+
+    offsetY = (s8)pSpriteData->pBase->offsetY << ((pSpriteData->field_0x40 >> 8) & 0x1F);
+    offsetX = (s8)pSpriteData->pBase->offsetX << ((pSpriteData->field_0x40 >> 8) & 0x1F);
+    pFrameData = pSpriteData->pBase->pCurRenderFramesData;
+    if (((u32)pSpriteData->flags_0xAC.flags >> 2) & 1) {
+        offsetX = -offsetX;
+    }
+    count = (pSpriteData->field_0x40 >> 2) & 0x3F;
+    if ((u8*)g_GfxCurWorkBuffer + count * sizeof(POLY_FT4) >= (u8*)g_GfxCurWorkBufferEnd) {
+        return;
+    }
+    if (count == 0) {
+        return;
+    }
+    lastPlane = -1;
+    pVerts = g_BattleSpriteQuadCorners;
+    i = 0;
+    do {
+        // frames are grouped by layer: only the first frame of a run re-picks the
+        // direction transform (and so the matrix the rest of the run is drawn with)
+        if ((pFrameData[i].flags & 7) != lastPlane) {
+            lastPlane = pFrameData[i].flags & 7;
+            visible = (g_SpritePlaneMasks[lastPlane] & ((SpriteRenderFlagWords*)pSpriteData)->flags_0x3C.bytes[1]) == 0;
+            pTransform = (SpriteDirectionTransform*)(lastPlane * sizeof(SpriteDirectionTransform) +
+                                                     (mem_addr)pSpriteData->pBase->pDirTransforms);
+            if (pSpriteData->pBase->pDirTransforms != NULL &&
+                (pTransform->translationX != 0 || pTransform->translationY != 0 || pTransform->rotationZ != 0)) {
+                n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+                transY = (s8)pTransform->translationY << n;
+                transX = (s8)pTransform->translationX << n;
+                if ((SpriteFlags0x3C(pSpriteData) >> 3) & 1) {
+                    transX = -transX;
+                }
+                transY = transY * pSpriteData->scale / 0x1000;
+                transX = transX * pSpriteData->scale / 0x1000;
+                rot.vx = pTransform->rotationX;
+                rot.vy = ((SpriteDirectionTransform*)pSpriteData->pBase->pDirTransforms)[lastPlane].rotationY;
+                rot.vz = ((SpriteDirectionTransform*)pSpriteData->pBase->pDirTransforms)[lastPlane].rotationZ;
+                if ((SpriteFlags0x3C(pSpriteData) >> 3) & 1) {
+                    rot.vz = -rot.vz;
+                }
+                RotMatrix(&rot, &mat);
+                mat.t[0] = pSpriteData->pBase->transformMatrix.t[0] + transX;
+                mat.t[1] = pSpriteData->pBase->transformMatrix.t[1] + transY;
+                mat.t[2] = pSpriteData->pBase->transformMatrix.t[2];
+                SetMulMatrix(&pSpriteData->pBase->transformMatrix, &mat);
+                pMatrix = &mat;
+            } else {
+                SetRotMatrix(&pSpriteData->pBase->transformMatrix);
+                pMatrix = &pSpriteData->pBase->transformMatrix;
+            }
+            SetTransMatrix(pMatrix);
+        }
+        if (visible == 0) {
+            continue;
+        }
+
+        pPrim = g_GfxCurWorkBuffer;
+        g_GfxCurWorkBuffer = pPrim + 1;
+        setlen(pPrim, 9);
+        *(u32*)&pPrim->r0 = pFrameData[i].colorAndCode;
+        pPrim->tpage = pFrameData[i].texPage;
+        pPrim->clut = pFrameData[i].clutID;
+        n = (pSpriteData->field_0x40 >> 8) & 0x1F;
+        width = (s16)(pFrameData[i].width + (s8)pFrameData[i].deltaWidth) << n;
+        height = (s16)(pFrameData[i].height + (s8)pFrameData[i].deltaHeight) << n;
+        tileX = pFrameData[i].tileX << n;
+        tileY = pFrameData[i].tileY << n;
+        spriteFlags = SpriteFlags0x3C(pSpriteData);
+        drawWidth = width;
+        drawHeight = height;
+        drawTileX = tileX;
+        drawTileY = tileY;
+        if ((spriteFlags >> 3) & 1) {
+            drawWidth = -width;
+            drawTileX = -tileX;
+        }
+        if ((spriteFlags >> 4) & 1) {
+            drawHeight = -height;
+            drawTileY = -tileY;
+        }
+
+        edgeX = drawTileX + drawWidth;
+        if (!((u32)pFrameData[i].flags >> 4 & 1)) {
+            pVerts[0].vx = drawTileX;
+            pVerts[1].vx = edgeX;
+            pVerts[2].vx = edgeX;
+            pVerts[3].vx = drawTileX;
+        } else {
+            pVerts[0].vx = edgeX;
+            pVerts[1].vx = drawTileX;
+            pVerts[2].vx = drawTileX;
+            pVerts[3].vx = edgeX;
+        }
+
+        edgeY = drawTileY + drawHeight;
+        if (!((u32)pFrameData[i].flags >> 5 & 1)) {
+            pVerts[2].vy = edgeY;
+            pVerts[3].vy = edgeY;
+            pVerts[0].vy = drawTileY;
+            pVerts[1].vy = drawTileY;
+        } else {
+            pVerts[2].vy = drawTileY;
+            pVerts[3].vy = drawTileY;
+            pVerts[0].vy = edgeY;
+            pVerts[1].vy = edgeY;
+        }
+
+        pVerts[0].vy -= offsetY;
+        pVerts[1].vy -= offsetY;
+        pVerts[2].vy -= offsetY;
+        pVerts[3].vy -= offsetY;
+        pVerts[0].vx -= offsetX;
+        pVerts[1].vx -= offsetX;
+        pVerts[2].vx -= offsetX;
+        pVerts[3].vx -= offsetX;
+        RotTransPers4(&pVerts[0], &pVerts[1], &pVerts[2], &pVerts[3], (long*)&pPrim->x0, (long*)&pPrim->x1,
+                      (long*)&pPrim->x3, (long*)&pPrim->x2, &z, &flag);
+
+        texX = pFrameData[i].texX;
+        texY = pFrameData[i].texY;
+        width = pFrameData[i].width - 1;
+        height = pFrameData[i].height - 1;
+        if (pPrim->x3 < pPrim->x0) {
+            if (--texX < 0) {
+                texX = 0;
+                width--;
+            }
+        }
+        pPrim->u0 = texX;
+        pPrim->v0 = texY;
+        pPrim->u1 = texX + width;
+        pPrim->v1 = texY;
+        pPrim->u2 = texX;
+        pPrim->v2 = texY + height;
+        pPrim->u3 = texX + width;
+        pPrim->v3 = texY + height;
+
+        if ((SpriteFlags0x3C(pSpriteData) >> 27) & 1) {
+            pOt = (u_long*)((u8*)pArg - lastPlane * 4);
+            addPrim(pOt, pPrim);
+        } else {
+            addPrim((u_long*)pArg, pPrim);
+        }
+        i++;
+    } while (i != ((SpriteRenderFlagWords*)pSpriteData)->flags_0x40.bytes[0] >> 2);
+}
+
+*/
 
 /* Best attempt: 80.03% (1200 bytes, the original is 1196; round 294 took the
    parked 76.49% body down to this by the two fixes marked FIXED). The rest of
