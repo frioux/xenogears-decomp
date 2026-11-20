@@ -39,12 +39,13 @@ extern volatile u16 D_800B2340;
 extern s16 D_800B2342;
 extern u8 D_800B2354;
 extern u8 D_800B21CE;
-extern volatile s32 D_800B2360;
+extern s32 D_800B2360;
 extern int FieldActorTestMaterialScriptMask(ActorData* pActor);
 extern void func_80079288(void);
 extern s16 g_Unknown_800B2344;
 
 #define FIELD_ENCOUNTER_HOLD_FRAMES 0x20 // Frames a held confirm repeats as a press
+#define FIELD_TEXTBOX_COUNT 4
 
 void FieldScriptVMHandlerDisableDialogActivation(void) {
     g_FieldScriptVMCurActor->scriptFlags.fields.scriptFlags_0xA = 0x1;
@@ -670,26 +671,157 @@ void FieldScriptVMHandlerStartEncounter(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009F5F4);
-/* 96.60% (1044 vs retail 1036 bytes). Four residuals, all measured:
-   1. the second accept block emits an extra `lui %hi/lw g_FieldScriptVMCurActor`
-      before `sh 0xFF,0xE8(actor)`: the volatile flags store stops gcc reusing the
-      pointer it already has in $v1 (that reload is the whole +8 bytes). A pActor
-      local assigned after the jal is the next thing to try (no call follows it).
-   2. `nTextBoxIndex = -(nTextBoxIndex == 4)` reassignment reproduces the loop exit
-      exactly but lands the negate in the counter register: ours `negu v1,v0 / li v0,-1
-      / bne v1,v0`, retail `negu v0,v0 / li v1,-1 / bne v0,v1`.
-   3. the D_800B2342 decrement: retail keeps the ADDRESS in a register
-      (`lui/addiu` + `lhu 0(v1)` / `sh 0(v1)`), ours uses the maspsx symbol macro.
-      The `extern s16 D_800B2342[]` unbounded-array form produces retail exactly, but
-      gcc then CSEs that base with the `D_800B2342 = D_800B2340` store across the jal
-      and spills it to $s0 (+3 instructions, and retail saves no callee-saved reg).
-   4. the frame: retail is 0x60 with only $ra stored (so 0x58 bytes of dead locals);
-      ours is 0x18. An unused local of exactly 0x58 bytes is the lever.
-   The volatile flags store is load-bearing: it is what puts the flags RMW first and
-   keeps gcc from hoisting the two global loads above it (92.36 -> 96.60).
+/* 97.54% (1036 bytes = retail's size). Two residuals left, both measured:
+   1. the talk accept block: retail keeps D_800B2360's value in $a0 across the
+      volatile anim store and the D_800B2340 load and writes it afterwards
+      (`lw a0; li v0,0xFF; sh 0xE8(v1); lhu v0; sw a0; sh v0`); ours stores it
+      beside its load (`lw v0; sw v0; li; sh; lhu`). Measured dead: six orders of
+      those three statements, the load split through a temp local (permuter find),
+      the anim store plain, D_800B2360 volatile or not - all 97.54 or worse.
+   2. the D_800B2342 decrement: retail materialises the ADDRESS
+      (`lui/addiu` + `lhu 0(v1)` / `sh 0(v1)`), ours uses the two maspsx macro
+      expansions through $at. `extern s16 D_800B2342[]` emits retail's form but
+      CSEs that base with the pre-jal `D_800B2342 == 0` test and spills it to $s0
+      (retail saves no callee-saved register): 94.03%, 1052 bytes.
+   What took the body 96.60 -> 97.54 (all re-measured from scratch, the old park
+   body had been lost):
+   - `u8 pad[0x48]` gives retail's exact 0x60 frame, which stores only $ra;
+   - `if (D_800ADB02 > 0x20)`, retail's `slti v0,v0,0x21`;
+   - the `else D_800ADB02 = 0;` belongs to the material-bit test, not to the
+     previous-position compare: its three `bne`s fall through to the join;
+   - `nInputFree = -(nTextBoxIndex == FIELD_TEXTBOX_COUNT)` in its own local puts
+     the negate in $v0 with `li v1,-1`; assigning it back to the loop counter
+     lands it in $v1;
+   - the pActor local must be assigned INSIDE the accept block, after the jal, or
+     gcc saves $s0 to keep it live across the call;
+   - the anim store has to be a volatile s16 store, which keeps `li/sh` ahead of
+     the D_800B2340 load;
+   - `s32 nCameraAngle = g_CamInterpolation.targetAngleY;` gives retail's `lh`
+     (in the u16 arithmetic context gcc picks `lhu`);
+   The volatile flags store at both accept sites is load-bearing throughout.
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009F5F4);
+/* 98.66% (1036 bytes = retail's size). ONE residual left:
+   the D_800B2342 decrement. Retail materialises the ADDRESS
+   (`lui v1,%hi` + `addiu v1,v1,%lo` + `lhu 0(v1)` / `sh 0(v1)`); ours emits the
+   two maspsx macro expansions through $at. `extern s16 D_800B2342[]` + `[0]--`
+   DOES emit retail's form, but gcc then CSEs that base with the pre-jal
+   `D_800B2342 == 0` test and spills it to $s0 (retail saves no callee-saved
+   register): 96.37%, 1052 bytes. Spelling the test through the neighbouring
+   `((s16*)&g_Unknown_800B2344)[-1]` to break the CSE instead grows the frame to
+   0x68 (96.22%, 1028 bytes). A `do{}while(0)` around the decrement changes
+   nothing.
+   What got the body from the lost 96.60% park to 98.66% (all re-measured):
+   - `u8 pad[0x48]` gives retail's exact 0x60 frame, which stores only $ra;
+   - `if (D_800ADB02 > 0x20)`, retail's `slti v0,v0,0x21`;
+   - the `else D_800ADB02 = 0;` belongs to the material-bit test, not to the
+     previous-position compare: its three `bne`s fall through to the join;
+   - `nInputFree = -(nTextBoxIndex == FIELD_TEXTBOX_COUNT)` in its own local puts
+     the negate in $v0 with `li v1,-1`; assigning it back to the loop counter
+     lands it in $v1 (the old note's residual 2);
+   - the pActor local must be assigned INSIDE the accept block, after the jal, or
+     gcc saves $s0 to keep it live across the call;
+   - the anim store has to be a volatile s16 store, which keeps `li/sh` ahead of
+     the D_800B2340 load;
+   - the D_800B2360 value has to go through its OWN local (`nSavedMessageState`)
+     with the store written AFTER `D_800B2342 = D_800B2340;` - that is what makes
+     gcc put it in $a0 across the volatile anim store and land `sw a0,D_800ADB28`
+     in retail's place. Reusing a dead local instead (nTextBoxIndex) makes the
+     text-box loop swap its two counters ($v1/$a0);
+   - `s32 nCameraAngle = g_CamInterpolation.targetAngleY;` gives retail's `lh`
+     (in the u16 arithmetic context gcc picks `lhu`).
+   The volatile flags store at both accept sites is load-bearing throughout.
+*/
+/*
+void func_8009F5F4(void) {
+    // Retail's frame is 0x60 with nothing but $ra stored in it.
+    u8 pad[0x48];
+    u16 nAngle;
+    s32 nTextBoxIndex;
+    s32 nInputFree;
+    s32 nSavedMessageState;
+    ActorData* pActor;
 
+    nAngle = 0;
+    if (g_FieldScriptVMCurActor->scriptFlags.flags & 0x4000) {
+        for (nTextBoxIndex = 0; nTextBoxIndex < FIELD_TEXTBOX_COUNT; nTextBoxIndex++) {
+            if (g_FieldTextBoxes[nTextBoxIndex].cursor.visibility == 0) {
+                break;
+            }
+        }
+        nInputFree = -(nTextBoxIndex == FIELD_TEXTBOX_COUNT);
+        if (nInputFree == -1 && g_FieldControl.isRandomEncountersEnabled == 0) {
+            if ((g_FieldP1ButtonsPressed >> 12) != 0) {
+                func_80079288();
+            }
+            D_800ADB68 = 1;
+            if (g_FieldScriptVMCurActor->curWalkmeshTriMaterial & 0x400000) {
+                if (g_FieldScriptVMCurActor->prevPosition.x == ((s16*)&g_FieldScriptVMCurActor->position.vx)[1]
+                    && g_FieldScriptVMCurActor->prevPosition.y == ((s16*)&g_FieldScriptVMCurActor->position.vy)[1]
+                    && g_FieldScriptVMCurActor->prevPosition.z == ((s16*)&g_FieldScriptVMCurActor->position.vz)[1]) {
+                    D_800ADB02++;
+                }
+            } else {
+                D_800ADB02 = 0;
+            }
+            if (D_800ADB02 > FIELD_ENCOUNTER_HOLD_FRAMES) {
+                D_800ADB02 = FIELD_ENCOUNTER_HOLD_FRAMES;
+                if ((g_FieldP1ButtonsPressed & 0x80)
+                    && !(g_FieldScriptVMCurActor->scriptFlags.flags & 0x1800)
+                    && g_FieldRequestCode == 0xFF) {
+                    goto confirm;
+                }
+            }
+            if (g_Unknown_800B2344 != 0) {
+                goto talk;
+            }
+            if (!(g_FieldP1ButtonsReleased & 0x80)
+                || (g_FieldScriptVMCurActor->scriptFlags.flags & 0x1800)
+                || (g_FieldScriptVMCurActor->curWalkmeshTriMaterial & 0x400000)
+                || g_FieldRequestCode != 0xFF) {
+                goto buttons;
+            }
+        confirm:
+            if (!FieldActorTestMaterialScriptMask(g_FieldScriptVMCurActor)) {
+                *(volatile u32*)&g_FieldScriptVMCurActor->scriptFlags.flags |= 0x800;
+                D_800ADB28 = D_800B2360;
+            }
+            goto buttons;
+        talk:
+            if ((g_FieldP1ButtonsReleased & 0x80) && D_800B2342 == 0
+                && g_FieldRequestCode == 0xFF
+                && !FieldActorTestMaterialScriptMask(g_FieldScriptVMCurActor)) {
+                pActor = g_FieldScriptVMCurActor;
+                *(volatile u32*)&pActor->scriptFlags.flags |= 0x800;
+                nSavedMessageState = D_800B2360;
+                *(volatile s16*)&pActor->curAnimationId = 0xFF;
+                D_800B2342 = D_800B2340;
+                D_800ADB28 = nSavedMessageState;
+            }
+            if (D_800B2342 != 0) {
+                D_800B2342--;
+            }
+        buttons:
+            if (D_800B2354 == 0) {
+                nAngle = D_800ADF68[(g_FieldP1ButtonsPressed >> 12) ^ 0xF];
+            } else {
+                nAngle = D_800ADF88[(g_FieldP1ButtonsPressed >> 12) ^ 0xF];
+            }
+            if (!(nAngle & 0x8000)) {
+                s32 nCameraAngle = g_CamInterpolation.targetAngleY;
+
+                nAngle = (nAngle - nCameraAngle) & 0xFFF;
+            }
+            g_FieldScriptVMCurActor->rotation.vx = nAngle;
+        } else {
+            g_FieldScriptVMCurActor->rotation.vx = nAngle | 0x8000;
+        }
+    } else if (D_800B21CE == 0) {
+        g_FieldScriptVMCurActor->scriptFlags.flags |= 0x1000000;
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer++;
+}
+*/
 int FieldCharacterIdToPartyId(int characterId) {
     int i;
 
