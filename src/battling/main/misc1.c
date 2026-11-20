@@ -90,8 +90,6 @@ extern s32 D_80097064;
 extern s32 g_BattleSceneOriginYMirror;
 extern s32 g_BattleSceneOriginZ;
 
-// One past the last of the three effect-cell frame counters.
-extern s32 g_BattleEffectCellsEnd;
 extern void func_80070808(VECTOR* pVec, s32 step);
 extern void func_800708C4(VECTOR* pVec, s32 step);
 extern void BattleAimCameraAtCombatants(VECTOR* pA, VECTOR* pB);
@@ -756,8 +754,7 @@ void BattleInitOnce(void) {
     D_80098814 = 0;
 }
 
-// One past the last of the three effect-cell frame counters.
-extern s32 g_BattleEffectCellsEnd;
+#define BATTLE_EFFECT_CELL_COUNT 3
 
 // One of the effect cells BattleStepDisplayState steps: the 16.16 origin a burst is
 // placed at (a source actor's origin plus the battle state's anchor) and the
@@ -813,19 +810,23 @@ extern void BattlePlaceEffectByMode(s32 mode);
 /* Steps the battle display state machine for the current frame: plays the effect
    sound, places a burst from a random source actor on the effect cells, fades the
    screen and keeps the tutorial message text in step.
-   objdiff 99.81% at retail's 1080 bytes: the only differences are the switch's
-   table operand (jtbl_ vs .rodata), the y/z stores naming g_BattleEffectCells+4/+8
-   where retail's object names D_800929F8/D_800929FC, and the anchor position
-   words reached as g_BattleActor1+4/+8 where retail names them D_80098730/
-   D_80098734 - all of which the linker resolves identically. The case-1 loop
+   Retail's exact 1080 bytes and instruction stream: every remaining difference
+   is an operand the linker resolves to the same address - the switch's table
+   (jtbl_ vs .rodata), the y/z stores naming g_BattleEffectCells+4/+8 where
+   retail's object names D_800929F8/D_800929FC, the anchor words reached as
+   g_BattleActor1+4/+8 where retail names them g_BattleSceneOriginYMirror/
+   g_BattleSceneOriginZ, and the cell-walk bound reached as
+   g_BattleEffectCells+BATTLE_EFFECT_CELL_COUNT*0x10+0xC where retail names the
+   end symbol. The case-1 loop
    needs the base as a mem_addr local (a pointer local lets gcc address the cells
    through it and drops retail's repeated 'lui $at/%hi + addu $at,$at,offset'
    stores) and a byte offset rather than an index (an indexed access gives loop.c
    a second induction pointer, +2 insns: 1096 bytes, 97.53%). The three placement
    stores keep their casts for the same reason: retail re-forms the address from
-   the symbol for each of them, and neither a typed element pointer built from the
-   sum (94.71% at 1068 and 95.96% at 1060 for one pointer local covering all three)
-   nor a (BattleEffectEmitter*)(offset + base) view (95.77% at 1044) re-forms it.
+   the symbol for each of them, and no typed spelling does - the pCell cursor
+   (94.63% at 1068) and a typed view of offset + base (95.66% at 1044) both let
+   gcc hoist the three source-actor loads above the store group instead of
+   interleaving them. Same family as the load-bearing cast store in battling/misc2.
 */
 
 void BattleStepDisplayState(void) {
@@ -871,10 +872,10 @@ void BattleStepDisplayState(void) {
             if (*pFrames & 1) {
                 BattleEffectAddSlotFromVector((VECTOR*)(offset + base), 9);
             }
-            pFrames += 4;
-            offset += 0x10;
+            pFrames += sizeof(BattleEffectEmitter) / sizeof(*pFrames);
+            offset += sizeof(BattleEffectEmitter);
             pCell++;
-        } while ((s32)pFrames < (s32)&g_BattleEffectCellsEnd);
+        } while ((s32)pFrames < (s32)&g_BattleEffectCells[BATTLE_EFFECT_CELL_COUNT].frames);
         break;
     case 2:
         pState->gaugeValue = 1;
