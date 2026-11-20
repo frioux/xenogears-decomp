@@ -3434,31 +3434,48 @@ void func_8003C4C4(AudioManager* pManager, AudioElement* pElement, u32 elementCo
 }
 */
 
-// 69.00%, retail's 1436 bytes against this body's 1448. The whole script walk is here - the note
-// command with its two selector tables, the handler dispatch, the loop-marker scan, the gate/duration
-// arithmetic and the envelope reset - and it is within 3 instructions of retail's size, but the
-// register allocation cascades: retail defines $s6 (count) before $s2 (the element) in the prologue,
-// hangs the two constants in $s7 = 1 / $s8 = 0x90 where this body gets them the other way round, and
-// reloads active_flag a second time for the 0xF8FF mask where gcc cse keeps the first load. Retail's
-// frame is 0x48 (32 bytes of locals), this body's 0x40, so the original source had two more spilled
-// values than this spelling. Written from the assembly in one pass; nothing here has been tuned.
+// 72.67%, retail's 1436 bytes against this body's 1452 (4 instructions long). Written from the
+// assembly; the flow, the field set and the block order are retail's, and the last two blocks (the
+// gate/duration arithmetic and the envelope reset, including its `&envelopes[0].flags` base and the
+// loaded-once flags) are instruction for instruction right. What is left:
+// (1) THE FRAME: retail is 0x48 with s0-s7+fp+ra saved (32 bytes of locals); this body is 0x40 with
+//     s0-s7+ra (24 bytes), so the original source had one more callee-saved value and one more
+//     spill. retail's $fp holds 0x90, which is the scan loop's `cmd == 0x90`.
+// (2) THE SCAN LOOP CHAIN: retail hoists `li a3,0x80` / `li a1,0x81` before the loop and tests
+//     0x90 (against $fp), 0x80, 0x81, the 0xB0-0xB1 range (sltiu), 0x99, 0x9A in that order, with
+//     the 0x80 and range arms cross-jumped onto one `&= ~0x200`. This body materialises the
+//     constants inside the blocks and puts the 0xB0 test before 0x81's. The commands are compared
+//     as s16 (that is what `sll 16`/`sra 14` for the handler index and `sll 16`/`sra 16` for the
+//     length index mean), which is why `cmd` is declared s16 here - but that costs the extra
+//     `move v1,a0` at the script loop top, so the original probably kept a `u8 cmd` for the
+//     `< 0x80` tests and a separate s16 copy for the scan loop (measured: u8 cmd + s16 opcode was
+//     only 70.51 + 16 bytes, so that split alone is not it either).
+// (3) PROLOGUE ORDER: retail defines $s4 (pManager), $s6 (count), $s2 (pElement) in that order
+//     where this body gets argument order s4, s2, s6.
+// (4) The two active_flag reloads retail does (the `!= 0` test, then `activeFlags = ...`) are cse'd
+//     into one load here; a volatile read at the second one is untried.
+// The field notes below are corrections to the round-346 body, all read off the .s and all present
+// in this one: the script loop's continue test is `active_flag & 0x500` (0(s2)), not status_flags;
+// the `cmd < 0x80` mark at the end of the scan sets/clears 0x1000 on ACTIVE_FLAG (0(s2)), not
+// status_flags; gateRatio is tested 0xF first and 0x10 second; the envelope loop reads flags once
+// into a local (a store to status_flags otherwise kills the cse entry and reloads it - the
+// `lhu v0,0(a0)` extra instruction); and `note` must stay s32 (`u8 note` costs two more masks).
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003C6E8);
 /*
-// Steps one element's script until the next note starts: a note command carries the pitch and
-// its duration selectors, everything else is a control command handled above.
 void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
     u8* pScript;
+    AudioLoop* pLoop;
+    AudioEnvelope* pEnvelope;
     u32 activeFlags;
-    u32 noteStarted;
-    s32 cmd;
+    s32 noteStarted;
+    s16 cmd;
     u8 selector;
-    u8 note;
+    s32 note;
     u8 length;
+    u16 envelopeFlags;
     s32 ticks;
     s32 delta;
     u16 gateTicks;
-    AudioLoop* pLoop;
-    AudioEnvelope* pEnvelope;
     s32 i;
     s32 next;
 
@@ -3473,7 +3490,6 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                 for (;;) {
                     cmd = *pScript++;
                     if (cmd < 0x80) {
-                        // A note: bit 3 of the active flags keeps the running volume for a tie.
                         if (!(pElement->active_flag & 0x8)) {
                             pElement->volume = cmd << 8;
                         }
@@ -3519,7 +3535,7 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                         }
                     }
 
-                    if (pElement->status_flags & (SOUND_STATUS_VOLUME_CHANGE | 0x400)) {
+                    if (pElement->active_flag & (SOUND_CHANNEL_HOLD_NOTE | SOUND_CHANNEL_REST_NOTE)) {
                         break;
                     }
                 }
@@ -3528,7 +3544,7 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
 
                 if (pElement->active_flag != 0) {
                     if (pElement->active_flag & 0x800) {
-                        pElement->active_flag |= SOUND_STATUS_PLAYING_NTOE;
+                        pElement->active_flag |= 0x200;
                     }
 
                     pLoop = &pElement->loops[pElement->loopIndex];
@@ -3540,11 +3556,14 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                                 if (pScript == NULL) {
                                     break;
                                 }
-                            } else if (cmd == 0x80 || (cmd >= 0xB0 && cmd <= 0xB1)) {
+                            } else if (cmd == 0x80) {
                                 pElement->status_flags &= ~SOUND_STATUS_PLAYING_NTOE;
                                 break;
                             } else if (cmd == 0x81) {
                                 pElement->status_flags |= SOUND_STATUS_PLAYING_NTOE;
+                                break;
+                            } else if (cmd >= 0xB0 && cmd <= 0xB1) {
+                                pElement->status_flags &= ~SOUND_STATUS_PLAYING_NTOE;
                                 break;
                             } else {
                                 if (cmd == 0x99) {
@@ -3566,9 +3585,9 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
                     }
 
                     if (cmd < 0x80) {
-                        pElement->status_flags |= 0x1000;
+                        pElement->active_flag |= 0x1000;
                     } else {
-                        pElement->status_flags &= ~0x1000;
+                        pElement->active_flag &= ~0x1000;
                     }
 
                     ticks = pElement->durationBias + pElement->fermataDuration;
@@ -3579,15 +3598,12 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
 
                     if (pElement->active_flag & 0x600) {
                         gateTicks = 0x7FFF;
+                    } else if (pElement->gateRatio == 0xF) {
+                        gateTicks = ticks - 1;
                     } else if (pElement->gateRatio == 0x10) {
                         gateTicks = ticks;
                     } else {
-                        if (pElement->gateRatio == 0xF) {
-                            gateTicks = ticks - 1;
-                        } else {
-                            gateTicks = (u32)((s16)ticks * pElement->gateRatio) >> 4;
-                        }
-
+                        gateTicks = (u32)((s16)ticks * pElement->gateRatio) >> 4;
                         if (gateTicks == 0) {
                             gateTicks = 1;
                         }
@@ -3617,13 +3633,14 @@ void func_8003C6E8(AudioManager* pManager, AudioElement* pElement, s32 count) {
 
                         pEnvelope = pElement->envelopes;
                         for (i = NUM_VOICE_ENVELOPES; i != 0; i--) {
-                            if ((pEnvelope->flags & 3) == 3) {
+                            envelopeFlags = pEnvelope->flags;
+                            if ((envelopeFlags & 3) == 3) {
                                 pEnvelope->value = 0;
                                 pEnvelope->count = 1;
                                 pEnvelope->delayCount = pEnvelope->delayReload;
                                 pEnvelope->rampLevel = pEnvelope->rampStep;
                                 pElement->status_flags |= SOUND_STATUS_VOLUME_CHANGE;
-                                pEnvelope->flags &= ~0xC;
+                                pEnvelope->flags = envelopeFlags & ~0xC;
                             }
                             pEnvelope++;
                         }
