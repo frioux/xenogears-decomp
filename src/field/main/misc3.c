@@ -312,7 +312,7 @@ void FieldLoadTIMWithClut(u_long *pTimData, short x, short y, short clutX, short
 }
 
 extern s32 g_FieldScriptDataStreamActive; // Field script data stream allocated?
-extern int* D_800ADC14; // Field script data stream
+extern int* g_FieldScriptDataStream; // Field script data stream
 extern s32 g_GameSceneMapNum;
 
 extern int* ArchiveAllocStreamFile(int numEntries, int allocMode);
@@ -326,7 +326,7 @@ void FieldStartScriptDataStream(void) {
     if (!g_FieldScriptDataStreamActive) {
         g_FieldScriptDataStreamActive = 1;
         pStreamFile = ArchiveAllocStreamFile(4, 1);
-        D_800ADC14 = pStreamFile;
+        g_FieldScriptDataStream = pStreamFile;
         func_80029EB0(((g_GameSceneMapNum & 0xFFF) * 2) + 0xB9, pStreamFile, 0, 0, 0, 0, 0, 0, 0, 0);
     }
 }
@@ -335,7 +335,7 @@ void FieldFreeScriptDataStream(void) {
     if (g_FieldScriptDataStreamActive == 1) {
         ArchiveCdDataSync(0);
         DrawSync(0);
-        HeapFree(D_800ADC14);
+        HeapFree(g_FieldScriptDataStream);
         g_FieldScriptDataStreamActive = 0;
     }
 

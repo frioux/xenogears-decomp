@@ -1071,3 +1071,6 @@ FieldScriptVMHandlerRequestFieldState0 = 0x80093740;
 FieldRunScriptFadeEffect = 0x800A5924;
 g_FieldFadeIsWhite = 0x800ADC08;
 g_FieldWalkAbortCount = 0x800B2348;
+FieldLoadSceneAndRun = 0x80078D44;
+g_FieldActive = 0x800AFD04;
+g_FieldScriptDataStream = 0x800ADC14;

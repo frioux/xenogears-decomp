@@ -176,9 +176,9 @@ extern s32 g_WorldMapAudioManagerLoaded;
 extern s32 g_GameLoadedWdsBankIndex;
 extern s32 g_GameReusePendingAudioManager;
 extern s32 g_SoundPendingAudioManager;
-extern s32 D_800AFD04;
+extern s32 g_FieldActive;
 extern s32 g_FieldScriptDataStreamActive;
-extern int* D_800ADC14; // buffer the field script data stream is read into
+extern int* g_FieldScriptDataStream; // buffer the field script data stream is read into
 extern s32 g_FieldZoomFadeScale;
 extern s32 g_FieldActorModelSlotCount;
 extern AudioManager* g_SoundAudioManager;
@@ -216,7 +216,7 @@ extern void FontFree(void);
 
 // Loads the scene map, fades the field in, runs it until the state machine
 // leaves state 1 and then tears the field down
-void func_80078D44(void) {
+void FieldLoadSceneAndRun(void) {
     RECT rect;
     int i;
     int nZoomScaleStep;
@@ -254,7 +254,7 @@ void func_80078D44(void) {
     ArchiveSetIndex(4, 0);
     FieldLoad();
     FieldStartScriptDataStream();
-    D_800AFD04 = 1;
+    g_FieldActive = 1;
     if (g_FieldActorModelSlotCount != 0) {
         LibGearSetDirectKeyframes(1);
     }
@@ -286,7 +286,7 @@ void func_80078D44(void) {
             goto fieldLoop;
         }
         DrawSync(0);
-        HeapFree(D_800ADC14);
+        HeapFree(g_FieldScriptDataStream);
         g_FieldScriptDataStreamActive = 0;
         FieldOrVramStripPixels();
     }
@@ -371,7 +371,7 @@ void func_80078D44(void) {
     HeapConsolidate();
     FontFree();
     FieldLoadFont();
-    D_800AFD04 = 0;
+    g_FieldActive = 0;
 }
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);

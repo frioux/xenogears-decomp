@@ -339,7 +339,7 @@ int FieldTextBoxCheckPortraitIdAvailable(int targetId) {
 extern s32 g_FieldArchiveStreamActive;
 extern s32 g_FieldRequestCode;
 extern s32 g_FieldStreamSceneActive;
-extern s32 D_800AFD04;
+extern s32 g_FieldActive;
 extern s32 D_800C4268;
 
 // The dialog data the two text size lookups read; system.c owns its layout.
@@ -439,7 +439,7 @@ s32 func_8009C5A8(s32 actorIndex, s32 mode) {
 
     g_FieldScriptMaxInstructionCount += 0x20;
 
-    if (g_FieldArchiveStreamActive != 0 || D_800AFD04 != 0 || D_800C4268 != 0 ||
+    if (g_FieldArchiveStreamActive != 0 || g_FieldActive != 0 || D_800C4268 != 0 ||
         g_FieldRequestCode != 0xFF ||
         (g_FieldStreamSceneActive == 0 && FieldArchiveTryDataSync() != 0)) {
         g_FieldScriptVMStopFlag = 1;
