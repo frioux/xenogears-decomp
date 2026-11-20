@@ -241,6 +241,21 @@ extern s32 func_800987AC(WorldMapMisc16Point* p0, WorldMapMisc16Point* p1, World
    2902 moves `pClip++` out of the loop into the vy-zero block (pClip then advances once
    instead of 25 times); do not port either. The only correct one was marginal
    (2955 vs 2965: the 0xB8 store split into two statements and x>>1>>3>>8).
+   ROUND 342: `*pClip = nClip;` with `pClip++;` as the LAST statement of the col loop
+   body (after the pScratch+0xA0 store) is worth 88.03 -> 89.02 at retail's exact 1036
+   bytes: retail's `addiu s5,s5,0x2` lands in the col back-branch delay slot and the
+   `bnez` slot then carries the `addu a3,pE0` copy - with `*pClip++` the two swap.
+   MEASURED DEAD ENDS THIS ROUND (all at retail's size or one instruction over): pC0
+   and pC8 as symbol-named locals (1024 / 83.18 - cse then rematerialises the addiu
+   instead of spilling); all five inner points as symbol locals (1024 / 76.16, frame
+   0x50); pD0, pD8, pE0 as preheader locals (1040 / 81.19, the ONLY variant with
+   retail's 0x70 frame, one instruction over); pClip assigned before the matrix calls
+   (85.47) or after the vy zeros (87.05); `pClip += 1` (identical); five declaration
+   orders (identical pairing - so the rotation is not a pseudo-number tie). A
+   4-minute permuter run from 89.02 (1533 iterations, 2570 -> 2499) offered only
+   `s32 nA0 = 0xA0;` for the first 0xA0 store: 89.31% but 1040 bytes, so it cannot
+   link - retail's store is a %lo immediate off s2. The residual is unchanged: the
+   five-value rotation plus 0xC8 materialised twice (frame 0x68 vs retail's 0x70).
    Not a preset question: gcc-2.7.2-cdk scores 70.06 and gcc-2.6.0 69.89 on this body. */
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_800983A0);
 /*
@@ -299,7 +314,7 @@ void func_800983A0(WorldMapMisc16Struct* p) {
             *(u16*)(pScratch + 0xB8) = *(u16*)pA0 + 0x800;
             *(u16*)(pScratch + 0xBC) = *(u16*)(pScratch + 0xA4) - 0x800;
             nClip = func_800987AC(&pQuad[0], &pQuad[1], &pQuad[2], &pQuad[3]);
-            *pClip++ = nClip;
+            *pClip = nClip;
             if (nClip == 0) {
                 *(u16*)(pScratch + 0xC0) = *(u16*)(pScratch + 0xA0) + 0x400;
                 *(u16*)(pScratch + 0xC4) = *(u16*)(pScratch + 0xA4);
@@ -328,6 +343,7 @@ void func_800983A0(WorldMapMisc16Struct* p) {
             pTex->unk4 = nPack;
             pTex++;
             *(u16*)(pScratch + 0xA0) += 0x800;
+            pClip++;
         }
         *(u16*)(pScratch + 0xA4) -= 0x800;
     }
