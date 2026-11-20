@@ -39,6 +39,9 @@
 // Written to the slot a script asked for when the actor is in no party slot.
 #define FIELD_PARTY_SLOT_NONE 0xFF
 
+// One party member's saved 320x128 8bpp framebuffer, the block a slot change copies.
+#define FIELD_PARTY_FRAMEBUFFER_SIZE 0x14000
+
 // FieldActorsWithinDistance reports false once its two actors' 2D distance reaches this.
 #define FIELD_ACTOR_DISTANCE_THRESHOLD 0x10
 
@@ -1303,7 +1306,7 @@ extern s32 g_GameSceneMapNum;
 extern int g_GamePartyMemberSkins[MAX_PARTY_MEMBERS];
 extern void* g_FieldPartyModelLoadBuffer;
 extern s32 g_FieldPartyModelLoadState;
-extern void* g_FieldPartyModelLoadCharacter;
+extern s32 g_FieldPartyModelLoadCharacter;
 extern s32 g_FieldPartyModelLoadPartyIndex;
 
 void FieldPartyLoadMemberSkin(int characterId, int partyIndex) {
@@ -1720,10 +1723,10 @@ void func_8008B5D4(void) {
 extern void* g_PartyDataBuffers[];
 extern void* g_FieldPartyModelLoadBuffer;
 extern s32 g_FieldPartyModelLoadState;
-extern void* g_FieldPartyModelLoadCharacter;
+extern s32 g_FieldPartyModelLoadCharacter;
 extern s32 g_FieldPartyModelLoadPartyIndex;
 extern void LZSSDecompress(void*, void*);
-extern void func_8008B978(void*);
+extern void func_8008B978(int);
 
 void FieldScriptFinishPartyModelLoad(void) {
     if (g_FieldPartyModelLoadState != CHARACTER_ID_NONE && ArchiveDataSync() == 0) {
@@ -1740,6 +1743,100 @@ void FieldScriptFinishPartyModelLoad(void) {
     }
 }
 
+extern FieldActor* g_FieldScriptVMCurFieldActor;
+extern s32 g_FieldPartyActorIndices[MAX_PARTY_MEMBERS];
+extern s32 g_FieldScriptVMScriptEndFlag;
+extern s32 FieldScriptGetBytecodeOffset(int scriptIndex, int routineIndex);
+extern void FieldScriptVMRun(int maxInstructionCount);
+extern void func_80077268(void);
+
+// Bytecode opcode a party member's actor runs once its model file has loaded; its
+// argument is the character id that was just loaded.
+#define FIELD_SCRIPT_OPCODE_PARTY_MODEL 0x16
+
+// 97.50%: 776 bytes (retail's size) and every instruction matches except one
+// four-instruction group in the found arm, where the compiler keeps the actor
+// address in $v1 and pActorData in $v0 and retail has them the other way round.
+// Retail's own gear-branch site has the opposite pairing again, so that one group
+// is an allocation coin flip: tried pActor vs g_FieldScriptVMCurFieldActor
+// store-forwarding, both declaration orders, (*ppFieldActors)[i].pActorData
+// (95.94%), and the permuter (its parser rejects this body).
+// The pieces that are load-bearing, all measured: ppFieldActors =
+// (FieldActor**)&g_FieldActors before the loop (without it the compiler
+// re-materialises the address at both actor sites and the frame loses that
+// register); (FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors) at the two
+// write-back sites, where retail re-forms the address instead of using the
+// hoisted one; ONE s32 offset local reused for the second
+// FieldScriptGetBytecodeOffset result (a second local costs 3 instructions);
+// prevMaxInstructionCount assigned BEFORE prevActorIndex (that decides which of
+// the two gets a register and which is spilled); and a s32 rather than u_short
+// return for FieldScriptGetBytecodeOffset, since retail has no andi 0xffff.
+/*
+void func_8008B978(int characterId) {
+    FieldActor* pPrevFieldActor;
+    ActorData* pActor;
+    FieldActor* pFieldActor;
+    ActorData* pPrevActor;
+    s32 prevStopFlag;
+    s32 prevMaxInstructionCount;
+    s32 prevActorIndex;
+    s32 i;
+    s32 prevIP;
+    FieldActor** ppFieldActors;
+    s32 offset;
+    u8* pScript;
+
+    g_pGameState->characterFlags |= 1 << g_FieldPartyModelLoadCharacter;
+    pPrevFieldActor = g_FieldScriptVMCurFieldActor;
+    pPrevActor = g_FieldScriptVMCurActor;
+    if (g_FieldEntryRoutineFinished != 0) {
+        prevIP = pPrevActor->scriptInstructionPointer;
+        prevStopFlag = g_FieldScriptVMStopFlag;
+        prevMaxInstructionCount = g_FieldScriptMaxInstructionCount;
+        prevActorIndex = g_FieldCurActorIndex;
+        ppFieldActors = (FieldActor**)&g_FieldActors;
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
+            offset = FieldScriptGetBytecodeOffset(i, 0);
+            pScript = (u8*)g_FieldScriptVMCurScriptData + offset;
+            if (pScript[0] != FIELD_SCRIPT_OPCODE_PARTY_MODEL || pScript[1] != characterId) {
+                continue;
+            }
+            pFieldActor = &(*ppFieldActors)[i];
+            g_FieldScriptVMCurFieldActor = pFieldActor;
+            g_FieldScriptVMCurActor = g_FieldScriptVMCurFieldActor->pActorData;
+            func_80080A74(i);
+            pActor = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;
+            g_FieldCurActorIndex = i;
+            pActor->scriptInstructionPointer = offset;
+            g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(i, 0);
+            g_FieldScriptVMScriptEndFlag = 0;
+            offset = FieldScriptGetBytecodeOffset(i, 0);
+            FieldActorCopyPlacement(i, g_PlayerActorIndex);
+            FieldScriptVMRun(0xFFFF);
+            func_80077268();
+            g_pGameState->characterFlags |= 1 << g_FieldPartyModelLoadCharacter;
+            if ((g_GameSceneMapNum & FIELD_MAP_GEAR_SKINS_MASK) != 0) {
+                pFieldActor = &(*ppFieldActors)[g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex]];
+                g_FieldScriptVMCurFieldActor = pFieldActor;
+                g_FieldScriptVMCurActor = pFieldActor->pActorData;
+                func_80080A74(g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex]);
+                ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData->scriptInstructionPointer = offset;
+                g_FieldCurActorIndex = g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex];
+                g_FieldScriptVMCurActor->scriptInstructionPointer = FieldScriptGetBytecodeOffset(g_FieldPartyActorIndices[g_FieldPartyModelLoadPartyIndex], 0);
+                g_FieldScriptVMScriptEndFlag = 0;
+                FieldScriptVMRun(0xFFFF);
+            }
+            break;
+        }
+        g_FieldScriptVMCurFieldActor = pPrevFieldActor;
+        g_FieldScriptVMCurActor = pPrevActor;
+        g_FieldScriptVMStopFlag = prevStopFlag;
+        g_FieldCurActorIndex = prevActorIndex;
+        g_FieldScriptMaxInstructionCount = prevMaxInstructionCount;
+        pPrevActor->scriptInstructionPointer = prevIP;
+    }
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
 
 extern void FieldPartyLoadMemberSkin(int characterId, int partyIndex);
@@ -1945,6 +2042,148 @@ void func_8008C180(int partyIndex) {
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C180);
 
+extern int FieldCharacterIdToPartyId(int characterId);
+extern void func_8008C180(int partyIndex);
+extern void func_8008BF38(int partyIndex);
+
+// 90.91%: the structure, the call set, the switch trees and every branch match;
+// what is left is how each g_GamePartyMembers / g_GamePartyMemberSkins element
+// access computes its address. Retail folds the element offset into the
+// displacement (lui + lw/sw %lo(sym+4), two instructions per access) while this
+// build CSEs the element address into a register (la sym+4 then lw/sw 0(reg)),
+// which is 16 bytes short overall. Also in here: the load state is the guard the
+// script instruction waits on (it is the global at 0x800ADBC4, and every 0xFF in
+// the arms compares/stores the same constant, so gcc reuses that register).
+// Layout that is load-bearing and was measured: the shift reads the two slots into
+// temps before clearing them (that is the only way to get retail's
+// members[1]=NONE, skins[1]=NONE, members[0]=temp, skins[0]=temp store order), and
+// g_pGameState->gearRide[N] = 0 has to be the LAST statement of each arm for its
+// sb to land in the exit jump's delay slot.
+/*
+void func_8008C334(void) {
+    s32 loadState;
+    s32 partyIndex;
+    s32 member;
+    s32 skin;
+    PartyDataChunk* pSrc;
+    PartyDataChunk* pDst;
+    PartyDataChunk* pEnd;
+    ActorData* pActor;
+
+    loadState = g_FieldPartyModelLoadState;
+    if (loadState != CHARACTER_ID_NONE) {
+        g_FieldScriptVMStopFlag = 1;
+        g_FieldScriptVMCurActor->scriptInstructionPointer -= 1;
+        return;
+    }
+    DrawSync(0);
+    partyIndex = FieldCharacterIdToPartyId(
+        FieldPartySlotToCharacter(((u8*)g_FieldScriptVMCurScriptData)[g_FieldScriptVMCurActor->scriptInstructionPointer + 1]));
+    if (partyIndex != -1) {
+        if (g_FieldEntryRoutineFinished == 0) {
+            switch (partyIndex) {
+            case 0:
+                if (g_GamePartyMembers[1] == CHARACTER_ID_NONE) {
+                    g_GamePartyMembers[0] = CHARACTER_ID_NONE;
+                    g_GamePartyMemberSkins[0] = CHARACTER_ID_NONE;
+                    g_pGameState->gearRide[0] = 0;
+                    break;
+                }
+                pSrc = g_FieldSavedFramebuffers[0];
+                pDst = g_PartyDataBuffers[0];
+                pEnd = (PartyDataChunk*)((u8*)pSrc + FIELD_PARTY_FRAMEBUFFER_SIZE);
+                do {
+                    *pDst = *pSrc;
+                    pSrc++;
+                    pDst++;
+                } while (pSrc != pEnd);
+                member = g_GamePartyMembers[1];
+                skin = g_GamePartyMemberSkins[1];
+                g_GamePartyMembers[1] = FIELD_PARTY_SLOT_NONE;
+                g_GamePartyMemberSkins[1] = FIELD_PARTY_SLOT_NONE;
+                g_GamePartyMembers[0] = member;
+                g_GamePartyMemberSkins[0] = skin;
+                g_pGameState->gearRide[0] = g_pGameState->gearRide[1];
+                if (g_GamePartyMembers[2] != FIELD_PARTY_SLOT_NONE) {
+                    pSrc = g_FieldSavedFramebuffers[1];
+                    pDst = g_FieldSavedFramebuffers[0];
+                    pEnd = (PartyDataChunk*)((u8*)pSrc + FIELD_PARTY_FRAMEBUFFER_SIZE);
+                    do {
+                        *pDst = *pSrc;
+                        pSrc++;
+                        pDst++;
+                    } while (pSrc != pEnd);
+                    member = g_GamePartyMembers[2];
+                    skin = g_GamePartyMemberSkins[2];
+                    g_GamePartyMembers[2] = FIELD_PARTY_SLOT_NONE;
+                    g_GamePartyMemberSkins[2] = FIELD_PARTY_SLOT_NONE;
+                    g_GamePartyMembers[1] = member;
+                    g_GamePartyMemberSkins[1] = skin;
+                    g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
+                }
+                break;
+            case 1:
+                if (g_GamePartyMembers[2] == CHARACTER_ID_NONE) {
+                    g_GamePartyMembers[1] = CHARACTER_ID_NONE;
+                    g_GamePartyMemberSkins[1] = CHARACTER_ID_NONE;
+                    g_pGameState->gearRide[1] = 0;
+                    break;
+                }
+                pSrc = g_FieldSavedFramebuffers[1];
+                pDst = g_FieldSavedFramebuffers[0];
+                pEnd = (PartyDataChunk*)((u8*)pSrc + FIELD_PARTY_FRAMEBUFFER_SIZE);
+                do {
+                    *pDst = *pSrc;
+                    pSrc++;
+                    pDst++;
+                } while (pSrc != pEnd);
+                member = g_GamePartyMembers[2];
+                skin = g_GamePartyMemberSkins[2];
+                g_GamePartyMembers[2] = FIELD_PARTY_SLOT_NONE;
+                g_GamePartyMemberSkins[2] = FIELD_PARTY_SLOT_NONE;
+                g_GamePartyMembers[1] = member;
+                g_GamePartyMemberSkins[1] = skin;
+                g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
+                g_pGameState->gearRide[2] = 0;
+                break;
+            case 2:
+                g_GamePartyMembers[2] = CHARACTER_ID_NONE;
+                g_GamePartyMemberSkins[2] = CHARACTER_ID_NONE;
+                g_pGameState->gearRide[2] = 0;
+                break;
+            }
+        } else {
+            switch (partyIndex) {
+            case 0:
+                g_pGameState->gearRide[0] = g_pGameState->gearRide[1];
+                g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
+                g_pGameState->gearRide[2] = 0;
+                func_8008C180(0);
+                func_8008BF38(1);
+                break;
+            case 1:
+                g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
+                g_pGameState->gearRide[2] = 0;
+                func_8008C180(1);
+                func_8008BF38(1);
+                break;
+            case 2:
+                g_pGameState->gearRide[2] = 0;
+                func_8008C180(2);
+                break;
+            }
+            if (g_GamePartyMembers[0] != FIELD_PARTY_SLOT_NONE && g_FieldPartyActorSlots[0] != FIELD_PARTY_SLOT_NONE) {
+                g_PlayerActorIndex = g_FieldPartyActorSlots[0];
+                pActor = g_FieldActors[g_FieldPartyActorSlots[0]].pActorData;
+                pActor->scriptFlags.flags = (pActor->scriptFlags.flags | 0x4400) & ~0x80;
+            } else {
+                g_PlayerActorIndex = 0;
+            }
+        }
+    }
+    g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
 
 void FieldScriptFreeActorFile(void) {
