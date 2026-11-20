@@ -11,6 +11,9 @@
 #define MENU_ICON_TEXTURE_COUNT 24
 #define MENU_ICON_NONE 0xFFFF
 
+// the 'G' glyph drawn after the gold amount
+#define MENU_TEX_GOLD_GLYPH 0x10
+
 
 
 
@@ -138,7 +141,7 @@ void MenuSetGoldDigits(s32 x, s32 y) {
         }
         digitX += MENU_DIGIT_SPACING;
     }
-    func_8002675C(g_Menu->resources, 0x10,
+    func_8002675C(g_Menu->resources, MENU_TEX_GOLD_GLYPH,
                   &((MenuGoldWindow*)g_Menu->pGoldWindow)->glyphPrims[0],
                   g_Menu->renderContext, x + 0x50, y, 0x1000);
     g_Menu->pManager->goldDigitsActive = 1;
