@@ -156,19 +156,6 @@ void MenuSaveSlotWriteGameState(MenuSaveSlot* pSlot) {
     memcpy(&pSlot->unk1920, (u8*)&g_GameState + 0x1920, size);
 }
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E4D10);
-/* Best: 91.40% (840 vs 744 bytes), the inverse of MenuSaveSlotWriteGameState (which
-   matches): same record layout, same copy shapes, and the four
-   MenuApplyGear* calls per gear land in the right order with s2 = i & 0xFF
-   shared across them.  What is left is one allocator tie that swaps the two
-   loop bases: retail keeps the g_GameState gear pointer in $s1 and the slot
-   pointer in $s0, gcc gives $s1 to the slot pointer (the whole 0x28 head
-   copy and the five field stores are mirror-imaged, which is why the byte
-   count grows).  Tried: pGear/pSaveGear assignment in both orders, and the
-   loop body with the head copies first (no change).  The 0x160 copy before
-   the loop, the 0xDC/0x190/0x78/0x100 copies after it and the trailing
-   memcpy of 0xA38 all match retail.
-/*
 void MenuApplyGearFrame(MenuDressingRoom*, u8);
 void MenuApplyGearArmor(MenuDressingRoom*, u8);
 void MenuApplyGearEngine(MenuDressingRoom*, u8);
@@ -187,9 +174,8 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
     }
     *(MenuSaveBlob0x160*)((u32*)&g_GameState + 0x16C0 / 4) = *(MenuSaveBlob0x160*)((u32*)pSlot + 0xEC4 / 4);
     for (i = 0; i < MAX_GAME_GEARS; i++) {
-        s32 gearOffset = i * 0x3C + 0x99C;
         pGear = &g_GameState.gears[i];
-        pSaveGear = (MenuSaveGear*)((mem_addr)pSlot + gearOffset);
+        pSaveGear = &pSlot->gears[i];
         *(MenuSaveGearHead20*)pGear = pSaveGear->head;
         *(MenuSaveGearHead08*)((u32*)pGear + 8) = pSaveGear->headTail;
         *(u32*)pGear->unk5C = pSaveGear->unk28;
@@ -210,7 +196,6 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
     size = 0xA38;
     memcpy((u8*)&g_GameState + 0x1920, (u8*)pSlot + 0x1124, size);
 }
-*/
 void MenuFillInventoryTables(void) {
     u8 i;
 
