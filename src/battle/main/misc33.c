@@ -98,7 +98,9 @@ typedef struct {
     /* 0x00 */ u8 unk0[0x7];
     /* 0x07 */ u8 flags; // only masked and tested: bit 7 by BattleActorSlotHasFlag80, clear means idle
     /* 0x08 */ u8 inUse; // set to 1 when the slot is claimed; every reader tests it against 0 (misc29/misc34 BattleActorSlot.inUse)
-    /* 0x09 */ u8 unk9[0x5];
+    /* 0x09 */ u8 unk9;
+    /* 0x0A */ u8 sideFlag; // non-zero faces the slot's sprite 0x800 (half a turn); the angle misc30's BattleActorSetFacingFromSideFlag passes to func_800223B0
+    /* 0x0B */ u8 unkB[0x3];
     /* 0x0E */ u16 x; // whole x the slot's sprite takes its 16.16 position from (misc29 BattleActorInitSpriteFromSlot)
     /* 0x10 */ u16 z;
     /* 0x12 */ u8 unk12[0xA];
