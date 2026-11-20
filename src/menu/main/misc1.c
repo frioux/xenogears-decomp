@@ -2,6 +2,9 @@
 
 #include "system/menu.h"
 
+// Frames the load-game screen waits with no input before it asks for the second disc.
+#define MENU_DISC_CHANGE_IDLE_FRAMES 601
+
 extern u8 g_MenuOverlayIndex; // Index of the menu overlay the menu was entered with
 extern u_char g_MenuMainTitleStringIds[]; // String IDs of the menu strings
 
@@ -163,7 +166,7 @@ void MenuLoadGameMain(void) {
                 g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
-        if (ArchiveGetDiscNumber() == 1 && g_Menu->idleFrameCount >= 601) {
+        if (ArchiveGetDiscNumber() == 1 && g_Menu->idleFrameCount >= MENU_DISC_CHANGE_IDLE_FRAMES) {
             shouldContinue = 0;
             g_GameDiscChangeRequest = 1;
         }
