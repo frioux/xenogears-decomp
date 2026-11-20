@@ -12,6 +12,23 @@
 #define WORLD_MAP_FADE_LEVEL_MAX 0x40
 #define WORLD_MAP_FADE_LEVEL_MIN 2
 
+// the map display buffer copied into VRAM when a mode initialises, and the VRAM
+// position it is copied to
+#define WORLD_MAP_SCREEN_WIDTH 320
+#define WORLD_MAP_SCREEN_HEIGHT 216
+#define WORLD_MAP_SCREEN_VRAM_X 0x2C0
+#define WORLD_MAP_SCREEN_VRAM_Y 0x100
+
+// the archive directory this overlay's files are read through
+#define WORLD_MAP_ARCHIVE_DIRECTORY_INDEX 0x24
+
+// g_SoundControlFlags bit: an SPU transfer command is in flight (owned by
+// include/system/sound.h, which declares the flags but not their bits)
+#define SOUND_CTL_FLAG_TRANSFER_BUSY (1 << 4)
+
+// the SPU's maximum volume, which SoundPlayAudioManager takes as its volume
+#define SPU_VOL_MAX 0x7F
+
 typedef struct {
     /* 0x0 */ s32 x;
     /* 0x4 */ s32 y;
@@ -178,6 +195,78 @@ extern void WorldMapFreeSpriteGroupTable(void);
 extern void WorldMapFreePrimTemplateBuffers(void);
 extern void WorldMapFreeSlotPool(void);
 extern void WorldMapFreeGridImages(void);
+// mode initialisation
+typedef s32 (*WorldMapSlotFunc)(s32 index);
+
+extern void WorldMapInitGfxEnv(void);
+extern void func_80072DB4(s32 arg0, s32 arg1, s32 arg2, s32 arg3);
+extern s32 ArchiveDataSync(void);
+extern void WorldMapDecompressMapData(void);
+extern void WorldMapAllocSlotPool(void);
+extern MATRIX g_WorldMapModeMatrix;
+extern s32 g_WorldMapMode4EntryTriggered;
+extern s32 g_WorldMapWrapPositionsCallback;
+extern void WorldMapWrapTileVertexPositions(void);
+extern void WorldMapComputeClipPlaneVectors(void);
+extern void ArchiveCdDataSync(s32 arg0);
+extern void SoundFreeLoadedWdsAndAudioManager(void);
+extern void WorldMapInitSpriteSets(void);
+extern void WorldMapLoadTextureClut(void);
+extern void WorldMapLoadClutAndTpageIds(void);
+extern void WorldMapQueueFileLoads(void);
+extern void func_800736DC(void);
+extern void func_800863E0(void);
+extern void WorldMapRelocateMapEntryOffsets(void);
+extern void WorldMapInitTileAnimEntries(void);
+extern void WorldMapInitFrameAnimEntries(void);
+extern void WorldMapSetupMapPrims(void);
+extern void WorldMapInitSpriteGroupTables(void);
+extern void *g_GameCurLoadedWDS;
+extern void *SoundLoadWdsFile(void *pWdsFile, s32 arg1);
+extern void *g_WorldMapWdsFileBuffer;
+extern void ArchiveSetIndex(s32 directoryIndex, s32 entryIndex);
+extern void WorldMapSetGridPosition(Vec3 *pPos);
+extern void WorldMapUpdateLoadQueue(void);
+extern s32 Vsync(s32 mode);
+extern s32 WorldMapGetQueuedLoadCount(void);
+extern void SoundAddSedsEntry(void *pSedsFile);
+extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
+extern s32 g_WorldMapSoundBankFileIndex;
+extern void *g_WorldMapSoundBankBuffer;
+extern u8 g_SoundBankLoadBuffer[];
+extern void *SoundCreateAudioManagerOnHeap(void *pBankBuffer);
+extern void WorldMapAddSlot(WorldMapSlotFunc pInit, WorldMapSlotFunc pUpdate);
+extern void func_800978FC(void);
+extern void func_8008901C(void);
+extern void WorldMapAllocSemiTransPrimBuffers(void);
+extern void WorldMapAllocSpritePrimBuffers(void);
+extern void WorldMapInitRandomTimers(void);
+extern s32 WorldMapModeInitFadeRect(s32 index);
+extern s32 func_800925A0(s32 index);
+extern s32 WorldMapBeginSlotAnimFrame(s32 index);
+extern s32 WorldMapUpdateSlotState(s32 index);
+extern s32 func_800813E8(s32 index);
+extern s32 func_80081470(s32 index);
+extern s32 func_800817A0(s32 index);
+extern s32 WorldMapUpdateSlotColorFade(s32 index);
+extern s32 func_800819C8(s32 index);
+extern s32 WorldMapUpdateSlotColorFadeFast(s32 index);
+extern s32 func_80081C3C(s32 index);
+extern s32 func_80081D80(s32 index);
+extern s32 WorldMapResetSlotColorFade(s32 index);
+extern s32 WorldMapFillFadeTable(s32 index);
+extern s32 WorldMapEnterNop(s32 index);
+extern s32 WorldMapUpdateFrameWithParticles(s32 index);
+extern s32 WorldMapSetSlotScriptTable(s32 index);
+extern s32 WorldMapRunSlotScript(s32 index);
+extern s32 func_800827EC(s32 index);
+extern s32 func_800828DC(s32 index);
+extern s32 WorldMapSetupSpriteSetPrims(s32 index);
+extern s32 WorldMapUpdateSpriteSetPrims(s32 index);
+extern s32 WorldMapReturnSuccess(s32 index);
+extern s32 WorldMapWaitForQueueDrain(s32 index);
+extern s32 WorldMapInitNop(s32 index);
+extern s32 WorldMapUpdateFrame(s32 index);
 
 // Preset screen: every body parked below was also compiled with this unit's
 // maspsx flags under gcc-2.7.2-cdk and gcc-2.6.0, and none reaches 100% (best
@@ -326,7 +415,79 @@ s32 WorldMapUpdateFadeGroups(s32 index) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80080D00);
+// The world map mode whose slots fade the screen in through the fade table
+// (WorldMapFillFadeTable, WorldMapUpdateSlotColorFade), initialised the same way as
+// the other modes: load the map, its textures and its sound bank, then register each
+// slot's init/update pair. Proposed name: WorldMapInitializeFadeMode.
+void func_80080D00(void) {
+    RECT rect;
+    Vec3 *pPos;
+
+    WorldMapInitGfxEnv();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    while (ArchiveDataSync() >= 3) {
+    }
+    WorldMapDecompressMapData();
+    WorldMapAllocSlotPool();
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
+    g_WorldMapTpageAbr = 2;
+    g_WorldMapDrawMode = 0x10;
+    g_WorldMapMode4EntryTriggered = 0;
+    g_WorldMapRotationMatrixValid = 0;
+    g_WorldMapWrapPositionsCallback = (s32)WorldMapWrapTileVertexPositions;
+    WorldMapComputeClipPlaneVectors();
+    ArchiveCdDataSync(0);
+    SoundFreeLoadedWdsAndAudioManager();
+    pPos = &g_WorldMapPlayerPosition;
+    pPos->x = 0x4000000;
+    g_WorldMapPlayerPositionY = 0xFFF40000;
+    g_WorldMapPlayerPositionZ = 0x4000000;
+    WorldMapInitSpriteSets();
+    WorldMapLoadTextureClut();
+    WorldMapLoadClutAndTpageIds();
+    WorldMapQueueFileLoads();
+    func_800736DC();
+    func_800863E0();
+    WorldMapInitTileAnimEntries();
+    WorldMapInitFrameAnimEntries();
+    WorldMapSetupMapPrims();
+    WorldMapInitSpriteGroupTables();
+    ArchiveCdDataSync(0);
+    g_GameCurLoadedWDS = SoundLoadWdsFile(g_WorldMapWdsFileBuffer, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
+    WorldMapSetGridPosition(pPos);
+    do {
+        WorldMapUpdateLoadQueue();
+        Vsync(0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
+    while (g_SoundControlFlags & SOUND_CTL_FLAG_TRANSFER_BUSY) {
+    }
+    HeapFree(g_WorldMapWdsFileBuffer);
+    SoundAddSedsEntry(g_MenuSedsFile);
+    memcpy(g_SoundBankLoadBuffer, g_WorldMapSoundBankBuffer,
+           ArchiveDecodeAlignedSize(g_WorldMapSoundBankFileIndex));
+    g_SoundAudioManager = SoundCreateAudioManagerOnHeap(g_SoundBankLoadBuffer);
+    SoundPlayAudioManager(g_SoundAudioManager, SPU_VOL_MAX, 0);
+    WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
+    WorldMapAddSlot(WorldMapBeginSlotAnimFrame, WorldMapUpdateSlotState);
+    WorldMapAddSlot(func_800813E8, func_80081470);
+    WorldMapAddSlot(func_800817A0, WorldMapUpdateSlotColorFade);
+    WorldMapAddSlot(func_800819C8, WorldMapUpdateSlotColorFadeFast);
+    WorldMapAddSlot(func_80081C3C, func_80081D80);
+    WorldMapAddSlot(WorldMapResetSlotColorFade, WorldMapFillFadeTable);
+    WorldMapAddSlot(WorldMapEnterNop, WorldMapUpdateFrameWithParticles);
+    func_800978FC();
+    func_8008901C();
+    WorldMapAllocSemiTransPrimBuffers();
+    WorldMapInitRandomTimers();
+}
+
 void WorldMapExitToMap1FA(void) {
     u16 v;
 
@@ -909,7 +1070,85 @@ s32 WorldMapFillFadeTable(s32 index) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_80082324);
+// The second fade mode: the same initialisation as func_80080D00 above, but the slot
+// table is driven by a script and five sprite sets of its own.
+void func_80082324(void) {
+    RECT rect;
+    Vec3 *pPos;
+    WorldMapSlotFunc pSpriteSetInit;
+    WorldMapSlotFunc pSpriteSetUpdate;
+
+    WorldMapInitGfxEnv();
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = WORLD_MAP_SCREEN_WIDTH;
+    rect.h = WORLD_MAP_SCREEN_HEIGHT;
+    MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
+    DrawSync(0);
+    func_80072DB4(0x40, 0, 4, 2);
+    while (ArchiveDataSync() >= 3) {
+    }
+    WorldMapDecompressMapData();
+    WorldMapAllocSlotPool();
+    g_WorldMapModeMatrix = g_WorldMapIdentityMatrix;
+    g_WorldMapTpageAbr = 2;
+    g_WorldMapDrawMode = 0x10;
+    g_WorldMapMode4EntryTriggered = 0;
+    g_WorldMapRotationMatrixValid = 0;
+    g_WorldMapWrapPositionsCallback = (s32)WorldMapWrapTileVertexPositions;
+    WorldMapComputeClipPlaneVectors();
+    ArchiveCdDataSync(0);
+    SoundFreeLoadedWdsAndAudioManager();
+    pPos = &g_WorldMapPlayerPosition;
+    pPos->x = 0x70A9000;
+    g_WorldMapPlayerPositionY = 0xFFEB8000;
+    g_WorldMapPlayerPositionZ = 0x42AA000;
+    WorldMapInitSpriteSets();
+    WorldMapLoadTextureClut();
+    WorldMapLoadClutAndTpageIds();
+    WorldMapQueueFileLoads();
+    func_800736DC();
+    WorldMapRelocateMapEntryOffsets();
+    func_800863E0();
+    WorldMapInitTileAnimEntries();
+    WorldMapInitFrameAnimEntries();
+    WorldMapSetupMapPrims();
+    WorldMapInitSpriteGroupTables();
+    ArchiveCdDataSync(0);
+    g_GameCurLoadedWDS = SoundLoadWdsFile(g_WorldMapWdsFileBuffer, 0);
+    ArchiveSetIndex(WORLD_MAP_ARCHIVE_DIRECTORY_INDEX, 0);
+    WorldMapSetGridPosition(pPos);
+    do {
+        WorldMapUpdateLoadQueue();
+        Vsync(0);
+    } while (WorldMapGetQueuedLoadCount() > 0);
+    while (g_SoundControlFlags & SOUND_CTL_FLAG_TRANSFER_BUSY) {
+    }
+    HeapFree(g_WorldMapWdsFileBuffer);
+    SoundAddSedsEntry(g_MenuSedsFile);
+    memcpy(g_SoundBankLoadBuffer, g_WorldMapSoundBankBuffer,
+           ArchiveDecodeAlignedSize(g_WorldMapSoundBankFileIndex));
+    g_SoundAudioManager = SoundCreateAudioManagerOnHeap(g_SoundBankLoadBuffer);
+    SoundPlayAudioManager(g_SoundAudioManager, SPU_VOL_MAX, 0);
+    WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
+    WorldMapAddSlot(WorldMapSetSlotScriptTable, WorldMapRunSlotScript);
+    WorldMapAddSlot(func_800827EC, func_800828DC);
+    pSpriteSetInit = WorldMapSetupSpriteSetPrims;
+    pSpriteSetUpdate = WorldMapUpdateSpriteSetPrims;
+    WorldMapAddSlot(pSpriteSetInit, pSpriteSetUpdate);
+    WorldMapAddSlot(pSpriteSetInit, pSpriteSetUpdate);
+    WorldMapAddSlot(pSpriteSetInit, pSpriteSetUpdate);
+    WorldMapAddSlot(pSpriteSetInit, pSpriteSetUpdate);
+    WorldMapAddSlot(pSpriteSetInit, pSpriteSetUpdate);
+    WorldMapAddSlot(WorldMapReturnSuccess, WorldMapWaitForQueueDrain);
+    WorldMapAddSlot(WorldMapInitNop, WorldMapUpdateFrame);
+    func_800978FC();
+    func_8008901C();
+    WorldMapAllocSemiTransPrimBuffers();
+    WorldMapAllocSpritePrimBuffers();
+    WorldMapInitRandomTimers();
+}
+
 s32 WorldMapExitToMap269(void) {
     u16 v;
 
