@@ -27,6 +27,9 @@ void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_
 void func_801D29A8(s32 a0, s32 a1);
 void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void MenuRevealSelectionMenu(s32 a0, u32* a1);
+void* GetStringEntry(void* pStringData, u32 index);
+s32 SystemRenderStringEntry(u8* pSrc, void* pDst, s32 length, s32 mode);
+void func_801E7C50(MenuString* pStringList, s32 index, s32 yOffset, s32 flags);
 
 extern u32 g_MenuMainSelectionResourceIds[];
 extern u32 g_MenuShoulderButtonArrowX[];
@@ -362,7 +365,58 @@ void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuRenderFrame();
     func_801D8EA4(a0, 0, 0, a1);
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D2F4C);
+void func_801D2F4C(u_char stringIndex) {
+    MenuWindowParameters* pWindowParams;
+    MenuString* pString;
+    int i;
+    int xPosition;
+
+    MenuCreateWindow(2, 0x7A, 0x96, 0xBC, 0x40, 1, 1, 4, 0);
+    pWindowParams = g_Menu->windowParameters[2];
+    while (!pWindowParams->isOpen) {
+        MenuRenderFrame();
+    }
+    xPosition = 0x84;
+
+    for (i = 0; i < 4; i++) {
+        g_Menu->modalStrings[i] = HeapAlloc(sizeof(MenuString), 0);
+        bzero(g_Menu->modalStrings[i], sizeof(MenuString));
+
+        // Even entries own a VRAM buffer; the odd one below them shares it
+        if (!(i & 1)) {
+            g_Menu->modalStrings[i]->pVramBuffer = HeapAlloc(0x5CA, 0);
+            g_Menu->modalStrings[i]->vramDest.x = 320;
+            g_Menu->modalStrings[i]->vramDest.y = ((i / 2) * FONT_LETTER_HEIGHT) + 78;
+            g_Menu->modalStrings[i]->vramDest.w = 58;
+            g_Menu->modalStrings[i]->vramDest.h = FONT_LETTER_HEIGHT;
+            continue;
+        }
+
+        g_Menu->modalStrings[i]->pVramBuffer = g_Menu->modalStrings[i - 1]->pVramBuffer;
+    }
+
+    for (i = 0; i < 3; i++) {
+        pString = g_Menu->modalStrings[i];
+        pString->width = SystemRenderStringEntry(GetStringEntry(g_Menu->pStringBank, stringIndex + i),
+            pString->pVramBuffer, 0x36, i % 2);
+        func_801E7C50(pString, i, 0, 0);
+        MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], xPosition, (i * 16) + 0xA0, 0,
+            (i / 2) * FONT_LETTER_HEIGHT + 0x4E, pString->width, FONT_LETTER_HEIGHT);
+        MenuSetQuadVertices(pString->vertices, xPosition, (i * 16) + 0xA0, pString->width, FONT_LETTER_HEIGHT);
+        pString->renderContext = *(u_char*)&g_Menu->renderContext;
+        pString->hasVertices = 1;
+    }
+
+    LoadImage(&g_Menu->modalStrings[0]->vramDest, g_Menu->modalStrings[0]->pVramBuffer);
+    LoadImage(&g_Menu->modalStrings[2]->vramDest, g_Menu->modalStrings[2]->pVramBuffer);
+    DrawSync(0);
+
+    g_Menu->pManager->shouldRenderModalStrings = 1;
+    HeapFree(g_Menu->modalStrings[0]->pVramBuffer);
+    HeapFree(g_Menu->modalStrings[2]->pVramBuffer);
+    MenuRenderFrame();
+    MenuRenderFrame();
+}
 void MenuFreeWindow2Strings(void) {
     s32 i;
 
