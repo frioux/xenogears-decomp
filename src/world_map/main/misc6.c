@@ -1022,7 +1022,6 @@ int WorldMapUpdateSlotActor(int index) {
     }
     return 1;
 }
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 /* 93.41% (164 bytes = retail's 41 insns). Store order, both calls and every
    relocation already match; the single delta is where retail's `li v0,3` sits
    - fifth instruction of the store group, BEFORE the stores - so v0 is
@@ -1050,7 +1049,21 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
    that constant in v1 precisely because v0 was already taken by the 3. The
    body below is the measured 93.41 (gcc emits `lui v0,0x149; ori`;
    `lui v1,0x4af; ori`; stores; `li v0,3` last, byte-identical otherwise).
+   Round 325 re-measured this and adds two facts. (a) The store ORDER in the
+   body below is already retail's exactly - x, y, pStateIds, state, z,
+   stateIndex, pStateFrames - so only the `li v0,3` position and the register
+   rotation it causes are missing. (b) That rotation is circular, which is why
+   no statement shape breaks it: retail has $v0 taken by the 3 before the store
+   group, so the group's constants go to $v1 (x, y, pStateIds, pStateFrames) and
+   $a0 (z); ours hands $v0 to x's constant and then $v1 to z's, with the 3
+   emitted last. Measured dead in round 325: `return 3;` as the do-block's last
+   statement - the `li` DOES come out earlier (88.66) but it lands AFTER the
+   pStateFrames store and the pStateFrames store then jumps above the state
+   store; making that one store `*(volatile s32 *)&pActor->pStateFrames` pins it
+   but leaves the `li` after the group (88.66, and the constants still rotate);
+   the same volatile on the current body changes nothing (93.41).
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
 /* int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
