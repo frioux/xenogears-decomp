@@ -608,8 +608,8 @@ void func_80089CCC(s32 arg0) {
                     BattlePlaySoundIfEnabled(0x4D);
                     break;
                 } else if ((g_C1ButtonStateReleased & 1) != 0) {
+                    event = 0xC;
                     if (*g_DebuggerState != -1) {
-                        event = 0xC;
                         g_BattleSlotDisplayValue = 0x1C;
                         D_800D32A8 = 0x1C;
                         D_800D32B0 = 0x1C;
