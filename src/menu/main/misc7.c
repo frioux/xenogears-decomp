@@ -308,7 +308,8 @@ void MenuFreeWindow(u_char index) {
     HeapFree(g_Menu->windows[index]);
     HeapFree(g_Menu->windowParameters[index]);
 }
-// The party member portrait prims of a MenuCharacterWindow, at the tail of its unk0.
+// MenuCharacterWindow.polysName, reached through a 0x50-byte stand-in for the
+// polysPortrait pair before it (the scale function writes both pairs by offset).
 typedef struct {
     /* 0x00 */ u8 unk0[0x50];
     /* 0x50 */ POLY_FT4 portraitPrims[2]; // one per render context
