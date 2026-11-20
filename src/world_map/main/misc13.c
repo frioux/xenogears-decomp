@@ -127,7 +127,7 @@ extern WorldMapTileKindRow g_WorldMapTileKindTable[];
 extern WorldMapTileShapeAxis g_WorldMapTileShapeAxis[];
 extern s32 g_WorldMapGridAngle;
 extern s32 g_WorldMapGridShadePhase;
-extern s32 D_8009B244;
+extern s32 g_WorldMapTileDiagonalAxes;
 extern s32 D_8009B24C;
 extern s32 D_8009B254;
 extern s32 D_8009B25C;
@@ -480,7 +480,7 @@ void WorldMapBuildTilePlaneNormal(WorldMapPos* pNormal, s32 x, s32 z) {
             *(s32*)0x1F800014 = pCell[10].height - pCell[0].height;
         }
     } else {
-        sum = (x - 0x10000) * D_8009B244 + (-z) * D_8009B24C;
+        sum = (x - 0x10000) * g_WorldMapTileDiagonalAxes + (-z) * D_8009B24C;
         if (sum < 0) {
             *(s32*)0x1F800000 = -0x10;
             *(s32*)0x1F800008 = -0x10;
@@ -605,7 +605,7 @@ s32 func_80093A5C(s32 x, s32 z) {
             *(s32*)0x1F800014 = h11 - h00;
         }
     } else {
-        sum = (xa - 0x10000) * D_8009B244 + (-za) * D_8009B24C;
+        sum = (xa - 0x10000) * g_WorldMapTileDiagonalAxes + (-za) * D_8009B24C;
         if (sum < 0) {
             *(s32*)0x1F800000 = -0x80;
             *(s32*)0x1F800008 = -0x80;

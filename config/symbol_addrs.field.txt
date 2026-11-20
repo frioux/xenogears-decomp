@@ -1076,3 +1076,6 @@ g_FieldActive = 0x800AFD04;
 g_FieldScriptDataStream = 0x800ADC14;
 FieldScriptVMHandlerCheckActorInteraction = 0x8009F5F4;
 g_FieldTalkShorts = 0x800B2340;
+g_FieldStagedFileSyncHold = 0x800ADBE8;
+g_FieldAlternatePadAngles = 0x800B2354;
+g_FieldActorModelPointerIndex = 0x800AF858;

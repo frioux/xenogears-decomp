@@ -358,13 +358,13 @@ extern FieldScriptGlobalS32 g_FieldMapChangeGate;
 extern int g_FieldArchiveStreamActive;
 extern s32 g_GameWdsBankLoadState;
 extern s32 g_FieldTransitionBusyFlag;
-extern s32 D_800ADBE8;
+extern s32 g_FieldStagedFileSyncHold;
 extern u8 g_BattleTransitionFlag;
-extern u8 D_8005061D;
+extern u8 g_BattleRequestedMode;
 extern u8 D_8005061E;
 extern u8 D_8005061F;
-extern u8 D_80050620;
-extern u8 D_80050621;
+extern u8 g_BattleRequestedMatchCount;
+extern u8 g_BattleRequestedDifficultyLevel;
 extern void func_800379B4(int);
 
 void FieldScriptSetTransitionParams(void) {
@@ -374,13 +374,13 @@ void FieldScriptSetTransitionParams(void) {
     } else {
         func_800379B4(0);
         g_BattleTransitionFlag = FieldScriptVMGetArgument(1);
-        D_8005061D = FieldScriptVMGetArgument(3);
+        g_BattleRequestedMode = FieldScriptVMGetArgument(3);
         D_8005061E = FieldScriptVMGetArgument(5);
         D_8005061F = FieldScriptVMGetArgument(7);
-        D_80050620 = FieldScriptVMGetArgument(9);
-        D_80050621 = FieldScriptVMGetArgument(0xB);
+        g_BattleRequestedMatchCount = FieldScriptVMGetArgument(9);
+        g_BattleRequestedDifficultyLevel = FieldScriptVMGetArgument(0xB);
         g_FieldTransitionBusyFlag = 1;
-        D_800ADBE8 = 0;
+        g_FieldStagedFileSyncHold = 0;
         g_FieldScriptVMCurActor->scriptInstructionPointer += 0xD;
     }
 }
@@ -404,10 +404,10 @@ void FieldScriptSetByte2357(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-extern FieldScriptGlobalU8 D_800B2354;
+extern FieldScriptGlobalU8 g_FieldAlternatePadAngles;
 
 void FieldScriptSetByte2354(void) {
-    D_800B2354.value = SCRIPT_READ_U8_REL(1);
+    g_FieldAlternatePadAngles.value = SCRIPT_READ_U8_REL(1);
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 

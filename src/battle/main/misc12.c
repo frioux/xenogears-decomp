@@ -139,7 +139,7 @@ typedef struct {
     /* 0x2CB */ u8 unk2CB;
     /* 0x2CC */ u8 commandKey[7]; // matched against the 13 7-byte rows BattleCheckCommandKeyStatusBit walks
     /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
-    /* 0x2D4 */ u8 gaugeValue; // the reading the menu spends, the second index of the D_800C31D4[max * 8 + value] pair
+    /* 0x2D4 */ u8 gaugeValue; // the reading the menu spends, the second index of the g_BattleGaugeCountdownTable[max * 8 + value] pair
     /* 0x2D5 */ u8 gaugeMax; // its value at menu entry, the first index of that pair and the row func_8007FBE0 draws
     /* 0x2D6 */ u8 commandKeyLength; // commandKey bytes filled, 0 for no command
     /* 0x2D7 */ u8 unk2D7[0x3];

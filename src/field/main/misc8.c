@@ -352,7 +352,7 @@ void func_80080F44(int actorIndex) {
 // func_8008110C owns this unit's five debug strings in .rodata (EVENT CODE,
 // MOV CHECK0-3); converting it needs them defined here as const char[0xC].
 extern s32 D_800C3910;
-extern s32 D_800AF858;
+extern s32 g_FieldActorModelPointerIndex;
 extern s32 D_800ADC0C;
 extern u_char D_800B21CC;
 extern s32 g_PlayerActorIndex;
@@ -425,7 +425,7 @@ void func_8008110C(void) {
     if (g_FieldSystemMode == 0) {
         func_80281B00(D_8006FC0C);
     }
-    D_800AF858 = 0;
+    g_FieldActorModelPointerIndex = 0;
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         pFieldActor = &g_FieldActors[i];
         pActor = pFieldActor->pActorData;
@@ -809,7 +809,7 @@ int FieldGetActorDistance2D(int actorIndexA, int actorIndexB) {
 
 extern u_short g_FieldMaterialAngles[];
 extern s16 D_800ADFC4[];
-extern s32 D_800AF858;
+extern s32 g_FieldActorModelPointerIndex;
 extern u_char D_800B21CC;
 extern void* g_FieldActorModelPointers[];
 
@@ -990,11 +990,11 @@ void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor) {
     }
 
     if ((pActor->flags & 0x22000) == 0x22000) {
-        pActor->move.vx -= (((s32*)g_FieldActorModelPointers[D_800AF858])[0x128 / 4] << 16) /
+        pActor->move.vx -= (((s32*)g_FieldActorModelPointers[g_FieldActorModelPointerIndex])[0x128 / 4] << 16) /
             pActor->moveSpeed << 8;
-        pActor->move.vz -= (((s32*)g_FieldActorModelPointers[D_800AF858])[0x130 / 4] << 16) /
+        pActor->move.vz -= (((s32*)g_FieldActorModelPointers[g_FieldActorModelPointerIndex])[0x130 / 4] << 16) /
             pActor->moveSpeed << 8;
-        D_800AF858++;
+        g_FieldActorModelPointerIndex++;
     }
 }
 */

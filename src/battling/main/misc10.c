@@ -414,11 +414,11 @@ extern u16 g_C2ButtonState;
 extern u16 g_C1ButtonStateReleased;
 extern u16 g_C1ButtonStatePressedOnce;
 extern s32 g_SoundAudioManager;
-extern u8 D_8005061D;
+extern u8 g_BattleRequestedMode;
 extern u8 D_8005061E;
 extern u8 D_8005061F;
-extern u8 D_80050620;
-extern u8 D_80050621;
+extern u8 g_BattleRequestedMatchCount;
+extern u8 g_BattleRequestedDifficultyLevel;
 extern s32 D_80092798;
 extern s32 D_8009279C;
 extern void* D_800927B8;
@@ -787,7 +787,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
      (beqz / li v0,1 / beq / nop / j / nop) and both arms out of line; that is
      retail's 6-instruction dispatch and the two instructions the if/else-if body
      was short.
-   - The D_8005061D switch lists its cases in ASCENDING order (0, 1, 2). Case
+   - The g_BattleRequestedMode switch lists its cases in ASCENDING order (0, 1, 2). Case
      bodies come out in source order and retail's are at +0x464 (0), +0x4b8 (1) and
      +0x4e0 (2); listing 1, 2, 0 puts case 0 out of line and costs 4 instructions.
    - `state = 1;` sits BETWEEN the two BattleLoadSlotEntry calls. With it before
@@ -941,14 +941,14 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc10", func_800852C4);
            g_BattleFacingUpdateEnabled = 1;
            g_BattleOptionOn = 0;
        }
-       g_BattleDifficultyLevel = D_80050621;
-       g_BattleMatchCount = D_80050620;
+       g_BattleDifficultyLevel = g_BattleRequestedDifficultyLevel;
+       g_BattleMatchCount = g_BattleRequestedMatchCount;
        g_BattleTransitionFlag = 0;
        BattleFreeTextArchive();
        D_80092798 = D_8005061E;
        D_8009279C = D_8005061F;
        g_BattlePlayer1ComControlled = 0;
-       switch (D_8005061D) {
+       switch (g_BattleRequestedMode) {
        case 0:
            g_BattlePlayer2ComControlled = 1;
            BattleSetScreenMode(1);

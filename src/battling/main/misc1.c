@@ -455,13 +455,13 @@ void BattleInitMessageWindow(void) {
     SystemStringInit(&g_BattleMessageWindow, 0x140, 0x30, 0x1C, 0x9A, 0x40, 4);
 }
 
-extern u8 D_80092608;
+extern u8 g_BattleTutorialWindowEnabled;
 extern s16 D_80098698;
 extern s16 D_80098692;
 extern s32 D_8009105C[];
-extern s32 D_800925E8;
+extern s32 g_BattleWindowTargetX;
 extern s32 g_BattleWindowPosX;
-extern s32 D_800925EC;
+extern s32 g_BattleWindowTargetY;
 extern s32 g_BattleWindowPosY;
 extern s16 D_80092600;
 extern s16 D_800987E0;
@@ -478,7 +478,7 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc1", func_8007191C);
 void func_8007191C(u32 idx) {
     s32 value;
 
-    D_80092608 = idx < 1;
+    g_BattleTutorialWindowEnabled = idx < 1;
     if (idx == 0) {
         BattlePlaySoundEffectById(0x37);
         D_80098698 = 2;
@@ -489,9 +489,9 @@ void func_8007191C(u32 idx) {
     }
     D_80098692 = value;
     BattleSetValueAndClearFlags(D_8009105C[idx]);
-    D_800925E8 = 0xA0;
+    g_BattleWindowTargetX = 0xA0;
     g_BattleWindowPosX = 0xA0;
-    D_800925EC = 0x6D;
+    g_BattleWindowTargetY = 0x6D;
     g_BattleWindowPosY = 0x6D;
     D_80092600 = 0;
     D_800987E0 = D_800987E8;
@@ -530,7 +530,7 @@ void BattleInitTutorialMessage(void) {
     func_8007191C(9);
 }
 
-extern u8 D_800925F0;
+extern u8 g_BattleWindowPrimsEnabled;
 extern s32 g_BattleDrawFlags;
 extern u8* g_BattleRootOrderingTable;
 extern u16 g_C1ButtonStatePressedOnce;
@@ -557,14 +557,14 @@ void BattleUpdateTutorialScreen(void) {
     u8* pWindow;
     u8* pCursor;
 
-    if (D_800925F0 != 0) {
+    if (g_BattleWindowPrimsEnabled != 0) {
         if ((g_BattleDrawFlags & 4) != 0) {
             BattleQueueSpriteAndTpagePrims(g_BattleRootOrderingTable);
         }
     }
     ControllerMergeStates();
     pMsg = &g_BattleMessageWindow;
-    if (D_80092608 != 0) {
+    if (g_BattleTutorialWindowEnabled != 0) {
         if (g_C1ButtonStatePressedOnce & CTRL_BTN_UP) {
             BattlePlaySoundEffectById(0x1E);
             g_BattleTutorialLineOffset--;
@@ -593,9 +593,9 @@ void BattleUpdateTutorialScreen(void) {
         func_8007191C(0);
     }
     func_8007107C();
-    g_BattleWindowPosX += BattleRoundDivAwayFromZero(D_800925E8, g_BattleWindowPosX, 4);
-    g_BattleWindowPosY += BattleRoundDivAwayFromZero(D_800925EC, g_BattleWindowPosY, 4);
-    if (D_80092608 != 0) {
+    g_BattleWindowPosX += BattleRoundDivAwayFromZero(g_BattleWindowTargetX, g_BattleWindowPosX, 4);
+    g_BattleWindowPosY += BattleRoundDivAwayFromZero(g_BattleWindowTargetY, g_BattleWindowPosY, 4);
+    if (g_BattleTutorialWindowEnabled != 0) {
         func_80034888(&g_BattleTutorialWindow[0], g_BattleRootOrderingTable, g_BattleDrawBufferIndex);
     }
     if (g_BattleMessageIndex != g_BattleMessageShownIndex) {

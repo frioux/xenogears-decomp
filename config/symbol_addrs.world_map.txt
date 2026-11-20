@@ -602,3 +602,4 @@ g_WorldMapGridColumnImageFileIndex = 0x8009BD08;
 g_WorldMapGridCornerTileIndices = 0x8009BBAC;
 g_WorldMapScrollY = 0x8009BBB8;
 g_WorldMapScrollZ = 0x8009BBBC;
+g_WorldMapTileDiagonalAxes = 0x8009B244;

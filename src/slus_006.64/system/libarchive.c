@@ -21,9 +21,9 @@ extern s16 g_ArchiveDebugStreamSectionCount;
 extern s8* g_ArchiveStreamWritePointer;
 extern u16 g_ArchiveStreamNextSectionId;
 extern u8 g_ArchiveSectorScratch[];
-extern s32 D_80059F54;  // debug stream: sector buffer being split
-extern s32 D_80059F58;  // debug stream: payload cursor inside that sector
-extern s16 D_80059F5C;  // debug stream: sub-blocks in that sector
+extern s32 g_ArchiveDebugStreamSector;  // debug stream: sector buffer being split
+extern s32 g_ArchiveDebugStreamPayload;  // debug stream: payload cursor inside that sector
+extern s16 g_ArchiveDebugStreamBlockCount;  // debug stream: sub-blocks in that sector
 extern u16 D_8005A4B8;  // debug stream: sector header word at +8
 
 void ArchiveInit(u32 pArchiveTable, u32 pHeaderTable, u32 pDebugTable) {
@@ -598,10 +598,10 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *    count), while the success test compares i against g_ArchiveStreamSectionCount -
  *    two different counters, exactly as in func_80028B14's non-debug scan.
  *  - The `seek` block is shared by three call sites (scratch[0] == 1 twice, and
- *    `pSection->size < D_80059F5C`), the last of which passes -0x28 or -0x20 depending
+ *    `pSection->size < g_ArchiveDebugStreamBlockCount`), the last of which passes -0x28 or -0x20 depending
  *    on g_ArchiveCdMode & 8; retail then stores 0 through pSectionOut and jumps PAST
  *    the shared fail store.
- *  - D_80059F54 / D_80059F58 / D_80059F5C (s16) / D_8005A4B8 are the debug stream's
+ *  - g_ArchiveDebugStreamSector / g_ArchiveDebugStreamPayload / g_ArchiveDebugStreamBlockCount (s16) / D_8005A4B8 are the debug stream's
  *    per-sector state and have no symbols yet; they are splat-owned data labels, so a
  *    struct view has to be declared here rather than defined.
  *
@@ -652,14 +652,14 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *             pSection->state = ARCHIVE_STREAM_FILE_READY;
  *             pSection->id = g_ArchiveStreamNextSectionId;
  *             g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
- *             PCread(g_ArchiveDebugFileHandle, (char*)(D_80059F54 + g_ArchiveDebugStreamSectionCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
- *             PCread(g_ArchiveDebugFileHandle, (char*)(D_80059F58 + g_ArchiveDebugStreamSectionCount * (CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE)), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *             PCread(g_ArchiveDebugFileHandle, (char*)(g_ArchiveDebugStreamSector + g_ArchiveDebugStreamSectionCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *             PCread(g_ArchiveDebugFileHandle, (char*)(g_ArchiveDebugStreamPayload + g_ArchiveDebugStreamSectionCount * (CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE)), CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
  *             if (g_ArchiveCdMode[0] & 8) {
  *                 PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
  *             }
  *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
  *             g_ArchiveDebugStreamSectionCount = g_ArchiveDebugStreamSectionCount + 1;
- *             if (g_ArchiveDebugStreamSectionCount >= D_80059F5C) {
+ *             if (g_ArchiveDebugStreamSectionCount >= g_ArchiveDebugStreamBlockCount) {
  *                 g_ArchiveDebugStreamSectionCount = 0;
  *             }
  *             *pSectionOut = 0;
@@ -688,12 +688,12 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *         }
  *
  *         pSector = (u8*)(nOffset + (mem_addr)g_ArchiveStreamWritePointer);
- *         D_80059F54 = (s32)pSector;
+ *         g_ArchiveDebugStreamSector = (s32)pSector;
  *         PCread(g_ArchiveDebugFileHandle, (char*)pSector, ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
- *         D_80059F5C = *(u16*)(pSector + 6);
+ *         g_ArchiveDebugStreamBlockCount = *(u16*)(pSector + 6);
  *         D_8005A4B8 = *(u16*)(pSector + 8);
  *
- *         if (pSection->size < D_80059F5C) {
+ *         if (pSection->size < g_ArchiveDebugStreamBlockCount) {
  *             if (g_ArchiveCdMode[0] & 8) {
  *                 nSeek = -0x28;
  *             } else {
@@ -704,17 +704,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
  *
  *         pSection->state = ARCHIVE_STREAM_FILE_READY;
  *         pSection->id = g_ArchiveStreamNextSectionId;
- *         nRemaining = pSection->size - D_80059F5C;
+ *         nRemaining = pSection->size - g_ArchiveDebugStreamBlockCount;
  *         if (nRemaining >= 3) {
- *             pSection->size = D_80059F5C + 1;
- *             pSection[D_80059F5C + 1].size = nRemaining - 1;
- *             pSection[D_80059F5C + 1].state = ARCHIVE_STREAM_FILE_NOT_LOADED;
- *             ArchiveConsolidateStreamFileEntry(D_80059F5C + 1);
+ *             pSection->size = g_ArchiveDebugStreamBlockCount + 1;
+ *             pSection[g_ArchiveDebugStreamBlockCount + 1].size = nRemaining - 1;
+ *             pSection[g_ArchiveDebugStreamBlockCount + 1].state = ARCHIVE_STREAM_FILE_NOT_LOADED;
+ *             ArchiveConsolidateStreamFileEntry(g_ArchiveDebugStreamBlockCount + 1);
  *         }
  *
  *         g_ArchiveStreamNextSectionId = g_ArchiveStreamNextSectionId + 1;
- *         D_80059F58 = nOffset + (mem_addr)g_ArchiveStreamWritePointer + D_80059F5C * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE;
- *         PCread(g_ArchiveDebugFileHandle, (char*)D_80059F58, CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
+ *         g_ArchiveDebugStreamPayload = nOffset + (mem_addr)g_ArchiveStreamWritePointer + g_ArchiveDebugStreamBlockCount * ARCHIVE_DEBUG_BLOCK_HEADER_SIZE;
+ *         PCread(g_ArchiveDebugFileHandle, (char*)g_ArchiveDebugStreamPayload, CD_SECTOR_SIZE - ARCHIVE_DEBUG_BLOCK_HEADER_SIZE);
  *         if (g_ArchiveCdMode[0] & 8) {
  *             PClseek(g_ArchiveDebugFileHandle, 0x118, 1);
  *         }

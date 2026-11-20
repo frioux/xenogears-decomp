@@ -38,7 +38,7 @@ extern u16 D_800ADF88[];
 // The four shorts at 0x800B2340 are one object (see field/party/stats.c).
 extern u16 g_FieldTalkShorts[];
 extern s16 D_800B2342;
-extern u8 D_800B2354;
+extern u8 g_FieldAlternatePadAngles;
 extern u8 D_800B21CE;
 extern s32 D_800B2360;
 extern int FieldActorTestMaterialScriptMask(ActorData* pActor);
@@ -747,7 +747,7 @@ void FieldScriptVMHandlerCheckActorInteraction(void) {
                 g_FieldTalkShorts[1]--;
             }
         buttons:
-            if (D_800B2354 == 0) {
+            if (g_FieldAlternatePadAngles == 0) {
                 nAngle = D_800ADF68[(g_FieldP1ButtonsPressed >> 12) ^ 0xF];
             } else {
                 nAngle = D_800ADF88[(g_FieldP1ButtonsPressed >> 12) ^ 0xF];

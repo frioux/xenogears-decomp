@@ -84,16 +84,16 @@ extern s32 g_MovieStreamArchiveSection;
 extern s32 D_801D68B4;
 
 // .rodata
-extern char D_800703BC[];
-extern char D_800703CC[];
-extern char D_80070408[];
-extern char D_80070410[];
-extern char D_80070418[];
-extern char D_80070420[];
-extern char D_80070424[];
-extern char D_80070428[];
-extern char D_8007042C[];
-extern char D_80070430[];
+extern char g_StrMovieMonitorTitle[];
+extern char g_StrMovieMonitorPosition[];
+extern char g_StrMovieMonitorRowOffset[];
+extern char g_StrMovieMonitorHexByteSpaced[];
+extern char g_StrMovieMonitorHexByte[];
+extern char g_StrMovieMonitorColon[];
+extern char g_StrMovieMonitorChar[];
+extern char g_StrMovieMonitorSpace[];
+extern char g_StrMovieNewline[];
+extern char g_StrMoviePushCircleToMenu[];
 extern char D_80070450[];
 extern char D_80070464[];
 extern char D_8007046C[];
@@ -522,7 +522,7 @@ void MovieDebugSectorViewer(void) {
         g_MovieDebugDrawBuffer = pBuffer;
         g_MovieDebugBufferParity = 1 - g_MovieDebugBufferParity;
         ClearOTagR(pBuffer->ot, 0x20);
-        FontPrintf(D_800703BC);
+        FontPrintf(g_StrMovieMonitorTitle);
         MovieUpdatePadCursor(0, 0, &action);
 
         prevSector = g_MovieDebugSector;
@@ -580,31 +580,31 @@ void MovieDebugSectorViewer(void) {
         }
 
         CdIntToPos(g_MovieDebugSector, &pos);
-        FontPrintf(D_800703CC, g_MovieDebugSector, g_MovieDebugSectorRow * 0x10, pos.minute, pos.second, pos.sector);
+        FontPrintf(g_StrMovieMonitorPosition, g_MovieDebugSector, g_MovieDebugSectorRow * 0x10, pos.minute, pos.second, pos.sector);
         // the row start is walked by the text column, the hex column has its own cursor
         pAscii = pSectorData + g_MovieDebugSectorRow * 0x10;
         pHex = pAscii;
         for (line = 0; line < 0xC; line++) {
-            FontPrintf(D_80070408, (line + g_MovieDebugSectorRow) * 0x10);
+            FontPrintf(g_StrMovieMonitorRowOffset, (line + g_MovieDebugSectorRow) * 0x10);
             for (i = 0; i < 0xF; i++) {
-                FontPrintf(D_80070410, *pHex);
+                FontPrintf(g_StrMovieMonitorHexByteSpaced, *pHex);
                 pHex++;
             }
-            FontPrintf(D_80070418, *pHex);
+            FontPrintf(g_StrMovieMonitorHexByte, *pHex);
             pHex++;
-            FontPrintf(D_80070420);
+            FontPrintf(g_StrMovieMonitorColon);
             for (i = 0; i < 0x10; i++) {
                 c = *pAscii;
                 if ((u32)(c - 0x20) < 0x5E) {
-                    FontPrintf(D_80070424, c);
+                    FontPrintf(g_StrMovieMonitorChar, c);
                 } else {
-                    FontPrintf(D_80070428);
+                    FontPrintf(g_StrMovieMonitorSpace);
                 }
                 pAscii++;
             }
-            FontPrintf(D_8007042C);
+            FontPrintf(g_StrMovieNewline);
         }
-        FontPrintf(D_80070430);
+        FontPrintf(g_StrMoviePushCircleToMenu);
         if (g_MovieHeapDebugEnabled > 0) {
             HeapDebugDump(1, 0, 6, 0x808D);
         }
@@ -683,7 +683,7 @@ int WorldMapSyncGearRideActors(u32 entryIndex) {
 // Preset is right: -O3 77.96, -O1 91.72, 2.7.2-cdk 82.0, plain 2.7.2 98.5, 2.6.0
 // -O2 -G0 (the unit's) 99.66.
 // What closed 92.4 -> 99.1 earlier, in order (all source shapes, not flags):
-//   1. FontPrintf(D_8007042C) takes ONE argument (MovieDebugSectorViewer calls it that way);
+//   1. FontPrintf(g_StrMovieNewline) takes ONE argument (MovieDebugSectorViewer calls it that way);
 //      passing pPath cost a `move a1,zero`.
 //   2. the hex/dec format is an if/else, not a ternary; cross-jumping then merges the
 //      two FontPrintf calls and hoists `move a1,s0` above the branch, as retail does.
@@ -799,7 +799,7 @@ void func_80075D8C(void) {
                             }
                             FontPrintf(D_800704C4, pFileName);
                         } else {
-                            FontPrintf(D_8007042C);
+                            FontPrintf(g_StrMovieNewline);
                         }
                     }
                 } else {
@@ -812,7 +812,7 @@ void func_80075D8C(void) {
             }
             j++;
         } while (j < entry + 0x14);
-        FontPrintf(D_80070430);
+        FontPrintf(g_StrMoviePushCircleToMenu);
         if (g_MovieHeapDebugEnabled > 0) {
             HeapDebugDump(1, 0, 6, 0x808D);
         }

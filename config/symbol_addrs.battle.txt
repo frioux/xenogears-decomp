@@ -1111,3 +1111,4 @@ g_BattleTextActorStringIds = 0x800D2E5F;
 g_BattleTextSlotRects = 0x800D3718;
 g_BattleTextSlotBuffers = 0x800D3720;
 g_BattleTextSlotFlags = 0x800D3726;
+g_BattleGaugeCountdownTable = 0x800C31D4;

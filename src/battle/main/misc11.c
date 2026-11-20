@@ -71,7 +71,7 @@ extern void func_80085D34(void);
 extern void func_800861D0(u8 arg0, u8 arg1);
 extern s32 BattleCheckCommandKeyStatusBit(u8 arg0, u8 arg1);
 extern u16 g_BattleSlotCountdownTimers[];
-extern u8 D_800C31D4[][8];
+extern u8 g_BattleGaugeCountdownTable[][8];
 extern void func_8008ADD0(u8 arg0);
 extern void BattleSetSlotFlag15A1(u8 arg0);
 extern u8 g_BattleSlotDisplayInitialized;
@@ -108,7 +108,7 @@ typedef struct {
     /* 0x2CB */ u8 unk2CB;
     /* 0x2CC */ u8 commandKey[7];
     /* 0x2D3 */ u8 actorIndex; // the slot the queued command is being built for
-    /* 0x2D4 */ u8 gaugeValue; // the reading the menu spends, the second index of the D_800C31D4[max * 8 + value] pair
+    /* 0x2D4 */ u8 gaugeValue; // the reading the menu spends, the second index of the g_BattleGaugeCountdownTable[max * 8 + value] pair
     /* 0x2D5 */ u8 gaugeMax; // its value at menu entry, the first index of that pair and the row func_8007FBE0 draws
     /* 0x2D6 */ u8 commandKeyLength; // commandKey bytes filled, 0 for no command
     /* 0x2D7 */ u8 unk2D7[0x3];
@@ -865,7 +865,7 @@ void BattleAppendCommandRecord(u8 arg0) {
        i.e. (value * 100) / 56; the table's full-scale row byte is 0x38.
    (d) case 5's stores are FOUR separate statements with menuState stored LAST (it
        lands in the BattleClearFlagC6 jal delay slot).
-   (e) D_800C31D4 is declared [][8] and read with the 2D subscript; the flat
+   (e) g_BattleGaugeCountdownTable is declared [][8] and read with the 2D subscript; the flat
        [max * 8 + value] form, a mem_addr base and a u8 *pCost local all fold into
        maspsx's lui at / addu at,at,idx / lbu %lo(at), and the 2D form also decides
        the tail's registers (queue in $a1, /56 magic in $a2).
@@ -1025,7 +1025,7 @@ void func_80081B58(u32 arg0) {
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 =
                 func_80087AF0(who, ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF);
             g_BattleSlotCountdownTimers[who] =
-                (D_800C31D4[((BattleActorSlots *)g_BattleCommandQueue)->gaugeMax]
+                (g_BattleGaugeCountdownTable[((BattleActorSlots *)g_BattleCommandQueue)->gaugeMax]
                             [((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue] * 100) / 56;
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E3 = 1;
         } else {
