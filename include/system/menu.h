@@ -566,7 +566,8 @@ typedef struct {
 // Character info window prims, one prim per digit and render context (allocated in misc1).
 // Every prim array is indexed [digit * 2 + renderContext].
 typedef struct {
-    /* 0x0000 */ u8 unk0[0xA0];
+    /* 0x0000 */ POLY_FT4 polysPortrait[2]; // Party member portrait, one prim per render context
+    /* 0x0050 */ POLY_FT4 polysName[2]; // The portrait's character name strip, one prim per render context
     /* 0x00A0 */ POLY_FT4 polysIcons[0x28];
     /* 0x06E0 */ u8 unk6E0[0x230];
     /* 0x0910 */ POLY_FT4 polysLevel[6];
@@ -781,7 +782,7 @@ typedef struct {
     /* 0x1D8  */ SVECTOR rotation;
     /* 0x1E0  */ VECTOR translation;
     /* 0x1F0  */ MATRIX matTransform;
-    /* 0x210  */ u8 unk1D8[0x8];
+    /* 0x210  */ u8 unk210[0x8];
     /* 0x218  */ SVECTOR modelRotation;
     /* 0x220  */ VECTOR cameraPosition;
     /* 0x230  */ MATRIX modelMatrix;
