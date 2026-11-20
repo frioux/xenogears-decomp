@@ -162,7 +162,7 @@ typedef struct {
     /* 0x036 */ u8 skipGroundSnap; // non-zero: BattleSnapActorToGround leaves the sprite's y alone
     /* 0x037 */ u8 useScaledMatrices; // non-zero: the step runs func_8009F1C4, which folds each part's scale into its parent matrix (libgear's Model.useScaledMatrices)
     /* 0x038 */ u8 isBusy; // keeps BattleWaitAndFreeActorBuffers and BattleWaitForOtherActorAnimations waiting while it is set
-    /* 0x039 */ u8 unk39;
+    /* 0x039 */ u8 depthShade; // set from the OT depth every frame (BattleDrawActor), and func_800AE2A4 scales it into the actor's sound volume
     /* 0x03A */ s16 savedActorMask; // command 0x6F stores g_BattleCommandActorMask here (-1 when its operand is 0); command 0x70 branches only while it still matches
     /* 0x03C */ u16 blockTag; // func_800A0838 compares it with each queued block's tag and sets that block's result bits
     /* 0x03E */ u16 unk3E;
@@ -209,7 +209,8 @@ typedef struct {
     /* 0x0AC */ mem_addr unkAC;
     /* 0x0B0 */ u8* pSoundBank1; // the libgear texture-upload record whose +8 SEDS entry feeds battle sound bank 1
     /* 0x0B4 */ u8* pSoundBank2; // and bank 2
-    /* 0x0B8 */ u8 unkB8[0x52];
+    /* 0x0B8 */ POLY_FT4 polys[2]; // the screen quads BattleDrawActor fills, one per double-buffered frame: quadIndex picks one
+    /* 0x108 */ u8 unk108[0x2];
     /* 0x10A */ u16 modelBitMask;
     /* 0x10C */ u8 numEntries;
     /* 0x10D */ u8 numModelListEntries; // 0x24-byte records at pModelListEntries
@@ -235,10 +236,11 @@ typedef struct {
     /* 0x04 */ u8 extraWeaponIds[4]; // the gearWeapons record equipped in each weapon slot, as in GearState
     /* 0x08 */ u8 unk08[0x8];
     /* 0x10 */ GearWeaponData weaponData[3]; // sel == 3 lands in unk28, as in retail
-    /* 0x28 */ u8 unk28[0x12];
-    // GameGear keeps fuel and maxFuel at 0x38 and 0x3A; a battle start writes 9900 into both
-    // but the same code also tests unk28[0x10] < unk3A >> 3 as the low-hp condition.
-    /* 0x3A */ u16 unk3A;
+    /* 0x28 */ u8 unk28[0x10];
+    // The fuel gauge, at the offsets GameGear keeps it at: a battle start writes 9900 into both,
+    // and func_8009A2D4 reads fuel < maxFuel >> 3 as the low-hp condition.
+    /* 0x38 */ u16 fuel;
+    /* 0x3A */ u16 maxFuel;
     /* 0x3C */ u8 engineOutput; // with unk3F it forms the gear's attack (misc19's func_8009A2D4)
     /* 0x3D */ u8 pad3D;
     /* 0x3E */ u8 unk3E; // attackPower plus the accessory bonus, as unk3F
@@ -282,8 +284,8 @@ typedef struct {
     /* 0x9E */ u8 amountMultiplier; // quarter units the action's value is multiplied by, 4 = unchanged; BattleScaleValueByMultiplierByte uses 4 in place of a clear byte or an armed activeEffectFlags1 bit 0x100
     /* 0x9F */ s8 responsiveness; // the attacker adds half of it to its hit, the defender all of it to its evade
     /* 0xA0 */ u8 unkA0[0x4];
-    /* 0xA4 */ u8 unkA4;
-    /* 0xA5 */ u8 unkA5;
+    /* 0xA4 */ u8 commandCounter; // g_BattleCommandCounter points at it: advanced per row and set from g_BattleCommandCharIndex for the higher rows
+    /* 0xA5 */ u8 commandCounterMax; // what commandCounter is clamped to; BattleResetActorStats zeroes it
     /* 0xA6 */ u8 unkA6[0x10];
     /* 0xB6 */ u8 flags; // bit 0x80 selects the gear-side status words (activeEffectFlags2) over the actor's (activeEffectFlags4)
     /* 0xB7 */ u8 conditionTimers[0x15]; // one countdown byte per armed condition flag bit; the flag clears when its timer runs out
@@ -357,7 +359,7 @@ typedef struct {
     /* 0x08A */ u16 accessoryEffectFlags4;
     /* 0x08C */ u16 activeEffectFlags7;
     /* 0x08E */ u16 accessoryEffectFlags7;
-    /* 0x090 */ u8 unk90[0x10];
+    /* 0x090 */ u16 statWeights[8]; // the dressing-room stat weights of GameCharacter, at its offsets; func_8009BE0C copies the first seven over
     /* 0x0A0 */ u8 gearId; // the gear the slot's character has equipped, as in GameCharacter
     /* 0x0A1 */ u8 unkA1[0x3];
     /* 0x0A4 */ BattleSlotState state;

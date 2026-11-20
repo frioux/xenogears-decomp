@@ -718,7 +718,7 @@ void BattleResetActorStats(void) {
         p->evade = BATTLE_STAT_EVADE_RESET;
         p->hit = BATTLE_STAT_HIT_RESET;
         p->conditionFlags = BATTLE_CONDITION_FLAGS_RESET;
-        p->state.unkA5 = 0;
+        p->state.commandCounterMax = 0;
     }
 }
 
@@ -1267,7 +1267,7 @@ u8 BattleGetActorActionConditionMask(u8 arg0) {
     return ret;
 }
 void BattleSetSlotFields148And162(u8 arg0) {
-    g_BattleWorkBlock[arg0].state.unkA4 = 4;
+    g_BattleWorkBlock[arg0].state.commandCounter = 4;
     g_BattleWorkBlock[arg0].state.conditionTimers[7] = 3;
     g_GameState.unk16BC[0].statusFlags |= 0x4000;
 }

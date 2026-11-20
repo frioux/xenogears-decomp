@@ -541,7 +541,7 @@ void BattlePollMenuEvent(s32 arg0) {
 
     pEvent = &D_800C3E28;
     pMenuExit = &D_800C48EA;
-    pSlotState = &g_BattleWorkBlock[0].state.unkA4;
+    pSlotState = &g_BattleWorkBlock[0].state.commandCounter;
     do {
         if (ControllerIsStateStackFull() != 0) {
             ControllerResetState();

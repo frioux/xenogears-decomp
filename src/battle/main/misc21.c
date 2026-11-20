@@ -132,20 +132,6 @@ typedef struct {
     /* 0x20 */ u8 unk20[0x4];
 } BattleModelListEntry; // Size: 0x24
 
-// The 0x28-byte screen quad of BattleActor.unkB8: the tag, then four corners.
-typedef struct {
-    /* 0x0 */ u16 x;
-    /* 0x2 */ u16 y;
-    /* 0x4 */ u16 unk4;
-    /* 0x6 */ u16 unk6;
-} BattleWarpCorner; // Size: 0x8
-
-typedef struct {
-    /* 0x00 */ u32 tag;
-    /* 0x04 */ u32 code;
-    /* 0x08 */ BattleWarpCorner corner[4];
-} BattleWarpQuad; // Size: 0x28
-
 // The three MATRIX slots the battle renderer stages its GTE work in, at the
 // start of the PSX scratchpad: the working matrix, the composed rotation and
 // the composed light/translation matrix.
@@ -707,12 +693,12 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
         vec.vz = pActor->depth;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[0]);
+        gte_stsxy2(&pActor->polys[quadIndex].x0);
         gte_stszotz(&depth);
         vec.vx = -pActor->width;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[1]);
+        gte_stsxy2(&pActor->polys[quadIndex].x1);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
@@ -721,7 +707,7 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
         vec.vz = -pActor->depth;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[2]);
+        gte_stsxy2(&pActor->polys[quadIndex].x2);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
@@ -729,17 +715,17 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
         vec.vx = -pActor->width;
         gte_ldv0(&vec);
         gte_rtps();
-        gte_stsxy2(&((BattleWarpQuad*)pActor->unkB8)[quadIndex].corner[3]);
+        gte_stsxy2(&pActor->polys[quadIndex].x3);
         gte_stszotz(&sz);
         if (sz < depth) {
             depth = sz;
         }
         depth >>= g_GfxOTDepthShift;
-        addPrim(&pOt[depth], &((BattleWarpQuad*)pActor->unkB8)[quadIndex]);
+        addPrim(&pOt[depth], &pActor->polys[quadIndex]);
         if (depth > BATTLE_ACTOR_DEPTH_MAX) {
             depth = BATTLE_ACTOR_DEPTH_MAX;
         }
-        pActor->unk39 = BATTLE_ACTOR_SHADE_MAX - depth / 8;
+        pActor->depthShade = BATTLE_ACTOR_SHADE_MAX - depth / 8;
     }
     MulMatrix0(pViewMatrix, &pSprite->globalTransform, pRotMatrix);
     pSprite++;

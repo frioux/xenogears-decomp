@@ -74,7 +74,7 @@ void BattleExecuteActionRow(void) {
     BattleSetSlotEntryFieldsTo2000(g_BattleTargetSlotIndex);
     actor = g_BattleCurWorkBlock->actorIndex;
     g_BattleAmountThirdFlag = 0;
-    g_BattleCommandCounter = &g_BattleCurWorkBlock->slots[actor].state.unkA4;
+    g_BattleCommandCounter = &g_BattleCurWorkBlock->slots[actor].state.commandCounter;
     if (g_BattleCurrentRow->actionFlags & 0x100) {
         if (g_BattleActingSlot->characterId == 1) {
             BattleRollPercentAndSetState38();
@@ -92,7 +92,7 @@ void BattleExecuteActionRow(void) {
             pSlot = &g_BattleCurWorkBlock->slots[g_BattleCurSlotIndex];
             g_BattleTargetSlotEntry = pSlot;
             g_BattleCurSlotState = &pSlot->state;
-            D_800C3D60 = &pSlot->state.unkA4;
+            D_800C3D60 = &pSlot->state.commandCounter;
             BattleAdvanceActionRow();
             ((void (*)(void))D_800C34DC[g_BattleCurrentRow->opcode])();
             if (g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] == 0) {
@@ -620,14 +620,14 @@ void BattleSetSlotFields148And10C(void) {
     g_BattleWorkBlock[g_BattleCurSlotIndex].state.conditionTimers[7] = 3;
 }
 void BattleSetSlotState0AFromActorWord3ADiv20(void) {
-    s32 v = g_BattleCurSlotState->unk3A * g_BattleCurrentRow->power;
+    s32 v = g_BattleCurSlotState->maxFuel * g_BattleCurrentRow->power;
     s32 q = v / BATTLE_ACTION_POWER_FULL;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0xA;
     g_BattleCurWorkBlock->slotAmounts[g_BattleCurSlotIndex] = q;
 }
 void BattleSetSlotState0BFromActorWord3ADiv20(void) {
-    s32 v = g_BattleCurSlotState->unk3A * g_BattleCurrentRow->power;
+    s32 v = g_BattleCurSlotState->maxFuel * g_BattleCurrentRow->power;
     s32 q = v / BATTLE_ACTION_POWER_FULL;
 
     g_BattleCurWorkBlock->slotStates[g_BattleCurSlotIndex] = 0xB;
