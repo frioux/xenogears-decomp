@@ -18,6 +18,10 @@
 // The most steps a linear move takes in one frame: BattleSetupLinearMove rolls
 // g_BattleLerpStepsPerFrame from 1 to it.
 #define BATTLE_LERP_STEPS_PER_FRAME_MAX 8
+// The digit sprites BattleParseNumberToDigits fills g_BattleValueDigitSpriteIds
+// with, and the id that marks a digit position left blank.
+#define BATTLE_VALUE_DIGIT_COUNT 4
+#define BATTLE_VALUE_DIGIT_NONE 0xFF
 
 extern u8 *g_BattleCommandQueue;
 extern u8 *g_BattleCommandSlotRows[];
@@ -104,6 +108,12 @@ extern void func_80076D58(u8 *, u8, u8);
 extern void BattleSetPolyFT4RectH13(POLY_FT4 *, u16, u16, u8, u8, u8);
 extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
+extern u8 g_BattleSlotTextIndex[];
+extern u8 g_BattleValueDigitSpriteIds[];
+extern u8 *D_800C3E5C[];
+extern void *GetStringEntryFromBank1C(s32, s32);
+extern void BattleParseNumberToDigits(s32);
+extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern u8 g_BattleCommandCharIndex[];
 extern u8 g_BattleActorCharIds[];
 extern u8 g_BattleCommandStatusMasks[];
@@ -383,13 +393,13 @@ s32 func_80086028(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u32 **arg4, u8 arg5) {
 
     q = arg1 / 2;
     r = arg1 % 2;
-    func_80076D58((u8 *)(arg1 * 0x50 + 0x5550 + g_BattleSpriteColumnWork), r, 3);
+    func_80076D58((u8 *)(s32)(arg1 * 0x50 + (0x5550 + (s32)g_BattleSpriteColumnWork)), r, 3);
     len = SystemRenderStringEntry((u8 *)GetStringEntryFromBank(g_BattleActorCharIds[arg0], arg3), *arg4, 0x1B, r);
-    rect.x = q * 0x1E + 0x3C0;
-    rect.y = 0x1A;
-    rect.w = 0x1E;
-    rect.h = 0xD;
-    LoadImage(&rect, *arg4);
+    rects[0].x = q * 0x1E + 0x3C0;
+    rects[0].y = 0x1A;
+    rects[0].w = 0x1E;
+    rects[0].h = 0xD;
+    LoadImage(&rects[0], *arg4);
     arg2 += arg5 + 1;
     BattleSetPolyFT4RectH13((POLY_FT4 *)((((s32 *)g_BattlePrimStartIndex)[0] + arg1 * 2) * 0x28 + 0x5550 + g_BattleSpriteColumnWork),
                   (arg2 * 0x10 + 0x50 + arg1 * 4) & 0xFFFC,
@@ -422,7 +432,93 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
     }
     return ok;
 }
+/* 76.36%, 796 bytes against retail's 784. Structure is retail's (same call set and
+   order, the indexed `for (i = 0; i < 4; i++)` loop is what produces retail's `slt`
+   bound test where the pointer form gives `sltu`, and the two `+ base` sums are the
+   constant-against-the-base association from the neighbour BattleDrawSlotSpriteColumns).
+   What is left, all measured:
+   1. Register rotation. Retail: s0=arg0 s1=q s2=r s3=arg1*4 s4=arg3 s5=arg1*0x50
+      s6=arg4 s7=arg1 fp=digit ptr, and `count` spilled to 0x48. This build gives the
+      same nine values but rotates them (q gets s0, arg0 s1, s4/s5 swap) and, because
+      gcc 2.7.2 rematerialises the incoming stack parameter, spills nothing: it keeps
+      `count` in s6 and reloads arg4 from 0x88(sp) at each use, so the frame is 0x70
+      instead of 0x78. Forcing the spill with `volatile s32 count` is 62.94% / 868.
+   2. `D_800C3E5C[id]` comes out as `la` + `addu` + `lw 0(reg)` (4 insns); retail has
+      the `lui $at,%hi / addu $at,$at,v0 / lw %lo(at)` macro form (3 insns). Measured
+      dead: the array-extern, the reordered `*(u8 **)(id * 4 + (u32)D_800C3E5C)`, and
+      both `D_800C3E5C[id]` and `g_BattleValueDigitSpriteIds[i]` spellings - gcc keeps
+      the base in a register under all of them (misc16_r2's func_8008FE18 reports the
+      same 4-insn form against retail's %at form).
+   3. The digit rects: retail stores through a base of `&rect + count*8` with
+      displacements 8/0xA/0xC/0xE while passing `&rects[count]` computed separately as
+      `sp+0x20 + count*8`; declaring `RECT rect; RECT rects[4];` and indexing
+      `rects[count]` gives one base and `sh 0/2/4/6(reg)` instead (75.05%).
+   Permuter: two runs (4 min and 1 min, 342 iterations) from this body, base=4407
+   best=3722; its only find moves `count++` above the `if`, which changes which rect
+   slot each digit is drawn into, so it is not real source.
+   `BattleParseNumberToDigits` reads a u16 table at g_BattlePrimStartIndex + 0x60D8
+   (= D_800D2C0C, see battle/main/misc11.c); only the offset-from-base spelling
+   reproduces retail's shared base register (`lhu 0x60D8(s0)` after the word load). */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
+/*
+    s32 func_80086C88(s32 arg0, s32 arg1, s32 arg2, s32 arg3, u_long **arg4) {
+        RECT rects[BATTLE_VALUE_DIGIT_COUNT + 1];
+        s32 count;
+        s32 q;
+        s32 r;
+        s32 quad;
+        s32 ofs;
+        s32 x;
+        s32 len;
+        s32 primStart;
+        s32 i;
+    
+        count = 0;
+        q = arg1 / 2;
+        r = arg1 % 2;
+        quad = arg1 * 4;
+        ofs = arg1 * 0x50;
+        func_80076D58((u8 *)(s32)(ofs + (0x5550 + (s32)g_BattleSpriteColumnWork)), r, 3);
+        len = SystemRenderStringEntry(
+            (u8 *)GetStringEntryFromBank1C(g_BattleSlotTextIndex[(u8)arg0 * 0x170],
+                                           g_BattleCommandStatusMasks[(u8)arg3]),
+            *arg4, 0x1B, r);
+        rects[0].x = q * 0x1E + 0x3C0;
+        rects[0].y = 0x1A;
+        rects[0].w = 0x1E;
+        rects[0].h = 0xD;
+        LoadImage(&rects[0], *arg4);
+        primStart = ((s32 *)g_BattlePrimStartIndex)[0];
+        BattleSetPolyFT4RectH13((POLY_FT4 *)(s32)((arg1 * 2 + primStart) * 0x28 +
+                                                  (0x5550 + (s32)g_BattleSpriteColumnWork)),
+                                (quad + (arg2 + 1) * 0x10 + 0x86) & 0xFFFE,
+                                (0xC8 - arg1 * 0x10) & 0xFFF8, (q * 0x78) & 0xF8, 0x1A, len & 0xFF);
+        func_80076D58((u8 *)(s32)(ofs + (0x5C80 + (s32)g_BattleSpriteColumnWork)), 0, 3);
+        BattleParseNumberToDigits(*(u16 *)((u8 *)g_BattlePrimStartIndex + arg3 * 2 + 0x60D8));
+        x = arg1 * 8 + 0x3DE;
+        for (i = 0; i < BATTLE_VALUE_DIGIT_COUNT; i++) {
+            if (g_BattleValueDigitSpriteIds[i] != BATTLE_VALUE_DIGIT_NONE) {
+                rects[count + 1].x = x;
+                rects[count + 1].y = 0;
+                rects[count + 1].w = 6;
+                rects[count + 1].h = 0xD;
+                x += 2;
+                BattleLoadImageAndSync(&rects[count + 1], D_800C3E5C[g_BattleValueDigitSpriteIds[i]]);
+                count++;
+            }
+        }
+        primStart = ((s32 *)g_BattlePrimStartIndex)[0];
+        BattleSetPolyFT4RectH13((POLY_FT4 *)(s32)((arg1 * 2 + primStart) * 0x28 +
+                                                  (0x5C80 + (s32)g_BattleSpriteColumnWork)),
+                                (arg1 * 4 + (arg2 + 1) * 0x10 + 0xEA) & 0xFFFE,
+                                (0xC8 - arg1 * 0x10) & 0xFFF8, (arg1 * 0x20 + 0x78) & 0xF8, 0,
+                                (count * 8) & 0xFF);
+        g_BattleSpriteColumnWork[0x5D80]++;
+        g_BattleSpriteColumnWork[0x5D82]++;
+        return arg1 + 1;
+    }
+    
+*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086F98);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_800877E0);
 /* 59.15%: retail recomputes `g_BattleSlotRecords[a*0x1C] * 0x40` and `[b*0x1C] * 8`
