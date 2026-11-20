@@ -101,33 +101,21 @@ void func_801D7154(u_char index, u_char characterId);
 void func_801D74EC(u_char index, u_char characterId);
 void func_801D7884(u_char index, u_char characterId);
 
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D3C4C);
-/* Best: 94.00%. The sibling ShopMenuInitializeScrollBar
-   (src/shop_menu/main/misc.c) is this exact function and matches, so the C is
-   right; the whole difference is s0<->s1: retail puts the 5th param `height`
-   in s1 and the 0x1000 scale in s0, gcc does the reverse. Note func_800263E4
-   must be declared with wide (s32) x/y/scale - a u16 there adds an andi 0xFFFF
-   after the -8 and drops to 87%. Tried: s32 scale local, u16 x/y/scale for
-   func_800263E4 (87.70%). Also gcc-2.7.2-cdk: 93.33 (and the matched
-   MenuSetCharacterWideNumberDigits drops to 82.14 under cdk, so this is not a cdk unit). The tie
-   is priority(0x1000) > priority(height) in retail, the reverse in 2.7.2; both
-   are live across the same two calls with 3 uses each. Round 307: a `s32 scale =
-   0x1000;` local used at all three sites measures the same 94.00% (356 bytes).
-   void func_801D3C4C(u_char index, u_short x, u_short y, u_short width, u_short height) {
-       MenuWindow* pWindow = g_Menu->windows[index];
+void func_801D3C4C(u_char index, u_short x, u_short y, u_short width, u_short height) {
+    MenuWindow* pWindow = g_Menu->windows[index];
 
-       func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_ORNAMENT,
-                     pWindow->polysScrollBarEnds, g_Menu->renderContext, x, y, 0x1000);
-       func_800263E4(g_Menu->resources, MENU_TEX_SCROLL_BAR_ORNAMENT,
-                     &pWindow->polysScrollBarEnds[2], g_Menu->renderContext,
-                     x, y + height - 8, 0x1000, 0, 1);
-       func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_EMPTY,
-                     pWindow->polysScrollBarEmpty, g_Menu->renderContext, x, y + 8, 0x1000);
-       MenuSetQuadVertices(pWindow->vertsScrollBarEnds, x, y, 8, 8);
-       MenuSetQuadVertices(&pWindow->vertsScrollBarEnds[4], x, y + height, 8, -8);
-       MenuSetQuadVertices(pWindow->vertsScrollBarEmpty, x, y + 8, 8, height - 8);
-   }
-*/
+    func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_ORNAMENT,
+                  pWindow->polysScrollBarEnds, g_Menu->renderContext, x, y, 0x1000);
+    func_800263E4(g_Menu->resources, MENU_TEX_SCROLL_BAR_ORNAMENT,
+                  &pWindow->polysScrollBarEnds[2], g_Menu->renderContext,
+                  x, y + height - 8, 0x1000, 0, 1);
+    func_8002675C(g_Menu->resources, MENU_TEX_SCROLL_BAR_EMPTY,
+                  pWindow->polysScrollBarEmpty, g_Menu->renderContext, x, y + 8, 0x1000);
+    MenuSetQuadVertices(pWindow->vertsScrollBarEnds, x, y, 8, 8);
+    MenuSetQuadVertices(&pWindow->vertsScrollBarEnds[4], x, y + height, 8, -8);
+    MenuSetQuadVertices(pWindow->vertsScrollBarEmpty, x, y + 8, 8, height - 8);
+}
+
 void MenuSetPolySemiTransGrey(P_TAG* pTag);
 void MenuInitializeWindowBorderCorners(u_char index, u_short x, u_short y, u_short width, u_short height) {
     MenuWindow* pWindow = g_Menu->windows[index];
@@ -247,20 +235,6 @@ void MenuSetWindowBorderBottom(u_char index, u_short x, u_short y, u_short width
         MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderBottom[i * 2 + g_Menu->renderContext]);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D4688);
-/* Best: 94.26% (844 bytes; retail is 836). Decode is complete - the vertical
-   border sibling of func_801D3FF8 (see its note): 16 UV byte stores to
-   polysWindowBorderLeft[ctx] / [ctx+2] (values 0x10/0x84/0x20/0x84
-   then 0x10/0x8B/0x20/0x8B, repeated for the second prim pair), then
-   MenuSetQuadVertices(vertsWindowBorderLeft1, x - 8, y + 8, 0x10, halfHeight) and
-   MenuSetQuadVertices(vertsWindowBorderLeft2, x - 8, halfHeight + 8 + y, 0x10,
-   halfHeight) where halfHeight = (height - 0x10) / 2, then a 2-iteration
-   MenuSetPolySemiTransGrey loop over polysWindowBorderLeft[i * 2 + renderContext].
-   The 4th param is the border HEIGHT (it is the MenuSetQuadVertices height arg), and
-   the accumulated param must be written back into it (`y = halfHeight + 8 + y;`)
-   - retail keeps it in s3. Remaining diff: gcc copies a2 to s3 in the prologue
-   and needs one extra g_Menu reload (2 instructions), and the constant
-   registers come out t1/t2 vs a2/t1.
 void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
        MenuWindow* pWindow = g_Menu->windows[index];
        u16 left;
@@ -292,53 +266,39 @@ void func_801D4688(u_char index, u_short x, u_short y, u_short height) {
            MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderLeft[i * 2 + g_Menu->renderContext]);
        }
    }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7", func_801D49D0);
-/* Best: 94.60%. This is the RIGHT border, the sibling of the parked
-   func_801D3FF8/433C/4688 above: member_change_menu/main/misc.c has the same
-   function matched as MemberChangeMenuSetWindowBorderRight, with UVs
-   16/140/32/140/16/147/32/147 = the 0x10/0x8C/0x20/0x93 stores here and that
-   file's source shape kept below. All 16 UV byte stores, both quad calls and the
-   2-iteration MenuSetPolySemiTransGrey loop are exact (848 bytes, same insn multiset).
-   The whole remaining diff is instruction ORDER inside the one basic block:
-   retail interleaves the arg setup with the last 4 UV stores and has its
-   `move s3,a2` (the y copy) at store 12, gcc emits source order and copies a2 in
-   the entry block. Because retail keeps a2 live until mid-block it allocates
-   0x10 to t1 and 0x20 to t2; ours frees a2 at once and uses a2/t1.
-   Tried: this shape, u16 right + `y = halfHeight + 8 + y` write-back (the best
-   one, kept below) and member_change_menu's exact expressions (94.36).
-   void func_801D49D0(u_char index, u_short x, u_short y, u_short width, u_short height) {
-       MenuWindow* pWindow = g_Menu->windows[index];
-       u16 right;
-       s32 halfHeight;
-       s32 i;
 
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u0 = 0x10;
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v0 = 0x8C;
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u1 = 0x20;
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v1 = 0x8C;
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u2 = 0x10;
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v2 = 0x93;
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u3 = 0x20;
-       (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v3 = 0x93;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u0 = 0x10;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v0 = 0x8C;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u1 = 0x20;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v1 = 0x8C;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u2 = 0x10;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v2 = 0x93;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u3 = 0x20;
-       (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v3 = 0x93;
-       right = x + width - 8;
-       halfHeight = (height - 0x10) / 2;
-       MenuSetQuadVertices(pWindow->vertsWindowBorderRight1, right, y + 8, 0x10, halfHeight);
-       y = halfHeight + 8 + y;
-       MenuSetQuadVertices(pWindow->vertsWindowBorderRight2, right, y, 0x10, halfHeight);
-       for (i = 0; i < 2; i++) {
-           MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderRight[i * 2 + g_Menu->renderContext]);
-       }
-   }
-*/
+void func_801D49D0(u_char index, u_short x, u_short y, u_short width, u_short height) {
+    MenuWindow* pWindow = g_Menu->windows[index];
+    u16 right;
+    s32 halfHeight;
+    s32 i;
+
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u0 = 0x10;
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v0 = 0x8C;
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u1 = 0x20;
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v1 = 0x8C;
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u2 = 0x10;
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v2 = 0x93;
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->u3 = 0x20;
+    (pWindow->polysWindowBorderRight + g_Menu->renderContext)->v3 = 0x93;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u0 = 0x10;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v0 = 0x8C;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u1 = 0x20;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v1 = 0x8C;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u2 = 0x10;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v2 = 0x93;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->u3 = 0x20;
+    (pWindow->polysWindowBorderRight + 2 + g_Menu->renderContext)->v3 = 0x93;
+    right = x + width - 8;
+    halfHeight = (height - 0x10) / 2;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderRight1, right, y + 8, 0x10, halfHeight);
+    y = halfHeight + 8 + y;
+    MenuSetQuadVertices(pWindow->vertsWindowBorderRight2, right, y, 0x10, halfHeight);
+    for (i = 0; i < 2; i++) {
+        MenuSetPolySemiTransGrey((P_TAG*)&pWindow->polysWindowBorderRight[i * 2 + g_Menu->renderContext]);
+    }
+}
+
 void MenuSetWindow(u_char index, u_short x, u_short y, u_short width, u_short height,
                    u_char useDefaultMatrix, s32 zIndex, u_char hasScrollBar) {
     MenuWindow* pWindow = g_Menu->windows[index];
