@@ -11,6 +11,25 @@
 #include "psyq/libcd.h"
 #include "psyq/inline_c.h"
 
+// The field fades between black and FIELD_FADE_COLOR_MAX, a 16.16 fixed point
+// polygon colour (so >> 16 is the 0..0xFF channel value), FIELD_FADE_COLOR_STEP
+// at a time
+#define FIELD_FADE_COLOR_MAX 0x800000
+#define FIELD_FADE_COLOR_STEP 0x40000
+
+// Frames the field keeps rendering while it fades out, and while it waits for a
+// requested disc change
+#define FIELD_FADE_FRAME_COUNT 0x20
+#define FIELD_DISC_CHANGE_FRAME_COUNT 8
+
+// g_FieldZoomFadeScale is ramped by FIELD_ZOOM_FADE_SCALE_STEP per frame, up to
+// FIELD_ZOOM_FADE_SCALE_MAX (0x1000 is 1:1)
+#define FIELD_ZOOM_FADE_SCALE_MAX 0x22C0
+#define FIELD_ZOOM_FADE_SCALE_STEP 0x20
+
+// WDS bank the field asks for when the game is changing discs
+#define FIELD_DISC_CHANGE_WDS_BANK 0xE
+
 // FieldOrVramStripPixels converts one strip of 16-bit VRAM pixels, read two at a
 // time through a u_int word
 #define FIELD_SCREEN_STRIP_WIDTH 0x100
@@ -159,7 +178,7 @@ extern s32 g_GameReusePendingAudioManager;
 extern s32 g_SoundPendingAudioManager;
 extern s32 D_800AFD04;
 extern s32 g_FieldScriptDataStreamActive;
-extern s32 D_800ADC14;
+extern int* D_800ADC14; // buffer the field script data stream is read into
 extern s32 g_FieldZoomFadeScale;
 extern s32 g_FieldActorModelSlotCount;
 extern AudioManager* g_SoundAudioManager;
@@ -200,8 +219,8 @@ extern void FontFree(void);
 void func_80078D44(void) {
     RECT rect;
     int i;
-    int nFadeStep;
-    int nFade;
+    int nZoomScaleStep;
+    int nFadeColor;
 
     FieldLoadFont();
     FieldStoreScreenImage();
@@ -215,8 +234,8 @@ void func_80078D44(void) {
     if (g_FieldScreenSetupDone == 0) {
         rect.x = 0;
         rect.y = 0x100;
-        rect.w = 0x140;
-        rect.h = 0xE0;
+        rect.w = SCREEN_WIDTH;
+        rect.h = SCREEN_HEIGHT;
         MoveImage(&rect, 0, 0);
     }
     g_FieldCurRenderContextIndex = 1;
@@ -240,11 +259,11 @@ void func_80078D44(void) {
         LibGearSetDirectKeyframes(1);
     }
     if (g_GameDiscChangeRequest == 1 || g_FieldDiscChangeFade == 1) {
-        nFadeStep = 0;
+        nZoomScaleStep = 0;
     } else {
-        nFadeStep = 0x20;
+        nZoomScaleStep = FIELD_ZOOM_FADE_SCALE_STEP;
     }
-    nFade = 0x800000;
+    nFadeColor = FIELD_FADE_COLOR_MAX;
     if (g_FieldScriptDataStreamActive == 1) {
         // A goto loop, not do-while: the do-while form makes cc1 hoist the fade
         // step and the state comparison out of the loop's preheader
@@ -253,21 +272,21 @@ void func_80078D44(void) {
         FieldZoomFadeEffectUpdate();
         FieldDisplay();
         if (g_FieldDiscChangeFade != 1) {
-            if (g_FieldZoomFadeScale < 0x22C0) {
-                g_FieldZoomFadeScale += nFadeStep;
+            if (g_FieldZoomFadeScale < FIELD_ZOOM_FADE_SCALE_MAX) {
+                g_FieldZoomFadeScale += nZoomScaleStep;
             }
         } else {
-            FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-            nFade -= 0x40000;
-            if (nFade < 0) {
-                nFade = 0;
+            FieldZoomFadeEffectSetPolygonColor(nFadeColor >> 16);
+            nFadeColor -= FIELD_FADE_COLOR_STEP;
+            if (nFadeColor < 0) {
+                nFadeColor = 0;
             }
         }
         if (ArchiveDataSync() != 0) {
             goto fieldLoop;
         }
         DrawSync(0);
-        HeapFree((void*)D_800ADC14);
+        HeapFree(D_800ADC14);
         g_FieldScriptDataStreamActive = 0;
         FieldOrVramStripPixels();
     }
@@ -276,15 +295,15 @@ void func_80078D44(void) {
             FieldClearAndSwapOTag();
             FieldZoomFadeEffectUpdate();
             FieldDisplay();
-            FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-            nFade -= 0x40000;
-        } while (nFade >= 0);
+            FieldZoomFadeEffectSetPolygonColor(nFadeColor >> 16);
+            nFadeColor -= FIELD_FADE_COLOR_STEP;
+        } while (nFadeColor >= 0);
     }
     if (g_GameDiscChangeRequest == 1) {
         rect.y = 0;
         rect.x = 0;
-        rect.w = 0x140;
-        rect.h = 0xE0;
+        rect.w = SCREEN_WIDTH;
+        rect.h = SCREEN_HEIGHT;
         MoveImage(&rect, 0x200, 0);
     }
     if (g_WorldMapAudioManagerLoaded != 0) {
@@ -300,7 +319,7 @@ void func_80078D44(void) {
     ControllerResetState();
     g_GameWdsBankLoadState = 0;
     if (g_GameDiscChangeRequest == 1) {
-        g_GameRequestedWdsBankIndex = 0xE;
+        g_GameRequestedWdsBankIndex = FIELD_DISC_CHANGE_WDS_BANK;
         FieldFreePendingAudioManager();
     }
     if (g_GameLoadedWdsBankIndex != g_GameRequestedWdsBankIndex) {
@@ -317,20 +336,20 @@ void func_80078D44(void) {
     if (g_GameDiscChangeRequest != 1) {
         if (g_FieldDiscChangeFade != 1) {
             FieldFadeToBlack(0x20);
-            nFade = 0x800000;
-            for (i = 0; i < 0x20; i++) {
+            nFadeColor = FIELD_FADE_COLOR_MAX;
+            for (i = 0; i < FIELD_FADE_FRAME_COUNT; i++) {
                 FieldUpdateFrame();
                 FieldZoomFadeEffectUpdate();
                 func_8007554C();
                 FieldTickSkipCounter();
                 if (g_GameDiscChangeRequest != 1) {
-                    FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-                    nFade -= 0x40000;
-                    if (nFade < 0) {
-                        nFade = 0;
+                    FieldZoomFadeEffectSetPolygonColor(nFadeColor >> 16);
+                    nFadeColor -= FIELD_FADE_COLOR_STEP;
+                    if (nFadeColor < 0) {
+                        nFadeColor = 0;
                     }
-                    if (g_FieldZoomFadeScale < 0x22C0) {
-                        g_FieldZoomFadeScale += nFadeStep;
+                    if (g_FieldZoomFadeScale < FIELD_ZOOM_FADE_SCALE_MAX) {
+                        g_FieldZoomFadeScale += nZoomScaleStep;
                     }
                 }
             }
@@ -338,7 +357,7 @@ void func_80078D44(void) {
             FieldFadeToBlack(0x20);
         }
     } else {
-        for (i = 0; i < 8; i++) {
+        for (i = 0; i < FIELD_DISC_CHANGE_FRAME_COUNT; i++) {
             FieldUpdateFrame();
             FieldZoomFadeEffectUpdate();
             func_8007554C();
