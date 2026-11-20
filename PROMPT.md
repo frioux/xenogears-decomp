@@ -284,9 +284,12 @@ For functions over ~150 instructions (most of what is left, and nearly every jum
 stub) use the **deep shape**: 1-3 functions per worker, `minutes: 60` in the worker's
 args and the same limit on the launch -
 `subagent({workflow: "tools/rounds/brief.js", async: true, options: {timeoutMs: 3600000}, args: {workers: [...]}})` -
-and at most 8 workers, because each one also runs the permuter (`-j 2`) on the 6-core
-build VM. The brief tells a worker to commit after every match, so a kill at 60 loses
-little. Judge the deep shape by matched instructions, not function count. **A port round
+and **at most 4 workers, not 8**: `tools/scripts/check_bin.sh` runs a full `make build`,
+and round 307 put three of those on the 6-core VM at once, drove the load to 25 and lost
+four of six lanes to the 60-minute kill while they were mid-body (the pool was fine; the
+clock was not). The brief tells a worker to commit after every match, so a kill at 60
+loses little - but a lane that spends its last 20 minutes in `check_bin` loses everything
+after the last commit. Judge the deep shape by matched instructions, not function count. **A port round
 (`permute-brief.js`) is the same constraint:** each worker runs the permuter for real, so
 7 port workers plus the sweep drove the load to 22 on 6 cores and several workers spent
 4+ minutes in one compile. Cap a port round at 5 workers, or pause the sweep for it.
