@@ -12,17 +12,42 @@
 #define BATTLE_ANGLE_HALF_TURN 0x800 // same define as battle/misc3.c and battle/misc4.c; battle actor.h is not includable here
 // Denominator of a 0..255 gauge fraction (src/battling/main/misc2.c's BATTLE_GAUGE_FRACTION_SCALE).
 #define BATTLE_GAUGE_FRACTION_SCALE 255 // same define as battle/misc2.c; battle actor.h is not includable here
+// The battle effect image quad covers the whole screen (0x140 x 0xDA) and the
+// image itself is 0x70 x 0x2B texels, so its last texture point is one less.
+#define BATTLE_EFFECT_QUAD_WIDTH 0x140
+#define BATTLE_EFFECT_QUAD_HEIGHT 0xDA
+#define BATTLE_EFFECT_TEX_U_MAX 0x6F
+#define BATTLE_EFFECT_TEX_V_MAX 0x2A
+// The shade the effect is drawn at when it is not tinted: the quad is then drawn
+// as a raw texture (bit 0 of the primitive code) instead of a coloured one.
+#define BATTLE_EFFECT_SHADE_NEUTRAL 0x80
+
+// gcc 2.7.2 does not merge adjacent byte/halfword stores, so the effect prim
+// fields are written as the word stores its object has (the helpers
+// src/battling/main/misc10.c uses for its own prims).
+#define BattleSetXY0Fast(p, _x0, _y0) *(s32*)&(p)->x0 = (_x0) | ((_y0) << 0x10)
+#define BattleSetXY1Fast(p, _x1, _y1) *(s32*)&(p)->x1 = (_x1) | ((_y1) << 0x10)
+#define BattleSetXY2Fast(p, _x2, _y2) *(s32*)&(p)->x2 = (_x2) | ((_y2) << 0x10)
+#define BattleSetXY3Fast(p, _x3, _y3) *(s32*)&(p)->x3 = (_x3) | ((_y3) << 0x10)
+#define BattleSetWHFast(p, _w, _h) *(s32*)&(p)->w = (_w) | ((_h) << 0x10)
+#define BattleSetUV0Fast(p, _u0, _v0) *(u16*)&(p)->u0 = (_u0) | ((_v0) << 0x8)
+#define BattleSetUV1Fast(p, _u1, _v1) *(u16*)&(p)->u1 = (_u1) | ((_v1) << 0x8)
+#define BattleSetUV2Fast(p, _u2, _v2) *(u16*)&(p)->u2 = (_u2) | ((_v2) << 0x8)
+#define BattleSetUV3Fast(p, _u3, _v3) *(u16*)&(p)->u3 = (_u3) | ((_v3) << 0x8)
+#define BattleSetRGBCFast(p, _r0, _g0, _b0, _code) \
+    *(s32*)&(p)->r0 = (_r0) | ((_g0) << 0x8) | ((_b0) << 0x10) | ((_code) << 0x18)
 
 // volatile: retail schedules this load after the argument setup, not before it.
 extern volatile s32 g_SpuChannelMask;
 extern s32 g_BattleEffectGrid;
 extern s32 g_BattleEffectGridNext;
-extern s32 g_BattleEffectImage;
+extern u_long* g_BattleEffectImage;
 extern s32 g_BattleActorDistance2D;
 extern u8 g_BattleAiAppliedBehaviorLevel;
 extern u8 g_BattleDrawBufferIndex;
-extern u8 D_80096DE0[];
-extern u8 D_80096E00[];
+extern POLY_FT4 D_80096D90[2];
+extern TILE D_80096DE0[2];
+extern DR_MODE D_80096E00[2];
 extern u8 g_BattleAiBehaviorLevel;
 extern u8 g_BattlePlayer2ComControlled;
 
@@ -244,7 +269,49 @@ void func_8008E2B8(u8* p0, s32 color, s32 flag) {
     AddPrim(p0, D_80096E00 + g_BattleDrawBufferIndex * 0xC);
 }
 */
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc17", func_8008E3CC);
+void func_8008E3CC(u8* pOt, s32 shadeLevel, s32 drawTile) {
+    POLY_FT4* pPrim;
+    TILE* pTile;
+    RECT rect;
+    s32 shade;
+
+    shade = shadeLevel * 2 / 3;
+    pPrim = &D_80096D90[g_BattleDrawBufferIndex];
+    setlen(pPrim, 9);
+    BattleSetRGBCFast(pPrim, shade, shade, shade, 0x2C);
+    if (shade == BATTLE_EFFECT_SHADE_NEUTRAL) {
+        pPrim->code |= 1;
+    } else {
+        pPrim->code &= ~1;
+    }
+    BattleSetXY0Fast(pPrim, 0, 0);
+    BattleSetXY1Fast(pPrim, BATTLE_EFFECT_QUAD_WIDTH, 0);
+    BattleSetXY2Fast(pPrim, 0, BATTLE_EFFECT_QUAD_HEIGHT);
+    BattleSetXY3Fast(pPrim, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
+    BattleSetUV0Fast(pPrim, 0, 0);
+    BattleSetUV1Fast(pPrim, BATTLE_EFFECT_TEX_U_MAX, 0);
+    BattleSetUV2Fast(pPrim, 0, BATTLE_EFFECT_TEX_V_MAX);
+    BattleSetUV3Fast(pPrim, BATTLE_EFFECT_TEX_U_MAX, BATTLE_EFFECT_TEX_V_MAX);
+    setSemiTrans(pPrim, 1);
+    pPrim->tpage = GetTPage(1, 1, 0x140, 0x100);
+    pPrim->clut = GetClut(0, 0x1FD);
+    AddPrim(pOt, pPrim);
+    setRECT(&rect, 0x140, 0x100, 0x38, 0x2B);
+    LoadImage(&rect, g_BattleEffectImage);
+    if (drawTile != 0) {
+        pTile = &D_80096DE0[g_BattleDrawBufferIndex];
+        if (shadeLevel > 0x80) {
+            setlen(pTile, 3);
+            BattleSetRGBCFast(pTile, shadeLevel * 2, shadeLevel * 2, shadeLevel * 2, 0x60);
+            setSemiTrans(pTile, 1);
+            BattleSetXY0Fast(pTile, 0, 0);
+            BattleSetWHFast(pTile, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
+            AddPrim(pOt, pTile);
+        }
+    }
+    SetDrawMode(&D_80096E00[g_BattleDrawBufferIndex], 0, 1, GetTPage(0, 2, 0, 0), NULL);
+    AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
+}
 /* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (g_BattleSoundSlots[i].unkC) loses the strength reduction entirely (45%).
 void BattleInitSoundSlots(void) {
     BattleSlot* pSlot;
