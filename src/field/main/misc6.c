@@ -671,7 +671,6 @@ void FieldScriptVMHandlerStartEncounter(void) {
 }
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009F5F4);
 /* 97.54% (1036 bytes = retail's size). Two residuals left, both measured:
    1. the talk accept block: retail keeps D_800B2360's value in $a0 across the
       volatile anim store and the D_800B2340 load and writes it afterwards
@@ -701,6 +700,38 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009F5F4);
      (in the u16 arithmetic context gcc picks `lhu`);
    The volatile flags store at both accept sites is load-bearing throughout.
 */
+INCLUDE_ASM("asm/field/nonmatchings/main/misc6", func_8009F5F4);
+/* 98.66% (1036 bytes = retail's size). ONE residual left:
+   the D_800B2342 decrement. Retail materialises the ADDRESS
+   (`lui v1,%hi` + `addiu v1,v1,%lo` + `lhu 0(v1)` / `sh 0(v1)`); ours emits the
+   two maspsx macro expansions through $at. `extern s16 D_800B2342[]` + `[0]--`
+   DOES emit retail's form, but gcc then CSEs that base with the pre-jal
+   `D_800B2342 == 0` test and spills it to $s0 (retail saves no callee-saved
+   register): 96.37%, 1052 bytes. Spelling the test through the neighbouring
+   `((s16*)&g_Unknown_800B2344)[-1]` to break the CSE instead grows the frame to
+   0x68 (96.22%, 1028 bytes). A `do{}while(0)` around the decrement changes
+   nothing.
+   What got the body from the lost 96.60% park to 98.66% (all re-measured):
+   - `u8 pad[0x48]` gives retail's exact 0x60 frame, which stores only $ra;
+   - `if (D_800ADB02 > 0x20)`, retail's `slti v0,v0,0x21`;
+   - the `else D_800ADB02 = 0;` belongs to the material-bit test, not to the
+     previous-position compare: its three `bne`s fall through to the join;
+   - `nInputFree = -(nTextBoxIndex == FIELD_TEXTBOX_COUNT)` in its own local puts
+     the negate in $v0 with `li v1,-1`; assigning it back to the loop counter
+     lands it in $v1 (the old note's residual 2);
+   - the pActor local must be assigned INSIDE the accept block, after the jal, or
+     gcc saves $s0 to keep it live across the call;
+   - the anim store has to be a volatile s16 store, which keeps `li/sh` ahead of
+     the D_800B2340 load;
+   - the D_800B2360 value has to go through its OWN local (`nSavedMessageState`)
+     with the store written AFTER `D_800B2342 = D_800B2340;` - that is what makes
+     gcc put it in $a0 across the volatile anim store and land `sw a0,D_800ADB28`
+     in retail's place. Reusing a dead local instead (nTextBoxIndex) makes the
+     text-box loop swap its two counters ($v1/$a0);
+   - `s32 nCameraAngle = g_CamInterpolation.targetAngleY;` gives retail's `lh`
+     (in the u16 arithmetic context gcc picks `lhu`).
+   The volatile flags store at both accept sites is load-bearing throughout.
+*/
 /*
 void func_8009F5F4(void) {
     // Retail's frame is 0x60 with nothing but $ra stored in it.
@@ -708,6 +739,7 @@ void func_8009F5F4(void) {
     u16 nAngle;
     s32 nTextBoxIndex;
     s32 nInputFree;
+    s32 nSavedMessageState;
     ActorData* pActor;
 
     nAngle = 0;
@@ -761,9 +793,10 @@ void func_8009F5F4(void) {
                 && !FieldActorTestMaterialScriptMask(g_FieldScriptVMCurActor)) {
                 pActor = g_FieldScriptVMCurActor;
                 *(volatile u32*)&pActor->scriptFlags.flags |= 0x800;
-                D_800ADB28 = D_800B2360;
+                nSavedMessageState = D_800B2360;
                 *(volatile s16*)&pActor->curAnimationId = 0xFF;
                 D_800B2342 = D_800B2340;
+                D_800ADB28 = nSavedMessageState;
             }
             if (D_800B2342 != 0) {
                 D_800B2342--;
