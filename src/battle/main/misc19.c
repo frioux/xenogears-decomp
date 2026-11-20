@@ -166,7 +166,7 @@ typedef struct {
     /* 0x24 */ u16 flags; // the state's active effect bits and the low-hp/evade conditions
     /* 0x26 */ u16 cost; // the action's cost, scaled by the state code it starts from
     /* 0x28 */ u8 stateCode; // the slot state code the action started from
-    /* 0x29 */ u8 unk29; // the slot state's unk98
+    /* 0x29 */ u8 unk29; // the slot state's agility
     /* 0x2A */ u8 unk2A; // the slot state's penaltyPercent
     /* 0x2B */ u8 unk2B;
     /* 0x2C */ u8 unk2C;
@@ -181,7 +181,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // 15-row cost copy loop, the state-code switch (a `switch` reproduces retail's test chain
 // where an if/else-if chain does not), and the tails. Load-bearing shapes found this round:
 // `u8 amount` (a u32 makes gcc coalesce the division result and lose retail's `move s1,v1`),
-// the split `attack = pState->unk3C[0]; attack = attack * pState->unk3C[3];`, a `u16` local
+// the split `attack = pState->engineOutput; attack = attack * pState->unk3F;`, a `u16` local
 // for the activeEffectFlags2 test, and a SECOND pCondition pointer (`new_var2`) for the tail
 // blocks, which is what fixed retail's sp.N regs (94 -> 98.85). Remaining: four register-role
 // swaps (retail `mflo v1` / `mfhi v0`, and the unk54/amount multiply pair in v1/v0) plus the
@@ -224,8 +224,8 @@ void func_8009A2D4(u8 arg0) {
         pWork->cost = pWork->cost * 10;
         break;
     }
-    attack = pState->unk3C[0];
-    attack = attack * pState->unk3C[3];
+    attack = pState->engineOutput;
+    attack = attack * pState->unk3F;
     pWork->attackAmount = attack;
     attack = attack + pState->weaponData[0].attack;
     pWork->attackAmount = attack;
@@ -234,7 +234,7 @@ void func_8009A2D4(u8 arg0) {
         pWork->attackAmount = attack;
     }
     new_var2 = pCondition;
-    pWork->unk29 = pState->unk98;
+    pWork->unk29 = pState->agility;
     pWork->unk2A = pState->penaltyPercent;
     if (pState->maxHp != pState->hp) {
         quotient = (pState->maxHp - pState->hp) / (pState->maxHp / 10);

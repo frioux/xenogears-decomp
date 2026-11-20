@@ -224,23 +224,45 @@ typedef struct {
 // The per-slot action state a slot entry carries at +0xA4 (0xCC bytes): the
 // status words, the scaled stats and the slot's copy of the equipped weapon
 // records. g_BattleCurSlotState and g_BattleTargetSlotState point at the acting and the defending
-// slot's copy of it. Only the fields read by src/battle/main/misc19 and
+// slot's copy of it. Only the fields read by src/battle/main's misc18, misc19 and
 // misc20 are named.
+// The 0xA4 bytes from +0 up hold the gear record's layout: the equipped weapon records, hp/maxHp,
+// the int16 stats, the effect flag words and the equipment bonuses sit at the offsets GameGear
+// (include/main/game.h) declares them at, and misc18's func_80097D5C adds each bonus into the stat
+// it names.
 typedef struct {
     /* 0x00 */ u8 unk00[0x4];
     /* 0x04 */ u8 extraWeaponIds[4]; // the gearWeapons record equipped in each weapon slot, as in GearState
     /* 0x08 */ u8 unk08[0x8];
     /* 0x10 */ GearWeaponData weaponData[3]; // sel == 3 lands in unk28, as in retail
     /* 0x28 */ u8 unk28[0x12];
+    // GameGear keeps fuel and maxFuel at 0x38 and 0x3A; a battle start writes 9900 into both
+    // but the same code also tests unk28[0x10] < unk3A >> 3 as the low-hp condition.
     /* 0x3A */ u16 unk3A;
-    /* 0x3C */ u8 unk3C[0x13];
+    /* 0x3C */ u8 engineOutput; // with unk3F it forms the gear's attack (misc19's func_8009A2D4)
+    /* 0x3D */ u8 pad3D;
+    /* 0x3E */ u8 unk3E; // attackPower plus the accessory bonus, as unk3F
+    /* 0x3F */ u8 unk3F;
+    /* 0x40 */ u16 defenseFromEquipment;
+    /* 0x42 */ u16 etherDefenseFromEquipment;
+    /* 0x44 */ u16 weightFromEquipment;
+    /* 0x46 */ u16 unk46;
+    /* 0x48 */ u8 unk48;
+    /* 0x49 */ u8 pad49;
+    /* 0x4A */ u8 pad4A[0x2];
+    /* 0x4C */ u8 unk4C;
+    /* 0x4D */ u8 unk4D;
+    /* 0x4E */ u8 unk4E;
     /* 0x4F */ u8 unk4F;
     /* 0x50 */ u8 unk50[0x10];
     /* 0x60 */ u32 hp; // scaled current hp
     /* 0x64 */ u32 maxHp; // scaled max hp
-    /* 0x68 */ u8 unk68[0xA];
+    /* 0x68 */ u16 weight; // weightFromEquipment and unk46 are added to it
+    /* 0x6A */ u8 pad6A[0x6];
+    /* 0x70 */ u16 baseDefense; // defenseFromEquipment is added to it
     /* 0x72 */ u16 valueBonus; // added to the action's value, scaled by (100 - penaltyPercent) / 100
-    /* 0x74 */ u8 unk74[0x8];
+    /* 0x74 */ u8 attackPower; // copied into unk3E and unk3F
+    /* 0x75 */ u8 pad75[0x7];
     // The active/accessory effect word grid, at the same offsets as in GameCharacter
     // and GameGear (include/main/game.h). Battle code reads these three pairs where
     // the actor record's activeEffectFlags4 and activeEffectFlags7 are tested.
@@ -254,7 +276,7 @@ typedef struct {
 // The status penalty percent that takes an action's whole value: an entry at or above it
 // zeroes the value, and one below it scales the value by what is left.
 #define BATTLE_STATUS_PENALTY_PERCENT_MAX 20
-    /* 0x98 */ u8 unk98; // BattleResetSlotConditionCounters keeps it within 0x10
+    /* 0x98 */ u8 agility; // copied from the slot entry's agility and clamped the same way: BattleResetSlotConditionCounters keeps it at most 0x10
     /* 0x99 */ u8 penaltyPercent; // the slot's own value and the action's amount are scaled by (100 - it) / 100
     /* 0x9A */ u8 unk9A[0x4];
     /* 0x9E */ u8 amountMultiplier; // quarter units the action's value is multiplied by, 4 = unchanged; BattleScaleValueByMultiplierByte uses 4 in place of a clear byte or an armed activeEffectFlags1 bit 0x100

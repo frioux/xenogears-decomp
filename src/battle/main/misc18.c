@@ -583,8 +583,8 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
 /* 98.55%, 3020 bytes against retail's 3032 (round 232). Four permuter runs from the 95.18%
    park (tools/scripts/permute.sh ... --minutes 10 -j 2), hand-ported, closed 124 differing
    instructions down to 74. Every one of them is a statement position or an own-pointer local:
-   - the (u16 *)...unk68 += ... statement belongs BEFORE the unk9A[2] += one, not after it;
-   - the attack -> unk3C[0] copy in the characterId == 7 arm wants its own pointer local
+   - the g_BattleTargetSlotState->weight += ... statement belongs BEFORE the unk9A[2] += one, not after it;
+   - the attack -> engineOutput copy in the characterId == 7 arm wants its own pointer local
      (pStats = &g_BattleActingSlot->unk57) taken before the three statements above it;
    - the blockFlags = 0 store wants its own pointer local (pSlot = g_BattleActingSlot;) taken
      after the maxHp store: that is what makes it store through the PRE-reload register, i.e.
@@ -685,13 +685,13 @@ void func_80097D5C(void) {
         pSlotBytes[0x158] = 5;
         pSlotBytes[0x159] = 5;
         pFlags[0] = 0;
-        ((u16 *)&g_BattleTargetSlotState->unk68[8])[0] += ((u16 *)&g_BattleTargetSlotState->unk3C[4])[0];
-        g_BattleTargetSlotState->valueBonus += ((u16 *)&g_BattleTargetSlotState->unk3C[6])[0];
-        ((u16 *)g_BattleTargetSlotState->unk68)[effectFlags] += ((u16 *)&g_BattleTargetSlotState->unk3C[8])[0]
-                                                    + ((u16 *)&g_BattleTargetSlotState->unk3C[0xA])[0];
-        g_BattleTargetSlotState->unk9A[2] += g_BattleTargetSlotState->unk3C[0x10];
-        ((u8 *)&g_BattleTargetSlotState->responsiveness)[0] += g_BattleTargetSlotState->unk3C[0x11];
-        g_BattleTargetSlotState->unk98 += g_BattleTargetSlotState->unk3C[0x12] - g_BattleTargetSlotState->unk3C[0xE];
+        g_BattleTargetSlotState->baseDefense += g_BattleTargetSlotState->defenseFromEquipment;
+        g_BattleTargetSlotState->valueBonus += g_BattleTargetSlotState->etherDefenseFromEquipment;
+        g_BattleTargetSlotState->weight += g_BattleTargetSlotState->weightFromEquipment
+                                          + g_BattleTargetSlotState->unk46;
+        g_BattleTargetSlotState->unk9A[2] += g_BattleTargetSlotState->unk4C;
+        g_BattleTargetSlotState->responsiveness += g_BattleTargetSlotState->unk4D;
+        g_BattleTargetSlotState->agility += g_BattleTargetSlotState->unk4E - g_BattleTargetSlotState->unk48;
         g_BattleTargetSlotState->unk9E += g_BattleTargetSlotState->unk50[4];
         if (g_BattleTargetSlotState->unk4F != 0 && g_BattleActingSlot->gearId != 0x12) {
             ((u16 *)((u8 *)g_BattleCurWorkBlock + i * 0x690))[0x140A] =
@@ -709,10 +709,10 @@ void func_80097D5C(void) {
         if (g_GameState.unk16BC[g_BattleActingSlot->characterId].unk8 & 0x70) {
             pFlags[1] = 3;
         }
-        g_BattleTargetSlotState->unk3C[3] = g_BattleTargetSlotState->unk74[0];
-        g_BattleTargetSlotState->unk3C[2] = g_BattleTargetSlotState->unk74[0];
-        g_BattleTargetSlotState->unk3C[3] += g_BattleTargetSlotState->unk50[6];
-        g_BattleTargetSlotState->unk3C[2] += g_BattleTargetSlotState->unk50[6];
+        g_BattleTargetSlotState->unk3F = g_BattleTargetSlotState->attackPower;
+        g_BattleTargetSlotState->unk3E = g_BattleTargetSlotState->attackPower;
+        g_BattleTargetSlotState->unk3F += g_BattleTargetSlotState->unk50[6];
+        g_BattleTargetSlotState->unk3E += g_BattleTargetSlotState->unk50[6];
         if (g_BattleActingSlot->accessoryEffectFlags4 & BATTLE_GEAR_EFFECT_FLAG) {
             for (j = 0; j < 0x26; j++) {
                 ((u8 *)g_BattleCurWorkBlock)[i * 0x5F0 + j * 0x28 + 0x106B] <<= 1;
@@ -738,10 +738,10 @@ void func_80097D5C(void) {
             g_BattleTargetSlotState->hp = g_BattleActingSlot->hp * BATTLE_ACTOR_HP_SCALE;
             g_BattleTargetSlotState->maxHp = g_BattleActingSlot->maxHp * BATTLE_ACTOR_HP_SCALE;
             pStats = &g_BattleActingSlot->unk57;
-            g_BattleTargetSlotState->unk3C[0] = pStats[1];
-            ((u16 *)&g_BattleTargetSlotState->unk68[8])[0] = g_BattleActingSlot->defense * 12;
+            g_BattleTargetSlotState->engineOutput = pStats[1];
+            g_BattleTargetSlotState->baseDefense = g_BattleActingSlot->defense * 12;
             g_BattleTargetSlotState->valueBonus = g_BattleActingSlot->etherDefense * 6;
-            g_BattleTargetSlotState->unk98 = g_BattleActingSlot->agility;
+            g_BattleTargetSlotState->agility = g_BattleActingSlot->agility;
             effectFlags = g_BattleTargetSlotState->accessoryEffectFlags1 | 0x3C4;
             g_BattleTargetSlotState->accessoryEffectFlags1 = effectFlags;
             if (g_BattleActingSlot->accessoryEffectFlags2 & BATTLE_GEAR_EFFECT_FLAG) {
@@ -796,12 +796,12 @@ void BattleResetSlotConditionCounters(void) {
             for (j = 0; j < 4; j++) {
                 v = g_BattleSlotUnk98Deltas[j];
                 if (v != 0) {
-                    g_BattleTargetSlotState->unk98 -= v;
-                    g_BattleTargetSlotState->unk98 += g_BattleTargetSlotState->unk50[j];
+                    g_BattleTargetSlotState->agility -= v;
+                    g_BattleTargetSlotState->agility += g_BattleTargetSlotState->unk50[j];
                 }
             }
-            if (g_BattleTargetSlotState->unk98 >= 0x11) {
-                g_BattleTargetSlotState->unk98 = 0x10;
+            if (g_BattleTargetSlotState->agility >= 0x11) {
+                g_BattleTargetSlotState->agility = 0x10;
             }
         }
     }
