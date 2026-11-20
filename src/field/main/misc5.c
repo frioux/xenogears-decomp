@@ -604,6 +604,12 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
    u1/u3 temp assigned at its first use, a 0x10 + nU operand swap, u_char on
    the mask (94.91), and a 4-minute permuter run (base=55 best=55, 1314
    iterations, nothing).
+   Round 315 re-measured 99.56 / 500 (unchanged) and added: declaration order of
+   nU/nU1, an embedded assignment at the store (pPoly->u0 = nU = nX & 0x3F;), a
+   second +0x10 local feeding only u3, and computing nU1 straight from the inline
+   mask all measure 99.56; a second 4-minute permuter run (-j 2, 1971 iterations)
+   reported base=55 best=55, i.e. nothing.  gcc-2.6.0 is also 99.56 here, so it is
+   not a preset question.
    Settled facts: 14 x 20 grid of 16x16 tiles, i outer / j inner,
    nIndex = i*20 + j, polygons is 560 POLY_GT4 (two copies of 280, the second
    at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
@@ -1573,6 +1579,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitiv
    D_800AF27C is the shape table, one ParticleShape (0x18) per index, declared as
    one extern u_short[] per field so each load relocates as %hi/%lo of
    D_800AF27C + 2*k like the original; nIndex is in u_short units (shape*0xC).
+   Round 315 re-measured 97.42 / 512: unchanged, still 2 insns short, nothing new.
     // The shape table D_800AF27C holds one ParticleShape (0x18) per index; one extern
     // u_short[] per field so each load relocates as %hi/%lo of D_800AF27C + 2*k, and
     // nIndex is the index in u_short units (shape * 0xC).
