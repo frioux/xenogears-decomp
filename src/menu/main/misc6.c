@@ -428,34 +428,29 @@ void MenuFreeShoulderButtonUi(void) {
     }
 }
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
-/* PARKED 92.91% (668 bytes against retail's 664 - FOUR bytes over, one extra insn).
-   Structure is now retail's; what is left is which saved register each pseudo gets.
-   THE BIG FIND (88.60 -> the frame and the shared tail): the tail is NOT shared source,
-   it is TWO COPIES, one per arm, that gcc cross-jumps into the single jal pair retail
-   shows (non-glyph arm ends in 'j' with the andi in its delay slot, glyph arm falls
-   through). Writing the tail once after the if/else gives the same instruction stream
-   but SIX callee-saved registers (0x40 frame) and 79.85%; duplicating it gives retail's
-   exact 0x38 frame and 5 saved regs, because each arm allocates separately and only the
-   identical suffix is merged.
-   Remaining ledger, all pure allocation (objdiff 92.91, 668 vs 664):
-   retail  isGlyph/originY s0, pString s1, index s2, width s3, row s4, and it REMATERIALISES
-           both the 0xD height (ori v0,zero,0xd twice) and row*4 (andi/sll into v0 twice)
-           and masks originY at each call (andi a1,s0,0xffff twice);
-   ours    pString s3, row s1, index s2 (then reused: li s2,0xd), width s4, and it keeps
-           row*4 and 0xD in saved registers across the first jal.
-   The permuter (three runs from this body, best 1462 penalty) found only the two
-   declaration-order/load-split edits already applied: new_var = D_801EA584[index] before
-   originY (90.75 -> 92.91, exact size) and u = X[index] << 2 listed before originY.
-   Also tried and measured, no gain: xOrigin local for the first call's D_801EA18C read
-   (identical 92.91), a volatile read of D_801EA18C in the second call (92.04, 672).
+/* PARKED 92.91% (668 bytes against retail's 664 - one extra instruction).
+   Structure is retail's; the residue is two allocator facts:
+   1. retail keeps originY UNMASKED in s0 and masks it at each call (andi a1,s0,0xffff
+      twice), while gcc here folds the two u_short argument conversions into one
+      'andi s0,s0,0xffff' in place (originY dies at the first mask) and then 'move
+      a1,s0' twice: one instruction more.
+   2. retail's callee-saved assignment is pString=s1, width=s3 while ours is
+      pString=s3, row=s1, so every poly address reads 'addu a0,s3,...' for retail's
+      'addu a0,s1,...'.
+   Also, retail rematerialises the 0xD height with two 'li v0,0xd' (ours keeps it in
+   the freed index register) and row*4 twice; ours does not.
+   Measured this round, all worse or equal: passing 'D_801EA17C[row] - 0x24' inline
+   at both call sites instead of the originY local (75.89, 744 bytes - gcc then
+   re-forms the whole address per call), a u_short xOrigin local (identical 92.91),
+   and four locals u/v/xOrigin spelled as one expression in the first call.
+   The tail is TWO COPIES, one per arm, that gcc cross-jumps into the single jal pair
+   retail shows (sharing it in source costs the frame: 0x40 and 79.85%).
    Best attempt:
    void func_801D36E0(MenuString* pString, u_char index, u_char isGlyph, u_char row) {
        s32 originY;
-       s32 new_var;
        s32 u;
        s32 width;
        s32 v;
-       u_short xOrigin;
 
        MenuInitializePolyFt4(&pString->polys[g_Menu->renderContext]);
        pString->polys[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
@@ -467,24 +462,23 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D36E0);
            u = g_MenuNameTextureX[index] << 2;
            originY = D_801EA17C[row] - 0x24;
            v = g_MenuNameTextureY[index * 4];
-           xOrigin = D_801EA18C[row].x;
-           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, xOrigin, u & 0xFC, v, width, 0xD);
+           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, D_801EA18C[row].x, u & 0xFC, v, width, 0xD);
            MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
        } else {
            width = 0x60;
            pString->polys[g_Menu->renderContext].clut =
                ((g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].gearId + 0xB) & 1) ? g_SystemPalette2 : g_SystemPalette1;
-           new_var = D_801EA584[index];
+           u = D_801EA584[index];
            originY = D_801EA17C[row] - 0x30;
-           u = new_var << 2;
+           u <<= 2;
            v = g_MenuGlyphSjisTable[index * 4];
-           xOrigin = D_801EA18C[row].x;
-           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, xOrigin, u & 0xFC, v, width, 0xD);
+           MenuSetFt4QuadVertices(&pString->polys[g_Menu->renderContext], originY, D_801EA18C[row].x, u & 0xFC, v, width, 0xD);
            MenuSetQuadVertices(pString->vertices, originY, D_801EA18C[row].x, width, 0xD);
        }
        pString->renderContext = *(u_char*)&g_Menu->renderContext;
    }
 */
+
 void MenuCreateWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, u_char a6, s32 a7, u_char a8) {
     MenuWindowParameters* pParams;
 
