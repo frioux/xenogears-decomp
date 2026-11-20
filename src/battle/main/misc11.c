@@ -850,66 +850,50 @@ void BattleAppendCommandRecord(u8 arg0) {
     BattleClearSlotFlagsIfChar4(arg0, 0);
 }
 
-/* 96.22%, 1356 bytes (retail's exact size). The shape is right: both dispatch
-   trees, the four-arm target switch that gcc cross-jumps into one shared tail, and
-   the 4/7/6 fall-through arms whose three `unk2DF++` are three separate
-   read-modify-writes on the field. Four levers, all load-bearing:
-   (a) THE CASE ORDER IS THE TREE. Switch 1 lists 5, 4, 7, 6 (case 4 = commandFlags[2],
-       case 7 = [1], case 6 = [0]: retail's `lhu 0x20/0x1E/0x1C`), and the third switch
-       lists 5 (empty body), 4, 7, 6: that empty `case 5: break;` is what makes cc1 emit
-       retail's `li v0,5 / beq / slti 6` four-node tree instead of a chain.
-   (b) THE EMBEDDED ASSIGNMENT IS THE REGISTER FILE. `menuState = (g_BattleSoundEnabled
-       = 1);` (91.92 -> 94.76) is what puts the wide arg0 in $s1 and the masked slot in
-       $s0 with two saves; as two statements gcc keeps that constant live across the
-       BattleClearFlagC6 call and needs a third callee-saved register.
-   (c) THE MASKED SLOT IS TWO LOCALS, not one: `slot` (entry, the switch arms, the
-       slot[] index) and `who` (reassigned just before func_800861D0, then reused for
-       func_80087AF0 and the timer index). Retail remasks from $s1 at exactly those
-       sites and only for that first run of uses.
-   (d) THE GAUGE SCALE IS /56, not /100: retail's magic is 0x92492493 with `addu` +
-       `sra 5`, i.e. (value * 100) / 56, and the table's full-scale row byte is 0x38.
-   CLOSED THIS ROUND (round 340):
-   - the case-5 store order: `g_BattleSoundEnabled = 1;` then the two
-     g_BattleDisplayState stores then `menuState = 1;` as FOUR separate statements.
-     The old embedded `menuState = (g_BattleSoundEnabled = 1)` stored menuState
-     second; retail stores it last, in the BattleClearFlagC6 jal delay slot.
-   - the D_800C31D4 read: declare the table `extern u8 D_800C31D4[][8];` and write
-     `D_800C31D4[gaugeMax][gaugeValue]`. The flat `[max * 8 + value]` subscript (and
-     a mem_addr base, and a u8 *pCost local) all fold into maspsx's
-     `lui at / addu at,at,idx / lbu %lo(at)`; the 2D form materialises the base into
-     $a0 with lui/addiu and yields retail's `addu,sll,addu,addu,lbu 0(v0)` - 94.76 ->
-     95.60. That also puts the queue in $a1 and the /56 magic in $a2.
-   - TWO duplicate-arm blocks found by the permuter, both load-bearing and both
-     taking the size from 1328 to retail's 1356: (1) case 6's `break;` wrapped in
-     `if (arg0) { break; } else { break; }`, and (2) the case-4 `unk2E4++` wrapped in
-     `if (g_BattleCommandQueue) { ... } else { ... }`. NOTE the second one is a
-     questionable win: gcc folds the ELSE arm's re-read of the global to null, so the
-     object contains `lbu v0,740(zero)` / `sb v0,740(zero)` in the dead arm. The
-     honest source is 94.92 / 1332 bytes, so a later round should look for an
-     honest way to stop that increment cross-jumping into case 7's.
-   REMAINING, all measured dead by hand in round 339:
-   (i)   the D_800C31D4 read is `lbu 0(a0)` off a `lui/addiu` base in retail, while we
-         emit maspsx's `lui at / addu at,at,idx / lbu %lo(at)`; that also decides the
-         tail's registers (retail keeps the queue in $a1 from the gauge gather and the
-         0x2E3 store re-reads it). Tried: u8 subscript, `(u32)D_800C31D4 + idx`, a
-         `pCost` pointer local and a `cost` local - all 94.76 at 1328 bytes.
-         CLOSED in round 340, see above (the 2D subscript).
-   (ii)  retail's case-5 stores are `sb v1,g_BattleSoundEnabled` then `sb zero,0x7B(v0)`
-         (and the 0xAF store gets a load-delay nop), ours the reverse; the display-state
-         load sits above the `li v1,1` in retail. Six statement orders measured.
-         CLOSED in round 340, see above (four separate statements).
-   (iii) `li a0,4` belongs in the third switch's case-4 `beq` delay slot; ours keeps it
-         at the head of the arm. Round 340: a `s32 commandKey = 4;` assigned before the
-         third switch and used in the call costs 4 bytes (94.92, 1332).
-   Round 340's rest, all measured: (a) the func_800877E0 call wants
-   `andi a0,s1,0xff` at the call site, we get `move a0,s1` (plain) or an extra
-   `andi s0,s1,0xff` plus a move (with a u8 param or a (u8) cast) - cse ties the
-   conversion to `slot`, which is dead by then; (b) the `g_BattleDisplayState[0xAF] = 1`
-   store takes the base in $v1 and the 1 in $v0, retail the reverse; (c) the gauge
-   quotient wants $v1 with `li v0,1` BEFORE the timers `sh`, we get $v0/$a3 with the
-   `li` after (a `do { ... } while (0)` round the two stores is 94.10 / 1332); (d) the
-   `nop` in the third switch's case-5 beq delay slot where we fill it with `slti`.
-   Two permuter runs from 95.60 (1481 -> 1221 -> 986) found only the duplicate arms. */
+/* 98.23%, 1356 bytes (retail's exact size); the 16 remaining instructions are all
+   register names or delay-slot fills, so no size difference (see REMAINING).
+   Levers that are load-bearing:
+   (a) THE CASE ORDER IS THE TREE. Switch 1 lists 5, 4, 7, 6 (case 4 =
+       commandFlags[2], case 7 = [1], case 6 = [0]: retail's lhu 0x20/0x1E/0x1C), and
+       the third switch lists 5 (empty body), 4, 7, 6: that empty "case 5: break;" is
+       what makes cc1 emit retail's li v0,5 / beq / slti 6 four-node tree, not a chain.
+   (b) THE MASKED SLOT IS TWO LOCALS, not one: `slot` (entry, the switch arms, the
+       slot[] index) and `who` (masked again just before func_800861D0, then passed to
+       func_80087AF0 and used as the timer index). Passing arg0 to func_80087AF0
+       instead of `who` re-masks from $s1 where retail moves $s0.
+   (c) THE GAUGE SCALE IS /56, not /100: retail's magic is 0x92492493 with addu + sra 5,
+       i.e. (value * 100) / 56; the table's full-scale row byte is 0x38.
+   (d) case 5's stores are FOUR separate statements with menuState stored LAST (it
+       lands in the BattleClearFlagC6 jal delay slot).
+   (e) D_800C31D4 is declared [][8] and read with the 2D subscript; the flat
+       [max * 8 + value] form, a mem_addr base and a u8 *pCost local all fold into
+       maspsx's lui at / addu at,at,idx / lbu %lo(at), and the 2D form also decides
+       the tail's registers (queue in $a1, /56 magic in $a2).
+   CLOSED THIS ROUND (341): case 4's arm ends with its OWN unk2DF++, so the source has
+   three separate read-modify-writes of 0x2DF (case 4, case 7, case 6) - that is
+   retail's third copy at 0x80081E60, and adding it took the honest body 1328 -> 1356,
+   retail's exact size. With it round 340's two permuter duplicate-arm blocks (case 6's
+   "if (arg0) break; else break;" and the case-4 increment wrapped in
+   "if (g_BattleCommandQueue) ... else ...") are BOTH unnecessary and measure
+   identically without them. The old 96.22% note was partly a dead arm: gcc folded its
+   re-read of the global to a null base (lbu v0,740(zero) / sb v0,740(zero)).
+   REMAINING, all measured dead by hand in round 341:
+   (i)   the func_800877E0 call wants andi a0,s1,0xff; we emit move a0,s1. A (u8) cast
+         or a u8 parameter gives an extra andi s0,s1,0xff plus a move (cse ties the
+         conversion to `slot`) and perturbs the BattleCheckCommandKeyStatusBit
+         argument too: 97.26.
+   (ii)  the g_BattleDisplayState[0xAF] = 1 store takes the base in $v1 and the 1 in
+         $v0 where retail has them the other way round.
+   (iii) the gauge quotient lands in $v0 with mfhi $a3 where retail has $v1, because
+         retail materialises li v0,1 (the unk2E3 store's constant) BEFORE the timers
+         sh; moving unk2E3 above the timers store, or a local for the quotient,
+         measures 1368 / 97.04.
+   (iv)  the third switch's case-5 beq has a nop in its delay slot in retail where we
+         put slti, and retail's li a0,4 sits in the case-4 beq's slot where we keep it
+         at the head of the arm.
+   The preset is right: a 4-minute permuter run on this body found nothing
+   (base 444 = best 444), cdk is 95.31, -G0 is the same 98.23, and 2.6.0 does not
+   compile the unit. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 /*
 void func_80081B58(u32 arg0) {
@@ -956,13 +940,6 @@ void func_80081B58(u32 arg0) {
             g_BattleMenuEvent = 5;
             BattlePlaySoundWithBaseId(0x4F);
         }
-        // Load-bearing block shape: the if/else keeps gcc from filling the
-        // branch's delay slot, which is what retail's layout needs.
-        if (arg0) {
-            break;
-        } else {
-            break;
-        }
     }
     if (((BattleActorSlots *)g_BattleCommandQueue)->commandAppended == 0) {
         switch (g_BattleMenuEvent) {
@@ -1005,15 +982,10 @@ void func_80081B58(u32 arg0) {
         if ((u8)BattleCheckCommandKeyStatusBit(4, arg0) != 0) {
             remain = ((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue - 3;
             if (remain >= 0) {
-                // The duplicated arm is the block shape: it stops gcc cross-jumping
-                // the increment into case 7's, which is what retail's layout needs.
-                if (g_BattleCommandQueue) {
-                    ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4++;
-                } else {
-                    ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4++;
-                }
+                ((BattleActorSlots *)g_BattleCommandQueue)->unk2E4++;
             }
         }
+        ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF++;
     case 7:
         ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF++;
     case 6:
@@ -1037,7 +1009,7 @@ void func_80081B58(u32 arg0) {
             who = arg0;
             func_800861D0(g_BattleMenuEvent, who);
             ((BattleActorSlots *)g_BattleCommandQueue)->unk2E5 =
-                func_80087AF0(arg0, ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF);
+                func_80087AF0(who, ((BattleActorSlots *)g_BattleCommandQueue)->unk2DF);
             g_BattleSlotCountdownTimers[who] =
                 (D_800C31D4[((BattleActorSlots *)g_BattleCommandQueue)->gaugeMax]
                             [((BattleActorSlots *)g_BattleCommandQueue)->gaugeValue] * 100) / 56;
