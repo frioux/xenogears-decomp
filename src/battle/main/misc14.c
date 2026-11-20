@@ -1,6 +1,7 @@
 #include "common.h"
 #include "psyq/libgpu.h"
 #include "libgear/main.h"
+#include "battle/actor.h"
 
 // Partial view of the per-frame battle work block (g_BattleDisplayState). The shared
 // include/battle/battle_work.h owns the type other units read; this view names
@@ -123,6 +124,31 @@ extern int ControllerPopState(void);
 extern void GraphicsDrawPauseLetters(int x, int y);
 extern void SoundMuteAllSpuChannels(void);
 extern void SoundEnableAllSpuChannels(void);
+// The two bytes of the menu's event history: `last` is the event the menu had last
+// frame (the shared header's g_BattleLastMenuEvent), `previous` the event before it.
+typedef struct {
+    /* 0x0 */ u8 previous;
+    /* 0x1 */ u8 last;
+} BattleMenuEventHistory; // Size: 0x2
+
+// Partial view of the command queue header (BattleCommandQueue in src/battle/main/misc4.c):
+// only the byte that says a queued command has run is named here.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x2DB];
+    /* 0x2DB */ u8 commandFinished;
+} BattleCommandQueueTail; // Size: 0x2DC
+
+extern BattleCommandQueueTail* g_BattleCommandQueue;
+extern BattleTableEntry g_BattleWorkBlock[];
+extern u8 g_BattleSlotDisplayValue;
+extern BattleMenuEventHistory D_800C3E28;
+extern u8 D_8005959C;
+extern u8 D_800C3AA0;
+extern u8 D_800D32A8;
+extern u8 D_800D32B0;
+extern void BattlePlaySoundIfEnabled(u8 arg0);
+extern void FontSetExternalBuffer(void* pFont);
+extern void* FontLoadFont(s32 startX, s32 startY, s32 width, s32 height, s32 maxLetters, u32 flags, s32 texpageX, s32 texpageY, s32 clutX, s32 clutY, void* pCompressedFontFile);
 extern u8 D_800C3CF8[];
 extern u8 D_800C3CFB[];
 extern u8 D_800CCC58;
@@ -482,7 +508,163 @@ s32 BattleMaskHasSlotBit(s32 mask, u8 idx) {
     }
     return flags;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc14", func_80089CCC);
+void func_80089CCC(s32 arg0) {
+    s32 channelMask;
+    BattleMenuEventHistory* pEvent;
+    u8* pMenuExit;
+    u8* pSlotState;
+    u8 event;
+    u8 waiting;
+    u8 muted;
+    u8 prevEvent;
+
+    event = 8;
+    waiting = 1;
+    muted = 0;
+    do {
+        if (ControllerGetType(0) == 0) {
+            if (muted == 0) {
+                GraphicsDrawPauseLetters(0x88, 0x64);
+                GraphicsDrawPauseLetters(0x88, 0x144);
+                SoundMuteAllSpuChannels();
+                muted++;
+                channelMask = g_SpuChannelMask;
+            }
+        } else {
+            if (muted != 0) {
+                SoundEnableAllSpuChannels();
+                g_SpuChannelMask = channelMask;
+            }
+            waiting = 0;
+        }
+    } while (waiting != 0);
+
+    pEvent = &D_800C3E28;
+    pMenuExit = &D_800C48EA;
+    pSlotState = &g_BattleWorkBlock[0].state.unkA4;
+    do {
+        if (ControllerIsStateStackFull() != 0) {
+            ControllerResetState();
+        } else {
+            while (ControllerPopState() != 0) {
+                if (*pMenuExit != 0 || g_BattleCommandQueue->commandFinished != 0) {
+                    event = 0xFF;
+                    break;
+                }
+                if (D_800C3444 != 0) {
+                    if (*g_DebuggerState != -1) {
+                        if ((g_C1ButtonStatePressedOnce & 4) != 0) {
+                            if ((g_C1ButtonStatePressedOnce & 8) != 0) {
+                                *pMenuExit = 1;
+                                SoundEnableAllSpuChannels();
+                                g_SpuChannelMask = channelMask;
+                                D_800C3444 = 0;
+                                break;
+                            }
+                        }
+                    }
+                } else if ((g_C1ButtonStatePressedOnce & 0x2000) != 0) {
+                    BattlePlaySoundIfEnabled(0x4C);
+                    prevEvent = pEvent->last;
+                    event = 0;
+                    pEvent->last = event;
+                    pEvent->previous = prevEvent;
+                    break;
+                } else if ((g_C1ButtonStatePressedOnce & 0x4000) != 0) {
+                    BattlePlaySoundIfEnabled(0x4C);
+                    prevEvent = pEvent->last;
+                    event = 1;
+                    pEvent->last = event;
+                    pEvent->previous = prevEvent;
+                    break;
+                } else if ((g_C1ButtonStatePressedOnce & 0x8000) != 0) {
+                    BattlePlaySoundIfEnabled(0x4C);
+                    prevEvent = pEvent->last;
+                    event = 2;
+                    pEvent->last = event;
+                    pEvent->previous = prevEvent;
+                    break;
+                } else if ((g_C1ButtonStatePressedOnce & 0x1000) != 0) {
+                    BattlePlaySoundIfEnabled(0x4C);
+                    prevEvent = pEvent->last;
+                    event = 3;
+                    pEvent->last = event;
+                    pEvent->previous = prevEvent;
+                    break;
+                } else if ((g_C1ButtonStateReleased & 0x20) != 0) {
+                    event = 4;
+                    BattlePlaySoundIfEnabled(0x4D);
+                    break;
+                } else if ((g_C1ButtonStateReleased & 0x40) != 0) {
+                    event = 5;
+                    BattlePlaySoundIfEnabled(0x4E);
+                    break;
+                } else if ((g_C1ButtonStateReleased & 0x80) != 0) {
+                    event = 6;
+                    BattlePlaySoundIfEnabled(0x4D);
+                    break;
+                } else if ((g_C1ButtonStateReleased & 0x10) != 0) {
+                    event = 7;
+                    BattlePlaySoundIfEnabled(0x4D);
+                    break;
+                } else if ((g_C1ButtonStateReleased & 1) != 0) {
+                    if (*g_DebuggerState != -1) {
+                        event = 0xC;
+                        g_BattleSlotDisplayValue = 0x1C;
+                        D_800D32A8 = 0x1C;
+                        D_800D32B0 = 0x1C;
+                        /* the three per-slot records run 0x170 apart, the stride of
+                           g_BattleWorkBlock's slots (BattleSetSlotFields148And162 in
+                           src/battle/main/misc19.c writes these same two bytes) */
+                        pSlotState[0] = 4;
+                        pSlotState[0x170] = 4;
+                        pSlotState[0x2E0] = 4;
+                        pSlotState[0x1A] = 0xFF;
+                        pSlotState[0x18A] = 0xFF;
+                        pSlotState[0x2FA] = 0xFF;
+                    }
+                    break;
+                } else if ((g_C1ButtonStateReleased & 2) != 0) {
+                    if (*g_DebuggerState != -1) {
+                        if (++D_8005959C >= 5) {
+                            D_8005959C = 0;
+                        }
+                        event = 0xB;
+                        if (D_800C3AA0 == 0) {
+                            FontSetExternalBuffer((void*)0x80200000);
+                            FontLoadFont(0x10, 0x10, 0x140, 0x100, 0x3E8, 0, 0x340, 0, 0x340, 0x20, 0);
+                            D_800C3AA0 += 1;
+                        }
+                    }
+                    break;
+                } else if ((g_C1ButtonStateReleased & 0x100) != 0) {
+                    event = 0xD;
+                    break;
+                }
+                if ((g_C1ButtonStateReleased & 0x800) == 0) {
+                    continue;
+                }
+                event = 0xE;
+                if (D_800CCC58 != 0) {
+                    if (D_800C3444 == 0) {
+                        GraphicsDrawPauseLetters(0x88, 0x64);
+                        GraphicsDrawPauseLetters(0x88, 0x144);
+                        SoundMuteAllSpuChannels();
+                        channelMask = g_SpuChannelMask;
+                        D_800C3444 = 1;
+                    } else {
+                        SoundEnableAllSpuChannels();
+                        g_SpuChannelMask = channelMask;
+                        D_800C3444 = 0;
+                    }
+                }
+                break;
+            }
+        }
+    } while (D_800C3444 != 0);
+    g_BattleMenuEvent = event;
+}
+
 void BattleUploadImageFrame(void) {
     /* declared out of call order: gcc's register tie for the LoadImage arguments depends on it */
     s32 vramOffset3;
