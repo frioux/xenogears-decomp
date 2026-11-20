@@ -308,25 +308,17 @@ void MenuFreeWindow(u_char index) {
     HeapFree(g_Menu->windows[index]);
     HeapFree(g_Menu->windowParameters[index]);
 }
-// MenuCharacterWindow.polysName, reached through a 0x50-byte stand-in for the
-// polysPortrait pair before it (the scale function writes both pairs by offset).
-typedef struct {
-    /* 0x00 */ u8 unk0[0x50];
-    /* 0x50 */ POLY_FT4 portraitPrims[2]; // one per render context
-} MenuCharacterPortraitPrims; // Size: 0xA0
-
 void MenuSetCharacterPortraitPrims(u_char index, u_char characterId, s32 x, s32 y) {
-    MenuCharacterPortraitPrims* pWindow =
-        (MenuCharacterPortraitPrims*)g_Menu->characterWindows[index];
+    MenuCharacterWindow* pWindow = g_Menu->characterWindows[index];
     u8* pBase;
     s32 texX;
 
     func_8002675C(g_Menu->resources, index + MENU_TEX_PORTRAIT_PARTY_MEMBER_1,
-                  (POLY_FT4*)pWindow, g_Menu->renderContext, x, y, 0x1000);
-    MenuInitializePolyFt4(&pWindow->portraitPrims[g_Menu->renderContext]);
-    pWindow->portraitPrims[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
+                  pWindow->polysPortrait, g_Menu->renderContext, x, y, 0x1000);
+    MenuInitializePolyFt4(&pWindow->polysName[g_Menu->renderContext]);
+    pWindow->polysName[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
     // The clut store stays byte arithmetic: a POLY_FT4 member access charges the
-    // +0x50 of portraitPrims to the address and drops retail's 0x5E displacement.
+    // +0x50 of polysName to the address and drops retail's 0x5E displacement.
     pBase = (u8*)pWindow + g_Menu->renderContext * sizeof(POLY_FT4);
     if (g_Menu->pManager->currentCharacterIDs[index] & 1) {
         *(u16*)(pBase + 0x5E) = g_SystemPalette2;
@@ -334,7 +326,7 @@ void MenuSetCharacterPortraitPrims(u_char index, u_char characterId, s32 x, s32 
         *(u16*)(pBase + 0x5E) = g_SystemPalette1;
     }
     texX = g_MenuNameTextureX[index];
-    MenuSetFt4QuadVertices(&pWindow->portraitPrims[g_Menu->renderContext], g_MenuCharacterPortraitX + x,
+    MenuSetFt4QuadVertices(&pWindow->polysName[g_Menu->renderContext], g_MenuCharacterPortraitX + x,
                            g_MenuCharacterPortraitY + y, ((texX << 1) << 1) & 0xFC, g_MenuNameTextureY[index * 4],
                            0x48, 0xD);
 }
