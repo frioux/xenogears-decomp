@@ -1190,7 +1190,28 @@ void FieldMatrixCopyTransform(MATRIX* dest, MATRIX* source) {
 //    (95.18), `goto` loop (95.56), `for (;;)` + if/else + break (94.82, 1436 bytes). The
 //    BEST is the strength-reduced index `&D_800B0FEC[i - 0x15]`, which is the only spelling
 //    that also reproduces retail's preheader order (`ori s0,0x15`; `ori s2,0x80D4`;
-//    `lui/addiu s1`) - 97.44 with the two spellings below.
+//    `lui/addiu s1`) - 97.44.
+//    Round 341 sharpened that and measured four more shapes. The delta is EXACTLY ONE insn,
+//    and it is the preheader initialiser of the second biv (`addu a1,s1,zero` before the
+//    loop, paid for by the latch copy `addu a1,s1,zero` in the branch delay slot). Retail
+//    has ONE `a1 = s1` at the head of the body and no initialiser. The copy itself cannot
+//    go away: the pointer biv is bumped before the `jal`, so the argument needs its own
+//    register. The three shapes settle the body order, which is the tell: retail is [copy,
+//    `addiu a2,sp,0x10`, s1 bump, s0 bump], the index spelling is [a2, s1 bump, s0 bump]
+//    plus the latch copy, and every pointer spelling is [s1 bump, a2, s0 bump] plus the
+//    latch copy (96.28). Measured this round and no better: `pCurrentQuad = &D_800B0FEC[i -
+//    0x15];` passed as the argument (byte-identical to the index form - cse merges it),
+//    read-and-bump `&D_800B0FEC[i++ - 0x15]` with an empty for-increment (97.34; it moves
+//    both bumps to the very top of the body, ahead of the a2), the round-318
+//    guard-plus-bottom-test (`i = 0x15; if (i < 0x19) { do { ...; i++; } while (i < 0x19);`
+//    - byte-identical to the for form), and `pQuad++` in the argument plus
+//    `pCurrentQuad = pQuad; pQuad++;` in source order (96.28). So unlike round 338 the loop
+//    CONSTRUCT is not a lever here: for, while, do-while and guard+bottom-test all
+//    normalise to one shape. Not a preset question either - try_flags measured 2.6.0 at
+//    97.44 (identical) and 2.7.2-cdk at 78.20. permute.sh cannot run on this function at
+//    all: its parser rejects the file (`conversion to non-scalar type requested`, base.c
+//    fails to compile), so the register-order search is unavailable - which is why this is
+//    parked with the number instead of permuted.
 // 2. The tail's three ot3[0] accesses: retail keeps the context in $a2 and the prim word in
 //    $a1, with the 0xFFFFFF mask in $a3 (its `lui` filling the three guard delay slots) and
 //    the D_800B1E00 base materialised BEFORE the index shifts. This build puts the context
