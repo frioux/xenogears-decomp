@@ -19,7 +19,7 @@ extern u16 D_8005A3A0[0x10];
 extern u16 D_8006F958[0x10];
 extern int g_SpuChannelMask;
 extern int func_801E4D10(u32*, void*);
-extern int func_801D2F4C(u_char);
+extern int MenuCreateWindow2Strings(u_char);
 extern u_char func_801CAA38(u_char);
 extern int MenuFreeWindow2Strings(void);
 extern void func_801CB184(void);
@@ -762,12 +762,12 @@ u_char func_801CAA38(u_char a0) {
 u_char MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2) {
     u_char result;
 
-    func_801D2F4C(a0);
+    MenuCreateWindow2Strings(a0);
     g_Menu->pCursors->shouldRender[3] = 1;
     result = func_801CAA38(a2);
     MenuFreeWindow2Strings();
     if (a1 != MENU_WINDOW_TEXT_NONE && result != 0) {
-        func_801D2F4C(a1);
+        MenuCreateWindow2Strings(a1);
         g_Menu->pCursors->shouldRender[3] = 1;
         result = func_801CAA38(a2);
         MenuFreeWindow2Strings();
@@ -1026,7 +1026,7 @@ u_char func_801CB304(void) {
                 g_Menu->menuUnk2->previousSelectedSlot = MENU_SLOT_NONE;
                 goto updateCursor;
             }
-            func_801D2F4C(0x3B);
+            MenuCreateWindow2Strings(0x3B);
             retry = 5;
             g_Menu->soundEffectsEnabled = 0;
             fd = -1;
@@ -1130,7 +1130,7 @@ u_char MenuWaitForCardStatusChange(u_char a0) {
 
     prev[0] = g_Menu->menuUnk2->cardStatus[0];
     prev[1] = g_Menu->menuUnk2->cardStatus[1];
-    func_801D2F4C(a0 * 3 + 0x29);
+    MenuCreateWindow2Strings(a0 * 3 + 0x29);
     g_Menu->input = MENU_INPUT_IDLE;
     g_Menu->menuUnk2->cardPollMode = 2;
     result = 0;

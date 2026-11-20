@@ -62,7 +62,7 @@ void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
 void func_801DB0A8(s32 arg0, s32 arg1, u_char arg2, u_char arg3);
 void MenuFreeArrowCursor(u_char index);
 void MenuStartOpenAnimation(void);
-void func_801D29A8(s32 arg0, s32 arg1);
+void MenuTweenCharacterWindows(s32 arg0, s32 arg1);
 void MenuSwapInventoryItems(s32 index0, s32 index1);
 u_char func_801DB920(s32 arg0, s32 arg1);
 void MenuRenderFrame(void);
@@ -378,7 +378,7 @@ s32 func_801DBE54(void) {
             MenuCreateWindow(4, 8, 0x8F, 0x130, 0x22, 0, 1, 4, 0);
             MenuStartOpenAnimation();
             needsOpen = 0;
-            func_801D29A8(0, 0);
+            MenuTweenCharacterWindows(0, 0);
         }
         func_801DB0A8(selectedSlot, row, 1, 1);
         switch (g_Menu->input) {
@@ -794,7 +794,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
             needsOpen = 0;
             if (arg1) {
                 MenuStartOpenAnimation();
-                func_801D29A8(0, 0);
+                MenuTweenCharacterWindows(0, 0);
                 MenuRenderFrame();
             }
             g_Menu->pManager->playTimeDigitsActive = 0;
@@ -1500,7 +1500,7 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
             MenuCreateWindow(5, 8, 0x8E, 0x60, 0x40, 0, 1, 4, 0);
             if (arg1) {
                 MenuStartOpenAnimation();
-                func_801D29A8(0, 0);
+                MenuTweenCharacterWindows(0, 0);
                 while (g_Menu->transitionEffectState) {
                     MenuRenderFrame();
                 }

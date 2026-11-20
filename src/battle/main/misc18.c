@@ -577,7 +577,7 @@ s32 func_80096AB8(void) {
 }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
-s16 func_80097610(void) {
+s16 BattleComputeSlotActionAmount(void) {
     u16 value;
     u16 amount;
     u16 stat;

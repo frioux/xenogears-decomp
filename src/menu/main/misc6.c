@@ -24,7 +24,7 @@ void MenuDrawStatTable(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
 void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
-void func_801D29A8(u_char isCreate, u_char isSubmenuOpening);
+void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening);
 void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void MenuRevealSelectionMenu(s32 a0, u32* a1);
 void* GetStringEntry(void* pStringData, u32 index);
@@ -298,7 +298,7 @@ void MenuClearBytes(s32 count, void* pBytes);
 
 extern u8 g_MenuMainRowStringIds[];
 
-void func_801D29A8(u_char isCreate, u_char isSubmenuOpening) {
+void MenuTweenCharacterWindows(u_char isCreate, u_char isSubmenuOpening) {
     u_char characterId;
     s32 i;
 
@@ -425,7 +425,7 @@ void func_801D2D38(void) {
         }
     }
     MenuRevealSelectionMenu(8, g_MenuMainSelectionResourceIds);
-    func_801D29A8(1, 0);
+    MenuTweenCharacterWindows(1, 0);
     MenuCreatePlayTimeWindow();
 }
 */
@@ -437,7 +437,7 @@ void MenuDrawGearScreen(u_char a0, u_char a1) {
     MenuRenderFrame();
     func_801D8EA4(a0, 0, 0, a1);
 }
-void func_801D2F4C(u_char stringIndex) {
+void MenuCreateWindow2Strings(u_char stringIndex) {
     MenuWindowParameters* pWindowParams;
     MenuString* pString;
     int i;

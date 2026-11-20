@@ -53,7 +53,7 @@ extern int ControllerIsStateStackFull(void);
 void MenuStartOpenAnimation(void);
 void MenuSetupPointerCursors(s32 arg0);
 void MenuHidePointerCursors(void);
-s32 func_801D2F4C(u8 arg0);
+s32 MenuCreateWindow2Strings(u8 arg0);
 s32 MenuFreeWindow2Strings(void);
 void MenuPauseCdDrive(void);
 s32 func_801E93A0(s32 arg0);
@@ -421,10 +421,10 @@ void MenuWaitForDiscChange(u8 index) {
             flag = 0;
         } else {
             MenuPauseCdDrive();
-            func_801D2F4C(index * 3 - 0x7D);
+            MenuCreateWindow2Strings(index * 3 - 0x7D);
             if (func_801E93A0(index + 1)) {
                 MenuFreeWindow2Strings();
-                func_801D2F4C(0x89);
+                MenuCreateWindow2Strings(0x89);
                 for (counter = MENU_DISC_CHANGE_WAIT_FRAMES; counter != 0; counter--) {
                     MenuRenderFrame();
                 }

@@ -48,7 +48,7 @@ extern u8 g_MenuSaveSlotForceDiscOne;
 extern u8 g_ShopIndex;
 extern u8 g_GameDiscChangeRequest;
 extern u8 g_MenuSavedMainMenuChoice;
-void func_801D29A8(s32 arg0, s32 arg1);
+void MenuTweenCharacterWindows(s32 arg0, s32 arg1);
 
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc1", func_801C531C);
 
@@ -286,7 +286,7 @@ void MenuFinalizeMenuData(void) {
     switch (g_MenuOverlayIndex) {
         case 0:
             MenuResetSelectionCursorFlags();
-            func_801D29A8(0, 0);
+            MenuTweenCharacterWindows(0, 0);
             g_Menu->pManager->playTimeDigitsActive = 0;
             g_Menu->pManager->goldDigitsActive = 0;
             if (g_ShopIndex == 0) {

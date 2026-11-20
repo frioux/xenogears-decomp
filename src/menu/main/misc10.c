@@ -50,7 +50,7 @@ void MenuCreateWindow(u_char, u_char, u_char, u_char, u16, u_char, u_char, u32, 
 void MenuApplyEquippedItemBonuses(MenuDressingRoom*, u8);
 void MenuComputeCharacterStats(MenuDressingRoom*, u8);
 void func_801D261C(void);
-void func_801D29A8(s32, s32);
+void MenuTweenCharacterWindows(s32, s32);
 void func_801D8EA4(u8, u8, u8, u8);
 void func_801DDF24(u8, u8, u8);
 void func_801E86C8(u8);
@@ -463,7 +463,7 @@ u8 func_801E23CC(void) {
             if (firstDraw != 0) {
                 MenuStartOpenAnimation();
                 firstDraw = 0;
-                func_801D29A8(0, 0);
+                MenuTweenCharacterWindows(0, 0);
                 func_801E86C8(0);
             }
         }
@@ -622,7 +622,7 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
             if (firstDraw != 0) {
                 MenuStartOpenAnimation();
                 firstDraw = 0;
-                func_801D29A8(0, 0);
+                MenuTweenCharacterWindows(0, 0);
                 func_801E86C8(0);
             }
         }

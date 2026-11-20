@@ -54,7 +54,7 @@ void Vsync(s32 mode);
 void MenuCloseCardEvents(void);
 void MenuRenderFrame(void);
 u_char func_801C93A8(void);
-void func_801D2F4C(s32 arg0);
+void MenuCreateWindow2Strings(s32 arg0);
 void MenuFreeWindow2Strings(void);
 void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);

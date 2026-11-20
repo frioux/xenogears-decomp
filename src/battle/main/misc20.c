@@ -18,7 +18,7 @@ extern s32 D_800C34DC[];
 extern BattleTableEntry g_BattleWorkBlock[];
 extern u16 g_BattleActionSlotMask;
 extern s8 BattleTryApplyCondition(u8);
-extern s32 func_80097610();
+extern s32 BattleComputeSlotActionAmount();
 extern void BattleSetSlotEntryFieldsTo2000(u8);
 extern void BattleRollPercentAndSetState38(void);
 
@@ -368,7 +368,7 @@ u16 BattleScaleValueByMultiplierByte(void) {
     return ret;
 }
 u16 BattleApplySlotPercentToValue(void) {
-    u16 ret = func_80097610();
+    u16 ret = BattleComputeSlotActionAmount();
     u16 v;
     u8 n;
 
