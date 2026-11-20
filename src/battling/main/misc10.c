@@ -215,7 +215,7 @@ typedef struct {
 
 typedef struct {
     /* 0x0 */ u32 unk00;
-    /* 0x4 */ Misc10PartData* unk04;
+    /* 0x4 */ Misc10PartData* pPartData;
 } Misc10ModelRecord; // Size: 0x8
 
 typedef struct {
@@ -376,7 +376,7 @@ typedef struct {
 // and the rest read it: the message strings and the action-row table are the only
 // two pointers this unit takes out of it.
 typedef struct {
-    /* 0x0 */ u32 unk00;
+    /* 0x0 */ u32 pointerCount; // ResolveArchiveEntryPointers fixes up this many relative pointers, the two below them
     /* 0x4 */ u8* pMessageStrings;
     /* 0x8 */ Misc10ActionRow* pActionRows;
 } Misc10ArchiveHeader; // Size: 0xC
@@ -543,7 +543,7 @@ void BattleActorCreateRotatedPart(Misc10Actor* pActor) {
     Misc10Draw* pDraw;
     u8* pBuf;
 
-    pPartList = pActor->pModelLink->pModel->unk04->pPartList;
+    pPartList = pActor->pModelLink->pModel->pPartData->pPartList;
     pDraw = BattleCreateObject();
     pBuf = BattleCreateModelPart();
     BattleSetNodeModelPart(pDraw, pBuf);
