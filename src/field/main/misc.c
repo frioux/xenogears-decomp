@@ -2101,6 +2101,7 @@ extern void func_8008BF38(int partyIndex);
 // members[1]=NONE, skins[1]=NONE, members[0]=temp, skins[0]=temp store order), and
 // g_pGameState->gearRide[N] = 0 has to be the LAST statement of each arm for its
 // sb to land in the exit jump's delay slot.
+
 /*
 void func_8008C334(void) {
     s32 loadState;
@@ -2227,6 +2228,7 @@ void func_8008C334(void) {
 }
 */
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
+
 
 void FieldScriptFreeActorFile(void) {
     if (g_FieldScriptVMCurActor->flags12C_0xD) {
