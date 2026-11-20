@@ -17,10 +17,6 @@
 #define FIELD_SCREEN_DISPLAY_WIDTH 256
 #define FIELD_SCREEN_DISPLAY_HEIGHT 216
 
-// ActorData::soundState once the handler has released the actor's sound slot: the
-// actor has no proximity sound.
-#define FIELD_ACTOR_SOUND_STATE_NONE 0xFF
-
 // Number of skin ids g_FieldRandomSkinSlots.values holds, and the largest count
 // a script may ask FieldRandomizeSkinSlots for.
 #define FIELD_RANDOM_SKIN_SLOT_COUNT 32

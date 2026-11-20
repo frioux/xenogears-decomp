@@ -11,6 +11,8 @@
 
 
 #define MAX_GAME_CHARACTERS 11
+// one bit per character id in g_GameState.characterFlags, cleared by MenuResetConditionMasks
+#define MENU_CHARACTER_FLAG_MASK 0x7FF
 #define MAX_GAME_GEARS 20
 #define MAX_PARTY_MEMBERS 3
 #define MAX_BENCHED_PARTY_MEMBERS 6
@@ -24,6 +26,8 @@
 #define GEAR_ID_NONE 0xFF
 
 #define MAX_ITEM_QUANTITY 99
+// equipment weight is counted in points; baseWeightClass is weightFromEquipment / this
+#define MENU_WEIGHT_POINTS_PER_CLASS 120
 #define MAX_INVENTORY_WEAPONS 100
 #define MAX_INVENTORY_ACCESSORIES 200
 #define MAX_INVENTORY_ITEMS 150
@@ -174,7 +178,7 @@ typedef struct {
     /* 0x70 */ u16 baseDefense; /* impacted by AR value of equipped armor */
     /* 0x72 */ u16 baseEtherDefense;
     /* 0x74 */ u8 attackPower;
-    /* 0x75 */ u8 baseWeightClass; // the equipment weight class (weightFromEquipment / 120) above it halves into weightPenalty
+    /* 0x75 */ u8 baseWeightClass; // the equipment weight class (weightFromEquipment / MENU_WEIGHT_POINTS_PER_CLASS) above it halves into weightPenalty
     /* 0x76 */ u8 unk76;
     /* 0x77 */ u8 unk77;
     /* 0x78 */ u8 unk78;

@@ -5,7 +5,6 @@
 
 // One bit per character id (MAX_GAME_CHARACTERS of them), the part of
 // g_GameState.characterFlags that flags a character.
-#define MENU_CHARACTER_FLAG_MASK 0x7FF
 
 // Quantity MenuFillInventoryTables gives every filled slot.
 #define MENU_INVENTORY_FILL_QUANTITY 10

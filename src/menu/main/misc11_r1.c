@@ -9,7 +9,7 @@ u8 MenuGetGearWeightClassExcess(u8 gearId) {
     s16 value;
 
     pGear = &g_GameState.gears[gearId];
-    weightClass = pGear->weightFromEquipment / 120;
+    weightClass = pGear->weightFromEquipment / MENU_WEIGHT_POINTS_PER_CLASS;
     value = (weightClass - pGear->baseWeightClass) / 2;
     if (value < 0) {
         value = 0;

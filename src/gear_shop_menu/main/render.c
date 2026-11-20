@@ -34,12 +34,6 @@
 #define MENU_FUEL_UNIT_AMOUNT 100
 #define MENU_FUEL_UNIT_PRICE 10
 
-// Equipment weight is measured in units of 120 weight points per weight class
-#define MENU_WEIGHT_POINTS_PER_CLASS 120
-
-// Size of the buffer one item description is rendered into as an image
-#define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
-
 // MenuUnk8.optionMarkerStates values
 #define MENU_MARKER_STATE_IDLE 0
 #define MENU_MARKER_STATE_HIGHLIGHTING 1

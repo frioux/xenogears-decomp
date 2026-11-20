@@ -366,7 +366,7 @@ void ShopMenuInitialize(void) {
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
 
-    flags = (g_GameState.characterFlags & g_GameState.FrMask) & 0x7FF;
+    flags = (g_GameState.characterFlags & g_GameState.FrMask) & MENU_CHARACTER_FLAG_MASK;
     for (i = 0; i < 0x10; i++) {
         if ((u_short)ShopMenuIsCharacterFlagSet(flags, (u_char)i)) {
             g_Menu->availableCharacters[i] = TRUE;
@@ -3382,8 +3382,8 @@ s32 func_801CEB3C(s32 itemIndex, s32 scrollOffset, u8* pUnused) {
     itemId = g_Menu->shopItemIDs[scrollOffset + itemIndex];
     itemType = g_Menu->shopItemTypes[scrollOffset + itemIndex];
 
-    pWorkspace = HeapAlloc(0x618, 0);
-    bzero(pWorkspace, 0x618);
+    pWorkspace = HeapAlloc(MENU_ITEM_DESC_IMAGE_BUFFER_SIZE, 0);
+    bzero(pWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
 
     switch (itemType) {
         case ITEM_TYPE_WEAPON:
@@ -3863,8 +3863,8 @@ s32 ShopMenuUpdateItemDescription(u_char itemId, u_char itemType) {
     places[3] = 1000;
     places[4] = 10000;
 
-    pWorkspace = HeapAlloc(0x618, 0);
-    bzero(pWorkspace, 0x618);
+    pWorkspace = HeapAlloc(MENU_ITEM_DESC_IMAGE_BUFFER_SIZE, 0);
+    bzero(pWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     bzero(digitBuffer, 0xE);
 
     switch (itemType) {

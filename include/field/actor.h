@@ -1,6 +1,9 @@
 #ifndef _XENO_FIELD_ACTOR_H
 #define _XENO_FIELD_ACTOR_H
 
+// ActorData::soundState once the handler released the actor's sound slot: no proximity sound
+#define FIELD_ACTOR_SOUND_STATE_NONE 0xFF
+
 #include "psyq/libgte.h"
 
 #define ACTOR_ID_INVALID 0xFF
@@ -308,7 +311,7 @@ typedef struct {
     /* 0x104 */ ActorRotation rotation; // 0xFFF mask: rotation
     /* 0x10A */ u_short soundId;
     /* 0x10C */ u_char soundVolume;
-    /* 0x10D */ u_char soundState; // 0xFF = no proximity sound for this actor
+    /* 0x10D */ u_char soundState; // FIELD_ACTOR_SOUND_STATE_NONE = no proximity sound for this actor
     /* 0x110 */ void* pTargetTrack; // FieldActorTargetTrack, 0xC bytes on the heap
     /* 0x114 */ void* pScriptArgs; // FieldScriptArgs, 0x10 bytes on the heap
     /* 0x118 */ void* pScriptWorkWords; // One u_int work word per model script

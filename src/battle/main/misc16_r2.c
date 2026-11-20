@@ -3,6 +3,9 @@
 #include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
+// Owned by include/system/menu.h, which this unit does not include.
+#define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
+
 // Cells of the battle command grid, and the rows of item names the menu draws.
 #define BATTLE_COMMAND_CELL_COUNT 48
 #define BATTLE_COMMAND_ROW_COUNT 32
@@ -251,7 +254,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     }
     pBuf = BattleAllocTextBuffer(0x39);
     g_BattleTextWorkspace = pBuf;
-    bzero(pBuf, 0x618);
+    bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     blankRect.x = 0x3C0;
     blankRect.y = 0;
     blankRect.w = 0x3C;
@@ -479,7 +482,7 @@ void BattleDrawMenuEntryString(u8 arg0, u8 arg1) {
 
     index = g_BattleCommandGridIds[arg1 * 2 + arg0];
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
-    bzero(pBuf, 0x618);
+    bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     len = SystemRenderStringEntry(GetStringEntry(D_800D329C, index), pBuf, 0x39, 0);
     rect.x = 0x3C0;
     rect.y = 0;

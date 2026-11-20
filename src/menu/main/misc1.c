@@ -557,7 +557,7 @@ void MenuBuildAvailableCharacters(void) {
     g_Menu->unk334 = 0;
     g_Menu->unk335 = 0;
     g_Menu->availableCharacterCount = 0;
-    mask = (g_GameState.characterFlags & g_GameState.FrMask) & 0x7FF;
+    mask = (g_GameState.characterFlags & g_GameState.FrMask) & MENU_CHARACTER_FLAG_MASK;
     for (i = 0; i < 0x10; i++) {
         if (MenuAndBitMaskLsbFirst(mask, i) != 0) {
             g_Menu->availableCharacters[i] = 1;

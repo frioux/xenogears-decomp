@@ -4,6 +4,9 @@
 #include "battle/battle_work.h"
 #include "psyq/libgpu.h"
 
+// Owned by include/system/menu.h, which this unit does not include.
+#define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
+
 // Sprite work buffer (g_BattleDisplayState). battle_work.h's BattleWork names the same
 // block but stops at 0xA8, so the 0xB0/0xB7 flag bytes are declared here.
 typedef struct {
@@ -201,7 +204,7 @@ void func_80091064(u8 arg0) {
     func_8008FC1C(0x20, 0x30, 0x98, 0x38, 0xC);
     pBuf = BattleAllocTextBuffer(0x39);
     g_BattleTextWorkspace = pBuf;
-    bzero(pBuf, 0x618);
+    bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     blankRect.x = 0x3C0;
     blankRect.y = 0;
     blankRect.w = 0x3C;
@@ -461,7 +464,7 @@ void func_80091B38(u8 arg0, u8 arg1, u8 arg2) {
         index = g_GameState.characters[g_BattleActorCharIds[arg0]].gearId * 0x20 + (arg2 * 2 + arg1) * 2;
     }
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
-    bzero(pBuf, 0x618);
+    bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     len1 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index), pBuf, 0x39, 0);
     len2 = SystemRenderStringEntry(GetStringEntry(D_800D367C, index | 1), pBuf, 0x39, 1);
     rect.x = 0x3C0;
@@ -662,7 +665,7 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     BattleAllocPacketPrimitives();
     func_80076EA4();
     g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
-    bzero(g_BattleTextWorkspace, 0x618);
+    bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -894,7 +897,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     BattleAllocPacketPrimitives();
     func_80076EA4();
     g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
-    bzero(g_BattleTextWorkspace, 0x618);
+    bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
@@ -1087,7 +1090,7 @@ void func_8009382C(u8 arg0, u8 arg1) {
 
     index = (g_BattleSlotTextIndex[arg0 * 0x170] * 4 + arg1) * 2;
     pBuf = (u8 *)BattleAllocTextBuffer(0x39);
-    bzero(pBuf, 0x618);
+    bzero(pBuf, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     len1 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index), pBuf, 0x39, 0);
     len2 = SystemRenderStringEntry(GetStringEntry(D_800C3DE8, index | 1), pBuf, 0x39, 1);
     rect.x = 0x3C0;
@@ -1193,7 +1196,7 @@ void func_80093B08(u8 arg0) {
     i = 0;
     func_80076EA4();
     g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
-    bzero(g_BattleTextWorkspace, 0x618);
+    bzero(g_BattleTextWorkspace, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     textY = 0x102;
     rowY = 0x100;
     countOfs = 0;

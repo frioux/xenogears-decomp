@@ -205,7 +205,7 @@ void MemberChangeMenuInitialize(void) {
     g_Menu->unk335 = 0;
 
     // Check flags to see which characters are available and not
-    flags = (g_GameState.characterFlags & g_GameState.FrMask) & 0x7FF;
+    flags = (g_GameState.characterFlags & g_GameState.FrMask) & MENU_CHARACTER_FLAG_MASK;
     for (i = 0; i < 0x10; i++) {
         if (MemberChangeMenuIsCharacterFlagSet(flags, i)) {
             g_Menu->availableCharacters[i] = TRUE;

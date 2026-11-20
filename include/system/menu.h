@@ -25,6 +25,8 @@
 #define MENU_IMAGE_CHUNK_SIZE 0x200
 // Scratch buffer one rendered string image is built in before LoadImage
 #define MENU_STRING_IMAGE_BUFFER_SIZE 0x3F6
+// Bytes one item description (and a gear shop's sell price) is rendered into as an image
+#define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
 // Bytes one party slot's prim context occupies in g_Menu->pPrimBuffer
 #define MENU_SLOT_PRIM_STRIDE 0x87C
 
