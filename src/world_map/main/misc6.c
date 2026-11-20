@@ -165,7 +165,7 @@ extern u8 *g_WorldMapWorkBuffer2;
 extern u8 *g_WorldMapTilePrimBuffer;
 extern u8 *g_WorldMapTilePrimBufferCopy;
 extern u8 *g_WorldMapDecompressedMapData;
-extern u16 g_WorldMapViewRotationY[];
+extern s16 g_WorldMapViewRotationY;
 extern u16 g_NextMapId;
 extern u16 g_NextMapRotationY;
 extern u16 g_NextMapFlags;
@@ -524,7 +524,7 @@ void WorldMapExitToMap1A1(void) {
     g_NextMapId = 0x1A1;
     unkValue = g_WorldMapAreaExitModes[nIndex];
     g_WorldMapExitFlag = 1;
-    g_NextMapRotationY = g_WorldMapViewRotationY[0];
+    g_NextMapRotationY = (u16)g_WorldMapViewRotationY;
     g_NextMapFlags = unkValue;
 }
 
@@ -621,8 +621,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
    `lui a1,0xFFFB3C00` in the delay slot, ours is `beqz` with the lui before the
    branch. (4) case 4 and case 25 order the unk5C[0]/unk60 load against the lhu
    of g_WorldMapViewRotationY differently.
-   The earlier note on func_80080600 (same shape, 79.99%) still applies for the
-   tail: the u16 reload of 0xA2 is real, keep `*(u16 *)(pScratch + 0xA2)`.
+   The note on func_80080600 (same shape; 80.11% in round 312) still applies for
+   the tail: the u16 reload of 0xA2 is real, keep `*(u16 *)(pScratch + 0xA2)`.
 /* s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
@@ -635,28 +635,28 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         g_WorldMapCameraHeight = 0x500000;
         pActor->command = 0;
         g_WorldMapCameraRot = 0x150;
-        g_WorldMapViewRotationY[0] = 0xF50;
+        g_WorldMapViewRotationY = 0xF50;
         g_WorldMapViewRotationZ = 0;
         break;
     case 1:
         g_WorldMapCameraHeight = 0x4D0000;
         pActor->command = 0;
         g_WorldMapCameraRot = 0xC60;
-        g_WorldMapViewRotationY[0] = 0x380;
+        g_WorldMapViewRotationY = 0x380;
         g_WorldMapViewRotationZ = 0;
         break;
     case 2:
         g_WorldMapCameraHeight = 0x400000;
         pActor->command = 0;
         g_WorldMapCameraRot = 0x30;
-        g_WorldMapViewRotationY[0] = 0x160;
+        g_WorldMapViewRotationY = 0x160;
         g_WorldMapViewRotationZ = 0;
         break;
     case 3:
         g_WorldMapCameraHeight = 0x400000;
         pActor->command = 0;
         g_WorldMapCameraRot = 0x30;
-        g_WorldMapViewRotationY[0] = 0x960;
+        g_WorldMapViewRotationY = 0x960;
         g_WorldMapViewRotationZ = 0;
         break;
     case 4:
@@ -670,7 +670,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         g_WorldMapCameraHeight = 0x200000;
         pActor->command = 0;
         g_WorldMapCameraRot = -0x58;
-        g_WorldMapViewRotationY[0] = 0xE58;
+        g_WorldMapViewRotationY = 0xE58;
         g_WorldMapViewRotationZ = 0;
         break;
     case 6:
@@ -689,7 +689,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         g_WorldMapCameraHeight = 0x400000;
         pActor->command = 0;
         g_WorldMapCameraRot = 0xE0;
-        g_WorldMapViewRotationY[0] = 0x798;
+        g_WorldMapViewRotationY = 0x798;
         g_WorldMapViewRotationZ = 0;
         break;
     case 23:
@@ -718,7 +718,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        g_WorldMapViewRotationY[0] -= 8;
+        g_WorldMapViewRotationY -= 8;
         g_WorldMapCameraRot += pActor->unk5C[0] >> 12;
         pActor->unk5C[0] += 0x300;
         g_WorldMapCameraHeight += 0x8000;
@@ -747,11 +747,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
         g_WorldMapCameraHeight += 0x20000;
-        g_WorldMapViewRotationY[0] += 0x20;
+        g_WorldMapViewRotationY += 0x20;
         g_WorldMapCameraRot -= 4;
         break;
     case 4:
-        g_WorldMapViewRotationY[0] += pActor->unk5C[0] >> 12;
+        g_WorldMapViewRotationY += pActor->unk5C[0] >> 12;
         pActor->unk5C[0] -= 0x800;
         if (pActor->unk5C[0] < 0) {
             pActor->unk5C[0] = 0;
@@ -778,7 +778,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        g_WorldMapViewRotationY[0] -= 8;
+        g_WorldMapViewRotationY -= 8;
         g_WorldMapCameraRot += pActor->unk5C[0] >> 12;
         pActor->unk5C[0] += 0x300;
         g_WorldMapCameraHeight += 0x8000;
@@ -805,7 +805,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
             g_WorldMapScrollZ += 0x6D300;
         }
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        g_WorldMapViewRotationY[0] -= 8;
+        g_WorldMapViewRotationY -= 8;
         g_WorldMapCameraRot += pActor->unk5C[0] >> 12;
         pActor->unk5C[0] += 0x300;
         g_WorldMapCameraHeight += 0x8000;
@@ -814,7 +814,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
         }
         break;
     case 25:
-        g_WorldMapViewRotationY[0] -= pActor->unk5C[1] >> 12;
+        g_WorldMapViewRotationY -= pActor->unk5C[1] >> 12;
         pActor->unk5C[1] -= 0x200;
         if (pActor->unk5C[1] < 0) {
             pActor->unk5C[1] = 0;
@@ -1023,14 +1023,24 @@ int WorldMapUpdateSlotActor(int index) {
     return 1;
 }
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
-/* 93.41% (164 bytes = retail's 41 insns). Instruction multiset identical; the
-   only delta is where retail's `li v0,3` sits - BEFORE the seven stores, so v0
-   is occupied and the two big constants land in v1/a0, where ours materialises
-   it after the last store and then uses v0 for every constant. Ruled out in
-   round 202: `int nRet = 3;` / `u8 nRet = 3;` / `s32 nRet; nRet = 3;` before
-   the stores (all fold back to 93.41 - copy-prop deletes the assignment), and
-   the state/unk50/z store order (91.90). The do-while around the seven stores
-   is load-bearing (88.66 without). A 3-minute permuter run found nothing.
+/* 93.41% (164 bytes = retail's 41 insns). Store order, both calls and every
+   relocation already match; the single delta is where retail's `li v0,3` sits
+   - fifth instruction of the store group, BEFORE the stores - so v0 is
+   occupied and the group's constants land in v1/a0, where ours materialises
+   the 3 after the last store and then uses v0 for every constant.
+   Measured in round 312 on this body: `nRet = 3;` before the block, as the
+   block's FIRST statement and as its LAST statement all fold back to 93.41
+   (copy-prop deletes the single-use assignment, so the `li` is emitted at the
+   return); moving the `return` itself inside the block, and dropping the block
+   entirely, both give 88.66 - the `li` does come out before the group then,
+   but the pStateFrames store jumps above the state store -; the permuter
+   (4 min, 2111 iterations) found nothing, as did round 202's 3-minute run.
+   Note gcc 2.7.2 CAN hoist this constant: WorldMapInitGroup16Actor above is
+   matched with a plain `return 3;` and its `addiu v0,zero,3` is the first
+   instruction of the post-call block. So the shape exists, it is just not
+   found here. The struct's 0x50/0x54/0x58 are stateIndex/pStateIds/
+   pStateFrames now - the old unk50/unk54/unk58 spelling no longer compiles,
+   which is why this park measured nothing until round 312.
 */
 /* int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
@@ -1042,11 +1052,11 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
     do {
         pActor->x = 0x1498000;
         pActor->y = 0xFFF80000;
-        pActor->unk54 = (void *)-0x800;
+        pActor->pStateIds = (void *)-0x800;
         pActor->state = 0;
         pActor->z = 0x4AF2000;
-        pActor->unk50 = 0;
-        pActor->unk58 = (void *)0x80;
+        pActor->stateIndex = 0;
+        pActor->pStateFrames = (void *)0x80;
     } while (0);
     return nRet;
 }
@@ -1208,7 +1218,7 @@ void WorldMapExitToMap84(void) {
     HeapFree(g_WorldMapTilePrimBufferCopy);
     HeapFree(g_WorldMapDecompressedMapData);
     WorldMapFreeSlotPool();
-    unkValue = g_WorldMapViewRotationY[0];
+    unkValue = (u16)g_WorldMapViewRotationY;
     g_NextMapId = 0x84;
     g_NextMapFlags = 2;
     g_WorldMapExitFlag = 1;
@@ -1276,28 +1286,31 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
 */
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
-/* 79.99% (732 bytes vs retail's 764). Structure found so far: two switches.
-   switch (command) {1,2,3} = the init the other group actors get (state, unk50,
-   unk54/0x58 and unk5C[0]/unk5C[1] from g_WorldMapCameraRot/g_WorldMapViewRotationY << 12,
-   g_WorldMapCameraHeight = 0x800000); then `if (g_WorldMapRotationMatrixValid == 0)
-   func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot)` (4 args);
-   then switch (state) {case 1: camera follow on unk50/unk54/unk5C[0] with
-   clamps at 0x300000 / 0x2E0000 / -0x100000 and g_WorldMapCameraRot/BD3A = pos >> 12;
-   case 3: unk7C -= 0x4000, floor 0x1000, then state = 0}; then
-   `sh (rand() % (unk7C >> 12) - (unk7C >> 13))` to 0x1F8000A2 and
-   D_8009BD42 += it, D_8009BD4A += *(u16*)0x1F8000A2 (u16: retail reloads the
-   halfword with lhu instead of reusing the stored s16), return 1.
-   The wall is the case-1 prologue: retail stores g_WorldMapCameraRot = 0x10 through a
-   pointer held in $a0 and then READS IT BACK with lh 0(a0); our cse forwards
-   the store to the load and folds both the address and the value (0x10 << 12
-   becomes a constant 0x10000), which then reorders the whole case block.
-   Tried: plain globals, a `s16 *pAngle = &g_WorldMapCameraRot` local (identical RTL
-   after cse), array declaration. Volatile on the store/load is the obvious
-   next thing to try (retail has no lw/sw of a pointer, so it is source-level).
-   Note the same `extern u8 g_WorldMapPlayerPosition[]` trick that fixed WorldMapInitializeModeWithActors may be
-   what retail used here too: 0x1F8000A2 is addressed as a displacement off a
-   register holding 0x1F800000, i.e. `u8 *pScratch = (u8 *)PSX_SCRATCH` is right.
-int func_80080600(int index) {
+/* 80.11% (744 bytes against retail's 764 = 191 insns), round 312. Every
+   instruction KIND now matches retail: the two "store then read back" pairs in
+   case 1 (g_WorldMapCameraRot then lh, g_WorldMapViewRotationY then lh) are
+   reproduced by making exactly the STORES volatile -
+   `*(volatile s16 *)pAngle = 0x10;` / `*(volatile s16 *)&g_WorldMapViewRotationY = 0x8E0;`
+   - and leaving the reads plain, which is the only way cc1 stops forwarding the
+   stored constant into the read (probed with cc1_probe.sh: a volatile store plus
+   a plain `pA[0] << 12` emits `sh $2,gA` ... `lh $2,gA` + `sll 12`, while a
+   volatile READ gives `lhu` + sll16/sra4 instead of retail's `lh` + sll12).
+   g_WorldMapViewRotationY is `extern s16` (scalar) here, not `u16[]`: retail
+   stores it with the `sh %lo($at)` symbol form and reads it with `lh`
+   (signed), which the array declaration cannot produce. The two matched
+   functions in this file that read it (WorldMapExitToMap84/1A1) keep their
+   `lhu` through a `(u16)` cast and stay 100.00%.
+   Remaining deltas: (1) retail keeps &g_WorldMapCameraRot in $a0 for both the
+   store and the read (`lui a0,%hi`/`addiu a0,a0,%lo` at the head of the case,
+   `sh v0,0(a0)` / `lh v0,0(a0)`), i.e. the pointer local was NOT rematerialised
+   - our `s16 *pAngle` gets folded into the two symbol forms, which is exactly
+   the 8 bytes we are short; (2) the case-1 statement order then stays
+   scrambled (our state store comes first, the 0x50/CameraHeight stores float
+   above the two reads). A 4-minute permuter run on the previous 82.94% body
+   (which folded the reads, 6 instructions short, so it can never link) found
+   nothing; do not go back to it.
+*/
+/* int func_80080600(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s16 *pAngle;
@@ -1306,20 +1319,20 @@ int func_80080600(int index) {
 
     switch (pActor->command) {
     case 1:
+        pAngle = &g_WorldMapCameraRot;
         pActor->state = 1;
         pActor->command = 0;
-        pAngle = &g_WorldMapCameraRot;
-        *pAngle = 0x10;
-        g_WorldMapViewRotationY = 0x8E0;
+        *(volatile s16 *)pAngle = 0x10;
+        *(volatile s16 *)&g_WorldMapViewRotationY = 0x8E0;
         g_WorldMapViewRotationZ = 0;
-        pActor->unk50 = 0x800000;
+        pActor->stateIndex = 0x800000;
         nValue = *pAngle << 12;
-        pActor->unk58 = nValue;
-        pActor->unk54 = nValue;
-        g_WorldMapCameraHeight = 0x800000;
+        pActor->pStateFrames = (void *)nValue;
+        pActor->pStateIds = (void *)nValue;
         nValue = g_WorldMapViewRotationY << 12;
-        pActor->unk5C[1] = nValue;
-        pActor->unk5C[0] = nValue;
+        g_WorldMapCameraHeight = 0x800000;
+        pActor->unk60[0] = nValue;
+        pActor->scale = nValue;
         break;
     case 2:
         pActor->state = 2;
@@ -1333,40 +1346,39 @@ int func_80080600(int index) {
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
-        WorldMapWrapPosition((VECTOR *)&pActor->x);
         func_80096F18(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
     }
     switch (pActor->state) {
     case 1:
-        nDelta = pActor->unk50 - 0x10000;
-        pActor->unk50 = nDelta;
+        nDelta = pActor->stateIndex - 0x10000;
+        pActor->stateIndex = nDelta;
         if (nDelta <= 0x2FFFFF) {
-            pActor->unk50 = 0x300000;
+            pActor->stateIndex = 0x300000;
         }
-        nDelta = pActor->unk50 - g_WorldMapCameraHeight;
+        nDelta = pActor->stateIndex - g_WorldMapCameraHeight;
         if (nDelta != 0) {
             g_WorldMapCameraHeight += nDelta >> 5;
         }
-        nDelta = pActor->unk54 - 0x4000;
-        pActor->unk54 = nDelta;
+        nDelta = (s32)pActor->pStateIds - 0x4000;
+        pActor->pStateIds = (void *)nDelta;
         if (nDelta < -0x100000) {
-            pActor->unk54 = -0x100000;
+            pActor->pStateIds = (void *)-0x100000;
         }
-        nDelta = pActor->unk54 - pActor->unk58;
+        nDelta = (s32)pActor->pStateIds - (s32)pActor->pStateFrames;
         if (nDelta != 0) {
-            nValue = pActor->unk58 + (nDelta >> 4);
-            pActor->unk58 = nValue;
+            nValue = (s32)pActor->pStateFrames + (nDelta >> 4);
+            pActor->pStateFrames = (void *)nValue;
             g_WorldMapCameraRot = nValue >> 12;
         }
-        nDelta = pActor->unk5C[0] - 0x10000;
-        pActor->unk5C[0] = nDelta;
+        nDelta = pActor->scale - 0x10000;
+        pActor->scale = nDelta;
         if (nDelta <= 0x2DFFFF) {
-            pActor->unk5C[0] = 0x2E0000;
+            pActor->scale = 0x2E0000;
         }
-        nDelta = pActor->unk5C - pActor->unk5C[1];
+        nDelta = pActor->scale - pActor->unk60[0];
         if (nDelta != 0) {
-            nValue = pActor->unk5C[1] + (nDelta >> 5);
-            pActor->unk5C[1] = nValue;
+            nValue = pActor->unk60[0] + (nDelta >> 5);
+            pActor->unk60[0] = nValue;
             g_WorldMapViewRotationY = nValue >> 12;
         }
         break;
@@ -1378,9 +1390,9 @@ int func_80080600(int index) {
         }
         break;
     }
-    nValue = rand() % ((s32)pActor->unk7C >> 12);
-    nValue -= (s32)pActor->unk7C >> 13;
-    *(s16 *)(pScratch + 0xA2) = nValue;
+    nValue = rand() % (pActor->unk7C >> 12);
+    nValue -= pActor->unk7C >> 13;
+    *(s16 *)(pScratch + 0xA2) = (s16)nValue;
     D_8009BD42 += nValue;
     D_8009BD4A += *(u16 *)(pScratch + 0xA2);
     return 1;
