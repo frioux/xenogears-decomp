@@ -562,31 +562,36 @@ void FieldAddParticlePrims(void) {
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
 
-/* Best attempt, 99.56% at the original's 500 bytes - identical instruction
-   for instruction, every offset and store order included, except which of the
-   two UV temporaries gets v0. Retail has j*16 and (j*16 & 0x3F) in v0 (the
-   mask reusing v0 once j*16 dies) and (j*16 & 0x3F) + 0x10 in v1; ours puts the
-   mask in v1 and the +0x10 temp in v0, i.e. local_alloc ranks the +0x10 temp
-   above the mask - the other way round from retail - and the temp lives two
-   instructions longer, which is the only visible difference.
+/* Best attempt, 99.56% at the original's exact 500 bytes - identical instruction
+   for instruction, every offset and store order included, except ONE register:
+   retail keeps j*16 in v0 and, in place, (j*16 & 0x3F), with the +0x10 variant in
+   v1; ours keeps j*16 and the mask in v1 and the +0x10 value in v0, so eight
+   lines differ by that swap and nothing else does. local_alloc ranks the longer
+   lived of two overlapping quantities first, and retail ranks the SHORTER lived
+   one first; the two are the mask (last read by the u2 store) and mask+0x10 (last
+   read by u3, two instructions later).
    Measured dead ends: the mask assigned before the x0/x2 stores and after them,
    the mask and the +0x10 computed adjacent at retail's own position, a named
-   u1/u3 temp assigned at its first use, a 0x10 + nU operand swap, u_char on
-   the mask (94.91), and a 4-minute permuter run (base=55 best=55, 1314
-   iterations, nothing).
-   Round 315 re-measured 99.56 / 500 (unchanged) and added: declaration order of
-   nU/nU1, an embedded assignment at the store (pPoly->u0 = nU = nX & 0x3F;), a
-   second +0x10 local feeding only u3, and computing nU1 straight from the inline
-   mask all measure 99.56; a second 4-minute permuter run (-j 2, 1971 iterations)
-   reported base=55 best=55, i.e. nothing.  gcc-2.6.0 is also 99.56 here, so it is
-   not a preset question.
+   u1/u3 temp assigned at its first use, a 0x10 + nU operand swap, u_char on the
+   mask (94.91), declaration order of nU/nU1, an embedded assignment at the store
+   (pPoly->u0 = nU = nX & 0x3F;), a second +0x10 local feeding only u3, computing
+   nU1 straight from the inline mask, and two 4-minute permuter runs (rounds 315:
+   base=55 best=55 twice, 1314 and 1971 iterations).  gcc-2.6.0 is also 99.56
+   here, so it is not a preset question.
+   Round 337 added: the mask written back into nX (`nX &= 0x3F;` then u0/u2 = nX)
+   is 95.54 / 488 - it folds three instructions away, so the mask is a separate
+   source value; nU1 defined before nU; `nU + 0x10` inline at both u1/u3 stores;
+   and giving x1/x3 their own 0x10-stepping counter variable in the for's
+   increment clause (97.60, and it swaps the s4/s5 roles of the i and j counters),
+   which is what the disassembly's s4 counter suggests the original did - but it
+   does not touch the v0/v1 tie.
    Settled facts: 14 x 20 grid of 16x16 tiles, i outer / j inner,
    nIndex = i*20 + j, polygons is 560 POLY_GT4 (two copies of 280, the second
    at +0x38E0), the four u_short attribute arrays at 0x71C0/0x73F0/0x7620/
    0x7850 set to 0x80, y0/y1 = i*16 and y2/y3 = i*16 + 0x10 (s5/s3 counters),
    x1/x3 = j*16 + 0x10 (s4 counter), u0/u2 = (j*16) & 0x3F, u1/u3 = that + 0x10,
    tpage = GetTPage(2, 1, j / 4 * 0x40 + 0x2C0, 0x100), SetSemiTrans, then
-   *pPolyNext = *pPoly (0x34 bytes: a 4x lw/sw unrolled loop plus one word).
+   *pPolyNext = *pPoly (0x34 bytes: a 3x lw/sw unrolled loop plus one word).
     void func_800A6E70(void) {
         FieldParticlePrimitiveSet* pPrims;
         POLY_GT4* pPoly;
@@ -647,8 +652,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", func_800A6E70);
                 *pPolyNext = *pPoly;
             }
         }
-    }
-*/
+    }*/
 
 void func_800A7064(void) {
     HeapFree(g_FieldParticlePrimitives);
@@ -1528,59 +1532,46 @@ void func_800A8BA4(void) {
 INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitive);
 
 /* Best attempt, 97.42% / 512 bytes: the original is 520, so it is 8 bytes (2
-   insns) short. Everything matches except the vertex math: the original
-   re-materializes x0*16 and y0*16 (6 sll for four products; x1*16 stays in a3
-   and y1*16 in t0, which are the values it does NOT recompute), while gcc CSEs
-   all four products (4 sll) however they are spelled. Its four shape loads also
-   land in a1(x0), a2(y0), a3(x1), t0(y1); ours get a0..a3, i.e. a0 is free in
-   ours where the original used it as the x-minus scratch. The missing 2 sll are
-   a cse1 invalidation artifact, not a spelling problem: retail's RTL gives the
-   MINUS the second product's own pseudo as target (`subu a0,a3,a0`), which
-   kills the CSE entry for x0*16 so the sum recomputes it; our expander gives
-   the subtraction a fresh target (`subu t0,a2,a0`), so both product entries
-   survive and the sum reuses them. Result locals in any order do not change it.
-   Same 97.42 with -O3,
-   gcc-2.6.0-psx, product locals, s16 casts, <<4/mult mixes and every
-   declaration order. Vertex pairing below is the one in the disassembly
-   (0xAA = y1*16 - y0*16, 0xB2/0xBA = y0*16 + y1*16); pairing vertices[1].vy to
-   the sum scores 97.54 but contradicts it - operand-register noise, same 512
-   bytes. ParticlePrimitive (0xC0: POLY_FT4 poly[2] at 0x50, SVECTOR vertices[4]
-   at 0xA0) is in field/particles.h; `char _pad[0x58]` reproduces the 0x98 frame.
-   D_800AF27C is the shape table, one ParticleShape (0x18) per index, declared as
-   one extern u_short[] per field so each load relocates as %hi/%lo of
-   D_800AF27C + 2*k like the original; nIndex is in u_short units (shape*0xC).
-   Round 315 re-measured 97.42 / 512: unchanged, still 2 insns short, nothing new.
-    // The shape table D_800AF27C holds one ParticleShape (0x18) per index; one extern
-    // u_short[] per field so each load relocates as %hi/%lo of D_800AF27C + 2*k, and
-    // nIndex is the index in u_short units (shape * 0xC).
-    extern u_short D_800AF27C[]; // x0
-    extern u_short D_800AF27E[]; // y0
-    extern u_short D_800AF280[]; // x1
-    extern u_short D_800AF282[]; // y1
-    extern u_short D_800AF284[]; // u0
-    extern u_short D_800AF286[]; // v0
-    extern u_short D_800AF288[]; // u1
-    extern u_short D_800AF28A[]; // v1
-    extern u_short D_800AF28C[]; // u2
-    extern u_short D_800AF28E[]; // v2
-    extern u_short D_800AF290[]; // u3
-    extern u_short D_800AF292[]; // v3
-
-    void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int shapeIndex, int nTextureMode) {
+   insns) short - the missing pair is a RECOMPUTED product. Retail shifts four
+   shape values but only two of the shifts survive cse: x1>>4 in a3 and y1>>4 in
+   t0 are reused by the sums, while x0>>4 (a0) and y0>>4 (v0) are recomputed
+   because the two subu results were written back over them (subu a0,a3,a0 /
+   subu v0,t0,v0), which kills the cse entry for those two products. Our expand
+   gives each subu a fresh pseudo, so all four products stay live and are reused
+   (4 sll), and the shape values lose one register (they land in a0..a3 where
+   retail has a1..t0).
+   Round 315 re-measured 99.56-unchanged variants; round 337 (this one) measured,
+   with tools/scripts/cc1_probe.sh on the unit's own cc1, SEVEN further spellings
+   of the eight vertex statements and every one still emits exactly 4 product
+   shifts: inline (x0 << 4); products in named locals p0/q0/p1/q1; a second copy
+   local (x0b = x0) feeding the sums; x0 * 16; operand-swapped sums; the minus
+   written as -((x0 << 4) - (x1 << 4)); and u_short copies of the four values.
+   Full-body measurements: Default 97.42, gcc-2.6.0-psx 97.42, gcc-2.7.2-cdk-psx
+   97.42 - so the preset is not the question. Two permuter runs (rounds 315)
+   found nothing. The recompute needs two pseudos holding the same product, which
+   no source spelling produces: it is a cse artifact of retail's in-place subu.
+   Settled facts: 14 x 20 grid is elsewhere; this one is 12 ParticleShape fields
+   read at 0x800AF27C (one ParticleShape 0x18 per index, nIndex = shape * 0xC in
+   u_short units), vertices[0..3].vz = 0, setRGB0 0x80, the four vx/vy pairs as
+   below, FieldClampPolyFT4UVs with the eight u/v values (+0x40, -1, +0x40,
+   +0x3F, -1, +0x3F), SetSemiTrans(pPoly, 1), tpage = GetTPage(0, nTextureMode,
+   0x3C0, 0x140), clut = GetClut(0x100, 0xF7), then *pPolyNext = *pPoly (0x28
+   bytes as a 2x lw/sw unrolled loop plus one word).
+    void FieldInitializeParticlePrimitive(ParticlePrimitive* pParticle, int nShape, int nTextureMode) {
         POLY_FT4* pPoly;
-        POLY_FT4* pPoly2;
+        POLY_FT4* pPolyNext;
         int nIndex;
         int x0;
         int y0;
         int x1;
         int y1;
-        char _pad[0x58]; // unused, reproduces the 0x98 frame
+        char _pad[0x58]; // unused, reproduces the original 0x98 frame
 
         pPoly = &pParticle->poly[0];
-        pPoly2 = &pParticle->poly[1];
+        pPolyNext = &pParticle->poly[1];
         SetPolyFT4(pPoly);
 
-        nIndex = shapeIndex * 0xC;
+        nIndex = nShape * 0xC;
         x0 = D_800AF27C[nIndex];
         y0 = D_800AF27E[nIndex];
         x1 = D_800AF280[nIndex];
@@ -1612,7 +1603,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc5", FieldInitializeParticlePrimitiv
         pPoly->tpage = GetTPage(0x0, nTextureMode, 0x3C0, 0x140);
         pPoly->clut = GetClut(0x100, 0xF7);
 
-        *pPoly2 = *pPoly;
+        *pPolyNext = *pPoly;
     }*/
 
 extern int g_FieldScreenImageStored;
