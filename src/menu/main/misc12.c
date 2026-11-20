@@ -168,29 +168,38 @@ void func_801E6CFC(u8 index, u8* pEntry) {
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
 /* Best: 88.60% at 600 bytes, which IS retail's size (0x21F5C..0x221B4).
-   The same body as func_801E6CFC above - its note's three levers all apply - with
-   the MP half's own constants: pEntry[index+0x10] / pEntry[index+0x13] are lbu
-   (not the twin's u16 pairs), counters 0x130C/0x130D, tables D_801EA03C/40/44/48,
-   poly offsets 0x6E0/0x780, loop bound MENU_MP_DIGIT_COUNT and digits[7+i].
-   Found in round 313: the digit load must be written (pEntry + index)[0x10], which
-   is retail's base-first "addu s5,v1"; pEntry[index + 0x10] gives the mirrored
-   addu and 88.47%.
-   What is left, all inside the two loop bodies, measured over seven shapes plus a
-   4-minute permuter run (which only offered an x local, 88.47):
-   - every counter address: retail forms pPrimBuffer + slot with the BASE first
-     ("addu a0,a2,s1" before the call, "addu a0,a0,s1" after it). This body mirrors
-     both and splits the pre-call one into two addus. A cc1_probe replica says the
-     two-statement "p = pPrimBuffer; p += slot;" form IS base-first under this
-     compiler, but a pSlot kept alive across the call costs a saved register (s6
-     appears) and drops the body to 82%. The pSlot/pCount embedded-assignment idiom
-     that matches in misc11_r2_b (a 2.7.2 unit) gives a single addu here, still
-     mirrored: 82.33%, 604 bytes.
-   - the prim base: retail emits "addiu v0,s1,0xA98 / addu v0,v0,a2" AFTER the x
-     and 0x1000 stores; any pPrims local hoists the addiu to the head of the block
-     in a saved register, and inlining the base in the call argument is 86.37% at
-     592 bytes (two instructions short).
-   - retail completes x, and stores x and 0x1000, before it loads D_801EA040 for y;
-     this body defers all three until after the prim base.
+   The same body as func_801E6CFC above, with the MP half's own constants:
+   pEntry[index+0x10] / pEntry[index+0x13] are lbu, counters 0x130C/0x130D, tables
+   D_801EA03C/40/44/48, poly offsets 0x6E0/0x780, digits[7+i]. The digit load must be
+   written (pEntry + index)[0x10] (round 313): that is retail's base-first
+   "addu s5,v1"; pEntry[index + 0x10] gives the mirrored addu and 88.47%.
+   This body's register plan IS retail's - s0 = i (move s0,zero in the prologue),
+   s1 = the slot offset (gcc CSEs all four index * 0x87C into it), s2 = the masked
+   index (move s2,v1 in the jal delay slot), s3 = n, s4 = the raw index param - and so
+   is its instruction count. What is left is FOUR mirrored "addu"s plus where the
+   prim-base pair lands:
+   - every counter address: retail has base-first "addu a0,a2,s1" (pre-call) and
+     "addu a0,a0,s1" (after it); this body emits "addu a0,s1,a0" at all four sites.
+     The briefs' answer for base-first - keep the offset in a source VARIABLE - does
+     work (slot = index * MENU_SLOT_PRIM_STRIDE, then all four addus come out
+     base-first), but it costs the register plan: 73.43% / 588 bytes, with the masked
+     index taking s0, i deferring into the jal delay slot and the prim offset taking
+     a saved register (s3/s4). Round 321 re-derived that from scratch: the var
+     variants score 73.43, 76.25, 67.48 and 71.63 with several prim spellings.
+   - the prim base: retail emits "addiu v0,s1,2712 / addu v0,v0,a2" in the MIDDLE of
+     the block (after the x and 0x1000 stack stores); this body puts the pair at the
+     head of the block, so reorg steals the addiu into the beq delay slot (retail's
+     slot holds the start of the x chain, "sll v0,s2,0x2"). Any primOffset/pPrims
+     local puts it there; inlining the whole prim expression instead (six spellings,
+     including the (u32) cast, the u8 deref form and the "slot + 0xA98" grouping)
+     either keeps the same order or loses 15-20 points. Reading the counter into a u8
+     local before the prim statements is byte-identical to this body (gcc CSEs it),
+     so the evaluation order is the compiler's own, not the statement order's.
+   Two 4-minute permuter runs from this body and from the round-321 variant found only
+   new_var temporaries and one nonsense edit that reuses primOffset as a constant
+   (base 1150 -> 1050, not a match). This looks like the same class as func_801E6CFC's
+   tail: the source shape is right and the addu operand order is decided by the
+   allocator, not by the C.
 void func_801E6F5C(u8 index, u8* pEntry) {
     u8* pPrims;
     s32 primOffset;
