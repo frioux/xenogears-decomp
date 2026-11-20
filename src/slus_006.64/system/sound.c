@@ -480,6 +480,7 @@ SoundWDSEntry* SoundLoadWdsFile(SoundWDSEntry* pWdsFile, void* pUnk) {
         return NULL;
     }
 
+    // the adpcm payload sits at a runtime byte offset in the file image, so it cannot be a named field
     SoundQueueSpuWriteCommand(spuAddress, (u8*)pWdsFile + pWdsFile->adpcmDataOffset, pWdsFile->adpcmDataSize, NULL);
 
     pEntry = (SoundWDSEntry*)SoundHeapAllocateFromEnd(pWdsFile->headerSizeMby);
@@ -522,6 +523,7 @@ SoundWDSEntry* SoundLoadPartialWdsFile(SoundWDSEntry* pWdsFile, int size, int mo
     }
 
     SoundWdsSetTransferParamters(spuAddress, pWdsFile->adpcmDataSize);
+    // same runtime payload offset as SoundLoadWdsFile
     SoundTransferWdsPart((u8*)pWdsFile + pWdsFile->adpcmDataOffset, size - pWdsFile->headerSizeMby);
 
     pEntry = (SoundWDSEntry*)SoundHeapAllocateFromEnd(pWdsFile->headerSizeMby);
@@ -2288,15 +2290,23 @@ void SoundSetAudioManagerUnk1B(AudioManager* pManager, u8 value) {
     pManager->unk_0x1b = value;
 }
 
-void SoundGetAudioManagerPlayTime(AudioManager* pManager, u16* pOut) {
+// The play-time record SoundGetAudioManagerPlayTime fills.
+typedef struct {
+    /* 0x0 */ u32 playTicks;
+    /* 0x4 */ u16 unk4; // total - field * 240
+    /* 0x6 */ u16 unk6; // field - index * 60
+    /* 0x8 */ u16 unk8; // index
+} SoundPlayTime; // Size: 0xA
+
+void SoundGetAudioManagerPlayTime(AudioManager* pManager, SoundPlayTime* pOut) {
     u32 total = (u32)pManager->playTime >> 8;
     u32 field = total / 240;
     u32 index = field / 60;
 
-    *(u32*)pOut = pManager->playTicks;
-    pOut[2] = total - field * 240;
-    pOut[3] = field - index * 60;
-    pOut[4] = index;
+    pOut->playTicks = pManager->playTicks;
+    pOut->unk4 = total - field * 240;
+    pOut->unk6 = field - index * 60;
+    pOut->unk8 = index;
 }
 
 u16* SoundGetLowestActiveElementCounter(AudioManager* pManager) {
@@ -3612,6 +3622,7 @@ u8* SoundScriptJumpToInstrumentScript(u8* pScript, AudioManager* pAudioManager, 
         }
     }
 
+    // scriptOffsets holds byte offsets from the start of the file image, so the target is base + offset
     pScript = (u8*)pSoundFile + pSoundFile->scriptOffsets[instrument * 2 + channel];
     return pScript + 3;
 }
