@@ -196,183 +196,190 @@ extern void func_800A24C4(void);
 extern void FontFree(void);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80078D44);
-/* Best attempt: 97.50% (1344 bytes; the original is 1348). Every call, loop and
-   branch is in retail's order; what is left is one allocator decision and one
-   block shape.
-   1. Retail keeps nFade in $s0 and the loop counter in $s1; all our shapes give
-      nFade $s1 and i $s0, because gcc CSEs the -0x40000 decrement into a saved
-      register ($s0) here, while retail rematerialises it (lui $v0,0xfffc;
-      addu $s0,$s0,$v0) inside the g_FieldScriptDataStreamActive loop and only parks it in a saved
-      register ($s1, then $s3) for the later loops. Declaration orders tried:
-      rect/i/nFadeStep/nFade, nFade first, nFadeStep first; all four give the
-      same allocation.
-   2. nFadeStep: retail is [lbu $v0,g_GameDiscChangeRequest][beq -> end][move $s2,zero]
-      [lbu $v0,g_FieldDiscChangeFade][bne -> end][li $s2,0x20][move $s2,zero], i.e. a
-      store of 0, then 0x20, then 0 again on the Y==1 path. The "0x20 unless
-      either flag is 1" spelling (body below) reaches the same instruction
-      multiset but fills the delay slots the other way round; the
-      `nFadeStep = 0; if (X != 1) { nFadeStep = 0x20; if (Y == 1) { ... } }`
-      spellings all make gcc fold the two constants into a setcc
-      (xori/sltu/sll $s2,$v0,0x5) and come out 4-8 bytes short.
-   Also open: the rect stores in the second MoveImage block are [w][y][x][h]
-   here and [w][y][x][h] in retail but with the two zero stores swapped.
-   One permuter run (4 min, 913 iters) reported PERMUTER_BETTER 1553 -> 1042 for
-   a body that duplicates the fade block under `if (i)`, but that body scores
-   94.16% under objdiff (1332 bytes), so its metric is not objdiff's here.
+/* Best attempt: 97.87% (1344 bytes; the original is 1348, one instruction
+   short). Every call, loop, branch and delay slot is retail's; what is left is
+   one hoist decision and the register assignment that follows from it.
+   1. Retail hoists NO invariant out of the first (g_FieldScriptDataStreamActive)
+      loop: its preheader is just `bne` + `lui $s0,0x80` (nFade) in the delay
+      slot, the fade arm re-forms the step inline (`lui $v0,0xfffc`,
+      `addu $s0,$s0,$v0`) and the fade test loads `li $v0,1` inside the body.
+      Our compile hoists both out of the same loop (`li $s3,1`,
+      `lui $s0,0xfffc` in the preheader), which is +2 instructions there and -1
+      in the arm, and that extra live-in register is what raises the loop's
+      register pressure so that the second hoist pays as well. The later
+      (g_FieldDiscChangeFade) loop, which retail DOES hoist into $s1, and the
+      0x20 loop, which retail hoists into $s3, both match in shape.
+   2. Consequence: retail's $s0 = nFade and $s1 = the loop counter, ours is the
+      other way round ($s1 = nFade, $s0 = counter); that one swap accounts for
+      about twenty of the differing instructions and everything else is
+      register naming. Declaration orders tried: rect/i/nFadeStep/nFade,
+      nFade first, nFadeStep first - no change.
+   3. nFadeStep: the if/else spelling below is what reproduces retail's three
+      stores (0 in the first beq's delay slot, 0x20 in the second beq's, 0 on
+      the fall-through). `nFadeStep = 0x20; if (A == 1 || B == 1) nFadeStep = 0;`
+      is 97.50% (one instruction short: the 0x20 store lands in the first delay
+      slot instead of the second), and
+      `nFadeStep = 0; if (A != 1) { nFadeStep = 0x20; if (B == 1) ... }` folds to
+      a setcc (`xori/sltu/sll $s2,$v0,0x5`) at 97.09%.
+   A permuter run (4 min, 1728 iters) reported PERMUTER_BETTER 989 -> 461 for a
+   body that duplicates the loop body under `if (nFade || g_GameLoadedWdsBankIndex)`;
+   ported by hand that body is 98.66% but 1340 bytes (two instructions short),
+   so it is not an improvement over this one.
+/*
+// Loads the scene map, fades the field in, runs it until the state machine
+// leaves state 1 and then tears the field down
 void func_80078D44(void) {
-    // Loads the scene map, fades the field in and runs it until the state machine
-    // leaves state 1, then tears the field down
+    RECT rect;
+    int i;
+    int nFadeStep;
+    int nFade;
 
-        RECT rect;
-        int i;
-        int nFadeStep;
-        int nFade;
-
-        FieldLoadFont();
-        FieldStoreScreenImage();
-        ArchiveSetIndex(4, 0);
-        FieldWaitForSceneMapFileLoad();
-        FieldRenderSync();
-        if (g_FieldScreenSetupDone == 0) {
-            FieldImageConvert24BitTo15Bit(0);
-        }
-        FieldInitializeRenderContexts();
-        if (g_FieldScreenSetupDone == 0) {
-            rect.x = 0;
-            rect.y = 0x100;
-            rect.w = 0x140;
-            rect.h = 0xE0;
-            MoveImage(&rect, 0, 0);
-        }
-        g_FieldCurRenderContextIndex = 1;
-        FieldCopyScreenToFadeTexture();
-        FieldCopyScreenToVram(0, 0x100);
-        DrawSync(0);
-        FieldClearAndSwapOTag();
-        FieldRenderSync();
-        if (g_GameDiscChangeRequest == 1 || g_FieldDiscChangeFade == 1) {
-            FieldZoomFadeEffectLoadTextures(0, 0);
-        } else {
-            FieldZoomFadeEffectLoadTextures(1, 1);
-        }
-        g_FieldScreenSetupDone = 1;
-        ArchiveCdDataSync(0);
-        ArchiveSetIndex(4, 0);
-        FieldLoad();
-        FieldStartScriptDataStream();
-        D_800AFD04 = 1;
-        if (g_FieldActorModelSlotCount != 0) {
-            LibGearSetDirectKeyframes(1);
-        }
+    FieldLoadFont();
+    FieldStoreScreenImage();
+    ArchiveSetIndex(4, 0);
+    FieldWaitForSceneMapFileLoad();
+    FieldRenderSync();
+    if (g_FieldScreenSetupDone == 0) {
+        FieldImageConvert24BitTo15Bit(0);
+    }
+    FieldInitializeRenderContexts();
+    if (g_FieldScreenSetupDone == 0) {
+        rect.x = 0;
+        rect.y = 0x100;
+        rect.w = 0x140;
+        rect.h = 0xE0;
+        MoveImage(&rect, 0, 0);
+    }
+    g_FieldCurRenderContextIndex = 1;
+    FieldCopyScreenToFadeTexture();
+    FieldCopyScreenToVram(0, 0x100);
+    DrawSync(0);
+    FieldClearAndSwapOTag();
+    FieldRenderSync();
+    if (g_GameDiscChangeRequest == 1 || g_FieldDiscChangeFade == 1) {
+        FieldZoomFadeEffectLoadTextures(0, 0);
+    } else {
+        FieldZoomFadeEffectLoadTextures(1, 1);
+    }
+    g_FieldScreenSetupDone = 1;
+    ArchiveCdDataSync(0);
+    ArchiveSetIndex(4, 0);
+    FieldLoad();
+    FieldStartScriptDataStream();
+    D_800AFD04 = 1;
+    if (g_FieldActorModelSlotCount != 0) {
+        LibGearSetDirectKeyframes(1);
+    }
+    if (g_GameDiscChangeRequest == 1 || g_FieldDiscChangeFade == 1) {
+        nFadeStep = 0;
+    } else {
         nFadeStep = 0x20;
-        if (g_GameDiscChangeRequest == 1 || g_FieldDiscChangeFade == 1) {
-            nFadeStep = 0;
+    }
+    nFade = 0x800000;
+    if (g_FieldScriptDataStreamActive == 1) {
+        do {
+            FieldClearAndSwapOTag();
+            FieldZoomFadeEffectUpdate();
+            FieldDisplay();
+            if (g_FieldDiscChangeFade != 1) {
+                if (g_FieldZoomFadeScale < 0x22C0) {
+                    g_FieldZoomFadeScale += nFadeStep;
+                }
+            } else {
+                FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
+                nFade -= 0x40000;
+                if (nFade < 0) {
+                    nFade = 0;
+                }
+            }
+        } while (ArchiveDataSync() != 0);
+        DrawSync(0);
+        HeapFree((void*)D_800ADC14);
+        g_FieldScriptDataStreamActive = 0;
+        FieldOrVramStripPixels();
+    }
+    if (g_FieldDiscChangeFade == 1) {
+        do {
+            FieldClearAndSwapOTag();
+            FieldZoomFadeEffectUpdate();
+            FieldDisplay();
+            FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
+            nFade -= 0x40000;
+        } while (nFade >= 0);
+    }
+    if (g_GameDiscChangeRequest == 1) {
+        rect.x = 0;
+        rect.y = 0;
+        rect.w = 0x140;
+        rect.h = 0xE0;
+        MoveImage(&rect, 0x200, 0);
+    }
+    if (g_WorldMapAudioManagerLoaded != 0) {
+        SoundStopAudioManager(g_SoundAudioManager);
+        SoundDestroyAudioManager(g_SoundAudioManager);
+        SoundFreeWdsEntry(g_GameCurLoadedWDS);
+        g_WorldMapAudioManagerLoaded = 0;
+    }
+    func_800A24C4();
+    g_GameStagedFileSyncCount = 0;
+    g_GamePartySkinsInitialized = 0;
+    FieldRenderSync();
+    ControllerResetState();
+    g_GameWdsBankLoadState = 0;
+    if (g_GameDiscChangeRequest == 1) {
+        g_GameRequestedWdsBankIndex = 0xE;
+        FieldFreePendingAudioManager();
+    }
+    if (g_GameLoadedWdsBankIndex != g_GameRequestedWdsBankIndex) {
+        SoundFreeLoadedWdsAndAudioManager();
+        g_GameWdsBankLoadState = -1;
+        if (g_SoundPendingAudioManager != 0) {
+            g_GameReusePendingAudioManager = 1;
         }
-        nFade = 0x800000;
-        if (g_FieldScriptDataStreamActive == 1) {
-            do {
-                FieldClearAndSwapOTag();
+        FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 1);
+    } else {
+        FieldFreePendingAudioManager();
+    }
+    FieldScriptUpdateMemoryEachFrame();
+    if (g_GameDiscChangeRequest != 1) {
+        if (g_FieldDiscChangeFade != 1) {
+            FieldFadeToBlack(0x20);
+            for (i = 0; i < 0x20; i++) {
+                FieldUpdateFrame();
                 FieldZoomFadeEffectUpdate();
-                FieldDisplay();
-                if (g_FieldDiscChangeFade != 1) {
-                    if (g_FieldZoomFadeScale < 0x22C0) {
-                        g_FieldZoomFadeScale += nFadeStep;
-                    }
-                } else {
+                func_8007554C();
+                FieldTickSkipCounter();
+                if (g_GameDiscChangeRequest != 1) {
                     FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
                     nFade -= 0x40000;
                     if (nFade < 0) {
                         nFade = 0;
                     }
-                }
-            } while (ArchiveDataSync() != 0);
-            DrawSync(0);
-            HeapFree((void*)D_800ADC14);
-            g_FieldScriptDataStreamActive = 0;
-            FieldOrVramStripPixels();
-        }
-        if (g_FieldDiscChangeFade == 1) {
-            do {
-                FieldClearAndSwapOTag();
-                FieldZoomFadeEffectUpdate();
-                FieldDisplay();
-                FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-                nFade -= 0x40000;
-            } while (nFade >= 0);
-        }
-        if (g_GameDiscChangeRequest == 1) {
-            rect.x = 0;
-            rect.y = 0;
-            rect.w = 0x140;
-            rect.h = 0xE0;
-            MoveImage(&rect, 0x200, 0);
-        }
-        if (g_WorldMapAudioManagerLoaded != 0) {
-            SoundStopAudioManager(g_SoundAudioManager);
-            SoundDestroyAudioManager(g_SoundAudioManager);
-            SoundFreeWdsEntry(g_GameCurLoadedWDS);
-            g_WorldMapAudioManagerLoaded = 0;
-        }
-        func_800A24C4();
-        g_GameStagedFileSyncCount = 0;
-        g_GamePartySkinsInitialized = 0;
-        FieldRenderSync();
-        ControllerResetState();
-        g_GameWdsBankLoadState = 0;
-        if (g_GameDiscChangeRequest == 1) {
-            g_GameRequestedWdsBankIndex = 0xE;
-            FieldFreePendingAudioManager();
-        }
-        if (g_GameLoadedWdsBankIndex != g_GameRequestedWdsBankIndex) {
-            SoundFreeLoadedWdsAndAudioManager();
-            g_GameWdsBankLoadState = -1;
-            if (g_SoundPendingAudioManager != 0) {
-                g_GameReusePendingAudioManager = 1;
-            }
-            FieldStartWdsBankLoad(g_GameRequestedWdsBankIndex, 1);
-        } else {
-            FieldFreePendingAudioManager();
-        }
-        FieldScriptUpdateMemoryEachFrame();
-        if (g_GameDiscChangeRequest != 1) {
-            if (g_FieldDiscChangeFade != 1) {
-                FieldFadeToBlack(0x20);
-                for (i = 0; i < 0x20; i++) {
-                    FieldUpdateFrame();
-                    FieldZoomFadeEffectUpdate();
-                    func_8007554C();
-                    FieldTickSkipCounter();
-                    if (g_GameDiscChangeRequest != 1) {
-                        FieldZoomFadeEffectSetPolygonColor(nFade >> 16);
-                        nFade -= 0x40000;
-                        if (nFade < 0) {
-                            nFade = 0;
-                        }
-                        if (g_FieldZoomFadeScale < 0x22C0) {
-                            g_FieldZoomFadeScale += nFadeStep;
-                        }
+                    if (g_FieldZoomFadeScale < 0x22C0) {
+                        g_FieldZoomFadeScale += nFadeStep;
                     }
                 }
-            } else {
-                FieldFadeToBlack(0x20);
             }
         } else {
-            for (i = 0; i < 8; i++) {
-                FieldUpdateFrame();
-                FieldZoomFadeEffectUpdate();
-                func_8007554C();
-                FieldTickSkipCounter();
-            }
+            FieldFadeToBlack(0x20);
         }
-        if (g_FieldActorModelSlotCount != 0) {
-            LibGearSetDirectKeyframes(0);
+    } else {
+        for (i = 0; i < 8; i++) {
+            FieldUpdateFrame();
+            FieldZoomFadeEffectUpdate();
+            func_8007554C();
+            FieldTickSkipCounter();
         }
-        FieldRestoreScreenImage();
-        HeapConsolidate();
-        FontFree();
-        FieldLoadFont();
-        D_800AFD04 = 0;
     }
+    if (g_FieldActorModelSlotCount != 0) {
+        LibGearSetDirectKeyframes(0);
+    }
+    FieldRestoreScreenImage();
+    HeapConsolidate();
+    FontFree();
+    FieldLoadFont();
+    D_800AFD04 = 0;
+}
 */
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_80079288);
