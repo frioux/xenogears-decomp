@@ -25,6 +25,7 @@ extern BattleTableEntry g_BattleWorkBlock[];
 extern u8 g_BattleCommandCharIndex;
 extern BattleTableEntry* g_BattleActingSlot;
 extern u8 D_800CCD68[];
+extern u8 g_BattleActorCharIds[];
 
 extern int rand(void);
 extern void func_8009BE0C(void);
@@ -1144,6 +1145,99 @@ void func_8009BD94(void) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BD94);
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009BE0C);
+// PARKED (90.12%, 552 bytes = retail's exact size, instruction multiset equal
+// apart from the three ties below). Body COMPILES.
+// Structure is retail's: the outer 3-slot loop, the characterId==7 hp arm, the
+// character copy (hp/mp clamp, 7 stat-weight words, the 0x3A word, the 0xC000
+// flag -> hp 1), then the gear copy. Load-bearing and measured:
+//  - the gear-id validation must be TWO tests
+//    (`slti 17 / beqz` then `slti 8 / bnez`, both to the loop bottom). The parked
+//    body below is the single-condition `(gearId < 0x11 && gearId > 7)` spelling,
+//    which folds to `addiu v1,-8 / sltiu 9` and is 90.12%; writing the copy body
+//    twice under `if (gearId < 7) ... else if (gearId < 0x11) { if (gearId >= 8)`
+//    gives retail's two tests and cross-jumps to one copy, but it also makes gcc
+//    hoist `0xCCCCCCCD` into $t3 for the two `/ 10`s, which costs a register:
+//    89.99. Both spellings are wrong in a different way; that is the next lever.
+//  - the `s32 gearId = p->gearId; if (gearId < 0) continue;` guard is required: it
+//    is what emits retail's `bltz $v1`.
+//  - `*(volatile u16 *)&p->hp = (pState->hp + 1) / 50` (only the STORE volatile)
+//    is what brings back retail's `sh / lhu` store-then-reload pair; a plain store
+//    makes gcc fold the reload to the value it already has.
+//  - `u32 frame[2]` is unused but supplies retail's 8-byte phantom frame.
+// Remaining, all register-order ties this body cannot reach:
+//  1. both divisions: retail `multu v0,v1 ; mfhi v0 ; srl v0,v0,4` (and /10 the
+//     same with srl 3), this compiler `mfhi $tN ; srl v0,$tN,4` - the same cc1
+//     division-expansion difference that caps func_8009A9D0 (99.66) and
+//     func_8009BD94 (98.33) in this unit. try_flags on this body: 98.26 under
+//     gcc-2.6.0, so this is not a preset win either.
+//  2. both `if (a > b) a = b;` clamps: retail loads the LEFT operand first
+//     (`lhu v1,80(a1)` mp then `82` maxMp) and reloads b for the store, this body
+//     loads b first and keeps it in a register (`sltu v0,v1,v0`), so the block is
+//     two instructions rotated. Measured, no effect: the pChar->hp store volatile.
+//  3. the pChar->maxHp load is hoisted above the pChar->hp store here.
+// A 3-minute permuter run from this body was PERMUTER_BETTER base=1601 best=1102
+// and its whole finding was `j = 0x11;` then `gearId < j`, i.e. it replaced
+// retail's `slti 17` immediate with a register compare - not a real lead.
+/*
+void func_8009BE0C(void) {
+    BattleTableEntry* p;
+    BattleSlotState* pState;
+    GameCharacter* pChar;
+    GameGear* pGear;
+    s32 gearId;
+    u32 frame[2];
+    u8 i;
+    u8 j;
+
+    for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+        if (g_BattleActorCharIds[i] == BATTLE_SLOT_CHARACTER_NONE) {
+            continue;
+        }
+        p = &g_BattleWorkBlock[i];
+        pChar = &g_GameState.characters[p->characterId];
+        pGear = &g_GameState.gears[p->gearId];
+        pState = (BattleSlotState*)((u8*)&g_BattleWorkBlock[i] + 0xA4);
+        if (p->characterId == 7 && (g_BattleSlotConditions[i * 0x170] & BATTLE_SLOT_GEAR_STATUS_FLAG)) {
+            *(volatile u16*)&p->hp = (pState->hp + 1) / BATTLE_ACTOR_HP_SCALE;
+            if (p->hp == 0) {
+                p->hp = 1;
+            }
+        }
+        pChar->hp = p->hp;
+        pChar->mp = p->mp;
+        if (pChar->hp > pChar->maxHp) {
+            pChar->hp = pChar->maxHp;
+        }
+        if (pChar->mp > pChar->maxMp) {
+            pChar->mp = pChar->maxMp;
+        }
+        for (j = 0; j < 7; j++) {
+            pChar->statWeights[j] = ((u16*)p->unk90)[j];
+        }
+        ((u16*)&pChar->unk34[6])[0] = ((u16*)p->unk3A)[0];
+        if (p->activeEffectFlags1 & 0xC000) {
+            pChar->hp = 1;
+        }
+        gearId = p->gearId;
+        if (gearId < 0) {
+            continue;
+        }
+        if (gearId < 7 || (gearId < 0x11 && gearId > 7)) {
+            *(volatile u32*)&pGear->hp = pState->hp;
+            pGear->fuel = ((u16*)&pState->unk28[0x10])[0];
+            if (pGear->hp > pGear->maxHp) {
+                pGear->hp = pGear->maxHp;
+            }
+            if (pGear->fuel > pGear->maxFuel) {
+                pGear->fuel = pGear->maxFuel;
+            }
+            if (pState->activeEffectFlags1 & 0x8000) {
+                pGear->hp = pGear->maxHp / 10;
+            }
+        }
+    }
+}
+*/
 // The state base (+0xA4) and the condition byte inside it (+0xA4 again) are formed
 // from the slot table base before the slot stride is added, as retail does; the
 // typed `&g_BattleWorkBlock[arg0].state` / `.state.unkA4` spellings derive the
