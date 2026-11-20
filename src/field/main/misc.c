@@ -696,26 +696,22 @@ typedef struct {
 extern ParticleBankHandle g_FieldScriptParticleBank;
 
 // Zeroes the .z (and .x) of every direction in the script's current bank.
-// Two load-bearing spellings, both found by the permuter:
-// - `banks` is assigned INSIDE the loop so gcc hoists it into the preheader
-//   after `i = 0`; assigning it above the loop emits the address load first.
-// - the .z store is a flat byte-offset store: with a typed `directions[i].z`
-//   gcc folds the 0x30 field offset into the base register
-//   (`%lo(banks + 0x30)` + `sh 0x2`) instead of retail's `%lo(banks)` +
-//   `sh 0x32`; the typed form measures 66.82%/84 bytes and an element pointer
-//   local 80.18%/80 bytes against retail's 88. Retail's own .x store two
-//   instructions later IS the folded `%hi/%lo(banks + 0x30)` form, so the
-//   asymmetry is retail's, not a compromise here.
-// The offsets are written as sizeof/offsetof because the mem_addr sum they feed
-// has to stay an integer expression - a `u8*` base measured 92.73%/92 bytes.
+// The .z store keeps an INDEX-FIRST sum added to a base held as a value: the
+// typed `directions[i].z` spellings commute that sum and fold the 0x30 field
+// offset into `%hi` instead of retail's `%lo` + `sh 0x32`, and measure 38.77%,
+// 80.68% (pointer to the bank) and 82.27% (pointer to the array) against
+// retail's 88 bytes. Retail's own .x store two instructions later is the folded
+// `%hi/%lo(base + 0x30)` form, so the asymmetry is retail's.
+// Both pointer locals live inside the loop: hoisted, the address load comes
+// before `i = 0` and the block is 8 bytes longer.
 void FieldClearParticleBankDirections(void) {
     int i;
 
     for (i = 0; i < NUM_PARTICLE_BANKS; i++) {
         int bankIndex = g_FieldScriptParticleBank.bankIndex;
-        mem_addr banks = (mem_addr)g_FieldDefaultParticleBanks;
+        ParticleBank* pBanks = g_FieldDefaultParticleBanks;
 
-        *(s16*)((bankIndex * sizeof(ParticleBank) + i * sizeof(ParticleBankAngleOffset)) + banks
+        *(s16*)((bankIndex * sizeof(ParticleBank) + i * sizeof(ParticleBankAngleOffset)) + (mem_addr)pBanks
                 + offsetof(ParticleBank, directions[0].z)) = 0;
         g_FieldDefaultParticleBanks[bankIndex].directions[i].x = 0;
     }
@@ -2500,17 +2496,18 @@ int FieldActorsWithinDistance(int dstActorId, int srcActorId) {
 
 // Each of these re-reads the volatile g_FieldActors itself rather than taking
 // the array: retail re-reads that base once per copied field, and the one read
-// has to serve both operands. Typed field accesses instead let gcc keep the
-// `index * sizeof(FieldActor)` multiplies in registers, so the copies come out
-// short (61.37%/352 bytes for all seven written inline, 58.79%/344 for them as
-// plain typed assignments, 91.33%/488 for the three MATRIX words as
-// `transformMatrix.t[axis]`), against 100.00%/496 - hence a byte offset as the
-// field selector.
+// has to serve both operands. The field selector is a byte offset because the
+// typed spellings let gcc hoist the `index * sizeof(FieldActor)` multiplies:
+// position.x/y/z as `((SpriteData*)pSpriteData)->position.x` is 93.47%/500,
+// transformMatrix.t[n] typed is 78.56%/492, all seven typed 80.43%/524,
+// against 100.00%/496. The sprite cursor has to be a `u8*` local (99.44% if
+// CopyActorFieldS32 gets the same treatment).
 static inline void CopySpriteFieldS32(int dstId, int srcId, u32 byteOffset) {
     FieldActor* actors = g_FieldActors;
-    SpriteData* dst = actors[dstId].pSpriteData;
-    SpriteData* src = actors[srcId].pSpriteData;
-    *(s32*)((u8*)dst + byteOffset) = *(s32*)((u8*)src + byteOffset);
+    u8* dst = (u8*)actors[dstId].pSpriteData;
+    u8* src = (u8*)actors[srcId].pSpriteData;
+
+    *(s32*)(dst + byteOffset) = *(s32*)(src + byteOffset);
 }
 
 // Retail copies this field with `lhu`/`sh`, so it reads unsigned even though
