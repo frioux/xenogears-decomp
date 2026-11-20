@@ -8,13 +8,30 @@
 // unit that shows what they hold (misc1, misc2, misc3, misc12, misc16); other units
 // reach past 0x104, so 0x108 is a lower bound on the real size.
 typedef struct {
-    /* 0x000 */ u8 unk0[0x30];
+    /* 0x000 */ RECT texWindowRects[6]; // texture windows the tile draw modes are set with: the whole page, then each tile's texel rect
     /* 0x030 */ u32 sourceWordOffset; // word offset into the sub-image source BattleUploadImageFrame loads, 4 words per upload
-    /* 0x034 */ u8 unk34[0x48];
+    /* 0x034 */ s32 x; // screen x of the sprite the move steps carry
+    /* 0x038 */ s32 unk38;
+    /* 0x03C */ s32 unk3C;
+    /* 0x040 */ s32 unk40;
+    /* 0x044 */ s32 y; // screen y of the sprite the move steps carry
+    /* 0x048 */ s32 unk48;
+    /* 0x04C */ s32 unk4C;
+    /* 0x050 */ s32 unk50;
+    /* 0x054 */ s32 xStep; // 8.8 increment xOffset takes per moveStep
+    /* 0x058 */ s32 unk58;
+    /* 0x05C */ s32 yStep; // 8.8 increment yOffset takes per moveStep
+    /* 0x060 */ s32 unk60;
+    /* 0x064 */ s32 xOffset; // 8.8 offset added to x, stepped once per moveSteps
+    /* 0x068 */ s32 unk68;
+    /* 0x06C */ s32 yOffset; // 8.8 offset added to y, stepped once per moveSteps
+    /* 0x070 */ u8 unk70[0xB];
+    /* 0x07B */ u8 actorSpritePackageCount; // packages built at gfx+0x9C8, one 0x50-byte row each
     /* 0x07C */ u8 slotMarks[3]; // per slot: raised when an action is queued for that slot
     /* 0x07F */ u8 unk7F[0x17];
     /* 0x096 */ u8 stringTableLoaded; // set while D_800C3DE8 holds the archive entry 3 string table
-    /* 0x097 */ u8 unk97[0x2];
+    /* 0x097 */ u8 primRowCount; // rows of 0x10-byte prims built at gfx+0x908
+    /* 0x098 */ u8 primRowStart; // row of that table the prims start at
     /* 0x099 */ u8 valueSpritePrimStart[3]; // prim index each slot's value digits were built at
     /* 0x09C */ u8 spriteColumnPending; // set when the 0xBA8 list has prims to add
     /* 0x09D */ u8 menuColumnPending; // set when the 0x1E68 list has prims to add
@@ -24,7 +41,7 @@ typedef struct {
     /* 0x0A1 */ u8 unkA1;
     /* 0x0A2 */ u8 unkA2;
     /* 0x0A3 */ u8 primStart; // prim index the 0x641C lists were built at
-    /* 0x0A4 */ u8 unkA4;
+    /* 0x0A4 */ u8 actorSpritePrimStart; // prim index the 0x9C8 packages were built at
     /* 0x0A5 */ u8 spriteColumnPrimStart;
     /* 0x0A6 */ u8 menuColumnPrimStart;
     /* 0x0A7 */ u8 cursorPrimStart;
@@ -35,13 +52,14 @@ typedef struct {
     /* 0x0AC */ u8 unkAC;
     /* 0x0AD */ u8 actorDrawActive; // cleared when the acting slot's draw state is reset
     /* 0x0AE */ u8 slotStringTableLoaded; // set while D_800D367C holds the slot's archive string table
-    /* 0x0AF */ u8 unkAF;
-    /* 0x0B0 */ u8 unkB0[0x4];
+    /* 0x0AF */ u8 actorSpriteActive; // set while the actor's sprite group at gfx+0x9C8 is live
+    /* 0x0B0 */ u8 primFlags[4]; // per slot: prim flags the *PrimFlags*Slots pairs raise
     /* 0x0B4 */ u8 unkB4[0x3];
     /* 0x0B7 */ u8 primState; // which prim set is up: the *PrimFlags*Slots setters store 0-3, 0 for none
-    /* 0x0B8 */ u8 unkB8[0xE];
+    /* 0x0B8 */ u8 rectExpandActive[7]; // per slot: while set, the slot's rect grows toward its target size
+    /* 0x0BF */ u8 rectExpandDone[7]; // per slot: set once w and h reached the target size
     /* 0x0C6 */ u8 pulseTriangleActive; // BattleUpdateRotationBuffer returns unless set
-    /* 0x0C7 */ u8 unkC7;
+    /* 0x0C7 */ u8 actorPrimListsPending; // set while the actor's prim lists in g_BattleSpriteColumnWork are to be added
     /* 0x0C8 */ u8 packagePending; // set when a package of BattlePrimPool is to be added
     /* 0x0C9 */ u8 objectRenderPending;
     /* 0x0CA */ u8 slotTimersActive; // set to tick the g_BattlePrimPool timers down
@@ -65,7 +83,7 @@ typedef struct {
     /* 0x08 */ s32 clutY;
     /* 0x0C */ s32 texPageX;
     /* 0x10 */ s32 texPageY;
-    /* 0x14 */ s32 unk14;
+    /* 0x14 */ s32 direntCount; // resource directory entry count ResourceHelperGetTexCoords returns for this tile
 } BattleTileTexture; // Size: 0x18
 
 // The battle draw work block (g_BattleGraphicsWork). Only the fields
@@ -79,7 +97,7 @@ typedef struct {
     /* 0x6416 */ u8 scrollDir; // 0 counts scrollOffset up to 0x81, 1 counts down
     /* 0x6417 */ u8 unk6417[0x2539];
     /* 0x8950 */ RECT uploadRect[4]; // VRAM destinations of the four sub-image uploads
-    /* 0x8970 */ u8 unk8970[0x18C0];
+    /* 0x8970 */ u8 subImages[0x18C0]; // the four sub-images BattleUploadImageFrame streams to VRAM, 0x630 bytes each
     /* 0xA230 */ u8* pPacketPrims; // 0x670-byte pool of POLY_FT4 pairs
 // Byte size of the packet prim pool pPacketPrims points at (0x670).
 #define BATTLE_PACKET_PRIM_POOL_SIZE 0x670
@@ -96,7 +114,8 @@ typedef struct {
     /* 0x408 */ DR_MODE drawModes[2];
     /* 0x420 */ u8 unk420[0x180];
     /* 0x5A0 */ s32 packageCount; // packages BattleDrawSpriteQuad appended to the pool at +0x0
-    /* 0x5A4 */ u8 unk5A4[0x4];
+    /* 0x5A4 */ u8 packagePrimStart; // prim index those packages were built at
+    /* 0x5A5 */ u8 unk5A5[0x3];
 } BattleSlotGraphics; // Size: 0x5A8
 
 // Prim pool for the sprite package drawn by BattleAddPrimAndRenderObject

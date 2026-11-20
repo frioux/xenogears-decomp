@@ -23,10 +23,10 @@
 #define BATTLE_SUB_IMAGE_ROW_HALFWORDS 198
 #define BATTLE_SUB_IMAGE_ROW_BYTES (BATTLE_SUB_IMAGE_ROW_HALFWORDS * 2)
 // Bytes of one sub-image (its four rows), and how many of them
-// g_BattleGraphicsWork->unk8970 holds (0x18C0 bytes).
+// g_BattleGraphicsWork->subImages holds (0x18C0 bytes).
 #define BATTLE_SUB_IMAGE_BYTES (BATTLE_SUB_IMAGE_ROW_BYTES * 4)
 #define BATTLE_SUB_IMAGE_COUNT 4
-// Where the first of them sits in the work block (BattleGraphicsWork.unk8970).
+// Where the first of them sits in the work block (BattleGraphicsWork.subImages).
 #define BATTLE_GRAPHICS_SUB_IMAGES_OFFSET 0x8970
 
 // A texture page is 256 halfwords square, the size the two full-page rects in
@@ -476,7 +476,7 @@ void BattleClearFlagC6(void) {
    battle_work.h still calls unk6417.
    Parked body (92.19):
    // Stages the battle's tile atlas: stores the four sub-images of
-   // g_BattleGraphicsWork->unk8970 into the four VRAM rows they are drawn from,
+   // g_BattleGraphicsWork->subImages into the four VRAM rows they are drawn from,
    // asks the sprite archive for the texel parameters of the four tile textures,
    // and points the display state's rect table and draw modes at them.
    void func_80077990(void) {
@@ -534,26 +534,26 @@ void BattleClearFlagC6(void) {
        // the texel parameters of the four tile textures: the count word that closes
        // tiles[n] and the five texture fields of tiles[n + 1]
        ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x4B,
-                                  &g_BattleGraphicsWork->tiles[0].unk14, &g_BattleGraphicsWork->tiles[1].tp,
+                                  &g_BattleGraphicsWork->tiles[0].direntCount, &g_BattleGraphicsWork->tiles[1].tp,
                                   &g_BattleGraphicsWork->tiles[1].clutX, &g_BattleGraphicsWork->tiles[1].clutY,
                                   &g_BattleGraphicsWork->tiles[1].texPageX, &g_BattleGraphicsWork->tiles[1].texPageY);
        ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x50,
-                                  &g_BattleGraphicsWork->tiles[1].unk14, &g_BattleGraphicsWork->tiles[2].tp,
+                                  &g_BattleGraphicsWork->tiles[1].direntCount, &g_BattleGraphicsWork->tiles[2].tp,
                                   &g_BattleGraphicsWork->tiles[2].clutX, &g_BattleGraphicsWork->tiles[2].clutY,
                                   &g_BattleGraphicsWork->tiles[2].texPageX, &g_BattleGraphicsWork->tiles[2].texPageY);
        ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x4D,
-                                  &g_BattleGraphicsWork->tiles[2].unk14, &g_BattleGraphicsWork->tiles[3].tp,
+                                  &g_BattleGraphicsWork->tiles[2].direntCount, &g_BattleGraphicsWork->tiles[3].tp,
                                   &g_BattleGraphicsWork->tiles[3].clutX, &g_BattleGraphicsWork->tiles[3].clutY,
                                   &g_BattleGraphicsWork->tiles[3].texPageX, &g_BattleGraphicsWork->tiles[3].texPageY);
        ResourceHelperGetTexCoords(g_BattleSpriteArchive, 0x4E,
-                                  &g_BattleGraphicsWork->tiles[3].unk14, &g_BattleGraphicsWork->tiles[4].tp,
+                                  &g_BattleGraphicsWork->tiles[3].direntCount, &g_BattleGraphicsWork->tiles[4].tp,
                                   &g_BattleGraphicsWork->tiles[4].clutX, &g_BattleGraphicsWork->tiles[4].clutY,
                                   &g_BattleGraphicsWork->tiles[4].texPageX, &g_BattleGraphicsWork->tiles[4].texPageY);
 
        // the rect table the draw modes below take their texture window from: the
        // whole page, then the five texel rects
        pPageCoords = (BattleTilePageCoords *)g_BattleGraphicsWork->tiles;
-       pRects = (RECT *)g_BattleDisplayState->unk0;
+       pRects = g_BattleDisplayState->texWindowRects;
        pRects[0].x = pRects[0].y = 0;
        pRects[0].h = BATTLE_TEX_PAGE_SIZE;
        pRects[0].w = BATTLE_TEX_PAGE_SIZE;
@@ -586,22 +586,22 @@ void BattleClearFlagC6(void) {
                    GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
                             g_BattleGraphicsWork->tiles[0].texPageX,
                             g_BattleGraphicsWork->tiles[0].texPageY),
-                   (RECT *)(g_BattleDisplayState->unk0 + 8));
+                   &g_BattleDisplayState->texWindowRects[1]);
        SetDrawMode((DR_MODE *)((u8 *)g_BattleGraphicsWork + BATTLE_DRAW_MODES_OFFSET + sizeof(DR_MODE)), 0, 0,
                    GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
                             g_BattleGraphicsWork->tiles[0].texPageX,
                             g_BattleGraphicsWork->tiles[0].texPageY),
-                   (RECT *)(g_BattleDisplayState->unk0 + 8));
+                   &g_BattleDisplayState->texWindowRects[1]);
        SetDrawMode((DR_MODE *)((u8 *)g_BattleGraphicsWork + BATTLE_DRAW_MODES_OFFSET + sizeof(DR_MODE) * 2), 0, 0,
                    GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
                             g_BattleGraphicsWork->tiles[0].texPageX,
                             g_BattleGraphicsWork->tiles[0].texPageY),
-                   (RECT *)(g_BattleDisplayState->unk0));
+                   g_BattleDisplayState->texWindowRects);
        SetDrawMode((DR_MODE *)((u8 *)g_BattleGraphicsWork + BATTLE_DRAW_MODES_OFFSET + sizeof(DR_MODE) * 3), 0, 0,
                    GetTPage(g_BattleGraphicsWork->tiles[0].tp, 0,
                             g_BattleGraphicsWork->tiles[0].texPageX,
                             g_BattleGraphicsWork->tiles[0].texPageY),
-                   (RECT *)(g_BattleDisplayState->unk0));
+                   g_BattleDisplayState->texWindowRects);
    }
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80077990);
