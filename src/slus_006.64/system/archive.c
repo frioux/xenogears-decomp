@@ -1273,48 +1273,36 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B8B0);
-/* Best attempt: objdiff 97.95% at retail's exact 400 bytes, instruction multiset
- * identical. ONE delta left: in the scan loop retail copies the loaded queue index
- * (move a1,v0) BEFORE it adds (addiu v1,a1,1); we emit the add first and the copy
- * second. Everything else - the found block's li/sh before the id load, the
- * hoisted nSectorOffset sll between that load and the addiu, and the retry loop's
- * i = 0 at the block head - now matches.
+/* MECHANISM: the loop's queue-index copy is a REGISTER-LIVE-RANGE question, not a
+ * spelling one (round 334, 18 cc1_probe snippets + 20 measured spellings).
  *
- * Load-bearing spellings (each measured, all at 400 bytes unless stated):
- *  - `nIndex = g_ArchiveStreamQueueIndex++` alone: the copy exists (400 bytes,
- *    91.85); the two-statement `nIndex = g; g = nIndex + 1` and `nIndex = g;
- *    g += 1` both COALESCE the copy away (396 bytes, 98.80% - cannot link), and
- *    `nIndex = g; g = ++nIndex` is 94.60.
- *  - `*(volatile u16*)&pHeader->state = 1;` is what moves the state store ahead of
- *    the id load (91.85 -> 97.95). Plain `pHeader->state = 1;` lets sched2 raise
- *    the lhu above the li/sh and hands the constant $v1 instead of retail's $v0.
- *  - `i = 0;` as its own statement at the head of the found block, with the retry
- *    loop written `for (; i < RETRY_COUNT; i++)`, is what puts retail's move s0,zero
- *    first and keeps the nSectorOffset `sll` out of the found test's delay slot.
- *  - nSectorOffset must be computed AFTER both section-id stores (i.e. just before
- *    the retry loop); as the third statement it schedules to the block head.
- *  - the section-id bump wants TWO locals (nSectionId then nNextSectionId, then
- *    both stores): `pHeader->id = g; g += 1;` puts the addiu after the id store.
- *  - addressing pHeader index-first and the PCread buffer base-first fixes both
- *    addu operand orders.
- *  - the section count read inline in the loop bound AND in the wrap test is what
- *    makes retail's move a0,v0 count copy instead of a direct lw a0.
- * Measured and rejected: `&g_ArchiveStreamSections[nIndex]` 91.30; a nLimit local
- * 90.30; a pSections mem_addr local held across the loop 92.90; a volatile queue
- * index read 98.80/396; a volatile increment store 95.45/408; the section test
- * inlined with pHeader formed after the loop (412 bytes, 84.00); `pHeader->id =
- * g++` 89.04; an unused nSectorOffset local (no change); nSectorOffset as the
- * third statement 96.75.
- * The permuter cannot run on this body: cpp of base.c then cc1 reports
- * "conversion to non-scalar type requested" (cc1 accepts the same text in the
- * real build), so a queue-index spelling that the permuter parses is needed
- * before it can be tried. The remaining delta is sched2's order of two
- * independent insns off one loaded value, which is the shape a permuter run is
- * for.
+ * Retail's loop head is  lw v0,q / addu a1,v0,zero / addiu v1,a1,1 / sll v0,a1,3 /
+ * sw v1,q . The copy exists in our compile too, but sched2 puts it AFTER the add
+ * and the add reads the load's temp. The order follows from the copy's SHAPE, not
+ * from the schedule: when the local is a distinct pseudo that is already LIVE at
+ * the load, cc1 must materialise it (addu a1,v0,zero) and the increment then reads
+ * a1, giving retail's order. When the local is created inside the loop it is
+ * coalesced into the load temp and the add reads that.
+ * Proof (cc1_probe, faithful replica of this body): `nIndex = g_ArchiveStreamQueueIndex++;`
+ * gives add-then-copy; the SAME body with `s32 nIndex = -1;` gives retail's loop
+ * byte for byte. Measured in the unit: 404 bytes / 98.89%, and the ONLY residual is
+ * the extra `li a1,-1` the initialiser costs - retail's 400 bytes has no slot for
+ * it, so the live-in has to come from an instruction that already exists.
+ * Probed and dead (all keep add-then-copy, or coalesce the copy away entirely):
+ * two statements (`nIndex = q; q = nIndex + 1;` -> 396 bytes, cannot link);
+ * `g_Qa[0]++` through an unbounded array extern; `(*pQ)++` through a pointer
+ * local; `pQX->q++` (struct member); `g = (nIndex = g) + 1`; `nIndex = g, g = nIndex + 1`;
+ * `g = 1 + (nIndex = g)`; `nTemp = g; nIndex = nTemp; g = nIndex + 1`;
+ * `nIndex = nTemp = g; g = nIndex + 1;`; `nIndex = g; g = g + 1;`; the wrap test
+ * reading the local; declaration order of nIndex first/last; cdk (96.65) and 2.6.0
+ * (98.80) same tie. The copy survives only from a post-increment.
+ * NOTE the same loop is in func_8002B2F0 and func_8002B5D0 (identical bodies), so
+ * whatever closes this closes those two.
  *
+ * Best body (98.89%, 404 bytes - retail is 400):
  * void func_8002B8B0(void) {
  *     s16 i;
- *     s32 nIndex;
+ *     s32 nIndex = -1;
  *     s32 nSectorOffset;
  *     u16 nSectionId;
  *     u16 nNextSectionId;
