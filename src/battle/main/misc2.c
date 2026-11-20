@@ -30,6 +30,16 @@ typedef struct {
     /* 0x66B */ u8 unk66B[5];
 } BattlePacketPrims; // Size: 0x670
 
+// Partial view of the sprite column draw buffer g_BattleSpriteColumnWork points at
+// (0x5DA4 bytes, allocated by BattleAllocDrawBuffer): the fields of the 0x4CE0 list
+// and the counter that gates it.
+typedef struct {
+    /* 0x0000 */ u8 unk0[0x5DA0];
+    /* 0x5DA0 */ u8 listPrimStart;    // prim index the 0x4CE0 list was built at
+    /* 0x5DA1 */ u8 listPackageCount; // packages that list holds
+    /* 0x5DA2 */ u16 columnCounter;   // frames the 0x4CE0 list has been drawn for
+} BattleSpriteColumnWork; // Size: 0x5DA4
+
 extern u8 D_8005959C;
 extern u8 *g_BattleGraphicsWork;
 extern u8 g_BattleDisplayMode;
@@ -245,7 +255,6 @@ void BattleRenderSlotStatDigits(void) {
     s32 i;
     s32 offset;
     s32 value;
-    u8 *pSlot;
 
     for (i = 0, offset = 0; i < 3; i++, offset += 0x1C) {
         if (g_BattleDisplayState->slotMarks[i] != 0) {
@@ -260,7 +269,8 @@ void BattleRenderSlotStatDigits(void) {
                 } else {
                     BattleRenderActorSplitDigitPanel(i, value);
                 }
-                *((pSlot = (u8 *)g_BattleDisplayState + i) + 0x93) = *(u8 *)&g_BattlePrimStartIndex;
+                // 0x14 within unk7F is 0x93: the slot's stat-digit prim start
+                g_BattleDisplayState->unk7F[0x14 + i] = *(u8 *)&g_BattlePrimStartIndex;
                 g_BattleDisplayState->slotMarks[i] = 0;
             }
         }
@@ -269,33 +279,33 @@ void BattleRenderSlotStatDigits(void) {
 void BattleAddFourSlotPrims(void) {
     BattlePacketPrims *p;
 
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     if (p->pending == 0) {
         return;
     }
 
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (s32)p));
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (0x50 + (s32)p)));
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (0xA0 + (s32)p)));
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->ft4PrimIndex * sizeof(POLY_FT4) + (0xF0 + (s32)p)));
 }
 void BattleAddPrimPair320(void) {
     BattlePacketPrims *p;
 
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x320 + (s32)p)));
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x370 + (s32)p)));
 }
 void BattleAddPrimPair280(void) {
     BattlePacketPrims *p;
 
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x280 + (s32)p)));
-    p = *(BattlePacketPrims **)(g_BattleGraphicsWork + 0xA230);
+    p = ((BattleGraphicsWork *)g_BattleGraphicsWork)->pPacketPrims;
     AddPrim(g_BattleCurOT[0] + 4, (u8 *)(p->pairPrimIndex * sizeof(POLY_FT4) + (0x2D0 + (s32)p)));
 }
 
@@ -324,13 +334,14 @@ void BattleAddSpriteColumnPrimLists(void) {
     func_800728B8(g_BattleSpriteColumnWork + 0x1720, g_BattleSpriteColumnWork[0x5D74],
                   g_BattleSpriteColumnWork[0x5D83]);
 
-    counter = *(u16 *)(g_BattleSpriteColumnWork + 0x5DA2) + 1;
-    *(u16 *)(g_BattleSpriteColumnWork + 0x5DA2) = counter;
+    counter = ((BattleSpriteColumnWork *)g_BattleSpriteColumnWork)->columnCounter + 1;
+    ((BattleSpriteColumnWork *)g_BattleSpriteColumnWork)->columnCounter = counter;
     if ((s16)counter < 15) {
-        func_800728B8(g_BattleSpriteColumnWork + 0x4CE0, g_BattleSpriteColumnWork[0x5DA1],
-                      g_BattleSpriteColumnWork[0x5DA0]);
+        func_800728B8(g_BattleSpriteColumnWork + 0x4CE0,
+                      ((BattleSpriteColumnWork *)g_BattleSpriteColumnWork)->listPackageCount,
+                      ((BattleSpriteColumnWork *)g_BattleSpriteColumnWork)->listPrimStart);
     } else if ((s16)counter >= 21) {
-        *(u16 *)(g_BattleSpriteColumnWork + 0x5DA2) = 0;
+        ((BattleSpriteColumnWork *)g_BattleSpriteColumnWork)->columnCounter = 0;
     }
 
     func_800728B8(g_BattleSpriteColumnWork + 0x3AC0, g_BattleSpriteColumnWork[0x5D75],
@@ -414,6 +425,7 @@ void BattleAddPrimAndRenderObject(void) {
 
     if (g_BattleDisplayState->packagePending != 0) {
         pPool = g_BattlePrimPool;
+        // the cast over the sum keeps retail's product-first addu; &pPool->prims[i] is base-first (99.74%)
         off = pPool->primIndex * sizeof(POLY_FT4) + 0x7A4;
         AddPrim(g_BattleCurOT[0] + 4, (u8 *)(off + (s32)pPool));
     }
