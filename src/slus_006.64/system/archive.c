@@ -212,7 +212,7 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     return 0;
 }
 
-int func_80029AFC(StreamDataQueueEntry* pQueue, s32 channel) {
+int ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 channel) {
     StreamDataQueueEntry* pEntry;
     StreamDataQueueEntry* pCurEntry;
     s32* pWord;

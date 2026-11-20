@@ -580,15 +580,15 @@ void BattleWaitArchiveSync(void) {
 }
 
 /* Archive entry table at g_BattleSoundEffectArchiveEntries: the archive file index to load at +0 (it is what
-   ArchiveDecodeAlignedSize and func_80029AFC take) and the base sound id at +2. */
+   ArchiveDecodeAlignedSize and ArchiveStartStreamQueue take) and the base sound id at +2. */
 typedef struct {
     /* 0x0 */ u16 fileIndex;
     /* 0x2 */ s16 soundId;
 } BattleArchiveEntry; // Size: 0x4
 
-/* Archive read request filled in on the stack and handed to func_80029AFC: the archive
+/* Archive read request filled in on the stack and handed to ArchiveStartStreamQueue: the archive
    file index to load and the buffer it is decoded into, twice, then the third entry
-   zeroed because func_80029AFC walks 8-byte entries until one's fileIndex is 0. */
+   zeroed because ArchiveStartStreamQueue walks 8-byte entries until one's fileIndex is 0. */
 typedef struct {
     /* 0x0  */ u16 fileIndex1;
     /* 0x2  */ u16 pad2;
@@ -596,7 +596,7 @@ typedef struct {
     /* 0x8  */ u16 fileIndex2;
     /* 0xA  */ u16 padA;
     /* 0xC  */ void *pBuffer2;
-    /* 0x10 */ u16 fileIndex3; // zero: ends the entry list func_80029AFC walks
+    /* 0x10 */ u16 fileIndex3; // zero: ends the entry list ArchiveStartStreamQueue walks
     /* 0x12 */ u16 pad12;
     /* 0x14 */ s32 buffer3;
     /* 0x18 */ u16 unk18;
@@ -606,7 +606,7 @@ typedef struct {
 
 extern BattleArchiveEntry g_BattleSoundEffectArchiveEntries[];
 extern void BattleFreeWdsEntry(void);
-extern void func_80029AFC(void *pRequest, s32 arg1, s32 arg2);
+extern void ArchiveStartStreamQueue(void *pRequest, s32 arg1, s32 arg2);
 extern void SoundAddSedsEntry(void *pEntry);
 extern void *SoundLoadWdsFile(void *pBuffer, s32 arg1);
 extern void SoundFreeWdsEntry(void *pWds);
@@ -645,7 +645,7 @@ void BattleLoadSoundEffectFilesAndPlay(s32 arg0, s32 arg1) {
     request.pBuffer2 = pBuffer2;
     request.buffer3 = 0;
     request.fileIndex3 = 0;
-    func_80029AFC(&request, 0, 0);
+    ArchiveStartStreamQueue(&request, 0, 0);
 
     BattleWaitArchiveSync();
     SoundAddSedsEntry(pBuffer1);

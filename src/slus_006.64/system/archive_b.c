@@ -125,7 +125,7 @@ extern void* g_BattleStageData;
    local stays.
    OLDER NOTES (still valid):
    The queue store is SOLVED: with D_8005A1DC declared as a StreamDataQueueEntry[]
-   and the first field stored through the pointer taken for the func_80029AFC
+   and the first field stored through the pointer taken for the ArchiveStartStreamQueue
    call, gcc shares the address and emits retail's `sh $s2,0($a0)` (a local
    `StreamDataQueueEntry*` over three separate 8-byte symbols does not: cse folds
    the store back to the symbol and the bytes come out `sh $sN,0($at)`; that was
@@ -190,7 +190,7 @@ int func_800379D8(int nIndex, int nBaseIndex, int* pOut1, int* pOut2, int* pOut3
         D_8005A1E8 = pFirst;
         D_8005A1EC = 0;
         D_8005A1F0 = NULL;
-        func_80029AFC(pQueue, 0, 0);
+        ArchiveStartStreamQueue(pQueue, 0, 0);
         *pOut1 = pSecond;
         *pOut2 = 0;
         *pOut3 = (int)D_8005A1E8 + 4;

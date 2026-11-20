@@ -151,7 +151,7 @@ void FieldScriptVMHandlerOpenTextBoxMode3(void) {
 int FieldTextBoxCheckPortraitIdAvailable(int targetId);
 extern s32 ArchiveCdDataSync(s32 arg0);
 extern u32 ArchiveDecodeAlignedSize(u32 entryIndex);
-extern void func_80029AFC(void* pRequest, s32 arg1, s32 arg2);
+extern void ArchiveStartStreamQueue(void* pRequest, s32 arg1, s32 arg2);
 extern void FieldLoadTIMWithClut(u_long* pTimData, short x, short y, short clutX, short clutY,
                                  short clutWidth, short clutHeight);
 
@@ -175,7 +175,7 @@ typedef struct {
     /* 0xE */ s16 secondClutY;
 } FieldPortraitTIMRect; // Size: 0x10
 
-// One archive read; the array of these handed to func_80029AFC ends with a zero entry.
+// One archive read; the array of these handed to ArchiveStartStreamQueue ends with a zero entry.
 typedef struct {
     /* 0x0 */ u16 size;
     /* 0x2 */ u16 pad2;
@@ -313,7 +313,7 @@ s32 func_8009C154(s32 faceId) {
 
     D_800B00C8[requestIndex].size = 0;
     D_800B00C8[requestIndex].pBuffer = NULL;
-    func_80029AFC(D_800B00C8, 0, 0);
+    ArchiveStartStreamQueue(D_800B00C8, 0, 0);
     return -1;
 }
 */

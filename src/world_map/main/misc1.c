@@ -63,7 +63,7 @@
 
 extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
-extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
+extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 extern void WorldMapGetGameStatePosition(void* pVector);
 
 // The stream request table at g_WorldMapStreamQueue: g_WorldMapStreamQueue and the D_ symbols
@@ -514,14 +514,14 @@ void func_80071CDC(void) {
     }
     pQueue[nCount].archiveIndex = 0;
     pQueue[nCount].pData = 0;
-    func_80029AFC(pQueue, 0, 0);
+    ArchiveStartStreamQueue(pQueue, 0, 0);
 }
 */
 
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc1", func_80071EF0);
 /* best: 98.00% (256 bytes vs 252). Only the g_WorldMapStreamQueue store differs: the
-   original reuses the $a0 that already holds the address for the func_80029AFC
+   original reuses the $a0 that already holds the address for the ArchiveStartStreamQueue
    call and emits a bare "sh $v1,0($a0)"; gcc re-forms the symbol address and
    needs one extra lui $at. A local StreamDataQueueEntry* does not stop that
    folding, and neither does routing the address through an s32 local or a
@@ -551,7 +551,7 @@ void func_80071EF0(void) {
     D_8009D408.archiveIndex = g_WorldMapReloadFileIndex;
     D_8009D400.pData = g_WorldMapTexturePackData;
     D_8009D408.pData = g_WorldMapLoadedFileData;
-    func_80029AFC(pQueue, 0, 0);
+    ArchiveStartStreamQueue(pQueue, 0, 0);
 }
 */
 
@@ -567,7 +567,7 @@ void WorldMapQueueTwoFileLoads(void) {
     D_8009D408.archiveIndex = 0;
     D_8009D408.pData = 0;
     D_8009D400.pData = g_MenuResourcesFile;
-    func_80029AFC(&g_WorldMapStreamQueue, 0, 0);
+    ArchiveStartStreamQueue(&g_WorldMapStreamQueue, 0, 0);
 }
 
 extern s32 g_WorldMapAudioManagerLoaded;
@@ -606,7 +606,7 @@ void WorldMapQueueFileLoads(void) {
     D_8009D418.pData = pBuffer;
     D_8009D420.archiveIndex = 0;
     D_8009D420.pData = 0;
-    func_80029AFC(&g_WorldMapStreamQueue, 0, 0);
+    ArchiveStartStreamQueue(&g_WorldMapStreamQueue, 0, 0);
 }
 
 void WorldMapLoadSedsBank(void) {

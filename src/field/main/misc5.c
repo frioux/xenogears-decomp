@@ -798,7 +798,7 @@ extern void* g_PartyStreamDataPointers[];
 extern int ArchiveDecodeAlignedSize(int entryIndex);
 extern void ArchiveCdDataSync(int mode);
 extern void LZSSDecompress(void*, void*);
-extern void func_80029AFC(StreamDataQueueEntry*, int, int);
+extern void ArchiveStartStreamQueue(StreamDataQueueEntry*, int, int);
 
 void FieldSaveFramebuffers(void) {
     int i;
@@ -828,7 +828,7 @@ void FieldSaveFramebuffers(void) {
 
         queue[entryIndex].pData = 0;
         queue[entryIndex].archiveIndex = 0;
-        func_80029AFC(queue, 0, 0);
+        ArchiveStartStreamQueue(queue, 0, 0);
         ArchiveCdDataSync(0);
 
         for (i = 1; i < MAX_PARTY_MEMBERS; i++) {

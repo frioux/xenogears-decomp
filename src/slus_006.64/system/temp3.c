@@ -298,7 +298,7 @@ void GamePartyCharactersInitializeSkins(void) {
     }
     g_PartyStreamDataQueue[entryCount].pData = NULL;
     g_PartyStreamDataQueue[entryCount].archiveIndex = 0;
-    func_80029AFC(g_PartyStreamDataQueue, 0, 0);
+    ArchiveStartStreamQueue(g_PartyStreamDataQueue, 0, 0);
     g_GamePartyQueuedSkinKind = 1;
 }
 
@@ -338,7 +338,7 @@ void GamePartyGearsInitializeSkins(void) {
     }
     g_PartyStreamDataQueue[entryCount].pData = NULL;
     g_PartyStreamDataQueue[entryCount].archiveIndex = 0;
-    func_80029AFC(g_PartyStreamDataQueue, 0, 0);
+    ArchiveStartStreamQueue(g_PartyStreamDataQueue, 0, 0);
     g_GamePartyQueuedSkinKind = 2;
 }
 
@@ -424,7 +424,7 @@ void GamePartyStreamLoadSkinData(int arg0) {
 
     g_PartyStreamDataQueue[entryIndex].pData = 0;
     g_PartyStreamDataQueue[entryIndex].archiveIndex = 0;
-    func_80029AFC(g_PartyStreamDataQueue, 0, 0); // Start streaming the queued requests
+    ArchiveStartStreamQueue(g_PartyStreamDataQueue, 0, 0); // Start streaming the queued requests
     g_PartyIsWaitingForStreamData = 1;
     HeapToggleErrorHandler(0);
 }
@@ -773,7 +773,7 @@ void SoundLoadAndPlaySedsBank(void) {
     D_8006F9D4 = 0;
     D_8006F9D8 = NULL;
     D_8006F9C0 = g_SoundSedsBank;
-    func_80029AFC(g_SoundSedsStreamQueue, 0, 0x80);
+    ArchiveStartStreamQueue(g_SoundSedsStreamQueue, 0, 0x80);
 
     while (ArchiveDataSync() == 3) {}
 

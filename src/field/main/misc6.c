@@ -1381,7 +1381,7 @@ extern s32 g_FieldArchiveStreamActive;
 extern s32 FieldArchiveTryDataSync(void);
 extern s32 ArchiveCdDataSync(s32 arg0);
 extern s32 ArchiveDecodeAlignedSize(u32 entryIndex);
-extern void func_80029AFC(StreamDataQueueEntry* pQueue, s32 arg1, s32 arg2);
+extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, s32 arg1, s32 arg2);
 extern void func_801E742C(s32 arg0, s32 arg1, s32 arg2, s32 arg3, s16 arg4, s32 arg5,
                           s32 arg6, s32 arg7, SVECTOR* pVector);
 extern StreamDataQueueEntry D_800B2394[];
@@ -1458,7 +1458,7 @@ void FieldScriptVMHandlerUpdateActorModelSlot(void) {
             D_800B2394[1].pData = pBuffer;
             D_800B2394[2].archiveIndex = 0;
             D_800B2394[2].pData = NULL;
-            func_80029AFC(D_800B2394, 0, 0);
+            ArchiveStartStreamQueue(D_800B2394, 0, 0);
             g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
             break;
 

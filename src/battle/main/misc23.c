@@ -727,7 +727,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
 // Archive entry allocated by func_800A9540 / BattleAllocateArchiveFilePair, stored in g_BattleArchiveEntry.
 // A list of {archive file index, buffer that file is decoded into} pairs: the
 // file index at 0x0/0x8/0x10/0x18 is the argument ArchiveDecodeAlignedSize and
-// func_80029AFC take, so the list is terminated by a zero pair. The 0x18-byte
+// ArchiveStartStreamQueue take, so the list is terminated by a zero pair. The 0x18-byte
 // variant stops after the third pair, the 0x20-byte one adds a fourth.
 typedef struct {
     /* 0x0  */ u16 fileIndex1;
@@ -756,7 +756,7 @@ typedef struct {
 
 extern Misc23ArchiveEntry *g_BattleArchiveEntry;
 extern int ArchiveDecodeAlignedSize(unsigned int);
-extern void func_80029AFC(Misc23ArchiveEntry *, s32, s32);
+extern void ArchiveStartStreamQueue(Misc23ArchiveEntry *, s32, s32);
 extern u8 g_BattleSlotTextIndex[];
 extern u8 D_800CCDE8[];
 extern u8 D_800C3509[];
@@ -824,7 +824,7 @@ void func_800A9540(s32 arg0) {
     }
     pTail->fileIndex1 = 0;
     pTail->pBuffer1 = NULL;
-    func_80029AFC(g_BattleArchiveEntry, 0, 0);
+    ArchiveStartStreamQueue(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(pos.alignedIndex, pos.remainder);
 }
 */
@@ -849,7 +849,7 @@ void BattleAllocateArchiveFilePair(s32 arg0) {
     pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(entryIndex), 1);
     pEntry->fileIndex3 = 0;
     pEntry->pBuffer3 = 0;
-    func_80029AFC(g_BattleArchiveEntry, 0, 0);
+    ArchiveStartStreamQueue(g_BattleArchiveEntry, 0, 0);
     ArchiveSetIndex(alignedIndex, remainder);
 }
 // Payload reached through Misc23ArchiveEntry::pBuffer3: a count-prefixed list of

@@ -160,7 +160,7 @@ extern s32 g_FieldStreamDataSize;
 extern s32 g_FieldSuppressStateChange;
 extern void FieldWaitForArchiveSync(void);
 extern void FieldMoveStoredImageToHeap(int nHeapType);
-extern void func_80029AFC(StreamDataQueueEntry* pQueue, int arg1, int arg2);
+extern void ArchiveStartStreamQueue(StreamDataQueueEntry* pQueue, int arg1, int arg2);
 
 INCLUDE_ASM("asm/field/nonmatchings/main/main", func_80077884);
 // 90.25%: structure, frame (0x38, s0-s4 + ra) and size (560 bytes, same as the
@@ -225,7 +225,7 @@ void func_80077884(void) {
     D_800B2394[i * 2 + 1].pData = NULL;
 
     FieldWaitForArchiveSync();
-    func_80029AFC(D_800B2394, 0, 0);
+    ArchiveStartStreamQueue(D_800B2394, 0, 0);
 }
 */
 extern s32* D_801E8644;
