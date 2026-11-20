@@ -598,6 +598,9 @@ void MenuBuildCellGlyphQuads(s32 start, s32 primIndex, s32 end) {
         if (g_Menu->menuUnk2->records[i].unk58) {
             for (j = 0; j < g_Menu->menuUnk2->chunks[i].pad0[3]; ) {
                 pBlock = (MenuCellPrimBlock*)g_Menu->pCellPrimBlocks[prim];
+                // The render context is summed in first (`ctx + pBlock->quads`): the struct
+                // subscript is the same address but emits the commuted `addu v0,s0,v0`
+                // where retail has `addu v0,v0,s0` (99.58).
                 (g_Menu->renderContext + pBlock->quads)->u0 = i * 16;
                 (g_Menu->renderContext + pBlock->quads)->v0 = g_Menu->menuUnk2->records[i].unk0[g_Menu->characterCellFrame * 4];
                 (g_Menu->renderContext + pBlock->quads)->u1 = i * 16 + 16;
