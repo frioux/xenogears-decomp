@@ -1065,14 +1065,19 @@ s32 WorldMapFindSpriteSet(void *pArg, s16 *pOut) {
     return 0;
 }
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
-// Best: 98.62% at retail's exact 924 bytes (231 instructions). The body IS
+// Best: 98.53% at retail's exact 924 bytes (231 instructions); 12 assembly
+// differences, down from 13 on the 98.62 body this note used to hold (objdiff's
+// percentage is not monotone in the diff, judge by the diff lines). The body IS
 // compiler output despite splat's "Handwritten function" marker: every call,
 // GTE encoding, the 0x50 frame, the loop body and the epilogue are exact.
 // What the distance-test block needed:
-// - `far |= dz >= 0x800;` - an ACCUMULATOR, not `farX | farZ` and not an inline
-//   `(dx >= 0x800) | (dz >= 0x800)` - keeps the dx compare (slti + xori) in
-//   place, right after the negu and BEFORE the dz loads, as retail has it.
+// - `dx = dx >= 0x800;` and later `dz = dz >= 0x800;` - REASSIGN each distance
+//   to its own comparison result and accumulate with `dx |= dz` - is the only
+//   spelling that gives retail's in-place `slti/slti;xori;xori` pairs (the
+//   compare written into the distance's own register) and its in-place
+//   `or a1,a1,v0`. `far = dx >= 0x800; far |= dz >= 0x800;` splits the compare
+//   through v0 and costs 4 instructions. This is the "redefine a value into a
+//   dead local" lever.
 // - `dx` has to be built in three statements (`dx = pPos->x; dx = dx >> 12;
 //   dx = dx - pEntry->x;`); as one expression gcc loads pPos->x into v0 after
 //   the `addu s1,v1,v0` and the whole dx block moves (permuter find).
@@ -1082,23 +1087,32 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
 //   with the ret0 block inline (`j <epilogue>; move v0,zero`) instead of gcc
 //   threading `bne -> epilogue`.
 // - `pVerts = pMesh->pVerts;` must be assigned BEFORE `pWork->clip[2]` and
-//   `pTri = pMesh->tris;` (96.87 -> 98.62): it decides where `count`'s load and
-//   its spill to 0x18(sp) land.
-// Residue - allocator/regalloc ties only; three permuter runs (base 325 last)
-// found nothing:
-// (a) 9 instructions: retail keeps dx AND the far flag in a1 (`sra a1,a1,0xc`,
-//     `slti a1,a1,2048`, `xori a1,a1,0x1`) where this body uses a2 for dx and
-//     splits the compare through v0 into a1. One-variable (`dx = dx >= 0x800`),
-//     `!= 0`, u32 and declaration-order spellings all measure the same or worse.
-// (b) 2 instructions: retail's pWork `lui $s0,0x1F80` is the `beq` delay slot
-//     and its `move $s2,zero` (i = 0) sits inside the body block; here the lui
-//     is stolen into the dx `bgez` slot (retail has a nop) and i = 0 fills the
-//     `beq` slot. Assigning pWork inside the body block, with the delta stores
-//     spelled `*(s32 *)0x1F800040`, is WORSE: 95.88% / 928 bytes.
-// (c) two operands differ by relocation only (`addiu v0,s0,%lo(D_1F800010)` and
+//   `pTri = pMesh->tris;`: it decides where `count`'s load and its spill to
+//   0x18(sp) land.
+// Residue, three independent allocator ties (permuter run 4 - base 345, 1872
+// iterations, 5 min - on THIS body found nothing; four runs total):
+// (a) 5 instructions: dx is allocated a2 here and a1 in retail. Everything else
+//     in the block follows from that one choice (retail's `slti a1,a1,2048` and
+//     `xori a1,a1,1` are in-place because old dx, the slt temp and the flag all
+//     landed in a1). Twelve declaration orders of the locals were measured: dx
+//     is a2 in every one, so local declaration order is not the lever here.
+// (b) 4 instructions: the dz block's two temporaries are swapped - retail
+//     coalesces pEntry->z's load with the result (`lw v1,8(a0); lw v0,16(s1);
+//     sra v1; subu v0,v0,v1`), this body coalesces the sra'd pPos->z with it
+//     (`lw v0,8(a0); lw v1,16(s1); sra v0; subu v0,v1,v0`). Writing the block as
+//     two statements (`dz = pEntry->z; dz -= pPos->z >> 12;`) scores 98.08.
+// (c) 2 instructions: the scratchpad base load (`li $16,0x1F800000`, the
+//     loop-invariant constant loop.c hoists) is stolen into the dx `bgez` delay
+//     slot where retail has a `nop`, so `i = 0` (`move $18,zero`) fills the
+//     far-test `beqz` slot where retail has the hoisted `lui $s0,0x1F80` and
+//     puts `i = 0` inside the body block. Assigning pWork inside the body block
+//     is worse (95.88 / 928 bytes), and an empty `do { } while (0);` at the top
+//     of the else block changes nothing.
+// (d) two operands differ by relocation only (`addiu v0,s0,%lo(D_1F800010)` and
 //     `%lo(D_1F800020)` in retail vs the folded `addiu v0,s0,16` / `32` here) -
-//     byte identical when linked, so diff_func can never print MATCH; judge this
-//     function with check_bin.sh.
+//     splat named those two addresses, the linked bytes are identical, so
+//     diff_func can never print MATCH; judge this function with check_bin.sh.
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc8", func_80084DB8);
 /*
 s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
     WorldMapEntry *pEntry = &g_WorldMapGroups[setIndex];
@@ -1106,7 +1120,6 @@ s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
     WorldMapMesh *pMesh;
     WorldMapTriangle *pTri;
     SVECTOR *pVerts;
-    s32 far;
     s32 count;
     s32 dx;
     s32 dz;
@@ -1122,7 +1135,7 @@ s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
     if (dx < 0) {
         dx = -dx;
     }
-    far = dx >= 0x800;
+    dx = dx >= 0x800;
     dz = pEntry->z - (pPos->z >> 12);
     pWork->delta.vz = dz;
     if (dz < 0) {
@@ -1130,8 +1143,9 @@ s32 func_80084DB8(WorldMapPos *pPos, s32 setIndex) {
             dz = -dz;
         } while (0);
     }
-    far |= dz >= 0x800;
-    if (far) {
+    dz = dz >= 0x800;
+    dx |= dz;
+    if (dx) {
         return 0;
         do {
         } while (0);
