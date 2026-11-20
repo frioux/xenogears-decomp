@@ -287,20 +287,33 @@ void BattleEffectAllocEntries(Misc16Work* pWork, s32 count) {
    (rsin/rcos(rand()%angleRange) scaled by >>12, interpolation factor
    depthBase + rand()%depthRange) through gte_ldv0 / gte_mvmva(1,0,0,3,0) /
    gte_lddp / GPF into entry+8; pass 2 calls pWork->pUpdate(pWork, entry), sets
-   entry->unk6 = pWork->entryLife and calls pWork->pUpdateEntry(entry).  Not attempted
-   body-wise yet. */
+   entry->unk6 = pWork->entryLife and calls pWork->pUpdateEntry(entry). */
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc16", func_8008D680);
-/* 97.73% (760 bytes, retail 768).  The frame (0xC0), every save slot, the spill of
-   pUpdateEntry to 0x80(sp), the *pMat copy, the centerX/Y/Z adds, the
-   RotMatrix/MulMatrix chain, both loops and the call order all match.  Three
-   residues: (1) the IR1-IR3 round trip needs a `volatile u16 dir[3]` plus a
-   `pDir = dir;` INSIDE the loop right before the stores, or gcc folds the sh and
-   the lhu back into the mfc2 results (that one change is 88.59 -> 97.73); retail
-   nevertheless stores through $s6 with 0/2/4 offsets, and hoisting `pDir = dir;`
-   above the loop is 96.70; (2) retail's depth lands in $s1 as `lh v0,line; nop;
-   addu s1,v0,v1` where ours folds the add into $a0 (mtc2 a0,$8); (3) retail
-   materialises pEntry+8 in $v0 (`addiu v0,s3,8`) and stores at 0/2/4, ours folds
-   the +8 into the sh displacements - two instructions, the 8 bytes missing.
+/* 98.67% (764 bytes, retail 768).  Frame, save set, spills, the *pMat copy, the
+   centerX/Y/Z adds, the RotMatrix/MulMatrix chain, both loops, the call order and
+   every GTE command match.  Two residues, both a base register retail materialises
+   that we fold into a displacement:
+   (1) retail stores the IR1-IR3 round trip through $s6 - the &dir address hoisted
+       to the loop preheader (addiu s6,sp,24) and used for both the three sh and the
+       three lhu.  That register exists because gte_ldir123 takes its operands as
+       'r', so the loads force the address into a register; the plain stores that
+       precede them fold to sh v0,24(sp) instead.  Assigning pDir above the loop
+       does give the stores a register but re-prioritises the loop allocnos (dir
+       takes $s4, i $s5, n $s6 where retail has i $s4, n $s5, dir $s6) and measures
+       97.64%.  Dead: a non-volatile dir[], stores via (volatile u16 *) casts, a
+       second store-pointer local, a do/while block round the store group, and inline
+       dir[] for the loads (that one loses the register entirely, 744 bytes).
+   (2) retail materialises pEntry+8 in $v0 (addiu v0,s3,8) and stores at 0/2/4($v0);
+       ours folds the +8 into sh 8(s3).  Dead: the pointer local assigned before and
+       after the GTE read macro, (s16 *)((u32)pEntry + 8), three explicit casts.
+       That addiu is the missing 4 bytes, so this body cannot link yet.
+   Also cosmetic: the two * scale >> 12 mflo results land in $t1/$t2 where retail
+   reuses $t0 (sharing one temp measures 98.46).  A 4-minute permuter run from this
+   body found nothing (base 287, best 287).
+   The one change that took this from 97.73% is the depth: it must reuse the rnd
+   local - a separate depth variable goes to caller-saved $a0, while rnd's live
+   range spans the rsin/rcos/rand calls, so the reuse puts it in retail's $s1 and
+   the load-delay nop after lh v0,72(s2) comes back with it.
 
 void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
     SVECTOR vec;
@@ -348,7 +361,7 @@ void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
             scale = rcos(angle);
             vec.vx = rcos(rnd) * scale >> 12;
             vec.vz = rsin(rnd) * scale >> 12;
-            depth = pWork->depthBase + rand() % pWork->depthRange;
+            rnd = pWork->depthBase + rand() % pWork->depthRange;
             gte_ldv0(&vec);
             gte_mvmva(1, 0, 0, 3, 0);
             gte_stir123_gpr(vx, vy, vz);
@@ -356,7 +369,7 @@ void func_8008D680(Misc16Work* pWork, MATRIX* pMat, s32 count) {
             pDir[0] = vx;
             pDir[1] = vy;
             pDir[2] = vz;
-            gte_lddp(depth);
+            gte_lddp(rnd);
             gte_ldir123(pDir[0], pDir[1], pDir[2]);
             gte_nop();
             gte_nop();
