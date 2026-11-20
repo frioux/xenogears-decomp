@@ -201,7 +201,7 @@ void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
-/* 91.96% (1032 bytes against retail's 0x424 = 1060). Every call, rectangle, store and
+/* 95.58% at retail's EXACT size (1060 bytes = 0x424). Every call, rectangle, store and
    branch is retail's; the frame is retail's 0x148 and the local layout is retail's
    (bufs 0x18, nameRect 0x98, tensRect 0xA0, onesRect 0xA8, tens2Rect 0xB0,
    ones2Rect 0xB8, blankRect 0xC0, cellUses 0xD0, cellIds 0x100 - declaration order).
@@ -212,17 +212,24 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
    tens digit DOES want its `u8 tens = cellUses[i] / 10;` local (retail's `andi 0xff`
    after the magic-10 shift) and the second grid half uses the un-truncated
    `cellUses[i + 16] / 10` spelling, so do not unify them.
-   Remaining, all measured: retail saves s0-s4 and re-forms `lui $at,%hi(g_BattleDigitImageBuffers)
-   / addu $at,at,v0 / lw %lo(at)` at each of the four digit-buffer sites; this build
-   hoists the table's address into a saved s3 (the six-register frame) and reads
-   `addu v0,v0,s3; lw a1,0(v0)` - 1 instruction per site, exactly the 4 missing
-   instructions. loop.c's move_movables does the hoisting; it is NOT spelling
-   sensitive - `*(u_long **)(tens * 4 + (u32)g_BattleDigitImageBuffers)` and the array form compile
-   identically. gcc 2.6.0 scores 92.77 on this body with the four matched functions of
-   the unit still 100.00, so the preset is not the answer either.
-   Not tried: a distinct RTL spelling per site so each invariant address pseudo has a
-   single use (loop.c then has no shared hoist), separate ofs-style temporaries per
-   digit site, a pointer local per arm, and the permuter.
+   ROUND 312, worth +3.62 and the last 28 bytes: site 3's TEST reads the GLOBAL
+   (`g_BattleCommandCellUses[i + 16] / 10 != 0`) while its INDEX reads the local copy.
+   Retail divides TWICE there - the global read's quotient for the test (`srl 3` +
+   `andi 0xff`) and the copy's quotient for the index, where gcc folds `/ 10 * 4` into
+   `srl 1` + `andi 0x3FC`. The body is now retail's exact 1060 bytes.
+   Remaining, ONE cause: retail re-forms `lui $at,%hi(g_BattleDigitImageBuffers) /
+   addu $at,at,v0 / lw %lo(at)` at each of the four digit-buffer sites (the address
+   never leaves $at), while loop.c hoists the table's address into a sixth callee-saved
+   register (s4) and reads `addu v0,v0,s4; lw a1,0(v0)` - 2 insns per site, and the
+   extra save/restore shifts every register in the prologue and epilogue by 4 bytes.
+   Measured dead: the array form, `*(u_long **)(n * 4 + (u32)g_BattleDigitImageBuffers)`,
+   `*(u_long **)((u8 *)g_BattleDigitImageBuffers + n * 4)` (a cc1_probe of the bare loop
+   shows all three emit the same `la`), and `volatile` on the array declaration. gcc
+   2.6.0 scores 92.77 with the unit's four matched functions still 100.00, so the preset
+   is not the answer either. Next lever to try: a per-site spelling that gives each
+   address pseudo a single use so loop.c has nothing shared to hoist; also untried for
+   this body: separate ofs-style temporaries per digit site, a pointer local per arm,
+   and the permuter.
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
@@ -296,7 +303,7 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         } else {
             BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }
-        if (cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10 != 0) {
+        if (g_BattleCommandCellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10 != 0) {
             BattleLoadImageAndSync(&tens2Rect, g_BattleDigitImageBuffers[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10]);
         } else {
             BattleLoadImageAndSync(&tens2Rect, g_BattleTextWorkspace);
@@ -624,6 +631,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
      loses them.
    `pal = D_800D2F80;` above the first call is a scratch for the dx argument (the
    permuter's find, 1155 -> 83.46); retail keeps it in v1, this build in t0.
+   ROUND 312: passing D_800D2F80 inline as the dx argument instead of through that
+   scratch is 82.24, and adding `u = D_800D2F82;` before it (`u` passed as the u
+   argument) is exactly 83.46 again - so the scratch is load-bearing and the residual
+   is NOT the u/dx/v load order on its own: retail loads them u, dx, v after
+   `lw t0,0(s0)` and this build dx, u, v with dx before the sll chain.
    Remaining: retail fills the entry block's first slots with `lui v0,%hi(
    g_BattleGraphicsWork); lw v0,0(v0)` between `li a1,0xA8` and `li a2,0xA6` and
    loads D_800D2F80 before the sll chain; this build emits both after it. A short
