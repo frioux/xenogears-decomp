@@ -544,38 +544,40 @@ void BattleResetStateGlobals(void) {
     g_BattleSlotBitMask = 0;
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BED4C);
-/* best 93.82% (156 bytes = retail's size, SAME instruction multiset).  Two hunks left:
-   (1) retail feeds the actionDone(0x48)+unk30(0x30) stores from ONE reload of
-   g_BattleState and the pendingStep(0x49)+pathIndex(0x2C)+pCurSprite(0x04) group from
-   a second, while ours feeds actionDone from the first and unk30 from the second;
-   (2) retail's timer(0x34) store sits in the BattleSetStateStep jal delay slot, fed by
-   its THIRD reload, and the post-call `lw v0,0(s0)` is dead -- ours keeps the timer
-   store after the call, fed by the post-call reload.  Measured: the embedded
-   `pState = (g_BattleState = HeapAlloc(...));` is what puts the g_BattleState lui in
-   $s0 before func_800B9F78's (88.03 -> 93.82; without it gcc emits it two insns
-   later).  Tail orderings measured on top of that body: timer/call/globals 90.18% at
-   144 bytes (no post-call reload at all), timer/globals/call 88.69 at 164,
-   globals/timer/call 88.69 at 164, call/globals/timer 92.44 at 164,
-   globals/call/timer 84.44 at 168.  Two permuter runs (245 -> 150 score) only reach
-   this by adding a DUPLICATE timer store (160 bytes, 96.36%) -- that is not retail's
-   single 0x34 store, so it is not a match.  A later lane should try to find what makes
-   retail's post-call reload dead.
-void func_800BED4C(void) {
+/* best 99.74% (156 bytes = retail's size, one instruction pair of register choice).
+   This body supersedes the 93.82% note below: the park's "dead post-call reload" was
+   the RETURN VALUE -- misc29 declares the callee as BattleMisc33State *func_800BED4C(void)
+   and uses the result, so `return g_BattleState;` is what makes retail's trailing
+   `lw v0,0(s0)` live and lets the timer store take the BattleSetStateStep jal delay
+   slot.  With that plus `started = 1;` as its own statement before pathIndex (a plain
+   literal there makes cse share it with actionDone's 1, retail materialises them
+   separately) the only residual is which register the THIRD reload of g_BattleState
+   lands in: retail `lw v1,0(s0)` and keeps the second reload in v0 for
+   pendingStep/pathIndex/pCurSprite, ours puts the third reload in v0 and serves all
+   four stores from it (2 differing instructions, everything else identical, store
+   order and every reload position equal).  Two permuter runs (15 -> 10, then 5 and no
+   better) found nothing.  Not an ALLOCA/stack-switch stub and not BLOCKED.
+BattleMisc33State *func_800BED4C(void) {
     BattleMisc33State *pState;
+    s32 started;
 
-    pState = (g_BattleState = HeapAlloc(0x50, 0));
-    pState->pUpdate = func_800B9F78;
+    g_BattleState = HeapAlloc(0x50, 0);
+    g_BattleState->pUpdate = func_800B9F78;
     g_BattleCommandRowIndex = 0;
-    pState->commandUnhandled = 0;
+    g_BattleState->commandUnhandled = 0;
+    pState = g_BattleState;
     g_BattleState->actionDone = 1;
-    g_BattleState->unk30 = 0;
+    pState->unk30 = 0;
     g_BattleState->pendingStep = 0;
-    g_BattleState->pathIndex = 1;
+    started = 1;
+    g_BattleState->pathIndex = started;
     g_BattleState->pCurSprite = NULL;
+    pState = g_BattleState;
+    pState->timer = 0;
     BattleSetStateStep(0);
-    g_BattleState->timer = 0;
     g_NumFlaggedTimerWorkListEntries = 0;
-    g_FlagTimerWorkListAdds = 1;
+    g_FlagTimerWorkListAdds = started;
+    return g_BattleState;
 }
 */
 void BattleDestroyState(void) {
