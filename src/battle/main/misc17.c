@@ -96,7 +96,7 @@ extern void func_80076EA4(void);
 extern s32 GetStringEntryFromBank(s32, s32);
 extern void *GetStringEntryFromBank34(s32);
 extern u_long *GetStringEntryFromBank12(s32);
-extern u_long *D_800C3E5C[];
+extern u_long *g_BattleDigitImageBuffers[];
 void func_80092298(u8, u8 *);
 extern u_long *g_BattleTextWorkspace;
 extern void bzero(void *, s32);
@@ -272,12 +272,12 @@ void func_80091064(u8 arg0) {
         tensRect.w = 6;
         tensRect.h = 0xD;
         index = values[i] / 10;
-        BattleLoadImageAndSync(&tensRect, index != 0 ? D_800C3E5C[index] : g_BattleTextWorkspace);
+        BattleLoadImageAndSync(&tensRect, index != 0 ? g_BattleDigitImageBuffers[index] : g_BattleTextWorkspace);
         onesRect.x = 0x3C2 + (i % 2) * 0x10;
         onesRect.y = 0x102 + (i / 2) * 0x10;
         onesRect.w = 6;
         onesRect.h = 0xD;
-        BattleLoadImageAndSync(&onesRect, active[i] != 0 ? D_800C3E5C[values[i] % 10] : g_BattleTextWorkspace);
+        BattleLoadImageAndSync(&onesRect, active[i] != 0 ? g_BattleDigitImageBuffers[values[i] % 10] : g_BattleTextWorkspace);
     }
     func_80090E7C(arg0);
     for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
@@ -621,7 +621,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
 // whole body reproduces retail instruction for instruction -- the 0x618 text
 // buffer, the eight 0x1B x 0x10 tiles, the glyph blit shared by the i == 7 and
 // the arg1[i] arms, the even-tile load, the tens/ones digit blits with the
-// D_800C3E5C digit-buffer table -- and the only residual is the FRAME: retail is
+// g_BattleDigitImageBuffers digit-buffer table -- and the only residual is the FRAME: retail is
 // 0x90 with 88 bytes of vars, this body is 0x98 because loop.c hoists the
 // address of the tens rect (the one address used from two arms, since retail has
 // a separate jal for the tens blit in each) and reload spills it (8 bytes at
@@ -711,13 +711,13 @@ nextTile:
             pData = g_BattleTextWorkspace;
         } else {
             tensDigit = arg2[i] / 10;
-            BattleLoadImageAndSync(&tensRect, tensDigit != 0 ? D_800C3E5C[tensDigit] : g_BattleTextWorkspace);
+            BattleLoadImageAndSync(&tensRect, tensDigit != 0 ? g_BattleDigitImageBuffers[tensDigit] : g_BattleTextWorkspace);
             onesRect.x = (i % 2) * 16 + 0x3C2;
             onesRect.y = (i / 2) * 16 + 0x102;
             onesRect.w = 6;
             onesRect.h = 0xD;
             onesDigit = arg2[i] % 10;
-            pData = arg1[i] != 0xFF ? D_800C3E5C[onesDigit] : g_BattleTextWorkspace;
+            pData = arg1[i] != 0xFF ? g_BattleDigitImageBuffers[onesDigit] : g_BattleTextWorkspace;
         }
         BattleLoadImageAndSync(&onesRect, pData);
     }
@@ -932,7 +932,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
             value = *pValue;
             digit = value / divisors[j];
             if (digit != 0 || started != 0) {
-                BattleLoadImageAndSync(&tensRect, D_800C3E5C[digit]);
+                BattleLoadImageAndSync(&tensRect, g_BattleDigitImageBuffers[digit]);
                 started = 1;
                 *pValue -= digit * divisors[j];
             } else {
@@ -946,7 +946,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
         if (*pId != 0xFF) {
             value = *pValue;
             onesDigit = value % 10;
-            BattleLoadImageAndSync(&onesRect, D_800C3E5C[onesDigit]);
+            BattleLoadImageAndSync(&onesRect, g_BattleDigitImageBuffers[onesDigit]);
         } else {
             BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }

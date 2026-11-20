@@ -13,7 +13,7 @@
 #define BATTLE_CURSOR_FRAME_MAX 4
 extern u8 g_BattleCommandGridIds[];
 extern u8 g_BattleCommandCellUses[];
-extern u_long *D_800C3E5C[];
+extern u_long *g_BattleDigitImageBuffers[];
 extern u_long *g_BattleTextWorkspace;
 extern void BattleAllocPacketPrimitives(void);
 extern void func_80076EA4(void);
@@ -206,18 +206,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
    (bufs 0x18, nameRect 0x98, tensRect 0xA0, onesRect 0xA8, tens2Rect 0xB0,
    ones2Rect 0xB8, blankRect 0xC0, cellUses 0xD0, cellIds 0x100 - declaration order).
    GAINED THIS ROUND (+3.04 over the 88.92 park): the ones digit is computed INSIDE
-   its arm - `BattleLoadImageAndSync(&onesRect, D_800C3E5C[cellUses[i] % 10])` with
+   its arm - `BattleLoadImageAndSync(&onesRect, g_BattleDigitImageBuffers[cellUses[i] % 10])` with
    no `ones` local (retail's `% 10` sits inside the `if (cellIds[i] != 0)` arm).
    Hoisting it into a u8 local reorders that whole block and costs 28 bytes; the
    tens digit DOES want its `u8 tens = cellUses[i] / 10;` local (retail's `andi 0xff`
    after the magic-10 shift) and the second grid half uses the un-truncated
    `cellUses[i + 16] / 10` spelling, so do not unify them.
-   Remaining, all measured: retail saves s0-s4 and re-forms `lui $at,%hi(D_800C3E5C)
+   Remaining, all measured: retail saves s0-s4 and re-forms `lui $at,%hi(g_BattleDigitImageBuffers)
    / addu $at,at,v0 / lw %lo(at)` at each of the four digit-buffer sites; this build
    hoists the table's address into a saved s3 (the six-register frame) and reads
    `addu v0,v0,s3; lw a1,0(v0)` - 1 instruction per site, exactly the 4 missing
    instructions. loop.c's move_movables does the hoisting; it is NOT spelling
-   sensitive - `*(u_long **)(tens * 4 + (u32)D_800C3E5C)` and the array form compile
+   sensitive - `*(u_long **)(tens * 4 + (u32)g_BattleDigitImageBuffers)` and the array form compile
    identically. gcc 2.6.0 scores 92.77 on this body with the four matched functions of
    the unit still 100.00, so the preset is not the answer either.
    Not tried: a distinct RTL spelling per site so each invariant address pseudo has a
@@ -287,22 +287,22 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         BattleLoadImageAndSync(&nameRect, bufs[i]);
         tens = cellUses[i] / 10;
         if (tens != 0) {
-            BattleLoadImageAndSync(&tensRect, D_800C3E5C[tens]);
+            BattleLoadImageAndSync(&tensRect, g_BattleDigitImageBuffers[tens]);
         } else {
             BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
         }
         if (cellIds[i] != 0) {
-            BattleLoadImageAndSync(&onesRect, D_800C3E5C[cellUses[i] % 10]);
+            BattleLoadImageAndSync(&onesRect, g_BattleDigitImageBuffers[cellUses[i] % 10]);
         } else {
             BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }
         if (cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10 != 0) {
-            BattleLoadImageAndSync(&tens2Rect, D_800C3E5C[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10]);
+            BattleLoadImageAndSync(&tens2Rect, g_BattleDigitImageBuffers[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10]);
         } else {
             BattleLoadImageAndSync(&tens2Rect, g_BattleTextWorkspace);
         }
         if (cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP] != 0) {
-            BattleLoadImageAndSync(&ones2Rect, D_800C3E5C[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] % 10]);
+            BattleLoadImageAndSync(&ones2Rect, g_BattleDigitImageBuffers[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] % 10]);
         } else {
             BattleLoadImageAndSync(&ones2Rect, g_BattleTextWorkspace);
         }

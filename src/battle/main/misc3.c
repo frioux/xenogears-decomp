@@ -103,7 +103,7 @@ extern u8 D_800D2F3E[];
 extern u8 D_800D2F3F[];
 extern u8 g_BattleActionRowIconSprites[];
 extern u8 D_800D2F69[];
-extern u8 *D_800C3E5C[];
+extern u8 *g_BattleDigitImageBuffers[];
 
 
 void BattleSetPrimSemiTransTexture(POLY_FT4 *p) {
@@ -251,7 +251,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_80076D58);
    third loop's offset must be zeroed in the for-init clause
    (`for (i = 0, off2 = 0; ...)`) so `move s1,zero` lands after `li s3,0xD`
    where retail has it (98.15 -> 98.19). That third loop walks a byte offset
-   because D_800C3E5C is typed u8 *, so `D_800C3E5C + off` double-scales.
+   because g_BattleDigitImageBuffers is typed u8 *, so `g_BattleDigitImageBuffers + off` double-scales.
    Parked body (98.19):
 void func_80076EA4(void) {
     u8 *pBuf[11];
@@ -298,7 +298,7 @@ void func_80076EA4(void) {
         rect.y = 0x100;
         rect.w = 6;
         rect.h = 0xD;
-        BattleLoadImageAndSync(&rect, *(u8 **)((u8 *)D_800C3E5C + off2));
+        BattleLoadImageAndSync(&rect, *(u8 **)((u8 *)g_BattleDigitImageBuffers + off2));
         off2 += 4;
     }
 }

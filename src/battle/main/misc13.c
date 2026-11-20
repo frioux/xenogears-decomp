@@ -110,7 +110,7 @@ extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern s32 BattleDrawSpritePackage(s32, s32, s16, s16);
 extern u8 g_BattleSlotTextIndex[];
 extern u8 g_BattleValueDigitSpriteIds[];
-extern u8 *D_800C3E5C[];
+extern u8 *g_BattleDigitImageBuffers[];
 extern void *GetStringEntryFromBank1C(s32, s32);
 extern void BattleParseNumberToDigits(s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
@@ -443,10 +443,10 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
       gcc 2.7.2 rematerialises the incoming stack parameter, spills nothing: it keeps
       `count` in s6 and reloads arg4 from 0x88(sp) at each use, so the frame is 0x70
       instead of 0x78. Forcing the spill with `volatile s32 count` is 62.94% / 868.
-   2. `D_800C3E5C[id]` comes out as `la` + `addu` + `lw 0(reg)` (4 insns); retail has
+   2. `g_BattleDigitImageBuffers[id]` comes out as `la` + `addu` + `lw 0(reg)` (4 insns); retail has
       the `lui $at,%hi / addu $at,$at,v0 / lw %lo(at)` macro form (3 insns). Measured
-      dead: the array-extern, the reordered `*(u8 **)(id * 4 + (u32)D_800C3E5C)`, and
-      both `D_800C3E5C[id]` and `g_BattleValueDigitSpriteIds[i]` spellings - gcc keeps
+      dead: the array-extern, the reordered `*(u8 **)(id * 4 + (u32)g_BattleDigitImageBuffers)`, and
+      both `g_BattleDigitImageBuffers[id]` and `g_BattleValueDigitSpriteIds[i]` spellings - gcc keeps
       the base in a register under all of them (misc16_r2's func_8008FE18 reports the
       same 4-insn form against retail's %at form).
    3. The digit rects: retail stores through a base of `&rect + count*8` with
@@ -503,7 +503,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
                 rects[count + 1].w = 6;
                 rects[count + 1].h = 0xD;
                 x += 2;
-                BattleLoadImageAndSync(&rects[count + 1], D_800C3E5C[g_BattleValueDigitSpriteIds[i]]);
+                BattleLoadImageAndSync(&rects[count + 1], g_BattleDigitImageBuffers[g_BattleValueDigitSpriteIds[i]]);
                 count++;
             }
         }
