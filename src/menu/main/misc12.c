@@ -156,10 +156,67 @@ void func_801E6CFC(u8 index, u8* pEntry) {
 }
 */
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc12", func_801E6F5C);
-/* func_801E6F5C is the same body as func_801E6CFC above with lbu fields
-   pEntry[index+0x10] and pEntry[index+0x13] (not the u16 pairs at index*2+4 and
-   index*2+0xA), counter bytes 0x130C/0x130D, tables D_801EA03C/40/44/48, poly
-   offsets 0x6E0/0x780, loop bound 2 and digits[7+i]. */
+/* Best: 88.60% at 600 bytes, which IS retail's size (0x21F5C..0x221B4).
+   The same body as func_801E6CFC above - its note's three levers all apply - with
+   the MP half's own constants: pEntry[index+0x10] / pEntry[index+0x13] are lbu
+   (not the twin's u16 pairs), counters 0x130C/0x130D, tables D_801EA03C/40/44/48,
+   poly offsets 0x6E0/0x780, loop bound MENU_MP_DIGIT_COUNT and digits[7+i].
+   Found in round 313: the digit load must be written (pEntry + index)[0x10], which
+   is retail's base-first "addu s5,v1"; pEntry[index + 0x10] gives the mirrored
+   addu and 88.47%.
+   What is left, all inside the two loop bodies, measured over seven shapes plus a
+   4-minute permuter run (which only offered an x local, 88.47):
+   - every counter address: retail forms pPrimBuffer + slot with the BASE first
+     ("addu a0,a2,s1" before the call, "addu a0,a0,s1" after it). This body mirrors
+     both and splits the pre-call one into two addus. A cc1_probe replica says the
+     two-statement "p = pPrimBuffer; p += slot;" form IS base-first under this
+     compiler, but a pSlot kept alive across the call costs a saved register (s6
+     appears) and drops the body to 82%. The pSlot/pCount embedded-assignment idiom
+     that matches in misc11_r2_b (a 2.7.2 unit) gives a single addu here, still
+     mirrored: 82.33%, 604 bytes.
+   - the prim base: retail emits "addiu v0,s1,0xA98 / addu v0,v0,a2" AFTER the x
+     and 0x1000 stores; any pPrims local hoists the addiu to the head of the block
+     in a saved register, and inlining the base in the call argument is 86.37% at
+     592 bytes (two instructions short).
+   - retail completes x, and stores x and 0x1000, before it loads D_801EA040 for y;
+     this body defers all three until after the prim base.
+void func_801E6F5C(u8 index, u8* pEntry) {
+    u8* pPrims;
+    s32 primOffset;
+    s32 i = 0;
+    s32 n;
+
+    MenuParseNumberToDigits((pEntry + index)[0x10]);
+    ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130C] = 0;
+    for (; i < MENU_MP_DIGIT_COUNT; i++) {
+        if (g_Menu->digits[MENU_MAX_DIGITS - MENU_MP_DIGIT_COUNT + i] != MENU_DIGIT_NONE) {
+            primOffset = index * MENU_SLOT_PRIM_STRIDE + 0xA98;
+            pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
+            ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130C] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[MENU_MAX_DIGITS - MENU_MP_DIGIT_COUNT + i],
+                (POLY_FT4*)(pPrims + (((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130C] * 0x50 + 0x6E0)),
+                g_Menu->renderContext, index * 0x50 + D_801EA03C + i * 8, D_801EA040, 0x1000);
+        }
+    }
+    n = 0;
+    i = 0;
+    MenuParseNumberToDigits((pEntry + index)[0x13]);
+    ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130D] = 0;
+    for (; i < MENU_MP_DIGIT_COUNT; ) {
+        u8 digit = g_Menu->digits[MENU_MAX_DIGITS - MENU_MP_DIGIT_COUNT + i++];
+
+        if (digit != MENU_DIGIT_NONE) {
+            primOffset = index * MENU_SLOT_PRIM_STRIDE + 0xA98;
+            pPrims = (u8*)(primOffset + (u32)g_Menu->pPrimBuffer);
+            ((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130D] += func_8002675C(
+                g_Menu->resources, digit,
+                (POLY_FT4*)(pPrims + (((u8*)g_Menu->pPrimBuffer + index * MENU_SLOT_PRIM_STRIDE)[0x130D] * 0x50 + 0x780)),
+                g_Menu->renderContext, index * 0x50 + D_801EA044 + n * 8, D_801EA048, 0x1000);
+            n++;
+        }
+    }
+}
+*/
 
 void MenuLoadSlotCharacterNameTexture(s32 index, u8* pEntry, s32 arg2) {
     RECT rect;
