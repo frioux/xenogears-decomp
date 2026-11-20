@@ -175,6 +175,7 @@ extern int rand(void);
 extern void BattleDrawLineQuads(s32);
 extern void BattleEffectJitterSVector(SVector *pVec);
 extern s32 BattleVectorLength(s32 *arg0);
+extern s32 BattleVectorLength2D(s32 *arg0);
 extern void BattleQueueLineQuad(s32 *pPos, s32 *pPos2, u8 *pColor);
 extern void func_8007D334(VECTOR *pA, VECTOR *pB, s32 type);
 extern void func_800732AC(void *, void *, s32);
@@ -1052,3 +1053,119 @@ void BattleInitSpriteBuffers(void) {
 }
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007DC74);
+
+/*
+func_8007DC74 fills up to `steps` free BattleSpriteSlots along the line between two
+points with a spray: it builds a (dz, dy, -dx) vector from the two VECTORS, takes
+its length / 6 as the slot budget, normalises the horizontal part for the spray
+direction and gives each slot a random offset (rand() % (len2/7 ...)), a life
+count from the height difference and a gravity value; the slots are spawned at
+the first point jittered by +-0x10 and shifted by their own velocity * 2.
+
+Best attempt: objdiff 76.42%, 944 bytes against retail's 0x3AC (940). Facts read
+off the asm, all of them confirmed by the attempt (each one moved the score):
+  - the slot budget is BattleVectorLength(&vec) / 6, NOT /3 (retail's magic is
+    0x2AAAAAAB + subu sign, i.e. /6; /3 gives 0x55555556);
+  - `count` (the life count written to BattleSpriteSlot.life) is a u32: retail
+    compares it with sltiu 0x79 before clamping to 0x78;
+  - the height test is written `if (dy >= 9) {life = count; vy = 1 - rand() % (dy/2);}
+    else {vy = -4; life = 0x14;}` - retail's rand arm is the inline fall-through
+    and the constant arm sits after it, which only comes out of the >= form;
+  - the local VECTOR's components are STORED in the order vz, vx, vy (sp+0x18,
+    0x10, 0x14), so the source assigns vec.vz first;
+  - the norm copy after VectorNormal(&vec, &vec) writes only vec.vx -> sp+0x20 and
+    vec.vz -> sp+0x28, i.e. a second VECTOR local at sp+0x20 of which only vx/vz
+    are used (that also fixes the frame: count at 0x30, len2/7 at 0x38).
+Residual (all four at once, which is why it is parked): (1) gcc hoists the
+`dy / 2` divisor into the loop preheader and spills it to sp+0x40, so the frame is
+0x70 against retail's 0x68 and one saved register shifts; retail computes it
+inline at the `div`. (2) the giv base gcc picks for the slot pointer is pSlot+4,
+retail's is pSlot+2 (life at 4(s1), y/z at 0/2). (3) retail keeps `pA->vx - 0x10`
+grouped ahead of the rand()%32 in the spawn position sums where gcc folds the
+-0x10 to the end (addiu after the modulo). (4) retail's two norm stores are
+load/nop/store pairs, gcc merges the two loads. The permuter is worth a run on
+this body now that the structure is right.
+
+void func_8007DC74(VECTOR *pA, VECTOR *pB) {
+    VECTOR vec;
+    VECTOR norm;
+    BattleSpriteSlot *pSlot;
+    u32 count;
+    s32 spread;
+    s32 dy;
+    s32 len2;
+    s32 steps;
+    s32 t;
+    s32 q;
+    s32 i;
+
+    if (pA->vy < 0x81 && pB->vy < 0x81) {
+        return;
+    }
+
+    vec.vz = pB->vx - pA->vx;
+    vec.vx = pA->vz - pB->vz;
+    vec.vy = pA->vy - pB->vy;
+
+    steps = BattleVectorLength((s32 *)&vec) / 6;
+    if (steps <= 0) {
+        steps = 1;
+    }
+    vec.vy = 0x1000;
+
+    len2 = BattleVectorLength2D((s32 *)&vec);
+    if (len2 < 0x10) {
+        len2 = 0;
+    }
+    if (vec.vz != 0 || vec.vx != 0) {
+        VectorNormal(&vec, &vec);
+        norm.vx = vec.vx;
+        norm.vz = vec.vz;
+    }
+
+    dy = pA->vy - pB->vy;
+    if (dy < 0) {
+        dy = -dy;
+    }
+    count = dy / 3 + 1;
+    if (count >= 0x79) {
+        count = 0x78;
+    }
+    spread = len2 / 7;
+
+    pSlot = (BattleSpriteSlot *)g_BattleSpriteSlots;
+    for (i = 0; i < 0x218; i++, pSlot++) {
+        if (steps == 0) {
+            break;
+        }
+        if (pSlot->life != 0) {
+            continue;
+        }
+        if (len2 != 0) {
+            t = rand() % 0x1000;
+            q = spread - (len2 >> 31);
+            if (rand() & 1) {
+                pSlot->vx = (norm.vx * t >> 14) + q;
+                pSlot->vz = (norm.vz * t >> 14) + q;
+            } else {
+                pSlot->vx = -((norm.vx * t) >> 14) - q;
+                pSlot->vz = -((norm.vz * t) >> 14) - q;
+            }
+        } else {
+            pSlot->vx = (rand() & 0xF) - 8;
+            pSlot->vz = (rand() & 0xF) - 8;
+        }
+        if (dy >= 9) {
+            pSlot->life = count;
+            pSlot->vy = 1 - rand() % (dy / 2);
+        } else {
+            pSlot->vy = -4;
+            pSlot->life = 0x14;
+        }
+        pSlot->x = pA->vx - 0x10 + (rand() % 32) + pSlot->vx * 2;
+        pSlot->y = -0x10;
+        pSlot->z = pA->vz - 0x10 + (rand() % 32) + pSlot->vz * 2;
+        steps--;
+    }
+}
+*/
