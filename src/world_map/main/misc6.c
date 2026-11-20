@@ -546,15 +546,18 @@ int WorldMapSetActorScriptTables(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007DE98);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
-/* 92.57% (148 bytes = retail's 37 insns), round 310. Same two deltas as its twin
-   func_80080578 and they are one lever: retail keeps pActor in v1 with the
-   three player-position values in a0/a1/a2, ours takes a2 for pActor and
-   v1/a0/a1 for the values; and retail materialises the command's `li v0,1`
-   twelve instructions above its `sh v0,4(v1)`, ours emits the pair together.
-   The instruction multiset is otherwise identical (37 insns, 148 bytes).
-   Plain body 91.22, the `posZ = ...PosX; posX = posZ;` copy below 92.57 (best).
-   See func_80080578's park above for the ten source shapes measured this round
-   and the permuter run; none moved the rotation.
+/* 97.97% (148 bytes = retail's 37 insns), round 311. The store tail is now
+   retail's exactly, down to `li v0,1` before `sh zero,0x20(v1)` and
+   `sw zero,0x50(v1)` in the jr delay slot. The lever is the one measured on the
+   twin func_80080578 below: the command store belongs INSIDE the do-block as
+   its last statement, not after the block - that is what keeps `li v0,1` alive
+   in v0 across the six target stores while the `sh v0,4(v1)` stays at the
+   store's own position.
+   The only remaining delta is the register rotation: retail keeps pActor in v1
+   with the three player-position values in a0/a1/a2, ours takes a2 for pActor
+   and v1/a0/a1 for the values. Reading g_WorldMapPlayerPositionZ inline at both
+   stores, reading all three inline, and loading posZ just before its stores all
+   leave pActor in a2, so it is an allocator tie, not a spelling.
 */
 /* int func_8007E450(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -576,8 +579,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
         g_WorldMapScrollTargetY = posY;
         g_WorldMapCameraTargetZ = posZ;
         g_WorldMapScrollTargetZ = posZ;
+        pActor->command = 1;
     } while (0);
-    pActor->command = 1;
     pActor->pStateFrames = (void *)0x40;
     pActor->state = 0;
     pActor->stateIndex = 0;
@@ -1224,25 +1227,26 @@ int WorldMapInitActorScript(int index) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080370);
 
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
-/* 92.21% (136 bytes = retail's 34 insns), round 310. Everything but two things
-   is retail's: (1) pActor is in a2 with the three player-position values in
-   v1/a0/a1, where retail has pActor in v1 and the values in a0/a1/a2 - the same
-   rotation its twin func_8007E450 has; (2) retail materialises the command's
-   `li v0,1` twelve instructions before its `sh v0,4(v1)`, ours emits the pair
-   together just before the six target stores.
-   Measured this round, all at retail's 136 bytes unless noted: plain body
-   90.74; the `posZ = ...PosX; posX = posZ;` copy below 92.21 (best); locals
-   declared values-first 90.74; pActor assigned in a separate statement 90.74;
-   a second pointer pSlot = pActor coalesced away 90.74; `s16 command = 1;`
-   local 91.88 (it takes a3); `s32 nFlag; nFlag = 1;` + `command = nFlag`
-   58.68 (140 bytes); do-block around the six stores only 48.50; do-block
-   around everything 64.06; command/state moved before the block 90.41 (128
-   bytes - two stores folded away, so that shape is also wrong code).
-   A 4-minute permuter run (2534 iterations) found nothing.
-   The allocator model that fits every measurement: gcc 2.7.2 ranks
-   refs/live-length, so the three short-lived position values outrank the
-   long-lived pActor whatever the declaration order. Retail therefore had a
-   shorter-lived actor pseudo than any spelling tried here.
+/* 94.71% (136 bytes = retail's 34 insns), round 311. SOLVED: the
+   constant-before-store-group question. Retail's first `li v0,1` sits six
+   instructions above the `sh v0,4(v1)` that reads it. The source shape that
+   reproduces it is the command store as the LAST statement INSIDE the
+   do-block, not after the block. Measured on a faithful probe replica of this
+   function (tools/scripts/cc1_probe.sh with the same externs and struct):
+   store after the block -> the `li` is emitted adjacent to its `sh` (the old
+   92.21 body); store as the block's last statement -> the `li` is hoisted to
+   the top of the six-store group and the `sh` follows them, retail's shape.
+   So the constant was never what needed keeping alive - the STORE's position
+   was.
+   Remaining deltas: (1) the register rotation - retail keeps pActor in v1 with
+   the position values in a0/a1/a2, ours takes a2 for pActor and v1/a0/a1 for
+   the values; (2) reorg's delay-slot choice at the end: retail ends
+   `sh v0,4(v1)` / `li v0,1` / `jr ra` / `sh zero,0x20(v1)`, ours keeps the two
+   halfword stores adjacent and steals the `li`. Its twin func_8007E450 above
+   gets retail's tail for free because its two trailing zero-stores (state,
+   stateIndex) leave a store next to the jr, which this body does not have.
+   A 4-minute permuter run from the 94.71 body only proposed moving the command
+   store back out of the block (i.e. back to 92.21), so it is exhausted here.
 */
 /* int func_80080578(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1264,8 +1268,8 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
         g_WorldMapScrollTargetY = posY;
         g_WorldMapCameraTargetZ = posZ;
         g_WorldMapScrollTargetZ = posZ;
+        pActor->command = 1;
     } while (0);
-    pActor->command = 1;
     pActor->state = 0;
     return 1;
 }
