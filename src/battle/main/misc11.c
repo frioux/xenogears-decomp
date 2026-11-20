@@ -850,9 +850,9 @@ void BattleAppendCommandRecord(u8 arg0) {
     BattleClearSlotFlagsIfChar4(arg0, 0);
 }
 
-/* 98.23%, 1356 bytes (retail's exact size); the 16 remaining instructions are all
-   register names or delay-slot fills, so no size difference (see REMAINING).
-   Levers that are load-bearing:
+/* 98.51%, 1356 bytes (retail's exact size); the 9 remaining differing instructions
+   are two delay-slot fills and one register choice, so no size difference (see
+   REMAINING). Levers that are load-bearing:
    (a) THE CASE ORDER IS THE TREE. Switch 1 lists 5, 4, 7, 6 (case 4 =
        commandFlags[2], case 7 = [1], case 6 = [0]: retail's lhu 0x20/0x1E/0x1C), and
        the third switch lists 5 (empty body), 4, 7, 6: that empty "case 5: break;" is
@@ -869,6 +869,17 @@ void BattleAppendCommandRecord(u8 arg0) {
        [max * 8 + value] form, a mem_addr base and a u8 *pCost local all fold into
        maspsx's lui at / addu at,at,idx / lbu %lo(at), and the 2D form also decides
        the tail's registers (queue in $a1, /56 magic in $a2).
+   (f) func_800877E0 IS INSIDE `if (commandAppended == 0)`, after the switch. Retail's
+       bnez 0x2E9 targets the block AFTER that call (0x80081DB8) while the switch's
+       default jumps to the call (0x80081DA0), i.e. two different targets; with the
+       call outside the if both branches share one target and the bnez offsets differ
+       (98.23 -> 98.33).
+   (g) THE CALL ARGUMENT IS A CAST, `func_800877E0((u8)arg0, ...)`. func_800877E0's
+       first parameter is u8 (misc4.c and misc15.c both declare it that way), so the
+       call site masks; the bare `arg0` gives `move a0,s1` where retail has
+       `andi a0,s1,0xff` (98.33 -> 98.51). Round 341 measured the same cast as a
+       regression to 97.26, but that was on the body WITHOUT (f): the extra andi it
+       reported was the bnez-target damage, not the cast.
    CLOSED THIS ROUND (341): case 4's arm ends with its OWN unk2DF++, so the source has
    three separate read-modify-writes of 0x2DF (case 4, case 7, case 6) - that is
    retail's third copy at 0x80081E60, and adding it took the honest body 1328 -> 1356,
@@ -877,23 +888,26 @@ void BattleAppendCommandRecord(u8 arg0) {
    "if (g_BattleCommandQueue) ... else ...") are BOTH unnecessary and measure
    identically without them. The old 96.22% note was partly a dead arm: gcc folded its
    re-read of the global to a null base (lbu v0,740(zero) / sb v0,740(zero)).
-   REMAINING, all measured dead by hand in round 341:
-   (i)   the func_800877E0 call wants andi a0,s1,0xff; we emit move a0,s1. A (u8) cast
-         or a u8 parameter gives an extra andi s0,s1,0xff plus a move (cse ties the
-         conversion to `slot`) and perturbs the BattleCheckCommandKeyStatusBit
-         argument too: 97.26.
-   (ii)  the g_BattleDisplayState[0xAF] = 1 store takes the base in $v1 and the 1 in
-         $v0 where retail has them the other way round.
-   (iii) the gauge quotient lands in $v0 with mfhi $a3 where retail has $v1, because
-         retail materialises li v0,1 (the unk2E3 store's constant) BEFORE the timers
-         sh; moving unk2E3 above the timers store, or a local for the quotient,
-         measures 1368 / 97.04.
-   (iv)  the third switch's case-5 beq has a nop in its delay slot in retail where we
-         put slti, and retail's li a0,4 sits in the case-4 beq's slot where we keep it
-         at the head of the arm.
-   The preset is right: a 4-minute permuter run on this body found nothing
-   (base 444 = best 444), cdk is 95.31, -G0 is the same 98.23, and 2.6.0 does not
-   compile the unit. */
+   REMAINING (three clusters, each compensating so the size stays 1356):
+   (i)  the third switch's case-5 `beq` has a nop in its delay slot in retail where we
+        put `slti v0,v1,6`, and retail's `li a0,4` sits in the case-4 beq's slot where
+        we keep it at the head of the arm plus a nop in the slot. Pure reorg choices
+        on an otherwise identical tree; a nop-return-type / statement reorder test is
+        the only lever left and it rewrites the whole function.
+   (ii) the gauge quotient lands in $v0 with mfhi $a3 where retail has $v1, because
+        retail materialises li v0,1 (the unk2E3 store's constant) BETWEEN the
+        division's `sra` and the timers `sh`, and that register is then taken. A
+        `remain = 1;` statement before the timer store does hoist the constant into
+        the middle of the sequence but lands it before `mfhi` in $a0 (98.47) and also
+        moves case 4's `addiu` to $a0; moving unk2E3 above the timers store and a
+        local for the quotient were measured in round 341 at 1368 / 97.04. A
+        do-while(0) around the two stores instead hoists `sll s0,s0,0x1` and
+        `lui a2,0x9249` out of the table sequence (1360, 97.27).
+   (iii) the g_BattleDisplayState[0xAF] = 1 store takes the base in $v1 and the 1 in
+        $v0 where retail has them the other way round.
+   The preset is right: a 4-minute permuter run on THIS body found nothing
+   (base 213 = best 213, 1572 iterations); round 341's run on the 98.23 body was
+   444 = 444. cdk is 95.31, -G0 is the same, and 2.6.0 does not compile the unit. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80081B58);
 /*
 void func_80081B58(u32 arg0) {
@@ -972,8 +986,8 @@ void func_80081B58(u32 arg0) {
             BattlePlaySoundWithBaseId(0x4C);
             break;
         }
+        func_800877E0((u8)arg0, ((BattleActorSlots *)g_BattleCommandQueue)->targetSlot);
     }
-    func_800877E0(arg0, ((BattleActorSlots *)g_BattleCommandQueue)->targetSlot);
     g_BattleDisplayState[0xAF] = 1;
     switch (g_BattleMenuEvent) {
     case 5:
