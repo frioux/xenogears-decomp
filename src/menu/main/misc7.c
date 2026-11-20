@@ -319,19 +319,13 @@ void MenuSetCharacterPortraitPrims(u_char index, u_char characterId, s32 x, s32 
         (MenuCharacterPortraitPrims*)g_Menu->characterWindows[index];
     u8* pBase;
     s32 texX;
-    s32 tpageOffset;
-    u16 tpage;
 
     func_8002675C(g_Menu->resources, index + MENU_TEX_PORTRAIT_PARTY_MEMBER_1,
                   (POLY_FT4*)pWindow, g_Menu->renderContext, x, y, 0x1000);
     MenuInitializePolyFt4(&pWindow->portraitPrims[g_Menu->renderContext]);
-    // The tpage address is summed in integer space into its own local: a
-    // single-expression form commutes retail's `addu v1,s1,v1`.
-    tpage = GetTPage(0, 0, 0x180, 0);
-    tpageOffset = g_Menu->renderContext * sizeof(POLY_FT4);
-    *(u16*)((u8*)pWindow + tpageOffset + 0x66) = tpage;
-    // The clut address stays untyped: a POLY_FT4 member access recomputes it
-    // inside each arm of the palette test.
+    pWindow->portraitPrims[g_Menu->renderContext].tpage = GetTPage(0, 0, 0x180, 0);
+    // The clut store stays byte arithmetic: a POLY_FT4 member access charges the
+    // +0x50 of portraitPrims to the address and drops retail's 0x5E displacement.
     pBase = (u8*)pWindow + g_Menu->renderContext * sizeof(POLY_FT4);
     if (g_Menu->pManager->currentCharacterIDs[index] & 1) {
         *(u16*)(pBase + 0x5E) = g_SystemPalette2;
