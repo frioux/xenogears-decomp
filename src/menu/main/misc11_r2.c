@@ -331,4 +331,63 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5178);
        pTable[10].unk17 = 0x7;
    }
 */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E53CC);
+// Builds window `windowIndex`'s background quad and its four border strips.  The
+// same body ships as MemberChangeMenuInitializeWindowGraphics.
+void func_801E53CC(u_char windowIndex) {
+    RECT texWindow;
+    MenuWindow* pWindow;
+    u_char i;
+
+    pWindow = g_Menu->windows[windowIndex];
+
+    texWindow.y = 0;
+    texWindow.x = 0;
+    texWindow.h = 0x100;
+    texWindow.w = 0x100;
+
+    g_Menu->pManager->shouldRenderWindow[windowIndex] = FALSE;
+    g_Menu->pManager->isWindowOpening[windowIndex] = 0;
+
+    // Window background
+    for (i = 0; i < 2; i++) {
+        SetPolyG4(&pWindow->polysBackground[i]);
+        setRGB0(&pWindow->polysBackground[i], 104, 104, 104);
+        setRGB1(&pWindow->polysBackground[i], 104, 104, 104);
+        setRGB2(&pWindow->polysBackground[i], 104, 104, 104);
+        setRGB3(&pWindow->polysBackground[i], 104, 104, 104);
+        SetSemiTrans(&pWindow->polysBackground[i], 1);
+        SetDrawMode(
+            &pWindow->drawModes[i],
+            0, 0,
+            GetTPage(0, 0, g_Menu->texPageX0, g_Menu->texPageY0),
+            &texWindow
+        );
+    }
+
+    // Window borders
+    for (i = 0; i < 4; i++) {
+        SetPolyFT4(&pWindow->polysWindowBorderTop[i]);
+        SetShadeTex(&pWindow->polysWindowBorderTop[i], 1);
+        setRGB0(&pWindow->polysWindowBorderTop[i], 0xFF, 0xFF, 0xFF);
+        pWindow->polysWindowBorderTop[i].tpage = GetTPage(g_Menu->texPage0, 0, g_Menu->texPageX0, g_Menu->texPageY0);
+        pWindow->polysWindowBorderTop[i].clut = GetClut(g_Menu->clutX0, g_Menu->clutY0);
+
+        SetPolyFT4(&pWindow->polysWindowBorderBottom[i]);
+        SetShadeTex(&pWindow->polysWindowBorderBottom[i], 1);
+        setRGB0(&pWindow->polysWindowBorderBottom[i], 0xFF, 0xFF, 0xFF);
+        pWindow->polysWindowBorderBottom[i].tpage = GetTPage(g_Menu->texPage1, 0, g_Menu->texPageX1, g_Menu->texPageY1);
+        pWindow->polysWindowBorderBottom[i].clut = GetClut(g_Menu->clutX1, g_Menu->clutY1);
+
+        SetPolyFT4(&pWindow->polysWindowBorderLeft[i]);
+        SetShadeTex(&pWindow->polysWindowBorderLeft[i], 1);
+        setRGB0(&pWindow->polysWindowBorderLeft[i], 0xFF, 0xFF, 0xFF);
+        pWindow->polysWindowBorderLeft[i].tpage = GetTPage(g_Menu->texPage2, 0, g_Menu->texPageX2, g_Menu->texPageY2);
+        pWindow->polysWindowBorderLeft[i].clut = GetClut(g_Menu->clutX2, g_Menu->clutY2);
+
+        SetPolyFT4(&pWindow->polysWindowBorderRight[i]);
+        SetShadeTex(&pWindow->polysWindowBorderRight[i], 1);
+        setRGB0(&pWindow->polysWindowBorderRight[i], 0xFF, 0xFF, 0xFF);
+        pWindow->polysWindowBorderRight[i].tpage = GetTPage(g_Menu->texPage3, 0, g_Menu->texPageX3, g_Menu->texPageY3);
+        pWindow->polysWindowBorderRight[i].clut = GetClut(g_Menu->clutX3, g_Menu->clutY3);
+    }
+}
