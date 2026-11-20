@@ -38,6 +38,10 @@ typedef struct {
 // grid is WORLD_MAP_TILE_ZONE_WIDTH wide, which is the row stride WorldMapGetTileEntry
 // multiplies the sub-cell row by.
 #define WORLD_MAP_TILE_ZONE_COUNT 4
+// The quadrant index WorldMapGetTileEntry builds for WorldMapTileCell.zones: the low bit
+// selects the far half of the tile in x, bit 1 the far half in z.
+#define WORLD_MAP_TILE_ZONE_X_HALF 0x1
+#define WORLD_MAP_TILE_ZONE_Z_HALF 0x2
 #define WORLD_MAP_TILE_ZONE_WIDTH 9
 #define WORLD_MAP_TILE_ZONE_CELLS (WORLD_MAP_TILE_ZONE_WIDTH * WORLD_MAP_TILE_ZONE_WIDTH)
 #define WORLD_MAP_TILE_CELL_RECORD_SIZE 4
@@ -432,11 +436,11 @@ u8* WorldMapGetTileEntry(s32 x, s32 z) {
     z = (z >> 12) & (WORLD_MAP_TILE_SIZE - 1);
     zone = 0;
     if (x >= WORLD_MAP_TILE_SIZE / 2) {
-        zone = 1;
+        zone = WORLD_MAP_TILE_ZONE_X_HALF;
         x -= WORLD_MAP_TILE_SIZE / 2;
     }
     if (z >= WORLD_MAP_TILE_SIZE / 2) {
-        zone |= 2;
+        zone |= WORLD_MAP_TILE_ZONE_Z_HALF;
         z -= WORLD_MAP_TILE_SIZE / 2;
     }
     sub = (z >> 4) / 8 * WORLD_MAP_TILE_ZONE_WIDTH + (x >> 4) / 8;
