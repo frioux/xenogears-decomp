@@ -937,7 +937,7 @@ extern s32 Sprintf(char *, char *, ...);
 extern s32 BattleVectorDistance(u8 *, u8 *);
 extern s32 BattleVectorDistance2D(u8 *, u8 *);
 
-void func_800751C8(u8 *p0, u8 *p1) {
+void func_800751C8(Actor *p0, Actor *p1) {
     char buf[0x10];
     s32 mode;
 
@@ -968,8 +968,8 @@ void func_800751C8(u8 *p0, u8 *p1) {
         } else {
             BattleByteRegTestReg(D_8006FC48);
         }
-    } else if (*(u32 *)(p0 + 0xD0) & 0x800000) {
-        if (*(u32 *)(p1 + 0xD0) & 0x800000) {
+    } else if (p0->flags & 0x800000) {
+        if (p1->flags & 0x800000) {
             g_BattleRoundOver = 1;
             g_BattleInputEnabled = 0;
             g_BattleResultSide = 2;
@@ -979,7 +979,7 @@ void func_800751C8(u8 *p0, u8 *p1) {
 
             g_BattleCombatant0DownCount[0]++;
             g_BattleInputEnabled = 0;
-            flags = *(u32 *)(p1 + 0xD0);
+            flags = p1->flags;
             g_BattleRoundOver = 1;
             g_BattleResultSide = 1;
             if (flags & 0x40) {
@@ -989,18 +989,18 @@ void func_800751C8(u8 *p0, u8 *p1) {
             }
             BattleSetResultCode(0);
         }
-    } else if (*(u32 *)(p1 + 0xD0) & 0x800000) {
+    } else if (p1->flags & 0x800000) {
         g_BattleCombatant1DownCount[0]++;
         g_BattleRoundOver = 1;
         g_BattleInputEnabled = 0;
         g_BattleResultSide = 0;
         g_BattleTextPadIndex = 0;
         BattleSetResultCode(1);
-        if ((*(u32 *)(p1 + 0xD0) & 0x40) && g_BattleMode != 3) {
+        if ((p1->flags & 0x40) && g_BattleMode != 3) {
             printf(D_8006FC54);
             HeapAlloc(1, 2);
             printf(D_8006FC34);
-            BattleMarkSlotAndQueueIfAllMarked(*(u8 *)(p1 + 0x909));
+            BattleMarkSlotAndQueueIfAllMarked(p1->typeId);
             printf(D_8006FC58);
             HeapAlloc(1, 2);
             printf(D_8006FC5C);
