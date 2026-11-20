@@ -349,7 +349,169 @@ void func_80080F44(int actorIndex) {
 }
 */
 
+// func_8008110C owns this unit's five debug strings in .rodata (EVENT CODE,
+// MOV CHECK0-3); converting it needs them defined here as const char[0xC].
+extern s32 D_800C3910;
+extern s32 D_800AF858;
+extern s32 D_800ADC0C;
+extern u_char D_800B21CC;
+extern s32 g_PlayerActorIndex;
+void func_800A2030(void);
+void func_80281B00(const char* pName);
+void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, int arg4);
+void func_8008399C(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_800815F0(void);
+void FieldSetGearModelAnimationForActor(int arg0, int actorId, FieldActor* pActor);
+void SpritePlayAnimation(int, int);
+
+/* 98.13% (315 insns / 1260 bytes vs retail 313 / 1252: two instructions too
+   many). Everything structural matches - every branch, every call, both extra
+   loops, the five debug strings and the D_800ADC0C tail (retail materialises
+   the 1 in each of the three predecessors; a plain 'D_800ADC0C = 1;' does that
+   by itself). What is left is register assignment and two schedules:
+   (1) first loop: retail keeps the count in a1 and the byte-offset biv in a0 and
+       the actor-data pointer in v1; this body gets count a0 / biv v1 / actor v0-s0.
+   The THREE one-iteration do-while blocks there are load-bearing: without them
+       cc1 hoists the next statement's g_FieldActors load above the previous
+       lh/sh and the loop loses four load-delay nops. With them the loop is
+       instruction-for-instruction retail's (89.82 -> 93.18 just for the blocks,
+       and writing the copy as CONV_TO_GTE(x) - not a (s16*) cast - is what
+       makes the load 'lh' instead of 'lhu').
+   (2) arm 2 (flags & 0x1000000): the two volatile stores are load-bearing (they
+       keep the store ahead of the reload of g_FieldActors), the do-while is
+       there to keep the SpritePlayAnimation argument setup out of the pData
+       group; one extra nop remains after the sprite base load.
+   (3) arm 3 (flags & 0x200000): 'addu a2,s3,a2' (retail) vs 'addu a2,a2,s3'.
+   (4) func_8008399C's two g_FieldActors loads come out in the other order
+       (argument evaluation vs register priority).
+   Tried: the plain three statements, one do-while around all three, three
+   distinct pointer locals, the count as its own statement vs in the for-init,
+   the actor chain inline vs in a local at each site. Permuter: 1673 iterations,
+   base 751 -> best 591, but the candidate moves SpritePlayAnimation out of the
+   curAnimationId != animationOverride test, which retail does not do (its beq
+   jumps past the jal) - rejected as wrong code.
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
+/*
+void func_8008110C(void) {
+    FieldActor* pFieldActor;
+    FieldActor* pCurActor;
+    ActorData* pActor;
+    ActorData* pData;
+    SpriteData* pSprite;
+    int fieldActorCount;
+    int i;
+
+    D_800C3910 = -1;
+    func_800A2030();
+    fieldActorCount = g_FieldActiveActorCount;
+    for (i = 0; i < fieldActorCount; i++) {
+        do {
+            pActor = g_FieldActors[i].pActorData;
+            pActor->prevPosition.x = CONV_TO_GTE(pActor->position.vx);
+        } while (0);
+        do {
+            pActor = g_FieldActors[i].pActorData;
+            pActor->prevPosition.y = CONV_TO_GTE(pActor->position.vy);
+        } while (0);
+        do {
+            pActor = g_FieldActors[i].pActorData;
+            pActor->prevPosition.z = CONV_TO_GTE(pActor->position.vz);
+        } while (0);
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC0C);
+    }
+    D_800AF858 = 0;
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        pFieldActor = &g_FieldActors[i];
+        pActor = pFieldActor->pActorData;
+        if ((pFieldActor->status & 0xF80) != 0x200) {
+            continue;
+        }
+        if (!(pActor->scriptFlags.flags & 0x10001)) {
+            if ((pActor->flags & 0x600) != 0x200) {
+                pActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(pActor);
+                func_80082620(i, pFieldActor, pActor);
+                func_80082BB8(i, pFieldActor, pActor);
+            }
+            continue;
+        }
+        if (pActor->flags & 0x1000000) {
+            if (!(pActor->scriptFlags.flags & 0x10000)) {
+                if (pActor->curAnimationId != pActor->animationOverride) {
+                    do {
+                        // volatile: the stores have to stay ahead of the reloads of g_FieldActors below
+                        *(volatile s16*)&pActor->animationOverride = 2;
+                        pData = g_FieldActors[i].pActorData;
+                        pData->curAnimationId = pData->animationOverride;
+                    } while (0);
+                    SpritePlayAnimation(g_FieldActors[i].pSpriteData, pActor->animationOverride);
+                }
+                continue;
+            }
+        }
+        if (pActor->flags & 0x200000) {
+            pData = g_FieldActors[i].pActorData;
+            if (pData->curAnimationId != pData->animationOverride) {
+                *(volatile s16*)&pData->curAnimationId = pData->animationOverride;
+                pCurActor = &g_FieldActors[i];
+                FieldSetGearModelAnimationForActor(pCurActor->pSpriteData,
+                    pCurActor->pActorData->animationOverride, pCurActor);
+            }
+        }
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC18);
+    }
+    pFieldActor = &g_FieldActors[g_PlayerActorIndex];
+    func_80084158(g_PlayerActorIndex, pFieldActor, pFieldActor->pActorData);
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC24);
+    }
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        pFieldActor = &g_FieldActors[i];
+        if (!(pFieldActor->status & 0xF00)) {
+            continue;
+        }
+        pActor = pFieldActor->pActorData;
+        if ((pActor->flags & 0x600) == 0x200) {
+            continue;
+        }
+        if ((pFieldActor->status & 0xF80) != 0x200) {
+            continue;
+        }
+        if (pActor->scriptFlags.flags & 0x10001) {
+            continue;
+        }
+        if (i == g_PlayerActorIndex) {
+            continue;
+        }
+        func_80084A40(i, 0x7FFFFFFF, pFieldActor, pActor, 0);
+        pSprite = g_FieldActors[i].pSpriteData;
+        if (*(u_short*)&((SpriteDataI3*)pSprite->field_0x7C)->field_0xC == 1) {
+            pActor->scriptFlags.flags &= ~0x800;
+        }
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC30);
+    }
+    if (g_FieldControl.isRandomEncountersEnabled == 0) {
+        if (D_800B21CC == 0) {
+            func_8008399C(g_PlayerActorIndex, &g_FieldActors[g_PlayerActorIndex],
+                g_FieldActors[g_PlayerActorIndex].pActorData);
+        }
+    }
+    D_800ADC0C = 1;
+    func_800815F0();
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC3C);
+    }
+}
+*/
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
