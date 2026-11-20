@@ -1437,6 +1437,20 @@ int SoundSpuMemoryAllocateBlockFit(int size) {
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", SoundSpuMemoryAllocateBlockAtAddress);
 /*
+ROUND 333: 88.92% at retail's exact 292 bytes with the body below. The loop head, the back
+edge (`slt v0,v1,s1; bnez v0,head; move s0,a0` in the delay slot) and the alloc tail are now
+instruction for instruction identical to retail, and the two `break` arms sit where retail
+puts them: a plain `while (pPrevBlock->spuAddress < address)` (which gcc rotates into the top
+guard plus the bottom test) is what produces that, where the old while(1)+continue and the
+do-while both moved the arms. Residual: only the two top `return 0` blocks. Retail branches
+when the test is true (`slt v0,a2,s2; bnez v0,epilogue; move v0,zero`) and jumps for the
+second (`beqz v0,alloc; move v0,zero; j epilogue; nop`) - both returns cross-jumped into one
+out-of-line v0=0 plus the epilogue; gcc 2.6 lays the first return out as the fall-through
+(`beqz` + `j`) and moves the second test below the two break arms, same instruction count and
+the same 292 bytes. Tried this round: nested ifs with one trailing `return 0` (80.14, it also
+moves the break arms to the end), `goto fail` + one `fail: return 0;` (same), an empty
+do{}while(0) after each return (no change). Next lead is the failure-block layout, not the
+tests. Earlier rounds:
 Attempt (87.00%, 296 bytes against retail's 292). The whole preheader matches retail
 instruction for instruction (base la in s0, size s2, address s1, nSpace a2=0,
 freeAddress a1, endAddress a3) and so does the alloc tail; the residual is the loop:
@@ -1449,62 +1463,50 @@ callee-saved pointers come out address s0 / pPrevBlock s1 - the reverse of retai
 Hand shapes tried: do-while, do-while with an index local, while(1)+continue (87.00),
 the nested if/while of the previous note (87.00); permuter 4 min: 1079 -> 651, best
 edit only wrapped a `return 0` in do{}while(0), so no.
-    // Allocates SPU memory at a specific address, returns the address or 0 on failure.
-    int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
-        int nSpace;
-        SoundSpuMemoryBlock* pPrevBlock;
-        SoundSpuMemoryBlock* pBlock;
-        int freeAddress;
-        int endAddress;
-        int index;
+int SoundSpuMemoryAllocateBlockAtAddress(int size, int address, int unkArg) {
+    int nSpace = 0;
+    SoundSpuMemoryBlock* pPrevBlock = g_SoundSpuMemoryBlocks;
+    SoundSpuMemoryBlock* pBlock;
+    int freeAddress = pPrevBlock->spuAddress + pPrevBlock->size;
+    int endAddress = address + size;
+    int index;
 
-        pPrevBlock = g_SoundSpuMemoryBlocks;
-        nSpace = 0;
-        freeAddress = pPrevBlock->spuAddress + pPrevBlock->size;
-        endAddress = address + size;
-
-        if (pPrevBlock->spuAddress < address) {
-            while (1) {
-                if (pPrevBlock->nextBlockIndex == 0) {
-                    nSpace = SOUND_SPU_MEMORY_SIZE - freeAddress;
-                    break;
-                }
-                pBlock = &g_SoundSpuMemoryBlocks[pPrevBlock->nextBlockIndex];
-                if (pBlock->spuAddress >= endAddress) {
-                    nSpace = pBlock->spuAddress - freeAddress;
-                    break;
-                }
-                freeAddress = pBlock->spuAddress + pBlock->size;
-                if (pBlock->spuAddress < address) {
-                    pPrevBlock = pBlock;
-                    continue;
-                }
-                break;
-            }
+    while (pPrevBlock->spuAddress < address) {
+        if (pPrevBlock->nextBlockIndex == 0) {
+            nSpace = SOUND_SPU_MEMORY_SIZE - freeAddress;
+            break;
         }
-
-        if (nSpace < size) {
-            return 0;
+        pBlock = &g_SoundSpuMemoryBlocks[pPrevBlock->nextBlockIndex];
+        if (pBlock->spuAddress >= endAddress) {
+            nSpace = pBlock->spuAddress - freeAddress;
+            break;
         }
-        if (address < freeAddress) {
-            return 0;
-        }
-
-        index = SoundSpuMemoryGetFreeBlock();
-        if (index < 0) {
-            return 0;
-        }
-
-        pBlock = &g_SoundSpuMemoryBlocks[index];
-        pBlock->flags = SPU_MEMORY_IN_USE;
-        pBlock->type = 0;
-        pBlock->spuAddress = address;
-        pBlock->size = size;
-        pBlock->nextBlockIndex = pPrevBlock->nextBlockIndex;
-        pPrevBlock->nextBlockIndex = index;
-
-        return address;
+        freeAddress = pBlock->spuAddress + pBlock->size;
+        pPrevBlock = pBlock;
     }
+
+    if (nSpace < size) {
+        return 0;
+    }
+    if (address < freeAddress) {
+        return 0;
+    }
+
+    index = SoundSpuMemoryGetFreeBlock();
+    if (index < 0) {
+        return 0;
+    }
+
+    pBlock = &g_SoundSpuMemoryBlocks[index];
+    pBlock->flags = SPU_MEMORY_IN_USE;
+    pBlock->type = 0;
+    pBlock->spuAddress = address;
+    pBlock->size = size;
+    pBlock->nextBlockIndex = pPrevBlock->nextBlockIndex;
+    pPrevBlock->nextBlockIndex = index;
+
+    return address;
+}
 */
 
 
@@ -4181,6 +4183,47 @@ u8* func_8003DC50(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudio
 
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003DD24);
+/*
+Attempt (78.85%, 232 bytes against retail's 244; the separate velocity/volume version) and
+(78.28%, 240 bytes; the single running local below). Round 333: the whole tail now matches
+retail's store set and order (rampStep, reload, delayReload, target, handlerIndex,
+`flags + 1`, mask |= 2, the call in the last sh's slot) and the sltiu/sll flag computation
+comes out right once `flags` is its own local computed BEFORE the call (`flags + 1` at the
+store site is what puts retail's late addiu s0,s0,1 there). Residual, in the head only:
+retail loads velocity straight into s2 and copies it to v0 for the test and the multiply
+(`move v0,s2; beqz v0; mult v0,v0`), then re-uses s2 for the volume; gcc puts the lbu in a1,
+keeps it there, and moves the sum into s2. That single missing copy plus the callee-saved
+roles (retail mode/value s3 and pAudioElements s1; ours value s1 and pAudioElements s3, i.e.
+a mirror) is the whole delta. Tried and measured this round: declaration order both ways,
+`flags` before `value` (72.89), and the parked variants below (69.46 / 71.39).
+u8* func_8003DD24(u8* pScript, AudioManager* pAudioManager, AudioElement* pAudioElements) {
+    s8 note = pScript[1];
+    u8 mode = pScript[2];
+    s32 value;
+    s32 flags;
+    s32 volume = pScript[0];
+
+    if (note != 0) {
+        if (volume != 0) {
+            volume += (volume * volume) / 64;
+            value = mode & 0xF;
+            flags = ((mode & 0x10) == 0) * 2;
+            pAudioElements->envelopes[1].delta = SoundCalculateEnvelopeDelta(note << 24, (s16)volume, value);
+            pAudioElements->envelopes[1].rampStep = 0x400;
+            pAudioElements->envelopes[1].reload = volume;
+            pAudioElements->envelopes[1].delayReload = 0;
+            pAudioElements->envelopes[1].target = 1;
+            pAudioElements->envelopes[1].pStepHandler = g_SoundEnvelopeStepHandlers[value];
+            pAudioElements->envelopes[1].handlerIndex = value;
+            pAudioElements->envelopes[1].flags = flags + 1;
+            pAudioElements->activeEnvelopeMask |= 0x2;
+            SoundResetEnvelope(&pAudioElements->envelopes[1]);
+        }
+    }
+
+    return pScript + 3;
+}
+*/
 /*
 Attempt (69.46%, 244 bytes vs the original's 236). pScript reaches s4, volume s2 and the step
 handler table load v1, so the head and the tail order are right. Still different: (1) the flags
