@@ -5,6 +5,14 @@
 #include "psyq/libgte.h"
 #include "system/controller.h"
 
+// Bit of g_BattleOptionFlags that enables the extra entry BattleAppendExtraQueueEntry queues.
+#define BATTLE_OPTION_EXTRA_ENTRY 0x10000
+// Slot bits g_BattleSlotBits holds: BattleSetFlag10000IfAllSlotBitsSet tests every one.
+#define BATTLE_SLOT_BIT_COUNT 49
+// The screen size BattleSetScaleMatrix scales a requested size from.
+#define BATTLE_SCREEN_BASE_WIDTH 320
+#define BATTLE_SCREEN_BASE_HEIGHT 240
+
 // Node of a singly linked list hung off a 0x98+ byte owner.
 typedef struct BattleListNode {
     /* 0x00 */ u8 unk0[0x8C];
@@ -187,11 +195,11 @@ void BattleSetFlag10000(void) {
 
     pFlags = &g_BattleOptionFlags;
     value = *pFlags;
-    *pFlags = value | 0x10000;
+    *pFlags = value | BATTLE_OPTION_EXTRA_ENTRY;
 }
 
 void BattleAppendExtraQueueEntry(void) {
-    if ((g_BattleOptionFlags & 0x10000) == 0) {
+    if ((g_BattleOptionFlags & BATTLE_OPTION_EXTRA_ENTRY) == 0) {
         return;
     }
     if (g_BattleExtraEntryQueued != 0) {
@@ -206,7 +214,7 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
     s32 value;
     s32* pFlags;
 
-    for (slot = 0; slot < 0x31; slot++) {
+    for (slot = 0; slot < BATTLE_SLOT_BIT_COUNT; slot++) {
         if (slot != 0x16) {
             if (BattleTestSlotBit(slot) == 0) {
                 return 0;
@@ -215,7 +223,7 @@ s32 BattleSetFlag10000IfAllSlotBitsSet(void) {
     }
     pFlags = &g_BattleOptionFlags;
     value = *pFlags;
-    *pFlags = value | 0x10000;
+    *pFlags = value | BATTLE_OPTION_EXTRA_ENTRY;
     BattleAppendExtraQueueEntry();
     return 0;
 }
@@ -286,7 +294,7 @@ void BattleApplyOptionWord(void) {
         g_BattlePlayer2Vibration = (flags >> 5) & 1;
         g_BattleMatchCount = (flags >> 6) & 0x7F;
         g_BattleDifficultyLevel = (flags >> 13) & 7;
-        if (flags & 0x10000) {
+        if (flags & BATTLE_OPTION_EXTRA_ENTRY) {
             i = 7;
             pBytes = (u8*)pFlags - 1;
             for (; i >= 0; i--) {
@@ -324,16 +332,19 @@ void BattleDebugScrollHeapDump(void) {
     u16 buttons;
 
     buttons = g_C1ButtonState;
-    if (buttons & 4) {
+    if (buttons & CTRL_BTN_L1) {
         g_BattleHeapDumpScroll++;
     }
-    if (buttons & 1) {
+    if (buttons & CTRL_BTN_L2) {
         g_BattleHeapDumpScroll--;
     }
     if (g_BattleHeapDumpScroll < 0) {
         g_BattleHeapDumpScroll = 0;
     }
-    HeapDebugDump(1, g_BattleHeapDumpScroll, 0xA, 0x80AD);
+    HeapDebugDump(1, g_BattleHeapDumpScroll, 10,
+                  HEAP_DEBUG_PRINT_NO | HEAP_DEBUG_PRINT_ADDRESS | HEAP_DEBUG_PRINT_SIZE |
+                      HEAP_DEBUG_PRINT_GETADD | HEAP_DEBUG_PRINT_CONTENTS |
+                      HEAP_DEBUG_PRINT_TOTAL_FREE_SIZE);
 }
 
 void BattleInitSlotDrawEntry(s32 slot) {
@@ -370,7 +381,7 @@ void BattleInitGraphics(void) {
 
     DrawSyncCallback((void (*)())((u8*)func_80088BFC + 4));
     InitGeom();
-    HeapChangeCurrentUser(6, (char**)g_BattleHeapContentTypes);
+    HeapChangeCurrentUser(HEAP_USER_SUGI, (char**)g_BattleHeapContentTypes);
     ArchiveSetIndex(ARCHIVE_DIR_BATTLE_ENTRIES, 0);
     FontLoadFont(4, 2, 0x138, 0xDA, 0x14, 1, 0x3C0, 0x1F0, 0x3C0, 0x1EF, 0);
     BattleInitSlotDrawEntry(0);
@@ -540,8 +551,8 @@ void BattleSetScaleMatrix(s32 w, s32 h) {
     s32 scaleW;
     s32 scaleH;
 
-    scaleW = (w << 12) / 320 * h / w;
-    scaleH = (h << 12) / 240 * h / w;
+    scaleW = (w << 12) / BATTLE_SCREEN_BASE_WIDTH * h / w;
+    scaleH = (h << 12) / BATTLE_SCREEN_BASE_HEIGHT * h / w;
     g_BattleBaseMatrixCopy = g_BattleBaseMatrix;
     g_BattleScaleMatrix = g_BattleBaseMatrix;
     g_BattleScaleMatrix.m[0][0] = scaleW;
@@ -789,7 +800,7 @@ void BattleCreateObject(void) {
     void* p;
 
     HeapSetCurrentContentType(8);
-    p = HeapAlloc(0x9C, 0);
+    p = HeapAlloc(sizeof(BattleMisc12Obj), 0);
     BattleResetObject(p);
 }
 
