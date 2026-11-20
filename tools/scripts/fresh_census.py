@@ -63,10 +63,14 @@ def parked_funcs(text):
         for m in park.BLOCK.finditer(text):
             if not re.search(r"\b" + name + r"\s*\(", m.group(1)):
                 continue
-            if m.end() <= inc and park.FILLER.match(text[m.end():inc]):
+            # same two guards as park_sweep.parked_funcs: the block must hold a
+            # real definition, and a /* */ note counts as filler too (round 306)
+            if not re.search(park.DEF % name, m.group(1), re.M):
+                continue
+            if m.end() <= inc and park.filler_only(text[m.end():inc]):
                 out.add(name)
                 break
-            if m.start() >= inc + len(line) and park.FILLER.match(text[inc + len(line):m.start()]):
+            if m.start() >= inc + len(line) and park.filler_only(text[inc + len(line):m.start()]):
                 out.add(name)
                 break
     return out
