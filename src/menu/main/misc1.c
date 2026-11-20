@@ -23,10 +23,10 @@ s32 MenuLoadWindow2Text(u_char a0, u_char a1, u_char a2);
 void MenuStartOpenAnimation(void);
 void MenuSetupPointerCursors(s32 arg0);
 
-extern u8 g_MenuMainSelectionResourceIds[];
+extern s32 g_MenuMainSelectionResourceIds[];
 extern u8 g_MenuMainRowStringIds[];
 extern u8 g_MenuMainRowXOffsets[];
-extern u8 g_MenuLoadGameSelectionResourceIds[];
+extern s32 g_MenuLoadGameSelectionResourceIds[];
 extern u8 g_MenuLoadGameRowStringIds[];
 extern u8 g_MenuLoadGameRowXOffsets[];
 extern u8 g_MenuSoftResetEnabled;
@@ -66,7 +66,7 @@ void MenuNormalMenuMain(void) {
                 if (isHandled) {
                     g_Menu->pSelectionMenu->isDisabled = 1;
                     MenuResetSelectionCursorFlags();
-                    MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
+                    MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
                     shouldContinue = func_801C531C(0);
                 }
                 break;
@@ -87,9 +87,9 @@ void MenuNormalMenuMain(void) {
                 break;
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            MenuSetSelectionMenuPrims(7, g_Menu->mainMenuChoice, (s32*)g_MenuMainSelectionResourceIds);
+            MenuSetSelectionMenuPrims(7, g_Menu->mainMenuChoice, g_MenuMainSelectionResourceIds);
             MenuSetRowQuadVertices(8, g_Menu->optionStrings, g_MenuMainRowStringIds, g_MenuMainRowXOffsets,
-                (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
+                g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
     } while (shouldContinue);
@@ -128,7 +128,7 @@ void MenuLoadGameMain(void) {
 
     shouldContinue = 1;
     MenuRevealSelectionMenu(4, g_MenuLoadGameSelectionResourceIds);
-    MenuLoadStringsFromIds(8, (u8*)g_Menu + 0x6E0, g_MenuLoadGameRowStringIds, (u8*)g_Menu->pManager + 0xC);
+    MenuLoadStringsFromIds(8, g_Menu->optionStrings, g_MenuLoadGameRowStringIds, g_Menu->pManager->shouldRenderStrings);
     g_Menu->idleFrameCount = 0;
     do {
         MenuRenderFrame();
@@ -136,7 +136,7 @@ void MenuLoadGameMain(void) {
             case 4:
                 g_Menu->pSelectionMenu->isDisabled = 1;
                 MenuResetSelectionCursorFlags();
-                MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
+                MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
                 g_Menu->pCursorPrims->shadeWidth = 0x40;
                 shouldContinue = func_801C531C(7);
                 g_MenuSoftResetEnabled = 0;
@@ -158,9 +158,9 @@ void MenuLoadGameMain(void) {
                 break;
         }
         if (g_Menu->mainMenuChoice != g_Menu->mainMenuPrevChoice) {
-            MenuSetSelectionMenuPrims(3, g_Menu->mainMenuChoice, (s32*)g_MenuLoadGameSelectionResourceIds);
+            MenuSetSelectionMenuPrims(3, g_Menu->mainMenuChoice, g_MenuLoadGameSelectionResourceIds);
             MenuSetRowQuadVertices(8, g_Menu->optionStrings, g_MenuLoadGameRowStringIds, g_MenuLoadGameRowXOffsets,
-                (u8*)g_Menu->pManager + 0xC, g_Menu->mainMenuChoice, 0, 0);
+                g_Menu->pManager->shouldRenderStrings, g_Menu->mainMenuChoice, 0, 0);
             g_Menu->mainMenuPrevChoice = g_Menu->mainMenuChoice;
         }
         if (ArchiveGetDiscNumber() == 1 && g_Menu->idleFrameCount >= 0x259) {
@@ -168,7 +168,7 @@ void MenuLoadGameMain(void) {
             g_GameDiscChangeRequest = 1;
         }
     } while (shouldContinue);
-    MenuClearBytes(8, (u8*)g_Menu->pManager + 0xC);
+    MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
 }
 
 void MenuMenuUnk2Manager(u_char isInitialization) {
@@ -227,8 +227,8 @@ void MenuUnk340Manager(u_char isInitialization) {
 
 void MenuUnk344Manager(u_char isInitialization) {
     if (isInitialization) {
-        g_Menu->pPlayTimeDigits = HeapAlloc(0x374, 0);
-        bzero(g_Menu->pPlayTimeDigits, 0x374);
+        g_Menu->pPlayTimeDigits = HeapAlloc(sizeof(MenuPlayTimeDigits), 0);
+        bzero(g_Menu->pPlayTimeDigits, sizeof(MenuPlayTimeDigits));
         return;
     }
     HeapFree(g_Menu->pPlayTimeDigits);
@@ -248,8 +248,8 @@ void MenuUnk39CManager(u_char isInitialization) {
 
     if (isInitialization) {
         for (i = 0; i < 3; i++) {
-            g_Menu->characterWindows[i] = HeapAlloc(0x127C, 0);
-            bzero(g_Menu->characterWindows[i], 0x127C);
+            g_Menu->characterWindows[i] = HeapAlloc(sizeof(MenuCharacterWindow), 0);
+            bzero(g_Menu->characterWindows[i], sizeof(MenuCharacterWindow));
         }
         return;
     }
@@ -356,7 +356,7 @@ void MenuOverlayMain(void) {
                     MenuWaitForDiscChange(0);
                     break;
                 case 2:
-                    MenuWaitForDiscChange(((u8*)g_GameState.fieldScriptMemory)[0xA4]);
+                    MenuWaitForDiscChange(g_GameState.fieldScriptMemory[0x52]);
                     break;
             }
             break;
@@ -482,9 +482,9 @@ void func_801C65F4(void) {
     g_Menu->menuUnk2->saveIconDisplayFlag = 0x11;
     g_Menu->menuUnk2->saveBlockCount = 1;
     bzero(g_Menu->menuUnk2->saveTitle, sizeof(g_Menu->menuUnk2->saveTitle));
-    memmove(g_Menu->menuUnk2->saveIconPalette, (u8*)g_Menu->menuUnk2->tim.caddr,
+    memmove(g_Menu->menuUnk2->saveIconPalette, g_Menu->menuUnk2->tim.caddr,
         sizeof(g_Menu->menuUnk2->saveIconPalette));
-    memmove(g_Menu->menuUnk2->saveIconImage, (u8*)g_Menu->menuUnk2->tim.paddr,
+    memmove(g_Menu->menuUnk2->saveIconImage, g_Menu->menuUnk2->tim.paddr,
         sizeof(g_Menu->menuUnk2->saveIconImage));
     HeapFree(pData);
     pData = LZSSHeapDecompress((void*)pFileHandle[2], 1);
