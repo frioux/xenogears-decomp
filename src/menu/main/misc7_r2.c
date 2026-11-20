@@ -7,6 +7,10 @@
 // gear hp/maxHp are 32-bit, so their window numbers have five digits
 #define MENU_GEAR_HP_DIGIT_COUNT 5
 
+// the icon texture id tables hold one entry per slot of the character's icon strip
+#define MENU_ICON_TEXTURE_COUNT 24
+#define MENU_ICON_NONE 0xFFFF
+
 
 
 
@@ -42,7 +46,8 @@ typedef struct {
     /* 0x2AE8 */ u8 maxHpPrimCount; // digit prims the maxHp number drew
     /* 0x2AE9 */ u8 unk2AE9[0x2];
     /* 0x2AEB */ u8 digitPrimCount; // digit prims the gear window's number draws appended
-} MenuGearWindowPrims; // Size: 0x2AEC
+    /* 0x2AEC */ u8 iconPrimCount; // digit prims the character's icon ids drew
+} MenuGearWindowPrims; // Size: 0x2AF0
 
 // The gold window's prim buffer (g_Menu->pGoldWindow): the digit prims plus the two
 // glyph prims at the tail.
@@ -230,29 +235,32 @@ void func_801D6194(u_char characterId) {
     u8* pBase;
     u8* pEntry;
 
-    ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] = 0;
-    for (i = 0; i < 0x18; i++) {
-        if (D_801EA39C[characterId * 0x18 + i] == 0xFFFF) continue;
-        ((u8*)g_Menu->pGearWindowPrims)[0x2AEC] += func_8002675C(
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount = 0;
+    for (i = 0; i < MENU_ICON_TEXTURE_COUNT; i++) {
+        if (D_801EA39C[characterId * MENU_ICON_TEXTURE_COUNT + i] == MENU_ICON_NONE) continue;
+        ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount += func_8002675C(
             g_Menu->resources,
-            D_801EA39C[characterId * 0x18 + i],
-            (POLY_FT4*)(((u8*)g_Menu->pGearWindowPrims) +
-                        (((u8*)g_Menu->pGearWindowPrims)[0x2AEC] * 0x50 + 0xA0)),
+            D_801EA39C[characterId * MENU_ICON_TEXTURE_COUNT + i],
+            (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                        (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount *
+                             (2 * sizeof(POLY_FT4)) +
+                         0xA0)),
             g_Menu->renderContext,
-            D_801E9B60[characterId * 0x18 + i],
-            D_801E9C20[characterId * 0x18 + i],
+            D_801E9B60[characterId * MENU_ICON_TEXTURE_COUNT + i],
+            D_801E9C20[characterId * MENU_ICON_TEXTURE_COUNT + i],
             0x1000);
     }
-    for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AEC]; i++) {
-        s32 offset = (i * 2 + g_Menu->renderContext) * 0x28;
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->iconPrimCount; i++) {
+        POLY_FT4* pPrim;
+        s32 offset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
 
         pBase = (u8*)g_Menu->pGearWindowPrims;
         pEntry = pBase + offset;
+        pPrim = (POLY_FT4*)(pEntry + 0xA0);
         MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x1EE0 + i * 0x20),
-                            *(u16*)(pEntry + 0xA8),
-                            *(u16*)(pEntry + 0xAA),
-                            *(u16*)(pEntry + 0xB0) - *(volatile u16*)(pEntry + 0xA8),
-                            *(u16*)(pEntry + 0xC2) - *(volatile u16*)(pEntry + 0xAA));
+                            pPrim->x0, pPrim->y0,
+                            pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
     }
 }
 extern s32 D_801E9CF0;
