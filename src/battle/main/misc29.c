@@ -911,7 +911,7 @@ extern SpriteData *BattleSetCurrentActorSprite(s32 actorIndex);
    only reading the row's u16 at 0x14E (misc32 declares the whole row). */
 typedef struct {
     /* 0x000 */ u8 unk0[0x14E];
-    /* 0x14E */ u16 unk14E;
+    /* 0x14E */ u16 slotMask; // the actor mask the row's queued command gets (g_BattleCommandActorMask)
 } BattleCommandRow; // Size: 0x150
 
 void BattleInitActorSlotAnimation(s32 arg0, s32 slot, s32 arg2, s32 arg3) {
@@ -979,7 +979,7 @@ void BattleInitActorSlotAnimation(s32 arg0, s32 slot, s32 arg2, s32 arg3) {
 done:
     if (arg0 == 0) {
         if (((BattleActorSlot *)g_BattleStateWork)[slot].inUse != 0) {
-            func_800BEE2C(slot, ((BattleCommandRow *)((u8 *)g_BattleStateWork + g_BattleCommandRowIndex * 0x48))->unk14E, 2);
+            func_800BEE2C(slot, ((BattleCommandRow *)((u8 *)g_BattleStateWork + g_BattleCommandRowIndex * 0x48))->slotMask, 2);
         } else {
             SpriteSetCallback(pSprite, BattleApplyStateStep);
             BattleSetActorTargetFromPathPosition(pSprite);
