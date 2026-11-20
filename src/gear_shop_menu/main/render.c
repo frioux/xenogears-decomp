@@ -18,6 +18,9 @@
 // Font glyph code of '0'; a digit n is glyph code MENU_GLYPH_DIGIT_0 + n
 #define MENU_GLYPH_DIGIT_0 0x10
 
+// Font glyph code drawn in a digit cell that holds no digit
+#define MENU_GLYPH_BLANK 0xC3
+
 // Stat label glyphs drawn across the HP, fuel and weight rows of the gear panel
 #define MENU_GEAR_STAT_LABEL_GLYPH_COUNT 14
 
@@ -30,6 +33,12 @@
 // Fuel is tuned in units of 100 fuel points, each costing 10 GP
 #define MENU_FUEL_UNIT_AMOUNT 100
 #define MENU_FUEL_UNIT_PRICE 10
+
+// Equipment weight is measured in units of 120 weight points per weight class
+#define MENU_WEIGHT_POINTS_PER_CLASS 120
+
+// Size of the buffer one item description is rendered into as an image
+#define MENU_ITEM_DESC_IMAGE_BUFFER_SIZE 0x618
 
 // MenuUnk8.optionMarkerStates values
 #define MENU_MARKER_STATE_IDLE 0
@@ -1029,8 +1038,8 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
     places[3] = 1000;
     places[4] = 10000;
 
-    temp_v0 = HeapAlloc(0x618U, 0U);
-    bzero(temp_v0, 0x618);
+    temp_v0 = HeapAlloc(MENU_ITEM_DESC_IMAGE_BUFFER_SIZE, 0U);
+    bzero(temp_v0, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
     bzero(sp28, sizeof(sp28));
     if (itemType != ITEM_TYPE_GEAR_ACCESSORY) {
         if (itemType == ITEM_TYPE_GEAR_WEAPON) {
@@ -1056,7 +1065,7 @@ u32 GearShopMenuBuildSellItemDetails(u8 arg0, u8 itemType) {
             didRounding = TRUE;
             price -= (quotient * places[j]);
         } else {
-            sp28[k * 2] = 0xC3;
+            sp28[k * 2] = MENU_GLYPH_BLANK;
         }
     }
     sp28[8] = (price % 10) + MENU_GLYPH_DIGIT_0;
@@ -1152,7 +1161,7 @@ void GearShopMenuRenderSellItemRows(s32 scrollOffset, u8* pItemIds, u8* pItemTyp
                     didRounding = TRUE;
                     qty -= (quotient * places[j]);
                 } else {
-                    ((u8*)pRect)[8 + k * 2] = 0xC3;
+                    ((u8*)pRect)[8 + k * 2] = MENU_GLYPH_BLANK;
                 }
             }
             ((u8*)pRect)[16] = (qty % 10) + MENU_GLYPH_DIGIT_0;
@@ -1820,7 +1829,7 @@ void GearShopMenuBuildItemQuantityHeld(u8 itemType, u8 itemId) {
         pWorkspace = HeapAlloc(MENU_STRING_IMAGE_BUFFER_SIZE, 0U);
         digitBuffer[1] = 0;
         digitBuffer[3] = 0;
-        digitBuffer[0] = ((qtyHeld / 10) == 0) ? 0xC3 : (qtyHeld / 10) + MENU_GLYPH_DIGIT_0;
+        digitBuffer[0] = ((qtyHeld / 10) == 0) ? MENU_GLYPH_BLANK : (qtyHeld / 10) + MENU_GLYPH_DIGIT_0;
         digitBuffer[2] = (qtyHeld % 10) + MENU_GLYPH_DIGIT_0;
 
         SystemDecodeGlyphCodesN((u16 *)digitBuffer, stringBuffer, 2);
@@ -1857,8 +1866,8 @@ s32 GearShopMenuBuildPurchaseItemDetails(s32 rowIndex, s32 scrollOffset, u8 *unu
     int equipFlags;
     int xPos;
 
-    pStringBuffer = HeapAlloc(0x618, 0);
-    bzero(pStringBuffer, 0x618);
+    pStringBuffer = HeapAlloc(MENU_ITEM_DESC_IMAGE_BUFFER_SIZE, 0);
+    bzero(pStringBuffer, MENU_ITEM_DESC_IMAGE_BUFFER_SIZE);
 
     equipFlags = 0;
     switch(itemType) {
@@ -2493,8 +2502,8 @@ s32 GearShopMenuShopModeSubmenu(void) {
                     GearShopMenuRenderMenuStringsToVram(4, g_Menu->optionStrings, &g_GearShopSubmenuStringIds[var_s0], (s8* ) g_Menu->pManager->shouldRenderStrings);
                     g_Menu->subMenuPrevChoice = 0xFF;
                 case MENU_INPUT_LEFT:                             /* switch 1 */
-                case 6:                             /* switch 1 */
-                case 7:                             /* switch 1 */
+                case MENU_INPUT_SQUARE:             /* switch 1 */
+                case MENU_INPUT_TRIANGLE:           /* switch 1 */
                 case MENU_INPUT_IDLE:                             /* switch 1 */
                     break;
                 case MENU_INPUT_BACK:                             /* switch 1 */
@@ -2862,7 +2871,7 @@ s32 GearShopMenuComputeEquipWeightPenalty(u8 index) {
     u8 result;
 
     pGear = &g_GameState.gears[index];
-    temp_v0 = (s32) ((pGear->weightFromEquipment / 120) - pGear->baseWeightClass) / 2;
+    temp_v0 = (s32) ((pGear->weightFromEquipment / MENU_WEIGHT_POINTS_PER_CLASS) - pGear->baseWeightClass) / 2;
     result = temp_v0;
     if (temp_v0 << 16 < 0) {
         result = 0;
