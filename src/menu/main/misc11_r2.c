@@ -167,17 +167,19 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
     u8 i;
     u32 size;
 
+    // The source side is an index-first sum rather than pSlot->characters[i]: that
+    // spelling loses retail's addu order and one instruction (99.00%).
     for (i = 0; i < MAX_GAME_CHARACTERS; i++) {
-        s32 charOffset = i * 0xA4 + 0x290;
+        mem_addr charOffset = i * 0xA4 + 0x290;
         *(MenuSaveCharacter*)&g_GameState.characters[i] =
             *(MenuSaveCharacter*)((mem_addr)pSlot + charOffset);
     }
-    *(MenuSaveBlob0x160*)((u32*)&g_GameState + 0x16C0 / 4) = *(MenuSaveBlob0x160*)((u32*)pSlot + 0xEC4 / 4);
+    *(MenuSaveBlob0x160*)((u8*)&g_GameState + 0x16C0) = pSlot->unk16C0;
     for (i = 0; i < MAX_GAME_GEARS; i++) {
         pGear = &g_GameState.gears[i];
         pSaveGear = &pSlot->gears[i];
         *(MenuSaveGearHead20*)pGear = pSaveGear->head;
-        *(MenuSaveGearHead08*)((u32*)pGear + 8) = pSaveGear->headTail;
+        *(MenuSaveGearHead08*)&pGear->weaponData[2] = pSaveGear->headTail;
         *(u32*)pGear->unk5C = pSaveGear->unk28;
         MenuApplyGearFrame(pDressingRoom, i);
         MenuApplyGearArmor(pDressingRoom, i);
@@ -189,13 +191,15 @@ void func_801E4D10(MenuSaveSlot* pSlot, MenuDressingRoom* pDressingRoom) {
         pGear->attackPower = pSaveGear->attackPower;
         pGear->baseWeightClass = pSaveGear->baseWeightClass;
     }
-    *(MenuSaveNamesA*)((u32*)&g_GameState) = pSlot->namesA;
-    *(MenuSaveNamesB*)((u32*)&g_GameState + 0xDC / 4) = pSlot->namesB;
-    *(MenuSaveBlob0x78*)((u32*)&g_GameState + 0x1648 / 4) = pSlot->unk1648;
-    *(MenuSaveBlob0x100*)((u32*)&g_GameState + 0x1820 / 4) = pSlot->unk1820;
-    size = 0xA38;
-    memcpy((u8*)&g_GameState + 0x1920, (u8*)pSlot + 0x1124, size);
+    *(MenuSaveNamesA*)g_GameState.strings = pSlot->namesA;
+    *(MenuSaveNamesB*)&g_GameState.strings[sizeof(MenuSaveNamesA) / sizeof(StringEntry)] =
+        pSlot->namesB;
+    *(MenuSaveBlob0x78*)((u8*)&g_GameState + 0x1648) = pSlot->unk1648;
+    *(MenuSaveBlob0x100*)((u8*)&g_GameState + 0x1820) = pSlot->unk1820;
+    size = sizeof(pSlot->unk1920);
+    memcpy((u8*)&g_GameState + 0x1920, &pSlot->unk1920, size);
 }
+
 void MenuFillInventoryTables(void) {
     u8 i;
 
