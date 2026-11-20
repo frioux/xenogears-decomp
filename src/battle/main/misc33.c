@@ -106,7 +106,7 @@ typedef struct {
     /* 0x12 */ u8 unk12[0xA];
 } BattleSpriteSensorRow; // Size: 0x1C
 extern BattleActorSprite *g_BattleActorList;
-extern u8 D_800C3780;
+extern u8 g_BattleBlockingEffectActive;
 extern s16 g_BattleDigitTextureIds[];
 extern s32 g_BattleColorMode;
 extern u8 *g_BattleSpriteArchive;
@@ -142,7 +142,7 @@ typedef struct {
     /* 0x06 */ u8 width;
     /* 0x07 */ u8 height;
     /* 0x08 */ u8 unk8[0x2];
-    /* 0x0A */ u16 texPage; // the texture page func_800BD810 copies into the primitive's tpage
+    /* 0x0A */ u16 texPage; // the texture page BattleDrawSpritePartQuad copies into the primitive's tpage
     /* 0x0C */ u16 clutID; // and the clut id it copies into the primitive's clut
     /* 0x0E */ u8 unkE[0xA];
 } BattleSpritePart; // Size: 0x18
@@ -216,7 +216,7 @@ typedef struct {
 } BattleGeomMatrix; // Size: 0x20
 
 extern BattleGeomMatrix g_BattleGeomMatrix;
-extern void func_800BD810(BattleSpritePart *pPart, u32 color);
+extern void BattleDrawSpritePartQuad(BattleSpritePart *pPart, u32 color);
 
 void BattleRenderSpriteBody(BattleSpriteBodyTask *pTask) {
     BattleSpriteBody *pBody;
@@ -251,7 +251,7 @@ void BattleRenderSpriteBody(BattleSpriteBodyTask *pTask) {
         j = 0;
         pPart = pBody->parts;
         while (j != pBody->partCount) {
-            func_800BD810(pPart, pBody->color.word);
+            BattleDrawSpritePartQuad(pPart, pBody->color.word);
             j++;
             pPart++;
         }
@@ -334,7 +334,7 @@ void BattleAttachActorAnimScripts(s32 index, s32 arg1, s32 arg2, s32 arg3) {
     g_FlagTimerWorkListAdds = 1;
     pBase = g_BattleStateWork;
     pSprite = *(BattleActorSprite **)(pBase + index * 4 + 0x8C8C);
-    D_800C3780 = 1;
+    g_BattleBlockingEffectActive = 1;
     if (pSprite != NULL) {
         anim = pSprite->flags.sbytes[3];
         SpritePlayAnimation(pSprite, 0xA);
@@ -360,7 +360,7 @@ void BattleAttachActorAnimScripts(s32 index, s32 arg1, s32 arg2, s32 arg3) {
         }
         SpritePlayAnimation(pSprite, anim);
     }
-    D_800C3780 = 0;
+    g_BattleBlockingEffectActive = 0;
     BattleFreeTimerTaskIfActive();
     g_NumFlaggedTimerWorkListEntries = 0;
     g_FlagTimerWorkListAdds = 0;

@@ -41,7 +41,7 @@ extern s16 g_BattleCombatant1DownCount;
 extern int rand(void);
 
 extern s32 g_BattleElapsedFrames;
-extern char D_800701B0[];
+extern char g_StrBattleElapsedTimeFormat[];
 extern void BattleDrawTextLeft(char* p);
 
 // The light payload func_80030A30 normalizes into the light vector table: a
@@ -936,7 +936,7 @@ void BattleDrawElapsedTime(void) {
 
     n = g_BattleElapsedFrames;
     rem = n % 1800;
-    Sprintf(buf, D_800701B0, n / 1800, rem / 30, (n % 30) * 99 / 30);
+    Sprintf(buf, g_StrBattleElapsedTimeFormat, n / 1800, rem / 30, (n % 30) * 99 / 30);
     BattleDrawTextLeft(buf);
 }
 

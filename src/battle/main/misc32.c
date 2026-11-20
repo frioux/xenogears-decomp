@@ -292,7 +292,7 @@ typedef struct {
 } Misc32ActorSprite; // Size: 0xB0
 
 // One 0x18-byte sprite-list entry ResourceHelperGetSpriteList fills in (misc33
-// declares the same record as BattleSpritePart). func_800BD810 projects the four
+// declares the same record as BattleSpritePart). BattleDrawSpritePartQuad projects the four
 // corners (x,y) + (width,height) and copies the two ids into the primitive.
 typedef struct {
     /* 0x00 */ u16 x;
@@ -302,7 +302,7 @@ typedef struct {
     /* 0x06 */ u8 width;
     /* 0x07 */ u8 height;
     /* 0x08 */ u8 unk8[0x2];
-    /* 0x0A */ u16 texPage; // the word func_800BD810 copies into the primitive's +0x16
+    /* 0x0A */ u16 texPage; // the word BattleDrawSpritePartQuad copies into the primitive's +0x16
     /* 0x0C */ u16 clutID; // and the one it copies into +0x0E
     /* 0x0E */ u8 unkE[0xA];
 } Misc32SpritePart; // Size: 0x18
@@ -594,7 +594,7 @@ void BattleUnlinkAndFreeTask(void *pEntry) {
     WorkListsDeleteTasks(pEntry);
 }
 
-// The four sprite corners func_800BD810 hands RotTransPers4, reused by every sprite of a
+// The four sprite corners BattleDrawSpritePartQuad hands RotTransPers4, reused by every sprite of a
 // frame: the entry's rectangle in its own order, top-left, top-right, bottom-right, bottom-left.
 extern SVECTOR g_BattleSpriteQuadCorners[4];
 
@@ -606,7 +606,7 @@ extern SVECTOR g_BattleSpriteQuadCorners[4];
 // The right/bottom sum pairs and the local ordering-table pointer are load-bearing: each copy
 // fixes one scheduling/register choice that retail makes (the scheduler runs here, so the
 // statement order decides nothing, but which pseudo carries the sum does).
-void func_800BD810(Misc32SpritePart *pPart, u32 color) {
+void BattleDrawSpritePartQuad(Misc32SpritePart *pPart, u32 color) {
     POLY_FT4 *pPoly;
     u_long *pOt;
     s32 width;
@@ -723,7 +723,7 @@ void func_800BDA1C(u8 *pTask) {
     i = 0;
     pEntry = pData + 0x90;
     while (i != *(s32 *)(pData + 0x8C)) {
-        func_800BD810(pEntry, *(u8 **)(pData + 0x80));
+        BattleDrawSpritePartQuad(pEntry, *(u8 **)(pData + 0x80));
         i++;
         pEntry += 0x18;
     }
@@ -874,7 +874,7 @@ typedef struct {
 
 extern BattleNumberTask g_BattleNumberSpriteTask;
 extern s32 g_BattleNumberSpriteValue;
-extern u8 D_800C3780;
+extern u8 g_BattleBlockingEffectActive;
 
 extern void func_80026BA4(u8 *pArchive, u32 index, s32 x, s32 y, u_long *pOt);
 extern void WorkListAddTask(WorkListEntry *pData, WorkListEntry *pEntry);
@@ -911,7 +911,7 @@ void BattleDrawNumberSpriteTask(WorkListEntry *pEntry) {
     i = 0;
     pPart = pTask->parts;
     while (i != pTask->partCount) {
-        func_800BD810(pPart, pTask->color.word);
+        BattleDrawSpritePartQuad(pPart, pTask->color.word);
         i++;
         pPart++;
     }
@@ -925,7 +925,7 @@ void BattleInitNumberSpriteTask(void) {
     if (g_BattleTimerTask != NULL) {
         return;
     }
-    if (D_800C3780 != 0) {
+    if (g_BattleBlockingEffectActive != 0) {
         return;
     }
     pTask = &g_BattleNumberSpriteTask;
@@ -959,7 +959,7 @@ void BattleRefreshNumberSprite(Misc32Task *pTask) {
     if (g_BattleTimerTask == NULL) {
         return;
     }
-    if (D_800C3780 != 0) {
+    if (g_BattleBlockingEffectActive != 0) {
         return;
     }
     pNumber = (BattleNumberTask *)g_BattleTimerTask;

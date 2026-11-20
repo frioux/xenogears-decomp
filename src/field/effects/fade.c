@@ -3,7 +3,7 @@
 #include "field/effects.h"
 
 extern int D_800ADC04; // Fade Status?
-extern short D_800ADC08;
+extern short g_FieldFadeIsWhite;
 
 void FieldFadeInitialize(void) {
     FieldFadeInitializePrimitives(0);
@@ -16,7 +16,7 @@ void FieldFadeUpdate(int index) {
         if (g_FieldEffects.fades[index].duration <= 0) {
             g_FieldEffects.fades[index].duration = 0;
             if (
-                D_800ADC08 != 1 &&
+                g_FieldFadeIsWhite != 1 &&
                 g_FieldEffects.fades[index].r0 == 0 &&
                 g_FieldEffects.fades[index].g0 == 0 &&
                 g_FieldEffects.fades[index].b0 == 0
@@ -71,8 +71,8 @@ void FieldFadeSetParameters(int index, int duration, int red, int green, int blu
 }
 
 void FieldFadeToWhite(int duration) {
-    if (D_800ADC08 != 1) {
-        D_800ADC08 = 1;
+    if (g_FieldFadeIsWhite != 1) {
+        g_FieldFadeIsWhite = 1;
         if (D_800ADC04 == 2) {
             g_FieldEffects.fades[0].b0 = 0;
             g_FieldEffects.fades[0].g0 = 0;
@@ -88,8 +88,8 @@ void FieldFadeToWhite(int duration) {
 }
 
 void FieldFadeToBlack(int duration) {
-    if (D_800ADC08) {
-        D_800ADC08 = 0;
+    if (g_FieldFadeIsWhite) {
+        g_FieldFadeIsWhite = 0;
         if (D_800ADC04 == 2) {
             g_FieldEffects.fades[0].b0 = 0xFF00;
             g_FieldEffects.fades[0].g0 = 0xFF00;

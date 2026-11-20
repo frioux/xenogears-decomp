@@ -30,8 +30,8 @@
 
 extern int ArchiveDataSync(void);
 extern u8 D_800D2FDC;
-extern u16 g_BattleStageFileIndex; // stage file index the next stage load uses; func_800B8068 clears it
-extern u8 g_BattleStageLoadQueued;  // set once the stage's archive reads are queued; func_800B8054 clears it
+extern u16 g_BattleStageFileIndex; // stage file index the next stage load uses; BattleLoadStageActor clears it
+extern u8 g_BattleStageLoadQueued;  // set once the stage's archive reads are queued; BattleRequestStageLoad clears it
 extern SpriteData *D_800C3E1C;
 extern s32 g_NumFlaggedTimerWorkListEntries;
 extern DISPENV D_800C4A7C;
@@ -325,7 +325,7 @@ void func_800B7C34(s32 stage) {
     HeapFree(g_BattleStageStreamFile);
 }
 */
-extern u8 D_800C3624;
+extern u8 g_BattleAnimScriptHalted;
 extern s16 g_BattleActorAnimationIndex;
 extern u8 g_BattleAudioFadeStarted;
 extern s32 *g_BattleAudioManager;
@@ -368,7 +368,7 @@ s32 BattleStartStageActorAnimation(void) {
     tex.y = 0x100;
     clut.x = 0;
     clut.y = 0x1F4;
-    D_800C3624 = 0;
+    g_BattleAnimScriptHalted = 0;
     SpriteSetupAnimPackage(pPackage, g_BattleStageActorArchive, tex, clut, 0);
     BattleReloadStageFile();
     result = 0;
@@ -395,12 +395,12 @@ s32 BattleStartStageActorAnimation(void) {
 void BattleSetSpriteTemplate(void *pArg) {
     D_800C3E1C = pArg;
 }
-void func_800B8054(s16 stage) {
+void BattleRequestStageLoad(s16 stage) {
     g_BattleStageFileIndex = stage;
     g_BattleStageLoadQueued = 0;
 }
 
-void func_800B8068(s32 stage) {
+void BattleLoadStageActor(s32 stage) {
     func_800B7C34(stage);
     BattleStartStageActorAnimation();
     g_BattleStageLoadQueued = 1;
@@ -419,7 +419,7 @@ typedef struct {
 
 extern BattleActorSlot g_BattleStateWork[];
 
-/* The streamed stage data behind g_BattleStageData: the two origins func_800B81BC
+/* The streamed stage data behind g_BattleStageData: the two origins BattleInitStageDisplay
    publishes as the anim group and slot vector state. */
 typedef struct {
     /* 0x000 */ u8 unk0[0x47C];
@@ -497,7 +497,7 @@ void func_800B8098(s32 stage) {
 }*/
 
 
-/* The stage origins func_800B81BC publishes: g_BattleSlotVectors is the origin
+/* The stage origins BattleInitStageDisplay publishes: g_BattleSlotVectors is the origin
    pair 8 bytes behind D_800D335C, so both globals are two of these. */
 typedef struct {
     /* 0x0 */ SVEC vec;
@@ -513,7 +513,7 @@ extern void func_801E62E0(s32 arg0);
 extern void BattleInitFrameRenderState(void);
 extern void BattleInitStateWorkBuffers(void);
 
-void func_800B81BC(s32 arg0) {
+void BattleInitStageDisplay(s32 arg0) {
     BattleInitFrameRenderState();
     BattleInitStateWorkBuffers();
     func_801E62E0(arg0);
@@ -579,7 +579,7 @@ void BattleWaitArchiveSync(void) {
     }
 }
 
-/* Archive entry table at D_800C35DC: the archive file index to load at +0 (it is what
+/* Archive entry table at g_BattleSoundEffectArchiveEntries: the archive file index to load at +0 (it is what
    ArchiveDecodeAlignedSize and func_80029AFC take) and the base sound id at +2. */
 typedef struct {
     /* 0x0 */ u16 fileIndex;
@@ -604,7 +604,7 @@ typedef struct {
     /* 0x1C */ s32 unk1C;
 } BattleArchiveRequest; // Size: 0x20
 
-extern BattleArchiveEntry D_800C35DC[];
+extern BattleArchiveEntry g_BattleSoundEffectArchiveEntries[];
 extern void BattleFreeWdsEntry(void);
 extern void func_80029AFC(void *pRequest, s32 arg1, s32 arg2);
 extern void SoundAddSedsEntry(void *pEntry);
@@ -629,8 +629,8 @@ void BattleLoadSoundEffectFilesAndPlay(s32 arg0, s32 arg1) {
     BattleWaitArchiveSync();
     ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
 
-    // the table needs its own pointer local; spelling every site as D_800C35DC[i] moves a register.
-    pTable = D_800C35DC;
+    // the table needs its own pointer local; spelling every site as g_BattleSoundEffectArchiveEntries[i] moves a register.
+    pTable = g_BattleSoundEffectArchiveEntries;
     pEntry = &pTable[arg0];
     request.fileIndex1 = pEntry->fileIndex;
     pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(request.fileIndex1), 0);
@@ -653,7 +653,7 @@ void BattleLoadSoundEffectFilesAndPlay(s32 arg0, s32 arg1) {
     while (SoundGetPendingSpuCommandType(0) != 0) {
         func_800BE790();
     }
-    id = D_800C35DC[arg0].soundId + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
+    id = g_BattleSoundEffectArchiveEntries[arg0].soundId + arg1 + (*(u16 *)((u8 *)pBuffer1 + 0x14) << 16);
     SoundPlaySoundEffectOnFreePair(id);
     while (SoundGetActiveElementMask(id) != 0) {
         func_800BE790();
@@ -766,7 +766,7 @@ void func_800B853C(s32 mode) {
     pWork->unkDA8 = 0;
 }
 */
-void func_800B8774(void) {
+void BattleFreeBattleResources(void) {
     u8 *pStateBase;
     BattleRenderState *pState;
     s32 i;
@@ -896,7 +896,7 @@ extern u8 g_BattleSoundArchiveLoaded;
 extern u8 g_BattleActorArchiveReady; // the stage actor archive's stream file is loaded
 extern void *g_BattleWdsEntry;
 extern u32 g_BattleActorArchivePartKey;
-extern u16 D_800C3608; // one bit per actor slot, cleared for the slot the init claims
+extern u16 g_BattleActorSlotDoneMask; // one bit per actor slot, cleared for the slot the init claims
 extern s32 g_BattleCommandRowIndex;
 extern void BattleLoadSoundWdsFile(void);
 extern void BattleSetStateStep(s32 arg0);
@@ -930,8 +930,8 @@ void BattleInitActorSlotAnimation(s32 arg0, s32 slot, s32 arg2, s32 arg3) {
     }
     func_800BE790();
     func_800BE790();
-    D_800C3624 = 0;
-    D_800C3608 &= ~(1 << slot);
+    g_BattleAnimScriptHalted = 0;
+    g_BattleActorSlotDoneMask &= ~(1 << slot);
     pState = func_800BED4C();
     g_BattleState = pState;
     pState->savedActorSlot = arg3;
@@ -1064,7 +1064,7 @@ void BattleTearDownState(void) {
     if (g_BattleState == NULL) {
         return;
     }
-    D_800C3624 = 0;
+    g_BattleAnimScriptHalted = 0;
     g_BattleActorAnimationIndex = 0;
     g_BattleActorArchiveReady = 0;
     BattleSetFlag2DBAndReleaseAssets();

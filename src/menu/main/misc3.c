@@ -675,7 +675,7 @@ void func_801CA8C0(u_char a0) {
    `looping = 0; break;` tail cross-jumps into case 4's. Everything else is exact:
    the do/while shape is `while (1) { ...; if (!looping) break; }`, the counter is a
    `u8` (`addiu`+`andi` at the test), and `looping = 1;` must be assigned BEFORE the
-   `if (D_801E977A)` block -- as a later statement gcc saves the constant register
+   `if (g_MenuCardChangeDetectionEnabled)` block -- as a later statement gcc saves the constant register
    differently and the whole comparison drops to 95.99% (it also swaps frames/looping
    between s2/s3). At 840k: case-body order in the switch is NOT free: (4,5,2,0) and
    (5,4,2,0) both give 688/97.36, (0,2,4,5) 696/91.27, (0,5,2,4) 700/90.91, (2,5,0,4)
@@ -685,8 +685,8 @@ void func_801CA8C0(u_char a0) {
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CAA38);
 /*
 extern u8 D_801E9778;
-extern u8 D_801E977A;
-extern u8 D_801EA8FC;
+extern u8 g_MenuCardChangeDetectionEnabled;
+extern u8 g_MenuWindowTextBackPressed;
 
 u_char func_801CAA38(u_char a0) {
     u_char cardStatus[2];
@@ -697,10 +697,10 @@ u_char func_801CAA38(u_char a0) {
     cardStatus[0] = g_Menu->menuUnk2->cardStatus[0];
     cardStatus[1] = g_Menu->menuUnk2->cardStatus[1];
     looping = 1;
-    if (D_801E977A != 0) {
+    if (g_MenuCardChangeDetectionEnabled != 0) {
         g_Menu->menuUnk2->cardPollMode = 2;
     }
-    D_801EA8FC = 0;
+    g_MenuWindowTextBackPressed = 0;
     result = 0;
     frames = 0xB4;
     while (1) {
@@ -716,7 +716,7 @@ u_char func_801CAA38(u_char a0) {
             }
         }
         MenuRenderFrame();
-        if (a0 != 0 && D_801E977A != 0) {
+        if (a0 != 0 && g_MenuCardChangeDetectionEnabled != 0) {
             if (cardStatus[0] != g_Menu->menuUnk2->cardStatus[0]) {
                 g_Menu->menuUnk2->cardEnumerated[0] = 0;
                 g_Menu->input = 5;
@@ -731,7 +731,7 @@ u_char func_801CAA38(u_char a0) {
         switch (g_Menu->input) {
         case 5:
             result = 0;
-            D_801EA8FC = 1;
+            g_MenuWindowTextBackPressed = 1;
             looping = 0;
             break;
         case 4:

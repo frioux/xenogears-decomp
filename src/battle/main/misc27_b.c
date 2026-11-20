@@ -8,7 +8,7 @@ extern void WorkListSetTaskCallback();
 extern void func_8001E148();
 extern void AnimScriptTick(void* pSprite);
 extern s32 SpriteScaleValue(void* pSprite, s32 value);
-extern void func_800C08CC();
+extern void BattleEmitTrailSegments();
 extern void func_800B3CD4();
 extern void func_800B51B0();
 extern void BattleIntegrateSpriteVelocityTask();

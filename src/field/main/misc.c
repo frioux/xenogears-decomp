@@ -515,20 +515,20 @@ void FieldScriptSetPlayerActor(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
 
-extern FieldScriptGlobalU16 D_800B2348[];
+extern FieldScriptGlobalU16 g_FieldWalkAbortCount[];
 
 // 79.83%: gcc folds the symbol into both accesses (`lui/lhu` then `lui at/sh`),
-// the original materialises &D_800B2348 once in $v1 and uses 0($v1) twice. A
+// the original materialises &g_FieldWalkAbortCount once in $v1 and uses 0($v1) twice. A
 // local pointer to the global (`p->value++`, also `+= 1`, `volatile` variants)
 // is folded back to the same immediate form. Also 19.92% with a cast pointer
-// (`u16* p = (u16*)&D_800B2348; (*p)++;`): gcc still folds and allocates worse.
+// (`u16* p = (u16*)&g_FieldWalkAbortCount; (*p)++;`): gcc still folds and allocates worse.
 // The `lui+addiu` form appears where the C uses the symbol's address as a VALUE
 // (cf. FieldClearParticleBankDirections's `$a2 = &g_FieldDefaultParticleBanks`), and a deref of
 // `&sym` never survives fold, so a pointer local is not enough.
 // preset screen: 2.7.2 79.83%, cdk 79.83%, 2.6.0 79.83% - no compiler
 // fixes it.
-void func_80087FA4(void) {
-    D_800B2348[0].value++;
+void FieldScriptVMHandlerAbortWalk(void) {
+    g_FieldWalkAbortCount[0].value++;
     g_FieldScriptVMCurActor->scriptInstructionPointer += 1;
 }
 

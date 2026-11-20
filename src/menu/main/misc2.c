@@ -63,7 +63,7 @@ void MenuResetRenderContext(void);
 void MenuResetAnimationCounters(void);
 void MenuInitializeMenuStrings(void);
 void MenuInitializeWindowBorders(void);
-void func_801C6F70(void);
+void MenuInitializeCursorPrims(void);
 
 void MenuSetupScreen(void) {
     g_Menu->pSelectionMenu->vramRect.x = MENU_SCREEN_VRAM_X;
@@ -74,7 +74,7 @@ void MenuSetupScreen(void) {
     MenuBuildAvailableCharacters();
     MenuResetRenderContext();
     MenuInitializeMenuStrings();
-    func_801C6F70();
+    MenuInitializeCursorPrims();
     MenuInitializeWindowBorders();
     switch (g_MenuOverlayIndex) {
     case 2:

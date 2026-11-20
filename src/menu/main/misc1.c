@@ -40,8 +40,8 @@ extern int ArchiveDecodeAlignedSize(unsigned int entryIndex);
 extern void ArchiveCdDataSync(int mode);
 extern void ArchiveReadFileToBuffer(s32 index, void* pBuffer, u32 arg2, u32 flags);
 
-extern u8 D_801E977A;
-extern u8 D_801EA8FC;
+extern u8 g_MenuCardChangeDetectionEnabled;
+extern u8 g_MenuWindowTextBackPressed;
 extern u8 D_801E96A4;
 extern u8 g_MenuSaveSlotForceDiscOne;
 
@@ -101,14 +101,14 @@ void MenuCdChangeMain(void) {
     u_char shouldReset;
 
     g_ShopIndex = 1;
-    D_801E977A = 0;
+    g_MenuCardChangeDetectionEnabled = 0;
     MenuStartOpenAnimation();
     shouldReset = 1;
     while (g_Menu->transitionEffectState != 0) {
         MenuRenderFrame();
     }
     MenuSetupPointerCursors(0);
-    if ((u_char)MenuLoadWindow2Text(0x7D, 0xFF, 1) != 0 || D_801EA8FC != 0) {
+    if ((u_char)MenuLoadWindow2Text(0x7D, 0xFF, 1) != 0 || g_MenuWindowTextBackPressed != 0) {
         if (MenuLoadWindow2Text(0x80, 0xFF, 1) != 0) {
             shouldReset = 0;
         }
@@ -455,8 +455,8 @@ extern SoundFile* g_MenuSedsFile;
 
 // The game code the save file header is stamped with, "BASLUS-00664" (disc one) and
 // "BASLUS-01160" (disc two); 12 characters and the terminator.
-extern u32 D_801C5028[]; // "BASLUS-00664" as words
-extern u32 D_801C5038[]; // "BASLUS-01160" as words
+extern u32 g_MenuGameSerialCodeDiscOne[]; // "BASLUS-00664" as words
+extern u32 g_MenuGameSerialCodeDiscTwo[]; // "BASLUS-01160" as words
 
 extern void ResolveArchiveEntryPointers(u32* pFile);
 extern void* LZSSHeapDecompress(void* pCompressedData, int flags);
@@ -465,7 +465,7 @@ extern void SoundAddSedsEntry(SoundFile* pSoundFile);
 extern void ResourceHelperGetTexCoords(MenuResourceDirectory* pDir, u32 index, s32* pDirentCount, s32* pTexPageId,
     s32* pClutX, s32* pClutY, s32* pTexPageX, s32* pTexPageY);
 
-void func_801C65F4(void) {
+void MenuLoadResourceFiles(void) {
     TIM_IMAGE tim;
     s32 metadata[18];
     SoundFile* pSoundFile;
@@ -478,8 +478,8 @@ void func_801C65F4(void) {
     pData = LZSSHeapDecompress((void*)pFileHandle[1], 1);
     OpenTIM((u_long*)pData);
     ReadTIM(&g_Menu->menuUnk2->tim);
-    memcpy(g_Menu->menuUnk2->gameSerialCode, D_801C5028, sizeof(g_Menu->menuUnk2->gameSerialCode));
-    memcpy(g_Menu->menuUnk2->discTwoGameSerialCode, D_801C5038, sizeof(g_Menu->menuUnk2->gameSerialCode));
+    memcpy(g_Menu->menuUnk2->gameSerialCode, g_MenuGameSerialCodeDiscOne, sizeof(g_Menu->menuUnk2->gameSerialCode));
+    memcpy(g_Menu->menuUnk2->discTwoGameSerialCode, g_MenuGameSerialCodeDiscTwo, sizeof(g_Menu->menuUnk2->gameSerialCode));
     g_Menu->menuUnk2->saveFileMagic[0] = 0x53;
     g_Menu->menuUnk2->saveFileMagic[1] = 0x43;
     g_Menu->menuUnk2->saveIconDisplayFlag = 0x11;
@@ -585,7 +585,7 @@ void MenuBuildAvailableCharacters(void) {
             break;
         }
     }
-    func_801C65F4();
+    MenuLoadResourceFiles();
 }
 
 void MenuResetRenderContext(void) {
@@ -661,7 +661,7 @@ void MenuInitializeWindowBorders(void) {
 
 extern void MenuSetPolyG4Gradient(POLY_G4* pPoly, u_char r, u_char g, u_char b);
 
-void func_801C6F70(void) {
+void MenuInitializeCursorPrims(void) {
     RECT rect;
     s32 i;
 

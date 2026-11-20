@@ -53,7 +53,7 @@ extern s32 D_800D2FCC;
 // rotation groups it averages the four source positions under the group's eight
 // rotation matrices and hands the result to pCallback together with the previous
 // one. partCount below 5 pads the source array up to five entries first.
-void func_800C08CC(s32 partCount, SVECTOR *pVectors, BattleVectorCallback pCallback) {
+void BattleEmitTrailSegments(s32 partCount, SVECTOR *pVectors, BattleVectorCallback pCallback) {
     VECTOR vecA;
     VECTOR vecB;
     SVECTOR vecC; // unused: reproduces retail's 0x60 frame
@@ -328,7 +328,7 @@ extern SpriteData *D_800C3E1C;
 extern s16 g_BattleActorListCount;
 extern s32 g_BattleActorList[];
 extern u8 D_800C4928;
-extern u8 D_800C3624;
+extern u8 g_BattleAnimScriptHalted;
 extern s32 g_WorkListCurTimer;
 extern SVECTOR g_BattleSlotVectors;
 extern SVECTOR D_800D335C;
@@ -668,7 +668,7 @@ void func_800C11CC(SpriteData *pSpriteData) {
             BattleActorComputeFallDirection(pSpriteData);
             break;
         case 0x8F:
-            D_800C3624 = 1;
+            g_BattleAnimScriptHalted = 1;
             pSpriteData->pSpriteBytecode = NULL;
             mask = BATTLE_ANIM_MODE_HIGH_MASK;
             pSpriteData->flags_0xA8 &= mask;

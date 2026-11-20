@@ -85,7 +85,7 @@ extern u16 BattleSlotBitMaskInverted(u8);
 extern u8 D_800C3EB7[][0x1C];
 extern u8 D_800C3EB8[][0x1C];
 extern BattleStatusEntry D_800C3D1B[];
-extern u16 D_800C3608;
+extern u16 g_BattleActorSlotDoneMask;
 extern u16 g_BattlePendingSlotMask;
 extern u8 D_800C402F[];
 extern u8 g_BattleCommandArgs;
@@ -190,7 +190,7 @@ extern void ArchiveCdDataSync(s32);
 extern void HeapFree(void *);
 extern void func_801E0A34(void);
 extern void func_800B8098(s32);
-extern void func_800B81BC(s32);
+extern void BattleInitStageDisplay(s32);
 extern void BattleStartScreenFade(s32, u8, u8, u8, u8);
 extern s32 *SoundCreateAndPlayAudioManager(u8 *, s32, s32);
 extern void func_80077990(void);
@@ -338,7 +338,7 @@ void func_80070F40(void) {
     func_8007252C();
     display = D_800C3DEC;
     g_BattleDisplayMode = 2;
-    func_800B81BC(display);
+    BattleInitStageDisplay(display);
     BattleStartScreenFade(0, 2, 0xFF, 0xFF, 0xFF);
     if (g_BattleOverlayEnabled == 0) {
         BattleStartScreenFade(0x14, 2, 0, 0, 0);
@@ -782,7 +782,7 @@ void func_8007252C(void) {
         }
         if (D_800C3EB8[i][0] == 0) {
             if ((g_BattleSlotEntries[i].flags & 0xC000) != 0) {
-                if (BattleMaskHasSlotBit(D_800C3608, i) == 0) {
+                if (BattleMaskHasSlotBit(g_BattleActorSlotDoneMask, i) == 0) {
                     g_BattleSlotEntriesBase[i].flags = 0;
                     g_BattleActorCountdownState[i] = 0xFF;
                     continue;
@@ -791,7 +791,7 @@ void func_8007252C(void) {
                 continue;
             }
         } else if ((g_BattleSlotEntries[i].stateFlags & 0xC000) != 0) {
-            if (BattleMaskHasSlotBit(D_800C3608, i) == 0) {
+            if (BattleMaskHasSlotBit(g_BattleActorSlotDoneMask, i) == 0) {
                 g_BattleSlotEntries[i].effectFlags4Pair = 0;
                 g_BattleActorCountdownState[i] = 0xFF;
                 continue;

@@ -9,7 +9,7 @@ extern void WorkListSetTaskCallback();
 extern void func_8001E148();
 extern void AnimScriptTick(void* pSprite);
 extern s32 SpriteScaleValue(void* pSprite, s32 value);
-extern void func_800C08CC();
+extern void BattleEmitTrailSegments();
 extern void func_800B3CD4();
 extern void func_800B51B0();
 extern void func_800B50D4();
@@ -242,7 +242,7 @@ void BattleProcessDirectionTransformTask(WorkListEntry* pWork) {
 
     pTask = pWork->pTask;
     func_8001E148(pTask->pSpriteData);
-    func_800C08CC(5, pTask->curPos, func_800B51B0);
+    BattleEmitTrailSegments(5, pTask->curPos, func_800B51B0);
 }
 
 void BattleCreateDirectionTransformTask(SpriteData* pSpriteData, u8* pArgs) {

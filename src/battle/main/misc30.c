@@ -25,7 +25,7 @@ extern BattleState* g_BattleState;
 extern u8 D_800C3664;
 extern u8 g_BattleStateWork[];
 extern s32 g_BattleCommandRowIndex;
-extern u16 D_800C3608;
+extern u16 g_BattleActorSlotDoneMask;
 extern u16 D_800C3614;
 extern u16 g_BattleActorAnimationIndex;
 extern u8 D_800C3623;
@@ -301,7 +301,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
    (`pBase = g_BattleStateWork;` then `pSlot = pBase + g_BattleCommandRowIndex * 0x48;`) fixes the
    emission ORDER (a plain one-statement form materialises the base after the
    index load and comes out 660 bytes / 79.10%), and the 0xF3 arm's operand load
-   split into `id` (instead of `D_800C3608 |= *(u16 *)(pSlot + 0x172);` inline)
+   split into `id` (instead of `g_BattleActorSlotDoneMask |= *(u16 *)(pSlot + 0x172);` inline)
    fixes that arm's lhu order.  Tried and worse: one-statement `pSlot = g_BattleStateWork
    + slot * 0x48`, `pSlot = (u8 *)((mem_addr)g_BattleStateWork + g_BattleCommandRowIndex * 0x48)`
    (664 bytes), `pSlot +=`, `&pBase[idx]`, index-first operand order, declaration
@@ -311,7 +311,7 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc30", func_800B9284);
    moves the index load above the base materialisation), the index-first sum
    `idx * 0x48 + pBase` (96.61%), declaring pBase before pSlot (96.61%) and the
    0xF3 arm's RMW written inline again (96.40%).  The 388-byte/0xF3 arm also
-   differs in ORDER: retail's `lui a1,%hi(D_800C3608)` is hoisted to the top of the
+   differs in ORDER: retail's `lui a1,%hi(g_BattleActorSlotDoneMask)` is hoisted to the top of the
    arm and its `lhu` of the global precedes the slot `lhu`. */
 /*
 void func_800B9284(SpriteData* pSprite, s32 code) {
@@ -372,7 +372,7 @@ void func_800B9284(SpriteData* pSprite, s32 code) {
             pBase = g_BattleStateWork;
             pSlot = pBase + g_BattleCommandRowIndex * 0x48;
             id = *(u16 *)(pSlot + 0x172);
-            D_800C3608 |= id;
+            g_BattleActorSlotDoneMask |= id;
             break;
     }
 }

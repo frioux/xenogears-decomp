@@ -465,7 +465,7 @@ typedef struct {
 extern BattleActor *g_BattleActors[];
 extern u16 g_BattleSlotBitMask;
 extern s32 BattleCollectMaskedSlotActors(u16 mask, void **pOut, s32 arg2);
-extern u16 D_800C3608;
+extern u16 g_BattleActorSlotDoneMask;
 extern void func_800BEE2C(SpriteData *pSprite, s32 slotIndex, s32 animId);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc34", func_800C0314);
@@ -500,7 +500,7 @@ s32 func_800C0314(void) {
         pSprite = slots[i];
         slotIndex = ((u32)pSprite->flags_0xA8 >> 30) |
                     ((pSprite->flags_0xAC.flags & 3) << 2);
-        if ((D_800C3608 >> slotIndex) & 1) {
+        if ((g_BattleActorSlotDoneMask >> slotIndex) & 1) {
             slots[i] = NULL;
             continue;
         }

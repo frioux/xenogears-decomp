@@ -745,7 +745,7 @@ void FieldScriptVMHandlerWaitForFieldRequest(void) {
     g_FieldScriptVMStopFlag = 1;
 }
 
-void func_80093740(void) {
+void FieldScriptVMHandlerRequestFieldState0(void) {
     g_FieldScriptVMStopFlag = 1;
     g_FieldRequestCode = 0;
     g_ShopIndex = g_FieldScriptShopIndex;

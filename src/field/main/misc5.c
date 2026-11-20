@@ -220,7 +220,7 @@ void FieldZoomFadeEffectLoadTextures(void) {
 
 extern s32 g_FieldScriptFadeMode;
 extern s32 g_FieldScriptFadeDuration;
-extern s16 D_800ADC08;
+extern s16 g_FieldFadeIsWhite;
 extern int g_FieldParticleFadeDistance;
 extern void FontFree(void);
 extern void FieldResetPortraitSlots(void);
@@ -242,7 +242,7 @@ extern void FieldZoomFadeEffectInitialize(int nSemiTrans, int nABR);
 extern void FieldAddParticlePrims(void);
 extern void FieldZoomFadeEffectUpdate(void);
 
-void func_800A5924(void) {
+void FieldRunScriptFadeEffect(void) {
     int i;
     int nColor;
 
@@ -265,7 +265,7 @@ dispatch:
     case 4:
         ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
         func_800A6E70();
-        D_800ADC08 = 1;
+        g_FieldFadeIsWhite = 1;
         FieldFadeToBlack(g_FieldScriptFadeDuration);
         g_FieldParticleFadeDistance = 0;
         for (i = 0; i < g_FieldScriptFadeDuration; i++) {
@@ -281,7 +281,7 @@ dispatch:
     case 1:
     case 2:
         ((void (*)(int, int))FieldZoomFadeEffectLoadTextures)(1, 1);
-        D_800ADC08 = 1;
+        g_FieldFadeIsWhite = 1;
         FieldFadeToBlack(g_FieldScriptFadeDuration);
         nColor = 0x800000;
         for (i = 0; i < g_FieldScriptFadeDuration; i++) {

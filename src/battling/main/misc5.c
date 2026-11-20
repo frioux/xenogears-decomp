@@ -103,7 +103,7 @@ typedef struct {
 } BattlePrimTemplate; // Size: 0xC
 
 // 0xA-byte entry table func_8007D6B8 allocates at g_BattleSpriteEntries: where
-// func_8007D7A8 put an entry on the grid and how long it lives.
+// BattleSpawnSpriteEntries put an entry on the grid and how long it lives.
 typedef struct {
     /* 0x0 */ u16 x;
     /* 0x2 */ u16 y;
@@ -898,7 +898,7 @@ void func_8007D6B8(void) {
 }
 */
 
-void func_8007D7A8(VECTOR *pSrc, s32 count) {
+void BattleSpawnSpriteEntries(VECTOR *pSrc, s32 count) {
     BattleSpriteEntry *pEntry = (BattleSpriteEntry *)g_BattleSpriteEntries;
     u16 vx;
     u16 vz;

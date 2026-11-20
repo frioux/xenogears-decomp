@@ -297,7 +297,7 @@ typedef struct {
     /* 0x4FEA */ u8 pad4FEA[0x2];
     /* 0x4FEC */ s32 cardEvents[4];
     /* 0x4FFC */ u8 saveTitleSuffix[0x20]; // Text strcat'd onto saveTitle by func_801CA8C0, filled from the archive by func_801C6400
-    /* 0x501C */ u8 discTwoGameSerialCode[0xD]; // "BASLUS-01160"; func_801C65F4 fills it beside gameSerialCode's "BASLUS-00664"
+    /* 0x501C */ u8 discTwoGameSerialCode[0xD]; // "BASLUS-01160"; MenuLoadResourceFiles fills it beside gameSerialCode's "BASLUS-00664"
     /* 0x5029 */ u8 pad5029[0xB];
 } MenuUnk2; // Size: 0x5034
 

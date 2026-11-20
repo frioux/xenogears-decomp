@@ -119,7 +119,7 @@ extern void BattleTransformEntryVertex();
 extern void BattleEffectSetColor();
 extern s32 func_8007CD44();
 extern void BattleEffectAddSlotFromVector();
-extern void func_8007D7A8();
+extern void BattleSpawnSpriteEntries();
 extern void func_8007DC74();
 extern s32 func_80082488();
 extern u32 BattleGetGridCellAtPosition();
@@ -698,12 +698,12 @@ void func_8007920C(Actor* p) {
     if (p->timer != 0) {
         if (pos[0][1] + 0x40 > p->floorY - 0x20) {
             if (p->prevVertex0Y + 6 < pos[0][1]) {
-                func_8007D7A8(pos[0], 0x20);
+                BattleSpawnSpriteEntries(pos[0], 0x20);
             }
         }
         if (pos[1][1] + 0x40 > p->floorY - 0x20) {
             if (p->prevVertex1Y + 6 < pos[1][1]) {
-                func_8007D7A8(pos[1], 0x20);
+                BattleSpawnSpriteEntries(pos[1], 0x20);
             }
         }
         p->timer--;

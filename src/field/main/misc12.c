@@ -548,7 +548,7 @@ void FieldSceneStartScreenZInterpolation(s32 start, s32 duration) {
 }
 
 typedef struct { s16 value; } FieldScriptGlobalS16;
-extern FieldScriptGlobalS16 D_800B2348;
+extern FieldScriptGlobalS16 g_FieldWalkAbortCount;
 
 long FieldGetVec1Magnitude(long);
 long FieldGetVec2Magnitude(long, long);
@@ -609,7 +609,7 @@ int func_8009AEE0(int actorSlotId, int x, int z, int direction) {
         rotation = FieldGetVec2Angle(&delta);
         pActor->rotation.vx = rotation;
         pActor->rotation.vy = rotation;
-        if ((short)pActor->stuckFrameCount < 0x41 && D_800B2348.value == 0) {
+        if ((short)pActor->stuckFrameCount < 0x41 && g_FieldWalkAbortCount.value == 0) {
             return -1;
         }
         pCurActor = g_FieldScriptVMCurActor;
@@ -677,7 +677,7 @@ void FieldScriptVMMovePartyToLeader(void) {
     if (mask == 7) {
         g_FieldScriptVMCurActor->scriptInstructionPointer++;
         D_800B21CC[0] = 0;
-        D_800B2348.value = 0;
+        g_FieldWalkAbortCount.value = 0;
         FieldScriptVMResetActorHistory();
     } else {
         D_800B21CC[0] = 1;
@@ -768,7 +768,7 @@ void func_8009B398(void) {
         }
         g_FieldScriptVMStopFlag = 1;
         if (mask == 7) {
-            D_800B2348.value = 0;
+            g_FieldWalkAbortCount.value = 0;
             g_FieldScriptVMCurActor->scriptInstructionPointer += 0x14;
             D_800B21CC[0] = 0;
         } else {
