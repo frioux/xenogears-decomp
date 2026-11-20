@@ -4843,59 +4843,42 @@ u8* SoundScriptReleaseVoiceIfEnvelopeEnded(u8* pScript, AudioManager* pAudioMana
     return pScript;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E5BC);
-/*
-Round 347: 90.59% at retail's EXACT 196 bytes, instruction multiset identical. The address/offset
-block, the three adsrModes stores and the whole tail (flags load, andi, two sb, toneTune load, ori,
-sh, and the toneTune sh stolen into the jr slot) all match; two residuals, both from ONE cause.
-Retail keeps three temps - adsr in a2, `adsr >> 24` in v1 live across the four adsr stores, v0 the
-scratch - and applies the `& 0x1F` at the two releaseRate stores ten instructions after the srl.
-This body's cc1 SUBSTITUTES the shift into the andi, so it needs only two temps (v1 = adsrModes
-then adsr then the shifted value) and emits `srl v1,v1,0x18; andi v1,v1,0x1f` at the use.
-A u8-typed masked local (`u8 releaseRate; releaseRate = releaseShift & 0x1F;`) does materialise
-the shift early (86.00%) but cc1 then hoists the andi up next to it and swaps the two live values
-(adsr in v1, the shift in a2). Probed with cc1_probe.sh on a 6-store replica: plain local, u8 local,
-do{}while(0), a bare block, if(1), and masking at the store site all give the same two shapes above.
-permute.sh 4 min: base 465 -> best 215, only via duplicated statements in both arms of a fake
-`if (pTone->loopOffset)` - not source.
-Was 32.33% (200 bytes) before this round.
 void func_8003E5BC(s16 value, AudioElement* pElement) {
     SoundWDSEntry* pWds;
     SoundWdsTone* pTone;
     u32 offset;
+    u32 spuAddress;
     u32 adsr;
-    u32 modes;
-    u32 releaseShift;
     u16 flags;
     u16 toneTune;
 
     pElement->toneIndex = value;
     pWds = (SoundWDSEntry*)pElement->pWds;
     pTone = &pWds->tones[value];
+    spuAddress = pWds->spuMemoryAddress;
+    adsr = spuAddress;
     offset = pTone->sampleOffset * 8;
-    pElement->voice_data.startAddress = offset + pWds->spuMemoryAddress;
+    pElement->voice_data.startAddress = offset + adsr;
     pElement->voice_data.loopAddress = offset + pTone->loopOffset * 8;
 
-    modes = pTone->adsrModes;
-    pElement->voice_data.attackMode = modes & 0x7;
-    pElement->voice_data.sustainMode = (modes >> 4) & 0x7;
-    pElement->voice_data.releaseMode = (modes >> 8) & 0x7;
+    adsr = pTone->adsrModes;
+    pElement->voice_data.attackMode = adsr & 0x7;
+    pElement->voice_data.sustainMode = (adsr >> 4) & 0x7;
+    pElement->voice_data.releaseMode = (adsr >> 8) & 0x7;
 
     adsr = pTone->adsr;
-    releaseShift = adsr >> 24;
+    offset = adsr >> 24;
     pElement->voice_data.attackRate = adsr & 0x7F;
     pElement->voice_data.adsrDR = (adsr >> 8) & 0xF;
     pElement->voice_data.sustainRate = (adsr >> 16) & 0x7F;
     pElement->voice_data.adsrSR = (adsr >> 12) & 0xF;
 
     flags = pElement->active_flag;
-    pElement->releaseRate = releaseShift & 0x1F;
-    pElement->voice_data.releaseRate = releaseShift & 0x1F;
+    pElement->voice_data.releaseRate = (pElement->releaseRate = offset & 0x1F);
     toneTune = pTone->toneTune;
     pElement->active_flag = flags | SOUND_CHANNEL_CHANGE_INSTRUMENT;
     pElement->toneTune = toneTune;
 }
-*/
 
 //----------------------------------------------------------------------------------------------------------------------
 void unk_SoundSetFlagsOnActiveVoices(u16 flags, AudioManager* manager) {
