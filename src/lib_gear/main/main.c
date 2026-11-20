@@ -47,6 +47,7 @@
 #define LIBGEAR_JOINT_RELEASE_SCALE 0x4
 
 // LibGearSetJointTransform / LibGearSetJointFlag flags
+#define LIBGEAR_JOINT_FLAG_RENDER 0x1 // LibGearSetJointFlag only: the joint's doRender
 #define LIBGEAR_JOINT_FLAG_ADD 0x20 // add to the joint's value instead of setting it
 #define LIBGEAR_JOINT_FLAG_RECURSE 0x80 // apply to the joint's children too
 
@@ -54,6 +55,10 @@
 #define LIBGEAR_JOINT_CHANNEL_MASK 0x7
 #define LIBGEAR_JOINT_CHANNEL_ROTATION 0
 #define LIBGEAR_JOINT_CHANNEL_TRANSLATION 1
+
+// Temp3::opcode values LibGearSetJointRotation and LibGearMoveJointToPoint queue
+#define LIBGEAR_JOINT_OPCODE_INTERPOLATE 3
+#define LIBGEAR_JOINT_OPCODE_MOVE_BASE 7
 
 // Interpolation curves LibGearGetInterpolationFunc picks by type; 0 (the default) is the sine
 #define LIBGEAR_INTERPOLATE_RISE 1
@@ -66,8 +71,17 @@
 // Frames UnkInner1::numFrames holds at most
 #define LIBGEAR_COLOR_ENTRY_FRAME_MAX 7
 
+// UnkInner1::jointIndex meaning the entry projects through no joint
+#define LIBGEAR_COLOR_ENTRY_JOINT_NONE (-1)
+
+// Model::frame meaning the model's animation script is not running
+#define LIBGEAR_SCRIPT_FRAME_STOPPED (-1)
+
 // Vertex entries LibGearInitialize creates the shared vertex buffer with
 #define LIBGEAR_VERTEX_BUFFER_CAPACITY 16
+
+// Vertex::age meaning the vertex buffer slot holds no vertex
+#define LIBGEAR_VERTEX_AGE_FREE (-1)
 
 // Degrees g_LibGearSwingAngle advances per stepped frame
 #define LIBGEAR_SWING_ANGLE_STEP 56
@@ -1854,7 +1868,7 @@ void LibGearInitializeVertices(VertexBuffer* pVertexBuffer) {
 
     pVertex = pVertexBuffer->pVertices;
     for (i = 0; i < pVertexBuffer->capacity + 1; i++) {
-        pVertex->age = -1;
+        pVertex->age = LIBGEAR_VERTEX_AGE_FREE;
         pVertex->lifetime = 0;
         
         for (j = 0; j < 2; j++) {
@@ -1882,13 +1896,13 @@ void* LibGearAllocVertex(VertexBuffer* pVertexBuffer, short isSemiTrans) {
     
     if (pVertexBuffer->curIndex < pVertexBuffer->capacity) {
         pVertex = &pVertexBuffer->pVertices[pVertexBuffer->curIndex];
-        if (pVertex->age == -1) {
+        if (pVertex->age == LIBGEAR_VERTEX_AGE_FREE) {
             for (
                 pVertexBuffer->curIndex++; 
                 pVertexBuffer->curIndex < pVertexBuffer->capacity; 
                 pVertexBuffer->curIndex++
             ) {
-                if (pVertexBuffer->pVertices[pVertexBuffer->curIndex].age == -1) {
+                if (pVertexBuffer->pVertices[pVertexBuffer->curIndex].age == LIBGEAR_VERTEX_AGE_FREE) {
                     break;
                 }
             }
@@ -1910,7 +1924,7 @@ int LibGearFreeVertex(VertexBuffer* pVertexBuffer, Vertex* pObject) {
         pVertexBuffer->curIndex = index;
     }
     
-    pObject->age = -1;
+    pObject->age = LIBGEAR_VERTEX_AGE_FREE;
     return index;
 }
 
@@ -1924,7 +1938,7 @@ void LibGearRenderVertices(VertexBuffer* pVertexBuffer, MATRIX* pMatrix, s32 arg
     
     pVertex = pVertexBuffer->pVertices;
     for (i = 0; i < pVertexBuffer->capacity; i++, pVertex++) {
-        if (pVertex->age == -1) {
+        if (pVertex->age == LIBGEAR_VERTEX_AGE_FREE) {
             continue;
         }
         
@@ -2016,7 +2030,7 @@ s32 LibGearInitializeColorEntry(UnkInner1* pEntry, u32 arg1, u16 arg2, u8 arg3, 
 }
 
 void LibGearClearColorEntry(short* pValue, s32 arg1) {
-    *pValue = -1;
+    *pValue = LIBGEAR_COLOR_ENTRY_JOINT_NONE;
 }
 
 s16 LibGearInterpolateSine(s16 angle, s16 divisor, s16 offset) {
@@ -2519,7 +2533,7 @@ void LibGearSetJointRotation(Temp4* pList, ModelJoint* pJoint, s32 numFrames, s3
     if (pObject != NULL) {
         pObject->inUse = 1;
         pObject->unk1 = 0;
-        pObject->opcode = 3;
+        pObject->opcode = LIBGEAR_JOINT_OPCODE_INTERPOLATE;
         pObject->type = 0xFE;
 
         pObject->startX = pJoint->rotation.vx;
@@ -2565,7 +2579,7 @@ void LibGearMoveJointToPoint(Temp4* pList, ModelJoint* pJoint, s32 arg2, s32 arg
     if (pObject != NULL) {
         pObject->inUse = 1;
         pObject->unk1 = 0;
-        pObject->opcode = arg2 + 7;
+        pObject->opcode = arg2 + LIBGEAR_JOINT_OPCODE_MOVE_BASE;
         pObject->type = 0xFE;
 
         dx = x - pJoint->translation.x;
@@ -2598,7 +2612,7 @@ void LibGearPlayAnimationScript(Model* pModel, Temp7* pEntry, s32 arg2) {
         pModel->pScriptCursor = (u8*)pEntry + pEntry->dataOffset;
         pModel->pScriptStart = pModel->pScriptCursor;
     } else {
-        pModel->frame = -1;
+        pModel->frame = LIBGEAR_SCRIPT_FRAME_STOPPED;
     }
 }
 
@@ -2874,7 +2888,7 @@ PLACEHOLDER
 }
 */
 void LibGearStopAnimationScript(Model* pModel) {
-    pModel->frame = -1;
+    pModel->frame = LIBGEAR_SCRIPT_FRAME_STOPPED;
 }
 
 int LibGearGetModelDistance(Model* pModel) {
@@ -3364,7 +3378,7 @@ void LibGearSetJointFlag(Model* pModel, ModelJoint* pJoint, s32 flags) {
     ModelJoint* pChild;
     int i;
 
-    pJoint->doRender = flags & 0x1;
+    pJoint->doRender = flags & LIBGEAR_JOINT_FLAG_RENDER;
 
     if (flags & LIBGEAR_JOINT_FLAG_RECURSE) {
         pChild = pModel->pSkeleton;
@@ -3943,7 +3957,7 @@ void LibGearFreeModel(s32 modelIndex) {
         HeapFree(g_LibGearModels[modelIndex]->unkAC);
     }
 
-    if ((u32)(modelIndex - MAX_MODEL_MESHES) >= 2) {
+    if ((u32)(modelIndex - MAX_MODEL_MESHES) >= MAX_MODELS - MAX_MODEL_MESHES) {
         if (g_LibGearModels[modelIndex]->pSkeleton != NULL) {
             Temp4* pPool = &g_LibGearJointObjectPool;
 
@@ -4047,7 +4061,7 @@ void LibGearAllocateColorEntries(Model* pModel) {
     if (pModel->numColorEntries) {
         pObjects = HeapAlloc(pModel->numColorEntries * sizeof(UnkInner1), 0x0);
         for (i = 0; i < pModel->numColorEntries; i++) {
-            pObjects[i].jointIndex = -1;
+            pObjects[i].jointIndex = LIBGEAR_COLOR_ENTRY_JOINT_NONE;
             pObjects[i].unk8 = 0;
         }
         pModel->pColorEntries = pObjects;
