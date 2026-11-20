@@ -457,19 +457,11 @@ void BattleRollPercentAndSwapActiveActor(void) {
     g_BattleCurWorkBlock->slotAmounts[g_BattleTargetSlotIndex] = 0;
     g_BattleCurWorkBlock->commandCode = 0x34;
 }
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096AB8);
-/* 98.43%, 1284 bytes - the original's exact size (321 instructions). Everything matches except the
-   placement of ONE instruction in each of the last two roll blocks: retail computes the limit
-   (high - 0x5A) after the roll subtraction, this body's compile schedules the same addiu into the
-   divider's post-mult slots. The limit has to be a local - written inline as low - (high - 0x5A)
-   cc1 reassociates to (low + 0x5A) - high - but a local assigned before the call costs a fifth
-   callee-saved register (1288 bytes). The roll has to be its own local and the compare written with
-   the limit on the left, or the two 0x32 roll blocks cross-jump into one shared tail (1216 bytes).
-   The rest of the levers that got this far: the row's +0x15 byte needs a volatile read to keep
-   retail's lbu then sll 24/sra 24; blocks 2 and 3 must read if (roll >= 0x32) return K; return 1;
-   and the last one if (roll >= limit) return 2; return 1;, or the branch polarity comes out
-   inverted. */
-/*
+/* The evade modifier's read must stay volatile: written plainly cc1 folds the sign extension into
+   the load instead of retail's lbu then sll 24/sra 24. The two threshold rolls each need their own
+   roll and limit locals, and the first one also stores its roll into `flags` (dead by then) - the
+   redefinition is what keeps cc1 from hoisting the limit's addiu into the divider's post-mult
+   slots, and a fifth local instead of the reuse costs the 1288-byte frame. */
 s32 func_80096AB8(void) {
     s32 evade;
     s32 hit;
@@ -478,6 +470,8 @@ s32 func_80096AB8(void) {
     u16 flags;
     s32 diff;
     s32 roll;
+    s32 limit2;
+    s32 roll2;
     s32 limit;
 
     evade = g_BattleActingSlot->evade;
@@ -563,19 +557,18 @@ s32 func_80096AB8(void) {
         }
         return 1;
     }
-    roll = rand() % BATTLE_PERCENT_ROLL_RANGE - diff;
+    roll = (flags = rand() % BATTLE_PERCENT_ROLL_RANGE - diff);
     limit = high - 0x5A;
-    if ((s16)(low - limit) <= (s16)roll) {
+    if ((s16)roll >= (s16)(low - limit)) {
         return 3;
     }
-    roll = rand() % BATTLE_PERCENT_ROLL_RANGE - diff;
-    limit = high - 0x55;
-    if ((s16)(low - limit) <= (s16)roll) {
+    roll2 = rand() % BATTLE_PERCENT_ROLL_RANGE - diff;
+    limit2 = high - 0x55;
+    if ((s16)roll2 >= (s16)(low - limit2)) {
         return 2;
     }
     return 1;
 }
-*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80096FBC);
 s16 BattleComputeSlotActionAmount(void) {
     u16 value;
