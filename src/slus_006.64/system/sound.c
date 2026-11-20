@@ -4845,41 +4845,55 @@ u8* SoundScriptReleaseVoiceIfEnvelopeEnded(u8* pScript, AudioManager* pAudioMana
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/sound", func_8003E5BC);
 /*
-Screened under gcc-2.7.2-cdk / gcc-2.7.2 / this unit's gcc-2.6.0: 32.12 / 32.12 / 32.33 - not
-a compiler-only match; the current preset is the best of the three.
-Attempt (32.33%, 196 bytes vs the original's 200): startAddress/loopAddress now match exactly -
-the shared shift needs a `u32 offset = pTone->sampleOffset * 8;` local, otherwise gcc folds
-`a*8 + b*8` into `(a+b)*8`. Remaining delta: gcc keeps unkC in v1 where the original uses a2
-(free third temp), which reorders the third unkC store past the active_flag load and drags the
-flag RMW four stores early. u16/u32 unkC, declaration order and a separate adsr local all leave
-the same allocation.
+Round 347: 90.59% at retail's EXACT 196 bytes, instruction multiset identical. The address/offset
+block, the three adsrModes stores and the whole tail (flags load, andi, two sb, toneTune load, ori,
+sh, and the toneTune sh stolen into the jr slot) all match; two residuals, both from ONE cause.
+Retail keeps three temps - adsr in a2, `adsr >> 24` in v1 live across the four adsr stores, v0 the
+scratch - and applies the `& 0x1F` at the two releaseRate stores ten instructions after the srl.
+This body's cc1 SUBSTITUTES the shift into the andi, so it needs only two temps (v1 = adsrModes
+then adsr then the shifted value) and emits `srl v1,v1,0x18; andi v1,v1,0x1f` at the use.
+A u8-typed masked local (`u8 releaseRate; releaseRate = releaseShift & 0x1F;`) does materialise
+the shift early (86.00%) but cc1 then hoists the andi up next to it and swaps the two live values
+(adsr in v1, the shift in a2). Probed with cc1_probe.sh on a 6-store replica: plain local, u8 local,
+do{}while(0), a bare block, if(1), and masking at the store site all give the same two shapes above.
+permute.sh 4 min: base 465 -> best 215, only via duplicated statements in both arms of a fake
+`if (pTone->loopOffset)` - not source.
+Was 32.33% (200 bytes) before this round.
 void func_8003E5BC(s16 value, AudioElement* pElement) {
-    SoundWDSEntry* pWds = (SoundWDSEntry*)pElement->pWds;
-    SoundWdsTone* pTone = (SoundWdsTone*)((u8*)pWds + 0x30 + value * 0x10);
+    SoundWDSEntry* pWds;
+    SoundWdsTone* pTone;
     u32 offset;
     u32 adsr;
-    u16 unkC;
+    u32 modes;
+    u32 releaseShift;
+    u16 flags;
+    u16 toneTune;
 
     pElement->toneIndex = value;
+    pWds = (SoundWDSEntry*)pElement->pWds;
+    pTone = &pWds->tones[value];
     offset = pTone->sampleOffset * 8;
-    pElement->voice_data.startAddress = pWds->spuMemoryAddress + offset;
+    pElement->voice_data.startAddress = offset + pWds->spuMemoryAddress;
     pElement->voice_data.loopAddress = offset + pTone->loopOffset * 8;
 
-    unkC = pTone->adsrModes;
-    pElement->voice_data.attackMode = unkC & 0x7;
-    pElement->voice_data.sustainMode = (unkC >> 4) & 0x7;
-    pElement->voice_data.releaseMode = (unkC >> 8) & 0x7;
+    modes = pTone->adsrModes;
+    pElement->voice_data.attackMode = modes & 0x7;
+    pElement->voice_data.sustainMode = (modes >> 4) & 0x7;
+    pElement->voice_data.releaseMode = (modes >> 8) & 0x7;
 
     adsr = pTone->adsr;
+    releaseShift = adsr >> 24;
     pElement->voice_data.attackRate = adsr & 0x7F;
     pElement->voice_data.adsrDR = (adsr >> 8) & 0xF;
     pElement->voice_data.sustainRate = (adsr >> 16) & 0x7F;
     pElement->voice_data.adsrSR = (adsr >> 12) & 0xF;
-    pElement->releaseRate = (adsr >> 24) & 0x1F;
-    pElement->voice_data.releaseRate = pElement->releaseRate;
 
-    pElement->active_flag |= 0x8000;
-    pElement->toneTune = pTone->toneTune;
+    flags = pElement->active_flag;
+    pElement->releaseRate = releaseShift & 0x1F;
+    pElement->voice_data.releaseRate = releaseShift & 0x1F;
+    toneTune = pTone->toneTune;
+    pElement->active_flag = flags | SOUND_CHANNEL_CHANGE_INSTRUMENT;
+    pElement->toneTune = toneTune;
 }
 */
 
