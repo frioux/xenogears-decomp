@@ -315,7 +315,6 @@ void func_801D6338(u_char index, u_char characterId) {
     s32 x;
     s32 count;
     s32 digitOffset;
-    s32 vertOffset;
 
     if (characterId == 0) {
         count = MENU_HP_DIGIT_COUNT;
@@ -350,7 +349,6 @@ void func_801D6338(u_char index, u_char characterId) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 
     if (characterId == 0) {
@@ -382,7 +380,6 @@ void func_801D6338(u_char index, u_char characterId) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 }
 */
@@ -416,7 +413,6 @@ void func_801D6CF4(u_char index, u_char row) {
     s32 characterOffset;
     s32 rowOffset;
     s32 i;
-    s32 vertOffset;
 
     characterOffset = g_Menu->pManager->currentCharacterIDs[index] * sizeof(GameCharacter);
     rowOffset = row * 24;
@@ -443,7 +439,6 @@ void func_801D6CF4(u_char index, u_char row) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 
     MenuParseNumberToDigits(*(u8*)((u8*)&g_GameState + 0x2CF + characterOffset));
@@ -473,7 +468,6 @@ void func_801D6CF4(u_char index, u_char row) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 }
 */
@@ -487,73 +481,73 @@ extern s32 D_801E9D28;
 extern s32 D_801E9D2C;
 extern s32 D_801E9D30;
 extern s32 D_801E9D34;
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D7154);
-/* Best: 93.29% (912 bytes, retail frame 0x48 and both loops decoded). Second of
-   the two-block gear-stat renders (the sibling MenuSetCharacterIconPrims above is the same
-   shape one field over). Block A: MenuParseNumberToDigits of the word at
-   g_GameState.characters[pManager->currentCharacterIDs[a0]] + 0x44
-   (weightFromEquipment|unk46), count byte g_Menu->pGearWindowPrims + 0x2AE3, then an
-   8-iteration loop over g_Menu->digits[1 + i] (!= 0xFF) calling func_8002675C
-   with 0x50-byte prims at +0xCD0, x = D_801E9D10 + i * 8 - 0x18 * a1, y =
-   D_801E9D14, then a count-time loop of MenuSetQuadVertices over SVECTORs at
-   +0x23C0 + i * 0x20 reading u16s at entry + 0xCD8/0xCDA/0xCE0/0xCF2 (POLY_FT4
-   x0/y0/x1/y3 of the +0xCD0 prim at context (renderContext + 2 * i)). Block B
-   repeats it with 0x48, +0x2AE4, +0xF50, D_801E9D18/1C, SVECTORs at +0x24C0 and
-   u16s at +0xF58/0xF5A/0xF60/0xF72.
-   Remaining diff: (1) retail loads entry+0xCD8 and entry+0xCDA TWICE (once for
-   the x/y args, once for the width/height subtraction) and gcc CSEs them into
-   one load plus two `move`s - the same un-CSE-able twin `lhu` as the parked
-   MenuSetCharacterIconPrims, so the source must read the fields through two spellings that
-   gcc cannot prove identical; (2) the second loop keeps the SVECTOR pointer in
-   s1 and the counter in s0 in retail, the reverse here, and retail forms the
-   entry address as `addu v1,a0,v1` off pGearWindowPrims where gcc uses a third register
-   (t0). Not an allocator tie: fix (1) first, it changes the whole block.
-    void func_801D7154(u_char a0, u_char a1) {
-        u8* pEntry;
-        s32 offset;
-        s32 i;
+// The gear window's two stat numbers (unk44, unk48 of the character): each is
+// drawn as up to eight digits, then every prim it produced is grown to its glyph box.
+void func_801D7154(u_char index, u_char characterId) {
+    u8* pPrims;
+    u8* pBase;
+    u8* pEntry;
+    s32 offset;
+    s32 vertOffset;
+    s32 i;
 
-        MenuParseNumberToDigits(
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk44);
-        offset = a1 * 0x18;
-        ((u8*)g_Menu->pGearWindowPrims)[0x2AE3] = 0;
-        for (i = 0; i < 8; i++) {
-            if (g_Menu->digits[1 + i] != 0xFF) {
-                ((u8*)g_Menu->pGearWindowPrims)[0x2AE3] += func_8002675C(
-                    g_Menu->resources, g_Menu->digits[1 + i],
-                    (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                (((u8*)g_Menu->pGearWindowPrims)[0x2AE3] * 0x50 + 0xCD0)),
-                    g_Menu->renderContext, D_801E9D10 + i * 8 - offset, D_801E9D14, 0x1000);
-            }
-        }
-        for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE3]; i++) {
-            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
-            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x23C0 + i * 0x20),
-                                *(u16*)(pEntry + 0xCD8), *(u16*)(pEntry + 0xCDA),
-                                *(u16*)(pEntry + 0xCE0) - *(u16*)(pEntry + 0xCD8),
-                                *(u16*)(pEntry + 0xCF2) - *(u16*)(pEntry + 0xCDA));
-        }
-        MenuParseNumberToDigits(
-            g_GameState.characters[g_Menu->pManager->currentCharacterIDs[a0]].unk48);
-        ((u8*)g_Menu->pGearWindowPrims)[0x2AE4] = 0;
-        for (i = 0; i < 8; i++) {
-            if (g_Menu->digits[1 + i] != 0xFF) {
-                ((u8*)g_Menu->pGearWindowPrims)[0x2AE4] += func_8002675C(
-                    g_Menu->resources, g_Menu->digits[1 + i],
-                    (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
-                                (((u8*)g_Menu->pGearWindowPrims)[0x2AE4] * 0x50 + 0xF50)),
-                    g_Menu->renderContext, D_801E9D18 + i * 8 - offset, D_801E9D1C, 0x1000);
-            }
-        }
-        for (i = 0; i < ((u8*)g_Menu->pGearWindowPrims)[0x2AE4]; i++) {
-            pEntry = (u8*)g_Menu->pGearWindowPrims + (g_Menu->renderContext + i * 2) * 0x28;
-            MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x24C0 + i * 0x20),
-                                *(u16*)(pEntry + 0xF58), *(u16*)(pEntry + 0xF5A),
-                                *(u16*)(pEntry + 0xF60) - *(u16*)(pEntry + 0xF58),
-                                *(u16*)(pEntry + 0xF72) - *(u16*)(pEntry + 0xF5A));
+    MenuParseNumberToDigits(
+        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[2]);
+    offset = characterId * 0x18;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[0] = 0;
+    for (i = 0; i < 8; i++) {
+        if (g_Menu->digits[1 + i] != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[0] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[1 + i],
+                (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[0] *
+                                 (2 * sizeof(POLY_FT4)) +
+                             0xCD0)),
+                g_Menu->renderContext, D_801E9D10 + i * 8 - offset, D_801E9D14, 0x1000);
         }
     }
-*/
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[0]; i++) {
+        POLY_FT4* pPrim;
+        s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+        pBase = (u8*)g_Menu->pGearWindowPrims;
+        pEntry = pBase + primOffset;
+        pPrim = (POLY_FT4*)(pEntry + 0xCD0);
+        MenuSetQuadVertices((SVECTOR*)((u8*)g_Menu->pGearWindowPrims + 0x23C0 + i * 0x20),
+                            pPrim->x0, pPrim->y0,
+                            pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+    }
+
+    MenuParseNumberToDigits(
+        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[3]);
+    offset = characterId * 0x18;
+    ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[1] = 0;
+    for (i = 0; i < 8; i++) {
+        if (g_Menu->digits[1 + i] != MENU_DIGIT_NONE) {
+            ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[1] += func_8002675C(
+                g_Menu->resources, g_Menu->digits[1 + i],
+                (POLY_FT4*)((u8*)g_Menu->pGearWindowPrims +
+                            (((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[1] *
+                                 (2 * sizeof(POLY_FT4)) +
+                             0xF50)),
+                g_Menu->renderContext, D_801E9D18 + i * 8 - offset, D_801E9D1C, 0x1000);
+        }
+    }
+    for (i = 0; i < ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE3[1]; i++) {
+        POLY_FT4* pPrim;
+        s32 primOffset = (i * 2 + g_Menu->renderContext) * sizeof(POLY_FT4);
+
+        pPrims = (u8*)g_Menu->pGearWindowPrims;
+        pBase = pPrims;
+        pEntry = pBase + primOffset;
+        pPrim = (POLY_FT4*)(pEntry + 0xF50);
+        vertOffset = 0x24C0 + i * 0x20;
+        MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)pPrims), pPrim->x0, pPrim->y0,
+                            pPrim->x1 - *(volatile u16*)&pPrim->x0,
+                            pPrim->y3 - *(volatile u16*)&pPrim->y0);
+    }
+}
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc7_r2", func_801D74EC);
 /* Best: 99.83% (920 bytes, retail's exact size). Both halves decode completely and
    the ONLY remaining difference is two `addu` operand orders, one per half:
@@ -572,7 +566,7 @@ void func_801D74EC(u_char index, u_char characterId) {
     s32 i;
 
     MenuParseNumberToDigits(
-        g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk44);
+        ((s32*)g_GameState.characters[g_Menu->pManager->currentCharacterIDs[index]].unk34)[2]);
     offset = characterId * 0x18;
     ((MenuGearWindowPrims*)g_Menu->pGearWindowPrims)->unk2AE5 = 0;
     for (i = 0; i < 7; i++) {
@@ -639,7 +633,6 @@ void func_801D7884(u_char index, u_char row) {
     s32 count;
     s32 digitOffset;
     s32 x;
-    s32 vertOffset;
     s32 i;
 
     // The character's stat row: characters[] is 0xA4 bytes and statBase/statBonus/unk79 sit 0x2E3/0x2E4/0x2E5 into g_GameState.
@@ -696,7 +689,6 @@ void func_801D7884(u_char index, u_char row) {
         MenuSetQuadVertices((SVECTOR*)(vertOffset + (u32)g_Menu->pGearWindowPrims), pPrim->x0,
                             pPrim->y0, pPrim->x1 - *(volatile u16*)&pPrim->x0,
                             pPrim->y3 - *(volatile u16*)&pPrim->y0);
-        vertOffset += 0x20;
     }
 }
 */
