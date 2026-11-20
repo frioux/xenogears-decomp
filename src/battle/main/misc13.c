@@ -642,7 +642,10 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
     g_BattleSoundEnabled = 1;
     g_BattleSlotDisplayInitialized = 0;
 }
-/* 97.45%, 1004 bytes (= retail). Three residuals left, all measured:
+/* 97.83%, 1004 bytes (= retail). The 0x2DA double load closed with the round-330
+   VOLATILE READ: `count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA];` brings back
+   retail's second `lbu $s3,0x2DA` (and its order, `lbu $v1` then `lbu $s3`) where
+   cse merged them (97.45 -> 97.83). Two residuals left, both measured:
    - the first block's `(u8)arg0 * 0x40` stride: retail puts the offset in $v1 and
      the loaded pointer in $v0 and coalesces the sum into the base (`addu v0,v0,v1`
      = base-first), while every spelling here coalesces it into the offset. The
@@ -653,9 +656,11 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
      register, and to pay for it retail reloads the byte in the >= 8 arm
      (`lbu $a1,0x2DC($a2)` twice) while ours forwards it. Round 323's finding covers
      the `andi`: no source spelling reaches retail's shape.
-   - retail loads the 0x2DA queue byte TWICE at the record group (`lbu $v1` for the
-     D_800C400B index, `lbu $s3` for the count BattleApplySlotCurveAndStep gets) and
-     cse merges them here.
+   - the first block's two `g_BattleCommandQueue[(u8)arg0 * 0x40 + 0x3C]` sites are a
+     pure v0/v1 MIRROR: retail's offset lands in $v1 and the loaded base in $v0, ours
+     the other way round (`sll v0` / `lui+lw v1`), 3 words per arm. The embedded
+     assignment at those sites fixes the base-first operand order but keeps the
+     mirror (4 words per arm, 97.75%), so the subscript spelling is kept.
    WHAT IS LOAD-BEARING (each measured at 1004 bytes):
    - the five later `g_BattleCommandQueue[slot * 0x40 + 0x3C]` sites must be written
      as an EMBEDDED ASSIGNMENT `(pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]`
@@ -671,12 +676,15 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
      `*(u8 *)&g_BattleActionParam` gives retail's `lbu` of that u16 global.
      `BattleSlotBitMask` must return s32 (a u16 return drops the
      `andi $a1,$v0,0xFFFF` at the BattleBeginActorAction call).
-   Dead spellings: an `ofs` local for the stride (1012 bytes, 93.67% with the
+   Dead spellings: `(s32)g_BattleCommandQueue[0x2DC] < 8` in the compare (just as
+   many diffs), an `argIndex = arg1 & 0xFF;` local hoisted into the `< 8` arm
+   (objdiff 98.76 but 14 differing words against this body's 10, a permuter find -
+   objdiff's fuzzy score is not monotone), an `ofs` local for the stride (1012 bytes, 93.67% with the
    assignment spelling), a `slot` local hoisted to the top and used in the first
    block (1008, 96.96%), a `qIndex`/`qIndex`-as-s32 local for the 0x2DC byte (no
-   change), `(u8)arg1` for `arg1 & 0xFF` (identical). Permuter from this body
-   (1760 iterations): base=921, its one find is `unsigned char new_var = 0x2DA;`
-   used as the 0x2DC index - WRONG CODE (0x2DA truncates to 0xDA), so not ported. */
+   change), `(u8)arg1` for `arg1 & 0xFF` (identical). Two permuter runs from this
+   body (1760 and 1714 iterations) found nothing that reduces the differing-word
+   count. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 /*
 s32 func_80087AF0(u8 arg0, u8 arg1) {
@@ -720,7 +728,7 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     }
     BattleBeginActorAction(slot, (u16)BattleSlotBitMask((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]),
                            g_BattleCommandQueue[0x2DC] - 1);
-    count = g_BattleCommandQueue[0x2DA];
+    count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA];
     D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
     g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].slotMask = g_BattleActionSlotMask;
     g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].command = *(u8 *)&g_BattleActionParam;
@@ -852,49 +860,57 @@ void BattleReleaseCharSlot(u8 arg0) {
     } while (0);
     D_800D301D[(g_BattleSlotRecords[ofs] + sel) << 2] &= invMask;
 }
+
+/* 66.00%, 284 bytes (retail 300). The body below is the ONLY spelling found
+   that reproduces retail's TRAMPOLINE, which two earlier bodies missed: the skip
+   path is `j .Lstore` with `addu a2,v1` in its delay slot, placed BEFORE the find
+   loop, and the loop's break branches back into it (cross-jumping of `sel = rec`
+   from the else arm with `sel = i` from the break). It needs `sel` as a SEPARATE
+   variable from `rec` that is NOT initialised before the if: on the
+   loop-exhausted path the original leaves it undefined (retail's `sb $a2` there
+   reads the same unset register), so this is the one body shape that matches - a
+   well-defined `rec = i; break;` spelling (the previous park) has no second
+   assignment for cse to merge and puts the loop straight after the test.
+   What is left is one mechanism, seen at four sites: gcc FOLDS the constant into
+   the addressing where retail keeps a RUNTIME index.
+   - `(rec + 0x10) * 4` becomes `rec * 4` + displacement 64 (`lbu v0,64(at)`,
+     `sb a1,D_800D301D+64($2)`), retail emits `addiu v0,v1,16; sll v0,v0,2` first.
+   - the loop base folds to `la $5,g_BattleCharSlotUsage+64` + `addu $5,$5,4`
+     (one insn per iteration, and that `la` live across the loop is what grows the
+     frame: ours 0x8 vars, retail 0x0), where retail re-forms
+     `lui at,%hi / addu at,at,a1 / lbu %lo(at)` with `li a1,0x40` then
+     `addiu a1,a1,4` - i.e. the symbol stays a DISPLACEMENT.
+   - the store block's four `g_BattleSlotRecords[ofs]` loads CSE to one
+     `la $3,g_BattleSlotRecords` + `lbu 0($3)`; retail re-forms each of the five
+     through $at.
+   So the whole residual is this repo's "$at vs base-in-a-register" family.
+   Tried and unchanged: `s32 rec` for `u8 rec`; `* 4` vs `<< 2`; a live `ofs` local
+   for the store block (63.19% per the old note); parameter table reads via the
+   parked embedded-assignment lead. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
-/* 68.06%, 316 bytes (retail 300): everything matches except (1) retail lays the
-   skip path out as a `j .Lstore` / `addu a2,v1` trampoline BEFORE the find loop and
-   BRANCHES INTO the loop (`bnez $v0,.Lloop` with `ori a1,0x40` - the loop's
-   `(i + 0x10) << 2` induction - in its delay slot), while gcc puts the loop
-   straight after the test (`beqz $v0,store`); (2) consequently the `g_BattleSlotRecords`
-   offset lives in $v1 in retail (a0 in ours) and retail stores D_800D301D before
-   g_BattleCharSlotUsage where we emit them the other way round (source order and the
-   do/while block both measured no change - sched2 reorders). The first offset is
-   spelled inline and the second assigned to `ofs` because retail recomputes
-   `arg0 * 0x1C` at the store block (63.19% with a single live `ofs`).
-   Tried: one live `ofs` for both (63.19%), `n = i; break` vs a separate counter
-   (unchanged), swapping the two flag stores (unchanged), and 0x1C spelled inline at
-   every site (56.81%).
-   ROUND 313 rewrite measured 57.00% (320 bytes) with the same residual (1) above,
-   written as `u8 newRecord` with the `newRecord = record` arm as an else-block and
-   the second `arg0 * 0x1C` recomputed inline: the loop came out in the same place but
-   the param-table reads flipped to `addu v0,v0,a0` (retail base-first `addu v0,a0,v0`),
-   which is the embedded-assignment lever (`pParam = g_BattleSlotParamTable +
-   g_BattleSlotRecords[ofs] * 8;` as its own statement before the two reads) - untried,
-   and it is the one cheap lead left on this body.
 /*
 void func_80088490(u8 arg0) {
-    s32 ofs;
+    u8 rec;
+    u8 sel;
     s32 i;
-    s32 n;
 
-    n = g_BattleSlotRecords[arg0 * 0x1C];
-    if (g_BattleCharSlotUsage[(n + 0x10) << 2] != 0) {
+    rec = g_BattleSlotRecords[(u8)arg0 * 0x1C];
+    if (g_BattleCharSlotUsage[(rec + 0x10) * 4] == 0) {
+        sel = rec;
+    } else {
         for (i = 0; i < 8; i++) {
-            if (g_BattleCharSlotUsage[(i + 0x10) << 2] == 0) {
-                n = i;
+            if (g_BattleCharSlotUsage[(i + 0x10) * 4] == 0) {
+                sel = i;
                 break;
             }
         }
     }
-    ofs = arg0 * 0x1C;
-    g_BattleSlotRecords[ofs] = n;
-    D_800C3EB5[ofs] = 0;
-    D_800D301D[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
-    g_BattleCharSlotUsage[(g_BattleSlotRecords[ofs] + 0x10) << 2] = 1;
-    *(u16 *)(D_800C3EBE + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x100);
-    *(u16 *)(D_800C3EC0 + ofs) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[ofs] * 8 + 0x102);
+    g_BattleSlotRecords[(u8)arg0 * 0x1C] = sel;
+    D_800C3EB5[(u8)arg0 * 0x1C] = 0;
+    D_800D301D[(g_BattleSlotRecords[(u8)arg0 * 0x1C] + 0x10) * 4] = 1;
+    g_BattleCharSlotUsage[(g_BattleSlotRecords[(u8)arg0 * 0x1C] + 0x10) * 4] = 1;
+    *(u16 *)(D_800C3EBE + (u8)arg0 * 0x1C) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[(u8)arg0 * 0x1C] * 8 + 0x100);
+    *(u16 *)(D_800C3EC0 + (u8)arg0 * 0x1C) = *(u16 *)(g_BattleSlotParamTable + g_BattleSlotRecords[(u8)arg0 * 0x1C] * 8 + 0x102);
 }
 */
 u8 BattleIsCharSlot18InUse(u8 arg0) {
