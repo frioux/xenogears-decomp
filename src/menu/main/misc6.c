@@ -24,7 +24,7 @@ void MenuDrawStatTable(u_char a0, s32 a1, s32 a2, u_char a3);
 void func_801D8EA4(u_char a0, s32 a1, s32 a2, u_char a3);
 
 void MenuSetWindow(u_char a0, u_short a1, u_short a2, u_short a3, u_short a4, u_char a5, s32 a6, u_char a7);
-void func_801D29A8(s32 a0, s32 a1);
+void func_801D29A8(u_char isCreate, u_char isSubmenuOpening);
 void MenuLoadCharacterNameTexture(u_char a0, u_char a1);
 void MenuRevealSelectionMenu(s32 a0, u32* a1);
 void* GetStringEntry(void* pStringData, u32 index);
@@ -273,29 +273,101 @@ void MenuUpdatePlayTimeDigits(void) {
         MenuSetPlayTimeDigitPrims(0xD0, 0xCA);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc6", func_801D29A8);
-/* NOTE: the park note below is STALE - it describes the character name/glyph texture
-   loop (MenuLoadCharacterNameTexture + gearId), which is func_801D2D38's body, not this
-   function's code. func_801D29A8 (228 insns, 0x38C bytes) is a window/panel builder and
-   has never been written in C. Its structure, from the .s:
-   if ((a0 & 0xFF) != 0) { MenuLoadStringsFromIds(8, g_Menu->optionStrings,
-   g_MenuMainRowStringIds, g_Menu->pManager + 0xC); three func_801C81E0 calls with
-   (0x100,0x86,0x60,6), (0x108,0x3E,0x68,0x3E), (0x110,-0xA,0x70,0x76) plus 8 and 0..2
-   as the two stack args } else { MenuClearBytes(8, g_Menu->pManager + 0xC); the same
-   three func_801C81E0 calls with x/y and w/h swapped: (0x60,6,0x100,0x86),
-   (0x68,0x3E,0x108,0x3E), (0x70,0x76,0x110,-0xA) }; the THIRD call is shared between
-   the two arms (cross-jumped: one jal, args assigned per arm). Then a
-   'while (!!(pManager->unk23 | pManager->unk47 | pManager->unk6B)) { for (i = 0; i < 3;
-   i++) if (pManager->currentCharacterIDs[i] != 0xFF) MenuSetCharacterWindowContents(i);
-   MenuRenderFrame(); for (i = 0; i < 3; i++) if (currentCharacterIDs[i] != 0xFF)
-   func_801C8324(i); }' loop (0xFF hoisted to s1), then if ((a0 & 0xFF) != 0) {
-   g_Menu->windowParameters[0..2] geometry stores, the same 3-row
-   MenuSetCharacterWindowContents loop, MenuPlaySoundEffect(0x5D), if ((a1 & 0xFF) == 0)
-   MenuCreateGoldWindow(), pManager->unk21 = 1, pManager->playTimeDigitsActive = 1 }
-   else { pManager->currentCharacterIDs[0..2] = 0, and if ((a1 & 0xFF) == 0)
-   pManager->shouldRenderWindow[0] = 0, pManager->goldDigitsActive = 0 }, then
-   MenuRenderFrame().
-*/
+// The three 0x24-byte tween records in g_Menu->windowTweens, the same view misc7.c
+// declares for MenuSetCharacterWindowContents; hoist to menu.h when a header round runs.
+typedef struct {
+    /* 0x00 */ s32 startX;
+    /* 0x04 */ s32 endX;
+    /* 0x08 */ s32 startY;
+    /* 0x0C */ s32 endY;
+    /* 0x10 */ s32 stepX;
+    /* 0x14 */ s32 stepY;
+    /* 0x18 */ s32 offsetX;
+    /* 0x1C */ s32 offsetY;
+    /* 0x20 */ u8 isDecreasingX;
+    /* 0x21 */ u8 isDecreasingY;
+    /* 0x22 */ u8 stepCount;
+    /* 0x23 */ u8 isComplete;
+} MenuWindowTween; // Size: 0x24
+
+void func_801C81E0(s32 startX, s32 startY, s32 endX, s32 endY, u_char stepCount, u_char index);
+void func_801C8324(u_char index);
+void MenuSetCharacterWindowContents(u_char index, u_char characterId);
+void MenuLoadStringsFromIds(s32 count, void* pStrings, void* pStringIds, void* pRenderFlags);
+void MenuClearBytes(s32 count, void* pBytes);
+
+extern u8 g_MenuMainRowStringIds[];
+
+void func_801D29A8(u_char isCreate, u_char isSubmenuOpening) {
+    u_char characterId;
+    s32 i;
+
+    if (isCreate) {
+        MenuLoadStringsFromIds(8, g_Menu->optionStrings, g_MenuMainRowStringIds, g_Menu->pManager->shouldRenderStrings);
+        func_801C81E0(0x100, 0x86, 0x60, 6, 8, 0);
+        func_801C81E0(0x108, 0x3E, 0x68, 0x3E, 8, 1);
+        func_801C81E0(0x110, -0xA, 0x70, 0x76, 8, 2);
+    } else {
+        MenuClearBytes(8, g_Menu->pManager->shouldRenderStrings);
+        func_801C81E0(0x60, 6, 0x100, 0x86, 8, 0);
+        func_801C81E0(0x68, 0x3E, 0x108, 0x3E, 8, 1);
+        func_801C81E0(0x70, 0x76, 0x110, -0xA, 8, 2);
+    }
+
+    // Wait for the three character panels to finish tweening in
+    while (!((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].isComplete
+        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].isComplete
+        && !((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].isComplete) {
+        for (i = 0; i < 3; i++) {
+            characterId = g_Menu->pManager->currentCharacterIDs[i];
+            if (characterId != CHARACTER_ID_NONE) {
+                MenuSetCharacterWindowContents(i, characterId);
+            }
+        }
+        MenuRenderFrame();
+        for (i = 0; i < 3; i++) {
+            if (g_Menu->pManager->currentCharacterIDs[i] != CHARACTER_ID_NONE) {
+                func_801C8324(i);
+            }
+        }
+    }
+
+    if (isCreate) {
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startX = 0x60;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].startY = 6;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startX = 0x68;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].startY = 0x3E;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startX = 0x70;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].startY = 0x76;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetX =
+            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[0].offsetY = 0;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetX =
+            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[1].offsetY = 0;
+        ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetX =
+            ((MenuWindowTween*)(void*)g_Menu->windowTweens)[2].offsetY = 0;
+        for (i = 0; i < 3; i++) {
+            characterId = g_Menu->pManager->currentCharacterIDs[i];
+            if (characterId != CHARACTER_ID_NONE) {
+                MenuSetCharacterWindowContents(i, characterId);
+            }
+        }
+        MenuPlaySoundEffect(0x5D);
+        if (!isSubmenuOpening) {
+            MenuCreateGoldWindow();
+        }
+        g_Menu->pManager->shouldRenderWindow[1] = 1;
+        g_Menu->pManager->playTimeDigitsActive = 1;
+    } else {
+        g_Menu->pManager->shouldRenderCharacterWindows[0] =
+            g_Menu->pManager->shouldRenderCharacterWindows[1] =
+            g_Menu->pManager->shouldRenderCharacterWindows[2] = 0;
+        if (!isSubmenuOpening) {
+            g_Menu->pManager->shouldRenderWindow[0] = 0;
+            g_Menu->pManager->goldDigitsActive = 0;
+        }
+    }
+    MenuRenderFrame();
+}
 /* STALE NOTE (kept for its history - describes func_801D2D38's loop instead):
 /* Earlier note for func_801D2D38 (99.18%, 392 vs 388 bytes; the attempt it measured is
    gone but its two findings stand):
