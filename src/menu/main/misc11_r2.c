@@ -235,102 +235,79 @@ void MenuFillInventoryTables(void) {
         g_GameState.gearPartsQty[i] = MENU_INVENTORY_FILL_QUANTITY;
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc11_r2", func_801E5178);
-/* Best: 94.34% (592 bytes, same size as retail).  The 66 stores are in retail order
-   and the field widths are right (four s16 at +0/+2/+4/+6, u8 at +0x17, u16 at
-   +0x1A; eleven records of 0x20 bytes at g_GameState+0x16C0).  What is left is only
-   the placement of the constant loads: retail emits the li for a constant several
-   statements before its first store (li a3,0xFF00 and li v1,0xFFF0 ride in front of
-   the 0x16C0 store and are first used at 0x16C2/0x16C4) and the allocator swaps my
-   a0/a1 pair for 7 and 0xFFC0; the store sequence itself matches instruction for
-   instruction.  The table overlaps the header fields unk16BC[10] and unk17FC.
-   // Per-gear stat limits reset by func_801E5178.  The table lives at
-   // g_GameState+0x16C0, eleven records of 0x20 bytes.
-   typedef struct {
-       // 0x00 u16 unk0;
-       // 0x02 u16 unk2;
-       // 0x04 u16 unk4;
-       // 0x06 u16 unk6;
-       // 0x08 u8 pad8[0xF];
-       // 0x17 u8 unk17;
-       // 0x18 u8 pad18[2];
-       // 0x1A u16 unk1A;
-       // 0x1C u8 pad1C[4];
-   } MenuGearLimits; // Size: 0x20
 
-   void func_801E5178(void) {
-       MenuGearLimits* pTable;
-
-       pTable = (MenuGearLimits*)((u8*)&g_GameState + 0x16C0);
-       g_GameState.characterFlags = 0x7FF;
-       pTable[0].unk0 = 0xFFF8;
-       pTable[0].unk6 = 0xFE00;
-       pTable[1].unk1A = 0xC000;
-       pTable[0].unk2 = 0xFF00;
-       pTable[0].unk4 = 0xFFF0;
-       pTable[0].unk1A = 0xE000;
-       pTable[0].unk17 = 0x7;
-       pTable[1].unk0 = 0xFFE0;
-       pTable[1].unk2 = 0xFFF0;
-       pTable[1].unk4 = 0xFFF0;
-       pTable[1].unk6 = 0xFFF0;
-       pTable[1].unk17 = 0x7;
-       pTable[2].unk0 = 0xFFE0;
-       pTable[2].unk2 = 0xFFE0;
-       pTable[2].unk4 = 0xFFF0;
-       pTable[2].unk6 = 0xFF00;
-       pTable[2].unk1A = 0x8000;
-       pTable[2].unk17 = 0x7;
-       pTable[3].unk0 = 0xFFE0;
-       pTable[3].unk2 = 0xFFC0;
-       pTable[3].unk4 = 0xFFF0;
-       pTable[3].unk6 = 0xFF00;
-       pTable[3].unk1A = 0xC000;
-       pTable[3].unk17 = 0x7;
-       pTable[4].unk0 = 0xFFC0;
-       pTable[4].unk2 = 0xFFC0;
-       pTable[4].unk4 = 0xFFF0;
-       pTable[4].unk6 = 0xFFC0;
-       pTable[4].unk1A = 0xE000;
-       pTable[4].unk17 = 0x7;
-       pTable[5].unk0 = 0xFFC0;
-       pTable[5].unk2 = 0xC000;
-       pTable[5].unk4 = 0xFFF0;
-       pTable[5].unk6 = 0xC000;
-       pTable[5].unk1A = 0x8000;
-       pTable[5].unk17 = 0x7;
-       pTable[6].unk0 = 0xFFC0;
-       pTable[6].unk2 = 0xFF00;
-       pTable[6].unk4 = 0xFFF0;
-       pTable[6].unk6 = 0xFF00;
-       pTable[6].unk1A = 0x8000;
-       pTable[6].unk17 = 0x7;
-       pTable[7].unk0 = 0x0;
-       pTable[7].unk2 = 0xFF00;
-       pTable[7].unk4 = 0x0;
-       pTable[7].unk6 = 0xFF00;
-       pTable[7].unk1A = 0x0;
-       pTable[7].unk17 = 0x7;
-       pTable[8].unk0 = 0x0;
-       pTable[8].unk2 = 0xF800;
-       pTable[8].unk4 = 0xFFF0;
-       pTable[8].unk6 = 0x0;
-       pTable[8].unk1A = 0xE000;
-       pTable[8].unk17 = 0x7;
-       pTable[9].unk0 = 0xFFE0;
-       pTable[9].unk2 = 0xFFE0;
-       pTable[9].unk4 = 0xFFF0;
-       pTable[9].unk6 = 0xFFE0;
-       pTable[9].unk1A = 0x8000;
-       pTable[9].unk17 = 0x7;
-       pTable[10].unk0 = 0xFFC0;
-       pTable[10].unk2 = 0xFF00;
-       pTable[10].unk4 = 0xFFF0;
-       pTable[10].unk6 = 0xFF00;
-       pTable[10].unk1A = 0x8000;
-       pTable[10].unk17 = 0x7;
-   }
-*/
+// Resets the eleven 0x20-byte per-gear stat limit rows the gear screens clamp
+// against, plus the party flag word.  BattleInitItemInventoryAndConditionMasks
+// (src/battle/main/misc19.c) writes the same rows, with battle's values.
+void func_801E5178(void) {
+    g_GameState.characterFlags = 0x7FF;
+    *(u16 *)&g_GameState.unk16BC[0x00].commandMask = 0xFFF8;
+    *(u16 *)&g_GameState.unk16BC[0x00].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x00].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x00].gearConditionMask = 0xFE00;
+    *(u16 *)&g_GameState.unk16BC[0x00].statusFlags = 0xE000;
+    ((u_char *)&g_GameState.unk16BC[0x00])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x01].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[0x01].characterConditionMask = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x01].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x01].gearConditionMask = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x01].statusFlags = 0xC000;
+    ((u_char *)&g_GameState.unk16BC[0x01])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x02].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[0x02].characterConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[0x02].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x02].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x02].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[0x02])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x03].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[0x03].characterConditionMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[0x03].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x03].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x03].statusFlags = 0xF000;
+    ((u_char *)&g_GameState.unk16BC[0x03])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x04].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[0x04].characterConditionMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[0x04].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x04].gearConditionMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[0x04].statusFlags = 0xE000;
+    ((u_char *)&g_GameState.unk16BC[0x04])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x05].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[0x05].characterConditionMask = 0xF000;
+    *(u16 *)&g_GameState.unk16BC[0x05].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x05].gearConditionMask = 0xF000;
+    *(u16 *)&g_GameState.unk16BC[0x05].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[0x05])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x06].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[0x06].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x06].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x06].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x06].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[0x06])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x07].commandMask = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[0x07].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x07].unk8 = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[0x07].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x07].statusFlags = 0x0000;
+    ((u_char *)&g_GameState.unk16BC[0x07])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x08].commandMask = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[0x08].characterConditionMask = 0xF800;
+    *(u16 *)&g_GameState.unk16BC[0x08].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x08].gearConditionMask = 0x0000;
+    *(u16 *)&g_GameState.unk16BC[0x08].statusFlags = 0xE000;
+    ((u_char *)&g_GameState.unk16BC[0x08])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x09].commandMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[0x09].characterConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[0x09].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x09].gearConditionMask = 0xFFE0;
+    *(u16 *)&g_GameState.unk16BC[0x09].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[0x09])[0x1B] = 7;
+    *(u16 *)&g_GameState.unk16BC[0x0A].commandMask = 0xFFC0;
+    *(u16 *)&g_GameState.unk16BC[0x0A].characterConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x0A].unk8 = 0xFFF0;
+    *(u16 *)&g_GameState.unk16BC[0x0A].gearConditionMask = 0xFF00;
+    *(u16 *)&g_GameState.unk16BC[0x0A].statusFlags = 0x8000;
+    ((u_char *)&g_GameState.unk16BC[0x0A])[0x1B] = 7;
+}
 // Builds window `windowIndex`'s background quad and its four border strips.  The
 // same body ships as MemberChangeMenuInitializeWindowGraphics.
 void func_801E53CC(u_char windowIndex) {
