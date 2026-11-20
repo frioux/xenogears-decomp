@@ -68,7 +68,15 @@ extern IVEC3 g_BattleAnimPositionGroupA;
 extern IVEC3 g_BattleAnimPositionGroupB;
 extern void func_800BC460(s32 arg0);
 extern s32 g_BattleAnimState;
-extern void func_800BB350(s32 arg0);
+extern void func_800BB350(u32 slot);
+extern void BattleActorSyncPositionFromModel(AnimTask *pTask);
+extern AnimTask *WorkListsAddTasks(u32 allocSize, void *pData, void *pTimerCallback,
+                                  void *pWorkCallback, void *pOnFreeCallback);
+extern void func_80023804(SpriteData *pSprite);
+extern void SpriteInitBaseWithInternalStorage(SpriteData *pSprite);
+extern void SpriteSetScale(SpriteData *pSprite, s16 scale);
+extern u16 g_GfxWorkListCapacity;
+extern SpriteAnimPackage g_SpriteAnimPackageDirs5;
 extern void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4);
 extern void func_800A4654(MATRIX *pMatrix, SVECTOR *pA, SVECTOR *pB, s32 depth,
                           s32 primIndex, SVECTOR *pC, SVECTOR *pD, s32 scale);
@@ -105,6 +113,15 @@ typedef struct {
     /* 0xA8 */ u32 flags_0xA8;
     /* 0xAC */ u32 flags_0xAC;
 } BattleActorSprite; // Size: 0xB0
+// The 0x1C-byte per-slot records at the head of g_BattleStateWork, as this unit
+// reads them: the slot's spawn point in whole screen units.
+typedef struct {
+    /* 0x00 */ u8 unk0[0xE];
+    /* 0x0E */ u16 x;
+    /* 0x10 */ u16 z;
+    /* 0x12 */ u8 unk12[0xA];
+} BattleSlotWorkRow; // Size: 0x1C
+
 // The three position halves go through TWO temporaries: the first load lands in $v1
 // because $v0 still holds the height, and a single temp shared by all three costs the
 // register split (99.61%).
@@ -145,6 +162,70 @@ void BattleFreeActorSpriteTask(u8 *pEntry) {
     HeapFree(pEntry);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc31", func_800BB350);
+// 98.10% at the original's exact 496 bytes: all 124 instructions are present and in
+// retail's order, and only the closing group differs - the flags_0xA8 word ends in $v0
+// where retail keeps it in $a0, and its store lands straight after the `or` instead of
+// after the 0xAC block's `andi`. Measured: this body (98.10), the shift operand first
+// `(slot << 30) | (flags & 0x3FFFFFFF)` (97.78, which does get the store position right
+// but rotates all four registers), the two-statement `&= 0x3FFFFFFF; |= slot << 30`
+// split (98.10), the word in a u32 local read before the two NULL file stores (98.10),
+// the shift in its own local just above the store (96.49, the 0x3FFFFFFF mask leaves
+// $v1), the two flag statements swapped (88.44) and the pair in a do/while(0) block
+// (91.40, which also pulls the masks into $s2/$s3 and moves a save). A 3-minute
+// permuter run from this body (1518 iterations) found nothing, so the residual is where
+// sched2 puts the store, not the C.
+/*
+void func_800BB350(u32 slot) {
+    u8 *pBase;
+    AnimTask *pTask;
+    SpriteData *pSprite;
+    u8 saved;
+    s32 scale;
+
+    pBase = g_BattleStateWork;
+    if (*(SpriteData **)(pBase + slot * 4 + 0x8C8C) != NULL) {
+        return;
+    }
+    saved = g_FlagTimerWorkListAdds;
+    g_FlagTimerWorkListAdds = 0;
+    pTask = WorkListsAddTasks(sizeof(AnimTask), NULL, BattleActorSyncPositionFromModel,
+                              BattleUpdateActorSpriteDepth, BattleFreeActorSpriteTask);
+    pSprite = &pTask->spriteData;
+    pSprite->field_0x6C = pTask;
+    pTask->task1.unk4 = pSprite;
+    pTask->task2.unk4 = pSprite;
+    func_80023804(pSprite);
+    SpriteInitBaseWithInternalStorage(pSprite);
+    pSprite->field_0x40 = (pSprite->field_0x40 & 0xFFFE1FFF) | 0x8000;
+    *(u32 *)((u8 *)pSprite + 0x3C) &= ~3;
+    pSprite->field_0x6C = pTask;
+    pSprite->flags_0xA8 &= ~1;
+    ((SpriteDataI3 *)pSprite->field_0x7C)->field_0x8 = 0;
+    ((SpriteDataI3 *)pSprite->field_0x7C)->field_0xC = 0;
+    // the original stores the work-list capacity here and overwrites it with the
+    // sprite's own scale below; the first store is dead but is in the object
+    scale = 0x2000;
+    pSprite->field_0x82 = g_GfxWorkListCapacity;
+    pSprite->position.x = ((BattleSlotWorkRow *)(pBase + slot * 0x1C))->x << 16;
+    pSprite->position.z = ((BattleSlotWorkRow *)(pBase + slot * 0x1C))->z << 16;
+    pSprite->position.y = 0;
+    // volatile on both halves: the original stores the height and then reloads it
+    *(volatile u16 *)&pSprite->field_0x36 = BattleGetActorHeight(slot);
+    pSprite->field_0x38 = *(volatile u16 *)&pSprite->field_0x36 >> 1;
+    pSprite->field_0x82 = scale;
+    SpriteSetScale(pSprite, scale);
+    pSprite->pVramData = &g_SpriteAnimPackageDirs5;
+    *(SpriteData **)(pBase + slot * 4 + 0x8C8C) = pSprite;
+    *(AnimTask **)(pBase + slot * 4 + 0x8CB8) = pTask;
+    pSprite->pSpecialAnimFile = NULL;
+    pSprite->pDefaultAnimFile = NULL;
+    g_FlagTimerWorkListAdds = saved;
+    // the slot index is carried across both flag words: its low two bits in the top
+    // of flags_0xA8, its high two in the low bits of flags_0xAC
+    pSprite->flags_0xA8 = (pSprite->flags_0xA8 & 0x3FFFFFFF) | (slot << 30);
+    pSprite->flags_0xAC.flags = (pSprite->flags_0xAC.flags & ~3) | ((slot >> 2) & 3);
+}
+*/
 void BattleSpawnActorSlot(BattleAnimWorkTask *pTask) {
     s32 i;
     u16 slotBit;
