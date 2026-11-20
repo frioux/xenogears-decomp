@@ -78,10 +78,10 @@ extern s32 g_MenuCharacterNumberOrigins;
 extern s32 g_MenuCharacterLevelDigitsY;
 extern s32 g_MenuCharacterUnk63DigitsX;
 extern s32 g_MenuCharacterUnk63DigitsY;
-extern u16 D_801E9B58;
+extern u16 g_MenuCharacterPortraitX;
 extern u16 D_801E9D38;
 extern u16 D_801E9D3C;
-extern u16 D_801E9B5C;
+extern u16 g_MenuCharacterPortraitY;
 extern s32 g_MenuNameTextureX[];
 extern u8 g_MenuNameTextureY[];
 extern u16 g_SystemPalette1;
@@ -333,8 +333,8 @@ void MenuSetCharacterPortraitPrims(u_char index, u_char characterId, s32 x, s32 
         *(u16*)(pBase + 0x5E) = g_SystemPalette1;
     }
     texX = g_MenuNameTextureX[index];
-    MenuSetFt4QuadVertices(&pWindow->portraitPrims[g_Menu->renderContext], D_801E9B58 + x,
-                           D_801E9B5C + y, ((texX << 1) << 1) & 0xFC, g_MenuNameTextureY[index * 4],
+    MenuSetFt4QuadVertices(&pWindow->portraitPrims[g_Menu->renderContext], g_MenuCharacterPortraitX + x,
+                           g_MenuCharacterPortraitY + y, ((texX << 1) << 1) & 0xFC, g_MenuNameTextureY[index * 4],
                            0x48, 0xD);
 }
 void MenuSetCharacterWindowIcons(u_char index, s32 x, s32 y) {

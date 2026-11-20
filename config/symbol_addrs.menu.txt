@@ -399,3 +399,5 @@ g_MenuCardChangeDetectionEnabled = 0x801E977A;
 g_MenuWindowTextBackPressed = 0x801EA8FC;
 g_MenuCardPathPrefix0 = 0x801C50A8;
 g_MenuCardPathPrefix1 = 0x801C50B0;
+g_MenuCharacterPortraitX = 0x801E9B58;
+g_MenuCharacterPortraitY = 0x801E9B5C;
