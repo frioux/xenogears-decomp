@@ -253,7 +253,7 @@ extern void func_80080370(void);
 extern int func_80080578(int);
 extern int func_80080600(int);
 extern int WorldMapInitActorScript(int);
-extern s16 g_WorldMapCameraRot;
+extern s16 g_WorldMapCameraRot[];
 extern u16 g_WorldMapViewRotationZ;
 extern u16 g_WorldMapPathFrame;
 extern u16 D_8009BD42;
@@ -1041,14 +1041,22 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
    found here. The struct's 0x50/0x54/0x58 are stateIndex/pStateIds/
    pStateFrames now - the old unk50/unk54/unk58 spelling no longer compiles,
    which is why this park measured nothing until round 312.
+   Round 316: the reason it cannot float here is the register, not the shape -
+   gcc sinks an insn that sets a register to a constant to the earliest point
+   after that register's last earlier use (WorldMapInitGroup16Actor's
+   `addiu v0,zero,3` lands at the head of its post-call block exactly that
+   way). Here the last $v0 use before the return is `li v0,0x80` for
+   pStateFrames, so the li can never come out before that store; retail has
+   that constant in v1 precisely because v0 was already taken by the 3. The
+   body below is the measured 93.41 (gcc emits `lui v0,0x149; ori`;
+   `lui v1,0x4af; ori`; stores; `li v0,3` last, byte-identical otherwise).
 */
 /* int func_8007FC8C(int index) {
     WorldMapRoot *pRoot = g_WorldMapGroups;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    int nRet = 3;
 
-    WorldMapSetupPrimTemplates(&pRoot->groups[9], pRoot->groups[9].pPrims, *(u16 *)((u8 *)pRoot->groups[9].pPrimHeader + 4));
-    WorldMapSetupPrimTemplates(&pRoot->groups[10], pRoot->groups[10].pPrims, *(u16 *)((u8 *)pRoot->groups[10].pPrimHeader + 4));
+    WorldMapSetupPrimTemplates(&pRoot->groups[9], pRoot->groups[9].pPrims, pRoot->groups[9].pPrimHeader->count);
+    WorldMapSetupPrimTemplates(&pRoot->groups[10], pRoot->groups[10].pPrims, pRoot->groups[10].pPrimHeader->count);
     do {
         pActor->x = 0x1498000;
         pActor->y = 0xFFF80000;
@@ -1058,7 +1066,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007FC8C);
         pActor->stateIndex = 0;
         pActor->pStateFrames = (void *)0x80;
     } while (0);
-    return nRet;
+    return 3;
 }
 */
 
@@ -1285,7 +1293,6 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080578);
 }
 */
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
 /* 80.11% (744 bytes against retail's 764 = 191 insns), round 312. Every
    instruction KIND now matches retail: the two "store then read back" pairs in
    case 1 (g_WorldMapCameraRot then lh, g_WorldMapViewRotationY then lh) are
@@ -1300,33 +1307,45 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
    (signed), which the array declaration cannot produce. The two matched
    functions in this file that read it (WorldMapExitToMap84/1A1) keep their
    `lhu` through a `(u16)` cast and stay 100.00%.
-   Remaining deltas: (1) retail keeps &g_WorldMapCameraRot in $a0 for both the
-   store and the read (`lui a0,%hi`/`addiu a0,a0,%lo` at the head of the case,
-   `sh v0,0(a0)` / `lh v0,0(a0)`), i.e. the pointer local was NOT rematerialised
-   - our `s16 *pAngle` gets folded into the two symbol forms, which is exactly
-   the 8 bytes we are short; (2) the case-1 statement order then stays
-   scrambled (our state store comes first, the 0x50/CameraHeight stores float
-   above the two reads). A 4-minute permuter run on the previous 82.94% body
-   (which folded the reads, 6 instructions short, so it can never link) found
-   nothing; do not go back to it.
+   ROUND 316 took that body 80.11 -> 84.32 (744 bytes) with three finds, all in
+   the body below:
+   - the `s16 *pAngle` local WAS the wrong spelling (a pointer local over a
+     scalar extern folds into the two symbol forms). Declaring the global as an
+     ARRAY (`extern s16 g_WorldMapCameraRot[];`, element 0 everywhere) and
+     storing through `*(volatile s16 *)g_WorldMapCameraRot` makes cc1 keep the
+     address in a register: probed, it emits `la $2,g` / `sh $3,0($2)` /
+     `lh $2,0($2)` - retail's shape. That is why the declaration above is an
+     array; the unit's live code has no other use of it.
+   - `u8 *pScratch` must be declared BEFORE `pActor`: retail's `sw s1,20(sp)`
+     is the second instruction of the prologue because cc1 emits a callee-saved
+     save right before the first definition of that register.
+   - the ViewRotZ store is NOT volatile (measured: no change either way).
+   Remaining deltas, in order: (1) the angle base lands in $v1, retail's in
+   $a0 - that alone moves the 0x800000 constant into $v0 and scrambles the rest
+   of the case; (2) cc1 hoists `sw v1,g_WorldMapCameraHeight` up next to the
+   stateIndex store and pushes the ViewRotZ store below both `lh`s, where
+   retail keeps source order and fills the first `lh`'s load-delay slot with a
+   `nop` and the second one's with the CameraHeight store - that nop is one of
+   the instructions we are short. A 4-minute permuter run on the older 82.94%
+   body (which folded the reads, 6 instructions short, so it can never link)
+   found nothing; do not go back to it.
 */
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
 /* int func_80080600(int index) {
-    WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
-    s16 *pAngle;
+    WorldMapActor *pActor = &g_WorldMapSlots[index];
     s32 nValue;
     s32 nDelta;
 
     switch (pActor->command) {
     case 1:
-        pAngle = &g_WorldMapCameraRot;
         pActor->state = 1;
         pActor->command = 0;
-        *(volatile s16 *)pAngle = 0x10;
+        *(volatile s16 *)g_WorldMapCameraRot = 0x10;
         *(volatile s16 *)&g_WorldMapViewRotationY = 0x8E0;
-        g_WorldMapViewRotationZ = 0;
+        *(volatile u16 *)&g_WorldMapViewRotationZ = 0;
         pActor->stateIndex = 0x800000;
-        nValue = *pAngle << 12;
+        nValue = g_WorldMapCameraRot[0] << 12;
         pActor->pStateFrames = (void *)nValue;
         pActor->pStateIds = (void *)nValue;
         nValue = g_WorldMapViewRotationY << 12;
@@ -1346,7 +1365,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
-        func_80096F18(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        func_80096F18(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot[0]);
     }
     switch (pActor->state) {
     case 1:
@@ -1368,7 +1387,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_80080600);
         if (nDelta != 0) {
             nValue = (s32)pActor->pStateFrames + (nDelta >> 4);
             pActor->pStateFrames = (void *)nValue;
-            g_WorldMapCameraRot = nValue >> 12;
+            g_WorldMapCameraRot[0] = nValue >> 12;
         }
         nDelta = pActor->scale - 0x10000;
         pActor->scale = nDelta;
