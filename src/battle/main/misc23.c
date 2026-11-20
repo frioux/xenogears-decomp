@@ -70,14 +70,34 @@ typedef struct {
     /* 0xD */ u8 visitStamp; // set to g_BattleTriangleVisitStamp once the node was tested
 } Misc23TreeEntry; // Size: 0xE
 
+// The streamed stage record g_BattleStageData points at. misc29.c declares the
+// same record as BattleStageData and owns the two SVEC origins at 0x47C/0x482.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x348];
+    /* 0x348 */ s16 blockPoolSize;  // size passed to BattleCreateBlockPool
+    /* 0x34A */ s16 spritePoolSize; // size passed to BattleCreateSpritePool
+    /* 0x34C */ u8 unk34C[0x128];
+    /* 0x474 */ u8 backColorRed; // the colour SetBackColor is given
+    /* 0x475 */ u8 backColorGreen;
+    /* 0x476 */ u8 backColorBlue;
+    /* 0x477 */ u8 unk477[0x11];
+} BattleStageData; // Size: 0x488
+
 extern s32 g_BattleActorStepTimer;
 extern u16 g_BattleTweenVectorAngle;
 extern u8 g_BattleExtraMatrixFlag;
 extern u16 g_BattleShadeAngle;
 extern u8 g_BattleStateBit;
-extern u8 D_800C3ACC[];
+// The table BattleInitializeStage zeroes: 20 records of 8 bytes, of which only
+// the first word is ever touched anywhere in the overlay.
+typedef struct {
+    /* 0x0 */ u32 unk0;
+    /* 0x4 */ u32 unk4;
+} Misc23PairEntry; // Size: 0x8
+
+extern Misc23PairEntry D_800C3ACC[20];
 extern u8 D_800D330A[];
-extern void *g_BattleStageData;
+extern BattleStageData *g_BattleStageData;
 extern void BattleCreateBlockPool(u8 *, s32);
 extern void BattleCreateSpritePool(u8 *, s32);
 extern void BattleClearBlockSlots(void);
@@ -674,8 +694,8 @@ void BattleInitializeStage(void) {
     u8 *pBuf;
     s32 i;
     s32 j;
-    mem_addr pWord;
-    s32 arg1;
+    u32 *pWord;
+    s32 blockPoolSize;
 
     pBuf = g_BattleBlockPool;
     g_BattleActorStepTimer = 0;
@@ -683,19 +703,21 @@ void BattleInitializeStage(void) {
     g_BattleExtraMatrixFlag = 0;
     g_BattleActorSwitchFlag = 0;
     g_BattleShadeAngle = 0;
-    arg1 = *(s16 *)(g_BattleStageData + 0x348);
+    blockPoolSize = g_BattleStageData->blockPoolSize;
     g_BattleStateBit = 1;
-    BattleCreateBlockPool(pBuf, arg1);
-    BattleCreateSpritePool(g_BattleSpritePool, *(s16 *)(g_BattleStageData + 0x34A));
+    BattleCreateBlockPool(pBuf, blockPoolSize);
+    BattleCreateSpritePool(g_BattleSpritePool, g_BattleStageData->spritePoolSize);
     BattleClearBlockSlots();
     j = 0x1F;
-    pWord = (mem_addr)&g_BattleImageList;
+    // clears the 0x80 bytes of slot parameter words that end at g_BattleImageList
+    pWord = (u32 *)&g_BattleImageList;
     for (; j >= 0; j--) {
-        *(u32 *)pWord = 0;
-        pWord -= 4;
+        *pWord = 0;
+        pWord--;
     }
-    for (i = 0x98; i >= 0; i -= 8) {
-        *(u32 *)(D_800C3ACC + i) = 0;
+    // 20 entries
+    for (i = 19; i >= 0; i--) {
+        D_800C3ACC[i].unk0 = 0;
     }
     for (i = 0x14; i >= 0; i -= 0x14) {
         *(u16 *)(D_800D330A + i) = 0;
@@ -950,9 +972,9 @@ void BattleUpdateAndDrawActors(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long
     g_BattleTweenVectorScale = (rsin((s16)g_BattleTweenVectorAngle) + 0x1000) / 800 + 4;
     g_BattleShadeAngle += 0x80;
     g_BattleShadeScale = (rsin((s16)g_BattleShadeAngle) + 0x1000) / 32;
-    colors[0] = BattleClampScaledByte(g_BattleShadeScale, 0x20, *(u8 *)(g_BattleStageData + 0x474));
-    colors[1] = BattleClampScaledByte(g_BattleShadeScale, 0x20, *(u8 *)(g_BattleStageData + 0x475));
-    colors[2] = BattleClampScaledByte(g_BattleShadeScale, 0x20, *(u8 *)(g_BattleStageData + 0x476));
+    colors[0] = BattleClampScaledByte(g_BattleShadeScale, 0x20, g_BattleStageData->backColorRed);
+    colors[1] = BattleClampScaledByte(g_BattleShadeScale, 0x20, g_BattleStageData->backColorGreen);
+    colors[2] = BattleClampScaledByte(g_BattleShadeScale, 0x20, g_BattleStageData->backColorBlue);
     if (g_BattleActors[g_BattleCurrentActorSlot] != 0) {
         if (!(g_BattleActors[g_BattleCurrentActorSlot]->flags4A & 0x20)) {
             // split: j = 0 must be the first of the three preheader copies
@@ -1014,8 +1036,8 @@ void BattleUpdateAndDrawActors(MATRIX *pLightMatrix, MATRIX *pViewMatrix, u_long
                 if ((g_BattleActorMask >> i) & 1) {
                     SetBackColor(colors[0], colors[1], colors[2]);
                 } else {
-                    SetBackColor(*(u8 *)(g_BattleStageData + 0x474), *(u8 *)(g_BattleStageData + 0x475),
-                                 *(u8 *)(g_BattleStageData + 0x476));
+                    SetBackColor(g_BattleStageData->backColorRed, g_BattleStageData->backColorGreen,
+                                 g_BattleStageData->backColorBlue);
                 }
                 if (g_BattleActors[i]->flags4A & 0x40) {
                     g_ModelRenderTestFlags = 0;
