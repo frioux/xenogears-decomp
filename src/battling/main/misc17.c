@@ -12,8 +12,8 @@
 #define BATTLE_ANGLE_HALF_TURN 0x800 // same define as battle/misc3.c and battle/misc4.c; battle actor.h is not includable here
 // Denominator of a 0..255 gauge fraction (src/battling/main/misc2.c's BATTLE_GAUGE_FRACTION_SCALE).
 #define BATTLE_GAUGE_FRACTION_SCALE 255 // same define as battle/misc2.c; battle actor.h is not includable here
-// The battle effect image quad covers the whole screen (0x140 x 0xDA) and the
-// image itself is 0x70 x 0x2B texels, so its last texture point is one less.
+// The battle effect image quad spans the whole screen (0x140 x 0xDA) and its
+// texture points run up to (0x6F, 0x2A).
 #define BATTLE_EFFECT_QUAD_WIDTH 0x140
 #define BATTLE_EFFECT_QUAD_HEIGHT 0xDA
 #define BATTLE_EFFECT_TEX_U_MAX 0x6F
@@ -279,11 +279,7 @@ void func_8008E3CC(u8* pOt, s32 shadeLevel, s32 drawTile) {
     pPrim = &D_80096D90[g_BattleDrawBufferIndex];
     setlen(pPrim, 9);
     BattleSetRGBCFast(pPrim, shade, shade, shade, 0x2C);
-    if (shade == BATTLE_EFFECT_SHADE_NEUTRAL) {
-        pPrim->code |= 1;
-    } else {
-        pPrim->code &= ~1;
-    }
+    setShadeTex(pPrim, shade == BATTLE_EFFECT_SHADE_NEUTRAL);
     BattleSetXY0Fast(pPrim, 0, 0);
     BattleSetXY1Fast(pPrim, BATTLE_EFFECT_QUAD_WIDTH, 0);
     BattleSetXY2Fast(pPrim, 0, BATTLE_EFFECT_QUAD_HEIGHT);
@@ -301,8 +297,9 @@ void func_8008E3CC(u8* pOt, s32 shadeLevel, s32 drawTile) {
     if (drawTile != 0) {
         pTile = &D_80096DE0[g_BattleDrawBufferIndex];
         if (shadeLevel > 0x80) {
+            shade = shadeLevel * 2;
             setlen(pTile, 3);
-            BattleSetRGBCFast(pTile, shadeLevel * 2, shadeLevel * 2, shadeLevel * 2, 0x60);
+            BattleSetRGBCFast(pTile, shade, shade, shade, 0x60);
             setSemiTrans(pTile, 1);
             BattleSetXY0Fast(pTile, 0, 0);
             BattleSetWHFast(pTile, BATTLE_EFFECT_QUAD_WIDTH, BATTLE_EFFECT_QUAD_HEIGHT);
@@ -312,24 +309,6 @@ void func_8008E3CC(u8* pOt, s32 shadeLevel, s32 drawTile) {
     SetDrawMode(&D_80096E00[g_BattleDrawBufferIndex], 0, 1, GetTPage(0, 2, 0, 0), NULL);
     AddPrim(pOt, &D_80096E00[g_BattleDrawBufferIndex]);
 }
-/* best: objdiff 99.39% - only difference: gcc folds the address of the loop body's last store into the induction pointer (base = &unk2, offsets 10/-1/2/0) instead of using &unk0 with 12/1/4/2. Statement order does not change the choice; the base always follows the last store. An indexed form (g_BattleSoundSlots[i].unkC) loses the strength reduction entirely (45%).
-void BattleInitSoundSlots(void) {
-    BattleSlot* pSlot;
-    s32 timer;
-    u32 i;
-
-    timer = 0x300;
-    SoundStopAllElements();
-    pSlot = g_BattleSoundSlots;
-    for (i = 0; i < 4; i++) {
-        pSlot->elementMask = timer;
-        timer <<= 2;
-        pSlot->active = 0;
-        pSlot->timer = 0;
-        pSlot->elementIndex = i * 2;
-        pSlot++;
-    }
-}*/
 void BattleInitSoundSlots(void) {
     BattleSlot* pSlot;
     s32 timer;
