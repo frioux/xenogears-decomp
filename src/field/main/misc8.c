@@ -349,7 +349,146 @@ void func_80080F44(int actorIndex) {
 }
 */
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
+// .rodata
+const char D_8006FC0C[0xC] = "EVENT CODE";
+const char D_8006FC18[0xC] = "MOV CHECK0";
+const char D_8006FC24[0xC] = "MOV CHECK1";
+const char D_8006FC30[0xC] = "MOV CHECK2";
+const char D_8006FC3C[0xC] = "MOV CHECK3";
+
+extern s32 D_800C3910;
+extern s32 D_800AF858;
+extern s32 D_800ADC0C;
+extern u_char D_800B21CC;
+extern s32 g_PlayerActorIndex;
+void func_800A2030(void);
+void func_80281B00(const char* pName);
+void func_80082620(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_80082BB8(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_80084158(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pActor, int arg4);
+void func_8008399C(int actorIndex, FieldActor* pFieldActor, ActorData* pActor);
+void func_800815F0(void);
+void FieldSetGearModelAnimationForActor(int arg0, int actorId, FieldActor* pActor);
+void SpritePlayAnimation(int, int);
+
+// Animation id forced onto an actor while a gear model animation is set up
+#define FIELD_ACTOR_ANIMATION_OVERRIDE_MODEL 2
+
+void func_8008110C(void) {
+    FieldActor* pFieldActor;
+    FieldActor* pCurActor;
+    ActorData* pActor;
+    ActorData* pData;
+    SpriteData* pSprite;
+    int fieldActorCount;
+    int i;
+
+    D_800C3910 = -1;
+    func_800A2030();
+    for (i = 0, fieldActorCount = g_FieldActiveActorCount; i < fieldActorCount; i++) {
+        do {
+            pActor = g_FieldActors[i].pActorData;
+            pActor->prevPosition.x = CONV_TO_GTE(pActor->position.vx);
+        } while (0);
+        do {
+            pActor = g_FieldActors[i].pActorData;
+            pActor->prevPosition.y = CONV_TO_GTE(pActor->position.vy);
+        } while (0);
+        do {
+            pActor = g_FieldActors[i].pActorData;
+            pActor->prevPosition.z = CONV_TO_GTE(pActor->position.vz);
+        } while (0);
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC0C);
+    }
+    D_800AF858 = 0;
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        pFieldActor = &g_FieldActors[i];
+        pActor = pFieldActor->pActorData;
+        if ((pFieldActor->status & 0xF80) != 0x200) {
+            continue;
+        }
+        if (!(pActor->scriptFlags.flags & 0x10001)) {
+            if ((pActor->flags & 0x600) != 0x200) {
+                pActor->curWalkmeshTriMaterial = FieldActorGetWalkmeshTriMaterial(pActor);
+                func_80082620(i, pFieldActor, pActor);
+                func_80082BB8(i, pFieldActor, pActor);
+            }
+            continue;
+        }
+        if (pActor->flags & 0x1000000) {
+            if (!(pActor->scriptFlags.flags & 0x10000)) {
+                if (pActor->curAnimationId != pActor->animationOverride) {
+                    do {
+                        // volatile: the stores have to stay ahead of the reloads of g_FieldActors below
+                        *(volatile s16*)&pActor->animationOverride = FIELD_ACTOR_ANIMATION_OVERRIDE_MODEL;
+                        pData = g_FieldActors[i].pActorData;
+                        pData->curAnimationId = pData->animationOverride;
+                    } while (0);
+                    SpritePlayAnimation(g_FieldActors[i].pSpriteData, pActor->animationOverride);
+                }
+                continue;
+            }
+        }
+        if (pActor->flags & 0x200000) {
+            pData = g_FieldActors[i].pActorData;
+            if (pData->curAnimationId != pData->animationOverride) {
+                *(volatile s16*)&pData->curAnimationId = pData->animationOverride;
+                pCurActor = &g_FieldActors[i];
+                FieldSetGearModelAnimationForActor(pCurActor->pSpriteData,
+                    pCurActor->pActorData->animationOverride, pCurActor);
+            }
+        }
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC18);
+    }
+    pFieldActor = &g_FieldActors[g_PlayerActorIndex];
+    func_80084158(g_PlayerActorIndex, pFieldActor, pFieldActor->pActorData);
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC24);
+    }
+    for (i = 0; i < g_FieldActiveActorCount; i++) {
+        pFieldActor = &g_FieldActors[i];
+        if (!(pFieldActor->status & 0xF00)) {
+            continue;
+        }
+        pActor = pFieldActor->pActorData;
+        if ((pActor->flags & 0x600) == 0x200) {
+            continue;
+        }
+        if ((pFieldActor->status & 0xF80) != 0x200) {
+            continue;
+        }
+        if (pActor->scriptFlags.flags & 0x10001) {
+            continue;
+        }
+        if (i == g_PlayerActorIndex) {
+            continue;
+        }
+        func_80084A40(i, 0x7FFFFFFF, pFieldActor, pActor, 0);
+        pSprite = g_FieldActors[i].pSpriteData;
+        if (*(u_short*)&((SpriteDataI3*)pSprite->field_0x7C)->field_0xC == 1) {
+            pActor->scriptFlags.flags &= ~0x800;
+        }
+    }
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC30);
+    }
+    if (g_FieldControl.isRandomEncountersEnabled == 0) {
+        if (D_800B21CC == 0) {
+            func_8008399C(g_PlayerActorIndex, &g_FieldActors[g_PlayerActorIndex],
+                g_FieldActors[g_PlayerActorIndex].pActorData);
+        }
+    }
+    D_800ADC0C = 1;
+    func_800815F0();
+    if (g_FieldSystemMode == 0) {
+        func_80281B00(D_8006FC3C);
+    }
+}
 
 INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
 
