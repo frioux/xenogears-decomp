@@ -201,23 +201,28 @@ void BattleInitMenuColumnPrims(void) {
     func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
 }
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_8008FE18);
-/* 88.92% (1032 bytes against retail's 0x424 = 1060). Every call, rectangle, store
-   and branch is retail's; the frame is retail's 0x148 and after moving `bufs` to the
-   FIRST declaration slot the whole local layout is retail's too (bufs 0x18, nameRect
-   0x98, tensRect 0xA0, onesRect 0xA8, tens2Rect 0xB0, ones2Rect 0xB8, blankRect 0xC0,
-   cellUses 0xD0, cellIds 0x100 - gcc lays slots out in declaration order).
-   What is left, all measured:
-   - retail saves s0-s4 and re-forms `lui $at,%hi(D_800C3E5C) / addu $at,at,v0 /
-     lw %lo(at)` at each of the four digit-buffer sites; this build hoists the table's
-     address into s3 (the six-register frame), which is the two-register difference.
-   - retail computes `u8 tens = cellUses[i] / 10` (the `andi 0xff` after the magic-10
-     shift) but the `% 10` for ones INSIDE the `if (cellIds[i] != 0)` arm; the body
-     below hoists both digits, which reorders that block and costs the 28 bytes.
-   - the last block's guard is cellUses[i + 16] / 10 (D_800D2CC0 is that array's +0x10)
-     and its digit index is cellUses[i + 16] / 10 WITHOUT the u8 truncation, so the two
-     halves of the grid want different spellings of the same division.
-   Not tried: separate `ofs`-style temporaries per digit site, a pointer local per arm,
-   and the permuter.
+/* 91.96% (1032 bytes against retail's 0x424 = 1060). Every call, rectangle, store and
+   branch is retail's; the frame is retail's 0x148 and the local layout is retail's
+   (bufs 0x18, nameRect 0x98, tensRect 0xA0, onesRect 0xA8, tens2Rect 0xB0,
+   ones2Rect 0xB8, blankRect 0xC0, cellUses 0xD0, cellIds 0x100 - declaration order).
+   GAINED THIS ROUND (+3.04 over the 88.92 park): the ones digit is computed INSIDE
+   its arm - `BattleLoadImageAndSync(&onesRect, D_800C3E5C[cellUses[i] % 10])` with
+   no `ones` local (retail's `% 10` sits inside the `if (cellIds[i] != 0)` arm).
+   Hoisting it into a u8 local reorders that whole block and costs 28 bytes; the
+   tens digit DOES want its `u8 tens = cellUses[i] / 10;` local (retail's `andi 0xff`
+   after the magic-10 shift) and the second grid half uses the un-truncated
+   `cellUses[i + 16] / 10` spelling, so do not unify them.
+   Remaining, all measured: retail saves s0-s4 and re-forms `lui $at,%hi(D_800C3E5C)
+   / addu $at,at,v0 / lw %lo(at)` at each of the four digit-buffer sites; this build
+   hoists the table's address into a saved s3 (the six-register frame) and reads
+   `addu v0,v0,s3; lw a1,0(v0)` - 1 instruction per site, exactly the 4 missing
+   instructions. loop.c's move_movables does the hoisting; it is NOT spelling
+   sensitive - `*(u_long **)(tens * 4 + (u32)D_800C3E5C)` and the array form compile
+   identically. gcc 2.6.0 scores 92.77 on this body with the four matched functions of
+   the unit still 100.00, so the preset is not the answer either.
+   Not tried: a distinct RTL spelling per site so each invariant address pseudo has a
+   single use (loop.c then has no shared hoist), separate ofs-style temporaries per
+   digit site, a pointer local per arm, and the permuter.
 void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     void *bufs[BATTLE_COMMAND_ROW_COUNT];
     RECT nameRect;
@@ -230,7 +235,6 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     u8 cellIds[BATTLE_COMMAND_CELL_COUNT];
     void *pBuf;
     u8 tens;
-    u8 ones;
     s32 i;
 
     if (arg2 != 0) {
@@ -287,9 +291,8 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         } else {
             BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
         }
-        ones = cellUses[i] % 10;
         if (cellIds[i] != 0) {
-            BattleLoadImageAndSync(&onesRect, D_800C3E5C[ones]);
+            BattleLoadImageAndSync(&onesRect, D_800C3E5C[cellUses[i] % 10]);
         } else {
             BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }
@@ -312,7 +315,9 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->primState = 2;
 }
-*//* 99.62% (212 bytes = retail's 0xd4): instruction-for-instruction identical except one
+*/
+/*
+99.62% (212 bytes = retail's 0xd4): instruction-for-instruction identical except one
    swapped add: retail puts the -4 on the parameter (`addiu a3,s2,-4; addu a3,s0,a3`)
    where gcc 2.7.2 folds it onto the loop GIV (`addiu a3,s0,-4; addu a3,s2,a3`).
    Tried: arg0-4+offset, (arg0-4)+offset, offset+(arg0-4), a pre-loop `y = arg0` copy
@@ -602,34 +607,44 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090C44);
 extern void func_80090C44(u8);
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16_r2", func_80090E7C);
-/* 79.25% (480 bytes; retail is 488 = 122 insns). The four draw/palette blocks, both
-   branch/join palette picks, `func_80090C44(arg0)` in the last store's delay slot and
-   the trailing direct `lbu g_BattlePrimStartIndex` all have retail's shape, and the
-   two palette blocks are byte-identical. The gap is entirely in the two
-   BattleSetPolyFT4RectH13 argument setups, and the levers found are:
-   - the index must come from a pointer local (`s32 *pPrim = &g_BattlePrimStartIndex`,
-     dereferenced at each use): that is what makes retail materialise
-     `lui/addiu %hi/%lo` into s0 and reload `lw 0(s0)` per use. Any array spelling
-     (`g_BattlePrimStartIndex[0]`) folds to a bare `lui/lw` pair.
-   - `ofs = *pPrim * 0x28 + 0x3C0` in its own local before the call (the inline
-     `... + 0x3C0 + (s32)g_BattleGraphicsWork->pPacketPrims` reassociates the constant
-     onto the base instead: 76.12%).
-   Remaining, all measured: retail adds the offset in the product's own register
-   (`addiu a0,a0,0x3C0` then `addu a0,a0,t1`) where this build ends the ofs in t0/v0
-   (`addu t0,v0,960; addu a0,t0,a0`), and retail loads the D_800D2F8x words in the order
-   u, dx, v while gcc here emits v, dx after the base load. A 5-minute, 2-job permuter
-   run from this body found no zero (best candidate wrapped the address in an inline
-   helper, not portable); its only portable suggestion, inlining the ofs expression,
-   is the 76.12% form above.
+/* 83.46% (488 bytes = retail's exact 122 instructions). Both draw blocks and both
+   palette picks are retail's; the palette blocks and the tail (func_80090C44 in the
+   store's delay slot, the trailing `lbu g_BattlePrimStartIndex`) are byte-identical.
+   Three levers are proven here and any further attempt should start from them:
+   - `ofs` must be its own local split over two statements (`ofs = *pPrim * 0x28;`
+     then `ofs += 0x3C0;`): the one-statement form reassociates the constant onto the
+     base (76.12%).
+   - `pPrims = g_BattleGraphicsWork->pPacketPrims;` as a statement BETWEEN the product
+     and the `+ 0x3C0` gives retail's `addiu a0,a0,960 / addu a0,a0,t1` (with the
+     member inlined instead, gcc puts the loaded base in a0 and the offset in t0).
+   - a SECOND pointer local (`pPrim2`) assigned after the first palette store for the
+     second half is what makes gcc re-form `lui s0,%hi / addiu s0,%lo` at the branch
+     join, retail's single 2-instruction re-materialisation and the last 8 bytes of
+     the function's size (82.24 -> 83.46, 480 -> 488). One `pPrim` for all four sites
+     loses them.
+   `pal = D_800D2F80;` above the first call is a scratch for the dx argument (the
+   permuter's find, 1155 -> 83.46); retail keeps it in v1, this build in t0.
+   Remaining: retail fills the entry block's first slots with `lui v0,%hi(
+   g_BattleGraphicsWork); lw v0,0(v0)` between `li a1,0xA8` and `li a2,0xA6` and
+   loads D_800D2F80 before the sll chain; this build emits both after it. A short
+   `s16 ofs` reproduces that entry order exactly (95.74%) but adds a sll/sra
+   conversion pair per site (504 bytes), i.e. ofs is not narrow in the original.
+   Not tried: a distinct RTL spelling for the pPrims member access, and a second
+   permuter run from the 83.46 body.
 void func_80090E7C(u8 arg0) {
     u8 *pRec;
+    u8 *pPrims;
     s32 *pPrim;
+    s32 *pPrim2;
     s32 ofs;
     u16 pal;
 
     pPrim = &g_BattlePrimStartIndex;
-    ofs = *pPrim * 0x28 + 0x3C0;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)g_BattleGraphicsWork->pPacketPrims), 0xA8, 0xA6, D_800D2F82, D_800D2F83, D_800D2F80);
+    pPrims = g_BattleGraphicsWork->pPacketPrims;
+    ofs = *pPrim * 0x28;
+    pal = D_800D2F80;
+    ofs += 0x3C0;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pPrims), 0xA8, 0xA6, D_800D2F82, D_800D2F83, pal);
     pRec = g_BattleGraphicsWork->pPacketPrims + *pPrim * 0x28;
     if (D_800D2F81 != 0) {
         pal = g_SystemPalette2;
@@ -637,9 +652,12 @@ void func_80090E7C(u8 arg0) {
         pal = g_SystemPalette1;
     }
     *(u16 *)(pRec + 0x3CE) = pal;
-    ofs = *pPrim * 0x28 + 0x410;
-    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)g_BattleGraphicsWork->pPacketPrims), 0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
-    pRec = g_BattleGraphicsWork->pPacketPrims + *pPrim * 0x28;
+    pPrim2 = &g_BattlePrimStartIndex;
+    ofs = *pPrim2 * 0x28;
+    pPrims = g_BattleGraphicsWork->pPacketPrims;
+    ofs += 0x410;
+    BattleSetPolyFT4RectH13((POLY_FT4 *)(ofs + (s32)pPrims), 0xEC, 0xC6, D_800D2F7E, D_800D2F7F, D_800D2F7C);
+    pRec = g_BattleGraphicsWork->pPacketPrims + *pPrim2 * 0x28;
     if (D_800D2F7D != 0) {
         pal = g_SystemPalette2;
     } else {
