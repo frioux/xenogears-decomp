@@ -744,6 +744,16 @@ typedef struct {
     /* 0x1C */ s32 unk1C;
 } Misc23ArchiveEntry; // Size: 0x20
 
+// The current archive position, saved around the index switch in
+// func_800A9540. Retail's frame reserves 0x10 bytes for it; only the first two
+// words are ever read.
+typedef struct {
+    /* 0x0 */ s32 alignedIndex;
+    /* 0x4 */ s32 remainder;
+    /* 0x8 */ s32 unk8;
+    /* 0xC */ s32 unkC;
+} Misc23ArchivePos; // Size: 0x10
+
 extern Misc23ArchiveEntry *g_BattleArchiveEntry;
 extern int ArchiveDecodeAlignedSize(unsigned int);
 extern void func_80029AFC(Misc23ArchiveEntry *, s32, s32);
@@ -752,68 +762,71 @@ extern u8 D_800CCDE8[];
 extern u8 D_800C3509[];
 
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9540);
-/* 93.51% (376 bytes against retail's 372, unit preset gcc 2.6.0 --expand-div -G0):
-   full structure recovered from the disassembly; this round added the one shape the
-   earlier 90.14 attempt was missing - the record filler walks the entry with a CURSOR
-   local ("pTail = pEntry;" then pTail->fileIndex1/pBuffer1, and pTail =
-   &pEntry->fileIndex3 / &pEntry->unk18 for the terminator), which is what produces
-   retail's "move s3,s2" copy and keeps it out of the way of the pair written through
-   pEntry (fileIndex2/pBuffer2). The last pair's terminator is written through the same
-   struct type ("pTail->fileIndex1 = 0; pTail->pBuffer1 = NULL;" -> "sh zero,0(s3)" +
-   "sw zero,4(s3)"), not through a u16*.
-   Facts kept from the 90.14 note: count is an s32 loaded from a u8 array (lbu), NOT a
-   u8 local (that turns the compare into slt and drops an andi); pTable = D_800C3509 is
-   assigned BEFORE the if so "lui/addiu s0" comes before the branch and the base lives in
-   a callee-saved register across HeapAlloc; the compare itself is written against the
-   GLOBAL ("if (D_800C3509[index] < count)") while the later -1 load goes through
-   pTable - that opposite-side spelling is worth ~5 points on its own.
-   Still open: the frame is 0x30 against retail's 0x38 and gcc 2.6 hands pEntry $s3 and
-   pTail $s2 where retail has pEntry in $s2 (declaring them in either order changes
-   nothing), so retail has one more live value than this body. Everything else - every
-   call, both HeapAlloc sizes, the 0/1 flag arguments, the delay-slot stores - matches. */
+/* 94.49% (376 bytes against retail's 372, unit preset gcc 2.6.0 --expand-div -G0):
+   the whole structure is recovered and every call, both HeapAlloc sizes, the 0/1
+   flag arguments and every store match. The frame and all six save slots are
+   retail's (0x38, locals at 0x10/0x14) because the two archive indices live in a
+   0x10-byte Misc23ArchivePos whose last two words retail never touches.
+   What is left is ONE allocator tie-break, spelling-independent: index takes $s0
+   (with an extra "move s0,v1" out of the sll, which is why this body is 4 bytes
+   over) where retail has index in $s1 and pTable in $s0, and pEntry/pTail come out
+   $s4/$s2 or $s3/$s2 against retail's $s2/$s3. Both allocnos have the same
+   priority (live length and ref count), so the tie-break is the allocno order;
+   swapping the two declarations does not move it.
+   Shapes already measured dead: index as s32 (loses retail's unsigned 0x170
+   stride), index *= 2 as its own statement, pTable assigned before the index/count
+   reads (gcc folds the address into $at), the arm storing through pEntry instead of
+   the pTail cursor (93.66), an if/else on count (88.90, 368 bytes) and pTail's
+   assignment moved inside the count test (96.89% at retail's exact 372 bytes - a
+   PERMUTER FIND THAT CHANGES SEMANTICS: with count == 0 the terminator then lands
+   on the first pair instead of the third, so it is not shipped).
+   The first clear loop fact kept from the earlier rounds: count is an s32 loaded
+   with lbu from a u8 array (a u8 local turns the compare into slt), pTable is
+   assigned BEFORE the if so its lui/addiu sits ahead of the branch, and the compare
+   is written against the GLOBAL while the later -1 read goes through pTable (the
+   opposite-side spelling is worth ~5 points). */
 /*
-   void func_800A9540(s32 arg0) {
-       Misc23ArchiveEntry *pEntry;
-       Misc23ArchiveEntry *pTail;
-       u8 *pTable;
-       s32 alignedIndex;
-       s32 remainder;
-       u32 index;
-       s32 nameLen;
-       s32 count;
-       u8 base;
+void func_800A9540(s32 arg0) {
+    Misc23ArchiveEntry *pEntry;
+    Misc23ArchiveEntry *pTail;
+    Misc23ArchivePos pos;
+    u32 index;
+    u8 *pTable;
+    s32 nameLen;
+    s32 count;
+    u8 base;
 
-       ArchiveGetArchiveOffsetIndices(&alignedIndex, &remainder);
-       ArchiveSetIndex(0x28, 1);
-       HeapChangeCurrentUser(4, NULL);
-       index = g_BattleSlotTextIndex[arg0 * 0x170] * 2;
-       count = D_800CCDE8[arg0 * 0x170];
-       pTable = D_800C3509;
-       if (D_800C3509[index] < count) {
-           count = 0;
-       }
-       pEntry = HeapAlloc(0x20, 1);
-       g_BattleArchiveEntry = pEntry;
-       base = pTable[index - 1];
-       pTail = pEntry;
-       nameLen = base + 1;
-       pTail->fileIndex1 = nameLen;
-       pTail->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
-       nameLen = base + 2;
-       pEntry->fileIndex2 = nameLen;
-       pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
-       pTail = &pEntry->fileIndex3;
-       if (count != 0) {
-           nameLen += count;
-           pEntry->fileIndex3 = nameLen;
-           pEntry->pBuffer3 = (s32)HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
-           pTail = (Misc23ArchiveEntry *)&pEntry->unk18;
-       }
-       pTail->fileIndex1 = 0;
-       pTail->pBuffer1 = NULL;
-       func_80029AFC(g_BattleArchiveEntry, 0, 0);
-       ArchiveSetIndex(alignedIndex, remainder);
-   }
+    ArchiveGetArchiveOffsetIndices(&pos.alignedIndex, &pos.remainder);
+    ArchiveSetIndex(0x28, 1);
+    HeapChangeCurrentUser(4, NULL);
+    index = g_BattleSlotTextIndex[arg0 * 0x170] * 2;
+    count = D_800CCDE8[arg0 * 0x170];
+    pTable = D_800C3509;
+    if (D_800C3509[index] < count) {
+        count = 0;
+    }
+    pEntry = HeapAlloc(0x20, 1);
+    g_BattleArchiveEntry = pEntry;
+    base = pTable[index - 1];
+    pTail = pEntry;
+    nameLen = base + 1;
+    pTail->fileIndex1 = nameLen;
+    pTail->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+    nameLen = base + 2;
+    pEntry->fileIndex2 = nameLen;
+    pEntry->pBuffer2 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 0);
+    pTail = &pEntry->fileIndex3;
+    if (count != 0) {
+        nameLen += count;
+        pTail->fileIndex1 = nameLen;
+        pTail->pBuffer1 = HeapAlloc(ArchiveDecodeAlignedSize(nameLen), 1);
+        pTail = (Misc23ArchiveEntry *)&pEntry->unk18;
+    }
+    pTail->fileIndex1 = 0;
+    pTail->pBuffer1 = NULL;
+    func_80029AFC(g_BattleArchiveEntry, 0, 0);
+    ArchiveSetIndex(pos.alignedIndex, pos.remainder);
+}
 */
 void BattleAllocateArchiveFilePair(s32 arg0) {
     Misc23ArchiveEntry *pEntry;
