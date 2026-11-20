@@ -61,6 +61,21 @@
 #define FIELD_PARTICLE_BANK_RANGE_MODE_CIRCLE 0x80
 #define FIELD_PARTICLE_BANK_RANGE_MODE_LINE 0x40
 
+// The bits of the script byte that pick which of an actor's two color triples a
+// color handler writes: bit 1 red/green/blue, bit 2 red2/green2/blue2.
+#define FIELD_ACTOR_COLOR_SET_PRIMARY 0x1
+#define FIELD_ACTOR_COLOR_SET_SECONDARY 0x2
+
+// scriptFlags bits a script handler sets by hand: the actor the player drives, and
+// the facing latched into ActorData::lockedRotationY.
+#define FIELD_SCRIPT_FLAG_PLAYER_ACTOR 0x4000
+#define FIELD_SCRIPT_FLAG_ROTATION_LOCKED 0x8000
+
+// Field archive entry a WDS bank sits at, above its bank index: the field WDS
+// directory's own, and the battle sound directory's.
+#define FIELD_WDS_BANK_ARCHIVE_OFFSET 2
+#define FIELD_WDS_BATTLE_BANK_ARCHIVE_OFFSET 0x1F
+
 void FieldScriptMemoryWriteU16(int, int);
 
 extern int rcos(int);
@@ -510,7 +525,7 @@ void FieldScriptSetPlayerActor(void) {
         for (i = 0; i < g_FieldActiveActorCount; i++) {
             g_FieldActors[i].pActorData->scriptFlags.flags &= ~0x01004000;
         }
-        g_FieldActors[actorIndex].pActorData->scriptFlags.flags |= 0x4000;
+        g_FieldActors[actorIndex].pActorData->scriptFlags.flags |= FIELD_SCRIPT_FLAG_PLAYER_ACTOR;
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }
@@ -1454,11 +1469,11 @@ void FieldScriptLoadWdsSoundFile(void) {
             if (!(flags & FIELD_WDS_BANK_ALT_ARCHIVE_MASK)) {
 setIndex1C:
                 ArchiveSetIndex(ARCHIVE_DIR_FIELD_WDS, 0);
-                g_FieldWdsLoadEntryIndex += 2;
+                g_FieldWdsLoadEntryIndex += FIELD_WDS_BANK_ARCHIVE_OFFSET;
                 goto readFile;
             }
             if (g_FieldSuppressStateChange != 1) {
-                g_FieldWdsLoadEntryIndex = (flags & FIELD_WDS_BANK_INDEX_MASK) + 0x1F;
+                g_FieldWdsLoadEntryIndex = (flags & FIELD_WDS_BANK_INDEX_MASK) + FIELD_WDS_BATTLE_BANK_ARCHIVE_OFFSET;
                 ArchiveSetIndex(ARCHIVE_DIR_BATTLE_SOUND, 1);
                 goto readFile;
             }
@@ -2986,8 +3001,8 @@ void FieldScriptSetRandomSkinParams(void) {
 void FieldScriptSetActorMovementFlag(void) {
     switch (SCRIPT_READ_U8_REL(1)) {
         case 0:
-            if (g_FieldScriptVMCurActor->scriptFlags.flags & 0x8000) {
-                g_FieldScriptVMCurActor->scriptFlags.flags &= ~0x8000;
+            if (g_FieldScriptVMCurActor->scriptFlags.flags & FIELD_SCRIPT_FLAG_ROTATION_LOCKED) {
+                g_FieldScriptVMCurActor->scriptFlags.flags &= ~FIELD_SCRIPT_FLAG_ROTATION_LOCKED;
             }
             if (g_FieldScriptVMCurActor->flags & 0x80000) {
                 SpriteData* pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
@@ -2999,7 +3014,7 @@ void FieldScriptSetActorMovementFlag(void) {
             }
             break;
         case 1:
-            g_FieldScriptVMCurActor->scriptFlags.flags |= 0x8000;
+            g_FieldScriptVMCurActor->scriptFlags.flags |= FIELD_SCRIPT_FLAG_ROTATION_LOCKED;
             g_FieldScriptVMCurActor->lockedRotationY = *(u_short*)&g_FieldScriptVMCurActor->rotation.vy;
             break;
         case 2:
@@ -3258,12 +3273,12 @@ void FieldScriptSetActorColors(void) {
 
     if (actorIndex != ACTOR_ID_INVALID) {
         pActorData = g_FieldActors[actorIndex].pActorData;
-        if (SCRIPT_READ_U8_REL(1) & 1) {
+        if (SCRIPT_READ_U8_REL(1) & FIELD_ACTOR_COLOR_SET_PRIMARY) {
             pActorData->red = FieldScriptVMGetArgument(3);
             pActorData->green = FieldScriptVMGetArgument(5);
             pActorData->blue = FieldScriptVMGetArgument(7);
         }
-        if (SCRIPT_READ_U8_REL(1) & 2) {
+        if (SCRIPT_READ_U8_REL(1) & FIELD_ACTOR_COLOR_SET_SECONDARY) {
             pActorData->red2 = FieldScriptVMGetArgument(3);
             pActorData->green2 = FieldScriptVMGetArgument(5);
             pActorData->blue2 = FieldScriptVMGetArgument(7);
@@ -3273,12 +3288,12 @@ void FieldScriptSetActorColors(void) {
 }
 
 void FieldScriptSetCurrentActorColors(void) {
-    if (SCRIPT_READ_U8_REL(1) & 1) {
+    if (SCRIPT_READ_U8_REL(1) & FIELD_ACTOR_COLOR_SET_PRIMARY) {
         g_FieldScriptVMCurActor->red = FieldScriptVMGetArgument(2);
         g_FieldScriptVMCurActor->green = FieldScriptVMGetArgument(4);
         g_FieldScriptVMCurActor->blue = FieldScriptVMGetArgument(6);
     }
-    if (SCRIPT_READ_U8_REL(1) & 2) {
+    if (SCRIPT_READ_U8_REL(1) & FIELD_ACTOR_COLOR_SET_SECONDARY) {
         g_FieldScriptVMCurActor->red2 = FieldScriptVMGetArgument(2);
         g_FieldScriptVMCurActor->green2 = FieldScriptVMGetArgument(4);
         g_FieldScriptVMCurActor->blue2 = FieldScriptVMGetArgument(6);
