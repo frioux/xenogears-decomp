@@ -642,55 +642,54 @@ void BattleSetupActorSlotDisplay(u8 arg0) {
     g_BattleSoundEnabled = 1;
     g_BattleSlotDisplayInitialized = 0;
 }
-/* 97.83%, 1004 bytes (= retail). The 0x2DA double load closed with the round-330
-   VOLATILE READ: `count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA];` brings back
-   retail's second `lbu $s3,0x2DA` (and its order, `lbu $v1` then `lbu $s3`) where
-   cse merged them (97.45 -> 97.83). Two residuals left, both measured:
-   - the first block's `(u8)arg0 * 0x40` stride: retail puts the offset in $v1 and
-     the loaded pointer in $v0 and coalesces the sum into the base (`addu v0,v0,v1`
-     = base-first), while every spelling here coalesces it into the offset. The
-     same base-first-vs-offset-first choice is ONE instruction wrong at the
-     `D_800CCD1C[g_BattleCommandQueue[slot * 0x40 + 0x3C]]` site.
-   - the `(u8)` zero-extension of the 0x2DC command byte: cc1 hoists an
-     `andi a0,a1,0xFF` before the `sltiu` where retail compares the raw `lbu`
-     register, and to pay for it retail reloads the byte in the >= 8 arm
-     (`lbu $a1,0x2DC($a2)` twice) while ours forwards it. Round 323's finding covers
-     the `andi`: no source spelling reaches retail's shape.
+/* 99.60%, 1004 bytes (= retail). Two of the round-339 residuals closed, both by a
+   LOCAL'S TYPE rather than by shape:
+   - the `< 8` arm needs `s32 commandNo;` holding `arg1 & 0xFF` (assigned before the
+     store, the mask written in the source): that reproduces retail's whole arm - the
+     `andi $a0,$s0,0xFF` in the beqz delay slot, then `sll $v0,$a1,1` / `addu $v0,$v0,$a1`
+     on the RAW lbu. The round-323 `andi $a0,$a1,0xFF` hoist before the `sltiu`
+     disappears with it, so that class was an artifact of the mask being shared with
+     the compare, not of the value range.
+   - the `>= 8` arm's step byte wants its own variable: `stepNo = *(volatile u8 *)
+     (&g_BattleCommandQueue[0x2DC]) - 8;` then `BattleMaskHasStatusBit(..., stepNo)`.
+     Inline as the call's second argument gcc orders the charIds chain FIRST; the local
+     gives retail's `lbu $a1,0x2DC($a2)` at the head of the arm.
+   Residual, all of it register order at retail's exact size and instruction multiset:
    - the first block's two `g_BattleCommandQueue[(u8)arg0 * 0x40 + 0x3C]` sites are a
-     pure v0/v1 MIRROR: retail's offset lands in $v1 and the loaded base in $v0, ours
-     the other way round (`sll v0` / `lui+lw v1`), 3 words per arm. The embedded
-     assignment at those sites fixes the base-first operand order but keeps the
-     mirror (4 words per arm, 97.75%), so the subscript spelling is kept.
-   WHAT IS LOAD-BEARING (each measured at 1004 bytes):
-   - the five later `g_BattleCommandQueue[slot * 0x40 + 0x3C]` sites must be written
-     as an EMBEDDED ASSIGNMENT `(pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]`
-     reused at each site: that is what makes retail's base-first `addu v0,v0,s0`
-     (96.14 -> 97.29 -> 97.45). The same spelling at the D_800CCD1C site is
-     97.37 (it fixes the operand order but puts the loaded byte in $v0), so that
-     one site stays an ordinary subscript.
-   - the two parameters are `u8` - that is what puts arg0 in $s2, the slot mask in
-     $s1 and arg1 in $s0 (s32 gives a cyclic s0/s1/s2 rotation, 96.14%).
-   - the first block is `if (flags == 0) { if (charId != 4) ... } else ...`; that
-     polarity is what makes the flags == 0 arm fall through.
-   - `(u16)BattleMaskHasStatusBit(...)` keeps retail's `andi v0,0xFFFF`, and
-     `*(u8 *)&g_BattleActionParam` gives retail's `lbu` of that u16 global.
-     `BattleSlotBitMask` must return s32 (a u16 return drops the
-     `andi $a1,$v0,0xFFFF` at the BattleBeginActorAction call).
-   Dead spellings: `(s32)g_BattleCommandQueue[0x2DC] < 8` in the compare (just as
-   many diffs), an `argIndex = arg1 & 0xFF;` local hoisted into the `< 8` arm
-   (objdiff 98.76 but 14 differing words against this body's 10, a permuter find -
-   objdiff's fuzzy score is not monotone), an `ofs` local for the stride (1012 bytes, 93.67% with the
-   assignment spelling), a `slot` local hoisted to the top and used in the first
-   block (1008, 96.96%), a `qIndex`/`qIndex`-as-s32 local for the 0x2DC byte (no
-   change), `(u8)arg1` for `arg1 & 0xFF` (identical). Two permuter runs from this
-   body (1760 and 1714 iterations) found nothing that reduces the differing-word
-   count. */
+     pure $v0/$v1 mirror (retail's offset in $v1 and base in $v0, ours the reverse).
+     Embedded assignment, statement pointer local, base-in-a-local and `*(p + i + K)`
+     all measured 96.89-97.75.
+   - the `>= 8` arm keeps the step in $v0 and the charId chain in $v1 where retail has
+     $a1/$v0, so the call site copies (`andi $a1,$v0,0xFF`) instead of retail's in-place
+     `andi $a1,$a1,0xFF`.
+   - the D_800CCD1C site's `addu` stays offset-first; the embedded assignment there
+     costs the loaded byte its register (97.37).
+   - `g_BattleCommandRecords[...].unk24` is the typed spelling, which folds the +0x24
+     addend into the instruction (`sh $v0,36($at)`) where retail relocs D_800C4022, so
+     objdiff cannot reach 100% on it; the linked bytes are identical. Spelling it as
+     D_800C4022 instead costs a queue-pointer reload (1016 bytes, 96.89).
+   Load-bearing (each measured at 1004 bytes): the u8 parameters; the five later queue
+   reads as an EMBEDDED ASSIGNMENT `(pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]`
+   (96.14 -> 97.45); `(u16)BattleMaskHasStatusBit`; `*(u8 *)&g_BattleActionParam`;
+   `BattleSlotBitMask` returning s32; `count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA]`
+   (97.45 -> 97.83); the two record stores as plain u8 arrays `D_800C402F[... * 0x48]`
+   (the typed `command` field relocs +0x31 and costs the same three diff rows).
+   Permuter from this body: base=180 best=100, two finds - the `stepNo` reuse for the
+   BattleScriptScanForOpcode62 result (kept, 98.17 -> 99.60) and a
+   `g_BattleCommandQueue - -(slot * 0x40)` neg-neg at the BattleBeginActorAction call
+   (no effect on top of the stepNo reuse, not kept).
+   Dead spellings: `charId`/`commandNo` locals at the arm (identical), `& 0xFF` in the
+   arm's source (implicit through the u8 parameter), the `else if (...)` form instead of
+   `else { stepNo = ...; if (...) }`, `*(g_BattleCommandQueue + i + K)`,
+   `(s32)g_BattleCommandQueue[0x2DC] < 8`, the non-volatile step read (1000 bytes). */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087AF0);
 /*
 s32 func_80087AF0(u8 arg0, u8 arg1) {
     u8 *pQueueRow;
     u8 slot;
     u8 count;
+    s32 commandNo;
+    s32 stepNo;
     s32 done;
 
     done = 0;
@@ -707,13 +706,17 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     BattleClearSlotCurveEntry();
     if (g_BattleSlotFlags[(u8)arg0 * 8] == 0) {
         if (g_BattleCommandQueue[0x2DC] < 8) {
-            g_BattleCommandQueue[0x2DC] = D_800C34B3[g_BattleCommandQueue[0x2DC]][arg1 & 0xFF];
-        } else if ((u16)BattleMaskHasStatusBit(
-                       *(u16 *)((u8 *)&g_GameState + 0x16C0 + g_BattleActorCharIds[(u8)arg0] * 0x20),
-                       (g_BattleCommandQueue[0x2DC] - 8) & 0xFF) != 0) {
-            done = 1;
+            commandNo = arg1 & 0xFF;
+            g_BattleCommandQueue[0x2DC] = D_800C34B3[g_BattleCommandQueue[0x2DC]][commandNo];
         } else {
-            g_BattleCommandQueue[0x2DC] = 7;
+            stepNo = *(volatile u8 *)&g_BattleCommandQueue[0x2DC] - 8;
+            if ((u16)BattleMaskHasStatusBit(
+                           *(u16 *)((u8 *)&g_GameState + 0x16C0 + g_BattleActorCharIds[(u8)arg0] * 0x20),
+                           stepNo) != 0) {
+                done = 1;
+            } else {
+                g_BattleCommandQueue[0x2DC] = 7;
+            }
         }
     } else {
         g_BattleCommandQueue[0x2DC] = g_BattleCommandQueue[0x2DC] + 1;
@@ -731,11 +734,12 @@ s32 func_80087AF0(u8 arg0, u8 arg1) {
     count = *(volatile u8 *)&g_BattleCommandQueue[0x2DA];
     D_800C400B[g_BattleCommandQueue[0x2DA] * 0x48] = arg0;
     g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].slotMask = g_BattleActionSlotMask;
-    g_BattleCommandRecords[g_BattleCommandQueue[0x2DA]].command = *(u8 *)&g_BattleActionParam;
+    D_800C402F[g_BattleCommandQueue[0x2DA] * 0x48] = *(u8 *)&g_BattleActionParam;
     g_BattleCommandQueue[0x2DA] = g_BattleCommandQueue[0x2DA] + 1;
     BattleSetSlotRegistersFromActor(slot, (pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]);
     if ((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C] >= 3) {
-        if ((u8)BattleScriptScanForOpcode62((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]) != 0) {
+        stepNo = (u8)BattleScriptScanForOpcode62((pQueueRow = g_BattleCommandQueue + slot * 0x40)[0x3C]);
+        if (stepNo != 0) {
             done = 1;
         }
     }
