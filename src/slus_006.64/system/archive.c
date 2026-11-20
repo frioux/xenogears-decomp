@@ -26,7 +26,7 @@ extern s32 g_ArchiveReadRetryCount;
 extern void ArchiveCdReadyReadFile(u_char status);
 extern void func_8002B2F0(u_char status);
 extern void func_8002B5D0();
-extern void func_8002B8B0();
+extern void func_8002B8B0(s32 unused, s32 nQueueIndex);
 extern void ArchiveImageStreamSectorCallback();
 extern void ArchiveImageStreamProcessSector();
 extern void ArchiveStreamFileDataCallback();
@@ -1272,7 +1272,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
  */
 
 
-void func_8002B8B0(s32 param0, s32 nIndex) {
+// param0 is unused by the body. The scan's index variable IS the second parameter:
+// retail keeps its value live into the loop in $a1, which a local born inside the
+// loop cannot reproduce (it folds into the load temp), and an initialised local
+// costs the `li` retail does not have.
+void func_8002B8B0(s32 unused, s32 nQueueIndex) {
     s16 i;
     s32 nSectorOffset;
     u16 nSectionId;
@@ -1281,8 +1285,8 @@ void func_8002B8B0(s32 param0, s32 nIndex) {
 
     if (g_ArchiveCurFileSize > 0) {
         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
-            nIndex = g_ArchiveStreamQueueIndex++;
-            pHeader = (ArchiveStreamFileSectionHeader*)(nIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
+            nQueueIndex = g_ArchiveStreamQueueIndex++;
+            pHeader = (ArchiveStreamFileSectionHeader*)(nQueueIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
                 g_ArchiveStreamQueueIndex = 0;
             if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED)
@@ -1291,12 +1295,13 @@ void func_8002B8B0(s32 param0, s32 nIndex) {
 
         if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
             i = 0;
+            // volatile: retail stores the state before it reloads the id counter
             *(volatile u16*)&pHeader->state = 1;
             nSectionId = g_ArchiveStreamNextSectionId;
             nNextSectionId = nSectionId + 1;
             pHeader->id = nSectionId;
             g_ArchiveStreamNextSectionId = nNextSectionId;
-            nSectorOffset = nIndex * CD_SECTOR_SIZE;
+            nSectorOffset = nQueueIndex * CD_SECTOR_SIZE;
             for (; i < RETRY_COUNT; i++) {
                 if (PCread(D_80059F04, (u8*)(nSectorOffset + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE) != 0)
                     break;
@@ -1359,7 +1364,8 @@ void func_8002B8B0(s32 param0, s32 nIndex) {
  *
  *         if (pHeader->state == ARCHIVE_STREAM_FILE_NOT_LOADED) {
  *             i = 0;
- *             *(volatile u16*)&pHeader->state = 1;
+ *             // volatile: retail stores the state before it reloads the id counter
+            *(volatile u16*)&pHeader->state = 1;
  *             nSectionId = g_ArchiveStreamNextSectionId;
  *             nNextSectionId = nSectionId + 1;
  *             pHeader->id = nSectionId;
