@@ -463,45 +463,45 @@ void MenuAddUnk360Prims(void) {
 // g_Menu->pSelectionMenu: the prim block is reached through two global loads and
 // every store invalidates them.
 void func_801CEC40(void) {
-    s32 i;
-
     if (!g_Menu->pManager->shouldRenderSelectionMenu) {
         return;
     }
     if (g_Menu->pSelectionMenu->isDisabled != g_Menu->pSelectionMenu->isDisabledRendered) {
+        s32 i;
+
         if (g_Menu->pSelectionMenu->isDisabled) {
             for (i = 0; i < g_Menu->pSelectionMenu->numTexts; i++) {
                 SetSemiTrans(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 1);
                 SetShadeTex(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
                 g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].tpage |= 0x20;
-                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].r0 = MENU_SELECTION_TINT_DISABLED;
-                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].g0 = MENU_SELECTION_TINT_DISABLED;
-                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].b0 = MENU_SELECTION_TINT_DISABLED;
+                (&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx])->r0 = MENU_SELECTION_TINT_DISABLED;
+                (&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx])->g0 = MENU_SELECTION_TINT_DISABLED;
+                (&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx])->b0 = MENU_SELECTION_TINT_DISABLED;
             }
             for (i = 0; i < g_Menu->pSelectionMenu->numCursors; i++) {
                 SetSemiTrans(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 1);
                 SetShadeTex(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 0);
                 g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].tpage |= 0x20;
-                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].r0 = MENU_SELECTION_TINT_DISABLED;
-                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].g0 = MENU_SELECTION_TINT_DISABLED;
-                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].b0 = MENU_SELECTION_TINT_DISABLED;
+                (&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx])->r0 = MENU_SELECTION_TINT_DISABLED;
+                (&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx])->g0 = MENU_SELECTION_TINT_DISABLED;
+                (&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx])->b0 = MENU_SELECTION_TINT_DISABLED;
             }
         } else {
             for (i = 0; i < g_Menu->pSelectionMenu->numTexts; i++) {
                 SetSemiTrans(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
                 SetShadeTex(&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx], 0);
                 g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].tpage |= 0x20;
-                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].r0 = MENU_SELECTION_TINT_NORMAL;
-                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].g0 = MENU_SELECTION_TINT_NORMAL;
-                g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx].b0 = MENU_SELECTION_TINT_NORMAL;
+                (&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx])->r0 = MENU_SELECTION_TINT_NORMAL;
+                (&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx])->g0 = MENU_SELECTION_TINT_NORMAL;
+                (&g_Menu->pSelectionMenu->polysTexts[i * 2 + g_Menu->pSelectionMenu->textsRenderCtx])->b0 = MENU_SELECTION_TINT_NORMAL;
             }
             for (i = 0; i < g_Menu->pSelectionMenu->numCursors; i++) {
                 SetSemiTrans(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 0);
                 SetShadeTex(&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx], 0);
                 g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].tpage |= 0x20;
-                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].r0 = MENU_SELECTION_TINT_NORMAL;
-                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].g0 = MENU_SELECTION_TINT_NORMAL;
-                g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx].b0 = MENU_SELECTION_TINT_NORMAL;
+                (&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx])->r0 = MENU_SELECTION_TINT_NORMAL;
+                (&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx])->g0 = MENU_SELECTION_TINT_NORMAL;
+                (&g_Menu->pSelectionMenu->polysCursors[i * 2 + g_Menu->pSelectionMenu->cursorsRenderCtx])->b0 = MENU_SELECTION_TINT_NORMAL;
             }
         }
         g_Menu->pSelectionMenu->isDisabledRendered = g_Menu->pSelectionMenu->isDisabled;
