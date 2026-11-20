@@ -25,8 +25,7 @@ build_variables = {
 }
 # Per-file keys may sit on Default as well: a unit whose middle run needs 2.7.2 while
 # the rest of the file wants 2.6.0 keeps only that run's key here (round 314, menu/misc7).
-paths = [     "menu/main/misc7_r1.",
-]
+paths = [ "menu/main/misc7_r1." ]
 
 [[build_preset]]
 name = "PSY-Q"
@@ -332,7 +331,13 @@ paths = [ "menu/main/misc9.", "menu/main/misc5.", "menu/main/misc6.", "menu/main
     # MenuUpdateSubMenuChoice on the Default preset). Every function defined in C
     # in the run is 100.0 under 2.6.0 and 100.0 under Default except
     # func_801CE540, which is byte-identical only here.
-    "menu/main/misc4_260.",
+    "menu/main/misc4_260.",    # menu/main/misc7 was split in round 314 (config/menu.yaml): the head and the tail
+    # are 2.6.0 (func_801D3C4C/4688/49D0 are 100.00 only there, and func_801D3C4C's .s is
+    # byte-identical to shop_menu's 2.6.0-matched ShopMenuInitializeScrollBar), while
+    # MenuSetCharacterWindowContents (the middle run, misc7_r1) is 100.00 only under
+    # Default - one commutative addu operand order that no 2.6.0 spelling moves.
+    "menu/main/misc7.",
+    "menu/main/misc7_r2.",
 ]
 
 # battle/main/misc27 is function-mixed and cannot be a single-preset unit: its
