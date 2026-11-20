@@ -3,6 +3,7 @@
 #define BATTLE_SPOKE_ANGLE_STEP 0x10 // angle increment per spoke, 4096-step turn
 #define BATTLE_SPOKE_RADIUS 0x3F80 // ring radius, also the offset subtracted from the view origin
 #define BATTLE_OT_DEPTH_MAX 0x1C00 // depth limit before the prim is queued
+#define BATTLE_ANGLE_QUARTER_TURN 0x400 // a quarter turn in the 4096-step angle space
 #include "psyq/libgpu.h"
 #include "psyq/libgte.h"
 #include "psyq/inline_c.h"
@@ -800,7 +801,81 @@ void BattleRandomizeCameraSpin(void) {
     func_80083310(0);
 }
 
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc9", func_80083738);
+extern s32 g_BattleCameraTarget;
+extern s32 D_80098680;
+extern s32 D_80098684;
+extern s32 D_8009277C;
+extern u8 g_BattleCameraSpinDirection;
+extern s32 BattleVectorDistance(s32* pA, s32* pB);
+extern s32 BattleVectorLength2D(s32* p);
+
+// Mirrors the camera on the combatants' midpoint and orbits it to whichever of
+// the two candidate points on the ring is nearer, moving a fraction of the way
+// there each frame (the ring shrinks as the pair closes).
+void func_80083738(VECTOR* pA, VECTOR* pB) {
+    VECTOR pos;
+    s32 radius;
+    VECTOR alt;
+    VECTOR pad0[2]; // unused: the original's frame carries two more 0x10 slots
+    VECTOR* pCamPos;
+    long* pBvz;
+    s32* pTargetX;
+    s32 angle;
+    s32 dist;
+    s32 lenPos;
+    s32 lenAlt;
+
+    angle = ratan2(pA->vx - pB->vx, pA->vz - pB->vz);
+    dist = BattleVectorDistance((s32*)pA, (s32*)pB);
+    pTargetX = &g_BattleCameraTarget;
+    *pTargetX = (pA->vx + pB->vx) / 2;
+    radius = dist * 2 / 3 + 0xC0;
+    pBvz = &pB->vz;
+    D_80098680 = (pA->vy + pB->vy) / 2 - 0xA0;
+    D_80098684 = (pA->vz + *pBvz) / 2;
+    g_BattleCameraOrbitRadius = radius;
+    pos.vx = *pTargetX + ((rcos(angle - BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vz = D_80098684 + ((rsin(angle - BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    alt.vx = *pTargetX + ((rcos(angle + BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    alt.vz = D_80098684 + ((rsin(angle + BATTLE_ANGLE_QUARTER_TURN) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vx -= g_BattleCameraPos;
+    pos.vy -= g_BattleCameraPosY;
+    pos.vz -= g_BattleCameraPosZ;
+    alt.vx -= g_BattleCameraPos;
+    alt.vy -= g_BattleCameraPosY;
+    alt.vz -= g_BattleCameraPosZ;
+    lenPos = BattleVectorLength2D((s32*)&pos);
+    lenAlt = BattleVectorLength2D((s32*)&alt);
+    if (lenAlt < lenPos) {
+        g_BattleCameraAngleStep = BATTLE_ANGLE_QUARTER_TURN;
+        g_BattleCameraSpinDirection = 0;
+    } else {
+        g_BattleCameraAngleStep = -BATTLE_ANGLE_QUARTER_TURN;
+        g_BattleCameraSpinDirection = 1;
+    }
+    dist /= 4;
+    if (dist > 0x300) {
+        dist = 0x300;
+    }
+    pos.vy = D_80098680 - g_BattleCameraYOffset - dist;
+    pos.vx = g_BattleCameraTarget +
+            ((rcos(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
+    pos.vz = D_80098684 + ((rsin(angle + g_BattleCameraAngleStep) * g_BattleCameraOrbitRadius) >> 12);
+    lenPos = func_80082488(&pos, 0) - 0x100;
+    if (lenPos < pos.vy) {
+        pos.vy = lenPos;
+    }
+    pCamPos = (VECTOR*)&g_BattleCameraPos;
+    pos.vx = (pos.vx - pCamPos->vx) / g_BattleCameraLerpFrames;
+    pos.vy = (pos.vy - g_BattleCameraPosY) / g_BattleCameraLerpFrames;
+    pos.vz = (pos.vz - g_BattleCameraPosZ) / g_BattleCameraLerpFrames;
+    D_8009277C = angle;
+    BattleMovePointInsideRadius(pCamPos, &pos, 0x3D00);
+    g_BattleCameraLerpFrames = 0x64;
+    *(volatile s32*)&pCamPos->vx += pos.vx;
+    g_BattleCameraPosY += pos.vy;
+    g_BattleCameraPosZ += pos.vz;
+}
 
 void BattleGetCameraPoints(Unk16* p0, Unk16* p1) {
     *p0 = *(Unk16*)&g_BattleCameraPos;
