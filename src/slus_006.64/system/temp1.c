@@ -200,6 +200,7 @@ void AnimTaskFree(AnimTask* pAnimTask) {
 
 void SpriteAllocFramesData(SpriteData* pSpriteData, s32 count, u_int allocFlags) {
     SpriteDataI1* pBase;
+    SpriteDataI1* pSpriteBase;
     void* pFramesData;
 
     if (pSpriteData->pBase->pFramesData) {
@@ -330,6 +331,7 @@ void SpriteSetDirectionAndRefreshFrames(SpriteData* pSpriteData, s32 direction) 
 
 void SpriteReallocFramesData(SpriteData* pSpriteData, s32 count) {
     SpriteDataI1* pBase;
+    SpriteDataI1* pSpriteBase;
     void* pFramesData;
 
     HeapFree(pSpriteData->pBase->pFramesData);
@@ -414,9 +416,119 @@ void SpriteClearDirTransforms(SpriteData* pSpriteData) {
     }
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
+extern void SpriteComputeTransformMatrix(SpriteData* pSpriteData);
+extern void SpriteSetScale(SpriteData* pSpriteData, s32 scale);
+extern u32 g_GfxWorkListCapacity;
+extern u8 g_IsBattle;
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023538);
+/* Best attempt: 99.89% (716 bytes, the original's size; every instruction identical except one
+   three-instruction register mirror at the tail). Two source facts are load-bearing and should be
+   kept: the animation entry must stay a u16* parameter (a `u16* pAnimHeader = pAnimEntry` local
+   defers the `move s1,a1` copy into the branch and loses the prologue), and each gravity stage
+   needs its OWN local (gravity / gravityStep / scaled) because retail gives the three products
+   three different registers. The remaining tie is the `(flags_0xA8 & 1) == 1U` test at the tail:
+   retail emits `andi v0,v0,1 / li v1,1 / bne v0,v1` (in place, constant in v1), this body
+   `andi v1,v0,1 / li v0,1 / bne v1,v0`. The `(u32)` cast + `1U` comparison is what makes cc1 keep
+   the `li` at all - a plain `(flags & 1) == 1` folds to `andi/beqz` and costs the function 4 bytes.
+   Tried for the tail tie: a s32/u32/u8 local for the masked value (copy instead of in place, the u8
+   one also reloads the field), a constant-first comparison, folding the two tests into one `&&`
+   (which is how the current shape was found - it is required), swapping the `&&` operands, and a
+   3-minute permuter run (1244 iterations, nothing). Also measured: `pBase` must be reassigned as
+   `pSpriteBase = pSpriteData->pBase` in the 0x3C block (one shared local keeps it in v1 and loses
+   the second load), and the three rotation stores must be rotation.z, rotation.x, rotation.y in
+   that order (that is what puts the third store in the jal delay slot).
+// pAnimEntry is an animation entry: u16 word 0 holds the direction/angle flags,
+// words 1 and 2 are byte offsets to the bytecode and to the frame script.
+void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry) {
+    SpriteDataI1* pBase;
+    SpriteDataI1* pSpriteBase;
+    SpriteDataI3* pOpaque;
+    s32 offset;
+    s32 cycles;
+    s32 gravity;
+    s32 gravityStep;
+    s32 scaled;
+    s32 total;
+    s32 value;
+    s32 factor;
+    s32 scale;
+    s32 speed;
+
+    pSpriteData->pCurAnimation = pAnimEntry;
+    offset = pAnimEntry[1] + 2;
+    pSpriteData->pSpriteBytecode = (void*)(offset + (mem_addr)pAnimEntry);
+    pSpriteData->flags_0xA8 = (pSpriteData->flags_0xA8 & 0xFFCFFFFF) | ((pAnimEntry[0] & 3) << 20);
+    offset = pAnimEntry[2] + 4;
+    pSpriteData->field_0x54 = offset + (mem_addr)pAnimEntry;
+    speed = (pAnimEntry[0] >> 2) & 0x3F;
+    if (speed & 0x20) {
+        speed |= -0x40;
+    }
+    cycles = g_AnimScriptExtraTicks + 1;
+    total = cycles * cycles * pSpriteData->field_0x82;
+    gravity = speed << 10;
+    pSpriteData->gravity = gravity;
+    value = total / 4096;
+    scale = ((u32)pSpriteData->flags_0xAC.flags >> 7) & 0xFFF;
+    factor = 0x10000 / scale;
+    gravityStep = gravity * value;
+    pSpriteData->gravity = gravityStep;
+    value = factor * factor / 256;
+    scaled = gravityStep * value;
+    pSpriteData->gravity = scaled;
+    value = scaled / 256;
+    pSpriteData->gravity = value;
+    if (((pAnimEntry[0] >> 11) & 1) == 0) {
+        pSpriteData->step.z = 0;
+        pSpriteData->step.y = 0;
+        pSpriteData->step.x = 0;
+        pSpriteData->moveSpeed = 0;
+    }
+    pBase = pSpriteData->pBase;
+    if (pBase != NULL) {
+        if (((pAnimEntry[0] >> 12) & 1) == 0) {
+            pBase->rotation.z = 0;
+            pBase->rotation.x = 0;
+            pBase->rotation.y = 0;
+            SpriteComputeTransformMatrix(pSpriteData);
+        }
+        if (((pAnimEntry[0] >> 13) & 1) == 0) {
+            if (g_IsBattle) {
+                SpriteSetScale(pSpriteData, g_GfxWorkListCapacity);
+            }
+        }
+        if (g_IsBattle) {
+            SpriteComputeTransformMatrix(pSpriteData);
+        }
+        if ((pSpriteData->field_0x3C_0 & 3) == 1) {
+            pSpriteBase = pSpriteData->pBase;
+            pSpriteBase->offsetY = 0;
+            pSpriteBase->offsetX = 0;
+            if (((pSpriteData->field_0x40 >> 20) & 1) == 0) {
+                if (pSpriteData->pBase->pDirTransforms) {
+                    SpriteClearDirTransforms(pSpriteData);
+                }
+            }
+        }
+    }
+    pSpriteData->stackIndex = 0x10;
+    pSpriteData->field_0x30 = 0;
+    pSpriteData->flags_0xA8 &= ~0x7FE;
+    pSpriteData->animScriptWaitTimer = 1;
+    pSpriteData->flags_0xA8 &= 0xF03FFFFF;
+    pSpriteData->flags_0xA8 &= 0xCFFFFFFF;
+    pSpriteData->flags_0xA8 |= 0x20000000;
+    pSpriteData->flags_0xA8 |= 0x1F800;
+    if ((pSpriteData->field_0x7C != NULL) && ((u32)(pSpriteData->flags_0xA8 & 1) == 1)) {
+        pOpaque = pSpriteData->field_0x7C;
+        pOpaque->field_0x4 = 0;
+        pOpaque->field_0x0 = 0;
+        ((SpriteDataI3*)pSpriteData->field_0x7C)->field_0xC = 0;
+    }
+}
+
+*/INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
 /* Best attempt: 99.10% (312 bytes, every instruction identical except one register pair).
    Only the AC flag word differs: the original keeps the 0xFFF8007F mask in v0 and the loaded
    value in v1, gcc allocates the pair the other way round (and mirrors the 0xA8 word with it).
@@ -680,6 +792,7 @@ extern u8 g_IsBattle;
 SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
                           s16 arg5, s16 arg6) {
     SpriteDataI1* pBase;
+    SpriteDataI1* pSpriteBase;
     void* pFramesData;
     u8* pAnimations;
     u8* pAnimFileData;
