@@ -852,11 +852,6 @@ void func_800785D4(u8 color, u8 index) {
 */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc3", func_800785D4);
 
-// A battle text slot: one 0x60-byte row of the buffer at g_BattleTextSlotRects, holding the
-// rect and the buffer its string is uploaded through (the row is reached through
-// three separate symbols: the rect array, the row's buffer pointer and the byte
-// SystemRenderStringEntry's result is kept in).
-#define BATTLE_TEXT_SLOT_SIZE 0x60
 // A slot is only taken while g_BattleTextSlotCount is below this, the number of
 // rows the buffer has room for.
 #define BATTLE_TEXT_SLOT_MAX 9
