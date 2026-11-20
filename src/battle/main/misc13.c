@@ -458,7 +458,27 @@ u8 BattleCheckActorCommandAvailable(s32 arg0, u8 arg1) {
       lui $at / addu $at / lw %lo form (the array-extern and cast spellings were
       measured dead in round 311; misc16_r2's func_8008FE18 reports the same form).
    Permuter from this body: 1548 iterations base=3486 best=2661 (found u8 arg0),
-   1251 iterations base=2466 best=1991 (found u8 arg3). */
+   1251 iterations base=2466 best=1991 (found u8 arg3).
+   ROUND 313, the residual is now ONE register choice, and it is a swap of which
+   loop invariant gcc hoists: retail keeps the loop BOUND in $s1 (`addiu s1,fp,4`
+   in the BattleParseNumberToDigits delay slot, `slt v0,fp,s1`) and re-forms the
+   rect base inside the loop (`addiu v0,sp,0x18` + `addu`), while this build keeps
+   a bumped rect pointer in $s0 (`addiu s0,s0,8`, stores at 0/2/4/6, the callee's
+   argument passed from it) and rematerialises the bound with lui/addiu every
+   iteration. Same three loop registers (ids base, x, one more), chosen differently.
+   Measured this round, all worse than the 784-byte body above: one `RECT rects[5]`
+   with `rects[0]` as the header and `rects[count + 1]` for the digits (796, 81.88 -
+   gcc keeps `&rects[0]` live across the four calls and spills it into the 0x48 slot,
+   which then promotes count into $s6 and makes the index `(count + 1) * 8`); the same
+   array with the four stores written as `*(s16 *)((u8 *)rects + count * 8 + k)` (800,
+   80.14); a `RECT *pRect = &rects[count]` local for the stores with `&rects[count]` at
+   the call (788, 84.40 - gcc still strength-reduces, and pRect costs the register s1);
+   `volatile s32 count` (852, 70.82 - the reloads come back but so does a 68-byte body).
+   cc1_probe on a self-contained replica of the loop shows the same hoisting on a
+   nearly empty function, so this is loop.c's move_movables preferring the 2-use base
+   over the 1-use bound, not a register limit: no source spelling found that makes it
+   hoist the bound instead. Untried: a spelling where the store base has ONE use per
+   iteration and no live range outside the loop. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80086C88);
 /*
 s32 func_80086C88(u8 arg0, s32 arg1, s32 arg2, u8 arg3, u_long **arg4) {
@@ -721,6 +741,13 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80088490);
    Tried: one live `ofs` for both (63.19%), `n = i; break` vs a separate counter
    (unchanged), swapping the two flag stores (unchanged), and 0x1C spelled inline at
    every site (56.81%).
+   ROUND 313 rewrite measured 57.00% (320 bytes) with the same residual (1) above,
+   written as `u8 newRecord` with the `newRecord = record` arm as an else-block and
+   the second `arg0 * 0x1C` recomputed inline: the loop came out in the same place but
+   the param-table reads flipped to `addu v0,v0,a0` (retail base-first `addu v0,a0,v0`),
+   which is the embedded-assignment lever (`pParam = g_BattleSlotParamTable +
+   g_BattleSlotRecords[ofs] * 8;` as its own statement before the two reads) - untried,
+   and it is the one cheap lead left on this body.
 /*
 void func_80088490(u8 arg0) {
     s32 ofs;
