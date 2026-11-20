@@ -98,7 +98,7 @@ extern void *GetStringEntryFromBank34(s32);
 extern u_long *GetStringEntryFromBank12(s32);
 extern u_long *D_800C3E5C[];
 void func_80092298(u8, u8 *);
-extern u_long *D_800D2DB0;
+extern u_long *g_BattleTextWorkspace;
 extern void bzero(void *, s32);
 extern void HeapFree(void *);
 extern u8 *g_BattleCommandQueue;
@@ -198,13 +198,13 @@ void func_80091064(u8 arg0) {
     func_80076EA4();
     func_8008FC1C(0x20, 0x30, 0x98, 0x38, 0xC);
     pBuf = BattleAllocTextBuffer(0x39);
-    D_800D2DB0 = pBuf;
+    g_BattleTextWorkspace = pBuf;
     bzero(pBuf, 0x618);
     blankRect.x = 0x3C0;
     blankRect.y = 0;
     blankRect.w = 0x3C;
     blankRect.h = 0xD;
-    BattleLoadImageAndSync(&blankRect, D_800D2DB0);
+    BattleLoadImageAndSync(&blankRect, g_BattleTextWorkspace);
     if (g_BattleSlotFlags[arg0 * 8] == 0) {
         slotOff = arg0 * 0x5F0;
         rowOff = 0x370;
@@ -246,7 +246,7 @@ void func_80091064(u8 arg0) {
         tileRect.y = 0x100 + (i / 2) * 0x10;
         tileRect.w = 0x1B;
         tileRect.h = 0x10;
-        BattleLoadImageAndSync(&tileRect, D_800D2DB0);
+        BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
         if (active[i] != 0) {
             if (g_BattleSlotFlags[arg0 * 8] == 0) {
                 pStr = GetStringEntryFromBank14(*(u8 *)(D_800CCD3E + arg0 * 0x170) * 0x10 + i);
@@ -265,25 +265,25 @@ void func_80091064(u8 arg0) {
             stripRect.y = 0x100 + (i / 2) * 0x10;
             stripRect.w = 0x1B;
             stripRect.h = 0x10;
-            BattleLoadImageAndSync(&stripRect, D_800D2DB0);
+            BattleLoadImageAndSync(&stripRect, g_BattleTextWorkspace);
         }
         tensRect.x = 0x3C0 + (i % 2) * 0x10;
         tensRect.y = 0x102 + (i / 2) * 0x10;
         tensRect.w = 6;
         tensRect.h = 0xD;
         index = values[i] / 10;
-        BattleLoadImageAndSync(&tensRect, index != 0 ? D_800C3E5C[index] : D_800D2DB0);
+        BattleLoadImageAndSync(&tensRect, index != 0 ? D_800C3E5C[index] : g_BattleTextWorkspace);
         onesRect.x = 0x3C2 + (i % 2) * 0x10;
         onesRect.y = 0x102 + (i / 2) * 0x10;
         onesRect.w = 6;
         onesRect.h = 0xD;
-        BattleLoadImageAndSync(&onesRect, active[i] != 0 ? D_800C3E5C[values[i] % 10] : D_800D2DB0);
+        BattleLoadImageAndSync(&onesRect, active[i] != 0 ? D_800C3E5C[values[i] % 10] : g_BattleTextWorkspace);
     }
     func_80090E7C(arg0);
     for (i = 0; i < BATTLE_STATUS_ROW_COUNT; i++) {
         HeapFree(bufs[i]);
     }
-    HeapFree(D_800D2DB0);
+    HeapFree(g_BattleTextWorkspace);
     BattleUpdateFrame();
     *(u16 *)(g_BattleGraphicsWork->pPacketPrims + 0x14E) = g_SystemPalette1;
     *(u16 *)(g_BattleGraphicsWork->pPacketPrims + 0x176) = g_SystemPalette1;
@@ -659,13 +659,13 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     divisors[2] = 10;
     BattleAllocPacketPrimitives();
     func_80076EA4();
-    D_800D2DB0 = BattleAllocTextBuffer(0x39);
-    bzero(D_800D2DB0, 0x618);
+    g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
+    bzero(g_BattleTextWorkspace, 0x618);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
     rect.h = 0xD;
-    BattleLoadImageAndSync(&rect, D_800D2DB0);
+    BattleLoadImageAndSync(&rect, g_BattleTextWorkspace);
     for (i = 0; i < 8; i++) {
         pBufs[i] = BattleAllocTextBuffer(0x1B);
         bzero(pBufs[i], 0x30C);
@@ -673,7 +673,7 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
         tileRect.y = (i / 2) * 16 + 0x100;
         tileRect.w = 0x1B;
         tileRect.h = 0x10;
-        BattleLoadImageAndSync(&tileRect, D_800D2DB0);
+        BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
         if (i == 7) {
             SystemRenderStringEntry(GetStringEntryFromBank12(0xA), pBufs[i], 0x1B, 0);
             glyphRect.x = (i % 2) * 0x1E + 0x380;
@@ -696,28 +696,28 @@ nextTile:
             secondRect.y = (i / 2) * 16 + 0x100;
             secondRect.w = 0x1B;
             secondRect.h = 0x10;
-            BattleLoadImageAndSync(&secondRect, D_800D2DB0);
+            BattleLoadImageAndSync(&secondRect, g_BattleTextWorkspace);
         }
         tensRect.x = (i % 2) * 16 + 0x3C0;
         tensRect.y = (i / 2) * 16 + 0x102;
         tensRect.w = 6;
         tensRect.h = 0xD;
         if (i == 7) {
-            BattleLoadImageAndSync(&tensRect, D_800D2DB0);
+            BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
             onesRect.x = (i % 2) * 16 + 0x3C2;
             onesRect.y = (i / 2) * 16 + 0x102;
             onesRect.w = 6;
             onesRect.h = 0xD;
-            pData = D_800D2DB0;
+            pData = g_BattleTextWorkspace;
         } else {
             tensDigit = arg2[i] / 10;
-            BattleLoadImageAndSync(&tensRect, tensDigit != 0 ? D_800C3E5C[tensDigit] : D_800D2DB0);
+            BattleLoadImageAndSync(&tensRect, tensDigit != 0 ? D_800C3E5C[tensDigit] : g_BattleTextWorkspace);
             onesRect.x = (i % 2) * 16 + 0x3C2;
             onesRect.y = (i / 2) * 16 + 0x102;
             onesRect.w = 6;
             onesRect.h = 0xD;
             onesDigit = arg2[i] % 10;
-            pData = arg1[i] != 0xFF ? D_800C3E5C[onesDigit] : D_800D2DB0;
+            pData = arg1[i] != 0xFF ? D_800C3E5C[onesDigit] : g_BattleTextWorkspace;
         }
         BattleLoadImageAndSync(&onesRect, pData);
     }
@@ -725,7 +725,7 @@ nextTile:
     for (i = 0; i < 8; i++) {
         HeapFree(pBufs[i]);
     }
-    HeapFree(D_800D2DB0);
+    HeapFree(g_BattleTextWorkspace);
     BattleDrawSlotStatusPanel();
 }
 */
@@ -891,13 +891,13 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     divisors[2] = 10;
     BattleAllocPacketPrimitives();
     func_80076EA4();
-    D_800D2DB0 = BattleAllocTextBuffer(0x39);
-    bzero(D_800D2DB0, 0x618);
+    g_BattleTextWorkspace = BattleAllocTextBuffer(0x39);
+    bzero(g_BattleTextWorkspace, 0x618);
     rect.x = 0x3C0;
     rect.y = 0;
     rect.w = 0x3C;
     rect.h = 0xD;
-    BattleLoadImageAndSync(&rect, D_800D2DB0);
+    BattleLoadImageAndSync(&rect, g_BattleTextWorkspace);
     pId = arg1;
     pValue = arg2;
     pGlyphRect = &glyphRect;
@@ -908,7 +908,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
         tileRect.y = i * 16 + 0x100;
         tileRect.w = 0x1B;
         tileRect.h = 0x10;
-        BattleLoadImageAndSync(&tileRect, D_800D2DB0);
+        BattleLoadImageAndSync(&tileRect, g_BattleTextWorkspace);
         started = 0;
         if (*pId != 0xFF) {
             SystemRenderStringEntry(GetStringEntryFromBank34(g_BattleSlotTextIndex[arg0 * 0x170] * 4 + i),
@@ -923,7 +923,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
         secondRect.y = i * 16 + 0x100;
         secondRect.w = 0x1B;
         secondRect.h = 0x10;
-        BattleLoadImageAndSync(&secondRect, D_800D2DB0);
+        BattleLoadImageAndSync(&secondRect, g_BattleTextWorkspace);
         for (j = 0; j < 3; j++) {
             tensRect.x = 0x3C0 + j * 2;
             tensRect.y = i * 16 + 0x102;
@@ -936,7 +936,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
                 started = 1;
                 *pValue -= digit * divisors[j];
             } else {
-                BattleLoadImageAndSync(&tensRect, D_800D2DB0);
+                BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
             }
         }
         onesRect.x = 0x3C6;
@@ -948,7 +948,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
             onesDigit = value % 10;
             BattleLoadImageAndSync(&onesRect, D_800C3E5C[onesDigit]);
         } else {
-            BattleLoadImageAndSync(&onesRect, D_800D2DB0);
+            BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }
         pId++;
         pValue++;
@@ -956,7 +956,7 @@ void func_800930AC(u8 arg0, u8 *arg1, u16 *arg2) {
     for (i = 0; i < 4; i++) {
         HeapFree(pBufs[i]);
     }
-    HeapFree(D_800D2DB0);
+    HeapFree(g_BattleTextWorkspace);
     *(u16 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28 + 0xE) = g_SystemPalette1;
     BattleSetPolyFT4Rect((POLY_FT4 *)(g_BattleGraphicsWork->pPacketPrims + ((s32 *)g_BattlePrimStartIndex)[0] * 0x28),
                          0x94, 0x54, 0, 0, 0x60, 0x40);

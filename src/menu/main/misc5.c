@@ -25,7 +25,7 @@ extern void MenuAddUnk1BE0Prims(void);
 extern void MenuAddSpriteGroupPrims(void);
 extern void MenuRenderSelectionCursor(void);
 extern void MenuRenderPointerCursors(void);
-extern void func_801CEC40(void);
+extern void MenuAddSelectionMenuPrims(void);
 extern void MenuUpdateWindowAnimations(void);
 extern void MenuAddCharacterWindowPrims(void);
 extern void MenuAddUnk358Prims(void);
@@ -442,7 +442,7 @@ void MenuAddScreen0Prims(void) {
     MenuAddScrollHandlePrims();
     MenuAddShoulderButtonPrims();
     MenuRenderWindows();
-    func_801CEC40();
+    MenuAddSelectionMenuPrims();
     MenuAddUnk5StringPrims();
 }
 
@@ -453,7 +453,7 @@ void MenuAddScreen2Prims(void) {
     MenuRenderSelectionCursor();
     func_801D02D8();
     MenuAddCellGridPrims();
-    func_801CEC40();
+    MenuAddSelectionMenuPrims();
     MenuAddUnk5StringPrims();
     MenuRenderWindows();
 }

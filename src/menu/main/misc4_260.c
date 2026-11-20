@@ -462,7 +462,7 @@ void MenuAddUnk360Prims(void) {
 // changes, then both prim runs go into the ordering table.  Each store re-reads
 // g_Menu->pSelectionMenu: the prim block is reached through two global loads and
 // every store invalidates them.
-void func_801CEC40(void) {
+void MenuAddSelectionMenuPrims(void) {
     if (!g_Menu->pManager->shouldRenderSelectionMenu) {
         return;
     }

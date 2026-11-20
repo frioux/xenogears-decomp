@@ -14,7 +14,7 @@
 extern u8 g_BattleCommandGridIds[];
 extern u8 g_BattleCommandCellUses[];
 extern u_long *D_800C3E5C[];
-extern u_long *D_800D2DB0;
+extern u_long *g_BattleTextWorkspace;
 extern void BattleAllocPacketPrimitives(void);
 extern void func_80076EA4(void);
 extern void *GetItemName(s32);
@@ -239,13 +239,13 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         func_8008FC1C(0x20, 0x5C, 0xCC, 0x60, 0xE);
     }
     pBuf = BattleAllocTextBuffer(0x39);
-    D_800D2DB0 = pBuf;
+    g_BattleTextWorkspace = pBuf;
     bzero(pBuf, 0x618);
     blankRect.x = 0x3C0;
     blankRect.y = 0;
     blankRect.w = 0x3C;
     blankRect.h = 0xD;
-    BattleLoadImageAndSync(&blankRect, D_800D2DB0);
+    BattleLoadImageAndSync(&blankRect, g_BattleTextWorkspace);
     for (i = 0; i < BATTLE_COMMAND_CELL_COUNT; i++) {
         cellIds[i] = g_BattleCommandGridIds[i];
         cellUses[i] = g_BattleCommandCellUses[i];
@@ -285,29 +285,29 @@ void func_8008FE18(s32 arg0, s32 arg1, u8 arg2) {
         if (tens != 0) {
             BattleLoadImageAndSync(&tensRect, D_800C3E5C[tens]);
         } else {
-            BattleLoadImageAndSync(&tensRect, D_800D2DB0);
+            BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
         }
         ones = cellUses[i] % 10;
         if (cellIds[i] != 0) {
             BattleLoadImageAndSync(&onesRect, D_800C3E5C[ones]);
         } else {
-            BattleLoadImageAndSync(&onesRect, D_800D2DB0);
+            BattleLoadImageAndSync(&onesRect, g_BattleTextWorkspace);
         }
         if (cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10 != 0) {
             BattleLoadImageAndSync(&tens2Rect, D_800C3E5C[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] / 10]);
         } else {
-            BattleLoadImageAndSync(&tens2Rect, D_800D2DB0);
+            BattleLoadImageAndSync(&tens2Rect, g_BattleTextWorkspace);
         }
         if (cellIds[i + BATTLE_COMMAND_CELL_ROW_STEP] != 0) {
             BattleLoadImageAndSync(&ones2Rect, D_800C3E5C[cellUses[i + BATTLE_COMMAND_CELL_ROW_STEP] % 10]);
         } else {
-            BattleLoadImageAndSync(&ones2Rect, D_800D2DB0);
+            BattleLoadImageAndSync(&ones2Rect, g_BattleTextWorkspace);
         }
     }
     for (i = 0; i < BATTLE_COMMAND_ROW_COUNT; i++) {
         HeapFree(bufs[i]);
     }
-    HeapFree(D_800D2DB0);
+    HeapFree(g_BattleTextWorkspace);
     BattleUpdateFrame();
     g_BattleGraphicsWork->pPacketPrims[0x669] = 1;
     g_BattleDisplayState->primState = 2;
