@@ -212,33 +212,6 @@ int ArchiveReadFile(u32 dbgEntryIndex, u8* pDestBuffer, s32 arg2, s32 flags) {
     return 0;
 }
 
-/* Best attempt: objdiff 91.28%, 948 bytes against retail's 940. Rebuilt from
- * the .s (the previous draft was 81.29%); the whole structure, the frame (0x40,
- * all eight s-registers plus ra) and every branch target now agree. What is left:
- *  1. CSE folds the second `lhu` in the selection-sort inner loop: retail reloads
- *     `pQueue[j].archiveIndex` in the arm (`lhu s1,0(a0)`) where this body copies
- *     the tested value (`move t0,a0`). Tried: reading the arm through
- *     pQueue[nMinIndex] instead - it folds too.
- *  2. The sort loop's four variables land in $a1/$a3/$t0/$t1 here and in
- *     $a1/$a3/$v1/$s0/$s1 in retail: retail spills the loop's min value and j to
- *     $s0/$s1 (disjoint live ranges from nRetry/nEntryIndex) and this compile
- *     leaves those two free for the later debug loop. Declaration order tried.
- *  3. Block layout of the two `return 0` tails: retail puts the shared tail
- *     (g_ArchiveCurFileSize/g_ArchivePendingReadCount) BEFORE the streaming else
- *     arm and lets that arm fall into the epilogue; here the else arm jumps over
- *     the tail. A permuter run's only better candidate (1443 vs 1503) deleted the
- *     else arm's early return, i.e. wrong code - rejected.
- * Also: retail's PCopen retry loop sends its exhaustion edge straight to the
- * PCclose loop (`j .L80029DBC; move s0,zero`), which means the PCread block sits
- * inside the success arm; writing it that way (`if (hFile != -1) { read; break; }`)
- * duplicates the retry arm and measures WORSE (83.04%, frame 0x38).
- * The 91.28% above is measured with StreamDataQueueEntry.archiveIndex widened to
- * u16 in include/system/archive.h: retail reads the field unsigned (lhu + sltu)
- * while the header says `short`. With `short` the same body is ~1% lower and
- * gains a stray `andi 0xFFFF` before the g_ArchiveCurEntryIndex store. No other
- * unit READS that field today (all uses are stores, byte-identical either way),
- * so widening it is safe, but it is a header decision and was left alone.
- */
 int func_80029AFC(StreamDataQueueEntry* pQueue, s32 channel) {
     StreamDataQueueEntry* pEntry;
     StreamDataQueueEntry* pCurEntry;
@@ -278,6 +251,7 @@ int func_80029AFC(StreamDataQueueEntry* pQueue, s32 channel) {
         for (j = i + 1; j < nCount; j++) {
             if (pQueue[j].archiveIndex < nEntryIndex) {
                 nMinIndex = j;
+                /* volatile: the original reloads the field instead of reusing the tested value */
                 nEntryIndex = *(volatile u16*)&pQueue[nMinIndex].archiveIndex;
             }
         }
@@ -310,54 +284,52 @@ int func_80029AFC(StreamDataQueueEntry* pQueue, s32 channel) {
         return 0;
     }
 
-    {
-        g_ArchiveCurEntryIndex = nIndex;
-        g_ArchiveCurFileSector = ArchiveDecodeSector(nIndex);
-        g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nIndex);
-        g_ArchiveCdChannel = channel & 0xFFFF;
-        g_ArchiveStreamResumedFile = 0;
-        g_ArchiveStreamStopFlag = 0;
-        g_ArchiveReadRetryCount = 0;
-        pLoc = &g_ArchiveCdCurLocation;
-        CdIntToPos(g_ArchiveCurFileSector, pLoc);
+    g_ArchiveCurEntryIndex = nIndex;
+    g_ArchiveCurFileSector = ArchiveDecodeSector(nIndex);
+    g_ArchiveCurFileSize = ArchiveDecodeSizeAligned(nIndex);
+    g_ArchiveCdChannel = channel & 0xFFFF;
+    g_ArchiveStreamResumedFile = 0;
+    g_ArchiveStreamStopFlag = 0;
+    g_ArchiveReadRetryCount = 0;
+    pLoc = &g_ArchiveCdCurLocation;
+    CdIntToPos(g_ArchiveCurFileSector, pLoc);
 
-        if (g_ArchiveDebugTable != 0) {
-            for (i = 0; i < nCount; i++) {
-                nEntryIndex = pQueue[i].archiveIndex;
-                g_ArchiveCurEntryIndex = nEntryIndex;
-                pFilePath = ArchiveGetFilePath(nEntryIndex);
+    if (g_ArchiveDebugTable != 0) {
+        for (i = 0; i < nCount; i++) {
+            nEntryIndex = pQueue[i].archiveIndex;
+            g_ArchiveCurEntryIndex = nEntryIndex;
+            pFilePath = ArchiveGetFilePath(nEntryIndex);
 
+            /* the gotos keep the PCread block out of line and the exhaustion edge on CdClose */
+            for (j = 0; j < RETRY_COUNT; j++) {
+                hFile = PCopen(pFilePath, 0, 0);
+                if (hFile != -1)
+                    goto opened;
+                GfxDrawArchiveReadRetry(j, 0xFF, 0, 0);
+            }
+            goto close;
+
+        opened:
+            if (pQueue[i].pData != NULL) {
+                pCurEntry = &pQueue[i];
                 for (j = 0; j < RETRY_COUNT; j++) {
-                    hFile = PCopen(pFilePath, 0, 0);
-                    if (hFile != -1)
-                        goto opened;
-                    GfxDrawArchiveReadRetry(j, 0xFF, 0, 0);
-                }
-                goto close;
-
-            opened:
-                if (pQueue[i].pData != NULL) {
-                    pCurEntry = &pQueue[i];
-                    for (j = 0; j < RETRY_COUNT; j++) {
-                        if (PCread(hFile, pCurEntry->pData, ArchiveDecodeSizeAligned(nEntryIndex)) != 0)
-                            break;
-                        GfxDrawArchiveReadRetry(j, 0, 0xFF, 0);
-                    }
-                }
-
-            close:
-
-                for (j = 0; j < RETRY_COUNT; j++) {
-                    if (PCclose(hFile) == 0)
+                    if (PCread(hFile, pCurEntry->pData, ArchiveDecodeSizeAligned(nEntryIndex)) != 0)
                         break;
-                    GfxDrawArchiveReadRetry(j, 0, 0, 0xFF);
+                    GfxDrawArchiveReadRetry(j, 0, 0xFF, 0);
                 }
             }
 
-            g_ArchiveCurFileSize = 0;
-            g_ArchivePendingReadCount = 0;
-            return 0;
+        close:
+            for (j = 0; j < RETRY_COUNT; j++) {
+                if (PCclose(hFile) == 0)
+                    break;
+                GfxDrawArchiveReadRetry(j, 0, 0, 0xFF);
+            }
         }
+
+        g_ArchiveCurFileSize = 0;
+        g_ArchivePendingReadCount = 0;
+        return 0;
     }
 
     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_READ_SECTOR;
